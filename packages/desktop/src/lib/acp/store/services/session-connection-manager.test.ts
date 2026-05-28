@@ -804,6 +804,51 @@ describe("SessionConnectionManager.connectSession", () => {
 		expect(setSessionModelForMode).not.toHaveBeenCalled();
 	});
 
+	it("short-circuits without resuming when canonical state already reports canSend", async () => {
+		(stateReader.getSessionCanSend as ReturnType<typeof vi.fn>).mockReturnValue(true);
+
+		const manager = createManager({
+			stateReader,
+			stateWriter,
+			transientProjection,
+			capabilities,
+			entryManager,
+			connectionManager,
+		});
+
+		const result = await manager.connectSession(sessionId, createMockEventHandler());
+		result._unsafeUnwrap();
+
+		expect(resumeSession).not.toHaveBeenCalled();
+	});
+
+	it("forceReconnect bypasses the canSend short-circuit and resumes", async () => {
+		(stateReader.getSessionCanSend as ReturnType<typeof vi.fn>).mockReturnValue(true);
+
+		const manager = createManager({
+			stateReader,
+			stateWriter,
+			transientProjection,
+			capabilities,
+			entryManager,
+			connectionManager,
+		});
+
+		const result = await manager.connectSession(sessionId, createMockEventHandler(), {
+			forceReconnect: true,
+		});
+		result._unsafeUnwrap();
+
+		expect(resumeSession).toHaveBeenCalledWith(
+			sessionId,
+			projectPath,
+			expect.any(Number),
+			undefined,
+			undefined,
+			undefined
+		);
+	});
+
 	it("does not seed session model when session model store not loaded", async () => {
 		getSessionModelForMode.mockReturnValue(undefined);
 		isSessionModelLoaded.mockReturnValue(false);

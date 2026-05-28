@@ -30,6 +30,7 @@ mod preconnection_capabilities;
 mod preconnection_commands;
 mod registry_commands;
 mod session_commands;
+pub(crate) mod transcript_viewport_commands;
 
 #[cfg(test)]
 mod tests;
@@ -54,6 +55,10 @@ pub use session_commands::{
     acp_initialize, acp_new_session, acp_resume_session, acp_set_session_autonomous,
 };
 pub(crate) use session_commands::{emit_lifecycle_event, session_metadata_context_from_cwd};
+pub use transcript_viewport_commands::{
+    acp_confirm_transcript_viewport_height, acp_resize_transcript_viewport,
+    acp_reveal_transcript_viewport_row, acp_scroll_transcript_viewport,
+};
 
 type SessionClientMutex = TokioMutex<Box<dyn AgentClient + Send + Sync + 'static>>;
 type SessionClientArc = Arc<SessionClientMutex>;

@@ -34,6 +34,7 @@ const SESSION_STATE_ENVELOPE_MAX_BYTES_BY_KIND = {
 	telemetry: 16_000,
 	plan: 128_000,
 	assistantTextDelta: 8_000,
+	visibleTranscriptWindow: 96_000,
 } satisfies Record<SessionStatePayloadKind, number>;
 
 export const SESSION_STATE_ENVELOPE_BYTE_BUDGETS: readonly SessionStateEnvelopeByteBudget[] =

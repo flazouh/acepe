@@ -123,6 +123,9 @@ pub enum SerializableAcpError {
 
     #[serde(rename = "provider_history_failed")]
     ProviderHistoryFailed(ProviderHistoryFailure),
+
+    #[serde(rename = "viewport_session_not_attached")]
+    ViewportSessionNotAttached { session_id: String },
 }
 
 impl From<AcpError> for SerializableAcpError {
@@ -247,6 +250,13 @@ impl std::fmt::Display for SerializableAcpError {
                     failure.kind, failure.message
                 )
             }
+            SerializableAcpError::ViewportSessionNotAttached { session_id } => {
+                write!(
+                    f,
+                    "No canonical transcript viewport is attached for session {}",
+                    session_id
+                )
+            }
         }
     }
 }
@@ -298,3 +308,39 @@ pub enum AcpError {
 }
 
 pub type AcpResult<T> = Result<T, AcpError>;
+
+#[cfg(test)]
+mod tests {
+    use super::SerializableAcpError;
+
+    #[test]
+    fn viewport_session_not_attached_serializes_with_snake_case_tag_and_session_id() {
+        let error = SerializableAcpError::ViewportSessionNotAttached {
+            session_id: "session-abc".to_string(),
+        };
+
+        let value = serde_json::to_value(&error).expect("serialize");
+        assert_eq!(value["type"], "viewport_session_not_attached");
+        assert_eq!(value["data"]["session_id"], "session-abc");
+    }
+
+    #[test]
+    fn viewport_session_not_attached_round_trips() {
+        let error = SerializableAcpError::ViewportSessionNotAttached {
+            session_id: "session-xyz".to_string(),
+        };
+
+        let json = serde_json::to_string(&error).expect("serialize");
+        let decoded: SerializableAcpError = serde_json::from_str(&json).expect("deserialize");
+        assert_eq!(decoded, error);
+    }
+
+    #[test]
+    fn viewport_session_not_attached_display_mentions_session() {
+        let error = SerializableAcpError::ViewportSessionNotAttached {
+            session_id: "session-123".to_string(),
+        };
+
+        assert!(error.to_string().contains("session-123"));
+    }
+}

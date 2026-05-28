@@ -112,6 +112,44 @@ function createPlan(contentMarkdown: string | null = "## Plan") {
 	};
 }
 
+function createVisibleTranscriptWindow(rowCount: number, textSize: number) {
+	return {
+		sessionId: "session-1",
+		graphRevision: revision,
+		viewportRevision: 1,
+		totalHeightPx: rowCount * 120,
+		viewportOffsetPx: Math.max(0, rowCount * 120 - 720),
+		visibleStartIndex: 0,
+		visibleEndIndex: rowCount,
+		rows: Array.from({ length: rowCount }, (_, index) => ({
+			rowId: `transcript:assistant-${index}`,
+			sourceEntryId: `assistant-${index}`,
+			kind: "assistantText" as const,
+			version: `v-${index}`,
+			anchorEligible: true,
+			activeStreamingTail: null,
+			operationLinks: [],
+			interactionLinks: [],
+			content: {
+				kind: "transcript" as const,
+				role: "assistant" as const,
+				segments: [
+					{
+						kind: "text" as const,
+						segmentId: `assistant-${index}:text`,
+						text: "x".repeat(textSize),
+					},
+				],
+			},
+		})),
+		rowOffsetsPx: Array.from({ length: rowCount }, (_, index) => index * 120),
+		mode: {
+			kind: "followingTail" as const,
+		},
+		diagnostics: [],
+	};
+}
+
 function createSnapshotGraph(assistantText = "Hello"): SessionStateGraph {
 	return {
 		requestedSessionId: "session-1",
@@ -165,6 +203,7 @@ describe("session-state envelope byte budgets", () => {
 			"plan",
 			"snapshot",
 			"telemetry",
+			"visibleTranscriptWindow",
 		]);
 	});
 
@@ -174,6 +213,15 @@ describe("session-state envelope byte budgets", () => {
 		);
 		expect(getSessionStateEnvelopeByteBudget("delta")).toBeLessThan(
 			getSessionStateEnvelopeByteBudget("snapshot")
+		);
+	});
+
+	it("keeps visible-window budget below snapshot budget but above tiny token deltas", () => {
+		expect(getSessionStateEnvelopeByteBudget("visibleTranscriptWindow")).toBeLessThan(
+			getSessionStateEnvelopeByteBudget("snapshot")
+		);
+		expect(getSessionStateEnvelopeByteBudget("visibleTranscriptWindow")).toBeGreaterThan(
+			getSessionStateEnvelopeByteBudget("assistantTextDelta")
 		);
 	});
 
@@ -215,6 +263,33 @@ describe("session-state envelope byte budgets", () => {
 			ok: false,
 			kind: "assistantTextDelta",
 			maxBytes: getSessionStateEnvelopeByteBudget("assistantTextDelta"),
+		});
+	});
+
+	it("accepts a bounded visible transcript window", () => {
+		const result = checkSessionStateEnvelopeByteBudget(
+			createEnvelope({
+				kind: "visibleTranscriptWindow",
+				window: createVisibleTranscriptWindow(24, 40),
+			})
+		);
+
+		expect(result.ok).toBe(true);
+		expect(result.kind).toBe("visibleTranscriptWindow");
+	});
+
+	it("rejects full-transcript shaped visible transcript windows", () => {
+		const result = checkSessionStateEnvelopeByteBudget(
+			createEnvelope({
+				kind: "visibleTranscriptWindow",
+				window: createVisibleTranscriptWindow(2_000, 120),
+			})
+		);
+
+		expect(result).toMatchObject({
+			ok: false,
+			kind: "visibleTranscriptWindow",
+			maxBytes: getSessionStateEnvelopeByteBudget("visibleTranscriptWindow"),
 		});
 	});
 

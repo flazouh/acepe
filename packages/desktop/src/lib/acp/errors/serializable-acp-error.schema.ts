@@ -105,6 +105,11 @@ const ProviderHistoryFailedSchema = z.object({
 	}),
 });
 
+const ViewportSessionNotAttachedSchema = z.object({
+	type: z.literal("viewport_session_not_attached"),
+	data: z.object({ session_id: z.string() }),
+});
+
 /**
  * Combined schema for all SerializableAcpError variants.
  */
@@ -124,6 +129,7 @@ export const SerializableAcpErrorSchema = z.discriminatedUnion("type", [
 	InvalidStateSchema,
 	CreationFailedSchema,
 	ProviderHistoryFailedSchema,
+	ViewportSessionNotAttachedSchema,
 ]);
 
 /**

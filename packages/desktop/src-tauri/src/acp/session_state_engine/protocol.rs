@@ -8,6 +8,7 @@ use crate::acp::session_state_engine::selectors::{
 };
 use crate::acp::session_update::{PlanData, UsageTelemetryData};
 use crate::acp::transcript_projection::TranscriptDeltaOperation;
+use crate::acp::transcript_viewport::{TranscriptViewportRow, ViewportMode};
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, specta::Type, PartialEq, Eq)]
@@ -79,6 +80,9 @@ pub enum SessionStatePayload {
     AssistantTextDelta {
         delta: AssistantTextDeltaPayload,
     },
+    VisibleTranscriptWindow {
+        window: VisibleTranscriptWindowPayload,
+    },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
@@ -92,9 +96,38 @@ pub struct AssistantTextDeltaPayload {
     pub revision: i64,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct VisibleTranscriptWindowPayload {
+    pub session_id: String,
+    pub graph_revision: SessionGraphRevision,
+    pub viewport_revision: i64,
+    pub total_height_px: u64,
+    pub viewport_offset_px: u64,
+    pub visible_start_index: usize,
+    pub visible_end_index: usize,
+    pub rows: Vec<TranscriptViewportRow>,
+    pub row_offsets_px: Vec<u64>,
+    pub mode: ViewportMode,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub diagnostics: Vec<VisibleTranscriptWindowDiagnostic>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct VisibleTranscriptWindowDiagnostic {
+    pub code: String,
+    pub row_id: Option<String>,
+}
+
 #[cfg(test)]
 mod tests {
-    use super::{AssistantTextDeltaPayload, SessionStatePayload};
+    use super::{
+        AssistantTextDeltaPayload, SessionStatePayload, VisibleTranscriptWindowDiagnostic,
+        VisibleTranscriptWindowPayload,
+    };
+    use crate::acp::session_state_engine::revision::SessionGraphRevision;
+    use crate::acp::transcript_viewport::{TranscriptViewportRow, ViewportMode};
 
     #[test]
     fn assistant_text_delta_round_trip_preserves_all_fields() {
@@ -166,5 +199,50 @@ mod tests {
             result.is_err(),
             "expected deserialize error, got {result:?}"
         );
+    }
+
+    #[test]
+    fn visible_transcript_window_round_trip_uses_camel_case_wire_fields() {
+        let payload = SessionStatePayload::VisibleTranscriptWindow {
+            window: VisibleTranscriptWindowPayload {
+                session_id: "session-1".to_string(),
+                graph_revision: SessionGraphRevision::new(3, 2, 9),
+                viewport_revision: 4,
+                total_height_px: 240,
+                viewport_offset_px: 120,
+                visible_start_index: 1,
+                visible_end_index: 2,
+                rows: Vec::<TranscriptViewportRow>::new(),
+                row_offsets_px: Vec::new(),
+                mode: ViewportMode::FollowingTail,
+                diagnostics: vec![VisibleTranscriptWindowDiagnostic {
+                    code: "empty_window".to_string(),
+                    row_id: None,
+                }],
+            },
+        };
+
+        let json = serde_json::to_string(&payload).expect("serialize");
+        assert!(json.contains("\"kind\":\"visibleTranscriptWindow\""));
+        assert!(json.contains("\"sessionId\":\"session-1\""));
+        assert!(json.contains("\"graphRevision\""));
+        assert!(json.contains("\"viewportRevision\":4"));
+        assert!(json.contains("\"totalHeightPx\":240"));
+        assert!(json.contains("\"viewportOffsetPx\":120"));
+        assert!(json.contains("\"visibleStartIndex\":1"));
+        assert!(json.contains("\"visibleEndIndex\":2"));
+        assert!(json.contains("\"rowOffsetsPx\":[]"));
+
+        let restored: SessionStatePayload = serde_json::from_str(&json).expect("deserialize");
+        match restored {
+            SessionStatePayload::VisibleTranscriptWindow { window } => {
+                assert_eq!(window.session_id, "session-1");
+                assert_eq!(window.graph_revision, SessionGraphRevision::new(3, 2, 9));
+                assert_eq!(window.viewport_revision, 4);
+                assert_eq!(window.total_height_px, 240);
+                assert_eq!(window.rows.len(), 0);
+            }
+            other => panic!("unexpected variant: {other:?}"),
+        }
     }
 }

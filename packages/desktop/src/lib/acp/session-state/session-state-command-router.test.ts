@@ -3,7 +3,9 @@ import { describe, expect, it } from "vitest";
 import type {
 	OperationSnapshot,
 	SessionGraphActivity,
+	SessionGraphRevision,
 	SessionStateEnvelope,
+	VisibleTranscriptWindowPayload,
 } from "../../services/acp-types.js";
 import { routeSessionStateEnvelope } from "./session-state-command-router.js";
 import { getSessionStateEnvelopeByteBudget } from "./session-state-envelope-budget.js";
@@ -14,6 +16,12 @@ const runningOperationActivity: SessionGraphActivity = {
 	activeSubagentCount: 0,
 	dominantOperationId: "session-1:tool-1",
 	blockingInteractionId: null,
+};
+
+const revision: SessionGraphRevision = {
+	graphRevision: 8,
+	transcriptRevision: 8,
+	lastEventSeq: 10,
 };
 
 function createTestOperationSnapshot(): OperationSnapshot {
@@ -52,6 +60,46 @@ function createTestOperationSnapshot(): OperationSnapshot {
 			entry_id: "tool-1",
 		},
 		degradation_reason: null,
+	};
+}
+
+function createVisibleWindow(): VisibleTranscriptWindowPayload {
+	return {
+		sessionId: "session-1",
+		graphRevision: revision,
+		viewportRevision: 1,
+		totalHeightPx: 120,
+		viewportOffsetPx: 0,
+		visibleStartIndex: 0,
+		visibleEndIndex: 1,
+		rows: [
+			{
+				rowId: "transcript:assistant-1",
+				sourceEntryId: "assistant-1",
+				kind: "assistantText",
+				version: "v1",
+				anchorEligible: true,
+				activeStreamingTail: null,
+				operationLinks: [],
+				interactionLinks: [],
+				content: {
+					kind: "transcript",
+					role: "assistant",
+					segments: [
+						{
+							kind: "text",
+							segmentId: "assistant-1:text",
+							text: "hello",
+						},
+					],
+				},
+			},
+		],
+		rowOffsetsPx: [0],
+		mode: {
+			kind: "followingTail",
+		},
+		diagnostics: [],
 	};
 }
 
@@ -256,6 +304,65 @@ describe("routeSessionStateEnvelope", () => {
 			{
 				kind: "refreshSnapshot",
 				fromRevision: 8,
+				toRevision: 8,
+			},
+		]);
+	});
+
+	it("routes visible transcript windows as canonical envelope results", () => {
+		const window = createVisibleWindow();
+		const envelope: SessionStateEnvelope = {
+			sessionId: "session-1",
+			graphRevision: 8,
+			lastEventSeq: 10,
+			payload: {
+				kind: "visibleTranscriptWindow",
+				window,
+			},
+		};
+
+		expect(routeSessionStateEnvelope("session-1", revision, envelope)).toEqual([
+			{
+				kind: "applyVisibleTranscriptWindow",
+				window,
+			},
+		]);
+	});
+
+	it("refreshes instead of applying stale visible transcript windows", () => {
+		const window: VisibleTranscriptWindowPayload = {
+			sessionId: "session-1",
+			graphRevision: {
+				graphRevision: 7,
+				transcriptRevision: 7,
+				lastEventSeq: 9,
+			},
+			viewportRevision: 1,
+			totalHeightPx: 0,
+			viewportOffsetPx: 0,
+			visibleStartIndex: 0,
+			visibleEndIndex: 0,
+			rows: [],
+			rowOffsetsPx: [],
+			mode: {
+				kind: "followingTail",
+			},
+			diagnostics: [],
+		};
+		const envelope: SessionStateEnvelope = {
+			sessionId: "session-1",
+			graphRevision: 8,
+			lastEventSeq: 10,
+			payload: {
+				kind: "visibleTranscriptWindow",
+				window,
+			},
+		};
+
+		expect(routeSessionStateEnvelope("session-1", revision, envelope)).toEqual([
+			{
+				kind: "refreshSnapshot",
+				fromRevision: 7,
 				toRevision: 8,
 			},
 		]);

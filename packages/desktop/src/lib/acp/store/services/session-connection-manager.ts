@@ -62,6 +62,15 @@ let nextAttemptId = 1;
 interface ConnectSessionOptions {
 	agentOverrideId?: string;
 	openToken?: string;
+	/**
+	 * Bypass the "already connected" short-circuit. Used only by viewport
+	 * recovery: after a backend runtime reload the stale canonical lifecycle
+	 * still reports "connected", so a normal reconnect no-ops and never
+	 * re-pushes the visible-window envelope. Forcing the reconnect makes Rust
+	 * re-emit connection-complete (and the visible-window envelope) via the
+	 * live event stream, re-attaching the viewport.
+	 */
+	forceReconnect?: boolean;
 }
 
 export interface CreatedReadySessionResult {
@@ -585,7 +594,7 @@ export class SessionConnectionManager {
 		const effectiveAgentId = options?.agentOverrideId ?? sessionIdentity.agentId;
 
 		const canSend = canSendFromCanonical(this.stateReader, sessionId);
-		if (canSend) {
+		if (canSend && options?.forceReconnect !== true) {
 			logger.info("Session already connected, skipping", {
 				sessionId,
 				canSend,

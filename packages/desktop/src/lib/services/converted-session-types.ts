@@ -55,7 +55,7 @@ export type SessionUpdate = { type: "userMessageChunk"; chunk: ContentChunk; ses
 { type: "usageTelemetryUpdate"; data: UsageTelemetryData } |
 /**
  * Emitted by the async resume task when session connection completes successfully.
- * Carries the session capabilities so the frontend can populate hot state.
+ * Carries session capabilities so the frontend can update canonical projection.
  */
 { type: "connectionComplete"; session_id: string; attempt_id: number; models: SessionModelState; modes: SessionModes; available_commands?: AvailableCommand[] | null; config_options?: ConfigOptionData[] | null; autonomous_enabled?: boolean | null } |
 /**
@@ -276,12 +276,12 @@ export type CurrentModeData = { currentModeId: string }
  */
 export type ConfigOptionUpdateData = { configOptions: ConfigOptionData[] }
 
+export type ConfigOptionPresentation = "hidden" | "advanced" | "compactReasoning" | "compactSpeed"
+
 /**
  * Configuration option data.
  */
 export type ConfigOptionData = { id: string; name: string; category: string; type: string; description?: string | null; currentValue?: JsonValue | null; options?: ConfigOptionValue[]; presentation?: ConfigOptionPresentation }
-
-export type ConfigOptionPresentation = "hidden" | "advanced" | "compactReasoning" | "compactSpeed"
 
 /**
  * Configuration option value.
@@ -840,3 +840,4 @@ export type FileExplorerPreviewResponse =
  * Fallback for binary, too-large, deleted, or unsupported files.
  */
 { kind: "fallback"; file_path: string; file_name: string; reason: string; size_bytes: number | null; git_status: FileGitStatus | null; preview_kind: PreviewKind }
+

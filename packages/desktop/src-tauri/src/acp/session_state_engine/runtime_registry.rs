@@ -6,7 +6,9 @@ use crate::acp::session_state_engine::frontier::{
     decide_frontier_transition, SessionFrontierDecision,
 };
 use crate::acp::session_state_engine::graph::select_active_streaming_tail;
-use crate::acp::session_state_engine::protocol::AssistantTextDeltaPayload;
+use crate::acp::session_state_engine::protocol::{
+    AssistantTextDeltaPayload, VisibleTranscriptWindowDiagnostic, VisibleTranscriptWindowPayload,
+};
 use crate::acp::session_state_engine::selectors::{
     select_session_graph_activity, SessionGraphCapabilities, SessionGraphLifecycle,
 };
@@ -19,6 +21,10 @@ use crate::acp::session_update::{sanitize_config_options_for_canonical, SessionU
 use crate::acp::transcript_projection::{
     TranscriptDelta, TranscriptDeltaOperation, TranscriptEntry, TranscriptEntryRole,
     TranscriptProjectionRegistry, TranscriptSegment, TranscriptSnapshot,
+};
+use crate::acp::transcript_viewport::{
+    project_transcript_viewport_rows, HeightConfirmationOutcome, LayoutIndex, ScrollIntent,
+    TranscriptViewport,
 };
 use crate::acp::types::CanonicalAgentId;
 use crate::db::repository::SessionMetadataRepository;
@@ -67,6 +73,31 @@ impl Default for SessionGraphRuntimeSnapshot {
 pub struct SessionGraphRuntimeRegistry {
     supervisor: Arc<SessionSupervisor>,
     session_anchors: Arc<Mutex<HashMap<String, Arc<SessionAnchor>>>>,
+    transcript_viewports: Arc<Mutex<HashMap<String, TranscriptViewport>>>,
+}
+
+/// Why the builder could not materialize a visible transcript window for a command.
+///
+/// Distinguishes the recoverable "no canonical state in this backend runtime" case
+/// (which the frontend should respond to by re-attaching the session) from benign
+/// no-op outcomes (a stale command revision or an over-budget envelope), which the
+/// frontend already swallows without re-attaching.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum VisibleTranscriptWindowMiss {
+    /// No canonical transcript state exists for this session in the current backend
+    /// runtime. Recoverable by re-attaching the session.
+    SessionNotAttached,
+    /// The command's revision is behind the canonical revision; a benign no-op.
+    StaleRevision,
+    /// The materialized envelope exceeded the byte budget and was skipped.
+    BudgetExceeded,
+}
+
+#[derive(Debug, Clone)]
+pub struct TranscriptViewportHeightConfirmation {
+    pub row_id: String,
+    pub row_version: String,
+    pub height_px: u32,
 }
 
 #[derive(Clone, Copy)]
@@ -92,6 +123,7 @@ impl SessionGraphRuntimeRegistry {
         Self {
             supervisor,
             session_anchors: Arc::new(Mutex::new(HashMap::new())),
+            transcript_viewports: Arc::new(Mutex::new(HashMap::new())),
         }
     }
 
@@ -148,6 +180,10 @@ impl SessionGraphRuntimeRegistry {
 
     pub fn remove_session(&self, session_id: &str) {
         self.supervisor.remove_session(session_id);
+        self.transcript_viewports
+            .lock()
+            .expect("transcript_viewports mutex poisoned")
+            .remove(session_id);
     }
 
     pub fn restore_session_checkpoint(&self, session_id: String, checkpoint: LifecycleCheckpoint) {
@@ -477,6 +513,17 @@ impl SessionGraphRuntimeRegistry {
             ));
         }
         envelopes.extend(self.build_assistant_text_delta_envelopes(request));
+        if let Ok(envelope) = self.build_visible_transcript_window_envelope_for_session(
+            request.session_id,
+            request.revision,
+            request.projection_registry,
+            request.transcript_projection_registry,
+            720,
+            None,
+            None,
+        ) {
+            envelopes.push(envelope);
+        }
         envelopes
     }
 
@@ -822,6 +869,178 @@ impl SessionGraphRuntimeRegistry {
             last_terminal_turn_id: session_snapshot.last_terminal_turn_id,
             active_streaming_tail,
         }
+    }
+
+    pub fn build_visible_transcript_window_envelope_for_session(
+        &self,
+        session_id: &str,
+        revision: SessionGraphRevision,
+        projection_registry: &ProjectionRegistry,
+        transcript_projection_registry: &TranscriptProjectionRegistry,
+        viewport_height_px: u32,
+        scroll_intent: Option<ScrollIntent>,
+        height_confirmation: Option<TranscriptViewportHeightConfirmation>,
+    ) -> Result<SessionStateEnvelope, VisibleTranscriptWindowMiss> {
+        let transcript_snapshot = transcript_projection_registry
+            .snapshot_for_session(session_id)
+            .ok_or(VisibleTranscriptWindowMiss::SessionNotAttached)?;
+        if transcript_snapshot.revision != revision.transcript_revision {
+            tracing::warn!(
+                session_id,
+                command_transcript_revision = revision.transcript_revision,
+                current_transcript_revision = transcript_snapshot.revision,
+                "Rejecting stale transcript viewport materialization request"
+            );
+            return Err(VisibleTranscriptWindowMiss::StaleRevision);
+        }
+        let projection_snapshot = projection_registry.session_projection(session_id);
+        let session_snapshot = projection_snapshot
+            .session
+            .ok_or(VisibleTranscriptWindowMiss::SessionNotAttached)?;
+        let runtime_snapshot = self.snapshot_for_session(session_id);
+        if runtime_snapshot.graph_revision != 0
+            && runtime_snapshot.graph_revision != revision.graph_revision
+        {
+            tracing::warn!(
+                session_id,
+                command_graph_revision = revision.graph_revision,
+                current_graph_revision = runtime_snapshot.graph_revision,
+                "Rejecting stale transcript viewport command revision"
+            );
+            return Err(VisibleTranscriptWindowMiss::StaleRevision);
+        }
+        let operations = projection_snapshot.operations.clone();
+        let interactions = projection_snapshot.interactions.clone();
+        let activity = select_session_graph_activity(
+            &runtime_snapshot.lifecycle,
+            &session_snapshot.turn_state,
+            &operations,
+            &interactions,
+            session_snapshot.active_turn_failure.as_ref(),
+        );
+        let active_streaming_tail = select_active_streaming_tail(
+            &session_snapshot.turn_state,
+            &activity,
+            &transcript_snapshot,
+        );
+        let rows = project_transcript_viewport_rows(
+            &transcript_snapshot,
+            &operations,
+            &interactions,
+            active_streaming_tail.as_ref(),
+        );
+        let mut diagnostics = Vec::new();
+        let (window, visible_rows, row_offsets_px, viewport_revision) = {
+            let mut viewports = self
+                .transcript_viewports
+                .lock()
+                .expect("transcript_viewports mutex poisoned");
+            if let Some(viewport) = viewports.get_mut(session_id) {
+                let layout =
+                    LayoutIndex::from_viewport_rows_preserving(rows.as_slice(), viewport.layout());
+                viewport.replace_layout_preserving_viewport(layout);
+                viewport.resize(viewport_height_px);
+            } else {
+                viewports.insert(
+                    session_id.to_string(),
+                    TranscriptViewport::new(
+                        LayoutIndex::from_viewport_rows(rows.as_slice()),
+                        viewport_height_px,
+                    )
+                    .with_viewport_revision(revision.transcript_revision),
+                );
+            }
+
+            let viewport = viewports
+                .get_mut(session_id)
+                .expect("viewport inserted before materialization");
+            if let Some(intent) = scroll_intent {
+                viewport.apply_scroll_intent(intent);
+            }
+            if let Some(confirmation) = height_confirmation {
+                let transition = viewport.confirm_height(
+                    &confirmation.row_id,
+                    &confirmation.row_version,
+                    confirmation.height_px,
+                );
+                if let Some(outcome) = transition.height_confirmation {
+                    if outcome != HeightConfirmationOutcome::Accepted {
+                        diagnostics.push(VisibleTranscriptWindowDiagnostic {
+                            code: height_confirmation_diagnostic_code(outcome).to_string(),
+                            row_id: Some(confirmation.row_id),
+                        });
+                    }
+                }
+                let window = transition.window;
+                let visible_rows =
+                    rows[window.visible_start_index..window.visible_end_index].to_vec();
+                let row_offsets_px = visible_rows
+                    .iter()
+                    .map(|row| viewport.layout().row_offset_px(&row.row_id).unwrap_or(0))
+                    .collect();
+                (
+                    window,
+                    visible_rows,
+                    row_offsets_px,
+                    viewport.viewport_revision(),
+                )
+            } else {
+                let window = viewport.window();
+                let visible_rows =
+                    rows[window.visible_start_index..window.visible_end_index].to_vec();
+                let row_offsets_px = visible_rows
+                    .iter()
+                    .map(|row| viewport.layout().row_offset_px(&row.row_id).unwrap_or(0))
+                    .collect();
+                (
+                    window,
+                    visible_rows,
+                    row_offsets_px,
+                    viewport.viewport_revision(),
+                )
+            }
+        };
+        let envelope = SessionStateEnvelope {
+            session_id: session_id.to_string(),
+            graph_revision: revision.graph_revision,
+            last_event_seq: revision.last_event_seq,
+            payload: SessionStatePayload::VisibleTranscriptWindow {
+                window: VisibleTranscriptWindowPayload {
+                    session_id: session_id.to_string(),
+                    graph_revision: revision,
+                    viewport_revision,
+                    total_height_px: window.total_height_px,
+                    viewport_offset_px: window.offset_px,
+                    visible_start_index: window.visible_start_index,
+                    visible_end_index: window.visible_end_index,
+                    rows: visible_rows,
+                    row_offsets_px,
+                    mode: window.mode,
+                    diagnostics,
+                },
+            },
+        };
+
+        match session_state_envelope_byte_budget_status(&envelope) {
+            Ok(_) => Ok(envelope),
+            Err(status) => {
+                tracing::warn!(
+                    session_id,
+                    byte_len = status.byte_len,
+                    max_bytes = status.max_bytes,
+                    "Visible transcript window envelope exceeded byte budget; skipping"
+                );
+                Err(VisibleTranscriptWindowMiss::BudgetExceeded)
+            }
+        }
+    }
+}
+
+fn height_confirmation_diagnostic_code(outcome: HeightConfirmationOutcome) -> &'static str {
+    match outcome {
+        HeightConfirmationOutcome::Accepted => "height_accepted",
+        HeightConfirmationOutcome::StaleVersion => "stale_height_confirmation",
+        HeightConfirmationOutcome::MissingRow => "missing_height_confirmation_row",
     }
 }
 
@@ -1337,7 +1556,7 @@ mod tests {
         build_assistant_text_delta_from_components, build_live_session_state_capabilities_envelope,
         build_live_session_state_delta_envelope, build_live_session_state_telemetry_envelope,
         session_state_envelope_byte_budget_status, CapabilityPreviewState,
-        LiveSessionStateEnvelopeRequest, SessionGraphRuntimeRegistry,
+        LiveSessionStateEnvelopeRequest, SessionGraphRuntimeRegistry, VisibleTranscriptWindowMiss,
     };
 
     #[test]
@@ -2943,5 +3162,90 @@ mod tests {
             }
             other => panic!("expected capabilities payload, got {:?}", other),
         }
+    }
+
+    #[test]
+    fn visible_window_builder_reports_session_not_attached_when_no_canonical_state() {
+        let runtime_registry = SessionGraphRuntimeRegistry::new();
+        let projection_registry = ProjectionRegistry::new();
+        let transcript_projection_registry = TranscriptProjectionRegistry::new();
+
+        let outcome = runtime_registry.build_visible_transcript_window_envelope_for_session(
+            "unknown-session",
+            SessionGraphRevision::new(1, 0, 1),
+            &projection_registry,
+            &transcript_projection_registry,
+            720,
+            None,
+            None,
+        );
+
+        assert_eq!(
+            outcome.unwrap_err(),
+            VisibleTranscriptWindowMiss::SessionNotAttached
+        );
+    }
+
+    #[test]
+    fn visible_window_builder_reports_stale_revision_when_transcript_revision_behind() {
+        let runtime_registry = SessionGraphRuntimeRegistry::new();
+        let projection_registry = ProjectionRegistry::new();
+        let transcript_projection_registry = TranscriptProjectionRegistry::new();
+
+        transcript_projection_registry.restore_session_snapshot(
+            "session-stale".to_string(),
+            TranscriptSnapshot {
+                revision: 5,
+                entries: Vec::new(),
+            },
+        );
+
+        let outcome = runtime_registry.build_visible_transcript_window_envelope_for_session(
+            "session-stale",
+            SessionGraphRevision::new(1, 4, 1),
+            &projection_registry,
+            &transcript_projection_registry,
+            720,
+            None,
+            None,
+        );
+
+        assert_eq!(
+            outcome.unwrap_err(),
+            VisibleTranscriptWindowMiss::StaleRevision
+        );
+    }
+
+    #[test]
+    fn visible_window_builder_requires_projection_session_even_when_transcript_present() {
+        let runtime_registry = SessionGraphRuntimeRegistry::new();
+        let projection_registry = ProjectionRegistry::new();
+        let transcript_projection_registry = TranscriptProjectionRegistry::new();
+
+        // Transcript snapshot is present and revision-aligned, but the projection
+        // registry has no session snapshot for this id. The builder must miss as
+        // SessionNotAttached rather than fabricate an empty session.
+        transcript_projection_registry.restore_session_snapshot(
+            "session-missing-projection".to_string(),
+            TranscriptSnapshot {
+                revision: 3,
+                entries: Vec::new(),
+            },
+        );
+
+        let outcome = runtime_registry.build_visible_transcript_window_envelope_for_session(
+            "session-missing-projection",
+            SessionGraphRevision::new(0, 3, 1),
+            &projection_registry,
+            &transcript_projection_registry,
+            720,
+            None,
+            None,
+        );
+
+        assert_eq!(
+            outcome.unwrap_err(),
+            VisibleTranscriptWindowMiss::SessionNotAttached
+        );
     }
 }

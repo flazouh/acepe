@@ -1,5 +1,5 @@
 import type { AcpError } from "./acp-error.js";
-import { CreationFailedAcpError, ProviderHistoryFailedAcpError } from "./acp-error.js";
+import { CreationFailedAcpError, ProviderHistoryFailedAcpError, ViewportSessionNotAttachedAcpError } from "./acp-error.js";
 import { ConnectionError } from "./connection-error.js";
 import { ProtocolError } from "./protocol-error.js";
 import {
@@ -73,6 +73,9 @@ export function deserializeAcpError(serializableError: SerializableAcpError): Ac
 				serializableError.data.sessionId,
 				serializableError.data.retryable
 			);
+
+		case "viewport_session_not_attached":
+			return new ViewportSessionNotAttachedAcpError(serializableError.data.session_id);
 
 		default:
 			// Fallback for unknown error types

@@ -7,83 +7,57 @@ import type {
 	AgentPanelQuestionSelectEvent,
 	AgentPanelSceneEntryModel,
 	AgentToolFileSelectEvent,
+	AgentToolStatus,
 	AssistantRenderBlockContext,
 } from "@acepe/ui/agent-panel";
-import { createVirtualizer } from "@tanstack/svelte-virtual";
-import { get } from "svelte/store";
-import { setContext, untrack } from "svelte";
+import { setContext } from "svelte";
 import { SESSION_CONTEXT_KEY_EXPORT } from "../../../hooks/use-session-context.js";
-import { getChatPreferencesStore } from "../../../store/chat-preferences-store.svelte.js";
+import type { TranscriptViewportProjection } from "../../../store/transcript-viewport-store.svelte.js";
 import type { TurnState } from "../../../store/types.js";
 import type { ModifiedFilesState } from "../../../types/modified-files-state.js";
-import { DEFAULT_STREAMING_ANIMATION_MODE } from "../../../types/streaming-animation-mode.js";
-import ContentBlockRouter from "../../messages/content-block-router.svelte";
-import MessageWrapper from "../../messages/message-wrapper.svelte";
-import PermissionBar from "../../tool-calls/permission-bar.svelte";
+import type {
+	OperationState,
+	SessionStateEnvelope,
+	TranscriptSegment,
+	TranscriptViewportRow,
+} from "../../../../services/acp-types.js";
+import { getChatPreferencesStore } from "../../../store/chat-preferences-store.svelte.js";
 import { getPermissionStore } from "../../../store/permission-store.svelte.js";
 import { getSessionStore } from "../../../store/session-store.svelte.js";
-import { createAgentPanelSceneReadModel } from "../logic/agent-panel-scene-read-model.js";
-import {
-	getSceneDisplayRowKey,
-	type SceneDisplayRow,
-} from "../logic/scene-display-rows.js";
-import {
-	createInitialTranscriptViewportState,
-	reduceTranscriptViewportEvent,
-	type TranscriptViewportState,
-} from "../logic/transcript-viewport-controller.js";
-import type {
-	TranscriptViewportEvent,
-	TranscriptViewportMeasurement,
-} from "../logic/transcript-viewport-events.js";
-import type { TranscriptViewportEffect } from "../logic/transcript-viewport-effects.js";
-import {
-	createTranscriptVirtualizerRendererAdapter,
-	type TranscriptRendererEffectOutcome,
-	type TranscriptRendererAdapter,
-	type TranscriptVirtualizerHandle,
-} from "../logic/transcript-renderer-adapter.js";
-import {
-	isTranscriptViewportFlightRecordingEnabled,
-	recordTranscriptViewportFlight,
-} from "../logic/transcript-viewport-flight-recorder.js";
-import { createTranscriptViewportScheduler } from "../logic/transcript-viewport-scheduler.svelte.js";
-import {
-	createTranscriptViewportRowsReadModel,
-	inferTranscriptViewportRowsReason,
-	type TranscriptViewportRowSummary,
-} from "../logic/transcript-viewport-row-summary.js";
-import type { TranscriptViewportAnchor } from "../logic/viewport-anchor.js";
-import { useTheme } from "../../../../components/theme/context.svelte.js";
+import { ViewportSessionNotAttachedAcpError } from "../../../errors/acp-error.js";
+import { DEFAULT_STREAMING_ANIMATION_MODE } from "../../../types/streaming-animation-mode.js";
 import { getWorkerPool } from "../../../utils/worker-pool-singleton.js";
 import {
 	pierreDiffsUnsafeCSS,
 	registerCursorThemeForPierreDiffs,
 } from "../../../utils/pierre-diffs-theme.js";
+import ContentBlockRouter from "../../messages/content-block-router.svelte";
+import MessageWrapper from "../../messages/message-wrapper.svelte";
+import PermissionBar from "../../tool-calls/permission-bar.svelte";
+import {
+	confirmTranscriptViewportHeight,
+	revealTranscriptViewportRow,
+	resizeTranscriptViewport,
+	scrollTranscriptViewport,
+} from "../../../session-state/session-state-viewport-command-service.js";
+import { useTheme } from "../../../../components/theme/context.svelte.js";
 
-const MAX_VIEWPORT_RECOVERY_FRAMES = 8;
-const MAX_EMPTY_RENDER_FRAMES = 4;
 const NEAR_EDGE_THRESHOLD_PX = 24;
-const TANSTACK_TRANSCRIPT_OVERSCAN = 8;
-const ESTIMATED_TRANSCRIPT_ROW_HEIGHT_PX = 120;
 const EMPTY_SCENE_ENTRIES: readonly AgentPanelSceneEntryModel[] = [];
+
 type SceneContentViewportProps = {
 	panelId: string;
 	sceneEntries?: readonly AgentPanelSceneEntryModel[];
+	visibleWindow?: TranscriptViewportProjection | null;
 	turnState: TurnState;
 	isWaitingForResponse: boolean;
 	waitingLabel?: string | null;
 	projectPath: string | undefined;
-	/** Session ID for detecting session changes */
 	sessionId: string | null;
 	pendingUserRevealRequestKey?: string | null;
-	/** Whether the panel is in fullscreen mode (centers content with max-width) */
 	isFullscreen?: boolean;
-	/** Pre-computed modified files state from parent (avoids duplicate aggregateFileEdits calls) */
 	modifiedFilesState?: ModifiedFilesState | null;
-	/** Callback fired when near-bottom state changes (edge-triggered) */
 	onNearBottomChange?: (isNearBottom: boolean) => void;
-	/** Callback fired when near-top state changes */
 	onNearTopChange?: (isNearTop: boolean) => void;
 	onQuestionSelect?: (event: AgentPanelQuestionSelectEvent) => void;
 	onPlanBuild?: (event: AgentPanelPlanActionEvent) => void;
@@ -95,15 +69,14 @@ type SceneContentViewportProps = {
 
 const permissionStore = getPermissionStore();
 const sessionStore = getSessionStore();
-const agentPanelSceneReadModel = createAgentPanelSceneReadModel();
-const viewportRowsReadModel = createTranscriptViewportRowsReadModel();
 
 let {
 	panelId,
 	sceneEntries,
+	visibleWindow = null,
 	turnState,
-	isWaitingForResponse,
-	waitingLabel = null,
+	isWaitingForResponse: _isWaitingForResponse,
+	waitingLabel: _waitingLabel = null,
 	projectPath,
 	sessionId,
 	pendingUserRevealRequestKey = null,
@@ -119,26 +92,11 @@ let {
 	isPlanActionAvailable,
 }: SceneContentViewportProps = $props();
 
-// Derive isStreaming from turnState for scroll behavior
-const isStreaming = $derived(turnState === "streaming");
 const chatPrefs = getChatPreferencesStore();
+const themeState = useTheme();
 const streamingAnimationMode = $derived(
 	chatPrefs?.streamingAnimationMode ?? DEFAULT_STREAMING_ANIMATION_MODE
 );
-function applySceneEntriesToReadModel(
-	entries: readonly AgentPanelSceneEntryModel[]
-) {
-	return (
-		agentPanelSceneReadModel.applyPatch(entries) ??
-		agentPanelSceneReadModel.applySnapshot(entries)
-	);
-}
-const agentPanelSceneSnapshot = $derived(
-	applySceneEntriesToReadModel(sceneEntries ?? EMPTY_SCENE_ENTRIES)
-);
-
-// ===== EDIT TOOL THEME =====
-const themeState = useTheme();
 const editToolTheme = $derived({
 	theme: themeState.effectiveTheme,
 	themeNames: { dark: "Cursor Dark", light: "pierre-light" },
@@ -147,13 +105,7 @@ const editToolTheme = $derived({
 	unsafeCSS: pierreDiffsUnsafeCSS,
 });
 
-// ===== ICON CONTEXT (for nested components) =====
 setIconConfig({ basePath: "/svgs/icons" });
-
-// ===== SESSION CONTEXT (for nested components) =====
-// Set consolidated session context for all nested message/tool-call components
-// This eliminates prop drilling for projectPath, turnState, and modifiedFilesState
-// Use getters to ensure reactivity (values update when they change)
 setContext(SESSION_CONTEXT_KEY_EXPORT, {
 	get sessionId() {
 		return sessionId ?? undefined;
@@ -172,992 +124,340 @@ setContext(SESSION_CONTEXT_KEY_EXPORT, {
 	},
 });
 
-// ===== REFS =====
-let wrapperRef: HTMLDivElement | null = $state(null);
-let virtualizerViewportRef: HTMLDivElement | null = $state(null);
-let viewportNudgeOffsetPx = $state(0);
-const virtualizedRowRefs = new Map<string, HTMLElement>();
+let viewportRef: HTMLDivElement | null = $state(null);
+let scrollContainerRef: HTMLDivElement | null = $state(null);
+let lastViewportHeightPx = $state(720);
+let pendingViewportHeightPx = $state<number | null>(null);
+let consumedPendingUserRevealRequestKey = $state<string | null>(null);
+let suppressNextScrollIntent = false;
 
-function bindVirtualizedRow(
-	node: HTMLElement,
-	key: string
-): { update: (nextKey: string) => void; destroy: () => void } {
-	let currentKey = key;
-	virtualizedRowRefs.set(currentKey, node);
-	return {
-		update(nextKey) {
-			if (nextKey === currentKey) {
-				return;
-			}
-			virtualizedRowRefs.delete(currentKey);
-			currentKey = nextKey;
-			virtualizedRowRefs.set(currentKey, node);
-		},
-		destroy() {
-			virtualizedRowRefs.delete(currentKey);
-		},
-	};
-}
-
-// ===== HELPERS =====
-function getKey(entry: SceneDisplayRow | undefined, index?: number): string {
-	if (!entry) {
-		reportMissingVirtualizedEntry(index);
-		return `missing-entry-${String(index ?? "unknown")}`;
+const sceneEntryById = $derived.by(() => {
+	const index = new Map<string, AgentPanelSceneEntryModel>();
+	for (const entry of sceneEntries ?? EMPTY_SCENE_ENTRIES) {
+		index.set(entry.id, entry);
 	}
+	return index;
+});
 
-	return getSceneDisplayRowKey(entry);
-}
-
-function shouldObserveRevealResize(entry: SceneDisplayRow | undefined): boolean {
-	if (entry === undefined) {
-		return false;
-	}
-
-	return getSceneDisplayRowKey(entry) === revealResizeObserverTargetKey;
-}
-
-function createMergedAssistantSceneEntry(
-	entry: SceneDisplayRow | undefined,
-	thinkingDurationMs: number | null
-): AgentPanelSceneEntryModel | undefined {
-	if (entry?.type !== "assistant_merged") {
-		return undefined;
-	}
-
-	const isStreaming = entry.isStreaming ?? false;
-
-	return {
-		id: entry.key,
-		type: "assistant",
-		markdown: entry.markdown,
-		message: {
-			chunks: entry.message.chunks,
-			model: entry.message.model,
-			displayModel: entry.message.displayModel,
-			receivedAt: entry.message.receivedAt,
-			thinkingDurationMs: thinkingDurationMs ?? entry.message.thinkingDurationMs,
-		},
-		isStreaming,
-		tokenRevealCss: entry.tokenRevealCss,
-		timestampMs: entry.timestamp?.getTime(),
-	};
-}
-
-function createThinkingSceneEntry(
-	entry: SceneDisplayRow | undefined,
-	thinkingDurationMs: number | null
-): AgentPanelSceneEntryModel | undefined {
-	if (entry?.type !== "thinking") {
-		return undefined;
-	}
-
-	if (entry.label !== null && entry.label !== undefined) {
+const visibleRows = $derived(visibleWindow?.rows ?? []);
+const renderedRows = $derived.by(() => {
+	return visibleRows.map((row, index) => {
 		return {
-			id: entry.id,
-			type: "thinking",
-			durationMs: thinkingDurationMs,
-			startedAtMs: entry.startedAtMs,
-			label: entry.label,
+			row,
+			index: visibleWindow === null ? index : visibleWindow.visibleStartIndex + index,
+			offsetPx: visibleWindow?.rowOffsetsPx[index] ?? 0,
+			entry: resolveSceneEntry(row),
+		};
+	});
+});
+
+const totalHeightPx = $derived(visibleWindow?.totalHeightPx ?? 0);
+
+function segmentText(segments: readonly TranscriptSegment[]): string {
+	let text = "";
+	for (const segment of segments) {
+		text += segment.text;
+	}
+	return text;
+}
+
+function resolveSceneEntry(row: TranscriptViewportRow): AgentPanelSceneEntryModel {
+	const canonicalEntry = sceneEntryById.get(row.sourceEntryId);
+	if (canonicalEntry !== undefined) {
+		return canonicalEntry;
+	}
+
+	if (row.content.kind === "transcript" && row.content.role === "user") {
+		return {
+			id: row.sourceEntryId,
+			type: "user",
+			text: segmentText(row.content.segments),
 		};
 	}
 
+	if (row.content.kind === "transcript" && row.content.role === "assistant") {
+		return {
+			id: row.sourceEntryId,
+			type: "assistant",
+			markdown: segmentText(row.content.segments.filter((segment) => segment.kind === "text")),
+			message: {
+				chunks: row.content.segments.map((segment) => {
+					return {
+						type: segment.kind === "thought" ? "thought" : "message",
+						block: {
+							type: "text",
+							text: segment.text,
+						},
+					};
+				}),
+			},
+			isStreaming: row.activeStreamingTail !== null,
+		};
+	}
+
+	const operation = row.operationLinks[0];
 	return {
-		id: entry.id,
-		type: "thinking",
-		durationMs: thinkingDurationMs,
-		startedAtMs: entry.startedAtMs,
+		id: row.sourceEntryId,
+		type: "tool_call",
+		toolCallId: operation?.toolCallId,
+		operationId: operation?.operationId,
+		kind: "other",
+		title: operation?.name ?? (row.kind === "error" ? "Error" : "Tool"),
+		status: operation === undefined ? "degraded" : toolStatusFromOperationState(operation.state),
+		presentationState: operation === undefined ? "degraded_operation" : "resolved",
+		degradedReason: operation === undefined ? "Viewport row has no linked operation." : null,
+		resultText: row.content.kind === "transcript" ? segmentText(row.content.segments) : null,
 	};
 }
 
-function createMissingSceneEntry(
-	entry: SceneDisplayRow | undefined,
-	index: number | undefined
-): AgentPanelSceneEntryModel {
-	const displayKey = entry ? getSceneDisplayRowKey(entry) : `missing-entry-${String(index ?? "unknown")}`;
-	reportMissingSceneEntry(entry, index, displayKey);
-	return {
-		id: `missing:${displayKey}`,
-		type: "missing",
-		diagnosticLabel: displayKey,
-	};
+function toolStatusFromOperationState(state: OperationState): AgentToolStatus {
+	if (state === "running") {
+		return "running";
+	}
+	if (state === "completed") {
+		return "done";
+	}
+	if (state === "failed") {
+		return "error";
+	}
+	if (state === "blocked") {
+		return "blocked";
+	}
+	if (state === "cancelled") {
+		return "cancelled";
+	}
+	if (state === "degraded") {
+		return "degraded";
+	}
+	return "pending";
 }
 
-function getSharedEntry(
-	entry: SceneDisplayRow | undefined,
-	thinkingDurationMs: number | null,
-	index?: number
-): AgentPanelSceneEntryModel {
-	const graphEntry = getGraphSceneEntry(entry);
-	if (graphEntry !== undefined) {
-		return graphEntry;
-	}
-
-	const mergedAssistantEntry = createMergedAssistantSceneEntry(entry, thinkingDurationMs);
-	if (mergedAssistantEntry !== undefined) {
-		return mergedAssistantEntry;
-	}
-
-	const thinkingEntry = createThinkingSceneEntry(entry, thinkingDurationMs);
-	if (thinkingEntry !== undefined) {
-		return thinkingEntry;
-	}
-
-	return createMissingSceneEntry(entry, index);
+function revisionInput() {
+	return visibleWindow?.revision ?? null;
 }
 
-function getGraphSceneEntry(
-	entry: SceneDisplayRow | undefined
-): AgentPanelSceneEntryModel | undefined {
-	return agentPanelSceneReadModel.selectGraphEntryForDisplayEntry(entry);
-}
-
-
-let warnedMissingEntryKeys = new Set<string>();
-
-function reportMissingVirtualizedEntry(index: number | undefined): void {
-	if (!import.meta.env.DEV) {
+function applyEnvelope(envelope: SessionStateEnvelope): void {
+	if (sessionId === null) {
 		return;
 	}
-
-	const warningKey = `${sessionId ?? "pre-session"}:${String(index ?? "unknown")}:${displayEntries.length}`;
-	if (warnedMissingEntryKeys.has(warningKey)) {
+	// Suppress late command-response windows while a recovery episode is in
+	// flight. The reset projection would otherwise accept this stale window
+	// (current === null) and undo the reattach. Event-stream windows flow
+	// through a separate path (live consumer -> applyVisibleTranscriptWindow)
+	// and are still accepted during recovery.
+	if (sessionStore.getViewportAttachmentStatus(sessionId) !== "attached") {
 		return;
 	}
-	warnedMissingEntryKeys.add(warningKey);
+	sessionStore.applySessionStateEnvelope(sessionId, envelope);
+}
 
-	const nearbyEntries = viewportRowsReadModel.selectNearbyRowDiagnostics(index, 2);
+function extractViewportSessionNotAttached(
+	error: unknown
+): ViewportSessionNotAttachedAcpError | null {
+	if (error instanceof ViewportSessionNotAttachedAcpError) {
+		return error;
+	}
+	if (
+		error !== null &&
+		typeof error === "object" &&
+		"cause" in error &&
+		error.cause instanceof ViewportSessionNotAttachedAcpError
+	) {
+		return error.cause;
+	}
+	return null;
+}
 
-	console.warn("[AGENT_PANEL_MISSING_ENTRY]", {
-		panelId,
+function handleDispatchError(error: unknown): void {
+	const notAttached = extractViewportSessionNotAttached(error);
+	if (notAttached !== null) {
+		sessionStore.recoverViewportAttachment(notAttached.sessionId);
+	}
+}
+
+function isDispatchSuppressed(): boolean {
+	return sessionId !== null && sessionStore.getViewportAttachmentStatus(sessionId) !== "attached";
+}
+
+function dispatchScrollIntent(offsetPx: number): void {
+	const revision = revisionInput();
+	if (sessionId === null || revision === null || isDispatchSuppressed()) {
+		return;
+	}
+	scrollTranscriptViewport({
 		sessionId,
-		index,
-		displayEntriesLength: displayEntries.length,
-		mergedEntriesLength: mergedEntries.length,
-		isWaitingForResponse,
-		turnState,
-		nearbyEntries,
-	});
+		revision,
+		viewportHeightPx: lastViewportHeightPx,
+		offsetPx,
+	}).match(applyEnvelope, handleDispatchError);
 }
 
-let warnedMissingSceneEntryKeys = new Set<string>();
-
-function reportMissingSceneEntry(
-	entry: SceneDisplayRow | undefined,
-	index: number | undefined,
-	displayKey: string
-): void {
-	if (!import.meta.env.DEV) {
+function dispatchRevealIntent(rowId: string | null): void {
+	const revision = revisionInput();
+	if (sessionId === null || revision === null || isDispatchSuppressed()) {
 		return;
 	}
-
-	const warningKey = `${sessionId ?? "pre-session"}:${displayKey}`;
-	if (warnedMissingSceneEntryKeys.has(warningKey)) {
-		return;
-	}
-	warnedMissingSceneEntryKeys.add(warningKey);
-
-	console.warn("[AGENT_PANEL_MISSING_SCENE_ENTRY]", {
-		panelId,
+	revealTranscriptViewportRow({
 		sessionId,
-		index,
-		displayKey,
-		displayEntryType: entry?.type,
-		sceneEntryCount: sceneEntries?.length ?? 0,
-	});
+		revision,
+		viewportHeightPx: lastViewportHeightPx,
+		rowId,
+	}).match(applyEnvelope, handleDispatchError);
 }
 
-function getAttachedPermissionForEntry(
-	entry: AgentPanelSceneEntryModel
-) {
-	if (sessionId === null || entry.type !== "tool_call" || entry.toolCallId === undefined) {
-		return undefined;
-	}
-
-	const pendingPermission = permissionStore.getForToolCall(sessionId, entry.toolCallId);
-	if (pendingPermission !== undefined) {
-		return pendingPermission;
-	}
-
-	const answeredPermission = permissionStore.getAnsweredForToolCall(sessionId, entry.toolCallId);
-	if (answeredPermission !== null) {
-		return sessionStore.isToolCallExecuting(sessionId, entry.toolCallId)
-			? answeredPermission.permission
-			: undefined;
-	}
-
-	return undefined;
-}
-
-// ===== DISPLAY ENTRIES =====
-const mergedEntries = $derived(agentPanelSceneSnapshot.rows);
-
-const thinkingIndicatorStartedAtMs = $derived(
-	isWaitingForResponse ? agentPanelSceneSnapshot.latestRowTimestampMs : null
-);
-const displayEntriesRaw = $derived.by((): readonly SceneDisplayRow[] => {
-	return viewportRowsReadModel.selectRows({
-		rows: mergedEntries,
-		waiting: isWaitingForResponse
-			? {
-					show: true,
-					startedAtMs: thinkingIndicatorStartedAtMs,
-					label: waitingLabel,
-				}
-			: { show: false },
-	});
-});
-
-// Restored historical sessions can mount while the panel is still settling into the layout
-// tree. Start with an empty dataset for one frame and then remount with real entries once
-// layout has settled.
-let shouldDeferInitialHydration = untrack(() => displayEntriesRaw.length > 0);
-let hydrationFrameId: number | null = null;
-let initialHydrationComplete = $state(!shouldDeferInitialHydration);
-let lastRenderedSessionId = $state(untrack(() => sessionId));
-const displayEntries = $derived(
-	initialHydrationComplete ? displayEntriesRaw : ([] as readonly SceneDisplayRow[])
-);
-const viewportRowsSummary = $derived(
-	viewportRowsReadModel.applyRows({
-		rows: displayEntries,
-		reason: inferTranscriptViewportRowsReason({
-			rows: displayEntries,
-			isWaitingForResponse,
-		}),
-	})
-);
-const revealResizeObserverTargetKey = $derived(
-	viewportRowsSummary.anchorEligibleKeys.at(-1) ?? null
-);
-const hasLiveAssistantDisplayEntry = $derived(
-	viewportRowsSummary.hasLiveAssistantDisplayEntry === true
-);
-
-let viewportState: TranscriptViewportState = $state(
-	createInitialTranscriptViewportState({
-		sessionId: untrack(() => sessionId),
-		rows: viewportRowsReadModel.selectSummary(),
-	})
-);
-let consumedPendingUserRevealRequestKey = $state<string | null>(null);
-const virtualizerRenderKey = $derived(initialHydrationComplete ? "hydrated" : "deferred");
-const wrapperStyle = $derived(
-	viewportNudgeOffsetPx === 0 ? "height: 100%;" : `height: calc(100% - ${viewportNudgeOffsetPx}px);`
-);
-const transcriptVirtualizer = createVirtualizer<HTMLDivElement, HTMLDivElement>({
-	count: 0,
-	getScrollElement: () => virtualizerViewportRef,
-	estimateSize: () => ESTIMATED_TRANSCRIPT_ROW_HEIGHT_PX,
-	measureElement: (element) => element.getBoundingClientRect().height,
-	useAnimationFrameWithResizeObserver: true,
-	overscan: TANSTACK_TRANSCRIPT_OVERSCAN,
-	getItemKey: (index) => index,
-});
-
-$effect(() => {
-	const currentRows = displayEntries;
-	get(transcriptVirtualizer).setOptions({
-		count: currentRows.length,
-		getItemKey: (index) => {
-			const row = currentRows[index];
-			return row === undefined ? index : getSceneDisplayRowKey(row);
-		},
-		estimateSize: () => ESTIMATED_TRANSCRIPT_ROW_HEIGHT_PX,
-		measureElement: (element) => element.getBoundingClientRect().height,
-		useAnimationFrameWithResizeObserver: true,
-		overscan: TANSTACK_TRANSCRIPT_OVERSCAN,
-	});
-});
-
-$effect(() => {
-	const viewport = virtualizerViewportRef;
-	if (viewport === null) {
+function dispatchResizeIntent(heightPx: number): void {
+	const revision = revisionInput();
+	if (sessionId === null || revision === null || isDispatchSuppressed()) {
+		pendingViewportHeightPx = heightPx;
 		return;
 	}
-	const virtualizer = get(transcriptVirtualizer);
-	const observer = new ResizeObserver(() => {
-		virtualizer.measure();
-	});
-	observer.observe(viewport);
-	return () => {
-		observer.disconnect();
-	};
-});
+	resizeTranscriptViewport({
+		sessionId,
+		revision,
+		viewportHeightPx: heightPx,
+	}).match(applyEnvelope, handleDispatchError);
+}
 
-function measureVirtualizedRow(
-	node: HTMLDivElement,
-	_entryKey: string
-): { update: (_nextEntryKey: string) => void; destroy: () => void } {
-	const virtualizer = get(transcriptVirtualizer);
-	let resizeFrameId: number | null = null;
-	let observer: ResizeObserver | null = null;
-
-	function measureRow(): void {
-		virtualizer.measureElement(node);
+function dispatchHeightConfirmation(row: TranscriptViewportRow, heightPx: number): void {
+	const revision = revisionInput();
+	if (sessionId === null || revision === null || isDispatchSuppressed()) {
+		return;
 	}
+	confirmTranscriptViewportHeight({
+		sessionId,
+		revision,
+		viewportHeightPx: lastViewportHeightPx,
+		rowId: row.rowId,
+		rowVersion: row.version,
+		heightPx,
+	}).match(applyEnvelope, handleDispatchError);
+}
 
-	function scheduleRowMeasurement(): void {
-		if (resizeFrameId !== null) {
+function handleScroll(event: Event): void {
+	if (!(event.currentTarget instanceof HTMLDivElement)) {
+		return;
+	}
+	const offsetPx = event.currentTarget.scrollTop;
+	onNearTopChange?.(offsetPx <= NEAR_EDGE_THRESHOLD_PX);
+	if (visibleWindow !== null) {
+		const distanceFromBottom = visibleWindow.totalHeightPx - lastViewportHeightPx - offsetPx;
+		onNearBottomChange?.(distanceFromBottom <= NEAR_EDGE_THRESHOLD_PX);
+	}
+	if (suppressNextScrollIntent) {
+		suppressNextScrollIntent = false;
+		return;
+	}
+	dispatchScrollIntent(Math.max(0, Math.round(offsetPx)));
+}
+
+function observeViewport(node: HTMLDivElement): { destroy: () => void } {
+	const observer = new ResizeObserver((entries) => {
+		const entry = entries[0];
+		if (entry === undefined) {
 			return;
 		}
-		resizeFrameId = requestAnimationFrame(() => {
-			resizeFrameId = null;
-			measureRow();
-		});
-	}
-
-	scheduleRowMeasurement();
-	if (typeof ResizeObserver === "function") {
-		observer = new ResizeObserver(() => {
-			scheduleRowMeasurement();
-		});
-		observer.observe(node);
-	}
-
+		const heightPx = Math.max(0, Math.round(entry.contentRect.height));
+		if (heightPx === lastViewportHeightPx) {
+			return;
+		}
+		lastViewportHeightPx = heightPx;
+		dispatchResizeIntent(heightPx);
+	});
+	observer.observe(node);
 	return {
-		update(_nextEntryKey) {
-			scheduleRowMeasurement();
-		},
 		destroy() {
-			observer?.disconnect();
-			observer = null;
-			if (resizeFrameId !== null) {
-				cancelAnimationFrame(resizeFrameId);
-				resizeFrameId = null;
-			}
+			observer.disconnect();
 		},
 	};
 }
 
-function getRowKeys(): readonly string[] {
-	return viewportRowsSummary.rowKeys ?? [];
+function confirmRowHeight(node: HTMLDivElement, row: TranscriptViewportRow): { update: (nextRow: TranscriptViewportRow) => void; destroy: () => void } {
+	let currentRow = row;
+	let lastHeightPx = 0;
+	const observer = new ResizeObserver((entries) => {
+		const entry = entries[0];
+		if (entry === undefined) {
+			return;
+		}
+		const heightPx = Math.max(0, Math.round(entry.contentRect.height));
+		if (heightPx === lastHeightPx) {
+			return;
+		}
+		lastHeightPx = heightPx;
+		dispatchHeightConfirmation(currentRow, heightPx);
+	});
+	observer.observe(node);
+	return {
+		update(nextRow) {
+			currentRow = nextRow;
+			lastHeightPx = 0;
+		},
+		destroy() {
+			observer.disconnect();
+		},
+	};
 }
 
-function getRowIndex(rowKey: string): number {
-	return viewportRowsSummary.rowIndexByKey?.get(rowKey) ?? -1;
-}
-
-function getLatestUserRowKey(): string | null {
-	for (let index = displayEntries.length - 1; index >= 0; index -= 1) {
-		const row = displayEntries[index];
-		if (row?.type === "user") {
-			return getSceneDisplayRowKey(row);
+function latestVisibleUserRowId(): string | null {
+	for (let index = visibleRows.length - 1; index >= 0; index -= 1) {
+		const row = visibleRows[index];
+		if (row?.kind === "user") {
+			return row.rowId;
 		}
 	}
 	return null;
 }
 
-function getVirtualizerHandle(): TranscriptVirtualizerHandle | undefined {
-	const viewport = virtualizerViewportRef;
-	if (viewport === null) {
-		return undefined;
-	}
-	const virtualizer = get(transcriptVirtualizer);
-	return {
-		getScrollOffset() {
-			return viewport.scrollTop || virtualizer.scrollOffset || 0;
-		},
-		getScrollSize() {
-			return virtualizer.getTotalSize();
-		},
-		getViewportSize() {
-			return viewport.clientHeight || virtualizer.scrollRect?.height || 0;
-		},
-		scrollToIndex(index, options) {
-			virtualizer.scrollToIndex(index, options);
-		},
-		scrollTo(offset) {
-			virtualizer.scrollToOffset(offset);
-		},
-	};
-}
-
-function formatTraceAnchor(anchor: TranscriptViewportAnchor): string {
-	if (anchor.type === "tail") {
-		return "tail";
-	}
-	if (anchor.type === "offset") {
-		return `offset:${anchor.offsetPx}`;
-	}
-	return `row:${anchor.rowKey}@${anchor.offsetPx}`;
-}
-
-function traceMeasurementFields(): {
-	scrollOffset?: number;
-	scrollSize?: number;
-	viewportSize?: number;
-} {
-	const outcome = transcriptRendererAdapter.measureViewport();
-	if (outcome.type !== "measured") {
-		return {};
-	}
-	return {
-		scrollOffset: outcome.measurement.scrollOffset,
-		scrollSize: outcome.measurement.scrollSize,
-		viewportSize: outcome.measurement.viewportSize,
-	};
-}
-
-function recordScrollWrite(
-	effect: Extract<TranscriptViewportEffect, { type: "RevealRow" | "RevealTail" | "ApplyScrollOffset" }>,
-	outcome: TranscriptRendererEffectOutcome
-): void {
-	if (!isTranscriptViewportFlightRecordingEnabled()) {
-		return;
-	}
-	const measurement = traceMeasurementFields();
-	recordTranscriptViewportFlight({
-		panelId,
-		sessionId: effect.sessionId,
-		generation: effect.generation,
-		phase: outcome.type === "applied" ? "scroll-write" : "effect-skipped",
-		effectType: effect.type,
-		reason: outcome.type === "skipped" ? outcome.reason : effect.reason,
-		follow: viewportState.follow,
-		renderer: viewportState.renderer.type,
-		anchor: formatTraceAnchor(viewportState.anchor),
-		rowCount: viewportState.rows.count,
-		scrollOffset: measurement.scrollOffset,
-		scrollSize: measurement.scrollSize,
-		viewportSize: measurement.viewportSize,
-	});
-}
-
-const virtualizerAdapter = createTranscriptVirtualizerRendererAdapter({
-	getHandle: getVirtualizerHandle,
-	getRowKeys,
-	getRowIndex,
-	getContainer: () => virtualizerViewportRef,
-	getRowElement: (rowKey: string) => virtualizedRowRefs.get(rowKey) ?? null,
-});
-
-const transcriptRendererAdapter: TranscriptRendererAdapter = {
-	measureViewport() {
-		return virtualizerAdapter.measureViewport();
-	},
-	captureAnchor() {
-		return virtualizerAdapter.captureAnchor();
-	},
-	measureAnchor(anchorKey) {
-		return virtualizerAdapter.measureAnchor(anchorKey);
-	},
-	revealRow(effect) {
-		const outcome = virtualizerAdapter.revealRow(effect);
-		recordScrollWrite(effect, outcome);
-		return outcome;
-	},
-	revealTail(effect) {
-		const outcome = virtualizerAdapter.revealTail(effect);
-		recordScrollWrite(effect, outcome);
-		return outcome;
-	},
-	applyScrollOffset(effect) {
-		const outcome = virtualizerAdapter.applyScrollOffset(effect);
-		recordScrollWrite(effect, outcome);
-		return outcome;
-	},
-	probeRendererHealth() {
-		return virtualizerAdapter.probeRendererHealth();
-	},
-	reportEffectOutcome(outcome) {
-		virtualizerAdapter.reportEffectOutcome(outcome);
-	},
-};
-
-const viewportScheduler = createTranscriptViewportScheduler({
-	adapter: transcriptRendererAdapter,
-	getGeneration: () => viewportState.generation,
-	getSessionId: () => viewportState.sessionId,
-	dispatchEvent: (event) => dispatchViewportEvent(event),
-});
-
-function scheduleViewportEffects(effects: readonly TranscriptViewportEffect[]): void {
-	if (effects.length > 0 && isTranscriptViewportFlightRecordingEnabled()) {
-		recordTranscriptViewportFlight({
-			panelId,
-			sessionId: viewportState.sessionId,
-			generation: viewportState.generation,
-			phase: "effect-scheduled",
-			effectTypes: effects.map((effect) => effect.type),
-			follow: viewportState.follow,
-			renderer: viewportState.renderer.type,
-			anchor: formatTraceAnchor(viewportState.anchor),
-			rowCount: viewportState.rows.count,
-		});
-	}
-	viewportScheduler.schedule(effects);
-}
-
-function dispatchViewportEvent(event: TranscriptViewportEvent): void {
-	if (event.type === "UserWheel" || event.type === "UserNavigationScroll") {
-		viewportScheduler.cancel();
-	}
-	const result = reduceTranscriptViewportEvent(viewportState, event);
-	viewportState = result.state;
-	if (isTranscriptViewportFlightRecordingEnabled()) {
-		const measurement = measureCurrentViewport();
-		recordTranscriptViewportFlight({
-			panelId,
-			sessionId: viewportState.sessionId,
-			generation: viewportState.generation,
-			phase: "event",
-			eventType: event.type,
-			effectTypes: result.effects.map((effect) => effect.type),
-			follow: viewportState.follow,
-			renderer: viewportState.renderer.type,
-			anchor: formatTraceAnchor(viewportState.anchor),
-			rowCount: viewportState.rows.count,
-			scrollOffset: measurement.scrollOffset,
-			scrollSize: measurement.scrollSize,
-			viewportSize: measurement.viewportSize,
-		});
-	}
-	scheduleViewportEffects(result.effects);
-}
-
-function shouldRunDeferredTailReveal(scheduledSessionId: string | null, scheduledGeneration: number): boolean {
-	return (
-		sessionId === scheduledSessionId &&
-		viewportState.generation === scheduledGeneration &&
-		viewportState.follow === "following"
-	);
-}
-
-function measureCurrentViewport(): TranscriptViewportMeasurement {
-	const measurement = transcriptRendererAdapter.measureViewport();
-	if (measurement.type === "measured") {
-		return measurement.measurement;
-	}
-	return {
-		scrollOffset: 0,
-		scrollSize: 0,
-		viewportSize: 0,
-	};
-}
-
 $effect(() => {
-	const rows = viewportRowsSummary;
-	const generation = untrack(() => viewportState.generation);
-	untrack(() => {
-		dispatchViewportEvent({
-			type: "RowsChanged",
-			sessionId,
-			generation,
-			rows,
-		});
-	});
+	if (visibleWindow !== null) {
+		onNearBottomChange?.(visibleWindow.mode.kind === "followingTail");
+	}
+	onNearTopChange?.((visibleWindow?.viewportOffsetPx ?? 0) <= NEAR_EDGE_THRESHOLD_PX);
 });
 
 $effect(() => {
-	const requestKey = pendingUserRevealRequestKey;
-	if (requestKey === null || requestKey === consumedPendingUserRevealRequestKey) {
+	if (visibleWindow === null || pendingViewportHeightPx === null) {
 		return;
 	}
-	const latestUserRowKey = getLatestUserRowKey();
-	if (latestUserRowKey === null) {
-		return;
-	}
-	consumedPendingUserRevealRequestKey = requestKey;
-	dispatchViewportEvent({
-		type: "SendStarted",
-		sessionId,
-		generation: viewportState.generation,
-		targetKey: isWaitingForResponse ? undefined : latestUserRowKey,
-	});
+	const heightPx = pendingViewportHeightPx;
+	pendingViewportHeightPx = null;
+	dispatchResizeIntent(heightPx);
 });
 
 $effect(() => {
-	if (initialHydrationComplete || !shouldDeferInitialHydration) {
+	if (scrollContainerRef === null || visibleWindow === null) {
 		return;
 	}
-
-	if (hydrationFrameId !== null) {
+	const offsetPx = visibleWindow.viewportOffsetPx;
+	if (Math.abs(scrollContainerRef.scrollTop - offsetPx) <= 1) {
 		return;
 	}
-
-	hydrationFrameId = requestAnimationFrame(() => {
-		hydrationFrameId = null;
-		initialHydrationComplete = true;
-		shouldDeferInitialHydration = false;
-	});
-
-	return () => {
-		if (hydrationFrameId !== null) {
-			cancelAnimationFrame(hydrationFrameId);
-			hydrationFrameId = null;
-		}
-	};
-});
-
-// Fullscreen session switches reuse this component instance now, so reset only the
-// scroll/follow machinery instead of remounting the whole list and replaying hydration.
-$effect(() => {
-	if (sessionId === lastRenderedSessionId) {
-		return;
-	}
-
-	const previousSessionId = lastRenderedSessionId;
-	lastRenderedSessionId = sessionId;
-	warnedMissingEntryKeys.clear();
-	warnedMissingSceneEntryKeys.clear();
-	dispatchViewportEvent({
-		type: "SessionChanged",
-		sessionId,
-		previousSessionId,
-	});
-	viewportNudgeOffsetPx = 0;
-	historicalScrollApplied = false;
-	const sessionSwitchGeneration = viewportState.generation;
-
-	let frameCount = 0;
-	let sessionSwitchRafId: number | null = null;
-	const revealAfterSwitchSettle = () => {
-		frameCount += 1;
-		if (frameCount < 2) {
-			sessionSwitchRafId = requestAnimationFrame(revealAfterSwitchSettle);
-			return;
-		}
-		sessionSwitchRafId = null;
-		if (!shouldRunDeferredTailReveal(sessionId, sessionSwitchGeneration)) {
-			return;
-		}
-		dispatchViewportEvent({
-			type: "PublicScrollCommand",
-			sessionId,
-			generation: sessionSwitchGeneration,
-			command: "bottom",
-		});
-	};
-
-	if (displayEntries.length > 0) {
-		sessionSwitchRafId = requestAnimationFrame(revealAfterSwitchSettle);
-	}
-
-	return () => {
-		if (sessionSwitchRafId !== null) {
-			cancelAnimationFrame(sessionSwitchRafId);
-		}
-	};
+	suppressNextScrollIntent = true;
+	scrollContainerRef.scrollTop = offsetPx;
 });
 
 $effect(() => {
-	if (!initialHydrationComplete || displayEntries.length === 0) {
-		viewportNudgeOffsetPx = 0;
+	if (pendingUserRevealRequestKey === null || pendingUserRevealRequestKey === consumedPendingUserRevealRequestKey) {
 		return;
 	}
-
-	let cancelled = false;
-	let attempts = 0;
-	let recoveryFrameId: number | null = null;
-	const recoverySessionId = sessionId;
-	const recoveryGeneration = untrack(() => viewportState.generation);
-
-	const recoverViewport = () => {
-		if (cancelled || sessionId !== recoverySessionId) {
-			return;
-		}
-
-		const viewportSize = getVirtualizerHandle()?.getViewportSize() ?? 0;
-		if (viewportSize > 0) {
-			viewportNudgeOffsetPx = 0;
-			return;
-		}
-
-		if (attempts >= MAX_VIEWPORT_RECOVERY_FRAMES) {
-			viewportNudgeOffsetPx = 0;
-			if (import.meta.env.DEV) {
-				console.warn(
-					"[TRANSCRIPT_VIRTUALIZER_HEALTH]",
-					"reason=zero_viewport",
-					`sessionId=${sessionId}`,
-					`entries=${displayEntries.length}`
-				);
-			}
-			dispatchViewportEvent({
-				type: "RendererFailed",
-				sessionId,
-				generation: recoveryGeneration,
-				reason: "zero_viewport",
-			});
-			return;
-		}
-
-		viewportNudgeOffsetPx = viewportNudgeOffsetPx === 0 ? 1 : 0;
-		attempts += 1;
-		recoveryFrameId = requestAnimationFrame(recoverViewport);
-	};
-
-	recoveryFrameId = requestAnimationFrame(recoverViewport);
-
-	return () => {
-		cancelled = true;
-		viewportNudgeOffsetPx = 0;
-		if (recoveryFrameId !== null) {
-			cancelAnimationFrame(recoveryFrameId);
-		}
-	};
+	consumedPendingUserRevealRequestKey = pendingUserRevealRequestKey;
+	dispatchRevealIntent(latestVisibleUserRowId());
 });
 
-$effect(() => {
-	if (
-		!initialHydrationComplete ||
-		displayEntries.length === 0 ||
-		!wrapperRef
-	) {
-		return;
-	}
-
-	let cancelled = false;
-	let remainingFrames = MAX_EMPTY_RENDER_FRAMES;
-	let probeFrameId: number | null = null;
-	const probeSessionId = sessionId;
-	const probeGeneration = untrack(() => viewportState.generation);
-
-	const probeRenderedEntries = () => {
-		if (cancelled || sessionId !== probeSessionId) {
-			return;
-		}
-
-		const renderedEntryCount = wrapperRef?.querySelectorAll("[data-entry-key]").length ?? 0;
-		if (renderedEntryCount > 0) {
-			return;
-		}
-
-		if (remainingFrames <= 0) {
-			viewportNudgeOffsetPx = 0;
-			if (import.meta.env.DEV) {
-				console.warn(
-					"[TRANSCRIPT_VIRTUALIZER_HEALTH]",
-					"reason=no_rendered_entries",
-					`sessionId=${sessionId}`,
-					`entries=${displayEntries.length}`
-				);
-			}
-			dispatchViewportEvent({
-				type: "RendererFailed",
-				sessionId,
-				generation: probeGeneration,
-				reason: "no_rendered_entries",
-			});
-			return;
-		}
-
-		remainingFrames -= 1;
-		probeFrameId = requestAnimationFrame(probeRenderedEntries);
-	};
-
-	probeFrameId = requestAnimationFrame(probeRenderedEntries);
-
-	return () => {
-		cancelled = true;
-		if (probeFrameId !== null) {
-			cancelAnimationFrame(probeFrameId);
-		}
-	};
-});
-
-// ===== SCROLL TO BOTTOM ON HISTORICAL SESSION LOAD =====
-// When a session mounts with pre-existing entries (historical), shouldDeferInitialHydration
-// is true. Once hydration completes and the virtualizer renders, force a scroll to the
-// bottom so the user sees the most recent messages instead of the top of the conversation.
-const isHistoricalLoad = shouldDeferInitialHydration;
-let historicalScrollApplied = false;
-$effect(() => {
-	if (!isHistoricalLoad || historicalScrollApplied || !initialHydrationComplete) return;
-	if (displayEntries.length === 0) return;
-
-	historicalScrollApplied = true;
-	const historicalSessionId = sessionId;
-	const historicalGeneration = untrack(() => viewportState.generation);
-
-	// Wait two frames: one for the virtualizer to process entries, one for layout to settle.
-	let frameCount = 0;
-	let scrollRafId: number | null = null;
-	const scrollAfterSettle = () => {
-		frameCount += 1;
-		if (frameCount < 2) {
-			scrollRafId = requestAnimationFrame(scrollAfterSettle);
-			return;
-		}
-		scrollRafId = null;
-		if (!shouldRunDeferredTailReveal(historicalSessionId, historicalGeneration)) {
-			return;
-		}
-		dispatchViewportEvent({
-			type: "PublicScrollCommand",
-			sessionId: historicalSessionId,
-			generation: historicalGeneration,
-			command: "bottom",
-		});
-	};
-	scrollRafId = requestAnimationFrame(scrollAfterSettle);
-
-	return () => {
-		if (scrollRafId !== null) {
-			cancelAnimationFrame(scrollRafId);
-		}
-	};
-});
-
-function requestRevealForIndex(index: number): void {
-	if (viewportState.follow !== "following") {
-		return;
-	}
-	const entry = displayEntries[index];
-	if (entry === undefined) {
-		return;
-	}
-	dispatchViewportEvent({
-		type: "ExplicitRevealRequested",
-		sessionId,
-		generation: viewportState.generation,
-		targetKey: getSceneDisplayRowKey(entry),
-	});
-}
-
-function captureCurrentAnchor(source: string):
-	| {
-			anchorKey: string;
-			anchorOffsetPx: number;
-	  }
-	| undefined {
-	const outcome = transcriptRendererAdapter.captureAnchor();
-	if (outcome.type !== "captured") {
-		if (isTranscriptViewportFlightRecordingEnabled()) {
-			recordTranscriptViewportFlight({
-				panelId,
-				sessionId,
-				generation: viewportState.generation,
-				phase: "anchor",
-				source,
-				reason: outcome.reason,
-				follow: viewportState.follow,
-				renderer: viewportState.renderer.type,
-				anchor: formatTraceAnchor(viewportState.anchor),
-				rowCount: viewportState.rows.count,
-			});
-		}
-		return undefined;
-	}
-
-	if (isTranscriptViewportFlightRecordingEnabled()) {
-		recordTranscriptViewportFlight({
-			panelId,
-			sessionId,
-			generation: viewportState.generation,
-			phase: "anchor",
-			source,
-			anchorKey: outcome.anchorKey,
-			anchorOffsetPx: outcome.offsetPx,
-			follow: viewportState.follow,
-			renderer: viewportState.renderer.type,
-			anchor: formatTraceAnchor(viewportState.anchor),
-			rowCount: viewportState.rows.count,
-		});
-	}
-
-	return {
-		anchorKey: outcome.anchorKey,
-		anchorOffsetPx: outcome.offsetPx,
-	};
-}
-
-function handleVirtualizerScroll(): void {
-	const anchor = captureCurrentAnchor("virtualizer-scroll");
-	dispatchViewportEvent({
-		type: "UserScroll",
-		sessionId,
-		generation: viewportState.generation,
-		measurement: measureCurrentViewport(),
-		anchorKey: anchor?.anchorKey,
-		anchorOffsetPx: anchor?.anchorOffsetPx,
-	});
-}
-
-function isNearBottom(measurement: TranscriptViewportMeasurement | null): boolean {
-	if (measurement === null) {
-		return true;
-	}
-	const distanceFromBottom =
-		measurement.scrollSize - measurement.viewportSize - measurement.scrollOffset;
-	return distanceFromBottom <= NEAR_EDGE_THRESHOLD_PX;
-}
-
-function isNearTop(measurement: TranscriptViewportMeasurement | null): boolean {
-	return (measurement?.scrollOffset ?? 0) <= NEAR_EDGE_THRESHOLD_PX;
-}
-
-$effect(() => {
-	onNearBottomChange?.(
-		viewportState.follow === "following" ? true : isNearBottom(viewportState.lastMeasurement)
-	);
-});
-
-$effect(() => {
-	onNearTopChange?.(isNearTop(viewportState.lastMeasurement));
-});
-
-// ===== PASSIVE WHEEL LISTENER =====
-function wheelAction(node: HTMLElement): { destroy: () => void } {
-	const handleWheel = (event: WheelEvent) => {
-		const measured = measureCurrentViewport();
-		const anchor = captureCurrentAnchor("wheel");
-		const measurement =
-			event.deltaY < 0
-				? {
-						scrollOffset: measured.scrollOffset,
-						scrollSize: Math.max(measured.scrollSize, measured.viewportSize + NEAR_EDGE_THRESHOLD_PX + 1),
-						viewportSize: measured.viewportSize,
-				  }
-				: measured;
-		dispatchViewportEvent({
-			type: "UserWheel",
-			sessionId,
-			generation: viewportState.generation,
-			measurement,
-			anchorKey: anchor?.anchorKey,
-			anchorOffsetPx: anchor?.anchorOffsetPx,
-		});
-	};
-	node.addEventListener("wheel", handleWheel, { passive: true });
-	return {
-		destroy() {
-			node.removeEventListener("wheel", handleWheel);
-		},
-	};
-}
-
-// ===== PUBLIC API =====
-export function scrollToBottom(options?: { force?: boolean }) {
-	dispatchViewportEvent({
-		type: "PublicScrollCommand",
-		sessionId,
-		generation: viewportState.generation,
-		command: options?.force === false ? "follow" : "bottom",
-	});
+export function scrollToBottom(_options?: { force?: boolean }) {
+	dispatchRevealIntent(null);
 }
 
 export function prepareForNextUserReveal(_options?: { force?: boolean }) {
-	dispatchViewportEvent({
-		type: "SendStarted",
-		sessionId,
-		generation: viewportState.generation,
-	});
+	dispatchRevealIntent(latestVisibleUserRowId());
 }
 
 export function scrollToTop() {
-	dispatchViewportEvent({
-		type: "PublicScrollCommand",
-		sessionId,
-		generation: viewportState.generation,
-		command: "top",
-	});
+	dispatchScrollIntent(0);
 }
 </script>
 
-<!-- Virtual scrolling uses TanStack Virtual with passive wheel detection. -->
-<div bind:this={wrapperRef} use:wheelAction class="h-full min-h-0" style={wrapperStyle}>
+<div bind:this={viewportRef} use:observeViewport class="h-full min-h-0">
 	{#snippet renderAssistantBlock(context: AssistantRenderBlockContext)}
 		{#if context.group.type === "text"}
 			<ContentBlockRouter
@@ -1172,87 +472,63 @@ export function scrollToTop() {
 		{/if}
 	{/snippet}
 
-	{#snippet renderEntry(entry: SceneDisplayRow | undefined, index: number)}
-		{#if entry}
-			{@const mergedThoughtDurationMs = viewportRowsReadModel.selectThinkingDurationMs(index)}
-			{@const sharedEntry = getSharedEntry(entry, mergedThoughtDurationMs, index)}
-			{@const attachedPermission = getAttachedPermissionForEntry(sharedEntry)}
-			<MessageWrapper
-				entryIndex={index}
-				entryKey={getKey(entry, index)}
-				messageId={entry.type === "user" ? entry.id : undefined}
-				observeRevealResize={shouldObserveRevealResize(entry)}
-				onRevealResize={() => requestRevealForIndex(index)}
-				{isFullscreen}
-			>
-				<div class={attachedPermission ? "tool-call-with-permission" : ""}>
-					<AgentPanelConversationEntry
-						entry={sharedEntry}
-						iconBasePath="/svgs/icons"
-						{editToolTheme}
-						{projectPath}
-						{streamingAnimationMode}
-						renderAssistantBlock={renderAssistantBlock}
-						{onQuestionSelect}
-						{onPlanBuild}
-						{onPlanCancel}
-						{onPlanViewFull}
-						{onToolFileSelect}
-						{isPlanActionAvailable}
-					/>
-					{#if attachedPermission && sessionId}
-						<div class="tool-call-permission-row">
-							<div class="tool-call-permission-attachment">
-								<PermissionBar
-									{sessionId}
-									permission={attachedPermission}
-									projectPath={projectPath ?? null}
-									attachment="tool-call"
-								/>
-							</div>
-						</div>
-					{/if}
-				</div>
-			</MessageWrapper>
-		{:else}
-			{@const _missingEntryWarning = reportMissingVirtualizedEntry(index)}
-		{/if}
-	{/snippet}
-
-	{#key `${sessionId ?? "pre-session"}:${virtualizerRenderKey}`}
-		<div
-			bind:this={virtualizerViewportRef}
-			data-testid="transcript-virtualizer"
-			class="h-full min-h-0 overflow-y-auto"
-			style="contain: strict;"
-			onscroll={handleVirtualizerScroll}
-		>
-			<div
-				style={`height: ${$transcriptVirtualizer.getTotalSize()}px; position: relative; width: 100%;`}
-			>
-				{#each $transcriptVirtualizer.getVirtualItems() as virtualItem (virtualItem.key)}
-					{@const entry = displayEntries[virtualItem.index]}
-					{@const entryKey = getKey(entry, virtualItem.index)}
-					<div
-						use:measureVirtualizedRow={entryKey}
-						data-index={virtualItem.index}
-						style={`position: absolute; top: 0; left: 0; width: 100%; transform: translateY(${virtualItem.start}px);`}
-					>
-						<div use:bindVirtualizedRow={entryKey} data-entry-key={entryKey}>
-							{@render renderEntry(entry, virtualItem.index)}
-						</div>
+	<div
+		bind:this={scrollContainerRef}
+		data-testid="rust-transcript-viewport"
+		class="h-full min-h-0 overflow-y-auto"
+		onscroll={handleScroll}
+	>
+		<div style={`height: ${totalHeightPx}px; position: relative; width: 100%;`}>
+			{#each renderedRows as rendered (rendered.row.rowId)}
+				<div
+					style={`position: absolute; left: 0; top: 0; width: 100%; transform: translateY(${rendered.offsetPx}px);`}
+				>
+					<div use:confirmRowHeight={rendered.row} data-entry-key={rendered.row.rowId}>
+						<MessageWrapper
+							entryIndex={rendered.index}
+							entryKey={rendered.row.rowId}
+							messageId={rendered.entry.type === "user" ? rendered.entry.id : undefined}
+							observeRevealResize={false}
+							{isFullscreen}
+						>
+							<AgentPanelConversationEntry
+								entry={rendered.entry}
+								iconBasePath="/svgs/icons"
+								{editToolTheme}
+								{projectPath}
+								{streamingAnimationMode}
+								renderAssistantBlock={renderAssistantBlock}
+								{onQuestionSelect}
+								{onPlanBuild}
+								{onPlanCancel}
+								{onPlanViewFull}
+								{onToolFileSelect}
+								{isPlanActionAvailable}
+							/>
+							{#if rendered.entry.type === "tool_call" && rendered.entry.toolCallId !== undefined && sessionId !== null}
+								{@const attachedPermission = permissionStore.getForToolCall(sessionId, rendered.entry.toolCallId)}
+								{#if attachedPermission !== undefined}
+									<div class="tool-call-permission-row">
+										<div class="tool-call-permission-attachment">
+											<PermissionBar
+												{sessionId}
+												permission={attachedPermission}
+												projectPath={projectPath ?? null}
+												attachment="tool-call"
+											/>
+										</div>
+									</div>
+								{/if}
+							{/if}
+						</MessageWrapper>
 					</div>
-				{/each}
-			</div>
+				</div>
+			{/each}
 		</div>
-	{/key}
+	</div>
 </div>
 
 <style>
-	.tool-call-with-permission :global(.agent-tool-card) {
-		border-bottom-left-radius: 0;
-	}
-
 	.tool-call-permission-row {
 		display: flex;
 		position: relative;

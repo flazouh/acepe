@@ -14,9 +14,7 @@ function createPackageWithAcpSource(source: string): string {
 	writeFileSync(
 		join(root, "package.json"),
 		JSON.stringify({
-			dependencies: {
-				"@tanstack/svelte-virtual": "^3.13.19",
-			},
+			dependencies: {},
 		})
 	);
 	writeFileSync(join(root, "src", "lib", "acp", "bad.ts"), source);
@@ -39,7 +37,7 @@ describe("check-transcript-virtualizer-deps", () => {
 		});
 
 		expect(result.status).toBe(1);
-		expect(result.stderr).toContain("Transcript virtualization must use TanStack Virtual");
+		expect(result.stderr).toContain("forbidden browser virtualizer dependencies");
 		expect(result.stderr).toContain("src/lib/acp/bad.ts");
 	});
 });

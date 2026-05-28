@@ -41,6 +41,7 @@ import type {
 	TranscriptSnapshot,
 	TurnFailureSnapshot,
 	UsageTelemetryData,
+	VisibleTranscriptWindowPayload,
 } from "../../services/acp-types.js";
 import type { HistoryEntry } from "../../services/claude-history-types.js";
 import type { PlanData } from "../../services/converted-session-types.js";
@@ -140,6 +141,11 @@ import { SessionRepository } from "./services/session-repository.js";
 import { SessionEntryStore } from "./session-entry-store.svelte.js";
 import { getTitleUpdateFromUserMessage } from "./session-title-policy.js";
 import { SessionTransientProjectionStore } from "./session-transient-projection-store.svelte.js";
+import {
+	TranscriptViewportStore,
+	type TranscriptViewportProjection,
+	type ViewportAttachmentStatus,
+} from "./transcript-viewport-store.svelte.js";
 
 const logger = createLogger({ id: "session-store", name: "SessionStore" });
 
@@ -2290,6 +2296,7 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 	// Canonical graph selector state for lifecycle/activity/actionability consumers.
 	private readonly canonicalProjections = new SvelteMap<string, CanonicalSessionProjection>();
 	private readonly sessionStateGraphs = new SvelteMap<string, SessionStateGraph>();
+	private readonly transcriptViewportStore = new TranscriptViewportStore();
 	private readonly canonicalCapabilitiesMaterialized = new SvelteMap<string, boolean>();
 	private readonly rowTokenStreamsByRowId = new Map<string, Map<string, RowTokenStream>>();
 	private readonly pendingCreationSessions = new SvelteMap<string, CreatedPendingSessionResult>();
@@ -2303,6 +2310,10 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 	private liveSessionStateGraphConsumer: LiveSessionStateGraphConsumer | null = null;
 	private readonly inflightSessionStateRefreshes = new Map<string, InflightSessionStateRefresh>();
 	private readonly awaitingModelRefreshTimers = new Map<string, ReturnType<typeof setTimeout>>();
+	private readonly viewportReattachWatchdogTimers = new Map<
+		string,
+		ReturnType<typeof setTimeout>
+	>();
 
 	// PR details cache/dedupe (prevents repeated gh pr view storms during scans)
 	private readonly prDetailsCache = new Map<string, CachedPrDetails>();
@@ -2443,6 +2454,70 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 
 	getSessionStateGraphForTest(sessionId: string): SessionStateGraph | null {
 		return this.sessionStateGraphs.get(sessionId) ?? null;
+	}
+
+	getTranscriptViewportProjection(sessionId: string | null): TranscriptViewportProjection | null {
+		return this.transcriptViewportStore.getProjection(sessionId);
+	}
+
+	getViewportAttachmentStatus(sessionId: string | null): ViewportAttachmentStatus {
+		return this.transcriptViewportStore.getAttachmentStatus(sessionId);
+	}
+
+	/**
+	 * Recover a viewport that the backend reports as not attached (typically
+	 * after a Rust runtime reload drifted the frontend/backend attachment). A
+	 * single recovery episode forces a reconnect, which makes Rust re-emit the
+	 * connection-complete + visible-window envelope through the live event
+	 * stream; the accepted window flips the status back to "attached".
+	 *
+	 * Recovery is attempted at most once per episode: while "reattaching" or
+	 * after "reattachFailed" we no-op. The "reattaching" projection reset lets
+	 * the fresh (low-revision) recovery window be accepted unconditionally.
+	 */
+	/**
+	 * Bounded wait after a successful forced reconnect for the live-event-stream
+	 * visible-window envelope to arrive (which flips status back to "attached").
+	 * If it never arrives, the episode is failed deterministically rather than
+	 * leaving the viewport stuck in "reattaching" forever. Any later window still
+	 * self-heals the session via markAttached.
+	 */
+	private static readonly VIEWPORT_REATTACH_WATCHDOG_MS = 8_000;
+
+	recoverViewportAttachment(sessionId: string): void {
+		const status = this.transcriptViewportStore.getAttachmentStatus(sessionId);
+		if (status !== "attached") {
+			return;
+		}
+		this.transcriptViewportStore.markReattaching(sessionId);
+		void this.connectSession(sessionId, { forceReconnect: true }).match(
+			() => {
+				this.armViewportReattachWatchdog(sessionId);
+			},
+			() => {
+				this.clearViewportReattachWatchdog(sessionId);
+				this.transcriptViewportStore.markReattachFailed(sessionId);
+			}
+		);
+	}
+
+	private armViewportReattachWatchdog(sessionId: string): void {
+		this.clearViewportReattachWatchdog(sessionId);
+		const timerId = setTimeout(() => {
+			this.viewportReattachWatchdogTimers.delete(sessionId);
+			// No-ops unless still "reattaching" (guarded in the store), so a window
+			// that already arrived keeps the session attached.
+			this.transcriptViewportStore.markReattachFailed(sessionId);
+		}, SessionStore.VIEWPORT_REATTACH_WATCHDOG_MS);
+		this.viewportReattachWatchdogTimers.set(sessionId, timerId);
+	}
+
+	private clearViewportReattachWatchdog(sessionId: string): void {
+		const timerId = this.viewportReattachWatchdogTimers.get(sessionId);
+		if (timerId !== undefined) {
+			clearTimeout(timerId);
+			this.viewportReattachWatchdogTimers.delete(sessionId);
+		}
 	}
 
 	/**
@@ -3385,6 +3460,7 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 		this.transientProjectionStore.removeTransientProjection(sessionId);
 		this.canonicalProjections.delete(sessionId);
 		this.sessionStateGraphs.delete(sessionId);
+		this.transcriptViewportStore.removeSession(sessionId);
 		this.canonicalCapabilitiesMaterialized.delete(sessionId);
 		this.rowTokenStreamsByRowId.delete(sessionId);
 		this.messagingSvc.clearSessionState(sessionId);
@@ -3449,7 +3525,7 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 			sourcePath: snapshot.sourcePath ?? undefined,
 			sessionLifecycleState: nextSessionLifecycleState,
 			parentId: preservedSession?.parentId ?? null,
-			sequenceId: snapshot.sequenceId,
+			sequenceId: snapshot.sequenceId ?? null,
 			preservedMetadata: preservedSession,
 		});
 
@@ -3814,7 +3890,7 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 	 */
 	connectSession(
 		sessionId: string,
-		options?: { openToken?: string }
+		options?: { openToken?: string; forceReconnect?: boolean }
 	): ResultAsync<SessionCold, AppError> {
 		return this.connectionMgr.connectSession(sessionId, this, options);
 	}
@@ -3826,6 +3902,7 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 		this.connectionMgr.disconnectSession(sessionId);
 		this.messagingSvc.clearSessionState(sessionId);
 		this.clearAwaitingModelRefreshTimer(sessionId);
+		this.clearViewportReattachWatchdog(sessionId);
 	}
 
 	/**
@@ -4801,6 +4878,11 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 				continue;
 			}
 
+			if (command.kind === "applyVisibleTranscriptWindow") {
+				this.applyVisibleTranscriptWindow(command.window);
+				continue;
+			}
+
 			if (command.kind === "applyGraphPatches") {
 				const previousProjection = this.canonicalProjections.get(sessionId) ?? null;
 				if (previousProjection === null) {
@@ -5042,6 +5124,22 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 			tokenStream: nextTokenStream,
 			clockAnchor: nextClockAnchor,
 			revision: projection.revision,
+		});
+	}
+
+	private applyVisibleTranscriptWindow(window: VisibleTranscriptWindowPayload): void {
+		const applied = this.transcriptViewportStore.applyVisibleWindow(window);
+		if (applied) {
+			// An accepted window re-attaches the viewport (status flipped to
+			// "attached" inside applyVisibleWindow); cancel any pending recovery
+			// watchdog for this session.
+			this.clearViewportReattachWatchdog(window.sessionId);
+			return;
+		}
+		logger.debug("Ignoring stale visible transcript window", {
+			sessionId: window.sessionId,
+			graphRevision: window.graphRevision,
+			viewportRevision: window.viewportRevision,
 		});
 	}
 

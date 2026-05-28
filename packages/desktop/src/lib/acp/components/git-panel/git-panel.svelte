@@ -17,22 +17,13 @@ import {
 	ProjectLetterBadge,
 } from "@acepe/ui";
 import {
-	type GitIndexStatus,
 	GitPanelLayout,
-	type GitStatusFile,
-	type GitWorktreeStatus,
-	type GitLogEntry as UILogEntry,
 	type GitLogEntryFile as UILogEntryFile,
-	type GitRemoteStatus as UIRemoteStatus,
-	type GitStashEntry as UIStashEntry,
 } from "@acepe/ui/git-panel";
 import { listen } from "@tauri-apps/api/event";
 import { openUrl } from "@tauri-apps/plugin-opener";
-import { Check } from "phosphor-svelte";
-import { FolderOpen } from "phosphor-svelte";
 import { GitBranch } from "phosphor-svelte";
 import { GitPullRequest } from "phosphor-svelte";
-import { Trash } from "phosphor-svelte";
 import { Tree } from "phosphor-svelte";
 import { X } from "phosphor-svelte";
 import { onMount, untrack } from "svelte";
@@ -71,6 +62,19 @@ import {
 	resolveCurrentWorktree,
 } from "../../store/git-modal-state.js";
 import type { GitPanelInitialTarget } from "../../store/git-panel-type.js";
+import {
+	buildCommitPushPrSuccessMessage,
+	buildNavigableChangesFiles,
+	computeCanCommitPush,
+	computeCanCommitPushPr,
+	computeNextChangesFileIndex,
+	isChangesNavigationKey,
+	mapStagedFiles,
+	mapUiLogEntries,
+	mapUiRemoteStatus,
+	mapUiStashEntries,
+	mapUnstagedFiles,
+} from "./git-panel-logic.js";
 import type { PrDiff, PrListItem, RepoContext } from "../../types/github-integration.js";
 import type { FileDiff as FileDiffType } from "../../types/github-integration.js";
 import type { GitHubReference } from "../../constants/github-badge-html.js";
@@ -78,6 +82,7 @@ import { getVoiceSettingsStore } from "$lib/stores/voice-settings-store.svelte.j
 
 import PierreDiffView from "../diff-viewer/pierre-diff-view.svelte";
 import PrDiffFileList from "./pr-diff-file-list.svelte";
+import GitPanelWorktreesSection from "./git-panel-worktrees-section.svelte";
 
 type SourceControlSection = "changes" | "worktrees" | "commits" | "prs";
 
@@ -176,83 +181,28 @@ const currentWorktree = $derived(resolveCurrentWorktree(projectPath, worktrees))
 const worktreeItems = $derived(buildWorktreeListItems(projectPath, worktrees));
 
 /** Map Tauri file status → shared UI GitStatusFile */
-const stagedFiles: GitStatusFile[] = $derived(
-	files
-		.filter((f) => f.indexStatus !== null)
-		.map((f) => ({
-			path: f.path,
-			indexStatus: f.indexStatus as GitIndexStatus,
-			worktreeStatus: f.worktreeStatus as GitWorktreeStatus | null,
-			additions: f.indexInsertions,
-			deletions: f.indexDeletions,
-		}))
-);
+const stagedFiles = $derived(mapStagedFiles(files));
 
-const unstagedFiles: GitStatusFile[] = $derived(
-	files
-		.filter((f) => f.worktreeStatus !== null && f.indexStatus === null)
-		.map((f) => ({
-			path: f.path,
-			indexStatus: null,
-			worktreeStatus: f.worktreeStatus as GitWorktreeStatus,
-			additions: f.worktreeInsertions,
-			deletions: f.worktreeDeletions,
-		}))
-);
+const unstagedFiles = $derived(mapUnstagedFiles(files));
 
-const navigableChangesFiles = $derived([
-	...stagedFiles.map((file) => ({
-		file: {
-			path: file.path,
-			status: (file.indexStatus ?? "modified") as FileDiffType["status"],
-			additions: file.additions,
-			deletions: file.deletions,
-		},
-		staged: true,
-	})),
-	...unstagedFiles.map((file) => ({
-		file: {
-			path: file.path,
-			status: (file.worktreeStatus === "untracked"
-				? "added"
-				: (file.worktreeStatus ?? "modified")) as FileDiffType["status"],
-			additions: file.additions,
-			deletions: file.deletions,
-		},
-		staged: false,
-	})),
-]);
+const navigableChangesFiles = $derived(buildNavigableChangesFiles(stagedFiles, unstagedFiles));
 
 /** Map Tauri types → shared UI types */
-const uiRemoteStatus: UIRemoteStatus | null = $derived(
-	remoteStatus
-		? {
-				ahead: remoteStatus.ahead,
-				behind: remoteStatus.behind,
-				remote: remoteStatus.remote,
-				trackingBranch: remoteStatus.trackingBranch,
-			}
-		: null
-);
+const uiRemoteStatus = $derived(mapUiRemoteStatus(remoteStatus));
 
-const uiStashEntries: UIStashEntry[] = $derived(
-	stashEntries.map((s) => ({ index: s.index, message: s.message, date: s.date }))
-);
+const uiStashEntries = $derived(mapUiStashEntries(stashEntries));
 
-const uiLogEntries: UILogEntry[] = $derived(
-	logEntries.map((l) => ({
-		sha: l.sha,
-		shortSha: l.shortSha,
-		message: l.message,
-		author: l.author,
-		date: l.date,
-	}))
-);
+const uiLogEntries = $derived(mapUiLogEntries(logEntries));
 
 const canCommitPush = $derived(
-	(stagedFiles.length > 0 || (remoteStatus?.ahead ?? 0) > 0) && !!branch && !stackedActionRunning
+	computeCanCommitPush({
+		stagedFileCount: stagedFiles.length,
+		remoteStatus,
+		branch,
+		stackedActionRunning,
+	})
 );
-const canCommitPushPr = $derived(canCommitPush && (remoteStatus?.trackingBranch?.length ?? 0) > 0);
+const canCommitPushPr = $derived(computeCanCommitPushPr({ canCommitPush, remoteStatus }));
 const commitMicDisabled = $derived.by(() => {
 	if (voiceState === null) {
 		return true;
@@ -455,20 +405,7 @@ async function handleCommitPush() {
 async function handleCommitPushPr() {
 	await runStackedActionAndNotify(
 		"commit_push_pr",
-		(ok) => {
-			switch (ok.pr.status) {
-				case "created":
-					return `Created PR #${ok.pr.number ?? ""}`;
-				case "opened_existing":
-					return `Opened PR #${ok.pr.number ?? ""}`;
-				case "skipped_not_requested":
-					return "Pushed to branch";
-				default: {
-					const _: never = ok.pr.status;
-					return "Pushed to branch";
-				}
-			}
-		},
+		(ok) => buildCommitPushPrSuccessMessage(ok.pr),
 		(ok) => {
 			if (ok.pr.status === "created" || ok.pr.status === "opened_existing") {
 				// Backend guarantees pr.url for these statuses.
@@ -666,7 +603,7 @@ function handleChangesKeyDown(event: KeyboardEvent) {
 		return;
 	}
 
-	if (event.key !== "ArrowDown" && event.key !== "ArrowUp") {
+	if (!isChangesNavigationKey(event.key)) {
 		return;
 	}
 
@@ -675,13 +612,11 @@ function handleChangesKeyDown(event: KeyboardEvent) {
 	const currentIndex = navigableChangesFiles.findIndex(
 		(entry) => entry.file.path === selectedChangesFile
 	);
-	const fallbackIndex = event.key === "ArrowDown" ? 0 : navigableChangesFiles.length - 1;
-	const nextIndex =
-		currentIndex === -1
-			? fallbackIndex
-			: event.key === "ArrowDown"
-				? Math.min(currentIndex + 1, navigableChangesFiles.length - 1)
-				: Math.max(currentIndex - 1, 0);
+	const nextIndex = computeNextChangesFileIndex({
+		key: event.key,
+		currentIndex,
+		length: navigableChangesFiles.length,
+	});
 	const nextFile = navigableChangesFiles[nextIndex];
 	if (!nextFile || nextFile.file.path === selectedChangesFile) {
 		return;
@@ -1026,149 +961,17 @@ async function handleOpenPr(prNumber: number) {
 			{/if}
 		</div>
 	{:else if activeSection === "worktrees"}
-		<div class="flex-1 min-h-0 overflow-y-auto px-2.5 py-2">
-			<div class="space-y-1.5">
-				<div
-					class="flex items-center gap-2 rounded-md border border-border/40 bg-muted/15 px-2.5 py-2"
-				>
-					<GitBranch size={12} weight="bold" class="shrink-0 text-muted-foreground" />
-					<div class="min-w-0 flex-1">
-						<div class="flex items-center gap-1.5">
-							<span class="text-[11px] font-medium text-foreground">Main repository</span>
-							{#if !currentWorktree}
-								<span
-									class="rounded-full bg-accent px-1.5 py-px text-[9px] font-medium text-foreground"
-									>Current</span
-								>
-							{/if}
-						</div>
-						<div class="flex items-center gap-2 mt-0.5">
-							{#if branch}
-								<span class="text-[10px] text-muted-foreground font-mono truncate">{branch}</span>
-							{/if}
-							<span class="text-[10px] text-muted-foreground/60 font-mono truncate"
-								>{projectPath}</span
-							>
-						</div>
-					</div>
-					<button
-						type="button"
-						class="inline-flex h-6 w-6 items-center justify-center rounded-sm text-muted-foreground transition-colors hover:bg-muted/50 hover:text-foreground"
-						title="Reveal in Finder"
-						onclick={() => handleRevealPath(projectPath)}
-					>
-						<FolderOpen size={12} weight="bold" />
-					</button>
-				</div>
-
-				{#if worktreeItems.length > 0}
-					<div class="flex items-center justify-between px-1 pt-1">
-						<span class="text-[10px] font-medium uppercase tracking-wide text-muted-foreground/70"
-							>Worktrees</span
-						>
-						{#if worktreeDeleteConfirm === "all"}
-							<div class="flex items-center gap-1">
-								<span class="text-[10px] text-destructive">Delete all?</span>
-								<button
-									type="button"
-									class="rounded-md px-1.5 py-0.5 text-[10px] font-medium text-destructive hover:bg-destructive/10 transition-colors"
-									onclick={() => void handleDeleteAllWorktrees()}>Yes</button
-								>
-								<button
-									type="button"
-									class="rounded-md px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground hover:bg-muted/50 transition-colors"
-									onclick={() => (worktreeDeleteConfirm = null)}>No</button
-								>
-							</div>
-						{:else}
-							<button
-								type="button"
-								class="rounded-md px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-colors"
-								title="Delete all worktrees"
-								onclick={() => (worktreeDeleteConfirm = "all")}
-							>
-								<Trash size={10} weight="bold" />
-							</button>
-						{/if}
-					</div>
-				{/if}
-				{#if worktreeItems.length === 0}
-					<div
-						class="rounded-md border border-dashed border-border/50 px-2.5 py-3 text-center text-[11px] text-muted-foreground"
-					>
-						No linked worktrees for this repository yet.
-					</div>
-				{:else}
-					{#each worktreeItems as item (item.worktree.directory)}
-						<div
-							class={`flex items-center gap-2 rounded-md border px-2.5 py-1.5 ${item.isCurrent ? "border-accent/60 bg-accent/8" : "border-border/40 bg-muted/10 hover:bg-muted/20"} transition-colors`}
-						>
-							<Tree size={12} weight="fill" class="shrink-0 text-success" />
-							<div class="min-w-0 flex-1">
-								<div class="flex items-center gap-1.5">
-									<span class="text-[11px] font-medium text-foreground font-mono truncate"
-										>{item.worktree.name}</span
-									>
-									{#if item.isCurrent}
-										<span
-											class="inline-flex items-center gap-0.5 rounded-full bg-accent px-1.5 py-px text-[9px] font-medium text-foreground"
-										>
-											<Check size={8} weight="bold" />
-											Current
-										</span>
-									{/if}
-									{#if item.worktree.origin === "external"}
-										<span class="text-[9px] uppercase tracking-wide text-muted-foreground/50"
-											>ext</span
-										>
-									{/if}
-								</div>
-								<div class="flex items-center gap-2 mt-px">
-									<span class="text-[10px] text-muted-foreground font-mono truncate"
-										>{item.worktree.branch}</span
-									>
-									<span class="text-[10px] text-muted-foreground/50 font-mono truncate"
-										>{item.worktree.directory}</span
-									>
-								</div>
-							</div>
-							{#if worktreeDeleteConfirm === item.worktree.directory}
-								<div class="flex items-center gap-1 shrink-0">
-									<span class="text-[10px] text-destructive">Delete?</span>
-									<button
-										type="button"
-										class="rounded-md px-1.5 py-0.5 text-[10px] font-medium text-destructive hover:bg-destructive/10 transition-colors"
-										onclick={() => void handleDeleteWorktree(item.worktree.directory)}>Yes</button
-									>
-									<button
-										type="button"
-										class="rounded-md px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground hover:bg-muted/50 transition-colors"
-										onclick={() => (worktreeDeleteConfirm = null)}>No</button
-									>
-								</div>
-							{:else}
-								<button
-									type="button"
-									class="inline-flex h-6 w-6 items-center justify-center rounded-sm text-muted-foreground transition-colors hover:bg-muted/50 hover:text-foreground"
-									title="Reveal in Finder"
-									onclick={() => handleRevealPath(item.worktree.directory)}
-								>
-									<FolderOpen size={12} weight="bold" />
-								</button>
-								<button
-									type="button"
-									class="inline-flex h-6 w-6 items-center justify-center rounded-sm text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
-									title="Delete worktree"
-									onclick={() => (worktreeDeleteConfirm = item.worktree.directory)}
-								>
-									<Trash size={12} weight="bold" />
-								</button>
-							{/if}
-						</div>
-					{/each}
-				{/if}
-			</div>
-		</div>
+		<GitPanelWorktreesSection
+			{currentWorktree}
+			{branch}
+			{projectPath}
+			{worktreeItems}
+			deleteConfirm={worktreeDeleteConfirm}
+			onDeleteConfirmChange={(value) => (worktreeDeleteConfirm = value)}
+			onRevealPath={handleRevealPath}
+			onDeleteWorktree={(directory) => void handleDeleteWorktree(directory)}
+			onDeleteAllWorktrees={() => void handleDeleteAllWorktrees()}
+		/>
 	{:else if activeSection === "commits"}
 		<div class="flex flex-1 min-h-0 overflow-hidden">
 			<div class="flex w-[16rem] shrink-0 flex-col border-r border-border/30 bg-muted/5">

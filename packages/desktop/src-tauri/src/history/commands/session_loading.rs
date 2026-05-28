@@ -762,17 +762,20 @@ fn restore_session_open_authority<R: tauri::Runtime>(
     let SessionOpenResult::Found(found) = result else {
         return;
     };
+    // Viewport authority is keyed only by the canonical session id; the frontend
+    // re-keys to the canonical id at open time, so no alias duplication is needed.
+    let canonical_session_id = &found.canonical_session_id;
 
     if let Some(transcript_registry) = app.try_state::<Arc<TranscriptProjectionRegistry>>() {
         transcript_registry.inner().restore_session_snapshot(
-            found.canonical_session_id.clone(),
+            canonical_session_id.clone(),
             found.transcript_snapshot.clone(),
         );
     }
 
     if let Some(projection_registry) = app.try_state::<Arc<ProjectionRegistry>>() {
         let session = SessionSnapshot {
-            session_id: found.canonical_session_id.clone(),
+            session_id: canonical_session_id.clone(),
             agent_id: Some(found.agent_id.clone()),
             last_event_seq: found.last_event_seq,
             turn_state: found.turn_state.clone(),

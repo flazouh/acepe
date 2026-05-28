@@ -81,3 +81,21 @@ export class ProviderHistoryFailedAcpError extends AcpError {
 		this.name = "ProviderHistoryFailedAcpError";
 	}
 }
+
+/**
+ * Raised when a transcript viewport command targets a session whose canonical
+ * viewport state is absent from the current backend runtime (e.g. after a backend
+ * restart wiped the in-memory registries while the frontend kept the session open).
+ *
+ * This is a recoverable signal: the frontend should re-attach the session rather
+ * than treat it as a hard failure.
+ */
+export class ViewportSessionNotAttachedAcpError extends AcpError {
+	constructor(readonly sessionId: string) {
+		super(
+			`No canonical transcript viewport is attached for session ${sessionId}`,
+			"VIEWPORT_SESSION_NOT_ATTACHED"
+		);
+		this.name = "ViewportSessionNotAttachedAcpError";
+	}
+}

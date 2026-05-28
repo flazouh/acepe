@@ -6,7 +6,6 @@ import {
 	type AgentPanelQuestionSelectEvent,
 	type AgentPanelSceneEntryModel,
 	type AgentToolFileSelectEvent,
-	type TokenRevealCss,
 } from "@acepe/ui/agent-panel";
 import { DiffPill, setThinkingPreferences } from "@acepe/ui";
 import { EmbeddedIconButton } from "@acepe/ui/panel-header";
@@ -92,10 +91,10 @@ import { shouldShowPreSessionWorktreeCard } from "../logic/pre-session-worktree-
 import { resolveWorktreeToggleProjectPath } from "../logic/worktree-toggle-project-path.js";
 import { createGraphSceneEntryIndexReadModel } from "../logic/graph-scene-entry-match.js";
 import { createTokenRevealSceneReadModel } from "../logic/token-reveal-scene-read-model.js";
-import type {
-	RowTokenStream,
-	SessionClockAnchor,
-} from "../../../store/canonical-session-projection.js";
+import {
+	buildTokenRevealCss,
+	hasStreamingPreviewContent,
+} from "./agent-panel-pure-helpers.js";
 import { AgentPanelState } from "../state/agent-panel-state.svelte";
 import type { AgentPanelProps } from "../types";
 import {
@@ -134,13 +133,7 @@ import {
 	removeAttachmentFromQueuedMessage,
 	sendQueuedMessageNow,
 } from "../logic/queue-strip-handlers.js";
-import {
-	TOKEN_REVEAL_FADE_MS,
-	TOKEN_REVEAL_STEP_MS,
-	resolveTokenRevealBaselineMs,
-	resolveTokenRevealSettleDelayMs,
-	shouldKeepTokenRevealTiming,
-} from "../../messages/token-reveal-motion.js";
+import { resolveTokenRevealSettleDelayMs } from "../../messages/token-reveal-motion.js";
 import {
 	copyStreamingLogPathToClipboard,
 	copyThreadContentToClipboard,
@@ -230,55 +223,6 @@ const agentPanelDisplaySceneEntriesReadModel = createAgentPanelDisplaySceneEntri
 const tokenRevealSourceIndexReadModel = createGraphSceneEntryIndexReadModel();
 const tokenRevealSceneReadModel = createTokenRevealSceneReadModel();
 let prefersReducedMotion = $state(false);
-
-function buildTokenRevealCss(
-	rowTokenStream: RowTokenStream | null,
-	clockAnchor: SessionClockAnchor | null,
-	streamingAnimationMode: "smooth" | "instant",
-	reducedMotion: boolean,
-	isStreaming: boolean
-): TokenRevealCss | undefined {
-	if (
-		rowTokenStream === null ||
-		rowTokenStream.wordCount < 1 ||
-		clockAnchor === null
-	) {
-		return undefined;
-	}
-
-	const browserNowMs = globalThis.performance?.now();
-	if (browserNowMs === undefined) {
-		return undefined;
-	}
-
-	const baselineMs = resolveTokenRevealBaselineMs({
-		latestDeltaProducedAtMonotonicMs: rowTokenStream.lastDeltaProducedAtMonotonicMs,
-		clockAnchorRustMonotonicMs: clockAnchor.rustMonotonicMs,
-		clockAnchorBrowserMs: clockAnchor.browserAnchorMs,
-		browserNowMs,
-	});
-	const revealMode = reducedMotion ? "instant" : streamingAnimationMode;
-
-	const tokenRevealCss = {
-		revealCount: rowTokenStream.latestWordCount,
-		revealedCharCount: rowTokenStream.accumulatedText.length,
-		baselineMs,
-		tokStepMs: TOKEN_REVEAL_STEP_MS,
-		tokFadeDurMs: TOKEN_REVEAL_FADE_MS,
-		mode: revealMode,
-	};
-
-	if (
-		!shouldKeepTokenRevealTiming({
-			isStreaming,
-			timing: tokenRevealCss,
-		})
-	) {
-		return undefined;
-	}
-
-	return tokenRevealCss;
-}
 
 onMount(() => {
 	const mediaQuery = window.matchMedia?.("(prefers-reduced-motion: reduce)") ?? null;
@@ -1076,12 +1020,6 @@ const agentInstallState = $derived.by(() => {
 // Derived from session store — populated from DB on startup, updated in-session after PR creation
 // Also auto-populated when Claude creates a PR autonomously.
 const createdPr = $derived(sessionMetadata?.prNumber ?? null);
-
-function hasStreamingPreviewContent(
-	data: import("../../ship-card/ship-card-parser.js").ShipCardData | null
-): boolean {
-	return Boolean(data && (data.prTitle !== null || data.prDescription !== null));
-}
 
 const prFetchTarget = $derived.by(() => {
 	if (!sessionId || !sessionProjectPath || createdPr == null) {

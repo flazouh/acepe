@@ -12,33 +12,6 @@ export { resolveEffectiveProjectPath } from "./effective-project-path";
 export { calculateLoadingProgress, isLoadingComplete } from "./loading-animator";
 export { loadSessionPlan } from "./plan-loader";
 export {
-	createInitialTranscriptViewportState,
-	reduceTranscriptViewportBatch,
-	reduceTranscriptViewportEvent,
-	type TranscriptViewportState,
-} from "./transcript-viewport-controller.js";
-export {
-	orderTranscriptViewportEvents,
-	type TranscriptViewportEvent,
-	type TranscriptViewportMeasurement,
-} from "./transcript-viewport-events.js";
-export {
-	getTranscriptViewportEffectName,
-	type TranscriptViewportEffect,
-} from "./transcript-viewport-effects.js";
-export type { TranscriptViewportRowSummary } from "./transcript-viewport-row-summary.js";
-export {
-	createTranscriptVirtualizerRendererAdapter,
-	type TranscriptRendererAdapter,
-} from "./transcript-renderer-adapter.js";
-export {
-	createTranscriptViewportDiagnostics,
-	recordTranscriptViewportDiagnostic,
-	type TranscriptViewportDiagnosticRecord,
-	type TranscriptViewportDiagnostics,
-} from "./transcript-viewport-diagnostics.js";
-export { replayTranscriptViewportEvents } from "./transcript-viewport-replay.js";
-export {
 	deriveCanonicalUserEntryPresence,
 	resolveOptimisticUserEntryForGraph,
 	resolveVisibleEntryCount,

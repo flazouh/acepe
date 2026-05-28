@@ -604,6 +604,8 @@ pub async fn session_open_result_from_provider_owned_snapshot(
     );
     let capabilities = SessionGraphCapabilities::empty();
 
+    // Viewport authority is keyed only by the canonical session id; the frontend
+    // re-keys to the canonical id at open time, so no alias duplication is needed.
     if let Some(runtime_registry) = runtime_registry {
         runtime_registry.restore_session_state(
             canonical_session_id.clone(),
@@ -2466,6 +2468,111 @@ mod tests {
         assert!(found.is_alias);
         assert_eq!(found.requested_session_id, requested_session_id);
         assert_eq!(found.canonical_session_id, canonical_session_id);
+    }
+
+    #[tokio::test]
+    async fn provider_owned_alias_open_keys_viewport_authority_to_canonical_id_only() {
+        let db = setup_db().await;
+        let hub = make_hub();
+        let runtime_registry = SessionGraphRuntimeRegistry::new();
+        let projection_registry = crate::acp::projections::ProjectionRegistry::new();
+        let transcript_projection_registry =
+            crate::acp::transcript_projection::TranscriptProjectionRegistry::new();
+        let canonical_session_id = "canonical-provider-owned-session";
+        let requested_session_id = "provider-owned-session-alias";
+        seed_session_metadata(&db, canonical_session_id, "copilot").await;
+        append_frontier_barrier(&db, canonical_session_id).await;
+
+        let provider_snapshot = ProviderOwnedSessionSnapshot::from_thread_snapshot(
+            make_provider_pipeline_snapshot(&CanonicalAgentId::Copilot),
+        );
+        let replay_context =
+            replay_context_for_session(canonical_session_id, CanonicalAgentId::Copilot);
+
+        let result = session_open_result_from_provider_owned_snapshot(
+            &db,
+            &hub,
+            Some(&runtime_registry),
+            &replay_context,
+            requested_session_id,
+            &provider_snapshot,
+        )
+        .await;
+
+        let SessionOpenResult::Found(found) = result else {
+            panic!("expected Found, got {result:?}");
+        };
+        assert!(found.is_alias);
+
+        // Mirror restore_session_open_authority: canonical-keyed transcript +
+        // projection registries are the sole viewport authority.
+        transcript_projection_registry.restore_session_snapshot(
+            found.canonical_session_id.clone(),
+            found.transcript_snapshot.clone(),
+        );
+        projection_registry.restore_session_projection(
+            crate::acp::projections::SessionProjectionSnapshot {
+                session: Some(crate::acp::projections::SessionSnapshot {
+                    session_id: found.canonical_session_id.clone(),
+                    agent_id: Some(found.agent_id.clone()),
+                    last_event_seq: found.last_event_seq,
+                    turn_state: found.turn_state.clone(),
+                    message_count: found.message_count,
+                    active_tool_call_ids: Vec::new(),
+                    completed_tool_call_ids: Vec::new(),
+                    active_turn_failure: found.active_turn_failure.clone(),
+                    last_terminal_turn_id: found.last_terminal_turn_id.clone(),
+                }),
+                operations: found.operations.clone(),
+                interactions: found.interactions.clone(),
+                runtime: None,
+            },
+        );
+
+        let revision = crate::acp::session_state_engine::SessionGraphRevision::new(
+            found.graph_revision,
+            found.transcript_snapshot.revision,
+            found.last_event_seq,
+        );
+
+        let envelope = runtime_registry
+            .build_visible_transcript_window_envelope_for_session(
+                &found.canonical_session_id,
+                revision,
+                &projection_registry,
+                &transcript_projection_registry,
+                720,
+                None,
+                None,
+            )
+            .expect("canonical id should have restored viewport authority");
+
+        match envelope.payload {
+            crate::acp::session_state_engine::SessionStatePayload::VisibleTranscriptWindow {
+                window,
+            } => {
+                assert_eq!(window.session_id, canonical_session_id);
+                assert!(!window.rows.is_empty());
+            }
+            other => panic!("expected visible transcript window, got {other:?}"),
+        }
+
+        // The alias id has no viewport authority and must miss as SessionNotAttached.
+        let alias_miss = runtime_registry
+            .build_visible_transcript_window_envelope_for_session(
+                requested_session_id,
+                revision,
+                &projection_registry,
+                &transcript_projection_registry,
+                720,
+                None,
+                None,
+            )
+            .expect_err("alias id must not resolve viewport authority");
+        assert!(matches!(
+            alias_miss,
+            crate::acp::session_state_engine::runtime_registry::VisibleTranscriptWindowMiss::SessionNotAttached
+        ));
     }
     // -----------------------------------------------------------------------
     // Happy path: open token guarantees reservation is armed after assembly

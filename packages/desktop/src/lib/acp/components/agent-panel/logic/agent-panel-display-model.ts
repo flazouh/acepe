@@ -29,6 +29,16 @@ import {
 	isStableSceneEntryTruncation,
 } from "./scene-entry-stability.js";
 import { mapCanonicalSessionToPanelStatus } from "./session-status-mapper.js";
+import {
+	createDisplayedAssistantMessage,
+} from "./agent-panel-display-model-assistant-content.js";
+import {
+	areDisplayRowsEquivalent,
+	areJsonLikeValuesEquivalent,
+	createArrayLikeOwnKeys,
+	isDisplaySceneEntryStable,
+	toArrayIndex,
+} from "./agent-panel-display-model-equality.js";
 
 export type AgentPanelDisplayRow =
 	| {
@@ -1070,98 +1080,6 @@ function countDisplayRowsInRange(
 	return count;
 }
 
-function toArrayIndex(property: string): number | null {
-	if (property === "") {
-		return null;
-	}
-	const index = Number(property);
-	return Number.isInteger(index) && index >= 0 && String(index) === property ? index : null;
-}
-
-function createArrayLikeOwnKeys(length: number): string[] {
-	const keys: string[] = [];
-	for (let index = 0; index < length; index += 1) {
-		keys.push(String(index));
-	}
-	keys.push("length");
-	return keys;
-}
-
-function isDisplaySceneEntryStable(
-	previous: AgentPanelSceneEntryModel | undefined,
-	next: AgentPanelSceneEntryModel | undefined
-): boolean {
-	if (previous === next) {
-		return true;
-	}
-	if (
-		previous === undefined ||
-		next === undefined ||
-		previous.id !== next.id ||
-		previous.type !== next.type
-	) {
-		return false;
-	}
-	if (previous.type === "user" && next.type === "user") {
-		return previous.text === next.text && previous.isOptimistic === next.isOptimistic;
-	}
-	if (previous.type === "assistant" && next.type === "assistant") {
-		return previous.markdown === next.markdown && previous.isStreaming === next.isStreaming;
-	}
-	return false;
-}
-
-function areDisplayRowsEquivalent(
-	left: AgentPanelDisplayRow,
-	right: AgentPanelDisplayRow
-): boolean {
-	if (left.type !== right.type || left.id !== right.id) {
-		return false;
-	}
-	if (left.type === "user" && right.type === "user") {
-		return left.text === right.text && left.isOptimistic === right.isOptimistic;
-	}
-	if (left.type === "assistant" && right.type === "assistant") {
-		return (
-			left.canonicalText === right.canonicalText &&
-			left.displayText === right.displayText &&
-			left.canonicalTextRevision === right.canonicalTextRevision &&
-			left.isLiveTail === right.isLiveTail
-		);
-	}
-	return false;
-}
-
-function areJsonLikeValuesEquivalent(left: unknown, right: unknown): boolean {
-	if (left === right) {
-		return true;
-	}
-	if (
-		left === null ||
-		right === null ||
-		left === undefined ||
-		right === undefined ||
-		typeof left !== "object" ||
-		typeof right !== "object"
-	) {
-		return false;
-	}
-	if (Array.isArray(left) || Array.isArray(right)) {
-		if (!Array.isArray(left) || !Array.isArray(right) || left.length !== right.length) {
-			return false;
-		}
-		return left.every((item, index) => areJsonLikeValuesEquivalent(item, right[index]));
-	}
-
-	const leftEntries = Object.entries(left);
-	const rightRecord = right as Record<string, unknown>;
-	if (leftEntries.length !== Object.keys(rightRecord).length) {
-		return false;
-	}
-	return leftEntries.every(([key, value]) =>
-		areJsonLikeValuesEquivalent(value, rightRecord[key])
-	);
-}
 
 export function buildAgentPanelBaseModel(input: AgentPanelDisplayInput): AgentPanelBaseModel {
 	const graph = input.graph;
@@ -1768,142 +1686,6 @@ function isStableDisplayRowAppend(
 	return true;
 }
 
-function cloneContentBlock(block: ContentBlock): ContentBlock {
-	if (block.type === "text") {
-		return { type: "text", text: block.text };
-	}
-	if (block.type === "image") {
-		if (block.uri !== undefined) {
-			return {
-				type: "image",
-				data: block.data,
-				mimeType: block.mimeType,
-				uri: block.uri,
-			};
-		}
-		return {
-			type: "image",
-			data: block.data,
-			mimeType: block.mimeType,
-		};
-	}
-	if (block.type === "audio") {
-		return {
-			type: "audio",
-			data: block.data,
-			mimeType: block.mimeType,
-		};
-	}
-	if (block.type === "resource") {
-		return {
-			type: "resource",
-			resource: {
-				uri: block.resource.uri,
-				text: block.resource.text,
-				blob: block.resource.blob,
-				mimeType: block.resource.mimeType,
-			},
-		};
-	}
-	const result: ContentBlock = {
-		type: "resource_link",
-		uri: block.uri,
-		name: block.name,
-	};
-	if (block.title !== undefined) {
-		result.title = block.title;
-	}
-	if (block.description !== undefined) {
-		result.description = block.description;
-	}
-	if (block.mimeType !== undefined) {
-		result.mimeType = block.mimeType;
-	}
-	if (block.size !== undefined) {
-		result.size = block.size;
-	}
-	return result;
-}
-
-function createDisplayedAssistantTextChunk(
-	chunk: AssistantMessageChunk,
-	displayText: string,
-	displayOffset: number,
-	hasOriginalTextContent: boolean
-): {
-	readonly chunk: AssistantMessageChunk;
-	readonly nextDisplayOffset: number;
-} {
-	if (chunk.type !== "message" || chunk.block.type !== "text") {
-		return {
-			chunk: {
-				type: chunk.type,
-				block: cloneContentBlock(chunk.block),
-			},
-			nextDisplayOffset: displayOffset,
-		};
-	}
-
-	const originalTextLength = hasOriginalTextContent ? chunk.block.text.length : displayText.length;
-	const nextDisplayOffset = Math.min(displayText.length, displayOffset + originalTextLength);
-	return {
-		chunk: {
-			type: "message",
-			block: {
-				type: "text",
-				text: displayText.slice(displayOffset, nextDisplayOffset),
-			},
-		},
-		nextDisplayOffset,
-	};
-}
-
-function createDisplayedAssistantMessage(
-	message: AssistantMessage,
-	displayText: string
-): AssistantMessage {
-	const chunks: AssistantMessageChunk[] = [];
-	let hasDisplayedTextChunk = false;
-	let displayOffset = 0;
-	let originalTextLength = 0;
-	for (const chunk of message.chunks) {
-		if (chunk.type === "message" && chunk.block.type === "text") {
-			originalTextLength += chunk.block.text.length;
-		}
-	}
-	const hasOriginalTextContent = originalTextLength > 0;
-	for (const chunk of message.chunks) {
-		const displayedChunk = createDisplayedAssistantTextChunk(
-			chunk,
-			displayText,
-			displayOffset,
-			hasOriginalTextContent
-		);
-		chunks.push(displayedChunk.chunk);
-		if (chunk.type === "message" && chunk.block.type === "text") {
-			hasDisplayedTextChunk = true;
-			displayOffset = displayedChunk.nextDisplayOffset;
-		}
-	}
-
-	if (!hasDisplayedTextChunk || displayOffset < displayText.length) {
-		chunks.push({
-			type: "message",
-			block: {
-				type: "text",
-				text: displayText.slice(displayOffset),
-			},
-		});
-	}
-
-	return {
-		chunks,
-		model: message.model,
-		displayModel: message.displayModel,
-		receivedAt: message.receivedAt,
-		thinkingDurationMs: message.thinkingDurationMs,
-	};
-}
 
 function findAssistantDisplayRow(
 	rowById: ReadonlyMap<string, Extract<AgentPanelDisplayRow, { type: "assistant" }>>,

@@ -52,12 +52,12 @@ export type ResolvedCapabilityStatus = "resolved" | "partial" | "unsupported" | 
 
 export type ResolvedCapabilities = { status: ResolvedCapabilityStatus; availableModels: AvailableModel[]; currentModelId: string | null; modelsDisplay: ModelsForDisplay; providerMetadata: FrontendProviderProjection; availableModes: AvailableMode[]; currentModeId: string | null }
 
+export type ConfigOptionPresentation = "hidden" | "advanced" | "compactReasoning" | "compactSpeed"
+
 /**
  * Configuration option value.
  */
 export type ConfigOptionValue = { name: string; value: JsonValue; description?: string | null }
-
-export type ConfigOptionPresentation = "hidden" | "advanced" | "compactReasoning" | "compactSpeed"
 
 /**
  * Configuration option data.
@@ -459,7 +459,7 @@ graphRevision: number;
  * reservation until the token is claimed (Unit 3) or expires after 30 s
  * of inactivity.
  */
-openToken: string; agentId: CanonicalAgentId; projectPath: string; worktreePath: string | null; sourcePath: string | null; sequenceId: number | null; transcriptSnapshot: TranscriptSnapshot; sessionTitle: string; operations: OperationSnapshot[]; interactions: InteractionSnapshot[]; turnState: SessionTurnState; messageCount: number; activity: SessionGraphActivity; activeStreamingTail: ActiveStreamingTail | null; lifecycle: SessionGraphLifecycle; capabilities: SessionGraphCapabilities; activeTurnFailure?: TurnFailureSnapshot | null; lastTerminalTurnId?: string | null }
+openToken: string; agentId: CanonicalAgentId; projectPath: string; worktreePath: string | null; sourcePath: string | null; sequenceId?: number | null; transcriptSnapshot: TranscriptSnapshot; sessionTitle: string; operations: OperationSnapshot[]; interactions: InteractionSnapshot[]; turnState: SessionTurnState; messageCount: number; activity: SessionGraphActivity; activeStreamingTail: ActiveStreamingTail | null; lifecycle: SessionGraphLifecycle; capabilities: SessionGraphCapabilities; activeTurnFailure?: TurnFailureSnapshot | null; lastTerminalTurnId?: string | null }
 
 /**
  * Payload for the `missing` outcome — no persisted content was found for the
@@ -506,6 +506,20 @@ export type ActiveStreamingTailContentKind = "thought" | "message"
 
 export type ActiveStreamingTail = { rowId: string; contentKind: ActiveStreamingTailContentKind }
 
+export type TranscriptViewportRowKind = "user" | "assistantText" | "assistantThought" | "tool" | "error"
+
+export type TranscriptViewportOperationLink = { operationId: string; toolCallId: string; name: string; state: OperationState }
+
+export type TranscriptViewportInteractionLink = { interactionId: string; kind: InteractionKind; state: InteractionState; operationId: string | null }
+
+export type TranscriptViewportRowContent = { kind: "transcript"; role: TranscriptEntryRole; segments: TranscriptSegment[] }
+
+export type TranscriptViewportRow = { rowId: string; sourceEntryId: string; kind: TranscriptViewportRowKind; version: string; anchorEligible: boolean; activeStreamingTail: ActiveStreamingTailContentKind | null; operationLinks: TranscriptViewportOperationLink[]; interactionLinks: TranscriptViewportInteractionLink[]; content: TranscriptViewportRowContent }
+
+export type ViewportMode = { kind: "followingTail" } | { kind: "detached"; anchorRowId: string; offsetFromAnchorPx: number }
+
+export type ViewportWindow = { offsetPx: number; totalHeightPx: number; visibleStartIndex: number; visibleEndIndex: number; mode: ViewportMode }
+
 export type SessionStateGraph = { requestedSessionId: string; canonicalSessionId: string; isAlias: boolean; agentId: CanonicalAgentId; projectPath: string; worktreePath?: string | null; sourcePath?: string | null; sequenceId?: number | null; revision: SessionGraphRevision; transcriptSnapshot: TranscriptSnapshot; operations: OperationSnapshot[]; interactions: InteractionSnapshot[]; turnState: SessionTurnState; messageCount: number; activeStreamingTail: ActiveStreamingTail | null; activeTurnFailure?: TurnFailureSnapshot | null; lastTerminalTurnId?: string | null; lifecycle: SessionGraphLifecycle; activity: SessionGraphActivity; capabilities: SessionGraphCapabilities }
 
 export type SessionStateSnapshotMaterialization = { graph: SessionStateGraph }
@@ -514,7 +528,13 @@ export type SessionStateDelta = { fromRevision: SessionGraphRevision; toRevision
 
 export type AssistantTextDeltaPayload = { turnId: string; rowId: string; charOffset: number; deltaText: string; producedAtMonotonicMs: number; revision: number }
 
-export type SessionStatePayload = { kind: "snapshot"; graph: SessionStateGraph } | { kind: "delta"; delta: SessionStateDelta } | { kind: "lifecycle"; lifecycle: SessionGraphLifecycle; revision: SessionGraphRevision } | { kind: "capabilities"; capabilities: SessionGraphCapabilities; revision: SessionGraphRevision; pending_mutation_id?: string | null; preview_state: CapabilityPreviewState } | { kind: "telemetry"; telemetry: UsageTelemetryData; revision: SessionGraphRevision } | { kind: "plan"; plan: PlanData; revision: SessionGraphRevision } | { kind: "assistantTextDelta"; delta: AssistantTextDeltaPayload }
+export type VisibleTranscriptWindowDiagnostic = { code: string; rowId: string | null }
+
+export type VisibleTranscriptWindowPayload = { sessionId: string; graphRevision: SessionGraphRevision; viewportRevision: number; totalHeightPx: number; viewportOffsetPx: number; visibleStartIndex: number; visibleEndIndex: number; rows: TranscriptViewportRow[]; rowOffsetsPx: number[]; mode: ViewportMode; diagnostics: VisibleTranscriptWindowDiagnostic[] }
+
+export type TranscriptViewportCommandRevision = { graphRevision: number; transcriptRevision: number; lastEventSeq: number }
+
+export type SessionStatePayload = { kind: "snapshot"; graph: SessionStateGraph } | { kind: "delta"; delta: SessionStateDelta } | { kind: "lifecycle"; lifecycle: SessionGraphLifecycle; revision: SessionGraphRevision } | { kind: "capabilities"; capabilities: SessionGraphCapabilities; revision: SessionGraphRevision; pending_mutation_id?: string | null; preview_state: CapabilityPreviewState } | { kind: "telemetry"; telemetry: UsageTelemetryData; revision: SessionGraphRevision } | { kind: "plan"; plan: PlanData; revision: SessionGraphRevision } | { kind: "assistantTextDelta"; delta: AssistantTextDeltaPayload } | { kind: "visibleTranscriptWindow"; window: VisibleTranscriptWindowPayload }
 
 export type SessionStateEnvelope = { sessionId: string; graphRevision: number; lastEventSeq: number; payload: SessionStatePayload }
 
@@ -545,3 +565,4 @@ export type ProviderMetadataProjection = {
 export type FrontendProviderProjection = ProviderMetadataProjection;
 
 export type ModelsForDisplayWithProvider = ModelsForDisplay;
+

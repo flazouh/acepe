@@ -56,6 +56,7 @@ pub mod streaming_log;
 pub mod task_reconciler;
 pub mod tool_call_presentation;
 pub mod transcript_projection;
+pub mod transcript_viewport;
 pub mod transport;
 pub mod types;
 pub mod ui_event_dispatcher;

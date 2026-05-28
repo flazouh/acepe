@@ -6,6 +6,8 @@ use crate::acp::client::{
     AvailableMode, AvailableModel, NewSessionResponse, ResumeSessionResponse, SessionModelState,
     SessionModes,
 };
+use crate::acp::client_session::ModeIconKind;
+use crate::acp::commands::transcript_viewport_commands::TranscriptViewportCommandRevision;
 use crate::acp::domain_events::{
     SessionDomainEvent, SessionDomainEventKind, SessionDomainEventPayload,
 };
@@ -26,7 +28,9 @@ use crate::acp::session_open_snapshot::{
     SessionOpenError, SessionOpenErrorReason, SessionOpenFound, SessionOpenMissing,
     SessionOpenResult,
 };
-use crate::acp::session_state_engine::protocol::AssistantTextDeltaPayload;
+use crate::acp::session_state_engine::protocol::{
+    AssistantTextDeltaPayload, VisibleTranscriptWindowDiagnostic, VisibleTranscriptWindowPayload,
+};
 use crate::acp::session_state_engine::{
     ActiveStreamingTail, ActiveStreamingTailContentKind, CapabilityPreviewState,
     SessionGraphActionability, SessionGraphActivity, SessionGraphActivityKind,
@@ -36,17 +40,21 @@ use crate::acp::session_state_engine::{
 };
 use crate::acp::session_update::{
     AvailableCommand, AvailableCommandsData, ChunkAggregationHint, CommandInput, ConfigOptionData,
-    ConfigOptionUpdateData, ConfigOptionValue, ContentChunk, CurrentModeData, EditEntry,
-    InteractionReplyHandler, InteractionReplyHandlerKind, PermissionData, PlanConfidence, PlanData,
-    PlanSource, PlanStep, PlanStepStatus, QuestionData, QuestionItem, QuestionOption,
-    SessionUpdate, SkillMeta, TodoItem, TodoStatus, TodoUpdate, TodoUpdateOperation, ToolArguments,
-    ToolCallData, ToolCallLocation, ToolCallStatus, ToolCallUpdateData, ToolKind, ToolReference,
-    ToolSourceContext, ToolSourceRange, TurnErrorData, TurnErrorInfo, TurnErrorKind,
-    TurnErrorSource, UsageTelemetryData, UsageTelemetryTokens,
+    ConfigOptionPresentation, ConfigOptionUpdateData, ConfigOptionValue, ContentChunk,
+    CurrentModeData, EditEntry, InteractionReplyHandler, InteractionReplyHandlerKind,
+    PermissionData, PlanConfidence, PlanData, PlanSource, PlanStep, PlanStepStatus, QuestionData,
+    QuestionItem, QuestionOption, SessionUpdate, SkillMeta, TodoItem, TodoStatus, TodoUpdate,
+    TodoUpdateOperation, ToolArguments, ToolCallData, ToolCallLocation, ToolCallStatus,
+    ToolCallUpdateData, ToolKind, ToolReference, ToolSourceContext, ToolSourceRange, TurnErrorData,
+    TurnErrorInfo, TurnErrorKind, TurnErrorSource, UsageTelemetryData, UsageTelemetryTokens,
 };
 use crate::acp::transcript_projection::{
     TranscriptDelta, TranscriptDeltaOperation, TranscriptEntry, TranscriptEntryRole,
     TranscriptSegment, TranscriptSnapshot,
+};
+use crate::acp::transcript_viewport::{
+    TranscriptViewportInteractionLink, TranscriptViewportOperationLink, TranscriptViewportRow,
+    TranscriptViewportRowContent, TranscriptViewportRowKind, ViewportMode, ViewportWindow,
 };
 use crate::acp::types::{CanonicalAgentId, ContentBlock, EmbeddedResource};
 use crate::checkpoint::types::FileDiffContent;
@@ -175,6 +183,7 @@ pub fn export_all_types() {
     export_type!(AvailableCommandsData);
     export_type!(CurrentModeData);
     export_type!(ConfigOptionUpdateData);
+    export_type!(ConfigOptionPresentation);
     export_type!(ConfigOptionData);
     export_type!(ConfigOptionValue);
     export_type!(InteractionReplyHandlerKind);
@@ -247,6 +256,7 @@ pub fn export_all_types() {
     }
 
     export_acp_type!(AvailableModel);
+    export_acp_type!(ModeIconKind);
     export_acp_type!(AvailableMode);
     export_acp_type!(CommandInput);
     export_acp_type!(AvailableCommand);
@@ -260,6 +270,7 @@ pub fn export_all_types() {
     export_acp_type!(SessionModes);
     export_acp_type!(ResolvedCapabilityStatus);
     export_acp_type!(ResolvedCapabilities);
+    export_acp_type!(ConfigOptionPresentation);
     export_acp_type!(ConfigOptionValue);
     export_acp_type!(ConfigOptionData);
     export_acp_type!(NewSessionResponse);
@@ -340,10 +351,20 @@ pub fn export_all_types() {
     export_acp_type!(SessionGraphActivity);
     export_acp_type!(ActiveStreamingTailContentKind);
     export_acp_type!(ActiveStreamingTail);
+    export_acp_type!(TranscriptViewportRowKind);
+    export_acp_type!(TranscriptViewportOperationLink);
+    export_acp_type!(TranscriptViewportInteractionLink);
+    export_acp_type!(TranscriptViewportRowContent);
+    export_acp_type!(TranscriptViewportRow);
+    export_acp_type!(ViewportMode);
+    export_acp_type!(ViewportWindow);
     export_acp_type!(SessionStateGraph);
     export_acp_type!(SessionStateSnapshotMaterialization);
     export_acp_type!(SessionStateDelta);
     export_acp_type!(AssistantTextDeltaPayload);
+    export_acp_type!(VisibleTranscriptWindowDiagnostic);
+    export_acp_type!(VisibleTranscriptWindowPayload);
+    export_acp_type!(TranscriptViewportCommandRevision);
     export_acp_type!(SessionStatePayload);
     export_acp_type!(SessionStateEnvelope);
 

@@ -1,38 +1,6 @@
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join, relative } from "node:path";
 
-type PackageJson = {
-	dependencies?: Record<string, string>;
-	devDependencies?: Record<string, string>;
-	peerDependencies?: Record<string, string>;
-	optionalDependencies?: Record<string, string>;
-};
-
-const packageJson = JSON.parse(readFileSync("package.json", "utf8")) as PackageJson;
-const dependencyBlocks = [
-	packageJson.dependencies ?? {},
-	packageJson.devDependencies ?? {},
-	packageJson.peerDependencies ?? {},
-	packageJson.optionalDependencies ?? {},
-];
-
-const hasTanStackVirtual = dependencyBlocks.some(
-	(block) => block["@tanstack/svelte-virtual"] !== undefined
-);
-const forbiddenDeps = dependencyBlocks.flatMap((block) =>
-	Object.keys(block).filter((name) => name === "virtua" || name.startsWith("@virtua/"))
-);
-
-if (!hasTanStackVirtual) {
-	console.error("Transcript virtualization must depend on @tanstack/svelte-virtual.");
-	process.exit(1);
-}
-
-if (forbiddenDeps.length > 0) {
-	console.error(`Remove forbidden virtualizer dependency: ${forbiddenDeps.join(", ")}`);
-	process.exit(1);
-}
-
 const sourceRoot = join(process.cwd(), "src", "lib", "acp");
 const sourceExtensions = new Set([".ts", ".svelte"]);
 const forbiddenImportPattern =
@@ -59,7 +27,7 @@ const violations = collectSourceFiles(sourceRoot).filter((filePath) =>
 );
 
 if (violations.length > 0) {
-	console.error("Transcript virtualization must use TanStack Virtual, not virtua:");
+	console.error("ACP source must not import forbidden browser virtualizer dependencies:");
 	for (const filePath of violations) {
 		console.error(`- ${relative(process.cwd(), filePath)}`);
 	}
