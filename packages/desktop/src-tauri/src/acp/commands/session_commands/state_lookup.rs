@@ -1,7 +1,6 @@
 //! State-lookup helpers for session commands.
 //! Extracted verbatim from session_commands.rs.
 
-use super::super::*;
 use crate::acp::projections::{
     is_terminal_operation_state, InteractionSnapshot, InteractionState, OperationSnapshot,
     OperationSourceLink, ProjectionRegistry, SessionProjectionSnapshot, SessionTurnState,
@@ -14,7 +13,6 @@ use crate::acp::session_state_engine::runtime_registry::{
     SessionGraphRuntimeRegistry, SessionGraphRuntimeSnapshot,
 };
 use crate::acp::transcript_projection::{TranscriptEntryRole, TranscriptSnapshot};
-use sea_orm::{ColumnTrait, QueryFilter};
 
 pub(super) fn runtime_snapshot_for_refresh(
     runtime_registry: Option<&SessionGraphRuntimeRegistry>,
