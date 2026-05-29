@@ -47,6 +47,11 @@ import {
 	isSessionListNearBottom,
 	resolveDefaultAgentIdForCreate,
 } from "./session-list-logic.js";
+import {
+	getMovedProjectOrder,
+	getProjectGroupByPath,
+	isProjectOrderUnchanged,
+} from "./session-list-project-order.js";
 import type { SessionGroup, SessionListItem } from "./session-list-types.js";
 import VirtualizedSessionList from "./virtualized-session-list.svelte";
 
@@ -156,7 +161,6 @@ $effect(() => {
 	for (const path of initialCollapsedProjectPaths ?? []) {
 		collapsedProjects.add(path);
 	}
-
 });
 
 // Sync collapsed state when initialCollapsedProjectPaths changes (e.g. after workspace restore).
@@ -640,41 +644,8 @@ function handleProjectHeaderClick(projectPath: string) {
 	toggleProject(projectPath);
 }
 
-function getProjectGroupByPath(projectPath: string): SessionGroup | null {
-	for (const group of sessionGroups) {
-		if (group.projectPath === projectPath) {
-			return group;
-		}
-	}
-
-	return null;
-}
-
-function getCurrentProjectOrder(): string[] {
-	const orderedPaths: string[] = [];
-	for (const group of sessionGroups) {
-		orderedPaths.push(group.projectPath);
-	}
-
-	return orderedPaths;
-}
-
-function isProjectOrderUnchanged(orderedPaths: string[]): boolean {
-	if (orderedPaths.length !== sessionGroups.length) {
-		return false;
-	}
-
-	for (let index = 0; index < orderedPaths.length; index += 1) {
-		if (orderedPaths[index] !== sessionGroups[index]?.projectPath) {
-			return false;
-		}
-	}
-
-	return true;
-}
-
 function announceProjectReorder(projectPath: string, orderedPaths: string[]): void {
-	const group = getProjectGroupByPath(projectPath);
+	const group = getProjectGroupByPath(sessionGroups, projectPath);
 	const position = orderedPaths.indexOf(projectPath);
 
 	if (group === null || position < 0) {
@@ -688,34 +659,12 @@ function announceProjectReorder(projectPath: string, orderedPaths: string[]): vo
 }
 
 function applyProjectOrder(projectPath: string, orderedPaths: string[]): void {
-	if (onReorderProjects === undefined || isProjectOrderUnchanged(orderedPaths)) {
+	if (onReorderProjects === undefined || isProjectOrderUnchanged(sessionGroups, orderedPaths)) {
 		return;
 	}
 
 	announceProjectReorder(projectPath, orderedPaths);
 	onReorderProjects(orderedPaths);
-}
-
-function getMovedProjectOrder(projectPath: string, offset: -1 | 1): string[] | null {
-	const orderedPaths = getCurrentProjectOrder();
-	const currentIndex = orderedPaths.indexOf(projectPath);
-	const nextIndex = currentIndex + offset;
-
-	if (currentIndex < 0 || nextIndex < 0 || nextIndex >= orderedPaths.length) {
-		return null;
-	}
-
-	const currentPath = orderedPaths[currentIndex];
-	const nextPath = orderedPaths[nextIndex];
-
-	if (currentPath === undefined || nextPath === undefined) {
-		return null;
-	}
-
-	orderedPaths[currentIndex] = nextPath;
-	orderedPaths[nextIndex] = currentPath;
-
-	return orderedPaths;
 }
 
 async function focusProjectContextTrigger(projectPath: string): Promise<void> {
@@ -726,7 +675,7 @@ async function focusProjectContextTrigger(projectPath: string): Promise<void> {
 }
 
 async function handleProjectContextMove(projectPath: string, offset: -1 | 1): Promise<void> {
-	const orderedPaths = getMovedProjectOrder(projectPath, offset);
+	const orderedPaths = getMovedProjectOrder(sessionGroups, projectPath, offset);
 
 	if (orderedPaths === null) {
 		return;
