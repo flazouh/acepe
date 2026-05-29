@@ -199,3 +199,17 @@ The agent panel follows a View–Model–Controller split across packages:
 - [Rust/Tauri Development](.agent-guides/rust-tauri.md)
 - [Neverthrow Error Handling](.agent-guides/neverthrow.md)
 - [Code Quality](.agent-guides/code-quality.md)
+
+## Agent skills
+
+### Issue tracker
+
+Issues and PRDs are tracked as GitHub issues on `flazouh/acepe` via the `gh` CLI. See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+Canonical triage label vocabulary (`needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`). See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Single-context layout — `CONTEXT.md` + `docs/adr/` at the repo root (created lazily by `grill-with-docs`). See `docs/agents/domain.md`.
