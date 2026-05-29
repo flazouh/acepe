@@ -16,6 +16,15 @@
  * and reference identity — see Decision 3 in the plan.
  */
 
+import { deriveLocalReferenceId } from "$lib/errors/error-reference.js";
+import type { PanelStore } from "../../../store/panel-store.svelte.js";
+import type { SessionStore } from "../../../store/session-store.svelte.js";
+import {
+	type PanelConnectionErrorDetails,
+	PanelConnectionState,
+} from "../../../types/panel-connection-state.js";
+import { extractAttachmentsFromChunks } from "../../../utils/extract-content-attachments.js";
+import { shouldDisableSendForFailedFirstSend } from "../../agent-input/logic/first-send-recovery.js";
 import {
 	deriveCanonicalAgentPanelSessionState,
 	deriveCanonicalUserEntryPresence,
@@ -24,15 +33,6 @@ import {
 	resolveOptimisticUserEntryForGraph,
 	resolveVisibleEntryCount,
 } from "../logic";
-import { shouldDisableSendForFailedFirstSend } from "../../agent-input/logic/first-send-recovery.js";
-import type { PanelStore } from "../../../store/panel-store.svelte.js";
-import type { SessionStore } from "../../../store/session-store.svelte.js";
-import {
-	PanelConnectionState,
-	type PanelConnectionErrorDetails,
-} from "../../../types/panel-connection-state.js";
-import { extractAttachmentsFromChunks } from "../../../utils/extract-content-attachments.js";
-import { deriveLocalReferenceId } from "$lib/errors/error-reference.js";
 
 export interface AgentPanelSessionControllerDeps {
 	getSessionId: () => string | null;
@@ -122,7 +122,8 @@ export class AgentPanelSessionController {
 	readonly canonicalUserEntryPresence = $derived.by(() => {
 		const pending = this.sessionPendingSendIntent;
 		const id = this.#deps.getSessionId();
-		const transcriptEntries = id === null || id === undefined ? [] : this.canonicalTranscriptEntries;
+		const transcriptEntries =
+			id === null || id === undefined ? [] : this.canonicalTranscriptEntries;
 		return deriveCanonicalUserEntryPresence({
 			transcriptEntries,
 			pendingAttemptId: pending?.attemptId ?? null,

@@ -20,7 +20,6 @@ import {
 } from "phosphor-svelte";
 import { onDestroy, onMount, tick } from "svelte";
 import { toast } from "svelte-sonner";
-import { deriveLocalReferenceId } from "$lib/errors/error-reference.js";
 import type { TurnState } from "../../../store/types.js";
 import type { MergeStrategy } from "$lib/utils/tauri-client/git.js";
 import AgentAttachedFilePane from "../../../../components/main-app-view/components/content/agent-attached-file-pane.svelte";
@@ -41,12 +40,10 @@ import { PanelConnectionState } from "../../../types/panel-connection-state.js";
 import type { WorktreeInfo } from "../../../types/worktree-info.js";
 import { computeStatsFromCheckpoints } from "../../../utils/checkpoint-diff-utils.js";
 import { Colors, getProjectColor, TAG_COLORS } from "@acepe/ui/colors";
-import { extractAttachmentsFromChunks } from "../../../utils/extract-content-attachments.js";
 import { createLogger } from "../../../utils/logger.js";
 import AgentInput from "../../agent-input/agent-input-ui.svelte";
 import AgentSelector from "../../agent-selector.svelte";
 import ProjectSelector from "../../project-selector.svelte";
-import { shouldDisableSendForFailedFirstSend } from "../../agent-input/logic/first-send-recovery.js";
 import type { Attachment } from "../../agent-input/types/attachment.js";
 import { CheckpointTimeline } from "../../checkpoint/index.js";
 import type { PrGenerationConfig } from "../../modified-files/types/pr-generation-config.js";
@@ -70,13 +67,7 @@ import {
 	createAgentPanelDisplayMemory,
 	createAgentPanelDisplaySceneEntriesReadModel,
 	createAgentPanelDisplayRowsReadModel,
-	deriveCanonicalUserEntryPresence,
-	deriveCanonicalAgentPanelSessionState,
-	derivePanelErrorInfo,
 	matchesWorktreeSetupContext,
-	resolveOptimisticUserEntryForGraph,
-	resolveCanonicalAgentPanelTurnState,
-	resolveVisibleEntryCount,
 	removeWorktreeAndMarkSessionWorktreeDeleted,
 	reduceWorktreeSetupEvent,
 	resolveEffectiveProjectPath,
