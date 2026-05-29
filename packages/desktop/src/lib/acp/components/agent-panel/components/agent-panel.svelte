@@ -10,7 +10,14 @@ import {
 import { DiffPill, setThinkingPreferences } from "@acepe/ui";
 import { EmbeddedIconButton } from "@acepe/ui/panel-header";
 import ArrowUp from "@lucide/svelte/icons/arrow-up";
-import { CaretLeft, CaretRight, CheckCircle, Clock, GitPullRequest, XCircle } from "phosphor-svelte";
+import {
+	CaretLeft,
+	CaretRight,
+	CheckCircle,
+	Clock,
+	GitPullRequest,
+	XCircle,
+} from "phosphor-svelte";
 import { onDestroy, onMount, tick } from "svelte";
 import { toast } from "svelte-sonner";
 import { deriveLocalReferenceId } from "$lib/errors/error-reference.js";
@@ -25,7 +32,6 @@ import { getInteractionStore } from "../../../store/interaction-store.svelte.js"
 import { getPanelStore } from "../../../store/panel-store.svelte.js";
 import { getPermissionStore } from "../../../store/permission-store.svelte.js";
 import { getSessionStore } from "../../../store/session-store.svelte.js";
-import { api } from "../../../store/api.js";
 import { getChatPreferencesStore } from "../../../store/chat-preferences-store.svelte.js";
 import { mergeStrategyStore } from "../../../store/merge-strategy-store.svelte.js";
 import { sessionReviewStateStore } from "../../../store/session-review-state-store.svelte.js";
@@ -83,6 +89,7 @@ import { DEFAULT_BROWSER_HOME_URL } from "../../../constants/browser-defaults.js
 import { getProviderBrandIcon } from "../../../constants/thread-list-constants.js";
 import { derivePanelViewState } from "../../../logic/panel-visibility.js";
 import { createPanelBranchLookupController } from "../logic/panel-branch-lookup.js";
+import { createAgentPanelInteractionHandlers } from "../logic/agent-panel-interaction-handlers.js";
 import type { WorktreeSetupState } from "../logic/worktree-setup-events.js";
 import { shouldAutoScrollOnPanelActivation } from "../logic/should-auto-scroll-on-panel-activation.js";
 import { deriveAgentPanelHeaderDisplayTitle } from "../logic/agent-panel-header-title.js";
@@ -92,15 +99,12 @@ import { resolveWorktreeToggleProjectPath } from "../logic/worktree-toggle-proje
 import { createGraphSceneEntryIndexReadModel } from "../logic/graph-scene-entry-match.js";
 import { createTokenRevealSceneReadModel } from "../logic/token-reveal-scene-read-model.js";
 import {
+	buildTodoMarkdown,
 	buildTokenRevealCss,
 	hasStreamingPreviewContent,
 } from "./agent-panel-pure-helpers.js";
 import { AgentPanelState } from "../state/agent-panel-state.svelte";
 import type { AgentPanelProps } from "../types";
-import {
-	createLegacyInteractionReplyHandler,
-	normalizeInteractionReplyHandler,
-} from "../../../types/reply-handler.js";
 import { AgentPanelFooter as SharedFooter } from "@acepe/ui/agent-panel";
 import WorktreeFooterButton from "../../shared/worktree-footer-button.svelte";
 import AgentPanelContent from "./agent-panel-content.svelte";
@@ -156,7 +160,6 @@ import {
 	scheduleCheckpointReloadAfterRevert,
 	subscribeGitWorktreeSetupChannel,
 } from "../services/index.js";
-import { resolveProjectFileReference } from "../../messages/logic/file-chip-diff-enhancer.js";
 
 // Canonical-to-presentation turn state mapping is provided by the shared logic module
 // (mapCanonicalTurnStateToPresentationStatus) imported above.
@@ -789,12 +792,13 @@ const effectivePanelProviderBrand = $derived.by(() => {
 	}
 
 	const sessionProviderBrand =
-		sessionId === null ? null : (sessionStore.getSessionProviderMetadata(sessionId)?.providerBrand ?? null);
-	const storeProviderBrand =
-		agentStore.getProviderMetadata(headerAgentId)?.providerBrand ?? null;
+		sessionId === null
+			? null
+			: (sessionStore.getSessionProviderMetadata(sessionId)?.providerBrand ?? null);
+	const storeProviderBrand = agentStore.getProviderMetadata(headerAgentId)?.providerBrand ?? null;
 	const listedProviderBrand =
-		availableAgents.find((agent) => agent.id === headerAgentId)?.provider_metadata
-			?.providerBrand ?? null;
+		availableAgents.find((agent) => agent.id === headerAgentId)?.provider_metadata?.providerBrand ??
+		null;
 
 	return resolveAgentPanelProviderBrand({
 		agentId: headerAgentId,
@@ -866,10 +870,8 @@ const tokenRevealSceneEntries = $derived.by(() => {
 
 	tokenRevealSourceIndexReadModel.applyPatch(graphMaterializedScene.conversation.entries) ??
 		tokenRevealSourceIndexReadModel.applySnapshot(graphMaterializedScene.conversation.entries);
-	const tailEntry =
-		tokenRevealSourceIndexReadModel.selectEntryById(tokenRevealTailRowId);
-	const tailEntryIndex =
-		tokenRevealSourceIndexReadModel.selectEntryIndexById(tokenRevealTailRowId);
+	const tailEntry = tokenRevealSourceIndexReadModel.selectEntryById(tokenRevealTailRowId);
+	const tailEntryIndex = tokenRevealSourceIndexReadModel.selectEntryIndexById(tokenRevealTailRowId);
 	const tokenRevealCss =
 		tailEntry?.type === "assistant"
 			? buildTokenRevealCss(
@@ -1921,38 +1923,7 @@ const todoState = $derived.by(() => {
 const showTodoHeader = $derived(todoState !== null && todoState.totalCount > 0);
 
 function getTodoMarkdown(): string {
-	if (!todoState) return "";
-	const header = "| # | Task | Status | Duration |";
-	const separator = "|---|------|--------|----------|";
-	const rows = todoState.items.map((todo, index) => {
-		const num = index + 1;
-		const statusLabel =
-			todo.status === "completed"
-				? "Done"
-				: todo.status === "in_progress"
-					? "Running"
-					: todo.status === "cancelled"
-						? "Cancelled"
-						: "Pending";
-		const durationMs = todo.duration;
-		let duration = "";
-		if (durationMs !== null && durationMs !== undefined) {
-			const seconds = Math.floor(durationMs / 1000);
-			if (seconds < 60) duration = `${seconds}s`;
-			else {
-				const minutes = Math.floor(seconds / 60);
-				const remainingSeconds = seconds % 60;
-				if (minutes < 60) duration = `${minutes}m ${remainingSeconds}s`;
-				else {
-					const hours = Math.floor(minutes / 60);
-					const remainingMinutes = minutes % 60;
-					duration = `${hours}h ${remainingMinutes}m`;
-				}
-			}
-		}
-		return `| ${num} | ${todo.content} | ${statusLabel} | ${duration} |`;
-	});
-	return [header, separator, ...rows].join("\n");
+	return buildTodoMarkdown(todoState);
 }
 
 const queueVersion = $derived.by(() => {
@@ -2088,111 +2059,21 @@ function handleQueueStripSendNow(messageId: string): void {
 	}
 }
 
-function handleQuestionSelect(event: AgentPanelQuestionSelectEvent): void {
-	if (sessionId === null) {
-		toast.error("Question is not ready yet.");
-		return;
-	}
-
-	const semanticInteractionId = event.interactionId ?? event.entryId;
-	const interaction = sessionStore.getSessionQuestionInteraction(sessionId, semanticInteractionId);
-	if (interaction === null) {
-		toast.error("Question is no longer available.");
-		return;
-	}
-
-	const payload = interaction.payload.Question;
-	const question = payload.questions[event.questionIndex];
-	if (question === undefined) {
-		toast.error("Question option is no longer available.");
-		return;
-	}
-
-	const replyHandler =
-		normalizeInteractionReplyHandler(interaction.reply_handler ?? payload.replyHandler) ??
-		createLegacyInteractionReplyHandler(interaction.id, interaction.json_rpc_request_id);
-	const answers = [
-		{
-			questionIndex: event.questionIndex,
-			answers: [event.label],
-		},
-	];
-	const answerMap: Record<string, string | string[]> = {};
-	answerMap[question.question] = question.multiSelect ? [event.label] : event.label;
-
-	void api
-		.replyInteraction({
-			sessionId: interaction.session_id,
-			interactionId: interaction.id,
-			replyHandler,
-			payload: {
-				kind: "question",
-				answers,
-				answerMap,
-			},
-		})
-		.match(
-			() => {},
-			(error) => {
-				toast.error(`Failed to answer question: ${error.message}`);
-			}
-	);
-}
-
-function handleToolFileSelect(event: AgentToolFileSelectEvent): void {
-	const projectPath = effectiveProjectPath ?? sessionProjectPath;
-	if (!projectPath) {
-		toast.error("No project is available for this file.");
-		return;
-	}
-
-	const fileReference = resolveProjectFileReference(event.filePath, projectPath);
-	panelStore.openFilePanel(fileReference.filePath, projectPath, {
-		ownerPanelId: effectivePanelId,
-		...(fileReference.targetLine !== undefined ? { targetLine: fileReference.targetLine } : {}),
-		...(fileReference.targetColumn !== undefined
-			? { targetColumn: fileReference.targetColumn }
-			: {}),
-	});
-}
-
-function findPermissionForPlanAction(event: AgentPanelPlanActionEvent) {
-	if (!sessionId) {
-		return undefined;
-	}
-	if (event.toolCallId === undefined) {
-		return undefined;
-	}
-
-	return permissionStore.getForToolCall(sessionId, event.toolCallId);
-}
-
-function replyToPlanPermission(event: AgentPanelPlanActionEvent, reply: "once" | "reject"): void {
-	const permission = findPermissionForPlanAction(event);
-	if (permission === undefined) {
-		toast.error("Plan approval is no longer available.");
-		return;
-	}
-
-	void permissionStore.reply(permission.id, reply).match(
-		() => {},
-		(error) => {
-			toast.error(`Failed to answer plan approval: ${error.message}`);
-		}
-	);
-}
-
-function handlePlanBuild(event: AgentPanelPlanActionEvent): void {
-	replyToPlanPermission(event, "once");
-}
-
-function handlePlanCancel(event: AgentPanelPlanActionEvent): void {
-	replyToPlanPermission(event, "reject");
-}
-
-function isPlanActionAvailable(event: AgentPanelPlanActionEvent): boolean {
-	return findPermissionForPlanAction(event) !== undefined;
-}
+const {
+	handleQuestionSelect,
+	handleToolFileSelect,
+	handlePlanBuild,
+	handlePlanCancel,
+	isPlanActionAvailable,
+} = createAgentPanelInteractionHandlers({
+	getSessionId: () => sessionId,
+	getEffectiveProjectPath: () => effectiveProjectPath,
+	getSessionProjectPath: () => sessionProjectPath,
+	getEffectivePanelId: () => effectivePanelId,
+	sessionStore,
+	permissionStore,
+	panelStore,
+});
 
 function handlePlanViewFull(event: AgentPanelPlanViewEvent): void {
 	inlinePlanDialogPlan = {
