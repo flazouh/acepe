@@ -91,6 +91,7 @@ import { derivePanelViewState } from "../../../logic/panel-visibility.js";
 import { createPanelBranchLookupController } from "../logic/panel-branch-lookup.js";
 import { createAgentPanelExportHandlers } from "../logic/agent-panel-export-handlers.js";
 import { createAgentPanelInteractionHandlers } from "../logic/agent-panel-interaction-handlers.js";
+import { AgentPanelSessionController } from "../state/agent-panel-session-controller.svelte.js";
 import type { WorktreeSetupState } from "../logic/worktree-setup-events.js";
 import { shouldAutoScrollOnPanelActivation } from "../logic/should-auto-scroll-on-panel-activation.js";
 import { deriveAgentPanelHeaderDisplayTitle } from "../logic/agent-panel-header-title.js";
@@ -195,6 +196,16 @@ let {
 const sessionStore = getSessionStore();
 const panelStore = getPanelStore();
 const chatPreferencesStore = getChatPreferencesStore();
+
+// Session-derived reactive state is being hoisted into this controller,
+// cluster by cluster (see docs/plans/2026-05-29-002-...). Instantiated once;
+// consumed incrementally as derivations migrate.
+const sessionController = new AgentPanelSessionController({
+	getSessionId: () => sessionId,
+	getPanelId: () => panelId,
+	sessionStore,
+	panelStore,
+});
 
 setThinkingPreferences({
 	get defaultExpanded() {
