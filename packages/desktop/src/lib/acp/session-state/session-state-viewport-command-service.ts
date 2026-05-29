@@ -12,7 +12,7 @@ type ViewportCommandRevisionInput = {
 };
 
 export type TranscriptViewportCommandEnvelopeResult = ReturnType<
-	typeof invokeAsync<SessionStateEnvelope>
+	typeof invokeAsync<SessionStateEnvelope | null>
 >;
 
 function commandRevisionFrom(
@@ -25,13 +25,23 @@ function commandRevisionFrom(
 	};
 }
 
+export function requestTranscriptViewportBuffer(input: {
+	readonly sessionId: string;
+	readonly revision: SessionGraphRevision | ViewportCommandRevisionInput;
+}): TranscriptViewportCommandEnvelopeResult {
+	return invokeAsync<SessionStateEnvelope | null>("acp_request_transcript_viewport_buffer", {
+		sessionId: input.sessionId,
+		revision: commandRevisionFrom(input.revision),
+	});
+}
+
 export function scrollTranscriptViewport(input: {
 	readonly sessionId: string;
 	readonly revision: SessionGraphRevision | ViewportCommandRevisionInput;
 	readonly viewportHeightPx: number;
 	readonly offsetPx: number;
 }): TranscriptViewportCommandEnvelopeResult {
-	return invokeAsync<SessionStateEnvelope>("acp_scroll_transcript_viewport", {
+	return invokeAsync<SessionStateEnvelope | null>("acp_scroll_transcript_viewport", {
 		sessionId: input.sessionId,
 		revision: commandRevisionFrom(input.revision),
 		viewportHeightPx: input.viewportHeightPx,
@@ -45,7 +55,7 @@ export function revealTranscriptViewportRow(input: {
 	readonly viewportHeightPx: number;
 	readonly rowId: string | null;
 }): TranscriptViewportCommandEnvelopeResult {
-	return invokeAsync<SessionStateEnvelope>("acp_reveal_transcript_viewport_row", {
+	return invokeAsync<SessionStateEnvelope | null>("acp_reveal_transcript_viewport_row", {
 		sessionId: input.sessionId,
 		revision: commandRevisionFrom(input.revision),
 		viewportHeightPx: input.viewportHeightPx,
@@ -58,7 +68,7 @@ export function resizeTranscriptViewport(input: {
 	readonly revision: SessionGraphRevision | ViewportCommandRevisionInput;
 	readonly viewportHeightPx: number;
 }): TranscriptViewportCommandEnvelopeResult {
-	return invokeAsync<SessionStateEnvelope>("acp_resize_transcript_viewport", {
+	return invokeAsync<SessionStateEnvelope | null>("acp_resize_transcript_viewport", {
 		sessionId: input.sessionId,
 		revision: commandRevisionFrom(input.revision),
 		viewportHeightPx: input.viewportHeightPx,
@@ -73,7 +83,7 @@ export function confirmTranscriptViewportHeight(input: {
 	readonly rowVersion: string;
 	readonly heightPx: number;
 }): TranscriptViewportCommandEnvelopeResult {
-	return invokeAsync<SessionStateEnvelope>("acp_confirm_transcript_viewport_height", {
+	return invokeAsync<SessionStateEnvelope | null>("acp_confirm_transcript_viewport_height", {
 		sessionId: input.sessionId,
 		revision: commandRevisionFrom(input.revision),
 		viewportHeightPx: input.viewportHeightPx,

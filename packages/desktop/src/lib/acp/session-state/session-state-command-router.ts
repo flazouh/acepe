@@ -16,6 +16,8 @@ import type {
 	TranscriptDelta,
 	TurnFailureSnapshot,
 	UsageTelemetryData,
+	ViewportBufferDelta,
+	ViewportBufferPush,
 	VisibleTranscriptWindowPayload,
 } from "../../services/acp-types.js";
 import {
@@ -91,6 +93,14 @@ export type SessionStateCommand =
 	| {
 			kind: "applyVisibleTranscriptWindow";
 			window: VisibleTranscriptWindowPayload;
+	  }
+	| {
+			kind: "applyBufferPush";
+			push: ViewportBufferPush;
+	  }
+	| {
+			kind: "applyBufferDelta";
+			delta: ViewportBufferDelta;
 	  };
 
 type CurrentSessionStateRevision = SessionGraphRevision | null | undefined;
@@ -515,12 +525,37 @@ export function routeSessionStateEnvelope(
 					window: envelope.payload.window,
 				},
 			];
-		// Buffer protocol (Option C) is wired in U4's coordinated cutover. Until
-		// the producer emits these, no live envelope carries them; routing them
-		// to a no-op here keeps the switch exhaustive without dual authority.
 		case "viewportBufferPush":
-			return [];
+			if (!envelopeFrontierMatchesRevision(envelope, envelope.payload.push.graphRevision)) {
+				return [
+					{
+						kind: "refreshSnapshot",
+						fromRevision: envelope.payload.push.graphRevision.graphRevision,
+						toRevision: envelope.graphRevision,
+					},
+				];
+			}
+			return [
+				{
+					kind: "applyBufferPush",
+					push: envelope.payload.push,
+				},
+			];
 		case "viewportBufferDelta":
-			return [];
+			if (!envelopeFrontierMatchesRevision(envelope, envelope.payload.delta.graphRevision)) {
+				return [
+					{
+						kind: "refreshSnapshot",
+						fromRevision: envelope.payload.delta.graphRevision.graphRevision,
+						toRevision: envelope.graphRevision,
+					},
+				];
+			}
+			return [
+				{
+					kind: "applyBufferDelta",
+					delta: envelope.payload.delta,
+				},
+			];
 	}
 }

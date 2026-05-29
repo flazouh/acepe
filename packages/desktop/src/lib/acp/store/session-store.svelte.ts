@@ -41,6 +41,8 @@ import type {
 	TranscriptSnapshot,
 	TurnFailureSnapshot,
 	UsageTelemetryData,
+	ViewportBufferDelta,
+	ViewportBufferPush,
 	VisibleTranscriptWindowPayload,
 } from "../../services/acp-types.js";
 import type { HistoryEntry } from "../../services/claude-history-types.js";
@@ -143,9 +145,11 @@ import { getTitleUpdateFromUserMessage } from "./session-title-policy.js";
 import { SessionTransientProjectionStore } from "./session-transient-projection-store.svelte.js";
 import {
 	TranscriptViewportStore,
+	type BufferProjection,
 	type TranscriptViewportProjection,
 	type ViewportAttachmentStatus,
 } from "./transcript-viewport-store.svelte.js";
+import { requestTranscriptViewportBuffer } from "../session-state/session-state-viewport-command-service.js";
 
 const logger = createLogger({ id: "session-store", name: "SessionStore" });
 
@@ -2314,6 +2318,12 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 		string,
 		ReturnType<typeof setTimeout>
 	>();
+	// Per-session latch: a forced fresh-buffer request is in flight after a
+	// delta gap. Prevents a burst of out-of-order deltas from spawning a storm
+	// of redundant fresh-push requests (each would bump emission_seq). Cleared
+	// when a push with a higher seq lands or the request settles. Local control
+	// state only — not canonical truth.
+	private readonly bufferGapRecoveryInFlight = new Set<string>();
 
 	// PR details cache/dedupe (prevents repeated gh pr view storms during scans)
 	private readonly prDetailsCache = new Map<string, CachedPrDetails>();
@@ -2458,6 +2468,45 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 
 	getTranscriptViewportProjection(sessionId: string | null): TranscriptViewportProjection | null {
 		return this.transcriptViewportStore.getProjection(sessionId);
+	}
+
+	getTranscriptViewportBufferProjection(sessionId: string | null): BufferProjection | null {
+		return this.transcriptViewportStore.getBufferProjection(sessionId);
+	}
+
+	viewportNeedsRefill(
+		sessionId: string | null,
+		scrollTopPx: number,
+		viewportHeightPx: number,
+		thresholdPx: number
+	): boolean {
+		return this.transcriptViewportStore.needsRefill(
+			sessionId,
+			scrollTopPx,
+			viewportHeightPx,
+			thresholdPx
+		);
+	}
+
+	viewportIsOutsideBuffer(
+		sessionId: string | null,
+		scrollTopPx: number,
+		viewportHeightPx: number
+	): boolean {
+		return this.transcriptViewportStore.isOutsideBuffer(sessionId, scrollTopPx, viewportHeightPx);
+	}
+
+	/**
+	 * Bootstrap the buffer for a freshly-mounted viewport. The live producer
+	 * pushes the initial buffer on the open event stream, but a forced request
+	 * guards against the component mounting before that push lands. Idempotent:
+	 * no-op once a buffer projection exists.
+	 */
+	ensureViewportBufferBootstrap(sessionId: string): void {
+		if (this.transcriptViewportStore.getBufferProjection(sessionId) !== null) {
+			return;
+		}
+		this.requestFreshViewportBuffer(sessionId);
 	}
 
 	getViewportAttachmentStatus(sessionId: string | null): ViewportAttachmentStatus {
@@ -4883,6 +4932,16 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 				continue;
 			}
 
+			if (command.kind === "applyBufferPush") {
+				this.applyBufferPush(command.push);
+				continue;
+			}
+
+			if (command.kind === "applyBufferDelta") {
+				this.applyBufferDelta(command.delta);
+				continue;
+			}
+
 			if (command.kind === "applyGraphPatches") {
 				const previousProjection = this.canonicalProjections.get(sessionId) ?? null;
 				if (previousProjection === null) {
@@ -5141,6 +5200,68 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 			graphRevision: window.graphRevision,
 			viewportRevision: window.viewportRevision,
 		});
+	}
+
+	private applyBufferPush(push: ViewportBufferPush): void {
+		const applied = this.transcriptViewportStore.applyBufferPush(push);
+		if (applied) {
+			// A fresh push re-baselines emission_seq, so any pending gap-recovery
+			// request has served its purpose; release the latch.
+			this.bufferGapRecoveryInFlight.delete(push.sessionId);
+			this.clearViewportReattachWatchdog(push.sessionId);
+			return;
+		}
+		logger.debug("Ignoring stale viewport buffer push", {
+			sessionId: push.sessionId,
+			emissionSeq: push.emissionSeq,
+		});
+	}
+
+	private applyBufferDelta(delta: ViewportBufferDelta): void {
+		const result = this.transcriptViewportStore.applyBufferDelta(delta);
+		if (result.status === "applied") {
+			this.clearViewportReattachWatchdog(delta.sessionId);
+			return;
+		}
+		if (result.status === "gap") {
+			// The total-order chain broke (a delta arrived out of order across the
+			// command-reply and event-stream channels). Request a forced fresh push
+			// to re-baseline. Latch so a burst of gaps does not storm the backend.
+			this.requestFreshViewportBuffer(delta.sessionId);
+			return;
+		}
+		// "stale" (duplicate / reordered older) and "rejected" (wrong protocol /
+		// no base) are idempotent no-ops.
+		logger.debug("Viewport buffer delta not applied", {
+			sessionId: delta.sessionId,
+			status: result.status,
+			emissionSeq: delta.emissionSeq,
+		});
+	}
+
+	private requestFreshViewportBuffer(sessionId: string): void {
+		if (this.bufferGapRecoveryInFlight.has(sessionId)) {
+			return;
+		}
+		const revision = this.getGraphRevision(sessionId);
+		if (revision === undefined) {
+			return;
+		}
+		this.bufferGapRecoveryInFlight.add(sessionId);
+		void requestTranscriptViewportBuffer({ sessionId, revision }).match(
+			(envelope) => {
+				if (envelope !== null) {
+					this.applySessionStateEnvelope(sessionId, envelope);
+				}
+				// applyBufferPush clears the latch on a successful re-baseline; if the
+				// backend returned null (NoOp is impossible for a forced push, but be
+				// defensive) release the latch so a later gap can retry.
+				this.bufferGapRecoveryInFlight.delete(sessionId);
+			},
+			() => {
+				this.bufferGapRecoveryInFlight.delete(sessionId);
+			}
+		);
 	}
 
 	getGraphTranscriptRevision(sessionId: string): number | undefined {

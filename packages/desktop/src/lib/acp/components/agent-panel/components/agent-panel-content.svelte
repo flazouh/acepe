@@ -96,7 +96,9 @@ const runtime = $derived(
 const turnState = $derived(runtime.turnState);
 const isStreaming = $derived(runtime.isStreaming);
 const isWaitingForResponse = $derived(runtime.isWaitingForResponse);
-const visibleWindow = $derived(sessionStore?.getTranscriptViewportProjection(sessionId) ?? null);
+const bufferProjection = $derived(
+	sessionStore?.getTranscriptViewportBufferProjection(sessionId) ?? null
+);
 
 // Sync streaming state to bindable prop for parent component
 $effect(() => {
@@ -173,7 +175,7 @@ export function scrollToTop() {
 				bind:this={sceneViewportRef}
 				{panelId}
 				{sceneEntries}
-				{visibleWindow}
+				{bufferProjection}
 				{sessionId}
 				{pendingUserRevealRequestKey}
 				{turnState}

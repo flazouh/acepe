@@ -543,14 +543,16 @@ impl SessionGraphRuntimeRegistry {
             ));
         }
         envelopes.extend(self.build_assistant_text_delta_envelopes(request));
-        if let Ok(envelope) = self.build_visible_transcript_window_envelope_for_session(
+        if let Ok(Some(envelope)) = self.build_or_advance_viewport_buffer_envelope(
             request.session_id,
             request.revision,
             request.projection_registry,
             request.transcript_projection_registry,
-            720,
             None,
             None,
+            None,
+            None,
+            false,
         ) {
             envelopes.push(envelope);
         }
@@ -1245,6 +1247,7 @@ impl SessionGraphRuntimeRegistry {
         scroll_intent: Option<ScrollIntent>,
         height_confirmation: Option<TranscriptViewportHeightConfirmation>,
         request_generation: Option<u64>,
+        force_fresh: bool,
     ) -> Result<Option<SessionStateEnvelope>, VisibleTranscriptWindowMiss> {
         let height_present = height_confirmation.is_some();
 
@@ -1273,9 +1276,27 @@ impl SessionGraphRuntimeRegistry {
 
         let prev_window = prev.as_ref().map(|r| (r.start_index, r.row_ids.len()));
         let mut emission = classify_buffer_transition(prev_window, &slice);
+        // Defensive correctness guard: if the buffer indices are identical but
+        // the canonical viewport_revision advanced (e.g. an in-buffer layout /
+        // total-height change that did not add or remove rows), a NoOp would
+        // silently drop the update. Re-send the full slice so offsets and
+        // total_height_px stay canonical.
+        if matches!(emission, BufferEmission::NoOp)
+            && prev
+                .as_ref()
+                .is_some_and(|r| r.viewport_revision != slice.viewport_revision)
+        {
+            emission = BufferEmission::FreshPush;
+        }
         // B4: an accepted height confirmation must re-send all offsets.
         let height_accepted = height_present && height_diag.is_none();
         if height_accepted && prev.is_some() {
+            emission = BufferEmission::FreshPush;
+        }
+        // Gap recovery / bootstrap: a forced request always re-sends the full
+        // buffer (taking the next emission_seq) so the consumer can re-baseline
+        // after a delta gap or a missed open push.
+        if force_fresh {
             emission = BufferEmission::FreshPush;
         }
 
@@ -3804,6 +3825,7 @@ mod tests {
                 None,
                 None,
                 None,
+                false,
             )
             .expect("first emission must materialize")
             .expect("first emission must produce a payload");
@@ -3840,6 +3862,7 @@ mod tests {
                 None,
                 None,
                 None,
+                false,
             )
             .expect("first emission")
             .expect("first push");
@@ -3855,6 +3878,7 @@ mod tests {
                 None,
                 None,
                 None,
+                false,
             )
             .expect("second emission must not error");
         assert!(second.is_none(), "an identical window must emit nothing");
@@ -3884,6 +3908,7 @@ mod tests {
                 None,
                 None,
                 None,
+                false,
             )
             .expect("first")
             .expect("push");
@@ -3899,6 +3924,7 @@ mod tests {
                 None,
                 None,
                 None,
+                false,
             )
             .expect("noop tick")
             .is_none());
@@ -3919,6 +3945,7 @@ mod tests {
                 None,
                 None,
                 None,
+                false,
             )
             .expect("streaming emission")
             .expect("streaming append must emit a delta");
@@ -3958,6 +3985,7 @@ mod tests {
                 None,
                 None,
                 None,
+                false,
             )
             .expect("first")
             .expect("push");
@@ -3987,6 +4015,7 @@ mod tests {
                     height_px: 321,
                 }),
                 None,
+                false,
             )
             .expect("height-confirm emission")
             .expect("accepted height confirmation must emit a fresh push");
@@ -4022,6 +4051,7 @@ mod tests {
                 None,
                 None,
                 None,
+                false,
             )
             .expect("first")
             .expect("push");
@@ -4043,6 +4073,7 @@ mod tests {
                     height_px: 321,
                 }),
                 None,
+                false,
             )
             .expect("rejected-confirm emission must not error");
         assert!(

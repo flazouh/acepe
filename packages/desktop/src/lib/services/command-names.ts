@@ -20,6 +20,7 @@ export const COMMANDS = {
     "reveal_transcript_viewport_row": "acp_reveal_transcript_viewport_row",
     "resize_transcript_viewport": "acp_resize_transcript_viewport",
     "confirm_transcript_viewport_height": "acp_confirm_transcript_viewport_height",
+    "request_transcript_viewport_buffer": "acp_request_transcript_viewport_buffer",
     "list_agents": "acp_list_agents",
     "list_preconnection_capabilities": "acp_list_preconnection_capabilities",
     "list_preconnection_commands": "acp_list_preconnection_commands",

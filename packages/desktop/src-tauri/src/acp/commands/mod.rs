@@ -56,8 +56,9 @@ pub use session_commands::{
 };
 pub(crate) use session_commands::{emit_lifecycle_event, session_metadata_context_from_cwd};
 pub use transcript_viewport_commands::{
-    acp_confirm_transcript_viewport_height, acp_resize_transcript_viewport,
-    acp_reveal_transcript_viewport_row, acp_scroll_transcript_viewport,
+    acp_confirm_transcript_viewport_height, acp_request_transcript_viewport_buffer,
+    acp_resize_transcript_viewport, acp_reveal_transcript_viewport_row,
+    acp_scroll_transcript_viewport,
 };
 
 type SessionClientMutex = TokioMutex<Box<dyn AgentClient + Send + Sync + 'static>>;

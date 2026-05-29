@@ -254,20 +254,24 @@ return true;
 }
 
 /**
- * Apply a full buffer push (reset). Newer-wins on `(graphRevision,
- * viewportRevision)` — identical to the visible-window gate. This alone
- * defeats the dangerous stale-refill race: a live push always advances the
- * revision, so a late refill response built at an older revision is
- * strictly older and rejected, and a revision tie means the canonical data
- * is unchanged so re-applying is unnecessary. `requestGeneration` is
- * retained only for the controller to correlate refill requests.
+ * Apply a full buffer push (reset). Ordered strictly by the monotonic
+ * `emissionSeq` — the single apply-order authority shared across the
+ * command-reply and event-stream channels. A push is accepted iff there is
+ * no current buffer OR `push.emissionSeq > current.emissionSeq`. Gating by
+ * `emissionSeq` (rather than `(graphRevision, viewportRevision)`) is required
+ * because a forced gap-recovery / bootstrap push can carry an unchanged
+ * revision but a strictly higher seq; a revision gate would wrongly reject it
+ * and strand the consumer behind a permanent delta gap. A stale refill built
+ * at an older point carries a lower seq and is correctly dropped.
+ * `requestGeneration` is retained only for the controller to correlate refill
+ * requests.
  */
 applyBufferPush(push: ViewportBufferPush): boolean {
 if (!this.claimProtocol(push.sessionId, "buffer")) {
 return false;
 }
 const current = this.bufferProjections.get(push.sessionId) ?? null;
-if (!isNewerRevision(current, push)) {
+if (current !== null && push.emissionSeq <= current.emissionSeq) {
 return false;
 }
 this.bufferProjections.set(push.sessionId, projectionFromPush(push));

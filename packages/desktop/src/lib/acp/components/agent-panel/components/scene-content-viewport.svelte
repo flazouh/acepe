@@ -12,7 +12,7 @@ import type {
 } from "@acepe/ui/agent-panel";
 import { setContext } from "svelte";
 import { SESSION_CONTEXT_KEY_EXPORT } from "../../../hooks/use-session-context.js";
-import type { TranscriptViewportProjection } from "../../../store/transcript-viewport-store.svelte.js";
+import type { BufferProjection } from "../../../store/transcript-viewport-store.svelte.js";
 import type { TurnState } from "../../../store/types.js";
 import type { ModifiedFilesState } from "../../../types/modified-files-state.js";
 import type {
@@ -41,14 +41,19 @@ import {
 	scrollTranscriptViewport,
 } from "../../../session-state/session-state-viewport-command-service.js";
 import { useTheme } from "../../../../components/theme/context.svelte.js";
+import { tick } from "svelte";
 
 const NEAR_EDGE_THRESHOLD_PX = 24;
+// Refill when the visible range comes within roughly one screen of a buffered
+// edge that is not also the layout extreme, so a fresh slice lands before the
+// user scrolls into unbuffered space.
+const REFILL_THRESHOLD_PX = 800;
 const EMPTY_SCENE_ENTRIES: readonly AgentPanelSceneEntryModel[] = [];
 
 type SceneContentViewportProps = {
 	panelId: string;
 	sceneEntries?: readonly AgentPanelSceneEntryModel[];
-	visibleWindow?: TranscriptViewportProjection | null;
+	bufferProjection?: BufferProjection | null;
 	turnState: TurnState;
 	isWaitingForResponse: boolean;
 	waitingLabel?: string | null;
@@ -73,7 +78,7 @@ const sessionStore = getSessionStore();
 let {
 	panelId,
 	sceneEntries,
-	visibleWindow = null,
+	bufferProjection = null,
 	turnState,
 	isWaitingForResponse: _isWaitingForResponse,
 	waitingLabel: _waitingLabel = null,
@@ -129,6 +134,9 @@ let scrollContainerRef: HTMLDivElement | null = $state(null);
 let lastViewportHeightPx = $state(720);
 let pendingViewportHeightPx = $state<number | null>(null);
 let consumedPendingUserRevealRequestKey = $state<string | null>(null);
+let bootstrappedSessionId: string | null = null;
+let lastAppliedScrollEmissionSeq = -1;
+let lastFollowTailTotalHeightPx = -1;
 let suppressNextScrollIntent = false;
 let scrollIntentRafPending = false;
 
@@ -140,19 +148,21 @@ const sceneEntryById = $derived.by(() => {
 	return index;
 });
 
-const visibleRows = $derived(visibleWindow?.rows ?? []);
+const bufferRows = $derived(bufferProjection?.rows ?? []);
 const renderedRows = $derived.by(() => {
-	return visibleRows.map((row, index) => {
+	const startIndex = bufferProjection?.bufferStartIndex ?? 0;
+	const offsets = bufferProjection?.offsetsPx ?? [];
+	return bufferRows.map((row, index) => {
 		return {
 			row,
-			index: visibleWindow === null ? index : visibleWindow.visibleStartIndex + index,
-			offsetPx: visibleWindow?.rowOffsetsPx[index] ?? 0,
+			index: startIndex + index,
+			offsetPx: offsets[index] ?? 0,
 			entry: resolveSceneEntry(row),
 		};
 	});
 });
 
-const totalHeightPx = $derived(visibleWindow?.totalHeightPx ?? 0);
+const totalHeightPx = $derived(bufferProjection?.totalHeightPx ?? 0);
 
 function segmentText(segments: readonly TranscriptSegment[]): string {
 	let text = "";
@@ -234,18 +244,18 @@ function toolStatusFromOperationState(state: OperationState): AgentToolStatus {
 }
 
 function revisionInput() {
-	return visibleWindow?.revision ?? null;
+	return bufferProjection?.revision ?? null;
 }
 
-function applyEnvelope(envelope: SessionStateEnvelope): void {
-	if (sessionId === null) {
+function applyEnvelope(envelope: SessionStateEnvelope | null): void {
+	if (sessionId === null || envelope === null) {
 		return;
 	}
-	// Suppress late command-response windows while a recovery episode is in
-	// flight. The reset projection would otherwise accept this stale window
-	// (current === null) and undo the reattach. Event-stream windows flow
-	// through a separate path (live consumer -> applyVisibleTranscriptWindow)
-	// and are still accepted during recovery.
+	// Suppress late command-response payloads while a recovery episode is in
+	// flight. The reset projection would otherwise accept this stale payload
+	// (current === null) and undo the reattach. Event-stream payloads flow
+	// through a separate path (live consumer -> applyBufferPush/Delta) and are
+	// still accepted during recovery.
 	if (sessionStore.getViewportAttachmentStatus(sessionId) !== "attached") {
 		return;
 	}
@@ -339,11 +349,7 @@ function handleScroll(event: Event): void {
 		return;
 	}
 	const offsetPx = event.currentTarget.scrollTop;
-	onNearTopChange?.(offsetPx <= NEAR_EDGE_THRESHOLD_PX);
-	if (visibleWindow !== null) {
-		const distanceFromBottom = visibleWindow.totalHeightPx - lastViewportHeightPx - offsetPx;
-		onNearBottomChange?.(distanceFromBottom <= NEAR_EDGE_THRESHOLD_PX);
-	}
+	updateEdgeFlags(offsetPx);
 	if (suppressNextScrollIntent) {
 		suppressNextScrollIntent = false;
 		return;
@@ -354,11 +360,41 @@ function handleScroll(event: Event): void {
 	scrollIntentRafPending = true;
 	requestAnimationFrame(() => {
 		scrollIntentRafPending = false;
-		if (scrollContainerRef === null) {
+		if (scrollContainerRef === null || sessionId === null) {
 			return;
 		}
-		dispatchScrollIntent(Math.max(0, Math.round(scrollContainerRef.scrollTop)));
+		const scrollTopPx = Math.max(0, Math.round(scrollContainerRef.scrollTop));
+		// Native scroll already moved the buffered rows under the viewport at no
+		// JS cost. Only round-trip to Rust when the visible range is leaving the
+		// buffered span (jump scroll) or approaching a non-extreme edge (refill).
+		const outside = sessionStore.viewportIsOutsideBuffer(
+			sessionId,
+			scrollTopPx,
+			lastViewportHeightPx
+		);
+		const needsRefill = sessionStore.viewportNeedsRefill(
+			sessionId,
+			scrollTopPx,
+			lastViewportHeightPx,
+			REFILL_THRESHOLD_PX
+		);
+		if (outside || needsRefill) {
+			dispatchScrollIntent(scrollTopPx);
+		}
 	});
+}
+
+function updateEdgeFlags(scrollTopPx: number): void {
+	if (bufferProjection === null) {
+		return;
+	}
+	const atLayoutTop =
+		bufferProjection.bufferStartIndex === 0 && scrollTopPx <= NEAR_EDGE_THRESHOLD_PX;
+	onNearTopChange?.(atLayoutTop);
+	const atLayoutBottom =
+		bufferProjection.bufferEndIndex >= bufferProjection.layoutRowCount &&
+		totalHeightPx - lastViewportHeightPx - scrollTopPx <= NEAR_EDGE_THRESHOLD_PX;
+	onNearBottomChange?.(atLayoutBottom || bufferProjection.mode.kind === "followingTail");
 }
 
 function observeViewport(node: HTMLDivElement): { destroy: () => void } {
@@ -410,8 +446,8 @@ function confirmRowHeight(node: HTMLDivElement, row: TranscriptViewportRow): { u
 }
 
 function latestVisibleUserRowId(): string | null {
-	for (let index = visibleRows.length - 1; index >= 0; index -= 1) {
-		const row = visibleRows[index];
+	for (let index = bufferRows.length - 1; index >= 0; index -= 1) {
+		const row = bufferRows[index];
 		if (row?.kind === "user") {
 			return row.rowId;
 		}
@@ -419,15 +455,19 @@ function latestVisibleUserRowId(): string | null {
 	return null;
 }
 
+// Bootstrap the buffer once per session: the live producer pushes the initial
+// buffer on the open event stream, but a forced request guards a mount that
+// races ahead of that push. Idempotent in the store (no-op if a buffer exists).
 $effect(() => {
-	if (visibleWindow !== null) {
-		onNearBottomChange?.(visibleWindow.mode.kind === "followingTail");
+	if (sessionId === null || sessionId === bootstrappedSessionId) {
+		return;
 	}
-	onNearTopChange?.((visibleWindow?.viewportOffsetPx ?? 0) <= NEAR_EDGE_THRESHOLD_PX);
+	bootstrappedSessionId = sessionId;
+	sessionStore.ensureViewportBufferBootstrap(sessionId);
 });
 
 $effect(() => {
-	if (visibleWindow === null || pendingViewportHeightPx === null) {
+	if (bufferProjection === null || pendingViewportHeightPx === null) {
 		return;
 	}
 	const heightPx = pendingViewportHeightPx;
@@ -435,16 +475,58 @@ $effect(() => {
 	dispatchResizeIntent(heightPx);
 });
 
+// Apply a Rust-decided scroll position once per push that carries one (initial
+// open, reveal, follow-tail). Keyed on emissionSeq so it fires exactly once per
+// repositioning push and never fights native scrolling on plain refills.
 $effect(() => {
-	if (scrollContainerRef === null || visibleWindow === null) {
+	const projection = bufferProjection;
+	if (scrollContainerRef === null || projection === null) {
 		return;
 	}
-	const offsetPx = visibleWindow.viewportOffsetPx;
-	if (Math.abs(scrollContainerRef.scrollTop - offsetPx) <= 1) {
+	const target = projection.scrollTopTarget;
+	if (target === null || projection.emissionSeq === lastAppliedScrollEmissionSeq) {
 		return;
 	}
-	suppressNextScrollIntent = true;
-	scrollContainerRef.scrollTop = offsetPx;
+	lastAppliedScrollEmissionSeq = projection.emissionSeq;
+	void tick().then(() => {
+		if (scrollContainerRef === null) {
+			return;
+		}
+		if (Math.abs(scrollContainerRef.scrollTop - target) <= 1) {
+			return;
+		}
+		suppressNextScrollIntent = true;
+		scrollContainerRef.scrollTop = target;
+	});
+});
+
+// Following-tail pin as a LOCAL invariant: when canonical layout grows during
+// streaming, re-pin to the bottom after the new rows have rendered. Re-asserted
+// only when totalHeightPx changes while in followingTail mode.
+$effect(() => {
+	const projection = bufferProjection;
+	if (scrollContainerRef === null || projection === null) {
+		return;
+	}
+	if (projection.mode.kind !== "followingTail") {
+		lastFollowTailTotalHeightPx = -1;
+		return;
+	}
+	if (totalHeightPx === lastFollowTailTotalHeightPx) {
+		return;
+	}
+	lastFollowTailTotalHeightPx = totalHeightPx;
+	const target = Math.max(0, totalHeightPx - lastViewportHeightPx);
+	void tick().then(() => {
+		if (scrollContainerRef === null) {
+			return;
+		}
+		if (Math.abs(scrollContainerRef.scrollTop - target) <= 1) {
+			return;
+		}
+		suppressNextScrollIntent = true;
+		scrollContainerRef.scrollTop = target;
+	});
 });
 
 $effect(() => {
@@ -487,6 +569,7 @@ export function scrollToTop() {
 		bind:this={scrollContainerRef}
 		data-testid="rust-transcript-viewport"
 		class="h-full min-h-0 overflow-y-auto"
+		style="overflow-anchor: none;"
 		onscroll={handleScroll}
 	>
 		<div style={`height: ${totalHeightPx}px; position: relative; width: 100%;`}>
