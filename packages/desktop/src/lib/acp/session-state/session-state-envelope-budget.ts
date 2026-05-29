@@ -35,6 +35,8 @@ const SESSION_STATE_ENVELOPE_MAX_BYTES_BY_KIND = {
 	plan: 128_000,
 	assistantTextDelta: 8_000,
 	visibleTranscriptWindow: 96_000,
+	viewportBufferPush: 512_000,
+	viewportBufferDelta: 128_000,
 } satisfies Record<SessionStatePayloadKind, number>;
 
 export const SESSION_STATE_ENVELOPE_BYTE_BUDGETS: readonly SessionStateEnvelopeByteBudget[] =

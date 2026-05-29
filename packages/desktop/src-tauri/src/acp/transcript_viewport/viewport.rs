@@ -3,6 +3,11 @@ use serde::{Deserialize, Serialize};
 
 pub const DEFAULT_OVERSCAN_ROWS: usize = 4;
 
+/// Rows of overscan included on each side of the visible range when building a
+/// buffer push. Large enough that the WebView can resolve a screen or two of
+/// scrolling locally (zero IPC) before it must request a refill.
+pub const DEFAULT_BUFFER_OVERSCAN_ROWS: usize = 50;
+
 #[derive(Debug, Clone, Serialize, Deserialize, specta::Type, PartialEq, Eq)]
 #[serde(tag = "kind", rename_all = "camelCase")]
 pub enum ViewportMode {
@@ -35,6 +40,23 @@ pub enum ScrollIntent {
 pub struct ViewportTransition {
     pub window: ViewportWindow,
     pub height_confirmation: Option<HeightConfirmationOutcome>,
+}
+
+/// Owned description of a buffered layout slice for a `ViewportBufferPush`.
+/// `offsets_px[i]` is the absolute pixel offset of the row at
+/// `buffer_start_index + i`. The end index is exclusive. Produced while holding
+/// the viewport lock but fully owned so payload construction needs no lock.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ViewportBufferSlice {
+    pub buffer_start_index: usize,
+    pub buffer_end_index: usize,
+    pub layout_row_count: usize,
+    pub offsets_px: Vec<u64>,
+    pub total_height_px: u64,
+    pub buffer_end_offset_px: u64,
+    pub viewport_offset_px: u64,
+    pub mode: ViewportMode,
+    pub viewport_revision: i64,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -98,6 +120,33 @@ impl TranscriptViewport {
             visible_start_index: range.start,
             visible_end_index: range.end,
             mode: self.mode.clone(),
+        }
+    }
+
+    /// Build a buffered slice centred on the visible range with a large
+    /// `buffer_overscan_rows` margin. The WebView resolves in-buffer scrolling
+    /// locally and only requests a refill when nearing `[buffer_start_index,
+    /// buffer_end_index)`.
+    #[must_use]
+    pub fn buffer_window(&self, buffer_overscan_rows: usize) -> ViewportBufferSlice {
+        let offset_px = self.current_offset_px();
+        let range =
+            self.layout
+                .visible_range(offset_px, self.viewport_height_px, buffer_overscan_rows);
+        let offsets_px = (range.start..range.end)
+            .map(|index| self.layout.offset_at_index(index))
+            .collect();
+
+        ViewportBufferSlice {
+            buffer_start_index: range.start,
+            buffer_end_index: range.end,
+            layout_row_count: self.layout.row_count(),
+            offsets_px,
+            total_height_px: self.layout.total_height_px(),
+            buffer_end_offset_px: self.layout.offset_at_index(range.end),
+            viewport_offset_px: offset_px,
+            mode: self.mode.clone(),
+            viewport_revision: self.viewport_revision,
         }
     }
 
@@ -224,7 +273,7 @@ impl TranscriptViewport {
 
 #[cfg(test)]
 mod tests {
-    use super::{ScrollIntent, TranscriptViewport, ViewportMode};
+    use super::{ScrollIntent, TranscriptViewport, ViewportMode, DEFAULT_BUFFER_OVERSCAN_ROWS};
     use crate::acp::transcript_viewport::layout::{
         HeightConfirmationOutcome, LayoutIndex, RowLayout,
     };
@@ -389,5 +438,110 @@ mod tests {
             Some(HeightConfirmationOutcome::StaleVersion)
         );
         assert_eq!(transition.window.total_height_px, 200);
+    }
+
+    #[test]
+    fn buffer_window_following_tail_extends_overscan_back_from_tail() {
+        let viewport = TranscriptViewport::new(
+            LayoutIndex::new(vec![
+                row("row-1", 100),
+                row("row-2", 100),
+                row("row-3", 100),
+                row("row-4", 100),
+                row("row-5", 100),
+            ]),
+            100,
+        )
+        .with_overscan(0);
+
+        let slice = viewport.buffer_window(2);
+
+        assert_eq!(slice.buffer_start_index, 2);
+        assert_eq!(slice.buffer_end_index, 5);
+        assert_eq!(slice.layout_row_count, 5);
+        assert_eq!(slice.offsets_px, vec![200, 300, 400]);
+        assert_eq!(slice.total_height_px, 500);
+        assert_eq!(slice.buffer_end_offset_px, 500);
+        assert_eq!(slice.viewport_offset_px, 400);
+        assert_eq!(slice.mode, ViewportMode::FollowingTail);
+    }
+
+    #[test]
+    fn buffer_window_clamps_overscan_to_layout_bounds() {
+        let viewport = TranscriptViewport::new(
+            LayoutIndex::new(vec![row("row-1", 100), row("row-2", 100), row("row-3", 100)]),
+            100,
+        )
+        .with_overscan(0);
+
+        let slice = viewport.buffer_window(1000);
+
+        assert_eq!(slice.buffer_start_index, 0);
+        assert_eq!(slice.buffer_end_index, 3);
+        assert_eq!(slice.layout_row_count, 3);
+        assert_eq!(slice.offsets_px, vec![0, 100, 200]);
+        assert_eq!(slice.total_height_px, 300);
+        assert_eq!(slice.buffer_end_offset_px, 300);
+    }
+
+    #[test]
+    fn buffer_window_partial_bottom_reports_buffer_end_offset_below_total() {
+        let mut viewport = TranscriptViewport::new(
+            LayoutIndex::new(vec![
+                row("row-1", 100),
+                row("row-2", 100),
+                row("row-3", 100),
+                row("row-4", 100),
+                row("row-5", 100),
+            ]),
+            100,
+        )
+        .with_overscan(0);
+        // Detach near the top so the buffer does NOT reach the layout end.
+        viewport.apply_scroll_intent(ScrollIntent::DetachAtOffset { offset_px: 0 });
+
+        let slice = viewport.buffer_window(1);
+
+        assert_eq!(slice.buffer_start_index, 0);
+        assert_eq!(slice.buffer_end_index, 2);
+        assert_eq!(slice.layout_row_count, 5);
+        assert_eq!(slice.buffer_end_offset_px, 200);
+        assert!(slice.buffer_end_offset_px < slice.total_height_px);
+    }
+
+    #[test]
+    fn buffer_window_reflects_detached_offset_and_mode() {
+        let mut viewport = TranscriptViewport::new(
+            LayoutIndex::new(vec![
+                row("row-1", 100),
+                row("row-2", 100),
+                row("row-3", 100),
+                row("row-4", 100),
+                row("row-5", 100),
+            ]),
+            100,
+        )
+        .with_overscan(0);
+        viewport.apply_scroll_intent(ScrollIntent::DetachAtOffset { offset_px: 150 });
+
+        let slice = viewport.buffer_window(1);
+
+        assert_eq!(slice.viewport_offset_px, 150);
+        assert_eq!(slice.buffer_start_index, 0);
+        assert_eq!(slice.buffer_end_index, 4);
+        assert_eq!(slice.offsets_px, vec![0, 100, 200, 300]);
+        assert!(matches!(slice.mode, ViewportMode::Detached { .. }));
+    }
+
+    #[test]
+    fn buffer_window_on_empty_layout_is_empty() {
+        let viewport = TranscriptViewport::new(LayoutIndex::new(vec![]), 100);
+
+        let slice = viewport.buffer_window(DEFAULT_BUFFER_OVERSCAN_ROWS);
+
+        assert_eq!(slice.buffer_start_index, 0);
+        assert_eq!(slice.buffer_end_index, 0);
+        assert!(slice.offsets_px.is_empty());
+        assert_eq!(slice.total_height_px, 0);
     }
 }

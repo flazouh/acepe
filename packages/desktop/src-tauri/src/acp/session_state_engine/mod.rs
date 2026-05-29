@@ -22,8 +22,8 @@ pub use frontier::{FrontierFallbackReason, SessionFrontierDecision};
 pub use graph::{ActiveStreamingTail, ActiveStreamingTailContentKind, SessionStateGraph};
 pub use protocol::{
     CapabilityPreviewState, SessionStateDelta, SessionStatePayload,
-    SessionStateSnapshotMaterialization, VisibleTranscriptWindowDiagnostic,
-    VisibleTranscriptWindowPayload,
+    SessionStateSnapshotMaterialization, ViewportBufferDelta, ViewportBufferDiagnostic,
+    ViewportBufferPush, VisibleTranscriptWindowDiagnostic, VisibleTranscriptWindowPayload,
 };
 pub use reducer::{SessionStateGraphMutation, SessionStateReducer};
 pub use revision::SessionGraphRevision;

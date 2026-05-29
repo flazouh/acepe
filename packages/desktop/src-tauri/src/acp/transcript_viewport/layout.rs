@@ -39,11 +39,66 @@ pub enum HeightConfirmationOutcome {
     MissingRow,
 }
 
+/// Fenwick (binary indexed) tree over per-row heights.
+///
+/// Backs `LayoutIndex` so a single height confirmation is an O(log N) point
+/// update instead of an O(N) offset rebuild. `prefix_sum(i)` returns the
+/// cumulative height of the first `i` rows — i.e. the absolute pixel offset of
+/// row `i` — which is the single source for every offset/row-at-offset query.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+struct FenwickTree {
+    /// 1-indexed; `tree[0]` is unused. `tree[p]` covers heights `[p - lowbit, p)`.
+    tree: Vec<u64>,
+    len: usize,
+}
+
+impl FenwickTree {
+    fn from_heights(heights: &[u64]) -> Self {
+        let len = heights.len();
+        let mut tree = vec![0_u64; len + 1];
+        for (i, &height) in heights.iter().enumerate() {
+            let idx = i + 1;
+            tree[idx] = tree[idx].saturating_add(height);
+            let parent = idx + lowbit(idx);
+            if parent <= len {
+                let carry = tree[idx];
+                tree[parent] = tree[parent].saturating_add(carry);
+            }
+        }
+        Self { tree, len }
+    }
+
+    /// Apply a signed delta to the height at 0-based position `pos`.
+    fn add(&mut self, pos: usize, delta: i64) {
+        let mut idx = pos + 1;
+        while idx <= self.len {
+            let updated = i64::try_from(self.tree[idx]).unwrap_or(i64::MAX) + delta;
+            self.tree[idx] = u64::try_from(updated.max(0)).unwrap_or(0);
+            idx += lowbit(idx);
+        }
+    }
+
+    /// Sum of the first `count` heights (= absolute offset of row `count`).
+    fn prefix_sum(&self, count: usize) -> u64 {
+        let mut idx = count.min(self.len);
+        let mut sum = 0_u64;
+        while idx > 0 {
+            sum = sum.saturating_add(self.tree[idx]);
+            idx -= lowbit(idx);
+        }
+        sum
+    }
+}
+
+const fn lowbit(idx: usize) -> usize {
+    idx & idx.wrapping_neg()
+}
+
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct LayoutIndex {
     rows: Vec<RowLayout>,
     index_by_row_id: BTreeMap<String, usize>,
-    offsets: Vec<u64>,
+    offsets: FenwickTree,
     total_height_px: u64,
 }
 
@@ -53,7 +108,7 @@ impl LayoutIndex {
         let mut index = Self {
             rows,
             index_by_row_id: BTreeMap::new(),
-            offsets: Vec::new(),
+            offsets: FenwickTree::default(),
             total_height_px: 0,
         };
         index.rebuild();
@@ -110,7 +165,15 @@ impl LayoutIndex {
     #[must_use]
     pub fn row_offset_px(&self, row_id: &str) -> Option<u64> {
         let index = self.index_by_row_id.get(row_id)?;
-        self.offsets.get(*index).copied()
+        Some(self.offsets.prefix_sum(*index))
+    }
+
+    /// Absolute pixel offset of the row at `index` (cumulative height of rows
+    /// `[0, index)`). Clamps to the row count so a buffer-slice end index maps
+    /// to `total_height_px`.
+    #[must_use]
+    pub fn offset_at_index(&self, index: usize) -> u64 {
+        self.offsets.prefix_sum(index.min(self.rows.len()))
     }
 
     #[must_use]
@@ -121,8 +184,7 @@ impl LayoutIndex {
 
         let capped_offset = offset_px.min(self.total_height_px.saturating_sub(1));
         let index = self
-            .offsets
-            .partition_point(|offset| *offset <= capped_offset)
+            .partition_point_offset_le(capped_offset)
             .saturating_sub(1);
         self.rows.get(index)
     }
@@ -164,8 +226,17 @@ impl LayoutIndex {
             return HeightConfirmationOutcome::StaleVersion;
         }
 
+        // Compute the height delta BEFORE mutating the row: `height_px()` reads
+        // the confirmed height once set, so reading after would yield a zero
+        // delta and a silent Fenwick no-op (offsets frozen at estimates).
+        let previous_height = i64::from(row.height_px());
         row.confirmed_height_px = Some(confirmed_height_px);
-        self.rebuild_offsets_only();
+        let delta = i64::from(confirmed_height_px) - previous_height;
+        if delta != 0 {
+            self.offsets.add(index, delta);
+            let updated_total = i64::try_from(self.total_height_px).unwrap_or(i64::MAX) + delta;
+            self.total_height_px = u64::try_from(updated_total.max(0)).unwrap_or(0);
+        }
         HeightConfirmationOutcome::Accepted
     }
 
@@ -205,25 +276,48 @@ impl LayoutIndex {
     }
 
     fn rebuild_offsets_only(&mut self) {
-        self.offsets.clear();
-        let mut current_offset = 0_u64;
-        for row in &self.rows {
-            self.offsets.push(current_offset);
-            current_offset = current_offset.saturating_add(u64::from(row.height_px()));
+        let heights: Vec<u64> = self.rows.iter().map(|row| u64::from(row.height_px())).collect();
+        self.total_height_px = heights.iter().fold(0_u64, |acc, h| acc.saturating_add(*h));
+        self.offsets = FenwickTree::from_heights(&heights);
+    }
+
+    /// Count of rows whose absolute offset is `<= offset_px`.
+    ///
+    /// Mirrors `offsets.partition_point(|o| *o <= offset_px)` over the previous
+    /// flat-array representation, so all dependent queries are behavior-identical.
+    fn partition_point_offset_le(&self, offset_px: u64) -> usize {
+        let (mut lo, mut hi) = (0_usize, self.rows.len());
+        while lo < hi {
+            let mid = lo + (hi - lo) / 2;
+            if self.offsets.prefix_sum(mid) <= offset_px {
+                lo = mid + 1;
+            } else {
+                hi = mid;
+            }
         }
-        self.total_height_px = current_offset;
+        lo
+    }
+
+    /// Count of rows whose absolute offset is `< offset_px`.
+    fn partition_point_offset_lt(&self, offset_px: u64) -> usize {
+        let (mut lo, mut hi) = (0_usize, self.rows.len());
+        while lo < hi {
+            let mid = lo + (hi - lo) / 2;
+            if self.offsets.prefix_sum(mid) < offset_px {
+                lo = mid + 1;
+            } else {
+                hi = mid;
+            }
+        }
+        lo
     }
 
     fn index_at_or_before_offset(&self, offset_px: u64) -> usize {
-        self.offsets
-            .partition_point(|offset| *offset <= offset_px)
-            .saturating_sub(1)
+        self.partition_point_offset_le(offset_px).saturating_sub(1)
     }
 
     fn index_after_offset(&self, offset_px: u64) -> usize {
-        self.offsets
-            .partition_point(|offset| *offset < offset_px)
-            .min(self.rows.len())
+        self.partition_point_offset_lt(offset_px).min(self.rows.len())
     }
 }
 
@@ -254,6 +348,23 @@ mod tests {
         assert_eq!(layout.row_offset_px("row-1"), Some(0));
         assert_eq!(layout.row_offset_px("row-2"), Some(40));
         assert_eq!(layout.row_offset_px("row-3"), Some(90));
+    }
+
+    #[test]
+    fn offset_at_index_returns_cumulative_offsets_and_total_at_end() {
+        let layout = LayoutIndex::new(vec![
+            row("row-1", 40, true),
+            row("row-2", 50, true),
+            row("row-3", 60, true),
+        ]);
+
+        assert_eq!(layout.offset_at_index(0), 0);
+        assert_eq!(layout.offset_at_index(1), 40);
+        assert_eq!(layout.offset_at_index(2), 90);
+        // End index (== row count) maps to total height.
+        assert_eq!(layout.offset_at_index(3), 150);
+        // Out-of-range clamps to total height.
+        assert_eq!(layout.offset_at_index(99), 150);
     }
 
     #[test]
@@ -391,5 +502,118 @@ mod tests {
         let layout = LayoutIndex::new(rows);
 
         assert_eq!(layout.visible_range(25_000, 100, 2), 2498..2512);
+    }
+
+    // Brute-force offsets matching the previous flat-array implementation.
+    fn flat_offsets(heights: &[u64]) -> Vec<u64> {
+        let mut offsets = Vec::with_capacity(heights.len());
+        let mut acc = 0_u64;
+        for &height in heights {
+            offsets.push(acc);
+            acc = acc.saturating_add(height);
+        }
+        offsets
+    }
+
+    fn flat_index_at_or_before(offsets: &[u64], offset_px: u64) -> usize {
+        offsets
+            .partition_point(|offset| *offset <= offset_px)
+            .saturating_sub(1)
+    }
+
+    #[test]
+    fn fenwick_offsets_match_flat_array_across_mixed_heights() {
+        // Deterministic pseudo-random mixed heights (incl. a zero-height row).
+        let heights: Vec<u32> = (0..257)
+            .map(|i| ((i * 2_654_435_761_u64) % 200) as u32)
+            .collect();
+        let rows: Vec<RowLayout> = heights
+            .iter()
+            .enumerate()
+            .map(|(i, &h)| row(&format!("row-{i}"), h, true))
+            .collect();
+        let layout = LayoutIndex::new(rows);
+
+        let expected: Vec<u64> = flat_offsets(&heights.iter().map(|&h| u64::from(h)).collect::<Vec<_>>());
+        let total: u64 = heights.iter().map(|&h| u64::from(h)).sum();
+        assert_eq!(layout.total_height_px(), total);
+
+        for (i, want) in expected.iter().enumerate() {
+            assert_eq!(layout.row_offset_px(&format!("row-{i}")), Some(*want));
+        }
+
+        // row_at_offset parity at many probe offsets.
+        for probe in (0..total).step_by(7) {
+            let want = flat_index_at_or_before(&expected, probe.min(total.saturating_sub(1)));
+            let got = layout
+                .row_at_offset(probe)
+                .map(|r| r.row_id.clone())
+                .unwrap();
+            assert_eq!(got, format!("row-{want}"), "row_at_offset mismatch at {probe}");
+        }
+    }
+
+    #[test]
+    fn reconfirming_a_row_updates_offsets_via_point_update() {
+        // Guards the read-before-mutate ordering trap: a silent no-op fails here.
+        let mut layout = LayoutIndex::new(vec![
+            row("row-1", 100, true),
+            row("row-2", 100, true),
+            row("row-3", 100, true),
+        ]);
+
+        assert_eq!(
+            layout.confirm_height("row-1", "row-1:v1", 150),
+            HeightConfirmationOutcome::Accepted
+        );
+        assert_eq!(layout.row_offset_px("row-2"), Some(150));
+        assert_eq!(layout.row_offset_px("row-3"), Some(250));
+        assert_eq!(layout.total_height_px(), 350);
+
+        // Re-confirm the same row to a smaller height (negative delta).
+        assert_eq!(
+            layout.confirm_height("row-1", "row-1:v1", 60),
+            HeightConfirmationOutcome::Accepted
+        );
+        assert_eq!(layout.row_offset_px("row-2"), Some(60));
+        assert_eq!(layout.row_offset_px("row-3"), Some(160));
+        assert_eq!(layout.total_height_px(), 260);
+    }
+
+    #[test]
+    fn point_updates_stay_correct_at_scale() {
+        let count = 100_000usize;
+        let rows = (0..count)
+            .map(|index| row(&format!("row-{index}"), 10, true))
+            .collect();
+        let mut layout = LayoutIndex::new(rows);
+        assert_eq!(layout.total_height_px(), (count as u64) * 10);
+
+        // Confirm a spread of rows to non-estimate heights, then verify offsets
+        // reflect the cumulative shift without any O(N) rebuild.
+        for index in (0..count).step_by(9_973) {
+            assert_eq!(
+                layout.confirm_height(&format!("row-{index}"), &format!("row-{index}:v1"), 30),
+                HeightConfirmationOutcome::Accepted
+            );
+        }
+
+        // Independently recompute expected offsets from the confirmed set.
+        let mut heights = vec![10_u64; count];
+        for index in (0..count).step_by(9_973) {
+            heights[index] = 30;
+        }
+        let expected = flat_offsets(&heights);
+        for index in (0..count).step_by(4_001) {
+            assert_eq!(
+                layout.row_offset_px(&format!("row-{index}")),
+                Some(expected[index]),
+                "offset mismatch at row {index}"
+            );
+        }
+        assert_eq!(
+            layout.total_height_px(),
+            heights.iter().sum::<u64>()
+        );
     }
 }

@@ -515,5 +515,12 @@ export function routeSessionStateEnvelope(
 					window: envelope.payload.window,
 				},
 			];
+		// Buffer protocol (Option C) is wired in U4's coordinated cutover. Until
+		// the producer emits these, no live envelope carries them; routing them
+		// to a no-op here keeps the switch exhaustive without dual authority.
+		case "viewportBufferPush":
+			return [];
+		case "viewportBufferDelta":
+			return [];
 	}
 }

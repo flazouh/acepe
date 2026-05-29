@@ -83,6 +83,12 @@ pub enum SessionStatePayload {
     VisibleTranscriptWindow {
         window: VisibleTranscriptWindowPayload,
     },
+    ViewportBufferPush {
+        push: ViewportBufferPush,
+    },
+    ViewportBufferDelta {
+        delta: ViewportBufferDelta,
+    },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
@@ -118,6 +124,109 @@ pub struct VisibleTranscriptWindowPayload {
 pub struct VisibleTranscriptWindowDiagnostic {
     pub code: String,
     pub row_id: Option<String>,
+}
+
+/// Diagnostic emitted alongside a buffer push/delta (e.g. a rejected height
+/// confirmation or a shrunk buffer). Mirrors `VisibleTranscriptWindowDiagnostic`
+/// but is owned by the buffer protocol so the old payload can be deleted in U6.
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct ViewportBufferDiagnostic {
+    pub code: String,
+    pub row_id: Option<String>,
+}
+
+/// Full buffered slice of the canonical layout pushed to the WebView. The
+/// WebView resolves in-buffer scroll offsets locally (no IPC per frame) and
+/// only requests a refill when scrolling near/outside `[buffer_start_index,
+/// buffer_end_index)`. `request_generation` echoes the generation of a refill
+/// request so the store can reject stale command responses; live (unsolicited)
+/// pushes carry `None`.
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct ViewportBufferPush {
+    pub session_id: String,
+    pub graph_revision: SessionGraphRevision,
+    pub viewport_revision: i64,
+    /// Per-session monotonic emission sequence (the total-order authority for
+    /// the buffer protocol). A push resets the consumer's sequence baseline to
+    /// this value; subsequent deltas must chain contiguously from it. Because
+    /// `viewport_revision` does NOT advance on streaming row appends, it cannot
+    /// sequence the two independent delivery channels (command-reply vs live
+    /// event stream); `emission_seq` can, turning any out-of-order arrival into
+    /// a detectable gap (→ fresh push) instead of silent buffer corruption.
+    pub emission_seq: u64,
+    pub buffer_start_index: usize,
+    pub buffer_end_index: usize,
+    /// Total number of rows in the full canonical layout. Lets the WebView tell
+    /// whether a buffer edge is also the layout extreme (so it must NOT request
+    /// a refill past it).
+    pub layout_row_count: usize,
+    pub total_height_px: u64,
+    /// Absolute pixel offset of the bottom of the last buffered row
+    /// (= `offset_at_index(buffer_end_index)`). Equals `total_height_px` only
+    /// when the buffer reaches the layout end. Lets the WebView compute the
+    /// buffered pixel span `[offsets_px[0], buffer_end_offset_px)` without
+    /// per-row heights.
+    pub buffer_end_offset_px: u64,
+    pub rows: Vec<TranscriptViewportRow>,
+    pub offsets_px: Vec<u64>,
+    pub mode: ViewportMode,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub request_generation: Option<u64>,
+    /// Absolute scrollTop the WebView should adopt when this push repositions the
+    /// viewport (initial open, reveal, follow-tail). `None` for a pure refill,
+    /// where the user's current scrollTop is authoritative and must be preserved.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub scroll_top_target: Option<u64>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub diagnostics: Vec<ViewportBufferDiagnostic>,
+}
+
+/// Incremental buffer mutation. Applies iff `emission_seq` chains contiguously
+/// from the consumer's last applied sequence (`emission_seq == current + 1`);
+/// an older `emission_seq` is a stale duplicate (dropped), a newer-than-next
+/// one is a gap that forces a fresh `ViewportBufferPush`. `emission_seq` — not
+/// `from_viewport_revision` — is the apply-ordering authority, because pure
+/// streaming appends do not advance `viewport_revision`. The revision fields
+/// remain for diagnostics and snapshot newer-wins on pushes. Exactly one of
+/// `scroll_top_target` (absolute) or `scroll_anchor_correction_px` (relative)
+/// should be set to avoid double-applying a scroll correction.
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct ViewportBufferDelta {
+    pub session_id: String,
+    pub graph_revision: SessionGraphRevision,
+    /// Per-session monotonic emission sequence; see [`ViewportBufferPush::emission_seq`].
+    pub emission_seq: u64,
+    pub from_viewport_revision: i64,
+    pub to_viewport_revision: i64,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub prepended_rows: Vec<TranscriptViewportRow>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub prepended_offsets_px: Vec<u64>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub appended_rows: Vec<TranscriptViewportRow>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub appended_offsets_px: Vec<u64>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub removed_row_ids: Vec<String>,
+    /// Total rows in the canonical layout after this delta. Lets the consumer
+    /// re-evaluate `needsRefill`'s "has content below" edge as streaming grows
+    /// the transcript, without a fresh push.
+    pub layout_row_count: usize,
+    pub total_height_px: u64,
+    /// Absolute pixel bottom of the last buffered row after this delta (top of
+    /// the row past `buffer_end_index`). Equals `total_height_px` only when the
+    /// buffer reaches the layout end. Required so the consumer can maintain the
+    /// bottom-edge refill math without per-row heights.
+    pub buffer_end_offset_px: u64,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub scroll_anchor_correction_px: Option<i64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub scroll_top_target: Option<u64>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub diagnostics: Vec<ViewportBufferDiagnostic>,
 }
 
 #[cfg(test)]

@@ -18,6 +18,8 @@ pub enum SessionStatePayloadKind {
     Plan,
     AssistantTextDelta,
     VisibleTranscriptWindow,
+    ViewportBufferPush,
+    ViewportBufferDelta,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
@@ -60,6 +62,8 @@ impl SessionStatePayloadKind {
             SessionStatePayload::Plan { .. } => Self::Plan,
             SessionStatePayload::AssistantTextDelta { .. } => Self::AssistantTextDelta,
             SessionStatePayload::VisibleTranscriptWindow { .. } => Self::VisibleTranscriptWindow,
+            SessionStatePayload::ViewportBufferPush { .. } => Self::ViewportBufferPush,
+            SessionStatePayload::ViewportBufferDelta { .. } => Self::ViewportBufferDelta,
         }
     }
 
@@ -73,6 +77,10 @@ impl SessionStatePayloadKind {
             Self::Plan => 128_000,
             Self::AssistantTextDelta => 8_000,
             Self::VisibleTranscriptWindow => 96_000,
+            // A buffer push carries the visible slice plus a bounded overscan
+            // window; the producer shrinks the buffer to stay under this cap.
+            Self::ViewportBufferPush => 512_000,
+            Self::ViewportBufferDelta => 128_000,
         }
     }
 }

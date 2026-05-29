@@ -7,7 +7,8 @@ use crate::acp::session_state_engine::frontier::{
 };
 use crate::acp::session_state_engine::graph::select_active_streaming_tail;
 use crate::acp::session_state_engine::protocol::{
-    AssistantTextDeltaPayload, VisibleTranscriptWindowDiagnostic, VisibleTranscriptWindowPayload,
+    AssistantTextDeltaPayload, ViewportBufferDelta, ViewportBufferDiagnostic, ViewportBufferPush,
+    VisibleTranscriptWindowDiagnostic, VisibleTranscriptWindowPayload,
 };
 use crate::acp::session_state_engine::selectors::{
     select_session_graph_activity, SessionGraphCapabilities, SessionGraphLifecycle,
@@ -24,7 +25,7 @@ use crate::acp::transcript_projection::{
 };
 use crate::acp::transcript_viewport::{
     project_transcript_viewport_rows, HeightConfirmationOutcome, LayoutIndex, ScrollIntent,
-    TranscriptViewport,
+    TranscriptViewport, TranscriptViewportRow, ViewportBufferSlice, DEFAULT_BUFFER_OVERSCAN_ROWS,
 };
 use crate::acp::types::CanonicalAgentId;
 use crate::db::repository::SessionMetadataRepository;
@@ -870,7 +871,26 @@ impl SessionGraphRuntimeRegistry {
         }
     }
 
-    pub fn build_visible_transcript_window_envelope_for_session(
+    /// Shared prologue + viewport mutation for every read-shaped viewport
+    /// command. Reads the current canonical snapshots, resyncs the effective
+    /// revision (never rejects on a stale claimed revision — see retry-storm
+    /// note below), projects rows, then locks the viewport, applies scroll /
+    /// height-confirmation, and hands a read-only view to `materialize` which
+    /// produces the wire payload. The byte budget is enforced uniformly.
+    ///
+    /// Read-shaped viewport commands (resize, scroll, reveal, confirm-height)
+    /// race the canonical revision: during streaming the transcript/graph
+    /// revision bumps on every event, so any command the UI sends is already
+    /// behind by the time it reaches the backend. Rejecting on a revision lag
+    /// produced a retry storm — the UI re-issued the same stale revision, the
+    /// layout never settled to canonical heights, and per-row observers kept
+    /// re-measuring forever, pegging the main thread. Instead we resync: build
+    /// against the CURRENT canonical snapshots and echo the current canonical
+    /// revision so the UI adopts it and converges. Canonical order and identity
+    /// always come from the current transcript snapshot, never from the
+    /// command's claimed revision, and height confirmations stay version-guarded
+    /// inside the viewport, so resync cannot corrupt state.
+    fn build_session_viewport_envelope_with<F>(
         &self,
         session_id: &str,
         revision: SessionGraphRevision,
@@ -879,7 +899,12 @@ impl SessionGraphRuntimeRegistry {
         viewport_height_px: u32,
         scroll_intent: Option<ScrollIntent>,
         height_confirmation: Option<TranscriptViewportHeightConfirmation>,
-    ) -> Result<SessionStateEnvelope, VisibleTranscriptWindowMiss> {
+        budget_label: &str,
+        materialize: F,
+    ) -> Result<SessionStateEnvelope, VisibleTranscriptWindowMiss>
+    where
+        F: FnOnce(ViewportMaterializeCtx<'_>) -> SessionStatePayload,
+    {
         let transcript_snapshot = transcript_projection_registry
             .snapshot_for_session(session_id)
             .ok_or(VisibleTranscriptWindowMiss::SessionNotAttached)?;
@@ -888,18 +913,6 @@ impl SessionGraphRuntimeRegistry {
             .session
             .ok_or(VisibleTranscriptWindowMiss::SessionNotAttached)?;
         let runtime_snapshot = self.snapshot_for_session(session_id);
-        // Read-shaped viewport commands (resize, scroll, reveal, confirm-height)
-        // race the canonical revision: during streaming the transcript/graph
-        // revision bumps on every event, so any command the UI sends is already
-        // behind by the time it reaches the backend. Rejecting on a revision lag
-        // produced a retry storm — the UI re-issued the same stale revision, the
-        // layout never settled to canonical heights, and per-row observers kept
-        // re-measuring forever, pegging the main thread. Instead we resync: build
-        // against the CURRENT canonical snapshots and echo the current canonical
-        // revision so the UI adopts it and converges. Canonical order and
-        // identity always come from the current transcript snapshot, never from
-        // the command's claimed revision, and height confirmations stay
-        // version-guarded inside the viewport, so resync cannot corrupt state.
         let effective_revision = SessionGraphRevision {
             graph_revision: if runtime_snapshot.graph_revision != 0 {
                 runtime_snapshot.graph_revision
@@ -929,8 +942,7 @@ impl SessionGraphRuntimeRegistry {
             &interactions,
             active_streaming_tail.as_ref(),
         );
-        let mut diagnostics = Vec::new();
-        let (window, visible_rows, row_offsets_px, viewport_revision) = {
+        let payload = {
             let mut viewports = self
                 .transcript_viewports
                 .lock()
@@ -957,68 +969,35 @@ impl SessionGraphRuntimeRegistry {
             if let Some(intent) = scroll_intent {
                 viewport.apply_scroll_intent(intent);
             }
-            if let Some(confirmation) = height_confirmation {
+            let height_diagnostic = height_confirmation.and_then(|confirmation| {
                 let transition = viewport.confirm_height(
                     &confirmation.row_id,
                     &confirmation.row_version,
                     confirmation.height_px,
                 );
-                if let Some(outcome) = transition.height_confirmation {
-                    if outcome != HeightConfirmationOutcome::Accepted {
-                        diagnostics.push(VisibleTranscriptWindowDiagnostic {
+                transition.height_confirmation.and_then(|outcome| {
+                    (outcome != HeightConfirmationOutcome::Accepted).then(|| {
+                        ViewportHeightDiagnostic {
                             code: height_confirmation_diagnostic_code(outcome).to_string(),
                             row_id: Some(confirmation.row_id),
-                        });
-                    }
-                }
-                let window = transition.window;
-                let visible_rows =
-                    rows[window.visible_start_index..window.visible_end_index].to_vec();
-                let row_offsets_px = visible_rows
-                    .iter()
-                    .map(|row| viewport.layout().row_offset_px(&row.row_id).unwrap_or(0))
-                    .collect();
-                (
-                    window,
-                    visible_rows,
-                    row_offsets_px,
-                    viewport.viewport_revision(),
-                )
-            } else {
-                let window = viewport.window();
-                let visible_rows =
-                    rows[window.visible_start_index..window.visible_end_index].to_vec();
-                let row_offsets_px = visible_rows
-                    .iter()
-                    .map(|row| viewport.layout().row_offset_px(&row.row_id).unwrap_or(0))
-                    .collect();
-                (
-                    window,
-                    visible_rows,
-                    row_offsets_px,
-                    viewport.viewport_revision(),
-                )
-            }
+                        }
+                    })
+                })
+            });
+
+            materialize(ViewportMaterializeCtx {
+                session_id,
+                effective_revision,
+                rows: rows.as_slice(),
+                viewport,
+                height_diagnostic,
+            })
         };
         let envelope = SessionStateEnvelope {
             session_id: session_id.to_string(),
             graph_revision: effective_revision.graph_revision,
             last_event_seq: effective_revision.last_event_seq,
-            payload: SessionStatePayload::VisibleTranscriptWindow {
-                window: VisibleTranscriptWindowPayload {
-                    session_id: session_id.to_string(),
-                    graph_revision: effective_revision,
-                    viewport_revision,
-                    total_height_px: window.total_height_px,
-                    viewport_offset_px: window.offset_px,
-                    visible_start_index: window.visible_start_index,
-                    visible_end_index: window.visible_end_index,
-                    rows: visible_rows,
-                    row_offsets_px,
-                    mode: window.mode,
-                    diagnostics,
-                },
-            },
+            payload,
         };
 
         match session_state_envelope_byte_budget_status(&envelope) {
@@ -1026,14 +1005,279 @@ impl SessionGraphRuntimeRegistry {
             Err(status) => {
                 tracing::warn!(
                     session_id,
+                    kind = budget_label,
                     byte_len = status.byte_len,
                     max_bytes = status.max_bytes,
-                    "Visible transcript window envelope exceeded byte budget; skipping"
+                    "viewport envelope exceeded byte budget; skipping"
                 );
                 Err(VisibleTranscriptWindowMiss::BudgetExceeded)
             }
         }
     }
+
+    pub fn build_visible_transcript_window_envelope_for_session(
+        &self,
+        session_id: &str,
+        revision: SessionGraphRevision,
+        projection_registry: &ProjectionRegistry,
+        transcript_projection_registry: &TranscriptProjectionRegistry,
+        viewport_height_px: u32,
+        scroll_intent: Option<ScrollIntent>,
+        height_confirmation: Option<TranscriptViewportHeightConfirmation>,
+    ) -> Result<SessionStateEnvelope, VisibleTranscriptWindowMiss> {
+        self.build_session_viewport_envelope_with(
+            session_id,
+            revision,
+            projection_registry,
+            transcript_projection_registry,
+            viewport_height_px,
+            scroll_intent,
+            height_confirmation,
+            "Visible transcript window",
+            |ctx| {
+                let window = ctx.viewport.window();
+                let visible_rows =
+                    ctx.rows[window.visible_start_index..window.visible_end_index].to_vec();
+                let row_offsets_px = visible_rows
+                    .iter()
+                    .map(|row| ctx.viewport.layout().row_offset_px(&row.row_id).unwrap_or(0))
+                    .collect();
+                let diagnostics = ctx
+                    .height_diagnostic
+                    .map(|diagnostic| {
+                        vec![VisibleTranscriptWindowDiagnostic {
+                            code: diagnostic.code,
+                            row_id: diagnostic.row_id,
+                        }]
+                    })
+                    .unwrap_or_default();
+                SessionStatePayload::VisibleTranscriptWindow {
+                    window: VisibleTranscriptWindowPayload {
+                        session_id: ctx.session_id.to_string(),
+                        graph_revision: ctx.effective_revision,
+                        viewport_revision: ctx.viewport.viewport_revision(),
+                        total_height_px: window.total_height_px,
+                        viewport_offset_px: window.offset_px,
+                        visible_start_index: window.visible_start_index,
+                        visible_end_index: window.visible_end_index,
+                        rows: visible_rows,
+                        row_offsets_px,
+                        mode: window.mode,
+                        diagnostics,
+                    },
+                }
+            },
+        )
+    }
+
+    /// Build a `ViewportBufferPush`: a large buffered slice the WebView resolves
+    /// scroll offsets against locally, refilling only when nearing its bounds.
+    /// `request_generation` echoes the UI's request id so late responses can be
+    /// gated against newer live deltas. `scroll_top_target` carries the
+    /// Rust-decided scroll position (initial open, reveal, follow-tail).
+    pub fn build_viewport_buffer_push_envelope_for_session(
+        &self,
+        session_id: &str,
+        revision: SessionGraphRevision,
+        projection_registry: &ProjectionRegistry,
+        transcript_projection_registry: &TranscriptProjectionRegistry,
+        viewport_height_px: u32,
+        scroll_intent: Option<ScrollIntent>,
+        height_confirmation: Option<TranscriptViewportHeightConfirmation>,
+        request_generation: Option<u64>,
+        emission_seq: u64,
+    ) -> Result<SessionStateEnvelope, VisibleTranscriptWindowMiss> {
+        self.build_session_viewport_envelope_with(
+            session_id,
+            revision,
+            projection_registry,
+            transcript_projection_registry,
+            viewport_height_px,
+            scroll_intent,
+            height_confirmation,
+            "Viewport buffer push",
+            |ctx| {
+                let slice = ctx.viewport.buffer_window(DEFAULT_BUFFER_OVERSCAN_ROWS);
+                let rows = ctx.rows[slice.buffer_start_index..slice.buffer_end_index].to_vec();
+                let diagnostics = ctx
+                    .height_diagnostic
+                    .map(|diagnostic| {
+                        vec![ViewportBufferDiagnostic {
+                            code: diagnostic.code,
+                            row_id: diagnostic.row_id,
+                        }]
+                    })
+                    .unwrap_or_default();
+                SessionStatePayload::ViewportBufferPush {
+                    push: ViewportBufferPush {
+                        session_id: ctx.session_id.to_string(),
+                        graph_revision: ctx.effective_revision,
+                        viewport_revision: slice.viewport_revision,
+                        emission_seq,
+                        buffer_start_index: slice.buffer_start_index,
+                        buffer_end_index: slice.buffer_end_index,
+                        layout_row_count: slice.layout_row_count,
+                        total_height_px: slice.total_height_px,
+                        buffer_end_offset_px: slice.buffer_end_offset_px,
+                        rows,
+                        offsets_px: slice.offsets_px,
+                        mode: slice.mode,
+                        request_generation,
+                        scroll_top_target: Some(slice.viewport_offset_px),
+                        diagnostics,
+                    },
+                }
+            },
+        )
+    }
+}
+
+/// Pure producer counterpart to the WebView's `applyBufferDelta`. Computes the
+/// incremental mutation from a previously-pushed buffer window to the current
+/// `slice` over the full canonical `current_rows`.
+///
+/// `prev_start_index` / `prev_row_ids` describe the previous buffer (its first
+/// absolute row index and its ordered row ids). Surviving rows keep their
+/// absolute offsets, so prepended/appended offsets are read straight from
+/// `slice.offsets_px`. In a normal slide exactly one of (prepend +
+/// removed-from-bottom) [scroll up] or (append + removed-from-top) [scroll
+/// down] is non-empty.
+///
+/// PRECONDITION: the index ranges must overlap (a contiguous slide). A
+/// non-contiguous jump (`slice.buffer_start_index >= prev_end` or
+/// `slice.buffer_end_index <= prev_start_index`) cannot be bridged by a delta;
+/// the caller must emit a fresh `ViewportBufferPush` instead.
+#[must_use]
+pub fn compute_buffer_delta(
+    session_id: &str,
+    graph_revision: SessionGraphRevision,
+    emission_seq: u64,
+    from_viewport_revision: i64,
+    prev_start_index: usize,
+    prev_row_ids: &[String],
+    current_rows: &[TranscriptViewportRow],
+    slice: &ViewportBufferSlice,
+    scroll_anchor_correction_px: Option<i64>,
+    scroll_top_target: Option<u64>,
+) -> ViewportBufferDelta {
+    let c_start = slice.buffer_start_index;
+    let c_end = slice.buffer_end_index;
+    let p_start = prev_start_index;
+    let p_end = prev_start_index + prev_row_ids.len();
+    let buffer_len = c_end.saturating_sub(c_start);
+
+    // Rows newly above the previous buffer top (scroll up). Mutually exclusive
+    // with `removed_from_top`, since `c_start` cannot be both below and above
+    // `p_start`.
+    let prepend_count = p_start.saturating_sub(c_start).min(buffer_len);
+    // Rows newly below the previous buffer bottom (scroll down / streaming
+    // tail). Mutually exclusive with `removed_from_bottom`.
+    let append_count = c_end.saturating_sub(p_end).min(buffer_len);
+
+    let prepended_rows = current_rows[c_start..c_start + prepend_count].to_vec();
+    let prepended_offsets_px = slice.offsets_px[0..prepend_count].to_vec();
+
+    let append_local_start = buffer_len - append_count;
+    let appended_rows = current_rows[c_end - append_count..c_end].to_vec();
+    let appended_offsets_px = slice.offsets_px[append_local_start..buffer_len].to_vec();
+
+    // Previous rows that fell off the top / bottom of the buffer.
+    let removed_from_top = c_start.saturating_sub(p_start).min(prev_row_ids.len());
+    let removed_from_bottom = p_end
+        .saturating_sub(c_end)
+        .min(prev_row_ids.len() - removed_from_top);
+    let mut removed_row_ids = Vec::with_capacity(removed_from_top + removed_from_bottom);
+    removed_row_ids.extend_from_slice(&prev_row_ids[0..removed_from_top]);
+    removed_row_ids.extend_from_slice(&prev_row_ids[prev_row_ids.len() - removed_from_bottom..]);
+
+    ViewportBufferDelta {
+        session_id: session_id.to_string(),
+        graph_revision,
+        emission_seq,
+        from_viewport_revision,
+        to_viewport_revision: slice.viewport_revision,
+        prepended_rows,
+        prepended_offsets_px,
+        appended_rows,
+        appended_offsets_px,
+        removed_row_ids,
+        layout_row_count: slice.layout_row_count,
+        total_height_px: slice.total_height_px,
+        buffer_end_offset_px: slice.buffer_end_offset_px,
+        scroll_anchor_correction_px,
+        scroll_top_target,
+        diagnostics: Vec::new(),
+    }
+}
+
+/// The three mutually-exclusive outcomes of a scroll/refill intent, classified
+/// purely from the new buffer slice's index window relative to the previously
+/// pushed buffer. This is the producer-side "three outcomes" decision from the
+/// push-a-working-set design: it decides what the WebView gets, never what it
+/// renders.
+///
+/// Scope: this classifies the *scroll/refill* path only. Height-confirmation of
+/// an off-buffer row keeps an identical index window yet still requires a delta
+/// (to carry `scroll_anchor_correction_px`); that path emits `Delta`
+/// unconditionally and does not consult this classifier.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BufferEmission {
+    /// No prior buffer, or the new window is disjoint from the prior one (a
+    /// non-contiguous jump such as jump-to-top or a far `revealRow`). A delta
+    /// cannot bridge a non-contiguous jump, so emit a fresh `ViewportBufferPush`.
+    FreshPush,
+    /// The new window overlaps but is shifted from the prior one (a contiguous
+    /// slide, or a streaming tail-append). Emit a `ViewportBufferDelta`.
+    Delta,
+    /// The new window is identical to the prior one — the scroll landed entirely
+    /// inside the already-materialized buffer. Emit nothing (zero layout bytes).
+    NoOp,
+}
+
+/// Classify a scroll/refill transition from the previously-pushed buffer window
+/// `[prev_start_index, prev_start_index + prev_len)` to the freshly-computed
+/// `slice`. See [`BufferEmission`] for the outcome semantics.
+#[must_use]
+pub fn classify_buffer_transition(
+    prev: Option<(usize, usize)>,
+    slice: &ViewportBufferSlice,
+) -> BufferEmission {
+    let Some((prev_start_index, prev_len)) = prev else {
+        return BufferEmission::FreshPush;
+    };
+    let p_start = prev_start_index;
+    let p_end = prev_start_index + prev_len;
+    let c_start = slice.buffer_start_index;
+    let c_end = slice.buffer_end_index;
+
+    // Disjoint windows cannot be bridged by a delta.
+    let overlaps = c_start < p_end && p_start < c_end;
+    if !overlaps {
+        return BufferEmission::FreshPush;
+    }
+
+    if c_start == p_start && c_end == p_end {
+        return BufferEmission::NoOp;
+    }
+
+    BufferEmission::Delta
+}
+
+/// Neutral height-confirmation diagnostic produced by the shared viewport
+/// prologue, mapped by each materializer into its payload-specific diagnostic.
+struct ViewportHeightDiagnostic {
+    code: String,
+    row_id: Option<String>,
+}
+
+/// Read-only view handed to a viewport payload materializer after the shared
+/// prologue has mutated the viewport under lock.
+struct ViewportMaterializeCtx<'a> {
+    session_id: &'a str,
+    effective_revision: SessionGraphRevision,
+    rows: &'a [TranscriptViewportRow],
+    viewport: &'a TranscriptViewport,
+    height_diagnostic: Option<ViewportHeightDiagnostic>,
 }
 
 fn height_confirmation_diagnostic_code(outcome: HeightConfirmationOutcome) -> &'static str {
@@ -3302,6 +3546,254 @@ mod tests {
         assert_eq!(
             outcome.unwrap_err(),
             VisibleTranscriptWindowMiss::SessionNotAttached
+        );
+    }
+
+    use super::compute_buffer_delta;
+    use crate::acp::transcript_projection::TranscriptEntryRole;
+    use crate::acp::transcript_viewport::{
+        TranscriptViewportRow, TranscriptViewportRowContent, TranscriptViewportRowKind,
+        ViewportBufferSlice, ViewportMode,
+    };
+
+    fn delta_row(index: usize) -> TranscriptViewportRow {
+        TranscriptViewportRow {
+            row_id: format!("transcript:row-{index}"),
+            source_entry_id: format!("row-{index}"),
+            kind: TranscriptViewportRowKind::AssistantText,
+            version: format!("v-{index}"),
+            anchor_eligible: true,
+            active_streaming_tail: None,
+            operation_links: Vec::new(),
+            interaction_links: Vec::new(),
+            content: TranscriptViewportRowContent::Transcript {
+                role: TranscriptEntryRole::Assistant,
+                segments: Vec::new(),
+            },
+        }
+    }
+
+    const DELTA_ROW_HEIGHT_PX: u64 = 100;
+
+    fn delta_layout(row_count: usize) -> Vec<TranscriptViewportRow> {
+        (0..row_count).map(delta_row).collect()
+    }
+
+    fn delta_slice(
+        start: usize,
+        end: usize,
+        layout_row_count: usize,
+        viewport_revision: i64,
+    ) -> ViewportBufferSlice {
+        let offsets_px = (start..end)
+            .map(|i| i as u64 * DELTA_ROW_HEIGHT_PX)
+            .collect();
+        ViewportBufferSlice {
+            buffer_start_index: start,
+            buffer_end_index: end,
+            layout_row_count,
+            offsets_px,
+            total_height_px: layout_row_count as u64 * DELTA_ROW_HEIGHT_PX,
+            buffer_end_offset_px: end as u64 * DELTA_ROW_HEIGHT_PX,
+            viewport_offset_px: start as u64 * DELTA_ROW_HEIGHT_PX,
+            mode: ViewportMode::FollowingTail,
+            viewport_revision,
+        }
+    }
+
+    fn row_ids(indices: std::ops::Range<usize>) -> Vec<String> {
+        indices.map(|i| format!("transcript:row-{i}")).collect()
+    }
+
+    #[test]
+    fn compute_buffer_delta_scroll_down_appends_and_removes_top() {
+        let layout = delta_layout(20);
+        let prev_ids = row_ids(2..6);
+        let slice = delta_slice(4, 8, 20, 5);
+
+        let delta = compute_buffer_delta(
+            "session-1",
+            SessionGraphRevision::new(3, 3, 3),
+            7,
+            4,
+            2,
+            &prev_ids,
+            &layout,
+            &slice,
+            None,
+            Some(400),
+        );
+
+        assert_eq!(delta.emission_seq, 7);
+        assert_eq!(delta.from_viewport_revision, 4);
+        assert_eq!(delta.to_viewport_revision, 5);
+        assert!(delta.prepended_rows.is_empty());
+        assert_eq!(
+            delta
+                .appended_rows
+                .iter()
+                .map(|row| row.row_id.as_str())
+                .collect::<Vec<_>>(),
+            vec!["transcript:row-6", "transcript:row-7"]
+        );
+        assert_eq!(delta.appended_offsets_px, vec![600, 700]);
+        assert_eq!(
+            delta.removed_row_ids,
+            vec!["transcript:row-2".to_string(), "transcript:row-3".to_string()]
+        );
+        assert_eq!(delta.layout_row_count, 20);
+        assert_eq!(delta.buffer_end_offset_px, 800);
+        assert_eq!(delta.scroll_top_target, Some(400));
+    }
+
+    #[test]
+    fn compute_buffer_delta_scroll_up_prepends_and_removes_bottom() {
+        let layout = delta_layout(30);
+        let prev_ids = row_ids(10..14);
+        let slice = delta_slice(8, 12, 30, 2);
+
+        let delta = compute_buffer_delta(
+            "session-1",
+            SessionGraphRevision::new(1, 1, 1),
+            12,
+            1,
+            10,
+            &prev_ids,
+            &layout,
+            &slice,
+            None,
+            None,
+        );
+
+        assert_eq!(delta.emission_seq, 12);
+        assert_eq!(
+            delta
+                .prepended_rows
+                .iter()
+                .map(|row| row.row_id.as_str())
+                .collect::<Vec<_>>(),
+            vec!["transcript:row-8", "transcript:row-9"]
+        );
+        assert_eq!(delta.prepended_offsets_px, vec![800, 900]);
+        assert!(delta.appended_rows.is_empty());
+        assert_eq!(
+            delta.removed_row_ids,
+            vec![
+                "transcript:row-12".to_string(),
+                "transcript:row-13".to_string()
+            ]
+        );
+    }
+
+    #[test]
+    fn compute_buffer_delta_streaming_tail_appends_without_removals() {
+        let layout = delta_layout(7);
+        let prev_ids = row_ids(0..5);
+        let slice = delta_slice(0, 7, 7, 2);
+
+        let delta = compute_buffer_delta(
+            "session-1",
+            SessionGraphRevision::new(1, 1, 1),
+            3,
+            1,
+            0,
+            &prev_ids,
+            &layout,
+            &slice,
+            None,
+            None,
+        );
+
+        assert!(delta.prepended_rows.is_empty());
+        assert!(delta.removed_row_ids.is_empty());
+        assert_eq!(delta.emission_seq, 3);
+        assert_eq!(
+            delta
+                .appended_rows
+                .iter()
+                .map(|row| row.row_id.as_str())
+                .collect::<Vec<_>>(),
+            vec!["transcript:row-5", "transcript:row-6"]
+        );
+        assert_eq!(delta.appended_offsets_px, vec![500, 600]);
+        assert_eq!(delta.layout_row_count, 7);
+    }
+
+    #[test]
+    fn compute_buffer_delta_no_movement_is_empty() {
+        let layout = delta_layout(5);
+        let prev_ids = row_ids(0..5);
+        let slice = delta_slice(0, 5, 5, 9);
+
+        let delta = compute_buffer_delta(
+            "session-1",
+            SessionGraphRevision::new(1, 1, 1),
+            42,
+            8,
+            0,
+            &prev_ids,
+            &layout,
+            &slice,
+            None,
+            None,
+        );
+
+        assert_eq!(delta.emission_seq, 42);
+        assert!(delta.prepended_rows.is_empty());
+        assert!(delta.appended_rows.is_empty());
+        assert!(delta.removed_row_ids.is_empty());
+        assert_eq!(delta.from_viewport_revision, 8);
+        assert_eq!(delta.to_viewport_revision, 9);
+    }
+
+    use super::{classify_buffer_transition, BufferEmission};
+
+    #[test]
+    fn classify_buffer_transition_no_prior_is_fresh_push() {
+        let slice = delta_slice(4, 8, 20, 5);
+        assert_eq!(
+            classify_buffer_transition(None, &slice),
+            BufferEmission::FreshPush
+        );
+    }
+
+    #[test]
+    fn classify_buffer_transition_identical_window_is_noop() {
+        let slice = delta_slice(4, 8, 20, 5);
+        assert_eq!(
+            classify_buffer_transition(Some((4, 4)), &slice),
+            BufferEmission::NoOp
+        );
+    }
+
+    #[test]
+    fn classify_buffer_transition_overlapping_slide_is_delta() {
+        let slice = delta_slice(4, 8, 20, 5);
+        // Scroll down: prev [2,6) overlaps new [4,8).
+        assert_eq!(
+            classify_buffer_transition(Some((2, 4)), &slice),
+            BufferEmission::Delta
+        );
+        // Streaming tail append: prev [4,7) overlaps new [4,8) (same start, grown end).
+        assert_eq!(
+            classify_buffer_transition(Some((4, 3)), &slice),
+            BufferEmission::Delta
+        );
+    }
+
+    #[test]
+    fn classify_buffer_transition_disjoint_jump_is_fresh_push() {
+        let slice = delta_slice(40, 44, 100, 7);
+        // Prior buffer far above: prev [2,6) shares no rows with new [40,44).
+        assert_eq!(
+            classify_buffer_transition(Some((2, 4)), &slice),
+            BufferEmission::FreshPush
+        );
+        // Adjacent-but-touching (prev_end == new_start) is still disjoint: prev
+        // [36,40) and new [40,44) share no row index.
+        assert_eq!(
+            classify_buffer_transition(Some((36, 4)), &slice),
+            BufferEmission::FreshPush
         );
     }
 }

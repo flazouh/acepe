@@ -10,5 +10,6 @@ pub use row::{
     TranscriptViewportRowContent, TranscriptViewportRowKind,
 };
 pub use viewport::{
-    ScrollIntent, TranscriptViewport, ViewportMode, ViewportTransition, ViewportWindow,
+    ScrollIntent, TranscriptViewport, ViewportBufferSlice, ViewportMode, ViewportTransition,
+    ViewportWindow, DEFAULT_BUFFER_OVERSCAN_ROWS,
 };

@@ -203,6 +203,8 @@ describe("session-state envelope byte budgets", () => {
 			"plan",
 			"snapshot",
 			"telemetry",
+			"viewportBufferDelta",
+			"viewportBufferPush",
 			"visibleTranscriptWindow",
 		]);
 	});
