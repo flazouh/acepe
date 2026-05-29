@@ -37,4 +37,36 @@ export class AgentPanelSessionController {
 	get sessionId(): string | null {
 		return this.#deps.getSessionId();
 	}
+
+	// ── Cluster A: session identity / metadata ──────────────────────────
+	// Object-producing derivations are $derived FIELDS (not getters) so they
+	// keep memoization + reference identity (plan Decision 3). The $derived.by
+	// closures read this.#deps lazily on first access, after the constructor
+	// has assigned it.
+
+	/** Identity: id, projectPath, agentId, worktreePath (immutable - never changes). */
+	readonly sessionIdentity = $derived.by(() => {
+		const id = this.#deps.getSessionId();
+		return id ? this.#deps.sessionStore.getSessionIdentity(id) : null;
+	});
+
+	/** Metadata: title, createdAt, updatedAt (rarely changes). */
+	readonly sessionMetadata = $derived.by(() => {
+		const id = this.#deps.getSessionId();
+		return id ? this.#deps.sessionStore.getSessionMetadata(id) : null;
+	});
+
+	readonly sessionProjectPath = $derived(this.sessionIdentity?.projectPath ?? null);
+	readonly sessionAgentId = $derived(this.sessionIdentity?.agentId ?? null);
+	readonly sessionWorktreePath = $derived(this.sessionIdentity?.worktreePath ?? null);
+	readonly sessionTitle = $derived(this.sessionMetadata?.title ?? null);
+
+	/** Current model from canonical capabilities (for PR popover default). */
+	readonly sessionCurrentModelId = $derived.by(() => {
+		const id = this.#deps.getSessionId();
+		return id ? this.#deps.sessionStore.getSessionCurrentModelId(id) : null;
+	});
+
+	/** Panel id with the default-panel fallback. */
+	readonly effectivePanelId = $derived.by(() => this.#deps.getPanelId() ?? "default-panel");
 }

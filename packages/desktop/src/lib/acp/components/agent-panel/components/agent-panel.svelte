@@ -252,11 +252,11 @@ onMount(() => {
 // Each accessor only triggers re-renders when ITS data changes
 // ============================================================
 
-// Identity: id, projectPath, agentId, worktreePath (immutable - never changes)
-const sessionIdentity = $derived(sessionId ? sessionStore.getSessionIdentity(sessionId) : null);
-
-// Metadata: title, createdAt, updatedAt (rarely changes)
-const sessionMetadata = $derived(sessionId ? sessionStore.getSessionMetadata(sessionId) : null);
+// Identity & metadata now live on the session controller (single source +
+// unit-tested); these stay as thin reactive aliases so existing read sites are
+// unchanged. Ref-inlining to `sessionController.*` is deferred to the final sweep.
+const sessionIdentity = $derived(sessionController.sessionIdentity);
+const sessionMetadata = $derived(sessionController.sessionMetadata);
 const sessionPendingSendIntent = $derived(
 	sessionId ? sessionStore.getSessionPendingSendIntent(sessionId) : null
 );
@@ -322,15 +322,13 @@ const visibleEntryCount = $derived(
 );
 const knownVisibleEntryCount = $derived(visibleEntryCount ?? 0);
 const hasMessages = $derived(visibleEntryCount !== null && visibleEntryCount > 0);
-const sessionProjectPath = $derived(sessionIdentity?.projectPath ?? null);
-const sessionAgentId = $derived(sessionIdentity?.agentId ?? null);
-const sessionWorktreePath = $derived(sessionIdentity?.worktreePath ?? null);
-const sessionTitle = $derived(sessionMetadata?.title ?? null);
+const sessionProjectPath = $derived(sessionController.sessionProjectPath);
+const sessionAgentId = $derived(sessionController.sessionAgentId);
+const sessionWorktreePath = $derived(sessionController.sessionWorktreePath);
+const sessionTitle = $derived(sessionController.sessionTitle);
 
 // Current model from canonical capabilities (for PR popover default)
-const sessionCurrentModelId = $derived(
-	sessionId ? sessionStore.getSessionCurrentModelId(sessionId) : null
-);
+const sessionCurrentModelId = $derived(sessionController.sessionCurrentModelId);
 
 // ✅ State manager for local UI state only (drag, dialog)
 const panelState = new AgentPanelState();
@@ -408,7 +406,7 @@ function scrollToBottomOnTabSwitch() {
 }
 
 // Effective panel ID (use prop or generate one)
-const effectivePanelId = $derived(panelId ?? "default-panel");
+const effectivePanelId = $derived(sessionController.effectivePanelId);
 const pendingUserRevealRequestKey = $derived(
 	pendingUserRevealRequestVersion === 0
 		? null

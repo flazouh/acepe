@@ -49,4 +49,49 @@ describe("AgentPanelSessionController", () => {
 		holder.sessionId = null;
 		expect(controller.sessionId).toBeNull();
 	});
+
+	describe("Cluster A — identity / metadata", () => {
+		const identity = { projectPath: "/p", agentId: "claude-code", worktreePath: "/wt" };
+		const sessionStore = {
+			getSessionIdentity: (_id: string) => identity,
+			getSessionMetadata: (_id: string) => ({ title: "My session" }),
+			getSessionCurrentModelId: (_id: string) => "opus",
+		} as unknown as SessionStore;
+
+		const makeWithStore = (sessionId: string | null, panelId?: string) =>
+			new AgentPanelSessionController({
+				getSessionId: () => sessionId,
+				getPanelId: () => panelId,
+				sessionStore,
+				panelStore: stubPanelStore,
+			});
+
+		it("derives identity scalars from the session store", () => {
+			const c = makeWithStore("s1");
+			expect(c.sessionProjectPath).toBe("/p");
+			expect(c.sessionAgentId).toBe("claude-code");
+			expect(c.sessionWorktreePath).toBe("/wt");
+			expect(c.sessionTitle).toBe("My session");
+			expect(c.sessionCurrentModelId).toBe("opus");
+		});
+
+		it("returns null identity scalars when there is no session", () => {
+			const c = makeWithStore(null);
+			expect(c.sessionIdentity).toBeNull();
+			expect(c.sessionProjectPath).toBeNull();
+			expect(c.sessionAgentId).toBeNull();
+			expect(c.sessionTitle).toBeNull();
+			expect(c.sessionCurrentModelId).toBeNull();
+		});
+
+		it("falls back to the default panel id when panelId is undefined", () => {
+			expect(makeWithStore("s1").effectivePanelId).toBe("default-panel");
+			expect(makeWithStore("s1", "panel-9").effectivePanelId).toBe("panel-9");
+		});
+
+		it("keeps a stable reference for the object-producing sessionIdentity field across reads", () => {
+			const c = makeWithStore("s1");
+			expect(c.sessionIdentity).toBe(c.sessionIdentity);
+		});
+	});
 });
