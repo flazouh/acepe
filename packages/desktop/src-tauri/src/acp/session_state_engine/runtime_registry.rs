@@ -35,6 +35,15 @@ use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
 
+/// Viewport height used ONLY to bootstrap a brand-new `TranscriptViewport` when
+/// the caller has not supplied a measured height (the streaming buffer producer
+/// passes `None` to preserve canonical stored height). Once any command resizes
+/// the viewport with a real measured height, that value persists and is never
+/// overwritten by a streaming tick — this is the B3 fix that stops the producer
+/// from clobbering the real height (which churned `viewport_revision` and
+/// oscillated the buffer window indices into a spurious delta/push storm).
+const BOOTSTRAP_VIEWPORT_HEIGHT_PX: u32 = 720;
+
 #[derive(Debug)]
 struct SessionAnchor {
     started_at: Instant,
@@ -896,7 +905,7 @@ impl SessionGraphRuntimeRegistry {
         revision: SessionGraphRevision,
         projection_registry: &ProjectionRegistry,
         transcript_projection_registry: &TranscriptProjectionRegistry,
-        viewport_height_px: u32,
+        viewport_height_px: Option<u32>,
         scroll_intent: Option<ScrollIntent>,
         height_confirmation: Option<TranscriptViewportHeightConfirmation>,
         budget_label: &str,
@@ -951,13 +960,17 @@ impl SessionGraphRuntimeRegistry {
                 let layout =
                     LayoutIndex::from_viewport_rows_preserving(rows.as_slice(), viewport.layout());
                 viewport.replace_layout_preserving_viewport(layout);
-                viewport.resize(viewport_height_px);
+                // `None` preserves the canonical stored height (streaming
+                // producer); only a real command-measured height resizes.
+                if let Some(height) = viewport_height_px {
+                    viewport.resize(height);
+                }
             } else {
                 viewports.insert(
                     session_id.to_string(),
                     TranscriptViewport::new(
                         LayoutIndex::from_viewport_rows(rows.as_slice()),
-                        viewport_height_px,
+                        viewport_height_px.unwrap_or(BOOTSTRAP_VIEWPORT_HEIGHT_PX),
                     )
                     .with_viewport_revision(effective_revision.transcript_revision),
                 );
@@ -1030,7 +1043,7 @@ impl SessionGraphRuntimeRegistry {
             revision,
             projection_registry,
             transcript_projection_registry,
-            viewport_height_px,
+            Some(viewport_height_px),
             scroll_intent,
             height_confirmation,
             "Visible transcript window",
@@ -1081,7 +1094,7 @@ impl SessionGraphRuntimeRegistry {
         revision: SessionGraphRevision,
         projection_registry: &ProjectionRegistry,
         transcript_projection_registry: &TranscriptProjectionRegistry,
-        viewport_height_px: u32,
+        viewport_height_px: Option<u32>,
         scroll_intent: Option<ScrollIntent>,
         height_confirmation: Option<TranscriptViewportHeightConfirmation>,
         request_generation: Option<u64>,
@@ -3469,6 +3482,60 @@ mod tests {
             }
             other => panic!("expected visible transcript window payload, got {other:?}"),
         }
+    }
+
+    #[test]
+    fn buffer_producer_with_none_height_preserves_canonical_height_without_revision_churn() {
+        // B3 regression: the streaming buffer producer must pass `None` so it
+        // preserves the canonical viewport height a real command measured —
+        // never re-forcing a bootstrap height every tick, which oscillated
+        // `viewport_revision` and the buffer window indices into a spurious
+        // delta/push storm. A real command-measured resize still bumps.
+        let runtime_registry = SessionGraphRuntimeRegistry::new();
+        let projection_registry = ProjectionRegistry::new();
+        let transcript_projection_registry = TranscriptProjectionRegistry::new();
+
+        projection_registry.register_session("session-h".to_string(), CanonicalAgentId::Cursor);
+        let update = create_agent_message_chunk_update("session-h", Some("assistant-1"), "hello", 5);
+        projection_registry.apply_session_update("session-h", &update);
+        let _ = transcript_projection_registry.apply_session_update(7, &update);
+        let revision = SessionGraphRevision::new(0, 7, 1);
+
+        let push_revision = |height: Option<u32>| match runtime_registry
+            .build_viewport_buffer_push_envelope_for_session(
+                "session-h",
+                revision,
+                &projection_registry,
+                &transcript_projection_registry,
+                height,
+                None,
+                None,
+                None,
+                0,
+            )
+            .expect("buffer push must materialize")
+            .payload
+        {
+            SessionStatePayload::ViewportBufferPush { push } => push.viewport_revision,
+            other => panic!("expected viewport buffer push payload, got {other:?}"),
+        };
+
+        // First push installs a real measured height of 900.
+        let r1 = push_revision(Some(900));
+        // Streaming ticks pass `None`: preserve the stored height, no churn.
+        let r2 = push_revision(None);
+        let r3 = push_revision(None);
+        assert_eq!(r1, r2, "a None-height streaming tick must not churn the revision");
+        assert_eq!(r2, r3, "repeated None-height ticks stay revision-stable");
+
+        // A real command-measured resize to a DIFFERENT height bumps. This also
+        // proves the stored height was 900 (not the bootstrap 720): resizing to
+        // 720 would be a no-op if 720 were already stored.
+        let r4 = push_revision(Some(720));
+        assert!(
+            r4 > r3,
+            "a real resize away from the stored height must bump the revision"
+        );
     }
 
     #[test]
