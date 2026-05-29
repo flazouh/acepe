@@ -94,4 +94,42 @@ describe("AgentPanelSessionController", () => {
 			expect(c.sessionIdentity).toBe(c.sessionIdentity);
 		});
 	});
+
+	describe("Cluster B — entry presence / status", () => {
+		const makeWithEntries = (entryCount: number) => {
+			const entries = Array.from({ length: entryCount }, (_, i) => ({
+				entryId: `e${i}`,
+				role: "user",
+			}));
+			const sessionStore = {
+				getSessionPendingSendIntent: () => null,
+				getSessionTranscriptEntries: () => entries,
+				getSessionLifecyclePresentation: () => null,
+				getSessionAgentPanelCanonicalSource: () => null,
+				getSessionAgentPanelSessionSource: () => ({ kind: "uninitialized" }),
+				getSessionIdentity: () => null,
+				getSessionMetadata: () => null,
+				getSessionCurrentModelId: () => null,
+			} as unknown as SessionStore;
+			const panelStore = { getHotState: () => null } as unknown as PanelStore;
+			return new AgentPanelSessionController({
+				getSessionId: () => "s1",
+				getPanelId: () => "p1",
+				sessionStore,
+				panelStore,
+			});
+		};
+
+		it("reports hasMessages true when transcript entries exist", () => {
+			const c = makeWithEntries(2);
+			expect(c.visibleEntryCount).toBe(2);
+			expect(c.knownVisibleEntryCount).toBe(2);
+			expect(c.hasMessages).toBe(true);
+		});
+
+		it("reports hasMessages false when there are no entries", () => {
+			const c = makeWithEntries(0);
+			expect(c.hasMessages).toBe(false);
+		});
+	});
 });

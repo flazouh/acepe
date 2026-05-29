@@ -16,8 +16,16 @@
  * and reference identity — see Decision 3 in the plan.
  */
 
+import {
+	deriveCanonicalAgentPanelSessionState,
+	deriveCanonicalUserEntryPresence,
+	resolveCanonicalAgentPanelTurnState,
+	resolveOptimisticUserEntryForGraph,
+	resolveVisibleEntryCount,
+} from "../logic";
 import type { PanelStore } from "../../../store/panel-store.svelte.js";
 import type { SessionStore } from "../../../store/session-store.svelte.js";
+import { extractAttachmentsFromChunks } from "../../../utils/extract-content-attachments.js";
 
 export interface AgentPanelSessionControllerDeps {
 	getSessionId: () => string | null;
@@ -69,4 +77,121 @@ export class AgentPanelSessionController {
 
 	/** Panel id with the default-panel fallback. */
 	readonly effectivePanelId = $derived.by(() => this.#deps.getPanelId() ?? "default-panel");
+
+	// ── Cluster B: entry presence + canonical session status ────────────
+	// All fields use $derived.by so their bodies read this.#deps / sibling
+	// fields lazily, avoiding field-initialization-order pitfalls.
+
+	readonly panelHotState = $derived.by(() => {
+		const pid = this.#deps.getPanelId();
+		return pid ? this.#deps.panelStore.getHotState(pid) : null;
+	});
+
+	readonly sessionPendingSendIntent = $derived.by(() => {
+		const id = this.#deps.getSessionId();
+		return id ? this.#deps.sessionStore.getSessionPendingSendIntent(id) : null;
+	});
+
+	readonly preSessionPendingUserEntry = $derived.by(() => {
+		const id = this.#deps.getSessionId();
+		return id === null || id === undefined ? (this.panelHotState?.pendingUserEntry ?? null) : null;
+	});
+
+	readonly canonicalTranscriptEntries = $derived.by(() => {
+		const id = this.#deps.getSessionId();
+		return id === null || id === undefined
+			? null
+			: this.#deps.sessionStore.getSessionTranscriptEntries(id);
+	});
+
+	readonly canonicalUserEntryPresence = $derived.by(() => {
+		const pending = this.sessionPendingSendIntent;
+		const id = this.#deps.getSessionId();
+		const transcriptEntries = id === null || id === undefined ? [] : this.canonicalTranscriptEntries;
+		return deriveCanonicalUserEntryPresence({
+			transcriptEntries,
+			pendingAttemptId: pending?.attemptId ?? null,
+		});
+	});
+
+	readonly optimisticUserEntryForGraph = $derived.by(() =>
+		resolveOptimisticUserEntryForGraph({
+			panelPendingUserEntry: this.panelHotState?.pendingUserEntry ?? null,
+			sessionPendingOptimisticEntry: this.sessionPendingSendIntent?.optimisticEntry ?? null,
+			hasCanonicalUserEntry: this.canonicalUserEntryPresence.hasCanonicalUserEntry,
+			hasCanonicalMatchingPendingUserEntry:
+				this.canonicalUserEntryPresence.hasCanonicalMatchingPendingUserEntry,
+		})
+	);
+
+	readonly hasImmediatePendingSendIntent = $derived.by(
+		() => this.sessionPendingSendIntent !== null || this.optimisticUserEntryForGraph !== null
+	);
+
+	readonly firstMessageAttachments = $derived.by(() => {
+		const firstUserEntry =
+			this.preSessionPendingUserEntry ?? this.sessionPendingSendIntent?.optimisticEntry ?? null;
+		if (!firstUserEntry || firstUserEntry.type !== "user") return [];
+		return extractAttachmentsFromChunks(firstUserEntry.message.chunks ?? []);
+	});
+
+	readonly visibleEntryCount = $derived.by(() => {
+		const id = this.#deps.getSessionId();
+		return resolveVisibleEntryCount({
+			canonicalEntryCount:
+				id === null || id === undefined ? 0 : (this.canonicalTranscriptEntries?.length ?? null),
+			optimisticUserEntry: this.optimisticUserEntryForGraph,
+		});
+	});
+
+	readonly knownVisibleEntryCount = $derived.by(() => this.visibleEntryCount ?? 0);
+	readonly hasMessages = $derived.by(
+		() => this.visibleEntryCount !== null && this.visibleEntryCount > 0
+	);
+
+	/** Canonical lifecycle presentation from Rust-owned graph projection. */
+	readonly lifecyclePresentation = $derived.by(() => {
+		const id = this.#deps.getSessionId();
+		return id ? this.#deps.sessionStore.getSessionLifecyclePresentation(id) : null;
+	});
+
+	readonly agentPanelCanonicalSource = $derived.by(() => {
+		const id = this.#deps.getSessionId();
+		return id ? this.#deps.sessionStore.getSessionAgentPanelCanonicalSource(id) : null;
+	});
+
+	readonly canonicalPanelSessionSource = $derived.by(() =>
+		this.#deps.sessionStore.getSessionAgentPanelSessionSource(this.#deps.getSessionId())
+	);
+
+	readonly canonicalSessionActivity = $derived.by(() =>
+		this.canonicalPanelSessionSource.kind === "canonical"
+			? this.canonicalPanelSessionSource.activity
+			: null
+	);
+
+	readonly sessionTurnState = $derived.by(() =>
+		resolveCanonicalAgentPanelTurnState(this.canonicalPanelSessionSource)
+	);
+
+	readonly canonicalPanelSessionState = $derived.by(() =>
+		deriveCanonicalAgentPanelSessionState({
+			source: this.canonicalPanelSessionSource,
+			hasEntries: this.hasMessages,
+			hasOptimisticPendingEntry: this.preSessionPendingUserEntry !== null,
+			hasLocalPendingSendIntent: this.sessionPendingSendIntent !== null,
+		})
+	);
+
+	readonly panelSessionStatus = $derived.by(() => this.canonicalPanelSessionState.sessionStatus);
+	readonly sessionIsConnected = $derived.by(() => this.canonicalPanelSessionState.isConnected);
+	readonly sessionIsStreaming = $derived.by(() => this.canonicalPanelSessionState.isStreaming);
+	readonly isAwaitingModelResponse = $derived.by(
+		() => this.canonicalSessionActivity?.kind === "awaiting_model"
+	);
+	readonly showPlanningIndicator = $derived.by(
+		() => this.canonicalPanelSessionState.showPlanningIndicator
+	);
+	readonly sessionCanSubmit = $derived.by(() => this.canonicalPanelSessionState.canSubmit);
+	readonly sessionShowStop = $derived.by(() => this.canonicalPanelSessionState.showStop);
 }

@@ -257,46 +257,15 @@ onMount(() => {
 // unchanged. Ref-inlining to `sessionController.*` is deferred to the final sweep.
 const sessionIdentity = $derived(sessionController.sessionIdentity);
 const sessionMetadata = $derived(sessionController.sessionMetadata);
-const sessionPendingSendIntent = $derived(
-	sessionId ? sessionStore.getSessionPendingSendIntent(sessionId) : null
-);
-
-// Entries: conversation content (changes frequently during streaming)
-// Merges any optimistic pending entry (shown before session creation) with real entries.
-// Fast path: when no pending entry (99% of renders), returns the exact array reference — zero allocation.
-// Note: getHotState(panelId) subscribes to ALL hot state changes for this panel (messageDraft,
-// reviewMode, etc.), not just pendingUserEntry. This causes extra recomputations during typing,
-// but the fast path returns the same array reference so Svelte skips DOM updates. Acceptable trade-off.
-const panelHotState = $derived(panelId ? panelStore.getHotState(panelId) : null);
-const preSessionPendingUserEntry = $derived(
-	sessionId === null || sessionId === undefined ? (panelHotState?.pendingUserEntry ?? null) : null
-);
-const canonicalTranscriptEntries = $derived(
-	sessionId === null || sessionId === undefined
-		? null
-		: sessionStore.getSessionTranscriptEntries(sessionId)
-);
-const canonicalUserEntryPresence = $derived.by(() => {
-	const pending = sessionPendingSendIntent;
-	const transcriptEntries =
-		sessionId === null || sessionId === undefined ? [] : canonicalTranscriptEntries;
-	return deriveCanonicalUserEntryPresence({
-		transcriptEntries,
-		pendingAttemptId: pending?.attemptId ?? null,
-	});
-});
-const optimisticUserEntryForGraph = $derived(
-	resolveOptimisticUserEntryForGraph({
-		panelPendingUserEntry: panelHotState?.pendingUserEntry ?? null,
-		sessionPendingOptimisticEntry: sessionPendingSendIntent?.optimisticEntry ?? null,
-		hasCanonicalUserEntry: canonicalUserEntryPresence.hasCanonicalUserEntry,
-		hasCanonicalMatchingPendingUserEntry:
-			canonicalUserEntryPresence.hasCanonicalMatchingPendingUserEntry,
-	})
-);
-const hasImmediatePendingSendIntent = $derived(
-	sessionPendingSendIntent !== null || optimisticUserEntryForGraph !== null
-);
+// Entry-presence + canonical session-status derivations now live on the
+// session controller (single source + unit-tested); these stay as thin
+// reactive aliases. Ref-inlining to sessionController.* is deferred to U5.
+const sessionPendingSendIntent = $derived(sessionController.sessionPendingSendIntent);
+const panelHotState = $derived(sessionController.panelHotState);
+const preSessionPendingUserEntry = $derived(sessionController.preSessionPendingUserEntry);
+const canonicalTranscriptEntries = $derived(sessionController.canonicalTranscriptEntries);
+const optimisticUserEntryForGraph = $derived(sessionController.optimisticUserEntryForGraph);
+const hasImmediatePendingSendIntent = $derived(sessionController.hasImmediatePendingSendIntent);
 const panelSnapshot = $derived(panelId ? panelStore.getTopLevelPanel(panelId) : null);
 const panelPendingWorktreeEnabled = $derived(
 	panelSnapshot?.kind === "agent" ? (panelSnapshot.pendingWorktreeEnabled ?? null) : null
@@ -304,24 +273,10 @@ const panelPendingWorktreeEnabled = $derived(
 const panelPreparedWorktreeLaunch = $derived(
 	panelSnapshot?.kind === "agent" ? (panelSnapshot.preparedWorktreeLaunch ?? null) : null
 );
-const firstMessageAttachments = $derived.by(() => {
-	const firstUserEntry =
-		preSessionPendingUserEntry ?? sessionPendingSendIntent?.optimisticEntry ?? null;
-	if (!firstUserEntry || firstUserEntry.type !== "user") return [];
-	return extractAttachmentsFromChunks(firstUserEntry.message.chunks ?? []);
-});
-
-const visibleEntryCount = $derived(
-	resolveVisibleEntryCount({
-		canonicalEntryCount:
-			sessionId === null || sessionId === undefined
-				? 0
-				: (canonicalTranscriptEntries?.length ?? null),
-		optimisticUserEntry: optimisticUserEntryForGraph,
-	})
-);
-const knownVisibleEntryCount = $derived(visibleEntryCount ?? 0);
-const hasMessages = $derived(visibleEntryCount !== null && visibleEntryCount > 0);
+const firstMessageAttachments = $derived(sessionController.firstMessageAttachments);
+const visibleEntryCount = $derived(sessionController.visibleEntryCount);
+const knownVisibleEntryCount = $derived(sessionController.knownVisibleEntryCount);
+const hasMessages = $derived(sessionController.hasMessages);
 const sessionProjectPath = $derived(sessionController.sessionProjectPath);
 const sessionAgentId = $derived(sessionController.sessionAgentId);
 const sessionWorktreePath = $derived(sessionController.sessionWorktreePath);
@@ -452,19 +407,11 @@ const browserSidebarUrl = $derived(
 	panelId ? (panelStore.getHotState(panelId)?.browserSidebarUrl ?? null) : null
 );
 // Canonical lifecycle presentation from Rust-owned graph projection.
-const lifecyclePresentation = $derived(
-	sessionId ? sessionStore.getSessionLifecyclePresentation(sessionId) : null
-);
-const agentPanelCanonicalSource = $derived(
-	sessionId ? sessionStore.getSessionAgentPanelCanonicalSource(sessionId) : null
-);
-const canonicalPanelSessionSource = $derived(
-	sessionStore.getSessionAgentPanelSessionSource(sessionId)
-);
-const canonicalSessionActivity = $derived(
-	canonicalPanelSessionSource.kind === "canonical" ? canonicalPanelSessionSource.activity : null
-);
-const sessionTurnState = $derived(resolveCanonicalAgentPanelTurnState(canonicalPanelSessionSource));
+const lifecyclePresentation = $derived(sessionController.lifecyclePresentation);
+const agentPanelCanonicalSource = $derived(sessionController.agentPanelCanonicalSource);
+const canonicalPanelSessionSource = $derived(sessionController.canonicalPanelSessionSource);
+const canonicalSessionActivity = $derived(sessionController.canonicalSessionActivity);
+const sessionTurnState = $derived(sessionController.sessionTurnState);
 const entriesCount = $derived(knownVisibleEntryCount);
 const hasSession = $derived(sessionId !== null);
 // Prefer active worktree path, then session worktree, then project paths.
@@ -502,21 +449,14 @@ const agentName = $derived.by(() => {
 	const agent = availableAgents.find((candidate) => candidate.id === effectivePanelAgentId);
 	return agent?.name ?? effectivePanelAgentId;
 });
-const canonicalPanelSessionState = $derived.by(() =>
-	deriveCanonicalAgentPanelSessionState({
-		source: canonicalPanelSessionSource,
-		hasEntries: hasMessages,
-		hasOptimisticPendingEntry: preSessionPendingUserEntry !== null,
-		hasLocalPendingSendIntent: sessionPendingSendIntent !== null,
-	})
-);
-const panelSessionStatus = $derived(canonicalPanelSessionState.sessionStatus);
-const sessionIsConnected = $derived(canonicalPanelSessionState.isConnected);
-const sessionIsStreaming = $derived(canonicalPanelSessionState.isStreaming);
-const isAwaitingModelResponse = $derived(canonicalSessionActivity?.kind === "awaiting_model");
-const showPlanningIndicator = $derived(canonicalPanelSessionState.showPlanningIndicator);
-const sessionCanSubmit = $derived(canonicalPanelSessionState.canSubmit);
-const sessionShowStop = $derived(canonicalPanelSessionState.showStop);
+const canonicalPanelSessionState = $derived(sessionController.canonicalPanelSessionState);
+const panelSessionStatus = $derived(sessionController.panelSessionStatus);
+const sessionIsConnected = $derived(sessionController.sessionIsConnected);
+const sessionIsStreaming = $derived(sessionController.sessionIsStreaming);
+const isAwaitingModelResponse = $derived(sessionController.isAwaitingModelResponse);
+const showPlanningIndicator = $derived(sessionController.showPlanningIndicator);
+const sessionCanSubmit = $derived(sessionController.sessionCanSubmit);
+const sessionShowStop = $derived(sessionController.sessionShowStop);
 const sessionConnectionError = $derived(
 	sessionId ? sessionStore.getSessionConnectionError(sessionId) : null
 );
