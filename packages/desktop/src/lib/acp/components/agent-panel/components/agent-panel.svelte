@@ -249,17 +249,9 @@ onMount(() => {
 // Identity & metadata now live on the session controller (single source +
 // unit-tested); these stay as thin reactive aliases so existing read sites are
 // unchanged. Ref-inlining to `sessionController.*` is deferred to the final sweep.
-const sessionIdentity = $derived(sessionController.sessionIdentity);
-const sessionMetadata = $derived(sessionController.sessionMetadata);
 // Entry-presence + canonical session-status derivations now live on the
 // session controller (single source + unit-tested); these stay as thin
 // reactive aliases. Ref-inlining to sessionController.* is deferred to U5.
-const sessionPendingSendIntent = $derived(sessionController.sessionPendingSendIntent);
-const panelHotState = $derived(sessionController.panelHotState);
-const preSessionPendingUserEntry = $derived(sessionController.preSessionPendingUserEntry);
-const canonicalTranscriptEntries = $derived(sessionController.canonicalTranscriptEntries);
-const optimisticUserEntryForGraph = $derived(sessionController.optimisticUserEntryForGraph);
-const hasImmediatePendingSendIntent = $derived(sessionController.hasImmediatePendingSendIntent);
 const panelSnapshot = $derived(panelId ? panelStore.getTopLevelPanel(panelId) : null);
 const panelPendingWorktreeEnabled = $derived(
 	panelSnapshot?.kind === "agent" ? (panelSnapshot.pendingWorktreeEnabled ?? null) : null
@@ -267,17 +259,8 @@ const panelPendingWorktreeEnabled = $derived(
 const panelPreparedWorktreeLaunch = $derived(
 	panelSnapshot?.kind === "agent" ? (panelSnapshot.preparedWorktreeLaunch ?? null) : null
 );
-const firstMessageAttachments = $derived(sessionController.firstMessageAttachments);
-const visibleEntryCount = $derived(sessionController.visibleEntryCount);
-const knownVisibleEntryCount = $derived(sessionController.knownVisibleEntryCount);
-const hasMessages = $derived(sessionController.hasMessages);
-const sessionProjectPath = $derived(sessionController.sessionProjectPath);
-const sessionAgentId = $derived(sessionController.sessionAgentId);
-const sessionWorktreePath = $derived(sessionController.sessionWorktreePath);
-const sessionTitle = $derived(sessionController.sessionTitle);
 
 // Current model from canonical capabilities (for PR popover default)
-const sessionCurrentModelId = $derived(sessionController.sessionCurrentModelId);
 
 // ✅ State manager for local UI state only (drag, dialog)
 const panelState = new AgentPanelState();
@@ -290,8 +273,8 @@ const showPlanSidebar = $derived(panelId ? panelStore.isPlanSidebarExpanded(pane
 // ✅ Hooks at component level (they need prop reactivity)
 // Pass granular identity data instead of full session object
 const planState = usePlanLoader(() =>
-	sessionId && sessionProjectPath && sessionAgentId
-		? { id: sessionId, projectPath: sessionProjectPath, agentId: sessionAgentId }
+	sessionId && sessionController.sessionProjectPath && sessionController.sessionAgentId
+		? { id: sessionId, projectPath: sessionController.sessionProjectPath, agentId: sessionController.sessionAgentId }
 		: null
 );
 
@@ -341,12 +324,12 @@ function scrollToBottom() {
 function prepareForNextUserReveal() {
 	pendingUserRevealRequestVersion += 1;
 	logger.info("prepareForNextUserReveal: panel", {
-		panelId: effectivePanelId,
+		panelId: sessionController.effectivePanelId,
 		sessionId,
-		entryCount: visibleEntryCount,
+		entryCount: sessionController.visibleEntryCount,
 		requestVersion: pendingUserRevealRequestVersion,
 	});
-	return effectivePanelId;
+	return sessionController.effectivePanelId;
 }
 
 function scrollToBottomOnTabSwitch() {
@@ -355,11 +338,10 @@ function scrollToBottomOnTabSwitch() {
 }
 
 // Effective panel ID (use prop or generate one)
-const effectivePanelId = $derived(sessionController.effectivePanelId);
 const pendingUserRevealRequestKey = $derived(
 	pendingUserRevealRequestVersion === 0
 		? null
-		: `${effectivePanelId}:${pendingUserRevealRequestVersion}:${optimisticUserEntryForGraph?.id ?? "pending"}`
+		: `${sessionController.effectivePanelId}:${pendingUserRevealRequestVersion}:${sessionController.optimisticUserEntryForGraph?.id ?? "pending"}`
 );
 
 // Derived UI conditions based on projectCount + panel/session state
@@ -369,7 +351,7 @@ const showProjectSelection = $derived(
 const worktreeToggleProjectPath = $derived(
 	resolveWorktreeToggleProjectPath({
 		hasSession: sessionId !== null,
-		sessionProjectPath,
+		sessionController.sessionProjectPath,
 		selectedProjectPath: project?.path ?? null,
 		singleProjectPath: projectCount === 1 ? (allProjects[0]?.path ?? null) : null,
 	})
@@ -379,7 +361,7 @@ const scopedActiveWorktreePath = $derived.by(() => {
 	if (!worktreeToggleProjectPath) return null;
 	return activeWorktreeOwnerProjectPath === worktreeToggleProjectPath ? activeWorktreePath : null;
 });
-const effectiveActiveWorktreePath = $derived(sessionWorktreePath ?? scopedActiveWorktreePath);
+const effectiveActiveWorktreePath = $derived(sessionController.sessionWorktreePath ?? scopedActiveWorktreePath);
 /** True when the session's worktree directory no longer exists on disk. */
 let worktreeDeleted = $state(false);
 /** Effective git path for runStackedAction: worktree path if in worktree, else project path.
@@ -401,12 +383,7 @@ const browserSidebarUrl = $derived(
 	panelId ? (panelStore.getHotState(panelId)?.browserSidebarUrl ?? null) : null
 );
 // Canonical lifecycle presentation from Rust-owned graph projection.
-const lifecyclePresentation = $derived(sessionController.lifecyclePresentation);
-const agentPanelCanonicalSource = $derived(sessionController.agentPanelCanonicalSource);
-const canonicalPanelSessionSource = $derived(sessionController.canonicalPanelSessionSource);
-const canonicalSessionActivity = $derived(sessionController.canonicalSessionActivity);
-const sessionTurnState = $derived(sessionController.sessionTurnState);
-const entriesCount = $derived(knownVisibleEntryCount);
+const entriesCount = $derived(sessionController.knownVisibleEntryCount);
 const hasSession = $derived(sessionId !== null);
 // Prefer active worktree path, then session worktree, then project paths.
 // NOTE: Must be defined before panelVisibility which uses effectiveProjectPath
@@ -415,14 +392,14 @@ const hasSession = $derived(sessionId !== null);
 const effectiveProjectPath = $derived(
 	resolveEffectiveProjectPath({
 		activeWorktreePath: worktreeDeleted ? null : scopedActiveWorktreePath,
-		sessionWorktreePath: worktreeDeleted ? null : sessionWorktreePath,
-		sessionProjectPath,
+		sessionController.sessionWorktreePath: worktreeDeleted ? null : sessionController.sessionWorktreePath,
+		sessionController.sessionProjectPath,
 		selectedProjectPath: project?.path,
 		singleProjectPath: projectCount === 1 ? allProjects[0].path : undefined,
 	})
 );
 const effectiveProjectName = $derived(
-	sessionProjectPath
+	sessionController.sessionProjectPath
 		? project?.name
 		: (project?.name ?? (projectCount === 1 ? allProjects[0].name : undefined))
 );
@@ -434,7 +411,7 @@ const preSessionSelectedProject = $derived.by(() => {
 });
 
 // ✅ Derived values from granular session data
-const effectivePanelAgentId = $derived(selectedAgentId ?? sessionAgentId);
+const effectivePanelAgentId = $derived(selectedAgentId ?? sessionController.sessionAgentId);
 const agentName = $derived.by(() => {
 	if (!effectivePanelAgentId) {
 		return null;
@@ -443,39 +420,23 @@ const agentName = $derived.by(() => {
 	const agent = availableAgents.find((candidate) => candidate.id === effectivePanelAgentId);
 	return agent?.name ?? effectivePanelAgentId;
 });
-const canonicalPanelSessionState = $derived(sessionController.canonicalPanelSessionState);
-const panelSessionStatus = $derived(sessionController.panelSessionStatus);
-const sessionIsConnected = $derived(sessionController.sessionIsConnected);
-const sessionIsStreaming = $derived(sessionController.sessionIsStreaming);
-const isAwaitingModelResponse = $derived(sessionController.isAwaitingModelResponse);
-const showPlanningIndicator = $derived(sessionController.showPlanningIndicator);
-const sessionCanSubmit = $derived(sessionController.sessionCanSubmit);
-const sessionShowStop = $derived(sessionController.sessionShowStop);
 // Error/connection derivations now live on the session controller (single
 // source + unit-tested); the connection $state + retry/cancel/dismiss handlers
 // stay here (tangled with agentInputRef). Thin reactive aliases; ref-inline U5.
-const sessionConnectionError = $derived(sessionController.sessionConnectionError);
-const sessionFailureReason = $derived(sessionController.sessionFailureReason);
-const activeTurnError = $derived(sessionController.activeTurnError);
-const disableSendForFailedFirstSend = $derived(sessionController.disableSendForFailedFirstSend);
-const errorInfo = $derived(sessionController.errorInfo);
-const inlineErrorReferenceId = $derived(sessionController.inlineErrorReferenceId);
-const inlineErrorReferenceSearchable = $derived(sessionController.inlineErrorReferenceSearchable);
-const errorDismissalKey = $derived(sessionController.errorDismissalKey);
 const errorDismissed = $derived(
-	errorDismissalKey !== null && dismissedErrorKey === errorDismissalKey
+	sessionController.errorDismissalKey !== null && dismissedErrorKey === sessionController.errorDismissalKey
 );
 
 // Panel view state: single discriminated union from all inputs
 const viewStateInput = $derived({
-	lifecyclePresentation,
+	sessionController.lifecyclePresentation,
 	entriesCount,
 	hasSession,
-	isAwaitingModelResponse,
-	hasImmediatePendingSendIntent,
+	sessionController.isAwaitingModelResponse,
+	sessionController.hasImmediatePendingSendIntent,
 	showProjectSelection,
 	hasEffectiveProjectPath: !!effectiveProjectPath,
-	errorInfo,
+	sessionController.errorInfo,
 });
 const viewState = $derived(derivePanelViewState(viewStateInput));
 const panelViewKind = $derived(viewState.kind);
@@ -486,18 +447,18 @@ const panelViewKind = $derived(viewState.kind);
 // the primary treatment when there are no entries; the inline card is
 // the single surface inside an active conversation.
 const showInlineErrorCard = $derived(
-	errorInfo.showError && !errorDismissed && viewState.kind !== "error"
+	sessionController.errorInfo.showError && !errorDismissed && viewState.kind !== "error"
 );
 const worktreePending = $derived(
 	resolveAgentPanelWorktreePending({
 		activeWorktreePath: effectiveActiveWorktreePath,
-		hasMessages,
+		sessionController.hasMessages,
 		pendingWorktreeEnabled: panelPendingWorktreeEnabled,
 		hasPreparedWorktreeLaunch: panelPreparedWorktreeLaunch !== null,
 	})
 );
 let worktreeSetupState = $state<WorktreeSetupState | null>(null);
-const pendingWorktreeSetup = $derived(panelHotState ? panelHotState.pendingWorktreeSetup : null);
+const pendingWorktreeSetup = $derived(sessionController.panelHotState ? sessionController.panelHotState.pendingWorktreeSetup : null);
 const showPreSessionWorktreeCard = $derived.by(() =>
 	shouldShowPreSessionWorktreeCard({
 		sessionId,
@@ -505,18 +466,18 @@ const showPreSessionWorktreeCard = $derived.by(() =>
 		worktreeToggleProjectPath,
 		hasPendingWorktreeSetup: pendingWorktreeSetup !== null,
 		worktreeSetupVisible: worktreeSetupState?.isVisible === true,
-		hasMessages,
+		sessionController.hasMessages,
 	})
 );
 
 $effect(() => {
 	if (!import.meta.env.DEV) return;
 	logger.info("[first-send-trace] panel render gate", {
-		panelId: effectivePanelId,
+		panelId: sessionController.effectivePanelId,
 		sessionId: sessionId ?? null,
 		viewState: viewState.kind,
 		pendingUserEntry: panelId ? panelStore.getHotState(panelId).pendingUserEntry !== null : false,
-		entriesCount: knownVisibleEntryCount,
+		entriesCount: sessionController.knownVisibleEntryCount,
 		hasSession: sessionId !== null,
 		t_ms: Math.round(performance.now()),
 	});
@@ -528,7 +489,7 @@ $effect(() => {
 		panelId,
 		sessionId,
 		viewState: viewState.kind,
-		entryCount: visibleEntryCount,
+		entryCount: sessionController.visibleEntryCount,
 	});
 	if (signature === lastPanelTraceSignature) {
 		return;
@@ -556,7 +517,7 @@ $effect(() => {
 		worktreeToggleProjectPath,
 		activeWorktreeOwnerProjectPath,
 		scopedActiveWorktreePath,
-		sessionWorktreePath,
+		sessionController.sessionWorktreePath,
 		effectiveActiveWorktreePath,
 		footerVisible: !!worktreeToggleProjectPath,
 	});
@@ -650,11 +611,11 @@ const displayProjectName = $derived.by(() => {
 	return effectiveProjectName ?? "Project";
 });
 
-const sequenceId = $derived(sessionMetadata ? (sessionMetadata.sequenceId ?? null) : null);
+const sequenceId = $derived(sessionController.sessionMetadata ? (sessionController.sessionMetadata.sequenceId ?? null) : null);
 
 const displayTitle = $derived.by(() => {
 	return deriveAgentPanelHeaderDisplayTitle({
-		sessionTitle,
+		sessionController.sessionTitle,
 		projectName: displayProjectName,
 	});
 });
@@ -665,12 +626,12 @@ const sessionDiffStats = $derived.by(() => {
 	const stats = computeStatsFromCheckpoints(checkpoints);
 	return stats ?? { insertions: 0, deletions: 0 };
 });
-const sessionCreatedAt = $derived(sessionMetadata?.createdAt ?? null);
-const sessionUpdatedAt = $derived(sessionMetadata?.updatedAt ?? null);
+const sessionCreatedAt = $derived(sessionController.sessionMetadata?.createdAt ?? null);
+const sessionUpdatedAt = $derived(sessionController.sessionMetadata?.updatedAt ?? null);
 const graphSceneMaterializer = createAgentPanelGraphMaterializerReadModel();
 
 const effectivePanelProviderBrand = $derived.by(() => {
-	const headerAgentId = sessionAgentId ?? effectivePanelAgentId;
+	const headerAgentId = sessionController.sessionAgentId ?? effectivePanelAgentId;
 	if (!headerAgentId) {
 		return null;
 	}
@@ -694,11 +655,11 @@ const effectivePanelProviderBrand = $derived.by(() => {
 const agentIconSrc = $derived(getProviderBrandIcon(effectivePanelProviderBrand, effectiveTheme));
 const graphMaterializedScene = $derived(
 	graphSceneMaterializer.apply({
-		panelId: effectivePanelId,
-		graph: agentPanelCanonicalSource,
+		panelId: sessionController.effectivePanelId,
+		graph: sessionController.agentPanelCanonicalSource,
 		header: {
 			title: graphHeaderTitle,
-			subtitle: sessionTitle,
+			subtitle: sessionController.sessionTitle,
 			agentIconSrc,
 			agentLabel: agentName,
 			projectLabel: displayProjectName,
@@ -706,17 +667,17 @@ const graphMaterializedScene = $derived(
 			sequenceId,
 		},
 		optimistic:
-			optimisticUserEntryForGraph != null
+			sessionController.optimisticUserEntryForGraph != null
 				? {
-						pendingUserEntry: optimisticUserEntryForGraph,
+						pendingUserEntry: sessionController.optimisticUserEntryForGraph,
 					}
 				: null,
 	})
 );
 const agentPanelBaseDisplayModel = $derived(
 	buildAgentPanelBaseModel({
-		panelId: effectivePanelId,
-		graph: agentPanelCanonicalSource,
+		panelId: sessionController.effectivePanelId,
+		graph: sessionController.agentPanelCanonicalSource,
 		header: {
 			title: graphHeaderTitle,
 			agentName,
@@ -724,7 +685,7 @@ const agentPanelBaseDisplayModel = $derived(
 		sceneEntries: graphMaterializedScene.conversation.entries,
 		rows: agentPanelDisplayRowsReadModel,
 		local: {
-			pendingSendIntent: hasImmediatePendingSendIntent,
+			pendingSendIntent: sessionController.hasImmediatePendingSendIntent,
 		},
 	})
 );
@@ -803,10 +764,10 @@ $effect(() => {
 });
 const isConnecting = $derived(
 	panelConnectionState === PanelConnectionState.CONNECTING ||
-		(!sessionId && panelId ? panelHotState?.pendingUserEntry !== null : false)
+		(!sessionId && panelId ? sessionController.panelHotState?.pendingUserEntry !== null : false)
 );
 const inputRenderKey = $derived(
-	`${panelId ?? "no-panel"}:${panelHotState?.composerRestoreVersion ?? 0}`
+	`${panelId ?? "no-panel"}:${sessionController.panelHotState?.composerRestoreVersion ?? 0}`
 );
 const branchLookupPath = $derived(
 	(worktreeDeleted ? null : effectiveActiveWorktreePath) ?? effectiveProjectPath ?? null
@@ -835,14 +796,14 @@ const footerWorktreeStatus = $derived.by(() => {
 
 /** Minimal linked-session references for the modified-header PR picker. */
 const projectPrLinkReferences = $derived.by(() => {
-	if (!sessionProjectPath) return [];
-	return sessionStore.getSessionPrLinkReferencesForProject(sessionProjectPath);
+	if (!sessionController.sessionProjectPath) return [];
+	return sessionStore.getSessionPrLinkReferencesForProject(sessionController.sessionProjectPath);
 });
 
 /** Project matching the current session, used to render project-letter badges in the PR picker. */
 const projectForPr = $derived.by(() => {
-	if (!sessionProjectPath) return null;
-	return allProjects.find((p) => p.path === sessionProjectPath) ?? null;
+	if (!sessionController.sessionProjectPath) return null;
+	return allProjects.find((p) => p.path === sessionController.sessionProjectPath) ?? null;
 });
 
 const hasPlan = $derived(planState.plan !== null);
@@ -909,16 +870,16 @@ const agentInstallState = $derived.by(() => {
 
 // Derived from session store — populated from DB on startup, updated in-session after PR creation
 // Also auto-populated when Claude creates a PR autonomously.
-const createdPr = $derived(sessionMetadata?.prNumber ?? null);
+const createdPr = $derived(sessionController.sessionMetadata?.prNumber ?? null);
 
 const prFetchTarget = $derived.by(() => {
-	if (!sessionId || !sessionProjectPath || createdPr == null) {
+	if (!sessionId || !sessionController.sessionProjectPath || createdPr == null) {
 		return null;
 	}
 
 	return {
 		sessionId,
-		projectPath: sessionProjectPath,
+		projectPath: sessionController.sessionProjectPath,
 		prNumber: createdPr,
 	};
 });
@@ -1054,17 +1015,17 @@ const debugPanelState = $derived.by(() => {
 	if (!import.meta.env.DEV) return null;
 	return {
 		// Panel identification
-		panelId: effectivePanelId,
+		panelId: sessionController.effectivePanelId,
 		// Panel state
 		isFullscreen,
 		isFocused,
 		// Session state
 		hasSession: sessionId !== null,
 		sessionId,
-		sessionTitle,
-		sessionStatus: panelSessionStatus,
-		sessionProjectPath,
-		sessionAgentId,
+		sessionController.sessionTitle,
+		sessionStatus: sessionController.panelSessionStatus,
+		sessionController.sessionProjectPath,
+		sessionController.sessionAgentId,
 		selectedAgentId,
 		// Loading states
 		isWaitingForSession,
@@ -1149,8 +1110,8 @@ $effect(() => {
 	if (
 		!panelId ||
 		!sessionId ||
-		visibleEntryCount === null ||
-		visibleEntryCount === 0 ||
+		sessionController.visibleEntryCount === null ||
+		sessionController.visibleEntryCount === 0 ||
 		reviewMode
 	) {
 		return;
@@ -1249,8 +1210,8 @@ let worktreeDirtyCheckPending = $state(false);
 // Check if the session's worktree still exists on disk.
 // If deleted, disconnect the session (agent can't work in a missing directory).
 $effect(() => {
-	const worktreePath = sessionWorktreePath;
-	const projectPath = sessionProjectPath;
+	const worktreePath = sessionController.sessionWorktreePath;
+	const projectPath = sessionController.sessionProjectPath;
 	const currentSessionId = sessionId;
 	if (!worktreePath || !projectPath) {
 		worktreeDeleted = false;
@@ -1392,10 +1353,10 @@ function handleWorktreeCreated(info: WorktreeInfo | string) {
 	activeWorktreePath = nextDirectory;
 	activeWorktreeOwnerProjectPath = worktreeToggleProjectPath;
 
-	const projectPath = sessionProjectPath ?? worktreeToggleProjectPath ?? "";
+	const projectPath = sessionController.sessionProjectPath ?? worktreeToggleProjectPath ?? "";
 	logger.info("[worktree-flow] handleWorktreeCreated: entry", {
 		sessionId: sessionId ?? null,
-		sessionProjectPath,
+		sessionController.sessionProjectPath,
 		worktreeToggleProjectPath,
 		projectPath: projectPath || null,
 		infoDirectory: nextDirectory,
@@ -1462,7 +1423,7 @@ function handleStartInProjectRoot(): void {
 
 function handleWorktreeRenamed(info: WorktreeInfo): void {
 	activeWorktreePath = info.directory;
-	activeWorktreeOwnerProjectPath = worktreeToggleProjectPath ?? sessionProjectPath ?? null;
+	activeWorktreeOwnerProjectPath = worktreeToggleProjectPath ?? sessionController.sessionProjectPath ?? null;
 
 	if (!sessionId) {
 		return;
@@ -1476,8 +1437,8 @@ function handleWorktreeRenamed(info: WorktreeInfo): void {
 	void persistSessionWorktreePathAfterRename(
 		sessionId,
 		info.directory,
-		sessionProjectPath ? sessionProjectPath : undefined,
-		sessionAgentId ? sessionAgentId : undefined
+		sessionController.sessionProjectPath ? sessionController.sessionProjectPath : undefined,
+		sessionController.sessionAgentId ? sessionController.sessionAgentId : undefined
 	).mapErr((error) => {
 		logger.error("Failed to persist renamed worktree path to DB", {
 			sessionId,
@@ -1563,10 +1524,10 @@ const {
 	handleExportJson,
 } = createAgentPanelExportHandlers({
 	getSessionId: () => sessionId,
-	getSessionProjectPath: () => sessionProjectPath,
-	getSessionAgentId: () => sessionAgentId,
-	getSessionSourcePath: () => sessionMetadata?.sourcePath ?? null,
-	getEffectivePanelId: () => effectivePanelId,
+	getSessionProjectPath: () => sessionController.sessionProjectPath,
+	getSessionAgentId: () => sessionController.sessionAgentId,
+	getSessionSourcePath: () => sessionController.sessionMetadata?.sourcePath ?? null,
+	getEffectivePanelId: () => sessionController.effectivePanelId,
 	sessionStore,
 	panelStore,
 	logger,
@@ -1628,7 +1589,7 @@ function handleRetryConnection() {
 	// message in the same session instead of recreating the session.
 	// Recreating throws away the bound session and the user sees no change.
 	const isTurnFailure =
-		sessionId !== null && (activeTurnError !== null || sessionTurnState === "error");
+		sessionId !== null && (sessionController.activeTurnError !== null || sessionController.sessionTurnState === "error");
 	if (isTurnFailure && agentInputRef) {
 		agentInputRef.retrySend();
 		return;
@@ -1650,7 +1611,7 @@ function handleRetryConnection() {
 			void installAgentThenCreateSession(proj, agentId);
 		},
 		logContext: {
-			panelId: effectivePanelId,
+			panelId: sessionController.effectivePanelId,
 			projectPath: project?.path,
 			agentId: effectivePanelAgentId,
 		},
@@ -1664,11 +1625,11 @@ function handleCancelConnection() {
 }
 
 function handleDismissError() {
-	dismissedErrorKey = errorDismissalKey;
+	dismissedErrorKey = sessionController.errorDismissalKey;
 }
 
 function handleCopyInlineErrorReference() {
-	const referenceId = inlineErrorReferenceId;
+	const referenceId = sessionController.inlineErrorReferenceId;
 	if (referenceId === null) {
 		return;
 	}
@@ -1685,23 +1646,23 @@ function handleCopyInlineErrorReference() {
 
 function createInlineErrorIssueDraft() {
 	const details =
-		errorInfo.details ?? panelConnectionError?.message ?? sessionConnectionError ?? "Unknown error";
-	const summary = errorInfo.summary ?? details.split("\n")[0]?.slice(0, 120) ?? "Agent error";
+		sessionController.errorInfo.details ?? panelConnectionError?.message ?? sessionController.sessionConnectionError ?? "Unknown error";
+	const summary = sessionController.errorInfo.summary ?? details.split("\n")[0]?.slice(0, 120) ?? "Agent error";
 	return buildAgentErrorIssueDraft({
 		agentId: effectivePanelAgentId ?? "unknown",
 		sessionId,
-		projectPath: sessionProjectPath,
-		worktreePath: sessionWorktreePath,
+		projectPath: sessionController.sessionProjectPath,
+		worktreePath: sessionController.sessionWorktreePath,
 		errorSummary: summary,
 		errorDetails: details,
-		referenceId: inlineErrorReferenceId,
-		referenceSearchable: inlineErrorReferenceSearchable,
-		diagnosticsSummary: errorInfo.summary,
-		sessionTitle,
+		referenceId: sessionController.inlineErrorReferenceId,
+		referenceSearchable: sessionController.inlineErrorReferenceSearchable,
+		diagnosticsSummary: sessionController.errorInfo.summary,
+		sessionController.sessionTitle,
 		sessionCreatedAt,
 		sessionUpdatedAt,
-		currentModelId: sessionCurrentModelId,
-		entryCount: visibleEntryCount,
+		currentModelId: sessionController.sessionCurrentModelId,
+		entryCount: sessionController.visibleEntryCount,
 		panelConnectionState: panelConnectionState?.toString() ?? null,
 	});
 }
@@ -1745,9 +1706,9 @@ const todoState = $derived.by(() => {
 	if (!sessionId) return null;
 	const threadData = {
 		toolCalls: sessionStore.getSessionToolCalls(sessionId),
-		isConnected: sessionIsConnected,
-		status: panelSessionStatus,
-		isStreaming: sessionIsStreaming,
+		isConnected: sessionController.sessionIsConnected,
+		status: sessionController.panelSessionStatus,
+		isStreaming: sessionController.sessionIsStreaming,
 	};
 	const result = todoManager.getTodoStateFromToolCalls(sessionId, threadData);
 	return result.isOk() ? result.value : null;
@@ -1900,8 +1861,8 @@ const {
 } = createAgentPanelInteractionHandlers({
 	getSessionId: () => sessionId,
 	getEffectiveProjectPath: () => effectiveProjectPath,
-	getSessionProjectPath: () => sessionProjectPath,
-	getEffectivePanelId: () => effectivePanelId,
+	getSessionProjectPath: () => sessionController.sessionProjectPath,
+	getEffectivePanelId: () => sessionController.effectivePanelId,
 	sessionStore,
 	permissionStore,
 	panelStore,
@@ -1949,8 +1910,8 @@ async function handlePlanSidebarSendMessage(sid: string, message: string): Promi
 			{isConnecting}
 			{isRetryingConnection}
 			{sessionId}
-			{sessionTitle}
-			{sessionAgentId}
+			{sessionController.sessionTitle}
+			{sessionController.sessionAgentId}
 			currentAgentId={effectivePanelAgentId}
 			{availableAgents}
 			{agentIconSrc}
@@ -1958,19 +1919,19 @@ async function handlePlanSidebarSendMessage(sid: string, message: string): Promi
 			{isFullscreen}
 			{hideProjectBadge}
 			{sequenceId}
-			sessionStatus={panelSessionStatus}
-			projectPath={sessionProjectPath}
+			sessionStatus={sessionController.panelSessionStatus}
+			projectPath={sessionController.sessionProjectPath}
 			projectName={displayProjectName}
 			{projectColor}
 			{projectIconSrc}
-			linkedPr={sessionMetadata?.linkedPr ?? null}
-			prLinkMode={sessionMetadata?.prLinkMode ?? "automatic"}
+			linkedPr={sessionController.sessionMetadata?.linkedPr ?? null}
+			prLinkMode={sessionController.sessionMetadata?.prLinkMode ?? "automatic"}
 			{debugPanelState}
 			onClose={handleClose}
 			{onToggleFullscreen}
 			onRetryConnection={handleRetryConnection}
 			onScrollToTop={scrollToTop}
-			{firstMessageAttachments}
+			{sessionController.firstMessageAttachments}
 			onCopyContent={handleCopyContent}
 			onOpenInFinder={handleOpenInFinder}
 			onCopyStreamingLogPath={handleCopyStreamingLogPath}
@@ -1981,8 +1942,8 @@ async function handlePlanSidebarSendMessage(sid: string, message: string): Promi
 			deletions={sessionDiffStats.deletions}
 			createdAt={sessionCreatedAt}
 			updatedAt={sessionUpdatedAt}
-			onOpenRawFile={sessionId && sessionProjectPath ? handleOpenRawFile : undefined}
-			onOpenInAcepe={sessionId && sessionProjectPath ? handleOpenInAcepe : undefined}
+			onOpenRawFile={sessionId && sessionController.sessionProjectPath ? handleOpenRawFile : undefined}
+			onOpenInAcepe={sessionId && sessionController.sessionProjectPath ? handleOpenInAcepe : undefined}
 			onExportMarkdown={sessionId ? handleExportMarkdown : undefined}
 			onExportJson={sessionId ? handleExportJson : undefined}
 			{onAgentChange}
@@ -2018,7 +1979,7 @@ async function handlePlanSidebarSendMessage(sid: string, message: string): Promi
 					plan={planState.plan}
 					open={panelState.showPlanDialog}
 					onOpenChange={(open) => (panelState.showPlanDialog = open)}
-					projectPath={sessionProjectPath ?? undefined}
+					projectPath={sessionController.sessionProjectPath ?? undefined}
 				/>
 			{/if}
 		</div>
@@ -2026,10 +1987,10 @@ async function handlePlanSidebarSendMessage(sid: string, message: string): Promi
 
 	{#snippet body()}
 		<div class="flex h-full min-h-0 flex-col" style:display={reviewMode ? "none" : undefined}>
-			{#if showCheckpointTimeline && sessionProjectPath && sessionId}
+			{#if showCheckpointTimeline && sessionController.sessionProjectPath && sessionId}
 				<CheckpointTimeline
 					{sessionId}
-					projectPath={sessionProjectPath}
+					projectPath={sessionController.sessionProjectPath}
 					{checkpoints}
 					isLoading={isLoadingCheckpoints}
 					onClose={handleCloseCheckpointTimeline}
@@ -2044,12 +2005,12 @@ async function handlePlanSidebarSendMessage(sid: string, message: string): Promi
 						bind:isAtBottom={contentIsAtBottom}
 						bind:isAtTop={contentIsAtTop}
 						bind:isStreaming={contentIsStreaming}
-						panelId={effectivePanelId}
+						panelId={sessionController.effectivePanelId}
 						{viewState}
 						{sessionId}
 						sceneEntries={tokenRevealSceneEntries}
 						{pendingUserRevealRequestKey}
-						sessionProjectPath={effectiveProjectPath ?? sessionProjectPath}
+						sessionController.sessionProjectPath={effectiveProjectPath ?? sessionController.sessionProjectPath}
 						{allProjects}
 						onProjectSelected={handleProjectSelected}
 						onRetryConnection={handleRetryConnection}
@@ -2092,7 +2053,7 @@ async function handlePlanSidebarSendMessage(sid: string, message: string): Promi
 				{sessionId}
 				reviewFilesState={reviewFilesState}
 				selectedFileIndex={clampedReviewFileIndex}
-				projectPath={sessionProjectPath}
+				projectPath={sessionController.sessionProjectPath}
 				isActive={reviewMode}
 				onClose={() => onExitReviewMode?.()}
 				onFileIndexChange={(index) => onReviewFileIndexChange?.(index)}
@@ -2109,9 +2070,9 @@ async function handlePlanSidebarSendMessage(sid: string, message: string): Promi
 			{worktreeDeleted}
 			{centeredFullscreenContent}
 			{showInlineErrorCard}
-			{errorInfo}
-			{inlineErrorReferenceId}
-			{inlineErrorReferenceSearchable}
+			{sessionController.errorInfo}
+			{sessionController.inlineErrorReferenceId}
+			{sessionController.inlineErrorReferenceSearchable}
 			onRetryConnection={handleRetryConnection}
 			isRetryingConnection={isRetryingConnection}
 			onDismissError={handleDismissError}
@@ -2132,15 +2093,15 @@ async function handlePlanSidebarSendMessage(sid: string, message: string): Promi
 			{agentInstallState}
 			{sessionId}
 			effectiveProjectPath={effectiveProjectPath ?? null}
-			sessionProjectPath={sessionProjectPath ?? null}
+			sessionController.sessionProjectPath={sessionController.sessionProjectPath ?? null}
 			{effectivePathForGit}
 			{createdPr}
 			{createPrRunning}
 			{prCardRenderKey}
 			{prDetails}
 			{prFetchError}
-			linkedPr={sessionMetadata?.linkedPr ?? null}
-			prLinkMode={sessionMetadata?.prLinkMode ?? "automatic"}
+			linkedPr={sessionController.sessionMetadata?.linkedPr ?? null}
+			prLinkMode={sessionController.sessionMetadata?.prLinkMode ?? "automatic"}
 			{projectPrLinkReferences}
 			{projectForPr}
 			{streamingShipData}
@@ -2153,7 +2114,7 @@ async function handlePlanSidebarSendMessage(sid: string, message: string): Promi
 			{mergePrRunning}
 			{availableAgents}
 			effectivePanelAgentId={effectivePanelAgentId}
-			{sessionCurrentModelId}
+			{sessionController.sessionCurrentModelId}
 			{effectiveTheme}
 			{showTodoHeader}
 			{todoState}
@@ -2194,11 +2155,11 @@ async function handlePlanSidebarSendMessage(sid: string, message: string): Promi
 						<AgentInput
 							bind:this={agentInputRef}
 							sessionId={sessionId ?? undefined}
-							sessionIsConnected={sessionIsConnected}
-							{sessionIsStreaming}
-							{sessionCanSubmit}
-							{sessionShowStop}
-							disableSend={disableSendForFailedFirstSend}
+							sessionController.sessionIsConnected={sessionController.sessionIsConnected}
+							{sessionController.sessionIsStreaming}
+							{sessionController.sessionCanSubmit}
+							{sessionController.sessionShowStop}
+							disableSend={sessionController.disableSendForFailedFirstSend}
 							{panelId}
 							voiceSessionId={panelId}
 							projectPath={worktreeToggleProjectPath ?? undefined}
@@ -2210,7 +2171,7 @@ async function handlePlanSidebarSendMessage(sid: string, message: string): Promi
 								preSessionWorktreeFailure = null;
 								worktreeSetupState = createWorktreeCreationState({
 									projectPath:
-										worktreeToggleProjectPath || sessionProjectPath || project?.path || "",
+										worktreeToggleProjectPath || sessionController.sessionProjectPath || project?.path || "",
 								});
 							}}
 							onWorktreeCreated={(path) => handleWorktreeCreated(path)}
@@ -2233,7 +2194,7 @@ async function handlePlanSidebarSendMessage(sid: string, message: string): Promi
 							}}
 						>
 							{#snippet checkpointButton()}
-								{#if sessionProjectPath && checkpoints.length > 0}
+								{#if sessionController.sessionProjectPath && checkpoints.length > 0}
 									<EmbeddedIconButton
 										active={showCheckpointTimeline}
 										title={"View checkpoints"}
@@ -2323,7 +2284,7 @@ async function handlePlanSidebarSendMessage(sid: string, message: string): Promi
 				{#snippet plan()}
 					<PlanSidebar
 						plan={planState.plan!}
-						projectPath={sessionProjectPath ?? undefined}
+						projectPath={sessionController.sessionProjectPath ?? undefined}
 						columnWidth={PLAN_SIDEBAR_COLUMN_WIDTH}
 						onOpenFullscreen={() => panelState.openPlanDialog()}
 						onClose={() => panelStore.setPlanSidebarExpanded(panelId, false)}
@@ -2476,7 +2437,7 @@ async function handlePlanSidebarSendMessage(sid: string, message: string): Promi
 			{sessionId}
 			reviewFilesState={reviewDialogFilesState}
 			selectedFileIndex={clampedReviewDialogFileIndex}
-			projectPath={sessionProjectPath}
+			projectPath={sessionController.sessionProjectPath}
 			isActive={reviewDialogOpen}
 			showHeader={false}
 			showCloseButton={false}
@@ -2495,7 +2456,7 @@ async function handlePlanSidebarSendMessage(sid: string, message: string): Promi
 		plan={inlinePlanDialogPlan}
 		open={inlinePlanDialogPlan !== null}
 		onOpenChange={handleInlinePlanDialogOpenChange}
-		projectPath={sessionProjectPath ?? undefined}
+		projectPath={sessionController.sessionProjectPath ?? undefined}
 	/>
 {/if}
 
