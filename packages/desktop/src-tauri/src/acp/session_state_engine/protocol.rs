@@ -179,7 +179,6 @@ pub struct ViewportBufferPush {
     /// where the user's current scrollTop is authoritative and must be preserved.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub scroll_top_target: Option<u64>,
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub diagnostics: Vec<ViewportBufferDiagnostic>,
 }
 
@@ -201,15 +200,10 @@ pub struct ViewportBufferDelta {
     pub emission_seq: u64,
     pub from_viewport_revision: i64,
     pub to_viewport_revision: i64,
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub prepended_rows: Vec<TranscriptViewportRow>,
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub prepended_offsets_px: Vec<u64>,
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub appended_rows: Vec<TranscriptViewportRow>,
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub appended_offsets_px: Vec<u64>,
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub removed_row_ids: Vec<String>,
     /// Total rows in the canonical layout after this delta. Lets the consumer
     /// re-evaluate `needsRefill`'s "has content below" edge as streaming grows
@@ -225,7 +219,6 @@ pub struct ViewportBufferDelta {
     pub scroll_anchor_correction_px: Option<i64>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub scroll_top_target: Option<u64>,
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub diagnostics: Vec<ViewportBufferDiagnostic>,
 }
 
