@@ -368,13 +368,15 @@ function getReadSourceExcerpt(toolCall: ToolCall): string | null {
 	return toolCall.arguments.source_context?.excerpt ?? null;
 }
 
-function getReadSourceExcerptHtml(toolCall: ToolCall): string | null {
+function getReadSourceHighlighter(
+	toolCall: ToolCall
+): ((code: string, filePath: string | null | undefined) => string | null) | null {
 	const excerpt = getReadSourceExcerpt(toolCall);
 	if (!excerpt) {
 		return null;
 	}
 
-	return bashHighlighter.highlightSource(excerpt, getToolFilePath(toolCall));
+	return bashHighlighter.highlightSource;
 }
 
 function getReadSourceRangeLabel(toolCall: ToolCall): string | null {
@@ -961,7 +963,8 @@ function mapToolCallEntry(
 					: diagnosticDetails,
 		filePath: getToolFilePath(toolCall),
 		sourceExcerpt: getReadSourceExcerpt(toolCall),
-		sourceExcerptHtml: getReadSourceExcerptHtml(toolCall),
+		sourceExcerptHtml: null,
+		highlightSource: getReadSourceHighlighter(toolCall),
 		sourceRangeLabel: getReadSourceRangeLabel(toolCall),
 		status,
 		startedAtMs: toolCall.startedAtMs ?? null,

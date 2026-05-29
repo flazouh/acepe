@@ -76,9 +76,7 @@ describe("mapUnstagedFiles", () => {
 
 describe("buildNavigableChangesFiles", () => {
 	it("orders staged before unstaged and maps statuses", () => {
-		const staged = mapStagedFiles([
-			fileStatus({ path: "s.ts", indexStatus: "added" }),
-		]);
+		const staged = mapStagedFiles([fileStatus({ path: "s.ts", indexStatus: "added" })]);
 		const unstaged = mapUnstagedFiles([
 			fileStatus({ path: "u.ts", worktreeStatus: "untracked" }),
 			fileStatus({ path: "d.ts", worktreeStatus: "deleted" }),
@@ -120,9 +118,7 @@ describe("mapUiRemoteStatus", () => {
 describe("mapUiStashEntries / mapUiLogEntries", () => {
 	it("maps stash entries", () => {
 		const entries: GitStashEntry[] = [{ index: 0, message: "wip", date: "2024-01-01" }];
-		expect(mapUiStashEntries(entries)).toEqual([
-			{ index: 0, message: "wip", date: "2024-01-01" },
-		]);
+		expect(mapUiStashEntries(entries)).toEqual([{ index: 0, message: "wip", date: "2024-01-01" }]);
 	});
 
 	it("maps log entries", () => {
@@ -141,11 +137,21 @@ describe("mapUiStashEntries / mapUiLogEntries", () => {
 });
 
 describe("computeCanCommitPush", () => {
-	const remote: GitRemoteStatus = { ahead: 0, behind: 0, remote: "origin", trackingBranch: "origin/main" };
+	const remote: GitRemoteStatus = {
+		ahead: 0,
+		behind: 0,
+		remote: "origin",
+		trackingBranch: "origin/main",
+	};
 
 	it("is true when staged files exist on a branch and no action running", () => {
 		expect(
-			computeCanCommitPush({ stagedFileCount: 1, remoteStatus: remote, branch: "main", stackedActionRunning: false })
+			computeCanCommitPush({
+				stagedFileCount: 1,
+				remoteStatus: remote,
+				branch: "main",
+				stackedActionRunning: false,
+			})
 		).toBe(true);
 	});
 
@@ -162,25 +168,45 @@ describe("computeCanCommitPush", () => {
 
 	it("is false with no work", () => {
 		expect(
-			computeCanCommitPush({ stagedFileCount: 0, remoteStatus: remote, branch: "main", stackedActionRunning: false })
+			computeCanCommitPush({
+				stagedFileCount: 0,
+				remoteStatus: remote,
+				branch: "main",
+				stackedActionRunning: false,
+			})
 		).toBe(false);
 	});
 
 	it("is false without a branch", () => {
 		expect(
-			computeCanCommitPush({ stagedFileCount: 1, remoteStatus: remote, branch: null, stackedActionRunning: false })
+			computeCanCommitPush({
+				stagedFileCount: 1,
+				remoteStatus: remote,
+				branch: null,
+				stackedActionRunning: false,
+			})
 		).toBe(false);
 	});
 
 	it("is false while a stacked action is running", () => {
 		expect(
-			computeCanCommitPush({ stagedFileCount: 1, remoteStatus: remote, branch: "main", stackedActionRunning: true })
+			computeCanCommitPush({
+				stagedFileCount: 1,
+				remoteStatus: remote,
+				branch: "main",
+				stackedActionRunning: true,
+			})
 		).toBe(false);
 	});
 
 	it("treats null remoteStatus as no ahead commits", () => {
 		expect(
-			computeCanCommitPush({ stagedFileCount: 0, remoteStatus: null, branch: "main", stackedActionRunning: false })
+			computeCanCommitPush({
+				stagedFileCount: 0,
+				remoteStatus: null,
+				branch: "main",
+				stackedActionRunning: false,
+			})
 		).toBe(false);
 	});
 });
@@ -268,7 +294,9 @@ describe("buildCommitPushPrSuccessMessage", () => {
 
 	it("formats skipped PR as pushed to branch", () => {
 		expect(
-			buildCommitPushPrSuccessMessage(prStep({ status: "skipped_not_requested", number: undefined }))
+			buildCommitPushPrSuccessMessage(
+				prStep({ status: "skipped_not_requested", number: undefined })
+			)
 		).toBe("Pushed to branch");
 	});
 

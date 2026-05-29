@@ -1,10 +1,10 @@
 import type {
 	GitIndexStatus,
+	GitStatusFile,
+	GitWorktreeStatus,
 	GitLogEntry as UILogEntry,
 	GitRemoteStatus as UIRemoteStatus,
 	GitStashEntry as UIStashEntry,
-	GitStatusFile,
-	GitWorktreeStatus,
 } from "@acepe/ui/git-panel";
 import type {
 	GitLogEntry,

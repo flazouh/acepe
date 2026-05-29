@@ -203,6 +203,8 @@ describe("desktop agent panel scene adapter", () => {
 			kind: "read",
 			filePath: "/repo/src/session.ts",
 			sourceExcerpt: "443. export function reconcile() {}",
+			sourceExcerptHtml: null,
+			highlightSource: expect.any(Function),
 			sourceRangeLabel: "Line 443",
 		});
 	});

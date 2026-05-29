@@ -16,10 +16,7 @@ import {
 	MarkdownDisplay,
 	ProjectLetterBadge,
 } from "@acepe/ui";
-import {
-	GitPanelLayout,
-	type GitLogEntryFile as UILogEntryFile,
-} from "@acepe/ui/git-panel";
+import { GitPanelLayout, type GitLogEntryFile as UILogEntryFile } from "@acepe/ui/git-panel";
 import { listen } from "@tauri-apps/api/event";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { GitBranch } from "phosphor-svelte";

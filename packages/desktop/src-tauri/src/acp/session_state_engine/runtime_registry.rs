@@ -79,16 +79,15 @@ pub struct SessionGraphRuntimeRegistry {
 /// Why the builder could not materialize a visible transcript window for a command.
 ///
 /// Distinguishes the recoverable "no canonical state in this backend runtime" case
-/// (which the frontend should respond to by re-attaching the session) from benign
-/// no-op outcomes (a stale command revision or an over-budget envelope), which the
-/// frontend already swallows without re-attaching.
+/// (which the frontend should respond to by re-attaching the session) from the
+/// benign over-budget no-op, which the frontend swallows without re-attaching.
+/// A lagging command revision is NOT a miss: the builder resyncs to current
+/// canonical state and echoes the current revision so the UI converges.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum VisibleTranscriptWindowMiss {
     /// No canonical transcript state exists for this session in the current backend
     /// runtime. Recoverable by re-attaching the session.
     SessionNotAttached,
-    /// The command's revision is behind the canonical revision; a benign no-op.
-    StaleRevision,
     /// The materialized envelope exceeded the byte budget and was skipped.
     BudgetExceeded,
 }
@@ -884,31 +883,32 @@ impl SessionGraphRuntimeRegistry {
         let transcript_snapshot = transcript_projection_registry
             .snapshot_for_session(session_id)
             .ok_or(VisibleTranscriptWindowMiss::SessionNotAttached)?;
-        if transcript_snapshot.revision != revision.transcript_revision {
-            tracing::warn!(
-                session_id,
-                command_transcript_revision = revision.transcript_revision,
-                current_transcript_revision = transcript_snapshot.revision,
-                "Rejecting stale transcript viewport materialization request"
-            );
-            return Err(VisibleTranscriptWindowMiss::StaleRevision);
-        }
         let projection_snapshot = projection_registry.session_projection(session_id);
         let session_snapshot = projection_snapshot
             .session
             .ok_or(VisibleTranscriptWindowMiss::SessionNotAttached)?;
         let runtime_snapshot = self.snapshot_for_session(session_id);
-        if runtime_snapshot.graph_revision != 0
-            && runtime_snapshot.graph_revision != revision.graph_revision
-        {
-            tracing::warn!(
-                session_id,
-                command_graph_revision = revision.graph_revision,
-                current_graph_revision = runtime_snapshot.graph_revision,
-                "Rejecting stale transcript viewport command revision"
-            );
-            return Err(VisibleTranscriptWindowMiss::StaleRevision);
-        }
+        // Read-shaped viewport commands (resize, scroll, reveal, confirm-height)
+        // race the canonical revision: during streaming the transcript/graph
+        // revision bumps on every event, so any command the UI sends is already
+        // behind by the time it reaches the backend. Rejecting on a revision lag
+        // produced a retry storm — the UI re-issued the same stale revision, the
+        // layout never settled to canonical heights, and per-row observers kept
+        // re-measuring forever, pegging the main thread. Instead we resync: build
+        // against the CURRENT canonical snapshots and echo the current canonical
+        // revision so the UI adopts it and converges. Canonical order and
+        // identity always come from the current transcript snapshot, never from
+        // the command's claimed revision, and height confirmations stay
+        // version-guarded inside the viewport, so resync cannot corrupt state.
+        let effective_revision = SessionGraphRevision {
+            graph_revision: if runtime_snapshot.graph_revision != 0 {
+                runtime_snapshot.graph_revision
+            } else {
+                revision.graph_revision
+            },
+            transcript_revision: transcript_snapshot.revision,
+            last_event_seq: revision.last_event_seq.max(transcript_snapshot.revision),
+        };
         let operations = projection_snapshot.operations.clone();
         let interactions = projection_snapshot.interactions.clone();
         let activity = select_session_graph_activity(
@@ -947,7 +947,7 @@ impl SessionGraphRuntimeRegistry {
                         LayoutIndex::from_viewport_rows(rows.as_slice()),
                         viewport_height_px,
                     )
-                    .with_viewport_revision(revision.transcript_revision),
+                    .with_viewport_revision(effective_revision.transcript_revision),
                 );
             }
 
@@ -1002,12 +1002,12 @@ impl SessionGraphRuntimeRegistry {
         };
         let envelope = SessionStateEnvelope {
             session_id: session_id.to_string(),
-            graph_revision: revision.graph_revision,
-            last_event_seq: revision.last_event_seq,
+            graph_revision: effective_revision.graph_revision,
+            last_event_seq: effective_revision.last_event_seq,
             payload: SessionStatePayload::VisibleTranscriptWindow {
                 window: VisibleTranscriptWindowPayload {
                     session_id: session_id.to_string(),
-                    graph_revision: revision,
+                    graph_revision: effective_revision,
                     viewport_revision,
                     total_height_px: window.total_height_px,
                     viewport_offset_px: window.offset_px,
@@ -3187,22 +3187,27 @@ mod tests {
     }
 
     #[test]
-    fn visible_window_builder_reports_stale_revision_when_transcript_revision_behind() {
+    fn visible_window_builder_resyncs_when_transcript_revision_behind() {
+        // During streaming the canonical transcript revision bumps on every
+        // event, so a viewport command racing the stream arrives with a lagging
+        // transcript_revision. The builder must NOT hard-fail (that produced a
+        // retry storm). It resyncs: builds against the current canonical
+        // snapshot and echoes the current canonical revision so the UI converges.
         let runtime_registry = SessionGraphRuntimeRegistry::new();
         let projection_registry = ProjectionRegistry::new();
         let transcript_projection_registry = TranscriptProjectionRegistry::new();
 
-        transcript_projection_registry.restore_session_snapshot(
-            "session-stale".to_string(),
-            TranscriptSnapshot {
-                revision: 5,
-                entries: Vec::new(),
-            },
-        );
+        projection_registry.register_session("session-stale".to_string(), CanonicalAgentId::Cursor);
+        let update =
+            create_agent_message_chunk_update("session-stale", Some("assistant-1"), "hello", 5);
+        projection_registry.apply_session_update("session-stale", &update);
+        // Drive the canonical transcript revision to 7.
+        let _ = transcript_projection_registry.apply_session_update(7, &update);
 
+        // Command carries a stale transcript_revision (4 < 7).
         let outcome = runtime_registry.build_visible_transcript_window_envelope_for_session(
             "session-stale",
-            SessionGraphRevision::new(1, 4, 1),
+            SessionGraphRevision::new(0, 4, 1),
             &projection_registry,
             &transcript_projection_registry,
             720,
@@ -3210,10 +3215,61 @@ mod tests {
             None,
         );
 
-        assert_eq!(
-            outcome.unwrap_err(),
-            VisibleTranscriptWindowMiss::StaleRevision
+        let envelope = outcome.expect("stale transcript revision must resync, not reject");
+        match envelope.payload {
+            SessionStatePayload::VisibleTranscriptWindow { window } => {
+                assert_eq!(
+                    window.graph_revision.transcript_revision, 7,
+                    "resynced window must echo the current canonical transcript revision"
+                );
+            }
+            other => panic!("expected visible transcript window payload, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn visible_window_builder_resyncs_when_graph_revision_behind() {
+        let runtime_registry = SessionGraphRuntimeRegistry::new();
+        let projection_registry = ProjectionRegistry::new();
+        let transcript_projection_registry = TranscriptProjectionRegistry::new();
+
+        // Seed the runtime with a canonical graph revision of 5.
+        runtime_registry.restore_session_checkpoint(
+            "session-graph".to_string(),
+            crate::acp::lifecycle::LifecycleCheckpoint::new(
+                5,
+                crate::acp::lifecycle::LifecycleState::ready(),
+                SessionGraphCapabilities::empty(),
+            ),
         );
+        projection_registry.register_session("session-graph".to_string(), CanonicalAgentId::Cursor);
+        let update =
+            create_agent_message_chunk_update("session-graph", Some("assistant-1"), "hello", 5);
+        projection_registry.apply_session_update("session-graph", &update);
+        let _ = transcript_projection_registry.apply_session_update(7, &update);
+
+        // Command carries the current transcript_revision but a stale graph_revision (0 < 5).
+        let outcome = runtime_registry.build_visible_transcript_window_envelope_for_session(
+            "session-graph",
+            SessionGraphRevision::new(0, 7, 1),
+            &projection_registry,
+            &transcript_projection_registry,
+            720,
+            None,
+            None,
+        );
+
+        let envelope = outcome.expect("stale graph revision must resync, not reject");
+        match envelope.payload {
+            SessionStatePayload::VisibleTranscriptWindow { window } => {
+                assert_eq!(
+                    window.graph_revision.graph_revision, 5,
+                    "resynced window must echo the current canonical graph revision"
+                );
+                assert_eq!(window.graph_revision.transcript_revision, 7);
+            }
+            other => panic!("expected visible transcript window payload, got {other:?}"),
+        }
     }
 
     #[test]

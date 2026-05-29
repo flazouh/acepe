@@ -99,6 +99,7 @@
 							filePath={entry.filePath}
 							sourceExcerpt={entry.sourceExcerpt ?? null}
 							sourceExcerptHtml={entry.sourceExcerptHtml ?? null}
+							highlightSource={entry.highlightSource ?? null}
 							sourceRangeLabel={entry.sourceRangeLabel ?? null}
 							status={entry.status}
 							{iconBasePath}

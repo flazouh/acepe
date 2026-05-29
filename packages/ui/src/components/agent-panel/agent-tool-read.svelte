@@ -16,6 +16,7 @@
 	} from "./agent-tool-read-state.js";
 	import ToolHeaderLeading from "./tool-header-leading.svelte";
 	import type { AgentToolStatus } from "./types.js";
+	import type { AgentSourceHighlighter } from "./types.js";
 
 	interface Props {
 		/** Stable tool id used to persist collapsed/expanded state */
@@ -28,6 +29,8 @@
 		sourceExcerpt?: string | null;
 		/** Optional Shiki-highlighted source excerpt HTML */
 		sourceExcerptHtml?: string | null;
+		/** Lazily highlights source when the collapsed read body is expanded */
+		highlightSource?: AgentSourceHighlighter | null;
 		/** Optional source range label (e.g. "12-48") */
 		sourceRangeLabel?: string | null;
 		/** Lines added (from git diff stats) */
@@ -60,6 +63,7 @@
 		fileName: propFileName,
 		sourceExcerpt = null,
 		sourceExcerptHtml = null,
+		highlightSource = null,
 		sourceRangeLabel = null,
 		additions = 0,
 		deletions = 0,
@@ -80,7 +84,19 @@
 	const derivedFileName = $derived(
 		getReadFileName({ filePath, fileName: propFileName })
 	);
-	const hasSourceExcerptHtml = $derived(hasReadSourceExcerptHtml(sourceExcerptHtml));
+	const resolvedSourceExcerptHtml = $derived.by(() => {
+		if (!isExpanded) {
+			return sourceExcerptHtml;
+		}
+		if (hasReadSourceExcerptHtml(sourceExcerptHtml)) {
+			return sourceExcerptHtml;
+		}
+		if (!sourceExcerpt || highlightSource === null) {
+			return null;
+		}
+		return highlightSource(sourceExcerpt, filePath);
+	});
+	const hasResolvedSourceExcerptHtml = $derived(hasReadSourceExcerptHtml(resolvedSourceExcerptHtml));
 	const hasSourceBody = $derived(hasReadSourceBody({ sourceRangeLabel, sourceExcerpt }));
 	const storageKey = $derived(getReadExpansionStorageKey({ toolCallId, filePath }));
 	let isExpanded = $state(untrack(() => readPersistedReadExpanded(storageKey)));
@@ -142,8 +158,8 @@
 				</div>
 			{/if}
 			{#if sourceExcerpt}
-				{#if hasSourceExcerptHtml}
-					<pre class="read-source read-source-shiki read-source-expanded"><code>{@html sourceExcerptHtml}</code></pre>
+				{#if hasResolvedSourceExcerptHtml}
+					<pre class="read-source read-source-shiki read-source-expanded"><code>{@html resolvedSourceExcerptHtml}</code></pre>
 				{:else}
 					<pre class="read-source read-source-expanded">{sourceExcerpt}</pre>
 				{/if}

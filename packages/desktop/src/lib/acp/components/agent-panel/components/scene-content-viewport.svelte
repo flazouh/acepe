@@ -130,6 +130,7 @@ let lastViewportHeightPx = $state(720);
 let pendingViewportHeightPx = $state<number | null>(null);
 let consumedPendingUserRevealRequestKey = $state<string | null>(null);
 let suppressNextScrollIntent = false;
+let scrollIntentRafPending = false;
 
 const sceneEntryById = $derived.by(() => {
 	const index = new Map<string, AgentPanelSceneEntryModel>();
@@ -347,7 +348,17 @@ function handleScroll(event: Event): void {
 		suppressNextScrollIntent = false;
 		return;
 	}
-	dispatchScrollIntent(Math.max(0, Math.round(offsetPx)));
+	if (scrollIntentRafPending) {
+		return;
+	}
+	scrollIntentRafPending = true;
+	requestAnimationFrame(() => {
+		scrollIntentRafPending = false;
+		if (scrollContainerRef === null) {
+			return;
+		}
+		dispatchScrollIntent(Math.max(0, Math.round(scrollContainerRef.scrollTop)));
+	});
 }
 
 function observeViewport(node: HTMLDivElement): { destroy: () => void } {

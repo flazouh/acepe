@@ -112,6 +112,11 @@ export interface AgentToolFileSelectEvent {
 	filePath: string;
 }
 
+export type AgentSourceHighlighter = (
+	code: string,
+	filePath: string | null | undefined
+) => string | null;
+
 export interface AgentToolEntry {
 	id: string;
 	type: "tool_call";
@@ -129,6 +134,7 @@ export interface AgentToolEntry {
 	filePath?: string;
 	sourceExcerpt?: string | null;
 	sourceExcerptHtml?: string | null;
+	highlightSource?: AgentSourceHighlighter | null;
 	sourceRangeLabel?: string | null;
 	status: AgentToolStatus;
 	startedAtMs?: number | null;

@@ -79,6 +79,7 @@ describe("SessionHandler", () => {
 
 		mockPanelStore = {
 			openSession: mock(() => panel),
+			isSessionOpen: mock(() => false),
 			getPanelBySessionId: mock(() => panel),
 			getTopLevelAgentPanel: mock((panelId: string) =>
 				(mockPanelStore as any).panels.find((candidate: any) => candidate.id === panelId)
@@ -184,7 +185,7 @@ describe("SessionHandler", () => {
 			});
 		});
 
-		it("should still use the unified helper when the panel already exists", async () => {
+		it("should only focus when the session is already open", async () => {
 			const existingPanel = {
 				id: "existing-panel",
 				kind: "agent" as const,
@@ -197,7 +198,8 @@ describe("SessionHandler", () => {
 				agentId: null,
 				sessionTitle: null,
 			};
-			mockPanelStore.openSession = mock(() => undefined as never);
+			mockPanelStore.isSessionOpen = mock(() => true);
+			mockPanelStore.openSession = mock(() => existingPanel);
 			mockPanelStore.getPanelBySessionId = mock(() => existingPanel);
 			mockSessionsArray.push({
 				id: "session-1",
@@ -208,14 +210,8 @@ describe("SessionHandler", () => {
 			const result = await handler.selectSession("session-1");
 
 			expect(result.isOk()).toBe(true);
-			expect(openPersistedSessionMock).toHaveBeenCalledWith({
-				panelId: "existing-panel",
-				sessionId: "session-1",
-				sessionStore: mockSessionStore,
-				sessionOpenHydrator: mockSessionOpenHydrator,
-				timeoutMs: 30_000,
-				source: "session-handler",
-			});
+			expect(mockPanelStore.openSession).toHaveBeenCalledWith("session-1", DEFAULT_PANEL_WIDTH);
+			expect(openPersistedSessionMock).not.toHaveBeenCalled();
 		});
 
 		it("should not directly connect during selectSession", async () => {

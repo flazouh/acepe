@@ -104,10 +104,11 @@ export class SessionHandler {
 	 */
 	private preloadAndOpenSession(sessionId: string): ResultAsync<void, MainAppViewError> {
 		// Open panel IMMEDIATELY for zero-latency response
+		const wasAlreadyOpen = this.panelStore.isSessionOpen(sessionId);
 		const openedPanel = this.panelStore.openSession(sessionId, DEFAULT_PANEL_WIDTH);
 		const panelId = openedPanel?.id ?? this.panelStore.getPanelBySessionId(sessionId)?.id;
 
-		if (panelId) {
+		if (panelId && !wasAlreadyOpen) {
 			openPersistedSession({
 				panelId,
 				sessionId,

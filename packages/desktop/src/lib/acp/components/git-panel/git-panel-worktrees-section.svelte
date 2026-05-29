@@ -1,32 +1,32 @@
 <script lang="ts">
-	import { Check, FolderOpen, GitBranch, Trash, Tree } from "phosphor-svelte";
-	import type { WorktreeListItem } from "../../store/git-modal-state.js";
-	import type { WorktreeInfo } from "../../types/worktree-info.js";
+import { Check, FolderOpen, GitBranch, Trash, Tree } from "phosphor-svelte";
+import type { WorktreeListItem } from "../../store/git-modal-state.js";
+import type { WorktreeInfo } from "../../types/worktree-info.js";
 
-	interface Props {
-		currentWorktree: WorktreeInfo | null;
-		branch: string | null;
-		projectPath: string;
-		worktreeItems: WorktreeListItem[];
-		/** Which delete confirmation is open: a directory, "all", or null. */
-		deleteConfirm: string | "all" | null;
-		onDeleteConfirmChange: (value: string | "all" | null) => void;
-		onRevealPath: (path: string) => void;
-		onDeleteWorktree: (directory: string) => void;
-		onDeleteAllWorktrees: () => void;
-	}
+interface Props {
+	currentWorktree: WorktreeInfo | null;
+	branch: string | null;
+	projectPath: string;
+	worktreeItems: WorktreeListItem[];
+	/** Which delete confirmation is open: a directory, "all", or null. */
+	deleteConfirm: string | "all" | null;
+	onDeleteConfirmChange: (value: string | "all" | null) => void;
+	onRevealPath: (path: string) => void;
+	onDeleteWorktree: (directory: string) => void;
+	onDeleteAllWorktrees: () => void;
+}
 
-	let {
-		currentWorktree,
-		branch,
-		projectPath,
-		worktreeItems,
-		deleteConfirm,
-		onDeleteConfirmChange,
-		onRevealPath,
-		onDeleteWorktree,
-		onDeleteAllWorktrees,
-	}: Props = $props();
+let {
+	currentWorktree,
+	branch,
+	projectPath,
+	worktreeItems,
+	deleteConfirm,
+	onDeleteConfirmChange,
+	onRevealPath,
+	onDeleteWorktree,
+	onDeleteAllWorktrees,
+}: Props = $props();
 </script>
 
 <div class="flex-1 min-h-0 overflow-y-auto px-2.5 py-2">

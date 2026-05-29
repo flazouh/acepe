@@ -111,6 +111,26 @@ describe("AgentToolRead", () => {
 		).toBe("false");
 	});
 
+	it("defers source highlighting until the read content is expanded", async () => {
+		const highlightSource = vi.fn(
+			() => '<span style="color: var(--shiki-light)">const</span> answer = 42;'
+		);
+		const view = render(AgentToolRead, {
+			filePath: "/repo/src/app.ts",
+			sourceExcerpt: "const answer = 42;",
+			highlightSource,
+			status: "done",
+		});
+
+		expect(highlightSource).not.toHaveBeenCalled();
+
+		await fireEvent.click(view.getByRole("button", { name: "Expand read content" }));
+
+		expect(highlightSource).toHaveBeenCalledOnce();
+		expect(highlightSource).toHaveBeenCalledWith("const answer = 42;", "/repo/src/app.ts");
+		expect(view.container.querySelector("pre code span")?.textContent).toBe("const");
+	});
+
 	it("calls onSelect when the interactive file badge is clicked", async () => {
 		const onSelect = vi.fn();
 		const view = render(AgentToolRead, {

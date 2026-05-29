@@ -54,11 +54,10 @@ fn build_visible_window_for_command(
             VisibleTranscriptWindowMiss::SessionNotAttached => {
                 crate::acp::error::SerializableAcpError::ViewportSessionNotAttached { session_id }
             }
-            VisibleTranscriptWindowMiss::StaleRevision
-            | VisibleTranscriptWindowMiss::BudgetExceeded => {
+            VisibleTranscriptWindowMiss::BudgetExceeded => {
                 crate::acp::error::SerializableAcpError::InvalidState {
                     message: format!(
-                        "No canonical transcript viewport is available for session {session_id}"
+                        "Transcript viewport envelope exceeded the byte budget for session {session_id}"
                     ),
                 }
             }
