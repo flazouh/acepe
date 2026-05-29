@@ -79,11 +79,31 @@ impl Default for SessionGraphRuntimeSnapshot {
     }
 }
 
+/// What the producer last pushed/sent for a session's transcript buffer. The
+/// next emission diffs against this to decide push vs delta vs skip, and to
+/// assign a contiguous per-session `emission_seq`.
+///
+/// `emission_seq` is the SOLE apply-ordering authority on the consumer, because
+/// `viewport_revision` does not advance on streaming row appends and therefore
+/// cannot sequence the two independent delivery channels (command `invoke()`
+/// replies and the live event stream).
+#[derive(Debug, Clone)]
+struct BufferEmissionRecord {
+    start_index: usize,
+    row_ids: Vec<String>,
+    viewport_revision: i64,
+    emission_seq: u64,
+}
+
 #[derive(Debug, Clone)]
 pub struct SessionGraphRuntimeRegistry {
     supervisor: Arc<SessionSupervisor>,
     session_anchors: Arc<Mutex<HashMap<String, Arc<SessionAnchor>>>>,
     transcript_viewports: Arc<Mutex<HashMap<String, TranscriptViewport>>>,
+    // LOCK ORDER: buffer_emissions -> transcript_viewports. Never acquire
+    // transcript_viewports first and then buffer_emissions, or the buffer
+    // emission method below will deadlock.
+    buffer_emissions: Arc<Mutex<HashMap<String, BufferEmissionRecord>>>,
 }
 
 /// Why the builder could not materialize a visible transcript window for a command.
@@ -133,6 +153,7 @@ impl SessionGraphRuntimeRegistry {
             supervisor,
             session_anchors: Arc::new(Mutex::new(HashMap::new())),
             transcript_viewports: Arc::new(Mutex::new(HashMap::new())),
+            buffer_emissions: Arc::new(Mutex::new(HashMap::new())),
         }
     }
 
@@ -899,7 +920,17 @@ impl SessionGraphRuntimeRegistry {
     /// always come from the current transcript snapshot, never from the
     /// command's claimed revision, and height confirmations stay version-guarded
     /// inside the viewport, so resync cannot corrupt state.
-    fn build_session_viewport_envelope_with<F>(
+    /// Run the shared viewport prologue under the `transcript_viewports` lock
+    /// (rebuild layout from canonical rows, conditionally resize, apply scroll
+    /// intent + height confirmation) and hand a read-only context to
+    /// `materialize`, which may return any `T`. Returns `T` alongside the
+    /// computed `effective_revision` for envelope finalization.
+    ///
+    /// Unlike a payload-shaped closure this lets the buffer producer pull a
+    /// `ViewportBufferSlice` (plus the canonical rows) back out of the locked
+    /// region so it can classify push/delta/no-op ABOVE the closure — the
+    /// no-op "emit nothing" outcome cannot be expressed by returning a payload.
+    fn with_materialized_viewport<T, F>(
         &self,
         session_id: &str,
         revision: SessionGraphRevision,
@@ -908,11 +939,10 @@ impl SessionGraphRuntimeRegistry {
         viewport_height_px: Option<u32>,
         scroll_intent: Option<ScrollIntent>,
         height_confirmation: Option<TranscriptViewportHeightConfirmation>,
-        budget_label: &str,
         materialize: F,
-    ) -> Result<SessionStateEnvelope, VisibleTranscriptWindowMiss>
+    ) -> Result<(T, SessionGraphRevision), VisibleTranscriptWindowMiss>
     where
-        F: FnOnce(ViewportMaterializeCtx<'_>) -> SessionStatePayload,
+        F: FnOnce(ViewportMaterializeCtx<'_>) -> T,
     {
         let transcript_snapshot = transcript_projection_registry
             .snapshot_for_session(session_id)
@@ -951,7 +981,7 @@ impl SessionGraphRuntimeRegistry {
             &interactions,
             active_streaming_tail.as_ref(),
         );
-        let payload = {
+        let materialized = {
             let mut viewports = self
                 .transcript_viewports
                 .lock()
@@ -1006,6 +1036,18 @@ impl SessionGraphRuntimeRegistry {
                 height_diagnostic,
             })
         };
+        Ok((materialized, effective_revision))
+    }
+
+    /// Wrap a materialized payload in a `SessionStateEnvelope` and enforce the
+    /// per-payload byte budget. Shared by every viewport producer.
+    fn finalize_viewport_envelope(
+        &self,
+        session_id: &str,
+        effective_revision: SessionGraphRevision,
+        payload: SessionStatePayload,
+        budget_label: &str,
+    ) -> Result<SessionStateEnvelope, VisibleTranscriptWindowMiss> {
         let envelope = SessionStateEnvelope {
             session_id: session_id.to_string(),
             graph_revision: effective_revision.graph_revision,
@@ -1026,6 +1068,34 @@ impl SessionGraphRuntimeRegistry {
                 Err(VisibleTranscriptWindowMiss::BudgetExceeded)
             }
         }
+    }
+
+    fn build_session_viewport_envelope_with<F>(
+        &self,
+        session_id: &str,
+        revision: SessionGraphRevision,
+        projection_registry: &ProjectionRegistry,
+        transcript_projection_registry: &TranscriptProjectionRegistry,
+        viewport_height_px: Option<u32>,
+        scroll_intent: Option<ScrollIntent>,
+        height_confirmation: Option<TranscriptViewportHeightConfirmation>,
+        budget_label: &str,
+        materialize: F,
+    ) -> Result<SessionStateEnvelope, VisibleTranscriptWindowMiss>
+    where
+        F: FnOnce(ViewportMaterializeCtx<'_>) -> SessionStatePayload,
+    {
+        let (payload, effective_revision) = self.with_materialized_viewport(
+            session_id,
+            revision,
+            projection_registry,
+            transcript_projection_registry,
+            viewport_height_px,
+            scroll_intent,
+            height_confirmation,
+            materialize,
+        )?;
+        self.finalize_viewport_envelope(session_id, effective_revision, payload, budget_label)
     }
 
     pub fn build_visible_transcript_window_envelope_for_session(
@@ -1143,9 +1213,154 @@ impl SessionGraphRuntimeRegistry {
             },
         )
     }
-}
 
-/// Pure producer counterpart to the WebView's `applyBufferDelta`. Computes the
+    /// Stateful producer entry point for the push-a-working-set protocol. Diffs
+    /// the freshly-materialized buffer slice against what was last emitted for
+    /// this session and emits the cheapest correct payload:
+    ///
+    /// - no prior buffer, or a disjoint jump → `ViewportBufferPush` (all rows)
+    /// - a contiguous slide / streaming tail-append → `ViewportBufferDelta`
+    /// - an identical window → nothing (`Ok(None)`)
+    ///
+    /// `emission_seq` is bumped under the `buffer_emissions` lock on every
+    /// emission and is the consumer's sole apply-ordering authority across the
+    /// command-reply and event-stream channels.
+    ///
+    /// B4: an ACCEPTED height confirmation re-measures a row and shifts the
+    /// absolute offsets of every row below it. A delta does not re-send
+    /// surviving rows, so it would leave them at stale offsets. We therefore
+    /// force a `FreshPush` (re-send all offsets) whenever a height confirmation
+    /// was accepted. A rejected confirmation (`height_diag.is_some()`) changed
+    /// nothing and falls through to normal classification.
+    ///
+    /// LOCK ORDER: acquires `buffer_emissions` then (inside the prologue)
+    /// `transcript_viewports`. Never invert.
+    pub fn build_or_advance_viewport_buffer_envelope(
+        &self,
+        session_id: &str,
+        revision: SessionGraphRevision,
+        projection_registry: &ProjectionRegistry,
+        transcript_projection_registry: &TranscriptProjectionRegistry,
+        viewport_height_px: Option<u32>,
+        scroll_intent: Option<ScrollIntent>,
+        height_confirmation: Option<TranscriptViewportHeightConfirmation>,
+        request_generation: Option<u64>,
+    ) -> Result<Option<SessionStateEnvelope>, VisibleTranscriptWindowMiss> {
+        let height_present = height_confirmation.is_some();
+
+        let mut emissions = self
+            .buffer_emissions
+            .lock()
+            .expect("buffer_emissions mutex poisoned");
+        let prev = emissions.get(session_id).cloned();
+
+        // Pull the slice + canonical rows + rejected-confirmation diagnostic out
+        // of the locked prologue so we can classify above the closure.
+        let ((slice, full_rows, height_diag), effective_revision) = self
+            .with_materialized_viewport(
+                session_id,
+                revision,
+                projection_registry,
+                transcript_projection_registry,
+                viewport_height_px,
+                scroll_intent,
+                height_confirmation,
+                |ctx| {
+                    let slice = ctx.viewport.buffer_window(DEFAULT_BUFFER_OVERSCAN_ROWS);
+                    (slice, ctx.rows.to_vec(), ctx.height_diagnostic)
+                },
+            )?;
+
+        let prev_window = prev.as_ref().map(|r| (r.start_index, r.row_ids.len()));
+        let mut emission = classify_buffer_transition(prev_window, &slice);
+        // B4: an accepted height confirmation must re-send all offsets.
+        let height_accepted = height_present && height_diag.is_none();
+        if height_accepted && prev.is_some() {
+            emission = BufferEmission::FreshPush;
+        }
+
+        let next_seq = prev.as_ref().map_or(0, |r| r.emission_seq + 1);
+
+        // Scalars/ids captured before any move out of `slice`.
+        let buffer_start_index = slice.buffer_start_index;
+        let buffer_end_index = slice.buffer_end_index;
+        let slice_viewport_revision = slice.viewport_revision;
+        let buffered_row_ids: Vec<String> = full_rows[buffer_start_index..buffer_end_index]
+            .iter()
+            .map(|row| row.row_id.clone())
+            .collect();
+
+        let payload = match emission {
+            BufferEmission::NoOp => return Ok(None),
+            BufferEmission::FreshPush => {
+                let rows = full_rows[buffer_start_index..buffer_end_index].to_vec();
+                let diagnostics = height_diag
+                    .map(|diagnostic| {
+                        vec![ViewportBufferDiagnostic {
+                            code: diagnostic.code,
+                            row_id: diagnostic.row_id,
+                        }]
+                    })
+                    .unwrap_or_default();
+                SessionStatePayload::ViewportBufferPush {
+                    push: ViewportBufferPush {
+                        session_id: session_id.to_string(),
+                        graph_revision: effective_revision,
+                        viewport_revision: slice.viewport_revision,
+                        emission_seq: next_seq,
+                        buffer_start_index: slice.buffer_start_index,
+                        buffer_end_index: slice.buffer_end_index,
+                        layout_row_count: slice.layout_row_count,
+                        total_height_px: slice.total_height_px,
+                        buffer_end_offset_px: slice.buffer_end_offset_px,
+                        rows,
+                        offsets_px: slice.offsets_px,
+                        mode: slice.mode,
+                        request_generation,
+                        scroll_top_target: Some(slice.viewport_offset_px),
+                        diagnostics,
+                    },
+                }
+            }
+            BufferEmission::Delta => {
+                let p = prev
+                    .as_ref()
+                    .expect("classify_buffer_transition returns Delta only when prev exists");
+                let delta = compute_buffer_delta(
+                    session_id,
+                    effective_revision,
+                    next_seq,
+                    p.viewport_revision,
+                    p.start_index,
+                    &p.row_ids,
+                    &full_rows,
+                    &slice,
+                    None,
+                    Some(slice.viewport_offset_px),
+                );
+                SessionStatePayload::ViewportBufferDelta { delta }
+            }
+        };
+
+        emissions.insert(
+            session_id.to_string(),
+            BufferEmissionRecord {
+                start_index: buffer_start_index,
+                row_ids: buffered_row_ids,
+                viewport_revision: slice_viewport_revision,
+                emission_seq: next_seq,
+            },
+        );
+
+        let envelope = self.finalize_viewport_envelope(
+            session_id,
+            effective_revision,
+            payload,
+            "Viewport buffer",
+        )?;
+        Ok(Some(envelope))
+    }
+}
 /// incremental mutation from a previously-pushed buffer window to the current
 /// `slice` over the full canonical `current_rows`.
 ///
@@ -3535,6 +3750,304 @@ mod tests {
         assert!(
             r4 > r3,
             "a real resize away from the stored height must bump the revision"
+        );
+    }
+
+    /// Seed `count` distinct assistant rows into a fresh registry trio and
+    /// return the latest canonical revision. Each row is its own message id so
+    /// the layout has `count` rows to slice/append against.
+    fn seed_buffer_emission_session(
+        runtime_registry: &SessionGraphRuntimeRegistry,
+        projection_registry: &ProjectionRegistry,
+        transcript_projection_registry: &TranscriptProjectionRegistry,
+        session_id: &str,
+        count: usize,
+    ) -> SessionGraphRevision {
+        let _ = runtime_registry;
+        projection_registry.register_session(session_id.to_string(), CanonicalAgentId::Cursor);
+        let mut tx_revision: i64 = 0;
+        for index in 0..count {
+            let message_id = format!("m{index}");
+            let update = create_agent_message_chunk_update(
+                session_id,
+                Some(&message_id),
+                "hello world",
+                (index as u64) + 1,
+            );
+            projection_registry.apply_session_update(session_id, &update);
+            tx_revision = (index as i64) + 1;
+            let _ = transcript_projection_registry.apply_session_update(tx_revision, &update);
+        }
+        SessionGraphRevision::new(0, tx_revision, 1)
+    }
+
+    #[test]
+    fn buffer_emission_first_call_is_fresh_push_with_seq_zero() {
+        let runtime_registry = SessionGraphRuntimeRegistry::new();
+        let projection_registry = ProjectionRegistry::new();
+        let transcript_projection_registry = TranscriptProjectionRegistry::new();
+        let revision = seed_buffer_emission_session(
+            &runtime_registry,
+            &projection_registry,
+            &transcript_projection_registry,
+            "s",
+            3,
+        );
+
+        let envelope = runtime_registry
+            .build_or_advance_viewport_buffer_envelope(
+                "s",
+                revision,
+                &projection_registry,
+                &transcript_projection_registry,
+                Some(720),
+                None,
+                None,
+                None,
+            )
+            .expect("first emission must materialize")
+            .expect("first emission must produce a payload");
+
+        match envelope.payload {
+            SessionStatePayload::ViewportBufferPush { push } => {
+                assert_eq!(push.emission_seq, 0, "first push baselines emission_seq at 0");
+                assert_eq!(push.rows.len(), 3);
+            }
+            other => panic!("expected ViewportBufferPush, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn buffer_emission_identical_window_emits_nothing() {
+        let runtime_registry = SessionGraphRuntimeRegistry::new();
+        let projection_registry = ProjectionRegistry::new();
+        let transcript_projection_registry = TranscriptProjectionRegistry::new();
+        let revision = seed_buffer_emission_session(
+            &runtime_registry,
+            &projection_registry,
+            &transcript_projection_registry,
+            "s",
+            3,
+        );
+
+        let _ = runtime_registry
+            .build_or_advance_viewport_buffer_envelope(
+                "s",
+                revision,
+                &projection_registry,
+                &transcript_projection_registry,
+                Some(720),
+                None,
+                None,
+                None,
+            )
+            .expect("first emission")
+            .expect("first push");
+
+        // No new rows, identical height, no scroll -> identical window -> NoOp.
+        let second = runtime_registry
+            .build_or_advance_viewport_buffer_envelope(
+                "s",
+                revision,
+                &projection_registry,
+                &transcript_projection_registry,
+                Some(720),
+                None,
+                None,
+                None,
+            )
+            .expect("second emission must not error");
+        assert!(second.is_none(), "an identical window must emit nothing");
+    }
+
+    #[test]
+    fn buffer_emission_streaming_append_is_delta_and_noop_does_not_consume_seq() {
+        let runtime_registry = SessionGraphRuntimeRegistry::new();
+        let projection_registry = ProjectionRegistry::new();
+        let transcript_projection_registry = TranscriptProjectionRegistry::new();
+        let revision = seed_buffer_emission_session(
+            &runtime_registry,
+            &projection_registry,
+            &transcript_projection_registry,
+            "s",
+            3,
+        );
+
+        // seq 0 push.
+        let _ = runtime_registry
+            .build_or_advance_viewport_buffer_envelope(
+                "s",
+                revision,
+                &projection_registry,
+                &transcript_projection_registry,
+                Some(720),
+                None,
+                None,
+                None,
+            )
+            .expect("first")
+            .expect("push");
+
+        // A NoOp tick in between must NOT consume an emission_seq.
+        assert!(runtime_registry
+            .build_or_advance_viewport_buffer_envelope(
+                "s",
+                revision,
+                &projection_registry,
+                &transcript_projection_registry,
+                Some(720),
+                None,
+                None,
+                None,
+            )
+            .expect("noop tick")
+            .is_none());
+
+        // Append a new tail row + advance the canonical transcript revision.
+        let update = create_agent_message_chunk_update("s", Some("m_tail"), "more", 99);
+        projection_registry.apply_session_update("s", &update);
+        let _ = transcript_projection_registry.apply_session_update(50, &update);
+        let revision2 = SessionGraphRevision::new(0, 50, 1);
+
+        let envelope = runtime_registry
+            .build_or_advance_viewport_buffer_envelope(
+                "s",
+                revision2,
+                &projection_registry,
+                &transcript_projection_registry,
+                None,
+                None,
+                None,
+                None,
+            )
+            .expect("streaming emission")
+            .expect("streaming append must emit a delta");
+
+        match envelope.payload {
+            SessionStatePayload::ViewportBufferDelta { delta } => {
+                assert_eq!(
+                    delta.emission_seq, 1,
+                    "delta seq is prev+1; the intervening NoOp must not have consumed a seq"
+                );
+                assert!(!delta.appended_rows.is_empty(), "tail append must carry rows");
+            }
+            other => panic!("expected ViewportBufferDelta, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn buffer_emission_accepted_height_confirmation_forces_fresh_push() {
+        let runtime_registry = SessionGraphRuntimeRegistry::new();
+        let projection_registry = ProjectionRegistry::new();
+        let transcript_projection_registry = TranscriptProjectionRegistry::new();
+        let revision = seed_buffer_emission_session(
+            &runtime_registry,
+            &projection_registry,
+            &transcript_projection_registry,
+            "s",
+            3,
+        );
+
+        let first = runtime_registry
+            .build_or_advance_viewport_buffer_envelope(
+                "s",
+                revision,
+                &projection_registry,
+                &transcript_projection_registry,
+                Some(720),
+                None,
+                None,
+                None,
+            )
+            .expect("first")
+            .expect("push");
+        let (row_id, row_version) = match first.payload {
+            SessionStatePayload::ViewportBufferPush { push } => {
+                let row = &push.rows[0];
+                (row.row_id.clone(), row.version.clone())
+            }
+            other => panic!("expected push, got {other:?}"),
+        };
+
+        // Accepted height confirmation (valid row + version) shifts offsets of
+        // every row below it. The window index range is unchanged, so the
+        // classifier would say NoOp; B4 must force a FreshPush so all offsets
+        // are re-sent. emission_seq must advance so the consumer rebaselines.
+        let envelope = runtime_registry
+            .build_or_advance_viewport_buffer_envelope(
+                "s",
+                revision,
+                &projection_registry,
+                &transcript_projection_registry,
+                Some(720),
+                None,
+                Some(super::TranscriptViewportHeightConfirmation {
+                    row_id,
+                    row_version,
+                    height_px: 321,
+                }),
+                None,
+            )
+            .expect("height-confirm emission")
+            .expect("accepted height confirmation must emit a fresh push");
+
+        match envelope.payload {
+            SessionStatePayload::ViewportBufferPush { push } => {
+                assert_eq!(push.emission_seq, 1, "forced push must advance the seq");
+            }
+            other => panic!("expected forced ViewportBufferPush, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn buffer_emission_rejected_height_confirmation_does_not_force_push() {
+        let runtime_registry = SessionGraphRuntimeRegistry::new();
+        let projection_registry = ProjectionRegistry::new();
+        let transcript_projection_registry = TranscriptProjectionRegistry::new();
+        let revision = seed_buffer_emission_session(
+            &runtime_registry,
+            &projection_registry,
+            &transcript_projection_registry,
+            "s",
+            3,
+        );
+
+        let _ = runtime_registry
+            .build_or_advance_viewport_buffer_envelope(
+                "s",
+                revision,
+                &projection_registry,
+                &transcript_projection_registry,
+                Some(720),
+                None,
+                None,
+                None,
+            )
+            .expect("first")
+            .expect("push");
+
+        // A rejected confirmation (bogus version) changed nothing; the safe gate
+        // must NOT force a push for it (otherwise a stale-version retry storm
+        // would each spawn a full re-push). Identical window -> NoOp.
+        let second = runtime_registry
+            .build_or_advance_viewport_buffer_envelope(
+                "s",
+                revision,
+                &projection_registry,
+                &transcript_projection_registry,
+                Some(720),
+                None,
+                Some(super::TranscriptViewportHeightConfirmation {
+                    row_id: "m0".to_string(),
+                    row_version: "definitely-not-the-current-version".to_string(),
+                    height_px: 321,
+                }),
+                None,
+            )
+            .expect("rejected-confirm emission must not error");
+        assert!(
+            second.is_none(),
+            "a rejected height confirmation must not force a fresh push"
         );
     }
 
