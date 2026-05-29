@@ -15,9 +15,7 @@ import type { AgentInfo } from "$lib/acp/logic/agent-manager.js";
 import type { Project, ProjectManager } from "$lib/acp/logic/project-manager.svelte.js";
 import type { PreparedWorktreeLaunch } from "$lib/acp/types/worktree-info.js";
 import { getProviderBrandIcon } from "$lib/acp/constants/thread-list-constants.js";
-import {
-	copyTextToClipboard,
-} from "$lib/acp/components/agent-panel/logic/clipboard-manager.js";
+import { copyTextToClipboard } from "$lib/acp/components/agent-panel/logic/clipboard-manager.js";
 import PermissionBar from "$lib/acp/components/tool-calls/permission-bar.svelte";
 import { extractCompactPermissionDisplay } from "$lib/acp/components/tool-calls/permission-display.js";
 import TodoHeader from "$lib/acp/components/todo-header.svelte";
@@ -28,9 +26,7 @@ import PreSessionWorktreeCard from "$lib/acp/components/agent-panel/components/p
 import PrChecksSurface from "$lib/acp/components/shared/pr-checks-surface.svelte";
 import { getWorktreeDefaultStore } from "$lib/acp/components/worktree/worktree-default-store.svelte.js";
 import { loadWorktreeEnabled } from "$lib/acp/components/worktree/worktree-storage.js";
-import {
-	formatSessionTitleForDisplay,
-} from "$lib/acp/store/session-title-policy.js";
+import { formatSessionTitleForDisplay } from "$lib/acp/store/session-title-policy.js";
 import {
 	getAgentPreferencesStore,
 	getAgentStore,
@@ -54,7 +50,7 @@ import type {
 import type { PermissionRequest } from "$lib/acp/types/permission.js";
 import type { QuestionRequest } from "$lib/acp/types/question.js";
 import { useTheme } from "$lib/components/theme/context.svelte.js";
-import { openFileInEditor, tauriClient } from "$lib/utils/tauri-client.js";
+import { tauriClient } from "$lib/utils/tauri-client.js";
 import { Plus } from "phosphor-svelte";
 import { toast } from "svelte-sonner";
 import { replyToPlanApprovalRequest } from "$lib/acp/logic/interaction-reply.js";
@@ -64,11 +60,9 @@ import {
 	ensureSpawnableAgentSelected,
 	getSpawnableSessionAgents,
 } from "../../logic/spawnable-agents.js";
+import { createKanbanExportHandlers } from "./kanban-export-handlers.js";
 import KanbanThreadDialog from "./kanban-thread-dialog.svelte";
-import {
-	canSendWithoutSession,
-	resolveEmptyStateAgentId,
-} from "./logic/empty-state-send-state.js";
+import { canSendWithoutSession, resolveEmptyStateAgentId } from "./logic/empty-state-send-state.js";
 import {
 	acknowledgeExplicitPanelReveal,
 	applyCompletionAttentionAction,
@@ -489,62 +483,14 @@ function handleDialogClosePanel(panelId: string): void {
 	panelStore.closePanel(panelId);
 }
 
-async function handleOpenRawFile(item: ThreadBoardItem): Promise<void> {
-	await tauriClient.shell
-		.getSessionFilePath(item.sessionId, item.projectPath)
-		.andThen((path) => openFileInEditor(path))
-		.match(
-			() => toast.success("Opened streaming log in file manager"),
-			(err) => toast.error(`Failed to open session file: ${err.message}`)
-		);
-}
-
-async function handleOpenInAcepe(item: ThreadBoardItem): Promise<void> {
-	await tauriClient.shell.getSessionFilePath(item.sessionId, item.projectPath).match(
-		(fullPath) => {
-			const parts = fullPath.split(/[/\\]/);
-			const fileName = parts.pop() ?? fullPath;
-			const dirPath = parts.join("/") || "/";
-			panelStore.openFilePanel(fileName, dirPath, { ownerPanelId: item.panelId });
-		},
-		(err) => toast.error(`Failed to open session file: ${err.message}`)
-	);
-}
-
-async function handleExportMarkdown(item: ThreadBoardItem): Promise<void> {
-	await sessionStore.getSessionMarkdownExportContent(item.sessionId).asyncAndThen((markdown) => {
-		return copyTextToClipboard(markdown);
-	}).match(
-		() => toast.success("Copied to clipboard"),
-		(error) => toast.error(`Failed to export: ${error.message}`)
-	);
-}
-
-async function handleExportJson(item: ThreadBoardItem): Promise<void> {
-	await sessionStore.getSessionJsonExportContent(item.sessionId).asyncAndThen((content) => {
-		return copyTextToClipboard(content);
-	}).match(
-		() => toast.success("Copied to clipboard"),
-		(error) => toast.error(`Failed to export: ${error.message}`)
-	);
-}
-
-async function handleCopyStreamingLogPath(item: ThreadBoardItem): Promise<void> {
-	await tauriClient.shell
-		.getStreamingLogPath(item.sessionId)
-		.andThen((path) => copyTextToClipboard(path))
-		.match(
-			() => toast.success("Path copied to clipboard"),
-			() => toast.error("Failed to copy path")
-		);
-}
-
-async function handleExportRawStreaming(item: ThreadBoardItem): Promise<void> {
-	await tauriClient.shell.openStreamingLog(item.sessionId).match(
-		() => undefined,
-		(err) => toast.error(`Failed to open streaming log: ${err.message}`)
-	);
-}
+const {
+	handleOpenRawFile,
+	handleOpenInAcepe,
+	handleExportMarkdown,
+	handleExportJson,
+	handleCopyStreamingLogPath,
+	handleExportRawStreaming,
+} = createKanbanExportHandlers({ sessionStore, panelStore });
 
 async function handleCopyValue(value: string): Promise<void> {
 	await copyTextToClipboard(value).match(
@@ -824,7 +770,11 @@ function applyQuestionInteractionCommands(
 				selectionStore.toggleOption(command.questionId, command.questionIndex, command.optionLabel);
 				break;
 			case "set-single-option":
-				selectionStore.setSingleOption(command.questionId, command.questionIndex, command.optionLabel);
+				selectionStore.setSingleOption(
+					command.questionId,
+					command.questionIndex,
+					command.optionLabel
+				);
 				break;
 			case "set-current-question-index":
 				setCurrentQuestionIndex(command.sessionId, command.questionId, command.questionIndex);
@@ -842,7 +792,11 @@ function applyQuestionInteractionCommands(
 				selectionStore.setOtherText(command.questionId, command.questionIndex, command.value);
 				break;
 			case "set-other-active":
-				selectionStore.setOtherModeActive(command.questionId, command.questionIndex, command.active);
+				selectionStore.setOtherModeActive(
+					command.questionId,
+					command.questionIndex,
+					command.active
+				);
 				break;
 			case "clear-selections":
 				selectionStore.clearSelections(command.questionId, command.questionIndex);
