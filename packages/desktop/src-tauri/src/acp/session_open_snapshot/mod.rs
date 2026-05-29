@@ -2536,37 +2536,41 @@ mod tests {
         );
 
         let envelope = runtime_registry
-            .build_visible_transcript_window_envelope_for_session(
+            .build_viewport_buffer_push_envelope_for_session(
                 &found.canonical_session_id,
                 revision,
                 &projection_registry,
                 &transcript_projection_registry,
-                720,
+                Some(720),
                 None,
                 None,
+                None,
+                0,
             )
             .expect("canonical id should have restored viewport authority");
 
         match envelope.payload {
-            crate::acp::session_state_engine::SessionStatePayload::VisibleTranscriptWindow {
-                window,
+            crate::acp::session_state_engine::SessionStatePayload::ViewportBufferPush {
+                push,
             } => {
-                assert_eq!(window.session_id, canonical_session_id);
-                assert!(!window.rows.is_empty());
+                assert_eq!(push.session_id, canonical_session_id);
+                assert!(!push.rows.is_empty());
             }
-            other => panic!("expected visible transcript window, got {other:?}"),
+            other => panic!("expected viewport buffer push, got {other:?}"),
         }
 
         // The alias id has no viewport authority and must miss as SessionNotAttached.
         let alias_miss = runtime_registry
-            .build_visible_transcript_window_envelope_for_session(
+            .build_viewport_buffer_push_envelope_for_session(
                 requested_session_id,
                 revision,
                 &projection_registry,
                 &transcript_projection_registry,
-                720,
+                Some(720),
                 None,
                 None,
+                None,
+                0,
             )
             .expect_err("alias id must not resolve viewport authority");
         assert!(matches!(

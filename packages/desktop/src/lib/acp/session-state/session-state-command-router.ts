@@ -18,7 +18,6 @@ import type {
 	UsageTelemetryData,
 	ViewportBufferDelta,
 	ViewportBufferPush,
-	VisibleTranscriptWindowPayload,
 } from "../../services/acp-types.js";
 import {
 	resolveSessionStateDelta,
@@ -89,10 +88,6 @@ export type SessionStateCommand =
 	| {
 			kind: "applyAssistantTextDelta";
 			delta: AssistantTextDeltaPayload;
-	  }
-	| {
-			kind: "applyVisibleTranscriptWindow";
-			window: VisibleTranscriptWindowPayload;
 	  }
 	| {
 			kind: "applyBufferPush";
@@ -507,22 +502,6 @@ export function routeSessionStateEnvelope(
 				{
 					kind: "applyAssistantTextDelta",
 					delta: envelope.payload.delta,
-				},
-			];
-		case "visibleTranscriptWindow":
-			if (!envelopeFrontierMatchesRevision(envelope, envelope.payload.window.graphRevision)) {
-				return [
-					{
-						kind: "refreshSnapshot",
-						fromRevision: envelope.payload.window.graphRevision.graphRevision,
-						toRevision: envelope.graphRevision,
-					},
-				];
-			}
-			return [
-				{
-					kind: "applyVisibleTranscriptWindow",
-					window: envelope.payload.window,
 				},
 			];
 		case "viewportBufferPush":

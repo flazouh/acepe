@@ -528,14 +528,9 @@ export type SessionStateDelta = { fromRevision: SessionGraphRevision; toRevision
 
 export type AssistantTextDeltaPayload = { turnId: string; rowId: string; charOffset: number; deltaText: string; producedAtMonotonicMs: number; revision: number }
 
-export type VisibleTranscriptWindowDiagnostic = { code: string; rowId: string | null }
-
-export type VisibleTranscriptWindowPayload = { sessionId: string; graphRevision: SessionGraphRevision; viewportRevision: number; totalHeightPx: number; viewportOffsetPx: number; visibleStartIndex: number; visibleEndIndex: number; rows: TranscriptViewportRow[]; rowOffsetsPx: number[]; mode: ViewportMode; diagnostics: VisibleTranscriptWindowDiagnostic[] }
-
 /**
  * Diagnostic emitted alongside a buffer push/delta (e.g. a rejected height
- * confirmation or a shrunk buffer). Mirrors `VisibleTranscriptWindowDiagnostic`
- * but is owned by the buffer protocol so the old payload can be deleted in U6.
+ * confirmation or a shrunk buffer).
  */
 export type ViewportBufferDiagnostic = { code: string; rowId: string | null }
 
@@ -611,7 +606,7 @@ bufferEndOffsetPx: number; scrollAnchorCorrectionPx?: number | null; scrollTopTa
 
 export type TranscriptViewportCommandRevision = { graphRevision: number; transcriptRevision: number; lastEventSeq: number }
 
-export type SessionStatePayload = { kind: "snapshot"; graph: SessionStateGraph } | { kind: "delta"; delta: SessionStateDelta } | { kind: "lifecycle"; lifecycle: SessionGraphLifecycle; revision: SessionGraphRevision } | { kind: "capabilities"; capabilities: SessionGraphCapabilities; revision: SessionGraphRevision; pending_mutation_id?: string | null; preview_state: CapabilityPreviewState } | { kind: "telemetry"; telemetry: UsageTelemetryData; revision: SessionGraphRevision } | { kind: "plan"; plan: PlanData; revision: SessionGraphRevision } | { kind: "assistantTextDelta"; delta: AssistantTextDeltaPayload } | { kind: "visibleTranscriptWindow"; window: VisibleTranscriptWindowPayload } | { kind: "viewportBufferPush"; push: ViewportBufferPush } | { kind: "viewportBufferDelta"; delta: ViewportBufferDelta }
+export type SessionStatePayload = { kind: "snapshot"; graph: SessionStateGraph } | { kind: "delta"; delta: SessionStateDelta } | { kind: "lifecycle"; lifecycle: SessionGraphLifecycle; revision: SessionGraphRevision } | { kind: "capabilities"; capabilities: SessionGraphCapabilities; revision: SessionGraphRevision; pending_mutation_id?: string | null; preview_state: CapabilityPreviewState } | { kind: "telemetry"; telemetry: UsageTelemetryData; revision: SessionGraphRevision } | { kind: "plan"; plan: PlanData; revision: SessionGraphRevision } | { kind: "assistantTextDelta"; delta: AssistantTextDeltaPayload } | { kind: "viewportBufferPush"; push: ViewportBufferPush } | { kind: "viewportBufferDelta"; delta: ViewportBufferDelta }
 
 export type SessionStateEnvelope = { sessionId: string; graphRevision: number; lastEventSeq: number; payload: SessionStatePayload }
 

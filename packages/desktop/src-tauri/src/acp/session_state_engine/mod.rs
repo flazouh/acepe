@@ -10,9 +10,7 @@ pub mod selectors;
 pub mod snapshot_builder;
 
 pub use bridge::{
-    build_delta_envelope, build_snapshot_envelope,
-    build_visible_transcript_window_envelope_from_graph, DeltaEnvelopeParts,
-    DeltaSessionProjectionFields,
+    build_delta_envelope, build_snapshot_envelope, DeltaEnvelopeParts, DeltaSessionProjectionFields,
 };
 pub use envelope::{
     session_state_envelope_byte_budget_status, SessionStateEnvelope,
@@ -23,7 +21,7 @@ pub use graph::{ActiveStreamingTail, ActiveStreamingTailContentKind, SessionStat
 pub use protocol::{
     CapabilityPreviewState, SessionStateDelta, SessionStatePayload,
     SessionStateSnapshotMaterialization, ViewportBufferDelta, ViewportBufferDiagnostic,
-    ViewportBufferPush, VisibleTranscriptWindowDiagnostic, VisibleTranscriptWindowPayload,
+    ViewportBufferPush,
 };
 pub use reducer::{SessionStateGraphMutation, SessionStateReducer};
 pub use revision::SessionGraphRevision;

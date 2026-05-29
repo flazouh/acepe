@@ -112,15 +112,17 @@ function createPlan(contentMarkdown: string | null = "## Plan") {
 	};
 }
 
-function createVisibleTranscriptWindow(rowCount: number, textSize: number) {
+function createViewportBufferPush(rowCount: number, textSize: number) {
 	return {
 		sessionId: "session-1",
 		graphRevision: revision,
 		viewportRevision: 1,
+		emissionSeq: 0,
+		bufferStartIndex: 0,
+		bufferEndIndex: rowCount,
+		layoutRowCount: rowCount,
 		totalHeightPx: rowCount * 120,
-		viewportOffsetPx: Math.max(0, rowCount * 120 - 720),
-		visibleStartIndex: 0,
-		visibleEndIndex: rowCount,
+		bufferEndOffsetPx: rowCount * 120,
 		rows: Array.from({ length: rowCount }, (_, index) => ({
 			rowId: `transcript:assistant-${index}`,
 			sourceEntryId: `assistant-${index}`,
@@ -142,10 +144,11 @@ function createVisibleTranscriptWindow(rowCount: number, textSize: number) {
 				],
 			},
 		})),
-		rowOffsetsPx: Array.from({ length: rowCount }, (_, index) => index * 120),
+		offsetsPx: Array.from({ length: rowCount }, (_, index) => index * 120),
 		mode: {
 			kind: "followingTail" as const,
 		},
+		scrollTopTarget: null,
 		diagnostics: [],
 	};
 }
@@ -205,7 +208,6 @@ describe("session-state envelope byte budgets", () => {
 			"telemetry",
 			"viewportBufferDelta",
 			"viewportBufferPush",
-			"visibleTranscriptWindow",
 		]);
 	});
 
@@ -218,11 +220,11 @@ describe("session-state envelope byte budgets", () => {
 		);
 	});
 
-	it("keeps visible-window budget below snapshot budget but above tiny token deltas", () => {
-		expect(getSessionStateEnvelopeByteBudget("visibleTranscriptWindow")).toBeLessThan(
+	it("keeps viewport buffer push budget below snapshot budget but above tiny token deltas", () => {
+		expect(getSessionStateEnvelopeByteBudget("viewportBufferPush")).toBeLessThan(
 			getSessionStateEnvelopeByteBudget("snapshot")
 		);
-		expect(getSessionStateEnvelopeByteBudget("visibleTranscriptWindow")).toBeGreaterThan(
+		expect(getSessionStateEnvelopeByteBudget("viewportBufferPush")).toBeGreaterThan(
 			getSessionStateEnvelopeByteBudget("assistantTextDelta")
 		);
 	});
@@ -268,30 +270,30 @@ describe("session-state envelope byte budgets", () => {
 		});
 	});
 
-	it("accepts a bounded visible transcript window", () => {
+	it("accepts a bounded viewport buffer push", () => {
 		const result = checkSessionStateEnvelopeByteBudget(
 			createEnvelope({
-				kind: "visibleTranscriptWindow",
-				window: createVisibleTranscriptWindow(24, 40),
+				kind: "viewportBufferPush",
+				push: createViewportBufferPush(24, 40),
 			})
 		);
 
 		expect(result.ok).toBe(true);
-		expect(result.kind).toBe("visibleTranscriptWindow");
+		expect(result.kind).toBe("viewportBufferPush");
 	});
 
-	it("rejects full-transcript shaped visible transcript windows", () => {
+	it("rejects full-transcript shaped viewport buffer pushes", () => {
 		const result = checkSessionStateEnvelopeByteBudget(
 			createEnvelope({
-				kind: "visibleTranscriptWindow",
-				window: createVisibleTranscriptWindow(2_000, 120),
+				kind: "viewportBufferPush",
+				push: createViewportBufferPush(6_000, 120),
 			})
 		);
 
 		expect(result).toMatchObject({
 			ok: false,
-			kind: "visibleTranscriptWindow",
-			maxBytes: getSessionStateEnvelopeByteBudget("visibleTranscriptWindow"),
+			kind: "viewportBufferPush",
+			maxBytes: getSessionStateEnvelopeByteBudget("viewportBufferPush"),
 		});
 	});
 

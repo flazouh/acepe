@@ -30,7 +30,6 @@ use crate::acp::session_open_snapshot::{
 };
 use crate::acp::session_state_engine::protocol::{
     AssistantTextDeltaPayload, ViewportBufferDelta, ViewportBufferDiagnostic, ViewportBufferPush,
-    VisibleTranscriptWindowDiagnostic, VisibleTranscriptWindowPayload,
 };
 use crate::acp::session_state_engine::{
     ActiveStreamingTail, ActiveStreamingTailContentKind, CapabilityPreviewState,
@@ -363,8 +362,6 @@ pub fn export_all_types() {
     export_acp_type!(SessionStateSnapshotMaterialization);
     export_acp_type!(SessionStateDelta);
     export_acp_type!(AssistantTextDeltaPayload);
-    export_acp_type!(VisibleTranscriptWindowDiagnostic);
-    export_acp_type!(VisibleTranscriptWindowPayload);
     export_acp_type!(ViewportBufferDiagnostic);
     export_acp_type!(ViewportBufferPush);
     export_acp_type!(ViewportBufferDelta);

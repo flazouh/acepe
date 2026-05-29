@@ -43,7 +43,6 @@ import type {
 	UsageTelemetryData,
 	ViewportBufferDelta,
 	ViewportBufferPush,
-	VisibleTranscriptWindowPayload,
 } from "../../services/acp-types.js";
 import type { HistoryEntry } from "../../services/claude-history-types.js";
 import type { PlanData } from "../../services/converted-session-types.js";
@@ -146,7 +145,6 @@ import { SessionTransientProjectionStore } from "./session-transient-projection-
 import {
 	TranscriptViewportStore,
 	type BufferProjection,
-	type TranscriptViewportProjection,
 	type ViewportAttachmentStatus,
 } from "./transcript-viewport-store.svelte.js";
 import { requestTranscriptViewportBuffer } from "../session-state/session-state-viewport-command-service.js";
@@ -2464,10 +2462,6 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 
 	getSessionStateGraphForTest(sessionId: string): SessionStateGraph | null {
 		return this.sessionStateGraphs.get(sessionId) ?? null;
-	}
-
-	getTranscriptViewportProjection(sessionId: string | null): TranscriptViewportProjection | null {
-		return this.transcriptViewportStore.getProjection(sessionId);
 	}
 
 	getTranscriptViewportBufferProjection(sessionId: string | null): BufferProjection | null {
@@ -4927,11 +4921,6 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 				continue;
 			}
 
-			if (command.kind === "applyVisibleTranscriptWindow") {
-				this.applyVisibleTranscriptWindow(command.window);
-				continue;
-			}
-
 			if (command.kind === "applyBufferPush") {
 				this.applyBufferPush(command.push);
 				continue;
@@ -5183,22 +5172,6 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 			tokenStream: nextTokenStream,
 			clockAnchor: nextClockAnchor,
 			revision: projection.revision,
-		});
-	}
-
-	private applyVisibleTranscriptWindow(window: VisibleTranscriptWindowPayload): void {
-		const applied = this.transcriptViewportStore.applyVisibleWindow(window);
-		if (applied) {
-			// An accepted window re-attaches the viewport (status flipped to
-			// "attached" inside applyVisibleWindow); cancel any pending recovery
-			// watchdog for this session.
-			this.clearViewportReattachWatchdog(window.sessionId);
-			return;
-		}
-		logger.debug("Ignoring stale visible transcript window", {
-			sessionId: window.sessionId,
-			graphRevision: window.graphRevision,
-			viewportRevision: window.viewportRevision,
 		});
 	}
 

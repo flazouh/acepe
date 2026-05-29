@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 import type {
 	TranscriptViewportRow,
 	ViewportBufferPush,
-	VisibleTranscriptWindowPayload,
 } from "../../../services/acp-types.js";
 import { TranscriptViewportStore } from "../transcript-viewport-store.svelte.js";
 
@@ -130,103 +129,14 @@ function rowId(index: number): string {
 	return `transcript:row-${index}`;
 }
 
-function visibleWindow(input: {
-	readonly graphRevision: number;
-	readonly viewportRevision: number;
-	readonly text?: string;
-}): VisibleTranscriptWindowPayload {
-	const text = input.text ?? "hello";
-	return {
-		sessionId: "session-1",
-		graphRevision: {
-			graphRevision: input.graphRevision,
-			transcriptRevision: input.graphRevision,
-			lastEventSeq: input.graphRevision,
-		},
-		viewportRevision: input.viewportRevision,
-		totalHeightPx: 240,
-		viewportOffsetPx: 120,
-		visibleStartIndex: 1,
-		visibleEndIndex: 2,
-		rows: [
-			{
-				rowId: "transcript:assistant-1",
-				sourceEntryId: "assistant-1",
-				kind: "assistantText",
-				version: `v-${input.viewportRevision}`,
-				anchorEligible: true,
-				activeStreamingTail: null,
-				operationLinks: [],
-				interactionLinks: [],
-				content: {
-					kind: "transcript",
-					role: "assistant",
-					segments: [
-						{
-							kind: "text",
-							segmentId: "assistant-1:text",
-							text,
-						},
-					],
-				},
-			},
-		],
-		rowOffsetsPx: [120],
-		mode: {
-			kind: "followingTail",
-		},
-		diagnostics: [],
-	};
-}
-
 describe("TranscriptViewportStore", () => {
-	it("stores exact Rust-provided row order and offsets", () => {
-		const store = new TranscriptViewportStore();
-		const window = visibleWindow({ graphRevision: 3, viewportRevision: 4 });
-
-		expect(store.applyVisibleWindow(window)).toBe(true);
-		const projection = store.getProjection("session-1");
-
-		expect(projection?.rows.map((row) => row.rowId)).toEqual(["transcript:assistant-1"]);
-		expect(projection?.rowOffsetsPx).toEqual([120]);
-		expect(projection?.viewportOffsetPx).toBe(120);
-		expect(projection?.mode).toEqual({ kind: "followingTail" });
-	});
-
-	it("ignores older visible-window revisions", () => {
-		const store = new TranscriptViewportStore();
-		expect(store.applyVisibleWindow(visibleWindow({ graphRevision: 3, viewportRevision: 4 }))).toBe(
-			true
-		);
-
-		expect(store.applyVisibleWindow(visibleWindow({ graphRevision: 3, viewportRevision: 3 }))).toBe(
-			false
-		);
-
-		expect(store.getProjection("session-1")?.viewportRevision).toBe(4);
-	});
-
-	it("accepts newer graph revisions even when viewport revision restarts", () => {
-		const store = new TranscriptViewportStore();
-		expect(store.applyVisibleWindow(visibleWindow({ graphRevision: 3, viewportRevision: 4 }))).toBe(
-			true
-		);
-
-		expect(store.applyVisibleWindow(visibleWindow({ graphRevision: 4, viewportRevision: 1 }))).toBe(
-			true
-		);
-
-		expect(store.getProjection("session-1")?.revision.graphRevision).toBe(4);
-		expect(store.getProjection("session-1")?.viewportRevision).toBe(1);
-	});
-
 	it("clears a session without touching other sessions", () => {
 		const store = new TranscriptViewportStore();
-		store.applyVisibleWindow(visibleWindow({ graphRevision: 3, viewportRevision: 4 }));
+		store.applyBufferPush(bufferPush({ graphRevision: 3, viewportRevision: 4 }));
 
 		store.removeSession("session-1");
 
-		expect(store.getProjection("session-1")).toBeNull();
+		expect(store.getBufferProjection("session-1")).toBeNull();
 	});
 
 	it("defaults attachment status to attached for unknown sessions", () => {
@@ -235,32 +145,30 @@ describe("TranscriptViewportStore", () => {
 		expect(store.getAttachmentStatus(null)).toBe("attached");
 	});
 
-	it("markReattaching resets the projection so the next window is accepted", () => {
+	it("markReattaching resets the projection so the next push is accepted", () => {
 		const store = new TranscriptViewportStore();
-		expect(store.applyVisibleWindow(visibleWindow({ graphRevision: 5, viewportRevision: 9 }))).toBe(
-			true
-		);
+		expect(
+			store.applyBufferPush(bufferPush({ graphRevision: 5, viewportRevision: 9, emissionSeq: 3 }))
+		).toBe(true);
 
 		store.markReattaching("session-1");
 
 		expect(store.getAttachmentStatus("session-1")).toBe("reattaching");
-		expect(store.getProjection("session-1")).toBeNull();
+		expect(store.getBufferProjection("session-1")).toBeNull();
 
-		// A fresh backend seeds a LOW revision; it must be accepted because the
+		// A fresh backend seeds a LOW emission seq; it must be accepted because the
 		// projection was reset.
-		expect(store.applyVisibleWindow(visibleWindow({ graphRevision: 1, viewportRevision: 1 }))).toBe(
-			true
-		);
+		expect(
+			store.applyBufferPush(bufferPush({ graphRevision: 1, viewportRevision: 1, emissionSeq: 0 }))
+		).toBe(true);
 	});
 
-	it("accepted window after reattaching flips status back to attached", () => {
+	it("accepted push after reattaching flips status back to attached", () => {
 		const store = new TranscriptViewportStore();
 		store.markReattaching("session-1");
 		expect(store.getAttachmentStatus("session-1")).toBe("reattaching");
 
-		expect(store.applyVisibleWindow(visibleWindow({ graphRevision: 1, viewportRevision: 1 }))).toBe(
-			true
-		);
+		expect(store.applyBufferPush(bufferPush({ graphRevision: 1, viewportRevision: 1 }))).toBe(true);
 
 		expect(store.getAttachmentStatus("session-1")).toBe("attached");
 	});
@@ -282,29 +190,25 @@ describe("TranscriptViewportStore", () => {
 
 		// Already re-attached (status attached): a late failure must not clobber it.
 		store.markReattaching("session-1");
-		store.applyVisibleWindow(visibleWindow({ graphRevision: 1, viewportRevision: 1 }));
+		store.applyBufferPush(bufferPush({ graphRevision: 1, viewportRevision: 1 }));
 		expect(store.getAttachmentStatus("session-1")).toBe("attached");
 		store.markReattachFailed("session-1");
 		expect(store.getAttachmentStatus("session-1")).toBe("attached");
 	});
 
-	it("a window arriving after reattachFailed still recovers to attached", () => {
+	it("a push arriving after reattachFailed still recovers to attached", () => {
 		const store = new TranscriptViewportStore();
 		store.markReattaching("session-1");
 		store.markReattachFailed("session-1");
 
-		expect(store.applyVisibleWindow(visibleWindow({ graphRevision: 1, viewportRevision: 1 }))).toBe(
-			true
-		);
+		expect(store.applyBufferPush(bufferPush({ graphRevision: 1, viewportRevision: 1 }))).toBe(true);
 
 		expect(store.getAttachmentStatus("session-1")).toBe("attached");
 	});
 
-	it("does not mark already-attached sessions on accepted windows", () => {
+	it("does not mark already-attached sessions on accepted pushes", () => {
 		const store = new TranscriptViewportStore();
-		expect(store.applyVisibleWindow(visibleWindow({ graphRevision: 1, viewportRevision: 1 }))).toBe(
-			true
-		);
+		expect(store.applyBufferPush(bufferPush({ graphRevision: 1, viewportRevision: 1 }))).toBe(true);
 		expect(store.getAttachmentStatus("session-1")).toBe("attached");
 	});
 
@@ -371,39 +275,15 @@ describe("TranscriptViewportStore buffer protocol", () => {
 		expect(store.getBufferProjection("session-1")?.lastGeneration).toBe(5);
 	});
 
-	it("rejects a buffer push for a session already locked to the visibleWindow protocol", () => {
-		const store = new TranscriptViewportStore();
-		expect(
-			store.applyVisibleWindow(visibleWindow({ graphRevision: 3, viewportRevision: 4 }))
-		).toBe(true);
-
-		expect(store.applyBufferPush(bufferPush({ graphRevision: 9, viewportRevision: 9 }))).toBe(false);
-		expect(store.getBufferProjection("session-1")).toBeNull();
-		// The visibleWindow projection is untouched.
-		expect(store.getProjection("session-1")?.revision.graphRevision).toBe(3);
-	});
-
-	it("rejects a visibleWindow for a session already locked to the buffer protocol", () => {
-		const store = new TranscriptViewportStore();
-		expect(store.applyBufferPush(bufferPush({ graphRevision: 3, viewportRevision: 4 }))).toBe(true);
-
-		expect(
-			store.applyVisibleWindow(visibleWindow({ graphRevision: 9, viewportRevision: 9 }))
-		).toBe(false);
-		expect(store.getProjection("session-1")).toBeNull();
-	});
-
-	it("markReattaching clears the buffer protocol so a fresh protocol can be chosen", () => {
+	it("markReattaching clears the buffer protocol so a fresh push is accepted", () => {
 		const store = new TranscriptViewportStore();
 		expect(store.applyBufferPush(bufferPush({ graphRevision: 5, viewportRevision: 9 }))).toBe(true);
 
 		store.markReattaching("session-1");
 		expect(store.getBufferProjection("session-1")).toBeNull();
 
-		// After reset either protocol may be chosen; here visibleWindow wins.
-		expect(
-			store.applyVisibleWindow(visibleWindow({ graphRevision: 1, viewportRevision: 1 }))
-		).toBe(true);
+		// After reset the session can re-claim the buffer protocol from scratch.
+		expect(store.applyBufferPush(bufferPush({ graphRevision: 1, viewportRevision: 1 }))).toBe(true);
 	});
 
 	it("accepted buffer push flips reattaching status back to attached", () => {
@@ -761,27 +641,6 @@ describe("TranscriptViewportStore buffer protocol", () => {
 			);
 			expect(result).toEqual({ status: "gap" });
 			expect(store.getBufferProjection("session-1")).toBeNull();
-		});
-
-		it("is rejected when the session is locked to the visible-window protocol", () => {
-			const store = new TranscriptViewportStore();
-			store.applyVisibleWindow(visibleWindow({ graphRevision: 1, viewportRevision: 1 }));
-
-			const result = store.applyBufferDelta(
-				bufferDelta({ fromViewportRevision: 1, toViewportRevision: 2, append: [0, 1], layoutRowCount: 5, bufferEndIndex: 1 })
-			);
-			expect(result).toEqual({ status: "rejected" });
-		});
-
-		it("locks the session to the buffer protocol even when the first delta is a gap", () => {
-			const store = new TranscriptViewportStore();
-			expect(
-				store.applyBufferDelta(
-					bufferDelta({ fromViewportRevision: 1, toViewportRevision: 2, layoutRowCount: 5, bufferEndIndex: 0 })
-				).status
-			).toBe("gap");
-			// A late visible-window for the same session must now be rejected.
-			expect(store.applyVisibleWindow(visibleWindow({ graphRevision: 9, viewportRevision: 9 }))).toBe(false);
 		});
 
 		it("surfaces scrollAnchorCorrectionPx for the controller to apply", () => {

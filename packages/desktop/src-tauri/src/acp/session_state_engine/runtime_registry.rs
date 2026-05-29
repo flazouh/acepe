@@ -8,7 +8,6 @@ use crate::acp::session_state_engine::frontier::{
 use crate::acp::session_state_engine::graph::select_active_streaming_tail;
 use crate::acp::session_state_engine::protocol::{
     AssistantTextDeltaPayload, ViewportBufferDelta, ViewportBufferDiagnostic, ViewportBufferPush,
-    VisibleTranscriptWindowDiagnostic, VisibleTranscriptWindowPayload,
 };
 use crate::acp::session_state_engine::selectors::{
     select_session_graph_activity, SessionGraphCapabilities, SessionGraphLifecycle,
@@ -1099,61 +1098,6 @@ impl SessionGraphRuntimeRegistry {
             materialize,
         )?;
         self.finalize_viewport_envelope(session_id, effective_revision, payload, budget_label)
-    }
-
-    pub fn build_visible_transcript_window_envelope_for_session(
-        &self,
-        session_id: &str,
-        revision: SessionGraphRevision,
-        projection_registry: &ProjectionRegistry,
-        transcript_projection_registry: &TranscriptProjectionRegistry,
-        viewport_height_px: u32,
-        scroll_intent: Option<ScrollIntent>,
-        height_confirmation: Option<TranscriptViewportHeightConfirmation>,
-    ) -> Result<SessionStateEnvelope, VisibleTranscriptWindowMiss> {
-        self.build_session_viewport_envelope_with(
-            session_id,
-            revision,
-            projection_registry,
-            transcript_projection_registry,
-            Some(viewport_height_px),
-            scroll_intent,
-            height_confirmation,
-            "Visible transcript window",
-            |ctx| {
-                let window = ctx.viewport.window();
-                let visible_rows =
-                    ctx.rows[window.visible_start_index..window.visible_end_index].to_vec();
-                let row_offsets_px = visible_rows
-                    .iter()
-                    .map(|row| ctx.viewport.layout().row_offset_px(&row.row_id).unwrap_or(0))
-                    .collect();
-                let diagnostics = ctx
-                    .height_diagnostic
-                    .map(|diagnostic| {
-                        vec![VisibleTranscriptWindowDiagnostic {
-                            code: diagnostic.code,
-                            row_id: diagnostic.row_id,
-                        }]
-                    })
-                    .unwrap_or_default();
-                SessionStatePayload::VisibleTranscriptWindow {
-                    window: VisibleTranscriptWindowPayload {
-                        session_id: ctx.session_id.to_string(),
-                        graph_revision: ctx.effective_revision,
-                        viewport_revision: ctx.viewport.viewport_revision(),
-                        total_height_px: window.total_height_px,
-                        viewport_offset_px: window.offset_px,
-                        visible_start_index: window.visible_start_index,
-                        visible_end_index: window.visible_end_index,
-                        rows: visible_rows,
-                        row_offsets_px,
-                        mode: window.mode,
-                        diagnostics,
-                    },
-                }
-            },
-        )
     }
 
     /// Build a `ViewportBufferPush`: a large buffered slice the WebView resolves
@@ -3748,19 +3692,21 @@ mod tests {
     }
 
     #[test]
-    fn visible_window_builder_reports_session_not_attached_when_no_canonical_state() {
+    fn buffer_builder_reports_session_not_attached_when_no_canonical_state() {
         let runtime_registry = SessionGraphRuntimeRegistry::new();
         let projection_registry = ProjectionRegistry::new();
         let transcript_projection_registry = TranscriptProjectionRegistry::new();
 
-        let outcome = runtime_registry.build_visible_transcript_window_envelope_for_session(
+        let outcome = runtime_registry.build_viewport_buffer_push_envelope_for_session(
             "unknown-session",
             SessionGraphRevision::new(1, 0, 1),
             &projection_registry,
             &transcript_projection_registry,
-            720,
+            Some(720),
             None,
             None,
+            None,
+            0,
         );
 
         assert_eq!(
@@ -3770,7 +3716,7 @@ mod tests {
     }
 
     #[test]
-    fn visible_window_builder_resyncs_when_transcript_revision_behind() {
+    fn buffer_builder_resyncs_when_transcript_revision_behind() {
         // During streaming the canonical transcript revision bumps on every
         // event, so a viewport command racing the stream arrives with a lagging
         // transcript_revision. The builder must NOT hard-fail (that produced a
@@ -3788,25 +3734,27 @@ mod tests {
         let _ = transcript_projection_registry.apply_session_update(7, &update);
 
         // Command carries a stale transcript_revision (4 < 7).
-        let outcome = runtime_registry.build_visible_transcript_window_envelope_for_session(
+        let outcome = runtime_registry.build_viewport_buffer_push_envelope_for_session(
             "session-stale",
             SessionGraphRevision::new(0, 4, 1),
             &projection_registry,
             &transcript_projection_registry,
-            720,
+            Some(720),
             None,
             None,
+            None,
+            0,
         );
 
         let envelope = outcome.expect("stale transcript revision must resync, not reject");
         match envelope.payload {
-            SessionStatePayload::VisibleTranscriptWindow { window } => {
+            SessionStatePayload::ViewportBufferPush { push } => {
                 assert_eq!(
-                    window.graph_revision.transcript_revision, 7,
-                    "resynced window must echo the current canonical transcript revision"
+                    push.graph_revision.transcript_revision, 7,
+                    "resynced buffer must echo the current canonical transcript revision"
                 );
             }
-            other => panic!("expected visible transcript window payload, got {other:?}"),
+            other => panic!("expected viewport buffer push payload, got {other:?}"),
         }
     }
 
@@ -4276,7 +4224,7 @@ mod tests {
     }
 
     #[test]
-    fn visible_window_builder_resyncs_when_graph_revision_behind() {
+    fn buffer_builder_resyncs_when_graph_revision_behind() {
         let runtime_registry = SessionGraphRuntimeRegistry::new();
         let projection_registry = ProjectionRegistry::new();
         let transcript_projection_registry = TranscriptProjectionRegistry::new();
@@ -4297,31 +4245,33 @@ mod tests {
         let _ = transcript_projection_registry.apply_session_update(7, &update);
 
         // Command carries the current transcript_revision but a stale graph_revision (0 < 5).
-        let outcome = runtime_registry.build_visible_transcript_window_envelope_for_session(
+        let outcome = runtime_registry.build_viewport_buffer_push_envelope_for_session(
             "session-graph",
             SessionGraphRevision::new(0, 7, 1),
             &projection_registry,
             &transcript_projection_registry,
-            720,
+            Some(720),
             None,
             None,
+            None,
+            0,
         );
 
         let envelope = outcome.expect("stale graph revision must resync, not reject");
         match envelope.payload {
-            SessionStatePayload::VisibleTranscriptWindow { window } => {
+            SessionStatePayload::ViewportBufferPush { push } => {
                 assert_eq!(
-                    window.graph_revision.graph_revision, 5,
-                    "resynced window must echo the current canonical graph revision"
+                    push.graph_revision.graph_revision, 5,
+                    "resynced buffer must echo the current canonical graph revision"
                 );
-                assert_eq!(window.graph_revision.transcript_revision, 7);
+                assert_eq!(push.graph_revision.transcript_revision, 7);
             }
-            other => panic!("expected visible transcript window payload, got {other:?}"),
+            other => panic!("expected viewport buffer push payload, got {other:?}"),
         }
     }
 
     #[test]
-    fn visible_window_builder_requires_projection_session_even_when_transcript_present() {
+    fn buffer_builder_requires_projection_session_even_when_transcript_present() {
         let runtime_registry = SessionGraphRuntimeRegistry::new();
         let projection_registry = ProjectionRegistry::new();
         let transcript_projection_registry = TranscriptProjectionRegistry::new();
@@ -4337,14 +4287,16 @@ mod tests {
             },
         );
 
-        let outcome = runtime_registry.build_visible_transcript_window_envelope_for_session(
+        let outcome = runtime_registry.build_viewport_buffer_push_envelope_for_session(
             "session-missing-projection",
             SessionGraphRevision::new(0, 3, 1),
             &projection_registry,
             &transcript_projection_registry,
-            720,
+            Some(720),
             None,
             None,
+            None,
+            0,
         );
 
         assert_eq!(

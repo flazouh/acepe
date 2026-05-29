@@ -17,7 +17,6 @@ pub enum SessionStatePayloadKind {
     Telemetry,
     Plan,
     AssistantTextDelta,
-    VisibleTranscriptWindow,
     ViewportBufferPush,
     ViewportBufferDelta,
 }
@@ -61,7 +60,6 @@ impl SessionStatePayloadKind {
             SessionStatePayload::Telemetry { .. } => Self::Telemetry,
             SessionStatePayload::Plan { .. } => Self::Plan,
             SessionStatePayload::AssistantTextDelta { .. } => Self::AssistantTextDelta,
-            SessionStatePayload::VisibleTranscriptWindow { .. } => Self::VisibleTranscriptWindow,
             SessionStatePayload::ViewportBufferPush { .. } => Self::ViewportBufferPush,
             SessionStatePayload::ViewportBufferDelta { .. } => Self::ViewportBufferDelta,
         }
@@ -76,7 +74,6 @@ impl SessionStatePayloadKind {
             Self::Telemetry => 16_000,
             Self::Plan => 128_000,
             Self::AssistantTextDelta => 8_000,
-            Self::VisibleTranscriptWindow => 96_000,
             // A buffer push carries the visible slice plus a bounded overscan
             // window; the producer shrinks the buffer to stay under this cap.
             Self::ViewportBufferPush => 512_000,
@@ -89,7 +86,7 @@ impl SessionStatePayloadKind {
 mod tests {
     use super::*;
     use crate::acp::session_state_engine::protocol::{
-        CapabilityPreviewState, VisibleTranscriptWindowPayload,
+        CapabilityPreviewState, ViewportBufferDiagnostic, ViewportBufferPush,
     };
     use crate::acp::session_state_engine::revision::SessionGraphRevision;
     use crate::acp::session_state_engine::selectors::SessionGraphCapabilities;
@@ -122,23 +119,28 @@ mod tests {
         }
     }
 
-    fn visible_window_envelope(rows: Vec<TranscriptViewportRow>) -> SessionStateEnvelope {
+    fn buffer_push_envelope(rows: Vec<TranscriptViewportRow>) -> SessionStateEnvelope {
+        let row_count = rows.len();
         SessionStateEnvelope {
             session_id: "session-1".to_string(),
             graph_revision: 1,
             last_event_seq: 1,
-            payload: SessionStatePayload::VisibleTranscriptWindow {
-                window: VisibleTranscriptWindowPayload {
+            payload: SessionStatePayload::ViewportBufferPush {
+                push: ViewportBufferPush {
                     session_id: "session-1".to_string(),
                     graph_revision: revision(),
                     viewport_revision: 1,
+                    emission_seq: 0,
+                    buffer_start_index: 0,
+                    buffer_end_index: row_count,
+                    layout_row_count: row_count,
                     total_height_px: 10_000,
-                    viewport_offset_px: 9_000,
-                    visible_start_index: 90,
-                    visible_end_index: 90 + rows.len(),
+                    buffer_end_offset_px: 10_000,
                     rows,
-                    row_offsets_px: Vec::new(),
+                    offsets_px: Vec::new(),
                     mode: ViewportMode::FollowingTail,
+                    request_generation: None,
+                    scroll_top_target: None,
                     diagnostics: Vec::new(),
                 },
             },
@@ -217,36 +219,30 @@ mod tests {
     }
 
     #[test]
-    fn visible_transcript_window_has_its_own_budget() {
+    fn viewport_buffer_push_has_its_own_budget() {
         let status =
-            session_state_envelope_byte_budget_status(&visible_window_envelope(vec![visible_row(
+            session_state_envelope_byte_budget_status(&buffer_push_envelope(vec![visible_row(
                 1,
                 "hello".to_string(),
             )]))
-            .expect("small visible window should fit");
+            .expect("small buffer push should fit");
 
-        assert_eq!(
-            status.kind,
-            SessionStatePayloadKind::VisibleTranscriptWindow
-        );
+        assert_eq!(status.kind, SessionStatePayloadKind::ViewportBufferPush);
         assert_eq!(
             status.max_bytes,
-            SessionStatePayloadKind::VisibleTranscriptWindow.max_bytes()
+            SessionStatePayloadKind::ViewportBufferPush.max_bytes()
         );
     }
 
     #[test]
-    fn visible_transcript_window_budget_rejects_accidental_full_transcript_payload() {
-        let rows = (0..2_000)
+    fn viewport_buffer_push_budget_rejects_accidental_full_transcript_payload() {
+        let rows = (0..6_000)
             .map(|index| visible_row(index, "x".repeat(120)))
             .collect();
 
-        let status = session_state_envelope_byte_budget_status(&visible_window_envelope(rows))
-            .expect_err("full transcript shaped visible window should be rejected");
+        let status = session_state_envelope_byte_budget_status(&buffer_push_envelope(rows))
+            .expect_err("full transcript shaped buffer push should be rejected");
 
-        assert_eq!(
-            status.kind,
-            SessionStatePayloadKind::VisibleTranscriptWindow
-        );
+        assert_eq!(status.kind, SessionStatePayloadKind::ViewportBufferPush);
     }
 }

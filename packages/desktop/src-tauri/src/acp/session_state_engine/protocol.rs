@@ -80,9 +80,6 @@ pub enum SessionStatePayload {
     AssistantTextDelta {
         delta: AssistantTextDeltaPayload,
     },
-    VisibleTranscriptWindow {
-        window: VisibleTranscriptWindowPayload,
-    },
     ViewportBufferPush {
         push: ViewportBufferPush,
     },
@@ -102,33 +99,8 @@ pub struct AssistantTextDeltaPayload {
     pub revision: i64,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, specta::Type, PartialEq, Eq)]
-#[serde(rename_all = "camelCase")]
-pub struct VisibleTranscriptWindowPayload {
-    pub session_id: String,
-    pub graph_revision: SessionGraphRevision,
-    pub viewport_revision: i64,
-    pub total_height_px: u64,
-    pub viewport_offset_px: u64,
-    pub visible_start_index: usize,
-    pub visible_end_index: usize,
-    pub rows: Vec<TranscriptViewportRow>,
-    pub row_offsets_px: Vec<u64>,
-    pub mode: ViewportMode,
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub diagnostics: Vec<VisibleTranscriptWindowDiagnostic>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, specta::Type, PartialEq, Eq)]
-#[serde(rename_all = "camelCase")]
-pub struct VisibleTranscriptWindowDiagnostic {
-    pub code: String,
-    pub row_id: Option<String>,
-}
-
 /// Diagnostic emitted alongside a buffer push/delta (e.g. a rejected height
-/// confirmation or a shrunk buffer). Mirrors `VisibleTranscriptWindowDiagnostic`
-/// but is owned by the buffer protocol so the old payload can be deleted in U6.
+/// confirmation or a shrunk buffer).
 #[derive(Debug, Clone, Serialize, Deserialize, specta::Type, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct ViewportBufferDiagnostic {
@@ -225,8 +197,7 @@ pub struct ViewportBufferDelta {
 #[cfg(test)]
 mod tests {
     use super::{
-        AssistantTextDeltaPayload, SessionStatePayload, VisibleTranscriptWindowDiagnostic,
-        VisibleTranscriptWindowPayload,
+        AssistantTextDeltaPayload, SessionStatePayload, ViewportBufferDiagnostic, ViewportBufferPush,
     };
     use crate::acp::session_state_engine::revision::SessionGraphRevision;
     use crate::acp::transcript_viewport::{TranscriptViewportRow, ViewportMode};
@@ -304,20 +275,24 @@ mod tests {
     }
 
     #[test]
-    fn visible_transcript_window_round_trip_uses_camel_case_wire_fields() {
-        let payload = SessionStatePayload::VisibleTranscriptWindow {
-            window: VisibleTranscriptWindowPayload {
+    fn viewport_buffer_push_round_trip_uses_camel_case_wire_fields() {
+        let payload = SessionStatePayload::ViewportBufferPush {
+            push: ViewportBufferPush {
                 session_id: "session-1".to_string(),
                 graph_revision: SessionGraphRevision::new(3, 2, 9),
                 viewport_revision: 4,
+                emission_seq: 7,
+                buffer_start_index: 1,
+                buffer_end_index: 2,
+                layout_row_count: 12,
                 total_height_px: 240,
-                viewport_offset_px: 120,
-                visible_start_index: 1,
-                visible_end_index: 2,
+                buffer_end_offset_px: 220,
                 rows: Vec::<TranscriptViewportRow>::new(),
-                row_offsets_px: Vec::new(),
+                offsets_px: Vec::new(),
                 mode: ViewportMode::FollowingTail,
-                diagnostics: vec![VisibleTranscriptWindowDiagnostic {
+                request_generation: None,
+                scroll_top_target: Some(120),
+                diagnostics: vec![ViewportBufferDiagnostic {
                     code: "empty_window".to_string(),
                     row_id: None,
                 }],
@@ -325,24 +300,28 @@ mod tests {
         };
 
         let json = serde_json::to_string(&payload).expect("serialize");
-        assert!(json.contains("\"kind\":\"visibleTranscriptWindow\""));
+        assert!(json.contains("\"kind\":\"viewportBufferPush\""));
         assert!(json.contains("\"sessionId\":\"session-1\""));
         assert!(json.contains("\"graphRevision\""));
         assert!(json.contains("\"viewportRevision\":4"));
+        assert!(json.contains("\"emissionSeq\":7"));
+        assert!(json.contains("\"bufferStartIndex\":1"));
+        assert!(json.contains("\"bufferEndIndex\":2"));
+        assert!(json.contains("\"layoutRowCount\":12"));
         assert!(json.contains("\"totalHeightPx\":240"));
-        assert!(json.contains("\"viewportOffsetPx\":120"));
-        assert!(json.contains("\"visibleStartIndex\":1"));
-        assert!(json.contains("\"visibleEndIndex\":2"));
-        assert!(json.contains("\"rowOffsetsPx\":[]"));
+        assert!(json.contains("\"bufferEndOffsetPx\":220"));
+        assert!(json.contains("\"scrollTopTarget\":120"));
+        assert!(json.contains("\"offsetsPx\":[]"));
 
         let restored: SessionStatePayload = serde_json::from_str(&json).expect("deserialize");
         match restored {
-            SessionStatePayload::VisibleTranscriptWindow { window } => {
-                assert_eq!(window.session_id, "session-1");
-                assert_eq!(window.graph_revision, SessionGraphRevision::new(3, 2, 9));
-                assert_eq!(window.viewport_revision, 4);
-                assert_eq!(window.total_height_px, 240);
-                assert_eq!(window.rows.len(), 0);
+            SessionStatePayload::ViewportBufferPush { push } => {
+                assert_eq!(push.session_id, "session-1");
+                assert_eq!(push.graph_revision, SessionGraphRevision::new(3, 2, 9));
+                assert_eq!(push.viewport_revision, 4);
+                assert_eq!(push.emission_seq, 7);
+                assert_eq!(push.total_height_px, 240);
+                assert_eq!(push.rows.len(), 0);
             }
             other => panic!("unexpected variant: {other:?}"),
         }

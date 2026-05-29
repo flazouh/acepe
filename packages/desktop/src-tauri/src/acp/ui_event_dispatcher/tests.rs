@@ -1468,7 +1468,10 @@ async fn drain_emits_canonical_append_segments_for_same_message_id_chunks() {
                         other => panic!("unexpected transcript operation: {:?}", other),
                     }
             }
-            crate::acp::session_state_engine::SessionStatePayload::VisibleTranscriptWindow {
+            crate::acp::session_state_engine::SessionStatePayload::ViewportBufferPush {
+                ..
+            } => {}
+            crate::acp::session_state_engine::SessionStatePayload::ViewportBufferDelta {
                 ..
             } => {}
             other => panic!("unexpected session-state payload: {:?}", other),

@@ -5,7 +5,7 @@ import type {
 	SessionGraphActivity,
 	SessionGraphRevision,
 	SessionStateEnvelope,
-	VisibleTranscriptWindowPayload,
+	ViewportBufferPush,
 } from "../../services/acp-types.js";
 import { routeSessionStateEnvelope } from "./session-state-command-router.js";
 import { getSessionStateEnvelopeByteBudget } from "./session-state-envelope-budget.js";
@@ -63,15 +63,17 @@ function createTestOperationSnapshot(): OperationSnapshot {
 	};
 }
 
-function createVisibleWindow(): VisibleTranscriptWindowPayload {
+function createBufferPush(): ViewportBufferPush {
 	return {
 		sessionId: "session-1",
 		graphRevision: revision,
 		viewportRevision: 1,
+		emissionSeq: 0,
+		bufferStartIndex: 0,
+		bufferEndIndex: 1,
+		layoutRowCount: 1,
 		totalHeightPx: 120,
-		viewportOffsetPx: 0,
-		visibleStartIndex: 0,
-		visibleEndIndex: 1,
+		bufferEndOffsetPx: 120,
 		rows: [
 			{
 				rowId: "transcript:assistant-1",
@@ -95,10 +97,11 @@ function createVisibleWindow(): VisibleTranscriptWindowPayload {
 				},
 			},
 		],
-		rowOffsetsPx: [0],
+		offsetsPx: [0],
 		mode: {
 			kind: "followingTail",
 		},
+		scrollTopTarget: null,
 		diagnostics: [],
 	};
 }
@@ -309,28 +312,28 @@ describe("routeSessionStateEnvelope", () => {
 		]);
 	});
 
-	it("routes visible transcript windows as canonical envelope results", () => {
-		const window = createVisibleWindow();
+	it("routes viewport buffer pushes as canonical envelope results", () => {
+		const push = createBufferPush();
 		const envelope: SessionStateEnvelope = {
 			sessionId: "session-1",
 			graphRevision: 8,
 			lastEventSeq: 10,
 			payload: {
-				kind: "visibleTranscriptWindow",
-				window,
+				kind: "viewportBufferPush",
+				push,
 			},
 		};
 
 		expect(routeSessionStateEnvelope("session-1", revision, envelope)).toEqual([
 			{
-				kind: "applyVisibleTranscriptWindow",
-				window,
+				kind: "applyBufferPush",
+				push,
 			},
 		]);
 	});
 
-	it("refreshes instead of applying stale visible transcript windows", () => {
-		const window: VisibleTranscriptWindowPayload = {
+	it("refreshes instead of applying stale viewport buffer pushes", () => {
+		const push: ViewportBufferPush = {
 			sessionId: "session-1",
 			graphRevision: {
 				graphRevision: 7,
@@ -338,15 +341,18 @@ describe("routeSessionStateEnvelope", () => {
 				lastEventSeq: 9,
 			},
 			viewportRevision: 1,
+			emissionSeq: 0,
+			bufferStartIndex: 0,
+			bufferEndIndex: 0,
+			layoutRowCount: 0,
 			totalHeightPx: 0,
-			viewportOffsetPx: 0,
-			visibleStartIndex: 0,
-			visibleEndIndex: 0,
+			bufferEndOffsetPx: 0,
 			rows: [],
-			rowOffsetsPx: [],
+			offsetsPx: [],
 			mode: {
 				kind: "followingTail",
 			},
+			scrollTopTarget: null,
 			diagnostics: [],
 		};
 		const envelope: SessionStateEnvelope = {
@@ -354,8 +360,8 @@ describe("routeSessionStateEnvelope", () => {
 			graphRevision: 8,
 			lastEventSeq: 10,
 			payload: {
-				kind: "visibleTranscriptWindow",
-				window,
+				kind: "viewportBufferPush",
+				push,
 			},
 		};
 

@@ -3,32 +3,16 @@ import type {
 SessionGraphRevision,
 ViewportBufferDelta,
 ViewportBufferPush,
-VisibleTranscriptWindowPayload,
 } from "../../services/acp-types.js";
 
 export type ViewportAttachmentStatus = "attached" | "reattaching" | "reattachFailed";
 
 /**
- * Which viewport wire protocol a session is locked to. The first accepted
- * payload wins until the session detaches/resets, so the legacy
- * `visibleWindow` path and the new `buffer` path can never both mutate the
- * same session's projection.
+ * Which viewport wire protocol a session is locked to. Only the Rust-pushed
+ * `buffer` protocol exists; the discriminator is retained so a session locks to
+ * it on first accepted payload and cannot be written by any other path.
  */
-type ViewportProtocol = "visibleWindow" | "buffer";
-
-export type TranscriptViewportProjection = {
-readonly sessionId: string;
-readonly revision: SessionGraphRevision;
-readonly viewportRevision: number;
-readonly totalHeightPx: number;
-readonly viewportOffsetPx: number;
-readonly visibleStartIndex: number;
-readonly visibleEndIndex: number;
-readonly rows: VisibleTranscriptWindowPayload["rows"];
-readonly rowOffsetsPx: VisibleTranscriptWindowPayload["rowOffsetsPx"];
-readonly mode: VisibleTranscriptWindowPayload["mode"];
-readonly diagnostics: VisibleTranscriptWindowPayload["diagnostics"];
-};
+type ViewportProtocol = "buffer";
 
 /**
  * The WebView-side projection of a Rust `ViewportBufferPush`. `rows[i]` is the
@@ -99,38 +83,6 @@ readonly scrollTopTarget: number | null;
 | { readonly status: "gap" }
 | { readonly status: "stale" }
 | { readonly status: "rejected" };
-
-function isNewerRevision(
-current: { readonly revision: SessionGraphRevision; readonly viewportRevision: number } | null,
-incoming: { readonly graphRevision: SessionGraphRevision; readonly viewportRevision: number }
-): boolean {
-if (current === null) {
-return true;
-}
-if (incoming.graphRevision.graphRevision > current.revision.graphRevision) {
-return true;
-}
-if (incoming.graphRevision.graphRevision < current.revision.graphRevision) {
-return false;
-}
-return incoming.viewportRevision > current.viewportRevision;
-}
-
-function projectionFromWindow(window: VisibleTranscriptWindowPayload): TranscriptViewportProjection {
-return {
-sessionId: window.sessionId,
-revision: window.graphRevision,
-viewportRevision: window.viewportRevision,
-totalHeightPx: window.totalHeightPx,
-viewportOffsetPx: window.viewportOffsetPx,
-visibleStartIndex: window.visibleStartIndex,
-visibleEndIndex: window.visibleEndIndex,
-rows: window.rows,
-rowOffsetsPx: window.rowOffsetsPx,
-mode: window.mode,
-diagnostics: window.diagnostics,
-};
-}
 
 function projectionFromPush(push: ViewportBufferPush): BufferProjection {
 return {
@@ -235,23 +187,9 @@ return result;
 }
 
 export class TranscriptViewportStore {
-private readonly projections = new SvelteMap<string, TranscriptViewportProjection>();
 private readonly bufferProjections = new SvelteMap<string, BufferProjection>();
 private readonly attachmentStatus = new SvelteMap<string, ViewportAttachmentStatus>();
 private readonly protocol = new SvelteMap<string, ViewportProtocol>();
-
-applyVisibleWindow(window: VisibleTranscriptWindowPayload): boolean {
-if (!this.claimProtocol(window.sessionId, "visibleWindow")) {
-return false;
-}
-const current = this.projections.get(window.sessionId) ?? null;
-if (!isNewerRevision(current, window)) {
-return false;
-}
-this.projections.set(window.sessionId, projectionFromWindow(window));
-this.markAttached(window.sessionId);
-return true;
-}
 
 /**
  * Apply a full buffer push (reset). Ordered strictly by the monotonic
@@ -311,13 +249,6 @@ status: "applied",
 scrollAnchorCorrectionPx: delta.scrollAnchorCorrectionPx ?? null,
 scrollTopTarget: delta.scrollTopTarget ?? null,
 };
-}
-
-getProjection(sessionId: string | null): TranscriptViewportProjection | null {
-if (sessionId === null) {
-return null;
-}
-return this.projections.get(sessionId) ?? null;
 }
 
 getBufferProjection(sessionId: string | null): BufferProjection | null {
@@ -416,7 +347,6 @@ return this.attachmentStatus.get(sessionId) ?? "attached";
 
 markReattaching(sessionId: string): void {
 this.attachmentStatus.set(sessionId, "reattaching");
-this.projections.delete(sessionId);
 this.bufferProjections.delete(sessionId);
 this.protocol.delete(sessionId);
 }
@@ -454,7 +384,6 @@ return current === protocol;
 }
 
 removeSession(sessionId: string): void {
-this.projections.delete(sessionId);
 this.bufferProjections.delete(sessionId);
 this.attachmentStatus.delete(sessionId);
 this.protocol.delete(sessionId);
