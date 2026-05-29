@@ -89,6 +89,7 @@ import { DEFAULT_BROWSER_HOME_URL } from "../../../constants/browser-defaults.js
 import { getProviderBrandIcon } from "../../../constants/thread-list-constants.js";
 import { derivePanelViewState } from "../../../logic/panel-visibility.js";
 import { createPanelBranchLookupController } from "../logic/panel-branch-lookup.js";
+import { createAgentPanelExportHandlers } from "../logic/agent-panel-export-handlers.js";
 import { createAgentPanelInteractionHandlers } from "../logic/agent-panel-interaction-handlers.js";
 import type { WorktreeSetupState } from "../logic/worktree-setup-events.js";
 import { shouldAutoScrollOnPanelActivation } from "../logic/should-auto-scroll-on-panel-activation.js";
@@ -139,19 +140,11 @@ import {
 } from "../logic/queue-strip-handlers.js";
 import { resolveTokenRevealSettleDelayMs } from "../../messages/token-reveal-motion.js";
 import {
-	copyStreamingLogPathToClipboard,
-	copyThreadContentToClipboard,
 	discardPreparedWorktreeSessionLaunch,
-	exportSessionJsonToClipboard,
-	exportSessionMarkdownToClipboard,
 	fetchPanelGitBranch,
 	fetchWorktreeHasUncommittedChanges,
 	fetchWorktreePathListedForProject,
 	loadCheckpointsBeforeTimelineOpen,
-	openSessionFileInAcepePanel,
-	openSessionInFinder,
-	openSessionRawFileInEditor,
-	openStreamingLog,
 	persistSessionWorktreePathAfterRename,
 	removeWorktreeFromDisk,
 	runCreatePrWorkflow,
@@ -1664,64 +1657,25 @@ async function handleMergePr(strategy: MergeStrategy) {
 	});
 }
 
-async function handleCopyContent() {
-	if (!sessionId) {
-		toast.error("No thread to copy");
-		return;
-	}
-	await copyThreadContentToClipboard({
-		sessionId,
-		getSessionJsonExportContent: (id) => sessionStore.getSessionJsonExportContent(id),
-	});
-}
-
-async function handleOpenInFinder() {
-	await openSessionInFinder({
-		sessionId,
-		projectPath: sessionProjectPath,
-		agentId: sessionAgentId,
-		sourcePath: sessionMetadata?.sourcePath ?? null,
-	});
-}
-
-async function handleExportRawStreaming() {
-	await openStreamingLog(sessionId);
-}
-
-async function handleCopyStreamingLogPath() {
-	await copyStreamingLogPathToClipboard({ sessionId, logger });
-}
-
-async function handleOpenRawFile() {
-	await openSessionRawFileInEditor({ sessionId, sessionProjectPath });
-}
-
-async function handleOpenInAcepe() {
-	await openSessionFileInAcepePanel({
-		sessionId,
-		sessionProjectPath,
-		effectivePanelId,
-		openFilePanel: (fileName, dirPath, opts) => panelStore.openFilePanel(fileName, dirPath, opts),
-	});
-}
-
-async function handleExportMarkdown(): Promise<void> {
-	if (!sessionId) return;
-	await sessionStore.getSessionMarkdownExportContent(sessionId).match(
-		(markdown) => exportSessionMarkdownToClipboard(markdown),
-		(error) => {
-			toast.error(error.message);
-		}
-	);
-}
-
-async function handleExportJson() {
-	if (!sessionId) return;
-	await exportSessionJsonToClipboard({
-		sessionId,
-		getSessionJsonExportContent: (id) => sessionStore.getSessionJsonExportContent(id),
-	});
-}
+const {
+	handleCopyContent,
+	handleOpenInFinder,
+	handleExportRawStreaming,
+	handleCopyStreamingLogPath,
+	handleOpenRawFile,
+	handleOpenInAcepe,
+	handleExportMarkdown,
+	handleExportJson,
+} = createAgentPanelExportHandlers({
+	getSessionId: () => sessionId,
+	getSessionProjectPath: () => sessionProjectPath,
+	getSessionAgentId: () => sessionAgentId,
+	getSessionSourcePath: () => sessionMetadata?.sourcePath ?? null,
+	getEffectivePanelId: () => effectivePanelId,
+	sessionStore,
+	panelStore,
+	logger,
+});
 
 function handlePanelClick(e: MouseEvent) {
 	const target = e.target as HTMLElement;
