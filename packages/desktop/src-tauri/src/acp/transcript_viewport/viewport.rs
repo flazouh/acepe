@@ -193,7 +193,14 @@ impl TranscriptViewport {
             .layout
             .confirm_height(row_id, version, confirmed_height_px);
         self.repair_detached_anchor();
-        self.bump_viewport_revision();
+        // Only an accepted confirmation changes layout geometry. A rejected
+        // (stale-version / missing-row) confirmation changes nothing, so the
+        // canonical viewport_revision must NOT advance — otherwise the buffer
+        // producer's revision guard would treat each rejected retry as a layout
+        // change and emit a full re-push, recreating the retry storm.
+        if outcome == HeightConfirmationOutcome::Accepted {
+            self.bump_viewport_revision();
+        }
 
         ViewportTransition {
             window: self.window(),

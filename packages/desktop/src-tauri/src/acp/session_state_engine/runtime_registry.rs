@@ -91,6 +91,7 @@ impl Default for SessionGraphRuntimeSnapshot {
 struct BufferEmissionRecord {
     start_index: usize,
     row_ids: Vec<String>,
+    row_versions: Vec<String>,
     viewport_revision: i64,
     emission_seq: u64,
 }
@@ -1299,6 +1300,24 @@ impl SessionGraphRuntimeRegistry {
         if force_fresh {
             emission = BufferEmission::FreshPush;
         }
+        // Identity guard: an index-window delta is only sound when the surviving
+        // rows keep their row_ids. Mid-buffer layout mutation during streaming
+        // (operations resolving, duplicate-id ordinals shifting) breaks that, so
+        // fall back to a full push (always correct, overscan-bounded) rather than
+        // emit a delta that would duplicate a row_id in the consumer's buffer.
+        if matches!(emission, BufferEmission::Delta) {
+            if let Some(record) = prev.as_ref() {
+                if !buffer_delta_is_identity_consistent(
+                    record.start_index,
+                    &record.row_ids,
+                    &record.row_versions,
+                    &full_rows,
+                    &slice,
+                ) {
+                    emission = BufferEmission::FreshPush;
+                }
+            }
+        }
 
         let next_seq = prev.as_ref().map_or(0, |r| r.emission_seq + 1);
 
@@ -1309,6 +1328,10 @@ impl SessionGraphRuntimeRegistry {
         let buffered_row_ids: Vec<String> = full_rows[buffer_start_index..buffer_end_index]
             .iter()
             .map(|row| row.row_id.clone())
+            .collect();
+        let buffered_row_versions: Vec<String> = full_rows[buffer_start_index..buffer_end_index]
+            .iter()
+            .map(|row| row.version.clone())
             .collect();
 
         let payload = match emission {
@@ -1368,6 +1391,7 @@ impl SessionGraphRuntimeRegistry {
             BufferEmissionRecord {
                 start_index: buffer_start_index,
                 row_ids: buffered_row_ids,
+                row_versions: buffered_row_versions,
                 viewport_revision: slice_viewport_revision,
                 emission_seq: next_seq,
             },
@@ -1457,6 +1481,72 @@ pub fn compute_buffer_delta(
         scroll_top_target,
         diagnostics: Vec::new(),
     }
+}
+
+/// Verifies that an index-window [`ViewportBufferDelta`] would be sound for this
+/// transition: the rows that survive (by absolute index) must carry the SAME
+/// `row_id`s in the previously-pushed buffer and in the current canonical
+/// layout.
+///
+/// [`compute_buffer_delta`] and [`classify_buffer_transition`] reason purely
+/// about absolute index windows, which assumes the canonical layout only
+/// mutates at its edges (history prepended at the top, streaming tail appended
+/// at the bottom). During streaming the layout also mutates *mid-buffer* —
+/// operations resolve, interactions attach, and duplicate-id ordinals shift —
+/// so the same absolute index can map to a different row across emissions. An
+/// index-window diff cannot represent a mid-list insert/remove: it emits a
+/// delta whose appended/prepended ids still collide with surviving ids, which
+/// duplicates a `row_id` in the consumer's spliced buffer (a fatal
+/// `each_key_duplicate`). When this returns `false` the caller MUST emit a
+/// fresh [`crate::acp::session_state_engine::protocol::ViewportBufferPush`]
+/// instead (always correct, overscan-bounded).
+#[must_use]
+fn buffer_delta_is_identity_consistent(
+    prev_start_index: usize,
+    prev_row_ids: &[String],
+    prev_row_versions: &[String],
+    current_rows: &[TranscriptViewportRow],
+    slice: &ViewportBufferSlice,
+) -> bool {
+    let c_start = slice.buffer_start_index;
+    let c_end = slice.buffer_end_index;
+    let p_start = prev_start_index;
+    let p_end = prev_start_index + prev_row_ids.len();
+    let buffer_len = c_end.saturating_sub(c_start);
+
+    // Index ranges accessed by `compute_buffer_delta` must be in bounds.
+    if c_end > current_rows.len() {
+        return false;
+    }
+
+    let prepend_count = p_start.saturating_sub(c_start).min(buffer_len);
+    let append_count = c_end.saturating_sub(p_end).min(buffer_len);
+    let removed_from_top = c_start.saturating_sub(p_start).min(prev_row_ids.len());
+
+    let curr_surv_start = c_start + prepend_count;
+    let curr_surv_end = c_end.saturating_sub(append_count);
+    let survivor_len = curr_surv_end.saturating_sub(curr_surv_start);
+
+    if removed_from_top + survivor_len > prev_row_ids.len() {
+        return false;
+    }
+
+    for k in 0..survivor_len {
+        let current = &current_rows[curr_surv_start + k];
+        // Identity: a mismatched id means the layout mutated mid-buffer and an
+        // index delta would duplicate a row_id (crash).
+        if current.row_id != prev_row_ids[removed_from_top + k] {
+            return false;
+        }
+        // Freshness: the consumer keeps its OWN prior survivor objects across a
+        // delta. If a survivor's version changed (content/links/tail), the
+        // delta would leave the consumer rendering stale state. Re-send the
+        // whole buffer so the survivor's new content lands.
+        if current.version != prev_row_versions[removed_from_top + k] {
+            return false;
+        }
+    }
+    true
 }
 
 /// The three mutually-exclusive outcomes of a scroll/refill intent, classified
@@ -3885,7 +3975,8 @@ mod tests {
     }
 
     #[test]
-    fn buffer_emission_streaming_append_is_delta_and_noop_does_not_consume_seq() {
+    fn buffer_emission_streaming_append_that_moves_tail_is_fresh_push_and_noop_does_not_consume_seq(
+    ) {
         let runtime_registry = SessionGraphRuntimeRegistry::new();
         let projection_registry = ProjectionRegistry::new();
         let transcript_projection_registry = TranscriptProjectionRegistry::new();
@@ -3948,17 +4039,38 @@ mod tests {
                 false,
             )
             .expect("streaming emission")
-            .expect("streaming append must emit a delta");
+            .expect("streaming append must emit a payload");
 
+        // Appending a new trailing assistant row moves the active streaming tail off the
+        // previous tail row, changing that survivor's content version. The delta wire cannot
+        // express "a survivor changed" (only prepend/append/remove), so the identity guard
+        // must promote to a FreshPush to avoid leaving the consumer rendering a stale
+        // streaming-tail indicator. The intervening NoOp must still not have consumed a seq.
         match envelope.payload {
-            SessionStatePayload::ViewportBufferDelta { delta } => {
+            SessionStatePayload::ViewportBufferPush { push } => {
                 assert_eq!(
-                    delta.emission_seq, 1,
-                    "delta seq is prev+1; the intervening NoOp must not have consumed a seq"
+                    push.emission_seq, 1,
+                    "fresh push seq is prev+1; the intervening NoOp must not have consumed a seq"
                 );
-                assert!(!delta.appended_rows.is_empty(), "tail append must carry rows");
+                assert_eq!(
+                    push.rows.len(),
+                    4,
+                    "fresh push re-sends the whole buffer incl. the de-tailed survivor and new tail"
+                );
+                assert!(
+                    push.rows
+                        .last()
+                        .is_some_and(|row| row.active_streaming_tail.is_some()),
+                    "the newly appended row is the streaming tail"
+                );
+                assert!(
+                    push.rows[..push.rows.len() - 1]
+                        .iter()
+                        .all(|row| row.active_streaming_tail.is_none()),
+                    "prior survivors are no longer the streaming tail"
+                );
             }
-            other => panic!("expected ViewportBufferDelta, got {other:?}"),
+            other => panic!("expected ViewportBufferPush, got {other:?}"),
         }
     }
 
@@ -4160,7 +4272,7 @@ mod tests {
         );
     }
 
-    use super::compute_buffer_delta;
+    use super::{buffer_delta_is_identity_consistent, compute_buffer_delta};
     use crate::acp::transcript_projection::TranscriptEntryRole;
     use crate::acp::transcript_viewport::{
         TranscriptViewportRow, TranscriptViewportRowContent, TranscriptViewportRowKind,
@@ -4214,6 +4326,10 @@ mod tests {
 
     fn row_ids(indices: std::ops::Range<usize>) -> Vec<String> {
         indices.map(|i| format!("transcript:row-{i}")).collect()
+    }
+
+    fn row_versions(indices: std::ops::Range<usize>) -> Vec<String> {
+        indices.map(|i| format!("v-{i}")).collect()
     }
 
     #[test]
@@ -4355,6 +4471,74 @@ mod tests {
         assert!(delta.removed_row_ids.is_empty());
         assert_eq!(delta.from_viewport_revision, 8);
         assert_eq!(delta.to_viewport_revision, 9);
+    }
+
+    #[test]
+    fn buffer_delta_identity_consistent_accepts_clean_tail_append() {
+        // Streaming tail-append: prev buffer [row-0..row-4], current grows to 7
+        // rows, window [0,7). Survivors keep their ids and versions, so an index
+        // delta is sound.
+        let layout = delta_layout(7);
+        let prev_ids = row_ids(0..5);
+        let prev_versions = row_versions(0..5);
+        let slice = delta_slice(0, 7, 7, 2);
+
+        assert!(buffer_delta_is_identity_consistent(
+            0,
+            &prev_ids,
+            &prev_versions,
+            &layout,
+            &slice
+        ));
+    }
+
+    #[test]
+    fn buffer_delta_identity_inconsistent_on_mid_buffer_insert() {
+        // A row is inserted mid-buffer between emissions (e.g. an operation
+        // resolves) and the tail-follow window shifts. The index-window delta
+        // would keep `row-4` as a survivor AND re-append it, duplicating a
+        // row_id in the consumer's spliced buffer. The producer must detect the
+        // identity drift and fall back to a fresh push.
+        let prev_ids = row_ids(0..5); // [row-0, row-1, row-2, row-3, row-4]
+        let prev_versions = row_versions(0..5);
+        let current = vec![
+            delta_row(0),
+            delta_row(99), // inserted mid-buffer
+            delta_row(1),
+            delta_row(2),
+            delta_row(3),
+            delta_row(4),
+        ];
+        // Window slid to [1,6): current buffer ids [row-99, row-1, row-2, row-3, row-4].
+        let slice = delta_slice(1, 6, 6, 2);
+
+        assert!(!buffer_delta_is_identity_consistent(
+            0,
+            &prev_ids,
+            &prev_versions,
+            &current,
+            &slice
+        ));
+    }
+
+    #[test]
+    fn buffer_delta_identity_inconsistent_on_survivor_version_change() {
+        // A survivor keeps its row_id but its content changed (new version). An
+        // index delta would not re-send it, so the consumer would render stale
+        // content. The producer must fall back to a fresh push.
+        let layout = delta_layout(7);
+        let prev_ids = row_ids(0..5);
+        let mut prev_versions = row_versions(0..5);
+        prev_versions[2] = "stale-version".to_string();
+        let slice = delta_slice(0, 7, 7, 2);
+
+        assert!(!buffer_delta_is_identity_consistent(
+            0,
+            &prev_ids,
+            &prev_versions,
+            &layout,
+            &slice
+        ));
     }
 
     use super::{classify_buffer_transition, BufferEmission};
