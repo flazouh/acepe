@@ -205,6 +205,9 @@ const sessionController = new AgentPanelSessionController({
 	getPanelId: () => panelId,
 	sessionStore,
 	panelStore,
+	getPanelConnectionState: () => panelConnectionState,
+	getPanelConnectionError: () => panelConnectionError,
+	getAgentName: () => agentName,
 });
 
 setThinkingPreferences({
@@ -457,69 +460,17 @@ const isAwaitingModelResponse = $derived(sessionController.isAwaitingModelRespon
 const showPlanningIndicator = $derived(sessionController.showPlanningIndicator);
 const sessionCanSubmit = $derived(sessionController.sessionCanSubmit);
 const sessionShowStop = $derived(sessionController.sessionShowStop);
-const sessionConnectionError = $derived(
-	sessionId ? sessionStore.getSessionConnectionError(sessionId) : null
-);
-const sessionFailureReason = $derived(
-	sessionId ? sessionStore.getSessionLifecycleFailureReason(sessionId) : null
-);
-const activeTurnError = $derived.by(() => {
-	const activeTurnFailure = sessionId ? sessionStore.getSessionActiveTurnFailure(sessionId) : null;
-	if (activeTurnFailure) {
-		return {
-			content: activeTurnFailure.message,
-			code: activeTurnFailure.code ?? undefined,
-			kind: activeTurnFailure.kind,
-			source: activeTurnFailure.source,
-		};
-	}
-
-	return null;
-});
-const disableSendForFailedFirstSend = $derived(
-	panelConnectionState
-		? shouldDisableSendForFailedFirstSend({
-				hasSession: Boolean(sessionId),
-				panelConnectionState,
-			})
-		: false
-);
-const errorInfo = $derived.by(() =>
-	derivePanelErrorInfo({
-		panelConnectionState,
-		panelConnectionError,
-		sessionConnectionError,
-		sessionTurnState: sessionTurnState,
-		activeTurnError,
-		sessionFailureReason,
-		agentDisplayName: agentName,
-	})
-);
-// Deterministic local reference id derived purely from error content.
-// When `errorInfo.referenceId` exists (panel-level error with an upstream id),
-// we use it directly; otherwise we mint a stable id from the (title, details)
-// fingerprint so the same error keeps the same id without an $effect.
-const fallbackInlineErrorReferenceId = $derived.by(() => {
-	if (!errorInfo.showError || errorInfo.details === null) {
-		return null;
-	}
-	if (errorInfo.referenceId !== null) {
-		return null;
-	}
-	return deriveLocalReferenceId(`${errorInfo.title}|${errorInfo.details}`);
-});
-const inlineErrorReferenceId = $derived(errorInfo.referenceId ?? fallbackInlineErrorReferenceId);
-const inlineErrorReferenceSearchable = $derived(
-	errorInfo.referenceId !== null ? errorInfo.referenceSearchable : false
-);
-
-// Dismissal key: errors with the same (failureReason, details) pair are the
-// same logical error; if the user dismisses one, they dismiss the same error
-// across reactive reads. New failureReason or new details ⇒ new key ⇒ the
-// dismissal is automatically lifted (no $effect needed).
-const errorDismissalKey = $derived(
-	errorInfo.showError ? `${errorInfo.failureReason ?? "none"}::${errorInfo.details ?? ""}` : null
-);
+// Error/connection derivations now live on the session controller (single
+// source + unit-tested); the connection $state + retry/cancel/dismiss handlers
+// stay here (tangled with agentInputRef). Thin reactive aliases; ref-inline U5.
+const sessionConnectionError = $derived(sessionController.sessionConnectionError);
+const sessionFailureReason = $derived(sessionController.sessionFailureReason);
+const activeTurnError = $derived(sessionController.activeTurnError);
+const disableSendForFailedFirstSend = $derived(sessionController.disableSendForFailedFirstSend);
+const errorInfo = $derived(sessionController.errorInfo);
+const inlineErrorReferenceId = $derived(sessionController.inlineErrorReferenceId);
+const inlineErrorReferenceSearchable = $derived(sessionController.inlineErrorReferenceSearchable);
+const errorDismissalKey = $derived(sessionController.errorDismissalKey);
 const errorDismissed = $derived(
 	errorDismissalKey !== null && dismissedErrorKey === errorDismissalKey
 );
@@ -926,7 +877,11 @@ let agentInputRef = $state<{
 	retrySend: () => void;
 	restoreQueuedMessage: (draft: string, attachments: readonly Attachment[]) => void;
 } | null>(null);
-let isRetryingConnection = $state(false);
+// Retry-busy is now derived (plan Decision 7): set `retryActive` true on retry,
+// clear it via the 4s fallback timer; the spinner auto-clears when the failure
+// state transitions away (`stillFailed` goes false) — no $effect needed.
+let retryActive = $state(false);
+const isRetryingConnection = $derived(retryActive && sessionController.stillFailed);
 let retryBusyTimer: ReturnType<typeof setTimeout> | null = null;
 let headerRef: HTMLElement | undefined = $state();
 
@@ -1665,16 +1620,16 @@ function handleRetryConnection() {
 	if (isRetryingConnection) {
 		return;
 	}
-	isRetryingConnection = true;
+	retryActive = true;
 	if (retryBusyTimer !== null) {
 		clearTimeout(retryBusyTimer);
 	}
-	// Auto-clear after a short window so the spinner doesn't hang forever
-	// if the underlying state machine doesn't bounce. The state-driven
-	// reactive clear below also resets it as soon as the error/turn state
-	// transitions away from the failure.
+	// Auto-clear after a short window so the spinner doesn't hang forever if the
+	// underlying state machine doesn't bounce. The derived `isRetryingConnection`
+	// (retryActive && stillFailed) also clears as soon as the failure state
+	// transitions away — see Decision 7.
 	retryBusyTimer = setTimeout(() => {
-		isRetryingConnection = false;
+		retryActive = false;
 		retryBusyTimer = null;
 	}, 4000);
 
@@ -1710,23 +1665,6 @@ function handleRetryConnection() {
 		},
 	});
 }
-
-// Clear the retry busy flag as soon as the underlying state advances
-// (turn becomes non-failed, error info clears, or panel reconnects).
-$effect(() => {
-	const stillFailed =
-		errorInfo.showError ||
-		activeTurnError !== null ||
-		sessionTurnState === "error" ||
-		panelConnectionState === PanelConnectionState.ERROR;
-	if (!stillFailed && isRetryingConnection) {
-		isRetryingConnection = false;
-		if (retryBusyTimer !== null) {
-			clearTimeout(retryBusyTimer);
-			retryBusyTimer = null;
-		}
-	}
-});
 
 function handleCancelConnection() {
 	// For now, just show a message that cancellation is not implemented

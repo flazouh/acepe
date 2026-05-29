@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { PanelStore } from "../../../../store/panel-store.svelte.js";
 import type { SessionStore } from "../../../../store/session-store.svelte.js";
+import { PanelConnectionState } from "../../../../types/panel-connection-state.js";
 import { AgentPanelSessionController } from "../agent-panel-session-controller.svelte.js";
 
 /**
@@ -27,6 +28,9 @@ describe("AgentPanelSessionController", () => {
 			getPanelId: () => holder.panelId,
 			sessionStore: stubSessionStore,
 			panelStore: stubPanelStore,
+			getPanelConnectionState: () => null,
+			getPanelConnectionError: () => null,
+			getAgentName: () => "",
 		});
 		return { controller, holder };
 	};
@@ -64,6 +68,9 @@ describe("AgentPanelSessionController", () => {
 				getPanelId: () => panelId,
 				sessionStore,
 				panelStore: stubPanelStore,
+				getPanelConnectionState: () => null,
+				getPanelConnectionError: () => null,
+				getAgentName: () => "",
 			});
 
 		it("derives identity scalars from the session store", () => {
@@ -117,6 +124,9 @@ describe("AgentPanelSessionController", () => {
 				getPanelId: () => "p1",
 				sessionStore,
 				panelStore,
+				getPanelConnectionState: () => null,
+				getPanelConnectionError: () => null,
+				getAgentName: () => "",
 			});
 		};
 
@@ -130,6 +140,39 @@ describe("AgentPanelSessionController", () => {
 		it("reports hasMessages false when there are no entries", () => {
 			const c = makeWithEntries(0);
 			expect(c.hasMessages).toBe(false);
+		});
+	});
+
+	describe("Cluster C — error / connection (Decision 7 stillFailed)", () => {
+		const makeWithConnection = (connectionState: PanelConnectionState | null) => {
+			const sessionStore = {
+				getSessionConnectionError: () => null,
+				getSessionLifecycleFailureReason: () => null,
+				getSessionActiveTurnFailure: () => null,
+				getSessionAgentPanelSessionSource: () => ({ kind: "uninitialized" }),
+				getSessionPendingSendIntent: () => null,
+				getSessionTranscriptEntries: () => [],
+				getSessionLifecyclePresentation: () => null,
+				getSessionAgentPanelCanonicalSource: () => null,
+			} as unknown as SessionStore;
+			const panelStore = { getHotState: () => null } as unknown as PanelStore;
+			return new AgentPanelSessionController({
+				getSessionId: () => "s1",
+				getPanelId: () => "p1",
+				sessionStore,
+				panelStore,
+				getPanelConnectionState: () => connectionState,
+				getPanelConnectionError: () => null,
+				getAgentName: () => "Claude",
+			});
+		};
+
+		it("reports stillFailed true when the panel connection is in ERROR", () => {
+			expect(makeWithConnection(PanelConnectionState.ERROR).stillFailed).toBe(true);
+		});
+
+		it("reports stillFailed false when there is no failure", () => {
+			expect(makeWithConnection(null).stillFailed).toBe(false);
 		});
 	});
 });

@@ -19,19 +19,34 @@
 import {
 	deriveCanonicalAgentPanelSessionState,
 	deriveCanonicalUserEntryPresence,
+	derivePanelErrorInfo,
 	resolveCanonicalAgentPanelTurnState,
 	resolveOptimisticUserEntryForGraph,
 	resolveVisibleEntryCount,
 } from "../logic";
+import { shouldDisableSendForFailedFirstSend } from "../../agent-input/logic/first-send-recovery.js";
 import type { PanelStore } from "../../../store/panel-store.svelte.js";
 import type { SessionStore } from "../../../store/session-store.svelte.js";
+import {
+	PanelConnectionState,
+	type PanelConnectionErrorDetails,
+} from "../../../types/panel-connection-state.js";
 import { extractAttachmentsFromChunks } from "../../../utils/extract-content-attachments.js";
+import { deriveLocalReferenceId } from "$lib/errors/error-reference.js";
 
 export interface AgentPanelSessionControllerDeps {
 	getSessionId: () => string | null;
 	getPanelId: () => string | undefined;
 	sessionStore: SessionStore;
 	panelStore: PanelStore;
+	/**
+	 * Connection state + agent name stay as component `$state`/`$derived` (the
+	 * retry/cancel/dismiss handlers are tangled with component DOM refs), so the
+	 * error derivations read them through accessors.
+	 */
+	getPanelConnectionState: () => PanelConnectionState | null;
+	getPanelConnectionError: () => PanelConnectionErrorDetails | null;
+	getAgentName: () => string;
 }
 
 export class AgentPanelSessionController {
@@ -194,4 +209,92 @@ export class AgentPanelSessionController {
 	);
 	readonly sessionCanSubmit = $derived.by(() => this.canonicalPanelSessionState.canSubmit);
 	readonly sessionShowStop = $derived.by(() => this.canonicalPanelSessionState.showStop);
+
+	// ── Cluster C: error / connection derivations ───────────────────────
+	// Connection $state + the retry/cancel/dismiss handlers stay in the
+	// component (tangled with the agent-input DOM ref); these derivations read
+	// that state via accessors. The retry-busy $effect is eliminated in favour
+	// of `stillFailed` + a component-side `$derived` (plan Decision 7).
+
+	readonly sessionConnectionError = $derived.by(() => {
+		const id = this.#deps.getSessionId();
+		return id ? this.#deps.sessionStore.getSessionConnectionError(id) : null;
+	});
+
+	readonly sessionFailureReason = $derived.by(() => {
+		const id = this.#deps.getSessionId();
+		return id ? this.#deps.sessionStore.getSessionLifecycleFailureReason(id) : null;
+	});
+
+	readonly activeTurnError = $derived.by(() => {
+		const id = this.#deps.getSessionId();
+		const activeTurnFailure = id ? this.#deps.sessionStore.getSessionActiveTurnFailure(id) : null;
+		if (activeTurnFailure) {
+			return {
+				content: activeTurnFailure.message,
+				code: activeTurnFailure.code ?? undefined,
+				kind: activeTurnFailure.kind,
+				source: activeTurnFailure.source,
+			};
+		}
+		return null;
+	});
+
+	readonly disableSendForFailedFirstSend = $derived.by(() => {
+		const panelConnectionState = this.#deps.getPanelConnectionState();
+		return panelConnectionState
+			? shouldDisableSendForFailedFirstSend({
+					hasSession: Boolean(this.#deps.getSessionId()),
+					panelConnectionState,
+				})
+			: false;
+	});
+
+	readonly errorInfo = $derived.by(() =>
+		derivePanelErrorInfo({
+			panelConnectionState: this.#deps.getPanelConnectionState(),
+			panelConnectionError: this.#deps.getPanelConnectionError(),
+			sessionConnectionError: this.sessionConnectionError,
+			sessionTurnState: this.sessionTurnState,
+			activeTurnError: this.activeTurnError,
+			sessionFailureReason: this.sessionFailureReason,
+			agentDisplayName: this.#deps.getAgentName(),
+		})
+	);
+
+	readonly fallbackInlineErrorReferenceId = $derived.by(() => {
+		if (!this.errorInfo.showError || this.errorInfo.details === null) {
+			return null;
+		}
+		if (this.errorInfo.referenceId !== null) {
+			return null;
+		}
+		return deriveLocalReferenceId(`${this.errorInfo.title}|${this.errorInfo.details}`);
+	});
+
+	readonly inlineErrorReferenceId = $derived.by(
+		() => this.errorInfo.referenceId ?? this.fallbackInlineErrorReferenceId
+	);
+
+	readonly inlineErrorReferenceSearchable = $derived.by(() =>
+		this.errorInfo.referenceId !== null ? this.errorInfo.referenceSearchable : false
+	);
+
+	readonly errorDismissalKey = $derived.by(() =>
+		this.errorInfo.showError
+			? `${this.errorInfo.failureReason ?? "none"}::${this.errorInfo.details ?? ""}`
+			: null
+	);
+
+	/**
+	 * Whether the session is still in a failed state — drives the retry-busy
+	 * derivation in the component (replaces the former clearing $effect).
+	 */
+	readonly stillFailed = $derived.by(
+		() =>
+			this.errorInfo.showError ||
+			this.activeTurnError !== null ||
+			this.sessionTurnState === "error" ||
+			this.#deps.getPanelConnectionState() === PanelConnectionState.ERROR
+	);
 }
