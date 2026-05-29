@@ -4074,6 +4074,87 @@ mod tests {
         }
     }
 
+    // Regression guard: the identity-soundness check must be SURGICAL. It promotes to a
+    // FreshPush only when surviving rows actually drift (id or version). A pure scroll slide
+    // over a layout larger than the overscan buffer leaves survivors byte-identical, so the
+    // stateful emitter must still emit a real ViewportBufferDelta. This proves the guard did
+    // not globally defeat the byte-optimal scroll-refill path while fixing the streaming crash.
+    #[test]
+    fn buffer_emission_scroll_slide_with_stable_survivors_still_emits_delta() {
+        let runtime_registry = SessionGraphRuntimeRegistry::new();
+        let projection_registry = ProjectionRegistry::new();
+        let transcript_projection_registry = TranscriptProjectionRegistry::new();
+        // 120 rows @ 120px each (1440px tall) far exceeds the 50-row overscan window, so a
+        // scroll slides the buffer instead of always covering the whole layout.
+        let revision = seed_buffer_emission_session(
+            &runtime_registry,
+            &projection_registry,
+            &transcript_projection_registry,
+            "s",
+            120,
+        );
+
+        // seq 0 baseline push, following the tail at a fixed height.
+        let baseline = runtime_registry
+            .build_or_advance_viewport_buffer_envelope(
+                "s",
+                revision,
+                &projection_registry,
+                &transcript_projection_registry,
+                Some(720),
+                None,
+                None,
+                None,
+                false,
+            )
+            .expect("baseline emission")
+            .expect("baseline push");
+        let baseline_end = match baseline.payload {
+            SessionStatePayload::ViewportBufferPush { push } => push.buffer_end_index,
+            other => panic!("expected baseline ViewportBufferPush, got {other:?}"),
+        };
+
+        // Scroll up ~10 rows. Same height (no height-confirm push), same content (no version
+        // drift), window slides toward the top -> prepend-only delta with stable survivors.
+        let envelope = runtime_registry
+            .build_or_advance_viewport_buffer_envelope(
+                "s",
+                revision,
+                &projection_registry,
+                &transcript_projection_registry,
+                Some(720),
+                Some(crate::acp::transcript_viewport::ScrollIntent::DetachAtOffset {
+                    offset_px: 12_480,
+                }),
+                None,
+                None,
+                false,
+            )
+            .expect("scroll emission")
+            .expect("scroll slide must emit a payload");
+
+        match envelope.payload {
+            SessionStatePayload::ViewportBufferDelta { delta } => {
+                assert_eq!(
+                    delta.emission_seq, 1,
+                    "delta takes prev+1 after the baseline push"
+                );
+                assert!(
+                    !delta.prepended_rows.is_empty(),
+                    "scrolling up reveals earlier rows as a prepend"
+                );
+                assert!(
+                    delta.appended_rows.is_empty() && delta.removed_row_ids.is_empty(),
+                    "an upward scroll only prepends; survivors and tail are untouched"
+                );
+                let _ = baseline_end;
+            }
+            other => panic!(
+                "scroll slide with stable survivors must stay a Delta, got {other:?}"
+            ),
+        }
+    }
+
     #[test]
     fn buffer_emission_accepted_height_confirmation_forces_fresh_push() {
         let runtime_registry = SessionGraphRuntimeRegistry::new();
