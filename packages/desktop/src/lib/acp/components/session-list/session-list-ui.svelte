@@ -33,8 +33,6 @@ import {
 	Skeleton,
 } from "$lib/components/ui/skeleton/index.js";
 import * as Tooltip from "$lib/components/ui/tooltip/index.js";
-import type { FileGitStatus } from "$lib/services/converted-session-types.js";
-import type { GitRemoteStatus } from "$lib/utils/tauri-client/git.js";
 import { tauriClient } from "$lib/utils/tauri-client.js";
 import type { AgentInfo } from "../../logic/agent-manager.js";
 import ProjectFileSystemDialog from "../file-explorer-modal/project-file-system-dialog.svelte";
@@ -47,6 +45,13 @@ import {
 	isSessionListNearBottom,
 	resolveDefaultAgentIdForCreate,
 } from "./session-list-logic.js";
+import {
+	fetchRemote,
+	type GitOverviewData,
+	type GitOverviewState,
+	loadGitOverview as loadGitOverviewImpl,
+	pullRemote,
+} from "./session-list-git-overview.js";
 import {
 	getMovedProjectOrder,
 	getProjectGroupByPath,
@@ -363,11 +368,6 @@ function handleSessionListScroll(projectPath: string, totalSessions: number): vo
 }
 
 // ─── Git overview state (per-project) ──────────────────────────────
-type GitOverviewData = {
-	branch: string | null;
-	gitStatus: ReadonlyArray<FileGitStatus> | null;
-	remoteStatus: GitRemoteStatus | null;
-};
 const gitDataByProject = new SvelteMap<string, GitOverviewData>();
 const gitLoadedProjects = new SvelteSet<string>();
 const nonGitProjects = new SvelteSet<string>();
@@ -375,78 +375,17 @@ const fetchingProjects = new SvelteSet<string>();
 const pullingProjects = new SvelteSet<string>();
 const gitOverviewRequestVersionByProject = new Map<string, number>();
 let initializingGitProject = $state<string | null>(null);
+const gitOverviewState: GitOverviewState = {
+	gitDataByProject,
+	gitLoadedProjects,
+	nonGitProjects,
+	fetchingProjects,
+	pullingProjects,
+	gitOverviewRequestVersionByProject,
+};
 
 function loadGitOverview(projectPath: string) {
-	if (gitLoadedProjects.has(projectPath)) return;
-	const requestVersion = (gitOverviewRequestVersionByProject.get(projectPath) ?? 0) + 1;
-	gitOverviewRequestVersionByProject.set(projectPath, requestVersion);
-
-	void tauriClient.git.isRepo(projectPath).match(
-		(isRepo) => {
-			if (gitOverviewRequestVersionByProject.get(projectPath) !== requestVersion) {
-				return;
-			}
-
-			if (!isRepo) {
-				gitLoadedProjects.delete(projectPath);
-				gitDataByProject.delete(projectPath);
-				nonGitProjects.add(projectPath);
-				return;
-			}
-
-			gitLoadedProjects.add(projectPath);
-			void tauriClient.fileIndex.getProjectGitOverviewSummary(projectPath).match(
-				(overview) => {
-					if (gitOverviewRequestVersionByProject.get(projectPath) !== requestVersion) {
-						return;
-					}
-
-					nonGitProjects.delete(projectPath);
-					gitDataByProject.set(projectPath, {
-						branch: overview.branch,
-						gitStatus: overview.gitStatus,
-						remoteStatus: null,
-					});
-					// Also load remote status
-					void tauriClient.git.remoteStatus(projectPath).match(
-						(status) => {
-							if (gitOverviewRequestVersionByProject.get(projectPath) !== requestVersion) {
-								return;
-							}
-
-							const current = gitDataByProject.get(projectPath);
-							if (current) {
-								gitDataByProject.set(projectPath, {
-									branch: current.branch,
-									gitStatus: current.gitStatus,
-									remoteStatus: status,
-								});
-							}
-						},
-						() => {}
-					);
-				},
-				() => {
-					if (gitOverviewRequestVersionByProject.get(projectPath) !== requestVersion) {
-						return;
-					}
-
-					gitLoadedProjects.delete(projectPath);
-					gitDataByProject.delete(projectPath);
-					nonGitProjects.add(projectPath);
-				}
-			);
-		},
-		() => {
-			if (gitOverviewRequestVersionByProject.get(projectPath) !== requestVersion) {
-				return;
-			}
-
-			gitLoadedProjects.delete(projectPath);
-			gitDataByProject.delete(projectPath);
-			nonGitProjects.add(projectPath);
-		}
-	);
+	loadGitOverviewImpl(gitOverviewState, projectPath);
 }
 
 function handleInitGitRepo(event: MouseEvent, projectPath: string): void {
@@ -488,47 +427,12 @@ function handleInitGitRepo(event: MouseEvent, projectPath: string): void {
 
 function handleFetchRemote(event: MouseEvent, projectPath: string) {
 	event.stopPropagation();
-	if (fetchingProjects.has(projectPath)) return;
-	fetchingProjects.add(projectPath);
-
-	void tauriClient.git.fetch(projectPath).match(
-		() => {
-			void tauriClient.git.remoteStatus(projectPath).match(
-				(status) => {
-					const current = gitDataByProject.get(projectPath);
-					if (current) {
-						gitDataByProject.set(projectPath, { ...current, remoteStatus: status });
-					}
-					fetchingProjects.delete(projectPath);
-				},
-				() => {
-					fetchingProjects.delete(projectPath);
-				}
-			);
-		},
-		() => {
-			fetchingProjects.delete(projectPath);
-		}
-	);
+	fetchRemote(gitOverviewState, projectPath);
 }
 
 function handlePullRemote(event: MouseEvent, projectPath: string) {
 	event.stopPropagation();
-	if (pullingProjects.has(projectPath)) return;
-	pullingProjects.add(projectPath);
-
-	void tauriClient.git.pull(projectPath).match(
-		() => {
-			gitLoadedProjects.delete(projectPath);
-			loadGitOverview(projectPath);
-			toast.success("Branch updated");
-			pullingProjects.delete(projectPath);
-		},
-		(err) => {
-			toast.error(err?.message ?? "Pull failed");
-			pullingProjects.delete(projectPath);
-		}
-	);
+	pullRemote(gitOverviewState, projectPath);
 }
 
 // Load git overview for all projects on mount
