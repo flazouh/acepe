@@ -103,7 +103,10 @@ For dev QA, inspect only one of these:
 2. the running Tauri dev app from this checkout, normally `packages/desktop/src-tauri/target/debug/acepe`
 3. Computer Use attached to the dev Tauri window, only after proving it is not `/Applications/Acepe.app`
 
-Do not run `bun dev`. The user manages the dev server.
+Do not run `bun dev`. The user manages the dev server — with one sanctioned
+exception: if the built binary is stale relative to the Rust change you are
+QA-ing, you may stop and restart the dev process so the rebuild picks up your
+code (see Step 1b). Always note that you restarted it.
 
 ## Required Order
 
@@ -122,6 +125,79 @@ ps aux | rg '/Applications/Acepe.app|com.acepe.app|target/debug/acepe|tauri dev'
 ```
 
 If only `/Applications/Acepe.app` is visible, stop and tell the user dev QA is blocked because the dev Tauri window is not available.
+
+### 1b. Verify The Built Binary Matches Your Changes (and restart if stale)
+
+QA is only valid against a build that actually contains the code under test. The
+two layers behave differently:
+
+- **Frontend (`.svelte` / `.ts` under `packages/desktop/src`)** is hot-reloaded
+  by Vite (~4s). No restart needed — just wait for HMR, then QA.
+- **Rust (`packages/desktop/src-tauri/**/*.rs`)** requires a recompiled binary.
+  `tauri dev` normally rebuilds + relaunches on a Rust change, but a build can be
+  stale if the running binary predates your edit/commit, if the rebuild was never
+  triggered, or if the watcher missed the change.
+
+**Detect a stale binary** before trusting Rust-dependent QA:
+
+```bash
+BIN=packages/desktop/src-tauri/target/debug/acepe
+# Any Rust source newer than the running binary ⇒ stale.
+find packages/desktop/src-tauri/src -name '*.rs' -newer "$BIN" | head
+# Or compare directly: binary build time vs your latest Rust commit time.
+ls -l --time-style=+%s "$BIN" 2>/dev/null || stat -f '%m %N' "$BIN"
+git log -1 --format='%ct %h %s' -- packages/desktop/src-tauri
+```
+
+If the binary mtime is older than the newest relevant `.rs` source/commit, the
+running app does **not** contain your Rust change. Your QA result would be
+meaningless (you'd be testing the old producer/backend).
+
+**Sanctioned restart (the one exception to "the user manages the dev server").**
+When — and only when — the binary is stale **and** your QA depends on a Rust
+change that isn't in it, you may stop the running dev process and restart it so
+the rebuild picks up your code. State clearly in your QA notes that you did this.
+
+1. Identify the dev processes (do not guess — list them):
+
+   ```bash
+   ps aux | rg 'bun run tauri dev|tauri dev|vite dev|target/debug/acepe' | rg -v rg
+   ```
+
+2. Stop them with `kill <PID>` on the **specific PIDs** — never `pkill` /
+   `killall` (forbidden, and they can hit unrelated processes). Kill the
+   top-level launcher (`bun run tauri dev`) first; it cascades to the children.
+   Kill the `acepe` binary PID too if it lingers.
+
+   ```bash
+   kill <bun-run-tauri-dev-PID> <vite-dev-PID> <acepe-binary-PID>
+   ```
+
+3. Restart from `packages/desktop` as a detached background process (use the
+   exact command the user runs), redirecting output to a log:
+
+   ```bash
+   cd packages/desktop && (bun run tauri dev >/tmp/acepe-dev.log 2>&1 &)
+   ```
+
+4. Wait for the Rust rebuild to finish and the bridge to come back up before
+   resuming QA (a debug rebuild can take a few minutes):
+
+   ```bash
+   # Poll for the bridge port to listen again (PID changes after relaunch).
+   for i in $(seq 1 60); do
+     PID=$(pgrep -f 'target/debug/acepe' | head -1)
+     [ -n "$PID" ] && lsof -Pan -p "$PID" -iTCP 2>/dev/null | rg -q LISTEN && { echo "up: $PID"; break; }
+     sleep 5
+   done
+   tail -5 /tmp/acepe-dev.log
+   ```
+
+5. Re-confirm freshness (Step 1b detection should now report no stale sources),
+   then re-attach the driver session and continue the normal QA pass.
+
+If you are unsure whether a restart is warranted, or the rebuild fails, stop and
+tell the user rather than leaving the dev server down.
 
 ### 2. Use Tauri MCP First
 
