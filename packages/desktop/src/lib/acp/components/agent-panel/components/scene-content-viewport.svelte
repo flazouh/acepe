@@ -164,6 +164,12 @@ const renderedRows = $derived.by(() => {
 
 const totalHeightPx = $derived(bufferProjection?.totalHeightPx ?? 0);
 
+// Anchor for the flow-layout window: the canonical top of the first buffered
+// row. Rows below it flow naturally (block/flex column) so intra-window layout
+// can never overlap or gap regardless of estimate-vs-actual height drift.
+// Canonical offsets still own the scrollbar (totalHeightPx) and refill math.
+const windowTopPx = $derived(renderedRows[0]?.offsetPx ?? 0);
+
 function segmentText(segments: readonly TranscriptSegment[]): string {
 	let text = "";
 	for (const segment of segments) {
@@ -516,11 +522,17 @@ $effect(() => {
 		return;
 	}
 	lastFollowTailTotalHeightPx = totalHeightPx;
-	const target = Math.max(0, totalHeightPx - lastViewportHeightPx);
 	void tick().then(() => {
 		if (scrollContainerRef === null) {
 			return;
 		}
+		// Pin to the ACTUAL reachable bottom, not canonical `totalHeightPx - vh`.
+		// With flow layout the buffered window's real height can exceed its
+		// canonical span while heights are still converging; targeting the real
+		// max scroll keeps the tail in view through that drift (self-heals as
+		// confirmations land). Guarded by suppressNextScrollIntent so this
+		// programmatic scroll never dispatches a (non-canonical) scroll intent.
+		const target = Math.max(0, scrollContainerRef.scrollHeight - scrollContainerRef.clientHeight);
 		if (Math.abs(scrollContainerRef.scrollTop - target) <= 1) {
 			return;
 		}
@@ -573,10 +585,10 @@ export function scrollToTop() {
 		onscroll={handleScroll}
 	>
 		<div style={`height: ${totalHeightPx}px; position: relative; width: 100%;`}>
-			{#each renderedRows as rendered (rendered.row.rowId)}
-				<div
-					style={`position: absolute; left: 0; top: 0; width: 100%; transform: translateY(${rendered.offsetPx}px);`}
-				>
+			<div
+				style={`position: absolute; left: 0; top: 0; width: 100%; transform: translateY(${windowTopPx}px); display: flex; flex-direction: column;`}
+			>
+				{#each renderedRows as rendered (rendered.row.rowId)}
 					<div use:confirmRowHeight={rendered.row} data-entry-key={rendered.row.rowId}>
 						<MessageWrapper
 							entryIndex={rendered.index}
@@ -616,8 +628,8 @@ export function scrollToTop() {
 							{/if}
 						</MessageWrapper>
 					</div>
-				</div>
-			{/each}
+				{/each}
+			</div>
 		</div>
 	</div>
 </div>
