@@ -32,6 +32,7 @@ function bufferPush(input: {
 	readonly rowHeightPx?: number;
 	readonly requestGeneration?: number | null;
 	readonly scrollTopTarget?: number | null;
+	readonly scrollAnchorCorrectionPx?: number | null;
 	readonly mode?: ViewportBufferPush["mode"];
 	readonly emissionSeq?: number;
 }): ViewportBufferPush {
@@ -65,6 +66,7 @@ function bufferPush(input: {
 		mode: input.mode ?? { kind: "followingTail" },
 		requestGeneration: input.requestGeneration ?? null,
 		scrollTopTarget: input.scrollTopTarget ?? null,
+		scrollAnchorCorrectionPx: input.scrollAnchorCorrectionPx ?? null,
 		diagnostics: [],
 	};
 }
@@ -658,6 +660,97 @@ describe("TranscriptViewportStore buffer protocol", () => {
 				})
 			);
 			expect(result).toEqual({ status: "applied", scrollAnchorCorrectionPx: -40, scrollTopTarget: null });
+		});
+	});
+
+	describe("pending scroll correction accumulator", () => {
+		it("starts empty and stays empty for correction-free emissions", () => {
+			const store = new TranscriptViewportStore();
+			store.applyBufferPush(bufferPush({ graphRevision: 1, viewportRevision: 1, emissionSeq: 0 }));
+			expect(store.peekPendingScrollCorrectionPx("session-1")).toBe(0);
+		});
+
+		it("records a correction carried on a push", () => {
+			const store = new TranscriptViewportStore();
+			store.applyBufferPush(
+				bufferPush({ graphRevision: 1, viewportRevision: 1, emissionSeq: 0, scrollAnchorCorrectionPx: -22 })
+			);
+			expect(store.peekPendingScrollCorrectionPx("session-1")).toBe(-22);
+		});
+
+		it("sums corrections across a coalesced burst of deltas", () => {
+			const store = new TranscriptViewportStore();
+			store.applyBufferPush(
+				bufferPush({ graphRevision: 1, viewportRevision: 1, bufferStartIndex: 0, bufferEndIndex: 5, layoutRowCount: 20, emissionSeq: 0 })
+			);
+			store.applyBufferDelta(
+				bufferDelta({ emissionSeq: 1, fromViewportRevision: 1, toViewportRevision: 1, layoutRowCount: 20, bufferEndIndex: 5, scrollAnchorCorrectionPx: -10 })
+			);
+			store.applyBufferDelta(
+				bufferDelta({ emissionSeq: 2, fromViewportRevision: 1, toViewportRevision: 1, layoutRowCount: 20, bufferEndIndex: 5, scrollAnchorCorrectionPx: -15 })
+			);
+			// A single coalesced flush must see the full -25, not just the last -15.
+			expect(store.peekPendingScrollCorrectionPx("session-1")).toBe(-25);
+		});
+
+		it("consume returns the running sum and zeroes it (idempotent thereafter)", () => {
+			const store = new TranscriptViewportStore();
+			store.applyBufferPush(
+				bufferPush({ graphRevision: 1, viewportRevision: 1, bufferStartIndex: 0, bufferEndIndex: 5, layoutRowCount: 20, emissionSeq: 0 })
+			);
+			store.applyBufferDelta(
+				bufferDelta({ emissionSeq: 1, fromViewportRevision: 1, toViewportRevision: 1, layoutRowCount: 20, bufferEndIndex: 5, scrollAnchorCorrectionPx: 30 })
+			);
+			expect(store.consumePendingScrollCorrectionPx("session-1")).toBe(30);
+			expect(store.consumePendingScrollCorrectionPx("session-1")).toBe(0);
+			expect(store.peekPendingScrollCorrectionPx("session-1")).toBe(0);
+		});
+
+		it("an absolute reposition supersedes pending relative drift", () => {
+			const store = new TranscriptViewportStore();
+			store.applyBufferPush(
+				bufferPush({ graphRevision: 1, viewportRevision: 1, bufferStartIndex: 0, bufferEndIndex: 5, layoutRowCount: 20, emissionSeq: 0 })
+			);
+			store.applyBufferDelta(
+				bufferDelta({ emissionSeq: 1, fromViewportRevision: 1, toViewportRevision: 1, layoutRowCount: 20, bufferEndIndex: 5, scrollAnchorCorrectionPx: -30 })
+			);
+			expect(store.peekPendingScrollCorrectionPx("session-1")).toBe(-30);
+			store.applyBufferPush(
+				bufferPush({ graphRevision: 1, viewportRevision: 2, bufferStartIndex: 0, bufferEndIndex: 5, layoutRowCount: 20, emissionSeq: 2, scrollTopTarget: 200 })
+			);
+			expect(store.peekPendingScrollCorrectionPx("session-1")).toBe(0);
+		});
+
+		it("does not accumulate corrections from stale/gapped deltas (projection untouched)", () => {
+			const store = new TranscriptViewportStore();
+			store.applyBufferPush(
+				bufferPush({ graphRevision: 1, viewportRevision: 1, bufferStartIndex: 0, bufferEndIndex: 5, layoutRowCount: 20, emissionSeq: 5 })
+			);
+			// stale (seq <= current)
+			store.applyBufferDelta(
+				bufferDelta({ emissionSeq: 5, fromViewportRevision: 1, toViewportRevision: 1, layoutRowCount: 20, bufferEndIndex: 5, scrollAnchorCorrectionPx: -99 })
+			);
+			// gap (seq skips ahead)
+			store.applyBufferDelta(
+				bufferDelta({ emissionSeq: 8, fromViewportRevision: 1, toViewportRevision: 1, layoutRowCount: 20, bufferEndIndex: 5, scrollAnchorCorrectionPx: -99 })
+			);
+			expect(store.peekPendingScrollCorrectionPx("session-1")).toBe(0);
+		});
+
+		it("clears the accumulator on removeSession", () => {
+			const store = new TranscriptViewportStore();
+			store.applyBufferPush(
+				bufferPush({ graphRevision: 1, viewportRevision: 1, emissionSeq: 0, scrollAnchorCorrectionPx: -40 })
+			);
+			expect(store.peekPendingScrollCorrectionPx("session-1")).toBe(-40);
+			store.removeSession("session-1");
+			expect(store.peekPendingScrollCorrectionPx("session-1")).toBe(0);
+		});
+
+		it("returns 0 for a null session id", () => {
+			const store = new TranscriptViewportStore();
+			expect(store.peekPendingScrollCorrectionPx(null)).toBe(0);
+			expect(store.consumePendingScrollCorrectionPx(null)).toBe(0);
 		});
 	});
 });

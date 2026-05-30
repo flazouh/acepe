@@ -43,6 +43,15 @@ readonly rows: ViewportBufferPush["rows"];
 readonly offsetsPx: ViewportBufferPush["offsetsPx"];
 readonly mode: ViewportBufferPush["mode"];
 readonly scrollTopTarget: number | null;
+/**
+ * Per-emission signed relative scroll correction (px) the controller adds to
+ * the live scrollTop. Recorded here for inspection; the authoritative,
+ * coalescing-safe value the controller applies is the accumulated sum exposed
+ * by {@link TranscriptViewportStore.consumePendingScrollCorrectionPx} (a rapid
+ * burst of corrections can collapse into one Svelte flush, so the last
+ * projection's value alone would drop intermediate corrections).
+ */
+readonly scrollAnchorCorrectionPx: number | null;
 readonly diagnostics: ViewportBufferPush["diagnostics"];
 readonly lastGeneration: number | null;
 };
@@ -99,6 +108,7 @@ rows: push.rows,
 offsetsPx: push.offsetsPx,
 mode: push.mode,
 scrollTopTarget: push.scrollTopTarget ?? null,
+scrollAnchorCorrectionPx: push.scrollAnchorCorrectionPx ?? null,
 diagnostics: push.diagnostics,
 lastGeneration: push.requestGeneration ?? null,
 };
@@ -160,6 +170,7 @@ rows: nextRows,
 offsetsPx: nextOffsets,
 mode: current.mode,
 scrollTopTarget: delta.scrollTopTarget ?? null,
+scrollAnchorCorrectionPx: delta.scrollAnchorCorrectionPx ?? null,
 diagnostics: delta.diagnostics,
 lastGeneration: current.lastGeneration,
 };
@@ -190,6 +201,18 @@ export class TranscriptViewportStore {
 private readonly bufferProjections = new SvelteMap<string, BufferProjection>();
 private readonly attachmentStatus = new SvelteMap<string, ViewportAttachmentStatus>();
 private readonly protocol = new SvelteMap<string, ViewportProtocol>();
+/**
+ * Coalescing-safe accumulator of unconsumed signed scroll corrections (px) per
+ * session. Every accepted correction-bearing push/delta ADDS its
+ * `scrollAnchorCorrectionPx` here; the controller consumes (and zeroes) the
+ * running sum once per render flush. This is required because a rapid burst of
+ * corrections can collapse into a single Svelte flush — reading only the latest
+ * projection's correction would silently drop the intermediate deltas and leave
+ * residual scroll drift. An accepted ABSOLUTE reposition (`scrollTopTarget !=
+ * null`) zeroes the pending sum: the absolute set supersedes any pending
+ * relative drift.
+ */
+private readonly pendingScrollCorrectionPx = new SvelteMap<string, number>();
 
 /**
  * Apply a full buffer push (reset). Ordered strictly by the monotonic
@@ -213,6 +236,11 @@ if (current !== null && push.emissionSeq <= current.emissionSeq) {
 return false;
 }
 this.bufferProjections.set(push.sessionId, projectionFromPush(push));
+this.accumulateScrollAuthority(
+push.sessionId,
+push.scrollTopTarget ?? null,
+push.scrollAnchorCorrectionPx ?? null
+);
 this.markAttached(push.sessionId);
 return true;
 }
@@ -243,6 +271,11 @@ if (delta.emissionSeq !== current.emissionSeq + 1) {
 return { status: "gap" };
 }
 this.bufferProjections.set(delta.sessionId, projectionFromDelta(current, delta));
+this.accumulateScrollAuthority(
+delta.sessionId,
+delta.scrollTopTarget ?? null,
+delta.scrollAnchorCorrectionPx ?? null
+);
 this.markAttached(delta.sessionId);
 return {
 status: "applied",
@@ -256,6 +289,58 @@ if (sessionId === null) {
 return null;
 }
 return this.bufferProjections.get(sessionId) ?? null;
+}
+
+/**
+ * Fold one emission's scroll authority into the per-session accumulator. An
+ * absolute reposition supersedes pending relative drift (zeroes the sum); a
+ * non-zero relative correction is added. A zero/absent correction with no
+ * absolute target leaves the accumulator untouched (no spurious reactivity).
+ */
+private accumulateScrollAuthority(
+sessionId: string,
+scrollTopTarget: number | null,
+correctionPx: number | null
+): void {
+if (scrollTopTarget !== null) {
+if ((this.pendingScrollCorrectionPx.get(sessionId) ?? 0) !== 0) {
+this.pendingScrollCorrectionPx.set(sessionId, 0);
+}
+return;
+}
+if (correctionPx !== null && correctionPx !== 0) {
+const prev = this.pendingScrollCorrectionPx.get(sessionId) ?? 0;
+this.pendingScrollCorrectionPx.set(sessionId, prev + correctionPx);
+}
+}
+
+/**
+ * Read the running sum of unconsumed relative scroll corrections (px) WITHOUT
+ * clearing it. Reactive: re-reads when a new correction-bearing emission lands.
+ * The controller keys its apply effect on `emissionSeq` and reads this once per
+ * flush so a coalesced burst is applied as a single accumulated nudge.
+ */
+peekPendingScrollCorrectionPx(sessionId: string | null): number {
+if (sessionId === null) {
+return 0;
+}
+return this.pendingScrollCorrectionPx.get(sessionId) ?? 0;
+}
+
+/**
+ * Consume (return and zero) the accumulated relative scroll correction (px)
+ * for a session. Returns 0 when nothing is pending. Idempotent: a second call
+ * with no intervening emission returns 0.
+ */
+consumePendingScrollCorrectionPx(sessionId: string | null): number {
+if (sessionId === null) {
+return 0;
+}
+const pending = this.pendingScrollCorrectionPx.get(sessionId) ?? 0;
+if (pending !== 0) {
+this.pendingScrollCorrectionPx.set(sessionId, 0);
+}
+return pending;
 }
 
 /**
@@ -349,6 +434,7 @@ markReattaching(sessionId: string): void {
 this.attachmentStatus.set(sessionId, "reattaching");
 this.bufferProjections.delete(sessionId);
 this.protocol.delete(sessionId);
+this.pendingScrollCorrectionPx.delete(sessionId);
 }
 
 markReattachFailed(sessionId: string): void {
@@ -387,5 +473,6 @@ removeSession(sessionId: string): void {
 this.bufferProjections.delete(sessionId);
 this.attachmentStatus.delete(sessionId);
 this.protocol.delete(sessionId);
+this.pendingScrollCorrectionPx.delete(sessionId);
 }
 }
