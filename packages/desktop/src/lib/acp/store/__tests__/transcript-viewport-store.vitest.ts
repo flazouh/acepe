@@ -753,4 +753,105 @@ describe("TranscriptViewportStore buffer protocol", () => {
 			expect(store.consumePendingScrollCorrectionPx(null)).toBe(0);
 		});
 	});
+
+	describe("scroll-storm regression: relative correction is the only scroll signal on non-reposition emissions", () => {
+		const detached = (anchorIndex: number): ViewportBufferPush["mode"] => ({
+			kind: "detached",
+			anchorRowId: rowId(anchorIndex),
+			offsetFromAnchorPx: 0,
+		});
+
+		it("does not yank scrollTop on refill/confirmation; corrections accumulate instead", () => {
+			const store = new TranscriptViewportStore();
+
+			// 1. Initial open: an intentional reposition carries an absolute target.
+			store.applyBufferPush(
+				bufferPush({
+					graphRevision: 1,
+					viewportRevision: 1,
+					bufferStartIndex: 0,
+					bufferEndIndex: 5,
+					layoutRowCount: 40,
+					emissionSeq: 0,
+					mode: { kind: "followingTail" },
+					scrollTopTarget: 0,
+				})
+			);
+			expect(store.getBufferProjection("session-1")?.scrollTopTarget).toBe(0);
+			expect(store.peekPendingScrollCorrectionPx("session-1")).toBe(0);
+
+			// 2. User scrolled away → DetachAtOffset refill. The producer MUST NOT
+			//    send an absolute target here (that stale request-time position is
+			//    exactly the yank). No correction either: native scroll owns it.
+			store.applyBufferPush(
+				bufferPush({
+					graphRevision: 1,
+					viewportRevision: 2,
+					bufferStartIndex: 5,
+					bufferEndIndex: 10,
+					layoutRowCount: 40,
+					emissionSeq: 1,
+					mode: detached(5),
+					scrollTopTarget: null,
+				})
+			);
+			expect(store.getBufferProjection("session-1")?.scrollTopTarget).toBeNull();
+			expect(store.peekPendingScrollCorrectionPx("session-1")).toBe(0);
+
+			// 3. Two accepted height confirmations above the viewport, each forcing a
+			//    FreshPush (B4) carrying ONLY a relative Δ_above (target stays null).
+			//    Simulate them collapsing into one Svelte flush: the accumulator must
+			//    sum, and neither emission may smuggle an absolute target.
+			store.applyBufferPush(
+				bufferPush({
+					graphRevision: 1,
+					viewportRevision: 2,
+					bufferStartIndex: 5,
+					bufferEndIndex: 10,
+					layoutRowCount: 40,
+					emissionSeq: 2,
+					mode: detached(5),
+					scrollTopTarget: null,
+					scrollAnchorCorrectionPx: -12,
+				})
+			);
+			store.applyBufferPush(
+				bufferPush({
+					graphRevision: 1,
+					viewportRevision: 2,
+					bufferStartIndex: 5,
+					bufferEndIndex: 10,
+					layoutRowCount: 40,
+					emissionSeq: 3,
+					mode: detached(5),
+					scrollTopTarget: null,
+					scrollAnchorCorrectionPx: -8,
+				})
+			);
+
+			// The ONLY scroll signal on these non-reposition emissions is the
+			// accumulated relative correction; no absolute target ever appears.
+			expect(store.getBufferProjection("session-1")?.scrollTopTarget).toBeNull();
+			expect(store.peekPendingScrollCorrectionPx("session-1")).toBe(-20);
+
+			// Controller drains the sum exactly once (additive nudge), then nothing.
+			expect(store.consumePendingScrollCorrectionPx("session-1")).toBe(-20);
+			expect(store.consumePendingScrollCorrectionPx("session-1")).toBe(0);
+		});
+
+		it("a later intentional reposition (reveal/follow-tail) cancels pending drift", () => {
+			const store = new TranscriptViewportStore();
+			store.applyBufferPush(
+				bufferPush({ graphRevision: 1, viewportRevision: 1, bufferStartIndex: 5, bufferEndIndex: 10, layoutRowCount: 40, emissionSeq: 0, mode: detached(5), scrollTopTarget: null, scrollAnchorCorrectionPx: -30 })
+			);
+			expect(store.peekPendingScrollCorrectionPx("session-1")).toBe(-30);
+			// A reveal/follow-tail push with an absolute target supersedes the
+			// pending relative drift so the two never compound.
+			store.applyBufferPush(
+				bufferPush({ graphRevision: 1, viewportRevision: 2, bufferStartIndex: 20, bufferEndIndex: 25, layoutRowCount: 40, emissionSeq: 1, mode: { kind: "followingTail" }, scrollTopTarget: 4000 })
+			);
+			expect(store.getBufferProjection("session-1")?.scrollTopTarget).toBe(4000);
+			expect(store.peekPendingScrollCorrectionPx("session-1")).toBe(0);
+		});
+	});
 });
