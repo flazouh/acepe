@@ -132,6 +132,18 @@ impl LayoutIndex {
                     if let Some(previous_row) = previous.row(&row.row_id) {
                         if previous_row.version == row.version {
                             next.confirmed_height_px = previous_row.confirmed_height_px;
+                        } else {
+                            // Same visible row (`row_id`), new content version
+                            // (e.g. a streaming token grew the text, so the
+                            // content-hash `version` changed). Carry the
+                            // last-known height forward as the estimate instead
+                            // of snapping back to DEFAULT_ESTIMATED_ROW_HEIGHT_PX.
+                            // Leaving `confirmed_height_px = None` re-arms the
+                            // ResizeObserver to re-measure under the new version,
+                            // but offsets stay put in the meantime — preventing
+                            // the offset collapse that renders as overlapping
+                            // rows and per-token flicker.
+                            next.estimated_height_px = previous_row.height_px();
                         }
                     }
                     next
@@ -450,11 +462,18 @@ mod tests {
             next.row("row-1").and_then(|row| row.confirmed_height_px),
             Some(160)
         );
+        // row-2's version changed (v1 -> v2): its confirmed height is cleared so
+        // it re-measures, but the last-known 180px is carried forward as the new
+        // estimate (NOT reset to the 120px default) so its offset stays stable.
         assert_eq!(
             next.row("row-2").and_then(|row| row.confirmed_height_px),
             None
         );
-        assert_eq!(next.total_height_px(), 280);
+        assert_eq!(
+            next.row("row-2").map(|row| row.estimated_height_px),
+            Some(180)
+        );
+        assert_eq!(next.total_height_px(), 340);
     }
 
     #[test]
@@ -614,6 +633,79 @@ mod tests {
         assert_eq!(
             layout.total_height_px(),
             heights.iter().sum::<u64>()
+        );
+    }
+
+    /// Builds a viewport row carrying an explicit version, mirroring the
+    /// streaming path where `version` is a content hash that changes on every
+    /// token / operation-state transition while `row_id` stays stable.
+    fn viewport_row(
+        row_id: &str,
+        version: &str,
+    ) -> crate::acp::transcript_viewport::TranscriptViewportRow {
+        crate::acp::transcript_viewport::TranscriptViewportRow {
+            row_id: row_id.to_string(),
+            source_entry_id: row_id.to_string(),
+            kind: crate::acp::transcript_viewport::TranscriptViewportRowKind::AssistantText,
+            version: version.to_string(),
+            anchor_eligible: true,
+            active_streaming_tail: None,
+            operation_links: Vec::new(),
+            interaction_links: Vec::new(),
+            content: crate::acp::transcript_viewport::TranscriptViewportRowContent::Transcript {
+                role: crate::acp::transcript_projection::TranscriptEntryRole::Assistant,
+                segments: Vec::new(),
+            },
+        }
+    }
+
+    /// RED: reproduces the streaming overlap/flicker bug ("rows sometimes have
+    /// huge gaps between them or are inside each other").
+    ///
+    /// A row measured at 300px must not collapse back to the 120px DEFAULT
+    /// estimate when its version bumps. `row_version` hashes the row's text, so
+    /// the version changes on every streaming token (and every tool-state
+    /// transition) while the `row_id` stays stable. When the confirmed height is
+    /// dropped, the row reverts to `DEFAULT_ESTIMATED_ROW_HEIGHT_PX` (120) and
+    /// the FOLLOWING row's canonical offset collapses from 300 to 120 — placing
+    /// it 180px INSIDE the still-rendered 300px row ("inside each other"), then
+    /// snapping back once the ResizeObserver re-confirms ("flicker").
+    ///
+    /// Deterministic contract: a version bump on a stable `row_id` must carry the
+    /// last-known height forward as the estimate so offsets stay put.
+    #[test]
+    fn version_bump_must_not_collapse_measured_row_to_default_estimate() {
+        let mut previous = LayoutIndex::from_viewport_rows(&[
+            viewport_row("a", "a:v1"),
+            viewport_row("b", "b:v1"),
+            viewport_row("c", "c:v1"),
+        ]);
+        // "a" has been measured at 300px; "b" therefore sits at offset 300.
+        assert_eq!(
+            previous.confirm_height("a", "a:v1", 300),
+            HeightConfirmationOutcome::Accepted
+        );
+        assert_eq!(previous.row_offset_px("b"), Some(300));
+
+        // A streaming token grows "a": its content-hash version bumps v1 -> v2,
+        // but it is the SAME visible row (row_id "a").
+        let next = LayoutIndex::from_viewport_rows_preserving(
+            &[
+                viewport_row("a", "a:v2"),
+                viewport_row("b", "b:v1"),
+                viewport_row("c", "c:v1"),
+            ],
+            &previous,
+        );
+
+        // The following row must still sit below "a"'s real height, not jump up
+        // into it. Today this is Some(120) -> 180px overlap -> the visible
+        // "rows inside each other" + flicker the user reported.
+        assert_eq!(
+            next.row_offset_px("b"),
+            Some(300),
+            "version bump collapsed a measured 300px row to the 120px default; \
+             the following row overlaps it by 180px (overlap + flicker)"
         );
     }
 }
