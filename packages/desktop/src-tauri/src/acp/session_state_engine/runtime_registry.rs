@@ -24,7 +24,8 @@ use crate::acp::transcript_projection::{
 };
 use crate::acp::transcript_viewport::{
     project_transcript_viewport_rows, HeightConfirmationOutcome, LayoutIndex, ScrollIntent,
-    TranscriptViewport, TranscriptViewportRow, ViewportBufferSlice, DEFAULT_BUFFER_OVERSCAN_ROWS,
+    TranscriptViewport, TranscriptViewportRow, ViewportBufferSlice, ViewportMode,
+    DEFAULT_BUFFER_OVERSCAN_ROWS,
 };
 use crate::acp::types::CanonicalAgentId;
 use crate::db::repository::SessionMetadataRepository;
@@ -1014,12 +1015,14 @@ impl SessionGraphRuntimeRegistry {
             if let Some(intent) = scroll_intent {
                 viewport.apply_scroll_intent(intent);
             }
+            let mut anchor_correction_px: i64 = 0;
             let height_diagnostic = height_confirmation.and_then(|confirmation| {
                 let transition = viewport.confirm_height(
                     &confirmation.row_id,
                     &confirmation.row_version,
                     confirmation.height_px,
                 );
+                anchor_correction_px = transition.anchor_correction_px;
                 transition.height_confirmation.and_then(|outcome| {
                     (outcome != HeightConfirmationOutcome::Accepted).then(|| {
                         ViewportHeightDiagnostic {
@@ -1036,6 +1039,7 @@ impl SessionGraphRuntimeRegistry {
                 rows: rows.as_slice(),
                 viewport,
                 height_diagnostic,
+                anchor_correction_px,
             })
         };
         Ok((materialized, effective_revision))
@@ -1154,6 +1158,7 @@ impl SessionGraphRuntimeRegistry {
                         mode: slice.mode,
                         request_generation,
                         scroll_top_target: Some(slice.viewport_offset_px),
+                        scroll_anchor_correction_px: None,
                         diagnostics,
                     },
                 }
@@ -1195,6 +1200,12 @@ impl SessionGraphRuntimeRegistry {
         force_fresh: bool,
     ) -> Result<Option<SessionStateEnvelope>, VisibleTranscriptWindowMiss> {
         let height_present = height_confirmation.is_some();
+        // Captured before `scroll_intent` is moved into the materialize call.
+        // Per the scroll-authority decision contract, a `RevealRow` is an
+        // intentional reposition (absolute target), distinct from a user-driven
+        // `DetachAtOffset` refill (relative correction). `slice.mode` alone
+        // cannot distinguish them (both yield `Detached`).
+        let is_reveal_intent = matches!(scroll_intent, Some(ScrollIntent::RevealRow { .. }));
 
         let mut emissions = self
             .buffer_emissions
@@ -1204,7 +1215,7 @@ impl SessionGraphRuntimeRegistry {
 
         // Pull the slice + canonical rows + rejected-confirmation diagnostic out
         // of the locked prologue so we can classify above the closure.
-        let ((slice, full_rows, height_diag), effective_revision) = self
+        let ((slice, full_rows, height_diag, anchor_correction_px), effective_revision) = self
             .with_materialized_viewport(
                 session_id,
                 revision,
@@ -1215,7 +1226,12 @@ impl SessionGraphRuntimeRegistry {
                 height_confirmation,
                 |ctx| {
                     let slice = ctx.viewport.buffer_window(DEFAULT_BUFFER_OVERSCAN_ROWS);
-                    (slice, ctx.rows.to_vec(), ctx.height_diagnostic)
+                    (
+                        slice,
+                        ctx.rows.to_vec(),
+                        ctx.height_diagnostic,
+                        ctx.anchor_correction_px,
+                    )
                 },
             )?;
 
@@ -1265,6 +1281,18 @@ impl SessionGraphRuntimeRegistry {
 
         let next_seq = prev.as_ref().map_or(0, |r| r.emission_seq + 1);
 
+        // Scroll-authority decision contract: choose at most ONE of an absolute
+        // target or a relative correction, driven by the emission cause. This
+        // replaces the previous unconditional absolute target that yanked the
+        // viewport during user-driven refills (the scroll "storm").
+        let (scroll_top_target, scroll_anchor_correction_px) = decide_scroll_authority(
+            &slice.mode,
+            slice.viewport_offset_px,
+            prev.is_none(),
+            is_reveal_intent,
+            anchor_correction_px,
+        );
+
         // Scalars/ids captured before any move out of `slice`.
         let buffer_start_index = slice.buffer_start_index;
         let buffer_end_index = slice.buffer_end_index;
@@ -1305,7 +1333,8 @@ impl SessionGraphRuntimeRegistry {
                         offsets_px: slice.offsets_px,
                         mode: slice.mode,
                         request_generation,
-                        scroll_top_target: Some(slice.viewport_offset_px),
+                        scroll_top_target,
+                        scroll_anchor_correction_px,
                         diagnostics,
                     },
                 }
@@ -1323,8 +1352,8 @@ impl SessionGraphRuntimeRegistry {
                     &p.row_ids,
                     &full_rows,
                     &slice,
-                    None,
-                    Some(slice.viewport_offset_px),
+                    scroll_anchor_correction_px,
+                    scroll_top_target,
                 );
                 SessionStatePayload::ViewportBufferDelta { delta }
             }
@@ -1350,6 +1379,41 @@ impl SessionGraphRuntimeRegistry {
         Ok(Some(envelope))
     }
 }
+
+/// Scroll-authority decision contract for a buffer emission. Returns
+/// `(scroll_top_target, scroll_anchor_correction_px)` with **at most one** field
+/// `Some` — never both — so the consumer never double-applies a scroll
+/// correction.
+///
+/// Classified on `mode` FIRST, then intent/cause:
+/// - `FollowingTail` mode → absolute tail target (`Some(viewport_offset_px)`),
+///   no correction. Wins over the relative-correction branch even when a B4
+///   height confirmation triggered this emission, because the absolute tail
+///   target already incorporates the post-confirmation `total_height_px`. (A
+///   streaming confirmation arrives with `scroll_intent = None` while
+///   `mode == FollowingTail`; a relative correction here would race the
+///   frontend tail-pin.)
+/// - `Detached` mode, intentional reposition (`is_bootstrap` first push, or
+///   `is_reveal` RevealRow) → absolute target, no correction.
+/// - `Detached` mode, user-driven refill / accepted-confirmation re-push →
+///   `None` absolute target (the user's live scrollTop is authoritative) plus a
+///   relative `Some(Δ_above)` correction when geometry above the viewport
+///   shifted (`anchor_correction_px != 0`), else both `None`.
+#[must_use]
+fn decide_scroll_authority(
+    mode: &ViewportMode,
+    viewport_offset_px: u64,
+    is_bootstrap: bool,
+    is_reveal: bool,
+    anchor_correction_px: i64,
+) -> (Option<u64>, Option<i64>) {
+    if matches!(mode, ViewportMode::FollowingTail) || is_bootstrap || is_reveal {
+        return (Some(viewport_offset_px), None);
+    }
+    let correction = (anchor_correction_px != 0).then_some(anchor_correction_px);
+    (None, correction)
+}
+
 /// incremental mutation from a previously-pushed buffer window to the current
 /// `slice` over the full canonical `current_rows`.
 ///
@@ -1561,6 +1625,10 @@ struct ViewportMaterializeCtx<'a> {
     rows: &'a [TranscriptViewportRow],
     viewport: &'a TranscriptViewport,
     height_diagnostic: Option<ViewportHeightDiagnostic>,
+    /// Signed canonical scroll-anchor correction from the height confirmation
+    /// applied in this materialization (`0` when none / rejected). See
+    /// `ViewportTransition::anchor_correction_px`.
+    anchor_correction_px: i64,
 }
 
 fn height_confirmation_diagnostic_code(outcome: HeightConfirmationOutcome) -> &'static str {
@@ -2133,7 +2201,9 @@ mod tests {
     use crate::acp::transcript_projection::{
         TranscriptDelta, TranscriptDeltaOperation, TranscriptProjectionRegistry, TranscriptSnapshot,
     };
+    use crate::acp::transcript_viewport::ScrollIntent;
     use crate::acp::types::{CanonicalAgentId, ContentBlock};
+    use super::decide_scroll_authority;
     use crate::db::repository::SessionMetadataRepository;
     use sea_orm::{Database, DbConn};
     use sea_orm_migration::MigratorTrait;
@@ -4221,6 +4291,274 @@ mod tests {
             second.is_none(),
             "a rejected height confirmation must not force a fresh push"
         );
+    }
+
+    #[test]
+    fn following_tail_confirmation_push_uses_absolute_target_not_correction() {
+        // The dominant streaming case: viewport in FollowingTail, a row grows via
+        // an accepted height confirmation (scroll_intent = None). The producer
+        // MUST emit an absolute tail target and NO relative correction, because
+        // the absolute target already incorporates the post-confirmation
+        // total_height_px. A correction here would race the frontend tail-pin.
+        let runtime_registry = SessionGraphRuntimeRegistry::new();
+        let projection_registry = ProjectionRegistry::new();
+        let transcript_projection_registry = TranscriptProjectionRegistry::new();
+        let revision = seed_buffer_emission_session(
+            &runtime_registry,
+            &projection_registry,
+            &transcript_projection_registry,
+            "s",
+            20,
+        );
+
+        let first = runtime_registry
+            .build_or_advance_viewport_buffer_envelope(
+                "s",
+                revision,
+                &projection_registry,
+                &transcript_projection_registry,
+                Some(720),
+                None,
+                None,
+                None,
+                false,
+            )
+            .expect("first")
+            .expect("push");
+        let (row_id, row_version) = match first.payload {
+            SessionStatePayload::ViewportBufferPush { push } => {
+                assert_eq!(push.mode, ViewportMode::FollowingTail);
+                let row = &push.rows[0];
+                (row.row_id.clone(), row.version.clone())
+            }
+            other => panic!("expected push, got {other:?}"),
+        };
+
+        let envelope = runtime_registry
+            .build_or_advance_viewport_buffer_envelope(
+                "s",
+                revision,
+                &projection_registry,
+                &transcript_projection_registry,
+                Some(720),
+                None,
+                Some(super::TranscriptViewportHeightConfirmation {
+                    row_id,
+                    row_version,
+                    height_px: 321,
+                }),
+                None,
+                false,
+            )
+            .expect("confirm")
+            .expect("forced push");
+
+        match envelope.payload {
+            SessionStatePayload::ViewportBufferPush { push } => {
+                assert_eq!(push.mode, ViewportMode::FollowingTail);
+                assert!(
+                    push.scroll_top_target.is_some(),
+                    "FollowingTail must carry an absolute tail target"
+                );
+                assert_eq!(
+                    push.scroll_anchor_correction_px, None,
+                    "FollowingTail must never carry a relative correction"
+                );
+            }
+            other => panic!("expected push, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn detached_refill_push_has_no_absolute_scroll_target() {
+        // A user-driven refill (DetachAtOffset) must NOT yank scrollTop back to a
+        // request-time absolute position. With no above-viewport geometry change
+        // there is also no correction — the user's live scrollTop is preserved.
+        let runtime_registry = SessionGraphRuntimeRegistry::new();
+        let projection_registry = ProjectionRegistry::new();
+        let transcript_projection_registry = TranscriptProjectionRegistry::new();
+        let revision = seed_buffer_emission_session(
+            &runtime_registry,
+            &projection_registry,
+            &transcript_projection_registry,
+            "s",
+            20,
+        );
+
+        let _ = runtime_registry
+            .build_or_advance_viewport_buffer_envelope(
+                "s", revision, &projection_registry, &transcript_projection_registry, Some(720),
+                None, None, None, false,
+            )
+            .expect("first")
+            .expect("push");
+
+        let envelope = runtime_registry
+            .build_or_advance_viewport_buffer_envelope(
+                "s",
+                revision,
+                &projection_registry,
+                &transcript_projection_registry,
+                Some(720),
+                Some(ScrollIntent::DetachAtOffset { offset_px: 1200 }),
+                None,
+                None,
+                true,
+            )
+            .expect("detach refill")
+            .expect("forced push");
+
+        match envelope.payload {
+            SessionStatePayload::ViewportBufferPush { push } => {
+                assert!(
+                    matches!(push.mode, ViewportMode::Detached { .. }),
+                    "expected Detached mode"
+                );
+                assert_eq!(
+                    push.scroll_top_target, None,
+                    "a user-driven refill must not reposition scrollTop"
+                );
+                assert_eq!(push.scroll_anchor_correction_px, None);
+            }
+            other => panic!("expected push, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn detached_accepted_confirmation_above_viewport_emits_relative_correction() {
+        // The storm fix: a row ABOVE the viewport re-measures while the user is
+        // scrolled (Detached). The producer must emit a relative correction
+        // (Δ_above) and NO absolute target, so the frontend adds the shift to its
+        // live scrollTop instead of being yanked to a stale absolute position.
+        let runtime_registry = SessionGraphRuntimeRegistry::new();
+        let projection_registry = ProjectionRegistry::new();
+        let transcript_projection_registry = TranscriptProjectionRegistry::new();
+        let revision = seed_buffer_emission_session(
+            &runtime_registry,
+            &projection_registry,
+            &transcript_projection_registry,
+            "s",
+            20,
+        );
+
+        let _ = runtime_registry
+            .build_or_advance_viewport_buffer_envelope(
+                "s", revision, &projection_registry, &transcript_projection_registry, Some(720),
+                None, None, None, false,
+            )
+            .expect("first")
+            .expect("push");
+
+        // Detach mid-layout: anchor lands on the row at offset 1200 (index 10 of
+        // 120px rows). Rows above it are above the viewport offset.
+        let detach = runtime_registry
+            .build_or_advance_viewport_buffer_envelope(
+                "s", revision, &projection_registry, &transcript_projection_registry, Some(720),
+                Some(ScrollIntent::DetachAtOffset { offset_px: 1200 }), None, None, true,
+            )
+            .expect("detach")
+            .expect("push");
+        let (above_row_id, above_row_version) = match detach.payload {
+            SessionStatePayload::ViewportBufferPush { push } => {
+                // Row index 2 sits at offset 240 < 1200 (above the viewport).
+                let row = &push.rows[2];
+                (row.row_id.clone(), row.version.clone())
+            }
+            other => panic!("expected push, got {other:?}"),
+        };
+
+        // Grow the above-viewport row 120 -> 320 (+200).
+        let envelope = runtime_registry
+            .build_or_advance_viewport_buffer_envelope(
+                "s",
+                revision,
+                &projection_registry,
+                &transcript_projection_registry,
+                Some(720),
+                None,
+                Some(super::TranscriptViewportHeightConfirmation {
+                    row_id: above_row_id,
+                    row_version: above_row_version,
+                    height_px: 320,
+                }),
+                None,
+                false,
+            )
+            .expect("confirm")
+            .expect("forced push");
+
+        match envelope.payload {
+            SessionStatePayload::ViewportBufferPush { push } => {
+                assert!(
+                    matches!(push.mode, ViewportMode::Detached { .. }),
+                    "expected Detached mode"
+                );
+                assert_eq!(
+                    push.scroll_top_target, None,
+                    "Detached confirmation must not use an absolute target"
+                );
+                assert_eq!(
+                    push.scroll_anchor_correction_px,
+                    Some(200),
+                    "above-viewport growth must produce a +Δ relative correction"
+                );
+            }
+            other => panic!("expected push, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn decide_scroll_authority_never_sets_both_fields() {
+        // Invariant across the contract: at most one of the two scroll fields is
+        // ever Some, so the consumer never double-applies a correction.
+        let cases = [
+            (ViewportMode::FollowingTail, true, false, 0_i64),
+            (ViewportMode::FollowingTail, false, false, 200),
+            (
+                ViewportMode::Detached {
+                    anchor_row_id: "a".to_string(),
+                    offset_from_anchor_px: 0,
+                },
+                true,
+                false,
+                0,
+            ),
+            (
+                ViewportMode::Detached {
+                    anchor_row_id: "a".to_string(),
+                    offset_from_anchor_px: 0,
+                },
+                false,
+                true,
+                0,
+            ),
+            (
+                ViewportMode::Detached {
+                    anchor_row_id: "a".to_string(),
+                    offset_from_anchor_px: 0,
+                },
+                false,
+                false,
+                200,
+            ),
+            (
+                ViewportMode::Detached {
+                    anchor_row_id: "a".to_string(),
+                    offset_from_anchor_px: 0,
+                },
+                false,
+                false,
+                0,
+            ),
+        ];
+        for (mode, is_bootstrap, is_reveal, correction) in cases {
+            let (target, corr) =
+                decide_scroll_authority(&mode, 500, is_bootstrap, is_reveal, correction);
+            assert!(
+                !(target.is_some() && corr.is_some()),
+                "target and correction must be mutually exclusive (mode={mode:?})"
+            );
+        }
     }
 
     #[test]

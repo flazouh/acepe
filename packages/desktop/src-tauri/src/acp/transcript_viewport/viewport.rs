@@ -40,6 +40,16 @@ pub enum ScrollIntent {
 pub struct ViewportTransition {
     pub window: ViewportWindow,
     pub height_confirmation: Option<HeightConfirmationOutcome>,
+    /// Signed shift of the canonical scroll anchor caused by an accepted height
+    /// confirmation. Positive when content at/above the current viewport offset
+    /// grew (pushing the anchor down), negative when it shrank, `0` when the
+    /// confirmation changed nothing at/above the viewport or was rejected.
+    ///
+    /// This is the relative correction the frontend applies additively to its
+    /// live `scrollTop` so the viewport stays pinned to the same content while a
+    /// row above it re-measures — instead of an absolute reposition that would
+    /// fight the user's in-flight scroll (the scroll "storm").
+    pub anchor_correction_px: i64,
 }
 
 /// Owned description of a buffered layout slice for a `ViewportBufferPush`.
@@ -189,6 +199,11 @@ impl TranscriptViewport {
         version: &str,
         confirmed_height_px: u32,
     ) -> ViewportTransition {
+        // Capture the canonical scroll offset BEFORE the confirmation mutates
+        // layout. The post-confirmation delta of this anchor-based offset is the
+        // relative correction the frontend needs: it is non-zero only when the
+        // confirmed row sits at/above the current viewport anchor.
+        let offset_before = self.current_offset_px();
         let outcome = self
             .layout
             .confirm_height(row_id, version, confirmed_height_px);
@@ -198,13 +213,19 @@ impl TranscriptViewport {
         // canonical viewport_revision must NOT advance — otherwise the buffer
         // producer's revision guard would treat each rejected retry as a layout
         // change and emit a full re-push, recreating the retry storm.
-        if outcome == HeightConfirmationOutcome::Accepted {
+        let anchor_correction_px = if outcome == HeightConfirmationOutcome::Accepted {
             self.bump_viewport_revision();
-        }
+            let offset_after = self.current_offset_px();
+            i64::try_from(offset_after).unwrap_or(i64::MAX)
+                - i64::try_from(offset_before).unwrap_or(i64::MAX)
+        } else {
+            0
+        };
 
         ViewportTransition {
             window: self.window(),
             height_confirmation: Some(outcome),
+            anchor_correction_px,
         }
     }
 
@@ -383,6 +404,92 @@ mod tests {
                 offset_from_anchor_px: 0,
             }
         );
+    }
+
+    #[test]
+    fn confirm_height_reports_anchor_correction_for_row_above_viewport() {
+        let mut viewport = TranscriptViewport::new(
+            LayoutIndex::new(vec![
+                row("row-1", 100),
+                row("row-2", 100),
+                row("row-3", 100),
+            ]),
+            100,
+        );
+        // Anchor at row-3 (offset 200); row-1 sits above the viewport.
+        viewport.apply_scroll_intent(ScrollIntent::RevealRow {
+            row_id: "row-3".to_string(),
+        });
+
+        // row-1 grows 100 -> 160 (+60) -> anchor (and visible content) shifts +60.
+        let transition = viewport.confirm_height("row-1", "row-1:v1", 160);
+
+        assert_eq!(
+            transition.height_confirmation,
+            Some(HeightConfirmationOutcome::Accepted)
+        );
+        assert_eq!(transition.anchor_correction_px, 60);
+        assert_eq!(transition.window.offset_px, 260);
+    }
+
+    #[test]
+    fn confirm_height_reports_zero_correction_for_row_at_or_below_viewport() {
+        let mut viewport = TranscriptViewport::new(
+            LayoutIndex::new(vec![
+                row("row-1", 100),
+                row("row-2", 100),
+                row("row-3", 100),
+            ]),
+            100,
+        );
+        // Anchor at row-1 (offset 0); row-2 sits below the viewport top.
+        viewport.apply_scroll_intent(ScrollIntent::RevealRow {
+            row_id: "row-1".to_string(),
+        });
+
+        let transition = viewport.confirm_height("row-2", "row-2:v1", 160);
+
+        assert_eq!(
+            transition.height_confirmation,
+            Some(HeightConfirmationOutcome::Accepted)
+        );
+        assert_eq!(transition.anchor_correction_px, 0);
+        assert_eq!(transition.window.offset_px, 0);
+    }
+
+    #[test]
+    fn confirm_height_reports_negative_correction_when_row_above_shrinks() {
+        let mut viewport = TranscriptViewport::new(
+            LayoutIndex::new(vec![row("row-1", 200), row("row-2", 100)]),
+            100,
+        );
+        viewport.apply_scroll_intent(ScrollIntent::RevealRow {
+            row_id: "row-2".to_string(),
+        });
+
+        // row-1 shrinks 200 -> 140 (-60).
+        let transition = viewport.confirm_height("row-1", "row-1:v1", 140);
+
+        assert_eq!(transition.anchor_correction_px, -60);
+    }
+
+    #[test]
+    fn rejected_confirmation_reports_zero_anchor_correction() {
+        let mut viewport = TranscriptViewport::new(
+            LayoutIndex::new(vec![row("row-1", 100), row("row-2", 100)]),
+            100,
+        );
+        viewport.apply_scroll_intent(ScrollIntent::RevealRow {
+            row_id: "row-2".to_string(),
+        });
+
+        let transition = viewport.confirm_height("row-1", "row-1:vWRONG", 160);
+
+        assert_eq!(
+            transition.height_confirmation,
+            Some(HeightConfirmationOutcome::StaleVersion)
+        );
+        assert_eq!(transition.anchor_correction_px, 0);
     }
 
     #[test]

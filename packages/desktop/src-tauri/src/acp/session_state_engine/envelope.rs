@@ -141,6 +141,7 @@ mod tests {
                     mode: ViewportMode::FollowingTail,
                     request_generation: None,
                     scroll_top_target: None,
+                    scroll_anchor_correction_px: None,
                     diagnostics: Vec::new(),
                 },
             },

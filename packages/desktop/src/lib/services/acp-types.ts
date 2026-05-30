@@ -569,10 +569,23 @@ layoutRowCount: number; totalHeightPx: number;
 bufferEndOffsetPx: number; rows: TranscriptViewportRow[]; offsetsPx: number[]; mode: ViewportMode; requestGeneration?: number | null;
 /**
  * Absolute scrollTop the WebView should adopt when this push repositions the
- * viewport (initial open, reveal, follow-tail). `None` for a pure refill,
- * where the user's current scrollTop is authoritative and must be preserved.
+ * viewport (initial open, reveal, follow-tail). `None` for a pure refill or
+ * an accepted-height-confirmation re-push in `Detached` mode, where the
+ * user's current scrollTop is authoritative and only a *relative*
+ * `scroll_anchor_correction_px` may be applied. Exactly one of
+ * `scroll_top_target` (absolute) or `scroll_anchor_correction_px` (relative)
+ * is ever set per emission — never both — to avoid double-applying a scroll
+ * correction.
  */
-scrollTopTarget?: number | null; diagnostics: ViewportBufferDiagnostic[] }
+scrollTopTarget?: number | null;
+/**
+ * Signed pixel correction the WebView adds to its *live* scrollTop to keep
+ * the visible content pinned when canonical geometry above the viewport
+ * shifted (a row above the viewport re-measured). Relative — never fights
+ * the user's in-flight scroll position. `None` when nothing above the
+ * viewport moved or when an absolute `scroll_top_target` is used instead.
+ */
+scrollAnchorCorrectionPx?: number | null; diagnostics: ViewportBufferDiagnostic[] }
 
 /**
  * Incremental buffer mutation. Applies iff `emission_seq` chains contiguously
