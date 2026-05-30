@@ -2491,6 +2491,26 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 	}
 
 	/**
+	 * Reactive read of the accumulated, unconsumed relative scroll correction
+	 * (px) for a session WITHOUT clearing it. The viewport controller keys its
+	 * apply effect on `emissionSeq` and reads this to decide whether a nudge is
+	 * pending. The store owns the accumulator; this is a pure pass-through so the
+	 * component never reaches into the transcript viewport store directly.
+	 */
+	peekViewportScrollCorrectionPx(sessionId: string | null): number {
+		return this.transcriptViewportStore.peekPendingScrollCorrectionPx(sessionId);
+	}
+
+	/**
+	 * Consume (return and zero) the accumulated relative scroll correction (px)
+	 * for a session. The controller applies the returned delta additively to the
+	 * live scrollTop. Idempotent: returns 0 once drained.
+	 */
+	consumeViewportScrollCorrectionPx(sessionId: string | null): number {
+		return this.transcriptViewportStore.consumePendingScrollCorrectionPx(sessionId);
+	}
+
+	/**
 	 * Bootstrap the buffer for a freshly-mounted viewport. The live producer
 	 * pushes the initial buffer on the open event stream, but a forced request
 	 * guards against the component mounting before that push lands. Idempotent:

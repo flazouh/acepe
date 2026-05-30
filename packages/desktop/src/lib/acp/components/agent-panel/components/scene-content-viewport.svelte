@@ -136,6 +136,7 @@ let pendingViewportHeightPx = $state<number | null>(null);
 let consumedPendingUserRevealRequestKey = $state<string | null>(null);
 let bootstrappedSessionId: string | null = null;
 let lastAppliedScrollEmissionSeq = -1;
+let lastAppliedCorrectionEmissionSeq = -1;
 let lastFollowTailTotalHeightPx = -1;
 let suppressNextScrollIntent = false;
 let scrollIntentRafPending = false;
@@ -503,6 +504,45 @@ $effect(() => {
 		}
 		suppressNextScrollIntent = true;
 		scrollContainerRef.scrollTop = target;
+	});
+});
+
+// Apply the Rust-decided RELATIVE scroll correction additively to the live
+// scrollTop. Unlike the absolute target above, this never fights the user's
+// live position: when heights ABOVE the anchor change (off-screen confirmations,
+// prepend-on-scroll-up) content shifts under the viewport, and the canonical
+// Δ_above (`scrollAnchorCorrectionPx`) compensates it exactly. Keyed on
+// emissionSeq so it drains the coalescing-safe accumulator once per emission
+// window — the accumulator (store-owned) sums corrections across a burst that
+// collapses into a single Svelte flush, so no intermediate Δ is lost. The
+// suppress guard ensures the programmatic adjustment never echoes a
+// (non-canonical) scroll intent back to Rust.
+$effect(() => {
+	const projection = bufferProjection;
+	if (scrollContainerRef === null || projection === null || sessionId === null) {
+		return;
+	}
+	if (projection.emissionSeq === lastAppliedCorrectionEmissionSeq) {
+		return;
+	}
+	lastAppliedCorrectionEmissionSeq = projection.emissionSeq;
+	const targetSessionId = sessionId;
+	void tick().then(() => {
+		if (scrollContainerRef === null) {
+			return;
+		}
+		const correction = sessionStore.consumeViewportScrollCorrectionPx(targetSessionId);
+		if (correction === 0) {
+			return;
+		}
+		const current = scrollContainerRef.scrollTop;
+		const maxTop = Math.max(0, scrollContainerRef.scrollHeight - scrollContainerRef.clientHeight);
+		const next = Math.min(maxTop, Math.max(0, current + correction));
+		if (Math.abs(next - current) <= 0.5) {
+			return;
+		}
+		suppressNextScrollIntent = true;
+		scrollContainerRef.scrollTop = next;
 	});
 });
 
