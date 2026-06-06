@@ -119,3 +119,23 @@ compound-engineering.local.md
 
 # Large voice model binaries (download locally, never commit)
 *.bin
+
+# Images
+*.ai
+*.avif
+*.bmp
+*.gif
+*.heic
+*.heif
+*.icns
+*.ico
+*.jpeg
+*.jpg
+*.png
+*.psd
+*.raw
+*.svg
+*.svgz
+*.tif
+*.tiff
+*.webp
