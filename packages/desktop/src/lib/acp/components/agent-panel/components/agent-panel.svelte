@@ -351,7 +351,7 @@ const showProjectSelection = $derived(
 const worktreeToggleProjectPath = $derived(
 	resolveWorktreeToggleProjectPath({
 		hasSession: sessionId !== null,
-		sessionController.sessionProjectPath,
+		sessionProjectPath: sessionController.sessionProjectPath,
 		selectedProjectPath: project?.path ?? null,
 		singleProjectPath: projectCount === 1 ? (allProjects[0]?.path ?? null) : null,
 	})
@@ -392,8 +392,8 @@ const hasSession = $derived(sessionId !== null);
 const effectiveProjectPath = $derived(
 	resolveEffectiveProjectPath({
 		activeWorktreePath: worktreeDeleted ? null : scopedActiveWorktreePath,
-		sessionController.sessionWorktreePath: worktreeDeleted ? null : sessionController.sessionWorktreePath,
-		sessionController.sessionProjectPath,
+		sessionWorktreePath: worktreeDeleted ? null : sessionController.sessionWorktreePath,
+		sessionProjectPath: sessionController.sessionProjectPath,
 		selectedProjectPath: project?.path,
 		singleProjectPath: projectCount === 1 ? allProjects[0].path : undefined,
 	})
@@ -429,14 +429,14 @@ const errorDismissed = $derived(
 
 // Panel view state: single discriminated union from all inputs
 const viewStateInput = $derived({
-	sessionController.lifecyclePresentation,
+	lifecyclePresentation: sessionController.lifecyclePresentation,
 	entriesCount,
 	hasSession,
-	sessionController.isAwaitingModelResponse,
-	sessionController.hasImmediatePendingSendIntent,
+	isAwaitingModelResponse: sessionController.isAwaitingModelResponse,
+	hasImmediatePendingSendIntent: sessionController.hasImmediatePendingSendIntent,
 	showProjectSelection,
 	hasEffectiveProjectPath: !!effectiveProjectPath,
-	sessionController.errorInfo,
+	errorInfo: sessionController.errorInfo,
 });
 const viewState = $derived(derivePanelViewState(viewStateInput));
 const panelViewKind = $derived(viewState.kind);
@@ -452,7 +452,7 @@ const showInlineErrorCard = $derived(
 const worktreePending = $derived(
 	resolveAgentPanelWorktreePending({
 		activeWorktreePath: effectiveActiveWorktreePath,
-		sessionController.hasMessages,
+		hasMessages: sessionController.hasMessages,
 		pendingWorktreeEnabled: panelPendingWorktreeEnabled,
 		hasPreparedWorktreeLaunch: panelPreparedWorktreeLaunch !== null,
 	})
@@ -466,7 +466,7 @@ const showPreSessionWorktreeCard = $derived.by(() =>
 		worktreeToggleProjectPath,
 		hasPendingWorktreeSetup: pendingWorktreeSetup !== null,
 		worktreeSetupVisible: worktreeSetupState?.isVisible === true,
-		sessionController.hasMessages,
+		hasMessages: sessionController.hasMessages,
 	})
 );
 
@@ -517,7 +517,7 @@ $effect(() => {
 		worktreeToggleProjectPath,
 		activeWorktreeOwnerProjectPath,
 		scopedActiveWorktreePath,
-		sessionController.sessionWorktreePath,
+		sessionWorktreePath: sessionController.sessionWorktreePath,
 		effectiveActiveWorktreePath,
 		footerVisible: !!worktreeToggleProjectPath,
 	});
@@ -615,7 +615,7 @@ const sequenceId = $derived(sessionController.sessionMetadata ? (sessionControll
 
 const displayTitle = $derived.by(() => {
 	return deriveAgentPanelHeaderDisplayTitle({
-		sessionController.sessionTitle,
+		sessionTitle: sessionController.sessionTitle,
 		projectName: displayProjectName,
 	});
 });
@@ -1022,10 +1022,10 @@ const debugPanelState = $derived.by(() => {
 		// Session state
 		hasSession: sessionId !== null,
 		sessionId,
-		sessionController.sessionTitle,
+		sessionTitle: sessionController.sessionTitle,
 		sessionStatus: sessionController.panelSessionStatus,
-		sessionController.sessionProjectPath,
-		sessionController.sessionAgentId,
+		sessionProjectPath: sessionController.sessionProjectPath,
+		sessionAgentId: sessionController.sessionAgentId,
 		selectedAgentId,
 		// Loading states
 		isWaitingForSession,
@@ -1356,7 +1356,7 @@ function handleWorktreeCreated(info: WorktreeInfo | string) {
 	const projectPath = sessionController.sessionProjectPath ?? worktreeToggleProjectPath ?? "";
 	logger.info("[worktree-flow] handleWorktreeCreated: entry", {
 		sessionId: sessionId ?? null,
-		sessionController.sessionProjectPath,
+		sessionProjectPath: sessionController.sessionProjectPath,
 		worktreeToggleProjectPath,
 		projectPath: projectPath || null,
 		infoDirectory: nextDirectory,
@@ -1658,7 +1658,7 @@ function createInlineErrorIssueDraft() {
 		referenceId: sessionController.inlineErrorReferenceId,
 		referenceSearchable: sessionController.inlineErrorReferenceSearchable,
 		diagnosticsSummary: sessionController.errorInfo.summary,
-		sessionController.sessionTitle,
+		sessionTitle: sessionController.sessionTitle,
 		sessionCreatedAt,
 		sessionUpdatedAt,
 		currentModelId: sessionController.sessionCurrentModelId,
@@ -1910,8 +1910,8 @@ async function handlePlanSidebarSendMessage(sid: string, message: string): Promi
 			{isConnecting}
 			{isRetryingConnection}
 			{sessionId}
-			{sessionController.sessionTitle}
-			{sessionController.sessionAgentId}
+			sessionTitle={sessionController.sessionTitle}
+			sessionAgentId={sessionController.sessionAgentId}
 			currentAgentId={effectivePanelAgentId}
 			{availableAgents}
 			{agentIconSrc}
@@ -1931,7 +1931,7 @@ async function handlePlanSidebarSendMessage(sid: string, message: string): Promi
 			{onToggleFullscreen}
 			onRetryConnection={handleRetryConnection}
 			onScrollToTop={scrollToTop}
-			{sessionController.firstMessageAttachments}
+			firstMessageAttachments={sessionController.firstMessageAttachments}
 			onCopyContent={handleCopyContent}
 			onOpenInFinder={handleOpenInFinder}
 			onCopyStreamingLogPath={handleCopyStreamingLogPath}
@@ -2010,7 +2010,7 @@ async function handlePlanSidebarSendMessage(sid: string, message: string): Promi
 						{sessionId}
 						sceneEntries={tokenRevealSceneEntries}
 						{pendingUserRevealRequestKey}
-						sessionController.sessionProjectPath={effectiveProjectPath ?? sessionController.sessionProjectPath}
+						sessionProjectPath={effectiveProjectPath ?? sessionController.sessionProjectPath}
 						{allProjects}
 						onProjectSelected={handleProjectSelected}
 						onRetryConnection={handleRetryConnection}
@@ -2070,9 +2070,9 @@ async function handlePlanSidebarSendMessage(sid: string, message: string): Promi
 			{worktreeDeleted}
 			{centeredFullscreenContent}
 			{showInlineErrorCard}
-			{sessionController.errorInfo}
-			{sessionController.inlineErrorReferenceId}
-			{sessionController.inlineErrorReferenceSearchable}
+			errorInfo={sessionController.errorInfo}
+			inlineErrorReferenceId={sessionController.inlineErrorReferenceId}
+			inlineErrorReferenceSearchable={sessionController.inlineErrorReferenceSearchable}
 			onRetryConnection={handleRetryConnection}
 			isRetryingConnection={isRetryingConnection}
 			onDismissError={handleDismissError}
@@ -2093,7 +2093,7 @@ async function handlePlanSidebarSendMessage(sid: string, message: string): Promi
 			{agentInstallState}
 			{sessionId}
 			effectiveProjectPath={effectiveProjectPath ?? null}
-			sessionController.sessionProjectPath={sessionController.sessionProjectPath ?? null}
+			sessionProjectPath={sessionController.sessionProjectPath ?? null}
 			{effectivePathForGit}
 			{createdPr}
 			{createPrRunning}
@@ -2114,7 +2114,7 @@ async function handlePlanSidebarSendMessage(sid: string, message: string): Promi
 			{mergePrRunning}
 			{availableAgents}
 			effectivePanelAgentId={effectivePanelAgentId}
-			{sessionController.sessionCurrentModelId}
+			sessionCurrentModelId={sessionController.sessionCurrentModelId}
 			{effectiveTheme}
 			{showTodoHeader}
 			{todoState}
@@ -2155,10 +2155,10 @@ async function handlePlanSidebarSendMessage(sid: string, message: string): Promi
 						<AgentInput
 							bind:this={agentInputRef}
 							sessionId={sessionId ?? undefined}
-							sessionController.sessionIsConnected={sessionController.sessionIsConnected}
-							{sessionController.sessionIsStreaming}
-							{sessionController.sessionCanSubmit}
-							{sessionController.sessionShowStop}
+							sessionIsConnected={sessionController.sessionIsConnected}
+							sessionIsStreaming={sessionController.sessionIsStreaming}
+							sessionCanSubmit={sessionController.sessionCanSubmit}
+							sessionShowStop={sessionController.sessionShowStop}
 							disableSend={sessionController.disableSendForFailedFirstSend}
 							{panelId}
 							voiceSessionId={panelId}

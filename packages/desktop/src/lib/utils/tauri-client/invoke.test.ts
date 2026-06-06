@@ -80,4 +80,21 @@ describe("invokeAsync", () => {
 			})
 		);
 	});
+
+	it("can keep best-effort invoke failures out of command failure telemetry", async () => {
+		invokeMock.mockRejectedValueOnce("notification plugin failed");
+
+		const result = await invokeAsyncWithRuntimeForTesting(
+			<T>(cmd: string, args?: InvokeArgs) => invokeMock(cmd, args) as Promise<T>,
+			"plugin:notification|show_notification",
+			{ options: { title: "Task Complete", body: "Agent finished work" } },
+			{ reportFailure: false }
+		);
+
+		expect(result.isErr()).toBe(true);
+		const error = result._unsafeUnwrapErr();
+		expect(error).toBeInstanceOf(AgentError);
+		expect(error.message).toBe("Agent operation failed: plugin:notification|show_notification");
+		expect(captureCommandFailureMock).not.toHaveBeenCalled();
+	});
 });

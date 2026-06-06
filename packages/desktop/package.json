@@ -14,6 +14,8 @@
 		"check:transcript-virtualizer": "bun run scripts/check-transcript-virtualizer-deps.ts",
 		"check:svelte": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.svelte-check.json",
 		"check:tauri-invokes": "bun run scripts/check-static-tauri-invokes.ts",
+		"qa": "bun run scripts/acepe-qa.ts",
+		"qa:transcript-viewport-scroll": "bun run scripts/qa-transcript-viewport-scroll.ts",
 		"typecheck": "svelte-kit sync && tsgo --noEmit -p ./tsconfig.fast.json",
 		"test": "bun run check:diagnostic-import-boundary && bun run check:tauri-invokes && bun ../../scripts/forbid-structural-tests.ts src && AGENT=1 bun test $(find src -type f \\( -name '*.test.ts' -o -name '*.vitest.ts' \\))",
 		"test:watch": "bun test --watch",

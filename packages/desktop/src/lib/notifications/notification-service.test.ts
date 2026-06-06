@@ -1,11 +1,11 @@
 import { afterEach, describe, expect, it, mock } from "bun:test";
-import { okAsync } from "neverthrow";
+import { errAsync, okAsync, type ResultAsync } from "neverthrow";
 
 const isPermissionGrantedMock = mock(async (): Promise<boolean> => true);
 const requestPermissionMock = mock(
 	async (): Promise<"default" | "denied" | "granted"> => "granted"
 );
-const sendNotificationMock = mock(() => okAsync(undefined));
+const sendNotificationMock = mock((): ResultAsync<void, Error> => okAsync(undefined));
 const playSoundMock = mock(() => {});
 
 async function flushAsyncNotifications(): Promise<void> {
@@ -141,6 +141,37 @@ describe("notification-service", () => {
 
 		expect(getActiveCount()).toBe(0);
 		expect(sendNotificationMock).toHaveBeenCalledTimes(1);
+	});
+
+	it("falls back to an in-app notification when native macOS delivery fails", async () => {
+		setNotificationRuntimeForTesting({
+			isMacOs: () => true,
+			getPermission: isPermissionGrantedMock,
+			requestPermission: requestPermissionMock,
+			send: sendNotificationMock,
+		});
+		sendNotificationMock.mockReturnValueOnce(errAsync(new Error("notification plugin failed")));
+
+		const payload: NotificationPayload = {
+			id: "native-fallback-1",
+			type: "question",
+			title: "Agent Question",
+			body: "Need your input",
+			actions: QUESTION_ACTIONS,
+		};
+		const onAction = mock(() => {});
+
+		showNotification(payload, onAction, {
+			windowFocused: false,
+			categoryEnabled: true,
+		});
+
+		await flushAsyncNotifications();
+
+		expect(sendNotificationMock).toHaveBeenCalledTimes(1);
+		expect(getActiveCount()).toBe(1);
+		handleNotificationAction("native-fallback-1", "view");
+		expect(onAction).toHaveBeenCalledWith("view");
 	});
 
 	it("adds notification to state", () => {

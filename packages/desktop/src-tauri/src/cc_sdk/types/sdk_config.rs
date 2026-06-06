@@ -90,7 +90,6 @@ impl ToolsConfig {
     }
 }
 
-
 /// SDK plugin configuration
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "lowercase")]
@@ -113,4 +112,3 @@ pub enum ControlProtocolFormat {
     /// Auto-detect based on CLI capabilities (default to Legacy for compatibility)
     Auto,
 }
-

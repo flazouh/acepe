@@ -7,8 +7,8 @@ use anyhow::Result;
 use chrono::Utc;
 use rand::Rng;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, ConnectionTrait, DbConn, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder, QuerySelect,
-    Set, TransactionTrait,
+    ActiveModelTrait, ColumnTrait, ConnectionTrait, DbConn, EntityTrait, PaginatorTrait,
+    QueryFilter, QueryOrder, QuerySelect, Set, TransactionTrait,
 };
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -366,4 +366,3 @@ impl ProjectRepository {
         Ok(count)
     }
 }
-

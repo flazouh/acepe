@@ -20,12 +20,20 @@ registerToastBridge({
 
 <Sonner
 	theme={mode.current}
+	position="top-center"
+	closeButton
+	offset="18px"
 	class="toaster group"
-	style="--normal-bg: color-mix(in srgb, var(--popover) 80%, transparent); --normal-text: var(--color-popover-foreground);"
+	style="--normal-bg: color-mix(in srgb, var(--popover) 92%, var(--foreground) 8%); --normal-text: var(--color-popover-foreground);"
 	toastOptions={{
 		classes: {
 			toast:
-				"!bg-[color-mix(in_srgb,var(--popover)_80%,transparent)] text-popover-foreground shadow-md rounded-lg !border-none backdrop-blur-md",
+				"!bg-[color-mix(in_srgb,var(--popover)_92%,var(--foreground)_8%)] text-popover-foreground shadow-lg rounded-full !border-none backdrop-blur-md",
+			title: "truncate",
+			description: "hidden",
+			icon: "hidden",
+			closeButton:
+				"!end-2 !start-auto !top-1/2 !-translate-y-1/2 !translate-x-0 !opacity-100",
 		},
 	}}
 	{...restProps}

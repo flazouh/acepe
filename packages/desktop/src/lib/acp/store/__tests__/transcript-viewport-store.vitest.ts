@@ -277,6 +277,65 @@ describe("TranscriptViewportStore buffer protocol", () => {
 		expect(store.getBufferProjection("session-1")?.lastGeneration).toBe(5);
 	});
 
+	it("allocates command generations above the last accepted response", () => {
+		const store = new TranscriptViewportStore();
+		expect(
+			store.applyBufferPush(
+				bufferPush({ graphRevision: 3, viewportRevision: 4, requestGeneration: 5 })
+			)
+		).toBe(true);
+
+		expect(store.nextRequestGeneration("session-1")).toBe(6);
+		expect(store.nextRequestGeneration("session-1")).toBe(7);
+	});
+
+	it("does not reset command generations when a viewport component remounts", () => {
+		const store = new TranscriptViewportStore();
+
+		expect(store.nextRequestGeneration("session-1")).toBe(1);
+		expect(store.nextRequestGeneration("session-1")).toBe(2);
+
+		expect(
+			store.applyBufferPush(
+				bufferPush({
+					graphRevision: 3,
+					viewportRevision: 4,
+					emissionSeq: 4,
+					requestGeneration: 2,
+				})
+			)
+		).toBe(true);
+
+		expect(store.nextRequestGeneration("session-1")).toBe(3);
+	});
+
+	it("rejects older request-generation pushes even when their emission sequence is newer", () => {
+		const store = new TranscriptViewportStore();
+		expect(
+			store.applyBufferPush(
+				bufferPush({
+					graphRevision: 3,
+					viewportRevision: 4,
+					emissionSeq: 10,
+					requestGeneration: 9,
+				})
+			)
+		).toBe(true);
+
+		expect(
+			store.applyBufferPush(
+				bufferPush({
+					graphRevision: 3,
+					viewportRevision: 5,
+					emissionSeq: 11,
+					requestGeneration: 8,
+				})
+			)
+		).toBe(false);
+		expect(store.getBufferProjection("session-1")?.lastGeneration).toBe(9);
+		expect(store.getBufferProjection("session-1")?.emissionSeq).toBe(10);
+	});
+
 	it("markReattaching clears the buffer protocol so a fresh push is accepted", () => {
 		const store = new TranscriptViewportStore();
 		expect(store.applyBufferPush(bufferPush({ graphRevision: 5, viewportRevision: 9 }))).toBe(true);

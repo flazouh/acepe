@@ -13,9 +13,9 @@ use crate::{
 use anyhow::Result;
 use chrono::Utc;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, Condition, ConnectionTrait,
-    DatabaseTransaction, DbConn, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder, QuerySelect,
-    Set, Statement, TransactionTrait,
+    ActiveModelTrait, ColumnTrait, Condition, ConnectionTrait, DatabaseTransaction, DbConn,
+    EntityTrait, PaginatorTrait, QueryFilter, QueryOrder, QuerySelect, Set, Statement,
+    TransactionTrait,
 };
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -1984,4 +1984,3 @@ impl SessionMetadataRepository {
 // ============================================================================
 // Skills Repository
 // ============================================================================
-

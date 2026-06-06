@@ -201,6 +201,7 @@ export class TranscriptViewportStore {
 private readonly bufferProjections = new SvelteMap<string, BufferProjection>();
 private readonly attachmentStatus = new SvelteMap<string, ViewportAttachmentStatus>();
 private readonly protocol = new SvelteMap<string, ViewportProtocol>();
+private readonly requestGenerations = new SvelteMap<string, number>();
 /**
  * Coalescing-safe accumulator of unconsumed signed scroll corrections (px) per
  * session. Every accepted correction-bearing push/delta ADDS its
@@ -235,7 +236,22 @@ const current = this.bufferProjections.get(push.sessionId) ?? null;
 if (current !== null && push.emissionSeq <= current.emissionSeq) {
 return false;
 }
+if (
+current?.lastGeneration !== null &&
+current?.lastGeneration !== undefined &&
+push.requestGeneration !== null &&
+push.requestGeneration !== undefined &&
+push.requestGeneration < current.lastGeneration
+) {
+return false;
+}
 this.bufferProjections.set(push.sessionId, projectionFromPush(push));
+if (push.requestGeneration !== null && push.requestGeneration !== undefined) {
+const currentGeneration = this.requestGenerations.get(push.sessionId) ?? 0;
+if (push.requestGeneration > currentGeneration) {
+this.requestGenerations.set(push.sessionId, push.requestGeneration);
+}
+}
 this.accumulateScrollAuthority(
 push.sessionId,
 push.scrollTopTarget ?? null,
@@ -289,6 +305,23 @@ if (sessionId === null) {
 return null;
 }
 return this.bufferProjections.get(sessionId) ?? null;
+}
+
+/**
+ * Allocate a per-session command generation. The counter lives in the shared
+ * store, not in a viewport component, because a session can remount or appear
+ * in more than one pane while the store still remembers the last accepted
+ * generation.
+ */
+nextRequestGeneration(sessionId: string | null): number {
+if (sessionId === null) {
+return 1;
+}
+const projectionGeneration = this.bufferProjections.get(sessionId)?.lastGeneration ?? 0;
+const currentGeneration = this.requestGenerations.get(sessionId) ?? 0;
+const next = Math.max(projectionGeneration, currentGeneration) + 1;
+this.requestGenerations.set(sessionId, next);
+return next;
 }
 
 /**
@@ -474,5 +507,6 @@ this.bufferProjections.delete(sessionId);
 this.attachmentStatus.delete(sessionId);
 this.protocol.delete(sessionId);
 this.pendingScrollCorrectionPx.delete(sessionId);
+this.requestGenerations.delete(sessionId);
 }
 }

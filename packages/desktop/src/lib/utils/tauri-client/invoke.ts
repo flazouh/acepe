@@ -30,6 +30,14 @@ export interface GeneratedCommand<TName extends string> {
 	invoke<TResult>(args?: InvokeArgs): ResultAsync<TResult, AppError>;
 }
 
+interface InvokeOptions {
+	readonly reportFailure: boolean;
+}
+
+const DEFAULT_INVOKE_OPTIONS: InvokeOptions = {
+	reportFailure: true,
+};
+
 export class TauriCommandError extends AgentError {
 	readonly classification: CommandErrorClassification;
 	readonly backendCorrelationId: string;
@@ -132,7 +140,8 @@ if (typeof window !== "undefined" && debugInvoke) {
 function invokeAsyncWithRuntime<T>(
 	runtime: InvokeRuntime,
 	cmd: string,
-	args?: Parameters<typeof invoke>[1]
+	args?: Parameters<typeof invoke>[1],
+	options: InvokeOptions = DEFAULT_INVOKE_OPTIONS
 ): ResultAsync<T, AppError> {
 	const invokeId = `invoke-${++invokeCounter}`;
 	const start = Date.now();
@@ -160,27 +169,29 @@ function invokeAsyncWithRuntime<T>(
 				cmd,
 				error as Error | string | number | boolean | object | null | undefined
 			);
-			reportCommandFailure(invokeError, {
-				commandName: invokeError.operation,
-				invokeId,
-				elapsedMs: elapsed,
-				referenceId:
-					invokeError instanceof TauriCommandError
-						? invokeError.referenceId
-						: (findErrorReference(invokeError)?.referenceId ?? invokeId),
-				referenceSearchable:
-					invokeError instanceof TauriCommandError
-						? invokeError.referenceSearchable
-						: (findErrorReference(invokeError)?.searchable ?? false),
-				classification:
-					invokeError instanceof TauriCommandError ? invokeError.classification : "unexpected",
-				backendCorrelationId:
-					invokeError instanceof TauriCommandError ? invokeError.backendCorrelationId : undefined,
-				backendEventId:
-					invokeError instanceof TauriCommandError ? invokeError.backendEventId : undefined,
-				diagnosticsSummary:
-					invokeError instanceof TauriCommandError ? invokeError.diagnosticsSummary : undefined,
-			});
+			if (options.reportFailure) {
+				reportCommandFailure(invokeError, {
+					commandName: invokeError.operation,
+					invokeId,
+					elapsedMs: elapsed,
+					referenceId:
+						invokeError instanceof TauriCommandError
+							? invokeError.referenceId
+							: (findErrorReference(invokeError)?.referenceId ?? invokeId),
+					referenceSearchable:
+						invokeError instanceof TauriCommandError
+							? invokeError.referenceSearchable
+							: (findErrorReference(invokeError)?.searchable ?? false),
+					classification:
+						invokeError instanceof TauriCommandError ? invokeError.classification : "unexpected",
+					backendCorrelationId:
+						invokeError instanceof TauriCommandError ? invokeError.backendCorrelationId : undefined,
+					backendEventId:
+						invokeError instanceof TauriCommandError ? invokeError.backendEventId : undefined,
+					diagnosticsSummary:
+						invokeError instanceof TauriCommandError ? invokeError.diagnosticsSummary : undefined,
+				});
+			}
 
 			return invokeError;
 		}
@@ -195,6 +206,13 @@ export function invokeAsync<T>(
 	args?: Parameters<typeof invoke>[1]
 ): ResultAsync<T, AppError> {
 	return invokeAsyncWithRuntime(invoke, cmd, args);
+}
+
+export function invokeAsyncQuiet<T>(
+	cmd: string,
+	args?: Parameters<typeof invoke>[1]
+): ResultAsync<T, AppError> {
+	return invokeAsyncWithRuntime(invoke, cmd, args, { reportFailure: false });
 }
 
 export function createGeneratedCommand<TName extends string>(name: TName): GeneratedCommand<TName> {

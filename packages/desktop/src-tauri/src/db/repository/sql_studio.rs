@@ -4,10 +4,7 @@
 use crate::db::entities::prelude::*;
 use anyhow::Result;
 use chrono::Utc;
-use sea_orm::{
-    ActiveModelTrait, DbConn, EntityTrait, QueryOrder,
-    Set,
-};
+use sea_orm::{ActiveModelTrait, DbConn, EntityTrait, QueryOrder, Set};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 

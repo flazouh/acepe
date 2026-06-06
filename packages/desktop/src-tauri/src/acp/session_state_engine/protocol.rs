@@ -209,7 +209,8 @@ pub struct ViewportBufferDelta {
 #[cfg(test)]
 mod tests {
     use super::{
-        AssistantTextDeltaPayload, SessionStatePayload, ViewportBufferDiagnostic, ViewportBufferPush,
+        AssistantTextDeltaPayload, SessionStatePayload, ViewportBufferDiagnostic,
+        ViewportBufferPush,
     };
     use crate::acp::session_state_engine::revision::SessionGraphRevision;
     use crate::acp::transcript_viewport::{TranscriptViewportRow, ViewportMode};

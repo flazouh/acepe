@@ -663,21 +663,21 @@ export class AgentInputState {
 					deferredCreation: createdSession.deferredCreation,
 					elapsed_ms: Math.round(performance.now() - sendT0),
 				});
-				// Notify parent with the canonical session ID
-				onSessionCreated?.(newSessionId, panelId ?? null);
-				const firstPromptSend = sendMessage(this.store, newSessionId, content, imageAttachments);
-				if (!createdSession.deferredCreation) {
-					return firstPromptSend;
-				}
-
-				return firstPromptSend.mapErr(
-					(error) =>
-						new SessionCreationError(
-							selectedAgentId,
-							effectiveProjectPath,
-							error.cause ?? error
-						)
-				);
+				return sendMessage(this.store, newSessionId, content, imageAttachments)
+					.map(() => {
+						// The first prompt is part of pre-session activation. Promote the panel
+						// only after the backend accepted it, so failed first sends restore the
+						// composer instead of binding the panel to an empty failed session.
+						onSessionCreated?.(newSessionId, panelId ?? null);
+					})
+					.mapErr(
+						(error) =>
+							new SessionCreationError(
+								selectedAgentId,
+								effectiveProjectPath,
+								error.cause ?? error
+							)
+					);
 			})
 			.map(() => {
 				if (panelId) this.panelStore.clearPendingUserEntry(panelId);

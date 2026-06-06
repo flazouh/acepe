@@ -2550,9 +2550,7 @@ mod tests {
             .expect("canonical id should have restored viewport authority");
 
         match envelope.payload {
-            crate::acp::session_state_engine::SessionStatePayload::ViewportBufferPush {
-                push,
-            } => {
+            crate::acp::session_state_engine::SessionStatePayload::ViewportBufferPush { push } => {
                 assert_eq!(push.session_id, canonical_session_id);
                 assert!(!push.rows.is_empty());
             }

@@ -11,8 +11,8 @@ use crate::{
 use anyhow::Result;
 use chrono::Utc;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DbConn, EntityTrait, QueryFilter, QueryOrder, QuerySelect,
-    Set, TransactionTrait,
+    ActiveModelTrait, ColumnTrait, DbConn, EntityTrait, QueryFilter, QueryOrder, QuerySelect, Set,
+    TransactionTrait,
 };
 
 // ============================================================================
@@ -174,4 +174,3 @@ impl SessionJournalEventRepository {
 // ============================================================================
 // Session Metadata Repository
 // ============================================================================
-

@@ -7,6 +7,7 @@ pub const DEFAULT_OVERSCAN_ROWS: usize = 4;
 /// buffer push. Large enough that the WebView can resolve a screen or two of
 /// scrolling locally (zero IPC) before it must request a refill.
 pub const DEFAULT_BUFFER_OVERSCAN_ROWS: usize = 50;
+const MIN_VIEWPORT_HEIGHT_PX: u32 = 1;
 
 #[derive(Debug, Clone, Serialize, Deserialize, specta::Type, PartialEq, Eq)]
 #[serde(tag = "kind", rename_all = "camelCase")]
@@ -84,7 +85,7 @@ impl TranscriptViewport {
         Self {
             layout,
             mode: ViewportMode::FollowingTail,
-            viewport_height_px,
+            viewport_height_px: normalize_viewport_height_px(viewport_height_px),
             overscan_rows: DEFAULT_OVERSCAN_ROWS,
             viewport_revision: 1,
         }
@@ -161,6 +162,7 @@ impl TranscriptViewport {
     }
 
     pub fn resize(&mut self, viewport_height_px: u32) -> ViewportWindow {
+        let viewport_height_px = normalize_viewport_height_px(viewport_height_px);
         if self.viewport_height_px != viewport_height_px {
             self.bump_viewport_revision();
         }
@@ -297,6 +299,10 @@ impl TranscriptViewport {
 
         self.mode = ViewportMode::FollowingTail;
     }
+}
+
+fn normalize_viewport_height_px(viewport_height_px: u32) -> u32 {
+    viewport_height_px.max(MIN_VIEWPORT_HEIGHT_PX)
 }
 
 #[cfg(test)]
@@ -583,7 +589,11 @@ mod tests {
     #[test]
     fn buffer_window_clamps_overscan_to_layout_bounds() {
         let viewport = TranscriptViewport::new(
-            LayoutIndex::new(vec![row("row-1", 100), row("row-2", 100), row("row-3", 100)]),
+            LayoutIndex::new(vec![
+                row("row-1", 100),
+                row("row-2", 100),
+                row("row-3", 100),
+            ]),
             100,
         )
         .with_overscan(0);
@@ -657,5 +667,25 @@ mod tests {
         assert_eq!(slice.buffer_end_index, 0);
         assert!(slice.offsets_px.is_empty());
         assert_eq!(slice.total_height_px, 0);
+    }
+
+    #[test]
+    fn zero_height_viewport_still_buffers_non_empty_layout() {
+        let viewport = TranscriptViewport::new(
+            LayoutIndex::new(vec![
+                row("row-1", 100),
+                row("row-2", 100),
+                row("row-3", 100),
+            ]),
+            0,
+        );
+
+        let slice = viewport.buffer_window(1);
+
+        assert_eq!(slice.layout_row_count, 3);
+        assert_eq!(slice.buffer_start_index, 1);
+        assert_eq!(slice.buffer_end_index, 3);
+        assert_eq!(slice.offsets_px, vec![100, 200]);
+        assert_eq!(slice.viewport_offset_px, 299);
     }
 }

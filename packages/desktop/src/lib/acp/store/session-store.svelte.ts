@@ -2468,6 +2468,10 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 		return this.transcriptViewportStore.getBufferProjection(sessionId);
 	}
 
+	nextViewportRequestGeneration(sessionId: string | null): number {
+		return this.transcriptViewportStore.nextRequestGeneration(sessionId);
+	}
+
 	viewportNeedsRefill(
 		sessionId: string | null,
 		scrollTopPx: number,

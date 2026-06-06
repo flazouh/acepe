@@ -28,14 +28,19 @@ impl From<TranscriptViewportCommandRevision> for SessionGraphRevision {
     }
 }
 
-fn build_buffer_envelope_for_command(
-    app: &AppHandle,
+struct TranscriptViewportCommandInput {
     session_id: String,
     revision: TranscriptViewportCommandRevision,
     viewport_height_px: u32,
     scroll_intent: Option<ScrollIntent>,
     height_confirmation: Option<TranscriptViewportHeightConfirmation>,
+    request_generation: Option<u64>,
     force_fresh: bool,
+}
+
+fn build_buffer_envelope_for_command(
+    app: &AppHandle,
+    input: TranscriptViewportCommandInput,
 ) -> Result<Option<SessionStateEnvelope>, crate::acp::error::SerializableAcpError> {
     let runtime_registry = app.state::<Arc<SessionGraphRuntimeRegistry>>();
     let projection_registry = app.state::<Arc<ProjectionRegistry>>();
@@ -43,24 +48,27 @@ fn build_buffer_envelope_for_command(
 
     runtime_registry
         .build_or_advance_viewport_buffer_envelope(
-            &session_id,
-            revision.into(),
+            &input.session_id,
+            input.revision.into(),
             &projection_registry,
             &transcript_projection_registry,
-            Some(viewport_height_px),
-            scroll_intent,
-            height_confirmation,
-            None,
-            force_fresh,
+            Some(input.viewport_height_px),
+            input.scroll_intent,
+            input.height_confirmation,
+            input.request_generation,
+            input.force_fresh,
         )
         .map_err(|miss| match miss {
             VisibleTranscriptWindowMiss::SessionNotAttached => {
-                crate::acp::error::SerializableAcpError::ViewportSessionNotAttached { session_id }
+                crate::acp::error::SerializableAcpError::ViewportSessionNotAttached {
+                    session_id: input.session_id,
+                }
             }
             VisibleTranscriptWindowMiss::BudgetExceeded => {
                 crate::acp::error::SerializableAcpError::InvalidState {
                     message: format!(
-                        "Transcript viewport envelope exceeded the byte budget for session {session_id}"
+                        "Transcript viewport envelope exceeded the byte budget for session {}",
+                        input.session_id
                     ),
                 }
             }
@@ -73,6 +81,7 @@ pub async fn acp_request_transcript_viewport_buffer(
     app: AppHandle,
     session_id: String,
     revision: TranscriptViewportCommandRevision,
+    request_generation: Option<u64>,
 ) -> CommandResult<Option<SessionStateEnvelope>> {
     expected_acp_command_result(
         "acp_request_transcript_viewport_buffer",
@@ -89,7 +98,7 @@ pub async fn acp_request_transcript_viewport_buffer(
                     None,
                     None,
                     None,
-                    None,
+                    request_generation,
                     true,
                 )
                 .map_err(|miss| match miss {
@@ -119,18 +128,23 @@ pub async fn acp_scroll_transcript_viewport(
     revision: TranscriptViewportCommandRevision,
     viewport_height_px: u32,
     offset_px: u64,
+    request_generation: Option<u64>,
+    force_fresh: Option<bool>,
 ) -> CommandResult<Option<SessionStateEnvelope>> {
     expected_acp_command_result(
         "acp_scroll_transcript_viewport",
         async move {
             build_buffer_envelope_for_command(
                 &app,
-                session_id,
-                revision,
-                viewport_height_px,
-                Some(ScrollIntent::DetachAtOffset { offset_px }),
-                None,
-                false,
+                TranscriptViewportCommandInput {
+                    session_id,
+                    revision,
+                    viewport_height_px,
+                    scroll_intent: Some(ScrollIntent::DetachAtOffset { offset_px }),
+                    height_confirmation: None,
+                    request_generation,
+                    force_fresh: force_fresh.unwrap_or(false),
+                },
             )
         }
         .await,
@@ -145,6 +159,7 @@ pub async fn acp_reveal_transcript_viewport_row(
     revision: TranscriptViewportCommandRevision,
     viewport_height_px: u32,
     row_id: Option<String>,
+    request_generation: Option<u64>,
 ) -> CommandResult<Option<SessionStateEnvelope>> {
     expected_acp_command_result(
         "acp_reveal_transcript_viewport_row",
@@ -155,12 +170,15 @@ pub async fn acp_reveal_transcript_viewport_row(
             };
             build_buffer_envelope_for_command(
                 &app,
-                session_id,
-                revision,
-                viewport_height_px,
-                scroll_intent,
-                None,
-                false,
+                TranscriptViewportCommandInput {
+                    session_id,
+                    revision,
+                    viewport_height_px,
+                    scroll_intent,
+                    height_confirmation: None,
+                    request_generation,
+                    force_fresh: true,
+                },
             )
         }
         .await,
@@ -174,18 +192,22 @@ pub async fn acp_resize_transcript_viewport(
     session_id: String,
     revision: TranscriptViewportCommandRevision,
     viewport_height_px: u32,
+    request_generation: Option<u64>,
 ) -> CommandResult<Option<SessionStateEnvelope>> {
     expected_acp_command_result(
         "acp_resize_transcript_viewport",
         async move {
             build_buffer_envelope_for_command(
                 &app,
-                session_id,
-                revision,
-                viewport_height_px,
-                None,
-                None,
-                false,
+                TranscriptViewportCommandInput {
+                    session_id,
+                    revision,
+                    viewport_height_px,
+                    scroll_intent: None,
+                    height_confirmation: None,
+                    request_generation,
+                    force_fresh: false,
+                },
             )
         }
         .await,
@@ -194,6 +216,7 @@ pub async fn acp_resize_transcript_viewport(
 
 #[tauri::command]
 #[specta::specta]
+#[allow(clippy::too_many_arguments)]
 pub async fn acp_confirm_transcript_viewport_height(
     app: AppHandle,
     session_id: String,
@@ -202,22 +225,28 @@ pub async fn acp_confirm_transcript_viewport_height(
     row_id: String,
     row_version: String,
     height_px: u32,
+    viewport_offset_px: Option<u64>,
+    request_generation: Option<u64>,
 ) -> CommandResult<Option<SessionStateEnvelope>> {
     expected_acp_command_result(
         "acp_confirm_transcript_viewport_height",
         async move {
             build_buffer_envelope_for_command(
                 &app,
-                session_id,
-                revision,
-                viewport_height_px,
-                None,
-                Some(TranscriptViewportHeightConfirmation {
-                    row_id,
-                    row_version,
-                    height_px,
-                }),
-                false,
+                TranscriptViewportCommandInput {
+                    session_id,
+                    revision,
+                    viewport_height_px,
+                    scroll_intent: None,
+                    height_confirmation: Some(TranscriptViewportHeightConfirmation {
+                        row_id,
+                        row_version,
+                        height_px,
+                        viewport_offset_px,
+                    }),
+                    request_generation,
+                    force_fresh: false,
+                },
             )
         }
         .await,

@@ -3,9 +3,7 @@
 
 use crate::db::entities::prelude::*;
 use anyhow::Result;
-use sea_orm::{
-    DbConn, EntityTrait,
-};
+use sea_orm::{DbConn, EntityTrait};
 
 // ============================================================================
 // Database Reset Repository
@@ -105,4 +103,3 @@ impl DatabaseResetRepository {
         Ok(())
     }
 }
-

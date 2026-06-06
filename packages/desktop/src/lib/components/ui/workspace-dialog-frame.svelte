@@ -10,7 +10,6 @@ interface Props {
 	children: Snippet;
 	topLeft?: Snippet;
 	topRight?: Snippet;
-	showTitle?: boolean;
 	contentClass?: string;
 	contentOverflow?: "auto" | "hidden";
 	closeLabel?: string;
@@ -23,7 +22,6 @@ let {
 	children,
 	topLeft,
 	topRight,
-	showTitle = true,
 	contentClass = "",
 	contentOverflow = "auto",
 	closeLabel = "Close dialog",
@@ -46,11 +44,6 @@ const bodyClass = $derived(
 		<div class="flex h-full min-h-0 flex-col">
 			<div class="flex min-h-6 shrink-0 items-center gap-2 px-1 pt-1">
 				<div class="flex min-w-0 flex-1 items-center gap-1.5">
-					{#if showTitle}
-						<span class="truncate text-[11px] font-medium text-foreground leading-none">
-							{title}
-						</span>
-					{/if}
 					{#if topLeft}
 						{@render topLeft()}
 					{/if}

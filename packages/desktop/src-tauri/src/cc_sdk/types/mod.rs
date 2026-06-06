@@ -24,8 +24,8 @@ mod tests;
 
 pub use effort::Effort;
 pub use hooks::{
-    AgentDefinition, AsyncHookJSONOutput, BaseHookInput, HookCallback,
-    HookContext, HookInput, HookJSONOutput, HookMatcher, HookSpecificOutput, NotificationHookInput,
+    AgentDefinition, AsyncHookJSONOutput, BaseHookInput, HookCallback, HookContext, HookInput,
+    HookJSONOutput, HookMatcher, HookSpecificOutput, NotificationHookInput,
     NotificationHookSpecificOutput, PermissionRequestHookInput,
     PermissionRequestHookSpecificOutput, PostToolUseFailureHookInput,
     PostToolUseFailureHookSpecificOutput, PostToolUseHookInput, PostToolUseHookSpecificOutput,

@@ -4,10 +4,7 @@
 use crate::db::entities::prelude::*;
 use anyhow::Result;
 use chrono::Utc;
-use sea_orm::{
-    ActiveModelTrait, DbConn, EntityTrait,
-    Set,
-};
+use sea_orm::{ActiveModelTrait, DbConn, EntityTrait, Set};
 
 // ============================================================================
 // Session Review State Repository
@@ -62,4 +59,3 @@ impl SessionReviewStateRepository {
         Ok(())
     }
 }
-

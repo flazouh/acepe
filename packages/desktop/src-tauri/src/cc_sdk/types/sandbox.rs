@@ -66,4 +66,3 @@ pub struct SandboxSettings {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub enable_weaker_nested_sandbox: Option<bool>,
 }
-

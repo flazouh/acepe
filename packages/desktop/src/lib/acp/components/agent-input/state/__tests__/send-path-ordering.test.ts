@@ -33,6 +33,7 @@ import type { PanelStore } from "../../../../store/panel-store.svelte.js";
 import type { SessionStore } from "../../../../store/session-store.svelte.js";
 import { DEFAULT_PANEL_HOT_STATE } from "../../../../store/types.js";
 import { AgentInputState } from "../agent-input-state.svelte.js";
+import { SessionCreationError } from "../../errors/agent-input-error.js";
 
 // ---------------------------------------------------------------------------
 // Shared helpers
@@ -140,6 +141,36 @@ describe("clearPendingUserEntry ordering invariant — normal send (pre-session)
 		expect(events).toContain("clear-pending");
 		// Clear comes after the failed send attempt (not before it).
 		expect(events.indexOf("clear-pending")).toBeGreaterThan(events.indexOf("send-message"));
+	});
+
+	it("does not promote a pre-session panel when the first prompt fails after session creation", async () => {
+		const { store: panelStore, events } = makeOrderedPanelStore();
+		const sessionStore = makeOrderedSessionStore(events, { sendFails: true });
+		const createdSessions: string[] = [];
+
+		const state = new AgentInputState(
+			sessionStore as SessionStore,
+			panelStore as PanelStore,
+			() => "/repo"
+		);
+
+		const result = await state.sendPreparedMessage({
+			content: "Hello agent",
+			panelId: "panel-1",
+			projectPath: "/repo",
+			projectName: "Acepe",
+			selectedAgentId: "claude-code",
+			onSessionCreated: (sessionId) => {
+				createdSessions.push(sessionId);
+			},
+		});
+
+		expect(result.isErr()).toBe(true);
+		if (result.isErr()) {
+			expect(result.error).toBeInstanceOf(SessionCreationError);
+		}
+		expect(createdSessions).toEqual([]);
+		expect(events).toEqual(["set-pending", "session-created", "send-message", "clear-pending"]);
 	});
 });
 

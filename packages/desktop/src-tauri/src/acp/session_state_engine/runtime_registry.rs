@@ -128,6 +128,7 @@ pub struct TranscriptViewportHeightConfirmation {
     pub row_id: String,
     pub row_version: String,
     pub height_px: u32,
+    pub viewport_offset_px: Option<u64>,
 }
 
 #[derive(Clone, Copy)]
@@ -1016,19 +1017,40 @@ impl SessionGraphRuntimeRegistry {
                 viewport.apply_scroll_intent(intent);
             }
             let mut anchor_correction_px: i64 = 0;
+            let mut height_confirmation_outcome: Option<HeightConfirmationOutcome> = None;
             let height_diagnostic = height_confirmation.and_then(|confirmation| {
+                let live_offset_authoritative = confirmation.viewport_offset_px.is_some();
+                let can_confirm_height = viewport
+                    .layout()
+                    .row(&confirmation.row_id)
+                    .is_some_and(|row| row.version == confirmation.row_version);
+                if let (true, Some(viewport_offset_px)) =
+                    (can_confirm_height, confirmation.viewport_offset_px)
+                {
+                    viewport.apply_scroll_intent(ScrollIntent::DetachAtOffset {
+                        offset_px: viewport_offset_px,
+                    });
+                }
                 let transition = viewport.confirm_height(
                     &confirmation.row_id,
                     &confirmation.row_version,
                     confirmation.height_px,
                 );
-                anchor_correction_px = transition.anchor_correction_px;
+                anchor_correction_px = if live_offset_authoritative {
+                    0
+                } else {
+                    transition.anchor_correction_px
+                };
                 transition.height_confirmation.and_then(|outcome| {
-                    (outcome != HeightConfirmationOutcome::Accepted).then(|| {
-                        ViewportHeightDiagnostic {
-                            code: height_confirmation_diagnostic_code(outcome).to_string(),
-                            row_id: Some(confirmation.row_id),
-                        }
+                    height_confirmation_outcome = Some(outcome);
+                    matches!(
+                        outcome,
+                        HeightConfirmationOutcome::StaleVersion
+                            | HeightConfirmationOutcome::MissingRow
+                    )
+                    .then(|| ViewportHeightDiagnostic {
+                        code: height_confirmation_diagnostic_code(outcome).to_string(),
+                        row_id: Some(confirmation.row_id),
                     })
                 })
             });
@@ -1038,6 +1060,7 @@ impl SessionGraphRuntimeRegistry {
                 effective_revision,
                 rows: rows.as_slice(),
                 viewport,
+                height_confirmation_outcome,
                 height_diagnostic,
                 anchor_correction_px,
             })
@@ -1199,7 +1222,6 @@ impl SessionGraphRuntimeRegistry {
         request_generation: Option<u64>,
         force_fresh: bool,
     ) -> Result<Option<SessionStateEnvelope>, VisibleTranscriptWindowMiss> {
-        let height_present = height_confirmation.is_some();
         // Captured before `scroll_intent` is moved into the materialize call.
         // Per the scroll-authority decision contract, a `RevealRow` is an
         // intentional reposition (absolute target), distinct from a user-driven
@@ -1215,25 +1237,28 @@ impl SessionGraphRuntimeRegistry {
 
         // Pull the slice + canonical rows + rejected-confirmation diagnostic out
         // of the locked prologue so we can classify above the closure.
-        let ((slice, full_rows, height_diag, anchor_correction_px), effective_revision) = self
-            .with_materialized_viewport(
-                session_id,
-                revision,
-                projection_registry,
-                transcript_projection_registry,
-                viewport_height_px,
-                scroll_intent,
-                height_confirmation,
-                |ctx| {
-                    let slice = ctx.viewport.buffer_window(DEFAULT_BUFFER_OVERSCAN_ROWS);
-                    (
-                        slice,
-                        ctx.rows.to_vec(),
-                        ctx.height_diagnostic,
-                        ctx.anchor_correction_px,
-                    )
-                },
-            )?;
+        let (
+            (slice, full_rows, height_outcome, height_diag, anchor_correction_px),
+            effective_revision,
+        ) = self.with_materialized_viewport(
+            session_id,
+            revision,
+            projection_registry,
+            transcript_projection_registry,
+            viewport_height_px,
+            scroll_intent,
+            height_confirmation,
+            |ctx| {
+                let slice = ctx.viewport.buffer_window(DEFAULT_BUFFER_OVERSCAN_ROWS);
+                (
+                    slice,
+                    ctx.rows.to_vec(),
+                    ctx.height_confirmation_outcome,
+                    ctx.height_diagnostic,
+                    ctx.anchor_correction_px,
+                )
+            },
+        )?;
 
         let prev_window = prev.as_ref().map(|r| (r.start_index, r.row_ids.len()));
         let mut emission = classify_buffer_transition(prev_window, &slice);
@@ -1250,7 +1275,7 @@ impl SessionGraphRuntimeRegistry {
             emission = BufferEmission::FreshPush;
         }
         // B4: an accepted height confirmation must re-send all offsets.
-        let height_accepted = height_present && height_diag.is_none();
+        let height_accepted = matches!(height_outcome, Some(HeightConfirmationOutcome::Accepted));
         if height_accepted && prev.is_some() {
             emission = BufferEmission::FreshPush;
         }
@@ -1624,6 +1649,7 @@ struct ViewportMaterializeCtx<'a> {
     effective_revision: SessionGraphRevision,
     rows: &'a [TranscriptViewportRow],
     viewport: &'a TranscriptViewport,
+    height_confirmation_outcome: Option<HeightConfirmationOutcome>,
     height_diagnostic: Option<ViewportHeightDiagnostic>,
     /// Signed canonical scroll-anchor correction from the height confirmation
     /// applied in this materialization (`0` when none / rejected). See
@@ -1634,6 +1660,7 @@ struct ViewportMaterializeCtx<'a> {
 fn height_confirmation_diagnostic_code(outcome: HeightConfirmationOutcome) -> &'static str {
     match outcome {
         HeightConfirmationOutcome::Accepted => "height_accepted",
+        HeightConfirmationOutcome::Unchanged => "height_unchanged",
         HeightConfirmationOutcome::StaleVersion => "stale_height_confirmation",
         HeightConfirmationOutcome::MissingRow => "missing_height_confirmation_row",
     }
@@ -2179,6 +2206,7 @@ mod tests {
         );
     }
 
+    use super::decide_scroll_authority;
     use crate::acp::client_session::{default_modes, default_session_model_state};
     use crate::acp::lifecycle::LifecycleStatus;
     use crate::acp::projections::ProjectionRegistry;
@@ -2203,7 +2231,6 @@ mod tests {
     };
     use crate::acp::transcript_viewport::ScrollIntent;
     use crate::acp::types::{CanonicalAgentId, ContentBlock};
-    use super::decide_scroll_authority;
     use crate::db::repository::SessionMetadataRepository;
     use sea_orm::{Database, DbConn};
     use sea_orm_migration::MigratorTrait;
@@ -3840,7 +3867,8 @@ mod tests {
         let transcript_projection_registry = TranscriptProjectionRegistry::new();
 
         projection_registry.register_session("session-h".to_string(), CanonicalAgentId::Cursor);
-        let update = create_agent_message_chunk_update("session-h", Some("assistant-1"), "hello", 5);
+        let update =
+            create_agent_message_chunk_update("session-h", Some("assistant-1"), "hello", 5);
         projection_registry.apply_session_update("session-h", &update);
         let _ = transcript_projection_registry.apply_session_update(7, &update);
         let revision = SessionGraphRevision::new(0, 7, 1);
@@ -3869,7 +3897,10 @@ mod tests {
         // Streaming ticks pass `None`: preserve the stored height, no churn.
         let r2 = push_revision(None);
         let r3 = push_revision(None);
-        assert_eq!(r1, r2, "a None-height streaming tick must not churn the revision");
+        assert_eq!(
+            r1, r2,
+            "a None-height streaming tick must not churn the revision"
+        );
         assert_eq!(r2, r3, "repeated None-height ticks stay revision-stable");
 
         // A real command-measured resize to a DIFFERENT height bumps. This also
@@ -3940,7 +3971,10 @@ mod tests {
 
         match envelope.payload {
             SessionStatePayload::ViewportBufferPush { push } => {
-                assert_eq!(push.emission_seq, 0, "first push baselines emission_seq at 0");
+                assert_eq!(
+                    push.emission_seq, 0,
+                    "first push baselines emission_seq at 0"
+                );
                 assert_eq!(push.rows.len(), 3);
             }
             other => panic!("expected ViewportBufferPush, got {other:?}"),
@@ -4141,9 +4175,11 @@ mod tests {
                 &projection_registry,
                 &transcript_projection_registry,
                 Some(720),
-                Some(crate::acp::transcript_viewport::ScrollIntent::DetachAtOffset {
-                    offset_px: 12_480,
-                }),
+                Some(
+                    crate::acp::transcript_viewport::ScrollIntent::DetachAtOffset {
+                        offset_px: 12_480,
+                    },
+                ),
                 None,
                 None,
                 false,
@@ -4167,9 +4203,7 @@ mod tests {
                 );
                 let _ = baseline_end;
             }
-            other => panic!(
-                "scroll slide with stable survivors must stay a Delta, got {other:?}"
-            ),
+            other => panic!("scroll slide with stable survivors must stay a Delta, got {other:?}"),
         }
     }
 
@@ -4224,6 +4258,7 @@ mod tests {
                     row_id,
                     row_version,
                     height_px: 321,
+                    viewport_offset_px: None,
                 }),
                 None,
                 false,
@@ -4237,6 +4272,86 @@ mod tests {
             }
             other => panic!("expected forced ViewportBufferPush, got {other:?}"),
         }
+    }
+
+    #[test]
+    fn duplicate_height_confirmation_does_not_emit_fresh_push() {
+        let runtime_registry = SessionGraphRuntimeRegistry::new();
+        let projection_registry = ProjectionRegistry::new();
+        let transcript_projection_registry = TranscriptProjectionRegistry::new();
+        let revision = seed_buffer_emission_session(
+            &runtime_registry,
+            &projection_registry,
+            &transcript_projection_registry,
+            "s",
+            3,
+        );
+
+        let first = runtime_registry
+            .build_or_advance_viewport_buffer_envelope(
+                "s",
+                revision,
+                &projection_registry,
+                &transcript_projection_registry,
+                Some(720),
+                None,
+                None,
+                None,
+                false,
+            )
+            .expect("first")
+            .expect("push");
+        let (row_id, row_version) = match first.payload {
+            SessionStatePayload::ViewportBufferPush { push } => {
+                let row = &push.rows[0];
+                (row.row_id.clone(), row.version.clone())
+            }
+            other => panic!("expected push, got {other:?}"),
+        };
+
+        let _ = runtime_registry
+            .build_or_advance_viewport_buffer_envelope(
+                "s",
+                revision,
+                &projection_registry,
+                &transcript_projection_registry,
+                Some(720),
+                None,
+                Some(super::TranscriptViewportHeightConfirmation {
+                    row_id: row_id.clone(),
+                    row_version: row_version.clone(),
+                    height_px: 321,
+                    viewport_offset_px: None,
+                }),
+                None,
+                false,
+            )
+            .expect("first height confirmation")
+            .expect("first accepted height confirmation must emit");
+
+        let duplicate = runtime_registry
+            .build_or_advance_viewport_buffer_envelope(
+                "s",
+                revision,
+                &projection_registry,
+                &transcript_projection_registry,
+                Some(720),
+                None,
+                Some(super::TranscriptViewportHeightConfirmation {
+                    row_id,
+                    row_version,
+                    height_px: 321,
+                    viewport_offset_px: None,
+                }),
+                None,
+                false,
+            )
+            .expect("duplicate height confirmation");
+
+        assert!(
+            duplicate.is_none(),
+            "an unchanged height confirmation must not emit another fresh push"
+        );
     }
 
     #[test]
@@ -4282,6 +4397,7 @@ mod tests {
                     row_id: "m0".to_string(),
                     row_version: "definitely-not-the-current-version".to_string(),
                     height_px: 321,
+                    viewport_offset_px: Some(1200),
                 }),
                 None,
                 false,
@@ -4346,6 +4462,7 @@ mod tests {
                     row_id,
                     row_version,
                     height_px: 321,
+                    viewport_offset_px: None,
                 }),
                 None,
                 false,
@@ -4387,8 +4504,15 @@ mod tests {
 
         let _ = runtime_registry
             .build_or_advance_viewport_buffer_envelope(
-                "s", revision, &projection_registry, &transcript_projection_registry, Some(720),
-                None, None, None, false,
+                "s",
+                revision,
+                &projection_registry,
+                &transcript_projection_registry,
+                Some(720),
+                None,
+                None,
+                None,
+                false,
             )
             .expect("first")
             .expect("push");
@@ -4443,8 +4567,15 @@ mod tests {
 
         let _ = runtime_registry
             .build_or_advance_viewport_buffer_envelope(
-                "s", revision, &projection_registry, &transcript_projection_registry, Some(720),
-                None, None, None, false,
+                "s",
+                revision,
+                &projection_registry,
+                &transcript_projection_registry,
+                Some(720),
+                None,
+                None,
+                None,
+                false,
             )
             .expect("first")
             .expect("push");
@@ -4453,8 +4584,15 @@ mod tests {
         // 120px rows). Rows above it are above the viewport offset.
         let detach = runtime_registry
             .build_or_advance_viewport_buffer_envelope(
-                "s", revision, &projection_registry, &transcript_projection_registry, Some(720),
-                Some(ScrollIntent::DetachAtOffset { offset_px: 1200 }), None, None, true,
+                "s",
+                revision,
+                &projection_registry,
+                &transcript_projection_registry,
+                Some(720),
+                Some(ScrollIntent::DetachAtOffset { offset_px: 1200 }),
+                None,
+                None,
+                true,
             )
             .expect("detach")
             .expect("push");
@@ -4480,6 +4618,7 @@ mod tests {
                     row_id: above_row_id,
                     row_version: above_row_version,
                     height_px: 320,
+                    viewport_offset_px: None,
                 }),
                 None,
                 false,
@@ -4501,6 +4640,90 @@ mod tests {
                     push.scroll_anchor_correction_px,
                     Some(200),
                     "above-viewport growth must produce a +Δ relative correction"
+                );
+            }
+            other => panic!("expected push, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn height_confirmation_uses_live_offset_without_scroll_correction_when_frontend_scrolled_inside_buffer(
+    ) {
+        // Native in-buffer scrolling intentionally avoids a scroll-intent round
+        // trip. Height confirmations still arrive during that scroll, so the
+        // confirmation must carry the live WebView offset and re-anchor Rust
+        // before materializing the buffer. Because that live offset is the
+        // user's active scroll position, it is already authoritative; emitting
+        // Δ_above back to the WebView would fight the active upward scroll.
+        let runtime_registry = SessionGraphRuntimeRegistry::new();
+        let projection_registry = ProjectionRegistry::new();
+        let transcript_projection_registry = TranscriptProjectionRegistry::new();
+        let revision = seed_buffer_emission_session(
+            &runtime_registry,
+            &projection_registry,
+            &transcript_projection_registry,
+            "s",
+            20,
+        );
+
+        let first = runtime_registry
+            .build_or_advance_viewport_buffer_envelope(
+                "s",
+                revision,
+                &projection_registry,
+                &transcript_projection_registry,
+                Some(720),
+                None,
+                None,
+                None,
+                false,
+            )
+            .expect("first")
+            .expect("push");
+
+        let (above_row_id, above_row_version) = match first.payload {
+            SessionStatePayload::ViewportBufferPush { push } => {
+                assert_eq!(push.mode, ViewportMode::FollowingTail);
+                // Row index 2 starts at 240px, above the live offset below.
+                let row = &push.rows[2];
+                (row.row_id.clone(), row.version.clone())
+            }
+            other => panic!("expected push, got {other:?}"),
+        };
+
+        let envelope = runtime_registry
+            .build_or_advance_viewport_buffer_envelope(
+                "s",
+                revision,
+                &projection_registry,
+                &transcript_projection_registry,
+                Some(720),
+                None,
+                Some(super::TranscriptViewportHeightConfirmation {
+                    row_id: above_row_id,
+                    row_version: above_row_version,
+                    height_px: 320,
+                    viewport_offset_px: Some(1200),
+                }),
+                None,
+                false,
+            )
+            .expect("confirm")
+            .expect("forced push");
+
+        match envelope.payload {
+            SessionStatePayload::ViewportBufferPush { push } => {
+                assert!(
+                    matches!(push.mode, ViewportMode::Detached { .. }),
+                    "live offset should re-anchor stale follow-tail mode before confirmation"
+                );
+                assert_eq!(
+                    push.scroll_top_target, None,
+                    "a live user offset is not an intentional absolute reposition"
+                );
+                assert_eq!(
+                    push.scroll_anchor_correction_px, None,
+                    "live user offset supersedes Δ_above during active in-buffer scrolling"
                 );
             }
             other => panic!("expected push, got {other:?}"),
@@ -4737,7 +4960,10 @@ mod tests {
         assert_eq!(delta.appended_offsets_px, vec![600, 700]);
         assert_eq!(
             delta.removed_row_ids,
-            vec!["transcript:row-2".to_string(), "transcript:row-3".to_string()]
+            vec![
+                "transcript:row-2".to_string(),
+                "transcript:row-3".to_string()
+            ]
         );
         assert_eq!(delta.layout_row_count, 20);
         assert_eq!(delta.buffer_end_offset_px, 800);

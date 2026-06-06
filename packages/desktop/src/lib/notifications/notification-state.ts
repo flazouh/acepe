@@ -110,18 +110,12 @@ export function showNotification(
 	if (!useNativeNotification && notifications.some((n) => n.id === payload.id)) return;
 
 	if (useNativeNotification) {
-		maybeSendNativeNotification(payload);
+		maybeSendNativeNotification(payload, onAction);
 		maybePlaySound();
 		return;
 	}
 
-	notifications = [...notifications, { id: payload.id, payload, onAction }];
-
-	// Evict oldest notifications when cap exceeded
-	if (notifications.length > MAX_NOTIFICATIONS) {
-		notifications = notifications.slice(-MAX_NOTIFICATIONS);
-	}
-
+	addInAppNotification(payload, onAction);
 	maybePlaySound();
 }
 
@@ -193,7 +187,24 @@ export function resetNotificationRuntimeForTesting(): void {
 
 // ── Internal ───────────────────────────────────────────────────────────
 
-function maybeSendNativeNotification(payload: NotificationPayload): void {
+function addInAppNotification(
+	payload: NotificationPayload,
+	onAction: (actionId: PopupActionId) => void
+): void {
+	if (notifications.some((n) => n.id === payload.id)) return;
+
+	notifications = notifications.concat({ id: payload.id, payload, onAction });
+
+	// Evict oldest notifications when cap exceeded
+	if (notifications.length > MAX_NOTIFICATIONS) {
+		notifications = notifications.slice(-MAX_NOTIFICATIONS);
+	}
+}
+
+function maybeSendNativeNotification(
+	payload: NotificationPayload,
+	onAction: (actionId: PopupActionId) => void
+): void {
 	ensureNativeNotificationPermission()
 		.andThen((permissionGranted) => {
 			if (!permissionGranted) return okAsync(undefined);
@@ -212,6 +223,7 @@ function maybeSendNativeNotification(payload: NotificationPayload): void {
 					notificationId: payload.id,
 					error,
 				});
+				addInAppNotification(payload, onAction);
 			}
 		);
 }
