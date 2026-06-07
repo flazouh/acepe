@@ -58,8 +58,6 @@ import { getTodoStateManager } from "../../../logic/todo-state-manager.svelte.js
 import { usePlanLoader } from "../hooks";
 import {
 	createWorktreeSetupMatchContext,
-	createPendingWorktreeCloseConfirmationState,
-	createResolvedWorktreeCloseConfirmationState,
 	createWorktreeCreationState,
 	copyTextToClipboard,
 	applyAgentPanelDisplayMemory,
@@ -86,6 +84,7 @@ import { AgentPanelSessionController } from "../state/agent-panel-session-contro
 import { CheckpointTimelineController } from "../state/checkpoint-timeline-controller.svelte.js";
 import { ReviewDialogController } from "../state/review-dialog-controller.svelte.js";
 import { PrCardController } from "../state/pr-card-controller.svelte.js";
+import { WorktreeCloseConfirmationController } from "../state/worktree-close-confirmation-controller.svelte.js";
 import type { WorktreeSetupState } from "../logic/worktree-setup-events.js";
 import { shouldAutoScrollOnPanelActivation } from "../logic/should-auto-scroll-on-panel-activation.js";
 import { isInteractiveClickTarget } from "../logic/panel-focus-guard.js";
@@ -1145,9 +1144,8 @@ $effect(() => {
 });
 
 // ✅ Worktree close confirmation (inline header strip)
-let worktreeCloseConfirming = $state(false);
-let worktreeHasDirtyChanges = $state(false);
-let worktreeDirtyCheckPending = $state(false);
+// Worktree close-confirmation popover state — owned by a testable controller.
+const worktreeCloseConfirm = new WorktreeCloseConfirmationController();
 
 // Check if the session's worktree still exists on disk.
 // If deleted, disconnect the session (agent can't work in a missing directory).
@@ -1198,18 +1196,12 @@ async function handleClose() {
 		if (worktreePath == null) {
 			return;
 		}
-		const confirmationState = createPendingWorktreeCloseConfirmationState();
-		worktreeCloseConfirming = confirmationState.confirming;
-		worktreeHasDirtyChanges = confirmationState.hasDirtyChanges;
-		worktreeDirtyCheckPending = confirmationState.dirtyCheckPending;
+		worktreeCloseConfirm.beginPending();
 		const hasDirtyChanges = await fetchWorktreeHasUncommittedChanges(worktreePath).match(
 			(dirty) => dirty,
 			() => false // safe default on error — show normal confirmation
 		);
-		const resolvedState = createResolvedWorktreeCloseConfirmationState(hasDirtyChanges);
-		worktreeCloseConfirming = resolvedState.confirming;
-		worktreeHasDirtyChanges = resolvedState.hasDirtyChanges;
-		worktreeDirtyCheckPending = resolvedState.dirtyCheckPending;
+		worktreeCloseConfirm.resolve(hasDirtyChanges);
 		return;
 	}
 	onClose?.();
@@ -1220,17 +1212,15 @@ export function requestClosePanelConfirmation(): void {
 }
 
 function handleWorktreeCloseOnly() {
-	worktreeCloseConfirming = false;
-	worktreeDirtyCheckPending = false;
+	worktreeCloseConfirm.dismiss();
 	onClose?.();
 }
 
 function handleWorktreeRemoveAndClose() {
 	const worktreePath = effectiveActiveWorktreePath;
 	const currentSessionId = sessionId;
-	const force = worktreeHasDirtyChanges;
-	worktreeCloseConfirming = false;
-	worktreeDirtyCheckPending = false;
+	const force = worktreeCloseConfirm.hasDirtyChanges;
+	worktreeCloseConfirm.dismiss();
 	onClose?.();
 	void removeWorktreeAndMarkSessionWorktreeDeleted(
 		{
@@ -1257,9 +1247,7 @@ function handleWorktreeRemoveAndClose() {
 }
 
 function handleWorktreeCloseCancel() {
-	worktreeCloseConfirming = false;
-	worktreeHasDirtyChanges = false;
-	worktreeDirtyCheckPending = false;
+	worktreeCloseConfirm.cancel();
 }
 
 function handleProjectAgentSelected(project: Project, agentId: string) {
@@ -2363,17 +2351,17 @@ async function handlePlanSidebarSendMessage(sid: string, message: string): Promi
 {/if}
 
 <AgentPanelWorktreeCloseConfirmPopover
-	bind:open={worktreeCloseConfirming}
+	bind:open={worktreeCloseConfirm.confirming}
 	headerAnchor={headerRef}
-	title={worktreeDirtyCheckPending
+	title={worktreeCloseConfirm.dirtyCheckPending
 		? "Checking repository..."
-		: worktreeHasDirtyChanges
+		: worktreeCloseConfirm.hasDirtyChanges
 			? `Has uncommitted changes — remove "${_activeWorktreeName ?? "worktree"}"?`
 			: `Remove worktree "${_activeWorktreeName ?? "worktree"}"?`}
 	description={"The worktree branch and directory will be permanently deleted."}
 	cancelLabel={"Cancel"}
 	confirmLabel={"Confirm"}
-	confirmDisabled={worktreeDirtyCheckPending}
+	confirmDisabled={worktreeCloseConfirm.dirtyCheckPending}
 	onCancel={handleWorktreeCloseCancel}
 	onConfirmRemoveAndClose={handleWorktreeRemoveAndClose}
 />
