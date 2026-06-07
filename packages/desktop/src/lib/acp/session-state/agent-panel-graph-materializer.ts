@@ -76,6 +76,12 @@ import {
 	createTruncatedInteractionIndex,
 } from "./transcript-interaction-index.js";
 import {
+	buildSceneEntryRowIndex,
+	createAppendedSceneEntryRowIndex,
+	createSplicedSceneEntryRowIndex,
+	createTruncatedSceneEntryRowIndex,
+} from "./scene-entry-row-index.js";
+import {
 	interactionSceneEntryId,
 	materializeTranscriptEntry,
 	questionInteractionToSceneEntry,
@@ -1778,34 +1784,6 @@ function areSceneEntryListsEquivalent(
 	return left.every((entry, index) => areSceneEntriesEquivalent(entry, right[index]));
 }
 
-function createSplicedSceneEntryRowIndex(
-	rowIndex: ReadonlyMap<string, number>,
-	previousEntries: readonly AgentPanelSceneEntryModel[],
-	nextEntries: readonly AgentPanelSceneEntryModel[],
-	startIndex: number
-): ReadonlyMap<string, number> {
-	const deletedKeys = new Set<string>();
-	for (const entry of previousEntries) {
-		deletedKeys.add(entry.id);
-	}
-	return createPatchedReadonlyMap(
-		rowIndex,
-		createSceneEntryRowIndexForRange(nextEntries, startIndex),
-		deletedKeys
-	);
-}
-
-function createTruncatedSceneEntryRowIndex(
-	rowIndex: ReadonlyMap<string, number>,
-	deletedEntries: readonly AgentPanelSceneEntryModel[]
-): ReadonlyMap<string, number> {
-	const deletedKeys = new Set<string>();
-	for (const entry of deletedEntries) {
-		deletedKeys.add(entry.id);
-	}
-	return createPatchedReadonlyMap(rowIndex, new Map(), deletedKeys);
-}
-
 function isStableTranscriptAppend(
 	previousEntries: readonly TranscriptEntry[],
 	nextEntries: readonly TranscriptEntry[]
@@ -2276,38 +2254,6 @@ function createTruncatedTranscriptEntryIndex(
 	return createPatchedReadonlyMap(byEntryId, new Map(), deletedKeys);
 }
 
-
-function buildSceneEntryRowIndex(
-	entries: readonly AgentPanelSceneEntryModel[]
-): Map<string, number> {
-	const byEntryId = new Map<string, number>();
-	entries.forEach((entry, index) => {
-		byEntryId.set(entry.id, index);
-	});
-	return byEntryId;
-}
-
-function createAppendedSceneEntryRowIndex(
-	byEntryId: ReadonlyMap<string, number>,
-	appendedEntries: readonly AgentPanelSceneEntryModel[],
-	startIndex: number
-): ReadonlyMap<string, number> {
-	return createPatchedReadonlyMap(
-		byEntryId,
-		createSceneEntryRowIndexForRange(appendedEntries, startIndex)
-	);
-}
-
-function createSceneEntryRowIndexForRange(
-	entries: readonly AgentPanelSceneEntryModel[],
-	startIndex: number
-): ReadonlyMap<string, number> {
-	const indexByEntryId = new Map<string, number>();
-	entries.forEach((entry, index) => {
-		indexByEntryId.set(entry.id, startIndex + index);
-	});
-	return indexByEntryId;
-}
 
 function materializeAgentPanelSceneFromConversation(
 	input: AgentPanelGraphMaterializerInput,
