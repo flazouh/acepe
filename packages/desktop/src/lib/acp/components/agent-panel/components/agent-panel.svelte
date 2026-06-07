@@ -58,7 +58,6 @@ import { getTodoStateManager } from "../../../logic/todo-state-manager.svelte.js
 import { usePlanLoader } from "../hooks";
 import {
 	createWorktreeSetupMatchContext,
-	createWorktreeCreationState,
 	copyTextToClipboard,
 	applyAgentPanelDisplayMemory,
 	buildAgentPanelBaseModel,
@@ -67,7 +66,6 @@ import {
 	createAgentPanelDisplayRowsReadModel,
 	matchesWorktreeSetupContext,
 	removeWorktreeAndMarkSessionWorktreeDeleted,
-	reduceWorktreeSetupEvent,
 	resolveEffectiveProjectPath,
 	shouldConfirmWorktreeClose,
 } from "../logic";
@@ -85,7 +83,7 @@ import { CheckpointTimelineController } from "../state/checkpoint-timeline-contr
 import { ReviewDialogController } from "../state/review-dialog-controller.svelte.js";
 import { PrCardController } from "../state/pr-card-controller.svelte.js";
 import { WorktreeCloseConfirmationController } from "../state/worktree-close-confirmation-controller.svelte.js";
-import type { WorktreeSetupState } from "../logic/worktree-setup-events.js";
+import { WorktreeSetupController } from "../state/worktree-setup-controller.svelte.js";
 import { shouldAutoScrollOnPanelActivation } from "../logic/should-auto-scroll-on-panel-activation.js";
 import { isInteractiveClickTarget } from "../logic/panel-focus-guard.js";
 import { deriveAgentPanelHeaderDisplayTitle } from "../logic/agent-panel-header-title.js";
@@ -456,7 +454,7 @@ const worktreePending = $derived(
 		hasPreparedWorktreeLaunch: panelPreparedWorktreeLaunch !== null,
 	})
 );
-let worktreeSetupState = $state<WorktreeSetupState | null>(null);
+const worktreeSetup = new WorktreeSetupController();
 const pendingWorktreeSetup = $derived(sessionController.panelHotState ? sessionController.panelHotState.pendingWorktreeSetup : null);
 const showPreSessionWorktreeCard = $derived.by(() =>
 	shouldShowPreSessionWorktreeCard({
@@ -464,7 +462,7 @@ const showPreSessionWorktreeCard = $derived.by(() =>
 		pendingProjectSelection,
 		worktreeToggleProjectPath,
 		hasPendingWorktreeSetup: pendingWorktreeSetup !== null,
-		worktreeSetupVisible: worktreeSetupState?.isVisible === true,
+		worktreeSetupVisible: worktreeSetup.state?.isVisible === true,
 		hasMessages: sessionController.hasMessages,
 	})
 );
@@ -529,7 +527,7 @@ $effect(() => {
 	}
 
 	if (pendingSetup.phase === "creating-worktree") {
-		worktreeSetupState = createWorktreeCreationState({
+		worktreeSetup.startCreation({
 			projectPath: pendingSetup.projectPath,
 			worktreePath: pendingSetup.worktreePath,
 		});
@@ -559,7 +557,7 @@ $effect(() => {
 		if (panelId) {
 			panelStore.clearPendingWorktreeSetup(panelId);
 		}
-		worktreeSetupState = reduceWorktreeSetupEvent(worktreeSetupState, payload);
+		worktreeSetup.applyEvent(payload);
 	})
 		.then((callback) => {
 			unlisten = callback;
@@ -574,7 +572,7 @@ $effect(() => {
 });
 
 $effect(() => {
-	const state = worktreeSetupState;
+	const state = worktreeSetup.state;
 	if (!state) return;
 
 	if (worktreeSetupMatchContext.worktreePaths.length > 0) {
@@ -582,7 +580,7 @@ $effect(() => {
 			!state.worktreePath ||
 			!worktreeSetupMatchContext.worktreePaths.includes(state.worktreePath)
 		) {
-			worktreeSetupState = null;
+			worktreeSetup.clear();
 			if (panelId) {
 				panelStore.clearPendingWorktreeSetup(panelId);
 			}
@@ -594,7 +592,7 @@ $effect(() => {
 		worktreeSetupMatchContext.projectPaths.length > 0 &&
 		!worktreeSetupMatchContext.projectPaths.includes(state.projectPath)
 	) {
-		worktreeSetupState = null;
+		worktreeSetup.clear();
 		if (panelId) {
 			panelStore.clearPendingWorktreeSetup(panelId);
 		}
@@ -837,7 +835,7 @@ onDestroy(() => {
 });
 
 const worktreeSetupMatchContext = $derived.by(() => {
-	const activeSetupState = worktreeSetupState?.isVisible ? worktreeSetupState : null;
+	const activeSetupState = worktreeSetup.state?.isVisible ? worktreeSetup.state : null;
 
 	return createWorktreeSetupMatchContext({
 		pendingSetupProjectPath: pendingWorktreeSetup ? pendingWorktreeSetup.projectPath : null,
@@ -1979,7 +1977,7 @@ async function handlePlanSidebarSendMessage(sid: string, message: string): Promi
 			onPreSessionWorktreeAlways={handlePreSessionWorktreeAlways}
 			onPreSessionWorktreeDismiss={handlePreSessionWorktreeDismiss}
 			onRetryWorktree={handleRetryWorktree}
-			{worktreeSetupState}
+			worktreeSetup.state={worktreeSetup.state}
 			{agentInstallState}
 			{sessionId}
 			effectiveProjectPath={effectiveProjectPath ?? null}
@@ -2059,7 +2057,7 @@ async function handlePlanSidebarSendMessage(sid: string, message: string): Promi
 							preparedWorktreeLaunch={panelPreparedWorktreeLaunch}
 							onWorktreeCreating={() => {
 								preSessionWorktreeFailure = null;
-								worktreeSetupState = createWorktreeCreationState({
+								worktreeSetup.startCreation({
 									projectPath:
 										worktreeToggleProjectPath || sessionController.sessionProjectPath || project?.path || "",
 								});
