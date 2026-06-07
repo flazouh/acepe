@@ -79,6 +79,7 @@ import {
 	type OperationIndex,
 	type OperationIndexPatchResult,
 } from "./operation-index.js";
+import { logUnresolvedToolDiagnostics } from "./unresolved-tool-diagnostics.js";
 
 // Re-export the public type surface (now owned by the -types module) so the
 // materializer's existing consumers keep importing it from here.
@@ -89,7 +90,6 @@ export {
 	type AgentPanelGraphMaterializerReadModel,
 };
 
-const UNRESOLVED_TOOL_DIAGNOSTIC_SAMPLE_LIMIT = 40;
 
 interface CachedConversationInput {
 	readonly graph: AgentPanelCanonicalSource;
@@ -127,76 +127,6 @@ export function findLatestLiveAssistantEntry(
 	}
 
 	return null;
-}
-
-function shouldLogUnresolvedToolDiagnostics(): boolean {
-	if (typeof localStorage === "undefined" || typeof localStorage.getItem !== "function") {
-		return false;
-	}
-
-	return localStorage.getItem("acepe:debug:unresolved-tools") === "1";
-}
-
-function logUnresolvedToolDiagnostics(
-	entry: TranscriptEntry,
-	graph: AgentPanelCanonicalSource,
-	index: OperationIndex
-): void {
-	if (!shouldLogUnresolvedToolDiagnostics()) {
-		return;
-	}
-
-	const transcriptLinkedEntryIds = Array.from(index.byTranscriptSourceEntryId.keys()).slice(
-		0,
-		UNRESOLVED_TOOL_DIAGNOSTIC_SAMPLE_LIMIT
-	);
-	const operationSummaries = graph.operations
-		.slice(0, UNRESOLVED_TOOL_DIAGNOSTIC_SAMPLE_LIMIT)
-		.map((operation) => {
-			return {
-				id: operation.id,
-				toolCallId: operation.tool_call_id,
-				name: operation.name,
-				title: operation.title,
-				state: operation.operation_state,
-				sourceLink: operation.source_link,
-			};
-		});
-	const sampledToolTranscriptEntryCount = countSampledToolTranscriptEntries(
-		graph.transcriptSnapshot.entries,
-		UNRESOLVED_TOOL_DIAGNOSTIC_SAMPLE_LIMIT
-	);
-
-	console.warn("[agent-panel] unresolved restored tool row", {
-		sessionId: graph.canonicalSessionId,
-		agentId: graph.agentId,
-		graphRevision: graph.revision.graphRevision,
-		transcriptRevision: graph.revision.transcriptRevision,
-		lastEventSeq: graph.revision.lastEventSeq,
-		turnState: graph.turnState,
-		entryId: entry.entryId,
-		entrySegmentCount: entry.segments.length,
-		entryTextLength: segmentText(entry).length,
-		sampledToolTranscriptEntryCount,
-		toolTranscriptEntrySampleLimit: UNRESOLVED_TOOL_DIAGNOSTIC_SAMPLE_LIMIT,
-		operationCount: graph.operations.length,
-		transcriptLinkedEntryIds,
-		operationSummaries,
-	});
-}
-
-function countSampledToolTranscriptEntries(
-	entries: readonly TranscriptEntry[],
-	limit: number
-): number {
-	let count = 0;
-	const sampleLength = Math.min(entries.length, limit);
-	for (let index = 0; index < sampleLength; index += 1) {
-		if (entries[index]?.role === "tool") {
-			count += 1;
-		}
-	}
-	return count;
 }
 
 function operationSnapshotToToolCall(operation: OperationSnapshot): ToolCall {
