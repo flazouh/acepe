@@ -73,6 +73,12 @@ import {
 	createTruncatedSceneEntryArray,
 	toArrayIndex,
 } from "./scene-entry-array.js";
+import {
+	buildOperationIndex,
+	findOperationForTranscriptSourceEntry,
+	type OperationIndex,
+	type OperationIndexPatchResult,
+} from "./operation-index.js";
 
 // Re-export the public type surface (now owned by the -types module) so the
 // materializer's existing consumers keep importing it from here.
@@ -84,19 +90,6 @@ export {
 };
 
 const UNRESOLVED_TOOL_DIAGNOSTIC_SAMPLE_LIMIT = 40;
-
-interface OperationIndex {
-	readonly byOperationId: Map<string, OperationSnapshot>;
-	readonly byTranscriptSourceEntryId: Map<string, OperationSnapshot>;
-	readonly parentsByChildOperationId: Map<string, OperationSnapshot[]>;
-}
-
-type OperationIndexPatchResult = {
-	readonly operationIndex: OperationIndex;
-	readonly changedOperationIds: Set<string>;
-	readonly affectedEntryIds?: Set<string>;
-};
-
 
 interface CachedConversationInput {
 	readonly graph: AgentPanelCanonicalSource;
@@ -133,44 +126,6 @@ export function findLatestLiveAssistantEntry(
 		}
 	}
 
-	return null;
-}
-
-function buildOperationIndex(operations: readonly OperationSnapshot[]): OperationIndex {
-	const byOperationId = new Map<string, OperationSnapshot>();
-	const byTranscriptSourceEntryId = new Map<string, OperationSnapshot>();
-	const parentsByChildOperationId = new Map<string, OperationSnapshot[]>();
-
-	for (const operation of operations) {
-		byOperationId.set(operation.id, operation);
-		if (operation.source_link.kind === "transcript_linked") {
-			byTranscriptSourceEntryId.set(operation.source_link.entry_id, operation);
-		}
-		for (const childOperationId of operation.child_operation_ids) {
-			let parents = parentsByChildOperationId.get(childOperationId);
-			if (parents === undefined) {
-				parents = [];
-				parentsByChildOperationId.set(childOperationId, parents);
-			}
-			parents.push(operation);
-		}
-	}
-
-	return {
-		byOperationId,
-		byTranscriptSourceEntryId,
-		parentsByChildOperationId,
-	};
-}
-
-function findOperationForTranscriptSourceEntry(
-	entryId: string,
-	index: OperationIndex
-): OperationSnapshot | null {
-	const linkedOperation = index.byTranscriptSourceEntryId.get(entryId);
-	if (linkedOperation !== undefined) {
-		return linkedOperation;
-	}
 	return null;
 }
 
