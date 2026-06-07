@@ -25,6 +25,7 @@ interface ProjectSelectorProps {
 	onManageProjects?: () => void;
 	isLoading?: boolean;
 	ontoggle?: (isOpen: boolean) => void;
+	placeholder?: string;
 }
 
 let {
@@ -37,12 +38,16 @@ let {
 	onManageProjects,
 	isLoading = false,
 	ontoggle,
+	placeholder = "Select project...",
 }: ProjectSelectorProps = $props();
 
 let selectorRef: { toggle: () => void } | undefined = $state();
 let isOpen = $state(false);
 const localMissingPaths = new SvelteSet<string>();
 const effectiveMissingPaths = $derived(missingProjectPaths ?? localMissingPaths);
+const hasProjectActions = $derived(
+	onBrowse !== undefined || onImport !== undefined || onManageProjects !== undefined
+);
 
 const _logger = createLogger({
 	id: LOGGER_IDS.PROJECT_SELECTOR,
@@ -83,7 +88,7 @@ function handleOpenChange(open: boolean) {
 <Selector
 	bind:this={selectorRef}
 	bind:open={isOpen}
-	disabled={isLoading || recentProjects.length === 0}
+	disabled={isLoading || (recentProjects.length === 0 && !hasProjectActions)}
 	onOpenChange={handleOpenChange}
 >
 	{#snippet renderButton()}
@@ -103,7 +108,7 @@ function handleOpenChange(open: boolean) {
 				<div class="h-2 w-2 shrink-0 rounded-full" style="background-color: {color};"></div>
 			{/if}
 			<span class="text-xs truncate min-w-0">
-				{selectedProject ? selectedProject.name : "Select project..."}
+				{selectedProject ? selectedProject.name : placeholder}
 			</span>
 		{/if}
 	{/snippet}

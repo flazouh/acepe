@@ -14,7 +14,6 @@ use crate::session_jsonl::types::{FullSession, StoredEntry};
 use std::collections::HashMap;
 
 mod claude;
-mod codex;
 mod cursor;
 mod fullsession;
 mod opencode;
@@ -45,20 +44,6 @@ pub(crate) fn convert_cursor_full_session_to_provider_owned_snapshot(
     session: &FullSession,
 ) -> ProviderOwnedSessionSnapshot {
     cursor::convert_cursor_full_session_to_provider_owned_snapshot(session)
-}
-
-#[allow(dead_code)]
-pub fn convert_codex_full_session_to_thread_snapshot(
-    session: &FullSession,
-) -> SessionThreadSnapshot {
-    codex::convert_codex_full_session_to_thread_snapshot(session)
-}
-
-#[allow(dead_code)]
-pub(crate) fn convert_codex_full_session_to_provider_owned_snapshot(
-    session: &FullSession,
-) -> ProviderOwnedSessionSnapshot {
-    codex::convert_codex_full_session_to_provider_owned_snapshot(session)
 }
 
 #[allow(dead_code)]

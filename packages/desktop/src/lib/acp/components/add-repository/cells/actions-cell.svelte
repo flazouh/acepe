@@ -1,31 +1,40 @@
 <script lang="ts">
 import { Button } from "@acepe/ui/button";
-import { CheckCircle } from "phosphor-svelte";
 import { DownloadSimple } from "phosphor-svelte";
+import { Trash } from "phosphor-svelte";
 interface Props {
 	isAdded: boolean;
+	onImport: () => void;
+	onUndo: () => void;
 }
 
-let { isAdded }: Props = $props();
+let { isAdded, onImport, onUndo }: Props = $props();
 </script>
 
 {#if isAdded}
 	<Button
-		variant="headerAction"
-		size="headerAction"
-		class="pointer-events-none gap-1 cursor-default disabled:opacity-100"
-		disabled={true}
+		variant="default"
+		size="xs"
+		class="gap-1"
+		onclick={(event: MouseEvent) => {
+			event.stopPropagation();
+			onUndo();
+		}}
 	>
-		<CheckCircle weight="fill" size={12} class="text-green-500" />
-		{"Added"}
+		{"Remove"}
+		<Trash weight="fill" size={12} class="text-destructive" />
 	</Button>
 {:else}
 	<Button
-		variant="headerAction"
-		size="headerAction"
-		class="gap-1 opacity-0 transition-opacity group-hover:opacity-100"
+		variant="secondary"
+		size="xs"
+		class="gap-1"
+		onclick={(event: MouseEvent) => {
+			event.stopPropagation();
+			onImport();
+		}}
 	>
-		<DownloadSimple size={12} />
 		{"Import"}
+		<DownloadSimple size={12} />
 	</Button>
 {/if}

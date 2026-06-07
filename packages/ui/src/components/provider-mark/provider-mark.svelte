@@ -43,14 +43,9 @@ const brandToneClass = $derived.by(() => {
 		/>
 	{:else if brand === "codex"}
 		<img
-			src="/svgs/agents/codex/codex-icon-light.svg"
+			src="/svgs/agents/codex/codex-app-icon.png"
 			alt=""
-			class="size-full object-contain dark:hidden"
-		/>
-		<img
-			src="/svgs/agents/codex/codex-icon-dark.svg"
-			alt=""
-			class="hidden size-full object-contain dark:block"
+			class="size-full rounded-[22%] object-contain"
 		/>
 	{:else if brand === "opencode"}
 		<img

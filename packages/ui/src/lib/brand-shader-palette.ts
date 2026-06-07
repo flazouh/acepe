@@ -15,3 +15,11 @@ export const BRAND_SHADER_DARK_PALETTE: BrandShaderPalette = {
 	intensity: 0.8,
 	noise: 0.15,
 };
+
+export const BRAND_SHADER_LUMINAR_PALETTE: BrandShaderPalette = {
+	background: "#ece0ff",
+	colors: ["#ff9ad1", "#a9c2ff", "#ffc69d", "#b79bff"],
+	softness: 0.9,
+	intensity: 0.55,
+	noise: 0.5,
+};

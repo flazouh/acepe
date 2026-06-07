@@ -15,6 +15,35 @@ runtime the user sees.
 
 ## Token-Efficient Recipes (read first)
 
+**Prefer the repo QA wrapper for normal Acepe UI QA.** Before writing raw
+Tauri MCP commands, use `packages/desktop/scripts/acepe-qa.ts` through the
+package script:
+
+```bash
+cd packages/desktop
+bun run qa doctor
+bun run qa observe
+bun run qa reset-onboarding
+bun run qa inspect --selector=.onboarding-preview-panel --limit=3
+bun run qa click --selector=.theme-toggle
+bun run qa screenshot
+```
+
+The wrapper handles driver startup, MCP wrapper unwrapping, compact summaries,
+schema validation, and JSON artifacts under `/tmp`. It is the preferred path for
+common actions: validating the dev target, resetting onboarding, inspecting DOM
+selectors, clicking by selector/text, and taking screenshots.
+Successful UI QA commands also update `.codex/state/ui-qa-evidence.json`; this
+is the evidence stamp used by the Codex Stop hook to enforce that UI changes
+were verified after the latest code edit.
+
+Use raw Tauri MCP only when the wrapper lacks the needed primitive. If the same
+raw command is repeated during a QA session, add it to
+`packages/desktop/scripts/acepe-qa/` instead of keeping it as copy-pasted shell.
+If a QA or app interaction is not extremely smooth, turn that missing move into
+a wrapper command, helper, hook, or skill instruction before repeating the same
+friction.
+
 The Tauri MCP CLI is verbose. Every call returns the same payload three times
 (top-level `text`, `content[0].text`, and `structuredContent`). Naive use wastes
 thousands of tokens per QA pass. Follow these rules to keep a full QA pass under

@@ -1,14 +1,23 @@
 <script lang="ts">
+import { onMount } from "svelte";
 import AgentInput from "$lib/acp/components/agent-input/agent-input-ui.svelte";
 import AgentErrorCard from "$lib/acp/components/agent-panel/components/agent-error-card.svelte";
 import { copyTextToClipboard } from "$lib/acp/components/agent-panel/logic/clipboard-manager.js";
 import AgentSelector from "$lib/acp/components/agent-selector.svelte";
 import BranchPicker from "$lib/acp/components/branch-picker/branch-picker.svelte";
 import ProjectSelector from "$lib/acp/components/project-selector.svelte";
+import ProjectTable from "$lib/acp/components/add-repository/project-table.svelte";
 import PreSessionWorktreeCard from "$lib/acp/components/agent-panel/components/pre-session-worktree-card.svelte";
 import { getWorktreeDefaultStore } from "$lib/acp/components/worktree/worktree-default-store.svelte.js";
+import { Button } from "$lib/components/ui/button/index.js";
 import { getErrorCauseDetails } from "$lib/acp/errors/error-cause-details.js";
 import { loadWorktreeEnabled } from "$lib/acp/components/worktree/worktree-storage.js";
+import type { ProjectWithSessions } from "$lib/acp/components/add-repository/open-project-dialog-props.js";
+import {
+	shouldShowDiscoveredProject,
+	sortProjectsBySessionCount,
+} from "$lib/acp/components/add-repository/project-discovery.js";
+import { extractNameFromPath } from "$lib/acp/components/welcome-screen/welcome-screen-state.js";
 import {
 	type Project,
 	type ProjectManager,
@@ -53,6 +62,7 @@ import {
 	getEmptyStateProjectPath,
 	isEmptyStateWorktreeEffectivelyPending,
 	resolveEmptyStateProject,
+	shouldShowEmptyStateProjectChooser,
 	shouldShowEmptyStateProjectPicker,
 } from "./logic/empty-state-view-state.js";
 
@@ -60,6 +70,8 @@ interface Props {
 	projectManager: ProjectManager;
 	onSessionCreated: (id: string) => void;
 }
+
+const INITIAL_DISCOVERED_PROJECT_COUNT = 5;
 
 const { projectManager, onSessionCreated }: Props = $props();
 
@@ -82,6 +94,12 @@ let currentBranch = $state<string | null>(null);
 let diffStats = $state<{ insertions: number; deletions: number } | null>(null);
 let isGitRepo = $state<boolean | null>(null);
 let projectImportError = $state<EmptyStateProjectImportErrorState | null>(null);
+let discoveredProjectsLoading = $state(false);
+let discoveredProjectsLoaded = $state(false);
+let discoveredProjects = $state<ProjectWithSessions[]>([]);
+let showAllDiscoveredProjects = $state(false);
+let projectImportFlowActive = $state(false);
+let pendingProjectImports = $state<ProjectWithSessions[]>([]);
 const branchMetadataLoader = createEmptyStateBranchMetadataLoader({
 	gitClient: tauriClient.git,
 	writer: {
@@ -107,6 +125,18 @@ const availableAgents = $derived(
 	getSpawnableSessionAgents(agentStore.agents, agentPreferencesStore.selectedAgentIds)
 );
 const projects = $derived(projectManager.projects);
+const pendingProjectImportPaths = $derived(
+	new Set(pendingProjectImports.map((project) => project.path))
+);
+const pendingProjectImportCount = $derived(pendingProjectImportPaths.size);
+const visibleDiscoveredProjects = $derived(
+	showAllDiscoveredProjects
+		? discoveredProjects
+		: discoveredProjects.slice(0, INITIAL_DISCOVERED_PROJECT_COUNT)
+);
+const hiddenDiscoveredProjectCount = $derived(
+	Math.max(discoveredProjects.length - visibleDiscoveredProjects.length, 0)
+);
 const availableAgentIds = $derived(availableAgents.map((agent) => agent.id));
 
 // Resolve effective agent: explicit selection → user default → first available
@@ -128,11 +158,18 @@ const projectPath = $derived(getEmptyStateProjectPath(effectiveProject));
 const projectName = $derived(getEmptyStateProjectName(effectiveProject));
 
 const showProjectPicker = $derived(shouldShowEmptyStateProjectPicker(projects.length));
+const showProjectChooser = $derived(
+	projectImportFlowActive || shouldShowEmptyStateProjectChooser(projects.length)
+);
+const emptyStateTitle = $derived(
+	showProjectChooser ? "Choose a project to start" : "What do you want to build?"
+);
 const canShowInput = $derived(
-	canShowEmptyStateInput({
-		projectCount: projects.length,
-		availableAgentCount: availableAgents.length,
-	})
+	!showProjectChooser &&
+		canShowEmptyStateInput({
+			projectCount: projects.length,
+			availableAgentCount: availableAgents.length,
+		})
 );
 const effectiveWorktreePending = $derived(
 	isEmptyStateWorktreeEffectivelyPending({
@@ -182,6 +219,13 @@ $effect(() => {
 	refreshBranchPickerMetadata(currentProjectPath);
 });
 
+onMount(() => {
+	if (projects.length === 0) {
+		projectImportFlowActive = true;
+		void loadDiscoveredProjectsForEmptyState();
+	}
+});
+
 function handleAgentChange(agentId: string) {
 	selectedAgentId = agentId;
 }
@@ -209,10 +253,45 @@ function handleProjectChange(project: Project) {
 }
 
 function handleBrowseProject() {
+	if (showProjectChooser) {
+		void projectManager.browseProject().match(
+			(project) => {
+				if (project === null) {
+					return;
+				}
+				stageProjectImport({
+					path: project.path,
+					name: project.name,
+					agentCounts: new Map(),
+					totalSessions: "loading",
+				});
+			},
+			(error) => {
+				if (!isUnexpectedProjectError(error)) {
+					projectImportError = null;
+					toast.error(error.message);
+					return;
+				}
+
+				const errorReference = ensureErrorReference(error);
+				const errorDetails = getErrorCauseDetails(error);
+				projectImportError = buildProjectImportErrorState({
+					error,
+					causeDetails: errorDetails,
+					reference: errorReference,
+				});
+			}
+		);
+		return;
+	}
+
 	void projectManager.importProject().match(
 		(project) => {
 			if (project !== null) {
 				projectImportError = null;
+				if (projectImportFlowActive || projects.length === 0) {
+					projectImportFlowActive = true;
+				}
 			}
 		},
 		(error) => {
@@ -231,6 +310,162 @@ function handleBrowseProject() {
 			});
 		}
 	);
+}
+
+function stageProjectImport(project: ProjectWithSessions): void {
+	if (pendingProjectImportPaths.has(project.path)) {
+		return;
+	}
+
+	pendingProjectImports = [
+		{
+			path: project.path,
+			name: project.name,
+			agentCounts: project.agentCounts,
+			totalSessions: project.totalSessions,
+		},
+		...pendingProjectImports,
+	];
+
+	if (!discoveredProjects.some((candidate) => candidate.path === project.path)) {
+		discoveredProjects = [
+			{
+				path: project.path,
+				name: project.name,
+				agentCounts: project.agentCounts,
+				totalSessions: project.totalSessions,
+			},
+			...discoveredProjects,
+		];
+	}
+
+	projectImportFlowActive = true;
+
+	void tauriClient.history.countSessionsForProject(project.path).match(
+		() => undefined,
+		() => undefined
+	);
+}
+
+function unstageProjectImport(path: string): void {
+	pendingProjectImports = pendingProjectImports.filter((project) => project.path !== path);
+}
+
+async function loadDiscoveredProjectsForEmptyState(): Promise<void> {
+	if (discoveredProjectsLoaded || discoveredProjectsLoading) {
+		return;
+	}
+
+	discoveredProjectsLoading = true;
+	discoveredProjects = [];
+
+	const pathsResult = await tauriClient.history.listAllProjectPaths();
+	pathsResult.match(
+		(projectInfos) => {
+			const deduped = new Map<string, ProjectWithSessions>();
+			const discoverableProjectInfos = projectInfos.filter(shouldShowDiscoveredProject);
+
+			for (const info of discoverableProjectInfos) {
+				if (deduped.has(info.path)) continue;
+				deduped.set(info.path, {
+					path: info.path,
+					name: extractNameFromPath(info.path),
+					agentCounts: new Map(),
+					totalSessions: "loading",
+				});
+			}
+
+			discoveredProjects = Array.from(deduped.values());
+			discoveredProjectsLoading = false;
+			discoveredProjectsLoaded = true;
+
+			for (const path of deduped.keys()) {
+				void tauriClient.history.countSessionsForProject(path).match(
+					(counts) => {
+						const total = Object.values(counts.counts).reduce((sum, count) => sum + count, 0);
+						discoveredProjects = sortProjectsBySessionCount(
+							discoveredProjects.map((project) =>
+								project.path === path
+									? {
+											path: project.path,
+											name: project.name,
+											agentCounts: new Map(
+												Object.entries(counts.counts).map(([agentId, count]) => [agentId, count])
+											),
+											totalSessions: total,
+										}
+									: project
+							)
+						);
+					},
+					() => {
+						discoveredProjects = sortProjectsBySessionCount(
+							discoveredProjects.map((project) =>
+								project.path === path
+									? {
+											path: project.path,
+											name: project.name,
+											agentCounts: project.agentCounts,
+											totalSessions: "error",
+										}
+									: project
+							)
+						);
+					}
+				);
+			}
+		},
+		(error) => {
+			discoveredProjectsLoading = false;
+			discoveredProjectsLoaded = true;
+			toast.error(error.message);
+		}
+	);
+}
+
+async function handleDiscoveredProjectImport(path: string, name: string): Promise<void> {
+	if (pendingProjectImportPaths.has(path)) {
+		return;
+	}
+
+	const discoveredProject = discoveredProjects.find((project) => project.path === path);
+	stageProjectImport(
+		discoveredProject ?? {
+			path,
+			name,
+			agentCounts: new Map(),
+			totalSessions: "loading",
+		}
+	);
+}
+
+async function handleDiscoveredProjectRemove(path: string, name: string): Promise<void> {
+	if (!pendingProjectImportPaths.has(path)) {
+		return;
+	}
+
+	unstageProjectImport(path);
+}
+
+async function continueWithPendingProjectImports(): Promise<void> {
+	if (pendingProjectImports.length === 0) {
+		return;
+	}
+
+	for (const project of pendingProjectImports) {
+		const result = await tauriClient.projects.importProject(project.path, project.name);
+		if (result.isErr()) {
+			toast.error(result.error.message);
+			return;
+		}
+
+		projectManager.addProjectOptimistic(project.path, project.name);
+	}
+
+	pendingProjectImports = [];
+	projectImportError = null;
+	projectImportFlowActive = false;
+	void projectManager.loadProjects();
 }
 
 async function copyProjectImportReferenceId() {
@@ -381,7 +616,7 @@ function handleEmptyStateSessionCreated(sessionId: string) {
 
 <div class="flex flex-col items-center justify-center h-full w-full py-6">
 	<h1 class="mb-4 text-center font-sans text-[1.65rem] font-semibold tracking-tight text-foreground sm:text-[2rem]">
-		What do you want to build?
+		{emptyStateTitle}
 	</h1>
 
 	<div class="flex w-full max-w-[44rem] flex-col px-6">
@@ -501,9 +736,78 @@ function handleEmptyStateSessionCreated(sessionId: string) {
 			{/if}
 		</div>
 	{:else}
-		<p class="text-muted-foreground text-sm">
-			{"Create a new session to begin working with an AI agent on your project."}
-		</p>
+		<div class="flex w-full flex-col items-center gap-3">
+			{#if projectImportError}
+				<div class="w-full">
+					<AgentErrorCard
+						title={projectImportError.title}
+						summary={projectImportError.summary}
+						details={projectImportError.details}
+						referenceId={projectImportError.referenceId}
+						referenceSearchable={projectImportError.referenceSearchable}
+						onDismiss={() => {
+							projectImportError = null;
+						}}
+						onCopyReferenceId={copyProjectImportReferenceId}
+						issueActionLabel={projectImportIssueDraft
+							? resolveIssueActionLabel(projectImportIssueDraft)
+							: "Create issue"}
+						onIssueAction={projectImportIssueDraft ? handleProjectImportIssueAction : undefined}
+					/>
+				</div>
+			{/if}
+			{#if showProjectChooser}
+				<div class="flex w-full max-w-[42rem] flex-col gap-3">
+					<div class="flex justify-end">
+						<Button variant="default" size="xs" onclick={handleBrowseProject}>
+							{"Browse in Finder"}
+						</Button>
+					</div>
+					<div class="h-[min(21rem,42vh)] overflow-y-auto pr-1">
+						<ProjectTable
+							projects={visibleDiscoveredProjects}
+							loading={discoveredProjectsLoading}
+							addedPaths={pendingProjectImportPaths}
+							onImport={handleDiscoveredProjectImport}
+							onUndo={handleDiscoveredProjectRemove}
+						/>
+						{#if hiddenDiscoveredProjectCount > 0}
+							<div class="flex justify-center pt-1">
+								<Button
+									variant="ghost"
+									size="sm"
+									onclick={() => {
+										showAllDiscoveredProjects = true;
+									}}
+								>
+									{`See more (${hiddenDiscoveredProjectCount})`}
+								</Button>
+							</div>
+						{/if}
+					</div>
+					{#if pendingProjectImportCount > 0}
+						<div class="flex items-center justify-between border-t border-border/40 pt-2">
+							<span class="text-xs text-muted-foreground">
+								{pendingProjectImportCount === 1
+									? "1 project selected"
+									: `${pendingProjectImportCount} projects selected`}
+							</span>
+							<Button
+								variant="default"
+								size="sm"
+								onclick={continueWithPendingProjectImports}
+							>
+								{"Continue"}
+							</Button>
+						</div>
+					{/if}
+				</div>
+			{:else}
+				<p class="text-sm text-muted-foreground">
+					{"Create a new session to begin working with an AI agent on your project."}
+				</p>
+			{/if}
+		</div>
 	{/if}
 	</div>
 </div>

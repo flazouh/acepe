@@ -198,6 +198,25 @@ async function handleImport(path: string, name: string) {
 	}
 }
 
+async function handleUndoImport(path: string, name: string) {
+	if (!addedPaths.has(path)) {
+		return;
+	}
+
+	const result = await tauriClient.projects.removeProject(path);
+	result.match(
+		() => {
+			const nextAddedPaths = new Set(addedPaths);
+			nextAddedPaths.delete(path);
+			addedPaths = nextAddedPaths;
+			toast.success(`${name} removed from repositories`);
+		},
+		(error) => {
+			toast.error(error.message);
+		}
+	);
+}
+
 // ─── Clone logic ───────────────────────────────────────────────────
 
 async function handleCloneBrowse() {
@@ -326,6 +345,7 @@ function handleOpenChange(newOpen: boolean) {
 						{loading}
 						{addedPaths}
 						onImport={handleImport}
+						onUndo={handleUndoImport}
 					/>
 				</div>
 

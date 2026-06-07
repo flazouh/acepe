@@ -33,7 +33,7 @@ registerToastBridge({
 			description: "hidden",
 			icon: "hidden",
 			closeButton:
-				"!end-2 !start-auto !top-1/2 !-translate-y-1/2 !translate-x-0 !opacity-100",
+				"!end-2 !start-auto !top-[calc(50%-14px)] !translate-x-0 !translate-y-0 !opacity-100",
 		},
 	}}
 	{...restProps}

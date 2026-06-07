@@ -34,6 +34,7 @@ interface Props {
 	onDevShowUpdatePage?: () => void;
 	onDevShowDesignSystem?: () => void;
 	onDevShowStreamingReproLab?: () => void;
+	onDevResetOnboarding?: () => void;
 	showSidebarToggle?: boolean;
 }
 
@@ -46,6 +47,7 @@ let {
 	onDevShowUpdatePage,
 	onDevShowDesignSystem,
 	onDevShowStreamingReproLab,
+	onDevResetOnboarding,
 	showSidebarToggle = true,
 }: Props = $props();
 
@@ -306,23 +308,18 @@ function switchLayoutFamily(nextFamily: LayoutFamily): void {
 			</Tooltip.Trigger>
 			<Tooltip.Content>Feedback</Tooltip.Content>
 		</Tooltip.Root>
-		{#if import.meta.env.DEV && (onDevShowUpdatePage || onDevShowDesignSystem || onDevShowStreamingReproLab)}
+		{#if import.meta.env.DEV && (onDevShowUpdatePage || onDevShowDesignSystem || onDevShowStreamingReproLab || onDevResetOnboarding)}
 			<DropdownMenu.Root>
 				<DropdownMenu.Trigger>
 					{#snippet child({ props }: DropdownMenuTriggerChildProps)}
-						<Tooltip.Root>
-							<Tooltip.Trigger>
-								<button
-									{...props}
-									class="flex items-center justify-center size-6 rounded text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
-									title="Dev Tools"
-									aria-label="Dev Tools"
-								>
-									<Wrench class="size-4" weight="fill" style="color: #FAD83C" />
-								</button>
-							</Tooltip.Trigger>
-							<Tooltip.Content>Dev Tools</Tooltip.Content>
-						</Tooltip.Root>
+						<button
+							{...props}
+							class="flex items-center justify-center size-6 rounded text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+							title="Dev Tools"
+							aria-label="Dev Tools"
+						>
+							<Wrench class="size-4" weight="fill" style="color: #FAD83C" />
+						</button>
 					{/snippet}
 				</DropdownMenu.Trigger>
 				<DropdownMenu.Content align="end" class="min-w-[160px] p-0 text-[11px]">
@@ -355,6 +352,15 @@ function switchLayoutFamily(nextFamily: LayoutFamily): void {
 							>
 								<Wrench class="size-4" weight="fill" />
 								<span>Streaming Repro Lab</span>
+							</DropdownMenu.Item>
+						{/if}
+						{#if onDevResetOnboarding}
+							<DropdownMenu.Item
+								class="cursor-pointer rounded-none px-2 py-1 text-[11px]"
+								onclick={onDevResetOnboarding}
+							>
+								<Wrench class="size-4" weight="fill" />
+								<span>Reset Onboarding</span>
 							</DropdownMenu.Item>
 						{/if}
 					</DropdownMenu.Group>

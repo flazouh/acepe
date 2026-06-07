@@ -930,6 +930,19 @@ function handleOnboardingDismiss() {
 	attemptStartupMaximize();
 }
 
+function handleDevResetOnboarding() {
+	void agentPreferencesStore.resetOnboardingForDev().match(
+		() => {
+			startupMaximizeTriggered = false;
+			viewState.showSplash = true;
+			toast.success("Onboarding reset");
+		},
+		(error) => {
+			toast.error(error.message);
+		}
+	);
+}
+
 // CMD+F fullscreen toggle handler
 function handleGlobalKeydown(event: KeyboardEvent) {
 	// CMD+F (or Ctrl+F on Windows/Linux) - toggle fullscreen on focused panel
@@ -1055,6 +1068,7 @@ onDestroy(() => {
 				onDevShowStreamingReproLab={() => {
 					viewState.debugPanelOpen = true;
 				}}
+				onDevResetOnboarding={handleDevResetOnboarding}
 			>
 				{#snippet addProjectButton()}
 					<button

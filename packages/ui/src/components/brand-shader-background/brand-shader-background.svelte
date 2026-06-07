@@ -11,18 +11,25 @@ import {
 import { onDestroy, onMount } from "svelte";
 
 import { cn } from "../../lib/utils";
-import { BRAND_SHADER_DARK_PALETTE } from "../../lib/brand-shader-palette.js";
+import {
+	BRAND_SHADER_DARK_PALETTE,
+	BRAND_SHADER_LUMINAR_PALETTE,
+	type BrandShaderPalette,
+} from "../../lib/brand-shader-palette.js";
 
 type BrandShaderFallback = "solid" | "gradient";
+type BrandShaderVariant = "acepe" | "luminar";
 
 interface Props {
 	class?: string;
 	fallback?: BrandShaderFallback;
+	variant?: BrandShaderVariant;
 }
 
 let {
 	class: className,
 	fallback = "solid",
+	variant = "acepe",
 }: Props = $props();
 
 let container: HTMLDivElement | null = $state(null);
@@ -30,13 +37,21 @@ let shaderReady = $state(false);
 let shaderInitVersion = 0;
 let shaderMountRef: ShaderMount | null = null;
 
-const backgroundStyle = $derived(`background: ${BRAND_SHADER_DARK_PALETTE.background};`);
-const fallbackStyle = $derived.by(() => {
-	if (fallback === "gradient") {
-		return `background: linear-gradient(135deg, ${BRAND_SHADER_DARK_PALETTE.colors[0]}, ${BRAND_SHADER_DARK_PALETTE.background});`;
+const palette = $derived.by<BrandShaderPalette>(() => {
+	if (variant === "luminar") {
+		return BRAND_SHADER_LUMINAR_PALETTE;
 	}
 
-	return `background: ${BRAND_SHADER_DARK_PALETTE.background};`;
+	return BRAND_SHADER_DARK_PALETTE;
+});
+
+const backgroundStyle = $derived(`background: ${palette.background};`);
+const fallbackStyle = $derived.by(() => {
+	if (fallback === "gradient") {
+		return `background: linear-gradient(135deg, ${palette.colors[0]}, ${palette.background});`;
+	}
+
+	return `background: ${palette.background};`;
 });
 
 onMount(() => {
@@ -80,17 +95,17 @@ async function initShader(node: HTMLDivElement, initVersion: number) {
 		node,
 		grainGradientFragmentShader,
 		{
-			u_colorBack: getShaderColorFromString(BRAND_SHADER_DARK_PALETTE.background),
+			u_colorBack: getShaderColorFromString(palette.background),
 			u_colors: [
-				getShaderColorFromString(BRAND_SHADER_DARK_PALETTE.colors[0]),
-				getShaderColorFromString(BRAND_SHADER_DARK_PALETTE.colors[1]),
-				getShaderColorFromString(BRAND_SHADER_DARK_PALETTE.colors[2]),
-				getShaderColorFromString(BRAND_SHADER_DARK_PALETTE.colors[3]),
+				getShaderColorFromString(palette.colors[0]),
+				getShaderColorFromString(palette.colors[1]),
+				getShaderColorFromString(palette.colors[2]),
+				getShaderColorFromString(palette.colors[3]),
 			],
 			u_colorsCount: 4,
-			u_softness: BRAND_SHADER_DARK_PALETTE.softness,
-			u_intensity: BRAND_SHADER_DARK_PALETTE.intensity,
-			u_noise: BRAND_SHADER_DARK_PALETTE.noise,
+			u_softness: palette.softness,
+			u_intensity: palette.intensity,
+			u_noise: palette.noise,
 			u_shape: GrainGradientShapes.corners,
 			u_noiseTexture: noiseTexture,
 			u_fit: ShaderFitOptions.cover,

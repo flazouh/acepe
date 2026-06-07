@@ -29,8 +29,8 @@ const PROVIDER_BRAND_ICONS: Record<IconProviderBrand, ThemeIconPair> = {
 		dark: "/svgs/agents/cursor/cursor-icon-dark.svg",
 	},
 	codex: {
-		light: "/svgs/agents/codex/codex-icon-light.svg",
-		dark: "/svgs/agents/codex/codex-icon-dark.svg",
+		light: "/svgs/agents/codex/codex-app-icon.png",
+		dark: "/svgs/agents/codex/codex-app-icon.png",
 	},
 } as const;
 

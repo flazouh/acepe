@@ -15,7 +15,7 @@
 @custom-variant dark (&:is(.dark *));
 
 :root {
-	--radius: 0.625rem;
+	--radius: 8px;
 	/* Light mode uses a standard neutral app palette: white canvas, cool gray surfaces. */
 	--background: #ffffff;
 	--foreground: #09090b;
@@ -89,49 +89,50 @@
 }
 
 .dark {
-	/* Cursor Dark theme colors - using hex values directly for better color accuracy */
-	--background: #121212; /* editor.background */
-	--foreground: #D4D4D4; /* editor.foreground */
-	--card: #1A1A1A; /* editorWidget.background */
-	--card-foreground: #ffffff; /* editorSuggestWidget.foreground */
-	--popover: #181818; /* dropdown background */
-	--popover-foreground: #ffffff; /* editorSuggestWidget.foreground */
-	--primary: #F0EEE6; /* neutral high-contrast CTA (dark theme) */
-	--primary-foreground: #141413;
-	--secondary: #565656; /* button.secondaryBackground */
-	--secondary-foreground: #ececec; /* button.secondaryForeground */
-	--muted: #2A2A2A; /* input.border */
-	--muted-foreground: #cccccc; /* foreground with reduced opacity */
-	--accent: #313131; /* hover/selected item background */
-	--accent-foreground: #ffffff; /* list.hoverForeground */
-	--destructive: #bf616a; /* editorError.foreground */
+	/* Luminar dark token set. */
+	--background: #121212;
+	--foreground: #f8f5ee;
+	--card: #1B1A19;
+	--card-foreground: #f8f5ee;
+	--popover: #1c1c1b;
+	--popover-foreground: #f8f5ee;
+	--primary: #f8f5ee;
+	--primary-foreground: #121212;
+	--secondary: #292928;
+	--secondary-foreground: #f8f5ee;
+	--muted: #1e1e1d;
+	--muted-foreground: #a5a39d;
+	--accent: #292928;
+	--accent-foreground: #f8f5ee;
+	--destructive: #f97066;
+	--destructive-foreground: #121212;
 	/* Dark: success is the reference green; build icon keeps its own mint accent. */
 	--success: var(--token-success-dark);
 	--success-reference: var(--token-success-dark);
-	--success-foreground: #ffffff;
+	--success-foreground: #121212;
 	--build-icon: var(--token-build-icon-dark);
 	--plan-icon: var(--token-plan-icon-dark);
-	--border: #222222; /* input.border, dropdown.border */
-	--input: #313131; /* input.background */
-	--ring: #F0EEE6;
+	--border: #292928;
+	--input: #292928;
+	--ring: #a5a39d;
 	--chart-1: #88c0d0; /* badge.background */
 	--chart-2: #a3be8c; /* gitDecoration.addedResourceForeground */
 	--chart-3: #ebcb8b; /* editorWarning.foreground */
 	--chart-4: #bf616a; /* editorError.foreground */
 	--chart-5: #b48ead; /* terminal.ansiMagenta */
-	--sidebar: #0E0E0E; /* sideBar.background */
-	--sidebar-foreground: #cccccc; /* sideBar.foreground */
-	--sidebar-primary: #F0EEE6;
-	--sidebar-primary-foreground: #141413;
-	--sidebar-accent: #1A1A1A; /* list.hoverBackground */
-	--sidebar-accent-foreground: #ffffff; /* list.hoverForeground */
-	--sidebar-border: rgba(255, 255, 255, 0.05); /* editorGroupHeader.tabsBorder */
-	--sidebar-ring: #F0EEE6;
+	--sidebar: #121212;
+	--sidebar-foreground: #f8f5ee;
+	--sidebar-primary: #f8f5ee;
+	--sidebar-primary-foreground: #121212;
+	--sidebar-accent: #292928;
+	--sidebar-accent-foreground: #f8f5ee;
+	--sidebar-border: #292928;
+	--sidebar-ring: #a5a39d;
 }
 
 @theme inline {
-	--radius-sm: calc(var(--radius) - 4px);
-	--radius-md: calc(var(--radius) - 2px);
+	--radius-sm: calc(var(--radius) - 6px);
+	--radius-md: calc(var(--radius) - 4px);
 	--radius-lg: var(--radius);
 	--radius-xl: calc(var(--radius) + 4px);
 	--font-sans: var(--font-sans);
@@ -403,13 +404,27 @@
 [data-sonner-toast] [data-close-button] {
 	right: 8px !important;
 	left: auto !important;
-	top: 50% !important;
-	transform: translateY(-50%) !important;
+	top: calc(50% - 14px) !important;
+	transform: none !important;
+	display: inline-flex !important;
+	align-items: center !important;
+	justify-content: center !important;
+	width: 28px !important;
+	height: 28px !important;
+	min-width: 28px !important;
+	min-height: 28px !important;
+	padding: 0 !important;
+	margin: 0 !important;
 	opacity: 1 !important;
 	background: transparent !important;
 	border: none !important;
 	color: color-mix(in srgb, var(--popover-foreground) 72%, transparent) !important;
 	box-shadow: none !important;
+}
+
+[data-sonner-toast] [data-close-button] svg {
+	width: 16px !important;
+	height: 16px !important;
 }
 
 [data-sonner-toast] [data-close-button]:hover {

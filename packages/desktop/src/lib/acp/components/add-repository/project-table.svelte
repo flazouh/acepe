@@ -1,5 +1,4 @@
 <script lang="ts">
-import { CheckCircle } from "phosphor-svelte";
 import { CircleNotch } from "phosphor-svelte";
 import { FolderSimple } from "phosphor-svelte";
 import ActionsCell from "./cells/actions-cell.svelte";
@@ -13,9 +12,10 @@ interface Props {
 	addedPaths: Set<string>;
 	selectedAgentIds?: string[];
 	onImport: (path: string, name: string) => void;
+	onUndo: (path: string, name: string) => void;
 }
 
-let { projects, loading, addedPaths, selectedAgentIds, onImport }: Props = $props();
+let { projects, loading, addedPaths, selectedAgentIds, onImport, onUndo }: Props = $props();
 
 /**
  * Filter agent counts to show only selected agents.
@@ -38,6 +38,14 @@ function shortenPath(path: string): string {
 	if (parts.length <= 3) return home;
 	return `${parts.slice(0, 2).join("/")}/.../${parts[parts.length - 1]}`;
 }
+
+function handleProjectRowKeydown(event: KeyboardEvent, project: ProjectWithSessions, isAdded: boolean): void {
+	if (isAdded) return;
+	if (event.key !== "Enter" && event.key !== " ") return;
+
+	event.preventDefault();
+	onImport(project.path, project.name);
+}
 </script>
 
 {#if loading}
@@ -58,34 +66,38 @@ function shortenPath(path: string): string {
 {:else}
 	{#each projects as project (project.path)}
 		{@const isAdded = addedPaths.has(project.path)}
-		<button
-			type="button"
-		class="group flex items-center justify-between gap-3 w-full text-left px-3 py-2.5 border-b border-border/20 transition-colors {isAdded
-			? 'cursor-default'
-			: 'cursor-pointer hover:bg-accent/30 active:bg-accent/40'}"
-			disabled={isAdded}
-			onclick={() => onImport(project.path, project.name)}
+		<div
+			role="button"
+			tabindex={isAdded ? -1 : 0}
+			class="group mb-0.5 flex w-full items-center justify-between gap-2.5 rounded-md px-3 py-2 text-left transition-colors last:mb-0 {isAdded
+				? 'cursor-default bg-primary/[0.12]'
+				: 'cursor-pointer bg-accent/[0.45] hover:bg-accent/70 active:bg-accent/80'}"
+			onclick={() => {
+				if (!isAdded) onImport(project.path, project.name);
+			}}
+			onkeydown={(event) => handleProjectRowKeydown(event, project, isAdded)}
 		>
-			<div class="flex-1 min-w-0">
+			<div class="min-w-0 flex-1">
 				<div class="flex items-center gap-2">
-					<span class="text-[12px] font-medium text-foreground truncate">
+					<span class="truncate text-[12px] font-medium text-foreground">
 						{project.name}
 					</span>
-					{#if isAdded}
-						<CheckCircle weight="fill" class="size-3.5 text-green-500 shrink-0" />
-					{/if}
 				</div>
-				<span class="text-[10px] text-muted-foreground/60 truncate block mt-0.5 font-mono">
+				<span class="mt-0.5 block truncate font-mono text-[10px] text-muted-foreground/60">
 					{shortenPath(project.path)}
 				</span>
 			</div>
 
-			<div class="flex items-center gap-2 shrink-0">
+			<div class="flex shrink-0 items-center gap-2">
 				<AgentCountsCell
 					agentCounts={getDisplayCounts(Array.from(project.agentCounts.entries()))}
 				/>
-				<ActionsCell {isAdded} />
+				<ActionsCell
+					{isAdded}
+					onImport={() => onImport(project.path, project.name)}
+					onUndo={() => onUndo(project.path, project.name)}
+				/>
 			</div>
-		</button>
+		</div>
 	{/each}
 {/if}

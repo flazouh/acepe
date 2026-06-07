@@ -6,6 +6,7 @@ import {
 	getEmptyStateProjectPath,
 	isEmptyStateWorktreeEffectivelyPending,
 	resolveEmptyStateProject,
+	shouldShowEmptyStateProjectChooser,
 	shouldShowEmptyStateProjectPicker,
 } from "../empty-state-view-state.js";
 
@@ -47,6 +48,12 @@ describe("empty-state view state", () => {
 		expect(shouldShowEmptyStateProjectPicker(0)).toBe(false);
 		expect(shouldShowEmptyStateProjectPicker(1)).toBe(false);
 		expect(shouldShowEmptyStateProjectPicker(2)).toBe(true);
+	});
+
+	it("shows the project chooser only when no projects exist", () => {
+		expect(shouldShowEmptyStateProjectChooser(0)).toBe(true);
+		expect(shouldShowEmptyStateProjectChooser(1)).toBe(false);
+		expect(shouldShowEmptyStateProjectChooser(2)).toBe(false);
 	});
 
 	it("shows input only when a project and agent exist", () => {

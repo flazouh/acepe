@@ -103,6 +103,7 @@ nested/
 
 # Local tool configs (machine-specific)
 .mcp.json
+**/.codex/state/
 packages/website/.mcp.json
 .cursorrules
 .opencode/

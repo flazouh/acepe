@@ -1,0 +1,27 @@
+# Project-local Codex lifecycle hooks for Acepe.
+# These load only when this repository is trusted by Codex.
+
+[[hooks.SessionStart]]
+matcher = "startup|resume|clear|compact"
+
+[[hooks.SessionStart.hooks]]
+type = "command"
+command = '/usr/bin/env node "$(git rev-parse --show-toplevel)/.codex/hooks/acepe-system-context.mjs"'
+timeout = 10
+statusMessage = "Loading Acepe operating context"
+
+[[hooks.UserPromptSubmit]]
+
+[[hooks.UserPromptSubmit.hooks]]
+type = "command"
+command = '/usr/bin/env node "$(git rev-parse --show-toplevel)/.codex/hooks/acepe-system-context.mjs"'
+timeout = 10
+statusMessage = "Refreshing Acepe operating context"
+
+[[hooks.Stop]]
+
+[[hooks.Stop.hooks]]
+type = "command"
+command = '/usr/bin/env node "$(git rev-parse --show-toplevel)/.codex/hooks/enforce-ui-qa.mjs"'
+timeout = 10
+statusMessage = "Checking UI QA evidence"

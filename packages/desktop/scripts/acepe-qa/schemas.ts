@@ -82,6 +82,68 @@ export const screenshotResultSchema = z.object({
 	path: z.string(),
 });
 
+export const domRectSchema = z.object({
+	x: z.number(),
+	y: z.number(),
+	width: z.number(),
+	height: z.number(),
+	top: z.number(),
+	right: z.number(),
+	bottom: z.number(),
+	left: z.number(),
+});
+
+export const domElementSummarySchema = z.object({
+	index: z.number(),
+	tag: z.string(),
+	role: z.string().nullable(),
+	name: z.string(),
+	text: z.string(),
+	src: z.string().nullable(),
+	classes: z.string(),
+	visible: z.boolean(),
+	computedStyle: z.object({
+		display: z.string(),
+		gap: z.string(),
+		rowGap: z.string(),
+		columnGap: z.string(),
+		paddingTop: z.string(),
+		paddingRight: z.string(),
+		paddingBottom: z.string(),
+		paddingLeft: z.string(),
+		animationName: z.string(),
+		animationDuration: z.string(),
+		animationDelay: z.string(),
+		animationIterationCount: z.string(),
+	}),
+	rect: domRectSchema,
+	animationNames: z.array(z.string()),
+});
+
+export const domInspectionResultSchema = z.object({
+	selector: z.string(),
+	count: z.number(),
+	elements: z.array(domElementSummarySchema),
+});
+
+export const clickResultSchema = z.object({
+	clicked: z.boolean(),
+	match: domElementSummarySchema.nullable(),
+});
+
+export const resetOnboardingResultSchema = z.object({
+	clickedDevTools: z.boolean(),
+	clickedReset: z.boolean(),
+	hasWelcome: z.boolean(),
+	panelCount: z.number(),
+	animated: z.array(
+		z.object({
+			className: z.string(),
+			animationName: z.string(),
+		})
+	),
+});
+
 export type QaStatus = z.infer<typeof qaStatusSchema>;
 export type QaCommandResult = z.infer<typeof qaCommandResultSchema>;
 export type QaError = z.infer<typeof qaErrorSchema>;
@@ -90,3 +152,6 @@ export type TargetDoctorResult = z.infer<typeof targetDoctorResultSchema>;
 export type ObserveLevel = z.infer<typeof observeLevelSchema>;
 export type AppObservation = z.infer<typeof appObservationSchema>;
 export type ScreenshotResult = z.infer<typeof screenshotResultSchema>;
+export type DomInspectionResult = z.infer<typeof domInspectionResultSchema>;
+export type ClickResult = z.infer<typeof clickResultSchema>;
+export type ResetOnboardingResult = z.infer<typeof resetOnboardingResultSchema>;

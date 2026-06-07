@@ -1,7 +1,17 @@
+import { spawn } from "node:child_process";
+import { createHash } from "node:crypto";
+import { existsSync, rmSync } from "node:fs";
+import { mkdtemp, readFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { Socket } from "node:net";
 import { Result, ResultAsync, err, ok } from "neverthrow";
 import { z } from "zod";
 
 const TAURI_MCP_CLI_VERSION = "@hypothesi/tauri-mcp-cli@0.10.0";
+const DAEMON_PROTOCOL_VERSION = "v2";
+const DAEMON_START_TIMEOUT_MS = 2_500;
+const DAEMON_REQUEST_TIMEOUT_MS = 5_000;
 
 export type CommandExecution = {
 	readonly code: number;
@@ -36,6 +46,17 @@ const tauriScreenshotWrapperSchema = z.object({
 	text: z.string().optional(),
 });
 
+const daemonResponseSchema = z.object({
+	ok: z.boolean(),
+	code: z.number().optional(),
+	stdout: z.string().optional(),
+	stderr: z.string().optional(),
+	text: z.string().optional(),
+	content: z.array(z.object({ type: z.string().optional(), text: z.string().optional(), path: z.string().optional(), data: z.string().optional(), mimeType: z.string().optional() })).optional(),
+	files: z.array(z.object({ path: z.string(), mimeType: z.string().optional() })).optional(),
+	message: z.string().optional(),
+});
+
 export function runCommand(command: readonly string[]): ResultAsync<CommandExecution, TauriMcpFailure> {
 	return ResultAsync.fromPromise(
 		(async () => {
@@ -62,12 +83,211 @@ export function runCommand(command: readonly string[]): ResultAsync<CommandExecu
 	);
 }
 
-export function runTauriMcp(
+function daemonSocketPath(): string {
+	const digest = createHash("sha1")
+		.update(`${process.cwd()}:${DAEMON_PROTOCOL_VERSION}`)
+		.digest("hex")
+		.slice(0, 12);
+	return join(tmpdir(), `acepe-qa-daemon-${digest}.sock`);
+}
+
+function daemonScriptPath(): string {
+	return join(process.cwd(), "scripts", "acepe-qa-daemon.mjs");
+}
+
+function valueAfter(args: readonly string[], flag: string): string | null {
+	const index = args.indexOf(flag);
+	if (index < 0) {
+		return null;
+	}
+	return args[index + 1] ?? null;
+}
+
+function daemonRequest(payload: object): ResultAsync<z.infer<typeof daemonResponseSchema>, TauriMcpFailure> {
+	return ResultAsync.fromPromise(
+		new Promise<z.infer<typeof daemonResponseSchema>>((resolve, reject) => {
+			const socket = new Socket();
+			let buffer = "";
+			const timeout = setTimeout(() => {
+				socket.destroy();
+				reject(new Error("Acepe QA daemon request timed out."));
+			}, DAEMON_REQUEST_TIMEOUT_MS);
+			socket.on("data", (chunk) => {
+				buffer += chunk.toString("utf8");
+				const newlineIndex = buffer.indexOf("\n");
+				if (newlineIndex < 0) {
+					return;
+				}
+				clearTimeout(timeout);
+				socket.end();
+				const raw = buffer.slice(0, newlineIndex);
+				const parsed = Result.fromThrowable(
+					(input: string) => JSON.parse(input) as object,
+					(error) => new Error(error instanceof Error ? error.message : "Daemon JSON parse failed.")
+				)(raw);
+				if (parsed.isErr()) {
+					reject(parsed.error);
+					return;
+				}
+				const response = daemonResponseSchema.safeParse(parsed.value);
+				if (!response.success) {
+					reject(new Error(response.error.message));
+					return;
+				}
+				resolve(response.data);
+			});
+			socket.on("error", reject);
+			socket.connect(daemonSocketPath(), () => {
+				socket.write(`${JSON.stringify(payload)}\n`);
+			});
+		}),
+		(error) => ({
+			code: "qa_daemon_request_failed",
+			message: error instanceof Error ? error.message : "Acepe QA daemon request failed.",
+		})
+	);
+}
+
+function waitForDaemon(readyPath: string): ResultAsync<null, TauriMcpFailure> {
+	return ResultAsync.fromPromise(
+		new Promise<null>((resolve, reject) => {
+			const started = Date.now();
+			const tick = () => {
+				if (existsSync(readyPath)) {
+					resolve(null);
+					return;
+				}
+				if (Date.now() - started > DAEMON_START_TIMEOUT_MS) {
+					reject(new Error("Acepe QA daemon did not become ready."));
+					return;
+				}
+				setTimeout(tick, 40);
+			};
+			tick();
+		}),
+		(error) => ({
+			code: "qa_daemon_start_failed",
+			message: error instanceof Error ? error.message : "Acepe QA daemon did not become ready.",
+		})
+	);
+}
+
+function startDaemon(): ResultAsync<null, TauriMcpFailure> {
+	return ResultAsync.fromPromise(
+		mkdtemp(join(tmpdir(), "acepe-qa-daemon-")).then(async (directory) => {
+			const readyPath = join(directory, "ready.json");
+			const socketPath = daemonSocketPath();
+			if (existsSync(socketPath)) {
+				rmSync(socketPath, { force: true });
+			}
+			const child = spawn(process.execPath, [daemonScriptPath(), socketPath, readyPath], {
+				cwd: process.cwd(),
+				detached: true,
+				stdio: "ignore",
+			});
+			child.unref();
+			await waitForDaemon(readyPath).match(
+				() => undefined,
+				(error) => {
+					throw new Error(error.message);
+				}
+			);
+			await readFile(readyPath, "utf8");
+			return null;
+		}),
+		(error) => ({
+			code: "qa_daemon_start_failed",
+			message: error instanceof Error ? error.message : "Unable to start Acepe QA daemon.",
+		})
+	);
+}
+
+function ensureDaemon(): ResultAsync<null, TauriMcpFailure> {
+	return daemonRequest({ kind: "ping" })
+		.map(() => null)
+		.orElse(() => startDaemon());
+}
+
+function commandFromDaemon(args: readonly string[]): ResultAsync<CommandExecution, TauriMcpFailure> {
+	if (args[0] === "driver-session" && args[1] === "start") {
+		const appIdentifier = valueAfter(args, "--port") ?? "9223";
+		return ensureDaemon()
+			.andThen(() => daemonRequest({ kind: "driver-session-start", appIdentifier }))
+			.map((response) => ({
+				code: response.code ?? 0,
+				stdout: response.stdout ?? "",
+				stderr: response.stderr ?? "",
+			}));
+	}
+
+	if (args[0] === "webview-execute-js") {
+		const appIdentifier = valueAfter(args, "--app-identifier") ?? "9223";
+		const script = valueAfter(args, "--script") ?? "";
+		return ensureDaemon()
+			.andThen(() => daemonRequest({ kind: "webview-execute-js", appIdentifier, script }))
+			.andThen((response) => {
+				if (!response.ok) {
+					return err({
+						code: "qa_daemon_webview_failed",
+						message: response.message ?? "Acepe QA daemon WebView call failed.",
+					});
+				}
+				return ok({
+					code: 0,
+					stdout: JSON.stringify({
+						text: response.text ?? "",
+						content: [{ type: "text", text: response.text ?? "" }],
+					}),
+					stderr: "",
+				});
+			});
+	}
+
+	if (args[0] === "webview-screenshot") {
+		const appIdentifier = valueAfter(args, "--app-identifier") ?? "9223";
+		return ensureDaemon()
+			.andThen(() => daemonRequest({ kind: "webview-screenshot", appIdentifier }))
+			.andThen((response) => {
+				if (!response.ok) {
+					return err({
+						code: "qa_daemon_screenshot_failed",
+						message: response.message ?? "Acepe QA daemon screenshot failed.",
+					});
+				}
+				return ok({
+					code: 0,
+					stdout: JSON.stringify({
+						text: response.text ?? "Screenshot captured",
+						content: response.content ?? [],
+						files: response.files ?? [],
+					}),
+					stderr: "",
+				});
+			});
+	}
+
+	return err({
+		code: "qa_daemon_unsupported_command",
+		message: args[0] ?? "empty command",
+	});
+}
+
+function runTauriMcpCli(
 	args: readonly string[],
 	runner: CommandRunner = runCommand
 ): ResultAsync<CommandExecution, TauriMcpFailure> {
 	const command = ["npx", "-y", "-p", TAURI_MCP_CLI_VERSION, "tauri-mcp"].concat(Array.from(args));
 	return runner(command);
+}
+
+export function runTauriMcp(
+	args: readonly string[],
+	runner: CommandRunner = runCommand
+): ResultAsync<CommandExecution, TauriMcpFailure> {
+	if (runner !== runCommand) {
+		return runTauriMcpCli(args, runner);
+	}
+	return commandFromDaemon(args).orElse(() => runTauriMcpCli(args, runner));
 }
 
 export function parseJsonText(text: string): Result<object, TauriMcpFailure> {

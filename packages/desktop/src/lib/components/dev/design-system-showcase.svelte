@@ -31,8 +31,10 @@ import {
 	type KanbanCardData,
 } from "@acepe/ui";
 import { CheckCircle } from "phosphor-svelte";
+import { ArrowRight } from "phosphor-svelte";
 import { X } from "phosphor-svelte";
 import { Kanban } from "phosphor-svelte";
+import { ListChecks } from "phosphor-svelte";
 import { Rows } from "phosphor-svelte";
 import { Palette } from "phosphor-svelte";
 import { Robot } from "phosphor-svelte";
@@ -57,6 +59,7 @@ type SidebarItem = {
 	icon: "palette" | "shield" | "kanban" | "tag" | "robot" | "panel";
 };
 const sidebarItems: SidebarItem[] = [
+	{ id: "onboarding", label: "Onboarding", icon: "panel" },
 	{ id: "button", label: "Buttons", icon: "palette" },
 	{ id: "badges", label: "Badges & Chips", icon: "tag" },
 	{ id: "panel-header", label: "Panel Header", icon: "panel" },
@@ -436,6 +439,15 @@ function handleShowcaseCardAction(): void {}
 
 const kanbanMenuTriggerClass =
 	"shrink-0 inline-flex h-5 w-5 items-center justify-center p-1 text-muted-foreground/55 transition-colors hover:text-foreground focus-visible:outline-none focus-visible:text-foreground";
+
+const onboardingPills = ["Multi-agent", "Project-aware", "Review-ready"];
+const onboardingSteps = ["Choose your agents", "Import existing projects", "Start your workspace"];
+const onboardingAgents = [
+	{ id: "claude-code", label: "Claude" },
+	{ id: "codex", label: "Codex" },
+	{ id: "cursor", label: "Cursor" },
+	{ id: "opencode", label: "OpenCode" },
+];
 </script>
 
 {#if open}
@@ -502,7 +514,274 @@ const kanbanMenuTriggerClass =
 				<!-- Content -->
 				<div class="flex-1 min-w-0 overflow-y-auto bg-accent/20">
 					<div class="px-8 py-6">
-						{#if activeSection === "button"}
+						{#if activeSection === "onboarding"}
+							<div class="mb-1 text-xs font-semibold text-foreground/80">Onboarding First Step</div>
+							<p class="mb-6 max-w-[520px] text-[11px] text-muted-foreground/60">
+								Static first-step explorations for the welcome card. Each option keeps the current card surface and button language.
+							</p>
+
+							<div class="flex flex-col gap-6">
+								<div>
+									<div class="mb-2 text-[10px] font-mono font-medium uppercase tracking-wider text-muted-foreground/40">
+										1. Value Row
+									</div>
+									<div class="ds-specimen overflow-hidden !p-0">
+										<div class="mx-auto flex w-full max-w-[680px] flex-col overflow-hidden rounded-xl bg-card text-card-foreground">
+											<section class="px-5 py-5 sm:px-6">
+												<div class="flex flex-col gap-4">
+													<h2 class="text-[2.45rem] font-medium leading-[1.02] tracking-tight text-foreground sm:text-[3rem]">
+														Welcome to Acepe
+													</h2>
+													<p class="max-w-[34rem] text-[0.975rem] leading-[1.6] text-muted-foreground">
+														Set up your agent workspace in a minute. We'll help you choose agents, find existing projects, and get everything ready in one place.
+													</p>
+													<div class="flex flex-wrap gap-1.5">
+														{#each onboardingPills as pill (pill)}
+															<span class="rounded-md bg-accent px-2 py-1 text-[11px] font-medium text-muted-foreground">
+																{pill}
+															</span>
+														{/each}
+													</div>
+												</div>
+											</section>
+											<div class="flex justify-end px-5 py-5 sm:px-6">
+												<Button class="group">
+													<span>Get started</span>
+													<ArrowRight weight="bold" class="size-4" />
+												</Button>
+											</div>
+										</div>
+									</div>
+								</div>
+
+								<div>
+									<div class="mb-2 text-[10px] font-mono font-medium uppercase tracking-wider text-muted-foreground/40">
+										2. Product Preview Band
+									</div>
+									<div class="ds-specimen overflow-hidden !p-0">
+										<div class="mx-auto flex w-full max-w-[680px] flex-col overflow-hidden rounded-xl bg-card text-card-foreground">
+											<section class="px-5 py-5 sm:px-6">
+												<div class="flex flex-col gap-5">
+													<div class="flex flex-col gap-4">
+														<h2 class="text-[2.45rem] font-medium leading-[1.02] tracking-tight text-foreground sm:text-[3rem]">
+															Welcome to Acepe
+														</h2>
+														<p class="max-w-[34rem] text-[0.975rem] leading-[1.6] text-muted-foreground">
+															Start from your existing agent work and bring it into one workspace.
+														</p>
+													</div>
+													<div class="overflow-hidden rounded-lg bg-background/70 p-2">
+														<div class="grid grid-cols-3 gap-1.5">
+															{#each onboardingAgents.slice(0, 3) as agent (agent.id)}
+																<div class="relative rounded-md bg-card px-2 py-2">
+																	<div class="mb-2 flex items-center gap-1.5">
+																		{#if agent.id === "claude-code"}
+																			<span
+																				class="size-3.5 bg-[#D97757]"
+																				style="-webkit-mask: url('/svgs/icons/claude.svg') center / contain no-repeat; mask: url('/svgs/icons/claude.svg') center / contain no-repeat;"
+																			></span>
+																		{:else if agent.id === "cursor"}
+																			<img src="/svgs/icons/cursor.svg" alt="" class="size-3.5" />
+																		{:else if agent.id === "codex"}
+																			<img src="/svgs/agents/codex/codex-app-icon.png" alt="" class="size-3.5 rounded-[4px]" />
+																		{:else}
+																			<Robot weight="fill" class="size-3.5 text-muted-foreground" />
+																		{/if}
+																		<div class="text-[10px] font-medium text-muted-foreground">{agent.label}</div>
+																	</div>
+																	<div class="flex flex-col gap-1">
+																		<span class="h-1.5 w-10 rounded-full bg-foreground/25"></span>
+																		<span class="h-1.5 w-14 rounded-full bg-muted-foreground/20"></span>
+																		<span class="h-1.5 w-8 rounded-full bg-muted-foreground/15"></span>
+																	</div>
+																</div>
+															{/each}
+														</div>
+													</div>
+												</div>
+											</section>
+											<div class="flex justify-end px-5 py-5 sm:px-6">
+												<Button class="group">
+													<span>Get started</span>
+													<ArrowRight weight="bold" class="size-4" />
+												</Button>
+											</div>
+										</div>
+									</div>
+								</div>
+
+								<div>
+									<div class="mb-2 text-[10px] font-mono font-medium uppercase tracking-wider text-muted-foreground/40">
+										3. Welcome Checklist
+									</div>
+									<div class="ds-specimen overflow-hidden !p-0">
+										<div class="mx-auto flex w-full max-w-[680px] flex-col overflow-hidden rounded-xl bg-card text-card-foreground">
+											<section class="px-5 py-5 sm:px-6">
+												<div class="flex flex-col gap-5">
+													<div class="flex flex-col gap-4">
+														<h2 class="text-[2.45rem] font-medium leading-[1.02] tracking-tight text-foreground sm:text-[3rem]">
+															Welcome to Acepe
+														</h2>
+														<p class="max-w-[34rem] text-[0.975rem] leading-[1.6] text-muted-foreground">
+															We'll get the workspace ready around how you already use coding agents.
+														</p>
+													</div>
+													<div class="grid gap-2">
+														{#each onboardingSteps as step, index (step)}
+															<div class="flex items-center gap-2.5 rounded-md bg-accent/55 px-3 py-2">
+																<span class="flex size-5 items-center justify-center rounded-full bg-foreground text-[10px] font-semibold text-background">
+																	{index + 1}
+																</span>
+																<span class="text-[0.8125rem] font-medium text-foreground">{step}</span>
+															</div>
+														{/each}
+													</div>
+												</div>
+											</section>
+											<div class="flex justify-end px-5 py-5 sm:px-6">
+												<Button class="group">
+													<span>Get started</span>
+													<ArrowRight weight="bold" class="size-4" />
+												</Button>
+											</div>
+										</div>
+									</div>
+								</div>
+
+								<div>
+									<div class="mb-2 text-[10px] font-mono font-medium uppercase tracking-wider text-muted-foreground/40">
+										4. Agent Provider Row
+									</div>
+									<div class="ds-specimen overflow-hidden !p-0">
+										<div class="mx-auto flex w-full max-w-[680px] flex-col overflow-hidden rounded-xl bg-card text-card-foreground">
+											<section class="px-5 py-5 sm:px-6">
+												<div class="flex flex-col gap-5">
+													<div class="flex flex-col gap-4">
+														<h2 class="text-[2.45rem] font-medium leading-[1.02] tracking-tight text-foreground sm:text-[3rem]">
+															Welcome to Acepe
+														</h2>
+														<p class="max-w-[34rem] text-[0.975rem] leading-[1.6] text-muted-foreground">
+															Bring your agent sessions together without changing how you work.
+														</p>
+													</div>
+													<div class="flex items-center gap-2">
+														{#each onboardingAgents as agent (agent.id)}
+															<div class="flex items-center gap-1.5 rounded-md bg-accent/60 px-2 py-1.5">
+																{#if agent.id === "claude-code"}
+																	<img src="/svgs/icons/claude.svg" alt="" class="size-3.5" />
+																{:else if agent.id === "cursor"}
+																	<img src="/svgs/icons/cursor.svg" alt="" class="size-3.5" />
+																{:else}
+																	<Robot weight="fill" class="size-3.5 text-muted-foreground" />
+																{/if}
+																<span class="text-[11px] font-medium text-muted-foreground">{agent.label}</span>
+															</div>
+														{/each}
+													</div>
+												</div>
+											</section>
+											<div class="flex justify-end px-5 py-5 sm:px-6">
+												<Button class="group">
+													<span>Get started</span>
+													<ArrowRight weight="bold" class="size-4" />
+												</Button>
+											</div>
+										</div>
+									</div>
+								</div>
+
+								<div>
+									<div class="mb-2 text-[10px] font-mono font-medium uppercase tracking-wider text-muted-foreground/40">
+										5. Progress Context
+									</div>
+									<div class="ds-specimen overflow-hidden !p-0">
+										<div class="mx-auto flex w-full max-w-[680px] flex-col overflow-hidden rounded-xl bg-card text-card-foreground">
+											<section class="px-5 py-5 sm:px-6">
+												<div class="flex flex-col gap-5">
+													<div class="flex items-center justify-between">
+														<span class="text-[11px] font-medium text-muted-foreground">Step 1 of 3</span>
+														<div class="flex items-center gap-1">
+															<span class="h-1.5 w-6 rounded-full bg-foreground"></span>
+															<span class="h-1.5 w-6 rounded-full bg-muted"></span>
+															<span class="h-1.5 w-6 rounded-full bg-muted"></span>
+														</div>
+													</div>
+													<div class="flex flex-col gap-4">
+														<h2 class="text-[2.45rem] font-medium leading-[1.02] tracking-tight text-foreground sm:text-[3rem]">
+															Welcome to Acepe
+														</h2>
+														<p class="max-w-[34rem] text-[0.975rem] leading-[1.6] text-muted-foreground">
+															Three short steps to make Acepe reflect your projects and agents.
+														</p>
+													</div>
+												</div>
+											</section>
+											<div class="flex justify-end px-5 py-5 sm:px-6">
+												<Button class="group">
+													<span>Get started</span>
+													<ArrowRight weight="bold" class="size-4" />
+												</Button>
+											</div>
+										</div>
+									</div>
+								</div>
+
+								<div>
+									<div class="mb-2 text-[10px] font-mono font-medium uppercase tracking-wider text-muted-foreground/40">
+										Combined Direction
+									</div>
+									<div class="ds-specimen overflow-hidden !p-0">
+										<div class="mx-auto flex w-full max-w-[680px] flex-col overflow-hidden rounded-xl bg-card text-card-foreground">
+											<section class="px-5 py-5 sm:px-6">
+												<div class="flex flex-col gap-5">
+													<div class="flex items-center justify-between">
+														<span class="text-[11px] font-medium text-muted-foreground">Step 1 of 3</span>
+														<ListChecks weight="fill" class="size-4 text-muted-foreground" />
+													</div>
+													<div class="flex flex-col gap-4">
+														<h2 class="text-[2.45rem] font-medium leading-[1.02] tracking-tight text-foreground sm:text-[3rem]">
+															Welcome to Acepe
+														</h2>
+														<p class="max-w-[34rem] text-[0.975rem] leading-[1.6] text-muted-foreground">
+															Choose your agents, import existing work, and start with the projects that already matter.
+														</p>
+													</div>
+													<div class="grid gap-2 sm:grid-cols-[1fr_auto] sm:items-end">
+														<div class="grid gap-1.5">
+															{#each onboardingSteps as step, index (step)}
+																<div class="flex items-center gap-2 text-[0.75rem] text-muted-foreground">
+																	<CheckCircle weight="fill" class="size-3.5 text-foreground" />
+																	<span>{step}</span>
+																</div>
+															{/each}
+														</div>
+														<div class="flex items-center gap-1.5">
+															{#each onboardingAgents.slice(0, 3) as agent (agent.id)}
+																<span class="flex size-6 items-center justify-center rounded-md bg-accent">
+																	{#if agent.id === "claude-code"}
+																		<img src="/svgs/icons/claude.svg" alt="" class="size-3.5" />
+																	{:else if agent.id === "cursor"}
+																		<img src="/svgs/icons/cursor.svg" alt="" class="size-3.5" />
+																	{:else}
+																		<Robot weight="fill" class="size-3.5 text-muted-foreground" />
+																	{/if}
+																</span>
+															{/each}
+														</div>
+													</div>
+												</div>
+											</section>
+											<div class="flex justify-end px-5 py-5 sm:px-6">
+												<Button class="group">
+													<span>Get started</span>
+													<ArrowRight weight="bold" class="size-4" />
+												</Button>
+											</div>
+										</div>
+									</div>
+								</div>
+							</div>
+						{:else if activeSection === "button"}
 							<div class="mb-1 text-xs font-semibold text-foreground/80">Buttons</div>
 							<p class="mb-6 max-w-[420px] text-[11px] text-muted-foreground/60">
 								Shared button variants used across headers, toolbars, confirmations, and destructive flows.

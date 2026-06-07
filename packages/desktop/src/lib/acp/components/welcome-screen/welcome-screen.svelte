@@ -1,7 +1,14 @@
 <script lang="ts">
-import { BrandLockup, BrandShaderBackground, Button } from "@acepe/ui";
+import { BrandShaderBackground } from "@acepe/ui";
+import * as DropdownMenu from "@acepe/ui/dropdown-menu";
 import { ResultAsync } from "neverthrow";
 import { ArrowRight } from "phosphor-svelte";
+import { CheckCircle } from "phosphor-svelte";
+import { Circle } from "phosphor-svelte";
+import { Desktop } from "phosphor-svelte";
+import { Moon } from "phosphor-svelte";
+import { PaperPlaneRight } from "phosphor-svelte";
+import { Sun } from "phosphor-svelte";
 import { onDestroy, onMount } from "svelte";
 import { toast } from "svelte-sonner";
 import AgentErrorCard from "$lib/acp/components/agent-panel/components/agent-error-card.svelte";
@@ -11,6 +18,7 @@ import type { AppError } from "$lib/acp/errors/app-error.js";
 import { getErrorCauseDetails } from "$lib/acp/errors/error-cause-details.js";
 import { getAgentPreferencesStore, getAgentStore } from "$lib/acp/store/index.js";
 import { Spinner } from "$lib/components/ui/spinner/index.js";
+import { Button } from "$lib/components/ui/button/index.js";
 import { ensureErrorReference } from "$lib/errors/error-reference.js";
 import {
 	buildIssueReportDraft,
@@ -25,15 +33,13 @@ import {
 	sortProjectsBySessionCount,
 } from "../add-repository/project-discovery.js";
 import ProjectTable from "../add-repository/project-table.svelte";
+import { useTheme } from "$lib/components/theme/index.js";
 import { getOnboardingSelectableAgents } from "./onboarding-agent-discovery.js";
 import {
 	AGENT_VENDORS,
-	ONBOARDING_STEPS,
-	SPLASH_AGENTS,
 	type OnboardingStep,
 	extractNameFromPath,
 	filterProjectsBySelectedAgents,
-	getCurrentOnboardingStepIndex,
 	toggleSelectedOnboardingAgent,
 } from "./welcome-screen-state.js";
 import type { WelcomeScreenProps } from "./welcome-screen-props.js";
@@ -57,15 +63,103 @@ let onboardingBusyMessage = $state("");
 let onboardingImportError = $state<OnboardingImportErrorState | null>(null);
 let onboardingImportProjectPath = $state<string | null>(null);
 let onboardingImportProjectName = $state<string | null>(null);
+let onboardingPreviewFrame = $state(0);
+let onboardingPreviewInterval: ReturnType<typeof setInterval> | null = null;
 
 const agentStore = getAgentStore();
 const agentPreferencesStore = getAgentPreferencesStore();
+const themeState = useTheme();
+const ONBOARDING_PREVIEW_REST_FRAMES = 2;
+
+const onboardingPreviewAgents = [
+	{
+		id: "claude-code",
+		label: "Claude",
+		state: "streaming",
+		phaseOffsetFrames: 0,
+		timeline: [
+			{ type: "message", text: "I found the onboarding surface." },
+			{ type: "tool", kind: "search", title: "Search", detail: "welcome-screen" },
+			{ type: "message", text: "Reading the project picker component." },
+			{ type: "tool", kind: "read", title: "Read", detail: "project-table.svelte" },
+			{ type: "message", text: "I'll map the flow before editing." },
+			{ type: "tool", kind: "task", title: "Task", detail: "Plan onboarding changes" },
+			{ type: "message", text: "Next: update the copy and spacing." },
+		],
+		composer: "Ask for tradeoffs",
+	},
+	{
+		id: "codex",
+		label: "Codex",
+		state: "tool",
+		phaseOffsetFrames: 2,
+		timeline: [
+			{ type: "message", text: "I can reproduce the preview issue." },
+			{ type: "tool", kind: "browser", title: "Browser", detail: "Inspect onboarding" },
+			{ type: "message", text: "The fake rows are coming from local data." },
+			{ type: "tool", kind: "read", title: "Read", detail: "welcome-screen.svelte" },
+			{ type: "message", text: "I'll replace them with tool-call rows." },
+			{ type: "tool", kind: "execute", title: "Run", detail: "bun run check" },
+			{ type: "message", text: "Then I'll verify the live WebView." },
+		],
+		composer: "Run visual QA",
+	},
+	{
+		id: "cursor",
+		label: "Cursor",
+		state: "edit",
+		phaseOffsetFrames: 4,
+		timeline: [
+			{ type: "message", text: "Applying the UI patch now." },
+			{ type: "tool", kind: "edit", title: "Edit File", detail: "welcome-screen.svelte" },
+			{
+				type: "diff",
+				lines: [
+					"- staticToolRows={previewRows}",
+					"+ timeline={canonicalEvents}",
+					"+ title=\"Edit File\"",
+				],
+			},
+			{ type: "message", text: "Keeping the component surface small." },
+			{ type: "tool", kind: "execute", title: "Run", detail: "bun run check" },
+			{ type: "message", text: "Ready for a live visual pass." },
+			{ type: "tool", kind: "browser", title: "Browser", detail: "Capture screenshot" },
+		],
+		composer: "Adjust the layout",
+	},
+] satisfies readonly {
+	readonly id: string;
+	readonly label: string;
+	readonly state: "streaming" | "tool" | "edit";
+	readonly phaseOffsetFrames: number;
+	readonly timeline: readonly (
+		| {
+				readonly type: "message";
+				readonly text: string;
+		  }
+		| {
+				readonly type: "tool";
+				readonly kind:
+					| "browser"
+					| "edit"
+					| "execute"
+					| "read"
+					| "search"
+					| "task";
+				readonly title: string;
+				readonly detail: string;
+		  }
+		| {
+				readonly type: "diff";
+				readonly lines: readonly string[];
+		  }
+	)[];
+	readonly composer: string;
+}[];
 const onboardingAvailableAgents = $derived(getOnboardingSelectableAgents(agentStore.agents));
 const filteredProjects = $derived(
 	filterProjectsBySelectedAgents(onboardingProjects, onboardingSelectedAgents)
 );
-// Index into ONBOARDING_STEPS for the progress indicator. Scanning reuses the projects step.
-const currentStepIndex = $derived(getCurrentOnboardingStepIndex(onboardingStep));
 
 function isUnexpectedOnboardingImportError(error: AppError): boolean {
 	return error.code !== "VALIDATION_ERROR";
@@ -81,6 +175,19 @@ function handleKeydown(event: KeyboardEvent) {
 			onboardingStep = "projects";
 		}
 	}
+}
+
+function getOnboardingPreviewFrame(phaseOffsetFrames: number, timelineLength: number): number {
+	const cycleLength = timelineLength + ONBOARDING_PREVIEW_REST_FRAMES;
+	return (onboardingPreviewFrame + phaseOffsetFrames) % cycleLength;
+}
+
+function isOnboardingTimelineEventVisible(index: number, frame: number): boolean {
+	return frame > index;
+}
+
+function isOnboardingTimelineEventActive(index: number, frame: number): boolean {
+	return frame === index + 1;
 }
 
 function advanceFromSplash() {
@@ -151,6 +258,25 @@ async function handleOnboardingImport(path: string, name: string) {
 	if (result.isOk()) {
 		onProjectImported(path, name);
 	}
+}
+
+async function handleOnboardingUndoImport(path: string, name: string) {
+	if (!onboardingAddedPaths.has(path)) {
+		return;
+	}
+
+	const result = await tauriClient.projects.removeProject(path);
+	result.match(
+		() => {
+			const nextAddedPaths = new Set(onboardingAddedPaths);
+			nextAddedPaths.delete(path);
+			onboardingAddedPaths = nextAddedPaths;
+			toast.success(`${name} removed from repositories`);
+		},
+		(error) => {
+			toast.error(error.message);
+		}
+	);
 }
 
 async function copyOnboardingImportReferenceId() {
@@ -277,10 +403,17 @@ async function loadOnboardingProjects(): Promise<void> {
 
 onMount(() => {
 	window.addEventListener("keydown", handleKeydown);
+	onboardingPreviewInterval = setInterval(() => {
+		onboardingPreviewFrame = onboardingPreviewFrame + 1;
+	}, 950);
 });
 
 onDestroy(() => {
 	window.removeEventListener("keydown", handleKeydown);
+	if (onboardingPreviewInterval !== null) {
+		clearInterval(onboardingPreviewInterval);
+		onboardingPreviewInterval = null;
+	}
 });
 
 async function finishOnboarding(): Promise<void> {
@@ -302,182 +435,265 @@ async function finishOnboarding(): Promise<void> {
 	);
 }
 
-// Track cursor over interactive surfaces so a soft spotlight can follow it.
-// No $effect — pointer handler writes CSS custom properties directly on the element.
-function trackPointer(event: PointerEvent) {
-	const target = event.currentTarget as HTMLElement;
-	const rect = target.getBoundingClientRect();
-	target.style.setProperty("--spot-x", `${event.clientX - rect.left}px`);
-	target.style.setProperty("--spot-y", `${event.clientY - rect.top}px`);
-}
 </script>
 
-<!-- Shader background layer (persistent across all steps) -->
-<BrandShaderBackground />
-
-<!-- Soft vignette: pulls focus toward center, dampens shader edges without adding a visible frame. -->
-<div
-	class="pointer-events-none absolute inset-0 z-0 bg-[radial-gradient(ellipse_60%_55%_at_50%_48%,transparent,rgba(0,0,0,0.55)_100%)]"
-	aria-hidden="true"
-></div>
-
-<!-- Brand lockup + progress indicator — pinned top-left, persistent. -->
-<div class="absolute left-9 top-8 z-20 flex flex-col gap-4">
-	<BrandLockup
-		class="gap-2.5"
-		markClass="h-6 w-6"
-		wordmarkClass="text-[0.75rem] font-medium tracking-[0.24em] text-white/70"
-	/>
-	<!-- 3-segment progress. Calm, honest, no numbers or percentages. -->
-	<div class="flex items-center gap-1.5" aria-label="Onboarding progress" role="progressbar">
-		{#each ONBOARDING_STEPS as _, index (index)}
-			<span
-				class="progress-pill {index === currentStepIndex
-					? 'progress-pill--active'
-					: index < currentStepIndex
-						? 'progress-pill--done'
-						: ''}"
-			></span>
-		{/each}
+<!-- Content layer. Full onboarding page with the brand gradient as the page background. -->
+<div class="onboarding-surface relative z-10 flex min-h-full w-full items-center justify-center overflow-hidden bg-background px-6 py-16">
+	<BrandShaderBackground variant="luminar" fallback="gradient" />
+	<div class="absolute inset-0 bg-background/12"></div>
+	<div class="absolute right-6 top-6 z-20">
+		<DropdownMenu.Root>
+			<DropdownMenu.Trigger>
+				{#snippet child({ props })}
+					<button
+						{...props}
+						type="button"
+						class="flex size-8 items-center justify-center rounded-md bg-transparent text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+						title="Theme"
+						aria-label="Theme"
+					>
+						{#if themeState.theme === "light"}
+							<Sun class="size-4" weight="fill" style="color: #F8F5EE" />
+						{:else if themeState.theme === "dark"}
+							<Moon class="size-4" weight="fill" style="color: #F8F5EE" />
+						{:else}
+							<Desktop class="size-4" weight="fill" style="color: #F8F5EE" />
+						{/if}
+					</button>
+				{/snippet}
+			</DropdownMenu.Trigger>
+			<DropdownMenu.Content align="end" class="z-[60] min-w-[140px] p-1" portalProps={{ disabled: true }}>
+				<DropdownMenu.CheckboxItem
+					checked={themeState.theme === "light"}
+					onCheckedChange={(checked) => checked && themeState.setTheme("light")}
+				>
+					Light
+				</DropdownMenu.CheckboxItem>
+				<DropdownMenu.CheckboxItem
+					checked={themeState.theme === "dark"}
+					onCheckedChange={(checked) => checked && themeState.setTheme("dark")}
+				>
+					Dark
+				</DropdownMenu.CheckboxItem>
+				<DropdownMenu.CheckboxItem
+					checked={themeState.theme === "system"}
+					onCheckedChange={(checked) => checked && themeState.setTheme("system")}
+				>
+					System
+				</DropdownMenu.CheckboxItem>
+			</DropdownMenu.Content>
+		</DropdownMenu.Root>
 	</div>
-</div>
 
-<!-- Content layer. Card mounts with a short opacity breath whenever the step changes. -->
-<div class="onboarding-surface relative z-10 flex min-h-full w-full items-center justify-center px-6 py-24">
 	{#key onboardingStep}
 	{#if onboardingStep === "splash"}
-		<div class="onboarding-card bg-card flex w-full max-w-[600px] flex-col gap-10 rounded-3xl p-8">
-			<!-- Headline mirrors the marketing hero — one voice from landing to desktop. -->
-			<div class="flex flex-col gap-5">
-				<h1 class="text-[2.25rem] font-medium leading-[1.08] tracking-[-0.028em] text-white">
-					{"The Agentic Developer Environment"}
-				</h1>
-				<p class="text-[0.9375rem] leading-[1.55] text-white/55">
-					{"Run Claude Code, Codex, Cursor Agent, and OpenCode side by side. Orchestrate parallel sessions, track every change, and ship from plan to PR. All in one window."}
-				</p>
-			</div>
+		<div
+			class="onboarding-card flex w-full max-w-[680px] flex-col overflow-hidden rounded-xl bg-card text-card-foreground"
+		>
+			<section class="onboarding-hero-card relative isolate overflow-hidden px-5 py-5 sm:px-6">
+				<div class="relative z-10 flex flex-col gap-4">
+					<h1 class="text-[2.45rem] font-medium leading-[1.02] tracking-tight text-foreground sm:text-[3rem]">
+						{"Welcome to Acepe"}
+					</h1>
+					<p class="max-w-[34rem] text-[0.975rem] leading-[1.6] text-muted-foreground">
+						{"Set up your agent workspace in a minute. We'll help you choose agents, find existing projects, and get everything ready in one place."}
+					</p>
+					<div class="onboarding-preview overflow-hidden rounded-lg p-1.5">
+						<div class="grid min-h-[248px] grid-cols-3 gap-0.5">
+							{#each onboardingPreviewAgents as agent (agent.id)}
+								{@const previewFrame = getOnboardingPreviewFrame(agent.phaseOffsetFrames, agent.timeline.length)}
+								<div class="onboarding-preview-panel relative flex flex-col overflow-hidden rounded-md bg-background/70 px-1 py-1">
+									<div class="mb-2 flex items-center justify-between gap-1.5">
+										<div class="flex min-w-0 items-center gap-1.5">
+											{#if agent.id === "claude-code"}
+												<span
+													class="size-3.5 shrink-0 bg-[#D97757]"
+													style="-webkit-mask: url('/svgs/icons/claude.svg') center / contain no-repeat; mask: url('/svgs/icons/claude.svg') center / contain no-repeat;"
+												></span>
+											{:else if agent.id === "codex"}
+												<img src="/svgs/agents/codex/codex-app-icon.png" alt="" class="size-3.5 shrink-0 rounded-[4px]" />
+											{:else}
+												<img src="/svgs/icons/cursor.svg" alt="" class="size-3.5 shrink-0" />
+											{/if}
+											<div class="truncate text-[10px] font-medium text-muted-foreground">{agent.label}</div>
+										</div>
+									</div>
+									<div class="onboarding-preview-transcript flex min-h-0 flex-1 flex-col gap-1.5 p-px">
+										<div class="onboarding-preview-timeline flex min-h-0 flex-1 flex-col gap-1">
+											{#each agent.timeline as event, index (event.type === "message" ? event.text : event.type === "tool" ? event.title + event.detail : event.lines[0])}
+												{#if isOnboardingTimelineEventVisible(index, previewFrame)}
+													{#if event.type === "message"}
+														<p
+															class="onboarding-preview-timeline-entry m-0 truncate text-[9px] leading-[1.35] text-muted-foreground/85 {isOnboardingTimelineEventActive(index, previewFrame)
+																? 'onboarding-preview-stream-line'
+																: ''}"
+														>
+															{event.text}
+														</p>
+													{:else if event.type === "tool"}
+														<div
+															class="onboarding-preview-timeline-entry onboarding-preview-tool-row flex min-w-0 items-center gap-1.5 rounded-[5px] bg-card/80 px-1.5 py-1 {isOnboardingTimelineEventActive(index, previewFrame)
+																? 'onboarding-preview-reveal'
+																: ''}"
+														>
+															<span class="shrink-0 text-[8px] font-medium leading-none text-muted-foreground/90">
+																{event.title}
+															</span>
+															<span class="min-w-0 truncate text-[8px] leading-none text-muted-foreground/50">
+																{event.detail}
+															</span>
+														</div>
+													{:else}
+														<div
+															class="onboarding-preview-timeline-entry onboarding-preview-diff rounded-[5px] bg-card/80 px-1.5 py-1.5 {isOnboardingTimelineEventActive(index, previewFrame)
+																? 'onboarding-preview-reveal'
+																: ''}"
+														>
+															{#each event.lines as line (line)}
+																<div
+																	class="truncate font-mono text-[8px] leading-none {line.startsWith('+')
+																		? 'text-[#72D58A]'
+																		: line.startsWith('-')
+																			? 'text-[#D97757]'
+																			: 'text-muted-foreground/70'}"
+																>
+																	{line}
+																</div>
+															{/each}
+														</div>
+													{/if}
+												{/if}
+											{/each}
+										</div>
 
-			<!-- Agent strip: full-color brand marks, unframed. -->
-			<div class="flex items-center gap-3">
-				{#each SPLASH_AGENTS as agent (agent.brand)}
-					<div class="flex size-8 items-center justify-center rounded-lg bg-white/[0.04]">
-						<AgentIcon agentId={agent.brand} providerBrand={agent.brand} providerLabel={agent.alt} size={18} />
+										<div class="mt-auto flex flex-col gap-1">
+											{#if agent.state !== "edit"}
+												<div class="onboarding-preview-shimmer truncate text-[9px] font-medium leading-none">
+													Planning next moves
+												</div>
+											{/if}
+											<div class="onboarding-preview-composer flex items-center gap-1 rounded-[5px] bg-card/80 px-1 py-1">
+												<span class="truncate pl-0.5 text-[8px] leading-none text-muted-foreground/45">
+													{agent.composer}
+												</span>
+												<span class="ml-auto inline-flex size-3.5 shrink-0 items-center justify-center rounded-[4px] bg-foreground/10 text-muted-foreground">
+													<PaperPlaneRight class="size-2.5" weight="fill" />
+												</span>
+											</div>
+										</div>
+									</div>
+								</div>
+							{/each}
+						</div>
 					</div>
-				{/each}
-			</div>
+				</div>
+			</section>
 
-			<!-- CTA row. No border divider — whitespace separates. -->
-			<div class="flex items-center justify-between">
-				<span class="flex items-center gap-1.5 text-[0.75rem] text-white/40">
-					<kbd class="keycap">⌘</kbd>
-					<kbd class="keycap">↵</kbd>
-					<span class="ml-1">{"to continue"}</span>
-				</span>
+			<!-- CTA row. Clean card surface under the grain header. -->
+			<div class="flex justify-end px-5 py-5 sm:px-6">
 				<Button
 					variant="default"
-					size="lg"
-					class="h-9 gap-2 rounded-xl bg-primary px-5 text-[0.9375rem] font-medium text-primary-foreground shadow-[0_1px_0_rgba(255,255,255,0.08)_inset,0_10px_24px_-12px_rgba(0,0,0,0.55)] hover:bg-primary/92"
+					class="group"
 					onclick={advanceFromSplash}
 				>
 					<span>{"Get started"}</span>
-					<ArrowRight weight="bold" class="size-4" />
+					<ArrowRight weight="bold" class="onboarding-button-arrow size-4" />
 				</Button>
 			</div>
 		</div>
 	{:else if onboardingStep === "agents"}
-		<div class="onboarding-card bg-card flex w-full max-w-[760px] flex-col gap-8 rounded-3xl p-8">
-			<div class="flex flex-col gap-3">
-				<h2 class="text-[1.625rem] font-medium leading-tight tracking-[-0.02em] text-white">
-					{"Choose your agents"}
-				</h2>
-				<p class="max-w-[460px] text-[0.9375rem] leading-[1.55] text-white/55">
-					{"Pick the agents you work with. We'll surface projects where you've used them."}
-				</p>
-			</div>
+		<div
+			class="onboarding-card flex w-full max-w-[680px] flex-col overflow-hidden rounded-xl bg-card text-card-foreground"
+		>
+			<section class="onboarding-hero-card relative isolate overflow-hidden px-5 py-5 sm:px-6">
+				<div class="relative z-10 flex flex-col gap-4">
+					<h2 class="text-[2.45rem] font-medium leading-[1.02] tracking-tight text-foreground sm:text-[3rem]">
+						{"Choose your agents"}
+					</h2>
+					<p class="max-w-[34rem] text-[0.975rem] leading-[1.6] text-muted-foreground">
+						{"Pick the agents you work with. We'll surface projects where you've used them."}
+					</p>
+				</div>
+			</section>
 
-			<div class="grid grid-cols-3 gap-2.5">
-				{#each onboardingAvailableAgents as agent (agent.id)}
-					{@const isSelected = onboardingSelectedAgents.includes(agent.id)}
-					{@const vendor = AGENT_VENDORS[agent.id] ?? ""}
-					<button
-						type="button"
-						aria-pressed={isSelected}
-						aria-label={agent.name}
-						onclick={() => toggleOnboardingAgent(agent.id)}
-						onpointermove={trackPointer}
-						class="agent-card group relative flex items-center gap-3.5 rounded-xl px-4 py-3.5 text-left {isSelected
-							? 'agent-card--selected'
-							: ''}"
-					>
-						<!-- Icon tile. Selection lifts the tile surface and unmutes the icon;
-						     the icon itself keeps its native brand color when selected. -->
-						<div
-							class="flex size-10 shrink-0 items-center justify-center rounded-lg transition-colors duration-200 {isSelected
-								? 'bg-white/10'
-								: 'bg-white/[0.045] group-hover:bg-white/[0.075]'}"
+			<div class="flex flex-col gap-4 px-5 py-5 sm:px-6">
+				<div class="grid grid-cols-1 gap-2 sm:grid-cols-2">
+					{#each onboardingAvailableAgents as agent (agent.id)}
+						{@const isSelected = onboardingSelectedAgents.includes(agent.id)}
+						{@const vendor = AGENT_VENDORS[agent.id] ?? ""}
+						<button
+							type="button"
+							aria-pressed={isSelected}
+							aria-label={agent.name}
+							onclick={() => toggleOnboardingAgent(agent.id)}
+							class="agent-choice group flex h-11 items-center justify-between gap-3 rounded-md px-3 text-left {isSelected
+								? 'agent-choice--selected'
+								: ''}"
 						>
-							<AgentIcon
-								agentId={agent.id}
-								providerBrand={agent.providerMetadata?.providerBrand ?? null}
-								providerLabel={agent.providerMetadata?.displayName ?? agent.name}
-								size={20}
-								class="agent-icon {isSelected ? '' : 'agent-icon--monochrome'}"
-							/>
-						</div>
-						<div class="flex min-w-0 flex-col gap-0.5">
-							<span
-								class="truncate text-[0.875rem] font-medium leading-tight transition-colors duration-200 {isSelected
-									? 'text-white'
-									: 'text-white/85 group-hover:text-white'}"
-							>
-								{agent.name}
-							</span>
-							{#if vendor}
-								<span class="truncate text-[0.6875rem] tracking-wide text-white/35">
-									{vendor}
+							<span class="flex min-w-0 items-center gap-2.5">
+								<AgentIcon
+									agentId={agent.id}
+									providerBrand={agent.providerMetadata?.providerBrand ?? null}
+									providerLabel={agent.providerMetadata?.displayName ?? agent.name}
+									size={16}
+									class="agent-icon {isSelected ? '' : 'agent-icon--monochrome'}"
+								/>
+								<span class="flex min-w-0 flex-col gap-0.5">
+									<span class="truncate text-[0.8125rem] font-medium leading-tight text-foreground">
+										{agent.name}
+									</span>
+									{#if vendor}
+										<span class="truncate text-[0.6875rem] leading-tight text-muted-foreground">
+											{vendor}
+										</span>
+									{/if}
 								</span>
+							</span>
+							{#if isSelected}
+								<CheckCircle class="agent-choice-indicator text-foreground" weight="fill" />
+							{:else}
+								<Circle class="agent-choice-indicator text-muted-foreground/45" weight="regular" />
 							{/if}
-						</div>
-					</button>
-				{/each}
-			</div>
+						</button>
+					{/each}
+				</div>
 
-			<div class="flex items-center justify-between">
-				<span class="flex items-center gap-1.5 text-[0.75rem] text-white/40">
-					{#if onboardingSelectedAgents.length === 0}
-						<span>{"Select at least one agent"}</span>
-					{:else}
-						<kbd class="keycap">⌘</kbd>
-						<kbd class="keycap">↵</kbd>
-						<span class="ml-1">{`to continue · ${onboardingSelectedAgents.length} selected`}</span>
-					{/if}
-				</span>
-				<Button
-					variant="default"
-					size="lg"
-					class="h-9 gap-2 rounded-xl bg-primary px-5 text-[0.9375rem] font-medium text-primary-foreground shadow-[0_1px_0_rgba(255,255,255,0.08)_inset,0_10px_24px_-12px_rgba(0,0,0,0.55)] hover:bg-primary/92 disabled:bg-white/[0.06] disabled:text-white/30 disabled:shadow-none"
-					disabled={onboardingSelectedAgents.length === 0}
-					onclick={() => (onboardingStep = "projects")}
-				>
-					<span>{"Continue"}</span>
-					<ArrowRight weight="bold" class="size-4" />
-				</Button>
+				<div class="flex items-center justify-between">
+					<span class="flex items-center gap-1.5 text-[0.75rem] text-muted-foreground">
+						{#if onboardingSelectedAgents.length === 0}
+							<span>{"Select at least one agent"}</span>
+						{:else}
+							<span>{`${onboardingSelectedAgents.length} selected`}</span>
+						{/if}
+					</span>
+					<Button
+						variant="default"
+						class="group"
+						disabled={onboardingSelectedAgents.length === 0}
+						onclick={() => (onboardingStep = "projects")}
+					>
+						<span>{"Continue"}</span>
+						<ArrowRight weight="bold" class="onboarding-button-arrow size-4" />
+					</Button>
+				</div>
 			</div>
 		</div>
 	{:else if onboardingStep === "projects"}
 		<div
-			class="onboarding-card bg-card flex max-h-[min(640px,calc(100vh-10rem))] w-full max-w-[760px] flex-col rounded-3xl"
+			class="onboarding-card flex max-h-[min(720px,calc(100vh-8rem))] w-full max-w-[680px] flex-col overflow-hidden rounded-xl bg-card text-card-foreground"
 		>
-			<div class="flex flex-col gap-3 px-8 pt-8 pb-6">
-				<h2 class="text-[1.625rem] font-medium leading-tight tracking-[-0.02em] text-white">
-					{"Import your projects"}
-				</h2>
-				<p class="max-w-[480px] text-[0.9375rem] leading-[1.55] text-white/55">
-					{"We found these projects where your selected agents have sessions. Pick the ones you want to bring in."}
-				</p>
-			</div>
+			<section class="onboarding-hero-card relative isolate overflow-hidden px-5 py-5 sm:px-6">
+				<div class="relative z-10 flex flex-col gap-4">
+					<h2 class="text-[2.45rem] font-medium leading-[1.02] tracking-tight text-foreground sm:text-[3rem]">
+						{"Import your projects"}
+					</h2>
+					<p class="max-w-[34rem] text-[0.975rem] leading-[1.6] text-muted-foreground">
+						{"We found projects with agent sessions. Add the ones you want in Acepe, or skip and import later."}
+					</p>
+				</div>
+			</section>
 
-			<div class="flex min-h-0 flex-1 flex-col gap-3 px-8">
+			<div class="flex min-h-0 flex-1 flex-col gap-4 px-5 py-5 sm:px-6">
 				{#if onboardingImportError}
 					<AgentErrorCard
 						title={onboardingImportError.title}
@@ -498,110 +714,67 @@ function trackPointer(event: PointerEvent) {
 					/>
 				{/if}
 				{#if filteredProjects.length === 0 && !onboardingProjectsLoading}
-					<div class="flex flex-col items-center justify-center gap-2 py-16 text-center">
-						<p class="text-[0.875rem] text-white/70">{"No matching projects found"}</p>
-						<p class="max-w-[320px] text-[0.8125rem] text-white/45">
+					<div class="flex flex-col items-center justify-center gap-2 py-12 text-center">
+						<p class="text-[0.875rem] text-foreground/80">{"No matching projects found"}</p>
+						<p class="max-w-[320px] text-[0.8125rem] text-muted-foreground">
 							{"Go back to adjust your agent selection, or skip — you can import projects anytime."}
 						</p>
 					</div>
 				{:else}
-					<div class="min-h-0 flex-1 overflow-y-auto rounded-xl bg-white/[0.02]">
+					<div class="min-h-0 flex-1 overflow-y-auto">
 						<ProjectTable
 							projects={filteredProjects}
 							loading={onboardingProjectsLoading}
 							addedPaths={onboardingAddedPaths}
 							selectedAgentIds={onboardingSelectedAgents}
 							onImport={handleOnboardingImport}
+							onUndo={handleOnboardingUndoImport}
 						/>
 					</div>
 				{/if}
-			</div>
 
-			<!-- Footer. No top border — we use whitespace + a soft inset surface to delineate. -->
-			<div class="flex items-center justify-between px-8 pt-6 pb-8">
-				<Button
-					variant="ghost"
-					size="sm"
-					class="h-9 rounded-lg px-3 text-[0.8125rem] text-white/55 hover:bg-white/[0.04] hover:text-white"
-					onclick={() => (onboardingStep = "agents")}
-				>
-					{"Back"}
-				</Button>
-				<div class="flex items-center gap-2">
+				<div class="flex items-center justify-between">
 					<Button
 						variant="ghost"
 						size="sm"
-						class="h-9 rounded-lg px-3 text-[0.8125rem] text-white/55 hover:bg-white/[0.04] hover:text-white"
-						onclick={() => finishOnboarding()}
+						onclick={() => (onboardingStep = "agents")}
 					>
-						{"Skip for now"}
+						{"Back"}
 					</Button>
-					<Button
-						variant="default"
-						size="lg"
-						class="h-9 gap-2 rounded-xl bg-primary px-5 text-[0.9375rem] font-medium text-primary-foreground shadow-[0_1px_0_rgba(255,255,255,0.08)_inset,0_10px_24px_-12px_rgba(0,0,0,0.55)] hover:bg-primary/92"
-						onclick={() => finishOnboarding()}
-					>
-						<span>{"Finish"}</span>
-						<ArrowRight weight="bold" class="size-4" />
-					</Button>
+					<div class="flex items-center gap-2">
+						<Button
+							variant="ghost"
+							size="sm"
+							onclick={() => finishOnboarding()}
+						>
+							{"Skip for now"}
+						</Button>
+						<Button
+							variant="default"
+							class="group"
+							onclick={() => finishOnboarding()}
+						>
+							<span>{"Start building"}</span>
+							<ArrowRight weight="bold" class="onboarding-button-arrow size-4" />
+						</Button>
+					</div>
 				</div>
 			</div>
 		</div>
 	{:else}
 		<!-- Scanning — unframed. -->
 		<div class="flex flex-col items-center gap-4">
-			<Spinner class="text-white/70" size={28} />
-			<p class="text-[0.875rem] text-white/55">{onboardingBusyMessage || "Loading…"}</p>
+			<Spinner class="text-muted-foreground" size={28} />
+			<p class="text-[0.875rem] text-muted-foreground">{onboardingBusyMessage || "Loading…"}</p>
 		</div>
 	{/if}
 	{/key}
 </div>
 
 <style>
-	/*
-	 * One calm opacity breath on mount — and re-fires on each step change
-	 * because the content is wrapped in {#key onboardingStep}. No fly, no stagger.
-	 */
 	.onboarding-card {
 		position: relative;
-		box-shadow:
-			0 30px 60px -18px rgba(0, 0, 0, 0.55),
-			0 14px 28px -18px rgba(0, 0, 0, 0.45);
-		animation: onboarding-fade 280ms ease-out both;
-	}
-
-	@keyframes onboarding-fade {
-		from {
-			opacity: 0;
-		}
-		to {
-			opacity: 1;
-		}
-	}
-
-	/*
-	 * Progress pills. Three short dashes beneath the wordmark.
-	 * Honest progression — no numbers, no percentages, no marketing gloss.
-	 */
-	.progress-pill {
-		display: block;
-		height: 2px;
-		width: 1.25rem;
-		border-radius: 999px;
-		background: rgba(255, 255, 255, 0.1);
-		transition:
-			background-color 220ms ease,
-			width 220ms ease;
-	}
-
-	.progress-pill--done {
-		background: rgba(255, 255, 255, 0.28);
-	}
-
-	.progress-pill--active {
-		width: 1.75rem;
-		background: rgba(240, 238, 230, 0.9);
+		box-shadow: none;
 	}
 
 	/*
@@ -620,55 +793,144 @@ function trackPointer(event: PointerEvent) {
 		opacity: 0.72;
 	}
 
-	:global(.agent-card:hover .agent-icon--monochrome) {
+	:global(.agent-choice:hover .agent-icon--monochrome) {
 		filter: grayscale(0) brightness(1);
 		opacity: 0.95;
 	}
 
-	/*
-	 * Keycap. Real physical feel via stacked inset shadows — no border.
-	 */
-	:global(.onboarding-surface .keycap) {
-		display: inline-flex;
-		height: 1.25rem;
-		min-width: 1.25rem;
-		align-items: center;
-		justify-content: center;
-		padding: 0 0.375rem;
-		border-radius: 0.3125rem;
-		background: rgba(255, 255, 255, 0.045);
-		color: rgba(255, 255, 255, 0.72);
-		font-family:
-			ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
-		font-size: 0.6875rem;
-		line-height: 1;
-		box-shadow:
-			inset 0 1px 0 rgba(255, 255, 255, 0.06),
-			inset 0 -1px 0 rgba(0, 0, 0, 0.45);
-	}
-
-	/*
-	 * Agent card. No border. Surface is a low-opacity white wash.
-	 * A cursor-following spotlight replaces the usual hover tint — signature
-	 * JetBrains/Linear affordance, costs almost nothing, feels tactile.
-	 */
-	:global(.agent-card) {
-		background: rgba(255, 255, 255, 0.025);
+	:global(.agent-choice) {
+		background: color-mix(in srgb, var(--muted) 58%, transparent);
 		transition:
 			background-color 200ms ease,
+			color 200ms ease,
+			box-shadow 200ms ease;
+	}
+
+	:global(.agent-choice:hover) {
+		background: var(--accent);
+	}
+
+	:global(.agent-choice--selected) {
+		background: color-mix(in srgb, var(--primary) 12%, var(--card) 88%);
+	}
+
+	:global(.agent-choice:focus-visible) {
+		outline: none;
+		box-shadow: 0 0 0 2px color-mix(in srgb, var(--ring) 72%, transparent);
+	}
+
+	.agent-choice-indicator {
+		display: block;
+		width: 1rem;
+		height: 1rem;
+		flex-shrink: 0;
+		transition:
+			color 200ms ease,
 			transform 200ms ease;
 	}
 
-	:global(.agent-card:hover) {
-		background: rgba(255, 255, 255, 0.06);
+	.agent-choice--selected .agent-choice-indicator {
+		transform: scale(1.04);
 	}
 
-	:global(.agent-card--selected) {
-		background: rgba(240, 238, 230, 0.08);
+	.onboarding-preview-panel {
+		min-height: 227px;
 	}
 
-	:global(.agent-card:focus-visible) {
-		outline: none;
-		box-shadow: 0 0 0 2px rgba(240, 238, 230, 0.55);
+	.onboarding-preview-timeline,
+	.onboarding-preview-timeline-entry,
+	.onboarding-preview-tool,
+	.onboarding-preview-diff,
+	.onboarding-preview-composer {
+		position: relative;
+	}
+
+	.onboarding-preview-stream-line {
+		clip-path: inset(0 100% 0 0);
+		overflow: hidden;
+		white-space: nowrap;
+		animation: onboarding-preview-stream-reveal 720ms steps(28, end) forwards;
+		animation-fill-mode: both;
+		will-change: clip-path;
+	}
+
+	.onboarding-preview-reveal {
+		opacity: 0;
+		animation: onboarding-preview-entry-reveal 180ms ease-out forwards;
+		animation-fill-mode: both;
+	}
+
+	.onboarding-preview-shimmer {
+		width: fit-content;
+		max-width: 100%;
+		color: transparent;
+		background:
+			linear-gradient(
+				100deg,
+				color-mix(in srgb, var(--muted-foreground) 45%, transparent) 0%,
+				color-mix(in srgb, var(--foreground) 74%, transparent) 45%,
+				color-mix(in srgb, var(--muted-foreground) 45%, transparent) 90%
+			);
+		background-size: 220% 100%;
+		background-clip: text;
+		-webkit-background-clip: text;
+		animation: onboarding-preview-shimmer 2.8s ease-in-out infinite;
+	}
+
+	.onboarding-button-arrow {
+		transform: translateX(0);
+		transition: transform 200ms ease-out;
+	}
+
+	:global(.group:hover) .onboarding-button-arrow,
+	:global(.group:focus-visible) .onboarding-button-arrow {
+		transform: translateX(0.125rem);
+	}
+
+	@keyframes onboarding-preview-stream-reveal {
+		0% {
+			clip-path: inset(0 100% 0 0);
+		}
+
+		100% {
+			clip-path: inset(0 0 0 0);
+		}
+	}
+
+	@keyframes onboarding-preview-entry-reveal {
+		0% {
+			opacity: 0;
+		}
+
+		100% {
+			opacity: 1;
+		}
+	}
+
+	@keyframes onboarding-preview-shimmer {
+		0%,
+		100% {
+			background-position: 120% 0;
+		}
+
+		50% {
+			background-position: 0 0;
+		}
+	}
+
+	@media (prefers-reduced-motion: reduce) {
+		.onboarding-preview-stream-line {
+			animation: none;
+			clip-path: inset(0 0 0 0);
+		}
+
+		.onboarding-preview-reveal {
+			animation: none;
+			opacity: 1;
+		}
+
+		.onboarding-preview-shimmer {
+			animation: none;
+		}
 	}
 </style>

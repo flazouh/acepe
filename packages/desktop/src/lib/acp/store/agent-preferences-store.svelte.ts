@@ -313,6 +313,13 @@ export class AgentPreferencesStore {
 		});
 	}
 
+	resetOnboardingForDev(): ResultAsync<void, Error> {
+		this.onboardingCompleted = false;
+		return tauriClient.settings
+			.set(HAS_COMPLETED_ONBOARDING_KEY, false)
+			.mapErr((error) => new Error(`Failed to reset onboarding completion: ${error.message}`));
+	}
+
 	addCustomAgentConfig(config: CustomAgentConfig): ResultAsync<void, Error> {
 		const updatedConfigs = upsertCustomAgentConfigs(this.customAgentConfigs, config);
 
