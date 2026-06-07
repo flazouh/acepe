@@ -1,9 +1,15 @@
 ---
-status: active
+status: completed
 type: refactor
 created: 2026-06-08
+completed: 2026-06-08
 god_gate: cleared
 ---
+
+> **Completed 2026-06-08.** 1,728-line monolith → 24 modules (largest 251 LOC, spine 127).
+> Characterization net 30 green; full suite parity with main (same 7 pre-existing
+> fails / 5 `runed` errors, +3 new passing tests); typecheck clean; GOD re-scan clean.
+> Scene + 4 importers: 183 pass / 0 fail. Committed on `refactor/scene-mapper-decomposition`.
 
 # refactor: Decompose desktop agent-panel scene mapper
 
