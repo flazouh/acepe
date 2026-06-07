@@ -84,6 +84,7 @@ import { createAgentPanelExportHandlers } from "../logic/agent-panel-export-hand
 import { createAgentPanelInteractionHandlers } from "../logic/agent-panel-interaction-handlers.js";
 import { AgentPanelSessionController } from "../state/agent-panel-session-controller.svelte.js";
 import { CheckpointTimelineController } from "../state/checkpoint-timeline-controller.svelte.js";
+import { ReviewDialogController } from "../state/review-dialog-controller.svelte.js";
 import type { WorktreeSetupState } from "../logic/worktree-setup-events.js";
 import { shouldAutoScrollOnPanelActivation } from "../logic/should-auto-scroll-on-panel-activation.js";
 import { isInteractiveClickTarget } from "../logic/panel-focus-guard.js";
@@ -962,33 +963,8 @@ const clampedReviewFileIndex = $derived.by(() => {
 	return Math.min(reviewFileIndex, fileCount - 1);
 });
 
-let reviewDialogOpen = $state(false);
-let reviewDialogFilesState = $state<ModifiedFilesState | null>(null);
-let reviewDialogFileIndex = $state(0);
-let reviewDialogControls = $state<ReviewControlsSnapshot | null>(null);
-
-function handleReviewDialogControlsChange(controls: ReviewControlsSnapshot | null): void {
-	reviewDialogControls = controls;
-}
-
-const clampedReviewDialogFileIndex = $derived.by(() => {
-	const fileCount = reviewDialogFilesState?.fileCount ?? 0;
-	if (fileCount === 0) return 0;
-	return Math.min(Math.max(reviewDialogFileIndex, 0), fileCount - 1);
-});
-const reviewDialogDiffStats = $derived.by(() => {
-	if (!reviewDialogFilesState) {
-		return { insertions: 0, deletions: 0 };
-	}
-
-	return reviewDialogFilesState.files.reduce(
-		(totals, file) => ({
-			insertions: totals.insertions + file.totalAdded,
-			deletions: totals.deletions + file.totalRemoved,
-		}),
-		{ insertions: 0, deletions: 0 }
-	);
-});
+// Review-dialog UI state — owned by an independently-testable controller.
+const reviewDialog = new ReviewDialogController();
 
 // Add embedded pane widths (plan sidebar, review) when expanded
 const effectiveWidth = $derived.by(() =>
@@ -1079,9 +1055,7 @@ function handleEnterReviewMode(filesState: ModifiedFilesState): void {
 }
 
 function openReviewDialogAtInitialFile(filesState: ModifiedFilesState): void {
-	reviewDialogFilesState = filesState;
-	reviewDialogFileIndex = resolveInitialReviewWorkspaceIndex(filesState, sessionId);
-	reviewDialogOpen = true;
+	reviewDialog.open(filesState, resolveInitialReviewWorkspaceIndex(filesState, sessionId));
 }
 
 function handleOpenReviewDialog(filesState: ModifiedFilesState, _fileIndex: number): void {
@@ -1093,15 +1067,6 @@ function handleOpenReviewDialog(filesState: ModifiedFilesState, _fileIndex: numb
 	void sessionReviewStateStore.ensureLoadedAsync(sessionId).then(() => {
 		openReviewDialogAtInitialFile(filesState);
 	});
-}
-
-function handleReviewDialogOpenChange(open: boolean): void {
-	reviewDialogOpen = open;
-	if (open) {
-		return;
-	}
-	reviewDialogFilesState = null;
-	reviewDialogFileIndex = 0;
 }
 
 // Track panelId changes for tab switching detection
@@ -2300,14 +2265,14 @@ async function handlePlanSidebarSendMessage(sid: string, message: string): Promi
 </AgentPanelShell>
 
 <WorkspaceDialogFrame
-	open={reviewDialogOpen}
+	open={reviewDialog.isOpen}
 	title="Review changes"
 	closeLabel="Close review"
 	contentOverflow="hidden"
-	onOpenChange={handleReviewDialogOpenChange}
+	onOpenChange={(open) => reviewDialog.setOpen(open)}
 >
 	{#snippet topRight()}
-		{@const controls = reviewDialogControls}
+		{@const controls = reviewDialog.controls}
 		{#if controls && controls.fileTotal > 1}
 			<div
 				class="flex h-5 shrink-0 items-center rounded border border-border bg-muted/60 text-[11px]"
@@ -2387,8 +2352,8 @@ async function handlePlanSidebarSendMessage(sid: string, message: string): Promi
 					</span>
 				</span>
 				<DiffPill
-					insertions={reviewDialogDiffStats.insertions}
-					deletions={reviewDialogDiffStats.deletions}
+					insertions={reviewDialog.diffStats.insertions}
+					deletions={reviewDialog.diffStats.deletions}
 					variant="plain"
 				/>
 			</button>
@@ -2401,29 +2366,29 @@ async function handlePlanSidebarSendMessage(sid: string, message: string): Promi
 					<span class="font-medium text-foreground leading-none tabular-nums">#{createdPr}</span>
 				</span>
 				<DiffPill
-					insertions={reviewDialogDiffStats.insertions}
-					deletions={reviewDialogDiffStats.deletions}
+					insertions={reviewDialog.diffStats.insertions}
+					deletions={reviewDialog.diffStats.deletions}
 					variant="plain"
 				/>
 			</div>
 		{/if}
 	{/snippet}
 
-	{#if reviewDialogFilesState}
+	{#if reviewDialog.filesState}
 		<AgentPanelReviewWorkspace
 			{sessionId}
-			reviewFilesState={reviewDialogFilesState}
-			selectedFileIndex={clampedReviewDialogFileIndex}
+			reviewFilesState={reviewDialog.filesState}
+			selectedFileIndex={reviewDialog.clampedFileIndex}
 			projectPath={sessionController.sessionProjectPath}
-			isActive={reviewDialogOpen}
+			isActive={reviewDialog.isOpen}
 			showHeader={false}
 			showCloseButton={false}
 			compact={true}
 			diffDensity="compact"
 			hideBottomWidget={true}
-			onControlsChange={handleReviewDialogControlsChange}
-			onClose={() => handleReviewDialogOpenChange(false)}
-			onFileIndexChange={(index) => (reviewDialogFileIndex = index)}
+			onControlsChange={(controls) => reviewDialog.setControls(controls)}
+			onClose={() => reviewDialog.setOpen(false)}
+			onFileIndexChange={(index) => reviewDialog.setFileIndex(index)}
 		/>
 	{/if}
 </WorkspaceDialogFrame>
