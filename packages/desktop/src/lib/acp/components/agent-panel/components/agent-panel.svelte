@@ -85,6 +85,7 @@ import { createAgentPanelInteractionHandlers } from "../logic/agent-panel-intera
 import { AgentPanelSessionController } from "../state/agent-panel-session-controller.svelte.js";
 import { CheckpointTimelineController } from "../state/checkpoint-timeline-controller.svelte.js";
 import { ReviewDialogController } from "../state/review-dialog-controller.svelte.js";
+import { PrCardController } from "../state/pr-card-controller.svelte.js";
 import type { WorktreeSetupState } from "../logic/worktree-setup-events.js";
 import { shouldAutoScrollOnPanelActivation } from "../logic/should-auto-scroll-on-panel-activation.js";
 import { isInteractiveClickTarget } from "../logic/panel-focus-guard.js";
@@ -94,11 +95,7 @@ import { shouldShowPreSessionWorktreeCard } from "../logic/pre-session-worktree-
 import { resolveWorktreeToggleProjectPath } from "../logic/worktree-toggle-project-path.js";
 import { createGraphSceneEntryIndexReadModel } from "../logic/graph-scene-entry-match.js";
 import { createTokenRevealSceneReadModel } from "../logic/token-reveal-scene-read-model.js";
-import {
-	buildTodoMarkdown,
-	buildTokenRevealCss,
-	hasStreamingPreviewContent,
-} from "./agent-panel-pure-helpers.js";
+import { buildTodoMarkdown, buildTokenRevealCss } from "./agent-panel-pure-helpers.js";
 import { AgentPanelState } from "../state/agent-panel-state.svelte";
 import type { AgentPanelProps } from "../types";
 import { AgentPanelFooter as SharedFooter } from "@acepe/ui/agent-panel";
@@ -818,15 +815,8 @@ const ATTACHED_COLUMN_GAP_WIDTH = 2;
 // Dynamic minimum width reported by the toolbar's intrinsic content measurement.
 // The 16px accounts for the data-input-area wrapper's p-2 padding (8px each side).
 let toolbarMinWidth = $state(0);
-let createPrRunning = $state(false);
-let createPrLabel = $state<string | null>(null);
-let mergePrRunning = $state(false);
-let prDetails = $state<import("$lib/utils/tauri-client/git.js").PrDetails | null>(null);
-let prFetchError = $state<string | null>(null);
-let streamingShipData = $state<import("../../ship-card/ship-card-parser.js").ShipCardData | null>(
-	null
-);
-let prCardRenderKey = $state(0);
+// PR/git-card reactive state — owned by an independently-testable controller.
+const prCard = new PrCardController();
 let preSessionWorktreeFailure = $state<string | null>(null);
 let agentInputRef = $state<{
 	retrySend: () => void;
@@ -901,13 +891,12 @@ function fetchPrDetails(target: {
 	projectPath: string;
 	prNumber: number;
 }): void {
-	prDetails = null;
-	prFetchError = null;
+	prCard.resetDetails();
 	void sessionStore
 		.refreshSessionPrState(target.sessionId, target.projectPath, target.prNumber)
 		.match(
 			(details) => {
-				prDetails = details;
+				prCard.setDetails(details);
 			},
 			() => {
 				// refreshSessionPrState never errors (orElse swallows), but match requires both branches
@@ -915,22 +904,8 @@ function fetchPrDetails(target: {
 		);
 }
 
-let lastFetchedPrTargetKey = $state<string | null>(null);
 $effect(() => {
-	if (!prFetchTarget) {
-		prDetails = null;
-		prFetchError = null;
-		lastFetchedPrTargetKey = null;
-		return;
-	}
-
-	const targetKey = `${prFetchTarget.sessionId}:${prFetchTarget.projectPath}:${prFetchTarget.prNumber}`;
-	if (targetKey === lastFetchedPrTargetKey) {
-		return;
-	}
-
-	lastFetchedPrTargetKey = targetKey;
-	fetchPrDetails(prFetchTarget);
+	prCard.syncFetchTarget(prFetchTarget, fetchPrDetails);
 });
 
 const toolbarMinWidthWithPadding = $derived(toolbarMinWidth > 0 ? toolbarMinWidth + 16 : 0);
@@ -1428,23 +1403,10 @@ async function handleCreatePr(config?: PrGenerationConfig) {
 		modifiedFilesState,
 		config,
 		effectivePanelAgentId,
-		setCreatePrRunning: (running) => {
-			createPrRunning = running;
-		},
-		setCreatePrLabel: (label) => {
-			createPrLabel = label;
-		},
-		onStreamReset: () => {
-			streamingShipData = null;
-		},
-		onStreamUpdate: (data) => {
-			const hadPreviewContent = hasStreamingPreviewContent(streamingShipData);
-			const hasPreviewContent = hasStreamingPreviewContent(data);
-			if (!hadPreviewContent && hasPreviewContent) {
-				prCardRenderKey += 1;
-			}
-			streamingShipData = data;
-		},
+		setCreatePrRunning: (running) => prCard.setCreateRunning(running),
+		setCreatePrLabel: (label) => prCard.setCreateLabel(label),
+		onStreamReset: () => prCard.resetStream(),
+		onStreamUpdate: (data) => prCard.applyStreamUpdate(data),
 		deps: {
 			applyAutomaticSessionPrLink: async (id, projectPath, pr) => {
 				const result = await sessionStore.applyAutomaticPrLinkFromShipWorkflow(id, projectPath, pr);
@@ -1465,9 +1427,7 @@ async function handleMergePr(strategy: MergeStrategy) {
 		path,
 		prNum,
 		strategy,
-		setMergePrRunning: (running) => {
-			mergePrRunning = running;
-		},
+		setMergePrRunning: (running) => prCard.setMergeRunning(running),
 		onMerged: () => {
 			sessionStore.updateSession(sessionId, { prState: "MERGED" });
 			sessionStore.invalidatePrDetails(path, prNum);
@@ -2038,22 +1998,22 @@ async function handlePlanSidebarSendMessage(sid: string, message: string): Promi
 			sessionProjectPath={sessionController.sessionProjectPath ?? null}
 			{effectivePathForGit}
 			{createdPr}
-			{createPrRunning}
-			{prCardRenderKey}
-			{prDetails}
-			{prFetchError}
+			createPrRunning={prCard.createRunning}
+			prCardRenderKey={prCard.renderKey}
+			prDetails={prCard.details}
+			prFetchError={prCard.fetchError}
 			linkedPr={sessionController.sessionMetadata?.linkedPr ?? null}
 			prLinkMode={sessionController.sessionMetadata?.prLinkMode ?? "automatic"}
 			{projectPrLinkReferences}
 			{projectForPr}
-			{streamingShipData}
+			streamingShipData={prCard.streamingShipData}
 			{modifiedFilesState}
 			onEnterReviewMode={handleEnterReviewMode}
 			onOpenReviewDialog={handleOpenReviewDialog}
 			onCreatePr={createdPr ? undefined : (config) => void handleCreatePr(config)}
-			{createPrLabel}
+			createPrLabel={prCard.createLabel}
 			onMergePr={(strategy) => void handleMergePr(strategy)}
-			{mergePrRunning}
+			mergePrRunning={prCard.mergeRunning}
 			{availableAgents}
 			effectivePanelAgentId={effectivePanelAgentId}
 			sessionCurrentModelId={sessionController.sessionCurrentModelId}
@@ -2338,7 +2298,7 @@ async function handlePlanSidebarSendMessage(sid: string, message: string): Promi
 			<button
 				type="button"
 				class="group/open-pr flex h-5 shrink-0 items-center justify-between gap-1 rounded border border-border bg-muted/60 px-1.5 text-[11px] transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-45"
-				disabled={createPrRunning || !effectivePathForGit}
+				disabled={prCard.createRunning || !effectivePathForGit}
 				onclick={() => void handleCreatePr()}
 			>
 				<span class="flex min-w-0 items-center gap-1">
@@ -2348,7 +2308,7 @@ async function handlePlanSidebarSendMessage(sid: string, message: string): Promi
 						class="shrink-0 text-muted-foreground transition-colors group-hover/open-pr:text-success"
 					/>
 					<span class="font-medium text-foreground leading-none">
-						{createPrLabel ?? "Open PR"}
+						{prCard.createLabel ?? "Open PR"}
 					</span>
 				</span>
 				<DiffPill
