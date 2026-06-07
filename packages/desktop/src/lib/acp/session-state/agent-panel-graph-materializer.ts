@@ -49,6 +49,8 @@ import {
 	buildAssistantMessageFromTranscriptEntry,
 	segmentText,
 } from "./transcript-text.js";
+import { applySceneTextLimits, truncateDisplayText } from "./scene-text-limits.js";
+export { applySceneTextLimits } from "./scene-text-limits.js";
 
 // Re-export the public type surface (now owned by the -types module) so the
 // materializer's existing consumers keep importing it from here.
@@ -59,7 +61,6 @@ export {
 	type AgentPanelGraphMaterializerReadModel,
 };
 
-const TRUNCATION_SUFFIX = "\n[truncated]";
 const UNRESOLVED_TOOL_DIAGNOSTIC_SAMPLE_LIMIT = 40;
 
 interface OperationIndex {
@@ -111,18 +112,6 @@ export function findLatestLiveAssistantEntry(
 	}
 
 	return null;
-}
-
-function truncateDisplayText(
-	value: string | null | undefined,
-	limit: number
-): string | null | undefined {
-	if (value === null || value === undefined || value.length <= limit) {
-		return value;
-	}
-
-	const available = Math.max(0, limit - TRUNCATION_SUFFIX.length);
-	return `${value.slice(0, available)}${TRUNCATION_SUFFIX}`;
 }
 
 function buildOperationIndex(operations: readonly OperationSnapshot[]): OperationIndex {
@@ -413,40 +402,6 @@ function collectChildOperations(
  *   If that ever changes (e.g. optimistic-UI patches mutating in place), this
  *   function must move to a deep clone for the affected fields.
  */
-export function applySceneTextLimits(entry: AgentToolEntry): AgentToolEntry {
-	const taskChildren: AnyAgentEntry[] | undefined =
-		entry.taskChildren === undefined
-			? undefined
-			: entry.taskChildren.map((child) =>
-					child.type === "tool_call" ? applySceneTextLimits(child) : child
-				);
-
-	return {
-		...entry,
-		detailsText:
-			entry.detailsText === undefined
-				? entry.detailsText
-				: truncateDisplayText(entry.detailsText, AGENT_PANEL_SCENE_TEXT_LIMITS.details),
-		stdout:
-			entry.stdout === undefined
-				? entry.stdout
-				: truncateDisplayText(entry.stdout, AGENT_PANEL_SCENE_TEXT_LIMITS.output),
-		stderr:
-			entry.stderr === undefined
-				? entry.stderr
-				: truncateDisplayText(entry.stderr, AGENT_PANEL_SCENE_TEXT_LIMITS.output),
-		resultText:
-			entry.resultText === undefined
-				? entry.resultText
-				: truncateDisplayText(entry.resultText, AGENT_PANEL_SCENE_TEXT_LIMITS.result),
-		taskResultText:
-			entry.taskResultText === undefined
-				? entry.taskResultText
-				: truncateDisplayText(entry.taskResultText, AGENT_PANEL_SCENE_TEXT_LIMITS.result),
-		taskChildren,
-	};
-}
-
 function materializeOperationEntry(
 	operation: OperationSnapshot,
 	graph: AgentPanelCanonicalSource,
