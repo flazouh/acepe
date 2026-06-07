@@ -51,6 +51,12 @@ import {
 } from "./transcript-text.js";
 import { applySceneTextLimits, truncateDisplayText } from "./scene-text-limits.js";
 export { applySceneTextLimits } from "./scene-text-limits.js";
+import {
+	buildLifecycleActions,
+	displaySafeDegradationReason,
+	mapGraphStatus,
+	materializeLifecycle,
+} from "./graph-lifecycle.js";
 
 // Re-export the public type surface (now owned by the -types module) so the
 // materializer's existing consumers keep importing it from here.
@@ -220,109 +226,6 @@ function countSampledToolTranscriptEntries(
 		}
 	}
 	return count;
-}
-
-function mapGraphStatus(graph: AgentPanelCanonicalSource): AgentPanelSessionStatus {
-	const lifecycleStatus = graph.lifecycle.status;
-	if (
-		lifecycleStatus === "failed" ||
-		graph.activity.kind === "error" ||
-		graph.turnState === "Failed"
-	) {
-		return "error";
-	}
-	if (
-		lifecycleStatus === "reserved" ||
-		lifecycleStatus === "activating" ||
-		lifecycleStatus === "reconnecting"
-	) {
-		return "warming";
-	}
-	if (lifecycleStatus === "detached" || lifecycleStatus === "archived") {
-		return "idle";
-	}
-	if (
-		graph.activity.kind === "running_operation" ||
-		graph.activity.kind === "awaiting_model" ||
-		graph.turnState === "Running"
-	) {
-		return "running";
-	}
-	if (graph.turnState === "Completed") {
-		return "done";
-	}
-	return graph.transcriptSnapshot.entries.length > 0 ? "idle" : "connected";
-}
-
-function materializeLifecycle(graph: AgentPanelCanonicalSource): AgentPanelLifecycleModel {
-	return {
-		status: graph.lifecycle.status,
-		detachedReason: graph.lifecycle.detachedReason ?? null,
-		failureReason: graph.lifecycle.failureReason ?? null,
-		errorMessage: graph.lifecycle.errorMessage ?? null,
-		actionability: {
-			canSend: graph.lifecycle.actionability.canSend,
-			canResume: graph.lifecycle.actionability.canResume,
-			canRetry: graph.lifecycle.actionability.canRetry,
-			canArchive: graph.lifecycle.actionability.canArchive,
-			canConfigure: graph.lifecycle.actionability.canConfigure,
-			recommendedAction: graph.lifecycle.actionability.recommendedAction,
-			recoveryPhase: graph.lifecycle.actionability.recoveryPhase,
-			compactStatus: graph.lifecycle.actionability.compactStatus,
-		},
-	};
-}
-
-function buildLifecycleActions(graph: AgentPanelCanonicalSource): AgentPanelActionDescriptor[] {
-	const actions: AgentPanelActionDescriptor[] = [];
-
-	if (graph.lifecycle.actionability.canResume) {
-		actions.push({
-			id: AGENT_PANEL_ACTION_IDS.status.resume,
-			label: "Resume",
-			state: "enabled",
-		});
-	}
-
-	if (graph.lifecycle.actionability.canRetry) {
-		actions.push({
-			id: AGENT_PANEL_ACTION_IDS.status.retry,
-			label: "Retry",
-			state: "enabled",
-		});
-	}
-
-	if (graph.lifecycle.actionability.canArchive) {
-		actions.push({
-			id: AGENT_PANEL_ACTION_IDS.status.archive,
-			label: "Archive",
-			state: "enabled",
-		});
-	}
-
-	return actions;
-}
-
-function displaySafeDegradationReason(
-	reason: OperationDegradationReason | null | undefined
-): string {
-	if (reason === null || reason === undefined) {
-		return "Tool operation is degraded.";
-	}
-
-	if (reason.code === "classification_failure") {
-		return "Tool operation could not be classified safely.";
-	}
-	if (reason.code === "missing_evidence") {
-		return "Tool operation is missing canonical evidence.";
-	}
-	if (reason.code === "absent_from_history") {
-		return "Tool operation is absent from provider history.";
-	}
-	if (reason.code === "invalid_provenance_key") {
-		return "Tool operation has invalid provenance.";
-	}
-	return "Tool operation has an impossible state transition.";
 }
 
 function operationSnapshotToToolCall(operation: OperationSnapshot): ToolCall {
