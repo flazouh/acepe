@@ -123,6 +123,12 @@ import {
 	materializeOperationPatchedConversation,
 } from "./operation-patch-conversations.js";
 import {
+	canReuseConversation,
+	canReuseConversationEntriesWithUpdatedActivity,
+	materializeConversation,
+	materializeConversationWithOperationIndex,
+} from "./conversation-rebuild.js";
+import {
 	interactionSceneEntryId,
 	materializeTranscriptEntry,
 	questionInteractionToSceneEntry,
@@ -156,86 +162,6 @@ export function findLatestLiveAssistantEntry(
 	return null;
 }
 
-function materializeConversation(graph: AgentPanelCanonicalSource): {
-	entries: readonly AgentPanelSceneEntryModel[];
-	isStreaming: boolean;
-} {
-	const isRunning = graph.turnState === "Running";
-	const index = buildOperationIndex(graph.operations);
-	return materializeConversationWithOperationIndex(graph, index, isRunning);
-}
-
-function materializeConversationWithOperationIndex(
-	graph: AgentPanelCanonicalSource,
-	index: OperationIndex,
-	isRunning = graph.turnState === "Running"
-): {
-	entries: readonly AgentPanelSceneEntryModel[];
-	isStreaming: boolean;
-} {
-	const liveAssistantEntryId = isRunning ? (graph.activeStreamingTail?.rowId ?? null) : null;
-
-	const entries: AgentPanelSceneEntryModel[] = [];
-	const entryIds = new Set<string>();
-	for (const entry of graph.transcriptSnapshot.entries) {
-		const materializedEntry = materializeTranscriptEntry(
-			entry,
-			graph,
-			index,
-			isRunning && entry.entryId === liveAssistantEntryId
-		);
-		entries.push(materializedEntry);
-		entryIds.add(materializedEntry.id);
-	}
-
-	for (const interaction of graph.interactions) {
-		if (entryIds.has(interaction.id)) {
-			continue;
-		}
-		const interactionEntry = questionInteractionToSceneEntry(interaction, graph);
-		if (interactionEntry === null) {
-			continue;
-		}
-		entries.push(interactionEntry);
-		entryIds.add(interactionEntry.id);
-	}
-
-	return {
-		entries,
-		isStreaming: isRunning,
-	};
-}
-
-function canReuseConversation(
-	previous: CachedConversationState | null,
-	input: CachedConversationInput
-): previous is CachedConversationState {
-	const graph = input.graph;
-	return (
-		previous !== null &&
-		previous.transcriptEntries === graph.transcriptSnapshot.entries &&
-		previous.operations === graph.operations &&
-		previous.interactions === graph.interactions &&
-		previous.turnState === graph.turnState &&
-		areActiveStreamingTailsEquivalent(previous.activeStreamingTail, graph.activeStreamingTail) &&
-		areActivitiesEquivalent(previous.activity, graph.activity)
-	);
-}
-
-function canReuseConversationEntriesWithUpdatedActivity(
-	previous: CachedConversationState | null,
-	input: CachedConversationInput
-): previous is CachedConversationState {
-	const graph = input.graph;
-	return (
-		previous !== null &&
-		previous.transcriptEntries === graph.transcriptSnapshot.entries &&
-		previous.operations === graph.operations &&
-		previous.interactions === graph.interactions &&
-		previous.turnState === graph.turnState &&
-		areActiveStreamingTailsEquivalent(previous.activeStreamingTail, graph.activeStreamingTail)
-	);
-}
 
 function materializeCachedConversation(
 	previous: CachedConversationState | null,
