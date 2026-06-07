@@ -70,6 +70,12 @@ import {
 } from "./operation-index-patch.js";
 import { createPatchedReadonlyMap } from "./patched-readonly-map.js";
 import {
+	buildInteractionIndex,
+	buildTranscriptEntryIndex,
+	createAppendedInteractionIndex,
+	createTruncatedInteractionIndex,
+} from "./transcript-interaction-index.js";
+import {
 	interactionSceneEntryId,
 	materializeTranscriptEntry,
 	questionInteractionToSceneEntry,
@@ -2134,57 +2140,6 @@ function materializeBlockingInteractionActivityChange(
 }
 
 
-function buildTranscriptEntryIndex(
-	entries: readonly TranscriptEntry[]
-): Map<string, TranscriptEntry> {
-	const byEntryId = new Map<string, TranscriptEntry>();
-	for (const entry of entries) {
-		byEntryId.set(entry.entryId, entry);
-	}
-	return byEntryId;
-}
-
-function buildInteractionIndex(
-	interactions: readonly InteractionSnapshot[]
-): Map<string, InteractionSnapshot> {
-	const byInteractionId = new Map<string, InteractionSnapshot>();
-	for (const interaction of interactions) {
-		byInteractionId.set(interaction.id, interaction);
-	}
-	return byInteractionId;
-}
-
-function createAppendedInteractionIndex(
-	byInteractionId: ReadonlyMap<string, InteractionSnapshot>,
-	appendedInteractions: readonly InteractionSnapshot[]
-): ReadonlyMap<string, InteractionSnapshot> {
-	if (appendedInteractions.length === 0) {
-		return byInteractionId;
-	}
-	const appendedEntries = new Map<string, InteractionSnapshot>();
-	for (const interaction of appendedInteractions) {
-		appendedEntries.set(interaction.id, interaction);
-	}
-	return createPatchedReadonlyMap(byInteractionId, appendedEntries);
-}
-
-function createTruncatedInteractionIndex(
-	byInteractionId: ReadonlyMap<string, InteractionSnapshot>,
-	previousInteractions: readonly InteractionSnapshot[],
-	nextLength: number
-): ReadonlyMap<string, InteractionSnapshot> {
-	if (nextLength >= previousInteractions.length) {
-		return byInteractionId;
-	}
-	const deletedKeys = new Set<string>();
-	for (let index = nextLength; index < previousInteractions.length; index += 1) {
-		const interaction = previousInteractions[index];
-		if (interaction !== undefined) {
-			deletedKeys.add(interaction.id);
-		}
-	}
-	return createPatchedReadonlyMap(byInteractionId, new Map(), deletedKeys);
-}
 
 function createPatchedInteractionIndex(
 	byInteractionId: ReadonlyMap<string, InteractionSnapshot>,
