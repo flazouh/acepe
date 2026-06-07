@@ -44,6 +44,11 @@ import {
 	type AgentPanelGraphMaterializerInput,
 	type AgentPanelGraphMaterializerReadModel,
 } from "./agent-panel-graph-materializer-types.js";
+import {
+	assistantMarkdownText,
+	buildAssistantMessageFromTranscriptEntry,
+	segmentText,
+} from "./transcript-text.js";
 
 // Re-export the public type surface (now owned by the -types module) so the
 // materializer's existing consumers keep importing it from here.
@@ -69,27 +74,6 @@ type OperationIndexPatchResult = {
 	readonly affectedEntryIds?: Set<string>;
 };
 
-function segmentText(entry: TranscriptEntry): string {
-	let text = "";
-	for (const segment of entry.segments) {
-		if (text.length > 0 && entry.role !== "assistant") {
-			text += "\n";
-		}
-		text += segment.text;
-	}
-	return text;
-}
-
-function assistantMarkdownText(entry: TranscriptEntry): string {
-	let text = "";
-	for (const segment of entry.segments) {
-		if (segment.kind === "text") {
-			text += segment.text;
-		}
-	}
-
-	return text;
-}
 
 interface CachedConversationInput {
 	readonly graph: AgentPanelCanonicalSource;
@@ -112,27 +96,6 @@ interface CachedConversationState {
 	readonly sceneEntryRowIndex: ReadonlyMap<string, number>;
 }
 
-function buildAssistantMessageFromTranscriptEntry(entry: TranscriptEntry) {
-	const chunks: Array<{
-		readonly type: "thought" | "message";
-		readonly block: {
-			readonly type: "text";
-			readonly text: string;
-		};
-	}> = [];
-	for (const segment of entry.segments) {
-		chunks.push({
-			type: segment.kind === "thought" ? "thought" : "message",
-			block: {
-				type: "text",
-				text: segment.text,
-			},
-		});
-	}
-	return {
-		chunks,
-	};
-}
 
 export function findLatestLiveAssistantEntry(
 	entries: readonly SessionEntry[]
