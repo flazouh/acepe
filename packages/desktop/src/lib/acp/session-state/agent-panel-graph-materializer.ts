@@ -57,6 +57,13 @@ import {
 	mapGraphStatus,
 	materializeLifecycle,
 } from "./graph-lifecycle.js";
+import {
+	areActiveStreamingTailsEquivalent,
+	areActivitiesCompatibleForConversationPatch,
+	areActivitiesEquivalent,
+	areJsonLikeValuesEquivalent,
+	areSceneEntriesEquivalent,
+} from "./scene-equivalence.js";
 
 // Re-export the public type surface (now owned by the -types module) so the
 // materializer's existing consumers keep importing it from here.
@@ -2686,77 +2693,6 @@ function toArrayIndex(property: string): number | null {
 	}
 	const index = Number(property);
 	return Number.isInteger(index) && index >= 0 && String(index) === property ? index : null;
-}
-
-function areSceneEntriesEquivalent(
-	left: AgentPanelSceneEntryModel,
-	right: AgentPanelSceneEntryModel
-): boolean {
-	return areJsonLikeValuesEquivalent(left, right);
-}
-
-function areActiveStreamingTailsEquivalent(
-	left: AgentPanelCanonicalSource["activeStreamingTail"],
-	right: AgentPanelCanonicalSource["activeStreamingTail"]
-): boolean {
-	if (left === right) {
-		return true;
-	}
-	if (left === null || right === null) {
-		return false;
-	}
-	return left.rowId === right.rowId && left.contentKind === right.contentKind;
-}
-
-function areActivitiesEquivalent(
-	left: AgentPanelCanonicalSource["activity"],
-	right: AgentPanelCanonicalSource["activity"]
-): boolean {
-	return (
-		left === right ||
-		(left.kind === right.kind &&
-			left.activeOperationCount === right.activeOperationCount &&
-			left.activeSubagentCount === right.activeSubagentCount &&
-			left.dominantOperationId === right.dominantOperationId &&
-			left.blockingInteractionId === right.blockingInteractionId)
-	);
-}
-
-function areActivitiesCompatibleForConversationPatch(
-	left: AgentPanelCanonicalSource["activity"],
-	right: AgentPanelCanonicalSource["activity"]
-): boolean {
-	return left.blockingInteractionId === right.blockingInteractionId;
-}
-
-function areJsonLikeValuesEquivalent(left: unknown, right: unknown): boolean {
-	if (Object.is(left, right)) {
-		return true;
-	}
-	if (typeof left !== typeof right) {
-		return false;
-	}
-	if (left === null || right === null) {
-		return false;
-	}
-	if (typeof left !== "object" || typeof right !== "object") {
-		return false;
-	}
-	if (Array.isArray(left) || Array.isArray(right)) {
-		if (!Array.isArray(left) || !Array.isArray(right) || left.length !== right.length) {
-			return false;
-		}
-		return left.every((item, index) => areJsonLikeValuesEquivalent(item, right[index]));
-	}
-
-	const leftEntries = Object.entries(left);
-	const rightRecord = right as Record<string, unknown>;
-	if (leftEntries.length !== Object.keys(rightRecord).length) {
-		return false;
-	}
-	return leftEntries.every(([key, value]) =>
-		areJsonLikeValuesEquivalent(value, rightRecord[key])
-	);
 }
 
 function applyOperationIndexPatch(
