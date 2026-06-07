@@ -97,6 +97,10 @@ import {
 	createTruncatedTranscriptEntryIndex,
 	resolveUpdatedInteractionIndex,
 } from "./interaction-index-patch.js";
+import type {
+	CachedConversationInput,
+	CachedConversationState,
+} from "./conversation-cache-types.js";
 import {
 	interactionSceneEntryId,
 	materializeTranscriptEntry,
@@ -113,26 +117,6 @@ export {
 };
 
 
-interface CachedConversationInput {
-	readonly graph: AgentPanelCanonicalSource;
-}
-
-interface CachedConversationState {
-	readonly transcriptEntries: AgentPanelCanonicalSource["transcriptSnapshot"]["entries"];
-	readonly operations: AgentPanelCanonicalSource["operations"];
-	readonly operationIndex: OperationIndex;
-	readonly interactions: AgentPanelCanonicalSource["interactions"];
-	readonly interactionById: ReadonlyMap<string, InteractionSnapshot>;
-	readonly turnState: AgentPanelCanonicalSource["turnState"];
-	readonly activeStreamingTail: AgentPanelCanonicalSource["activeStreamingTail"];
-	readonly activity: AgentPanelCanonicalSource["activity"];
-	readonly transcriptEntryById: ReadonlyMap<string, TranscriptEntry>;
-	readonly conversation: {
-		entries: readonly AgentPanelSceneEntryModel[];
-		isStreaming: boolean;
-	};
-	readonly sceneEntryRowIndex: ReadonlyMap<string, number>;
-}
 
 
 export function findLatestLiveAssistantEntry(
