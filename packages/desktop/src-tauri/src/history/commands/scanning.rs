@@ -1,4 +1,5 @@
 use crate::commands::observability::{unexpected_command_result, CommandResult};
+use crate::db::repository::SessionMetadataRow;
 use std::cmp::Reverse;
 use std::path::Path;
 
@@ -200,6 +201,26 @@ fn merge_history_entries_by_id(
     primary
 }
 
+fn project_paths_missing_from_index(
+    project_paths: &[String],
+    indexed_entries: &[HistoryEntry],
+) -> Vec<String> {
+    let indexed_project_paths = indexed_entries
+        .iter()
+        .map(|entry| entry.project.as_str())
+        .collect::<std::collections::HashSet<_>>();
+    let mut seen = std::collections::HashSet::new();
+
+    project_paths
+        .iter()
+        .filter(|project_path| {
+            !indexed_project_paths.contains(project_path.as_str())
+                && seen.insert((*project_path).clone())
+        })
+        .cloned()
+        .collect()
+}
+
 async fn scan_copilot_history_entries(
     project_paths: &[String],
 ) -> Result<Vec<HistoryEntry>, String> {
@@ -211,6 +232,82 @@ async fn scan_copilot_history_entries(
                 .map(copilot_session_to_history_entry)
                 .collect()
         })
+}
+
+fn indexed_session_rows_to_history_entries(indexed: Vec<SessionMetadataRow>) -> Vec<HistoryEntry> {
+    let mut entries: Vec<HistoryEntry> = Vec::with_capacity(indexed.len());
+    for s in indexed {
+        let session_lifecycle_state = s.lifecycle_state();
+        let display = derive_indexed_session_title(&s.id, &s.display, s.title_overridden);
+        let worktree_deleted = s
+            .worktree_path
+            .as_ref()
+            .map(|path| !Path::new(path).exists());
+        entries.push(HistoryEntry {
+            id: s.id.clone(),
+            display,
+            timestamp: s.timestamp,
+            project: s.project_path,
+            session_id: s.id,
+            pasted_contents: serde_json::json!({}),
+            agent_id: CanonicalAgentId::parse(&s.agent_id),
+            updated_at: s.timestamp,
+            source_path: indexed_source_path(s.file_path),
+            parent_id: None,
+            worktree_path: s.worktree_path,
+            worktree_deleted,
+            pr_number: s.pr_number.map(|n| n as i64),
+            pr_link_mode: s.pr_link_mode,
+            session_lifecycle_state: Some(session_lifecycle_state),
+            sequence_id: s.sequence_id,
+        });
+    }
+    entries
+}
+
+async fn scan_project_sessions_from_files(
+    project_paths: &[String],
+    external_hidden_paths: &std::collections::HashSet<String>,
+) -> Vec<HistoryEntry> {
+    // tokio::join! polls on the same task (no Send required), so we share the slice.
+    let (claude_result, cursor_result, opencode_result, codex_result, copilot_result) = tokio::join!(
+        session_jsonl_parser::scan_projects(project_paths),
+        cursor_parser::discover_all_chats(project_paths),
+        opencode_parser::scan_sessions(project_paths),
+        codex_scanner::scan_sessions(project_paths),
+        scan_copilot_history_entries(project_paths),
+    );
+
+    let mut entries = Vec::new();
+
+    match claude_result {
+        Ok(claude_entries) => entries.extend(claude_entries),
+        Err(e) => tracing::warn!(error = %e, "Claude scanner failed"),
+    };
+
+    match cursor_result {
+        Ok(cursor_entries) => {
+            entries.extend(cursor_entries.iter().map(cursor_parser::to_history_entry));
+        }
+        Err(e) => tracing::warn!(error = %e, "Cursor scanner failed"),
+    };
+
+    match opencode_result {
+        Ok(opencode_entries) => entries.extend(opencode_entries),
+        Err(e) => tracing::warn!(error = %e, "OpenCode scanner failed"),
+    };
+
+    match codex_result {
+        Ok(codex_entries) => entries.extend(codex_entries),
+        Err(e) => tracing::warn!(error = %e, "Codex scanner failed"),
+    };
+
+    match copilot_result {
+        Ok(copilot_entries) => entries.extend(copilot_entries),
+        Err(e) => tracing::warn!(error = %e, "Copilot scanner failed"),
+    };
+
+    filter_hidden_external_file_scan_entries(entries, external_hidden_paths)
 }
 
 async fn scan_project_sessions_inner(
@@ -266,35 +363,25 @@ async fn scan_project_sessions_inner(
     };
 
     if let Some(indexed) = from_index {
-        let count = indexed.len();
-        // DB already returns ORDER BY timestamp DESC — no sort needed
-        let mut entries: Vec<HistoryEntry> = Vec::with_capacity(count);
-        for s in indexed {
-            let session_lifecycle_state = s.lifecycle_state();
-            let display = derive_indexed_session_title(&s.id, &s.display, s.title_overridden);
-            let worktree_deleted = s
-                .worktree_path
-                .as_ref()
-                .map(|path| !Path::new(path).exists());
-            entries.push(HistoryEntry {
-                id: s.id.clone(),
-                display,
-                timestamp: s.timestamp,
-                project: s.project_path,
-                session_id: s.id,
-                pasted_contents: serde_json::json!({}),
-                agent_id: CanonicalAgentId::parse(&s.agent_id),
-                updated_at: s.timestamp,
-                source_path: indexed_source_path(s.file_path),
-                parent_id: None,
-                worktree_path: s.worktree_path,
-                worktree_deleted,
-                pr_number: s.pr_number.map(|n| n as i64),
-                pr_link_mode: s.pr_link_mode,
-                session_lifecycle_state: Some(session_lifecycle_state),
-                sequence_id: s.sequence_id,
-            });
+        let index_count = indexed.len();
+        let mut entries = indexed_session_rows_to_history_entries(indexed);
+        let missing_project_paths = project_paths_missing_from_index(&project_paths, &entries);
+
+        if !missing_project_paths.is_empty() {
+            let file_scan_start = Instant::now();
+            let file_entries =
+                scan_project_sessions_from_files(&missing_project_paths, &external_hidden_paths)
+                    .await;
+            let file_entry_count = file_entries.len();
+            entries = merge_history_entries_by_id(entries, file_entries);
+            tracing::info!(
+                missing_project_count = missing_project_paths.len(),
+                file_entry_count,
+                file_scan_ms = file_scan_start.elapsed().as_millis(),
+                "Supplemented indexed session scan with file scan for unindexed projects"
+            );
         }
+
         match scan_copilot_history_entries(&project_paths).await {
             Ok(copilot_entries) => {
                 entries = merge_history_entries_by_id(entries, copilot_entries);
@@ -306,9 +393,10 @@ async fn scan_project_sessions_inner(
         entries.sort_by_key(|entry| std::cmp::Reverse(entry.timestamp));
         tracing::info!(
             total_entries = entries.len(),
-            index_entries = count,
+            index_entries = index_count,
+            missing_project_count = missing_project_paths.len(),
             total_ms = scan_start.elapsed().as_millis(),
-            source = "index",
+            source = "index+missing-files",
             "Session scan complete (from index)"
         );
         return Ok(entries);
@@ -317,89 +405,12 @@ async fn scan_project_sessions_inner(
     // Index empty — full scan all agents in parallel
     tracing::info!("SQLite index empty, falling back to file scan");
     let file_scan_start = Instant::now();
-
-    // tokio::join! polls on the same task (no Send required), so we share the slice
-    let (claude_result, cursor_result, opencode_result, codex_result, copilot_result) = tokio::join!(
-        session_jsonl_parser::scan_projects(&project_paths),
-        cursor_parser::discover_all_chats(&project_paths),
-        opencode_parser::scan_sessions(&project_paths),
-        codex_scanner::scan_sessions(&project_paths),
-        scan_copilot_history_entries(&project_paths),
-    );
-
-    let file_scan_ms = file_scan_start.elapsed().as_millis();
-    let mut entries = Vec::new();
-
-    let claude_count = match claude_result {
-        Ok(claude_entries) => {
-            let count = claude_entries.len();
-            entries.extend(claude_entries);
-            count
-        }
-        Err(e) => {
-            tracing::warn!(error = %e, "Claude scanner failed");
-            0
-        }
-    };
-
-    let cursor_count = match cursor_result {
-        Ok(cursor_entries) => {
-            let count = cursor_entries.len();
-            entries.extend(cursor_entries.iter().map(cursor_parser::to_history_entry));
-            count
-        }
-        Err(e) => {
-            tracing::warn!(error = %e, "Cursor scanner failed");
-            0
-        }
-    };
-
-    let opencode_count = match opencode_result {
-        Ok(opencode_entries) => {
-            let count = opencode_entries.len();
-            entries.extend(opencode_entries);
-            count
-        }
-        Err(e) => {
-            tracing::warn!(error = %e, "OpenCode scanner failed");
-            0
-        }
-    };
-
-    let codex_count = match codex_result {
-        Ok(codex_entries) => {
-            let count = codex_entries.len();
-            entries.extend(codex_entries);
-            count
-        }
-        Err(e) => {
-            tracing::warn!(error = %e, "Codex scanner failed");
-            0
-        }
-    };
-
-    let copilot_count = match copilot_result {
-        Ok(copilot_entries) => {
-            let count = copilot_entries.len();
-            entries.extend(copilot_entries);
-            count
-        }
-        Err(e) => {
-            tracing::warn!(error = %e, "Copilot scanner failed");
-            0
-        }
-    };
-
-    entries = filter_hidden_external_file_scan_entries(entries, &external_hidden_paths);
+    let mut entries =
+        scan_project_sessions_from_files(&project_paths, &external_hidden_paths).await;
 
     tracing::info!(
-        claude_count,
-        cursor_count,
-        opencode_count,
-        codex_count,
-        copilot_count,
         total_entries = entries.len(),
-        file_scan_ms,
+        file_scan_ms = file_scan_start.elapsed().as_millis(),
         total_ms = scan_start.elapsed().as_millis(),
         source = "files",
         "Session scan complete (from file scan)"
@@ -415,7 +426,8 @@ mod tests {
     use super::{
         copilot_session_to_history_entry, derive_indexed_session_title,
         derive_title_from_converted_session, filter_hidden_external_file_scan_entries,
-        indexed_source_path, merge_history_entries_by_id, resolve_indexed_session_title,
+        indexed_source_path, merge_history_entries_by_id, project_paths_missing_from_index,
+        resolve_indexed_session_title,
     };
     use crate::acp::session_thread_snapshot::SessionThreadSnapshot;
     use crate::acp::types::CanonicalAgentId;
@@ -578,6 +590,23 @@ mod tests {
         assert_eq!(merged[0].id, "claude-1");
         assert_eq!(merged[1].id, "copilot-1");
         assert_eq!(merged[1].agent_id, CanonicalAgentId::Copilot);
+    }
+
+    #[test]
+    fn finds_projects_missing_from_index_lookup() {
+        let indexed = vec![make_history_entry(
+            "godmode-1",
+            "/Users/ace/personal/godmode",
+            "claude-code",
+        )];
+        let requested_projects = vec![
+            "/Users/ace/personal/fluentai".to_string(),
+            "/Users/ace/personal/godmode".to_string(),
+        ];
+
+        let missing = project_paths_missing_from_index(&requested_projects, &indexed);
+
+        assert_eq!(missing, vec!["/Users/ace/personal/fluentai".to_string()]);
     }
 }
 
