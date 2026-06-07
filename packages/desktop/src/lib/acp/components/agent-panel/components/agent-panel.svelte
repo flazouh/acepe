@@ -83,8 +83,10 @@ import { createPanelBranchLookupController } from "../logic/panel-branch-lookup.
 import { createAgentPanelExportHandlers } from "../logic/agent-panel-export-handlers.js";
 import { createAgentPanelInteractionHandlers } from "../logic/agent-panel-interaction-handlers.js";
 import { AgentPanelSessionController } from "../state/agent-panel-session-controller.svelte.js";
+import { CheckpointTimelineController } from "../state/checkpoint-timeline-controller.svelte.js";
 import type { WorktreeSetupState } from "../logic/worktree-setup-events.js";
 import { shouldAutoScrollOnPanelActivation } from "../logic/should-auto-scroll-on-panel-activation.js";
+import { isInteractiveClickTarget } from "../logic/panel-focus-guard.js";
 import { deriveAgentPanelHeaderDisplayTitle } from "../logic/agent-panel-header-title.js";
 import { resolveAgentPanelProviderBrand } from "../logic/agent-panel-provider-brand.js";
 import { shouldShowPreSessionWorktreeCard } from "../logic/pre-session-worktree-card-visibility.js";
@@ -299,18 +301,18 @@ let panelConnectionError = $state<PanelConnectionErrorDetails | null>(null);
 // dismissal is automatically lifted without any $effect.
 let dismissedErrorKey = $state<string | null>(null);
 
-// Checkpoint timeline state
-let showCheckpointTimeline = $state(false);
-let isLoadingCheckpoints = $state(false);
+// Checkpoint timeline state — owned by an independently-testable controller.
+const checkpointTimeline = new CheckpointTimelineController({
+	getSessionId: () => sessionId,
+	getCheckpoints: (id) => checkpointStore.getCheckpoints(id),
+	loadCheckpoints: loadCheckpointsBeforeTimelineOpen,
+});
 
 // Worktree state - tracks the active worktree directory for checkpoint path conversion
 let activeWorktreePath = $state<string | null>(null);
 let activeWorktreeOwnerProjectPath = $state<string | null>(null);
 let _panelBranch = $state<string | null>(null);
 let branchRequestVersion = 0;
-
-// Get checkpoints reactively (loads when needed)
-const checkpoints = $derived(sessionId ? checkpointStore.getCheckpoints(sessionId) : []);
 
 function scrollToTop() {
 	contentRef?.scrollToTop();
@@ -1536,19 +1538,9 @@ const {
 function handlePanelClick(e: MouseEvent) {
 	const target = e.target as HTMLElement;
 
-	// Don't focus panel if clicking on input area or form elements
-	// Check data-input-area first (most common case) to avoid unnecessary DOM traversal
-	const isInputArea =
-		target.hasAttribute("data-input-area") || target.closest("[data-input-area]") !== null;
-	const isTextarea = target.tagName === "TEXTAREA" || target.closest("textarea") !== null;
-	const isInput = target.tagName === "INPUT" || target.closest("input") !== null;
-	// Only check for actual <button> and <a> elements, not role="button" which is used
-	// for accessibility on collapsible containers
-	const isButton = target.closest("button") !== null;
-	const isLink = target.closest("a") !== null;
-
-	if (isInputArea || isTextarea || isInput || isButton || isLink) {
-		// Don't focus the panel when clicking on form elements or buttons
+	// Don't focus the panel when clicking on form elements, buttons, or a
+	// registered input area — see isInteractiveClickTarget for the rationale.
+	if (isInteractiveClickTarget(target)) {
 		return;
 	}
 
@@ -1678,21 +1670,6 @@ function handleIssueFromInlineError() {
 	}
 
 	onCreateIssueReport?.(draft);
-}
-
-async function handleToggleCheckpointTimeline() {
-	if (!sessionId) return;
-
-	if (!showCheckpointTimeline) {
-		isLoadingCheckpoints = true;
-		await loadCheckpointsBeforeTimelineOpen(sessionId);
-		isLoadingCheckpoints = false;
-	}
-	showCheckpointTimeline = !showCheckpointTimeline;
-}
-
-function handleCloseCheckpointTimeline() {
-	showCheckpointTimeline = false;
 }
 
 function handleCheckpointRevertComplete() {
@@ -1987,13 +1964,13 @@ async function handlePlanSidebarSendMessage(sid: string, message: string): Promi
 
 	{#snippet body()}
 		<div class="flex h-full min-h-0 flex-col" style:display={reviewMode ? "none" : undefined}>
-			{#if showCheckpointTimeline && sessionController.sessionProjectPath && sessionId}
+			{#if checkpointTimeline.isOpen && sessionController.sessionProjectPath && sessionId}
 				<CheckpointTimeline
 					{sessionId}
 					projectPath={sessionController.sessionProjectPath}
-					{checkpoints}
-					isLoading={isLoadingCheckpoints}
-					onClose={handleCloseCheckpointTimeline}
+					checkpoints={checkpointTimeline.checkpoints}
+					isLoading={checkpointTimeline.isLoading}
+					onClose={() => checkpointTimeline.close()}
 					onRevertComplete={handleCheckpointRevertComplete}
 				/>
 			{:else}
@@ -2196,10 +2173,10 @@ async function handlePlanSidebarSendMessage(sid: string, message: string): Promi
 							{#snippet checkpointButton()}
 								{#if sessionController.sessionProjectPath && checkpoints.length > 0}
 									<EmbeddedIconButton
-										active={showCheckpointTimeline}
+										active={checkpointTimeline.isOpen}
 										title={"View checkpoints"}
 										ariaLabel={"View checkpoints"}
-										onclick={handleToggleCheckpointTimeline}
+										onclick={() => checkpointTimeline.toggle()}
 									>
 										<Clock class="h-3.5 w-3.5" weight="fill" />
 									</EmbeddedIconButton>
