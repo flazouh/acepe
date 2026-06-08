@@ -103,7 +103,7 @@ import AgentPanelContent from "./agent-panel-content.svelte";
 import AgentPanelHeader from "./agent-panel-header.svelte";
 import AgentPanelResizeEdge from "./agent-panel-resize-edge.svelte";
 import AgentPanelReviewWorkspace from "./agent-panel-review-workspace.svelte";
-import type { ReviewControlsSnapshot } from "./agent-panel-review-content.svelte";
+import type { ReviewControlsSnapshot } from "./agent-panel-review-content-types.js";
 import WorkspaceDialogFrame from "$lib/components/ui/workspace-dialog-frame.svelte";
 import AgentPanelTerminalDrawer from "./agent-panel-terminal-drawer.svelte";
 import AgentPanelPreComposerStack from "./agent-panel-pre-composer-stack.svelte";
@@ -189,7 +189,7 @@ const chatPreferencesStore = getChatPreferencesStore();
 // Session-derived reactive state is being hoisted into this controller,
 // cluster by cluster (see docs/plans/2026-05-29-002-...). Instantiated once;
 // consumed incrementally as derivations migrate.
-const sessionController = new AgentPanelSessionController({
+const sessionController: AgentPanelSessionController = new AgentPanelSessionController({
 	getSessionId: () => sessionId,
 	getPanelId: () => panelId,
 	sessionStore,
@@ -201,7 +201,7 @@ const sessionController = new AgentPanelSessionController({
 
 // Panel-connection state — owned by a testable controller. Mutually-referential
 // with sessionController via lazy accessors (stillFailed ↔ connection state/error).
-const connection = new ConnectionController({
+const connection: ConnectionController = new ConnectionController({
 	getStillFailed: () => sessionController.stillFailed,
 });
 
@@ -1481,7 +1481,7 @@ function handleRetryConnection() {
 	runPanelConnectionRetry({
 		sessionId,
 		panelId: panelId ?? undefined,
-		connection.state,
+		panelConnectionState: connection.state,
 		project,
 		effectivePanelAgentId,
 		onClearErrorDismissed: () => {
@@ -1546,7 +1546,7 @@ function createInlineErrorIssueDraft() {
 		sessionUpdatedAt,
 		currentModelId: sessionController.sessionCurrentModelId,
 		entryCount: sessionController.visibleEntryCount,
-		connection.state: connection.state?.toString() ?? null,
+		panelConnectionState: connection.state?.toString() ?? null,
 	});
 }
 
@@ -1728,7 +1728,7 @@ const {
 	isPlanActionAvailable,
 } = createAgentPanelInteractionHandlers({
 	getSessionId: () => sessionId,
-	getEffectiveProjectPath: () => effectiveProjectPath,
+	getEffectiveProjectPath: () => effectiveProjectPath ?? null,
 	getSessionProjectPath: () => sessionController.sessionProjectPath,
 	getEffectivePanelId: () => sessionController.effectivePanelId,
 	sessionStore,
@@ -1776,7 +1776,7 @@ async function handlePlanSidebarSendMessage(sid: string, message: string): Promi
 		<AgentPanelHeader
 			{pendingProjectSelection}
 			{isConnecting}
-			{connection.isRetrying}
+			isRetryingConnection={connection.isRetrying}
 			{sessionId}
 			sessionTitle={sessionController.sessionTitle}
 			sessionAgentId={sessionController.sessionAgentId}
@@ -1883,7 +1883,7 @@ async function handlePlanSidebarSendMessage(sid: string, message: string): Promi
 						onProjectSelected={handleProjectSelected}
 						onRetryConnection={handleRetryConnection}
 						onCancelConnection={handleCancelConnection}
-						{agentIconSrc}
+						agentIconSrc={agentIconSrc ?? undefined}
 						{isFullscreen}
 						{availableAgents}
 						{effectiveTheme}
@@ -1942,7 +1942,7 @@ async function handlePlanSidebarSendMessage(sid: string, message: string): Promi
 			inlineErrorReferenceId={sessionController.inlineErrorReferenceId}
 			inlineErrorReferenceSearchable={sessionController.inlineErrorReferenceSearchable}
 			onRetryConnection={handleRetryConnection}
-			connection.isRetrying={connection.isRetrying}
+			isRetryingConnection={connection.isRetrying}
 			onDismissError={handleDismissError}
 			onCopyInlineErrorReference={handleCopyInlineErrorReference}
 			inlineErrorIssueDraft={inlineErrorIssueDraft}
@@ -1957,7 +1957,7 @@ async function handlePlanSidebarSendMessage(sid: string, message: string): Promi
 			onPreSessionWorktreeAlways={handlePreSessionWorktreeAlways}
 			onPreSessionWorktreeDismiss={handlePreSessionWorktreeDismiss}
 			onRetryWorktree={handleRetryWorktree}
-			worktreeSetup.state={worktreeSetup.state}
+			worktreeSetupState={worktreeSetup.state}
 			{agentInstallState}
 			{sessionId}
 			effectiveProjectPath={effectiveProjectPath ?? null}
@@ -2062,7 +2062,7 @@ async function handlePlanSidebarSendMessage(sid: string, message: string): Promi
 							}}
 						>
 							{#snippet checkpointButton()}
-								{#if sessionController.sessionProjectPath && checkpoints.length > 0}
+								{#if sessionController.sessionProjectPath && checkpointTimeline.checkpoints.length > 0}
 									<EmbeddedIconButton
 										active={checkpointTimeline.isOpen}
 										title={"View checkpoints"}

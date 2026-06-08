@@ -46,7 +46,7 @@ export interface AgentPanelSessionControllerDeps {
 	 */
 	getPanelConnectionState: () => PanelConnectionState | null;
 	getPanelConnectionError: () => PanelConnectionErrorDetails | null;
-	getAgentName: () => string;
+	getAgentName: () => string | null;
 }
 
 export class AgentPanelSessionController {
