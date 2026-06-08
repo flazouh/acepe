@@ -85,6 +85,7 @@ import { PrCardController } from "../state/pr-card-controller.svelte.js";
 import { WorktreeCloseConfirmationController } from "../state/worktree-close-confirmation-controller.svelte.js";
 import { WorktreeSetupController } from "../state/worktree-setup-controller.svelte.js";
 import { ContentScrollRevealController } from "../state/content-scroll-reveal-controller.svelte.js";
+import { ConnectionController } from "../state/connection-controller.svelte.js";
 import { shouldAutoScrollOnPanelActivation } from "../logic/should-auto-scroll-on-panel-activation.js";
 import { isInteractiveClickTarget } from "../logic/panel-focus-guard.js";
 import { deriveAgentPanelHeaderDisplayTitle } from "../logic/agent-panel-header-title.js";
@@ -120,7 +121,6 @@ import {
 	shouldUseCenteredFullscreenContent,
 } from "./agent-panel-layout.js";
 import { buildAgentErrorIssueDraft } from "../logic/issue-report-draft.js";
-import type { PanelConnectionErrorDetails } from "../../../types/panel-connection-state.js";
 import { resolveInitialReviewWorkspaceIndex } from "./review-workspace-model.js";
 import {
 	cancelQueuedMessageAndRestoreInput,
@@ -194,9 +194,15 @@ const sessionController = new AgentPanelSessionController({
 	getPanelId: () => panelId,
 	sessionStore,
 	panelStore,
-	getPanelConnectionState: () => panelConnectionState,
-	getPanelConnectionError: () => panelConnectionError,
+	getPanelConnectionState: () => connection.state,
+	getPanelConnectionError: () => connection.error,
 	getAgentName: () => agentName,
+});
+
+// Panel-connection state — owned by a testable controller. Mutually-referential
+// with sessionController via lazy accessors (stillFailed ↔ connection state/error).
+const connection = new ConnectionController({
+	getStillFailed: () => sessionController.stillFailed,
 });
 
 setThinkingPreferences({
@@ -287,13 +293,6 @@ const contentScrollReveal = new ContentScrollRevealController();
 
 // Scroll viewport reference for scroll-to-bottom button (bindable from child)
 let contentScrollViewport: HTMLElement | null = $state(null);
-let panelConnectionState = $state<PanelConnectionState | null>(null);
-let panelConnectionError = $state<PanelConnectionErrorDetails | null>(null);
-// Dismiss tracking: store the error fingerprint that the user dismissed.
-// `errorDismissed` is a $derived comparison against the current fingerprint —
-// when the error key changes (different failureReason or details), the
-// dismissal is automatically lifted without any $effect.
-let dismissedErrorKey = $state<string | null>(null);
 
 // Checkpoint timeline state — owned by an independently-testable controller.
 const checkpointTimeline = new CheckpointTimelineController({
@@ -420,7 +419,7 @@ const agentName = $derived.by(() => {
 // source + unit-tested); the connection $state + retry/cancel/dismiss handlers
 // stay here (tangled with agentInputRef). Thin reactive aliases; ref-inline U5.
 const errorDismissed = $derived(
-	sessionController.errorDismissalKey !== null && dismissedErrorKey === sessionController.errorDismissalKey
+	sessionController.errorDismissalKey !== null && connection.dismissedErrorKey === sessionController.errorDismissalKey
 );
 
 // Panel view state: single discriminated union from all inputs
@@ -759,7 +758,7 @@ $effect(() => {
 	};
 });
 const isConnecting = $derived(
-	panelConnectionState === PanelConnectionState.CONNECTING ||
+	connection.state === PanelConnectionState.CONNECTING ||
 		(!sessionId && panelId ? sessionController.panelHotState?.pendingUserEntry !== null : false)
 );
 const inputRenderKey = $derived(
@@ -818,19 +817,10 @@ let agentInputRef = $state<{
 	retrySend: () => void;
 	restoreQueuedMessage: (draft: string, attachments: readonly Attachment[]) => void;
 } | null>(null);
-// Retry-busy is now derived (plan Decision 7): set `retryActive` true on retry,
-// clear it via the 4s fallback timer; the spinner auto-clears when the failure
-// state transitions away (`stillFailed` goes false) — no $effect needed.
-let retryActive = $state(false);
-const isRetryingConnection = $derived(retryActive && sessionController.stillFailed);
-let retryBusyTimer: ReturnType<typeof setTimeout> | null = null;
 let headerRef: HTMLElement | undefined = $state();
 
 onDestroy(() => {
-	if (retryBusyTimer !== null) {
-		clearTimeout(retryBusyTimer);
-		retryBusyTimer = null;
-	}
+	connection.dispose();
 });
 
 const worktreeSetupMatchContext = $derived.by(() => {
@@ -1065,20 +1055,20 @@ $effect(() => {
 
 $effect(() => {
 	if (!panelId) {
-		panelConnectionState = null;
-		panelConnectionError = null;
+		connection.state = null;
+		connection.error = null;
 		return;
 	}
 
 	const existingState = connectionStore.getState(panelId);
 	const existingContext = connectionStore.getContext(panelId);
-	panelConnectionState = existingState;
-	panelConnectionError = existingContext?.error ?? null;
+	connection.state = existingState;
+	connection.error = existingContext?.error ?? null;
 
 	const unsubscribe = connectionStore.onChange((id, state, context) => {
 		if (id !== panelId) return;
-		panelConnectionState = state;
-		panelConnectionError = context.error ?? null;
+		connection.state = state;
+		connection.error = context.error ?? null;
 	});
 
 	return () => {
@@ -1471,21 +1461,12 @@ function handlePanelKeyDown(e: KeyboardEvent) {
 }
 
 function handleRetryConnection() {
-	if (isRetryingConnection) {
+	// beginRetry guards against re-entrancy and starts the 4s busy window; the
+	// derived isRetrying also clears as soon as the failure state transitions
+	// away — see Decision 7.
+	if (!connection.beginRetry()) {
 		return;
 	}
-	retryActive = true;
-	if (retryBusyTimer !== null) {
-		clearTimeout(retryBusyTimer);
-	}
-	// Auto-clear after a short window so the spinner doesn't hang forever if the
-	// underlying state machine doesn't bounce. The derived `isRetryingConnection`
-	// (retryActive && stillFailed) also clears as soon as the failure state
-	// transitions away — see Decision 7.
-	retryBusyTimer = setTimeout(() => {
-		retryActive = false;
-		retryBusyTimer = null;
-	}, 4000);
 
 	// Turn-level failure on an existing session: re-send the last user
 	// message in the same session instead of recreating the session.
@@ -1500,11 +1481,11 @@ function handleRetryConnection() {
 	runPanelConnectionRetry({
 		sessionId,
 		panelId: panelId ?? undefined,
-		panelConnectionState,
+		connection.state,
 		project,
 		effectivePanelAgentId,
 		onClearErrorDismissed: () => {
-			dismissedErrorKey = null;
+			connection.dismissedErrorKey = null;
 		},
 		onSendCancelToPanel: (id) => {
 			connectionStore.send(id, { type: PanelConnectionEvent.CANCEL });
@@ -1527,7 +1508,7 @@ function handleCancelConnection() {
 }
 
 function handleDismissError() {
-	dismissedErrorKey = sessionController.errorDismissalKey;
+	connection.dismissedErrorKey = sessionController.errorDismissalKey;
 }
 
 function handleCopyInlineErrorReference() {
@@ -1548,7 +1529,7 @@ function handleCopyInlineErrorReference() {
 
 function createInlineErrorIssueDraft() {
 	const details =
-		sessionController.errorInfo.details ?? panelConnectionError?.message ?? sessionController.sessionConnectionError ?? "Unknown error";
+		sessionController.errorInfo.details ?? connection.error?.message ?? sessionController.sessionConnectionError ?? "Unknown error";
 	const summary = sessionController.errorInfo.summary ?? details.split("\n")[0]?.slice(0, 120) ?? "Agent error";
 	return buildAgentErrorIssueDraft({
 		agentId: effectivePanelAgentId ?? "unknown",
@@ -1565,7 +1546,7 @@ function createInlineErrorIssueDraft() {
 		sessionUpdatedAt,
 		currentModelId: sessionController.sessionCurrentModelId,
 		entryCount: sessionController.visibleEntryCount,
-		panelConnectionState: panelConnectionState?.toString() ?? null,
+		connection.state: connection.state?.toString() ?? null,
 	});
 }
 
@@ -1795,7 +1776,7 @@ async function handlePlanSidebarSendMessage(sid: string, message: string): Promi
 		<AgentPanelHeader
 			{pendingProjectSelection}
 			{isConnecting}
-			{isRetryingConnection}
+			{connection.isRetrying}
 			{sessionId}
 			sessionTitle={sessionController.sessionTitle}
 			sessionAgentId={sessionController.sessionAgentId}
@@ -1961,7 +1942,7 @@ async function handlePlanSidebarSendMessage(sid: string, message: string): Promi
 			inlineErrorReferenceId={sessionController.inlineErrorReferenceId}
 			inlineErrorReferenceSearchable={sessionController.inlineErrorReferenceSearchable}
 			onRetryConnection={handleRetryConnection}
-			isRetryingConnection={isRetryingConnection}
+			connection.isRetrying={connection.isRetrying}
 			onDismissError={handleDismissError}
 			onCopyInlineErrorReference={handleCopyInlineErrorReference}
 			inlineErrorIssueDraft={inlineErrorIssueDraft}
