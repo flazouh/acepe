@@ -37,7 +37,7 @@ This is the same pattern that worked for the agent-panel controller (reactive cl
 | 2 | **ViewportProjectionController** ✅ DONE (`bd739636c`) | TranscriptViewportStore + reattach-watchdog timers + gap-recovery latch + buffer push/delta + attachment recovery | ~17 | landed via accessor-closure deps (connectSession, getGraphRevision, applySessionStateEnvelope); check 0 incl. rust-owned-viewport guard, parity |
 | 3 | **SessionExportService** ✅ DONE (`c77b67970`) | markdown/json export | 2 | landed read-only via accessor deps; check 0, parity |
 | 4 | **CapabilityProjectionReader** ✅ DONE (`d0b953788`) | read-only per-session capability projection + pure `capability-projection.ts` | ~14 | landed; reads canonical via accessors; capability *writes* stay on the envelope path; check 0, parity |
-| 5 | **SessionProjectionCore** ⛔ GOD-GATED, BLOCKED ON NET | the per-session `CanonicalSessionProjection`/`SessionStateGraph`/materialized/token-stream Maps + envelope `applyXxx` dispatch handlers | ~60 | **high** — the canonical heart; **own sub-plan required** (see appendix) |
+| 5 | **SessionProjectionCore** ✅ DONE (`ab4d74f02`) | single owner of the canonical projection maps (`CanonicalSessionProjection`/`SessionStateGraph`/materialized/token-stream) + pure read selectors | ~16 selectors + 4 maps | landed via getter-seam (maps owned by core; spine writes through getters) GOD-re-gated; projection-state net 67/4 parity, full store parity |
 | — | `SessionStore` (residual) | composition + the public `ISessionStateReader/Writer` facade delegating to the above | thin | — |
 
 ---
@@ -134,16 +134,22 @@ GitButler's `apps/desktop/src/lib` composes concern-scoped services under a `Cli
 
 ---
 
-## Execution status (2026-06-08)
+## Execution status (2026-06-08) — ALL UNITS COMPLETE
 
-Units 1–4 **shipped** on `refactor/scene-mapper-decomposition`, each with `bun run check` 0 and full store-vitest parity (7 pre-existing env/mock-infra fails, verified identical against a clean worktree of HEAD — zero regressions):
+Units 1–5 **shipped** on `refactor/scene-mapper-decomposition`, each with `bun run check` 0 and store-vitest parity (pre-existing env/mock-infra fails only, verified identical against a clean worktree of HEAD — zero regressions):
 
 - `5b49e727f` Unit 1 SessionListState
 - `bd739636c` Unit 2 ViewportProjectionController
 - `c77b67970` Unit 3 SessionExportService
 - `d0b953788` Unit 4 CapabilityProjectionReader (+ pure `capability-projection.ts`)
+- `ab4d74f02` Unit 5 SessionProjectionCore (canonical projection maps + read selectors)
 
-`session-store.svelte.ts`: **5,409 → 3,626 LOC** across the full effort (helper layer + units 1–4). Four new focused sub-stores/services + one pure projection module, all consuming the canonical core via accessor-closure deps.
+Five new focused sub-stores/services + two pure modules (`capability-projection.ts`, helper layer), all composed by the residual `SessionStore`, which retains the **envelope dispatch loop as the canonical write-spine** (the architecturally-correct end state per `CONTEXT.md`: the spine composes/orders the units; each sub-store owns its slice).
+
+> [!note] Unit 5 net concern resolved
+> The earlier worry that `session-store-projection-state.vitest.ts` was a dead net (ECONNREFUSED `:3000`) was **wrong**: the suite runs **71 tests, 67 pass / 4 pre-existing fail** — the theme-fetch error is non-fatal noise. That is a usable **parity net**, which guarded the Unit 5 cut (67/4 held identical before and after).
+
+The Unit-5 appendix's "Option A" design (core owns the maps; spine writes through them) was realized via the **getter-seam** (same technique as Unit 1's SvelteMaps): the parent exposes private getter accessors returning the core's live maps, so the ~40 dispatch-loop write sites and the unit 2–4 dependency closures kept working unchanged. A future pass could promote the raw `.set()` writes to explicit `core.setProjection(...)` methods if stricter encapsulation is wanted — not required for single-ownership, which the getter seam already establishes.
 
 ## Execution-ready appendix — Unit 5 (SessionProjectionCore) — GOD-gated, blocked on net
 
