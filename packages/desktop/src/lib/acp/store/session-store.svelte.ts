@@ -82,6 +82,14 @@ import {
 } from "./session-cold-index.js";
 import type { SessionLiveSyncReference, SessionPaletteReference } from "./session-cold-index.js";
 export type { SessionLiveSyncReference, SessionPaletteReference } from "./session-cold-index.js";
+import {
+	applyTranscriptDeltaToSnapshot,
+	buildRowTokenStreamKey,
+	cloneRowTokenStreamMap,
+	countAppendedMarkdownWords,
+	emptyRowTokenStream,
+} from "./transcript-delta.js";
+export { applyTranscriptDeltaToSnapshot, countAppendedMarkdownWords } from "./transcript-delta.js";
 export {
 	mergeInteractionSnapshots,
 	mergeOperationSnapshots,
@@ -511,83 +519,6 @@ function graphWithPatches(input: {
 		activity: input.activity ?? input.graph.activity,
 		capabilities: input.graph.capabilities,
 	};
-}
-
-export function applyTranscriptDeltaToSnapshot(
-	snapshot: TranscriptSnapshot,
-	delta: TranscriptDelta
-): TranscriptSnapshot {
-	let entries = snapshot.entries;
-
-	for (const operation of delta.operations) {
-		if (operation.kind === "replaceSnapshot") {
-			entries = operation.snapshot.entries;
-			seedTranscriptEntryIndex(entries);
-			continue;
-		}
-
-		if (operation.kind === "appendEntry") {
-			entries = replaceTranscriptEntry(entries, operation.entry);
-			continue;
-		}
-
-		entries = appendTranscriptSegment(
-			entries,
-			operation.entryId,
-			operation.role,
-			operation.segment
-		);
-	}
-
-	return {
-		revision: delta.snapshotRevision,
-		entries,
-	};
-}
-
-function buildRowTokenStreamKey(turnId: string, rowId: string): string {
-	return `${turnId}:${rowId}`;
-}
-
-function cloneRowTokenStreamMap(
-	tokenStream: ReadonlyMap<string, RowTokenStream>
-): Map<string, RowTokenStream> {
-	const nextTokenStream = new Map<string, RowTokenStream>();
-	for (const [key, value] of tokenStream) {
-		nextTokenStream.set(key, value);
-	}
-	return nextTokenStream;
-}
-
-export function countAppendedMarkdownWords(input: {
-	readonly previousText: string;
-	readonly previousWordCount: number;
-	readonly deltaText: string;
-}): {
-	readonly wordCount: number;
-	readonly latestWordCount: number;
-} {
-	const previousTailStart = findPreviousWordBoundary(input.previousText);
-	const previousTail = input.previousText.slice(previousTailStart);
-	const previousTailWordCount = countWordsInMarkdown(previousTail);
-	const nextTailWordCount = countWordsInMarkdown(`${previousTail}${input.deltaText}`);
-	return {
-		wordCount: input.previousWordCount - previousTailWordCount + nextTailWordCount,
-		latestWordCount: countWordsInMarkdown(input.deltaText),
-	};
-}
-
-function findPreviousWordBoundary(text: string): number {
-	for (let index = text.length - 1; index >= 0; index -= 1) {
-		if (/\s/.test(text[index] ?? "")) {
-			return index + 1;
-		}
-	}
-	return 0;
-}
-
-function emptyRowTokenStream(): ReadonlyMap<string, RowTokenStream> {
-	return new Map<string, RowTokenStream>();
 }
 
 function preserveCanonicalStreamingState(projection: CanonicalSessionProjection | null): {
