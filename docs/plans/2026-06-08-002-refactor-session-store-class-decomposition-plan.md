@@ -33,7 +33,7 @@ This is the same pattern that worked for the agent-panel controller (reactive cl
 
 | # | Sub-store | Owns | ~Methods | Risk |
 |---|-----------|------|----------|------|
-| 1 | **SessionListState** | `sessions`, `liveSessionSyncReferences`, `sessionPaletteReferences` `$state` + list CRUD / reference rebuilds | ~15 | low — disjoint from per-session projection; ~38 internal read sites |
+| 1 | **SessionListState** ✅ DONE (`5b49e727f`) | `sessions`, `liveSessionSyncReferences`, `sessionPaletteReferences` `$state` + indexes + scan flags + list CRUD / reference rebuilds | ~15 | low — landed via getter-delegation seam; check 0, rename 8/8, zero regressions (verified vs clean baseline) |
 | 2 | **ViewportProjectionState** | viewport buffer projections, scroll-correction, attachment status (per-session Maps) | ~12 | low — already a clear sub-API (`getTranscriptViewportBufferProjection`, `recoverViewportAttachment`, …) |
 | 3 | **SessionExportService** | markdown/json export (already uses extracted `sessionExportContentError`) | ~4 | low — read-only |
 | 4 | **CapabilityProjectionState** | per-session capability projection (uses extracted `sanitizeCanonicalCapabilities`, `projectGraphCapabilities`) | ~10 | medium |
