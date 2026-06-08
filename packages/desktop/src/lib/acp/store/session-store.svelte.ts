@@ -64,24 +64,10 @@ import {
 	seedTranscriptEntryIndex,
 } from "./transcript-entry-index.js";
 export { transcriptEntryIndexes } from "./transcript-entry-index.js";
-import {
-	createPatchedReferenceArray,
-	createPatchedSessionColdArray,
-	createPrependedReferenceArray,
-	createPrependedSessionColdArray,
-	findSessionColdIndexById,
-	patchSessionIdsByProjectIndex,
-	patchSessionsByProjectIndex,
-	rebuildLiveSessionSyncReferences,
-	rebuildSessionByIdIndex,
-	rebuildSessionIdsByProjectIndex,
-	rebuildSessionPaletteReferences,
-	rebuildSessionsByProjectIndex,
-	sessionLiveSyncReferenceFromSession,
-	sessionPaletteReferenceFromSession,
-} from "./session-cold-index.js";
+import { sessionColdFromExistingSession } from "./session-cold-index.js";
 import type { SessionLiveSyncReference, SessionPaletteReference } from "./session-cold-index.js";
 export type { SessionLiveSyncReference, SessionPaletteReference } from "./session-cold-index.js";
+import { SessionListState as SessionListStateStore } from "./session-list-state.svelte.js";
 import {
 	applyTranscriptDeltaToSnapshot,
 	buildRowTokenStreamKey,
@@ -366,64 +352,6 @@ interface SessionPrLinkRef {
 	readonly prNumber: number;
 	readonly prState: SessionMetadata["prState"];
 	readonly linkedPr: SessionMetadata["linkedPr"];
-}
-
-function sessionColdFromExistingSession(session: SessionCold): SessionCold {
-	return sessionColdFromSlices(
-		{
-			id: session.id,
-			projectPath: session.projectPath,
-			agentId: session.agentId,
-			worktreePath: session.worktreePath,
-		},
-		{
-			title: session.title,
-			createdAt: session.createdAt,
-			updatedAt: session.updatedAt,
-			sourcePath: session.sourcePath,
-			sessionLifecycleState: session.sessionLifecycleState,
-			parentId: session.parentId,
-			prNumber: session.prNumber,
-			prState: session.prState,
-			prLinkMode: session.prLinkMode,
-			linkedPr: session.linkedPr,
-			worktreeDeleted: session.worktreeDeleted,
-			sequenceId: session.sequenceId,
-		}
-	);
-}
-
-function sessionColdWithMutableUpdates(
-	session: SessionCold,
-	updates: SessionMutableColdUpdates,
-	updatedAt: Date
-): SessionCold {
-	return sessionColdFromSlices(
-		{
-			id: session.id,
-			projectPath: session.projectPath,
-			agentId: session.agentId,
-			worktreePath: "worktreePath" in updates ? updates.worktreePath : session.worktreePath,
-		},
-		{
-			title: updates.title !== undefined ? updates.title : session.title,
-			createdAt: updates.createdAt !== undefined ? updates.createdAt : session.createdAt,
-			updatedAt,
-			sourcePath: "sourcePath" in updates ? updates.sourcePath : session.sourcePath,
-			sessionLifecycleState:
-				"sessionLifecycleState" in updates
-					? updates.sessionLifecycleState
-					: session.sessionLifecycleState,
-			parentId: updates.parentId !== undefined ? updates.parentId : session.parentId,
-			prNumber: "prNumber" in updates ? updates.prNumber : session.prNumber,
-			prState: "prState" in updates ? updates.prState : session.prState,
-			prLinkMode: "prLinkMode" in updates ? updates.prLinkMode : session.prLinkMode,
-			linkedPr: "linkedPr" in updates ? updates.linkedPr : session.linkedPr,
-			worktreeDeleted:
-				"worktreeDeleted" in updates ? updates.worktreeDeleted : session.worktreeDeleted,
-			sequenceId: "sequenceId" in updates ? updates.sequenceId : session.sequenceId,
-		}
-	);
 }
 
 function sessionColdFromOpenSnapshotInput(input: {
@@ -866,16 +794,36 @@ export interface SessionStoreCallbacks {
 
 export class SessionStore implements SessionEventHandler, ISessionStateReader, ISessionStateWriter {
 	// === PRIMARY STATE ===
-	private sessions = $state<SessionCold[]>([]);
-	private readonly sessionById = new SvelteMap<string, SessionCold>();
-	private readonly sessionsByProject = new SvelteMap<string, SessionCold[]>();
-	private readonly sessionIdsByProject = new SvelteMap<string, string[]>();
-	private liveSessionSyncReferences = $state<SessionLiveSyncReference[]>([]);
-	private sessionPaletteReferences = $state<SessionPaletteReference[]>([]);
+	// Session-list slice (cold list, by-id/by-project indexes, reference arrays,
+	// per-project scan flags) extracted as a composed sub-store (see docs/adr/0002).
+	private readonly listState = new SessionListStateStore();
 	loading = $state(false);
 
+	// Delegating accessors so the store's list-domain reads route to the sub-store
+	// while keeping the same live instances (preserves white-box invariant tests).
+	private get sessions(): SessionCold[] {
+		return this.listState.sessions;
+	}
+	private get sessionById(): SvelteMap<string, SessionCold> {
+		return this.listState.sessionById;
+	}
+	private get sessionsByProject(): SvelteMap<string, SessionCold[]> {
+		return this.listState.sessionsByProject;
+	}
+	private get sessionIdsByProject(): SvelteMap<string, string[]> {
+		return this.listState.sessionIdsByProject;
+	}
+	private get liveSessionSyncReferences(): SessionLiveSyncReference[] {
+		return this.listState.liveSessionSyncReferences;
+	}
+	private get sessionPaletteReferences(): SessionPaletteReference[] {
+		return this.listState.sessionPaletteReferences;
+	}
+
 	/** Project paths currently being scanned for sessions (for per-project skeleton display). */
-	readonly scanningProjectPaths = new SvelteSet<string>();
+	get scanningProjectPaths(): SvelteSet<string> {
+		return this.listState.scanningProjectPaths;
+	}
 
 	// Callbacks invoked when a session is removed (e.g., plan store cleanup)
 	private readonly onRemoveCallbacks: Array<(sessionId: string) => void> = [];
@@ -973,12 +921,7 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 	 * Set sessions array (for bulk operations).
 	 */
 	setSessions(sessions: SessionCold[]): void {
-		this.sessions = sessions;
-		rebuildSessionByIdIndex(this.sessionById, sessions);
-		rebuildSessionsByProjectIndex(this.sessionsByProject, sessions);
-		rebuildSessionIdsByProjectIndex(this.sessionIdsByProject, sessions);
-		this.liveSessionSyncReferences = rebuildLiveSessionSyncReferences(sessions);
-		this.sessionPaletteReferences = rebuildSessionPaletteReferences(sessions);
+		this.listState.setSessions(sessions);
 	}
 
 	/**
@@ -992,18 +935,14 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 	 * Mark project paths as currently being scanned.
 	 */
 	addScanningProjects(paths: string[]): void {
-		for (const p of paths) {
-			this.scanningProjectPaths.add(p);
-		}
+		this.listState.addScanningProjects(paths);
 	}
 
 	/**
 	 * Clear scanning state for project paths.
 	 */
 	removeScanningProjects(paths: string[]): void {
-		for (const p of paths) {
-			this.scanningProjectPaths.delete(p);
-		}
+		this.listState.removeScanningProjects(paths);
 	}
 
 	// ============================================
@@ -2091,19 +2030,7 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 	 * Add a session to the store.
 	 */
 	addSession(session: SessionCold): void {
-		this.sessions = createPrependedSessionColdArray(session, this.sessions);
-		this.sessionById.set(session.id, session);
-		patchSessionsByProjectIndex(this.sessionsByProject, undefined, session);
-		patchSessionIdsByProjectIndex(this.sessionIdsByProject, undefined, session);
-		this.liveSessionSyncReferences = createPrependedReferenceArray(
-			sessionLiveSyncReferenceFromSession(session),
-			this.liveSessionSyncReferences
-		);
-		this.sessionPaletteReferences = createPrependedReferenceArray(
-			sessionPaletteReferenceFromSession(session),
-			this.sessionPaletteReferences
-		);
-		logger.debug("Added session", { sessionId: session.id });
+		this.listState.addSession(session);
 	}
 
 	/**
@@ -2185,26 +2112,7 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 		});
 
 		if (canonicalSession) {
-			const sessionIndex = findSessionColdIndexById(this.sessions, canonicalSessionId);
-			this.sessions =
-				sessionIndex === -1
-					? createPrependedSessionColdArray(snapshotSession, this.sessions)
-					: createPatchedSessionColdArray(this.sessions, sessionIndex, snapshotSession);
-			this.sessionById.set(canonicalSessionId, snapshotSession);
-			patchSessionsByProjectIndex(this.sessionsByProject, canonicalSession, snapshotSession);
-			patchSessionIdsByProjectIndex(
-				this.sessionIdsByProject,
-				canonicalSession,
-				snapshotSession
-			);
-			this.liveSessionSyncReferences = createPatchedReferenceArray(
-				this.liveSessionSyncReferences,
-				sessionLiveSyncReferenceFromSession(snapshotSession)
-			);
-			this.sessionPaletteReferences = createPatchedReferenceArray(
-				this.sessionPaletteReferences,
-				sessionPaletteReferenceFromSession(snapshotSession)
-			);
+			this.listState.applyOpenSnapshotToList(canonicalSession, snapshotSession);
 		} else {
 			this.addSession(snapshotSession);
 		}
@@ -2330,36 +2238,7 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 		updates: SessionMutableColdUpdates,
 		options?: { touchUpdatedAt?: boolean }
 	): void {
-		const sessionIndex = findSessionColdIndexById(this.sessions, id);
-		if (sessionIndex === -1) {
-			return;
-		}
-
-		const session = this.sessions[sessionIndex];
-		if (session === undefined) {
-			return;
-		}
-
-		const updatedAt =
-			updates.updatedAt !== undefined
-				? updates.updatedAt
-				: options?.touchUpdatedAt === false
-					? session.updatedAt
-					: new Date();
-
-		const updatedSession = sessionColdWithMutableUpdates(session, updates, updatedAt);
-		this.sessions = createPatchedSessionColdArray(this.sessions, sessionIndex, updatedSession);
-		this.sessionById.set(id, updatedSession);
-		patchSessionsByProjectIndex(this.sessionsByProject, session, updatedSession);
-		patchSessionIdsByProjectIndex(this.sessionIdsByProject, session, updatedSession);
-		this.liveSessionSyncReferences = createPatchedReferenceArray(
-			this.liveSessionSyncReferences,
-			sessionLiveSyncReferenceFromSession(updatedSession)
-		);
-		this.sessionPaletteReferences = createPatchedReferenceArray(
-			this.sessionPaletteReferences,
-			sessionPaletteReferenceFromSession(updatedSession)
-		);
+		this.listState.updateSession(id, updates, options);
 	}
 
 	renameSession(sessionId: string, title: string): ResultAsync<void, AppError> {

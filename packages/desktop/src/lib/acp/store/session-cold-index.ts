@@ -4,9 +4,10 @@
  * builders + incremental patches, and array removals. Pure list transforms — no
  * projection state. GOD-safe.
  */
-import type { SessionCold } from "./types.js";
+import type { SessionCold, SessionMutableColdUpdates } from "./types.js";
 import { SvelteMap } from "svelte/reactivity";
 import { toArrayIndex } from "./array-index-utils.js";
+import { sessionColdFromSlices } from "../application/dto/session-cold.js";
 
 export type SessionLiveSyncReference = {
 	readonly id: string;
@@ -439,5 +440,65 @@ export function rebuildSessionPaletteReferences(
 		references.push(sessionPaletteReferenceFromSession(session));
 	}
 	return references;
+}
+
+/** Rebuild a SessionCold from an existing one (defensive copy via the canonical slice constructor). */
+export function sessionColdFromExistingSession(session: SessionCold): SessionCold {
+	return sessionColdFromSlices(
+		{
+			id: session.id,
+			projectPath: session.projectPath,
+			agentId: session.agentId,
+			worktreePath: session.worktreePath,
+		},
+		{
+			title: session.title,
+			createdAt: session.createdAt,
+			updatedAt: session.updatedAt,
+			sourcePath: session.sourcePath,
+			sessionLifecycleState: session.sessionLifecycleState,
+			parentId: session.parentId,
+			prNumber: session.prNumber,
+			prState: session.prState,
+			prLinkMode: session.prLinkMode,
+			linkedPr: session.linkedPr,
+			worktreeDeleted: session.worktreeDeleted,
+			sequenceId: session.sequenceId,
+		}
+	);
+}
+
+/** Apply mutable cold updates to a SessionCold, producing a new instance with the given updatedAt. */
+export function sessionColdWithMutableUpdates(
+	session: SessionCold,
+	updates: SessionMutableColdUpdates,
+	updatedAt: Date
+): SessionCold {
+	return sessionColdFromSlices(
+		{
+			id: session.id,
+			projectPath: session.projectPath,
+			agentId: session.agentId,
+			worktreePath: "worktreePath" in updates ? updates.worktreePath : session.worktreePath,
+		},
+		{
+			title: updates.title !== undefined ? updates.title : session.title,
+			createdAt: updates.createdAt !== undefined ? updates.createdAt : session.createdAt,
+			updatedAt,
+			sourcePath: "sourcePath" in updates ? updates.sourcePath : session.sourcePath,
+			sessionLifecycleState:
+				"sessionLifecycleState" in updates
+					? updates.sessionLifecycleState
+					: session.sessionLifecycleState,
+			parentId: updates.parentId !== undefined ? updates.parentId : session.parentId,
+			prNumber: "prNumber" in updates ? updates.prNumber : session.prNumber,
+			prState: "prState" in updates ? updates.prState : session.prState,
+			prLinkMode: "prLinkMode" in updates ? updates.prLinkMode : session.prLinkMode,
+			linkedPr: "linkedPr" in updates ? updates.linkedPr : session.linkedPr,
+			worktreeDeleted:
+				"worktreeDeleted" in updates ? updates.worktreeDeleted : session.worktreeDeleted,
+			sequenceId: "sequenceId" in updates ? updates.sequenceId : session.sequenceId,
+		}
+	);
 }
 
