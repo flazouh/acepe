@@ -9,6 +9,7 @@ import {
 	type PersistedFileReviewProgress,
 	toPersistedFileReviewProgress,
 } from "../../../store/session-review-state-store.svelte.js";
+import type { ReviewControlsSnapshot } from "./agent-panel-review-content-types.js";
 import type { ModifiedFileEntry } from "../../../types/modified-file-entry.js";
 import type { ReviewDiffViewState } from "../../modified-files/components/review-diff-view-state.svelte.js";
 import type { ReviewDiffDensity } from "../../modified-files/components/review-diff-view-state.svelte.js";
@@ -52,17 +53,7 @@ interface Props {
 	diffDensity?: ReviewDiffDensity;
 }
 
-export interface ReviewControlsSnapshot {
-	hasPendingHunks: boolean;
-	hasPrevPendingFile: boolean;
-	hasNextPendingFile: boolean;
-	fileCurrent: number;
-	fileTotal: number;
-	onPrevFile: () => void;
-	onNextFile: () => void;
-	onAcceptFile: () => void;
-	onRejectFile: () => void;
-}
+export type { ReviewControlsSnapshot };
 
 let {
 	modifiedFilesState,

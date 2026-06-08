@@ -58,9 +58,6 @@ import { getTodoStateManager } from "../../../logic/todo-state-manager.svelte.js
 import { usePlanLoader } from "../hooks";
 import {
 	createWorktreeSetupMatchContext,
-	createPendingWorktreeCloseConfirmationState,
-	createResolvedWorktreeCloseConfirmationState,
-	createWorktreeCreationState,
 	copyTextToClipboard,
 	applyAgentPanelDisplayMemory,
 	buildAgentPanelBaseModel,
@@ -69,7 +66,6 @@ import {
 	createAgentPanelDisplayRowsReadModel,
 	matchesWorktreeSetupContext,
 	removeWorktreeAndMarkSessionWorktreeDeleted,
-	reduceWorktreeSetupEvent,
 	resolveEffectiveProjectPath,
 	shouldConfirmWorktreeClose,
 } from "../logic";
@@ -83,19 +79,22 @@ import { createPanelBranchLookupController } from "../logic/panel-branch-lookup.
 import { createAgentPanelExportHandlers } from "../logic/agent-panel-export-handlers.js";
 import { createAgentPanelInteractionHandlers } from "../logic/agent-panel-interaction-handlers.js";
 import { AgentPanelSessionController } from "../state/agent-panel-session-controller.svelte.js";
-import type { WorktreeSetupState } from "../logic/worktree-setup-events.js";
+import { CheckpointTimelineController } from "../state/checkpoint-timeline-controller.svelte.js";
+import { ReviewDialogController } from "../state/review-dialog-controller.svelte.js";
+import { PrCardController } from "../state/pr-card-controller.svelte.js";
+import { WorktreeCloseConfirmationController } from "../state/worktree-close-confirmation-controller.svelte.js";
+import { WorktreeSetupController } from "../state/worktree-setup-controller.svelte.js";
+import { ContentScrollRevealController } from "../state/content-scroll-reveal-controller.svelte.js";
+import { ConnectionController } from "../state/connection-controller.svelte.js";
 import { shouldAutoScrollOnPanelActivation } from "../logic/should-auto-scroll-on-panel-activation.js";
+import { isInteractiveClickTarget } from "../logic/panel-focus-guard.js";
 import { deriveAgentPanelHeaderDisplayTitle } from "../logic/agent-panel-header-title.js";
 import { resolveAgentPanelProviderBrand } from "../logic/agent-panel-provider-brand.js";
 import { shouldShowPreSessionWorktreeCard } from "../logic/pre-session-worktree-card-visibility.js";
 import { resolveWorktreeToggleProjectPath } from "../logic/worktree-toggle-project-path.js";
 import { createGraphSceneEntryIndexReadModel } from "../logic/graph-scene-entry-match.js";
 import { createTokenRevealSceneReadModel } from "../logic/token-reveal-scene-read-model.js";
-import {
-	buildTodoMarkdown,
-	buildTokenRevealCss,
-	hasStreamingPreviewContent,
-} from "./agent-panel-pure-helpers.js";
+import { buildTodoMarkdown, buildTokenRevealCss } from "./agent-panel-pure-helpers.js";
 import { AgentPanelState } from "../state/agent-panel-state.svelte";
 import type { AgentPanelProps } from "../types";
 import { AgentPanelFooter as SharedFooter } from "@acepe/ui/agent-panel";
@@ -104,7 +103,7 @@ import AgentPanelContent from "./agent-panel-content.svelte";
 import AgentPanelHeader from "./agent-panel-header.svelte";
 import AgentPanelResizeEdge from "./agent-panel-resize-edge.svelte";
 import AgentPanelReviewWorkspace from "./agent-panel-review-workspace.svelte";
-import type { ReviewControlsSnapshot } from "./agent-panel-review-content.svelte";
+import type { ReviewControlsSnapshot } from "./agent-panel-review-content-types.js";
 import WorkspaceDialogFrame from "$lib/components/ui/workspace-dialog-frame.svelte";
 import AgentPanelTerminalDrawer from "./agent-panel-terminal-drawer.svelte";
 import AgentPanelPreComposerStack from "./agent-panel-pre-composer-stack.svelte";
@@ -122,7 +121,6 @@ import {
 	shouldUseCenteredFullscreenContent,
 } from "./agent-panel-layout.js";
 import { buildAgentErrorIssueDraft } from "../logic/issue-report-draft.js";
-import type { PanelConnectionErrorDetails } from "../../../types/panel-connection-state.js";
 import { resolveInitialReviewWorkspaceIndex } from "./review-workspace-model.js";
 import {
 	cancelQueuedMessageAndRestoreInput,
@@ -191,14 +189,20 @@ const chatPreferencesStore = getChatPreferencesStore();
 // Session-derived reactive state is being hoisted into this controller,
 // cluster by cluster (see docs/plans/2026-05-29-002-...). Instantiated once;
 // consumed incrementally as derivations migrate.
-const sessionController = new AgentPanelSessionController({
+const sessionController: AgentPanelSessionController = new AgentPanelSessionController({
 	getSessionId: () => sessionId,
 	getPanelId: () => panelId,
 	sessionStore,
 	panelStore,
-	getPanelConnectionState: () => panelConnectionState,
-	getPanelConnectionError: () => panelConnectionError,
+	getPanelConnectionState: () => connection.state,
+	getPanelConnectionError: () => connection.error,
 	getAgentName: () => agentName,
+});
+
+// Panel-connection state — owned by a testable controller. Mutually-referential
+// with sessionController via lazy accessors (stillFailed ↔ connection state/error).
+const connection: ConnectionController = new ConnectionController({
+	getStillFailed: () => sessionController.stillFailed,
 });
 
 setThinkingPreferences({
@@ -283,34 +287,25 @@ let scrollContainer: HTMLDivElement | null = $state(null);
 
 // Reference to content component for scroll control
 let contentRef: AgentPanelContent | null = $state(null);
-let pendingUserRevealRequestVersion = $state(0);
+
+// Content scroll-position + token-reveal state — owned by a testable controller.
+const contentScrollReveal = new ContentScrollRevealController();
 
 // Scroll viewport reference for scroll-to-bottom button (bindable from child)
 let contentScrollViewport: HTMLElement | null = $state(null);
-let contentIsAtBottom = $state(true);
-let contentIsAtTop = $state(true);
-let contentIsStreaming = $state(false);
-let tokenRevealSettleRevision = $state(0);
-let panelConnectionState = $state<PanelConnectionState | null>(null);
-let panelConnectionError = $state<PanelConnectionErrorDetails | null>(null);
-// Dismiss tracking: store the error fingerprint that the user dismissed.
-// `errorDismissed` is a $derived comparison against the current fingerprint —
-// when the error key changes (different failureReason or details), the
-// dismissal is automatically lifted without any $effect.
-let dismissedErrorKey = $state<string | null>(null);
 
-// Checkpoint timeline state
-let showCheckpointTimeline = $state(false);
-let isLoadingCheckpoints = $state(false);
+// Checkpoint timeline state — owned by an independently-testable controller.
+const checkpointTimeline = new CheckpointTimelineController({
+	getSessionId: () => sessionId,
+	getCheckpoints: (id) => checkpointStore.getCheckpoints(id),
+	loadCheckpoints: loadCheckpointsBeforeTimelineOpen,
+});
 
 // Worktree state - tracks the active worktree directory for checkpoint path conversion
 let activeWorktreePath = $state<string | null>(null);
 let activeWorktreeOwnerProjectPath = $state<string | null>(null);
 let _panelBranch = $state<string | null>(null);
 let branchRequestVersion = 0;
-
-// Get checkpoints reactively (loads when needed)
-const checkpoints = $derived(sessionId ? checkpointStore.getCheckpoints(sessionId) : []);
 
 function scrollToTop() {
 	contentRef?.scrollToTop();
@@ -322,12 +317,12 @@ function scrollToBottom() {
 }
 
 function prepareForNextUserReveal() {
-	pendingUserRevealRequestVersion += 1;
+	const requestVersion = contentScrollReveal.requestUserReveal();
 	logger.info("prepareForNextUserReveal: panel", {
 		panelId: sessionController.effectivePanelId,
 		sessionId,
 		entryCount: sessionController.visibleEntryCount,
-		requestVersion: pendingUserRevealRequestVersion,
+		requestVersion,
 	});
 	return sessionController.effectivePanelId;
 }
@@ -339,9 +334,9 @@ function scrollToBottomOnTabSwitch() {
 
 // Effective panel ID (use prop or generate one)
 const pendingUserRevealRequestKey = $derived(
-	pendingUserRevealRequestVersion === 0
+	contentScrollReveal.userRevealRequestVersion === 0
 		? null
-		: `${sessionController.effectivePanelId}:${pendingUserRevealRequestVersion}:${sessionController.optimisticUserEntryForGraph?.id ?? "pending"}`
+		: `${sessionController.effectivePanelId}:${contentScrollReveal.userRevealRequestVersion}:${sessionController.optimisticUserEntryForGraph?.id ?? "pending"}`
 );
 
 // Derived UI conditions based on projectCount + panel/session state
@@ -424,7 +419,7 @@ const agentName = $derived.by(() => {
 // source + unit-tested); the connection $state + retry/cancel/dismiss handlers
 // stay here (tangled with agentInputRef). Thin reactive aliases; ref-inline U5.
 const errorDismissed = $derived(
-	sessionController.errorDismissalKey !== null && dismissedErrorKey === sessionController.errorDismissalKey
+	sessionController.errorDismissalKey !== null && connection.dismissedErrorKey === sessionController.errorDismissalKey
 );
 
 // Panel view state: single discriminated union from all inputs
@@ -457,7 +452,7 @@ const worktreePending = $derived(
 		hasPreparedWorktreeLaunch: panelPreparedWorktreeLaunch !== null,
 	})
 );
-let worktreeSetupState = $state<WorktreeSetupState | null>(null);
+const worktreeSetup = new WorktreeSetupController();
 const pendingWorktreeSetup = $derived(sessionController.panelHotState ? sessionController.panelHotState.pendingWorktreeSetup : null);
 const showPreSessionWorktreeCard = $derived.by(() =>
 	shouldShowPreSessionWorktreeCard({
@@ -465,7 +460,7 @@ const showPreSessionWorktreeCard = $derived.by(() =>
 		pendingProjectSelection,
 		worktreeToggleProjectPath,
 		hasPendingWorktreeSetup: pendingWorktreeSetup !== null,
-		worktreeSetupVisible: worktreeSetupState?.isVisible === true,
+		worktreeSetupVisible: worktreeSetup.state?.isVisible === true,
 		hasMessages: sessionController.hasMessages,
 	})
 );
@@ -530,7 +525,7 @@ $effect(() => {
 	}
 
 	if (pendingSetup.phase === "creating-worktree") {
-		worktreeSetupState = createWorktreeCreationState({
+		worktreeSetup.startCreation({
 			projectPath: pendingSetup.projectPath,
 			worktreePath: pendingSetup.worktreePath,
 		});
@@ -560,7 +555,7 @@ $effect(() => {
 		if (panelId) {
 			panelStore.clearPendingWorktreeSetup(panelId);
 		}
-		worktreeSetupState = reduceWorktreeSetupEvent(worktreeSetupState, payload);
+		worktreeSetup.applyEvent(payload);
 	})
 		.then((callback) => {
 			unlisten = callback;
@@ -575,7 +570,7 @@ $effect(() => {
 });
 
 $effect(() => {
-	const state = worktreeSetupState;
+	const state = worktreeSetup.state;
 	if (!state) return;
 
 	if (worktreeSetupMatchContext.worktreePaths.length > 0) {
@@ -583,7 +578,7 @@ $effect(() => {
 			!state.worktreePath ||
 			!worktreeSetupMatchContext.worktreePaths.includes(state.worktreePath)
 		) {
-			worktreeSetupState = null;
+			worktreeSetup.clear();
 			if (panelId) {
 				panelStore.clearPendingWorktreeSetup(panelId);
 			}
@@ -595,7 +590,7 @@ $effect(() => {
 		worktreeSetupMatchContext.projectPaths.length > 0 &&
 		!worktreeSetupMatchContext.projectPaths.includes(state.projectPath)
 	) {
-		worktreeSetupState = null;
+		worktreeSetup.clear();
 		if (panelId) {
 			panelStore.clearPendingWorktreeSetup(panelId);
 		}
@@ -707,7 +702,7 @@ const graphSceneEntries = $derived.by(() => {
 	);
 });
 const tokenRevealSceneEntries = $derived.by(() => {
-	tokenRevealSettleRevision;
+	contentScrollReveal.settleRevision;
 	const streamingAnimationMode = chatPreferencesStore?.streamingAnimationMode ?? "smooth";
 	const tokenRevealTailRowId =
 		sessionId === null ? null : sessionStore.getActiveStreamingTailRowId(sessionId);
@@ -751,10 +746,10 @@ $effect(() => {
 		return;
 	}
 
-	const nextRevision = tokenRevealSettleRevision + 1;
+	const nextRevision = contentScrollReveal.settleRevision + 1;
 	const timeoutId = window.setTimeout(() => {
-		if (tokenRevealSettleRevision < nextRevision) {
-			tokenRevealSettleRevision = nextRevision;
+		if (contentScrollReveal.settleRevision < nextRevision) {
+			contentScrollReveal.setSettleRevision(nextRevision);
 		}
 	}, delayMs);
 
@@ -763,7 +758,7 @@ $effect(() => {
 	};
 });
 const isConnecting = $derived(
-	panelConnectionState === PanelConnectionState.CONNECTING ||
+	connection.state === PanelConnectionState.CONNECTING ||
 		(!sessionId && panelId ? sessionController.panelHotState?.pendingUserEntry !== null : false)
 );
 const inputRenderKey = $derived(
@@ -815,37 +810,21 @@ const ATTACHED_COLUMN_GAP_WIDTH = 2;
 // Dynamic minimum width reported by the toolbar's intrinsic content measurement.
 // The 16px accounts for the data-input-area wrapper's p-2 padding (8px each side).
 let toolbarMinWidth = $state(0);
-let createPrRunning = $state(false);
-let createPrLabel = $state<string | null>(null);
-let mergePrRunning = $state(false);
-let prDetails = $state<import("$lib/utils/tauri-client/git.js").PrDetails | null>(null);
-let prFetchError = $state<string | null>(null);
-let streamingShipData = $state<import("../../ship-card/ship-card-parser.js").ShipCardData | null>(
-	null
-);
-let prCardRenderKey = $state(0);
+// PR/git-card reactive state — owned by an independently-testable controller.
+const prCard = new PrCardController();
 let preSessionWorktreeFailure = $state<string | null>(null);
 let agentInputRef = $state<{
 	retrySend: () => void;
 	restoreQueuedMessage: (draft: string, attachments: readonly Attachment[]) => void;
 } | null>(null);
-// Retry-busy is now derived (plan Decision 7): set `retryActive` true on retry,
-// clear it via the 4s fallback timer; the spinner auto-clears when the failure
-// state transitions away (`stillFailed` goes false) — no $effect needed.
-let retryActive = $state(false);
-const isRetryingConnection = $derived(retryActive && sessionController.stillFailed);
-let retryBusyTimer: ReturnType<typeof setTimeout> | null = null;
 let headerRef: HTMLElement | undefined = $state();
 
 onDestroy(() => {
-	if (retryBusyTimer !== null) {
-		clearTimeout(retryBusyTimer);
-		retryBusyTimer = null;
-	}
+	connection.dispose();
 });
 
 const worktreeSetupMatchContext = $derived.by(() => {
-	const activeSetupState = worktreeSetupState?.isVisible ? worktreeSetupState : null;
+	const activeSetupState = worktreeSetup.state?.isVisible ? worktreeSetup.state : null;
 
 	return createWorktreeSetupMatchContext({
 		pendingSetupProjectPath: pendingWorktreeSetup ? pendingWorktreeSetup.projectPath : null,
@@ -898,13 +877,12 @@ function fetchPrDetails(target: {
 	projectPath: string;
 	prNumber: number;
 }): void {
-	prDetails = null;
-	prFetchError = null;
+	prCard.resetDetails();
 	void sessionStore
 		.refreshSessionPrState(target.sessionId, target.projectPath, target.prNumber)
 		.match(
 			(details) => {
-				prDetails = details;
+				prCard.setDetails(details);
 			},
 			() => {
 				// refreshSessionPrState never errors (orElse swallows), but match requires both branches
@@ -912,22 +890,8 @@ function fetchPrDetails(target: {
 		);
 }
 
-let lastFetchedPrTargetKey = $state<string | null>(null);
 $effect(() => {
-	if (!prFetchTarget) {
-		prDetails = null;
-		prFetchError = null;
-		lastFetchedPrTargetKey = null;
-		return;
-	}
-
-	const targetKey = `${prFetchTarget.sessionId}:${prFetchTarget.projectPath}:${prFetchTarget.prNumber}`;
-	if (targetKey === lastFetchedPrTargetKey) {
-		return;
-	}
-
-	lastFetchedPrTargetKey = targetKey;
-	fetchPrDetails(prFetchTarget);
+	prCard.syncFetchTarget(prFetchTarget, fetchPrDetails);
 });
 
 const toolbarMinWidthWithPadding = $derived(toolbarMinWidth > 0 ? toolbarMinWidth + 16 : 0);
@@ -960,33 +924,8 @@ const clampedReviewFileIndex = $derived.by(() => {
 	return Math.min(reviewFileIndex, fileCount - 1);
 });
 
-let reviewDialogOpen = $state(false);
-let reviewDialogFilesState = $state<ModifiedFilesState | null>(null);
-let reviewDialogFileIndex = $state(0);
-let reviewDialogControls = $state<ReviewControlsSnapshot | null>(null);
-
-function handleReviewDialogControlsChange(controls: ReviewControlsSnapshot | null): void {
-	reviewDialogControls = controls;
-}
-
-const clampedReviewDialogFileIndex = $derived.by(() => {
-	const fileCount = reviewDialogFilesState?.fileCount ?? 0;
-	if (fileCount === 0) return 0;
-	return Math.min(Math.max(reviewDialogFileIndex, 0), fileCount - 1);
-});
-const reviewDialogDiffStats = $derived.by(() => {
-	if (!reviewDialogFilesState) {
-		return { insertions: 0, deletions: 0 };
-	}
-
-	return reviewDialogFilesState.files.reduce(
-		(totals, file) => ({
-			insertions: totals.insertions + file.totalAdded,
-			deletions: totals.deletions + file.totalRemoved,
-		}),
-		{ insertions: 0, deletions: 0 }
-	);
-});
+// Review-dialog UI state — owned by an independently-testable controller.
+const reviewDialog = new ReviewDialogController();
 
 // Add embedded pane widths (plan sidebar, review) when expanded
 const effectiveWidth = $derived.by(() =>
@@ -1077,9 +1016,7 @@ function handleEnterReviewMode(filesState: ModifiedFilesState): void {
 }
 
 function openReviewDialogAtInitialFile(filesState: ModifiedFilesState): void {
-	reviewDialogFilesState = filesState;
-	reviewDialogFileIndex = resolveInitialReviewWorkspaceIndex(filesState, sessionId);
-	reviewDialogOpen = true;
+	reviewDialog.open(filesState, resolveInitialReviewWorkspaceIndex(filesState, sessionId));
 }
 
 function handleOpenReviewDialog(filesState: ModifiedFilesState, _fileIndex: number): void {
@@ -1091,15 +1028,6 @@ function handleOpenReviewDialog(filesState: ModifiedFilesState, _fileIndex: numb
 	void sessionReviewStateStore.ensureLoadedAsync(sessionId).then(() => {
 		openReviewDialogAtInitialFile(filesState);
 	});
-}
-
-function handleReviewDialogOpenChange(open: boolean): void {
-	reviewDialogOpen = open;
-	if (open) {
-		return;
-	}
-	reviewDialogFilesState = null;
-	reviewDialogFileIndex = 0;
 }
 
 // Track panelId changes for tab switching detection
@@ -1127,20 +1055,20 @@ $effect(() => {
 
 $effect(() => {
 	if (!panelId) {
-		panelConnectionState = null;
-		panelConnectionError = null;
+		connection.state = null;
+		connection.error = null;
 		return;
 	}
 
 	const existingState = connectionStore.getState(panelId);
 	const existingContext = connectionStore.getContext(panelId);
-	panelConnectionState = existingState;
-	panelConnectionError = existingContext?.error ?? null;
+	connection.state = existingState;
+	connection.error = existingContext?.error ?? null;
 
 	const unsubscribe = connectionStore.onChange((id, state, context) => {
 		if (id !== panelId) return;
-		panelConnectionState = state;
-		panelConnectionError = context.error ?? null;
+		connection.state = state;
+		connection.error = context.error ?? null;
 	});
 
 	return () => {
@@ -1203,9 +1131,8 @@ $effect(() => {
 });
 
 // ✅ Worktree close confirmation (inline header strip)
-let worktreeCloseConfirming = $state(false);
-let worktreeHasDirtyChanges = $state(false);
-let worktreeDirtyCheckPending = $state(false);
+// Worktree close-confirmation popover state — owned by a testable controller.
+const worktreeCloseConfirm = new WorktreeCloseConfirmationController();
 
 // Check if the session's worktree still exists on disk.
 // If deleted, disconnect the session (agent can't work in a missing directory).
@@ -1256,18 +1183,12 @@ async function handleClose() {
 		if (worktreePath == null) {
 			return;
 		}
-		const confirmationState = createPendingWorktreeCloseConfirmationState();
-		worktreeCloseConfirming = confirmationState.confirming;
-		worktreeHasDirtyChanges = confirmationState.hasDirtyChanges;
-		worktreeDirtyCheckPending = confirmationState.dirtyCheckPending;
+		worktreeCloseConfirm.beginPending();
 		const hasDirtyChanges = await fetchWorktreeHasUncommittedChanges(worktreePath).match(
 			(dirty) => dirty,
 			() => false // safe default on error — show normal confirmation
 		);
-		const resolvedState = createResolvedWorktreeCloseConfirmationState(hasDirtyChanges);
-		worktreeCloseConfirming = resolvedState.confirming;
-		worktreeHasDirtyChanges = resolvedState.hasDirtyChanges;
-		worktreeDirtyCheckPending = resolvedState.dirtyCheckPending;
+		worktreeCloseConfirm.resolve(hasDirtyChanges);
 		return;
 	}
 	onClose?.();
@@ -1278,17 +1199,15 @@ export function requestClosePanelConfirmation(): void {
 }
 
 function handleWorktreeCloseOnly() {
-	worktreeCloseConfirming = false;
-	worktreeDirtyCheckPending = false;
+	worktreeCloseConfirm.dismiss();
 	onClose?.();
 }
 
 function handleWorktreeRemoveAndClose() {
 	const worktreePath = effectiveActiveWorktreePath;
 	const currentSessionId = sessionId;
-	const force = worktreeHasDirtyChanges;
-	worktreeCloseConfirming = false;
-	worktreeDirtyCheckPending = false;
+	const force = worktreeCloseConfirm.hasDirtyChanges;
+	worktreeCloseConfirm.dismiss();
 	onClose?.();
 	void removeWorktreeAndMarkSessionWorktreeDeleted(
 		{
@@ -1315,9 +1234,7 @@ function handleWorktreeRemoveAndClose() {
 }
 
 function handleWorktreeCloseCancel() {
-	worktreeCloseConfirming = false;
-	worktreeHasDirtyChanges = false;
-	worktreeDirtyCheckPending = false;
+	worktreeCloseConfirm.cancel();
 }
 
 function handleProjectAgentSelected(project: Project, agentId: string) {
@@ -1461,23 +1378,10 @@ async function handleCreatePr(config?: PrGenerationConfig) {
 		modifiedFilesState,
 		config,
 		effectivePanelAgentId,
-		setCreatePrRunning: (running) => {
-			createPrRunning = running;
-		},
-		setCreatePrLabel: (label) => {
-			createPrLabel = label;
-		},
-		onStreamReset: () => {
-			streamingShipData = null;
-		},
-		onStreamUpdate: (data) => {
-			const hadPreviewContent = hasStreamingPreviewContent(streamingShipData);
-			const hasPreviewContent = hasStreamingPreviewContent(data);
-			if (!hadPreviewContent && hasPreviewContent) {
-				prCardRenderKey += 1;
-			}
-			streamingShipData = data;
-		},
+		setCreatePrRunning: (running) => prCard.setCreateRunning(running),
+		setCreatePrLabel: (label) => prCard.setCreateLabel(label),
+		onStreamReset: () => prCard.resetStream(),
+		onStreamUpdate: (data) => prCard.applyStreamUpdate(data),
 		deps: {
 			applyAutomaticSessionPrLink: async (id, projectPath, pr) => {
 				const result = await sessionStore.applyAutomaticPrLinkFromShipWorkflow(id, projectPath, pr);
@@ -1498,9 +1402,7 @@ async function handleMergePr(strategy: MergeStrategy) {
 		path,
 		prNum,
 		strategy,
-		setMergePrRunning: (running) => {
-			mergePrRunning = running;
-		},
+		setMergePrRunning: (running) => prCard.setMergeRunning(running),
 		onMerged: () => {
 			sessionStore.updateSession(sessionId, { prState: "MERGED" });
 			sessionStore.invalidatePrDetails(path, prNum);
@@ -1536,19 +1438,9 @@ const {
 function handlePanelClick(e: MouseEvent) {
 	const target = e.target as HTMLElement;
 
-	// Don't focus panel if clicking on input area or form elements
-	// Check data-input-area first (most common case) to avoid unnecessary DOM traversal
-	const isInputArea =
-		target.hasAttribute("data-input-area") || target.closest("[data-input-area]") !== null;
-	const isTextarea = target.tagName === "TEXTAREA" || target.closest("textarea") !== null;
-	const isInput = target.tagName === "INPUT" || target.closest("input") !== null;
-	// Only check for actual <button> and <a> elements, not role="button" which is used
-	// for accessibility on collapsible containers
-	const isButton = target.closest("button") !== null;
-	const isLink = target.closest("a") !== null;
-
-	if (isInputArea || isTextarea || isInput || isButton || isLink) {
-		// Don't focus the panel when clicking on form elements or buttons
+	// Don't focus the panel when clicking on form elements, buttons, or a
+	// registered input area — see isInteractiveClickTarget for the rationale.
+	if (isInteractiveClickTarget(target)) {
 		return;
 	}
 
@@ -1569,21 +1461,12 @@ function handlePanelKeyDown(e: KeyboardEvent) {
 }
 
 function handleRetryConnection() {
-	if (isRetryingConnection) {
+	// beginRetry guards against re-entrancy and starts the 4s busy window; the
+	// derived isRetrying also clears as soon as the failure state transitions
+	// away — see Decision 7.
+	if (!connection.beginRetry()) {
 		return;
 	}
-	retryActive = true;
-	if (retryBusyTimer !== null) {
-		clearTimeout(retryBusyTimer);
-	}
-	// Auto-clear after a short window so the spinner doesn't hang forever if the
-	// underlying state machine doesn't bounce. The derived `isRetryingConnection`
-	// (retryActive && stillFailed) also clears as soon as the failure state
-	// transitions away — see Decision 7.
-	retryBusyTimer = setTimeout(() => {
-		retryActive = false;
-		retryBusyTimer = null;
-	}, 4000);
 
 	// Turn-level failure on an existing session: re-send the last user
 	// message in the same session instead of recreating the session.
@@ -1598,11 +1481,11 @@ function handleRetryConnection() {
 	runPanelConnectionRetry({
 		sessionId,
 		panelId: panelId ?? undefined,
-		panelConnectionState,
+		panelConnectionState: connection.state,
 		project,
 		effectivePanelAgentId,
 		onClearErrorDismissed: () => {
-			dismissedErrorKey = null;
+			connection.dismissedErrorKey = null;
 		},
 		onSendCancelToPanel: (id) => {
 			connectionStore.send(id, { type: PanelConnectionEvent.CANCEL });
@@ -1625,7 +1508,7 @@ function handleCancelConnection() {
 }
 
 function handleDismissError() {
-	dismissedErrorKey = sessionController.errorDismissalKey;
+	connection.dismissedErrorKey = sessionController.errorDismissalKey;
 }
 
 function handleCopyInlineErrorReference() {
@@ -1646,7 +1529,7 @@ function handleCopyInlineErrorReference() {
 
 function createInlineErrorIssueDraft() {
 	const details =
-		sessionController.errorInfo.details ?? panelConnectionError?.message ?? sessionController.sessionConnectionError ?? "Unknown error";
+		sessionController.errorInfo.details ?? connection.error?.message ?? sessionController.sessionConnectionError ?? "Unknown error";
 	const summary = sessionController.errorInfo.summary ?? details.split("\n")[0]?.slice(0, 120) ?? "Agent error";
 	return buildAgentErrorIssueDraft({
 		agentId: effectivePanelAgentId ?? "unknown",
@@ -1663,7 +1546,7 @@ function createInlineErrorIssueDraft() {
 		sessionUpdatedAt,
 		currentModelId: sessionController.sessionCurrentModelId,
 		entryCount: sessionController.visibleEntryCount,
-		panelConnectionState: panelConnectionState?.toString() ?? null,
+		panelConnectionState: connection.state?.toString() ?? null,
 	});
 }
 
@@ -1678,21 +1561,6 @@ function handleIssueFromInlineError() {
 	}
 
 	onCreateIssueReport?.(draft);
-}
-
-async function handleToggleCheckpointTimeline() {
-	if (!sessionId) return;
-
-	if (!showCheckpointTimeline) {
-		isLoadingCheckpoints = true;
-		await loadCheckpointsBeforeTimelineOpen(sessionId);
-		isLoadingCheckpoints = false;
-	}
-	showCheckpointTimeline = !showCheckpointTimeline;
-}
-
-function handleCloseCheckpointTimeline() {
-	showCheckpointTimeline = false;
 }
 
 function handleCheckpointRevertComplete() {
@@ -1860,7 +1728,7 @@ const {
 	isPlanActionAvailable,
 } = createAgentPanelInteractionHandlers({
 	getSessionId: () => sessionId,
-	getEffectiveProjectPath: () => effectiveProjectPath,
+	getEffectiveProjectPath: () => effectiveProjectPath ?? null,
 	getSessionProjectPath: () => sessionController.sessionProjectPath,
 	getEffectivePanelId: () => sessionController.effectivePanelId,
 	sessionStore,
@@ -1908,7 +1776,7 @@ async function handlePlanSidebarSendMessage(sid: string, message: string): Promi
 		<AgentPanelHeader
 			{pendingProjectSelection}
 			{isConnecting}
-			{isRetryingConnection}
+			isRetryingConnection={connection.isRetrying}
 			{sessionId}
 			sessionTitle={sessionController.sessionTitle}
 			sessionAgentId={sessionController.sessionAgentId}
@@ -1987,13 +1855,13 @@ async function handlePlanSidebarSendMessage(sid: string, message: string): Promi
 
 	{#snippet body()}
 		<div class="flex h-full min-h-0 flex-col" style:display={reviewMode ? "none" : undefined}>
-			{#if showCheckpointTimeline && sessionController.sessionProjectPath && sessionId}
+			{#if checkpointTimeline.isOpen && sessionController.sessionProjectPath && sessionId}
 				<CheckpointTimeline
 					{sessionId}
 					projectPath={sessionController.sessionProjectPath}
-					{checkpoints}
-					isLoading={isLoadingCheckpoints}
-					onClose={handleCloseCheckpointTimeline}
+					checkpoints={checkpointTimeline.checkpoints}
+					isLoading={checkpointTimeline.isLoading}
+					onClose={() => checkpointTimeline.close()}
 					onRevertComplete={handleCheckpointRevertComplete}
 				/>
 			{:else}
@@ -2002,9 +1870,9 @@ async function handlePlanSidebarSendMessage(sid: string, message: string): Promi
 						bind:this={contentRef}
 						bind:scrollContainer
 						bind:scrollViewport={contentScrollViewport}
-						bind:isAtBottom={contentIsAtBottom}
-						bind:isAtTop={contentIsAtTop}
-						bind:isStreaming={contentIsStreaming}
+						bind:isAtBottom={contentScrollReveal.isAtBottom}
+						bind:isAtTop={contentScrollReveal.isAtTop}
+						bind:isStreaming={contentScrollReveal.isStreaming}
 						panelId={sessionController.effectivePanelId}
 						{viewState}
 						{sessionId}
@@ -2015,7 +1883,7 @@ async function handlePlanSidebarSendMessage(sid: string, message: string): Promi
 						onProjectSelected={handleProjectSelected}
 						onRetryConnection={handleRetryConnection}
 						onCancelConnection={handleCancelConnection}
-						{agentIconSrc}
+						agentIconSrc={agentIconSrc ?? undefined}
 						{isFullscreen}
 						{availableAgents}
 						{effectiveTheme}
@@ -2030,7 +1898,7 @@ async function handlePlanSidebarSendMessage(sid: string, message: string): Promi
 						{isPlanActionAvailable}
 					/>
 				</div>
-				{#if viewState.kind === "conversation" && !contentIsAtTop}
+				{#if viewState.kind === "conversation" && !contentScrollReveal.isAtTop}
 					<div class="absolute top-4 left-1/2 -translate-x-1/2 z-10">
 						<button
 							class="h-8 w-8 flex items-center justify-center rounded-full border border-border bg-background shadow-sm hover:bg-muted transition-colors"
@@ -2041,7 +1909,7 @@ async function handlePlanSidebarSendMessage(sid: string, message: string): Promi
 						</button>
 					</div>
 				{/if}
-				{#if viewState.kind === "conversation" && !contentIsAtBottom}
+				{#if viewState.kind === "conversation" && !contentScrollReveal.isAtBottom}
 					<div class="absolute bottom-4 left-1/2 -translate-x-1/2 z-10">
 						<ScrollToBottomButton visible={true} onClick={scrollToBottom} />
 					</div>
@@ -2074,7 +1942,7 @@ async function handlePlanSidebarSendMessage(sid: string, message: string): Promi
 			inlineErrorReferenceId={sessionController.inlineErrorReferenceId}
 			inlineErrorReferenceSearchable={sessionController.inlineErrorReferenceSearchable}
 			onRetryConnection={handleRetryConnection}
-			isRetryingConnection={isRetryingConnection}
+			isRetryingConnection={connection.isRetrying}
 			onDismissError={handleDismissError}
 			onCopyInlineErrorReference={handleCopyInlineErrorReference}
 			inlineErrorIssueDraft={inlineErrorIssueDraft}
@@ -2089,29 +1957,29 @@ async function handlePlanSidebarSendMessage(sid: string, message: string): Promi
 			onPreSessionWorktreeAlways={handlePreSessionWorktreeAlways}
 			onPreSessionWorktreeDismiss={handlePreSessionWorktreeDismiss}
 			onRetryWorktree={handleRetryWorktree}
-			{worktreeSetupState}
+			worktreeSetupState={worktreeSetup.state}
 			{agentInstallState}
 			{sessionId}
 			effectiveProjectPath={effectiveProjectPath ?? null}
 			sessionProjectPath={sessionController.sessionProjectPath ?? null}
 			{effectivePathForGit}
 			{createdPr}
-			{createPrRunning}
-			{prCardRenderKey}
-			{prDetails}
-			{prFetchError}
+			createPrRunning={prCard.createRunning}
+			prCardRenderKey={prCard.renderKey}
+			prDetails={prCard.details}
+			prFetchError={prCard.fetchError}
 			linkedPr={sessionController.sessionMetadata?.linkedPr ?? null}
 			prLinkMode={sessionController.sessionMetadata?.prLinkMode ?? "automatic"}
 			{projectPrLinkReferences}
 			{projectForPr}
-			{streamingShipData}
+			streamingShipData={prCard.streamingShipData}
 			{modifiedFilesState}
 			onEnterReviewMode={handleEnterReviewMode}
 			onOpenReviewDialog={handleOpenReviewDialog}
 			onCreatePr={createdPr ? undefined : (config) => void handleCreatePr(config)}
-			{createPrLabel}
+			createPrLabel={prCard.createLabel}
 			onMergePr={(strategy) => void handleMergePr(strategy)}
-			{mergePrRunning}
+			mergePrRunning={prCard.mergeRunning}
 			{availableAgents}
 			effectivePanelAgentId={effectivePanelAgentId}
 			sessionCurrentModelId={sessionController.sessionCurrentModelId}
@@ -2169,7 +2037,7 @@ async function handlePlanSidebarSendMessage(sid: string, message: string): Promi
 							preparedWorktreeLaunch={panelPreparedWorktreeLaunch}
 							onWorktreeCreating={() => {
 								preSessionWorktreeFailure = null;
-								worktreeSetupState = createWorktreeCreationState({
+								worktreeSetup.startCreation({
 									projectPath:
 										worktreeToggleProjectPath || sessionController.sessionProjectPath || project?.path || "",
 								});
@@ -2194,12 +2062,12 @@ async function handlePlanSidebarSendMessage(sid: string, message: string): Promi
 							}}
 						>
 							{#snippet checkpointButton()}
-								{#if sessionController.sessionProjectPath && checkpoints.length > 0}
+								{#if sessionController.sessionProjectPath && checkpointTimeline.checkpoints.length > 0}
 									<EmbeddedIconButton
-										active={showCheckpointTimeline}
+										active={checkpointTimeline.isOpen}
 										title={"View checkpoints"}
 										ariaLabel={"View checkpoints"}
-										onclick={handleToggleCheckpointTimeline}
+										onclick={() => checkpointTimeline.toggle()}
 									>
 										<Clock class="h-3.5 w-3.5" weight="fill" />
 									</EmbeddedIconButton>
@@ -2323,14 +2191,14 @@ async function handlePlanSidebarSendMessage(sid: string, message: string): Promi
 </AgentPanelShell>
 
 <WorkspaceDialogFrame
-	open={reviewDialogOpen}
+	open={reviewDialog.isOpen}
 	title="Review changes"
 	closeLabel="Close review"
 	contentOverflow="hidden"
-	onOpenChange={handleReviewDialogOpenChange}
+	onOpenChange={(open) => reviewDialog.setOpen(open)}
 >
 	{#snippet topRight()}
-		{@const controls = reviewDialogControls}
+		{@const controls = reviewDialog.controls}
 		{#if controls && controls.fileTotal > 1}
 			<div
 				class="flex h-5 shrink-0 items-center rounded border border-border bg-muted/60 text-[11px]"
@@ -2396,7 +2264,7 @@ async function handlePlanSidebarSendMessage(sid: string, message: string): Promi
 			<button
 				type="button"
 				class="group/open-pr flex h-5 shrink-0 items-center justify-between gap-1 rounded border border-border bg-muted/60 px-1.5 text-[11px] transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-45"
-				disabled={createPrRunning || !effectivePathForGit}
+				disabled={prCard.createRunning || !effectivePathForGit}
 				onclick={() => void handleCreatePr()}
 			>
 				<span class="flex min-w-0 items-center gap-1">
@@ -2406,12 +2274,12 @@ async function handlePlanSidebarSendMessage(sid: string, message: string): Promi
 						class="shrink-0 text-muted-foreground transition-colors group-hover/open-pr:text-success"
 					/>
 					<span class="font-medium text-foreground leading-none">
-						{createPrLabel ?? "Open PR"}
+						{prCard.createLabel ?? "Open PR"}
 					</span>
 				</span>
 				<DiffPill
-					insertions={reviewDialogDiffStats.insertions}
-					deletions={reviewDialogDiffStats.deletions}
+					insertions={reviewDialog.diffStats.insertions}
+					deletions={reviewDialog.diffStats.deletions}
 					variant="plain"
 				/>
 			</button>
@@ -2424,29 +2292,29 @@ async function handlePlanSidebarSendMessage(sid: string, message: string): Promi
 					<span class="font-medium text-foreground leading-none tabular-nums">#{createdPr}</span>
 				</span>
 				<DiffPill
-					insertions={reviewDialogDiffStats.insertions}
-					deletions={reviewDialogDiffStats.deletions}
+					insertions={reviewDialog.diffStats.insertions}
+					deletions={reviewDialog.diffStats.deletions}
 					variant="plain"
 				/>
 			</div>
 		{/if}
 	{/snippet}
 
-	{#if reviewDialogFilesState}
+	{#if reviewDialog.filesState}
 		<AgentPanelReviewWorkspace
 			{sessionId}
-			reviewFilesState={reviewDialogFilesState}
-			selectedFileIndex={clampedReviewDialogFileIndex}
+			reviewFilesState={reviewDialog.filesState}
+			selectedFileIndex={reviewDialog.clampedFileIndex}
 			projectPath={sessionController.sessionProjectPath}
-			isActive={reviewDialogOpen}
+			isActive={reviewDialog.isOpen}
 			showHeader={false}
 			showCloseButton={false}
 			compact={true}
 			diffDensity="compact"
 			hideBottomWidget={true}
-			onControlsChange={handleReviewDialogControlsChange}
-			onClose={() => handleReviewDialogOpenChange(false)}
-			onFileIndexChange={(index) => (reviewDialogFileIndex = index)}
+			onControlsChange={(controls) => reviewDialog.setControls(controls)}
+			onClose={() => reviewDialog.setOpen(false)}
+			onFileIndexChange={(index) => reviewDialog.setFileIndex(index)}
 		/>
 	{/if}
 </WorkspaceDialogFrame>
@@ -2461,17 +2329,17 @@ async function handlePlanSidebarSendMessage(sid: string, message: string): Promi
 {/if}
 
 <AgentPanelWorktreeCloseConfirmPopover
-	bind:open={worktreeCloseConfirming}
+	bind:open={worktreeCloseConfirm.confirming}
 	headerAnchor={headerRef}
-	title={worktreeDirtyCheckPending
+	title={worktreeCloseConfirm.dirtyCheckPending
 		? "Checking repository..."
-		: worktreeHasDirtyChanges
+		: worktreeCloseConfirm.hasDirtyChanges
 			? `Has uncommitted changes — remove "${_activeWorktreeName ?? "worktree"}"?`
 			: `Remove worktree "${_activeWorktreeName ?? "worktree"}"?`}
 	description={"The worktree branch and directory will be permanently deleted."}
 	cancelLabel={"Cancel"}
 	confirmLabel={"Confirm"}
-	confirmDisabled={worktreeDirtyCheckPending}
+	confirmDisabled={worktreeCloseConfirm.dirtyCheckPending}
 	onCancel={handleWorktreeCloseCancel}
 	onConfirmRemoveAndClose={handleWorktreeRemoveAndClose}
 />

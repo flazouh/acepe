@@ -3,9 +3,8 @@ import { ReviewWorkspace, resolveReviewWorkspaceSelectedIndex } from "@acepe/ui/
 
 import type { ModifiedFilesState } from "../../../types/modified-files-state.js";
 import type { ReviewDiffDensity } from "../../modified-files/components/review-diff-view-state.svelte.js";
-import AgentPanelReviewContent, {
-	type ReviewControlsSnapshot,
-} from "./agent-panel-review-content.svelte";
+import AgentPanelReviewContent from "./agent-panel-review-content.svelte";
+import type { ReviewControlsSnapshot } from "./agent-panel-review-content-types.js";
 import { buildReviewWorkspaceFilesFromSessionState } from "./review-workspace-model.js";
 
 const REVIEW_WORKSPACE_EMPTY_STATE_LABEL = "Nothing to review";

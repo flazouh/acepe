@@ -153,8 +153,13 @@ Acepe uses the Compounding Engineering workflow as its engineering operating sys
 
 ### Architecture
 
-- Suggest architecture overhauls when you find recurring smells, leaky provider logic, or brittle abstractions.
-- Do not preserve a bad pattern just because it is widespread. Prefer durable, tested abstractions grounded in real product needs.
+Acepe optimizes for two readers: the engineer and the agent. Code must be **AI-navigable** (find the right unit fast, understand it in one read) and **testable by construction**. Architecture work means **deepening the model, not patching symptoms**.
+
+- **Ground every change in the domain language.** `CONTEXT.md` is the glossary; name files, types, tests, and proposals with its vocabulary. A concept missing from the glossary is a signal — either you're inventing language the project doesn't use (reconsider), or there's a real gap (add it). Don't drift to synonyms.
+- **Record decisions, read them first.** Read `docs/adr/` before working in an area. When you make a significant or hard-to-reverse architectural choice (a new abstraction, an error-handling standard, a data-flow change), write an ADR.
+- **Deepen, don't patch.** On recurring smells, leaky provider logic, or brittle abstractions, move truth upstream into canonical, named concepts. Do not preserve a bad pattern because it is widespread. Prefer durable, tested abstractions grounded in real product needs.
+- **Right-size by cohesion, not line count.** One responsibility per file: extract types, pure functions, and services into focused units, composed from a thin, readable spine (the service/controller that names and orders them). Consolidate tightly-coupled fragments; separate weakly-related ones. ~200–300 LOC is a smell trigger to ask "is this still one cohesive thing?", never an automatic splitter — fragmentation without a spine is as harmful as a monolith.
+- **Suggest overhauls proactively.** When you find structural decay, propose the deepening — don't route around it.
 
 #### GOD Architecture Gate
 
@@ -212,4 +217,4 @@ Canonical triage label vocabulary (`needs-triage`, `needs-info`, `ready-for-agen
 
 ### Domain docs
 
-Single-context layout — `CONTEXT.md` + `docs/adr/` at the repo root (created lazily by `grill-with-docs`). See `docs/agents/domain.md`.
+Single-context layout — `CONTEXT.md` (domain glossary) + `docs/adr/` (decision log) at the repo root. Read `CONTEXT.md` before naming concepts and `docs/adr/` before working in an area; both are extended by `grill-with-docs`. See `docs/agents/domain.md`.

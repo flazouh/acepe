@@ -57,6 +57,40 @@ import {
 } from "../session-state/agent-panel-canonical-source.js";
 import { markInteractionSnapshotArrayPatch } from "../session-state/interaction-snapshot-array-patch.js";
 import { markOperationSnapshotArrayPatch } from "../session-state/operation-snapshot-array-patch.js";
+import { mergeInteractionSnapshots, mergeOperationSnapshots } from "./snapshot-merge.js";
+import {
+	appendTranscriptSegment,
+	replaceTranscriptEntry,
+	seedTranscriptEntryIndex,
+} from "./transcript-entry-index.js";
+export { transcriptEntryIndexes } from "./transcript-entry-index.js";
+import { sessionColdFromExistingSession } from "./session-cold-index.js";
+import type { SessionLiveSyncReference, SessionPaletteReference } from "./session-cold-index.js";
+export type { SessionLiveSyncReference, SessionPaletteReference } from "./session-cold-index.js";
+import { SessionListState as SessionListStateStore } from "./session-list-state.svelte.js";
+import {
+	applyTranscriptDeltaToSnapshot,
+	buildRowTokenStreamKey,
+	cloneRowTokenStreamMap,
+	countAppendedMarkdownWords,
+	emptyRowTokenStream,
+} from "./transcript-delta.js";
+export { applyTranscriptDeltaToSnapshot, countAppendedMarkdownWords } from "./transcript-delta.js";
+import {
+	graphWithCapabilities,
+	graphWithLifecycle,
+	graphWithPatches,
+	graphWithTranscriptSnapshot,
+	type SessionExportContentError,
+} from "./session-graph-builders.js";
+export type { SessionExportContentError, SessionExportContentErrorKind } from "./session-graph-builders.js";
+import { sanitizeCanonicalCapabilities } from "./canonical-config-sanitize.js";
+export {
+	mergeInteractionSnapshots,
+	mergeOperationSnapshots,
+	operationSnapshotIndexes,
+} from "./snapshot-merge.js";
+import { toArrayIndex } from "./array-index-utils.js";
 import { markTranscriptEntryArrayPatch } from "../session-state/transcript-entry-array-patch.js";
 import { materializeSnapshotFromOpenFound } from "../session-state/session-state-protocol.js";
 import type { AvailableCommand } from "../types/available-command.js";
@@ -122,8 +156,6 @@ import {
 import { ConnectionError, SessionNotFoundError } from "../errors/app-error.js";
 import type { ToolCall } from "../types/tool-call.js";
 import { createLogger } from "../utils/logger.js";
-import { sessionGraphToJsonExportContent } from "../utils/session-export.js";
-import { sessionGraphToMarkdown } from "../utils/session-to-markdown.js";
 import * as preferencesStore from "./agent-model-preferences-store.svelte.js";
 import { api } from "./api.js";
 import { OperationStore } from "./operation-store.svelte.js";
@@ -142,12 +174,15 @@ import { SessionRepository } from "./services/session-repository.js";
 import { SessionEntryStore } from "./session-entry-store.svelte.js";
 import { getTitleUpdateFromUserMessage } from "./session-title-policy.js";
 import { SessionTransientProjectionStore } from "./session-transient-projection-store.svelte.js";
-import {
-	TranscriptViewportStore,
-	type BufferProjection,
-	type ViewportAttachmentStatus,
+import type {
+	BufferProjection,
+	ViewportAttachmentStatus,
 } from "./transcript-viewport-store.svelte.js";
-import { requestTranscriptViewportBuffer } from "../session-state/session-state-viewport-command-service.js";
+import { ViewportProjectionController } from "./viewport-projection-controller.svelte.js";
+import { SessionExportService } from "./session-export-service.js";
+import { CapabilityProjectionReader } from "./capability-projection-reader.js";
+import { deriveCapabilityPreviewState } from "./capability-projection.js";
+import { SessionProjectionCore } from "./session-projection-core.svelte.js";
 
 const logger = createLogger({ id: "session-store", name: "SessionStore" });
 
@@ -155,7 +190,6 @@ const SESSION_STORE_KEY = Symbol("session-store");
 let currentSessionStore: SessionStore | null = null;
 const PR_CHECKS_POLL_INTERVAL_MS = 10_000;
 const AWAITING_MODEL_SNAPSHOT_REFRESH_MS = 5_000;
-const MAX_CANONICAL_CONFIG_STRING_LENGTH = 512;
 
 type ProjectionTurnFailure = {
 	readonly turn_id?: TurnFailureSnapshot["turn_id"];
@@ -213,44 +247,8 @@ function isSessionQuestionInteraction(
 
 type InflightSessionStateRefresh = ResultAsync<void, AppError>;
 
-export type SessionLiveSyncReference = {
-	readonly id: string;
-	readonly updatedAtMs: number;
-};
 
-export type SessionPaletteReference = {
-	readonly id: string;
-	readonly projectPath: string;
-	readonly agentId: string;
-	readonly title: string | null;
-};
 
-type SnapshotWithId = {
-	readonly id: string;
-};
-
-export const operationSnapshotIndexes = new WeakMap<
-	readonly OperationSnapshot[],
-	ReadonlyMap<string, number>
->();
-const interactionSnapshotIndexes = new WeakMap<
-	readonly InteractionSnapshot[],
-	ReadonlyMap<string, number>
->();
-export const transcriptEntryIndexes = new WeakMap<
-	readonly TranscriptEntry[],
-	ReadonlyMap<string, number>
->();
-
-type MergedSnapshotArrayPatch<TSnapshot extends SnapshotWithId> = {
-	readonly patchedIndexes: ReadonlyMap<number, TSnapshot> | null;
-	readonly appendedSnapshots: readonly TSnapshot[] | null;
-};
-
-const mergedSnapshotArrayPatches = new WeakMap<
-	readonly SnapshotWithId[],
-	MergedSnapshotArrayPatch<SnapshotWithId>
->();
 
 function resolveContextBudget(
 	usageTelemetryData: UsageTelemetryData,
@@ -321,1257 +319,6 @@ function mapProjectionTurnFailure(
 	};
 }
 
-const SESSION_STATE_GRAPH_COPY_KEYS = [
-	"requestedSessionId",
-	"canonicalSessionId",
-	"isAlias",
-	"agentId",
-	"projectPath",
-	"worktreePath",
-	"sourcePath",
-	"sequenceId",
-	"revision",
-	"transcriptSnapshot",
-	"operations",
-	"interactions",
-	"turnState",
-	"messageCount",
-	"activeStreamingTail",
-	"activeTurnFailure",
-	"lastTerminalTurnId",
-	"lifecycle",
-	"activity",
-	"capabilities",
-] as const satisfies readonly (keyof SessionStateGraph)[];
-
-type SessionStateGraphCopyKey = (typeof SESSION_STATE_GRAPH_COPY_KEYS)[number];
-type MissingSessionStateGraphCopyKey = Exclude<keyof SessionStateGraph, SessionStateGraphCopyKey>;
-
-export type SessionExportContentErrorKind = "session_not_found" | "thread_content_not_loaded";
-
-export interface SessionExportContentError {
-	readonly kind: SessionExportContentErrorKind;
-	readonly message: string;
-}
-
-function assertSessionStateGraphCopyKeyCoverage(
-	_coverage: Record<MissingSessionStateGraphCopyKey, never>
-): void {}
-
-assertSessionStateGraphCopyKeyCoverage({});
-
-function sessionExportContentError(kind: SessionExportContentErrorKind): SessionExportContentError {
-	switch (kind) {
-		case "session_not_found":
-			return {
-				kind,
-				message: "Session not found",
-			};
-		case "thread_content_not_loaded":
-			return {
-				kind,
-				message: "Thread content is not loaded",
-			};
-	}
-}
-
-function graphWithTranscriptSnapshot(
-	graph: SessionStateGraph,
-	transcriptSnapshot: TranscriptSnapshot,
-	revision?: SessionGraphRevision
-): SessionStateGraph {
-	const nextRevision =
-		revision === undefined
-			? {
-					graphRevision: graph.revision.graphRevision,
-					transcriptRevision: transcriptSnapshot.revision,
-					lastEventSeq: graph.revision.lastEventSeq,
-				}
-			: revision;
-	return {
-		requestedSessionId: graph.requestedSessionId,
-		canonicalSessionId: graph.canonicalSessionId,
-		isAlias: graph.isAlias,
-		agentId: graph.agentId,
-		projectPath: graph.projectPath,
-		worktreePath: graph.worktreePath ?? null,
-		sourcePath: graph.sourcePath ?? null,
-		revision: nextRevision,
-		transcriptSnapshot,
-		operations: graph.operations,
-		interactions: graph.interactions,
-		turnState: graph.turnState,
-		messageCount: graph.messageCount,
-		activeStreamingTail: graph.activeStreamingTail ?? null,
-		activeTurnFailure: graph.activeTurnFailure ?? null,
-		lastTerminalTurnId: graph.lastTerminalTurnId ?? null,
-		lifecycle: graph.lifecycle,
-		activity: graph.activity,
-		capabilities: graph.capabilities,
-	};
-}
-
-function graphWithLifecycle(
-	graph: SessionStateGraph,
-	lifecycle: SessionGraphLifecycle,
-	activity: SessionGraphActivity,
-	revision: SessionGraphRevision
-): SessionStateGraph {
-	return {
-		requestedSessionId: graph.requestedSessionId,
-		canonicalSessionId: graph.canonicalSessionId,
-		isAlias: graph.isAlias,
-		agentId: graph.agentId,
-		projectPath: graph.projectPath,
-		worktreePath: graph.worktreePath ?? null,
-		sourcePath: graph.sourcePath ?? null,
-		revision,
-		transcriptSnapshot: graph.transcriptSnapshot,
-		operations: graph.operations,
-		interactions: graph.interactions,
-		turnState: graph.turnState,
-		messageCount: graph.messageCount,
-		activeStreamingTail: graph.activeStreamingTail ?? null,
-		activeTurnFailure: graph.activeTurnFailure ?? null,
-		lastTerminalTurnId: graph.lastTerminalTurnId ?? null,
-		lifecycle,
-		activity,
-		capabilities: graph.capabilities,
-	};
-}
-
-function graphWithCapabilities(
-	graph: SessionStateGraph,
-	capabilities: SessionGraphCapabilities,
-	revision: SessionGraphRevision
-): SessionStateGraph {
-	return {
-		requestedSessionId: graph.requestedSessionId,
-		canonicalSessionId: graph.canonicalSessionId,
-		isAlias: graph.isAlias,
-		agentId: graph.agentId,
-		projectPath: graph.projectPath,
-		worktreePath: graph.worktreePath ?? null,
-		sourcePath: graph.sourcePath ?? null,
-		revision,
-		transcriptSnapshot: graph.transcriptSnapshot,
-		operations: graph.operations,
-		interactions: graph.interactions,
-		turnState: graph.turnState,
-		messageCount: graph.messageCount,
-		activeStreamingTail: graph.activeStreamingTail ?? null,
-		activeTurnFailure: graph.activeTurnFailure ?? null,
-		lastTerminalTurnId: graph.lastTerminalTurnId ?? null,
-		lifecycle: graph.lifecycle,
-		activity: graph.activity,
-		capabilities,
-	};
-}
-
-function getSnapshotIndex<TSnapshot extends SnapshotWithId>(
-	snapshots: readonly TSnapshot[],
-	indexes: WeakMap<readonly TSnapshot[], ReadonlyMap<string, number>>
-): ReadonlyMap<string, number> {
-	const existing = indexes.get(snapshots);
-	if (existing !== undefined) {
-		return existing;
-	}
-
-	const next = new Map<string, number>();
-	for (let index = 0; index < snapshots.length; index += 1) {
-		const snapshot = snapshots[index];
-		if (snapshot !== undefined && !next.has(snapshot.id)) {
-			next.set(snapshot.id, index);
-		}
-	}
-	indexes.set(snapshots, next);
-	return next;
-}
-
-function mergeSnapshotsById<TSnapshot extends SnapshotWithId>(
-	current: readonly TSnapshot[],
-	patches: readonly TSnapshot[],
-	indexes: WeakMap<readonly TSnapshot[], ReadonlyMap<string, number>>
-): TSnapshot[] {
-	const currentIndex = getSnapshotIndex(current, indexes);
-	const patchesById = new Map<string, TSnapshot>();
-	for (const patch of patches) {
-		patchesById.set(patch.id, patch);
-	}
-
-	let patchedIndexes: Map<number, TSnapshot> | null = null;
-	for (const [id, patch] of patchesById) {
-		const index = currentIndex.get(id);
-		if (index !== undefined) {
-			if (current[index] === patch) {
-				continue;
-			}
-			patchedIndexes ??= new Map<number, TSnapshot>();
-			patchedIndexes.set(index, patch);
-		}
-	}
-
-	let appendedSnapshots: TSnapshot[] | null = null;
-	const appendedIds = new Set<string>();
-	for (const patch of patches) {
-		if (currentIndex.has(patch.id) || appendedIds.has(patch.id)) {
-			continue;
-		}
-
-		const appendedPatch = patchesById.get(patch.id);
-		if (appendedPatch === undefined) {
-			continue;
-		}
-
-		appendedSnapshots ??= [];
-		appendedSnapshots.push(appendedPatch);
-		appendedIds.add(patch.id);
-	}
-
-	if (patchedIndexes === null && appendedSnapshots === null) {
-		return current as TSnapshot[];
-	}
-
-	const next = createMergedSnapshotArray(current, patchedIndexes, appendedSnapshots);
-	indexes.set(
-		next,
-		appendedSnapshots === null
-			? currentIndex
-			: new AppendedSnapshotIndexMap(currentIndex, appendedSnapshots, current.length)
-	);
-	return next;
-}
-
-class AppendedSnapshotIndexMap<TSnapshot extends SnapshotWithId>
-	implements ReadonlyMap<string, number>
-{
-	readonly [Symbol.toStringTag] = "AppendedSnapshotIndexMap";
-
-	constructor(
-		private readonly base: ReadonlyMap<string, number>,
-		private readonly appendedSnapshots: readonly TSnapshot[],
-		private readonly baseLength: number
-	) {}
-
-	get size(): number {
-		let appendedCount = 0;
-		for (const snapshot of this.appendedSnapshots) {
-			if (snapshot !== undefined && !this.base.has(snapshot.id)) {
-				appendedCount += 1;
-			}
-		}
-		return this.base.size + appendedCount;
-	}
-
-	get(key: string): number | undefined {
-		for (let index = 0; index < this.appendedSnapshots.length; index += 1) {
-			const snapshot = this.appendedSnapshots[index];
-			if (snapshot?.id === key) {
-				return this.baseLength + index;
-			}
-		}
-		return this.base.get(key);
-	}
-
-	has(key: string): boolean {
-		return this.get(key) !== undefined;
-	}
-
-	forEach(
-		callbackfn: (value: number, key: string, map: ReadonlyMap<string, number>) => void,
-		thisArg?: unknown
-	): void {
-		for (const [key, value] of this.entries()) {
-			callbackfn.call(thisArg, value, key, this);
-		}
-	}
-
-	private *entryIterator(): IterableIterator<[string, number]> {
-		const appendedKeys = new Set<string>();
-		for (let index = 0; index < this.appendedSnapshots.length; index += 1) {
-			const snapshot = this.appendedSnapshots[index];
-			if (snapshot !== undefined) {
-				appendedKeys.add(snapshot.id);
-			}
-		}
-		for (const [key, value] of this.base.entries()) {
-			if (!appendedKeys.has(key)) {
-				yield [key, value];
-			}
-		}
-		for (let index = 0; index < this.appendedSnapshots.length; index += 1) {
-			const snapshot = this.appendedSnapshots[index];
-			if (snapshot !== undefined) {
-				yield [snapshot.id, this.baseLength + index];
-			}
-		}
-	}
-
-	entries(): MapIterator<[string, number]> {
-		return this.entryIterator() as unknown as MapIterator<[string, number]>;
-	}
-
-	private *keyIterator(): IterableIterator<string> {
-		for (const [key] of this.entries()) {
-			yield key;
-		}
-	}
-
-	keys(): MapIterator<string> {
-		return this.keyIterator() as unknown as MapIterator<string>;
-	}
-
-	private *valueIterator(): IterableIterator<number> {
-		for (const [, value] of this.entries()) {
-			yield value;
-		}
-	}
-
-	values(): MapIterator<number> {
-		return this.valueIterator() as unknown as MapIterator<number>;
-	}
-
-	[Symbol.iterator](): MapIterator<[string, number]> {
-		return this.entries();
-	}
-}
-
-function createMergedSnapshotArray<TSnapshot extends SnapshotWithId>(
-	base: readonly TSnapshot[],
-	patchedIndexes: ReadonlyMap<number, TSnapshot> | null,
-	appendedSnapshots: readonly TSnapshot[] | null
-): TSnapshot[] {
-	const appended = appendedSnapshots ?? [];
-	const target = new Array<TSnapshot>(base.length + appended.length);
-	const snapshots = new Proxy(target, {
-		get(targetArray, property, receiver) {
-			if (property === Symbol.iterator) {
-				return function* () {
-					for (let index = 0; index < targetArray.length; index += 1) {
-						yield selectMergedSnapshot(base, patchedIndexes, appended, index);
-					}
-				};
-			}
-			if (typeof property === "string") {
-				const index = toArrayIndex(property);
-				if (index !== null) {
-					return selectMergedSnapshot(base, patchedIndexes, appended, index);
-				}
-				if (property === "slice") {
-					return (start?: number, end?: number) =>
-						Array.prototype.slice.call(receiver, start, end);
-				}
-			}
-			const value = Reflect.get(targetArray, property, receiver);
-			return typeof value === "function" ? value.bind(receiver) : value;
-		},
-		has(targetArray, property) {
-			const index = typeof property === "string" ? toArrayIndex(property) : null;
-			if (index !== null) {
-				return index >= 0 && index < targetArray.length;
-			}
-			return property in targetArray;
-		},
-		getOwnPropertyDescriptor(targetArray, property) {
-			const index = typeof property === "string" ? toArrayIndex(property) : null;
-			if (index !== null && index >= 0 && index < targetArray.length) {
-				return {
-					configurable: true,
-					enumerable: true,
-					value: selectMergedSnapshot(base, patchedIndexes, appended, index),
-					writable: false,
-				};
-			}
-			return Reflect.getOwnPropertyDescriptor(targetArray, property);
-		},
-	});
-	mergedSnapshotArrayPatches.set(snapshots, { patchedIndexes, appendedSnapshots });
-	return snapshots;
-}
-
-function getMergedSnapshotArrayPatch<TSnapshot extends SnapshotWithId>(
-	snapshots: readonly TSnapshot[]
-): MergedSnapshotArrayPatch<TSnapshot> | undefined {
-	return mergedSnapshotArrayPatches.get(snapshots) as
-		| MergedSnapshotArrayPatch<TSnapshot>
-		| undefined;
-}
-
-function selectMergedSnapshot<TSnapshot extends SnapshotWithId>(
-	base: readonly TSnapshot[],
-	patchedIndexes: ReadonlyMap<number, TSnapshot> | null,
-	appended: readonly TSnapshot[],
-	index: number
-): TSnapshot | undefined {
-	if (index < base.length) {
-		return patchedIndexes?.get(index) ?? base[index];
-	}
-	return appended[index - base.length];
-}
-
-function toArrayIndex(property: string): number | null {
-	if (property === "") {
-		return null;
-	}
-	const index = Number(property);
-	return Number.isInteger(index) && index >= 0 && String(index) === property ? index : null;
-}
-
-export function mergeOperationSnapshots(
-	current: readonly OperationSnapshot[],
-	patches: readonly OperationSnapshot[]
-): OperationSnapshot[] {
-	const next = mergeSnapshotsById(current, patches, operationSnapshotIndexes);
-	if (next !== current) {
-		const patch = getMergedSnapshotArrayPatch(next);
-		if (patch !== undefined) {
-			markOperationSnapshotArrayPatch(next, {
-				baseOperations: current,
-				patchedOperationsByIndex: patch.patchedIndexes,
-				appendedOperations: patch.appendedSnapshots,
-			});
-		}
-	}
-	return next;
-}
-
-export function mergeInteractionSnapshots(
-	current: readonly InteractionSnapshot[],
-	patches: readonly InteractionSnapshot[]
-): InteractionSnapshot[] {
-	const next = mergeSnapshotsById(current, patches, interactionSnapshotIndexes);
-	if (next !== current) {
-		const patch = getMergedSnapshotArrayPatch(next);
-		if (patch !== undefined) {
-			markInteractionSnapshotArrayPatch(next, {
-				baseInteractions: current,
-				patchedInteractionsByIndex: patch.patchedIndexes,
-				appendedInteractions: patch.appendedSnapshots,
-			});
-		}
-	}
-	return next;
-}
-
-function graphWithPatches(input: {
-	readonly graph: SessionStateGraph;
-	readonly revision: SessionGraphRevision;
-	readonly activity: SessionGraphActivity | undefined;
-	readonly turnState: SessionTurnState | undefined;
-	readonly activeTurnFailure: TurnFailureSnapshot | null | undefined;
-	readonly lastTerminalTurnId: string | null | undefined;
-	readonly activeStreamingTail: SessionStateGraph["activeStreamingTail"] | undefined;
-	readonly operationPatches: readonly OperationSnapshot[];
-	readonly interactionPatches: readonly InteractionSnapshot[];
-}): SessionStateGraph {
-	return {
-		requestedSessionId: input.graph.requestedSessionId,
-		canonicalSessionId: input.graph.canonicalSessionId,
-		isAlias: input.graph.isAlias,
-		agentId: input.graph.agentId,
-		projectPath: input.graph.projectPath,
-		worktreePath: input.graph.worktreePath ?? null,
-		sourcePath: input.graph.sourcePath ?? null,
-		revision: input.revision,
-		transcriptSnapshot: input.graph.transcriptSnapshot,
-		operations:
-			input.operationPatches.length === 0
-				? input.graph.operations
-				: mergeOperationSnapshots(input.graph.operations, input.operationPatches),
-		interactions:
-			input.interactionPatches.length === 0
-				? input.graph.interactions
-				: mergeInteractionSnapshots(input.graph.interactions, input.interactionPatches),
-		turnState: input.turnState ?? input.graph.turnState,
-		messageCount: input.graph.messageCount,
-		activeStreamingTail:
-			input.activeStreamingTail === undefined
-				? (input.graph.activeStreamingTail ?? null)
-				: input.activeStreamingTail,
-		activeTurnFailure:
-			input.activeTurnFailure === undefined
-				? input.graph.activeTurnFailure
-				: input.activeTurnFailure,
-		lastTerminalTurnId:
-			input.lastTerminalTurnId === undefined
-				? input.graph.lastTerminalTurnId
-				: input.lastTerminalTurnId,
-		lifecycle: input.graph.lifecycle,
-		activity: input.activity ?? input.graph.activity,
-		capabilities: input.graph.capabilities,
-	};
-}
-
-function getTranscriptEntryIndex(
-	entries: readonly TranscriptEntry[]
-): ReadonlyMap<string, number> {
-	const existing = transcriptEntryIndexes.get(entries);
-	if (existing !== undefined) {
-		return existing;
-	}
-
-	const next = new Map<string, number>();
-	for (let index = 0; index < entries.length; index += 1) {
-		const entry = entries[index];
-		if (entry !== undefined && !next.has(entry.entryId)) {
-			next.set(entry.entryId, index);
-		}
-	}
-	transcriptEntryIndexes.set(entries, next);
-	return next;
-}
-
-function seedTranscriptEntryIndex(entries: readonly TranscriptEntry[]): void {
-	if (transcriptEntryIndexes.has(entries)) {
-		return;
-	}
-	getTranscriptEntryIndex(entries);
-}
-
-function replaceTranscriptEntry(
-	entries: readonly TranscriptEntry[],
-	nextEntry: TranscriptEntry
-): TranscriptEntry[] {
-	const currentIndex = getTranscriptEntryIndex(entries);
-	const index = currentIndex.get(nextEntry.entryId);
-	if (index === undefined) {
-		const nextEntries = createPatchedTranscriptEntryArray(entries, null, [nextEntry]);
-		transcriptEntryIndexes.set(
-			nextEntries,
-			new AppendedTranscriptEntryIndexMap(currentIndex, [nextEntry], entries.length)
-		);
-		return nextEntries;
-	}
-
-	if (entries[index] === nextEntry) {
-		return entries as TranscriptEntry[];
-	}
-
-	const nextEntries = createPatchedTranscriptEntryArray(
-		entries,
-		new Map([[index, nextEntry]]),
-		null
-	);
-	transcriptEntryIndexes.set(nextEntries, currentIndex);
-	return nextEntries;
-}
-
-function appendTranscriptSegment(
-	entries: readonly TranscriptEntry[],
-	entryId: string,
-	role: TranscriptEntry["role"],
-	segment: TranscriptEntry["segments"][number]
-): TranscriptEntry[] {
-	const currentIndex = getTranscriptEntryIndex(entries);
-	const index = currentIndex.get(entryId);
-	if (index === undefined) {
-		const nextEntry = {
-			entryId,
-			role,
-			segments: [segment],
-		};
-		const nextEntries = createPatchedTranscriptEntryArray(entries, null, [nextEntry]);
-		transcriptEntryIndexes.set(
-			nextEntries,
-			new AppendedTranscriptEntryIndexMap(currentIndex, [nextEntry], entries.length)
-		);
-		return nextEntries;
-	}
-
-	if (entries[index]?.role !== role) {
-		const nextEntry = {
-			entryId,
-			role,
-			segments: [segment],
-		};
-		const nextEntries = createPatchedTranscriptEntryArray(entries, null, [nextEntry]);
-		transcriptEntryIndexes.set(
-			nextEntries,
-			new AppendedTranscriptEntryIndexMap(currentIndex, [nextEntry], entries.length)
-		);
-		return nextEntries;
-	}
-
-	const entry = entries[index];
-	if (entry === undefined) {
-		return entries as TranscriptEntry[];
-	}
-	const nextEntries = createPatchedTranscriptEntryArray(
-		entries,
-		new Map([
-			[
-				index,
-				{
-					entryId: entry.entryId,
-					role: entry.role,
-					segments: entry.segments.concat([segment]),
-				},
-			],
-		]),
-		null
-	);
-	transcriptEntryIndexes.set(nextEntries, currentIndex);
-	return nextEntries;
-}
-
-class AppendedTranscriptEntryIndexMap implements ReadonlyMap<string, number> {
-	readonly [Symbol.toStringTag] = "AppendedTranscriptEntryIndexMap";
-
-	constructor(
-		private readonly base: ReadonlyMap<string, number>,
-		private readonly appendedEntries: readonly TranscriptEntry[],
-		private readonly baseLength: number
-	) {}
-
-	get size(): number {
-		let appendedCount = 0;
-		for (const entry of this.appendedEntries) {
-			if (entry !== undefined && !this.base.has(entry.entryId)) {
-				appendedCount += 1;
-			}
-		}
-		return this.base.size + appendedCount;
-	}
-
-	get(key: string): number | undefined {
-		for (let index = 0; index < this.appendedEntries.length; index += 1) {
-			const entry = this.appendedEntries[index];
-			if (entry?.entryId === key) {
-				return this.baseLength + index;
-			}
-		}
-		return this.base.get(key);
-	}
-
-	has(key: string): boolean {
-		return this.get(key) !== undefined;
-	}
-
-	forEach(
-		callbackfn: (value: number, key: string, map: ReadonlyMap<string, number>) => void,
-		thisArg?: unknown
-	): void {
-		for (const [key, value] of this.entries()) {
-			callbackfn.call(thisArg, value, key, this);
-		}
-	}
-
-	private *entryIterator(): IterableIterator<[string, number]> {
-		const appendedKeys = new Set<string>();
-		for (let index = 0; index < this.appendedEntries.length; index += 1) {
-			const entry = this.appendedEntries[index];
-			if (entry !== undefined) {
-				appendedKeys.add(entry.entryId);
-			}
-		}
-		for (const [key, value] of this.base.entries()) {
-			if (!appendedKeys.has(key)) {
-				yield [key, value];
-			}
-		}
-		for (let index = 0; index < this.appendedEntries.length; index += 1) {
-			const entry = this.appendedEntries[index];
-			if (entry !== undefined) {
-				yield [entry.entryId, this.baseLength + index];
-			}
-		}
-	}
-
-	entries(): MapIterator<[string, number]> {
-		return this.entryIterator() as unknown as MapIterator<[string, number]>;
-	}
-
-	private *keyIterator(): IterableIterator<string> {
-		for (const [key] of this.entries()) {
-			yield key;
-		}
-	}
-
-	keys(): MapIterator<string> {
-		return this.keyIterator() as unknown as MapIterator<string>;
-	}
-
-	private *valueIterator(): IterableIterator<number> {
-		for (const [, value] of this.entries()) {
-			yield value;
-		}
-	}
-
-	values(): MapIterator<number> {
-		return this.valueIterator() as unknown as MapIterator<number>;
-	}
-
-	[Symbol.iterator](): MapIterator<[string, number]> {
-		return this.entries();
-	}
-}
-
-function createPatchedTranscriptEntryArray(
-	base: readonly TranscriptEntry[],
-	patchedIndexes: ReadonlyMap<number, TranscriptEntry> | null,
-	appendedEntries: readonly TranscriptEntry[] | null
-): TranscriptEntry[] {
-	const appended = appendedEntries ?? [];
-	const target = new Array<TranscriptEntry>(base.length + appended.length);
-	const entries = new Proxy(target, {
-		get(targetArray, property, receiver) {
-			if (property === Symbol.iterator) {
-				return function* () {
-					for (let index = 0; index < targetArray.length; index += 1) {
-						yield selectPatchedTranscriptEntry(base, patchedIndexes, appended, index);
-					}
-				};
-			}
-			if (typeof property === "string") {
-				const index = toArrayIndex(property);
-				if (index !== null) {
-					return selectPatchedTranscriptEntry(base, patchedIndexes, appended, index);
-				}
-				if (property === "slice") {
-					return (start?: number, end?: number) =>
-						Array.prototype.slice.call(receiver, start, end);
-				}
-			}
-			const value = Reflect.get(targetArray, property, receiver);
-			return typeof value === "function" ? value.bind(receiver) : value;
-		},
-		has(targetArray, property) {
-			const index = typeof property === "string" ? toArrayIndex(property) : null;
-			if (index !== null) {
-				return index >= 0 && index < targetArray.length;
-			}
-			return property in targetArray;
-		},
-		getOwnPropertyDescriptor(targetArray, property) {
-			const index = typeof property === "string" ? toArrayIndex(property) : null;
-			if (index !== null && index >= 0 && index < targetArray.length) {
-				return {
-					configurable: true,
-					enumerable: true,
-					value: selectPatchedTranscriptEntry(base, patchedIndexes, appended, index),
-					writable: false,
-				};
-			}
-			return Reflect.getOwnPropertyDescriptor(targetArray, property);
-		},
-	});
-	markTranscriptEntryArrayPatch(entries, {
-		baseEntries: base,
-		patchedEntriesByIndex: patchedIndexes,
-		appendedEntries,
-	});
-	return entries;
-}
-
-function selectPatchedTranscriptEntry(
-	base: readonly TranscriptEntry[],
-	patchedIndexes: ReadonlyMap<number, TranscriptEntry> | null,
-	appended: readonly TranscriptEntry[],
-	index: number
-): TranscriptEntry | undefined {
-	if (index < base.length) {
-		return patchedIndexes?.get(index) ?? base[index];
-	}
-	return appended[index - base.length];
-}
-
-function createPrependedSessionColdArray(
-	session: SessionCold,
-	base: readonly SessionCold[]
-): SessionCold[] {
-	const target = new Array<SessionCold>(base.length + 1);
-	return new Proxy(target, {
-		get(targetArray, property, receiver) {
-			if (property === Symbol.iterator) {
-				return function* () {
-					for (let index = 0; index < targetArray.length; index += 1) {
-						yield selectPrependedSessionCold(session, base, index);
-					}
-				};
-			}
-			if (typeof property === "string") {
-				const index = toArrayIndex(property);
-				if (index !== null) {
-					return selectPrependedSessionCold(session, base, index);
-				}
-				if (property === "slice") {
-					return (start?: number, end?: number) =>
-						Array.prototype.slice.call(receiver, start, end);
-				}
-			}
-			const value = Reflect.get(targetArray, property, receiver);
-			return typeof value === "function" ? value.bind(receiver) : value;
-		},
-		has(targetArray, property) {
-			const index = typeof property === "string" ? toArrayIndex(property) : null;
-			if (index !== null) {
-				return index >= 0 && index < targetArray.length;
-			}
-			return property in targetArray;
-		},
-		getOwnPropertyDescriptor(targetArray, property) {
-			const index = typeof property === "string" ? toArrayIndex(property) : null;
-			if (index !== null && index >= 0 && index < targetArray.length) {
-				return {
-					configurable: true,
-					enumerable: true,
-					value: selectPrependedSessionCold(session, base, index),
-					writable: false,
-				};
-			}
-			return Reflect.getOwnPropertyDescriptor(targetArray, property);
-		},
-	});
-}
-
-function selectPrependedSessionCold(
-	session: SessionCold,
-	base: readonly SessionCold[],
-	index: number
-): SessionCold | undefined {
-	return index === 0 ? session : base[index - 1];
-}
-
-function createPatchedSessionColdArray(
-	base: readonly SessionCold[],
-	patchedIndex: number,
-	session: SessionCold
-): SessionCold[] {
-	const target = new Array<SessionCold>(base.length);
-	return new Proxy(target, {
-		get(targetArray, property, receiver) {
-			if (property === Symbol.iterator) {
-				return function* () {
-					for (let index = 0; index < targetArray.length; index += 1) {
-						yield index === patchedIndex ? session : base[index];
-					}
-				};
-			}
-			if (typeof property === "string") {
-				const index = toArrayIndex(property);
-				if (index !== null) {
-					return index === patchedIndex ? session : base[index];
-				}
-				if (property === "slice") {
-					return (start?: number, end?: number) =>
-						Array.prototype.slice.call(receiver, start, end);
-				}
-			}
-			const value = Reflect.get(targetArray, property, receiver);
-			return typeof value === "function" ? value.bind(receiver) : value;
-		},
-		has(targetArray, property) {
-			const index = typeof property === "string" ? toArrayIndex(property) : null;
-			if (index !== null) {
-				return index >= 0 && index < targetArray.length;
-			}
-			return property in targetArray;
-		},
-		getOwnPropertyDescriptor(targetArray, property) {
-			const index = typeof property === "string" ? toArrayIndex(property) : null;
-			if (index !== null && index >= 0 && index < targetArray.length) {
-				return {
-					configurable: true,
-					enumerable: true,
-					value: index === patchedIndex ? session : base[index],
-					writable: false,
-				};
-			}
-			return Reflect.getOwnPropertyDescriptor(targetArray, property);
-		},
-	});
-}
-
-function findSessionColdIndexById(sessions: readonly SessionCold[], sessionId: string): number {
-	for (let index = 0; index < sessions.length; index += 1) {
-		if (sessions[index]?.id === sessionId) {
-			return index;
-		}
-	}
-	return -1;
-}
-
-function rebuildSessionByIdIndex(
-	index: SvelteMap<string, SessionCold>,
-	sessions: readonly SessionCold[]
-): void {
-	index.clear();
-	for (const session of sessions) {
-		index.set(session.id, session);
-	}
-}
-
-function rebuildSessionsByProjectIndex(
-	index: SvelteMap<string, SessionCold[]>,
-	sessions: readonly SessionCold[]
-): void {
-	index.clear();
-	for (const session of sessions) {
-		const projectSessions = index.get(session.projectPath);
-		if (projectSessions === undefined) {
-			index.set(session.projectPath, [session]);
-			continue;
-		}
-		projectSessions.push(session);
-	}
-}
-
-function rebuildSessionIdsByProjectIndex(
-	index: SvelteMap<string, string[]>,
-	sessions: readonly SessionCold[]
-): void {
-	index.clear();
-	for (const session of sessions) {
-		const projectSessionIds = index.get(session.projectPath);
-		if (projectSessionIds === undefined) {
-			index.set(session.projectPath, [session.id]);
-			continue;
-		}
-		projectSessionIds.push(session.id);
-	}
-}
-
-function patchSessionsByProjectIndex(
-	index: SvelteMap<string, SessionCold[]>,
-	previousSession: SessionCold | undefined,
-	nextSession: SessionCold
-): void {
-	if (previousSession !== undefined && previousSession.projectPath !== nextSession.projectPath) {
-		const previousProjectSessions = index.get(previousSession.projectPath);
-		if (previousProjectSessions !== undefined) {
-			const nextPreviousProjectSessions = removeSessionColdFromArray(
-				previousProjectSessions,
-				previousSession.id
-			);
-			if (nextPreviousProjectSessions.length === 0) {
-				index.delete(previousSession.projectPath);
-			} else {
-				index.set(previousSession.projectPath, nextPreviousProjectSessions);
-			}
-		}
-	}
-
-	const currentProjectSessions = index.get(nextSession.projectPath);
-	if (currentProjectSessions === undefined) {
-		index.set(nextSession.projectPath, [nextSession]);
-		return;
-	}
-
-	const projectIndex = findSessionColdIndexById(currentProjectSessions, nextSession.id);
-	if (projectIndex === -1) {
-		index.set(
-			nextSession.projectPath,
-			createPrependedSessionColdArray(nextSession, currentProjectSessions)
-		);
-		return;
-	}
-
-	index.set(
-		nextSession.projectPath,
-		createPatchedSessionColdArray(currentProjectSessions, projectIndex, nextSession)
-	);
-}
-
-function patchSessionIdsByProjectIndex(
-	index: SvelteMap<string, string[]>,
-	previousSession: SessionCold | undefined,
-	nextSession: SessionCold
-): void {
-	if (previousSession !== undefined && previousSession.projectPath !== nextSession.projectPath) {
-		const previousProjectSessionIds = index.get(previousSession.projectPath);
-		if (previousProjectSessionIds !== undefined) {
-			const nextPreviousProjectSessionIds = removeSessionIdFromArray(
-				previousProjectSessionIds,
-				previousSession.id
-			);
-			if (nextPreviousProjectSessionIds.length === 0) {
-				index.delete(previousSession.projectPath);
-			} else {
-				index.set(previousSession.projectPath, nextPreviousProjectSessionIds);
-			}
-		}
-	}
-
-	const currentProjectSessionIds = index.get(nextSession.projectPath);
-	if (currentProjectSessionIds === undefined) {
-		index.set(nextSession.projectPath, [nextSession.id]);
-		return;
-	}
-
-	if (currentProjectSessionIds.includes(nextSession.id)) {
-		return;
-	}
-
-	index.set(
-		nextSession.projectPath,
-		createPrependedReferenceArray(nextSession.id, currentProjectSessionIds)
-	);
-}
-
-function removeSessionColdFromArray(
-	sessions: readonly SessionCold[],
-	sessionId: string
-): SessionCold[] {
-	const removedIndex = findSessionColdIndexById(sessions, sessionId);
-	if (removedIndex === -1) {
-		return sessions as SessionCold[];
-	}
-	const nextSessions: SessionCold[] = [];
-	for (let index = 0; index < sessions.length; index += 1) {
-		if (index !== removedIndex) {
-			const session = sessions[index];
-			if (session !== undefined) {
-				nextSessions.push(session);
-			}
-		}
-	}
-	return nextSessions;
-}
-
-function removeSessionIdFromArray(sessionIds: readonly string[], sessionId: string): string[] {
-	const removedIndex = sessionIds.indexOf(sessionId);
-	if (removedIndex === -1) {
-		return sessionIds as string[];
-	}
-	const nextSessionIds: string[] = [];
-	for (let index = 0; index < sessionIds.length; index += 1) {
-		if (index !== removedIndex) {
-			const existingSessionId = sessionIds[index];
-			if (existingSessionId !== undefined) {
-				nextSessionIds.push(existingSessionId);
-			}
-		}
-	}
-	return nextSessionIds;
-}
-
-function sessionLiveSyncReferenceFromSession(session: SessionCold): SessionLiveSyncReference {
-	return {
-		id: session.id,
-		updatedAtMs: session.updatedAt.getTime(),
-	};
-}
-
-function sessionPaletteReferenceFromSession(session: SessionCold): SessionPaletteReference {
-	return {
-		id: session.id,
-		projectPath: session.projectPath,
-		agentId: session.agentId,
-		title: session.title,
-	};
-}
-
-function createPrependedReferenceArray<TReference>(
-	reference: TReference,
-	base: readonly TReference[]
-): TReference[] {
-	const target = new Array<TReference>(base.length + 1);
-	return new Proxy(target, {
-		get(targetArray, property, receiver) {
-			if (property === Symbol.iterator) {
-				return function* () {
-					for (let index = 0; index < targetArray.length; index += 1) {
-						yield index === 0 ? reference : base[index - 1];
-					}
-				};
-			}
-			if (typeof property === "string") {
-				const index = toArrayIndex(property);
-				if (index !== null) {
-					return index === 0 ? reference : base[index - 1];
-				}
-				if (property === "slice") {
-					return (start?: number, end?: number) =>
-						Array.prototype.slice.call(receiver, start, end);
-				}
-			}
-			const value = Reflect.get(targetArray, property, receiver);
-			return typeof value === "function" ? value.bind(receiver) : value;
-		},
-		has(targetArray, property) {
-			const index = typeof property === "string" ? toArrayIndex(property) : null;
-			if (index !== null) {
-				return index >= 0 && index < targetArray.length;
-			}
-			return property in targetArray;
-		},
-		getOwnPropertyDescriptor(targetArray, property) {
-			const index = typeof property === "string" ? toArrayIndex(property) : null;
-			if (index !== null && index >= 0 && index < targetArray.length) {
-				return {
-					configurable: true,
-					enumerable: true,
-					value: index === 0 ? reference : base[index - 1],
-					writable: false,
-				};
-			}
-			return Reflect.getOwnPropertyDescriptor(targetArray, property);
-		},
-	});
-}
-
-function createPatchedReferenceArray<TReference extends { readonly id: string }>(
-	base: readonly TReference[],
-	reference: TReference
-): TReference[] {
-	const patchedIndex = findReferenceIndexById(base, reference.id);
-	if (patchedIndex === -1) {
-		return createPrependedReferenceArray(reference, base);
-	}
-	const target = new Array<TReference>(base.length);
-	return new Proxy(target, {
-		get(targetArray, property, receiver) {
-			if (property === Symbol.iterator) {
-				return function* () {
-					for (let index = 0; index < targetArray.length; index += 1) {
-						yield index === patchedIndex ? reference : base[index];
-					}
-				};
-			}
-			if (typeof property === "string") {
-				const index = toArrayIndex(property);
-				if (index !== null) {
-					return index === patchedIndex ? reference : base[index];
-				}
-				if (property === "slice") {
-					return (start?: number, end?: number) =>
-						Array.prototype.slice.call(receiver, start, end);
-				}
-			}
-			const value = Reflect.get(targetArray, property, receiver);
-			return typeof value === "function" ? value.bind(receiver) : value;
-		},
-		has(targetArray, property) {
-			const index = typeof property === "string" ? toArrayIndex(property) : null;
-			if (index !== null) {
-				return index >= 0 && index < targetArray.length;
-			}
-			return property in targetArray;
-		},
-		getOwnPropertyDescriptor(targetArray, property) {
-			const index = typeof property === "string" ? toArrayIndex(property) : null;
-			if (index !== null && index >= 0 && index < targetArray.length) {
-				return {
-					configurable: true,
-					enumerable: true,
-					value: index === patchedIndex ? reference : base[index],
-					writable: false,
-				};
-			}
-			return Reflect.getOwnPropertyDescriptor(targetArray, property);
-		},
-	});
-}
-
-function findReferenceIndexById<TReference extends { readonly id: string }>(
-	references: readonly TReference[],
-	id: string
-): number {
-	for (let index = 0; index < references.length; index += 1) {
-		if (references[index]?.id === id) {
-			return index;
-		}
-	}
-	return -1;
-}
-
-function rebuildLiveSessionSyncReferences(
-	sessions: readonly SessionCold[]
-): SessionLiveSyncReference[] {
-	const references: SessionLiveSyncReference[] = [];
-	for (const session of sessions) {
-		references.push(sessionLiveSyncReferenceFromSession(session));
-	}
-	return references;
-}
-
-function rebuildSessionPaletteReferences(
-	sessions: readonly SessionCold[]
-): SessionPaletteReference[] {
-	const references: SessionPaletteReference[] = [];
-	for (const session of sessions) {
-		references.push(sessionPaletteReferenceFromSession(session));
-	}
-	return references;
-}
-
-export function applyTranscriptDeltaToSnapshot(
-	snapshot: TranscriptSnapshot,
-	delta: TranscriptDelta
-): TranscriptSnapshot {
-	let entries = snapshot.entries;
-
-	for (const operation of delta.operations) {
-		if (operation.kind === "replaceSnapshot") {
-			entries = operation.snapshot.entries;
-			seedTranscriptEntryIndex(entries);
-			continue;
-		}
-
-		if (operation.kind === "appendEntry") {
-			entries = replaceTranscriptEntry(entries, operation.entry);
-			continue;
-		}
-
-		entries = appendTranscriptSegment(
-			entries,
-			operation.entryId,
-			operation.role,
-			operation.segment
-		);
-	}
-
-	return {
-		revision: delta.snapshotRevision,
-		entries,
-	};
-}
-
-function buildRowTokenStreamKey(turnId: string, rowId: string): string {
-	return `${turnId}:${rowId}`;
-}
-
-function cloneRowTokenStreamMap(
-	tokenStream: ReadonlyMap<string, RowTokenStream>
-): Map<string, RowTokenStream> {
-	const nextTokenStream = new Map<string, RowTokenStream>();
-	for (const [key, value] of tokenStream) {
-		nextTokenStream.set(key, value);
-	}
-	return nextTokenStream;
-}
-
-export function countAppendedMarkdownWords(input: {
-	readonly previousText: string;
-	readonly previousWordCount: number;
-	readonly deltaText: string;
-}): {
-	readonly wordCount: number;
-	readonly latestWordCount: number;
-} {
-	const previousTailStart = findPreviousWordBoundary(input.previousText);
-	const previousTail = input.previousText.slice(previousTailStart);
-	const previousTailWordCount = countWordsInMarkdown(previousTail);
-	const nextTailWordCount = countWordsInMarkdown(`${previousTail}${input.deltaText}`);
-	return {
-		wordCount: input.previousWordCount - previousTailWordCount + nextTailWordCount,
-		latestWordCount: countWordsInMarkdown(input.deltaText),
-	};
-}
-
-function findPreviousWordBoundary(text: string): number {
-	for (let index = text.length - 1; index >= 0; index -= 1) {
-		if (/\s/.test(text[index] ?? "")) {
-			return index + 1;
-		}
-	}
-	return 0;
-}
-
-function emptyRowTokenStream(): ReadonlyMap<string, RowTokenStream> {
-	return new Map<string, RowTokenStream>();
-}
-
 function preserveCanonicalStreamingState(projection: CanonicalSessionProjection | null): {
 	readonly tokenStream: ReadonlyMap<string, RowTokenStream>;
 	readonly clockAnchor: SessionClockAnchor | null;
@@ -1605,64 +352,6 @@ interface SessionPrLinkRef {
 	readonly prNumber: number;
 	readonly prState: SessionMetadata["prState"];
 	readonly linkedPr: SessionMetadata["linkedPr"];
-}
-
-function sessionColdFromExistingSession(session: SessionCold): SessionCold {
-	return sessionColdFromSlices(
-		{
-			id: session.id,
-			projectPath: session.projectPath,
-			agentId: session.agentId,
-			worktreePath: session.worktreePath,
-		},
-		{
-			title: session.title,
-			createdAt: session.createdAt,
-			updatedAt: session.updatedAt,
-			sourcePath: session.sourcePath,
-			sessionLifecycleState: session.sessionLifecycleState,
-			parentId: session.parentId,
-			prNumber: session.prNumber,
-			prState: session.prState,
-			prLinkMode: session.prLinkMode,
-			linkedPr: session.linkedPr,
-			worktreeDeleted: session.worktreeDeleted,
-			sequenceId: session.sequenceId,
-		}
-	);
-}
-
-function sessionColdWithMutableUpdates(
-	session: SessionCold,
-	updates: SessionMutableColdUpdates,
-	updatedAt: Date
-): SessionCold {
-	return sessionColdFromSlices(
-		{
-			id: session.id,
-			projectPath: session.projectPath,
-			agentId: session.agentId,
-			worktreePath: "worktreePath" in updates ? updates.worktreePath : session.worktreePath,
-		},
-		{
-			title: updates.title !== undefined ? updates.title : session.title,
-			createdAt: updates.createdAt !== undefined ? updates.createdAt : session.createdAt,
-			updatedAt,
-			sourcePath: "sourcePath" in updates ? updates.sourcePath : session.sourcePath,
-			sessionLifecycleState:
-				"sessionLifecycleState" in updates
-					? updates.sessionLifecycleState
-					: session.sessionLifecycleState,
-			parentId: updates.parentId !== undefined ? updates.parentId : session.parentId,
-			prNumber: "prNumber" in updates ? updates.prNumber : session.prNumber,
-			prState: "prState" in updates ? updates.prState : session.prState,
-			prLinkMode: "prLinkMode" in updates ? updates.prLinkMode : session.prLinkMode,
-			linkedPr: "linkedPr" in updates ? updates.linkedPr : session.linkedPr,
-			worktreeDeleted:
-				"worktreeDeleted" in updates ? updates.worktreeDeleted : session.worktreeDeleted,
-			sequenceId: "sequenceId" in updates ? updates.sequenceId : session.sequenceId,
-		}
-	);
 }
 
 function sessionColdFromOpenSnapshotInput(input: {
@@ -1744,33 +433,6 @@ function hasActivePrChecks(checks: SessionLinkedPr["checks"]): boolean {
 	return checks.some((checkRun) => checkRun.status !== "COMPLETED");
 }
 
-function mapGraphAvailableModels(capabilities: SessionGraphCapabilities): Array<Model> | null {
-	if (!capabilities.models) {
-		return null;
-	}
-
-	const availableModels = capabilities.models.availableModels ?? [];
-	return availableModels.map((model) => ({
-		id: model.modelId,
-		name: model.name,
-		description: model.description ?? undefined,
-	}));
-}
-
-function mapGraphAvailableModes(capabilities: SessionGraphCapabilities): Array<Mode> | null {
-	if (!capabilities.modes) {
-		return null;
-	}
-
-	const availableModes = capabilities.modes.availableModes ?? [];
-	return availableModes.map((mode) => ({
-		id: mode.id,
-		name: mode.name,
-		description: mode.description ?? undefined,
-		iconKind: mode.iconKind,
-	}));
-}
-
 function emptySessionGraphCapabilities(): SessionGraphCapabilities {
 	return {
 		models: null,
@@ -1826,228 +488,6 @@ function createLifecycleOnlyGraph(input: {
 	};
 }
 
-function isJsonObjectValue(value: JsonValue): boolean {
-	return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-function normalizedConfigIdentityText(option: CanonicalConfigOptionData): string {
-	return `${option.id} ${option.name} ${option.category}`.toLowerCase().replace(/[^a-z0-9]+/g, "_");
-}
-
-function configIdentityContainsCredentialLabel(option: CanonicalConfigOptionData): boolean {
-	const identityText = `${option.id} ${option.name} ${option.category}`.toLowerCase();
-	const normalizedIdentityText = normalizedConfigIdentityText(option);
-	return [
-		"api_key",
-		"apikey",
-		"access_key",
-		"accesskey",
-		"access_token",
-		"refresh_token",
-		"auth_token",
-		"bearer",
-		"credential",
-		"oauth",
-		"password",
-		"private_key",
-		"privatekey",
-		"secret",
-	].some((needle) => identityText.includes(needle) || normalizedIdentityText.includes(needle));
-}
-
-function looksLikeCredentialValue(value: string): boolean {
-	const lowerValue = value.toLowerCase();
-	return (
-		lowerValue.startsWith("bearer ") ||
-		lowerValue.startsWith("basic ") ||
-		lowerValue.startsWith("sk-") ||
-		lowerValue.startsWith("ghp_") ||
-		lowerValue.startsWith("gho_") ||
-		lowerValue.startsWith("github_pat_") ||
-		lowerValue.startsWith("xoxb-") ||
-		(value.startsWith("eyJ") && value.split(".").length === 3)
-	);
-}
-
-function sanitizeCanonicalConfigValue(
-	value: JsonValue,
-	option: CanonicalConfigOptionData,
-	field: "currentValue" | "option.value"
-): JsonValue {
-	if (value === null || typeof value === "boolean" || typeof value === "number") {
-		return value;
-	}
-
-	if (typeof value === "string") {
-		const trimmedValue = value.trim();
-		const shouldRedact =
-			trimmedValue.length > MAX_CANONICAL_CONFIG_STRING_LENGTH ||
-			trimmedValue.includes("\n") ||
-			trimmedValue.includes("\r") ||
-			configIdentityContainsCredentialLabel(option) ||
-			looksLikeCredentialValue(trimmedValue);
-		if (shouldRedact) {
-			logger.warn("Redacting unsafe canonical config option value", {
-				configId: option.id,
-				configName: option.name,
-				configCategory: option.category,
-				field,
-			});
-			return null;
-		}
-		return value;
-	}
-
-	if (Array.isArray(value) || isJsonObjectValue(value)) {
-		logger.warn("Redacting structured canonical config option value", {
-			configId: option.id,
-			configName: option.name,
-			configCategory: option.category,
-			field,
-		});
-		return null;
-	}
-
-	return null;
-}
-
-function sanitizeCanonicalConfigOptions(
-	options: ReadonlyArray<CanonicalConfigOptionData>
-): Array<CanonicalConfigOptionData> {
-	return options.map((option) => {
-		const sanitizedOptions = (option.options ?? []).map(
-			(candidate: CanonicalConfigOptionValue) => ({
-				name: candidate.name,
-				value: sanitizeCanonicalConfigValue(candidate.value, option, "option.value"),
-			})
-		);
-		const optionsWithDescriptions = sanitizedOptions.map((candidate, index) => {
-			const originalDescription = option.options?.[index]?.description;
-			if (originalDescription === undefined) {
-				return candidate;
-			}
-			return {
-				name: candidate.name,
-				value: candidate.value,
-				description: originalDescription,
-			};
-		});
-		const sanitizedOptionBase = {
-			id: option.id,
-			name: option.name,
-			category: option.category,
-			type: option.type,
-			presentation: option.presentation ?? "advanced",
-			options: optionsWithDescriptions,
-		};
-		const sanitizedOptionWithDescription =
-			option.description === undefined
-				? sanitizedOptionBase
-				: {
-						id: sanitizedOptionBase.id,
-						name: sanitizedOptionBase.name,
-						category: sanitizedOptionBase.category,
-						type: sanitizedOptionBase.type,
-						presentation: sanitizedOptionBase.presentation,
-						description: option.description,
-						options: sanitizedOptionBase.options,
-					};
-		if (option.currentValue === undefined) {
-			return sanitizedOptionWithDescription;
-		}
-		const sanitizedCurrentValue = sanitizeCanonicalConfigValue(
-			option.currentValue,
-			option,
-			"currentValue"
-		);
-		if (option.description === undefined) {
-			return {
-				id: sanitizedOptionBase.id,
-				name: sanitizedOptionBase.name,
-				category: sanitizedOptionBase.category,
-				type: sanitizedOptionBase.type,
-				presentation: sanitizedOptionBase.presentation,
-				currentValue: sanitizedCurrentValue,
-				options: sanitizedOptionBase.options,
-			};
-		}
-		return {
-			id: sanitizedOptionWithDescription.id,
-			name: sanitizedOptionWithDescription.name,
-			category: sanitizedOptionWithDescription.category,
-			type: sanitizedOptionWithDescription.type,
-			presentation: sanitizedOptionWithDescription.presentation,
-			description: option.description,
-			currentValue: sanitizedCurrentValue,
-			options: sanitizedOptionWithDescription.options,
-		};
-	});
-}
-
-function sanitizeCanonicalCapabilities(
-	capabilities: SessionGraphCapabilities
-): SessionGraphCapabilities {
-	return {
-		models: capabilities.models ?? null,
-		modes: capabilities.modes ?? null,
-		availableCommands: capabilities.availableCommands,
-		configOptions:
-			capabilities.configOptions === undefined || capabilities.configOptions === null
-				? capabilities.configOptions
-				: sanitizeCanonicalConfigOptions(capabilities.configOptions),
-		autonomousEnabled: capabilities.autonomousEnabled,
-	};
-}
-
-function projectGraphCapabilities(capabilities: SessionGraphCapabilities): {
-	availableModels: Array<Model> | null;
-	availableModes: Array<Mode> | null;
-	availableCommands: AvailableCommand[] | null;
-	currentModelId: string | null;
-	currentModeId: string | null;
-	currentModel: Model | null;
-	currentMode: Mode | null;
-	modelsDisplay: ModelsForDisplay | undefined;
-	providerMetadata: ProviderMetadataProjection | undefined;
-	configOptions: ReadonlyArray<CanonicalConfigOptionData> | null;
-	autonomousEnabled: boolean | null;
-} {
-	const availableModels = mapGraphAvailableModels(capabilities);
-	const availableModes = mapGraphAvailableModes(capabilities);
-	const modelState = capabilities.models as
-		| (NonNullable<SessionGraphCapabilities["models"]> & {
-				readonly providerMetadata?: ProviderMetadataProjection | null;
-		  })
-		| null
-		| undefined;
-	const providerMetadata = modelState?.providerMetadata ?? undefined;
-	const modelsDisplay = capabilities.models?.modelsDisplay ?? undefined;
-	const currentModeId = capabilities.modes?.currentModeId ?? null;
-	const currentMode =
-		currentModeId === null
-			? null
-			: (availableModes?.find((mode) => mode.id === currentModeId) ?? null);
-	const currentModelId = capabilities.models?.currentModelId ?? null;
-	const currentModel =
-		currentModelId === null
-			? null
-			: (availableModels?.find((model) => model.id === currentModelId) ?? null);
-
-	return {
-		availableModels,
-		availableModes,
-		availableCommands: capabilities.availableCommands ?? null,
-		currentModelId,
-		currentModeId,
-		currentModel,
-		currentMode,
-		modelsDisplay,
-		providerMetadata,
-		configOptions: capabilities.configOptions ?? null,
-		autonomousEnabled: capabilities.autonomousEnabled ?? null,
-	};
-}
-
 function isNewerGraphRevision(
 	current: SessionGraphRevision | null,
 	incoming: SessionGraphRevision
@@ -2086,12 +526,6 @@ function isOlderGraphRevision(
 	return incoming.transcriptRevision < current.transcriptRevision;
 }
 
-function deriveCapabilityPreviewState(
-	capabilities: SessionGraphCapabilities
-): SessionCapabilities["previewState"] {
-	return capabilities.models && capabilities.modes ? "canonical" : "partial";
-}
-
 function connectionErrorFromGraphState(
 	lifecycle: SessionGraphLifecycle,
 	activeTurnFailure: ActiveTurnFailure | null
@@ -2117,7 +551,6 @@ function cloneSessionGraphActivity(activity: SessionGraphActivity): SessionGraph
 	};
 }
 
-type ProjectedGraphCapabilities = ReturnType<typeof projectGraphCapabilities>;
 
 function emptySessionGraphActivity(kind: SessionGraphActivity["kind"]): SessionGraphActivity {
 	return {
@@ -2278,16 +711,36 @@ export interface SessionStoreCallbacks {
 
 export class SessionStore implements SessionEventHandler, ISessionStateReader, ISessionStateWriter {
 	// === PRIMARY STATE ===
-	private sessions = $state<SessionCold[]>([]);
-	private readonly sessionById = new SvelteMap<string, SessionCold>();
-	private readonly sessionsByProject = new SvelteMap<string, SessionCold[]>();
-	private readonly sessionIdsByProject = new SvelteMap<string, string[]>();
-	private liveSessionSyncReferences = $state<SessionLiveSyncReference[]>([]);
-	private sessionPaletteReferences = $state<SessionPaletteReference[]>([]);
+	// Session-list slice (cold list, by-id/by-project indexes, reference arrays,
+	// per-project scan flags) extracted as a composed sub-store (see docs/adr/0002).
+	private readonly listState = new SessionListStateStore();
 	loading = $state(false);
 
+	// Delegating accessors so the store's list-domain reads route to the sub-store
+	// while keeping the same live instances (preserves white-box invariant tests).
+	private get sessions(): SessionCold[] {
+		return this.listState.sessions;
+	}
+	private get sessionById(): SvelteMap<string, SessionCold> {
+		return this.listState.sessionById;
+	}
+	private get sessionsByProject(): SvelteMap<string, SessionCold[]> {
+		return this.listState.sessionsByProject;
+	}
+	private get sessionIdsByProject(): SvelteMap<string, string[]> {
+		return this.listState.sessionIdsByProject;
+	}
+	private get liveSessionSyncReferences(): SessionLiveSyncReference[] {
+		return this.listState.liveSessionSyncReferences;
+	}
+	private get sessionPaletteReferences(): SessionPaletteReference[] {
+		return this.listState.sessionPaletteReferences;
+	}
+
 	/** Project paths currently being scanned for sessions (for per-project skeleton display). */
-	readonly scanningProjectPaths = new SvelteSet<string>();
+	get scanningProjectPaths(): SvelteSet<string> {
+		return this.listState.scanningProjectPaths;
+	}
 
 	// Callbacks invoked when a session is removed (e.g., plan store cleanup)
 	private readonly onRemoveCallbacks: Array<(sessionId: string) => void> = [];
@@ -2295,12 +748,43 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 	// Transient projection store for local-only UI state.
 	private readonly transientProjectionStore = new SessionTransientProjectionStore();
 
-	// Canonical graph selector state for lifecycle/activity/actionability consumers.
-	private readonly canonicalProjections = new SvelteMap<string, CanonicalSessionProjection>();
-	private readonly sessionStateGraphs = new SvelteMap<string, SessionStateGraph>();
-	private readonly transcriptViewportStore = new TranscriptViewportStore();
-	private readonly canonicalCapabilitiesMaterialized = new SvelteMap<string, boolean>();
-	private readonly rowTokenStreamsByRowId = new Map<string, Map<string, RowTokenStream>>();
+	// Canonical projection state (CanonicalSessionProjection + SessionStateGraph
+	// maps, capabilities-materialized flags, row-token-stream index) is owned by
+	// the SessionProjectionCore sub-store (ADR-0002). The envelope dispatch loop
+	// (the canonical write spine) writes through these accessors; sub-stores and
+	// readers consume them. Getter accessors keep all existing call sites and the
+	// unit 2-4 dependency closures working against the live maps.
+	private readonly projectionCore = new SessionProjectionCore();
+	private get canonicalProjections(): SvelteMap<string, CanonicalSessionProjection> {
+		return this.projectionCore.canonicalProjections;
+	}
+	private get sessionStateGraphs(): SvelteMap<string, SessionStateGraph> {
+		return this.projectionCore.sessionStateGraphs;
+	}
+	private get canonicalCapabilitiesMaterialized(): SvelteMap<string, boolean> {
+		return this.projectionCore.canonicalCapabilitiesMaterialized;
+	}
+	private get rowTokenStreamsByRowId(): Map<string, Map<string, RowTokenStream>> {
+		return this.projectionCore.rowTokenStreamsByRowId;
+	}
+	private readonly viewport = new ViewportProjectionController({
+		connectSession: (sessionId, options) => this.connectSession(sessionId, options),
+		getGraphRevision: (sessionId) => this.getGraphRevision(sessionId),
+		applySessionStateEnvelope: (sessionId, envelope) =>
+			this.applySessionStateEnvelope(sessionId, envelope),
+	});
+	private readonly exportService = new SessionExportService({
+		getSessionStateGraph: (sessionId) => this.sessionStateGraphs.get(sessionId) ?? null,
+		getSessionIdentity: (sessionId) => this.getSessionIdentity(sessionId),
+		getSessionMetadata: (sessionId) => this.getSessionMetadata(sessionId),
+	});
+	private readonly capabilityReader = new CapabilityProjectionReader({
+		getCanonicalProjection: (sessionId) => this.canonicalProjections.get(sessionId) ?? null,
+		getSessionIdentity: (sessionId) => this.getSessionIdentity(sessionId),
+		isCapabilitiesMaterialized: (sessionId) =>
+			this.canonicalCapabilitiesMaterialized.get(sessionId) === true,
+		getTransientProjection: (sessionId) => this.getTransientProjection(sessionId),
+	});
 	private readonly pendingCreationSessions = new SvelteMap<string, CreatedPendingSessionResult>();
 
 	// Canonical tool execution domain state
@@ -2312,16 +796,6 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 	private liveSessionStateGraphConsumer: LiveSessionStateGraphConsumer | null = null;
 	private readonly inflightSessionStateRefreshes = new Map<string, InflightSessionStateRefresh>();
 	private readonly awaitingModelRefreshTimers = new Map<string, ReturnType<typeof setTimeout>>();
-	private readonly viewportReattachWatchdogTimers = new Map<
-		string,
-		ReturnType<typeof setTimeout>
-	>();
-	// Per-session latch: a forced fresh-buffer request is in flight after a
-	// delta gap. Prevents a burst of out-of-order deltas from spawning a storm
-	// of redundant fresh-push requests (each would bump emission_seq). Cleared
-	// when a push with a higher seq lands or the request settles. Local control
-	// state only — not canonical truth.
-	private readonly bufferGapRecoveryInFlight = new Set<string>();
 
 	// PR details cache/dedupe (prevents repeated gh pr view storms during scans)
 	private readonly prDetailsCache = new Map<string, CachedPrDetails>();
@@ -2385,12 +859,7 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 	 * Set sessions array (for bulk operations).
 	 */
 	setSessions(sessions: SessionCold[]): void {
-		this.sessions = sessions;
-		rebuildSessionByIdIndex(this.sessionById, sessions);
-		rebuildSessionsByProjectIndex(this.sessionsByProject, sessions);
-		rebuildSessionIdsByProjectIndex(this.sessionIdsByProject, sessions);
-		this.liveSessionSyncReferences = rebuildLiveSessionSyncReferences(sessions);
-		this.sessionPaletteReferences = rebuildSessionPaletteReferences(sessions);
+		this.listState.setSessions(sessions);
 	}
 
 	/**
@@ -2404,18 +873,14 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 	 * Mark project paths as currently being scanned.
 	 */
 	addScanningProjects(paths: string[]): void {
-		for (const p of paths) {
-			this.scanningProjectPaths.add(p);
-		}
+		this.listState.addScanningProjects(paths);
 	}
 
 	/**
 	 * Clear scanning state for project paths.
 	 */
 	removeScanningProjects(paths: string[]): void {
-		for (const p of paths) {
-			this.scanningProjectPaths.delete(p);
-		}
+		this.listState.removeScanningProjects(paths);
 	}
 
 	// ============================================
@@ -2465,11 +930,11 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 	}
 
 	getTranscriptViewportBufferProjection(sessionId: string | null): BufferProjection | null {
-		return this.transcriptViewportStore.getBufferProjection(sessionId);
+		return this.viewport.getBufferProjection(sessionId);
 	}
 
 	nextViewportRequestGeneration(sessionId: string | null): number {
-		return this.transcriptViewportStore.nextRequestGeneration(sessionId);
+		return this.viewport.nextRequestGeneration(sessionId);
 	}
 
 	viewportNeedsRefill(
@@ -2478,12 +943,7 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 		viewportHeightPx: number,
 		thresholdPx: number
 	): boolean {
-		return this.transcriptViewportStore.needsRefill(
-			sessionId,
-			scrollTopPx,
-			viewportHeightPx,
-			thresholdPx
-		);
+		return this.viewport.needsRefill(sessionId, scrollTopPx, viewportHeightPx, thresholdPx);
 	}
 
 	viewportIsOutsideBuffer(
@@ -2491,100 +951,47 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 		scrollTopPx: number,
 		viewportHeightPx: number
 	): boolean {
-		return this.transcriptViewportStore.isOutsideBuffer(sessionId, scrollTopPx, viewportHeightPx);
+		return this.viewport.isOutsideBuffer(sessionId, scrollTopPx, viewportHeightPx);
 	}
 
 	/**
 	 * Reactive read of the accumulated, unconsumed relative scroll correction
-	 * (px) for a session WITHOUT clearing it. The viewport controller keys its
-	 * apply effect on `emissionSeq` and reads this to decide whether a nudge is
-	 * pending. The store owns the accumulator; this is a pure pass-through so the
-	 * component never reaches into the transcript viewport store directly.
+	 * (px) for a session WITHOUT clearing it. Pure pass-through so the component
+	 * never reaches into the transcript viewport store directly.
 	 */
 	peekViewportScrollCorrectionPx(sessionId: string | null): number {
-		return this.transcriptViewportStore.peekPendingScrollCorrectionPx(sessionId);
+		return this.viewport.peekScrollCorrectionPx(sessionId);
 	}
 
 	/**
 	 * Consume (return and zero) the accumulated relative scroll correction (px)
-	 * for a session. The controller applies the returned delta additively to the
-	 * live scrollTop. Idempotent: returns 0 once drained.
+	 * for a session. Idempotent: returns 0 once drained.
 	 */
 	consumeViewportScrollCorrectionPx(sessionId: string | null): number {
-		return this.transcriptViewportStore.consumePendingScrollCorrectionPx(sessionId);
+		return this.viewport.consumeScrollCorrectionPx(sessionId);
 	}
 
 	/**
-	 * Bootstrap the buffer for a freshly-mounted viewport. The live producer
-	 * pushes the initial buffer on the open event stream, but a forced request
-	 * guards against the component mounting before that push lands. Idempotent:
-	 * no-op once a buffer projection exists.
+	 * Bootstrap the buffer for a freshly-mounted viewport. Idempotent: no-op once
+	 * a buffer projection exists.
 	 */
 	ensureViewportBufferBootstrap(sessionId: string): void {
-		if (this.transcriptViewportStore.getBufferProjection(sessionId) !== null) {
-			return;
-		}
-		this.requestFreshViewportBuffer(sessionId);
+		this.viewport.ensureBufferBootstrap(sessionId);
 	}
 
 	getViewportAttachmentStatus(sessionId: string | null): ViewportAttachmentStatus {
-		return this.transcriptViewportStore.getAttachmentStatus(sessionId);
+		return this.viewport.getAttachmentStatus(sessionId);
 	}
 
 	/**
 	 * Recover a viewport that the backend reports as not attached (typically
-	 * after a Rust runtime reload drifted the frontend/backend attachment). A
-	 * single recovery episode forces a reconnect, which makes Rust re-emit the
-	 * connection-complete + visible-window envelope through the live event
-	 * stream; the accepted window flips the status back to "attached".
-	 *
-	 * Recovery is attempted at most once per episode: while "reattaching" or
-	 * after "reattachFailed" we no-op. The "reattaching" projection reset lets
-	 * the fresh (low-revision) recovery window be accepted unconditionally.
+	 * after a Rust runtime reload drifted the frontend/backend attachment).
+	 * Delegated to the viewport controller, which forces a reconnect and arms a
+	 * bounded watchdog so the episode fails deterministically if the live
+	 * visible-window envelope never arrives.
 	 */
-	/**
-	 * Bounded wait after a successful forced reconnect for the live-event-stream
-	 * visible-window envelope to arrive (which flips status back to "attached").
-	 * If it never arrives, the episode is failed deterministically rather than
-	 * leaving the viewport stuck in "reattaching" forever. Any later window still
-	 * self-heals the session via markAttached.
-	 */
-	private static readonly VIEWPORT_REATTACH_WATCHDOG_MS = 8_000;
-
 	recoverViewportAttachment(sessionId: string): void {
-		const status = this.transcriptViewportStore.getAttachmentStatus(sessionId);
-		if (status !== "attached") {
-			return;
-		}
-		this.transcriptViewportStore.markReattaching(sessionId);
-		void this.connectSession(sessionId, { forceReconnect: true }).match(
-			() => {
-				this.armViewportReattachWatchdog(sessionId);
-			},
-			() => {
-				this.clearViewportReattachWatchdog(sessionId);
-				this.transcriptViewportStore.markReattachFailed(sessionId);
-			}
-		);
-	}
-
-	private armViewportReattachWatchdog(sessionId: string): void {
-		this.clearViewportReattachWatchdog(sessionId);
-		const timerId = setTimeout(() => {
-			this.viewportReattachWatchdogTimers.delete(sessionId);
-			// No-ops unless still "reattaching" (guarded in the store), so a window
-			// that already arrived keeps the session attached.
-			this.transcriptViewportStore.markReattachFailed(sessionId);
-		}, SessionStore.VIEWPORT_REATTACH_WATCHDOG_MS);
-		this.viewportReattachWatchdogTimers.set(sessionId, timerId);
-	}
-
-	private clearViewportReattachWatchdog(sessionId: string): void {
-		const timerId = this.viewportReattachWatchdogTimers.get(sessionId);
-		if (timerId !== undefined) {
-			clearTimeout(timerId);
-			this.viewportReattachWatchdogTimers.delete(sessionId);
-		}
+		this.viewport.recoverAttachment(sessionId);
 	}
 
 	/**
@@ -2595,21 +1002,21 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 	}
 
 	hasSessionCanonicalProjection(sessionId: string): boolean {
-		return this.canonicalProjections.has(sessionId);
+		return this.projectionCore.hasCanonicalProjection(sessionId);
 	}
 
 	/**
 	 * Canonical message count; null means no canonical graph exists yet.
 	 */
 	getSessionMessageCount(sessionId: string): number | null {
-		return this.sessionStateGraphs.get(sessionId)?.messageCount ?? null;
+		return this.projectionCore.getMessageCount(sessionId);
 	}
 
 	/**
 	 * Canonical transcript entries; null means no canonical graph exists yet.
 	 */
 	getSessionTranscriptEntries(sessionId: string): ReadonlyArray<TranscriptEntry> | null {
-		return this.sessionStateGraphs.get(sessionId)?.transcriptSnapshot.entries ?? null;
+		return this.projectionCore.getTranscriptEntries(sessionId);
 	}
 
 	getSessionAgentPanelCanonicalSource(sessionId: string): AgentPanelCanonicalSource | null {
@@ -2644,32 +1051,11 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 	}
 
 	getSessionMarkdownExportContent(sessionId: string): Result<string, SessionExportContentError> {
-		const graph = this.sessionStateGraphs.get(sessionId) ?? null;
-		if (graph === null) {
-			return err(sessionExportContentError("thread_content_not_loaded"));
-		}
-
-		return ok(sessionGraphToMarkdown(graph));
+		return this.exportService.getMarkdownExportContent(sessionId);
 	}
 
 	getSessionJsonExportContent(sessionId: string): Result<string, SessionExportContentError> {
-		const sessionIdentity = this.getSessionIdentity(sessionId);
-		const sessionMetadata = this.getSessionMetadata(sessionId);
-		if (!sessionIdentity || !sessionMetadata) {
-			return err(sessionExportContentError("session_not_found"));
-		}
-
-		const graph = this.sessionStateGraphs.get(sessionId) ?? null;
-		if (graph === null) {
-			return err(sessionExportContentError("thread_content_not_loaded"));
-		}
-
-		return ok(
-			sessionGraphToJsonExportContent(
-				sessionColdFromSlices(sessionIdentity, sessionMetadata),
-				graph
-			)
-		);
+		return this.exportService.getJsonExportContent(sessionId);
 	}
 
 	hasPendingCreationSession(sessionId: string): boolean {
@@ -2705,30 +1091,30 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 	}
 
 	getSessionCanSend(sessionId: string): boolean | null {
-		return this.canonicalProjections.get(sessionId)?.lifecycle.actionability.canSend ?? null;
+		return this.projectionCore.getCanSend(sessionId);
 	}
 
 	getSessionLifecycleStatus(sessionId: string): SessionGraphLifecycle["status"] | null {
-		return this.canonicalProjections.get(sessionId)?.lifecycle.status ?? null;
+		return this.projectionCore.getLifecycleStatus(sessionId);
 	}
 
 	getSessionLifecycle(sessionId: string): SessionGraphLifecycle | null {
-		return this.sessionStateGraphs.get(sessionId)?.lifecycle ?? null;
+		return this.projectionCore.getLifecycle(sessionId);
 	}
 
 	getSessionActivity(sessionId: string): SessionGraphActivity | null {
-		return this.sessionStateGraphs.get(sessionId)?.activity ?? null;
+		return this.projectionCore.getActivity(sessionId);
 	}
 
 	getSessionGraphRevision(sessionId: string): SessionGraphRevision | null {
-		return this.sessionStateGraphs.get(sessionId)?.revision ?? null;
+		return this.projectionCore.getGraphRevisionOrNull(sessionId);
 	}
 
 	/**
 	 * Canonical turn state; null means no canonical graph exists yet.
 	 */
 	getSessionTurnState(sessionId: string): SessionTurnState | null {
-		return this.sessionStateGraphs.get(sessionId)?.turnState ?? null;
+		return this.projectionCore.getTurnState(sessionId);
 	}
 
 	getSessionLifecyclePresentation(sessionId: string): LiveSessionLifecyclePresentation {
@@ -2903,21 +1289,8 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 		return this.transientProjectionStore.getTransientProjection(sessionId).statusChangedAt;
 	}
 
-	private getCanonicalProjectedCapabilities(sessionId: string): ProjectedGraphCapabilities | null {
-		const projection = this.canonicalProjections.get(sessionId) ?? null;
-		const sessionIdentity = this.getSessionIdentity(sessionId);
-		if (
-			projection === null ||
-			sessionIdentity === undefined ||
-			this.canonicalCapabilitiesMaterialized.get(sessionId) !== true
-		) {
-			return null;
-		}
-		return projectGraphCapabilities(projection.capabilities);
-	}
-
 	hasSessionCanonicalCapabilities(sessionId: string): boolean {
-		return this.getCanonicalProjectedCapabilities(sessionId) !== null;
+		return this.capabilityReader.hasCanonicalCapabilities(sessionId);
 	}
 
 	/**
@@ -2964,128 +1337,101 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 	 * Canonical last terminal turn id; null means no canonical graph or no terminal turn.
 	 */
 	getSessionLastTerminalTurnId(sessionId: string): string | null {
-		return this.sessionStateGraphs.get(sessionId)?.lastTerminalTurnId ?? null;
+		return this.projectionCore.getLastTerminalTurnId(sessionId);
 	}
 
 	getRowTokenStream(sessionId: string, turnId: string, rowId: string): RowTokenStream | null {
-		const projection = this.canonicalProjections.get(sessionId) ?? null;
-		if (projection === null) {
-			return null;
-		}
-		return projection.tokenStream.get(buildRowTokenStreamKey(turnId, rowId)) ?? null;
+		return this.projectionCore.getRowTokenStream(sessionId, turnId, rowId);
 	}
 
 	getRowTokenStreamByRowId(sessionId: string, rowId: string): RowTokenStream | null {
-		const projection = this.canonicalProjections.get(sessionId) ?? null;
-		if (projection === null) {
-			return null;
-		}
-		return this.rowTokenStreamsByRowId.get(sessionId)?.get(rowId) ?? null;
+		return this.projectionCore.getRowTokenStreamByRowId(sessionId, rowId);
 	}
 
 	getActiveStreamingTailRowId(sessionId: string): string | null {
-		return this.canonicalProjections.get(sessionId)?.activeStreamingTail?.rowId ?? null;
+		return this.projectionCore.getActiveStreamingTailRowId(sessionId);
 	}
 
 	getClockAnchor(sessionId: string): SessionClockAnchor | null {
-		return this.canonicalProjections.get(sessionId)?.clockAnchor ?? null;
+		return this.projectionCore.getClockAnchor(sessionId);
 	}
 
 	/**
 	 * Canonical autonomous setting; null means no canonical projection.
 	 */
 	getSessionAutonomousEnabled(sessionId: string): boolean | null {
-		return this.canonicalProjections.get(sessionId)?.capabilities.autonomousEnabled ?? null;
+		return this.capabilityReader.getAutonomousEnabled(sessionId);
 	}
 
 	/**
 	 * Canonical current mode id; null means no canonical capabilities or no selected mode.
 	 */
 	getSessionCurrentModeId(sessionId: string): string | null {
-		return this.getCanonicalProjectedCapabilities(sessionId)?.currentModeId ?? null;
+		return this.capabilityReader.getCurrentModeId(sessionId);
 	}
 
 	/**
 	 * Canonical current model id; null means no canonical capabilities or no selected model.
 	 */
 	getSessionCurrentModelId(sessionId: string): string | null {
-		return this.getCanonicalProjectedCapabilities(sessionId)?.currentModelId ?? null;
+		return this.capabilityReader.getCurrentModelId(sessionId);
 	}
 
 	/**
 	 * Canonical available commands; null means no canonical capabilities projection.
 	 */
 	getSessionAvailableCommands(sessionId: string): ReadonlyArray<AvailableCommand> | null {
-		return this.getCanonicalProjectedCapabilities(sessionId)?.availableCommands ?? null;
+		return this.capabilityReader.getAvailableCommands(sessionId);
 	}
 
 	/**
 	 * Canonical config options; null means no canonical capabilities projection.
 	 */
 	getSessionConfigOptions(sessionId: string): ReadonlyArray<CanonicalConfigOptionData> | null {
-		return this.getCanonicalProjectedCapabilities(sessionId)?.configOptions ?? null;
+		return this.capabilityReader.getConfigOptions(sessionId);
 	}
 
 	/**
 	 * Canonical available models; null means no canonical capabilities projection.
 	 */
 	getSessionAvailableModels(sessionId: string): ReadonlyArray<Model> | null {
-		return this.getCanonicalProjectedCapabilities(sessionId)?.availableModels ?? null;
+		return this.capabilityReader.getAvailableModels(sessionId);
 	}
 
 	/**
 	 * Canonical available modes; null means no canonical capabilities projection.
 	 */
 	getSessionAvailableModes(sessionId: string): ReadonlyArray<Mode> | null {
-		return this.getCanonicalProjectedCapabilities(sessionId)?.availableModes ?? null;
+		return this.capabilityReader.getAvailableModes(sessionId);
 	}
 
 	/**
 	 * Canonical model display metadata; null means no canonical capabilities projection.
 	 */
 	getSessionModelsDisplay(sessionId: string): ModelsForDisplay | null {
-		return this.getCanonicalProjectedCapabilities(sessionId)?.modelsDisplay ?? null;
+		return this.capabilityReader.getModelsDisplay(sessionId);
 	}
 
 	/**
 	 * Canonical provider metadata; null means no canonical capabilities projection.
 	 */
 	getSessionProviderMetadata(sessionId: string): ProviderMetadataProjection | null {
-		return this.getCanonicalProjectedCapabilities(sessionId)?.providerMetadata ?? null;
+		return this.capabilityReader.getProviderMetadata(sessionId);
 	}
 
 	/**
 	 * Canonical capability revision; null means no materialized canonical capabilities.
 	 */
 	getSessionCapabilityRevision(sessionId: string): SessionGraphRevision | null {
-		const projection = this.canonicalProjections.get(sessionId) ?? null;
-		if (projection === null || this.getCanonicalProjectedCapabilities(sessionId) === null) {
-			return null;
-		}
-		return projection.revision;
+		return this.capabilityReader.getCapabilityRevision(sessionId);
 	}
 
 	getSessionCapabilityPendingMutationId(sessionId: string): string | null {
-		if (this.getCanonicalProjectedCapabilities(sessionId) === null) {
-			return null;
-		}
-		const mutationState = this.getTransientProjection(sessionId).capabilityMutationState ?? {
-			pendingMutationId: null,
-			previewState: null,
-		};
-		return mutationState.pendingMutationId;
+		return this.capabilityReader.getPendingMutationId(sessionId);
 	}
 
 	getSessionCapabilityPreviewState(sessionId: string): SessionCapabilities["previewState"] | null {
-		const projection = this.canonicalProjections.get(sessionId) ?? null;
-		if (projection === null || this.getCanonicalProjectedCapabilities(sessionId) === null) {
-			return null;
-		}
-		const mutationState = this.getTransientProjection(sessionId).capabilityMutationState ?? {
-			pendingMutationId: null,
-			previewState: null,
-		};
-		return mutationState.previewState ?? deriveCapabilityPreviewState(projection.capabilities);
+		return this.capabilityReader.getPreviewState(sessionId);
 	}
 
 	/**
@@ -3503,19 +1849,7 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 	 * Add a session to the store.
 	 */
 	addSession(session: SessionCold): void {
-		this.sessions = createPrependedSessionColdArray(session, this.sessions);
-		this.sessionById.set(session.id, session);
-		patchSessionsByProjectIndex(this.sessionsByProject, undefined, session);
-		patchSessionIdsByProjectIndex(this.sessionIdsByProject, undefined, session);
-		this.liveSessionSyncReferences = createPrependedReferenceArray(
-			sessionLiveSyncReferenceFromSession(session),
-			this.liveSessionSyncReferences
-		);
-		this.sessionPaletteReferences = createPrependedReferenceArray(
-			sessionPaletteReferenceFromSession(session),
-			this.sessionPaletteReferences
-		);
-		logger.debug("Added session", { sessionId: session.id });
+		this.listState.addSession(session);
 	}
 
 	/**
@@ -3527,7 +1861,7 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 		this.transientProjectionStore.removeTransientProjection(sessionId);
 		this.canonicalProjections.delete(sessionId);
 		this.sessionStateGraphs.delete(sessionId);
-		this.transcriptViewportStore.removeSession(sessionId);
+		this.viewport.removeSession(sessionId);
 		this.canonicalCapabilitiesMaterialized.delete(sessionId);
 		this.rowTokenStreamsByRowId.delete(sessionId);
 		this.messagingSvc.clearSessionState(sessionId);
@@ -3597,26 +1931,7 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 		});
 
 		if (canonicalSession) {
-			const sessionIndex = findSessionColdIndexById(this.sessions, canonicalSessionId);
-			this.sessions =
-				sessionIndex === -1
-					? createPrependedSessionColdArray(snapshotSession, this.sessions)
-					: createPatchedSessionColdArray(this.sessions, sessionIndex, snapshotSession);
-			this.sessionById.set(canonicalSessionId, snapshotSession);
-			patchSessionsByProjectIndex(this.sessionsByProject, canonicalSession, snapshotSession);
-			patchSessionIdsByProjectIndex(
-				this.sessionIdsByProject,
-				canonicalSession,
-				snapshotSession
-			);
-			this.liveSessionSyncReferences = createPatchedReferenceArray(
-				this.liveSessionSyncReferences,
-				sessionLiveSyncReferenceFromSession(snapshotSession)
-			);
-			this.sessionPaletteReferences = createPatchedReferenceArray(
-				this.sessionPaletteReferences,
-				sessionPaletteReferenceFromSession(snapshotSession)
-			);
+			this.listState.applyOpenSnapshotToList(canonicalSession, snapshotSession);
 		} else {
 			this.addSession(snapshotSession);
 		}
@@ -3742,36 +2057,7 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 		updates: SessionMutableColdUpdates,
 		options?: { touchUpdatedAt?: boolean }
 	): void {
-		const sessionIndex = findSessionColdIndexById(this.sessions, id);
-		if (sessionIndex === -1) {
-			return;
-		}
-
-		const session = this.sessions[sessionIndex];
-		if (session === undefined) {
-			return;
-		}
-
-		const updatedAt =
-			updates.updatedAt !== undefined
-				? updates.updatedAt
-				: options?.touchUpdatedAt === false
-					? session.updatedAt
-					: new Date();
-
-		const updatedSession = sessionColdWithMutableUpdates(session, updates, updatedAt);
-		this.sessions = createPatchedSessionColdArray(this.sessions, sessionIndex, updatedSession);
-		this.sessionById.set(id, updatedSession);
-		patchSessionsByProjectIndex(this.sessionsByProject, session, updatedSession);
-		patchSessionIdsByProjectIndex(this.sessionIdsByProject, session, updatedSession);
-		this.liveSessionSyncReferences = createPatchedReferenceArray(
-			this.liveSessionSyncReferences,
-			sessionLiveSyncReferenceFromSession(updatedSession)
-		);
-		this.sessionPaletteReferences = createPatchedReferenceArray(
-			this.sessionPaletteReferences,
-			sessionPaletteReferenceFromSession(updatedSession)
-		);
+		this.listState.updateSession(id, updates, options);
 	}
 
 	renameSession(sessionId: string, title: string): ResultAsync<void, AppError> {
@@ -3969,7 +2255,7 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 		this.connectionMgr.disconnectSession(sessionId);
 		this.messagingSvc.clearSessionState(sessionId);
 		this.clearAwaitingModelRefreshTimer(sessionId);
-		this.clearViewportReattachWatchdog(sessionId);
+		this.viewport.clearReattachWatchdog(sessionId);
 	}
 
 	/**
@@ -4946,12 +3232,12 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 			}
 
 			if (command.kind === "applyBufferPush") {
-				this.applyBufferPush(command.push);
+				this.viewport.applyBufferPush(command.push);
 				continue;
 			}
 
 			if (command.kind === "applyBufferDelta") {
-				this.applyBufferDelta(command.delta);
+				this.viewport.applyBufferDelta(command.delta);
 				continue;
 			}
 
@@ -5199,74 +3485,12 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 		});
 	}
 
-	private applyBufferPush(push: ViewportBufferPush): void {
-		const applied = this.transcriptViewportStore.applyBufferPush(push);
-		if (applied) {
-			// A fresh push re-baselines emission_seq, so any pending gap-recovery
-			// request has served its purpose; release the latch.
-			this.bufferGapRecoveryInFlight.delete(push.sessionId);
-			this.clearViewportReattachWatchdog(push.sessionId);
-			return;
-		}
-		logger.debug("Ignoring stale viewport buffer push", {
-			sessionId: push.sessionId,
-			emissionSeq: push.emissionSeq,
-		});
-	}
-
-	private applyBufferDelta(delta: ViewportBufferDelta): void {
-		const result = this.transcriptViewportStore.applyBufferDelta(delta);
-		if (result.status === "applied") {
-			this.clearViewportReattachWatchdog(delta.sessionId);
-			return;
-		}
-		if (result.status === "gap") {
-			// The total-order chain broke (a delta arrived out of order across the
-			// command-reply and event-stream channels). Request a forced fresh push
-			// to re-baseline. Latch so a burst of gaps does not storm the backend.
-			this.requestFreshViewportBuffer(delta.sessionId);
-			return;
-		}
-		// "stale" (duplicate / reordered older) and "rejected" (wrong protocol /
-		// no base) are idempotent no-ops.
-		logger.debug("Viewport buffer delta not applied", {
-			sessionId: delta.sessionId,
-			status: result.status,
-			emissionSeq: delta.emissionSeq,
-		});
-	}
-
-	private requestFreshViewportBuffer(sessionId: string): void {
-		if (this.bufferGapRecoveryInFlight.has(sessionId)) {
-			return;
-		}
-		const revision = this.getGraphRevision(sessionId);
-		if (revision === undefined) {
-			return;
-		}
-		this.bufferGapRecoveryInFlight.add(sessionId);
-		void requestTranscriptViewportBuffer({ sessionId, revision }).match(
-			(envelope) => {
-				if (envelope !== null) {
-					this.applySessionStateEnvelope(sessionId, envelope);
-				}
-				// applyBufferPush clears the latch on a successful re-baseline; if the
-				// backend returned null (NoOp is impossible for a forced push, but be
-				// defensive) release the latch so a later gap can retry.
-				this.bufferGapRecoveryInFlight.delete(sessionId);
-			},
-			() => {
-				this.bufferGapRecoveryInFlight.delete(sessionId);
-			}
-		);
-	}
-
 	getGraphTranscriptRevision(sessionId: string): number | undefined {
-		return this.sessionStateGraphs.get(sessionId)?.transcriptSnapshot.revision;
+		return this.projectionCore.getGraphTranscriptRevision(sessionId);
 	}
 
 	private getGraphRevision(sessionId: string): SessionGraphRevision | undefined {
-		return this.sessionStateGraphs.get(sessionId)?.revision;
+		return this.projectionCore.getGraphRevision(sessionId);
 	}
 
 	private refreshSessionStateSnapshot(sessionId: string): InflightSessionStateRefresh {
