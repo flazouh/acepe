@@ -65,3 +65,69 @@ This is the same pattern that worked for the agent-panel controller (reactive cl
 Units 1–4 are independently landable, low/medium risk, and meaningfully shrink the class. **Unit 5 (SessionProjectionCore) is the canonical heart** — it should get its own GOD re-gate and likely its own plan; it is the one place a mistake corrupts session/transcript rendering. Do not bundle it with 1–4.
 
 Recommended: execute units 1–4 in a fresh, focused session (full budget, reliable depth), then plan unit 5 separately.
+
+---
+
+## Execution-ready appendix — Unit 1 (SessionListState)
+
+The pattern is now codified in **ADR-0002** (composed sub-stores, not free functions). This appendix makes Unit 1 mechanical so the focused session does not re-explore.
+
+### Exact slice membership (7 members — disjoint from per-session projection)
+
+Owned by `SessionListState`, declared at `session-store.svelte.ts:869-878`:
+
+- `sessions: SessionCold[]` (`$state`) — primary list
+- `sessionById: SvelteMap<string, SessionCold>` — id index
+- `sessionsByProject: SvelteMap<string, SessionCold[]>` — project group index
+- `sessionIdsByProject: SvelteMap<string, string[]>` — project id index
+- `liveSessionSyncReferences: SessionLiveSyncReference[]` (`$state`)
+- `sessionPaletteReferences: SessionPaletteReference[]` (`$state`)
+- `scanningProjectPaths: SvelteSet<string>` — per-project skeleton flag
+
+These already use only extracted free-function helpers (`rebuildSessionByIdIndex`, `rebuildSessionsByProjectIndex`, `rebuildSessionIdsByProjectIndex`, `rebuildLiveSessionSyncReferences`, `rebuildSessionPaletteReferences`, `createPrependedSessionColdArray`, `createPatchedSessionColdArray`, `findSessionColdIndexById`, `createPrepended/PatchedReferenceArray`) — move verbatim.
+
+### Site map (~59 internal references, all within L976-3047)
+
+`this.sessions` ×22, `this.sessionById` ×8, `this.liveSessionSyncReferences` ×8, `this.sessionPaletteReferences` ×8, `this.sessionsByProject` ×6, `this.sessionIdsByProject` ×5, `this.scanningProjectPaths` ×2.
+
+Pure list-domain methods to move wholesale: `setSessions`, `addSession`, `getAllSessions`, `getSessionCold`, `hasSession`, `getSessionIdsForProject`, `getSessionsForProject`, `getSessionPaletteReferences`, `getLiveSessionSyncReferences`.
+
+**Interleaved mutators that must be split, not moved** — `updateSession` (L2328) and `replaceSessionOpenSnapshot` (L2140) write both list state *and* per-session projection. Keep them on the parent; extract their list-write portion into a `SessionListState` method (e.g. `patchSessionCold(id, patch)`) the parent calls, leaving projection writes on the parent.
+
+### ⚠️ Test-preservation seam (THE thing that broke the prior attempt)
+
+`__tests__/session-store-rename.vitest.ts` (8 tests) is **white-box**: it casts `store as { sessions; sessionsByProject }` and monkeypatches `sessions[Symbol.iterator]` / `sessions.map` to assert the store uses indexes, not O(n) scans. Moving the fields makes `store.sessions` `undefined` → guards target a dead field → **false regressions** (this is what reverted last time).
+
+**Fix:** keep private **delegating accessors** on the parent so the captured reference stays identical to the sub-store's live array:
+
+```ts
+private get sessions(): SessionCold[] { return this.#list.sessions; }
+private get sessionsByProject(): SvelteMap<string, SessionCold[]> { return this.#list.sessionsByProject; }
+```
+
+Because the test captures `(store).sessions` (= the getter = the sub-store's array by *reference*) and the sub-store's own methods read that same instance, the monkeypatched `.map`/`[Symbol.iterator]` guards still fire. Net stays green with **zero test edits**. (If a future cleanup wants behavioral-only tests, rewrite them to target `#list` first, per ADR-0002 — but the accessor seam means it is not required for the cut.)
+
+### Verify
+
+Baseline confirmed green this session: `session-store-rename.vitest.ts` = **8/8**. After the cut: `bun run check` 0 → that file 8/8 → full store vitest parity (503 pass / 6 pre-existing env fails) → commit.
+
+### Prior art to mirror
+
+GitButler's `apps/desktop/src/lib` composes concern-scoped services under a `ClientState` root with `$state.raw` at the seam (see ADR-0002 references). `SessionListState` is the same shape: one slice, owned + tested in isolation, parent delegates.
+
+---
+
+## Prior art — GitButler (exact-stack reference)
+
+[gitbutlerapp/gitbutler](https://github.com/gitbutlerapp/gitbutler) is the closest production-grade twin to Acepe: Tauri 2 + SvelteKit + Svelte 5 + Rust, dev-tool domain, polyglot monorepo (`apps/` + `crates/` + `packages/`). Its frontend solved exactly this problem — a large reactive store decomposed into composed, single-responsibility services. The *shape* validates this plan (study the structure, **not** the Redux/RTK Query backing layer — we keep canonical-Rust-owned truth + neverthrow, not Redux).
+
+| GitButler pattern | File | Maps to our plan |
+|---|---|---|
+| **Composition root does only wiring + init** — `ClientState` instantiates sub-APIs and exposes them; no business logic. | `apps/desktop/src/lib/state/clientState.svelte.ts` | The residual `SessionStore` facade: holds `readonly #list = new SessionListState(deps)` instances, delegates the `ISessionStateReader/Writer` surface in one-liners. |
+| **One narrowly-scoped service class per domain concern, ~40–100 LOC.** `WorktreeService`, `StackService` each own one entity's state + expose only high-level methods. | `apps/desktop/src/lib/worktree/worktreeService.svelte.ts`, `lib/stacks/…` | Our sub-stores (`SessionListState`, `ViewportProjectionState`, …) — each owns a disjoint slice + the moved methods. Confirms small-cohesive-file sizing is the production norm, not over-decomposition. |
+| **`.svelte.ts` reactive classes** for all stateful logic; presentational `.svelte` components stay dumb and prop-fed. | repo-wide convention | Already our convention (`store/*.svelte.ts` + `packages/ui` dumb components). |
+| **Isolate the reactivity seam** — `$state.raw` + `$derived` hooks wrap the backing store so the rest of the code consumes a clean reactive surface. | `lib/state/butlerModule` | Keep `$state`/`SvelteMap` reads behind sub-store accessors; consumers never reach into the seam. |
+| **Dependency injection** — services declare context tokens (`WORKTREE_SERVICE` `InjectionToken`); components/tests resolve via Svelte context, enabling mock substitution; `scopesCache` reuses reactive instances per scope. | `lib/worktree/…`, `lib/state/uiState.svelte.ts` | We use the simpler **accessor-closure deps** (mirror `AgentPanelSessionController`) for cross-slice reads — sufficient for an internal class. GitButler's context-token DI is the alternative if sub-stores ever need to be consumed independently by components; not required here. The takeaway that *does* apply: constructor-inject cross-slice deps so each sub-store is unit-testable with stubs (this plan's Test-net goal). |
+| **Domain-folder-per-concern** layout (`selection/`, `worktree/`, `stacks/`, `error/`). | `apps/desktop/src/lib/*` | Our `store/` helper-module folder already follows this; sub-stores land alongside. |
+
+**Net confirmation:** GitButler independently arrived at exactly this plan's target — thin composition root + per-concern reactive service classes (40–100 LOC) + constructor-injected deps + isolated reactivity seam. Sizing and structure here are not speculative; they match a shipping Tauri/Svelte 5 product. (Zed — [zed-industries/zed](https://github.com/zed-industries/zed), the ACP creators — remains the reference for the canonical session/event-model side, which GitButler doesn't cover.)
