@@ -84,6 +84,7 @@ import { ReviewDialogController } from "../state/review-dialog-controller.svelte
 import { PrCardController } from "../state/pr-card-controller.svelte.js";
 import { WorktreeCloseConfirmationController } from "../state/worktree-close-confirmation-controller.svelte.js";
 import { WorktreeSetupController } from "../state/worktree-setup-controller.svelte.js";
+import { ContentScrollRevealController } from "../state/content-scroll-reveal-controller.svelte.js";
 import { shouldAutoScrollOnPanelActivation } from "../logic/should-auto-scroll-on-panel-activation.js";
 import { isInteractiveClickTarget } from "../logic/panel-focus-guard.js";
 import { deriveAgentPanelHeaderDisplayTitle } from "../logic/agent-panel-header-title.js";
@@ -280,14 +281,12 @@ let scrollContainer: HTMLDivElement | null = $state(null);
 
 // Reference to content component for scroll control
 let contentRef: AgentPanelContent | null = $state(null);
-let pendingUserRevealRequestVersion = $state(0);
+
+// Content scroll-position + token-reveal state — owned by a testable controller.
+const contentScrollReveal = new ContentScrollRevealController();
 
 // Scroll viewport reference for scroll-to-bottom button (bindable from child)
 let contentScrollViewport: HTMLElement | null = $state(null);
-let contentIsAtBottom = $state(true);
-let contentIsAtTop = $state(true);
-let contentIsStreaming = $state(false);
-let tokenRevealSettleRevision = $state(0);
 let panelConnectionState = $state<PanelConnectionState | null>(null);
 let panelConnectionError = $state<PanelConnectionErrorDetails | null>(null);
 // Dismiss tracking: store the error fingerprint that the user dismissed.
@@ -319,12 +318,12 @@ function scrollToBottom() {
 }
 
 function prepareForNextUserReveal() {
-	pendingUserRevealRequestVersion += 1;
+	const requestVersion = contentScrollReveal.requestUserReveal();
 	logger.info("prepareForNextUserReveal: panel", {
 		panelId: sessionController.effectivePanelId,
 		sessionId,
 		entryCount: sessionController.visibleEntryCount,
-		requestVersion: pendingUserRevealRequestVersion,
+		requestVersion,
 	});
 	return sessionController.effectivePanelId;
 }
@@ -336,9 +335,9 @@ function scrollToBottomOnTabSwitch() {
 
 // Effective panel ID (use prop or generate one)
 const pendingUserRevealRequestKey = $derived(
-	pendingUserRevealRequestVersion === 0
+	contentScrollReveal.userRevealRequestVersion === 0
 		? null
-		: `${sessionController.effectivePanelId}:${pendingUserRevealRequestVersion}:${sessionController.optimisticUserEntryForGraph?.id ?? "pending"}`
+		: `${sessionController.effectivePanelId}:${contentScrollReveal.userRevealRequestVersion}:${sessionController.optimisticUserEntryForGraph?.id ?? "pending"}`
 );
 
 // Derived UI conditions based on projectCount + panel/session state
@@ -704,7 +703,7 @@ const graphSceneEntries = $derived.by(() => {
 	);
 });
 const tokenRevealSceneEntries = $derived.by(() => {
-	tokenRevealSettleRevision;
+	contentScrollReveal.settleRevision;
 	const streamingAnimationMode = chatPreferencesStore?.streamingAnimationMode ?? "smooth";
 	const tokenRevealTailRowId =
 		sessionId === null ? null : sessionStore.getActiveStreamingTailRowId(sessionId);
@@ -748,10 +747,10 @@ $effect(() => {
 		return;
 	}
 
-	const nextRevision = tokenRevealSettleRevision + 1;
+	const nextRevision = contentScrollReveal.settleRevision + 1;
 	const timeoutId = window.setTimeout(() => {
-		if (tokenRevealSettleRevision < nextRevision) {
-			tokenRevealSettleRevision = nextRevision;
+		if (contentScrollReveal.settleRevision < nextRevision) {
+			contentScrollReveal.setSettleRevision(nextRevision);
 		}
 	}, delayMs);
 
@@ -1890,9 +1889,9 @@ async function handlePlanSidebarSendMessage(sid: string, message: string): Promi
 						bind:this={contentRef}
 						bind:scrollContainer
 						bind:scrollViewport={contentScrollViewport}
-						bind:isAtBottom={contentIsAtBottom}
-						bind:isAtTop={contentIsAtTop}
-						bind:isStreaming={contentIsStreaming}
+						bind:isAtBottom={contentScrollReveal.isAtBottom}
+						bind:isAtTop={contentScrollReveal.isAtTop}
+						bind:isStreaming={contentScrollReveal.isStreaming}
 						panelId={sessionController.effectivePanelId}
 						{viewState}
 						{sessionId}
@@ -1918,7 +1917,7 @@ async function handlePlanSidebarSendMessage(sid: string, message: string): Promi
 						{isPlanActionAvailable}
 					/>
 				</div>
-				{#if viewState.kind === "conversation" && !contentIsAtTop}
+				{#if viewState.kind === "conversation" && !contentScrollReveal.isAtTop}
 					<div class="absolute top-4 left-1/2 -translate-x-1/2 z-10">
 						<button
 							class="h-8 w-8 flex items-center justify-center rounded-full border border-border bg-background shadow-sm hover:bg-muted transition-colors"
@@ -1929,7 +1928,7 @@ async function handlePlanSidebarSendMessage(sid: string, message: string): Promi
 						</button>
 					</div>
 				{/if}
-				{#if viewState.kind === "conversation" && !contentIsAtBottom}
+				{#if viewState.kind === "conversation" && !contentScrollReveal.isAtBottom}
 					<div class="absolute bottom-4 left-1/2 -translate-x-1/2 z-10">
 						<ScrollToBottomButton visible={true} onClick={scrollToBottom} />
 					</div>
