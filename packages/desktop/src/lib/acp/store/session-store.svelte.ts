@@ -177,12 +177,11 @@ import { SessionRepository } from "./services/session-repository.js";
 import { SessionEntryStore } from "./session-entry-store.svelte.js";
 import { getTitleUpdateFromUserMessage } from "./session-title-policy.js";
 import { SessionTransientProjectionStore } from "./session-transient-projection-store.svelte.js";
-import {
-	TranscriptViewportStore,
-	type BufferProjection,
-	type ViewportAttachmentStatus,
+import type {
+	BufferProjection,
+	ViewportAttachmentStatus,
 } from "./transcript-viewport-store.svelte.js";
-import { requestTranscriptViewportBuffer } from "../session-state/session-state-viewport-command-service.js";
+import { ViewportProjectionController } from "./viewport-projection-controller.svelte.js";
 
 const logger = createLogger({ id: "session-store", name: "SessionStore" });
 
@@ -834,7 +833,12 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 	// Canonical graph selector state for lifecycle/activity/actionability consumers.
 	private readonly canonicalProjections = new SvelteMap<string, CanonicalSessionProjection>();
 	private readonly sessionStateGraphs = new SvelteMap<string, SessionStateGraph>();
-	private readonly transcriptViewportStore = new TranscriptViewportStore();
+	private readonly viewport = new ViewportProjectionController({
+		connectSession: (sessionId, options) => this.connectSession(sessionId, options),
+		getGraphRevision: (sessionId) => this.getGraphRevision(sessionId),
+		applySessionStateEnvelope: (sessionId, envelope) =>
+			this.applySessionStateEnvelope(sessionId, envelope),
+	});
 	private readonly canonicalCapabilitiesMaterialized = new SvelteMap<string, boolean>();
 	private readonly rowTokenStreamsByRowId = new Map<string, Map<string, RowTokenStream>>();
 	private readonly pendingCreationSessions = new SvelteMap<string, CreatedPendingSessionResult>();
@@ -848,16 +852,6 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 	private liveSessionStateGraphConsumer: LiveSessionStateGraphConsumer | null = null;
 	private readonly inflightSessionStateRefreshes = new Map<string, InflightSessionStateRefresh>();
 	private readonly awaitingModelRefreshTimers = new Map<string, ReturnType<typeof setTimeout>>();
-	private readonly viewportReattachWatchdogTimers = new Map<
-		string,
-		ReturnType<typeof setTimeout>
-	>();
-	// Per-session latch: a forced fresh-buffer request is in flight after a
-	// delta gap. Prevents a burst of out-of-order deltas from spawning a storm
-	// of redundant fresh-push requests (each would bump emission_seq). Cleared
-	// when a push with a higher seq lands or the request settles. Local control
-	// state only — not canonical truth.
-	private readonly bufferGapRecoveryInFlight = new Set<string>();
 
 	// PR details cache/dedupe (prevents repeated gh pr view storms during scans)
 	private readonly prDetailsCache = new Map<string, CachedPrDetails>();
@@ -992,11 +986,11 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 	}
 
 	getTranscriptViewportBufferProjection(sessionId: string | null): BufferProjection | null {
-		return this.transcriptViewportStore.getBufferProjection(sessionId);
+		return this.viewport.getBufferProjection(sessionId);
 	}
 
 	nextViewportRequestGeneration(sessionId: string | null): number {
-		return this.transcriptViewportStore.nextRequestGeneration(sessionId);
+		return this.viewport.nextRequestGeneration(sessionId);
 	}
 
 	viewportNeedsRefill(
@@ -1005,12 +999,7 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 		viewportHeightPx: number,
 		thresholdPx: number
 	): boolean {
-		return this.transcriptViewportStore.needsRefill(
-			sessionId,
-			scrollTopPx,
-			viewportHeightPx,
-			thresholdPx
-		);
+		return this.viewport.needsRefill(sessionId, scrollTopPx, viewportHeightPx, thresholdPx);
 	}
 
 	viewportIsOutsideBuffer(
@@ -1018,100 +1007,47 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 		scrollTopPx: number,
 		viewportHeightPx: number
 	): boolean {
-		return this.transcriptViewportStore.isOutsideBuffer(sessionId, scrollTopPx, viewportHeightPx);
+		return this.viewport.isOutsideBuffer(sessionId, scrollTopPx, viewportHeightPx);
 	}
 
 	/**
 	 * Reactive read of the accumulated, unconsumed relative scroll correction
-	 * (px) for a session WITHOUT clearing it. The viewport controller keys its
-	 * apply effect on `emissionSeq` and reads this to decide whether a nudge is
-	 * pending. The store owns the accumulator; this is a pure pass-through so the
-	 * component never reaches into the transcript viewport store directly.
+	 * (px) for a session WITHOUT clearing it. Pure pass-through so the component
+	 * never reaches into the transcript viewport store directly.
 	 */
 	peekViewportScrollCorrectionPx(sessionId: string | null): number {
-		return this.transcriptViewportStore.peekPendingScrollCorrectionPx(sessionId);
+		return this.viewport.peekScrollCorrectionPx(sessionId);
 	}
 
 	/**
 	 * Consume (return and zero) the accumulated relative scroll correction (px)
-	 * for a session. The controller applies the returned delta additively to the
-	 * live scrollTop. Idempotent: returns 0 once drained.
+	 * for a session. Idempotent: returns 0 once drained.
 	 */
 	consumeViewportScrollCorrectionPx(sessionId: string | null): number {
-		return this.transcriptViewportStore.consumePendingScrollCorrectionPx(sessionId);
+		return this.viewport.consumeScrollCorrectionPx(sessionId);
 	}
 
 	/**
-	 * Bootstrap the buffer for a freshly-mounted viewport. The live producer
-	 * pushes the initial buffer on the open event stream, but a forced request
-	 * guards against the component mounting before that push lands. Idempotent:
-	 * no-op once a buffer projection exists.
+	 * Bootstrap the buffer for a freshly-mounted viewport. Idempotent: no-op once
+	 * a buffer projection exists.
 	 */
 	ensureViewportBufferBootstrap(sessionId: string): void {
-		if (this.transcriptViewportStore.getBufferProjection(sessionId) !== null) {
-			return;
-		}
-		this.requestFreshViewportBuffer(sessionId);
+		this.viewport.ensureBufferBootstrap(sessionId);
 	}
 
 	getViewportAttachmentStatus(sessionId: string | null): ViewportAttachmentStatus {
-		return this.transcriptViewportStore.getAttachmentStatus(sessionId);
+		return this.viewport.getAttachmentStatus(sessionId);
 	}
 
 	/**
 	 * Recover a viewport that the backend reports as not attached (typically
-	 * after a Rust runtime reload drifted the frontend/backend attachment). A
-	 * single recovery episode forces a reconnect, which makes Rust re-emit the
-	 * connection-complete + visible-window envelope through the live event
-	 * stream; the accepted window flips the status back to "attached".
-	 *
-	 * Recovery is attempted at most once per episode: while "reattaching" or
-	 * after "reattachFailed" we no-op. The "reattaching" projection reset lets
-	 * the fresh (low-revision) recovery window be accepted unconditionally.
+	 * after a Rust runtime reload drifted the frontend/backend attachment).
+	 * Delegated to the viewport controller, which forces a reconnect and arms a
+	 * bounded watchdog so the episode fails deterministically if the live
+	 * visible-window envelope never arrives.
 	 */
-	/**
-	 * Bounded wait after a successful forced reconnect for the live-event-stream
-	 * visible-window envelope to arrive (which flips status back to "attached").
-	 * If it never arrives, the episode is failed deterministically rather than
-	 * leaving the viewport stuck in "reattaching" forever. Any later window still
-	 * self-heals the session via markAttached.
-	 */
-	private static readonly VIEWPORT_REATTACH_WATCHDOG_MS = 8_000;
-
 	recoverViewportAttachment(sessionId: string): void {
-		const status = this.transcriptViewportStore.getAttachmentStatus(sessionId);
-		if (status !== "attached") {
-			return;
-		}
-		this.transcriptViewportStore.markReattaching(sessionId);
-		void this.connectSession(sessionId, { forceReconnect: true }).match(
-			() => {
-				this.armViewportReattachWatchdog(sessionId);
-			},
-			() => {
-				this.clearViewportReattachWatchdog(sessionId);
-				this.transcriptViewportStore.markReattachFailed(sessionId);
-			}
-		);
-	}
-
-	private armViewportReattachWatchdog(sessionId: string): void {
-		this.clearViewportReattachWatchdog(sessionId);
-		const timerId = setTimeout(() => {
-			this.viewportReattachWatchdogTimers.delete(sessionId);
-			// No-ops unless still "reattaching" (guarded in the store), so a window
-			// that already arrived keeps the session attached.
-			this.transcriptViewportStore.markReattachFailed(sessionId);
-		}, SessionStore.VIEWPORT_REATTACH_WATCHDOG_MS);
-		this.viewportReattachWatchdogTimers.set(sessionId, timerId);
-	}
-
-	private clearViewportReattachWatchdog(sessionId: string): void {
-		const timerId = this.viewportReattachWatchdogTimers.get(sessionId);
-		if (timerId !== undefined) {
-			clearTimeout(timerId);
-			this.viewportReattachWatchdogTimers.delete(sessionId);
-		}
+		this.viewport.recoverAttachment(sessionId);
 	}
 
 	/**
@@ -2042,7 +1978,7 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 		this.transientProjectionStore.removeTransientProjection(sessionId);
 		this.canonicalProjections.delete(sessionId);
 		this.sessionStateGraphs.delete(sessionId);
-		this.transcriptViewportStore.removeSession(sessionId);
+		this.viewport.removeSession(sessionId);
 		this.canonicalCapabilitiesMaterialized.delete(sessionId);
 		this.rowTokenStreamsByRowId.delete(sessionId);
 		this.messagingSvc.clearSessionState(sessionId);
@@ -2436,7 +2372,7 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 		this.connectionMgr.disconnectSession(sessionId);
 		this.messagingSvc.clearSessionState(sessionId);
 		this.clearAwaitingModelRefreshTimer(sessionId);
-		this.clearViewportReattachWatchdog(sessionId);
+		this.viewport.clearReattachWatchdog(sessionId);
 	}
 
 	/**
@@ -3413,12 +3349,12 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 			}
 
 			if (command.kind === "applyBufferPush") {
-				this.applyBufferPush(command.push);
+				this.viewport.applyBufferPush(command.push);
 				continue;
 			}
 
 			if (command.kind === "applyBufferDelta") {
-				this.applyBufferDelta(command.delta);
+				this.viewport.applyBufferDelta(command.delta);
 				continue;
 			}
 
@@ -3664,68 +3600,6 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 			clockAnchor: nextClockAnchor,
 			revision: projection.revision,
 		});
-	}
-
-	private applyBufferPush(push: ViewportBufferPush): void {
-		const applied = this.transcriptViewportStore.applyBufferPush(push);
-		if (applied) {
-			// A fresh push re-baselines emission_seq, so any pending gap-recovery
-			// request has served its purpose; release the latch.
-			this.bufferGapRecoveryInFlight.delete(push.sessionId);
-			this.clearViewportReattachWatchdog(push.sessionId);
-			return;
-		}
-		logger.debug("Ignoring stale viewport buffer push", {
-			sessionId: push.sessionId,
-			emissionSeq: push.emissionSeq,
-		});
-	}
-
-	private applyBufferDelta(delta: ViewportBufferDelta): void {
-		const result = this.transcriptViewportStore.applyBufferDelta(delta);
-		if (result.status === "applied") {
-			this.clearViewportReattachWatchdog(delta.sessionId);
-			return;
-		}
-		if (result.status === "gap") {
-			// The total-order chain broke (a delta arrived out of order across the
-			// command-reply and event-stream channels). Request a forced fresh push
-			// to re-baseline. Latch so a burst of gaps does not storm the backend.
-			this.requestFreshViewportBuffer(delta.sessionId);
-			return;
-		}
-		// "stale" (duplicate / reordered older) and "rejected" (wrong protocol /
-		// no base) are idempotent no-ops.
-		logger.debug("Viewport buffer delta not applied", {
-			sessionId: delta.sessionId,
-			status: result.status,
-			emissionSeq: delta.emissionSeq,
-		});
-	}
-
-	private requestFreshViewportBuffer(sessionId: string): void {
-		if (this.bufferGapRecoveryInFlight.has(sessionId)) {
-			return;
-		}
-		const revision = this.getGraphRevision(sessionId);
-		if (revision === undefined) {
-			return;
-		}
-		this.bufferGapRecoveryInFlight.add(sessionId);
-		void requestTranscriptViewportBuffer({ sessionId, revision }).match(
-			(envelope) => {
-				if (envelope !== null) {
-					this.applySessionStateEnvelope(sessionId, envelope);
-				}
-				// applyBufferPush clears the latch on a successful re-baseline; if the
-				// backend returned null (NoOp is impossible for a forced push, but be
-				// defensive) release the latch so a later gap can retry.
-				this.bufferGapRecoveryInFlight.delete(sessionId);
-			},
-			() => {
-				this.bufferGapRecoveryInFlight.delete(sessionId);
-			}
-		);
 	}
 
 	getGraphTranscriptRevision(sessionId: string): number | undefined {
