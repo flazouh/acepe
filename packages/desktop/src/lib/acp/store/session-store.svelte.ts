@@ -182,6 +182,7 @@ import { ViewportProjectionController } from "./viewport-projection-controller.s
 import { SessionExportService } from "./session-export-service.js";
 import { CapabilityProjectionReader } from "./capability-projection-reader.js";
 import { deriveCapabilityPreviewState } from "./capability-projection.js";
+import { SessionProjectionCore } from "./session-projection-core.svelte.js";
 
 const logger = createLogger({ id: "session-store", name: "SessionStore" });
 
@@ -747,9 +748,25 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 	// Transient projection store for local-only UI state.
 	private readonly transientProjectionStore = new SessionTransientProjectionStore();
 
-	// Canonical graph selector state for lifecycle/activity/actionability consumers.
-	private readonly canonicalProjections = new SvelteMap<string, CanonicalSessionProjection>();
-	private readonly sessionStateGraphs = new SvelteMap<string, SessionStateGraph>();
+	// Canonical projection state (CanonicalSessionProjection + SessionStateGraph
+	// maps, capabilities-materialized flags, row-token-stream index) is owned by
+	// the SessionProjectionCore sub-store (ADR-0002). The envelope dispatch loop
+	// (the canonical write spine) writes through these accessors; sub-stores and
+	// readers consume them. Getter accessors keep all existing call sites and the
+	// unit 2-4 dependency closures working against the live maps.
+	private readonly projectionCore = new SessionProjectionCore();
+	private get canonicalProjections(): SvelteMap<string, CanonicalSessionProjection> {
+		return this.projectionCore.canonicalProjections;
+	}
+	private get sessionStateGraphs(): SvelteMap<string, SessionStateGraph> {
+		return this.projectionCore.sessionStateGraphs;
+	}
+	private get canonicalCapabilitiesMaterialized(): SvelteMap<string, boolean> {
+		return this.projectionCore.canonicalCapabilitiesMaterialized;
+	}
+	private get rowTokenStreamsByRowId(): Map<string, Map<string, RowTokenStream>> {
+		return this.projectionCore.rowTokenStreamsByRowId;
+	}
 	private readonly viewport = new ViewportProjectionController({
 		connectSession: (sessionId, options) => this.connectSession(sessionId, options),
 		getGraphRevision: (sessionId) => this.getGraphRevision(sessionId),
@@ -768,8 +785,6 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 			this.canonicalCapabilitiesMaterialized.get(sessionId) === true,
 		getTransientProjection: (sessionId) => this.getTransientProjection(sessionId),
 	});
-	private readonly canonicalCapabilitiesMaterialized = new SvelteMap<string, boolean>();
-	private readonly rowTokenStreamsByRowId = new Map<string, Map<string, RowTokenStream>>();
 	private readonly pendingCreationSessions = new SvelteMap<string, CreatedPendingSessionResult>();
 
 	// Canonical tool execution domain state
@@ -987,21 +1002,21 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 	}
 
 	hasSessionCanonicalProjection(sessionId: string): boolean {
-		return this.canonicalProjections.has(sessionId);
+		return this.projectionCore.hasCanonicalProjection(sessionId);
 	}
 
 	/**
 	 * Canonical message count; null means no canonical graph exists yet.
 	 */
 	getSessionMessageCount(sessionId: string): number | null {
-		return this.sessionStateGraphs.get(sessionId)?.messageCount ?? null;
+		return this.projectionCore.getMessageCount(sessionId);
 	}
 
 	/**
 	 * Canonical transcript entries; null means no canonical graph exists yet.
 	 */
 	getSessionTranscriptEntries(sessionId: string): ReadonlyArray<TranscriptEntry> | null {
-		return this.sessionStateGraphs.get(sessionId)?.transcriptSnapshot.entries ?? null;
+		return this.projectionCore.getTranscriptEntries(sessionId);
 	}
 
 	getSessionAgentPanelCanonicalSource(sessionId: string): AgentPanelCanonicalSource | null {
@@ -1076,30 +1091,30 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 	}
 
 	getSessionCanSend(sessionId: string): boolean | null {
-		return this.canonicalProjections.get(sessionId)?.lifecycle.actionability.canSend ?? null;
+		return this.projectionCore.getCanSend(sessionId);
 	}
 
 	getSessionLifecycleStatus(sessionId: string): SessionGraphLifecycle["status"] | null {
-		return this.canonicalProjections.get(sessionId)?.lifecycle.status ?? null;
+		return this.projectionCore.getLifecycleStatus(sessionId);
 	}
 
 	getSessionLifecycle(sessionId: string): SessionGraphLifecycle | null {
-		return this.sessionStateGraphs.get(sessionId)?.lifecycle ?? null;
+		return this.projectionCore.getLifecycle(sessionId);
 	}
 
 	getSessionActivity(sessionId: string): SessionGraphActivity | null {
-		return this.sessionStateGraphs.get(sessionId)?.activity ?? null;
+		return this.projectionCore.getActivity(sessionId);
 	}
 
 	getSessionGraphRevision(sessionId: string): SessionGraphRevision | null {
-		return this.sessionStateGraphs.get(sessionId)?.revision ?? null;
+		return this.projectionCore.getGraphRevisionOrNull(sessionId);
 	}
 
 	/**
 	 * Canonical turn state; null means no canonical graph exists yet.
 	 */
 	getSessionTurnState(sessionId: string): SessionTurnState | null {
-		return this.sessionStateGraphs.get(sessionId)?.turnState ?? null;
+		return this.projectionCore.getTurnState(sessionId);
 	}
 
 	getSessionLifecyclePresentation(sessionId: string): LiveSessionLifecyclePresentation {
@@ -1322,31 +1337,23 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 	 * Canonical last terminal turn id; null means no canonical graph or no terminal turn.
 	 */
 	getSessionLastTerminalTurnId(sessionId: string): string | null {
-		return this.sessionStateGraphs.get(sessionId)?.lastTerminalTurnId ?? null;
+		return this.projectionCore.getLastTerminalTurnId(sessionId);
 	}
 
 	getRowTokenStream(sessionId: string, turnId: string, rowId: string): RowTokenStream | null {
-		const projection = this.canonicalProjections.get(sessionId) ?? null;
-		if (projection === null) {
-			return null;
-		}
-		return projection.tokenStream.get(buildRowTokenStreamKey(turnId, rowId)) ?? null;
+		return this.projectionCore.getRowTokenStream(sessionId, turnId, rowId);
 	}
 
 	getRowTokenStreamByRowId(sessionId: string, rowId: string): RowTokenStream | null {
-		const projection = this.canonicalProjections.get(sessionId) ?? null;
-		if (projection === null) {
-			return null;
-		}
-		return this.rowTokenStreamsByRowId.get(sessionId)?.get(rowId) ?? null;
+		return this.projectionCore.getRowTokenStreamByRowId(sessionId, rowId);
 	}
 
 	getActiveStreamingTailRowId(sessionId: string): string | null {
-		return this.canonicalProjections.get(sessionId)?.activeStreamingTail?.rowId ?? null;
+		return this.projectionCore.getActiveStreamingTailRowId(sessionId);
 	}
 
 	getClockAnchor(sessionId: string): SessionClockAnchor | null {
-		return this.canonicalProjections.get(sessionId)?.clockAnchor ?? null;
+		return this.projectionCore.getClockAnchor(sessionId);
 	}
 
 	/**
@@ -3479,11 +3486,11 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 	}
 
 	getGraphTranscriptRevision(sessionId: string): number | undefined {
-		return this.sessionStateGraphs.get(sessionId)?.transcriptSnapshot.revision;
+		return this.projectionCore.getGraphTranscriptRevision(sessionId);
 	}
 
 	private getGraphRevision(sessionId: string): SessionGraphRevision | undefined {
-		return this.sessionStateGraphs.get(sessionId)?.revision;
+		return this.projectionCore.getGraphRevision(sessionId);
 	}
 
 	private refreshSessionStateSnapshot(sessionId: string): InflightSessionStateRefresh {
