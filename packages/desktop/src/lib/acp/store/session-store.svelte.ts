@@ -57,6 +57,7 @@ import {
 } from "../session-state/agent-panel-canonical-source.js";
 import { markInteractionSnapshotArrayPatch } from "../session-state/interaction-snapshot-array-patch.js";
 import { markOperationSnapshotArrayPatch } from "../session-state/operation-snapshot-array-patch.js";
+import { toArrayIndex } from "./array-index-utils.js";
 import { markTranscriptEntryArrayPatch } from "../session-state/transcript-entry-array-patch.js";
 import { materializeSnapshotFromOpenFound } from "../session-state/session-state-protocol.js";
 import type { AvailableCommand } from "../types/available-command.js";
@@ -707,14 +708,6 @@ function selectMergedSnapshot<TSnapshot extends SnapshotWithId>(
 		return patchedIndexes?.get(index) ?? base[index];
 	}
 	return appended[index - base.length];
-}
-
-function toArrayIndex(property: string): number | null {
-	if (property === "") {
-		return null;
-	}
-	const index = Number(property);
-	return Number.isInteger(index) && index >= 0 && String(index) === property ? index : null;
 }
 
 export function mergeOperationSnapshots(
