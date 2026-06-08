@@ -180,6 +180,8 @@ import type {
 } from "./transcript-viewport-store.svelte.js";
 import { ViewportProjectionController } from "./viewport-projection-controller.svelte.js";
 import { SessionExportService } from "./session-export-service.js";
+import { CapabilityProjectionReader } from "./capability-projection-reader.js";
+import { deriveCapabilityPreviewState } from "./capability-projection.js";
 
 const logger = createLogger({ id: "session-store", name: "SessionStore" });
 
@@ -430,33 +432,6 @@ function hasActivePrChecks(checks: SessionLinkedPr["checks"]): boolean {
 	return checks.some((checkRun) => checkRun.status !== "COMPLETED");
 }
 
-function mapGraphAvailableModels(capabilities: SessionGraphCapabilities): Array<Model> | null {
-	if (!capabilities.models) {
-		return null;
-	}
-
-	const availableModels = capabilities.models.availableModels ?? [];
-	return availableModels.map((model) => ({
-		id: model.modelId,
-		name: model.name,
-		description: model.description ?? undefined,
-	}));
-}
-
-function mapGraphAvailableModes(capabilities: SessionGraphCapabilities): Array<Mode> | null {
-	if (!capabilities.modes) {
-		return null;
-	}
-
-	const availableModes = capabilities.modes.availableModes ?? [];
-	return availableModes.map((mode) => ({
-		id: mode.id,
-		name: mode.name,
-		description: mode.description ?? undefined,
-		iconKind: mode.iconKind,
-	}));
-}
-
 function emptySessionGraphCapabilities(): SessionGraphCapabilities {
 	return {
 		models: null,
@@ -512,55 +487,6 @@ function createLifecycleOnlyGraph(input: {
 	};
 }
 
-function projectGraphCapabilities(capabilities: SessionGraphCapabilities): {
-	availableModels: Array<Model> | null;
-	availableModes: Array<Mode> | null;
-	availableCommands: AvailableCommand[] | null;
-	currentModelId: string | null;
-	currentModeId: string | null;
-	currentModel: Model | null;
-	currentMode: Mode | null;
-	modelsDisplay: ModelsForDisplay | undefined;
-	providerMetadata: ProviderMetadataProjection | undefined;
-	configOptions: ReadonlyArray<CanonicalConfigOptionData> | null;
-	autonomousEnabled: boolean | null;
-} {
-	const availableModels = mapGraphAvailableModels(capabilities);
-	const availableModes = mapGraphAvailableModes(capabilities);
-	const modelState = capabilities.models as
-		| (NonNullable<SessionGraphCapabilities["models"]> & {
-				readonly providerMetadata?: ProviderMetadataProjection | null;
-		  })
-		| null
-		| undefined;
-	const providerMetadata = modelState?.providerMetadata ?? undefined;
-	const modelsDisplay = capabilities.models?.modelsDisplay ?? undefined;
-	const currentModeId = capabilities.modes?.currentModeId ?? null;
-	const currentMode =
-		currentModeId === null
-			? null
-			: (availableModes?.find((mode) => mode.id === currentModeId) ?? null);
-	const currentModelId = capabilities.models?.currentModelId ?? null;
-	const currentModel =
-		currentModelId === null
-			? null
-			: (availableModels?.find((model) => model.id === currentModelId) ?? null);
-
-	return {
-		availableModels,
-		availableModes,
-		availableCommands: capabilities.availableCommands ?? null,
-		currentModelId,
-		currentModeId,
-		currentModel,
-		currentMode,
-		modelsDisplay,
-		providerMetadata,
-		configOptions: capabilities.configOptions ?? null,
-		autonomousEnabled: capabilities.autonomousEnabled ?? null,
-	};
-}
-
 function isNewerGraphRevision(
 	current: SessionGraphRevision | null,
 	incoming: SessionGraphRevision
@@ -599,12 +525,6 @@ function isOlderGraphRevision(
 	return incoming.transcriptRevision < current.transcriptRevision;
 }
 
-function deriveCapabilityPreviewState(
-	capabilities: SessionGraphCapabilities
-): SessionCapabilities["previewState"] {
-	return capabilities.models && capabilities.modes ? "canonical" : "partial";
-}
-
 function connectionErrorFromGraphState(
 	lifecycle: SessionGraphLifecycle,
 	activeTurnFailure: ActiveTurnFailure | null
@@ -630,7 +550,6 @@ function cloneSessionGraphActivity(activity: SessionGraphActivity): SessionGraph
 	};
 }
 
-type ProjectedGraphCapabilities = ReturnType<typeof projectGraphCapabilities>;
 
 function emptySessionGraphActivity(kind: SessionGraphActivity["kind"]): SessionGraphActivity {
 	return {
@@ -841,6 +760,13 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 		getSessionStateGraph: (sessionId) => this.sessionStateGraphs.get(sessionId) ?? null,
 		getSessionIdentity: (sessionId) => this.getSessionIdentity(sessionId),
 		getSessionMetadata: (sessionId) => this.getSessionMetadata(sessionId),
+	});
+	private readonly capabilityReader = new CapabilityProjectionReader({
+		getCanonicalProjection: (sessionId) => this.canonicalProjections.get(sessionId) ?? null,
+		getSessionIdentity: (sessionId) => this.getSessionIdentity(sessionId),
+		isCapabilitiesMaterialized: (sessionId) =>
+			this.canonicalCapabilitiesMaterialized.get(sessionId) === true,
+		getTransientProjection: (sessionId) => this.getTransientProjection(sessionId),
 	});
 	private readonly canonicalCapabilitiesMaterialized = new SvelteMap<string, boolean>();
 	private readonly rowTokenStreamsByRowId = new Map<string, Map<string, RowTokenStream>>();
@@ -1348,21 +1274,8 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 		return this.transientProjectionStore.getTransientProjection(sessionId).statusChangedAt;
 	}
 
-	private getCanonicalProjectedCapabilities(sessionId: string): ProjectedGraphCapabilities | null {
-		const projection = this.canonicalProjections.get(sessionId) ?? null;
-		const sessionIdentity = this.getSessionIdentity(sessionId);
-		if (
-			projection === null ||
-			sessionIdentity === undefined ||
-			this.canonicalCapabilitiesMaterialized.get(sessionId) !== true
-		) {
-			return null;
-		}
-		return projectGraphCapabilities(projection.capabilities);
-	}
-
 	hasSessionCanonicalCapabilities(sessionId: string): boolean {
-		return this.getCanonicalProjectedCapabilities(sessionId) !== null;
+		return this.capabilityReader.hasCanonicalCapabilities(sessionId);
 	}
 
 	/**
@@ -1440,97 +1353,78 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 	 * Canonical autonomous setting; null means no canonical projection.
 	 */
 	getSessionAutonomousEnabled(sessionId: string): boolean | null {
-		return this.canonicalProjections.get(sessionId)?.capabilities.autonomousEnabled ?? null;
+		return this.capabilityReader.getAutonomousEnabled(sessionId);
 	}
 
 	/**
 	 * Canonical current mode id; null means no canonical capabilities or no selected mode.
 	 */
 	getSessionCurrentModeId(sessionId: string): string | null {
-		return this.getCanonicalProjectedCapabilities(sessionId)?.currentModeId ?? null;
+		return this.capabilityReader.getCurrentModeId(sessionId);
 	}
 
 	/**
 	 * Canonical current model id; null means no canonical capabilities or no selected model.
 	 */
 	getSessionCurrentModelId(sessionId: string): string | null {
-		return this.getCanonicalProjectedCapabilities(sessionId)?.currentModelId ?? null;
+		return this.capabilityReader.getCurrentModelId(sessionId);
 	}
 
 	/**
 	 * Canonical available commands; null means no canonical capabilities projection.
 	 */
 	getSessionAvailableCommands(sessionId: string): ReadonlyArray<AvailableCommand> | null {
-		return this.getCanonicalProjectedCapabilities(sessionId)?.availableCommands ?? null;
+		return this.capabilityReader.getAvailableCommands(sessionId);
 	}
 
 	/**
 	 * Canonical config options; null means no canonical capabilities projection.
 	 */
 	getSessionConfigOptions(sessionId: string): ReadonlyArray<CanonicalConfigOptionData> | null {
-		return this.getCanonicalProjectedCapabilities(sessionId)?.configOptions ?? null;
+		return this.capabilityReader.getConfigOptions(sessionId);
 	}
 
 	/**
 	 * Canonical available models; null means no canonical capabilities projection.
 	 */
 	getSessionAvailableModels(sessionId: string): ReadonlyArray<Model> | null {
-		return this.getCanonicalProjectedCapabilities(sessionId)?.availableModels ?? null;
+		return this.capabilityReader.getAvailableModels(sessionId);
 	}
 
 	/**
 	 * Canonical available modes; null means no canonical capabilities projection.
 	 */
 	getSessionAvailableModes(sessionId: string): ReadonlyArray<Mode> | null {
-		return this.getCanonicalProjectedCapabilities(sessionId)?.availableModes ?? null;
+		return this.capabilityReader.getAvailableModes(sessionId);
 	}
 
 	/**
 	 * Canonical model display metadata; null means no canonical capabilities projection.
 	 */
 	getSessionModelsDisplay(sessionId: string): ModelsForDisplay | null {
-		return this.getCanonicalProjectedCapabilities(sessionId)?.modelsDisplay ?? null;
+		return this.capabilityReader.getModelsDisplay(sessionId);
 	}
 
 	/**
 	 * Canonical provider metadata; null means no canonical capabilities projection.
 	 */
 	getSessionProviderMetadata(sessionId: string): ProviderMetadataProjection | null {
-		return this.getCanonicalProjectedCapabilities(sessionId)?.providerMetadata ?? null;
+		return this.capabilityReader.getProviderMetadata(sessionId);
 	}
 
 	/**
 	 * Canonical capability revision; null means no materialized canonical capabilities.
 	 */
 	getSessionCapabilityRevision(sessionId: string): SessionGraphRevision | null {
-		const projection = this.canonicalProjections.get(sessionId) ?? null;
-		if (projection === null || this.getCanonicalProjectedCapabilities(sessionId) === null) {
-			return null;
-		}
-		return projection.revision;
+		return this.capabilityReader.getCapabilityRevision(sessionId);
 	}
 
 	getSessionCapabilityPendingMutationId(sessionId: string): string | null {
-		if (this.getCanonicalProjectedCapabilities(sessionId) === null) {
-			return null;
-		}
-		const mutationState = this.getTransientProjection(sessionId).capabilityMutationState ?? {
-			pendingMutationId: null,
-			previewState: null,
-		};
-		return mutationState.pendingMutationId;
+		return this.capabilityReader.getPendingMutationId(sessionId);
 	}
 
 	getSessionCapabilityPreviewState(sessionId: string): SessionCapabilities["previewState"] | null {
-		const projection = this.canonicalProjections.get(sessionId) ?? null;
-		if (projection === null || this.getCanonicalProjectedCapabilities(sessionId) === null) {
-			return null;
-		}
-		const mutationState = this.getTransientProjection(sessionId).capabilityMutationState ?? {
-			pendingMutationId: null,
-			previewState: null,
-		};
-		return mutationState.previewState ?? deriveCapabilityPreviewState(projection.capabilities);
+		return this.capabilityReader.getPreviewState(sessionId);
 	}
 
 	/**
