@@ -34,10 +34,10 @@ This is the same pattern that worked for the agent-panel controller (reactive cl
 | # | Sub-store | Owns | ~Methods | Risk |
 |---|-----------|------|----------|------|
 | 1 | **SessionListState** ✅ DONE (`5b49e727f`) | `sessions`, `liveSessionSyncReferences`, `sessionPaletteReferences` `$state` + indexes + scan flags + list CRUD / reference rebuilds | ~15 | low — landed via getter-delegation seam; check 0, rename 8/8, zero regressions (verified vs clean baseline) |
-| 2 | **ViewportProjectionState** | viewport buffer projections, scroll-correction, attachment status (per-session Maps) | ~12 | low — already a clear sub-API (`getTranscriptViewportBufferProjection`, `recoverViewportAttachment`, …) |
-| 3 | **SessionExportService** | markdown/json export (already uses extracted `sessionExportContentError`) | ~4 | low — read-only |
-| 4 | **CapabilityProjectionState** | per-session capability projection (uses extracted `sanitizeCanonicalCapabilities`, `projectGraphCapabilities`) | ~10 | medium |
-| 5 | **SessionProjectionCore** | the per-session `CanonicalSessionProjection` Maps + envelope `applyXxx` handlers | ~60 | **high** — the canonical heart; do last, its own sub-plan |
+| 2 | **ViewportProjectionController** ✅ DONE (`bd739636c`) | TranscriptViewportStore + reattach-watchdog timers + gap-recovery latch + buffer push/delta + attachment recovery | ~17 | landed via accessor-closure deps (connectSession, getGraphRevision, applySessionStateEnvelope); check 0 incl. rust-owned-viewport guard, parity |
+| 3 | **SessionExportService** ✅ DONE (`c77b67970`) | markdown/json export | 2 | landed read-only via accessor deps; check 0, parity |
+| 4 | **CapabilityProjectionReader** ✅ DONE (`d0b953788`) | read-only per-session capability projection + pure `capability-projection.ts` | ~14 | landed; reads canonical via accessors; capability *writes* stay on the envelope path; check 0, parity |
+| 5 | **SessionProjectionCore** ⛔ GOD-GATED, BLOCKED ON NET | the per-session `CanonicalSessionProjection`/`SessionStateGraph`/materialized/token-stream Maps + envelope `applyXxx` dispatch handlers | ~60 | **high** — the canonical heart; **own sub-plan required** (see appendix) |
 | — | `SessionStore` (residual) | composition + the public `ISessionStateReader/Writer` facade delegating to the above | thin | — |
 
 ---
@@ -131,3 +131,39 @@ GitButler's `apps/desktop/src/lib` composes concern-scoped services under a `Cli
 | **Domain-folder-per-concern** layout (`selection/`, `worktree/`, `stacks/`, `error/`). | `apps/desktop/src/lib/*` | Our `store/` helper-module folder already follows this; sub-stores land alongside. |
 
 **Net confirmation:** GitButler independently arrived at exactly this plan's target — thin composition root + per-concern reactive service classes (40–100 LOC) + constructor-injected deps + isolated reactivity seam. Sizing and structure here are not speculative; they match a shipping Tauri/Svelte 5 product. (Zed — [zed-industries/zed](https://github.com/zed-industries/zed), the ACP creators — remains the reference for the canonical session/event-model side, which GitButler doesn't cover.)
+
+---
+
+## Execution status (2026-06-08)
+
+Units 1–4 **shipped** on `refactor/scene-mapper-decomposition`, each with `bun run check` 0 and full store-vitest parity (7 pre-existing env/mock-infra fails, verified identical against a clean worktree of HEAD — zero regressions):
+
+- `5b49e727f` Unit 1 SessionListState
+- `bd739636c` Unit 2 ViewportProjectionController
+- `c77b67970` Unit 3 SessionExportService
+- `d0b953788` Unit 4 CapabilityProjectionReader (+ pure `capability-projection.ts`)
+
+`session-store.svelte.ts`: **5,409 → 3,626 LOC** across the full effort (helper layer + units 1–4). Four new focused sub-stores/services + one pure projection module, all consuming the canonical core via accessor-closure deps.
+
+## Execution-ready appendix — Unit 5 (SessionProjectionCore) — GOD-gated, blocked on net
+
+GOD re-gate run 2026-06-08 (via `god-architecture-check`). **Verdict: GOD-safe relocation, no violations, no Rust widening** — but two findings make this a dedicated sub-plan, not a same-session mechanical cut:
+
+### Finding 1 — the envelope dispatch loop is the canonical *spine*, not a slice
+`applySessionStateEnvelope` (`routeSessionStateEnvelope` → `applyLifecycle`/`applyCapabilities`/`applyTelemetry`/`applyPlan`/`applyBufferPush`/… handlers) is the cross-domain integration point: each handler interleaves canonical-projection Map writes with effects on the transient store, the connection machine (`reconcileConnectionMachineFromCanonicalState`), refresh timers, telemetry, plan callbacks, and the viewport sub-store. Per `CONTEXT.md`, a spine that orders the units it composes legitimately stays in the parent.
+
+**Design decision the sub-plan must make** (do NOT improvise it):
+- **Option A (recommended):** `SessionProjectionCore` owns the four Maps (`canonicalProjections`, `sessionStateGraphs`, `canonicalCapabilitiesMaterialized`, `rowTokenStreamsByRowId`) + the read selectors + **narrow write methods** (`setProjection`/`setGraph`/`setCapabilitiesMaterialized`/`deleteSession`/token-stream writes). The dispatch loop stays in the parent spine but writes *through* the core's API. Single ownership (only the core mutates the Maps); the cross-slice accessors already wired in units 2–4 (`getGraphRevision`, `getCanonicalProjection`, `isCapabilitiesMaterialized`, `getSessionStateGraph`) repoint to the core.
+- **Option B:** move the whole dispatch loop into the core — rejected: the core would need accessor deps to nearly the entire store (transient, connection, timers, telemetry, callbacks, viewport), i.e. circular coupling dressed up as decomposition.
+
+### Finding 2 — ⛔ the regression net is non-functional in a headless env
+The canonical write-path is guarded by `session-store-projection-state.vitest.ts` (exercises `applySessionStateEnvelope`/`applySessionStateGraph`). That suite **fails on baseline** here with `ECONNREFUSED localhost:3000` (theme fetch needs the dev server) — confirmed identical on a clean worktree of HEAD. Refactoring the canonical heart with no green net violates the per-commit-green discipline that kept units 1–4 regression-free.
+
+**Hard prerequisite for Unit 5:** a session with the dev server live on `:3000` (or the projection-state suite otherwise made runnable) so the net is green *before* the cut. The selectors are guarded by the same suite, so even a read-only sub-slice of Unit 5 inherits this prerequisite.
+
+### Sequenced recipe (for the dedicated session)
+1. Confirm `session-store-projection-state.vitest.ts` runs green (dev server up).
+2. Create `session-projection-core.svelte.ts`: move the 4 Maps; add read selectors (`getGraphRevision`, lifecycle/activity/turnState/revision/connection-error/lifecycle-failure/active-turn-failure/last-terminal-turn/row-token-stream/streaming-tail/clock-anchor/message-count/transcript selectors) + narrow write methods.
+3. Repoint units 2–4 accessor closures to the core instance.
+4. Rewrite dispatch-loop + `applySessionStateGraph` + `replaceSessionOpenSnapshot` Map reads/writes (~40 sites) to go through core methods. No `canonical ?? hot`, no dual-write — only the core mutates the Maps.
+5. Verify: `check` 0 → projection-state suite green → full store parity → commit.
