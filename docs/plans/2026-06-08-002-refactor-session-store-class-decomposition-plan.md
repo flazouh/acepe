@@ -1,7 +1,8 @@
 ---
-status: active
+status: completed
 type: refactor
 created: 2026-06-08
+completed: 2026-06-08
 god_gate: cleared
 ---
 
