@@ -25,3 +25,4 @@ What gets better, what gets worse, what we now owe.
 ## Index
 
 - [ADR-0001](0001-neverthrow-not-effect.md) — Keep neverthrow for TS error handling; do not adopt Effect
+- [ADR-0002](0002-composed-sub-stores-for-reactive-decomposition.md) — Decompose god reactive stores into composed sub-stores, not free functions

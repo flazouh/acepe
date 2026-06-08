@@ -43,6 +43,8 @@ Truth is **owned by canonical, Rust-side data**. Provider output is *input*, not
   - **Scene** (`AgentPanelScene`) — convenience renderer mapping a `AgentPanelSceneModel` to the `AgentPanel` shell slots.
 - **Materializer** — builds canonical agent-panel state from session state (`agent-panel-graph-materializer.ts`). Canonical; GOD-gated.
 - **Spine** — the thin, readable service/controller file that names and orders the focused units it composes. Every decomposition leaves one; fragments without a spine are shrapnel.
+- **Sub-store** — a class owning a *disjoint slice* of a reactive store's `$state`/Maps plus the methods over it. The unit a god reactive store decomposes into (see ADR-0002). Distinct from a pure-helper module: a sub-store holds state, a helper does not.
+- **Composition root / store facade** — the residual parent store after decomposition: holds sub-store instances and delegates its public interface to them in one-liners, preserving the external contract. Cross-slice reads flow through **accessor-closure dependencies**, never dual-ownership.
 
 ### Workspace concepts
 - **Worktree** — an isolated git worktree used for parallel agent work / review.
