@@ -81,7 +81,6 @@ import {
 	graphWithLifecycle,
 	graphWithPatches,
 	graphWithTranscriptSnapshot,
-	sessionExportContentError,
 	type SessionExportContentError,
 } from "./session-graph-builders.js";
 export type { SessionExportContentError, SessionExportContentErrorKind } from "./session-graph-builders.js";
@@ -157,8 +156,6 @@ import {
 import { ConnectionError, SessionNotFoundError } from "../errors/app-error.js";
 import type { ToolCall } from "../types/tool-call.js";
 import { createLogger } from "../utils/logger.js";
-import { sessionGraphToJsonExportContent } from "../utils/session-export.js";
-import { sessionGraphToMarkdown } from "../utils/session-to-markdown.js";
 import * as preferencesStore from "./agent-model-preferences-store.svelte.js";
 import { api } from "./api.js";
 import { OperationStore } from "./operation-store.svelte.js";
@@ -182,6 +179,7 @@ import type {
 	ViewportAttachmentStatus,
 } from "./transcript-viewport-store.svelte.js";
 import { ViewportProjectionController } from "./viewport-projection-controller.svelte.js";
+import { SessionExportService } from "./session-export-service.js";
 
 const logger = createLogger({ id: "session-store", name: "SessionStore" });
 
@@ -839,6 +837,11 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 		applySessionStateEnvelope: (sessionId, envelope) =>
 			this.applySessionStateEnvelope(sessionId, envelope),
 	});
+	private readonly exportService = new SessionExportService({
+		getSessionStateGraph: (sessionId) => this.sessionStateGraphs.get(sessionId) ?? null,
+		getSessionIdentity: (sessionId) => this.getSessionIdentity(sessionId),
+		getSessionMetadata: (sessionId) => this.getSessionMetadata(sessionId),
+	});
 	private readonly canonicalCapabilitiesMaterialized = new SvelteMap<string, boolean>();
 	private readonly rowTokenStreamsByRowId = new Map<string, Map<string, RowTokenStream>>();
 	private readonly pendingCreationSessions = new SvelteMap<string, CreatedPendingSessionResult>();
@@ -1107,32 +1110,11 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 	}
 
 	getSessionMarkdownExportContent(sessionId: string): Result<string, SessionExportContentError> {
-		const graph = this.sessionStateGraphs.get(sessionId) ?? null;
-		if (graph === null) {
-			return err(sessionExportContentError("thread_content_not_loaded"));
-		}
-
-		return ok(sessionGraphToMarkdown(graph));
+		return this.exportService.getMarkdownExportContent(sessionId);
 	}
 
 	getSessionJsonExportContent(sessionId: string): Result<string, SessionExportContentError> {
-		const sessionIdentity = this.getSessionIdentity(sessionId);
-		const sessionMetadata = this.getSessionMetadata(sessionId);
-		if (!sessionIdentity || !sessionMetadata) {
-			return err(sessionExportContentError("session_not_found"));
-		}
-
-		const graph = this.sessionStateGraphs.get(sessionId) ?? null;
-		if (graph === null) {
-			return err(sessionExportContentError("thread_content_not_loaded"));
-		}
-
-		return ok(
-			sessionGraphToJsonExportContent(
-				sessionColdFromSlices(sessionIdentity, sessionMetadata),
-				graph
-			)
-		);
+		return this.exportService.getJsonExportContent(sessionId);
 	}
 
 	hasPendingCreationSession(sessionId: string): boolean {
