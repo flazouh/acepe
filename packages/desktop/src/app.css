@@ -370,8 +370,19 @@
 	}
 }
 
-/* Sonner toast: compact top-center pill */
+/* Sonner toast: compact top-center */
+/* Toaster container centering — full-width flex, items centered */
+[data-sonner-toaster] {
+	left: 0 !important;
+	right: 0 !important;
+	display: flex !important;
+	flex-direction: column !important;
+	align-items: center !important;
+	pointer-events: none !important;
+}
+
 [data-sonner-toast] {
+	pointer-events: auto;
 	border: none !important;
 	background: color-mix(in srgb, var(--popover) 92%, var(--foreground) 8%) !important;
 	backdrop-filter: blur(12px);
@@ -379,7 +390,7 @@
 	width: fit-content !important;
 	max-width: min(520px, calc(100vw - 32px)) !important;
 	padding: 0 38px 0 16px !important;
-	border-radius: 9999px !important;
+	border-radius: 4px !important;
 	box-shadow: 0 14px 42px rgb(0 0 0 / 0.24) !important;
 }
 

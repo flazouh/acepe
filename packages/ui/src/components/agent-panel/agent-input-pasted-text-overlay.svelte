@@ -101,7 +101,7 @@
 <div
 	bind:this={overlayEl}
 	data-pasted-text-overlay
-	class="fixed z-50 rounded-lg border border-border/40 bg-popover shadow-sm overflow-hidden"
+	class="fixed z-50 rounded border border-border/40 bg-popover shadow-sm overflow-hidden"
 	style:top="{top}px"
 	style:left="{left}px"
 	style:min-width="320px"

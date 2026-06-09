@@ -130,7 +130,7 @@ function titleCase(s: string): string {
 	</div>
 
 	<!-- Table -->
-	<div class="flex-1 min-h-0 overflow-auto rounded-lg bg-muted/20 shadow-sm">
+	<div class="flex-1 min-h-0 overflow-auto rounded bg-muted/20 shadow-sm">
 		<!-- Header -->
 		<div
 			class="flex items-center gap-1 px-3 h-8 bg-muted/20 border-b border-border/40 sticky top-0 text-[12px] font-semibold text-muted-foreground"

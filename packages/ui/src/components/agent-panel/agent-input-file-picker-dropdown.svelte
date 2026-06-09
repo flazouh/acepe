@@ -147,7 +147,7 @@
 	<!-- svelte-ignore a11y_no_static_element_interactions -->
 	<div
 		use:portalToBody
-		class="fixed z-[var(--overlay-z)] flex overflow-hidden rounded-lg border bg-popover shadow-lg"
+		class="fixed z-[var(--overlay-z)] flex overflow-hidden rounded border bg-popover shadow-lg"
 		style="top: {computedPosition.top}px; left: {computedPosition.left}px; width: {FILE_PICKER_DROPDOWN_WIDTH}px; height: {FILE_PICKER_DROPDOWN_HEIGHT}px;"
 		onmousedown={(event) => event.preventDefault()}
 	>

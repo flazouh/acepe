@@ -52,7 +52,7 @@
 					toggleExpanded();
 				}
 			}}
-			class="w-full flex items-center justify-between px-3 py-1 rounded-lg bg-input/30 cursor-pointer {isExpanded
+			class="w-full flex items-center justify-between px-3 py-1 rounded bg-input/30 cursor-pointer {isExpanded
 				? 'rounded-t-none'
 				: ''}"
 			aria-expanded={isExpanded}

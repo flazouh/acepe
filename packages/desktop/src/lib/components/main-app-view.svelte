@@ -1199,7 +1199,7 @@ onDestroy(() => {
 			}}
 		>
 			<div
-				class="mx-auto h-full max-h-[820px] w-full max-w-[1180px] overflow-hidden rounded-xl border border-border/60 bg-background shadow-[0_30px_80px_rgba(0,0,0,0.5)]"
+				class="mx-auto h-full max-h-[820px] w-full max-w-[1180px] overflow-hidden rounded border border-border/60 bg-background shadow-[0_30px_80px_rgba(0,0,0,0.5)]"
 			>
 				<SqlStudioPage onClose={() => viewState.closeSqlStudio()} />
 			</div>

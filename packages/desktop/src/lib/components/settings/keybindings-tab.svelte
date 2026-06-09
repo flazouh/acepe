@@ -104,7 +104,7 @@ async function handleResetAllToDefaults() {
 	</div>
 
 	<!-- List -->
-	<div class="flex-1 min-h-0 overflow-auto rounded-lg bg-muted/20 shadow-sm">
+	<div class="flex-1 min-h-0 overflow-auto rounded bg-muted/20 shadow-sm">
 		{#each groupedActions as [category, actions] (category)}
 			<div
 				class="px-3 h-8 flex items-center text-[12px] font-semibold text-muted-foreground bg-muted/20 border-b border-border/40 sticky top-0"

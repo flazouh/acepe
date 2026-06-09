@@ -23,7 +23,7 @@
 
 {#if projects.length > 0}
 	<div
-		class="flex w-fit max-w-full shrink-0 items-stretch rounded-lg bg-card px-1 py-1"
+		class="flex w-fit max-w-full shrink-0 items-stretch rounded bg-card px-1 py-1"
 		role="tablist"
 		aria-label="Projects"
 	>

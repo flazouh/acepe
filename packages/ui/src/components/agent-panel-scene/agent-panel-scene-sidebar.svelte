@@ -40,7 +40,7 @@
 				<h3 class="text-sm font-medium text-foreground">{sidebars.plan.title}</h3>
 				<div class="mt-3 space-y-2">
 					{#each sidebars.plan.items as item (item.id)}
-						<div class="rounded-lg border border-border/50 bg-accent/30 px-3 py-2">
+						<div class="rounded border border-border/50 bg-accent/30 px-3 py-2">
 							<div class="text-sm text-foreground">{item.label}</div>
 							{#if item.description}
 								<p class="mt-1 text-[11px] text-muted-foreground">{item.description}</p>
@@ -68,7 +68,7 @@
 				<h3 class="text-sm font-medium text-foreground">Attached files</h3>
 				<div class="mt-3 space-y-2">
 					{#each sidebars.attachedFiles.tabs as tab (tab.id)}
-						<div class="flex items-start gap-2 rounded-lg border border-border/50 px-3 py-2 {tab.isActive ? 'bg-accent/40' : 'bg-background/60'}">
+						<div class="flex items-start gap-2 rounded border border-border/50 px-3 py-2 {tab.isActive ? 'bg-accent/40' : 'bg-background/60'}">
 							<button
 								type="button"
 								class="min-w-0 flex-1 text-left"

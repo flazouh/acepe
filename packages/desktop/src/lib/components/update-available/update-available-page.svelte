@@ -56,7 +56,7 @@ onMount(() => {
 	class="relative z-10 mx-auto flex h-full w-full max-w-sm flex-col items-center justify-center px-5 py-4"
 >
 	<!-- Card -->
-	<div class="update-card flex w-full flex-col overflow-hidden rounded-xl bg-background">
+	<div class="update-card flex w-full flex-col overflow-hidden rounded bg-background">
 		<!-- Header -->
 		<div class="flex flex-col gap-2 p-4 pb-3">
 			<!-- Logo + version -->

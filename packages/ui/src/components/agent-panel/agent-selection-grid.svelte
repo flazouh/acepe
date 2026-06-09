@@ -57,7 +57,7 @@
 			<div class="flex flex-col items-center gap-2">
 				<button
 					type="button"
-					class="flex h-14 w-14 items-center justify-center rounded-lg border border-transparent p-2 transition-colors
+					class="flex h-14 w-14 items-center justify-center rounded border border-transparent p-2 transition-colors
 						{agent.available
 						? isSelected
 							? 'bg-accent/50 border-border/50'

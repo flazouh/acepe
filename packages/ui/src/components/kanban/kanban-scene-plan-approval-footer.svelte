@@ -14,7 +14,7 @@
 	let { prompt, approveLabel, rejectLabel, onApprove, onReject }: Props = $props();
 </script>
 
-<div class="flex flex-col overflow-hidden rounded-md border border-border/50 bg-accent/20">
+<div class="flex flex-col overflow-hidden rounded border border-border/50 bg-accent/20">
 	<EmbeddedPanelHeader class="bg-accent/30">
 		<HeaderTitleCell compactPadding>
 			<FileCode class="mr-1 size-3 shrink-0" weight="fill" />

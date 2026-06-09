@@ -103,7 +103,7 @@
 		{iconBasePath}
 	/>
 {:else if renderKind === "tool-error-result"}
-	<div class="rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2">
+	<div class="rounded border border-destructive/30 bg-destructive/5 px-3 py-2">
 		<p class="text-sm font-medium text-destructive">{entry.title}</p>
 		{#if entry.subtitle}
 			<p class="mt-1 text-sm text-muted-foreground">{entry.subtitle}</p>

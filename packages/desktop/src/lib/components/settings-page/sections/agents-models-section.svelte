@@ -120,7 +120,7 @@ function setAgentChecked(agentId: string, checked: boolean): void {
 	/>
 
 	<!-- Default agent -->
-	<div class="overflow-hidden rounded-lg bg-muted/20 shadow-sm">
+	<div class="overflow-hidden rounded bg-muted/20 shadow-sm">
 		<div class="flex items-center justify-between h-9 px-3">
 			<span class="text-[13px] font-medium text-foreground">Default agent</span>
 			<DropdownMenu.Root>
@@ -170,7 +170,7 @@ function setAgentChecked(agentId: string, checked: boolean): void {
 	</div>
 
 	<!-- Agents table -->
-	<div class="overflow-hidden rounded-lg bg-muted/20 shadow-sm">
+	<div class="overflow-hidden rounded bg-muted/20 shadow-sm">
 		<!-- Header row -->
 		<div
 			class="grid grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-2 h-8 px-3 border-b border-border/40 text-[12px] font-medium text-muted-foreground"
@@ -233,7 +233,7 @@ function setAgentChecked(agentId: string, checked: boolean): void {
 				title={"Persisted custom agents"}
 				description="Saved custom agent commands available on this machine."
 			/>
-			<div class="overflow-hidden rounded-lg bg-muted/20 shadow-sm">
+			<div class="overflow-hidden rounded bg-muted/20 shadow-sm">
 				<div
 					class="grid grid-cols-[minmax(0,1fr)_minmax(0,2fr)] items-center gap-2 h-8 px-3 border-b border-border/40 text-[12px] font-medium text-muted-foreground"
 				>

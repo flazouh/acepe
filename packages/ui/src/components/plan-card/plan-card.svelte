@@ -51,7 +51,7 @@
 </script>
 
 <div
-  class="plan-card rounded-md border border-border bg-background/60 overflow-hidden {className}"
+  class="plan-card rounded border border-border bg-background/60 overflow-hidden {className}"
 >
   <!-- Header -->
   <EmbeddedPanelHeader class="bg-accent/35">

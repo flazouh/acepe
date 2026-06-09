@@ -44,7 +44,7 @@
 	}
 </script>
 
-<div class={cn("rounded-lg border border-border/50 bg-card overflow-hidden", className)}>
+<div class={cn("rounded border border-border/50 bg-card overflow-hidden", className)}>
 	<!-- Primary row: icon + SHA + message + diff pill + actions -->
 	<div class="flex items-center gap-2 px-3 py-2">
 		<span class="shrink-0 text-success">

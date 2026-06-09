@@ -1027,7 +1027,7 @@ function handleRejectPlanApproval(sessionId: string): void {
 						</AgentInput>
 					{/key}
 				{:else}
-					<div class="rounded-lg border border-dashed border-border/60 bg-muted/20 px-4 py-6 text-sm text-muted-foreground">
+					<div class="rounded border border-dashed border-border/60 bg-muted/20 px-4 py-6 text-sm text-muted-foreground">
 						Add at least one project and one available agent to start a session.
 					</div>
 				{/if}

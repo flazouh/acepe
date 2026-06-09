@@ -35,6 +35,13 @@ pub async fn create_client(
             "Managed agent not available; installing before client creation"
         );
         crate::acp::agent_installer::install_agent(agent_id.clone(), app_handle.clone()).await?;
+
+        // After a successful install, evict any permanently-cached failure
+        // in the OpenCode manager registry so get_or_start retries
+        // initialization instead of returning a stale BinaryNotFound error.
+        if matches!(agent_id, CanonicalAgentId::OpenCode) {
+            opencode_manager_registry.clear_entry(&cwd).await;
+        }
     }
 
     let client: Box<dyn AgentClient> = match provider.communication_mode() {

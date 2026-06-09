@@ -36,7 +36,7 @@ let {
 	{:else}
 		<div
 			class={cn(
-				"overflow-hidden rounded-lg bg-muted/20 shadow-sm",
+				"overflow-hidden rounded bg-muted/20 shadow-sm",
 				cardClass
 			)}
 		>

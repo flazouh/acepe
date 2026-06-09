@@ -92,7 +92,7 @@ async function handleResetDatabase() {
 			title={"Danger Zone"}
 			description="Reset local app data and start fresh."
 		/>
-		<div class="overflow-hidden rounded-lg bg-destructive/5 shadow-sm">
+		<div class="overflow-hidden rounded bg-destructive/5 shadow-sm">
 			<div class="flex items-center justify-between gap-4 px-4 py-3">
 				<div class="flex items-center gap-2 min-w-0">
 					<Warning class="size-3.5 text-destructive shrink-0" weight="fill" />

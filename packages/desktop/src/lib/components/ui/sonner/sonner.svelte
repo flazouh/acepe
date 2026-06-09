@@ -28,7 +28,7 @@ registerToastBridge({
 	toastOptions={{
 		classes: {
 			toast:
-				"!bg-[color-mix(in_srgb,var(--popover)_92%,var(--foreground)_8%)] text-popover-foreground shadow-lg rounded-full !border-none backdrop-blur-md",
+				"!bg-[color-mix(in_srgb,var(--popover)_92%,var(--foreground)_8%)] text-popover-foreground shadow-lg rounded !border-none backdrop-blur-md",
 			title: "truncate",
 			description: "hidden",
 			icon: "hidden",

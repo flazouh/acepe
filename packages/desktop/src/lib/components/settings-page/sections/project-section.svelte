@@ -24,14 +24,14 @@ const activeProject = $derived(
 
 {#if projects.length === 0}
 	<SettingsSection title="Projects" description="Manage project-scoped settings.">
-		<div class="rounded-lg bg-muted/20 px-4 py-6 text-[12px] text-muted-foreground/70 shadow-sm">
+		<div class="rounded bg-muted/20 px-4 py-6 text-[12px] text-muted-foreground/70 shadow-sm">
 			Open a project to configure project settings.
 		</div>
 	</SettingsSection>
 {:else}
 	<div class="flex h-full min-h-0 gap-4">
 		<nav
-			class="flex w-[200px] shrink-0 flex-col gap-px overflow-y-auto rounded-lg bg-muted/20 p-1 shadow-sm"
+			class="flex w-[200px] shrink-0 flex-col gap-px overflow-y-auto rounded bg-muted/20 p-1 shadow-sm"
 			aria-label="Projects"
 		>
 			{#each projects as project (project.path)}

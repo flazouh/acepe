@@ -24,7 +24,7 @@
 	}
 </script>
 
-<div class="rounded-lg border border-border/50 bg-background/70 px-3 py-2">
+<div class="rounded border border-border/50 bg-background/70 px-3 py-2">
 	<div class="flex items-start justify-between gap-3">
 		<div class="min-w-0">
 			<p class="text-sm font-medium text-foreground">{strip.title}</p>

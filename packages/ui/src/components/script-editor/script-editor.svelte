@@ -93,7 +93,7 @@
 
 <div
 	class={cn(
-		"script-editor flex min-w-0 overflow-hidden rounded-lg border border-border/60 bg-muted/20 font-mono text-[12px] leading-[1.5] shadow-sm focus-within:border-ring/60 focus-within:ring-1 focus-within:ring-ring/20",
+		"script-editor flex min-w-0 overflow-hidden rounded border border-border/60 bg-muted/20 font-mono text-[12px] leading-[1.5] shadow-sm focus-within:border-ring/60 focus-within:ring-1 focus-within:ring-ring/20",
 		disabled && "opacity-60 pointer-events-none",
 		className
 	)}

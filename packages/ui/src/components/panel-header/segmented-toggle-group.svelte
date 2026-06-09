@@ -26,7 +26,7 @@
 	}: Props = $props();
 </script>
 
-<div class="w-fit flex items-center rounded-md border border-border overflow-hidden bg-background/50 {className}" role="radiogroup">
+<div class="w-fit flex items-center rounded border border-border overflow-hidden bg-background/50 {className}" role="radiogroup">
 	{#each items as item (item.id)}
 		<button
 			type="button"

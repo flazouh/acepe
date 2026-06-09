@@ -63,7 +63,7 @@ function toggleExpanded() {
 			</div>
 		</button>
 	{:else}
-		<div class="mb-0.5 flex shrink-0 flex-col overflow-hidden rounded-lg bg-card/50 transition-[transform,opacity] duration-200 ease-out">
+		<div class="mb-0.5 flex shrink-0 flex-col overflow-hidden rounded bg-card/50 transition-[transform,opacity] duration-200 ease-out">
 			<button
 				type="button"
 				class="flex w-full cursor-pointer items-center gap-1.5 rounded border-none bg-transparent px-2 py-1.5 text-left transition-colors hover:bg-accent/50"

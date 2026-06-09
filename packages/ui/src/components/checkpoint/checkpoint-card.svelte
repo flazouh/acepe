@@ -85,7 +85,7 @@
 	}
 </script>
 
-<div class="rounded-md border border-border/50 bg-muted/50 overflow-hidden">
+<div class="rounded border border-border/50 bg-muted/50 overflow-hidden">
 	<button
 		type="button"
 		class="group w-full flex h-6 items-center justify-between pl-1 pr-2 text-xs

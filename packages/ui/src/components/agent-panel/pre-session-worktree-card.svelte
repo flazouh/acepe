@@ -104,7 +104,7 @@
 	>
 		<div
 			bind:this={headerElement}
-			class="flex items-center gap-1.5 rounded-lg bg-input/30 px-3 py-1"
+			class="flex items-center gap-1.5 rounded bg-input/30 px-3 py-1"
 			class:rounded-b-none={showExpanded}
 			class:w-fit={!showExpanded}
 			class:w-full={showExpanded}
@@ -159,7 +159,7 @@
 	>
 		<div
 			bind:this={headerElement}
-			class="flex items-center gap-1.5 rounded-lg bg-input/30 px-3 py-1"
+			class="flex items-center gap-1.5 rounded bg-input/30 px-3 py-1"
 			class:rounded-b-none={showExpanded}
 			class:w-fit={!showExpanded}
 			class:w-full={showExpanded}

@@ -200,7 +200,7 @@
 	<!-- svelte-ignore a11y_no_static_element_interactions -->
 	<div
 		use:portalToBody
-		class="fixed z-[var(--overlay-z)] w-72 overflow-hidden rounded-xl border bg-popover/98 shadow-xl backdrop-blur"
+		class="fixed z-[var(--overlay-z)] w-72 overflow-hidden rounded border bg-popover/98 shadow-xl backdrop-blur"
 		style="top: {position.top}px; left: {position.left}px; transform: translateY(-100%); margin-top: -6px;"
 		onmousedown={(event) => event.preventDefault()}
 	>

@@ -50,7 +50,7 @@
 				toggleExpanded();
 			}
 		}}
-		class="w-full flex items-center justify-between px-3 py-1.5 rounded-lg bg-accent hover:bg-accent/80 transition-colors cursor-pointer"
+		class="w-full flex items-center justify-between px-3 py-1.5 rounded bg-accent hover:bg-accent/80 transition-colors cursor-pointer"
 		aria-expanded={isExpanded}
 	>
 		<div class="flex items-center gap-1.5 min-w-0 text-[0.6875rem]">

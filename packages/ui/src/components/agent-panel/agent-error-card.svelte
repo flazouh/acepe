@@ -70,7 +70,7 @@
 	{/if}
 
 	<div
-		class="w-full rounded-lg bg-accent hover:bg-accent/80 transition-colors {isExpanded &&
+		class="w-full rounded bg-accent hover:bg-accent/80 transition-colors {isExpanded &&
 		hasDetails
 			? 'rounded-t-none'
 			: ''}"

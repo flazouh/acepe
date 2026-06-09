@@ -34,7 +34,7 @@ function formatBytes(bytes: number): string {
 	/>
 
 	<!-- Voice enable card -->
-	<div class="overflow-hidden rounded-lg bg-muted/20 shadow-sm">
+	<div class="overflow-hidden rounded bg-muted/20 shadow-sm">
 		<div class="flex items-center h-9 px-3 gap-2">
 			<Microphone class="size-3.5 shrink-0 text-muted-foreground" weight="fill" />
 			<span class="flex-1 truncate text-[13px] font-medium text-foreground">
@@ -55,7 +55,7 @@ function formatBytes(bytes: number): string {
 	</div>
 
 	<!-- Models card -->
-	<div class="overflow-hidden rounded-lg bg-muted/20 shadow-sm">
+	<div class="overflow-hidden rounded bg-muted/20 shadow-sm">
 		<div class="flex items-center h-9 px-3 gap-2">
 			<div class="size-3.5 shrink-0 rounded-sm bg-muted-foreground/20 flex items-center justify-center">
 				<span class="text-[8px] font-bold text-muted-foreground">AI</span>
