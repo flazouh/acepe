@@ -185,6 +185,7 @@ function materializeAgentPanelSceneFromConversation(
 		);
 		conversationEntries = insertOptimisticUserEntryAtTurnBoundary(conversationEntries, mapped);
 	}
+	conversationEntries = appendThinkingEntryWhenAwaiting(conversationEntries, input.graph);
 
 	return {
 		panelId: input.panelId,
@@ -259,6 +260,30 @@ function insertOptimisticUserEntryAtTurnBoundary(
 	return nextEntries;
 }
 
+// Project the canonical "working but not yet producing output" state into a
+// synthetic thinking display entry at the tail ("Planning next moves..."). The
+// truth is canonical (activity.kind === "awaiting_model", Rust-owned); this is a
+// pure display projection with an Acepe-owned synthetic id — the same transient-
+// affordance pattern as insertOptimisticUserEntryAtTurnBoundary. It disappears
+// the moment the agent streams text (activeStreamingTail) or runs a tool
+// (activity flips to running_operation).
+function appendThinkingEntryWhenAwaiting(
+	entries: readonly AgentPanelSceneEntryModel[],
+	graph: AgentPanelCanonicalSource | null
+): readonly AgentPanelSceneEntryModel[] {
+	if (graph === null || graph.activity.kind !== "awaiting_model" || graph.activeStreamingTail !== null) {
+		return entries;
+	}
+	const thinkingEntry: AgentPanelSceneEntryModel = {
+		id: `${graph.canonicalSessionId}:awaiting-thinking`,
+		type: "thinking",
+		label: null,
+	};
+	const next = Array.from(entries);
+	next.push(thinkingEntry);
+	return next;
+}
+
 export function materializeAgentPanelSceneFromGraph(
 	input: AgentPanelGraphMaterializerInput
 ): AgentPanelSceneModel {
@@ -330,6 +355,7 @@ export function materializeAgentPanelSceneFromGraph(
 		);
 		conversationEntries = insertOptimisticUserEntryAtTurnBoundary(conversationEntries, mapped);
 	}
+	conversationEntries = appendThinkingEntryWhenAwaiting(conversationEntries, input.graph);
 	return {
 		panelId: input.panelId,
 		status,
