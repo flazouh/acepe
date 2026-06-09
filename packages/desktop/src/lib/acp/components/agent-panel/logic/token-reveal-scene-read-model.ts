@@ -4,7 +4,7 @@ import {
 	createAppendedSceneEntriesArray,
 	createPatchedSceneEntriesArray,
 } from "./scene-entry-array-view.js";
-import { getAgentPanelDisplayScenePatch } from "./agent-panel-display-model.js";
+import { getRevealScenePatch } from "./reveal-scene-patch.js";
 import {
 	isSceneEntryStable,
 	isStableSceneEntryAppend,
@@ -153,7 +153,7 @@ export function createTokenRevealSceneReadModel(): TokenRevealSceneReadModel {
 				}
 			}
 
-			const displayPatch = getAgentPanelDisplayScenePatch(snapshot.sceneEntries);
+			const displayPatch = getRevealScenePatch(snapshot.sceneEntries);
 			if (displayPatch?.baseSceneEntries === previous.sceneEntries) {
 				if (previousTokenRevealEntryIndex === -1) {
 					previousSnapshot = snapshot;

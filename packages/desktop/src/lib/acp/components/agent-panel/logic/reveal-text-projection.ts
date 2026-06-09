@@ -1,4 +1,4 @@
-// Reveal-text projection — U2 of the display-model retirement plan
+// Reveal-text projection — U2/U3 of the display-model retirement plan
 // (docs/plans/2026-06-09-001-refactor-retire-agent-panel-display-model-plan.md).
 //
 // Presentation-layer projector that holds the previously-visible assistant text
@@ -13,14 +13,17 @@
 // context and returns continuity-corrected scene entries; it never mutates the
 // materializer's output objects and never writes canonical data.
 //
-// Built and unit-tested in isolation here (U2); it goes live in the controller
-// at U4 when the scene -> display -> scene round-trip is removed and the
-// display-model's own copy of this logic is deleted. Until then exactly one
-// authority (the display model) mutates visible text in the live path.
+// It emits a RevealScenePatch (U3) describing the same-length index-overrides it
+// made, so token-reveal-scene-read-model and graph-scene-entry-match keep their
+// incremental fast-path. Built and unit-tested in isolation; it goes live in the
+// controller at U4 when the scene -> display -> scene round-trip is removed and
+// the display-model's copy of this logic is deleted (single live authority).
 
 import type { AgentAssistantEntry, AgentPanelSceneEntryModel } from "@acepe/ui/agent-panel";
 
 import { createDisplayedAssistantMessage } from "./agent-panel-display-model-assistant-content.js";
+import { createPatchedSceneEntriesArray } from "./scene-entry-array-view.js";
+import { markRevealScenePatch } from "./reveal-scene-patch.js";
 
 export interface RevealTextProjectionSnapshot {
 	readonly sceneEntries: readonly AgentPanelSceneEntryModel[];
@@ -73,27 +76,42 @@ export function createRevealTextProjection(): RevealTextProjection {
 	let memoryKeySessionId: string | null = null;
 	let memoryKeyTurnId: string | null = null;
 	let visibleTextByRowId = new Map<string, string>();
-	let previousOutput: readonly AgentPanelSceneEntryModel[] | null = null;
 	let lastInput: readonly AgentPanelSceneEntryModel[] | null = null;
+	let lastTurnCompleted = false;
+	let previousOutput: readonly AgentPanelSceneEntryModel[] | null = null;
 
 	return {
 		apply(snapshot) {
+			const keyChanged =
+				snapshot.sessionId !== memoryKeySessionId || snapshot.turnId !== memoryKeyTurnId;
+
+			// Referential stability: identical input + same turn-completion + same
+			// session/turn → return the prior output so downstream patch detection
+			// (token-reveal) sees a no-op.
+			if (
+				!keyChanged &&
+				previousOutput !== null &&
+				lastInput === snapshot.sceneEntries &&
+				lastTurnCompleted === snapshot.turnCompleted
+			) {
+				return previousOutput;
+			}
+
 			// Reset held text whenever the session or turn changes, so prior-turn
 			// text never bleeds into a new turn.
-			if (snapshot.sessionId !== memoryKeySessionId || snapshot.turnId !== memoryKeyTurnId) {
+			if (keyChanged) {
 				memoryKeySessionId = snapshot.sessionId;
 				memoryKeyTurnId = snapshot.turnId;
 				visibleTextByRowId = new Map<string, string>();
 			}
 
 			const nextVisibleByRowId = new Map<string, string>();
-			let changed = false;
-			const projected: AgentPanelSceneEntryModel[] = [];
+			const patchedByIndex = new Map<number, AgentPanelSceneEntryModel>();
+			const patchedEntries: AgentPanelSceneEntryModel[] = [];
 
-			for (const entry of snapshot.sceneEntries) {
+			snapshot.sceneEntries.forEach((entry, index) => {
 				if (entry.type !== "assistant") {
-					projected.push(entry);
-					continue;
+					return;
 				}
 				const previousVisible = visibleTextByRowId.get(entry.id) ?? "";
 				const visibleText = projectVisibleText(
@@ -103,24 +121,31 @@ export function createRevealTextProjection(): RevealTextProjection {
 				);
 				nextVisibleByRowId.set(entry.id, visibleText);
 				if (visibleText === entry.markdown) {
-					projected.push(entry);
-					continue;
+					return;
 				}
-				projected.push(applyVisibleTextToAssistantEntry(entry, visibleText));
-				changed = true;
-			}
+				const patched = applyVisibleTextToAssistantEntry(entry, visibleText);
+				patchedByIndex.set(index, patched);
+				patchedEntries.push(patched);
+			});
 
 			visibleTextByRowId = nextVisibleByRowId;
 
-			// Referential stability: when nothing was overridden and the input array
-			// is identical to last time, return the prior output so downstream
-			// patch detection (token-reveal) sees a no-op.
-			if (!changed && previousOutput !== null && snapshot.sceneEntries === lastInput) {
-				return previousOutput;
+			let output: readonly AgentPanelSceneEntryModel[];
+			if (patchedByIndex.size === 0) {
+				output = snapshot.sceneEntries;
+			} else {
+				output = createPatchedSceneEntriesArray(snapshot.sceneEntries, patchedByIndex);
+				markRevealScenePatch(output, {
+					baseSceneEntries: snapshot.sceneEntries,
+					entries: patchedEntries,
+					entriesByIndex: patchedByIndex,
+				});
 			}
+
 			lastInput = snapshot.sceneEntries;
-			previousOutput = changed ? projected : snapshot.sceneEntries;
-			return previousOutput;
+			lastTurnCompleted = snapshot.turnCompleted;
+			previousOutput = output;
+			return output;
 		},
 	};
 }

@@ -8,7 +8,7 @@ import {
 import type { SceneDisplayRow } from "./scene-display-rows.js";
 import { getSceneDisplayRowKey } from "./scene-display-rows.js";
 import { createAppendedSceneEntriesArray } from "./scene-entry-array-view.js";
-import { getAgentPanelDisplayScenePatch } from "./agent-panel-display-model.js";
+import { getRevealScenePatch } from "./reveal-scene-patch.js";
 import { getTokenRevealScenePatch } from "./token-reveal-scene-read-model.js";
 import {
 	getAgentPanelSceneEntryArrayAppendPatch,
@@ -188,7 +188,7 @@ export function createGraphSceneEntryIndexReadModel(): GraphSceneEntryIndexReadM
 	function applyDisplayScenePatch(
 		sceneEntries: readonly AgentPanelSceneEntryModel[]
 	): ReadonlyMap<string, AgentPanelSceneEntryModel> | null {
-		const displayScenePatch = getAgentPanelDisplayScenePatch(sceneEntries);
+		const displayScenePatch = getRevealScenePatch(sceneEntries);
 		if (
 			displayScenePatch === undefined ||
 			displayScenePatch.baseSceneEntries !== previousSceneEntries
@@ -387,7 +387,7 @@ export function createGraphSceneEntryIndexReadModel(): GraphSceneEntryIndexReadM
 			if (getAgentPanelSceneEntryArraySplicePatch(sceneEntries) !== undefined) {
 				return applyGraphSceneSplice(sceneEntries);
 			}
-			if (getAgentPanelDisplayScenePatch(sceneEntries) !== undefined) {
+			if (getRevealScenePatch(sceneEntries) !== undefined) {
 				return applyDisplayScenePatch(sceneEntries);
 			}
 			if (getTokenRevealScenePatch(sceneEntries) !== undefined) {

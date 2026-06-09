@@ -29,6 +29,10 @@ import {
 	isStableSceneEntryTruncation,
 } from "./scene-entry-stability.js";
 import { mapCanonicalSessionToPanelStatus } from "./session-status-mapper.js";
+import { markRevealScenePatch } from "./reveal-scene-patch.js";
+// Relocated to reveal-scene-patch.js (U3); re-exported here so the orphan
+// scene-display-row-read-model (deleted in U5) keeps compiling until then.
+export { getRevealScenePatch as getAgentPanelDisplayScenePatch } from "./reveal-scene-patch.js";
 import {
 	createDisplayedAssistantMessage,
 } from "./agent-panel-display-model-assistant-content.js";
@@ -106,12 +110,6 @@ export interface AgentPanelDisplaySceneEntriesReadModel {
 	}): readonly AgentPanelSceneEntryModel[] | null;
 }
 
-export type AgentPanelDisplayScenePatch = {
-	readonly baseSceneEntries: readonly AgentPanelSceneEntryModel[];
-	readonly entries: readonly AgentPanelSceneEntryModel[];
-	readonly entriesByIndex: ReadonlyMap<number, AgentPanelSceneEntryModel>;
-};
-
 type AgentPanelDisplayRowArrayPatch = {
 	readonly baseRows: readonly AgentPanelDisplayRow[];
 	readonly rowPatches: ReadonlyMap<number, AgentPanelDisplayRow>;
@@ -134,10 +132,6 @@ type AgentPanelDisplayRowArraySplicePatch = {
 	readonly trailingRows: readonly AgentPanelDisplayRow[];
 };
 
-const agentPanelDisplayScenePatches = new WeakMap<
-	readonly AgentPanelSceneEntryModel[],
-	AgentPanelDisplayScenePatch
->();
 const agentPanelDisplayRowArrayPatches = new WeakMap<
 	readonly AgentPanelDisplayRow[],
 	AgentPanelDisplayRowArrayPatch
@@ -155,11 +149,6 @@ const agentPanelDisplayRowArraySplicePatches = new WeakMap<
 	AgentPanelDisplayRowArraySplicePatch
 >();
 
-export function getAgentPanelDisplayScenePatch(
-	sceneEntries: readonly AgentPanelSceneEntryModel[]
-): AgentPanelDisplayScenePatch | undefined {
-	return agentPanelDisplayScenePatches.get(sceneEntries);
-}
 
 function getAgentPanelDisplayRowArrayPatch(
 	rows: readonly AgentPanelDisplayRow[]
@@ -1879,7 +1868,7 @@ function applyAssistantDisplayRowsToSceneEntriesByIndex(
 	}
 	if (patchedEntriesByIndex !== null && patchedEntries !== null) {
 		const nextEntries = createPatchedSceneEntriesArray(sceneEntries, patchedEntriesByIndex);
-		agentPanelDisplayScenePatches.set(nextEntries, {
+		markRevealScenePatch(nextEntries, {
 			baseSceneEntries: sceneEntries,
 			entries: patchedEntries,
 			entriesByIndex: patchedEntriesByIndex,
@@ -1920,7 +1909,7 @@ function applyAssistantDisplayRowsToSceneEntriesByScan(
 	});
 	if (patchedEntriesByIndex !== null && patchedEntries !== null) {
 		const nextEntries = createPatchedSceneEntriesArray(sceneEntries, patchedEntriesByIndex);
-		agentPanelDisplayScenePatches.set(nextEntries, {
+		markRevealScenePatch(nextEntries, {
 			baseSceneEntries: sceneEntries,
 			entries: patchedEntries,
 			entriesByIndex: patchedEntriesByIndex,

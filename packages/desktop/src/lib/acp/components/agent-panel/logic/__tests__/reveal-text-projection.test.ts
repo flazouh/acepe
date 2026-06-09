@@ -2,6 +2,7 @@ import { describe, expect, it } from "bun:test";
 
 import type { AgentPanelSceneEntryModel } from "@acepe/ui/agent-panel";
 import { createRevealTextProjection } from "../reveal-text-projection.js";
+import { getRevealScenePatch } from "../reveal-scene-patch.js";
 
 function assistant(id: string, markdown: string): AgentPanelSceneEntryModel {
 	return { id, type: "assistant", markdown, isStreaming: true };
@@ -106,5 +107,27 @@ describe("createRevealTextProjection", () => {
 		// input object untouched (override produced a new entry, not a mutation)
 		expect(blankInput[0]?.type === "assistant" ? blankInput[0].markdown : null).toBe("");
 		expect(out).not.toBe(blankInput);
+	});
+
+	it("emits a reveal-scene-patch describing the overridden indices", () => {
+		const projection = createRevealTextProjection();
+		projection.apply({ sceneEntries: [user("u1", "P"), assistant("a1", "Held text")], ...RUNNING });
+		const blankInput = [user("u1", "P"), assistant("a1", "")];
+		const out = projection.apply({ sceneEntries: blankInput, ...RUNNING });
+
+		const patch = getRevealScenePatch(out);
+		expect(patch).toBeDefined();
+		expect(patch?.baseSceneEntries).toBe(blankInput);
+		// assistant is at index 1 and was overridden; the user row at 0 was not.
+		expect(patch?.entriesByIndex.has(1)).toBe(true);
+		expect(patch?.entriesByIndex.has(0)).toBe(false);
+	});
+
+	it("emits no patch when nothing is overridden", () => {
+		const projection = createRevealTextProjection();
+		const input = [assistant("a1", "Plain canonical text")];
+		const out = projection.apply({ sceneEntries: input, ...RUNNING });
+		expect(out).toBe(input);
+		expect(getRevealScenePatch(out)).toBeUndefined();
 	});
 });
