@@ -144,6 +144,34 @@ export const resetOnboardingResultSchema = z.object({
 	),
 });
 
+export const sendComposerResultSchema = z.object({
+	composerFound: z.boolean(),
+	textApplied: z.string(),
+	sendReady: z.boolean(),
+	sent: z.boolean(),
+});
+
+export const watchResultSchema = z.object({
+	text: z.string(),
+	presentInDom: z.boolean(),
+	visible: z.boolean(),
+	firstVisibleAtMs: z.number().nullable(),
+	elapsedMs: z.number(),
+	timedOut: z.boolean(),
+	matched: z
+		.object({
+			rect: domRectSchema,
+			display: z.string(),
+			visibility: z.string(),
+			opacity: z.string(),
+			hasOffsetParent: z.boolean(),
+		})
+		.nullable(),
+});
+
+export type SendComposerResult = z.infer<typeof sendComposerResultSchema>;
+export type WatchResult = z.infer<typeof watchResultSchema>;
+
 export type QaStatus = z.infer<typeof qaStatusSchema>;
 export type QaCommandResult = z.infer<typeof qaCommandResultSchema>;
 export type QaError = z.infer<typeof qaErrorSchema>;

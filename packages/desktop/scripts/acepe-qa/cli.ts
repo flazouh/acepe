@@ -1,6 +1,6 @@
 import { writeJsonArtifact } from "./artifacts";
 import { writeUiQaEvidence } from "./evidence";
-import { clickWebview, inspectDom, resetOnboarding } from "./interact";
+import { clickWebview, inspectDom, resetOnboarding, sendComposer, watchForVisibleText } from "./interact";
 import { observeApp, screenshotApp } from "./observe";
 import { buildResult, dependencyError, formatCommandResult, statusExitCode, type OutputFormat } from "./output";
 import { runDoctor } from "./process-target";
@@ -16,6 +16,8 @@ type CliOptions = {
 	readonly text: string;
 	readonly limit: number;
 	readonly delayMs: number;
+	readonly timeoutMs: number;
+	readonly noSubmit: boolean;
 	readonly skipDriver: boolean;
 };
 
@@ -49,6 +51,8 @@ function parseOptions(args: readonly string[], checkoutRoot: string): CliOptions
 			text: "",
 			limit: 10,
 			delayMs: 300,
+			timeoutMs: 20_000,
+			noSubmit: false,
 			skipDriver: false,
 		};
 	}
@@ -68,6 +72,8 @@ function parseOptions(args: readonly string[], checkoutRoot: string): CliOptions
 		text: valueArg(args, "--text", ""),
 		limit: Number.parseInt(valueArg(args, "--limit", "10"), 10),
 		delayMs: Number.parseInt(valueArg(args, "--delay", "300"), 10),
+		timeoutMs: Number.parseInt(valueArg(args, "--timeout", "20000"), 10),
+		noSubmit: hasArg(args, "--no-submit"),
 		skipDriver: hasArg(args, "--skip-driver"),
 	};
 }
@@ -101,12 +107,14 @@ export async function runCli(args: readonly string[], checkoutRoot: string = pro
 			command: "help",
 			status: "ok",
 			summary: [
-				"usage: bun run qa [doctor|observe|screenshot|inspect|click|reset-onboarding] [--app=9223] [--format=json]",
+				"usage: bun run qa [doctor|observe|screenshot|inspect|click|send|watch|reset-onboarding] [--app=9223] [--format=json]",
 				"doctor checks the real dev Tauri target before QA.",
 				"observe returns compact app facts before screenshots.",
 				"screenshot captures the current WebView.",
 				"inspect returns compact DOM facts for --selector.",
 				"click clicks by --selector or --text.",
+				"send types --text into the composer and submits (use --no-submit to type only).",
+				"watch polls for --text and reports whether it is actually VISIBLE (not just in the DOM), with --timeout ms.",
 				"reset-onboarding opens Dev Tools, resets onboarding, and returns onboarding facts.",
 			],
 		});
@@ -371,11 +379,103 @@ export async function runCli(args: readonly string[], checkoutRoot: string = pro
 		return emitVerifiedUiResult(options, result);
 	}
 
+	if (options.command === "send") {
+		if (options.text.length === 0) {
+			const result = buildResult({
+				command: "send",
+				status: "fail",
+				summary: ["Missing --text."],
+				error: dependencyError("missing_text", "send needs --text.", "Example: bun run qa send --text='reply with one word: ok'"),
+			});
+			process.stdout.write(formatCommandResult(result, options.format));
+			return statusExitCode(result.status);
+		}
+		const send = await sendComposer({
+			appIdentifier: options.appIdentifier,
+			text: options.text,
+			submit: !options.noSubmit,
+			skipDriver: options.skipDriver,
+		});
+		if (send.isErr()) {
+			const result = buildResult({
+				command: "send",
+				status: "fail",
+				summary: ["Unable to send via the composer."],
+				error: dependencyError(send.error.code, send.error.message, "Run acepe-qa doctor; ensure a sendable session is open."),
+			});
+			process.stdout.write(formatCommandResult(result, options.format));
+			return statusExitCode(result.status);
+		}
+		const artifact = await writeJsonArtifact("send", send.value);
+		const artifactPath = artifact.isOk() ? artifact.value : undefined;
+		const result = buildResult({
+			command: "send",
+			status: send.value.sent ? "ok" : "warn",
+			summary: [
+				`composer: ${send.value.composerFound ? "found" : "missing"}`,
+				`send ready: ${send.value.sendReady ? "yes" : "no"}`,
+				`sent: ${send.value.sent ? "yes" : "no"}`,
+				`text: "${send.value.textApplied.slice(0, 60)}"`,
+			],
+			artifactPath,
+			artifactKind: artifactPath === undefined ? undefined : "send",
+		});
+		return emitVerifiedUiResult(options, result);
+	}
+
+	if (options.command === "watch") {
+		if (options.text.length === 0) {
+			const result = buildResult({
+				command: "watch",
+				status: "fail",
+				summary: ["Missing --text."],
+				error: dependencyError("missing_text", "watch needs --text.", "Example: bun run qa watch --text='Planning next moves' --timeout=20000"),
+			});
+			process.stdout.write(formatCommandResult(result, options.format));
+			return statusExitCode(result.status);
+		}
+		const watch = await watchForVisibleText({
+			appIdentifier: options.appIdentifier,
+			text: options.text,
+			timeoutMs: Number.isFinite(options.timeoutMs) ? options.timeoutMs : 20_000,
+			skipDriver: options.skipDriver,
+		});
+		if (watch.isErr()) {
+			const result = buildResult({
+				command: "watch",
+				status: "fail",
+				summary: ["Unable to watch the Acepe WebView."],
+				error: dependencyError(watch.error.code, watch.error.message, "Run acepe-qa doctor, then retry watch."),
+			});
+			process.stdout.write(formatCommandResult(result, options.format));
+			return statusExitCode(result.status);
+		}
+		const artifact = await writeJsonArtifact("watch", watch.value);
+		const artifactPath = artifact.isOk() ? artifact.value : undefined;
+		const m = watch.value.matched;
+		const result = buildResult({
+			command: "watch",
+			// warn (not fail) when present-but-hidden: that's a real, reportable finding.
+			status: watch.value.visible ? "ok" : "warn",
+			summary: [
+				`text: "${watch.value.text.slice(0, 60)}"`,
+				`present in dom: ${watch.value.presentInDom ? "yes" : "no"}`,
+				`visible: ${watch.value.visible ? "yes" : "no"}`,
+				watch.value.firstVisibleAtMs === null ? "first visible: never" : `first visible: ${watch.value.firstVisibleAtMs.toString()}ms`,
+				`elapsed: ${watch.value.elapsedMs.toString()}ms${watch.value.timedOut ? " (timed out)" : ""}`,
+				m === null ? "matched: none" : `matched: ${m.rect.width.toFixed(0)}x${m.rect.height.toFixed(0)} display=${m.display} visibility=${m.visibility} opacity=${m.opacity} offsetParent=${m.hasOffsetParent ? "yes" : "no"}`,
+			],
+			artifactPath,
+			artifactKind: artifactPath === undefined ? undefined : "watch",
+		});
+		return emitVerifiedUiResult(options, result);
+	}
+
 	const result = buildResult({
 		command: options.command,
 		status: "fail",
 		summary: ["Unknown command."],
-		error: dependencyError("unknown_command", options.command, "Use doctor, observe, screenshot, inspect, click, or reset-onboarding."),
+		error: dependencyError("unknown_command", options.command, "Use doctor, observe, screenshot, inspect, click, send, watch, or reset-onboarding."),
 	});
 	process.stdout.write(formatCommandResult(result, options.format));
 	return statusExitCode(result.status);

@@ -1,9 +1,17 @@
 import { err, okAsync, ResultAsync } from "neverthrow";
-import type { ClickResult, DomInspectionResult, ResetOnboardingResult } from "./schemas";
+import type {
+	ClickResult,
+	DomInspectionResult,
+	ResetOnboardingResult,
+	SendComposerResult,
+	WatchResult,
+} from "./schemas";
 import {
 	clickResultSchema,
 	domInspectionResultSchema,
 	resetOnboardingResultSchema,
+	sendComposerResultSchema,
+	watchResultSchema,
 } from "./schemas";
 import {
 	executeWebviewJson,
@@ -195,6 +203,92 @@ export function resetOnboarding(
 				script,
 				schema: resetOnboardingResultSchema,
 				callTimeoutMs: 20_000,
+			},
+			runner
+		);
+	});
+}
+
+// Type a prompt into the agent-panel composer (contenteditable, so real input
+// events are dispatched, not synthetic keystrokes) and optionally click send.
+export function sendComposer(
+	options: DriverOptions & {
+		readonly text: string;
+		readonly submit: boolean;
+	}
+): ResultAsync<SendComposerResult, TauriMcpFailure> {
+	const runner = options.runner ?? runCommand;
+	return driverReady(options).andThen(() => {
+		const script = `
+(() => {
+  const text = ${escapedJson(options.text)};
+  const submit = ${options.submit ? "true" : "false"};
+  const ce = document.querySelector("[contenteditable=true]");
+  if (!ce) return { composerFound: false, textApplied: "", sendReady: false, sent: false };
+  ce.focus();
+  const sel = getSelection(); sel.removeAllRanges();
+  const range = document.createRange(); range.selectNodeContents(ce); range.collapse(false); sel.addRange(range);
+  ce.dispatchEvent(new InputEvent("beforeinput", { bubbles: true, cancelable: true, inputType: "insertText", data: text }));
+  document.execCommand("insertText", false, text);
+  ce.dispatchEvent(new InputEvent("input", { bubbles: true, inputType: "insertText", data: text }));
+  let send = null, node = ce;
+  for (let i = 0; i < 8 && node; i++) { node = node.parentElement; if (!node) break; const b = node.querySelector("button.bg-foreground.text-background"); if (b) { send = b; break; } }
+  const sendReady = Boolean(send) && !send.disabled;
+  let sent = false;
+  if (submit && sendReady) { send.click(); sent = true; }
+  return { composerFound: true, textApplied: ce.textContent || "", sendReady, sent };
+})()
+`;
+		return executeWebviewJson(
+			{ appIdentifier: options.appIdentifier, script, schema: sendComposerResultSchema },
+			runner
+		);
+	});
+}
+
+// Poll for a node whose text contains `text` and report whether it is actually
+// VISIBLE (laid out, not display:none / visibility:hidden / opacity 0) — not
+// merely present in the DOM. Returns visibility diagnostics when present-but-hidden.
+export function watchForVisibleText(
+	options: DriverOptions & {
+		readonly text: string;
+		readonly timeoutMs: number;
+	}
+): ResultAsync<WatchResult, TauriMcpFailure> {
+	const runner = options.runner ?? runCommand;
+	return driverReady(options).andThen(() => {
+		const script = `
+(async () => {
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+  const needle = ${escapedJson(options.text)};
+  const timeoutMs = ${options.timeoutMs.toString()};
+  const t0 = performance.now();
+  let presentInDom = false, visible = false, firstVisibleAtMs = null, matched = null;
+  const isVisible = (n) => {
+    const cs = getComputedStyle(n); const r = n.getBoundingClientRect();
+    return Boolean(n.offsetParent !== null || cs.position === "fixed") && cs.display !== "none" && cs.visibility !== "hidden" && Number(cs.opacity) > 0 && r.width > 0 && r.height > 0;
+  };
+  while (performance.now() - t0 < timeoutMs) {
+    const nodes = Array.from(document.querySelectorAll("*")).filter((n) => n.children.length === 0 && (n.textContent || "").includes(needle));
+    if (nodes.length > 0) {
+      presentInDom = true;
+      const vis = nodes.find(isVisible) || null;
+      const node = vis || nodes[0];
+      const cs = getComputedStyle(node); const r = node.getBoundingClientRect();
+      matched = { rect: { x:r.x,y:r.y,width:r.width,height:r.height,top:r.top,right:r.right,bottom:r.bottom,left:r.left }, display: cs.display, visibility: cs.visibility, opacity: cs.opacity, hasOffsetParent: node.offsetParent !== null };
+      if (vis) { visible = true; firstVisibleAtMs = Math.round(performance.now() - t0); break; }
+    }
+    await sleep(50);
+  }
+  return { text: needle, presentInDom, visible, firstVisibleAtMs, elapsedMs: Math.round(performance.now() - t0), timedOut: !visible, matched };
+})()
+`;
+		return executeWebviewJson(
+			{
+				appIdentifier: options.appIdentifier,
+				script,
+				schema: watchResultSchema,
+				callTimeoutMs: options.timeoutMs + 5_000,
 			},
 			runner
 		);
