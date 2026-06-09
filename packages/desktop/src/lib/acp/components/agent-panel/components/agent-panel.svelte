@@ -1915,6 +1915,13 @@ async function handlePlanSidebarSendMessage(sid: string, message: string): Promi
 	{/snippet}
 
 	{#snippet preComposer()}
+		{#if agentPanelWaiting.show && viewState.kind === "conversation"}
+			<div class="px-5 pb-1" data-qa="waiting-indicator">
+				<span class="text-sm text-muted-foreground animate-pulse"
+					>{agentPanelWaiting.label ?? "Planning next moves…"}</span
+				>
+			</div>
+		{/if}
 		<AgentPanelPreComposerStack
 			{reviewMode}
 			showConversationChrome={viewState.kind === "conversation" ||
