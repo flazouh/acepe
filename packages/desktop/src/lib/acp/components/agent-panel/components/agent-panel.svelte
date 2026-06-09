@@ -104,6 +104,7 @@ import type { ReviewControlsSnapshot } from "./agent-panel-review-content-types.
 import WorkspaceDialogFrame from "$lib/components/ui/workspace-dialog-frame.svelte";
 import AgentPanelTerminalDrawer from "./agent-panel-terminal-drawer.svelte";
 import AgentPanelPreComposerStack from "./agent-panel-pre-composer-stack.svelte";
+import { WaitingIndicator } from "../../waiting-indicator/index.js";
 import { PlanSidebar } from "../../plan-sidebar/index.js";
 import { BrowserPanel as BrowserPanelComponent } from "../../browser-panel/index.js";
 import {
@@ -1916,10 +1917,8 @@ async function handlePlanSidebarSendMessage(sid: string, message: string): Promi
 
 	{#snippet preComposer()}
 		{#if agentPanelWaiting.show && viewState.kind === "conversation"}
-			<div class="px-5 pb-1" data-qa="waiting-indicator">
-				<span class="text-sm text-muted-foreground animate-pulse"
-					>{agentPanelWaiting.label ?? "Planning next moves…"}</span
-				>
+			<div class="px-5" data-qa="waiting-indicator">
+				<WaitingIndicator />
 			</div>
 		{/if}
 		<AgentPanelPreComposerStack
