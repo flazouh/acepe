@@ -1,5 +1,6 @@
 <script lang="ts">
 import { AgentPanelConversationEntry } from "@acepe/ui/agent-panel";
+import { WaitingIndicator } from "../../waiting-indicator/index.js";
 import { setIconConfig } from "@acepe/ui/icon-context";
 import type {
 	AgentPanelPlanActionEvent,
@@ -109,7 +110,7 @@ let {
 	sceneEntries,
 	bufferProjection = null,
 	turnState,
-	isWaitingForResponse: _isWaitingForResponse,
+	isWaitingForResponse,
 	waitingLabel: _waitingLabel = null,
 	projectPath,
 	sessionId,
@@ -1505,6 +1506,11 @@ export function scrollToTop() {
 						</MessageWrapper>
 					</div>
 				{/each}
+				{#if isWaitingForResponse}
+					<div class="px-4 py-2" data-qa="waiting-indicator">
+						<WaitingIndicator />
+					</div>
+				{/if}
 			</div>
 		</div>
 	</div>
