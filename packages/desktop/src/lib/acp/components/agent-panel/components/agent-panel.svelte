@@ -59,17 +59,14 @@ import { usePlanLoader } from "../hooks";
 import {
 	createWorktreeSetupMatchContext,
 	copyTextToClipboard,
-	applyAgentPanelDisplayMemory,
-	buildAgentPanelBaseModel,
-	createAgentPanelDisplayMemory,
-	createAgentPanelDisplaySceneEntriesReadModel,
-	createAgentPanelDisplayRowsReadModel,
 	matchesWorktreeSetupContext,
 	removeWorktreeAndMarkSessionWorktreeDeleted,
 	resolveEffectiveProjectPath,
 	shouldConfirmWorktreeClose,
 } from "../logic";
 import { createAgentPanelGraphMaterializerReadModel } from "../../../session-state/agent-panel-graph-materializer.js";
+import { createRevealTextProjection } from "../logic/reveal-text-projection.js";
+import { deriveAgentPanelWaiting } from "../logic/agent-panel-waiting.js";
 import { resolveAgentPanelWorktreePending } from "../logic/worktree-pending.js";
 import { getWorktreeDefaultStore } from "../../worktree/worktree-default-store.svelte.js";
 import { DEFAULT_BROWSER_HOME_URL } from "../../../constants/browser-defaults.js";
@@ -222,9 +219,7 @@ const agentStore = getAgentStore();
 const messageQueueStore = getMessageQueueStore();
 const logger = createLogger({ id: "agent-panel-render-trace", name: "AgentPanelRenderTrace" });
 let lastPanelTraceSignature = $state<string | null>(null);
-let agentPanelDisplayMemory = createAgentPanelDisplayMemory();
-const agentPanelDisplayRowsReadModel = createAgentPanelDisplayRowsReadModel();
-const agentPanelDisplaySceneEntriesReadModel = createAgentPanelDisplaySceneEntriesReadModel();
+const revealTextProjection = createRevealTextProjection();
 const tokenRevealSourceIndexReadModel = createGraphSceneEntryIndexReadModel();
 const tokenRevealSceneReadModel = createTokenRevealSceneReadModel();
 let prefersReducedMotion = $state(false);
@@ -669,37 +664,27 @@ const graphMaterializedScene = $derived(
 				: null,
 	})
 );
-const agentPanelBaseDisplayModel = $derived(
-	buildAgentPanelBaseModel({
-		panelId: sessionController.effectivePanelId,
+const agentPanelWaiting = $derived(
+	deriveAgentPanelWaiting({
 		graph: sessionController.agentPanelCanonicalSource,
-		header: {
-			title: graphHeaderTitle,
-			agentName,
-		},
 		sceneEntries: graphMaterializedScene.conversation.entries,
-		rows: agentPanelDisplayRowsReadModel,
-		local: {
-			pendingSendIntent: sessionController.hasImmediatePendingSendIntent,
-		},
+		pendingSendIntent: sessionController.hasImmediatePendingSendIntent,
+		agentName,
 	})
 );
-const agentPanelDisplayResult = $derived.by(() => {
-	const result = applyAgentPanelDisplayMemory(agentPanelDisplayMemory, agentPanelBaseDisplayModel);
-	agentPanelDisplayMemory = result.memory;
-	return result;
-});
-const agentPanelDisplayModel = $derived(agentPanelDisplayResult.model);
 const graphSceneEntries = $derived.by(() => {
-	const input = {
-		model: agentPanelDisplayModel,
-		memory: agentPanelDisplayResult.memory,
+	const turnCompleted =
+		sessionId !== null && sessionStore.getSessionTurnState(sessionId) === "Completed";
+	const turnId =
+		sessionId === null
+			? null
+			: (sessionStore.getSessionLastTerminalTurnId(sessionId) ?? `${sessionId}:active`);
+	return revealTextProjection.apply({
 		sceneEntries: graphMaterializedScene.conversation.entries,
-	};
-	return (
-		agentPanelDisplaySceneEntriesReadModel.applyPatch(input) ??
-		agentPanelDisplaySceneEntriesReadModel.apply(input)
-	);
+		sessionId,
+		turnId,
+		turnCompleted,
+	});
 });
 const tokenRevealSceneEntries = $derived.by(() => {
 	contentScrollReveal.settleRevision;
@@ -1888,8 +1873,8 @@ async function handlePlanSidebarSendMessage(sid: string, message: string): Promi
 						{availableAgents}
 						{effectiveTheme}
 						{modifiedFilesState}
-						isWaitingForResponse={agentPanelDisplayModel.waiting.show}
-						waitingLabel={agentPanelDisplayModel.waiting.label}
+						isWaitingForResponse={agentPanelWaiting.show}
+						waitingLabel={agentPanelWaiting.label}
 						onQuestionSelect={handleQuestionSelect}
 						onPlanBuild={handlePlanBuild}
 						onPlanCancel={handlePlanCancel}
