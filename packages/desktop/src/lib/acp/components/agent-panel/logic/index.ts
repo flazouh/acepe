@@ -17,22 +17,6 @@ export {
 	resolveVisibleEntryCount,
 } from "./optimistic-user-entry.js";
 export {
-	applyAgentPanelDisplayMemory,
-	buildAgentPanelBaseModel,
-	createAgentPanelDisplayMemory,
-	createAgentPanelDisplaySceneEntriesReadModel,
-	createAgentPanelDisplayRowsReadModel,
-	type AgentPanelBaseModel,
-	type AgentPanelDisplaySceneEntriesReadModel,
-	type AgentPanelDisplayInput,
-	type AgentPanelDisplayMemory,
-	type AgentPanelDisplayModel,
-	type AgentPanelDisplayResult,
-	type AgentPanelDisplayRow,
-	type AgentPanelDisplayRowsProjection,
-	type AgentPanelDisplayRowsReadModel,
-} from "./agent-panel-display-model.js";
-export {
 	deriveCanonicalAgentPanelSessionState,
 	mapCanonicalSessionToPanelStatus,
 	mapSessionStatusToUI,

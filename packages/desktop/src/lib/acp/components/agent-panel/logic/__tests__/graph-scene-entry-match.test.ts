@@ -1,12 +1,8 @@
 import type { AgentPanelSceneEntryModel } from "@acepe/ui/agent-panel";
 import { describe, expect, it } from "vitest";
 import type { SessionEntry } from "../../../../application/dto/session-entry.js";
-import {
-	type AgentPanelDisplayModel,
-	createAgentPanelDisplayMemory,
-	getAgentPanelDisplayScenePatch,
-} from "../agent-panel-display-model.js";
-import { applyAgentPanelDisplayModelToSceneEntries } from "../agent-panel-display-scene-test-helper.js";
+import { getRevealScenePatch } from "../reveal-scene-patch.js";
+import { buildRevealScenePatchedEntries } from "./reveal-scene-patch-test-helper.js";
 import {
 	markAgentPanelSceneEntryArrayAppendPatch,
 	markAgentPanelSceneEntryArrayPatch,
@@ -493,32 +489,13 @@ describe("createGraphSceneEntryIndexReadModel", () => {
 		} satisfies AgentPanelSceneEntryModel;
 		const baseEntries = [assistantEntry];
 		const baseIndex = readModel.applySnapshot(baseEntries);
-		const model: AgentPanelDisplayModel = {
-			panelId: "panel-1",
-			sessionId: "session-1",
-			turnId: "turn-1",
-			status: "running",
-			turnState: "streaming",
-			waiting: { show: false, label: null },
-			composer: { canSubmit: false, showStop: true },
-			rows: [
-				{
-					id: "assistant-1",
-					type: "assistant",
-					canonicalText: "Answer",
-					displayText: "Answer",
-					canonicalTextRevision: "1:assistant-1",
-					isLiveTail: true,
-				},
-			],
-			viewport: { hasLiveTail: true, requiresStableTailMount: true },
-		};
 
 		const patchedIndex = readModel.applySnapshot(
-			applyAgentPanelDisplayModelToSceneEntries(
-				model,
-				createAgentPanelDisplayMemory(),
-				baseEntries
+			buildRevealScenePatchedEntries(
+				baseEntries,
+				new Map([
+					[0, { id: "assistant-1", type: "assistant", markdown: "Answer", isStreaming: true }],
+				])
 			)
 		);
 
@@ -543,32 +520,13 @@ describe("createGraphSceneEntryIndexReadModel", () => {
 		} satisfies AgentPanelSceneEntryModel;
 		const baseEntries = [assistantEntry];
 		readModel.applySnapshot(baseEntries);
-		const model: AgentPanelDisplayModel = {
-			panelId: "panel-1",
-			sessionId: "session-1",
-			turnId: "turn-1",
-			status: "running",
-			turnState: "streaming",
-			waiting: { show: false, label: null },
-			composer: { canSubmit: false, showStop: true },
-			rows: [
-				{
-					id: "assistant-1",
-					type: "assistant",
-					canonicalText: "Answer",
-					displayText: "Answer",
-					canonicalTextRevision: "1:assistant-1",
-					isLiveTail: true,
-				},
-			],
-			viewport: { hasLiveTail: true, requiresStableTailMount: true },
-		};
-		const patchedEntries = applyAgentPanelDisplayModelToSceneEntries(
-			model,
-			createAgentPanelDisplayMemory(),
-			baseEntries
+		const patchedEntries = buildRevealScenePatchedEntries(
+			baseEntries,
+			new Map([
+				[0, { id: "assistant-1", type: "assistant", markdown: "Answer", isStreaming: true }],
+			])
 		);
-		const patch = getAgentPanelDisplayScenePatch(patchedEntries);
+		const patch = getRevealScenePatch(patchedEntries);
 		expect(patch).toBeDefined();
 		expect(patch?.entriesByIndex.get(0)).toMatchObject({
 			id: "assistant-1",
@@ -619,31 +577,12 @@ describe("createGraphSceneEntryIndexReadModel", () => {
 		} satisfies AgentPanelSceneEntryModel;
 		const baseEntries = [assistantEntry];
 		readModel.applySnapshot(baseEntries);
-		const model: AgentPanelDisplayModel = {
-			panelId: "panel-1",
-			sessionId: "session-1",
-			turnId: "turn-1",
-			status: "running",
-			turnState: "streaming",
-			waiting: { show: false, label: null },
-			composer: { canSubmit: false, showStop: true },
-			rows: [
-				{
-					id: "assistant-1",
-					type: "assistant",
-					canonicalText: "Answer",
-					displayText: "Answer",
-					canonicalTextRevision: "1:assistant-1",
-					isLiveTail: true,
-				},
-			],
-			viewport: { hasLiveTail: true, requiresStableTailMount: true },
-		};
 		const overlayIndex = readModel.applySnapshot(
-			applyAgentPanelDisplayModelToSceneEntries(
-				model,
-				createAgentPanelDisplayMemory(),
-				baseEntries
+			buildRevealScenePatchedEntries(
+				baseEntries,
+				new Map([
+					[0, { id: "assistant-1", type: "assistant", markdown: "Answer", isStreaming: true }],
+				])
 			)
 		);
 		const originalIterator = overlayIndex[Symbol.iterator];
@@ -702,38 +641,11 @@ describe("createGraphSceneEntryIndexReadModel", () => {
 		} satisfies AgentPanelSceneEntryModel;
 		const baseEntries = [firstAssistantEntry, secondAssistantEntry];
 		const baseIndex = readModel.applySnapshot(baseEntries);
-		const model: AgentPanelDisplayModel = {
-			panelId: "panel-1",
-			sessionId: "session-1",
-			turnId: "turn-1",
-			status: "running",
-			turnState: "streaming",
-			waiting: { show: false, label: null },
-			composer: { canSubmit: false, showStop: true },
-			rows: [
-				{
-					id: "assistant-1",
-					type: "assistant",
-					canonicalText: "Answer",
-					displayText: "Answer",
-					canonicalTextRevision: "1:assistant-1",
-					isLiveTail: true,
-				},
-				{
-					id: "assistant-2",
-					type: "assistant",
-					canonicalText: "Second",
-					displayText: "Second",
-					canonicalTextRevision: "1:assistant-2",
-					isLiveTail: true,
-				},
-			],
-			viewport: { hasLiveTail: true, requiresStableTailMount: true },
-		};
-		const overlayEntries = applyAgentPanelDisplayModelToSceneEntries(
-			model,
-			createAgentPanelDisplayMemory(),
-			baseEntries
+		const overlayEntries = buildRevealScenePatchedEntries(
+			baseEntries,
+			new Map([
+				[0, { id: "assistant-1", type: "assistant", markdown: "Answer", isStreaming: true }],
+			])
 		);
 		const overlayIndex = readModel.applySnapshot(overlayEntries);
 		expect(overlayIndex).not.toBe(baseIndex);
@@ -779,31 +691,12 @@ describe("createGraphSceneEntryIndexReadModel", () => {
 		} satisfies AgentPanelSceneEntryModel;
 		const baseEntries = [assistantEntry];
 		readModel.applySnapshot(baseEntries);
-		const model: AgentPanelDisplayModel = {
-			panelId: "panel-1",
-			sessionId: "session-1",
-			turnId: "turn-1",
-			status: "running",
-			turnState: "streaming",
-			waiting: { show: false, label: null },
-			composer: { canSubmit: false, showStop: true },
-			rows: [
-				{
-					id: "assistant-1",
-					type: "assistant",
-					canonicalText: "Answer",
-					displayText: "Answer",
-					canonicalTextRevision: "1:assistant-1",
-					isLiveTail: true,
-				},
-			],
-			viewport: { hasLiveTail: true, requiresStableTailMount: true },
-		};
 		const overlayIndex = readModel.applySnapshot(
-			applyAgentPanelDisplayModelToSceneEntries(
-				model,
-				createAgentPanelDisplayMemory(),
-				baseEntries
+			buildRevealScenePatchedEntries(
+				baseEntries,
+				new Map([
+					[0, { id: "assistant-1", type: "assistant", markdown: "Answer", isStreaming: true }],
+				])
 			)
 		);
 		const originalIterator = overlayIndex[Symbol.iterator];

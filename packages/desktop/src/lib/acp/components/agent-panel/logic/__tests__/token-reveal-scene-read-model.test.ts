@@ -6,14 +6,10 @@ import {
 	markAgentPanelSceneEntryArrayTruncation,
 } from "../../../../session-state/agent-panel-scene-entry-array-patch.js";
 import {
-	createAgentPanelDisplayMemory,
-	type AgentPanelDisplayModel,
-} from "../agent-panel-display-model.js";
-import { applyAgentPanelDisplayModelToSceneEntries } from "../agent-panel-display-scene-test-helper.js";
-import {
 	createTokenRevealSceneReadModel,
 	getTokenRevealScenePatch,
 } from "../token-reveal-scene-read-model.js";
+import { buildRevealScenePatchedEntries } from "./reveal-scene-patch-test-helper.js";
 
 function createTokenRevealCss(): TokenRevealCss {
 	return {
@@ -476,38 +472,11 @@ describe("createTokenRevealSceneReadModel", () => {
 			tokenRevealCss,
 		});
 
-		const displayModel: AgentPanelDisplayModel = {
-			panelId: "panel-1",
-			sessionId: "session-1",
-			turnId: "turn-1",
-			status: "running",
-			turnState: "streaming",
-			waiting: { show: false, label: null },
-			composer: { canSubmit: false, showStop: true },
-			rows: [
-				{
-					id: "assistant-1",
-					type: "assistant",
-					canonicalText: "Answer",
-					displayText: "Answer",
-					canonicalTextRevision: "1:assistant-1",
-					isLiveTail: true,
-				},
-				{
-					id: "assistant-2",
-					type: "assistant",
-					canonicalText: "Original",
-					displayText: "Display override",
-					canonicalTextRevision: "1:assistant-2",
-					isLiveTail: false,
-				},
-			],
-			viewport: { hasLiveTail: true, requiresStableTailMount: true },
-		};
-		const displayPatchedEntries = applyAgentPanelDisplayModelToSceneEntries(
-			displayModel,
-			createAgentPanelDisplayMemory(),
-			baseEntries
+		const displayPatchedEntries = buildRevealScenePatchedEntries(
+			baseEntries,
+			new Map([
+				[1, { id: "assistant-2", type: "assistant", markdown: "Display override", isStreaming: false }],
+			])
 		);
 
 		const patchedEntries = readModel.applyPatch({
