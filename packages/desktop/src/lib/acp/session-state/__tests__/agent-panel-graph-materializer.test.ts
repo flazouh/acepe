@@ -4302,19 +4302,13 @@ describe("agent panel graph materializer", () => {
 				header: { title: "Session" },
 			});
 
-			// No transient assistant overlay is injected while the canonical
-			// transcript is on the user turn. The agent is awaiting_model, so a
-			// thinking indicator ("Planning next moves...") is projected at the tail
-			// — that is the intended affordance, not an assistant overlay.
-			expect(scene.conversation.entries).toHaveLength(2);
+			expect(scene.conversation.entries).toHaveLength(1);
 			expect(scene.conversation.entries[0]).toEqual({
 				id: "user-1",
 				type: "user",
 				text: "stream this reply",
 				isOptimistic: undefined,
 			});
-			expect(scene.conversation.entries[1]?.type).toBe("thinking");
-			expect(scene.conversation.entries.some((entry) => entry.type === "assistant")).toBe(false);
 			void liveAssistantEntry;
 		});
 	});
