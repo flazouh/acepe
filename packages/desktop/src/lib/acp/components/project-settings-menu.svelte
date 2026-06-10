@@ -5,8 +5,8 @@ import { Palette } from "phosphor-svelte";
 import { Trash } from "phosphor-svelte";
 import * as Popover from "$lib/components/ui/popover/index.js";
 import * as Tooltip from "$lib/components/ui/tooltip/index.js";
-import { PROJECT_COLOR_OPTIONS } from "../utils/project-color-options.js";
-import { getSelectedProjectColorHex } from "./project-menu-state.js";
+import { PROJECT_COLOR_OPTIONS } from "@acepe/ui/app-layout";
+import { getSelectedProjectColorHex } from "@acepe/ui/app-layout";
 
 interface Props {
 	projectName?: string;
@@ -73,11 +73,11 @@ const selectedColorHex = $derived(getSelectedProjectColorHex({ currentColor, col
 										: 'transparent'};"
 									onclick={() => handleColorSelect(option.name)}
 								>
-									<span class="sr-only">{option.label()}</span>
+									<span class="sr-only">{option.label}</span>
 								</button>
 							</Tooltip.Trigger>
 							<Tooltip.Content>
-								{option.label()}
+								{option.label}
 							</Tooltip.Content>
 						</Tooltip.Root>
 					{/each}

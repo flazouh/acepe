@@ -1,12 +1,13 @@
 import { describe, expect, it } from "bun:test";
+
 import {
 	buildProjectHeaderOverflowMenuState,
 	getSelectedProjectColorHex,
 } from "../project-menu-state.js";
 
 const colorOptions = [
-	{ name: "red", hex: "#ff0000" },
-	{ name: "blue", hex: "#0000ff" },
+	{ name: "red", hex: "#ff0000", label: "Red" },
+	{ name: "blue", hex: "#0000ff", label: "Blue" },
 ] as const;
 
 describe("project menu state", () => {

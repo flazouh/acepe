@@ -1,9 +1,9 @@
 import { describe, expect, it } from "bun:test";
 
-import { COLOR_NAMES, Colors, TAG_COLORS } from "@acepe/ui/colors";
-import { PROJECT_COLOR_OPTIONS } from "./project-color-options.js";
+import { COLOR_NAMES, Colors, TAG_COLORS } from "../../../lib/colors.js";
+import { PROJECT_COLOR_OPTIONS } from "../project-color-options.js";
 
-describe("project color options", () => {
+describe("PROJECT_COLOR_OPTIONS", () => {
 	it("exposes the expanded project palette in shared tag order", () => {
 		expect(PROJECT_COLOR_OPTIONS.map((option) => option.name)).toEqual([
 			COLOR_NAMES.RED,

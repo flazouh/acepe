@@ -1,6 +1,6 @@
 <script lang="ts">
 import { Skeleton } from "$lib/components/ui/skeleton/index.js";
-import ProjectHeader from "../project-header.svelte";
+import { ProjectHeader } from "@acepe/ui/app-layout";
 
 import { flattenFileTree } from "./file-list-logic.js";
 import type { FileGroup, FileTreeNode } from "./file-list-types.js";

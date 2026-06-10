@@ -1,80 +1,78 @@
 <script lang="ts">
-import * as DropdownMenu from "@acepe/ui/dropdown-menu";
-import { mergeProps } from "bits-ui";
-import { ArrowCounterClockwise } from "phosphor-svelte";
-import { ArrowDown } from "phosphor-svelte";
-import { ArrowUp } from "phosphor-svelte";
-import { DotsThreeVertical } from "phosphor-svelte";
-import { ImageSquare } from "phosphor-svelte";
-import { Palette } from "phosphor-svelte";
-import { Trash } from "phosphor-svelte";
-import * as Popover from "$lib/components/ui/popover/index.js";
-import * as Tooltip from "$lib/components/ui/tooltip/index.js";
-import { PROJECT_COLOR_OPTIONS } from "../utils/project-color-options.js";
-import { buildProjectHeaderOverflowMenuState } from "./project-menu-state.js";
+	import * as DropdownMenu from "../dropdown-menu/index.js";
+	import * as Popover from "../popover/index.js";
+	import * as Tooltip from "../tooltip/index.js";
+	import { mergeProps } from "bits-ui";
+	import { ArrowCounterClockwise } from "phosphor-svelte";
+	import { ArrowDown } from "phosphor-svelte";
+	import { ArrowUp } from "phosphor-svelte";
+	import { DotsThreeVertical } from "phosphor-svelte";
+	import { ImageSquare } from "phosphor-svelte";
+	import { Palette } from "phosphor-svelte";
+	import { Trash } from "phosphor-svelte";
 
-interface Props {
-	projectName: string;
-	currentColor?: string;
-	onColorChange?: (color: string) => void;
-	/** When set, shows "Reset to letter badge" and hides color picker */
-	projectIconSrc?: string | null;
-	onResetProjectIcon?: () => void;
-	onRemoveProject?: () => void;
-	onMoveUp?: () => void;
-	onMoveDown?: () => void;
-	moveUpDisabled?: boolean;
-	moveDownDisabled?: boolean;
-	onChangeProjectIcon?: () => void;
-}
+	import { PROJECT_COLOR_OPTIONS } from "./project-color-options.js";
+	import { buildProjectHeaderOverflowMenuState } from "./project-menu-state.js";
 
-let {
-	projectName,
-	currentColor,
-	onColorChange,
-	projectIconSrc = null,
-	onResetProjectIcon,
-	onRemoveProject,
-	onMoveUp,
-	onMoveDown,
-	moveUpDisabled = false,
-	moveDownDisabled = false,
-	onChangeProjectIcon,
-}: Props = $props();
+	interface Props {
+		projectName: string;
+		currentColor?: string;
+		onColorChange?: (color: string) => void;
+		projectIconSrc?: string | null;
+		onResetProjectIcon?: () => void;
+		onRemoveProject?: () => void;
+		onMoveUp?: () => void;
+		onMoveDown?: () => void;
+		moveUpDisabled?: boolean;
+		moveDownDisabled?: boolean;
+		onChangeProjectIcon?: () => void;
+	}
 
-let menuOpen = $state(false);
-let showRemoveConfirm = $state(false);
-let triggerRef: HTMLButtonElement | undefined = $state();
-const colorOptions = PROJECT_COLOR_OPTIONS;
-
-function handleColorSelect(colorName: string) {
-	onColorChange?.(colorName);
-}
-
-const menuState = $derived(
-	buildProjectHeaderOverflowMenuState({
+	let {
+		projectName,
 		currentColor,
-		colorOptions,
-		projectIconSrc,
-		hasColorChange: Boolean(onColorChange),
-		hasResetProjectIconAction: Boolean(onResetProjectIcon),
-		hasRemoveProjectAction: Boolean(onRemoveProject),
-		hasChangeProjectIconAction: Boolean(onChangeProjectIcon),
-	})
-);
-const selectedColorHex = $derived(menuState.selectedColorHex);
-const hasIcon = $derived(menuState.hasIcon);
-const hasResetProjectIcon = $derived(menuState.hasResetProjectIcon);
-const showColorPicker = $derived(menuState.showColorPicker);
-const showSettingsSection = $derived(menuState.showSettingsSection);
-const displaySectionClass = $derived(menuState.displaySectionClass);
-const colorTriggerClass = $derived(menuState.colorTriggerClass);
+		onColorChange,
+		projectIconSrc = null,
+		onResetProjectIcon,
+		onRemoveProject,
+		onMoveUp,
+		onMoveDown,
+		moveUpDisabled = false,
+		moveDownDisabled = false,
+		onChangeProjectIcon,
+	}: Props = $props();
 
-function handleRemoveClick() {
-	menuOpen = false;
-	showRemoveConfirm = true;
-}
+	let menuOpen = $state(false);
+	let showRemoveConfirm = $state(false);
+	let triggerRef: HTMLButtonElement | undefined = $state();
+	const colorOptions = PROJECT_COLOR_OPTIONS;
 
+	function handleColorSelect(colorName: string) {
+		onColorChange?.(colorName);
+	}
+
+	const menuState = $derived(
+		buildProjectHeaderOverflowMenuState({
+			currentColor,
+			colorOptions,
+			projectIconSrc,
+			hasColorChange: Boolean(onColorChange),
+			hasResetProjectIconAction: Boolean(onResetProjectIcon),
+			hasRemoveProjectAction: Boolean(onRemoveProject),
+			hasChangeProjectIconAction: Boolean(onChangeProjectIcon),
+		})
+	);
+	const selectedColorHex = $derived(menuState.selectedColorHex);
+	const hasIcon = $derived(menuState.hasIcon);
+	const hasResetProjectIcon = $derived(menuState.hasResetProjectIcon);
+	const showColorPicker = $derived(menuState.showColorPicker);
+	const showSettingsSection = $derived(menuState.showSettingsSection);
+	const colorTriggerClass = $derived(menuState.colorTriggerClass);
+
+	function handleRemoveClick() {
+		menuOpen = false;
+		showRemoveConfirm = true;
+	}
 </script>
 
 <DropdownMenu.Root bind:open={menuOpen}>
@@ -170,11 +168,11 @@ function handleRemoveClick() {
 													: 'transparent'};"
 												onclick={() => handleColorSelect(option.name)}
 											>
-												<span class="sr-only">{option.label()}</span>
+												<span class="sr-only">{option.label}</span>
 											</button>
 										</Tooltip.Trigger>
 										<Tooltip.Content>
-											{option.label()}
+											{option.label}
 										</Tooltip.Content>
 									</Tooltip.Root>
 								{/each}
