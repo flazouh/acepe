@@ -66,9 +66,6 @@ import {
 } from "../logic";
 import { createAgentPanelGraphMaterializerReadModel } from "../../../session-state/agent-panel-graph-materializer.js";
 import { createRevealTextProjection } from "../logic/reveal-text-projection.js";
-import { deriveAgentPanelWaiting } from "../logic/agent-panel-waiting.js";
-import { resolveAgentPanelWorktreePending } from "../logic/worktree-pending.js";
-import { getWorktreeDefaultStore } from "../../worktree/worktree-default-store.svelte.js";
 import { DEFAULT_BROWSER_HOME_URL } from "../../../constants/browser-defaults.js";
 import { getProviderBrandIcon } from "../../../constants/thread-list-constants.js";
 import { derivePanelViewState } from "../../../logic/panel-visibility.js";
@@ -89,6 +86,8 @@ import { deriveAgentPanelHeaderDisplayTitle } from "../logic/agent-panel-header-
 import { resolveAgentPanelProviderBrand } from "../logic/agent-panel-provider-brand.js";
 import { shouldShowPreSessionWorktreeCard } from "../logic/pre-session-worktree-card-visibility.js";
 import { resolveWorktreeToggleProjectPath } from "../logic/worktree-toggle-project-path.js";
+import { resolveAgentPanelWorktreePending } from "../logic/worktree-pending.js";
+import { getWorktreeDefaultStore } from "../../worktree/worktree-default-store.svelte.js";
 import { createGraphSceneEntryIndexReadModel } from "../logic/graph-scene-entry-match.js";
 import { createTokenRevealSceneReadModel } from "../logic/token-reveal-scene-read-model.js";
 import { buildTodoMarkdown, buildTokenRevealCss } from "./agent-panel-pure-helpers.js";
@@ -104,7 +103,6 @@ import type { ReviewControlsSnapshot } from "./agent-panel-review-content-types.
 import WorkspaceDialogFrame from "$lib/components/ui/workspace-dialog-frame.svelte";
 import AgentPanelTerminalDrawer from "./agent-panel-terminal-drawer.svelte";
 import AgentPanelPreComposerStack from "./agent-panel-pre-composer-stack.svelte";
-import { WaitingIndicator } from "../../waiting-indicator/index.js";
 import { PlanSidebar } from "../../plan-sidebar/index.js";
 import { BrowserPanel as BrowserPanelComponent } from "../../browser-panel/index.js";
 import {
@@ -663,14 +661,6 @@ const graphMaterializedScene = $derived(
 						pendingUserEntry: sessionController.optimisticUserEntryForGraph,
 					}
 				: null,
-	})
-);
-const agentPanelWaiting = $derived(
-	deriveAgentPanelWaiting({
-		graph: sessionController.agentPanelCanonicalSource,
-		sceneEntries: graphMaterializedScene.conversation.entries,
-		pendingSendIntent: sessionController.hasImmediatePendingSendIntent,
-		agentName,
 	})
 );
 const graphSceneEntries = $derived.by(() => {
@@ -1874,8 +1864,6 @@ async function handlePlanSidebarSendMessage(sid: string, message: string): Promi
 						{availableAgents}
 						{effectiveTheme}
 						{modifiedFilesState}
-						isWaitingForResponse={agentPanelWaiting.show}
-						waitingLabel={agentPanelWaiting.label}
 						onQuestionSelect={handleQuestionSelect}
 						onPlanBuild={handlePlanBuild}
 						onPlanCancel={handlePlanCancel}
@@ -1916,11 +1904,6 @@ async function handlePlanSidebarSendMessage(sid: string, message: string): Promi
 	{/snippet}
 
 	{#snippet preComposer()}
-		{#if agentPanelWaiting.show && viewState.kind === "conversation"}
-			<div class="px-5" data-qa="waiting-indicator">
-				<WaitingIndicator />
-			</div>
-		{/if}
 		<AgentPanelPreComposerStack
 			{reviewMode}
 			showConversationChrome={viewState.kind === "conversation" ||

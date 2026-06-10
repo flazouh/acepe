@@ -185,7 +185,6 @@ onDestroy(() => {
 			availableAgents={[]}
 			effectiveTheme={controller.theme}
 			modifiedFilesState={null}
-			isWaitingForResponse={isWaitingForFirstAssistantText}
 		/>
 	</div>
 </div>

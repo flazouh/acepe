@@ -33,8 +33,6 @@ let {
 	availableAgents = [],
 	effectiveTheme = "dark",
 	modifiedFilesState = null,
-	isWaitingForResponse: isWaitingProp,
-	waitingLabel = null,
 	onQuestionSelect,
 	onPlanBuild,
 	onPlanCancel,
@@ -57,20 +55,20 @@ let sceneViewportRef: SceneContentViewport | null = $state(null);
 const liveSessionSource = $derived(
 	sessionStore?.getSessionLiveWorkSource(sessionId ?? null, true) ?? { kind: "no_session" }
 );
-const interactionSnapshot = $derived.by(() =>
-	isWaitingProp !== undefined || !sessionId || interactionStore == null
-		? {
-				pendingQuestion: null,
-				pendingQuestionOperation: null,
-				pendingPermission: null,
-				pendingPermissionOperation: null,
-				pendingPlanApproval: null,
-				pendingPlanApprovalOperation: null,
-			}
-		: sessionStore.getSessionOperationInteractionSnapshot(sessionId, interactionStore)
-);
+const interactionSnapshot = $derived.by(() => {
+	if (!sessionId || interactionStore == null)
+		return {
+			pendingQuestion: null,
+			pendingQuestionOperation: null,
+			pendingPermission: null,
+			pendingPermissionOperation: null,
+			pendingPlanApproval: null,
+			pendingPlanApprovalOperation: null,
+		};
+	return sessionStore.getSessionOperationInteractionSnapshot(sessionId, interactionStore);
+});
 const sessionWorkProjection = $derived.by(() => {
-	if (isWaitingProp !== undefined || !sessionId) {
+	if (!sessionId) {
 		return null;
 	}
 
@@ -89,13 +87,11 @@ const sessionWorkProjection = $derived.by(() => {
 const runtime = $derived(
 	resolveAgentPanelContentRuntime({
 		liveSessionSource,
-		explicitWaiting: isWaitingProp,
 		sessionWorkProjection,
 	})
 );
 const turnState = $derived(runtime.turnState);
 const isStreaming = $derived(runtime.isStreaming);
-const isWaitingForResponse = $derived(runtime.isWaitingForResponse);
 const bufferProjection = $derived(
 	sessionStore?.getTranscriptViewportBufferProjection(sessionId) ?? null
 );
@@ -115,7 +111,6 @@ $effect(() => {
 		latestEntryId: sceneEntries?.at(-1)?.id ?? null,
 		latestEntryType: sceneEntries?.at(-1)?.type ?? null,
 		turnState,
-		isWaitingForResponse,
 	});
 	if (signature === lastContentTraceSignature) {
 		return;
@@ -179,8 +174,6 @@ export function scrollToTop() {
 				{sessionId}
 				{pendingUserRevealRequestKey}
 				{turnState}
-				{isWaitingForResponse}
-				{waitingLabel}
 				projectPath={sessionProjectPath ?? undefined}
 				{isFullscreen}
 				{modifiedFilesState}

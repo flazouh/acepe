@@ -84,8 +84,6 @@ type SceneContentViewportProps = {
 	sceneEntries?: readonly AgentPanelSceneEntryModel[];
 	bufferProjection?: BufferProjection | null;
 	turnState: TurnState;
-	isWaitingForResponse: boolean;
-	waitingLabel?: string | null;
 	projectPath: string | undefined;
 	sessionId: string | null;
 	pendingUserRevealRequestKey?: string | null;
@@ -109,8 +107,6 @@ let {
 	sceneEntries,
 	bufferProjection = null,
 	turnState,
-	isWaitingForResponse: _isWaitingForResponse,
-	waitingLabel: _waitingLabel = null,
 	projectPath,
 	sessionId,
 	pendingUserRevealRequestKey = null,
@@ -234,6 +230,14 @@ function resolveSceneEntry(row: TranscriptViewportRow): AgentPanelSceneEntryMode
 	const canonicalEntry = sceneEntryById.get(row.sourceEntryId);
 	if (canonicalEntry !== undefined) {
 		return canonicalEntry;
+	}
+
+	if (row.kind === "awaitingPlaceholder") {
+		return {
+			id: row.sourceEntryId,
+			type: "thinking",
+			durationMs: null,
+		};
 	}
 
 	if (row.content.kind === "transcript" && row.content.role === "user") {
