@@ -151,6 +151,7 @@ Acepe uses the Compounding Engineering workflow as its engineering operating sys
 - ALWAYS invoke Svelte skills before modifying/creating Svelte code: `svelte-runes`, `svelte-components`, `sveltekit-structure`, `sveltekit-data-flow`.
 - NEVER use `$effect`. Use `$derived` for computed values, event handlers for actions. If unavoidable, guard writes with comparison.
 - ALL new UI components must be dumb/presentational in `packages/ui`. No Tauri, store, runtime, or app-specific logic — they must be reusable from `@acepe/ui`.
+- Invoke **`extract-to-ui-package`** before extracting or moving UI into `@acepe/ui` (MVC: View in `packages/ui`, Model/Controller in desktop). Enforcement: `scripts/forbid-ui-package-imports.ts` + `packages/ui/src/__tests__/ui-package-boundary.test.ts`.
 
 ### Architecture
 

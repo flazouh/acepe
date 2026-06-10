@@ -188,9 +188,9 @@
   },
   "scripts": {
     "check": "bunx tsc --noEmit -p tsconfig.json",
-    "test": "bun ../../scripts/forbid-structural-tests.ts src && bun test $(find src -type f -name '*.test.ts') && bun run test:dom",
+    "test": "bun ../../scripts/forbid-ui-package-imports.ts src && bun ../../scripts/forbid-structural-tests.ts src && bun test $(find src -type f -name '*.test.ts') && bun run test:dom",
     "test:dom": "vitest run --config vitest.config.ts",
-    "test:run": "bun ../../scripts/forbid-structural-tests.ts src && bun test $(find src -type f -name '*.test.ts') && bun run test:dom"
+    "test:run": "bun ../../scripts/forbid-ui-package-imports.ts src && bun ../../scripts/forbid-structural-tests.ts src && bun test $(find src -type f -name '*.test.ts') && bun run test:dom"
   },
   "peerDependencies": {
     "bits-ui": "^2.14.4",

@@ -169,23 +169,26 @@ Acepe optimizes for two readers: the engineer and the agent. Code must be **AI-n
 - For transcript bugs, never fix order in the UI. Canonical transcript order, identity, and tool-call mapping must be corrected before display projection.
 - Treat raw provider ids, such as Claude `message.id`, as metadata unless the canonical model explicitly promotes them. Use canonical event order and Acepe-owned display ids for UI identity.
 
-#### Agent Panel MVC Separation
+#### UI Package MVC
 
-The agent panel follows a View–Model–Controller split across packages:
+Shared UI follows a View–Model–Controller split across packages. **Invoke `extract-to-ui-package`** before moving UI into `@acepe/ui`.
 
 | Layer | Package | Role |
 |-------|---------|------|
-| **View** | `@acepe/ui` (`packages/ui/src/components/agent-panel/`) | Presentational components. Accept model data + callbacks via props. No Tauri, stores, or app-specific logic. Enforced by `agent-panel-architecture.test.ts`. |
-| **Model** | `desktop-agent-panel-scene.ts` | Pure function mapper. Converts desktop domain types (SessionEntry, ToolCall, etc.) into `AgentPanelSceneModel`. |
-| **Controller** | `agent-panel.svelte` (monolith) | Reads stores, builds model, routes actions, provides snippet overrides for platform-specific content (terminal, browser, virtualized scroll). |
-| **Scene** | `AgentPanelScene` (`packages/ui/src/components/agent-panel-scene/`) | Convenience renderer. Maps `AgentPanelSceneModel` to `AgentPanel` shell slots. Accepts snippet overrides for platform content. |
+| **View** | `@acepe/ui` (`packages/ui/`) | Presentational components. Props, callbacks, snippets. Optional view helpers (`*-state.ts`, `*-effects.ts`). No Tauri, stores, or app-specific policy. |
+| **Model** | `packages/desktop` pure TS | Maps domain types to view props (`*-state.ts`, `*-logic.ts`, scene mappers). |
+| **Controller** | `packages/desktop` wrapper `.svelte` | Reads stores/Tauri, builds Model output, renders View, handles callbacks. |
+
+**Enforcement:** `scripts/forbid-ui-package-imports.ts` + `packages/ui/src/__tests__/ui-package-boundary.test.ts` (import guard + render smoke).
+
+**Agent panel** is the richest example; same MVC applies to sidebar, git panel, kanban, checkpoint, etc. See `.github/skills/extract-to-ui-package/references/pattern-catalog.md`.
 
 **Key rules:**
-- New UI for the agent panel goes in `@acepe/ui` as a presentational component with prop-based data. Pass user-visible copy via props (English strings from the host or literals in shared UI when appropriate).
-- The composer view also follows this rule: composer leaf controls, selector rows, metrics, and dropdown shells live in `@acepe/ui`, while desktop keeps the controller/state adapters in `agent-input-ui.svelte` and related wrappers.
-- `packages/website` renders `@acepe/ui` components with mock data — proves the view layer works independently.
-- Domain controllers (`modified-files-header`, `review-content`) may access domain-specific stores but should compose `@acepe/ui` sub-components for rendering.
-- Desktop wrappers that only add store access should accept data as optional props with store fallback, so they work without stores when rendered from a parent that already has the data.
+- New shared UI goes in `@acepe/ui` with prop-based data. Pass user-visible copy via props (English from host or literals in shared UI).
+- Composer leaf controls, selector rows, and dropdown shells live in `@acepe/ui`; desktop keeps Controller adapters in `agent-input-ui.svelte` and related wrappers.
+- `packages/website` renders `@acepe/ui` with mock data — proves View works independently.
+- Domain controllers may access stores but must compose `@acepe/ui` sub-components for rendering.
+- Desktop wrappers that only add store access should accept optional props with store fallback.
 
 ### Debugging
 
