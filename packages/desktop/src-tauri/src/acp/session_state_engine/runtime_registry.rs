@@ -5,7 +5,9 @@ use crate::acp::projections::{ProjectionRegistry, SessionSnapshot};
 use crate::acp::session_state_engine::frontier::{
     decide_frontier_transition, SessionFrontierDecision,
 };
-use crate::acp::session_state_engine::graph::select_active_streaming_tail;
+use crate::acp::session_state_engine::graph::{
+    select_active_streaming_tail, select_awaiting_placeholder,
+};
 use crate::acp::session_state_engine::protocol::{
     AssistantTextDeltaPayload, ViewportBufferDelta, ViewportBufferDiagnostic, ViewportBufferPush,
 };
@@ -979,11 +981,17 @@ impl SessionGraphRuntimeRegistry {
             &activity,
             &transcript_snapshot,
         );
+        let awaiting_placeholder = select_awaiting_placeholder(
+            &session_snapshot.turn_state,
+            &activity,
+            &transcript_snapshot,
+        );
         let rows = project_transcript_viewport_rows(
             &transcript_snapshot,
             &operations,
             &interactions,
             active_streaming_tail.as_ref(),
+            awaiting_placeholder,
         );
         let materialized = {
             let mut viewports = self

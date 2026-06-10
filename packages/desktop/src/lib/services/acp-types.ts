@@ -506,7 +506,7 @@ export type ActiveStreamingTailContentKind = "thought" | "message"
 
 export type ActiveStreamingTail = { rowId: string; contentKind: ActiveStreamingTailContentKind }
 
-export type TranscriptViewportRowKind = "user" | "assistantText" | "assistantThought" | "tool" | "error"
+export type TranscriptViewportRowKind = "user" | "assistantText" | "assistantThought" | "tool" | "error" | "awaitingPlaceholder"
 
 export type TranscriptViewportOperationLink = { operationId: string; toolCallId: string; name: string; state: OperationState }
 

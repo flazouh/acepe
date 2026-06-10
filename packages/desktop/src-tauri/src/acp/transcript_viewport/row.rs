@@ -25,6 +25,7 @@ pub enum TranscriptViewportRowKind {
     AssistantThought,
     Tool,
     Error,
+    AwaitingPlaceholder,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, specta::Type, PartialEq, Eq)]

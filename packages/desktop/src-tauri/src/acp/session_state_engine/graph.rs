@@ -112,10 +112,27 @@ pub fn select_active_streaming_tail(
     })
 }
 
+pub fn select_awaiting_placeholder(
+    turn_state: &SessionTurnState,
+    activity: &SessionGraphActivity,
+    transcript_snapshot: &TranscriptSnapshot,
+) -> bool {
+    if !matches!(turn_state, SessionTurnState::Running) {
+        return false;
+    }
+
+    if activity.kind != SessionGraphActivityKind::AwaitingModel {
+        return false;
+    }
+
+    find_latest_assistant_entry_after_latest_user(&transcript_snapshot.entries).is_none()
+}
+
 #[cfg(test)]
 mod tests {
     use super::{
-        select_active_streaming_tail, ActiveStreamingTail, ActiveStreamingTailContentKind,
+        select_active_streaming_tail, select_awaiting_placeholder, ActiveStreamingTail,
+        ActiveStreamingTailContentKind,
     };
     use crate::acp::projections::SessionTurnState;
     use crate::acp::session_state_engine::selectors::{
@@ -216,5 +233,120 @@ mod tests {
                 content_kind: ActiveStreamingTailContentKind::Message,
             })
         );
+    }
+
+    fn awaiting_activity() -> SessionGraphActivity {
+        SessionGraphActivity {
+            kind: SessionGraphActivityKind::AwaitingModel,
+            active_operation_count: 0,
+            active_subagent_count: 0,
+            dominant_operation_id: None,
+            blocking_interaction_id: None,
+        }
+    }
+
+    fn running_op_activity() -> SessionGraphActivity {
+        SessionGraphActivity {
+            kind: SessionGraphActivityKind::RunningOperation,
+            active_operation_count: 1,
+            active_subagent_count: 0,
+            dominant_operation_id: Some("op-1".to_string()),
+            blocking_interaction_id: None,
+        }
+    }
+
+    #[test]
+    fn awaiting_placeholder_true_for_running_awaiting_no_assistant_after_user() {
+        assert!(select_awaiting_placeholder(
+            &SessionTurnState::Running,
+            &awaiting_activity(),
+            &snapshot(vec![
+                text_entry("u1", TranscriptEntryRole::User),
+                text_entry("tool-1", TranscriptEntryRole::Tool),
+            ]),
+        ));
+    }
+
+    #[test]
+    fn awaiting_placeholder_true_on_first_turn_empty_transcript() {
+        assert!(select_awaiting_placeholder(
+            &SessionTurnState::Running,
+            &awaiting_activity(),
+            &snapshot(vec![]),
+        ));
+    }
+
+    #[test]
+    fn awaiting_placeholder_false_when_assistant_exists_after_user() {
+        assert!(!select_awaiting_placeholder(
+            &SessionTurnState::Running,
+            &awaiting_activity(),
+            &snapshot(vec![
+                text_entry("u1", TranscriptEntryRole::User),
+                text_entry("a1", TranscriptEntryRole::Assistant),
+            ]),
+        ));
+    }
+
+    #[test]
+    fn awaiting_placeholder_false_when_not_running() {
+        assert!(!select_awaiting_placeholder(
+            &SessionTurnState::Idle,
+            &awaiting_activity(),
+            &snapshot(vec![text_entry("u1", TranscriptEntryRole::User)]),
+        ));
+    }
+
+    #[test]
+    fn awaiting_placeholder_false_when_running_operation() {
+        assert!(!select_awaiting_placeholder(
+            &SessionTurnState::Running,
+            &running_op_activity(),
+            &snapshot(vec![
+                text_entry("u1", TranscriptEntryRole::User),
+                text_entry("tool-1", TranscriptEntryRole::Tool),
+            ]),
+        ));
+    }
+
+    #[test]
+    fn awaiting_placeholder_transition_false_after_first_assistant_lands() {
+        let snapshot_before = snapshot(vec![text_entry("u1", TranscriptEntryRole::User)]);
+        assert!(select_awaiting_placeholder(
+            &SessionTurnState::Running,
+            &awaiting_activity(),
+            &snapshot_before,
+        ));
+        let snapshot_after = snapshot(vec![
+            text_entry("u1", TranscriptEntryRole::User),
+            text_entry("a1", TranscriptEntryRole::Assistant),
+        ]);
+        assert!(!select_awaiting_placeholder(
+            &SessionTurnState::Running,
+            &awaiting_activity(),
+            &snapshot_after,
+        ));
+    }
+
+    #[test]
+    fn awaiting_placeholder_tool_result_to_awaiting_gap() {
+        let awaiting = awaiting_activity();
+        assert!(select_awaiting_placeholder(
+            &SessionTurnState::Running,
+            &awaiting,
+            &snapshot(vec![
+                text_entry("u1", TranscriptEntryRole::User),
+                text_entry("tool-1", TranscriptEntryRole::Tool),
+            ]),
+        ));
+        assert!(!select_awaiting_placeholder(
+            &SessionTurnState::Running,
+            &awaiting,
+            &snapshot(vec![
+                text_entry("u1", TranscriptEntryRole::User),
+                text_entry("tool-1", TranscriptEntryRole::Tool),
+                text_entry("a2", TranscriptEntryRole::Assistant),
+            ]),
+        ));
     }
 }

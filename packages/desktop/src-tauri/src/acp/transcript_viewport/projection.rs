@@ -10,12 +10,16 @@ use crate::acp::transcript_viewport::row::{
 use sha2::{Digest, Sha256};
 use std::collections::BTreeMap;
 
+const AWAITING_PLACEHOLDER_ID: &str = "awaiting:planning";
+const AWAITING_PLACEHOLDER_VERSION: &str = "00000000000000000000000000000000";
+
 #[must_use]
 pub fn project_transcript_viewport_rows(
     transcript_snapshot: &TranscriptSnapshot,
     operations: &[OperationSnapshot],
     interactions: &[InteractionSnapshot],
     active_streaming_tail: Option<&ActiveStreamingTail>,
+    awaiting_placeholder: bool,
 ) -> Vec<TranscriptViewportRow> {
     let operation_links_by_entry = operation_links_by_entry_id(operations);
     let interaction_links_by_operation = interaction_links_by_operation_id(interactions);
@@ -32,6 +36,23 @@ pub fn project_transcript_viewport_rows(
             )
         })
         .collect();
+
+    if awaiting_placeholder {
+        rows.push(TranscriptViewportRow {
+            row_id: AWAITING_PLACEHOLDER_ID.to_string(),
+            source_entry_id: AWAITING_PLACEHOLDER_ID.to_string(),
+            kind: TranscriptViewportRowKind::AwaitingPlaceholder,
+            version: AWAITING_PLACEHOLDER_VERSION.to_string(),
+            anchor_eligible: true,
+            active_streaming_tail: None,
+            operation_links: Vec::new(),
+            interaction_links: Vec::new(),
+            content: TranscriptViewportRowContent::Transcript {
+                role: TranscriptEntryRole::Assistant,
+                segments: Vec::new(),
+            },
+        });
+    }
 
     ensure_unique_display_row_ids(&mut rows);
     rows
@@ -390,6 +411,7 @@ mod tests {
                 row_id: "assistant-1".to_string(),
                 content_kind: ActiveStreamingTailContentKind::Message,
             }),
+            false,
         );
 
         assert_eq!(
@@ -445,6 +467,7 @@ mod tests {
             ],
             &[],
             None,
+            false,
         );
 
         assert_eq!(
@@ -467,12 +490,14 @@ mod tests {
             &[linked_operation("tool-1", OperationState::Running)],
             &[],
             None,
+            false,
         );
         let completed_rows = project_transcript_viewport_rows(
             &transcript,
             &[linked_operation("tool-1", OperationState::Completed)],
             &[],
             None,
+            false,
         );
 
         assert_eq!(running_rows[0].row_id, completed_rows[0].row_id);
@@ -490,6 +515,7 @@ mod tests {
             &[],
             &[],
             None,
+            false,
         );
 
         assert!(rows.is_empty());
@@ -506,6 +532,7 @@ mod tests {
             &[],
             &[],
             None,
+            false,
         );
 
         let TranscriptViewportRowContent::Transcript { role, segments } = &rows[0].content;
@@ -535,6 +562,7 @@ mod tests {
             &[],
             &[],
             None,
+            false,
         );
 
         assert_eq!(rows.len(), 3, "no row is dropped");
@@ -547,5 +575,116 @@ mod tests {
         for row in &rows {
             assert_eq!(row.source_entry_id, "toolu_bdrk_dup");
         }
+    }
+
+    #[test]
+    fn awaiting_placeholder_appended_last_when_flag_true() {
+        let rows = project_transcript_viewport_rows(
+            &snapshot(vec![
+                text_entry("user-1", TranscriptEntryRole::User, "prompt"),
+            ]),
+            &[],
+            &[],
+            None,
+            true,
+        );
+
+        assert_eq!(rows.len(), 2);
+        let last = rows.last().unwrap();
+        assert_eq!(last.kind, TranscriptViewportRowKind::AwaitingPlaceholder);
+        assert_eq!(last.row_id, "awaiting:planning");
+        assert_eq!(last.source_entry_id, "awaiting:planning");
+    }
+
+    #[test]
+    fn awaiting_placeholder_not_emitted_when_flag_false() {
+        let rows = project_transcript_viewport_rows(
+            &snapshot(vec![
+                text_entry("user-1", TranscriptEntryRole::User, "prompt"),
+            ]),
+            &[],
+            &[],
+            None,
+            false,
+        );
+
+        assert_eq!(rows.len(), 1);
+        assert_ne!(rows[0].kind, TranscriptViewportRowKind::AwaitingPlaceholder);
+    }
+
+    #[test]
+    fn awaiting_placeholder_version_is_constant_across_projections() {
+        let snapshot = snapshot(vec![
+            text_entry("user-1", TranscriptEntryRole::User, "prompt"),
+        ]);
+        let rows1 = project_transcript_viewport_rows(
+            &snapshot, &[], &[], None, true,
+        );
+        let rows2 = project_transcript_viewport_rows(
+            &snapshot, &[], &[], None, true,
+        );
+
+        let version1 = &rows1.last().unwrap().version;
+        let version2 = &rows2.last().unwrap().version;
+        assert_eq!(version1, version2, "awaiting row version is stable");
+    }
+
+    #[test]
+    fn awaiting_placeholder_has_no_links_and_no_streaming_tail() {
+        let rows = project_transcript_viewport_rows(
+            &snapshot(vec![
+                text_entry("user-1", TranscriptEntryRole::User, "prompt"),
+            ]),
+            &[],
+            &[],
+            None,
+            true,
+        );
+
+        let placeholder = rows.last().unwrap();
+        assert!(placeholder.operation_links.is_empty());
+        assert!(placeholder.interaction_links.is_empty());
+        assert!(placeholder.active_streaming_tail.is_none());
+        assert!(placeholder.anchor_eligible);
+    }
+
+    #[test]
+    fn awaiting_placeholder_content_is_empty_transcript() {
+        let rows = project_transcript_viewport_rows(
+            &snapshot(vec![]),
+            &[],
+            &[],
+            None,
+            true,
+        );
+
+        let placeholder = &rows[0];
+        let TranscriptViewportRowContent::Transcript { role, segments } = &placeholder.content;
+        assert_eq!(role, &TranscriptEntryRole::Assistant);
+        assert!(segments.is_empty());
+    }
+
+    #[test]
+    fn awaiting_placeholder_id_survives_dedup_check() {
+        let mut entries: Vec<TranscriptEntry> = (0..100)
+            .map(|i| text_entry(&format!("entry-{}", i), TranscriptEntryRole::Tool, "x"))
+            .collect();
+        entries.push(text_entry("user-1", TranscriptEntryRole::User, "prompt"));
+        let rows = project_transcript_viewport_rows(
+            &snapshot(entries),
+            &[],
+            &[],
+            None,
+            true,
+        );
+
+        assert_eq!(rows.len(), 102);
+        let row_ids: Vec<&str> = rows.iter().map(|r| r.row_id.as_str()).collect();
+        let unique: std::collections::BTreeSet<&str> = row_ids.iter().copied().collect();
+        assert_eq!(unique.len(), 102, "all row_ids are unique including awaiting:planning");
+        assert!(
+            rows.iter().any(|r| r.kind == TranscriptViewportRowKind::AwaitingPlaceholder),
+            "awaiting placeholder row is present"
+        );
     }
 }
