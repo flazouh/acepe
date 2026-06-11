@@ -60,18 +60,18 @@ import {
 	createWorktreeSetupMatchContext,
 	copyTextToClipboard,
 	matchesWorktreeSetupContext,
-	removeWorktreeAndMarkSessionWorktreeDeleted,
 	resolveEffectiveProjectPath,
 	shouldConfirmWorktreeClose,
 } from "../logic";
 import { DEFAULT_BROWSER_HOME_URL } from "../../../constants/browser-defaults.js";
 import { getProviderBrandIcon } from "../../../constants/thread-list-constants.js";
-import { derivePanelViewState } from "../../../logic/panel-visibility.js";
 import { createPanelBranchLookupController } from "../logic/panel-branch-lookup.js";
 import { createAgentPanelExportHandlers } from "../logic/agent-panel-export-handlers.js";
 import { createAgentPanelInteractionHandlers } from "../logic/agent-panel-interaction-handlers.js";
 import { AgentPanelSessionController } from "../state/agent-panel-session-controller.svelte.js";
 import { AgentPanelScenePipelineController } from "../state/agent-panel-scene-pipeline-controller.svelte.js";
+import { AgentPanelViewStateController } from "../state/agent-panel-view-state-controller.svelte.js";
+import { AgentPanelWorktreeController } from "../state/agent-panel-worktree-controller.svelte.js";
 import { CheckpointTimelineController } from "../state/checkpoint-timeline-controller.svelte.js";
 import { ReviewDialogController } from "../state/review-dialog-controller.svelte.js";
 import { PrCardController } from "../state/pr-card-controller.svelte.js";
@@ -83,10 +83,7 @@ import { shouldAutoScrollOnPanelActivation } from "../logic/should-auto-scroll-o
 import { isInteractiveClickTarget } from "../logic/panel-focus-guard.js";
 import { deriveAgentPanelHeaderDisplayTitle } from "../logic/agent-panel-header-title.js";
 import { resolveAgentPanelProviderBrand } from "../logic/agent-panel-provider-brand.js";
-import { shouldShowPreSessionWorktreeCard } from "../logic/pre-session-worktree-card-visibility.js";
 import { resolveWorktreeToggleProjectPath } from "../logic/worktree-toggle-project-path.js";
-import { resolveAgentPanelWorktreePending } from "../logic/worktree-pending.js";
-import { getWorktreeDefaultStore } from "../../worktree/worktree-default-store.svelte.js";
 import { buildTodoMarkdown } from "./agent-panel-pure-helpers.js";
 import { AgentPanelState } from "../state/agent-panel-state.svelte";
 import type { AgentPanelProps } from "../types";
@@ -122,13 +119,10 @@ import {
 	sendQueuedMessageNow,
 } from "../logic/queue-strip-handlers.js";
 import {
-	discardPreparedWorktreeSessionLaunch,
 	fetchPanelGitBranch,
 	fetchWorktreeHasUncommittedChanges,
 	fetchWorktreePathListedForProject,
 	loadCheckpointsBeforeTimelineOpen,
-	persistSessionWorktreePathAfterRename,
-	removeWorktreeFromDisk,
 	runCreatePrWorkflow,
 	runMergePrWorkflow,
 	runPanelConnectionRetry,
@@ -288,9 +282,6 @@ const checkpointTimeline = new CheckpointTimelineController({
 	loadCheckpoints: loadCheckpointsBeforeTimelineOpen,
 });
 
-// Worktree state - tracks the active worktree directory for checkpoint path conversion
-let activeWorktreePath = $state<string | null>(null);
-let activeWorktreeOwnerProjectPath = $state<string | null>(null);
 let _panelBranch = $state<string | null>(null);
 let branchRequestVersion = 0;
 
@@ -338,21 +329,39 @@ const worktreeToggleProjectPath = $derived(
 		singleProjectPath: projectCount === 1 ? (allProjects[0]?.path ?? null) : null,
 	})
 );
-const scopedActiveWorktreePath = $derived.by(() => {
-	if (!activeWorktreePath) return null;
-	if (!worktreeToggleProjectPath) return null;
-	return activeWorktreeOwnerProjectPath === worktreeToggleProjectPath ? activeWorktreePath : null;
+const worktreeSetup = new WorktreeSetupController();
+const worktreeCloseConfirm = new WorktreeCloseConfirmationController();
+const worktreeController = new AgentPanelWorktreeController({
+	getSessionId: () => sessionId,
+	getPanelId: () => panelId,
+	getSessionWorktreePath: () => sessionController.sessionWorktreePath,
+	getSessionProjectPath: () => sessionController.sessionProjectPath,
+	getSessionAgentId: () => sessionController.sessionAgentId,
+	getWorktreeToggleProjectPath: () => worktreeToggleProjectPath,
+	getHasMessages: () => sessionController.hasMessages,
+	getPendingProjectSelection: () => pendingProjectSelection,
+	getPanelPendingWorktreeEnabled: () => panelPendingWorktreeEnabled,
+	getPanelPreparedWorktreeLaunch: () => panelPreparedWorktreeLaunch,
+	getPendingWorktreeSetup: () =>
+		sessionController.panelHotState?.pendingWorktreeSetup ?? null,
+	getAllProjects: () => allProjects,
+	panelStore,
+	sessionStore,
+	worktreeSetup,
+	worktreeCloseConfirm,
+	onClose,
+	logWorktreeCreated: (details) => {
+		logger.info("[worktree-flow] handleWorktreeCreated: entry", details);
+	},
+	logWorktreeCreatedEarlyReturn: () => {
+		logger.info("[worktree-flow] handleWorktreeCreated: early return (no projectPath)");
+	},
 });
-const effectiveActiveWorktreePath = $derived(sessionController.sessionWorktreePath ?? scopedActiveWorktreePath);
-/** True when the session's worktree directory no longer exists on disk. */
-let worktreeDeleted = $state(false);
-/** Effective git path for runStackedAction: worktree path if in worktree, else project path.
- *  Falls back to the project path when the worktree has been deleted to avoid
- *  repeated failures from git commands targeting a non-existent directory. */
-const effectivePathForGit = $derived.by(() => {
-	const wt = worktreeDeleted ? null : effectiveActiveWorktreePath;
-	return wt ?? worktreeToggleProjectPath ?? null;
-});
+const activeWorktreePath = $derived(worktreeController.activeWorktreePath);
+const scopedActiveWorktreePath = $derived(worktreeController.scopedActiveWorktreePath);
+const effectiveActiveWorktreePath = $derived(worktreeController.effectiveActiveWorktreePath);
+const worktreeDeleted = $derived(worktreeController.worktreeDeleted);
+const effectivePathForGit = $derived(worktreeController.effectivePathForGit);
 
 /** Embedded terminal drawer state. */
 const isTerminalDrawerOpen = $derived(
@@ -385,12 +394,7 @@ const effectiveProjectName = $derived(
 		? project?.name
 		: (project?.name ?? (projectCount === 1 ? allProjects[0].name : undefined))
 );
-const preSessionSelectedProject = $derived.by(() => {
-	if (!worktreeToggleProjectPath) {
-		return null;
-	}
-	return allProjects.find((candidate) => candidate.path === worktreeToggleProjectPath) ?? null;
-});
+const preSessionSelectedProject = $derived(worktreeController.preSessionSelectedProject);
 
 // ✅ Derived values from granular session data
 const effectivePanelAgentId = $derived(selectedAgentId ?? sessionController.sessionAgentId);
@@ -409,19 +413,20 @@ const errorDismissed = $derived(
 	sessionController.errorDismissalKey !== null && connection.dismissedErrorKey === sessionController.errorDismissalKey
 );
 
-// Panel view state: single discriminated union from all inputs
-const viewStateInput = $derived({
-	lifecyclePresentation: sessionController.lifecyclePresentation,
-	entriesCount,
-	hasSession,
-	isAwaitingModelResponse: sessionController.isAwaitingModelResponse,
-	hasImmediatePendingSendIntent: sessionController.hasImmediatePendingSendIntent,
-	showProjectSelection,
-	hasEffectiveProjectPath: !!effectiveProjectPath,
-	errorInfo: sessionController.errorInfo,
+const viewStateController = new AgentPanelViewStateController({
+	getViewStateInput: () => ({
+		lifecyclePresentation: sessionController.lifecyclePresentation,
+		entriesCount,
+		hasSession,
+		isAwaitingModelResponse: sessionController.isAwaitingModelResponse,
+		hasImmediatePendingSendIntent: sessionController.hasImmediatePendingSendIntent,
+		showProjectSelection,
+		hasEffectiveProjectPath: !!effectiveProjectPath,
+		errorInfo: sessionController.errorInfo,
+	}),
 });
-const viewState = $derived(derivePanelViewState(viewStateInput));
-const panelViewKind = $derived(viewState.kind);
+const viewState = $derived(viewStateController.viewState);
+const panelViewKind = $derived(viewStateController.panelViewKind);
 
 // Suppress the inline error card when the big-page error variant is
 // rendering for the same failure — otherwise the user sees the duplicated
@@ -431,26 +436,9 @@ const panelViewKind = $derived(viewState.kind);
 const showInlineErrorCard = $derived(
 	sessionController.errorInfo.showError && !errorDismissed && viewState.kind !== "error"
 );
-const worktreePending = $derived(
-	resolveAgentPanelWorktreePending({
-		activeWorktreePath: effectiveActiveWorktreePath,
-		hasMessages: sessionController.hasMessages,
-		pendingWorktreeEnabled: panelPendingWorktreeEnabled,
-		hasPreparedWorktreeLaunch: panelPreparedWorktreeLaunch !== null,
-	})
-);
-const worktreeSetup = new WorktreeSetupController();
+const worktreePending = $derived(worktreeController.worktreePending);
 const pendingWorktreeSetup = $derived(sessionController.panelHotState ? sessionController.panelHotState.pendingWorktreeSetup : null);
-const showPreSessionWorktreeCard = $derived.by(() =>
-	shouldShowPreSessionWorktreeCard({
-		sessionId,
-		pendingProjectSelection,
-		worktreeToggleProjectPath,
-		hasPendingWorktreeSetup: pendingWorktreeSetup !== null,
-		worktreeSetupVisible: worktreeSetup.state?.isVisible === true,
-		hasMessages: sessionController.hasMessages,
-	})
-);
+const showPreSessionWorktreeCard = $derived(worktreeController.showPreSessionWorktreeCard);
 
 $effect(() => {
 	if (!import.meta.env.DEV) return;
@@ -690,27 +678,7 @@ const inputRenderKey = $derived(
 const branchLookupPath = $derived(
 	(worktreeDeleted ? null : effectiveActiveWorktreePath) ?? effectiveProjectPath ?? null
 );
-const _activeWorktreeName = $derived.by(() => {
-	const worktreePath = effectiveActiveWorktreePath;
-	if (!worktreePath) return null;
-	const segments = worktreePath.split("/").filter((segment) => segment.length > 0);
-	return segments.length > 0 ? (segments[segments.length - 1] ?? null) : null;
-});
-const footerWorktreeStatus = $derived.by(() => {
-	if (!sessionId || !worktreeToggleProjectPath) {
-		return null;
-	}
-
-	if (effectiveActiveWorktreePath && _activeWorktreeName) {
-		return {
-			mode: "worktree" as const,
-			primaryLabel: _activeWorktreeName,
-			secondaryLabel: null,
-		};
-	}
-
-	return null;
-});
+const footerWorktreeStatus = $derived(worktreeController.footerWorktreeStatus);
 
 /** Minimal linked-session references for the modified-header PR picker. */
 const projectPrLinkReferences = $derived.by(() => {
@@ -735,7 +703,7 @@ const ATTACHED_COLUMN_GAP_WIDTH = 2;
 let toolbarMinWidth = $state(0);
 // PR/git-card reactive state — owned by an independently-testable controller.
 const prCard = new PrCardController();
-let preSessionWorktreeFailure = $state<string | null>(null);
+const preSessionWorktreeFailure = $derived(worktreeController.preSessionWorktreeFailure);
 let agentInputRef = $state<{
 	retrySend: () => void;
 	restoreQueuedMessage: (draft: string, attachments: readonly Attachment[]) => void;
@@ -1053,10 +1021,6 @@ $effect(() => {
 	);
 });
 
-// ✅ Worktree close confirmation (inline header strip)
-// Worktree close-confirmation popover state — owned by a testable controller.
-const worktreeCloseConfirm = new WorktreeCloseConfirmationController();
-
 // Check if the session's worktree still exists on disk.
 // If deleted, disconnect the session (agent can't work in a missing directory).
 $effect(() => {
@@ -1064,7 +1028,7 @@ $effect(() => {
 	const projectPath = sessionController.sessionProjectPath;
 	const currentSessionId = sessionId;
 	if (!worktreePath || !projectPath) {
-		worktreeDeleted = false;
+		worktreeController.setWorktreeDeleted(false);
 		return;
 	}
 	let disposed = false;
@@ -1072,17 +1036,17 @@ $effect(() => {
 		(listed) => {
 			if (disposed) return;
 			if (!listed) {
-				worktreeDeleted = true;
+				worktreeController.setWorktreeDeleted(true);
 				if (currentSessionId) {
 					sessionStore.disconnectSession(currentSessionId);
 				}
 			} else {
-				worktreeDeleted = false;
+				worktreeController.setWorktreeDeleted(false);
 			}
 		},
 		() => {
 			if (disposed) return;
-			worktreeDeleted = true;
+			worktreeController.setWorktreeDeleted(true);
 			if (currentSessionId) {
 				sessionStore.disconnectSession(currentSessionId);
 			}
@@ -1121,44 +1085,9 @@ export function requestClosePanelConfirmation(): void {
 	void handleClose();
 }
 
-function handleWorktreeCloseOnly() {
-	worktreeCloseConfirm.dismiss();
-	onClose?.();
-}
-
-function handleWorktreeRemoveAndClose() {
-	const worktreePath = effectiveActiveWorktreePath;
-	const currentSessionId = sessionId;
-	const force = worktreeCloseConfirm.hasDirtyChanges;
-	worktreeCloseConfirm.dismiss();
-	onClose?.();
-	void removeWorktreeAndMarkSessionWorktreeDeleted(
-		{
-			force,
-			sessionId: currentSessionId,
-			worktreePath,
-		},
-		{
-			removeWorktree: (path, shouldForce) => removeWorktreeFromDisk(path, shouldForce),
-			markSessionWorktreeDeleted: (id) => {
-				sessionStore.updateSession(id, { worktreeDeleted: true });
-			},
-			clearSessionWorktreeDeleted: (id) => {
-				sessionStore.updateSession(id, { worktreeDeleted: false });
-			},
-			disconnectSession: (id) => {
-				sessionStore.disconnectSession(id);
-			},
-		}
-	).mapErr((error) => {
-		console.error("[AgentPanel] Failed to remove worktree", { error });
-		toast.error(`Failed to remove worktree: ${error.message}`);
-	});
-}
-
-function handleWorktreeCloseCancel() {
-	worktreeCloseConfirm.cancel();
-}
+const handleWorktreeCloseOnly = () => worktreeController.handleWorktreeCloseOnly();
+const handleWorktreeRemoveAndClose = () => worktreeController.handleWorktreeRemoveAndClose();
+const handleWorktreeCloseCancel = () => worktreeController.handleWorktreeCloseCancel();
 
 function handleProjectAgentSelected(project: Project, agentId: string) {
 	onAgentChange?.(agentId);
@@ -1183,110 +1112,19 @@ function installAgentThenCreateSession(project: Project, agentId: string) {
 }
 
 function handleSessionCreated(sessionIdParam: string) {
-	preSessionWorktreeFailure = null;
+	worktreeController.onSessionCreated();
 	onSessionCreated?.(sessionIdParam);
 }
 
-function handleWorktreeCreated(info: WorktreeInfo | string) {
-	const nextDirectory = typeof info === "string" ? info : info.directory;
-	preSessionWorktreeFailure = null;
-	activeWorktreePath = nextDirectory;
-	activeWorktreeOwnerProjectPath = worktreeToggleProjectPath;
-
-	const projectPath = sessionController.sessionProjectPath ?? worktreeToggleProjectPath ?? "";
-	logger.info("[worktree-flow] handleWorktreeCreated: entry", {
-		sessionId: sessionId ?? null,
-		sessionProjectPath: sessionController.sessionProjectPath,
-		worktreeToggleProjectPath,
-		projectPath: projectPath || null,
-		infoDirectory: nextDirectory,
-	});
-	if (!projectPath) {
-		logger.info("[worktree-flow] handleWorktreeCreated: early return (no projectPath)");
-		return;
-	}
-	logger.info("[worktree-flow] handleWorktreeCreated: set activeWorktreePath", {
-		activeWorktreePath: nextDirectory,
-		projectPath,
-	});
-
-	if (sessionId) {
-		sessionStore.updateSession(sessionId, {
-			worktreeDeleted: false,
-			worktreePath: nextDirectory,
-		});
-	}
-}
-
-function handlePreparedWorktreeLaunch(
+const handleWorktreeCreated = (info: WorktreeInfo | string) => worktreeController.handleWorktreeCreated(info);
+const handlePreparedWorktreeLaunch = (
 	launch: import("$lib/acp/types/worktree-info.js").PreparedWorktreeLaunch
-): void {
-	preSessionWorktreeFailure = null;
-	if (panelId) {
-		panelStore.setPreparedWorktreeLaunch(panelId, launch);
-	}
-	activeWorktreePath = launch.worktree.directory;
-	activeWorktreeOwnerProjectPath = worktreeToggleProjectPath;
-}
-
-function handlePreSessionWorktreeFailure(message: string): void {
-	preSessionWorktreeFailure = message;
-}
-
-function handleRetryWorktree(): void {
-	preSessionWorktreeFailure = null;
-	agentInputRef?.retrySend();
-}
-
-function handleStartInProjectRoot(): void {
-	preSessionWorktreeFailure = null;
-	if (panelId && panelPreparedWorktreeLaunch) {
-		void discardPreparedWorktreeSessionLaunch(panelPreparedWorktreeLaunch.launchToken, true).match(
-			() => {
-				activeWorktreePath = null;
-				activeWorktreeOwnerProjectPath = null;
-				panelStore.clearPreparedWorktreeLaunch(panelId);
-				panelStore.setPendingWorktreeEnabled(panelId, false);
-			},
-			(error) => {
-				toast.error(`Failed to discard prepared worktree: ${error.message}`);
-			}
-		);
-		return;
-	}
-	activeWorktreePath = null;
-	activeWorktreeOwnerProjectPath = null;
-	if (panelId) {
-		panelStore.setPendingWorktreeEnabled(panelId, false);
-	}
-}
-
-function handleWorktreeRenamed(info: WorktreeInfo): void {
-	activeWorktreePath = info.directory;
-	activeWorktreeOwnerProjectPath = worktreeToggleProjectPath ?? sessionController.sessionProjectPath ?? null;
-
-	if (!sessionId) {
-		return;
-	}
-
-	sessionStore.updateSession(sessionId, {
-		worktreeDeleted: false,
-		worktreePath: info.directory,
-	});
-
-	void persistSessionWorktreePathAfterRename(
-		sessionId,
-		info.directory,
-		sessionController.sessionProjectPath ? sessionController.sessionProjectPath : undefined,
-		sessionController.sessionAgentId ? sessionController.sessionAgentId : undefined
-	).mapErr((error) => {
-		logger.error("Failed to persist renamed worktree path to DB", {
-			sessionId,
-			worktreePath: info.directory,
-			error,
-		});
-	});
-}
+) => worktreeController.handlePreparedWorktreeLaunch(launch);
+const handlePreSessionWorktreeFailure = (message: string) =>
+	worktreeController.handlePreSessionWorktreeFailure(message);
+const handleRetryWorktree = () => worktreeController.handleRetryWorktree(agentInputRef?.retrySend);
+const handleStartInProjectRoot = () => worktreeController.handleStartInProjectRoot();
+const handleWorktreeRenamed = (info: WorktreeInfo) => worktreeController.handleWorktreeRenamed(info);
 
 async function handleCreatePr(config?: PrGenerationConfig) {
 	const path = effectivePathForGit;
@@ -1542,70 +1380,10 @@ const queueStripDisplayMessages = $derived.by(() => {
 	}));
 });
 
-function handlePreSessionWorktreeYes(): void {
-	preSessionWorktreeFailure = null;
-	const store = getWorktreeDefaultStore();
-	if (store.globalDefault) {
-		void store.set(false);
-	}
-	if (panelId) {
-		panelStore.setPendingWorktreeEnabled(panelId, true);
-	}
-}
-
-function handlePreSessionWorktreeNo(): void {
-	preSessionWorktreeFailure = null;
-	const store = getWorktreeDefaultStore();
-	if (store.globalDefault) {
-		void store.set(false);
-	}
-	if (panelId) {
-		if (panelPreparedWorktreeLaunch) {
-			void discardPreparedWorktreeSessionLaunch(
-				panelPreparedWorktreeLaunch.launchToken,
-				true
-			).match(
-				() => {
-					panelStore.clearPreparedWorktreeLaunch(panelId);
-				},
-				(error) => {
-					toast.error(`Failed to discard prepared worktree: ${error.message}`);
-				}
-			);
-		}
-		panelStore.setPendingWorktreeEnabled(panelId, false);
-	}
-}
-
-function handlePreSessionWorktreeAlways(): void {
-	preSessionWorktreeFailure = null;
-	const store = getWorktreeDefaultStore();
-	const toggled = !store.globalDefault;
-	void store.set(toggled);
-	if (panelId) {
-		panelStore.setPendingWorktreeEnabled(panelId, toggled);
-	}
-}
-
-function handlePreSessionWorktreeDismiss(): void {
-	preSessionWorktreeFailure = null;
-	if (panelId) {
-		if (panelPreparedWorktreeLaunch) {
-			void discardPreparedWorktreeSessionLaunch(
-				panelPreparedWorktreeLaunch.launchToken,
-				true
-			).match(
-				() => {
-					panelStore.clearPreparedWorktreeLaunch(panelId);
-				},
-				(error) => {
-					toast.error(`Failed to discard prepared worktree: ${error.message}`);
-				}
-			);
-		}
-		panelStore.setPendingWorktreeEnabled(panelId, false);
-	}
-}
+const handlePreSessionWorktreeYes = () => worktreeController.handlePreSessionWorktreeYes();
+const handlePreSessionWorktreeNo = () => worktreeController.handlePreSessionWorktreeNo();
+const handlePreSessionWorktreeAlways = () => worktreeController.handlePreSessionWorktreeAlways();
+const handlePreSessionWorktreeDismiss = () => worktreeController.handlePreSessionWorktreeDismiss();
 
 function handleQueueStripCancel(messageId: string): void {
 	if (!sessionId || !agentInputRef) {
@@ -1957,7 +1735,7 @@ async function handlePlanSidebarSendMessage(sid: string, message: string): Promi
 							{worktreePending}
 							preparedWorktreeLaunch={panelPreparedWorktreeLaunch}
 							onWorktreeCreating={() => {
-								preSessionWorktreeFailure = null;
+								worktreeController.clearPreSessionWorktreeFailure();
 								worktreeSetup.startCreation({
 									projectPath:
 										worktreeToggleProjectPath || sessionController.sessionProjectPath || project?.path || "",
