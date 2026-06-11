@@ -1,5 +1,4 @@
 <script lang="ts">
-import { AgentPanelConversationEntry } from "@acepe/ui/agent-panel";
 import { setIconConfig } from "@acepe/ui/icon-context";
 import type {
 	AgentPanelPlanActionEvent,
@@ -7,7 +6,6 @@ import type {
 	AgentPanelQuestionSelectEvent,
 	AgentPanelSceneEntryModel,
 	AgentToolFileSelectEvent,
-	AgentToolStatus,
 	AssistantRenderBlockContext,
 } from "@acepe/ui/agent-panel";
 import { setContext } from "svelte";
@@ -16,9 +14,7 @@ import type { BufferProjection } from "../../../store/transcript-viewport-store.
 import type { TurnState } from "../../../store/types.js";
 import type { ModifiedFilesState } from "../../../types/modified-files-state.js";
 import type {
-	OperationState,
 	SessionStateEnvelope,
-	TranscriptSegment,
 	TranscriptViewportRow,
 } from "../../../../services/acp-types.js";
 import { getChatPreferencesStore } from "../../../store/chat-preferences-store.svelte.js";
@@ -32,8 +28,9 @@ import {
 	registerCursorThemeForPierreDiffs,
 } from "../../../utils/pierre-diffs-theme.js";
 import ContentBlockRouter from "../../messages/content-block-router.svelte";
-import MessageWrapper from "../../messages/message-wrapper.svelte";
-import PermissionBar from "../../tool-calls/permission-bar.svelte";
+import TranscriptViewportRowRenderer from "./transcript-viewport-row-renderer.svelte";
+import { resolveTranscriptViewportSceneEntry } from "../logic/transcript-viewport-row-mapper.js";
+import { TranscriptViewportHeightConfirmCoordinator } from "../logic/transcript-viewport-height-confirm.js";
 import {
 	accumulateQueuedScrollIntentAtEdge,
 	detachedModeScrollTargetPx,
@@ -54,7 +51,6 @@ import type {
 	TranscriptViewportPhysicalScrollReason,
 } from "../logic/transcript-viewport-scroll-controller.js";
 import {
-	confirmTranscriptViewportHeight,
 	revealTranscriptViewportRow,
 	resizeTranscriptViewport,
 	scrollTranscriptViewport,
@@ -72,12 +68,6 @@ const OUTSIDE_BUFFER_RECOVERY_RETRY_MS = 750;
 const BOTTOM_PIN_RECOVERY_FRAME_LIMIT = 24;
 const BOTTOM_REVEAL_RETRY_MS = 750;
 const EMPTY_SCENE_ENTRIES: readonly AgentPanelSceneEntryModel[] = [];
-
-type PendingHeightConfirmation = {
-	readonly row: TranscriptViewportRow;
-	readonly heightPx: number;
-	readonly sessionId: string;
-};
 
 type SceneContentViewportProps = {
 	panelId: string;
@@ -182,12 +172,6 @@ let queuedScrollIntentRafPending = false;
 let queuedScrollIntentInFlight = false;
 let physicalScrollRafPending = false;
 let pendingPhysicalScrollCommand: TranscriptViewportPhysicalScrollCommand | null = null;
-let heightConfirmationRafPending = false;
-let heightConfirmationOwnerSessionId: string | null = null;
-const pendingHeightConfirmations = new Map<string, PendingHeightConfirmation>();
-const queuedHeightByRowVersion = new Map<string, number>();
-const heightMeasurementKeyByRowId = new Map<string, string>();
-
 const sceneEntryById = $derived.by(() => {
 	const index = new Map<string, AgentPanelSceneEntryModel>();
 	for (const entry of sceneEntries ?? EMPTY_SCENE_ENTRIES) {
@@ -205,7 +189,7 @@ const renderedRows = $derived.by(() => {
 			row,
 			index: startIndex + index,
 			offsetPx: offsets[index] ?? 0,
-			entry: resolveSceneEntry(row),
+			entry: resolveTranscriptViewportSceneEntry(row, sceneEntryById),
 		};
 	});
 });
@@ -218,92 +202,17 @@ const totalHeightPx = $derived(bufferProjection?.totalHeightPx ?? 0);
 // Canonical offsets still own the scrollbar (totalHeightPx) and refill math.
 const windowTopPx = $derived(renderedRows[0]?.offsetPx ?? 0);
 
-function segmentText(segments: readonly TranscriptSegment[]): string {
-	let text = "";
-	for (const segment of segments) {
-		text += segment.text;
-	}
-	return text;
-}
-
-function resolveSceneEntry(row: TranscriptViewportRow): AgentPanelSceneEntryModel {
-	const canonicalEntry = sceneEntryById.get(row.sourceEntryId);
-	if (canonicalEntry !== undefined) {
-		return canonicalEntry;
-	}
-
-	if (row.kind === "awaitingPlaceholder") {
-		return {
-			id: row.sourceEntryId,
-			type: "thinking",
-			durationMs: null,
-		};
-	}
-
-	if (row.content.kind === "transcript" && row.content.role === "user") {
-		return {
-			id: row.sourceEntryId,
-			type: "user",
-			text: segmentText(row.content.segments),
-		};
-	}
-
-	if (row.content.kind === "transcript" && row.content.role === "assistant") {
-		return {
-			id: row.sourceEntryId,
-			type: "assistant",
-			markdown: segmentText(row.content.segments.filter((segment) => segment.kind === "text")),
-			message: {
-				chunks: row.content.segments.map((segment) => {
-					return {
-						type: segment.kind === "thought" ? "thought" : "message",
-						block: {
-							type: "text",
-							text: segment.text,
-						},
-					};
-				}),
-			},
-			isStreaming: row.activeStreamingTail !== null,
-		};
-	}
-
-	const operation = row.operationLinks[0];
-	return {
-		id: row.sourceEntryId,
-		type: "tool_call",
-		toolCallId: operation?.toolCallId,
-		operationId: operation?.operationId,
-		kind: "other",
-		title: operation?.name ?? (row.kind === "error" ? "Error" : "Tool"),
-		status: operation === undefined ? "degraded" : toolStatusFromOperationState(operation.state),
-		presentationState: operation === undefined ? "degraded_operation" : "resolved",
-		degradedReason: operation === undefined ? "Viewport row has no linked operation." : null,
-		resultText: row.content.kind === "transcript" ? segmentText(row.content.segments) : null,
-	};
-}
-
-function toolStatusFromOperationState(state: OperationState): AgentToolStatus {
-	if (state === "running") {
-		return "running";
-	}
-	if (state === "completed") {
-		return "done";
-	}
-	if (state === "failed") {
-		return "error";
-	}
-	if (state === "blocked") {
-		return "blocked";
-	}
-	if (state === "cancelled") {
-		return "cancelled";
-	}
-	if (state === "degraded") {
-		return "degraded";
-	}
-	return "pending";
-}
+const heightConfirmCoordinator = new TranscriptViewportHeightConfirmCoordinator({
+	getSessionId: () => sessionId,
+	getRevision: () => bufferProjection?.revision ?? null,
+	getLastViewportHeightPx: () => lastViewportHeightPx,
+	getLocallyPinnedToTop: () => locallyPinnedToTop,
+	getLiveDetachedViewportOffsetPx: () => liveDetachedViewportOffsetPx(),
+	isDispatchSuppressed,
+	nextViewportRequestGeneration,
+	applyEnvelope,
+	handleDispatchError,
+});
 
 function revisionInput() {
 	return bufferProjection?.revision ?? null;
@@ -471,69 +380,6 @@ function dispatchResizeIntent(heightPx: number): void {
 	}).match(applyEnvelope, handleDispatchError);
 }
 
-function dispatchHeightConfirmation(row: TranscriptViewportRow, heightPx: number): void {
-	const revision = revisionInput();
-	if (sessionId === null || revision === null || isDispatchSuppressed()) {
-		return;
-	}
-	const viewportOffsetPx = locallyPinnedToTop ? 0 : liveDetachedViewportOffsetPx();
-	confirmTranscriptViewportHeight({
-		sessionId,
-		revision,
-		viewportHeightPx: lastViewportHeightPx,
-		rowId: row.rowId,
-		rowVersion: row.version,
-		heightPx,
-		viewportOffsetPx,
-		requestGeneration: nextViewportRequestGeneration(),
-	}).match(applyEnvelope, handleDispatchError);
-}
-
-function scheduleHeightConfirmation(row: TranscriptViewportRow, heightPx: number): void {
-	if (sessionId === null) {
-		return;
-	}
-	if (heightConfirmationOwnerSessionId !== sessionId) {
-		pendingHeightConfirmations.clear();
-		queuedHeightByRowVersion.clear();
-		heightMeasurementKeyByRowId.clear();
-		heightConfirmationOwnerSessionId = sessionId;
-	}
-	const measurementKey = `${row.rowId}:${row.version}`;
-	if (queuedHeightByRowVersion.get(measurementKey) === heightPx) {
-		return;
-	}
-	const previousKey = heightMeasurementKeyByRowId.get(row.rowId);
-	if (previousKey !== undefined && previousKey !== measurementKey) {
-		queuedHeightByRowVersion.delete(previousKey);
-	}
-	heightMeasurementKeyByRowId.set(row.rowId, measurementKey);
-	queuedHeightByRowVersion.set(measurementKey, heightPx);
-	pendingHeightConfirmations.set(row.rowId, { row, heightPx, sessionId });
-	if (heightConfirmationRafPending) {
-		return;
-	}
-	heightConfirmationRafPending = true;
-	requestAnimationFrame(flushNextHeightConfirmation);
-}
-
-function flushNextHeightConfirmation(): void {
-	heightConfirmationRafPending = false;
-	const next = pendingHeightConfirmations.entries().next();
-	if (next.done) {
-		return;
-	}
-	const [rowId, confirmation] = next.value;
-	pendingHeightConfirmations.delete(rowId);
-	if (confirmation.sessionId === sessionId) {
-		dispatchHeightConfirmation(confirmation.row, confirmation.heightPx);
-	}
-	if (pendingHeightConfirmations.size > 0) {
-		heightConfirmationRafPending = true;
-		requestAnimationFrame(flushNextHeightConfirmation);
-	}
-}
-
 function isRowNearLiveViewport(node: HTMLElement): boolean {
 	if (scrollContainerRef === null) {
 		return true;
@@ -548,27 +394,11 @@ function scheduleVisibleHeightConfirmations(): void {
 	if (scrollContainerRef === null) {
 		return;
 	}
-	const rowById = new Map<string, TranscriptViewportRow>();
-	for (const row of bufferRows) {
-		rowById.set(row.rowId, row);
-	}
-	for (const node of scrollContainerRef.querySelectorAll<HTMLElement>("[data-entry-key]")) {
-		if (!isRowNearLiveViewport(node)) {
-			continue;
-		}
-		const rowId = node.getAttribute("data-entry-key");
-		if (rowId === null) {
-			continue;
-		}
-		const row = rowById.get(rowId);
-		if (row === undefined) {
-			continue;
-		}
-		const heightPx = Math.max(0, Math.round(node.getBoundingClientRect().height));
-		if (heightPx > 0) {
-			scheduleHeightConfirmation(row, heightPx);
-		}
-	}
+	heightConfirmCoordinator.scheduleVisibleHeightConfirmations({
+		scrollContainer: scrollContainerRef,
+		bufferRows,
+		isRowNearLiveViewport,
+	});
 }
 
 function liveDetachedViewportOffsetPx(): number | null {
@@ -1106,39 +936,9 @@ function observeViewport(node: HTMLDivElement): { destroy: () => void } {
 	};
 }
 
-function confirmRowHeight(node: HTMLDivElement, row: TranscriptViewportRow): { update: (nextRow: TranscriptViewportRow) => void; destroy: () => void } {
-	let currentRow = row;
-	let lastHeightPx = 0;
-	const observer = new ResizeObserver((entries) => {
-		const entry = entries[0];
-		if (entry === undefined) {
-			return;
-		}
-		const heightPx = Math.max(0, Math.round(entry.contentRect.height));
-		if (heightPx === lastHeightPx) {
-			return;
-		}
-		lastHeightPx = heightPx;
-		if (!isRowNearLiveViewport(node)) {
-			return;
-		}
-		scheduleHeightConfirmation(currentRow, heightPx);
-	});
-	observer.observe(node);
-	return {
-		update(nextRow) {
-			const measurementIdentityChanged =
-				nextRow.rowId !== currentRow.rowId || nextRow.version !== currentRow.version;
-			currentRow = nextRow;
-			if (measurementIdentityChanged) {
-				lastHeightPx = 0;
-			}
-		},
-		destroy() {
-			observer.disconnect();
-		},
-	};
-}
+const confirmRowHeight = heightConfirmCoordinator.createConfirmRowHeightAction({
+	isRowNearLiveViewport,
+});
 
 function latestVisibleUserRowId(): string | null {
 	for (let index = bufferRows.length - 1; index >= 0; index -= 1) {
@@ -1468,65 +1268,26 @@ export function scrollToTop() {
 			<div
 				style={`position: absolute; left: 0; top: 0; width: 100%; transform: translateY(${windowTopPx}px); display: flex; flex-direction: column;`}
 			>
-				{#each renderedRows as rendered (rendered.row.rowId)}
-					<div use:confirmRowHeight={rendered.row} data-entry-key={rendered.row.rowId}>
-						<MessageWrapper
-							entryIndex={rendered.index}
-							entryKey={rendered.row.rowId}
-							messageId={rendered.entry.type === "user" ? rendered.entry.id : undefined}
-							observeRevealResize={false}
-							{isFullscreen}
-						>
-							<AgentPanelConversationEntry
-								entry={rendered.entry}
-								iconBasePath="/svgs/icons"
-								{editToolTheme}
-								{projectPath}
-								{streamingAnimationMode}
-								renderAssistantBlock={renderAssistantBlock}
-								{onQuestionSelect}
-								{onPlanBuild}
-								{onPlanCancel}
-								{onPlanViewFull}
-								{onToolFileSelect}
-								{isPlanActionAvailable}
-							/>
-							{#if rendered.entry.type === "tool_call" && rendered.entry.toolCallId !== undefined && sessionId !== null}
-								{@const attachedPermission = permissionStore.getForToolCall(sessionId, rendered.entry.toolCallId)}
-								{#if attachedPermission !== undefined}
-									<div class="tool-call-permission-row">
-										<div class="tool-call-permission-attachment">
-											<PermissionBar
-												{sessionId}
-												permission={attachedPermission}
-												projectPath={projectPath ?? null}
-												attachment="tool-call"
-											/>
-										</div>
-									</div>
-								{/if}
-							{/if}
-						</MessageWrapper>
-					</div>
-				{/each}
+				<TranscriptViewportRowRenderer
+					{renderedRows}
+					{sessionId}
+					{projectPath}
+					{isFullscreen}
+					{streamingAnimationMode}
+					{editToolTheme}
+					{renderAssistantBlock}
+					{onQuestionSelect}
+					{onPlanBuild}
+					{onPlanCancel}
+					{onPlanViewFull}
+					{onToolFileSelect}
+					{isPlanActionAvailable}
+					getAttachedPermission={(targetSessionId, toolCallId) =>
+						permissionStore.getForToolCall(targetSessionId, toolCallId)}
+					{confirmRowHeight}
+				/>
 			</div>
 		</div>
 	</div>
 </div>
 
-<style>
-	.tool-call-permission-row {
-		display: flex;
-		position: relative;
-		z-index: 1;
-		margin-top: -1px;
-		max-width: 100%;
-		width: 100%;
-	}
-
-	.tool-call-permission-attachment {
-		flex: 0 0 auto;
-		max-width: 100%;
-		width: fit-content;
-	}
-</style>
