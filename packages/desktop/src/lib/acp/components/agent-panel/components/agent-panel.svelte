@@ -64,8 +64,6 @@ import {
 	resolveEffectiveProjectPath,
 	shouldConfirmWorktreeClose,
 } from "../logic";
-import { createAgentPanelGraphMaterializerReadModel } from "../../../session-state/agent-panel-graph-materializer.js";
-import { createRevealTextProjection } from "../logic/reveal-text-projection.js";
 import { DEFAULT_BROWSER_HOME_URL } from "../../../constants/browser-defaults.js";
 import { getProviderBrandIcon } from "../../../constants/thread-list-constants.js";
 import { derivePanelViewState } from "../../../logic/panel-visibility.js";
@@ -73,6 +71,7 @@ import { createPanelBranchLookupController } from "../logic/panel-branch-lookup.
 import { createAgentPanelExportHandlers } from "../logic/agent-panel-export-handlers.js";
 import { createAgentPanelInteractionHandlers } from "../logic/agent-panel-interaction-handlers.js";
 import { AgentPanelSessionController } from "../state/agent-panel-session-controller.svelte.js";
+import { AgentPanelScenePipelineController } from "../state/agent-panel-scene-pipeline-controller.svelte.js";
 import { CheckpointTimelineController } from "../state/checkpoint-timeline-controller.svelte.js";
 import { ReviewDialogController } from "../state/review-dialog-controller.svelte.js";
 import { PrCardController } from "../state/pr-card-controller.svelte.js";
@@ -88,9 +87,7 @@ import { shouldShowPreSessionWorktreeCard } from "../logic/pre-session-worktree-
 import { resolveWorktreeToggleProjectPath } from "../logic/worktree-toggle-project-path.js";
 import { resolveAgentPanelWorktreePending } from "../logic/worktree-pending.js";
 import { getWorktreeDefaultStore } from "../../worktree/worktree-default-store.svelte.js";
-import { createGraphSceneEntryIndexReadModel } from "../logic/graph-scene-entry-match.js";
-import { createTokenRevealSceneReadModel } from "../logic/token-reveal-scene-read-model.js";
-import { buildTodoMarkdown, buildTokenRevealCss } from "./agent-panel-pure-helpers.js";
+import { buildTodoMarkdown } from "./agent-panel-pure-helpers.js";
 import { AgentPanelState } from "../state/agent-panel-state.svelte";
 import type { AgentPanelProps } from "../types";
 import { AgentPanelFooter as SharedFooter } from "@acepe/ui/agent-panel";
@@ -124,7 +121,6 @@ import {
 	removeAttachmentFromQueuedMessage,
 	sendQueuedMessageNow,
 } from "../logic/queue-strip-handlers.js";
-import { resolveTokenRevealSettleDelayMs } from "../../messages/token-reveal-motion.js";
 import {
 	discardPreparedWorktreeSessionLaunch,
 	fetchPanelGitBranch,
@@ -218,9 +214,6 @@ const agentStore = getAgentStore();
 const messageQueueStore = getMessageQueueStore();
 const logger = createLogger({ id: "agent-panel-render-trace", name: "AgentPanelRenderTrace" });
 let lastPanelTraceSignature = $state<string | null>(null);
-const revealTextProjection = createRevealTextProjection();
-const tokenRevealSourceIndexReadModel = createGraphSceneEntryIndexReadModel();
-const tokenRevealSceneReadModel = createTokenRevealSceneReadModel();
 let prefersReducedMotion = $state(false);
 
 onMount(() => {
@@ -617,8 +610,6 @@ const sessionDiffStats = $derived.by(() => {
 });
 const sessionCreatedAt = $derived(sessionController.sessionMetadata?.createdAt ?? null);
 const sessionUpdatedAt = $derived(sessionController.sessionMetadata?.updatedAt ?? null);
-const graphSceneMaterializer = createAgentPanelGraphMaterializerReadModel();
-
 const effectivePanelProviderBrand = $derived.by(() => {
 	const headerAgentId = sessionController.sessionAgentId ?? effectivePanelAgentId;
 	if (!headerAgentId) {
@@ -642,8 +633,9 @@ const effectivePanelProviderBrand = $derived.by(() => {
 	});
 });
 const agentIconSrc = $derived(getProviderBrandIcon(effectivePanelProviderBrand, effectiveTheme));
-const graphMaterializedScene = $derived(
-	graphSceneMaterializer.apply({
+const scenePipelineController = new AgentPanelScenePipelineController({
+	getSessionId: () => sessionId,
+	getGraphMaterializerInput: () => ({
 		panelId: sessionController.effectivePanelId,
 		graph: sessionController.agentPanelCanonicalSource,
 		header: {
@@ -661,61 +653,16 @@ const graphMaterializedScene = $derived(
 						pendingUserEntry: sessionController.optimisticUserEntryForGraph,
 					}
 				: null,
-	})
-);
-const graphSceneEntries = $derived.by(() => {
-	const turnCompleted =
-		sessionId !== null && sessionStore.getSessionTurnState(sessionId) === "Completed";
-	const turnId =
-		sessionId === null
-			? null
-			: (sessionStore.getSessionLastTerminalTurnId(sessionId) ?? `${sessionId}:active`);
-	return revealTextProjection.apply({
-		sceneEntries: graphMaterializedScene.conversation.entries,
-		sessionId,
-		turnId,
-		turnCompleted,
-	});
+	}),
+	sessionStore,
+	chatPreferencesStore,
+	getPrefersReducedMotion: () => prefersReducedMotion,
+	contentScrollReveal,
 });
-const tokenRevealSceneEntries = $derived.by(() => {
-	contentScrollReveal.settleRevision;
-	const streamingAnimationMode = chatPreferencesStore?.streamingAnimationMode ?? "smooth";
-	const tokenRevealTailRowId =
-		sessionId === null ? null : sessionStore.getActiveStreamingTailRowId(sessionId);
-	const clockAnchor = sessionId === null ? null : sessionStore.getClockAnchor(sessionId);
-
-	tokenRevealSourceIndexReadModel.applyPatch(graphMaterializedScene.conversation.entries) ??
-		tokenRevealSourceIndexReadModel.applySnapshot(graphMaterializedScene.conversation.entries);
-	const tailEntry = tokenRevealSourceIndexReadModel.selectEntryById(tokenRevealTailRowId);
-	const tailEntryIndex = tokenRevealSourceIndexReadModel.selectEntryIndexById(tokenRevealTailRowId);
-	const tokenRevealCss =
-		tailEntry?.type === "assistant"
-			? buildTokenRevealCss(
-					sessionId === null
-						? null
-						: sessionStore.getRowTokenStreamByRowId(sessionId, tailEntry.id),
-					clockAnchor,
-					streamingAnimationMode,
-					prefersReducedMotion,
-					tailEntry.isStreaming === true
-				)
-			: undefined;
-	const tokenRevealSnapshot = {
-		sceneEntries: graphSceneEntries,
-		sourceEntry: tailEntry,
-		tailRowId: tokenRevealTailRowId,
-		tailRowIndex: tailEntryIndex,
-		tokenRevealCss,
-	};
-
-	return (
-		tokenRevealSceneReadModel.applyPatch(tokenRevealSnapshot) ??
-		tokenRevealSceneReadModel.applySnapshot(tokenRevealSnapshot)
-	);
-});
-const tokenRevealSettleDelayMs = $derived(
-	resolveTokenRevealSettleDelayMs(tokenRevealSceneReadModel.selectSettlingTimings())
-);
+const graphMaterializedScene = $derived(scenePipelineController.graphMaterializedScene);
+const graphSceneEntries = $derived(scenePipelineController.graphSceneEntries);
+const tokenRevealSceneEntries = $derived(scenePipelineController.tokenRevealSceneEntries);
+const tokenRevealSettleDelayMs = $derived(scenePipelineController.tokenRevealSettleDelayMs);
 $effect(() => {
 	const delayMs = tokenRevealSettleDelayMs;
 	if (delayMs === null) {
