@@ -72,6 +72,10 @@ import { AgentPanelSessionController } from "../state/agent-panel-session-contro
 import { AgentPanelScenePipelineController } from "../state/agent-panel-scene-pipeline-controller.svelte.js";
 import { AgentPanelViewStateController } from "../state/agent-panel-view-state-controller.svelte.js";
 import { AgentPanelWorktreeController } from "../state/agent-panel-worktree-controller.svelte.js";
+import {
+	ATTACHED_COLUMN_WIDTH,
+	AgentPanelLayoutController,
+} from "../state/agent-panel-layout-controller.svelte.js";
 import { CheckpointTimelineController } from "../state/checkpoint-timeline-controller.svelte.js";
 import { ReviewDialogController } from "../state/review-dialog-controller.svelte.js";
 import { PrCardController } from "../state/pr-card-controller.svelte.js";
@@ -104,12 +108,6 @@ import {
 	AgentPanelWorktreeCloseConfirmPopover,
 } from "@acepe/ui/agent-panel";
 import ScrollToBottomButton from "./scroll-to-bottom-button.svelte";
-import {
-	resolveAgentContentColumnStyle,
-	resolveAgentPanelEffectiveWidth,
-	resolveAgentPanelWidthStyle,
-	shouldUseCenteredFullscreenContent,
-} from "./agent-panel-layout.js";
 import { buildAgentErrorIssueDraft } from "../logic/issue-report-draft.js";
 import { resolveInitialReviewWorkspaceIndex } from "./review-workspace-model.js";
 import {
@@ -252,9 +250,6 @@ const panelState = new AgentPanelState();
 const panelBranchLookup = createPanelBranchLookupController();
 let inlinePlanDialogPlan = $state<{ title: string; content: string; summary: null } | null>(null);
 
-// Plan sidebar state from store (centralized, auto-persisted)
-const showPlanSidebar = $derived(panelId ? panelStore.isPlanSidebarExpanded(panelId) : false);
-
 // ✅ Hooks at component level (they need prop reactivity)
 // Pass granular identity data instead of full session object
 const planState = usePlanLoader(() =>
@@ -262,6 +257,16 @@ const planState = usePlanLoader(() =>
 		? { id: sessionId, projectPath: sessionController.sessionProjectPath, agentId: sessionController.sessionAgentId }
 		: null
 );
+
+const layoutController = new AgentPanelLayoutController({
+	getPanelId: () => panelId,
+	getPanelWidth: () => width,
+	getHasAttachedFilePane: () => hasAttachedFilePane,
+	getIsFullscreen: () => isFullscreen,
+	getReviewMode: () => reviewMode,
+	getHasPlan: () => planState.plan !== null,
+	panelStore,
+});
 
 // Simple scroll container binding (updated via bind:)
 let scrollContainer: HTMLDivElement | null = $state(null);
@@ -363,16 +368,10 @@ const effectiveActiveWorktreePath = $derived(worktreeController.effectiveActiveW
 const worktreeDeleted = $derived(worktreeController.worktreeDeleted);
 const effectivePathForGit = $derived(worktreeController.effectivePathForGit);
 
-/** Embedded terminal drawer state. */
-const isTerminalDrawerOpen = $derived(
-	panelId ? panelStore.isEmbeddedTerminalDrawerOpen(panelId) : false
-);
-
-/** Browser sidebar state. */
-const showBrowserSidebar = $derived(panelId ? panelStore.isBrowserSidebarExpanded(panelId) : false);
-const browserSidebarUrl = $derived(
-	panelId ? (panelStore.getHotState(panelId)?.browserSidebarUrl ?? null) : null
-);
+const showPlanSidebar = $derived(layoutController.showPlanSidebar);
+const isTerminalDrawerOpen = $derived(layoutController.isTerminalDrawerOpen);
+const showBrowserSidebar = $derived(layoutController.showBrowserSidebar);
+const browserSidebarUrl = $derived(layoutController.browserSidebarUrl);
 // Canonical lifecycle presentation from Rust-owned graph projection.
 const entriesCount = $derived(sessionController.knownVisibleEntryCount);
 const hasSession = $derived(sessionId !== null);
@@ -693,14 +692,6 @@ const projectForPr = $derived.by(() => {
 });
 
 const hasPlan = $derived(planState.plan !== null);
-const ATTACHED_COLUMN_WIDTH = 450;
-const PLAN_SIDEBAR_COLUMN_WIDTH = 450;
-const BROWSER_SIDEBAR_COLUMN_WIDTH = 500;
-const ATTACHED_COLUMN_GAP_WIDTH = 2;
-
-// Dynamic minimum width reported by the toolbar's intrinsic content measurement.
-// The 16px accounts for the data-input-area wrapper's p-2 padding (8px each side).
-let toolbarMinWidth = $state(0);
 // PR/git-card reactive state — owned by an independently-testable controller.
 const prCard = new PrCardController();
 const preSessionWorktreeFailure = $derived(worktreeController.preSessionWorktreeFailure);
@@ -785,28 +776,9 @@ $effect(() => {
 	prCard.syncFetchTarget(prFetchTarget, fetchPrDetails);
 });
 
-const toolbarMinWidthWithPadding = $derived(toolbarMinWidth > 0 ? toolbarMinWidth + 16 : 0);
-const hasAttachedPane = $derived(Boolean(panelId) && hasAttachedFilePane);
-const requiredSplitWidth = $derived(
-	hasAttachedPane ? ATTACHED_COLUMN_WIDTH * 2 + ATTACHED_COLUMN_GAP_WIDTH : 0
-);
-const panelRenderWidth = $derived(hasAttachedPane ? requiredSplitWidth : width);
-const centeredFullscreenContent = $derived.by(() =>
-	shouldUseCenteredFullscreenContent({
-		hasAttachedPane,
-		isFullscreen,
-	})
-);
-const agentContentColumnStyle = $derived.by(() =>
-	resolveAgentContentColumnStyle({
-		hasAttachedPane,
-		isFullscreen,
-		attachedColumnWidth: ATTACHED_COLUMN_WIDTH,
-	})
-);
-
-// Ensure panel is never narrower than the toolbar's natural content width
-const baseWidth = $derived(Math.max(panelRenderWidth, toolbarMinWidthWithPadding));
+const hasAttachedPane = $derived(layoutController.hasAttachedPane);
+const centeredFullscreenContent = $derived(layoutController.centeredFullscreenContent);
+const agentContentColumnStyle = $derived(layoutController.agentContentColumnStyle);
 
 // Clamp reviewFileIndex to valid bounds so a stale index never leaves review mode empty.
 const clampedReviewFileIndex = $derived.by(() => {
@@ -818,27 +790,8 @@ const clampedReviewFileIndex = $derived.by(() => {
 // Review-dialog UI state — owned by an independently-testable controller.
 const reviewDialog = new ReviewDialogController();
 
-// Add embedded pane widths (plan sidebar, review) when expanded
-const effectiveWidth = $derived.by(() =>
-	resolveAgentPanelEffectiveWidth({
-		baseWidth,
-		reviewMode,
-		showPlanSidebar,
-		hasPlan,
-		planSidebarColumnWidth: PLAN_SIDEBAR_COLUMN_WIDTH,
-		showBrowserSidebar,
-		browserSidebarColumnWidth: BROWSER_SIDEBAR_COLUMN_WIDTH,
-	})
-);
-
-// In fullscreen mode, always use 100% width (sidebar shares space within the panel)
-// In non-fullscreen mode, double the width when sidebar is open so both halves fit
-const widthStyle = $derived.by(() =>
-	resolveAgentPanelWidthStyle({
-		effectiveWidth,
-		isFullscreen,
-	})
-);
+const effectiveWidth = $derived(layoutController.effectiveWidth);
+const widthStyle = $derived(layoutController.widthStyle);
 
 // Debug state for panel debugging (inert in production — deps behind early return are not tracked)
 const debugPanelState = $derived.by(() => {
@@ -1757,7 +1710,7 @@ async function handlePlanSidebarSendMessage(sid: string, message: string): Promi
 							onSessionCreated={handleSessionCreated}
 							onWillSend={prepareForNextUserReveal}
 							onToolbarWidthChange={(w) => {
-								toolbarMinWidth = w;
+								layoutController.setToolbarMinWidth(w);
 							}}
 						>
 							{#snippet checkpointButton()}
