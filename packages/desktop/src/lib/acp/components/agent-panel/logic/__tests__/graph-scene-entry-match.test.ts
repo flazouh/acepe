@@ -16,7 +16,7 @@ import {
 	createTokenRevealSceneReadModel,
 	getTokenRevealScenePatch,
 } from "../token-reveal-scene-read-model.js";
-import { buildVirtualizedDisplayEntries } from "../virtualized-entry-display.js";
+import { buildSceneDisplayRows } from "../scene-display-rows.js";
 
 function createAssistantDisplayEntry(id: string, text: string): SessionEntry {
 	return {
@@ -102,7 +102,7 @@ describe("findGraphSceneEntryForDisplayEntry", () => {
 			stdout: "ok",
 			presentationState: "resolved",
 		};
-		const displayEntries = buildVirtualizedDisplayEntries([
+		const displayEntries = buildSceneDisplayRows([
 			createAssistantDisplayEntry("assistant-1", "First chunk"),
 			createAssistantDisplayEntry("assistant-2", "Second chunk"),
 			createToolDisplayEntry("tool-1"),
