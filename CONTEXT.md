@@ -38,11 +38,11 @@ Truth is **owned by canonical, Rust-side data**. Provider output is *input*, not
 - **Agent panel** — the primary surface that renders a session. Split View–Model–Controller across packages (see `CLAUDE.md` for the enforced table).
   - **View** — presentational components in `@acepe/ui` (`packages/ui/src/components/agent-panel/`). No Tauri, stores, or app logic.
   - **Scene model (`AgentPanelSceneModel`)** — the contract between Model and View; defined in `packages/agent-panel-contract/`.
-  - **Model / scene mapper** — pure function mapping desktop domain types → `AgentPanelSceneModel` (`desktop-agent-panel-scene.ts`).
+  - **Model / scene mapper** — focused modules mapping desktop domain types → scene entry/strip/card models; composed by the materializer (`agent-panel-graph-materializer.ts`). `desktop-agent-panel-scene.ts` is a re-export barrel for those modules.
   - **Controller** — `agent-panel.svelte` (desktop): reads stores, builds the model, routes actions, supplies platform-specific snippet overrides.
   - **Scene** (`AgentPanelScene`) — convenience renderer mapping a `AgentPanelSceneModel` to the `AgentPanel` shell slots.
-- **Materializer** — builds canonical agent-panel state from session state (`agent-panel-graph-materializer.ts`). Canonical; GOD-gated.
-- **Spine** — the thin, readable service/controller file that names and orders the focused units it composes. Every decomposition leaves one; fragments without a spine are shrapnel.
+- **Materializer** — builds canonical agent-panel state from session state (`agent-panel-graph-materializer.ts` / `createAgentPanelGraphMaterializerReadModel`). Production scene-assembly spine; canonical; GOD-gated.
+- **Spine** — the thin, readable service/controller file that names and orders the focused units it composes. For agent-panel scene assembly, the spine is the graph materializer; `desktop-agent-panel-scene.ts` is a re-export hub, not the spine. Every decomposition leaves one; fragments without a spine are shrapnel.
 - **Sub-store** — a class owning a *disjoint slice* of a reactive store's `$state`/Maps plus the methods over it. The unit a god reactive store decomposes into (see ADR-0002). Distinct from a pure-helper module: a sub-store holds state, a helper does not.
 - **Composition root / store facade** — the residual parent store after decomposition: holds sub-store instances and delegates its public interface to them in one-liners, preserving the external contract. Cross-slice reads flow through **accessor-closure dependencies**, never dual-ownership.
 

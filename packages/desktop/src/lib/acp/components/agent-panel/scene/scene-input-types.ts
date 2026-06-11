@@ -1,12 +1,4 @@
-import type {
-	AgentPanelActionDescriptor,
-	AgentPanelChromeModel,
-} from "@acepe/ui/agent-panel/types";
-import type { SessionPlanResponse } from "../../../../services/claude-history.js";
-import type { SessionStatus } from "../../../application/dto/session-status.js";
-import type { SessionEntry } from "../../../application/dto/session-entry.js";
-import type { TurnState } from "../../../store/types.js";
-import type { ModifiedFilesState } from "../../../types/modified-files-state.js";
+import type { AgentPanelActionDescriptor } from "@acepe/ui/agent-panel/types";
 
 export interface DesktopAgentPanelHeaderInput {
 	title: string;
@@ -67,21 +59,4 @@ export interface DesktopErrorCardInput {
 	title: string;
 	description: string;
 	details?: string | null;
-}
-
-export interface BuildDesktopAgentPanelSceneOptions {
-	panelId: string;
-	sessionStatus: SessionStatus | null | undefined;
-	entries: readonly SessionEntry[];
-	turnState?: TurnState;
-	header: DesktopAgentPanelHeaderInput;
-	composer?: DesktopComposerInput | null;
-	modifiedFilesState?: ModifiedFilesState | null;
-	plan?: SessionPlanResponse | null;
-	showPlanSidebar?: boolean;
-	prCard?: DesktopPrCardInput | null;
-	worktreeCard?: DesktopWorktreeCardInput | null;
-	installCard?: DesktopInstallCardInput | null;
-	errorCard?: DesktopErrorCardInput | null;
-	chrome?: AgentPanelChromeModel | null;
 }
