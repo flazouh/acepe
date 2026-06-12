@@ -1,6 +1,6 @@
 import { writeJsonArtifact } from "./artifacts";
 import { writeUiQaEvidence } from "./evidence";
-import { clickWebview, inspectDom, resetOnboarding, sendComposer, watchForVisibleText } from "./interact";
+import { clickWebview, inspectDom, navigateWebview, probeThinkingToggle, resetOnboarding, sendComposer, watchForVisibleText } from "./interact";
 import { observeApp, screenshotApp } from "./observe";
 import { buildResult, dependencyError, formatCommandResult, statusExitCode, type OutputFormat } from "./output";
 import { runDoctor } from "./process-target";
@@ -14,6 +14,7 @@ type CliOptions = {
 	readonly level: "summary" | "focused" | "raw";
 	readonly selector: string;
 	readonly text: string;
+	readonly path: string;
 	readonly limit: number;
 	readonly delayMs: number;
 	readonly timeoutMs: number;
@@ -49,6 +50,7 @@ function parseOptions(args: readonly string[], checkoutRoot: string): CliOptions
 			level: "summary",
 			selector: "",
 			text: "",
+			path: "",
 			limit: 10,
 			delayMs: 300,
 			timeoutMs: 20_000,
@@ -70,6 +72,7 @@ function parseOptions(args: readonly string[], checkoutRoot: string): CliOptions
 		level,
 		selector: valueArg(args, "--selector", ""),
 		text: valueArg(args, "--text", ""),
+		path: valueArg(args, "--path", ""),
 		limit: Number.parseInt(valueArg(args, "--limit", "10"), 10),
 		delayMs: Number.parseInt(valueArg(args, "--delay", "300"), 10),
 		timeoutMs: Number.parseInt(valueArg(args, "--timeout", "20000"), 10),
@@ -107,12 +110,14 @@ export async function runCli(args: readonly string[], checkoutRoot: string = pro
 			command: "help",
 			status: "ok",
 			summary: [
-				"usage: bun run qa [doctor|observe|screenshot|inspect|click|send|watch|reset-onboarding] [--app=9223] [--format=json]",
+				"usage: bun run qa [doctor|observe|screenshot|navigate|inspect|click|thinking-toggle-probe|send|watch|reset-onboarding] [--app=9223] [--format=json]",
 				"doctor checks the real dev Tauri target before QA.",
 				"observe returns compact app facts before screenshots.",
 				"screenshot captures the current WebView.",
+				"navigate opens an app route with --path=/some-route.",
 				"inspect returns compact DOM facts for --selector.",
 				"click clicks by --selector or --text.",
+				"thinking-toggle-probe clicks the first thinking block and samples open/closed state over 500ms.",
 				"send types --text into the composer and submits (use --no-submit to type only).",
 				"watch polls for --text and reports whether it is actually VISIBLE (not just in the DOM), with --timeout ms.",
 				"reset-onboarding opens Dev Tools, resets onboarding, and returns onboarding facts.",
@@ -342,6 +347,92 @@ export async function runCli(args: readonly string[], checkoutRoot: string = pro
 		return emitVerifiedUiResult(options, result);
 	}
 
+	if (options.command === "navigate") {
+		if (options.path.length === 0) {
+			const result = buildResult({
+				command: "navigate",
+				status: "fail",
+				summary: ["Missing --path."],
+				error: dependencyError("missing_path", "--path is required.", "Example: bun run qa navigate --path=/test-thinking-block"),
+			});
+			process.stdout.write(formatCommandResult(result, options.format));
+			return statusExitCode(result.status);
+		}
+		const navigation = await navigateWebview({
+			appIdentifier: options.appIdentifier,
+			path: options.path,
+			skipDriver: options.skipDriver,
+		});
+		if (navigation.isErr()) {
+			const result = buildResult({
+				command: "navigate",
+				status: "fail",
+				summary: ["Unable to navigate the Acepe WebView."],
+				error: dependencyError(navigation.error.code, navigation.error.message, "Run acepe-qa doctor, then retry navigate."),
+			});
+			process.stdout.write(formatCommandResult(result, options.format));
+			return statusExitCode(result.status);
+		}
+		const artifact = await writeJsonArtifact("navigate", navigation.value);
+		const artifactPath = artifact.isOk() ? artifact.value : undefined;
+		const result = buildResult({
+			command: "navigate",
+			status: "ok",
+			summary: [
+				`from: ${navigation.value.from}`,
+				`to: ${navigation.value.to}`,
+				`path: ${navigation.value.path}`,
+			],
+			artifactPath,
+			artifactKind: artifactPath === undefined ? undefined : "navigate",
+			error: artifact.isErr()
+				? dependencyError(artifact.error.code, artifact.error.message, "Check /tmp permissions.")
+				: undefined,
+		});
+		return emitVerifiedUiResult(options, result);
+	}
+
+	if (options.command === "thinking-toggle-probe") {
+		const probe = await probeThinkingToggle({
+			appIdentifier: options.appIdentifier,
+			skipDriver: options.skipDriver,
+		});
+		if (probe.isErr()) {
+			const result = buildResult({
+				command: "thinking-toggle-probe",
+				status: "fail",
+				summary: ["Unable to probe the thinking toggle."],
+				error: dependencyError(probe.error.code, probe.error.message, "Run acepe-qa doctor, then retry thinking-toggle-probe."),
+			});
+			process.stdout.write(formatCommandResult(result, options.format));
+			return statusExitCode(result.status);
+		}
+		const artifact = await writeJsonArtifact("thinking-toggle-probe", probe.value);
+		const artifactPath = artifact.isOk() ? artifact.value : undefined;
+		const summary = [
+			`found: ${probe.value.found ? "yes" : "no"}`,
+			`clicked: ${probe.value.clicked ? "yes" : "no"}`,
+		].concat(
+			probe.value.samples.map((sample) => {
+				const content = sample.firstContentText === null ? "" : ` text="${sample.firstContentText.slice(0, 60)}"`;
+				return `${sample.label}: expand=${sample.expandCount.toString()} collapse=${sample.collapseCount.toString()} content=${sample.contentCount.toString()} first=${sample.firstButtonName ?? "none"}${content}`;
+			})
+		);
+		const result = buildResult({
+			command: "thinking-toggle-probe",
+			status: probe.value.samples.some((sample) => sample.collapseCount > 0 && sample.contentCount > 0)
+				? "ok"
+				: "warn",
+			summary,
+			artifactPath,
+			artifactKind: artifactPath === undefined ? undefined : "thinking-toggle-probe",
+			error: artifact.isErr()
+				? dependencyError(artifact.error.code, artifact.error.message, "Check /tmp permissions.")
+				: undefined,
+		});
+		return emitVerifiedUiResult(options, result);
+	}
+
 	if (options.command === "reset-onboarding") {
 		const reset = await resetOnboarding({
 			appIdentifier: options.appIdentifier,
@@ -475,7 +566,7 @@ export async function runCli(args: readonly string[], checkoutRoot: string = pro
 		command: options.command,
 		status: "fail",
 		summary: ["Unknown command."],
-		error: dependencyError("unknown_command", options.command, "Use doctor, observe, screenshot, inspect, click, send, watch, or reset-onboarding."),
+		error: dependencyError("unknown_command", options.command, "Use doctor, observe, screenshot, navigate, inspect, click, thinking-toggle-probe, send, watch, or reset-onboarding."),
 	});
 	process.stdout.write(formatCommandResult(result, options.format));
 	return statusExitCode(result.status);

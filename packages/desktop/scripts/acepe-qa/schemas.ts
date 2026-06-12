@@ -131,6 +131,21 @@ export const clickResultSchema = z.object({
 	match: domElementSummarySchema.nullable(),
 });
 
+export const thinkingToggleProbeResultSchema = z.object({
+	found: z.boolean(),
+	clicked: z.boolean(),
+	samples: z.array(
+		z.object({
+			label: z.string(),
+			expandCount: z.number(),
+			collapseCount: z.number(),
+			contentCount: z.number(),
+			firstButtonName: z.string().nullable(),
+			firstContentText: z.string().nullable(),
+		})
+	),
+});
+
 export const resetOnboardingResultSchema = z.object({
 	clickedDevTools: z.boolean(),
 	clickedReset: z.boolean(),
@@ -149,6 +164,12 @@ export const sendComposerResultSchema = z.object({
 	textApplied: z.string(),
 	sendReady: z.boolean(),
 	sent: z.boolean(),
+});
+
+export const navigateResultSchema = z.object({
+	from: z.string(),
+	to: z.string(),
+	path: z.string(),
 });
 
 export const watchResultSchema = z.object({
@@ -170,6 +191,7 @@ export const watchResultSchema = z.object({
 });
 
 export type SendComposerResult = z.infer<typeof sendComposerResultSchema>;
+export type NavigateResult = z.infer<typeof navigateResultSchema>;
 export type WatchResult = z.infer<typeof watchResultSchema>;
 
 export type QaStatus = z.infer<typeof qaStatusSchema>;
@@ -182,4 +204,5 @@ export type AppObservation = z.infer<typeof appObservationSchema>;
 export type ScreenshotResult = z.infer<typeof screenshotResultSchema>;
 export type DomInspectionResult = z.infer<typeof domInspectionResultSchema>;
 export type ClickResult = z.infer<typeof clickResultSchema>;
+export type ThinkingToggleProbeResult = z.infer<typeof thinkingToggleProbeResultSchema>;
 export type ResetOnboardingResult = z.infer<typeof resetOnboardingResultSchema>;

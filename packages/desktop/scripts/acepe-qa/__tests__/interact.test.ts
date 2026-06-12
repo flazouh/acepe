@@ -1,6 +1,6 @@
 import { describe, expect, it } from "bun:test";
 import { okAsync } from "neverthrow";
-import { clickWebview, inspectDom, resetOnboarding } from "../interact";
+import { clickWebview, inspectDom, navigateWebview, resetOnboarding } from "../interact";
 import type { CommandRunner } from "../tauri-mcp";
 
 function wrapped(text: string): string {
@@ -151,6 +151,39 @@ describe("acepe-qa interaction helpers", () => {
 		expect(result.isOk()).toBe(true);
 		expect(result._unsafeUnwrap().clicked).toBe(true);
 		expect(result._unsafeUnwrap().match?.text).toBe("Reset Onboarding");
+	});
+
+	it("navigates the WebView to an app route", async () => {
+		const runner: CommandRunner = (command) => {
+			const joined = command.join(" ");
+			if (joined.includes("driver-session")) {
+				return okAsync({
+					code: 0,
+					stdout: "",
+					stderr: "",
+				});
+			}
+			return okAsync({
+				code: 0,
+				stdout: wrapped(
+					JSON.stringify({
+						from: "http://localhost:1420/",
+						to: "http://localhost:1420/test-thinking-block",
+						path: "/test-thinking-block",
+					})
+				),
+				stderr: "",
+			});
+		};
+
+		const result = await navigateWebview({
+			appIdentifier: "9223",
+			path: "/test-thinking-block",
+			runner,
+		});
+
+		expect(result.isOk()).toBe(true);
+		expect(result._unsafeUnwrap().path).toBe("/test-thinking-block");
 	});
 
 	it("resets onboarding and returns compact facts", async () => {

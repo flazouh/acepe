@@ -2,15 +2,19 @@ import { err, okAsync, ResultAsync } from "neverthrow";
 import type {
 	ClickResult,
 	DomInspectionResult,
+	NavigateResult,
 	ResetOnboardingResult,
 	SendComposerResult,
+	ThinkingToggleProbeResult,
 	WatchResult,
 } from "./schemas";
 import {
 	clickResultSchema,
 	domInspectionResultSchema,
+	navigateResultSchema,
 	resetOnboardingResultSchema,
 	sendComposerResultSchema,
+	thinkingToggleProbeResultSchema,
 	watchResultSchema,
 } from "./schemas";
 import {
@@ -134,7 +138,8 @@ export function clickWebview(
 	const runner = options.runner ?? runCommand;
 	return driverReady(options).andThen(() => {
 		const script = `
-(() => {
+(async () => {
+  const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
   ${ELEMENT_SUMMARY_HELPERS}
   const selector = ${escapedJson(options.selector ?? "")};
   const text = ${escapedJson(options.text ?? "")};
@@ -146,7 +151,27 @@ export function clickWebview(
     const label = node.getAttribute("aria-label") || "";
     return label.includes(text) || qaText(node).includes(text);
   }) || null;
-  if (match) match.click();
+  if (match) {
+    match.scrollIntoView({ block: "center", inline: "nearest" });
+    await sleep(100);
+    const rect = match.getBoundingClientRect();
+    const eventInit = {
+      bubbles: true,
+      cancelable: true,
+      view: window,
+      clientX: rect.left + rect.width / 2,
+      clientY: rect.top + rect.height / 2,
+    };
+    if (typeof PointerEvent === "function") {
+      match.dispatchEvent(new PointerEvent("pointerdown", eventInit));
+    }
+    match.dispatchEvent(new MouseEvent("mousedown", eventInit));
+    if (typeof PointerEvent === "function") {
+      match.dispatchEvent(new PointerEvent("pointerup", eventInit));
+    }
+    match.dispatchEvent(new MouseEvent("mouseup", eventInit));
+    match.click();
+  }
   return {
     clicked: Boolean(match),
     match: match ? qaSummary(match, 0) : null,
@@ -158,6 +183,117 @@ export function clickWebview(
 				appIdentifier: options.appIdentifier,
 				script,
 				schema: clickResultSchema,
+			},
+			runner
+		);
+	});
+}
+
+export function navigateWebview(
+	options: DriverOptions & {
+		readonly path: string;
+	}
+): ResultAsync<NavigateResult, TauriMcpFailure> {
+	const runner = options.runner ?? runCommand;
+	return driverReady(options).andThen(() => {
+		const script = `
+(async () => {
+  const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+  const path = ${escapedJson(options.path)};
+  const from = window.location.href;
+  const url = new URL(path, window.location.origin);
+  const anchor = document.createElement("a");
+  anchor.href = url.href;
+  anchor.style.display = "none";
+  document.body.appendChild(anchor);
+  anchor.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true, view: window }));
+  anchor.remove();
+  for (let i = 0; i < 20 && window.location.href !== url.href; i += 1) {
+    await sleep(50);
+  }
+  await sleep(150);
+  return {
+    from,
+    to: window.location.href,
+    path: url.pathname + url.search + url.hash,
+  };
+})()
+`;
+		return executeWebviewJson(
+			{
+				appIdentifier: options.appIdentifier,
+				script,
+				schema: navigateResultSchema,
+			},
+			runner
+		);
+	});
+}
+
+export function probeThinkingToggle(
+	options: DriverOptions
+): ResultAsync<ThinkingToggleProbeResult, TauriMcpFailure> {
+	const runner = options.runner ?? runCommand;
+	return driverReady(options).andThen(() => {
+		const script = `
+(async () => {
+  const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+  const normalize = (node) => node ? (node.textContent || "").trim().replace(/\\s+/g, " ") : null;
+  const sample = (label) => {
+    const expandButtons = Array.from(document.querySelectorAll("[aria-label='Expand thinking']"));
+    const collapseButtons = Array.from(document.querySelectorAll("[aria-label='Collapse thinking']"));
+    const contents = Array.from(document.querySelectorAll("[data-testid='thinking-block-content']"));
+    const firstButton = collapseButtons[0] || expandButtons[0] || null;
+    const firstContent = contents[0] || null;
+    return {
+      label,
+      expandCount: expandButtons.length,
+      collapseCount: collapseButtons.length,
+      contentCount: contents.length,
+      firstButtonName: firstButton ? firstButton.getAttribute("aria-label") : null,
+      firstContentText: normalize(firstContent),
+    };
+  };
+  const target = document.querySelector("[aria-label='Expand thinking']");
+  const samples = [sample("before")];
+  if (!target) {
+    return { found: false, clicked: false, samples };
+  }
+  target.scrollIntoView({ block: "center", inline: "nearest" });
+  await sleep(100);
+  const rect = target.getBoundingClientRect();
+  const eventInit = {
+    bubbles: true,
+    cancelable: true,
+    view: window,
+    clientX: rect.left + rect.width / 2,
+    clientY: rect.top + rect.height / 2,
+  };
+  if (typeof PointerEvent === "function") {
+    target.dispatchEvent(new PointerEvent("pointerdown", eventInit));
+  }
+  target.dispatchEvent(new MouseEvent("mousedown", eventInit));
+  if (typeof PointerEvent === "function") {
+    target.dispatchEvent(new PointerEvent("pointerup", eventInit));
+  }
+  target.dispatchEvent(new MouseEvent("mouseup", eventInit));
+  target.click();
+  samples.push(sample("after-click"));
+  await new Promise((resolve) => requestAnimationFrame(() => resolve(null)));
+  samples.push(sample("after-raf"));
+  await sleep(100);
+  samples.push(sample("after-100ms"));
+  await sleep(400);
+  samples.push(sample("after-500ms"));
+  return { found: true, clicked: true, samples };
+})()
+`;
+		return executeWebviewJson(
+			{
+				appIdentifier: options.appIdentifier,
+				script,
+				schema: thinkingToggleProbeResultSchema,
+				callTimeoutMs: 10_000,
 			},
 			runner
 		);
