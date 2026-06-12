@@ -181,7 +181,7 @@ function handleSave(): void {
 	<DialogContent
 		portalProps={{ disabled: true }}
 		showCloseButton={false}
-		class="w-[min(80vw,28.75rem)] overflow-hidden border border-border/60 bg-background p-0 shadow-sm"
+		class="w-[min(80vw,28.75rem)] overflow-hidden rounded-xl border border-border/60 bg-background p-0 shadow-sm"
 	>
 		<div class="flex items-center gap-2 h-9 px-3 border-b border-border/40">
 			<span class="flex-1 truncate text-[13px] font-medium text-foreground select-none">
@@ -189,7 +189,7 @@ function handleSave(): void {
 			</span>
 			<button
 				type="button"
-				class="size-5 flex items-center justify-center rounded text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+				class="size-5 flex items-center justify-center rounded-md text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
 				aria-label="Close"
 				onclick={() => handleOpenChange(false)}
 			>

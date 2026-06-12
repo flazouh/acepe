@@ -7,7 +7,6 @@ import { getAgentPreferencesStore, getPanelStore, getSessionStore } from "$lib/a
 import { getSessionArchiveStore } from "$lib/acp/store/session-archive-store.svelte.js";
 import { DEFAULT_PANEL_WIDTH } from "$lib/acp/store/types.js";
 import SessionTable from "$lib/components/settings/project-tab/session-table.svelte";
-import SettingsSectionHeader from "../settings-section-header.svelte";
 
 interface Props {
 	projectManager: ProjectManager;
@@ -54,14 +53,9 @@ function handleUnarchive(session: { id: string; projectPath: string; agentId: st
 }
 </script>
 
-<div class="flex h-full min-h-0 flex-col gap-10">
-	<SettingsSectionHeader
-		title="Archived Sessions"
-		description="Sessions hidden from the main sidebar. Unarchive to restore them."
-	/>
-
+<div class="flex h-full min-h-0 flex-col">
 	<SessionTable
-		class="flex-1 min-h-0"
+		class="min-h-0 flex-1"
 		sessions={archivedSessions}
 		{projects}
 		{loading}

@@ -1,10 +1,11 @@
 <script lang="ts">
 import { VoiceDownloadProgress } from "@acepe/ui";
-import { DownloadSimple, Microphone, Trash } from "phosphor-svelte";
+import { DownloadSimple, Trash } from "phosphor-svelte";
 
 import { Switch } from "$lib/components/ui/switch/index.js";
 import { getVoiceSettingsStore } from "$lib/stores/voice-settings-store.svelte.js";
 
+import SettingRow from "../setting-row.svelte";
 import SettingsSectionHeader from "../settings-section-header.svelte";
 
 const voiceSettingsStore = getVoiceSettingsStore();
@@ -27,64 +28,44 @@ function formatBytes(bytes: number): string {
 }
 </script>
 
-<div class="w-full space-y-3">
-	<SettingsSectionHeader
-		title={"Voice"}
-		description={"Allow microphone-based transcription in the composer."}
-	/>
+<div class="w-full space-y-8">
+	<SettingRow label={"Enable voice dictation"}>
+		<Switch
+			checked={voiceSettingsStore.enabled}
+			onCheckedChange={(checked) => {
+				void voiceSettingsStore.setEnabled(checked === true);
+			}}
+		/>
+	</SettingRow>
+	{#if selectedModelIsEnglishOnly}
+		<p class="pb-2 text-[12px] text-muted-foreground">
+			English-only model uses English transcription.
+		</p>
+	{/if}
 
-	<!-- Voice enable card -->
-	<div class="overflow-hidden rounded bg-muted/20 shadow-sm">
-		<div class="flex items-center h-9 px-3 gap-2">
-			<Microphone class="size-3.5 shrink-0 text-muted-foreground" weight="fill" />
-			<span class="flex-1 truncate text-[13px] font-medium text-foreground">
-				{"Enable voice dictation"}
-			</span>
-			<Switch
-				checked={voiceSettingsStore.enabled}
-				onCheckedChange={(checked) => {
-					void voiceSettingsStore.setEnabled(checked === true);
-				}}
-			/>
-		</div>
-		{#if selectedModelIsEnglishOnly}
-			<div class="flex items-center h-8 px-3 border-t border-border/40 text-[12px] text-muted-foreground">
-				English-only model uses English transcription.
-			</div>
-		{/if}
-	</div>
-
-	<!-- Models card -->
-	<div class="overflow-hidden rounded bg-muted/20 shadow-sm">
-		<div class="flex items-center h-9 px-3 gap-2">
-			<div class="size-3.5 shrink-0 rounded-sm bg-muted-foreground/20 flex items-center justify-center">
-				<span class="text-[8px] font-bold text-muted-foreground">AI</span>
-			</div>
-			<span class="flex-1 truncate text-[13px] font-medium text-foreground">
-				{"Speech models"}
-			</span>
-		</div>
+	<div class="space-y-3">
+		<SettingsSectionHeader variant="subsection" title={"Speech models"} />
 
 		{#if voiceSettingsStore.modelsLoading}
-			<div class="flex items-center h-8 px-3 border-t border-border/40 text-[12px] text-muted-foreground">
-				{"Loading voice models…"}
-			</div>
+			<p class="py-2 text-[12px] text-muted-foreground">{"Loading voice models…"}</p>
 		{:else}
 			<div role="radiogroup" aria-label={"Speech models"}>
 				{#each voiceSettingsStore.models as model (model.id)}
 					{@const isSelected = voiceSettingsStore.selectedModelId === model.id}
 					{@const isDownloading = voiceSettingsStore.downloadProgressModelId === model.id}
 
-					<div class="flex items-center gap-2 h-8 w-full px-3 border-t border-border/40">
+					<div class="flex items-center gap-2 border-b border-border/30 py-2.5 last:border-b-0">
 						<button
 							type="button"
 							role="radio"
 							aria-checked={isSelected}
-							class="flex items-center gap-2 flex-1 min-w-0 h-full text-left hover:bg-accent/50 -mx-3 px-3 transition-colors"
+							class="flex min-w-0 flex-1 items-center gap-2 text-left transition-colors hover:text-foreground"
 							onclick={() => void voiceSettingsStore.setSelectedModelId(model.id)}
 						>
 							<div
-								class="flex h-3 w-3 shrink-0 items-center justify-center rounded-full border {isSelected ? 'border-foreground' : 'border-muted-foreground/40'}"
+								class="flex h-3 w-3 shrink-0 items-center justify-center rounded-full border {isSelected
+									? 'border-foreground'
+									: 'border-muted-foreground/40'}"
 							>
 								{#if isSelected}
 									<div class="h-1.5 w-1.5 rounded-full bg-foreground"></div>
@@ -92,7 +73,9 @@ function formatBytes(bytes: number): string {
 							</div>
 
 							<span
-								class="truncate text-[13px] font-medium {isSelected ? 'text-foreground' : 'text-foreground/80'}"
+								class="truncate text-[13px] font-medium {isSelected
+									? 'text-foreground'
+									: 'text-foreground/80'}"
 							>
 								{model.name}
 							</span>
@@ -121,7 +104,7 @@ function formatBytes(bytes: number): string {
 						{:else if model.is_downloaded}
 							<button
 								type="button"
-								class="group flex size-5 shrink-0 items-center justify-center rounded text-muted-foreground transition-colors hover:text-destructive hover:bg-accent"
+								class="group flex size-5 shrink-0 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-accent hover:text-destructive"
 								title={"Delete"}
 								onclick={() => void voiceSettingsStore.deleteModel(model.id)}
 							>
@@ -131,7 +114,7 @@ function formatBytes(bytes: number): string {
 						{:else}
 							<button
 								type="button"
-								class="group flex size-5 shrink-0 items-center justify-center rounded text-muted-foreground transition-colors hover:text-foreground hover:bg-accent"
+								class="group flex size-5 shrink-0 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
 								title={"Download"}
 								onclick={() => void voiceSettingsStore.downloadModel(model.id)}
 							>

@@ -16,7 +16,7 @@ let { label, description, stacked = false, class: className, children }: Props =
 
 <div
 	class={cn(
-		"border-b border-border/40 px-4 py-3 last:border-b-0",
+		"border-b border-border/30 py-2.5 last:border-b-0",
 		stacked ? "flex flex-col gap-2" : "flex items-center justify-between gap-4",
 		className
 	)}

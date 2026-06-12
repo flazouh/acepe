@@ -29,10 +29,7 @@ function handleColorChange(value: string): void {
 </script>
 
 <div class="w-full">
-	<SettingsSection
-		title={"Appearance"}
-		description="Choose how Acepe looks."
-	>
+	<SettingsSection>
 		<SettingRow
 			label={"Theme"}
 			description="Use light, dark, or match your system."
@@ -48,7 +45,7 @@ function handleColorChange(value: string): void {
 					{#snippet child({ props })}
 						<button
 							{...props}
-							class="flex items-center justify-between gap-1.5 w-[220px] h-7 px-1.5 rounded-md border border-input bg-transparent text-xs hover:bg-accent transition-colors cursor-pointer"
+							class="flex items-center justify-between gap-1.5 w-[220px] h-7 px-1.5 rounded-lg border border-input bg-transparent text-xs hover:bg-accent transition-colors cursor-pointer"
 						>
 							<span class="flex items-center gap-1.5 min-w-0">
 								<LoadingIcon
@@ -87,7 +84,7 @@ function handleColorChange(value: string): void {
 					{#snippet child({ props })}
 						<button
 							{...props}
-							class="flex items-center justify-between gap-1.5 w-[220px] h-7 px-1.5 rounded-md border border-input bg-transparent text-xs hover:bg-accent transition-colors cursor-pointer"
+							class="flex items-center justify-between gap-1.5 w-[220px] h-7 px-1.5 rounded-lg border border-input bg-transparent text-xs hover:bg-accent transition-colors cursor-pointer"
 						>
 							<span class="flex items-center gap-1.5 min-w-0">
 								<span

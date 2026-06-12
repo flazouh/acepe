@@ -14,6 +14,8 @@ import SkillsSection from "./sections/skills-section.svelte";
 import UsageSection from "./sections/usage-section.svelte";
 import VoiceSection from "./sections/voice-section.svelte";
 import WorktreesSection from "./sections/worktrees-section.svelte";
+import SettingsPageHeader from "./settings-page-header.svelte";
+import { getSettingsSectionDefinition } from "./settings-section-registry.js";
 import SettingsSidebar from "./settings-sidebar.svelte";
 import { migrateSettingsSectionId, type SettingsSectionId } from "./settings-types.js";
 
@@ -32,58 +34,70 @@ let activeSection = $state<SettingsSectionId>(
 		: "general"
 );
 
+const activeSectionDefinition = $derived(getSettingsSectionDefinition(activeSection));
+
 function handleSectionChange(section: SettingsSectionId) {
 	activeSection = section;
 }
 </script>
 
-<div class="relative h-full w-full flex min-h-0 overflow-hidden rounded border border-border bg-input/30">
+<div class="relative flex h-full min-h-0 w-full overflow-hidden">
 	<SettingsSidebar {activeSection} onSectionChange={handleSectionChange} />
 
-	<div class="flex flex-1 min-w-0 min-h-0 flex-col">
-		<main class="flex-1 min-w-0 min-h-0 overflow-auto px-8 pt-6 pb-10 text-[13px] lg:px-10 lg:pt-8 lg:pb-12">
-			{#if activeSection === "general"}
-				<GeneralSection />
-			{:else if activeSection === "appearance"}
-				<AppearanceSection />
-			{:else if activeSection === "agents"}
-				<AgentsModelsSection />
-			{:else if activeSection === "chat"}
-				<ChatSection />
-			{:else if activeSection === "voice"}
-				<VoiceSection />
-			{:else if activeSection === "skills"}
-				<SkillsSection />
-			{:else if activeSection === "keybindings"}
-				<KeybindingsSection />
-			{:else if activeSection === "mcp"}
-				<McpSection />
-			{:else if activeSection === "git"}
-				<GitSection />
-			{:else if activeSection === "project"}
-				{#if projectManager}
-					<ProjectSection {projectManager} />
-				{:else}
-					<div class="text-[12px] text-muted-foreground/50">
-						Project settings are only available from the main app view.
-					</div>
+	<div class="flex min-h-0 min-w-0 flex-1 flex-col">
+		<SettingsPageHeader
+			title={activeSectionDefinition.label}
+			description={activeSectionDefinition.description}
+		/>
+
+		<main class="min-h-0 flex-1 overflow-auto px-6 py-5 lg:px-8 lg:py-6">
+			<div
+				class={activeSectionDefinition.fullWidth === true
+					? "flex h-full min-h-0 w-full flex-col"
+					: "mx-auto w-full max-w-2xl"}
+			>
+				{#if activeSection === "general"}
+					<GeneralSection />
+				{:else if activeSection === "appearance"}
+					<AppearanceSection />
+				{:else if activeSection === "agents"}
+					<AgentsModelsSection />
+				{:else if activeSection === "chat"}
+					<ChatSection />
+				{:else if activeSection === "voice"}
+					<VoiceSection />
+				{:else if activeSection === "skills"}
+					<SkillsSection />
+				{:else if activeSection === "keybindings"}
+					<KeybindingsSection />
+				{:else if activeSection === "mcp"}
+					<McpSection />
+				{:else if activeSection === "git"}
+					<GitSection />
+				{:else if activeSection === "project"}
+					{#if projectManager}
+						<ProjectSection {projectManager} />
+					{:else}
+						<p class="text-[12px] text-muted-foreground/70">
+							Project settings are only available from the main app view.
+						</p>
+					{/if}
+				{:else if activeSection === "environments"}
+					<EnvironmentsSection />
+				{:else if activeSection === "worktrees"}
+					<WorktreesSection />
+				{:else if activeSection === "archived"}
+					{#if projectManager}
+						<ArchivedSessionsSection {projectManager} />
+					{:else}
+						<p class="text-[12px] text-muted-foreground/70">
+							Archived sessions are only available from the main app view.
+						</p>
+					{/if}
+				{:else if activeSection === "usage"}
+					<UsageSection />
 				{/if}
-			{:else if activeSection === "environments"}
-				<EnvironmentsSection />
-			{:else if activeSection === "worktrees"}
-				<WorktreesSection />
-			{:else if activeSection === "archived"}
-				{#if projectManager}
-					<ArchivedSessionsSection {projectManager} />
-				{:else}
-					<div class="text-[12px] text-muted-foreground/50">
-						Archived sessions are only available from the main app view.
-					</div>
-				{/if}
-			{:else if activeSection === "usage"}
-				<UsageSection />
-			{/if}
+			</div>
 		</main>
 	</div>
 </div>
-

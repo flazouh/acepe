@@ -5,10 +5,7 @@ import SettingsSection from "../settings-section.svelte";
 </script>
 
 <div class="w-full">
-	<SettingsSection
-		title="Git"
-		description="Git-related preferences for worktrees, diffs, and branch management."
-	>
+	<SettingsSection>
 		<SettingsComingSoon
 			icon={GitBranch}
 			headline="Git preferences"

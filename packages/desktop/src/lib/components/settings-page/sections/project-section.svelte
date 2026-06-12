@@ -2,7 +2,6 @@
 import { ProjectLetterBadge } from "@acepe/ui";
 import type { ProjectManager } from "$lib/acp/logic/project-manager.svelte.js";
 import { cn } from "$lib/utils.js";
-import SettingsSection from "../settings-section.svelte";
 import ProjectSettingsForm from "./project/project-settings-form.svelte";
 
 interface Props {
@@ -23,15 +22,13 @@ const activeProject = $derived(
 </script>
 
 {#if projects.length === 0}
-	<SettingsSection title="Projects" description="Manage project-scoped settings.">
-		<div class="rounded bg-muted/20 px-4 py-6 text-[12px] text-muted-foreground/70 shadow-sm">
-			Open a project to configure project settings.
-		</div>
-	</SettingsSection>
+	<p class="text-[12px] text-muted-foreground/70">
+		Open a project to configure project settings.
+	</p>
 {:else}
 	<div class="flex h-full min-h-0 gap-4">
 		<nav
-			class="flex w-[200px] shrink-0 flex-col gap-px overflow-y-auto rounded bg-muted/20 p-1 shadow-sm"
+			class="flex w-[200px] shrink-0 flex-col gap-0.5 overflow-y-auto pr-2"
 			aria-label="Projects"
 		>
 			{#each projects as project (project.path)}
@@ -40,10 +37,10 @@ const activeProject = $derived(
 					onclick={() => (selectedProjectPath = project.path)}
 					title={project.path}
 					class={cn(
-						"flex items-center gap-2 rounded-md px-2 py-1.5 text-left transition-colors",
-						"hover:bg-muted/60 hover:text-foreground",
+						"flex items-center gap-2 rounded-md px-2 py-1.5 text-left text-[13px] font-medium transition-colors",
+						"hover:bg-accent hover:text-foreground",
 						activeProjectPath === project.path
-							? "bg-muted text-foreground"
+							? "bg-accent text-foreground"
 							: "text-muted-foreground"
 					)}
 				>

@@ -10,7 +10,7 @@ import { Spinner } from "$lib/components/ui/spinner/index.js";
 import { Switch } from "$lib/components/ui/switch/index.js";
 import { tauriClient } from "$lib/utils/tauri-client.js";
 import SettingRow from "../../setting-row.svelte";
-import SettingsSection from "../../settings-section.svelte";
+import SettingsSectionHeader from "../../settings-section-header.svelte";
 
 interface Props {
 	projectManager: ProjectManager;
@@ -118,16 +118,15 @@ function shikiHighlight(code: string): string | null {
 }
 </script>
 
-<SettingsSection
-	title="Projects"
-	description={`Manage project-scoped settings for ${projectName}.`}
->
+<div class="w-full">
+	<SettingsSectionHeader variant="subsection" title={projectName} />
+
 	{#if status === "loading"}
 		<div class="flex items-center justify-center py-10">
 			<Spinner class="text-muted-foreground/60" size={16} />
 		</div>
 	{:else if status === "error"}
-		<div class="px-4 py-6 text-[12px] text-muted-foreground/70">
+		<div class="py-6 text-[12px] text-muted-foreground/70">
 			Could not load project settings.
 		</div>
 	{:else}
@@ -212,4 +211,4 @@ function shikiHighlight(code: string): string | null {
 			</div>
 		</SettingRow>
 	{/if}
-</SettingsSection>
+</div>
