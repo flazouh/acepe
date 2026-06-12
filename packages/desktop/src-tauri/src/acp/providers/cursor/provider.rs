@@ -2,11 +2,11 @@
 //!
 //! This provider spawns Cursor CLI's native ACP server via `agent acp`.
 
-use super::super::provider::{
+use crate::acp::provider::{
     command_exists, AgentProvider, ModelFallbackCandidate, ProjectDiscoveryCompleteness,
     ProjectPathListing, SpawnConfig, WebSearchNotificationDedupRecord,
 };
-use super::cursor_session_update_enrichment::enrich_cursor_session_update;
+use super::enrichment::enrich_cursor_session_update;
 use crate::acp::capability_resolution::resolve_generic_preconnection_capabilities;
 use crate::acp::client_session::{AvailableMode, ModeIconKind, SessionModes};
 use crate::acp::cursor_extensions::{
@@ -846,7 +846,7 @@ mod tests {
 
     #[test]
     fn cursor_provider_owns_session_update_enrichment_hook() {
-        let source = include_str!("cursor.rs");
+        let source = include_str!("provider.rs");
         let production_source = source.split("#[cfg(test)]").next().unwrap_or(source);
 
         assert!(production_source.contains("fn enrich_session_update<'a>("));

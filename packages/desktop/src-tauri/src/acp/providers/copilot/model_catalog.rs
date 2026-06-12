@@ -1,4 +1,4 @@
-use super::copilot::{discover_copilot_history_models, CopilotProvider};
+use super::provider::{discover_copilot_history_models, CopilotProvider};
 use crate::acp::agent_installer;
 use crate::acp::client::{AcpClient, AvailableModel};
 use crate::acp::provider::AgentProvider;

@@ -1,7 +1,7 @@
-use super::super::provider::{
+use crate::acp::provider::{
     AgentProvider, ProjectDiscoveryCompleteness, ProjectPathListing, SpawnConfig,
 };
-use super::opencode_settings::apply_opencode_session_defaults;
+use super::settings::apply_opencode_session_defaults;
 use crate::acp::capability_resolution::{
     failed_capabilities, resolve_static_capabilities, ResolvedCapabilityStatus,
 };
@@ -488,7 +488,7 @@ mod tests {
             available_modes: vec![],
         };
 
-        super::super::opencode_settings::apply_opencode_session_defaults_from_paths(
+        crate::acp::providers::opencode::settings::apply_opencode_session_defaults_from_paths(
             Some(home.as_path()),
             project.as_path(),
             &mut models,
@@ -528,7 +528,7 @@ mod tests {
             available_modes: vec![],
         };
 
-        super::super::opencode_settings::apply_opencode_session_defaults_from_paths(
+        crate::acp::providers::opencode::settings::apply_opencode_session_defaults_from_paths(
             Some(home.as_path()),
             project.as_path(),
             &mut models,

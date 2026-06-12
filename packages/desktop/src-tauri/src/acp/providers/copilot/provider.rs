@@ -1,8 +1,8 @@
-use super::super::provider::{
+use crate::acp::provider::{
     AgentProvider, ProjectDiscoveryCompleteness, ProjectPathListing, SpawnConfig,
 };
-use super::copilot_model_catalog;
-use super::copilot_settings::apply_copilot_session_defaults;
+use super::model_catalog;
+use super::settings::apply_copilot_session_defaults;
 use crate::acp::capability_resolution::{
     failed_capabilities, resolve_static_capabilities, ResolvedCapabilities,
     ResolvedCapabilityStatus,
@@ -316,7 +316,7 @@ async fn resolve_copilot_preconnection_capabilities(
 ) -> ResolvedCapabilities {
     let mut models = default_session_model_state();
 
-    let catalog = copilot_model_catalog::read_catalog_snapshot_for_app(app).await;
+    let catalog = model_catalog::read_catalog_snapshot_for_app(app).await;
     tracing::debug!(
         source = ?catalog.source,
         freshness = ?catalog.freshness,
@@ -327,10 +327,10 @@ async fn resolve_copilot_preconnection_capabilities(
     let mut status = ResolvedCapabilityStatus::Partial;
     if let Some(snapshot) = catalog.snapshot {
         status = match snapshot.catalog_kind {
-            copilot_model_catalog::CopilotCatalogSnapshotKind::Authoritative => {
+            model_catalog::CopilotCatalogSnapshotKind::Authoritative => {
                 ResolvedCapabilityStatus::Resolved
             }
-            copilot_model_catalog::CopilotCatalogSnapshotKind::HistorySalvage => {
+            model_catalog::CopilotCatalogSnapshotKind::HistorySalvage => {
                 ResolvedCapabilityStatus::Partial
             }
         };
@@ -338,7 +338,7 @@ async fn resolve_copilot_preconnection_capabilities(
     }
 
     if let Some(reason) = catalog.refresh_reason {
-        copilot_model_catalog::spawn_catalog_refresh(app.clone(), cwd.to_path_buf(), reason);
+        model_catalog::spawn_catalog_refresh(app.clone(), cwd.to_path_buf(), reason);
     }
 
     match resolve_static_capabilities(
@@ -844,7 +844,7 @@ mod tests {
             available_modes: vec![],
         };
 
-        super::super::copilot_settings::apply_copilot_session_defaults_from_paths(
+        crate::acp::providers::copilot::settings::apply_copilot_session_defaults_from_paths(
             Some(home.as_path()),
             project.as_path(),
             &mut models,
@@ -888,7 +888,7 @@ mod tests {
             available_modes: vec![],
         };
 
-        super::super::copilot_settings::apply_copilot_session_defaults_from_paths(
+        crate::acp::providers::copilot::settings::apply_copilot_session_defaults_from_paths(
             Some(home.as_path()),
             project.as_path(),
             &mut models,
@@ -926,7 +926,7 @@ mod tests {
             available_modes: vec![],
         };
 
-        super::super::copilot_settings::apply_copilot_session_defaults_from_paths(
+        crate::acp::providers::copilot::settings::apply_copilot_session_defaults_from_paths(
             Some(home.as_path()),
             project.as_path(),
             &mut models,
@@ -969,7 +969,7 @@ mod tests {
             available_modes: vec![],
         };
 
-        super::super::copilot_settings::apply_copilot_session_defaults_from_paths(
+        crate::acp::providers::copilot::settings::apply_copilot_session_defaults_from_paths(
             Some(home.as_path()),
             project.as_path(),
             &mut models,

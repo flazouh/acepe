@@ -1,4 +1,4 @@
-use super::super::provider::{
+use crate::acp::provider::{
     command_exists, AgentProvider, ProjectDiscoveryCompleteness, ProjectPathListing, SpawnConfig,
 };
 use crate::acp::capability_resolution::{

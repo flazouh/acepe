@@ -331,4 +331,16 @@ mod normalize_tool_call_id_tests {
         let twice = normalize_tool_call_id(&once);
         assert_eq!(once, twice, "double-normalization must equal single-normalization to keep canonical join keys stable across ingress + persistence + snapshot boundaries");
     }
+
+    #[test]
+    fn is_idempotent_when_percent_literal_precedes_control_character() {
+        let raw = "tool%provider\ncursor";
+        let once = normalize_tool_call_id(raw);
+        let twice = normalize_tool_call_id(&once);
+        assert_eq!(once, "tool%25provider%0Acursor");
+        assert_eq!(
+            once, twice,
+            "percent-escape plus newline normalization must not double-encode at snapshot rehydration boundaries"
+        );
+    }
 }

@@ -1,7 +1,7 @@
-use super::super::provider::{
+use crate::acp::provider::{
     AgentProvider, ProjectDiscoveryCompleteness, ProjectPathListing, SpawnConfig,
 };
-use super::claude_code_settings::{
+use super::settings::{
     apply_claude_session_defaults, compare_claude_model_ids, is_claude_model_id,
     resolve_claude_runtime_mode_id,
 };
@@ -316,11 +316,11 @@ fn resolve_claude_preconnection_capabilities<'a>(
     provider: &'a dyn AgentProvider,
     cwd: &'a Path,
 ) -> impl std::future::Future<Output = ResolvedCapabilities> + Send + 'a {
-    use super::claude_code_model_catalog::{self, ClaudeCatalogSnapshotKind};
+    use super::model_catalog::{self, ClaudeCatalogSnapshotKind};
     async move {
         let mut models = default_session_model_state();
 
-        let catalog = claude_code_model_catalog::read_catalog_snapshot_for_app(app).await;
+        let catalog = model_catalog::read_catalog_snapshot_for_app(app).await;
         tracing::debug!(
             source = ?catalog.source,
             freshness = ?catalog.freshness,
@@ -341,11 +341,11 @@ fn resolve_claude_preconnection_capabilities<'a>(
             // --model <id> and are re-injected by apply_claude_session_defaults for any
             // configured model that falls outside this curated set.
             models.available_models =
-                claude_code_model_catalog::filter_to_picker_defaults(&snapshot.models);
+                model_catalog::filter_to_picker_defaults(&snapshot.models);
         }
 
         if let Some(reason) = catalog.refresh_reason {
-            claude_code_model_catalog::spawn_catalog_refresh(app.clone(), reason);
+            model_catalog::spawn_catalog_refresh(app.clone(), reason);
         }
 
         match resolve_static_capabilities(

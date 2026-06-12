@@ -1,5 +1,5 @@
-use super::claude_code::discover_claude_history_models;
-use super::claude_code_settings::{compare_claude_model_ids, is_claude_model_id};
+use super::provider::discover_claude_history_models;
+use super::settings::{compare_claude_model_ids, is_claude_model_id};
 use crate::acp::agent_installer;
 use crate::acp::client::AvailableModel;
 use crate::acp::types::CanonicalAgentId;

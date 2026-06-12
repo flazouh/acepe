@@ -1,6 +1,6 @@
 use crate::acp::parsers::acp_fields::normalize_tool_call_id;
 use crate::acp::parsers::{get_parser, AgentType};
-use crate::acp::reconciler::providers;
+use crate::acp::reconciler::classify_kind_from_provider_name;
 use crate::acp::session_update::{
     SessionUpdate, ToolArguments, ToolCallData, ToolCallUpdateData, ToolKind,
 };
@@ -363,7 +363,7 @@ fn merge_persisted_arguments(candidate: ToolArguments, current: &ToolArguments) 
 
 fn parse_persisted_tool_arguments(persisted: &PersistedToolUse) -> Option<ToolArguments> {
     let parser = get_parser(AgentType::Cursor);
-    let detected_kind = providers::detect_tool_kind(AgentType::Cursor, &persisted.name);
+    let detected_kind = classify_kind_from_provider_name(AgentType::Cursor, &persisted.name);
 
     parser
         .parse_typed_tool_arguments(
@@ -713,6 +713,67 @@ mod tests {
                 assert_eq!(update.locations.as_ref().map(Vec::len), Some(1));
             }
             other => panic!("Expected ToolCallUpdate, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn enriches_sparse_cursor_tool_call_from_persisted_index_with_normalized_id() {
+        let mut session = make_session_with_tool_use();
+        session.messages[0].content_blocks = vec![ContentBlock::ToolUse {
+            id: "call-1\nfc-1".to_string(),
+            name: "Glob".to_string(),
+            input: json!({
+                "target_directory": "/tmp/project",
+                "glob_pattern": "**/*bash*tool*card*"
+            }),
+        }];
+        let index = build_persisted_tool_use_index(&session);
+        let update = SessionUpdate::ToolCall {
+            tool_call: ToolCallData {
+                id: "call-1%0Afc-1".to_string(),
+                name: "Find".to_string(),
+                arguments: ToolArguments::Glob {
+                    pattern: None,
+                    path: None,
+                },
+                diagnostic_input: None,
+                status: ToolCallStatus::Pending,
+                result: None,
+                kind: Some(ToolKind::Glob),
+                title: Some("Find".to_string()),
+                locations: None,
+                skill_meta: None,
+                normalized_questions: None,
+                normalized_todos: None,
+                normalized_todo_update: None,
+                parent_tool_use_id: None,
+                task_children: None,
+                question_answer: None,
+                awaiting_plan_approval: false,
+                plan_approval_request_id: None,
+            },
+            session_id: Some("session-123".to_string()),
+        };
+
+        let enriched = enrich_tool_call_from_index(update, &index);
+
+        match enriched {
+            SessionUpdate::ToolCall { tool_call, .. } => {
+                match tool_call.arguments {
+                    ToolArguments::Glob { pattern, path } => {
+                        assert_eq!(pattern.as_deref(), Some("**/*bash*tool*card*"));
+                        assert_eq!(path.as_deref(), Some("/tmp/project"));
+                    }
+                    other => panic!("Expected glob arguments, got {:?}", other),
+                }
+                assert_eq!(
+                    tool_call.title.as_deref(),
+                    Some("Find"),
+                    "explicit non-placeholder titles are preserved during enrichment backfill"
+                );
+                assert_eq!(tool_call.locations.as_ref().map(Vec::len), Some(1));
+            }
+            other => panic!("Expected ToolCall, got {:?}", other),
         }
     }
 
