@@ -2,7 +2,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { ModifiedFilesState } from "../../types/modified-files-state.js";
 import type { AgentStore } from "../agent-store.svelte.js";
-import { createFilePanelCacheKey } from "../file-panel-ownership.js";
 import { PanelStore } from "../panel-store.svelte.js";
 import type { SessionStore } from "../session-store.svelte.js";
 
@@ -63,8 +62,10 @@ beforeEach(() => {
 });
 
 afterEach(() => {
-	vi.clearAllTimers();
-	vi.useRealTimers();
+	if (vi.isFakeTimers()) {
+		vi.clearAllTimers();
+		vi.useRealTimers();
+	}
 	if (originalLocalStorageDescriptor === undefined) {
 		Reflect.deleteProperty(globalThis, "localStorage");
 		return;
@@ -558,8 +559,8 @@ describe("PanelStore workspacePanels", () => {
 		try {
 			expect(store.filePanelCount).toBe(1);
 			expect(store.filePanels).toEqual([filePanel]);
-			expect(store.filePanelByPath.get(createFilePanelCacheKey("src/instant.ts", "/tmp/project", null))).toBe(filePanel);
 			expect(store.getFilePanelByPath("src/instant.ts", "/tmp/project")).toBe(filePanel);
+			expect(store.getFilePanel(filePanel.id)).toBe(filePanel);
 		} finally {
 			store.workspacePanels.filter = originalFilter;
 		}
@@ -607,8 +608,8 @@ describe("PanelStore workspacePanels", () => {
 		};
 
 		try {
-			expect(store.panelBySessionId.get("session-indexed")).toBe(panel);
 			expect(store.getPanelBySessionId("session-indexed")).toBe(panel);
+			expect(store.isSessionOpen("session-indexed")).toBe(true);
 		} finally {
 			agentPanels.filter = originalFilter;
 		}
@@ -785,7 +786,8 @@ describe("PanelStore workspacePanels", () => {
 
 		try {
 			expect(store.gitPanelCount).toBe(1);
-			expect(store.gitPanelByProjectPath.get("/tmp/project")).toEqual(gitPanel);
+			expect(store.gitPanels).toEqual([gitPanel]);
+			expect(store.workspacePanels.find((panel) => panel.id === gitPanel.id)).toEqual(gitPanel);
 		} finally {
 			store.workspacePanels.filter = originalFilter;
 		}

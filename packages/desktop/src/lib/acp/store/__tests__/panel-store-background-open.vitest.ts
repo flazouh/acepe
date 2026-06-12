@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { AgentStore } from "../agent-store.svelte.js";
 import { PanelStore } from "../panel-store.svelte.js";
@@ -67,6 +67,14 @@ function createStore(sessionStubs: readonly SessionStub[] = []): PanelStore {
 
 	return new PanelStore(sessionStore, agentStore, persist);
 }
+
+afterEach(() => {
+	if (vi.isFakeTimers()) {
+		vi.runOnlyPendingTimers();
+		vi.clearAllTimers();
+		vi.useRealTimers();
+	}
+});
 
 describe("PanelStore materializeSessionPanel", () => {
 	it("does not rewrite the owner panel when focusing an already open attached file", () => {

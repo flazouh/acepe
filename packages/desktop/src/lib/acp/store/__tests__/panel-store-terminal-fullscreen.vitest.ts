@@ -4,10 +4,13 @@ import type { AgentStore } from "../agent-store.svelte.js";
 import { PanelStore } from "../panel-store.svelte.js";
 import type { SessionStore } from "../session-store.svelte.js";
 
-vi.stubGlobal("localStorage", {
-	getItem: vi.fn(() => null),
-	setItem: vi.fn(),
-	removeItem: vi.fn(),
+Object.defineProperty(globalThis, "localStorage", {
+	value: {
+		getItem: vi.fn(() => null),
+		setItem: vi.fn(),
+		removeItem: vi.fn(),
+	},
+	configurable: true,
 });
 
 function requireValue<T>(value: T | null): T {

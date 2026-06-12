@@ -57,9 +57,9 @@ describe("PanelStore terminal groups", () => {
 		const result = store.openTerminalTab("missing-group");
 
 		expect(result).toBeNull();
-		expect(store.terminalTabs).toHaveLength(0);
-		expect(store.terminalPanelGroups).toHaveLength(0);
-		expect(store.workspacePanels).toHaveLength(0);
+		expect(store.getTerminalPanelGroupsForProject("/tmp/project")).toEqual([]);
+		expect(store.getTerminalPanelGroup("missing-group")).toBeUndefined();
+		expect(store.workspacePanels.filter((panel) => panel.kind === "terminal")).toEqual([]);
 		expect(loggerSpy).toHaveBeenCalled();
 		loggerSpy.mockRestore();
 	});

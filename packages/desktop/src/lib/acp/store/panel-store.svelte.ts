@@ -9,25 +9,16 @@
  */
 
 import { getContext, setContext } from "svelte";
-import { SvelteMap, SvelteSet } from "svelte/reactivity";
-import { browserWebview } from "../../utils/tauri-client/browser-webview.js";
+import { SvelteMap } from "svelte/reactivity";
 import type { ModifiedFilesState } from "../types/modified-files-state.js";
 import { clearWorktreeEnabled } from "../components/worktree/worktree-storage.js";
-import { areReviewFileSnapshotsEqual } from "../review/review-file-revision.js";
 import type { PreparedWorktreeLaunch } from "../types/worktree-info.js";
 import { createLogger } from "../utils/logger.js";
 import type { AgentStore } from "./agent-store.svelte.js";
 import type { BrowserPanel } from "./browser-panel-type.js";
-import { DEFAULT_BROWSER_PANEL_WIDTH, MIN_BROWSER_PANEL_WIDTH } from "./browser-panel-type.js";
 import { EmbeddedTerminalStore } from "./embedded-terminal-store.svelte.js";
-import {
-	createFilePanelCacheKey,
-	normalizeOpenFilePanelOptions,
-	type OpenFilePanelOptions,
-} from "./file-panel-ownership.js";
+import type { OpenFilePanelOptions } from "./file-panel-ownership.js";
 import type { FilePanel } from "./file-panel-type.js";
-import { DEFAULT_FILE_PANEL_WIDTH, MIN_FILE_PANEL_WIDTH } from "./file-panel-type.js";
-import { type GitModalPanel, openGitModalPanel } from "./git-modal-state.js";
 import {
 	createAppendedItemArray,
 	createArrayLikeOwnKeys,
@@ -40,18 +31,22 @@ import {
 	toArrayIndex,
 } from "./panel-store-array-patches.js";
 import {
-	areAgentPanelListsEqual,
-	areBrowserPanelListsEqual,
-	areFilePanelListsEqual,
 	arePanelProjectRefListsEqual,
-	areTerminalPanelGroupListsEqual,
 	areWorkspacePanelListsEqual,
 	type TopLevelPanelProjectRef,
 } from "./panel-store-equality.js";
+import { PanelAgentState } from "./panel-agent-state.svelte.js";
+import { PanelBrowserState } from "./panel-browser-state.svelte.js";
+import { PanelFileState } from "./panel-file-state.svelte.js";
+import {
+	PanelGitState,
+	type GitDialogState,
+} from "./panel-git-state.svelte.js";
+import { PanelHotStateStore } from "./panel-hot-state.svelte.js";
+import { PanelReviewState } from "./panel-review-state.svelte.js";
+import { PanelTerminalState } from "./panel-terminal-state.svelte.js";
 import type { GitPanel, GitPanelInitialTarget } from "./git-panel-type.js";
-import { DEFAULT_GIT_PANEL_WIDTH } from "./git-panel-type.js";
 import type { ReviewPanel } from "./review-panel-type.js";
-import { DEFAULT_REVIEW_PANEL_WIDTH, MIN_REVIEW_PANEL_WIDTH } from "./review-panel-type.js";
 import type { SessionStore } from "./session-store.svelte.js";
 import type {
 	BrowserWorkspacePanel,
@@ -66,34 +61,10 @@ import type {
 	WorkspacePanel,
 	WorkspacePanelKind,
 } from "./types.js";
-import { DEFAULT_PANEL_HOT_STATE, DEFAULT_PANEL_WIDTH, MIN_PANEL_WIDTH } from "./types.js";
 
 const PANEL_STORE_KEY = Symbol("panel-store");
 let currentPanelStore: PanelStore | null = null;
 const logger = createLogger({ id: "panel-store", name: "PanelStore" });
-const DEFAULT_ATTACHED_FILE_PANEL_WIDTH = DEFAULT_FILE_PANEL_WIDTH;
-const DEFAULT_TERMINAL_PANEL_WIDTH = 500;
-const MIN_TERMINAL_PANEL_WIDTH = 300;
-
-interface GitDialogState extends GitModalPanel {
-	initialTarget?: GitPanelInitialTarget;
-}
-
-type ReactiveValue<T> = {
-	current: T;
-};
-
-class ReactiveValueBox<T> implements ReactiveValue<T> {
-	current = $state<T>(undefined as T);
-
-	constructor(current: T) {
-		this.current = current;
-	}
-}
-
-function createReactiveValue<T>(current: T): ReactiveValue<T> {
-	return new ReactiveValueBox(current);
-}
 
 function isPersistableWorkspacePanel(panel: WorkspacePanel): boolean {
 	return panel.kind !== "agent" || panel.autoCreated !== true;
@@ -109,48 +80,23 @@ export class PanelStore {
 	viewMode = $state<ViewMode>("multi");
 	focusedViewProjectPath = $state<string | null>(null);
 
-	// Hot state (transient, frequently changing)
-	private hotState = new SvelteMap<string, PanelHotState>();
-	private topLevelAgentPanelList = $state<Panel[]>([]);
-	private topLevelAgentPanelsById = new SvelteMap<string, Panel>();
-	private topLevelAgentPanelBySessionId = new SvelteMap<string, Panel>();
-	private topLevelAgentPanelsByProject = new SvelteMap<string, Panel[]>();
-	private topLevelAgentPanelRefs = new Map<string, ReactiveValue<Panel | null>>();
-
-	// Track in-flight opens
-	private openingSessionIds = new SvelteSet<string>();
-	private suppressedAutoSessionSignals = new SvelteMap<string, string>();
-	private latestLiveSessionSignals = new SvelteMap<string, string>();
-	private attachedFilePanelsByOwnerPanelId = new SvelteMap<string, FilePanel[]>();
-	private filePanelList = $state<FilePanel[]>([]);
-	private filePanelsByProject = new SvelteMap<string, FilePanel[]>();
 	private topLevelWorkspacePanelList = $state<WorkspacePanel[]>([]);
 	private topLevelNonAgentPanelProjectRefList = $state<TopLevelPanelProjectRef[]>([]);
-	private topLevelFilePanelsList = $state<FilePanel[]>([]);
-	private topLevelFilePanelsByProject = new SvelteMap<string, FilePanel[]>();
-	private reviewPanelByIdIndex = new SvelteMap<string, ReviewPanel>();
-	private reviewPanelByProjectPath = new SvelteMap<string, ReviewPanel>();
-	private gitPanelById = new SvelteMap<string, GitPanel>();
-	private gitPanelByProjectPathIndex = new SvelteMap<string, GitPanel>();
-	private browserPanelsByProject = new SvelteMap<string, BrowserPanel[]>();
-	private browserPanelById = new SvelteMap<string, BrowserPanel>();
-	private terminalPanelGroupById = new SvelteMap<string, TerminalPanelGroup>();
-	private terminalPanelGroupsByProject = new SvelteMap<string, TerminalPanelGroup[]>();
-	private filePanelByCacheKey = new SvelteMap<string, FilePanel>();
-	private filePanelById = new SvelteMap<string, FilePanel>();
-	private activeFilePanelIdByOwnerPanelId = new SvelteMap<string, string>();
-	private activeTopLevelFilePanelIdByProject = new SvelteMap<string, string>();
-	private pendingOwnerPanelWidthEnsures = new Map<string, number>();
-	private pendingFilePanelPersist: ReturnType<typeof setTimeout> | null = null;
-	private nextTerminalTabCreatedAt = 1;
+	private readonly agentState: PanelAgentState;
+	private readonly terminalState: PanelTerminalState;
+	private readonly fileState: PanelFileState;
+	private readonly reviewState: PanelReviewState;
+	private readonly gitState: PanelGitState;
+	private readonly browserState: PanelBrowserState;
+	private readonly hotStateStore: PanelHotStateStore;
 
 	private isTopLevelFullscreenTarget(panelId: string | null): boolean {
 		if (panelId === null) return false;
 		if (this.findTopLevelWorkspacePanel(panelId) !== undefined) return true;
 		// Terminal and browser panels are stored outside workspacePanels but are
 		// valid top-level fullscreen targets.
-		if (this.terminalPanelGroupById.has(panelId)) return true;
-		if (this.browserPanels.some((p) => p.id === panelId)) return true;
+		if (this.terminalState.hasTerminalPanelGroup(panelId)) return true;
+		if (this.browserState.hasBrowserPanel(panelId)) return true;
 		return false;
 	}
 
@@ -266,121 +212,10 @@ export class PanelStore {
 	private resolveTopLevelPanelProjectPath(panelId: string): string | null {
 		const workspacePanel = this.findTopLevelWorkspacePanel(panelId);
 		if (workspacePanel) return workspacePanel.projectPath;
-		const terminalGroup = this.terminalPanelGroupById.get(panelId);
+		const terminalGroup = this.terminalState.getTerminalPanelGroup(panelId);
 		if (terminalGroup) return terminalGroup.projectPath;
-		const browserPanel = this.browserPanels.find((p) => p.id === panelId);
-		if (browserPanel) return browserPanel.projectPath;
-		return null;
+		return this.browserState.getBrowserPanelProjectPath(panelId);
 	}
-
-	private ensureOwnerPanelWidth(ownerPanelId: string, attachedWidth: number): boolean {
-		const requiredWidth = Math.max(MIN_PANEL_WIDTH, attachedWidth);
-		const ownerPanel = this.topLevelAgentPanelsById.get(ownerPanelId);
-		if (ownerPanel === undefined || ownerPanel.width >= requiredWidth) {
-			return false;
-		}
-		this.patchTopLevelAgentPanel({
-			...ownerPanel,
-			width: requiredWidth,
-		});
-		return true;
-	}
-
-	private scheduleOwnerPanelWidthEnsure(ownerPanelId: string, attachedWidth: number): void {
-		const requiredWidth = Math.max(MIN_PANEL_WIDTH, attachedWidth);
-		const ownerPanel = this.topLevelAgentPanelsById.get(ownerPanelId);
-		if (ownerPanel === undefined || ownerPanel.width >= requiredWidth) {
-			return;
-		}
-
-		const previousWidth = this.pendingOwnerPanelWidthEnsures.get(ownerPanelId) ?? 0;
-		this.pendingOwnerPanelWidthEnsures.set(ownerPanelId, Math.max(previousWidth, attachedWidth));
-		if (previousWidth > 0) {
-			return;
-		}
-
-		setTimeout(() => {
-			const pendingWidth = this.pendingOwnerPanelWidthEnsures.get(ownerPanelId);
-			this.pendingOwnerPanelWidthEnsures.delete(ownerPanelId);
-			if (pendingWidth === undefined) {
-				return;
-			}
-			if (this.ensureOwnerPanelWidth(ownerPanelId, pendingWidth)) {
-				this.onPersist();
-			}
-		}, 0);
-	}
-
-	private resetOwnerPanelWidthIfNoAttached(ownerPanelId: string): void {
-		const hasAttachedPanels =
-			(this.attachedFilePanelsByOwnerPanelId.get(ownerPanelId)?.length ?? 0) > 0;
-		if (hasAttachedPanels) return;
-		const ownerPanel = this.topLevelAgentPanelsById.get(ownerPanelId);
-		if (ownerPanel === undefined || ownerPanel.width === DEFAULT_PANEL_WIDTH) {
-			return;
-		}
-		this.patchTopLevelAgentPanel({
-			...ownerPanel,
-			width: DEFAULT_PANEL_WIDTH,
-		});
-	}
-
-	private removeFilePanelFromIndexes(panel: FilePanel): void {
-		this.filePanelById.delete(panel.id);
-		this.filePanelByCacheKey.delete(
-			createFilePanelCacheKey(panel.filePath, panel.projectPath, panel.ownerPanelId)
-		);
-		this.filePanelList = createRemovedItemArray(this.filePanelList, panel.id);
-
-		const projectPanels = this.filePanelsByProject.get(panel.projectPath);
-		if (projectPanels !== undefined) {
-			const nextProjectPanels = createRemovedItemArray(projectPanels, panel.id);
-			if (nextProjectPanels.length === 0) {
-				this.filePanelsByProject.delete(panel.projectPath);
-			} else {
-				this.filePanelsByProject.set(panel.projectPath, nextProjectPanels);
-			}
-		}
-
-		if (panel.ownerPanelId === null) {
-			this.topLevelFilePanelsList = createRemovedItemArray(this.topLevelFilePanelsList, panel.id);
-			const topLevelProjectPanels = this.topLevelFilePanelsByProject.get(panel.projectPath);
-			if (topLevelProjectPanels !== undefined) {
-				const nextTopLevelProjectPanels = createRemovedItemArray(topLevelProjectPanels, panel.id);
-				if (nextTopLevelProjectPanels.length === 0) {
-					this.topLevelFilePanelsByProject.delete(panel.projectPath);
-				} else {
-					this.topLevelFilePanelsByProject.set(panel.projectPath, nextTopLevelProjectPanels);
-				}
-			}
-			this.topLevelWorkspacePanelList = createRemovedItemArray(
-				this.topLevelWorkspacePanelList,
-				panel.id
-			);
-			this.topLevelNonAgentPanelProjectRefList = createRemovedItemArray(
-				this.topLevelNonAgentPanelProjectRefList,
-				panel.id
-			);
-		} else {
-			const attachedPanels = this.attachedFilePanelsByOwnerPanelId.get(panel.ownerPanelId);
-			if (attachedPanels !== undefined) {
-				const nextAttachedPanels = createRemovedItemArray(attachedPanels, panel.id);
-				if (nextAttachedPanels.length === 0) {
-					this.attachedFilePanelsByOwnerPanelId.delete(panel.ownerPanelId);
-				} else {
-					this.attachedFilePanelsByOwnerPanelId.set(panel.ownerPanelId, nextAttachedPanels);
-				}
-			}
-		}
-
-		this.workspacePanels = createRemovedItemArray(this.workspacePanels, panel.id);
-	}
-
-	/**
-	 * Pending review mode restores by panel ID (reviewFileIndex).
-	 * Set during workspace restore when a panel had reviewMode; consumed when session loads.
-	 */
-	private pendingReviewRestores = new Map<string, number>();
 
 	/** Optional callback invoked when a panel is focused. */
 	onPanelFocused: ((panelId: string) => void) | null = null;
@@ -395,289 +230,185 @@ export class PanelStore {
 		private onPersist: () => void
 	) {
 		this.embeddedTerminals = new EmbeddedTerminalStore(onPersist);
+		this.hotStateStore = new PanelHotStateStore({
+			onPersist: () => this.onPersist(),
+			getEmbeddedTerminalTabCount: (panelId) => this.embeddedTerminals.getTabs(panelId).length,
+			addEmbeddedTerminalTab: (panelId, cwd) => {
+				this.embeddedTerminals.addTab(panelId, cwd);
+			},
+		});
+		this.agentState = new PanelAgentState({
+			getWorkspacePanels: () => this.workspacePanels,
+			replaceAgentPanelsInWorkspace: (nextAgentPanels) => {
+				this.replaceWorkspacePanels("agent", nextAgentPanels);
+			},
+			insertAgentPanelInWorkspace: (panel, placement) => {
+				this.workspacePanels =
+					placement === "prepend"
+						? createPrependedItemArray<WorkspacePanel>(panel, this.workspacePanels)
+						: createAppendedItemArray<WorkspacePanel>(this.workspacePanels, panel);
+				this.topLevelWorkspacePanelList =
+					placement === "prepend"
+						? createPrependedItemArray<WorkspacePanel>(panel, this.topLevelWorkspacePanelList)
+						: createAppendedItemArray<WorkspacePanel>(this.topLevelWorkspacePanelList, panel);
+			},
+			patchAgentPanelInWorkspace: (panel) => {
+				this.workspacePanels = createPatchedItemArray(this.workspacePanels, panel);
+				this.topLevelWorkspacePanelList = createPatchedItemArray(
+					this.topLevelWorkspacePanelList,
+					panel
+				);
+			},
+			getSessionIdentity: (sessionId) => {
+				const identity = this.sessionStore.getSessionIdentity(sessionId);
+				if (identity === undefined) {
+					return undefined;
+				}
+				return {
+					agentId: identity.agentId,
+					projectPath: identity.projectPath,
+					worktreePath: identity.worktreePath ?? null,
+				};
+			},
+			getSessionMetadata: (sessionId) => {
+				const metadata = this.sessionStore.getSessionMetadata(sessionId);
+				if (metadata === undefined) {
+					return undefined;
+				}
+				return {
+					sourcePath: metadata.sourcePath ?? null,
+					title: metadata.title ?? null,
+					sequenceId: metadata.sequenceId ?? null,
+				};
+			},
+			hasPendingCreationSession: (sessionId) =>
+				typeof this.sessionStore.hasPendingCreationSession === "function" &&
+				this.sessionStore.hasPendingCreationSession(sessionId),
+			focusOpenedTopLevelPanel: (panelId) => this.focusOpenedTopLevelPanel(panelId),
+			onSpawnedPanelFocused: (panel) => {
+				this.focusedPanelId = panel.id;
+				if (this.viewMode === "single" || this.fullscreenPanelId !== null) {
+					this.switchFullscreen(panel.id);
+				}
+				if (this.viewMode !== "multi" && panel.projectPath) {
+					this.focusedViewProjectPath = panel.projectPath;
+					this.scrollX = 0;
+				}
+			},
+			onExistingSessionOpened: (panel) => {
+				this.focusedPanelId = panel.id;
+				if (this.viewMode === "single" || this.fullscreenPanelId !== null) {
+					this.switchFullscreen(panel.id);
+				}
+			},
+			clearAutoSessionSuppression: (sessionId) =>
+				this.hotStateStore.clearAutoSessionSuppression(sessionId),
+			onPersist: () => this.onPersist(),
+		});
+		this.terminalState = new PanelTerminalState({
+			getWorkspacePanels: () => this.workspacePanels,
+			setWorkspacePanels: (panels) => this.setWorkspacePanels(panels),
+			focusOpenedTopLevelPanel: (panelId) => this.focusOpenedTopLevelPanel(panelId),
+			onPersist: () => this.onPersist(),
+			getFullscreenPanelId: () => this.fullscreenPanelId,
+			getSelectedSingleModePanelId: () => this.getSelectedSingleModePanelId(),
+			switchFullscreen: (panelId) => this.switchFullscreen(panelId),
+			setFocusedPanelId: (panelId) => {
+				this.focusedPanelId = panelId;
+			},
+			captureTopLevelPanelCloseState: (closedPanelId) =>
+				this.captureTopLevelPanelCloseState(closedPanelId),
+			applyTopLevelPanelCloseState: (closeState) =>
+				this.applyTopLevelPanelCloseState(closeState),
+		});
+		this.fileState = new PanelFileState({
+			getWorkspacePanels: () => this.workspacePanels,
+			setWorkspacePanels: (panels) => this.setWorkspacePanels(panels),
+			prependWorkspacePanel: (panel) => {
+				this.workspacePanels = createPrependedItemArray(panel, this.workspacePanels);
+				if (panel.ownerPanelId === null) {
+					this.topLevelWorkspacePanelList = createPrependedItemArray(
+						panel,
+						this.topLevelWorkspacePanelList
+					);
+					this.topLevelNonAgentPanelProjectRefList = createPrependedItemArray(
+						{ id: panel.id, projectPath: panel.projectPath },
+						this.topLevelNonAgentPanelProjectRefList
+					);
+				}
+			},
+			removeWorkspacePanelById: (panelId) => {
+				this.workspacePanels = createRemovedItemArray(this.workspacePanels, panelId);
+			},
+			getOwnerPanel: (ownerPanelId) => this.agentState.getTopLevelAgentPanel(ownerPanelId),
+			patchOwnerPanel: (updatedPanel) => this.agentState.patchTopLevelAgentPanel(updatedPanel),
+			focusOpenedTopLevelPanel: (panelId) => this.focusOpenedTopLevelPanel(panelId),
+			onPersist: () => this.onPersist(),
+			captureTopLevelPanelCloseState: (closedPanelId) =>
+				this.captureTopLevelPanelCloseState(closedPanelId),
+			applyTopLevelPanelCloseState: (closeState) =>
+				this.applyTopLevelPanelCloseState(closeState),
+		});
+		this.reviewState = new PanelReviewState({
+			getWorkspacePanels: () => this.workspacePanels,
+			setWorkspacePanels: (panels) => this.setWorkspacePanels(panels),
+			focusOpenedTopLevelPanel: (panelId) => this.focusOpenedTopLevelPanel(panelId),
+			onPersist: () => this.onPersist(),
+			captureTopLevelPanelCloseState: (closedPanelId) =>
+				this.captureTopLevelPanelCloseState(closedPanelId),
+			applyTopLevelPanelCloseState: (closeState) =>
+				this.applyTopLevelPanelCloseState(closeState),
+		});
+		this.gitState = new PanelGitState({
+			getWorkspacePanels: () => this.workspacePanels,
+			setWorkspacePanels: (panels) => this.setWorkspacePanels(panels),
+			onPersist: () => this.onPersist(),
+			getViewMode: () => this.viewMode,
+			setFocusedViewProjectPath: (projectPath) => {
+				this.focusedViewProjectPath = projectPath;
+			},
+			setScrollX: (scrollX) => {
+				this.scrollX = scrollX;
+			},
+			captureTopLevelPanelCloseState: (closedPanelId) =>
+				this.captureTopLevelPanelCloseState(closedPanelId),
+			applyTopLevelPanelCloseState: (closeState) =>
+				this.applyTopLevelPanelCloseState(closeState),
+		});
+		this.browserState = new PanelBrowserState({
+			getWorkspacePanels: () => this.workspacePanels,
+			setWorkspacePanels: (panels) => this.setWorkspacePanels(panels),
+			focusOpenedTopLevelPanel: (panelId) => this.focusOpenedTopLevelPanel(panelId),
+			onPersist: () => this.onPersist(),
+			captureTopLevelPanelCloseState: (closedPanelId) =>
+				this.captureTopLevelPanelCloseState(closedPanelId),
+			applyTopLevelPanelCloseState: (closeState) =>
+				this.applyTopLevelPanelCloseState(closeState),
+		});
 	}
 
 	get panels(): Panel[] {
-		return this.workspacePanels.filter(
-			(panel): panel is Panel => panel.kind === "agent" && panel.ownerPanelId === null
-		);
+		return this.agentState.panels;
 	}
 
 	set panels(nextPanels: Panel[]) {
-		this.syncTopLevelAgentPanelIndex(nextPanels);
-		this.replaceWorkspacePanels("agent", nextPanels);
-		this.clearRemovedTopLevelAgentPanelRefs(nextPanels);
+		this.agentState.panels = nextPanels;
 	}
 
 	get filePanels(): FilePanel[] {
-		return this.filePanelList;
+		return this.fileState.filePanels;
 	}
 
 	set filePanels(nextPanels: FilePanel[]) {
-		this.syncFilePanelIndexes(nextPanels);
-		this.replaceWorkspacePanels("file", nextPanels);
+		this.fileState.filePanels = nextPanels;
 	}
 
-	private syncTopLevelAgentPanelIndex(nextPanels: readonly Panel[]): void {
-		if (!areAgentPanelListsEqual(this.topLevelAgentPanelList, nextPanels)) {
-			this.topLevelAgentPanelList = Array.from(nextPanels);
-		}
-		this.topLevelAgentPanelBySessionId.clear();
-		const panelsByProject = new Map<string, Panel[]>();
-		for (const panel of nextPanels) {
-			if (panel.sessionId !== null) {
-				this.topLevelAgentPanelBySessionId.set(panel.sessionId, panel);
-			}
-			if (panel.projectPath !== null) {
-				const projectPanels = panelsByProject.get(panel.projectPath);
-				if (projectPanels === undefined) {
-					panelsByProject.set(panel.projectPath, [panel]);
-				} else {
-					projectPanels.push(panel);
-				}
-			}
-			const current = this.topLevelAgentPanelsById.get(panel.id);
-			const isSame =
-				current !== undefined &&
-				current.id === panel.id &&
-				current.sessionId === panel.sessionId &&
-				current.width === panel.width &&
-				current.pendingProjectSelection === panel.pendingProjectSelection &&
-				current.pendingWorktreeEnabled === panel.pendingWorktreeEnabled &&
-				current.preparedWorktreeLaunch === panel.preparedWorktreeLaunch &&
-				current.selectedAgentId === panel.selectedAgentId &&
-				current.projectPath === panel.projectPath &&
-				current.agentId === panel.agentId &&
-				current.sourcePath === panel.sourcePath &&
-				current.worktreePath === panel.worktreePath &&
-				current.sessionTitle === panel.sessionTitle &&
-				current.autoCreated === panel.autoCreated;
-			if (!isSame) {
-				this.topLevelAgentPanelsById.set(panel.id, panel);
-				const ref = this.topLevelAgentPanelRefs.get(panel.id);
-				if (ref) {
-					ref.current = panel;
-				}
-			} else if (!this.topLevelAgentPanelRefs.has(panel.id)) {
-				this.topLevelAgentPanelRefs.set(panel.id, createReactiveValue(panel));
-			}
-		}
-		for (const [projectPath, panels] of panelsByProject) {
-			const existingPanels = this.topLevelAgentPanelsByProject.get(projectPath);
-			if (areAgentPanelListsEqual(existingPanels, panels)) {
-				panelsByProject.set(projectPath, existingPanels ?? panels);
-			}
-		}
-		this.topLevelAgentPanelsByProject = new SvelteMap(panelsByProject);
-	}
-
-	private clearRemovedTopLevelAgentPanelRefs(nextPanels: readonly Panel[]): void {
-		const nextIds = new Set(nextPanels.map((panel) => panel.id));
-		for (const panelId of this.topLevelAgentPanelsById.keys()) {
-			if (nextIds.has(panelId)) {
-				continue;
-			}
-			this.topLevelAgentPanelsById.delete(panelId);
-			this.topLevelAgentPanelRefs.delete(panelId);
-		}
-	}
-
-	private patchTopLevelAgentPanel(updatedPanel: Panel): void {
-		const currentPanel = this.topLevelAgentPanelsById.get(updatedPanel.id);
-		if (currentPanel === undefined) {
-			return;
-		}
-
-		this.topLevelAgentPanelsById.set(updatedPanel.id, updatedPanel);
-		const ref = this.topLevelAgentPanelRefs.get(updatedPanel.id);
-		if (ref) {
-			ref.current = updatedPanel;
-		}
-		if (currentPanel.sessionId !== null && currentPanel.sessionId !== updatedPanel.sessionId) {
-			this.topLevelAgentPanelBySessionId.delete(currentPanel.sessionId);
-		}
-		if (updatedPanel.sessionId !== null) {
-			this.topLevelAgentPanelBySessionId.set(updatedPanel.sessionId, updatedPanel);
-		}
-		this.topLevelAgentPanelList = createPatchedItemArray(
-			this.topLevelAgentPanelList,
-			updatedPanel
-		);
-		if (updatedPanel.projectPath !== null) {
-			const projectPanels = this.topLevelAgentPanelsByProject.get(updatedPanel.projectPath);
-			if (projectPanels !== undefined) {
-				this.topLevelAgentPanelsByProject.set(
-					updatedPanel.projectPath,
-					createPatchedItemArray(projectPanels, updatedPanel)
-				);
-			}
-		}
-		this.workspacePanels = createPatchedItemArray(this.workspacePanels, updatedPanel);
-		this.topLevelWorkspacePanelList = createPatchedItemArray(
-			this.topLevelWorkspacePanelList,
-			updatedPanel
-		);
-	}
-
-	private syncFilePanelIndexes(nextPanels: readonly FilePanel[]): void {
-		if (!areFilePanelListsEqual(this.filePanelList, nextPanels)) {
-			this.filePanelList = Array.from(nextPanels);
-		}
-		this.filePanelByCacheKey.clear();
-		this.filePanelById.clear();
-		const groupedPanels = new Map<string, FilePanel[]>();
-		const projectGroupedPanels = new Map<string, FilePanel[]>();
-		const topLevelPanels: FilePanel[] = [];
-		const topLevelGroupedPanels = new Map<string, FilePanel[]>();
-		for (const panel of nextPanels) {
-			this.filePanelById.set(panel.id, panel);
-			this.filePanelByCacheKey.set(
-				createFilePanelCacheKey(panel.filePath, panel.projectPath, panel.ownerPanelId),
-				panel
-			);
-			const projectExisting = projectGroupedPanels.get(panel.projectPath);
-			if (projectExisting) {
-				projectExisting.push(panel);
-			} else {
-				projectGroupedPanels.set(panel.projectPath, [panel]);
-			}
-			if (panel.ownerPanelId === null) {
-				topLevelPanels.push(panel);
-				const topLevelExisting = topLevelGroupedPanels.get(panel.projectPath);
-				if (topLevelExisting) {
-					topLevelExisting.push(panel);
-				} else {
-					topLevelGroupedPanels.set(panel.projectPath, [panel]);
-				}
-				continue;
-			}
-			const existing = groupedPanels.get(panel.ownerPanelId);
-			if (existing) {
-				existing.push(panel);
-			} else {
-				groupedPanels.set(panel.ownerPanelId, [panel]);
-			}
-		}
-		for (const ownerPanelId of this.attachedFilePanelsByOwnerPanelId.keys()) {
-			if (!groupedPanels.has(ownerPanelId)) {
-				this.attachedFilePanelsByOwnerPanelId.delete(ownerPanelId);
-			}
-		}
-		for (const [ownerPanelId, panels] of groupedPanels.entries()) {
-			const current = this.attachedFilePanelsByOwnerPanelId.get(ownerPanelId);
-			if (!areFilePanelListsEqual(current, panels)) {
-				this.attachedFilePanelsByOwnerPanelId.set(ownerPanelId, panels);
-			}
-		}
-
-		for (const projectPath of this.filePanelsByProject.keys()) {
-			if (!projectGroupedPanels.has(projectPath)) {
-				this.filePanelsByProject.delete(projectPath);
-			}
-		}
-		for (const [projectPath, panels] of projectGroupedPanels.entries()) {
-			const current = this.filePanelsByProject.get(projectPath);
-			if (!areFilePanelListsEqual(current, panels)) {
-				this.filePanelsByProject.set(projectPath, panels);
-			}
-		}
-
-		if (!areFilePanelListsEqual(this.topLevelFilePanelsList, topLevelPanels)) {
-			this.topLevelFilePanelsList = topLevelPanels;
-		}
-		for (const projectPath of this.topLevelFilePanelsByProject.keys()) {
-			if (!topLevelGroupedPanels.has(projectPath)) {
-				this.topLevelFilePanelsByProject.delete(projectPath);
-			}
-		}
-		for (const [projectPath, panels] of topLevelGroupedPanels.entries()) {
-			const current = this.topLevelFilePanelsByProject.get(projectPath);
-			if (!areFilePanelListsEqual(current, panels)) {
-				this.topLevelFilePanelsByProject.set(projectPath, panels);
-			}
-		}
-	}
-
-	private prependFilePanel(panel: FilePanel): void {
-		this.filePanelById.set(panel.id, panel);
-		this.filePanelByCacheKey.set(
-			createFilePanelCacheKey(panel.filePath, panel.projectPath, panel.ownerPanelId),
-			panel
-		);
-		this.filePanelsByProject.set(
-			panel.projectPath,
-			createPrependedItemArray(panel, this.filePanelsByProject.get(panel.projectPath) ?? [])
-		);
-		this.filePanelList = createPrependedItemArray(panel, this.filePanelList);
-
-		if (panel.ownerPanelId === null) {
-			this.topLevelFilePanelsList = createPrependedItemArray(panel, this.topLevelFilePanelsList);
-			this.topLevelFilePanelsByProject.set(
-				panel.projectPath,
-				createPrependedItemArray(
-					panel,
-					this.topLevelFilePanelsByProject.get(panel.projectPath) ?? []
-				)
-			);
-			this.topLevelWorkspacePanelList = createPrependedItemArray(
-				panel,
-				this.topLevelWorkspacePanelList
-			);
-			this.topLevelNonAgentPanelProjectRefList = createPrependedItemArray(
-				{ id: panel.id, projectPath: panel.projectPath },
-				this.topLevelNonAgentPanelProjectRefList
-			);
-		} else {
-			this.attachedFilePanelsByOwnerPanelId.set(
-				panel.ownerPanelId,
-				createPrependedItemArray(
-					panel,
-					this.attachedFilePanelsByOwnerPanelId.get(panel.ownerPanelId) ?? []
-				)
-			);
-		}
-
-		this.workspacePanels = createPrependedItemArray(panel, this.workspacePanels);
-	}
-
-	private scheduleFilePanelPersist(): void {
-		if (this.pendingFilePanelPersist !== null) {
-			return;
-		}
-		this.pendingFilePanelPersist = setTimeout(() => {
-			this.pendingFilePanelPersist = null;
-			this.onPersist();
-		}, 0);
-	}
-
-	private insertTopLevelAgentPanel(panel: Panel, placement: "prepend" | "append"): void {
-		this.topLevelAgentPanelsById.set(panel.id, panel);
-		this.topLevelAgentPanelRefs.set(panel.id, createReactiveValue(panel));
-		if (panel.sessionId !== null) {
-			this.topLevelAgentPanelBySessionId.set(panel.sessionId, panel);
-		}
-		if (panel.projectPath !== null) {
-			const projectPanels = this.topLevelAgentPanelsByProject.get(panel.projectPath) ?? [];
-			this.topLevelAgentPanelsByProject.set(
-				panel.projectPath,
-				placement === "prepend"
-					? createPrependedItemArray(panel, projectPanels)
-					: createAppendedItemArray(projectPanels, panel)
-			);
-		}
-
-		this.topLevelAgentPanelList =
-			placement === "prepend"
-				? createPrependedItemArray(panel, this.topLevelAgentPanelList)
-				: createAppendedItemArray(this.topLevelAgentPanelList, panel);
-		this.workspacePanels =
-			placement === "prepend"
-				? createPrependedItemArray<WorkspacePanel>(panel, this.workspacePanels)
-				: createAppendedItemArray<WorkspacePanel>(this.workspacePanels, panel);
-		this.topLevelWorkspacePanelList =
-			placement === "prepend"
-				? createPrependedItemArray<WorkspacePanel>(panel, this.topLevelWorkspacePanelList)
-				: createAppendedItemArray<WorkspacePanel>(this.topLevelWorkspacePanelList, panel);
+	private replaceWorkspacePanels(
+		kind: WorkspacePanelKind,
+		nextPanels: readonly WorkspacePanel[]
+	): void {
+		const remainingPanels = this.workspacePanels.filter((panel) => panel.kind !== kind);
+		this.setWorkspacePanels(Array.from(nextPanels).concat(remainingPanels));
 	}
 
 	get terminalPanels(): TerminalWorkspacePanel[] {
@@ -691,83 +422,27 @@ export class PanelStore {
 	}
 
 	get browserPanels(): BrowserPanel[] {
-		return this.workspacePanels.filter(
-			(panel): panel is BrowserWorkspacePanel => panel.kind === "browser"
-		);
+		return this.browserState.browserPanels;
 	}
 
 	set browserPanels(nextPanels: BrowserPanel[]) {
-		this.syncBrowserPanelIndexes(nextPanels);
-		this.replaceWorkspacePanels("browser", nextPanels);
-	}
-
-	private syncBrowserPanelIndexes(nextPanels: readonly BrowserPanel[]): void {
-		this.browserPanelById.clear();
-		const groupedPanels = new Map<string, BrowserPanel[]>();
-		for (const panel of nextPanels) {
-			this.browserPanelById.set(panel.id, panel);
-			const existing = groupedPanels.get(panel.projectPath);
-			if (existing) {
-				existing.push(panel);
-			} else {
-				groupedPanels.set(panel.projectPath, [panel]);
-			}
-		}
-		for (const projectPath of this.browserPanelsByProject.keys()) {
-			if (!groupedPanels.has(projectPath)) {
-				this.browserPanelsByProject.delete(projectPath);
-			}
-		}
-		for (const [projectPath, panels] of groupedPanels.entries()) {
-			const current = this.browserPanelsByProject.get(projectPath);
-			if (!areBrowserPanelListsEqual(current, panels)) {
-				this.browserPanelsByProject.set(projectPath, panels);
-			}
-		}
+		this.browserState.browserPanels = nextPanels;
 	}
 
 	get reviewPanels(): ReviewPanel[] {
-		return this.workspacePanels.filter((panel): panel is ReviewPanel => panel.kind === "review");
+		return this.reviewState.reviewPanels;
 	}
 
 	set reviewPanels(nextPanels: ReviewPanel[]) {
-		this.syncReviewPanelIndexes(nextPanels);
-		this.replaceWorkspacePanels("review", nextPanels);
-	}
-
-	private syncReviewPanelIndexes(nextPanels: readonly ReviewPanel[]): void {
-		this.reviewPanelByIdIndex.clear();
-		this.reviewPanelByProjectPath.clear();
-		for (const panel of nextPanels) {
-			this.reviewPanelByIdIndex.set(panel.id, panel);
-			this.reviewPanelByProjectPath.set(panel.projectPath, panel);
-		}
+		this.reviewState.reviewPanels = nextPanels;
 	}
 
 	get gitPanels(): GitPanel[] {
-		return this.workspacePanels.filter((panel): panel is GitPanel => panel.kind === "git");
+		return this.gitState.gitPanels;
 	}
 
 	set gitPanels(nextPanels: GitPanel[]) {
-		this.syncGitPanelIndexes(nextPanels);
-		this.replaceWorkspacePanels("git", nextPanels);
-	}
-
-	private syncGitPanelIndexes(nextPanels: readonly GitPanel[]): void {
-		this.gitPanelById.clear();
-		this.gitPanelByProjectPathIndex.clear();
-		for (const panel of nextPanels) {
-			this.gitPanelById.set(panel.id, panel);
-			this.gitPanelByProjectPathIndex.set(panel.projectPath, panel);
-		}
-	}
-
-	private replaceWorkspacePanels(
-		kind: WorkspacePanelKind,
-		nextPanels: readonly WorkspacePanel[]
-	): void {
-		const remainingPanels = this.workspacePanels.filter((panel) => panel.kind !== kind);
-		this.setWorkspacePanels(Array.from(nextPanels).concat(remainingPanels));
+		this.gitState.gitPanels = nextPanels;
 	}
 
 	private setWorkspacePanels(nextPanels: readonly WorkspacePanel[]): void {
@@ -813,12 +488,12 @@ export class PanelStore {
 			(panel): panel is BrowserWorkspacePanel => panel.kind === "browser"
 		);
 
-		this.syncTopLevelAgentPanelIndex(nextAgentPanels);
-		this.clearRemovedTopLevelAgentPanelRefs(nextAgentPanels);
-		this.syncFilePanelIndexes(nextFilePanels);
-		this.syncReviewPanelIndexes(nextReviewPanels);
-		this.syncGitPanelIndexes(nextGitPanels);
-		this.syncBrowserPanelIndexes(nextBrowserPanels);
+		this.agentState.syncTopLevelAgentPanelIndex(nextAgentPanels);
+		this.agentState.clearRemovedTopLevelAgentPanelRefs(nextAgentPanels);
+		this.fileState.syncFilePanelIndexes(nextFilePanels);
+		this.reviewState.syncReviewPanelIndexes(nextReviewPanels);
+		this.gitState.syncGitPanelIndexes(nextGitPanels);
+		this.browserState.syncBrowserPanelIndexes(nextBrowserPanels);
 		this.setWorkspacePanels(nextWorkspacePanels);
 	}
 
@@ -839,12 +514,12 @@ export class PanelStore {
 			(panel): panel is BrowserWorkspacePanel => panel.kind === "browser"
 		);
 
-		this.syncTopLevelAgentPanelIndex(nextAgentPanels);
-		this.clearRemovedTopLevelAgentPanelRefs(nextAgentPanels);
-		this.syncFilePanelIndexes(nextFilePanels);
-		this.syncReviewPanelIndexes(nextReviewPanels);
-		this.syncGitPanelIndexes(nextGitPanels);
-		this.syncBrowserPanelIndexes(nextBrowserPanels);
+		this.agentState.syncTopLevelAgentPanelIndex(nextAgentPanels);
+		this.agentState.clearRemovedTopLevelAgentPanelRefs(nextAgentPanels);
+		this.fileState.syncFilePanelIndexes(nextFilePanels);
+		this.reviewState.syncReviewPanelIndexes(nextReviewPanels);
+		this.gitState.syncGitPanelIndexes(nextGitPanels);
+		this.browserState.syncBrowserPanelIndexes(nextBrowserPanels);
 		this.setWorkspacePanels(nextWorkspacePanels);
 	}
 
@@ -856,12 +531,12 @@ export class PanelStore {
 	}
 
 	private findTopLevelWorkspacePanel(panelId: string): WorkspacePanel | undefined {
-		const agentPanel = this.topLevelAgentPanelsById.get(panelId);
+		const agentPanel = this.agentState.getTopLevelAgentPanel(panelId);
 		if (agentPanel !== undefined) {
 			return agentPanel;
 		}
-		const filePanel = this.filePanelById.get(panelId);
-		if (filePanel?.ownerPanelId === null) {
+		const filePanel = this.fileState.getTopLevelFilePanelForLookup(panelId);
+		if (filePanel !== undefined) {
 			return filePanel;
 		}
 		return this.workspacePanels.find(
@@ -890,8 +565,8 @@ export class PanelStore {
 		}
 
 		for (const ownerPanelId of persistableTopLevelPanelIds) {
-			const attachedPanels = this.attachedFilePanelsByOwnerPanelId.get(ownerPanelId);
-			if (attachedPanels === undefined) {
+			const attachedPanels = this.fileState.getAttachedFilePanelsForOwner(ownerPanelId);
+			if (attachedPanels.length === 0) {
 				continue;
 			}
 			for (const attachedPanel of attachedPanels) {
@@ -949,47 +624,67 @@ export class PanelStore {
 	}
 
 	// Derived lookups
-	readonly panelBySessionId = $derived.by(
-		() => this.topLevelAgentPanelBySessionId
-	);
+	get panelBySessionId() {
+		return this.agentState.panelBySessionId;
+	}
 
-	readonly panelCount = $derived(this.topLevelAgentPanelList.length);
+	get panelCount(): number {
+		return this.agentState.panelCount;
+	}
 
 	readonly focusedTopLevelPanel = $derived(
 		this.focusedPanelId ? (this.findTopLevelWorkspacePanel(this.focusedPanelId) ?? null) : null
 	);
 
-	readonly focusedPanel = $derived(
-		this.focusedPanelId
-			? (this.topLevelAgentPanelsById.get(this.focusedPanelId) ?? null)
-			: null
-	);
+	get focusedPanel(): Panel | null {
+		return this.focusedPanelId
+			? (this.agentState.getTopLevelAgentPanel(this.focusedPanelId) ?? null)
+			: null;
+	}
 
-	readonly filePanelByPath = $derived.by(
-		() => this.filePanelByCacheKey
-	);
+	get filePanelByPath(): SvelteMap<string, FilePanel> {
+		return this.fileState.filePanelByPath;
+	}
 
-	readonly filePanelCount = $derived(this.filePanelById.size);
+	get filePanelCount(): number {
+		return this.fileState.filePanelCount;
+	}
 
-	readonly reviewPanelById = $derived.by(
-		() => this.reviewPanelByIdIndex
-	);
+	get reviewPanelById() {
+		return this.reviewState.reviewPanelById;
+	}
 
-	readonly reviewPanelCount = $derived(this.reviewPanelByIdIndex.size);
+	get reviewPanelCount(): number {
+		return this.reviewState.reviewPanelCount;
+	}
 
-	terminalPanelGroups = $state<TerminalPanelGroup[]>([]);
-	terminalTabs = $state<TerminalTab[]>([]);
+	get terminalPanelGroups(): TerminalPanelGroup[] {
+		return this.terminalState.terminalPanelGroups;
+	}
 
-	readonly terminalPanelCount = $derived(this.terminalPanelGroups.length);
+	get terminalTabs(): TerminalTab[] {
+		return this.terminalState.terminalTabs;
+	}
 
-	readonly gitPanelByProjectPath = $derived.by(
-		() => this.gitPanelByProjectPathIndex
-	);
+	get terminalPanelCount(): number {
+		return this.terminalState.terminalPanelCount;
+	}
 
-	readonly gitPanelCount = $derived(this.gitPanelById.size);
-	gitDialog = $state<GitDialogState | null>(null);
+	get gitPanelByProjectPath() {
+		return this.gitState.gitPanelByProjectPath;
+	}
 
-	readonly browserPanelCount = $derived(this.browserPanelById.size);
+	get gitPanelCount(): number {
+		return this.gitState.gitPanelCount;
+	}
+
+	get gitDialog(): GitDialogState | null {
+		return this.gitState.gitDialog;
+	}
+
+	get browserPanelCount(): number {
+		return this.browserState.browserPanelCount;
+	}
 
 	// ============================================
 	// HOT STATE MANAGEMENT
@@ -999,7 +694,7 @@ export class PanelStore {
 	 * Get hot state for a panel.
 	 */
 	getHotState(panelId: string): PanelHotState {
-		return this.hotState.get(panelId) ?? DEFAULT_PANEL_HOT_STATE;
+		return this.hotStateStore.getHotState(panelId);
 	}
 
 	getTopLevelPanel(panelId: string): WorkspacePanel | undefined {
@@ -1007,37 +702,27 @@ export class PanelStore {
 	}
 
 	getTopLevelAgentPanel(panelId: string): Panel | undefined {
-		return this.topLevelAgentPanelsById.get(panelId);
+		return this.agentState.getTopLevelAgentPanel(panelId);
 	}
 
 	getTopLevelAgentPanelsForProject(projectPath: string): readonly Panel[] {
-		return this.topLevelAgentPanelsByProject.get(projectPath) ?? [];
+		return this.agentState.getTopLevelAgentPanelsForProject(projectPath);
 	}
 
 	getFirstSessionAgentPanelForProject(projectPath: string): Panel | undefined {
-		return this.getTopLevelAgentPanelsForProject(projectPath).find(
-			(panel) => panel.sessionId !== null
-		);
+		return this.agentState.getFirstSessionAgentPanelForProject(projectPath);
 	}
 
 	getTopLevelAgentPanels(): readonly Panel[] {
-		return this.topLevelAgentPanelList;
+		return this.agentState.getTopLevelAgentPanels();
 	}
 
-	getTopLevelAgentPanelRef(panelId: string): ReactiveValue<Panel | null> {
-		const existing = this.topLevelAgentPanelRefs.get(panelId);
-		if (existing) {
-			return existing;
-		}
-		const ref = createReactiveValue<Panel | null>(
-			this.topLevelAgentPanelsById.get(panelId) ?? null
-		);
-		this.topLevelAgentPanelRefs.set(panelId, ref);
-		return ref;
+	getTopLevelAgentPanelRef(panelId: string) {
+		return this.agentState.getTopLevelAgentPanelRef(panelId);
 	}
 
 	getTopLevelAgentPanelIds(): string[] {
-		return this.topLevelAgentPanelList.map((panel) => panel.id);
+		return this.agentState.getTopLevelAgentPanelIds();
 	}
 
 	getTopLevelAgentPanelProjectRefs(): Array<{
@@ -1045,115 +730,22 @@ export class PanelStore {
 		readonly sessionProjectPath: string | null;
 		readonly sessionSequenceId: number | null;
 	}> {
-		return this.topLevelAgentPanelList.map((panel) => {
-			const sessionIdentity =
-				panel.sessionId !== null
-					? this.sessionStore.getSessionIdentity(panel.sessionId)
-					: undefined;
-			const sessionMetadata =
-				panel.sessionId !== null
-					? this.sessionStore.getSessionMetadata(panel.sessionId)
-					: undefined;
-			const isPendingCreationSession =
-				panel.sessionId !== null &&
-				sessionIdentity === undefined &&
-				typeof this.sessionStore.hasPendingCreationSession === "function" &&
-				this.sessionStore.hasPendingCreationSession(panel.sessionId);
-			return {
-				id: panel.id,
-				sessionProjectPath:
-					panel.sessionId === null || isPendingCreationSession
-						? (panel.projectPath ?? null)
-						: (sessionIdentity?.projectPath ?? null),
-				sessionSequenceId:
-					panel.sessionId !== null ? (sessionMetadata?.sequenceId ?? null) : null,
-			};
-		});
+		return this.agentState.getTopLevelAgentPanelProjectRefs();
 	}
 
-	/**
-	 * Update hot state for a panel (O(1) - no array recreation).
-	 */
-	private updateHotState(panelId: string, updates: Partial<PanelHotState>): void {
-		const current = this.hotState.get(panelId) ?? DEFAULT_PANEL_HOT_STATE;
-		const updated = { ...current, ...updates };
-		this.hotState.set(panelId, updated);
-	}
-
-	/**
-	 * Get panel with merged hot state.
-	 */
 	getPanel(panelId: string): (Panel & PanelHotState) | undefined {
-		const panel = this.topLevelAgentPanelsById.get(panelId);
+		const panel = this.agentState.getPanelCore(panelId);
 		if (!panel) return undefined;
-		const hot = this.getHotState(panelId);
+		const hot = this.hotStateStore.getHotState(panelId);
 		return { ...panel, ...hot };
 	}
 
-	private createSessionPanel(sessionId: string, width: number, autoCreated: boolean): Panel {
-		const sessionIdentity = this.sessionStore.getSessionIdentity(sessionId);
-		const sessionMetadata = this.sessionStore.getSessionMetadata(sessionId);
-
-		return {
-			id: crypto.randomUUID(),
-			kind: "agent",
-			ownerPanelId: null,
-			sessionId,
-			autoCreated,
-			width,
-			pendingProjectSelection: false,
-			pendingWorktreeEnabled: null,
-			preparedWorktreeLaunch: null,
-			selectedAgentId: sessionIdentity?.agentId ?? null,
-			projectPath: sessionIdentity?.projectPath ?? null,
-			agentId: sessionIdentity?.agentId ?? null,
-			sourcePath: sessionMetadata?.sourcePath ?? null,
-			worktreePath: sessionIdentity?.worktreePath ?? null,
-			sessionTitle: sessionMetadata?.title ?? null,
-		};
-	}
-
-	private setPanelAutoCreated(panelId: string, autoCreated: boolean): Panel | null {
-		const panel = this.topLevelAgentPanelsById.get(panelId);
-		if (panel === undefined) {
-			return null;
-		}
-		const updatedPanel: Panel = {
-			id: panel.id,
-			kind: panel.kind,
-			ownerPanelId: panel.ownerPanelId,
-			sessionId: panel.sessionId,
-			autoCreated,
-			width: panel.width,
-			pendingProjectSelection: panel.pendingProjectSelection,
-			pendingWorktreeEnabled: panel.pendingWorktreeEnabled ?? null,
-			preparedWorktreeLaunch: panel.preparedWorktreeLaunch ?? null,
-			selectedAgentId: panel.selectedAgentId,
-			projectPath: panel.projectPath,
-			agentId: panel.agentId,
-			sourcePath: panel.sourcePath,
-			worktreePath: panel.worktreePath,
-			sessionTitle: panel.sessionTitle,
-		};
-		this.patchTopLevelAgentPanel(updatedPanel);
-		return updatedPanel;
-	}
-
 	clearAutoSessionSuppression(sessionId: string): void {
-		this.suppressedAutoSessionSignals.delete(sessionId);
+		this.hotStateStore.clearAutoSessionSuppression(sessionId);
 	}
 
 	syncAutoSessionSuppression(sessionId: string, signal: string): boolean {
-		this.latestLiveSessionSignals.set(sessionId, signal);
-		const suppressedSignal = this.suppressedAutoSessionSignals.get(sessionId);
-		if (suppressedSignal === undefined) {
-			return false;
-		}
-		if (suppressedSignal === signal) {
-			return true;
-		}
-		this.suppressedAutoSessionSignals.delete(sessionId);
-		return false;
+		return this.hotStateStore.syncAutoSessionSuppression(sessionId, signal);
 	}
 
 	/**
@@ -1161,54 +753,7 @@ export class PanelStore {
 	 * If already open, focuses the existing panel.
 	 */
 	openSession(sessionId: string, width: number): Panel | null {
-		const t0 = performance.now();
-		this.clearAutoSessionSuppression(sessionId);
-
-		// Check if already open
-		let existing = this.topLevelAgentPanelBySessionId.get(sessionId);
-		if (existing) {
-			if (existing.autoCreated === true) {
-				const promoted = this.setPanelAutoCreated(existing.id, false);
-				if (promoted) {
-					existing = promoted;
-				}
-			}
-			this.focusedPanelId = existing.id;
-			if (this.viewMode === "single" || this.fullscreenPanelId !== null) {
-				this.switchFullscreen(existing.id);
-			}
-			return existing;
-		}
-
-		// Guard against duplicate opens
-		if (this.openingSessionIds.has(sessionId)) {
-			logger.debug("Panel already being opened, skipping duplicate", { sessionId });
-			return null;
-		}
-		this.openingSessionIds.add(sessionId);
-
-		const panel = this.createSessionPanel(sessionId, width, false);
-
-		this.insertTopLevelAgentPanel(panel, "prepend");
-		this.focusedPanelId = panel.id;
-
-		// If in fullscreen mode, switch fullscreen to the new panel
-		if (this.viewMode === "single" || this.fullscreenPanelId !== null) {
-			this.switchFullscreen(panel.id);
-		}
-
-		this.onPersist();
-
-		queueMicrotask(() => {
-			this.openingSessionIds.delete(sessionId);
-		});
-
-		logger.info("[PERF] openSession: panel added to store", {
-			sessionId,
-			panelId: panel.id,
-			elapsed_ms: Math.round(performance.now() - t0),
-		});
-		return panel;
+		return this.agentState.openSession(sessionId, width);
 	}
 
 	/**
@@ -1216,32 +761,7 @@ export class PanelStore {
 	 * If already open, returns the existing panel.
 	 */
 	materializeSessionPanel(sessionId: string, width: number): Panel | null {
-		const existing = this.topLevelAgentPanelBySessionId.get(sessionId);
-		if (existing) {
-			return existing;
-		}
-
-		if (this.openingSessionIds.has(sessionId)) {
-			logger.debug("Panel already being opened, skipping duplicate background materialization", {
-				sessionId,
-			});
-			return null;
-		}
-		this.openingSessionIds.add(sessionId);
-
-		const panel = this.createSessionPanel(sessionId, width, true);
-		this.insertTopLevelAgentPanel(panel, "append");
-		this.onPersist();
-
-		queueMicrotask(() => {
-			this.openingSessionIds.delete(sessionId);
-		});
-
-		logger.debug("Materialized session panel in background", {
-			sessionId,
-			panelId: panel.id,
-		});
-		return panel;
+		return this.agentState.materializeSessionPanel(sessionId, width);
 	}
 
 	/**
@@ -1256,45 +776,7 @@ export class PanelStore {
 			pendingWorktreeEnabled?: boolean | null;
 		} = {}
 	): Panel {
-		const panel: Panel = {
-			id: options.id ?? crypto.randomUUID(),
-			kind: "agent",
-			ownerPanelId: null,
-			sessionId: null,
-			width: DEFAULT_PANEL_WIDTH,
-			pendingProjectSelection: options.requireProjectSelection ?? false,
-			pendingWorktreeEnabled:
-				options.pendingWorktreeEnabled === true
-					? true
-					: options.pendingWorktreeEnabled === false
-						? false
-						: null,
-			preparedWorktreeLaunch: null,
-			selectedAgentId: options.selectedAgentId ?? null,
-			projectPath: options.projectPath ?? null,
-			agentId: null,
-			sourcePath: null,
-			worktreePath: null,
-			sessionTitle: null,
-		};
-
-		this.panels = [panel, ...this.panels];
-		this.focusedPanelId = panel.id;
-
-		// If in fullscreen mode, switch fullscreen to the new panel
-		if (this.viewMode === "single" || this.fullscreenPanelId !== null) {
-			this.switchFullscreen(panel.id);
-		}
-
-		// In focused view, switch to the panel's project so it's visible
-		if (this.viewMode !== "multi" && panel.projectPath) {
-			this.focusedViewProjectPath = panel.projectPath;
-			this.scrollX = 0;
-		}
-		this.onPersist();
-
-		logger.debug("Spawned new panel", { panelId: panel.id });
-		return panel;
+		return this.agentState.spawnPanel(options);
 	}
 
 	/**
@@ -1327,7 +809,7 @@ export class PanelStore {
 		}
 
 		if (panel.kind === "git") {
-			this.closeLegacyGitPanel(panelId);
+			this.gitState.closeLegacyGitPanel(panelId);
 			return;
 		}
 
@@ -1337,25 +819,20 @@ export class PanelStore {
 		}
 
 		if (panel.kind === "agent" && panel.autoCreated === true && panel.sessionId) {
-			const signal = this.latestLiveSessionSignals.get(panel.sessionId);
-			if (signal !== undefined) {
-				this.suppressedAutoSessionSignals.set(panel.sessionId, signal);
-			}
+			this.hotStateStore.recordAutoSessionSuppressionOnClose(panel.sessionId, panel.autoCreated);
 		}
 
 		if (panel.kind === "agent" && panel.sessionId) {
-			this.openingSessionIds.delete(panel.sessionId);
+			this.agentState.clearOpeningSessionId(panel.sessionId);
 		}
 
-		if (!this.panels.some((candidate) => candidate.id === panelId)) return;
-
-		this.panels = this.panels.filter((p) => p.id !== panelId);
+		const removedAgentPanel = this.agentState.removeAgentPanel(panelId);
+		if (removedAgentPanel === null) return;
 
 		// Clean up hot state to prevent memory leaks
-		this.hotState.delete(panelId);
+		this.hotStateStore.deleteHotState(panelId);
 
-		this.activeFilePanelIdByOwnerPanelId.delete(panelId);
-		this.filePanels = this.filePanels.filter((filePanel) => filePanel.ownerPanelId !== panelId);
+		this.fileState.onOwnerPanelClosed(panelId);
 
 		// Clean up embedded terminal state (belt-and-suspenders with component onDestroy)
 		this.embeddedTerminals.cleanup(panelId);
@@ -1373,7 +850,7 @@ export class PanelStore {
 	 * Close a panel by session ID.
 	 */
 	closePanelBySessionId(sessionId: string): void {
-		const panel = this.topLevelAgentPanelBySessionId.get(sessionId);
+		const panel = this.agentState.getPanelBySessionId(sessionId);
 		if (panel) {
 			this.closePanel(panel.id);
 		}
@@ -1412,11 +889,7 @@ export class PanelStore {
 	 * No-op if panel is already first or not found.
 	 */
 	movePanelToFront(panelId: string): void {
-		const index = this.panels.findIndex((p) => p.id === panelId);
-		if (index <= 0) return;
-		const panel = this.panels[index];
-		this.panels = [panel, ...this.panels.slice(0, index), ...this.panels.slice(index + 1)];
-		this.onPersist();
+		this.agentState.movePanelToFront(panelId);
 	}
 
 	/**
@@ -1458,133 +931,49 @@ export class PanelStore {
 	 * Pass null to clear the session (e.g., when session doesn't exist on disk).
 	 */
 	updatePanelSession(panelId: string, sessionId: string | null): void {
-		logger.info("[worktree-flow] updatePanelSession", { panelId, sessionId });
-		const sessionIdentity =
-			sessionId !== null ? this.sessionStore.getSessionIdentity(sessionId) : undefined;
-		const sessionMetadata =
-			sessionId !== null ? this.sessionStore.getSessionMetadata(sessionId) : undefined;
-		const isPendingCreationSession =
-			sessionId !== null &&
-			sessionIdentity === undefined &&
-			typeof this.sessionStore.hasPendingCreationSession === "function" &&
-			this.sessionStore.hasPendingCreationSession(sessionId);
-		logger.info("[worktree-debug] updatePanelSession resolved session", {
-			panelId,
-			sessionId,
-			sessionProjectPath: sessionIdentity?.projectPath ?? null,
-			sessionWorktreePath: sessionIdentity?.worktreePath ?? null,
-			panelProjectPathBefore: this.panels.find((p) => p.id === panelId)?.projectPath ?? null,
-		});
-		this.panels = this.panels.map((p) =>
-			p.id === panelId
-				? {
-						...p,
-						sessionId,
-						pendingProjectSelection: false,
-						pendingWorktreeEnabled: sessionId === null ? (p.pendingWorktreeEnabled ?? null) : null,
-						preparedWorktreeLaunch: sessionId === null ? (p.preparedWorktreeLaunch ?? null) : null,
-						projectPath:
-							sessionId === null || isPendingCreationSession
-								? p.projectPath
-								: (sessionIdentity?.projectPath ?? null),
-						agentId:
-							sessionId === null || isPendingCreationSession
-								? (p.agentId ?? p.selectedAgentId)
-								: (sessionIdentity?.agentId ?? null),
-						sourcePath:
-							sessionId === null || isPendingCreationSession
-								? p.sourcePath
-								: (sessionMetadata?.sourcePath ?? null),
-						worktreePath:
-							sessionId === null || isPendingCreationSession
-								? p.worktreePath
-								: (sessionIdentity?.worktreePath ?? null),
-						sessionTitle:
-							sessionId === null || isPendingCreationSession
-								? p.sessionTitle
-								: (sessionMetadata?.title ?? null),
-					}
-				: p
-		);
-		logger.info("[worktree-debug] updatePanelSession applied", {
-			panelId,
-			sessionId,
-			panelProjectPathAfter: this.panels.find((p) => p.id === panelId)?.projectPath ?? null,
-		});
-		this.onPersist();
+		this.agentState.updatePanelSession(panelId, sessionId);
 	}
 
 	/**
 	 * Resize a panel.
 	 */
 	resizePanel(panelId: string, delta: number): void {
-		this.panels = this.panels.map((p) =>
-			p.id === panelId ? { ...p, width: Math.max(p.width + delta, MIN_PANEL_WIDTH) } : p
-		);
-		this.onPersist();
+		this.agentState.resizePanel(panelId, delta);
 	}
 
 	/**
 	 * Set the selected agent for a panel.
 	 */
 	setPanelAgent(panelId: string, agentId: string | null): void {
-		this.panels = this.panels.map((p) =>
-			p.id === panelId ? { ...p, selectedAgentId: agentId } : p
-		);
-		this.onPersist();
-		logger.debug("Panel agent set", { panelId, agentId });
+		this.agentState.setPanelAgent(panelId, agentId);
 	}
 
 	/**
 	 * Set the project path for a panel and clear pending project selection.
 	 */
 	setPanelProjectPath(panelId: string, projectPath: string): void {
-		this.panels = this.panels.map((p) =>
-			p.id === panelId ? { ...p, projectPath, pendingProjectSelection: false } : p
-		);
-		this.onPersist();
-		logger.debug("Panel project path set", { panelId, projectPath });
+		this.agentState.setPanelProjectPath(panelId, projectPath);
 	}
 
 	setPendingWorktreeEnabled(panelId: string, pendingWorktreeEnabled: boolean): void {
-		this.panels = this.panels.map((panel) =>
-			panel.id === panelId ? { ...panel, pendingWorktreeEnabled } : panel
-		);
-		this.onPersist();
-		logger.debug("Panel pending worktree state set", { panelId, pendingWorktreeEnabled });
+		this.agentState.setPendingWorktreeEnabled(panelId, pendingWorktreeEnabled);
 	}
 
 	setPreparedWorktreeLaunch(panelId: string, preparedWorktreeLaunch: PreparedWorktreeLaunch): void {
-		this.panels = this.panels.map((panel) =>
-			panel.id === panelId ? { ...panel, preparedWorktreeLaunch } : panel
-		);
-		this.onPersist();
-		logger.debug("Panel prepared worktree launch set", {
-			panelId,
-			launchToken: preparedWorktreeLaunch.launchToken,
-			sequenceId: preparedWorktreeLaunch.sequenceId,
-		});
+		this.agentState.setPreparedWorktreeLaunch(panelId, preparedWorktreeLaunch);
 	}
 
 	clearPreparedWorktreeLaunch(panelId: string): void {
-		this.panels = this.panels.map((panel) =>
-			panel.id === panelId ? { ...panel, preparedWorktreeLaunch: null } : panel
-		);
-		this.onPersist();
-		logger.debug("Panel prepared worktree launch cleared", { panelId });
+		this.agentState.clearPreparedWorktreeLaunch(panelId);
 	}
 
 	/**
 	 * Clear all panels.
 	 */
 	clearPanels(): void {
-		this.panels = [];
-		this.filePanels = this.filePanels.filter((panel) => panel.ownerPanelId === null);
-		this.activeFilePanelIdByOwnerPanelId = new SvelteMap();
-		for (const bp of this.browserPanels) {
-			browserWebview.close(`browser-${bp.id}`);
-		}
-		this.browserPanels = [];
+		this.agentState.clearAllAgentPanels();
+		this.fileState.clearAttachedFilePanelState();
+		this.browserState.clearAllBrowserPanels();
 		this.focusedPanelId = null;
 		this.setFullscreenPanelTarget(null);
 		this.onPersist();
@@ -1606,14 +995,14 @@ export class PanelStore {
 	 * Get panel by session ID (O(1) lookup).
 	 */
 	getPanelBySessionId(sessionId: string): Panel | undefined {
-		return this.topLevelAgentPanelBySessionId.get(sessionId);
+		return this.agentState.getPanelBySessionId(sessionId);
 	}
 
 	/**
 	 * Check if a session is open in a panel.
 	 */
 	isSessionOpen(sessionId: string): boolean {
-		return this.topLevelAgentPanelBySessionId.has(sessionId);
+		return this.agentState.isSessionOpen(sessionId);
 	}
 
 	// ============================================
@@ -1636,87 +1025,23 @@ export class PanelStore {
 		modifiedFilesState: ModifiedFilesState,
 		initialFileIndex: number = 0
 	): void {
-		const existing = this.getHotState(panelId).reviewFilesState;
-		const canReuse = existing !== null && this.reviewFilesMatch(existing, modifiedFilesState);
-
-		if (canReuse) {
-			// Same files — just toggle review mode on and update file index
-			this.updateHotState(panelId, {
-				reviewMode: true,
-				reviewFileIndex: initialFileIndex,
-			});
-		} else {
-			// New or changed files — replace with fresh state
-			this.updateHotState(panelId, {
-				reviewMode: true,
-				reviewFilesState: modifiedFilesState,
-				reviewFileIndex: initialFileIndex,
-			});
-		}
-
-		this.onPersist();
-		logger.debug("Entered review mode", {
-			panelId,
-			fileCount: modifiedFilesState.fileCount,
-			reusedState: canReuse,
-		});
+		this.hotStateStore.enterReviewMode(panelId, modifiedFilesState, initialFileIndex);
 	}
 
-	/**
-	 * Checks whether two ModifiedFilesState objects have the same files
-	 * (same paths and same file snapshots in the same order), meaning existing review decisions
-	 * can safely be preserved.
-	 */
-	private reviewFilesMatch(a: ModifiedFilesState, b: ModifiedFilesState): boolean {
-		if (a.fileCount !== b.fileCount) return false;
-		for (let i = 0; i < a.files.length; i++) {
-			if (!areReviewFileSnapshotsEqual(a.files[i], b.files[i])) return false;
-		}
-		return true;
-	}
-
-	/**
-	 * Exit review mode for a panel.
-	 * Returns to the normal conversation view.
-	 * Preserves reviewFilesState and reviewFileIndex so hunk
-	 * accept/reject decisions survive panel toggles.
-	 */
 	exitReviewMode(panelId: string): void {
-		this.updateHotState(panelId, {
-			reviewMode: false,
-		});
-		this.onPersist();
-		logger.debug("Exited review mode", { panelId });
+		this.hotStateStore.exitReviewMode(panelId);
 	}
 
-	/**
-	 * Clear review state for a panel.
-	 * Called when the session changes or the panel is closed
-	 * to discard stale review data.
-	 */
 	clearReviewState(panelId: string): void {
-		this.updateHotState(panelId, {
-			reviewMode: false,
-			reviewFilesState: null,
-			reviewFileIndex: 0,
-		});
-		this.onPersist();
-		logger.debug("Cleared review state", { panelId });
+		this.hotStateStore.clearReviewState(panelId);
 	}
 
-	/**
-	 * Update the selected file index in review mode.
-	 */
 	setReviewFileIndex(panelId: string, fileIndex: number): void {
-		this.updateHotState(panelId, { reviewFileIndex: fileIndex });
-		this.onPersist();
+		this.hotStateStore.setReviewFileIndex(panelId, fileIndex);
 	}
 
-	/**
-	 * Check if a panel is in review mode.
-	 */
 	isPanelInReviewMode(panelId: string): boolean {
-		return this.getHotState(panelId).reviewMode;
+		return this.hotStateStore.isPanelInReviewMode(panelId);
 	}
 
 	/**
@@ -1724,7 +1049,7 @@ export class PanelStore {
 	 * Will be applied when the session loads and has entries.
 	 */
 	setPendingReviewRestore(panelId: string, reviewFileIndex: number): void {
-		this.pendingReviewRestores.set(panelId, reviewFileIndex);
+		this.reviewState.setPendingReviewRestore(panelId, reviewFileIndex);
 	}
 
 	/**
@@ -1732,10 +1057,7 @@ export class PanelStore {
 	 * Returns the reviewFileIndex if there was a pending restore, null otherwise.
 	 */
 	consumePendingReviewRestore(panelId: string): number | null {
-		const fileIndex = this.pendingReviewRestores.get(panelId);
-		if (fileIndex === undefined) return null;
-		this.pendingReviewRestores.delete(panelId);
-		return fileIndex;
+		return this.reviewState.consumePendingReviewRestore(panelId);
 	}
 
 	// ============================================
@@ -1746,24 +1068,15 @@ export class PanelStore {
 	 * Set the plan sidebar expanded state for a panel.
 	 */
 	setPlanSidebarExpanded(panelId: string, expanded: boolean): void {
-		this.updateHotState(panelId, { planSidebarExpanded: expanded });
-		this.onPersist();
-		logger.debug("Plan sidebar state updated", { panelId, expanded });
+		this.hotStateStore.setPlanSidebarExpanded(panelId, expanded);
 	}
 
-	/**
-	 * Toggle the plan sidebar expanded state for a panel.
-	 */
 	togglePlanSidebar(panelId: string): void {
-		const current = this.getHotState(panelId).planSidebarExpanded;
-		this.setPlanSidebarExpanded(panelId, !current);
+		this.hotStateStore.togglePlanSidebar(panelId);
 	}
 
-	/**
-	 * Check if the plan sidebar is expanded for a panel.
-	 */
 	isPlanSidebarExpanded(panelId: string): boolean {
-		return this.getHotState(panelId).planSidebarExpanded;
+		return this.hotStateStore.isPlanSidebarExpanded(panelId);
 	}
 
 	// ============================================
@@ -1774,27 +1087,15 @@ export class PanelStore {
 	 * Set the browser sidebar expanded state for a panel.
 	 */
 	setBrowserSidebarExpanded(panelId: string, expanded: boolean, url?: string): void {
-		this.updateHotState(panelId, {
-			browserSidebarExpanded: expanded,
-			...(url != null ? { browserSidebarUrl: url } : {}),
-		});
-		this.onPersist();
-		logger.debug("Browser sidebar state updated", { panelId, expanded, url });
+		this.hotStateStore.setBrowserSidebarExpanded(panelId, expanded, url);
 	}
 
-	/**
-	 * Toggle the browser sidebar expanded state for a panel.
-	 */
 	toggleBrowserSidebar(panelId: string): void {
-		const current = this.getHotState(panelId).browserSidebarExpanded;
-		this.setBrowserSidebarExpanded(panelId, !current);
+		this.hotStateStore.toggleBrowserSidebar(panelId);
 	}
 
-	/**
-	 * Check if the browser sidebar is expanded for a panel.
-	 */
 	isBrowserSidebarExpanded(panelId: string): boolean {
-		return this.getHotState(panelId).browserSidebarExpanded;
+		return this.hotStateStore.isBrowserSidebarExpanded(panelId);
 	}
 
 	// ============================================
@@ -1805,39 +1106,26 @@ export class PanelStore {
 	 * Set the message draft for a panel.
 	 */
 	setMessageDraft(panelId: string, draft: string): void {
-		this.updateHotState(panelId, { messageDraft: draft });
-		this.onPersist();
+		this.hotStateStore.setMessageDraft(panelId, draft);
 	}
 
-	/**
-	 * Get the message draft for a panel.
-	 */
 	getMessageDraft(panelId: string): string {
-		return this.getHotState(panelId).messageDraft;
+		return this.hotStateStore.getMessageDraft(panelId);
 	}
 
 	setProvisionalAutonomousEnabled(panelId: string, enabled: boolean): void {
-		this.updateHotState(panelId, { provisionalAutonomousEnabled: enabled });
+		this.hotStateStore.setProvisionalAutonomousEnabled(panelId, enabled);
 	}
 
 	setPendingComposerRestore(
 		panelId: string,
 		restore: NonNullable<PanelHotState["pendingComposerRestore"]>
 	): void {
-		const current = this.getHotState(panelId);
-		this.updateHotState(panelId, {
-			pendingComposerRestore: restore,
-			composerRestoreVersion: current.composerRestoreVersion + 1,
-		});
+		this.hotStateStore.setPendingComposerRestore(panelId, restore);
 	}
 
 	consumePendingComposerRestore(panelId: string): PanelHotState["pendingComposerRestore"] {
-		const restore = this.getHotState(panelId).pendingComposerRestore;
-		if (restore === null) {
-			return null;
-		}
-		this.updateHotState(panelId, { pendingComposerRestore: null });
-		return restore;
+		return this.hotStateStore.consumePendingComposerRestore(panelId);
 	}
 
 	// ============================================
@@ -1848,31 +1136,15 @@ export class PanelStore {
 	 * Check if the embedded terminal drawer is open for a panel.
 	 */
 	isEmbeddedTerminalDrawerOpen(panelId: string): boolean {
-		return this.getHotState(panelId).embeddedTerminalDrawerOpen;
+		return this.hotStateStore.isEmbeddedTerminalDrawerOpen(panelId);
 	}
 
-	/**
-	 * Set the embedded terminal drawer open state for a panel.
-	 */
 	setEmbeddedTerminalDrawerOpen(panelId: string, open: boolean): void {
-		this.updateHotState(panelId, { embeddedTerminalDrawerOpen: open });
-		this.onPersist();
+		this.hotStateStore.setEmbeddedTerminalDrawerOpen(panelId, open);
 	}
 
-	/**
-	 * Toggle the embedded terminal drawer for a panel.
-	 * If opening and no tabs exist, creates the first tab.
-	 */
 	toggleEmbeddedTerminalDrawer(panelId: string, cwd: string): void {
-		const isOpen = this.isEmbeddedTerminalDrawerOpen(panelId);
-		if (!isOpen) {
-			// Opening: ensure at least one tab
-			const tabs = this.embeddedTerminals.getTabs(panelId);
-			if (tabs.length === 0) {
-				this.embeddedTerminals.addTab(panelId, cwd);
-			}
-		}
-		this.setEmbeddedTerminalDrawerOpen(panelId, !isOpen);
+		this.hotStateStore.toggleEmbeddedTerminalDrawer(panelId, cwd);
 	}
 
 	// ============================================
@@ -1885,237 +1157,99 @@ export class PanelStore {
 	 * Intentionally no onPersist() — this is transient optimistic state, not workspace data.
 	 */
 	setPendingUserEntry(panelId: string, entry: SessionEntry): void {
-		this.updateHotState(panelId, { pendingUserEntry: entry });
+		this.hotStateStore.setPendingUserEntry(panelId, entry);
 	}
 
-	/**
-	 * Clear the pending user entry (on session creation success or failure).
-	 * Intentionally no onPersist() — transient optimistic state only.
-	 */
 	clearPendingUserEntry(panelId: string): void {
-		this.updateHotState(panelId, { pendingUserEntry: null });
+		this.hotStateStore.clearPendingUserEntry(panelId);
 	}
 
 	setPendingWorktreeSetup(panelId: string, setup: PanelHotState["pendingWorktreeSetup"]): void {
-		this.updateHotState(panelId, { pendingWorktreeSetup: setup });
+		this.hotStateStore.setPendingWorktreeSetup(panelId, setup);
 	}
 
 	clearPendingWorktreeSetup(panelId: string): void {
-		this.updateHotState(panelId, { pendingWorktreeSetup: null });
+		this.hotStateStore.clearPendingWorktreeSetup(panelId);
 	}
 
 	// ============================================
 	// FILE PANEL MANAGEMENT
 	// ============================================
 
-	/**
-	 * Open a file in a panel.
-	 * If already open, focuses the existing panel.
-	 */
 	openFilePanel(
 		filePath: string,
 		projectPath: string,
 		options?: OpenFilePanelOptions | number
 	): FilePanel {
-		const normalizedOptions = normalizeOpenFilePanelOptions(options);
-		const ownerPanelId = normalizedOptions?.ownerPanelId ?? null;
-		const cacheKey = createFilePanelCacheKey(filePath, projectPath, ownerPanelId);
-
-		// Check if already open
-		const existing = this.filePanelByCacheKey.get(cacheKey);
-		if (existing) {
-			if (ownerPanelId !== null) {
-				this.activeFilePanelIdByOwnerPanelId.set(ownerPanelId, existing.id);
-				this.scheduleOwnerPanelWidthEnsure(ownerPanelId, existing.width);
-			} else {
-				this.activeTopLevelFilePanelIdByProject.set(projectPath, existing.id);
-				this.focusOpenedTopLevelPanel(existing.id);
-			}
-			logger.debug("File already open, focusing existing panel", { filePath, projectPath });
-			return existing;
-		}
-
-		const panel: FilePanel = {
-			id: crypto.randomUUID(),
-			kind: "file",
-			filePath,
-			projectPath,
-			ownerPanelId,
-			...(normalizedOptions?.targetLine !== undefined
-				? { targetLine: normalizedOptions.targetLine }
-				: {}),
-			...(normalizedOptions?.targetColumn !== undefined
-				? { targetColumn: normalizedOptions.targetColumn }
-				: {}),
-			width:
-				normalizedOptions?.width ??
-					(ownerPanelId !== null ? DEFAULT_ATTACHED_FILE_PANEL_WIDTH : DEFAULT_FILE_PANEL_WIDTH),
-		};
-
-		this.prependFilePanel(panel);
-		if (ownerPanelId !== null) {
-			this.activeFilePanelIdByOwnerPanelId.set(ownerPanelId, panel.id);
-			this.scheduleOwnerPanelWidthEnsure(ownerPanelId, panel.width);
-		} else {
-			this.activeTopLevelFilePanelIdByProject.set(projectPath, panel.id);
-			this.focusOpenedTopLevelPanel(panel.id);
-		}
-		this.scheduleFilePanelPersist();
-
-		logger.debug("Opened file in panel", { filePath, projectPath, panelId: panel.id });
-		return panel;
+		return this.fileState.openFilePanel(filePath, projectPath, options);
 	}
 
-	/**
-	 * Close a file panel by ID.
-	 */
 	closeFilePanel(panelId: string): void {
-		const panelToClose = this.filePanelById.get(panelId);
-		if (panelToClose === undefined) {
-			return;
-		}
-		const closeState =
-			panelToClose.ownerPanelId === null
-				? this.captureTopLevelPanelCloseState(panelId)
-				: null;
-		this.removeFilePanelFromIndexes(panelToClose);
-		if (panelToClose.ownerPanelId) {
-			const ownerPanelId = panelToClose.ownerPanelId;
-			const activePanelId = this.activeFilePanelIdByOwnerPanelId.get(panelToClose.ownerPanelId);
-			if (activePanelId === panelId) {
-				const replacementId =
-					this.attachedFilePanelsByOwnerPanelId.get(panelToClose.ownerPanelId)?.[0]?.id ??
-					null;
-				if (replacementId) {
-					this.activeFilePanelIdByOwnerPanelId.set(panelToClose.ownerPanelId, replacementId);
-				} else {
-					this.activeFilePanelIdByOwnerPanelId.delete(panelToClose.ownerPanelId);
-				}
-			}
-			this.resetOwnerPanelWidthIfNoAttached(ownerPanelId);
-		} else if (panelToClose.ownerPanelId === null) {
-			// Handle top-level file panel active tracking
-			const projectPath = panelToClose.projectPath;
-			const activeId = this.activeTopLevelFilePanelIdByProject.get(projectPath);
-			if (activeId === panelId) {
-				const remaining = this.topLevelFilePanelsByProject.get(projectPath)?.[0] ?? null;
-				if (remaining) {
-					this.activeTopLevelFilePanelIdByProject.set(projectPath, remaining.id);
-				} else {
-					this.activeTopLevelFilePanelIdByProject.delete(projectPath);
-				}
-			}
-		}
-		if (closeState) {
-			this.applyTopLevelPanelCloseState(closeState);
-		}
-		this.onPersist();
-		logger.debug("Closed file panel", { panelId });
+		this.fileState.closeFilePanel(panelId);
 	}
 
-	/**
-	 * Check if a file is open in a panel.
-	 */
 	isFileOpen(filePath: string, projectPath: string): boolean {
-		const cacheKey = createFilePanelCacheKey(filePath, projectPath, null);
-		return this.filePanelByCacheKey.has(cacheKey);
+		return this.fileState.isFileOpen(filePath, projectPath);
 	}
 
-	/**
-	 * Resize a file panel.
-	 */
 	resizeFilePanel(panelId: string, delta: number): void {
-		let resizedAttachedOwnerPanelId: string | null = null;
-		let resizedWidth = 0;
-		this.filePanels = this.filePanels.map((p) => {
-			if (p.id !== panelId) return p;
-			const nextWidth = Math.max(p.width + delta, MIN_FILE_PANEL_WIDTH);
-			if (p.ownerPanelId !== null) {
-				resizedAttachedOwnerPanelId = p.ownerPanelId;
-				resizedWidth = nextWidth;
-			}
-			return { ...p, width: nextWidth };
-		});
-		if (resizedAttachedOwnerPanelId !== null) {
-			this.ensureOwnerPanelWidth(resizedAttachedOwnerPanelId, resizedWidth);
-		}
-		this.onPersist();
+		this.fileState.resizeFilePanel(panelId, delta);
 	}
 
-	/**
-	 * Get a file panel by ID.
-	 */
 	getFilePanel(panelId: string): FilePanel | undefined {
-		return this.filePanelById.get(panelId);
+		return this.fileState.getFilePanel(panelId);
 	}
 
-	/**
-	 * Get a file panel by file path.
-	 */
 	getFilePanelByPath(filePath: string, projectPath: string): FilePanel | undefined {
-		const cacheKey = createFilePanelCacheKey(filePath, projectPath, null);
-		return this.filePanelByCacheKey.get(cacheKey);
+		return this.fileState.getFilePanelByPath(filePath, projectPath);
 	}
 
 	getFilePanelsForProject(projectPath: string): FilePanel[] {
-		return this.filePanelsByProject.get(projectPath) ?? [];
+		return this.fileState.getFilePanelsForProject(projectPath);
 	}
 
 	getAttachedFilePanels(ownerPanelId: string): FilePanel[] {
-		return this.attachedFilePanelsByOwnerPanelId.get(ownerPanelId) ?? [];
+		return this.fileState.getAttachedFilePanels(ownerPanelId);
 	}
 
 	hasAttachedFilePanels(ownerPanelId: string): boolean {
-		return (this.attachedFilePanelsByOwnerPanelId.get(ownerPanelId)?.length ?? 0) > 0;
+		return this.fileState.hasAttachedFilePanels(ownerPanelId);
 	}
 
 	getActiveFilePanelId(ownerPanelId: string): string | null {
-		return this.activeFilePanelIdByOwnerPanelId.get(ownerPanelId) ?? null;
+		return this.fileState.getActiveFilePanelId(ownerPanelId);
 	}
 
 	getActiveAttachedFilePanel(ownerPanelId: string): FilePanel | null {
-		const activeFilePanelId = this.activeFilePanelIdByOwnerPanelId.get(ownerPanelId);
-		if (activeFilePanelId) {
-			const panel = this.filePanelById.get(activeFilePanelId);
-			if (panel?.ownerPanelId === ownerPanelId) {
-				return panel;
-			}
-		}
-		return this.attachedFilePanelsByOwnerPanelId.get(ownerPanelId)?.[0] ?? null;
+		return this.fileState.getActiveAttachedFilePanel(ownerPanelId);
 	}
 
 	setActiveAttachedFilePanel(ownerPanelId: string, filePanelId: string): void {
-		const target = this.filePanelById.get(filePanelId);
-		if (target?.ownerPanelId !== ownerPanelId) return;
-		this.activeFilePanelIdByOwnerPanelId.set(ownerPanelId, filePanelId);
-		this.scheduleFilePanelPersist();
+		this.fileState.setActiveAttachedFilePanel(ownerPanelId, filePanelId);
 	}
 
 	getActiveTopLevelFilePanelId(projectPath: string): string | null {
-		return this.activeTopLevelFilePanelIdByProject.get(projectPath) ?? null;
+		return this.fileState.getActiveTopLevelFilePanelId(projectPath);
 	}
 
 	getTopLevelFilePanels(): FilePanel[] {
-		return this.topLevelFilePanelsList;
+		return this.fileState.getTopLevelFilePanels();
 	}
 
 	setActiveTopLevelFilePanel(projectPath: string, filePanelId: string): void {
-		const target = this.filePanelById.get(filePanelId);
-		if (!target || target.ownerPanelId !== null || target.projectPath !== projectPath) return;
-		this.activeTopLevelFilePanelIdByProject.set(projectPath, filePanelId);
-		this.scheduleFilePanelPersist();
+		this.fileState.setActiveTopLevelFilePanel(projectPath, filePanelId);
 	}
 
 	getTopLevelFilePanelsForProject(projectPath: string): FilePanel[] {
-		return this.topLevelFilePanelsByProject.get(projectPath) ?? [];
+		return this.fileState.getTopLevelFilePanelsForProject(projectPath);
 	}
 
 	getActiveFilePanelIdByOwnerPanelIdRecord(): Record<string, string> {
-		return Object.fromEntries(this.activeFilePanelIdByOwnerPanelId.entries());
+		return this.fileState.getActiveFilePanelIdByOwnerPanelIdRecord();
 	}
 
 	setActiveFilePanelMap(activeMap: Map<string, string>): void {
-		this.activeFilePanelIdByOwnerPanelId = new SvelteMap(activeMap);
+		this.fileState.setActiveFilePanelMap(activeMap);
 	}
 
 	// ============================================
@@ -2132,51 +1266,26 @@ export class PanelStore {
 		initialFileIndex?: number,
 		width?: number
 	): ReviewPanel {
-		// Check if a review panel for this project already exists
-		const existing = this.reviewPanelByProjectPath.get(projectPath);
-		if (existing) {
-			this.focusOpenedTopLevelPanel(existing.id);
-			logger.debug("Review panel already open, returning existing", { projectPath });
-			return existing;
-		}
-
-		const panel: ReviewPanel = {
-			id: crypto.randomUUID(),
-			kind: "review",
+		return this.reviewState.openReviewPanel(
 			projectPath,
-			width: width ?? DEFAULT_REVIEW_PANEL_WIDTH,
-			ownerPanelId: null,
 			modifiedFilesState,
-			selectedFileIndex: initialFileIndex ?? 0,
-		};
-
-		this.reviewPanels = [panel, ...this.reviewPanels];
-		this.focusOpenedTopLevelPanel(panel.id);
-		this.onPersist();
-
-		logger.debug("Opened review panel", { projectPath, panelId: panel.id });
-		return panel;
+			initialFileIndex,
+			width
+		);
 	}
 
 	/**
 	 * Close a review panel by ID.
 	 */
 	closeReviewPanel(panelId: string): void {
-		const closeState = this.captureTopLevelPanelCloseState(panelId);
-		this.reviewPanels = this.reviewPanels.filter((p) => p.id !== panelId);
-		this.applyTopLevelPanelCloseState(closeState);
-		this.onPersist();
-		logger.debug("Closed review panel", { panelId });
+		this.reviewState.closeReviewPanel(panelId);
 	}
 
 	/**
 	 * Update the selected file index in a review panel.
 	 */
 	updateReviewPanelFileIndex(panelId: string, fileIndex: number): void {
-		this.reviewPanels = this.reviewPanels.map((p) =>
-			p.id === panelId ? { ...p, selectedFileIndex: fileIndex } : p
-		);
-		// Don't persist for simple index changes
+		this.reviewState.updateReviewPanelFileIndex(panelId, fileIndex);
 	}
 
 	/**
@@ -2184,552 +1293,115 @@ export class PanelStore {
 	 * Used after accept/reject actions that modify the state.
 	 */
 	updateReviewPanelState(panelId: string, modifiedFilesState: ModifiedFilesState): void {
-		this.reviewPanels = this.reviewPanels.map((p) =>
-			p.id === panelId ? { ...p, modifiedFilesState } : p
-		);
+		this.reviewState.updateReviewPanelState(panelId, modifiedFilesState);
 	}
 
 	/**
 	 * Resize a review panel.
 	 */
 	resizeReviewPanel(panelId: string, delta: number): void {
-		this.reviewPanels = this.reviewPanels.map((p) =>
-			p.id === panelId ? { ...p, width: Math.max(p.width + delta, MIN_REVIEW_PANEL_WIDTH) } : p
-		);
-		this.onPersist();
+		this.reviewState.resizeReviewPanel(panelId, delta);
 	}
 
 	/**
 	 * Get a review panel by ID.
 	 */
 	getReviewPanel(panelId: string): ReviewPanel | undefined {
-		return this.reviewPanelById.get(panelId);
+		return this.reviewState.getReviewPanel(panelId);
 	}
 
 	/**
 	 * Get a review panel by project path.
 	 */
 	getReviewPanelByProjectPath(projectPath: string): ReviewPanel | undefined {
-		return this.reviewPanelByProjectPath.get(projectPath);
+		return this.reviewState.getReviewPanelByProjectPath(projectPath);
 	}
 
 	// ============================================
 	// TERMINAL PANEL MANAGEMENT
 	// ============================================
 
-	private getNextTerminalCreatedAt(): number {
-		const createdAt = this.nextTerminalTabCreatedAt;
-		this.nextTerminalTabCreatedAt += 1;
-		return createdAt;
-	}
-
-	private createTerminalWorkspacePanel(group: TerminalPanelGroup): TerminalWorkspacePanel {
-		return {
-			id: group.id,
-			kind: "terminal",
-			projectPath: group.projectPath,
-			ownerPanelId: null,
-			width: group.width,
-			groupId: group.id,
-		};
-	}
-
-	private syncTerminalWorkspacePanels(): void {
-		const groups = this.getAllTerminalPanelGroups();
-		const groupsById = new Map(groups.map((group) => [group.id, group]));
-		const nextWorkspacePanels: WorkspacePanel[] = [];
-		const insertedGroupIds = new Set<string>();
-
-		for (const panel of this.workspacePanels) {
-			if (panel.kind !== "terminal") {
-				nextWorkspacePanels.push(panel);
-				continue;
-			}
-
-			const group = groupsById.get(panel.id);
-			if (!group) {
-				continue;
-			}
-
-			nextWorkspacePanels.push(this.createTerminalWorkspacePanel(group));
-			insertedGroupIds.add(group.id);
-		}
-
-		for (const group of groups) {
-			if (insertedGroupIds.has(group.id)) {
-				continue;
-			}
-			nextWorkspacePanels.push(this.createTerminalWorkspacePanel(group));
-		}
-
-		this.setWorkspacePanels(nextWorkspacePanels);
-	}
-
-	private getAllTerminalPanelGroups(): TerminalPanelGroup[] {
-		const groups = Array.from(this.terminalPanelGroups);
-		groups.sort((left, right) => left.order - right.order);
-		return groups;
-	}
-
-	private getTerminalTabsFromCollection(
-		tabs: readonly TerminalTab[],
-		groupId: string
-	): TerminalTab[] {
-		const groupTabs = tabs.filter((tab) => tab.groupId === groupId);
-		groupTabs.sort((left, right) => left.createdAt - right.createdAt);
-		return groupTabs;
-	}
-
-	private setTerminalPanelGroupsInDisplayOrder(groups: readonly TerminalPanelGroup[]): void {
-		this.terminalPanelGroups = groups.map((group, index) => ({
-			id: group.id,
-			projectPath: group.projectPath,
-			width: group.width,
-			selectedTabId: group.selectedTabId,
-			order: index,
-		}));
-		this.rebuildTerminalPanelGroupIndexes();
-		this.syncTerminalWorkspacePanels();
-	}
-
 	restoreTerminalPanelState(
 		groups: readonly TerminalPanelGroup[],
 		tabs: readonly TerminalTab[]
 	): void {
-		this.terminalTabs = Array.from(tabs);
-		this.setTerminalPanelGroupsInDisplayOrder(groups);
+		this.terminalState.restoreTerminalPanelState(groups, tabs);
 	}
 
-	private rebuildTerminalPanelGroupIndexes(): void {
-		const groupsById = new SvelteMap<string, TerminalPanelGroup>();
-		const groupsByProject = new Map<string, TerminalPanelGroup[]>();
-
-		for (const group of this.terminalPanelGroups) {
-			groupsById.set(group.id, group);
-			const projectGroups = groupsByProject.get(group.projectPath);
-			if (projectGroups === undefined) {
-				groupsByProject.set(group.projectPath, [group]);
-			} else {
-				projectGroups.push(group);
-			}
-		}
-
-		for (const projectGroups of groupsByProject.values()) {
-			projectGroups.sort((left, right) => left.order - right.order);
-		}
-
-		this.terminalPanelGroupById = groupsById;
-		for (const [projectPath, groups] of groupsByProject) {
-			const existingGroups = this.terminalPanelGroupsByProject.get(projectPath);
-			if (areTerminalPanelGroupListsEqual(existingGroups, groups)) {
-				groupsByProject.set(projectPath, existingGroups ?? groups);
-			}
-		}
-		this.terminalPanelGroupsByProject = new SvelteMap(groupsByProject);
-	}
-
-	private updateTerminalGroup(
-		groupId: string,
-		updater: (group: TerminalPanelGroup) => TerminalPanelGroup
-	): void {
-		const groups = this.getAllTerminalPanelGroups();
-		const nextGroups = groups.map((group) => (group.id === groupId ? updater(group) : group));
-		this.setTerminalPanelGroupsInDisplayOrder(nextGroups);
-	}
-
-	private createTerminalTab(groupId: string, projectPath: string): TerminalTab {
-		return {
-			id: crypto.randomUUID(),
-			groupId,
-			projectPath,
-			createdAt: this.getNextTerminalCreatedAt(),
-			ptyId: null,
-			shell: null,
-		};
-	}
-
-	private getFallbackSelectedTerminalTabId(groupId: string, removedIndex: number): string | null {
-		const remainingTabs = this.getTerminalTabsForGroup(groupId);
-		if (remainingTabs.length === 0) {
-			return null;
-		}
-
-		const nextIndex = removedIndex < remainingTabs.length ? removedIndex : remainingTabs.length - 1;
-		const nextTab = remainingTabs[nextIndex];
-		return nextTab ? nextTab.id : null;
-	}
-
-	/**
-	 * Get all terminal panels for a project (supports multiple terminals per project).
-	 */
 	getTerminalPanelsForProject(projectPath: string): TerminalPanelGroup[] {
-		return this.getTerminalPanelGroupsForProject(projectPath);
+		return this.terminalState.getTerminalPanelsForProject(projectPath);
 	}
 
-	/**
-	 * Set the selected terminal panel for a project (tab switching).
-	 * When in fullscreen with a terminal for this project, updates fullscreen aux to the selected panel.
-	 */
 	setSelectedTerminalPanel(projectPath: string, panelId: string): void {
-		const group = this.getTerminalPanelGroup(panelId);
-		if (!group) {
-			console.warn("Attempted to select stale terminal group", { projectPath, panelId });
-			return;
-		}
-		this.focusedPanelId = group.id;
-		const selectedSingleModePanelId = this.getSelectedSingleModePanelId();
-		if (selectedSingleModePanelId !== null) {
-			const fullscreenGroup = this.getTerminalPanelGroup(selectedSingleModePanelId);
-			if (fullscreenGroup && fullscreenGroup.projectPath === projectPath) {
-				this.switchFullscreen(group.id);
-			}
-		} else if (this.fullscreenPanelId !== null) {
-			const fullscreenGroup = this.getTerminalPanelGroup(this.fullscreenPanelId);
-			if (fullscreenGroup && fullscreenGroup.projectPath === projectPath) {
-				this.switchFullscreen(group.id);
-			}
-		}
-		this.onPersist();
+		this.terminalState.setSelectedTerminalPanel(projectPath, panelId);
 	}
 
 	getTerminalPanelGroup(groupId: string): TerminalPanelGroup | undefined {
-		return this.terminalPanelGroupById.get(groupId);
+		return this.terminalState.getTerminalPanelGroup(groupId);
 	}
 
 	getTerminalPanelGroupsForProject(projectPath: string): TerminalPanelGroup[] {
-		return this.terminalPanelGroupsByProject.get(projectPath) ?? [];
+		return this.terminalState.getTerminalPanelGroupsForProject(projectPath);
 	}
 
 	getTerminalTabsForGroup(groupId: string): TerminalTab[] {
-		return this.getTerminalTabsFromCollection(this.terminalTabs, groupId);
+		return this.terminalState.getTerminalTabsForGroup(groupId);
 	}
 
 	getSelectedTerminalTabId(groupId: string): string | null {
-		const group = this.getTerminalPanelGroup(groupId);
-		if (!group) {
-			return null;
-		}
-
-		const tabs = this.getTerminalTabsForGroup(groupId);
-		const selectedTab = tabs.find((tab) => tab.id === group.selectedTabId);
-		if (selectedTab) {
-			return selectedTab.id;
-		}
-
-		const firstTab = tabs[0];
-		return firstTab ? firstTab.id : null;
+		return this.terminalState.getSelectedTerminalTabId(groupId);
 	}
 
 	getSelectedTerminalTab(groupId: string): TerminalTab | null {
-		const selectedTabId = this.getSelectedTerminalTabId(groupId);
-		if (!selectedTabId) {
-			return null;
-		}
-		const tab = this.getTerminalTabsForGroup(groupId).find(
-			(candidate) => candidate.id === selectedTabId
-		);
-		return tab ? tab : null;
+		return this.terminalState.getSelectedTerminalTab(groupId);
 	}
 
 	canMoveTerminalTabToNewPanel(tabId: string): boolean {
-		const tab = this.terminalTabs.find((candidate) => candidate.id === tabId);
-		if (!tab) {
-			return false;
-		}
-		return this.getTerminalTabsForGroup(tab.groupId).length > 1;
+		return this.terminalState.canMoveTerminalTabToNewPanel(tabId);
 	}
 
-	/**
-	 * Open a new terminal panel for a project (always creates; use for "New terminal").
-	 */
 	openTerminalPanel(projectPath: string, width?: number): TerminalPanelGroup {
-		const groupId = crypto.randomUUID();
-		const normalizedWidth = width ? width : DEFAULT_TERMINAL_PANEL_WIDTH;
-		const firstTab = this.createTerminalTab(groupId, projectPath);
-		const group: TerminalPanelGroup = {
-			id: groupId,
-			projectPath,
-			width: normalizedWidth,
-			selectedTabId: firstTab.id,
-			order: 0,
-		};
-
-		const groups = this.getAllTerminalPanelGroups();
-		let insertIndex = groups.length;
-		for (let index = 0; index < groups.length; index += 1) {
-			if (groups[index]?.projectPath === projectPath) {
-				insertIndex = index + 1;
-			}
-		}
-
-		const nextGroups = groups.slice(0, insertIndex).concat([group], groups.slice(insertIndex));
-		this.terminalTabs = this.terminalTabs.concat([firstTab]);
-		this.setTerminalPanelGroupsInDisplayOrder(nextGroups);
-		this.focusOpenedTopLevelPanel(group.id);
-		this.onPersist();
-
-		logger.debug("Opened terminal panel", { projectPath, panelId: group.id });
-		return group;
+		return this.terminalState.openTerminalPanel(projectPath, width);
 	}
 
 	openTerminalTab(groupId: string): TerminalTab | null {
-		const group = this.getTerminalPanelGroup(groupId);
-		if (!group) {
-			console.warn("Attempted to open terminal tab for stale group", { groupId });
-			return null;
-		}
-
-		const tab = this.createTerminalTab(groupId, group.projectPath);
-		this.terminalTabs = this.terminalTabs.concat([tab]);
-		this.updateTerminalGroup(groupId, (current) => ({
-			id: current.id,
-			projectPath: current.projectPath,
-			width: current.width,
-			selectedTabId: tab.id,
-			order: current.order,
-		}));
-		this.focusedPanelId = groupId;
-		this.onPersist();
-		return tab;
+		return this.terminalState.openTerminalTab(groupId);
 	}
 
 	setSelectedTerminalTab(groupId: string, tabId: string): void {
-		const group = this.getTerminalPanelGroup(groupId);
-		if (!group) {
-			console.warn("Attempted to select terminal tab for stale group", { groupId, tabId });
-			return;
-		}
-		const tabExists = this.getTerminalTabsForGroup(groupId).some((tab) => tab.id === tabId);
-		if (!tabExists) {
-			console.warn("Attempted to select stale terminal tab", { groupId, tabId });
-			return;
-		}
-
-		this.updateTerminalGroup(groupId, (current) => ({
-			id: current.id,
-			projectPath: current.projectPath,
-			width: current.width,
-			selectedTabId: tabId,
-			order: current.order,
-		}));
-		this.focusedPanelId = groupId;
-		this.onPersist();
+		this.terminalState.setSelectedTerminalTab(groupId, tabId);
 	}
 
 	moveTerminalTabToNewPanel(tabId: string): TerminalPanelGroup | null {
-		const tab = this.terminalTabs.find((candidate) => candidate.id === tabId);
-		if (!tab) {
-			console.warn("Attempted to move stale terminal tab", { tabId });
-			return null;
-		}
-		if (!this.canMoveTerminalTabToNewPanel(tabId)) {
-			console.warn("Attempted to move non-movable terminal tab", { tabId, groupId: tab.groupId });
-			return null;
-		}
-
-		const sourceGroup = this.getTerminalPanelGroup(tab.groupId);
-		if (!sourceGroup) {
-			console.warn("Attempted to move terminal tab from stale group", {
-				tabId,
-				groupId: tab.groupId,
-			});
-			return null;
-		}
-
-		const sourceTabs = this.getTerminalTabsForGroup(sourceGroup.id);
-		const movedTabIndex = sourceTabs.findIndex((candidate) => candidate.id === tabId);
-		if (movedTabIndex === -1) {
-			console.warn("Attempted to move terminal tab missing from group", {
-				tabId,
-				groupId: sourceGroup.id,
-			});
-			return null;
-		}
-
-		const newGroup: TerminalPanelGroup = {
-			id: crypto.randomUUID(),
-			projectPath: sourceGroup.projectPath,
-			width: DEFAULT_TERMINAL_PANEL_WIDTH,
-			selectedTabId: tab.id,
-			order: sourceGroup.order + 1,
-		};
-
-		this.terminalTabs = this.terminalTabs.map((candidate) =>
-			candidate.id === tabId
-				? {
-						id: candidate.id,
-						groupId: newGroup.id,
-						projectPath: candidate.projectPath,
-						createdAt: candidate.createdAt,
-						ptyId: candidate.ptyId,
-						shell: candidate.shell,
-					}
-				: candidate
-		);
-
-		const remainingSourceTabs = sourceTabs.filter((candidate) => candidate.id !== tabId);
-		const previousFullscreenPanelId = this.fullscreenPanelId;
-		const wasVisibleSingleModePanel = this.getSelectedSingleModePanelId() === sourceGroup.id;
-		const groups = this.getAllTerminalPanelGroups();
-		const nextGroups: TerminalPanelGroup[] = [];
-		for (const group of groups) {
-			if (group.id !== sourceGroup.id) {
-				nextGroups.push(group);
-				continue;
-			}
-
-			if (remainingSourceTabs.length > 0) {
-				nextGroups.push({
-					id: group.id,
-					projectPath: group.projectPath,
-					width: group.width,
-					selectedTabId: this.getFallbackSelectedTerminalTabId(group.id, movedTabIndex),
-					order: group.order,
-				});
-			}
-			nextGroups.push(newGroup);
-		}
-
-		this.setTerminalPanelGroupsInDisplayOrder(nextGroups);
-		this.focusedPanelId = newGroup.id;
-		if (wasVisibleSingleModePanel || previousFullscreenPanelId === sourceGroup.id) {
-			this.switchFullscreen(newGroup.id);
-		}
-		this.onPersist();
-
-		return this.getTerminalPanelGroup(newGroup.id) ?? newGroup;
+		return this.terminalState.moveTerminalTabToNewPanel(tabId);
 	}
 
-	/**
-	 * Close a terminal panel by ID.
-	 */
 	closeTerminalPanel(panelId: string): void {
-		const group = this.getTerminalPanelGroup(panelId);
-		if (!group) {
-			console.warn("Attempted to close stale terminal group", { panelId });
-			return;
-		}
-		const tabIds = this.getTerminalTabsForGroup(panelId).map((tab) => tab.id);
-		for (const tabId of tabIds) {
-			this.closeTerminalTab(tabId);
-		}
+		this.terminalState.closeTerminalPanel(panelId);
 	}
 
-	/**
-	 * Update the PTY ID and shell for a terminal panel.
-	 * Called after the PTY is spawned.
-	 */
 	updateTerminalPtyId(tabId: string, ptyId: number, shell: string): void {
-		const tab = this.terminalTabs.find((candidate) => candidate.id === tabId);
-		if (!tab) {
-			console.warn("Attempted to update PTY for stale terminal tab", { tabId, ptyId, shell });
-			return;
-		}
-		this.terminalTabs = this.terminalTabs.map((tab) =>
-			tab.id === tabId
-				? {
-						id: tab.id,
-						groupId: tab.groupId,
-						projectPath: tab.projectPath,
-						createdAt: tab.createdAt,
-						ptyId,
-						shell,
-					}
-				: tab
-		);
+		this.terminalState.updateTerminalPtyId(tabId, ptyId, shell);
 	}
 
 	closeTerminalTab(tabId: string): void {
-		const tab = this.terminalTabs.find((candidate) => candidate.id === tabId);
-		if (!tab) {
-			console.warn("Attempted to close stale terminal tab", { tabId });
-			return;
-		}
-
-		const group = this.getTerminalPanelGroup(tab.groupId);
-		if (!group) {
-			console.warn("Attempted to close terminal tab in stale group", {
-				tabId,
-				groupId: tab.groupId,
-			});
-			return;
-		}
-
-		const sourceTabs = this.getTerminalTabsForGroup(group.id);
-		const removedIndex = sourceTabs.findIndex((candidate) => candidate.id === tabId);
-		const closeState = this.captureTopLevelPanelCloseState(group.id);
-		this.terminalTabs = this.terminalTabs.filter((candidate) => candidate.id !== tabId);
-
-		const remainingTabs = this.getTerminalTabsForGroup(group.id);
-		if (remainingTabs.length === 0) {
-			const groups = this.getAllTerminalPanelGroups().filter(
-				(candidate) => candidate.id !== group.id
-			);
-			this.setTerminalPanelGroupsInDisplayOrder(groups);
-			this.applyTopLevelPanelCloseState(closeState);
-			this.onPersist();
-			return;
-		}
-
-		const selectedTabId =
-			group.selectedTabId === tabId
-				? this.getFallbackSelectedTerminalTabId(group.id, removedIndex)
-				: this.getSelectedTerminalTabId(group.id);
-		this.updateTerminalGroup(group.id, (current) => ({
-			id: current.id,
-			projectPath: current.projectPath,
-			width: current.width,
-			selectedTabId,
-			order: current.order,
-		}));
-		this.onPersist();
+		this.terminalState.closeTerminalTab(tabId);
 	}
 
-	/**
-	 * Resize a terminal panel.
-	 */
 	resizeTerminalPanel(groupId: string, delta: number): void {
-		const group = this.getTerminalPanelGroup(groupId);
-		if (!group) {
-			console.warn("Attempted to resize stale terminal group", { groupId, delta });
-			return;
-		}
-		this.updateTerminalGroup(groupId, (current) => ({
-			id: current.id,
-			projectPath: current.projectPath,
-			width: Math.max(current.width + delta, MIN_TERMINAL_PANEL_WIDTH),
-			selectedTabId: current.selectedTabId,
-			order: current.order,
-		}));
-		this.onPersist();
+		this.terminalState.resizeTerminalPanel(groupId, delta);
 	}
 
-	/**
-	 * Get a terminal panel by ID.
-	 */
 	getTerminalPanel(panelId: string): TerminalPanelGroup | undefined {
-		return this.getTerminalPanelGroup(panelId);
+		return this.terminalState.getTerminalPanel(panelId);
 	}
 
-	/**
-	 * Toggle terminal for a project: if none open, open one; if any open, focus first (show in fullscreen aux).
-	 */
 	toggleTerminalPanel(projectPath: string, width?: number): void {
-		const forProject = this.getTerminalPanelsForProject(projectPath);
-		if (forProject.length > 0) {
-			const first = forProject[0];
-			this.focusOpenedTopLevelPanel(first.id);
-			this.onPersist();
-		} else {
-			this.openTerminalPanel(projectPath, width);
-		}
+		this.terminalState.toggleTerminalPanel(projectPath, width);
 	}
 
-	/**
-	 * Check if any terminal is open for a project.
-	 */
 	isTerminalOpenForProject(projectPath: string): boolean {
-		return this.getTerminalPanelsForProject(projectPath).length > 0;
+		return this.terminalState.isTerminalOpenForProject(projectPath);
 	}
 
 	// ============================================
@@ -2744,61 +1416,14 @@ export class PanelStore {
 		width?: number,
 		initialTarget?: GitPanelInitialTarget
 	): GitDialogState {
-		const result = openGitModalPanel(
-			this.gitDialog ? [this.gitDialog] : [],
-			projectPath,
-			width ?? DEFAULT_GIT_PANEL_WIDTH,
-			() => crypto.randomUUID()
-		);
-
-		const activePanelId = result.activePanel.id;
-		const nextDialogs = result.panels.map((panel) => {
-			const nextInitialTarget =
-				panel.id === activePanelId && initialTarget !== undefined
-					? initialTarget
-					: panel.initialTarget;
-			return {
-				id: panel.id,
-				projectPath: panel.projectPath,
-				width: panel.width,
-				initialTarget: nextInitialTarget,
-			};
-		});
-		const activeDialog = nextDialogs.find((panel) => panel.id === activePanelId);
-		if (!activeDialog) {
-			throw new Error(`Missing git dialog after opening ${projectPath}`);
-		}
-
-		this.gitDialog = activeDialog;
-		if (this.viewMode !== "multi") {
-			this.focusedViewProjectPath = projectPath;
-			this.scrollX = 0;
-		}
-		this.onPersist();
-
-		logger.debug("Opened git dialog", { projectPath, panelId: activeDialog.id });
-		return activeDialog;
+		return this.gitState.openGitDialog(projectPath, width, initialTarget);
 	}
 
 	/**
 	 * Close the source control dialog.
 	 */
 	closeGitDialog(): void {
-		if (this.gitDialog === null) {
-			return;
-		}
-		const panelId = this.gitDialog.id;
-		this.gitDialog = null;
-		this.onPersist();
-		logger.debug("Closed git dialog", { panelId });
-	}
-
-	private closeLegacyGitPanel(panelId: string): void {
-		const closeState = this.captureTopLevelPanelCloseState(panelId);
-		this.gitPanels = this.gitPanels.filter((panel) => panel.id !== panelId);
-		this.applyTopLevelPanelCloseState(closeState);
-		this.onPersist();
-		logger.debug("Closed legacy git panel", { panelId });
+		this.gitState.closeGitDialog();
 	}
 
 	// ============================================
@@ -2810,69 +1435,32 @@ export class PanelStore {
 	 * If already open for the same project+URL, focuses the existing panel.
 	 */
 	openBrowserPanel(projectPath: string, url: string, title?: string): BrowserPanel {
-		if (!projectPath) {
-			logger.warn("openBrowserPanel called without projectPath", { url });
-		}
-		const existing = this.getBrowserPanelsForProject(projectPath).find((p) => p.url === url);
-		if (existing) {
-			this.focusOpenedTopLevelPanel(existing.id);
-			logger.debug("Browser panel already open for URL, focusing", { url, projectPath });
-			return existing;
-		}
-
-		const panel: BrowserPanel = {
-			id: crypto.randomUUID(),
-			kind: "browser",
-			projectPath,
-			url,
-			title: title ?? url,
-			width: DEFAULT_BROWSER_PANEL_WIDTH,
-			ownerPanelId: null,
-		};
-
-		this.browserPanels = [panel, ...this.browserPanels];
-		this.focusOpenedTopLevelPanel(panel.id);
-		this.onPersist();
-
-		logger.debug("Opened browser panel", { url, panelId: panel.id });
-		return panel;
+		return this.browserState.openBrowserPanel(projectPath, url, title);
 	}
 
 	/**
 	 * Close a browser panel by ID.
 	 */
 	closeBrowserPanel(panelId: string): void {
-		const closeState = this.captureTopLevelPanelCloseState(panelId);
-		// Close the native webview before removing panel from state.
-		// This ensures cleanup even if the component's onDestroy doesn't fire in time.
-		const label = `browser-${panelId}`;
-		browserWebview.close(label);
-
-		this.browserPanels = this.browserPanels.filter((p) => p.id !== panelId);
-		this.applyTopLevelPanelCloseState(closeState);
-		this.onPersist();
-		logger.debug("Closed browser panel", { panelId });
+		this.browserState.closeBrowserPanel(panelId);
 	}
 
 	/**
 	 * Resize a browser panel.
 	 */
 	resizeBrowserPanel(panelId: string, delta: number): void {
-		this.browserPanels = this.browserPanels.map((p) =>
-			p.id === panelId ? { ...p, width: Math.max(p.width + delta, MIN_BROWSER_PANEL_WIDTH) } : p
-		);
-		this.onPersist();
+		this.browserState.resizeBrowserPanel(panelId, delta);
 	}
 
 	/**
 	 * Get a browser panel by ID.
 	 */
 	getBrowserPanel(panelId: string): BrowserPanel | undefined {
-		return this.browserPanelById.get(panelId);
+		return this.browserState.getBrowserPanel(panelId);
 	}
 
 	getBrowserPanelsForProject(projectPath: string): BrowserPanel[] {
-		return this.browserPanelsByProject.get(projectPath) ?? [];
+		return this.browserState.getBrowserPanelsForProject(projectPath);
 	}
 }
 
