@@ -7,6 +7,8 @@ import { createLogger } from "$lib/acp/utils/logger.js";
 
 const logger = createLogger({ id: "open-persisted-session", name: "OpenPersistedSession" });
 const inflightPanelIds = new Set<string>();
+const HYDRATED_RECONNECT_REFRESH_TIMEOUT_MS = 45_000;
+const HYDRATED_RECONNECT_REFRESH_INTERVAL_MS = 1_000;
 
 type SessionOpenStore = Pick<
 	SessionStore,
@@ -15,7 +17,9 @@ type SessionOpenStore = Pick<
 	| "setLocalCreatedSessionLoaded"
 	| "getSessionIdentity"
 	| "getSessionMetadata"
+	| "getSessionLifecycleStatus"
 	| "connectSession"
+	| "refreshCanonicalSessionState"
 	| "clearSessionEntries"
 >;
 
@@ -47,6 +51,41 @@ function isProviderHistoryBackedSession(
 	sessionMetadata: NonNullable<ReturnType<SessionOpenStore["getSessionMetadata"]>>
 ): boolean {
 	return sessionMetadata.sessionLifecycleState !== "created" || Boolean(sessionMetadata.sourcePath);
+}
+
+function delay(ms: number): Promise<void> {
+	return new Promise((resolve) => {
+		setTimeout(resolve, ms);
+	});
+}
+
+async function refreshHydratedSessionUntilReady(input: HydratedReconnectOptions): Promise<void> {
+	const { source, panelId, requestedSessionId, canonicalSessionId, sessionStore } = input;
+	const deadlineMs = Date.now() + HYDRATED_RECONNECT_REFRESH_TIMEOUT_MS;
+
+	while (Date.now() <= deadlineMs) {
+		await delay(HYDRATED_RECONNECT_REFRESH_INTERVAL_MS);
+		await sessionStore
+			.refreshCanonicalSessionState(canonicalSessionId)
+			.orElse((error) => {
+				logger.warn("Failed to refresh hydrated session snapshot after reconnect start", {
+					source,
+					panelId,
+					requestedSessionId,
+					canonicalSessionId,
+					error,
+				});
+				return okAsync(undefined);
+			})
+			.match(
+				() => undefined,
+				() => undefined
+			);
+
+		if (sessionStore.getSessionLifecycleStatus(canonicalSessionId) === "ready") {
+			return;
+		}
+	}
 }
 
 function reattachLocalCreatedSession(input: {
@@ -102,8 +141,9 @@ function reconnectHydratedSession(input: HydratedReconnectOptions): Promise<void
 			() => undefined,
 			() => undefined
 		);
+	const refresh = refreshHydratedSessionUntilReady(input);
 
-	return reconnect;
+	return Promise.all([refresh, reconnect]).then(() => undefined);
 }
 
 export function openPersistedSession(options: OpenPersistedSessionOptions): void {

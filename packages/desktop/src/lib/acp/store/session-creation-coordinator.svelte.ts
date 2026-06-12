@@ -4,8 +4,7 @@
  * (see docs/adr/0002).
  *
  * The parent `SessionStore` holds one instance. The coordinator owns the
- * state maps and references; the parent's public creation/loading methods
- * read/write these through the coordinator's public fields.
+ * creation-lifecycle slice; the parent delegates through verb methods.
  */
 import { SvelteMap } from "svelte/reactivity";
 import type { ResultAsync } from "neverthrow";
@@ -26,9 +25,9 @@ export type LiveSessionStateGraphConsumer = {
 };
 
 export class SessionCreationCoordinator {
-	readonly pendingCreationSessions = new SvelteMap<string, CreatedPendingSessionResult>();
-	sessionOpenHydrator: CreatedSessionHydrator | null = null;
-	liveSessionStateGraphConsumer: LiveSessionStateGraphConsumer | null = null;
+	#pendingCreationSessions = new SvelteMap<string, CreatedPendingSessionResult>();
+	#sessionOpenHydrator: CreatedSessionHydrator | null = null;
+	#liveSessionStateGraphConsumer: LiveSessionStateGraphConsumer | null = null;
 
 	readonly #messagingSvc: SessionMessagingService;
 	readonly #onTurnError?: (sessionId: string) => void;
@@ -41,16 +40,67 @@ export class SessionCreationCoordinator {
 		this.#onTurnError = deps.onTurnError;
 	}
 
-	hasPendingCreationSession(sessionId: string): boolean {
-		return this.pendingCreationSessions.has(sessionId);
+	attachSessionConsumers(consumers: {
+		sessionOpenHydrator?: CreatedSessionHydrator;
+		liveSessionStateGraphConsumer?: LiveSessionStateGraphConsumer;
+	}): void {
+		if (consumers.sessionOpenHydrator !== undefined) {
+			this.#sessionOpenHydrator = consumers.sessionOpenHydrator;
+		}
+		if (consumers.liveSessionStateGraphConsumer !== undefined) {
+			this.#liveSessionStateGraphConsumer = consumers.liveSessionStateGraphConsumer;
+		}
 	}
 
-	failPendingCreationSession(sessionId: string, update: TurnErrorUpdate): void {
-		if (!this.pendingCreationSessions.has(sessionId)) {
+	beginPendingCreation(sessionId: string, result: CreatedPendingSessionResult): void {
+		this.#pendingCreationSessions.set(sessionId, result);
+	}
+
+	hasPendingCreation(sessionId: string): boolean {
+		return this.#pendingCreationSessions.has(sessionId);
+	}
+
+	getPendingCreation(sessionId: string): CreatedPendingSessionResult | null {
+		return this.#pendingCreationSessions.get(sessionId) ?? null;
+	}
+
+	completePendingCreation(sessionId: string): void {
+		this.#pendingCreationSessions.delete(sessionId);
+	}
+
+	failPendingCreation(sessionId: string, update: TurnErrorUpdate): void {
+		if (!this.#pendingCreationSessions.has(sessionId)) {
 			return;
 		}
 		this.#messagingSvc.handleCanonicalTurnFailure(sessionId, update);
-		this.pendingCreationSessions.delete(sessionId);
+		this.#pendingCreationSessions.delete(sessionId);
 		this.#onTurnError?.(sessionId);
+	}
+
+	hasPendingCreationSession(sessionId: string): boolean {
+		return this.hasPendingCreation(sessionId);
+	}
+
+	failPendingCreationSession(sessionId: string, update: TurnErrorUpdate): void {
+		this.failPendingCreation(sessionId, update);
+	}
+
+	hasSessionOpenHydrator(): boolean {
+		return this.#sessionOpenHydrator !== null;
+	}
+
+	hydrateCreatedSession(found: SessionOpenFound): ResultAsync<void, AppError> {
+		if (this.#sessionOpenHydrator === null) {
+			throw new Error("SessionCreationCoordinator: session open hydrator is not attached");
+		}
+		return this.#sessionOpenHydrator.hydrateCreated(found);
+	}
+
+	replaceLiveSessionStateGraph(graph: SessionStateGraph): void {
+		this.#liveSessionStateGraphConsumer?.replaceSessionStateGraph(graph);
+	}
+
+	applyLiveSessionInteractionPatches(snapshots: ReadonlyArray<InteractionSnapshot>): void {
+		this.#liveSessionStateGraphConsumer?.applySessionInteractionPatches?.(snapshots);
 	}
 }

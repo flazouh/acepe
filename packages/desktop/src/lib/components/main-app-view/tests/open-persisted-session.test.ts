@@ -18,7 +18,9 @@ type SessionOpenStore = Pick<
 	| "getSessionCold"
 	| "getSessionIdentity"
 	| "getSessionMetadata"
+	| "getSessionLifecycleStatus"
 	| "connectSession"
+	| "refreshCanonicalSessionState"
 	| "clearSessionEntries"
 >;
 
@@ -78,9 +80,11 @@ describe("openPersistedSession", () => {
 			setLocalCreatedSessionLoaded: mock(() => {}),
 			clearSessionEntries: mock(() => {}),
 			connectSession: mock(() => okAsync({} as any)),
+			refreshCanonicalSessionState: mock(() => okAsync(undefined)),
 			getSessionCold: mock(() => null),
 			getSessionIdentity: mock(() => undefined),
 			getSessionMetadata: mock(() => undefined),
+			getSessionLifecycleStatus: mock(() => "ready"),
 		} as unknown as SessionOpenStore;
 		setSessionLookup({
 			id: "session-1",
