@@ -54,30 +54,7 @@ pub fn project_transcript_viewport_rows(
         });
     }
 
-    ensure_unique_display_row_ids(&mut rows);
     rows
-}
-
-/// Guarantees the display `row_id` is unique across the projected rows.
-///
-/// `row_id` is the Acepe-owned display identity for a layout row. It keys
-/// `LayoutIndex.index_by_row_id` (a map, so collisions silently collapse and
-/// corrupt offset lookups) and the WebView keyed-each (which throws on a
-/// duplicate key). A provider-derived `entry_id` is NOT guaranteed unique —
-/// history parsing can emit two entries that reuse one Bedrock/Claude
-/// `tool_use.id`. The second-and-later occurrence of a colliding id gets a
-/// stable ordinal suffix so both rows survive with distinct identities; their
-/// `source_entry_id` stays the raw provider id, so operation/interaction links
-/// (resolved by `source_entry_id`) are unaffected.
-fn ensure_unique_display_row_ids(rows: &mut [TranscriptViewportRow]) {
-    let mut occurrences: BTreeMap<String, u32> = BTreeMap::new();
-    for row in rows.iter_mut() {
-        let seen = occurrences.entry(row.row_id.clone()).or_insert(0);
-        if *seen > 0 {
-            row.row_id = format!("{}#dup{}", row.row_id, *seen);
-        }
-        *seen += 1;
-    }
 }
 
 fn project_entry(
@@ -547,12 +524,10 @@ mod tests {
     }
 
     #[test]
-    fn duplicate_entry_ids_get_unique_display_row_ids() {
-        // A history-parsed session can carry two transcript entries with the
-        // same provider-derived entry_id (e.g. a reused Bedrock `tool_use.id`).
-        // The viewport row_id is the Acepe-owned display identity and MUST be
-        // unique: it keys `LayoutIndex.index_by_row_id` (a map — duplicates
-        // collapse, corrupting offsets) and the WebView keyed-each.
+    fn duplicate_entry_ids_project_with_identical_row_ids_without_dup_suffix() {
+        // Authority-owned ids are unique upstream; the viewport no longer suffixes
+        // colliding row ids — duplicate source entry ids would surface as duplicate
+        // row ids (a data bug), not be masked downstream.
         let rows = project_transcript_viewport_rows(
             &snapshot(vec![
                 text_entry("toolu_bdrk_dup", TranscriptEntryRole::Tool, "first"),
@@ -566,12 +541,7 @@ mod tests {
         );
 
         assert_eq!(rows.len(), 3, "no row is dropped");
-        let row_ids: Vec<&str> = rows.iter().map(|row| row.row_id.as_str()).collect();
-        let unique: std::collections::BTreeSet<&str> = row_ids.iter().copied().collect();
-        assert_eq!(unique.len(), 3, "display row_ids are unique: {row_ids:?}");
-        // First occurrence keeps the canonical id; operation linking still
-        // resolves via source_entry_id, which stays the raw provider id.
-        assert_eq!(rows[0].row_id, "transcript:toolu_bdrk_dup");
+        assert!(rows.iter().all(|row| row.row_id == "transcript:toolu_bdrk_dup"));
         for row in &rows {
             assert_eq!(row.source_entry_id, "toolu_bdrk_dup");
         }

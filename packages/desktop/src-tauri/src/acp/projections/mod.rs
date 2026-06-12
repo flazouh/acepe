@@ -10,7 +10,7 @@ use crate::acp::session_update::{
     InteractionReplyHandler, PermissionData, QuestionData, SessionUpdate, ToolArguments,
     ToolCallData, ToolCallStatus, ToolCallUpdateData, ToolKind, ToolReference, ToolSourceContext,
 };
-use crate::acp::transcript_projection::live_tool_entry_id_for_event_seq;
+use crate::acp::transcript_projection::live_tool_entry_id_for_tool_call;
 use crate::acp::types::CanonicalAgentId;
 use crate::acp::types::ContentBlock;
 use crate::session_jsonl::types::StoredEntry;
@@ -83,11 +83,13 @@ pub struct ProjectionRegistry {
 }
 
 
+pub mod projection_apply_router;
 pub mod session_lifecycle;
 pub mod operations;
 pub mod bridge;
 pub mod interactions;
 pub mod helpers;
+pub use projection_apply_router::{route_projection_apply, ProjectionApplyArm, ProjectionApplyRoute};
 pub(crate) use helpers::*;
 
 #[cfg(test)]

@@ -14,22 +14,19 @@ impl ProjectionRegistry {
             .map(|snapshot| snapshot.clone())
     }
 
-    pub fn relink_tool_call_to_transcript_event_seq(
+    pub fn relink_tool_call_to_transcript_entry(
         &self,
         session_id: &str,
         tool_call_id: &str,
-        event_seq: i64,
+        entry_id: &str,
     ) {
-        if event_seq <= 0 {
-            return;
-        }
         let Some(operation_id) = self.lookup_operation_id_by_tool_call(session_id, tool_call_id)
         else {
             return;
         };
         if let Some(mut operation) = self.operations_by_id.get_mut(&operation_id) {
             operation.source_link =
-                OperationSourceLink::transcript_linked(live_tool_entry_id_for_event_seq(event_seq));
+                OperationSourceLink::transcript_linked(entry_id.to_string());
         }
     }
 

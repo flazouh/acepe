@@ -1,3 +1,6 @@
+use super::projection_apply_router::{
+    route_projection_apply, ProjectionApplyArm, ProjectionApplyRoute,
+};
 use super::*;
 
 impl ProjectionRegistry {
@@ -136,38 +139,68 @@ impl ProjectionRegistry {
 
         snapshot.last_event_seq = snapshot.last_event_seq.saturating_add(1);
 
-        match update {
-            SessionUpdate::UserMessageChunk { .. } => {
+        let route = route_projection_apply(update, &snapshot);
+        if let ProjectionApplyRoute::Apply(arm) = route {
+            self.dispatch_projection_apply(session_id, update, &mut snapshot, arm);
+        }
+    }
+
+    fn dispatch_projection_apply(
+        &self,
+        session_id: &str,
+        update: &SessionUpdate,
+        snapshot: &mut SessionSnapshot,
+        arm: ProjectionApplyArm,
+    ) {
+        match arm {
+            ProjectionApplyArm::UserMessageChunk => {
                 snapshot.message_count = snapshot.message_count.saturating_add(1);
-                start_running_turn(&mut snapshot);
+                snapshot.transcript_entry_count = snapshot.transcript_entry_count.saturating_add(1);
+                snapshot.assistant_boundary_entry_count = snapshot.transcript_entry_count;
+                start_running_turn(snapshot);
             }
-            SessionUpdate::AgentMessageChunk { .. } => {
+            ProjectionApplyArm::AgentMessageChunk => {
                 snapshot.message_count = snapshot.message_count.saturating_add(1);
-                if !preserves_terminal_turn(&snapshot) {
-                    start_running_turn(&mut snapshot);
+                if !preserves_terminal_turn(snapshot) {
+                    if snapshot.transcript_entry_count == snapshot.assistant_boundary_entry_count {
+                        snapshot.transcript_entry_count =
+                            snapshot.transcript_entry_count.saturating_add(1);
+                    }
+                    start_running_turn(snapshot);
                 }
             }
-            SessionUpdate::AgentThoughtChunk { .. } if !preserves_terminal_turn(&snapshot) => {
-                start_running_turn(&mut snapshot);
+            ProjectionApplyArm::AgentThoughtChunk => {
+                if !preserves_terminal_turn(snapshot) {
+                    if snapshot.transcript_entry_count == snapshot.assistant_boundary_entry_count {
+                        snapshot.transcript_entry_count =
+                            snapshot.transcript_entry_count.saturating_add(1);
+                    }
+                    start_running_turn(snapshot);
+                }
             }
-            SessionUpdate::AgentThoughtChunk { .. } => {}
-            SessionUpdate::ToolCall { tool_call, .. } => {
-                if preserves_terminal_turn(&snapshot) {
+            ProjectionApplyArm::ToolCallAsConvertedQuestion => {
+                let SessionUpdate::ToolCall { tool_call, .. } = update else {
                     return;
-                }
-                let entry_id = live_tool_entry_id_for_event_seq(snapshot.last_event_seq);
+                };
                 let tool_call = normalize_tool_call_for_operation_ingress(tool_call);
-                if should_skip_unanswered_question_tool_operation(&tool_call) {
-                    self.register_converted_question_interaction(
-                        session_id,
-                        &tool_call,
-                        snapshot.last_event_seq,
-                    );
+                self.register_converted_question_interaction(
+                    session_id,
+                    &tool_call,
+                    snapshot.last_event_seq,
+                );
+            }
+            ProjectionApplyArm::ToolCall => {
+                let SessionUpdate::ToolCall { tool_call, .. } = update else {
                     return;
-                }
+                };
+                let entry_id = live_tool_entry_id_for_tool_call(
+                    snapshot.assistant_boundary_entry_count,
+                    &tool_call.id,
+                );
+                let tool_call = normalize_tool_call_for_operation_ingress(tool_call);
                 upsert_active_tool_call(&mut snapshot.active_tool_call_ids, &tool_call.id);
                 if is_terminal_tool_call_status(&tool_call.status) {
-                    mark_tool_call_completed(&mut snapshot, &tool_call.id);
+                    mark_tool_call_completed(snapshot, &tool_call.id);
                 }
                 self.upsert_tool_call_projection(
                     session_id,
@@ -177,12 +210,14 @@ impl ProjectionRegistry {
                     OperationSourceLink::transcript_linked(entry_id),
                 );
                 self.register_plan_approval_interaction(session_id, &tool_call);
-                start_running_turn(&mut snapshot);
+                snapshot.transcript_entry_count = snapshot.transcript_entry_count.saturating_add(1);
+                snapshot.assistant_boundary_entry_count = snapshot.transcript_entry_count;
+                start_running_turn(snapshot);
             }
-            SessionUpdate::ToolCallUpdate { update, .. } => {
-                if preserves_terminal_turn(&snapshot) {
+            ProjectionApplyArm::ToolCallUpdate => {
+                let SessionUpdate::ToolCallUpdate { update, .. } = update else {
                     return;
-                }
+                };
                 let update = normalize_tool_call_update_for_operation_ingress(update);
                 upsert_active_tool_call(&mut snapshot.active_tool_call_ids, &update.tool_call_id);
                 if update
@@ -190,37 +225,46 @@ impl ProjectionRegistry {
                     .as_ref()
                     .is_some_and(is_terminal_tool_call_status)
                 {
-                    mark_tool_call_completed(&mut snapshot, &update.tool_call_id);
+                    mark_tool_call_completed(snapshot, &update.tool_call_id);
                 }
                 self.apply_tool_call_update_projection(session_id, &update);
-                start_running_turn(&mut snapshot);
+                start_running_turn(snapshot);
             }
-            SessionUpdate::PermissionRequest { permission, .. } => {
+            ProjectionApplyArm::PermissionRequest => {
+                let SessionUpdate::PermissionRequest { permission, .. } = update else {
+                    return;
+                };
                 self.register_permission_interaction(permission, snapshot.last_event_seq);
             }
-            SessionUpdate::QuestionRequest { question, .. } => {
+            ProjectionApplyArm::QuestionRequest => {
+                let SessionUpdate::QuestionRequest { question, .. } = update else {
+                    return;
+                };
                 self.register_question_interaction(question);
             }
-            SessionUpdate::TurnComplete { turn_id, .. } => {
-                if should_ignore_turn_complete(&snapshot, turn_id.as_deref()) {
+            ProjectionApplyArm::TurnComplete => {
+                let SessionUpdate::TurnComplete { turn_id, .. } = update else {
                     return;
-                }
+                };
                 snapshot.turn_state = SessionTurnState::Completed;
                 snapshot.active_tool_call_ids.clear();
                 snapshot.active_turn_failure = None;
                 snapshot.last_terminal_turn_id = turn_id.clone();
             }
-            SessionUpdate::TurnError { error, turn_id, .. } => {
-                if should_ignore_late_turn_failure(&snapshot, turn_id.as_deref()) {
+            ProjectionApplyArm::TurnError => {
+                let SessionUpdate::TurnError { error, turn_id, .. } = update else {
                     return;
-                }
+                };
                 snapshot.turn_state = SessionTurnState::Failed;
                 snapshot.active_tool_call_ids.clear();
                 snapshot.active_turn_failure =
                     Some(convert_turn_error_snapshot(error, turn_id.clone()));
                 snapshot.last_terminal_turn_id = turn_id.clone();
             }
-            SessionUpdate::TurnCancelled { turn_id, .. } => {
+            ProjectionApplyArm::TurnCancelled => {
+                let SessionUpdate::TurnCancelled { turn_id, .. } = update else {
+                    return;
+                };
                 let cancelled_operation_ids =
                     self.cancel_active_tool_calls(session_id, &snapshot.active_tool_call_ids);
                 self.last_cancelled_operation_ids
@@ -230,7 +274,6 @@ impl ProjectionRegistry {
                 snapshot.active_turn_failure = None;
                 snapshot.last_terminal_turn_id = turn_id.clone();
             }
-            _ => {}
         }
     }
 

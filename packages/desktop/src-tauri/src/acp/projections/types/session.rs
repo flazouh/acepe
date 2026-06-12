@@ -35,6 +35,10 @@ pub struct SessionSnapshot {
     pub active_turn_failure: Option<TurnFailureSnapshot>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub last_terminal_turn_id: Option<String>,
+    #[serde(default)]
+    pub assistant_boundary_entry_count: usize,
+    #[serde(default)]
+    pub transcript_entry_count: usize,
 }
 
 impl SessionSnapshot {
@@ -50,6 +54,8 @@ impl SessionSnapshot {
             completed_tool_call_ids: Vec::new(),
             active_turn_failure: None,
             last_terminal_turn_id: None,
+            assistant_boundary_entry_count: 0,
+            transcript_entry_count: 0,
         }
     }
 }

@@ -577,9 +577,9 @@ mod tests {
         assert_eq!(
             entry_ids,
             vec![
-                "opencode-event-0:assistant",
-                "toolu_read",
-                "opencode-event-2:assistant"
+                "acepe::entry::session-start::assistant::.",
+                "acepe::entry::session-start::tool::toolu_read",
+                "acepe::entry::assistant-boundary:2::assistant::.",
             ]
         );
         assert!(entry_ids

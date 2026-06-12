@@ -526,7 +526,7 @@ use super::*;
         assert_eq!(
             operation.source_link,
             OperationSourceLink::TranscriptLinked {
-                entry_id: "tool-event-1".to_string()
+                entry_id: "acepe::entry::session-start::tool::tool-1".to_string()
             }
         );
     }
@@ -560,7 +560,7 @@ use super::*;
         assert_eq!(
             operation.source_link,
             OperationSourceLink::TranscriptLinked {
-                entry_id: "tool-event-1".to_string(),
+                entry_id: "acepe::entry::session-start::tool::call_MsKdahsWK4cuKJzzuOsgpjxG%0Afc_008c04d42d7516f80169f23545d0fc819a8a3e522df8820405".to_string(),
             }
         );
         assert_eq!(registry.session_operations("session-1").len(), 1);
@@ -909,6 +909,8 @@ use super::*;
                 completed_tool_call_ids: vec!["tool-1".to_string()],
                 active_turn_failure: None,
                 last_terminal_turn_id: None,
+                assistant_boundary_entry_count: 0,
+                transcript_entry_count: 0,
             }),
             operations: vec![OperationSnapshot {
                 id: "session-1:tool-1".to_string(),
@@ -1578,7 +1580,7 @@ use super::*;
     }
 
     #[test]
-    fn apply_canonical_event_uses_event_seq_for_live_tool_source_link() {
+    fn apply_canonical_event_uses_display_id_authority_for_live_tool_source_link() {
         let registry = ProjectionRegistry::new();
         registry.register_session("s1".to_string(), CanonicalAgentId::ClaudeCode);
 
@@ -1598,13 +1600,13 @@ use super::*;
         assert_eq!(
             operation.source_link,
             OperationSourceLink::TranscriptLinked {
-                entry_id: "tool-event-425".to_string()
+                entry_id: "acepe::entry::session-start::tool::tool-1".to_string()
             }
         );
     }
 
     #[test]
-    fn event_seq_projection_repairs_older_live_tool_source_link() {
+    fn event_seq_projection_keeps_display_id_authority_for_live_tool_source_link() {
         let registry = ProjectionRegistry::new();
         registry.register_session("s1".to_string(), CanonicalAgentId::ClaudeCode);
         let update = SessionUpdate::ToolCall {
@@ -1621,7 +1623,7 @@ use super::*;
         assert_eq!(
             operation.source_link,
             OperationSourceLink::TranscriptLinked {
-                entry_id: "tool-event-425".to_string()
+                entry_id: "acepe::entry::session-start::tool::tool-1".to_string()
             }
         );
     }
@@ -1670,6 +1672,97 @@ use super::*;
             "stale event must not add to projection"
         );
         assert_eq!(snapshot.last_event_seq, 10, "frontier must stay at seq=10");
+    }
+
+    // --- U5: three entry-point idempotency characterization ---
+
+    /// `apply_session_update` auto-increments `last_event_seq` and has no duplicate gate.
+    #[test]
+    fn apply_session_update_is_not_idempotent_for_duplicate_delivery() {
+        let registry = ProjectionRegistry::new();
+        registry.register_session("s1".to_string(), CanonicalAgentId::ClaudeCode);
+
+        let update = agent_chunk_update("msg-1");
+        registry.apply_session_update("s1", &update);
+        registry.apply_session_update("s1", &update);
+
+        let snapshot = registry.snapshots.get("s1").unwrap();
+        assert_eq!(
+            snapshot.message_count, 2,
+            "raw apply path must project every delivery"
+        );
+        assert_eq!(
+            snapshot.last_event_seq, 2,
+            "raw apply path auto-increments without dedupe"
+        );
+    }
+
+    /// `apply_session_update_at_event_seq` rejects replay when `event_seq <= last_event_seq`.
+    #[test]
+    fn apply_session_update_at_event_seq_skips_duplicate_event_seq() {
+        let registry = ProjectionRegistry::new();
+        registry.register_session("s1".to_string(), CanonicalAgentId::ClaudeCode);
+
+        let first = agent_chunk_update("msg-1");
+        let second = agent_chunk_update("msg-2");
+        registry.apply_session_update_at_event_seq("s1", 5, &first);
+        registry.apply_session_update_at_event_seq("s1", 5, &second);
+
+        let snapshot = registry.snapshots.get("s1").unwrap();
+        assert_eq!(snapshot.message_count, 1, "duplicate event_seq must be dropped");
+        assert_eq!(snapshot.last_event_seq, 5);
+    }
+
+    /// Non-positive `event_seq` delegates to raw apply without an idempotency gate.
+    #[test]
+    fn apply_session_update_at_event_seq_non_positive_seq_delegates_without_idempotency_gate(
+    ) {
+        let registry = ProjectionRegistry::new();
+        registry.register_session("s1".to_string(), CanonicalAgentId::ClaudeCode);
+        registry.set_last_event_seq_for_test("s1", 10);
+
+        let update = agent_chunk_update("msg-1");
+        registry.apply_session_update_at_event_seq("s1", 0, &update);
+        registry.apply_session_update_at_event_seq("s1", 0, &update);
+
+        let snapshot = registry.snapshots.get("s1").unwrap();
+        assert_eq!(
+            snapshot.message_count, 2,
+            "event_seq <= 0 must not consult last_event_seq gate"
+        );
+        assert_eq!(
+            snapshot.last_event_seq, 12,
+            "delegated raw apply auto-increments from restored frontier"
+        );
+    }
+
+    /// `apply_canonical_event` with `seq <= 0` applies without the canonical idempotency gate.
+    #[test]
+    fn apply_canonical_event_zero_seq_applies_without_idempotency_gate() {
+        use crate::acp::domain_events::{SessionDomainEvent, SessionDomainEventKind};
+
+        let registry = ProjectionRegistry::new();
+        registry.register_session("s1".to_string(), CanonicalAgentId::ClaudeCode);
+        registry.set_last_event_seq_for_test("s1", 10);
+
+        let event = SessionDomainEvent {
+            event_id: "evt-0".to_string(),
+            seq: 0,
+            session_id: "s1".to_string(),
+            provider_session_id: None,
+            occurred_at_ms: 0,
+            causation_id: None,
+            kind: SessionDomainEventKind::AssistantMessageSegmentAppended,
+            payload: None,
+        };
+        registry.apply_canonical_event("s1", &event, &agent_chunk_update("msg-1"));
+        registry.apply_canonical_event("s1", &event, &agent_chunk_update("msg-2"));
+
+        let snapshot = registry.snapshots.get("s1").unwrap();
+        assert_eq!(
+            snapshot.message_count, 2,
+            "canonical seq <= 0 must not short-circuit on last_event_seq"
+        );
     }
 
     /// Error path: applying a turn-error canonical event leaves the session in a deterministic
@@ -2284,7 +2377,7 @@ use super::*;
         assert_eq!(
             operation.source_link,
             OperationSourceLink::TranscriptLinked {
-                entry_id: "".to_string(),
+                entry_id: "acepe::entry::session-start::tool::.".to_string(),
             }
         );
         assert_eq!(registry.session_operations("session-1").len(), 1);

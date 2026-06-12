@@ -36,7 +36,7 @@ use crate::acp::session_state_engine::{
     SessionGraphActionability, SessionGraphActivity, SessionGraphActivityKind,
     SessionGraphCapabilities, SessionGraphLifecycle, SessionGraphRevision,
     SessionRecommendedAction, SessionRecoveryPhase, SessionStateDelta, SessionStateEnvelope,
-    SessionStateGraph, SessionStatePayload, SessionStateSnapshotMaterialization,
+    SessionStateField, SessionStateGraph, SessionStatePayload, SessionStateSnapshotMaterialization,
 };
 use crate::acp::session_update::{
     AvailableCommand, AvailableCommandsData, ChunkAggregationHint, CommandInput, ConfigOptionData,
@@ -360,6 +360,7 @@ pub fn export_all_types() {
     export_acp_type!(ViewportWindow);
     export_acp_type!(SessionStateGraph);
     export_acp_type!(SessionStateSnapshotMaterialization);
+    export_acp_type!(SessionStateField);
     export_acp_type!(SessionStateDelta);
     export_acp_type!(AssistantTextDeltaPayload);
     export_acp_type!(ViewportBufferDiagnostic);

@@ -2522,6 +2522,11 @@ mod tests {
                     completed_tool_call_ids: Vec::new(),
                     active_turn_failure: found.active_turn_failure.clone(),
                     last_terminal_turn_id: found.last_terminal_turn_id.clone(),
+                    assistant_boundary_entry_count:
+                        crate::acp::transcript_projection::assistant_boundary_entry_count_from_transcript_entries(
+                            &found.transcript_snapshot.entries,
+                        ),
+                    transcript_entry_count: found.transcript_snapshot.entries.len(),
                 }),
                 operations: found.operations.clone(),
                 interactions: found.interactions.clone(),

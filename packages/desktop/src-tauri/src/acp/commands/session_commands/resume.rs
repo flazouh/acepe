@@ -388,7 +388,7 @@ mod transcript_buffer_tests {
     use crate::acp::session_state_engine::protocol::{SessionStateDelta, SessionStatePayload};
     use crate::acp::session_state_engine::revision::SessionGraphRevision;
     use crate::acp::session_state_engine::selectors::SessionGraphActivity;
-    use crate::acp::session_state_engine::SessionStateEnvelope;
+    use crate::acp::session_state_engine::{SessionStateEnvelope, SessionStateField};
     use serde_json::{json, to_value};
 
     #[test]
@@ -421,7 +421,7 @@ mod transcript_buffer_tests {
                                 transcript_operations: vec![],
                                 operation_patches: vec![],
                                 interaction_patches: vec![],
-                                changed_fields: vec!["transcriptSnapshot".to_string()],
+                                changed_fields: vec![SessionStateField::TranscriptSnapshot],
                             },
                         },
                     })
@@ -450,7 +450,7 @@ mod transcript_buffer_tests {
                                 transcript_operations: vec![],
                                 operation_patches: vec![],
                                 interaction_patches: vec![],
-                                changed_fields: vec!["transcriptSnapshot".to_string()],
+                                changed_fields: vec![SessionStateField::TranscriptSnapshot],
                             },
                         },
                     })
@@ -626,12 +626,12 @@ mod transcript_buffer_tests {
                             activity: SessionGraphActivity::idle(),
                             turn_state: crate::acp::projections::SessionTurnState::Idle,
                             active_turn_failure: None,
-                            last_terminal_turn_id: None,
+                            last_terminal_turn_id: Some("x".repeat(70_000)),
                             active_streaming_tail: None,
                             transcript_operations: vec![],
                             operation_patches: vec![],
                             interaction_patches: vec![],
-                            changed_fields: vec!["x".repeat(70_000)],
+                            changed_fields: vec![SessionStateField::LastTerminalTurnId],
                         },
                     },
                 })

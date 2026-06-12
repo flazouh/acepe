@@ -13,6 +13,7 @@ use crate::acp::session_open_snapshot::{
     SessionOpenResult,
 };
 use crate::acp::session_thread_snapshot::{ProviderOwnedSessionSnapshot, SessionThreadSnapshot};
+use crate::acp::transcript_projection::assistant_boundary_entry_count_from_transcript_entries;
 use crate::acp::transcript_projection::TranscriptEntryRole;
 use crate::acp::transcript_projection::TranscriptProjectionRegistry;
 use crate::acp::transcript_projection::TranscriptSegment;
@@ -791,6 +792,11 @@ fn restore_session_open_authority<R: tauri::Runtime>(
                 .collect(),
             active_turn_failure: found.active_turn_failure.clone(),
             last_terminal_turn_id: found.last_terminal_turn_id.clone(),
+            assistant_boundary_entry_count:
+                assistant_boundary_entry_count_from_transcript_entries(
+                    &found.transcript_snapshot.entries,
+                ),
+            transcript_entry_count: found.transcript_snapshot.entries.len(),
         };
         projection_registry
             .inner()
