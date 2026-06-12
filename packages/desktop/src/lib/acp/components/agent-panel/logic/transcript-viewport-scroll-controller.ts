@@ -94,11 +94,12 @@ export function detachedModeScrollTargetPx(input: {
 export function shouldDispatchTailDetachScrollIntent(input: {
 	readonly modeKind: TranscriptViewportModeKind;
 	readonly liveNearBottom: boolean;
+	readonly userScrollingAwayFromTail: boolean;
 	readonly alreadyLocallyDetached: boolean;
 }): boolean {
 	return (
 		input.modeKind === "followingTail" &&
-		!input.liveNearBottom &&
+		(!input.liveNearBottom || input.userScrollingAwayFromTail) &&
 		!input.alreadyLocallyDetached
 	);
 }

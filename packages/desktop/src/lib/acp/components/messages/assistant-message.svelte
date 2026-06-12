@@ -1,3 +1,7 @@
+<script lang="ts" module>
+const persistedThinkingCollapseByMessageId = new Map<string, boolean>();
+</script>
+
 <script lang="ts">
 import { AgentToolThinking } from "@acepe/ui/agent-panel";
 import { getChatPreferencesStore } from "../../store/chat-preferences-store.svelte.js";
@@ -19,6 +23,7 @@ import {
 } from "./logic/thinking-viewport-policy.js";
 
 interface Props {
+	messageId?: string;
 	message: AssistantMessage;
 	/** Whether this message is currently streaming */
 	isStreaming?: boolean;
@@ -28,6 +33,7 @@ interface Props {
 }
 
 let {
+	messageId,
 	message,
 	isStreaming = false,
 	projectPath: propProjectPath,
@@ -75,23 +81,30 @@ const chatPrefs = getChatPreferencesStore();
 let isCollapsed = $state(false);
 let hasInitializedCollapse = $state(false);
 
+function persistThinkingCollapse(next: boolean): void {
+	if (messageId !== undefined) {
+		persistedThinkingCollapseByMessageId.set(messageId, next);
+	}
+}
+
 $effect(() => {
 	const prefs = chatPrefs;
 	if (hasInitializedCollapse) return;
+	if (messageId !== undefined && persistedThinkingCollapseByMessageId.has(messageId)) {
+		isCollapsed = persistedThinkingCollapseByMessageId.get(messageId) === true;
+		hasInitializedCollapse = true;
+		return;
+	}
 	// No store (e.g. test harness): default expanded
 	if (!prefs) {
 		hasInitializedCollapse = true;
 		return;
 	}
 	if (prefs.isReady) {
-		isCollapsed = prefs.thinkingBlockCollapsedByDefault;
+		isCollapsed = isStreaming ? false : prefs.thinkingBlockCollapsedByDefault;
+		persistThinkingCollapse(isCollapsed);
 		hasInitializedCollapse = true;
 	}
-});
-
-$effect(() => {
-	if (!hasInitializedCollapse) return;
-	isCollapsed = !isStreaming;
 });
 
 $effect(() => {
@@ -143,6 +156,7 @@ $effect(() => {
 					collapsed={isCollapsed}
 					onCollapseChange={(next: boolean) => {
 						isCollapsed = next;
+						persistThinkingCollapse(next);
 					}}
 					defaultExpanded={chatPrefs ? !chatPrefs.thinkingBlockCollapsedByDefault : false}
 					onToggleDefaultExpand={() => {

@@ -152,6 +152,7 @@ describe("transcript viewport scroll controller", () => {
 			shouldDispatchTailDetachScrollIntent({
 				modeKind: "followingTail",
 				liveNearBottom: false,
+				userScrollingAwayFromTail: false,
 				alreadyLocallyDetached: false,
 			})
 		).toBe(true);
@@ -162,9 +163,21 @@ describe("transcript viewport scroll controller", () => {
 			shouldDispatchTailDetachScrollIntent({
 				modeKind: "followingTail",
 				liveNearBottom: false,
+				userScrollingAwayFromTail: false,
 				alreadyLocallyDetached: true,
 			})
 		).toBe(false);
+	});
+
+	it("detaches from following-tail when an upward wheel starts near the bottom", () => {
+		expect(
+			shouldDispatchTailDetachScrollIntent({
+				modeKind: "followingTail",
+				liveNearBottom: true,
+				userScrollingAwayFromTail: true,
+				alreadyLocallyDetached: false,
+			})
+		).toBe(true);
 	});
 
 	it("ignores stale following-tail targets after the user locally detached", () => {

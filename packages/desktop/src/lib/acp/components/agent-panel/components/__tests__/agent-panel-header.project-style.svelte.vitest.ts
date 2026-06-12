@@ -63,8 +63,8 @@ describe("AgentPanelHeader project-header style", () => {
 		expect(fullscreen).not.toBeNull();
 		expect(close).not.toBeNull();
 		expect(header?.className).toContain("bg-card/50");
-		expect(fullscreen?.className).toContain("h-7");
-		expect(close?.className).toContain("h-7");
+		expect(fullscreen?.className).toContain("size-5");
+		expect(close?.className).toContain("size-5");
 
 		if (fullscreen) {
 			await fireEvent.click(fullscreen);

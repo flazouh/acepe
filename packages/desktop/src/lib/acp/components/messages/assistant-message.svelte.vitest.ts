@@ -26,6 +26,12 @@ class TestResizeObserver {
 }
 
 const resizeObservers: TestResizeObserver[] = [];
+type MockChatPreferencesStore = {
+	readonly isReady: boolean;
+	readonly thinkingBlockCollapsedByDefault: boolean;
+};
+
+let mockChatPreferencesStore: MockChatPreferencesStore | null = null;
 
 type QueuedAnimationFrame = {
 	id: number;
@@ -45,6 +51,12 @@ vi.mock("svelte", async () => {
 	);
 
 	return import(/* @vite-ignore */ svelteClientPath);
+});
+
+vi.mock("../../store/chat-preferences-store.svelte.js", () => {
+	return {
+		getChatPreferencesStore: () => mockChatPreferencesStore,
+	};
 });
 
 vi.mock("@acepe/ui/agent-panel", async () => {
@@ -73,6 +85,7 @@ const { default: AssistantMessageComponent } = await import("./assistant-message
 
 afterEach(() => {
 	cleanup();
+	mockChatPreferencesStore = null;
 	resizeObservers.length = 0;
 	queuedAnimationFrames = [];
 	nextAnimationFrameId = 1;
@@ -134,8 +147,41 @@ describe("AssistantMessage thinking auto-scroll", () => {
 		});
 
 		expect(view.getByTestId("agent-tool-thinking-stub")).toBeTruthy();
+		expect(view.getByTestId("agent-tool-thinking-stub").dataset.collapsed).toBe("false");
 		expect(view.getByText("Thought")).toBeTruthy();
 		expect(view.getByText("Done.")).toBeTruthy();
+	});
+
+	it("restores user-expanded thinking disclosure after a virtualized row remount", async () => {
+		mockChatPreferencesStore = {
+			isReady: true,
+			thinkingBlockCollapsedByDefault: true,
+		};
+		const props = {
+			messageId: "assistant-remount-disclosure",
+			message: createThoughtAndMessage(),
+			isStreaming: false,
+		};
+
+		const view = render(AssistantMessageComponent, props);
+
+		await waitFor(() => {
+			expect(view.getByTestId("agent-tool-thinking-stub").dataset.collapsed).toBe("true");
+		});
+
+		await fireEvent.click(view.getByTestId("agent-tool-thinking-toggle"));
+
+		await waitFor(() => {
+			expect(view.getByTestId("agent-tool-thinking-stub").dataset.collapsed).toBe("false");
+		});
+
+		view.unmount();
+
+		const remounted = render(AssistantMessageComponent, props);
+
+		await waitFor(() => {
+			expect(remounted.getByTestId("agent-tool-thinking-stub").dataset.collapsed).toBe("false");
+		});
 	});
 
 	it("shows seconds in the thinking header while streaming and after completion", () => {
@@ -219,7 +265,7 @@ describe("AssistantMessage thinking auto-scroll", () => {
 		await flushAnimationFrames();
 
 		expect(scrollWrites).toBe(1);
-		expect(scrollTopValue).toBe(20);
+		expect(scrollTopValue).toBe(40);
 		expect(scrollIntoViewCalls).toBe(0);
 	});
 

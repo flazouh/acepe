@@ -158,6 +158,7 @@ let scrollIntentRafPending = false;
 let locallyDetachedFromTail = false;
 let locallyPinnedToTop = false;
 let locallyPinnedToBottom = false;
+let userScrollingAwayFromTail = false;
 let pendingOutsideBufferScrollTopPx: number | null = null;
 let activeOutsideBufferRequestedScrollTopPx: number | null = null;
 let lastOutsideBufferRecoveryDispatchMs: number | null = null;
@@ -715,7 +716,7 @@ function handleScroll(event: Event): void {
 	const offsetPx = event.currentTarget.scrollTop;
 	updateEdgeFlags(offsetPx);
 	const liveNearBottomNow = isLiveViewportNearBottom();
-	if (liveNearBottomNow) {
+	if (liveNearBottomNow && !userScrollingAwayFromTail) {
 		locallyPinnedToTop = false;
 		locallyPinnedToBottom = true;
 		scheduleBottomPinRecovery();
@@ -749,7 +750,7 @@ function handleScroll(event: Event): void {
 	}
 	suppressedProgrammaticScrollTopPx = null;
 	const immediateScrollTopPx = Math.max(0, Math.round(offsetPx));
-	if (liveNearBottomNow) {
+	if (liveNearBottomNow && !userScrollingAwayFromTail) {
 		dispatchBottomRevealIntent();
 	}
 	if (immediateScrollTopPx <= NEAR_EDGE_THRESHOLD_PX) {
@@ -785,13 +786,14 @@ function handleScroll(event: Event): void {
 			return;
 		}
 		const liveNearBottom = isLiveViewportNearBottom();
-		if (liveNearBottom) {
+		if (liveNearBottom && !userScrollingAwayFromTail) {
 			locallyDetachedFromTail = false;
 		}
 		if (
 			shouldDispatchTailDetachScrollIntent({
 				modeKind: bufferProjection?.mode.kind ?? "detached",
 				liveNearBottom,
+				userScrollingAwayFromTail,
 				alreadyLocallyDetached: locallyDetachedFromTail,
 			})
 		) {
@@ -825,6 +827,7 @@ function handleScroll(event: Event): void {
 
 function handleWheel(event: WheelEvent): void {
 	if (event.deltaY > 0) {
+		userScrollingAwayFromTail = false;
 		locallyPinnedToTop = false;
 		if (
 			scrollContainerRef !== null &&
@@ -862,6 +865,7 @@ function handleWheel(event: WheelEvent): void {
 		}
 	}
 	if (event.deltaY < 0) {
+		userScrollingAwayFromTail = true;
 		locallyPinnedToBottom = false;
 		bottomJumpPinRequested = false;
 		bottomPinRecoveryFramesRemaining = 0;
@@ -1214,6 +1218,7 @@ $effect(() => {
 });
 
 export function scrollToBottom(_options?: { force?: boolean }) {
+	userScrollingAwayFromTail = false;
 	locallyDetachedFromTail = false;
 	locallyPinnedToTop = false;
 	locallyPinnedToBottom = true;
@@ -1290,4 +1295,3 @@ export function scrollToTop() {
 		</div>
 	</div>
 </div>
-

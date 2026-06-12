@@ -82,7 +82,7 @@ describe("streaming-repro-graph-fixtures", () => {
 			preset,
 			phase: preset.phases[1],
 		});
-		const projectedEntries = projection.apply(revealSnapshotForInput(fullRewriteInput));
+		const projectedEntries = projection.apply(revealSnapshotForInput(fullRewriteInput)).entries;
 		const assistantEntry = projectedEntries.find((entry) => entry.type === "assistant");
 
 		expect(assistantEntry?.type).toBe("assistant");

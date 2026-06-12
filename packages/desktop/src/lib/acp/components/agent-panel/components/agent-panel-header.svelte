@@ -4,7 +4,7 @@ import {
 	AgentPanelStatusIcon,
 } from "@acepe/ui/agent-panel";
 import * as DropdownMenu from "@acepe/ui/dropdown-menu";
-import { CloseAction, FullscreenAction, OverflowMenuTriggerAction } from "@acepe/ui/panel-header";
+import { CloseAction, EmbeddedIconButton, FullscreenAction, OverflowMenuTriggerAction } from "@acepe/ui/panel-header";
 import { DownloadSimple } from "phosphor-svelte";
 import CopyButton from "../../messages/copy-button.svelte";
 import * as Tooltip from "$lib/components/ui/tooltip/index.js";
@@ -73,6 +73,7 @@ const preparingThreadLabel = $derived(getPreparingThreadLabel(agentName));
 		{/snippet}
 
 		{#snippet controls()}
+			<div class="flex shrink-0 items-center gap-0.5 px-0.5">
 			<AgentPanelStatusIcon
 				status={sessionStatus}
 				isRetrying={isRetryingConnection}
@@ -88,9 +89,7 @@ const preparingThreadLabel = $derived(getPreparingThreadLabel(agentName));
 				onRetry={onRetryConnection}
 			/>
 			<DropdownMenu.Root>
-				<DropdownMenu.Trigger
-					class="h-7 w-7 flex items-center justify-center focus-visible:outline-none"
-				>
+				<DropdownMenu.Trigger class="focus-visible:outline-none">
 					<OverflowMenuTriggerAction title="More actions" />
 				</DropdownMenu.Trigger>
 				<DropdownMenu.Content align="end" class="min-w-[180px]">
@@ -137,16 +136,18 @@ const preparingThreadLabel = $derived(getPreparingThreadLabel(agentName));
 			{#if isDev && debugPanelState}
 				<Tooltip.Root>
 					<Tooltip.Trigger>
-						<button
-							type="button"
-							class="h-7 w-7 flex items-center justify-center text-muted-foreground hover:text-foreground rounded"
+						<EmbeddedIconButton
+							ariaLabel="Copy debug state"
+							title="Copy debug state"
 							onclick={async () => {
 								const text = JSON.stringify(debugPanelState!, null, 2);
 								await navigator.clipboard.writeText(text);
 							}}
 						>
-							<DownloadSimple class="size-4" weight="fill" aria-label="Copy debug state" />
-						</button>
+							{#snippet children()}
+								<DownloadSimple class="h-3 w-3" weight="fill" />
+							{/snippet}
+						</EmbeddedIconButton>
 					</Tooltip.Trigger>
 					<Tooltip.Content side="bottom" class="max-w-none">
 						<div class="max-h-96 overflow-auto">
@@ -167,6 +168,7 @@ const preparingThreadLabel = $derived(getPreparingThreadLabel(agentName));
 				titleExit={"Exit Fullscreen"}
 			/>
 			<CloseAction {onClose} title={"Close"} />
+			</div>
 		{/snippet}
 
 		{#snippet expansion()}

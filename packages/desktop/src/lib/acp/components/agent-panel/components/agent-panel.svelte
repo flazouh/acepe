@@ -363,6 +363,7 @@ const worktreeController = new AgentPanelWorktreeController({
 	},
 });
 const activeWorktreePath = $derived(worktreeController.activeWorktreePath);
+const activeWorktreeOwnerProjectPath = $derived(worktreeController.activeWorktreeOwnerProjectPath);
 const scopedActiveWorktreePath = $derived(worktreeController.scopedActiveWorktreePath);
 const effectiveActiveWorktreePath = $derived(worktreeController.effectiveActiveWorktreePath);
 const worktreeDeleted = $derived(worktreeController.worktreeDeleted);
@@ -1853,7 +1854,7 @@ async function handlePlanSidebarSendMessage(sid: string, message: string): Promi
 		{@const controls = reviewDialog.controls}
 		{#if controls && controls.fileTotal > 1}
 			<div
-				class="flex h-5 shrink-0 items-center rounded border border-border bg-muted/60 text-[11px]"
+				class="flex h-5 shrink-0 items-center rounded-lg border border-border bg-muted/60 text-[11px]"
 			>
 				<button
 					type="button"
@@ -1886,7 +1887,7 @@ async function handlePlanSidebarSendMessage(sid: string, message: string): Promi
 
 		{#if controls}
 			<div
-				class="flex h-5 shrink-0 items-center rounded border border-border bg-muted/60 text-[11px]"
+				class="flex h-5 shrink-0 items-center rounded-lg border border-border bg-muted/60 text-[11px]"
 			>
 				<button
 					type="button"
@@ -1915,7 +1916,7 @@ async function handlePlanSidebarSendMessage(sid: string, message: string): Promi
 		{#if !createdPr}
 			<button
 				type="button"
-				class="group/open-pr flex h-5 shrink-0 items-center justify-between gap-1 rounded border border-border bg-muted/60 px-1.5 text-[11px] transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-45"
+				class="group/open-pr flex h-5 shrink-0 items-center justify-between gap-1 rounded-lg border border-border bg-muted/60 px-1.5 text-[11px] transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-45"
 				disabled={prCard.createRunning || !effectivePathForGit}
 				onclick={() => void handleCreatePr()}
 			>
@@ -1937,7 +1938,7 @@ async function handlePlanSidebarSendMessage(sid: string, message: string): Promi
 			</button>
 		{:else}
 			<div
-				class="flex h-5 shrink-0 items-center justify-between gap-1 rounded border border-border bg-muted/60 px-1.5 text-[11px]"
+				class="flex h-5 shrink-0 items-center justify-between gap-1 rounded-lg border border-border bg-muted/60 px-1.5 text-[11px]"
 			>
 				<span class="flex min-w-0 items-center gap-1">
 					<GitPullRequest size={11} weight="bold" class="shrink-0 text-success" />

@@ -64,7 +64,7 @@ let { error, onRetry, onCancel, isRetrying = false }: Props = $props();
 					</span>
 				</summary>
 				<div
-					class="mt-2 rounded-md border border-border/50 bg-muted/20 p-3 text-xs font-mono text-muted-foreground break-words"
+					class="mt-2 rounded-lg border border-border/50 bg-muted/20 p-3 text-xs font-mono text-muted-foreground break-words"
 				>
 					{error}
 				</div>
