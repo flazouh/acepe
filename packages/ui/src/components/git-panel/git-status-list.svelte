@@ -94,7 +94,7 @@
 						<div class="flex shrink-0 items-center opacity-0 transition-opacity group-hover:opacity-100">
 							<button
 								type="button"
-								class="flex h-5 w-5 cursor-pointer items-center justify-center rounded text-muted-foreground transition-colors hover:bg-warning/10 hover:text-warning"
+								class="flex h-5 w-5 cursor-pointer items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-warning/10 hover:text-warning"
 								title="Unstage file"
 								onclick={(e) => { e.stopPropagation(); onUnstage?.(file.path); }}
 							>
@@ -129,7 +129,7 @@
 				{#if onStageAll}
 					<button
 						type="button"
-						class="mr-1 flex h-5 w-5 cursor-pointer items-center justify-center rounded text-muted-foreground transition-colors hover:bg-success/10 hover:text-success"
+						class="mr-1 flex h-5 w-5 cursor-pointer items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-success/10 hover:text-success"
 						title="Stage all changes"
 						onclick={onStageAll}
 					>
@@ -151,7 +151,7 @@
 							{#if onStage}
 								<button
 									type="button"
-									class="flex h-5 w-5 cursor-pointer items-center justify-center rounded text-muted-foreground transition-colors hover:bg-success/10 hover:text-success"
+									class="flex h-5 w-5 cursor-pointer items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-success/10 hover:text-success"
 									title="Stage file"
 									onclick={(e) => { e.stopPropagation(); onStage?.(file.path); }}
 								>
@@ -161,7 +161,7 @@
 							{#if onDiscard}
 								<button
 									type="button"
-									class="flex h-5 w-5 cursor-pointer items-center justify-center rounded text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
+									class="flex h-5 w-5 cursor-pointer items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
 									title="Discard changes"
 									onclick={(e) => { e.stopPropagation(); onDiscard?.(file.path); }}
 								>

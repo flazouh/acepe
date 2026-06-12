@@ -54,7 +54,7 @@
 					toggleExpand();
 				}
 			}}
-			class="w-full flex items-center justify-between px-3 py-1 rounded-md border border-border bg-muted/60 {hasExpandedContent
+			class="w-full flex items-center justify-between px-3 py-1 rounded-lg border border-border bg-muted/60 {hasExpandedContent
 				? 'cursor-pointer'
 				: 'cursor-default'} {isExpanded ? 'rounded-t-none border-t-0' : ''} {hasBelowHeader ? 'rounded-b-none border-b border-border/70' : ''}"
 		>

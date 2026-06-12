@@ -19,7 +19,7 @@
 	}: Props = $props();
 </script>
 
-<div class={cn("relative h-fit flex flex-col rounded bg-input/30", className)}>
+<div class={cn("relative h-fit flex flex-col rounded-2xl bg-input/30", className)}>
 	<div class={contentClass}>
 		{#if content}
 			{@render content()}

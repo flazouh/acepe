@@ -31,7 +31,7 @@ describe("AgentToolExecute", () => {
 		});
 
 		expect(view.getByTestId("agent-tool-execute-card")).toBeTruthy();
-		expect(view.container.querySelector(".rounded-sm.border.border-border")).toBeTruthy();
+		expect(view.container.querySelector(".rounded-lg.border.border-border")).toBeTruthy();
 		const commandBlocks = view.container.querySelectorAll(".execute-blocks pre");
 		expect(commandBlocks).toHaveLength(1);
 		expect(commandBlocks[0]?.textContent).toContain("go test ./...");

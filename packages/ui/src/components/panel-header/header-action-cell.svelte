@@ -10,6 +10,6 @@
 	let { children, class: className = "", withDivider = true }: Props = $props();
 </script>
 
-<div class="h-7 flex items-stretch {withDivider ? 'border-l border-border/50' : ''} {className}">
+<div class="flex h-7 items-center gap-0.5 px-0.5 {withDivider ? 'border-l border-border/50' : ''} {className}">
 	{@render children?.()}
 </div>

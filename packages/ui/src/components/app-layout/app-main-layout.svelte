@@ -23,7 +23,7 @@
 	<!-- Header card — tab bar + top bar -->
 	{#if tabBar}
 		<div
-			class="flex flex-col gap-0.5 shrink-0 bg-card/50 rounded overflow-hidden shadow-sm"
+			class="flex flex-col gap-0.5 shrink-0 bg-card/50 rounded-lg overflow-hidden shadow-sm"
 		>
 			{@render tabBar()}
 		</div>
@@ -34,7 +34,7 @@
 		{#if sidebar}
 			{@render sidebar()}
 		{/if}
-		<main class="flex-1 flex h-full min-h-0 overflow-x-auto rounded {mainClass ?? 'items-stretch'}">
+		<main class="flex-1 flex h-full min-h-0 overflow-x-auto rounded-lg {mainClass ?? 'items-stretch'}">
 			{@render panels()}
 		</main>
 	</div>

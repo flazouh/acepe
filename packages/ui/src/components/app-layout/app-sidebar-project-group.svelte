@@ -20,7 +20,7 @@
 
 <div
 	class={cn(
-		"flex flex-col overflow-hidden rounded-md border border-border/50 bg-card/75",
+		"flex flex-col overflow-hidden rounded-lg border border-border/50 bg-card/75",
 		className
 	)}
 	{style}

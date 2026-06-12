@@ -104,7 +104,7 @@
 	>
 		<div
 			bind:this={headerElement}
-			class="flex items-center gap-1.5 rounded bg-input/30 px-3 py-1"
+			class="flex items-center gap-1.5 rounded-2xl bg-input/30 px-3 py-1"
 			class:rounded-b-none={showExpanded}
 			class:w-fit={!showExpanded}
 			class:w-full={showExpanded}
@@ -118,7 +118,7 @@
 						<TooltipTrigger>
 							<button
 								type="button"
-								class="flex items-center justify-center rounded p-0.5 text-muted-foreground transition-colors hover:bg-foreground/5 hover:text-foreground"
+								class="flex items-center justify-center rounded-md p-0.5 text-muted-foreground transition-colors hover:bg-foreground/5 hover:text-foreground"
 								onclick={toggleExpanded}
 								aria-expanded={isExpanded}
 							>
@@ -143,7 +143,7 @@
 		{#if hasExpandable && expandedContent}
 			<div class="worktree-card-expand" aria-hidden={!showExpanded}>
 				<div class="worktree-card-expand-inner">
-					<div class="w-full rounded-b-lg border-t border-border/30 bg-input/30 px-3 pb-3 pt-2">
+					<div class="w-full rounded-b-2xl border-t border-border/30 bg-input/30 px-3 pb-3 pt-2">
 						{@render expandedContent()}
 					</div>
 				</div>
@@ -159,7 +159,7 @@
 	>
 		<div
 			bind:this={headerElement}
-			class="flex items-center gap-1.5 rounded bg-input/30 px-3 py-1"
+			class="flex items-center gap-1.5 rounded-2xl bg-input/30 px-3 py-1"
 			class:rounded-b-none={showExpanded}
 			class:w-fit={!showExpanded}
 			class:w-full={showExpanded}
@@ -169,7 +169,7 @@
 					<TooltipTrigger>
 						<button
 							type="button"
-							class="flex items-center justify-center rounded p-0.5 text-muted-foreground transition-colors hover:bg-foreground/5 hover:text-foreground"
+							class="flex items-center justify-center rounded-md p-0.5 text-muted-foreground transition-colors hover:bg-foreground/5 hover:text-foreground"
 							onclick={toggleExpanded}
 							aria-expanded={isExpanded}
 						>
@@ -214,7 +214,7 @@
 		{#if hasExpandable && expandedContent}
 			<div class="worktree-card-expand" aria-hidden={!showExpanded}>
 				<div class="worktree-card-expand-inner">
-					<div class="w-full rounded-b-lg border-t border-border/30 bg-input/30 px-3 pb-3 pt-2">
+					<div class="w-full rounded-b-2xl border-t border-border/30 bg-input/30 px-3 pb-3 pt-2">
 						{@render expandedContent()}
 					</div>
 				</div>

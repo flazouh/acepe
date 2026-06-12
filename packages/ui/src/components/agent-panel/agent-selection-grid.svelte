@@ -57,7 +57,7 @@
 			<div class="flex flex-col items-center gap-2">
 				<button
 					type="button"
-					class="flex h-14 w-14 items-center justify-center rounded border border-transparent p-2 transition-colors
+					class="flex h-14 w-14 items-center justify-center rounded-lg border border-transparent p-2 transition-colors
 						{agent.available
 						? isSelected
 							? 'bg-accent/50 border-border/50'
@@ -78,8 +78,8 @@
 				</button>
 				{#if shortcut}
 					<div class="flex gap-0.5 {!agent.available ? 'opacity-50' : ''}">
-						<kbd class="inline-flex min-w-0 items-center justify-center rounded border border-border/60 bg-muted/50 px-1 py-0.5 font-mono text-[10px] text-muted-foreground">{shortcut[0]}</kbd>
-						<kbd class="inline-flex min-w-0 items-center justify-center rounded border border-border/60 bg-muted/50 px-1 py-0.5 font-mono text-[10px] text-muted-foreground">{shortcut[1]}</kbd>
+						<kbd class="inline-flex min-w-0 items-center justify-center rounded-lg border border-border/60 bg-muted/50 px-1 py-0.5 font-mono text-[10px] text-muted-foreground">{shortcut[0]}</kbd>
+						<kbd class="inline-flex min-w-0 items-center justify-center rounded-lg border border-border/60 bg-muted/50 px-1 py-0.5 font-mono text-[10px] text-muted-foreground">{shortcut[1]}</kbd>
 					</div>
 				{/if}
 			</div>

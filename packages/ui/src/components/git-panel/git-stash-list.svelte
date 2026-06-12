@@ -48,7 +48,7 @@
 					{#if onPop}
 						<button
 							type="button"
-							class="flex items-center justify-center h-5 w-5 rounded text-muted-foreground hover:text-success hover:bg-success/10 cursor-pointer transition-colors"
+							class="flex items-center justify-center h-5 w-5 rounded-md text-muted-foreground hover:text-success hover:bg-success/10 cursor-pointer transition-colors"
 							title="Pop stash"
 							onclick={() => onPop?.(entry.index)}
 						>
@@ -58,7 +58,7 @@
 					{#if onDrop}
 						<button
 							type="button"
-							class="flex items-center justify-center h-5 w-5 rounded text-muted-foreground hover:text-destructive hover:bg-destructive/10 cursor-pointer transition-colors"
+							class="flex items-center justify-center h-5 w-5 rounded-md text-muted-foreground hover:text-destructive hover:bg-destructive/10 cursor-pointer transition-colors"
 							title="Drop stash"
 							onclick={() => onDrop?.(entry.index)}
 						>

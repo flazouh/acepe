@@ -28,8 +28,8 @@
 	const displayExtension = $derived(kind === "image" ? "png" : extension);
 </script>
 
-<span class="inline-flex items-center gap-1 p-1 rounded-md bg-muted border border-border text-xs">
-	<span class="inline-flex h-3.5 w-3.5 items-center justify-center rounded bg-background/60 text-[8px] font-mono uppercase text-muted-foreground shrink-0">
+<span class="inline-flex items-center gap-1 rounded-md border border-border bg-muted p-1 text-xs">
+	<span class="inline-flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded-md bg-background/60 text-[8px] font-mono uppercase text-muted-foreground">
 		{displayExtension ? displayExtension.slice(0, 3) : "?"}
 	</span>
 	<span class="{truncate ? 'max-w-[120px] truncate' : ''} font-mono text-foreground">
@@ -41,7 +41,7 @@
 			e.stopPropagation();
 			onRemove();
 		}}
-		class="ml-0.5 p-0.5 rounded hover:bg-destructive/20 hover:text-destructive cursor-pointer transition-colors"
+		class="ml-0.5 cursor-pointer rounded-md p-0.5 transition-colors hover:bg-destructive/20 hover:text-destructive"
 		aria-label={removeLabel}
 	>
 		<X class="h-3 w-3" />

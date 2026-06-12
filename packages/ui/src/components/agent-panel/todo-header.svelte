@@ -129,7 +129,7 @@
 						toggleExpanded();
 					}
 				}}
-				class="w-full flex items-center justify-between px-3 py-1 rounded-md border border-border bg-input/30 cursor-pointer {isExpanded
+				class="w-full flex items-center justify-between px-3 py-1 rounded-lg border border-border bg-input/30 cursor-pointer {isExpanded
 					? 'rounded-t-none border-t-0'
 					: ''}"
 			>

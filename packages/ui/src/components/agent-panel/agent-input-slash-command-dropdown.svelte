@@ -200,7 +200,7 @@
 	<!-- svelte-ignore a11y_no_static_element_interactions -->
 	<div
 		use:portalToBody
-		class="fixed z-[var(--overlay-z)] w-72 overflow-hidden rounded border bg-popover/98 shadow-xl backdrop-blur"
+		class="fixed z-[var(--overlay-z)] w-72 overflow-hidden rounded-lg border bg-popover/98 shadow-xl backdrop-blur"
 		style="top: {position.top}px; left: {position.left}px; transform: translateY(-100%); margin-top: -6px;"
 		onmousedown={(event) => event.preventDefault()}
 	>
@@ -281,7 +281,7 @@
 			<div class="flex items-center gap-1.5 border-t border-border/60 bg-muted/20 px-2.5 py-1 shrink-0">
 				<kbd class="rounded border bg-muted px-1 py-0.5 text-[10px] font-medium leading-none">Enter</kbd>
 				<span class="text-[10px] text-muted-foreground">{selectHintLabel}</span>
-				<kbd class="ml-1 rounded border bg-muted px-1 py-0.5 text-[10px] font-medium leading-none">Esc</kbd>
+				<kbd class="ml-1 rounded-lg border bg-muted px-1 py-0.5 text-[10px] font-medium leading-none">Esc</kbd>
 				<span class="text-[10px] text-muted-foreground">{closeHintLabel}</span>
 			</div>
 		{:else if emptyState === "no-commands"}
@@ -325,7 +325,7 @@
 				<div class="mb-3 text-[11px] text-muted-foreground">Loading full skill content...</div>
 			{/if}
 			{#if workspaceMarkdownError}
-				<div class="mb-3 rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-[11px] text-destructive">
+				<div class="mb-3 rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-[11px] text-destructive">
 					{workspaceMarkdownError}
 				</div>
 			{/if}

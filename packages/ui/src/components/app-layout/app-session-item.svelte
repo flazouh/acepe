@@ -10,13 +10,13 @@
 
 <!--
 	Matches the FeedItem (attention-queue-item.svelte) + ActivityEntry visual:
-	  px-2 py-1.5 rounded-md hover:bg-accent/50 transition-colors
+	  px-2 py-1.5 rounded-lg hover:bg-accent/50 transition-colors
 	  icon: w-3 h-3 (12px) m-0.5  ← matches SessionItem's agentBadge
 	  title: text-xs font-medium truncate
 -->
 <button
 	type="button"
-	class="flex flex-col justify-center w-full text-left gap-1 px-2 py-1.5 rounded-md transition-colors hover:bg-accent/50 {session.isActive
+	class="flex flex-col justify-center w-full text-left gap-1 px-2 py-1.5 rounded-lg transition-colors hover:bg-accent/50 {session.isActive
 		? 'bg-accent/20'
 		: ''}"
 >

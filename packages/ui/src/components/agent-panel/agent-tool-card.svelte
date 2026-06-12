@@ -14,7 +14,7 @@
 
 	let { variant = "default", class: className = "", dataTestid, children }: Props = $props();
 
-	const base = "agent-tool-card rounded-sm border border-border overflow-hidden text-sm";
+	const base = "agent-tool-card rounded-lg border border-border overflow-hidden text-sm";
 	const variantClasses: Record<Variant, string> = {
 		default: "bg-input/30",
 		muted: "bg-muted/30",

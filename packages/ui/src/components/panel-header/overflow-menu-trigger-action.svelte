@@ -14,6 +14,6 @@
 
 <EmbeddedIconButton {title} ariaLabel={title} class={className} {onclick}>
 	{#snippet children()}
-		<IconDotsVertical class="h-4 w-4" />
+		<IconDotsVertical class="h-3 w-3" />
 	{/snippet}
 </EmbeddedIconButton>

@@ -28,7 +28,7 @@ describe("buildChipShellClassName", () => {
 	it("supports inline artefact spacing while sharing the same chip shell chrome", () => {
 		const className = buildChipShellClassName({ density: "inline" });
 
-		expect(className).toContain("rounded-sm");
+		expect(className).toContain("rounded-md");
 		expect(className).toContain("border");
 		expect(className).toContain("px-1");
 		expect(className).toContain("py-0.5");

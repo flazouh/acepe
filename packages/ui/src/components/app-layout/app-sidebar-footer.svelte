@@ -18,7 +18,7 @@
 	);
 
 	const iconButtonClass =
-		"flex items-center justify-center size-5 rounded text-muted-foreground/60 hover:text-foreground hover:bg-accent transition-colors";
+		"flex items-center justify-center size-5 rounded-md text-muted-foreground/60 hover:text-foreground hover:bg-accent transition-colors";
 </script>
 
 <div class="shrink-0 px-2 py-1.5 flex items-center gap-0.5">

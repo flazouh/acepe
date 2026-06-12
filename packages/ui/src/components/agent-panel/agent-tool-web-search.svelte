@@ -110,7 +110,7 @@
 				<button
 					type="button"
 					onclick={() => { isCollapsed = !isCollapsed; }}
-					class="flex h-5 w-5 shrink-0 cursor-pointer items-center justify-center rounded border-0 bg-transparent p-0 transition-colors hover:bg-muted"
+					class="flex h-5 w-5 shrink-0 cursor-pointer items-center justify-center rounded-lg border-0 bg-transparent p-0 transition-colors hover:bg-muted"
 					aria-label={isCollapsed ? ariaExpandResults : ariaCollapseResults}
 				>
 					<CaretRight

@@ -138,7 +138,7 @@
 			<button
 				type="button"
 				onclick={toggleExpanded}
-				class="ml-1 flex shrink-0 items-center justify-center rounded-md border-none bg-transparent p-0.5 text-muted-foreground transition-colors hover:bg-accent focus-visible:outline-2 focus-visible:outline-ring focus-visible:outline-offset-2 active:scale-95"
+				class="ml-1 flex shrink-0 items-center justify-center rounded-lg border-none bg-transparent p-0.5 text-muted-foreground transition-colors hover:bg-accent focus-visible:outline-2 focus-visible:outline-ring focus-visible:outline-offset-2 active:scale-95"
 				aria-label={isExpanded ? ariaCollapseSource : ariaExpandSource}
 				aria-expanded={isExpanded}
 			>

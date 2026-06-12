@@ -107,7 +107,7 @@
 					onclick={() => {
 						isExpanded = !isExpanded;
 					}}
-					class="flex items-center justify-center rounded-md border-none bg-transparent p-0.5 text-muted-foreground transition-colors hover:bg-accent focus-visible:outline-2 focus-visible:outline-ring focus-visible:outline-offset-2 active:scale-95"
+					class="flex items-center justify-center rounded-lg border-none bg-transparent p-0.5 text-muted-foreground transition-colors hover:bg-accent focus-visible:outline-2 focus-visible:outline-ring focus-visible:outline-offset-2 active:scale-95"
 					aria-label={isExpanded ? ariaCollapseOutput : ariaExpandOutput}
 				>
 					<CaretDown

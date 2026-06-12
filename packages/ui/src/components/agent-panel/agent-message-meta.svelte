@@ -52,7 +52,7 @@
 </script>
 
 {#if isAssistant}
-	<div class="inline-flex items-center overflow-hidden rounded-md border border-border/60 bg-background/85 backdrop-blur-sm">
+	<div class="inline-flex items-center overflow-hidden rounded-lg border border-border/60 bg-background/85 backdrop-blur-sm">
 		{#if timestampLabel}
 			<span
 				class="px-2 text-[11px] tabular-nums text-muted-foreground"
@@ -76,7 +76,7 @@
 		</button>
 	</div>
 {:else}
-	<div class="inline-flex items-center overflow-hidden rounded-md border border-border/60 bg-background/85 backdrop-blur-sm">
+	<div class="inline-flex items-center overflow-hidden rounded-lg border border-border/60 bg-background/85 backdrop-blur-sm">
 		{#if timestampLabel}
 			<span class="px-2 text-[11px] tabular-nums text-muted-foreground/80" title={timestampTitle}>
 				{timestampLabel}

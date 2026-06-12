@@ -86,7 +86,7 @@
 
 		<button
 			type="button"
-			class="shrink-0 inline-flex items-center justify-center h-5 w-5 rounded text-muted-foreground transition-all hover:text-foreground hover:bg-muted cursor-pointer"
+			class="shrink-0 inline-flex items-center justify-center h-5 w-5 rounded-md text-muted-foreground transition-all hover:text-foreground hover:bg-muted cursor-pointer"
 			onclick={() => { expanded = !expanded; }}
 			title={expanded ? "Collapse details" : "Expand details"}
 		>

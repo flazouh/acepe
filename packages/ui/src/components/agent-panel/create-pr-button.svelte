@@ -29,7 +29,7 @@
 </script>
 
 <div
-	class="flex items-center rounded border border-border/50 bg-muted overflow-hidden text-[0.6875rem] shrink-0"
+	class="flex items-center rounded-lg border border-border/50 bg-muted overflow-hidden text-[0.6875rem] shrink-0"
 	onclick={(e) => e.stopPropagation()}
 	role="none"
 >

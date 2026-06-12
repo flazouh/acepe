@@ -143,7 +143,7 @@
 	<!-- Expanded diff content -->
 	{#if isDiffExpanded}
 		<div
-			class="mt-1 border border-border/30 rounded bg-card overflow-hidden"
+			class="mt-1 overflow-hidden rounded-lg border border-border/30 bg-card"
 			transition:slide={{ duration: 150 }}
 		>
 			{#if isLoadingDiff}

@@ -49,7 +49,7 @@
 		/>
 		<kbd
 			aria-label="Press Enter to submit"
-			class="pointer-events-none inline-flex h-5 shrink-0 items-center justify-center rounded border border-border/60 bg-background/70 px-1.5 text-sm"
+			class="pointer-events-none inline-flex h-5 shrink-0 items-center justify-center rounded-lg border border-border/60 bg-background/70 px-1.5 text-sm"
 		>
 			Enter
 		</kbd>

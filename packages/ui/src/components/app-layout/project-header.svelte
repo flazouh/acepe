@@ -30,7 +30,7 @@
 	const resolvedIconSrc = $derived(projectIconSrc);
 </script>
 
-<div class="shrink-0 flex items-center rounded-md bg-card px-1 {className}">
+<div class="shrink-0 flex items-center rounded-lg bg-card px-1 {className}">
 	<div class="inline-flex items-center justify-center h-7 shrink-0">
 		<ProjectLetterBadge
 			name={displayName}

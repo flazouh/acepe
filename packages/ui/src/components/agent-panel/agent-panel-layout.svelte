@@ -78,6 +78,7 @@
 					<AgentUserMessage text={entry.text} timestampMs={entry.timestampMs} />
 				{:else if entry.type === "assistant"}
 					<AgentAssistantMessage
+						messageId={entry.id}
 						message={{
 							chunks: [{ type: "message", block: { type: "text", text: entry.markdown } }],
 						}}

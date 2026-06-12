@@ -228,7 +228,7 @@
 				{/snippet}
 			</HeaderTitleCell>
 
-			<HeaderActionCell withDivider={true} class="divide-x divide-border/50">
+			<HeaderActionCell withDivider={false}>
 				{#snippet children()}
 					{#if controls}
 						{@render controls()}

@@ -57,19 +57,19 @@
 	{/if}
 
 	{#if onSettings}
-		<div class="flex items-center border-l border-border/50">
+		<div class="flex items-center gap-0.5 px-0.5">
 			<EmbeddedIconButton
 				title={settingsTitle}
 				ariaLabel={settingsAriaLabel ?? settingsTitle}
 				onclick={onSettings}
 			>
-				<Gear class="h-3.5 w-3.5" weight="fill" />
+				<Gear class="h-3 w-3" weight="fill" />
 			</EmbeddedIconButton>
 		</div>
 	{/if}
 
 	{#if showBrowserToggle || showTerminalToggle}
-		<div class="ml-auto flex items-center border-l border-border/50">
+		<div class="ml-auto flex items-center gap-0.5 px-0.5">
 			{#if showBrowserToggle}
 				<EmbeddedIconButton
 					active={browserActive}
@@ -77,7 +77,7 @@
 					ariaLabel={browserAriaLabel ?? browserTitle}
 					onclick={onToggleBrowser}
 				>
-					<Browser class="h-3.5 w-3.5" weight={browserActive ? "fill" : "regular"} />
+					<Browser class="h-3 w-3" weight={browserActive ? "fill" : "regular"} />
 				</EmbeddedIconButton>
 			{/if}
 			{#if showTerminalToggle}
@@ -88,7 +88,7 @@
 					ariaLabel={terminalAriaLabel ?? terminalTitle}
 					onclick={onToggleTerminal}
 				>
-					<Terminal class="h-3.5 w-3.5" weight="fill" />
+					<Terminal class="h-3 w-3" weight="fill" />
 				</EmbeddedIconButton>
 			{/if}
 		</div>

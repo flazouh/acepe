@@ -79,7 +79,7 @@
 		<div class="flex items-center gap-1">
 			{#if showSidebarToggle}
 				<button
-					class="flex items-center justify-center size-6 rounded text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+					class="flex items-center justify-center size-6 rounded-md text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
 					title="Toggle sidebar"
 					aria-label="Toggle Sidebar"
 					onclick={onToggleSidebar}
@@ -92,7 +92,7 @@
 					{@render addProjectButton()}
 				{:else}
 					<button
-						class="flex items-center justify-center size-6 rounded text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+						class="flex items-center justify-center size-6 rounded-md text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
 						title="Add project"
 						aria-label="Add Project"
 					>
@@ -122,7 +122,7 @@
 		{/if}
 		{#if showSettings}
 			<button
-				class="flex items-center justify-center size-6 rounded text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+				class="flex items-center justify-center size-6 rounded-md text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
 				title="Settings"
 				aria-label="Settings"
 				onclick={onSettings}

@@ -126,7 +126,7 @@
 			{#if displayDiagnostics}
 				<ul class="mt-2 space-y-1.5 text-sm">
 					{#each displayDiagnostics as diag, i (i)}
-						<li class="flex flex-col gap-0.5 rounded border border-border/60 bg-muted/20 px-2 py-1.5">
+						<li class="flex flex-col gap-0.5 rounded-lg border border-border/60 bg-muted/20 px-2 py-1.5">
 							{#if diag.filePath}
 								<span>{diag.filePath}</span>
 							{/if}

@@ -50,8 +50,8 @@
 	);
 	const filesPaneClass = $derived(
 		compact
-			? "flex min-h-0 w-[220px] shrink-0 flex-col overflow-hidden rounded border border-border bg-input/30"
-			: "flex min-h-0 w-[280px] shrink-0 flex-col overflow-hidden rounded border border-border bg-input/30"
+			? "flex min-h-0 w-[220px] shrink-0 flex-col overflow-hidden rounded-lg border border-border bg-input/30"
+			: "flex min-h-0 w-[280px] shrink-0 flex-col overflow-hidden rounded-lg border border-border bg-input/30"
 	);
 	const contentPaneClass = $derived(
 		compact
@@ -65,8 +65,8 @@
 	);
 	const codeCardClass = $derived(
 		compact
-			? "flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded border border-border bg-input/30"
-			: "flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded border border-border bg-input/30"
+			? "flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-lg border border-border bg-input/30"
+			: "flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-lg border border-border bg-input/30"
 	);
 
 	function handlePreviousFile(): void {

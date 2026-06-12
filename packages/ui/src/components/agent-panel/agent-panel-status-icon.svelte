@@ -48,7 +48,7 @@
 
 {#if shouldShow}
 	<Tooltip.Provider delayDuration={0}>
-		<div class="flex h-7 w-7 shrink-0 items-center justify-center">
+		<div class="flex size-5 shrink-0 items-center justify-center">
 			{#if isConnecting || isRetrying || status === "warming"}
 				<Tooltip.Root>
 					<Tooltip.Trigger>
@@ -105,7 +105,7 @@
 						<Tooltip.Trigger>
 						<button
 							type="button"
-							class="hover:opacity-80 transition-opacity animate-in fade-in duration-150"
+							class="inline-flex size-5 items-center justify-center rounded transition-colors animate-in fade-in duration-150 hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:ring-inset"
 							style="color: {Colors.red};"
 							aria-label={errorLabel}
 							onclick={() => onRetry?.()}

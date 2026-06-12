@@ -62,7 +62,7 @@
 					onmouseleave={handleMouseLeave}
 				>
 					<div
-						class="flex items-center gap-1 px-2 py-1 h-auto min-w-0 text-xs cursor-pointer rounded border transition-colors duration-150 {tab.isFocused
+						class="flex items-center gap-1 px-2 py-1 h-auto min-w-0 text-xs cursor-pointer rounded-lg border transition-colors duration-150 {tab.isFocused
 							? activeTabClass
 							: 'border-border/50 bg-card hover:bg-accent'}"
 						onclick={() => onclick?.()}

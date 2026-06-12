@@ -1,3 +1,7 @@
+<script lang="ts" module>
+const persistedThinkingCollapseByMessageId = new Map<string, boolean>();
+</script>
+
 <script lang="ts">
 import { untrack } from "svelte";
 import type { Snippet } from "svelte";
@@ -27,6 +31,7 @@ import {
 DEFAULT_THINKING_VIEWPORT_POLICY,
 thinkingViewportCssText,
 } from "../../lib/assistant-message/thinking-viewport-policy.js";
+import { getThinkingPreferences } from "../../lib/thinking-preferences-context.js";
 import type {
 	AssistantMessage,
 	StreamingAnimationMode,
@@ -47,6 +52,7 @@ interface RenderBlockContext {
 }
 
 interface Props {
+	messageId?: string;
 	message: AssistantMessage;
 	isStreaming?: boolean;
 	tokenRevealCss?: TokenRevealCss;
@@ -68,13 +74,14 @@ interface Props {
 }
 
 let {
+	messageId,
 	message,
 	isStreaming = false,
 	tokenRevealCss,
 	projectPath,
 	timestampMs,
 	streamingAnimationMode = "smooth",
-	initiallyCollapsed = false,
+	initiallyCollapsed,
 	iconBasePath = "",
 	renderBlock,
 }: Props = $props();
@@ -106,11 +113,28 @@ const hasMessageContent = $derived(contentFlags.hasMessageContent);
 const hasAnyContent = $derived(contentFlags.hasAnyContent);
 const showThinkingBlock = $derived(contentFlags.showThinkingBlock);
 
-let isCollapsed = $state(untrack(() => initiallyCollapsed));
+const thinkingPrefs = getThinkingPreferences();
 
-$effect(() => {
-	isCollapsed = !isStreaming;
-});
+function resolveInitialCollapsed(): boolean {
+	if (messageId !== undefined && persistedThinkingCollapseByMessageId.has(messageId)) {
+		return persistedThinkingCollapseByMessageId.get(messageId) === true;
+	}
+	if (initiallyCollapsed !== undefined) {
+		return initiallyCollapsed;
+	}
+	if (isStreaming) {
+		return false;
+	}
+	return !(thinkingPrefs?.defaultExpanded ?? true);
+}
+
+let isCollapsed = $state(untrack(resolveInitialCollapsed));
+
+function persistThinkingCollapse(next: boolean): void {
+	if (messageId !== undefined) {
+		persistedThinkingCollapseByMessageId.set(messageId, next);
+	}
+}
 
 const visibleMessageGroups = $derived.by(() => {
 	return resolveVisibleAssistantMessageGroups({
@@ -184,6 +208,7 @@ status={isStreaming ? "running" : "done"}
 collapsed={isCollapsed}
 onCollapseChange={(next: boolean) => {
 isCollapsed = next;
+persistThinkingCollapse(next);
 }}
 >
 <div

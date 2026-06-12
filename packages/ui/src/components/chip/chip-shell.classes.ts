@@ -25,8 +25,10 @@ export function buildChipShellClassName({
 				? "gap-1.5 px-0.5 py-px text-[0.625rem]"
 				: "gap-1.5 px-1 py-0.5 text-xs";
 
+	const radiusClass = density === "inline" ? "rounded-md" : "rounded-sm";
+
 	return cn(
-		"inline-flex min-w-0 items-center rounded-sm border border-border/50 bg-muted text-muted-foreground",
+		`inline-flex min-w-0 items-center ${radiusClass} border border-border/50 bg-muted text-muted-foreground`,
 		densityClass,
 		interactive
 			? "cursor-pointer transition-colors hover:bg-accent hover:text-accent-foreground active:opacity-80 focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent focus-visible:outline-offset-2"

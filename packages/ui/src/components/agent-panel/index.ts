@@ -12,9 +12,18 @@ export type {
 export { default as AgentAssistantMessage } from "./agent-assistant-message.svelte";
 export { default as AgentAttachedFilePane } from "./agent-attached-file-pane.svelte";
 export { default as AgentPanelErrorCard } from "./agent-error-card.svelte";
+export { default as AgentInputActiveModeChip } from "./agent-input-active-mode-chip.svelte";
 export { default as AgentInputArtefactBadge } from "./agent-input-artefact-badge.svelte";
+export { default as AgentInputAttachMenu } from "./agent-input-attach-menu.svelte";
+export type {
+	AttachMenuCommandItem,
+	AttachMenuModeItem,
+} from "./agent-input-attach-menu-state.js";
+export { filterAttachMenuItems } from "./agent-input-attach-menu-state.js";
 export { default as AgentInputAutonomousToggle } from "./agent-input-autonomous-toggle.svelte";
+export { default as AgentInputComposerRow } from "./agent-input-composer-row.svelte";
 export { default as AgentInputComposerToolbar } from "./agent-input-composer-toolbar.svelte";
+export { default as AgentInputComposerTrailingControls } from "./agent-input-composer-trailing-controls.svelte";
 export { default as AgentInputConfigOptionSelector } from "./agent-input-config-option-selector.svelte";
 export type { AgentInputConfigOption } from "./agent-input-config-option-types.js";
 export { default as AgentInputDivider } from "./agent-input-divider.svelte";
@@ -22,8 +31,16 @@ export { default as AgentInputEditor } from "./agent-input-editor.svelte";
 export { default as AgentInputFilePickerDropdown } from "./agent-input-file-picker-dropdown.svelte";
 export { default as AgentInputMetricsChip } from "./agent-input-metrics-chip.svelte";
 export { default as AgentInputMicButton } from "./agent-input-mic-button.svelte";
+export { default as AgentInputModeIcon } from "./agent-input-mode-icon.svelte";
 export { default as AgentInputModePill } from "./agent-input-mode-pill.svelte";
 export { default as AgentInputModeSelector } from "./agent-input-mode-selector.svelte";
+export {
+	getModeDropdownOptions,
+	getSelectedModeOption,
+	shouldEmitModeChange,
+	type AgentInputMode,
+	type ModeIconKind,
+} from "./agent-input-mode-selector-state.js";
 export { default as AgentInputModelFavoriteStar } from "./agent-input-model-favorite-star.svelte";
 export { default as AgentInputModelRow } from "./agent-input-model-row.svelte";
 export { default as AgentInputModelSelector } from "./agent-input-model-selector.svelte";
