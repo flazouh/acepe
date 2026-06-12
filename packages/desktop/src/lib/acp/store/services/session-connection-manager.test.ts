@@ -1,6 +1,10 @@
 import { ResultAsync, errAsync, okAsync } from "neverthrow";
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
-import type { SessionModelState } from "../../../services/acp-types.js";
+import type {
+	CanonicalAgentId,
+	SessionModelState,
+	SessionStateEnvelope,
+} from "../../../services/acp-types.js";
 import type {
 	AvailableCommand,
 	ConfigOptionData,
@@ -97,10 +101,12 @@ const setSessionAutonomous = vi.fn();
 const setModel = vi.fn();
 const setConfigOption = vi.fn();
 const stopStreaming = vi.fn();
+const fetchCanonicalSessionStateEnvelope = vi.fn();
 
 vi.mock("../api.js", () => ({
 	api: {
 		closeSession,
+		fetchCanonicalSessionStateEnvelope,
 		newSession,
 		resumeSession,
 		setMode,
@@ -216,6 +222,82 @@ function mockResumeWithLifecycleEvent(responseData: {
 	resumeSession.mockReturnValue(okAsync(undefined));
 }
 
+function createReadySnapshotEnvelope(input: {
+	readonly sessionId: string;
+	readonly projectPath: string;
+	readonly agentId: CanonicalAgentId;
+	readonly models: SessionModelState;
+	readonly modes: {
+		readonly currentModeId: string;
+		readonly availableModes: Array<{ readonly id: string; readonly name: string; readonly description: string | null }>;
+	};
+}): SessionStateEnvelope {
+	const revision = {
+		graphRevision: 7,
+		transcriptRevision: 7,
+		lastEventSeq: 7,
+	};
+	return {
+		sessionId: input.sessionId,
+		graphRevision: revision.graphRevision,
+		lastEventSeq: revision.lastEventSeq,
+		payload: {
+			kind: "snapshot",
+			graph: {
+				requestedSessionId: input.sessionId,
+				canonicalSessionId: input.sessionId,
+				isAlias: false,
+				agentId: input.agentId,
+				projectPath: input.projectPath,
+				worktreePath: null,
+				sourcePath: null,
+				revision,
+				transcriptSnapshot: {
+					revision: revision.transcriptRevision,
+					entries: [],
+				},
+				operations: [],
+				interactions: [],
+				turnState: "Idle",
+				messageCount: 0,
+				activeStreamingTail: null,
+				activeTurnFailure: null,
+				lastTerminalTurnId: null,
+				lifecycle: {
+					status: "ready",
+					detachedReason: null,
+					failureReason: null,
+					errorMessage: null,
+					actionability: {
+						canSend: true,
+						canResume: false,
+						canRetry: false,
+						canArchive: true,
+						canConfigure: true,
+						recommendedAction: "send",
+						recoveryPhase: "none",
+						compactStatus: "ready",
+					},
+				},
+				activity: {
+					kind: "idle",
+					activeOperationCount: 0,
+					activeSubagentCount: 0,
+					dominantOperationId: null,
+					blockingInteractionId: null,
+				},
+				capabilities: {
+					models: input.models,
+					modes: input.modes,
+					availableCommands: [{ name: "compact", description: "Compact session" }],
+					configOptions: null,
+					autonomousEnabled: false,
+				},
+			},
+		},
+	};
+}
+
 describe("SessionConnectionManager.connectSession", () => {
 	const sessionId = "session-1";
 	const projectPath = "/tmp/project";
@@ -329,6 +411,7 @@ describe("SessionConnectionManager.connectSession", () => {
 		(stateReader.getSessionCurrentModeId as ReturnType<typeof vi.fn>).mockReturnValue(null);
 		(connectionManager.isConnecting as ReturnType<typeof vi.fn>).mockReturnValue(false);
 		ensureLoaded.mockReturnValue(okAsync(undefined));
+		fetchCanonicalSessionStateEnvelope.mockReturnValue(errAsync(new Error("not polled")));
 		isSessionModelLoaded.mockReturnValue(true);
 		getCachedModelsDisplay.mockReturnValue(null);
 		getCachedProviderMetadata.mockReturnValue(undefined);
@@ -1034,6 +1117,43 @@ describe("SessionConnectionManager.connectSession", () => {
 
 		expect(flushSpy).not.toHaveBeenCalled();
 		flushSpy.mockRestore();
+	});
+
+	it("reconciles from a ready canonical snapshot when the lifecycle event is missed", async () => {
+		const manager = createManager({
+			stateReader,
+			stateWriter,
+			transientProjection,
+			capabilities,
+			entryManager,
+			connectionManager,
+		});
+		vi.spyOn(lastEventService, "waitForConnectionMaterialization").mockImplementationOnce(() => ({
+			promise: new Promise<ConnectionCompleteData>(() => {}),
+			cancel: vi.fn(),
+		}));
+		const envelope = createReadySnapshotEnvelope({
+			sessionId,
+			projectPath,
+			agentId,
+			models: {
+				currentModelId: "model-a",
+				availableModels: [{ modelId: "model-a", name: "Model A", description: null }],
+			},
+			modes: {
+				currentModeId: "plan",
+				availableModes: [{ id: "plan", name: "Plan", description: null }],
+			},
+		});
+		fetchCanonicalSessionStateEnvelope.mockReturnValue(okAsync(envelope));
+		const eventHandler = createMockEventHandler();
+
+		const result = await manager.connectSession(sessionId, eventHandler);
+		result._unsafeUnwrap();
+
+		expect(fetchCanonicalSessionStateEnvelope).toHaveBeenCalledWith(sessionId);
+		expect(eventHandler.applySessionStateEnvelope).toHaveBeenCalledWith(sessionId, envelope);
+		expect(connectionManager.setConnecting).toHaveBeenLastCalledWith(sessionId, false);
 	});
 
 	it("passes the session open token through reconnect", async () => {

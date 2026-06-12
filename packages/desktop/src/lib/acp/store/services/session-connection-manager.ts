@@ -18,6 +18,7 @@ import type {
 } from "../../../services/acp-provider-metadata.js";
 import type {
 	SessionModelState as AcpSessionModelState,
+	SessionStateEnvelope,
 	SessionOpenResult,
 } from "../../../services/acp-types.js";
 import { TauriCommandError } from "../../../utils/tauri-client/invoke.js";
@@ -55,6 +56,8 @@ const logger = createLogger({ id: "session-connection-manager", name: "SessionCo
  * if the Rust task panics or the SSE bridge drops the lifecycle event.
  */
 const WATCHDOG_TIMEOUT_MS = 90_000;
+const SNAPSHOT_RECONCILE_TIMEOUT_MS = 45_000;
+const SNAPSHOT_RECONCILE_INTERVAL_MS = 500;
 
 /** Global attempt counter for stale-event detection. */
 let nextAttemptId = 1;
@@ -96,6 +99,10 @@ type ProviderAwareSessionModelState = AcpSessionModelState & {
 	readonly modelsDisplay?: ModelsForDisplay | null;
 };
 
+type ConnectionMaterializationOutcome =
+	| { readonly kind: "ok"; readonly data: ConnectionCompleteData }
+	| { readonly kind: "error"; readonly error: AppError };
+
 function getProviderAwareSessionModelState(
 	modelState: AcpSessionModelState | null | undefined
 ): ProviderAwareSessionModelState {
@@ -108,6 +115,84 @@ function getProviderAwareSessionModelState(
 
 function canSendFromCanonical(reader: ISessionStateReader, sessionId: string): boolean {
 	return reader.getSessionCanSend(sessionId) === true;
+}
+
+function delay(ms: number): Promise<void> {
+	return new Promise((resolve) => {
+		setTimeout(resolve, ms);
+	});
+}
+
+function readyConnectionDataFromEnvelope(envelope: SessionStateEnvelope): ConnectionCompleteData | null {
+	if (envelope.payload.kind !== "snapshot") {
+		return null;
+	}
+
+	const graph = envelope.payload.graph;
+	if (graph.lifecycle.status !== "ready") {
+		return null;
+	}
+
+	const capabilities = graph.capabilities;
+	if (!capabilities.models || !capabilities.modes) {
+		return null;
+	}
+
+	return {
+		models: capabilities.models,
+		modes: capabilities.modes,
+		availableCommands: capabilities.availableCommands ?? null,
+		configOptions: capabilities.configOptions ?? null,
+		autonomousEnabled: capabilities.autonomousEnabled ?? null,
+	};
+}
+
+async function reconcileReadySnapshot(
+	sessionId: string,
+	eventHandler: SessionEventHandler,
+	isCancelled: () => boolean
+): Promise<ConnectionCompleteData> {
+	const deadlineMs = Date.now() + SNAPSHOT_RECONCILE_TIMEOUT_MS;
+	await delay(SNAPSHOT_RECONCILE_INTERVAL_MS);
+
+	while (Date.now() <= deadlineMs && !isCancelled()) {
+		const materialized = await api.fetchCanonicalSessionStateEnvelope(sessionId).match(
+			(envelope) => {
+				const data = readyConnectionDataFromEnvelope(envelope);
+				if (data === null) {
+					return null;
+				}
+				eventHandler.applySessionStateEnvelope(sessionId, envelope);
+				return data;
+			},
+			() => null
+		);
+
+		if (materialized !== null) {
+			return materialized;
+		}
+
+		await delay(SNAPSHOT_RECONCILE_INTERVAL_MS);
+	}
+
+	if (isCancelled()) {
+		throw new Error("Canonical snapshot reconciliation was cancelled.");
+	}
+
+	throw new Error("Canonical session-state snapshot did not become ready after reconnect.");
+}
+
+function createReadySnapshotReconciler(
+	sessionId: string,
+	eventHandler: SessionEventHandler
+): { promise: Promise<ConnectionCompleteData>; cancel: () => void } {
+	let cancelled = false;
+	return {
+		promise: reconcileReadySnapshot(sessionId, eventHandler, () => cancelled),
+		cancel: () => {
+			cancelled = true;
+		},
+	};
 }
 
 function canonicalCurrentModeId(reader: ISessionStateReader, sessionId: string): string | null {
@@ -624,10 +709,33 @@ export class SessionConnectionManager {
 		// Attach rejection handler immediately so that if Rust emits a failure event
 		// before api.resumeSession() resolves (e.g. agent install fails fast), the
 		// rejection is already handled and won't fire window.unhandledrejection.
-		const lifecycleResult = ResultAsync.fromPromise(
-			lifecycleWaiter.promise,
-			(err) => err as AppError
-		);
+		const lifecycleOutcome: Promise<ConnectionMaterializationOutcome> =
+			lifecycleWaiter.promise.then(
+				(data) => ({ kind: "ok", data }),
+				(error) => ({ kind: "error", error: error as AppError })
+			);
+		const awaitConnectionMaterialization = () =>
+			ResultAsync.fromPromise(
+				(() => {
+					const snapshotReconciler = createReadySnapshotReconciler(sessionId, eventHandler);
+					const snapshotOutcome: Promise<ConnectionMaterializationOutcome> =
+						snapshotReconciler.promise.then(
+							(data) => ({ kind: "ok", data }),
+							(error) => ({ kind: "error", error: error as AppError })
+						);
+					return Promise.race([lifecycleOutcome, snapshotOutcome])
+						.finally(() => {
+							snapshotReconciler.cancel();
+						})
+						.then((outcome) => {
+							if (outcome.kind === "error") {
+								throw outcome.error;
+							}
+							return outcome.data;
+						});
+				})(),
+				(err) => err as AppError
+			);
 
 		// Fire-and-forget: send resume invoke, then wait for lifecycle event
 		const connection = preferencesStore
@@ -650,7 +758,7 @@ export class SessionConnectionManager {
 					options?.openToken
 				)
 			)
-			.andThen(() => lifecycleResult)
+			.andThen(() => awaitConnectionMaterialization())
 			.andThen((data) => {
 				this.handleConnectionComplete(sessionId, effectiveAgentId, data);
 				const connectedSessionIdentity = this.stateReader.getSessionIdentity(sessionId);

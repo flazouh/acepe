@@ -21,8 +21,12 @@ import type {
 	SessionStateEnvelope,
 	SessionStateGraph,
 	TurnFailureSnapshot,
+	ViewportBufferDelta,
+	ViewportBufferPush,
 } from "$lib/services/acp-types.js";
 import type { SessionUpdate } from "$lib/services/converted-session-types.js";
+import { routeSessionStateEnvelope } from "../../session-state/session-state-command-router.js";
+import { getSessionStateEnvelopeByteBudget } from "../../session-state/session-state-envelope-budget.js";
 import { materializeAgentPanelSceneFromGraph } from "../../session-state/agent-panel-graph-materializer.js";
 import { InteractionStore } from "../interaction-store.svelte.js";
 import type { SessionEntryStore } from "../session-entry-store.svelte.js";
@@ -36,6 +40,15 @@ type ProjectionFailureOverride = Partial<TurnFailureSnapshot> | null;
 type GraphOverride = Partial<SessionStateGraph> & {
 	activeTurnFailure?: ProjectionFailureOverride;
 };
+
+function cloneTranscriptSnapshot(
+	snapshot: SessionStateGraph["transcriptSnapshot"] | undefined
+): SessionStateGraph["transcriptSnapshot"] | undefined {
+	if (snapshot === undefined) {
+		return undefined;
+	}
+	return JSON.parse(JSON.stringify(snapshot)) as SessionStateGraph["transcriptSnapshot"];
+}
 
 function createIdleActivity(): SessionGraphActivity {
 	return {
@@ -259,6 +272,82 @@ function addColdSession(store: SessionStore, sessionId = "session-1", agentId = 
 		sessionLifecycleState: "persisted",
 		parentId: null,
 	});
+}
+
+function createViewportBufferPush(
+	overrides: Partial<ViewportBufferPush> = {}
+): ViewportBufferPush {
+	return {
+		sessionId: overrides.sessionId ?? "session-1",
+		graphRevision: overrides.graphRevision ?? {
+			graphRevision: 7,
+			transcriptRevision: 7,
+			lastEventSeq: 7,
+		},
+		viewportRevision: overrides.viewportRevision ?? 1,
+		emissionSeq: overrides.emissionSeq ?? 0,
+		bufferStartIndex: overrides.bufferStartIndex ?? 0,
+		bufferEndIndex: overrides.bufferEndIndex ?? 1,
+		layoutRowCount: overrides.layoutRowCount ?? 1,
+		totalHeightPx: overrides.totalHeightPx ?? 120,
+		bufferEndOffsetPx: overrides.bufferEndOffsetPx ?? 120,
+		rows: overrides.rows ?? [
+			{
+				rowId: "transcript:assistant-1",
+				sourceEntryId: "assistant-1",
+				kind: "assistantText",
+				version: "v1",
+				anchorEligible: true,
+				activeStreamingTail: null,
+				operationLinks: [],
+				interactionLinks: [],
+				content: {
+					kind: "transcript",
+					role: "assistant",
+					segments: [
+						{
+							kind: "text",
+							segmentId: "assistant-1:text",
+							text: "hello",
+						},
+					],
+				},
+			},
+		],
+		offsetsPx: overrides.offsetsPx ?? [0],
+		mode: overrides.mode ?? { kind: "followingTail" },
+		requestGeneration: overrides.requestGeneration ?? null,
+		scrollTopTarget: overrides.scrollTopTarget ?? null,
+		scrollAnchorCorrectionPx: overrides.scrollAnchorCorrectionPx ?? null,
+		diagnostics: overrides.diagnostics ?? [],
+	};
+}
+
+function createViewportBufferDelta(
+	overrides: Partial<ViewportBufferDelta> = {}
+): ViewportBufferDelta {
+	return {
+		sessionId: overrides.sessionId ?? "session-1",
+		graphRevision: overrides.graphRevision ?? {
+			graphRevision: 7,
+			transcriptRevision: 7,
+			lastEventSeq: 7,
+		},
+		emissionSeq: overrides.emissionSeq ?? 1,
+		fromViewportRevision: overrides.fromViewportRevision ?? 1,
+		toViewportRevision: overrides.toViewportRevision ?? 2,
+		prependedRows: overrides.prependedRows ?? [],
+		prependedOffsetsPx: overrides.prependedOffsetsPx ?? [],
+		appendedRows: overrides.appendedRows ?? [],
+		appendedOffsetsPx: overrides.appendedOffsetsPx ?? [],
+		removedRowIds: overrides.removedRowIds ?? [],
+		layoutRowCount: overrides.layoutRowCount ?? 1,
+		totalHeightPx: overrides.totalHeightPx ?? 120,
+		bufferEndOffsetPx: overrides.bufferEndOffsetPx ?? 120,
+		scrollAnchorCorrectionPx: overrides.scrollAnchorCorrectionPx ?? null,
+		scrollTopTarget: overrides.scrollTopTarget ?? null,
+		diagnostics: overrides.diagnostics ?? [],
+	};
 }
 
 function createSnapshotEnvelope(
@@ -538,7 +627,9 @@ describe("SessionStore.applySessionStateGraph", () => {
 		});
 
 		expect(getSessionStateMock).not.toHaveBeenCalled();
-		expect(store.getSessionStateGraphForTest("session-1")?.transcriptSnapshot).toEqual({
+		expect(
+			cloneTranscriptSnapshot(store.getSessionStateGraphForTest("session-1")?.transcriptSnapshot)
+		).toEqual({
 			revision: 2,
 			entries: [
 				{
@@ -1478,6 +1569,7 @@ describe("SessionStore.applySessionStateGraph", () => {
 				type: "string",
 				currentValue: "always",
 				options: [],
+				presentation: "advanced",
 			},
 		]);
 		expect(store.getSessionAvailableModes("session-1")).toEqual([
@@ -1977,8 +2069,8 @@ describe("SessionStore.applySessionStateGraph", () => {
 		);
 		store.applySessionStateEnvelope("session-1", {
 			sessionId: "session-1",
-			graphRevision: 7,
-			lastEventSeq: 7,
+			graphRevision: 8,
+			lastEventSeq: 8,
 			payload: {
 				kind: "assistantTextDelta",
 				delta: {
@@ -1987,7 +2079,7 @@ describe("SessionStore.applySessionStateGraph", () => {
 					charOffset: 0,
 					deltaText: " it with code.",
 					producedAtMonotonicMs: 1,
-					revision: 1,
+					revision: 8,
 				},
 			},
 		});
@@ -3331,6 +3423,7 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 				type: "string",
 				currentValue: "workspace-write",
 				options: [],
+				presentation: "advanced",
 			},
 		]);
 		expect(store.getSessionAutonomousEnabled("session-1")).toBe(true);
@@ -5512,5 +5605,269 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 		expect(store.getSessionLifecycleStatus("session-1")).toBe("failed");
 		expect(store.getSessionCanSend("session-1")).toBe(false);
 		expect(store.getSessionConnectionError("session-1")).toBe("Provider disconnected");
+	});
+
+	it("ignores oversized session-state envelopes without mutating canonical graph state", () => {
+		const store = new SessionStore();
+		addColdSession(store);
+		const initialGraph = createSessionStateGraph({
+			revision: {
+				graphRevision: 7,
+				transcriptRevision: 7,
+				lastEventSeq: 7,
+			},
+			turnState: "Running",
+		});
+		store.applySessionStateEnvelope("session-1", createSnapshotEnvelope(initialGraph));
+
+		store.applySessionStateEnvelope("session-1", {
+			sessionId: "session-1",
+			graphRevision: 8,
+			lastEventSeq: 10,
+			payload: {
+				kind: "assistantTextDelta",
+				delta: {
+					turnId: "turn-1",
+					rowId: "assistant-1",
+					charOffset: 0,
+					deltaText: "x".repeat(getSessionStateEnvelopeByteBudget("assistantTextDelta")),
+					producedAtMonotonicMs: 12,
+					revision: 8,
+				},
+			},
+		});
+
+		expect(store.getSessionStateGraphForTest("session-1")?.revision).toEqual({
+			graphRevision: 7,
+			transcriptRevision: 7,
+			lastEventSeq: 7,
+		});
+		expect(store.getSessionStateGraphForTest("session-1")?.turnState).toBe("Running");
+	});
+
+	it("forwards viewport buffer pushes through the session store viewport controller", () => {
+		const store = new SessionStore();
+		addColdSession(store);
+		store.applySessionStateEnvelope(
+			"session-1",
+			createSnapshotEnvelope(
+				createSessionStateGraph({
+					revision: {
+						graphRevision: 7,
+						transcriptRevision: 7,
+						lastEventSeq: 7,
+					},
+				})
+			)
+		);
+
+		const push = createViewportBufferPush();
+		store.applySessionStateEnvelope("session-1", {
+			sessionId: "session-1",
+			graphRevision: 7,
+			lastEventSeq: 7,
+			payload: {
+				kind: "viewportBufferPush",
+				push,
+			},
+		});
+
+		expect(store.getTranscriptViewportBufferProjection("session-1")).toMatchObject({
+			viewportRevision: 1,
+			bufferStartIndex: 0,
+			bufferEndIndex: 1,
+		});
+	});
+
+	it("forwards viewport buffer deltas through the session store viewport controller", () => {
+		const store = new SessionStore();
+		addColdSession(store);
+		store.applySessionStateEnvelope(
+			"session-1",
+			createSnapshotEnvelope(
+				createSessionStateGraph({
+					revision: {
+						graphRevision: 7,
+						transcriptRevision: 7,
+						lastEventSeq: 7,
+					},
+				})
+			)
+		);
+
+		store.applySessionStateEnvelope("session-1", {
+			sessionId: "session-1",
+			graphRevision: 7,
+			lastEventSeq: 7,
+			payload: {
+				kind: "viewportBufferPush",
+				push: createViewportBufferPush(),
+			},
+		});
+
+		store.applySessionStateEnvelope("session-1", {
+			sessionId: "session-1",
+			graphRevision: 7,
+			lastEventSeq: 7,
+			payload: {
+				kind: "viewportBufferDelta",
+				delta: createViewportBufferDelta({
+					fromViewportRevision: 1,
+					toViewportRevision: 2,
+					appendedRows: [
+						{
+							rowId: "transcript:assistant-2",
+							sourceEntryId: "assistant-2",
+							kind: "assistantText",
+							version: "v1",
+							anchorEligible: true,
+							activeStreamingTail: null,
+							operationLinks: [],
+							interactionLinks: [],
+							content: {
+								kind: "transcript",
+								role: "assistant",
+								segments: [
+									{
+										kind: "text",
+										segmentId: "assistant-2:text",
+										text: "world",
+									},
+								],
+							},
+						},
+					],
+					appendedOffsetsPx: [120],
+					layoutRowCount: 2,
+					totalHeightPx: 240,
+					bufferEndOffsetPx: 240,
+				}),
+			},
+		});
+
+		expect(store.getTranscriptViewportBufferProjection("session-1")).toMatchObject({
+			viewportRevision: 2,
+			bufferEndIndex: 2,
+			layoutRowCount: 2,
+		});
+	});
+
+	it("applies multi-command transcript and graph patch deltas in order and clears pending send intent after both apply", async () => {
+		const store = new SessionStore();
+		store.addSession({
+			id: "session-1",
+			projectPath: "/repo",
+			agentId: "cursor",
+			title: "New Thread",
+			updatedAt: new Date("2026-04-19T00:00:00.000Z"),
+			createdAt: new Date("2026-04-19T00:00:00.000Z"),
+			sessionLifecycleState: "created",
+			parentId: null,
+		});
+		store.applySessionStateEnvelope(
+			"session-1",
+			createSnapshotEnvelope(
+				createSessionStateGraph({
+					agentId: "cursor",
+					lifecycle: createGraphLifecycle("reserved"),
+					turnState: "Idle",
+					messageCount: 0,
+					activeTurnFailure: null,
+					lastTerminalTurnId: null,
+					activeStreamingTail: null,
+					transcriptSnapshot: {
+						revision: 0,
+						entries: [],
+					},
+					revision: {
+						graphRevision: 0,
+						transcriptRevision: 0,
+						lastEventSeq: 0,
+					},
+				})
+			)
+		);
+
+		const sendResult = await store.sendMessage("session-1", "multi-command ordering test");
+		expect(sendResult.isOk()).toBe(true);
+		expect(store.getSessionPendingSendIntent("session-1")).not.toBeNull();
+
+		const pending = store.getSessionPendingSendIntent("session-1");
+		expect(pending).not.toBeNull();
+		expect(pending).not.toBeUndefined();
+		const attemptId = pending?.attemptId;
+		expect(typeof attemptId).toBe("string");
+
+		const deltaEnvelope: SessionStateEnvelope = {
+			sessionId: "session-1",
+			graphRevision: 1,
+			lastEventSeq: 1,
+			payload: {
+				kind: "delta",
+				delta: {
+					fromRevision: {
+						graphRevision: 0,
+						transcriptRevision: 0,
+						lastEventSeq: 0,
+					},
+					toRevision: {
+						graphRevision: 1,
+						transcriptRevision: 1,
+						lastEventSeq: 1,
+					},
+					activity: {
+						kind: "awaiting_model",
+						activeOperationCount: 0,
+						activeSubagentCount: 0,
+						dominantOperationId: null,
+						blockingInteractionId: null,
+					},
+					turnState: "Running",
+					activeTurnFailure: null,
+					lastTerminalTurnId: null,
+					activeStreamingTail: null,
+					transcriptOperations: [
+						{
+							kind: "appendEntry",
+							entry: {
+								entryId: "user-multi-command-1",
+								role: "user",
+								segments: [
+									{
+										kind: "text",
+										segmentId: "user-multi-command-1:block:0",
+										text: "multi-command ordering test",
+									},
+								],
+								attemptId,
+							},
+						},
+					],
+					operationPatches: [],
+					interactionPatches: [],
+					changedFields: ["transcriptSnapshot", "activity", "turnState"],
+				},
+			},
+		};
+
+		expect(
+			routeSessionStateEnvelope("session-1", { graphRevision: 0, transcriptRevision: 0, lastEventSeq: 0 }, deltaEnvelope)
+		).toEqual([
+			expect.objectContaining({ kind: "applyTranscriptDelta" }),
+			expect.objectContaining({ kind: "applyGraphPatches" }),
+		]);
+
+		store.applySessionStateEnvelope("session-1", deltaEnvelope);
+
+		expect(store.getSessionPendingSendIntent("session-1")).toBeNull();
+		const graph = store.getSessionStateGraphForTest("session-1");
+		expect(graph?.turnState).toBe("Running");
+		expect(graph?.transcriptSnapshot).toMatchObject({
+			revision: 1,
+		});
+		expect(graph?.transcriptSnapshot.entries[0]).toMatchObject({
+			entryId: "user-multi-command-1",
+			attemptId,
+		});
 	});
 });

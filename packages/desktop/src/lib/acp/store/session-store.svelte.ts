@@ -40,7 +40,6 @@ import type {
 	TranscriptEntry,
 	TranscriptSnapshot,
 	TurnFailureSnapshot,
-	UsageTelemetryData,
 	ViewportBufferDelta,
 	ViewportBufferPush,
 } from "../../services/acp-types.js";
@@ -73,11 +72,9 @@ import {
 	buildRowTokenStreamKey,
 	cloneRowTokenStreamMap,
 	countAppendedMarkdownWords,
-	emptyRowTokenStream,
 } from "./transcript-delta.js";
 export { applyTranscriptDeltaToSnapshot, countAppendedMarkdownWords } from "./transcript-delta.js";
 import {
-	graphWithCapabilities,
 	graphWithLifecycle,
 	graphWithPatches,
 	graphWithTranscriptSnapshot,
@@ -85,6 +82,12 @@ import {
 } from "./session-graph-builders.js";
 export type { SessionExportContentError, SessionExportContentErrorKind } from "./session-graph-builders.js";
 import { sanitizeCanonicalCapabilities } from "./canonical-config-sanitize.js";
+import { preserveCanonicalStreamingState } from "./envelope-reducer/canonical-streaming-state.js";
+import type { EnvelopePatch } from "./envelope-reducer/envelope-patch.js";
+import type { EnvelopeReducerSnapshot } from "./envelope-reducer/envelope-snapshot.js";
+import { isNewerGraphRevision, isOlderGraphRevision } from "./envelope-reducer/graph-revision-order.js";
+import { reduceCommand, reduceTranscriptDelta } from "./envelope-reducer/reduce-command.js";
+import type { SessionStateCommand } from "../session-state/session-state-command-router.js";
 export {
 	mergeInteractionSnapshots,
 	mergeOperationSnapshots,
@@ -133,7 +136,6 @@ import type {
 	Model,
 	SessionCapabilities,
 	SessionCold,
-	SessionContextBudget,
 	SessionIdentity,
 	SessionLinkedPr,
 	SessionMetadata,
@@ -248,59 +250,6 @@ type InflightSessionStateRefresh = ResultAsync<void, AppError>;
 
 
 
-function resolveContextBudget(
-	usageTelemetryData: UsageTelemetryData,
-	previous: SessionUsageTelemetry | undefined,
-	_currentModelId: string | null,
-	updatedAt: number
-): SessionContextBudget | null {
-	const explicitMaxTokens = usageTelemetryData.contextWindowSize ?? null;
-	if (explicitMaxTokens != null && explicitMaxTokens > 0) {
-		return {
-			maxTokens: explicitMaxTokens,
-			source: "provider-explicit",
-			scope: usageTelemetryData.scope ?? "step",
-			updatedAt,
-		};
-	}
-
-	if (previous?.contextBudget?.source === "provider-explicit") {
-		return previous.contextBudget;
-	}
-
-	return previous?.contextBudget ?? null;
-}
-
-function buildCanonicalUsageTelemetry(
-	usageTelemetryData: UsageTelemetryData,
-	previous: SessionUsageTelemetry | undefined,
-	currentModelId: string | null
-): SessionUsageTelemetry | null {
-	const eventId = usageTelemetryData.eventId ?? null;
-	if (eventId !== null && previous?.lastTelemetryEventId === eventId) {
-		return null;
-	}
-
-	const costUsd = usageTelemetryData.costUsd ?? 0;
-	const sessionSpendUsd = (previous?.sessionSpendUsd ?? 0) + costUsd;
-	const tokens = usageTelemetryData.tokens;
-	const updatedAt = Date.now();
-
-	return {
-		sessionSpendUsd,
-		latestStepCostUsd: usageTelemetryData.costUsd ?? null,
-		latestTokensTotal: tokens?.total ?? null,
-		latestTokensInput: tokens?.input ?? null,
-		latestTokensOutput: tokens?.output ?? null,
-		latestTokensCacheRead: tokens?.cacheRead ?? null,
-		latestTokensCacheWrite: tokens?.cacheWrite ?? null,
-		latestTokensReasoning: tokens?.reasoning ?? null,
-		lastTelemetryEventId: eventId,
-		contextBudget: resolveContextBudget(usageTelemetryData, previous, currentModelId, updatedAt),
-		updatedAt,
-	};
-}
-
 function mapProjectionTurnFailure(
 	failure: ProjectionTurnFailure | null | undefined
 ): ActiveTurnFailure | null {
@@ -314,16 +263,6 @@ function mapProjectionTurnFailure(
 		code: failure.code ?? null,
 		kind: failure.kind,
 		source: failure.source ?? "unknown",
-	};
-}
-
-function preserveCanonicalStreamingState(projection: CanonicalSessionProjection | null): {
-	readonly tokenStream: ReadonlyMap<string, RowTokenStream>;
-	readonly clockAnchor: SessionClockAnchor | null;
-} {
-	return {
-		tokenStream: projection?.tokenStream ?? emptyRowTokenStream(),
-		clockAnchor: projection?.clockAnchor ?? null,
 	};
 }
 
@@ -422,44 +361,6 @@ function createLifecycleOnlyGraph(input: {
 		activity: input.activity,
 		capabilities: input.capabilities,
 	};
-}
-
-function isNewerGraphRevision(
-	current: SessionGraphRevision | null,
-	incoming: SessionGraphRevision
-): boolean {
-	if (current === null) {
-		return true;
-	}
-
-	if (incoming.graphRevision !== current.graphRevision) {
-		return incoming.graphRevision > current.graphRevision;
-	}
-
-	if (incoming.lastEventSeq !== current.lastEventSeq) {
-		return incoming.lastEventSeq > current.lastEventSeq;
-	}
-
-	return incoming.transcriptRevision > current.transcriptRevision;
-}
-
-function isOlderGraphRevision(
-	current: SessionGraphRevision | null,
-	incoming: SessionGraphRevision
-): boolean {
-	if (current === null) {
-		return false;
-	}
-
-	if (incoming.graphRevision !== current.graphRevision) {
-		return incoming.graphRevision < current.graphRevision;
-	}
-
-	if (incoming.lastEventSeq !== current.lastEventSeq) {
-		return incoming.lastEventSeq < current.lastEventSeq;
-	}
-
-	return incoming.transcriptRevision < current.transcriptRevision;
 }
 
 function connectionErrorFromGraphState(
@@ -1005,16 +906,16 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 	}
 
 	hasPendingCreationSession(sessionId: string): boolean {
-		return this.creationCoordinator.pendingCreationSessions.has(sessionId);
+		return this.creationCoordinator.hasPendingCreation(sessionId);
 	}
 
 	materializePendingCreationSession(sessionId: string): boolean {
 		if (this.getSessionIdentity(sessionId)) {
-			this.creationCoordinator.pendingCreationSessions.delete(sessionId);
+			this.creationCoordinator.completePendingCreation(sessionId);
 			return true;
 		}
 
-		const pendingCreation = this.creationCoordinator.pendingCreationSessions.get(sessionId) ?? null;
+		const pendingCreation = this.creationCoordinator.getPendingCreation(sessionId);
 		if (pendingCreation === null) {
 			return false;
 		}
@@ -1032,7 +933,7 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 			sessionLifecycleState: "created",
 			parentId: null,
 		});
-		this.creationCoordinator.pendingCreationSessions.delete(sessionId);
+		this.creationCoordinator.completePendingCreation(sessionId);
 		return true;
 	}
 
@@ -1082,8 +983,8 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 			};
 		}
 
-		const graph = this.sessionStateGraphs.get(sessionId) ?? null;
-		if (graph === null) {
+		const projection = this.canonicalProjections.get(sessionId) ?? null;
+		if (projection === null) {
 			return {
 				kind: "missing_canonical" as const,
 				sessionId,
@@ -1092,9 +993,9 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 
 		return {
 			kind: "canonical" as const,
-			lifecycle: graph.lifecycle,
-			activity: graph.activity,
-			turnState: graph.turnState,
+			lifecycle: projection.lifecycle,
+			activity: projection.activity,
+			turnState: projection.turnState,
 		};
 	}
 
@@ -1825,6 +1726,7 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 	clearSessionEntries(sessionId: string): void {
 		this.entryStore.clearEntries(sessionId);
 		this.sessionStateGraphs.delete(sessionId);
+		this.canonicalProjections.delete(sessionId);
 		this.rowTokenStreamsByRowId.delete(sessionId);
 		this.messagingSvc.clearSessionState(sessionId);
 	}
@@ -1922,16 +1824,16 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 		const sessionId = graph.canonicalSessionId;
 		if (this.getSessionIdentity(sessionId)) {
 			this.syncSessionSequenceFromGraph(graph);
-			this.creationCoordinator.pendingCreationSessions.delete(sessionId);
+			this.creationCoordinator.completePendingCreation(sessionId);
 			if (graph.isAlias) {
-				this.creationCoordinator.pendingCreationSessions.delete(graph.requestedSessionId);
+				this.creationCoordinator.completePendingCreation(graph.requestedSessionId);
 			}
 			return true;
 		}
 
 		const pendingCreation =
-			this.creationCoordinator.pendingCreationSessions.get(sessionId) ??
-			(graph.isAlias ? (this.creationCoordinator.pendingCreationSessions.get(graph.requestedSessionId) ?? null) : null);
+			this.creationCoordinator.getPendingCreation(sessionId) ??
+			(graph.isAlias ? this.creationCoordinator.getPendingCreation(graph.requestedSessionId) : null);
 		if (pendingCreation === null) {
 			return false;
 		}
@@ -1950,9 +1852,9 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 			sessionLifecycleState: graph.sourcePath ? "persisted" : "created",
 			parentId: null,
 		});
-		this.creationCoordinator.pendingCreationSessions.delete(sessionId);
+		this.creationCoordinator.completePendingCreation(sessionId);
 		if (graph.isAlias) {
-			this.creationCoordinator.pendingCreationSessions.delete(graph.requestedSessionId);
+			this.creationCoordinator.completePendingCreation(graph.requestedSessionId);
 		}
 		return true;
 	}
@@ -2149,12 +2051,15 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 	}): ResultAsync<SessionCreationResult, AppError> {
 		return this.connectionMgr.createSession(options, this).andThen((createdSession) => {
 			if (createdSession.kind === "pending") {
-				this.creationCoordinator.pendingCreationSessions.set(createdSession.sessionId, createdSession);
+				this.creationCoordinator.beginPendingCreation(createdSession.sessionId, createdSession);
 				return okAsync(createdSession);
 			}
 
-			if (this.creationCoordinator.sessionOpenHydrator !== null && createdSession.sessionOpen?.outcome === "found") {
-				return this.creationCoordinator.sessionOpenHydrator.hydrateCreated(createdSession.sessionOpen).map(() => ({
+			if (
+				this.creationCoordinator.hasSessionOpenHydrator() &&
+				createdSession.sessionOpen?.outcome === "found"
+			) {
+				return this.creationCoordinator.hydrateCreatedSession(createdSession.sessionOpen).map(() => ({
 					kind: "ready" as const,
 					session: createdSession.session,
 				}));
@@ -2168,11 +2073,11 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 	}
 
 	setSessionOpenHydrator(hydrator: CreatedSessionHydrator): void {
-		this.creationCoordinator.sessionOpenHydrator = hydrator;
+		this.creationCoordinator.attachSessionConsumers({ sessionOpenHydrator: hydrator });
 	}
 
 	setLiveSessionStateGraphConsumer(consumer: LiveSessionStateGraphConsumer): void {
-		this.creationCoordinator.liveSessionStateGraphConsumer = consumer;
+		this.creationCoordinator.attachSessionConsumers({ liveSessionStateGraphConsumer: consumer });
 	}
 
 	/**
@@ -2258,11 +2163,11 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 		const sessionIdentity = this.getSessionIdentity(sessionId);
 		const sessionMetadata = this.getSessionMetadata(sessionId);
 		if (!sessionIdentity) {
-			if (this.creationCoordinator.pendingCreationSessions.has(sessionId)) {
+			if (this.creationCoordinator.hasPendingCreation(sessionId)) {
 				return this.messagingSvc
 					.sendPendingCreationMessage(sessionId, content, attachments)
 					.mapErr((error) => {
-						this.creationCoordinator.pendingCreationSessions.delete(sessionId);
+						this.creationCoordinator.completePendingCreation(sessionId);
 						return error;
 					});
 			}
@@ -2367,6 +2272,254 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 		});
 	}
 
+	private assembleEnvelopeReducerSnapshot(sessionId: string): EnvelopeReducerSnapshot {
+		return {
+			sessionId,
+			hasSessionIdentity: this.getSessionIdentity(sessionId) !== undefined,
+			previousProjection: this.canonicalProjections.get(sessionId) ?? null,
+			previousGraph: this.sessionStateGraphs.get(sessionId) ?? null,
+			capabilitiesMaterialized: this.canonicalCapabilitiesMaterialized.get(sessionId) === true,
+			transientProjection: this.getTransientProjection(sessionId),
+			currentModelId: this.getSessionCurrentModelId(sessionId),
+			sessionCold: this.getSessionCold(sessionId),
+			browserMonotonicMs: getBrowserMonotonicMs(),
+		};
+	}
+
+	private applyEnvelopePatches(sessionId: string, patches: readonly EnvelopePatch[]): void {
+		for (const patch of patches) {
+			switch (patch.kind) {
+				case "setCapabilitiesMaterialized":
+					this.canonicalCapabilitiesMaterialized.set(sessionId, patch.materialized);
+					break;
+				case "setCanonicalProjection":
+					this.canonicalProjections.set(sessionId, patch.projection);
+					break;
+				case "setSessionStateGraph":
+					this.sessionStateGraphs.set(sessionId, patch.graph);
+					break;
+				case "updateTransientProjection":
+					this.transientProjectionStore.updateTransientProjection(sessionId, patch.updates);
+					break;
+				case "setUsageTelemetry":
+					this.updateUsageTelemetry(sessionId, patch.telemetry);
+					break;
+				case "notifyPlanUpdate":
+					this.callbacks.onPlanUpdate?.(sessionId, patch.plan);
+					break;
+				case "applyViewportBufferPush":
+					this.viewport.applyBufferPush(patch.push);
+					break;
+				case "applyViewportBufferDelta":
+					this.viewport.applyBufferDelta(patch.delta);
+					break;
+				case "replaceSessionOperations":
+					this.operationStore.replaceSessionOperations(patch.sessionId, patch.operations);
+					break;
+				case "replaceTranscriptSnapshot":
+					this.entryStore.replaceTranscriptSnapshot(
+						patch.sessionId,
+						patch.snapshot,
+						new Date(patch.appliedAtMs)
+					);
+					break;
+				case "applyTranscriptDeltaToEntryStore":
+					this.entryStore.applyTranscriptDelta(
+						patch.sessionId,
+						patch.delta,
+						new Date(patch.appliedAtMs)
+					);
+					break;
+				case "applySessionOperationPatches":
+					this.operationStore.applySessionOperationPatches(patch.sessionId, patch.patches);
+					break;
+				case "replaceLiveSessionStateGraph":
+					this.creationCoordinator.replaceLiveSessionStateGraph(patch.graph);
+					break;
+				case "applyLiveSessionInteractionPatches":
+					this.creationCoordinator.applyLiveSessionInteractionPatches(patch.snapshots);
+					break;
+				case "applySessionStateGraph":
+					this.applySessionStateGraph(patch.graph);
+					break;
+				case "syncAwaitingModelRefreshTimer":
+					this.awaitingModelRefresh.syncAwaitingModelRefreshTimer(
+						patch.sessionId,
+						patch.activity,
+						patch.turnState
+					);
+					break;
+				case "reconcileConnectionMachine":
+					this.reconcileConnectionMachineFromCanonicalState(
+						patch.sessionId,
+						patch.lifecycle,
+						patch.turnState,
+						patch.activeTurnFailure
+					);
+					break;
+				case "invokeCanonicalTerminalTurnSideEffects":
+					this.applyCanonicalTerminalTurnSideEffects({
+						sessionId: patch.sessionId,
+						previousProjection: patch.previousProjection,
+						turnState: patch.turnState,
+						activeTurnFailure: patch.activeTurnFailure,
+						projectedFailure: patch.projectedFailure,
+						lastTerminalTurnId: patch.lastTerminalTurnId,
+					});
+					break;
+				case "refreshSessionStateSnapshot":
+					if (patch.warnContext !== undefined) {
+						logger.warn("Refreshing session-state snapshot for transcript frontier mismatch", {
+							sessionId: patch.sessionId,
+							currentRevision: patch.warnContext.currentTranscriptRevision,
+							fromRevision: patch.warnContext.fromRevision,
+							toRevision: patch.warnContext.toRevision,
+						});
+					}
+					void this.refreshSessionStateSnapshot(patch.sessionId).match(
+						() => undefined,
+						() => undefined
+					);
+					break;
+				case "warnMissingCanonicalProjection":
+					if (patch.reason === "graphPatches") {
+						logger.warn("Received session-state graph patches before canonical projection", {
+							sessionId: patch.sessionId,
+							revision: patch.context.revision,
+						});
+					} else {
+						logger.warn("Received assistant text delta before canonical projection", {
+							sessionId: patch.sessionId,
+							turnId: patch.context.turnId,
+							rowId: patch.context.rowId,
+							revision: patch.context.deltaRevision,
+						});
+					}
+					break;
+				case "setRowTokenStream":
+					getOrCreateRowTokenStreamByRowId(this.rowTokenStreamsByRowId, patch.sessionId).set(
+						patch.rowId,
+						patch.row
+					);
+					break;
+			}
+		}
+	}
+
+	private logEnvelopeReducerNoop(
+		sessionId: string,
+		command: SessionStateCommand,
+		snapshot: EnvelopeReducerSnapshot,
+		patches: readonly EnvelopePatch[]
+	): void {
+		if (patches.length > 0) {
+			return;
+		}
+
+		if (command.kind === "applyTelemetry") {
+			const previousProjection = snapshot.previousProjection;
+			if (
+				previousProjection !== null &&
+				!isNewerGraphRevision(previousProjection.revision, command.revision)
+			) {
+				logger.debug("Ignoring stale session-state telemetry envelope", {
+					sessionId,
+					currentRevision: previousProjection.revision,
+					incomingRevision: command.revision,
+				});
+			}
+			return;
+		}
+
+		if (command.kind === "applyPlan") {
+			const previousProjection = snapshot.previousProjection;
+			if (
+				previousProjection !== null &&
+				!isNewerGraphRevision(previousProjection.revision, command.revision)
+			) {
+				logger.debug("Ignoring stale session-state plan envelope", {
+					sessionId,
+					currentRevision: previousProjection.revision,
+					incomingRevision: command.revision,
+				});
+			}
+			return;
+		}
+
+		if (command.kind === "replaceGraph") {
+			const previousGraph = snapshot.previousGraph;
+			const previousProjection = snapshot.previousProjection;
+			const currentRevision = previousProjection?.revision ?? previousGraph?.revision ?? null;
+			if (!isNewerGraphRevision(currentRevision, command.graph.revision)) {
+				logger.debug("Ignoring stale session-state graph snapshot", {
+					sessionId,
+					currentRevision,
+					incomingRevision: command.graph.revision,
+				});
+			}
+			return;
+		}
+
+		if (command.kind === "applyLifecycle") {
+			if (isOlderGraphRevision(snapshot.previousProjection?.revision ?? null, command.revision)) {
+				logger.debug("Ignoring stale session-state lifecycle envelope", {
+					sessionId,
+					currentRevision: snapshot.previousProjection?.revision ?? null,
+					incomingRevision: command.revision,
+				});
+			}
+			return;
+		}
+
+		if (command.kind === "applyGraphPatches") {
+			const previousProjection = snapshot.previousProjection;
+			if (
+				previousProjection !== null &&
+				!isNewerGraphRevision(previousProjection.revision, command.revision)
+			) {
+				logger.debug("Ignoring stale session-state graph patch", {
+					sessionId,
+					currentRevision: previousProjection.revision,
+					incomingRevision: command.revision,
+				});
+			}
+			return;
+		}
+
+		if (command.kind === "applyAssistantTextDelta") {
+			const projection = snapshot.previousProjection;
+			if (projection !== null && command.delta.revision <= projection.revision.graphRevision) {
+				logger.debug("Ignoring stale assistant text delta behind canonical graph frontier", {
+					sessionId,
+					turnId: command.delta.turnId,
+					rowId: command.delta.rowId,
+					deltaRevision: command.delta.revision,
+					graphRevision: projection.revision.graphRevision,
+				});
+			}
+		}
+	}
+
+	private applyEnvelopeReducerCommand(sessionId: string, command: SessionStateCommand): void {
+		const snapshot = this.assembleEnvelopeReducerSnapshot(sessionId);
+		const patches = reduceCommand(snapshot, command, Date.now());
+		this.logEnvelopeReducerNoop(sessionId, command, snapshot, patches);
+		if (command.kind === "replaceGraph" && patches.length > 0) {
+			const replacedTranscript = patches.some((patch) => patch.kind === "replaceTranscriptSnapshot");
+			if (!replacedTranscript) {
+				const previousGraph = snapshot.previousGraph;
+				logger.debug("Ignoring non-advancing session-state transcript snapshot", {
+					sessionId,
+					currentTranscriptRevision: previousGraph?.transcriptSnapshot.revision,
+					incomingTranscriptRevision: command.graph.transcriptSnapshot.revision,
+					graphRevision: command.graph.revision.graphRevision,
+					lastEventSeq: command.graph.revision.lastEventSeq,
+				});
+			}
+		}
+		this.applyEnvelopePatches(sessionId, patches);
+	}
+
 	applySessionStateEnvelope(sessionId: string, envelope: SessionStateEnvelope): void {
 		const commands = routeSessionStateEnvelope(
 			sessionId,
@@ -2394,377 +2547,7 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 				continue;
 			}
 
-			if (command.kind === "replaceGraph") {
-				const graph = command.graph;
-				const previousGraph = this.sessionStateGraphs.get(sessionId) ?? null;
-				const previousProjection = this.canonicalProjections.get(sessionId) ?? null;
-				const currentRevision = previousProjection?.revision ?? previousGraph?.revision ?? null;
-				if (!isNewerGraphRevision(currentRevision, graph.revision)) {
-					logger.debug("Ignoring stale session-state graph snapshot", {
-						sessionId,
-						currentRevision,
-						incomingRevision: graph.revision,
-					});
-					continue;
-				}
-				const currentTranscriptRevision = previousGraph?.transcriptSnapshot.revision;
-				const incomingTranscriptRevision = graph.transcriptSnapshot.revision;
-				const shouldReplaceTranscriptSnapshot =
-					currentTranscriptRevision === undefined ||
-					incomingTranscriptRevision > currentTranscriptRevision;
-				const operationGraph = graph;
-				this.operationStore.replaceSessionOperations(sessionId, operationGraph.operations);
-				if (shouldReplaceTranscriptSnapshot) {
-					this.entryStore.replaceTranscriptSnapshot(
-						sessionId,
-						operationGraph.transcriptSnapshot,
-						new Date()
-					);
-				} else {
-					logger.debug("Ignoring non-advancing session-state transcript snapshot", {
-						sessionId,
-						currentTranscriptRevision,
-						incomingTranscriptRevision,
-						graphRevision: graph.revision.graphRevision,
-						lastEventSeq: graph.revision.lastEventSeq,
-					});
-				}
-				const projectionGraph =
-					shouldReplaceTranscriptSnapshot ||
-					currentTranscriptRevision === undefined ||
-					previousGraph === null
-						? operationGraph
-						: graphWithTranscriptSnapshot(operationGraph, previousGraph.transcriptSnapshot);
-				this.creationCoordinator.liveSessionStateGraphConsumer?.replaceSessionStateGraph(projectionGraph);
-				this.applySessionStateGraph(projectionGraph);
-				this.awaitingModelRefresh.syncAwaitingModelRefreshTimer(
-					sessionId,
-					projectionGraph.activity,
-					projectionGraph.turnState
-				);
-				continue;
-			}
-
-			if (command.kind === "applyLifecycle") {
-				const transientProjection = this.getTransientProjection(sessionId);
-				const previousProjection = this.canonicalProjections.get(sessionId) ?? null;
-				const previousCapabilitiesMaterialized =
-					this.canonicalCapabilitiesMaterialized.get(sessionId) === true;
-				const preservedStreamingState = preserveCanonicalStreamingState(previousProjection);
-				const previousGraph = this.sessionStateGraphs.get(sessionId) ?? null;
-				// Carry forward canonical turnState and activeTurnFailure from the previous full-graph
-				// projection. Reading these from local transient projection would feed optimistic messaging-service writes
-				// back into the canonical projection (authority inversion).
-				const turnState = previousProjection?.turnState ?? "Idle";
-				const activeTurnFailure = previousProjection?.activeTurnFailure ?? null;
-				const graphActiveTurnFailure = previousGraph?.activeTurnFailure ?? null;
-				const reconciledActivity = reconcileStoredGraphActivity(
-					previousProjection?.activity ?? null,
-					command.lifecycle,
-					turnState,
-					activeTurnFailure
-				) ?? {
-					kind: "idle",
-					activeOperationCount: 0,
-					activeSubagentCount: 0,
-					dominantOperationId: null,
-					blockingInteractionId: null,
-				};
-				const lifecycleRevision = command.revision;
-				if (isOlderGraphRevision(previousProjection?.revision ?? null, lifecycleRevision)) {
-					logger.debug("Ignoring stale session-state lifecycle envelope", {
-						sessionId,
-						currentRevision: previousProjection?.revision ?? null,
-						incomingRevision: lifecycleRevision,
-					});
-					continue;
-				}
-				this.canonicalProjections.set(sessionId, {
-					lifecycle: command.lifecycle,
-					activity: reconciledActivity,
-					turnState,
-					activeTurnFailure,
-					lastTerminalTurnId: previousProjection?.lastTerminalTurnId ?? null,
-					activeStreamingTail: previousProjection?.activeStreamingTail ?? null,
-					capabilities: previousProjection?.capabilities ?? emptySessionGraphCapabilities(),
-					tokenStream: preservedStreamingState.tokenStream,
-					clockAnchor: preservedStreamingState.clockAnchor,
-					revision: lifecycleRevision,
-				});
-				this.canonicalCapabilitiesMaterialized.set(sessionId, previousCapabilitiesMaterialized);
-				if (previousGraph !== null) {
-					this.sessionStateGraphs.set(
-						sessionId,
-						graphWithLifecycle(
-							previousGraph,
-							command.lifecycle,
-							reconciledActivity,
-							lifecycleRevision
-						)
-					);
-				} else {
-					const sessionIdentity = this.getSessionIdentity(sessionId);
-					const sessionMetadata = this.getSessionMetadata(sessionId);
-					this.sessionStateGraphs.set(
-						sessionId,
-						createLifecycleOnlyGraph({
-							sessionId,
-							session:
-								sessionIdentity && sessionMetadata
-									? sessionColdFromSlices(sessionIdentity, sessionMetadata)
-									: undefined,
-							lifecycle: command.lifecycle,
-							activity: reconciledActivity,
-							turnState,
-							activeTurnFailure: graphActiveTurnFailure,
-							lastTerminalTurnId: previousProjection?.lastTerminalTurnId ?? null,
-							capabilities: previousProjection?.capabilities ?? emptySessionGraphCapabilities(),
-							revision: lifecycleRevision,
-						})
-					);
-				}
-				const updates: SessionTransientProjectionUpdates = {
-					acpSessionId:
-						command.lifecycle.status === "ready" ? sessionId : transientProjection.acpSessionId,
-				};
-				if (previousProjection?.lifecycle.status !== command.lifecycle.status) {
-					updates.statusChangedAt = Date.now();
-				}
-				if (
-					transientProjection.pendingSendIntent !== null &&
-					transientProjection.pendingSendIntent !== undefined &&
-					previousGraph !== null &&
-					transcriptSnapshotAcknowledgesPendingSend(
-						previousGraph.transcriptSnapshot,
-						transientProjection.pendingSendIntent
-					)
-				) {
-					updates.pendingSendIntent = null;
-				}
-				this.transientProjectionStore.updateTransientProjection(sessionId, updates);
-				this.reconcileConnectionMachineFromCanonicalState(
-					sessionId,
-					command.lifecycle,
-					turnState,
-					activeTurnFailure
-				);
-				this.awaitingModelRefresh.syncAwaitingModelRefreshTimer(sessionId, reconciledActivity, turnState);
-				continue;
-			}
-
-			if (command.kind === "applyCapabilities") {
-				const sessionIdentity = this.getSessionIdentity(sessionId);
-				if (!sessionIdentity) {
-					continue;
-				}
-				const previousProjection = this.canonicalProjections.get(sessionId) ?? null;
-				if (isOlderGraphRevision(previousProjection?.revision ?? null, command.revision)) {
-					continue;
-				}
-				const preservedStreamingState = preserveCanonicalStreamingState(previousProjection);
-				const canonicalCapabilities = sanitizeCanonicalCapabilities(command.capabilities);
-				this.canonicalCapabilitiesMaterialized.set(sessionId, true);
-				if (previousProjection !== null) {
-					this.canonicalProjections.set(sessionId, {
-						lifecycle: previousProjection.lifecycle,
-						activity: previousProjection.activity,
-						turnState: previousProjection.turnState,
-						activeTurnFailure: previousProjection.activeTurnFailure,
-						lastTerminalTurnId: previousProjection.lastTerminalTurnId,
-						activeStreamingTail: previousProjection.activeStreamingTail,
-						capabilities: canonicalCapabilities,
-						tokenStream: preservedStreamingState.tokenStream,
-						clockAnchor: preservedStreamingState.clockAnchor,
-						revision: command.revision,
-					});
-				}
-				const previousGraph = this.sessionStateGraphs.get(sessionId) ?? null;
-				if (previousGraph !== null) {
-					this.sessionStateGraphs.set(
-						sessionId,
-						graphWithCapabilities(previousGraph, canonicalCapabilities, command.revision)
-					);
-				}
-				const transientProjection = this.getTransientProjection(sessionId);
-				const updates: SessionTransientProjectionUpdates = {
-					capabilityMutationState: {
-						pendingMutationId: command.pendingMutationId,
-						previewState: command.previewState,
-					},
-				};
-				if (transientProjection.autonomousTransition !== "idle") {
-					updates.autonomousTransition = "idle";
-				}
-				this.transientProjectionStore.updateTransientProjection(sessionId, updates);
-				continue;
-			}
-
-			if (command.kind === "applyTelemetry") {
-				const previousProjection = this.canonicalProjections.get(sessionId) ?? null;
-				if (!isNewerGraphRevision(previousProjection?.revision ?? null, command.revision)) {
-					logger.debug("Ignoring stale session-state telemetry envelope", {
-						sessionId,
-						currentRevision: previousProjection?.revision ?? null,
-						incomingRevision: command.revision,
-					});
-					continue;
-				}
-				const transientProjection = this.getTransientProjection(sessionId);
-				const nextTelemetry = buildCanonicalUsageTelemetry(
-					command.telemetry,
-					transientProjection.usageTelemetry,
-					this.getSessionCurrentModelId(sessionId)
-				);
-				if (nextTelemetry !== null) {
-					this.updateUsageTelemetry(sessionId, nextTelemetry);
-				}
-				continue;
-			}
-
-			if (command.kind === "applyPlan") {
-				const previousProjection = this.canonicalProjections.get(sessionId) ?? null;
-				if (!isNewerGraphRevision(previousProjection?.revision ?? null, command.revision)) {
-					logger.debug("Ignoring stale session-state plan envelope", {
-						sessionId,
-						currentRevision: previousProjection?.revision ?? null,
-						incomingRevision: command.revision,
-					});
-					continue;
-				}
-				this.callbacks.onPlanUpdate?.(sessionId, command.plan);
-				continue;
-			}
-
-			if (command.kind === "applyAssistantTextDelta") {
-				this.applyAssistantTextDelta(sessionId, command.delta);
-				continue;
-			}
-
-			if (command.kind === "applyBufferPush") {
-				this.viewport.applyBufferPush(command.push);
-				continue;
-			}
-
-			if (command.kind === "applyBufferDelta") {
-				this.viewport.applyBufferDelta(command.delta);
-				continue;
-			}
-
-			if (command.kind === "applyGraphPatches") {
-				const previousProjection = this.canonicalProjections.get(sessionId) ?? null;
-				if (previousProjection === null) {
-					logger.warn("Received session-state graph patches before canonical projection", {
-						sessionId,
-						revision: command.revision,
-					});
-					void this.refreshSessionStateSnapshot(sessionId).match(
-						() => undefined,
-						() => undefined
-					);
-					continue;
-				}
-				if (!isNewerGraphRevision(previousProjection.revision, command.revision)) {
-					logger.debug("Ignoring stale session-state graph patch", {
-						sessionId,
-						currentRevision: previousProjection.revision,
-						incomingRevision: command.revision,
-					});
-					continue;
-				}
-				const preservedStreamingState = preserveCanonicalStreamingState(previousProjection);
-				this.operationStore.applySessionOperationPatches(sessionId, command.operationPatches);
-				this.creationCoordinator.liveSessionStateGraphConsumer?.applySessionInteractionPatches?.(
-					command.interactionPatches
-				);
-				const previousGraph = this.sessionStateGraphs.get(sessionId) ?? null;
-				if (previousGraph !== null) {
-					this.sessionStateGraphs.set(
-						sessionId,
-						graphWithPatches({
-							graph: previousGraph,
-							revision: command.revision,
-							activity: command.activity,
-							turnState: command.turnState,
-							activeTurnFailure: command.activeTurnFailure,
-							lastTerminalTurnId: command.lastTerminalTurnId,
-							activeStreamingTail: command.activeStreamingTail,
-							operationPatches: command.operationPatches,
-							interactionPatches: command.interactionPatches,
-						})
-					);
-				}
-				const activeTurnFailure =
-					command.activeTurnFailure === undefined
-						? previousProjection.activeTurnFailure
-						: mapProjectionTurnFailure(command.activeTurnFailure);
-				const nextActivity = command.activity ?? previousProjection.activity;
-				const nextTurnState = command.turnState ?? previousProjection.turnState;
-				const nextLastTerminalTurnId =
-					command.lastTerminalTurnId === undefined
-						? previousProjection.lastTerminalTurnId
-						: command.lastTerminalTurnId;
-				this.canonicalProjections.set(sessionId, {
-					lifecycle: previousProjection.lifecycle,
-					activity: nextActivity,
-					turnState: nextTurnState,
-					activeTurnFailure,
-					lastTerminalTurnId: nextLastTerminalTurnId,
-					activeStreamingTail:
-						command.activeStreamingTail === undefined
-							? previousProjection.activeStreamingTail
-							: command.activeStreamingTail,
-					capabilities: previousProjection.capabilities,
-					tokenStream: preservedStreamingState.tokenStream,
-					clockAnchor: preservedStreamingState.clockAnchor,
-					revision: command.revision,
-				});
-				const transientProjection = this.getTransientProjection(sessionId);
-				const updates: SessionTransientProjectionUpdates = {};
-				if (
-					transientProjection.pendingSendIntent !== null &&
-					transientProjection.pendingSendIntent !== undefined &&
-					previousGraph !== null &&
-					transcriptSnapshotAcknowledgesPendingSend(
-						previousGraph.transcriptSnapshot,
-						transientProjection.pendingSendIntent
-					)
-				) {
-					updates.pendingSendIntent = null;
-				}
-				this.transientProjectionStore.updateTransientProjection(sessionId, updates);
-				this.applyCanonicalTerminalTurnSideEffects({
-					sessionId,
-					previousProjection,
-					turnState: nextTurnState,
-					activeTurnFailure,
-					projectedFailure: command.activeTurnFailure ?? null,
-					lastTerminalTurnId: nextLastTerminalTurnId,
-				});
-				this.reconcileConnectionMachineFromCanonicalState(
-					sessionId,
-					previousProjection.lifecycle,
-					nextTurnState,
-					activeTurnFailure
-				);
-				this.awaitingModelRefresh.syncAwaitingModelRefreshTimer(sessionId, nextActivity, nextTurnState);
-				continue;
-			}
-
-			if (command.kind === "refreshSnapshot") {
-				logger.warn("Refreshing session-state snapshot for transcript frontier mismatch", {
-					sessionId,
-					currentRevision: this.getGraphTranscriptRevision(sessionId),
-					fromRevision: command.fromRevision,
-					toRevision: command.toRevision,
-				});
-				void this.refreshSessionStateSnapshot(sessionId).match(
-					() => undefined,
-					() => undefined
-				);
-				continue;
-			}
-
-			this.applyTranscriptDelta(sessionId, command.delta, command.revision);
+			this.applyEnvelopeReducerCommand(sessionId, command);
 		}
 	}
 
@@ -2773,125 +2556,9 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 		delta: TranscriptDelta,
 		revision?: SessionGraphRevision
 	): void {
-		const currentTranscriptRevision = this.getGraphTranscriptRevision(sessionId);
-		let nextSnapshot: TranscriptSnapshot | null = null;
-		if (
-			currentTranscriptRevision === undefined ||
-			delta.snapshotRevision > currentTranscriptRevision
-		) {
-			const previousGraph = this.sessionStateGraphs.get(sessionId) ?? null;
-			if (previousGraph !== null) {
-				nextSnapshot = applyTranscriptDeltaToSnapshot(
-					previousGraph.transcriptSnapshot,
-					delta
-				);
-				this.sessionStateGraphs.set(
-					sessionId,
-					graphWithTranscriptSnapshot(previousGraph, nextSnapshot, revision)
-				);
-			}
-		}
-		this.entryStore.applyTranscriptDelta(sessionId, delta, new Date());
-		const pendingSendIntent =
-			this.getTransientProjection(sessionId).pendingSendIntent ?? null;
-		if (
-			nextSnapshot !== null &&
-			pendingSendIntent !== null &&
-			transcriptSnapshotAcknowledgesPendingSend(nextSnapshot, pendingSendIntent)
-		) {
-			this.transientProjectionStore.updateTransientProjection(sessionId, {
-				pendingSendIntent: null,
-			});
-		}
-	}
-
-	private applyAssistantTextDelta(sessionId: string, delta: AssistantTextDeltaPayload): void {
-		const projection = this.canonicalProjections.get(sessionId) ?? null;
-		if (projection === null) {
-			logger.warn("Received assistant text delta before canonical projection", {
-				sessionId,
-				turnId: delta.turnId,
-				rowId: delta.rowId,
-				revision: delta.revision,
-			});
-			void this.refreshSessionStateSnapshot(sessionId).match(
-				() => undefined,
-				() => undefined
-			);
-			return;
-		}
-
-		const rowKey = buildRowTokenStreamKey(delta.turnId, delta.rowId);
-		const previousRow = projection.tokenStream.get(rowKey) ?? null;
-		if (previousRow !== null && delta.revision < previousRow.revision) {
-			return;
-		}
-		if (delta.revision <= projection.revision.graphRevision) {
-			logger.debug("Ignoring stale assistant text delta behind canonical graph frontier", {
-				sessionId,
-				turnId: delta.turnId,
-				rowId: delta.rowId,
-				deltaRevision: delta.revision,
-				graphRevision: projection.revision.graphRevision,
-			});
-			return;
-		}
-
-		const currentText = previousRow?.accumulatedText ?? "";
-		if (delta.charOffset !== currentText.length) {
-			logger.warn("Rejecting non-append assistant text delta", {
-				sessionId,
-				turnId: delta.turnId,
-				rowId: delta.rowId,
-				revision: delta.revision,
-				charOffset: delta.charOffset,
-				expectedOffset: currentText.length,
-			});
-			return;
-		}
-
-		const nextText = `${currentText}${delta.deltaText}`;
-		const wordCounts = countAppendedMarkdownWords({
-			previousText: currentText,
-			previousWordCount: previousRow?.wordCount ?? 0,
-			deltaText: delta.deltaText,
-		});
-		const nextRow: RowTokenStream = {
-			turnId: delta.turnId,
-			rowId: delta.rowId,
-			accumulatedText: nextText,
-			wordCount: wordCounts.wordCount,
-			latestWordCount: wordCounts.latestWordCount,
-			firstDeltaProducedAtMonotonicMs:
-				previousRow?.firstDeltaProducedAtMonotonicMs ?? delta.producedAtMonotonicMs,
-			lastDeltaProducedAtMonotonicMs: delta.producedAtMonotonicMs,
-			revision: delta.revision,
-		};
-		const nextTokenStream = cloneRowTokenStreamMap(projection.tokenStream);
-		nextTokenStream.set(rowKey, nextRow);
-		getOrCreateRowTokenStreamByRowId(this.rowTokenStreamsByRowId, sessionId).set(
-			delta.rowId,
-			nextRow
-		);
-		const nextClockAnchor =
-			projection.clockAnchor ??
-			({
-				rustMonotonicMs: delta.producedAtMonotonicMs,
-				browserAnchorMs: getBrowserMonotonicMs(),
-			} satisfies SessionClockAnchor);
-
-		this.canonicalProjections.set(sessionId, {
-			lifecycle: projection.lifecycle,
-			activity: projection.activity,
-			turnState: projection.turnState,
-			activeTurnFailure: projection.activeTurnFailure,
-			lastTerminalTurnId: projection.lastTerminalTurnId,
-			activeStreamingTail: projection.activeStreamingTail,
-			capabilities: projection.capabilities,
-			tokenStream: nextTokenStream,
-			clockAnchor: nextClockAnchor,
-			revision: projection.revision,
-		});
+		const snapshot = this.assembleEnvelopeReducerSnapshot(sessionId);
+		const patches = reduceTranscriptDelta(snapshot, delta, revision);
+		this.applyEnvelopePatches(sessionId, patches);
 	}
 
 	getGraphTranscriptRevision(sessionId: string): number | undefined {
@@ -2900,6 +2567,10 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 
 	private getGraphRevision(sessionId: string): SessionGraphRevision | undefined {
 		return this.projectionCore.getGraphRevision(sessionId);
+	}
+
+	refreshCanonicalSessionState(sessionId: string): ResultAsync<void, AppError> {
+		return this.refreshSessionStateSnapshot(sessionId);
 	}
 
 	private refreshSessionStateSnapshot(sessionId: string): InflightSessionStateRefresh {

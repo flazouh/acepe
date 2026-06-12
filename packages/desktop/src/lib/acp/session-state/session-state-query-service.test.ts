@@ -32,7 +32,7 @@ describe("resolveSessionStateDelta", () => {
 			transcriptOperations: [],
 			operationPatches: [],
 			interactionPatches: [],
-			changedFields: ["capabilities"],
+			changedFields: ["activity"],
 		};
 
 		expect(resolveSessionStateDelta("session-1", 4, delta)).toEqual({
