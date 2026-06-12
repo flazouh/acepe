@@ -2,8 +2,7 @@
 //! without shared-layer provider-name branching; all provider quirks live in adapters/reconciler.
 
 use crate::acp::parsers::AgentType;
-use crate::acp::reconciler::kind_payload;
-use crate::acp::reconciler::providers;
+use crate::acp::reconciler::{infer_kind_from_payload, providers};
 use crate::acp::session_update::ToolKind;
 
 // --- Happy path: provider adapters classify through the shared reducer surface ---
@@ -11,8 +10,8 @@ use crate::acp::session_update::ToolKind;
 #[test]
 fn kind_payload_lives_under_reconciler_not_parsers() {
     assert_eq!(
-        kind_payload::infer_kind_from_payload("id", None, Some("read")),
-        Some(crate::acp::session_update::ToolKind::Read)
+        infer_kind_from_payload("id", None, Some("read")),
+        Some(ToolKind::Read)
     );
 }
 

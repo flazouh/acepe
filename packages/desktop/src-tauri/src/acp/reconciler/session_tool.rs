@@ -5,12 +5,9 @@
 
 use super::classify_signals::build_unclassified;
 use super::classify_signals::classify_argument_shape;
-use super::kind_payload::{
-    canonical_name_for_kind, is_browser_tool_name, is_web_search_title,
-    looks_like_web_search_arguments,
-};
+use super::kind_payload::canonical_name_for_kind;
 use super::providers;
-use super::{RawClassificationInput, SignalName};
+use super::{classify_with_provider_name_kind, RawClassificationInput, SignalName};
 use crate::acp::parsers::{get_parser, AgentParser, AgentType};
 use crate::acp::session_update::{
     derive_normalized_questions_and_todos, QuestionItem, TodoItem, TodoUpdate, ToolArguments,
@@ -65,28 +62,6 @@ fn usable_tool_name(name: Option<&str>) -> Option<&str> {
 
 fn infer_kind_from_serialized_arguments(arguments: &serde_json::Value) -> Option<ToolKind> {
     classify_argument_shape(arguments)
-}
-
-fn apply_web_search_promotion(
-    agent: AgentType,
-    kind: ToolKind,
-    id: &str,
-    title: Option<&str>,
-    raw_arguments: Option<&serde_json::Value>,
-) -> ToolKind {
-    let argument_implied_web_search = matches!(kind, ToolKind::Fetch | ToolKind::Other)
-        && raw_arguments
-            .map(looks_like_web_search_arguments)
-            .unwrap_or(false);
-    if matches!(kind, ToolKind::Fetch | ToolKind::Search | ToolKind::Other)
-        && (providers::is_web_search_tool_call_id(agent, id)
-            || title.map(is_web_search_title).unwrap_or(false)
-            || argument_implied_web_search)
-    {
-        ToolKind::WebSearch
-    } else {
-        kind
-    }
 }
 
 fn resolve_identity_impl(
@@ -160,36 +135,26 @@ fn resolve_identity_impl(
         None
     };
 
-    let kind = promoted_argument_kind
+    let pre_promotion_kind = promoted_argument_kind
         .or(classified_kind)
         .or(hinted_kind)
         .or(location_kind)
         .or(title_read_kind)
         .unwrap_or(base_output.kind);
-    let kind =
-        apply_web_search_promotion(parser.agent_type(), kind, id, hints.title, raw_arguments);
 
-    let name_is_browser = explicit_name.map(is_browser_tool_name).unwrap_or(false);
-    let title_is_browser = hints.title.map(is_browser_tool_name).unwrap_or(false);
-    let id_is_browser = is_browser_tool_name(id);
-    let kind = if (name_is_browser || title_is_browser || id_is_browser)
-        && matches!(
-            kind,
-            ToolKind::Other
-                | ToolKind::Read
-                | ToolKind::Execute
-                | ToolKind::Search
-                | ToolKind::Fetch
-        ) {
-        ToolKind::Browser
-    } else {
-        kind
+    let raw = RawClassificationInput {
+        id,
+        name: hints.name,
+        title: hints.title,
+        kind_hint: hints.kind_hint,
+        arguments: classification_arguments,
     };
-    let kind = if kind == ToolKind::Other {
-        ToolKind::Unclassified
-    } else {
-        kind
-    };
+    let kind = classify_with_provider_name_kind(
+        parser.agent_type(),
+        Some(pre_promotion_kind),
+        &raw,
+    )
+    .kind;
 
     let name = if let Some(name) = explicit_name {
         if let Some(original_kind) = detected_kind {

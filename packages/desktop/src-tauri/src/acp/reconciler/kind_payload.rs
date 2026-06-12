@@ -185,7 +185,7 @@ const BROWSER_TOOL_SEGMENTS: &[&str] = &[
 /// Check whether a tool name looks like a browser/webview automation tool.
 ///
 /// Handles MCP naming conventions: `mcp__server__func`, `server-func`, or plain `func`.
-pub fn is_browser_tool_name(name: &str) -> bool {
+pub(crate) fn is_browser_tool_name(name: &str) -> bool {
     let lower = name.to_lowercase();
 
     // Extract the function segment from MCP naming: mcp__server__func → func, server-func → func
@@ -201,7 +201,7 @@ pub fn is_browser_tool_name(name: &str) -> bool {
 }
 
 /// Check whether a title string indicates a web search.
-pub fn is_web_search_title(title: &str) -> bool {
+pub(crate) fn is_web_search_title(title: &str) -> bool {
     title.to_lowercase().contains("searching the web")
 }
 
@@ -229,7 +229,7 @@ pub(crate) fn has_sql_query_argument(arguments: &serde_json::Value) -> bool {
 }
 
 /// Check whether arguments contain web-search signals.
-pub fn looks_like_web_search_arguments(arguments: &serde_json::Value) -> bool {
+pub(crate) fn looks_like_web_search_arguments(arguments: &serde_json::Value) -> bool {
     if has_sql_query_argument(arguments) {
         return false;
     }

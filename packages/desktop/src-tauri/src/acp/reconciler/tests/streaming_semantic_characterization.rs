@@ -1,8 +1,7 @@
 //! Characterization for **streamed** tool input vs one-shot classification.
 //!
-//! `SessionStreamingState::accumulate_delta` eventually calls `providers::classify` on the parsed JSON
-//! (`streaming_accumulator::SessionStreamingState::normalize_value`). Unit 4 will fold streaming into
-//! the provider reducer; these tests document parity expectations:
+//! `SessionStreamingState::accumulate_delta` routes name-only kind caching and JSON normalization
+//! through [`crate::acp::reconciler::semantic_transition`]. These tests document parity expectations:
 //!
 //! - **Todo / Question / Sql**: progressive deltas that parse to the same final JSON object as a
 //!   non-streamed tool call should yield the same [`crate::acp::session_update::ToolArguments`] as
@@ -12,7 +11,7 @@
 
 use crate::acp::parsers::AgentType;
 use crate::acp::reconciler::providers;
-use crate::acp::reconciler::RawClassificationInput;
+use crate::acp::reconciler::{RawClassificationInput};
 use crate::acp::session_update::{ToolArguments, ToolKind};
 use crate::acp::streaming_accumulator::SessionStreamingState;
 
@@ -147,4 +146,26 @@ fn streamed_question_matches_direct_classify() {
         &direct.arguments,
         streamed.streaming_arguments.as_ref().unwrap(),
     );
+}
+
+#[test]
+fn seeded_tool_name_kind_matches_semantic_transition_authority() {
+    let agent = AgentType::ClaudeCode;
+    let state = SessionStreamingState::new();
+    state.seed_tool_name("tool-seed-kind", "Edit", agent);
+
+    throttle_for_streaming_emit();
+    let streamed = state
+        .accumulate_delta(
+            "tool-seed-kind",
+            "",
+            r#"{"file_path": "/test.rs", "old_string": "a", "new_string": "b"}"#,
+            agent,
+        )
+        .expect("seeded edit should emit");
+
+    match streamed.streaming_arguments.expect("args") {
+        ToolArguments::Edit { .. } => {}
+        other => panic!("Expected Edit after seed authority kind, got {:?}", other),
+    }
 }

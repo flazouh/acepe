@@ -9,7 +9,7 @@
 use std::{fmt, sync::OnceLock};
 
 use crate::acp::parsers::provider_capabilities::{provider_capabilities, ProviderCapabilities};
-use crate::acp::reconciler::kind_payload as kind_utils;
+use crate::acp::reconciler::canonical_name_for_kind;
 use crate::acp::session_update::{
     PlanConfidence, PlanData, PlanSource, ToolArguments, ToolCallData, ToolCallUpdateData,
     ToolKind, UsageTelemetryData, UsageTelemetryTokens,
@@ -284,11 +284,11 @@ pub trait AgentParser: Send + Sync {
         }
 
         if let Some(arguments) = self.parse_typed_tool_arguments(None, raw_arguments, kind_hint) {
-            return kind_utils::canonical_name_for_kind(arguments.tool_kind()).to_string();
+            return canonical_name_for_kind(arguments.tool_kind()).to_string();
         }
 
         if let Some(hint) = kind_hint.map(str::trim).filter(|value| !value.is_empty()) {
-            return kind_utils::canonical_name_for_kind(self.detect_tool_kind(hint)).to_string();
+            return canonical_name_for_kind(self.detect_tool_kind(hint)).to_string();
         }
 
         "Tool".to_string()
