@@ -4,6 +4,10 @@ use crate::acp::parsers::AgentType;
 use crate::acp::types::ContentBlock;
 use serde_json::json;
 
+fn deserialize_session_update(json: serde_json::Value) -> SessionUpdate {
+    with_agent(AgentType::ClaudeCode, || serde_json::from_value(json).unwrap())
+}
+
 #[test]
 fn test_content_chunk_direct_format() {
     let json = json!({
@@ -150,7 +154,7 @@ fn test_session_update_user_message_chunk_camel_case() {
         "attemptId": "attempt-123"
     });
 
-    let update: SessionUpdate = serde_json::from_value(json).unwrap();
+    let update: SessionUpdate = deserialize_session_update(json);
     let serialized = serde_json::to_value(&update).unwrap();
     match update {
         SessionUpdate::UserMessageChunk {
@@ -180,7 +184,7 @@ fn test_session_update_user_message_chunk_snake_case() {
         }
     });
 
-    let update: SessionUpdate = serde_json::from_value(json).unwrap();
+    let update: SessionUpdate = deserialize_session_update(json);
     match update {
         SessionUpdate::UserMessageChunk {
             chunk,
@@ -210,7 +214,7 @@ fn test_session_update_nested_chunk_format() {
         }
     });
 
-    let update: SessionUpdate = serde_json::from_value(json).unwrap();
+    let update: SessionUpdate = deserialize_session_update(json);
     match update {
         SessionUpdate::UserMessageChunk {
             chunk,
@@ -240,7 +244,7 @@ fn test_session_update_plan() {
         "sessionId": "sess-456"
     });
 
-    let update: SessionUpdate = serde_json::from_value(json).unwrap();
+    let update: SessionUpdate = deserialize_session_update(json);
     match update {
         SessionUpdate::Plan { plan, session_id } => {
             assert_eq!(session_id, Some("sess-456".to_string()));
@@ -271,7 +275,7 @@ fn test_session_update_tool_call() {
         "kind": "execute"
     });
 
-    let update: SessionUpdate = serde_json::from_value(json).unwrap();
+    let update: SessionUpdate = deserialize_session_update(json);
     match update {
         SessionUpdate::ToolCall {
             tool_call,
@@ -310,7 +314,7 @@ fn test_session_update_tool_call_acp_format() {
         "content": []
     });
 
-    let update: SessionUpdate = serde_json::from_value(json).unwrap();
+    let update: SessionUpdate = deserialize_session_update(json);
     match update {
         SessionUpdate::ToolCall {
             tool_call,
@@ -352,7 +356,7 @@ fn test_session_update_tool_call_edit() {
         "kind": "edit"
     });
 
-    let update: SessionUpdate = serde_json::from_value(json).unwrap();
+    let update: SessionUpdate = deserialize_session_update(json);
     match update {
         SessionUpdate::ToolCall {
             tool_call,

@@ -389,16 +389,10 @@ impl AcpUiEventDispatcher {
             },
             None => Vec::new(),
         };
-        let mut changed_fields = vec![
-            "interactions".to_string(),
-            "activity".to_string(),
-            "turnState".to_string(),
-            "activeTurnFailure".to_string(),
-            "lastTerminalTurnId".to_string(),
-            "activeStreamingTail".to_string(),
-        ];
+        let mut changed_fields = turn_terminal_change_fields();
+        changed_fields.insert(0, SessionStateField::Interactions);
         if !operation_patches.is_empty() {
-            changed_fields.insert(0, "operations".to_string());
+            changed_fields.insert(0, SessionStateField::Operations);
         }
         let envelope = build_delta_envelope(DeltaEnvelopeParts {
             session_id,

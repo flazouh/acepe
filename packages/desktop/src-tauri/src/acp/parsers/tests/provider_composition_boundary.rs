@@ -228,3 +228,26 @@ fn agent_context_does_not_silently_default_to_a_built_in_provider() {
         "agent_context.rs must not silently default missing context to a built-in agent"
     );
 }
+
+#[test]
+fn deserialization_paths_do_not_silently_default_to_claude_code() {
+    let acp_root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("src/acp");
+    let guarded_files = [
+        "session_update/tool_calls.rs",
+        "session_update/deserialize.rs",
+        "streaming_accumulator.rs",
+        "session_update_parser.rs",
+    ];
+
+    for relative_path in guarded_files {
+        let source_path = acp_root.join(relative_path);
+        let source = fs::read_to_string(&source_path).unwrap_or_else(|error| {
+            panic!("failed to read {}: {error}", source_path.display())
+        });
+
+        assert!(
+            !source.contains("unwrap_or(AgentType::ClaudeCode)"),
+            "{relative_path} must not silently default missing agent context to Claude Code"
+        );
+    }
+}

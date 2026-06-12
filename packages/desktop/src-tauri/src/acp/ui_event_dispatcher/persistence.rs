@@ -166,11 +166,26 @@ pub(super) async fn persist_dispatch_event(
                 .unwrap_or(previous_transcript_revision);
             if transcript_delta.is_some() {
                 if let SessionUpdate::ToolCall { tool_call, .. } = update.as_ref() {
-                    projection_registry.relink_tool_call_to_transcript_event_seq(
-                        session_id,
-                        &tool_call.id,
-                        transcript_event_seq,
-                    );
+                    if let Some(transcript_snapshot) =
+                        transcript_projection_registry.snapshot_for_session(session_id)
+                    {
+                        if let Some(entry_id) = transcript_snapshot
+                            .entries
+                            .iter()
+                            .rev()
+                            .find(|entry| {
+                                entry.role
+                                    == crate::acp::transcript_projection::TranscriptEntryRole::Tool
+                            })
+                            .map(|entry| entry.entry_id.clone())
+                        {
+                            projection_registry.relink_tool_call_to_transcript_entry(
+                                session_id,
+                                &tool_call.id,
+                                &entry_id,
+                            );
+                        }
+                    }
                 }
             }
             let revision =

@@ -324,17 +324,9 @@ fn deserialize_agent_context<E>() -> Result<AgentType, E>
 where
     E: serde::de::Error,
 {
-    #[cfg(test)]
-    {
-        Ok(current_agent().unwrap_or(AgentType::ClaudeCode))
-    }
-
-    #[cfg(not(test))]
-    {
-        current_agent().ok_or_else(|| {
-            serde::de::Error::custom("Missing agent context for SessionUpdate deserialization")
-        })
-    }
+    current_agent().ok_or_else(|| {
+        serde::de::Error::custom("Missing agent context for SessionUpdate deserialization")
+    })
 }
 
 fn deserialize_serialized_tool_call_with_agent<E>(
@@ -368,7 +360,8 @@ where
         data,
         type_field,
         session_update_field,
-        current_agent().unwrap_or(AgentType::ClaudeCode),
+        current_agent()
+            .ok_or_else(|| E::custom("Missing agent context for update type extraction"))?,
     )
 }
 
