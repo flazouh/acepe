@@ -198,7 +198,7 @@ function switchLayoutFamily(nextFamily: LayoutFamily): void {
 					{#snippet child({ props }: DropdownMenuTriggerChildProps)}
 						<button
 								{...props}
-								class="flex items-center justify-center size-6 rounded text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+								class="flex items-center justify-center size-6 rounded-md text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
 								title="Layout"
 								aria-label="Layout Settings"
 							>
@@ -298,7 +298,7 @@ function switchLayoutFamily(nextFamily: LayoutFamily): void {
 		<Tooltip.Root>
 			<Tooltip.Trigger>
 				<button
-					class="flex items-center justify-center size-6 rounded text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+					class="flex items-center justify-center size-6 rounded-md text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
 					title="Feedback"
 					aria-label="Feedback"
 					onclick={() => openUrl("https://github.com/flazouh/acepe/issues")}
@@ -314,7 +314,7 @@ function switchLayoutFamily(nextFamily: LayoutFamily): void {
 					{#snippet child({ props }: DropdownMenuTriggerChildProps)}
 						<button
 							{...props}
-							class="flex items-center justify-center size-6 rounded text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+							class="flex items-center justify-center size-6 rounded-md text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
 							title="Dev Tools"
 							aria-label="Dev Tools"
 						>
@@ -370,7 +370,7 @@ function switchLayoutFamily(nextFamily: LayoutFamily): void {
 		<Tooltip.Root>
 			<Tooltip.Trigger>
 				<button
-					class="flex items-center justify-center size-6 rounded text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+					class="flex items-center justify-center size-6 rounded-md text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
 					title="Database Manager"
 					aria-label="Database Manager"
 					onclick={() => viewState.toggleSqlStudio()}

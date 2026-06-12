@@ -976,7 +976,7 @@ async function handleOpenPr(prNumber: number) {
 					<div class="flex items-center gap-2">
 						<input
 							type="text"
-							class="flex-1 rounded-md border border-border/70 bg-background px-2 py-1.5 text-xs font-mono text-foreground outline-none transition-colors focus:border-primary"
+							class="flex-1 rounded-lg border border-border/70 bg-background px-2 py-1.5 text-xs font-mono text-foreground outline-none transition-colors focus:border-primary"
 							placeholder="Paste commit SHA"
 							bind:value={commitLookup}
 							onkeydown={(event) => {
@@ -1028,7 +1028,7 @@ async function handleOpenPr(prNumber: number) {
 			<div class="min-w-0 flex-1 overflow-y-auto px-3 py-2">
 				{#if selectedCommitDiff}
 					<div class="space-y-2">
-						<div class="rounded-md border border-border/40 bg-muted/10 px-2.5 py-2">
+						<div class="rounded-lg border border-border/40 bg-muted/10 px-2.5 py-2">
 							<div class="flex items-center gap-1.5">
 								<span
 									class="rounded-md bg-accent/30 px-1.5 py-px font-mono text-[10px] text-foreground"
@@ -1057,7 +1057,7 @@ async function handleOpenPr(prNumber: number) {
 
 						<div class="space-y-1.5">
 							{#each selectedCommitDiff.files as file (file.path)}
-								<div class="overflow-hidden rounded-md border border-border/40">
+								<div class="overflow-hidden rounded-lg border border-border/40">
 									<div
 										class="flex items-center justify-between border-b border-border/30 px-2.5 py-1.5 bg-muted/5"
 									>
@@ -1152,7 +1152,7 @@ async function handleOpenPr(prNumber: number) {
 			<div class="min-w-0 flex-1 overflow-y-auto px-3 py-2">
 				{#if selectedPrLoading}
 					<div class="space-y-2 animate-in fade-in duration-150">
-						<div class="rounded-md border border-border/40 bg-muted/10 px-2.5 py-2">
+						<div class="rounded-lg border border-border/40 bg-muted/10 px-2.5 py-2">
 							<div class="flex items-center gap-1.5">
 								<span class="inline-block h-2 w-2 shrink-0 animate-pulse rounded-full bg-muted-foreground/20"></span>
 								<span class="inline-block h-3.5 w-10 animate-pulse rounded bg-muted-foreground/15"></span>

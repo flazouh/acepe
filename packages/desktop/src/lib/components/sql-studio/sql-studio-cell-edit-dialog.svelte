@@ -105,7 +105,7 @@ function handleSave(): void {
 				{/if}
 			</Dialog.Description>
 		</Dialog.Header>
-		<div class="h-[320px] overflow-hidden rounded-md border border-input">
+		<div class="h-[320px] overflow-hidden rounded-lg border border-input">
 			{#if open}
 				<CodeMirrorEditor
 					value={draftValue}

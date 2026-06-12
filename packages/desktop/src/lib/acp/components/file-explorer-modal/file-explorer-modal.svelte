@@ -209,7 +209,7 @@ function handleSelect(row: FileExplorerRow) {
 	}}
 >
 	<div
-		class="flex h-full min-h-0 w-full overflow-hidden rounded-md border border-border/60 bg-background shadow-[0_30px_80px_rgba(0,0,0,0.5)] flex-col"
+		class="flex h-full min-h-0 w-full overflow-hidden rounded-lg border border-border/60 bg-background shadow-[0_30px_80px_rgba(0,0,0,0.5)] flex-col"
 	>
 		<!-- Search input row -->
 		<div class="flex items-center gap-1 px-2.5 py-1.5 border-b shrink-0">
@@ -242,7 +242,7 @@ function handleSelect(row: FileExplorerRow) {
 					: undefined}
 			/>
 			<kbd
-				class="px-1 py-0 text-[8px] font-medium bg-muted rounded border text-muted-foreground leading-[1.1]"
+				class="px-1 py-0 text-[8px] font-medium bg-muted rounded-lg border text-muted-foreground leading-[1.1]"
 			>
 				Esc
 			</kbd>
@@ -263,9 +263,9 @@ function handleSelect(row: FileExplorerRow) {
 					<div
 						class="px-3 py-1.5 border-t bg-muted/30 flex items-center gap-2 shrink-0 text-[10px] text-muted-foreground"
 					>
-						<kbd class="px-1 py-0.5 font-medium bg-muted rounded border">↑↓</kbd>
+						<kbd class="px-1 py-0.5 font-medium bg-muted rounded-lg border">↑↓</kbd>
 						<span>navigate</span>
-						<kbd class="px-1 py-0.5 font-medium bg-muted rounded border ml-2">↵</kbd>
+						<kbd class="px-1 py-0.5 font-medium bg-muted rounded-lg border ml-2">↵</kbd>
 						<span>open file</span>
 					</div>
 				{/if}

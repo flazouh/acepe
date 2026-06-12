@@ -1072,7 +1072,7 @@ onDestroy(() => {
 			>
 				{#snippet addProjectButton()}
 					<button
-						class="flex items-center justify-center size-6 rounded text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+						class="flex items-center justify-center size-6 rounded-md text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
 						title={"Add repository"}
 						aria-label={"Add repository"}
 						onclick={() => (addProjectDialogOpen = true)}
@@ -1199,7 +1199,7 @@ onDestroy(() => {
 			}}
 		>
 			<div
-				class="mx-auto h-full max-h-[820px] w-full max-w-[1180px] overflow-hidden rounded border border-border/60 bg-background shadow-[0_30px_80px_rgba(0,0,0,0.5)]"
+				class="mx-auto h-full max-h-[820px] w-full max-w-[1180px] overflow-hidden rounded-lg border border-border/60 bg-background shadow-[0_30px_80px_rgba(0,0,0,0.5)]"
 			>
 				<SqlStudioPage onClose={() => viewState.closeSqlStudio()} />
 			</div>
@@ -1246,6 +1246,9 @@ onDestroy(() => {
 			}
 		}}
 	>
+		{#snippet topLeft()}
+			<span class="px-2 text-[11px] font-semibold text-muted-foreground">Settings</span>
+		{/snippet}
 		<SettingsPage {projectManager} />
 	</WorkspaceDialogFrame>
 

@@ -60,7 +60,7 @@ function getFlattenedFiles(group: FileGroup): Array<{ node: FileTreeNode; projec
 				{@const isExpanded = !collapsedProjects.has(group.projectPath)}
 				{@const flattenedFiles = getFlattenedFiles(group)}
 				<div
-					class="flex flex-col overflow-hidden rounded"
+					class="flex flex-col overflow-hidden rounded-lg"
 					style={isExpanded
 						? `flex: 0 1 auto; max-height: ${maxHeightPercent}%; min-height: 0;`
 						: "flex: 0 0 auto;"}

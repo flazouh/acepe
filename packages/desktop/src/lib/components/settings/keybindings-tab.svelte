@@ -33,7 +33,6 @@ const filteredActions = $derived.by(() => {
 	);
 });
 
-// Group actions by category
 const groupedActions = $derived.by(() => {
 	const grouped = new SvelteMap<string, Action[]>();
 	for (const action of filteredActions) {
@@ -75,15 +74,11 @@ async function handleResetAllToDefaults() {
 }
 </script>
 
-<div class="flex flex-col h-full gap-2 text-[13px]">
-	<!-- Header -->
-	<div class="flex items-center justify-between shrink-0">
-		<h2 class="text-[13px] font-semibold text-foreground">
-			{"Keybindings"}
-		</h2>
+<div class="flex h-full min-h-0 flex-col gap-3 text-[13px]">
+	<div class="flex shrink-0 items-center justify-end">
 		<button
 			type="button"
-			class="flex items-center gap-1 text-[12px] font-medium text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
+			class="flex items-center gap-1 text-[12px] font-medium text-muted-foreground transition-colors hover:text-foreground disabled:opacity-50"
 			onclick={handleResetAllToDefaults}
 			disabled={isLoading}
 		>
@@ -92,22 +87,20 @@ async function handleResetAllToDefaults() {
 		</button>
 	</div>
 
-	<!-- Search -->
-	<div class="relative shrink-0">
-		<IconSearch class="absolute left-2 top-1/2 -translate-y-1/2 size-3 text-muted-foreground/50" />
+	<div class="relative shrink-0 border-b border-border/30 pb-2">
+		<IconSearch class="absolute left-0 top-1/2 size-3 -translate-y-1/2 text-muted-foreground/50" />
 		<input
 			type="text"
 			placeholder={"Search keybindings..."}
 			bind:value={searchQuery}
-			class="w-full h-7 pl-7 pr-2 text-[13px] bg-muted/20 border border-border/60 rounded-md outline-none placeholder:text-muted-foreground/40 focus:border-border transition-colors"
+			class="h-7 w-full border-0 bg-transparent pl-5 pr-2 text-[13px] outline-none placeholder:text-muted-foreground/40"
 		/>
 	</div>
 
-	<!-- List -->
-	<div class="flex-1 min-h-0 overflow-auto rounded bg-muted/20 shadow-sm">
+	<div class="min-h-0 flex-1 overflow-auto">
 		{#each groupedActions as [category, actions] (category)}
 			<div
-				class="px-3 h-8 flex items-center text-[12px] font-semibold text-muted-foreground bg-muted/20 border-b border-border/40 sticky top-0"
+				class="sticky top-0 flex h-8 items-center border-b border-border/30 bg-popover text-[12px] font-medium text-muted-foreground"
 			>
 				{category}
 			</div>
@@ -117,16 +110,13 @@ async function handleResetAllToDefaults() {
 				{@const isEditing = editingActionId === action.id}
 				<div
 					class={cn(
-						"flex items-center gap-2 px-3 h-8 border-t border-border/40",
-						"hover:bg-muted/30 transition-colors group"
+						"group flex h-8 items-center gap-2 border-b border-border/30 transition-colors hover:bg-accent/40"
 					)}
 				>
-					<!-- Action label -->
-					<span class="flex-1 text-[13px] font-medium text-foreground truncate">
+					<span class="flex-1 truncate text-[13px] font-medium text-foreground">
 						{action.label}
 					</span>
 
-					<!-- Keybinding cell -->
 					{#if isEditing}
 						<KeybindingEditor
 							actionId={action.id}
@@ -134,7 +124,7 @@ async function handleResetAllToDefaults() {
 							onCancel={() => (editingActionId = null)}
 						/>
 					{:else}
-						<div class="flex items-center gap-1.5 shrink-0">
+						<div class="flex shrink-0 items-center gap-1.5">
 							{#if binding}
 								<KbdGroup>
 									{#each formatKeyStringToArray(binding.key) as key, index (key + index)}
@@ -148,7 +138,7 @@ async function handleResetAllToDefaults() {
 							{/if}
 							<button
 								type="button"
-								class="size-5 flex items-center justify-center rounded text-muted-foreground hover:text-foreground hover:bg-accent opacity-0 group-hover:opacity-100 transition-all"
+								class="flex size-5 items-center justify-center rounded-md text-muted-foreground opacity-0 transition-all hover:bg-accent hover:text-foreground group-hover:opacity-100"
 								onclick={() => (editingActionId = action.id)}
 								disabled={isLoading}
 								title={"Edit keybinding"}
@@ -166,7 +156,7 @@ async function handleResetAllToDefaults() {
 							{#if isCustom}
 								<button
 									type="button"
-									class="size-5 flex items-center justify-center rounded text-muted-foreground hover:text-destructive hover:bg-destructive/10 opacity-0 group-hover:opacity-100 transition-all"
+									class="flex size-5 items-center justify-center rounded-md text-muted-foreground opacity-0 transition-all hover:bg-destructive/10 hover:text-destructive group-hover:opacity-100"
 									onclick={() => handleReset(action.id)}
 									disabled={isLoading}
 									title={"Reset to default"}
@@ -188,7 +178,7 @@ async function handleResetAllToDefaults() {
 			{/each}
 		{/each}
 		{#if groupedActions.length === 0}
-			<div class="py-8 text-center text-muted-foreground/40 text-sm">No keybindings found</div>
+			<div class="py-8 text-center text-sm text-muted-foreground/40">No keybindings found</div>
 		{/if}
 	</div>
 </div>

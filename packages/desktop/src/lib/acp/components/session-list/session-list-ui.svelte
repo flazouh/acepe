@@ -531,7 +531,7 @@ function handleOpenGitPanel(event: MouseEvent, projectPath: string) {
 }
 
 const projectHeaderHoverActionButtonClass =
-	"flex items-center justify-center size-5 rounded text-muted-foreground transition-colors hover:bg-accent hover:text-foreground";
+	"flex items-center justify-center size-5 rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground";
 
 function handleOpenFileExplorer(event: MouseEvent, group: SessionGroup): void {
 	event.stopPropagation();
@@ -776,7 +776,7 @@ function openCreateBranchDialog(projectPath: string): void {
 				<Tooltip.Trigger>
 					<button
 						type="button"
-						class="flex items-center justify-center size-5 rounded text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+						class="flex items-center justify-center size-5 rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
 						aria-label={getProjectCreateButtonTooltipLabel(group.projectName)}
 					>
 						<IconPlus class="h-3 w-3" />
@@ -882,7 +882,7 @@ function openCreateBranchDialog(projectPath: string): void {
 									type="search"
 									value={getProjectHistoryQuery(group.projectPath)}
 									placeholder="Search project history..."
-									class="h-5 rounded border-border/70 bg-background/70 px-1 py-0 text-[10px] md:text-[10px]"
+									class="h-5 rounded-lg border-border/70 bg-background/70 px-1 py-0 text-[10px] md:text-[10px]"
 									data-sidebar-project-history-search
 									oninput={(event) =>
 										setProjectHistoryQuery(group.projectPath, event.currentTarget.value)}
@@ -1085,7 +1085,7 @@ function openCreateBranchDialog(projectPath: string): void {
 								<Tooltip.Root>
 									<Tooltip.Trigger>
 										<button
-											class="flex items-center justify-center size-5 rounded text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:cursor-not-allowed disabled:opacity-40"
+											class="flex items-center justify-center size-5 rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:cursor-not-allowed disabled:opacity-40"
 											disabled={isFetching}
 											onclick={(e) => handleFetchRemote(e, group.projectPath)}
 										>
@@ -1103,7 +1103,7 @@ function openCreateBranchDialog(projectPath: string): void {
 										<Tooltip.Root>
 											<Tooltip.Trigger>
 												<button
-													class="flex items-center justify-center size-5 rounded text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+													class="flex items-center justify-center size-5 rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
 													onclick={(e) => handleOpenGitPanel(e, group.projectPath)}
 												>
 													<GitBranch class="h-3 w-3" weight="fill" />

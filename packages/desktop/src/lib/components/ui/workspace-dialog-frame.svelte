@@ -55,7 +55,7 @@ const bodyClass = $derived(
 				{/if}
 				<Dialog.Close
 					aria-label={closeLabel}
-					class="workspace-dialog-close inline-flex size-5 shrink-0 items-center justify-center rounded border border-border/70 bg-popover text-muted-foreground/70 shadow-sm transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+					class="workspace-dialog-close inline-flex size-5 shrink-0 items-center justify-center rounded-lg border border-border/70 bg-popover text-muted-foreground/70 shadow-sm transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
 					style="--workspace-dialog-close-hover: {Colors.red};"
 				>
 					<XIcon class="size-3" />

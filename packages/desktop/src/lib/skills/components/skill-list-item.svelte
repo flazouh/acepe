@@ -65,7 +65,7 @@ const syncStatusInfo = $derived.by(() => {
 
 <button
 	type="button"
-	class="flex w-full cursor-pointer flex-col gap-1 rounded-sm px-2 py-1.5 text-left hover:bg-accent/40 {isSelected
+	class="flex w-full cursor-pointer flex-col gap-1 rounded-lg px-2 py-1.5 text-left hover:bg-accent/40 {isSelected
 		? 'bg-accent/60'
 		: ''}"
 	onclick={() => onSelect(skill.skill.id)}

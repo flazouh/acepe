@@ -124,7 +124,7 @@ function openInBrowser() {
 
 			<!-- URL bar -->
 			<div
-				class="flex-1 flex items-center gap-2 px-3 py-1.5 bg-background/50 rounded-md border border-border/50 min-w-0"
+				class="flex-1 flex items-center gap-2 px-3 py-1.5 bg-background/50 rounded-lg border border-border/50 min-w-0"
 			>
 				{#if toolbarState.status === "loading"}
 					<Spinner class="text-muted-foreground shrink-0" size={14} />

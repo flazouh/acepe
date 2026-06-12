@@ -183,12 +183,12 @@ function handleFullscreenToggle() {
 								<IconDotsVertical class="h-3 w-3" />
 							</button>
 							{#if openMenuTabId === tab.id}
-								<div class="absolute right-1 top-6 z-20 min-w-[160px] rounded-md border border-border bg-background p-1 shadow-md">
+								<div class="absolute right-1 top-6 z-20 min-w-[160px] rounded-lg border border-border bg-background p-1 shadow-md">
 									{#if canShowMoveTabAction(tab.id)}
 										<button
 											type="button"
 											role="menuitem"
-											class="flex w-full items-center rounded px-2 py-1.5 text-left text-[11px] hover:bg-accent"
+											class="flex w-full items-center rounded-md px-2 py-1.5 text-left text-[11px] hover:bg-accent"
 											onclick={(e) => {
 												e.stopPropagation();
 												handleMoveTabToNewPanel(tab.id);
@@ -201,7 +201,7 @@ function handleFullscreenToggle() {
 										<button
 											type="button"
 											role="menuitem"
-											class="flex w-full items-center rounded px-2 py-1.5 text-left text-[11px] hover:bg-accent"
+											class="flex w-full items-center rounded-md px-2 py-1.5 text-left text-[11px] hover:bg-accent"
 											onclick={(e) => {
 												e.stopPropagation();
 												handleCloseTab(tab.id);

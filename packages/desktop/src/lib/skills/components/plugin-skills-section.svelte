@@ -58,7 +58,7 @@ const totalSkillCount = $derived(plugins.reduce((sum, plugin) => sum + plugin.sk
 				<Collapsible.Root open={expanded} onOpenChange={() => togglePlugin(plugin.id)}>
 					<!-- Plugin header -->
 					<Collapsible.Trigger
-						class="flex w-full cursor-pointer items-center gap-1.5 rounded-sm px-2 py-1.5 text-left hover:bg-accent/40"
+						class="flex w-full cursor-pointer items-center gap-1.5 rounded-lg px-2 py-1.5 text-left hover:bg-accent/40"
 					>
 						<CaretRight
 							class="h-3 w-3 text-muted-foreground transition-transform shrink-0 {expanded

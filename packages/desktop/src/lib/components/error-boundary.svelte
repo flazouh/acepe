@@ -334,7 +334,7 @@ function handleDismiss() {
 {#if error}
 	<div class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60">
 		<div
-			class="w-full max-w-3xl max-h-[90vh] flex flex-col rounded border border-border/40 bg-background overflow-hidden shadow-2xl"
+			class="w-full max-w-3xl max-h-[90vh] flex flex-col rounded-lg border border-border/40 bg-background overflow-hidden shadow-2xl"
 			role="alert"
 		>
 			<!-- Header -->

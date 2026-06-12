@@ -57,7 +57,7 @@ function handleKeyDown(event: KeyboardEvent) {
 	<button
 		type="button"
 		class={cn(
-			"flex w-full items-center gap-1.5 rounded-md px-2 py-1.5 text-sm",
+			"flex w-full items-center gap-1.5 rounded-lg px-2 py-1.5 text-sm",
 			"hover:bg-accent hover:text-accent-foreground",
 			"focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
 			isSelected && "bg-accent text-accent-foreground",

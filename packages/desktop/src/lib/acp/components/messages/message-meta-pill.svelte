@@ -25,7 +25,7 @@ const isAssistant = $derived(variant === "assistant");
 
 {#if isAssistant}
 	<div
-		class="inline-flex items-center rounded-md border border-border/60 bg-background/70 backdrop-blur-sm overflow-hidden {className}"
+		class="inline-flex items-center rounded-lg border border-border/60 bg-background/70 backdrop-blur-sm overflow-hidden {className}"
 	>
 		<CopyButton
 			{text}
@@ -44,7 +44,7 @@ const isAssistant = $derived(variant === "assistant");
 	</div>
 {:else}
 	<div
-		class="inline-flex items-center rounded-md border border-border/60 bg-background/70 backdrop-blur-sm overflow-hidden {className}"
+		class="inline-flex items-center rounded-lg border border-border/60 bg-background/70 backdrop-blur-sm overflow-hidden {className}"
 	>
 		{#if timestamp}
 			<MessageTimestamp

@@ -270,7 +270,7 @@ function getSyncStatusForSkill(
 				</p>
 				<div class="space-y-2 mt-2">
 					{#each syncedAgents as agent (agent.agentId)}
-						<div class="flex items-center justify-between px-2 py-1.5 bg-muted rounded-sm">
+						<div class="flex items-center justify-between px-2 py-1.5 bg-muted rounded-lg">
 							<div class="flex items-center gap-2">
 								<AgentIcon agentId={agent.agentId} size={16} class="h-4 w-4" />
 								<span class="text-sm">{agent.agentName}</span>
@@ -293,7 +293,7 @@ function getSyncStatusForSkill(
 <!-- Error display -->
 {#if store.error}
 	<div
-		class="absolute bottom-4 right-4 bg-destructive text-destructive-foreground px-4 py-2 rounded shadow-lg"
+		class="absolute bottom-4 right-4 rounded-lg bg-destructive px-4 py-2 text-destructive-foreground shadow-lg"
 	>
 		<button type="button" class="absolute top-1 right-1 p-1" onclick={() => store.clearError()}>
 			×

@@ -218,7 +218,7 @@ function handleDeleteClick(event: Event & { preventDefault?: () => void }) {
 						bind:this={renameInputRef}
 						bind:value={renameInput}
 						onkeydown={handleRenameKeydown}
-						class="min-w-0 flex-1 rounded border border-input bg-background px-0.5 py-0 text-sm text-foreground outline-none focus:ring-1 focus:ring-ring"
+						class="min-w-0 flex-1 rounded-lg border border-input bg-background px-0.5 py-0 text-sm text-foreground outline-none focus:ring-1 focus:ring-ring"
 					/>
 					<button
 						type="button"

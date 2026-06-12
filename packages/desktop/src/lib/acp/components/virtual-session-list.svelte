@@ -138,6 +138,7 @@ function measureSessionRow(node: HTMLDivElement): { destroy: () => void } {
 							<UserMessage message={entry.message as UserMessageType} {projectPath} />
 						{:else if entry.type === "assistant"}
 							<AssistantMessage
+								messageId={entry.id}
 								message={entry.message as AssistantMessageType}
 								{projectPath}
 								{streamingAnimationMode}

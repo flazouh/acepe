@@ -22,7 +22,7 @@ let {
 	bind:ref
 	data-slot="command"
 	class={cn(
-		"bg-popover text-popover-foreground flex h-full w-full flex-col overflow-hidden rounded",
+		"bg-popover text-popover-foreground flex h-full w-full flex-col overflow-hidden rounded-lg",
 		className
 	)}
 	{...restProps}

@@ -23,12 +23,12 @@ describe("panel header primitives", () => {
 		expect(root?.className).not.toContain("px-3");
 	});
 
-	it("renders embedded icon button with fixed 28px chrome", () => {
+	it("renders embedded icon button with project-card action sizing", () => {
 		const { container } = render(EmbeddedIconButton, { title: "Action" });
 		const button = container.querySelector("button");
 		expect(button).not.toBeNull();
-		expect(button?.className).toContain("h-7");
-		expect(button?.className).toContain("w-7");
-		expect(button?.className).toContain("hover:bg-accent/50");
+		expect(button?.className).toContain("size-5");
+		expect(button?.className).toContain("hover:bg-accent");
+		expect(button?.className).not.toContain("hover:bg-accent/50");
 	});
 });

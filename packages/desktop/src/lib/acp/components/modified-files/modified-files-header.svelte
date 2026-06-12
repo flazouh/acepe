@@ -393,7 +393,7 @@ function handlePromptResetClick(): void {
 						class="flex shrink-0 items-center gap-1"
 					>
 						<div
-							class="flex shrink-0 items-center rounded border border-border/50 bg-muted text-[0.6875rem]"
+							class="flex shrink-0 items-center rounded-lg border border-border/50 bg-muted text-[0.6875rem]"
 							onclick={(e: MouseEvent) => e.stopPropagation()}
 							role="none"
 						>
@@ -546,7 +546,7 @@ function handlePromptResetClick(): void {
 				{#if !onCreatePr && onMerge}
 					{#if prState === "MERGED"}
 						<div
-							class="flex items-center gap-1 rounded border border-border/50 bg-muted px-2 py-0.5 text-[0.6875rem] font-medium text-muted-foreground opacity-60 shrink-0"
+							class="flex items-center gap-1 rounded-lg border border-border/50 bg-muted px-2 py-0.5 text-[0.6875rem] font-medium text-muted-foreground opacity-60 shrink-0"
 							onclick={(e: MouseEvent) => e.stopPropagation()}
 							role="none"
 						>
@@ -556,7 +556,7 @@ function handlePromptResetClick(): void {
 					{:else}
 						<DropdownMenu.Root>
 							<div
-								class="flex items-center rounded border border-border/50 bg-muted overflow-hidden text-[0.6875rem] shrink-0"
+								class="flex items-center rounded-lg border border-border/50 bg-muted overflow-hidden text-[0.6875rem] shrink-0"
 								onclick={(e: MouseEvent) => e.stopPropagation()}
 								role="none"
 							>

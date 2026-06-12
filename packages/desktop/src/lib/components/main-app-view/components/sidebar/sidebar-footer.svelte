@@ -35,7 +35,7 @@ const releaseUrl = $derived(
 <div class="shrink-0 px-2 py-1.5 flex items-center gap-0.5">
 	<div class="flex items-center gap-0.5">
 		<button
-			class="flex items-center justify-center size-5 rounded text-muted-foreground/60 hover:text-foreground hover:bg-accent transition-colors"
+			class="flex items-center justify-center size-5 rounded-md text-muted-foreground/60 hover:text-foreground hover:bg-accent transition-colors"
 			title="GitHub"
 			aria-label="GitHub"
 			onclick={() => openUrl("https://github.com/flazouh/acepe")}
@@ -43,7 +43,7 @@ const releaseUrl = $derived(
 			<GithubLogo class="size-3.5" weight="fill" />
 		</button>
 		<button
-			class="flex items-center justify-center size-5 rounded text-muted-foreground/60 hover:text-foreground hover:bg-accent transition-colors"
+			class="flex items-center justify-center size-5 rounded-md text-muted-foreground/60 hover:text-foreground hover:bg-accent transition-colors"
 			title="X"
 			aria-label="X"
 			onclick={() => openUrl("https://x.com/acepedotdev")}
@@ -55,7 +55,7 @@ const releaseUrl = $derived(
 			</svg>
 		</button>
 		<button
-			class="flex items-center justify-center size-5 rounded text-muted-foreground/60 hover:text-foreground hover:bg-accent transition-colors"
+			class="flex items-center justify-center size-5 rounded-md text-muted-foreground/60 hover:text-foreground hover:bg-accent transition-colors"
 			title="Discord"
 			aria-label="Discord"
 			onclick={() => openUrl("https://discord.gg/5YhW7T7qhS")}
