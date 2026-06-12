@@ -11,12 +11,12 @@ use std::sync::LazyLock;
 use std::time::Instant;
 
 use super::partial_json::parse_partial_json;
-use super::reconciler::{providers, semantic_transition, RawClassificationInput};
+use super::reconciler::{semantic_transition, RawClassificationInput};
 use super::session_update::{
     PlanConfidence, PlanData, PlanSource, QuestionItem, TodoItem, ToolArguments, ToolKind,
 };
 use crate::acp::parsers::AgentType;
-use crate::acp::reconciler::kind_payload::canonical_name_for_kind;
+use crate::acp::reconciler::canonical_name_for_kind;
 
 /// Maximum accumulated size per tool call (1MB) to prevent DoS.
 const MAX_ACCUMULATED_SIZE: usize = 1_048_576;
@@ -36,6 +36,25 @@ struct ToolCallStreamState {
     tool_kind: Option<ToolKind>,
     /// Cached tool name from initial tool_call event (for use when deltas have "unknown").
     tool_name: Option<String>,
+}
+
+/// Resolve tool kind from wire name via the tool identity authority (streaming-transition entry).
+///
+/// Matches the former `providers::detect_tool_kind` input profile so cached-kind upgrades stay
+/// behavior-identical while routing through [`semantic_transition`].
+fn streaming_authority_kind(agent: AgentType, tool_name: &str) -> ToolKind {
+    semantic_transition(
+        agent,
+        &RawClassificationInput {
+            id: "",
+            name: Some(tool_name),
+            title: None,
+            kind_hint: None,
+            arguments: &serde_json::Value::Null,
+        },
+    )
+    .record
+    .kind
 }
 
 fn effective_streaming_tool_name(tool_name: &str, kind: ToolKind) -> String {
@@ -107,7 +126,7 @@ impl SessionStreamingState {
 
         // Also pre-cache tool_kind for consistency.
         // If we've already guessed `Other`, allow upgrading to a specific kind once known.
-        let detected_kind = providers::detect_tool_kind(agent, tool_name);
+        let detected_kind = streaming_authority_kind(agent, tool_name);
         if state.tool_kind.is_none()
             || matches!(
                 state.tool_kind,
@@ -169,7 +188,7 @@ impl SessionStreamingState {
 
             // Cache tool kind from the resolved name.
             // If we previously cached `Other`, allow upgrade when resolved_name becomes specific.
-            let detected_kind = providers::detect_tool_kind(agent, resolved_name);
+            let detected_kind = streaming_authority_kind(agent, resolved_name);
             if state.tool_kind.is_none()
                 || matches!(
                     state.tool_kind,
@@ -206,7 +225,7 @@ impl SessionStreamingState {
         let resolved_name = state.tool_name.as_deref().unwrap_or("other");
         let tool_kind = state
             .tool_kind
-            .or_else(|| Some(providers::detect_tool_kind(agent, resolved_name)));
+            .or_else(|| Some(streaming_authority_kind(agent, resolved_name)));
         state.last_parsed.as_ref().and_then(|value| {
             self.normalize_value(tool_call_id, value, tool_kind, resolved_name, agent)
         })
@@ -243,53 +262,6 @@ impl SessionStreamingState {
     }
 }
 
-/// Global session streaming states, keyed by session ID.
-static SESSION_STREAMING_STATES: LazyLock<DashMap<String, SessionStreamingState>> =
-    LazyLock::new(DashMap::new);
-
-/// Get or create streaming state for a session.
-pub fn get_session_streaming_state(
-    session_id: &str,
-) -> dashmap::mapref::one::Ref<'_, String, SessionStreamingState> {
-    SESSION_STREAMING_STATES
-        .entry(session_id.to_string())
-        .or_default()
-        .downgrade()
-}
-
-/// Get mutable streaming state for a session.
-pub fn get_session_streaming_state_mut(
-    session_id: &str,
-) -> dashmap::mapref::one::RefMut<'_, String, SessionStreamingState> {
-    SESSION_STREAMING_STATES
-        .entry(session_id.to_string())
-        .or_default()
-}
-
-/// Clean up streaming state for a session.
-///
-/// Call this when a session ends to prevent memory leaks.
-pub fn cleanup_session_streaming(session_id: &str) {
-    SESSION_STREAMING_STATES.remove(session_id);
-    PLAN_STREAMING_STATES.remove(session_id);
-    CODEX_PLAN_STATES.remove(session_id);
-}
-
-/// Clean up streaming state for a specific tool call.
-///
-/// Call this when a tool call completes.
-pub fn cleanup_tool_streaming(session_id: &str, tool_call_id: &str) {
-    if let Some(state) = SESSION_STREAMING_STATES.get(session_id) {
-        state.clear_tool(tool_call_id);
-    }
-}
-
-/// Cache tool name from initial tool_call event for use during streaming deltas.
-/// Call this when the initial tool_call arrives; read by subsequent accumulate_delta calls.
-pub fn seed_tool_name(session_id: &str, tool_call_id: &str, tool_name: &str, agent: AgentType) {
-    get_session_streaming_state_mut(session_id).seed_tool_name(tool_call_id, tool_name, agent);
-}
-
 // ============================================================================
 // Plan Streaming
 // ============================================================================
@@ -311,10 +283,6 @@ pub struct PlanStreamingState {
     /// Last time we emitted a plan event.
     pub last_emission: Instant,
 }
-
-/// Global plan streaming states, keyed by session ID.
-static PLAN_STREAMING_STATES: LazyLock<DashMap<String, PlanStreamingState>> =
-    LazyLock::new(DashMap::new);
 
 /// Codex Plan Mode wrapper tags.
 const CODEX_PLAN_OPEN_TAG: &str = "<proposed_plan>";
@@ -344,10 +312,6 @@ impl Default for CodexPlanTagState {
     }
 }
 
-/// Global Codex wrapper parsing states, keyed by session ID.
-static CODEX_PLAN_STATES: LazyLock<DashMap<String, CodexPlanTagState>> =
-    LazyLock::new(DashMap::new);
-
 fn floor_char_boundary(s: &str, idx: usize) -> usize {
     if idx >= s.len() {
         return s.len();
@@ -360,12 +324,372 @@ fn floor_char_boundary(s: &str, idx: usize) -> usize {
     boundary
 }
 
+/// Result of applying a tool streaming delta through the registry lifecycle.
+#[derive(Debug, Clone, Default)]
+pub struct ToolStreamingDeltaResult {
+    pub normalized: Option<StreamingNormalized>,
+    pub streaming_plan: Option<PlanData>,
+}
+
+/// Owns per-session tool, plan, and codex-plan streaming state behind lifecycle verbs.
+///
+/// Production uses a process-scoped singleton (`streaming_state_registry`). Tests may
+/// construct fresh instances directly (U4) or call `reset_for_test` on the singleton.
+#[derive(Default)]
+pub struct StreamingStateRegistry {
+    session_tool_states: DashMap<String, SessionStreamingState>,
+    plan_streaming_states: DashMap<String, PlanStreamingState>,
+    codex_plan_states: DashMap<String, CodexPlanTagState>,
+}
+
+impl StreamingStateRegistry {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Clear all session-keyed maps for test isolation.
+    #[cfg(test)]
+    pub fn reset_for_test(&self) {
+        self.session_tool_states.clear();
+        self.plan_streaming_states.clear();
+        self.codex_plan_states.clear();
+    }
+
+    pub fn seed_tool_name(
+        &self,
+        session_id: &str,
+        tool_call_id: &str,
+        tool_name: &str,
+        agent: AgentType,
+    ) {
+        self.session_tool_states
+            .entry(session_id.to_string())
+            .or_default()
+            .seed_tool_name(tool_call_id, tool_name, agent);
+    }
+
+    pub fn accumulate_tool_delta(
+        &self,
+        session_id: &str,
+        tool_call_id: &str,
+        tool_name: &str,
+        delta: &str,
+        agent: AgentType,
+    ) -> Option<StreamingNormalized> {
+        self.session_tool_states
+            .entry(session_id.to_string())
+            .or_default()
+            .accumulate_delta(tool_call_id, tool_name, delta, agent)
+    }
+
+    /// Clear per-tool streaming state. Safe under concurrent access — never holds a
+    /// `RefMut` across the internal `get` that would deadlock on the same DashMap shard.
+    pub fn finalize_tool(&self, session_id: &str, tool_call_id: &str) {
+        if let Some(state) = self.session_tool_states.get(session_id) {
+            state.clear_tool(tool_call_id);
+        }
+    }
+
+    /// Apply a streaming delta and optionally finalize on terminal status.
+    ///
+    /// All `RefMut` borrows are scoped before `finalize_tool` so concurrent delta +
+    /// terminal updates cannot deadlock on the same session shard.
+    pub fn apply_tool_streaming_delta(
+        &self,
+        session_id: &str,
+        tool_call_id: &str,
+        tool_name: &str,
+        delta: &str,
+        agent: AgentType,
+        is_terminal: bool,
+    ) -> ToolStreamingDeltaResult {
+        let (normalized, plan) = {
+            let normalized =
+                self.accumulate_tool_delta(session_id, tool_call_id, tool_name, delta, agent);
+            let effective_tool_name = normalized
+                .as_ref()
+                .and_then(|n| n.effective_tool_name.as_deref())
+                .unwrap_or(tool_name);
+            let plan = self.process_plan_streaming(
+                session_id,
+                tool_call_id,
+                effective_tool_name,
+                delta,
+                agent,
+            );
+            (normalized, plan)
+        };
+
+        let streaming_plan = if is_terminal {
+            self.finalize_tool(session_id, tool_call_id);
+            self.finalize_plan_streaming_for_tool(session_id, tool_call_id)
+                .or(plan)
+        } else {
+            plan
+        };
+
+        ToolStreamingDeltaResult {
+            normalized,
+            streaming_plan,
+        }
+    }
+
+    /// Remove all streaming state families for a session.
+    pub fn remove_session(&self, session_id: &str) {
+        self.session_tool_states.remove(session_id);
+        self.plan_streaming_states.remove(session_id);
+        self.codex_plan_states.remove(session_id);
+    }
+
+    pub fn has_tool_state(&self, session_id: &str, tool_call_id: &str) -> bool {
+        self.session_tool_states
+            .get(session_id)
+            .map(|state| state.tool_states.contains_key(tool_call_id))
+            .unwrap_or(false)
+    }
+
+    pub fn accumulate_plan_content(
+        &self,
+        session_id: &str,
+        tool_call_id: &str,
+        file_path: &str,
+        content_delta: &str,
+        agent: AgentType,
+    ) -> Option<PlanData> {
+        let is_first = !self.plan_streaming_states.contains_key(session_id);
+
+        let mut state = self
+            .plan_streaming_states
+            .entry(session_id.to_string())
+            .or_insert_with(|| PlanStreamingState {
+                tool_call_id: tool_call_id.to_string(),
+                file_path: file_path.to_string(),
+                accumulated_content: String::with_capacity(10_240),
+                agent_type: agent,
+                last_emission: Instant::now(),
+            });
+
+        if state.accumulated_content.len() + content_delta.len() > MAX_ACCUMULATED_SIZE {
+            return Some(build_plan_data(&state, true));
+        }
+
+        state.accumulated_content.push_str(content_delta);
+
+        if is_first {
+            state.last_emission = Instant::now();
+            return Some(build_plan_data(&state, true));
+        }
+
+        if state.last_emission.elapsed().as_millis() < THROTTLE_MS as u128 {
+            return None;
+        }
+
+        state.last_emission = Instant::now();
+        Some(build_plan_data(&state, true))
+    }
+
+    pub fn finalize_plan_streaming(&self, session_id: &str) -> Option<PlanData> {
+        self.plan_streaming_states
+            .remove(session_id)
+            .map(|(_, state)| build_plan_data_from_owned(state, false))
+    }
+
+    pub fn has_plan_streaming(&self, session_id: &str) -> bool {
+        self.plan_streaming_states.contains_key(session_id)
+    }
+
+    pub fn get_plan_streaming_tool_id(&self, session_id: &str) -> Option<String> {
+        self.plan_streaming_states
+            .get(session_id)
+            .map(|state| state.tool_call_id.clone())
+    }
+
+    pub fn process_plan_streaming(
+        &self,
+        session_id: &str,
+        tool_call_id: &str,
+        tool_name: &str,
+        streaming_delta: &str,
+        agent: AgentType,
+    ) -> Option<PlanData> {
+        if !(tool_name.eq_ignore_ascii_case("write") || tool_name.eq_ignore_ascii_case("edit")) {
+            return None;
+        }
+
+        let parsed = parse_partial_json(streaming_delta)?;
+
+        let file_path = parsed
+            .get("file_path")
+            .or_else(|| parsed.get("filePath"))
+            .and_then(|v| v.as_str())?;
+
+        if !is_plan_file_path_for_agent(file_path, agent) {
+            return None;
+        }
+
+        let content = parsed
+            .get("new_string")
+            .or_else(|| parsed.get("newString"))
+            .or_else(|| parsed.get("content"))
+            .and_then(|v| v.as_str())
+            .unwrap_or("");
+
+        self.accumulate_plan_content(session_id, tool_call_id, file_path, content, agent)
+    }
+
+    pub fn finalize_plan_streaming_for_tool(
+        &self,
+        session_id: &str,
+        tool_call_id: &str,
+    ) -> Option<PlanData> {
+        if let Some(current_tool_id) = self.get_plan_streaming_tool_id(session_id) {
+            if current_tool_id == tool_call_id {
+                return self.finalize_plan_streaming(session_id);
+            }
+        }
+        None
+    }
+
+    pub fn process_codex_plan_chunk(&self, session_id: &str, text_delta: &str) -> Option<PlanData> {
+        if text_delta.is_empty() {
+            return None;
+        }
+
+        let mut state = self
+            .codex_plan_states
+            .entry(session_id.to_string())
+            .or_default();
+
+        let mut buffer = String::with_capacity(state.pending.len() + text_delta.len());
+        buffer.push_str(&state.pending);
+        buffer.push_str(text_delta);
+        state.pending.clear();
+
+        let mut cursor = 0usize;
+        let mut saw_open = false;
+        let mut saw_close = false;
+
+        while cursor < buffer.len() {
+            if !state.capturing {
+                if let Some(open_pos_rel) = buffer[cursor..].find(CODEX_PLAN_OPEN_TAG) {
+                    let open_pos = cursor + open_pos_rel;
+                    cursor = open_pos + CODEX_PLAN_OPEN_TAG.len();
+                    state.capturing = true;
+                    state.captured_content.clear();
+                    saw_open = true;
+                    continue;
+                }
+
+                let keep = CODEX_PLAN_OPEN_TAG
+                    .len()
+                    .saturating_sub(1)
+                    .min(buffer.len() - cursor);
+                if keep > 0 {
+                    let pending_start = floor_char_boundary(&buffer, buffer.len() - keep);
+                    state.pending = buffer[pending_start..].to_string();
+                }
+                break;
+            }
+
+            if let Some(close_pos_rel) = buffer[cursor..].find(CODEX_PLAN_CLOSE_TAG) {
+                let close_pos = cursor + close_pos_rel;
+                if close_pos > cursor {
+                    state.captured_content.push_str(&buffer[cursor..close_pos]);
+                }
+                cursor = close_pos + CODEX_PLAN_CLOSE_TAG.len();
+                state.capturing = false;
+                saw_close = true;
+                continue;
+            }
+
+            let keep = CODEX_PLAN_CLOSE_TAG.len().saturating_sub(1);
+            let available = buffer.len() - cursor;
+            if available > keep {
+                let safe_end = floor_char_boundary(&buffer, buffer.len() - keep);
+                if safe_end >= cursor {
+                    state.captured_content.push_str(&buffer[cursor..safe_end]);
+                    state.pending = buffer[safe_end..].to_string();
+                } else {
+                    state.pending = buffer[cursor..].to_string();
+                }
+            } else {
+                state.pending = buffer[cursor..].to_string();
+            }
+            break;
+        }
+
+        if saw_close {
+            state.last_emission = Instant::now();
+            return Some(build_codex_plan_data(&state, false));
+        }
+
+        if saw_open {
+            state.last_emission = Instant::now();
+            return Some(build_codex_plan_data(&state, true));
+        }
+
+        if state.capturing && state.last_emission.elapsed().as_millis() >= THROTTLE_MS as u128 {
+            state.last_emission = Instant::now();
+            return Some(build_codex_plan_data(&state, true));
+        }
+
+        None
+    }
+
+    pub fn finalize_codex_plan_streaming(&self, session_id: &str) -> Option<PlanData> {
+        let mut state = self.codex_plan_states.get_mut(session_id)?;
+
+        if state.capturing {
+            state.capturing = false;
+            if !state.pending.is_empty() {
+                let pending = state.pending.clone();
+                state.captured_content.push_str(&pending);
+            }
+            state.pending.clear();
+            return Some(build_codex_plan_data(&state, false));
+        }
+
+        None
+    }
+
+    pub fn finalize_codex_plan_turn(&self, session_id: &str) -> Option<PlanData> {
+        let plan = self.finalize_codex_plan_streaming(session_id);
+        self.cleanup_codex_plan_streaming(session_id);
+        plan
+    }
+
+    pub fn cleanup_codex_plan_streaming(&self, session_id: &str) {
+        self.codex_plan_states.remove(session_id);
+    }
+}
+
+/// Process-scoped streaming state registry (single LazyLock fallback per plan 012 U2).
+static STREAMING_STATE_REGISTRY: LazyLock<StreamingStateRegistry> =
+    LazyLock::new(StreamingStateRegistry::new);
+
+/// Access the process-scoped streaming state registry.
+pub fn streaming_state_registry() -> &'static StreamingStateRegistry {
+    &STREAMING_STATE_REGISTRY
+}
+
+/// Reset the process-scoped registry. Call at the start of streaming tests that
+/// exercise production code paths through module-level accessors.
+#[cfg(test)]
+pub fn reset_streaming_state_for_test() {
+    streaming_state_registry().reset_for_test();
+}
+
+/// Cache tool name from initial tool_call event for use during streaming deltas.
+/// Call this when the initial tool_call arrives; read by subsequent accumulate_delta calls.
+pub fn seed_tool_name(session_id: &str, tool_call_id: &str, tool_name: &str, agent: AgentType) {
+    streaming_state_registry().seed_tool_name(session_id, tool_call_id, tool_name, agent);
+}
+
 #[cfg(test)]
 pub fn is_plan_file_path(path: &str) -> bool {
-    is_plan_file_path_for_agent(
-        path,
-        crate::acp::agent_context::current_agent().unwrap_or(AgentType::ClaudeCode),
-    )
+    let agent = crate::acp::agent_context::current_agent()
+        .expect("Missing agent context for plan file path detection");
+    is_plan_file_path_for_agent(path, agent)
 }
 
 /// Check if a file path is a plan file for a specific agent.
@@ -392,60 +716,30 @@ pub fn accumulate_plan_content(
     content_delta: &str,
     agent: AgentType,
 ) -> Option<PlanData> {
-    let is_first = !PLAN_STREAMING_STATES.contains_key(session_id);
-
-    let mut state = PLAN_STREAMING_STATES
-        .entry(session_id.to_string())
-        .or_insert_with(|| PlanStreamingState {
-            tool_call_id: tool_call_id.to_string(),
-            file_path: file_path.to_string(),
-            accumulated_content: String::with_capacity(10_240),
-            agent_type: agent,
-            last_emission: Instant::now(),
-        });
-
-    // Enforce memory limit (1MB)
-    if state.accumulated_content.len() + content_delta.len() > MAX_ACCUMULATED_SIZE {
-        // At limit, emit current content
-        return Some(build_plan_data(&state, true));
-    }
-
-    state.accumulated_content.push_str(content_delta);
-
-    // Always emit on first call (to open sidebar immediately)
-    if is_first {
-        state.last_emission = Instant::now();
-        return Some(build_plan_data(&state, true));
-    }
-
-    // Throttle subsequent emissions
-    if state.last_emission.elapsed().as_millis() < THROTTLE_MS as u128 {
-        return None;
-    }
-
-    state.last_emission = Instant::now();
-    Some(build_plan_data(&state, true))
+    streaming_state_registry().accumulate_plan_content(
+        session_id,
+        tool_call_id,
+        file_path,
+        content_delta,
+        agent,
+    )
 }
 
 /// Finalize plan streaming for a session.
 ///
 /// Returns the final PlanData with streaming=false, and removes the streaming state.
 pub fn finalize_plan_streaming(session_id: &str) -> Option<PlanData> {
-    PLAN_STREAMING_STATES
-        .remove(session_id)
-        .map(|(_, state)| build_plan_data_from_owned(state, false))
+    streaming_state_registry().finalize_plan_streaming(session_id)
 }
 
 /// Check if a session has active plan streaming.
 pub fn has_plan_streaming(session_id: &str) -> bool {
-    PLAN_STREAMING_STATES.contains_key(session_id)
+    streaming_state_registry().has_plan_streaming(session_id)
 }
 
 /// Get the tool call ID for active plan streaming.
 pub fn get_plan_streaming_tool_id(session_id: &str) -> Option<String> {
-    PLAN_STREAMING_STATES
-        .get(session_id)
-        .map(|state| state.tool_call_id.clone())
+    streaming_state_registry().get_plan_streaming_tool_id(session_id)
 }
 
 /// Build PlanData from streaming state reference.
@@ -511,48 +805,20 @@ pub fn process_plan_streaming(
     streaming_delta: &str,
     agent: AgentType,
 ) -> Option<PlanData> {
-    // Only process Edit and Write tools
-    if !(tool_name.eq_ignore_ascii_case("write") || tool_name.eq_ignore_ascii_case("edit")) {
-        return None;
-    }
-
-    // Parse the partial JSON to extract file_path and content
-    let parsed = parse_partial_json(streaming_delta)?;
-
-    // Get file_path - required to detect plan files
-    let file_path = parsed
-        .get("file_path")
-        .or_else(|| parsed.get("filePath"))
-        .and_then(|v| v.as_str())?;
-
-    // Check if this is a plan file
-    if !is_plan_file_path_for_agent(file_path, agent) {
-        return None;
-    }
-
-    // Extract content - could be in different fields depending on Edit vs Write
-    let content = parsed
-        .get("new_string")
-        .or_else(|| parsed.get("newString"))
-        .or_else(|| parsed.get("content"))
-        .and_then(|v| v.as_str())
-        .unwrap_or("");
-
-    // Accumulate and return plan data
-    accumulate_plan_content(session_id, tool_call_id, file_path, content, agent)
+    streaming_state_registry().process_plan_streaming(
+        session_id,
+        tool_call_id,
+        tool_name,
+        streaming_delta,
+        agent,
+    )
 }
 
 /// Finalize plan streaming when a tool call completes.
 ///
 /// Should be called when Edit/Write tool status becomes Completed/Failed.
 pub fn finalize_plan_streaming_for_tool(session_id: &str, tool_call_id: &str) -> Option<PlanData> {
-    // Only finalize if the tool call ID matches the one that started streaming
-    if let Some(current_tool_id) = get_plan_streaming_tool_id(session_id) {
-        if current_tool_id == tool_call_id {
-            return finalize_plan_streaming(session_id);
-        }
-    }
-    None
+    streaming_state_registry().finalize_plan_streaming_for_tool(session_id, tool_call_id)
 }
 
 /// Process Codex assistant text chunk for `<proposed_plan>` wrapper blocks.
@@ -562,88 +828,7 @@ pub fn finalize_plan_streaming_for_tool(session_id: &str, tool_call_id: &str) ->
 /// - Throttled updates while capturing: streaming=true
 /// - Close tag detected: streaming=false
 pub fn process_codex_plan_chunk(session_id: &str, text_delta: &str) -> Option<PlanData> {
-    if text_delta.is_empty() {
-        return None;
-    }
-
-    let mut state = CODEX_PLAN_STATES.entry(session_id.to_string()).or_default();
-
-    let mut buffer = String::with_capacity(state.pending.len() + text_delta.len());
-    buffer.push_str(&state.pending);
-    buffer.push_str(text_delta);
-    state.pending.clear();
-
-    let mut cursor = 0usize;
-    let mut saw_open = false;
-    let mut saw_close = false;
-
-    while cursor < buffer.len() {
-        if !state.capturing {
-            if let Some(open_pos_rel) = buffer[cursor..].find(CODEX_PLAN_OPEN_TAG) {
-                let open_pos = cursor + open_pos_rel;
-                cursor = open_pos + CODEX_PLAN_OPEN_TAG.len();
-                state.capturing = true;
-                state.captured_content.clear();
-                saw_open = true;
-                continue;
-            }
-
-            // Keep only a split-tag suffix.
-            let keep = CODEX_PLAN_OPEN_TAG
-                .len()
-                .saturating_sub(1)
-                .min(buffer.len() - cursor);
-            if keep > 0 {
-                let pending_start = floor_char_boundary(&buffer, buffer.len() - keep);
-                state.pending = buffer[pending_start..].to_string();
-            }
-            break;
-        }
-
-        if let Some(close_pos_rel) = buffer[cursor..].find(CODEX_PLAN_CLOSE_TAG) {
-            let close_pos = cursor + close_pos_rel;
-            if close_pos > cursor {
-                state.captured_content.push_str(&buffer[cursor..close_pos]);
-            }
-            cursor = close_pos + CODEX_PLAN_CLOSE_TAG.len();
-            state.capturing = false;
-            saw_close = true;
-            continue;
-        }
-
-        // No close tag in this chunk. Keep split close-tag suffix in `pending`.
-        let keep = CODEX_PLAN_CLOSE_TAG.len().saturating_sub(1);
-        let available = buffer.len() - cursor;
-        if available > keep {
-            let safe_end = floor_char_boundary(&buffer, buffer.len() - keep);
-            if safe_end >= cursor {
-                state.captured_content.push_str(&buffer[cursor..safe_end]);
-                state.pending = buffer[safe_end..].to_string();
-            } else {
-                state.pending = buffer[cursor..].to_string();
-            }
-        } else {
-            state.pending = buffer[cursor..].to_string();
-        }
-        break;
-    }
-
-    if saw_close {
-        state.last_emission = Instant::now();
-        return Some(build_codex_plan_data(&state, false));
-    }
-
-    if saw_open {
-        state.last_emission = Instant::now();
-        return Some(build_codex_plan_data(&state, true));
-    }
-
-    if state.capturing && state.last_emission.elapsed().as_millis() >= THROTTLE_MS as u128 {
-        state.last_emission = Instant::now();
-        return Some(build_codex_plan_data(&state, true));
-    }
-
-    None
+    streaming_state_registry().process_codex_plan_chunk(session_id, text_delta)
 }
 
 /// Finalize a Codex wrapper-captured plan at turn end.
@@ -651,31 +836,17 @@ pub fn process_codex_plan_chunk(session_id: &str, text_delta: &str) -> Option<Pl
 /// If the stream ended without a close tag, this emits the captured partial plan
 /// with `streaming=false` and keeps `has_plan=true`.
 pub fn finalize_codex_plan_streaming(session_id: &str) -> Option<PlanData> {
-    let mut state = CODEX_PLAN_STATES.get_mut(session_id)?;
-
-    if state.capturing {
-        state.capturing = false;
-        if !state.pending.is_empty() {
-            let pending = state.pending.clone();
-            state.captured_content.push_str(&pending);
-        }
-        state.pending.clear();
-        return Some(build_codex_plan_data(&state, false));
-    }
-
-    None
+    streaming_state_registry().finalize_codex_plan_streaming(session_id)
 }
 
 /// Finalize and clear Codex wrapper parser state at turn end.
 pub fn finalize_codex_plan_turn(session_id: &str) -> Option<PlanData> {
-    let plan = finalize_codex_plan_streaming(session_id);
-    cleanup_codex_plan_streaming(session_id);
-    plan
+    streaming_state_registry().finalize_codex_plan_turn(session_id)
 }
 
 /// Remove Codex wrapper parser state for a session.
 pub fn cleanup_codex_plan_streaming(session_id: &str) {
-    CODEX_PLAN_STATES.remove(session_id);
+    streaming_state_registry().cleanup_codex_plan_streaming(session_id);
 }
 
 fn build_codex_plan_data(
@@ -703,10 +874,7 @@ fn build_codex_plan_data(
 
 #[cfg(test)]
 pub fn has_tool_state(session_id: &str, tool_call_id: &str) -> bool {
-    SESSION_STREAMING_STATES
-        .get(session_id)
-        .map(|state| state.tool_states.contains_key(tool_call_id))
-        .unwrap_or(false)
+    streaming_state_registry().has_tool_state(session_id, tool_call_id)
 }
 
 #[cfg(test)]
@@ -716,10 +884,8 @@ mod tests {
     fn assert_is_lazy_lock<T>(_: &std::sync::LazyLock<T>) {}
 
     #[test]
-    fn global_streaming_caches_use_lazy_lock() {
-        assert_is_lazy_lock(&SESSION_STREAMING_STATES);
-        assert_is_lazy_lock(&PLAN_STREAMING_STATES);
-        assert_is_lazy_lock(&CODEX_PLAN_STATES);
+    fn process_scoped_registry_uses_single_lazy_lock() {
+        assert_is_lazy_lock(&STREAMING_STATE_REGISTRY);
     }
 
     #[test]

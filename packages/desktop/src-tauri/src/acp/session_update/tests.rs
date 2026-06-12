@@ -3,9 +3,16 @@ use super::deserialize::{
 };
 use super::tool_calls::{parse_tool_call_from_acp, parse_tool_call_update_from_acp};
 use super::*;
-use crate::acp::parsers::get_parser;
+use crate::acp::agent_context::with_agent;
+use crate::acp::parsers::{get_parser, AgentType};
 use crate::acp::types::ContentBlock;
 use serde_json::json;
+
+fn deserialize_session_update(
+    json: serde_json::Value,
+) -> Result<SessionUpdate, serde_json::Error> {
+    with_agent(AgentType::ClaudeCode, || serde_json::from_value(json))
+}
 
 mod available_commands_format {
     use super::*;
@@ -20,7 +27,7 @@ mod available_commands_format {
             ]
         });
 
-        let result: Result<SessionUpdate, _> = serde_json::from_value(json);
+        let result: Result<SessionUpdate, _> = deserialize_session_update(json);
         assert!(result.is_ok(), "Expected Ok, got {:?}", result);
 
         match result.unwrap() {
@@ -43,7 +50,7 @@ mod available_commands_format {
             }
         });
 
-        let result: Result<SessionUpdate, _> = serde_json::from_value(json);
+        let result: Result<SessionUpdate, _> = deserialize_session_update(json);
         assert!(result.is_ok(), "Expected Ok, got {:?}", result);
 
         match result.unwrap() {
@@ -75,7 +82,7 @@ mod available_commands_format {
             ]
         });
 
-        let result: Result<SessionUpdate, _> = serde_json::from_value(json);
+        let result: Result<SessionUpdate, _> = deserialize_session_update(json);
         assert!(result.is_ok(), "Expected Ok, got {:?}", result);
 
         match result.unwrap() {
@@ -122,7 +129,7 @@ mod available_commands_format {
             ]
         });
 
-        let result: Result<SessionUpdate, _> = serde_json::from_value(json);
+        let result: Result<SessionUpdate, _> = deserialize_session_update(json);
         assert!(result.is_ok(), "Expected Ok, got {:?}", result);
 
         match result.unwrap() {
@@ -154,7 +161,7 @@ mod available_commands_format {
             ]
         });
 
-        let result: Result<SessionUpdate, _> = serde_json::from_value(json);
+        let result: Result<SessionUpdate, _> = deserialize_session_update(json);
         assert!(result.is_ok(), "Expected Ok, got {:?}", result);
 
         match result.unwrap() {
@@ -179,7 +186,7 @@ mod available_commands_format {
             }
         });
 
-        let result: Result<SessionUpdate, _> = serde_json::from_value(json);
+        let result: Result<SessionUpdate, _> = deserialize_session_update(json);
         assert!(result.is_ok(), "Expected Ok, got {:?}", result);
 
         match result.unwrap() {
@@ -200,7 +207,7 @@ mod available_commands_format {
             "current_mode_update": "plan"
         });
 
-        let result: Result<SessionUpdate, _> = serde_json::from_value(json);
+        let result: Result<SessionUpdate, _> = deserialize_session_update(json);
         assert!(result.is_ok(), "Expected Ok, got {:?}", result);
 
         match result.unwrap() {
@@ -234,7 +241,7 @@ mod available_commands_format {
             }
         });
 
-        let result: Result<SessionUpdate, _> = serde_json::from_value(json);
+        let result: Result<SessionUpdate, _> = deserialize_session_update(json);
         assert!(result.is_ok(), "Expected Ok, got {:?}", result);
 
         match result.unwrap() {
@@ -245,6 +252,143 @@ mod available_commands_format {
             }
             other => panic!("Expected ConfigOptionUpdate, got {:?}", other),
         }
+    }
+}
+
+mod agent_context_deserialization {
+    use super::*;
+    use crate::acp::agent_context::{current_agent, with_agent};
+    use crate::acp::parsers::AgentType;
+
+    #[test]
+    fn codex_session_update_deserialize_uses_codex_parser_not_claude() {
+        with_agent(AgentType::Codex, || {
+            let json = json!({
+                "type": "toolCall",
+                "sessionId": "sess-codex",
+                "toolCallId": "tool-search-1",
+                "title": "Search branch:main|branch: in desktop",
+                "kind": "search",
+                "status": "running"
+            });
+
+            let result: Result<SessionUpdate, serde_json::Error> = serde_json::from_value(json);
+
+            match result.expect("codex scoped SessionUpdate should parse") {
+                SessionUpdate::ToolCall { tool_call, session_id } => {
+                    assert_eq!(session_id.as_deref(), Some("sess-codex"));
+                    assert_eq!(tool_call.id, "tool-search-1");
+                    assert_eq!(tool_call.name, "Search");
+                    assert_eq!(tool_call.kind, Some(ToolKind::Search));
+                    assert!(matches!(tool_call.status, ToolCallStatus::InProgress));
+                }
+                other => panic!("expected ToolCall, got {:?}", other),
+            }
+        });
+    }
+
+    #[test]
+    fn cursor_session_update_deserialize_uses_cursor_parser_not_claude() {
+        with_agent(AgentType::Cursor, || {
+            let json = json!({
+                "type": "toolCall",
+                "sessionUpdate": "tool_call",
+                "sessionId": "sess-cursor",
+                "toolCallId": "tool-find-1",
+                "kind": "search",
+                "status": "pending",
+                "title": "Find `**/*`",
+                "rawInput": { "pattern": "**/*" },
+                "locations": [
+                    { "path": "/Users/example/Downloads/sample-go-project" }
+                ]
+            });
+
+            let result: Result<SessionUpdate, serde_json::Error> = serde_json::from_value(json);
+
+            match result.expect("cursor scoped SessionUpdate should parse") {
+                SessionUpdate::ToolCall { tool_call, session_id } => {
+                    assert_eq!(session_id.as_deref(), Some("sess-cursor"));
+                    assert_eq!(tool_call.id, "tool-find-1");
+                    assert_eq!(tool_call.kind, Some(ToolKind::Glob));
+                }
+                other => panic!("expected ToolCall, got {:?}", other),
+            }
+        });
+    }
+
+    #[test]
+    fn nested_with_agent_session_update_deserialize_uses_innermost_agent() {
+        with_agent(AgentType::ClaudeCode, || {
+            with_agent(AgentType::Cursor, || {
+                let json = json!({
+                    "type": "toolCall",
+                    "sessionUpdate": "tool_call",
+                    "sessionId": "sess-nested",
+                    "toolCallId": "tool-read-1",
+                    "kind": "read",
+                    "status": "pending",
+                    "title": "Read README.md",
+                    "rawInput": { "offset": 0, "limit": 200 },
+                    "locations": [
+                        { "path": "/Users/example/README.md" }
+                    ]
+                });
+
+                let result: Result<SessionUpdate, serde_json::Error> = serde_json::from_value(json);
+
+                match result.expect("nested scoped SessionUpdate should parse") {
+                    SessionUpdate::ToolCall { tool_call, .. } => {
+                        assert_eq!(tool_call.kind, Some(ToolKind::Read));
+                    }
+                    other => panic!("expected ToolCall, got {:?}", other),
+                }
+
+                assert_eq!(current_agent(), Some(AgentType::Cursor));
+            });
+            assert_eq!(current_agent(), Some(AgentType::ClaudeCode));
+        });
+    }
+
+    #[test]
+    fn session_update_deserialize_errors_without_agent_context() {
+        let json = json!({
+            "type": "toolCall",
+            "sessionId": "sess-missing-agent",
+            "toolCallId": "tool-1",
+            "kind": "read",
+            "status": "pending"
+        });
+
+        let result: Result<SessionUpdate, serde_json::Error> = serde_json::from_value(json);
+        assert!(result.is_err(), "expected missing agent context error");
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains("Missing agent context"),
+            "expected missing agent context message"
+        );
+    }
+
+    #[test]
+    fn tool_call_parse_errors_without_agent_context() {
+        let data = json!({
+            "toolCallId": "tool-1",
+            "kind": "read",
+            "status": "pending",
+            "title": "Read file"
+        });
+
+        let result: Result<ToolCallData, serde_json::Error> = parse_tool_call_from_acp(&data);
+        assert!(result.is_err(), "expected missing agent context error");
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains("Missing agent context"),
+            "expected missing agent context message"
+        );
     }
 }
 
@@ -321,7 +465,7 @@ mod plan_format {
                 { "content": "Step two", "status": "pending" }
             ]
         });
-        let result: Result<SessionUpdate, _> = serde_json::from_value(json);
+        let result: Result<SessionUpdate, _> = deserialize_session_update(json);
         assert!(result.is_ok(), "Expected Ok, got {:?}", result);
         let update = result.unwrap();
         match &update {
@@ -349,7 +493,7 @@ mod plan_format {
                 ]
             }
         });
-        let result: Result<SessionUpdate, _> = serde_json::from_value(json);
+        let result: Result<SessionUpdate, _> = deserialize_session_update(json);
         assert!(result.is_ok(), "Expected Ok, got {:?}", result);
         let update = result.unwrap();
         match &update {
@@ -369,7 +513,7 @@ mod plan_format {
             "type": "plan",
             "sessionId": "sess-3"
         });
-        let result: Result<SessionUpdate, serde_json::Error> = serde_json::from_value(json);
+        let result: Result<SessionUpdate, serde_json::Error> = deserialize_session_update(json);
         assert!(result.is_err());
         let err_msg = result.unwrap_err().to_string();
         assert!(
@@ -386,7 +530,7 @@ mod plan_format {
             "sessionId": "sess-4",
             "entries": "not an array"
         });
-        let result: Result<SessionUpdate, serde_json::Error> = serde_json::from_value(json);
+        let result: Result<SessionUpdate, serde_json::Error> = deserialize_session_update(json);
         assert!(result.is_err());
         let err_msg = result.unwrap_err().to_string();
         assert!(
@@ -404,7 +548,7 @@ mod plan_format {
             "plan": { "steps": [{ "description": "From plan key", "status": "completed" }] },
             "entries": [{ "content": "From entries", "status": "pending" }]
         });
-        let result: Result<SessionUpdate, _> = serde_json::from_value(json);
+        let result: Result<SessionUpdate, _> = deserialize_session_update(json);
         assert!(result.is_ok());
         let update = result.unwrap();
         match &update {
@@ -421,6 +565,10 @@ mod parse_tool_call_from_acp {
     use super::*;
     use crate::acp::agent_context::with_agent;
     use crate::acp::parsers::AgentType;
+
+    fn parse_claude_tool_call(data: &serde_json::Value) -> Result<ToolCallData, serde_json::Error> {
+        with_agent(AgentType::ClaudeCode, || parse_tool_call_from_acp(data))
+    }
 
     #[test]
     fn parses_acp_format_with_all_fields() {
@@ -439,7 +587,7 @@ mod parse_tool_call_from_acp {
             "title": "Reading file"
         });
 
-        let result: Result<ToolCallData, serde_json::Error> = parse_tool_call_from_acp(&data);
+        let result: Result<ToolCallData, serde_json::Error> = parse_claude_tool_call(&data);
 
         assert!(result.is_ok(), "Expected Ok, got {:?}", result);
         let tool_call = result.unwrap();
@@ -457,7 +605,7 @@ mod parse_tool_call_from_acp {
             "status": "pending"
         });
 
-        let result: Result<ToolCallData, serde_json::Error> = parse_tool_call_from_acp(&data);
+        let result: Result<ToolCallData, serde_json::Error> = parse_claude_tool_call(&data);
 
         assert!(result.is_ok());
         assert_eq!(result.unwrap().id, "my-unique-id");
@@ -474,7 +622,7 @@ mod parse_tool_call_from_acp {
             }
         });
 
-        let result: Result<ToolCallData, serde_json::Error> = parse_tool_call_from_acp(&data);
+        let result: Result<ToolCallData, serde_json::Error> = parse_claude_tool_call(&data);
 
         assert!(result.is_ok());
         assert_eq!(result.unwrap().name, "Bash");
@@ -492,7 +640,7 @@ mod parse_tool_call_from_acp {
             }
         });
 
-        let result: Result<ToolCallData, serde_json::Error> = parse_tool_call_from_acp(&data);
+        let result: Result<ToolCallData, serde_json::Error> = parse_claude_tool_call(&data);
 
         assert!(result.is_ok());
         assert_eq!(
@@ -507,7 +655,7 @@ mod parse_tool_call_from_acp {
             "toolCallId": "tool-1"
         });
 
-        let result: Result<ToolCallData, serde_json::Error> = parse_tool_call_from_acp(&data);
+        let result: Result<ToolCallData, serde_json::Error> = parse_claude_tool_call(&data);
 
         assert!(result.is_ok());
         let tool_call = result.unwrap();
@@ -887,7 +1035,7 @@ mod parse_tool_call_from_acp {
             }
         });
 
-        let result: Result<ToolCallData, serde_json::Error> = parse_tool_call_from_acp(&data);
+        let result: Result<ToolCallData, serde_json::Error> = parse_claude_tool_call(&data);
 
         assert!(result.is_err());
         assert!(result.unwrap_err().to_string().contains("toolCallId"));
@@ -913,7 +1061,7 @@ mod parse_tool_call_from_acp {
                 "status": status_str
             });
 
-            let result: Result<ToolCallData, serde_json::Error> = parse_tool_call_from_acp(&data);
+            let result: Result<ToolCallData, serde_json::Error> = parse_claude_tool_call(&data);
 
             assert!(result.is_ok(), "Failed for status: {}", status_str);
             assert!(
@@ -958,7 +1106,7 @@ mod parse_tool_call_from_acp {
                 }
             });
 
-            let result: Result<ToolCallData, serde_json::Error> = parse_tool_call_from_acp(&data);
+            let result: Result<ToolCallData, serde_json::Error> = parse_claude_tool_call(&data);
 
             assert!(result.is_ok(), "Failed for tool: {}", tool_name);
             assert_eq!(
@@ -986,7 +1134,7 @@ mod parse_tool_call_from_acp {
             }
         });
 
-        let result: Result<ToolCallData, serde_json::Error> = parse_tool_call_from_acp(&data);
+        let result: Result<ToolCallData, serde_json::Error> = parse_claude_tool_call(&data);
 
         assert!(result.is_ok(), "Expected Ok, got {:?}", result);
         let tool_call = result.unwrap();
@@ -1017,7 +1165,7 @@ mod parse_tool_call_from_acp {
             }
         });
 
-        let result: Result<ToolCallData, serde_json::Error> = parse_tool_call_from_acp(&data);
+        let result: Result<ToolCallData, serde_json::Error> = parse_claude_tool_call(&data);
 
         assert!(result.is_ok());
         let tool_call = result.unwrap();
@@ -1046,7 +1194,7 @@ mod parse_tool_call_from_acp {
             }
         });
 
-        let result: Result<ToolCallData, serde_json::Error> = parse_tool_call_from_acp(&data);
+        let result: Result<ToolCallData, serde_json::Error> = parse_claude_tool_call(&data);
 
         assert!(result.is_ok());
         let tool_call = result.unwrap();
@@ -1078,7 +1226,7 @@ mod parse_tool_call_from_acp {
             }
         });
 
-        let result: Result<ToolCallData, serde_json::Error> = parse_tool_call_from_acp(&data);
+        let result: Result<ToolCallData, serde_json::Error> = parse_claude_tool_call(&data);
 
         assert!(result.is_ok());
         let tool_call = result.unwrap();
@@ -1117,7 +1265,7 @@ mod parse_tool_call_from_acp {
             "status": "pending"
         });
 
-        let result: Result<ToolCallData, serde_json::Error> = parse_tool_call_from_acp(&data);
+        let result: Result<ToolCallData, serde_json::Error> = parse_claude_tool_call(&data);
 
         assert!(result.is_ok(), "Expected Ok, got {:?}", result);
         let tool_call = result.unwrap();
@@ -1156,7 +1304,7 @@ mod parse_tool_call_from_acp {
             "status": "pending"
         });
 
-        let result: Result<ToolCallData, serde_json::Error> = parse_tool_call_from_acp(&data);
+        let result: Result<ToolCallData, serde_json::Error> = parse_claude_tool_call(&data);
 
         assert!(result.is_ok());
         let tool_call = result.unwrap();
@@ -1805,7 +1953,7 @@ mod parse_tool_call_from_acp {
             "status": "pending"
         });
 
-        let result: Result<ToolCallData, serde_json::Error> = parse_tool_call_from_acp(&data);
+        let result: Result<ToolCallData, serde_json::Error> = parse_claude_tool_call(&data);
         assert!(result.is_ok(), "Expected Ok, got {:?}", result);
 
         let tool_call = result.unwrap();
@@ -1837,7 +1985,7 @@ mod parse_tool_call_from_acp {
             "status": "pending"
         });
 
-        let result: Result<ToolCallData, serde_json::Error> = parse_tool_call_from_acp(&data);
+        let result: Result<ToolCallData, serde_json::Error> = parse_claude_tool_call(&data);
         assert!(result.is_ok(), "Expected Ok, got {:?}", result);
 
         let tool_call = result.unwrap();
@@ -1869,7 +2017,7 @@ mod parse_tool_call_from_acp {
             "status": "pending"
         });
 
-        let result: Result<ToolCallData, serde_json::Error> = parse_tool_call_from_acp(&data);
+        let result: Result<ToolCallData, serde_json::Error> = parse_claude_tool_call(&data);
         assert!(result.is_ok(), "Expected Ok, got {:?}", result);
 
         let tool_call = result.unwrap();
@@ -1948,7 +2096,7 @@ mod parse_tool_call_from_acp {
                 "status": "pending"
             });
 
-            let result: Result<ToolCallData, serde_json::Error> = parse_tool_call_from_acp(&data);
+            let result: Result<ToolCallData, serde_json::Error> = parse_claude_tool_call(&data);
             assert!(result.is_ok(), "Expected Ok, got {:?}", result);
             let tool_call = result.unwrap();
 
@@ -2059,7 +2207,7 @@ mod parse_tool_call_from_acp {
             "status": "pending"
         });
 
-        let result: Result<ToolCallData, serde_json::Error> = parse_tool_call_from_acp(&data);
+        let result: Result<ToolCallData, serde_json::Error> = parse_claude_tool_call(&data);
 
         assert!(result.is_ok(), "Expected Ok, got {:?}", result);
         let tool_call = result.unwrap();
@@ -2128,7 +2276,7 @@ fn replays_serialized_copilot_task_tool_call_from_event_hub() {
             }
         });
 
-        let result: Result<SessionUpdate, serde_json::Error> = serde_json::from_value(json);
+        let result: Result<SessionUpdate, serde_json::Error> = deserialize_session_update(json);
 
         assert!(result.is_ok(), "Expected Ok, got {:?}", result);
         match result.unwrap() {
@@ -2284,7 +2432,8 @@ fn replays_serialized_tool_call_update_from_event_hub() {
         }
     });
 
-    let result: Result<SessionUpdate, serde_json::Error> = serde_json::from_value(json);
+    let result: Result<SessionUpdate, serde_json::Error> =
+        with_agent(AgentType::ClaudeCode, || serde_json::from_value(json));
 
     assert!(result.is_ok(), "Expected Ok, got {:?}", result);
     match result.unwrap() {
@@ -2327,8 +2476,15 @@ mod parse_tool_call_update_from_acp {
     use crate::acp::agent_context::with_agent;
     use crate::acp::parsers::AgentType;
     use crate::acp::session_update_parser::parse_session_update_notification_with_agent;
-    use crate::acp::streaming_accumulator::{cleanup_session_streaming, has_tool_state};
+    use crate::acp::streaming_accumulator::{has_tool_state, reset_streaming_state_for_test};
 
+
+    fn parse_claude_tool_call_update(
+        data: &serde_json::Value,
+        session_id: Option<&str>,
+    ) -> Result<ToolCallUpdateData, serde_json::Error> {
+        with_agent(AgentType::ClaudeCode, || parse_tool_call_update_from_acp(data, session_id))
+    }
     #[test]
     fn parses_acp_format_with_nested_content() {
         let data = json!({
@@ -2346,7 +2502,7 @@ mod parse_tool_call_update_from_acp {
         });
 
         let result: Result<ToolCallUpdateData, serde_json::Error> =
-            parse_tool_call_update_from_acp(&data, None);
+            parse_claude_tool_call_update(&data, None);
 
         assert!(result.is_ok(), "Expected Ok, got {:?}", result);
         let update = result.unwrap();
@@ -2364,7 +2520,7 @@ mod parse_tool_call_update_from_acp {
         });
 
         let result: Result<ToolCallUpdateData, serde_json::Error> =
-            parse_tool_call_update_from_acp(&data, None);
+            parse_claude_tool_call_update(&data, None);
 
         assert!(result.is_ok());
         assert_eq!(result.unwrap().tool_call_id, "my-tool-id");
@@ -2377,7 +2533,7 @@ mod parse_tool_call_update_from_acp {
         });
 
         let result: Result<ToolCallUpdateData, serde_json::Error> =
-            parse_tool_call_update_from_acp(&data, None);
+            parse_claude_tool_call_update(&data, None);
 
         assert!(result.is_err());
         assert!(result.unwrap_err().to_string().contains("toolCallId"));
@@ -2408,7 +2564,7 @@ mod parse_tool_call_update_from_acp {
         });
 
         let result: Result<ToolCallUpdateData, serde_json::Error> =
-            parse_tool_call_update_from_acp(&data, None);
+            parse_claude_tool_call_update(&data, None);
 
         assert!(result.is_ok());
         let update = result.unwrap();
@@ -2611,7 +2767,7 @@ mod parse_tool_call_update_from_acp {
         });
 
         let result: Result<ToolCallUpdateData, serde_json::Error> =
-            parse_tool_call_update_from_acp(&data, None);
+            parse_claude_tool_call_update(&data, None);
 
         assert!(result.is_ok());
         let update = result.unwrap();
@@ -2640,7 +2796,7 @@ mod parse_tool_call_update_from_acp {
             });
 
             let result: Result<ToolCallUpdateData, serde_json::Error> =
-                parse_tool_call_update_from_acp(&data, None);
+                parse_claude_tool_call_update(&data, None);
 
             assert!(result.is_ok(), "Failed for status: {}", status_str);
             let update = result.unwrap();
@@ -2664,7 +2820,7 @@ mod parse_tool_call_update_from_acp {
         });
 
         let result: Result<ToolCallUpdateData, serde_json::Error> =
-            parse_tool_call_update_from_acp(&data, None);
+            parse_claude_tool_call_update(&data, None);
 
         assert!(result.is_ok());
         let update = result.unwrap();
@@ -2687,7 +2843,7 @@ mod parse_tool_call_update_from_acp {
         });
 
         let result: Result<ToolCallUpdateData, serde_json::Error> =
-            parse_tool_call_update_from_acp(&data, None);
+            parse_claude_tool_call_update(&data, None);
 
         assert!(result.is_ok());
         let update = result.unwrap();
@@ -2751,18 +2907,24 @@ mod parse_tool_call_update_from_acp {
         });
     }
 
+    // -------------------------------------------------------------------------
+    // Plan 012 U1 lifecycle pins (session_update / parse path)
+    // - claude_code_streaming_delta_produces_streaming_arguments: delta accumulation pin
+    // - claude_code_streaming_plan_uses_seeded_tool_name_when_update_omits_tool_name: seed pin
+    // - streaming_state_scoped_to_session_and_cleared_on_completion: terminal cleanup pin
+    // Cross-session isolation and concurrency pins live in reconciler/tests/streaming_reducer.rs.
+    // -------------------------------------------------------------------------
+
     /// TDD: Claude Code toolCallUpdate with streamingInputDelta produces streaming_arguments
     /// when partial JSON parses successfully. Exercises the unified parser path.
     #[test]
     fn claude_code_streaming_delta_produces_streaming_arguments() {
         use crate::acp::session_update::ToolArguments;
-        use crate::acp::streaming_accumulator::cleanup_tool_streaming;
 
         with_agent(AgentType::ClaudeCode, || {
+            reset_streaming_state_for_test();
             let session_id = "stream-test-session";
             let tool_call_id = "stream-test-tool";
-
-            cleanup_tool_streaming(session_id, tool_call_id);
 
             // Read tool with complete JSON - accumulator should parse and produce streaming_arguments
             let data = json!({
@@ -2793,8 +2955,6 @@ mod parse_tool_call_update_from_acp {
                     update.streaming_arguments
                 );
             }
-
-            cleanup_tool_streaming(session_id, tool_call_id);
         });
     }
 
@@ -2802,13 +2962,13 @@ mod parse_tool_call_update_from_acp {
     /// using the cached name seeded from the initial tool_call.
     #[test]
     fn claude_code_streaming_plan_uses_seeded_tool_name_when_update_omits_tool_name() {
-        use crate::acp::streaming_accumulator::{cleanup_session_streaming, seed_tool_name};
+        use crate::acp::streaming_accumulator::{reset_streaming_state_for_test, seed_tool_name};
 
         with_agent(AgentType::ClaudeCode, || {
+            reset_streaming_state_for_test();
             let session_id = "plan-seed-session";
             let tool_call_id = "plan-seed-tool";
 
-            cleanup_session_streaming(session_id);
             seed_tool_name(session_id, tool_call_id, "Write", AgentType::ClaudeCode);
 
             let data = json!({
@@ -2830,8 +2990,6 @@ mod parse_tool_call_update_from_acp {
                 update.streaming_plan.is_some(),
                 "streaming_plan should be produced for .claude/plans writes even when toolName is omitted"
             );
-
-            cleanup_session_streaming(session_id);
         });
     }
 
@@ -2875,11 +3033,9 @@ mod parse_tool_call_update_from_acp {
     #[test]
     fn streaming_state_scoped_to_session_and_cleared_on_completion() {
         with_agent(AgentType::ClaudeCode, || {
+            reset_streaming_state_for_test();
             let session_id = "sess-123";
             let tool_call_id = "tool-abc";
-
-            cleanup_session_streaming(session_id);
-            cleanup_session_streaming(tool_call_id);
 
             let delta_json = json!({
                 "jsonrpc": "2.0",
@@ -2921,9 +3077,6 @@ mod parse_tool_call_update_from_acp {
                 &completed_json,
             );
             assert!(!has_tool_state(session_id, tool_call_id));
-
-            cleanup_session_streaming(session_id);
-            cleanup_session_streaming(tool_call_id);
         });
     }
 

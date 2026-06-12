@@ -186,7 +186,8 @@ pub async fn acp_close_session(app: AppHandle, session_id: String) -> CommandRes
             .await;
 
             // Clean up streaming accumulator state for this session
-            crate::acp::streaming_accumulator::cleanup_session_streaming(&session_id);
+            crate::acp::streaming_accumulator::streaming_state_registry()
+                .remove_session(&session_id);
             projection_registry.remove_session(&session_id);
             transcript_projection_registry.remove_session(&session_id);
 

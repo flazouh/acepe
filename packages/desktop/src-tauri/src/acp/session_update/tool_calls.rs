@@ -47,7 +47,11 @@ pub(crate) fn parse_tool_call_from_acp<E>(data: &serde_json::Value) -> Result<To
 where
     E: serde::de::Error,
 {
-    parse_tool_call_from_acp_with_agent(data, current_agent().unwrap_or(AgentType::ClaudeCode))
+    parse_tool_call_from_acp_with_agent(
+        data,
+        current_agent()
+            .ok_or_else(|| E::custom("Missing agent context for tool call parsing"))?,
+    )
 }
 
 pub(crate) fn parse_tool_call_from_acp_with_agent<E>(
@@ -95,7 +99,8 @@ where
     parse_tool_call_update_from_acp_with_agent(
         data,
         session_id,
-        current_agent().unwrap_or(AgentType::ClaudeCode),
+        current_agent()
+            .ok_or_else(|| E::custom("Missing agent context for tool call update parsing"))?,
     )
 }
 
@@ -134,6 +139,8 @@ pub(crate) fn build_tool_call_update_from_raw(
         .as_ref()
         .is_some_and(|s| matches!(s, ToolCallStatus::Completed | ToolCallStatus::Failed));
 
+    use crate::acp::streaming_accumulator::streaming_state_registry;
+
     let (
         streaming_input_delta,
         normalized_todos,
@@ -141,14 +148,16 @@ pub(crate) fn build_tool_call_update_from_raw(
         streaming_arguments,
         final_streaming_plan,
     ) = if let Some(ref delta) = raw.streaming_input_delta {
-        use crate::acp::streaming_accumulator::{
-            finalize_plan_streaming_for_tool, get_session_streaming_state_mut,
-            process_plan_streaming,
-        };
-
-        let session_state = get_session_streaming_state_mut(session_key);
-        let normalized = session_state.accumulate_delta(tool_call_id, tool_name, delta, agent);
-        let (todos, questions, streaming_args) = normalized
+        let streaming_result = streaming_state_registry().apply_tool_streaming_delta(
+            session_key,
+            tool_call_id,
+            tool_name,
+            delta,
+            agent,
+            is_terminal,
+        );
+        let (todos, questions, streaming_args) = streaming_result
+            .normalized
             .as_ref()
             .map(|n| {
                 (
@@ -159,34 +168,12 @@ pub(crate) fn build_tool_call_update_from_raw(
             })
             .unwrap_or((None, None, None));
 
-        let effective_tool_name = normalized
-            .as_ref()
-            .and_then(|n| n.effective_tool_name.as_deref())
-            .unwrap_or(tool_name);
-
-        // Use the effective tool name (seeded from initial tool_call when omitted in deltas)
-        // so plan detection still works for .claude/plans writes.
-        let plan =
-            process_plan_streaming(session_key, tool_call_id, effective_tool_name, delta, agent);
-
-        // Drop the DashMap RefMut before cleanup_tool_streaming, which calls
-        // SESSION_STREAMING_STATES.get() on the same key. Holding the write lock
-        // across that call causes a deadlock on the same shard.
-        drop(session_state);
-
-        let final_plan = if is_terminal {
-            crate::acp::streaming_accumulator::cleanup_tool_streaming(session_key, tool_call_id);
-            finalize_plan_streaming_for_tool(session_key, tool_call_id).or(plan)
-        } else {
-            plan
-        };
-
         (
             Some(delta.clone()),
             todos,
             questions,
             streaming_args,
-            final_plan,
+            streaming_result.streaming_plan,
         )
     } else {
         // Fallback: detect plan writes from rawInput when streamingInputDelta is absent.
@@ -197,7 +184,7 @@ pub(crate) fn build_tool_call_update_from_raw(
             .and_then(|r| parser.extract_plan_from_raw_input(tool_name, r));
 
         if is_terminal {
-            crate::acp::streaming_accumulator::cleanup_tool_streaming(session_key, tool_call_id);
+            streaming_state_registry().finalize_tool(session_key, tool_call_id);
         }
         (None, None, None, None, plan)
     };
@@ -502,14 +489,14 @@ mod tests {
     use crate::acp::client_updates::process_through_reconciler;
     use crate::acp::parsers::{AgentType, CodexParser, CursorParser};
     use crate::acp::session_update::SessionUpdate;
-    use crate::acp::streaming_accumulator::cleanup_session_streaming;
+    use crate::acp::streaming_accumulator::reset_streaming_state_for_test;
     use crate::acp::task_reconciler::TaskReconciler;
     use serde_json::json;
     use std::sync::{Arc as StdArc, Mutex};
 
     /// Helper: build a tool call from raw input with the given kind hint and title.
     fn build_with_kind_and_title(kind: &str, title: Option<&str>) -> ToolCallData {
-        let parser = get_parser(current_agent().unwrap_or(AgentType::ClaudeCode));
+        let parser = get_parser(AgentType::ClaudeCode);
         let raw = RawToolCallInput {
             id: "test-id".to_string(),
             name: None,
@@ -689,7 +676,7 @@ mod tests {
 
     #[test]
     fn build_tool_call_from_raw_preserves_diagnostic_input() {
-        let parser = get_parser(current_agent().unwrap_or(AgentType::ClaudeCode));
+        let parser = get_parser(AgentType::ClaudeCode);
         let raw = RawToolCallInput {
             id: "toolu_raw_input".to_string(),
             name: Some("Bash".to_string()),
@@ -846,9 +833,9 @@ mod tests {
     #[test]
     fn codex_streaming_update_prefers_explicit_agent_seed_over_current_agent() {
         with_agent(AgentType::ClaudeCode, || {
+            reset_streaming_state_for_test();
             let session_id = "codex-streaming-explicit-agent";
             let tool_call_id = "tool-codex-exec";
-            cleanup_session_streaming(session_id);
             seed_tool_name_via_reconciler(session_id, tool_call_id, "functions.exec_command");
 
             let update = build_tool_call_update_from_raw(
@@ -878,17 +865,15 @@ mod tests {
                 }
                 other => panic!("expected Execute arguments, got {:?}", other),
             }
-
-            cleanup_session_streaming(session_id);
         });
     }
 
     #[test]
     fn codex_streaming_overflow_reuses_cached_value_with_explicit_agent() {
         with_agent(AgentType::ClaudeCode, || {
+            reset_streaming_state_for_test();
             let session_id = "codex-streaming-explicit-agent-overflow";
             let tool_call_id = "tool-codex-exec-overflow";
-            cleanup_session_streaming(session_id);
             seed_tool_name_via_reconciler(session_id, tool_call_id, "functions.exec_command");
 
             let first = build_tool_call_update_from_raw(
@@ -941,8 +926,6 @@ mod tests {
                 }
                 other => panic!("expected cached Execute arguments, got {:?}", other),
             }
-
-            cleanup_session_streaming(session_id);
         });
     }
 }
