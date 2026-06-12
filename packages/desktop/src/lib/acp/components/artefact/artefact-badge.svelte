@@ -41,7 +41,7 @@ const popoverClass = $derived.by(() => {
 		onmouseleave={() => (isOpen = false)}
 	>
 		<span
-			class="inline-flex items-center gap-1 p-1 rounded-md bg-muted border border-border text-xs hover:bg-muted/80 transition-colors"
+			class="inline-flex items-center gap-1 p-1 rounded-lg bg-muted border border-border text-xs hover:bg-muted/80 transition-colors"
 		>
 			{#if attachment.type === "text"}
 				<FileText class="h-3.5 w-3.5 flex-shrink-0 text-muted-foreground" />

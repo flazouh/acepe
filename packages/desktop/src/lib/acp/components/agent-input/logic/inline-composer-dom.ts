@@ -93,7 +93,7 @@ function createTokenElement(
 	const remove = document.createElement("button");
 	remove.type = "button";
 	remove.className =
-		"ml-0.5 p-0.5 rounded hover:bg-destructive/20 hover:text-destructive cursor-pointer transition-colors";
+		"ml-0.5 p-0.5 rounded-md hover:bg-destructive/20 hover:text-destructive cursor-pointer transition-colors";
 	remove.setAttribute("data-inline-remove", "true");
 	remove.setAttribute("aria-label", "Remove artefact");
 	remove.appendChild(createRemoveIcon());

@@ -5,8 +5,12 @@ import { getKeybindingsService, isMac } from "$lib/keybindings/index.js";
 import { getPreconnectionAgentSkillsStore } from "$lib/skills/store/preconnection-agent-skills-store.svelte.js";
 import { getVoiceSettingsStore } from "$lib/stores/voice-settings-store.svelte.js";
 import {
-	AgentInputComposerToolbar,
+	AgentInputActiveModeChip,
+	AgentInputAttachMenu,
+	AgentInputComposerTrailingControls,
 	AgentPanelComposer as SharedAgentPanelComposer,
+	getModeDropdownOptions,
+	getSelectedModeOption,
 	type AgentInputConfigOption,
 } from "@acepe/ui/agent-panel";
 import * as agentModelPrefs from "../../store/agent-model-preferences-store.svelte.js";
@@ -96,6 +100,13 @@ import type { Attachment } from "./types/attachment.js";
 import type { AgentInputProps } from "./types/agent-input-props.js";
 import { hasToolbarCapabilityData, resolveSelectorsLoading } from "./logic/toolbar-loading.js";
 import { loadSlashCommandWorkspaceMarkdown as loadSlashCommandWorkspaceMarkdownFromModule } from "./logic/slash-command-markdown-loader.js";
+import {
+	buildAttachMenuCommands,
+	buildAttachMenuModes,
+	resolveDefaultModeId,
+	shouldShowActiveModeChip,
+} from "./logic/attach-menu-items.js";
+import { resolveComposerPlaceholder } from "./logic/composer-placeholder.js";
 
 // Keep props as reactive object instead of destructuring
 const props: AgentInputProps = $props();
@@ -466,6 +477,31 @@ const slashCommandSource = $derived.by(() => {
 	});
 });
 const effectiveAvailableCommands = $derived(slashCommandSource.commands);
+const attachMenuModes = $derived(
+	buildAttachMenuModes({
+		modes: visibleModes,
+		currentModeId: effectiveCurrentModeId,
+	})
+);
+const attachMenuCommands = $derived(
+	buildAttachMenuCommands({
+		commands: effectiveAvailableCommands,
+		tokenType: slashCommandSource.tokenType,
+	})
+);
+const selectedModeOption = $derived(
+	getSelectedModeOption({
+		modeOptions: getModeDropdownOptions(visibleModes),
+		currentModeId: effectiveCurrentModeId,
+	})
+);
+const composerPlaceholderLabel = $derived(
+	resolveComposerPlaceholder({
+		modes: visibleModes,
+		currentModeId: effectiveCurrentModeId,
+	})
+);
+const showActiveModeChip = $derived(shouldShowActiveModeChip(visibleModes));
 const isSlashDropdownVisible = $derived.by(() =>
 	shouldShowSlashCommandDropdown({
 		isTriggerActive: inputState.showSlashDropdown,
@@ -634,6 +670,7 @@ let editorJustSynced = false;
 let isShiftPressed = $state(false);
 let isApplyingProvisionalToolbarSelections = $state(false);
 let editorRef: HTMLDivElement | null = $state(null);
+let imageAttachInputRef: HTMLInputElement | null = $state(null);
 let overlayMode: "preview" | "edit" | null = $state(null);
 let overlayRefId: string | null = $state(null);
 let overlayAnchorRect: DOMRect | null = $state(null);
@@ -949,6 +986,14 @@ $effect(() => {
 
 onMount(() => {
 	const container = inputState.containerRef;
+	let composerWidthObserver: ResizeObserver | null = null;
+	if (container && props.onToolbarWidthChange) {
+		composerWidthObserver = new ResizeObserver(() => {
+			reportComposerRowWidth();
+		});
+		composerWidthObserver.observe(container);
+		reportComposerRowWidth();
+	}
 	const handleWindowKeyDown = (event: KeyboardEvent) => {
 		if (event.key === "Shift") {
 			isShiftPressed = true;
@@ -1030,6 +1075,7 @@ onMount(() => {
 		}
 	}
 	syncEditorFromMessage(inputState.message.length);
+	reportComposerRowWidth();
 	logger.info("[first-send-trace] synced editor after mount", {
 		panelId: props.panelId ?? null,
 		sessionId: props.sessionId ?? null,
@@ -1038,6 +1084,7 @@ onMount(() => {
 	});
 
 	return () => {
+		composerWidthObserver?.disconnect();
 		window.removeEventListener("keydown", handleWindowKeyDown);
 		window.removeEventListener("keyup", handleWindowKeyUp);
 		container?.removeEventListener("keydown", handleInputContainerKeyDown);
@@ -1573,6 +1620,71 @@ function handleFileSelect(file: { path: string }): void {
 	handleEditorInput();
 }
 
+function handleAddFileContextFromAttachMenu(): void {
+	if (!editorRef) {
+		return;
+	}
+	editorRef.focus();
+	const cursorPos = getSerializedCursorOffset(editorRef);
+	const before = inputState.message.substring(0, cursorPos);
+	const after = inputState.message.substring(cursorPos);
+	inputState.message = `${before}@${after}`;
+	syncEditorFromMessage(cursorPos + 1);
+	handleEditorInput();
+}
+
+function handleAttachImageFromMenu(): void {
+	imageAttachInputRef?.click();
+}
+
+async function handleImageAttachInputChange(event: Event): Promise<void> {
+	const target = event.currentTarget;
+	if (!(target instanceof HTMLInputElement) || !target.files) {
+		return;
+	}
+	const files = Array.from(target.files);
+	for (const file of files) {
+		if (!isImageMimeType(file.type)) {
+			continue;
+		}
+		const result = await createImageAttachment(file, file.type);
+		if (result.isOk()) {
+			inputState.addAttachment(result.value);
+		}
+	}
+	target.value = "";
+}
+
+function handleAttachMenuCommandSelect(commandId: string): void {
+	const command = effectiveAvailableCommands.find((item) => item.name === commandId);
+	if (!command || !editorRef) {
+		return;
+	}
+	const cursorPos = getSerializedCursorOffset(editorRef);
+	const before = inputState.message.substring(0, cursorPos);
+	const after = inputState.message.substring(cursorPos);
+	const tokenText = toInlineTokenText(slashCommandSource.tokenType, `/${command.name}`);
+	inputState.message = `${before}${tokenText} ${after}`;
+	inputState.showSlashDropdown = false;
+	inputState.slashQuery = "";
+	syncEditorFromMessage(before.length + tokenText.length + 1);
+	handleEditorInput({ suppressAutocomplete: true });
+}
+
+function handleActiveModeDismiss(): void {
+	const defaultModeId = resolveDefaultModeId(visibleModes);
+	if (defaultModeId && defaultModeId !== effectiveCurrentModeId) {
+		void handleModeMenuChange(defaultModeId);
+	}
+}
+
+function reportComposerRowWidth(): void {
+	if (!inputState.containerRef) {
+		return;
+	}
+	props.onToolbarWidthChange?.(inputState.containerRef.getBoundingClientRect().width);
+}
+
 let overlayCloseTimer: ReturnType<typeof setTimeout> | null = null;
 
 function closeOverlay(): void {
@@ -1802,12 +1914,22 @@ $effect(() => {
 	{#if inputState.isDragOver}
 		<AgentInputDropZone isDragHovering={inputState.isDragHovering} label="Drop image to attach" />
 	{:else}
+		<span class="sr-only" role="status" aria-live="polite">{autonomousStatusMessage}</span>
 		<SharedAgentPanelComposer
 			class="border-t-0 p-0"
 			inputClass="flex-shrink-0 border border-border bg-input/30"
-			contentClass={voiceOverlayActive ? "relative px-3 py-2.5" : "px-3 py-2.5"}
+			contentClass={voiceOverlayActive ? "relative px-3 py-2" : "px-3 py-2"}
 		>
 			{#snippet content()}
+				<input
+					bind:this={imageAttachInputRef}
+					type="file"
+					accept="image/*"
+					class="hidden"
+					aria-hidden="true"
+					tabindex={-1}
+					onchange={(event) => { void handleImageAttachInputChange(event); }}
+				/>
 				<AgentInputComposerBody
 					bind:editorRef
 					{voiceState}
@@ -1845,101 +1967,110 @@ $effect(() => {
 					onFileSelect={handleFileSelect}
 					onSlashDropdownClose={() => inputState.handleDropdownClose()}
 					onFileDropdownClose={() => inputState.handleFileDropdownClose()}
-					placeholderLabel={"Plan, @ for context, / for commands"}
+					placeholderLabel={composerPlaceholderLabel}
 					voiceOverlayPhase={voiceRecordingOverlayPhase}
 					voiceDefaultErrorMessage={"Microphone permission denied"}
 					primarySrQueue={"Queue"}
 					primarySrSend={"Send message"}
 					primarySrInterrupt={"Interrupt"}
-					tooltipQueueRowLabel={"Queue"}
-					tooltipInterruptShiftRowLabel={"Interrupt"}
-					tooltipStopStreaming={"Stop"}
-					tooltipSend={"Send message"}
-					slashLabels={{
-						header: "Commands",
-						noCommands: "No commands available",
-						noResults: "No commands found",
-						startTyping: "Start typing to search commands...",
-						selectHint: "to select",
-						closeHint: "to close",
-					}}
-					filePickerLabels={{
-						header: "Add file context",
-						noResults: "No matching files",
-						selectHint: "to select",
-						closeHint: "to close",
-					}}
-				/>
-			{/snippet}
-			{#snippet footer()}
-				<AgentInputComposerToolbar
-					{inputReady}
-					{autonomousStatusMessage}
-					{autonomousToggleActive}
-					autonomousDisabled={autonomousDisabled}
-					autonomousBusy={autonomousToggleBusy}
-					onAutonomousToggle={() => { void handleAutonomousToggle(); }}
-					modes={visibleModes}
-					currentModeId={effectiveCurrentModeId}
-					onModeChange={(modeId) => { void handleModeMenuChange(modeId); }}
-					{selectorsLoading}
-					{selectorsDisabledByComposer}
-					toolbarConfigOptions={toolbarConfigOptions}
-					onConfigOptionChange={handleConfigOptionChange}
-					agentProjectPicker={props.agentProjectPicker}
-					checkpointButton={props.checkpointButton}
-					voiceState={voiceToolbarBinding}
-					{voiceEnabled}
-					composerIsDispatching={storeComposerState?.isDispatching ?? false}
-					getMicButtonTitle={(_voice) =>
-						voiceState ? resolveVoiceMicTooltip(voiceState.phase, voiceMicTooltipLabels) : ""}
-					onVoiceMicKeyDown={(event, _binding) => {
-						if (voiceState) {
-							if (voiceState.phase === "idle") {
-								voiceCursorSnapshot = editorRef
-									? getSerializedCursorOffset(editorRef)
-									: inputState.message.length;
-							}
-							handleVoiceMicKeyDownFromModule(event, voiceState);
-						}
-					}}
-					voiceModels={voiceSettingsStore.models.map((model) => ({
-						id: model.id,
-						name: model.name,
-						sizeBytes: model.size_bytes,
-						isDownloaded: model.is_downloaded,
-					}))}
-					voiceSelectedModelId={voiceSettingsStore.selectedModelId}
-					voiceModelsLoading={voiceSettingsStore.modelsLoading}
-					voiceDownloadingModelId={voiceSettingsStore.downloadProgressModelId}
-					voiceDownloadPercent={voiceSettingsStore.downloadPercent}
-					voiceMenuLabel={"Voice model"}
-					voiceModelsLoadingLabel={"Loading voice models…"}
-					onVoiceSelectModel={(modelId) => {
-						void voiceSettingsStore.setSelectedModelId(modelId);
-					}}
-					onVoiceDownloadModel={(modelId) => {
-						void voiceSettingsStore.downloadModel(modelId);
-					}}
-					voiceCloseLabel={"Close"}
 				>
-					{#snippet modelSelector()}
-						<ModelSelector
-							availableModels={effectiveAvailableModels}
-							currentModelId={effectiveCurrentModelId}
-							modelsDisplay={effectiveModelsDisplay}
-							providerMetadata={effectiveCapabilityProviderMetadata}
-							onModelChange={handleModelChange}
-							isLoading={selectorsLoading}
-							panelId={props.panelId}
-						/>
-					{/snippet}
-					{#snippet metricsChip()}
-						{#if props.sessionId}
-							<ModelSelectorMetricsChip sessionId={props.sessionId} agentId={capabilitiesAgentId} />
+					{#snippet leadingControls()}
+						<AgentInputAttachMenu
+							disabled={selectorsDisabledByComposer}
+							modes={attachMenuModes}
+							commands={attachMenuCommands}
+							showModes={visibleModes.length > 0}
+							autonomousToggleActive={autonomousToggleActive}
+							autonomousDisabled={autonomousDisabled}
+							autonomousBusy={autonomousToggleBusy}
+							onAutonomousToggle={() => { void handleAutonomousToggle(); }}
+							toolbarConfigOptions={toolbarConfigOptions}
+							configOptionsDisabled={selectorsLoading || selectorsDisabledByComposer}
+							onConfigOptionChange={handleConfigOptionChange}
+							onModeChange={(modeId) => { void handleModeMenuChange(modeId); }}
+							onAddFileContext={handleAddFileContextFromAttachMenu}
+							onAttachImage={handleAttachImageFromMenu}
+							onCommandSelect={handleAttachMenuCommandSelect}
+						>
+							{#snippet overflow()}
+								{#if props.agentProjectPicker}
+									<div class="px-2 py-1">
+										{@render props.agentProjectPicker()}
+									</div>
+								{/if}
+								{#if props.sessionId}
+									<div class="px-2 py-1">
+										<ModelSelectorMetricsChip sessionId={props.sessionId} agentId={capabilitiesAgentId} />
+									</div>
+								{/if}
+								{#if props.checkpointButton}
+									<div class="px-2 py-1">
+										{@render props.checkpointButton()}
+									</div>
+								{/if}
+							{/snippet}
+						</AgentInputAttachMenu>
+						{#if showActiveModeChip}
+							<AgentInputActiveModeChip
+								label={selectedModeOption.label}
+								iconKind={selectedModeOption.iconKind}
+								disabled={selectorsDisabledByComposer}
+								onDismiss={handleActiveModeDismiss}
+							/>
 						{/if}
 					{/snippet}
-				</AgentInputComposerToolbar>
+					{#snippet trailingControls()}
+						<AgentInputComposerTrailingControls
+							{inputReady}
+							voiceState={voiceToolbarBinding}
+							{voiceEnabled}
+							composerIsDispatching={storeComposerState?.isDispatching ?? false}
+							getMicButtonTitle={(_voice) =>
+								voiceState ? resolveVoiceMicTooltip(voiceState.phase, voiceMicTooltipLabels) : ""}
+							onVoiceMicKeyDown={(event, _binding) => {
+								if (voiceState) {
+									if (voiceState.phase === "idle") {
+										voiceCursorSnapshot = editorRef
+											? getSerializedCursorOffset(editorRef)
+											: inputState.message.length;
+									}
+									handleVoiceMicKeyDownFromModule(event, voiceState);
+								}
+							}}
+							voiceModels={voiceSettingsStore.models.map((model) => ({
+								id: model.id,
+								name: model.name,
+								sizeBytes: model.size_bytes,
+								isDownloaded: model.is_downloaded,
+							}))}
+							voiceSelectedModelId={voiceSettingsStore.selectedModelId}
+							voiceModelsLoading={voiceSettingsStore.modelsLoading}
+							voiceDownloadingModelId={voiceSettingsStore.downloadProgressModelId}
+							voiceDownloadPercent={voiceSettingsStore.downloadPercent}
+							voiceMenuLabel={"Voice model"}
+							voiceModelsLoadingLabel={"Loading voice models…"}
+							onVoiceSelectModel={(modelId) => {
+								void voiceSettingsStore.setSelectedModelId(modelId);
+							}}
+							onVoiceDownloadModel={(modelId) => {
+								void voiceSettingsStore.downloadModel(modelId);
+							}}
+							voiceCloseLabel={"Close"}
+						>
+							{#snippet modelSelector()}
+								<ModelSelector
+									availableModels={effectiveAvailableModels}
+									currentModelId={effectiveCurrentModelId}
+									modelsDisplay={effectiveModelsDisplay}
+									providerMetadata={effectiveCapabilityProviderMetadata}
+									onModelChange={handleModelChange}
+									isLoading={selectorsLoading}
+									panelId={props.panelId}
+								/>
+							{/snippet}
+						</AgentInputComposerTrailingControls>
+					{/snippet}
+				</AgentInputComposerBody>
 			{/snippet}
 		</SharedAgentPanelComposer>
 	{/if}

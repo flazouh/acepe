@@ -96,7 +96,7 @@ function handleOverlayMouseEnter() {
 		<span class="text-[10px] text-muted-foreground tabular-nums">{lineCount}L · {charCount.toLocaleString()}ch</span>
 		<button
 			type="button"
-			class="inline-flex items-center justify-center size-5 text-muted-foreground hover:text-foreground transition-colors rounded"
+			class="inline-flex size-5 items-center justify-center rounded-md text-muted-foreground transition-colors hover:text-foreground"
 			onclick={onClose}
 			aria-label="Close"
 		>
@@ -120,7 +120,7 @@ function handleOverlayMouseEnter() {
 		<div class="flex items-center justify-end gap-1 border-t border-border/30 px-2 py-1">
 			<button
 				type="button"
-				class="flex items-center gap-0.5 px-1.5 py-px rounded border border-border/50 bg-background/40 text-[10px] font-medium text-foreground/80 hover:text-foreground hover:bg-accent/60 transition-colors"
+				class="flex items-center gap-0.5 px-1.5 py-px rounded-lg border border-border/50 bg-background/40 text-[10px] font-medium text-foreground/80 hover:text-foreground hover:bg-accent/60 transition-colors"
 				onclick={onClose}
 			>
 				<X size={9} weight="bold" class="shrink-0" />
@@ -128,7 +128,7 @@ function handleOverlayMouseEnter() {
 			</button>
 			<button
 				type="button"
-				class="flex items-center gap-0.5 px-1.5 py-px rounded border border-border/50 bg-background/40 text-[10px] font-medium text-foreground/80 hover:text-foreground hover:bg-accent/60 transition-colors"
+				class="flex items-center gap-0.5 px-1.5 py-px rounded-lg border border-border/50 bg-background/40 text-[10px] font-medium text-foreground/80 hover:text-foreground hover:bg-accent/60 transition-colors"
 				onclick={handleSave}
 			>
 				<Check size={9} weight="bold" class="shrink-0" />

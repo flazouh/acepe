@@ -1,11 +1,8 @@
 <script lang="ts">
-import { IconArrowUp } from "@tabler/icons-svelte";
-import { Stop } from "phosphor-svelte";
-import { Kbd, KbdGroup } from "$lib/components/ui/kbd/index.js";
 import { Skeleton } from "$lib/components/ui/skeleton/index.js";
-import * as Tooltip from "$lib/components/ui/tooltip/index.js";
 import {
 	AgentInputArtefactBadge,
+	AgentInputComposerRow,
 	AgentInputFilePickerDropdown,
 	AgentInputPastedTextOverlay,
 	AgentInputSlashCommandDropdown,
@@ -62,13 +59,8 @@ let {
 	primarySrQueue,
 	primarySrSend,
 	primarySrInterrupt,
-	tooltipQueueRowLabel,
-	tooltipInterruptShiftRowLabel,
-	tooltipStopStreaming,
-	tooltipSend,
-	slashLabels,
-	filePickerLabels,
-	modeControls,
+	leadingControls,
+	trailingControls,
 }: {
 	voiceState: VoiceInputState | null;
 	voiceOverlayActive: boolean;
@@ -115,27 +107,25 @@ let {
 	primarySrQueue: string;
 	primarySrSend: string;
 	primarySrInterrupt: string;
-	tooltipQueueRowLabel: string;
-	tooltipInterruptShiftRowLabel: string;
-	tooltipStopStreaming: string;
-	tooltipSend: string;
-	slashLabels: {
-		header: string;
-		noCommands: string;
-		noResults: string;
-		startTyping: string;
-		selectHint: string;
-		closeHint: string;
-	};
-	filePickerLabels: {
-		header: string;
-		noResults: string;
-		selectHint: string;
-		closeHint: string;
-	};
-	/** Renders between the text area and the submit button — used for the mode pill. */
-	modeControls?: Snippet;
+	leadingControls?: Snippet;
+	trailingControls?: Snippet;
 } = $props();
+
+const submitIntent = $derived(
+	composerInteraction.primaryButtonIntent === "steer" || (isStreaming && !hasDraftInput)
+		? "steer"
+		: composerInteraction.primaryButtonIntent === "stop"
+			? "stop"
+			: "send"
+);
+
+const submitAriaLabel = $derived(
+	composerInteraction.primaryButtonIntent === "steer" || (isStreaming && !hasDraftInput)
+		? primarySrInterrupt
+		: isAgentBusy
+			? primarySrQueue
+			: primarySrSend
+);
 </script>
 
 {#if voiceState !== null && voiceOverlayActive}
@@ -148,7 +138,7 @@ let {
 	/>
 {:else if inputReady}
 	{#if inputState.attachments.length > 0}
-		<div class="flex flex-wrap gap-1.5">
+		<div class="flex flex-wrap gap-1.5 mb-1.5">
 			{#each inputState.attachments as attachment (attachment.id)}
 				<AgentInputArtefactBadge
 					displayName={attachment.displayName}
@@ -159,99 +149,41 @@ let {
 			{/each}
 		</div>
 	{/if}
-	<div class="flex gap-1.5 min-w-0">
-		<div class="relative flex-1 min-w-0">
-			<!-- svelte-ignore a11y_mouse_events_have_key_events -->
-			<div
-				bind:this={editorRef}
-				role="textbox"
-				aria-multiline="true"
-				aria-label={placeholderLabel}
-				tabindex="0"
-				contenteditable="true"
-				autocapitalize="off"
-				spellcheck={false}
-				class="min-h-7 max-h-[400px] overflow-y-auto whitespace-pre-wrap break-words text-sm leading-relaxed text-foreground outline-none"
-				onbeforeinput={onEditorBeforeInput}
-				oninput={() => onEditorInput()}
-				onkeydown={onEditorKeyDown}
-				onkeyup={onEditorKeyUp}
-				onfocus={onEditorFocus}
-				onblur={onEditorBlur}
-				onclick={onEditorClick}
-				onmouseover={onEditorMouseOver}
-				onmouseout={onEditorMouseOut}
-				onpaste={(event) => onEditorPaste(event)}
-				oncut={onEditorCut}
-			></div>
-			{#if overlayMode && overlayRefId && overlayAnchorRect}
-				{@const overlayText = inputState.getInlineTextReferenceContent(overlayRefId) ?? ""}
-				<AgentInputPastedTextOverlay
-					mode={overlayMode}
-					refId={overlayRefId}
-					anchorRect={overlayAnchorRect}
-					textContent={overlayText}
-					onSave={onOverlaySave}
-					onClose={onOverlayClose}
-					onMouseEnter={onOverlayMouseEnterCancel}
-				/>
-			{/if}
-			{#if inputState.message.length === 0}
-				<div
-					class="pointer-events-none absolute left-0 top-0 text-sm leading-relaxed text-muted-foreground select-none"
-				>
-					{placeholderLabel}
-				</div>
-			{/if}
-		</div>
-		<div class="flex items-end gap-1.5 shrink-0">
-			{#if modeControls}
-				{@render modeControls()}
-			{/if}
-			<Tooltip.Root>
-				<Tooltip.Trigger>
-					{#snippet child({ props: triggerProps })}
-						<button
-							{...triggerProps}
-							type="button"
-							onclick={onPrimaryButtonClick}
-							disabled={composerInteraction.primaryButtonDisabled}
-							class="inline-flex h-7 w-7 cursor-pointer shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-full bg-foreground text-sm font-medium text-background shadow-xs outline-none transition-all hover:bg-foreground/85 focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:pointer-events-none disabled:opacity-50 aria-disabled:pointer-events-none aria-disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0"
-						>
-							{#if composerInteraction.primaryButtonIntent === "steer" || (isStreaming && !hasDraftInput)}
-								<Stop weight="fill" class="h-3.5 w-3.5" />
-								<span class="sr-only">{primarySrInterrupt}</span>
-							{:else}
-								<IconArrowUp class="h-3.5 w-3.5" />
-								<span class="sr-only">{isAgentBusy ? primarySrQueue : primarySrSend}</span>
-							{/if}
-						</button>
-					{/snippet}
-				</Tooltip.Trigger>
-				<Tooltip.Content>
-					{#if isAgentBusy && hasDraftInput}
-						<div class="flex items-center gap-3">
-							<div class="flex items-center gap-1.5">
-								<span>{tooltipQueueRowLabel}</span>
-								<KbdGroup><Kbd>Enter</Kbd></KbdGroup>
-							</div>
-							<div class="flex items-center gap-1.5">
-								<span>{tooltipInterruptShiftRowLabel}</span>
-								<KbdGroup><Kbd>Shift</Kbd><Kbd>Enter</Kbd></KbdGroup>
-							</div>
-						</div>
-					{:else}
-						<div class="flex items-center gap-2">
-							<span>{isStreaming ? tooltipStopStreaming : tooltipSend}</span>
-							{#if !isStreaming}
-								<KbdGroup><Kbd>Enter</Kbd></KbdGroup>
-							{/if}
-						</div>
-					{/if}
-				</Tooltip.Content>
-			</Tooltip.Root>
-		</div>
-	</div>
+	<AgentInputComposerRow
+		bind:editorRef
+		placeholder={placeholderLabel}
+		isEmpty={inputState.message.length === 0}
+		ariaLabel={placeholderLabel}
+		submitIntent={submitIntent}
+		submitDisabled={composerInteraction.primaryButtonDisabled}
+		submitAriaLabel={submitAriaLabel}
+		onSubmit={onPrimaryButtonClick}
+		onbeforeinput={onEditorBeforeInput}
+		oninput={() => onEditorInput()}
+		onkeydown={onEditorKeyDown}
+		onkeyup={onEditorKeyUp}
+		onfocus={onEditorFocus}
+		onblur={onEditorBlur}
+		onclick={onEditorClick}
+		onmouseover={onEditorMouseOver}
+		onmouseout={onEditorMouseOut}
+		onpaste={(event) => onEditorPaste(event)}
+		oncut={onEditorCut}
+		leading={leadingControls}
+		trailing={trailingControls}
+	/>
+	{#if overlayMode && overlayRefId && overlayAnchorRect}
+		{@const overlayText = inputState.getInlineTextReferenceContent(overlayRefId) ?? ""}
+		<AgentInputPastedTextOverlay
+			mode={overlayMode}
+			refId={overlayRefId}
+			anchorRect={overlayAnchorRect}
+			textContent={overlayText}
+			onSave={onOverlaySave}
+			onClose={onOverlayClose}
+			onMouseEnter={onOverlayMouseEnterCancel}
+		/>
+	{/if}
 {:else}
 	<div class="flex items-center gap-2">
 		<div class="flex-1 flex flex-col gap-2">
@@ -267,12 +199,12 @@ let {
 	isOpen={isSlashDropdownVisible}
 	query={inputState.slashQuery}
 	position={inputState.slashPosition}
-	headerLabel={slashLabels.header}
-	noCommandsLabel={slashLabels.noCommands}
-	noResultsLabel={slashLabels.noResults}
-	startTypingLabel={slashLabels.startTyping}
-	selectHintLabel={slashLabels.selectHint}
-	closeHintLabel={slashLabels.closeHint}
+	headerLabel={"Commands"}
+	noCommandsLabel={"No commands available"}
+	noResultsLabel={"No commands found"}
+	startTypingLabel={"Start typing to search commands..."}
+	selectHintLabel={"to select"}
+	closeHintLabel={"to close"}
 	tokenType={slashCommandTokenType}
 	loadWorkspaceMarkdown={loadSlashCommandWorkspaceMarkdown}
 	onSelect={(cmd: AvailableCommand) => onCommandSelect(cmd)}
@@ -285,10 +217,10 @@ let {
 	isLoading={inputState.filesLoading}
 	query={inputState.fileQuery}
 	position={inputState.filePosition}
-	headerLabel={filePickerLabels.header}
-	noResultsLabel={filePickerLabels.noResults}
-	selectHintLabel={filePickerLabels.selectHint}
-	closeHintLabel={filePickerLabels.closeHint}
+	headerLabel={"Add file context"}
+	noResultsLabel={"No matching files"}
+	selectHintLabel={"to select"}
+	closeHintLabel={"to close"}
 	onSelect={(file) => onFileSelect(file)}
 	onClose={onFileDropdownClose}
 >

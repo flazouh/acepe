@@ -140,7 +140,7 @@ describe("inline-composer-dom", () => {
 		expect(textToken).not.toBeNull();
 		expect(fileToken).not.toBeNull();
 
-		expect(commandToken?.className).toContain("rounded-sm");
+		expect(commandToken?.className).toContain("rounded-md");
 		expect(commandToken?.className).toContain("border");
 		expect(commandToken?.className).toContain("border-border/50");
 		expect(commandToken?.className).toContain("px-1");
