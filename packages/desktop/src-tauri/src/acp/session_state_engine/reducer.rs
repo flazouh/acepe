@@ -175,6 +175,7 @@ mod tests {
     use crate::acp::projections::{SessionTurnState, TurnFailureSnapshot};
     use crate::acp::session_state_engine::graph::SessionStateGraph;
     use crate::acp::session_state_engine::protocol::SessionStateDelta;
+    use crate::acp::session_state_engine::SessionStateField;
     use crate::acp::session_state_engine::reducer::{
         SessionStateGraphMutation, SessionStateReducer,
     };
@@ -292,7 +293,7 @@ mod tests {
             }],
             operation_patches: Vec::new(),
             interaction_patches: Vec::new(),
-            changed_fields: vec!["transcriptSnapshot".to_string()],
+            changed_fields: vec![SessionStateField::TranscriptSnapshot],
         };
 
         SessionStateReducer::apply(
@@ -337,7 +338,7 @@ mod tests {
             }],
             operation_patches: Vec::new(),
             interaction_patches: Vec::new(),
-            changed_fields: vec!["transcriptSnapshot".to_string()],
+            changed_fields: vec![SessionStateField::TranscriptSnapshot],
         };
 
         SessionStateReducer::apply(
@@ -372,7 +373,7 @@ mod tests {
             }],
             operation_patches: Vec::new(),
             interaction_patches: Vec::new(),
-            changed_fields: vec!["transcriptSnapshot".to_string()],
+            changed_fields: vec![SessionStateField::TranscriptSnapshot],
         };
 
         SessionStateReducer::apply(
@@ -416,10 +417,10 @@ mod tests {
             operation_patches: Vec::new(),
             interaction_patches: Vec::new(),
             changed_fields: vec![
-                "activity".to_string(),
-                "turnState".to_string(),
-                "activeTurnFailure".to_string(),
-                "lastTerminalTurnId".to_string(),
+                SessionStateField::Activity,
+                SessionStateField::TurnState,
+                SessionStateField::ActiveTurnFailure,
+                SessionStateField::LastTerminalTurnId,
             ],
         };
 
@@ -571,7 +572,7 @@ mod tests {
                 OperationState::Running,
             )],
             interaction_patches: Vec::new(),
-            changed_fields: vec!["operations".to_string()],
+            changed_fields: vec![SessionStateField::Operations],
         };
 
         SessionStateReducer::apply(
@@ -626,7 +627,7 @@ mod tests {
                 OperationState::Completed,
             )],
             interaction_patches: Vec::new(),
-            changed_fields: vec!["operations".to_string()],
+            changed_fields: vec![SessionStateField::Operations],
         };
 
         SessionStateReducer::apply(

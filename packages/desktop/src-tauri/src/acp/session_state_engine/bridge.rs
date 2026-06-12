@@ -2,6 +2,7 @@ use crate::acp::session_open_snapshot::SessionOpenFound;
 use crate::acp::session_state_engine::envelope::SessionStateEnvelope;
 use crate::acp::session_state_engine::graph::ActiveStreamingTail;
 use crate::acp::session_state_engine::protocol::{SessionStateDelta, SessionStatePayload};
+use crate::acp::session_state_engine::session_state_field::SessionStateField;
 use crate::acp::session_state_engine::revision::SessionGraphRevision;
 use crate::acp::session_state_engine::selectors::SessionGraphActivity;
 use crate::acp::session_state_engine::snapshot_builder::build_graph_from_open_found;
@@ -23,7 +24,7 @@ pub struct DeltaEnvelopeParts<'a> {
     pub transcript_operations: Vec<TranscriptDeltaOperation>,
     pub operation_patches: Vec<crate::acp::projections::OperationSnapshot>,
     pub interaction_patches: Vec<crate::acp::projections::InteractionSnapshot>,
-    pub changed_fields: Vec<String>,
+    pub changed_fields: Vec<SessionStateField>,
 }
 
 pub fn build_snapshot_envelope(found: &SessionOpenFound) -> SessionStateEnvelope {
@@ -75,7 +76,7 @@ mod tests {
 
     use super::{
         build_delta_envelope, build_snapshot_envelope, DeltaEnvelopeParts,
-        DeltaSessionProjectionFields,
+        DeltaSessionProjectionFields, SessionStateField,
     };
 
     #[test]
@@ -144,7 +145,7 @@ mod tests {
             }],
             operation_patches: Vec::new(),
             interaction_patches: Vec::new(),
-            changed_fields: vec!["transcriptSnapshot".to_string()],
+            changed_fields: vec![SessionStateField::TranscriptSnapshot],
         });
 
         assert_eq!(envelope.graph_revision, 12);

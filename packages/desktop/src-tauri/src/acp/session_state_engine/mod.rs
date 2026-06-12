@@ -1,12 +1,18 @@
+pub mod anchor_ledger;
+pub mod buffer_emission_tracker;
+pub mod viewport_ledger;
 pub mod bridge;
 pub mod envelope;
+pub mod envelope_router;
 pub mod frontier;
 pub mod graph;
 pub mod protocol;
+pub mod session_state_field;
 pub mod reducer;
 pub mod revision;
 pub mod runtime_registry;
 pub mod selectors;
+pub mod viewport_buffer_producer;
 pub mod snapshot_builder;
 
 pub use bridge::{
@@ -23,6 +29,7 @@ pub use protocol::{
     SessionStateSnapshotMaterialization, ViewportBufferDelta, ViewportBufferDiagnostic,
     ViewportBufferPush,
 };
+pub use session_state_field::{turn_terminal_change_fields, SessionStateField};
 pub use reducer::{SessionStateGraphMutation, SessionStateReducer};
 pub use revision::SessionGraphRevision;
 pub use runtime_registry::{
