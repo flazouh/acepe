@@ -15,7 +15,7 @@ import { materializeAgentPanelSceneFromGraph } from "../../../../session-state/a
 import {
 	createGraphSceneEntryIndex,
 	findGraphSceneEntryForDisplayEntry,
-} from "../graph-scene-entry-match.js";
+} from "../../../../session-state/graph-scene-entry-index.js";
 import { buildRevealScenePatchedEntries } from "./reveal-scene-patch-test-helper.js";
 import {
 	buildVirtualizedDisplayEntriesFromScene,

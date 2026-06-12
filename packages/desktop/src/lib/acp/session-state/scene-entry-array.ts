@@ -1,17 +1,45 @@
 /**
  * Lazy scene-entry array views for the agent-panel graph materializer's
  * conversation-patch fast paths. Each builder returns a Proxy over a base array
- * that resolves entries on access (patch / append / truncate / splice) and tags
- * the result with the corresponding array-patch marker so downstream diffing can
- * reuse it. Pure structural helpers — no canonical state. GOD-safe.
+ * that resolves entries on access (patch / append / truncate / splice) and pairs
+ * the result with an explicit ScenePatch for downstream index fast paths.
+ * Pure structural helpers — no canonical state. GOD-safe.
  */
 import type { AgentPanelSceneEntryModel } from "@acepe/ui/agent-panel/types";
 import {
-	markAgentPanelSceneEntryArrayAppendPatch,
-	markAgentPanelSceneEntryArrayPatch,
-	markAgentPanelSceneEntryArraySplicePatch,
-	markAgentPanelSceneEntryArrayTruncation,
-} from "./agent-panel-scene-entry-array-patch.js";
+	scenePatchGraphScene,
+	scenePatchGraphSceneAppend,
+	scenePatchGraphSceneSplice,
+	scenePatchGraphSceneTruncation,
+	type SceneEntryArrayResult,
+	type ScenePatch,
+} from "../components/agent-panel/logic/scene-patch.js";
+import type { CachedConversationState } from "./conversation-cache-types.js";
+
+export type { SceneEntryArrayResult } from "../components/agent-panel/logic/scene-patch.js";
+
+export function conversationFromSceneEntryArrayResult(
+	result: SceneEntryArrayResult,
+	isStreaming: boolean
+): CachedConversationState["conversation"] {
+	return {
+		entries: result.entries,
+		scenePatch: result.scenePatch,
+		isStreaming,
+	};
+}
+
+export function conversationWithScenePatch(
+	entries: readonly AgentPanelSceneEntryModel[],
+	isStreaming: boolean,
+	scenePatch: ScenePatch
+): CachedConversationState["conversation"] {
+	return {
+		entries,
+		isStreaming,
+		scenePatch,
+	};
+}
 
 export function addSceneEntryPatch(
 	patches: Map<number, AgentPanelSceneEntryModel> | null,
@@ -26,7 +54,7 @@ export function addSceneEntryPatch(
 export function createPatchedSceneEntryArray(
 	baseEntries: readonly AgentPanelSceneEntryModel[],
 	entryPatches: ReadonlyMap<number, AgentPanelSceneEntryModel>
-): readonly AgentPanelSceneEntryModel[] {
+): SceneEntryArrayResult {
 	const target = new Array<AgentPanelSceneEntryModel>(baseEntries.length);
 	const entries = new Proxy(target, {
 		get(targetArray, property, receiver) {
@@ -70,38 +98,44 @@ export function createPatchedSceneEntryArray(
 			return Reflect.getOwnPropertyDescriptor(targetArray, property);
 		},
 	});
-	markAgentPanelSceneEntryArrayPatch(entries, {
-		baseSceneEntries: baseEntries,
-		entries: Array.from(entryPatches.values()),
-		entriesByIndex: entryPatches,
-	});
-	return entries;
+	return {
+		entries,
+		scenePatch: scenePatchGraphScene({
+			baseSceneEntries: baseEntries,
+			entries: Array.from(entryPatches.values()),
+			entriesByIndex: entryPatches,
+		}),
+	};
 }
 
 export function createAppendedSceneEntryArray(
 	baseEntries: readonly AgentPanelSceneEntryModel[],
 	appendedEntries: readonly AgentPanelSceneEntryModel[]
-): readonly AgentPanelSceneEntryModel[] {
+): SceneEntryArrayResult {
 	const entries = createSceneEntryArrayView(baseEntries.length + appendedEntries.length, (index) =>
 		index < baseEntries.length ? baseEntries[index] : appendedEntries[index - baseEntries.length]
 	);
-	markAgentPanelSceneEntryArrayAppendPatch(entries, {
-		baseSceneEntries: baseEntries,
-		appendedEntries,
-	});
-	return entries;
+	return {
+		entries,
+		scenePatch: scenePatchGraphSceneAppend({
+			baseSceneEntries: baseEntries,
+			appendedEntries,
+		}),
+	};
 }
 
 export function createTruncatedSceneEntryArray(
 	baseEntries: readonly AgentPanelSceneEntryModel[],
 	length: number
-): readonly AgentPanelSceneEntryModel[] {
+): SceneEntryArrayResult {
 	const entries = createSceneEntryArrayView(length, (index) => baseEntries[index]);
-	markAgentPanelSceneEntryArrayTruncation(entries, {
-		baseSceneEntries: baseEntries,
-		length,
-	});
-	return entries;
+	return {
+		entries,
+		scenePatch: scenePatchGraphSceneTruncation({
+			baseSceneEntries: baseEntries,
+			length,
+		}),
+	};
 }
 
 export function createInsertedSceneEntryArray(
@@ -109,7 +143,7 @@ export function createInsertedSceneEntryArray(
 	insertIndex: number,
 	insertedEntries: readonly AgentPanelSceneEntryModel[],
 	trailingEntries: readonly AgentPanelSceneEntryModel[]
-): readonly AgentPanelSceneEntryModel[] {
+): SceneEntryArrayResult {
 	const entries = createSceneEntryArrayView(
 		insertIndex + insertedEntries.length + trailingEntries.length,
 		(index) => {
@@ -123,13 +157,15 @@ export function createInsertedSceneEntryArray(
 			return trailingEntries[insertedIndex - insertedEntries.length];
 		}
 	);
-	markAgentPanelSceneEntryArraySplicePatch(entries, {
-		baseSceneEntries: baseEntries,
-		startIndex: insertIndex,
-		insertedEntries,
-		trailingEntries,
-	});
-	return entries;
+	return {
+		entries,
+		scenePatch: scenePatchGraphSceneSplice({
+			baseSceneEntries: baseEntries,
+			startIndex: insertIndex,
+			insertedEntries,
+			trailingEntries,
+		}),
+	};
 }
 
 export function createSceneEntryArrayView(

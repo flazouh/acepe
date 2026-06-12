@@ -6,12 +6,19 @@
  */
 import type { InteractionSnapshot, TranscriptEntry } from "../../services/acp-types.js";
 import type { AgentPanelSceneEntryModel } from "@acepe/ui/agent-panel/types";
+import type { ScenePatch } from "../components/agent-panel/logic/scene-patch.js";
 import type { AgentPanelCanonicalSource } from "./agent-panel-canonical-source.js";
 import type { OperationIndex } from "./operation-index.js";
 
 export interface CachedConversationInput {
 	readonly graph: AgentPanelCanonicalSource;
 }
+
+/** Normalized patch-builder contract selected by the conversation dispatcher. */
+export type ConversationPatchBuilder = (
+	previous: CachedConversationState | null,
+	input: CachedConversationInput
+) => CachedConversationState | null;
 
 export interface CachedConversationState {
 	readonly transcriptEntries: AgentPanelCanonicalSource["transcriptSnapshot"]["entries"];
@@ -26,6 +33,7 @@ export interface CachedConversationState {
 	readonly conversation: {
 		entries: readonly AgentPanelSceneEntryModel[];
 		isStreaming: boolean;
+		scenePatch: ScenePatch;
 	};
 	readonly sceneEntryRowIndex: ReadonlyMap<string, number>;
 }

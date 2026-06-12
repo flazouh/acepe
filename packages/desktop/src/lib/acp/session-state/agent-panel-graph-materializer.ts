@@ -1,35 +1,11 @@
 import type {
-	AgentPanelActionDescriptor,
-	AgentPanelCardModel,
-	AgentPanelChromeModel,
-	AgentPanelComposerModel,
 	AgentPanelLifecycleModel,
 	AgentPanelSceneEntryModel,
 	AgentPanelSceneModel,
-	AgentPanelSessionStatus,
-	AgentPanelSidebarModel,
-	AgentPanelStripModel,
-	AgentToolEntry,
-	AnyAgentEntry,
 } from "@acepe/ui/agent-panel/types";
-import { AGENT_PANEL_ACTION_IDS } from "@acepe/ui/agent-panel/types";
-import type {
-	InteractionSnapshot,
-	OperationDegradationReason,
-	OperationSnapshot,
-	TranscriptEntry,
-} from "../../services/acp-types.js";
 import type { SessionEntry } from "../application/dto/session-entry.js";
 import { mapSessionEntryToConversationEntry } from "../components/agent-panel/scene/desktop-agent-panel-scene.js";
-import type { AgentPanelCanonicalSource } from "./agent-panel-canonical-source.js";
-import {
-	markAgentPanelSceneEntryArrayAppendPatch,
-	markAgentPanelSceneEntryArrayPatch,
-	markAgentPanelSceneEntryArraySplicePatch,
-	markAgentPanelSceneEntryArrayTruncation,
-} from "./agent-panel-scene-entry-array-patch.js";
-import { getInteractionSnapshotArrayPatch } from "./interaction-snapshot-array-patch.js";
-import { getTranscriptEntryArrayPatch } from "./transcript-entry-array-patch.js";
+import { scenePatchFullRebuild } from "../components/agent-panel/logic/scene-patch.js";
 import {
 	AGENT_PANEL_SCENE_TEXT_LIMITS,
 	type AgentPanelGraphHeaderInput,
@@ -42,98 +18,9 @@ import {
 	mapGraphStatus,
 	materializeLifecycle,
 } from "./graph-lifecycle.js";
-import {
-	areActiveStreamingTailsEquivalent,
-	areActivitiesCompatibleForConversationPatch,
-	areActivitiesEquivalent,
-	areSceneEntriesEquivalent,
-} from "./scene-equivalence.js";
-import {
-	addSceneEntryPatch,
-	createAppendedSceneEntryArray,
-	createInsertedSceneEntryArray,
-	createPatchedSceneEntryArray,
-	createSceneEntryArrayView,
-	createTruncatedSceneEntryArray,
-	toArrayIndex,
-} from "./scene-entry-array.js";
-import {
-	buildOperationIndex,
-	findOperationForTranscriptSourceEntry,
-	type OperationIndex,
-} from "./operation-index.js";
-import { logUnresolvedToolDiagnostics } from "./unresolved-tool-diagnostics.js";
-import {
-	applyOperationIndexPatch,
-	applyStableMarkedOperationIndexPatchInPlace,
-	collectAffectedTranscriptEntryIds,
-} from "./operation-index-patch.js";
-import { createPatchedReadonlyMap } from "./patched-readonly-map.js";
-import {
-	buildInteractionIndex,
-	buildTranscriptEntryIndex,
-	createAppendedInteractionIndex,
-	createTruncatedInteractionIndex,
-} from "./transcript-interaction-index.js";
-import {
-	buildSceneEntryRowIndex,
-	createAppendedSceneEntryRowIndex,
-	createSplicedSceneEntryRowIndex,
-	createTruncatedSceneEntryRowIndex,
-} from "./scene-entry-row-index.js";
-import {
-	areSceneEntryListsEquivalent,
-	collectAppendedInteractions,
-	collectAppendedTranscriptEntries,
-	collectStableTranscriptPatchedEntriesByIndex,
-	isStableTranscriptAppend,
-	isStableTranscriptPatchAndAppend,
-	isStableTranscriptTruncation,
-	materializeVisibleInteractionEntries,
-} from "./conversation-stability.js";
-import {
-	createAppendedTranscriptEntryIndex,
-	createPatchedInteractionIndex,
-	createTruncatedTranscriptEntryIndex,
-	resolveUpdatedInteractionIndex,
-} from "./interaction-index-patch.js";
-import type {
-	CachedConversationInput,
-	CachedConversationState,
-} from "./conversation-cache-types.js";
-import {
-	collectTrailingSceneEntries,
-	materializeStreamingStatePatchedConversation,
-	materializeTranscriptAppendedConversation,
-	materializeTranscriptArrayPatchedConversation,
-	materializeTranscriptPatchedAndAppendedConversation,
-	materializeTranscriptPatchedConversation,
-	materializeTranscriptTruncatedConversation,
-} from "./transcript-patch-conversations.js";
-import {
-	materializeBlockingInteractionRetargetConversation,
-	materializeInteractionPatchedConversation,
-	materializeMarkedInteractionPatchedConversation,
-	materializeStableInteractionAppendedConversation,
-	materializeStableInteractionPatchedConversation,
-	materializeStableInteractionTruncatedConversation,
-} from "./interaction-patch-conversations.js";
-import {
-	materializeBlockingInteractionActivityChange,
-	materializeOperationPatchedConversation,
-} from "./operation-patch-conversations.js";
-import {
-	canReuseConversation,
-	canReuseConversationEntriesWithUpdatedActivity,
-	materializeConversation,
-	materializeConversationWithOperationIndex,
-} from "./conversation-rebuild.js";
+import { materializeConversation } from "./conversation-rebuild.js";
 import { materializeCachedConversation } from "./conversation-dispatcher.js";
-import {
-	interactionSceneEntryId,
-	materializeTranscriptEntry,
-	questionInteractionToSceneEntry,
-} from "./entry-materializers.js";
+import type { CachedConversationState } from "./conversation-cache-types.js";
 
 // Re-export the public type surface (now owned by the -types module) so the
 // materializer's existing consumers keep importing it from here.
@@ -143,9 +30,6 @@ export {
 	type AgentPanelGraphMaterializerInput,
 	type AgentPanelGraphMaterializerReadModel,
 };
-
-
-
 
 export function findLatestLiveAssistantEntry(
 	entries: readonly SessionEntry[]
@@ -162,7 +46,6 @@ export function findLatestLiveAssistantEntry(
 
 	return null;
 }
-
 
 function materializeAgentPanelSceneFromConversation(
 	input: AgentPanelGraphMaterializerInput,
@@ -228,6 +111,9 @@ export function createAgentPanelGraphMaterializerReadModel(): AgentPanelGraphMat
 				graph: input.graph,
 			});
 			return materializeAgentPanelSceneFromConversation(input, previousConversation.conversation);
+		},
+		selectConversationScenePatch() {
+			return previousConversation?.conversation.scenePatch ?? scenePatchFullRebuild();
 		},
 	};
 }

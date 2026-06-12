@@ -11,11 +11,13 @@ import type {
 } from "./conversation-cache-types.js";
 import { buildOperationIndex, type OperationIndex } from "./operation-index.js";
 import { materializeTranscriptEntry, questionInteractionToSceneEntry } from "./entry-materializers.js";
+import { scenePatchFullRebuild } from "../components/agent-panel/logic/scene-patch.js";
 import { areActiveStreamingTailsEquivalent, areActivitiesEquivalent } from "./scene-equivalence.js";
 
 export function materializeConversation(graph: AgentPanelCanonicalSource): {
 	entries: readonly AgentPanelSceneEntryModel[];
 	isStreaming: boolean;
+	scenePatch: ReturnType<typeof scenePatchFullRebuild>;
 } {
 	const isRunning = graph.turnState === "Running";
 	const index = buildOperationIndex(graph.operations);
@@ -29,6 +31,7 @@ export function materializeConversationWithOperationIndex(
 ): {
 	entries: readonly AgentPanelSceneEntryModel[];
 	isStreaming: boolean;
+	scenePatch: ReturnType<typeof scenePatchFullRebuild>;
 } {
 	const liveAssistantEntryId = isRunning ? (graph.activeStreamingTail?.rowId ?? null) : null;
 
@@ -60,6 +63,7 @@ export function materializeConversationWithOperationIndex(
 	return {
 		entries,
 		isStreaming: isRunning,
+		scenePatch: scenePatchFullRebuild(),
 	};
 }
 

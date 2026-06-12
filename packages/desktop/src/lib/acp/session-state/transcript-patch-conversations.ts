@@ -17,7 +17,9 @@ import {
 	createInsertedSceneEntryArray,
 	createPatchedSceneEntryArray,
 	createTruncatedSceneEntryArray,
-} from "./scene-entry-array.js";
+
+	conversationFromSceneEntryArrayResult,} from "./scene-entry-array.js";
+import { scenePatchIdentity } from "../components/agent-panel/logic/scene-patch.js";
 import {
 	createAppendedSceneEntryRowIndex,
 	createSplicedSceneEntryRowIndex,
@@ -133,10 +135,7 @@ export function materializeTranscriptArrayPatchedConversation(
 			transcriptEntryPatches === null
 				? previous.transcriptEntryById
 				: createPatchedReadonlyMap(previous.transcriptEntryById, transcriptEntryPatches),
-		conversation: {
-			entries: createPatchedSceneEntryArray(previous.conversation.entries, entryPatches),
-			isStreaming: previous.conversation.isStreaming,
-		},
+		conversation: conversationFromSceneEntryArrayResult(createPatchedSceneEntryArray(previous.conversation.entries, entryPatches), previous.conversation.isStreaming),
 		sceneEntryRowIndex: previous.sceneEntryRowIndex,
 	};
 }
@@ -216,13 +215,17 @@ export function materializeStreamingStatePatchedConversation(
 		activeStreamingTail: input.graph.activeStreamingTail,
 		activity: input.graph.activity,
 		transcriptEntryById: previous.transcriptEntryById,
-		conversation: {
-			entries:
-				entryPatches === null
-					? previous.conversation.entries
-					: createPatchedSceneEntryArray(previous.conversation.entries, entryPatches),
-			isStreaming: nextConversationIsStreaming,
-		},
+		conversation:
+			entryPatches === null
+				? {
+						entries: previous.conversation.entries,
+						isStreaming: nextConversationIsStreaming,
+						scenePatch: scenePatchIdentity(),
+					}
+				: conversationFromSceneEntryArrayResult(
+						createPatchedSceneEntryArray(previous.conversation.entries, entryPatches),
+						nextConversationIsStreaming
+					),
 		sceneEntryRowIndex: previous.sceneEntryRowIndex,
 	};
 }
@@ -312,10 +315,7 @@ export function materializeTranscriptPatchedConversation(
 			transcriptEntryPatches === null
 				? previous.transcriptEntryById
 				: createPatchedReadonlyMap(previous.transcriptEntryById, transcriptEntryPatches),
-		conversation: {
-			entries: createPatchedSceneEntryArray(previous.conversation.entries, entryPatches),
-			isStreaming: previous.conversation.isStreaming,
-		},
+		conversation: conversationFromSceneEntryArrayResult(createPatchedSceneEntryArray(previous.conversation.entries, entryPatches), previous.conversation.isStreaming),
 		sceneEntryRowIndex: previous.sceneEntryRowIndex,
 	};
 }
@@ -469,10 +469,7 @@ export function materializeTranscriptPatchedAndAppendedConversation(
 			activeStreamingTail: input.graph.activeStreamingTail,
 			activity: input.graph.activity,
 			transcriptEntryById,
-			conversation: {
-				entries: nextEntries,
-				isStreaming: previous.conversation.isStreaming,
-			},
+			conversation: conversationFromSceneEntryArrayResult(nextEntries, previous.conversation.isStreaming),
 			sceneEntryRowIndex,
 		};
 	}
@@ -520,15 +517,12 @@ export function materializeTranscriptPatchedAndAppendedConversation(
 		activeStreamingTail: input.graph.activeStreamingTail,
 		activity: input.graph.activity,
 		transcriptEntryById,
-		conversation: {
-			entries: createInsertedSceneEntryArray(
+		conversation: conversationFromSceneEntryArrayResult(createInsertedSceneEntryArray(
 				previous.conversation.entries,
 				firstChangedRowIndex,
 				replacementEntries,
 				[]
-			),
-			isStreaming: previous.conversation.isStreaming,
-		},
+			), previous.conversation.isStreaming),
 		sceneEntryRowIndex: createSplicedSceneEntryRowIndex(
 			previous.sceneEntryRowIndex,
 			previousSuffixEntries,
@@ -634,10 +628,7 @@ export function materializeTranscriptAppendedConversation(
 		activeStreamingTail: input.graph.activeStreamingTail,
 		activity: input.graph.activity,
 		transcriptEntryById,
-		conversation: {
-			entries: nextEntries,
-			isStreaming: previous.conversation.isStreaming,
-		},
+		conversation: conversationFromSceneEntryArrayResult(nextEntries, previous.conversation.isStreaming),
 		sceneEntryRowIndex,
 	};
 }
@@ -721,10 +712,10 @@ export function materializeTranscriptTruncatedConversation(
 		activeStreamingTail: input.graph.activeStreamingTail,
 		activity: input.graph.activity,
 		transcriptEntryById,
-		conversation: {
-			entries: conversationEntries,
-			isStreaming: previous.conversation.isStreaming,
-		},
+		conversation: conversationFromSceneEntryArrayResult(
+			conversationEntries,
+			previous.conversation.isStreaming
+		),
 		sceneEntryRowIndex,
 	};
 }
@@ -734,7 +725,7 @@ function appendTranscriptEntriesBeforeTrailingInteractions(
 	transcriptSceneEntryCount: number,
 	appendedSceneEntries: readonly AgentPanelSceneEntryModel[],
 	previousTrailingEntries: readonly AgentPanelSceneEntryModel[]
-): readonly AgentPanelSceneEntryModel[] {
+): import("./scene-entry-array.js").SceneEntryArrayResult {
 	const nextTrailingEntries = filterTrailingEntriesAfterAppends(
 		previousTrailingEntries,
 		appendedSceneEntries
@@ -769,7 +760,7 @@ function createAppendedInteractionTail(
 		previousTrailingEntries,
 		appendedSceneEntries
 	);
-	return createAppendedSceneEntryArray(appendedSceneEntries, nextTrailingEntries);
+	return createAppendedSceneEntryArray(appendedSceneEntries, nextTrailingEntries).entries;
 }
 
 function filterTrailingEntriesAfterAppends(
