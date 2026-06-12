@@ -16,7 +16,7 @@ Make `AgentType` a guaranteed input at the adapter seam instead of ambient task-
 
 ## Problem Frame
 
-`agent_context.rs` exposes `current_agent() -> Option<AgentType>` backed by a `tokio::task_local!`. Throughout deserialization the value is read as `current_agent().unwrap_or(AgentType::ClaudeCode)`. Provider identity is therefore *part of the Serde `Deserialize` contract* of `SessionUpdate` and `ToolCallData`: deserialize one of those types outside a `with_agent` scope and it silently parses as Claude Code, producing wrong `ToolKind`/parser assignments. This is provider-specific branching embedded in canonical construction — exactly what the GOD gate says belongs at the adapter edge, made explicit, never defaulted. The codebase already half-enforces this: `parsers/tests/provider_composition_boundary.rs:226` asserts certain source must not contain `unwrap_or(AgentType::ClaudeCode)`, and one site (`deserialize.rs:334`) already uses the hard-error `ok_or_else` form. This plan finishes that job.
+`agent_context.rs` exposes `current_agent() -> Option<AgentType>` backed by a `tokio::task_local!`. Several **production** sites still read `current_agent().unwrap_or(AgentType::ClaudeCode)` (`tool_calls.rs:50,98`, `streaming_accumulator.rs:367`). Others are test-only (`deserialize.rs:329`, `extract_update_type` at `:371`, `session_update_parser.rs:96`, `tool_calls.rs:512,692` inside `#[cfg(test)]`). Provider identity is therefore still part of the Serde/tool-call contract for unscoped production paths: deserialize or parse outside a `with_agent` scope and it silently becomes Claude Code. This is provider-specific branching embedded in canonical construction — exactly what the GOD gate says belongs at the adapter edge, made explicit, never defaulted. The codebase already half-enforces this: production `deserialize_agent_context` (`deserialize.rs:334`) uses the hard-error `ok_or_else` form, and `parsers/tests/provider_composition_boundary.rs:226` guards against reintroduction. This plan finishes the remaining production leaks and extends the boundary net.
 
 ---
 
@@ -47,7 +47,10 @@ Make `AgentType` a guaranteed input at the adapter seam instead of ambient task-
 ### Relevant Code and Patterns
 
 - `packages/desktop/src-tauri/src/acp/agent_context.rs` — `with_agent` (sync_scope) + `current_agent()` (`try_with`). Tests already prove scope nesting and cross-`await` retention.
-- Fallback sites to remove: `session_update/deserialize.rs:329,371`; `session_update/tool_calls.rs:50,98,512,692`; `session_update/types/tool_calls.rs:551`; `streaming_accumulator.rs:367`; `session_update_parser.rs:96`.
+- **Production** fallback sites to remove: `session_update/tool_calls.rs:50,98`; `streaming_accumulator.rs:367`.
+- **Test-only** fallback sites (remove or harden for consistency): `session_update/deserialize.rs:329,371`; `session_update/tool_calls.rs:512,692`; `session_update_parser.rs:96`.
+- **Already hard-error in production:** `session_update/deserialize.rs:334` (`deserialize_agent_context` under `#[cfg(not(test))]`).
+- **Plan 007 coordination:** `transcript_projection/snapshot.rs` hardcodes `AgentType::ClaudeCode` in test fixtures — not a deserialization leak, but provider identity must not be load-bearing for display-id derivation (see `2026-06-11-007`).
 - Existing hard-error form to mirror: `session_update/deserialize.rs:334` (`current_agent().ok_or_else(|| serde::de::Error::custom(...))`).
 - Existing explicit-agent seam already present: `parse_tool_call_from_acp_with_agent(data, agent)` and the tests `codex_streaming_update_prefers_explicit_agent_seed_over_current_agent` (`tool_calls.rs:847`), `assistant_tool_use_prefers_explicit_agent_parser_over_current_agent` (`parsers/cc_sdk_bridge.rs:1725`).
 - Boundary test to extend: `parsers/tests/provider_composition_boundary.rs:226`.
@@ -62,8 +65,8 @@ Make `AgentType` a guaranteed input at the adapter seam instead of ambient task-
 ## Key Technical Decisions
 
 - **Absence is an error, not a default.** Replace every `current_agent().unwrap_or(AgentType::ClaudeCode)` with the `ok_or_else`/`Result` form at Serde boundaries, and with an explicit threaded `AgentType` where the call is plain Rust (not a `Deserialize` impl).
-- **Prefer the existing explicit `_with_agent` variants** for the parser call sites (`tool_calls.rs:50,512,692`) — pass the resolved agent down rather than re-reading the task-local deep in the stack.
-- **Guarantee the scope at the seam.** Audit the command/event entry points that drive session-update ingestion and ensure each wraps ingestion in `with_agent(session.agent, …)`. The hard-error form will surface any unscoped path during the characterization run.
+- **Prefer the existing explicit `_with_agent` variants** for production parser call sites (`tool_calls.rs:50,98`) — pass the resolved agent down rather than re-reading the task-local deep in the stack.
+- **Guarantee the scope at the seam.** Audit the command/event entry points that drive session-update ingestion and ensure each wraps ingestion in `with_agent(session.agent, …)`. `with_agent` is synchronous (`sync_scope`); async ingestion paths must either enter the scope before `await` boundaries or thread an explicit `AgentType` into `_with_agent` helpers. The hard-error form will surface any unscoped path during the characterization run.
 
 ---
 
@@ -115,11 +118,9 @@ Make `AgentType` a guaranteed input at the adapter seam instead of ambient task-
 **Dependencies:** U1
 
 **Files:**
-- Modify: `packages/desktop/src-tauri/src/acp/session_update/deserialize.rs` (329, 371)
-- Modify: `packages/desktop/src-tauri/src/acp/session_update/tool_calls.rs` (50, 98, 512, 692)
-- Modify: `packages/desktop/src-tauri/src/acp/session_update/types/tool_calls.rs` (551)
-- Modify: `packages/desktop/src-tauri/src/acp/streaming_accumulator.rs` (367)
-- Modify: `packages/desktop/src-tauri/src/acp/session_update_parser.rs` (96)
+- Modify (production): `packages/desktop/src-tauri/src/acp/session_update/tool_calls.rs` (50, 98)
+- Modify (production): `packages/desktop/src-tauri/src/acp/streaming_accumulator.rs` (367)
+- Modify (test-only, optional harden): `session_update/deserialize.rs` (329, 371), `session_update_parser.rs` (96), `tool_calls.rs` (512, 692)
 
 **Approach:**
 - Serde-context sites → `current_agent().ok_or_else(|| Error::custom("missing agent context for <type>"))`, mirroring `deserialize.rs:334`.

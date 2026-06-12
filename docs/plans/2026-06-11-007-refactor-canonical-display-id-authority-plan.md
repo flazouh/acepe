@@ -27,7 +27,7 @@ When a session resumes, history is replayed (Path A or B) and then live events a
 - R3. The `#dupN` suffix guard in viewport projection is removed (or proven unreachable) because the authority guarantees unique ids upstream.
 - R4. The `ReplaceSnapshot` escape hatch is removed or narrowed to genuine content replacement, not id-mismatch repair.
 - R5. Provider identity (`source: AgentType`) is not load-bearing for display-id derivation (coordinate with candidate 2). Display id is Acepe-owned; provider id stays metadata.
-- R6. No change to rendered transcript order, content, or tool-call mapping — fenced by characterization tests across all three paths and the resume seam.
+- R6. Rendered transcript **order, content, and tool-call mapping** are unchanged; **display id values may change** as paths unify on the authority — fenced by characterization tests across all three paths and the resume seam. WebView keyed-each stability comes from upstream uniqueness, not preserving legacy id strings.
 
 ---
 
@@ -51,7 +51,8 @@ When a session resumes, history is replayed (Path A or B) and then live events a
 - `transcript_viewport/projection.rs` (690) — `ensure_unique_display_row_ids` `#dupN` guard (72–81).
 - `session_open_snapshot/mod.rs` (2,811) — historical replay; `TranscriptSnapshot::from_canonical_events` (Path A, uses `event.display_id`) and `from_stored_entries` (Path B, DB id via `normalize_tool_call_id`).
 - Live path id synthesis: `apply_session_update_inner` (`"user-event-{seq}"`, `"assistant-event-{seq}"`, `"tool-event-{seq}"`).
-- `canonical_event.rs` (38) — `CanonicalTranscriptEvent { source: AgentType, display_id, … }`; `snapshot.rs` builds `entry_id`/`segment_id` from these.
+- `canonical_event.rs` (38) — `CanonicalTranscriptEvent { source: AgentType, display_id, … }`; `transcript_projection/snapshot.rs` builds `entry_id`/`segment_id` from these (test fixtures hardcode `AgentType::ClaudeCode` — decouple in U2).
+- **Terminology:** use `display_id` / `entry_id` per CONTEXT.md; `segment_id` where viewport layout requires it. Do not introduce synonyms.
 - CONTEXT.md: "Display id — an Acepe-owned identifier for UI identity. Raw provider ids are metadata… unless the canonical model explicitly promotes them."
 
 ### Institutional Learnings
@@ -65,7 +66,7 @@ When a session resumes, history is replayed (Path A or B) and then live events a
 
 - **Define a `DisplayId` authority** (a named module/function set) that derives the canonical `entry_id`/`segment_id` for a logical transcript element from canonical facts (turn key + element role + tool_call_id), *independent of source path and provider*. All three paths call it.
 - **Resume seam reconciles by construction.** Because live and historical entries derive ids from the same authority over the same canonical keys, the live path's `tool_entry_ids_by_tool_call_id` lookups match — no `ReplaceSnapshot` for id reasons.
-- **Decouple from provider.** Stop using `source: AgentType` (and `assistant_provider_key` derived from raw `message_id`/`part_id`) as a load-bearing identity component; use canonical turn + role keys. Coordinate with candidate 2 (which removes provider-default leakage).
+- **Decouple from provider (R5).** Stop using `source: AgentType` (and `assistant_provider_key` derived from raw `message_id`/`part_id`) as a load-bearing identity component; use canonical turn + role keys. **Sequence after or alongside plan 001** (`2026-06-11-001`) which removes provider-default leakage at deserialization.
 - **Characterization before change.** This is high-risk canonical-identity surgery; a comprehensive characterization net across all three paths + the resume seam comes first.
 
 ---
@@ -114,7 +115,8 @@ AFTER
 **Dependencies:** None
 
 **Files:**
-- Test: `transcript_projection/` tests (extend), `session_open_snapshot/` tests, a new resume-seam test exercising replay-then-live for a tool call.
+- Test: `transcript_projection/` tests (extend), `session_open_snapshot/` tests
+- Create: `transcript_projection/tests/resume_seam_display_id.vitest.rs` (or equivalent) — replay-then-live for a tool call; owned by U1, asserted through U3/U4
 
 **Approach:**
 - Build fixtures for: canonical-history replay, stored-history replay, pure live streaming, and resume (history then live event for the *same* tool_call_id). Assert ids, order, and tool-call mapping. Capture where `ReplaceSnapshot` and `#dupN` currently fire.
@@ -130,20 +132,21 @@ AFTER
 
 ---
 
-### U2. Introduce the `DisplayId` authority (no behavior change yet)
+### U2. Introduce the `DisplayId` authority and decouple provider identity (R5)
 
-**Goal:** A single module deriving canonical display ids from canonical keys.
+**Goal:** A single module deriving canonical display ids from canonical keys, with no load-bearing `AgentType` input.
 
 **Requirements:** R1, R5
 
-**Dependencies:** U1
+**Dependencies:** U1; coordinate with plan 001 (provider identity must not leak into id derivation)
 
 **Files:**
 - Create: `transcript_projection/display_id.rs` (authority + key composition)
+- Modify: `transcript_projection/snapshot.rs` (stop using `source: AgentType` for id derivation; update test fixtures)
 - Test: `transcript_projection/tests` for the authority in isolation
 
 **Approach:**
-- Define id derivation from `(turn_key, element_role, tool_call_id | sequence)` without provider input. Unit-test that the same logical element yields the same id whether described in historical or live terms.
+- Define id derivation from `(turn_key, element_role, tool_call_id | sequence)` without provider input. Unit-test that the same logical element yields the same id whether described in historical or live terms. Authority is unit-tested here before path routing in U3.
 
 **Test scenarios:**
 - Happy path: same `(turn, role, tool_call_id)` → identical id from historical-shaped and live-shaped inputs.
@@ -215,7 +218,8 @@ AFTER
 | Unifying ids changes a previously-distinct id and breaks keyed-each | Med | High | Golden snapshots (U1) across all paths; authority tested for collision-freedom (U2) |
 | A stored session created under the old scheme resumes under the new one and mismatches | Med | High | Resume-seam characterization includes old-scheme stored fixtures; authority derives from stable canonical keys, not persisted strings |
 | `ReplaceSnapshot` had a legitimate content role | Low | Med | U4 narrows rather than blindly deletes; covered by content-replacement tests |
-| Overlap/conflict with candidate 2's provider work | Med | Med | Sequence after or alongside candidate 2; both remove provider from canonical identity |
+| Overlap/conflict with plan 001 provider work | Med | Med | **Hard sequencing:** land plan 001 U2–U3 before or in parallel with U2 here; both remove provider from canonical identity |
+| Plan 008 Phase 2 touches projection apply while this plan changes live ids | Med | Med | Block plan 008 Phase 2 until U3 completes (see plan 008 U5 gate) |
 
 ---
 

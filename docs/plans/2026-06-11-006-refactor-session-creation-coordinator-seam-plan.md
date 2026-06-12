@@ -58,7 +58,7 @@ ADR-0002 defines a sub-store as a class that owns a disjoint slice of `$state` p
 ## Key Technical Decisions
 
 - **Option A (recommended): deepen.** Private the map; expose `beginPendingCreation`, `hasPendingCreation`, `completePendingCreation`, `failPendingCreation` (names TBD at implementation). Supply hydrator + live-graph consumer via constructor deps or one explicit `attach(...)` setter. The ~20 pokes become verb calls.
-  - *Why over collapse:* the creation lifecycle is a genuine, cohesive slice (pending set + hydration + live-graph handoff). ADR-0002 chose sub-stores precisely for slices like this; the file is new on this branch and just needs sealing, not deleting. Two prospective adapters already exist conceptually (the production messaging service + a test stub), satisfying "two adapters = real seam."
+  - *Why over collapse:* the creation lifecycle is a genuine, cohesive slice (pending set + hydration + live-graph handoff). ADR-0002 chose sub-stores precisely for slices like this; the file is new on this branch and just needs sealing, not deleting. Unit tests with stub `messagingSvc` + `onTurnError` deps prove the seam without requiring a second production adapter.
 - **Effectful methods stay here.** `failPendingCreationSession` already composes `messagingSvc.handleCanonicalTurnFailure` + `onTurnError`; keep effects inside the verb.
 
 ---
@@ -106,9 +106,9 @@ ADR-0002 defines a sub-store as a class that owns a disjoint slice of `$state` p
 
 ### U2. Add the verb interface; keep the map public temporarily
 
-**Goal:** Introduce `begin/has/complete/fail` verbs covering every parent poke pattern.
+**Goal:** Introduce `beginPendingCreation`, `hasPendingCreation`, `completePendingCreation`, `failPendingCreation` verbs covering every parent poke pattern.
 
-**Requirements:** R2, R3, R4
+**Requirements:** R1, R2, R3, R4
 
 **Dependencies:** U1
 
@@ -127,9 +127,9 @@ ADR-0002 defines a sub-store as a class that owns a disjoint slice of `$state` p
 
 ### U3. Route the 20 parent sites through verbs; private the slice
 
-**Goal:** Replace direct `.get/.set/.delete/.has` and field assignments with verb calls; make `pendingCreationSessions` private and the references constructor-supplied.
+**Goal:** Replace direct `.get/.set/.delete/.has` and field assignments with verb calls; make `pendingCreationSessions` private and supply `sessionOpenHydrator` / `liveSessionStateGraphConsumer` via constructor deps or a single `attachSessionConsumers(...)` setter.
 
-**Requirements:** R1, R3, R6
+**Requirements:** R1, R2, R3, R6
 
 **Dependencies:** U2
 

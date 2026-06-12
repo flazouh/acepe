@@ -183,6 +183,17 @@ Normalizing at `extract_tool_call_id` keeps the canonical graph strict while mak
 
 Searching `~/.cursor/acp-sessions` first restores the missing enrichment source for Acepe-launched Cursor ACP sessions. Normalizing both live events and restored history entries ensures the Agent Panel receives rich typed arguments instead of empty `rawInput`, and canonical operations no longer degrade because of invalid provenance keys on either live or reopened sessions.
 
+## Structural fix (2026-06-11, plan 015)
+
+The per-edge drift that caused this bug is addressed structurally, not only by shared helpers:
+
+- Cursor adapter code now lives in one module home: `acp/providers/cursor/` (`provider.rs`, `enrichment.rs`), with `mod.rs` re-exporting `CursorProvider` and an **ingress edge map** naming all four edges (live parse, history restore, enrichment index, snapshot rehydration) and their test pins.
+- The same pattern was applied to Claude Code, Copilot, OpenCode, and Codex; `custom.rs` and `forge.rs` remain deliberate single-file carve-outs.
+- `normalize_tool_call_id` stays in `acp/parsers/acp_fields.rs` as the shared boundary helper; the edge map documents where each path imports it so reopen/converter audits do not rely on tribal knowledge.
+- Clearance rule: no provider-named side-files under `acp/providers/` outside the provider directory (verified by grep after U3).
+
+This does not change the behavioral contracts above; it makes the prevention list enforceable by locality and audit map rather than code review alone.
+
 ## Prevention
 
 - Normalize provider-owned IDs at the Rust parser/adapter boundary, before they enter `SessionStateGraph` or any canonical provenance key.
@@ -196,6 +207,7 @@ Searching `~/.cursor/acp-sessions` first restores the missing enrichment source 
 
 ## Related Issues
 
+- `docs/plans/2026-06-11-015-refactor-provider-adapter-homes-plan.md` — structural fix: one module home per provider, ingress edge maps, clearance grep (completed 2026-06-11).
 - `docs/solutions/architectural/final-god-architecture-2026-04-25.md` - parent GOD rule: provider quirks stop at adapter edges; canonical operation provenance stays strict.
 - `docs/solutions/best-practices/deterministic-tool-call-reconciler-2026-04-18.md` - related provider-boundary rule for tool classification and argument-shape enrichment.
 - `docs/solutions/architectural/revisioned-session-graph-authority-2026-04-20.md` - canonical graph authority and per-provider provenance-key stability.

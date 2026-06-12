@@ -10,36 +10,43 @@ origin: architecture-review (improve-codebase-architecture, candidate 8)
 
 ## Summary
 
-`runtime_registry.rs` is a 5,199-LOC struct owning five orthogonal responsibilities; the defect-prone surface is `build_live_session_state_envelope` — a ~180-line `if`-chain routing ~7 `SessionUpdate` kinds to 7 private builders, where the frontier-transition decision is duplicated across three viewport builders. Extract the routing as a named `EnvelopeRouter` module and lift the 200-line streaming buffer producer into a peer module, leaving the registry a thin coordination spine. The sibling `projections/mod.rs` (5,439 LOC) has the same shape and is handled as Phase 2 of this plan.
+`runtime_registry.rs` is a 5,199-LOC struct owning five orthogonal responsibilities; the defect-prone surface is `build_live_session_state_envelope` (`:329–511`, ~183 LOC) — kind guards plus **four** `decide_frontier_transition` call sites — and `build_or_advance_viewport_buffer_envelope` (`:1221–1413`, ~192 LOC). Extract routing as a named `EnvelopeRouter` module and lift buffer classification into a peer module, leaving the registry a coordination spine. Phase 2 applies the same pattern to the projection apply spine in `projections/session_lifecycle.rs` (the `projections/` tree is already split; `mod.rs` is a 95-line barrel, not a 5.4k monolith).
 
 ---
 
 ## Problem Frame
 
-`SessionGraphRuntimeRegistry` owns: session lifecycle/checkpoint, the live-envelope routing if-chain, transcript-viewport materialization, the streaming buffer producer, and the assistant-text chunker. The routing chain — not the builders — is where defects concentrate: each of the three viewport builders (`build_turn_state_delta_envelope`, `build_interaction_delta_envelope`, `with_materialized_viewport`) independently calls `decide_frontier_transition`, then falls through the same `RequireSnapshot | AcceptDelta` repair arms. The buffer producer (`build_or_advance_viewport_buffer_envelope`) is a 200-line body acquiring two mutexes, holding the delta-vs-push classifier, identity guard, height-correction override, scroll-authority contract, and emission-record update all at once. To test "which builder should this update route to," you must construct the whole registry. The routing decision and the buffer-emission decision are deep behaviors trapped behind a shallow, sprawling interface with no internal seam.
+`SessionGraphRuntimeRegistry` owns: session lifecycle/checkpoint, live-envelope routing, transcript-viewport materialization, the streaming buffer producer, and the assistant-text chunker. The routing surface — not the builders — is where defects concentrate:
+
+- **Four frontier decision sites** (not three): inline in `build_live_session_state_envelope` at `:408` (tool-call patch) and `:477` (transcript-delta fallback), plus `build_turn_state_delta_envelope` (`:595`) and `build_interaction_delta_envelope` (`:660`). `with_materialized_viewport` (`:939–1077`) does **not** call `decide_frontier_transition` — it materializes rows under the `transcript_viewports` lock.
+- **Per-kind `is_transcript_bearing` rules differ:** interaction builder hardcodes `false` at `:660`; other paths compute from `transcript_operations`. A router must preserve these rules, not collapse to one flag.
+- **Buffer producer:** `classify_buffer_transition` (`:1621`) and `compute_buffer_delta` (`:1465`) are already module-level pure helpers with unit tests; remaining logic in `build_or_advance_viewport_buffer_envelope` includes override layers (identity guard, B4 height FreshPush) that must move with the peer.
+
+To test "which builder should this update route to," you must construct the whole registry today. The routing decision and buffer-emission decision are deep behaviors trapped behind a shallow, sprawling interface.
 
 ---
 
 ## Requirements
 
 - R1. Envelope routing (`SessionUpdate` kind → builder selection + frontier-transition decision) lives in a named module testable without constructing the full registry.
-- R2. The frontier-transition decision is computed once per envelope build, not duplicated across three builders.
-- R3. The streaming buffer producer is a peer module with its own interface (inputs: prior emission record + new window; output: push/delta/no-op emission), unit-testable in isolation.
-- R4. `runtime_registry.rs` becomes a thin coordination spine that composes the router, builders, and buffer producer.
-- R5. GOD invariants preserved: canonical lifecycle/activity/turnState/capabilities flow Rust → envelope → projection unchanged; no transcript-order repair, provider branching, or raw-id-as-identity introduced; the documented lock-order protocol across the two mutexes is preserved exactly.
-- R6. No behavior change — fenced by characterization tests over the routing table and buffer producer across all update kinds.
+- R2. The frontier-transition decision is computed once per envelope build **per routed arm**, with kind-specific `is_transcript_bearing` rules preserved — not one global flag that erases interaction's `false` semantics.
+- R3. The streaming buffer producer is a peer module with its own interface (inputs: prior emission record + materialized window snapshot; output: push/delta/no-op emission), unit-testable in isolation.
+- R4. `runtime_registry.rs` production routing/buffer-classification logic extracted; acceptance: `build_live_session_state_envelope` body ≤ ~40 LOC (dispatch only), frontier/buffer classification 0 LOC in registry body excluding lock acquisition. File may remain large due to `#[cfg(test)]` (~3k test lines) and deferred lifecycle/checkpoint mass — track production LOC separately.
+- R5. GOD invariants preserved: canonical lifecycle/activity/turnState/capabilities flow Rust → envelope → projection unchanged; no transcript-order repair, provider branching, or raw-id-as-identity introduced; lock-order protocol preserved exactly.
+- R6. No behavior change — fenced by characterization tests over routing, buffer producer, multi-envelope paths (`build_additional_session_state_envelopes`), and `delta_or_snapshot_repair` fallbacks.
 
 ---
 
 ## Scope Boundaries
 
-- Not changing the envelope wire shape or the `SessionStatePayload`/`SessionStateDelta` contract (candidates 1 and 8's seam-narrowing are separate).
-- Not changing lock ordering or concurrency semantics — only where the code lives.
-- Not splitting the lifecycle/checkpoint or `SessionGraphRuntimeSnapshot` concerns in Phase 1 (those are additional peers; address only if the spine still reads as a god object afterward).
+- Not changing the envelope wire shape or the `SessionStatePayload`/`SessionStateDelta` contract (plans 001 and 002 are separate).
+- Not changing lock ordering or concurrency semantics — only where pure classification logic lives.
+- Not splitting lifecycle/checkpoint or `SessionGraphRuntimeSnapshot` in Phase 1.
 
 ### Deferred to Follow-Up Work
 
-- `SessionGraphRuntimeSnapshot` (checkpoint view with its own `apply_update`/`from_checkpoint`/`into_checkpoint` lifecycle) → extract to its own module in a later pass if warranted.
+- `SessionGraphRuntimeSnapshot` extraction → later pass if spine still reads as a god object.
+- Test-module extraction from `runtime_registry.rs` `#[cfg(test)]` block.
 
 ---
 
@@ -47,25 +54,26 @@ origin: architecture-review (improve-codebase-architecture, candidate 8)
 
 ### Relevant Code and Patterns
 
-- `session_state_engine/runtime_registry.rs` (5,199) — `SessionGraphRuntimeRegistry` (22 pub methods); `build_live_session_state_envelope` (~180-line if-chain); `build_turn_state_delta_envelope`, `build_interaction_delta_envelope`, `with_materialized_viewport` (each calls `decide_frontier_transition`); `delta_or_snapshot_repair`, `build_snapshot_envelope`; `build_or_advance_viewport_buffer_envelope` (200-line buffer producer); `classify_buffer_transition`, `compute_buffer_delta`, `BufferEmission`.
-- Lock-order protocol: `transcript_viewports` mutex then `buffer_emissions` mutex (documented in-file) — must be preserved.
-- Sibling (Phase 2): `projections/mod.rs` (5,439) — `apply_session_update` (100-line match mixing turn-state, operation upsert, interaction registration); three entry points `apply_session_update` / `apply_session_update_at_event_seq` / `apply_canonical_event` with differing idempotency.
-- Reducer relatives: `session_state_engine/reducer.rs`, `bridge.rs`.
+- `session_state_engine/runtime_registry.rs` (5,199 LOC total; ~2,183+ is `#[cfg(test)]`) — `build_live_session_state_envelope` (`:329–511`); `build_turn_state_delta_envelope`, `build_interaction_delta_envelope`; `build_or_advance_viewport_buffer_envelope` (`:1221–1413`); existing pure helpers `classify_buffer_transition`, `compute_buffer_delta`.
+- `session_state_engine/frontier.rs` — `decide_frontier_transition`.
+- **Lock-order protocol:** `buffer_emissions` mutex **first**, then `transcript_viewports` (documented at `:106–108`, `:1219–1220`). Never invert.
+- Phase 2 sibling: `projections/` directory (~5.5k LOC total) — `mod.rs` (95, re-exports); `session_lifecycle.rs` (308, `apply_session_update` + idempotency entry points); `operations.rs` (657), `interactions.rs` (254), `helpers.rs` (675).
+- Prior Rust module-split precedent: `2026-05-28-003-refactor-split-large-modules-plan.md`.
 
 ### Institutional Learnings
 
-- ADR-0002 shape (Rust analogue): extract cohesive sub-domains behind narrow interfaces; leave a thin composition spine. The TS sub-store work proves the pattern; this applies it to the Rust registry.
-- GOD gate: this is canonical envelope-emission — re-gate required; the registry is the envelope-router authority ADR-0002 references.
-- Related: `2026-05-28-003-refactor-split-large-modules-plan.md` (prior large-module split precedent).
+- ADR-0002 is a **TypeScript sub-store** pattern — cite only as analogical shape (thin composition root + narrow interfaces). Rust precedent is pure-helper extraction per `2026-05-28-003`.
+- GOD gate: canonical envelope-emission — re-gate required.
 
 ---
 
 ## Key Technical Decisions
 
-- **Router as a pure-as-possible decision module.** `EnvelopeRouter` maps `(SessionUpdate kind, frontier/previous_revision state) → BuildPlan` (which builder + the single frontier-transition decision). Builders consume the plan; they no longer each recompute frontier state.
-- **Buffer producer as a peer with an explicit record interface.** Inputs are the prior `BufferEmission` record and the new window; output is the push/delta/no-op decision. The two-mutex acquisition stays at the spine (lock-order preserved); the *classification logic* moves into the testable peer.
-- **Spine composes, doesn't decide.** `build_live_session_state_envelope` becomes: get plan from router → invoke selected builder → (for buffer updates) call the buffer producer under the documented lock order.
-- **Characterization-first.** High-risk canonical emission path; full characterization across update kinds before moving logic.
+- **Router input is richer than `(kind, frontier)`.** Mirror `LiveSessionStateEnvelopeRequest` slices: update kind predicates, `previous_revision`, optional `transcript_delta`, derived interaction/tool ids, and per-kind `is_transcript_bearing` rule. Lifecycle/capabilities routes may need snapshotted session state from the spine.
+- **`BuildPlan` carries kind-specific frontier inputs.** `{ builder, frontier_transition, is_transcript_bearing }` — interaction arm keeps `false`; transcript-bearing arms compute from operations.
+- **Spike before full router module (U2).** Implement shared `frontier_plan_for_request(arm, request)` behind U1 goldens first; promote to `EnvelopeRouter` only if dispatch still sprawls.
+- **Buffer peer: pure-over-inputs with lock-held snapshot contract.** Spine acquires `buffer_emissions`, materializes under nested `transcript_viewports`, captures `(prev_record, slice, rows, flags)` in one critical section, calls peer, writes emission under `buffer_emissions`. Peer does not acquire mutexes.
+- **Characterization-first.** Inventory existing `runtime_registry` tests (~39 envelope/buffer scenarios from `:2183+`) before adding goldens; extend gaps for `build_additional_session_state_envelopes`, oversized-delta repair, non-transcript `AcceptDelta → None`.
 
 ---
 
@@ -73,31 +81,31 @@ origin: architecture-review (improve-codebase-architecture, candidate 8)
 
 ### Resolved During Planning
 
-- Fold `projections/mod.rs` into this plan or split to a 9th? Fold as **Phase 2** — same shape, same approach; one plan documents the pattern both follow, but they land as separate PRs. Resolved (per scoping decision).
+- Fold `projections/mod.rs` into this plan? **Phase 2** — same pattern, separate PR; retargeted to `session_lifecycle.rs` spine after discovering `mod.rs` is already a barrel.
 
 ### Deferred to Implementation
 
-- Whether the router output is a fully-pure `BuildPlan` value or a trait-dispatched builder selection — settle once the first two kinds are routed.
-- Exact boundary of what stays under the mutexes vs. moves into the buffer peer — preserve lock order; determine the minimal critical section during extraction.
+- Router output as pure `BuildPlan` value vs trait-dispatched builder — settle after first two kinds routed.
+- Exact mutex boundary for buffer peer — resolved by lock-held snapshot contract above, not deferred.
 
 ---
 
 ## High-Level Technical Design
 
-> *Directional guidance for review, not implementation specification.*
-
 ```
-BEFORE:  build_live_session_state_envelope
-           └─ 180-line if-chain
-                ├─ builder A ─ decide_frontier_transition ─ delta_or_snapshot_repair
-                ├─ builder B ─ decide_frontier_transition ─ delta_or_snapshot_repair  (dup)
-                └─ builder C ─ decide_frontier_transition ─ delta_or_snapshot_repair  (dup)
-           └─ build_or_advance_viewport_buffer_envelope (200-line, 2 mutexes, all logic)
+BEFORE:  build_live_session_state_envelope (:329-511)
+           ├─ kind guards → delegated builders
+           ├─ inline frontier match (tool-call patch)     ─ decide_frontier_transition
+           ├─ inline frontier match (transcript delta)    ─ decide_frontier_transition
+           ├─ build_turn_state_delta_envelope             ─ decide_frontier_transition
+           └─ build_interaction_delta_envelope            ─ decide_frontier_transition (is_transcript_bearing: false)
+           build_or_advance_viewport_buffer_envelope      ─ classify + overrides under locks
 
 AFTER:   spine
-           ├─ EnvelopeRouter(kind, frontier) → BuildPlan  (frontier decided ONCE)
-           ├─ builder(plan)                                (A/B/C, no frontier recompute)
-           └─ BufferProducer(prior_emission, window) → Emission   (under preserved lock order)
+           ├─ EnvelopeRouter(request) → BuildPlan         (per-arm frontier + is_transcript_bearing)
+           ├─ builder(plan)                               (no frontier recompute)
+           └─ under buffer_emissions → transcript_viewports:
+                snapshot inputs → BufferProducer → Emission → write record
 ```
 
 ---
@@ -108,32 +116,27 @@ AFTER:   spine
 
 ### U1. Characterize routing and buffer-emission behavior
 
-**Goal:** Pin the envelope produced for each `SessionUpdate` kind and the push/delta/no-op decision for representative buffer windows.
+**Goal:** Pin envelope output per update kind and buffer push/delta/no-op decisions; fence secondary paths.
 
 **Requirements:** R6
 
 **Dependencies:** None
 
 **Files:**
-- Test: `session_state_engine/` tests (extend) — one case per update kind; buffer-producer cases for push, delta, no-op, identity-guard, height-correction override.
+- Test: extend `runtime_registry.rs` `#[cfg(test)]` module (`:2183+`) — inventory existing cases first
+- Add gaps: `build_additional_session_state_envelopes` ordering (`:537–563`), `delta_or_snapshot_repair` oversized fallback (`:724+`, test at `:3554`), non-transcript `AcceptDelta → None` (`:509`)
 
 **Approach:**
-- Golden envelopes per kind; golden emission decisions per buffer scenario, including the frontier `RequireSnapshot`/`AcceptDelta` arms.
+- Contract assertions per kind (existing style) or opt-in insta/json goldens — document baseline either way.
+- Buffer: push, delta, no-op, identity guard, B4 height FreshPush (`:4253+`).
 
-**Execution note:** Characterization-first — this fences a canonical emission path.
-
-**Test scenarios:**
-- Happy path: each update kind → expected envelope (snapshot vs delta).
-- Edge case: frontier `RequireSnapshot` forces a snapshot envelope.
-- Edge case: buffer identity guard → no-op; height-correction override → push.
-
-**Verification:** Green on current code; every kind + buffer branch covered.
+**Verification:** Green on current code; every kind + buffer branch + secondary paths covered.
 
 ---
 
-### U2. Extract `EnvelopeRouter` with a single frontier decision
+### U2. Extract `EnvelopeRouter` with per-arm frontier decisions
 
-**Goal:** Move kind→builder selection and the frontier-transition decision into a named module computed once.
+**Goal:** Move kind→builder selection and frontier-transition into a named module; preserve per-kind `is_transcript_bearing`.
 
 **Requirements:** R1, R2
 
@@ -141,48 +144,46 @@ AFTER:   spine
 
 **Files:**
 - Create: `session_state_engine/envelope_router.rs`
-- Modify: `runtime_registry.rs` (call router; builders take the decided plan)
+- Modify: `runtime_registry.rs` (call router; builders accept `BuildPlan`)
 - Test: `session_state_engine/envelope_router` tests
 
 **Approach:**
-- Router returns a `BuildPlan { builder, frontier_transition }`. The three viewport builders accept the frontier decision instead of each calling `decide_frontier_transition`.
+- Router returns `BuildPlan { builder, frontier_transition, is_transcript_bearing }`.
+- Cover all four frontier sites including inline tool-call (`:408–470`) and transcript-delta (`:477–510`) arms.
+- Optional spike: `frontier_plan_for_request` helper first, then promote to module.
 
 **Test scenarios:**
-- Happy path: each kind → correct `BuildPlan`, asserted without the registry.
-- Edge case: previous_revision state drives `RequireSnapshot` vs `AcceptDelta` exactly once.
+- Interaction + non-empty `transcript_delta` → `is_transcript_bearing: false` preserved.
+- Each kind → correct `BuildPlan` without registry.
 
-**Verification:** Routing unit-tested standalone; `decide_frontier_transition` called once per build; U1 goldens reproduced.
+**Verification:** U1 goldens reproduced; frontier asserted per arm.
 
 ---
 
 ### U3. Extract the buffer producer as a peer module
 
-**Goal:** Lift the streaming buffer classification into a testable peer; keep the two-mutex acquisition (lock order) at the spine.
+**Goal:** Lift classification + override layer into testable peer; spine keeps lock acquisition.
 
 **Requirements:** R3, R5
 
 **Dependencies:** U1
 
 **Files:**
-- Create: `session_state_engine/viewport_buffer_producer.rs` (classifier + delta/push/no-op decision over prior record + window)
-- Modify: `runtime_registry.rs` (`build_or_advance_viewport_buffer_envelope` acquires locks in documented order, delegates classification to the peer)
+- Create: `session_state_engine/viewport_buffer_producer.rs` (wrap existing `classify_buffer_transition`/`compute_buffer_delta` + override block `:1271–1313`)
+- Modify: `runtime_registry.rs` (`build_or_advance_viewport_buffer_envelope` — locks in documented order, snapshot inputs, delegate, write)
 - Test: `viewport_buffer_producer` tests
 
 **Approach:**
-- Move `classify_buffer_transition`/`compute_buffer_delta`/identity-guard/height-correction logic into the peer as pure-over-inputs functions. The spine reads the record under lock, calls the peer, writes the emission under lock.
+- Pure `decide_buffer_emission(prev, slice, full_rows, flags) -> BufferEmission` covering classifier + identity guard + B4 height override.
+- U3 acceptance: grep confirms `buffer_emissions` before `transcript_viewports` unchanged.
 
-**Test scenarios:**
-- Happy path: window grows → delta emission; window jump → push.
-- Edge case: identical window → no-op (identity guard).
-- Edge case: height-correction (B4) override → push despite delta-eligible.
-
-**Verification:** Buffer producer unit-tested without mutexes; lock order in the spine unchanged; U1 buffer goldens reproduced.
+**Verification:** Buffer producer unit-tested without mutexes; U1 buffer goldens reproduced.
 
 ---
 
 ### U4. Reduce `build_live_session_state_envelope` to a spine
 
-**Goal:** The method becomes get-plan → invoke-builder → (buffer) produce-under-lock.
+**Goal:** Method becomes router dispatch + builder invoke; buffer path delegates to peer.
 
 **Requirements:** R4, R6
 
@@ -192,47 +193,40 @@ AFTER:   spine
 - Modify: `runtime_registry.rs`
 
 **Approach:**
-- Collapse the if-chain to a router dispatch + builder call; buffer path delegates to the peer.
+- Collapse to dispatch; measure body LOC against R4 acceptance criteria.
 
-**Test scenarios:**
-- Integration: full envelope-build for each kind matches U1 goldens.
-
-**Verification:** Method body small; all U1 characterization green; GOD re-gate documented; `cargo clippy` clean.
+**Verification:** R4 metrics met; all U1 characterization green; GOD re-gate documented; `cargo clippy` clean.
 
 ---
 
-### Phase 2 — projections/mod.rs (separate PR)
+### Phase 2 — projections apply spine (separate PR; **blocked on plan 007 U3**)
 
 ### U5. Characterize and split the projection apply path
 
-**Goal:** Apply the same router/peer pattern to `apply_session_update`'s 100-line match, separating turn-state, operation, and interaction projection, and naming the three idempotency entry points' contract.
+**Goal:** Apply router/peer pattern to `session_lifecycle.rs:apply_session_update` (`:131–235`), not a monolithic `mod.rs`.
 
 **Requirements:** R1 (analogue), R6
 
-**Dependencies:** U4 (pattern established)
+**Dependencies:** U4; **hard gate: plan 007 (`2026-06-11-007`) U3 complete** (live display-id synthesis in `session_lifecycle.rs` must be stable)
 
 **Files:**
-- Test: `projections/` characterization (per `SessionUpdate` variant + per entry point idempotency)
-- Create: focused projection modules (operation projection, interaction projection) behind the registry spine
-- Modify: `projections/mod.rs`
+- Test: `projections/` characterization (per `SessionUpdate` variant + three entry-point idempotency: `apply_session_update` / `apply_session_update_at_event_seq` / `apply_canonical_event` at `:237–307`)
+- Modify: `projections/session_lifecycle.rs` (thin apply router spine)
+- **Do not relocate** `relink_tool_call_to_transcript_event_seq` (`operations.rs:17`) or `ensure_transcript_tool_operations` (`session_materialization/mod.rs:130`) until plan 007 lands
 
 **Approach:**
-- Characterize `apply_session_update` / `apply_session_update_at_event_seq` / `apply_canonical_event` idempotency differences first; name the "live vs canonical-idempotent application" distinction explicitly; then extract operation and interaction projection into peers. (Note: `relink_tool_call_to_transcript_event_seq` and `ensure_transcript_tool_operations` are transcript-order repairs living in projection — coordinate with candidate 3 before relocating them.)
+- Characterize idempotency differences across three entry points first.
+- Extract apply router only — `operations.rs` / `interactions.rs` peers already exist.
 
-**Test scenarios:**
-- Happy path: each variant updates the right projection slice.
-- Edge case: the three entry points' idempotency semantics characterized and preserved.
-
-**Verification:** Projection split behind a thin spine; characterization green; GOD re-gate documented.
+**Verification:** Characterization green; GOD re-gate documented; no conflict with plan 007 id authority.
 
 ---
 
 ## System-Wide Impact
 
-- **Interaction graph:** The router and buffer peer are consumed only by the registry spine; envelope output to the bridge/TS is unchanged.
-- **State lifecycle risks:** The two-mutex lock order is the highest concurrency risk — it stays at the spine, unchanged; only pure classification moves out.
-- **API surface parity:** Envelope/payload wire shape unchanged.
-- **Unchanged invariants:** Canonical lifecycle/activity/turnState/capabilities flow and emission semantics preserved; envelope-router authority retained.
+- **Interaction graph:** Router and buffer peer consumed only by registry spine; envelope output to bridge/TS unchanged.
+- **State lifecycle risks:** Lock order is highest concurrency risk — stays at spine, unchanged.
+- **Unchanged invariants:** Canonical emission semantics preserved.
 
 ---
 
@@ -240,15 +234,16 @@ AFTER:   spine
 
 | Risk | Likelihood | Impact | Mitigation |
 |------|-----------|--------|------------|
-| Moving buffer logic alters the critical section / lock order | Med | High | Lock acquisition stays in the spine; peer is pure-over-inputs; characterization (U1) fences emission decisions |
-| Frontier decision computed once changes an edge case where a builder relied on recomputing | Low | High | U1 covers frontier arms per kind; router decision asserted standalone (U2) |
-| Phase 2 relocates a transcript-order repair that candidate 3 is also changing | Med | Med | Sequence Phase 2 after candidate 3 or coordinate; flagged in U5 |
-| Registry still reads as a god object after extraction | Med | Low | Lifecycle/checkpoint + `SessionGraphRuntimeSnapshot` extraction deferred; revisit if spine remains large |
+| Lock order inverted during refactor | Med | High | Document `buffer_emissions → transcript_viewports`; U3 grep audit |
+| Single frontier flag changes interaction routing | Med | High | `BuildPlan.is_transcript_bearing` per arm; U2 characterization |
+| Buffer peer widens race window | Med | High | Lock-held snapshot contract in U3 |
+| Phase 2 conflicts with plan 007 | Med | High | **Hard gate** on U5; defer repair relocations |
+| Registry still large after Phase 1 | High | Low | R4 metrics exclude test module; lifecycle extraction deferred |
 
 ---
 
 ## Sources & References
 
-- Architecture review candidate 8 (verified LOC + routing/builder/buffer structure).
-- Related plan: `2026-05-28-003-refactor-split-large-modules-plan.md`.
-- ADR-0002 (composition-spine shape); CONTEXT.md GOD gate; candidate 3 plan (`2026-06-11-007`) for the transcript-repair coordination.
+- Architecture review candidate 8 (re-baselined against current tree).
+- Related: `2026-05-28-003-refactor-split-large-modules-plan.md`; plan 007 (`2026-06-11-007`) for Phase 2 gate.
+- CONTEXT.md GOD gate.

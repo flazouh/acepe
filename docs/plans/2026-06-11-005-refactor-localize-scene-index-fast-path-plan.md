@@ -36,6 +36,10 @@ The scene-entry index fast path (`graph-scene-entry-match.ts`, 911 LOC) decides 
 - Not changing the rendered scene output or the transcript-viewport row contract.
 - Not touching the Rust canonical side — this is entirely TS read-model wiring.
 
+### Deferred to Follow-Up Work
+
+- Physical relocation of `graph-scene-entry-match.ts` from `components/agent-panel/logic/` to `session-state/` — plan `2026-06-11-014` U3. This plan only replaces the WeakMap carrier with typed `ScenePatch`; the seam move is separate.
+
 ---
 
 ## Context & Research
@@ -43,7 +47,7 @@ The scene-entry index fast path (`graph-scene-entry-match.ts`, 911 LOC) decides 
 ### Relevant Code and Patterns
 
 - `packages/desktop/src/lib/acp/components/agent-panel/logic/graph-scene-entry-match.ts` (911) — `createGraphSceneEntryIndexReadModel`, `applySnapshot`/`applyAppendPatch`/`applyPatch`/`selectIndex`/`selectEntryById`/`selectEntryIndexById`.
-- Taggers (WeakMap writers): `agent-panel-scene-entry-array-patch.js` (`markAgentPanelSceneEntryArrayPatch`/`getAgentPanelSceneEntryArrayPatch`), `reveal-scene-patch.js` (`getRevealScenePatch`), `token-reveal-scene-read-model.ts` (672, `getTokenRevealScenePatch`).
+- Taggers (WeakMap writers): `session-state/agent-panel-scene-entry-array-patch.ts` (`markAgentPanelSceneEntryArrayPatch`/`getAgentPanelSceneEntryArrayPatch`), `logic/reveal-scene-patch.ts` (`getRevealScenePatch`), `token-reveal-scene-read-model.ts` (672, `getTokenRevealScenePatch`).
 - Implicit call order: `agent-panel.svelte:687–713` (`revealTextProjection.apply` → graph materializer → token-reveal read-model → index `applyPatch ?? applySnapshot`).
 - `virtualized-entry-display.ts` (686) — downstream consumer of the index selections.
 
@@ -100,7 +104,7 @@ AFTER:   producer ──returns──▶ ScenePatch ──param──▶ index.a
 **Dependencies:** None
 
 **Files:**
-- Test: `logic/__tests__/graph-scene-entry-match.vitest.ts` (extend/create)
+- Test: `logic/__tests__/graph-scene-entry-match.test.ts` (extend/create)
 
 **Approach:**
 - For append, truncation, splice, token-reveal, and identity cases, assert the resulting index selections (and, where observable, that the fast path — not a rebuild — was taken).
@@ -127,7 +131,7 @@ AFTER:   producer ──returns──▶ ScenePatch ──param──▶ index.a
 **Files:**
 - Create: `logic/scene-patch.ts` (discriminated union + constructors)
 - Modify: `graph-scene-entry-match.ts` (add `apply(prev, entries, patch)` that `switch`es on `ScenePatch`)
-- Test: `logic/__tests__/scene-patch.vitest.ts`
+- Test: `logic/__tests__/scene-patch.test.ts`
 
 **Approach:**
 - Implement the new `apply` by mapping each `ScenePatch` variant to the existing strategy function. Keep the old `applySnapshot` temporarily.
@@ -149,8 +153,10 @@ AFTER:   producer ──returns──▶ ScenePatch ──param──▶ index.a
 **Dependencies:** U2
 
 **Files:**
-- Modify: `agent-panel-graph-materializer.ts`, `reveal-scene-patch.js` path, `token-reveal-scene-read-model.ts`
-- Modify: `agent-panel/components/agent-panel.svelte` (687–713 — pass returned patches instead of relying on WeakMap order)
+- Modify: `packages/desktop/src/lib/acp/session-state/agent-panel-graph-materializer.ts`
+- Modify: `packages/desktop/src/lib/acp/components/agent-panel/logic/reveal-scene-patch.ts`
+- Modify: `packages/desktop/src/lib/acp/components/agent-panel/logic/token-reveal-scene-read-model.ts`
+- Modify: `packages/desktop/src/lib/acp/components/agent-panel/components/agent-panel.svelte` (687–713 — pass returned patches instead of relying on WeakMap order)
 
 **Approach:**
 - Replace each `mark*Patch` call with a returned `ScenePatch`. The `$derived.by` blocks now pass their patch forward explicitly.
@@ -172,7 +178,7 @@ AFTER:   producer ──returns──▶ ScenePatch ──param──▶ index.a
 **Dependencies:** U3
 
 **Files:**
-- Modify/Delete: `agent-panel-scene-entry-array-patch.js`, `reveal-scene-patch.js` markers, token-reveal marker; old `applySnapshot` if fully superseded.
+- Modify/Delete: `session-state/agent-panel-scene-entry-array-patch.ts` markers, `logic/reveal-scene-patch.ts` markers, token-reveal marker; delete old `applySnapshot` only when all callers use `apply(prev, entries, patch)` (confirm via `rg applySnapshot` before deletion).
 
 **Approach:**
 - `rg` each `get*Patch`/`mark*Patch` to confirm zero remaining readers before deleting.

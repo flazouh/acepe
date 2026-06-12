@@ -6,25 +6,27 @@ god_gate: required
 origin: architecture-review (improve-codebase-architecture, candidate 4)
 ---
 
-# refactor: Extract the envelope reducer from the SessionStore god class
+# refactor: Extract pure envelope patch computation from SessionStore
 
 ## Summary
 
-`applySessionStateEnvelope()` (`session-store.svelte.ts:2370–2768`, ~398 lines, 9+ envelope kinds) is the canonical write spine, but it reads and writes 7 private `$state` fields inline — so a single envelope kind can only be tested by instantiating the whole store plus its 13 sub-objects. Extract a **pure** `reduceEnvelope(snapshot, envelope) → EnvelopePatch[]` that does the routing and per-branch computation; the store stays the thin applier that hands patches to its sub-stores. Makes each of the 9 branches testable at the interface, with no behavior change.
+Envelope **routing** already lives in `routeSessionStateEnvelope()` (`session-state-command-router.ts`); `applySessionStateEnvelope()` (`session-store.svelte.ts:2370–~2895`) is a command-dispatch loop that still reads/writes 7+ private `$state` fields inline per command kind. Extract **pure patch computation** — given an immutable snapshot + a `SessionStateCommand`, compute the typed patches and effect intents — into a testable module; the store stays the thin applier that delegates to sub-stores. Routing stays in the router; this plan extracts only the *decision* half of each command handler.
 
 ---
 
 ## Problem Frame
 
-The envelope dispatch is a flat `if/continue` chain over ~9–11 kinds (`replaceGraph`, `applyLifecycle`, `applyCapabilities`, `applyTelemetry`, `applyPlan`, `applyAssistantTextDelta`, `applyBufferPush`, `applyBufferDelta`, `applyGraphPatches`, `refreshSnapshot`, `applyTranscriptDelta`). Each branch reads several private fields (`sessionStateGraphs`, `canonicalProjections`, `canonicalCapabilitiesMaterialized`, `transientProjectionStore`, `connectionService`, `awaitingModelRefresh`, `creationCoordinator`) and mutates them directly. The `applyGraphPatches` branch alone is ~100 lines computing `activeTurnFailure`/`nextActivity`/`nextTurnState`, calling three side-effect methods, and doing three `SvelteMap.set`s. There is no seam between *deciding what changes* and *applying it*. The interface is the whole god object, so the test surface is the whole god object — the 5,516-line projection-state vitest file is the cost of that.
+The architecture review framed this as a flat `if/continue` chain over envelope kinds. That routing step is **already extracted**: `applySessionStateEnvelope` calls `routeSessionStateEnvelope(sessionId, revision, envelope)` and iterates the returned `SessionStateCommand[]`. What remains in the store is the **apply** half: each `command.kind` branch reads several private fields (`sessionStateGraphs`, `canonicalProjections`, `canonicalCapabilitiesMaterialized`, `transientProjectionStore`, `connectionService`, `awaitingModelRefresh`, `creationCoordinator`) and mutates them directly. The `applyGraphPatches` branch alone computes `activeTurnFailure`/`nextActivity`/`nextTurnState`, calls three side-effect methods, and does multiple `SvelteMap.set`s. There is no seam between *deciding what changes* and *applying it*. The interface is the whole god object, so the test surface is the whole god object.
+
+**Not in scope for this plan:** rebuilding envelope routing (already done). **In scope:** pure transforms from `(snapshot, command) → patches[]` for each command kind.
 
 ---
 
 ## Requirements
 
-- R1. A pure module `reduceEnvelope(snapshot, envelope) → patches` exists, free of `$state` and `this`, that computes the result of each envelope kind.
-- R2. `applySessionStateEnvelope` becomes a thin spine: resolve the current snapshot per session, call the reducer, apply returned patches to the owning sub-stores.
-- R3. Each envelope kind is unit-testable through the reducer's interface (input snapshot + envelope → expected patches) without constructing `SessionStore`.
+- R1. A pure module `reduceCommand(snapshot, command) → patches` exists, free of `$state` and `this`, that computes the result of each command kind.
+- R2. `applySessionStateEnvelope` becomes a thinner spine: assemble snapshot → `routeSessionStateEnvelope` (unchanged) → for each command: `reduceCommand` → `applyPatch`.
+- R3. Each command kind is unit-testable through the reducer's interface (input snapshot + command → expected patches) without constructing `SessionStore`.
 - R4. GOD invariants preserved: canonical projection stays the single source of truth; no `canonical ?? hot` fallback; no dual-write; no transcript-order repair or provider branching introduced. Sub-stores still own their disjoint slices and apply patches to them.
 - R5. No behavior change — guarded by the existing projection-state characterization suite kept green throughout.
 
@@ -32,13 +34,23 @@ The envelope dispatch is a flat `if/continue` chain over ~9–11 kinds (`replace
 
 ## Scope Boundaries
 
-- Not decomposing the rest of `SessionStore` (that is the ongoing ADR-0002 effort, `2026-06-08-002`). This plan extracts only the envelope-reduction logic.
+- **Not changing** `routeSessionStateEnvelope` / `session-state-command-router.ts` routing logic (unless a gap is found during characterization).
+- Not decomposing the rest of `SessionStore` (ongoing ADR-0002 effort, `2026-06-08-002`). This plan extracts only envelope **application** decision logic.
 - Not changing the envelope wire shape (Rust-emitted `SessionStatePayload`/`SessionStateDelta`).
 - Not changing which sub-store owns which slice — patches are applied to the existing owners.
 
+### Branches with limited pure extraction
+
+Some commands are inherently effectful or multi-target:
+- `replaceGraph` — transcript revision gating + `creationCoordinator.liveSessionStateGraphConsumer` side effect.
+- `applyAssistantTextDelta` — token stream mutation across transient + canonical projection.
+- `applyLifecycle` — reads previous projection/graph for authority-preserving reconciliation.
+
+For these, the reducer emits **effect intents** and **field patches** separately; the store executes effects. Do not force a single snapshot→patches model where branches need cross-store reads that cannot be snapshotted without stale-data bugs (e.g. multi-command envelopes where `pendingSendIntent` depends on post-apply state).
+
 ### Deferred to Follow-Up Work
 
-- Per-branch side-effect methods (`applyCanonicalTerminalTurnSideEffects`, `reconcileConnectionMachineFromCanonicalState`, `syncAwaitingModelRefreshTimer`) that are genuinely effectful (timers, connection machine) stay in the store; only their *triggering decision* moves into the reducer output. Fully relocating effects is a later pass.
+- Fully relocating timer/connection-machine effects out of the store — only their *triggering decision* moves into reducer output in this pass.
 
 ---
 
@@ -46,52 +58,37 @@ The envelope dispatch is a flat `if/continue` chain over ~9–11 kinds (`replace
 
 ### Relevant Code and Patterns
 
-- `packages/desktop/src/lib/acp/store/session-store.svelte.ts:2370–2768` — `applySessionStateEnvelope`.
-- Sub-stores that own the written slices (patch targets): `SessionProjectionCore` (canonical projection), `AwaitingModelRefreshStore`, `PrLinkStateStore`, `SessionCreationCoordinator`, plus `sessionStateGraphs` / `transientProjectionStore` maps.
-- Characterization net: `packages/desktop/src/lib/acp/store/__tests__/session-store-projection-state.vitest.ts`, `session-store-token-stream.vitest.ts`, `session-event-service-streaming.vitest.ts`.
-- ADR-0002 (`docs/adr/0002`) — the sub-store decomposition pattern this must respect; especially "extract pure helpers first."
-- Prior art: `AgentPanelSessionController` reactive-cluster extraction (accessor-closure deps).
-
-### Institutional Learnings
-
-- ADR-0002: stateful methods do **not** move to free functions; but **pure** transforms do (step 1). A reducer that returns patches is the pure-transform case — the sub-stores keep `$state` and apply.
-- GOD gate: this is a canonical write path → re-gate required.
+- `packages/desktop/src/lib/acp/session-state/session-state-command-router.ts` — `routeSessionStateEnvelope`, `SessionStateCommand` union (routing **already extracted**).
+- `packages/desktop/src/lib/acp/store/session-store.svelte.ts:2370–~2895` — `applySessionStateEnvelope` command apply loop.
+- Sub-stores that own written slices: `SessionProjectionCore`, `AwaitingModelRefreshStore`, `PrLinkStateStore`, `SessionCreationCoordinator`, plus `sessionStateGraphs` / `transientProjectionStore` maps.
+- Characterization net: `session-store-projection-state.vitest.ts`, `session-store-token-stream.vitest.ts`, `session-event-service-streaming.vitest.ts`.
+- ADR-0002 — sub-store decomposition; "extract pure helpers first."
 
 ---
 
 ## Key Technical Decisions
 
-- **Patches, not mutations.** The reducer returns a typed `EnvelopePatch` describing *what should change* (e.g., `{ kind: "graph", sessionId, graph }`, `{ kind: "turnState", … }`, `{ kind: "scheduleAwaitingRefresh", … }`). The store interprets patches by delegating to sub-store methods. This keeps `$state` ownership with the sub-stores (ADR-0002) while making the decision logic pure (testable).
-- **Effects become declared intents.** Where a branch currently calls a side-effect method inline, the reducer instead emits a patch the store turns into that call. The *decision* is tested in the reducer; the *effect* stays in the store.
-- **Snapshot in, patches out.** The reducer takes an immutable read-model of the relevant current state (assembled by the store from its sub-stores via accessor closures), never the store itself.
-
----
-
-## Open Questions
-
-### Resolved During Planning
-
-- Does this contradict ADR-0002's "no free functions for stateful methods"? No — the reducer is pure and returns patches; sub-stores retain `$state` ownership and apply them. This is the ADR's sanctioned pure-helper extraction. Resolved.
-
-### Deferred to Implementation
-
-- The exact patch taxonomy (one variant per envelope kind vs. finer-grained field patches) — settle once the first 2–3 branches are extracted and the shape is observable.
-- Which inline effects are pure-enough to fold into patches vs. must stay as store-side effects — decided per branch during extraction.
+- **Patches, not mutations.** The reducer returns typed `EnvelopePatch` values describing *what should change*. The store interprets patches by delegating to sub-store methods.
+- **Effects become declared intents.** Side-effect calls (`applyCanonicalTerminalTurnSideEffects`, `reconcileConnectionMachineFromCanonicalState`, `syncAwaitingModelRefreshTimer`) become patch variants the store executes.
+- **Snapshot in, patches out.** The reducer takes an immutable read-model assembled from sub-stores via accessor closures, never the store itself.
+- **Router stays separate.** Do not merge routing back into the store; compose `route → reduce → apply`.
 
 ---
 
 ## High-Level Technical Design
 
-> *Directional guidance for review, not implementation specification.*
-
 ```
-Rust → SessionStatePayload/Delta
+Rust → SessionStateEnvelope
         │
         ▼
-applySessionStateEnvelope(sessionId, envelope)        // thin spine (store)
-        │  1. snapshot = assembleSnapshot(sessionId)   // reads sub-stores via accessors
-        │  2. patches  = reduceEnvelope(snapshot, env) // PURE — testable here
-        └─ 3. for patch in patches: applyPatch(patch)  // delegates to sub-store methods + effects
+routeSessionStateEnvelope(sessionId, revision, envelope)   // EXISTING — session-state-command-router.ts
+        │  → SessionStateCommand[]
+        ▼
+applySessionStateEnvelope(sessionId, envelope)             // THINNER store spine
+        │  1. snapshot = assembleSnapshot(sessionId)
+        │  2. for command in commands:
+        │       patches = reduceCommand(snapshot, command)   // NEW — pure, testable
+        └─ 3.     applyPatch(patches)                        // delegates to sub-stores + effects
 ```
 
 ---
@@ -100,104 +97,88 @@ applySessionStateEnvelope(sessionId, envelope)        // thin spine (store)
 
 ### U1. Baseline the characterization net for envelope application
 
-**Goal:** Prove current behavior of all envelope kinds before moving any logic.
+**Goal:** Prove current behavior of all command kinds before moving any logic.
 
 **Requirements:** R5
 
 **Dependencies:** None
 
 **Files:**
-- Test: `session-store-projection-state.vitest.ts` (audit coverage per envelope kind; add gaps)
+- Test: `session-store-projection-state.vitest.ts` (audit coverage per command kind; add gaps)
+- Test: `session-state-command-router.test.ts` (confirm routing coverage is separate from apply coverage)
 
 **Approach:**
-- Map each of the 9+ envelope kinds to at least one existing test; add characterization tests for any uncovered kind so the reducer extraction is fully fenced.
+- Map each `SessionStateCommand.kind` to at least one store-level characterization test.
+- Add explicit test for **multi-command envelopes** (ordering + `pendingSendIntent` clearing) before extracting logic.
 
-**Execution note:** Characterization-first — do not change production code in this unit.
-
-**Test scenarios:**
-- Happy path: one assertion per envelope kind that current `applySessionStateEnvelope` produces the expected projection/turn-state/activity result.
-
-**Verification:** Every envelope kind has at least one green characterization test on current code.
+**Verification:** Every command kind has at least one green characterization test on current code.
 
 ---
 
-### U2. Define the patch taxonomy and the pure reducer skeleton
+### U2. Define patch taxonomy and pure reducer for simplest commands
 
-**Goal:** Introduce `EnvelopePatch` types and a `reduceEnvelope` that handles the 2–3 simplest kinds, with the store delegating those through the new path.
+**Goal:** Introduce `EnvelopePatch` + `reduceCommand` for nearly-pure kinds; store delegates through the new path.
 
 **Requirements:** R1, R2, R3
 
 **Dependencies:** U1
 
 **Files:**
-- Create: `packages/desktop/src/lib/acp/store/envelope-reducer/reduce-envelope.ts`
-- Create: `packages/desktop/src/lib/acp/store/envelope-reducer/envelope-patch.ts` (patch union)
-- Create: `packages/desktop/src/lib/acp/store/envelope-reducer/__tests__/reduce-envelope.vitest.ts`
-- Modify: `session-store.svelte.ts` (route the simplest kinds through reducer → applyPatch)
+- Create: `packages/desktop/src/lib/acp/store/envelope-reducer/reduce-command.ts`
+- Create: `packages/desktop/src/lib/acp/store/envelope-reducer/envelope-patch.ts`
+- Create: `packages/desktop/src/lib/acp/store/envelope-reducer/__tests__/reduce-command.vitest.ts`
+- Modify: `session-store.svelte.ts` (route simplest kinds through reducer → applyPatch)
 
 **Approach:**
-- Start with kinds that are nearly pure (`applyCapabilities`, `applyTelemetry`, `applyPlan`). Establish `assembleSnapshot` + `applyPatch` plumbing.
+- Start with `applyCapabilities`, `applyTelemetry`, `applyPlan`, `applyBufferPush`, `applyBufferDelta`.
 
-**Test scenarios:**
-- Happy path: `reduceEnvelope(snapshot, applyCapabilities) → [{kind:"capabilities", …}]`, asserted with no store.
-- Edge case: unknown/empty envelope → no patches.
-
-**Verification:** The migrated kinds pass both reducer unit tests and the U1 characterization suite.
+**Verification:** Migrated kinds pass reducer unit tests and U1 characterization.
 
 ---
 
-### U3. Migrate the heavy branches (`applyGraphPatches`, `applyLifecycle`)
+### U3. Migrate heavy branches (`applyGraphPatches`, `applyLifecycle`, `replaceGraph`)
 
-**Goal:** Move the two largest branches' decision logic into the reducer, emitting patches for their effects.
+**Goal:** Move decision logic into the reducer; emit patches + effect intents.
 
 **Requirements:** R1, R3, R4
 
 **Dependencies:** U2
 
-**Files:**
-- Modify: `reduce-envelope.ts`, `envelope-patch.ts`, `session-store.svelte.ts`
-- Test: `reduce-envelope.vitest.ts`
-
 **Approach:**
-- `applyGraphPatches`: reducer computes `activeTurnFailure`/`nextActivity`/`nextTurnState` and emits `graph` + effect-intent patches (terminal-turn side effect, connection reconcile, awaiting-refresh schedule). Store applies them.
-- Preserve GOD invariants: canonical projection is the only truth; no hot fallback; no dual-write.
+- `applyGraphPatches`: reducer computes turn/activity patches + terminal-turn / connection / awaiting-refresh intents.
+- `applyLifecycle`: reducer uses snapshotted previous projection only (no transient authority inversion).
+- `replaceGraph`: reducer emits transcript-replacement decision + graph patch; store handles `creationCoordinator` consumer.
 
 **Test scenarios:**
-- Happy path: a graph-patch envelope that terminates a turn → reducer emits the terminal-turn effect-intent + correct turnState patch.
-- Edge case: graph patch with no turn termination → no terminal effect-intent.
-- Integration (store-level): applying those patches drives the same sub-store writes the U1 characterization asserts.
+- Multi-command envelope: patches applied in order; `pendingSendIntent` behavior unchanged.
 
-**Verification:** Heavy branches green in both reducer unit tests and characterization; no behavior delta.
+**Verification:** Heavy branches green in reducer tests and characterization.
 
 ---
 
-### U4. Migrate remaining branches and shrink the spine
+### U4. Migrate remaining branches and shrink the apply loop
 
-**Goal:** All envelope kinds flow through `reduceEnvelope`; `applySessionStateEnvelope` is a thin loop.
+**Goal:** All command kinds flow through `reduceCommand`; apply loop is snapshot → route (unchanged) → reduce → apply.
 
 **Requirements:** R1, R2, R5
 
 **Dependencies:** U3
 
 **Files:**
-- Modify: `reduce-envelope.ts`, `session-store.svelte.ts`
+- Modify: `reduce-command.ts`, `session-store.svelte.ts`
 
 **Approach:**
-- Move the rest (`replaceGraph`, `applyAssistantTextDelta`, buffer push/delta, `refreshSnapshot`, `applyTranscriptDelta`). The method collapses to `snapshot → reduce → applyPatch` loop.
+- Move `applyAssistantTextDelta`, `applyTranscriptDelta`, `refreshSnapshot`, and any remaining inline logic.
 
-**Test scenarios:**
-- Happy path: each remaining kind covered by a reducer unit test.
-- Integration: full envelope stream replay matches characterization output.
-
-**Verification:** `applySessionStateEnvelope` body is small; all 9+ kinds reducer-tested; full suite + `bun run check` green; GOD re-gate documented in the PR.
+**Verification:** Apply loop body small; all command kinds reducer-tested; `bun run check` + full suite green; GOD re-gate documented.
 
 ---
 
 ## System-Wide Impact
 
-- **Interaction graph:** The reducer is consumed only by the store's apply loop. Effects (timers, connection machine) remain store-side, now triggered by declared patches.
-- **State lifecycle risks:** Patch application must preserve ordering within a single envelope (e.g., graph before turn-state side effects). Encode ordering in the patch list, applied in order.
-- **Unchanged invariants:** Canonical projection remains single source of truth; sub-store slice ownership unchanged; wire shape unchanged.
+- **Interaction graph:** Reducer consumed only by the store apply loop. Router unchanged.
+- **State lifecycle risks:** Patch ordering within a single envelope must be preserved; encode in patch list emit order.
+- **Unchanged invariants:** Canonical projection single source of truth; wire shape unchanged.
 
 ---
 
@@ -205,15 +186,15 @@ applySessionStateEnvelope(sessionId, envelope)        // thin spine (store)
 
 | Risk | Mitigation |
 |------|------------|
-| Subtle reordering of inline effects changes behavior | Patches applied in emit order; characterization suite (U1) fences every kind |
-| Snapshot assembly accidentally introduces a `canonical ?? hot` fallback | GOD re-gate review; snapshot reads canonical facts only |
-| Reducer grows its own god-method | One handler fn per envelope kind, composed by a thin `reduceEnvelope` spine |
-| Overlap with the in-flight ADR-0002 SessionStore decomposition | Coordinate sequencing with `2026-06-08-002`; this plan touches only the envelope path |
+| Rebuilding routing that already exists | Explicit non-goal; router stays in `session-state-command-router.ts` |
+| Stale snapshot in multi-command envelopes | U1 multi-command characterization before extraction |
+| Snapshot assembly introduces `canonical ?? hot` fallback | GOD re-gate; snapshot reads canonical facts only |
+| Overlap with `2026-06-08-002` SessionStore decomposition | Coordinate sequencing; this plan touches only envelope apply path |
 
 ---
 
 ## Sources & References
 
-- Architecture review candidate 4 (verified lines 2370–2768).
+- Architecture review candidate 4 (re-baselined: routing at `session-state-command-router.ts`, apply at `session-store.svelte.ts:2370+`).
 - ADR-0002 (`docs/adr/0002-composed-sub-stores-for-reactive-decomposition.md`).
-- Related plan: `docs/plans/2026-06-08-002-refactor-session-store-class-decomposition-plan.md`.
+- Related plan: `2026-06-08-002-refactor-session-store-class-decomposition-plan.md`.
