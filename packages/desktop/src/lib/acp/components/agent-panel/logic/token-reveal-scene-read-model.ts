@@ -4,34 +4,43 @@ import {
 	createAppendedSceneEntriesArray,
 	createPatchedSceneEntriesArray,
 } from "./scene-entry-array-view.js";
-import { getRevealScenePatch } from "./reveal-scene-patch.js";
 import {
 	isSceneEntryStable,
 	isStableSceneEntryAppend,
 	isStableSceneEntryTruncation,
 } from "./scene-entry-stability.js";
 import {
-	getAgentPanelSceneEntryArrayAppendPatch,
-	getAgentPanelSceneEntryArrayPatch,
-	getAgentPanelSceneEntryArraySplicePatch,
-	getAgentPanelSceneEntryArrayTruncation,
-	markAgentPanelSceneEntryArrayAppendPatch,
-	markAgentPanelSceneEntryArrayPatch,
-	markAgentPanelSceneEntryArraySplicePatch,
-	markAgentPanelSceneEntryArrayTruncation,
-} from "../../../session-state/agent-panel-scene-entry-array-patch.js";
+	scenePatchGraphScene,
+	scenePatchGraphSceneAppend,
+	scenePatchGraphSceneSplice,
+	scenePatchGraphSceneTruncation,
+	scenePatchIdentity,
+	scenePatchTokenReveal,
+	type AgentPanelSceneEntryArrayAppendPatch,
+	type AgentPanelSceneEntryArrayPatch,
+	type AgentPanelSceneEntryArraySplicePatch,
+	type AgentPanelSceneEntryArrayTruncation,
+	type RevealScenePatchPayload,
+	type ScenePatch,
+} from "./scene-patch.js";
 
 export type TokenRevealSceneSnapshot = {
 	readonly sceneEntries: readonly AgentPanelSceneEntryModel[];
+	readonly scenePatch: ScenePatch;
 	readonly sourceEntry: AgentPanelSceneEntryModel | undefined;
 	readonly tailRowId: string | null;
 	readonly tailRowIndex?: number | undefined;
 	readonly tokenRevealCss: TokenRevealCss | undefined;
 };
 
+export type TokenRevealSceneResult = {
+	readonly entries: readonly AgentPanelSceneEntryModel[];
+	readonly scenePatch: ScenePatch;
+};
+
 export interface TokenRevealSceneReadModel {
-	applyPatch(snapshot: TokenRevealSceneSnapshot): readonly AgentPanelSceneEntryModel[] | null;
-	applySnapshot(snapshot: TokenRevealSceneSnapshot): readonly AgentPanelSceneEntryModel[];
+	applyPatch(snapshot: TokenRevealSceneSnapshot): TokenRevealSceneResult | null;
+	applySnapshot(snapshot: TokenRevealSceneSnapshot): TokenRevealSceneResult;
 	selectEntries(): readonly AgentPanelSceneEntryModel[];
 	selectSettlingTimings(): readonly TokenRevealTiming[];
 }
@@ -42,27 +51,49 @@ export type TokenRevealScenePatch = {
 	readonly entriesByIndex: ReadonlyMap<number, AgentPanelSceneEntryModel>;
 };
 
-const tokenRevealScenePatches = new WeakMap<
-	readonly AgentPanelSceneEntryModel[],
-	TokenRevealScenePatch
->();
+function tokenRevealResult(
+	entries: readonly AgentPanelSceneEntryModel[],
+	scenePatch: ScenePatch
+): TokenRevealSceneResult {
+	return { entries, scenePatch };
+}
 
-export function getTokenRevealScenePatch(
-	sceneEntries: readonly AgentPanelSceneEntryModel[]
-): TokenRevealScenePatch | undefined {
-	return tokenRevealScenePatches.get(sceneEntries);
+function readGraphSceneAppendPatch(
+	scenePatch: ScenePatch
+): AgentPanelSceneEntryArrayAppendPatch | null {
+	return scenePatch.kind === "graphSceneAppend" ? scenePatch.patch : null;
+}
+
+function readGraphScenePatch(scenePatch: ScenePatch): AgentPanelSceneEntryArrayPatch | null {
+	return scenePatch.kind === "graphScene" ? scenePatch.patch : null;
+}
+
+function readDisplayScenePatch(scenePatch: ScenePatch): RevealScenePatchPayload | null {
+	return scenePatch.kind === "displayScene" ? scenePatch.patch : null;
+}
+
+function readGraphSceneTruncation(
+	scenePatch: ScenePatch
+): AgentPanelSceneEntryArrayTruncation | null {
+	return scenePatch.kind === "graphSceneTruncation" ? scenePatch.patch : null;
+}
+
+function readGraphSceneSplicePatch(
+	scenePatch: ScenePatch
+): AgentPanelSceneEntryArraySplicePatch | null {
+	return scenePatch.kind === "graphSceneSplice" ? scenePatch.patch : null;
 }
 
 export function createTokenRevealSceneReadModel(): TokenRevealSceneReadModel {
 	let previousSnapshot: TokenRevealSceneSnapshot | null = null;
-	let previousEntries: readonly AgentPanelSceneEntryModel[] = [];
+	let previousResult: TokenRevealSceneResult = tokenRevealResult([], scenePatchIdentity());
 	let previousTimings: readonly TokenRevealTiming[] = [];
 	let previousTokenRevealEntryIndex = -1;
 
 	return {
 		applyPatch(snapshot) {
 			if (isSameTokenRevealSnapshot(previousSnapshot, snapshot)) {
-				return previousEntries;
+				return previousResult;
 			}
 			const previous = previousSnapshot;
 			if (previous === null) {
@@ -79,174 +110,188 @@ export function createTokenRevealSceneReadModel(): TokenRevealSceneReadModel {
 			}
 			if (hasSameStableSceneEntries(previous.sceneEntries, snapshot.sceneEntries)) {
 				previousSnapshot = snapshot;
-				return previousEntries;
+				return previousResult;
 			}
 
-			const appendPatch = getAgentPanelSceneEntryArrayAppendPatch(snapshot.sceneEntries);
+			const appendPatch = readGraphSceneAppendPatch(snapshot.scenePatch);
 			if (
 				appendPatch?.baseSceneEntries === previous.sceneEntries &&
 				previousTokenRevealEntryIndex === -1
 			) {
 				previousSnapshot = snapshot;
-				previousEntries = snapshot.sceneEntries;
-				return previousEntries;
+				previousResult = tokenRevealResult(snapshot.sceneEntries, snapshot.scenePatch);
+				return previousResult;
 			}
 			if (
 				appendPatch?.baseSceneEntries === previous.sceneEntries &&
 				previousTokenRevealEntryIndex !== -1
 			) {
 				const nextEntries = createAppendedSceneEntriesArray(
-					previousEntries,
+					previousResult.entries,
 					appendPatch.appendedEntries
 				);
-				markAgentPanelSceneEntryArrayAppendPatch(nextEntries, {
-					baseSceneEntries: previousEntries,
-					appendedEntries: appendPatch.appendedEntries,
-				});
 				previousSnapshot = snapshot;
-				previousEntries = nextEntries;
-				return previousEntries;
+				previousResult = tokenRevealResult(
+					nextEntries,
+					scenePatchGraphSceneAppend({
+						baseSceneEntries: previousResult.entries,
+						appendedEntries: appendPatch.appendedEntries,
+					})
+				);
+				return previousResult;
 			}
 			if (
-				appendPatch === undefined &&
+				appendPatch === null &&
 				isStableSceneEntryAppend(previous.sceneEntries, snapshot.sceneEntries)
 			) {
 				if (previousTokenRevealEntryIndex === -1) {
 					previousSnapshot = snapshot;
-					previousEntries = snapshot.sceneEntries;
-					return previousEntries;
+					previousResult = tokenRevealResult(snapshot.sceneEntries, snapshot.scenePatch);
+					return previousResult;
 				}
 				const appendedEntries = snapshot.sceneEntries.slice(previous.sceneEntries.length);
 				const nextEntries = createAppendedSceneEntriesArray(
-					previousEntries,
+					previousResult.entries,
 					appendedEntries
 				);
-				markAgentPanelSceneEntryArrayAppendPatch(nextEntries, {
-					baseSceneEntries: previousEntries,
-					appendedEntries,
-				});
 				previousSnapshot = snapshot;
-				previousEntries = nextEntries;
-				return previousEntries;
+				previousResult = tokenRevealResult(
+					nextEntries,
+					scenePatchGraphSceneAppend({
+						baseSceneEntries: previousResult.entries,
+						appendedEntries,
+					})
+				);
+				return previousResult;
 			}
 
-			const graphPatch = getAgentPanelSceneEntryArrayPatch(snapshot.sceneEntries);
+			const graphPatch = readGraphScenePatch(snapshot.scenePatch);
 			if (graphPatch?.baseSceneEntries === previous.sceneEntries) {
 				if (previousTokenRevealEntryIndex === -1) {
 					previousSnapshot = snapshot;
-					previousEntries = snapshot.sceneEntries;
-					return previousEntries;
+					previousResult = tokenRevealResult(snapshot.sceneEntries, snapshot.scenePatch);
+					return previousResult;
 				}
 				if (!graphPatch.entriesByIndex.has(previousTokenRevealEntryIndex)) {
 					const nextEntries = createPatchedSceneEntriesArray(
-						previousEntries,
+						previousResult.entries,
 						graphPatch.entriesByIndex
 					);
-					markAgentPanelSceneEntryArrayPatch(nextEntries, {
-						baseSceneEntries: previousEntries,
-						entries: graphPatch.entries,
-						entriesByIndex: graphPatch.entriesByIndex,
-					});
 					previousSnapshot = snapshot;
-					previousEntries = nextEntries;
-					return previousEntries;
+					previousResult = tokenRevealResult(
+						nextEntries,
+						scenePatchGraphScene({
+							baseSceneEntries: previousResult.entries,
+							entries: graphPatch.entries,
+							entriesByIndex: graphPatch.entriesByIndex,
+						})
+					);
+					return previousResult;
 				}
 			}
 
-			const displayPatch = getRevealScenePatch(snapshot.sceneEntries);
+			const displayPatch = readDisplayScenePatch(snapshot.scenePatch);
 			if (displayPatch?.baseSceneEntries === previous.sceneEntries) {
 				if (previousTokenRevealEntryIndex === -1) {
 					previousSnapshot = snapshot;
-					previousEntries = snapshot.sceneEntries;
-					return previousEntries;
+					previousResult = tokenRevealResult(snapshot.sceneEntries, snapshot.scenePatch);
+					return previousResult;
 				}
 				if (!displayPatch.entriesByIndex.has(previousTokenRevealEntryIndex)) {
 					const nextEntries = createPatchedSceneEntriesArray(
-						previousEntries,
+						previousResult.entries,
 						displayPatch.entriesByIndex
 					);
-					markAgentPanelSceneEntryArrayPatch(nextEntries, {
-						baseSceneEntries: previousEntries,
-						entries: displayPatch.entries,
-						entriesByIndex: displayPatch.entriesByIndex,
-					});
 					previousSnapshot = snapshot;
-					previousEntries = nextEntries;
-					return previousEntries;
+					previousResult = tokenRevealResult(
+						nextEntries,
+						scenePatchGraphScene({
+							baseSceneEntries: previousResult.entries,
+							entries: displayPatch.entries,
+							entriesByIndex: displayPatch.entriesByIndex,
+						})
+					);
+					return previousResult;
 				}
 			}
 
-			const truncation = getAgentPanelSceneEntryArrayTruncation(snapshot.sceneEntries);
+			const truncation = readGraphSceneTruncation(snapshot.scenePatch);
 			if (truncation?.baseSceneEntries === previous.sceneEntries) {
 				if (previousTokenRevealEntryIndex === -1) {
 					previousSnapshot = snapshot;
-					previousEntries = snapshot.sceneEntries;
-					return previousEntries;
+					previousResult = tokenRevealResult(snapshot.sceneEntries, snapshot.scenePatch);
+					return previousResult;
 				}
 				if (previousTokenRevealEntryIndex < truncation.length) {
 					const nextEntries = createTruncatedSceneEntriesArray(
-						previousEntries,
+						previousResult.entries,
 						truncation.length
 					);
-					markAgentPanelSceneEntryArrayTruncation(nextEntries, {
-						baseSceneEntries: previousEntries,
-						length: truncation.length,
-					});
 					previousSnapshot = snapshot;
-					previousEntries = nextEntries;
-					return previousEntries;
+					previousResult = tokenRevealResult(
+						nextEntries,
+						scenePatchGraphSceneTruncation({
+							baseSceneEntries: previousResult.entries,
+							length: truncation.length,
+						})
+					);
+					return previousResult;
 				}
 			}
 			if (
-				truncation === undefined &&
+				truncation === null &&
 				isStableSceneEntryTruncation(previous.sceneEntries, snapshot.sceneEntries)
 			) {
 				if (previousTokenRevealEntryIndex === -1) {
 					previousSnapshot = snapshot;
-					previousEntries = snapshot.sceneEntries;
-					return previousEntries;
+					previousResult = tokenRevealResult(snapshot.sceneEntries, snapshot.scenePatch);
+					return previousResult;
 				}
 				if (previousTokenRevealEntryIndex < snapshot.sceneEntries.length) {
 					const nextEntries = createTruncatedSceneEntriesArray(
-						previousEntries,
+						previousResult.entries,
 						snapshot.sceneEntries.length
 					);
-					markAgentPanelSceneEntryArrayTruncation(nextEntries, {
-						baseSceneEntries: previousEntries,
-						length: snapshot.sceneEntries.length,
-					});
 					previousSnapshot = snapshot;
-					previousEntries = nextEntries;
-					return previousEntries;
+					previousResult = tokenRevealResult(
+						nextEntries,
+						scenePatchGraphSceneTruncation({
+							baseSceneEntries: previousResult.entries,
+							length: snapshot.sceneEntries.length,
+						})
+					);
+					return previousResult;
 				}
 			}
 
-			const splicePatch = getAgentPanelSceneEntryArraySplicePatch(snapshot.sceneEntries);
+			const splicePatch = readGraphSceneSplicePatch(snapshot.scenePatch);
 			if (splicePatch?.baseSceneEntries === previous.sceneEntries) {
 				if (previousTokenRevealEntryIndex === -1) {
 					previousSnapshot = snapshot;
-					previousEntries = snapshot.sceneEntries;
-					return previousEntries;
+					previousResult = tokenRevealResult(snapshot.sceneEntries, snapshot.scenePatch);
+					return previousResult;
 				}
 				if (previousTokenRevealEntryIndex < splicePatch.startIndex) {
 					const replacementEntries = snapshot.sceneEntries.slice(splicePatch.startIndex);
 					const nextEntries = createSplicedSceneEntriesArray(
-						previousEntries,
+						previousResult.entries,
 						splicePatch.startIndex,
 						replacementEntries
 					);
-					markAgentPanelSceneEntryArraySplicePatch(nextEntries, {
-						baseSceneEntries: previousEntries,
-						startIndex: splicePatch.startIndex,
-						insertedEntries: replacementEntries.slice(
-							0,
-							Math.max(0, replacementEntries.length - splicePatch.trailingEntries.length)
-						),
-						trailingEntries: splicePatch.trailingEntries,
-					});
 					previousSnapshot = snapshot;
-					previousEntries = nextEntries;
-					return previousEntries;
+					previousResult = tokenRevealResult(
+						nextEntries,
+						scenePatchGraphSceneSplice({
+							baseSceneEntries: previousResult.entries,
+							startIndex: splicePatch.startIndex,
+							insertedEntries: replacementEntries.slice(
+								0,
+								Math.max(0, replacementEntries.length - splicePatch.trailingEntries.length)
+							),
+							trailingEntries: splicePatch.trailingEntries,
+						})
+					);
+					return previousResult;
 				}
 			}
 
@@ -254,7 +299,7 @@ export function createTokenRevealSceneReadModel(): TokenRevealSceneReadModel {
 		},
 		applySnapshot(snapshot) {
 			if (isSameTokenRevealSnapshot(previousSnapshot, snapshot)) {
-				return previousEntries;
+				return previousResult;
 			}
 
 			const tokenRevealEntryIndex = resolveTokenRevealEntryIndex(
@@ -266,10 +311,10 @@ export function createTokenRevealSceneReadModel(): TokenRevealSceneReadModel {
 			);
 			if (tokenRevealEntryIndex === -1) {
 				previousSnapshot = snapshot;
-				previousEntries = snapshot.sceneEntries;
+				previousResult = tokenRevealResult(snapshot.sceneEntries, snapshot.scenePatch);
 				previousTimings = [];
 				previousTokenRevealEntryIndex = -1;
-				return previousEntries;
+				return previousResult;
 			}
 
 			const tokenRevealEntry = copyAssistantSceneEntryWithTokenReveal(
@@ -294,20 +339,20 @@ export function createTokenRevealSceneReadModel(): TokenRevealSceneReadModel {
 				}
 			}
 			const nextEntries = createPatchedSceneEntryArray(snapshot.sceneEntries, patchedEntriesByIndex);
-			tokenRevealScenePatches.set(nextEntries, {
+			const tokenRevealPatch = scenePatchTokenReveal({
 				baseSceneEntries: snapshot.sceneEntries,
 				entries: Array.from(patchedEntriesByIndex.values()),
 				entriesByIndex: patchedEntriesByIndex,
 			});
 
 			previousSnapshot = snapshot;
-			previousEntries = nextEntries;
+			previousResult = tokenRevealResult(nextEntries, tokenRevealPatch);
 			previousTimings = collectTokenRevealTiming(tokenRevealEntry);
 			previousTokenRevealEntryIndex = tokenRevealEntryIndex;
-			return previousEntries;
+			return previousResult;
 		},
 		selectEntries() {
-			return previousEntries;
+			return previousResult.entries;
 		},
 		selectSettlingTimings() {
 			return previousTimings;

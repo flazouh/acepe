@@ -14,7 +14,7 @@
 // materializer's output objects and never writes canonical data.
 //
 // It emits a RevealScenePatch (U3) describing the same-length index-overrides it
-// made, so token-reveal-scene-read-model and graph-scene-entry-match keep their
+// made, so token-reveal-scene-read-model and graph-scene-entry-index keep their
 // incremental fast-path. Built and unit-tested in isolation; it goes live in the
 // controller at U4 when the scene -> display -> scene round-trip is removed and
 // the display-model's copy of this logic is deleted (single live authority).
@@ -23,7 +23,11 @@ import type { AgentAssistantEntry, AgentPanelSceneEntryModel } from "@acepe/ui/a
 
 import { createDisplayedAssistantMessage } from "./agent-panel-display-model-assistant-content.js";
 import { createPatchedSceneEntriesArray } from "./scene-entry-array-view.js";
-import { markRevealScenePatch } from "./reveal-scene-patch.js";
+import {
+	buildRevealScenePatchResult,
+	type RevealTextProjectionResult,
+} from "./reveal-scene-patch.js";
+import { scenePatchIdentity } from "./scene-patch.js";
 
 export interface RevealTextProjectionSnapshot {
 	readonly sceneEntries: readonly AgentPanelSceneEntryModel[];
@@ -34,7 +38,7 @@ export interface RevealTextProjectionSnapshot {
 }
 
 export interface RevealTextProjection {
-	apply(snapshot: RevealTextProjectionSnapshot): readonly AgentPanelSceneEntryModel[];
+	apply(snapshot: RevealTextProjectionSnapshot): RevealTextProjectionResult;
 }
 
 // Faithful port of applyDisplayTextToRow's assistant branch
@@ -78,7 +82,7 @@ export function createRevealTextProjection(): RevealTextProjection {
 	let visibleTextByRowId = new Map<string, string>();
 	let lastInput: readonly AgentPanelSceneEntryModel[] | null = null;
 	let lastTurnCompleted = false;
-	let previousOutput: readonly AgentPanelSceneEntryModel[] | null = null;
+	let previousOutput: RevealTextProjectionResult | null = null;
 
 	return {
 		apply(snapshot) {
@@ -130,17 +134,17 @@ export function createRevealTextProjection(): RevealTextProjection {
 
 			visibleTextByRowId = nextVisibleByRowId;
 
-			let output: readonly AgentPanelSceneEntryModel[];
-			if (patchedByIndex.size === 0) {
-				output = snapshot.sceneEntries;
-			} else {
-				output = createPatchedSceneEntriesArray(snapshot.sceneEntries, patchedByIndex);
-				markRevealScenePatch(output, {
-					baseSceneEntries: snapshot.sceneEntries,
-					entries: patchedEntries,
-					entriesByIndex: patchedByIndex,
-				});
-			}
+			const output =
+				patchedByIndex.size === 0
+					? {
+							entries: snapshot.sceneEntries,
+							scenePatch: scenePatchIdentity(),
+						}
+					: buildRevealScenePatchResult(
+							snapshot.sceneEntries,
+							patchedByIndex,
+							createPatchedSceneEntriesArray(snapshot.sceneEntries, patchedByIndex)
+						);
 
 			lastInput = snapshot.sceneEntries;
 			lastTurnCompleted = snapshot.turnCompleted;

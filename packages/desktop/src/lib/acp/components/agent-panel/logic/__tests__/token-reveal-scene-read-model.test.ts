@@ -1,15 +1,13 @@
 import type { AgentPanelSceneEntryModel, TokenRevealCss } from "@acepe/ui/agent-panel";
 import { describe, expect, it } from "vitest";
+import { createTokenRevealSceneReadModel } from "../token-reveal-scene-read-model.js";
 import {
-	markAgentPanelSceneEntryArrayAppendPatch,
-	markAgentPanelSceneEntryArrayPatch,
-	markAgentPanelSceneEntryArrayTruncation,
-} from "../../../../session-state/agent-panel-scene-entry-array-patch.js";
-import {
-	createTokenRevealSceneReadModel,
-	getTokenRevealScenePatch,
-} from "../token-reveal-scene-read-model.js";
-import { buildRevealScenePatchedEntries } from "./reveal-scene-patch-test-helper.js";
+	scenePatchGraphScene,
+	scenePatchGraphSceneAppend,
+	scenePatchGraphSceneTruncation,
+} from "../scene-patch.js";
+import { withIdentityScenePatch } from "./scene-patch-test-helpers.js";
+import { buildRevealScenePatchedEntriesWithPatch } from "../reveal-scene-patch.js";
 
 function createTokenRevealCss(): TokenRevealCss {
 	return {
@@ -29,14 +27,14 @@ describe("createTokenRevealSceneReadModel", () => {
 			{ id: "user-1", type: "user", text: "Prompt" },
 		];
 
-		const selectedEntries = readModel.applySnapshot({
+		const selectedResult = readModel.applySnapshot(withIdentityScenePatch({
 			sceneEntries: entries,
 			sourceEntry: undefined,
 			tailRowId: null,
 			tokenRevealCss: undefined,
-		});
+		}));
 
-		expect(selectedEntries).toBe(entries);
+		expect(selectedResult.entries).toBe(entries);
 		expect(readModel.selectEntries()).toBe(entries);
 		expect(readModel.selectSettlingTimings()).toEqual([]);
 	});
@@ -63,16 +61,16 @@ describe("createTokenRevealSceneReadModel", () => {
 		};
 		const tokenRevealCss = createTokenRevealCss();
 
-		const selectedEntries = readModel.applySnapshot({
+		const selectedResult = readModel.applySnapshot(withIdentityScenePatch({
 			sceneEntries: [userEntry, assistantEntry],
 			sourceEntry: sourceAssistantEntry,
 			tailRowId: "assistant-1",
 			tokenRevealCss,
-		});
+		}));
 
-		expect(selectedEntries[0]).toBe(userEntry);
-		expect(selectedEntries[1]).not.toBe(assistantEntry);
-		expect(selectedEntries[1]).toMatchObject({
+		expect(selectedResult.entries[0]).toBe(userEntry);
+		expect(selectedResult.entries[1]).not.toBe(assistantEntry);
+		expect(selectedResult.entries[1]).toMatchObject({
 			id: "assistant-1",
 			type: "assistant",
 			markdown: "source text",
@@ -111,31 +109,31 @@ describe("createTokenRevealSceneReadModel", () => {
 		};
 
 		try {
-			const selectedEntries = readModel.applySnapshot({
+			const selectedResult = readModel.applySnapshot(withIdentityScenePatch({
 				sceneEntries,
 				sourceEntry: assistantEntry,
 				tailRowId: "assistant-1",
 				tokenRevealCss,
-			});
+			}));
 
-			expect(Array.isArray(selectedEntries)).toBe(true);
-			expect(selectedEntries.length).toBe(2);
-			expect(selectedEntries[0]).toBe(userEntry);
-			expect(selectedEntries[1]).not.toBe(assistantEntry);
-			expect(selectedEntries[1]).toMatchObject({
+			expect(Array.isArray(selectedResult.entries)).toBe(true);
+			expect(selectedResult.entries.length).toBe(2);
+			expect(selectedResult.entries[0]).toBe(userEntry);
+			expect(selectedResult.entries[1]).not.toBe(assistantEntry);
+			expect(selectedResult.entries[1]).toMatchObject({
 				id: "assistant-1",
 				tokenRevealCss,
 			});
-			expect([...selectedEntries][0]).toBe(userEntry);
-			expect([...selectedEntries][1]).toMatchObject({
+			expect([...selectedResult.entries][0]).toBe(userEntry);
+			expect([...selectedResult.entries][1]).toMatchObject({
 				id: "assistant-1",
 				tokenRevealCss,
 			});
-			expect(selectedEntries.slice()[1]).toMatchObject({
+			expect(selectedResult.entries.slice()[1]).toMatchObject({
 				id: "assistant-1",
 				tokenRevealCss,
 			});
-			expect(selectedEntries.at(1)).toMatchObject({
+			expect(selectedResult.entries.at(1)).toMatchObject({
 				id: "assistant-1",
 				tokenRevealCss,
 			});
@@ -153,17 +151,17 @@ describe("createTokenRevealSceneReadModel", () => {
 			isStreaming: true,
 		};
 		const tokenRevealCss = createTokenRevealCss();
-		const snapshot = {
+		const snapshot = withIdentityScenePatch({
 			sceneEntries: [assistantEntry],
 			sourceEntry: assistantEntry,
 			tailRowId: "assistant-1",
 			tokenRevealCss,
-		};
+		});
 
-		const firstEntries = readModel.applySnapshot(snapshot);
-		const secondEntries = readModel.applySnapshot(snapshot);
+		const firstResult = readModel.applySnapshot(snapshot);
+		const secondResult = readModel.applySnapshot(snapshot);
 
-		expect(secondEntries).toBe(firstEntries);
+		expect(secondResult.entries).toBe(firstResult.entries);
 		expect(readModel.selectSettlingTimings()).toEqual([]);
 	});
 
@@ -183,23 +181,23 @@ describe("createTokenRevealSceneReadModel", () => {
 			status: "done",
 		};
 		const tokenRevealCss = createTokenRevealCss();
-		const firstEntries = readModel.applySnapshot({
+		const firstResult = readModel.applySnapshot(withIdentityScenePatch({
 			sceneEntries: [assistantEntry, toolEntry],
 			sourceEntry: assistantEntry,
 			tailRowId: "assistant-1",
 			tailRowIndex: 0,
 			tokenRevealCss,
-		});
+		}));
 
-		const patchedEntries = readModel.applyPatch({
+		const patchedResult = readModel.applyPatch(withIdentityScenePatch({
 			sceneEntries: [{ ...assistantEntry }, { ...toolEntry }],
 			sourceEntry: assistantEntry,
 			tailRowId: "assistant-1",
 			tailRowIndex: 0,
 			tokenRevealCss,
-		});
+		}));
 
-		expect(patchedEntries).toBe(firstEntries);
+		expect(patchedResult?.entries).toBe(firstResult.entries);
 	});
 
 	it("keeps selecting the same tail row when token reveal css changes", () => {
@@ -221,23 +219,23 @@ describe("createTokenRevealSceneReadModel", () => {
 			revealCount: firstCss.revealCount + 1,
 		};
 
-		const firstEntries = readModel.applySnapshot({
+		const firstResult = readModel.applySnapshot(withIdentityScenePatch({
 			sceneEntries: [userEntry, assistantEntry],
 			sourceEntry: assistantEntry,
 			tailRowId: "assistant-1",
 			tokenRevealCss: firstCss,
-		});
-		const nextEntries = readModel.applySnapshot({
+		}));
+		const nextResult = readModel.applySnapshot(withIdentityScenePatch({
 			sceneEntries: [userEntry, assistantEntry],
 			sourceEntry: assistantEntry,
 			tailRowId: "assistant-1",
 			tokenRevealCss: nextCss,
-		});
+		}));
 
-		expect(firstEntries[0]).toBe(userEntry);
-		expect(nextEntries[0]).toBe(userEntry);
-		expect(firstEntries[1]).toMatchObject({ id: "assistant-1", tokenRevealCss: firstCss });
-		expect(nextEntries[1]).toMatchObject({ id: "assistant-1", tokenRevealCss: nextCss });
+		expect(firstResult.entries[0]).toBe(userEntry);
+		expect(nextResult.entries[0]).toBe(userEntry);
+		expect(firstResult.entries[1]).toMatchObject({ id: "assistant-1", tokenRevealCss: firstCss });
+		expect(nextResult.entries[1]).toMatchObject({ id: "assistant-1", tokenRevealCss: nextCss });
 	});
 
 	it("uses the supplied tail row index before scanning for the reveal row", () => {
@@ -255,17 +253,17 @@ describe("createTokenRevealSceneReadModel", () => {
 		};
 		const tokenRevealCss = createTokenRevealCss();
 
-		const selectedEntries = readModel.applySnapshot({
+		const selectedResult = readModel.applySnapshot(withIdentityScenePatch({
 			sceneEntries: [earlierAssistantEntry, tailAssistantEntry],
 			sourceEntry: tailAssistantEntry,
 			tailRowId: "assistant-tail",
 			tailRowIndex: 1,
 			tokenRevealCss,
-		});
+		}));
 
-		expect(selectedEntries[0]).toBe(earlierAssistantEntry);
-		expect(selectedEntries[1]).not.toBe(tailAssistantEntry);
-		expect(selectedEntries[1]).toMatchObject({
+		expect(selectedResult.entries[0]).toBe(earlierAssistantEntry);
+		expect(selectedResult.entries[1]).not.toBe(tailAssistantEntry);
+		expect(selectedResult.entries[1]).toMatchObject({
 			id: "assistant-tail",
 			tokenRevealCss,
 		});
@@ -288,30 +286,36 @@ describe("createTokenRevealSceneReadModel", () => {
 		const tokenRevealCss = createTokenRevealCss();
 		const baseEntries = [firstAssistantEntry, secondAssistantEntry];
 
-		readModel.applySnapshot({
+		readModel.applySnapshot(withIdentityScenePatch({
 			sceneEntries: baseEntries,
 			sourceEntry: firstAssistantEntry,
 			tailRowId: "assistant-1",
 			tailRowIndex: 0,
 			tokenRevealCss,
-		});
+		}));
 
-		const movedEntries = readModel.applySnapshot({
+		const movedResult = readModel.applySnapshot(withIdentityScenePatch({
 			sceneEntries: baseEntries,
 			sourceEntry: secondAssistantEntry,
 			tailRowId: "assistant-2",
 			tailRowIndex: 1,
 			tokenRevealCss,
-		});
+		}));
 
-		const patch = getTokenRevealScenePatch(movedEntries);
-		expect(patch?.baseSceneEntries).toBe(baseEntries);
-		expect(patch?.entries).toHaveLength(2);
-		expect(patch?.entries[0]).toMatchObject({ id: "assistant-2", tokenRevealCss });
-		expect(patch?.entries[1]).toBe(firstAssistantEntry);
-		expect(movedEntries[0]).toBe(firstAssistantEntry);
-		expect(movedEntries[1]).not.toBe(secondAssistantEntry);
-		expect(movedEntries[1]).toMatchObject({ id: "assistant-2", tokenRevealCss });
+		expect(movedResult.scenePatch.kind).toBe("tokenReveal");
+		if (movedResult.scenePatch.kind !== "tokenReveal") {
+			return;
+		}
+		expect(movedResult.scenePatch.patch.baseSceneEntries).toBe(baseEntries);
+		expect(movedResult.scenePatch.patch.entries).toHaveLength(2);
+		expect(movedResult.scenePatch.patch.entries[0]).toMatchObject({
+			id: "assistant-2",
+			tokenRevealCss,
+		});
+		expect(movedResult.scenePatch.patch.entries[1]).toBe(firstAssistantEntry);
+		expect(movedResult.entries[0]).toBe(firstAssistantEntry);
+		expect(movedResult.entries[1]).not.toBe(secondAssistantEntry);
+		expect(movedResult.entries[1]).toMatchObject({ id: "assistant-2", tokenRevealCss });
 	});
 
 	it("applies append patches without rebuilding the existing reveal overlay", () => {
@@ -332,30 +336,33 @@ describe("createTokenRevealSceneReadModel", () => {
 		const tokenRevealCss = createTokenRevealCss();
 		const baseEntries = [assistantEntry];
 
-		const firstEntries = readModel.applySnapshot({
+		const firstResult = readModel.applySnapshot(withIdentityScenePatch({
 			sceneEntries: baseEntries,
 			sourceEntry: assistantEntry,
 			tailRowId: "assistant-1",
 			tailRowIndex: 0,
 			tokenRevealCss,
-		});
+		}));
 		const appendedEntries = [...baseEntries, toolEntry];
-		markAgentPanelSceneEntryArrayAppendPatch(appendedEntries, {
-			baseSceneEntries: baseEntries,
-			appendedEntries: [toolEntry],
-		});
 
-		const patchedEntries = readModel.applyPatch({
+		const patchedResult = readModel.applyPatch({
 			sceneEntries: appendedEntries,
+			scenePatch: scenePatchGraphSceneAppend({
+				baseSceneEntries: baseEntries,
+				appendedEntries: [toolEntry],
+			}),
 			sourceEntry: assistantEntry,
 			tailRowId: "assistant-1",
 			tailRowIndex: 0,
 			tokenRevealCss,
 		});
 
-		expect(patchedEntries).not.toBeNull();
-		expect(patchedEntries?.[0]).toBe(firstEntries[0]);
-		expect(patchedEntries?.[1]).toBe(toolEntry);
+		expect(patchedResult).not.toBeNull();
+		if (patchedResult === null) {
+			return;
+		}
+		expect(patchedResult.entries[0]).toBe(firstResult.entries[0]);
+		expect(patchedResult.entries[1]).toBe(toolEntry);
 	});
 
 	it("keeps stable append updates on the patch lane", () => {
@@ -376,25 +383,28 @@ describe("createTokenRevealSceneReadModel", () => {
 		const tokenRevealCss = createTokenRevealCss();
 		const baseEntries = [assistantEntry];
 
-		const firstEntries = readModel.applySnapshot({
+		const firstResult = readModel.applySnapshot(withIdentityScenePatch({
 			sceneEntries: baseEntries,
 			sourceEntry: assistantEntry,
 			tailRowId: "assistant-1",
 			tailRowIndex: 0,
 			tokenRevealCss,
-		});
+		}));
 
-		const patchedEntries = readModel.applyPatch({
+		const patchedResult = readModel.applyPatch(withIdentityScenePatch({
 			sceneEntries: [assistantEntry, toolEntry],
 			sourceEntry: assistantEntry,
 			tailRowId: "assistant-1",
 			tailRowIndex: 0,
 			tokenRevealCss,
-		});
+		}));
 
-		expect(patchedEntries).not.toBeNull();
-		expect(patchedEntries?.[0]).toBe(firstEntries[0]);
-		expect(patchedEntries?.[1]).toBe(toolEntry);
+		expect(patchedResult).not.toBeNull();
+		if (patchedResult === null) {
+			return;
+		}
+		expect(patchedResult.entries[0]).toBe(firstResult.entries[0]);
+		expect(patchedResult.entries[1]).toBe(toolEntry);
 	});
 
 	it("applies unrelated graph patches over the existing reveal overlay", () => {
@@ -419,32 +429,35 @@ describe("createTokenRevealSceneReadModel", () => {
 		const tokenRevealCss = createTokenRevealCss();
 		const baseEntries = [assistantEntry, toolEntry];
 
-		const firstEntries = readModel.applySnapshot({
+		const firstResult = readModel.applySnapshot(withIdentityScenePatch({
 			sceneEntries: baseEntries,
 			sourceEntry: assistantEntry,
 			tailRowId: "assistant-1",
 			tailRowIndex: 0,
 			tokenRevealCss,
-		});
+		}));
 		const patchedBaseEntries = [assistantEntry, patchedToolEntry];
 		const entriesByIndex = new Map<number, AgentPanelSceneEntryModel>([[1, patchedToolEntry]]);
-		markAgentPanelSceneEntryArrayPatch(patchedBaseEntries, {
-			baseSceneEntries: baseEntries,
-			entries: [patchedToolEntry],
-			entriesByIndex,
-		});
 
-		const patchedEntries = readModel.applyPatch({
+		const patchedResult = readModel.applyPatch({
 			sceneEntries: patchedBaseEntries,
+			scenePatch: scenePatchGraphScene({
+				baseSceneEntries: baseEntries,
+				entries: [patchedToolEntry],
+				entriesByIndex,
+			}),
 			sourceEntry: assistantEntry,
 			tailRowId: "assistant-1",
 			tailRowIndex: 0,
 			tokenRevealCss,
 		});
 
-		expect(patchedEntries).not.toBeNull();
-		expect(patchedEntries?.[0]).toBe(firstEntries[0]);
-		expect(patchedEntries?.[1]).toBe(patchedToolEntry);
+		expect(patchedResult).not.toBeNull();
+		if (patchedResult === null) {
+			return;
+		}
+		expect(patchedResult.entries[0]).toBe(firstResult.entries[0]);
+		expect(patchedResult.entries[1]).toBe(patchedToolEntry);
 	});
 
 	it("applies unrelated display patches over the existing reveal overlay", () => {
@@ -464,32 +477,36 @@ describe("createTokenRevealSceneReadModel", () => {
 		const tokenRevealCss = createTokenRevealCss();
 		const baseEntries = [revealAssistantEntry, otherAssistantEntry];
 
-		const firstEntries = readModel.applySnapshot({
+		const firstResult = readModel.applySnapshot(withIdentityScenePatch({
 			sceneEntries: baseEntries,
 			sourceEntry: revealAssistantEntry,
 			tailRowId: "assistant-1",
 			tailRowIndex: 0,
 			tokenRevealCss,
-		});
+		}));
 
-		const displayPatchedEntries = buildRevealScenePatchedEntries(
+		const displayRevealResult = buildRevealScenePatchedEntriesWithPatch(
 			baseEntries,
 			new Map([
 				[1, { id: "assistant-2", type: "assistant", markdown: "Display override", isStreaming: false }],
 			])
 		);
 
-		const patchedEntries = readModel.applyPatch({
-			sceneEntries: displayPatchedEntries,
+		const patchedResult = readModel.applyPatch({
+			sceneEntries: displayRevealResult.entries,
+			scenePatch: displayRevealResult.scenePatch,
 			sourceEntry: revealAssistantEntry,
 			tailRowId: "assistant-1",
 			tailRowIndex: 0,
 			tokenRevealCss,
 		});
 
-		expect(patchedEntries).not.toBeNull();
-		expect(patchedEntries?.[0]).toBe(firstEntries[0]);
-		expect(patchedEntries?.[1]).toMatchObject({
+		expect(patchedResult).not.toBeNull();
+		if (patchedResult === null) {
+			return;
+		}
+		expect(patchedResult.entries[0]).toBe(firstResult.entries[0]);
+		expect(patchedResult.entries[1]).toMatchObject({
 			id: "assistant-2",
 			markdown: "Display override",
 		});
@@ -513,30 +530,33 @@ describe("createTokenRevealSceneReadModel", () => {
 		const baseEntries = [assistantEntry, toolEntry];
 		const tokenRevealCss = createTokenRevealCss();
 
-		const firstEntries = readModel.applySnapshot({
+		const firstResult = readModel.applySnapshot(withIdentityScenePatch({
 			sceneEntries: baseEntries,
 			sourceEntry: assistantEntry,
 			tailRowId: "assistant-1",
 			tailRowIndex: 0,
 			tokenRevealCss,
-		});
+		}));
 		const truncatedEntries = [assistantEntry];
-		markAgentPanelSceneEntryArrayTruncation(truncatedEntries, {
-			baseSceneEntries: baseEntries,
-			length: 1,
-		});
 
-		const patchedEntries = readModel.applyPatch({
+		const patchedResult = readModel.applyPatch({
 			sceneEntries: truncatedEntries,
+			scenePatch: scenePatchGraphSceneTruncation({
+				baseSceneEntries: baseEntries,
+				length: 1,
+			}),
 			sourceEntry: assistantEntry,
 			tailRowId: "assistant-1",
 			tailRowIndex: 0,
 			tokenRevealCss,
 		});
 
-		expect(patchedEntries).not.toBeNull();
-		expect(patchedEntries).toHaveLength(1);
-		expect(patchedEntries?.[0]).toBe(firstEntries[0]);
+		expect(patchedResult).not.toBeNull();
+		if (patchedResult === null) {
+			return;
+		}
+		expect(patchedResult.entries).toHaveLength(1);
+		expect(patchedResult.entries[0]).toBe(firstResult.entries[0]);
 	});
 
 	it("keeps stable truncation updates on the patch lane", () => {
@@ -557,24 +577,27 @@ describe("createTokenRevealSceneReadModel", () => {
 		const tokenRevealCss = createTokenRevealCss();
 		const baseEntries = [assistantEntry, toolEntry];
 
-		const firstEntries = readModel.applySnapshot({
+		const firstResult = readModel.applySnapshot(withIdentityScenePatch({
 			sceneEntries: baseEntries,
 			sourceEntry: assistantEntry,
 			tailRowId: "assistant-1",
 			tailRowIndex: 0,
 			tokenRevealCss,
-		});
+		}));
 
-		const patchedEntries = readModel.applyPatch({
+		const patchedResult = readModel.applyPatch(withIdentityScenePatch({
 			sceneEntries: [assistantEntry],
 			sourceEntry: assistantEntry,
 			tailRowId: "assistant-1",
 			tailRowIndex: 0,
 			tokenRevealCss,
-		});
+		}));
 
-		expect(patchedEntries).not.toBeNull();
-		expect(patchedEntries).toHaveLength(1);
-		expect(patchedEntries?.[0]).toBe(firstEntries[0]);
+		expect(patchedResult).not.toBeNull();
+		if (patchedResult === null) {
+			return;
+		}
+		expect(patchedResult.entries).toHaveLength(1);
+		expect(patchedResult.entries[0]).toBe(firstResult.entries[0]);
 	});
 });

@@ -114,15 +114,17 @@ function createPipeline() {
 		// Controller-derived token-reveal snapshot (CSS omitted — text continuity
 		// is independent of the appearance overlay).
 		const tailRowId = g.activeStreamingTail?.rowId ?? null;
-		const tailIndex = projected.findIndex((e) => e.id === tailRowId);
+		const tailIndex = projected.entries.findIndex((e) => e.id === tailRowId);
 		const snapshot = {
-			sceneEntries: projected,
-			sourceEntry: tailIndex === -1 ? undefined : projected[tailIndex],
+			sceneEntries: projected.entries,
+			scenePatch: projected.scenePatch,
+			sourceEntry: tailIndex === -1 ? undefined : projected.entries[tailIndex],
 			tailRowId,
 			tailRowIndex: tailIndex === -1 ? undefined : tailIndex,
 			tokenRevealCss: undefined,
 		};
-		const rendered = tokenReveal.applyPatch(snapshot) ?? tokenReveal.applySnapshot(snapshot);
+		const rendered =
+			tokenReveal.applyPatch(snapshot)?.entries ?? tokenReveal.applySnapshot(snapshot).entries;
 
 		const assistant = rendered.find((e) => e.id === "assistant-1");
 		if (assistant?.type !== "assistant") {

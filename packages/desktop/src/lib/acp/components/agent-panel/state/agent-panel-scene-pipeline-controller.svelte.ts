@@ -9,7 +9,7 @@ import type { ChatPreferencesStore } from "../../../store/chat-preferences-store
 import type { SessionStore } from "../../../store/session-store.svelte.js";
 import { createAgentPanelGraphMaterializerReadModel } from "../../../session-state/agent-panel-graph-materializer.js";
 import type { AgentPanelGraphMaterializerInput } from "../../../session-state/agent-panel-graph-materializer-types.js";
-import { createGraphSceneEntryIndexReadModel } from "../logic/graph-scene-entry-match.js";
+import { createGraphSceneEntryIndexReadModel } from "../../../session-state/graph-scene-entry-index.js";
 import { createRevealTextProjection } from "../logic/reveal-text-projection.js";
 import { createTokenRevealSceneReadModel } from "../logic/token-reveal-scene-read-model.js";
 import { buildTokenRevealCss } from "../components/agent-panel-pure-helpers.js";
@@ -40,7 +40,7 @@ export class AgentPanelScenePipelineController {
 		return this.#graphSceneMaterializer.apply(this.#deps.getGraphMaterializerInput());
 	});
 
-	readonly graphSceneEntries = $derived.by((): readonly AgentPanelSceneEntryModel[] => {
+	readonly revealProjection = $derived.by(() => {
 		const sessionId = this.#deps.getSessionId();
 		const turnCompleted =
 			sessionId !== null && this.#deps.sessionStore.getSessionTurnState(sessionId) === "Completed";
@@ -56,6 +56,8 @@ export class AgentPanelScenePipelineController {
 		});
 	});
 
+	readonly graphSceneEntries = $derived(this.revealProjection.entries);
+
 	readonly tokenRevealSceneEntries = $derived.by((): readonly AgentPanelSceneEntryModel[] => {
 		this.#deps.contentScrollReveal.settleRevision;
 		const sessionId = this.#deps.getSessionId();
@@ -66,8 +68,8 @@ export class AgentPanelScenePipelineController {
 		const clockAnchor = sessionId === null ? null : this.#deps.sessionStore.getClockAnchor(sessionId);
 
 		const sourceEntries = this.graphMaterializedScene.conversation.entries;
-		this.#tokenRevealSourceIndexReadModel.applyPatch(sourceEntries) ??
-			this.#tokenRevealSourceIndexReadModel.applySnapshot(sourceEntries);
+		const sourceScenePatch = this.#graphSceneMaterializer.selectConversationScenePatch();
+		this.#tokenRevealSourceIndexReadModel.applyWithScenePatch(sourceEntries, sourceScenePatch);
 		const tailEntry = this.#tokenRevealSourceIndexReadModel.selectEntryById(tokenRevealTailRowId);
 		const tailEntryIndex =
 			this.#tokenRevealSourceIndexReadModel.selectEntryIndexById(tokenRevealTailRowId);
@@ -85,6 +87,7 @@ export class AgentPanelScenePipelineController {
 				: undefined;
 		const tokenRevealSnapshot = {
 			sceneEntries: this.graphSceneEntries,
+			scenePatch: this.revealProjection.scenePatch,
 			sourceEntry: tailEntry,
 			tailRowId: tokenRevealTailRowId,
 			tailRowIndex: tailEntryIndex,
@@ -92,8 +95,8 @@ export class AgentPanelScenePipelineController {
 		};
 
 		return (
-			this.#tokenRevealSceneReadModel.applyPatch(tokenRevealSnapshot) ??
-			this.#tokenRevealSceneReadModel.applySnapshot(tokenRevealSnapshot)
+			this.#tokenRevealSceneReadModel.applyPatch(tokenRevealSnapshot)?.entries ??
+			this.#tokenRevealSceneReadModel.applySnapshot(tokenRevealSnapshot).entries
 		);
 	});
 
