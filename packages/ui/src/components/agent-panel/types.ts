@@ -566,6 +566,7 @@ export interface AgentPanelModifiedFileItem {
 	additions: number;
 	deletions: number;
 	onSelect?: () => void;
+	onRevert?: () => void;
 }
 
 export type ReviewWorkspaceFileItem = AgentPanelModifiedFileItem;
@@ -609,10 +610,6 @@ export function resolveReviewWorkspaceSelectedIndex(
 export interface AgentPanelModifiedFilesTrailingModel {
 	reviewLabel: string;
 	onReview?: () => void;
-	keepState: "enabled" | "disabled" | "applied";
-	keepLabel: string;
-	appliedLabel?: string;
-	onKeep?: () => void;
 	reviewedCount: number;
 	totalCount: number;
 }

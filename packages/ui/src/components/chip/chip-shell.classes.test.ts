@@ -8,10 +8,11 @@ describe("buildChipShellClassName", () => {
 
 		expect(className).toContain("rounded-sm");
 		expect(className).toContain("border");
-		expect(className).toContain("border-border/50");
-		expect(className).toContain("bg-muted");
-		expect(className).toContain("hover:bg-accent");
-		expect(className).toContain("hover:text-accent-foreground");
+		expect(className).toContain("border-border/60");
+		expect(className).toContain("bg-accent");
+		expect(className).toContain("text-accent-foreground");
+		expect(className).not.toContain("hover:bg-accent");
+		expect(className).not.toContain("hover:text-accent-foreground");
 		expect(className).toContain("px-1");
 		expect(className).toContain("py-0.5");
 	});
@@ -40,5 +41,6 @@ describe("buildChipShellClassName", () => {
 
 		expect(className).toContain("bg-accent");
 		expect(className).toContain("text-accent-foreground");
+		expect(className).toContain("border-border");
 	});
 });

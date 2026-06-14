@@ -46,7 +46,7 @@
 
 <!-- svelte-ignore a11y_no_static_element_interactions -->
 <div
-	class="flex h-full shrink-0 grow-0 min-h-0 bg-card rounded overflow-hidden relative border border-border/50 {isDraggingEdge
+	class="flex h-full shrink-0 grow-0 min-h-0 bg-card/75 rounded-lg overflow-hidden relative border border-border/50 {isDraggingEdge
 		? 'select-none'
 		: ''}"
 	style={widthStyle}

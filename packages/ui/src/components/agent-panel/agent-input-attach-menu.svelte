@@ -6,8 +6,8 @@
 	import { IconPlus } from "@tabler/icons-svelte";
 	import { CheckCircle, File, Image as ImageIcon } from "phosphor-svelte";
 
-	import { Button } from "../button/index.js";
 	import * as DropdownMenu from "../dropdown-menu/index.js";
+	import { Selector } from "../selector/index.js";
 	import AgentInputModeIcon from "./agent-input-mode-icon.svelte";
 	import AgentInputAutonomousToggle from "./agent-input-autonomous-toggle.svelte";
 	import AgentInputConfigOptionSelector from "./agent-input-config-option-selector.svelte";
@@ -113,24 +113,23 @@
 	}
 </script>
 
-<DropdownMenu.Root open={menuOpen} onOpenChange={handleOpenChange}>
-	<DropdownMenu.Trigger disabled={disabled}>
-		{#snippet child({ props: triggerProps })}
-			<Button
-				{...triggerProps}
-				type="button"
-				variant="ghost"
-				size="icon"
-				class="h-7 w-7 shrink-0 rounded-full text-muted-foreground hover:text-foreground"
-				disabled={disabled}
-				aria-label="Add context and tools"
-			>
-				<IconPlus class="size-4" />
-			</Button>
-		{/snippet}
-	</DropdownMenu.Trigger>
-	<DropdownMenu.Content align="start" side="top" sideOffset={8} class="w-[260px] p-1">
-		<div class="px-1 pb-1">
+<Selector
+	bind:open={menuOpen}
+	{disabled}
+	onOpenChange={handleOpenChange}
+	align="start"
+	side="top"
+	sideOffset={8}
+	variant="headerAction"
+	showChevron={false}
+	triggerSize="attach"
+	triggerAriaLabel="Add context and tools"
+>
+	{#snippet renderButton()}
+		<IconPlus class="size-3.5" />
+	{/snippet}
+
+	<div class="px-1 pb-1">
 			<input
 				type="search"
 				bind:value={searchQuery}
@@ -187,7 +186,7 @@
 				<DropdownMenu.SubTrigger class="cursor-pointer rounded-md px-2 py-1.5 text-xs">
 					{skillsSubmenuLabel}
 				</DropdownMenu.SubTrigger>
-				<DropdownMenu.SubContent class="max-h-64 w-[240px] overflow-y-auto p-1">
+				<DropdownMenu.SubContent class="max-h-64 w-[240px]">
 					{#each filteredItems.commands as command (command.id)}
 						<DropdownMenu.Item
 							onSelect={() => handleCommandSelect(command.id)}
@@ -238,7 +237,6 @@
 
 		{#if overflow && searchQuery.length === 0}
 			<DropdownMenu.Separator />
-			{@render overflow()}
-		{/if}
-	</DropdownMenu.Content>
-</DropdownMenu.Root>
+		{@render overflow()}
+	{/if}
+</Selector>

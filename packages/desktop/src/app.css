@@ -375,6 +375,12 @@
 [data-sonner-toaster] {
 	left: 0 !important;
 	right: 0 !important;
+	/* Sonner's bundled stylesheet applies `transform: translateX(-50%)` for the
+	   top-center position (paired with its own `left: 50%`). We center via a
+	   full-width flex container instead, so that transform must be cancelled —
+	   otherwise the full-width container is shifted half a viewport left and the
+	   toast lands clipped over the window controls. */
+	transform: none !important;
 	display: flex !important;
 	flex-direction: column !important;
 	align-items: center !important;
@@ -390,7 +396,7 @@
 	width: fit-content !important;
 	max-width: min(520px, calc(100vw - 32px)) !important;
 	padding: 0 38px 0 16px !important;
-	border-radius: 4px !important;
+	border-radius: 9999px !important;
 	box-shadow: 0 14px 42px rgb(0 0 0 / 0.24) !important;
 }
 

@@ -49,8 +49,7 @@
 
 {#if variant === "corner"}
 	<div
-		class="flex flex-row items-stretch gap-0.5 rounded-lg border-[1.5px] p-0.5 {className}"
-		style="border-color: color-mix(in srgb, {projectColor} 25%, var(--border));"
+		class="flex flex-row items-stretch gap-0.5 overflow-hidden rounded-lg border border-border/50 bg-card/75 p-0.5 {className}"
 	>
 		{#if isFocusedMode}
 			<!-- Focused mode: all project badges stacked vertically -->
@@ -87,7 +86,7 @@
 {:else}
 	<!-- Inline variant: badge + tabs -->
 	<div
-		class="flex items-stretch self-start rounded-lg border overflow-hidden {className}"
+		class="flex items-stretch self-start overflow-hidden rounded-lg border border-border/50 bg-card/75 {className}"
 		role="group"
 		aria-label="{projectName} tabs"
 	>

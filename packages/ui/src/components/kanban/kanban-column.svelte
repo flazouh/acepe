@@ -36,7 +36,7 @@ onMount(() => {
 </script>
 
 <div
-	class="flex min-h-0 min-w-0 basis-0 flex-1 flex-col overflow-hidden rounded-lg bg-card/75"
+	class="flex min-h-0 min-w-0 basis-0 flex-1 flex-col overflow-hidden rounded-lg border border-border/50 bg-card/75"
 	data-testid="kanban-column-{column.columnId}"
 >
 	<FeedSectionHeader

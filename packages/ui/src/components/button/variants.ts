@@ -30,7 +30,7 @@ export const buttonVariants = tv({
 			lg: "h-10 rounded-md px-6 has-[>svg]:px-4",
 			header: "h-7 gap-1.5 px-3 text-xs [&_svg:not([class*='size-'])]:size-3.5",
 			headerAction:
-				"h-auto gap-1 rounded px-2 py-0.5 text-[0.6875rem] [&_svg:not([class*='size-'])]:size-3",
+				"h-auto gap-1 rounded-md px-1.5 py-px text-[0.6875rem] [&_svg:not([class*='size-'])]:size-3",
 			toolbar:
 				"h-auto gap-1 rounded px-2 py-0.5 text-[0.6875rem] [&_svg:not([class*='size-'])]:size-3",
 			icon: "size-9",

@@ -2,7 +2,7 @@
   AgentInputModelTrigger - Pill-shaped button showing the selected model with dropdown caret.
 
   Visual slice extracted from packages/desktop/src/lib/acp/components/model-selector.trigger.svelte.
-  Desktop composes this inside a DropdownMenu.Root; website can render it as a static button.
+  Presentational model trigger label. Composed by AgentInputStandardModelSelector via Selector.
 -->
 <script lang="ts">
 	import { CaretDown } from "phosphor-svelte";

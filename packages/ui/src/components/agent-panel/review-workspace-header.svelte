@@ -8,8 +8,6 @@
 		selectedFileIndex?: number | null;
 		showCloseButton?: boolean;
 		onClose?: () => void;
-		onKeepFile?: () => void;
-		keepFileDisabled?: boolean;
 		onPreviousFile?: () => void;
 		onNextFile?: () => void;
 	}
@@ -20,8 +18,6 @@
 		selectedFileIndex = null,
 		showCloseButton = true,
 		onClose,
-		onKeepFile,
-		keepFileDisabled = false,
 		onPreviousFile,
 		onNextFile,
 	}: Props = $props();
@@ -47,21 +43,7 @@
 			selectedFileIndex !== null &&
 			selectedFileIndex < fileCount - 1
 	);
-	const keepButtonDisabled = $derived(
-		onKeepFile !== undefined ? keepFileDisabled : !hasNextFile
-	);
-	const primaryButtonLabel = $derived(
-		onKeepFile !== undefined ? "Keep" : hasNextFile ? "Next" : "Done"
-	);
-
-	function handleKeepClick(): void {
-		if (onKeepFile !== undefined) {
-			onKeepFile();
-			return;
-		}
-
-		onNextFile?.();
-	}
+	const primaryButtonLabel = $derived(hasNextFile ? "Next" : "Done");
 </script>
 
 <div
@@ -108,8 +90,8 @@
 			<button
 				type="button"
 				class="inline-flex h-6 items-center gap-1 rounded bg-primary px-2.5 text-xs font-medium text-primary-foreground transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-35"
-				disabled={keepButtonDisabled}
-				onclick={handleKeepClick}
+				disabled={!hasNextFile}
+				onclick={() => onNextFile?.()}
 				data-testid="review-workspace-next-file"
 			>
 				{primaryButtonLabel}

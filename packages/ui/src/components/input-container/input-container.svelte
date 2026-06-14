@@ -27,7 +27,7 @@
 </script>
 
 <div
-	class={cn("relative h-fit flex flex-col rounded-2xl bg-input/30", className)}
+	class={cn("relative h-fit flex flex-col rounded-xl bg-input/30", className)}
 >
 	<div class={contentClass}>
 		{#if content}

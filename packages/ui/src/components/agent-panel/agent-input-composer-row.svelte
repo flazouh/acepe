@@ -31,6 +31,7 @@
 		oncut?: (event: ClipboardEvent) => void;
 		leading?: Snippet;
 		trailing?: Snippet;
+		editorArea?: Snippet;
 	}
 
 	let {
@@ -55,75 +56,82 @@
 		oncut,
 		leading,
 		trailing,
+		editorArea,
 	}: Props = $props();
 
 	const showStop = $derived(submitIntent === "stop" || submitIntent === "steer");
 </script>
 
-<div class="flex items-end gap-1.5 min-w-0">
-	{#if leading}
-		<div class="flex items-end gap-1 shrink-0">
-			{@render leading()}
-		</div>
-	{/if}
-	<div class="relative flex-1 min-w-0">
-		<!-- svelte-ignore a11y_mouse_events_have_key_events -->
-		<div
-			bind:this={editorRef}
-			role="textbox"
-			aria-multiline="true"
-			aria-label={ariaLabel || placeholder}
-			tabindex="0"
-			contenteditable="true"
-			autocapitalize="off"
-			spellcheck={false}
-			class="min-h-7 max-h-[400px] overflow-y-auto whitespace-pre-wrap break-words text-sm leading-relaxed text-foreground outline-none"
-			{onbeforeinput}
-			{oninput}
-			{onkeydown}
-			{onkeyup}
-			{onfocus}
-			{onblur}
-			{onclick}
-			{onmouseover}
-			{onmouseout}
-			{onpaste}
-			{oncut}
-		></div>
-		{#if isEmpty}
+<div class="flex flex-col gap-1 min-w-0">
+	<div class="relative min-w-0">
+		{#if editorArea}
+			{@render editorArea()}
+		{:else}
+			<!-- svelte-ignore a11y_mouse_events_have_key_events -->
 			<div
-				class="pointer-events-none absolute left-0 top-0 text-sm leading-relaxed text-muted-foreground select-none"
-			>
-				{placeholder}
-			</div>
+				bind:this={editorRef}
+				role="textbox"
+				aria-multiline="true"
+				aria-label={ariaLabel || placeholder}
+				tabindex="0"
+				contenteditable="true"
+				autocapitalize="off"
+				spellcheck={false}
+				class="min-h-6 max-h-[400px] overflow-y-auto whitespace-pre-wrap break-words text-sm leading-snug text-foreground outline-none"
+				{onbeforeinput}
+				{oninput}
+				{onkeydown}
+				{onkeyup}
+				{onfocus}
+				{onblur}
+				{onclick}
+				{onmouseover}
+				{onmouseout}
+				{onpaste}
+				{oncut}
+			></div>
+			{#if isEmpty}
+				<div
+					class="pointer-events-none absolute left-0 top-0 text-sm leading-snug text-muted-foreground select-none"
+				>
+					{placeholder}
+				</div>
+			{/if}
 		{/if}
 	</div>
-	<div class="flex items-end gap-1 shrink-0">
-		{#if trailing}
-			{@render trailing()}
-		{/if}
-		{#if showStop}
-			<Button
-				type="button"
-				size="icon"
-				onclick={onSubmit}
-				disabled={submitDisabled}
-				class="h-7 w-7 cursor-pointer shrink-0 rounded-full bg-foreground text-background hover:bg-foreground/85"
-			>
-				<Stop weight="fill" class="h-3.5 w-3.5" />
-				<span class="sr-only">{submitAriaLabel}</span>
-			</Button>
-		{:else}
-			<Button
-				type="button"
-				size="icon"
-				onclick={onSubmit}
-				disabled={submitDisabled}
-				class="h-7 w-7 cursor-pointer shrink-0 rounded-full bg-foreground text-background hover:bg-foreground/85"
-			>
-				<IconArrowUp class="h-3.5 w-3.5" />
-				<span class="sr-only">{submitAriaLabel}</span>
-			</Button>
-		{/if}
+	<div class="flex items-center justify-between gap-1 min-w-0">
+		<div class="flex items-center gap-0.5 shrink-0">
+			{#if leading}
+				{@render leading()}
+			{/if}
+		</div>
+		<div class="flex items-center gap-0.5 shrink-0">
+			{#if trailing}
+				{@render trailing()}
+			{/if}
+			{#if showStop}
+				<Button
+					type="button"
+					size="icon"
+					onclick={onSubmit}
+					disabled={submitDisabled}
+					class="h-7 w-7 cursor-pointer shrink-0 rounded-full bg-foreground text-background hover:bg-foreground/85"
+				>
+					<Stop weight="fill" class="h-3.5 w-3.5" />
+					<span class="sr-only">{submitAriaLabel}</span>
+				</Button>
+			{:else}
+				<Button
+					type="button"
+					size="icon"
+					onclick={onSubmit}
+					disabled={submitDisabled}
+					class="h-7 w-7 cursor-pointer shrink-0 rounded-full bg-foreground text-background hover:bg-foreground/85"
+				>
+					<IconArrowUp class="h-3.5 w-3.5" />
+					<span class="sr-only">{submitAriaLabel}</span>
+				</Button>
+			{/if}
+		</div>
 	</div>
 </div>

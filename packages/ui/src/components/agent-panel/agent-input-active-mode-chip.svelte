@@ -39,26 +39,25 @@
 </script>
 
 <div
-	class="inline-flex h-7 max-w-36 shrink-0 items-center gap-1 rounded-full border border-border/60 bg-muted/50 pl-2 pr-0.5 text-xs font-medium text-foreground"
+	class="inline-flex h-7 shrink-0 items-center gap-0.5 rounded-md border border-border/50 bg-muted px-1 text-foreground/80"
 	class:opacity-50={disabled}
 	class:pointer-events-none={disabled}
 >
 	<button
 		type="button"
-		class="inline-flex min-w-0 flex-1 items-center gap-1 truncate cursor-pointer rounded-full border-0 bg-transparent p-0 text-inherit outline-none focus-visible:ring-1 focus-visible:ring-ring"
+		class="inline-flex items-center justify-center cursor-pointer rounded border-0 bg-transparent p-0.5 text-inherit outline-none hover:text-foreground focus-visible:ring-1 focus-visible:ring-ring"
 		disabled={disabled}
 		aria-label={`Mode: ${label}`}
 		onclick={handleClick}
 	>
-		<AgentInputModeIcon {iconKind} class="size-3 shrink-0" />
-		<span class="truncate">{label}</span>
+		<AgentInputModeIcon {iconKind} class="size-3.5 shrink-0" />
 	</button>
 	{#if onDismiss}
 		<Button
 			type="button"
 			variant="ghost"
 			size="icon"
-			class="h-5 w-5 shrink-0 rounded-full text-muted-foreground hover:text-foreground"
+			class="h-5 w-5 shrink-0 rounded text-muted-foreground hover:text-foreground"
 			disabled={disabled}
 			aria-label={`Clear ${label} mode`}
 			onclick={handleDismiss}

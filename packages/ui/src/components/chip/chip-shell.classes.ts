@@ -28,12 +28,12 @@ export function buildChipShellClassName({
 	const radiusClass = density === "inline" ? "rounded-md" : "rounded-sm";
 
 	return cn(
-		`inline-flex min-w-0 items-center ${radiusClass} border border-border/50 bg-muted text-muted-foreground`,
+		`inline-flex min-w-0 items-center ${radiusClass} border border-border/60 bg-accent text-accent-foreground`,
 		densityClass,
 		interactive
-			? "cursor-pointer transition-colors hover:bg-accent hover:text-accent-foreground active:opacity-80 focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent focus-visible:outline-offset-2"
+			? "cursor-pointer active:opacity-80 focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent focus-visible:outline-offset-2"
 			: "",
-		selected ? "bg-accent text-accent-foreground" : "",
+		selected ? "border-border" : "",
 		className,
 	);
 }

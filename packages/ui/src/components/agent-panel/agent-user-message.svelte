@@ -15,15 +15,15 @@
 
 <!-- Mirrors desktop MessageInputContainer / InputContainer visual -->
 
-<UserMessageContainer class="border border-border">
-	<div class="group/user-message relative">
+<div class="group/user-message flex flex-col items-end gap-0.5">
+	<UserMessageContainer class="border border-border">
 		<RichTokenText {text} {onTokenClick} class="text-foreground" />
-		<div
-			class="pointer-events-none absolute -bottom-1 -right-1 opacity-0 transition-opacity duration-150 group-hover/user-message:opacity-100 group-focus-within/user-message:opacity-100"
-		>
-			<div class="pointer-events-auto">
-				<AgentMessageMeta text={text} {timestampMs} variant="user" />
-			</div>
+	</UserMessageContainer>
+	<div
+		class="pointer-events-none opacity-0 transition-opacity duration-150 group-hover/user-message:opacity-100 group-focus-within/user-message:opacity-100"
+	>
+		<div class="pointer-events-auto">
+			<AgentMessageMeta text={text} {timestampMs} variant="user" />
 		</div>
 	</div>
-</UserMessageContainer>
+</div>

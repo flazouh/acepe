@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { CheckCircle, CircleDashed, XCircle } from "phosphor-svelte";
+	import { ArrowCounterClockwise, CheckCircle, CircleDashed, XCircle } from "phosphor-svelte";
 
 	import type { ReviewWorkspaceFileItem } from "./types.js";
 
@@ -11,6 +11,7 @@
 		selectedIndex?: number | null;
 		emptyStateLabel: string;
 		onFileSelect?: (index: number) => void;
+		onFileRevert?: (index: number) => void;
 	}
 
 	let {
@@ -18,6 +19,7 @@
 		selectedIndex = null,
 		emptyStateLabel,
 		onFileSelect,
+		onFileRevert,
 	}: Props = $props();
 
 	function reviewStatusLabel(file: ReviewWorkspaceFileItem): string {
@@ -84,14 +86,14 @@
 					{@const row = createFileRow(file, index)}
 					<div
 						use:scrollSelectedIntoView={isSelected}
-						class="rounded"
+						class="group relative rounded"
 						data-testid={"review-workspace-file-item-" + index}
 					>
 						<button
 							type="button"
 							onclick={() => row.onSelect?.()}
 							data-selected={isSelected ? "true" : "false"}
-							class="group flex w-full items-center gap-1.5 rounded-sm px-2 py-1 text-left text-sm transition-colors {isSelected
+							class="flex w-full items-center gap-1.5 rounded-sm px-2 py-1 text-left text-sm transition-colors {isSelected
 								? 'bg-accent text-foreground font-medium'
 								: 'text-muted-foreground hover:bg-muted/40 hover:text-foreground'}"
 							aria-label={row.fileName ?? row.filePath}
@@ -128,11 +130,22 @@
 							/>
 
 							{#if row.additions > 0 || row.deletions > 0}
-								<span class="shrink-0">
+								<span class="shrink-0 transition-opacity {onFileRevert ? 'group-hover:opacity-0' : ''}">
 									<DiffPill insertions={row.additions} deletions={row.deletions} variant="plain" />
 								</span>
 							{/if}
 						</button>
+
+						{#if onFileRevert}
+							<button
+								type="button"
+								class="absolute right-1 top-1/2 -translate-y-1/2 flex items-center justify-center h-5 w-5 rounded-md opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-destructive hover:bg-destructive/10 cursor-pointer"
+								title="Discard changes"
+								onclick={() => onFileRevert(index)}
+							>
+								<ArrowCounterClockwise size={12} weight="bold" />
+							</button>
+						{/if}
 					</div>
 				{/each}
 			</div>

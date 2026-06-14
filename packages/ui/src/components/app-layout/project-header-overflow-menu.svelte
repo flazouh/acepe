@@ -2,7 +2,6 @@
 	import * as DropdownMenu from "../dropdown-menu/index.js";
 	import * as Popover from "../popover/index.js";
 	import * as Tooltip from "../tooltip/index.js";
-	import { mergeProps } from "bits-ui";
 	import { ArrowCounterClockwise } from "phosphor-svelte";
 	import { ArrowDown } from "phosphor-svelte";
 	import { ArrowUp } from "phosphor-svelte";
@@ -11,6 +10,7 @@
 	import { Palette } from "phosphor-svelte";
 	import { Trash } from "phosphor-svelte";
 
+	import { Selector } from "../selector/index.js";
 	import { PROJECT_COLOR_OPTIONS } from "./project-color-options.js";
 	import { buildProjectHeaderOverflowMenuState } from "./project-menu-state.js";
 
@@ -44,7 +44,7 @@
 
 	let menuOpen = $state(false);
 	let showRemoveConfirm = $state(false);
-	let triggerRef: HTMLButtonElement | undefined = $state();
+	let triggerRef: HTMLButtonElement | null = $state(null);
 	const colorOptions = PROJECT_COLOR_OPTIONS;
 
 	function handleColorSelect(colorName: string) {
@@ -75,57 +75,49 @@
 	}
 </script>
 
-<DropdownMenu.Root bind:open={menuOpen}>
-	<Tooltip.Root>
-		<Tooltip.Trigger>
-			{#snippet child({ props: tooltipProps })}
-				<DropdownMenu.Trigger>
-					{#snippet child({ props: dropdownProps })}
-						{@const props = mergeProps(tooltipProps, dropdownProps)}
-						<button
-							{...props}
-							bind:this={triggerRef}
-							type="button"
-							class="flex items-center justify-center size-5 min-w-0 shrink-0 rounded text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-							aria-label="Project menu"
-						>
-							<DotsThreeVertical class="h-3.5 w-3.5" weight="bold" />
-						</button>
-					{/snippet}
-				</DropdownMenu.Trigger>
-			{/snippet}
-		</Tooltip.Trigger>
-		<Tooltip.Content side="bottom">Project menu</Tooltip.Content>
-	</Tooltip.Root>
-	<DropdownMenu.Content align="end" side="bottom" class="min-w-[200px] p-0 text-[11px]">
-		{#if onMoveUp || onMoveDown}
-			<DropdownMenu.Group>
-				<DropdownMenu.Item
-					class="rounded-none px-2 py-1.5 text-[11px]"
-					disabled={moveUpDisabled}
-					onclick={() => {
-						onMoveUp?.();
-						menuOpen = false;
-					}}
-				>
-					<ArrowUp class="h-3.5 w-3.5 mr-2" weight="bold" />
-					Move Up
-				</DropdownMenu.Item>
-				<DropdownMenu.Item
-					class="rounded-none px-2 py-1.5 text-[11px] border-b border-border/20"
-					disabled={moveDownDisabled}
-					onclick={() => {
-						onMoveDown?.();
-						menuOpen = false;
-					}}
-				>
-					<ArrowDown class="h-3.5 w-3.5 mr-2" weight="bold" />
-					Move Down
-				</DropdownMenu.Item>
-			</DropdownMenu.Group>
-		{/if}
-		{#if showSettingsSection}
-			<DropdownMenu.Group>
+<Selector
+	bind:open={menuOpen}
+	bind:triggerRef
+	showChevron={false}
+	align="end"
+	side="bottom"
+	variant="ghost"
+	triggerSize="icon"
+	tooltipLabel="Project menu"
+	triggerAriaLabel="Project menu"
+>
+	{#snippet renderButton()}
+		<DotsThreeVertical class="h-3.5 w-3.5" weight="bold" />
+	{/snippet}
+
+	{#if onMoveUp || onMoveDown}
+		<DropdownMenu.Group>
+			<DropdownMenu.Item
+				class="px-2 py-1.5 text-[11px]"
+				disabled={moveUpDisabled}
+				onclick={() => {
+					onMoveUp?.();
+					menuOpen = false;
+				}}
+			>
+				<ArrowUp class="h-3.5 w-3.5 mr-2" weight="bold" />
+				Move Up
+			</DropdownMenu.Item>
+			<DropdownMenu.Item
+				class="px-2 py-1.5 text-[11px] border-b border-border/20"
+				disabled={moveDownDisabled}
+				onclick={() => {
+					onMoveDown?.();
+					menuOpen = false;
+				}}
+			>
+				<ArrowDown class="h-3.5 w-3.5 mr-2" weight="bold" />
+				Move Down
+			</DropdownMenu.Item>
+		</DropdownMenu.Group>
+	{/if}
+	{#if showSettingsSection}
+		<DropdownMenu.Group>
 				<DropdownMenu.GroupHeading
 					class="px-2 py-1 text-[11px] font-semibold text-muted-foreground border-b border-border/20"
 				>
@@ -133,7 +125,7 @@
 				</DropdownMenu.GroupHeading>
 				{#if onChangeProjectIcon}
 					<DropdownMenu.Item
-						class="rounded-none px-2 py-1.5 text-[11px]"
+						class="px-2 py-1.5 text-[11px]"
 						onclick={() => {
 							onChangeProjectIcon();
 							menuOpen = false;
@@ -182,7 +174,7 @@
 				{/if}
 				{#if hasIcon && onResetProjectIcon}
 					<DropdownMenu.Item
-						class="rounded-none px-2 py-1.5 text-[11px]"
+						class="px-2 py-1.5 text-[11px]"
 						onclick={() => {
 							onResetProjectIcon();
 							menuOpen = false;
@@ -194,7 +186,7 @@
 				{/if}
 				{#if onRemoveProject}
 					<DropdownMenu.Item
-						class="text-destructive focus:text-destructive rounded-none px-2 py-1.5 text-[11px]"
+						class="text-destructive focus:text-destructive px-2 py-1.5 text-[11px]"
 						onclick={handleRemoveClick}
 					>
 						<Trash class="h-3.5 w-3.5 mr-2" weight="fill" />
@@ -202,9 +194,8 @@
 					</DropdownMenu.Item>
 				{/if}
 			</DropdownMenu.Group>
-		{/if}
-	</DropdownMenu.Content>
-</DropdownMenu.Root>
+	{/if}
+</Selector>
 
 <Popover.Root bind:open={showRemoveConfirm}>
 	<Popover.Content

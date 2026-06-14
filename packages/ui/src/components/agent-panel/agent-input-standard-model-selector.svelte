@@ -64,8 +64,7 @@
 		{open}
 		disabled={isLoading || totalModelCount === 0}
 		onOpenChange={onOpenChange}
-		variant="outline"
-		buttonClass="group/provider-trigger"
+		variant="ghost"
 	>
 		{#snippet renderButton()}
 			{#if isLoading}

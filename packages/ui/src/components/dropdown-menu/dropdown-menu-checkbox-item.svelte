@@ -5,6 +5,7 @@
 	import { type WithoutChildrenOrChild, cn } from "../../lib/utils";
 	import CheckIcon from "@lucide/svelte/icons/check";
 	import MinusIcon from "@lucide/svelte/icons/minus";
+	import { dropdownMenuItemRadiusClass } from "./dropdown-menu-item.classes.js";
 	import { getDropdownMenuHighlightContext } from "./dropdown-menu-highlight-context";
 
 	let {
@@ -51,11 +52,9 @@
 		"data-[selected]:bg-accent data-[selected]:text-accent-foreground",
 		"aria-selected:bg-accent aria-selected:text-accent-foreground",
 		// Layout & typography (embedded design)
-		"relative flex cursor-default items-center gap-2",
+		`relative flex cursor-default items-center gap-2 ${dropdownMenuItemRadiusClass}`,
 		"py-1 ps-8 pe-2 text-[11px] font-medium",
 		"outline-hidden select-none",
-		// Embedded borders between items
-		"border-b border-border/20 last:border-b-0",
 		// States & svg
 		"data-[disabled]:pointer-events-none data-[disabled]:opacity-50",
 		"[&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",

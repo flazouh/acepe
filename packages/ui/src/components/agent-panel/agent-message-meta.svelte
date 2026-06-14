@@ -76,16 +76,16 @@
 		</button>
 	</div>
 {:else}
-	<div class="inline-flex items-center overflow-hidden rounded-lg border border-border/60 bg-background/85 backdrop-blur-sm">
+	<div class="inline-flex items-center overflow-hidden rounded-lg border border-border/40 bg-muted/40">
 		{#if timestampLabel}
-			<span class="px-2 text-[11px] tabular-nums text-muted-foreground/80" title={timestampTitle}>
+			<span class="px-2 text-[11px] tabular-nums text-muted-foreground/70" title={timestampTitle}>
 				{timestampLabel}
 			</span>
-			<div class="h-4 w-px bg-border/60"></div>
+			<div class="h-4 w-px bg-border/40"></div>
 		{/if}
 		<button
 			type="button"
-			class="inline-flex h-6 w-6 items-center justify-center text-muted-foreground/80 transition-colors hover:bg-accent/60 hover:text-foreground"
+			class="inline-flex h-6 w-6 items-center justify-center text-muted-foreground/70 transition-colors hover:bg-accent/60 hover:text-foreground"
 			title={copied ? "Copied!" : "Copy message"}
 			onclick={handleCopy}
 		>

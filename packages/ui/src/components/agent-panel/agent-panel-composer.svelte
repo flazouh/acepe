@@ -42,6 +42,11 @@
 
 	const visibleActions = $derived((composer?.actions ?? []).filter((action) => action.state !== "hidden"));
 	const resolvedDisabledReason = $derived(disabledReason ?? composer?.disabledReason ?? null);
+	// Only render the footer bar when it has something to show. Consumers that drive
+	// the composer purely through the `content` snippet (e.g. the agent input) pass
+	// neither a footer snippet nor a composer model, and an always-on footer would
+	// render as an empty bordered bar beneath the input.
+	const hasFooter = $derived(Boolean(footerSnippet) || Boolean(composer));
 
 	function actionDisabled(action: AgentPanelActionDescriptor): boolean {
 		return action.state === "disabled" || action.state === "busy";
@@ -74,7 +79,7 @@
 </script>
 
 <div class={cn("shrink-0 border-t border-border/50 p-3", className)}>
-	<InputContainer class={inputClass} {contentClass} {footerClass}>
+	<InputContainer class={inputClass} {contentClass} {footerClass} footer={hasFooter ? footerArea : undefined}>
 		{#snippet content()}
 			{#if contentSnippet}
 				{@render contentSnippet()}
@@ -90,40 +95,41 @@
 				{@render children()}
 			{/if}
 		{/snippet}
-		{#snippet footer()}
-			{#if footerSnippet}
-				{@render footerSnippet()}
-			{:else if composer}
-				<div class="flex min-w-0 flex-1 items-center gap-2 px-2">
-					{#if composer.selectedModel}
-						<span class="truncate text-sm text-muted-foreground">
-							{composer.selectedModel.label}
-						</span>
-					{/if}
-					{#each composer.attachments ?? [] as attachment (attachment.id)}
-						<span class="truncate rounded-full border border-border/50 px-2 py-0.5 text-sm text-muted-foreground">
-							{attachment.label}
-						</span>
-					{/each}
-				</div>
-				<div class="flex items-center gap-1 px-2">
-					{#each visibleActions as action (action.id)}
-						<Button
-							variant={action.destructive ? "destructive" : "headerAction"}
-							size="headerAction"
-							disabled={actionDisabled(action)}
-							title={action.description ?? undefined}
-							onclick={() => runAction(action)}
-						>
-							{resolveActionLabel(action)}
-						</Button>
-					{/each}
-				</div>
-			{/if}
-		{/snippet}
 	</InputContainer>
 
 	{#if resolvedDisabledReason}
 		<p class="mt-2 text-sm text-muted-foreground">{resolvedDisabledReason}</p>
 	{/if}
 </div>
+
+{#snippet footerArea()}
+	{#if footerSnippet}
+		{@render footerSnippet()}
+	{:else if composer}
+		<div class="flex min-w-0 flex-1 items-center gap-2 px-2">
+			{#if composer.selectedModel}
+				<span class="truncate text-sm text-muted-foreground">
+					{composer.selectedModel.label}
+				</span>
+			{/if}
+			{#each composer.attachments ?? [] as attachment (attachment.id)}
+				<span class="truncate rounded-full border border-border/50 px-2 py-0.5 text-sm text-muted-foreground">
+					{attachment.label}
+				</span>
+			{/each}
+		</div>
+		<div class="flex items-center gap-1 px-2">
+			{#each visibleActions as action (action.id)}
+				<Button
+					variant={action.destructive ? "destructive" : "headerAction"}
+					size="headerAction"
+					disabled={actionDisabled(action)}
+					title={action.description ?? undefined}
+					onclick={() => runAction(action)}
+				>
+					{resolveActionLabel(action)}
+				</Button>
+			{/each}
+		</div>
+	{/if}
+{/snippet}

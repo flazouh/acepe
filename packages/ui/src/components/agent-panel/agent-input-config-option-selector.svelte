@@ -9,6 +9,7 @@
 	import { Brain, Lightning, ShieldCheck } from "phosphor-svelte";
 
 	import * as DropdownMenu from "../dropdown-menu/index.js";
+	import { Selector } from "../selector/index.js";
 	import {
 		getConfigOptionNextBooleanValue,
 		getConfigOptionViewState,
@@ -54,52 +55,40 @@
 </script>
 
 {#if !viewState.isBooleanConfigOption}
-	<DropdownMenu.Root>
-		<DropdownMenu.Trigger {disabled}>
-			{#snippet child({ props })}
-				<button
-					{...props}
-					type="button"
-					{disabled}
-					title={viewState.buttonTitle}
-					class="flex items-center justify-center w-7 h-7 transition-colors rounded-none
-						{disabled
-						? 'text-muted-foreground/50 cursor-not-allowed'
-						: 'text-muted-foreground hover:bg-accent/50 hover:text-foreground'}"
-				>
-					{#if viewState.iconKind === "reasoning"}
-						<Brain class={viewState.iconClass} size={14} weight={viewState.iconWeight} style={viewState.iconStyle} />
-					{:else if viewState.iconKind === "fast"}
-						<Lightning class={viewState.iconClass} size={14} weight={viewState.iconWeight} style={viewState.iconStyle} />
-					{:else}
-						<ShieldCheck size={14} weight="fill" style="color: {viewState.iconColor}" />
-					{/if}
-				</button>
-			{/snippet}
-		</DropdownMenu.Trigger>
+	<Selector
+		{disabled}
+		align="start"
+		variant="ghost"
+		showChevron={false}
+		triggerSize="square"
+		triggerAriaLabel={viewState.buttonTitle}
+	>
+		{#snippet renderButton()}
+			{#if viewState.iconKind === "reasoning"}
+				<Brain class={viewState.iconClass} size={14} weight={viewState.iconWeight} style={viewState.iconStyle} />
+			{:else if viewState.iconKind === "fast"}
+				<Lightning class={viewState.iconClass} size={14} weight={viewState.iconWeight} style={viewState.iconStyle} />
+			{:else}
+				<ShieldCheck size={14} weight="fill" style="color: {viewState.iconColor}" />
+			{/if}
+		{/snippet}
 
-		<DropdownMenu.Content
-			align="start"
-			sideOffset={4}
-			class="w-fit max-w-[280px] max-h-[250px] overflow-y-auto scrollbar-thin"
-		>
-			{#each configOption.options ?? [] as option (String(option.value))}
-				{@const optValue = String(option.value)}
-				{@const isSelected = optValue === viewState.currentValue}
-				<DropdownMenu.Item
-					onSelect={() => handleSelect(optValue)}
-					class="group/item py-1 {isSelected ? 'bg-accent' : ''}"
-				>
-					<div class="flex items-center gap-3 w-full">
-						<span class="flex-1 text-sm truncate">{option.name}</span>
-						{#if isSelected}
-							<IconCircleCheckFilled class="h-4 w-4 shrink-0 text-foreground" />
-						{/if}
-					</div>
-				</DropdownMenu.Item>
-			{/each}
-		</DropdownMenu.Content>
-	</DropdownMenu.Root>
+		{#each configOption.options ?? [] as option (String(option.value))}
+			{@const optValue = String(option.value)}
+			{@const isSelected = optValue === viewState.currentValue}
+			<DropdownMenu.Item
+				onSelect={() => handleSelect(optValue)}
+				class="group/item py-1 {isSelected ? 'bg-accent' : ''}"
+			>
+				<div class="flex items-center gap-3 w-full">
+					<span class="flex-1 text-sm truncate">{option.name}</span>
+					{#if isSelected}
+						<IconCircleCheckFilled class="h-4 w-4 shrink-0 text-foreground" />
+					{/if}
+				</div>
+			</DropdownMenu.Item>
+		{/each}
+	</Selector>
 {:else}
 	<button
 		type="button"

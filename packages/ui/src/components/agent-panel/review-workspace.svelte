@@ -10,9 +10,8 @@
 		selectedFileIndex?: number | null;
 		content?: Snippet;
 		onClose?: () => void;
-		onKeepFile?: () => void;
-		keepFileDisabled?: boolean;
 		onFileSelect?: (index: number) => void;
+		onFileRevert?: (index: number) => void;
 		headerLabel: string;
 		emptyStateLabel: string;
 		closeButtonLabel?: string;
@@ -26,9 +25,8 @@
 		selectedFileIndex = null,
 		content,
 		onClose,
-		onKeepFile,
-		keepFileDisabled = false,
 		onFileSelect,
+		onFileRevert,
 		headerLabel,
 		emptyStateLabel,
 		closeButtonLabel = "Back",
@@ -100,6 +98,7 @@
 				selectedIndex={selectedFileIndex}
 				emptyStateLabel={emptyStateLabel}
 				onFileSelect={onFileSelect}
+				onFileRevert={onFileRevert}
 			/>
 		</aside>
 
@@ -116,8 +115,6 @@
 						{selectedFileIndex}
 						{showCloseButton}
 						{onClose}
-						{onKeepFile}
-						{keepFileDisabled}
 						onPreviousFile={handlePreviousFile}
 						onNextFile={handleNextFile}
 					/>
