@@ -23,11 +23,14 @@ export function toInlineTokenText(tokenType: InlineArtefactTokenType, value: str
 function labelForToken(
 	tokenType: InlineArtefactTokenType,
 	value: string,
-	meta?: { textPreview?: string; charCount?: number }
+	meta?: { textPreview?: string; charCount?: number; iconPath?: string }
 ): string {
 	if (tokenType === "file" || tokenType === "image") {
 		const fileName = value.split("/").pop();
 		return fileName && fileName.length > 0 ? fileName : value;
+	}
+	if (tokenType === "image_ref") {
+		return meta?.textPreview ?? "Image";
 	}
 	if (tokenType === "command") {
 		return value.startsWith("/") ? value : `/${value}`;
@@ -63,18 +66,19 @@ function createTextFragment(content: string): DocumentFragment {
 function createTokenElement(
 	tokenType: InlineArtefactTokenType,
 	value: string,
-	meta?: { textPreview?: string; charCount?: number }
+	meta?: { textPreview?: string; charCount?: number; iconPath?: string }
 ): HTMLSpanElement {
 	const element = document.createElement("span");
 	element.setAttribute(TOKEN_ATTR_TYPE, tokenType);
 	element.setAttribute(TOKEN_ATTR_VALUE, value);
 	element.setAttribute("contenteditable", "false");
-	const isFile = tokenType === "file" || tokenType === "image";
+	const isPathImage = tokenType === "file" || tokenType === "image";
 	const isTextRef = tokenType === "text_ref";
 
-	element.className = buildChipShellClassName({ density: "inline", interactive: isFile });
+	element.className = buildChipShellClassName({ density: "inline", interactive: isPathImage });
 
-	const icon = createTokenIcon(tokenType, value);
+	const iconSource = meta?.iconPath ?? value;
+	const icon = createTokenIcon(tokenType, iconSource);
 
 	const label = document.createElement("span");
 	label.className = buildInlineArtefactLabelClassName(tokenType);
@@ -146,7 +150,7 @@ function createFileTypeIcon(source: string, className: string): HTMLImageElement
 	return img;
 }
 
-function createTokenIcon(tokenType: InlineArtefactTokenType, value: string): Element {
+function createTokenIcon(tokenType: InlineArtefactTokenType, iconSource: string): Element {
 	const iconClassName = ["h-3.5 w-3.5 shrink-0", buildInlineArtefactIconClassName(tokenType)]
 		.filter((part) => part.length > 0)
 		.join(" ");
@@ -160,7 +164,7 @@ function createTokenIcon(tokenType: InlineArtefactTokenType, value: string): Ele
 	if (tokenType === "text" || tokenType === "text_ref") {
 		return createPhosphorPathIcon(INLINE_ARTEFACT_CLIPBOARD_PATH, iconClassName);
 	}
-	return createFileTypeIcon(value, "h-3.5 w-3.5 shrink-0");
+	return createFileTypeIcon(iconSource, "h-3.5 w-3.5 shrink-0");
 }
 
 function createRemoveIcon(): SVGElement {
@@ -259,6 +263,7 @@ export function getInlineTokenType(element: Element): InlineArtefactTokenType | 
 	if (
 		value === "file" ||
 		value === "image" ||
+		value === "image_ref" ||
 		value === "text" ||
 		value === "text_ref" ||
 		value === "command" ||
@@ -358,7 +363,7 @@ export function renderInlineComposerMessage(
 	resolveTokenMeta?: (
 		type: InlineArtefactTokenType,
 		value: string
-	) => { textPreview?: string; charCount?: number } | undefined
+	) => { textPreview?: string; charCount?: number; iconPath?: string } | undefined
 ): void {
 	editor.innerHTML = "";
 	for (const segment of tokenizeInlineArtefacts(message)) {

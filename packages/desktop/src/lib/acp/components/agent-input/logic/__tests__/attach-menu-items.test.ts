@@ -65,33 +65,42 @@ describe("resolveDefaultModeId", () => {
 });
 
 describe("shouldShowActiveModeChip", () => {
-	it("shows the chip only when more than one mode exists", () => {
-		expect(shouldShowActiveModeChip([{ id: "agent", name: "Agent" }])).toBe(false);
-		expect(
-			shouldShowActiveModeChip([
-				{ id: "plan", name: "Plan" },
-				{ id: "agent", name: "Agent" },
-			])
-		).toBe(true);
+	const modes = [
+		{ id: "agent", name: "Agent" },
+		{ id: "plan", name: "Plan" },
+	];
+
+	it("hides the chip when only one mode exists", () => {
+		expect(shouldShowActiveModeChip([{ id: "agent", name: "Agent" }], "agent")).toBe(false);
+	});
+
+	it("hides the chip when the current mode is the default (first) mode", () => {
+		expect(shouldShowActiveModeChip(modes, "agent")).toBe(false);
+	});
+
+	it("shows the chip when the current mode is a non-default mode", () => {
+		expect(shouldShowActiveModeChip(modes, "plan")).toBe(true);
+	});
+
+	it("hides the chip when currentModeId is null and default is first mode", () => {
+		expect(shouldShowActiveModeChip(modes, null)).toBe(false);
 	});
 });
 
 describe("resolveComposerPlaceholder", () => {
-	it("uses the active mode description when available", () => {
-		expect(
-			resolveComposerPlaceholder({
-				modes: [{ id: "multitask", name: "Multitask", description: "Coordinate parallel tasks…" }],
-				currentModeId: "multitask",
-			})
-		).toBe("Coordinate parallel tasks…");
+	it("prompts for a follow-up once a session is active", () => {
+		expect(resolveComposerPlaceholder({ hasSession: true })).toBe("Send follow-up");
 	});
 
-	it("falls back to the default placeholder when mode has no description", () => {
-		expect(
-			resolveComposerPlaceholder({
-				modes: [{ id: "agent", name: "Agent" }],
-				currentModeId: "agent",
-			})
-		).toBe("Plan, @ for context, / for commands");
+	it("shows the typing hint when there is no session yet", () => {
+		expect(resolveComposerPlaceholder({ hasSession: false })).toBe(
+			"Plan, @ for context, / for commands"
+		);
+	});
+
+	it("honors a custom fallback when there is no session", () => {
+		expect(resolveComposerPlaceholder({ hasSession: false, fallback: "Ask anything" })).toBe(
+			"Ask anything"
+		);
 	});
 });

@@ -1,27 +1,15 @@
-import type { AvailableMode } from "../../../types/available-mode.js";
-
 const DEFAULT_COMPOSER_PLACEHOLDER = "Plan, @ for context, / for commands";
+const FOLLOW_UP_COMPOSER_PLACEHOLDER = "Send follow-up";
 
 interface ResolveComposerPlaceholderInput {
-	readonly modes: readonly AvailableMode[];
-	readonly currentModeId: string | null;
+	readonly hasSession: boolean;
 	readonly fallback?: string;
 }
 
 export function resolveComposerPlaceholder(input: ResolveComposerPlaceholderInput): string {
-	const fallback = input.fallback ?? DEFAULT_COMPOSER_PLACEHOLDER;
-	if (!input.currentModeId) {
-		return fallback;
+	if (input.hasSession) {
+		return FOLLOW_UP_COMPOSER_PLACEHOLDER;
 	}
 
-	const currentMode = input.modes.find((mode) => mode.id === input.currentModeId);
-	if (!currentMode) {
-		return fallback;
-	}
-
-	if (currentMode.description && currentMode.description.trim().length > 0) {
-		return currentMode.description.trim();
-	}
-
-	return fallback;
+	return input.fallback ?? DEFAULT_COMPOSER_PLACEHOLDER;
 }

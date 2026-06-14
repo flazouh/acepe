@@ -53,6 +53,12 @@ export function resolveDefaultModeId(modes: readonly AvailableMode[]): string | 
 	return modes[0].id;
 }
 
-export function shouldShowActiveModeChip(modes: readonly AvailableMode[]): boolean {
-	return modes.length > 1;
+export function shouldShowActiveModeChip(
+	modes: readonly AvailableMode[],
+	currentModeId: string | null
+): boolean {
+	if (modes.length <= 1) return false;
+	if (currentModeId === null) return false;
+	const defaultId = resolveDefaultModeId(modes);
+	return currentModeId !== defaultId;
 }

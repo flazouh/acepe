@@ -1,7 +1,6 @@
 <script lang="ts">
 import { Skeleton } from "$lib/components/ui/skeleton/index.js";
 import {
-	AgentInputArtefactBadge,
 	AgentInputComposerRow,
 	AgentInputFilePickerDropdown,
 	AgentInputPastedTextOverlay,
@@ -128,27 +127,7 @@ const submitAriaLabel = $derived(
 );
 </script>
 
-{#if voiceState !== null && voiceOverlayActive}
-	<AgentInputVoiceRecordingOverlay
-		phase={voiceOverlayPhase}
-		meterLevels={voiceState.waveform.meterLevels}
-		barCount={voiceState.waveform.barCount}
-		errorMessage={voiceState.errorMessage}
-		defaultErrorMessage={voiceDefaultErrorMessage}
-	/>
-{:else if inputReady}
-	{#if inputState.attachments.length > 0}
-		<div class="flex flex-wrap gap-1.5 mb-1.5">
-			{#each inputState.attachments as attachment (attachment.id)}
-				<AgentInputArtefactBadge
-					displayName={attachment.displayName}
-					extension={attachment.extension ?? null}
-					kind={attachment.type === "image" ? "image" : "file"}
-					onRemove={() => inputState.removeAttachment(attachment.id)}
-				/>
-			{/each}
-		</div>
-	{/if}
+{#if inputReady}
 	<AgentInputComposerRow
 		bind:editorRef
 		placeholder={placeholderLabel}
@@ -171,7 +150,18 @@ const submitAriaLabel = $derived(
 		oncut={onEditorCut}
 		leading={leadingControls}
 		trailing={trailingControls}
+		editorArea={voiceState !== null && voiceOverlayActive ? voiceOverlayArea : undefined}
 	/>
+
+	{#snippet voiceOverlayArea()}
+		<AgentInputVoiceRecordingOverlay
+			phase={voiceOverlayPhase}
+			meterLevels={voiceState?.waveform.meterLevels ?? []}
+			barCount={voiceState?.waveform.barCount ?? 0}
+			errorMessage={voiceState?.errorMessage ?? null}
+			defaultErrorMessage={voiceDefaultErrorMessage}
+		/>
+	{/snippet}
 	{#if overlayMode && overlayRefId && overlayAnchorRect}
 		{@const overlayText = inputState.getInlineTextReferenceContent(overlayRefId) ?? ""}
 		<AgentInputPastedTextOverlay

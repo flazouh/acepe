@@ -28,85 +28,73 @@ import { filterVisibleModes } from "../../utils/mode-filter.js";
 import { resolvePanelDraftOnMount } from "./services/index.js";
 import AgentInputComposerBody from "./components/agent-input-composer-body.svelte";
 import AgentInputDropZone from "./components/agent-input-drop-zone.svelte";
-import { handleVoiceMicKeyDown as handleVoiceMicKeyDownFromModule } from "./logic/voice-mic-keyboard.js";
-import { resolveVoiceMicTooltip } from "./logic/voice-mic-labels.js";
-import { toVoiceToolbarBinding } from "./logic/voice-toolbar-binding.js";
-import { ModelSelector } from "../index.js";
-import ModelSelectorMetricsChip from "../model-selector.metrics-chip.svelte";
-import { getEffectiveFilePickerProjectPath } from "./logic/file-picker-context.js";
-import { VoiceInputState } from "./state/voice-input-state.svelte.js";
-import { canStartVoiceInteraction, shouldShowVoiceOverlay } from "./logic/voice-ui-state.js";
-import { createImageAttachment, isImageMimeType } from "./logic/image-attachment.js";
 import {
+	applyInlineTokenHoverTitles,
+	buildAttachMenuCommands,
+	buildAttachMenuModes,
+	canStartVoiceInteraction,
+	createImageAttachment,
+	deriveComposerInteractionState,
 	findInlineArtefactRangeAtPosition,
-	INLINE_TOKEN_PREFIX,
-} from "./logic/inline-artefact-segments.js";
-import {
 	getAdjacentInlineTokenElement,
+	getEffectiveFilePickerProjectPath,
 	getInlineTokenType,
 	getInlineTokenValue,
 	getSerializedCursorOffset,
 	getSerializedRangeForNode,
-	getSerializedSelectionRange,
 	getSerializedSelectionEnd,
-	renderInlineComposerMessage,
-	serializeInlineComposerMessage,
-	setSerializedCursorOffset,
-	toInlineTokenText,
-} from "./logic/inline-composer-dom.js";
-import { applyInlineTokenHoverTitles } from "./logic/inline-token-hover-titles.js";
-import {
+	getSerializedSelectionRange,
+	getToolbarConfigOptions,
+	handleVoiceMicKeyDown as handleVoiceMicKeyDownFromModule,
 	hasAutocompleteTrigger,
+	hasToolbarCapabilityData,
+	INLINE_TOKEN_PREFIX,
+	isImageMimeType,
+	loadSlashCommandWorkspaceMarkdown as loadSlashCommandWorkspaceMarkdownFromModule,
+	normalizeVoiceInputText,
 	parseFilePickerTrigger,
 	parseSlashCommandTrigger,
-} from "./logic/input-parser.js";
-import {
-	resolveSlashCommandSource,
-	shouldShowSlashCommandDropdown,
-} from "./logic/slash-command-source.js";
-import {
+	PreconnectionCapabilitiesState,
+	PreconnectionRemoteCommandsState,
+	renderInlineComposerMessage,
+	resolveAutonomousSupport,
 	resolveCapabilityContextProviderMetadata,
 	resolveCapabilitySource,
-	sessionCapabilitySourceFromCapabilities,
-} from "./logic/capability-source.js";
-import { PreconnectionCapabilitiesState } from "./logic/preconnection-capabilities-state.svelte.js";
-import { PreconnectionRemoteCommandsState } from "./logic/preconnection-remote-commands-state.svelte.js";
-import { type SubmitIntent } from "../../logic/submit-intent.js";
-import {
-	deriveComposerInteractionState,
 	resolveComposerEnterKeyIntent,
-} from "../../logic/composer-ui-state.js";
-import {
+	resolveComposerPlaceholder,
+	resolveDefaultModeId,
 	resolveInitialModelIdForNewSession,
+	resolveModeMenuAction,
 	resolvePendingToolbarSelections,
+	resolveSelectedModeMenuOptionId,
+	resolveSelectorsLoading,
+	resolveSlashCommandSource,
 	resolveToolbarModeId,
 	resolveToolbarModelId,
-} from "./logic/toolbar-state.js";
-import { resolveModeMenuAction, resolveSelectedModeMenuOptionId } from "./logic/mode-menu-state.js";
-import { resolveAutonomousSupport } from "./logic/autonomous-support.js";
-import { getToolbarConfigOptions } from "./logic/toolbar-config-options.js";
-import { normalizeVoiceInputText } from "./logic/voice-input-text.js";
-import {
+	resolveVoiceMicTooltip,
+	serializeInlineComposerMessage,
+	sessionCapabilitySourceFromCapabilities,
+	setSerializedCursorOffset,
+	shouldInterruptComposerStream,
 	shouldRouteWindowVoiceHold,
+	shouldShowActiveModeChip,
+	shouldShowSlashCommandDropdown,
+	shouldShowVoiceOverlay,
 	shouldStartVoiceHold,
 	shouldStopVoiceHold,
 	shouldSyncPanelFocusOnEditorFocus,
-} from "./logic/voice-keyboard.js";
-import { shouldInterruptComposerStream } from "./logic/interrupt-shortcut.js";
-import { resolveVoiceStateLifecycle } from "./logic/voice-state-lifecycle.js";
+	toInlineTokenText,
+	toVoiceToolbarBinding,
+	type SubmitIntent,
+} from "./composer-controller.js";
+import { ModelSelector } from "../index.js";
+import ModelSelectorMetricsChip from "../model-selector.metrics-chip.svelte";
+import { VoiceInputState } from "./state/voice-input-state.svelte.js";
+import { VoiceSessionController } from "./state/voice-session-controller.svelte.js";
 import { createAgentInputController } from "./agent-input-controller.js";
 import { AgentInputState } from "./state/agent-input-state.svelte.js";
 import type { Attachment } from "./types/attachment.js";
 import type { AgentInputProps } from "./types/agent-input-props.js";
-import { hasToolbarCapabilityData, resolveSelectorsLoading } from "./logic/toolbar-loading.js";
-import { loadSlashCommandWorkspaceMarkdown as loadSlashCommandWorkspaceMarkdownFromModule } from "./logic/slash-command-markdown-loader.js";
-import {
-	buildAttachMenuCommands,
-	buildAttachMenuModes,
-	resolveDefaultModeId,
-	shouldShowActiveModeChip,
-} from "./logic/attach-menu-items.js";
-import { resolveComposerPlaceholder } from "./logic/composer-placeholder.js";
 
 // Keep props as reactive object instead of destructuring
 const props: AgentInputProps = $props();
@@ -131,10 +119,34 @@ const filePickerProjectPath = $derived(
 // Create state instance with reactive project path getter
 const inputState = new AgentInputState(sessionStore, panelStore, () => filePickerProjectPath);
 
-let voiceState: VoiceInputState | null = $state(null);
-let voiceStateSessionId: string | null = $state(null);
-let voiceStatePendingSessionId: string | null = $state(null);
-let voiceStateInitGeneration = 0;
+const voiceSessionController = new VoiceSessionController({
+	getEffectiveVoiceSessionId: () => effectiveVoiceSessionId,
+	getVoiceEnabled: () => voiceEnabled,
+	createVoiceInputState: (targetSessionId) =>
+		new VoiceInputState({
+			sessionId: targetSessionId,
+			getSelectedLanguage: () => voiceSettingsStore.language,
+			getSelectedModelId: () => voiceSettingsStore.selectedModelId,
+			onOverlayDeactivated: () => {
+				queueMicrotask(() => editorRef?.focus());
+			},
+			onTranscriptionReady: (text) => {
+				const normalizedText = normalizeVoiceInputText(text);
+				if (!normalizedText) {
+					return;
+				}
+				const cursorPos = voiceCursorSnapshot ?? inputState.message.length;
+				voiceCursorSnapshot = null;
+				const prevChar = inputState.message[cursorPos - 1];
+				const sep = cursorPos > 0 && prevChar !== " " ? " " : "";
+				inputState.insertPlainTextAtOffsets(sep + normalizedText, cursorPos, cursorPos);
+				syncEditorFromMessage(cursorPos + sep.length + normalizedText.length);
+			},
+		}),
+});
+
+const voiceState = $derived(voiceSessionController.voiceState);
+const voiceReady = $derived(voiceSessionController.ready);
 /** Cursor offset captured before voice overlay hides the editor. */
 let voiceCursorSnapshot: number | null = null;
 let autonomousStatusMessage = $state("");
@@ -497,11 +509,10 @@ const selectedModeOption = $derived(
 );
 const composerPlaceholderLabel = $derived(
 	resolveComposerPlaceholder({
-		modes: visibleModes,
-		currentModeId: effectiveCurrentModeId,
+		hasSession,
 	})
 );
-const showActiveModeChip = $derived(shouldShowActiveModeChip(visibleModes));
+const showActiveModeChip = $derived(shouldShowActiveModeChip(visibleModes, effectiveCurrentModeId));
 const isSlashDropdownVisible = $derived.by(() =>
 	shouldShowSlashCommandDropdown({
 		isTriggerActive: inputState.showSlashDropdown,
@@ -701,6 +712,11 @@ function syncEditorFromMessage(nextCursor: number | null = null): void {
 			const firstLine = text.split("\n")[0] ?? "";
 			const preview = firstLine.length <= 24 ? firstLine : `${firstLine.slice(0, 24)}…`;
 			return { textPreview: preview, charCount: text.length };
+		}
+		if (type === "image_ref") {
+			const image = inputState.getInlineImageReference(value);
+			if (!image) return undefined;
+			return { textPreview: image.displayName, iconPath: image.displayName };
 		}
 		return undefined;
 	});
@@ -905,83 +921,10 @@ function handleEditorInput(options?: { suppressAutocomplete?: boolean }): void {
 	}
 }
 
-async function initializeVoiceState(): Promise<void> {
-	if (!effectiveVoiceSessionId || !voiceEnabled) {
-		return;
-	}
-
-	const targetSessionId = effectiveVoiceSessionId;
-	const generation = ++voiceStateInitGeneration;
-	voiceStatePendingSessionId = targetSessionId;
-
-	const nextVoiceState = new VoiceInputState({
-		sessionId: targetSessionId,
-		getSelectedLanguage: () => voiceSettingsStore.language,
-		getSelectedModelId: () => voiceSettingsStore.selectedModelId,
-		onOverlayDeactivated: () => {
-			// Editor is re-mounted after overlay hides; focus it on next microtask
-			queueMicrotask(() => editorRef?.focus());
-		},
-		onTranscriptionReady: (text) => {
-			const normalizedText = normalizeVoiceInputText(text);
-			if (!normalizedText) {
-				return;
-			}
-			const cursorPos = voiceCursorSnapshot ?? inputState.message.length;
-			voiceCursorSnapshot = null;
-			const prevChar = inputState.message[cursorPos - 1];
-			const sep = cursorPos > 0 && prevChar !== " " ? " " : "";
-			inputState.insertPlainTextAtOffsets(sep + normalizedText, cursorPos, cursorPos);
-			syncEditorFromMessage(cursorPos + sep.length + normalizedText.length);
-		},
-	});
-
-	await nextVoiceState.registerListeners();
-	if (
-		generation !== voiceStateInitGeneration ||
-		!voiceEnabled ||
-		effectiveVoiceSessionId !== targetSessionId
-	) {
-		nextVoiceState.dispose();
-		if (generation === voiceStateInitGeneration) {
-			voiceStatePendingSessionId = null;
-		}
-		return;
-	}
-
-	voiceState = nextVoiceState;
-	voiceStateSessionId = targetSessionId;
-	voiceStatePendingSessionId = null;
-}
-
-function disposeVoiceState(): void {
-	voiceStateInitGeneration += 1;
-	voiceStatePendingSessionId = null;
-	voiceStateSessionId = null;
-	voiceState?.dispose();
-	voiceState = null;
-}
-
 $effect(() => {
-	const currentManagedSessionId =
-		voiceStatePendingSessionId !== null ? voiceStatePendingSessionId : voiceStateSessionId;
-	const lifecycle = resolveVoiceStateLifecycle(
-		currentManagedSessionId,
-		effectiveVoiceSessionId,
-		voiceEnabled
-	);
-
-	if (lifecycle === "noop") {
-		return;
-	}
-
-	if (lifecycle === "dispose" || lifecycle === "replace") {
-		disposeVoiceState();
-	}
-
-	if ((lifecycle === "init" || lifecycle === "replace") && effectiveVoiceSessionId) {
-		void initializeVoiceState();
-	}
+	effectiveVoiceSessionId;
+	voiceEnabled;
+	voiceSessionController.sync();
 });
 
 onMount(() => {
@@ -999,6 +942,7 @@ onMount(() => {
 			isShiftPressed = true;
 		}
 		if (
+			voiceReady &&
 			voiceState &&
 			shouldUseVoiceHoldKey(event) &&
 			shouldRouteWindowVoiceHold({
@@ -1093,7 +1037,7 @@ onMount(() => {
 
 // Cleanup on destroy — flush any pending draft before teardown
 onDestroy(() => {
-	disposeVoiceState();
+	voiceSessionController.dispose();
 	kb.setContext("inputFocused", false);
 	logger.info("[first-send-trace] agent input destroy", {
 		panelId: props.panelId ?? null,
@@ -1381,7 +1325,7 @@ function shouldUseVoiceHoldKey(event: KeyboardEvent): boolean {
 	if (!shouldStartVoiceHold(event)) {
 		return false;
 	}
-	if (!voiceEnabled || currentVoiceState === null) {
+	if (!voiceEnabled || !voiceReady || currentVoiceState === null) {
 		return false;
 	}
 	return canStartVoiceInteraction(
@@ -1637,6 +1581,27 @@ function handleAttachImageFromMenu(): void {
 	imageAttachInputRef?.click();
 }
 
+async function insertInlineImageFromFile(file: File, mimeType: string): Promise<boolean> {
+	const result = await createImageAttachment(file, mimeType);
+	if (result.isErr()) {
+		if (result.error.kind === "too_large") {
+			toast.error("Image exceeds 10 MB limit");
+		}
+		return false;
+	}
+	const attachment = result.value;
+	const token = inputState.createInlineImageReferenceToken({
+		displayName: attachment.displayName,
+		extension: attachment.extension,
+		content: attachment.content,
+		path: attachment.path,
+	});
+	const cursorPos = editorRef ? getSerializedCursorOffset(editorRef) : inputState.message.length;
+	const nextCursor = inputState.insertInlineTokenAtOffsets(token, cursorPos, cursorPos);
+	syncEditorFromMessage(nextCursor);
+	return true;
+}
+
 async function handleImageAttachInputChange(event: Event): Promise<void> {
 	const target = event.currentTarget;
 	if (!(target instanceof HTMLInputElement) || !target.files) {
@@ -1647,12 +1612,10 @@ async function handleImageAttachInputChange(event: Event): Promise<void> {
 		if (!isImageMimeType(file.type)) {
 			continue;
 		}
-		const result = await createImageAttachment(file, file.type);
-		if (result.isOk()) {
-			inputState.addAttachment(result.value);
-		}
+		await insertInlineImageFromFile(file, file.type);
 	}
 	target.value = "";
+	handleEditorInput({ suppressAutocomplete: true });
 }
 
 function handleAttachMenuCommandSelect(commandId: string): void {
@@ -1842,14 +1805,9 @@ async function handleEditorPaste(event: ClipboardEvent): Promise<void> {
 		if (!file) {
 			continue;
 		}
-		const result = await createImageAttachment(file, item.type);
-		if (result.isErr()) {
-			if (result.error.kind === "too_large") {
-				toast.error("Image exceeds 10 MB limit");
-			}
-			continue;
+		if (await insertInlineImageFromFile(file, item.type)) {
+			handleEditorInput({ suppressAutocomplete: true });
 		}
-		inputState.addAttachment(result.value);
 		return;
 	}
 
@@ -1901,7 +1859,11 @@ $effect(() => {
 	bind:this={inputState.containerRef}
 	role="region"
 	aria-label="Message input with file drop zone"
-	ondrop={(e) => inputState.handleDrop(e)}
+	ondrop={async (e) => {
+		await inputState.handleDrop(e);
+		syncEditorFromMessage(inputState.message.length);
+		handleEditorInput({ suppressAutocomplete: true });
+	}}
 	ondragover={(e) => inputState.handleDragOver(e)}
 	ondragleave={(e) => {
 		// Only trigger leave if we're leaving the container entirely
@@ -1918,7 +1880,7 @@ $effect(() => {
 		<SharedAgentPanelComposer
 			class="border-t-0 p-0"
 			inputClass="flex-shrink-0 border border-border bg-input/30"
-			contentClass={voiceOverlayActive ? "relative px-3 py-2" : "px-3 py-2"}
+			contentClass={voiceOverlayActive ? "relative px-2 py-1.5" : "px-2 py-1.5"}
 		>
 			{#snippet content()}
 				<input
@@ -2028,7 +1990,7 @@ $effect(() => {
 							getMicButtonTitle={(_voice) =>
 								voiceState ? resolveVoiceMicTooltip(voiceState.phase, voiceMicTooltipLabels) : ""}
 							onVoiceMicKeyDown={(event, _binding) => {
-								if (voiceState) {
+								if (voiceReady && voiceState) {
 									if (voiceState.phase === "idle") {
 										voiceCursorSnapshot = editorRef
 											? getSerializedCursorOffset(editorRef)

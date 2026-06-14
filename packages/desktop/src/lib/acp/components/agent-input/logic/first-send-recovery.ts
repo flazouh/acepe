@@ -1,17 +1,20 @@
 import { PanelConnectionState } from "../../../types/panel-connection-state.js";
 import type { Attachment } from "../types/attachment.js";
+import type { InlineImageReference } from "../types/inline-image-reference.js";
 
 export interface ComposerRestoreSnapshot {
 	draft: string;
 	attachments: Attachment[];
 	inlineTextEntries: Array<[string, string]>;
+	inlineImageEntries: Array<[string, InlineImageReference]>;
 }
 
 export interface ComposerRestoreTarget {
 	message: string;
 	attachments: Attachment[];
-	clearInlineTextMap(): void;
+	clearInlineReferenceMaps(): void;
 	updateInlineText(refId: string, text: string): void;
+	updateInlineImage(refId: string, image: InlineImageReference): void;
 }
 
 function cloneAttachment(attachment: Attachment): Attachment {
@@ -35,17 +38,32 @@ function cloneAttachment(attachment: Attachment): Attachment {
 	return base;
 }
 
+function cloneInlineImageReference(image: InlineImageReference): InlineImageReference {
+	return {
+		displayName: image.displayName,
+		extension: image.extension,
+		content: image.content,
+		path: image.path,
+	};
+}
+
 export function restoreComposerStateAfterFailedSend(
 	target: ComposerRestoreTarget,
 	snapshot: ComposerRestoreSnapshot
 ): void {
 	target.message = snapshot.draft;
-	target.clearInlineTextMap();
+	target.clearInlineReferenceMaps();
 	for (let i = 0; i < snapshot.inlineTextEntries.length; i += 1) {
 		const entry = snapshot.inlineTextEntries[i];
 		const refId = entry[0];
 		const text = entry[1];
 		target.updateInlineText(refId, text);
+	}
+	for (let i = 0; i < snapshot.inlineImageEntries.length; i += 1) {
+		const entry = snapshot.inlineImageEntries[i];
+		const refId = entry[0];
+		const image = entry[1];
+		target.updateInlineImage(refId, image);
 	}
 	const cloned: Attachment[] = [];
 	for (let i = 0; i < snapshot.attachments.length; i += 1) {

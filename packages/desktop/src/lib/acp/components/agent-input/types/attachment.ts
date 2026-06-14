@@ -5,8 +5,8 @@ export type AttachmentType = "file" | "image" | "text" | "command" | "skill";
 
 /**
  * Represents an attachment (file or image) added to a message.
- * Attachments are displayed as badges above the input and serialized
- * as tokens when the message is sent.
+ * Legacy attachment-array images are still supported for queued messages;
+ * new composer images use `@[image_ref:UUID]` inline tokens instead.
  */
 export interface Attachment {
 	/** Unique identifier for the attachment (UUID) */

@@ -2,6 +2,7 @@ import { describe, expect, it } from "bun:test";
 
 import { PanelConnectionState } from "../../../../types/panel-connection-state.js";
 import type { Attachment } from "../../types/attachment.js";
+import type { InlineImageReference } from "../../types/inline-image-reference.js";
 import {
 	formatPreSessionSendFailure,
 	restoreComposerStateAfterFailedSend,
@@ -21,14 +22,19 @@ describe("first-send-recovery", () => {
 		const target = {
 			message: "",
 			attachments: [] as Attachment[],
-			clearedInlineTextMapCount: 0,
+			clearedInlineReferenceMapsCount: 0,
 			inlineTextById: new Map<string, string>(),
-			clearInlineTextMap() {
-				this.clearedInlineTextMapCount += 1;
+			inlineImageById: new Map<string, InlineImageReference>(),
+			clearInlineReferenceMaps() {
+				this.clearedInlineReferenceMapsCount += 1;
 				this.inlineTextById.clear();
+				this.inlineImageById.clear();
 			},
 			updateInlineText(refId: string, text: string) {
 				this.inlineTextById.set(refId, text);
+			},
+			updateInlineImage(refId: string, image: InlineImageReference) {
+				this.inlineImageById.set(refId, image);
 			},
 		};
 
@@ -36,10 +42,11 @@ describe("first-send-recovery", () => {
 			draft: "Review @[text_ref:ref-1]",
 			attachments: [originalAttachment],
 			inlineTextEntries: [["ref-1", "restored text"]],
+			inlineImageEntries: [],
 		});
 
 		expect(target.message).toBe("Review @[text_ref:ref-1]");
-		expect(target.clearedInlineTextMapCount).toBe(1);
+		expect(target.clearedInlineReferenceMapsCount).toBe(1);
 		expect(target.inlineTextById.get("ref-1")).toBe("restored text");
 		expect(target.attachments).toEqual([originalAttachment]);
 		expect(target.attachments[0]).not.toBe(originalAttachment);

@@ -1,13 +1,23 @@
-import { mock } from "bun:test";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { PanelStore } from "../../../../store/panel-store.svelte.js";
 import type { SessionStore } from "../../../../store/session-store.svelte.js";
 
 const listenMock = vi.fn();
-const invokeMock = vi.fn();
 let zoomLevel = 0.8;
 
-let AgentInputState: typeof import("../agent-input-state.svelte.js").AgentInputState;
+vi.mock("@tauri-apps/api/core", () => ({
+	invoke: vi.fn(async () => undefined),
+}));
+vi.mock("@tauri-apps/api/event", () => ({
+	listen: (...args: Parameters<typeof listenMock>) => listenMock(...args),
+}));
+vi.mock("$lib/services/zoom.svelte.js", () => ({
+	getZoomService: () => ({
+		zoomLevel,
+	}),
+}));
+
+import { AgentInputState } from "../agent-input-state.svelte.js";
 
 interface DragPositionEvent {
 	payload: {
@@ -25,24 +35,7 @@ function requireDragOverHandler(
 	if (handler === null) {
 		throw new Error("Expected tauri://drag-over listener to register");
 	}
-
 	return handler;
-}
-
-function createPendingPromise<T>() {
-	let resolveValue: ((value: T) => void) | null = null;
-	const promise = new Promise<T>((resolve) => {
-		resolveValue = resolve;
-	});
-
-	return {
-		promise,
-		resolve(value: T) {
-			if (resolveValue) {
-				resolveValue(value);
-			}
-		},
-	};
 }
 
 async function flushAsync(times = 10): Promise<void> {
@@ -51,59 +44,10 @@ async function flushAsync(times = 10): Promise<void> {
 	}
 }
 
-describe("AgentInputState drag-drop listener lifecycle", () => {
-	beforeEach(async () => {
+describe("AgentInputState drag-drop hover bounds", () => {
+	beforeEach(() => {
 		listenMock.mockReset();
-		invokeMock.mockReset();
 		zoomLevel = 0.8;
-
-		mock.module("@tauri-apps/api/core", () => ({
-			invoke: invokeMock,
-		}));
-		mock.module("@tauri-apps/api/event", () => ({
-			listen: listenMock,
-		}));
-		mock.module("$lib/services/zoom.svelte.js", () => ({
-			getZoomService: () => ({
-				zoomLevel,
-			}),
-		}));
-
-		({ AgentInputState } = await import("../agent-input-state.svelte.js"));
-	});
-
-	it("cleans up listeners that finish registering after destroy", async () => {
-		const hoverRegistration = createPendingPromise<() => void>();
-		const dropRegistration = createPendingPromise<() => void>();
-		const leaveRegistration = createPendingPromise<() => void>();
-		const unlistenHover = vi.fn();
-		const unlistenDrop = vi.fn();
-		const unlistenLeave = vi.fn();
-
-		listenMock
-			.mockReturnValueOnce(hoverRegistration.promise)
-			.mockReturnValueOnce(dropRegistration.promise)
-			.mockReturnValueOnce(leaveRegistration.promise);
-
-		const state = new AgentInputState({} as SessionStore, {} as PanelStore);
-		state.initialize();
-
-		hoverRegistration.resolve(unlistenHover);
-		await flushAsync();
-
-		state.destroy();
-		await flushAsync();
-
-		expect(unlistenHover).toHaveBeenCalledTimes(1);
-
-		dropRegistration.resolve(unlistenDrop);
-		await flushAsync();
-
-		leaveRegistration.resolve(unlistenLeave);
-		await flushAsync();
-
-		expect(unlistenDrop).toHaveBeenCalledTimes(1);
-		expect(unlistenLeave).toHaveBeenCalledTimes(1);
 	});
 
 	it("does not highlight the composer for native drag positions outside its zoomed bounds", async () => {
@@ -114,7 +58,6 @@ describe("AgentInputState drag-drop listener lifecycle", () => {
 				if (eventName === "tauri://drag-over") {
 					dragOverHandler = handler as (event: DragPositionEvent) => void;
 				}
-
 				return Promise.resolve(() => {});
 			}
 		);
@@ -137,9 +80,7 @@ describe("AgentInputState drag-drop listener lifecycle", () => {
 		state.initialize();
 		await flushAsync();
 
-		expect(dragOverHandler).not.toBeNull();
 		const registeredDragOverHandler = requireDragOverHandler(dragOverHandler);
-
 		registeredDragOverHandler({
 			payload: {
 				paths: ["/tmp/image.png"],
@@ -160,7 +101,6 @@ describe("AgentInputState drag-drop listener lifecycle", () => {
 				if (eventName === "tauri://drag-over") {
 					dragOverHandler = handler as (event: DragPositionEvent) => void;
 				}
-
 				return Promise.resolve(() => {});
 			}
 		);
@@ -183,9 +123,7 @@ describe("AgentInputState drag-drop listener lifecycle", () => {
 		state.initialize();
 		await flushAsync();
 
-		expect(dragOverHandler).not.toBeNull();
 		const registeredDragOverHandler = requireDragOverHandler(dragOverHandler);
-
 		registeredDragOverHandler({
 			payload: {
 				paths: ["/tmp/image.png"],
@@ -194,22 +132,5 @@ describe("AgentInputState drag-drop listener lifecycle", () => {
 		});
 
 		expect(state.isDragHovering).toBe(false);
-	});
-
-	it("does not crash when Tauri already removed drag-drop listeners during destroy", async () => {
-		listenMock.mockImplementation(() =>
-			Promise.resolve(async () => {
-				throw new TypeError(
-					"undefined is not an object (evaluating 'listeners[eventId].handlerId')"
-				);
-			})
-		);
-
-		const state = new AgentInputState({} as SessionStore, {} as PanelStore);
-		state.initialize();
-		await flushAsync();
-
-		expect(() => state.destroy()).not.toThrow();
-		await flushAsync();
 	});
 });

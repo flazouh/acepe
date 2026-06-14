@@ -8,13 +8,15 @@ import type { AgentInputControllerHost } from "./agent-input-controller-host.js"
 import { SessionCreationError } from "./errors/agent-input-error.js";
 import {
 	type ComposerRestoreSnapshot,
+	createPendingUserEntry,
 	formatPreSessionSendFailure,
+	type PreparedMessage,
+	prepareMessageForSend,
 	restoreComposerStateAfterFailedSend,
-} from "./logic/first-send-recovery.js";
-import { type PreparedMessage, prepareMessageForSend } from "./logic/message-preparation.js";
-import { createPendingUserEntry } from "./logic/pending-user-entry.js";
+} from "./composer-controller.js";
 import { prepareWorktreePathForPendingSend } from "./services/index.js";
 import type { Attachment } from "./types/attachment.js";
+import type { InlineImageReference } from "./types/inline-image-reference.js";
 
 function cloneAttachmentForRestore(attachment: Attachment): Attachment {
 	if (attachment.content !== undefined) {
@@ -92,6 +94,19 @@ export function createAgentInputController(host: AgentInputControllerHost): Agen
 			inlineTextEntries.push([refId, text]);
 		}
 
+		const inlineImageEntries: Array<[string, InlineImageReference]> = [];
+		for (const [refId, image] of inputState.inlineImageMap.entries()) {
+			inlineImageEntries.push([
+				refId,
+				{
+					displayName: image.displayName,
+					extension: image.extension,
+					content: image.content,
+					path: image.path,
+				},
+			]);
+		}
+
 		const attachments = inputState.attachments.map((attachment) =>
 			cloneAttachmentForRestore(attachment)
 		);
@@ -100,6 +115,7 @@ export function createAgentInputController(host: AgentInputControllerHost): Agen
 			draft: inputState.message,
 			attachments,
 			inlineTextEntries,
+			inlineImageEntries,
 		};
 	}
 
@@ -124,6 +140,7 @@ export function createAgentInputController(host: AgentInputControllerHost): Agen
 			draftLength: snapshot.draft.length,
 			attachmentCount: snapshot.attachments.length,
 			inlineTextCount: snapshot.inlineTextEntries.length,
+			inlineImageCount: snapshot.inlineImageEntries.length,
 		});
 	}
 
@@ -132,7 +149,8 @@ export function createAgentInputController(host: AgentInputControllerHost): Agen
 		const result = prepareMessageForSend(
 			inputState.message,
 			inputState.inlineTextMap,
-			inputState.attachments
+			inputState.attachments,
+			inputState.inlineImageMap
 		);
 		if (result.isErr()) return null;
 		const messageLength = inputState.message.length;
@@ -140,7 +158,7 @@ export function createAgentInputController(host: AgentInputControllerHost): Agen
 
 		inputState.message = "";
 		inputState.clearAttachments();
-		inputState.clearInlineTextMap();
+		inputState.clearInlineReferenceMaps();
 		host.syncEditorFromMessage(0);
 
 		if (inputState.textareaRef) {
@@ -184,7 +202,8 @@ export function createAgentInputController(host: AgentInputControllerHost): Agen
 			const result = prepareMessageForSend(
 				inputState.message,
 				inputState.inlineTextMap,
-				inputState.attachments
+				inputState.attachments,
+				inputState.inlineImageMap
 			);
 			if (result.isErr()) return;
 			const accepted = host.messageQueueStore.enqueue(
@@ -195,7 +214,7 @@ export function createAgentInputController(host: AgentInputControllerHost): Agen
 			if (!accepted) return;
 			inputState.message = "";
 			inputState.clearAttachments();
-			inputState.clearInlineTextMap();
+			inputState.clearInlineReferenceMaps();
 			clearDraft();
 			return;
 		}
@@ -507,6 +526,7 @@ export function createAgentInputController(host: AgentInputControllerHost): Agen
 			draft,
 			attachments: restoredAttachments,
 			inlineTextEntries: [],
+			inlineImageEntries: [],
 		});
 	}
 

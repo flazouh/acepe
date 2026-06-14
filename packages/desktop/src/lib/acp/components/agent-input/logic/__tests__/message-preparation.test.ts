@@ -1,5 +1,6 @@
 import { describe, expect, it } from "bun:test";
 
+import type { InlineImageReference } from "../../types/inline-image-reference.js";
 import { prepareMessageForSend } from "../message-preparation.js";
 
 describe("prepareMessageForSend", () => {
@@ -127,6 +128,61 @@ describe("prepareMessageForSend", () => {
 			expect(result.value.content).not.toContain("@[image:");
 			expect(result.value.imageAttachments).toHaveLength(1);
 			expect(result.value.imageAttachments[0].content).toBe("data:image/png;base64,iVBORw0KGgo");
+		}
+	});
+
+	it("resolves @[image_ref:UUID] tokens into imageAttachments", () => {
+		const imageMap = new Map<string, InlineImageReference>([
+			[
+				"img-ref-1",
+				{
+					displayName: "screenshot.png",
+					extension: "png",
+					content: "data:image/png;base64,iVBORw0KGgo",
+					path: "",
+				},
+			],
+		]);
+		const result = prepareMessageForSend(
+			"check this @[image_ref:img-ref-1]",
+			new Map(),
+			[],
+			imageMap
+		);
+		expect(result.isOk()).toBe(true);
+		if (result.isOk()) {
+			expect(result.value.content).toBe("check this");
+			expect(result.value.content).not.toContain("@[image_ref:");
+			expect(result.value.imageAttachments).toHaveLength(1);
+			expect(result.value.imageAttachments[0].displayName).toBe("screenshot.png");
+		}
+	});
+
+	it("allows image-only messages from inline image refs", () => {
+		const imageMap = new Map<string, InlineImageReference>([
+			[
+				"img-ref-1",
+				{
+					displayName: "paste.png",
+					extension: "png",
+					content: "data:image/png;base64,iVBORw0KGgo",
+					path: "",
+				},
+			],
+		]);
+		const result = prepareMessageForSend("@[image_ref:img-ref-1]", new Map(), [], imageMap);
+		expect(result.isOk()).toBe(true);
+		if (result.isOk()) {
+			expect(result.value.content).toBe("");
+			expect(result.value.imageAttachments).toHaveLength(1);
+		}
+	});
+
+	it("removes unknown image_ref tokens (missing from map)", () => {
+		const result = prepareMessageForSend("Before @[image_ref:unknown-id] after", new Map(), []);
+		expect(result.isOk()).toBe(true);
+		if (result.isOk()) {
+			expect(result.value.content).toBe("Before after");
 		}
 	});
 
