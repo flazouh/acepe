@@ -13,8 +13,11 @@
 
 mod enrichment;
 mod provider;
+mod todo_sql;
 
 pub use provider::CursorProvider;
+
+pub(crate) use todo_sql::parse_sql_todo_updates;
 
 #[cfg(test)]
 pub(crate) use enrichment::{clear_test_tool_use_cache, seed_test_tool_use_cache};

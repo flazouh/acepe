@@ -20,6 +20,7 @@ pub(crate) mod copilot_parser;
 pub(crate) mod cursor_parser;
 pub(crate) mod edit_normalizers;
 pub(crate) mod opencode_parser;
+pub mod parsed_todo;
 pub mod provider_capabilities;
 pub(crate) mod shared_chat;
 pub mod status;
