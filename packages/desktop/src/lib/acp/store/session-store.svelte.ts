@@ -62,10 +62,8 @@ import {
 	replaceTranscriptEntry,
 	seedTranscriptEntryIndex,
 } from "./transcript-entry-index.js";
-export { transcriptEntryIndexes } from "./transcript-entry-index.js";
 import { sessionColdFromExistingSession } from "./session-cold-index.js";
 import type { SessionLiveSyncReference, SessionPaletteReference } from "./session-cold-index.js";
-export type { SessionLiveSyncReference, SessionPaletteReference } from "./session-cold-index.js";
 import { SessionListState as SessionListStateStore } from "./session-list-state.svelte.js";
 import {
 	applyTranscriptDeltaToSnapshot,
@@ -73,14 +71,12 @@ import {
 	cloneRowTokenStreamMap,
 	countAppendedMarkdownWords,
 } from "./transcript-delta.js";
-export { applyTranscriptDeltaToSnapshot, countAppendedMarkdownWords } from "./transcript-delta.js";
 import {
 	graphWithLifecycle,
 	graphWithPatches,
 	graphWithTranscriptSnapshot,
 	type SessionExportContentError,
 } from "./session-graph-builders.js";
-export type { SessionExportContentError, SessionExportContentErrorKind } from "./session-graph-builders.js";
 import { sanitizeCanonicalCapabilities } from "./canonical-config-sanitize.js";
 import { preserveCanonicalStreamingState } from "./envelope-reducer/canonical-streaming-state.js";
 import type { EnvelopePatch } from "./envelope-reducer/envelope-patch.js";
@@ -818,6 +814,44 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 		return this.viewport.consumeScrollCorrectionPx(sessionId);
 	}
 
+	getViewportClientScrollState(sessionId: string | null) {
+		return this.viewport.getClientScrollState(sessionId);
+	}
+
+	setViewportPendingOutsideBufferScrollTopPx(
+		sessionId: string,
+		pendingOutsideBufferScrollTopPx: number | null,
+		activeOutsideBufferRequestedScrollTopPx: number | null
+	): void {
+		this.viewport.setPendingOutsideBufferScrollTopPx(
+			sessionId,
+			pendingOutsideBufferScrollTopPx,
+			activeOutsideBufferRequestedScrollTopPx
+		);
+	}
+
+	setViewportLastOutsideBufferRecoveryDispatchMs(
+		sessionId: string,
+		lastOutsideBufferRecoveryDispatchMs: number | null
+	): void {
+		this.viewport.setLastOutsideBufferRecoveryDispatchMs(sessionId, lastOutsideBufferRecoveryDispatchMs);
+	}
+
+	setViewportLastBottomRevealDispatchMs(
+		sessionId: string,
+		lastBottomRevealDispatchMs: number | null
+	): void {
+		this.viewport.setLastBottomRevealDispatchMs(sessionId, lastBottomRevealDispatchMs);
+	}
+
+	setViewportPendingQueuedScrollIntentPx(sessionId: string, pendingQueuedScrollIntentPx: number | null): void {
+		this.viewport.setPendingQueuedScrollIntentPx(sessionId, pendingQueuedScrollIntentPx);
+	}
+
+	clearViewportOutsideBufferRecovery(sessionId: string): void {
+		this.viewport.clearOutsideBufferRecovery(sessionId);
+	}
+
 	/**
 	 * Bootstrap the buffer for a freshly-mounted viewport. Idempotent: no-op once
 	 * a buffer projection exists.
@@ -1062,6 +1096,7 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 			liveSessionSource: this.getSessionLiveWorkSource(sessionId, input.active ?? true),
 			interactionSnapshot,
 			hasUnseenCompletion: input.hasUnseenCompletion,
+			sequenceId: this.getSessionMetadata(sessionId)?.sequenceId ?? null,
 		});
 	}
 

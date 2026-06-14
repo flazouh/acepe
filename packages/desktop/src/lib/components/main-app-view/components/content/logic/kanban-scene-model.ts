@@ -19,7 +19,6 @@ import type { OptimisticKanbanCard } from "./kanban-card-model.js";
 export const KANBAN_SECTION_ORDER: readonly ThreadBoardStatus[] = [
 	"answer_needed",
 	"planning",
-	"working",
 	"needs_review",
 	"idle",
 ];
@@ -27,7 +26,7 @@ export const KANBAN_SECTION_ORDER: readonly ThreadBoardStatus[] = [
 const KANBAN_SECTION_LABELS: Record<ThreadBoardStatus, string> = {
 	answer_needed: "Input needed",
 	planning: "Planning",
-	working: "Working",
+	working: "Planning",
 	needs_review: "Needs Review",
 	idle: "Done",
 	error: "Error",
@@ -57,7 +56,7 @@ export function buildKanbanSceneModel(input: BuildKanbanSceneModelInput): Kanban
 			continue;
 		}
 		entries.push({
-			columnId: "working",
+			columnId: "planning",
 			card: input.buildOptimisticSceneCard(optimisticCard),
 			orderKey: `optimistic:${index}:${optimisticCard.panelId}`,
 			source: "optimistic",
@@ -65,18 +64,22 @@ export function buildKanbanSceneModel(input: BuildKanbanSceneModelInput): Kanban
 	}
 
 	for (const sectionId of KANBAN_SECTION_ORDER) {
-		const section = input.threadBoard.find((group) => group.status === sectionId);
-		if (!section) {
-			continue;
-		}
+		const boardSections =
+			sectionId === "planning"
+				? input.threadBoard.filter(
+						(group) => group.status === "planning" || group.status === "working"
+					)
+				: input.threadBoard.filter((group) => group.status === sectionId);
 
-		for (const item of section.items) {
-			entries.push({
-				columnId: sectionId,
-				card: input.buildSessionSceneCard(item),
-				orderKey: `session:${sectionId}:${item.lastActivityAt}:${item.sessionId}`,
-				source: "session",
-			});
+		for (const section of boardSections) {
+			for (const item of section.items) {
+				entries.push({
+					columnId: sectionId,
+					card: input.buildSessionSceneCard(item),
+					orderKey: `session:${section.status}:${item.lastActivityAt}:${item.sessionId}`,
+					source: "session",
+				});
+			}
 		}
 	}
 

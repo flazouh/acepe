@@ -5,10 +5,8 @@
 
 import { okAsync, type ResultAsync } from "neverthrow";
 import { ChatCircle } from "phosphor-svelte";
-import type {
-	SessionPaletteReference,
-	SessionStore,
-} from "../../../store/session-store.svelte.js";
+import type { SessionPaletteReference } from "../../../store/session-cold-index.js";
+import type { SessionStore } from "../../../store/session-store.svelte.js";
 import { normalizeTitleForDisplay } from "../../../store/session-title-policy.js";
 import type { PaletteItem, PaletteItemMetadata } from "../../../types/palette-item.js";
 import type { ProjectManager } from "../../project-manager.svelte.js";

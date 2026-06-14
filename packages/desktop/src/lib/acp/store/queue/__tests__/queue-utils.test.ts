@@ -116,6 +116,7 @@ function createSession(overrides: Partial<QueueSessionSnapshot> = {}): QueueSess
 			pendingPlanApproval: null,
 			pendingPermission: null,
 			hasUnseenCompletion: false,
+			sequenceId: null,
 		});
 	const workBucket =
 		overrides.workBucket ??
@@ -148,6 +149,7 @@ function createSession(overrides: Partial<QueueSessionSnapshot> = {}): QueueSess
 		updatedAt: new Date("2026-03-30T12:00:00.000Z"),
 		currentModeId,
 		connectionError: null,
+		sequenceId: null,
 		...overrides,
 	};
 }
@@ -168,7 +170,7 @@ describe("buildQueueItem", () => {
 		);
 
 		expect(item.state.activity.kind).toBe("thinking");
-		expect(classifyItem(item)).toBe("working");
+		expect(classifyItem(item)).toBe("planning");
 	});
 
 	it("keeps the last tool call while the session is planning next moves", () => {
@@ -308,6 +310,22 @@ describe("buildQueueItem", () => {
 		expect(item.activeTurnFailure?.message).toBe("Usage limit reached");
 		expect(classifyItem(item)).toBe("error");
 	});
+	it("preserves session sequence id on queue items", () => {
+		const item = buildQueueItem(
+			createSession({ sequenceId: 7 }),
+			null,
+			DEFAULT_URGENCY,
+			false,
+			false,
+			false,
+			null,
+			null,
+			null,
+			null
+		);
+
+		expect(item.sequenceId).toBe(7);
+	});
 });
 
 describe("buildQueueSessionSnapshot", () => {
@@ -332,6 +350,7 @@ describe("buildQueueSessionSnapshot", () => {
 				pendingPlanApproval: null,
 			},
 			hasUnseenCompletion: false,
+			sequenceId: null,
 		});
 
 		expect(snapshot.status).toBe("ready");
@@ -362,6 +381,7 @@ describe("buildQueueSessionSnapshot", () => {
 				pendingPlanApproval: null,
 			},
 			hasUnseenCompletion: false,
+			sequenceId: null,
 		});
 
 		expect(snapshot.status).toBe("paused");
@@ -389,6 +409,7 @@ describe("buildQueueSessionSnapshot", () => {
 				pendingPlanApproval: null,
 			},
 			hasUnseenCompletion: false,
+			sequenceId: null,
 		});
 
 		expect(snapshot.isThinking).toBe(false);
@@ -430,6 +451,7 @@ describe("buildQueueSessionSnapshot", () => {
 				pendingPlanApproval: null,
 			},
 			hasUnseenCompletion: false,
+			sequenceId: null,
 		});
 
 		expect(snapshot.state.pendingInput.kind).toBe("permission");
@@ -461,6 +483,7 @@ describe("buildQueueSessionSnapshot", () => {
 				pendingPlanApproval: null,
 			},
 			hasUnseenCompletion: false,
+			sequenceId: null,
 		});
 
 		expect(snapshot.isStreaming).toBe(true);
@@ -490,6 +513,7 @@ describe("buildQueueSessionSnapshot", () => {
 				pendingPlanApproval: null,
 			},
 			hasUnseenCompletion: false,
+			sequenceId: null,
 		});
 
 		expect(snapshot.isThinking).toBe(true);
@@ -521,6 +545,7 @@ describe("buildQueueSessionSnapshot", () => {
 				pendingPlanApproval: null,
 			},
 			hasUnseenCompletion: false,
+			sequenceId: null,
 		});
 
 		expect(snapshot.connectionError).toBe("Resume failed");
@@ -548,6 +573,7 @@ describe("buildQueueSessionSnapshot", () => {
 				pendingPlanApproval: null,
 			},
 			hasUnseenCompletion: false,
+			sequenceId: null,
 		});
 
 		expect(snapshot.currentModeId).toBeNull();

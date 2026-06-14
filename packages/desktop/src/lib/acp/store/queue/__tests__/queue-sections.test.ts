@@ -149,6 +149,7 @@ function makeItem(
 		pendingQuestion: null,
 		status: "ready",
 		connectionError: null,
+		sequenceId: null,
 		workBucket,
 		...rest,
 		pendingPlanApproval,
@@ -202,10 +203,10 @@ describe("classifyItem", () => {
 		).toBe("error");
 	});
 
-	it("should classify working bucket as working", () => {
+	it("should classify working bucket as planning section", () => {
 		expect(
 			classifyItem(makeItem({ status: "streaming", isStreaming: true, currentModeId: "code" }))
-		).toBe("working");
+		).toBe("planning");
 	});
 
 	it("should classify planning bucket as planning", () => {
@@ -214,10 +215,10 @@ describe("classifyItem", () => {
 		).toBe("planning");
 	});
 
-	it("should classify streaming with null mode as working", () => {
+	it("should classify streaming with null mode as planning section", () => {
 		expect(
 			classifyItem(makeItem({ status: "streaming", isStreaming: true, currentModeId: null }))
-		).toBe("working");
+		).toBe("planning");
 	});
 
 	it("should classify thinking with plan mode as planning", () => {
@@ -337,7 +338,7 @@ describe("groupIntoSections", () => {
 		expect(sections).toHaveLength(4);
 		expect(sections[0].id).toBe("answer_needed");
 		expect(sections[0].items).toHaveLength(1);
-		expect(sections[1].id).toBe("working");
+		expect(sections[1].id).toBe("planning");
 		expect(sections[1].items).toHaveLength(1);
 		expect(sections[2].id).toBe("needs_review");
 		expect(sections[2].items).toHaveLength(1);
@@ -407,7 +408,7 @@ describe("groupIntoSections", () => {
 		expect(sections[0].items[2].sessionId).toBe("s-1"); // 100 (oldest)
 	});
 
-	it("should separate planning items from working items", () => {
+	it("should merge planning and working items into one section", () => {
 		const items = [
 			makeItem({
 				sessionId: "s-1",
@@ -426,13 +427,11 @@ describe("groupIntoSections", () => {
 		];
 
 		const sections = groupIntoSections(items);
-		expect(sections).toHaveLength(2);
+		expect(sections).toHaveLength(1);
 		expect(sections[0].id).toBe("planning");
-		expect(sections[0].items).toHaveLength(1);
+		expect(sections[0].items).toHaveLength(2);
 		expect(sections[0].items[0].sessionId).toBe("s-2");
-		expect(sections[1].id).toBe("working");
-		expect(sections[1].items).toHaveLength(1);
-		expect(sections[1].items[0].sessionId).toBe("s-1");
+		expect(sections[0].items[1].sessionId).toBe("s-1");
 	});
 
 	it("should include planning and error sections together", () => {

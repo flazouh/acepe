@@ -19,7 +19,8 @@ import type {
 	SessionStateEnvelope,
 	SessionStateGraph,
 } from "$lib/services/acp-types.js";
-import { countAppendedMarkdownWords, SessionStore } from "../session-store.svelte.js";
+import { SessionStore } from "../session-store.svelte.js";
+import { countAppendedMarkdownWords } from "../transcript-delta.js";
 
 function createReadyLifecycle(): SessionGraphLifecycle {
 	return {

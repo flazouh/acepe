@@ -1075,20 +1075,13 @@ function handleRejectPlanApproval(sessionId: string): void {
 			onPrFooterOpenExternal={handlePrFooterOpenExternal}
 		>
 			{#snippet columnHeaderActions(columnId)}
-				{#if columnId === "planning" || columnId === "working"}
+				{#if columnId === "planning"}
 					<button
 						type="button"
 						class="flex size-4 items-center justify-center rounded-sm text-muted-foreground/60 transition-colors hover:bg-accent hover:text-foreground"
-						aria-label={columnId === "planning"
-							? "New planning agent"
-							: "New working agent"}
+						aria-label="New agent"
 						data-testid="kanban-column-add-session-{columnId}"
-						onclick={() =>
-							handleKanbanColumnCreate(
-								columnId === "planning"
-									? CanonicalModeId.PLAN
-									: CanonicalModeId.BUILD
-							)}
+						onclick={() => handleKanbanColumnCreate(CanonicalModeId.BUILD)}
 					>
 						<Plus class="size-3" weight="bold" />
 					</button>

@@ -46,7 +46,6 @@ describe("kanban view scene contract", () => {
 	const columns: readonly KanbanSceneColumnData[] = [
 		{ id: "answer_needed", label: "Answer Needed" },
 		{ id: "planning", label: "Planning" },
-		{ id: "working", label: "Working" },
 		{ id: "needs_review", label: "Finished" },
 		{ id: "idle", label: "Idle" },
 		{ id: "error", label: "Error" },
@@ -57,9 +56,9 @@ describe("kanban view scene contract", () => {
 			columns,
 			entries: [
 				{
-					columnId: "working",
+					columnId: "planning",
 					card: makeCard("session-1", "Build motion layer"),
-					orderKey: "session:working:1000:session-1",
+					orderKey: "session:planning:1000:session-1",
 					source: "session",
 				},
 			],
@@ -68,12 +67,11 @@ describe("kanban view scene contract", () => {
 		expect(scene.columns.map((column) => column.id)).toEqual([
 			"answer_needed",
 			"planning",
-			"working",
 			"needs_review",
 			"idle",
 			"error",
 		]);
-		expect(buildKanbanSceneGroups(scene).find((group) => group.id === "planning")?.items).toEqual(
+		expect(buildKanbanSceneGroups(scene).find((group) => group.id === "answer_needed")?.items).toEqual(
 			[]
 		);
 	});
@@ -83,15 +81,15 @@ describe("kanban view scene contract", () => {
 			columns,
 			entries: [
 				{
-					columnId: "working",
+					columnId: "planning",
 					card: makeCard("panel-1", "Starting thread"),
 					orderKey: "optimistic:0:panel-1",
 					source: "optimistic",
 				},
 				{
-					columnId: "working",
+					columnId: "planning",
 					card: makeCard("session-1", "Build motion layer"),
-					orderKey: "session:working:1000:session-1",
+					orderKey: "session:planning:1000:session-1",
 					source: "session",
 				},
 			],
@@ -100,7 +98,7 @@ describe("kanban view scene contract", () => {
 		expect(scene.placements.map((placement) => placement.cardId)).toEqual(["panel-1", "session-1"]);
 		expect(
 			buildKanbanSceneGroups(scene)
-				.find((group) => group.id === "working")
+				.find((group) => group.id === "planning")
 				?.items.map((card) => card.id)
 		).toEqual(["panel-1", "session-1"]);
 	});

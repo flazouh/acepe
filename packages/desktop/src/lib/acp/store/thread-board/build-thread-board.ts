@@ -57,7 +57,6 @@ export function buildThreadBoard(
 ): readonly ThreadBoardGroup[] {
 	const answerNeeded: ThreadBoardItem[] = [];
 	const planning: ThreadBoardItem[] = [];
-	const working: ThreadBoardItem[] = [];
 	const needsReview: ThreadBoardItem[] = [];
 	const idle: ThreadBoardItem[] = [];
 	const error: ThreadBoardItem[] = [];
@@ -70,12 +69,8 @@ export function buildThreadBoard(
 			answerNeeded.push(item);
 			continue;
 		}
-		if (status === "planning") {
+		if (status === "planning" || status === "working") {
 			planning.push(item);
-			continue;
-		}
-		if (status === "working") {
-			working.push(item);
 			continue;
 		}
 		if (status === "needs_review") {
@@ -91,7 +86,6 @@ export function buildThreadBoard(
 
 	sortItems(answerNeeded);
 	sortItems(planning);
-	sortItems(working);
 	sortItems(needsReview);
 	sortItems(idle);
 	sortItems(error);
@@ -99,7 +93,6 @@ export function buildThreadBoard(
 	const groupsByStatus = new Map<ThreadBoardStatus, readonly ThreadBoardItem[]>();
 	groupsByStatus.set("answer_needed", answerNeeded);
 	groupsByStatus.set("planning", planning);
-	groupsByStatus.set("working", working);
 	groupsByStatus.set("needs_review", needsReview);
 	groupsByStatus.set("idle", idle);
 	groupsByStatus.set("error", error);

@@ -25,6 +25,7 @@ import {
 	TranscriptViewportStore,
 	type BufferProjection,
 	type ViewportAttachmentStatus,
+	type ViewportClientScrollState,
 } from "./transcript-viewport-store.svelte.js";
 import { requestTranscriptViewportBuffer } from "../session-state/session-state-viewport-command-service.js";
 
@@ -104,6 +105,44 @@ export class ViewportProjectionController {
 	 */
 	consumeScrollCorrectionPx(sessionId: string | null): number {
 		return this.transcriptViewportStore.consumePendingScrollCorrectionPx(sessionId);
+	}
+
+	getClientScrollState(sessionId: string | null): ViewportClientScrollState {
+		return this.transcriptViewportStore.getClientScrollState(sessionId);
+	}
+
+	setPendingOutsideBufferScrollTopPx(
+		sessionId: string,
+		pendingOutsideBufferScrollTopPx: number | null,
+		activeOutsideBufferRequestedScrollTopPx: number | null
+	): void {
+		this.transcriptViewportStore.setPendingOutsideBufferScrollTopPx(
+			sessionId,
+			pendingOutsideBufferScrollTopPx,
+			activeOutsideBufferRequestedScrollTopPx
+		);
+	}
+
+	setLastOutsideBufferRecoveryDispatchMs(
+		sessionId: string,
+		lastOutsideBufferRecoveryDispatchMs: number | null
+	): void {
+		this.transcriptViewportStore.setLastOutsideBufferRecoveryDispatchMs(
+			sessionId,
+			lastOutsideBufferRecoveryDispatchMs
+		);
+	}
+
+	setLastBottomRevealDispatchMs(sessionId: string, lastBottomRevealDispatchMs: number | null): void {
+		this.transcriptViewportStore.setLastBottomRevealDispatchMs(sessionId, lastBottomRevealDispatchMs);
+	}
+
+	setPendingQueuedScrollIntentPx(sessionId: string, pendingQueuedScrollIntentPx: number | null): void {
+		this.transcriptViewportStore.setPendingQueuedScrollIntentPx(sessionId, pendingQueuedScrollIntentPx);
+	}
+
+	clearOutsideBufferRecovery(sessionId: string): void {
+		this.transcriptViewportStore.clearOutsideBufferRecovery(sessionId);
 	}
 
 	getAttachmentStatus(sessionId: string | null): ViewportAttachmentStatus {

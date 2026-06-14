@@ -254,7 +254,6 @@ describe("buildThreadBoard", () => {
 		expect(THREAD_BOARD_STATUS_ORDER).toEqual([
 			"answer_needed",
 			"planning",
-			"working",
 			"needs_review",
 			"idle",
 			"error",
@@ -263,12 +262,12 @@ describe("buildThreadBoard", () => {
 		expect(groups.find((group) => group.status === "answer_needed")?.items[0]?.panelId).toBe(
 			"panel-answer"
 		);
-		expect(groups.find((group) => group.status === "planning")?.items[0]?.panelId).toBe(
-			"panel-planning"
-		);
-		expect(groups.find((group) => group.status === "working")?.items[0]?.panelId).toBe(
-			"panel-working"
-		);
+		expect(
+			groups
+				.find((group) => group.status === "planning")
+				?.items.map((item) => item.panelId)
+				.sort()
+		).toEqual(["panel-planning", "panel-working"]);
 		expect(groups.find((group) => group.status === "needs_review")?.items[0]?.panelId).toBe(
 			"panel-needs-review"
 		);

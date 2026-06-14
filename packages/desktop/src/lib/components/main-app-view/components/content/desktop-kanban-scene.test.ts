@@ -50,7 +50,6 @@ describe("buildDesktopKanbanScene", () => {
 	const columns: readonly KanbanSceneColumnData[] = [
 		{ id: "answer_needed", label: "Answer Needed" },
 		{ id: "planning", label: "Planning" },
-		{ id: "working", label: "Working" },
 		{ id: "needs_review", label: "Finished" },
 		{ id: "idle", label: "Idle" },
 		{ id: "error", label: "Error" },
@@ -63,15 +62,15 @@ describe("buildDesktopKanbanScene", () => {
 
 		const entries: readonly DesktopKanbanSceneEntry[] = [
 			{
-				columnId: "working",
+				columnId: "planning",
 				card: optimisticCard,
 				orderKey: "optimistic:0:panel-1",
 				source: "optimistic",
 			},
 			{
-				columnId: "working",
+				columnId: "planning",
 				card: sessionCard,
-				orderKey: "session:working:1000:session-1",
+				orderKey: "session:planning:1000:session-1",
 				source: "session",
 			},
 			{
@@ -92,16 +91,16 @@ describe("buildDesktopKanbanScene", () => {
 		expect(scene.placements).toEqual([
 			{
 				cardId: "panel-1",
-				columnId: "working",
+				columnId: "planning",
 				index: 0,
 				orderKey: "optimistic:0:panel-1",
 				source: "optimistic",
 			},
 			{
 				cardId: "session-1",
-				columnId: "working",
+				columnId: "planning",
 				index: 1,
-				orderKey: "session:working:1000:session-1",
+				orderKey: "session:planning:1000:session-1",
 				source: "session",
 			},
 			{
@@ -113,7 +112,7 @@ describe("buildDesktopKanbanScene", () => {
 			},
 		]);
 		expect(scene.columns[0]?.id).toBe("answer_needed");
-		expect(scene.columns[5]?.id).toBe("error");
+		expect(scene.columns[4]?.id).toBe("error");
 	});
 
 	it("builds compatibility groups from the normalized scene", () => {
@@ -121,15 +120,15 @@ describe("buildDesktopKanbanScene", () => {
 			columns,
 			entries: [
 				{
-					columnId: "working",
+					columnId: "planning",
 					card: makeCard("panel-1", "Starting thread"),
 					orderKey: "optimistic:0:panel-1",
 					source: "optimistic",
 				},
 				{
-					columnId: "working",
+					columnId: "planning",
 					card: makeCard("session-1", "Build motion layer"),
-					orderKey: "session:working:1000:session-1",
+					orderKey: "session:planning:1000:session-1",
 					source: "session",
 				},
 			],
@@ -140,16 +139,14 @@ describe("buildDesktopKanbanScene", () => {
 		expect(groups.map((group) => group.id)).toEqual([
 			"answer_needed",
 			"planning",
-			"working",
 			"needs_review",
 			"idle",
 			"error",
 		]);
-		expect(groups.find((group) => group.id === "working")?.items.map((card) => card.id)).toEqual([
+		expect(groups.find((group) => group.id === "planning")?.items.map((card) => card.id)).toEqual([
 			"panel-1",
 			"session-1",
 		]);
-		expect(groups.find((group) => group.id === "planning")?.items).toEqual([]);
 	});
 
 	it("preserves kanban PR footer projections on scene cards", () => {
@@ -157,7 +154,7 @@ describe("buildDesktopKanbanScene", () => {
 			columns,
 			entries: [
 				{
-					columnId: "working",
+					columnId: "planning",
 					card: {
 						id: "session-1",
 						title: "Build motion layer",
@@ -197,7 +194,7 @@ describe("buildDesktopKanbanScene", () => {
 						flushFooter: false,
 						hideHeaderDiff: true,
 					},
-					orderKey: "session:working:1000:session-1",
+					orderKey: "session:planning:1000:session-1",
 					source: "session",
 				},
 			],

@@ -5,10 +5,8 @@ import type {
 	TranscriptEntry,
 	TranscriptSnapshot,
 } from "../../../services/acp-types.js";
-import {
-	applyTranscriptDeltaToSnapshot,
-	transcriptEntryIndexes,
-} from "../session-store.svelte.js";
+import { transcriptEntryIndexes } from "../transcript-entry-index.js";
+import { applyTranscriptDeltaToSnapshot } from "../transcript-delta.js";
 
 function textEntry(
 	entryId: string,

@@ -1,7 +1,7 @@
 const FALLBACK_SESSION_TITLES = new Set(["New Thread", "New session", "New Session", "Loading..."]);
 const GENERATED_SESSION_TITLE_PATTERN = /^Session [a-f0-9-]{6,}$/i;
 /** Matches complete `@[type:value]` tokens and incomplete ones truncated without closing `]`. */
-const INLINE_TOKEN_PATTERN = /@\[(file|image|text|text_ref|command|skill):[^\]]+\]?/;
+const INLINE_TOKEN_PATTERN = /@\[(file|image|image_ref|text|text_ref|command|skill):[^\]]+\]?/;
 
 /**
  * Strips system artifacts and metadata tags from session titles.
@@ -21,7 +21,7 @@ export function stripArtifactsFromTitle(title: string): string {
 	cleaned = cleaned
 		// Match attachment tokens: @[file:...], @[image:...], @[text:...], @[command:...], @[skill:...]
 		// Also matches truncated tokens missing closing ] (e.g. from title truncation)
-		.replace(/@\[(file|image|text|command|skill):[^\]]+\]?/g, "")
+		.replace(/@\[(file|image|image_ref|text|command|skill):[^\]]+\]?/g, "")
 		// Match expanded attachment refs: [Attached image: ...], [Attached file: ...]
 		.replace(/\[Attached (?:image|file|PDF): [^\]]+\]/g, "")
 		.trim();
