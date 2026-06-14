@@ -1,23 +1,17 @@
 use crate::acp::parsers::acp_fields::normalize_tool_call_id;
 use crate::acp::projections::{
-    build_canonical_operation_id, InteractionState, OperationDegradationCode,
-    OperationDegradationReason, OperationSnapshot, OperationSourceLink, OperationState,
-    ProjectionRegistry, SessionProjectionSnapshot, SessionTurnState,
+    InteractionState, OperationSnapshot, OperationSourceLink, OperationState, ProjectionRegistry,
+    SessionProjectionSnapshot, SessionTurnState,
 };
 use crate::acp::session_thread_snapshot::ProviderOwnedSessionSnapshot;
 use crate::acp::session_thread_snapshot::SessionThreadSnapshot;
-use crate::acp::session_update::{
-    SessionUpdate, ToolArguments, ToolCallData, ToolCallStatus, ToolKind,
+use crate::acp::session_update::{SessionUpdate, ToolCallData, ToolKind};
+use crate::acp::transcript_projection::{
+    tool_call_id_from_authority_entry_id, TranscriptEntryRole, TranscriptSnapshot,
 };
-use crate::acp::transcript_projection::{TranscriptEntryRole, TranscriptSnapshot};
 use crate::acp::types::CanonicalAgentId;
 use crate::session_jsonl::types::StoredEntry;
-use serde_json::Value;
-use sha2::{Digest, Sha256};
-use std::collections::HashSet;
-
-const MISSING_TOOL_OPERATION_DETAIL: &str =
-    "No canonical operation evidence was available for this transcript tool row.";
+use std::collections::{HashMap, HashSet};
 
 pub(crate) struct MaterializedThreadSnapshot {
     pub transcript_snapshot: TranscriptSnapshot,
@@ -67,6 +61,8 @@ pub(crate) fn materialize_provider_owned_thread_snapshot(
             &projection.operations,
         );
     }
+    projection.operations =
+        relink_operations_to_transcript(&transcript_snapshot, projection.operations);
     projection.operations =
         ensure_transcript_tool_operations(session_id, &transcript_snapshot, projection.operations);
     projection = close_historical_active_projection(
@@ -132,36 +128,58 @@ pub(crate) fn ensure_transcript_tool_operations(
     transcript_snapshot: &TranscriptSnapshot,
     operations: Vec<OperationSnapshot>,
 ) -> Vec<OperationSnapshot> {
-    let mut linked_entry_ids = operations
+    let linked_entry_ids = operations
         .iter()
         .filter_map(|operation| match &operation.source_link {
             OperationSourceLink::TranscriptLinked { entry_id } => Some(entry_id.clone()),
             OperationSourceLink::Synthetic { .. } | OperationSourceLink::Degraded { .. } => None,
         })
         .collect::<HashSet<_>>();
-    let mut operation_ids = operations
-        .iter()
-        .map(|operation| operation.id.clone())
-        .collect::<HashSet<_>>();
-    let mut completed_operations = operations;
 
     for entry in transcript_snapshot
         .entries
         .iter()
         .filter(|entry| entry.role == TranscriptEntryRole::Tool)
     {
-        if linked_entry_ids.contains(&entry.entry_id) {
-            continue;
-        }
-
-        let operation = degraded_transcript_tool_operation(session_id, &entry.entry_id);
-        if operation_ids.insert(operation.id.clone()) {
-            linked_entry_ids.insert(entry.entry_id.clone());
-            completed_operations.push(operation);
+        if !linked_entry_ids.contains(&entry.entry_id) {
+            tracing::error!(
+                session_id = %session_id,
+                entry_id = %entry.entry_id,
+                "unmatched transcript tool entry after relinking — missing provider evidence",
+            );
         }
     }
 
-    completed_operations
+    operations
+}
+
+pub(crate) fn relink_operations_to_transcript(
+    transcript: &TranscriptSnapshot,
+    mut operations: Vec<OperationSnapshot>,
+) -> Vec<OperationSnapshot> {
+    let tool_entry_map: HashMap<String, String> = transcript
+        .entries
+        .iter()
+        .filter(|entry| entry.role == TranscriptEntryRole::Tool)
+        .filter_map(|entry| {
+            tool_call_id_from_authority_entry_id(&entry.entry_id)
+                .map(|tc_id| (tc_id, entry.entry_id.clone()))
+        })
+        .collect();
+
+    if tool_entry_map.is_empty() {
+        return operations;
+    }
+
+    for op in &mut operations {
+        if let OperationSourceLink::TranscriptLinked { entry_id } = &mut op.source_link {
+            if let Some(canonical_entry_id) = tool_entry_map.get(&op.tool_call_id) {
+                *entry_id = canonical_entry_id.clone();
+            }
+        }
+    }
+
+    operations
 }
 
 fn drop_unlinked_duplicate_replay_tool_rows(
@@ -218,57 +236,6 @@ fn should_skip_historical_question_tool(tool_call: &ToolCallData) -> bool {
     matches!(tool_call.kind, Some(ToolKind::Question)) && tool_call.question_answer.is_none()
 }
 
-fn degraded_transcript_tool_operation(session_id: &str, entry_id: &str) -> OperationSnapshot {
-    let degradation_reason = OperationDegradationReason {
-        code: OperationDegradationCode::MissingEvidence,
-        detail: Some(MISSING_TOOL_OPERATION_DETAIL.to_string()),
-    };
-    let provenance_key = degraded_transcript_tool_provenance_key(entry_id);
-
-    OperationSnapshot {
-        id: build_canonical_operation_id(session_id, &provenance_key),
-        session_id: session_id.to_string(),
-        tool_call_id: entry_id.to_string(),
-        name: "Unresolved tool".to_string(),
-        kind: None,
-        provider_status: ToolCallStatus::Failed,
-        title: Some("Unresolved tool".to_string()),
-        arguments: ToolArguments::Other {
-            raw: Value::Null,
-            intent: None,
-        },
-        progressive_arguments: None,
-        result: None,
-        command: None,
-        normalized_todos: None,
-        parent_tool_call_id: None,
-        parent_operation_id: None,
-        child_tool_call_ids: Vec::new(),
-        child_operation_ids: Vec::new(),
-        operation_provenance_key: Some(provenance_key),
-        operation_state: OperationState::Degraded,
-        locations: None,
-        skill_meta: None,
-        normalized_questions: None,
-        question_answer: None,
-        awaiting_plan_approval: false,
-        plan_approval_request_id: None,
-        started_at_ms: None,
-        completed_at_ms: None,
-        source_link: OperationSourceLink::TranscriptLinked {
-            entry_id: entry_id.to_string(),
-        },
-        degradation_reason: Some(degradation_reason),
-    }
-}
-
-fn degraded_transcript_tool_provenance_key(entry_id: &str) -> String {
-    let mut hasher = Sha256::new();
-    hasher.update(entry_id.as_bytes());
-    let digest = hasher.finalize();
-    format!("degraded-transcript-tool-{}", hex::encode(&digest[..16]))
-}
-
 fn is_terminal_operation_state(state: &OperationState) -> bool {
     matches!(
         state,
@@ -281,7 +248,10 @@ fn is_terminal_operation_state(state: &OperationState) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use super::{ensure_transcript_tool_operations, materialize_provider_owned_thread_snapshot};
+    use super::{
+        ensure_transcript_tool_operations, materialize_provider_owned_thread_snapshot,
+        relink_operations_to_transcript,
+    };
     use crate::acp::parsers::AgentType;
     use crate::acp::projections::{
         OperationDegradationCode, OperationSnapshot, OperationSourceLink, OperationState,
@@ -293,7 +263,7 @@ mod tests {
     use crate::acp::session_update::{ToolArguments, ToolCallData, ToolCallStatus, ToolKind};
     use crate::acp::transcript_projection::{
         CanonicalTranscriptEvent, CanonicalTranscriptEventKind, TranscriptEntry,
-        TranscriptEntryRole, TranscriptSegment, TranscriptSnapshot,
+        TranscriptEntryRole, TranscriptSegment, TranscriptSnapshot, derive_tool_entry_id,
     };
     use crate::acp::types::CanonicalAgentId;
     use crate::session_jsonl::types::{
@@ -399,30 +369,16 @@ mod tests {
     }
 
     #[test]
-    fn creates_backend_degraded_operation_for_unlinked_transcript_tool_row() {
-        let operations = ensure_transcript_tool_operations(
-            "session-1",
-            &tool_transcript("tool-missing"),
-            Vec::new(),
-        );
+    fn ensure_returns_operations_unchanged_for_unlinked_transcript_tool_row() {
+        // After relinking, any unmatched row is missing provider evidence — ensure is a tripwire
+        // assertion, not a degraded-op factory. Operations pass through unchanged.
+        let operations =
+            ensure_transcript_tool_operations("session-1", &tool_transcript("tool-missing"), vec![
+                linked_operation("session-1", "other-tool"),
+            ]);
 
         assert_eq!(operations.len(), 1);
-        let operation = &operations[0];
-        assert_eq!(operation.tool_call_id, "tool-missing");
-        assert_eq!(operation.operation_state, OperationState::Degraded);
-        assert_eq!(
-            operation.source_link,
-            OperationSourceLink::TranscriptLinked {
-                entry_id: "tool-missing".to_string()
-            }
-        );
-        assert_eq!(
-            operation
-                .degradation_reason
-                .as_ref()
-                .map(|reason| reason.code.clone()),
-            Some(OperationDegradationCode::MissingEvidence)
-        );
+        assert_eq!(operations[0].tool_call_id, "other-tool");
     }
 
     #[test]
@@ -439,24 +395,144 @@ mod tests {
         assert_eq!(operations[0].operation_state, OperationState::Completed);
     }
 
-    #[test]
-    fn degraded_operation_ids_are_stable_for_same_transcript_tool_row() {
-        let first = ensure_transcript_tool_operations(
-            "session-1",
-            &tool_transcript("tool-missing"),
-            Vec::new(),
-        );
-        let second = ensure_transcript_tool_operations(
-            "session-1",
-            &tool_transcript("tool-missing"),
-            Vec::new(),
-        );
+    // -----------------------------------------------------------------------
+    // relink_operations_to_transcript
+    // -----------------------------------------------------------------------
 
-        assert_eq!(first[0].id, second[0].id);
+    fn acepe_tool_transcript(tool_call_id: &str) -> TranscriptSnapshot {
+        TranscriptSnapshot {
+            revision: 1,
+            entries: vec![TranscriptEntry {
+                entry_id: derive_tool_entry_id("session-start", tool_call_id),
+                role: TranscriptEntryRole::Tool,
+                segments: vec![],
+                attempt_id: None,
+                timestamp_ms: None,
+            }],
+        }
+    }
+
+    fn synthetic_operation(session_id: &str, tool_call_id: &str) -> OperationSnapshot {
+        let mut op = linked_operation(session_id, tool_call_id);
+        op.source_link = OperationSourceLink::Synthetic {
+            reason: "test".to_string(),
+        };
+        op
+    }
+
+    #[test]
+    fn relink_patches_transcript_linked_entry_id_to_acepe_format() {
+        let transcript = acepe_tool_transcript("toolu_01abc");
+        let op = linked_operation("s1", "toolu_01abc");
+        let result = relink_operations_to_transcript(&transcript, vec![op]);
+
+        assert_eq!(result.len(), 1);
         assert_eq!(
-            first[0].operation_provenance_key,
-            second[0].operation_provenance_key
+            result[0].source_link,
+            OperationSourceLink::TranscriptLinked {
+                entry_id: derive_tool_entry_id("session-start", "toolu_01abc"),
+            }
         );
+    }
+
+    #[test]
+    fn relink_patches_all_matching_operations() {
+        let mut transcript = acepe_tool_transcript("toolu_01abc");
+        transcript.entries.push(TranscriptEntry {
+            entry_id: derive_tool_entry_id("session-start", "toolu_02def"),
+            role: TranscriptEntryRole::Tool,
+            segments: vec![],
+            attempt_id: None,
+            timestamp_ms: None,
+        });
+        let ops = vec![
+            linked_operation("s1", "toolu_01abc"),
+            linked_operation("s1", "toolu_02def"),
+        ];
+        let result = relink_operations_to_transcript(&transcript, ops);
+
+        assert_eq!(result.len(), 2);
+        assert_eq!(
+            result[0].source_link,
+            OperationSourceLink::TranscriptLinked {
+                entry_id: derive_tool_entry_id("session-start", "toolu_01abc"),
+            }
+        );
+        assert_eq!(
+            result[1].source_link,
+            OperationSourceLink::TranscriptLinked {
+                entry_id: derive_tool_entry_id("session-start", "toolu_02def"),
+            }
+        );
+    }
+
+    #[test]
+    fn relink_does_not_touch_synthetic_operations() {
+        let transcript = acepe_tool_transcript("toolu_01abc");
+        let op = synthetic_operation("s1", "toolu_01abc");
+        let original_link = op.source_link.clone();
+        let result = relink_operations_to_transcript(&transcript, vec![op]);
+
+        assert_eq!(result[0].source_link, original_link);
+    }
+
+    #[test]
+    fn relink_leaves_unmatched_operation_unchanged() {
+        let transcript = acepe_tool_transcript("toolu_other");
+        let op = linked_operation("s1", "toolu_01abc");
+        let original_link = op.source_link.clone();
+        let result = relink_operations_to_transcript(&transcript, vec![op]);
+
+        assert_eq!(result[0].source_link, original_link);
+    }
+
+    #[test]
+    fn relink_returns_operations_unchanged_when_transcript_empty() {
+        let empty_transcript = TranscriptSnapshot {
+            revision: 1,
+            entries: vec![],
+        };
+        let op = linked_operation("s1", "toolu_01abc");
+        let original_link = op.source_link.clone();
+        let result = relink_operations_to_transcript(&empty_transcript, vec![op]);
+
+        assert_eq!(result[0].source_link, original_link);
+    }
+
+    #[test]
+    fn relink_returns_empty_vec_for_empty_operations() {
+        let transcript = acepe_tool_transcript("toolu_01abc");
+        let result = relink_operations_to_transcript(&transcript, vec![]);
+
+        assert!(result.is_empty());
+    }
+
+    #[test]
+    fn relink_handles_control_char_tool_call_id() {
+        // tool_call_id with a control char normalizes to percent-encoded form on both sides
+        let raw_id = "toolu\n01abc";
+        let normalized_id = "toolu%0A01abc";
+        let transcript = acepe_tool_transcript(raw_id);
+        // linked_operation sets tool_call_id = normalized_id (mirrors operation ingress normalisation)
+        let op = linked_operation("s1", normalized_id);
+        let result = relink_operations_to_transcript(&transcript, vec![op]);
+
+        assert_eq!(
+            result[0].source_link,
+            OperationSourceLink::TranscriptLinked {
+                entry_id: derive_tool_entry_id("session-start", raw_id),
+            }
+        );
+    }
+
+    #[test]
+    fn relink_is_idempotent() {
+        let transcript = acepe_tool_transcript("toolu_01abc");
+        let op = linked_operation("s1", "toolu_01abc");
+        let once = relink_operations_to_transcript(&transcript, vec![op]);
+        let twice = relink_operations_to_transcript(&transcript, once.clone());
+
+        assert_eq!(once[0].source_link, twice[0].source_link);
     }
 
     #[test]
@@ -479,6 +555,7 @@ mod tests {
             &provider_snapshot,
         );
 
+        let expected_entry_id = derive_tool_entry_id("session-start", "provider-read");
         assert_eq!(
             materialized
                 .transcript_snapshot
@@ -486,7 +563,7 @@ mod tests {
                 .iter()
                 .map(|entry| entry.entry_id.as_str())
                 .collect::<Vec<_>>(),
-            vec!["provider-read"]
+            vec![expected_entry_id.as_str()]
         );
         assert_eq!(materialized.projection.operations.len(), 1);
         let operation = &materialized.projection.operations[0];
@@ -498,7 +575,7 @@ mod tests {
         assert_eq!(
             operation.source_link,
             OperationSourceLink::TranscriptLinked {
-                entry_id: "provider-read".to_string()
+                entry_id: expected_entry_id,
             }
         );
     }
@@ -625,9 +702,10 @@ mod tests {
 
         assert_eq!(materialized.transcript_snapshot.revision, 7);
         assert_eq!(materialized.transcript_snapshot.entries.len(), 1);
+        // Entry id uses canonical acepe:: format, not the provider display_id
         assert_eq!(
             materialized.transcript_snapshot.entries[0].entry_id,
-            "assistant-display-1"
+            "acepe::entry::session-start::assistant::."
         );
     }
 }
