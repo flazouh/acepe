@@ -10,6 +10,7 @@ pub mod protocol;
 pub mod session_state_field;
 pub mod reducer;
 pub mod revision;
+pub mod live_envelope_builder;
 pub mod runtime_registry;
 pub mod selectors;
 pub mod viewport_buffer_producer;
