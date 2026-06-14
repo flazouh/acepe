@@ -44,18 +44,13 @@ use acp::commands::{
     acp_respond_inbound_request, acp_resume_session, acp_reveal_transcript_viewport_row,
     acp_scroll_transcript_viewport, acp_send_prompt, acp_set_config_option, acp_set_mode,
     acp_set_model, acp_set_session_autonomous, acp_uninstall_agent, acp_write_text_file,
+    check_github_auth, create_github_issue, create_issue_comment, fetch_commit_diff,
+    fetch_pr_diff, get_github_issue, get_github_repo_context, git_working_file_diff,
+    list_github_issues, list_issue_comments, list_pull_requests, search_github_issues,
+    toggle_comment_reaction, toggle_issue_reaction,
 };
 use acp::event_bridge_server::start_event_bridge_server;
 use acp::event_hub::AcpEventHubState;
-use acp::github_commands::{
-    fetch_commit_diff, fetch_pr_diff, get_github_repo_context, git_working_file_diff,
-    list_pull_requests,
-};
-use acp::github_issues::{
-    check_github_auth, create_github_issue, create_issue_comment, get_github_issue,
-    list_github_issues, list_issue_comments, search_github_issues, toggle_comment_reaction,
-    toggle_issue_reaction,
-};
 use acp::lifecycle::SessionSupervisor;
 use acp::opencode::OpenCodeManagerRegistry;
 use acp::pre_reservation_event_buffer::PreReservationEventBuffer;

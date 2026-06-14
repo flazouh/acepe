@@ -22,6 +22,8 @@ use tokio::time::{timeout, Duration};
 
 mod client_ops;
 mod file_commands;
+mod github_diff_commands;
+mod github_issue_commands;
 mod inbound_commands;
 mod install_commands;
 mod interaction_commands;
@@ -39,6 +41,15 @@ use client_ops::{
     create_and_initialize_client, lock_session_client, resume_or_create_session_client,
 };
 pub use file_commands::{acp_read_text_file, acp_write_text_file};
+pub use github_diff_commands::{
+    fetch_commit_diff, fetch_pr_diff, get_github_repo_context, git_working_file_diff,
+    list_pull_requests,
+};
+pub use github_issue_commands::{
+    check_github_auth, create_github_issue, create_issue_comment, get_github_issue,
+    list_github_issues, list_issue_comments, search_github_issues, toggle_comment_reaction,
+    toggle_issue_reaction,
+};
 pub use inbound_commands::{acp_reply_interaction, acp_respond_inbound_request};
 pub use install_commands::{acp_install_agent, acp_uninstall_agent};
 pub use interaction_commands::{
