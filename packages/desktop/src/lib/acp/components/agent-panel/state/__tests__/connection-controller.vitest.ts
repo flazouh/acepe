@@ -118,6 +118,56 @@ describe("ConnectionController", () => {
 		expect(c.state).toBe(PanelConnectionState.CONNECTING);
 	});
 
+	it("rebinds the subscription when the panel id changes", () => {
+		let panelId: string | null = "panel-a";
+		const states = new Map<string, PanelConnectionState>();
+		const errors = new Map<string, PanelConnectionErrorDetails>();
+		const listeners = new Set<ConnectionChangeCallback>();
+		const store = {
+			getState: (id: string) => states.get(id) ?? null,
+			getContext: (id: string) => {
+				const error = errors.get(id);
+				return error === undefined ? null : { error };
+			},
+			onChange: (callback: ConnectionChangeCallback) => {
+				listeners.add(callback);
+				return () => listeners.delete(callback);
+			},
+			push: (
+				id: string,
+				nextState: PanelConnectionState,
+				nextError: PanelConnectionErrorDetails | null = null
+			) => {
+				states.set(id, nextState);
+				if (nextError === null) {
+					errors.delete(id);
+				} else {
+					errors.set(id, nextError);
+				}
+				for (const listener of listeners) {
+					listener(id, nextState, { error: nextError ?? undefined });
+				}
+			},
+		};
+		const c = new ConnectionController({
+			getStillFailed: () => true,
+			connectionStore: store as never,
+			getPanelId: () => panelId,
+		});
+		c.syncSubscription();
+		store.push("panel-a", PanelConnectionState.CONNECTING);
+		expect(c.state).toBe(PanelConnectionState.CONNECTING);
+
+		panelId = "panel-b";
+		c.syncSubscription();
+		expect(c.state).toBeNull();
+
+		store.push("panel-b", PanelConnectionState.ERROR, { message: "panel-b" });
+		expect(c.state).toBe(PanelConnectionState.ERROR);
+		expect(c.error?.message).toBe("panel-b");
+		c.dispose();
+	});
+
 	it("does not expose state/error setters on the public instance", () => {
 		const { c } = make();
 		expect(Object.getOwnPropertyDescriptor(Object.getPrototypeOf(c), "state")?.set).toBeUndefined();

@@ -45,12 +45,13 @@ export class ConnectionController {
 
 	/**
 	 * Bind (or rebind) the store subscription for the current panel id. Returns a
-	 * cleanup that detaches; call from the host `$effect` keyed on panel id.
+	 * cleanup that detaches. Invoked from the controller's internal `$effect` keyed
+	 * on `getPanelId()`; exposed for unit tests that run outside a Svelte root.
 	 */
 	syncSubscription(): () => void {
 		const panelId = this.#deps.getPanelId();
 		if (panelId === this.#attachedPanelId) {
-			return () => this.#detachSubscription();
+			return () => {};
 		}
 		this.#detachSubscription();
 		if (panelId === null) {
@@ -123,4 +124,17 @@ export class ConnectionController {
 		}
 		this.#attachedPanelId = null;
 	}
+}
+
+/**
+ * Host entry point: constructs the controller and owns the store subscription
+ * `$effect` keyed on `getPanelId()`. Call from a Svelte component top level only.
+ */
+export function createConnectionController(deps: ConnectionControllerDeps): ConnectionController {
+	const controller = new ConnectionController(deps);
+	$effect(() => {
+		deps.getPanelId();
+		return controller.syncSubscription();
+	});
+	return controller;
 }

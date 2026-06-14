@@ -83,7 +83,7 @@ import { PrCardController } from "../state/pr-card-controller.svelte.js";
 import { WorktreeCloseConfirmationController } from "../state/worktree-close-confirmation-controller.svelte.js";
 import { WorktreeSetupController } from "../state/worktree-setup-controller.svelte.js";
 import { ContentScrollRevealController } from "../state/content-scroll-reveal-controller.svelte.js";
-import { ConnectionController } from "../state/connection-controller.svelte.js";
+import { createConnectionController } from "../state/connection-controller.svelte.js";
 import { shouldAutoScrollOnPanelActivation } from "../logic/should-auto-scroll-on-panel-activation.js";
 import { isInteractiveClickTarget } from "../logic/panel-focus-guard.js";
 import { deriveAgentPanelHeaderDisplayTitle } from "../logic/agent-panel-header-title.js";
@@ -188,7 +188,7 @@ const connectionStore = getConnectionStore();
 
 // Panel-connection state — owned by a testable controller. Mutually-referential
 // with sessionController via lazy accessors (stillFailed ↔ connection state/error).
-const connection: ConnectionController = new ConnectionController({
+const connection = createConnectionController({
 	getStillFailed: () => sessionController.stillFailed,
 	connectionStore,
 	getPanelId: () => panelId ?? null,
@@ -900,11 +900,6 @@ $effect(() => {
 	if (!modifiedFilesState) return;
 
 	onEnterReviewMode?.(modifiedFilesState, pendingFileIndex);
-});
-
-$effect(() => {
-	panelId;
-	return connection.syncSubscription();
 });
 
 // ✅ Effects for side effects - handle tab switching
