@@ -99,6 +99,17 @@ where
             ProjectAccessReason::SessionResume,
         )?;
         let agent_id_enum = resume_target.descriptor.agent_id.clone();
+
+        // Opening a session in an agent panel promotes it to Acepe-managed. A
+        // session discovered from the filesystem starts unmanaged (no
+        // sequence_id); the sidebar keeps that distinction for historical rows,
+        // but once opened the session is Acepe-owned. This runs before the
+        // snapshot envelope build below so the freshly-assigned sequence_id
+        // (read fresh from the DB by the snapshot builder) rides the canonical
+        // envelope and the project badge updates live. Idempotent for
+        // already-managed sessions.
+        persist_session_metadata_for_cwd(db.inner(), &session_id, &agent_id_enum, &cwd).await?;
+
         let runtime_registry = app.try_state::<Arc<SessionGraphRuntimeRegistry>>();
         let projection_registry = app.try_state::<Arc<ProjectionRegistry>>();
         let open_token_claim =
