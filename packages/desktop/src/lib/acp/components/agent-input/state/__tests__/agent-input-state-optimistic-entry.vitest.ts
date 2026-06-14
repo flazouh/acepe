@@ -12,8 +12,22 @@ import type { SessionEntry } from "../../../../application/dto/session-entry.js"
 import type { PanelStore } from "../../../../store/panel-store.svelte.js";
 import type { SessionStore } from "../../../../store/session-store.svelte.js";
 import { DEFAULT_PANEL_HOT_STATE } from "../../../../store/types.js";
+import { resolveOptimisticUserEntryForGraph } from "../../../agent-panel/logic/optimistic-user-entry.js";
 import { SessionCreationError } from "../../errors/agent-input-error.js";
 import { AgentInputState } from "../agent-input-state.svelte.js";
+
+function makePendingEntry(id: string, text: string): SessionEntry {
+	return {
+		id,
+		type: "user",
+		message: {
+			content: { type: "text", text },
+			chunks: [{ type: "text", text }],
+			sentAt: new Date(),
+		},
+		timestamp: new Date(),
+	};
+}
 
 function makeSession(id: string = "session-123") {
 	return {
@@ -252,5 +266,31 @@ describe("AgentInputState optimistic pending entry rollback", () => {
 		expect(result.isOk()).toBe(true);
 		expect(panel.setPendingUserEntry).not.toHaveBeenCalled();
 		expect(panel.clearPendingUserEntry).toHaveBeenCalledTimes(1);
+	});
+});
+
+describe("resolveOptimisticUserEntryForGraph (canonical display authority)", () => {
+	it("suppresses panel pending entry once canonical transcript matches the attempt", () => {
+		const panelEntry = makePendingEntry("pending-1", "Hello");
+		expect(
+			resolveOptimisticUserEntryForGraph({
+				panelPendingUserEntry: panelEntry,
+				sessionPendingOptimisticEntry: null,
+				hasCanonicalUserEntry: true,
+				hasCanonicalMatchingPendingUserEntry: true,
+			})
+		).toBeNull();
+	});
+
+	it("shows panel pending entry only while canonical user rows are still absent", () => {
+		const panelEntry = makePendingEntry("pending-1", "Hello");
+		expect(
+			resolveOptimisticUserEntryForGraph({
+				panelPendingUserEntry: panelEntry,
+				sessionPendingOptimisticEntry: null,
+				hasCanonicalUserEntry: false,
+				hasCanonicalMatchingPendingUserEntry: false,
+			})
+		).toBe(panelEntry);
 	});
 });
