@@ -217,12 +217,21 @@ export function shouldContinueBottomPinRecovery(input: {
 	readonly modeKind: TranscriptViewportModeKind;
 	readonly bottomJumpPinRequested: boolean;
 	readonly framesRemaining: number;
+	readonly userScrollingAwayFromTail: boolean;
 }): boolean {
 	if (input.framesRemaining <= 0) {
 		return false;
 	}
 	if (input.bottomJumpPinRequested) {
 		return true;
+	}
+	// While canonically following the tail the loop re-pins to the bottom, but it
+	// must yield to an active user scroll-away. Otherwise it yanks scrollTop back
+	// every frame, "near bottom" stays true, the tail-detach intent never
+	// dispatches, the canonical mode never leaves followingTail, and the loop never
+	// stops — the user is stuck at the bottom (livelock).
+	if (input.userScrollingAwayFromTail) {
+		return false;
 	}
 	return input.modeKind === "followingTail";
 }

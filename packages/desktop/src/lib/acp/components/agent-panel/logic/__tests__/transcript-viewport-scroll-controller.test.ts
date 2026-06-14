@@ -530,6 +530,7 @@ describe("transcript viewport scroll controller", () => {
 					modeKind: "detached",
 					bottomJumpPinRequested: false,
 					framesRemaining: 24,
+					userScrollingAwayFromTail: false,
 				})
 			).toBe(false);
 		});
@@ -540,6 +541,7 @@ describe("transcript viewport scroll controller", () => {
 					modeKind: "followingTail",
 					bottomJumpPinRequested: false,
 					framesRemaining: 24,
+					userScrollingAwayFromTail: false,
 				})
 			).toBe(true);
 		});
@@ -550,6 +552,7 @@ describe("transcript viewport scroll controller", () => {
 					modeKind: "detached",
 					bottomJumpPinRequested: true,
 					framesRemaining: 24,
+					userScrollingAwayFromTail: false,
 				})
 			).toBe(true);
 		});
@@ -560,8 +563,39 @@ describe("transcript viewport scroll controller", () => {
 					modeKind: "followingTail",
 					bottomJumpPinRequested: true,
 					framesRemaining: 0,
+					userScrollingAwayFromTail: false,
 				})
 			).toBe(false);
+		});
+
+		// Livelock fix: while canonically following the tail, the per-frame pin loop
+		// must YIELD to an active user scroll-away. Otherwise the loop yanks scrollTop
+		// back to the bottom every frame, "near bottom" stays true, the canonical
+		// tail-detach intent never dispatches, the mode never leaves followingTail, and
+		// the loop never stops — the user is stuck at the bottom.
+		it("yields the loop to an active user scroll-away even while following the tail", () => {
+			expect(
+				shouldContinueBottomPinRecovery({
+					modeKind: "followingTail",
+					bottomJumpPinRequested: false,
+					framesRemaining: 24,
+					userScrollingAwayFromTail: true,
+				})
+			).toBe(false);
+		});
+
+		// Guardrail: an explicit bottom-jump re-attach intent still wins over the
+		// scroll-away flag (in practice the wheel-up handler clears the jump, so they
+		// rarely co-occur, but the explicit re-attach must not be silently dropped).
+		it("still honors an explicit bottom jump even if the scroll-away flag is set", () => {
+			expect(
+				shouldContinueBottomPinRecovery({
+					modeKind: "followingTail",
+					bottomJumpPinRequested: true,
+					framesRemaining: 24,
+					userScrollingAwayFromTail: true,
+				})
+			).toBe(true);
 		});
 	});
 

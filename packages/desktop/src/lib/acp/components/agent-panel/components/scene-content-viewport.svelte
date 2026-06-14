@@ -655,6 +655,7 @@ function scheduleBottomPinRecovery(resetFrameBudget = true): void {
 				modeKind: bufferProjection?.mode.kind ?? "detached",
 				bottomJumpPinRequested,
 				framesRemaining: bottomPinRecoveryFramesRemaining,
+				userScrollingAwayFromTail,
 			})
 		) {
 			bottomPinRecoveryFramesRemaining = 0;
