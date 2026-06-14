@@ -1,10 +1,10 @@
 <script lang="ts">
+import { Selector } from "@acepe/ui";
 import * as DropdownMenu from "@acepe/ui/dropdown-menu";
 import { IconCircleCheckFilled } from "@tabler/icons-svelte";
 import { Brain } from "phosphor-svelte";
 import { Lightning } from "phosphor-svelte";
 import { ShieldCheck } from "phosphor-svelte";
-import * as Tooltip from "$lib/components/ui/tooltip/index.js";
 
 import type { ConfigOptionData } from "../../services/converted-session-types.js";
 
@@ -14,6 +14,7 @@ import {
 	buildConfigOptionSelectorState,
 	getNextBooleanConfigOptionValue,
 } from "./config-option-selector-state.js";
+import * as Tooltip from "$lib/components/ui/tooltip/index.js";
 
 interface ConfigOptionSelectorProps {
 	configOption: ConfigOptionData;
@@ -60,6 +61,8 @@ const iconStyle = $derived.by(() => {
 	return `color: ${iconColor}`;
 });
 
+const tooltipLabel = $derived(`${configOption.name}: ${currentValueLabel}`);
+
 function handleSelect(value: string) {
 	if (value !== currentValue) {
 		// Fire-and-forget: optimistic update handles UI, rollback handles errors
@@ -80,51 +83,26 @@ function handleBooleanToggle() {
 </script>
 
 {#if !isBooleanConfigOption}
-	<DropdownMenu.Root>
-		<DropdownMenu.Trigger {disabled}>
-			{#snippet child({ props })}
-				<Tooltip.Root>
-					<Tooltip.Trigger>
-						<button
-							{...props}
-							type="button"
-							{disabled}
-							class="flex items-center justify-center w-7 h-7 transition-colors rounded-none
-								{disabled
-								? 'text-muted-foreground/50 cursor-not-allowed'
-								: 'text-muted-foreground hover:bg-accent/50 hover:text-foreground'}"
-						>
-							{#if isReasoningConfigOption}
-								<Brain
-									class={iconClass}
-									size={14}
-									weight={iconState.weight}
-									style={iconStyle}
-								/>
-							{:else if isFastConfigOption}
-								<Lightning
-									class={iconClass}
-									size={14}
-									weight={iconState.weight}
-									style={iconStyle}
-								/>
-							{:else}
-								<ShieldCheck size={14} weight="fill" style="color: {iconColor}" />
-							{/if}
-						</button>
-					</Tooltip.Trigger>
-					<Tooltip.Content>
-						{configOption.name}: {currentValueLabel}
-					</Tooltip.Content>
-				</Tooltip.Root>
-			{/snippet}
-		</DropdownMenu.Trigger>
+	<Selector
+		{disabled}
+		align="start"
+		sideOffset={4}
+		triggerSize="square"
+		showChevron={false}
+		variant="ghost"
+		tooltipLabel={tooltipLabel}
+	>
+		{#snippet renderButton()}
+			{#if isReasoningConfigOption}
+				<Brain class={iconClass} size={14} weight={iconState.weight} style={iconStyle} />
+			{:else if isFastConfigOption}
+				<Lightning class={iconClass} size={14} weight={iconState.weight} style={iconStyle} />
+			{:else}
+				<ShieldCheck size={14} weight="fill" style="color: {iconColor}" />
+			{/if}
+		{/snippet}
 
-		<DropdownMenu.Content
-			align="start"
-			sideOffset={4}
-			class="w-fit max-w-[280px] max-h-[250px] overflow-y-auto scrollbar-thin"
-		>
+		<div class="max-h-[250px] overflow-y-auto scrollbar-thin">
 			{#each configOption.options ? configOption.options : [] as option (String(option.value))}
 				{@const optValue = String(option.value)}
 				{@const isSelected = optValue === currentValue}
@@ -140,8 +118,8 @@ function handleBooleanToggle() {
 					</div>
 				</DropdownMenu.Item>
 			{/each}
-		</DropdownMenu.Content>
-	</DropdownMenu.Root>
+		</div>
+	</Selector>
 {:else}
 	<Tooltip.Root>
 		<Tooltip.Trigger>

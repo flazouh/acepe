@@ -1,5 +1,5 @@
 <script lang="ts">
-import { DiffPill } from "@acepe/ui";
+import { DiffPill, Selector } from "@acepe/ui";
 import * as DropdownMenu from "@acepe/ui/dropdown-menu";
 import { IconChevronRight } from "@tabler/icons-svelte";
 import { IconCopy } from "@tabler/icons-svelte";
@@ -273,23 +273,27 @@ function handleDeleteClick(event: Event & { preventDefault?: () => void }) {
 				{/if}
 			{/if}
 			{#if showActions}
-				<DropdownMenu.Root
-					onOpenChange={(open) => {
-						if (!open) deleteConfirming = false;
-					}}
+				<div
+					class="opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto [&:has([data-state=open])]:opacity-100 [&:has([data-state=open])]:pointer-events-auto"
+					onclick={(e) => e.stopPropagation()}
+					role="none"
 				>
-					<DropdownMenu.Trigger
-						class="opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-muted/60 text-muted-foreground hover:text-foreground transition-opacity hover:bg-muted data-[state=open]:opacity-100 data-[state=open]:pointer-events-auto"
-						onclick={(e) => e.stopPropagation()}
+					<Selector
+						align="end"
+						side="bottom"
+						variant="ghost"
+						triggerSize="icon"
+						showChevron={false}
+						triggerAriaLabel="File actions"
+						onOpenChange={(open) => {
+							if (!open) deleteConfirming = false;
+						}}
 					>
-						<IconDots class="h-3.5 w-3.5" />
-					</DropdownMenu.Trigger>
-					<DropdownMenu.Portal>
-						<DropdownMenu.Content
-							align="end"
-							side="bottom"
-							class="w-44 rounded-lg px-1 py-1 text-xs"
-						>
+						{#snippet renderButton()}
+							<IconDots class="h-3.5 w-3.5" />
+						{/snippet}
+
+						<div class="w-44 rounded-lg px-1 py-1 text-xs">
 							{#if onCopyPath}
 								<DropdownMenu.Item
 									class="group/item !py-1 cursor-pointer data-[highlighted]:[&_svg]:!text-primary"
@@ -400,9 +404,9 @@ function handleDeleteClick(event: Event & { preventDefault?: () => void }) {
 									{"Delete"}
 								</DropdownMenu.Item>
 							{/if}
-						</DropdownMenu.Content>
-					</DropdownMenu.Portal>
-				</DropdownMenu.Root>
+						</div>
+					</Selector>
+				</div>
 			{/if}
 		</div>
 	</ContextMenu.Trigger>

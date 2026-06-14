@@ -1,8 +1,24 @@
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+
 import { sveltekit } from "@sveltejs/kit/vite";
 import tailwindcss from "@tailwindcss/vite";
 import { defineConfig } from "vitest/config";
 
 const host = process.env.TAURI_DEV_HOST;
+const viteConfigDir = path.dirname(fileURLToPath(import.meta.url));
+const uiPackageSrc = path.resolve(viteConfigDir, "../ui/src");
+
+/** @returns {import("vite").Plugin} */
+function watchUiPackage() {
+	return {
+		name: "acepe-watch-ui-package",
+		configureServer(server) {
+			server.watcher.add(uiPackageSrc);
+		},
+	};
+}
+
 const ignoredDevWatchPaths = [
 	"**/src-tauri/**",
 	"**/__tests__/**",
@@ -23,7 +39,7 @@ export default defineConfig({
 	worker: {
 		format: "es",
 	},
-	plugins: [sveltekit(), tailwindcss()],
+	plugins: [watchUiPackage(), sveltekit(), tailwindcss()],
 
 	// Pre-bundle icon libraries to avoid HMR issues with dynamic imports
 	optimizeDeps: {
@@ -49,9 +65,9 @@ export default defineConfig({
 		watch: {
 			// 3. ignore backend sources, generated outputs, and test-only files that should never reload the app UI
 			ignored: ignoredDevWatchPaths,
-			// 4. watch the sibling @acepe/ui package — chokidar only watches under the Vite root
-			//    (packages/desktop/) by default, so edits in packages/ui/ would otherwise be invisible to HMR
-			paths: ["../ui/src"],
+		},
+		fs: {
+			allow: [uiPackageSrc],
 		},
 	},
 

@@ -2,7 +2,6 @@
 import { DiffPill, Selector } from "@acepe/ui";
 import { Colors } from "@acepe/ui/colors";
 import * as DropdownMenu from "@acepe/ui/dropdown-menu";
-import ChevronDown from "@lucide/svelte/icons/chevron-down";
 import {
 	BookOpen,
 	Bug,
@@ -211,10 +210,10 @@ function openCreateBranchDialog(): void {
 		bind:open={branchPopoverOpen}
 		disabled={!projectPath}
 		align="end"
-		contentClass="z-[var(--app-blocking-z)] isolate w-[272px]"
+		blockingOverlay
 		variant="ghost"
 		class="w-full h-full"
-		buttonClass={cn(variant === "minimal" && minimalTriggerClass)}
+		triggerSize={variant === "minimal" ? "minimal" : "default"}
 	>
 		{#snippet renderButton()}
 			<GitBranch class="size-3 shrink-0" weight="fill" style="color: {Colors.purple}" />
@@ -299,51 +298,44 @@ function openCreateBranchDialog(): void {
 		<div class="space-y-3 py-2">
 			<label for="new-branch-name" class="text-sm font-medium">Branch name</label>
 			<div class="flex items-stretch">
-				<DropdownMenu.Root bind:open={prefixDropdownOpen}>
-					<DropdownMenu.Trigger>
-						{#snippet child({ props })}
-							<button
-								{...props}
-								type="button"
-								class="flex items-center gap-1.5 rounded-l-md border border-r-0 border-border bg-muted/50 px-2.5 text-xs hover:bg-accent transition-colors shrink-0"
-							>
-								<selectedPrefix.icon
-									class="h-3.5 w-3.5 shrink-0"
-									weight="fill"
-									style="color: {selectedPrefix.color}"
-								/>
-								<span class="font-mono">{selectedPrefix.value || "\u2014"}</span>
-								<ChevronDown
-									class={cn(
-										"h-3 w-3 text-muted-foreground transition-transform duration-200",
-										prefixDropdownOpen && "rotate-180"
-									)}
-								/>
-							</button>
-						{/snippet}
-					</DropdownMenu.Trigger>
-					<DropdownMenu.Content align="start" sideOffset={4} class="min-w-[10rem]">
-						{#each BRANCH_PREFIXES as prefix (prefix.label)}
-							<DropdownMenu.Item
-								onSelect={() => {
-									selectedPrefix = prefix;
-									prefixDropdownOpen = false;
-									queueMicrotask(() => newBranchInputRef?.focus());
-								}}
-							>
-								<prefix.icon
-									class="h-3.5 w-3.5 shrink-0"
-									weight="fill"
-									style="color: {prefix.color}"
-								/>
-								<span class="flex-1">{prefix.label}</span>
-								{#if selectedPrefix === prefix}
-									<Check class="size-4 shrink-0 text-foreground" />
-								{/if}
-							</DropdownMenu.Item>
-						{/each}
-					</DropdownMenu.Content>
-				</DropdownMenu.Root>
+				<Selector
+					bind:open={prefixDropdownOpen}
+					align="start"
+					sideOffset={4}
+					blockingOverlay
+					variant="outline"
+					triggerSize="minimal"
+					class="shrink-0 rounded-l-md border-r-0"
+				>
+					{#snippet renderButton()}
+						<selectedPrefix.icon
+							class="h-3.5 w-3.5 shrink-0"
+							weight="fill"
+							style="color: {selectedPrefix.color}"
+						/>
+						<span class="font-mono">{selectedPrefix.value || "\u2014"}</span>
+					{/snippet}
+
+					{#each BRANCH_PREFIXES as prefix (prefix.label)}
+						<DropdownMenu.Item
+							onSelect={() => {
+								selectedPrefix = prefix;
+								prefixDropdownOpen = false;
+								queueMicrotask(() => newBranchInputRef?.focus());
+							}}
+						>
+							<prefix.icon
+								class="h-3.5 w-3.5 shrink-0"
+								weight="fill"
+								style="color: {prefix.color}"
+							/>
+							<span class="flex-1">{prefix.label}</span>
+							{#if selectedPrefix === prefix}
+								<Check class="size-4 shrink-0 text-foreground" />
+							{/if}
+						</DropdownMenu.Item>
+					{/each}
+				</Selector>
 
 				<Input
 					id="new-branch-name"

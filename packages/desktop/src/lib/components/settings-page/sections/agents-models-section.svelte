@@ -1,4 +1,5 @@
 <script lang="ts">
+import { Selector } from "@acepe/ui";
 import * as DropdownMenu from "@acepe/ui/dropdown-menu";
 import { CaretDown, Check } from "phosphor-svelte";
 import { toast } from "svelte-sonner";
@@ -116,49 +117,40 @@ function setAgentChecked(agentId: string, checked: boolean): void {
 <div class="w-full space-y-8">
 	<div class="flex items-center justify-between border-b border-border/30 py-2.5">
 		<span class="text-[13px] font-medium text-foreground">Default agent</span>
-		<DropdownMenu.Root>
-			<DropdownMenu.Trigger>
-				{#snippet child({ props })}
-					<button
-						{...props}
-						type="button"
-						class="flex h-7 items-center gap-1.5 rounded-md px-2 text-muted-foreground transition-colors hover:bg-accent"
-					>
-						{#if defaultAgent}
-							<AgentIcon agentId={defaultAgent.id} class="size-3.5 shrink-0" size={14} />
-							<span class="text-[13px] font-medium text-foreground">{defaultAgent.name}</span>
-						{:else}
-							<span class="text-[13px] font-medium text-foreground">First available</span>
-						{/if}
-						<CaretDown class="ml-1 size-2.5 shrink-0 opacity-40" weight="bold" />
-					</button>
-				{/snippet}
-			</DropdownMenu.Trigger>
-			<DropdownMenu.Content align="end" class="w-[220px]">
-				<DropdownMenu.Item onclick={() => void agentPreferencesStore.setDefaultAgentId(null)}>
+		<Selector align="end" variant="ghost" triggerSize="minimal" showChevron={false}>
+			{#snippet renderButton()}
+				{#if defaultAgent}
+					<AgentIcon agentId={defaultAgent.id} class="size-3.5 shrink-0" size={14} />
+					<span class="text-[13px] font-medium text-foreground">{defaultAgent.name}</span>
+				{:else}
+					<span class="text-[13px] font-medium text-foreground">First available</span>
+				{/if}
+				<CaretDown class="ml-1 size-2.5 shrink-0 opacity-40" weight="bold" />
+			{/snippet}
+
+			<DropdownMenu.Item onclick={() => void agentPreferencesStore.setDefaultAgentId(null)}>
+				<div class="flex items-center gap-2">
+					<Check
+						class={defaultAgentId === null ? "size-3 text-foreground" : "size-3 text-transparent"}
+						weight="bold"
+					/>
+					<span class="text-[13px]">First available</span>
+				</div>
+			</DropdownMenu.Item>
+			<DropdownMenu.Separator />
+			{#each selectableAgents as agent (agent.id)}
+				<DropdownMenu.Item onclick={() => void agentPreferencesStore.setDefaultAgentId(agent.id)}>
 					<div class="flex items-center gap-2">
 						<Check
-							class={defaultAgentId === null ? "size-3 text-foreground" : "size-3 text-transparent"}
+							class={agent.id === defaultAgentId ? "size-3 text-foreground" : "size-3 text-transparent"}
 							weight="bold"
 						/>
-						<span class="text-[13px]">First available</span>
+						<AgentIcon agentId={agent.id} class="size-3.5 shrink-0" size={14} />
+						<span class="text-[13px]">{agent.name}</span>
 					</div>
 				</DropdownMenu.Item>
-				<DropdownMenu.Separator />
-				{#each selectableAgents as agent (agent.id)}
-					<DropdownMenu.Item onclick={() => void agentPreferencesStore.setDefaultAgentId(agent.id)}>
-						<div class="flex items-center gap-2">
-							<Check
-								class={agent.id === defaultAgentId ? "size-3 text-foreground" : "size-3 text-transparent"}
-								weight="bold"
-							/>
-							<AgentIcon agentId={agent.id} class="size-3.5 shrink-0" size={14} />
-							<span class="text-[13px]">{agent.name}</span>
-						</div>
-					</DropdownMenu.Item>
-				{/each}
-			</DropdownMenu.Content>
-		</DropdownMenu.Root>
+			{/each}
+		</Selector>
 	</div>
 
 	<div

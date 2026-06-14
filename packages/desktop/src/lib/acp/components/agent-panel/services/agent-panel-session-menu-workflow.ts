@@ -6,7 +6,7 @@ import type { Result } from "neverthrow";
 import { toast } from "svelte-sonner";
 import { openFileInEditor } from "$lib/utils/tauri-client/opener.js";
 import { revealInFinder, tauriClient } from "$lib/utils/tauri-client.js";
-import type { SessionExportContentError } from "../../../store/session-store.svelte.js";
+import type { SessionExportContentError } from "../../../store/session-graph-builders.js";
 import type { createLogger } from "../../../utils/logger.js";
 import { copyTextToClipboard } from "../logic/clipboard-manager.js";
 import { getOpenInFinderTarget } from "../logic/open-in-finder-target.js";

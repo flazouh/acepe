@@ -1,18 +1,16 @@
 <script lang="ts">
-import { DiffPill } from "@acepe/ui";
+import { DiffPill, Selector } from "@acepe/ui";
 import {
 	AppSidebarProjectGroup,
 	ProjectHeader,
 	ProjectHeaderOverflowMenu,
 } from "@acepe/ui/app-layout";
 import { Colors } from "@acepe/ui/colors";
-import ChevronDown from "@lucide/svelte/icons/chevron-down";
 import ChevronUp from "@lucide/svelte/icons/chevron-up";
 import { IconArrowDown } from "@tabler/icons-svelte";
 import { IconArrowUp } from "@tabler/icons-svelte";
 import { IconPlus } from "@tabler/icons-svelte";
 import { listen } from "@tauri-apps/api/event";
-import { DropdownMenu } from "bits-ui";
 import { ArrowsClockwise } from "phosphor-svelte";
 import { BookOpen } from "phosphor-svelte";
 import { Bug } from "phosphor-svelte";
@@ -925,50 +923,37 @@ function openCreateBranchDialog(projectPath: string): void {
 						{@const behind = gitData.remoteStatus?.behind ?? 0}
 						<div class="shrink-0 flex items-center border-t border-border/30">
 							<!-- Branch picker segment (branch name + diff only) -->
-							<DropdownMenu.Root
+							<Selector
 								open={openBranchPickerProject === group.projectPath}
 								onOpenChange={(isOpen) => {
 									openBranchPickerProject = isOpen ? group.projectPath : null;
 								}}
+								align="start"
+								blockingOverlay
+								variant="ghost"
+								class="min-w-0 flex-1"
+								triggerSize="default"
 							>
-								<DropdownMenu.Trigger>
-									{#snippet child({ props })}
-										<button
-											{...props}
-											class="flex h-7 min-w-0 flex-1 cursor-pointer items-center gap-1 rounded-md px-2 text-xs transition-colors hover:bg-background/70"
-										>
-											<GitBranch
-												class="h-3 w-3 shrink-0"
-												weight="fill"
-												style="color: {Colors.purple}"
-											/>
-											<span class="font-mono truncate leading-none text-[11px]">
-												{gitData.branch ?? "branch"}
-											</span>
-											{#if totalIns > 0 || totalDel > 0}
-												<DiffPill
-													insertions={totalIns}
-													deletions={totalDel}
-													variant="plain"
-													class="text-[11px]"
-												/>
-											{/if}
-											<ChevronDown
-												class="h-2.5 w-2.5 shrink-0 text-muted-foreground ml-auto transition-transform duration-200 {openBranchPickerProject ===
-												group.projectPath
-													? 'rotate-180'
-													: ''}"
-											/>
-										</button>
-									{/snippet}
-								</DropdownMenu.Trigger>
-								<DropdownMenu.Portal>
-								<DropdownMenu.Content
-									align="start"
-									sideOffset={4}
-									class="z-[var(--app-blocking-z)] isolate w-[260px] overflow-hidden rounded-lg border border-border bg-popover p-1.5 text-popover-foreground shadow-md data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=top]:slide-in-from-bottom-2 data-[state=closed]:animate-out data-[state=open]:animate-in"
-								>
-										<div class="space-y-2">
+								{#snippet renderButton()}
+									<GitBranch
+										class="h-3 w-3 shrink-0"
+										weight="fill"
+										style="color: {Colors.purple}"
+									/>
+									<span class="font-mono truncate leading-none text-[11px]">
+										{gitData.branch ?? "branch"}
+									</span>
+									{#if totalIns > 0 || totalDel > 0}
+										<DiffPill
+											insertions={totalIns}
+											deletions={totalDel}
+											variant="plain"
+											class="text-[11px]"
+										/>
+									{/if}
+								{/snippet}
+
+								<div class="w-[260px] space-y-2">
 											<!-- Search input -->
 											<div class="relative">
 												<MagnifyingGlass
@@ -1033,9 +1018,7 @@ function openCreateBranchDialog(projectPath: string): void {
 												</button>
 											</div>
 										</div>
-									</DropdownMenu.Content>
-								</DropdownMenu.Portal>
-							</DropdownMenu.Root>
+							</Selector>
 
 							<!-- Up/down widget: ahead & behind counts + Update (pull) when behind -->
 							<div class="flex items-center shrink-0 text-[11px] font-mono leading-none text-muted-foreground">
@@ -1176,56 +1159,46 @@ function openCreateBranchDialog(projectPath: string): void {
 			<!-- Button group: prefix selector + input -->
 			<div class="flex items-stretch">
 				<!-- Prefix dropdown trigger -->
-				<DropdownMenu.Root bind:open={prefixDropdownOpen}>
-					<DropdownMenu.Trigger>
-						{#snippet child({ props })}
-							<button
-								{...props}
-								type="button"
-								class="flex items-center gap-1.5 rounded-l-md border border-r-0 border-border bg-muted/50 px-2.5 text-xs hover:bg-accent transition-colors shrink-0"
-							>
-								<selectedPrefix.icon
-									class="h-3.5 w-3.5 shrink-0"
-									weight="fill"
-									style="color: {selectedPrefix.color}"
-								/>
-								<span class="font-mono">{selectedPrefix.value || "—"}</span>
-								<ChevronDown
-									class="h-3 w-3 text-muted-foreground transition-transform duration-200 {prefixDropdownOpen
-										? 'rotate-180'
-										: ''}"
-								/>
-							</button>
-						{/snippet}
-					</DropdownMenu.Trigger>
-					<DropdownMenu.Content
-						align="start"
-						sideOffset={4}
-						class="min-w-[10rem] overflow-hidden rounded-lg border border-border bg-popover p-1 text-popover-foreground shadow-md data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=top]:slide-in-from-bottom-2 data-[state=closed]:animate-out data-[state=open]:animate-in"
-					>
-						{#each BRANCH_PREFIXES as prefix (prefix.label)}
-							<button
-								type="button"
-								class="w-full flex items-center gap-2 rounded-md px-2 py-1.5 text-xs hover:bg-accent"
-								onclick={() => {
-									selectedPrefix = prefix;
-									prefixDropdownOpen = false;
-									queueMicrotask(() => newBranchInputRef?.focus());
-								}}
-							>
-								<prefix.icon
-									class="h-3.5 w-3.5 shrink-0"
-									weight="fill"
-									style="color: {prefix.color}"
-								/>
-								<span>{prefix.label}</span>
-								{#if selectedPrefix === prefix}
-									<Check class="h-3.5 w-3.5 ml-auto text-foreground shrink-0" />
-								{/if}
-							</button>
-						{/each}
-					</DropdownMenu.Content>
-				</DropdownMenu.Root>
+				<Selector
+					bind:open={prefixDropdownOpen}
+					align="start"
+					sideOffset={4}
+					blockingOverlay
+					variant="outline"
+					triggerSize="minimal"
+					class="shrink-0 rounded-l-md border-r-0"
+				>
+					{#snippet renderButton()}
+						<selectedPrefix.icon
+							class="h-3.5 w-3.5 shrink-0"
+							weight="fill"
+							style="color: {selectedPrefix.color}"
+						/>
+						<span class="font-mono">{selectedPrefix.value || "—"}</span>
+					{/snippet}
+
+					{#each BRANCH_PREFIXES as prefix (prefix.label)}
+						<button
+							type="button"
+							class="w-full flex items-center gap-2 rounded-md px-2 py-1.5 text-xs hover:bg-accent"
+							onclick={() => {
+								selectedPrefix = prefix;
+								prefixDropdownOpen = false;
+								queueMicrotask(() => newBranchInputRef?.focus());
+							}}
+						>
+							<prefix.icon
+								class="h-3.5 w-3.5 shrink-0"
+								weight="fill"
+								style="color: {prefix.color}"
+							/>
+							<span>{prefix.label}</span>
+							{#if selectedPrefix === prefix}
+								<Check class="h-3.5 w-3.5 ml-auto text-foreground shrink-0" />
+							{/if}
+						</button>
+					{/each}
+				</Selector>
 
 				<!-- Branch name input -->
 				<Input

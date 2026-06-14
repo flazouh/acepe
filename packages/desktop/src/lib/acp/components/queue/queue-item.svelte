@@ -414,6 +414,7 @@ function handleNextQuestion() {
 		color={item.projectColor}
 		iconSrc={item.projectIconSrc}
 		size={16}
+		sequenceId={item.sequenceId}
 	/>
 {/snippet}
 

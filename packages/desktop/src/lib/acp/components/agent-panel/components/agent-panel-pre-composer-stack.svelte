@@ -197,12 +197,9 @@ let {
 								title={errorInfo.title}
 								summary={errorInfo.summary ?? "Failed to connect to agent"}
 								details={errorInfo.details ?? "Unknown error"}
-								referenceId={inlineErrorReferenceId}
-								referenceSearchable={inlineErrorReferenceSearchable}
 								isRetrying={isRetryingConnection}
 								onRetry={onRetryConnection}
 								onDismiss={onDismissError}
-								onCopyReferenceId={onCopyInlineErrorReference}
 								issueActionLabel={inlineErrorIssueDraft
 									? resolveIssueActionLabel(inlineErrorIssueDraft)
 									: "Create issue"}

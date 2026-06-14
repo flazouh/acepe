@@ -206,7 +206,7 @@ async function handleTransferPrLink(otherSessionId: string, prNumber: number): P
 					<span class="text-[10px] text-muted-foreground tabular-nums">#{linkedPr.prNumber}</span>
 				{/if}
 			</DropdownMenu.SubTrigger>
-			<DropdownMenu.SubContent class="w-[300px] p-0 overflow-hidden">
+			<DropdownMenu.SubContent class="w-[300px] overflow-hidden">
 				{#if showSearchInput}
 					<div class="px-2 py-1.5">
 						<Input bind:value={query} placeholder="Search open PRs" class="h-7 text-xs" />

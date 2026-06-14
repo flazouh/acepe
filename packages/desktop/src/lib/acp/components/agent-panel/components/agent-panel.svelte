@@ -74,6 +74,7 @@ import { AgentPanelViewStateController } from "../state/agent-panel-view-state-c
 import { AgentPanelWorktreeController } from "../state/agent-panel-worktree-controller.svelte.js";
 import {
 	ATTACHED_COLUMN_WIDTH,
+	BROWSER_SIDEBAR_COLUMN_WIDTH,
 	AgentPanelLayoutController,
 } from "../state/agent-panel-layout-controller.svelte.js";
 import { CheckpointTimelineController } from "../state/checkpoint-timeline-controller.svelte.js";
@@ -183,10 +184,14 @@ const sessionController: AgentPanelSessionController = new AgentPanelSessionCont
 	getAgentName: () => agentName,
 });
 
+const connectionStore = getConnectionStore();
+
 // Panel-connection state — owned by a testable controller. Mutually-referential
 // with sessionController via lazy accessors (stillFailed ↔ connection state/error).
 const connection: ConnectionController = new ConnectionController({
 	getStillFailed: () => sessionController.stillFailed,
+	connectionStore,
+	getPanelId: () => panelId ?? null,
 });
 
 setThinkingPreferences({
@@ -199,7 +204,6 @@ setThinkingPreferences({
 		);
 	},
 });
-const connectionStore = getConnectionStore();
 const interactionStore = getInteractionStore();
 const permissionStore = getPermissionStore();
 const agentStore = getAgentStore();
@@ -899,26 +903,8 @@ $effect(() => {
 });
 
 $effect(() => {
-	if (!panelId) {
-		connection.state = null;
-		connection.error = null;
-		return;
-	}
-
-	const existingState = connectionStore.getState(panelId);
-	const existingContext = connectionStore.getContext(panelId);
-	connection.state = existingState;
-	connection.error = existingContext?.error ?? null;
-
-	const unsubscribe = connectionStore.onChange((id, state, context) => {
-		if (id !== panelId) return;
-		connection.state = state;
-		connection.error = context.error ?? null;
-	});
-
-	return () => {
-		unsubscribe();
-	};
+	panelId;
+	return connection.syncSubscription();
 });
 
 // ✅ Effects for side effects - handle tab switching
@@ -1200,7 +1186,7 @@ function handleRetryConnection() {
 		project,
 		effectivePanelAgentId,
 		onClearErrorDismissed: () => {
-			connection.dismissedErrorKey = null;
+			connection.clearDismissedError();
 		},
 		onSendCancelToPanel: (id) => {
 			connectionStore.send(id, { type: PanelConnectionEvent.CANCEL });
@@ -1223,7 +1209,10 @@ function handleCancelConnection() {
 }
 
 function handleDismissError() {
-	connection.dismissedErrorKey = sessionController.errorDismissalKey;
+	const errorKey = sessionController.errorDismissalKey;
+	if (errorKey !== null) {
+		connection.dismissError(errorKey);
+	}
 }
 
 function handleCopyInlineErrorReference() {

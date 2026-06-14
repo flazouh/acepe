@@ -1,4 +1,5 @@
 <script lang="ts">
+import { Selector } from "@acepe/ui";
 import * as DropdownMenu from "@acepe/ui/dropdown-menu";
 import { IconPlus } from "@tabler/icons-svelte";
 import * as Tooltip from "$lib/components/ui/tooltip/index.js";
@@ -30,25 +31,18 @@ function handleAgentSelect(agent: AgentInfo) {
 </script>
 
 {#if hasMultipleAgents}
-	<DropdownMenu.Root>
-		<Tooltip.Root>
-			<Tooltip.Trigger>
-				<DropdownMenu.Trigger>
-					{#snippet child({ props })}
-						<button
-							{...props}
-							class="inline-flex items-center justify-center h-7 w-7 cursor-pointer text-muted-foreground hover:bg-accent hover:text-foreground transition-colors"
-						>
-							<IconPlus class="h-3 w-3" />
-						</button>
-					{/snippet}
-				</DropdownMenu.Trigger>
-			</Tooltip.Trigger>
-			<Tooltip.Content>
-				{`New session in ${projectName}`}
-			</Tooltip.Content>
-		</Tooltip.Root>
-		<DropdownMenu.Content align="start" class="flex gap-1 p-1.5 min-w-0">
+	<Selector
+		align="start"
+		triggerSize="square"
+		showChevron={false}
+		tooltipLabel={`New session in ${projectName}`}
+		variant="ghost"
+	>
+		{#snippet renderButton()}
+			<IconPlus class="h-3 w-3" />
+		{/snippet}
+
+		<div class="flex gap-1 p-1.5 min-w-0">
 			{#each availableAgents as agent (agent.id)}
 				<Tooltip.Root>
 					<Tooltip.Trigger>
@@ -70,8 +64,8 @@ function handleAgentSelect(agent: AgentInfo) {
 					</Tooltip.Content>
 				</Tooltip.Root>
 			{/each}
-		</DropdownMenu.Content>
-	</DropdownMenu.Root>
+		</div>
+	</Selector>
 {:else if singleAgent}
 	<Tooltip.Root>
 		<Tooltip.Trigger>

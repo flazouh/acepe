@@ -228,10 +228,7 @@ function handleCreateIssueReport(
 						title="Agent panel crashed"
 						summary={boundaryError.message || "Unexpected render error"}
 						details={formatAgentPanelBoundaryError(boundaryError)}
-						referenceId={boundaryReference.referenceId}
-						referenceSearchable={boundaryReference.searchable}
 						onRetry={reset}
-						onCopyReferenceId={() => handleCopyBoundaryReference(boundaryReference.referenceId)}
 						issueActionLabel={resolveIssueActionLabel(boundaryIssueDraft)}
 						onIssueAction={() => state.openUserReportsWithDraft(boundaryIssueDraft)}
 					/>

@@ -8,7 +8,6 @@ import QueueItemComponent from "./queue-item.svelte";
 const SECTION_LABELS: Record<QueueSectionId, () => string> = {
 	answer_needed: () => "Input needed",
 	planning: () => "Thinking",
-	working: () => "Running",
 	needs_review: () => "Needs Review",
 	error: () => "Error",
 };

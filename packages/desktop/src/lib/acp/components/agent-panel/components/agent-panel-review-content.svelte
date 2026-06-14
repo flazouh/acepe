@@ -45,7 +45,6 @@ interface Props {
 	projectPath?: string | null;
 	onClose: () => void;
 	onFileIndexChange: (index: number) => void;
-	onKeepActionChange?: (action: (() => void) | null, disabled: boolean) => void;
 	onControlsChange?: (controls: ReviewControlsSnapshot | null) => void;
 	hideBottomWidget?: boolean;
 	isActive?: boolean;
@@ -62,7 +61,6 @@ let {
 	projectPath = null,
 	onClose,
 	onFileIndexChange,
-	onKeepActionChange,
 	onControlsChange,
 	hideBottomWidget = false,
 	isActive = true,
@@ -298,10 +296,6 @@ function handleAcceptFile(): void {
 	diffViewStateRef.acceptAllPendingHunks();
 }
 
-function handleHeaderKeepFile(): void {
-	handleAcceptFile();
-}
-
 function handleRejectFile(): void {
 	if (!diffViewStateRef || !selectedFile || !hunkStats.hasPending) return;
 	diffViewStateRef.rejectActiveHunk();
@@ -386,17 +380,6 @@ $effect(() => {
 	if (!fp) {
 		diffViewStateRef = null;
 	}
-});
-
-$effect(() => {
-	if (!onKeepActionChange) return;
-
-	const disabled = !selectedFile || !hunkStats.hasPending;
-	onKeepActionChange(disabled ? null : handleHeaderKeepFile, disabled);
-
-	return () => {
-		onKeepActionChange(null, true);
-	};
 });
 
 $effect(() => {

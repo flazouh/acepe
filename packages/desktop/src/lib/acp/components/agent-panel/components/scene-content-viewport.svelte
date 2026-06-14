@@ -38,8 +38,12 @@ import {
 	outsideBufferScrollRecovery,
 	selectPhysicalScrollCommand,
 	shouldApplyPhysicalScrollCommand,
+	shouldContinueBottomPinRecovery,
+	shouldDispatchFollowTailPinOnLayoutGrowth,
 	shouldDispatchOutsideBufferRecovery,
 	shouldDispatchTailDetachScrollIntent,
+	shouldEmitSettledBottomPin,
+	shouldEmitSettledTopPin,
 	shouldIgnoreStaleFollowingTailTarget,
 	shouldPinHydratedFollowingTailProjection,
 	shouldPinFollowingTailToRenderedBottom,
@@ -155,20 +159,15 @@ let lastAppliedCorrectionEmissionSeq = -1;
 let lastFollowTailTotalHeightPx = -1;
 let suppressedProgrammaticScrollTopPx: number | null = null;
 let scrollIntentRafPending = false;
+// Live-input transients (bucket c): read synchronously inside scroll/wheel
+// handlers. Cannot move to the async store without breaking DOM-event timing.
 let locallyDetachedFromTail = false;
-let locallyPinnedToTop = false;
-let locallyPinnedToBottom = false;
 let userScrollingAwayFromTail = false;
-let pendingOutsideBufferScrollTopPx: number | null = null;
-let activeOutsideBufferRequestedScrollTopPx: number | null = null;
-let lastOutsideBufferRecoveryDispatchMs: number | null = null;
-let lastBottomRevealDispatchMs: number | null = null;
+let bottomJumpPinRequested = false;
 let outsideBufferRecoveryRafPending = false;
 let outsideBufferRecoveryFramesRemaining = 0;
 let bottomPinRecoveryRafPending = false;
 let bottomPinRecoveryFramesRemaining = 0;
-let bottomJumpPinRequested = false;
-let pendingQueuedScrollIntentPx: number | null = null;
 let queuedScrollIntentRafPending = false;
 let queuedScrollIntentInFlight = false;
 let physicalScrollRafPending = false;
@@ -197,6 +196,51 @@ const renderedRows = $derived.by(() => {
 
 const totalHeightPx = $derived(bufferProjection?.totalHeightPx ?? 0);
 
+const viewportClientScroll = $derived(sessionStore.getViewportClientScrollState(sessionId));
+
+function tailBufferHydrated(): boolean {
+	const projection = bufferProjection;
+	if (projection === null) {
+		return false;
+	}
+	return projection.bufferEndIndex >= projection.layoutRowCount;
+}
+
+function shouldEmitBottomPin(): boolean {
+	const projection = bufferProjection;
+	if (projection === null) {
+		return false;
+	}
+	return shouldEmitSettledBottomPin({
+		modeKind: projection.mode.kind,
+		tailBufferHydrated: tailBufferHydrated(),
+		bottomJumpPinRequested,
+	});
+}
+
+function isViewportTopRecoveryActive(): boolean {
+	const projection = bufferProjection;
+	if (projection === null) {
+		return false;
+	}
+	return shouldEmitSettledTopPin({
+		bufferStartAtLayoutTop: projection.bufferStartIndex === 0,
+		pendingRecoveryScrollTopPx: viewportClientScroll.pendingOutsideBufferScrollTopPx,
+		nearEdgeThresholdPx: NEAR_EDGE_THRESHOLD_PX,
+	});
+}
+
+let scrollOwnerSessionId: string | null = null;
+$effect(() => {
+	if (sessionId === scrollOwnerSessionId) {
+		return;
+	}
+	scrollOwnerSessionId = sessionId;
+	userScrollingAwayFromTail = false;
+	locallyDetachedFromTail = false;
+	bottomJumpPinRequested = false;
+});
+
 // Anchor for the flow-layout window: the canonical top of the first buffered
 // row. Rows below it flow naturally (block/flex column) so intra-window layout
 // can never overlap or gap regardless of estimate-vs-actual height drift.
@@ -207,7 +251,7 @@ const heightConfirmCoordinator = new TranscriptViewportHeightConfirmCoordinator(
 	getSessionId: () => sessionId,
 	getRevision: () => bufferProjection?.revision ?? null,
 	getLastViewportHeightPx: () => lastViewportHeightPx,
-	getLocallyPinnedToTop: () => locallyPinnedToTop,
+	getLocallyPinnedToTop: () => isViewportTopRecoveryActive(),
 	getLiveDetachedViewportOffsetPx: () => liveDetachedViewportOffsetPx(),
 	isDispatchSuppressed,
 	nextViewportRequestGeneration,
@@ -285,7 +329,10 @@ function dispatchScrollIntent(
 }
 
 function queueScrollIntent(offsetPx: number): void {
-	pendingQueuedScrollIntentPx = Math.max(0, Math.round(offsetPx));
+	if (sessionId === null) {
+		return;
+	}
+	sessionStore.setViewportPendingQueuedScrollIntentPx(sessionId, Math.max(0, Math.round(offsetPx)));
 	scheduleQueuedScrollIntent();
 }
 
@@ -302,8 +349,10 @@ function flushQueuedScrollIntent(): void {
 	if (queuedScrollIntentInFlight) {
 		return;
 	}
-	const nextOffsetPx = pendingQueuedScrollIntentPx;
-	pendingQueuedScrollIntentPx = null;
+	const nextOffsetPx = viewportClientScroll.pendingQueuedScrollIntentPx;
+	if (sessionId !== null) {
+		sessionStore.setViewportPendingQueuedScrollIntentPx(sessionId, null);
+	}
 	if (nextOffsetPx === null) {
 		return;
 	}
@@ -312,7 +361,7 @@ function flushQueuedScrollIntent(): void {
 
 function completeQueuedScrollIntent(): void {
 	queuedScrollIntentInFlight = false;
-	if (pendingQueuedScrollIntentPx !== null) {
+	if (viewportClientScroll.pendingQueuedScrollIntentPx !== null) {
 		scheduleQueuedScrollIntent();
 	}
 }
@@ -356,14 +405,18 @@ function dispatchRevealIntent(rowId: string | null): void {
 }
 
 function dispatchBottomRevealIntent(): void {
+	if (sessionId === null) {
+		return;
+	}
 	const nowMs = performance.now();
+	const lastBottomRevealDispatchMs = viewportClientScroll.lastBottomRevealDispatchMs;
 	if (
 		lastBottomRevealDispatchMs !== null &&
 		nowMs - lastBottomRevealDispatchMs < BOTTOM_REVEAL_RETRY_MS
 	) {
 		return;
 	}
-	lastBottomRevealDispatchMs = nowMs;
+	sessionStore.setViewportLastBottomRevealDispatchMs(sessionId, nowMs);
 	dispatchRevealIntent(null);
 }
 
@@ -517,7 +570,7 @@ function restoreDetachedScrollTargetIfOutsideBuffer(): boolean {
 		scrollContainerRef === null ||
 		projection === null ||
 		sessionId === null ||
-		pendingOutsideBufferScrollTopPx !== null
+		viewportClientScroll.pendingOutsideBufferScrollTopPx !== null
 	) {
 		return false;
 	}
@@ -554,7 +607,7 @@ function clampLiveScrollTopIntoRenderedBuffer(): boolean {
 	}
 	const current = Math.max(0, Math.round(scrollContainerRef.scrollTop));
 	const bufferTopPx = projection.offsetsPx[0] ?? 0;
-	if (locallyPinnedToTop && projection.bufferStartIndex === 0) {
+	if (isViewportTopRecoveryActive()) {
 		queuePhysicalScrollCommand("resolvedOutsideBufferTarget", 0, "immediate");
 		return true;
 	}
@@ -598,8 +651,11 @@ function scheduleBottomPinRecovery(resetFrameBudget = true): void {
 	requestAnimationFrame(() => {
 		bottomPinRecoveryRafPending = false;
 		if (
-			(!locallyPinnedToBottom && !bottomJumpPinRequested) ||
-			bottomPinRecoveryFramesRemaining <= 0
+			!shouldContinueBottomPinRecovery({
+				modeKind: bufferProjection?.mode.kind ?? "detached",
+				bottomJumpPinRequested,
+				framesRemaining: bottomPinRecoveryFramesRemaining,
+			})
 		) {
 			bottomPinRecoveryFramesRemaining = 0;
 			return;
@@ -629,13 +685,19 @@ function recoverOutsideBufferScrollTop(
 	observedScrollTopPx: number,
 	resetFrameBudget = true
 ): boolean {
-	if (scrollContainerRef === null || bufferProjection === null || bufferProjection.offsetsPx.length === 0) {
+	if (
+		scrollContainerRef === null ||
+		bufferProjection === null ||
+		bufferProjection.offsetsPx.length === 0 ||
+		sessionId === null
+	) {
 		return false;
 	}
+	const clientScroll = viewportClientScroll;
 	const bufferTopPx = bufferProjection.offsetsPx[0] ?? 0;
 	const recovery = outsideBufferScrollRecovery({
 		observedScrollTopPx,
-		pendingRequestedScrollTopPx: pendingOutsideBufferScrollTopPx,
+		pendingRequestedScrollTopPx: clientScroll.pendingOutsideBufferScrollTopPx,
 		viewportHeightPx: lastViewportHeightPx,
 		bufferTopPx,
 		bufferEndOffsetPx: bufferProjection.bufferEndOffsetPx,
@@ -645,17 +707,18 @@ function recoverOutsideBufferScrollTop(
 	}
 	const nowMs = performance.now();
 	const shouldDispatch = shouldDispatchOutsideBufferRecovery({
-		pendingRequestedScrollTopPx: pendingOutsideBufferScrollTopPx,
+		pendingRequestedScrollTopPx: clientScroll.pendingOutsideBufferScrollTopPx,
 		requestedScrollTopPx: recovery.requestedScrollTopPx,
-		lastDispatchMs: lastOutsideBufferRecoveryDispatchMs,
+		lastDispatchMs: clientScroll.lastOutsideBufferRecoveryDispatchMs,
 		nowMs,
 		retryIntervalMs: OUTSIDE_BUFFER_RECOVERY_RETRY_MS,
 	});
-	pendingOutsideBufferScrollTopPx = recovery.requestedScrollTopPx;
-	activeOutsideBufferRequestedScrollTopPx = recovery.requestedScrollTopPx;
+	sessionStore.setViewportPendingOutsideBufferScrollTopPx(
+		sessionId,
+		recovery.requestedScrollTopPx,
+		recovery.requestedScrollTopPx
+	);
 	if (recovery.requestedScrollTopPx <= NEAR_EDGE_THRESHOLD_PX) {
-		locallyPinnedToTop = true;
-		locallyPinnedToBottom = false;
 		bottomPinRecoveryFramesRemaining = 0;
 	}
 	if (
@@ -666,8 +729,6 @@ function recoverOutsideBufferScrollTop(
 			thresholdPx: NEAR_EDGE_THRESHOLD_PX,
 		})
 	) {
-		locallyPinnedToTop = false;
-		locallyPinnedToBottom = true;
 		bottomJumpPinRequested = true;
 		scheduleBottomPinRecovery();
 	}
@@ -677,10 +738,10 @@ function recoverOutsideBufferScrollTop(
 	if (Math.abs(recovery.clampedScrollTopPx - scrollContainerRef.scrollTop) > 1) {
 		queuePhysicalScrollCommand("outsideBufferClamp", recovery.clampedScrollTopPx, "immediate");
 	}
-		if (shouldDispatch) {
-			lastOutsideBufferRecoveryDispatchMs = nowMs;
-			dispatchScrollIntent(recovery.requestedScrollTopPx, { forceFresh: true });
-		}
+	if (shouldDispatch) {
+		sessionStore.setViewportLastOutsideBufferRecoveryDispatchMs(sessionId, nowMs);
+		dispatchScrollIntent(recovery.requestedScrollTopPx, { forceFresh: true });
+	}
 	scheduleOutsideBufferRecovery();
 	return true;
 }
@@ -701,9 +762,10 @@ function scheduleOutsideBufferRecovery(): void {
 		}
 		outsideBufferRecoveryFramesRemaining -= 1;
 		const observedScrollTopPx = Math.max(0, Math.round(scrollContainerRef.scrollTop));
-		const recoveryScrollTopPx = pendingOutsideBufferScrollTopPx ?? observedScrollTopPx;
+		const recoveryScrollTopPx =
+			viewportClientScroll.pendingOutsideBufferScrollTopPx ?? observedScrollTopPx;
 		const recovered = recoverOutsideBufferScrollTop(recoveryScrollTopPx, false);
-		if (!recovered && pendingOutsideBufferScrollTopPx !== null) {
+		if (!recovered && viewportClientScroll.pendingOutsideBufferScrollTopPx !== null) {
 			scheduleOutsideBufferRecovery();
 		}
 	});
@@ -717,20 +779,29 @@ function handleScroll(event: Event): void {
 	updateEdgeFlags(offsetPx);
 	const liveNearBottomNow = isLiveViewportNearBottom();
 	if (liveNearBottomNow && !userScrollingAwayFromTail) {
-		locallyPinnedToTop = false;
-		locallyPinnedToBottom = true;
-		scheduleBottomPinRecovery();
-		if (
-			activeOutsideBufferRequestedScrollTopPx !== null &&
-			activeOutsideBufferRequestedScrollTopPx <= NEAR_EDGE_THRESHOLD_PX
-		) {
-			activeOutsideBufferRequestedScrollTopPx = null;
+		if (bufferProjection?.mode.kind === "followingTail") {
+			scheduleBottomPinRecovery();
 		}
-		if (
-			pendingOutsideBufferScrollTopPx !== null &&
-			pendingOutsideBufferScrollTopPx <= NEAR_EDGE_THRESHOLD_PX
-		) {
-			pendingOutsideBufferScrollTopPx = null;
+		if (sessionId !== null) {
+			const activeOutsideBufferRequestedScrollTopPx =
+				viewportClientScroll.activeOutsideBufferRequestedScrollTopPx;
+			const pendingOutsideBufferScrollTopPx = viewportClientScroll.pendingOutsideBufferScrollTopPx;
+			if (
+				activeOutsideBufferRequestedScrollTopPx !== null &&
+				activeOutsideBufferRequestedScrollTopPx <= NEAR_EDGE_THRESHOLD_PX
+			) {
+				sessionStore.setViewportPendingOutsideBufferScrollTopPx(
+					sessionId,
+					pendingOutsideBufferScrollTopPx,
+					null
+				);
+			}
+			if (
+				pendingOutsideBufferScrollTopPx !== null &&
+				pendingOutsideBufferScrollTopPx <= NEAR_EDGE_THRESHOLD_PX
+			) {
+				sessionStore.setViewportPendingOutsideBufferScrollTopPx(sessionId, null, null);
+			}
 		}
 		if (
 			pendingPhysicalScrollCommand?.reason === "resolvedOutsideBufferTarget" &&
@@ -754,8 +825,6 @@ function handleScroll(event: Event): void {
 		dispatchBottomRevealIntent();
 	}
 	if (immediateScrollTopPx <= NEAR_EDGE_THRESHOLD_PX) {
-		locallyPinnedToTop = true;
-		locallyPinnedToBottom = false;
 		bottomJumpPinRequested = false;
 		bottomPinRecoveryFramesRemaining = 0;
 	}
@@ -778,7 +847,7 @@ function handleScroll(event: Event): void {
 			return;
 		}
 		const scrollTopPx = Math.max(0, Math.round(scrollContainerRef.scrollTop));
-		if (pendingOutsideBufferScrollTopPx !== null) {
+		if (viewportClientScroll.pendingOutsideBufferScrollTopPx !== null) {
 			scheduleOutsideBufferRecovery();
 			return;
 		}
@@ -828,7 +897,6 @@ function handleScroll(event: Event): void {
 function handleWheel(event: WheelEvent): void {
 	if (event.deltaY > 0) {
 		userScrollingAwayFromTail = false;
-		locallyPinnedToTop = false;
 		if (
 			scrollContainerRef !== null &&
 			sessionId !== null &&
@@ -854,7 +922,7 @@ function handleWheel(event: WheelEvent): void {
 				queueScrollIntent(
 					accumulateQueuedScrollIntentAtEdge({
 						direction: "down",
-						queuedScrollIntentPx: pendingQueuedScrollIntentPx,
+						queuedScrollIntentPx: viewportClientScroll.pendingQueuedScrollIntentPx,
 						nextScrollIntentPx: target,
 						viewportHeightPx: lastViewportHeightPx,
 						wheelDeltaYPx: event.deltaY,
@@ -866,7 +934,6 @@ function handleWheel(event: WheelEvent): void {
 	}
 	if (event.deltaY < 0) {
 		userScrollingAwayFromTail = true;
-		locallyPinnedToBottom = false;
 		bottomJumpPinRequested = false;
 		bottomPinRecoveryFramesRemaining = 0;
 		if (
@@ -894,7 +961,7 @@ function handleWheel(event: WheelEvent): void {
 				queueScrollIntent(
 					accumulateQueuedScrollIntentAtEdge({
 						direction: "up",
-						queuedScrollIntentPx: pendingQueuedScrollIntentPx,
+						queuedScrollIntentPx: viewportClientScroll.pendingQueuedScrollIntentPx,
 						nextScrollIntentPx: target,
 						viewportHeightPx: lastViewportHeightPx,
 						wheelDeltaYPx: event.deltaY,
@@ -979,8 +1046,10 @@ $effect(() => {
 	if (projection === null) {
 		return;
 	}
+	const clientScroll = viewportClientScroll;
 	const requestedScrollTopPx =
-		pendingOutsideBufferScrollTopPx ?? activeOutsideBufferRequestedScrollTopPx;
+		clientScroll.pendingOutsideBufferScrollTopPx ??
+		clientScroll.activeOutsideBufferRequestedScrollTopPx;
 	const shouldPinBottomAfterRenderedRecovery =
 		requestedScrollTopPx !== null &&
 		projection.bufferEndIndex >= projection.layoutRowCount &&
@@ -992,20 +1061,19 @@ $effect(() => {
 		});
 	projection.emissionSeq;
 	void tick().then(() => {
-		if (
-			locallyPinnedToTop &&
-			scrollContainerRef !== null &&
-			projection.bufferStartIndex === 0
-		) {
+		if (isViewportTopRecoveryActive() && scrollContainerRef !== null && projection.bufferStartIndex === 0) {
 			queuePhysicalScrollCommand("resolvedOutsideBufferTarget", 0, "immediate");
 			scheduleVisibleHeightConfirmations();
 			return;
 		}
-			if ((locallyPinnedToBottom || shouldPinBottomAfterRenderedRecovery) && pinLiveScrollTopToRenderedBottom()) {
-				scheduleBottomPinRecovery();
-				scheduleVisibleHeightConfirmations();
-				return;
-			}
+		const settledBottomPin =
+			shouldEmitBottomPin() ||
+			(shouldPinBottomAfterRenderedRecovery && bottomJumpPinRequested);
+		if (settledBottomPin && pinLiveScrollTopToRenderedBottom()) {
+			scheduleBottomPinRecovery();
+			scheduleVisibleHeightConfirmations();
+			return;
+		}
 		if (
 			shouldPinHydratedFollowingTailProjection({
 				modeKind: projection.mode.kind,
@@ -1015,7 +1083,6 @@ $effect(() => {
 			}) &&
 			pinLiveScrollTopToRenderedBottom()
 		) {
-			locallyPinnedToBottom = true;
 			scheduleBottomPinRecovery();
 			scheduleVisibleHeightConfirmations();
 			return;
@@ -1029,11 +1096,14 @@ $effect(() => {
 
 $effect(() => {
 	const projection = bufferProjection;
+	const clientScroll = viewportClientScroll;
 	const requestedScrollTopPx =
-		pendingOutsideBufferScrollTopPx ?? activeOutsideBufferRequestedScrollTopPx;
+		clientScroll.pendingOutsideBufferScrollTopPx ??
+		clientScroll.activeOutsideBufferRequestedScrollTopPx;
 	if (projection === null || requestedScrollTopPx === null || sessionId === null) {
 		return;
 	}
+	const activeOutsideBufferRequestedScrollTopPx = clientScroll.activeOutsideBufferRequestedScrollTopPx;
 	projection.emissionSeq;
 	void tick().then(() => {
 		if (
@@ -1046,9 +1116,7 @@ $effect(() => {
 			return;
 		}
 		if (Math.abs(scrollContainerRef.scrollTop - requestedScrollTopPx) <= 1) {
-			pendingOutsideBufferScrollTopPx = null;
-			activeOutsideBufferRequestedScrollTopPx = null;
-			lastOutsideBufferRecoveryDispatchMs = null;
+			sessionStore.clearViewportOutsideBufferRecovery(sessionId);
 			outsideBufferRecoveryFramesRemaining = 0;
 			return;
 		}
@@ -1060,13 +1128,13 @@ $effect(() => {
 				thresholdPx: NEAR_EDGE_THRESHOLD_PX,
 			})
 		) {
-			locallyPinnedToBottom = true;
+			if (!shouldEmitBottomPin() && !bottomJumpPinRequested) {
+				return;
+			}
 			if (!pinLiveScrollTopToRenderedBottom()) {
 				return;
 			}
-			pendingOutsideBufferScrollTopPx = null;
-			activeOutsideBufferRequestedScrollTopPx = null;
-			lastOutsideBufferRecoveryDispatchMs = null;
+			sessionStore.clearViewportOutsideBufferRecovery(sessionId);
 			outsideBufferRecoveryFramesRemaining = 0;
 			scheduleBottomPinRecovery();
 			return;
@@ -1076,9 +1144,7 @@ $effect(() => {
 			requestedScrollTopPx,
 			"immediate"
 		);
-		pendingOutsideBufferScrollTopPx = null;
-		activeOutsideBufferRequestedScrollTopPx = null;
-		lastOutsideBufferRecoveryDispatchMs = null;
+		sessionStore.clearViewportOutsideBufferRecovery(sessionId);
 		outsideBufferRecoveryFramesRemaining = 0;
 	});
 });
@@ -1101,7 +1167,7 @@ $effect(() => {
 		if (scrollContainerRef === null) {
 			return;
 		}
-		if (pendingOutsideBufferScrollTopPx !== null) {
+		if (viewportClientScroll.pendingOutsideBufferScrollTopPx !== null) {
 			return;
 		}
 		if (
@@ -1149,10 +1215,13 @@ $effect(() => {
 		if (correction === 0) {
 			return;
 		}
-	if (locallyPinnedToTop && bufferProjection?.bufferStartIndex === 0) {
+	if (isViewportTopRecoveryActive() && bufferProjection?.bufferStartIndex === 0) {
 		return;
 	}
-	if (locallyPinnedToBottom && bufferProjection?.bufferEndIndex === bufferProjection?.layoutRowCount) {
+	if (
+		shouldEmitBottomPin() &&
+		bufferProjection?.bufferEndIndex === bufferProjection?.layoutRowCount
+	) {
 		pinLiveScrollTopToRenderedBottom();
 		return;
 	}
@@ -1181,7 +1250,14 @@ $effect(() => {
 	if (locallyDetachedFromTail) {
 		return;
 	}
-	if (totalHeightPx === lastFollowTailTotalHeightPx) {
+	if (
+		!shouldDispatchFollowTailPinOnLayoutGrowth({
+			modeKind: projection.mode.kind,
+			locallyDetachedFromTail,
+			previousTotalHeightPx: lastFollowTailTotalHeightPx,
+			currentTotalHeightPx: totalHeightPx,
+		})
+	) {
 		return;
 	}
 	lastFollowTailTotalHeightPx = totalHeightPx;
@@ -1220,8 +1296,6 @@ $effect(() => {
 export function scrollToBottom(_options?: { force?: boolean }) {
 	userScrollingAwayFromTail = false;
 	locallyDetachedFromTail = false;
-	locallyPinnedToTop = false;
-	locallyPinnedToBottom = true;
 	bottomJumpPinRequested = true;
 	pinLiveScrollTopToRenderedBottom();
 	scheduleBottomPinRecovery();

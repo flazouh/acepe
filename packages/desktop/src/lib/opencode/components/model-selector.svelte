@@ -1,11 +1,10 @@
 <script lang="ts">
+import { Selector } from "@acepe/ui";
 import * as DropdownMenu from "@acepe/ui/dropdown-menu";
 import { IconCheck } from "@tabler/icons-svelte";
-import { IconChevronDown } from "@tabler/icons-svelte";
 import { IconClock } from "@tabler/icons-svelte";
 import { IconSearch } from "@tabler/icons-svelte";
 import { IconStar } from "@tabler/icons-svelte";
-import { Button } from "$lib/components/ui/button/index.js";
 import { Input } from "$lib/components/ui/input/index.js";
 import { cn } from "$lib/utils.js";
 
@@ -80,30 +79,25 @@ $effect(() => {
 });
 </script>
 
-<DropdownMenu.Root bind:open={isOpen}>
-	<DropdownMenu.Trigger>
-		{#snippet child({ props })}
-			<Button
-				{...props}
-				variant="outline"
-				class={cn("group/provider-trigger h-8 gap-2 px-2", className)}
-			>
-				{#if store.currentProviderId}
-					<ProviderLogo
-						providerId={store.currentProviderId}
-						providerName={store.currentProvider?.name}
-						class="h-4 w-4"
-					/>
-				{/if}
-				<span class="text-xs truncate max-w-[120px]">
-					{store.currentModel?.name ?? "Select model"}
-				</span>
-				<IconChevronDown class="h-4 w-4 opacity-50" />
-			</Button>
-		{/snippet}
-	</DropdownMenu.Trigger>
+<Selector
+	bind:open={isOpen}
+	variant="outline"
+	class={cn("group/provider-trigger h-8", className)}
+>
+	{#snippet renderButton()}
+		{#if store.currentProviderId}
+			<ProviderLogo
+				providerId={store.currentProviderId}
+				providerName={store.currentProvider?.name}
+				class="h-4 w-4"
+			/>
+		{/if}
+		<span class="text-xs truncate max-w-[120px]">
+			{store.currentModel?.name ?? "Select model"}
+		</span>
+	{/snippet}
 
-	<DropdownMenu.Content class="w-[320px] p-0">
+	<div class="w-[280px] p-0">
 		<!-- Search Input -->
 		<div class="p-2 border-b">
 			<div class="relative">
@@ -217,5 +211,5 @@ $effect(() => {
 		<div class="px-3 py-1.5 border-t text-xs text-muted-foreground">
 			↑↓ navigate • Enter select • Esc close
 		</div>
-	</DropdownMenu.Content>
-</DropdownMenu.Root>
+	</div>
+</Selector>

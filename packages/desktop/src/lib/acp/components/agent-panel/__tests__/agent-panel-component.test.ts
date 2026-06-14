@@ -10,7 +10,7 @@ import { describe, expect, it } from "bun:test";
 import type { PanelStore } from "../../../store/panel-store.svelte.js";
 import type { SessionStore } from "../../../store/session-store.svelte.js";
 import type { ChatPreferencesStore } from "../../../store/chat-preferences-store.svelte.js";
-import { PanelConnectionState } from "../../../types/panel-connection-state.js";
+import { PanelConnectionState, type PanelConnectionErrorDetails } from "../../../types/panel-connection-state.js";
 import { AgentPanelSessionController } from "../state/agent-panel-session-controller.svelte.js";
 import { ConnectionController } from "../state/connection-controller.svelte.js";
 import { ContentScrollRevealController } from "../state/content-scroll-reveal-controller.svelte.js";
@@ -76,7 +76,38 @@ function createAgentPanelWiringFixture(): AgentPanelWiringFixture {
 		panelId: "panel-fixture-1",
 		graphHeaderTitle: "Fixture graph header",
 		connectionState: null as PanelConnectionState | null,
+		connectionError: null as PanelConnectionErrorDetails | null,
 	};
+
+	type ConnectionChangeCallback = (
+		panelId: string,
+		state: PanelConnectionState,
+		context: { error?: PanelConnectionErrorDetails }
+	) => void;
+	const connectionListeners = new Set<ConnectionChangeCallback>();
+	const pushConnectionSnapshot = (
+		state: PanelConnectionState | null,
+		error: PanelConnectionErrorDetails | null = null
+	): void => {
+		holder.connectionState = state;
+		holder.connectionError = error;
+		if (state === null) {
+			return;
+		}
+		for (const listener of connectionListeners) {
+			listener(holder.panelId, state, { error: error ?? undefined });
+		}
+	};
+
+	const connectionStore = {
+		getState: () => holder.connectionState,
+		getContext: () =>
+			holder.connectionError === null ? null : { error: holder.connectionError },
+		onChange: (callback: ConnectionChangeCallback) => {
+			connectionListeners.add(callback);
+			return () => connectionListeners.delete(callback);
+		},
+	} as unknown as import("../../../store/connection-store.svelte.js").ConnectionStore;
 
 	// Order-sensitive: connection is referenced by sessionController accessors before its `const`.
 	const sessionController: AgentPanelSessionController = new AgentPanelSessionController({
@@ -91,7 +122,10 @@ function createAgentPanelWiringFixture(): AgentPanelWiringFixture {
 
 	const connection: ConnectionController = new ConnectionController({
 		getStillFailed: () => sessionController.stillFailed,
+		connectionStore,
+		getPanelId: () => holder.panelId,
 	});
+	connection.syncSubscription();
 
 	const contentScrollReveal = new ContentScrollRevealController();
 
@@ -164,6 +198,7 @@ function createAgentPanelWiringFixture(): AgentPanelWiringFixture {
 		worktreeCloseConfirm,
 		worktreeController,
 		holder,
+		pushConnectionSnapshot,
 	};
 }
 
@@ -188,7 +223,7 @@ describe("AgentPanel component wiring characterization (plan 013 U1)", () => {
 
 		it("propagates panel ERROR into stillFailed and keeps isRetrying live", () => {
 			const fixture = createAgentPanelWiringFixture();
-			fixture.connection.state = PanelConnectionState.ERROR;
+			fixture.pushConnectionSnapshot(PanelConnectionState.ERROR);
 			expect(fixture.sessionController.stillFailed).toBe(true);
 			expect(fixture.connection.isRetrying).toBe(false);
 			expect(fixture.connection.beginRetry()).toBe(true);
@@ -198,10 +233,10 @@ describe("AgentPanel component wiring characterization (plan 013 U1)", () => {
 
 		it("clears isRetrying when stillFailed becomes false after connection recovery", () => {
 			const fixture = createAgentPanelWiringFixture();
-			fixture.connection.state = PanelConnectionState.ERROR;
+			fixture.pushConnectionSnapshot(PanelConnectionState.ERROR);
 			fixture.connection.beginRetry();
 			expect(fixture.connection.isRetrying).toBe(true);
-			fixture.connection.state = PanelConnectionState.CONNECTED;
+			fixture.pushConnectionSnapshot(PanelConnectionState.CONNECTED);
 			expect(fixture.sessionController.stillFailed).toBe(false);
 			expect(fixture.connection.isRetrying).toBe(false);
 			fixture.connection.dispose();
@@ -209,12 +244,11 @@ describe("AgentPanel component wiring characterization (plan 013 U1)", () => {
 
 		it("suppresses inline error card when view state is already the error page", () => {
 			const fixture = createAgentPanelWiringFixture();
-			fixture.connection.state = PanelConnectionState.ERROR;
-			fixture.connection.error = {
+			fixture.pushConnectionSnapshot(PanelConnectionState.ERROR, {
 				message: "Unable to load session",
 				referenceId: null,
 				referenceSearchable: false,
-			};
+			});
 			expect(fixture.viewStateController.viewState.kind).toBe("error");
 			expect(deriveShowInlineErrorCard(fixture)).toBe(false);
 		});

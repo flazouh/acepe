@@ -23,8 +23,6 @@ interface AgentSelectorProps {
 	isLoading?: boolean;
 	ontoggle?: (isOpen: boolean) => void;
 	class?: string;
-	buttonClass?: string;
-	contentClass?: string;
 	showChevron?: boolean;
 	variant?: ButtonVariant;
 }
@@ -36,8 +34,6 @@ let {
 	isLoading = false,
 	ontoggle,
 	class: className = "",
-	buttonClass = "",
-	contentClass = "",
 	showChevron = true,
 	variant = "outline",
 }: AgentSelectorProps = $props();
@@ -88,8 +84,6 @@ const displayAgent = $derived(currentAgent ?? availableAgents[0] ?? null);
 	disabled={isLoading || availableAgents.length === 0}
 	onOpenChange={handleOpenChange}
 	class={className}
-	buttonClass={buttonClass}
-	contentClass={contentClass}
 	{showChevron}
 	{variant}
 >

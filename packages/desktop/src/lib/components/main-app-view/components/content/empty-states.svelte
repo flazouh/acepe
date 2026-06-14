@@ -629,12 +629,9 @@ function handleEmptyStateSessionCreated(sessionId: string) {
 						title={projectImportError.title}
 						summary={projectImportError.summary}
 						details={projectImportError.details}
-						referenceId={projectImportError.referenceId}
-						referenceSearchable={projectImportError.referenceSearchable}
 						onDismiss={() => {
 							projectImportError = null;
 						}}
-						onCopyReferenceId={copyProjectImportReferenceId}
 						issueActionLabel={projectImportIssueDraft
 							? resolveIssueActionLabel(projectImportIssueDraft)
 							: "Create issue"}
@@ -743,12 +740,9 @@ function handleEmptyStateSessionCreated(sessionId: string) {
 						title={projectImportError.title}
 						summary={projectImportError.summary}
 						details={projectImportError.details}
-						referenceId={projectImportError.referenceId}
-						referenceSearchable={projectImportError.referenceSearchable}
 						onDismiss={() => {
 							projectImportError = null;
 						}}
-						onCopyReferenceId={copyProjectImportReferenceId}
 						issueActionLabel={projectImportIssueDraft
 							? resolveIssueActionLabel(projectImportIssueDraft)
 							: "Create issue"}

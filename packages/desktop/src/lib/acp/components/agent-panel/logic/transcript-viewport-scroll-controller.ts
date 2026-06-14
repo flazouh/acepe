@@ -205,6 +205,75 @@ export function shouldPinFollowingTailToRenderedBottom(input: {
 	return input.nearCanonicalBottom;
 }
 
+// Gate the per-frame bottom-pin recovery loop on canonical follow-state. The
+// loop physically realizes the "stick to the bottom" intent, but the authority
+// for whether the viewport is following the tail is the canonical
+// `bufferProjection.mode.kind`, not a local settled mirror. When the canonical
+// mode is `detached`, recovery must stop — otherwise the RAF spins every frame
+// and fights outside-buffer clamping, producing scroll teleport/flicker. An
+// explicitly requested bottom jump (re-attach intent) is still honored until it
+// completes, and the frame budget always caps the loop.
+export function shouldContinueBottomPinRecovery(input: {
+	readonly modeKind: TranscriptViewportModeKind;
+	readonly bottomJumpPinRequested: boolean;
+	readonly framesRemaining: number;
+}): boolean {
+	if (input.framesRemaining <= 0) {
+		return false;
+	}
+	if (input.bottomJumpPinRequested) {
+		return true;
+	}
+	return input.modeKind === "followingTail";
+}
+
+// Settled bottom-pin emitters (anchor correction, outside-buffer completion,
+// follow-tail hydration, recovery loop) must read canonical mode — not a stale
+// local latch. Re-attach jumps (`bottomJumpPinRequested`) bypass until complete.
+export function shouldEmitSettledBottomPin(input: {
+	readonly modeKind: TranscriptViewportModeKind;
+	readonly tailBufferHydrated: boolean;
+	readonly bottomJumpPinRequested: boolean;
+}): boolean {
+	if (input.bottomJumpPinRequested) {
+		return true;
+	}
+	if (input.modeKind !== "followingTail") {
+		return false;
+	}
+	return input.tailBufferHydrated;
+}
+
+// Top-pin emitters derive from per-session outside-buffer recovery intent at
+// the layout top — not a settled local mirror.
+export function shouldEmitSettledTopPin(input: {
+	readonly bufferStartAtLayoutTop: boolean;
+	readonly pendingRecoveryScrollTopPx: number | null;
+	readonly nearEdgeThresholdPx: number;
+}): boolean {
+	if (!input.bufferStartAtLayoutTop) {
+		return false;
+	}
+	if (input.pendingRecoveryScrollTopPx === null) {
+		return false;
+	}
+	return input.pendingRecoveryScrollTopPx <= input.nearEdgeThresholdPx;
+}
+
+// Follow-tail layout growth pin: fire once per totalHeight change, not on
+// identical re-projections.
+export function shouldDispatchFollowTailPinOnLayoutGrowth(input: {
+	readonly modeKind: TranscriptViewportModeKind;
+	readonly locallyDetachedFromTail: boolean;
+	readonly previousTotalHeightPx: number;
+	readonly currentTotalHeightPx: number;
+}): boolean {
+	if (input.modeKind !== "followingTail" || input.locallyDetachedFromTail) {
+		return false;
+	}
+	return input.currentTotalHeightPx !== input.previousTotalHeightPx;
+}
+
 export function shouldPinHydratedFollowingTailProjection(input: {
 	readonly modeKind: TranscriptViewportModeKind;
 	readonly bufferEndIndex: number;

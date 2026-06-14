@@ -1,16 +1,14 @@
 <script lang="ts">
 import * as DropdownMenu from "@acepe/ui/dropdown-menu";
+import { Selector } from "@acepe/ui";
 import { ResultAsync } from "neverthrow";
 import type { Snippet } from "svelte";
-import { Button } from "$lib/components/ui/button/index.js";
-import * as ButtonGroup from "$lib/components/ui/button-group/index.js";
 import { Spinner } from "$lib/components/ui/spinner/index.js";
 import { LOGGER_IDS } from "../constants/logger-ids.js";
 import { DEFAULT_EMPTY_MESSAGE } from "../constants/selector-constants.js";
 import type { SelectorGroup } from "../types/selector-group.js";
 import type { SelectorItem } from "../types/selector-item.js";
 import { createLogger } from "../utils/logger.js";
-import AnimatedChevron from "./animated-chevron.svelte";
 import SelectorCheck from "./selector-check.svelte";
 import {
 	findSelectedSelectorItem,
@@ -139,7 +137,6 @@ const showActionSeparator = $derived.by(() => {
  */
 async function handleActionButtonClick(button: SelectorActionButton) {
 	const result = button.onClick();
-	// If onClick returns a Promise, wait for it
 	if (result instanceof Promise) {
 		const asyncResult = await ResultAsync.fromPromise(
 			result,
@@ -153,17 +150,16 @@ async function handleActionButtonClick(button: SelectorActionButton) {
 			logger.error("Action button click failed:", error);
 		});
 	}
-	// DropdownMenu.Item automatically closes on onSelect, so we don't need to call onOpenChange(false)
 }
 </script>
 
-<ButtonGroup.Root>
-	<Button
-		variant="outline"
-		size="sm"
-		class="gap-1.5 h-7 flex-1 min-w-0 max-w-full px-2 text-[11px]"
-		disabled={isSelectorDisabled}
-	>
+<Selector
+	open={isOpen}
+	disabled={isSelectorDisabled}
+	align="end"
+	onOpenChange={onOpenChange}
+>
+	{#snippet renderButton()}
 		{#if renderButton}
 			{@render renderButton({ item: selectedItem, isLoading })}
 		{:else if isLoading}
@@ -178,65 +174,21 @@ async function handleActionButtonClick(button: SelectorActionButton) {
 		{:else}
 			<span class="text-xs">{selectedItem?.name ?? "Select..."}</span>
 		{/if}
-	</Button>
+	{/snippet}
 
-	<DropdownMenu.Root open={isOpen} {onOpenChange}>
-		<DropdownMenu.Trigger>
-			{#snippet child({ props })}
-				<Button
-					{...props}
-					variant="outline"
-					size="icon-sm"
-					class="h-7 w-7"
-					disabled={isSelectorDisabled}
-				>
-					<AnimatedChevron {isOpen} />
-				</Button>
-			{/snippet}
-		</DropdownMenu.Trigger>
-
-		<DropdownMenu.Content align="end" class="space-y-1">
-			{#if items.length === 0}
-				<div class="px-2 py-1.5 text-sm text-muted-foreground">
-					{emptyMessage}
-				</div>
-			{:else if groups && groups.length > 0}
-				{#each groups as group (group.id)}
-					{#if group.items.length > 0}
-						{#if group.label}
-							<DropdownMenu.Label class="text-xs font-semibold">
-								{group.label}
-							</DropdownMenu.Label>
-						{/if}
-						{#each group.items as item (item.id)}
-							<DropdownMenu.Item
-								onSelect={() => onSelect(item.id)}
-								class="group/item py-1 {isItemSelected(item) ? 'bg-accent' : ''}"
-							>
-								{#if renderItem}
-									{@render renderItem({ item, isSelected: isItemSelected(item) })}
-								{:else}
-									<div class="flex items-center gap-2 w-full">
-										{#if item.icon}
-											<img
-												src={item.icon}
-												alt={item.name}
-												class={item.iconClass ?? "h-4 w-4 shrink-0"}
-											/>
-										{/if}
-										<span class="flex-1 text-sm">{item.name}</span>
-										<SelectorCheck visible={isItemSelected(item)} />
-									</div>
-								{/if}
-							</DropdownMenu.Item>
-						{/each}
-						{#if group.id !== groups[groups.length - 1]?.id}
-							<DropdownMenu.Separator />
-						{/if}
-					{/if}
-				{/each}
-			{:else}
-				{#each items as item (item.id)}
+	{#if items.length === 0}
+		<div class="px-2 py-1.5 text-sm text-muted-foreground">
+			{emptyMessage}
+		</div>
+	{:else if groups && groups.length > 0}
+		{#each groups as group (group.id)}
+			{#if group.items.length > 0}
+				{#if group.label}
+					<DropdownMenu.Label class="text-xs font-semibold">
+						{group.label}
+					</DropdownMenu.Label>
+				{/if}
+				{#each group.items as item (item.id)}
 					<DropdownMenu.Item
 						onSelect={() => onSelect(item.id)}
 						class="group/item py-1 {isItemSelected(item) ? 'bg-accent' : ''}"
@@ -258,29 +210,55 @@ async function handleActionButtonClick(button: SelectorActionButton) {
 						{/if}
 					</DropdownMenu.Item>
 				{/each}
-			{/if}
-
-			{#if allActionButtons.length > 0}
-				{#if showActionSeparator}
+				{#if group.id !== groups[groups.length - 1]?.id}
 					<DropdownMenu.Separator />
 				{/if}
-				{#each allActionButtons as button, index (index)}
-					<DropdownMenu.Item
-						onSelect={() => handleActionButtonClick(button)}
-						class="cursor-pointer"
-					>
-						{#if button.icon}
-							{#if typeof button.icon === "string"}
-								<img src={button.icon} alt="" class="mr-2 h-4 w-4 shrink-0" />
-							{:else}
-								{@const Icon = button.icon}
-								<Icon class="mr-2 h-4 w-4" />
-							{/if}
-						{/if}
-						<span>{button.label}</span>
-					</DropdownMenu.Item>
-				{/each}
 			{/if}
-		</DropdownMenu.Content>
-	</DropdownMenu.Root>
-</ButtonGroup.Root>
+		{/each}
+	{:else}
+		{#each items as item (item.id)}
+			<DropdownMenu.Item
+				onSelect={() => onSelect(item.id)}
+				class="group/item py-1 {isItemSelected(item) ? 'bg-accent' : ''}"
+			>
+				{#if renderItem}
+					{@render renderItem({ item, isSelected: isItemSelected(item) })}
+				{:else}
+					<div class="flex items-center gap-2 w-full">
+						{#if item.icon}
+							<img
+								src={item.icon}
+								alt={item.name}
+								class={item.iconClass ?? "h-4 w-4 shrink-0"}
+							/>
+						{/if}
+						<span class="flex-1 text-sm">{item.name}</span>
+						<SelectorCheck visible={isItemSelected(item)} />
+					</div>
+				{/if}
+			</DropdownMenu.Item>
+		{/each}
+	{/if}
+
+	{#if allActionButtons.length > 0}
+		{#if showActionSeparator}
+			<DropdownMenu.Separator />
+		{/if}
+		{#each allActionButtons as button, index (index)}
+			<DropdownMenu.Item
+				onSelect={() => handleActionButtonClick(button)}
+				class="cursor-pointer"
+			>
+				{#if button.icon}
+					{#if typeof button.icon === "string"}
+						<img src={button.icon} alt="" class="mr-2 h-4 w-4 shrink-0" />
+					{:else}
+						{@const Icon = button.icon}
+						<Icon class="mr-2 h-4 w-4" />
+					{/if}
+				{/if}
+				<span>{button.label}</span>
+			</DropdownMenu.Item>
+		{/each}
+	{/if}
+</Selector>

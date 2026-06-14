@@ -1,5 +1,7 @@
 <script lang="ts">
 import { ReviewWorkspace, resolveReviewWorkspaceSelectedIndex } from "@acepe/ui/agent-panel";
+import { toast } from "svelte-sonner";
+import { tauriClient } from "$lib/utils/tauri-client.js";
 
 import type { ModifiedFilesState } from "../../../types/modified-files-state.js";
 import type { ReviewDiffDensity } from "../../modified-files/components/review-diff-view-state.svelte.js";
@@ -45,6 +47,18 @@ const reviewWorkspaceFiles = $derived.by(() =>
 	buildReviewWorkspaceFilesFromSessionState(reviewFilesState, sessionId)
 );
 
+function handleFileRevert(displayIndex: number): void {
+	const file = reviewWorkspaceFiles[displayIndex];
+	if (!file || !projectPath) {
+		toast.error("Cannot revert: no project path");
+		return;
+	}
+	tauriClient.git.discardChanges(projectPath, [file.filePath]).match(
+		() => toast.success(`Discarded changes in ${file.fileName ?? file.filePath.split("/").pop()}`),
+		(err) => toast.error(`Failed to discard: ${err.message}`)
+	);
+}
+
 const reviewWorkspaceSelectedIndex = $derived.by(() => {
 	const displayIndex = reviewWorkspaceFiles.findIndex((file) => file.sourceIndex === selectedFileIndex);
 	if (displayIndex >= 0) {
@@ -63,14 +77,6 @@ const selectedSourceFileIndex = $derived.by(() => {
 	return selectedFile?.sourceIndex ?? reviewWorkspaceSelectedIndex;
 });
 
-let keepCurrentFileAction = $state<(() => void) | null>(null);
-let keepCurrentFileDisabled = $state(true);
-
-function handleKeepActionChange(action: (() => void) | null, disabled: boolean): void {
-	keepCurrentFileAction = action;
-	keepCurrentFileDisabled = disabled;
-}
-
 function handleWorkspaceFileSelect(displayIndex: number): void {
 	const selectedFile = reviewWorkspaceFiles[displayIndex];
 	onFileIndexChange(selectedFile?.sourceIndex ?? displayIndex);
@@ -82,11 +88,10 @@ function handleWorkspaceFileSelect(displayIndex: number): void {
 	selectedFileIndex={reviewWorkspaceSelectedIndex}
 	{onClose}
 	onFileSelect={handleWorkspaceFileSelect}
+	onFileRevert={handleFileRevert}
 	headerLabel={"Review Changes"}
 	closeButtonLabel={"Back"}
 	emptyStateLabel={REVIEW_WORKSPACE_EMPTY_STATE_LABEL}
-	onKeepFile={showHeader ? (keepCurrentFileAction ?? undefined) : undefined}
-	keepFileDisabled={showHeader ? keepCurrentFileDisabled : true}
 	{showHeader}
 	{showCloseButton}
 	{compact}
@@ -101,7 +106,6 @@ function handleWorkspaceFileSelect(displayIndex: number): void {
 			{diffDensity}
 			{onClose}
 			{onFileIndexChange}
-			onKeepActionChange={showHeader ? handleKeepActionChange : undefined}
 			{onControlsChange}
 			{hideBottomWidget}
 		/>
