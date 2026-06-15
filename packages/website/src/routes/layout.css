@@ -5,6 +5,22 @@
 
 @custom-variant dark (&:is([data-theme="dark"] *));
 
+@font-face {
+	font-family: "Matter";
+	src: url("/fonts/Matter-Regular.woff2") format("woff2");
+	font-weight: 400;
+	font-style: normal;
+	font-display: swap;
+}
+
+@font-face {
+	font-family: "Matter";
+	src: url("/fonts/Matter-Medium.woff2") format("woff2");
+	font-weight: 500;
+	font-style: normal;
+	font-display: swap;
+}
+
 @source "../**/*.{html,js,svelte,ts}";
 @source "../../../ui/src/**/*.{html,js,svelte,ts}";
 @source "../../../../node_modules/streamdown/dist/*.js";
@@ -53,6 +69,7 @@
 	--sidebar-ring: var(--token-brand-primary);
 
 	/* Font families */
+	--font-display: "Matter", "Inter", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 	--font-sans: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 	--font-serif: ui-serif, Georgia, serif;
 	--font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
@@ -79,32 +96,46 @@
 }
 
 :root[data-theme="light"] {
-	--background: #f0eee6;
-	--foreground: #141413;
-	--card: #e3dacc;
-	--card-foreground: #141413;
-	--success: var(--token-success-light);
-	--success-reference: var(--token-success-light);
+	/* Matched to Codex.app codex-light theme. */
+	--background: #f7f7f7;
+	--foreground: #0d0d0d;
+	--card: #ffffff;
+	--card-foreground: #0d0d0d;
+	--success: #00a240;
+	--success-reference: #00a240;
 	--success-foreground: #ffffff;
 	--build-icon: var(--success);
 	--plan-icon: var(--token-plan-icon-light);
 	--popover: #ffffff;
-	--popover-foreground: #0a0a09;
-	--secondary: #e5e0d5;
-	--secondary-foreground: #1a1a1a;
-	--muted: #e8e3d8;
-	--muted-foreground: #525252;
-	--accent: #ddd8cc;
-	--accent-foreground: #1a1a1a;
-	--border: #bdb6a6;
-	--input: #e0dbd0;
-	--ring: var(--token-brand-primary);
-	--sidebar: #ddd8cc;
-	--sidebar-foreground: #141413;
-	--sidebar-accent: #d0cbc0;
-	--sidebar-accent-foreground: #141413;
-	--sidebar-border: #d0cbc0;
-	--sidebar-ring: var(--token-brand-primary);
+	--popover-foreground: #0d0d0d;
+	--secondary: #f3f3f3;
+	--secondary-foreground: #0d0d0d;
+	--muted: #f3f3f3;
+	--muted-foreground: #666666;
+	--accent: #f3f3f3;
+	--accent-foreground: #0d0d0d;
+	--border: rgba(13, 13, 13, 0.078);
+	--input: rgba(13, 13, 13, 0.078);
+	--ring: #0169cc;
+	--sidebar: #fcfcfc;
+	--sidebar-foreground: #212121;
+	--sidebar-accent: #f3f3f3;
+	--sidebar-accent-foreground: #0d0d0d;
+	--sidebar-border: rgba(13, 13, 13, 0.078);
+	--sidebar-ring: #0169cc;
+}
+
+/* Warp-faithful palette, scoped to the /v2 landing so the rest of the site
+   keeps its own look. Mirrors warp.dev: #121212 ground, warm off-white ink,
+   dim warm-gray secondary text, near-square corners. */
+:root .warp-theme {
+	--background: #121212;
+	--foreground: #f8f5ee;
+	--muted-foreground: #f8f5ee99;
+	--card: #1a1a1a;
+	--border: #f8f5ee1f;
+	/* Cosmic Orange — the hero demo backdrop */
+	--cosmic-orange: #ff8001;
 }
 
 @theme inline {
@@ -112,6 +143,7 @@
 	--radius-md: calc(var(--radius) - 2px);
 	--radius-lg: var(--radius);
 	--radius-xl: calc(var(--radius) + 4px);
+	--font-display: var(--font-display);
 	--color-background: var(--background);
 	--color-foreground: var(--foreground);
 	--color-card: var(--card);
@@ -186,25 +218,25 @@
 }
 
 :root[data-theme="light"] .theme-invert-btn {
-	background: #2f2f2f;
-	color: #f0eee6;
+	background: #0d0d0d;
+	color: #ffffff;
 }
 
 :root[data-theme="light"] .theme-invert-btn:hover {
-	background: #5a5a5a;
-	color: #f0eee6;
+	background: #2a2a2a;
+	color: #ffffff;
 }
 
 :root[data-theme="light"] .theme-invert-btn-icon {
-	background: rgba(240, 238, 230, 0.12);
+	background: rgba(255, 255, 255, 0.12);
 }
 
 :root[data-theme="light"] .theme-invert-btn:hover .theme-invert-btn-icon {
-	background: rgba(255, 255, 255, 0.1);
+	background: rgba(255, 255, 255, 0.18);
 }
 
 :root[data-theme="light"] .theme-invert-btn-icon-svg {
-	color: #f0eee6;
+	color: #ffffff;
 }
 
 /* Shiki dual-theme: default to dark token colors, switch to light in light mode */

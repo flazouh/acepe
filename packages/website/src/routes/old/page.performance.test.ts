@@ -2,7 +2,7 @@ import { render } from "svelte/server";
 import { describe, expect, it, vi } from "vitest";
 
 vi.mock("$lib/components/header.svelte", async () => ({
-	default: (await import("./compare/[slug]/test-fixtures/header-stub.svelte")).default,
+	default: (await import("../compare/[slug]/test-fixtures/header-stub.svelte")).default,
 }));
 
 const { default: Page } = await import("./+page.svelte");
