@@ -194,9 +194,14 @@ Shared UI follows a View–Model–Controller split across packages. **Invoke `e
 
 - Separate facts from inference. Label hypotheses. Prefer instrumentation or observed state transitions before claiming causality.
 
+### Visual QA
+
+- Invoke `acepe-dev-app-qa` before any desktop UI inspection.
+- After every UI-affecting change, run DOM verification through the QA CLI (`packages/desktop`): `bun run qa doctor` → `bun run qa observe` → **`bun run qa inspect --selector=<selector>`** → `bun run qa screenshot` when visual. Do not ship UI work verified by tests alone.
+- Start `bun dev` from `packages/desktop` if the dev app is not running.
+
 ## Operational Guardrails
 
-- NEVER run `bun dev` — the user manages the dev server.
 - NEVER run `git stash` without explicit user consent.
 - NEVER set `core.bare=true` in this repository's root `.git/config` or otherwise convert this checkout into a bare repository. If bare-style workflows are needed, use a separate bare mirror or linked worktree instead of changing the active checkout.
 

@@ -59,6 +59,21 @@ wrapper first. Repeated ad hoc raw MCP snippets are a workflow bug.
 
 ## Hard Rule
 
+**After every UI-affecting change, DOM verification through the QA CLI is mandatory
+before the task is done.** Tests and typecheck do not replace inspecting the real
+dev WebView.
+
+Minimum pass from `packages/desktop`:
+
+1. `bun run qa doctor`
+2. `bun run qa observe` (or navigate to the affected screen first)
+3. **`bun run qa inspect --selector=<selector>`** — pick a selector that proves the
+   change; cite the returned DOM facts in your summary
+4. `bun run qa screenshot` when the change is visual or layout-related
+
+Use `click`, `send`, or `watch` when verifying interactions. Record evidence via
+the wrapper (`.codex/state/ui-qa-evidence.json`).
+
 Do not open or inspect `/Applications/Acepe.app` for dev QA.
 
 That is the installed production bundle. It does not prove anything about the current checkout.
@@ -69,10 +84,11 @@ For dev QA, inspect only one of these:
 2. the running Tauri dev app from this checkout, normally `packages/desktop/src-tauri/target/debug/acepe`
 3. Computer Use attached to the dev Tauri window, only after proving it is not `/Applications/Acepe.app`
 
-Do not run `bun dev`. The user manages the dev server — with one sanctioned
-exception: if the built binary is stale relative to the Rust change you are
-QA-ing, you may stop and restart the dev process so the rebuild picks up your
-code (see Step 1b). Always note that you restarted it.
+If the dev app is not running, start it from `packages/desktop` with `bun dev`
+(or a detached `bun run tauri dev` when you need a background session). If the
+built binary is stale relative to the Rust change you are QA-ing, stop and
+restart the dev process so the rebuild picks up your code (see Step 1b). Always
+note when you started or restarted it.
 
 ## Required Order
 
@@ -119,7 +135,7 @@ If the binary mtime is older than the newest relevant `.rs` source/commit, the
 running app does **not** contain your Rust change. Your QA result would be
 meaningless (you'd be testing the old producer/backend).
 
-**Sanctioned restart (the one exception to "the user manages the dev server").**
+**Restart when the binary is stale.**
 When — and only when — the binary is stale **and** your QA depends on a Rust
 change that isn't in it, you may stop the running dev process and restart it so
 the rebuild picks up your code. State clearly in your QA notes that you did this.
@@ -171,14 +187,15 @@ Before trying Computer Use or a normal browser, use the repo QA wrapper from
 `packages/desktop`. It is the maintained interface to the real dev Tauri
 WebView and should be extended when a new QA primitive is needed.
 
-Minimum useful QA pass:
+Minimum useful QA pass (required after UI-affecting changes):
 
 1. `bun run qa doctor` to prove the dev app, bridge, WebView, and binary
    freshness.
 2. `bun run qa observe` to capture compact route, panel, composer, and visible
    error facts.
-3. `bun run qa inspect --selector=<selector>` or another wrapper primitive to
-   inspect the affected state.
+3. **`bun run qa inspect --selector=<selector>`** — mandatory DOM verification;
+   choose a selector that proves the change landed; include key facts in your
+   report.
 4. `bun run qa screenshot` for final visual evidence when the change is visual.
 
 This wrapper-backed path is the best evidence because Acepe is a Tauri app. A
