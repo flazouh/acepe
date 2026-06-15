@@ -148,3 +148,8 @@ compound-engineering.local.md
 /app-main-*.css
 /settings-row-*.js
 /profile-*.css
+
+# Stray production build artifacts accidentally emitted to packages/desktop
+packages/desktop/app-*.css
+packages/desktop/app-shell-*.js
+packages/desktop/appearance-settings-*.js
