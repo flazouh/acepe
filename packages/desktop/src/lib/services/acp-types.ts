@@ -291,7 +291,7 @@ export type TodoUpdate = { operation: TodoUpdateOperation; items?: TodoItem[] | 
 
 export type TranscriptEntryRole = "user" | "assistant" | "tool" | "error"
 
-export type TranscriptSegment = { kind: "text"; segmentId: string; text: string } | { kind: "thought"; segmentId: string; text: string }
+export type TranscriptSegment = { kind: "text"; segmentId: string; text: string } | { kind: "thought"; segmentId: string; text: string } | { kind: "localCommand"; segmentId: string; command: string; message: string; args: string; stdout: string; modelDisplayName?: string | null; modelDescription?: string | null }
 
 export type TranscriptEntry = { entryId: string; role: TranscriptEntryRole; segments: TranscriptSegment[]; attemptId?: string | null; timestampMs?: number | null }
 

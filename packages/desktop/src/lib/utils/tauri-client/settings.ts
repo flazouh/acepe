@@ -1,7 +1,7 @@
 import type { ResultAsync } from "neverthrow";
 
 import type { AppError } from "../../acp/errors/app-error.js";
-import type { UserSettingKey } from "../../services/converted-session-types.js";
+import type { UserSettingKey } from "../../services/user-settings-types.js";
 import { TAURI_COMMAND_CLIENT } from "../../services/tauri-command-client.js";
 import type { ThreadListSettings } from "./types.js";
 
