@@ -13,6 +13,48 @@ import { buildOperationIndex, type OperationIndex } from "./operation-index.js";
 import { materializeTranscriptEntry, questionInteractionToSceneEntry } from "./entry-materializers.js";
 import { scenePatchFullRebuild } from "../components/agent-panel/logic/scene-patch.js";
 import { areActiveStreamingTailsEquivalent, areActivitiesEquivalent } from "./scene-equivalence.js";
+import {
+	flattenUserChunkText,
+	mergeAdjacentUserCommandChunks,
+} from "../logic/user-row-scene-model.js";
+
+function mergeAdjacentUserCommandEntries(
+	entries: AgentPanelSceneEntryModel[]
+): AgentPanelSceneEntryModel[] {
+	const merged: AgentPanelSceneEntryModel[] = [];
+
+	for (const entry of entries) {
+		if (entry.type !== "user") {
+			merged.push(entry);
+			continue;
+		}
+
+		const previous = merged[merged.length - 1];
+		if (
+			previous !== undefined &&
+			previous.type === "user" &&
+			previous.chunks !== undefined &&
+			entry.chunks !== undefined
+		) {
+			const combinedChunks = mergeAdjacentUserCommandChunks(previous.chunks, entry.chunks);
+			if (combinedChunks !== null) {
+				merged[merged.length - 1] = {
+					id: previous.id,
+					type: "user",
+					text: flattenUserChunkText(combinedChunks),
+					chunks: combinedChunks,
+					isOptimistic: previous.isOptimistic ?? entry.isOptimistic,
+					timestampMs: previous.timestampMs ?? entry.timestampMs,
+				};
+				continue;
+			}
+		}
+
+		merged.push(entry);
+	}
+
+	return merged;
+}
 
 export function materializeConversation(graph: AgentPanelCanonicalSource): {
 	entries: readonly AgentPanelSceneEntryModel[];
@@ -61,7 +103,7 @@ export function materializeConversationWithOperationIndex(
 	}
 
 	return {
-		entries,
+		entries: mergeAdjacentUserCommandEntries(entries),
 		isStreaming: isRunning,
 		scenePatch: scenePatchFullRebuild(),
 	};

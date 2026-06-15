@@ -7,11 +7,13 @@ import type {
 	TranscriptSegment,
 	TranscriptViewportRow,
 } from "../../../../services/acp-types.js";
+import { buildUserRowSceneModel } from "../../../logic/user-row-scene-model.js";
+import { transcriptSegmentPrimaryText } from "../../../session-state/transcript-text.js";
 
 export function segmentText(segments: readonly TranscriptSegment[]): string {
 	let text = "";
 	for (const segment of segments) {
-		text += segment.text;
+		text += transcriptSegmentPrimaryText(segment);
 	}
 	return text;
 }
@@ -56,10 +58,16 @@ export function resolveTranscriptViewportSceneEntry(
 	}
 
 	if (row.content.kind === "transcript" && row.content.role === "user") {
+		const userRow = buildUserRowSceneModel({
+			entryId: row.sourceEntryId,
+			role: "user",
+			segments: row.content.segments,
+		});
 		return {
 			id: row.sourceEntryId,
 			type: "user",
-			text: segmentText(row.content.segments),
+			text: userRow.text,
+			chunks: userRow.chunks.length > 0 ? userRow.chunks : undefined,
 		};
 	}
 
@@ -69,14 +77,19 @@ export function resolveTranscriptViewportSceneEntry(
 			type: "assistant",
 			markdown: segmentText(row.content.segments.filter((segment) => segment.kind === "text")),
 			message: {
-				chunks: row.content.segments.map((segment) => {
-					return {
-						type: segment.kind === "thought" ? "thought" : "message",
-						block: {
-							type: "text",
-							text: segment.text,
+				chunks: row.content.segments.flatMap((segment) => {
+					if (segment.kind === "localCommand") {
+						return [];
+					}
+					return [
+						{
+							type: segment.kind === "thought" ? "thought" : "message",
+							block: {
+								type: "text",
+								text: segment.text,
+							},
 						},
-					};
+					];
 				}),
 			},
 			isStreaming: row.activeStreamingTail !== null,

@@ -10,7 +10,7 @@ import {
 	type LoadingIconColorId,
 } from "@acepe/ui/icons";
 import { toast } from "svelte-sonner";
-import type { UserSettingKey } from "$lib/services/converted-session-types.js";
+import type { UserSettingKey } from "$lib/services/user-settings-types.js";
 import { tauriClient } from "$lib/utils/tauri-client.js";
 
 const LOADING_INDICATOR_VARIANT_KEY: UserSettingKey = "loading_indicator_variant";

@@ -6,7 +6,7 @@
 
 import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { ResultAsync } from "neverthrow";
-import type { UserSettingKey } from "$lib/services/converted-session-types.js";
+import type { UserSettingKey } from "$lib/services/user-settings-types.js";
 import { settings } from "$lib/utils/tauri-client/settings.js";
 
 /** Zoom configuration constants */

@@ -48,12 +48,12 @@ const queueInputs = $derived.by(() => {
 	const inputs: QueueUpdateInput[] = [];
 
 	for (const [sessionId, panelId] of sessionToPanelMap) {
-		const identity = sessionStore.getSessionIdentity(sessionId);
-		const metadata = sessionStore.getSessionMetadata(sessionId);
+		const identity = sessionStore.read.getSessionIdentity(sessionId);
+		const metadata = sessionStore.read.getSessionMetadata(sessionId);
 		if (!identity || !metadata) continue;
 
 		inputs.push(
-			sessionStore.getSessionQueuePresentation({
+			sessionStore.presentation.getSessionQueuePresentation({
 				sessionId: identity.id,
 				agentId: identity.agentId,
 				projectPath: identity.projectPath,
@@ -70,8 +70,8 @@ const queueInputs = $derived.by(() => {
 const liveSessionSyncInputs = $derived.by((): LiveSessionPanelSyncInput[] => {
 	const inputs: LiveSessionPanelSyncInput[] = [];
 
-	for (const session of sessionStore.getLiveSessionSyncReferences()) {
-		inputs.push(sessionStore.getLiveSessionPanelSyncInput(session, interactionStore));
+	for (const session of sessionStore.read.getLiveSessionSyncReferences()) {
+		inputs.push(sessionStore.presentation.getLiveSessionPanelSyncInput(session, interactionStore));
 	}
 
 	return inputs;

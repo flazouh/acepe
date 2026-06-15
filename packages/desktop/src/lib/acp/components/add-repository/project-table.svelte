@@ -69,9 +69,9 @@ function handleProjectRowKeydown(event: KeyboardEvent, project: ProjectWithSessi
 		<div
 			role="button"
 			tabindex={isAdded ? -1 : 0}
-			class="group mb-0.5 flex w-full items-center justify-between gap-2.5 rounded-md px-3 py-2 text-left transition-colors last:mb-0 {isAdded
-				? 'cursor-default bg-primary/[0.12]'
-				: 'cursor-pointer bg-accent/[0.45] hover:bg-accent/70 active:bg-accent/80'}"
+			class="group mb-0.5 flex w-full items-center justify-between gap-2.5 rounded-sm px-3 py-2 text-left transition-colors last:mb-0 {isAdded
+				? 'cursor-default'
+				: 'cursor-pointer'}"
 			onclick={() => {
 				if (!isAdded) onImport(project.path, project.name);
 			}}

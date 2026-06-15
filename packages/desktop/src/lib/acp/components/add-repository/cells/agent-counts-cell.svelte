@@ -8,7 +8,7 @@ let { agentCounts }: { agentCounts: [string, number | "loading" | "error"][] } =
 	<div class="flex items-center gap-1">
 		{#each agentCounts as [agentId, count] (agentId)}
 			<div
-				class="flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-muted/40 border border-border/30"
+				class="flex items-center gap-1 px-1.5 py-0.5 rounded-sm bg-muted/40 border border-border/30"
 			>
 				<AgentIcon {agentId} size={12} />
 				<span class="text-[10px] text-muted-foreground font-medium tabular-nums">

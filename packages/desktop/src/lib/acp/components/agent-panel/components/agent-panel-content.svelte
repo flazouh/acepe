@@ -53,7 +53,9 @@ let lastContentTraceSignature = $state<string | null>(null);
 let sceneViewportRef: SceneContentViewport | null = $state(null);
 
 const liveSessionSource = $derived(
-	sessionStore?.getSessionLiveWorkSource(sessionId ?? null, true) ?? { kind: "no_session" }
+	sessionStore?.presentation.getSessionLiveWorkSource(sessionId ?? null, true) ?? {
+		kind: "no_session",
+	}
 );
 const interactionSnapshot = $derived.by(() => {
 	if (!sessionId || interactionStore == null)
@@ -65,7 +67,7 @@ const interactionSnapshot = $derived.by(() => {
 			pendingPlanApproval: null,
 			pendingPlanApprovalOperation: null,
 		};
-	return sessionStore.getSessionOperationInteractionSnapshot(sessionId, interactionStore);
+	return sessionStore.presentation.getSessionOperationInteractionSnapshot(sessionId, interactionStore);
 });
 const sessionWorkProjection = $derived.by(() => {
 	if (!sessionId) {
@@ -74,7 +76,7 @@ const sessionWorkProjection = $derived.by(() => {
 
 	return deriveLiveSessionWorkProjection({
 		source: liveSessionSource,
-		currentModeId: sessionId ? (sessionStore?.getSessionCurrentModeId(sessionId) ?? null) : null,
+		currentModeId: sessionId ? (sessionStore?.read.getSessionCurrentModeId(sessionId) ?? null) : null,
 		interactionSnapshot: {
 			pendingQuestion: interactionSnapshot.pendingQuestion,
 			pendingPlanApproval: interactionSnapshot.pendingPlanApproval,
@@ -93,7 +95,7 @@ const runtime = $derived(
 const turnState = $derived(runtime.turnState);
 const isStreaming = $derived(runtime.isStreaming);
 const bufferProjection = $derived(
-	sessionStore?.getTranscriptViewportBufferProjection(sessionId) ?? null
+	sessionStore?.viewport.getBufferProjection(sessionId) ?? null
 );
 
 // Sync streaming state to bindable prop for parent component

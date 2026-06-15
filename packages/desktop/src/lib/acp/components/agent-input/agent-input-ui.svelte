@@ -9,11 +9,7 @@ import {
 	AgentInputAttachMenu,
 	AgentInputComposerTrailingControls,
 	AgentPanelComposer as SharedAgentPanelComposer,
-	getModeDropdownOptions,
-	getSelectedModeOption,
-	type AgentInputConfigOption,
 } from "@acepe/ui/agent-panel";
-import * as agentModelPrefs from "../../store/agent-model-preferences-store.svelte.js";
 import { getConnectionStore } from "../../store/connection-store.svelte.js";
 import {
 	getAgentStore,
@@ -24,30 +20,24 @@ import {
 } from "../../store/index.js";
 import type { AvailableCommand } from "../../types/available-command.js";
 import { createLogger } from "../../utils/logger.js";
-import { filterVisibleModes } from "../../utils/mode-filter.js";
 import { resolvePanelDraftOnMount } from "./services/index.js";
 import AgentInputComposerBody from "./components/agent-input-composer-body.svelte";
 import AgentInputDropZone from "./components/agent-input-drop-zone.svelte";
 import {
 	applyInlineTokenHoverTitles,
-	buildAttachMenuCommands,
-	buildAttachMenuModes,
 	canStartVoiceInteraction,
+	ComposerViewController,
 	createImageAttachment,
-	deriveComposerInteractionState,
 	findInlineArtefactRangeAtPosition,
 	getAdjacentInlineTokenElement,
-	getEffectiveFilePickerProjectPath,
 	getInlineTokenType,
 	getInlineTokenValue,
 	getSerializedCursorOffset,
 	getSerializedRangeForNode,
 	getSerializedSelectionEnd,
 	getSerializedSelectionRange,
-	getToolbarConfigOptions,
 	handleVoiceMicKeyDown as handleVoiceMicKeyDownFromModule,
 	hasAutocompleteTrigger,
-	hasToolbarCapabilityData,
 	INLINE_TOKEN_PREFIX,
 	isImageMimeType,
 	loadSlashCommandWorkspaceMarkdown as loadSlashCommandWorkspaceMarkdownFromModule,
@@ -58,27 +48,15 @@ import {
 	PreconnectionRemoteCommandsState,
 	renderInlineComposerMessage,
 	resolveAutonomousSupport,
-	resolveCapabilityContextProviderMetadata,
-	resolveCapabilitySource,
 	resolveComposerEnterKeyIntent,
-	resolveComposerPlaceholder,
 	resolveDefaultModeId,
 	resolveInitialModelIdForNewSession,
 	resolveModeMenuAction,
-	resolvePendingToolbarSelections,
-	resolveSelectedModeMenuOptionId,
-	resolveSelectorsLoading,
-	resolveSlashCommandSource,
-	resolveToolbarModeId,
-	resolveToolbarModelId,
 	resolveVoiceMicTooltip,
 	serializeInlineComposerMessage,
-	sessionCapabilitySourceFromCapabilities,
 	setSerializedCursorOffset,
 	shouldInterruptComposerStream,
 	shouldRouteWindowVoiceHold,
-	shouldShowActiveModeChip,
-	shouldShowSlashCommandDropdown,
 	shouldShowVoiceOverlay,
 	shouldStartVoiceHold,
 	shouldStopVoiceHold,
@@ -112,12 +90,24 @@ const voiceSettingsStore = getVoiceSettingsStore();
 const preconnectionCapabilitiesState = new PreconnectionCapabilitiesState();
 const preconnectionRemoteCommandsState = new PreconnectionRemoteCommandsState();
 const effectiveVoiceSessionId = $derived(props.voiceSessionId ?? props.sessionId ?? null);
-const filePickerProjectPath = $derived(
-	getEffectiveFilePickerProjectPath(props.projectPath, props.worktreePath)
-);
 
-// Create state instance with reactive project path getter
-const inputState = new AgentInputState(sessionStore, panelStore, () => filePickerProjectPath);
+let isShiftPressed = $state(false);
+let inputState!: AgentInputState;
+
+const composerView = new ComposerViewController({
+	getProps: () => props,
+	getInputState: () => inputState,
+	getIsShiftPressed: () => isShiftPressed,
+	sessionStore,
+	panelStore,
+	agentStore,
+	preconnectionCapabilitiesState,
+	preconnectionRemoteCommandsState,
+	preconnectionAgentSkillsStore,
+	logger,
+});
+
+inputState = new AgentInputState(sessionStore, panelStore, () => composerView.filePickerProjectPath);
 
 const voiceSessionController = new VoiceSessionController({
 	getEffectiveVoiceSessionId: () => effectiveVoiceSessionId,
@@ -201,472 +191,17 @@ const voiceOverlayActive = $derived.by(() => {
 	return shouldShowVoiceOverlay(currentVoiceState.phase);
 });
 
-const panelHotState = $derived(props.panelId ? panelStore.getHotState(props.panelId) : null);
-
-// Resolve capabilities agent from selected agent, then fall back to the session's agent.
-const sessionIdentity = $derived(
-	props.sessionId ? sessionStore.getSessionIdentity(props.sessionId) : null
-);
-const capabilitiesAgentId = $derived.by(() => {
-	if (props.sessionId) {
-		if (sessionIdentity) {
-			return sessionIdentity.agentId;
-		}
-
-		return props.selectedAgentId ? props.selectedAgentId : null;
-	}
-
-	if (props.selectedAgentId) {
-		return props.selectedAgentId;
-	}
-
-	return sessionIdentity ? sessionIdentity.agentId : null;
-});
-
-const sessionAvailableModels = $derived(
-	props.sessionId ? sessionStore.getSessionAvailableModels(props.sessionId) : null
-);
-const sessionAvailableModes = $derived(
-	props.sessionId ? sessionStore.getSessionAvailableModes(props.sessionId) : null
-);
-const sessionModelsDisplay = $derived(
-	props.sessionId ? sessionStore.getSessionModelsDisplay(props.sessionId) : null
-);
-const sessionProviderMetadata = $derived(
-	props.sessionId ? sessionStore.getSessionProviderMetadata(props.sessionId) : null
-);
-const sessionHasCanonicalCapabilities = $derived(
-	props.sessionId ? sessionStore.hasSessionCanonicalCapabilities(props.sessionId) : false
-);
-const sessionCapabilities = $derived.by(() => {
-	if (!props.sessionId || !sessionHasCanonicalCapabilities) {
-		return null;
-	}
-
-	return {
-		availableModels: sessionAvailableModels,
-		availableModes: sessionAvailableModes,
-		modelsDisplay: sessionModelsDisplay,
-		providerMetadata: sessionProviderMetadata,
-	};
-});
-const sessionCapabilitySource = $derived(
-	sessionCapabilitySourceFromCapabilities(props.sessionId ?? null, sessionCapabilities)
-);
-const capabilitiesAgent = $derived.by(() => {
-	if (!capabilitiesAgentId) {
-		return null;
-	}
-
-	for (const agent of agentStore.agents) {
-		if (agent.id === capabilitiesAgentId) {
-			return agent;
-		}
-	}
-
-	return null;
-});
-const capabilitiesProviderMetadata = $derived(
-	resolveCapabilityContextProviderMetadata({
-		sessionSource: sessionCapabilitySource,
-		selectedAgentProviderMetadata: capabilitiesAgent ? (capabilitiesAgent.providerMetadata ?? null) : null,
-	})
-);
-const preconnectionCapabilities = $derived.by(() =>
-	preconnectionCapabilitiesState.getCapabilities({
-		agentId: capabilitiesAgentId,
-		projectPath: filePickerProjectPath,
-		preconnectionCapabilityMode:
-			capabilitiesProviderMetadata?.preconnectionCapabilityMode ?? "unsupported",
-	})
-);
-
-// Local transient affordances and lifecycle presentation come through narrow selectors.
-const sessionLifecyclePresentation = $derived(
-	props.sessionId ? sessionStore.getSessionLifecyclePresentation(props.sessionId) : null
-);
-const storeComposerState = $derived(
-	props.sessionId ? sessionStore.getStoreComposerState(props.sessionId) : null
-);
-const sessionCurrentModeId = $derived(
-	props.sessionId ? sessionStore.getSessionCurrentModeId(props.sessionId) : null
-);
-const sessionCurrentModelId = $derived(
-	props.sessionId ? sessionStore.getSessionCurrentModelId(props.sessionId) : null
-);
-const sessionAutonomousEnabled = $derived(
-	props.sessionId ? sessionStore.getSessionAutonomousEnabled(props.sessionId) : null
-);
-const sessionConfigOptions = $derived(
-	props.sessionId ? (sessionStore.getSessionConfigOptions(props.sessionId) ?? []) : []
-);
-const sessionAvailableCommands = $derived(
-	props.sessionId ? (sessionStore.getSessionAvailableCommands(props.sessionId) ?? []) : []
-);
-
-let previousComposerBindSessionId: string | null = null;
 $effect(() => {
-	const sessionId = props.sessionId;
-	if (!sessionId) {
-		previousComposerBindSessionId = null;
-		return;
-	}
-	if (sessionId === previousComposerBindSessionId) {
-		return;
-	}
-	previousComposerBindSessionId = sessionId;
-	sessionStore.bindComposerSession(sessionId);
-});
-
-let provisionalModeId = $state<string | null>(props.initialModeId ?? null);
-let provisionalModelId = $state<string | null>(null);
-
-// Persisted caches (loaded from SQLite on startup, survives restarts)
-const cachedModes = $derived(
-	capabilitiesAgentId ? agentModelPrefs.getCachedModes(capabilitiesAgentId) : []
-);
-const cachedModels = $derived(
-	capabilitiesAgentId ? agentModelPrefs.getCachedModels(capabilitiesAgentId) : []
-);
-const cachedModelsDisplay = $derived(
-	capabilitiesAgentId ? agentModelPrefs.getCachedModelsDisplay(capabilitiesAgentId) : null
-);
-
-const capabilitySource = $derived.by(() =>
-	resolveCapabilitySource({
-		sessionSource: sessionCapabilitySource,
-		preconnectionCapabilities,
-		cachedModes,
-		cachedModels,
-		cachedModelsDisplay,
-		providerMetadata: capabilitiesProviderMetadata ?? null,
-	})
-);
-const effectiveCapabilityProviderMetadata = $derived(capabilitySource.providerMetadata);
-const effectiveAvailableModes = $derived(capabilitySource.availableModes ?? []);
-
-const visibleModes = $derived(filterVisibleModes(effectiveAvailableModes));
-
-const effectiveComposerProvisionalModeId = $derived(
-	props.sessionId ? (storeComposerState?.provisionalModeId ?? null) : provisionalModeId
-);
-const effectiveComposerProvisionalModelId = $derived(
-	props.sessionId ? (storeComposerState?.provisionalModelId ?? null) : provisionalModelId
-);
-
-const effectiveCurrentModeId = $derived.by(() =>
-	resolveToolbarModeId({
-		liveCurrentModeId: sessionCurrentModeId,
-		provisionalModeId: effectiveComposerProvisionalModeId,
-		visibleModes,
-	})
-);
-const effectiveCurrentModeLabel = $derived.by(() => {
-	const currentMode = visibleModes.find((mode) => mode.id === effectiveCurrentModeId);
-	return currentMode?.name ?? effectiveCurrentModeId;
-});
-
-const panelProvisionalAutonomousEnabled = $derived.by(() => {
-	if (props.panelId) {
-		return panelStore.getHotState(props.panelId).provisionalAutonomousEnabled;
-	}
-
-	return false;
-});
-
-const autonomousToggleActive = $derived.by(() => {
-	if (props.sessionId) {
-		const cs = storeComposerState;
-		if (cs && cs.provisionalAutonomousEnabled !== null) {
-			return cs.provisionalAutonomousEnabled;
-		}
-		return sessionAutonomousEnabled === true;
-	}
-	return panelProvisionalAutonomousEnabled;
-});
-
-const autoModeSupportState = $derived.by(() =>
-	resolveAutonomousSupport({
-		agentId: capabilitiesAgentId,
-		connectionPhase: sessionLifecyclePresentation
-			? sessionLifecyclePresentation.connectionPhase
-			: null,
-		currentUiModeId: effectiveCurrentModeId,
-		agents: agentStore.agents,
-	})
-);
-
-const autonomousToggleBusy = $derived(
-	props.sessionId ? sessionStore.getSessionAutonomousTransitionBusy(props.sessionId) : false
-);
-
-const autonomousDisabled = $derived(autonomousToggleBusy || !autoModeSupportState.supported);
-
-const selectedModeMenuOptionId = $derived(
-	resolveSelectedModeMenuOptionId({
-		currentModeId: effectiveCurrentModeId,
-		autonomousEnabled: autonomousToggleActive,
-	})
-);
-
-const effectiveAvailableModels = $derived(capabilitySource.availableModels ?? []);
-const effectiveModelsDisplay = $derived(capabilitySource.modelsDisplay);
-
-const effectiveCurrentModelId = $derived.by(() =>
-	resolveToolbarModelId({
-		liveCurrentModelId: sessionCurrentModelId,
-		provisionalModelId: effectiveComposerProvisionalModelId,
-		availableModels: effectiveAvailableModels,
-	})
-);
-
-const toolbarConfigOptions = $derived.by((): AgentInputConfigOption[] => {
-	if (sessionConfigOptions.length === 0) {
-		return [];
-	}
-
-	return getToolbarConfigOptions(
-		sessionConfigOptions,
-		effectiveAvailableModels,
-		effectiveModelsDisplay
-	).map((option): AgentInputConfigOption => {
-		const raw = option.currentValue;
-		const currentValue: string | number | boolean | null =
-			raw === null || raw === undefined
-				? null
-				: typeof raw === "string" || typeof raw === "number" || typeof raw === "boolean"
-					? raw
-					: null;
-		const options = option.options?.flatMap(
-			(opt): { value: string | number | boolean; name: string }[] => {
-				const v = opt.value;
-				if (typeof v === "string" || typeof v === "number" || typeof v === "boolean") {
-					return [{ value: v, name: opt.name }];
-				}
-				return [];
-			}
-		);
-			return {
-				id: option.id,
-				name: option.name,
-				category: option.category,
-				type: option.type,
-				currentValue,
-				options,
-				presentation: option.presentation ?? "advanced",
-			};
-	});
-});
-
-const liveAvailableCommands = $derived.by(() => {
-	if (sessionAvailableCommands.length > 0) {
-		return sessionAvailableCommands;
-	}
-
-	return [];
-});
-const preconnectionAvailableCommands = $derived.by(() => {
-	if (!capabilitiesAgentId) {
-		return [];
-	}
-
-	return preconnectionRemoteCommandsState.getCommands({
-		agentId: capabilitiesAgentId,
-		projectPath: filePickerProjectPath,
-		preconnectionSlashMode:
-			effectiveCapabilityProviderMetadata?.preconnectionSlashMode ?? "unsupported",
-		skillCommands: preconnectionAgentSkillsStore.getCommandsForAgent(capabilitiesAgentId),
-	});
-});
-const hasSession = $derived(props.sessionId !== null && props.sessionId !== undefined);
-const slashCommandSource = $derived.by(() => {
-	return resolveSlashCommandSource({
-		liveCommands: liveAvailableCommands,
-		hasSession,
-		hasConnectedSession: sessionLifecyclePresentation?.connectionPhase === "connected",
-		selectedAgentId: capabilitiesAgentId,
-		preconnectionCommands: preconnectionAvailableCommands,
-	});
-});
-const effectiveAvailableCommands = $derived(slashCommandSource.commands);
-const attachMenuModes = $derived(
-	buildAttachMenuModes({
-		modes: visibleModes,
-		currentModeId: effectiveCurrentModeId,
-	})
-);
-const attachMenuCommands = $derived(
-	buildAttachMenuCommands({
-		commands: effectiveAvailableCommands,
-		tokenType: slashCommandSource.tokenType,
-	})
-);
-const selectedModeOption = $derived(
-	getSelectedModeOption({
-		modeOptions: getModeDropdownOptions(visibleModes),
-		currentModeId: effectiveCurrentModeId,
-	})
-);
-const composerPlaceholderLabel = $derived(
-	resolveComposerPlaceholder({
-		hasSession,
-	})
-);
-const showActiveModeChip = $derived(shouldShowActiveModeChip(visibleModes, effectiveCurrentModeId));
-const isSlashDropdownVisible = $derived.by(() =>
-	shouldShowSlashCommandDropdown({
-		isTriggerActive: inputState.showSlashDropdown,
-		source: slashCommandSource,
-		capabilitiesAgentId,
-	})
-);
-
-// Input is ready when we have a session or project path (loading state no longer blocks input)
-const inputReady = $derived(Boolean(props.sessionId) || Boolean(filePickerProjectPath));
-
-// Stop/cancel state from canonical runtime contract.
-const isStreaming = $derived(
-	props.sessionShowStop ??
-		sessionLifecyclePresentation?.showStop ??
-		props.sessionIsStreaming ??
-		false
-);
-
-// Queue while the runtime contract still allows cancellation.
-// That covers both streaming and the awaiting-response gap used by OpenCode.
-const isAgentBusy = $derived(
-	props.sessionShowStop ?? sessionLifecyclePresentation?.canCancel ?? false
-);
-
-// Submit is controlled by canonical runtime state when a session exists.
-const isSubmitDisabled = $derived(
-	props.disableSend
-		? true
-		: props.sessionId
-			? (props.sessionCanSubmit ?? sessionLifecyclePresentation?.canSubmit) !== true
-			: false
-);
-
-const isSessionConnecting = $derived(
-	sessionLifecyclePresentation?.connectionPhase === "connecting"
-);
-
-// Loading state only follows explicit connecting/loading signals.
-// Empty capabilities should show selector empty-state, not a perpetual loading shimmer.
-const hasCachedToolbarData = $derived(
-	hasToolbarCapabilityData({
-		visibleModesCount: visibleModes.length,
-		availableModelsCount: effectiveAvailableModels.length,
-		modelsDisplay: effectiveModelsDisplay,
-	})
-);
-const selectorsLoading = $derived.by(() =>
-	resolveSelectorsLoading({
-		hasSession,
-		isSessionConnecting,
-		hasSelectedAgent: Boolean(capabilitiesAgentId),
-		visibleModesCount: visibleModes.length,
-		availableModelsCount: effectiveAvailableModels.length,
-		modelsDisplay: effectiveModelsDisplay,
-		isCacheLoaded: agentModelPrefs.isCacheLoaded(),
-		isPreconnectionLoading: preconnectionCapabilitiesState.isLoading({
-			agentId: capabilitiesAgentId,
-			projectPath: filePickerProjectPath,
-			preconnectionCapabilityMode:
-				effectiveCapabilityProviderMetadata?.preconnectionCapabilityMode ?? "unsupported",
-		}),
-	})
-);
-
-$effect(() => {
-	const hasConnectedSession = sessionLifecyclePresentation?.connectionPhase === "connected";
-	preconnectionCapabilitiesState
-		.ensureLoaded({
-			agentId: capabilitiesAgentId,
-			hasConnectedSession,
-			projectPath: filePickerProjectPath,
-			preconnectionCapabilityMode:
-				effectiveCapabilityProviderMetadata?.preconnectionCapabilityMode ?? "unsupported",
-		})
-		.mapErr((error) => {
-			logger.error("Failed to warm preconnection capabilities", {
-				agentId: capabilitiesAgentId,
-				projectPath: filePickerProjectPath,
-				error: error.message,
-			});
-			return undefined;
-		});
+	composerView.syncComposerSessionBind();
 });
 
 $effect(() => {
-	const sessionId = props.sessionId;
-	if (!sessionId || isApplyingProvisionalToolbarSelections) {
-		return;
-	}
-	if (sessionLifecyclePresentation?.connectionPhase !== "connected") {
-		return;
-	}
-
-	const cs = sessionStore.getStoreComposerState(sessionId);
-	const provMode = cs?.provisionalModeId ?? null;
-	const provModel = cs?.provisionalModelId ?? null;
-
-	const resolution = resolvePendingToolbarSelections({
-		provisionalModeId: provMode,
-		provisionalModelId: provModel,
-		liveCurrentModeId: sessionCurrentModeId,
-		liveCurrentModelId: sessionCurrentModelId,
-		availableModes: visibleModes,
-		availableModels: effectiveAvailableModels,
-	});
-
-	const liveModeId = sessionCurrentModeId;
-	const liveModelId = sessionCurrentModelId;
-
-	if (!resolution.modeIdToApply && !resolution.modelIdToApply) {
-		return;
-	}
-
-	isApplyingProvisionalToolbarSelections = true;
-
-	const run = async () => {
-		const autonomousForBegin = cs?.provisionalAutonomousEnabled ?? sessionAutonomousEnabled;
-		await sessionStore.runComposerConfigOperation(
-			sessionId,
-			{
-				provisionalModeId: resolution.modeIdToApply ?? provMode ?? liveModeId,
-				provisionalModelId: resolution.modelIdToApply ?? provModel ?? liveModelId,
-				provisionalAutonomousEnabled: autonomousForBegin,
-			},
-			async () => {
-				if (resolution.modeIdToApply) {
-					const modeResult = await sessionStore.setMode(sessionId, resolution.modeIdToApply);
-					if (modeResult.isErr()) {
-						return false;
-					}
-				}
-
-				if (resolution.modelIdToApply) {
-					const modelResult = await sessionStore.setModel(sessionId, resolution.modelIdToApply);
-					if (modelResult.isErr()) {
-						return false;
-					}
-				}
-				return true;
-			}
-		);
-	};
-
-	void run().finally(() => {
-		isApplyingProvisionalToolbarSelections = false;
-	});
+	composerView.syncPreconnectionCapabilities();
 });
 
-const hasDraftInput = $derived(
-	inputState.message.trim().length > 0 || inputState.attachments.length > 0
-);
-
-const selectorsDisabledByComposer = $derived(storeComposerState?.selectorsDisabled ?? false);
+$effect(() => {
+	composerView.syncPendingToolbarSelections();
+});
 
 // Track previous message for draft change detection
 let lastDraftValue = "";
@@ -678,28 +213,12 @@ let draftDebounceTimer: ReturnType<typeof setTimeout> | null = null;
  * effect loop (effect writes flag → triggers itself → writes flag → …).
  */
 let editorJustSynced = false;
-let isShiftPressed = $state(false);
-let isApplyingProvisionalToolbarSelections = $state(false);
 let editorRef: HTMLDivElement | null = $state(null);
 let imageAttachInputRef: HTMLInputElement | null = $state(null);
 let overlayMode: "preview" | "edit" | null = $state(null);
 let overlayRefId: string | null = $state(null);
 let overlayAnchorRect: DOMRect | null = $state(null);
 
-const composerInteraction = $derived.by(() => {
-	const hasBlocking = storeComposerState?.isBlocked ?? false;
-	const isDispatching = storeComposerState?.isDispatching ?? false;
-	return deriveComposerInteractionState({
-		hasDraftInput,
-		hasSessionId: !!props.sessionId,
-		isAgentBusy,
-		isStreaming,
-		isShiftPressed,
-		isSubmitDisabled,
-		hasBlockingComposerConfig: hasBlocking,
-		isComposerDispatching: isDispatching,
-	});
-});
 function syncEditorFromMessage(nextCursor: number | null = null): void {
 	if (!editorRef) {
 		return;
@@ -726,7 +245,7 @@ function syncEditorFromMessage(nextCursor: number | null = null): void {
 
 async function handleCancel() {
 	if (props.sessionId) {
-		const result = await sessionStore.cancelStreaming(props.sessionId);
+		const result = await sessionStore.connection.cancelStreaming(props.sessionId);
 		if (result.isErr()) {
 			console.error("Failed to cancel streaming:", result.error);
 		}
@@ -736,15 +255,15 @@ async function handleCancel() {
 const agentInputController = createAgentInputController({
 	getProps: () => props,
 	inputState,
-	getComposerInteraction: () => composerInteraction,
-	getAutonomousToggleActive: () => autonomousToggleActive,
-	getProvisionalModeId: () => provisionalModeId,
+	getComposerInteraction: () => composerView.composerInteraction,
+	getAutonomousToggleActive: () => composerView.autonomousToggleActive,
+	getProvisionalModeId: () => composerView.provisionalModeId,
 	getInitialModelIdForNewSession: () =>
 		resolveInitialModelIdForNewSession({
 			sessionId: props.sessionId ?? null,
-			displayedModelId: effectiveCurrentModelId,
+			displayedModelId: composerView.effectiveCurrentModelId,
 		}),
-	getIsStreaming: () => isStreaming,
+	getIsStreaming: () => composerView.isStreaming,
 	sessionStore,
 	panelStore,
 	connectionStore,
@@ -801,10 +320,10 @@ function getCaretDropdownPosition(): { top: number; left: number } | null {
 }
 
 function handleInlineFileChipClick(filePath: string) {
-	if (!filePickerProjectPath) {
+	if (!composerView.filePickerProjectPath) {
 		return;
 	}
-	panelStore.openFilePanel(filePath, filePickerProjectPath, {
+	panelStore.openFilePanel(filePath, composerView.filePickerProjectPath, {
 		ownerPanelId: props.panelId ?? undefined,
 	});
 }
@@ -841,9 +360,9 @@ function handleEditorInput(options?: { suppressAutocomplete?: boolean }): void {
 				dismissAllDropdowns();
 			} else {
 				const trigger = fileTriggerResult.value;
-				if (filePickerProjectPath) {
+				if (composerView.filePickerProjectPath) {
 					inputState
-						.loadProjectFiles(filePickerProjectPath, {
+						.loadProjectFiles(composerView.filePickerProjectPath, {
 							refresh: !inputState.showFileDropdown,
 						})
 						.mapErr(() => undefined);
@@ -859,19 +378,19 @@ function handleEditorInput(options?: { suppressAutocomplete?: boolean }): void {
 		} else {
 			inputState.showFileDropdown = false;
 			inputState.fileQuery = "";
-			const hasConnectedSession = sessionLifecyclePresentation?.connectionPhase === "connected";
+			const hasConnectedSession = composerView.sessionLifecyclePresentation?.connectionPhase === "connected";
 
 			if (
-				capabilitiesAgentId &&
+				composerView.capabilitiesAgentId &&
 				!hasConnectedSession &&
-				effectiveCapabilityProviderMetadata?.preconnectionSlashMode === "startupGlobal" &&
+				composerView.effectiveCapabilityProviderMetadata?.preconnectionSlashMode === "startupGlobal" &&
 				!preconnectionAgentSkillsStore.loaded &&
 				!preconnectionAgentSkillsStore.loading
 			) {
 				preconnectionAgentSkillsStore.ensureLoaded(agentStore.agents).mapErr((error) => {
 					logger.error("Failed to warm preconnection skills", {
-						agentId: capabilitiesAgentId,
-						projectPath: filePickerProjectPath,
+						agentId: composerView.capabilitiesAgentId,
+						projectPath: composerView.filePickerProjectPath,
 						error: error.message,
 					});
 					return undefined;
@@ -880,16 +399,16 @@ function handleEditorInput(options?: { suppressAutocomplete?: boolean }): void {
 
 			preconnectionRemoteCommandsState
 				.ensureLoaded({
-					agentId: capabilitiesAgentId,
+					agentId: composerView.capabilitiesAgentId,
 					hasConnectedSession,
-					projectPath: filePickerProjectPath,
+					projectPath: composerView.filePickerProjectPath,
 					preconnectionSlashMode:
-						effectiveCapabilityProviderMetadata?.preconnectionSlashMode ?? "unsupported",
+						composerView.effectiveCapabilityProviderMetadata?.preconnectionSlashMode ?? "unsupported",
 				})
 				.mapErr((error) => {
 					logger.error("Failed to warm remote preconnection commands", {
-						agentId: capabilitiesAgentId,
-						projectPath: filePickerProjectPath,
+						agentId: composerView.capabilitiesAgentId,
+						projectPath: composerView.filePickerProjectPath,
 						error: error.message,
 					});
 					return undefined;
@@ -977,14 +496,14 @@ onMount(() => {
 	if (props.panelId) {
 		const pendingComposerRestore = panelStore.consumePendingComposerRestore(props.panelId);
 		const draft = panelStore.getMessageDraft(props.panelId);
-		const hasPendingUserEntry = panelHotState?.pendingUserEntry !== null;
+		const hasPendingUserEntry = composerView.panelHotState?.pendingUserEntry !== null;
 		logger.info("[first-send-trace] agent input mount", {
 			panelId: props.panelId,
 			sessionId: props.sessionId ?? null,
 			draftLength: draft.length,
 			hasPendingComposerRestore: pendingComposerRestore !== null,
 			hasPendingUserEntry,
-			hasPendingWorktreeSetup: panelHotState?.pendingWorktreeSetup !== null,
+			hasPendingWorktreeSetup: composerView.panelHotState?.pendingWorktreeSetup !== null,
 			messageLengthBeforeRestore: inputState.message.length,
 		});
 		const resolution = resolvePanelDraftOnMount({
@@ -1043,7 +562,7 @@ onDestroy(() => {
 		panelId: props.panelId ?? null,
 		sessionId: props.sessionId ?? null,
 		messageLength: inputState.message.length,
-		hasPendingUserEntry: panelHotState?.pendingUserEntry !== null,
+		hasPendingUserEntry: composerView.panelHotState?.pendingUserEntry !== null,
 		draftDebouncePending: draftDebounceTimer !== null,
 	});
 	if (props.panelId && inputState.message) {
@@ -1062,25 +581,25 @@ onDestroy(() => {
 async function handleModeChange(modeId: string) {
 	const sessionId = props.sessionId;
 	if (sessionId) {
-		await sessionStore.runComposerConfigOperation(
+		await sessionStore.composer.runConfigOperation(
 			sessionId,
 			{
 				provisionalModeId: modeId,
-				provisionalModelId: effectiveCurrentModelId,
-				provisionalAutonomousEnabled: autonomousToggleActive,
+				provisionalModelId: composerView.effectiveCurrentModelId,
+				provisionalAutonomousEnabled: composerView.autonomousToggleActive,
 			},
 			async () => {
 				const shouldAnnounceForcedOff =
-					autonomousToggleActive &&
+					composerView.autonomousToggleActive &&
 					!resolveAutonomousSupport({
-						agentId: capabilitiesAgentId,
-						connectionPhase: sessionLifecyclePresentation
-							? sessionLifecyclePresentation.connectionPhase
+						agentId: composerView.capabilitiesAgentId,
+						connectionPhase: composerView.sessionLifecyclePresentation
+							? composerView.sessionLifecyclePresentation.connectionPhase
 							: null,
 						currentUiModeId: modeId,
 						agents: agentStore.agents,
 					}).supported;
-				const result = await sessionStore.setMode(sessionId, modeId);
+				const result = await sessionStore.connection.setMode(sessionId, modeId);
 				if (result.isErr()) {
 					toast.error("Failed to switch mode.");
 					return false;
@@ -1095,11 +614,11 @@ async function handleModeChange(modeId: string) {
 		);
 		return;
 	}
-	provisionalModeId = modeId;
+	composerView.provisionalModeId = modeId;
 	if (
-		panelProvisionalAutonomousEnabled &&
+		composerView.panelProvisionalAutonomousEnabled &&
 		!resolveAutonomousSupport({
-			agentId: capabilitiesAgentId,
+			agentId: composerView.capabilitiesAgentId,
 			connectionPhase: null,
 			currentUiModeId: modeId,
 			agents: agentStore.agents,
@@ -1118,7 +637,7 @@ async function applyAutonomousEnabledToSession(nextEnabled: boolean): Promise<bo
 		return false;
 	}
 
-	const result = await sessionStore.setAutonomousEnabled(props.sessionId, nextEnabled);
+	const result = await sessionStore.connection.setAutonomousEnabled(props.sessionId, nextEnabled);
 	if (result.isErr()) {
 		toast.error(nextEnabled ? "Failed to enable Autonomous." : "Failed to disable Autonomous.");
 		return false;
@@ -1153,19 +672,19 @@ async function setAutonomousEnabled(nextEnabled: boolean): Promise<boolean> {
 }
 
 async function handleAutonomousToggle(): Promise<void> {
-	await setAutonomousEnabled(!autonomousToggleActive);
+	await setAutonomousEnabled(!composerView.autonomousToggleActive);
 }
 
 async function handleModeMenuChange(optionId: string): Promise<void> {
 	const resolution = resolveModeMenuAction({
 		selectedOptionId: optionId,
-		currentModeId: effectiveCurrentModeId,
-		autonomousEnabled: autonomousToggleActive,
+		currentModeId: composerView.effectiveCurrentModeId,
+		autonomousEnabled: composerView.autonomousToggleActive,
 	});
 
 	if (!props.sessionId) {
 		if (resolution.modeIdToApply) {
-			provisionalModeId = resolution.modeIdToApply;
+		composerView.provisionalModeId = resolution.modeIdToApply;
 		}
 
 		if (resolution.autonomousEnabledToApply !== null) {
@@ -1176,29 +695,29 @@ async function handleModeMenuChange(optionId: string): Promise<void> {
 	}
 
 	const sessionId = props.sessionId;
-	await sessionStore.runComposerConfigOperation(
+	await sessionStore.composer.runConfigOperation(
 		sessionId,
 		{
-			provisionalModeId: resolution.modeIdToApply ?? effectiveCurrentModeId,
-			provisionalModelId: effectiveCurrentModelId,
+			provisionalModeId: resolution.modeIdToApply ?? composerView.effectiveCurrentModeId,
+			provisionalModelId: composerView.effectiveCurrentModelId,
 			provisionalAutonomousEnabled:
 				resolution.autonomousEnabledToApply !== null
 					? resolution.autonomousEnabledToApply
-					: autonomousToggleActive,
+					: composerView.autonomousToggleActive,
 		},
 		async () => {
 			if (resolution.modeIdToApply) {
 				const shouldAnnounceForcedOff =
-					autonomousToggleActive &&
+					composerView.autonomousToggleActive &&
 					!resolveAutonomousSupport({
-						agentId: capabilitiesAgentId,
-						connectionPhase: sessionLifecyclePresentation
-							? sessionLifecyclePresentation.connectionPhase
+						agentId: composerView.capabilitiesAgentId,
+						connectionPhase: composerView.sessionLifecyclePresentation
+							? composerView.sessionLifecyclePresentation.connectionPhase
 							: null,
 						currentUiModeId: resolution.modeIdToApply,
 						agents: agentStore.agents,
 					}).supported;
-				const modeResult = await sessionStore.setMode(sessionId, resolution.modeIdToApply);
+				const modeResult = await sessionStore.connection.setMode(sessionId, resolution.modeIdToApply);
 				if (modeResult.isErr()) {
 					toast.error("Failed to switch mode.");
 					return false;
@@ -1228,15 +747,15 @@ async function handleModeMenuChange(optionId: string): Promise<void> {
 async function handleModelChange(modelId: string) {
 	const sessionId = props.sessionId;
 	if (sessionId) {
-		await sessionStore.runComposerConfigOperation(
+		await sessionStore.composer.runConfigOperation(
 			sessionId,
 			{
-				provisionalModeId: effectiveCurrentModeId,
+				provisionalModeId: composerView.effectiveCurrentModeId,
 				provisionalModelId: modelId,
-				provisionalAutonomousEnabled: autonomousToggleActive,
+				provisionalAutonomousEnabled: composerView.autonomousToggleActive,
 			},
 			async () => {
-				const result = await sessionStore.setModel(sessionId, modelId);
+				const result = await sessionStore.connection.setModel(sessionId, modelId);
 				if (result.isErr()) {
 					toast.error("Failed to switch model.");
 					return false;
@@ -1246,7 +765,7 @@ async function handleModelChange(modelId: string) {
 		);
 		return;
 	}
-	provisionalModelId = modelId;
+	composerView.provisionalModelId = modelId;
 }
 
 async function handleConfigOptionChange(configId: string, value: string) {
@@ -1255,31 +774,31 @@ async function handleConfigOptionChange(configId: string, value: string) {
 	}
 
 	const sessionId = props.sessionId;
-	await sessionStore.runComposerConfigOperation(
+	await sessionStore.composer.runConfigOperation(
 		sessionId,
 		{
-			provisionalModeId: effectiveCurrentModeId,
-			provisionalModelId: effectiveCurrentModelId,
-			provisionalAutonomousEnabled: autonomousToggleActive,
+			provisionalModeId: composerView.effectiveCurrentModeId,
+			provisionalModelId: composerView.effectiveCurrentModelId,
+			provisionalAutonomousEnabled: composerView.autonomousToggleActive,
 		},
 		async () => {
-			const result = await sessionStore.setConfigOption(sessionId, configId, value);
+			const result = await sessionStore.connection.setConfigOption(sessionId, configId, value);
 			return result.isOk();
 		}
 	);
 }
 
 function cycleModeOnTab(event: KeyboardEvent): boolean {
-	if (event.key !== "Tab" || event.shiftKey || visibleModes.length === 0) {
+	if (event.key !== "Tab" || event.shiftKey || composerView.visibleModes.length === 0) {
 		return false;
 	}
 
 	event.preventDefault();
-	const currentIndex = visibleModes.findIndex((m) => m.id === effectiveCurrentModeId);
+	const currentIndex = composerView.visibleModes.findIndex((m) => m.id === composerView.effectiveCurrentModeId);
 	const nextIndex =
-		currentIndex === -1 ? 1 % visibleModes.length : (currentIndex + 1) % visibleModes.length;
-	const nextMode = visibleModes[nextIndex];
-	if (nextMode && nextMode.id !== effectiveCurrentModeId) {
+		currentIndex === -1 ? 1 % composerView.visibleModes.length : (currentIndex + 1) % composerView.visibleModes.length;
+	const nextMode = composerView.visibleModes[nextIndex];
+	if (nextMode && nextMode.id !== composerView.effectiveCurrentModeId) {
 		handleModeChange(nextMode.id);
 	}
 	return true;
@@ -1291,18 +810,18 @@ function cycleModeOnShortcut(event: KeyboardEvent): boolean {
 		!(event.metaKey || event.ctrlKey) ||
 		(event.shiftKey && event.key !== ".") ||
 		event.altKey ||
-		visibleModes.length === 0
+		composerView.visibleModes.length === 0
 	) {
 		return false;
 	}
 
 	event.preventDefault();
 	event.stopPropagation();
-	const currentIndex = visibleModes.findIndex((m) => m.id === effectiveCurrentModeId);
+	const currentIndex = composerView.visibleModes.findIndex((m) => m.id === composerView.effectiveCurrentModeId);
 	const nextIndex =
-		currentIndex === -1 ? 1 % visibleModes.length : (currentIndex + 1) % visibleModes.length;
-	const nextMode = visibleModes[nextIndex];
-	if (nextMode && nextMode.id !== effectiveCurrentModeId) {
+		currentIndex === -1 ? 1 % composerView.visibleModes.length : (currentIndex + 1) % composerView.visibleModes.length;
+	const nextMode = composerView.visibleModes[nextIndex];
+	if (nextMode && nextMode.id !== composerView.effectiveCurrentModeId) {
 		handleModeChange(nextMode.id);
 	}
 	return true;
@@ -1330,7 +849,7 @@ function shouldUseVoiceHoldKey(event: KeyboardEvent): boolean {
 	}
 	return canStartVoiceInteraction(
 		currentVoiceState.phase,
-		storeComposerState?.isDispatching ?? false
+		composerView.storeComposerState?.isDispatching ?? false
 	);
 }
 
@@ -1355,7 +874,7 @@ function handleEditorKeyDown(event: KeyboardEvent): void {
 	if (
 		shouldInterruptComposerStream({
 			isMac: isMac(),
-			isStreaming,
+			isStreaming: composerView.isStreaming,
 			event,
 		})
 	) {
@@ -1370,11 +889,11 @@ function handleEditorKeyDown(event: KeyboardEvent): void {
 
 	const submitIntent: SubmitIntent = resolveComposerEnterKeyIntent(
 		{
-			hasDraftInput,
-			isAgentBusy,
-			hasBlockingComposerConfig: storeComposerState?.isBlocked ?? false,
-			isComposerDispatching: storeComposerState?.isDispatching ?? false,
-			isSubmitDisabled,
+			hasDraftInput: composerView.hasDraftInput,
+			isAgentBusy: composerView.isAgentBusy,
+			hasBlockingComposerConfig: composerView.storeComposerState?.isBlocked ?? false,
+			isComposerDispatching: composerView.storeComposerState?.isDispatching ?? false,
+			isSubmitDisabled: composerView.isSubmitDisabled,
 		},
 		event
 	);
@@ -1488,7 +1007,7 @@ function loadSlashCommandWorkspaceMarkdown(input: {
 	return loadSlashCommandWorkspaceMarkdownFromModule({
 		command: input.command,
 		tokenType: input.tokenType,
-		agentId: capabilitiesAgentId,
+		agentId: composerView.capabilitiesAgentId,
 	});
 }
 
@@ -1541,7 +1060,7 @@ function handleCommandSelect(command: AvailableCommand): void {
 	const cursorPos = getSerializedCursorOffset(editorRef);
 	const before = inputState.message.substring(0, inputState.slashStartIndex);
 	const after = inputState.message.substring(cursorPos);
-	const tokenText = toInlineTokenText(slashCommandSource.tokenType, `/${command.name}`);
+	const tokenText = toInlineTokenText(composerView.slashCommandSource.tokenType, `/${command.name}`);
 	inputState.message = `${before}${tokenText} ${after}`;
 	inputState.showSlashDropdown = false;
 	inputState.slashQuery = "";
@@ -1619,14 +1138,14 @@ async function handleImageAttachInputChange(event: Event): Promise<void> {
 }
 
 function handleAttachMenuCommandSelect(commandId: string): void {
-	const command = effectiveAvailableCommands.find((item) => item.name === commandId);
+	const command = composerView.effectiveAvailableCommands.find((item) => item.name === commandId);
 	if (!command || !editorRef) {
 		return;
 	}
 	const cursorPos = getSerializedCursorOffset(editorRef);
 	const before = inputState.message.substring(0, cursorPos);
 	const after = inputState.message.substring(cursorPos);
-	const tokenText = toInlineTokenText(slashCommandSource.tokenType, `/${command.name}`);
+	const tokenText = toInlineTokenText(composerView.slashCommandSource.tokenType, `/${command.name}`);
 	inputState.message = `${before}${tokenText} ${after}`;
 	inputState.showSlashDropdown = false;
 	inputState.slashQuery = "";
@@ -1635,8 +1154,8 @@ function handleAttachMenuCommandSelect(commandId: string): void {
 }
 
 function handleActiveModeDismiss(): void {
-	const defaultModeId = resolveDefaultModeId(visibleModes);
-	if (defaultModeId && defaultModeId !== effectiveCurrentModeId) {
+	const defaultModeId = resolveDefaultModeId(composerView.visibleModes);
+	if (defaultModeId && defaultModeId !== composerView.effectiveCurrentModeId) {
 		void handleModeMenuChange(defaultModeId);
 	}
 }
@@ -1896,19 +1415,19 @@ $effect(() => {
 					bind:editorRef
 					{voiceState}
 					{voiceOverlayActive}
-					{inputReady}
+					inputReady={composerView.inputReady}
 					{inputState}
 					overlayMode={overlayMode}
 					overlayRefId={overlayRefId}
 					overlayAnchorRect={overlayAnchorRect}
-					{composerInteraction}
-					{isStreaming}
-					{hasDraftInput}
-					{isAgentBusy}
-					effectiveAvailableCommands={effectiveAvailableCommands}
-					isSlashDropdownVisible={isSlashDropdownVisible}
-					slashCommandTokenType={slashCommandSource.tokenType}
-					filePickerProjectPath={filePickerProjectPath}
+					composerInteraction={composerView.composerInteraction}
+					isStreaming={composerView.isStreaming}
+					hasDraftInput={composerView.hasDraftInput}
+					isAgentBusy={composerView.isAgentBusy}
+					effectiveAvailableCommands={composerView.effectiveAvailableCommands}
+					isSlashDropdownVisible={composerView.isSlashDropdownVisible}
+					slashCommandTokenType={composerView.slashCommandSource.tokenType}
+					filePickerProjectPath={composerView.filePickerProjectPath}
 					onEditorBeforeInput={handleEditorBeforeInput}
 					onEditorInput={() => handleEditorInput()}
 					onEditorKeyDown={handleEditorKeyDown}
@@ -1929,7 +1448,7 @@ $effect(() => {
 					onFileSelect={handleFileSelect}
 					onSlashDropdownClose={() => inputState.handleDropdownClose()}
 					onFileDropdownClose={() => inputState.handleFileDropdownClose()}
-					placeholderLabel={composerPlaceholderLabel}
+					placeholderLabel={composerView.composerPlaceholderLabel}
 					voiceOverlayPhase={voiceRecordingOverlayPhase}
 					voiceDefaultErrorMessage={"Microphone permission denied"}
 					primarySrQueue={"Queue"}
@@ -1938,16 +1457,16 @@ $effect(() => {
 				>
 					{#snippet leadingControls()}
 						<AgentInputAttachMenu
-							disabled={selectorsDisabledByComposer}
-							modes={attachMenuModes}
-							commands={attachMenuCommands}
-							showModes={visibleModes.length > 0}
-							autonomousToggleActive={autonomousToggleActive}
-							autonomousDisabled={autonomousDisabled}
-							autonomousBusy={autonomousToggleBusy}
+							disabled={composerView.selectorsDisabledByComposer}
+							modes={composerView.attachMenuModes}
+							commands={composerView.attachMenuCommands}
+							showModes={composerView.visibleModes.length > 0}
+							autonomousToggleActive={composerView.autonomousToggleActive}
+							autonomousDisabled={composerView.autonomousDisabled}
+							autonomousBusy={composerView.autonomousToggleBusy}
 							onAutonomousToggle={() => { void handleAutonomousToggle(); }}
-							toolbarConfigOptions={toolbarConfigOptions}
-							configOptionsDisabled={selectorsLoading || selectorsDisabledByComposer}
+							toolbarConfigOptions={composerView.toolbarConfigOptions}
+							configOptionsDisabled={composerView.selectorsLoading || composerView.selectorsDisabledByComposer}
 							onConfigOptionChange={handleConfigOptionChange}
 							onModeChange={(modeId) => { void handleModeMenuChange(modeId); }}
 							onAddFileContext={handleAddFileContextFromAttachMenu}
@@ -1962,7 +1481,7 @@ $effect(() => {
 								{/if}
 								{#if props.sessionId}
 									<div class="px-2 py-1">
-										<ModelSelectorMetricsChip sessionId={props.sessionId} agentId={capabilitiesAgentId} />
+										<ModelSelectorMetricsChip sessionId={props.sessionId} agentId={composerView.capabilitiesAgentId} />
 									</div>
 								{/if}
 								{#if props.checkpointButton}
@@ -1972,21 +1491,21 @@ $effect(() => {
 								{/if}
 							{/snippet}
 						</AgentInputAttachMenu>
-						{#if showActiveModeChip}
+						{#if composerView.showActiveModeChip}
 							<AgentInputActiveModeChip
-								label={selectedModeOption.label}
-								iconKind={selectedModeOption.iconKind}
-								disabled={selectorsDisabledByComposer}
+								label={composerView.selectedModeOption.label}
+								iconKind={composerView.selectedModeOption.iconKind}
+								disabled={composerView.selectorsDisabledByComposer}
 								onDismiss={handleActiveModeDismiss}
 							/>
 						{/if}
 					{/snippet}
 					{#snippet trailingControls()}
 						<AgentInputComposerTrailingControls
-							{inputReady}
+							inputReady={composerView.inputReady}
 							voiceState={voiceToolbarBinding}
 							{voiceEnabled}
-							composerIsDispatching={storeComposerState?.isDispatching ?? false}
+							composerIsDispatching={composerView.storeComposerState?.isDispatching ?? false}
 							getMicButtonTitle={(_voice) =>
 								voiceState ? resolveVoiceMicTooltip(voiceState.phase, voiceMicTooltipLabels) : ""}
 							onVoiceMicKeyDown={(event, _binding) => {
@@ -2021,12 +1540,12 @@ $effect(() => {
 						>
 							{#snippet modelSelector()}
 								<ModelSelector
-									availableModels={effectiveAvailableModels}
-									currentModelId={effectiveCurrentModelId}
-									modelsDisplay={effectiveModelsDisplay}
-									providerMetadata={effectiveCapabilityProviderMetadata}
+									availableModels={composerView.effectiveAvailableModels}
+									currentModelId={composerView.effectiveCurrentModelId}
+									modelsDisplay={composerView.effectiveModelsDisplay}
+									providerMetadata={composerView.effectiveCapabilityProviderMetadata}
 									onModelChange={handleModelChange}
-									isLoading={selectorsLoading}
+									isLoading={composerView.selectorsLoading}
 									panelId={props.panelId}
 								/>
 							{/snippet}

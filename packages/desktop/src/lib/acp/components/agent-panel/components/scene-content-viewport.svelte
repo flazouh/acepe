@@ -196,7 +196,7 @@ const renderedRows = $derived.by(() => {
 
 const totalHeightPx = $derived(bufferProjection?.totalHeightPx ?? 0);
 
-const viewportClientScroll = $derived(sessionStore.getViewportClientScrollState(sessionId));
+const viewportClientScroll = $derived(sessionStore.viewport.getClientScrollState(sessionId));
 
 function tailBufferHydrated(): boolean {
 	const projection = bufferProjection;
@@ -272,7 +272,7 @@ function applyEnvelope(envelope: SessionStateEnvelope | null): void {
 	// (current === null) and undo the reattach. Event-stream payloads flow
 	// through a separate path (live consumer -> applyBufferPush/Delta) and are
 	// still accepted during recovery.
-	if (sessionStore.getViewportAttachmentStatus(sessionId) !== "attached") {
+	if (sessionStore.viewport.getAttachmentStatus(sessionId) !== "attached") {
 		return;
 	}
 	sessionStore.applySessionStateEnvelope(sessionId, envelope);
@@ -298,16 +298,16 @@ function extractViewportSessionNotAttached(
 function handleDispatchError(error: unknown): void {
 	const notAttached = extractViewportSessionNotAttached(error);
 	if (notAttached !== null) {
-		sessionStore.recoverViewportAttachment(notAttached.sessionId);
+		sessionStore.viewport.recoverAttachment(notAttached.sessionId);
 	}
 }
 
 function isDispatchSuppressed(): boolean {
-	return sessionId !== null && sessionStore.getViewportAttachmentStatus(sessionId) !== "attached";
+	return sessionId !== null && sessionStore.viewport.getAttachmentStatus(sessionId) !== "attached";
 }
 
 function nextViewportRequestGeneration(): number {
-	return sessionStore.nextViewportRequestGeneration(sessionId);
+	return sessionStore.viewport.nextRequestGeneration(sessionId);
 }
 
 function dispatchScrollIntent(
@@ -332,7 +332,7 @@ function queueScrollIntent(offsetPx: number): void {
 	if (sessionId === null) {
 		return;
 	}
-	sessionStore.setViewportPendingQueuedScrollIntentPx(sessionId, Math.max(0, Math.round(offsetPx)));
+	sessionStore.viewport.setPendingQueuedScrollIntentPx(sessionId, Math.max(0, Math.round(offsetPx)));
 	scheduleQueuedScrollIntent();
 }
 
@@ -351,7 +351,7 @@ function flushQueuedScrollIntent(): void {
 	}
 	const nextOffsetPx = viewportClientScroll.pendingQueuedScrollIntentPx;
 	if (sessionId !== null) {
-		sessionStore.setViewportPendingQueuedScrollIntentPx(sessionId, null);
+		sessionStore.viewport.setPendingQueuedScrollIntentPx(sessionId, null);
 	}
 	if (nextOffsetPx === null) {
 		return;
@@ -416,7 +416,7 @@ function dispatchBottomRevealIntent(): void {
 	) {
 		return;
 	}
-	sessionStore.setViewportLastBottomRevealDispatchMs(sessionId, nowMs);
+	sessionStore.viewport.setLastBottomRevealDispatchMs(sessionId, nowMs);
 	dispatchRevealIntent(null);
 }
 
@@ -575,7 +575,7 @@ function restoreDetachedScrollTargetIfOutsideBuffer(): boolean {
 		return false;
 	}
 	const scrollTopPx = Math.max(0, Math.round(scrollContainerRef.scrollTop));
-	const outsideBuffer = sessionStore.viewportIsOutsideBuffer(
+	const outsideBuffer = sessionStore.viewport.isOutsideBuffer(
 		sessionId,
 		scrollTopPx,
 		lastViewportHeightPx
@@ -714,7 +714,7 @@ function recoverOutsideBufferScrollTop(
 		nowMs,
 		retryIntervalMs: OUTSIDE_BUFFER_RECOVERY_RETRY_MS,
 	});
-	sessionStore.setViewportPendingOutsideBufferScrollTopPx(
+	sessionStore.viewport.setPendingOutsideBufferScrollTopPx(
 		sessionId,
 		recovery.requestedScrollTopPx,
 		recovery.requestedScrollTopPx
@@ -740,7 +740,7 @@ function recoverOutsideBufferScrollTop(
 		queuePhysicalScrollCommand("outsideBufferClamp", recovery.clampedScrollTopPx, "immediate");
 	}
 	if (shouldDispatch) {
-		sessionStore.setViewportLastOutsideBufferRecoveryDispatchMs(sessionId, nowMs);
+		sessionStore.viewport.setLastOutsideBufferRecoveryDispatchMs(sessionId, nowMs);
 		dispatchScrollIntent(recovery.requestedScrollTopPx, { forceFresh: true });
 	}
 	scheduleOutsideBufferRecovery();
@@ -791,7 +791,7 @@ function handleScroll(event: Event): void {
 				activeOutsideBufferRequestedScrollTopPx !== null &&
 				activeOutsideBufferRequestedScrollTopPx <= NEAR_EDGE_THRESHOLD_PX
 			) {
-				sessionStore.setViewportPendingOutsideBufferScrollTopPx(
+				sessionStore.viewport.setPendingOutsideBufferScrollTopPx(
 					sessionId,
 					pendingOutsideBufferScrollTopPx,
 					null
@@ -801,7 +801,7 @@ function handleScroll(event: Event): void {
 				pendingOutsideBufferScrollTopPx !== null &&
 				pendingOutsideBufferScrollTopPx <= NEAR_EDGE_THRESHOLD_PX
 			) {
-				sessionStore.setViewportPendingOutsideBufferScrollTopPx(sessionId, null, null);
+				sessionStore.viewport.setPendingOutsideBufferScrollTopPx(sessionId, null, null);
 			}
 		}
 		if (
@@ -874,12 +874,12 @@ function handleScroll(event: Event): void {
 		// Native scroll already moved the buffered rows under the viewport at no
 		// JS cost. Only round-trip to Rust when the visible range is leaving the
 		// buffered span (jump scroll) or approaching a non-extreme edge (refill).
-		const outside = sessionStore.viewportIsOutsideBuffer(
+		const outside = sessionStore.viewport.isOutsideBuffer(
 			sessionId,
 			scrollTopPx,
 			lastViewportHeightPx
 		);
-		const needsRefill = sessionStore.viewportNeedsRefill(
+		const needsRefill = sessionStore.viewport.needsRefill(
 			sessionId,
 			scrollTopPx,
 			lastViewportHeightPx,
@@ -1030,7 +1030,7 @@ $effect(() => {
 		return;
 	}
 	bootstrappedSessionId = sessionId;
-	sessionStore.ensureViewportBufferBootstrap(sessionId);
+	sessionStore.viewport.ensureBufferBootstrap(sessionId);
 });
 
 $effect(() => {
@@ -1111,13 +1111,13 @@ $effect(() => {
 			scrollContainerRef === null ||
 			sessionId === null ||
 			activeOutsideBufferRequestedScrollTopPx === null ||
-			sessionStore.viewportIsOutsideBuffer(sessionId, requestedScrollTopPx, lastViewportHeightPx)
+			sessionStore.viewport.isOutsideBuffer(sessionId, requestedScrollTopPx, lastViewportHeightPx)
 		) {
 			scheduleOutsideBufferRecovery();
 			return;
 		}
 		if (Math.abs(scrollContainerRef.scrollTop - requestedScrollTopPx) <= 1) {
-			sessionStore.clearViewportOutsideBufferRecovery(sessionId);
+			sessionStore.viewport.clearOutsideBufferRecovery(sessionId);
 			outsideBufferRecoveryFramesRemaining = 0;
 			return;
 		}
@@ -1135,7 +1135,7 @@ $effect(() => {
 			if (!pinLiveScrollTopToRenderedBottom()) {
 				return;
 			}
-			sessionStore.clearViewportOutsideBufferRecovery(sessionId);
+			sessionStore.viewport.clearOutsideBufferRecovery(sessionId);
 			outsideBufferRecoveryFramesRemaining = 0;
 			scheduleBottomPinRecovery();
 			return;
@@ -1145,7 +1145,7 @@ $effect(() => {
 			requestedScrollTopPx,
 			"immediate"
 		);
-		sessionStore.clearViewportOutsideBufferRecovery(sessionId);
+		sessionStore.viewport.clearOutsideBufferRecovery(sessionId);
 		outsideBufferRecoveryFramesRemaining = 0;
 	});
 });
@@ -1212,7 +1212,7 @@ $effect(() => {
 		if (scrollContainerRef === null) {
 			return;
 		}
-		const correction = sessionStore.consumeViewportScrollCorrectionPx(targetSessionId);
+		const correction = sessionStore.viewport.consumeScrollCorrectionPx(targetSessionId);
 		if (correction === 0) {
 			return;
 		}
@@ -1338,7 +1338,7 @@ export function scrollToTop() {
 		data-buffer-emission-seq={bufferProjection?.emissionSeq}
 		data-buffer-mode={bufferProjection?.mode.kind}
 		data-session-present={sessionId !== null}
-		data-viewport-attachment-status={sessionStore.getViewportAttachmentStatus(sessionId)}
+		data-viewport-attachment-status={sessionStore.viewport.getAttachmentStatus(sessionId)}
 		class="h-full min-h-0 overflow-y-auto"
 		style="overflow-anchor: none;"
 		onscroll={handleScroll}

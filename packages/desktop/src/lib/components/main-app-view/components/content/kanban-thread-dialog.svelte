@@ -70,7 +70,7 @@ const panelSnapshot = $derived.by(() => {
 			: (panelStore.getTopLevelAgentPanel(panelId) ?? null);
 	const hotState = panel ? panelStore.getHotState(panel.id) : null;
 	const identity =
-		panel && panel.sessionId !== null ? sessionStore.getSessionIdentity(panel.sessionId) : undefined;
+		panel && panel.sessionId !== null ? sessionStore.read.getSessionIdentity(panel.sessionId) : undefined;
 
 	return buildKanbanThreadDialogPanelSnapshot({
 		panel,

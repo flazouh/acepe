@@ -43,11 +43,11 @@ export class AgentPanelScenePipelineController {
 	readonly revealProjection = $derived.by(() => {
 		const sessionId = this.#deps.getSessionId();
 		const turnCompleted =
-			sessionId !== null && this.#deps.sessionStore.getSessionTurnState(sessionId) === "Completed";
+			sessionId !== null && this.#deps.sessionStore.read.getSessionTurnState(sessionId) === "Completed";
 		const turnId =
 			sessionId === null
 				? null
-				: (this.#deps.sessionStore.getSessionLastTerminalTurnId(sessionId) ?? `${sessionId}:active`);
+				: (this.#deps.sessionStore.read.getSessionLastTerminalTurnId(sessionId) ?? `${sessionId}:active`);
 		return this.#revealTextProjection.apply({
 			sceneEntries: this.graphMaterializedScene.conversation.entries,
 			sessionId,
@@ -64,8 +64,8 @@ export class AgentPanelScenePipelineController {
 		const streamingAnimationMode =
 			this.#deps.chatPreferencesStore?.streamingAnimationMode ?? "smooth";
 		const tokenRevealTailRowId =
-			sessionId === null ? null : this.#deps.sessionStore.getActiveStreamingTailRowId(sessionId);
-		const clockAnchor = sessionId === null ? null : this.#deps.sessionStore.getClockAnchor(sessionId);
+			sessionId === null ? null : this.#deps.sessionStore.read.getActiveStreamingTailRowId(sessionId);
+		const clockAnchor = sessionId === null ? null : this.#deps.sessionStore.read.getClockAnchor(sessionId);
 
 		const sourceEntries = this.graphMaterializedScene.conversation.entries;
 		const sourceScenePatch = this.#graphSceneMaterializer.selectConversationScenePatch();
@@ -78,7 +78,7 @@ export class AgentPanelScenePipelineController {
 				? buildTokenRevealCss(
 						sessionId === null
 							? null
-							: this.#deps.sessionStore.getRowTokenStreamByRowId(sessionId, tailEntry.id),
+							: this.#deps.sessionStore.read.getRowTokenStreamByRowId(sessionId, tailEntry.id),
 						clockAnchor,
 						streamingAnimationMode,
 						this.#deps.getPrefersReducedMotion(),

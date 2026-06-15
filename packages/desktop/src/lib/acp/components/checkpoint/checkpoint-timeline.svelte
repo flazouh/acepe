@@ -79,7 +79,7 @@ async function loadFilesForCheckpoint(checkpointId: string) {
  * 2. Reactive updates only trigger one recomputation, not m recomputations
  */
 const userMessagePreviews = $derived.by(() => {
-	const transcriptEntries = sessionStore.getSessionTranscriptEntries(sessionId);
+	const transcriptEntries = sessionStore.read.getSessionTranscriptEntries(sessionId);
 	const previews = deriveCheckpointUserMessagePreviews({
 		transcriptEntries,
 		checkpoints: visibleCheckpoints,

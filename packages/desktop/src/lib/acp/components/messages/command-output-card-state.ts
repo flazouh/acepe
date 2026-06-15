@@ -18,13 +18,17 @@ const MODEL_NAMES: Record<string, string> = {
 	haiku: "Haiku 4.5",
 };
 
-export function buildCommandOutputCardState(output: CommandOutput): CommandOutputCardState {
+export function buildCommandOutputCardState(
+	output: CommandOutput,
+	structuredModel: CommandModelInfo | null = null
+): CommandOutputCardState {
 	const cleanStdout = stripAnsiCodes(output.stdout);
-	const modelInfo = parseCommandModelInfo(cleanStdout);
+	const modelInfo = structuredModel ?? parseCommandModelInfo(cleanStdout);
 
 	return {
 		modelInfo,
-		isModelCommand: output.command === "/model" || output.message === "model" || modelInfo !== null,
+		isModelCommand:
+			output.command === "/model" || output.message === "model" || modelInfo !== null,
 		displayModel: getDisplayModel(modelInfo),
 		cleanStdout,
 	};

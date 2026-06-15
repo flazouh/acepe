@@ -51,7 +51,7 @@ const pendingPermissions = $derived.by(() => {
 		return [permission];
 	}
 
-	const visiblePermissions = sessionStore.getVisiblePermissionsForSessionBar(
+	const visiblePermissions = sessionStore.read.getVisiblePermissionsForSessionBar(
 		permissionStore.getForSession(sessionId)
 	);
 	if (!hideRepresentedPermissions) {
@@ -60,7 +60,7 @@ const pendingPermissions = $derived.by(() => {
 
 	return visiblePermissions.filter(
 		(visiblePermission) =>
-			!sessionStore.isPermissionRepresentedByToolCall(visiblePermission, sessionId)
+			!sessionStore.read.isPermissionRepresentedByToolCall(visiblePermission, sessionId)
 	);
 });
 const currentPermission = $derived(pendingPermissions.length > 0 ? pendingPermissions[0] : null);
@@ -78,17 +78,17 @@ const isRepresentedByToolCall = $derived.by(() => {
 		return false;
 	}
 
-	return sessionStore.isPermissionRepresentedByToolCall(currentPermission, sessionId);
+	return sessionStore.read.isPermissionRepresentedByToolCall(currentPermission, sessionId);
 });
 const sessionProgress = $derived(permissionStore.getSessionProgress(sessionId));
-const effectiveTurnState = $derived(sessionStore.getSessionTurnState(sessionId));
+const effectiveTurnState = $derived(sessionStore.read.getSessionTurnState(sessionId));
 const currentToolCall = $derived.by((): ToolCall | null => {
 	const toolCallId = currentPermission?.tool?.callID;
 	if (!toolCallId) {
 		return null;
 	}
 
-	return sessionStore.getToolCallById(sessionId, toolCallId);
+	return sessionStore.read.getToolCallById(sessionId, toolCallId);
 });
 const answeredPermission = $derived.by(() => {
 	if (currentPermission !== null) {
@@ -105,7 +105,7 @@ const answeredPermission = $derived.by(() => {
 		return null;
 	}
 
-	sessionStore.isToolCallExecuting(sessionId, toolCallId);
+	sessionStore.read.isToolCallExecuting(sessionId, toolCallId);
 	return answered;
 });
 const displayPermission = $derived(currentPermission ?? answeredPermission?.permission ?? null);

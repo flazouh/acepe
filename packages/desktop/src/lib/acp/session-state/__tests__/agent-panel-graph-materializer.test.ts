@@ -3906,6 +3906,43 @@ describe("agent panel graph materializer", () => {
   			degradedReason: "No canonical operation was found for this restored transcript tool row.",
   		});
   	});
+
+  it("materializes local command transcript segments into user command chips", () => {
+  		const graph = createGraph({
+  			transcriptSnapshot: createTranscriptSnapshot([
+  				{
+  					entryId: "user-login",
+  					role: "user",
+  					segments: [
+  						{
+  							kind: "localCommand",
+  							segmentId: "user-login-segment-1",
+  							command: "/login",
+  							message: "login",
+  							args: "",
+  							stdout: "Login successful",
+  						},
+  					],
+  				},
+  			]),
+  		});
+
+  		const scene = materializeAgentPanelSceneFromGraph({
+  			panelId: "panel-1",
+  			graph,
+  			header: { title: "Session" },
+  		});
+
+  		const entry = scene.conversation.entries[0] as AgentUserEntry;
+  		expect(entry.type).toBe("user");
+  		expect(entry.text).toBe("Login successful");
+  		expect(entry.chunks).toHaveLength(1);
+  		expect(entry.chunks?.[0]?.kind).toBe("localCommand");
+  		if (entry.chunks?.[0]?.kind === "localCommand") {
+  			expect(entry.chunks[0].command).toBe("/login");
+  			expect(entry.chunks[0].chip.cleanStdout).toBe("Login successful");
+  		}
+  	});
 	});
 
 	describe("optimistic-overlay", () => {

@@ -1,7 +1,7 @@
 <script lang="ts">
-import { Colors } from "@acepe/ui/colors";
 import * as Dialog from "@acepe/ui/dialog";
-import XIcon from "@lucide/svelte/icons/x";
+import { PROJECT_CARD_ACTION_BUTTON_CLASS } from "@acepe/ui/panel-header";
+import { X } from "phosphor-svelte";
 import type { Snippet } from "svelte";
 
 interface Props {
@@ -55,10 +55,10 @@ const bodyClass = $derived(
 				{/if}
 				<Dialog.Close
 					aria-label={closeLabel}
-					class="workspace-dialog-close inline-flex size-5 shrink-0 items-center justify-center rounded-lg border border-border/70 bg-popover text-muted-foreground/70 shadow-sm transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-					style="--workspace-dialog-close-hover: {Colors.red};"
+					class="{PROJECT_CARD_ACTION_BUTTON_CLASS} shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:ring-inset"
+					data-header-control
 				>
-					<XIcon class="size-3" />
+					<X size={12} weight="bold" />
 				</Dialog.Close>
 			</div>
 			<div class={bodyClass}>
@@ -67,11 +67,3 @@ const bodyClass = $derived(
 		</div>
 	</Dialog.Content>
 </Dialog.Root>
-
-<style>
-	.workspace-dialog-close:hover {
-		color: var(--workspace-dialog-close-hover);
-		border-color: color-mix(in srgb, var(--workspace-dialog-close-hover) 55%, transparent);
-		background-color: color-mix(in srgb, var(--workspace-dialog-close-hover) 10%, var(--accent));
-	}
-</style>

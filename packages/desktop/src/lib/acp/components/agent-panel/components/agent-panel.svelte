@@ -611,7 +611,7 @@ const effectivePanelProviderBrand = $derived.by(() => {
 	const sessionProviderBrand =
 		sessionId === null
 			? null
-			: (sessionStore.getSessionProviderMetadata(sessionId)?.providerBrand ?? null);
+			: (sessionStore.read.getSessionProviderMetadata(sessionId)?.providerBrand ?? null);
 	const storeProviderBrand = agentStore.getProviderMetadata(headerAgentId)?.providerBrand ?? null;
 	const listedProviderBrand =
 		availableAgents.find((agent) => agent.id === headerAgentId)?.provider_metadata?.providerBrand ??
@@ -687,7 +687,7 @@ const footerWorktreeStatus = $derived(worktreeController.footerWorktreeStatus);
 /** Minimal linked-session references for the modified-header PR picker. */
 const projectPrLinkReferences = $derived.by(() => {
 	if (!sessionController.sessionProjectPath) return [];
-	return sessionStore.getSessionPrLinkReferencesForProject(sessionController.sessionProjectPath);
+	return sessionStore.read.getSessionPrLinkReferencesForProject(sessionController.sessionProjectPath);
 });
 
 /** Project matching the current session, used to render project-letter badges in the PR picker. */
@@ -757,7 +757,7 @@ void mergeStrategyStore.initialize();
  * - When the current session exposes a PR number
  * - After PR creation succeeds
  * - After PR merge (to refresh state)
- * The store's prState update is handled by sessionStore.refreshSessionPrState.
+ * The store's prState update is handled by sessionStore.connection.refreshSessionPrState.
  */
 function fetchPrDetails(target: {
 	sessionId: string;
@@ -857,7 +857,7 @@ const modifiedFilesState = $derived.by<ModifiedFilesState | null>(() => {
 	if (viewState.kind !== "conversation" || sessionId === null) {
 		return null;
 	}
-	return sessionStore.getSessionModifiedFilesState(sessionId);
+	return sessionStore.read.getSessionModifiedFilesState(sessionId);
 });
 
 function handleEnterReviewMode(filesState: ModifiedFilesState): void {
@@ -973,7 +973,7 @@ $effect(() => {
 			if (!listed) {
 				worktreeController.setWorktreeDeleted(true);
 				if (currentSessionId) {
-					sessionStore.disconnectSession(currentSessionId);
+					sessionStore.connection.disconnectSession(currentSessionId);
 				}
 			} else {
 				worktreeController.setWorktreeDeleted(false);
@@ -983,7 +983,7 @@ $effect(() => {
 			if (disposed) return;
 			worktreeController.setWorktreeDeleted(true);
 			if (currentSessionId) {
-				sessionStore.disconnectSession(currentSessionId);
+				sessionStore.connection.disconnectSession(currentSessionId);
 			}
 		}
 	);
@@ -1080,7 +1080,7 @@ async function handleCreatePr(config?: PrGenerationConfig) {
 		onStreamUpdate: (data) => prCard.applyStreamUpdate(data),
 		deps: {
 			applyAutomaticSessionPrLink: async (id, projectPath, pr) => {
-				const result = await sessionStore.applyAutomaticPrLinkFromShipWorkflow(id, projectPath, pr);
+				const result = await sessionStore.connection.applyAutomaticPrLinkFromShipWorkflow(id, projectPath, pr);
 				return result.match(
 					(prNumber) => prNumber,
 					() => null
@@ -1100,8 +1100,8 @@ async function handleMergePr(strategy: MergeStrategy) {
 		strategy,
 		setMergePrRunning: (running) => prCard.setMergeRunning(running),
 		onMerged: () => {
-			sessionStore.updateSession(sessionId, { prState: "MERGED" });
-			sessionStore.invalidatePrDetails(path, prNum);
+			sessionStore.write.updateSession(sessionId, { prState: "MERGED" });
+			sessionStore.connection.invalidatePrDetails(path, prNum);
 			fetchPrDetails({
 				sessionId,
 				projectPath: path,
@@ -1272,7 +1272,7 @@ const todoManager = getTodoStateManager();
 const todoState = $derived.by(() => {
 	if (!sessionId) return null;
 	const threadData = {
-		toolCalls: sessionStore.getSessionToolCalls(sessionId),
+		toolCalls: sessionStore.read.getSessionToolCalls(sessionId),
 		isConnected: sessionController.sessionIsConnected,
 		status: sessionController.panelSessionStatus,
 		isStreaming: sessionController.sessionIsStreaming,
@@ -1391,7 +1391,7 @@ function handleInlinePlanDialogOpenChange(open: boolean): void {
 }
 
 async function handlePlanSidebarSendMessage(sid: string, message: string): Promise<void> {
-	await sessionStore.sendMessage(sid, message).match(
+	await sessionStore.connection.sendMessage(sid, message).match(
 		() => {},
 		(error) => {
 			throw error;

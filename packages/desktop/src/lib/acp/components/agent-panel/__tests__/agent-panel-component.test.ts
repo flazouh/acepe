@@ -35,6 +35,10 @@ type AgentPanelWiringFixture = {
 		graphHeaderTitle: string;
 		connectionState: PanelConnectionState | null;
 	};
+	pushConnectionSnapshot: (
+		state: PanelConnectionState | null,
+		error?: PanelConnectionErrorDetails | null
+	) => void;
 };
 
 /**
@@ -43,27 +47,36 @@ type AgentPanelWiringFixture = {
  */
 function createAgentPanelWiringFixture(): AgentPanelWiringFixture {
 	const stubSessionStore = {
-		getSessionConnectionError: () => null,
-		getSessionLifecycleFailureReason: () => null,
-		getSessionActiveTurnFailure: () => null,
-		getSessionAgentPanelSessionSource: () => ({ kind: "uninitialized" }),
-		getSessionPendingSendIntent: () => null,
-		getSessionTranscriptEntries: () => [],
-		getSessionLifecyclePresentation: () => null,
-		getSessionAgentPanelCanonicalSource: () => null,
-		getSessionIdentity: () => ({
-			projectPath: "/repo",
-			agentId: "claude-code",
-			worktreePath: null,
-		}),
-		getSessionMetadata: () => ({ title: "Fixture session" }),
-		getSessionTurnState: () => "Completed" as const,
-		getSessionLastTerminalTurnId: () => "turn-1",
-		getActiveStreamingTailRowId: () => null,
-		getClockAnchor: () => null,
-		getRowTokenStreamByRowId: () => null,
-		updateSession: () => undefined,
-		disconnectSession: () => undefined,
+		read: {
+			getSessionConnectionError: () => null,
+			getSessionLifecycleFailureReason: () => null,
+			getSessionActiveTurnFailure: () => null,
+			getSessionPendingSendIntent: () => null,
+			getSessionTranscriptEntries: () => [],
+			getSessionIdentity: () => ({
+				projectPath: "/repo",
+				agentId: "claude-code",
+				worktreePath: null,
+			}),
+			getSessionMetadata: () => ({ title: "Fixture session" }),
+			getSessionTurnState: () => "Completed" as const,
+			getSessionLastTerminalTurnId: () => "turn-1",
+			getActiveStreamingTailRowId: () => null,
+			getClockAnchor: () => null,
+			getRowTokenStreamByRowId: () => null,
+			getSessionCurrentModelId: () => null,
+		},
+		presentation: {
+			getSessionAgentPanelSessionSource: () => ({ kind: "uninitialized" }),
+			getSessionLifecyclePresentation: () => null,
+			getSessionAgentPanelCanonicalSource: () => null,
+		},
+		write: {
+			updateSession: () => undefined,
+		},
+		connection: {
+			disconnectSession: () => undefined,
+		},
 	} as unknown as SessionStore;
 
 	const stubPanelStore = {
@@ -246,7 +259,7 @@ describe("AgentPanel component wiring characterization (plan 013 U1)", () => {
 			const fixture = createAgentPanelWiringFixture();
 			fixture.pushConnectionSnapshot(PanelConnectionState.ERROR, {
 				message: "Unable to load session",
-				referenceId: null,
+				referenceId: undefined,
 				referenceSearchable: false,
 			});
 			expect(fixture.viewStateController.viewState.kind).toBe("error");

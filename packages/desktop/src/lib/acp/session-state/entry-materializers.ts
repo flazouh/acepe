@@ -26,6 +26,7 @@ import {
 	buildAssistantMessageFromTranscriptEntry,
 	segmentText,
 } from "./transcript-text.js";
+import { buildUserRowSceneModel } from "../logic/user-row-scene-model.js";
 import { logUnresolvedToolDiagnostics } from "./unresolved-tool-diagnostics.js";
 
 export function interactionSceneEntryId(interactionId: string): string {
@@ -207,10 +208,12 @@ export function materializeTranscriptEntry(
 	isStreaming: boolean
 ): AgentPanelSceneEntryModel {
 	if (entry.role === "user") {
+		const userRow = buildUserRowSceneModel(entry);
 		return {
 			id: entry.entryId,
 			type: "user",
-			text: segmentText(entry),
+			text: userRow.text,
+			chunks: userRow.chunks.length > 0 ? userRow.chunks : undefined,
 			timestampMs: entry.timestampMs ?? undefined,
 		};
 	}

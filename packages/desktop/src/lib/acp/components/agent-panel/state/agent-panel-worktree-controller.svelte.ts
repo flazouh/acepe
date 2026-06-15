@@ -178,13 +178,13 @@ export class AgentPanelWorktreeController {
 			{
 				removeWorktree: (path, shouldForce) => removeWorktreeFromDisk(path, shouldForce),
 				markSessionWorktreeDeleted: (id) => {
-					this.#deps.sessionStore.updateSession(id, { worktreeDeleted: true });
+					this.#deps.sessionStore.write.updateSession(id, { worktreeDeleted: true });
 				},
 				clearSessionWorktreeDeleted: (id) => {
-					this.#deps.sessionStore.updateSession(id, { worktreeDeleted: false });
+					this.#deps.sessionStore.write.updateSession(id, { worktreeDeleted: false });
 				},
 				disconnectSession: (id) => {
-					this.#deps.sessionStore.disconnectSession(id);
+					this.#deps.sessionStore.connection.disconnectSession(id);
 				},
 			}
 		).mapErr((error) => {
@@ -223,7 +223,7 @@ export class AgentPanelWorktreeController {
 
 		const sessionId = this.#deps.getSessionId();
 		if (sessionId) {
-			this.#deps.sessionStore.updateSession(sessionId, {
+			this.#deps.sessionStore.write.updateSession(sessionId, {
 				worktreeDeleted: false,
 				worktreePath: nextDirectory,
 			});
@@ -254,7 +254,7 @@ export class AgentPanelWorktreeController {
 			return;
 		}
 
-		this.#deps.sessionStore.updateSession(sessionId, {
+		this.#deps.sessionStore.write.updateSession(sessionId, {
 			worktreeDeleted: false,
 			worktreePath: info.directory,
 		});

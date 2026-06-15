@@ -4,13 +4,10 @@ import type {
 	ToolArguments,
 	TranscriptEntry,
 } from "../../services/acp-types.js";
+import { segmentText } from "../session-state/transcript-text.js";
 
 function transcriptSegmentText(entry: TranscriptEntry): string {
-	let text = "";
-	for (const segment of entry.segments) {
-		text += segment.text;
-	}
-	return text;
+	return segmentText(entry);
 }
 
 function operationTarget(args: ToolArguments): string {

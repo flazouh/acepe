@@ -38,30 +38,35 @@ describe("SessionHandler", () => {
 		mockSessionsArray = [];
 
 		mockSessionStore = {
-			get sessions() {
-				return mockSessionsArray;
+			read: {
+				hasSession: mock((id: string) => mockSessionsArray.some((s: { id: string }) => s.id === id)),
+				getSessionDetail: mock(() => null),
+				getSession: mock((id: string) => mockSessionsArray.find((s: { id: string }) => s.id === id)),
+				getSessionById: mock((id: string) => mockSessionsArray.find((s: { id: string }) => s.id === id)),
 			},
-			getSessionDetail: mock(() => null),
-			getSession: mock((id: string) => mockSessionsArray.find((s: any) => s.id === id)),
-			getSessionById: mock((id: string) => mockSessionsArray.find((s: any) => s.id === id)),
-			hasSession: mock((id: string) => mockSessionsArray.some((s: any) => s.id === id)),
-			loadHistoricalSession: mock((sessionId: string) => {
-				const session = { id: sessionId };
-				mockSessionsArray.push(session);
-				return okAsync(session as any);
-			}),
-			connectSession: mock(() => okAsync({} as any)),
-			createSession: mock(() =>
-				okAsync({ kind: "ready", session: { id: "acp-session-id" } } as any)
-			),
-			setSessionLoading: mock(() => {}),
-			setSessionLoaded: mock(() => {}),
-			removeSession: mock((id: string) => {
-				const index = mockSessionsArray.findIndex((s: any) => s.id === id);
-				if (index !== -1) {
-					mockSessionsArray.splice(index, 1);
-				}
-			}),
+			loading: {
+				loadHistoricalSession: mock((sessionId: string) => {
+					const session = { id: sessionId };
+					mockSessionsArray.push(session);
+					return okAsync(session as import("$lib/acp/store/types.js").SessionCold);
+				}),
+				setSessionLoading: mock(() => {}),
+				setSessionLoaded: mock(() => {}),
+			},
+			connection: {
+				connectSession: mock(() => okAsync({} as Record<string, never>)),
+				createSession: mock(() =>
+					okAsync({ kind: "ready", session: { id: "acp-session-id" } } as import("$lib/acp/store/session-store.svelte.js").SessionCreationResult)
+				),
+			},
+			write: {
+				removeSession: mock((id: string) => {
+					const index = mockSessionsArray.findIndex((s: { id: string }) => s.id === id);
+					if (index !== -1) {
+						mockSessionsArray.splice(index, 1);
+					}
+				}),
+			},
 		} as unknown as SessionStore;
 
 		const panel = {
@@ -153,7 +158,7 @@ describe("SessionHandler", () => {
 			const result = await handler.selectSession("session-1", sessionInfo);
 
 			expect(result.isOk()).toBe(true);
-			expect(mockSessionStore.loadHistoricalSession).toHaveBeenCalledWith(
+			expect(mockSessionStore.loading.loadHistoricalSession).toHaveBeenCalledWith(
 				"session-1",
 				"/test",
 				"Test Session",
@@ -224,7 +229,7 @@ describe("SessionHandler", () => {
 			const result = await handler.selectSession("session-1");
 
 			expect(result.isOk()).toBe(true);
-			expect(mockSessionStore.connectSession).not.toHaveBeenCalled();
+			expect(mockSessionStore.connection.connectSession).not.toHaveBeenCalled();
 		});
 
 		it("should not close the panel when session open remains async", async () => {
@@ -267,8 +272,8 @@ describe("SessionHandler", () => {
 				timeoutMs: 30_000,
 				source: "session-handler",
 			});
-			expect(mockSessionStore.setSessionLoaded).not.toHaveBeenCalled();
-			expect(mockSessionStore.removeSession).not.toHaveBeenCalled();
+			expect(mockSessionStore.loading.setSessionLoaded).not.toHaveBeenCalled();
+			expect(mockSessionStore.write.removeSession).not.toHaveBeenCalled();
 		});
 
 		it("should return error if loadHistoricalSession fails", async () => {
@@ -288,7 +293,7 @@ describe("SessionHandler", () => {
 				activity: null,
 				parentId: null,
 			};
-			mockSessionStore.loadHistoricalSession = mock(() =>
+			mockSessionStore.loading.loadHistoricalSession = mock(() =>
 				errAsync(new SessionNotFoundError("session-1"))
 			);
 
@@ -309,7 +314,7 @@ describe("SessionHandler", () => {
 			const result = await handler.createSession(options);
 
 			expect(result.isOk()).toBe(true);
-			expect(mockSessionStore.createSession).toHaveBeenCalledWith({
+			expect(mockSessionStore.connection.createSession).toHaveBeenCalledWith({
 				agentId: "agent-1",
 				projectPath: "/test",
 			});
@@ -320,7 +325,7 @@ describe("SessionHandler", () => {
 		});
 
 		it("should return error if createSession fails", async () => {
-			mockSessionStore.createSession = mock(() =>
+			mockSessionStore.connection.createSession = mock(() =>
 				errAsync(new ConnectionError("new-session", new Error("Create failed")))
 			);
 
@@ -342,7 +347,7 @@ describe("SessionHandler", () => {
 			expect(result.isOk()).toBe(true);
 			expect(mockPanelStore.setPanelProjectPath).toHaveBeenCalledWith("panel-1", "/test");
 			expect(mockConnectionStore.send).not.toHaveBeenCalled();
-			expect(mockSessionStore.createSession).not.toHaveBeenCalled();
+			expect(mockSessionStore.connection.createSession).not.toHaveBeenCalled();
 			expect(mockPanelStore.updatePanelSession).not.toHaveBeenCalled();
 		});
 

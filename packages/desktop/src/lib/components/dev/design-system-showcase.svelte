@@ -583,7 +583,7 @@ const onboardingAgents = [
 																		{:else if agent.id === "cursor"}
 																			<img src="/svgs/icons/cursor.svg" alt="" class="size-3.5" />
 																		{:else if agent.id === "codex"}
-																			<img src="/svgs/agents/codex/codex-app-icon.png" alt="" class="size-3.5 rounded-[4px]" />
+																			<img src="/svgs/agents/codex/codex-app-icon.png" alt="" class="size-3.5 rounded-[22%] object-contain" />
 																		{:else}
 																			<Robot weight="fill" class="size-3.5 text-muted-foreground" />
 																		{/if}

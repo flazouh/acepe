@@ -48,7 +48,7 @@ describe("TauriDragDropController", () => {
 			.mockReturnValueOnce(leaveRegistration.promise);
 
 		const controller = new TauriDragDropController({
-			listen: listenMock,
+			listen: listenMock as unknown as TauriDragDropListen,
 			callbacks: {
 				onDragOver: () => {},
 				onDrop: () => {},
@@ -86,7 +86,7 @@ describe("TauriDragDropController", () => {
 		);
 
 		const controller = new TauriDragDropController({
-			listen: listenMock,
+			listen: listenMock as unknown as TauriDragDropListen,
 			callbacks: {
 				onDragOver: () => {},
 				onDrop: () => {},

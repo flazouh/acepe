@@ -77,23 +77,31 @@ function makePanelStore(input?: {
 function makeSessionStore(input?: {
 	readonly createFails?: boolean;
 	readonly sendFails?: boolean;
-}): Partial<SessionStore> {
+}): SessionStore {
 	const session = makeSession();
 	return {
-		createSession: vi.fn(() => {
-			if (input?.createFails === true) {
-				return errAsync(new Error("create failed") as never);
-			}
-			return okAsync({ kind: "ready" as const, session });
-		}),
-		sendMessage: vi.fn(() => {
-			if (input?.sendFails === true) {
-				return errAsync(new Error("send failed") as never);
-			}
-			return okAsync(undefined);
-		}),
-		getSessionCold: vi.fn(() => session),
-	};
+		connection: {
+			createSession: vi.fn(() => {
+				if (input?.createFails === true) {
+					return errAsync(new Error("create failed") as never);
+				}
+				return okAsync({ kind: "ready" as const, session });
+			}),
+			sendMessage: vi.fn(() => {
+				if (input?.sendFails === true) {
+					return errAsync(new Error("send failed") as never);
+				}
+				return okAsync(undefined);
+			}),
+		},
+		read: {
+			getSessionCold: vi.fn(() => session),
+		},
+		composer: {
+			beginDispatch: vi.fn(() => {}),
+			endDispatch: vi.fn(() => {}),
+		},
+	} as unknown as SessionStore;
 }
 
 describe("AgentInputState optimistic pending entry rollback", () => {

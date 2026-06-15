@@ -88,3 +88,7 @@ export {
 	restoreComposerStateAfterFailedSend,
 } from "./logic/first-send-recovery.js";
 export { type PreparedMessage, prepareMessageForSend } from "./logic/message-preparation.js";
+export {
+	ComposerViewController,
+	type ComposerViewControllerDeps,
+} from "./state/composer-view-controller.svelte.js";

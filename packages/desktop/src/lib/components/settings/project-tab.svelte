@@ -21,11 +21,11 @@ const archiveStore = getSessionArchiveStore();
 
 const allSessions = $derived.by((): SessionSummary[] => {
 	const coldSessions = agentPreferencesStore.filterItemsBySelectedAgents(
-		sessionStore.getAllSessions()
+		sessionStore.read.getAllSessions()
 	);
 	return coldSessions.map((cold) => {
-		const listState = sessionStore.getSessionListState(cold.id);
-		const entryCount = sessionStore.getSessionMessageCount(cold.id);
+		const listState = sessionStore.read.getSessionListState(cold.id);
+		const entryCount = sessionStore.read.getSessionMessageCount(cold.id);
 		return buildSessionSummaryFromCold({
 			cold,
 			listState,
@@ -35,7 +35,7 @@ const allSessions = $derived.by((): SessionSummary[] => {
 });
 const activeSessions = $derived(allSessions.filter((session) => !archiveStore.isArchived(session)));
 const projects = $derived(projectManager.projects);
-const loading = $derived(sessionStore.loading);
+const loading = $derived(sessionStore.sessionsLoading);
 
 function handleView(sessionId: string) {
 	panelStore.openSession(sessionId, DEFAULT_PANEL_WIDTH);

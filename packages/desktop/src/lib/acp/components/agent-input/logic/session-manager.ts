@@ -93,7 +93,7 @@ export function createSession(
 	store: SessionStore,
 	options: CreateSessionOptions
 ): ResultAsync<CreatedSessionHandle, SessionCreationError> {
-	return store
+	return store.connection
 		.createSession({
 			agentId: options.agentId,
 			initialAutonomousEnabled: options.initialAutonomousEnabled === true,
@@ -137,7 +137,7 @@ export function sendMessage(
 	message: string,
 	attachments: readonly Attachment[] = []
 ): ResultAsync<void, MessageSendError> {
-	return store
+	return store.connection
 		.sendMessage(sessionId, message, attachments)
 		.mapErr(
 			(error) =>

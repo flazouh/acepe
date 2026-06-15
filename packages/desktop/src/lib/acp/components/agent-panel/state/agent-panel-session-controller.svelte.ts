@@ -70,13 +70,13 @@ export class AgentPanelSessionController {
 	/** Identity: id, projectPath, agentId, worktreePath (immutable - never changes). */
 	readonly sessionIdentity = $derived.by(() => {
 		const id = this.#deps.getSessionId();
-		return id ? this.#deps.sessionStore.getSessionIdentity(id) : null;
+		return id ? this.#deps.sessionStore.read.getSessionIdentity(id) : null;
 	});
 
 	/** Metadata: title, createdAt, updatedAt (rarely changes). */
 	readonly sessionMetadata = $derived.by(() => {
 		const id = this.#deps.getSessionId();
-		return id ? this.#deps.sessionStore.getSessionMetadata(id) : null;
+		return id ? this.#deps.sessionStore.read.getSessionMetadata(id) : null;
 	});
 
 	readonly sessionProjectPath = $derived(this.sessionIdentity?.projectPath ?? null);
@@ -87,7 +87,7 @@ export class AgentPanelSessionController {
 	/** Current model from canonical capabilities (for PR popover default). */
 	readonly sessionCurrentModelId = $derived.by(() => {
 		const id = this.#deps.getSessionId();
-		return id ? this.#deps.sessionStore.getSessionCurrentModelId(id) : null;
+		return id ? this.#deps.sessionStore.read.getSessionCurrentModelId(id) : null;
 	});
 
 	/** Panel id with the default-panel fallback. */
@@ -104,7 +104,7 @@ export class AgentPanelSessionController {
 
 	readonly sessionPendingSendIntent = $derived.by(() => {
 		const id = this.#deps.getSessionId();
-		return id ? this.#deps.sessionStore.getSessionPendingSendIntent(id) : null;
+		return id ? this.#deps.sessionStore.read.getSessionPendingSendIntent(id) : null;
 	});
 
 	readonly preSessionPendingUserEntry = $derived.by(() => {
@@ -116,7 +116,7 @@ export class AgentPanelSessionController {
 		const id = this.#deps.getSessionId();
 		return id === null || id === undefined
 			? null
-			: this.#deps.sessionStore.getSessionTranscriptEntries(id);
+			: this.#deps.sessionStore.read.getSessionTranscriptEntries(id);
 	});
 
 	readonly canonicalUserEntryPresence = $derived.by(() => {
@@ -168,16 +168,16 @@ export class AgentPanelSessionController {
 	/** Canonical lifecycle presentation from Rust-owned graph projection. */
 	readonly lifecyclePresentation = $derived.by(() => {
 		const id = this.#deps.getSessionId();
-		return id ? this.#deps.sessionStore.getSessionLifecyclePresentation(id) : null;
+		return id ? this.#deps.sessionStore.presentation.getSessionLifecyclePresentation(id) : null;
 	});
 
 	readonly agentPanelCanonicalSource = $derived.by(() => {
 		const id = this.#deps.getSessionId();
-		return id ? this.#deps.sessionStore.getSessionAgentPanelCanonicalSource(id) : null;
+		return id ? this.#deps.sessionStore.presentation.getSessionAgentPanelCanonicalSource(id) : null;
 	});
 
 	readonly canonicalPanelSessionSource = $derived.by(() =>
-		this.#deps.sessionStore.getSessionAgentPanelSessionSource(this.#deps.getSessionId())
+		this.#deps.sessionStore.presentation.getSessionAgentPanelSessionSource(this.#deps.getSessionId())
 	);
 
 	readonly canonicalSessionActivity = $derived.by(() =>
@@ -219,17 +219,17 @@ export class AgentPanelSessionController {
 
 	readonly sessionConnectionError = $derived.by(() => {
 		const id = this.#deps.getSessionId();
-		return id ? this.#deps.sessionStore.getSessionConnectionError(id) : null;
+		return id ? this.#deps.sessionStore.read.getSessionConnectionError(id) : null;
 	});
 
 	readonly sessionFailureReason = $derived.by(() => {
 		const id = this.#deps.getSessionId();
-		return id ? this.#deps.sessionStore.getSessionLifecycleFailureReason(id) : null;
+		return id ? this.#deps.sessionStore.read.getSessionLifecycleFailureReason(id) : null;
 	});
 
 	readonly activeTurnError = $derived.by(() => {
 		const id = this.#deps.getSessionId();
-		const activeTurnFailure = id ? this.#deps.sessionStore.getSessionActiveTurnFailure(id) : null;
+		const activeTurnFailure = id ? this.#deps.sessionStore.read.getSessionActiveTurnFailure(id) : null;
 		if (activeTurnFailure) {
 			return {
 				content: activeTurnFailure.message,

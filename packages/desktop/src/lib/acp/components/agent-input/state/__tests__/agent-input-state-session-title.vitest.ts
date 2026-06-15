@@ -30,11 +30,19 @@ describe("AgentInputState - initial session title", () => {
 		const createSession = vi.fn(() => okAsync({ kind: "ready" as const, session: createdSession }));
 		const sendMessage = vi.fn(() => okAsync(undefined));
 		const getSessionCold = vi.fn(() => createdSession);
-		const mockStore: Partial<SessionStore> = {
-			createSession,
-			sendMessage,
-			getSessionCold,
-		};
+		const mockStore = {
+			connection: {
+				createSession,
+				sendMessage,
+			},
+			read: {
+				getSessionCold,
+			},
+			composer: {
+				beginDispatch: vi.fn(() => {}),
+				endDispatch: vi.fn(() => {}),
+			},
+		} as unknown as SessionStore;
 		const mockPanelStore: Partial<PanelStore> = {};
 		const state = new AgentInputState(
 			mockStore as SessionStore,
@@ -82,11 +90,19 @@ describe("AgentInputState - initial session title", () => {
 			return okAsync(undefined);
 		});
 		const getSessionCold = vi.fn(() => createdSession);
-		const mockStore: Partial<SessionStore> = {
-			createSession,
-			sendMessage,
-			getSessionCold,
-		};
+		const mockStore = {
+			connection: {
+				createSession,
+				sendMessage,
+			},
+			read: {
+				getSessionCold,
+			},
+			composer: {
+				beginDispatch: vi.fn(() => {}),
+				endDispatch: vi.fn(() => {}),
+			},
+		} as unknown as SessionStore;
 		const mockPanelStore: Partial<PanelStore> = {
 			getHotState: vi.fn(() =>
 				Object.assign({}, DEFAULT_PANEL_HOT_STATE, {
@@ -135,11 +151,19 @@ describe("AgentInputState - initial session title", () => {
 		);
 		const sendMessage = vi.fn(() => okAsync(undefined));
 		const onSessionCreated = vi.fn();
-		const mockStore: Partial<SessionStore> = {
-			createSession,
-			sendMessage,
-			getSessionCold: vi.fn(() => undefined),
-		};
+		const mockStore = {
+			connection: {
+				createSession,
+				sendMessage,
+			},
+			read: {
+				getSessionCold: vi.fn(() => undefined),
+			},
+			composer: {
+				beginDispatch: vi.fn(() => {}),
+				endDispatch: vi.fn(() => {}),
+			},
+		} as unknown as SessionStore;
 		const mockPanelStore: Partial<PanelStore> = {
 			getHotState: vi.fn(() =>
 				Object.assign({}, DEFAULT_PANEL_HOT_STATE, {

@@ -221,7 +221,7 @@ export function createAgentInputController(host: AgentInputControllerHost): Agen
 
 		const sessionIdForDispatch = props.sessionId;
 		if (sessionIdForDispatch) {
-			host.sessionStore.composerBeginDispatch(sessionIdForDispatch);
+			host.sessionStore.composer.beginDispatch(sessionIdForDispatch);
 		}
 		const restoreSnapshot = createComposerRestoreSnapshot();
 		const isPreSessionSend = Boolean(props.panelId) && !props.sessionId;
@@ -229,7 +229,7 @@ export function createAgentInputController(host: AgentInputControllerHost): Agen
 		const prepared = captureAndClearInput();
 		if (!prepared) {
 			if (sessionIdForDispatch) {
-				host.sessionStore.composerEndDispatch(sessionIdForDispatch);
+				host.sessionStore.composer.endDispatch(sessionIdForDispatch);
 			}
 			return;
 		}
@@ -293,7 +293,7 @@ export function createAgentInputController(host: AgentInputControllerHost): Agen
 					applyComposerRestoreSnapshot(restoreSnapshot);
 				}
 				if (sessionIdForDispatch) {
-					host.sessionStore.composerEndDispatch(sessionIdForDispatch);
+					host.sessionStore.composer.endDispatch(sessionIdForDispatch);
 				}
 				return;
 			}
@@ -343,7 +343,7 @@ export function createAgentInputController(host: AgentInputControllerHost): Agen
 				props.onWorktreeCreateFailed?.(failureMessage);
 				toast.error("Failed to create worktree. Session will run without branch isolation.");
 				if (sessionIdForDispatch) {
-					host.sessionStore.composerEndDispatch(sessionIdForDispatch);
+					host.sessionStore.composer.endDispatch(sessionIdForDispatch);
 				}
 				return;
 			}
@@ -376,7 +376,7 @@ export function createAgentInputController(host: AgentInputControllerHost): Agen
 					"Failed to create worktree. Session will run without branch isolation."
 				);
 				if (sessionIdForDispatch) {
-					host.sessionStore.composerEndDispatch(sessionIdForDispatch);
+					host.sessionStore.composer.endDispatch(sessionIdForDispatch);
 				}
 				return;
 			}
@@ -455,7 +455,7 @@ export function createAgentInputController(host: AgentInputControllerHost): Agen
 			)
 			.finally(() => {
 				if (sessionIdForDispatch) {
-					host.sessionStore.composerEndDispatch(sessionIdForDispatch);
+					host.sessionStore.composer.endDispatch(sessionIdForDispatch);
 				}
 			});
 	}
@@ -475,11 +475,11 @@ export function createAgentInputController(host: AgentInputControllerHost): Agen
 		if (!prepared) return;
 		clearDraft();
 
-		host.sessionStore.composerBeginDispatch(sessionId);
-		host.sessionStore
+		host.sessionStore.composer.beginDispatch(sessionId);
+		host.sessionStore.connection
 			.cancelStreaming(sessionId)
 			.andThen(() =>
-				host.sessionStore.sendMessage(sessionId, prepared.content, prepared.imageAttachments)
+				host.sessionStore.connection.sendMessage(sessionId, prepared.content, prepared.imageAttachments)
 			)
 			.mapErr((error) => {
 				console.error("Steer failed:", error);
@@ -490,7 +490,7 @@ export function createAgentInputController(host: AgentInputControllerHost): Agen
 				() => undefined
 			)
 			.finally(() => {
-				host.sessionStore.composerEndDispatch(sessionId);
+				host.sessionStore.composer.endDispatch(sessionId);
 			});
 	}
 

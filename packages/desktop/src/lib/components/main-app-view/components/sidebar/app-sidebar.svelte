@@ -117,9 +117,9 @@ function handleResetProjectIcon(projectPath: string) {
 
 function handleRemoveProject(projectPath: string) {
 	// Close all panels associated with this project before removing it
-	for (const sessionId of sessionStore.getSessionIdsForProject(projectPath)) {
+	for (const sessionId of sessionStore.read.getSessionIdsForProject(projectPath)) {
 		panelStore.closePanelBySessionId(sessionId);
-		sessionStore.removeSession(sessionId);
+		sessionStore.write.removeSession(sessionId);
 	}
 	for (const tp of panelStore.getTerminalPanelsForProject(projectPath)) {
 		panelStore.closeTerminalPanel(tp.id);
@@ -166,7 +166,7 @@ function handleOpenPr(sessionInfo: SessionListItem) {
 }
 
 function handleRenameSession(sessionInfo: SessionListItem, title: string) {
-	void sessionStore.renameSession(sessionInfo.id, title).match(
+	void sessionStore.write.renameSession(sessionInfo.id, title).match(
 		() => undefined,
 		(error) => {
 			toast.error(`Failed to rename session: ${error.message}`);
@@ -181,7 +181,7 @@ function handleRenameSession(sessionInfo: SessionListItem, title: string) {
 }
 
 function handleExportMarkdown(sessionId: string) {
-	sessionStore.getSessionMarkdownExportContent(sessionId).match(
+	sessionStore.read.getSessionMarkdownExportContent(sessionId).match(
 		(markdown) => {
 			void copyTextToClipboard(markdown).match(
 				() => toast.success("Copied to clipboard"),
@@ -196,7 +196,7 @@ function handleExportMarkdown(sessionId: string) {
 }
 
 function handleExportJson(sessionId: string) {
-	sessionStore.getSessionJsonExportContent(sessionId).match(
+	sessionStore.read.getSessionJsonExportContent(sessionId).match(
 		(content) => {
 			void copyTextToClipboard(content).match(
 				() => toast.success("Copied to clipboard"),
@@ -418,12 +418,12 @@ function handleBrowseProjectIcon() {
 // marking this derived dirty on every frame and cascading to ALL SessionItem components.
 const visibleSessions = $derived.by(() => {
 	const coldSessions = agentPreferencesStore.filterItemsBySelectedAgents(
-		sessionStore.getAllSessions()
+		sessionStore.read.getAllSessions()
 	);
 	return coldSessions
 		.filter((cold) => !archiveStore.isArchived(cold))
 		.map((cold) => {
-			const listState = sessionStore.getSessionListState(cold.id);
+			const listState = sessionStore.read.getSessionListState(cold.id);
 			return buildSessionSummaryFromCold({
 				cold,
 				listState,
@@ -443,7 +443,7 @@ const visibleSessions = $derived.by(() => {
 	{#snippet sessionList()}
 		<SessionList
 			sessions={visibleSessions}
-			loading={sessionStore.loading}
+			loading={sessionStore.sessionsLoading}
 			scanningProjectPaths={sessionStore.scanningProjectPaths}
 			recentProjects={projectManager.projects}
 			canCreateSession={projectManager.projectCount !== null && projectManager.projectCount > 0}

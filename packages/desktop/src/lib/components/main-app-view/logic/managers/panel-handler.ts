@@ -45,7 +45,7 @@ export class PanelHandler {
 
 		// Disconnect session if panel has one
 		if (panel?.kind === "agent" && panel.sessionId && panel.autoCreated !== true) {
-			this.sessionStore.disconnectSession(panel.sessionId);
+			this.sessionStore.connection.disconnectSession(panel.sessionId);
 		}
 
 		// Destroy XState connection actor to prevent resource leaks

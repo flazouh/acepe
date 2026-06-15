@@ -231,7 +231,7 @@ const paddingLeft = $derived(`${basePadding + depth * 16}px`);
 const activePanel = $derived(panelStore?.getPanelBySessionId(session.id) ?? null);
 const hasUnseenCompletion = $derived(activePanel ? unseenStore.isUnseen(activePanel.id) : false);
 const sessionListPresentation = $derived.by(() =>
-	sessionStore.getSessionListItemPresentation({
+	sessionStore.presentation.getSessionListItemPresentation({
 		sessionId: session.id,
 		interactionStore,
 		hasUnseenCompletion,

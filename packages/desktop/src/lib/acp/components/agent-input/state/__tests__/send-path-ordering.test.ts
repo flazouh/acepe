@@ -72,19 +72,27 @@ function makeOrderedPanelStore(): {
 function makeOrderedSessionStore(
 	events: string[],
 	opts: { sendFails?: boolean } = {}
-): Partial<SessionStore> {
+): SessionStore {
 	const session = makeSession();
 	return {
-		createSession: mock(() => {
-			events.push("session-created");
-			return okAsync({ kind: "ready" as const, session });
-		}),
-		sendMessage: mock(() => {
-			events.push("send-message");
-			return opts.sendFails ? errAsync(new Error("network error") as never) : okAsync(undefined);
-		}),
-		getSessionCold: mock(() => session),
-	};
+		connection: {
+			createSession: mock(() => {
+				events.push("session-created");
+				return okAsync({ kind: "ready" as const, session });
+			}),
+			sendMessage: mock(() => {
+				events.push("send-message");
+				return opts.sendFails ? errAsync(new Error("network error") as never) : okAsync(undefined);
+			}),
+		},
+		read: {
+			getSessionCold: mock(() => session),
+		},
+		composer: {
+			beginDispatch: mock(() => {}),
+			endDispatch: mock(() => {}),
+		},
+	} as unknown as SessionStore;
 }
 
 // ---------------------------------------------------------------------------
@@ -186,13 +194,17 @@ describe("clearPendingUserEntry ordering invariant — retry / in-session send",
 	it("does NOT touch pendingUserEntry when a sessionId is already present (fast path)", async () => {
 		const { store: panelStore } = makeOrderedPanelStore();
 		const session = makeSession("existing-session");
-		const sessionStore: Partial<SessionStore> = {
-			sendMessage: mock(() => okAsync(undefined)),
-			getSessionCold: mock(() => session),
-		};
+		const sessionStore = {
+			connection: {
+				sendMessage: mock(() => okAsync(undefined)),
+			},
+			read: {
+				getSessionCold: mock(() => session),
+			},
+		} as unknown as SessionStore;
 
 		const state = new AgentInputState(
-			sessionStore as SessionStore,
+			sessionStore,
 			panelStore as PanelStore,
 			() => "/repo"
 		);

@@ -145,51 +145,59 @@ describe("InitializationManager", () => {
 
 		mockSessionStore = {
 			initializeSessionUpdates: mock(() => okAsync(undefined)),
-			loadSessions: mock(() => okAsync([])),
-			loadStartupSessions: mock(() => okAsync({ missing: [], aliasRemaps: {} })),
-			registerSessionPlaceholder: mock(() => {}),
-			preloadSessions: mock(() => okAsync({ loaded: [], missing: [] })),
-			scanSessions: mock(() => okAsync(undefined)),
-			createSession: mock((options: { agentId: string; projectPath: string; title?: string }) =>
-				okAsync({
-					kind: "ready",
-					session: buildSession(
-						"session-1",
-						options.agentId,
-						options.projectPath,
-						options.title ? options.title : "New Thread"
-					),
-				})
-			),
-			setSessions: mock(() => {}),
-			getSessionCold: mock(() => undefined),
-			getSessionIdentity: mock((sessionId: string) => {
-				const session = mockSessionStore.getSessionCold(sessionId);
-				if (!session) {
-					return undefined;
-				}
-				return {
-					id: session.id,
-					projectPath: session.projectPath,
-					agentId: session.agentId,
-					worktreePath: session.worktreePath,
-				};
-			}),
-			getSessionMetadata: mock((sessionId: string) => {
-				const session = mockSessionStore.getSessionCold(sessionId);
-				if (!session) {
-					return undefined;
-				}
-				return {
-					title: session.title,
-					createdAt: session.createdAt,
-					updatedAt: session.updatedAt,
-					sourcePath: session.sourcePath,
-					sessionLifecycleState: session.sessionLifecycleState,
-					parentId: session.parentId,
-					sequenceId: session.sequenceId,
-				};
-			}),
+			loading: {
+				loadSessions: mock(() => okAsync([])),
+				loadStartupSessions: mock(() => okAsync({ missing: [], aliasRemaps: {} })),
+				registerSessionPlaceholder: mock(() => {}),
+				preloadSessions: mock(() => okAsync({ loaded: [], missing: [] })),
+				scanSessions: mock(() => okAsync(undefined)),
+			},
+			connection: {
+				createSession: mock((options: { agentId: string; projectPath: string; title?: string }) =>
+					okAsync({
+						kind: "ready",
+						session: buildSession(
+							"session-1",
+							options.agentId,
+							options.projectPath,
+							options.title ? options.title : "New Thread"
+						),
+					})
+				),
+			},
+			write: {
+				setSessions: mock(() => {}),
+			},
+			read: {
+				getSessionCold: mock(() => undefined),
+				getSessionIdentity: mock((sessionId: string) => {
+					const session = mockSessionStore.read.getSessionCold(sessionId);
+					if (!session) {
+						return undefined;
+					}
+					return {
+						id: session.id,
+						projectPath: session.projectPath,
+						agentId: session.agentId,
+						worktreePath: session.worktreePath,
+					};
+				}),
+				getSessionMetadata: mock((sessionId: string) => {
+					const session = mockSessionStore.read.getSessionCold(sessionId);
+					if (!session) {
+						return undefined;
+					}
+					return {
+						title: session.title,
+						createdAt: session.createdAt,
+						updatedAt: session.updatedAt,
+						sourcePath: session.sourcePath,
+						sessionLifecycleState: session.sessionLifecycleState,
+						parentId: session.parentId,
+						sequenceId: session.sequenceId,
+					};
+				}),
+			},
 		} as unknown as SessionStore;
 
 		mockAgentStore = {
@@ -404,7 +412,7 @@ describe("InitializationManager", () => {
 				},
 			];
 			await manager.initialize();
-			expect(mockSessionStore.loadSessions).toHaveBeenCalledWith(["/project1"]);
+			expect(mockSessionStore.loading.loadSessions).toHaveBeenCalledWith(["/project1"]);
 		});
 
 		it("hydrates restored panels before running the background sidebar scan", async () => {
@@ -441,24 +449,24 @@ describe("InitializationManager", () => {
 			const restoredSession = buildSession("session-1", "claude-code", "/project1", "Session 1");
 			const callOrder: string[] = [];
 
-			mockSessionStore.loadStartupSessions = mock(() => {
+			mockSessionStore.loading.loadStartupSessions = mock(() => {
 				callOrder.push("startup");
 				return okAsync({ missing: [], aliasRemaps: {} });
-			}) as SessionStore["loadStartupSessions"];
-			mockSessionStore.getSessionCold = mock((sessionId: string) =>
+			});
+			mockSessionStore.read.getSessionCold = mock((sessionId: string) =>
 				sessionId === "session-1" ? restoredSession : undefined
-			) as SessionStore["getSessionCold"];
-			mockSessionStore.scanSessions = mock((projectPaths: string[]) => {
+			);
+			mockSessionStore.loading.scanSessions = mock((projectPaths: string[]) => {
 				callOrder.push(`scan:${projectPaths.join(",")}`);
 				return okAsync(undefined);
-			}) as SessionStore["scanSessions"];
+			});
 
 			await manager.initialize();
 			await Promise.resolve();
 			await Promise.resolve();
 
-			expect(mockSessionStore.loadStartupSessions).toHaveBeenCalledWith(["session-1"]);
-			expect(mockSessionStore.loadSessions).not.toHaveBeenCalled();
+			expect(mockSessionStore.loading.loadStartupSessions).toHaveBeenCalledWith(["session-1"]);
+			expect(mockSessionStore.loading.loadSessions).not.toHaveBeenCalled();
 			expect(callOrder).toEqual(["startup", "scan:/project1,/project2"]);
 			expect(openPersistedSessionMock).toHaveBeenCalledWith({
 				panelId: "panel-1",
@@ -521,8 +529,8 @@ describe("InitializationManager", () => {
 			});
 			await manager.initialize();
 
-			expect(mockSessionStore.loadStartupSessions).toHaveBeenCalledWith(["missing-session"]);
-			expect(mockSessionStore.loadSessions).not.toHaveBeenCalled();
+			expect(mockSessionStore.loading.loadStartupSessions).toHaveBeenCalledWith(["missing-session"]);
+			expect(mockSessionStore.loading.loadSessions).not.toHaveBeenCalled();
 			expect(mockPanelStore.updatePanelSession).toHaveBeenCalledWith("panel-1", null);
 			expect(openPersistedSessionMock).not.toHaveBeenCalled();
 		});
@@ -639,7 +647,7 @@ describe("InitializationManager", () => {
 					sessionTitle: null,
 				},
 			];
-			mockSessionStore.getSessionCold = mock((sessionId: string) =>
+			mockSessionStore.read.getSessionCold = mock((sessionId: string) =>
 				sessionId === "session-1"
 					? {
 							id: "session-1",
@@ -656,8 +664,8 @@ describe("InitializationManager", () => {
 			await manager.initialize();
 			await Promise.resolve();
 
-			expect(mockSessionStore.loadStartupSessions).toHaveBeenCalledWith(["session-1"]);
-			expect(mockSessionStore.loadSessions).not.toHaveBeenCalled();
+			expect(mockSessionStore.loading.loadStartupSessions).toHaveBeenCalledWith(["session-1"]);
+			expect(mockSessionStore.loading.loadSessions).not.toHaveBeenCalled();
 			expect(openPersistedSessionMock).toHaveBeenCalledWith({
 				panelId: "panel-1",
 				sessionId: "session-1",
@@ -694,7 +702,7 @@ describe("InitializationManager", () => {
 					worktreePath: "/project1/.git/worktrees/feature-a",
 				},
 			];
-			mockSessionStore.getSessionCold = mock((sessionId: string) =>
+			mockSessionStore.read.getSessionCold = mock((sessionId: string) =>
 				sessionId === "session-1"
 					? {
 							id: "session-1",
@@ -708,13 +716,13 @@ describe("InitializationManager", () => {
 							sourcePath: "/project1/.cursor/sessions/session-1.json",
 						}
 					: undefined
-			) as SessionStore["getSessionCold"];
+			);
 
 			await manager.initialize();
 			await Promise.resolve();
 
-			expect(mockSessionStore.loadStartupSessions).toHaveBeenCalledWith(["session-1"]);
-			expect(mockSessionStore.loadSessions).not.toHaveBeenCalled();
+			expect(mockSessionStore.loading.loadStartupSessions).toHaveBeenCalledWith(["session-1"]);
+			expect(mockSessionStore.loading.loadSessions).not.toHaveBeenCalled();
 			expect(openPersistedSessionMock).toHaveBeenCalledWith({
 				panelId: "panel-1",
 				sessionId: "session-1",
@@ -751,15 +759,15 @@ describe("InitializationManager", () => {
 					worktreePath: "/project1/.git/worktrees/feature-a",
 				},
 			];
-			mockSessionStore.getSessionCold = mock(() => undefined) as SessionStore["getSessionCold"];
-			mockSessionStore.registerSessionPlaceholder = mock(
+			mockSessionStore.read.getSessionCold = mock(() => undefined);
+			mockSessionStore.loading.registerSessionPlaceholder = mock(
 				() => {}
-			) as SessionStore["registerSessionPlaceholder"];
+			);
 
 			await manager.initialize();
 			await Promise.resolve();
 
-			expect(mockSessionStore.registerSessionPlaceholder).toHaveBeenCalledWith(
+			expect(mockSessionStore.loading.registerSessionPlaceholder).toHaveBeenCalledWith(
 				"session-1",
 				"/project1",
 				"claude-code",
@@ -805,7 +813,7 @@ describe("InitializationManager", () => {
 					worktreePath: "/stale/.git/worktrees/feature-a",
 				},
 			];
-			mockSessionStore.getSessionCold = mock((sessionId: string) =>
+			mockSessionStore.read.getSessionCold = mock((sessionId: string) =>
 				sessionId === "session-1"
 					? {
 							id: "session-1",
@@ -819,7 +827,7 @@ describe("InitializationManager", () => {
 							worktreePath: "/project1/.git/worktrees/feature-b",
 						}
 					: undefined
-			) as SessionStore["getSessionCold"];
+			);
 
 			await manager.initialize();
 			await Promise.resolve();
@@ -908,24 +916,24 @@ describe("InitializationManager", () => {
 				});
 			});
 
-			mockSessionStore.setSessions = mock((sessions) => {
+			mockSessionStore.write.setSessions = mock((sessions) => {
 				storedSessions = sessions;
 			});
 
-			mockSessionStore.loadSessions = mock(() => {
-				mockSessionStore.setSessions(storedSessions);
+			mockSessionStore.loading.loadSessions = mock(() => {
+				mockSessionStore.write.setSessions(storedSessions);
 				return okAsync(storedSessions);
 			});
 
-			mockSessionStore.getSessionCold = mock((sessionId: string) => {
+			mockSessionStore.read.getSessionCold = mock((sessionId: string) => {
 				return storedSessions.find((session) => session.id === sessionId);
 			});
 
 			await manager.initialize();
 			await Promise.resolve();
 
-			expect(mockSessionStore.loadStartupSessions).toHaveBeenCalledWith(["session-1"]);
-			expect(mockSessionStore.loadSessions).not.toHaveBeenCalled();
+			expect(mockSessionStore.loading.loadStartupSessions).toHaveBeenCalledWith(["session-1"]);
+			expect(mockSessionStore.loading.loadSessions).not.toHaveBeenCalled();
 			expect(mockPanelStore.updatePanelSession).not.toHaveBeenCalledWith("panel-1", null);
 			expect(openPersistedSessionMock).toHaveBeenCalledWith({
 				panelId: "panel-1",
@@ -997,15 +1005,15 @@ describe("InitializationManager", () => {
 				"/project1",
 				"Aliased Session"
 			);
-			mockSessionStore.loadStartupSessions = mock(() => {
+			mockSessionStore.loading.loadStartupSessions = mock(() => {
 				return okAsync({
 					missing: [],
 					aliasRemaps: { "claude-session": "acepe-uuid" },
 				});
-			}) as SessionStore["loadStartupSessions"];
-			mockSessionStore.getSessionCold = mock((sessionId: string) =>
+			});
+			mockSessionStore.read.getSessionCold = mock((sessionId: string) =>
 				sessionId === "acepe-uuid" ? canonicalSession : undefined
-			) as SessionStore["getSessionCold"];
+			);
 			await manager.initialize();
 			await Promise.resolve();
 
@@ -1091,7 +1099,7 @@ describe("InitializationManager", () => {
 
 			await manager.initialize();
 
-			expect(mockSessionStore.createSession).not.toHaveBeenCalled();
+			expect(mockSessionStore.connection.createSession).not.toHaveBeenCalled();
 			expect(mockPanelStore.updatePanelSession).not.toHaveBeenCalled();
 		});
 
@@ -1121,7 +1129,7 @@ describe("InitializationManager", () => {
 
 			await manager.initialize();
 
-			expect(mockSessionStore.createSession).toHaveBeenCalledWith({
+			expect(mockSessionStore.connection.createSession).toHaveBeenCalledWith({
 				agentId: "claude-code",
 				projectPath: "/project1",
 			});

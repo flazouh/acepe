@@ -215,8 +215,8 @@ const threadBoardSources = $derived.by((): readonly ThreadBoardSource[] => {
 			continue;
 		}
 
-		const identity = sessionStore.getSessionIdentity(sessionId);
-		const metadata = sessionStore.getSessionMetadata(sessionId);
+		const identity = sessionStore.read.getSessionIdentity(sessionId);
+		const metadata = sessionStore.read.getSessionMetadata(sessionId);
 		const sessionProjectPath = identity ? identity.projectPath : panel.projectPath;
 		const sessionAgentId = identity ? identity.agentId : panel.agentId;
 
@@ -224,7 +224,7 @@ const threadBoardSources = $derived.by((): readonly ThreadBoardSource[] => {
 			continue;
 		}
 
-		const presentation = sessionStore.getSessionQueuePresentation({
+		const presentation = sessionStore.presentation.getSessionQueuePresentation({
 			sessionId,
 			agentId: sessionAgentId,
 			projectPath: sessionProjectPath,
@@ -263,7 +263,7 @@ const threadBoardSources = $derived.by((): readonly ThreadBoardSource[] => {
 			panelId: panel.id,
 			sessionId: queueItem.sessionId,
 			agentId: queueItem.agentId,
-			autonomousEnabled: sessionStore.getSessionAutonomousEnabled(sessionId),
+			autonomousEnabled: sessionStore.read.getSessionAutonomousEnabled(sessionId),
 			projectPath: queueItem.projectPath,
 			projectName: queueItem.projectName,
 			projectColor: queueItem.projectColor,
@@ -311,7 +311,7 @@ function mapItemToCard(item: ThreadBoardItem) {
 
 function getPermissionRequest(item: ThreadBoardItem): PermissionRequest | null {
 	const visiblePermission =
-		sessionStore.getVisiblePermissionsForSessionBar(
+		sessionStore.read.getVisiblePermissionsForSessionBar(
 			permissionStore.getForSession(item.sessionId)
 		)[0] ?? null;
 	if (visiblePermission) {
@@ -411,7 +411,7 @@ const liveInteractionBySessionId = $derived.by(() => {
 		}
 		map.set(
 			sessionId,
-			sessionStore.getSessionOperationInteractionSnapshot(sessionId, interactionStore)
+			sessionStore.presentation.getSessionOperationInteractionSnapshot(sessionId, interactionStore)
 		);
 	}
 	return map;
@@ -672,7 +672,7 @@ function resolveQuestionId(question: QuestionRequest): string {
 function getLiveInteractionSnapshot(item: ThreadBoardItem) {
 	return (
 		liveInteractionBySessionId.get(item.sessionId) ??
-		sessionStore.getSessionOperationInteractionSnapshot(item.sessionId, interactionStore)
+		sessionStore.presentation.getSessionOperationInteractionSnapshot(item.sessionId, interactionStore)
 	);
 }
 
@@ -1092,7 +1092,7 @@ function handleRejectPlanApproval(sessionId: string): void {
 				{#if item}
 					<TodoHeader
 						sessionId={item.sessionId}
-						toolCalls={sessionStore.getSessionToolCalls(item.sessionId)}
+						toolCalls={sessionStore.read.getSessionToolCalls(item.sessionId)}
 						isConnected={item.state.connection === "connected"}
 						status={item.sessionStatus}
 						isStreaming={card.isStreaming}

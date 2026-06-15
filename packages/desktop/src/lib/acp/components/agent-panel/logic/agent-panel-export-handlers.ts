@@ -41,7 +41,7 @@ export function createAgentPanelExportHandlers(deps: AgentPanelExportHandlerDeps
 		}
 		await copyThreadContentToClipboard({
 			sessionId,
-			getSessionJsonExportContent: (id) => deps.sessionStore.getSessionJsonExportContent(id),
+			getSessionJsonExportContent: (id) => deps.sessionStore.read.getSessionJsonExportContent(id),
 		});
 	}
 
@@ -82,7 +82,7 @@ export function createAgentPanelExportHandlers(deps: AgentPanelExportHandlerDeps
 	async function handleExportMarkdown(): Promise<void> {
 		const sessionId = deps.getSessionId();
 		if (!sessionId) return;
-		await deps.sessionStore.getSessionMarkdownExportContent(sessionId).match(
+		await deps.sessionStore.read.getSessionMarkdownExportContent(sessionId).match(
 			(markdown) => exportSessionMarkdownToClipboard(markdown),
 			(error) => {
 				toast.error(error.message);
@@ -95,7 +95,7 @@ export function createAgentPanelExportHandlers(deps: AgentPanelExportHandlerDeps
 		if (!sessionId) return;
 		await exportSessionJsonToClipboard({
 			sessionId,
-			getSessionJsonExportContent: (id) => deps.sessionStore.getSessionJsonExportContent(id),
+			getSessionJsonExportContent: (id) => deps.sessionStore.read.getSessionJsonExportContent(id),
 		});
 	}
 

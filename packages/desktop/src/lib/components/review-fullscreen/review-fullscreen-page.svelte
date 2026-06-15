@@ -13,8 +13,8 @@ interface Props {
 let { sessionId, fileIndex, onClose, onFileIndexChange }: Props = $props();
 
 const sessionStore = getSessionStore();
-const identity = $derived(sessionStore.getSessionIdentity(sessionId));
-const modifiedFilesState = $derived(sessionStore.getSessionModifiedFilesState(sessionId));
+const identity = $derived(sessionStore.read.getSessionIdentity(sessionId));
+const modifiedFilesState = $derived(sessionStore.read.getSessionModifiedFilesState(sessionId));
 const projectPath = $derived(identity?.projectPath ?? null);
 
 const hasModifications = $derived((modifiedFilesState?.fileCount ?? 0) > 0);

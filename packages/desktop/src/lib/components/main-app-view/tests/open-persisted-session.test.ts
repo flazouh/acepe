@@ -12,23 +12,15 @@ let resetOpenPersistedSessionForTests: typeof import("../logic/open-persisted-se
 
 type SessionOpenStore = Pick<
 	SessionStore,
-	| "setSessionLoading"
-	| "setSessionLoaded"
-	| "setLocalCreatedSessionLoaded"
-	| "getSessionCold"
-	| "getSessionIdentity"
-	| "getSessionMetadata"
-	| "getSessionLifecycleStatus"
-	| "connectSession"
-	| "refreshCanonicalSessionState"
-	| "clearSessionEntries"
+	"read" | "loading" | "connection" | "refreshCanonicalSessionState" | "clearSessionEntries"
 >;
 
 type SessionOpenHydratorLike = Pick<
 	SessionOpenHydrator,
 	"beginAttempt" | "clearAttempt" | "hydrateFound" | "isCurrentAttempt"
 >;
-type ExistingSession = NonNullable<ReturnType<SessionOpenStore["getSessionCold"]>>;
+
+type ExistingSession = NonNullable<ReturnType<SessionOpenStore["read"]["getSessionCold"]>>;
 
 interface TestSessionLookup {
 	readonly id: string;
@@ -48,14 +40,14 @@ describe("openPersistedSession", () => {
 	let sessionOpenHydrator: SessionOpenHydratorLike;
 
 	function setSessionLookup(session: TestSessionLookup): void {
-		sessionStore.getSessionCold = mock(() => session);
-		sessionStore.getSessionIdentity = mock(() => ({
+		sessionStore.read.getSessionCold = mock(() => session);
+		sessionStore.read.getSessionIdentity = mock(() => ({
 			id: session.id,
 			projectPath: session.projectPath,
 			agentId: session.agentId,
 			worktreePath: session.worktreePath,
 		}));
-		sessionStore.getSessionMetadata = mock(() => ({
+		sessionStore.read.getSessionMetadata = mock(() => ({
 			title: session.title,
 			createdAt: session.createdAt,
 			updatedAt: session.updatedAt,
@@ -75,16 +67,22 @@ describe("openPersistedSession", () => {
 		getSessionOpenResultMock.mockImplementation(() => okAsync(createFoundResult("session-1")));
 
 		sessionStore = {
-			setSessionLoading: mock(() => {}),
-			setSessionLoaded: mock(() => {}),
-			setLocalCreatedSessionLoaded: mock(() => {}),
+			read: {
+				getSessionCold: mock(() => null),
+				getSessionIdentity: mock(() => undefined),
+				getSessionMetadata: mock(() => undefined),
+				getSessionLifecycleStatus: mock(() => "ready"),
+			},
+			loading: {
+				setSessionLoading: mock(() => {}),
+				setSessionLoaded: mock(() => {}),
+				setLocalCreatedSessionLoaded: mock(() => {}),
+			},
+			connection: {
+				connectSession: mock(() => okAsync({} as ExistingSession)),
+			},
 			clearSessionEntries: mock(() => {}),
-			connectSession: mock(() => okAsync({} as any)),
 			refreshCanonicalSessionState: mock(() => okAsync(undefined)),
-			getSessionCold: mock(() => null),
-			getSessionIdentity: mock(() => undefined),
-			getSessionMetadata: mock(() => undefined),
-			getSessionLifecycleStatus: mock(() => "ready"),
 		} as unknown as SessionOpenStore;
 		setSessionLookup({
 			id: "session-1",
@@ -141,7 +139,7 @@ describe("openPersistedSession", () => {
 
 		expect(getSessionOpenResultMock).toHaveBeenCalledTimes(1);
 		await new Promise((resolve) => setTimeout(resolve, 5));
-		expect(sessionStore.setSessionLoaded).toHaveBeenCalledTimes(1);
+		expect(sessionStore.loading.setSessionLoaded).toHaveBeenCalledTimes(1);
 	});
 
 	it("dedupes concurrent calls for the same panel across initialization and session handlers", async () => {
@@ -174,18 +172,18 @@ describe("openPersistedSession", () => {
 
 		expect(getSessionOpenResultMock).toHaveBeenCalledTimes(1);
 		await new Promise((resolve) => setTimeout(resolve, 5));
-		expect(sessionStore.setSessionLoaded).toHaveBeenCalledTimes(1);
+		expect(sessionStore.loading.setSessionLoaded).toHaveBeenCalledTimes(1);
 	});
 
 	it("dedupes a repeated open while the hydrated reconnect is still claiming its token", async () => {
 		let resolveReconnect: (session: ExistingSession) => void = () => {};
-		const connectSession: SessionOpenStore["connectSession"] = () =>
+		const connectSession: SessionOpenStore["connection"]["connectSession"] = () =>
 			ResultAsync.fromSafePromise(
 				new Promise<ExistingSession>((resolve) => {
 					resolveReconnect = resolve;
 				})
 			);
-		sessionStore.connectSession = mock(connectSession);
+		sessionStore.connection.connectSession = mock(connectSession);
 
 		openPersistedSession({
 			panelId: "panel-1",
@@ -198,7 +196,7 @@ describe("openPersistedSession", () => {
 		});
 
 		await new Promise((resolve) => setTimeout(resolve, 0));
-		expect(sessionStore.connectSession).toHaveBeenCalledWith("session-1", {
+		expect(sessionStore.connection.connectSession).toHaveBeenCalledWith("session-1", {
 			openToken: "open-token-1",
 		});
 
@@ -247,9 +245,9 @@ describe("openPersistedSession", () => {
 				canonicalSessionId: "session-1",
 			})
 		);
-		expect(sessionStore.setSessionLoaded).toHaveBeenCalledWith("session-1");
+		expect(sessionStore.loading.setSessionLoaded).toHaveBeenCalledWith("session-1");
 		expect(sessionOpenHydrator.clearAttempt).toHaveBeenCalledWith("panel-1");
-		expect(sessionStore.connectSession).toHaveBeenCalledWith("session-1", {
+		expect(sessionStore.connection.connectSession).toHaveBeenCalledWith("session-1", {
 			openToken: "open-token-1",
 		});
 	});
@@ -266,7 +264,7 @@ describe("openPersistedSession", () => {
 		});
 
 		expect(sessionStore.clearSessionEntries).toHaveBeenCalledWith("session-1");
-		expect(sessionStore.setSessionLoading).toHaveBeenCalledWith("session-1");
+		expect(sessionStore.loading.setSessionLoading).toHaveBeenCalledWith("session-1");
 	});
 
 	it("hydrates the open snapshot before marking loaded and reconnecting for manual and startup opens", async () => {
@@ -277,13 +275,13 @@ describe("openPersistedSession", () => {
 			const panelId = source === "session-handler" ? "manual-panel" : "startup-panel";
 			const callOrder: string[] = [];
 
-			sessionStore.setSessionLoading = mock((loadedSessionId: string) => {
+			sessionStore.loading.setSessionLoading = mock((loadedSessionId: string) => {
 				callOrder.push(`loading:${loadedSessionId}`);
 			});
-			sessionStore.setSessionLoaded = mock((loadedSessionId: string) => {
+			sessionStore.loading.setSessionLoaded = mock((loadedSessionId: string) => {
 				callOrder.push(`loaded:${loadedSessionId}`);
 			});
-			const connectSession: SessionOpenStore["connectSession"] = (connectedSessionId: string) => {
+			const connectSession: SessionOpenStore["connection"]["connectSession"] = (connectedSessionId: string) => {
 				callOrder.push(`connect:${connectedSessionId}`);
 				return okAsync({
 					id: connectedSessionId,
@@ -295,7 +293,7 @@ describe("openPersistedSession", () => {
 					parentId: null,
 				});
 			};
-			sessionStore.connectSession = mock(connectSession);
+			sessionStore.connection.connectSession = mock(connectSession);
 			setSessionLookup({
 				id: sessionId,
 				title: "Session",
@@ -375,16 +373,16 @@ describe("openPersistedSession", () => {
 
 		await new Promise((resolve) => setTimeout(resolve, 0));
 
-		expect(sessionStore.connectSession).toHaveBeenCalledWith("session-1", {
+		expect(sessionStore.connection.connectSession).toHaveBeenCalledWith("session-1", {
 			openToken: "open-token-1",
 		});
 	});
 
 	it("swallows reconnect failures after hydration", async () => {
-		sessionStore.connectSession = mock(
+		sessionStore.connection.connectSession = mock(
 			() =>
 				errAsync(new Error("resume failed")) as unknown as ReturnType<
-					SessionOpenStore["connectSession"]
+					SessionOpenStore["connection"]["connectSession"]
 				>
 		);
 
@@ -400,17 +398,17 @@ describe("openPersistedSession", () => {
 
 		await new Promise((resolve) => setTimeout(resolve, 0));
 
-		expect(sessionStore.setSessionLoaded).toHaveBeenCalledWith("session-1");
-		expect(sessionStore.connectSession).toHaveBeenCalledWith("session-1", {
+		expect(sessionStore.loading.setSessionLoaded).toHaveBeenCalledWith("session-1");
+		expect(sessionStore.connection.connectSession).toHaveBeenCalledWith("session-1", {
 			openToken: "open-token-1",
 		});
 	});
 
 	it("does not let a slow reconnect trip the session-open timeout after hydration", async () => {
-		sessionStore.connectSession = mock(
+		sessionStore.connection.connectSession = mock(
 			() =>
 				ResultAsync.fromSafePromise(new Promise<never>(() => {})) as unknown as ReturnType<
-					SessionOpenStore["connectSession"]
+					SessionOpenStore["connection"]["connectSession"]
 				>
 		);
 
@@ -427,9 +425,9 @@ describe("openPersistedSession", () => {
 		await new Promise((resolve) => setTimeout(resolve, 20));
 
 		expect(sessionOpenHydrator.clearAttempt).toHaveBeenCalledWith("panel-1");
-		expect(sessionStore.setSessionLoaded).toHaveBeenCalledTimes(1);
-		expect(sessionStore.setSessionLoaded).toHaveBeenCalledWith("session-1");
-		expect(sessionStore.connectSession).toHaveBeenCalledWith("session-1", {
+		expect(sessionStore.loading.setSessionLoaded).toHaveBeenCalledTimes(1);
+		expect(sessionStore.loading.setSessionLoaded).toHaveBeenCalledWith("session-1");
+		expect(sessionStore.connection.connectSession).toHaveBeenCalledWith("session-1", {
 			openToken: "open-token-1",
 		});
 	});
@@ -461,7 +459,7 @@ describe("openPersistedSession", () => {
 
 		await new Promise((resolve) => setTimeout(resolve, 0));
 
-		expect(sessionStore.connectSession).toHaveBeenCalledWith("session-1", {
+		expect(sessionStore.connection.connectSession).toHaveBeenCalledWith("session-1", {
 			openToken: specificToken,
 		});
 	});
@@ -506,9 +504,9 @@ describe("openPersistedSession", () => {
 
 		await new Promise((resolve) => setTimeout(resolve, 0));
 
-		expect(sessionStore.setSessionLoaded).toHaveBeenCalledWith(canonicalId);
-		expect(sessionStore.connectSession).toHaveBeenCalledWith(canonicalId, expect.anything());
-		expect(sessionStore.setSessionLoaded).not.toHaveBeenCalledWith(requestedId);
+		expect(sessionStore.loading.setSessionLoaded).toHaveBeenCalledWith(canonicalId);
+		expect(sessionStore.connection.connectSession).toHaveBeenCalledWith(canonicalId, expect.anything());
+		expect(sessionStore.loading.setSessionLoaded).not.toHaveBeenCalledWith(requestedId);
 	});
 
 	it("[E2E] does not call connectSession when the open attempt is superseded by a newer one", async () => {
@@ -528,7 +526,7 @@ describe("openPersistedSession", () => {
 
 		await new Promise((resolve) => setTimeout(resolve, 0));
 
-		expect(sessionStore.connectSession).not.toHaveBeenCalled();
+		expect(sessionStore.connection.connectSession).not.toHaveBeenCalled();
 		expect(sessionOpenHydrator.hydrateFound).toHaveBeenCalled();
 	});
 
@@ -555,8 +553,8 @@ describe("openPersistedSession", () => {
 		// GOD: canonical lifecycle envelope (SessionGoneUpstream) drives UI;
 		// open-persisted-session just unwinds local in-flight bookkeeping.
 		expect(sessionOpenHydrator.clearAttempt).toHaveBeenCalledWith("panel-1");
-		expect(sessionStore.setSessionLoaded).toHaveBeenCalledWith("session-1");
-		expect(sessionStore.connectSession).not.toHaveBeenCalled();
+		expect(sessionStore.loading.setSessionLoaded).toHaveBeenCalledWith("session-1");
+		expect(sessionStore.connection.connectSession).not.toHaveBeenCalled();
 	});
 
 	it("falls back to local reattach when Rust cannot open a local-created snapshot", async () => {
@@ -591,10 +589,10 @@ describe("openPersistedSession", () => {
 		await new Promise((resolve) => setTimeout(resolve, 0));
 		expect(getSessionOpenResultMock).toHaveBeenCalledTimes(1);
 		expect(sessionOpenHydrator.clearAttempt).toHaveBeenCalledWith("panel-1");
-		expect(sessionStore.setSessionLoading).toHaveBeenCalledWith("session-1");
-		expect(sessionStore.setLocalCreatedSessionLoaded).toHaveBeenCalledWith("session-1");
-		expect(sessionStore.setSessionLoaded).not.toHaveBeenCalled();
-		expect(sessionStore.connectSession).toHaveBeenCalledWith("session-1");
+		expect(sessionStore.loading.setSessionLoading).toHaveBeenCalledWith("session-1");
+		expect(sessionStore.loading.setLocalCreatedSessionLoaded).toHaveBeenCalledWith("session-1");
+		expect(sessionStore.loading.setSessionLoaded).not.toHaveBeenCalled();
+		expect(sessionStore.connection.connectSession).toHaveBeenCalledWith("session-1");
 	});
 
 	it("falls back to local reattach when local-created snapshot open rejects", async () => {
@@ -627,10 +625,10 @@ describe("openPersistedSession", () => {
 
 		await new Promise((resolve) => setTimeout(resolve, 0));
 		expect(getSessionOpenResultMock).toHaveBeenCalledTimes(1);
-		expect(sessionStore.setSessionLoading).toHaveBeenCalledWith("session-1");
-		expect(sessionStore.setLocalCreatedSessionLoaded).toHaveBeenCalledWith("session-1");
-		expect(sessionStore.setSessionLoaded).not.toHaveBeenCalled();
-		expect(sessionStore.connectSession).toHaveBeenCalledWith("session-1");
+		expect(sessionStore.loading.setSessionLoading).toHaveBeenCalledWith("session-1");
+		expect(sessionStore.loading.setLocalCreatedSessionLoaded).toHaveBeenCalledWith("session-1");
+		expect(sessionStore.loading.setSessionLoaded).not.toHaveBeenCalled();
+		expect(sessionStore.connection.connectSession).toHaveBeenCalledWith("session-1");
 	});
 
 	it("hydrates local-created sessions when Rust can open a canonical snapshot", async () => {
@@ -658,11 +656,11 @@ describe("openPersistedSession", () => {
 		await new Promise((resolve) => setTimeout(resolve, 0));
 		expect(getSessionOpenResultMock).toHaveBeenCalledTimes(1);
 		expect(sessionOpenHydrator.hydrateFound).toHaveBeenCalledTimes(1);
-		expect(sessionStore.setSessionLoaded).toHaveBeenCalledWith("session-1");
-		expect(sessionStore.connectSession).toHaveBeenCalledWith("session-1", {
+		expect(sessionStore.loading.setSessionLoaded).toHaveBeenCalledWith("session-1");
+		expect(sessionStore.connection.connectSession).toHaveBeenCalledWith("session-1", {
 			openToken: "open-token-1",
 		});
-		expect(sessionStore.setLocalCreatedSessionLoaded).not.toHaveBeenCalled();
+		expect(sessionStore.loading.setLocalCreatedSessionLoaded).not.toHaveBeenCalled();
 	});
 
 	it("does not synthesize TS-side reattach failure messages when local-created reattach fails", async () => {
@@ -688,7 +686,7 @@ describe("openPersistedSession", () => {
 			sessionLifecycleState: "created" as const,
 			parentId: null,
 		});
-		sessionStore.connectSession = mock(() =>
+		sessionStore.connection.connectSession = mock(() =>
 			errAsync(new ConnectionError("session-1", new Error("Resource not found: Session session-1")))
 		);
 
@@ -704,9 +702,9 @@ describe("openPersistedSession", () => {
 
 		await new Promise((resolve) => setTimeout(resolve, 0));
 		expect(getSessionOpenResultMock).toHaveBeenCalledTimes(1);
-		expect(sessionStore.connectSession).toHaveBeenCalledWith("session-1");
-		expect(sessionStore.setLocalCreatedSessionLoaded).not.toHaveBeenCalled();
-		expect(sessionStore.setSessionLoaded).toHaveBeenCalledWith("session-1");
+		expect(sessionStore.connection.connectSession).toHaveBeenCalledWith("session-1");
+		expect(sessionStore.loading.setLocalCreatedSessionLoaded).not.toHaveBeenCalled();
+		expect(sessionStore.loading.setSessionLoaded).toHaveBeenCalledWith("session-1");
 		// Must NOT carry symbols of the deleted gate.
 		expect(
 			(sessionStore as unknown as Record<string, unknown>)["setSessionOpenMissing"]
@@ -742,8 +740,8 @@ describe("openPersistedSession", () => {
 
 		await new Promise((resolve) => setTimeout(resolve, 0));
 		expect(sessionOpenHydrator.clearAttempt).toHaveBeenCalledWith("panel-1");
-		expect(sessionStore.setSessionLoaded).toHaveBeenCalledWith("session-1");
-		expect(sessionStore.connectSession).not.toHaveBeenCalled();
+		expect(sessionStore.loading.setSessionLoaded).toHaveBeenCalledWith("session-1");
+		expect(sessionStore.connection.connectSession).not.toHaveBeenCalled();
 	});
 
 	it("surfaces retryable internal errors via canonical lifecycle without connecting", async () => {
@@ -772,8 +770,8 @@ describe("openPersistedSession", () => {
 
 		await new Promise((resolve) => setTimeout(resolve, 0));
 		expect(sessionOpenHydrator.clearAttempt).toHaveBeenCalledWith("panel-1");
-		expect(sessionStore.setSessionLoaded).toHaveBeenCalledWith("session-1");
-		expect(sessionStore.connectSession).not.toHaveBeenCalled();
+		expect(sessionStore.loading.setSessionLoaded).toHaveBeenCalledWith("session-1");
+		expect(sessionStore.connection.connectSession).not.toHaveBeenCalled();
 	});
 
 	it("does not synthesize Cursor-specific copy for legacy store.db history sessions", async () => {
@@ -809,8 +807,8 @@ describe("openPersistedSession", () => {
 
 		await new Promise((resolve) => setTimeout(resolve, 0));
 		expect(sessionOpenHydrator.clearAttempt).toHaveBeenCalledWith("panel-1");
-		expect(sessionStore.setSessionLoaded).toHaveBeenCalledWith("session-1");
-		expect(sessionStore.connectSession).not.toHaveBeenCalled();
+		expect(sessionStore.loading.setSessionLoaded).toHaveBeenCalledWith("session-1");
+		expect(sessionStore.connection.connectSession).not.toHaveBeenCalled();
 	});
 });
 

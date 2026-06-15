@@ -67,7 +67,7 @@ function handleModelSelect(providerId: string, modelId: string) {
 	if (providerId !== store.currentProviderId) {
 		store.setProvider(providerId);
 	}
-	store.setModel(modelId);
+	store.connection.setModel(modelId);
 	isOpen = false;
 }
 

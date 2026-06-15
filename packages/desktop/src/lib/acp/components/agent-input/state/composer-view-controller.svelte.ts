@@ -1,0 +1,635 @@
+import { getModeDropdownOptions, getSelectedModeOption, type AgentInputConfigOption } from "@acepe/ui/agent-panel";
+
+import * as agentModelPrefs from "../../../store/agent-model-preferences-store.svelte.js";
+import type { AgentStore } from "../../../store/agent-store.svelte.js";
+import type { PanelStore } from "../../../store/panel-store.svelte.js";
+import type { SessionStore } from "../../../store/session-store.svelte.js";
+import type { PreconnectionAgentSkillsStore } from "../../../../skills/store/preconnection-agent-skills-store.svelte.js";
+import { filterVisibleModes } from "../../../utils/mode-filter.js";
+import type { createLogger } from "../../../utils/logger.js";
+import {
+	buildAttachMenuCommands,
+	buildAttachMenuModes,
+	deriveComposerInteractionState,
+	getEffectiveFilePickerProjectPath,
+	getToolbarConfigOptions,
+	hasToolbarCapabilityData,
+	PreconnectionCapabilitiesState,
+	PreconnectionRemoteCommandsState,
+	resolveAutonomousSupport,
+	resolveCapabilityContextProviderMetadata,
+	resolveCapabilitySource,
+	resolvePendingToolbarSelections,
+	resolveSelectedModeMenuOptionId,
+	resolveSelectorsLoading,
+	resolveSlashCommandSource,
+	resolveToolbarModeId,
+	resolveToolbarModelId,
+	resolveComposerPlaceholder,
+	sessionCapabilitySourceFromCapabilities,
+	shouldShowActiveModeChip,
+	shouldShowSlashCommandDropdown,
+} from "../composer-controller.js";
+import type { AgentInputState } from "./agent-input-state.svelte.js";
+import type { AgentInputProps } from "../types/agent-input-props.js";
+
+type ComposerLogger = ReturnType<typeof createLogger>;
+
+export type ComposerViewControllerDeps = {
+	readonly getProps: () => AgentInputProps;
+	readonly getInputState: () => AgentInputState;
+	readonly getIsShiftPressed: () => boolean;
+	readonly sessionStore: SessionStore;
+	readonly panelStore: PanelStore;
+	readonly agentStore: AgentStore;
+	readonly preconnectionCapabilitiesState: PreconnectionCapabilitiesState;
+	readonly preconnectionRemoteCommandsState: PreconnectionRemoteCommandsState;
+	readonly preconnectionAgentSkillsStore: PreconnectionAgentSkillsStore;
+	readonly logger: ComposerLogger;
+};
+
+/**
+ * Owns composer toolbar/capability/slash/submit derived state and provisional
+ * mode/model selections for one agent-input host. DOM refs and editor sync stay
+ * in `agent-input-ui.svelte`; this class holds the reactive view model.
+ */
+export class ComposerViewController {
+	readonly #deps: ComposerViewControllerDeps;
+
+	provisionalModeId = $state<string | null>(null);
+	provisionalModelId = $state<string | null>(null);
+	isApplyingProvisionalToolbarSelections = $state(false);
+
+	#previousComposerBindSessionId = $state<string | null>(null);
+
+	readonly filePickerProjectPath = $derived.by(() => {
+		const props = this.#deps.getProps();
+		return getEffectiveFilePickerProjectPath(props.projectPath, props.worktreePath);
+	});
+
+	readonly panelHotState = $derived.by(() => {
+		const panelId = this.#deps.getProps().panelId;
+		return panelId ? this.#deps.panelStore.getHotState(panelId) : null;
+	});
+
+	readonly sessionIdentity = $derived.by(() => {
+		const sessionId = this.#deps.getProps().sessionId;
+		return sessionId ? this.#deps.sessionStore.read.getSessionIdentity(sessionId) : null;
+	});
+
+	readonly capabilitiesAgentId = $derived.by(() => {
+		const props = this.#deps.getProps();
+		if (props.sessionId) {
+			if (this.sessionIdentity) {
+				return this.sessionIdentity.agentId;
+			}
+			return props.selectedAgentId ? props.selectedAgentId : null;
+		}
+		if (props.selectedAgentId) {
+			return props.selectedAgentId;
+		}
+		return this.sessionIdentity ? this.sessionIdentity.agentId : null;
+	});
+
+	readonly sessionAvailableModels = $derived.by(() => {
+		const sessionId = this.#deps.getProps().sessionId;
+		return sessionId ? this.#deps.sessionStore.read.getSessionAvailableModels(sessionId) : null;
+	});
+
+	readonly sessionAvailableModes = $derived.by(() => {
+		const sessionId = this.#deps.getProps().sessionId;
+		return sessionId ? this.#deps.sessionStore.read.getSessionAvailableModes(sessionId) : null;
+	});
+
+	readonly sessionModelsDisplay = $derived.by(() => {
+		const sessionId = this.#deps.getProps().sessionId;
+		return sessionId ? this.#deps.sessionStore.read.getSessionModelsDisplay(sessionId) : null;
+	});
+
+	readonly sessionProviderMetadata = $derived.by(() => {
+		const sessionId = this.#deps.getProps().sessionId;
+		return sessionId ? this.#deps.sessionStore.read.getSessionProviderMetadata(sessionId) : null;
+	});
+
+	readonly sessionHasCanonicalCapabilities = $derived.by(() => {
+		const sessionId = this.#deps.getProps().sessionId;
+		return sessionId ? this.#deps.sessionStore.read.hasSessionCanonicalCapabilities(sessionId) : false;
+	});
+
+	readonly sessionCapabilities = $derived.by(() => {
+		const sessionId = this.#deps.getProps().sessionId;
+		if (!sessionId || !this.sessionHasCanonicalCapabilities) {
+			return null;
+		}
+		return {
+			availableModels: this.sessionAvailableModels,
+			availableModes: this.sessionAvailableModes,
+			modelsDisplay: this.sessionModelsDisplay,
+			providerMetadata: this.sessionProviderMetadata,
+		};
+	});
+
+	readonly sessionCapabilitySource = $derived.by(() =>
+		sessionCapabilitySourceFromCapabilities(
+			this.#deps.getProps().sessionId ?? null,
+			this.sessionCapabilities
+		)
+	);
+
+	readonly capabilitiesAgent = $derived.by(() => {
+		const agentId = this.capabilitiesAgentId;
+		if (!agentId) {
+			return null;
+		}
+		for (const agent of this.#deps.agentStore.agents) {
+			if (agent.id === agentId) {
+				return agent;
+			}
+		}
+		return null;
+	});
+
+	readonly capabilitiesProviderMetadata = $derived.by(() =>
+		resolveCapabilityContextProviderMetadata({
+			sessionSource: this.sessionCapabilitySource,
+			selectedAgentProviderMetadata: this.capabilitiesAgent
+				? (this.capabilitiesAgent.providerMetadata ?? null)
+				: null,
+		})
+	);
+
+	readonly preconnectionCapabilities = $derived.by(() =>
+		this.#deps.preconnectionCapabilitiesState.getCapabilities({
+			agentId: this.capabilitiesAgentId,
+			projectPath: this.filePickerProjectPath,
+			preconnectionCapabilityMode:
+				this.capabilitiesProviderMetadata?.preconnectionCapabilityMode ?? "unsupported",
+		})
+	);
+
+	readonly sessionLifecyclePresentation = $derived.by(() => {
+		const sessionId = this.#deps.getProps().sessionId;
+		return sessionId
+			? this.#deps.sessionStore.presentation.getSessionLifecyclePresentation(sessionId)
+			: null;
+	});
+
+	readonly storeComposerState = $derived.by(() => {
+		const sessionId = this.#deps.getProps().sessionId;
+		return sessionId ? this.#deps.sessionStore.composer.getStoreComposerState(sessionId) : null;
+	});
+
+	readonly sessionCurrentModeId = $derived.by(() => {
+		const sessionId = this.#deps.getProps().sessionId;
+		return sessionId ? this.#deps.sessionStore.read.getSessionCurrentModeId(sessionId) : null;
+	});
+
+	readonly sessionCurrentModelId = $derived.by(() => {
+		const sessionId = this.#deps.getProps().sessionId;
+		return sessionId ? this.#deps.sessionStore.read.getSessionCurrentModelId(sessionId) : null;
+	});
+
+	readonly sessionAutonomousEnabled = $derived.by(() => {
+		const sessionId = this.#deps.getProps().sessionId;
+		return sessionId ? this.#deps.sessionStore.read.getSessionAutonomousEnabled(sessionId) : null;
+	});
+
+	readonly sessionConfigOptions = $derived.by(() => {
+		const sessionId = this.#deps.getProps().sessionId;
+		return sessionId ? (this.#deps.sessionStore.read.getSessionConfigOptions(sessionId) ?? []) : [];
+	});
+
+	readonly sessionAvailableCommands = $derived.by(() => {
+		const sessionId = this.#deps.getProps().sessionId;
+		return sessionId ? (this.#deps.sessionStore.read.getSessionAvailableCommands(sessionId) ?? []) : [];
+	});
+
+	readonly cachedModes = $derived.by(() =>
+		this.capabilitiesAgentId ? agentModelPrefs.getCachedModes(this.capabilitiesAgentId) : []
+	);
+
+	readonly cachedModels = $derived.by(() =>
+		this.capabilitiesAgentId ? agentModelPrefs.getCachedModels(this.capabilitiesAgentId) : []
+	);
+
+	readonly cachedModelsDisplay = $derived.by(() =>
+		this.capabilitiesAgentId
+			? agentModelPrefs.getCachedModelsDisplay(this.capabilitiesAgentId)
+			: null
+	);
+
+	readonly capabilitySource = $derived.by(() =>
+		resolveCapabilitySource({
+			sessionSource: this.sessionCapabilitySource,
+			preconnectionCapabilities: this.preconnectionCapabilities,
+			cachedModes: this.cachedModes,
+			cachedModels: this.cachedModels,
+			cachedModelsDisplay: this.cachedModelsDisplay,
+			providerMetadata: this.capabilitiesProviderMetadata ?? null,
+		})
+	);
+
+	readonly effectiveCapabilityProviderMetadata = $derived.by(
+		() => this.capabilitySource.providerMetadata
+	);
+
+	readonly effectiveAvailableModes = $derived.by(() => this.capabilitySource.availableModes ?? []);
+
+	readonly visibleModes = $derived.by(() => filterVisibleModes(this.effectiveAvailableModes));
+
+	readonly effectiveComposerProvisionalModeId = $derived.by(() =>
+		this.#deps.getProps().sessionId
+			? (this.storeComposerState?.provisionalModeId ?? null)
+			: this.provisionalModeId
+	);
+
+	readonly effectiveComposerProvisionalModelId = $derived.by(() =>
+		this.#deps.getProps().sessionId
+			? (this.storeComposerState?.provisionalModelId ?? null)
+			: this.provisionalModelId
+	);
+
+	readonly effectiveCurrentModeId = $derived.by(() =>
+		resolveToolbarModeId({
+			liveCurrentModeId: this.sessionCurrentModeId,
+			provisionalModeId: this.effectiveComposerProvisionalModeId,
+			visibleModes: this.visibleModes,
+		})
+	);
+
+	readonly effectiveCurrentModeLabel = $derived.by(() => {
+		const currentMode = this.visibleModes.find((mode) => mode.id === this.effectiveCurrentModeId);
+		return currentMode?.name ?? this.effectiveCurrentModeId;
+	});
+
+	readonly panelProvisionalAutonomousEnabled = $derived.by(() => {
+		const panelId = this.#deps.getProps().panelId;
+		if (panelId) {
+			return this.#deps.panelStore.getHotState(panelId).provisionalAutonomousEnabled;
+		}
+		return false;
+	});
+
+	readonly autonomousToggleActive = $derived.by(() => {
+		const sessionId = this.#deps.getProps().sessionId;
+		if (sessionId) {
+			const cs = this.storeComposerState;
+			if (cs && cs.provisionalAutonomousEnabled !== null) {
+				return cs.provisionalAutonomousEnabled;
+			}
+			return this.sessionAutonomousEnabled === true;
+		}
+		return this.panelProvisionalAutonomousEnabled;
+	});
+
+	readonly autoModeSupportState = $derived.by(() =>
+		resolveAutonomousSupport({
+			agentId: this.capabilitiesAgentId,
+			connectionPhase: this.sessionLifecyclePresentation
+				? this.sessionLifecyclePresentation.connectionPhase
+				: null,
+			currentUiModeId: this.effectiveCurrentModeId,
+			agents: this.#deps.agentStore.agents,
+		})
+	);
+
+	readonly autonomousToggleBusy = $derived.by(() => {
+		const sessionId = this.#deps.getProps().sessionId;
+		return sessionId
+			? this.#deps.sessionStore.read.getSessionAutonomousTransitionBusy(sessionId)
+			: false;
+	});
+
+	readonly autonomousDisabled = $derived.by(
+		() => this.autonomousToggleBusy || !this.autoModeSupportState.supported
+	);
+
+	readonly selectedModeMenuOptionId = $derived.by(() =>
+		resolveSelectedModeMenuOptionId({
+			currentModeId: this.effectiveCurrentModeId,
+			autonomousEnabled: this.autonomousToggleActive,
+		})
+	);
+
+	readonly effectiveAvailableModels = $derived.by(() => this.capabilitySource.availableModels ?? []);
+
+	readonly effectiveModelsDisplay = $derived.by(() => this.capabilitySource.modelsDisplay);
+
+	readonly effectiveCurrentModelId = $derived.by(() =>
+		resolveToolbarModelId({
+			liveCurrentModelId: this.sessionCurrentModelId,
+			provisionalModelId: this.effectiveComposerProvisionalModelId,
+			availableModels: this.effectiveAvailableModels,
+		})
+	);
+
+	readonly toolbarConfigOptions = $derived.by((): AgentInputConfigOption[] => {
+		if (this.sessionConfigOptions.length === 0) {
+			return [];
+		}
+		return getToolbarConfigOptions(
+			this.sessionConfigOptions,
+			this.effectiveAvailableModels,
+			this.effectiveModelsDisplay
+		).map((option): AgentInputConfigOption => {
+			const raw = option.currentValue;
+			const currentValue: string | number | boolean | null =
+				raw === null || raw === undefined
+					? null
+					: typeof raw === "string" || typeof raw === "number" || typeof raw === "boolean"
+						? raw
+						: null;
+			const options = option.options?.flatMap(
+				(opt): { value: string | number | boolean; name: string }[] => {
+					const v = opt.value;
+					if (typeof v === "string" || typeof v === "number" || typeof v === "boolean") {
+						return [{ value: v, name: opt.name }];
+					}
+					return [];
+				}
+			);
+			return {
+				id: option.id,
+				name: option.name,
+				category: option.category,
+				type: option.type,
+				currentValue,
+				options,
+				presentation: option.presentation ?? "advanced",
+			};
+		});
+	});
+
+	readonly liveAvailableCommands = $derived.by(() => {
+		if (this.sessionAvailableCommands.length > 0) {
+			return this.sessionAvailableCommands;
+		}
+		return [];
+	});
+
+	readonly preconnectionAvailableCommands = $derived.by(() => {
+		if (!this.capabilitiesAgentId) {
+			return [];
+		}
+		return this.#deps.preconnectionRemoteCommandsState.getCommands({
+			agentId: this.capabilitiesAgentId,
+			projectPath: this.filePickerProjectPath,
+			preconnectionSlashMode:
+				this.effectiveCapabilityProviderMetadata?.preconnectionSlashMode ?? "unsupported",
+			skillCommands: this.#deps.preconnectionAgentSkillsStore.getCommandsForAgent(
+				this.capabilitiesAgentId
+			),
+		});
+	});
+
+	readonly hasSession = $derived.by(() => {
+		const sessionId = this.#deps.getProps().sessionId;
+		return sessionId !== null && sessionId !== undefined;
+	});
+
+	readonly slashCommandSource = $derived.by(() =>
+		resolveSlashCommandSource({
+			liveCommands: this.liveAvailableCommands,
+			hasSession: this.hasSession,
+			hasConnectedSession: this.sessionLifecyclePresentation?.connectionPhase === "connected",
+			selectedAgentId: this.capabilitiesAgentId,
+			preconnectionCommands: this.preconnectionAvailableCommands,
+		})
+	);
+
+	readonly effectiveAvailableCommands = $derived.by(() => this.slashCommandSource.commands);
+
+	readonly attachMenuModes = $derived.by(() =>
+		buildAttachMenuModes({
+			modes: this.visibleModes,
+			currentModeId: this.effectiveCurrentModeId,
+		})
+	);
+
+	readonly attachMenuCommands = $derived.by(() =>
+		buildAttachMenuCommands({
+			commands: this.effectiveAvailableCommands,
+			tokenType: this.slashCommandSource.tokenType,
+		})
+	);
+
+	readonly selectedModeOption = $derived.by(() =>
+		getSelectedModeOption({
+			modeOptions: getModeDropdownOptions(this.visibleModes),
+			currentModeId: this.effectiveCurrentModeId,
+		})
+	);
+
+	readonly composerPlaceholderLabel = $derived.by(() =>
+		resolveComposerPlaceholder({
+			hasSession: this.hasSession,
+		})
+	);
+
+	readonly showActiveModeChip = $derived.by(() =>
+		shouldShowActiveModeChip(this.visibleModes, this.effectiveCurrentModeId)
+	);
+
+	readonly isSlashDropdownVisible = $derived.by(() =>
+		shouldShowSlashCommandDropdown({
+			isTriggerActive: this.#deps.getInputState().showSlashDropdown,
+			source: this.slashCommandSource,
+			capabilitiesAgentId: this.capabilitiesAgentId,
+		})
+	);
+
+	readonly inputReady = $derived.by(() => {
+		const props = this.#deps.getProps();
+		return Boolean(props.sessionId) || Boolean(this.filePickerProjectPath);
+	});
+
+	readonly isStreaming = $derived.by(() => {
+		const props = this.#deps.getProps();
+		return (
+			props.sessionShowStop ??
+			this.sessionLifecyclePresentation?.showStop ??
+			props.sessionIsStreaming ??
+			false
+		);
+	});
+
+	readonly isAgentBusy = $derived.by(() => {
+		const props = this.#deps.getProps();
+		return props.sessionShowStop ?? this.sessionLifecyclePresentation?.canCancel ?? false;
+	});
+
+	readonly isSubmitDisabled = $derived.by(() => {
+		const props = this.#deps.getProps();
+		if (props.disableSend) {
+			return true;
+		}
+		if (props.sessionId) {
+			return (props.sessionCanSubmit ?? this.sessionLifecyclePresentation?.canSubmit) !== true;
+		}
+		return false;
+	});
+
+	readonly isSessionConnecting = $derived.by(
+		() => this.sessionLifecyclePresentation?.connectionPhase === "connecting"
+	);
+
+	readonly hasCachedToolbarData = $derived.by(() =>
+		hasToolbarCapabilityData({
+			visibleModesCount: this.visibleModes.length,
+			availableModelsCount: this.effectiveAvailableModels.length,
+			modelsDisplay: this.effectiveModelsDisplay,
+		})
+	);
+
+	readonly selectorsLoading = $derived.by(() =>
+		resolveSelectorsLoading({
+			hasSession: this.hasSession,
+			isSessionConnecting: this.isSessionConnecting,
+			hasSelectedAgent: Boolean(this.capabilitiesAgentId),
+			visibleModesCount: this.visibleModes.length,
+			availableModelsCount: this.effectiveAvailableModels.length,
+			modelsDisplay: this.effectiveModelsDisplay,
+			isCacheLoaded: agentModelPrefs.isCacheLoaded(),
+			isPreconnectionLoading: this.#deps.preconnectionCapabilitiesState.isLoading({
+				agentId: this.capabilitiesAgentId,
+				projectPath: this.filePickerProjectPath,
+				preconnectionCapabilityMode:
+					this.effectiveCapabilityProviderMetadata?.preconnectionCapabilityMode ??
+					"unsupported",
+			}),
+		})
+	);
+
+	readonly hasDraftInput = $derived.by(() => {
+		const inputState = this.#deps.getInputState();
+		return inputState.message.trim().length > 0 || inputState.attachments.length > 0;
+	});
+
+	readonly selectorsDisabledByComposer = $derived.by(
+		() => this.storeComposerState?.selectorsDisabled ?? false
+	);
+
+	readonly composerInteraction = $derived.by(() => {
+		const hasBlocking = this.storeComposerState?.isBlocked ?? false;
+		const isDispatching = this.storeComposerState?.isDispatching ?? false;
+		return deriveComposerInteractionState({
+			hasDraftInput: this.hasDraftInput,
+			hasSessionId: Boolean(this.#deps.getProps().sessionId),
+			isAgentBusy: this.isAgentBusy,
+			isStreaming: this.isStreaming,
+			isShiftPressed: this.#deps.getIsShiftPressed(),
+			isSubmitDisabled: this.isSubmitDisabled,
+			hasBlockingComposerConfig: hasBlocking,
+			isComposerDispatching: isDispatching,
+		});
+	});
+
+	constructor(deps: ComposerViewControllerDeps) {
+		this.#deps = deps;
+		this.provisionalModeId = deps.getProps().initialModeId ?? null;
+	}
+
+	syncComposerSessionBind(): void {
+		const sessionId = this.#deps.getProps().sessionId;
+		if (!sessionId) {
+			this.#previousComposerBindSessionId = null;
+			return;
+		}
+		if (sessionId === this.#previousComposerBindSessionId) {
+			return;
+		}
+		this.#previousComposerBindSessionId = sessionId;
+		this.#deps.sessionStore.composer.bindSession(sessionId);
+	}
+
+	syncPreconnectionCapabilities(): void {
+		const hasConnectedSession = this.sessionLifecyclePresentation?.connectionPhase === "connected";
+		this.#deps.preconnectionCapabilitiesState
+			.ensureLoaded({
+				agentId: this.capabilitiesAgentId,
+				hasConnectedSession,
+				projectPath: this.filePickerProjectPath,
+				preconnectionCapabilityMode:
+					this.effectiveCapabilityProviderMetadata?.preconnectionCapabilityMode ??
+					"unsupported",
+			})
+			.mapErr((error) => {
+				this.#deps.logger.error("Failed to warm preconnection capabilities", {
+					agentId: this.capabilitiesAgentId,
+					projectPath: this.filePickerProjectPath,
+					error: error.message,
+				});
+				return undefined;
+			});
+	}
+
+	syncPendingToolbarSelections(): void {
+		const sessionId = this.#deps.getProps().sessionId;
+		if (!sessionId || this.isApplyingProvisionalToolbarSelections) {
+			return;
+		}
+		if (this.sessionLifecyclePresentation?.connectionPhase !== "connected") {
+			return;
+		}
+
+		const cs = this.#deps.sessionStore.composer.getStoreComposerState(sessionId);
+		const provMode = cs?.provisionalModeId ?? null;
+		const provModel = cs?.provisionalModelId ?? null;
+
+		const resolution = resolvePendingToolbarSelections({
+			provisionalModeId: provMode,
+			provisionalModelId: provModel,
+			liveCurrentModeId: this.sessionCurrentModeId,
+			liveCurrentModelId: this.sessionCurrentModelId,
+			availableModes: this.visibleModes,
+			availableModels: this.effectiveAvailableModels,
+		});
+
+		const liveModeId = this.sessionCurrentModeId;
+		const liveModelId = this.sessionCurrentModelId;
+
+		if (!resolution.modeIdToApply && !resolution.modelIdToApply) {
+			return;
+		}
+
+		this.isApplyingProvisionalToolbarSelections = true;
+
+		const run = async () => {
+			const autonomousForBegin = cs?.provisionalAutonomousEnabled ?? this.sessionAutonomousEnabled;
+			await this.#deps.sessionStore.composer.runConfigOperation(
+				sessionId,
+				{
+					provisionalModeId: resolution.modeIdToApply ?? provMode ?? liveModeId,
+					provisionalModelId: resolution.modelIdToApply ?? provModel ?? liveModelId,
+					provisionalAutonomousEnabled: autonomousForBegin,
+				},
+				async () => {
+					if (resolution.modeIdToApply) {
+						const modeResult = await this.#deps.sessionStore.connection.setMode(
+							sessionId,
+							resolution.modeIdToApply
+						);
+						if (modeResult.isErr()) {
+							return false;
+						}
+					}
+
+					if (resolution.modelIdToApply) {
+						const modelResult = await this.#deps.sessionStore.connection.setModel(
+							sessionId,
+							resolution.modelIdToApply
+						);
+						if (modelResult.isErr()) {
+							return false;
+						}
+					}
+					return true;
+				}
+			);
+		};
+
+		void run().finally(() => {
+			this.isApplyingProvisionalToolbarSelections = false;
+		});
+	}
+}

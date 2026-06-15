@@ -79,11 +79,11 @@ function handleCopyBoundaryReference(referenceId: string | null): void {
 const panel = $derived(panelRef.current);
 const sessionIdentity = $derived.by(() => {
 	const sessionId = panel?.sessionId ?? null;
-	return sessionId !== null ? sessionStore.getSessionIdentity(sessionId) : undefined;
+	return sessionId !== null ? sessionStore.read.getSessionIdentity(sessionId) : undefined;
 });
 const sessionMetadata = $derived.by(() => {
 	const sessionId = panel?.sessionId ?? null;
-	return sessionId !== null ? sessionStore.getSessionMetadata(sessionId) : undefined;
+	return sessionId !== null ? sessionStore.read.getSessionMetadata(sessionId) : undefined;
 });
 const panelHotState = $derived(panel ? panelStore.getHotState(panel.id) : null);
 const hostModel = $derived.by(() =>

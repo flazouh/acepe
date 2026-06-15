@@ -103,7 +103,7 @@ function handleClosePicker(): void {
 }
 
 function handleUseAutomaticLinking(): void {
-	void sessionStore.restoreAutomaticSessionPrLink(sessionId, projectPath).match(
+	void sessionStore.connection.restoreAutomaticSessionPrLink(sessionId, projectPath).match(
 		() => {
 			handleClosePicker();
 		},
@@ -114,7 +114,7 @@ function handleUseAutomaticLinking(): void {
 }
 
 function handleSelectPullRequest(pr: PrListItem): void {
-	void sessionStore.updateSessionPrLink(sessionId, projectPath, pr.number, "manual").match(
+	void sessionStore.connection.updateSessionPrLink(sessionId, projectPath, pr.number, "manual").match(
 		() => {
 			handleClosePicker();
 		},

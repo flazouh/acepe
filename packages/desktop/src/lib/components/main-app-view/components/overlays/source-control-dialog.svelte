@@ -23,7 +23,7 @@ function handleOpenChange(open: boolean) {
 function handleRequestGeneration(projectPath: string, prompt: string) {
 	const agentPanel = panelStore.getFirstSessionAgentPanelForProject(projectPath);
 	if (agentPanel?.sessionId) {
-		sessionStore.sendMessage(agentPanel.sessionId, prompt);
+		sessionStore.connection.sendMessage(agentPanel.sessionId, prompt);
 	}
 }
 </script>

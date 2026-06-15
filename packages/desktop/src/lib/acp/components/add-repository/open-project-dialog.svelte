@@ -1,23 +1,16 @@
 <script lang="ts">
 import { PillButton } from "@acepe/ui";
-import {
-	CloseAction,
-	EmbeddedIconButton,
-	EmbeddedPanelHeader,
-	HeaderActionCell,
-	HeaderTitleCell,
-} from "@acepe/ui/panel-header";
-import { Dialog } from "bits-ui";
+import { EmbeddedIconButton } from "@acepe/ui/panel-header";
 import { DownloadSimple } from "phosphor-svelte";
 import { Folder } from "phosphor-svelte";
 import { FolderOpen } from "phosphor-svelte";
-import { FolderPlus } from "phosphor-svelte";
 import { GitBranch } from "phosphor-svelte";
 import { Link } from "phosphor-svelte";
 import { MagnifyingGlass } from "phosphor-svelte";
 import { toast } from "svelte-sonner";
 import { ProjectClient } from "$lib/acp/logic/project-client.js";
 import { Spinner } from "$lib/components/ui/spinner/index.js";
+import WorkspaceDialogFrame from "$lib/components/ui/workspace-dialog-frame.svelte";
 import { tauriClient } from "$lib/utils/tauri-client.js";
 
 import type {
@@ -282,165 +275,163 @@ function handleOpenChange(newOpen: boolean) {
 }
 </script>
 
-<Dialog.Root bind:open onOpenChange={handleOpenChange}>
-	<Dialog.Portal>
-		<Dialog.Overlay
-			class="fixed inset-0 z-50 bg-black/60 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0"
-		/>
-		<Dialog.Content
-			class="fixed start-[50%] top-[50%] z-50 translate-x-[-50%] translate-y-[-50%] w-[680px] max-w-[calc(100vw-3rem)] h-[80vh] max-h-[620px] flex flex-col rounded-xl border border-border/40 bg-background shadow-2xl overflow-hidden data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 duration-200"
-		>
-			<!-- Embedded header bar -->
-			<EmbeddedPanelHeader>
-				<HeaderTitleCell>
-					<FolderPlus size={14} weight="fill" class="shrink-0 mr-1.5 text-muted-foreground" />
-					<span class="text-[11px] font-medium text-foreground select-none truncate leading-none">
-						{"Add Project"}
-					</span>
-				</HeaderTitleCell>
-				<HeaderActionCell>
-					<EmbeddedIconButton
-						active={activeView === "import"}
-						title={"Import from history"}
-						onclick={() => {
-							activeView = "import";
-						}}
-					>
-						<DownloadSimple size={14} />
-					</EmbeddedIconButton>
-					<EmbeddedIconButton
-						active={activeView === "clone"}
-						title={"Clone repository"}
-						onclick={() => {
-							activeView = "clone";
-						}}
-					>
-						<GitBranch size={14} />
-					</EmbeddedIconButton>
-					<EmbeddedIconButton title={"Browse folder"} onclick={() => onBrowseFolder()}>
-						<Folder size={14} />
-					</EmbeddedIconButton>
-					<CloseAction onClose={() => handleOpenChange(false)} title={"Close"} />
-				</HeaderActionCell>
-			</EmbeddedPanelHeader>
+<WorkspaceDialogFrame
+	{open}
+	title="Add Project"
+	closeLabel="Close add project"
+	contentOverflow="hidden"
+	contentClass="!rounded-lg"
+	onOpenChange={handleOpenChange}
+>
+	{#snippet topLeft()}
+		{#if activeView === "import"}
+			<label
+				class="flex h-5 w-52 shrink-0 items-center gap-1.5 rounded-md border border-border bg-muted px-2"
+			>
+				<MagnifyingGlass size={11} class="shrink-0 text-muted-foreground/60" />
+				<!-- svelte-ignore a11y_autofocus -->
+				<input
+					type="search"
+					placeholder="Filter projects..."
+					bind:value={searchQuery}
+					class="min-w-0 flex-1 bg-transparent border-none outline-none text-[11px] text-foreground placeholder:text-muted-foreground/50"
+					aria-label="Filter projects"
+					autofocus
+				/>
+			</label>
+		{/if}
+	{/snippet}
 
-			{#if activeView === "import"}
-				<!-- Search bar (import view only) -->
-				<div class="flex items-center h-8 px-3 border-b border-border/30 bg-accent/10 shrink-0">
-					<MagnifyingGlass size={12} class="text-muted-foreground/50 shrink-0 mr-2" />
-					<!-- svelte-ignore a11y_autofocus -->
+	{#snippet topRight()}
+		<EmbeddedIconButton
+			class="rounded-sm"
+			active={activeView === "import"}
+			title="Import from history"
+			onclick={() => {
+				activeView = "import";
+			}}
+		>
+			<DownloadSimple size={14} />
+		</EmbeddedIconButton>
+		<EmbeddedIconButton
+			class="rounded-sm"
+			active={activeView === "clone"}
+			title="Clone repository"
+			onclick={() => {
+				activeView = "clone";
+			}}
+		>
+			<GitBranch size={14} />
+		</EmbeddedIconButton>
+		<EmbeddedIconButton class="rounded-sm" title="Browse folder" onclick={() => onBrowseFolder()}>
+			<Folder size={14} />
+		</EmbeddedIconButton>
+	{/snippet}
+
+	<div class="flex h-full min-h-0 flex-col overflow-hidden rounded-md border border-border/40 bg-background">
+		{#if activeView === "import"}
+			<!-- Project list (scrollable body) -->
+			<div class="flex-1 min-h-0 overflow-y-auto">
+				<ProjectTable
+					projects={filteredProjects}
+					{loading}
+					{addedPaths}
+					onImport={handleImport}
+					onUndo={handleUndoImport}
+				/>
+			</div>
+
+			<!-- Footer -->
+			{#if !loading && projects.length > 0}
+				<div
+					class="flex items-center px-3 h-7 border-t border-border/30 text-[10px] font-mono text-muted-foreground bg-accent/5 shrink-0"
+				>
+					<span>
+						{importFooterProjectLabel}
+					</span>
+					{#if addedPaths.size > 0}
+						<span class="mx-1.5 text-border">·</span>
+						<span>{`${addedPaths.size} imported`}</span>
+					{/if}
+				</div>
+			{/if}
+		{:else}
+			<!-- Clone form (scrollable body) -->
+			<div class="flex-1 min-h-0 overflow-y-auto p-4 space-y-4">
+				<!-- URL field -->
+				<div class="space-y-1.5">
+					<label class="text-[11px] font-medium text-muted-foreground flex items-center gap-1.5">
+						<Link size={12} />
+						{"Repository URL"}
+					</label>
 					<input
 						type="text"
-						placeholder={"Filter projects..."}
-						bind:value={searchQuery}
-						class="bg-transparent border-none outline-none text-[11px] font-mono text-foreground placeholder:text-muted-foreground/40 w-full"
-						autofocus
+						bind:value={cloneUrl}
+						placeholder={"https://github.com/user/repo.git"}
+						disabled={cloning}
+						class="w-full h-8 px-2.5 text-[12px] font-mono bg-accent/10 border border-border/30 rounded-sm text-foreground placeholder:text-muted-foreground/40 outline-none focus:ring-1 focus:ring-ring/50 disabled:opacity-50"
 					/>
 				</div>
 
-				<!-- Project list (scrollable body) -->
-				<div class="flex-1 min-h-0 overflow-y-auto">
-					<ProjectTable
-						projects={filteredProjects}
-						{loading}
-						{addedPaths}
-						onImport={handleImport}
-						onUndo={handleUndoImport}
-					/>
-				</div>
-
-				<!-- Footer -->
-				{#if !loading && projects.length > 0}
-					<div
-						class="flex items-center px-3 h-7 border-t border-border/30 text-[10px] font-mono text-muted-foreground bg-accent/5 shrink-0"
-					>
-						<span>
-							{importFooterProjectLabel}
-						</span>
-						{#if addedPaths.size > 0}
-							<span class="mx-1.5 text-border">·</span>
-							<span>{`${addedPaths.size} imported`}</span>
-						{/if}
-					</div>
-				{/if}
-			{:else}
-				<!-- Clone form (scrollable body) -->
-				<div class="flex-1 min-h-0 overflow-y-auto p-4 space-y-4">
-					<!-- URL field -->
-					<div class="space-y-1.5">
-						<label class="text-[11px] font-medium text-muted-foreground flex items-center gap-1.5">
-							<Link size={12} />
-							{"Repository URL"}
-						</label>
+				<!-- Destination field -->
+				<div class="space-y-1.5">
+					<label class="text-[11px] font-medium text-muted-foreground flex items-center gap-1.5">
+						<FolderOpen size={12} />
+						{"Destination"}
+					</label>
+					<div class="flex items-center gap-2">
 						<input
 							type="text"
-							bind:value={cloneUrl}
-							placeholder={"https://github.com/user/repo.git"}
+							value={cloneDestination}
+							placeholder={"Select a folder..."}
+							readonly
 							disabled={cloning}
-							class="w-full h-8 px-2.5 text-[12px] font-mono bg-accent/10 border border-border/30 rounded-md text-foreground placeholder:text-muted-foreground/40 outline-none focus:ring-1 focus:ring-ring/50 disabled:opacity-50"
+							class="w-full h-8 px-2.5 text-[12px] font-mono bg-accent/10 border border-border/30 rounded-sm text-foreground placeholder:text-muted-foreground/40 outline-none focus:ring-1 focus:ring-ring/50 disabled:opacity-50"
 						/>
-					</div>
-
-					<!-- Destination field -->
-					<div class="space-y-1.5">
-						<label class="text-[11px] font-medium text-muted-foreground flex items-center gap-1.5">
-							<FolderOpen size={12} />
-							{"Destination"}
-						</label>
-						<div class="flex items-center gap-2">
-							<input
-								type="text"
-								value={cloneDestination}
-								placeholder={"Select a folder..."}
-								readonly
-								disabled={cloning}
-								class="w-full h-8 px-2.5 text-[12px] font-mono bg-accent/10 border border-border/30 rounded-md text-foreground placeholder:text-muted-foreground/40 outline-none focus:ring-1 focus:ring-ring/50 disabled:opacity-50"
-							/>
-							<PillButton
-								variant="outline"
-								size="sm"
-								disabled={cloning}
-								onclick={handleCloneBrowse}
-							>
-								{"Browse"}
-							</PillButton>
-						</div>
-					</div>
-
-					<!-- Branch field -->
-					<div class="space-y-1.5">
-						<label class="text-[11px] font-medium text-muted-foreground flex items-center gap-1.5">
-							<GitBranch size={12} />
-							{"Branch"}
-						</label>
-						<input
-							type="text"
-							bind:value={cloneBranch}
-							placeholder={"main"}
-							disabled={cloning}
-							class="w-full h-8 px-2.5 text-[12px] font-mono bg-accent/10 border border-border/30 rounded-md text-foreground placeholder:text-muted-foreground/40 outline-none focus:ring-1 focus:ring-ring/50 disabled:opacity-50"
-						/>
-					</div>
-
-					<!-- Clone action -->
-					<div class="flex justify-end pt-2">
 						<PillButton
 							variant="outline"
 							size="sm"
-							disabled={!cloneIsValid || cloning}
-							onclick={handleClone}
+							disabled={cloning}
+							onclick={handleCloneBrowse}
 						>
-							{#if cloning}
-								<Spinner size={12} />
-								{"Cloning..."}
-							{:else}
-								<DownloadSimple size={14} />
-								{"Clone"}
-							{/if}
+							{"Browse"}
 						</PillButton>
 					</div>
 				</div>
-			{/if}
-		</Dialog.Content>
-	</Dialog.Portal>
-</Dialog.Root>
+
+				<!-- Branch field -->
+				<div class="space-y-1.5">
+					<label class="text-[11px] font-medium text-muted-foreground flex items-center gap-1.5">
+						<GitBranch size={12} />
+						{"Branch"}
+					</label>
+					<input
+						type="text"
+						bind:value={cloneBranch}
+						placeholder={"main"}
+						disabled={cloning}
+						class="w-full h-8 px-2.5 text-[12px] font-mono bg-accent/10 border border-border/30 rounded-sm text-foreground placeholder:text-muted-foreground/40 outline-none focus:ring-1 focus:ring-ring/50 disabled:opacity-50"
+					/>
+				</div>
+
+				<!-- Clone action -->
+				<div class="flex justify-end pt-2">
+					<PillButton
+						variant="outline"
+						size="sm"
+						disabled={!cloneIsValid || cloning}
+						onclick={handleClone}
+					>
+						{#if cloning}
+							<Spinner size={12} />
+							{"Cloning..."}
+						{:else}
+							<DownloadSimple size={14} />
+							{"Clone"}
+						{/if}
+					</PillButton>
+				</div>
+			</div>
+		{/if}
+	</div>
+</WorkspaceDialogFrame>
