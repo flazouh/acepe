@@ -7,6 +7,7 @@
 		title: string;
 		summary: string;
 		details: string;
+		detailsHtml?: string | null;
 		dismissLabel?: string;
 		issueActionLabel?: string;
 		retryLabel?: string;
@@ -21,6 +22,7 @@
 		title,
 		summary,
 		details,
+		detailsHtml = null,
 		dismissLabel = "Dismiss",
 		issueActionLabel = "Create issue",
 		retryLabel = "Retry",
@@ -31,12 +33,17 @@
 		onIssueAction,
 	}: Props = $props();
 
-	const hasDetails = $derived(details.trim().length > 0);
+	const hasDetailsHtml = $derived(detailsHtml !== null && detailsHtml.trim().length > 0);
+	const hasDetails = $derived(!hasDetailsHtml && details.trim().length > 0);
 	const hasSummary = $derived(summary.trim().length > 0);
 </script>
 
 <div class="w-full rounded-lg border border-border bg-input/30">
-	{#if hasDetails}
+	{#if hasDetailsHtml}
+		<div class="error-details-shiki max-h-[min(50vh,420px)] overflow-y-auto border-b border-border px-3 py-2">
+			{@html detailsHtml}
+		</div>
+	{:else if hasDetails}
 		<div class="max-h-[220px] overflow-y-auto border-b border-border px-3 py-2">
 			<pre
 				class="font-mono text-[0.6875rem] leading-relaxed whitespace-pre-wrap break-words text-foreground/80"
@@ -89,3 +96,34 @@
 		{/if}
 	</div>
 </div>
+
+<style>
+	.error-details-shiki {
+		font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace);
+		font-size: 0.75rem;
+		line-height: 1.5;
+		white-space: pre-wrap;
+		word-break: break-word;
+	}
+
+	.error-details-shiki :global(pre),
+	.error-details-shiki :global(code) {
+		margin: 0;
+		padding: 0;
+		background: transparent !important;
+		font-family: inherit;
+	}
+
+	.error-details-shiki :global(.line) {
+		display: block;
+		min-height: 1.5em;
+	}
+
+	.error-details-shiki :global(span) {
+		color: var(--shiki-light);
+	}
+
+	:global(.dark) .error-details-shiki :global(span) {
+		color: var(--shiki-dark);
+	}
+</style>

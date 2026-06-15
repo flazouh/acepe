@@ -75,7 +75,7 @@
 		{#each entries as entry (entry.id)}
 			<div class="py-1.5 px-3">
 				{#if entry.type === "user"}
-					<AgentUserMessage text={entry.text} timestampMs={entry.timestampMs} />
+					<AgentUserMessage text={entry.text} chunks={entry.chunks} timestampMs={entry.timestampMs} />
 				{:else if entry.type === "assistant"}
 					<AgentAssistantMessage
 						messageId={entry.id}

@@ -65,6 +65,7 @@
 		disabled={isLoading || totalModelCount === 0}
 		onOpenChange={onOpenChange}
 		variant="ghost"
+		triggerSize="pill"
 	>
 		{#snippet renderButton()}
 			{#if isLoading}

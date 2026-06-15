@@ -119,6 +119,8 @@ export { default as ToolKindIcon } from "./tool-kind-icon.svelte";
 export { default as ToolHeaderLeading } from "./tool-header-leading.svelte";
 export { resolveThinkingDurationMs, shouldRunThinkingTimer } from "./thinking-duration.js";
 export { default as AgentUserMessage } from "./agent-user-message.svelte";
+export { CommandChip } from "../command-chip/index.js";
+export type { CommandChipModel } from "../command-chip/index.js";
 export { default as AgentPanelBrowserPanel } from "./browser-panel.svelte";
 export { default as AgentCompactToolDisplay } from "./compact-tool-display.svelte";
 export { default as AgentPanelCreatePrButton } from "./create-pr-button.svelte";
@@ -215,6 +217,7 @@ export type {
 	AgentToolKind,
 	AgentToolPresentationState,
 	AgentToolStatus,
+	AgentUserContentChunk,
 	AgentUserEntry,
 	AgentWebSearchLink,
 	AnyAgentEntry,

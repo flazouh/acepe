@@ -5,6 +5,7 @@
 import type { AssistantMessage } from "../../lib/assistant-message/types.js";
 import type { ChunkGroup } from "../../lib/assistant-message/assistant-chunk-grouper.js";
 import type { StreamingAnimationMode } from "../../lib/assistant-message/types.js";
+import type { CommandChipModel } from "../command-chip/command-chip.types.js";
 
 export type AgentSessionStatus =
 	| "empty"
@@ -53,10 +54,22 @@ export type AgentToolKind =
 	| "unclassified"
 	| "other";
 
+export type AgentUserContentChunk =
+	| { kind: "text"; text: string }
+	| {
+			kind: "localCommand";
+			command: string;
+			message: string;
+			args: string;
+			stdout: string;
+			chip: CommandChipModel;
+	  };
+
 export interface AgentUserEntry {
 	id: string;
 	type: "user";
 	text: string;
+	chunks?: readonly AgentUserContentChunk[];
 	isOptimistic?: boolean;
 	timestampMs?: number;
 }

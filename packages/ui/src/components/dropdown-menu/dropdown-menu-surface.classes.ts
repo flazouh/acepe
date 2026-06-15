@@ -12,7 +12,7 @@ export function buildDropdownMenuSurfaceClassName(className?: string): string {
 		"bg-popover text-popover-foreground shadow-md",
 		"data-[state=closed]:animate-out data-[state=open]:animate-in",
 		"border border-border",
-		"rounded-xl",
+		"rounded-lg",
 		className
 	);
 }

@@ -1,4 +1,5 @@
 <script lang="ts">
+import { CODEX_APP_ICON_IMG_CLASS, CODEX_APP_ICON_SRC } from "../../lib/provider-brand-icons.js";
 import { getProviderBrandDisplayName, type ProviderBrand } from "../../lib/provider-brand.js";
 import { cn } from "../../lib/utils";
 
@@ -43,9 +44,9 @@ const brandToneClass = $derived.by(() => {
 		/>
 	{:else if brand === "codex"}
 		<img
-			src="/svgs/agents/codex/codex-app-icon.png"
+			src={CODEX_APP_ICON_SRC}
 			alt=""
-			class="size-full rounded-[22%] object-contain"
+			class={cn("size-full", CODEX_APP_ICON_IMG_CLASS)}
 		/>
 	{:else if brand === "opencode"}
 		<img

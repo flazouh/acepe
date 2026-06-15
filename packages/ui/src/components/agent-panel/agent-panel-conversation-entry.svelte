@@ -51,7 +51,7 @@
  </script>
 
 {#if entry.type === "user"}
-	<AgentUserMessage text={entry.text} timestampMs={entry.timestampMs} />
+	<AgentUserMessage text={entry.text} chunks={entry.chunks} timestampMs={entry.timestampMs} />
 {:else if entry.type === "assistant"}
 		<AgentAssistantMessage
 			messageId={entry.id}

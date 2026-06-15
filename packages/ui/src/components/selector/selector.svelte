@@ -8,7 +8,7 @@
 	import { cn } from "../../lib/utils.js";
 	import { Button, type ButtonVariant } from "../button/index.js";
 
-	type SelectorTriggerSize = "default" | "icon" | "square" | "attach" | "minimal";
+	type SelectorTriggerSize = "default" | "icon" | "square" | "attach" | "minimal" | "pill";
 
 	interface Props {
 		/**
@@ -127,6 +127,8 @@
 				return "!size-6 shrink-0 rounded-lg gap-0 !p-0";
 			case "minimal":
 				return "!border-0 !h-[26px] rounded-md hover:rounded-full transition-[border-radius] gap-1.5 px-2 text-[11px]";
+			case "pill":
+				return "gap-1.5 h-7 flex-1 min-w-0 max-w-full rounded-md border-0 px-2.5 text-[11px]";
 			default:
 				return "gap-1.5 h-7 flex-1 min-w-0 max-w-full rounded-none border-0 px-2 text-[11px]";
 		}

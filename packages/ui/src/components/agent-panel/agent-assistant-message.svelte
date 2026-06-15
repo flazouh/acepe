@@ -286,6 +286,7 @@ class="flex justify-end pt-1 opacity-0 transition-opacity duration-150 group-hov
 text={textContent}
 timestampMs={timestampMs ?? message.receivedAt?.getTime()}
 variant="assistant"
+model={message.displayModel}
 />
 </div>
 {/if}

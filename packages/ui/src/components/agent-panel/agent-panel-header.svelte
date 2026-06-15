@@ -13,6 +13,7 @@
 	import { ProjectLetterBadge } from "../project-letter-badge/index.js";
 	import { RichTokenText } from "../rich-token-text/index.js";
 	import * as Tooltip from "../tooltip/index.js";
+	import AgentCopyButton from "./agent-copy-button.svelte";
 	import {
 		getAgentPanelHeaderTitle,
 		getHeaderStatusIndicatorKind,
@@ -182,70 +183,67 @@
 						{:else if statusIndicatorKind === "error"}
 							<span class="h-2 w-2 rounded-full shrink-0 bg-destructive"></span>
 						{/if}
-						{#if showTitleTooltip}
-							<Tooltip.Root>
-								<Tooltip.Trigger class="min-w-0 truncate text-left">
-									<span
-										class="agent-panel-header-title block min-w-0 truncate text-[12px] font-medium text-foreground"
+						<div class="group/header-title flex min-w-0 flex-1 items-center gap-0.5">
+							{#if showTitleTooltip}
+								<Tooltip.Root>
+									<Tooltip.Trigger class="min-w-0 flex-1 truncate text-left">
+										{@render titleText()}
+									</Tooltip.Trigger>
+									<Tooltip.Content
+										side="bottom"
+										sideOffset={6}
+										class="max-w-sm px-2.5 py-2 text-xs"
 									>
-										{resolvedTitle}
-									</span>
-								</Tooltip.Trigger>
-								<Tooltip.Content
-									side="bottom"
-									sideOffset={6}
-									class="max-w-sm px-2.5 py-2 text-xs"
-								>
-									{#if titleRichText}
-										<RichTokenText
-											text={titleRichText}
-											class="text-foreground font-medium"
-										/>
-									{:else}
-										<p class="m-0 font-medium text-foreground">{resolvedTitle}</p>
-									{/if}
-									{#if expansion}
-										<div class="mt-1.5">
-											{@render expansion()}
-										</div>
-									{:else if hasMetaChips}
-										<div class="mt-1.5 flex flex-wrap items-center gap-1">
-											{#if subtitle}
-												<span
-													class="rounded-full border border-border/50 bg-background/70 px-2 py-0.5 text-[10px] text-muted-foreground"
-													>{subtitle}</span
-												>
-											{/if}
-											{#if agentLabel}
-												<span
-													class="rounded-full border border-border/50 bg-background/70 px-2 py-0.5 text-[10px] text-muted-foreground"
-													>{agentLabel}</span
-												>
-											{/if}
-											{#if branchLabel}
-												<span
-													class="rounded-full border border-border/50 bg-background/70 px-2 py-0.5 text-[10px] text-muted-foreground"
-													>{branchLabel}</span
-												>
-											{/if}
-											{#each badges ?? [] as badge (badge.id)}
-												<span
-													class="rounded-full border border-border/50 bg-background/70 px-2 py-0.5 text-[10px] text-muted-foreground"
-												>
-													{badge.label}
-												</span>
-											{/each}
-										</div>
-									{/if}
-								</Tooltip.Content>
-							</Tooltip.Root>
-						{:else}
-							<span
-								class="agent-panel-header-title min-w-0 truncate text-[12px] font-medium text-foreground"
-							>
-								{resolvedTitle}
-							</span>
-						{/if}
+										{#if titleRichText}
+											<RichTokenText
+												text={titleRichText}
+												class="text-foreground font-medium"
+											/>
+										{:else}
+											<p class="m-0 font-medium text-foreground">{resolvedTitle}</p>
+										{/if}
+										{#if expansion}
+											<div class="mt-1.5">
+												{@render expansion()}
+											</div>
+										{:else if hasMetaChips}
+											<div class="mt-1.5 flex flex-wrap items-center gap-1">
+												{#if subtitle}
+													<span
+														class="rounded-full border border-border/50 bg-background/70 px-2 py-0.5 text-[10px] text-muted-foreground"
+														>{subtitle}</span
+													>
+												{/if}
+												{#if agentLabel}
+													<span
+														class="rounded-full border border-border/50 bg-background/70 px-2 py-0.5 text-[10px] text-muted-foreground"
+														>{agentLabel}</span
+													>
+												{/if}
+												{#if branchLabel}
+													<span
+														class="rounded-full border border-border/50 bg-background/70 px-2 py-0.5 text-[10px] text-muted-foreground"
+														>{branchLabel}</span
+													>
+												{/if}
+												{#each badges ?? [] as badge (badge.id)}
+													<span
+														class="rounded-full border border-border/50 bg-background/70 px-2 py-0.5 text-[10px] text-muted-foreground"
+													>
+														{badge.label}
+													</span>
+												{/each}
+											</div>
+										{/if}
+									</Tooltip.Content>
+								</Tooltip.Root>
+							{:else}
+								<div class="min-w-0 flex-1">
+									{@render titleText()}
+								</div>
+							{/if}
+							{@render titleCopyButton()}
+						</div>
 					</div>
 				{/snippet}
 			</HeaderTitleCell>
@@ -289,3 +287,25 @@
 		{/if}
 	</EmbeddedPanelHeader>
 </div>
+
+{#snippet titleText()}
+	<span
+		class="agent-panel-header-title block min-w-0 truncate text-[12px] font-medium text-foreground"
+	>
+		{resolvedTitle}
+	</span>
+{/snippet}
+
+{#snippet titleCopyButton()}
+	{#if resolvedTitle.trim().length > 0}
+		<div
+			class="shrink-0 opacity-0 transition-opacity duration-150 group-hover/header-title:opacity-100 group-focus-within/header-title:opacity-100"
+		>
+			<AgentCopyButton
+				text={resolvedTitle}
+				title="Copy title"
+				size="header"
+			/>
+		</div>
+	{/if}
+{/snippet}

@@ -1,16 +1,17 @@
 <script lang="ts">
-	import { IconCheck } from "@tabler/icons-svelte";
-	import { Copy } from "phosphor-svelte";
+	import AgentCopyButton from "./agent-copy-button.svelte";
 
 	interface Props {
 		text: string;
 		timestampMs?: number;
 		variant: "user" | "assistant";
+		/** User-friendly model name (e.g. "Opus 4.5"). Shown on assistant chips. */
+		model?: string;
+		/** Whether the chip renders its own copy button. Defaults to true. */
+		showCopy?: boolean;
 	}
 
-	let { text, timestampMs, variant }: Props = $props();
-
-	let copied = $state(false);
+	let { text, timestampMs, variant, model, showCopy = true }: Props = $props();
 
 	const isAssistant = $derived(variant === "assistant");
 	const timestampDate = $derived.by(() => {
@@ -30,70 +31,37 @@
 		return timestampDate.toLocaleString();
 	});
 
-	function clearCopiedSoon(): void {
-		setTimeout(() => {
-			copied = false;
-		}, 1600);
-	}
+	const showModel = $derived(isAssistant && model != null && model.length > 0);
 
-	function handleCopy(): void {
-		if (!text.trim()) return;
-
-		navigator.clipboard
-			.writeText(text)
-			.then(() => {
-				copied = true;
-				clearCopiedSoon();
-			})
-			.catch((error: unknown) => {
-				console.error("[AGENT_MESSAGE_META_COPY_FAILED]", error);
-			});
-	}
+	// Subtle tone differences between user and assistant chips.
+	const containerToneClass = $derived(
+		isAssistant
+			? "border-border/60 bg-background/85 backdrop-blur-sm"
+			: "border-border/40 bg-muted/40",
+	);
+	const textToneClass = $derived(isAssistant ? "text-muted-foreground" : "text-muted-foreground/70");
+	const dividerToneClass = $derived(isAssistant ? "bg-border/60" : "bg-border/40");
 </script>
 
-{#if isAssistant}
-	<div class="inline-flex items-center overflow-hidden rounded-lg border border-border/60 bg-background/85 backdrop-blur-sm">
-		{#if timestampLabel}
-			<span
-				class="px-2 text-[11px] tabular-nums text-muted-foreground"
-				title={timestampTitle}
-			>
-				{timestampLabel}
-			</span>
-			<div class="h-4 w-px bg-border/60"></div>
+<div class="inline-flex items-center overflow-hidden rounded-lg border {containerToneClass}">
+	{#if showModel}
+		<span class="whitespace-nowrap px-2 text-[11px] {textToneClass}">{model}</span>
+	{/if}
+	{#if timestampLabel}
+		{#if showModel}
+			<div class="h-4 w-px shrink-0 {dividerToneClass}"></div>
 		{/if}
-		<button
-			type="button"
-			class="inline-flex h-6 w-6 items-center justify-center text-muted-foreground transition-colors hover:bg-accent/60 hover:text-foreground"
-			title={copied ? "Copied!" : "Copy message"}
-			onclick={handleCopy}
+		<span
+			class="px-2 text-[11px] tabular-nums {textToneClass}"
+			title={timestampTitle}
 		>
-			{#if copied}
-				<IconCheck size={13} stroke={2} />
-			{:else}
-				<Copy size={13} weight="fill" />
-			{/if}
-		</button>
-	</div>
-{:else}
-	<div class="inline-flex items-center overflow-hidden rounded-lg border border-border/40 bg-muted/40">
-		{#if timestampLabel}
-			<span class="px-2 text-[11px] tabular-nums text-muted-foreground/70" title={timestampTitle}>
-				{timestampLabel}
-			</span>
-			<div class="h-4 w-px bg-border/40"></div>
+			{timestampLabel}
+		</span>
+	{/if}
+	{#if showCopy}
+		{#if showModel || timestampLabel}
+			<div class="h-4 w-px shrink-0 {dividerToneClass}"></div>
 		{/if}
-		<button
-			type="button"
-			class="inline-flex h-6 w-6 items-center justify-center text-muted-foreground/70 transition-colors hover:bg-accent/60 hover:text-foreground"
-			title={copied ? "Copied!" : "Copy message"}
-			onclick={handleCopy}
-		>
-			{#if copied}
-				<IconCheck size={13} stroke={2} />
-			{:else}
-				<Copy size={13} weight="fill" />
-			{/if}
-		</button>
-	</div>
-{/if}
+		<AgentCopyButton {text} class={textToneClass} />
+	{/if}
+</div>
