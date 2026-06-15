@@ -1415,19 +1415,7 @@ async fn drain_emits_canonical_append_segments_for_same_message_id_chunks() {
                 };
                 rendered.clear();
                 for segment in &entry.segments {
-                    match segment {
-                        crate::acp::transcript_projection::TranscriptSegment::Text {
-                            text, ..
-                        } => {
-                            rendered.push_str(text);
-                        }
-                        crate::acp::transcript_projection::TranscriptSegment::Thought {
-                            text,
-                            ..
-                        } => {
-                            rendered.push_str(text);
-                        }
-                    }
+                    rendered.push_str(segment.primary_text());
                 }
             }
             crate::acp::session_state_engine::SessionStatePayload::Delta { delta } => {
@@ -1438,16 +1426,7 @@ async fn drain_emits_canonical_append_segments_for_same_message_id_chunks() {
                         } => {
                             rendered.clear();
                             for segment in &entry.segments {
-                                match segment {
-                                    crate::acp::transcript_projection::TranscriptSegment::Text {
-                                        text,
-                                        ..
-                                    } => rendered.push_str(text),
-                                    crate::acp::transcript_projection::TranscriptSegment::Thought {
-                                        text,
-                                        ..
-                                    } => rendered.push_str(text),
-                                }
+                                rendered.push_str(segment.primary_text());
                             }
                         }
                         crate::acp::transcript_projection::TranscriptDeltaOperation::AppendSegment {
@@ -1457,14 +1436,7 @@ async fn drain_emits_canonical_append_segments_for_same_message_id_chunks() {
                         } => {
                             assert_eq!(entry_id, "assistant-event-1");
                             match segment {
-                                crate::acp::transcript_projection::TranscriptSegment::Text {
-                                    text,
-                                    ..
-                                } => rendered.push_str(text),
-                                crate::acp::transcript_projection::TranscriptSegment::Thought {
-                                    text,
-                                    ..
-                                } => rendered.push_str(text),
+                                _ => rendered.push_str(segment.primary_text()),
                             }
                         }
                         other => panic!("unexpected transcript operation: {:?}", other),

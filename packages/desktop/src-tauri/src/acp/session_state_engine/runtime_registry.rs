@@ -1358,11 +1358,11 @@ mod tests {
             let history_update = create_completed_history_tool_call(index);
             projection_registry.apply_session_update("session-1", &history_update);
             let _ = transcript_projection_registry
-                .apply_session_update(index as i64 + 1, &history_update);
+                .apply_session_update_idle(index as i64 + 1, &history_update);
         }
         projection_registry.apply_session_update("session-1", &update_under_test);
         let _ = transcript_projection_registry
-            .apply_session_update(history_count as i64 + 1, &update_under_test);
+            .apply_session_update_idle(history_count as i64 + 1, &update_under_test);
         runtime_registry.apply_session_update("session-1", &update_under_test);
 
         runtime_registry
@@ -1402,11 +1402,11 @@ mod tests {
             let history_update = create_completed_history_tool_call(index);
             projection_registry.apply_session_update("session-1", &history_update);
             let _ = transcript_projection_registry
-                .apply_session_update(index as i64 + 1, &history_update);
+                .apply_session_update_idle(index as i64 + 1, &history_update);
         }
         projection_registry.apply_session_update("session-1", &update_under_test);
         let transcript_delta = transcript_projection_registry
-            .apply_session_update(history_count as i64 + 1, &update_under_test);
+            .apply_session_update_idle(history_count as i64 + 1, &update_under_test);
         runtime_registry.apply_session_update("session-1", &update_under_test);
 
         runtime_registry
@@ -1440,7 +1440,7 @@ mod tests {
     ) -> SessionStateEnvelope {
         let session_id = update.session_id().expect("session id on assistant chunk");
         let transcript_delta = transcript_projection_registry
-            .apply_session_update(event_seq, update)
+            .apply_session_update_idle(event_seq, update)
             .expect("transcript delta");
         let snapshot = transcript_projection_registry
             .snapshot_for_session(session_id)
@@ -1543,7 +1543,7 @@ mod tests {
         let update =
             create_agent_message_chunk_update("session-1", Some("assistant-1"), &oversized_text, 5);
         let transcript_delta = transcript_projection_registry
-            .apply_session_update(1, &update)
+            .apply_session_update_idle(1, &update)
             .expect("transcript delta");
         let snapshot = transcript_projection_registry
             .snapshot_for_session("session-1")

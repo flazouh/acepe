@@ -108,10 +108,10 @@ impl TranscriptEntry {
                 Some(Self {
                     entry_id,
                     role: TranscriptEntryRole::User,
-                    segments: vec![TranscriptSegment::Text {
-                        segment_id: format!("{turn_key}:event:{}", event.transcript_seq),
-                        text: text.clone(),
-                    }],
+                    segments: vec![user_transcript_segment_from_text(
+                        format!("{turn_key}:event:{}", event.transcript_seq),
+                        text.clone(),
+                    )],
                     attempt_id: None,
                     timestamp_ms: parse_timestamp_to_millis(&event.timestamp),
                 })
@@ -316,6 +316,76 @@ pub enum TranscriptSegment {
     Text { segment_id: String, text: String },
     #[serde(rename_all = "camelCase")]
     Thought { segment_id: String, text: String },
+    #[serde(rename_all = "camelCase")]
+    LocalCommand {
+        segment_id: String,
+        command: String,
+        message: String,
+        args: String,
+        stdout: String,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        model_display_name: Option<String>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        model_description: Option<String>,
+    },
+}
+
+pub(crate) fn user_transcript_segment_from_text(segment_id: String, text: String) -> TranscriptSegment {
+    if let Some(parsed) = crate::acp::local_command::parse_local_command(&text) {
+        return TranscriptSegment::LocalCommand {
+            segment_id,
+            command: parsed.command,
+            message: parsed.message,
+            args: parsed.args,
+            stdout: parsed.stdout,
+            model_display_name: parsed.model_display_name,
+            model_description: parsed.model_description,
+        };
+    }
+
+    TranscriptSegment::Text { segment_id, text }
+}
+
+impl TranscriptSegment {
+    pub fn primary_text(&self) -> &str {
+        match self {
+            TranscriptSegment::Text { text, .. } | TranscriptSegment::Thought { text, .. } => text,
+            TranscriptSegment::LocalCommand {
+                stdout,
+                command,
+                message,
+                ..
+            } => {
+                if !stdout.is_empty() {
+                    stdout
+                } else if !command.is_empty() {
+                    command
+                } else {
+                    message
+                }
+            }
+        }
+    }
+
+    pub fn is_nonempty(&self) -> bool {
+        match self {
+            TranscriptSegment::Text { text, .. } | TranscriptSegment::Thought { text, .. } => {
+                !text.is_empty()
+            }
+            TranscriptSegment::LocalCommand {
+                command,
+                message,
+                stdout,
+                args,
+                ..
+            } => {
+                !command.is_empty()
+                    || !message.is_empty()
+                    || !stdout.is_empty()
+                    || !args.is_empty()
+            }
+        }
+    }
 }
 
 fn segments_from_blocks(entry_id: &str, blocks: &[StoredContentBlock]) -> Vec<TranscriptSegment> {
@@ -323,9 +393,11 @@ fn segments_from_blocks(entry_id: &str, blocks: &[StoredContentBlock]) -> Vec<Tr
         .iter()
         .enumerate()
         .filter_map(|(index, block)| {
-            block.text.as_ref().map(|text| TranscriptSegment::Text {
-                segment_id: format!("{entry_id}:block:{index}"),
-                text: text.clone(),
+            block.text.as_ref().map(|text| {
+                user_transcript_segment_from_text(
+                    format!("{entry_id}:block:{index}"),
+                    text.clone(),
+                )
             })
         })
         .collect()

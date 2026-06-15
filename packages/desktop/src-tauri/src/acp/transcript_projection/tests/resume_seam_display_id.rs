@@ -70,7 +70,7 @@ fn resume_seam_stored_history_then_live_tool_call_shares_authority_entry_id() {
     registry.restore_session_snapshot("session-1".to_string(), history_snapshot);
 
     let live_delta = registry
-        .apply_session_update(
+        .apply_session_update_idle(
             500,
             &SessionUpdate::ToolCall {
                 tool_call: read_tool_call(provider_tool_id),
@@ -123,7 +123,7 @@ fn resume_seam_canonical_history_then_live_tool_call_shares_authority_entry_id()
     registry.restore_session_snapshot("session-1".to_string(), history_snapshot);
 
     let live_delta = registry
-        .apply_session_update(
+        .apply_session_update_idle(
             501,
             &SessionUpdate::ToolCall {
                 tool_call: read_tool_call(provider_tool_id),
@@ -170,7 +170,7 @@ fn resume_seam_live_tool_status_update_upserts_same_authority_entry_id() {
     );
 
     let first = registry
-        .apply_session_update(
+        .apply_session_update_idle(
             600,
             &SessionUpdate::ToolCall {
                 tool_call: read_tool_call(provider_tool_id),
@@ -179,7 +179,7 @@ fn resume_seam_live_tool_status_update_upserts_same_authority_entry_id() {
         )
         .expect("first live tool delta reuses restored authority id");
     let second = registry
-        .apply_session_update(
+        .apply_session_update_idle(
             601,
             &SessionUpdate::ToolCall {
                 tool_call: read_tool_call(provider_tool_id),
@@ -239,7 +239,7 @@ fn resume_seam_live_turn_error_uses_authority_error_entry_id() {
     );
 
     let live_delta = registry
-        .apply_session_update(
+        .apply_session_update_idle(
             700,
             &SessionUpdate::TurnError {
                 error: TurnErrorData::Structured(TurnErrorInfo {

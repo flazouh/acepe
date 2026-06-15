@@ -139,10 +139,24 @@ impl ProjectionRegistry {
 
         snapshot.last_event_seq = snapshot.last_event_seq.saturating_add(1);
 
-        let route = route_projection_apply(update, &snapshot);
+        let mut guard = TerminalTurnGuard::from_snapshot(&snapshot);
+        let route = route_projection_apply(update, &guard);
         if let ProjectionApplyRoute::Apply(arm) = route {
             self.dispatch_projection_apply(session_id, update, &mut snapshot, arm);
+            guard.advance(update);
         }
+        guard.write_to_snapshot(&mut snapshot);
+    }
+
+    /// Pre-apply terminal-turn decision for live transcript dispatch (decide-then-advance).
+    #[must_use]
+    pub fn route_terminal_turn(&self, session_id: &str, update: &SessionUpdate) -> RouteDecision {
+        let guard = self
+            .snapshots
+            .get(session_id)
+            .map(|entry| TerminalTurnGuard::from_snapshot(&entry))
+            .unwrap_or_else(|| TerminalTurnGuard::default());
+        guard.route(update)
     }
 
     fn dispatch_projection_apply(
@@ -157,25 +171,18 @@ impl ProjectionRegistry {
                 snapshot.message_count = snapshot.message_count.saturating_add(1);
                 snapshot.transcript_entry_count = snapshot.transcript_entry_count.saturating_add(1);
                 snapshot.assistant_boundary_entry_count = snapshot.transcript_entry_count;
-                start_running_turn(snapshot);
             }
             ProjectionApplyArm::AgentMessageChunk => {
                 snapshot.message_count = snapshot.message_count.saturating_add(1);
-                if !preserves_terminal_turn(snapshot) {
-                    if snapshot.transcript_entry_count == snapshot.assistant_boundary_entry_count {
-                        snapshot.transcript_entry_count =
-                            snapshot.transcript_entry_count.saturating_add(1);
-                    }
-                    start_running_turn(snapshot);
+                if snapshot.transcript_entry_count == snapshot.assistant_boundary_entry_count {
+                    snapshot.transcript_entry_count =
+                        snapshot.transcript_entry_count.saturating_add(1);
                 }
             }
             ProjectionApplyArm::AgentThoughtChunk => {
-                if !preserves_terminal_turn(snapshot) {
-                    if snapshot.transcript_entry_count == snapshot.assistant_boundary_entry_count {
-                        snapshot.transcript_entry_count =
-                            snapshot.transcript_entry_count.saturating_add(1);
-                    }
-                    start_running_turn(snapshot);
+                if snapshot.transcript_entry_count == snapshot.assistant_boundary_entry_count {
+                    snapshot.transcript_entry_count =
+                        snapshot.transcript_entry_count.saturating_add(1);
                 }
             }
             ProjectionApplyArm::ToolCallAsConvertedQuestion => {
@@ -212,7 +219,6 @@ impl ProjectionRegistry {
                 self.register_plan_approval_interaction(session_id, &tool_call);
                 snapshot.transcript_entry_count = snapshot.transcript_entry_count.saturating_add(1);
                 snapshot.assistant_boundary_entry_count = snapshot.transcript_entry_count;
-                start_running_turn(snapshot);
             }
             ProjectionApplyArm::ToolCallUpdate => {
                 let SessionUpdate::ToolCallUpdate { update, .. } = update else {
@@ -228,7 +234,6 @@ impl ProjectionRegistry {
                     mark_tool_call_completed(snapshot, &update.tool_call_id);
                 }
                 self.apply_tool_call_update_projection(session_id, &update);
-                start_running_turn(snapshot);
             }
             ProjectionApplyArm::PermissionRequest => {
                 let SessionUpdate::PermissionRequest { permission, .. } = update else {
@@ -243,36 +248,26 @@ impl ProjectionRegistry {
                 self.register_question_interaction(question);
             }
             ProjectionApplyArm::TurnComplete => {
-                let SessionUpdate::TurnComplete { turn_id, .. } = update else {
+                let SessionUpdate::TurnComplete { .. } = update else {
                     return;
                 };
-                snapshot.turn_state = SessionTurnState::Completed;
                 snapshot.active_tool_call_ids.clear();
-                snapshot.active_turn_failure = None;
-                snapshot.last_terminal_turn_id = turn_id.clone();
             }
             ProjectionApplyArm::TurnError => {
-                let SessionUpdate::TurnError { error, turn_id, .. } = update else {
+                let SessionUpdate::TurnError { .. } = update else {
                     return;
                 };
-                snapshot.turn_state = SessionTurnState::Failed;
                 snapshot.active_tool_call_ids.clear();
-                snapshot.active_turn_failure =
-                    Some(convert_turn_error_snapshot(error, turn_id.clone()));
-                snapshot.last_terminal_turn_id = turn_id.clone();
             }
             ProjectionApplyArm::TurnCancelled => {
-                let SessionUpdate::TurnCancelled { turn_id, .. } = update else {
+                let SessionUpdate::TurnCancelled { .. } = update else {
                     return;
                 };
                 let cancelled_operation_ids =
                     self.cancel_active_tool_calls(session_id, &snapshot.active_tool_call_ids);
                 self.last_cancelled_operation_ids
                     .insert(session_id.to_string(), cancelled_operation_ids);
-                snapshot.turn_state = SessionTurnState::Cancelled;
                 snapshot.active_tool_call_ids.clear();
-                snapshot.active_turn_failure = None;
-                snapshot.last_terminal_turn_id = turn_id.clone();
             }
         }
     }

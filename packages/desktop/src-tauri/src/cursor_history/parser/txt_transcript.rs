@@ -145,10 +145,7 @@ pub(super) fn extract_user_text(text: &str) -> String {
 
 /// Check if content looks like a command.
 pub(super) fn is_command_message(content: &str) -> bool {
-    let trimmed = content.trim();
-    trimmed.starts_with('/')
-        || trimmed.contains("<command-name>")
-        || trimmed.contains("<command-message>")
+    crate::acp::local_command::is_local_command_text(content)
 }
 
 /// Truncate a title to a reasonable length.

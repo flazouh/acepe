@@ -10,7 +10,7 @@ use crate::acp::session_update::{
     InteractionReplyHandler, PermissionData, QuestionData, SessionUpdate, ToolArguments,
     ToolCallData, ToolCallStatus, ToolCallUpdateData, ToolKind, ToolReference, ToolSourceContext,
 };
-use crate::acp::transcript_projection::live_tool_entry_id_for_tool_call;
+use crate::acp::transcript_projection::{live_tool_entry_id_for_tool_call, TranscriptEntryRole};
 use crate::acp::types::CanonicalAgentId;
 use crate::acp::types::ContentBlock;
 use crate::session_jsonl::types::StoredEntry;
@@ -37,38 +37,8 @@ pub struct SessionProjectionSnapshot {
     pub runtime: Option<crate::acp::lifecycle::LifecycleCheckpoint>,
 }
 
-fn matches_terminal_turn_id(left: Option<&str>, right: Option<&str>) -> bool {
-    match (left, right) {
-        (Some(left), Some(right)) => left == right,
-        (None, None) => true,
-        _ => false,
-    }
-}
-
-fn preserves_terminal_turn(snapshot: &SessionSnapshot) -> bool {
-    snapshot.turn_state == SessionTurnState::Cancelled
-        || (snapshot.turn_state == SessionTurnState::Failed
-            && snapshot.active_turn_failure.is_some())
-}
-
-fn start_running_turn(snapshot: &mut SessionSnapshot) {
-    snapshot.turn_state = SessionTurnState::Running;
-    snapshot.active_turn_failure = None;
-    snapshot.last_terminal_turn_id = None;
-}
-
-fn should_ignore_turn_complete(snapshot: &SessionSnapshot, turn_id: Option<&str>) -> bool {
-    preserves_terminal_turn(snapshot)
-        && (snapshot.last_terminal_turn_id.is_none()
-            || turn_id.is_none()
-            || matches_terminal_turn_id(snapshot.last_terminal_turn_id.as_deref(), turn_id))
-}
-
-fn should_ignore_late_turn_failure(snapshot: &SessionSnapshot, turn_id: Option<&str>) -> bool {
-    preserves_terminal_turn(snapshot)
-        && (snapshot.last_terminal_turn_id.is_none()
-            || matches_terminal_turn_id(snapshot.last_terminal_turn_id.as_deref(), turn_id))
-}
+pub mod terminal_turn_guard;
+pub use terminal_turn_guard::{RouteDecision, TerminalTurnGuard};
 
 #[derive(Debug, Clone, Default)]
 pub struct ProjectionRegistry {

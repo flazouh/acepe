@@ -1,7 +1,7 @@
 use crate::acp::projections::helpers::{
     normalize_tool_call_for_operation_ingress, should_skip_unanswered_question_tool_operation,
 };
-use crate::acp::projections::types::{SessionSnapshot, SessionTurnState};
+use crate::acp::projections::terminal_turn_guard::TerminalTurnGuard;
 use crate::acp::session_update::SessionUpdate;
 
 /// Which projection reducer arm should apply a live `SessionUpdate`.
@@ -27,53 +27,31 @@ pub enum ProjectionApplyRoute {
     Skip,
 }
 
-fn matches_terminal_turn_id(left: Option<&str>, right: Option<&str>) -> bool {
-    match (left, right) {
-        (Some(left), Some(right)) => left == right,
-        (None, None) => true,
-        _ => false,
-    }
-}
-
-fn preserves_terminal_turn(snapshot: &SessionSnapshot) -> bool {
-    snapshot.turn_state == SessionTurnState::Cancelled
-        || (snapshot.turn_state == SessionTurnState::Failed
-            && snapshot.active_turn_failure.is_some())
-}
-
-fn should_ignore_turn_complete(snapshot: &SessionSnapshot, turn_id: Option<&str>) -> bool {
-    preserves_terminal_turn(snapshot)
-        && (snapshot.last_terminal_turn_id.is_none()
-            || turn_id.is_none()
-            || matches_terminal_turn_id(snapshot.last_terminal_turn_id.as_deref(), turn_id))
-}
-
-fn should_ignore_late_turn_failure(snapshot: &SessionSnapshot, turn_id: Option<&str>) -> bool {
-    preserves_terminal_turn(snapshot)
-        && (snapshot.last_terminal_turn_id.is_none()
-            || matches_terminal_turn_id(snapshot.last_terminal_turn_id.as_deref(), turn_id))
-}
-
 /// Route a live `SessionUpdate` to a projection apply arm without mutating state.
 #[must_use]
 pub fn route_projection_apply(
     update: &SessionUpdate,
-    snapshot: &SessionSnapshot,
+    guard: &TerminalTurnGuard,
 ) -> ProjectionApplyRoute {
+    let decision = guard.route(update);
+    if decision.ignore_late {
+        return ProjectionApplyRoute::Skip;
+    }
+
     match update {
         SessionUpdate::UserMessageChunk { .. } => {
             ProjectionApplyRoute::Apply(ProjectionApplyArm::UserMessageChunk)
         }
-        SessionUpdate::AgentMessageChunk { .. } if !preserves_terminal_turn(snapshot) => {
+        SessionUpdate::AgentMessageChunk { .. } if !decision.suppress => {
             ProjectionApplyRoute::Apply(ProjectionApplyArm::AgentMessageChunk)
         }
         SessionUpdate::AgentMessageChunk { .. } => ProjectionApplyRoute::Skip,
-        SessionUpdate::AgentThoughtChunk { .. } if !preserves_terminal_turn(snapshot) => {
+        SessionUpdate::AgentThoughtChunk { .. } if !decision.suppress => {
             ProjectionApplyRoute::Apply(ProjectionApplyArm::AgentThoughtChunk)
         }
         SessionUpdate::AgentThoughtChunk { .. } => ProjectionApplyRoute::Skip,
         SessionUpdate::ToolCall { tool_call, .. } => {
-            if preserves_terminal_turn(snapshot) {
+            if decision.suppress {
                 return ProjectionApplyRoute::Skip;
             }
             let normalized = normalize_tool_call_for_operation_ingress(tool_call);
@@ -83,7 +61,7 @@ pub fn route_projection_apply(
             ProjectionApplyRoute::Apply(ProjectionApplyArm::ToolCall)
         }
         SessionUpdate::ToolCallUpdate { .. } => {
-            if preserves_terminal_turn(snapshot) {
+            if decision.suppress {
                 ProjectionApplyRoute::Skip
             } else {
                 ProjectionApplyRoute::Apply(ProjectionApplyArm::ToolCallUpdate)
@@ -95,19 +73,11 @@ pub fn route_projection_apply(
         SessionUpdate::QuestionRequest { .. } => {
             ProjectionApplyRoute::Apply(ProjectionApplyArm::QuestionRequest)
         }
-        SessionUpdate::TurnComplete { turn_id, .. } => {
-            if should_ignore_turn_complete(snapshot, turn_id.as_deref()) {
-                ProjectionApplyRoute::Skip
-            } else {
-                ProjectionApplyRoute::Apply(ProjectionApplyArm::TurnComplete)
-            }
+        SessionUpdate::TurnComplete { .. } => {
+            ProjectionApplyRoute::Apply(ProjectionApplyArm::TurnComplete)
         }
-        SessionUpdate::TurnError { turn_id, .. } => {
-            if should_ignore_late_turn_failure(snapshot, turn_id.as_deref()) {
-                ProjectionApplyRoute::Skip
-            } else {
-                ProjectionApplyRoute::Apply(ProjectionApplyArm::TurnError)
-            }
+        SessionUpdate::TurnError { .. } => {
+            ProjectionApplyRoute::Apply(ProjectionApplyArm::TurnError)
         }
         SessionUpdate::TurnCancelled { .. } => {
             ProjectionApplyRoute::Apply(ProjectionApplyArm::TurnCancelled)
@@ -121,31 +91,30 @@ mod tests {
     use super::{
         route_projection_apply, ProjectionApplyArm, ProjectionApplyRoute,
     };
-    use crate::acp::projections::types::{SessionSnapshot, SessionTurnState, TurnFailureSnapshot};
+    use crate::acp::projections::terminal_turn_guard::TerminalTurnGuard;
+    use crate::acp::projections::types::{SessionTurnState, TurnFailureSnapshot};
     use crate::acp::session_update::{
         ContentChunk, PermissionData, PlanData, QuestionData, SessionUpdate, ToolArguments,
         ToolCallData, ToolCallStatus, ToolCallUpdateData, ToolKind, TurnErrorData,
     };
-    use crate::acp::types::CanonicalAgentId;
     use crate::acp::types::ContentBlock;
 
-    fn snapshot_with_turn_state(turn_state: SessionTurnState) -> SessionSnapshot {
-        let mut snapshot = SessionSnapshot::new("session-1".to_string(), Some(CanonicalAgentId::ClaudeCode));
-        snapshot.turn_state = turn_state;
-        snapshot
+    fn guard_with_turn_state(turn_state: SessionTurnState) -> TerminalTurnGuard {
+        TerminalTurnGuard::from_parts(turn_state, None, None)
     }
 
-    fn failed_snapshot(turn_id: &str) -> SessionSnapshot {
-        let mut snapshot = snapshot_with_turn_state(SessionTurnState::Failed);
-        snapshot.last_terminal_turn_id = Some(turn_id.to_string());
-        snapshot.active_turn_failure = Some(TurnFailureSnapshot {
-            turn_id: Some(turn_id.to_string()),
-            message: "boom".to_string(),
-            code: None,
-            kind: crate::acp::session_update::TurnErrorKind::Recoverable,
-            source: crate::acp::session_update::TurnErrorSource::Unknown,
-        });
-        snapshot
+    fn failed_guard(turn_id: &str) -> TerminalTurnGuard {
+        TerminalTurnGuard::from_parts(
+            SessionTurnState::Failed,
+            Some(TurnFailureSnapshot {
+                turn_id: Some(turn_id.to_string()),
+                message: "boom".to_string(),
+                code: None,
+                kind: crate::acp::session_update::TurnErrorKind::Recoverable,
+                source: crate::acp::session_update::TurnErrorSource::Unknown,
+            }),
+            Some(turn_id.to_string()),
+        )
     }
 
     fn agent_chunk_update() -> SessionUpdate {
@@ -193,7 +162,7 @@ mod tests {
 
     #[test]
     fn routes_message_chunks_to_transcript_arms() {
-        let snapshot = snapshot_with_turn_state(SessionTurnState::Running);
+        let guard = guard_with_turn_state(SessionTurnState::Running);
         let user = SessionUpdate::UserMessageChunk {
             chunk: ContentChunk {
                 content: ContentBlock::Text {
@@ -205,11 +174,11 @@ mod tests {
             attempt_id: None,
         };
         assert_eq!(
-            route_projection_apply(&user, &snapshot),
+            route_projection_apply(&user, &guard),
             ProjectionApplyRoute::Apply(ProjectionApplyArm::UserMessageChunk)
         );
         assert_eq!(
-            route_projection_apply(&agent_chunk_update(), &snapshot),
+            route_projection_apply(&agent_chunk_update(), &guard),
             ProjectionApplyRoute::Apply(ProjectionApplyArm::AgentMessageChunk)
         );
     }
@@ -227,23 +196,23 @@ mod tests {
             message_id: None,
             session_id: Some("session-1".to_string()),
         };
-        let running = snapshot_with_turn_state(SessionTurnState::Running);
+        let running = guard_with_turn_state(SessionTurnState::Running);
         assert_eq!(
             route_projection_apply(&thought, &running),
             ProjectionApplyRoute::Apply(ProjectionApplyArm::AgentThoughtChunk)
         );
-        let failed = failed_snapshot("turn-1");
+        let failed = failed_guard("turn-1");
         assert_eq!(route_projection_apply(&thought, &failed), ProjectionApplyRoute::Skip);
     }
 
     #[test]
     fn routes_tool_call_and_skips_terminal_turn() {
-        let running = snapshot_with_turn_state(SessionTurnState::Running);
+        let running = guard_with_turn_state(SessionTurnState::Running);
         assert_eq!(
             route_projection_apply(&tool_call_update(), &running),
             ProjectionApplyRoute::Apply(ProjectionApplyArm::ToolCall)
         );
-        let cancelled = snapshot_with_turn_state(SessionTurnState::Cancelled);
+        let cancelled = guard_with_turn_state(SessionTurnState::Cancelled);
         assert_eq!(
             route_projection_apply(&tool_call_update(), &cancelled),
             ProjectionApplyRoute::Skip
@@ -252,7 +221,7 @@ mod tests {
 
     #[test]
     fn routes_unanswered_question_tool_to_converted_interaction_arm() {
-        let snapshot = snapshot_with_turn_state(SessionTurnState::Running);
+        let guard = guard_with_turn_state(SessionTurnState::Running);
         let tool_call = ToolCallData {
             id: "q-1".to_string(),
             name: "AskUserQuestion".to_string(),
@@ -280,14 +249,14 @@ mod tests {
             session_id: Some("session-1".to_string()),
         };
         assert_eq!(
-            route_projection_apply(&update, &snapshot),
+            route_projection_apply(&update, &guard),
             ProjectionApplyRoute::Apply(ProjectionApplyArm::ToolCallAsConvertedQuestion)
         );
     }
 
     #[test]
     fn routes_interaction_and_turn_terminal_arms() {
-        let snapshot = snapshot_with_turn_state(SessionTurnState::Running);
+        let guard = guard_with_turn_state(SessionTurnState::Running);
         let permission = SessionUpdate::PermissionRequest {
             permission: PermissionData {
                 id: "perm-1".to_string(),
@@ -304,7 +273,7 @@ mod tests {
             session_id: Some("session-1".to_string()),
         };
         assert_eq!(
-            route_projection_apply(&permission, &snapshot),
+            route_projection_apply(&permission, &guard),
             ProjectionApplyRoute::Apply(ProjectionApplyArm::PermissionRequest)
         );
 
@@ -320,7 +289,7 @@ mod tests {
             session_id: Some("session-1".to_string()),
         };
         assert_eq!(
-            route_projection_apply(&question, &snapshot),
+            route_projection_apply(&question, &guard),
             ProjectionApplyRoute::Apply(ProjectionApplyArm::QuestionRequest)
         );
 
@@ -329,7 +298,7 @@ mod tests {
             turn_id: Some("turn-1".to_string()),
         };
         assert_eq!(
-            route_projection_apply(&complete, &snapshot),
+            route_projection_apply(&complete, &guard),
             ProjectionApplyRoute::Apply(ProjectionApplyArm::TurnComplete)
         );
 
@@ -339,7 +308,7 @@ mod tests {
             session_id: Some("session-1".to_string()),
         };
         assert_eq!(
-            route_projection_apply(&error, &snapshot),
+            route_projection_apply(&error, &guard),
             ProjectionApplyRoute::Apply(ProjectionApplyArm::TurnError)
         );
 
@@ -348,14 +317,14 @@ mod tests {
             turn_id: Some("turn-1".to_string()),
         };
         assert_eq!(
-            route_projection_apply(&cancelled, &snapshot),
+            route_projection_apply(&cancelled, &guard),
             ProjectionApplyRoute::Apply(ProjectionApplyArm::TurnCancelled)
         );
     }
 
     #[test]
     fn skips_late_turn_complete_after_terminal_failure() {
-        let failed = failed_snapshot("turn-1");
+        let failed = failed_guard("turn-1");
         let complete = SessionUpdate::TurnComplete {
             session_id: Some("session-1".to_string()),
             turn_id: Some("turn-1".to_string()),
@@ -368,7 +337,7 @@ mod tests {
 
     #[test]
     fn routes_tool_call_update_and_skips_terminal_turn() {
-        let running = snapshot_with_turn_state(SessionTurnState::Running);
+        let running = guard_with_turn_state(SessionTurnState::Running);
         let update = SessionUpdate::ToolCallUpdate {
             update: ToolCallUpdateData {
                 tool_call_id: "tool-1".to_string(),
@@ -392,7 +361,7 @@ mod tests {
             route_projection_apply(&update, &running),
             ProjectionApplyRoute::Apply(ProjectionApplyArm::ToolCallUpdate)
         );
-        let cancelled = snapshot_with_turn_state(SessionTurnState::Cancelled);
+        let cancelled = guard_with_turn_state(SessionTurnState::Cancelled);
         assert_eq!(
             route_projection_apply(&update, &cancelled),
             ProjectionApplyRoute::Skip
@@ -401,11 +370,11 @@ mod tests {
 
     #[test]
     fn skips_unhandled_update_kinds() {
-        let snapshot = snapshot_with_turn_state(SessionTurnState::Running);
+        let guard = guard_with_turn_state(SessionTurnState::Running);
         let plan = SessionUpdate::Plan {
             plan: PlanData::from_steps(vec![]),
             session_id: Some("session-1".to_string()),
         };
-        assert_eq!(route_projection_apply(&plan, &snapshot), ProjectionApplyRoute::Skip);
+        assert_eq!(route_projection_apply(&plan, &guard), ProjectionApplyRoute::Skip);
     }
 }

@@ -181,7 +181,7 @@ fn path_c_live_streaming_golden_entry_ids() {
     let registry = TranscriptProjectionRegistry::new();
 
     registry
-        .apply_session_update(
+        .apply_session_update_idle(
             1,
             &SessionUpdate::UserMessageChunk {
                 chunk: ContentChunk {
@@ -196,7 +196,7 @@ fn path_c_live_streaming_golden_entry_ids() {
         )
         .expect("user delta");
     registry
-        .apply_session_update(
+        .apply_session_update_idle(
             2,
             &SessionUpdate::AgentMessageChunk {
                 chunk: ContentChunk {
@@ -213,7 +213,7 @@ fn path_c_live_streaming_golden_entry_ids() {
         )
         .expect("assistant delta");
     registry
-        .apply_session_update(
+        .apply_session_update_idle(
             3,
             &SessionUpdate::ToolCall {
                 tool_call: sample_tool_call("provider-tool-id", "jsonl-event-a"),
@@ -284,7 +284,7 @@ fn live_duplicate_tool_call_updates_upsert_same_authority_entry_id() {
     let registry = TranscriptProjectionRegistry::new();
     let authority_entry_id = "acepe::entry::session-start::tool::toolu_same";
     let first = registry
-        .apply_session_update(
+        .apply_session_update_idle(
             432,
             &SessionUpdate::ToolCall {
                 tool_call: sample_tool_call("toolu_same", "toolu_same"),
@@ -293,7 +293,7 @@ fn live_duplicate_tool_call_updates_upsert_same_authority_entry_id() {
         )
         .expect("first tool delta");
     let second = registry
-        .apply_session_update(
+        .apply_session_update_idle(
             433,
             &SessionUpdate::ToolCall {
                 tool_call: sample_tool_call("toolu_same", "toolu_same"),

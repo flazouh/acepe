@@ -408,7 +408,7 @@ mod tests {
                     &format!("turn-{index}"),
                 );
                 projection_registry.apply_session_update(session_id, &turn_complete);
-                let _ = transcript_projection_registry.apply_session_update(
+                let _ = transcript_projection_registry.apply_session_update_idle(
                     tx_revision,
                     &turn_complete,
                 );
@@ -421,7 +421,7 @@ mod tests {
                 tx_revision as u64,
             );
             projection_registry.apply_session_update(session_id, &update);
-            let _ = transcript_projection_registry.apply_session_update(tx_revision, &update);
+            let _ = transcript_projection_registry.apply_session_update_idle(tx_revision, &update);
         }
         SessionGraphRevision::new(0, tx_revision, 1)
     }
@@ -466,7 +466,7 @@ mod tests {
             create_agent_message_chunk_update("session-stale", Some("assistant-1"), "hello", 5);
         projection_registry.apply_session_update("session-stale", &update);
         // Drive the canonical transcript revision to 7.
-        let _ = transcript_projection_registry.apply_session_update(7, &update);
+        let _ = transcript_projection_registry.apply_session_update_idle(7, &update);
 
         // Command carries a stale transcript_revision (4 < 7).
         let outcome = tracker.build_viewport_buffer_push_envelope_for_session(
@@ -509,7 +509,7 @@ mod tests {
         let update =
             create_agent_message_chunk_update("session-h", Some("assistant-1"), "hello", 5);
         projection_registry.apply_session_update("session-h", &update);
-        let _ = transcript_projection_registry.apply_session_update(7, &update);
+        let _ = transcript_projection_registry.apply_session_update_idle(7, &update);
         let revision = SessionGraphRevision::new(0, 7, 1);
 
         let push_revision = |height: Option<u32>| match tracker
@@ -695,10 +695,10 @@ mod tests {
         // Append a new tail row + advance the canonical transcript revision.
         let turn_complete = create_turn_complete_update_for_session("s", "turn-tail");
         projection_registry.apply_session_update("s", &turn_complete);
-        let _ = transcript_projection_registry.apply_session_update(49, &turn_complete);
+        let _ = transcript_projection_registry.apply_session_update_idle(49, &turn_complete);
         let update = create_agent_message_chunk_update("s", None, "more", 99);
         projection_registry.apply_session_update("s", &update);
-        let _ = transcript_projection_registry.apply_session_update(50, &update);
+        let _ = transcript_projection_registry.apply_session_update_idle(50, &update);
         let revision2 = SessionGraphRevision::new(0, 50, 1);
 
         let envelope = tracker
@@ -1379,7 +1379,7 @@ mod tests {
         let update =
             create_agent_message_chunk_update("session-graph", Some("assistant-1"), "hello", 5);
         projection_registry.apply_session_update("session-graph", &update);
-        let _ = transcript_projection_registry.apply_session_update(7, &update);
+        let _ = transcript_projection_registry.apply_session_update_idle(7, &update);
 
         // Command carries the current transcript_revision but a stale graph_revision (0 < 5).
         let outcome = tracker.build_viewport_buffer_push_envelope_for_session(

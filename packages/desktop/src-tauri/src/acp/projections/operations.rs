@@ -202,6 +202,9 @@ impl ProjectionRegistry {
         thread_snapshot: &SessionThreadSnapshot,
     ) {
         let mut snapshot = SessionSnapshot::new(session_id.to_string(), agent_id);
+        let mut assistant_boundary_entry_count = 0usize;
+        let mut transcript_entry_count = 0usize;
+        let mut seen_tool_call_ids = std::collections::HashSet::new();
 
         for entry in &thread_snapshot.entries {
             snapshot.last_event_seq = snapshot.last_event_seq.saturating_add(1);
@@ -214,9 +217,16 @@ impl ProjectionRegistry {
                     );
                     snapshot.active_tool_call_ids.clear();
                     if snapshot.active_turn_failure.is_some() {
-                        start_running_turn(&mut snapshot);
+                        let mut guard = TerminalTurnGuard::from_snapshot(&snapshot);
+                        guard.reset_to_running_turn();
+                        guard.write_to_snapshot(&mut snapshot);
                     }
                     snapshot.message_count = snapshot.message_count.saturating_add(1);
+                    note_imported_transcript_boundary(
+                        TranscriptEntryRole::User,
+                        &mut transcript_entry_count,
+                        &mut assistant_boundary_entry_count,
+                    );
                 }
                 StoredEntry::Assistant { .. } => {
                     self.cancel_active_tool_calls_for_historical_boundary(
@@ -225,31 +235,46 @@ impl ProjectionRegistry {
                     );
                     snapshot.active_tool_call_ids.clear();
                     if snapshot.active_turn_failure.is_some() {
-                        start_running_turn(&mut snapshot);
+                        let mut guard = TerminalTurnGuard::from_snapshot(&snapshot);
+                        guard.reset_to_running_turn();
+                        guard.write_to_snapshot(&mut snapshot);
                     }
                     snapshot.message_count = snapshot.message_count.saturating_add(1);
+                    note_imported_transcript_boundary(
+                        TranscriptEntryRole::Assistant,
+                        &mut transcript_entry_count,
+                        &mut assistant_boundary_entry_count,
+                    );
                 }
-                StoredEntry::ToolCall { id, message, .. } => {
+                StoredEntry::ToolCall { message, .. } => {
                     let message = normalize_tool_call_for_operation_ingress(message);
                     if should_skip_unanswered_question_tool_operation(&message) {
                         continue;
                     }
+                    let normalized_tool_call_id = normalize_tool_call_id(&message.id);
+                    if !seen_tool_call_ids.insert(normalized_tool_call_id) {
+                        continue;
+                    }
                     if snapshot.active_turn_failure.is_some() {
-                        start_running_turn(&mut snapshot);
+                        let mut guard = TerminalTurnGuard::from_snapshot(&snapshot);
+                        guard.reset_to_running_turn();
+                        guard.write_to_snapshot(&mut snapshot);
                     }
                     upsert_active_tool_call(&mut snapshot.active_tool_call_ids, &message.id);
                     if is_terminal_tool_call_status(&message.status) {
                         mark_tool_call_completed(&mut snapshot, &message.id);
                     }
 
+                    let entry_id = live_tool_entry_id_for_tool_call(
+                        assistant_boundary_entry_count,
+                        &message.id,
+                    );
                     self.upsert_tool_call_projection(
                         session_id,
                         &message,
                         None,
                         message.parent_tool_use_id.clone(),
-                        OperationSourceLink::transcript_linked(
-                            normalize_operation_ingress_tool_call_id(id),
-                        ),
+                        OperationSourceLink::transcript_linked(entry_id),
                     );
                     self.register_plan_approval_interaction(session_id, &message);
                     self.register_converted_question_interaction(
@@ -257,11 +282,21 @@ impl ProjectionRegistry {
                         &message,
                         snapshot.last_event_seq,
                     );
+                    note_imported_transcript_boundary(
+                        TranscriptEntryRole::Tool,
+                        &mut transcript_entry_count,
+                        &mut assistant_boundary_entry_count,
+                    );
                 }
                 StoredEntry::Error { message, .. } => {
                     snapshot.active_turn_failure = Some(convert_stored_error_snapshot(message));
                     snapshot.last_terminal_turn_id = None;
                     snapshot.active_tool_call_ids.clear();
+                    note_imported_transcript_boundary(
+                        TranscriptEntryRole::Error,
+                        &mut transcript_entry_count,
+                        &mut assistant_boundary_entry_count,
+                    );
                 }
             }
         }
@@ -651,4 +686,15 @@ impl ProjectionRegistry {
         self.operations_by_id.insert(operation_id, merged_operation);
     }
 
+}
+
+fn note_imported_transcript_boundary(
+    role: TranscriptEntryRole,
+    transcript_entry_count: &mut usize,
+    assistant_boundary_entry_count: &mut usize,
+) {
+    *transcript_entry_count = transcript_entry_count.saturating_add(1);
+    if !matches!(role, TranscriptEntryRole::Assistant) {
+        *assistant_boundary_entry_count = *transcript_entry_count;
+    }
 }

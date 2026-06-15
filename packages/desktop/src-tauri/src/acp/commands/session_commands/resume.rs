@@ -341,7 +341,7 @@ pub(super) async fn async_resume_session_work(
     let replay_context: crate::acp::session_descriptor::SessionReplayContext =
         resume_descriptor.clone().into();
     let restored_thread_snapshot =
-        crate::history::commands::session_loading::load_provider_owned_session_snapshot(
+        crate::acp::session_restore::load_provider_owned_session_snapshot(
             app.clone(),
             &replay_context,
         )

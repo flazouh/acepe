@@ -96,8 +96,13 @@ pub(super) async fn persist_dispatch_event(
                 record.event_seq,
                 update.as_ref(),
             );
-            let transcript_delta = transcript_projection_registry
-                .apply_session_update(record.event_seq, update.as_ref());
+            let terminal_decision =
+                projection_registry.route_terminal_turn(session_id, update.as_ref());
+            let transcript_delta = transcript_projection_registry.apply_session_update(
+                record.event_seq,
+                update.as_ref(),
+                terminal_decision,
+            );
             let transcript_revision = transcript_projection_registry
                 .snapshot_for_session(session_id)
                 .map(|snapshot| snapshot.revision)
@@ -150,6 +155,8 @@ pub(super) async fn persist_dispatch_event(
                 synthetic_event_seq,
                 update.as_ref(),
             );
+            let terminal_decision =
+                projection_registry.route_terminal_turn(session_id, update.as_ref());
             // Transcript revision lives in its own monotonic counter and must
             // advance by exactly +1 per transcript-bearing event. Deriving the
             // seq from `synthetic_event_seq` (which tracks graph_revision)
@@ -158,8 +165,11 @@ pub(super) async fn persist_dispatch_event(
             // invariant — see
             // `synthetic_event_seq_path_must_not_inflate_transcript_revision_past_real_progress`.
             let transcript_event_seq = previous_transcript_revision.saturating_add(1);
-            let transcript_delta = transcript_projection_registry
-                .apply_session_update(transcript_event_seq, update.as_ref());
+            let transcript_delta = transcript_projection_registry.apply_session_update(
+                transcript_event_seq,
+                update.as_ref(),
+                terminal_decision,
+            );
             let transcript_revision = transcript_projection_registry
                 .snapshot_for_session(session_id)
                 .map(|snapshot| snapshot.revision)

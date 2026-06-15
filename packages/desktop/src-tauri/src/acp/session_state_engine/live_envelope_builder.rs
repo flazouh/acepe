@@ -305,10 +305,7 @@ fn transcript_entry_text_char_count(entry: &TranscriptEntry) -> usize {
     entry
         .segments
         .iter()
-        .map(|segment| match segment {
-            TranscriptSegment::Text { text, .. } => text.chars().count(),
-            TranscriptSegment::Thought { text, .. } => text.chars().count(),
-        })
+        .map(|segment| segment.primary_text().chars().count())
         .sum()
 }
 

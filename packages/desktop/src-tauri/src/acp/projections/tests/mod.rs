@@ -1115,7 +1115,7 @@ use super::*;
         assert_eq!(
             question_operation.source_link,
             OperationSourceLink::TranscriptLinked {
-                entry_id: "tool-question-entry".to_string()
+                entry_id: "acepe::entry::assistant-boundary:1::tool::tool-question".to_string()
             }
         );
 

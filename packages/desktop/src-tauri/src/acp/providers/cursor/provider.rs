@@ -9,7 +9,7 @@ use crate::acp::provider::{
 use super::enrichment::enrich_cursor_session_update;
 use crate::acp::capability_resolution::resolve_generic_preconnection_capabilities;
 use crate::acp::client_session::{AvailableMode, ModeIconKind, SessionModes};
-use crate::acp::cursor_extensions::{
+use crate::acp::providers::cursor::{
     adapt_cursor_response, cursor_extension_kind, is_cursor_extension_pre_tool,
     normalize_cursor_extension,
 };

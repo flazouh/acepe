@@ -52,7 +52,7 @@ fn runtime_forbidden_paths() -> Vec<String> {
     [
         "crate::acp::client::cc_sdk_client",
         "crate::acp::client::codex_native_events",
-        "crate::acp::cursor_extensions",
+        "crate::acp::providers::cursor::extensions",
         "crate::acp::opencode::sse::conversion",
         "crate::acp::commands::inbound_commands",
     ]

@@ -68,11 +68,7 @@ pub(crate) fn normalize_display_title(name: &str) -> String {
 
 /// Check if content is a command message.
 fn is_command_message(content: &str) -> bool {
-    let trimmed = content.trim();
-    trimmed.starts_with('/')
-        || trimmed.contains("<command-name>")
-        || trimmed.contains("<command-message>")
-        || trimmed.contains("<local-command-stdout>")
+    crate::acp::local_command::is_local_command_text(content)
 }
 
 /// Derive a session title from the first user message text.

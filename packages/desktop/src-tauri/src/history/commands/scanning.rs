@@ -2,6 +2,7 @@ use crate::commands::observability::{unexpected_command_result, CommandResult};
 use crate::db::repository::SessionMetadataRow;
 use std::cmp::Reverse;
 use std::path::Path;
+use std::time::Instant;
 
 use super::*;
 

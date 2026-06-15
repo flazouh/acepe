@@ -109,10 +109,7 @@ fn session_text_pair(update: &SessionUpdate) -> Option<(String, String)> {
 }
 
 fn is_claude_local_command_message(text: &str) -> bool {
-    let trimmed = text.trim();
-    trimmed.contains("<command-name>")
-        || trimmed.contains("<command-message>")
-        || trimmed.contains("<local-command-stdout>")
+    crate::acp::local_command::is_local_command_text(text)
 }
 
 #[cfg(test)]

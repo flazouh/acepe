@@ -249,6 +249,28 @@ fn row_version(
                 hasher.update(segment_id.as_bytes());
                 hasher.update(text.as_bytes());
             }
+            TranscriptSegment::LocalCommand {
+                segment_id,
+                command,
+                message,
+                args,
+                stdout,
+                model_display_name,
+                model_description,
+            } => {
+                hasher.update(b"localCommand");
+                hasher.update(segment_id.as_bytes());
+                hasher.update(command.as_bytes());
+                hasher.update(message.as_bytes());
+                hasher.update(args.as_bytes());
+                hasher.update(stdout.as_bytes());
+                if let Some(name) = model_display_name {
+                    hasher.update(name.as_bytes());
+                }
+                if let Some(description) = model_description {
+                    hasher.update(description.as_bytes());
+                }
+            }
         }
     }
 
