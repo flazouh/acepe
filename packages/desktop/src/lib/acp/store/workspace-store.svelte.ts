@@ -601,10 +601,10 @@ export class WorkspaceStore {
 				panels: persistableAgentPanels.map((p) => {
 					// Use immutable session identity when possible to avoid reconstructing full session objects.
 					const sessionIdentity = p.sessionId
-						? this.sessionStore.getSessionIdentity(p.sessionId)
+						? this.sessionStore.read.getSessionIdentity(p.sessionId)
 						: undefined;
 					const sessionMetadata = p.sessionId
-						? this.sessionStore.getSessionMetadata(p.sessionId)
+						? this.sessionStore.read.getSessionMetadata(p.sessionId)
 						: undefined;
 					// Get plan sidebar state from PanelStore hot state
 					const hotState = this.panelStore.getHotState(p.id);

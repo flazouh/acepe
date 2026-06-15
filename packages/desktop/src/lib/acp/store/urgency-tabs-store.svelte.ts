@@ -192,15 +192,15 @@ export class UrgencyTabsStore {
 	private panelToTab(panel: Panel, focusedPanelId: string | null): UrgencyTab {
 		const { sessionId } = panel;
 
-		const sessionIdentity = sessionId ? this.sessionStore.getSessionIdentity(sessionId) : null;
-		const sessionMetadata = sessionId ? this.sessionStore.getSessionMetadata(sessionId) : null;
+		const sessionIdentity = sessionId ? this.sessionStore.read.getSessionIdentity(sessionId) : null;
+		const sessionMetadata = sessionId ? this.sessionStore.read.getSessionMetadata(sessionId) : null;
 		const statusChangedAt =
-			sessionId !== null ? this.sessionStore.getSessionStatusChangedAt(sessionId) : Date.now();
+			sessionId !== null ? this.sessionStore.read.getSessionStatusChangedAt(sessionId) : Date.now();
 
 		// Get pending question for this session
 		const interactionSnapshot =
 			sessionId !== null
-				? this.sessionStore.getSessionOperationInteractionSnapshot(sessionId, this.interactions)
+				? this.sessionStore.presentation.getSessionOperationInteractionSnapshot(sessionId, this.interactions)
 				: null;
 		const pendingQuestion = interactionSnapshot?.pendingQuestion ?? null;
 		const pendingPlanApproval = interactionSnapshot?.pendingPlanApproval ?? null;
@@ -215,9 +215,9 @@ export class UrgencyTabsStore {
 				: (panel.agentId ?? panel.selectedAgentId ?? null);
 		const title = sessionMetadata?.title ?? null;
 		const workProjection = deriveLiveSessionWorkProjection({
-			source: this.sessionStore.getSessionLiveWorkSource(sessionId, true),
+			source: this.sessionStore.presentation.getSessionLiveWorkSource(sessionId, true),
 			currentModeId:
-				sessionId !== null ? this.sessionStore.getSessionCurrentModeId(sessionId) : null,
+				sessionId !== null ? this.sessionStore.read.getSessionCurrentModeId(sessionId) : null,
 			interactionSnapshot: {
 				pendingQuestion,
 				pendingPlanApproval,
@@ -227,11 +227,11 @@ export class UrgencyTabsStore {
 		});
 		const workBucket = selectSessionWorkBucket(workProjection);
 		const lifecycleStatus =
-			sessionId !== null ? this.sessionStore.getSessionLifecycleStatus(sessionId) : null;
+			sessionId !== null ? this.sessionStore.read.getSessionLifecycleStatus(sessionId) : null;
 		const failureMessage =
-			sessionId !== null ? this.sessionStore.getSessionConnectionError(sessionId) : null;
+			sessionId !== null ? this.sessionStore.read.getSessionConnectionError(sessionId) : null;
 		const failureRecord =
-			sessionId !== null ? this.sessionStore.getSessionActiveTurnFailure(sessionId) : null;
+			sessionId !== null ? this.sessionStore.read.getSessionActiveTurnFailure(sessionId) : null;
 		const canonicalHasError =
 			lifecycleStatus === "failed" || failureMessage !== null || failureRecord !== null;
 		const effectiveWorkBucket = workBucket === "error" && !canonicalHasError ? "idle" : workBucket;

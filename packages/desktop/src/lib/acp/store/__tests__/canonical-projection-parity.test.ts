@@ -221,7 +221,7 @@ function createSessionOpenFoundFromGraph(graph: SessionStateGraph): SessionOpenF
 }
 
 function addSession(store: SessionStore): void {
-	store.addSession({
+	store.write.addSession({
 		id: "session-1",
 		projectPath: "/repo",
 		agentId: "codex",
@@ -240,38 +240,38 @@ describe("canonical projection parity", () => {
 		const coldStore = new SessionStore();
 		const liveStore = new SessionStore();
 
-		coldStore.replaceSessionOpenSnapshot(createSessionOpenFoundFromGraph(graph));
+		coldStore.write.replaceSessionOpenSnapshot(createSessionOpenFoundFromGraph(graph));
 		addSession(liveStore);
 		liveStore.applySessionStateEnvelope("session-1", createSnapshotEnvelope(graph));
 
-		expect(coldStore.hasSessionCanonicalProjection("session-1")).toBe(true);
-		expect(liveStore.hasSessionCanonicalProjection("session-1")).toBe(true);
+		expect(coldStore.read.hasSessionCanonicalProjection("session-1")).toBe(true);
+		expect(liveStore.read.hasSessionCanonicalProjection("session-1")).toBe(true);
 		expect(liveStore.getSessionStateGraphForTest("session-1")).toEqual(
 			coldStore.getSessionStateGraphForTest("session-1")
 		);
-		expect(liveStore.getSessionAvailableModels("session-1")).toEqual(
-			coldStore.getSessionAvailableModels("session-1")
+		expect(liveStore.read.getSessionAvailableModels("session-1")).toEqual(
+			coldStore.read.getSessionAvailableModels("session-1")
 		);
-		expect(liveStore.getSessionAvailableModes("session-1")).toEqual(
-			coldStore.getSessionAvailableModes("session-1")
+		expect(liveStore.read.getSessionAvailableModes("session-1")).toEqual(
+			coldStore.read.getSessionAvailableModes("session-1")
 		);
-		expect(liveStore.getSessionAvailableCommands("session-1")).toEqual(
-			coldStore.getSessionAvailableCommands("session-1")
+		expect(liveStore.read.getSessionAvailableCommands("session-1")).toEqual(
+			coldStore.read.getSessionAvailableCommands("session-1")
 		);
-		expect(liveStore.getSessionConfigOptions("session-1")).toEqual(
-			coldStore.getSessionConfigOptions("session-1")
+		expect(liveStore.read.getSessionConfigOptions("session-1")).toEqual(
+			coldStore.read.getSessionConfigOptions("session-1")
 		);
-		expect(liveStore.getSessionCapabilityRevision("session-1")).toEqual(
-			coldStore.getSessionCapabilityRevision("session-1")
+		expect(liveStore.read.getSessionCapabilityRevision("session-1")).toEqual(
+			coldStore.read.getSessionCapabilityRevision("session-1")
 		);
-		expect(liveStore.getSessionCapabilityPreviewState("session-1")).toBe(
-			coldStore.getSessionCapabilityPreviewState("session-1")
+		expect(liveStore.read.getSessionCapabilityPreviewState("session-1")).toBe(
+			coldStore.read.getSessionCapabilityPreviewState("session-1")
 		);
-		expect(liveStore.getSessionLifecycleStatus("session-1")).toBe("ready");
+		expect(liveStore.read.getSessionLifecycleStatus("session-1")).toBe("ready");
 		expect(liveStore.getSessionStateGraphForTest("session-1")?.turnState ?? null).toBe("Running");
-		expect(liveStore.getSessionLastTerminalTurnId("session-1")).toBe("turn-previous");
-		expect(liveStore.getSessionCurrentModeId("session-1")).toBe("build");
-		expect(liveStore.getSessionCurrentModelId("session-1")).toBe("gpt-5");
-		expect(liveStore.getSessionAutonomousEnabled("session-1")).toBe(true);
+		expect(liveStore.read.getSessionLastTerminalTurnId("session-1")).toBe("turn-previous");
+		expect(liveStore.read.getSessionCurrentModeId("session-1")).toBe("build");
+		expect(liveStore.read.getSessionCurrentModelId("session-1")).toBe("gpt-5");
+		expect(liveStore.read.getSessionAutonomousEnabled("session-1")).toBe(true);
 	});
 });

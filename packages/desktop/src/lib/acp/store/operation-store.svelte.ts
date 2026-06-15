@@ -3,8 +3,13 @@ import type { OperationSnapshot, OperationSourceLink } from "../../services/acp-
 import { aggregateFileEditsFromToolCalls } from "../logic/aggregate-file-edits.js";
 import type { ModifiedFilesState } from "../types/modified-files-state.js";
 import type { Operation, OperationState } from "../types/operation.js";
+import type { PermissionRequest } from "../types/permission.js";
 import type { ToolCall } from "../types/tool-call.js";
 import type { ToolKind } from "../types/tool-kind.js";
+import {
+	isPermissionRepresentedByOperation,
+	visiblePermissionsForOperations,
+} from "./permission-operation-projection.js";
 import { mapOperationStateToToolPresentationStatus } from "../utils/tool-state-utils.js";
 import { normalizeToolResult } from "./services/tool-result-normalizer.js";
 
@@ -956,6 +961,29 @@ export class OperationStore {
 			completedAtMs: operation.completedAtMs,
 			presentationStatus: mapOperationStateToToolPresentationStatus(operation.operationState),
 		};
+	}
+
+	isToolCallExecuting(sessionId: string, toolCallId: string): boolean {
+		const operation = this.getByToolCallId(sessionId, toolCallId);
+		if (operation === undefined) {
+			return false;
+		}
+
+		return (
+			operation.operationState === "pending" ||
+			operation.operationState === "running" ||
+			operation.operationState === "blocked"
+		);
+	}
+
+	isPermissionRepresentedByToolCall(permission: PermissionRequest, sessionId: string): boolean {
+		return isPermissionRepresentedByOperation(permission, sessionId, this);
+	}
+
+	getVisiblePermissionsForSessionBar(
+		permissions: ReadonlyArray<PermissionRequest>
+	): PermissionRequest[] {
+		return visiblePermissionsForOperations(permissions, this);
 	}
 }
 

@@ -107,7 +107,9 @@ describe("SessionOpenHydrator", () => {
 		replaceSessionStateGraph = mock(() => {});
 		hydrator = new SessionOpenHydrator(
 			{
-				replaceSessionOpenSnapshot,
+				write: {
+					replaceSessionOpenSnapshot,
+				},
 			},
 			{
 				updatePanelSession,

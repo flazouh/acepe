@@ -1,4 +1,5 @@
 import type {
+	SessionGraphCapabilities,
 	SessionGraphRevision,
 	SessionStateGraph,
 	TranscriptDelta,
@@ -26,7 +27,7 @@ import { preserveCanonicalStreamingState } from "./canonical-streaming-state.js"
 import { emptySessionGraphCapabilities } from "./empty-session-graph-capabilities.js";
 import type { EnvelopePatch } from "./envelope-patch.js";
 import type { EnvelopeReducerSnapshot } from "./envelope-snapshot.js";
-import { isNewerGraphRevision } from "./graph-revision-order.js";
+import { isNewerGraphRevision, isOlderGraphRevision } from "./graph-revision-order.js";
 import { createLifecycleOnlyGraph } from "./lifecycle-only-graph.js";
 import { pendingSendIntentClearUpdate } from "./pending-send-acknowledgement.js";
 import { mapProjectionTurnFailure } from "./projection-turn-failure.js";
@@ -76,12 +77,20 @@ function reduceApplyCapabilities(
 		return [];
 	}
 
-	if (!isNewerGraphRevision(snapshot.previousProjection?.revision ?? null, command.revision)) {
+	if (isOlderGraphRevision(snapshot.previousProjection?.revision ?? null, command.revision)) {
+		return [];
+	}
+
+	const canonicalCapabilities = sanitizeCanonicalCapabilities(command.capabilities);
+	if (
+		!isNewerGraphRevision(snapshot.previousProjection?.revision ?? null, command.revision) &&
+		(snapshot.previousProjection === null ||
+			capabilitiesEqual(snapshot.previousProjection.capabilities, canonicalCapabilities))
+	) {
 		return [];
 	}
 
 	const preservedStreamingState = preserveCanonicalStreamingState(snapshot.previousProjection);
-	const canonicalCapabilities = sanitizeCanonicalCapabilities(command.capabilities);
 	const patches: EnvelopePatch[] = [
 		{
 			kind: "setCapabilitiesMaterialized",
@@ -685,4 +694,13 @@ function reduceRefreshSnapshot(
 			},
 		},
 	];
+}
+
+function capabilitiesEqual(
+	left: SessionGraphCapabilities,
+	right: SessionGraphCapabilities
+): boolean {
+	const sanitizedLeft = sanitizeCanonicalCapabilities(left);
+	const sanitizedRight = sanitizeCanonicalCapabilities(right);
+	return JSON.stringify(sanitizedLeft) === JSON.stringify(sanitizedRight);
 }

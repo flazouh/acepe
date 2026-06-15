@@ -260,7 +260,7 @@ export class PanelStore {
 				);
 			},
 			getSessionIdentity: (sessionId) => {
-				const identity = this.sessionStore.getSessionIdentity(sessionId);
+				const identity = this.sessionStore.read.getSessionIdentity(sessionId);
 				if (identity === undefined) {
 					return undefined;
 				}
@@ -271,7 +271,7 @@ export class PanelStore {
 				};
 			},
 			getSessionMetadata: (sessionId) => {
-				const metadata = this.sessionStore.getSessionMetadata(sessionId);
+				const metadata = this.sessionStore.read.getSessionMetadata(sessionId);
 				if (metadata === undefined) {
 					return undefined;
 				}
@@ -282,8 +282,8 @@ export class PanelStore {
 				};
 			},
 			hasPendingCreationSession: (sessionId) =>
-				typeof this.sessionStore.hasPendingCreationSession === "function" &&
-				this.sessionStore.hasPendingCreationSession(sessionId),
+				typeof this.sessionStore.connection.hasPendingCreationSession === "function" &&
+				this.sessionStore.connection.hasPendingCreationSession(sessionId),
 			focusOpenedTopLevelPanel: (panelId) => this.focusOpenedTopLevelPanel(panelId),
 			onSpawnedPanelFocused: (panel) => {
 				this.focusedPanelId = panel.id;

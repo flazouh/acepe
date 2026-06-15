@@ -720,7 +720,7 @@ describe("reduceCommand", () => {
 					modes: null,
 					availableCommands: [],
 					configOptions: [],
-					autonomousEnabled: true,
+					autonomousEnabled: null,
 				},
 				revision
 			),

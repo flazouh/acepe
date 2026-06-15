@@ -4,7 +4,7 @@ import { SvelteSet } from "svelte/reactivity";
 import type { AppError } from "$lib/acp/errors/app-error.js";
 import type { CustomAgentConfig } from "$lib/acp/logic/agent-manager.js";
 import type { Agent } from "$lib/acp/store/types.js";
-import type { UserSettingKey } from "$lib/services/converted-session-types.js";
+import type { UserSettingKey } from "$lib/services/user-settings-types.js";
 import { tauriClient } from "$lib/utils/tauri-client.js";
 
 const AGENT_PREFERENCES_STORE_KEY = Symbol("agent-preferences-store");

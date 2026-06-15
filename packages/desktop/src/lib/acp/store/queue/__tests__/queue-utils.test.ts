@@ -116,7 +116,6 @@ function createSession(overrides: Partial<QueueSessionSnapshot> = {}): QueueSess
 			pendingPlanApproval: null,
 			pendingPermission: null,
 			hasUnseenCompletion: false,
-			sequenceId: null,
 		});
 	const workBucket =
 		overrides.workBucket ??
@@ -257,6 +256,7 @@ describe("buildQueueItem", () => {
 				isThinking: true,
 				status: "error",
 				connectionError: "Resume failed",
+			sequenceId: null,
 			}),
 			null,
 			DEFAULT_URGENCY,
@@ -342,6 +342,7 @@ describe("buildQueueSessionSnapshot", () => {
 			updatedAt: new Date("2026-03-30T12:00:00.000Z"),
 			currentModeId: "plan",
 			connectionError: null,
+			sequenceId: null,
 			activeTurnFailure: null,
 			liveSessionSource: makeLiveSource(makeCanonicalProjection("ready", "idle")),
 			interactionSnapshot: {
@@ -350,7 +351,6 @@ describe("buildQueueSessionSnapshot", () => {
 				pendingPlanApproval: null,
 			},
 			hasUnseenCompletion: false,
-			sequenceId: null,
 		});
 
 		expect(snapshot.status).toBe("ready");
@@ -373,6 +373,7 @@ describe("buildQueueSessionSnapshot", () => {
 			updatedAt: new Date("2026-03-30T12:00:00.000Z"),
 			currentModeId: "plan",
 			connectionError: null,
+			sequenceId: null,
 			activeTurnFailure: null,
 			liveSessionSource: makeLiveSource(makeCanonicalProjection("ready", "paused")),
 			interactionSnapshot: {
@@ -381,7 +382,6 @@ describe("buildQueueSessionSnapshot", () => {
 				pendingPlanApproval: null,
 			},
 			hasUnseenCompletion: false,
-			sequenceId: null,
 		});
 
 		expect(snapshot.status).toBe("paused");
@@ -401,6 +401,7 @@ describe("buildQueueSessionSnapshot", () => {
 			updatedAt: new Date("2026-03-30T12:00:00.000Z"),
 			currentModeId: null,
 			connectionError: null,
+			sequenceId: null,
 			activeTurnFailure: null,
 			liveSessionSource: makeLiveSource(makeCanonicalProjection("ready", "idle")),
 			interactionSnapshot: {
@@ -409,7 +410,6 @@ describe("buildQueueSessionSnapshot", () => {
 				pendingPlanApproval: null,
 			},
 			hasUnseenCompletion: false,
-			sequenceId: null,
 		});
 
 		expect(snapshot.isThinking).toBe(false);
@@ -443,6 +443,7 @@ describe("buildQueueSessionSnapshot", () => {
 			updatedAt: new Date("2026-03-30T12:00:00.000Z"),
 			currentModeId: "plan",
 			connectionError: null,
+			sequenceId: null,
 			activeTurnFailure: null,
 			liveSessionSource: makeLiveSource(makeCanonicalProjection("ready", "waiting_for_user")),
 			interactionSnapshot: {
@@ -451,7 +452,6 @@ describe("buildQueueSessionSnapshot", () => {
 				pendingPlanApproval: null,
 			},
 			hasUnseenCompletion: false,
-			sequenceId: null,
 		});
 
 		expect(snapshot.state.pendingInput.kind).toBe("permission");
@@ -475,6 +475,7 @@ describe("buildQueueSessionSnapshot", () => {
 			updatedAt: new Date("2026-03-30T12:00:00.000Z"),
 			currentModeId: "build",
 			connectionError: null,
+			sequenceId: null,
 			activeTurnFailure: null,
 			liveSessionSource: makeLiveSource(makeCanonicalProjection("ready", "running_operation")),
 			interactionSnapshot: {
@@ -483,7 +484,6 @@ describe("buildQueueSessionSnapshot", () => {
 				pendingPlanApproval: null,
 			},
 			hasUnseenCompletion: false,
-			sequenceId: null,
 		});
 
 		expect(snapshot.isStreaming).toBe(true);
@@ -505,6 +505,7 @@ describe("buildQueueSessionSnapshot", () => {
 			updatedAt: new Date("2026-03-30T12:00:00.000Z"),
 			currentModeId: null,
 			connectionError: null,
+			sequenceId: null,
 			activeTurnFailure: null,
 			liveSessionSource: makeLiveSource(makeCanonicalProjection("reserved", "awaiting_model")),
 			interactionSnapshot: {
@@ -513,7 +514,6 @@ describe("buildQueueSessionSnapshot", () => {
 				pendingPlanApproval: null,
 			},
 			hasUnseenCompletion: false,
-			sequenceId: null,
 		});
 
 		expect(snapshot.isThinking).toBe(true);
@@ -535,6 +535,7 @@ describe("buildQueueSessionSnapshot", () => {
 			updatedAt: new Date("2026-03-30T12:00:00.000Z"),
 			currentModeId: null,
 			connectionError: "Resume failed",
+			sequenceId: null,
 			activeTurnFailure: null,
 			liveSessionSource: makeLiveSource(
 				makeCanonicalProjection("failed", "idle", "Resume failed")
@@ -545,7 +546,6 @@ describe("buildQueueSessionSnapshot", () => {
 				pendingPlanApproval: null,
 			},
 			hasUnseenCompletion: false,
-			sequenceId: null,
 		});
 
 		expect(snapshot.connectionError).toBe("Resume failed");
@@ -565,6 +565,7 @@ describe("buildQueueSessionSnapshot", () => {
 			updatedAt: new Date("2026-03-30T12:00:00.000Z"),
 			currentModeId: null,
 			connectionError: null,
+			sequenceId: null,
 			activeTurnFailure: null,
 			liveSessionSource: makeLiveSource(null),
 			interactionSnapshot: {
@@ -573,7 +574,6 @@ describe("buildQueueSessionSnapshot", () => {
 				pendingPlanApproval: null,
 			},
 			hasUnseenCompletion: false,
-			sequenceId: null,
 		});
 
 		expect(snapshot.currentModeId).toBeNull();

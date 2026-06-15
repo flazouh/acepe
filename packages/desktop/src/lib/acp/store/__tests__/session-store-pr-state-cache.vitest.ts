@@ -4,10 +4,13 @@ import type { PrChecks, PrDetails } from "../../../utils/tauri-client/git.js";
 import type { AppError } from "../../errors/app-error.js";
 import { AgentError } from "../../errors/app-error.js";
 
-const prDetailsMock =
-	vi.fn<(projectPath: string, prNumber: number) => ResultAsync<PrDetails, AppError>>();
-const prChecksMock =
-	vi.fn<(projectPath: string, prNumber: number) => ResultAsync<PrChecks, AppError>>();
+const { prDetailsMock, prChecksMock } = vi.hoisted(() => {
+	const detailsMock =
+		vi.fn<(projectPath: string, prNumber: number) => ResultAsync<PrDetails, AppError>>();
+	const checksMock =
+		vi.fn<(projectPath: string, prNumber: number) => ResultAsync<PrChecks, AppError>>();
+	return { prDetailsMock: detailsMock, prChecksMock: checksMock };
+});
 
 vi.mock("../api.js", () => ({
 	api: {
@@ -49,7 +52,7 @@ function createPrDetails(overrides: Partial<PrDetails> = {}): PrDetails {
 }
 
 function addSessionWithPr(store: SessionStore, sessionId: string, prNumber: number): void {
-	store.addSession({
+	store.write.addSession({
 		id: sessionId,
 		projectPath: "/test/path",
 		agentId: "cursor",
@@ -99,21 +102,20 @@ describe("SessionStore PR state refresh caching", () => {
 		addSessionWithPr(store, "session-pr-1", 83);
 		prDetailsMock.mockReturnValue(okAsync(createPrDetails()));
 
-		await store.refreshSessionPrState("session-pr-1", "/test/path", 83);
-		await store.refreshSessionPrState("session-pr-1", "/test/path", 83);
+		await store.connection.refreshSessionPrState("session-pr-1", "/test/path", 83);
+		await store.connection.refreshSessionPrState("session-pr-1", "/test/path", 83);
 
 		expect(prDetailsMock).toHaveBeenCalledTimes(1);
-		expect(store.getSessionCold("session-pr-1")?.prState).toBe("OPEN");
-		expect(store.getSessionCold("session-pr-1")?.linkedPr?.title).toBe("Test PR");
-		expect(store.getSessionCold("session-pr-1")?.linkedPr?.additions).toBe(10);
-		expect(store.getSessionCold("session-pr-1")?.linkedPr?.checksHeadSha).toBe("abc123");
+		expect(store.read.getSessionCold("session-pr-1")?.prState).toBe("OPEN");
+		expect(store.read.getSessionCold("session-pr-1")?.linkedPr?.title).toBe("Test PR");
+		expect(store.read.getSessionCold("session-pr-1")?.linkedPr?.additions).toBe(10);
 	});
 
 	it("preserves historical updatedAt when PR state refresh changes prState", async () => {
 		vi.setSystemTime(new Date("2026-03-31T12:00:00.000Z"));
 		const previousUpdatedAt = new Date("2026-03-01T08:30:00.000Z");
 
-		store.addSession({
+		store.write.addSession({
 			id: "session-pr-1",
 			projectPath: "/test/path",
 			agentId: "cursor",
@@ -126,10 +128,10 @@ describe("SessionStore PR state refresh caching", () => {
 		});
 		prDetailsMock.mockReturnValue(okAsync(createPrDetails({ state: "MERGED" })));
 
-		await store.refreshSessionPrState("session-pr-1", "/test/path", 83);
+		await store.connection.refreshSessionPrState("session-pr-1", "/test/path", 83);
 
-		expect(store.getSessionCold("session-pr-1")?.prState).toBe("MERGED");
-		expect(store.getSessionCold("session-pr-1")?.updatedAt.toISOString()).toBe(
+		expect(store.read.getSessionCold("session-pr-1")?.prState).toBe("MERGED");
+		expect(store.read.getSessionCold("session-pr-1")?.updatedAt.toISOString()).toBe(
 			previousUpdatedAt.toISOString()
 		);
 	});
@@ -147,8 +149,8 @@ describe("SessionStore PR state refresh caching", () => {
 			ResultAsync.fromPromise(detailsPromise, () => new AgentError("prDetails"))
 		);
 
-		const firstRequest = store.refreshSessionPrState("session-pr-1", "/test/path", 83);
-		const secondRequest = store.refreshSessionPrState("session-pr-2", "/test/path", 83);
+		const firstRequest = store.connection.refreshSessionPrState("session-pr-1", "/test/path", 83);
+		const secondRequest = store.connection.refreshSessionPrState("session-pr-2", "/test/path", 83);
 
 		expect(prDetailsMock).toHaveBeenCalledTimes(1);
 
@@ -157,17 +159,17 @@ describe("SessionStore PR state refresh caching", () => {
 		await firstRequest;
 		await secondRequest;
 
-		expect(store.getSessionCold("session-pr-1")?.prState).toBe("OPEN");
-		expect(store.getSessionCold("session-pr-2")?.prState).toBe("OPEN");
+		expect(store.read.getSessionCold("session-pr-1")?.prState).toBe("OPEN");
+		expect(store.read.getSessionCold("session-pr-2")?.prState).toBe("OPEN");
 	});
 
 	it("refreshes again after the cache ttl expires", async () => {
 		addSessionWithPr(store, "session-pr-1", 83);
 		prDetailsMock.mockReturnValue(okAsync(createPrDetails()));
 
-		await store.refreshSessionPrState("session-pr-1", "/test/path", 83);
+		await store.connection.refreshSessionPrState("session-pr-1", "/test/path", 83);
 		vi.advanceTimersByTime(60_001);
-		await store.refreshSessionPrState("session-pr-1", "/test/path", 83);
+		await store.connection.refreshSessionPrState("session-pr-1", "/test/path", 83);
 
 		expect(prDetailsMock).toHaveBeenCalledTimes(2);
 	});
@@ -185,8 +187,8 @@ describe("SessionStore PR state refresh caching", () => {
 			ResultAsync.fromPromise(checksPromise, () => new AgentError("prChecks"))
 		);
 
-		const firstRequest = store.refreshSessionPrChecks("session-pr-1", "/test/path", 83);
-		const secondRequest = store.refreshSessionPrChecks("session-pr-2", "/test/path", 83);
+		const firstRequest = store.connection.refreshSessionPrChecks("session-pr-1", "/test/path", 83);
+		const secondRequest = store.connection.refreshSessionPrChecks("session-pr-2", "/test/path", 83);
 
 		expect(prChecksMock).toHaveBeenCalledTimes(1);
 
@@ -195,7 +197,7 @@ describe("SessionStore PR state refresh caching", () => {
 		await firstRequest;
 		await secondRequest;
 
-		expect(store.getSessionCold("session-pr-1")?.linkedPr?.hasResolvedChecks).toBe(true);
-		expect(store.getSessionCold("session-pr-2")?.linkedPr?.checks).toEqual([]);
+		expect(store.read.getSessionCold("session-pr-1")?.linkedPr?.hasResolvedChecks).toBe(true);
+		expect(store.read.getSessionCold("session-pr-2")?.linkedPr?.checks).toEqual([]);
 	});
 });

@@ -176,7 +176,7 @@ function createTranscriptAppendDeltaEnvelope(input: {
 }
 
 function addColdSession(store: SessionStore): void {
-	store.addSession({
+	store.write.addSession({
 		id: "session-1",
 		projectPath: "/repo",
 		agentId: "codex",
@@ -272,13 +272,13 @@ describe("SessionStore assistantTextDelta canonical projection", () => {
 			})
 		);
 
-		const firstRow = store.getRowTokenStream("session-1", "turn-1", "assistant-1");
+		const firstRow = store.read.getRowTokenStream("session-1", "turn-1", "assistant-1");
 		expect(firstRow).not.toBeNull();
-		expect(store.getRowTokenStreamByRowId("session-1", "assistant-1")).toEqual(firstRow);
+		expect(store.read.getRowTokenStreamByRowId("session-1", "assistant-1")).toEqual(firstRow);
 		expect(firstRow?.accumulatedText).toBe("**hello world** after");
 		expect(firstRow?.wordCount).toBe(2);
 		expect(firstRow?.latestWordCount).toBe(2);
-		expect(store.getClockAnchor("session-1")).toEqual({
+		expect(store.read.getClockAnchor("session-1")).toEqual({
 			rustMonotonicMs: 1_000,
 			browserAnchorMs: 500,
 		});
@@ -295,10 +295,10 @@ describe("SessionStore assistantTextDelta canonical projection", () => {
 			})
 		);
 
-		const secondRow = store.getRowTokenStream("session-1", "turn-1", "assistant-1");
+		const secondRow = store.read.getRowTokenStream("session-1", "turn-1", "assistant-1");
 		expect(secondRow).not.toBeNull();
-		expect(store.getRowTokenStreamByRowId("session-1", "assistant-1")).toEqual(secondRow);
-		expect(store.getRowTokenStreamByRowId("session-1", "missing-row")).toBeNull();
+		expect(store.read.getRowTokenStreamByRowId("session-1", "assistant-1")).toEqual(secondRow);
+		expect(store.read.getRowTokenStreamByRowId("session-1", "missing-row")).toBeNull();
 		expect(secondRow?.accumulatedText).toBe("**hello world** after `pwd`");
 		expect(secondRow?.wordCount).toBe(3);
 		expect(secondRow?.latestWordCount).toBe(1);
@@ -325,8 +325,8 @@ describe("SessionStore assistantTextDelta canonical projection", () => {
 			)
 		);
 
-		expect(store.getRowTokenStream("session-1", "turn-1", "assistant-1")).toEqual(secondRow);
-		expect(store.getClockAnchor("session-1")).toEqual({
+		expect(store.read.getRowTokenStream("session-1", "turn-1", "assistant-1")).toEqual(secondRow);
+		expect(store.read.getClockAnchor("session-1")).toEqual({
 			rustMonotonicMs: 1_000,
 			browserAnchorMs: 500,
 		});
@@ -347,8 +347,8 @@ describe("SessionStore assistantTextDelta canonical projection", () => {
 			)
 		);
 
-		expect(store.getActiveStreamingTailRowId("session-1")).toBe("assistant-1");
-		expect(store.getActiveStreamingTailRowId("missing-session")).toBeNull();
+		expect(store.read.getActiveStreamingTailRowId("session-1")).toBe("assistant-1");
+		expect(store.read.getActiveStreamingTailRowId("missing-session")).toBeNull();
 	});
 
 	it("accepts split assistant text deltas that share the same source revision", () => {
@@ -379,7 +379,7 @@ describe("SessionStore assistantTextDelta canonical projection", () => {
 			})
 		);
 
-		expect(store.getRowTokenStream("session-1", "turn-1", "assistant-1")).toMatchObject({
+		expect(store.read.getRowTokenStream("session-1", "turn-1", "assistant-1")).toMatchObject({
 			accumulatedText: "first second",
 			revision: 2,
 		});
@@ -413,12 +413,12 @@ describe("SessionStore assistantTextDelta canonical projection", () => {
 			})
 		);
 
-		expect(store.getRowTokenStreamByRowId("session-1", "assistant-active")).toMatchObject({
+		expect(store.read.getRowTokenStreamByRowId("session-1", "assistant-active")).toMatchObject({
 			turnId: "turn-2",
 			rowId: "assistant-active",
 			accumulatedText: "active row",
 		});
-		expect(store.getRowTokenStreamByRowId("session-1", "assistant-old")).toMatchObject({
+		expect(store.read.getRowTokenStreamByRowId("session-1", "assistant-old")).toMatchObject({
 			turnId: "turn-1",
 			rowId: "assistant-old",
 			accumulatedText: "old row",
@@ -455,7 +455,7 @@ describe("SessionStore assistantTextDelta canonical projection", () => {
 			})
 		);
 
-		expect(store.getRowTokenStream("session-1", "turn-1", "assistant-1")).toMatchObject({
+		expect(store.read.getRowTokenStream("session-1", "turn-1", "assistant-1")).toMatchObject({
 			accumulatedText: "hello",
 			wordCount: 1,
 			latestWordCount: 1,
@@ -474,7 +474,7 @@ describe("SessionStore assistantTextDelta canonical projection", () => {
 			})
 		);
 
-		expect(store.getRowTokenStream("session-1", "turn-1", "assistant-1")).toMatchObject({
+		expect(store.read.getRowTokenStream("session-1", "turn-1", "assistant-1")).toMatchObject({
 			accumulatedText: "hello",
 			wordCount: 1,
 			latestWordCount: 1,
@@ -527,8 +527,8 @@ describe("SessionStore assistantTextDelta canonical projection", () => {
 			})
 		);
 
-		expect(store.getRowTokenStream("session-1", "turn-stale", "assistant-stale")).toBeNull();
-		expect(store.getSessionGraphRevision("session-1")).toEqual({
+		expect(store.read.getRowTokenStream("session-1", "turn-stale", "assistant-stale")).toBeNull();
+		expect(store.read.getSessionGraphRevision("session-1")).toEqual({
 			graphRevision: 10,
 			transcriptRevision: 10,
 			lastEventSeq: 10,
@@ -580,11 +580,11 @@ describe("SessionStore assistantTextDelta canonical projection", () => {
 			})
 		);
 
-		expect(store.getRowTokenStream("session-1", "turn-1", "assistant-1")).toMatchObject({
+		expect(store.read.getRowTokenStream("session-1", "turn-1", "assistant-1")).toMatchObject({
 			accumulatedText: "hello",
 			revision: 2,
 		});
-		expect(store.getSessionGraphRevision("session-1")).toEqual({
+		expect(store.read.getSessionGraphRevision("session-1")).toEqual({
 			graphRevision: 10,
 			transcriptRevision: 10,
 			lastEventSeq: 10,
@@ -622,10 +622,10 @@ describe("SessionStore assistantTextDelta canonical projection", () => {
 		applyAssistantTextDeltaLog(liveStore, deltas);
 		applyAssistantTextDeltaLog(replayStore, deltas);
 
-		expect(replayStore.getRowTokenStream("session-1", "turn-1", "assistant-1")).toEqual(
-			liveStore.getRowTokenStream("session-1", "turn-1", "assistant-1")
+		expect(replayStore.read.getRowTokenStream("session-1", "turn-1", "assistant-1")).toEqual(
+			liveStore.read.getRowTokenStream("session-1", "turn-1", "assistant-1")
 		);
-		expect(replayStore.getClockAnchor("session-1")).toEqual(liveStore.getClockAnchor("session-1"));
+		expect(replayStore.read.getClockAnchor("session-1")).toEqual(liveStore.read.getClockAnchor("session-1"));
 	});
 
 	it("replays the same small envelope journal into the same graph and token projection", () => {
@@ -705,10 +705,10 @@ describe("SessionStore assistantTextDelta canonical projection", () => {
 		expect(replayStore.getSessionStateGraphForTest("session-1")).toEqual(
 			liveStore.getSessionStateGraphForTest("session-1")
 		);
-		expect(replayStore.getActiveStreamingTailRowId("session-1")).toBe("assistant-1");
-		expect(replayStore.getRowTokenStream("session-1", "turn-1", "assistant-1")).toEqual(
-			liveStore.getRowTokenStream("session-1", "turn-1", "assistant-1")
+		expect(replayStore.read.getActiveStreamingTailRowId("session-1")).toBe("assistant-1");
+		expect(replayStore.read.getRowTokenStream("session-1", "turn-1", "assistant-1")).toEqual(
+			liveStore.read.getRowTokenStream("session-1", "turn-1", "assistant-1")
 		);
-		expect(replayStore.getClockAnchor("session-1")).toEqual(liveStore.getClockAnchor("session-1"));
+		expect(replayStore.read.getClockAnchor("session-1")).toEqual(liveStore.read.getClockAnchor("session-1"));
 	});
 });

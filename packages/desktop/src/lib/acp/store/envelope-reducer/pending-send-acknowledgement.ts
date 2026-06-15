@@ -1,4 +1,5 @@
 import type { TranscriptEntry, TranscriptSnapshot } from "../../../services/acp-types.js";
+import { segmentText } from "../../session-state/transcript-text.js";
 import type { SessionPendingSendIntent } from "../types.js";
 
 function transcriptSnapshotContainsUserAttemptId(
@@ -15,11 +16,7 @@ function transcriptSnapshotContainsUserAttemptId(
 }
 
 function transcriptEntryText(entry: TranscriptEntry): string {
-	let text = "";
-	for (const segment of entry.segments) {
-		text += segment.text;
-	}
-	return text;
+	return segmentText(entry);
 }
 
 function pendingSendText(pendingSendIntent: SessionPendingSendIntent): string | null {

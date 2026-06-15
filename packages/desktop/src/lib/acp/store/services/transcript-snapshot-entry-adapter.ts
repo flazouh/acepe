@@ -8,6 +8,10 @@ import type {
 	TranscriptSegment,
 	TranscriptSnapshot,
 } from "$lib/services/acp-types.js";
+import {
+	transcriptSegmentLegacyUserText,
+	transcriptSegmentPrimaryText,
+} from "$lib/acp/session-state/transcript-text.js";
 import type {
 	ContentBlock,
 	ToolCallData,
@@ -28,7 +32,11 @@ function toContentBlock(text: string): ContentBlock {
 function segmentText(entry: TranscriptEntry): string {
 	let text = "";
 	for (const segment of entry.segments) {
-		text = text.length === 0 ? segment.text : `${text}\n${segment.text}`;
+		const segmentTextValue =
+			entry.role === "user" && segment.kind === "localCommand"
+				? transcriptSegmentLegacyUserText(segment)
+				: transcriptSegmentPrimaryText(segment);
+		text = text.length === 0 ? segmentTextValue : `${text}\n${segmentTextValue}`;
 	}
 	return text;
 }
@@ -36,7 +44,11 @@ function segmentText(entry: TranscriptEntry): string {
 function segmentBlocks(entry: TranscriptEntry): ContentBlock[] {
 	const blocks: ContentBlock[] = [];
 	for (const segment of entry.segments) {
-		blocks.push(toContentBlock(segment.text));
+		const segmentTextValue =
+			entry.role === "user" && segment.kind === "localCommand"
+				? transcriptSegmentLegacyUserText(segment)
+				: transcriptSegmentPrimaryText(segment);
+		blocks.push(toContentBlock(segmentTextValue));
 	}
 	return blocks;
 }
@@ -93,6 +105,9 @@ export function convertTranscriptEntryToSessionEntry(
 			block: ContentBlock;
 		}> = [];
 		for (const segment of entry.segments) {
+			if (segment.kind === "localCommand") {
+				continue;
+			}
 			chunks.push({
 				type: segment.kind === "thought" ? "thought" : "message",
 				block: toContentBlock(segment.text),
@@ -132,6 +147,9 @@ export function appendTranscriptSegmentToSessionEntry(
 	segment: TranscriptSegment
 ): SessionEntry | null {
 	if (entry.type === "assistant") {
+		if (segment.kind === "localCommand") {
+			return null;
+		}
 		const nextChunks = entry.message.chunks.concat([
 			{
 				type: segment.kind === "thought" ? "thought" : "message",
@@ -150,11 +168,15 @@ export function appendTranscriptSegmentToSessionEntry(
 	}
 
 	if (entry.type === "user") {
+		const segmentTextValue =
+			segment.kind === "localCommand"
+				? transcriptSegmentLegacyUserText(segment)
+				: transcriptSegmentPrimaryText(segment);
 		const mergedText =
 			entry.message.content.type === "text"
-				? `${entry.message.content.text}\n${segment.text}`
-				: segment.text;
-		const nextBlock = toContentBlock(segment.text);
+				? `${entry.message.content.text}\n${segmentTextValue}`
+				: segmentTextValue;
+		const nextBlock = toContentBlock(segmentTextValue);
 		const nextChunks = entry.message.chunks.concat([nextBlock]);
 		return {
 			id: entry.id,
@@ -176,7 +198,7 @@ export function appendTranscriptSegmentToSessionEntry(
 			id: entry.id,
 			type: "error",
 			message: {
-				content: `${entry.message.content}\n${segment.text}`,
+				content: `${entry.message.content}\n${transcriptSegmentPrimaryText(segment)}`,
 				code: entry.message.code,
 				kind: entry.message.kind,
 				source: entry.message.source,
@@ -187,8 +209,10 @@ export function appendTranscriptSegmentToSessionEntry(
 	}
 
 	if (entry.type === "tool_call") {
+		const segmentTextValue = transcriptSegmentPrimaryText(segment);
 		const previousTitle = entry.message.title ?? entry.message.name;
-		const nextTitle = previousTitle.length > 0 ? `${previousTitle}\n${segment.text}` : segment.text;
+		const nextTitle =
+			previousTitle.length > 0 ? `${previousTitle}\n${segmentTextValue}` : segmentTextValue;
 		return {
 			id: entry.id,
 			type: "tool_call",
