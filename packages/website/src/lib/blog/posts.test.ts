@@ -22,7 +22,6 @@ describe("blog post registry", () => {
 		expect(attentionQueueBlogPost.relatedLinks).toEqual(
 			expect.arrayContaining([
 				expect.objectContaining({ href: "/compare/1code" }),
-				expect.objectContaining({ href: "/pricing" }),
 			])
 		);
 
@@ -36,7 +35,6 @@ describe("blog post registry", () => {
 		expect(sqlStudioBlogPost.relatedLinks).toEqual(
 			expect.arrayContaining([
 				expect.objectContaining({ href: "/compare/superset" }),
-				expect.objectContaining({ href: "/pricing" }),
 			])
 		);
 
@@ -50,7 +48,6 @@ describe("blog post registry", () => {
 		expect(gitViewerBlogPost.relatedLinks).toEqual(
 			expect.arrayContaining([
 				expect.objectContaining({ href: "/compare/cursor" }),
-				expect.objectContaining({ href: "/pricing" }),
 			])
 		);
 	});

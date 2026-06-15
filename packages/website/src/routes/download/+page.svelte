@@ -144,11 +144,6 @@ const downloadJsonLd = {
 								{"Changelog"}
 							</a>
 						</li>
-						<li>
-							<a href="/pricing" class="text-[13px] text-muted-foreground transition-colors hover:text-foreground">
-								{"Pricing"}
-							</a>
-						</li>
 					</ul>
 				</div>
 

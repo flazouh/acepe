@@ -83,8 +83,6 @@ const homepageKeywords = [
 
 const creamButton =
 	"inline-flex h-9 items-center gap-2 rounded-[2px] bg-[#f8f5ee] px-4 text-[14px] font-medium text-[#121212] transition-opacity hover:opacity-90";
-const ghostButton =
-	"inline-flex h-9 items-center gap-2 rounded-[2px] border border-[#f8f5ee]/20 px-4 text-[14px] font-medium text-[#f8f5ee] transition-colors hover:border-[#f8f5ee]/40";
 </script>
 
 <Seo
@@ -115,7 +113,6 @@ const ghostButton =
 					<Apple class="h-4 w-4" />
 				</a>
 				<CommandChip command={BREW} />
-				<a href="/pricing" class={ghostButton}>{"Contact sales"}</a>
 			</div>
 		</section>
 
@@ -268,7 +265,6 @@ const ghostButton =
 							{"Product"}
 						</div>
 						<a href="/download" class="text-[13px] text-foreground/80 hover:text-foreground">{"Download"}</a>
-						<a href="/pricing" class="text-[13px] text-foreground/80 hover:text-foreground">{"Pricing"}</a>
 						<a href="/changelog" class="text-[13px] text-foreground/80 hover:text-foreground">{"Changelog"}</a>
 						<a href="/compare" class="text-[13px] text-foreground/80 hover:text-foreground">{"Compare"}</a>
 					</div>

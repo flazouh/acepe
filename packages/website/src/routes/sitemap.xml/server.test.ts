@@ -7,7 +7,6 @@ describe("sitemap.xml", () => {
 		const response = await GET({} as never);
 		const xml = await response.text();
 
-		expect(xml).toContain("<loc>https://acepe.dev/pricing</loc>");
 		expect(xml).toContain("<loc>https://acepe.dev/blog</loc>");
 		expect(xml).toContain("<loc>https://acepe.dev/blog/attention-queue</loc>");
 		expect(xml).toContain("<loc>https://acepe.dev/blog/checkpoints</loc>");

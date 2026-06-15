@@ -257,11 +257,6 @@ const meta = [
 							</a>
 						</li>
 						<li>
-							<a href="/pricing" class="text-[13px] text-muted-foreground transition-colors hover:text-foreground">
-								Pricing
-							</a>
-						</li>
-						<li>
 							<a href="/compare" class="text-[13px] text-muted-foreground transition-colors hover:text-foreground">
 								Compare
 							</a>
