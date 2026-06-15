@@ -15,11 +15,6 @@ export const sqlStudioBlogPost: BlogPostMetadata = {
 			title: "See Acepe vs Superset",
 			description: "Compare built-in database workflows with a terminal-first agent setup.",
 		},
-		{
-			href: "/pricing",
-			title: "See pricing",
-			description: "Check what the free local product includes before Premium launches.",
-		},
 	],
 };
 
@@ -38,11 +33,6 @@ export const gitViewerBlogPost: BlogPostMetadata = {
 			title: "See Acepe vs Cursor",
 			description:
 				"Compare agent review visibility and workflow control against a general coding IDE.",
-		},
-		{
-			href: "/pricing",
-			title: "See pricing",
-			description: "See what the local workflow includes before you commit to a setup.",
 		},
 	],
 };
@@ -109,11 +99,6 @@ export const attentionQueueBlogPost: BlogPostMetadata = {
 			title: "See Acepe vs 1Code",
 			description:
 				"Compare session triage and operator workflow depth against an open-source agent client.",
-		},
-		{
-			href: "/pricing",
-			title: "See pricing",
-			description: "Understand the free local workflow and what Premium adds later.",
 		},
 	],
 };

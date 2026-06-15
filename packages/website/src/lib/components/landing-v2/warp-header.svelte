@@ -57,7 +57,6 @@ const navLinkClass =
 					<a href="/blog" class={navLinkClass}>{"Product"}</a>
 					<a href="/compare" class={navLinkClass}>{"Compare"}</a>
 					<a href="/changelog" class={navLinkClass}>{"Changelog"}</a>
-					<a href="/pricing" class={navLinkClass}>{"Pricing"}</a>
 				</nav>
 			</div>
 
@@ -74,9 +73,6 @@ const navLinkClass =
 						<Star class="h-3 w-3 text-amber-400" weight="fill" />
 						<span class="font-mono text-[13px]">{formatStars(githubStars)}</span>
 					{/if}
-				</a>
-				<a href="/pricing" class="hidden text-[14px] text-[#f8f5ee]/70 transition-colors hover:text-[#f8f5ee] md:block">
-					{"Contact sales"}
 				</a>
 				<a
 					href="/download"
