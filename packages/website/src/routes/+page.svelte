@@ -116,7 +116,7 @@ const creamButton =
 			</div>
 		</section>
 
-		<!-- Product surface — greyscale app mock floating on Cosmic Orange -->
+		<!-- Product surface — app mock floating on Cosmic Orange -->
 		<section class="mx-auto max-w-[1280px] px-6 pb-24 md:pb-32">
 			<div class="relative aspect-[16/9] overflow-hidden rounded-[4px] bg-[#0F0F10]">
 				<img
@@ -130,7 +130,7 @@ const creamButton =
 					<img
 						src="/images/landing/acepe-working-view.webp"
 						alt="Acepe running multiple coding agents side by side"
-						class="w-full max-w-[1000px] rounded-md shadow-[0_30px_90px_-24px_rgba(0,0,0,0.65)] [filter:grayscale(1)_contrast(1.03)]"
+						class="w-full max-w-[1000px] rounded-md shadow-[0_30px_90px_-24px_rgba(0,0,0,0.65)]"
 					/>
 				</div>
 			</div>
