@@ -12,9 +12,17 @@ pub async fn acp_new_session(
     cwd: String,
     agent_id: Option<String>,
     launch_token: Option<String>,
+    initial_model_id: Option<String>,
+    initial_mode_id: Option<String>,
 ) -> CommandResult<NewSessionResponse> {
     expected_acp_command_result("acp_new_session", async {
-        tracing::info!(cwd = %cwd, agent_id = ?agent_id, "acp_new_session called (creating dedicated client)");
+        tracing::info!(
+            cwd = %cwd,
+            agent_id = ?agent_id,
+            initial_model_id = ?initial_model_id,
+            initial_mode_id = ?initial_mode_id,
+            "acp_new_session called (creating dedicated client)"
+        );
         let cwd = validate_session_cwd(&cwd, ProjectAccessReason::Other)?;
         let registry = app.state::<Arc<AgentRegistry>>();
         let active_agent = app.state::<ActiveAgent>();
@@ -29,14 +37,37 @@ pub async fn acp_new_session(
             .get(&agent_id_enum)
             .is_some_and(|provider| provider.communication_mode() == CommunicationMode::CcSdk);
         let (project_path, worktree_path) = session_metadata_context_from_cwd(&cwd);
+        let mut plain_deferred_sequence_id: Option<i32> = None;
         let creation_attempt_id = if let Some(launch_token) = launch_token.as_deref() {
+            if initial_model_id.is_some() || initial_mode_id.is_some() {
+                SessionMetadataRepository::persist_creation_attempt_initial_selection(
+                    db.inner(),
+                    launch_token,
+                    initial_model_id.as_deref(),
+                    initial_mode_id.as_deref(),
+                )
+                .await
+                .map_err(|error| {
+                    creation_failure(
+                        CreationFailureKind::MetadataCommitFailed,
+                        format!(
+                            "Failed to persist initial model/mode on reserved creation attempt: {error}"
+                        ),
+                        None,
+                        Some(launch_token.to_string()),
+                        true,
+                    )
+                })?;
+            }
             launch_token.to_string()
         } else {
-            SessionMetadataRepository::create_creation_attempt(
+            let attempt = SessionMetadataRepository::create_creation_attempt(
                 db.inner(),
                 &project_path,
                 agent_id_enum.as_str(),
                 worktree_path.as_deref(),
+                initial_model_id.as_deref(),
+                initial_mode_id.as_deref(),
             )
             .await
             .map_err(|error| {
@@ -47,8 +78,9 @@ pub async fn acp_new_session(
                     None,
                     true,
                 )
-            })?
-            .id
+            })?;
+            plain_deferred_sequence_id = attempt.sequence_id;
+            attempt.id
         };
 
         // Create and initialize client with cwd so subprocess spawns in correct directory
@@ -88,7 +120,29 @@ pub async fn acp_new_session(
             }
         };
         if provider_uses_deferred_creation {
-            client.bind_pending_creation_attempt(Some(creation_attempt_id.clone()));
+            let attempt = SessionMetadataRepository::get_creation_attempt(
+                db.inner(),
+                &creation_attempt_id,
+            )
+            .await
+            .map_err(|error| {
+                creation_failure(
+                    CreationFailureKind::MetadataCommitFailed,
+                    format!(
+                        "Failed to load creation attempt {creation_attempt_id} for deferred bind: {error}"
+                    ),
+                    None,
+                    Some(creation_attempt_id.clone()),
+                    true,
+                )
+            })?;
+            let pending_model_id = attempt.as_ref().and_then(|row| row.model_id.clone());
+            let pending_mode_id = attempt.as_ref().and_then(|row| row.mode_id.clone());
+            client.bind_pending_creation_attempt(
+                Some(creation_attempt_id.clone()),
+                pending_model_id,
+                pending_mode_id,
+            );
         }
 
         // Create the session
@@ -170,7 +224,7 @@ pub async fn acp_new_session(
                     })?
                     .map(|reserved| reserved.sequence_id)
             } else {
-                None
+                plain_deferred_sequence_id
             }
         } else if let Some(launch_token) = launch_token.as_deref() {
             match SessionMetadataRepository::consume_reserved_worktree_launch(

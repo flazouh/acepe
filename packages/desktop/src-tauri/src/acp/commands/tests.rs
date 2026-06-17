@@ -1043,6 +1043,8 @@ async fn creation_attempt_promotion_reuses_existing_opened_placeholder_session()
         "/project",
         CanonicalAgentId::Codex.as_str(),
         None,
+        None,
+        None,
     )
     .await
     .expect("create attempt");

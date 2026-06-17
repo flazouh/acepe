@@ -196,15 +196,15 @@
 	align="start"
 	side="top"
 	sideOffset={8}
-	variant="headerAction"
+	variant="ghost"
 	showChevron={false}
-	triggerSize="attach"
-	triggerClass="hover:bg-accent hover:text-foreground"
+	triggerSize="icon"
+	triggerClass={menuOpen ? "bg-accent text-foreground" : ""}
 	triggerAriaLabel="Add context and tools"
 	contentClass={attachMenuContentClass}
 >
 	{#snippet renderButton()}
-		<IconPlus class="size-3.5" />
+		<IconPlus class="h-3 w-3" />
 	{/snippet}
 
 	<div class="flex h-auto flex-col gap-0 pb-0">

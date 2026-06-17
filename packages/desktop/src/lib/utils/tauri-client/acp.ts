@@ -20,9 +20,17 @@ export const acp = {
 	newSession: (
 		cwd: string,
 		agentId?: string,
-		launchToken?: string
+		launchToken?: string,
+		initialModelId?: string,
+		initialModeId?: string
 	): ResultAsync<ResumeSessionResult, AppError> => {
-		return acpCommands.new_session.invoke<ResumeSessionResult>({ cwd, agentId, launchToken });
+		return acpCommands.new_session.invoke<ResumeSessionResult>({
+			cwd,
+			agentId,
+			launchToken,
+			initialModelId,
+			initialModeId,
+		});
 	},
 
 	listPreconnectionCommands: (

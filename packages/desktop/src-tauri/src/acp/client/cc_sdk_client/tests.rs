@@ -404,6 +404,55 @@ fn cc_sdk_sessions_request_partial_messages() {
 }
 
 #[test]
+fn bind_pending_creation_attempt_seeds_model_and_mode() {
+    let mut client = make_test_client();
+    client.bind_pending_creation_attempt(
+        Some("attempt-1".to_string()),
+        Some("claude-sonnet-4-6".to_string()),
+        Some("plan".to_string()),
+    );
+
+    assert_eq!(
+        client.pending_creation_attempt_id.as_deref(),
+        Some("attempt-1")
+    );
+    assert_eq!(
+        client.pending_model_id.as_deref(),
+        Some("claude-sonnet-4-6")
+    );
+    assert_eq!(client.pending_mode_id.as_deref(), Some("plan"));
+}
+
+#[test]
+fn sanitize_pending_model_for_connect_clears_invalid_model() {
+    let mut client = make_test_client();
+    client.pending_model_id = Some("stale-model".to_string());
+
+    client.sanitize_pending_model_for_connect(&[
+        "claude-opus-4-6".to_string(),
+        "claude-sonnet-4-6".to_string(),
+    ]);
+
+    assert!(client.pending_model_id.is_none());
+}
+
+#[test]
+fn sanitize_pending_model_for_connect_keeps_valid_model() {
+    let mut client = make_test_client();
+    client.pending_model_id = Some("claude-sonnet-4-6".to_string());
+
+    client.sanitize_pending_model_for_connect(&[
+        "claude-opus-4-6".to_string(),
+        "claude-sonnet-4-6".to_string(),
+    ]);
+
+    assert_eq!(
+        client.pending_model_id.as_deref(),
+        Some("claude-sonnet-4-6")
+    );
+}
+
+#[test]
 fn build_options_applies_pending_mode_and_model() {
     let mut client = make_test_client();
     client.pending_mode_id = Some("plan".to_string());
@@ -763,7 +812,7 @@ async fn provider_session_id_alias_persistence_rejects_new_session_identity_mism
 async fn provider_session_id_alias_persistence_rejects_canonical_session_identity_mismatch() {
     let db = setup_test_db().await;
     let attempt =
-        SessionMetadataRepository::create_creation_attempt(&db, "/project", "claude-code", None)
+        SessionMetadataRepository::create_creation_attempt(&db, "/project", "claude-code", None, None, None)
             .await
             .expect("attempt");
     SessionMetadataRepository::promote_creation_attempt(
@@ -3811,7 +3860,7 @@ async fn run_streaming_bridge_completes_unresolved_tool_use_when_next_message_st
 async fn run_streaming_bridge_promotes_pending_creation_attempt_before_buffered_dispatch() {
     let db = setup_test_db().await;
     let attempt =
-        SessionMetadataRepository::create_creation_attempt(&db, "/project", "claude-code", None)
+        SessionMetadataRepository::create_creation_attempt(&db, "/project", "claude-code", None, None, None)
             .await
             .expect("attempt");
     let (dispatcher, sink) = AcpUiEventDispatcher::test_sink();
@@ -3887,7 +3936,7 @@ async fn promote_verified_pending_creation_attempt_reuses_reserved_lifecycle_che
     let db = setup_test_db().await;
     let session_id = "provider-canonical";
     let attempt =
-        SessionMetadataRepository::create_creation_attempt(&db, "/project", "claude-code", None)
+        SessionMetadataRepository::create_creation_attempt(&db, "/project", "claude-code", None, None, None)
             .await
             .expect("attempt");
     let projection_registry = Arc::new(ProjectionRegistry::new());
@@ -3935,7 +3984,7 @@ async fn reserve_promoted_claude_session_preserves_capabilities() {
     let db = setup_test_db().await;
     let session_id = "provider-canonical";
     let attempt =
-        SessionMetadataRepository::create_creation_attempt(&db, "/project", "claude-code", None)
+        SessionMetadataRepository::create_creation_attempt(&db, "/project", "claude-code", None, None, None)
             .await
             .expect("attempt");
     SessionMetadataRepository::promote_creation_attempt(&db, &attempt.id, session_id)
@@ -3992,7 +4041,7 @@ async fn reserve_promoted_claude_session_preserves_capabilities() {
 async fn run_streaming_bridge_promotes_pending_creation_before_buffered_auth_error() {
     let db = setup_test_db().await;
     let attempt =
-        SessionMetadataRepository::create_creation_attempt(&db, "/project", "claude-code", None)
+        SessionMetadataRepository::create_creation_attempt(&db, "/project", "claude-code", None, None, None)
             .await
             .expect("attempt");
     let (dispatcher, sink) = AcpUiEventDispatcher::test_sink();
@@ -4076,7 +4125,7 @@ async fn run_streaming_bridge_promotes_pending_creation_before_buffered_auth_err
 async fn run_streaming_bridge_fails_pending_creation_attempt_on_provider_id_mismatch() {
     let db = setup_test_db().await;
     let attempt =
-        SessionMetadataRepository::create_creation_attempt(&db, "/project", "claude-code", None)
+        SessionMetadataRepository::create_creation_attempt(&db, "/project", "claude-code", None, None, None)
             .await
             .expect("attempt");
     let (dispatcher, sink) = AcpUiEventDispatcher::test_sink();

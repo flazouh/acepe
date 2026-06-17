@@ -91,12 +91,14 @@ function handleOpenChange(open: boolean) {
 	disabled={isLoading || (recentProjects.length === 0 && !hasProjectActions)}
 	onOpenChange={handleOpenChange}
 	variant="ghost"
-	triggerClass="rounded-lg"
+	showChevron={false}
+	triggerSize="icon"
+	triggerClass={isOpen ? "bg-accent text-foreground" : ""}
+	triggerAriaLabel={selectedProject?.name ?? placeholder}
 >
 	{#snippet renderButton()}
 		{#if isLoading}
-			<Skeleton class="h-2 w-2 shrink-0 rounded-full" />
-			<Skeleton class="h-3 w-32" />
+			<Skeleton class="size-3.5 shrink-0 rounded-md" />
 		{:else}
 			{@const color = selectedProject ? getProjectColor(selectedProject) : TAG_COLORS[0]}
 			{#if selectedProject}
@@ -107,11 +109,8 @@ function handleOpenChange(open: boolean) {
 					size={14}
 				/>
 			{:else}
-				<div class="h-2 w-2 shrink-0 rounded-full" style="background-color: {color};"></div>
+				<div class="size-3.5 shrink-0 rounded-md" style="background-color: {color};"></div>
 			{/if}
-			<span class="text-xs truncate min-w-0">
-				{selectedProject ? selectedProject.name : placeholder}
-			</span>
 		{/if}
 	{/snippet}
 

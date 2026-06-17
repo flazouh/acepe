@@ -1,8 +1,8 @@
 <script lang="ts">
 import { IconAlertCircle, IconCircleCheckFilled } from "@tabler/icons-svelte";
-import { Spinner } from "$lib/components/ui/spinner/index.js";
 import * as Tooltip from "$lib/components/ui/tooltip/index.js";
 import type { SessionStatus } from "../state/index.js";
+import { resolveSessionStatusIndicatorPresentation } from "./session-status-indicator-presentation.js";
 
 import { Colors } from "@acepe/ui/colors";
 
@@ -21,23 +21,12 @@ interface SessionStatusIndicatorProps {
 
 let { status, size = 14, show = true, onRetry, agentId }: SessionStatusIndicatorProps = $props();
 
-const shouldShow = $derived(show && status !== "empty");
+const presentation = $derived(resolveSessionStatusIndicatorPresentation(status, show));
 </script>
 
-{#if shouldShow}
+{#if presentation !== "none"}
 	<div class="flex items-center justify-center min-w-5 min-h-5">
-		{#if status === "warming"}
-			<Tooltip.Root>
-				<Tooltip.Trigger>
-					<div class="animate-in fade-in duration-150">
-						<Spinner {size} />
-					</div>
-				</Tooltip.Trigger>
-				<Tooltip.Content>
-					{"Preparing thread..."}
-				</Tooltip.Content>
-			</Tooltip.Root>
-		{:else if status === "connected"}
+		{#if presentation === "connected"}
 			<Tooltip.Root>
 				<Tooltip.Trigger>
 					<div class="animate-in zoom-in-50 duration-300 text-success">
@@ -60,7 +49,7 @@ const shouldShow = $derived(show && status !== "empty");
 					</div>
 				</Tooltip.Content>
 			</Tooltip.Root>
-		{:else if status === "error"}
+		{:else if presentation === "error"}
 			<Tooltip.Root>
 				<Tooltip.Trigger>
 					<button

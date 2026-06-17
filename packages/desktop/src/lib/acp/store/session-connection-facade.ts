@@ -51,12 +51,25 @@ export class SessionConnectionFacade {
 	}
 
 	materializePendingCreationSession(sessionId: string): boolean {
+		const pendingCreation = this.#deps.creationCoordinator.getPendingCreation(sessionId);
+
 		if (this.#deps.read.getSessionIdentity(sessionId)) {
-			this.#deps.creationCoordinator.completePendingCreation(sessionId);
+			if (pendingCreation !== null && pendingCreation.sequenceId != null) {
+				const metadata = this.#deps.read.getSessionMetadata(sessionId);
+				if (metadata?.sequenceId == null) {
+					this.#deps.write.updateSession(
+						sessionId,
+						{ sequenceId: pendingCreation.sequenceId },
+						{ touchUpdatedAt: false }
+					);
+				}
+			}
+			if (pendingCreation !== null) {
+				this.#deps.creationCoordinator.completePendingCreation(sessionId);
+			}
 			return true;
 		}
 
-		const pendingCreation = this.#deps.creationCoordinator.getPendingCreation(sessionId);
 		if (pendingCreation === null) {
 			return false;
 		}
@@ -73,6 +86,7 @@ export class SessionConnectionFacade {
 			sourcePath: undefined,
 			sessionLifecycleState: "created",
 			parentId: null,
+			sequenceId: pendingCreation.sequenceId ?? undefined,
 		});
 		this.#deps.creationCoordinator.completePendingCreation(sessionId);
 		return true;

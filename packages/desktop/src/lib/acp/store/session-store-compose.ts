@@ -375,7 +375,20 @@ export function composeSessionStoreParts(input: ComposeSessionStorePartsInput): 
 		hasPendingCreationSession: (sessionId) => creationCoordinator.hasPendingCreation(sessionId),
 		materializePendingCreationSession: (sessionId) => {
 			if (read.getSessionIdentity(sessionId)) {
-				creationCoordinator.completePendingCreation(sessionId);
+				const pendingCreation = creationCoordinator.getPendingCreation(sessionId);
+				if (pendingCreation !== null && pendingCreation.sequenceId != null) {
+					const metadata = read.getSessionMetadata(sessionId);
+					if (metadata?.sequenceId == null) {
+						listState.updateSession(
+							sessionId,
+							{ sequenceId: pendingCreation.sequenceId },
+							{ touchUpdatedAt: false }
+						);
+					}
+				}
+				if (pendingCreation !== null) {
+					creationCoordinator.completePendingCreation(sessionId);
+				}
 				return true;
 			}
 			const pendingCreation = creationCoordinator.getPendingCreation(sessionId);
@@ -394,6 +407,7 @@ export function composeSessionStoreParts(input: ComposeSessionStorePartsInput): 
 				sourcePath: undefined,
 				sessionLifecycleState: "created",
 				parentId: null,
+				sequenceId: pendingCreation.sequenceId ?? undefined,
 			});
 			creationCoordinator.completePendingCreation(sessionId);
 			return true;

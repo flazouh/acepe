@@ -200,6 +200,8 @@ pub struct CreationAttemptRow {
     pub failure_reason: Option<String>,
     pub provider_session_id: Option<String>,
     pub sequence_id: Option<i32>,
+    pub model_id: Option<String>,
+    pub mode_id: Option<String>,
     pub created_at: chrono::DateTime<Utc>,
     pub updated_at: chrono::DateTime<Utc>,
 }
@@ -259,6 +261,8 @@ fn compose_creation_attempt_row(model: creation_attempt::Model) -> CreationAttem
         failure_reason: model.failure_reason,
         provider_session_id: model.provider_session_id,
         sequence_id: model.sequence_id,
+        model_id: model.model_id,
+        mode_id: model.mode_id,
         created_at: model.created_at,
         updated_at: model.updated_at,
     }
@@ -278,36 +282,84 @@ impl SessionMetadataRepository {
         project_path: &str,
         agent_id: &str,
         worktree_path: Option<&str>,
+        model_id: Option<&str>,
+        mode_id: Option<&str>,
     ) -> std::result::Result<CreationAttemptRow, CreationAttemptRepositoryError> {
-        Self::insert_creation_attempt(db, None, project_path, agent_id, worktree_path, None, None)
-            .await
+        for _attempt in 0..5 {
+            let txn = db.begin().await?;
+            let next_sequence_id = Self::next_sequence_id_for_project(&txn, project_path)
+                .await
+                .map_err(|error| CreationAttemptRepositoryError::InvalidState {
+                    message: error.to_string(),
+                })?;
+            let inserted = Self::insert_creation_attempt_in_transaction(
+                &txn,
+                None,
+                project_path,
+                agent_id,
+                worktree_path,
+                None,
+                Some(next_sequence_id),
+                model_id,
+                mode_id,
+            )
+            .await;
+
+            match inserted {
+                Ok(row) => {
+                    txn.commit().await?;
+                    return Ok(row);
+                }
+                Err(CreationAttemptRepositoryError::Database(error))
+                    if Self::is_sequence_constraint_violation(&error) =>
+                {
+                    continue;
+                }
+                Err(error) => return Err(error),
+            }
+        }
+
+        Err(CreationAttemptRepositoryError::InvalidState {
+            message: "Failed to allocate a unique creation attempt sequence_id after retries"
+                .to_string(),
+        })
     }
 
-    async fn insert_creation_attempt(
+    pub async fn persist_creation_attempt_initial_selection(
         db: &DbConn,
-        attempt_id: Option<String>,
-        project_path: &str,
-        agent_id: &str,
-        worktree_path: Option<&str>,
-        launch_token: Option<String>,
-        sequence_id: Option<i32>,
-    ) -> std::result::Result<CreationAttemptRow, CreationAttemptRepositoryError> {
-        let txn = db.begin().await?;
-        let row = Self::insert_creation_attempt_in_transaction(
-            &txn,
-            attempt_id,
-            project_path,
-            agent_id,
-            worktree_path,
-            launch_token,
-            sequence_id,
-        )
-        .await?;
-        txn.commit().await?;
+        attempt_id: &str,
+        model_id: Option<&str>,
+        mode_id: Option<&str>,
+    ) -> std::result::Result<(), CreationAttemptRepositoryError> {
+        if model_id.is_none() && mode_id.is_none() {
+            return Ok(());
+        }
 
-        Ok(row)
+        let attempt = CreationAttempt::find_by_id(attempt_id)
+            .one(db)
+            .await?
+            .ok_or_else(|| CreationAttemptRepositoryError::NotFound {
+                attempt_id: attempt_id.to_string(),
+            })?;
+        if attempt.status != CreationAttemptStatus::Pending.as_str() {
+            return Err(CreationAttemptRepositoryError::NotPending {
+                attempt_id: attempt_id.to_string(),
+            });
+        }
+
+        let mut active: creation_attempt::ActiveModel = attempt.into();
+        if let Some(model_id) = model_id {
+            active.model_id = Set(Some(model_id.to_string()));
+        }
+        if let Some(mode_id) = mode_id {
+            active.mode_id = Set(Some(mode_id.to_string()));
+        }
+        active.updated_at = Set(Utc::now());
+        active.update(db).await?;
+        Ok(())
     }
 
+    #[allow(clippy::too_many_arguments)]
     async fn insert_creation_attempt_in_transaction(
         txn: &DatabaseTransaction,
         attempt_id: Option<String>,
@@ -316,6 +368,8 @@ impl SessionMetadataRepository {
         worktree_path: Option<&str>,
         launch_token: Option<String>,
         sequence_id: Option<i32>,
+        model_id: Option<&str>,
+        mode_id: Option<&str>,
     ) -> std::result::Result<CreationAttemptRow, CreationAttemptRepositoryError> {
         let pending_count = CreationAttempt::find()
             .filter(creation_attempt::Column::ProjectPath.eq(project_path))
@@ -344,6 +398,8 @@ impl SessionMetadataRepository {
             failure_reason: Set(None),
             provider_session_id: Set(None),
             sequence_id: Set(sequence_id),
+            model_id: Set(model_id.map(str::to_string)),
+            mode_id: Set(mode_id.map(str::to_string)),
             created_at: Set(now),
             updated_at: Set(now),
         };
@@ -1022,6 +1078,8 @@ impl SessionMetadataRepository {
                 None,
                 Some(launch_token.clone()),
                 Some(next_sequence_id),
+                None,
+                None,
             )
             .await;
 

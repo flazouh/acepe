@@ -9,6 +9,7 @@ export interface ResolveSelectorsLoadingInput {
 	readonly modelsDisplay: ModelsForDisplay | null;
 	readonly isCacheLoaded: boolean;
 	readonly isPreconnectionLoading: boolean;
+	readonly resolvableModelId: string | null;
 }
 
 export function hasUsableModelsDisplay(
@@ -29,25 +30,49 @@ export function hasToolbarCapabilityData(input: {
 	);
 }
 
-export function resolveSelectorsLoading(input: ResolveSelectorsLoadingInput): boolean {
-	const hasToolbarData = hasToolbarCapabilityData({
+export function hasResolvableToolbarSelection(input: {
+	readonly resolvableModelId: string | null;
+	readonly isCacheLoaded: boolean;
+	readonly availableModelsCount: number;
+	readonly visibleModesCount: number;
+	readonly modelsDisplay: ModelsForDisplay | null;
+}): boolean {
+	if (input.resolvableModelId) {
+		return true;
+	}
+
+	if (input.isCacheLoaded && input.availableModelsCount > 0) {
+		return true;
+	}
+
+	return hasToolbarCapabilityData({
 		visibleModesCount: input.visibleModesCount,
 		availableModelsCount: input.availableModelsCount,
 		modelsDisplay: input.modelsDisplay,
 	});
+}
 
-	if (input.hasSession && input.isSessionConnecting && !hasToolbarData) {
+export function resolveSelectorsLoading(input: ResolveSelectorsLoadingInput): boolean {
+	const hasResolvableSelection = hasResolvableToolbarSelection({
+		resolvableModelId: input.resolvableModelId,
+		isCacheLoaded: input.isCacheLoaded,
+		availableModelsCount: input.availableModelsCount,
+		visibleModesCount: input.visibleModesCount,
+		modelsDisplay: input.modelsDisplay,
+	});
+
+	if (input.hasSession && input.isSessionConnecting && !hasResolvableSelection) {
 		return true;
 	}
 
-	if (!input.hasSession && input.hasSelectedAgent && !hasToolbarData && !input.isCacheLoaded) {
+	if (!input.hasSession && input.hasSelectedAgent && !hasResolvableSelection && !input.isCacheLoaded) {
 		return true;
 	}
 
 	if (
 		!input.hasSession &&
 		input.hasSelectedAgent &&
-		!hasToolbarData &&
+		!hasResolvableSelection &&
 		input.isPreconnectionLoading
 	) {
 		return true;

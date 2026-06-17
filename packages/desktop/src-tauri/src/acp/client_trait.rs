@@ -37,7 +37,14 @@ pub trait AgentClient: Send + Sync {
     /// Most providers synchronously return their provider-owned session id and do
     /// not need this hook. Stream-verified providers use it to promote the
     /// attempt only after the first stream confirms the provider identity.
-    fn bind_pending_creation_attempt(&mut self, _attempt_id: Option<String>) {}
+    fn bind_pending_creation_attempt(
+        &mut self,
+        attempt_id: Option<String>,
+        pending_model_id: Option<String>,
+        pending_mode_id: Option<String>,
+    ) {
+        let _ = (attempt_id, pending_model_id, pending_mode_id);
+    }
 
     fn begin_pre_reservation_drain(&self, _session_id: &str) {}
 

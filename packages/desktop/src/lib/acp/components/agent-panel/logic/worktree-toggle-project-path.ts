@@ -8,7 +8,7 @@ interface ResolveWorktreeToggleProjectPathInput {
 export function resolveWorktreeToggleProjectPath(
 	input: ResolveWorktreeToggleProjectPathInput
 ): string | null {
-	if (input.hasSession) {
+	if (input.sessionProjectPath) {
 		return input.sessionProjectPath;
 	}
 

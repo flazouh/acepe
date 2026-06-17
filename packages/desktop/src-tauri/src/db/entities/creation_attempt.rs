@@ -20,6 +20,8 @@ pub struct Model {
     pub failure_reason: Option<String>,
     pub provider_session_id: Option<String>,
     pub sequence_id: Option<i32>,
+    pub model_id: Option<String>,
+    pub mode_id: Option<String>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }

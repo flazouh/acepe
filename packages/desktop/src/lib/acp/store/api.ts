@@ -56,9 +56,17 @@ export function resumeSession(
 export function newSession(
 	cwd: string,
 	agentId?: string,
-	launchToken?: string
+	launchToken?: string,
+	initialModelId?: string,
+	initialModeId?: string
 ): ResultAsync<ResumeSessionResult, AppError> {
-	return tauriClient.acp.newSession(cwd, agentId, launchToken);
+	return tauriClient.acp.newSession(
+		cwd,
+		agentId,
+		launchToken,
+		initialModelId,
+		initialModeId
+	);
 }
 
 /**

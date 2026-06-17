@@ -556,6 +556,12 @@ impl ClaudeCcSdkClient {
             )
         })?;
         let cwd_string = cwd.to_string_lossy().into_owned();
+        let available_models = self.discover_models_from_provider_cli().await;
+        let available_model_ids = available_models
+            .iter()
+            .map(|model| model.model_id.clone())
+            .collect::<Vec<_>>();
+        self.sanitize_pending_model_for_connect(&available_model_ids);
         let options = self.build_options(&cwd_string, &session_id, None, false);
         tracing::info!(
             session_id = %session_id,
@@ -625,6 +631,21 @@ impl ClaudeCcSdkClient {
         tracing::info!(session_id = ?self.session_id, "cc-sdk: send_user_message completed");
         Ok(())
     }
+
+    fn sanitize_pending_model_for_connect(&mut self, available_model_ids: &[String]) {
+        let Some(pending_model_id) = self.pending_model_id.as_ref() else {
+            return;
+        };
+        if available_model_ids.is_empty() {
+            return;
+        }
+        if !available_model_ids
+            .iter()
+            .any(|model_id| model_id == pending_model_id)
+        {
+            self.pending_model_id = None;
+        }
+    }
 }
 
 fn map_to_claude_permission_mode(mode_id: &str) -> cc_sdk::PermissionMode {
@@ -670,8 +691,15 @@ impl AgentClient for ClaudeCcSdkClient {
         })
     }
 
-    fn bind_pending_creation_attempt(&mut self, attempt_id: Option<String>) {
+    fn bind_pending_creation_attempt(
+        &mut self,
+        attempt_id: Option<String>,
+        pending_model_id: Option<String>,
+        pending_mode_id: Option<String>,
+    ) {
         self.pending_creation_attempt_id = attempt_id;
+        self.pending_model_id = pending_model_id;
+        self.pending_mode_id = pending_mode_id;
     }
 
     async fn new_session(&mut self, cwd: String) -> AcpResult<NewSessionResponse> {

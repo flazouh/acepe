@@ -26,7 +26,29 @@ vi.mock("$lib/analytics.js", () => ({
 }));
 
 import type { SessionCold } from "../../application/dto/session-cold.js";
+import type { CreatedPendingSessionResult } from "../services/session-connection-manager.js";
+import { extractProjectName } from "../../utils/path-utils.js";
+import { generateFallbackProjectColor } from "../../utils/project-utils.js";
 import { SessionStore } from "../session-store.svelte.js";
+
+function createPendingSessionResult(
+	overrides: Partial<CreatedPendingSessionResult> = {}
+): CreatedPendingSessionResult {
+	const projectPath = overrides.projectPath ?? "/repo";
+	return {
+		kind: "pending",
+		sessionId: overrides.sessionId ?? "provider-requested-id",
+		creationAttemptId: overrides.creationAttemptId ?? "attempt-1",
+		projectPath,
+		projectName: overrides.projectName ?? extractProjectName(projectPath),
+		projectColor: overrides.projectColor ?? generateFallbackProjectColor(projectPath),
+		managed: true,
+		sequenceId: overrides.sequenceId ?? null,
+		agentId: overrides.agentId ?? "claude-code",
+		title: overrides.title ?? "Build stable panels",
+		worktreePath: overrides.worktreePath ?? null,
+	};
+}
 
 function createSession(overrides: Partial<SessionCold> = {}): SessionCold {
 	return {
@@ -406,17 +428,7 @@ describe("SessionStore.createSession", () => {
 		};
 
 		storeWithInternals.connectionMgr = {
-			createSession: vi.fn(() =>
-				okAsync({
-					kind: "pending" as const,
-					sessionId: "provider-requested-id",
-					creationAttemptId: "attempt-1",
-					projectPath: "/repo",
-					agentId: "claude-code",
-					title: "Build stable panels",
-					worktreePath: null,
-				})
-			),
+			createSession: vi.fn(() => okAsync(createPendingSessionResult())),
 		};
 
 		const result = await store.connection.createSession({
@@ -425,15 +437,7 @@ describe("SessionStore.createSession", () => {
 		});
 
 		expect(result.isOk()).toBe(true);
-		expect(result._unsafeUnwrap()).toEqual({
-			kind: "pending",
-			sessionId: "provider-requested-id",
-			creationAttemptId: "attempt-1",
-			projectPath: "/repo",
-			agentId: "claude-code",
-			title: "Build stable panels",
-			worktreePath: null,
-		});
+		expect(result._unsafeUnwrap()).toEqual(createPendingSessionResult());
 		expect(store.read.getAllSessions()).toEqual([]);
 		expect(store.connection.hasPendingCreationSession("provider-requested-id")).toBe(true);
 
@@ -462,7 +466,7 @@ describe("SessionStore.createSession", () => {
 		expect(store.connection.hasPendingCreationSession("provider-requested-id")).toBe(false);
 	});
 
-	it("fills sequence id when an early event materializes a deferred session before the graph", async () => {
+	it("materializes pending creation with projected sequence id before promotion", async () => {
 		const storeWithInternals = store as unknown as {
 			connectionMgr: {
 				createSession: ReturnType<typeof vi.fn>;
@@ -471,16 +475,28 @@ describe("SessionStore.createSession", () => {
 
 		storeWithInternals.connectionMgr = {
 			createSession: vi.fn(() =>
-				okAsync({
-					kind: "pending" as const,
-					sessionId: "provider-requested-id",
-					creationAttemptId: "attempt-1",
-					projectPath: "/repo",
-					agentId: "claude-code",
-					title: "Build stable panels",
-					worktreePath: null,
-				})
+				okAsync(createPendingSessionResult({ sequenceId: 12 }))
 			),
+		};
+
+		await store.connection.createSession({
+			projectPath: "/repo",
+			agentId: "claude-code",
+		});
+
+		expect(store.connection.materializePendingCreationSession("provider-requested-id")).toBe(true);
+		expect(store.read.getSessionMetadata("provider-requested-id")?.sequenceId).toBe(12);
+	});
+
+	it("fills sequence id when an early event materializes a deferred session before the graph", async () => {
+		const storeWithInternals = store as unknown as {
+			connectionMgr: {
+				createSession: ReturnType<typeof vi.fn>;
+			};
+		};
+
+		storeWithInternals.connectionMgr = {
+			createSession: vi.fn(() => okAsync(createPendingSessionResult())),
 		};
 
 		await store.connection.createSession({
@@ -588,17 +604,7 @@ describe("SessionStore.createSession", () => {
 		};
 
 		storeWithInternals.connectionMgr = {
-			createSession: vi.fn(() =>
-				okAsync({
-					kind: "pending" as const,
-					sessionId: "provider-requested-id",
-					creationAttemptId: "attempt-1",
-					projectPath: "/repo",
-					agentId: "claude-code",
-					title: "Build stable panels",
-					worktreePath: null,
-				})
-			),
+			createSession: vi.fn(() => okAsync(createPendingSessionResult())),
 		};
 
 		await store.connection.createSession({
@@ -634,15 +640,12 @@ describe("SessionStore.createSession", () => {
 
 		storeWithInternals.connectionMgr = {
 			createSession: vi.fn(() =>
-				okAsync({
-					kind: "pending" as const,
-					sessionId: "requested-local-id",
-					creationAttemptId: "attempt-1",
-					projectPath: "/repo",
-					agentId: "claude-code",
-					title: "Aliased Thread",
-					worktreePath: null,
-				})
+				okAsync(
+					createPendingSessionResult({
+						sessionId: "requested-local-id",
+						title: "Aliased Thread",
+					})
+				)
 			),
 		};
 
@@ -676,15 +679,12 @@ describe("SessionStore.createSession", () => {
 
 	it("migrates the first-send pending intent when an aliased pending creation becomes canonical", async () => {
 		vi.spyOn(store.connectionMgr, "createSession").mockReturnValue(
-			okAsync({
-				kind: "pending" as const,
-				sessionId: "requested-local-id",
-				creationAttemptId: "attempt-1",
-				projectPath: "/repo",
-				agentId: "claude-code",
-				title: "Aliased Thread",
-				worktreePath: null,
-			})
+			okAsync(
+				createPendingSessionResult({
+					sessionId: "requested-local-id",
+					title: "Aliased Thread",
+				})
+			)
 		);
 
 		await store.connection.createSession({
@@ -735,15 +735,12 @@ describe("SessionStore.createSession", () => {
 
 		storeWithInternals.connectionMgr = {
 			createSession: vi.fn(() =>
-				okAsync({
-					kind: "pending" as const,
-					sessionId: "pending-session",
-					creationAttemptId: "attempt-1",
-					projectPath: "/repo",
-					agentId: "claude-code",
-					title: "Failed Thread",
-					worktreePath: null,
-				})
+				okAsync(
+					createPendingSessionResult({
+						sessionId: "pending-session",
+						title: "Failed Thread",
+					})
+				)
 			),
 		};
 

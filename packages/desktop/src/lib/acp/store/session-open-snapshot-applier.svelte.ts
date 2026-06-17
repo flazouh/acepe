@@ -251,7 +251,7 @@ export class SessionOpenSnapshotApplier {
 			updatedAt: now,
 			createdAt: now,
 			sourcePath: graph.sourcePath ?? undefined,
-			sequenceId: graph.sequenceId ?? undefined,
+			sequenceId: graph.sequenceId ?? pendingCreation.sequenceId ?? undefined,
 			sessionLifecycleState: graph.sourcePath ? "persisted" : "created",
 			parentId: null,
 		});

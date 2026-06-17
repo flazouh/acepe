@@ -36,14 +36,25 @@ describe("resolveWorktreeToggleProjectPath", () => {
 		).toBe("/repo/only-project");
 	});
 
-	it("does not fall back to selected project while session project is unresolved", () => {
+	it("falls back to selected project when session project is unresolved during connecting", () => {
 		expect(
 			resolveWorktreeToggleProjectPath({
 				hasSession: true,
 				sessionProjectPath: null,
-				selectedProjectPath: "/repo/incorrect-fallback",
-				singleProjectPath: "/repo/incorrect-single-fallback",
+				selectedProjectPath: "/repo/pending-session-project",
+				singleProjectPath: "/repo/single-fallback",
 			})
-		).toBeNull();
+		).toBe("/repo/pending-session-project");
+	});
+
+	it("falls back to single project when session project and selection are unresolved", () => {
+		expect(
+			resolveWorktreeToggleProjectPath({
+				hasSession: true,
+				sessionProjectPath: null,
+				selectedProjectPath: null,
+				singleProjectPath: "/repo/only-project",
+			})
+		).toBe("/repo/only-project");
 	});
 });

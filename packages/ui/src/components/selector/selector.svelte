@@ -137,7 +137,7 @@
 			case "square":
 				return "h-7 w-7 shrink-0 rounded-none border-0 p-0 gap-0 text-muted-foreground hover:bg-muted/80 hover:text-foreground";
 			case "attach":
-				return "!size-6 shrink-0 rounded-lg gap-0 !p-0";
+				return "size-5 min-w-0 shrink-0 rounded-md gap-0 !p-0";
 			case "minimal":
 				return "!border-0 !h-[26px] rounded-md hover:rounded-full transition-[border-radius] gap-1.5 px-2 text-[11px]";
 			case "pill":

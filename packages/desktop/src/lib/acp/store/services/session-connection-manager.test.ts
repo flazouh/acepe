@@ -21,6 +21,8 @@ import type { IEntryManager } from "./interfaces/entry-manager.js";
 import type { ISessionStateReader } from "./interfaces/session-state-reader.js";
 import type { ISessionStateWriter } from "./interfaces/session-state-writer.js";
 import type { ITransientProjectionManager } from "./interfaces/transient-projection-manager.js";
+import { extractProjectName } from "../../utils/path-utils.js";
+import { generateFallbackProjectColor } from "../../utils/project-utils.js";
 
 let SessionConnectionManager: typeof import("./session-connection-manager.js").SessionConnectionManager;
 
@@ -1785,12 +1787,126 @@ describe("SessionConnectionManager.createSession", () => {
 			sessionId: "provider-requested-id",
 			creationAttemptId: "attempt-1",
 			projectPath,
+			projectName: extractProjectName(projectPath),
+			projectColor: generateFallbackProjectColor(projectPath),
+			managed: true,
+			sequenceId: null,
 			agentId,
 			title: null,
 			worktreePath: null,
 		});
 		expect(stateWriter.addSession).not.toHaveBeenCalled();
 		expect(transientProjection.initializeTransientProjection).toHaveBeenCalledWith("provider-requested-id");
+	});
+
+	it("projects deferred creation identity onto the pending session result", async () => {
+		newSession.mockReturnValue(
+			okAsync({
+				sessionId: "provider-requested-id",
+				creationAttemptId: "attempt-1",
+				deferredCreation: true,
+				sequenceId: 7,
+				modes: {
+					currentModeId: "build",
+					availableModes: [{ id: "build", name: "Build", description: null }],
+				},
+				models: {
+					currentModelId: "claude-sonnet-4.6",
+					availableModels: [
+						{
+							modelId: "claude-sonnet-4.6",
+							name: "Claude Sonnet 4.6",
+							description: null,
+						},
+					],
+				},
+				availableCommands: [],
+			})
+		);
+		const manager = createManager({
+			stateReader,
+			stateWriter,
+			transientProjection,
+			capabilities,
+			entryManager,
+			connectionManager,
+		});
+
+		const result = await manager.createSession({ projectPath, agentId }, createMockEventHandler());
+		const created = result._unsafeUnwrap();
+
+		expect(created).toEqual({
+			kind: "pending",
+			sessionId: "provider-requested-id",
+			creationAttemptId: "attempt-1",
+			projectPath,
+			projectName: extractProjectName(projectPath),
+			projectColor: generateFallbackProjectColor(projectPath),
+			managed: true,
+			sequenceId: 7,
+			agentId,
+			title: null,
+			worktreePath: null,
+		});
+	});
+
+	it("forwards explicit initial model/mode to newSession for deferred creation", async () => {
+		newSession.mockReturnValue(
+			okAsync({
+				sessionId: "provider-requested-id",
+				creationAttemptId: "attempt-1",
+				deferredCreation: true,
+				modes: {
+					currentModeId: "build",
+					availableModes: [{ id: "build", name: "Build", description: null }],
+				},
+				models: {
+					currentModelId: "claude-opus-4-6",
+					availableModels: [
+						{
+							modelId: "claude-opus-4-6",
+							name: "Claude Opus 4.6",
+							description: null,
+						},
+						{
+							modelId: "claude-sonnet-4-6",
+							name: "Claude Sonnet 4.6",
+							description: null,
+						},
+					],
+				},
+				availableCommands: [],
+			})
+		);
+		const manager = createManager({
+			stateReader,
+			stateWriter,
+			transientProjection,
+			capabilities,
+			entryManager,
+			connectionManager,
+		});
+
+		const result = await manager.createSession(
+			{
+				projectPath,
+				agentId,
+				initialModeId: "plan",
+				initialModelId: "claude-sonnet-4-6",
+			},
+			createMockEventHandler()
+		);
+		result._unsafeUnwrap();
+
+		expect(newSession).toHaveBeenCalledWith(
+			projectPath,
+			agentId,
+			undefined,
+			"claude-sonnet-4-6",
+			"plan"
+		);
+		expect(setMode).not.toHaveBeenCalled();
+		expect(setModel).not.toHaveBeenCalled();
 	});
 
 	it("surfaces typed backend creation failures without adding a local session", async () => {

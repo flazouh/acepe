@@ -33,6 +33,8 @@ import {
 } from "../../errors/app-error.js";
 import { sessionColdFromSlices } from "../../application/dto/session-cold.js";
 import { createLogger } from "../../utils/logger.js";
+import { extractProjectName } from "../../utils/path-utils.js";
+import { generateFallbackProjectColor } from "../../utils/project-utils.js";
 import * as preferencesStore from "../agent-model-preferences-store.svelte.js";
 import { api } from "../api.js";
 import type { SessionEventHandler } from "../session-event-handler.js";
@@ -88,6 +90,10 @@ export interface CreatedPendingSessionResult {
 	readonly sessionId: string;
 	readonly creationAttemptId: string | null;
 	readonly projectPath: string;
+	readonly projectName: string;
+	readonly projectColor: string;
+	readonly managed: true;
+	readonly sequenceId: number | null;
 	readonly agentId: string;
 	readonly title: string | null;
 	readonly worktreePath: string | null;
@@ -374,7 +380,13 @@ export class SessionConnectionManager {
 			agentId: options.agentId,
 		});
 		return api
-			.newSession(sessionCwd, options.agentId, options.launchToken)
+			.newSession(
+				sessionCwd,
+				options.agentId,
+				options.launchToken,
+				options.initialModelId,
+				options.initialModeId
+			)
 			.andThen((result) =>
 				preferencesStore
 					.ensureLoaded()
@@ -426,6 +438,7 @@ export class SessionConnectionManager {
 					logger.info("Deferred session creation is pending provider identity promotion", {
 						sessionId,
 						creationAttemptId: result.creationAttemptId ?? null,
+						sequenceId: result.sequenceId ?? null,
 						agentId: options.agentId,
 					});
 					return okAsync({
@@ -433,6 +446,10 @@ export class SessionConnectionManager {
 						sessionId,
 						creationAttemptId: result.creationAttemptId ?? null,
 						projectPath: options.projectPath,
+						projectName: extractProjectName(options.projectPath),
+						projectColor: generateFallbackProjectColor(options.projectPath),
+						managed: true as const,
+						sequenceId: result.sequenceId ?? null,
 						agentId: options.agentId,
 						title: options.title ?? null,
 						worktreePath: options.worktreePath ?? null,

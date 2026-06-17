@@ -1523,7 +1523,52 @@ mod session_metadata_tests {
     }
 
     #[tokio::test]
-    async fn creation_attempt_stores_intent_without_session_metadata_or_sequence() {
+    async fn creation_attempt_persists_initial_model_and_mode() {
+        let db = setup_test_db().await;
+
+        let attempt = SessionMetadataRepository::create_creation_attempt(
+            &db,
+            "/project",
+            "claude-code",
+            None,
+            Some("claude-sonnet-4-6"),
+            Some("plan"),
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(attempt.model_id.as_deref(), Some("claude-sonnet-4-6"));
+        assert_eq!(attempt.mode_id.as_deref(), Some("plan"));
+
+        let loaded = SessionMetadataRepository::get_creation_attempt(&db, &attempt.id)
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(loaded.model_id.as_deref(), Some("claude-sonnet-4-6"));
+        assert_eq!(loaded.mode_id.as_deref(), Some("plan"));
+    }
+
+    #[tokio::test]
+    async fn creation_attempt_leaves_model_and_mode_null_when_unset() {
+        let db = setup_test_db().await;
+
+        let attempt = SessionMetadataRepository::create_creation_attempt(
+            &db,
+            "/project",
+            "claude-code",
+            None,
+            None,
+            None,
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(attempt.model_id, None);
+        assert_eq!(attempt.mode_id, None);
+    }
+
+    #[tokio::test]
+    async fn creation_attempt_assigns_sequence_id_without_session_metadata() {
         let db = setup_test_db().await;
 
         let attempt = SessionMetadataRepository::create_creation_attempt(
@@ -1531,6 +1576,8 @@ mod session_metadata_tests {
             "/project",
             "claude-code",
             Some("/project/.worktrees/feature-a"),
+            None,
+            None,
         )
         .await
         .unwrap();
@@ -1543,7 +1590,7 @@ mod session_metadata_tests {
             attempt.worktree_path.as_deref(),
             Some("/project/.worktrees/feature-a")
         );
-        assert_eq!(attempt.sequence_id, None);
+        assert_eq!(attempt.sequence_id, Some(1));
 
         let metadata = SessionMetadataRepository::get_by_id(&db, &attempt.id)
             .await
@@ -1557,12 +1604,102 @@ mod session_metadata_tests {
     }
 
     #[tokio::test]
+    async fn creation_attempt_assigns_distinct_increasing_sequence_ids_per_project() {
+        let db = setup_test_db().await;
+
+        let first = SessionMetadataRepository::create_creation_attempt(
+            &db,
+            "/project",
+            "claude-code",
+            None,
+            None,
+            None,
+        )
+        .await
+        .unwrap();
+        let second = SessionMetadataRepository::create_creation_attempt(
+            &db,
+            "/project",
+            "claude-code",
+            None,
+            None,
+            None,
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(first.sequence_id, Some(1));
+        assert_eq!(second.sequence_id, Some(2));
+    }
+
+    #[tokio::test]
+    async fn creation_attempt_does_not_recycle_sequence_id_from_abandoned_attempt() {
+        let db = setup_test_db().await;
+
+        let abandoned = SessionMetadataRepository::create_creation_attempt(
+            &db,
+            "/project",
+            "claude-code",
+            None,
+            None,
+            None,
+        )
+        .await
+        .unwrap();
+        assert_eq!(abandoned.sequence_id, Some(1));
+
+        SessionMetadataRepository::fail_creation_attempt(&db, &abandoned.id, "abandoned")
+            .await
+            .unwrap();
+
+        let next = SessionMetadataRepository::create_creation_attempt(
+            &db,
+            "/project",
+            "claude-code",
+            None,
+            None,
+            None,
+        )
+        .await
+        .unwrap();
+        assert_eq!(next.sequence_id, Some(2));
+    }
+
+    #[tokio::test]
+    async fn promoting_creation_attempt_reuses_existing_attempt_sequence_id() {
+        let db = setup_test_db().await;
+        let attempt = SessionMetadataRepository::create_creation_attempt(
+            &db,
+            "/project",
+            "claude-code",
+            None,
+            None,
+            None,
+        )
+        .await
+        .unwrap();
+        assert_eq!(attempt.sequence_id, Some(1));
+
+        let promoted = SessionMetadataRepository::promote_creation_attempt(
+            &db,
+            &attempt.id,
+            "provider-canonical-id",
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(promoted.sequence_id, Some(1));
+    }
+
+    #[tokio::test]
     async fn promoting_creation_attempt_allocates_sequence_inside_canonical_session_transaction() {
         let db = setup_test_db().await;
         let attempt = SessionMetadataRepository::create_creation_attempt(
             &db,
             "/project",
             "claude-code",
+            None,
+            None,
             None,
         )
         .await
@@ -1603,11 +1740,13 @@ mod session_metadata_tests {
             "/project",
             "claude-code",
             None,
+            None,
+            None,
         )
         .await
         .unwrap();
         let recent =
-            SessionMetadataRepository::create_creation_attempt(&db, "/project", "copilot", None)
+            SessionMetadataRepository::create_creation_attempt(&db, "/project", "copilot", None, None, None)
                 .await
                 .unwrap();
 
@@ -1662,6 +1801,8 @@ mod session_metadata_tests {
                 "/project",
                 "claude-code",
                 None,
+                None,
+                None,
             )
             .await
             .unwrap();
@@ -1671,6 +1812,8 @@ mod session_metadata_tests {
             &db,
             "/project",
             "claude-code",
+            None,
+            None,
             None,
         )
         .await

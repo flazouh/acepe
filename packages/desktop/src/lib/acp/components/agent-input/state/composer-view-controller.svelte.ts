@@ -542,6 +542,7 @@ export class ComposerViewController {
 					this.effectiveCapabilityProviderMetadata?.preconnectionCapabilityMode ??
 					"unsupported",
 			}),
+			resolvableModelId: this.effectiveCurrentModelId,
 		})
 	);
 
