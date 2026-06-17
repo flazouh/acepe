@@ -76,6 +76,7 @@ import { AgentPanelRootState } from "../state/agent-panel-root-state.svelte.js";
 import { shouldAutoScrollOnPanelActivation } from "../logic/should-auto-scroll-on-panel-activation.js";
 import { isInteractiveClickTarget } from "../logic/panel-focus-guard.js";
 import { deriveAgentPanelHeaderDisplayTitle } from "../logic/agent-panel-header-title.js";
+import { resolveAgentPanelHeaderSequenceId } from "../logic/agent-panel-header-sequence-id.js";
 import { resolveAgentPanelProviderBrand } from "../logic/agent-panel-provider-brand.js";
 import { resolveWorktreeToggleProjectPath } from "../logic/worktree-toggle-project-path.js";
 import { buildTodoMarkdown } from "./agent-panel-pure-helpers.js";
@@ -566,7 +567,18 @@ const displayProjectName = $derived.by(() => {
 	return effectiveProjectName ?? "Project";
 });
 
-const sequenceId = $derived(sessionController.sessionMetadata ? (sessionController.sessionMetadata.sequenceId ?? null) : null);
+const sequenceId = $derived.by(() => {
+	const id = sessionId;
+	if (id === null) {
+		return null;
+	}
+	const pendingCreation = sessionStore.getPendingCreationSession(id);
+	return resolveAgentPanelHeaderSequenceId({
+		sessionMetadataSequenceId: sessionController.sessionMetadata?.sequenceId,
+		pendingCreationSequenceId: pendingCreation?.sequenceId ?? null,
+		hasPendingCreationSession: sessionStore.hasPendingCreationSession(id),
+	});
+});
 
 const displayTitle = $derived.by(() => {
 	return deriveAgentPanelHeaderDisplayTitle({

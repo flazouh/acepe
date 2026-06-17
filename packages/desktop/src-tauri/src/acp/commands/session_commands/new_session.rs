@@ -136,8 +136,12 @@ pub async fn acp_new_session(
                     true,
                 )
             })?;
-            let pending_model_id = attempt.as_ref().and_then(|row| row.model_id.clone());
-            let pending_mode_id = attempt.as_ref().and_then(|row| row.mode_id.clone());
+            let attempt = require_creation_attempt_for_deferred_bind(
+                &creation_attempt_id,
+                attempt,
+            )?;
+            let pending_model_id = attempt.model_id.clone();
+            let pending_mode_id = attempt.mode_id.clone();
             client.bind_pending_creation_attempt(
                 Some(creation_attempt_id.clone()),
                 pending_model_id,
@@ -413,4 +417,67 @@ pub async fn acp_new_session(
         })
     }
     .await)
+}
+
+fn require_creation_attempt_for_deferred_bind(
+    attempt_id: &str,
+    attempt: Option<crate::db::repository::CreationAttemptRow>,
+) -> Result<crate::db::repository::CreationAttemptRow, SerializableAcpError> {
+    attempt.ok_or_else(|| {
+        creation_failure(
+            CreationFailureKind::MetadataCommitFailed,
+            format!("Creation attempt {attempt_id} missing for deferred bind"),
+            None,
+            Some(attempt_id.to_string()),
+            true,
+        )
+    })
+}
+
+#[cfg(test)]
+mod deferred_bind_tests {
+    use super::require_creation_attempt_for_deferred_bind;
+    use crate::db::repository::{CreationAttemptRow, CreationAttemptStatus};
+    use chrono::Utc;
+
+    fn sample_attempt(id: &str) -> CreationAttemptRow {
+        let now = Utc::now();
+        CreationAttemptRow {
+            id: id.to_string(),
+            project_path: "/project".to_string(),
+            agent_id: "claude-code".to_string(),
+            worktree_path: None,
+            launch_token: None,
+            status: CreationAttemptStatus::Pending.as_str().to_string(),
+            failure_reason: None,
+            provider_session_id: None,
+            sequence_id: Some(1),
+            model_id: Some("claude-sonnet-4-6".to_string()),
+            mode_id: None,
+            created_at: now,
+            updated_at: now,
+        }
+    }
+
+    #[test]
+    fn require_creation_attempt_for_deferred_bind_returns_row_when_present() {
+        let attempt = sample_attempt("attempt-1");
+        let loaded = require_creation_attempt_for_deferred_bind("attempt-1", Some(attempt.clone()))
+            .expect("attempt should load");
+
+        assert_eq!(loaded.id, attempt.id);
+        assert_eq!(loaded.model_id, attempt.model_id);
+    }
+
+    #[test]
+    fn require_creation_attempt_for_deferred_bind_fails_when_row_is_missing() {
+        let error = require_creation_attempt_for_deferred_bind("attempt-1", None)
+            .expect_err("missing attempt should fail closed");
+
+        assert!(
+            error
+                .to_string()
+                .contains("Creation attempt attempt-1 missing for deferred bind")
+        );
+    }
 }

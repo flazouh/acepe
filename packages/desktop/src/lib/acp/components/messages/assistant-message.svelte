@@ -3,6 +3,7 @@ const persistedThinkingCollapseByMessageId = new Map<string, boolean>();
 </script>
 
 <script lang="ts">
+import { untrack } from "svelte";
 import { AgentToolThinking, AgentThinkingDurationHeader } from "@acepe/ui/agent-panel";
 import { getChatPreferencesStore } from "../../store/chat-preferences-store.svelte.js";
 import type { AssistantMessage } from "../../types/assistant-message.js";
@@ -78,34 +79,29 @@ function scheduleThinkingFollow(): void {
 }
 
 const chatPrefs = getChatPreferencesStore();
-let isCollapsed = $state(false);
-let hasInitializedCollapse = $state(false);
+
+function readPersistedManualCollapse(): boolean | null {
+	if (messageId !== undefined && persistedThinkingCollapseByMessageId.has(messageId)) {
+		return persistedThinkingCollapseByMessageId.get(messageId) === true;
+	}
+	return null;
+}
+
+let manualCollapseOverride = $state<boolean | null>(untrack(readPersistedManualCollapse));
+
+const isCollapsed = $derived(
+	manualCollapseOverride ??
+		(isStreaming
+			? false
+			: (chatPrefs?.thinkingBlockCollapsedByDefault ?? false))
+);
 
 function persistThinkingCollapse(next: boolean): void {
+	manualCollapseOverride = next;
 	if (messageId !== undefined) {
 		persistedThinkingCollapseByMessageId.set(messageId, next);
 	}
 }
-
-$effect(() => {
-	const prefs = chatPrefs;
-	if (hasInitializedCollapse) return;
-	if (messageId !== undefined && persistedThinkingCollapseByMessageId.has(messageId)) {
-		isCollapsed = persistedThinkingCollapseByMessageId.get(messageId) === true;
-		hasInitializedCollapse = true;
-		return;
-	}
-	// No store (e.g. test harness): default expanded
-	if (!prefs) {
-		hasInitializedCollapse = true;
-		return;
-	}
-	if (prefs.isReady) {
-		isCollapsed = isStreaming ? false : prefs.thinkingBlockCollapsedByDefault;
-		persistThinkingCollapse(isCollapsed);
-		hasInitializedCollapse = true;
-	}
-});
 
 $effect(() => {
 	if (messageState.showThinkingBlock && isStreaming && !isCollapsed && thinkingContainerRef) {
@@ -150,11 +146,10 @@ $effect(() => {
 		<div class="space-y-1.5">
 			{#if messageState.showThinkingBlock}
 				<AgentToolThinking
-					showHeader={!isStreaming || messageState.safeMessage.thinkingDurationMs != null}
+					showHeader={true}
 					status={isStreaming ? "running" : "done"}
 					collapsed={isCollapsed}
 					onCollapseChange={(next: boolean) => {
-						isCollapsed = next;
 						persistThinkingCollapse(next);
 					}}
 					defaultExpanded={chatPrefs ? !chatPrefs.thinkingBlockCollapsedByDefault : false}

@@ -121,6 +121,12 @@ export class SessionStore implements SessionEventHandler {
 		return this.connection.hasPendingCreationSession(sessionId);
 	}
 
+	getPendingCreationSession(
+		sessionId: string
+	): import("./services/session-connection-manager.js").CreatedPendingSessionResult | null {
+		return this.connection.getPendingCreationSession(sessionId);
+	}
+
 	materializePendingCreationSession(sessionId: string): boolean {
 		return this.connection.materializePendingCreationSession(sessionId);
 	}

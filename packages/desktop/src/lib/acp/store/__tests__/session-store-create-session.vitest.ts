@@ -488,6 +488,46 @@ describe("SessionStore.createSession", () => {
 		expect(store.read.getSessionMetadata("provider-requested-id")?.sequenceId).toBe(12);
 	});
 
+	it("fills sequence id from pending creation when identity exists before graph sequence arrives", async () => {
+		const storeWithInternals = store as unknown as {
+			connectionMgr: {
+				createSession: ReturnType<typeof vi.fn>;
+			};
+		};
+
+		storeWithInternals.connectionMgr = {
+			createSession: vi.fn(() =>
+				okAsync(createPendingSessionResult({ sequenceId: 12 }))
+			),
+		};
+
+		await store.connection.createSession({
+			projectPath: "/repo",
+			agentId: "claude-code",
+		});
+
+		store.write.addSession(
+			createSession({
+				id: "provider-requested-id",
+				agentId: "claude-code",
+				title: "Build stable panels",
+			})
+		);
+
+		const materialized = store.ensureSessionFromStateGraph(
+			createSessionStateGraph({
+				requestedSessionId: "provider-requested-id",
+				canonicalSessionId: "provider-requested-id",
+				agentId: "claude-code",
+				projectPath: "/repo",
+				sequenceId: null,
+			})
+		);
+
+		expect(materialized).toBe(true);
+		expect(store.read.getSessionMetadata("provider-requested-id")?.sequenceId).toBe(12);
+	});
+
 	it("fills sequence id when an early event materializes a deferred session before the graph", async () => {
 		const storeWithInternals = store as unknown as {
 			connectionMgr: {

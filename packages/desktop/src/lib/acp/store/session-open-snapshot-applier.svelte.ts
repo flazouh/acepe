@@ -18,6 +18,7 @@ import { mapProjectionTurnFailure } from "./envelope-reducer/projection-turn-fai
 import { seedTranscriptEntryIndex } from "./transcript-entry-index.js";
 import type { SessionCreationCoordinator } from "./session-creation-coordinator.svelte.js";
 import type { SessionListState } from "./session-list-state.svelte.js";
+import { resolveSequenceIdBackfillForExistingSession } from "./session-sequence-id-backfill.js";
 import type {
 	SessionCold,
 	SessionIdentity,
@@ -225,6 +226,7 @@ export class SessionOpenSnapshotApplier {
 		}
 		if (this.#deps.getSessionIdentity(sessionId)) {
 			this.syncSessionSequenceFromGraph(graph);
+			this.syncSessionSequenceFromPendingCreation(sessionId, graph);
 			this.#deps.creationCoordinator.completePendingCreation(sessionId);
 			if (graph.isAlias) {
 				this.#deps.creationCoordinator.completePendingCreation(graph.requestedSessionId);
@@ -274,6 +276,33 @@ export class SessionOpenSnapshotApplier {
 			graph.canonicalSessionId,
 			{
 				sequenceId: graph.sequenceId,
+			},
+			{ touchUpdatedAt: false }
+		);
+	}
+
+	syncSessionSequenceFromPendingCreation(
+		sessionId: string,
+		graph: SessionStateGraph
+	): void {
+		const metadata = this.#deps.getSessionMetadata(sessionId);
+		const pendingCreation =
+			this.#deps.creationCoordinator.getPendingCreation(sessionId) ??
+			(graph.isAlias
+				? this.#deps.creationCoordinator.getPendingCreation(graph.requestedSessionId)
+				: null);
+		const sequenceId = resolveSequenceIdBackfillForExistingSession({
+			metadataSequenceId: metadata?.sequenceId,
+			graphSequenceId: graph.sequenceId,
+			pendingSequenceId: pendingCreation?.sequenceId ?? null,
+		});
+		if (sequenceId === null) {
+			return;
+		}
+		this.#deps.updateSession(
+			sessionId,
+			{
+				sequenceId,
 			},
 			{ touchUpdatedAt: false }
 		);

@@ -3,6 +3,7 @@ import type { Snippet } from "svelte";
 
 interface Props {
 	children?: Snippet;
+	header?: Snippet;
 	collapsed?: boolean;
 	headerLabel?: string;
 	onCollapseChange?: (collapsed: boolean) => void;
@@ -11,6 +12,7 @@ interface Props {
 
 let {
 	children,
+	header,
 	collapsed = false,
 	headerLabel = "Thought for 0s",
 	onCollapseChange,
@@ -27,7 +29,11 @@ let {
 				onCollapseChange?.(!collapsed);
 			}}
 		>
-			{headerLabel}
+			{#if header}
+				{@render header()}
+			{:else}
+				{headerLabel}
+			{/if}
 		</button>
 	{/if}
 

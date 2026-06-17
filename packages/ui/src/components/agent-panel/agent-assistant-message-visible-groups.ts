@@ -68,3 +68,26 @@ export function shouldStreamAssistantThoughtContent(input: {
 		input.isLastThoughtTextGroup
 	);
 }
+
+/**
+ * Token-reveal timing for a thinking thought group. While the model is still
+ * thinking (streaming, before any message content), the canonical active
+ * streaming tail IS the thought row, so the entry's `activeTokenRevealCss`
+ * describes the thought row's latest delta — apply it to the last thought group
+ * so the thinking body uses the same clock-anchored reveal as the message body.
+ * Earlier thought groups and the post-message state get no reveal.
+ */
+export function resolveThoughtGroupTokenRevealCss(input: {
+	readonly isStreaming?: boolean;
+	readonly hasMessageContent: boolean;
+	readonly isLastThoughtTextGroup: boolean;
+	readonly activeTokenRevealCss?: TokenRevealCss;
+}): TokenRevealCss | undefined {
+	return shouldStreamAssistantThoughtContent({
+		isStreaming: input.isStreaming,
+		hasMessageContent: input.hasMessageContent,
+		isLastThoughtTextGroup: input.isLastThoughtTextGroup,
+	})
+		? input.activeTokenRevealCss
+		: undefined;
+}

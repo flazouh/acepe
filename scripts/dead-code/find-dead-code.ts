@@ -36,6 +36,7 @@ type RootKind =
 
 type CandidateClassification =
 	| "production-reachable"
+	| "export-barrel-only"
 	| "script-only"
 	| "test-only"
 	| "static-root"
@@ -46,6 +47,7 @@ type CandidateClassification =
 
 const CANDIDATE_CLASSIFICATIONS = new Set<CandidateClassification>([
 	"production-reachable",
+	"export-barrel-only",
 	"script-only",
 	"test-only",
 	"static-root",
@@ -897,6 +899,14 @@ export function parseGitPorcelain(output: string): Candidate[] {
 	return candidates;
 }
 
+function isBarrelIndexPath(path: string): boolean {
+	return /\/index\.(?:ts|tsx|js|mjs|cjs)$/.test(path);
+}
+
+function edgesWithoutBarrelReExports(edges: readonly GraphEdge[]): readonly GraphEdge[] {
+	return edges.filter((edge) => !isBarrelIndexPath(edge.from));
+}
+
 function traverse(rootPaths: readonly string[], edges: readonly GraphEdge[]): Set<string> {
 	const adjacency = new Map<string, string[]>();
 	for (const edge of edges) {
@@ -931,6 +941,7 @@ function traverse(rootPaths: readonly string[], edges: readonly GraphEdge[]): Se
 function buildCounts(candidates: readonly Candidate[]): Readonly<Record<CandidateClassification, number>> {
 	const counts: Record<CandidateClassification, number> = {
 		"production-reachable": 0,
+		"export-barrel-only": 0,
 		"script-only": 0,
 		"test-only": 0,
 		"static-root": 0,
@@ -1018,6 +1029,14 @@ export function analyzeDeadCode(options: AnalysisOptions): Result<DeadCodeAnalys
 	const staticRoots = rootPathsByKind(roots, ["static-asset"]);
 
 	const productionReachable = traverse(productionRoots, collected.edges);
+	const directProductionReachable = traverse(
+		productionRoots,
+		edgesWithoutBarrelReExports(collected.edges)
+	);
+	const packageExportEntryReachable = traverse(
+		rootPathsByKind(roots, ["package-export"]),
+		collected.edges
+	);
 	const scriptReachable = traverse(scriptRoots, collected.edges);
 	const testReachable = traverse(testRoots, collected.edges);
 	const staticReachable = traverse(staticRoots, collected.edges);
@@ -1054,6 +1073,23 @@ export function analyzeDeadCode(options: AnalysisOptions): Result<DeadCodeAnalys
 				classification: "generated-vendor",
 				fileKind: kind,
 				reasons: ["generated or vendored path"],
+			});
+			continue;
+		}
+		if (
+			productionReachable.has(file) &&
+			!directProductionReachable.has(file) &&
+			!packageExportEntryReachable.has(file) &&
+			!isBarrelIndexPath(file) &&
+			kind === "source"
+		) {
+			candidates.push({
+				path: file,
+				classification: "export-barrel-only",
+				fileKind: kind,
+				reasons: [
+					"reachable only through index/barrel re-exports, with no direct production import",
+				],
 			});
 			continue;
 		}
@@ -1176,6 +1212,12 @@ export function formatMarkdownReport(analysis: DeadCodeAnalysis): string {
 	lines.push("## Strong Dead Candidates");
 	lines.push("");
 	lines.push(formatCandidateList(candidatesByClassification(analysis, "strong-dead"), 1000).trimEnd());
+	lines.push("");
+	lines.push("## Export-Barrel-Only Candidates");
+	lines.push("");
+	lines.push(
+		formatCandidateList(candidatesByClassification(analysis, "export-barrel-only"), 100).trimEnd()
+	);
 	lines.push("");
 	lines.push("## Test-Only Candidates");
 	lines.push("");

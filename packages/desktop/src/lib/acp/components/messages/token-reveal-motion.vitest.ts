@@ -8,8 +8,8 @@ import {
 } from "./token-reveal-motion.js";
 
 describe("TOKEN_REVEAL_STEP_MS", () => {
-	it("does not delay words inside one backend delta", () => {
-		expect(TOKEN_REVEAL_STEP_MS).toBe(0);
+	it("staggers words inside each backend delta for a smooth cascade", () => {
+		expect(TOKEN_REVEAL_STEP_MS).toBe(48);
 	});
 });
 

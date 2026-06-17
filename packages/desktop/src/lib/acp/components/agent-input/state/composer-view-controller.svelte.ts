@@ -32,6 +32,7 @@ import {
 	shouldShowActiveModeChip,
 	shouldShowSlashCommandDropdown,
 } from "../composer-controller.js";
+import { resolveResolvableToolbarModelId } from "../logic/resolve-resolvable-toolbar-model-id.js";
 import type { AgentInputState } from "./agent-input-state.svelte.js";
 import type { AgentInputProps } from "../types/agent-input-props.js";
 
@@ -325,6 +326,13 @@ export class ComposerViewController {
 		})
 	);
 
+	readonly resolvableToolbarModelId = $derived.by(() =>
+		resolveResolvableToolbarModelId({
+			provisionalModelId: this.effectiveComposerProvisionalModelId,
+			resolvedToolbarModelId: this.effectiveCurrentModelId,
+		})
+	);
+
 	readonly toolbarConfigOptions = $derived.by((): AgentInputConfigOption[] => {
 		if (this.sessionConfigOptions.length === 0) {
 			return [];
@@ -542,7 +550,7 @@ export class ComposerViewController {
 					this.effectiveCapabilityProviderMetadata?.preconnectionCapabilityMode ??
 					"unsupported",
 			}),
-			resolvableModelId: this.effectiveCurrentModelId,
+			resolvableModelId: this.resolvableToolbarModelId,
 		})
 	);
 

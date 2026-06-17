@@ -8,6 +8,7 @@ import {
 	resolveToolbarModeId,
 	resolveToolbarModelId,
 } from "./toolbar-state.js";
+import { resolveResolvableToolbarModelId } from "./resolve-resolvable-toolbar-model-id.js";
 
 describe("toolbar-state", () => {
 	const visibleModes = [
@@ -104,6 +105,15 @@ describe("toolbar-state", () => {
 			).toBe("claude-opus");
 		});
 
+		it("captures an explicit sonnet pick instead of the default opus displayed id", () => {
+			expect(
+				resolveInitialModelIdForNewSession({
+					sessionId: null,
+					displayedModelId: "claude-sonnet-4-6",
+				})
+			).toBe("claude-sonnet-4-6");
+		});
+
 		it("does not send an initial model for an existing session", () => {
 			expect(
 				resolveInitialModelIdForNewSession({
@@ -111,6 +121,17 @@ describe("toolbar-state", () => {
 					displayedModelId: "claude-opus",
 				})
 			).toBeNull();
+		});
+	});
+
+	describe("resolveResolvableToolbarModelId", () => {
+		it("prefers the explicit provisional sonnet pick over the default opus toolbar id", () => {
+			expect(
+				resolveResolvableToolbarModelId({
+					provisionalModelId: "claude-sonnet-4-6",
+					resolvedToolbarModelId: "claude-opus-4-6",
+				})
+			).toBe("claude-sonnet-4-6");
 		});
 	});
 

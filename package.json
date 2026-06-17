@@ -14,6 +14,8 @@
 	"scripts": {
 		"audit": "bun audit --audit-level high",
 		"check:dead-code": "bun scripts/dead-code/find-dead-code.ts --strict",
+		"dead-code:apply": "bun scripts/dead-code/apply-dead-code.ts",
+		"dead-code:apply:force": "bun scripts/dead-code/apply-dead-code.ts --apply",
 		"test": "bun scripts/forbid-structural-tests.ts packages && bun run --cwd packages/ui test && bun run --cwd packages/desktop test && bun run --cwd packages/website test"
 	},
 	"engines": {

@@ -62,6 +62,7 @@ function createAgentState(
 		getSessionIdentity: (sessionId) => sessionIdentityById.get(sessionId),
 		getSessionMetadata: (sessionId) => sessionMetadataById.get(sessionId),
 		hasPendingCreationSession: () => false,
+		getPendingCreationSession: () => null,
 		resolveCanonicalSessionId: () => null,
 		focusOpenedTopLevelPanel: () => {},
 		onSpawnedPanelFocused: () => {},
@@ -102,6 +103,31 @@ describe("PanelAgentState", () => {
 		expect(state.getPanelBySessionId("session-1")?.id).toBe(opened.id);
 		expect(state.getTopLevelAgentPanelsForProject("/tmp/project")).toHaveLength(1);
 		expect(state.panelCount).toBe(1);
+	});
+
+	it("projects pending creation sequence id before session metadata exists", () => {
+		const { state } = createAgentState({
+			hasPendingCreationSession: (sessionId) => sessionId === "pending-session",
+			getPendingCreationSession: (sessionId) =>
+				sessionId === "pending-session"
+					? { sequenceId: 9 }
+					: null,
+		});
+		state.panels = [
+			createPanel({
+				id: "panel-pending",
+				sessionId: "pending-session",
+				projectPath: "/tmp/project",
+			}),
+		];
+
+		expect(state.getTopLevelAgentPanelProjectRefs()).toEqual([
+			{
+				id: "panel-pending",
+				sessionProjectPath: "/tmp/project",
+				sessionSequenceId: 9,
+			},
+		]);
 	});
 
 	it("removes a panel from all indexes on close", () => {

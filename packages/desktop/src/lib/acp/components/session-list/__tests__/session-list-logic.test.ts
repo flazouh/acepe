@@ -13,7 +13,15 @@ import {
 	getSidebarSessions,
 	isSessionListNearBottom,
 } from "../session-list-logic.js";
+import { extractProjectName } from "../../../utils/path-utils.js";
+import { generateFallbackProjectColor } from "../../../utils/project-utils.js";
 import type { SessionListItem } from "../session-list-types.js";
+
+function isSessionListBadgeIdentityReady(
+	item: Pick<SessionListItem, "sequenceId" | "projectName" | "projectColor">
+): boolean {
+	return item.sequenceId != null && item.projectName != null && item.projectColor != null;
+}
 
 describe("createDisplayItems", () => {
 	it("maps prNumber from session summary to list item", () => {
@@ -78,6 +86,41 @@ describe("createDisplayItems", () => {
 
 		expect(items).toHaveLength(1);
 		expect(items[0]?.entryCount).toBeNull();
+	});
+
+	it("falls back to path-derived project identity when color map lacks the project so pending badge can render", () => {
+		const now = new Date("2024-01-01T00:00:00.000Z");
+		const projectPath = "/Users/dev/acepe";
+		const sessions = [
+			{
+				id: "pending-first-send",
+				title: "New Thread",
+				projectPath,
+				agentId: "claude-code",
+				status: "ready" as const,
+				entryCount: 0,
+				isConnected: false,
+				isStreaming: false,
+				createdAt: now,
+				updatedAt: now,
+				parentId: null,
+				sequenceId: 7,
+			},
+		];
+
+		const items = createDisplayItems(
+			sessions,
+			new Map(),
+			new Map(),
+			new Map(),
+			new Set<string>(),
+			() => []
+		);
+
+		expect(items).toHaveLength(1);
+		expect(items[0]?.projectName).toBe(extractProjectName(projectPath));
+		expect(items[0]?.projectColor).toBe(generateFallbackProjectColor(projectPath));
+		expect(isSessionListBadgeIdentityReady(items[0]!)).toBe(true);
 	});
 
 	it("marks streaming and open sessions as live", () => {

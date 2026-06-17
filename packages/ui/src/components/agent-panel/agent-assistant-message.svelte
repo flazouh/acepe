@@ -20,6 +20,7 @@ getSanitizedAssistantChunkGroups,
 } from "./agent-assistant-message-state.js";
 import type { ChunkGroup } from "../../lib/assistant-message/assistant-chunk-grouper.js";
 import {
+resolveThoughtGroupTokenRevealCss,
 resolveVisibleAssistantMessageGroups,
 shouldStreamAssistantTextContent,
 shouldStreamAssistantThoughtContent,
@@ -132,22 +133,28 @@ const showPlanningPlaceholder = $derived(
 
 const thinkingPrefs = getThinkingPreferences();
 
-function resolveInitialCollapsed(): boolean {
+function readPersistedManualCollapse(): boolean | null {
 	if (messageId !== undefined && persistedThinkingCollapseByMessageId.has(messageId)) {
 		return persistedThinkingCollapseByMessageId.get(messageId) === true;
 	}
-	if (initiallyCollapsed !== undefined) {
-		return initiallyCollapsed;
-	}
-	if (isStreaming) {
-		return false;
-	}
-	return !(thinkingPrefs?.defaultExpanded ?? true);
+	return null;
 }
 
-let isCollapsed = $state(untrack(resolveInitialCollapsed));
+// A manual user toggle wins over the streaming-driven default and survives
+// remounts (persisted by messageId). `null` means "no manual override yet".
+let manualCollapseOverride = $state<boolean | null>(untrack(readPersistedManualCollapse));
+
+// Collapse is local view state derived off the canonical `isStreaming` edge:
+// expanded while the turn streams, collapsed to the settled default once it
+// ends — unless the user has manually toggled. Deriving (rather than a one-shot
+// init) is what re-collapses the block when streaming finishes.
+const isCollapsed = $derived(
+	manualCollapseOverride ??
+		(isStreaming ? false : (initiallyCollapsed ?? !(thinkingPrefs?.defaultExpanded ?? true)))
+);
 
 function persistThinkingCollapse(next: boolean): void {
+	manualCollapseOverride = next;
 	if (messageId !== undefined) {
 		persistedThinkingCollapseByMessageId.set(messageId, next);
 	}
@@ -212,11 +219,10 @@ thinkingFollowScheduler.cancel();
 <div class="space-y-1.5">
 {#if showThinkingBlock}
 <AgentToolThinking
-	showHeader={!isStreaming || message.thinkingDurationMs != null}
+	showHeader={true}
 	status={isStreaming ? "running" : "done"}
 	collapsed={isCollapsed}
 	onCollapseChange={(next: boolean) => {
-	isCollapsed = next;
 	persistThinkingCollapse(next);
 }}
 >
@@ -234,15 +240,24 @@ bind:this={thinkingContainerRef}
 <div bind:this={thinkingContentRef}>
 {#each filteredThoughtGroups as group, index (index)}
 {@const isLastThoughtTextGroup = index === lastThoughtTextGroupIndex}
+{@const thoughtTokenRevealCss = resolveThoughtGroupTokenRevealCss({
+	isStreaming,
+	hasMessageContent,
+	isLastThoughtTextGroup,
+	activeTokenRevealCss,
+})}
 {#if renderBlock}
 							{@render renderBlock({
 								group,
-								isStreaming: shouldStreamAssistantThoughtContent({
-									isStreaming,
-									hasMessageContent,
-									isLastThoughtTextGroup,
+								isStreaming: shouldStreamAssistantTextContent({
+									isStreaming: shouldStreamAssistantThoughtContent({
+										isStreaming,
+										hasMessageContent,
+										isLastThoughtTextGroup,
+									}),
+									tokenRevealCss: thoughtTokenRevealCss,
 								}),
-								tokenRevealCss: undefined,
+								tokenRevealCss: thoughtTokenRevealCss,
 								projectPath,
 								streamingAnimationMode,
 							})}

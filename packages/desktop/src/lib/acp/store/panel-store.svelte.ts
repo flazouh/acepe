@@ -317,6 +317,8 @@ export class PanelStore {
 			hasPendingCreationSession: (sessionId) =>
 				typeof this.sessionStore.connection.hasPendingCreationSession === "function" &&
 				this.sessionStore.connection.hasPendingCreationSession(sessionId),
+			getPendingCreationSession: (sessionId) =>
+				this.sessionStore.getPendingCreationSession(sessionId),
 			resolveCanonicalSessionId: (requestedId) =>
 				this.sessionStore.read.resolveCanonicalSessionId(requestedId),
 			focusOpenedTopLevelPanel: (panelId) => this.focusOpenedTopLevelPanel(panelId),

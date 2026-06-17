@@ -38,6 +38,7 @@ function createStore(): PanelStore {
 		connection: {
 			hasPendingCreationSession: vi.fn(() => false),
 		},
+		getPendingCreationSession: vi.fn(() => null),
 	} as unknown as SessionStore;
 	const agentStore = {
 		getDefaultAgentId: vi.fn(() => "claude-code"),
@@ -999,6 +1000,7 @@ describe("PanelStore workspacePanels", () => {
 			connection: {
 				hasPendingCreationSession: vi.fn(() => false),
 			},
+			getPendingCreationSession: vi.fn(() => null),
 		} as unknown as SessionStore;
 		const agentStore = {
 			getDefaultAgentId: vi.fn(() => "claude-code"),
@@ -1059,6 +1061,23 @@ describe("PanelStore workspacePanels", () => {
 					(sessionId: string) => sessionId === "pending-session"
 				),
 			},
+			getPendingCreationSession: vi.fn((sessionId: string) =>
+				sessionId === "pending-session"
+					? {
+							kind: "pending" as const,
+							sessionId: "pending-session",
+							creationAttemptId: "attempt-1",
+							projectPath: "/tmp/project",
+							projectName: "project",
+							projectColor: "#000000",
+							managed: true as const,
+							sequenceId: 9,
+							agentId: "claude-code",
+							title: null,
+							worktreePath: null,
+						}
+					: null
+			),
 		} as unknown as SessionStore;
 		const agentStore = {
 			getDefaultAgentId: vi.fn(() => "claude-code"),
@@ -1097,6 +1116,23 @@ describe("PanelStore workspacePanels", () => {
 					(sessionId: string) => sessionId === "pending-session"
 				),
 			},
+			getPendingCreationSession: vi.fn((sessionId: string) =>
+				sessionId === "pending-session"
+					? {
+							kind: "pending" as const,
+							sessionId: "pending-session",
+							creationAttemptId: "attempt-1",
+							projectPath: "/tmp/project",
+							projectName: "project",
+							projectColor: "#000000",
+							managed: true as const,
+							sequenceId: 9,
+							agentId: "claude-code",
+							title: null,
+							worktreePath: null,
+						}
+					: null
+			),
 		} as unknown as SessionStore;
 		const agentStore = {
 			getDefaultAgentId: vi.fn(() => "claude-code"),
@@ -1167,6 +1203,7 @@ describe("PanelStore workspacePanels", () => {
 			connection: {
 				hasPendingCreationSession: vi.fn(() => false),
 			},
+			getPendingCreationSession: vi.fn(() => null),
 		} as unknown as SessionStore;
 		const agentStore = {
 			getDefaultAgentId: vi.fn(() => "claude-code"),

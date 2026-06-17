@@ -224,4 +224,53 @@ describe("find-dead-code", () => {
 			"packages/app/src/old.ts",
 		]);
 	});
+
+	test("classifies barrel-export-only files separately from production reachability", () => {
+		const root = createFixture();
+		writeFixtureFile(
+			root,
+			"packages/app/package.json",
+			JSON.stringify({
+				name: "@fixture/app",
+				exports: {
+					".": "./src/public-api.ts",
+				},
+			})
+		);
+		writeFixtureFile(
+			root,
+			"packages/app/src/public-api.ts",
+			"export { panel } from './panel.js';\n"
+		);
+		writeFixtureFile(root, "packages/app/src/panel.ts", "export const panel = 1;\n");
+		writeFixtureFile(
+			root,
+			"packages/app/src/components/index.ts",
+			"export { default as OrphanView } from '../orphan-view.svelte';\n"
+		);
+		writeFixtureFile(root, "packages/app/src/orphan-view.svelte", "<p>orphan</p>\n");
+		writeFixtureFile(
+			root,
+			"packages/app/src/route-host.ts",
+			"export * from './components/index.js';\n"
+		);
+		writeFixtureFile(
+			root,
+			"packages/app/src/routes/+page.ts",
+			"import { OrphanView } from '../route-host.js';\nexport const host = OrphanView;\n"
+		);
+		writeFixtureFile(root, "packages/app/src/unused.ts", "export const unused = 1;\n");
+
+		const analysis = analyzeFixture(root);
+		const byPath = new Map(analysis.candidates.map((candidate) => [candidate.path, candidate]));
+
+		expect(byPath.get("packages/app/src/public-api.ts")?.classification).toBe("production-reachable");
+		expect(byPath.get("packages/app/src/panel.ts")?.classification).toBe("production-reachable");
+		expect(byPath.get("packages/app/src/orphan-view.svelte")?.classification).toBe(
+			"export-barrel-only"
+		);
+		expect(byPath.get("packages/app/src/unused.ts")?.classification).toBe("strong-dead");
+
+		rmSync(root, { recursive: true, force: true });
+	});
 });

@@ -18,6 +18,7 @@ import type { SessionStoreCallbacks } from "./session-store.svelte.js";
 import type { ViewportProjectionController } from "./viewport-projection-controller.svelte.js";
 import type { PrLinkStateStore } from "./pr-link-state-store.svelte.js";
 import type { SessionConnectionManager } from "./services/session-connection-manager.js";
+import type { CreatedPendingSessionResult } from "./services/session-connection-manager.js";
 import type { SessionMessagingService } from "./services/session-messaging-service.js";
 import type { SessionCold, SessionPrLinkMode } from "./types.js";
 import type { SessionEventHandler } from "./session-event-handler.js";
@@ -48,6 +49,10 @@ export class SessionConnectionFacade {
 
 	hasPendingCreationSession(sessionId: string): boolean {
 		return this.#deps.creationCoordinator.hasPendingCreation(sessionId);
+	}
+
+	getPendingCreationSession(sessionId: string): CreatedPendingSessionResult | null {
+		return this.#deps.creationCoordinator.getPendingCreation(sessionId);
 	}
 
 	materializePendingCreationSession(sessionId: string): boolean {

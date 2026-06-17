@@ -1692,6 +1692,44 @@ mod session_metadata_tests {
     }
 
     #[tokio::test]
+    async fn promoting_creation_attempt_allocates_sequence_for_legacy_null_attempt_sequence() {
+        use crate::db::entities::creation_attempt;
+        use crate::db::entities::prelude::CreationAttempt;
+        use sea_orm::{ActiveModelTrait, EntityTrait, Set};
+
+        let db = setup_test_db().await;
+        let attempt = SessionMetadataRepository::create_creation_attempt(
+            &db,
+            "/project",
+            "claude-code",
+            None,
+            None,
+            None,
+        )
+        .await
+        .unwrap();
+
+        let mut active: creation_attempt::ActiveModel = CreationAttempt::find_by_id(&attempt.id)
+            .one(&db)
+            .await
+            .unwrap()
+            .expect("attempt row should exist")
+            .into();
+        active.sequence_id = Set(None);
+        active.update(&db).await.unwrap();
+
+        let promoted = SessionMetadataRepository::promote_creation_attempt(
+            &db,
+            &attempt.id,
+            "provider-canonical-id",
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(promoted.sequence_id, Some(1));
+    }
+
+    #[tokio::test]
     async fn promoting_creation_attempt_allocates_sequence_inside_canonical_session_transaction() {
         let db = setup_test_db().await;
         let attempt = SessionMetadataRepository::create_creation_attempt(

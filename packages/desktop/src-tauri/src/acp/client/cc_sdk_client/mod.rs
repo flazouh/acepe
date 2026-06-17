@@ -637,6 +637,7 @@ impl ClaudeCcSdkClient {
             return;
         };
         if available_model_ids.is_empty() {
+            self.pending_model_id = None;
             return;
         }
         if !available_model_ids

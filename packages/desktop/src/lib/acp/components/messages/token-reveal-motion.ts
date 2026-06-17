@@ -1,4 +1,4 @@
-export const TOKEN_REVEAL_STEP_MS = 0;
+export const TOKEN_REVEAL_STEP_MS = 48;
 export const TOKEN_REVEAL_FADE_MS = 630;
 
 export interface TokenRevealTiming {

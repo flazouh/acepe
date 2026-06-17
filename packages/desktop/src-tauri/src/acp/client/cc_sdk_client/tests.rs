@@ -424,6 +424,16 @@ fn bind_pending_creation_attempt_seeds_model_and_mode() {
 }
 
 #[test]
+fn sanitize_pending_model_for_connect_clears_model_when_catalog_is_empty() {
+    let mut client = make_test_client();
+    client.pending_model_id = Some("stale-model".to_string());
+
+    client.sanitize_pending_model_for_connect(&[]);
+
+    assert!(client.pending_model_id.is_none());
+}
+
+#[test]
 fn sanitize_pending_model_for_connect_clears_invalid_model() {
     let mut client = make_test_client();
     client.pending_model_id = Some("stale-model".to_string());

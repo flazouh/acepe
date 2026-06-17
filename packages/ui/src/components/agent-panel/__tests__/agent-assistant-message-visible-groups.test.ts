@@ -1,10 +1,12 @@
 import { expect, test } from "bun:test";
 
 import {
+	resolveThoughtGroupTokenRevealCss,
 	resolveVisibleAssistantMessageGroups,
 	shouldStreamAssistantTextContent,
 	shouldStreamAssistantThoughtContent,
 } from "../agent-assistant-message-visible-groups.js";
+import type { TokenRevealCss } from "../types.js";
 
 test("active token timing does not hide canonical text within the current text group", () => {
 	const fullText =
@@ -137,4 +139,57 @@ test("assistant thought content streams only before message content starts", () 
 			isLastThoughtTextGroup: false,
 		})
 	).toBe(false);
+});
+
+const thoughtRevealCss: TokenRevealCss = {
+	revealCount: 3,
+	revealedCharCount: 12,
+	baselineMs: -16,
+	tokStepMs: 0,
+	tokFadeDurMs: 630,
+	mode: "smooth",
+};
+
+test("thinking body reveals with the active token timing while thinking, before message content", () => {
+	expect(
+		resolveThoughtGroupTokenRevealCss({
+			isStreaming: true,
+			hasMessageContent: false,
+			isLastThoughtTextGroup: true,
+			activeTokenRevealCss: thoughtRevealCss,
+		})
+	).toEqual(thoughtRevealCss);
+});
+
+test("thinking body reveal is confined to the last thought group", () => {
+	expect(
+		resolveThoughtGroupTokenRevealCss({
+			isStreaming: true,
+			hasMessageContent: false,
+			isLastThoughtTextGroup: false,
+			activeTokenRevealCss: thoughtRevealCss,
+		})
+	).toBeUndefined();
+});
+
+test("thinking body stops revealing once message content begins streaming", () => {
+	expect(
+		resolveThoughtGroupTokenRevealCss({
+			isStreaming: true,
+			hasMessageContent: true,
+			isLastThoughtTextGroup: true,
+			activeTokenRevealCss: thoughtRevealCss,
+		})
+	).toBeUndefined();
+});
+
+test("thinking body does not reveal when not streaming", () => {
+	expect(
+		resolveThoughtGroupTokenRevealCss({
+			isStreaming: false,
+			hasMessageContent: false,
+			isLastThoughtTextGroup: true,
+			activeTokenRevealCss: thoughtRevealCss,
+		})
+	).toBeUndefined();
 });

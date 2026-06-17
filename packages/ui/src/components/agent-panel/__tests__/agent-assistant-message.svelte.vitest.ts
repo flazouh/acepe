@@ -27,6 +27,62 @@ describe("AgentAssistantMessage", () => {
 		],
 	};
 
+	const streamingThoughtMessage = {
+		chunks: [
+			{ type: "thought" as const, block: { type: "text" as const, text: "Weighing the options." } },
+		],
+	};
+
+	it("shows a shimmering Thinking header while streaming", async () => {
+		const view = render(AgentAssistantMessage, {
+			props: {
+				message: streamingThoughtMessage,
+				isStreaming: true,
+			},
+		});
+
+		await new Promise<void>((resolve) => {
+			window.setTimeout(resolve, 25);
+		});
+
+		const shimmer = view.container.querySelector(".text-shimmer");
+		expect(shimmer).not.toBeNull();
+		expect(shimmer?.textContent).toContain("Thinking");
+	});
+
+	it("auto-collapses settled thinking content once streaming ends", async () => {
+		const streamingProps = {
+			messageId: "auto-collapse-on-settle",
+			message,
+			isStreaming: true,
+			initiallyCollapsed: true,
+		};
+		const view = render(AgentAssistantMessage, { props: streamingProps });
+
+		await new Promise<void>((resolve) => {
+			window.setTimeout(resolve, 25);
+		});
+
+		// Expanded while the turn is streaming.
+		expect(view.getByTestId("thinking-block-content").textContent).toContain(
+			"Checking the evidence."
+		);
+
+		// Streaming ends -> collapse to the settled default.
+		await view.rerender({
+			messageId: "auto-collapse-on-settle",
+			message,
+			isStreaming: false,
+			initiallyCollapsed: true,
+		});
+		await new Promise<void>((resolve) => {
+			window.setTimeout(resolve, 25);
+		});
+
+		expect(view.queryByTestId("thinking-block-content")).toBeNull();
+		expect(view.getByRole("button", { name: "Expand thinking" })).toBeTruthy();
+	});
+
 	it("respects expanded initial state for settled thinking content", async () => {
 		const view = render(AgentAssistantMessage, {
 			props: {

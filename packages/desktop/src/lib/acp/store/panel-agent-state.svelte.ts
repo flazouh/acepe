@@ -11,6 +11,7 @@
  */
 import { SvelteMap, SvelteSet } from "svelte/reactivity";
 import type { PreparedWorktreeLaunch } from "../types/worktree-info.js";
+import { resolveAgentPanelHeaderSequenceId } from "../components/agent-panel/logic/agent-panel-header-sequence-id.js";
 import { createLogger } from "../utils/logger.js";
 import {
 	createAppendedItemArray,
@@ -59,6 +60,9 @@ export interface PanelAgentStateDeps {
 	getSessionIdentity: (sessionId: string) => SessionIdentitySlice | undefined;
 	getSessionMetadata: (sessionId: string) => SessionMetadataSlice | undefined;
 	hasPendingCreationSession: (sessionId: string) => boolean;
+	getPendingCreationSession: (
+		sessionId: string
+	) => { readonly sequenceId: number | null } | null;
 	resolveCanonicalSessionId: (requestedId: string) => string | null;
 	focusOpenedTopLevelPanel: (panelId: string) => void;
 	onSpawnedPanelFocused: (panel: Panel) => void;
@@ -292,7 +296,16 @@ export class PanelAgentState {
 						? (panel.projectPath ?? null)
 						: (sessionIdentity?.projectPath ?? null),
 				sessionSequenceId:
-					panel.sessionId !== null ? (sessionMetadata?.sequenceId ?? null) : null,
+					panel.sessionId !== null
+						? resolveAgentPanelHeaderSequenceId({
+								sessionMetadataSequenceId: sessionMetadata?.sequenceId,
+								pendingCreationSequenceId: isPendingCreationSession
+									? (this.deps.getPendingCreationSession(panel.sessionId)?.sequenceId ??
+										null)
+									: null,
+								hasPendingCreationSession: isPendingCreationSession,
+							})
+						: null,
 			};
 		});
 	}

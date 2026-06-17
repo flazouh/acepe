@@ -8,6 +8,7 @@ import {
 	createProjectColorMap,
 	createProjectIconSrcMap,
 	createProjectNameMap,
+	generateFallbackProjectColor,
 } from "../../utils/project-utils.js";
 import type {
 	SessionActivityInfo,
@@ -104,7 +105,8 @@ export function createDisplayItems(
 	return sessions.map((session): SessionListItem => {
 		const projectName =
 			projectNameMap.get(session.projectPath) || extractProjectName(session.projectPath);
-		const projectColor = projectColorMap.get(session.projectPath);
+		const projectColor =
+			projectColorMap.get(session.projectPath) ?? generateFallbackProjectColor(session.projectPath);
 		const projectIconSrc = projectIconSrcMap.get(session.projectPath) ?? null;
 
 		// Streaming indicator from session flag (no entry scan needed)

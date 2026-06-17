@@ -148,7 +148,7 @@ describe("AssistantMessage thinking auto-scroll", () => {
 
 		expect(view.getByTestId("agent-tool-thinking-stub")).toBeTruthy();
 		expect(view.getByTestId("agent-tool-thinking-stub").dataset.collapsed).toBe("false");
-		expect(view.getByText("Thought")).toBeTruthy();
+		expect(view.getByText(/Thought/)).toBeTruthy();
 		expect(view.getByText("Done.")).toBeTruthy();
 	});
 
@@ -190,7 +190,8 @@ describe("AssistantMessage thinking auto-scroll", () => {
 			isStreaming: true,
 		});
 
-		expect(streamingView.getByText("Thinking for 3s")).toBeTruthy();
+		expect(streamingView.getByText(/Thinking for/)).toBeTruthy();
+		expect(streamingView.container.textContent).toContain("3");
 
 		streamingView.unmount();
 
@@ -199,7 +200,18 @@ describe("AssistantMessage thinking auto-scroll", () => {
 			isStreaming: false,
 		});
 
-		expect(completedView.getByText("Thought for 3s")).toBeTruthy();
+		expect(completedView.getByText(/Thought for/)).toBeTruthy();
+		expect(completedView.container.textContent).toContain("3");
+	});
+
+	it("shows the thinking header while streaming before duration is known", () => {
+		const view = render(AssistantMessageComponent, {
+			message: createStreamingThoughtMessage(),
+			isStreaming: true,
+		});
+
+		expect(view.getByTestId("agent-tool-thinking-stub")).toBeTruthy();
+		expect(view.getByText("Thinking")).toBeTruthy();
 	});
 
 	it("coalesces repeated thinking growth notifications into one scroll update per frame", async () => {
