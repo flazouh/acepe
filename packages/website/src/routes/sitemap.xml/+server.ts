@@ -18,7 +18,6 @@ const publicRoutes: Route[] = [
 	{ path: "/blog", priority: "0.7", changefreq: "weekly" },
 	{ path: "/changelog", priority: "0.7", changefreq: "weekly" },
 	{ path: "/download", priority: "0.9", changefreq: "weekly" },
-	{ path: "/pricing", priority: "0.8", changefreq: "weekly" },
 	{ path: "/compare", priority: "0.8", changefreq: "weekly" },
 	{ path: "/zeus", priority: "0.5", changefreq: "monthly" },
 	{ path: "/privacy", priority: "0.3", changefreq: "yearly" },

@@ -107,13 +107,6 @@ const compareJsonLd = $derived([
 					>
 						{"Download Acepe"}
 					</a>
-					<a
-						href="/pricing"
-						class="inline-flex h-10 items-center justify-center gap-2 rounded-full border border-border/50 bg-card/40 px-6 text-sm font-medium text-foreground transition-colors hover:bg-card/70"
-					>
-						{"See pricing"}
-						<ArrowRight class="h-3.5 w-3.5" />
-					</a>
 				</div>
 			</div>
 		</section>

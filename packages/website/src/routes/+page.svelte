@@ -1,6 +1,6 @@
 <script lang="ts">
-import { Apple } from "@lucide/svelte";
 import Seo from "$lib/components/seo/seo.svelte";
+import AppleIcon from "$lib/components/landing-v2/apple-icon.svelte";
 import CommandChip from "$lib/components/landing-v2/command-chip.svelte";
 import WarpHeader from "$lib/components/landing-v2/warp-header.svelte";
 import AgentIconsRow from "$lib/components/agent-icons-row.svelte";
@@ -112,7 +112,7 @@ const ghostButton =
 			<div class="mt-8 flex flex-wrap items-center gap-3">
 				<a href="/download" class={creamButton}>
 					{"Download"}
-					<Apple class="h-4 w-4" />
+					<AppleIcon class="h-4 w-4" />
 				</a>
 				<CommandChip command={BREW} />
 				<a href="/pricing" class={ghostButton}>{"Contact sales"}</a>
@@ -222,7 +222,7 @@ const ghostButton =
 				<div class="mt-12 grid gap-x-10 gap-y-10 md:grid-cols-3">
 					<div>
 						<div class="flex items-center gap-2 text-foreground">
-							<Apple class="h-5 w-5" />
+							<AppleIcon class="h-5 w-5" />
 							<span class="font-display text-[18px]">{"macOS"}</span>
 						</div>
 						<p class="mt-2 text-[13px] text-muted-foreground">{"Apple silicon & Intel"}</p>

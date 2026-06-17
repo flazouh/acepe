@@ -111,6 +111,7 @@ const slideSummaryClass = `max-w-3xl ${slideDescriptionClass}`;
 <Seo
 	title="Investor Pitch"
 	description="Acepe investor pitch: the platform-neutral operating layer for agentic development."
+	canonical="/pitch"
 	noindex
 />
 
