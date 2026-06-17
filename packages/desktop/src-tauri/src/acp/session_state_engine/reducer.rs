@@ -458,7 +458,19 @@ mod tests {
             },
         );
 
-        assert_eq!(graph.activity, activity);
+        // Applying a delta seeds `kind_started_at_ms` on an activity-kind
+        // transition (Idle -> Error) so the UI can render an Error duration.
+        // The timestamp is wall-clock, so assert the stable fields plus that
+        // timing was seeded, rather than the activity verbatim.
+        assert_eq!(graph.activity.kind, SessionGraphActivityKind::Error);
+        assert_eq!(graph.activity.active_operation_count, 0);
+        assert_eq!(graph.activity.active_subagent_count, 0);
+        assert_eq!(graph.activity.dominant_operation_id, None);
+        assert_eq!(graph.activity.blocking_interaction_id, None);
+        assert!(
+            graph.activity.kind_started_at_ms.is_some(),
+            "kind transition to Error must seed kind_started_at_ms"
+        );
         assert_eq!(graph.turn_state, SessionTurnState::Failed);
         assert_eq!(graph.active_turn_failure, Some(active_turn_failure));
         assert_eq!(graph.last_terminal_turn_id, Some("turn-2".to_string()));

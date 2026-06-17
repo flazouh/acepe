@@ -2608,11 +2608,15 @@ mod tests {
             0,
         )
         .await;
+        // Turn errors are live-only turn-failure state and no longer append an
+        // `Error` entry to the canonical transcript (see plan 2026-06-15-002:
+        // "Errors are live-only turn-failure state, never restored transcript
+        // content"), so the terminal turn-error delta carries no transcript work.
         assert_turn_state_surface_stays_history_independent(
             &db,
             "turn_error",
             create_turn_error_update(),
-            1,
+            0,
         )
         .await;
         assert_turn_state_surface_stays_history_independent(
