@@ -4426,3 +4426,70 @@ async fn run_streaming_bridge_rewrites_generic_turn_failed_after_permission_deny
         }
     }
 }
+
+#[tokio::test]
+async fn run_streaming_bridge_rewrites_generic_turn_failed_into_cancelled_after_interrupt() {
+    let (dispatcher, sink) = AcpUiEventDispatcher::test_sink();
+    let bridge = Arc::new(PermissionBridge::new());
+    let provider = Arc::new(crate::acp::providers::claude_code::ClaudeCodeProvider);
+
+    // A user pressed stop: cancel() marks the interrupt before the SDK emits its
+    // terminal result. The SDK reacts to interrupt() by emitting a generic
+    // is_error result, which must be normalized into a cancellation, not a failure.
+    bridge.mark_cancel_requested().await;
+
+    let context = StreamingBridgeContext {
+        dispatcher,
+        bridge,
+        projection_registry: Arc::new(ProjectionRegistry::new()),
+        tool_call_tracker: Arc::new(ToolCallIdTracker::new()),
+        approval_callback_tracker: Arc::new(ApprovalCallbackTracker::new()),
+        task_reconciler: Arc::new(std::sync::Mutex::new(TaskReconciler::new())),
+        pending_questions: Arc::new(Mutex::new(HashMap::new())),
+        provider,
+        db: None,
+        app_handle: None,
+        pending_creation_attempt_id: None,
+        project_path: None,
+    };
+
+    let stream = futures::stream::iter(vec![Ok(cc_sdk::Message::Result {
+        subtype: "error_during_execution".to_string(),
+        duration_ms: 1000,
+        duration_api_ms: 500,
+        is_error: true,
+        num_turns: 1,
+        session_id: "provider-session".to_string(),
+        total_cost_usd: None,
+        usage: None,
+        model_usage: None,
+        result: None,
+        structured_output: None,
+        stop_reason: Some("tool_use".to_string()),
+    })]);
+
+    run_streaming_bridge(stream, "session-bridge".to_string(), context).await;
+
+    let captured = sink.lock().expect("sink lock");
+    let saw_turn_error = captured.iter().any(|event| match &event.payload {
+        crate::acp::ui_event_dispatcher::AcpUiEventPayload::SessionUpdate(update) => {
+            matches!(update.as_ref(), SessionUpdate::TurnError { .. })
+        }
+        _ => false,
+    });
+    assert!(
+        !saw_turn_error,
+        "a user-initiated interrupt must not surface as a turn failure"
+    );
+
+    let saw_turn_cancelled = captured.iter().any(|event| match &event.payload {
+        crate::acp::ui_event_dispatcher::AcpUiEventPayload::SessionUpdate(update) => {
+            matches!(update.as_ref(), SessionUpdate::TurnCancelled { .. })
+        }
+        _ => false,
+    });
+    assert!(
+        saw_turn_cancelled,
+        "an interrupt-induced generic failure must be normalized into a cancellation"
+    );
+}

@@ -307,8 +307,10 @@ pub(super) async fn run_streaming_bridge(
                         continue;
                     }
                     rewrite_generic_turn_failed_from_permission_deny(&bridge, &mut update).await;
+                    rewrite_generic_turn_failed_from_interrupt(&bridge, &mut update).await;
                     if matches!(update, SessionUpdate::TurnComplete { .. }) {
                         bridge.clear_terminal_deny_message().await;
+                        bridge.clear_cancel_requested().await;
                     }
                     if !pending_creation_promoted {
                         buffered_pending_creation_updates.push(update);
@@ -439,6 +441,37 @@ async fn rewrite_generic_turn_failed_from_permission_deny(
         code: None,
         source: Some(TurnErrorSource::Unknown),
     });
+}
+
+/// Normalize the Claude Code SDK's interrupt quirk into a canonical cancellation.
+///
+/// When the user presses stop, `acp_cancel` marks the interrupt on the bridge and
+/// calls `interrupt()`. The SDK reacts by emitting a generic `is_error` result,
+/// which `translate_result` turns into a `TurnError` carrying the legacy
+/// `"Turn failed"` message. That is provider noise, not product truth: the turn
+/// was cancelled, not failed. Rewrite it here at the adapter edge so canonical
+/// session state never observes a spurious failure for a user interrupt.
+async fn rewrite_generic_turn_failed_from_interrupt(
+    bridge: &PermissionBridge,
+    update: &mut SessionUpdate,
+) {
+    let (session_id, turn_id) = match update {
+        SessionUpdate::TurnError {
+            error: TurnErrorData::Legacy(message),
+            session_id,
+            turn_id,
+        } if message == "Turn failed" => (session_id.clone(), turn_id.clone()),
+        _ => return,
+    };
+
+    if !bridge.take_cancel_requested().await {
+        return;
+    }
+
+    *update = SessionUpdate::TurnCancelled {
+        session_id,
+        turn_id,
+    };
 }
 
 pub(super) async fn persist_provider_session_id_alias(

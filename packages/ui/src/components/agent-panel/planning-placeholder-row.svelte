@@ -28,14 +28,15 @@
 </script>
 
 <div class="text-muted-foreground {className}">
-	<span class="inline-flex min-w-0 items-baseline gap-1 tabular-nums {sizeClass}">
+	<span class="inline-flex min-w-0 items-baseline gap-1 {sizeClass}">
 		<TextShimmer class="shrink-0 {sizeClass}">
 			{shimmerLabel}
 		</TextShimmer>
 		{#if showDuration}
 			<AgentToolDurationLabel
 				{timing}
-				class="shrink-0 font-sans text-muted-foreground/70 {durationSizeClass}"
+				numberClass="font-normal !normal-nums"
+				class="shrink-0 text-muted-foreground/70 {durationSizeClass}"
 			/>
 		{/if}
 	</span>

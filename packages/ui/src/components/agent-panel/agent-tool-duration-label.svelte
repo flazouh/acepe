@@ -16,6 +16,8 @@
 		blur?: number;
 		/** Optional prefix before the animated value (e.g. "for"). */
 		prefix?: string | null;
+		/** Classes applied to the animated number root. */
+		numberClass?: string;
 	}
 
 	let {
@@ -24,6 +26,7 @@
 		duration = 450,
 		blur = 14,
 		prefix = null,
+		numberClass = "font-medium",
 	}: Props = $props();
 
 	const display = $derived(
@@ -54,7 +57,7 @@
 			}}
 			{duration}
 			{blur}
-			class="font-medium"
+			class={numberClass}
 		/>
 	</span>
 {/if}
