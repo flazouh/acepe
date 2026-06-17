@@ -13,17 +13,19 @@
 	import AgentToolTask from "./agent-tool-task.svelte";
 	import AgentToolWebSearch from "./agent-tool-web-search.svelte";
 
+	import type { ToolDurationTiming } from "./tool-duration.js";
+
 	interface Props {
 		entry: AgentToolEntry;
 		renderKind: AgentConversationRenderKind;
-		durationLabel?: string;
+		durationTiming?: ToolDurationTiming;
 		iconBasePath?: string;
 	}
 
 	let {
 		entry,
 		renderKind,
-		durationLabel,
+		durationTiming,
 		iconBasePath = "",
 	}: Props = $props();
 </script>
@@ -36,7 +38,7 @@
 		stderr={entry.stderr}
 		exitCode={entry.exitCode}
 		status={entry.status}
-		{durationLabel}
+		{durationTiming}
 	/>
 {:else if renderKind === "tool-search"}
 	<AgentToolSearch
@@ -49,7 +51,7 @@
 		searchNumMatches={entry.searchNumMatches}
 		searchMatches={entry.searchMatches}
 		status={entry.status}
-		{durationLabel}
+		{durationTiming}
 		{iconBasePath}
 	/>
 {:else if renderKind === "tool-fetch"}
@@ -58,7 +60,7 @@
 		domain={entry.subtitle ?? null}
 		resultText={entry.resultText ?? null}
 		status={entry.status}
-		{durationLabel}
+		{durationTiming}
 	/>
 {:else if renderKind === "tool-web-search"}
 	<AgentToolWebSearch
@@ -66,7 +68,7 @@
 		links={entry.webSearchLinks ?? []}
 		summary={entry.webSearchSummary ?? null}
 		status={entry.status}
-		{durationLabel}
+		{durationTiming}
 	/>
 {:else if renderKind === "tool-other"}
 	<AgentToolOther
@@ -74,7 +76,7 @@
 		subtitle={entry.subtitle ?? null}
 		detailsText={entry.detailsText ?? null}
 		status={entry.status}
-		{durationLabel}
+		{durationTiming}
 	/>
 {:else if renderKind === "tool-browser"}
 	<AgentToolBrowser
@@ -82,7 +84,7 @@
 		subtitle={entry.subtitle ?? null}
 		detailsText={entry.detailsText ?? null}
 		status={entry.status}
-		{durationLabel}
+		{durationTiming}
 	/>
 {:else if renderKind === "tool-skill"}
 	<AgentToolSkill
@@ -90,7 +92,7 @@
 		skillArgs={entry.skillArgs}
 		description={entry.skillDescription}
 		status={entry.status}
-		{durationLabel}
+		{durationTiming}
 	/>
 {:else if renderKind === "tool-task"}
 	<AgentToolTask
@@ -99,11 +101,11 @@
 		resultText={entry.taskResultText}
 		children={entry.taskChildren}
 		status={entry.status}
-		{durationLabel}
+		{durationTiming}
 		{iconBasePath}
 	/>
 {:else if renderKind === "tool-error-result"}
-	<div class="rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2">
+	<div class="rounded border border-destructive/30 bg-destructive/5 px-3 py-2">
 		<p class="text-sm font-medium text-destructive">{entry.title}</p>
 		{#if entry.subtitle}
 			<p class="mt-1 text-sm text-muted-foreground">{entry.subtitle}</p>
@@ -117,7 +119,7 @@
 		filePath={entry.filePath}
 		status={entry.status}
 		kind={entry.kind}
-		{durationLabel}
+		{durationTiming}
 		padded={true}
 		{iconBasePath}
 	/>

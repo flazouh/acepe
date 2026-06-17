@@ -8,10 +8,7 @@ const worktreeDefaultStore = getWorktreeDefaultStore();
 </script>
 
 <div class="w-full">
-	<SettingsSection
-		title={"Worktrees"}
-		description="Choose the default behavior for worktree-aware sessions."
-	>
+	<SettingsSection>
 		<SettingRow
 			label={"Use worktrees by default"}
 			description={"New sessions will automatically use git worktrees for branch isolation"}

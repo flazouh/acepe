@@ -2,7 +2,7 @@ use serde::Serialize;
 use specta::Type;
 
 use crate::acp::client_session::{SessionModelState, SessionModes};
-use crate::acp::lifecycle::FailureReason;
+use crate::acp::lifecycle::{DetachedReason, FailureReason};
 
 use super::{
     AvailableCommand, AvailableCommandsData, ConfigOptionData, ConfigOptionUpdateData,
@@ -162,6 +162,17 @@ pub enum SessionUpdate {
         error: String,
         failure_reason: FailureReason,
     },
+
+    /// Emitted when a resume cannot proceed because of a recoverable
+    /// precondition (e.g. the agent requires an interactive sign-in). This is
+    /// intentionally NOT a `ConnectionFailed` event — the session is not in an
+    /// error state, just parked awaiting user action. The snapshot handler
+    /// routes it to `LifecycleState::detached(reason)`.
+    SessionDetached {
+        session_id: String,
+        attempt_id: u64,
+        detached_reason: DetachedReason,
+    },
 }
 
 impl SessionUpdate {
@@ -185,6 +196,7 @@ impl SessionUpdate {
             SessionUpdate::UsageTelemetryUpdate { data, .. } => Some(data.session_id.as_str()),
             SessionUpdate::ConnectionComplete { session_id, .. } => Some(session_id.as_str()),
             SessionUpdate::ConnectionFailed { session_id, .. } => Some(session_id.as_str()),
+            SessionUpdate::SessionDetached { session_id, .. } => Some(session_id.as_str()),
         }
     }
 }

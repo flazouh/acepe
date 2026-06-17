@@ -54,6 +54,15 @@ export function getProviderBrandIcon(
  */
 export const AGENT_ICON_BASE_CLASS = "block h-4 w-4 shrink-0 mt-0.5";
 
+/** Codex app icon PNG needs superellipse clipping at small sizes. */
+export const CODEX_APP_ICON_IMG_CLASS = "rounded-[22%] object-contain";
+
+export function isCodexProviderBrand(
+	providerBrand: ProviderBrand | null | undefined
+): providerBrand is "codex" {
+	return providerBrand === "codex";
+}
+
 /**
  * Time group labels.
  */

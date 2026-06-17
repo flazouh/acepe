@@ -91,6 +91,15 @@ describe("agent panel conversation entry model", () => {
 		expect(
 			resolveConversationRenderKind(
 				toolEntry({
+					kind: "other",
+					status: "error",
+					resultText: "Please run /login · API Error: 401 Invalid authentication credentials",
+				})
+			)
+		).toBe("tool-error-result");
+		expect(
+			resolveConversationRenderKind(
+				toolEntry({
 					kind: "unclassified",
 					status: "error",
 					resultText: "Command failed",

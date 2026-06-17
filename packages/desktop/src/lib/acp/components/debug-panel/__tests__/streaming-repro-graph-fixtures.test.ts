@@ -1,9 +1,5 @@
 import { describe, expect, it } from "bun:test";
-import {
-	applyAgentPanelDisplayMemory,
-	buildAgentPanelBaseModel,
-	createAgentPanelDisplayMemory,
-} from "$lib/acp/components/agent-panel/logic/agent-panel-display-model.js";
+import { createRevealTextProjection } from "$lib/acp/components/agent-panel/logic/reveal-text-projection.js";
 import { materializeAgentPanelSceneFromGraph } from "$lib/acp/session-state/agent-panel-graph-materializer.js";
 
 import {
@@ -11,7 +7,23 @@ import {
 	buildStreamingReproGraphMaterializerInput,
 	getStreamingReproPresetById,
 } from "../streaming-repro-graph-fixtures";
-import { applyAgentPanelDisplayModelToSceneEntries } from "../../agent-panel/logic/agent-panel-display-scene-test-helper.js";
+
+function revealSnapshotForInput(
+	input: ReturnType<typeof buildStreamingReproGraphMaterializerInput>
+): {
+	sceneEntries: ReturnType<typeof materializeAgentPanelSceneFromGraph>["conversation"]["entries"];
+	sessionId: string | null;
+	turnId: string | null;
+	turnCompleted: boolean;
+} {
+	const graph = input.graph;
+	return {
+		sceneEntries: materializeAgentPanelSceneFromGraph(input).conversation.entries,
+		sessionId: graph?.canonicalSessionId ?? null,
+		turnId: graph === null ? null : (graph.lastTerminalTurnId ?? `${graph.canonicalSessionId}:active`),
+		turnCompleted: graph?.turnState === "Completed",
+	};
+}
 
 describe("streaming-repro-graph-fixtures", () => {
 	it("builds a graph-backed thinking-only phase for the core preset", () => {
@@ -53,46 +65,24 @@ describe("streaming-repro-graph-fixtures", () => {
 
 	it("keeps full canonical text during the first-word regression preset", () => {
 		const preset = getStreamingReproPresetById("first-word-regression");
-		let memory = createAgentPanelDisplayMemory();
+		// The continuity now lives in the reveal-text projection (the display model
+		// that previously owned it was retired in U5). Drive the projection across
+		// the two phases the way the live controller does.
+		const projection = createRevealTextProjection();
 
 		const firstWordInput = buildStreamingReproGraphMaterializerInput({
 			panelId: "panel-debug",
 			preset,
 			phase: preset.phases[0],
 		});
-		const firstWordBaseModel = buildAgentPanelBaseModel({
-			panelId: "panel-debug",
-			graph: firstWordInput.graph,
-			header: { title: preset.name },
-			sceneEntries: materializeAgentPanelSceneFromGraph(firstWordInput).conversation.entries,
-			local: {
-				pendingSendIntent: false,
-			},
-		});
-		const firstWordDisplay = applyAgentPanelDisplayMemory(memory, firstWordBaseModel);
-		memory = firstWordDisplay.memory;
+		projection.apply(revealSnapshotForInput(firstWordInput));
 
 		const fullRewriteInput = buildStreamingReproGraphMaterializerInput({
 			panelId: "panel-debug",
 			preset,
 			phase: preset.phases[1],
 		});
-		const fullRewriteScene = materializeAgentPanelSceneFromGraph(fullRewriteInput);
-		const fullRewriteBaseModel = buildAgentPanelBaseModel({
-			panelId: "panel-debug",
-			graph: fullRewriteInput.graph,
-			header: { title: preset.name },
-			sceneEntries: fullRewriteScene.conversation.entries,
-			local: {
-				pendingSendIntent: false,
-			},
-		});
-		const fullRewriteDisplay = applyAgentPanelDisplayMemory(memory, fullRewriteBaseModel);
-		const projectedEntries = applyAgentPanelDisplayModelToSceneEntries(
-			fullRewriteDisplay.model,
-			fullRewriteDisplay.memory,
-			fullRewriteScene.conversation.entries
-		);
+		const projectedEntries = projection.apply(revealSnapshotForInput(fullRewriteInput)).entries;
 		const assistantEntry = projectedEntries.find((entry) => entry.type === "assistant");
 
 		expect(assistantEntry?.type).toBe("assistant");

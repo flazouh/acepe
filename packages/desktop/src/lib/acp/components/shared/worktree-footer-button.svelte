@@ -38,7 +38,7 @@ function handleClick(): void {
 						{...props}
 						type="button"
 						onclick={handleClick}
-						class="h-7 inline-flex items-center gap-1.5 px-3 text-muted-foreground transition-colors hover:bg-accent/50 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:ring-inset"
+						class="inline-flex h-5 items-center gap-1 rounded-md px-3 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:ring-inset"
 						aria-label="Reveal worktree in Finder"
 					>
 						{#if mode === "worktree"}

@@ -688,4 +688,62 @@ mod tests {
         assert_eq!(slice.offsets_px, vec![100, 200]);
         assert_eq!(slice.viewport_offset_px, 299);
     }
+
+    #[test]
+    fn following_tail_survives_awaiting_to_assistant_swap() {
+        let mut viewport = TranscriptViewport::new(
+            LayoutIndex::new(vec![
+                row("user-1", 60),
+                row("awaiting:planning", 38),
+            ]),
+            400,
+        )
+        .with_overscan(0);
+
+        assert_eq!(viewport.mode(), &ViewportMode::FollowingTail);
+
+        let layout_with_assistant = LayoutIndex::new(vec![
+            row("user-1", 60),
+            row("assistant-1", 120),
+        ]);
+        viewport.replace_layout_preserving_viewport(layout_with_assistant);
+
+        assert_eq!(viewport.mode(), &ViewportMode::FollowingTail);
+        let window = viewport.window();
+        assert_eq!(window.offset_px, 0);
+        assert_eq!(window.total_height_px, 180);
+    }
+
+    #[test]
+    fn detached_viewport_reattaches_to_nearest_row_on_awaiting_swap() {
+        let mut viewport = TranscriptViewport::new(
+            LayoutIndex::new(vec![
+                row("user-1", 60),
+                row("awaiting:planning", 38),
+            ]),
+            400,
+        );
+        viewport.apply_scroll_intent(ScrollIntent::DetachAtOffset { offset_px: 40 });
+
+        assert_eq!(
+            viewport.mode(),
+            &ViewportMode::Detached {
+                anchor_row_id: "user-1".to_string(),
+                offset_from_anchor_px: 40,
+            }
+        );
+
+        viewport.replace_layout_preserving_viewport(LayoutIndex::new(vec![
+            row("user-1", 60),
+            row("assistant-1", 120),
+        ]));
+
+        assert_eq!(
+            viewport.mode(),
+            &ViewportMode::Detached {
+                anchor_row_id: "user-1".to_string(),
+                offset_from_anchor_px: 40,
+            }
+        );
+    }
 }

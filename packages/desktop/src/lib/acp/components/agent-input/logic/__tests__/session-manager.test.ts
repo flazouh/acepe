@@ -7,31 +7,34 @@ import { type CreateSessionOptions, createSession, sendMessage } from "../sessio
 
 describe("createSession", () => {
 	it("should create session with provided options", async () => {
+		const createSessionMock = mock(() => {
+			const session: Session = {
+				id: "session-123",
+				projectPath: "/test",
+				agentId: "claude-code",
+				title: "Test Project",
+				status: "idle",
+				entries: [],
+				entryCount: 0,
+				isConnected: false,
+				isStreaming: false,
+				availableModes: [],
+				availableModels: [],
+				availableCommands: [],
+				currentMode: null,
+				currentModel: null,
+				taskProgress: null,
+				acpSessionId: null,
+				updatedAt: new Date(),
+				createdAt: new Date(),
+				parentId: null,
+			};
+			return okAsync({ kind: "ready" as const, session });
+		});
 		const mockStore = {
-			createSession: mock(() => {
-				const session: Session = {
-					id: "session-123",
-					projectPath: "/test",
-					agentId: "claude-code",
-					title: "Test Project",
-					status: "idle",
-					entries: [],
-					entryCount: 0,
-					isConnected: false,
-					isStreaming: false,
-					availableModes: [],
-					availableModels: [],
-					availableCommands: [],
-					currentMode: null,
-					currentModel: null,
-					taskProgress: null,
-					acpSessionId: null,
-					updatedAt: new Date(),
-					createdAt: new Date(),
-					parentId: null,
-				};
-				return okAsync({ kind: "ready" as const, session });
-			}),
+			connection: {
+				createSession: createSessionMock,
+			},
 		} as unknown as SessionStore;
 
 		const options: CreateSessionOptions = {
@@ -50,7 +53,7 @@ describe("createSession", () => {
 				deferredCreation: false,
 			});
 		}
-		expect(mockStore.createSession).toHaveBeenCalledWith(
+		expect(createSessionMock).toHaveBeenCalledWith(
 			expect.objectContaining({
 				agentId: "claude-code",
 				initialAutonomousEnabled: true,
@@ -60,11 +63,13 @@ describe("createSession", () => {
 		);
 	});
 
-	it("should return SessionCreationError when store.createSession fails", async () => {
+	it("should return SessionCreationError when store.connection.createSession fails", async () => {
 		const mockStore = {
-			createSession: mock(() => {
-				return errAsync(new Error("Store error"));
-			}),
+			connection: {
+				createSession: mock(() => {
+					return errAsync(new Error("Store error"));
+				}),
+			},
 		} as unknown as SessionStore;
 
 		const options: CreateSessionOptions = {
@@ -85,20 +90,25 @@ describe("createSession", () => {
 
 describe("sendMessage", () => {
 	it("should send message successfully", async () => {
+		const sendMessageMock = mock(() => okAsync(undefined));
 		const mockStore = {
-			sendMessage: mock(() => okAsync(undefined)),
+			connection: {
+				sendMessage: sendMessageMock,
+			},
 		} as unknown as SessionStore;
 
 		const result = await sendMessage(mockStore, "session-123", "Hello");
 		expect(result.isOk()).toBe(true);
-		expect(mockStore.sendMessage).toHaveBeenCalledWith("session-123", "Hello", []);
+		expect(sendMessageMock).toHaveBeenCalledWith("session-123", "Hello", []);
 	});
 
-	it("should return MessageSendError when store.sendMessage fails", async () => {
+	it("should return MessageSendError when store.connection.sendMessage fails", async () => {
 		const mockStore = {
-			sendMessage: mock(() => {
-				return errAsync(new Error("Send error"));
-			}),
+			connection: {
+				sendMessage: mock(() => {
+					return errAsync(new Error("Send error"));
+				}),
+			},
 		} as unknown as SessionStore;
 
 		const result = await sendMessage(mockStore, "session-123", "Hello");
@@ -111,12 +121,15 @@ describe("sendMessage", () => {
 	});
 
 	it("should handle empty message", async () => {
+		const sendMessageMock = mock(() => okAsync(undefined));
 		const mockStore = {
-			sendMessage: mock(() => okAsync(undefined)),
+			connection: {
+				sendMessage: sendMessageMock,
+			},
 		} as unknown as SessionStore;
 
 		const result = await sendMessage(mockStore, "session-123", "");
 		expect(result.isOk()).toBe(true);
-		expect(mockStore.sendMessage).toHaveBeenCalledWith("session-123", "", []);
+		expect(sendMessageMock).toHaveBeenCalledWith("session-123", "", []);
 	});
 });

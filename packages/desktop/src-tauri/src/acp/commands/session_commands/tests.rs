@@ -320,14 +320,7 @@ async fn resume_rebuilds_completed_assistant_transcript_from_local_journal() {
             entry.role == crate::acp::transcript_projection::TranscriptEntryRole::Assistant
         })
         .flat_map(|entry| entry.segments.iter())
-        .map(|segment| match segment {
-            crate::acp::transcript_projection::TranscriptSegment::Text { text, .. } => {
-                text.as_str()
-            }
-            crate::acp::transcript_projection::TranscriptSegment::Thought { text, .. } => {
-                text.as_str()
-            }
-        })
+        .map(|segment| segment.primary_text())
         .collect::<String>();
 
     assert_eq!(assistant_text, "Raincoats survive resume");
@@ -560,14 +553,7 @@ async fn state_lookup_rebuilds_completed_transcript_from_local_journal() {
         .entries
         .iter()
         .flat_map(|entry| entry.segments.iter())
-        .map(|segment| match segment {
-            crate::acp::transcript_projection::TranscriptSegment::Text { text, .. } => {
-                text.as_str()
-            }
-            crate::acp::transcript_projection::TranscriptSegment::Thought { text, .. } => {
-                text.as_str()
-            }
-        })
+        .map(|segment| segment.primary_text())
         .collect::<Vec<_>>();
 
     assert_eq!(transcript.revision, 5);

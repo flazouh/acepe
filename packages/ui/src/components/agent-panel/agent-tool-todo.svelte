@@ -6,6 +6,8 @@
 		getTodoProgressSummary,
 	} from "./agent-tool-todo-state.js";
 	import TodoNumberIcon from "./todo-number-icon.svelte";
+	import AgentToolDurationLabel from "./agent-tool-duration-label.svelte";
+	import type { ToolDurationTiming } from "./tool-duration.js";
 	import type { AgentTodoItem } from "./types.js";
 
 	interface Props {
@@ -13,15 +15,15 @@
 		todos?: AgentTodoItem[];
 		/** Whether the session is live (affects in_progress display) */
 		isLive?: boolean;
-		/** Optional elapsed label shown in the header (e.g. "for 2.34s") */
-		durationLabel?: string;
+		/** Optional elapsed timing shown in the header */
+		durationTiming?: ToolDurationTiming;
 		/** Header label for the tasks section (e.g. "Tasks") */
 		tasksLabel?: string;
 		/** Fallback label when no todos are parsed (e.g. "Updated todos") */
 		fallbackLabel?: string;
 	}
 
-	let { todos = [], isLive = false, durationLabel, tasksLabel = "Tasks", fallbackLabel = "Updated todos" }: Props = $props();
+	let { todos = [], isLive = false, durationTiming, tasksLabel = "Tasks", fallbackLabel = "Updated todos" }: Props = $props();
 
 	const progress = $derived(getTodoProgressSummary(todos));
 	const displayRows = $derived(
@@ -40,9 +42,7 @@
 			<div class="mb-1.5 flex items-center justify-between gap-2 text-sm">
 				<div class="flex min-w-0 items-center gap-2">
 					<span>{tasksLabel}</span>
-					{#if durationLabel}
-						<span class="text-sm">{durationLabel}</span>
-					{/if}
+					<AgentToolDurationLabel timing={durationTiming} class="text-sm" />
 				</div>
 				<span>{progress.completedCount}/{progress.totalTasks}</span>
 			</div>

@@ -1,9 +1,9 @@
 <script lang="ts">
+import { Selector } from "@acepe/ui";
 import * as DropdownMenu from "@acepe/ui/dropdown-menu";
 import { IconDotsVertical } from "@tabler/icons-svelte";
 import { IconEye } from "@tabler/icons-svelte";
 import { IconFolder } from "@tabler/icons-svelte";
-import { Button } from "$lib/components/ui/button/index.js";
 interface Props {
 	sessionId: string;
 	projectPath: string;
@@ -22,34 +22,29 @@ const hasActions = $derived(Boolean(onView || onOpenInFinder || onArchive || onU
 </script>
 
 {#if hasActions}
-	<DropdownMenu.Root>
-		<DropdownMenu.Trigger>
-			{#snippet child({ props })}
-				<Button variant="ghost" size="sm" class="h-8 w-8 p-0" {...props}>
-					<IconDotsVertical class="h-4 w-4" />
-					<span class="sr-only">Actions</span>
-				</Button>
-			{/snippet}
-		</DropdownMenu.Trigger>
-		<DropdownMenu.Content align="end">
-			{#if onView}
-				<DropdownMenu.Item onclick={() => onView(sessionId)}>
-					<IconEye class="h-4 w-4 mr-2" />
-					{"Open"}
-				</DropdownMenu.Item>
-			{/if}
-			{#if onOpenInFinder}
-				<DropdownMenu.Item onclick={() => onOpenInFinder(sessionId, projectPath)}>
-					<IconFolder class="h-4 w-4 mr-2" />
-					{"Open Thread in Finder"}
-				</DropdownMenu.Item>
-			{/if}
-			{#if onArchive}
-				<DropdownMenu.Item onclick={() => onArchive(actionTarget)}>Archive</DropdownMenu.Item>
-			{/if}
-			{#if onUnarchive}
-				<DropdownMenu.Item onclick={() => onUnarchive(actionTarget)}>Unarchive</DropdownMenu.Item>
-			{/if}
-		</DropdownMenu.Content>
-	</DropdownMenu.Root>
+	<Selector align="end" triggerSize="square" showChevron={false} variant="ghost" triggerAriaLabel="Actions">
+		{#snippet renderButton()}
+			<IconDotsVertical class="h-4 w-4" />
+			<span class="sr-only">Actions</span>
+		{/snippet}
+
+		{#if onView}
+			<DropdownMenu.Item onclick={() => onView(sessionId)}>
+				<IconEye class="h-4 w-4 mr-2" />
+				{"Open"}
+			</DropdownMenu.Item>
+		{/if}
+		{#if onOpenInFinder}
+			<DropdownMenu.Item onclick={() => onOpenInFinder(sessionId, projectPath)}>
+				<IconFolder class="h-4 w-4 mr-2" />
+				{"Open Thread in Finder"}
+			</DropdownMenu.Item>
+		{/if}
+		{#if onArchive}
+			<DropdownMenu.Item onclick={() => onArchive(actionTarget)}>Archive</DropdownMenu.Item>
+		{/if}
+		{#if onUnarchive}
+			<DropdownMenu.Item onclick={() => onUnarchive(actionTarget)}>Unarchive</DropdownMenu.Item>
+		{/if}
+	</Selector>
 {/if}

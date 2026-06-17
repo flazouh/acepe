@@ -244,5 +244,6 @@ function getGitDiffStats(filePanel: FilePanelType): { added: number; removed: nu
 	.attached-tab-button :global(.file-path-badge:hover),
 	.attached-tab-button :global(.file-path-badge-selected) {
 		background: transparent !important;
+		border: none !important;
 	}
 </style>

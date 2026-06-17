@@ -9,6 +9,7 @@
 
 	import { Button } from "../button/index.js";
 	import * as DropdownMenu from "../dropdown-menu/index.js";
+	import { Selector } from "../selector/index.js";
 	import { VoiceDownloadProgress } from "../voice-download-progress/index.js";
 
 	export interface AgentInputVoiceModel {
@@ -110,22 +111,22 @@
 	});
 </script>
 
-<DropdownMenu.Root bind:open={menuOpen}>
-	<DropdownMenu.Trigger>
-		{#snippet child({ props })}
-			<button
-				type="button"
-				class="voice-more-btn flex items-center justify-center rounded-full transition-all duration-150 ease-out focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-				class:voice-more-open={menuOpen}
-				aria-label={menuLabel}
-				{...props}
-			>
-				<DotsThreeVertical class="h-3.5 w-3.5" weight="bold" />
-			</button>
-		{/snippet}
-	</DropdownMenu.Trigger>
-	<DropdownMenu.Content align="end" side="top" sideOffset={8} class="min-w-[260px]">
-		<DropdownMenu.Group>
+<Selector
+	bind:open={menuOpen}
+	align="end"
+	side="top"
+	sideOffset={8}
+	variant="ghost"
+	showChevron={false}
+	triggerSize="icon"
+	triggerAriaLabel={menuLabel}
+	class="voice-more-selector"
+>
+	{#snippet renderButton()}
+		<DotsThreeVertical class="h-3.5 w-3.5" weight="bold" />
+	{/snippet}
+
+	<DropdownMenu.Group>
 			<DropdownMenu.GroupHeading class="text-[10px]">
 				{menuLabel}
 			</DropdownMenu.GroupHeading>
@@ -207,11 +208,10 @@
 				{/each}
 			{/each}
 		{/if}
-	</DropdownMenu.Content>
-</DropdownMenu.Root>
+</Selector>
 
 <style>
-	.voice-more-btn {
+	.voice-more-selector :global(button) {
 		width: 22px;
 		height: 22px;
 		color: var(--muted-foreground);
@@ -219,15 +219,12 @@
 		pointer-events: none;
 		transition: opacity 150ms ease-out, color 150ms ease-out, transform 150ms ease-out;
 	}
-	.voice-more-open {
+	:global(.voice-controls:hover) .voice-more-selector :global(button),
+	.voice-more-selector:has([data-state='open']) :global(button) {
 		opacity: 1;
 		pointer-events: auto;
 	}
-	:global(.voice-controls:hover) .voice-more-btn {
-		opacity: 1;
-		pointer-events: auto;
-	}
-	.voice-more-btn:hover {
+	.voice-more-selector :global(button:hover) {
 		color: var(--foreground);
 		transform: scale(1.08);
 	}

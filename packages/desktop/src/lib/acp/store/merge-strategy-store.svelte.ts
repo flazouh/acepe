@@ -3,7 +3,7 @@
  * Defaults to "squash". Stored in user settings so it survives restarts.
  */
 
-import type { UserSettingKey } from "$lib/services/converted-session-types.js";
+import type { UserSettingKey } from "$lib/services/user-settings-types.js";
 import type { MergeStrategy } from "$lib/utils/tauri-client/git.js";
 import { tauriClient } from "$lib/utils/tauri-client.js";
 

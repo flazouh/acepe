@@ -198,7 +198,10 @@ const sessionOpenHydrator = new SessionOpenHydrator(
 	panelStore,
 	createSessionOpenInteractionGraphConsumer({ interactionStore })
 );
-sessionStore.setSessionOpenHydrator(sessionOpenHydrator);
+sessionStore.connection.setSessionOpenHydrator(sessionOpenHydrator);
+panelStore.setDuplicatePanelDisposalHandler((panelId) => {
+	sessionOpenHydrator.clearAttempt(panelId);
+});
 // Create voice settings store (context for voice-section and agent-input-ui)
 const voiceSettingsStore = createVoiceSettingsStore();
 const preconnectionAgentSkillsStore = createPreconnectionAgentSkillsStore();
@@ -312,7 +315,7 @@ function showPlanApprovalNotification(approval: PlanApprovalInteraction): void {
 	);
 }
 
-sessionStore.setLiveSessionStateGraphConsumer(
+sessionStore.connection.setLiveSessionStateGraphConsumer(
 	createLiveInteractionGraphConsumer({
 		interactionStore,
 		showPermissionNotification,
@@ -397,7 +400,7 @@ sessionStore.setCallbacks({
 			planData.hasPlan !== true &&
 			planData.streaming !== true
 		) {
-			const identity = sessionStore.getSessionIdentity(sessionId);
+			const identity = sessionStore.read.getSessionIdentity(sessionId);
 			if (identity?.projectPath && identity?.agentId) {
 				planStore.loadPlan(sessionId, identity.projectPath, identity.agentId);
 			}
@@ -422,7 +425,7 @@ sessionStore.setCallbacks({
 		});
 
 		// Show completion popup notification when app is unfocused
-		const sessionTitle = sessionStore.getSessionMetadata(sessionId)?.title ?? "Task";
+		const sessionTitle = sessionStore.read.getSessionMetadata(sessionId)?.title ?? "Task";
 		showNotification(
 			{
 				id: `completion-${sessionId}-${Date.now()}`,
@@ -539,7 +542,7 @@ function handleAddProjectOpen(path: string, name: string) {
 	};
 	projectManager.addProject(project).match(
 		() => {
-			sessionStore.scanSessions([path]).mapErr(() => {});
+			sessionStore.loading.scanSessions([path]).mapErr(() => {});
 			panelStore.spawnPanel({
 				projectPath: path,
 				pendingWorktreeEnabled: worktreeDefaultStore.globalDefault,
@@ -554,7 +557,7 @@ function handleAddProjectOpen(path: string, name: string) {
 function handleAddProjectImported(path: string, name: string) {
 	projectManager.addProjectOptimistic(path, name);
 	projectManager.loadProjects().mapErr(() => {});
-	sessionStore.scanSessions([path]).mapErr(() => {});
+	sessionStore.loading.scanSessions([path]).mapErr(() => {});
 }
 
 async function handleOpenFolder() {
@@ -923,7 +926,7 @@ function handleOnboardingDismiss() {
 	projectManager.loadProjects().map(() => {
 		const projectPaths = projectManager.projects.map((p) => p.path);
 		if (projectPaths.length > 0) {
-			sessionStore.loadSessions(projectPaths);
+			sessionStore.loading.loadSessions(projectPaths);
 		}
 	});
 	viewState.dismissSplash();
@@ -1017,7 +1020,7 @@ const showTabBarStrip = $derived(
 onDestroy(() => {
 	// Disconnect all sessions to kill their subprocesses
 	// This prevents orphaned Claude processes when the app closes
-	sessionStore.disconnectAllSessions();
+	sessionStore.connection.disconnectAllSessions();
 	// Cleanup state (handles keybindings uninstall and HMR guard reset)
 	viewState.cleanup();
 	// Cleanup inbound request handler
@@ -1072,7 +1075,7 @@ onDestroy(() => {
 			>
 				{#snippet addProjectButton()}
 					<button
-						class="flex items-center justify-center size-6 rounded text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+						class="flex items-center justify-center size-6 rounded-md text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
 						title={"Add repository"}
 						aria-label={"Add repository"}
 						onclick={() => (addProjectDialogOpen = true)}
@@ -1199,7 +1202,7 @@ onDestroy(() => {
 			}}
 		>
 			<div
-				class="mx-auto h-full max-h-[820px] w-full max-w-[1180px] overflow-hidden rounded-xl border border-border/60 bg-background shadow-[0_30px_80px_rgba(0,0,0,0.5)]"
+				class="mx-auto h-full max-h-[820px] w-full max-w-[1180px] overflow-hidden rounded-lg border border-border/60 bg-background shadow-[0_30px_80px_rgba(0,0,0,0.5)]"
 			>
 				<SqlStudioPage onClose={() => viewState.closeSqlStudio()} />
 			</div>

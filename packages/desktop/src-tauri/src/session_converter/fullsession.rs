@@ -217,10 +217,7 @@ fn convert_full_session_impl(
 }
 
 fn is_claude_local_command_message(text: &str) -> bool {
-    let trimmed = text.trim();
-    trimmed.contains("<command-name>")
-        || trimmed.contains("<command-message>")
-        || trimmed.contains("<local-command-stdout>")
+    crate::acp::local_command::is_local_command_text(text)
 }
 
 /// Check if a tool name is a question tool.

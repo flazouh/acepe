@@ -59,43 +59,26 @@ import { usePlanLoader } from "../hooks";
 import {
 	createWorktreeSetupMatchContext,
 	copyTextToClipboard,
-	applyAgentPanelDisplayMemory,
-	buildAgentPanelBaseModel,
-	createAgentPanelDisplayMemory,
-	createAgentPanelDisplaySceneEntriesReadModel,
-	createAgentPanelDisplayRowsReadModel,
 	matchesWorktreeSetupContext,
-	removeWorktreeAndMarkSessionWorktreeDeleted,
 	resolveEffectiveProjectPath,
 	shouldConfirmWorktreeClose,
 } from "../logic";
-import { createAgentPanelGraphMaterializerReadModel } from "../../../session-state/agent-panel-graph-materializer.js";
-import { resolveAgentPanelWorktreePending } from "../logic/worktree-pending.js";
-import { getWorktreeDefaultStore } from "../../worktree/worktree-default-store.svelte.js";
 import { DEFAULT_BROWSER_HOME_URL } from "../../../constants/browser-defaults.js";
 import { getProviderBrandIcon } from "../../../constants/thread-list-constants.js";
-import { derivePanelViewState } from "../../../logic/panel-visibility.js";
-import { createPanelBranchLookupController } from "../logic/panel-branch-lookup.js";
 import { createAgentPanelExportHandlers } from "../logic/agent-panel-export-handlers.js";
 import { createAgentPanelInteractionHandlers } from "../logic/agent-panel-interaction-handlers.js";
-import { AgentPanelSessionController } from "../state/agent-panel-session-controller.svelte.js";
-import { CheckpointTimelineController } from "../state/checkpoint-timeline-controller.svelte.js";
-import { ReviewDialogController } from "../state/review-dialog-controller.svelte.js";
-import { PrCardController } from "../state/pr-card-controller.svelte.js";
-import { WorktreeCloseConfirmationController } from "../state/worktree-close-confirmation-controller.svelte.js";
-import { WorktreeSetupController } from "../state/worktree-setup-controller.svelte.js";
-import { ContentScrollRevealController } from "../state/content-scroll-reveal-controller.svelte.js";
-import { ConnectionController } from "../state/connection-controller.svelte.js";
+import {
+	ATTACHED_COLUMN_WIDTH,
+	BROWSER_SIDEBAR_COLUMN_WIDTH,
+	PLAN_SIDEBAR_COLUMN_WIDTH,
+} from "../state/agent-panel-layout-controller.svelte.js";
+import { AgentPanelRootState } from "../state/agent-panel-root-state.svelte.js";
 import { shouldAutoScrollOnPanelActivation } from "../logic/should-auto-scroll-on-panel-activation.js";
 import { isInteractiveClickTarget } from "../logic/panel-focus-guard.js";
 import { deriveAgentPanelHeaderDisplayTitle } from "../logic/agent-panel-header-title.js";
 import { resolveAgentPanelProviderBrand } from "../logic/agent-panel-provider-brand.js";
-import { shouldShowPreSessionWorktreeCard } from "../logic/pre-session-worktree-card-visibility.js";
 import { resolveWorktreeToggleProjectPath } from "../logic/worktree-toggle-project-path.js";
-import { createGraphSceneEntryIndexReadModel } from "../logic/graph-scene-entry-match.js";
-import { createTokenRevealSceneReadModel } from "../logic/token-reveal-scene-read-model.js";
-import { buildTodoMarkdown, buildTokenRevealCss } from "./agent-panel-pure-helpers.js";
-import { AgentPanelState } from "../state/agent-panel-state.svelte";
+import { buildTodoMarkdown } from "./agent-panel-pure-helpers.js";
 import type { AgentPanelProps } from "../types";
 import { AgentPanelFooter as SharedFooter } from "@acepe/ui/agent-panel";
 import WorktreeFooterButton from "../../shared/worktree-footer-button.svelte";
@@ -107,6 +90,7 @@ import type { ReviewControlsSnapshot } from "./agent-panel-review-content-types.
 import WorkspaceDialogFrame from "$lib/components/ui/workspace-dialog-frame.svelte";
 import AgentPanelTerminalDrawer from "./agent-panel-terminal-drawer.svelte";
 import AgentPanelPreComposerStack from "./agent-panel-pre-composer-stack.svelte";
+import PreSessionWorktreeCard from "./pre-session-worktree-card.svelte";
 import { PlanSidebar } from "../../plan-sidebar/index.js";
 import { BrowserPanel as BrowserPanelComponent } from "../../browser-panel/index.js";
 import {
@@ -114,12 +98,6 @@ import {
 	AgentPanelWorktreeCloseConfirmPopover,
 } from "@acepe/ui/agent-panel";
 import ScrollToBottomButton from "./scroll-to-bottom-button.svelte";
-import {
-	resolveAgentContentColumnStyle,
-	resolveAgentPanelEffectiveWidth,
-	resolveAgentPanelWidthStyle,
-	shouldUseCenteredFullscreenContent,
-} from "./agent-panel-layout.js";
 import { buildAgentErrorIssueDraft } from "../logic/issue-report-draft.js";
 import { resolveInitialReviewWorkspaceIndex } from "./review-workspace-model.js";
 import {
@@ -128,15 +106,10 @@ import {
 	removeAttachmentFromQueuedMessage,
 	sendQueuedMessageNow,
 } from "../logic/queue-strip-handlers.js";
-import { resolveTokenRevealSettleDelayMs } from "../../messages/token-reveal-motion.js";
 import {
-	discardPreparedWorktreeSessionLaunch,
 	fetchPanelGitBranch,
 	fetchWorktreeHasUncommittedChanges,
 	fetchWorktreePathListedForProject,
-	loadCheckpointsBeforeTimelineOpen,
-	persistSessionWorktreePathAfterRename,
-	removeWorktreeFromDisk,
 	runCreatePrWorkflow,
 	runMergePrWorkflow,
 	runPanelConnectionRetry,
@@ -181,29 +154,97 @@ let {
 	onCreateIssueReport,
 }: AgentPanelProps = $props();
 
-// ✅ State managers (must be before derived values that use them)
-const sessionStore = getSessionStore();
-const panelStore = getPanelStore();
-const chatPreferencesStore = getChatPreferencesStore();
+const logger = createLogger({ id: "agent-panel-render-trace", name: "AgentPanelRenderTrace" });
+let lastPanelTraceSignature = $state<string | null>(null);
+let prefersReducedMotion = $state(false);
 
-// Session-derived reactive state is being hoisted into this controller,
-// cluster by cluster (see docs/plans/2026-05-29-002-...). Instantiated once;
-// consumed incrementally as derivations migrate.
-const sessionController: AgentPanelSessionController = new AgentPanelSessionController({
-	getSessionId: () => sessionId,
+const rootState = new AgentPanelRootState({
+	stores: {
+		sessionStore: getSessionStore(),
+		panelStore: getPanelStore(),
+		chatPreferencesStore: getChatPreferencesStore() ?? null,
+		connectionStore: getConnectionStore(),
+		interactionStore: getInteractionStore(),
+		permissionStore: getPermissionStore(),
+		agentStore: getAgentStore(),
+		messageQueueStore: getMessageQueueStore(),
+	},
 	getPanelId: () => panelId,
-	sessionStore,
-	panelStore,
-	getPanelConnectionState: () => connection.state,
-	getPanelConnectionError: () => connection.error,
+	getSessionId: () => sessionId,
+	getPanelWidth: () => width,
+	getHasAttachedFilePane: () => hasAttachedFilePane,
+	getIsFullscreen: () => isFullscreen,
+	getReviewMode: () => reviewMode,
+	getHasPlan: () => planState.plan !== null,
 	getAgentName: () => agentName,
+	getViewStateInput: (state) => ({
+		lifecyclePresentation: state.sessionController.lifecyclePresentation,
+		entriesCount: state.sessionController.knownVisibleEntryCount,
+		hasSession: sessionId !== null,
+		isAwaitingModelResponse: state.sessionController.isAwaitingModelResponse,
+		hasImmediatePendingSendIntent: state.sessionController.hasImmediatePendingSendIntent,
+		showProjectSelection,
+		hasEffectiveProjectPath: !!effectiveProjectPath,
+		errorInfo: state.sessionController.errorInfo,
+	}),
+	getGraphMaterializerInput: (state) => ({
+		panelId: state.sessionController.effectivePanelId,
+		graph: state.sessionController.agentPanelCanonicalSource,
+		header: {
+			title: graphHeaderTitle,
+			subtitle: state.sessionController.sessionTitle,
+			agentIconSrc,
+			agentLabel: agentName,
+			projectLabel: displayProjectName,
+			projectColor,
+			sequenceId,
+		},
+		optimistic:
+			state.sessionController.optimisticUserEntryForGraph != null
+				? {
+						pendingUserEntry: state.sessionController.optimisticUserEntryForGraph,
+					}
+				: null,
+	}),
+	getPrefersReducedMotion: () => prefersReducedMotion,
+	getWorktreeToggleProjectPath: () => worktreeToggleProjectPath,
+	getPanelPendingWorktreeEnabled: () => panelPendingWorktreeEnabled,
+	getPanelPreparedWorktreeLaunch: () => panelPreparedWorktreeLaunch,
+	getPendingWorktreeSetup: (state) =>
+		state.sessionController.panelHotState?.pendingWorktreeSetup ?? null,
+	getPendingProjectSelection: () => pendingProjectSelection,
+	getAllProjects: () => allProjects,
+	onClose,
+	logWorktreeCreated: (details) => {
+		logger.info("[worktree-flow] handleWorktreeCreated: entry", details);
+	},
+	logWorktreeCreatedEarlyReturn: () => {
+		logger.info("[worktree-flow] handleWorktreeCreated: early return (no projectPath)");
+	},
 });
 
-// Panel-connection state — owned by a testable controller. Mutually-referential
-// with sessionController via lazy accessors (stillFailed ↔ connection state/error).
-const connection: ConnectionController = new ConnectionController({
-	getStillFailed: () => sessionController.stillFailed,
-});
+const sessionStore = rootState.sessionStore;
+const panelStore = rootState.panelStore;
+const chatPreferencesStore = rootState.chatPreferencesStore;
+const connectionStore = rootState.connectionStore;
+const interactionStore = rootState.interactionStore;
+const permissionStore = rootState.permissionStore;
+const agentStore = rootState.agentStore;
+const messageQueueStore = rootState.messageQueueStore;
+const sessionController = rootState.sessionController;
+const connection = rootState.connection;
+const panelState = rootState.panelState;
+const panelBranchLookup = rootState.panelBranchLookup;
+const layoutController = rootState.layoutController;
+const contentScrollReveal = rootState.contentScrollReveal;
+const checkpointTimeline = rootState.checkpointTimeline;
+const worktreeSetup = rootState.worktreeSetup;
+const worktreeCloseConfirm = rootState.worktreeCloseConfirm;
+const worktreeController = rootState.worktreeController;
+const viewStateController = rootState.viewStateController;
+const scenePipelineController = rootState.scenePipelineController;
+const prCard = rootState.prCard;
+const reviewDialog = rootState.reviewDialog;
 
 setThinkingPreferences({
 	get defaultExpanded() {
@@ -215,19 +256,6 @@ setThinkingPreferences({
 		);
 	},
 });
-const connectionStore = getConnectionStore();
-const interactionStore = getInteractionStore();
-const permissionStore = getPermissionStore();
-const agentStore = getAgentStore();
-const messageQueueStore = getMessageQueueStore();
-const logger = createLogger({ id: "agent-panel-render-trace", name: "AgentPanelRenderTrace" });
-let lastPanelTraceSignature = $state<string | null>(null);
-let agentPanelDisplayMemory = createAgentPanelDisplayMemory();
-const agentPanelDisplayRowsReadModel = createAgentPanelDisplayRowsReadModel();
-const agentPanelDisplaySceneEntriesReadModel = createAgentPanelDisplaySceneEntriesReadModel();
-const tokenRevealSourceIndexReadModel = createGraphSceneEntryIndexReadModel();
-const tokenRevealSceneReadModel = createTokenRevealSceneReadModel();
-let prefersReducedMotion = $state(false);
 
 onMount(() => {
 	const mediaQuery = window.matchMedia?.("(prefers-reduced-motion: reduce)") ?? null;
@@ -264,15 +292,7 @@ const panelPreparedWorktreeLaunch = $derived(
 	panelSnapshot?.kind === "agent" ? (panelSnapshot.preparedWorktreeLaunch ?? null) : null
 );
 
-// Current model from canonical capabilities (for PR popover default)
-
-// ✅ State manager for local UI state only (drag, dialog)
-const panelState = new AgentPanelState();
-const panelBranchLookup = createPanelBranchLookupController();
 let inlinePlanDialogPlan = $state<{ title: string; content: string; summary: null } | null>(null);
-
-// Plan sidebar state from store (centralized, auto-persisted)
-const showPlanSidebar = $derived(panelId ? panelStore.isPlanSidebarExpanded(panelId) : false);
 
 // ✅ Hooks at component level (they need prop reactivity)
 // Pass granular identity data instead of full session object
@@ -288,22 +308,9 @@ let scrollContainer: HTMLDivElement | null = $state(null);
 // Reference to content component for scroll control
 let contentRef: AgentPanelContent | null = $state(null);
 
-// Content scroll-position + token-reveal state — owned by a testable controller.
-const contentScrollReveal = new ContentScrollRevealController();
-
 // Scroll viewport reference for scroll-to-bottom button (bindable from child)
 let contentScrollViewport: HTMLElement | null = $state(null);
 
-// Checkpoint timeline state — owned by an independently-testable controller.
-const checkpointTimeline = new CheckpointTimelineController({
-	getSessionId: () => sessionId,
-	getCheckpoints: (id) => checkpointStore.getCheckpoints(id),
-	loadCheckpoints: loadCheckpointsBeforeTimelineOpen,
-});
-
-// Worktree state - tracks the active worktree directory for checkpoint path conversion
-let activeWorktreePath = $state<string | null>(null);
-let activeWorktreeOwnerProjectPath = $state<string | null>(null);
 let _panelBranch = $state<string | null>(null);
 let branchRequestVersion = 0;
 
@@ -351,32 +358,18 @@ const worktreeToggleProjectPath = $derived(
 		singleProjectPath: projectCount === 1 ? (allProjects[0]?.path ?? null) : null,
 	})
 );
-const scopedActiveWorktreePath = $derived.by(() => {
-	if (!activeWorktreePath) return null;
-	if (!worktreeToggleProjectPath) return null;
-	return activeWorktreeOwnerProjectPath === worktreeToggleProjectPath ? activeWorktreePath : null;
-});
-const effectiveActiveWorktreePath = $derived(sessionController.sessionWorktreePath ?? scopedActiveWorktreePath);
-/** True when the session's worktree directory no longer exists on disk. */
-let worktreeDeleted = $state(false);
-/** Effective git path for runStackedAction: worktree path if in worktree, else project path.
- *  Falls back to the project path when the worktree has been deleted to avoid
- *  repeated failures from git commands targeting a non-existent directory. */
-const effectivePathForGit = $derived.by(() => {
-	const wt = worktreeDeleted ? null : effectiveActiveWorktreePath;
-	return wt ?? worktreeToggleProjectPath ?? null;
-});
+const activeWorktreePath = $derived(worktreeController.activeWorktreePath);
+const activeWorktreeOwnerProjectPath = $derived(worktreeController.activeWorktreeOwnerProjectPath);
+const scopedActiveWorktreePath = $derived(worktreeController.scopedActiveWorktreePath);
+const effectiveActiveWorktreePath = $derived(worktreeController.effectiveActiveWorktreePath);
+const _activeWorktreeName = $derived(worktreeController.activeWorktreeName);
+const worktreeDeleted = $derived(worktreeController.worktreeDeleted);
+const effectivePathForGit = $derived(worktreeController.effectivePathForGit);
 
-/** Embedded terminal drawer state. */
-const isTerminalDrawerOpen = $derived(
-	panelId ? panelStore.isEmbeddedTerminalDrawerOpen(panelId) : false
-);
-
-/** Browser sidebar state. */
-const showBrowserSidebar = $derived(panelId ? panelStore.isBrowserSidebarExpanded(panelId) : false);
-const browserSidebarUrl = $derived(
-	panelId ? (panelStore.getHotState(panelId)?.browserSidebarUrl ?? null) : null
-);
+const showPlanSidebar = $derived(layoutController.showPlanSidebar);
+const isTerminalDrawerOpen = $derived(layoutController.isTerminalDrawerOpen);
+const showBrowserSidebar = $derived(layoutController.showBrowserSidebar);
+const browserSidebarUrl = $derived(layoutController.browserSidebarUrl);
 // Canonical lifecycle presentation from Rust-owned graph projection.
 const entriesCount = $derived(sessionController.knownVisibleEntryCount);
 const hasSession = $derived(sessionId !== null);
@@ -398,12 +391,7 @@ const effectiveProjectName = $derived(
 		? project?.name
 		: (project?.name ?? (projectCount === 1 ? allProjects[0].name : undefined))
 );
-const preSessionSelectedProject = $derived.by(() => {
-	if (!worktreeToggleProjectPath) {
-		return null;
-	}
-	return allProjects.find((candidate) => candidate.path === worktreeToggleProjectPath) ?? null;
-});
+const preSessionSelectedProject = $derived(worktreeController.preSessionSelectedProject);
 
 // ✅ Derived values from granular session data
 const effectivePanelAgentId = $derived(selectedAgentId ?? sessionController.sessionAgentId);
@@ -422,19 +410,8 @@ const errorDismissed = $derived(
 	sessionController.errorDismissalKey !== null && connection.dismissedErrorKey === sessionController.errorDismissalKey
 );
 
-// Panel view state: single discriminated union from all inputs
-const viewStateInput = $derived({
-	lifecyclePresentation: sessionController.lifecyclePresentation,
-	entriesCount,
-	hasSession,
-	isAwaitingModelResponse: sessionController.isAwaitingModelResponse,
-	hasImmediatePendingSendIntent: sessionController.hasImmediatePendingSendIntent,
-	showProjectSelection,
-	hasEffectiveProjectPath: !!effectiveProjectPath,
-	errorInfo: sessionController.errorInfo,
-});
-const viewState = $derived(derivePanelViewState(viewStateInput));
-const panelViewKind = $derived(viewState.kind);
+const viewState = $derived(viewStateController.viewState);
+const panelViewKind = $derived(viewStateController.panelViewKind);
 
 // Suppress the inline error card when the big-page error variant is
 // rendering for the same failure — otherwise the user sees the duplicated
@@ -444,26 +421,9 @@ const panelViewKind = $derived(viewState.kind);
 const showInlineErrorCard = $derived(
 	sessionController.errorInfo.showError && !errorDismissed && viewState.kind !== "error"
 );
-const worktreePending = $derived(
-	resolveAgentPanelWorktreePending({
-		activeWorktreePath: effectiveActiveWorktreePath,
-		hasMessages: sessionController.hasMessages,
-		pendingWorktreeEnabled: panelPendingWorktreeEnabled,
-		hasPreparedWorktreeLaunch: panelPreparedWorktreeLaunch !== null,
-	})
-);
-const worktreeSetup = new WorktreeSetupController();
+const worktreePending = $derived(worktreeController.worktreePending);
 const pendingWorktreeSetup = $derived(sessionController.panelHotState ? sessionController.panelHotState.pendingWorktreeSetup : null);
-const showPreSessionWorktreeCard = $derived.by(() =>
-	shouldShowPreSessionWorktreeCard({
-		sessionId,
-		pendingProjectSelection,
-		worktreeToggleProjectPath,
-		hasPendingWorktreeSetup: pendingWorktreeSetup !== null,
-		worktreeSetupVisible: worktreeSetup.state?.isVisible === true,
-		hasMessages: sessionController.hasMessages,
-	})
-);
+const showPreSessionWorktreeCard = $derived(worktreeController.showPreSessionWorktreeCard);
 
 $effect(() => {
 	if (!import.meta.env.DEV) return;
@@ -623,8 +583,6 @@ const sessionDiffStats = $derived.by(() => {
 });
 const sessionCreatedAt = $derived(sessionController.sessionMetadata?.createdAt ?? null);
 const sessionUpdatedAt = $derived(sessionController.sessionMetadata?.updatedAt ?? null);
-const graphSceneMaterializer = createAgentPanelGraphMaterializerReadModel();
-
 const effectivePanelProviderBrand = $derived.by(() => {
 	const headerAgentId = sessionController.sessionAgentId ?? effectivePanelAgentId;
 	if (!headerAgentId) {
@@ -634,7 +592,7 @@ const effectivePanelProviderBrand = $derived.by(() => {
 	const sessionProviderBrand =
 		sessionId === null
 			? null
-			: (sessionStore.getSessionProviderMetadata(sessionId)?.providerBrand ?? null);
+			: (sessionStore.read.getSessionProviderMetadata(sessionId)?.providerBrand ?? null);
 	const storeProviderBrand = agentStore.getProviderMetadata(headerAgentId)?.providerBrand ?? null;
 	const listedProviderBrand =
 		availableAgents.find((agent) => agent.id === headerAgentId)?.provider_metadata?.providerBrand ??
@@ -648,98 +606,10 @@ const effectivePanelProviderBrand = $derived.by(() => {
 	});
 });
 const agentIconSrc = $derived(getProviderBrandIcon(effectivePanelProviderBrand, effectiveTheme));
-const graphMaterializedScene = $derived(
-	graphSceneMaterializer.apply({
-		panelId: sessionController.effectivePanelId,
-		graph: sessionController.agentPanelCanonicalSource,
-		header: {
-			title: graphHeaderTitle,
-			subtitle: sessionController.sessionTitle,
-			agentIconSrc,
-			agentLabel: agentName,
-			projectLabel: displayProjectName,
-			projectColor,
-			sequenceId,
-		},
-		optimistic:
-			sessionController.optimisticUserEntryForGraph != null
-				? {
-						pendingUserEntry: sessionController.optimisticUserEntryForGraph,
-					}
-				: null,
-	})
-);
-const agentPanelBaseDisplayModel = $derived(
-	buildAgentPanelBaseModel({
-		panelId: sessionController.effectivePanelId,
-		graph: sessionController.agentPanelCanonicalSource,
-		header: {
-			title: graphHeaderTitle,
-			agentName,
-		},
-		sceneEntries: graphMaterializedScene.conversation.entries,
-		rows: agentPanelDisplayRowsReadModel,
-		local: {
-			pendingSendIntent: sessionController.hasImmediatePendingSendIntent,
-		},
-	})
-);
-const agentPanelDisplayResult = $derived.by(() => {
-	const result = applyAgentPanelDisplayMemory(agentPanelDisplayMemory, agentPanelBaseDisplayModel);
-	agentPanelDisplayMemory = result.memory;
-	return result;
-});
-const agentPanelDisplayModel = $derived(agentPanelDisplayResult.model);
-const graphSceneEntries = $derived.by(() => {
-	const input = {
-		model: agentPanelDisplayModel,
-		memory: agentPanelDisplayResult.memory,
-		sceneEntries: graphMaterializedScene.conversation.entries,
-	};
-	return (
-		agentPanelDisplaySceneEntriesReadModel.applyPatch(input) ??
-		agentPanelDisplaySceneEntriesReadModel.apply(input)
-	);
-});
-const tokenRevealSceneEntries = $derived.by(() => {
-	contentScrollReveal.settleRevision;
-	const streamingAnimationMode = chatPreferencesStore?.streamingAnimationMode ?? "smooth";
-	const tokenRevealTailRowId =
-		sessionId === null ? null : sessionStore.getActiveStreamingTailRowId(sessionId);
-	const clockAnchor = sessionId === null ? null : sessionStore.getClockAnchor(sessionId);
-
-	tokenRevealSourceIndexReadModel.applyPatch(graphMaterializedScene.conversation.entries) ??
-		tokenRevealSourceIndexReadModel.applySnapshot(graphMaterializedScene.conversation.entries);
-	const tailEntry = tokenRevealSourceIndexReadModel.selectEntryById(tokenRevealTailRowId);
-	const tailEntryIndex = tokenRevealSourceIndexReadModel.selectEntryIndexById(tokenRevealTailRowId);
-	const tokenRevealCss =
-		tailEntry?.type === "assistant"
-			? buildTokenRevealCss(
-					sessionId === null
-						? null
-						: sessionStore.getRowTokenStreamByRowId(sessionId, tailEntry.id),
-					clockAnchor,
-					streamingAnimationMode,
-					prefersReducedMotion,
-					tailEntry.isStreaming === true
-				)
-			: undefined;
-	const tokenRevealSnapshot = {
-		sceneEntries: graphSceneEntries,
-		sourceEntry: tailEntry,
-		tailRowId: tokenRevealTailRowId,
-		tailRowIndex: tailEntryIndex,
-		tokenRevealCss,
-	};
-
-	return (
-		tokenRevealSceneReadModel.applyPatch(tokenRevealSnapshot) ??
-		tokenRevealSceneReadModel.applySnapshot(tokenRevealSnapshot)
-	);
-});
-const tokenRevealSettleDelayMs = $derived(
-	resolveTokenRevealSettleDelayMs(tokenRevealSceneReadModel.selectSettlingTimings())
-);
+const graphMaterializedScene = $derived(scenePipelineController.graphMaterializedScene);
+const graphSceneEntries = $derived(scenePipelineController.graphSceneEntries);
+const tokenRevealSceneEntries = $derived(scenePipelineController.tokenRevealSceneEntries);
+const tokenRevealSettleDelayMs = $derived(scenePipelineController.tokenRevealSettleDelayMs);
 $effect(() => {
 	const delayMs = tokenRevealSettleDelayMs;
 	if (delayMs === null) {
@@ -767,32 +637,12 @@ const inputRenderKey = $derived(
 const branchLookupPath = $derived(
 	(worktreeDeleted ? null : effectiveActiveWorktreePath) ?? effectiveProjectPath ?? null
 );
-const _activeWorktreeName = $derived.by(() => {
-	const worktreePath = effectiveActiveWorktreePath;
-	if (!worktreePath) return null;
-	const segments = worktreePath.split("/").filter((segment) => segment.length > 0);
-	return segments.length > 0 ? (segments[segments.length - 1] ?? null) : null;
-});
-const footerWorktreeStatus = $derived.by(() => {
-	if (!sessionId || !worktreeToggleProjectPath) {
-		return null;
-	}
-
-	if (effectiveActiveWorktreePath && _activeWorktreeName) {
-		return {
-			mode: "worktree" as const,
-			primaryLabel: _activeWorktreeName,
-			secondaryLabel: null,
-		};
-	}
-
-	return null;
-});
+const footerWorktreeStatus = $derived(worktreeController.footerWorktreeStatus);
 
 /** Minimal linked-session references for the modified-header PR picker. */
 const projectPrLinkReferences = $derived.by(() => {
 	if (!sessionController.sessionProjectPath) return [];
-	return sessionStore.getSessionPrLinkReferencesForProject(sessionController.sessionProjectPath);
+	return sessionStore.read.getSessionPrLinkReferencesForProject(sessionController.sessionProjectPath);
 });
 
 /** Project matching the current session, used to render project-letter badges in the PR picker. */
@@ -802,17 +652,7 @@ const projectForPr = $derived.by(() => {
 });
 
 const hasPlan = $derived(planState.plan !== null);
-const ATTACHED_COLUMN_WIDTH = 450;
-const PLAN_SIDEBAR_COLUMN_WIDTH = 450;
-const BROWSER_SIDEBAR_COLUMN_WIDTH = 500;
-const ATTACHED_COLUMN_GAP_WIDTH = 2;
-
-// Dynamic minimum width reported by the toolbar's intrinsic content measurement.
-// The 16px accounts for the data-input-area wrapper's p-2 padding (8px each side).
-let toolbarMinWidth = $state(0);
-// PR/git-card reactive state — owned by an independently-testable controller.
-const prCard = new PrCardController();
-let preSessionWorktreeFailure = $state<string | null>(null);
+const preSessionWorktreeFailure = $derived(worktreeController.preSessionWorktreeFailure);
 let agentInputRef = $state<{
 	retrySend: () => void;
 	restoreQueuedMessage: (draft: string, attachments: readonly Attachment[]) => void;
@@ -820,7 +660,7 @@ let agentInputRef = $state<{
 let headerRef: HTMLElement | undefined = $state();
 
 onDestroy(() => {
-	connection.dispose();
+	rootState.dispose();
 });
 
 const worktreeSetupMatchContext = $derived.by(() => {
@@ -870,7 +710,7 @@ void mergeStrategyStore.initialize();
  * - When the current session exposes a PR number
  * - After PR creation succeeds
  * - After PR merge (to refresh state)
- * The store's prState update is handled by sessionStore.refreshSessionPrState.
+ * The store's prState update is handled by sessionStore.connection.refreshSessionPrState.
  */
 function fetchPrDetails(target: {
 	sessionId: string;
@@ -894,28 +734,9 @@ $effect(() => {
 	prCard.syncFetchTarget(prFetchTarget, fetchPrDetails);
 });
 
-const toolbarMinWidthWithPadding = $derived(toolbarMinWidth > 0 ? toolbarMinWidth + 16 : 0);
-const hasAttachedPane = $derived(Boolean(panelId) && hasAttachedFilePane);
-const requiredSplitWidth = $derived(
-	hasAttachedPane ? ATTACHED_COLUMN_WIDTH * 2 + ATTACHED_COLUMN_GAP_WIDTH : 0
-);
-const panelRenderWidth = $derived(hasAttachedPane ? requiredSplitWidth : width);
-const centeredFullscreenContent = $derived.by(() =>
-	shouldUseCenteredFullscreenContent({
-		hasAttachedPane,
-		isFullscreen,
-	})
-);
-const agentContentColumnStyle = $derived.by(() =>
-	resolveAgentContentColumnStyle({
-		hasAttachedPane,
-		isFullscreen,
-		attachedColumnWidth: ATTACHED_COLUMN_WIDTH,
-	})
-);
-
-// Ensure panel is never narrower than the toolbar's natural content width
-const baseWidth = $derived(Math.max(panelRenderWidth, toolbarMinWidthWithPadding));
+const hasAttachedPane = $derived(layoutController.hasAttachedPane);
+const centeredFullscreenContent = $derived(layoutController.centeredFullscreenContent);
+const agentContentColumnStyle = $derived(layoutController.agentContentColumnStyle);
 
 // Clamp reviewFileIndex to valid bounds so a stale index never leaves review mode empty.
 const clampedReviewFileIndex = $derived.by(() => {
@@ -924,30 +745,8 @@ const clampedReviewFileIndex = $derived.by(() => {
 	return Math.min(reviewFileIndex, fileCount - 1);
 });
 
-// Review-dialog UI state — owned by an independently-testable controller.
-const reviewDialog = new ReviewDialogController();
-
-// Add embedded pane widths (plan sidebar, review) when expanded
-const effectiveWidth = $derived.by(() =>
-	resolveAgentPanelEffectiveWidth({
-		baseWidth,
-		reviewMode,
-		showPlanSidebar,
-		hasPlan,
-		planSidebarColumnWidth: PLAN_SIDEBAR_COLUMN_WIDTH,
-		showBrowserSidebar,
-		browserSidebarColumnWidth: BROWSER_SIDEBAR_COLUMN_WIDTH,
-	})
-);
-
-// In fullscreen mode, always use 100% width (sidebar shares space within the panel)
-// In non-fullscreen mode, double the width when sidebar is open so both halves fit
-const widthStyle = $derived.by(() =>
-	resolveAgentPanelWidthStyle({
-		effectiveWidth,
-		isFullscreen,
-	})
-);
+const effectiveWidth = $derived(layoutController.effectiveWidth);
+const widthStyle = $derived(layoutController.widthStyle);
 
 // Debug state for panel debugging (inert in production — deps behind early return are not tracked)
 const debugPanelState = $derived.by(() => {
@@ -1008,7 +807,7 @@ const modifiedFilesState = $derived.by<ModifiedFilesState | null>(() => {
 	if (viewState.kind !== "conversation" || sessionId === null) {
 		return null;
 	}
-	return sessionStore.getSessionModifiedFilesState(sessionId);
+	return sessionStore.read.getSessionModifiedFilesState(sessionId);
 });
 
 function handleEnterReviewMode(filesState: ModifiedFilesState): void {
@@ -1051,29 +850,6 @@ $effect(() => {
 	if (!modifiedFilesState) return;
 
 	onEnterReviewMode?.(modifiedFilesState, pendingFileIndex);
-});
-
-$effect(() => {
-	if (!panelId) {
-		connection.state = null;
-		connection.error = null;
-		return;
-	}
-
-	const existingState = connectionStore.getState(panelId);
-	const existingContext = connectionStore.getContext(panelId);
-	connection.state = existingState;
-	connection.error = existingContext?.error ?? null;
-
-	const unsubscribe = connectionStore.onChange((id, state, context) => {
-		if (id !== panelId) return;
-		connection.state = state;
-		connection.error = context.error ?? null;
-	});
-
-	return () => {
-		unsubscribe();
-	};
 });
 
 // ✅ Effects for side effects - handle tab switching
@@ -1130,10 +906,6 @@ $effect(() => {
 	);
 });
 
-// ✅ Worktree close confirmation (inline header strip)
-// Worktree close-confirmation popover state — owned by a testable controller.
-const worktreeCloseConfirm = new WorktreeCloseConfirmationController();
-
 // Check if the session's worktree still exists on disk.
 // If deleted, disconnect the session (agent can't work in a missing directory).
 $effect(() => {
@@ -1141,7 +913,7 @@ $effect(() => {
 	const projectPath = sessionController.sessionProjectPath;
 	const currentSessionId = sessionId;
 	if (!worktreePath || !projectPath) {
-		worktreeDeleted = false;
+		worktreeController.setWorktreeDeleted(false);
 		return;
 	}
 	let disposed = false;
@@ -1149,19 +921,19 @@ $effect(() => {
 		(listed) => {
 			if (disposed) return;
 			if (!listed) {
-				worktreeDeleted = true;
+				worktreeController.setWorktreeDeleted(true);
 				if (currentSessionId) {
-					sessionStore.disconnectSession(currentSessionId);
+					sessionStore.connection.disconnectSession(currentSessionId);
 				}
 			} else {
-				worktreeDeleted = false;
+				worktreeController.setWorktreeDeleted(false);
 			}
 		},
 		() => {
 			if (disposed) return;
-			worktreeDeleted = true;
+			worktreeController.setWorktreeDeleted(true);
 			if (currentSessionId) {
-				sessionStore.disconnectSession(currentSessionId);
+				sessionStore.connection.disconnectSession(currentSessionId);
 			}
 		}
 	);
@@ -1198,44 +970,9 @@ export function requestClosePanelConfirmation(): void {
 	void handleClose();
 }
 
-function handleWorktreeCloseOnly() {
-	worktreeCloseConfirm.dismiss();
-	onClose?.();
-}
-
-function handleWorktreeRemoveAndClose() {
-	const worktreePath = effectiveActiveWorktreePath;
-	const currentSessionId = sessionId;
-	const force = worktreeCloseConfirm.hasDirtyChanges;
-	worktreeCloseConfirm.dismiss();
-	onClose?.();
-	void removeWorktreeAndMarkSessionWorktreeDeleted(
-		{
-			force,
-			sessionId: currentSessionId,
-			worktreePath,
-		},
-		{
-			removeWorktree: (path, shouldForce) => removeWorktreeFromDisk(path, shouldForce),
-			markSessionWorktreeDeleted: (id) => {
-				sessionStore.updateSession(id, { worktreeDeleted: true });
-			},
-			clearSessionWorktreeDeleted: (id) => {
-				sessionStore.updateSession(id, { worktreeDeleted: false });
-			},
-			disconnectSession: (id) => {
-				sessionStore.disconnectSession(id);
-			},
-		}
-	).mapErr((error) => {
-		console.error("[AgentPanel] Failed to remove worktree", { error });
-		toast.error(`Failed to remove worktree: ${error.message}`);
-	});
-}
-
-function handleWorktreeCloseCancel() {
-	worktreeCloseConfirm.cancel();
-}
+const handleWorktreeCloseOnly = () => worktreeController.handleWorktreeCloseOnly();
+const handleWorktreeRemoveAndClose = () => worktreeController.handleWorktreeRemoveAndClose();
+const handleWorktreeCloseCancel = () => worktreeController.handleWorktreeCloseCancel();
 
 function handleProjectAgentSelected(project: Project, agentId: string) {
 	onAgentChange?.(agentId);
@@ -1260,110 +997,22 @@ function installAgentThenCreateSession(project: Project, agentId: string) {
 }
 
 function handleSessionCreated(sessionIdParam: string) {
-	preSessionWorktreeFailure = null;
+	worktreeController.onSessionCreated();
+	if (panelId) {
+		panelStore.clearSignInRequirement(panelId);
+	}
 	onSessionCreated?.(sessionIdParam);
 }
 
-function handleWorktreeCreated(info: WorktreeInfo | string) {
-	const nextDirectory = typeof info === "string" ? info : info.directory;
-	preSessionWorktreeFailure = null;
-	activeWorktreePath = nextDirectory;
-	activeWorktreeOwnerProjectPath = worktreeToggleProjectPath;
-
-	const projectPath = sessionController.sessionProjectPath ?? worktreeToggleProjectPath ?? "";
-	logger.info("[worktree-flow] handleWorktreeCreated: entry", {
-		sessionId: sessionId ?? null,
-		sessionProjectPath: sessionController.sessionProjectPath,
-		worktreeToggleProjectPath,
-		projectPath: projectPath || null,
-		infoDirectory: nextDirectory,
-	});
-	if (!projectPath) {
-		logger.info("[worktree-flow] handleWorktreeCreated: early return (no projectPath)");
-		return;
-	}
-	logger.info("[worktree-flow] handleWorktreeCreated: set activeWorktreePath", {
-		activeWorktreePath: nextDirectory,
-		projectPath,
-	});
-
-	if (sessionId) {
-		sessionStore.updateSession(sessionId, {
-			worktreeDeleted: false,
-			worktreePath: nextDirectory,
-		});
-	}
-}
-
-function handlePreparedWorktreeLaunch(
+const handleWorktreeCreated = (info: WorktreeInfo | string) => worktreeController.handleWorktreeCreated(info);
+const handlePreparedWorktreeLaunch = (
 	launch: import("$lib/acp/types/worktree-info.js").PreparedWorktreeLaunch
-): void {
-	preSessionWorktreeFailure = null;
-	if (panelId) {
-		panelStore.setPreparedWorktreeLaunch(panelId, launch);
-	}
-	activeWorktreePath = launch.worktree.directory;
-	activeWorktreeOwnerProjectPath = worktreeToggleProjectPath;
-}
-
-function handlePreSessionWorktreeFailure(message: string): void {
-	preSessionWorktreeFailure = message;
-}
-
-function handleRetryWorktree(): void {
-	preSessionWorktreeFailure = null;
-	agentInputRef?.retrySend();
-}
-
-function handleStartInProjectRoot(): void {
-	preSessionWorktreeFailure = null;
-	if (panelId && panelPreparedWorktreeLaunch) {
-		void discardPreparedWorktreeSessionLaunch(panelPreparedWorktreeLaunch.launchToken, true).match(
-			() => {
-				activeWorktreePath = null;
-				activeWorktreeOwnerProjectPath = null;
-				panelStore.clearPreparedWorktreeLaunch(panelId);
-				panelStore.setPendingWorktreeEnabled(panelId, false);
-			},
-			(error) => {
-				toast.error(`Failed to discard prepared worktree: ${error.message}`);
-			}
-		);
-		return;
-	}
-	activeWorktreePath = null;
-	activeWorktreeOwnerProjectPath = null;
-	if (panelId) {
-		panelStore.setPendingWorktreeEnabled(panelId, false);
-	}
-}
-
-function handleWorktreeRenamed(info: WorktreeInfo): void {
-	activeWorktreePath = info.directory;
-	activeWorktreeOwnerProjectPath = worktreeToggleProjectPath ?? sessionController.sessionProjectPath ?? null;
-
-	if (!sessionId) {
-		return;
-	}
-
-	sessionStore.updateSession(sessionId, {
-		worktreeDeleted: false,
-		worktreePath: info.directory,
-	});
-
-	void persistSessionWorktreePathAfterRename(
-		sessionId,
-		info.directory,
-		sessionController.sessionProjectPath ? sessionController.sessionProjectPath : undefined,
-		sessionController.sessionAgentId ? sessionController.sessionAgentId : undefined
-	).mapErr((error) => {
-		logger.error("Failed to persist renamed worktree path to DB", {
-			sessionId,
-			worktreePath: info.directory,
-			error,
-		});
-	});
-}
+) => worktreeController.handlePreparedWorktreeLaunch(launch);
+const handlePreSessionWorktreeFailure = (message: string) =>
+	worktreeController.handlePreSessionWorktreeFailure(message);
+const handleRetryWorktree = () => worktreeController.handleRetryWorktree(agentInputRef?.retrySend);
+const handleStartInProjectRoot = () => worktreeController.handleStartInProjectRoot();
+const handleWorktreeRenamed = (info: WorktreeInfo) => worktreeController.handleWorktreeRenamed(info);
 
 async function handleCreatePr(config?: PrGenerationConfig) {
 	const path = effectivePathForGit;
@@ -1384,7 +1033,7 @@ async function handleCreatePr(config?: PrGenerationConfig) {
 		onStreamUpdate: (data) => prCard.applyStreamUpdate(data),
 		deps: {
 			applyAutomaticSessionPrLink: async (id, projectPath, pr) => {
-				const result = await sessionStore.applyAutomaticPrLinkFromShipWorkflow(id, projectPath, pr);
+				const result = await sessionStore.connection.applyAutomaticPrLinkFromShipWorkflow(id, projectPath, pr);
 				return result.match(
 					(prNumber) => prNumber,
 					() => null
@@ -1404,8 +1053,8 @@ async function handleMergePr(strategy: MergeStrategy) {
 		strategy,
 		setMergePrRunning: (running) => prCard.setMergeRunning(running),
 		onMerged: () => {
-			sessionStore.updateSession(sessionId, { prState: "MERGED" });
-			sessionStore.invalidatePrDetails(path, prNum);
+			sessionStore.write.updateSession(sessionId, { prState: "MERGED" });
+			sessionStore.connection.invalidatePrDetails(path, prNum);
 			fetchPrDetails({
 				sessionId,
 				projectPath: path,
@@ -1485,7 +1134,7 @@ function handleRetryConnection() {
 		project,
 		effectivePanelAgentId,
 		onClearErrorDismissed: () => {
-			connection.dismissedErrorKey = null;
+			connection.clearDismissedError();
 		},
 		onSendCancelToPanel: (id) => {
 			connectionStore.send(id, { type: PanelConnectionEvent.CANCEL });
@@ -1508,7 +1157,16 @@ function handleCancelConnection() {
 }
 
 function handleDismissError() {
-	connection.dismissedErrorKey = sessionController.errorDismissalKey;
+	const errorKey = sessionController.errorDismissalKey;
+	if (errorKey !== null) {
+		connection.dismissError(errorKey);
+	}
+}
+
+function handleDismissSignIn() {
+	if (panelId) {
+		panelStore.clearSignInRequirement(panelId);
+	}
 }
 
 function handleCopyInlineErrorReference() {
@@ -1573,7 +1231,7 @@ const todoManager = getTodoStateManager();
 const todoState = $derived.by(() => {
 	if (!sessionId) return null;
 	const threadData = {
-		toolCalls: sessionStore.getSessionToolCalls(sessionId),
+		toolCalls: sessionStore.read.getSessionToolCalls(sessionId),
 		isConnected: sessionController.sessionIsConnected,
 		status: sessionController.panelSessionStatus,
 		isStreaming: sessionController.sessionIsStreaming,
@@ -1619,70 +1277,9 @@ const queueStripDisplayMessages = $derived.by(() => {
 	}));
 });
 
-function handlePreSessionWorktreeYes(): void {
-	preSessionWorktreeFailure = null;
-	const store = getWorktreeDefaultStore();
-	if (store.globalDefault) {
-		void store.set(false);
-	}
-	if (panelId) {
-		panelStore.setPendingWorktreeEnabled(panelId, true);
-	}
-}
-
-function handlePreSessionWorktreeNo(): void {
-	preSessionWorktreeFailure = null;
-	const store = getWorktreeDefaultStore();
-	if (store.globalDefault) {
-		void store.set(false);
-	}
-	if (panelId) {
-		if (panelPreparedWorktreeLaunch) {
-			void discardPreparedWorktreeSessionLaunch(
-				panelPreparedWorktreeLaunch.launchToken,
-				true
-			).match(
-				() => {
-					panelStore.clearPreparedWorktreeLaunch(panelId);
-				},
-				(error) => {
-					toast.error(`Failed to discard prepared worktree: ${error.message}`);
-				}
-			);
-		}
-		panelStore.setPendingWorktreeEnabled(panelId, false);
-	}
-}
-
-function handlePreSessionWorktreeAlways(): void {
-	preSessionWorktreeFailure = null;
-	const store = getWorktreeDefaultStore();
-	const toggled = !store.globalDefault;
-	void store.set(toggled);
-	if (panelId) {
-		panelStore.setPendingWorktreeEnabled(panelId, toggled);
-	}
-}
-
-function handlePreSessionWorktreeDismiss(): void {
-	preSessionWorktreeFailure = null;
-	if (panelId) {
-		if (panelPreparedWorktreeLaunch) {
-			void discardPreparedWorktreeSessionLaunch(
-				panelPreparedWorktreeLaunch.launchToken,
-				true
-			).match(
-				() => {
-					panelStore.clearPreparedWorktreeLaunch(panelId);
-				},
-				(error) => {
-					toast.error(`Failed to discard prepared worktree: ${error.message}`);
-				}
-			);
-		}
-		panelStore.setPendingWorktreeEnabled(panelId, false);
-	}
-}
+const handlePreSessionWorktreeYes = () => worktreeController.handlePreSessionWorktreeYes();
+const handlePreSessionWorktreeNo = () => worktreeController.handlePreSessionWorktreeNo();
+const handlePreSessionWorktreeDismiss = () => worktreeController.handlePreSessionWorktreeDismiss();
 
 function handleQueueStripCancel(messageId: string): void {
 	if (!sessionId || !agentInputRef) {
@@ -1752,7 +1349,7 @@ function handleInlinePlanDialogOpenChange(open: boolean): void {
 }
 
 async function handlePlanSidebarSendMessage(sid: string, message: string): Promise<void> {
-	await sessionStore.sendMessage(sid, message).match(
+	await sessionStore.connection.sendMessage(sid, message).match(
 		() => {},
 		(error) => {
 			throw error;
@@ -1878,6 +1475,7 @@ async function handlePlanSidebarSendMessage(sid: string, message: string): Promi
 						{sessionId}
 						sceneEntries={tokenRevealSceneEntries}
 						{pendingUserRevealRequestKey}
+						showLocalPlanningIndicator={sessionController.showPlanningIndicator}
 						sessionProjectPath={effectiveProjectPath ?? sessionController.sessionProjectPath}
 						{allProjects}
 						onProjectSelected={handleProjectSelected}
@@ -1888,8 +1486,6 @@ async function handlePlanSidebarSendMessage(sid: string, message: string): Promi
 						{availableAgents}
 						{effectiveTheme}
 						{modifiedFilesState}
-						isWaitingForResponse={agentPanelDisplayModel.waiting.show}
-						waitingLabel={agentPanelDisplayModel.waiting.label}
 						onQuestionSelect={handleQuestionSelect}
 						onPlanBuild={handlePlanBuild}
 						onPlanCancel={handlePlanCancel}
@@ -1945,18 +1541,15 @@ async function handlePlanSidebarSendMessage(sid: string, message: string): Promi
 			isRetryingConnection={connection.isRetrying}
 			onDismissError={handleDismissError}
 			onCopyInlineErrorReference={handleCopyInlineErrorReference}
-			inlineErrorIssueDraft={inlineErrorIssueDraft}
+			inlineErrorIssueDraft=			{inlineErrorIssueDraft}
 			onIssueFromInlineError={handleIssueFromInlineError}
-			{showPreSessionWorktreeCard}
-			{worktreePending}
-			worktreeToggleProjectPath={worktreeToggleProjectPath}
-			effectiveProjectName={effectiveProjectName ?? null}
 			{preSessionWorktreeFailure}
+			worktreeToggleProjectPath={worktreeToggleProjectPath}
+			onPreSessionWorktreeDismiss={handlePreSessionWorktreeDismiss}
 			onPreSessionWorktreeYes={handlePreSessionWorktreeYes}
 			onPreSessionWorktreeNo={handlePreSessionWorktreeNo}
-			onPreSessionWorktreeAlways={handlePreSessionWorktreeAlways}
-			onPreSessionWorktreeDismiss={handlePreSessionWorktreeDismiss}
 			onRetryWorktree={handleRetryWorktree}
+			worktreePending={worktreePending}
 			worktreeSetupState={worktreeSetup.state}
 			{agentInstallState}
 			{sessionId}
@@ -1994,6 +1587,8 @@ async function handlePlanSidebarSendMessage(sid: string, message: string): Promi
 			onQueueClear={handleQueueStripClear}
 			onQueueResume={queueIsPaused && sessionId ? () => messageQueueStore.resume(sessionId) : undefined}
 			onQueueSendNow={handleQueueStripSendNow}
+			signInRequirement={sessionController.signInRequirement}
+			onDismissSignIn={handleDismissSignIn}
 		/>
 	{/snippet}
 
@@ -2006,19 +1601,16 @@ async function handlePlanSidebarSendMessage(sid: string, message: string): Promi
 				>
 					{#key inputRenderKey}
 						{#snippet preSessionAgentPicker()}
-							<div class="flex h-7 shrink-0 items-center">
-								<AgentSelector
-									{availableAgents}
-									currentAgentId={effectivePanelAgentId}
-									{onAgentChange}
-								/>
-								<div class="h-full w-px shrink-0 bg-border/50"></div>
-								<ProjectSelector
-									selectedProject={preSessionSelectedProject}
-									recentProjects={allProjects}
-									onProjectChange={handleComposerProjectSelected}
-								/>
-							</div>
+							<AgentSelector
+								{availableAgents}
+								currentAgentId={effectivePanelAgentId}
+								{onAgentChange}
+							/>
+							<ProjectSelector
+								selectedProject={preSessionSelectedProject}
+								recentProjects={allProjects}
+								onProjectChange={handleComposerProjectSelected}
+							/>
 						{/snippet}
 						<AgentInput
 							bind:this={agentInputRef}
@@ -2036,7 +1628,7 @@ async function handlePlanSidebarSendMessage(sid: string, message: string): Promi
 							{worktreePending}
 							preparedWorktreeLaunch={panelPreparedWorktreeLaunch}
 							onWorktreeCreating={() => {
-								preSessionWorktreeFailure = null;
+								worktreeController.clearPreSessionWorktreeFailure();
 								worktreeSetup.startCreation({
 									projectPath:
 										worktreeToggleProjectPath || sessionController.sessionProjectPath || project?.path || "",
@@ -2058,8 +1650,12 @@ async function handlePlanSidebarSendMessage(sid: string, message: string): Promi
 							onSessionCreated={handleSessionCreated}
 							onWillSend={prepareForNextUserReveal}
 							onToolbarWidthChange={(w) => {
-								toolbarMinWidth = w;
+								layoutController.setToolbarMinWidth(w);
 							}}
+							showCheckpointInAttachMenu={Boolean(
+								sessionController.sessionProjectPath &&
+									checkpointTimeline.checkpoints.length > 0
+							)}
 						>
 							{#snippet checkpointButton()}
 								{#if sessionController.sessionProjectPath && checkpointTimeline.checkpoints.length > 0}
@@ -2110,8 +1706,17 @@ async function handlePlanSidebarSendMessage(sid: string, message: string): Promi
 					}}
 				>
 					{#snippet left()}
-						<div class="flex items-center divide-x divide-border/50">
-							{#if footerWorktreeStatus}
+						<div class="flex items-center gap-0.5 px-1.5">
+							{#if showPreSessionWorktreeCard && worktreeToggleProjectPath}
+								<PreSessionWorktreeCard
+									variant="trigger"
+									menuSide="top"
+									pendingWorktreeEnabled={worktreePending}
+									onYes={handlePreSessionWorktreeYes}
+									onNo={handlePreSessionWorktreeNo}
+									onDismiss={handlePreSessionWorktreeDismiss}
+								/>
+							{:else if footerWorktreeStatus}
 								<WorktreeFooterButton
 									worktreePath={effectiveActiveWorktreePath}
 									label={footerWorktreeStatus.primaryLabel}
@@ -2201,7 +1806,7 @@ async function handlePlanSidebarSendMessage(sid: string, message: string): Promi
 		{@const controls = reviewDialog.controls}
 		{#if controls && controls.fileTotal > 1}
 			<div
-				class="flex h-5 shrink-0 items-center rounded border border-border bg-muted/60 text-[11px]"
+				class="flex h-5 shrink-0 items-center rounded-lg border border-border bg-muted/60 text-[11px]"
 			>
 				<button
 					type="button"
@@ -2234,7 +1839,7 @@ async function handlePlanSidebarSendMessage(sid: string, message: string): Promi
 
 		{#if controls}
 			<div
-				class="flex h-5 shrink-0 items-center rounded border border-border bg-muted/60 text-[11px]"
+				class="flex h-5 shrink-0 items-center rounded-lg border border-border bg-muted/60 text-[11px]"
 			>
 				<button
 					type="button"
@@ -2263,7 +1868,7 @@ async function handlePlanSidebarSendMessage(sid: string, message: string): Promi
 		{#if !createdPr}
 			<button
 				type="button"
-				class="group/open-pr flex h-5 shrink-0 items-center justify-between gap-1 rounded border border-border bg-muted/60 px-1.5 text-[11px] transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-45"
+				class="group/open-pr flex h-5 shrink-0 items-center justify-between gap-1 rounded-lg border border-border bg-muted/60 px-1.5 text-[11px] transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-45"
 				disabled={prCard.createRunning || !effectivePathForGit}
 				onclick={() => void handleCreatePr()}
 			>
@@ -2285,7 +1890,7 @@ async function handlePlanSidebarSendMessage(sid: string, message: string): Promi
 			</button>
 		{:else}
 			<div
-				class="flex h-5 shrink-0 items-center justify-between gap-1 rounded border border-border bg-muted/60 px-1.5 text-[11px]"
+				class="flex h-5 shrink-0 items-center justify-between gap-1 rounded-lg border border-border bg-muted/60 px-1.5 text-[11px]"
 			>
 				<span class="flex min-w-0 items-center gap-1">
 					<GitPullRequest size={11} weight="bold" class="shrink-0 text-success" />

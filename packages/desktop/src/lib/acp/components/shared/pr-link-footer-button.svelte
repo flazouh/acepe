@@ -142,7 +142,7 @@ function handleClosePicker(): void {
 }
 
 function handleUseAutomaticLinking(): void {
-	void sessionStore.restoreAutomaticSessionPrLink(sessionId, projectPath).match(
+	void sessionStore.connection.restoreAutomaticSessionPrLink(sessionId, projectPath).match(
 		() => {
 			handleClosePicker();
 		},
@@ -153,7 +153,7 @@ function handleUseAutomaticLinking(): void {
 }
 
 function handleSelectPullRequest(pr: PrListItem): void {
-	void sessionStore.updateSessionPrLink(sessionId, projectPath, pr.number, "manual").match(
+	void sessionStore.connection.updateSessionPrLink(sessionId, projectPath, pr.number, "manual").match(
 		() => {
 			handleClosePicker();
 		},
@@ -170,7 +170,7 @@ function handleSelectPullRequest(pr: PrListItem): void {
  */
 async function handleTransferPrLink(otherSessionId: string, prNumber: number): Promise<void> {
 	// Unlink the other session first.
-	const unlinkResult = await sessionStore.updateSessionPrLink(
+	const unlinkResult = await sessionStore.connection.updateSessionPrLink(
 		otherSessionId,
 		projectPath,
 		null,
@@ -182,7 +182,7 @@ async function handleTransferPrLink(otherSessionId: string, prNumber: number): P
 	}
 
 	// Link this session.
-	const linkResult = await sessionStore.updateSessionPrLink(
+	const linkResult = await sessionStore.connection.updateSessionPrLink(
 		sessionId,
 		projectPath,
 		prNumber,
@@ -206,7 +206,7 @@ async function handleTransferPrLink(otherSessionId: string, prNumber: number): P
 					<span class="text-[10px] text-muted-foreground tabular-nums">#{linkedPr.prNumber}</span>
 				{/if}
 			</DropdownMenu.SubTrigger>
-			<DropdownMenu.SubContent class="w-[300px] p-0 overflow-hidden">
+			<DropdownMenu.SubContent class="w-[300px] overflow-hidden">
 				{#if showSearchInput}
 					<div class="px-2 py-1.5">
 						<Input bind:value={query} placeholder="Search open PRs" class="h-7 text-xs" />

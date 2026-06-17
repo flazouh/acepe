@@ -44,7 +44,7 @@ function downloadAsMarkdown() {
 </script>
 
 <WorkspaceDialogFrame {open} title={plan.title} closeLabel="Close plan" {onOpenChange}>
-	<div class="flex h-full min-h-0 flex-col overflow-hidden rounded-md border border-border/40 bg-background">
+	<div class="flex h-full min-h-0 flex-col overflow-hidden rounded-lg border border-border/40 bg-background">
 		<EmbeddedPanelHeader class="bg-muted/10 border-border/30">
 			<HeaderTitleCell>
 				<PlanIcon size="md" class="shrink-0 mr-1.5" />

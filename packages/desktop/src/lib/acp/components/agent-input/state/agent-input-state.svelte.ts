@@ -1,4 +1,3 @@
-import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { errAsync, okAsync, type ResultAsync } from "neverthrow";
 import { SvelteMap } from "svelte/reactivity";
 
@@ -9,7 +8,6 @@ import type { PanelStore } from "../../../store/panel-store.svelte.js";
 import type { SessionStore } from "../../../store/session-store.svelte.js";
 import { deriveSessionTitleFromUserInput } from "../../../store/session-title-policy.js";
 import type { AvailableCommand } from "../../../types/available-command.js";
-import { isSlashSkillCommand } from "../logic/slash-command-source.js";
 import type { FilePickerEntry } from "../../../types/file-picker-entry.js";
 import { createLogger } from "../../../utils/logger.js";
 import {
@@ -17,14 +15,24 @@ import {
 	type MessageSendError,
 	SessionCreationError,
 } from "../errors/agent-input-error.js";
-import { calculateDropdownPosition } from "../logic/dropdown-trigger.js";
-import { createImageAttachment, isImageMimeType } from "../logic/image-attachment.js";
-import { findInlineArtefactRangeAtPosition } from "../logic/inline-artefact-segments.js";
-import { parseFilePickerTrigger, parseSlashCommandTrigger } from "../logic/input-parser.js";
-import { createPendingUserEntry } from "../logic/pending-user-entry.js";
-import { createSession, sendMessage } from "../logic/session-manager.js";
+import {
+	calculateDropdownPosition,
+	createImageAttachment,
+	createPendingUserEntry,
+	createSession,
+	findInlineArtefactRangeAtPosition,
+	getSerializedCursorOffset,
+	isImageMimeType,
+	isSlashSkillCommand,
+	parseFilePickerTrigger,
+	parseSlashCommandTrigger,
+	sendMessage,
+	toInlineTokenText,
+} from "../composer-controller.js";
+import type { InlineImageReference } from "../types/inline-image-reference.js";
 import type { Attachment } from "../types/attachment.js";
 import type { DropdownPosition } from "../types/dropdown-position.js";
+import { TauriDragDropController } from "./tauri-drag-drop-controller.svelte.js";
 
 /**
  * Type for slash command dropdown component instance.
@@ -200,14 +208,9 @@ export class AgentInputState {
 	private readonly panelStore: PanelStore;
 	private readonly projectPathGetter: () => string | null;
 	private readonly inlineTextById = new SvelteMap<string, string>();
+	private readonly inlineImageById = new SvelteMap<string, InlineImageReference>();
 
-	/**
-	 * Unlisten functions for Tauri drag-drop events.
-	 */
-	private unlistenFileDrop: UnlistenFn | null = null;
-	private unlistenFileDropHover: UnlistenFn | null = null;
-	private unlistenFileDropCancelled: UnlistenFn | null = null;
-	private isDestroyed = false;
+	private readonly dragDropController: TauriDragDropController;
 
 	/**
 	 * Creates a new AgentInputState instance.
@@ -225,6 +228,41 @@ export class AgentInputState {
 		this.store = store;
 		this.panelStore = panelStore;
 		this.projectPathGetter = projectPathGetter;
+		this.dragDropController = new TauriDragDropController({
+			callbacks: {
+				onDragOver: (position) => {
+					this.isDragActive = true;
+					this.isDragHovering = this.isPositionInBounds(position);
+				},
+				onDrop: async (paths) => {
+					const wasHovering = this.isDragHovering;
+					this.isDragActive = false;
+					this.isDragHovering = false;
+
+					if (!wasHovering) {
+						return;
+					}
+
+					for (const filePath of paths) {
+						const fileName = filePath.split("/").pop() ?? filePath;
+						const extension = fileName.split(".").pop()?.toLowerCase() ?? "";
+
+						const imageExtensions = ["png", "jpg", "jpeg", "gif", "webp", "bmp", "ico"];
+						if (imageExtensions.includes(extension)) {
+							const token = toInlineTokenText("image", filePath);
+							this.insertInlineTokenAtEditor(token);
+						}
+					}
+
+					this.editorRef?.focus();
+					this.textareaRef?.focus();
+				},
+				onDragLeave: () => {
+					this.isDragActive = false;
+					this.isDragHovering = false;
+				},
+			},
+		});
 	}
 
 	/**
@@ -244,14 +282,12 @@ export class AgentInputState {
 	 * Focuses the textarea on mount and sets up Tauri drag-drop listeners.
 	 */
 	initialize(): void {
-		this.isDestroyed = false;
 		// Focus textarea on mount
 		setTimeout(() => {
 			this.focusInput();
 		}, 0);
 
-		// Set up Tauri drag-drop event listeners
-		this.setupTauriDragDropListeners();
+		this.dragDropController.start();
 	}
 
 	/**
@@ -273,181 +309,10 @@ export class AgentInputState {
 	}
 
 	/**
-	 * Sets up Tauri event listeners for file drag-drop.
-	 * Tauri uses its own event system instead of browser drag events.
-	 */
-	private async setupTauriDragDropListeners(): Promise<void> {
-		// Listen for file drop hover (drag over)
-		const hoverUnlisten = await listen<{
-			paths: string[];
-			position: { x: number; y: number };
-		}>("tauri://drag-over", (event) => {
-			if (this.isDestroyed) return;
-			// Always show drop zone when dragging in window
-			this.isDragActive = true;
-			// Highlight only when over this specific container
-			this.isDragHovering = this.isPositionInBounds(event.payload.position);
-		});
-		this.registerResolvedDragDropListener("hover", hoverUnlisten);
-
-		// Listen for file drop
-		const dropUnlisten = await listen<{ paths: string[]; position: { x: number; y: number } }>(
-			"tauri://drag-drop",
-			async (event) => {
-				if (this.isDestroyed) return;
-				const wasHovering = this.isDragHovering;
-				this.isDragActive = false;
-				this.isDragHovering = false;
-
-				// Only process if we were the hovered drop target
-				if (!wasHovering) {
-					return;
-				}
-
-				const paths = event.payload.paths;
-
-				for (const filePath of paths) {
-					const fileName = filePath.split("/").pop() ?? filePath;
-					const extension = fileName.split(".").pop()?.toLowerCase() ?? "";
-
-					// Check if it's an image based on extension
-					const imageExtensions = ["png", "jpg", "jpeg", "gif", "webp", "bmp", "ico"];
-					if (imageExtensions.includes(extension)) {
-						// Read image as base64 for preview
-						const content = await fileIndex.readImageAsBase64(filePath).match(
-							(value) => value,
-							() => undefined
-						);
-
-						this.addAttachment({
-							type: "image",
-							path: filePath,
-							displayName: fileName,
-							extension,
-							content,
-						});
-					}
-				}
-
-				// Refocus textarea after drop
-				this.textareaRef?.focus();
-			}
-		);
-		this.registerResolvedDragDropListener("drop", dropUnlisten);
-
-		// Listen for drag cancelled (drag leave)
-		const leaveUnlisten = await listen("tauri://drag-leave", () => {
-			if (this.isDestroyed) return;
-			this.isDragActive = false;
-			this.isDragHovering = false;
-		});
-		this.registerResolvedDragDropListener("leave", leaveUnlisten);
-	}
-
-	private registerResolvedDragDropListener(
-		listenerKind: "hover" | "drop" | "leave",
-		unlisten: UnlistenFn
-	): void {
-		const managedUnlisten = this.createManagedUnlisten(unlisten);
-
-		if (this.isDestroyed) {
-			this.runUnlisten(listenerKind, managedUnlisten);
-			return;
-		}
-
-		if (listenerKind === "hover") {
-			this.unlistenFileDropHover = managedUnlisten;
-			return;
-		}
-
-		if (listenerKind === "drop") {
-			this.unlistenFileDrop = managedUnlisten;
-			return;
-		}
-
-		this.unlistenFileDropCancelled = managedUnlisten;
-	}
-
-	private createManagedUnlisten(unlisten: UnlistenFn): UnlistenFn {
-		let isActive = true;
-
-		return async () => {
-			if (!isActive) {
-				return;
-			}
-
-			isActive = false;
-			await unlisten();
-		};
-	}
-
-	private normalizeUnlistenError(error: unknown): Error {
-		if (error instanceof Error) {
-			return error;
-		}
-
-		return new Error(String(error));
-	}
-
-	private isMissingTauriListenerError(error: Error): boolean {
-		return error.message.includes("listeners[eventId].handlerId");
-	}
-
-	private runUnlisten(listenerKind: string, unlisten: UnlistenFn): void {
-		void Promise.resolve()
-			.then(() => unlisten())
-			.catch((rawError) => {
-				const error = this.normalizeUnlistenError(rawError);
-				if (this.isMissingTauriListenerError(error)) {
-					this.logger.debug("Drag-drop listener already removed during teardown", {
-						listenerKind,
-						error,
-					});
-					return;
-				}
-
-				this.logger.warn("Failed to unregister drag-drop listener", {
-					listenerKind,
-					error,
-				});
-			});
-	}
-
-	private clearDragDropListener(listenerKind: "hover" | "drop" | "leave"): void {
-		if (listenerKind === "hover") {
-			const unlisten = this.unlistenFileDropHover;
-			this.unlistenFileDropHover = null;
-			if (unlisten) {
-				this.runUnlisten(listenerKind, unlisten);
-			}
-			return;
-		}
-
-		if (listenerKind === "drop") {
-			const unlisten = this.unlistenFileDrop;
-			this.unlistenFileDrop = null;
-			if (unlisten) {
-				this.runUnlisten(listenerKind, unlisten);
-			}
-			return;
-		}
-
-		const unlisten = this.unlistenFileDropCancelled;
-		this.unlistenFileDropCancelled = null;
-		if (unlisten) {
-			this.runUnlisten(listenerKind, unlisten);
-		}
-	}
-
-	/**
 	 * Cleans up resources including Tauri event listeners.
 	 */
 	destroy(): void {
-		this.isDestroyed = true;
-		// Clean up Tauri event listeners
-		this.clearDragDropListener("drop");
-		this.clearDragDropListener("hover");
-		this.clearDragDropListener("leave");
+		this.dragDropController.destroy();
 	}
 
 	// ============================================
@@ -887,6 +752,36 @@ export class AgentInputState {
 		return `@[text_ref:${refId}]`;
 	}
 
+	createInlineImageReferenceToken(image: Omit<InlineImageReference, never>): string {
+		const refId = crypto.randomUUID();
+		this.inlineImageById.set(refId, {
+			displayName: image.displayName,
+			extension: image.extension,
+			content: image.content,
+			path: image.path,
+		});
+		return `@[image_ref:${refId}]`;
+	}
+
+	getInlineImageReference(refId: string): InlineImageReference | undefined {
+		return this.inlineImageById.get(refId);
+	}
+
+	get inlineImageMap(): ReadonlyMap<string, InlineImageReference> {
+		return this.inlineImageById;
+	}
+
+	clearInlineImageMap(): void {
+		this.inlineImageById.clear();
+	}
+
+	insertInlineTokenAtEditor(token: string): number {
+		const cursorPos = this.editorRef
+			? getSerializedCursorOffset(this.editorRef)
+			: this.message.length;
+		return this.insertInlineTokenAtOffsets(token, cursorPos, cursorPos);
+	}
+
 	getInlineTextReferenceContent(refId: string): string | undefined {
 		return this.inlineTextById.get(refId);
 	}
@@ -899,8 +794,22 @@ export class AgentInputState {
 		this.inlineTextById.set(refId, newText);
 	}
 
+	updateInlineImage(refId: string, image: InlineImageReference): void {
+		this.inlineImageById.set(refId, {
+			displayName: image.displayName,
+			extension: image.extension,
+			content: image.content,
+			path: image.path,
+		});
+	}
+
 	clearInlineTextMap(): void {
 		this.inlineTextById.clear();
+	}
+
+	clearInlineReferenceMaps(): void {
+		this.clearInlineTextMap();
+		this.clearInlineImageMap();
 	}
 
 	insertInlineTokenAtOffsets(token: string, start: number, end: number): number {
@@ -1126,13 +1035,12 @@ export class AgentInputState {
 
 	/**
 	 * Handles drop events for images.
-	 * Creates attachment badges for dropped image files.
-	 * Supports both file drops and image data drops (e.g., screenshots).
+	 * Inserts inline image tokens into the composer editor.
 	 * Note: File drops from Finder are handled by Tauri events, not DOM events.
 	 *
 	 * @param event - The drop event
 	 */
-	handleDrop(event: DragEvent): void {
+	async handleDrop(event: DragEvent): Promise<void> {
 		event.preventDefault();
 		this.isDragActive = false;
 		this.isDragHovering = false;
@@ -1142,41 +1050,67 @@ export class AgentInputState {
 
 		let imageAdded = false;
 
-		// Process image files from DOM drop (in-browser drags, not Finder drops)
-		// Finder drops are handled by Tauri events via setupTauriDragDropListeners
-
-		// First, try to get files
 		const files = dataTransfer.files;
 		for (const file of files) {
-			if (isImageMimeType(file.type)) {
-				createImageAttachment(file, file.type).map((a) => this.addAttachment(a));
+			if (!isImageMimeType(file.type)) {
+				continue;
+			}
+			const result = await createImageAttachment(file, file.type);
+			if (result.isOk()) {
+				const attachment = result.value;
+				const token = this.createInlineImageReferenceToken({
+					displayName: attachment.displayName,
+					extension: attachment.extension,
+					content: attachment.content,
+					path: attachment.path,
+				});
+				this.insertInlineTokenAtEditor(token);
 				imageAdded = true;
 			}
 		}
 
-		// If no files found, check items for image data (works for screenshot drops)
 		if (!imageAdded && dataTransfer.items) {
 			for (const item of dataTransfer.items) {
-				if (isImageMimeType(item.type)) {
-					const file = item.getAsFile();
-					if (file) {
-						createImageAttachment(file, item.type).map((a) => this.addAttachment(a));
-						imageAdded = true;
-					}
+				if (!isImageMimeType(item.type)) {
+					continue;
+				}
+				const file = item.getAsFile();
+				if (!file) {
+					continue;
+				}
+				const result = await createImageAttachment(file, item.type);
+				if (result.isOk()) {
+					const attachment = result.value;
+					const token = this.createInlineImageReferenceToken({
+						displayName: attachment.displayName,
+						extension: attachment.extension,
+						content: attachment.content,
+						path: attachment.path,
+					});
+					this.insertInlineTokenAtEditor(token);
+					imageAdded = true;
 				}
 			}
 		}
 
-		// Refocus textarea after drop
+		this.editorRef?.focus();
 		this.textareaRef?.focus();
 	}
 
 	private cleanupInlineReferenceToken(tokenText: string): void {
-		const matches = tokenText.matchAll(/@\[text_ref:([^\]]+)\]/g);
-		for (const match of matches) {
+		const textMatches = tokenText.matchAll(/@\[text_ref:([^\]]+)\]/g);
+		for (const match of textMatches) {
 			const id = match[1];
 			if (id) {
 				this.inlineTextById.delete(id);
+			}
+		}
+
+		const imageMatches = tokenText.matchAll(/@\[image_ref:([^\]]+)\]/g);
+		for (const match of imageMatches) {
+			const id = match[1];
+			if (id) {
+				this.inlineImageById.delete(id);
 			}
 		}
 	}

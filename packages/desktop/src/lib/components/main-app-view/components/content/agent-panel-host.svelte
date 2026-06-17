@@ -79,11 +79,11 @@ function handleCopyBoundaryReference(referenceId: string | null): void {
 const panel = $derived(panelRef.current);
 const sessionIdentity = $derived.by(() => {
 	const sessionId = panel?.sessionId ?? null;
-	return sessionId !== null ? sessionStore.getSessionIdentity(sessionId) : undefined;
+	return sessionId !== null ? sessionStore.read.getSessionIdentity(sessionId) : undefined;
 });
 const sessionMetadata = $derived.by(() => {
 	const sessionId = panel?.sessionId ?? null;
-	return sessionId !== null ? sessionStore.getSessionMetadata(sessionId) : undefined;
+	return sessionId !== null ? sessionStore.read.getSessionMetadata(sessionId) : undefined;
 });
 const panelHotState = $derived(panel ? panelStore.getHotState(panel.id) : null);
 const hostModel = $derived.by(() =>
@@ -228,10 +228,7 @@ function handleCreateIssueReport(
 						title="Agent panel crashed"
 						summary={boundaryError.message || "Unexpected render error"}
 						details={formatAgentPanelBoundaryError(boundaryError)}
-						referenceId={boundaryReference.referenceId}
-						referenceSearchable={boundaryReference.searchable}
 						onRetry={reset}
-						onCopyReferenceId={() => handleCopyBoundaryReference(boundaryReference.referenceId)}
 						issueActionLabel={resolveIssueActionLabel(boundaryIssueDraft)}
 						onIssueAction={() => state.openUserReportsWithDraft(boundaryIssueDraft)}
 					/>

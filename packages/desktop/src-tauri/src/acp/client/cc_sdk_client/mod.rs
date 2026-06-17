@@ -919,6 +919,10 @@ impl AgentClient for ClaudeCcSdkClient {
         }
 
         if let Some(sdk_client) = &self.sdk_client {
+            // Mark the interrupt before issuing it so the streaming bridge can
+            // normalize the SDK's resulting generic `is_error` result into a
+            // canonical cancellation instead of a spurious turn failure.
+            self.permission_bridge.mark_cancel_requested().await;
             // Ignore interrupt errors — the session may already be idle.
             let _ = sdk_client.lock().await.interrupt().await;
         }

@@ -18,6 +18,7 @@ let {
 	sessionId,
 	sceneEntries,
 	pendingUserRevealRequestKey = null,
+	showLocalPlanningIndicator = false,
 	sessionProjectPath,
 	allProjects = [],
 	scrollContainer = $bindable(null),
@@ -33,8 +34,6 @@ let {
 	availableAgents = [],
 	effectiveTheme = "dark",
 	modifiedFilesState = null,
-	isWaitingForResponse: isWaitingProp,
-	waitingLabel = null,
 	onQuestionSelect,
 	onPlanBuild,
 	onPlanCancel,
@@ -55,28 +54,30 @@ let lastContentTraceSignature = $state<string | null>(null);
 let sceneViewportRef: SceneContentViewport | null = $state(null);
 
 const liveSessionSource = $derived(
-	sessionStore?.getSessionLiveWorkSource(sessionId ?? null, true) ?? { kind: "no_session" }
+	sessionStore?.presentation.getSessionLiveWorkSource(sessionId ?? null, true) ?? {
+		kind: "no_session",
+	}
 );
-const interactionSnapshot = $derived.by(() =>
-	isWaitingProp !== undefined || !sessionId || interactionStore == null
-		? {
-				pendingQuestion: null,
-				pendingQuestionOperation: null,
-				pendingPermission: null,
-				pendingPermissionOperation: null,
-				pendingPlanApproval: null,
-				pendingPlanApprovalOperation: null,
-			}
-		: sessionStore.getSessionOperationInteractionSnapshot(sessionId, interactionStore)
-);
+const interactionSnapshot = $derived.by(() => {
+	if (!sessionId || interactionStore == null)
+		return {
+			pendingQuestion: null,
+			pendingQuestionOperation: null,
+			pendingPermission: null,
+			pendingPermissionOperation: null,
+			pendingPlanApproval: null,
+			pendingPlanApprovalOperation: null,
+		};
+	return sessionStore.presentation.getSessionOperationInteractionSnapshot(sessionId, interactionStore);
+});
 const sessionWorkProjection = $derived.by(() => {
-	if (isWaitingProp !== undefined || !sessionId) {
+	if (!sessionId) {
 		return null;
 	}
 
 	return deriveLiveSessionWorkProjection({
 		source: liveSessionSource,
-		currentModeId: sessionId ? (sessionStore?.getSessionCurrentModeId(sessionId) ?? null) : null,
+		currentModeId: sessionId ? (sessionStore?.read.getSessionCurrentModeId(sessionId) ?? null) : null,
 		interactionSnapshot: {
 			pendingQuestion: interactionSnapshot.pendingQuestion,
 			pendingPlanApproval: interactionSnapshot.pendingPlanApproval,
@@ -89,15 +90,13 @@ const sessionWorkProjection = $derived.by(() => {
 const runtime = $derived(
 	resolveAgentPanelContentRuntime({
 		liveSessionSource,
-		explicitWaiting: isWaitingProp,
 		sessionWorkProjection,
 	})
 );
 const turnState = $derived(runtime.turnState);
 const isStreaming = $derived(runtime.isStreaming);
-const isWaitingForResponse = $derived(runtime.isWaitingForResponse);
 const bufferProjection = $derived(
-	sessionStore?.getTranscriptViewportBufferProjection(sessionId) ?? null
+	sessionStore?.viewport.getBufferProjection(sessionId) ?? null
 );
 
 // Sync streaming state to bindable prop for parent component
@@ -115,7 +114,6 @@ $effect(() => {
 		latestEntryId: sceneEntries?.at(-1)?.id ?? null,
 		latestEntryType: sceneEntries?.at(-1)?.type ?? null,
 		turnState,
-		isWaitingForResponse,
 	});
 	if (signature === lastContentTraceSignature) {
 		return;
@@ -178,9 +176,8 @@ export function scrollToTop() {
 				{bufferProjection}
 				{sessionId}
 				{pendingUserRevealRequestKey}
+				{showLocalPlanningIndicator}
 				{turnState}
-				{isWaitingForResponse}
-				{waitingLabel}
 				projectPath={sessionProjectPath ?? undefined}
 				{isFullscreen}
 				{modifiedFilesState}

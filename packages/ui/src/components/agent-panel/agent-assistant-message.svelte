@@ -1,17 +1,22 @@
+<script lang="ts" module>
+const persistedThinkingCollapseByMessageId = new Map<string, boolean>();
+</script>
+
 <script lang="ts">
 import { untrack } from "svelte";
 import type { Snippet } from "svelte";
 import { MarkdownDisplay } from "../markdown/index.js";
 import AgentToolThinking from "./agent-tool-thinking.svelte";
+import AgentThinkingDurationHeader from "./agent-thinking-duration-header.svelte";
 import AgentMessageMeta from "./agent-message-meta.svelte";
-import ToolHeaderLeading from "./tool-header-leading.svelte";
+import PlanningPlaceholderRow from "./planning-placeholder-row.svelte";
+import type { ToolDurationTiming } from "./tool-duration.js";
 import {
 findLastTextGroupIndex,
 getAssistantMessageContentFlags,
 getAssistantTextContent,
 getFilteredAssistantThoughtGroups,
 getSanitizedAssistantChunkGroups,
-getThinkingHeaderLabel,
 } from "./agent-assistant-message-state.js";
 import type { ChunkGroup } from "../../lib/assistant-message/assistant-chunk-grouper.js";
 import {
@@ -27,6 +32,7 @@ import {
 DEFAULT_THINKING_VIEWPORT_POLICY,
 thinkingViewportCssText,
 } from "../../lib/assistant-message/thinking-viewport-policy.js";
+import { getThinkingPreferences } from "../../lib/thinking-preferences-context.js";
 import type {
 	AssistantMessage,
 	StreamingAnimationMode,
@@ -47,6 +53,7 @@ interface RenderBlockContext {
 }
 
 interface Props {
+	messageId?: string;
 	message: AssistantMessage;
 	isStreaming?: boolean;
 	tokenRevealCss?: TokenRevealCss;
@@ -57,6 +64,8 @@ interface Props {
 	initiallyCollapsed?: boolean;
 	/** Base path for file type SVG icons (used by the MarkdownDisplay fallback) */
 	iconBasePath?: string;
+	/** Canonical awaiting-model anchor while the planning placeholder is visible. */
+	planningStartedAtMs?: number | null;
 	/**
 	 * Optional snippet to render chunk groups.
 	 * When provided it is called for ALL groups (text and non-text), enabling hosts
@@ -68,16 +77,28 @@ interface Props {
 }
 
 let {
+	messageId,
 	message,
 	isStreaming = false,
 	tokenRevealCss,
 	projectPath,
 	timestampMs,
 	streamingAnimationMode = "smooth",
-	initiallyCollapsed = false,
+	initiallyCollapsed,
 	iconBasePath = "",
+	planningStartedAtMs = null,
 	renderBlock,
 }: Props = $props();
+
+const planningDurationTiming = $derived<ToolDurationTiming | null>(
+	planningStartedAtMs !== null && planningStartedAtMs !== undefined
+		? {
+				startedAtMs: planningStartedAtMs,
+				completedAtMs: null,
+				status: "running",
+			}
+		: null
+);
 
 const groupedChunks = $derived.by(() => {
 	return getSanitizedAssistantChunkGroups(message);
@@ -105,12 +126,32 @@ const contentFlags = $derived(
 const hasMessageContent = $derived(contentFlags.hasMessageContent);
 const hasAnyContent = $derived(contentFlags.hasAnyContent);
 const showThinkingBlock = $derived(contentFlags.showThinkingBlock);
+const showPlanningPlaceholder = $derived(
+	isStreaming === true && planningDurationTiming !== null && !hasAnyContent
+);
 
-let isCollapsed = $state(untrack(() => initiallyCollapsed));
+const thinkingPrefs = getThinkingPreferences();
 
-$effect(() => {
-	isCollapsed = !isStreaming;
-});
+function resolveInitialCollapsed(): boolean {
+	if (messageId !== undefined && persistedThinkingCollapseByMessageId.has(messageId)) {
+		return persistedThinkingCollapseByMessageId.get(messageId) === true;
+	}
+	if (initiallyCollapsed !== undefined) {
+		return initiallyCollapsed;
+	}
+	if (isStreaming) {
+		return false;
+	}
+	return !(thinkingPrefs?.defaultExpanded ?? true);
+}
+
+let isCollapsed = $state(untrack(resolveInitialCollapsed));
+
+function persistThinkingCollapse(next: boolean): void {
+	if (messageId !== undefined) {
+		persistedThinkingCollapseByMessageId.set(messageId, next);
+	}
+}
 
 const visibleMessageGroups = $derived.by(() => {
 	return resolveVisibleAssistantMessageGroups({
@@ -122,13 +163,6 @@ const visibleMessageGroups = $derived.by(() => {
 });
 
 const activeTokenRevealCss = $derived(isStreaming ? tokenRevealCss : undefined);
-
-const thinkingHeaderLabel = $derived(
-	getThinkingHeaderLabel({
-		isStreaming,
-		thinkingDurationMs: message.thinkingDurationMs,
-	})
-);
 
 let thinkingContainerRef = $state<HTMLDivElement | undefined>();
 let thinkingContentRef = $state<HTMLDivElement | undefined>();
@@ -178,14 +212,20 @@ thinkingFollowScheduler.cancel();
 <div class="space-y-1.5">
 {#if showThinkingBlock}
 <AgentToolThinking
-headerLabel={thinkingHeaderLabel}
-showHeader={!isStreaming || message.thinkingDurationMs != null}
-status={isStreaming ? "running" : "done"}
-collapsed={isCollapsed}
-onCollapseChange={(next: boolean) => {
-isCollapsed = next;
+	showHeader={!isStreaming || message.thinkingDurationMs != null}
+	status={isStreaming ? "running" : "done"}
+	collapsed={isCollapsed}
+	onCollapseChange={(next: boolean) => {
+	isCollapsed = next;
+	persistThinkingCollapse(next);
 }}
 >
+{#snippet header()}
+	<AgentThinkingDurationHeader
+		{isStreaming}
+		thinkingDurationMs={message.thinkingDurationMs}
+	/>
+{/snippet}
 <div
 class="thinking-content scrollbar-none overflow-y-auto opacity-60"
 style={thinkingViewportCssText(DEFAULT_THINKING_VIEWPORT_POLICY)}
@@ -225,6 +265,9 @@ bind:this={thinkingContainerRef}
 {@const isLastTextGroup = index === lastMessageTextGroupIndex}
 <div class="space-y-1.5">
 {#if renderBlock}
+			{#if isStreaming && isLastTextGroup && group.type === "text" && group.text.length === 0 && planningDurationTiming !== null}
+<PlanningPlaceholderRow timing={planningDurationTiming} class="py-2 pr-1.5" />
+			{:else}
 			{@render renderBlock({
 				group,
 				isStreaming: shouldStreamAssistantTextContent({
@@ -235,11 +278,10 @@ bind:this={thinkingContainerRef}
 				projectPath,
 				streamingAnimationMode,
 			})}
+			{/if}
 {:else if group.type === "text"}
 {#if isStreaming && !group.text}
-<div class="flex items-center gap-2 py-2 text-sm text-muted-foreground">
-<ToolHeaderLeading kind="think" status="running">Planning next moves…</ToolHeaderLeading>
-</div>
+<PlanningPlaceholderRow timing={planningDurationTiming} class="py-2 pr-1.5" />
 {:else}
 <MarkdownDisplay
 	content={group.text}
@@ -261,10 +303,15 @@ class="flex justify-end pt-1 opacity-0 transition-opacity duration-150 group-hov
 text={textContent}
 timestampMs={timestampMs ?? message.receivedAt?.getTime()}
 variant="assistant"
+model={message.displayModel}
 />
 </div>
 {/if}
 </div>
+</div>
+{:else if showPlanningPlaceholder}
+<div class="w-full mb-2">
+<PlanningPlaceholderRow timing={planningDurationTiming} class="py-2 pr-1.5" />
 </div>
 {/if}
 

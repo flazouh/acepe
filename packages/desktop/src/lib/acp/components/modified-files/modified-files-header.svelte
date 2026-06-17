@@ -4,14 +4,16 @@ import {
 	AgentPanelModifiedFilesHeader as SharedAgentPanelModifiedFilesHeader,
 	AgentPanelModifiedFilesTrailingControls as SharedAgentPanelModifiedFilesTrailingControls,
 	DiffPill,
+	Selector,
 	type AgentPanelModifiedFilesTrailingModel,
 } from "@acepe/ui";
 import { Button } from "@acepe/ui/button";
 import * as Dialog from "@acepe/ui/dialog";
 import * as DropdownMenu from "@acepe/ui/dropdown-menu";
 import { Textarea } from "$lib/components/ui/textarea/index.js";
-import { Tooltip } from "bits-ui";
 import { GitMerge, GitPullRequest, LinkSimple, SlidersHorizontal } from "phosphor-svelte";
+import { toast } from "svelte-sonner";
+import { tauriClient } from "$lib/utils/tauri-client.js";
 import { Spinner } from "$lib/components/ui/spinner/index.js";
 import type {
 	SessionLinkedPr,
@@ -32,7 +34,6 @@ import { getModelDisplayName } from "../model-selector-logic.js";
 import SelectorCheck from "../selector-check.svelte";
 import AgentIcon from "../agent-icon.svelte";
 import type { FileReviewStatus } from "../review-panel/review-session-state.js";
-import { buildKeepAllReviewEntries } from "./logic/keep-all-review-progress.js";
 import { normalizeCustomShipInstructions } from "./logic/build-pr-prompt-preview.js";
 import {
 	buildPrGenerationPrefsForAgentSelection,
@@ -40,14 +41,12 @@ import {
 	getValidPrGenerationModelId,
 } from "./logic/pr-generation-preferences.js";
 import PrLinkFooterButton from "../shared/pr-link-footer-button.svelte";
-import { getReviewStatusByFilePath, hasKeepAllBeenApplied } from "./logic/review-progress.js";
+import { getReviewStatusByFilePath } from "./logic/review-progress.js";
 import type { ModifiedFilesState } from "../../types/modified-files-state.js";
 import {
-	canKeepAllFiles,
 	countReviewedFiles,
 	getModifiedFilesDiffTotals,
 	getPromptEditorState,
-	isModifiedFilesReviewComplete,
 	mapReviewStatusForHeader,
 } from "./logic/modified-files-header-state.js";
 
@@ -195,46 +194,11 @@ const reviewedFileCount = $derived.by(() => {
 	return countReviewedFiles(modifiedFilesState, reviewStatusByFilePath);
 });
 
-const isReviewComplete = $derived.by(() => {
-	return isModifiedFilesReviewComplete(modifiedFilesState, reviewedFileCount);
-});
-
-const isKeepAllApplied = $derived.by(() => {
-	if (!modifiedFilesState) {
-		return false;
-	}
-
-	if (!sessionId) {
-		return false;
-	}
-
-	if (!sessionReviewStateStore.isLoaded(sessionId)) {
-		return false;
-	}
-
-	return hasKeepAllBeenApplied(
-		modifiedFilesState.files,
-		sessionReviewStateStore.getState(sessionId)
-	);
-});
-
-const canKeepAll = $derived.by(() => {
-	return canKeepAllFiles({
-		sessionId,
-		isSessionReviewLoaded: sessionId ? sessionReviewStateStore.isLoaded(sessionId) : false,
-		isKeepAllApplied,
-	});
-});
-
 const trailingControlsModel = $derived<AgentPanelModifiedFilesTrailingModel>({
 	reviewLabel: "Review",
 	onReview: () => {
 		handleReviewButtonClick(0);
 	},
-	keepState: isReviewComplete ? "applied" : canKeepAll ? "enabled" : "disabled",
-	keepLabel: "Keep",
-	appliedLabel: isKeepAllApplied ? "Applied" : "Reviewed",
-	onKeep: handleKeepAllClick,
 	reviewedCount: reviewedFileCount,
 	totalCount: modifiedFilesState?.fileCount ?? 0,
 });
@@ -269,28 +233,15 @@ function handleCreatePrClick(): void {
 	onCreatePr(config);
 }
 
-function handleKeepAllClick(): void {
-	if (!sessionId) {
+function handleRevertFile(filePath: string): void {
+	if (!projectPath) {
+		toast.error("Cannot revert: no project path");
 		return;
 	}
-
-	if (!modifiedFilesState) {
-		return;
-	}
-
-	if (!sessionReviewStateStore.isLoaded(sessionId)) {
-		return;
-	}
-
-	const reviewEntries = buildKeepAllReviewEntries(modifiedFilesState.files);
-
-	for (const reviewEntry of reviewEntries) {
-		sessionReviewStateStore.upsertFileProgress(
-			sessionId,
-			reviewEntry.revisionKey,
-			reviewEntry.progress
-		);
-	}
+	tauriClient.git.discardChanges(projectPath, [filePath]).match(
+		() => toast.success(`Discarded changes in ${filePath.split("/").pop()}`),
+		(err) => toast.error(`Failed to discard: ${err.message}`)
+	);
 }
 
 function handleAgentPickerChange(value: string): void {
@@ -381,6 +332,7 @@ function handlePromptResetClick(): void {
 						onSelect: () => {
 							handleReviewButtonClick(index);
 						},
+						onRevert: () => handleRevertFile(file.filePath),
 					}}
 				/>
 			{/each}
@@ -393,7 +345,7 @@ function handlePromptResetClick(): void {
 						class="flex shrink-0 items-center gap-1"
 					>
 						<div
-							class="flex shrink-0 items-center rounded border border-border/50 bg-muted text-[0.6875rem]"
+							class="flex shrink-0 items-center rounded-lg border border-border/50 bg-muted text-[0.6875rem]"
 							onclick={(e: MouseEvent) => e.stopPropagation()}
 							role="none"
 						>
@@ -417,41 +369,29 @@ function handlePromptResetClick(): void {
 							</Button>
 
 							<!-- Generation settings: agent / model / prompt -->
-							<DropdownMenu.Root>
-								<Tooltip.Provider delayDuration={400}>
-									<Tooltip.Root>
-										<Tooltip.Trigger>
-											{#snippet child({ props })}
-												<DropdownMenu.Trigger
-													{...props}
-													disabled={createPrLoading}
-													class="self-stretch flex items-center px-1.5 border-l border-border/50 text-muted-foreground hover:text-foreground hover:bg-muted/80 transition-colors outline-none disabled:opacity-50 disabled:cursor-not-allowed"
-													aria-label="PR generation settings"
-												>
-													<SlidersHorizontal size={11} weight="bold" class="shrink-0" />
-												</DropdownMenu.Trigger>
-											{/snippet}
-										</Tooltip.Trigger>
-										<Tooltip.Portal>
-											<Tooltip.Content
-												class="z-[var(--overlay-z)] rounded-md bg-popover px-2 py-1 text-[11px] text-popover-foreground shadow-md"
-												sideOffset={4}
-												side="top"
-											>
-												PR generation settings
-											</Tooltip.Content>
-										</Tooltip.Portal>
-									</Tooltip.Root>
-								</Tooltip.Provider>
-								<DropdownMenu.Content align="start" class="w-[260px]" sideOffset={6}>
-									<DropdownMenu.Sub>
+							<Selector
+								align="start"
+								sideOffset={6}
+								disabled={createPrLoading}
+								variant="ghost"
+								triggerSize="square"
+								showChevron={false}
+								tooltipLabel="PR generation settings"
+								triggerAriaLabel="PR generation settings"
+								class="self-stretch border-l border-border/50"
+							>
+								{#snippet renderButton()}
+									<SlidersHorizontal size={11} weight="bold" class="shrink-0" />
+								{/snippet}
+
+								<DropdownMenu.Sub>
 										<DropdownMenu.SubTrigger disabled={availableAgents.length === 0} class="cursor-pointer">
 											<span class="flex-1">Agent</span>
 											<span class="max-w-[100px] truncate text-[10px] text-muted-foreground">
 												{effectiveAgentDisplayName}
 											</span>
 										</DropdownMenu.SubTrigger>
-										<DropdownMenu.SubContent class="w-[220px] max-h-[260px] overflow-y-auto p-0">
+										<DropdownMenu.SubContent class="w-[220px] max-h-[260px]">
 											{#each availableAgents as agent (agent.id)}
 												{@const isSelected = agent.id === effectiveAgentId}
 												<DropdownMenu.Item
@@ -481,7 +421,7 @@ function handlePromptResetClick(): void {
 												{effectiveModelDisplayName}
 											</span>
 										</DropdownMenu.SubTrigger>
-										<DropdownMenu.SubContent class="w-[240px] max-h-[280px] overflow-y-auto p-0">
+										<DropdownMenu.SubContent class="w-[240px] max-h-[280px]">
 											{#each reactiveModels as model (model.id)}
 												{@const displayName = getModelDisplayName(model, effectiveAgentId, reactiveModelsDisplay)}
 												{@const isSelected = model.id === effectiveModelId}
@@ -509,8 +449,7 @@ function handlePromptResetClick(): void {
 										<span class="flex-1">Prompt</span>
 										<span class="text-[10px] text-muted-foreground">{promptEditorState.statusLabel}</span>
 									</DropdownMenu.Item>
-								</DropdownMenu.Content>
-							</DropdownMenu.Root>
+							</Selector>
 
 							<!-- Link existing PR: dedicated picker -->
 							{#if sessionId && projectPath}
@@ -546,7 +485,7 @@ function handlePromptResetClick(): void {
 				{#if !onCreatePr && onMerge}
 					{#if prState === "MERGED"}
 						<div
-							class="flex items-center gap-1 rounded border border-border/50 bg-muted px-2 py-0.5 text-[0.6875rem] font-medium text-muted-foreground opacity-60 shrink-0"
+							class="flex items-center gap-1 rounded-lg border border-border/50 bg-muted px-2 py-0.5 text-[0.6875rem] font-medium text-muted-foreground opacity-60 shrink-0"
 							onclick={(e: MouseEvent) => e.stopPropagation()}
 							role="none"
 						>
@@ -554,41 +493,44 @@ function handlePromptResetClick(): void {
 							{"Merged"}
 						</div>
 					{:else}
-						<DropdownMenu.Root>
-							<div
-								class="flex items-center rounded border border-border/50 bg-muted overflow-hidden text-[0.6875rem] shrink-0"
-								onclick={(e: MouseEvent) => e.stopPropagation()}
-								role="none"
+						<div
+							class="flex items-center rounded-lg border border-border/50 bg-muted overflow-hidden text-[0.6875rem] shrink-0"
+							onclick={(e: MouseEvent) => e.stopPropagation()}
+							role="none"
+						>
+							<button
+								type="button"
+								disabled={merging}
+								onclick={() => onMerge(mergeStrategyStore.strategy)}
+								class="px-2 py-0.5 text-[0.6875rem] font-medium text-foreground/80 hover:text-foreground hover:bg-muted/80 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
 							>
-								<button
-									type="button"
-									disabled={merging}
-									onclick={() => onMerge(mergeStrategyStore.strategy)}
-									class="px-2 py-0.5 text-[0.6875rem] font-medium text-foreground/80 hover:text-foreground hover:bg-muted/80 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-								>
-									{#if merging}
-										<span class="flex items-center gap-1">
-											<Spinner size={11} />
-											{"Merge"}
-										</span>
-									{:else}
-										<span class="flex items-center gap-1">
-											<GitMerge size={11} weight="fill" />
-											{"Merge"}
-										</span>
-									{/if}
-								</button>
-								<DropdownMenu.Trigger
-									class="self-stretch flex items-center px-1 border-l border-border/50 text-muted-foreground hover:text-foreground hover:bg-muted/80 transition-colors disabled:opacity-50 outline-none"
-									disabled={merging}
-									onclick={(e: MouseEvent) => e.stopPropagation()}
-								>
+								{#if merging}
+									<span class="flex items-center gap-1">
+										<Spinner size={11} />
+										{"Merge"}
+									</span>
+								{:else}
+									<span class="flex items-center gap-1">
+										<GitMerge size={11} weight="fill" />
+										{"Merge"}
+									</span>
+								{/if}
+							</button>
+							<Selector
+								align="start"
+								disabled={merging}
+								variant="ghost"
+								triggerSize="square"
+								showChevron={false}
+								triggerAriaLabel="Merge options"
+								class="self-stretch border-l border-border/50"
+							>
+								{#snippet renderButton()}
 									<svg class="size-2.5 text-muted-foreground" viewBox="0 0 10 10" fill="none">
 										<path d="M2 3.5L5 6.5L8 3.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
 									</svg>
-								</DropdownMenu.Trigger>
-							</div>
-							<DropdownMenu.Content align="start" class="min-w-[150px]">
+								{/snippet}
+
 								<DropdownMenu.Item
 									onSelect={() => { void mergeStrategyStore.set("squash"); onMerge("squash"); }}
 									class="cursor-pointer text-[0.6875rem]"
@@ -607,8 +549,8 @@ function handlePromptResetClick(): void {
 								>
 									{"Rebase merge"}
 								</DropdownMenu.Item>
-							</DropdownMenu.Content>
-						</DropdownMenu.Root>
+							</Selector>
+						</div>
 					{/if}
 				{/if}
 

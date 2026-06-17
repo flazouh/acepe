@@ -583,7 +583,7 @@ const onboardingAgents = [
 																		{:else if agent.id === "cursor"}
 																			<img src="/svgs/icons/cursor.svg" alt="" class="size-3.5" />
 																		{:else if agent.id === "codex"}
-																			<img src="/svgs/agents/codex/codex-app-icon.png" alt="" class="size-3.5 rounded-[4px]" />
+																			<img src="/svgs/agents/codex/codex-app-icon.png" alt="" class="size-3.5 rounded-[22%] object-contain" />
 																		{:else}
 																			<Robot weight="fill" class="size-3.5 text-muted-foreground" />
 																		{/if}
@@ -1047,7 +1047,7 @@ const onboardingAgents = [
 									</div>
 									<div class="grid gap-4 lg:grid-cols-2">
 										<div class="ds-specimen mx-auto w-full max-w-[320px] p-2">
-											<div class="overflow-hidden rounded-sm border border-border/60 bg-accent/30">
+											<div class="overflow-hidden rounded-lg border border-border/60 bg-accent/30">
 												<EmbeddedPanelHeader class="bg-card/50">
 													<HeaderCell withDivider={false}>
 														<ProjectLetterBadge name={demoCardBase.projectName} color={demoCardBase.projectColor} size={14} class="shrink-0" />
@@ -1089,7 +1089,7 @@ const onboardingAgents = [
 											<div class="text-[10px] font-mono uppercase tracking-wider text-muted-foreground/50">
 												Title + metadata stack
 											</div>
-											<div class="overflow-hidden rounded-sm border border-border/60 bg-accent/30 px-1.5 py-1">
+											<div class="overflow-hidden rounded-lg border border-border/60 bg-accent/30 px-1.5 py-1">
 												<div class="flex items-center gap-1.5 text-[10px] text-muted-foreground/70">
 													<ProjectLetterBadge name={demoCardBase.projectName} color={demoCardBase.projectColor} size={14} class="shrink-0" />
 													<span class="font-mono">{demoCardBase.agentLabel}</span>
@@ -1585,7 +1585,7 @@ const onboardingAgents = [
 								<div class="mb-2 text-[10px] font-mono font-medium uppercase tracking-wider text-muted-foreground/40">
 									ThinkingDotMatrix standalone (height 96px)
 								</div>
-								<div class="mx-auto flex h-24 w-full max-w-[420px] items-stretch gap-3 rounded-md border border-border/40 bg-accent/20 p-2">
+								<div class="mx-auto flex h-24 w-full max-w-[420px] items-stretch gap-3 rounded-lg border border-border/40 bg-accent/20 p-2">
 									<ThinkingDotMatrix status="running" />
 									<div class="min-w-0 flex-1 text-[11px] text-muted-foreground/70">
 										Container height drives the row count (≈10px per row). Active dot cycles clockwise: top-left → right column down → bottom-left → left column up.
@@ -1607,7 +1607,7 @@ const onboardingAgents = [
 										Execute — 1st of 3 (current highlighted)
 									</div>
 									<div class="mx-auto w-full max-w-[320px]">
-										<div class="flex min-w-0 flex-col gap-1 overflow-hidden rounded-sm border border-border/60 bg-accent/30 px-1.5 py-1">
+										<div class="flex min-w-0 flex-col gap-1 overflow-hidden rounded-lg border border-border/60 bg-accent/30 px-1.5 py-1">
 											<div class="flex min-w-0 items-center gap-1.5">
 												<ShieldWarning weight="fill" size={10} class="shrink-0" style="color: {purpleColor}" />
 												<span class="text-[10px] font-mono font-medium text-muted-foreground">Execute</span>
@@ -1642,7 +1642,7 @@ const onboardingAgents = [
 										Edit — file path in header
 									</div>
 									<div class="mx-auto w-full max-w-[320px]">
-										<div class="flex min-w-0 flex-col gap-1 overflow-hidden rounded-sm border border-border/60 bg-accent/30 px-1.5 py-1">
+										<div class="flex min-w-0 flex-col gap-1 overflow-hidden rounded-lg border border-border/60 bg-accent/30 px-1.5 py-1">
 											<div class="flex min-w-0 items-center gap-1.5">
 												<ShieldWarning weight="fill" size={10} class="shrink-0" style="color: {purpleColor}" />
 												<span class="text-[10px] font-mono font-medium text-muted-foreground shrink-0">Edit</span>
@@ -1673,7 +1673,7 @@ const onboardingAgents = [
 										Long Command (wrapping)
 									</div>
 									<div class="mx-auto w-full max-w-[320px]">
-										<div class="flex min-w-0 flex-col gap-1 overflow-hidden rounded-sm border border-border/60 bg-accent/30 px-1.5 py-1">
+										<div class="flex min-w-0 flex-col gap-1 overflow-hidden rounded-lg border border-border/60 bg-accent/30 px-1.5 py-1">
 											<div class="flex min-w-0 items-center gap-1.5">
 												<ShieldWarning weight="fill" size={10} class="shrink-0" style="color: {purpleColor}" />
 												<span class="text-[10px] font-mono font-medium text-muted-foreground">Execute</span>
@@ -1708,7 +1708,7 @@ const onboardingAgents = [
 										Single Permission (1 of 1)
 									</div>
 									<div class="mx-auto w-full max-w-[320px]">
-										<div class="flex min-w-0 flex-col gap-1 overflow-hidden rounded-sm border border-border/60 bg-accent/30 px-1.5 py-1">
+										<div class="flex min-w-0 flex-col gap-1 overflow-hidden rounded-lg border border-border/60 bg-accent/30 px-1.5 py-1">
 											<div class="flex min-w-0 items-center gap-1.5">
 												<ShieldWarning weight="fill" size={10} class="shrink-0" style="color: {purpleColor}" />
 												<span class="text-[10px] font-mono font-medium text-muted-foreground">Read</span>

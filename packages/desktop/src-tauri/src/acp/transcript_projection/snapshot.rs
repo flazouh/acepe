@@ -3,9 +3,33 @@ use crate::acp::session_update::{ToolCallData, ToolKind};
 use crate::acp::transcript_projection::canonical_event::{
     CanonicalTranscriptEvent, CanonicalTranscriptEventKind,
 };
+use crate::acp::transcript_projection::display_id::{
+    derive_entry_id_for_snapshot_role, derive_tool_entry_id, turn_key_for_assistant_boundary,
+};
 use crate::session_jsonl::types::{StoredAssistantChunk, StoredContentBlock, StoredEntry};
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
+
+#[derive(Debug, Clone, Default)]
+struct HistoryTurnContext {
+    assistant_boundary_entry_count: usize,
+}
+
+impl HistoryTurnContext {
+    fn current_turn_key(&self) -> String {
+        turn_key_for_assistant_boundary(self.assistant_boundary_entry_count)
+    }
+
+    fn note_entry(&mut self, role: &TranscriptEntryRole, entries_len_after: usize) {
+        if role_closes_assistant_boundary(role) {
+            self.assistant_boundary_entry_count = entries_len_after;
+        }
+    }
+}
+
+fn role_closes_assistant_boundary(role: &TranscriptEntryRole) -> bool {
+    !matches!(role, TranscriptEntryRole::Assistant)
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize, specta::Type, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
@@ -24,11 +48,15 @@ impl TranscriptSnapshot {
         ordered_events.sort_by_key(|event| event.transcript_seq);
 
         let mut entries = Vec::new();
+        let mut turn_context = HistoryTurnContext::default();
         for event in ordered_events {
-            let Some(entry) = TranscriptEntry::from_canonical_event(event) else {
+            let turn_key = turn_context.current_turn_key();
+            let Some(entry) = TranscriptEntry::from_canonical_event(event, &turn_key) else {
                 continue;
             };
+            let role = entry.role.clone();
             append_or_merge_canonical_entry(&mut entries, entry);
+            turn_context.note_entry(&role, entries.len());
         }
 
         Self { revision, entries }
@@ -36,17 +64,22 @@ impl TranscriptSnapshot {
 
     #[must_use]
     pub fn from_stored_entries(revision: i64, stored_entries: &[StoredEntry]) -> Self {
-        let mut seen_tool_entry_ids = HashSet::new();
+        let mut seen_tool_call_ids = HashSet::new();
         let mut entries = Vec::new();
+        let mut turn_context = HistoryTurnContext::default();
 
         for stored_entry in stored_entries {
-            if let Some(entry) = TranscriptEntry::from_stored_entry(stored_entry) {
-                if entry.role == TranscriptEntryRole::Tool
-                    && !seen_tool_entry_ids.insert(entry.entry_id.clone())
-                {
+            let turn_key = turn_context.current_turn_key();
+            if let StoredEntry::ToolCall { message, .. } = stored_entry {
+                let normalized_tool_call_id = normalize_tool_call_id(&message.id);
+                if !seen_tool_call_ids.insert(normalized_tool_call_id) {
                     continue;
                 }
+            }
+            if let Some(entry) = TranscriptEntry::from_stored_entry(stored_entry, &turn_key) {
+                let role = entry.role.clone();
                 entries.push(entry);
+                turn_context.note_entry(&role, entries.len());
             }
         }
 
@@ -67,80 +100,96 @@ pub struct TranscriptEntry {
 }
 
 impl TranscriptEntry {
-    fn from_canonical_event(event: &CanonicalTranscriptEvent) -> Option<Self> {
-        let display_id = event.display_id.trim();
-        if display_id.is_empty() {
-            return None;
-        }
-
+    fn from_canonical_event(event: &CanonicalTranscriptEvent, turn_key: &str) -> Option<Self> {
         match &event.kind {
-            CanonicalTranscriptEventKind::UserText { text } => Some(Self {
-                entry_id: display_id.to_string(),
-                role: TranscriptEntryRole::User,
-                segments: vec![TranscriptSegment::Text {
-                    segment_id: format!("{display_id}:event:{}", event.transcript_seq),
-                    text: text.clone(),
-                }],
-                attempt_id: None,
-                timestamp_ms: parse_timestamp_to_millis(&event.timestamp),
-            }),
-            CanonicalTranscriptEventKind::AssistantText { text } => Some(Self {
-                entry_id: display_id.to_string(),
-                role: TranscriptEntryRole::Assistant,
-                segments: vec![TranscriptSegment::Text {
-                    segment_id: format!("{display_id}:event:{}", event.transcript_seq),
-                    text: text.clone(),
-                }],
-                attempt_id: None,
-                timestamp_ms: parse_timestamp_to_millis(&event.timestamp),
-            }),
-            CanonicalTranscriptEventKind::AssistantThought { text } => Some(Self {
-                entry_id: display_id.to_string(),
-                role: TranscriptEntryRole::Assistant,
-                segments: vec![TranscriptSegment::Thought {
-                    segment_id: format!("{display_id}:event:{}", event.transcript_seq),
-                    text: text.clone(),
-                }],
-                attempt_id: None,
-                timestamp_ms: parse_timestamp_to_millis(&event.timestamp),
-            }),
-            CanonicalTranscriptEventKind::AssistantError { text, .. } => Some(Self {
-                entry_id: display_id.to_string(),
-                role: TranscriptEntryRole::Error,
-                segments: vec![TranscriptSegment::Text {
-                    segment_id: format!("{display_id}:error:{}", event.transcript_seq),
-                    text: text.clone(),
-                }],
-                attempt_id: None,
-                timestamp_ms: parse_timestamp_to_millis(&event.timestamp),
-            }),
-            CanonicalTranscriptEventKind::ToolUse { name, .. } => Some(Self {
-                entry_id: display_id.to_string(),
-                role: TranscriptEntryRole::Tool,
-                segments: vec![TranscriptSegment::Text {
-                    segment_id: format!("{display_id}:tool"),
-                    text: name.clone(),
-                }],
-                attempt_id: None,
-                timestamp_ms: parse_timestamp_to_millis(&event.timestamp),
-            }),
+            CanonicalTranscriptEventKind::UserText { text } => {
+                let entry_id =
+                    derive_entry_id_for_snapshot_role(turn_key, &TranscriptEntryRole::User, None);
+                Some(Self {
+                    entry_id,
+                    role: TranscriptEntryRole::User,
+                    segments: vec![user_transcript_segment_from_text(
+                        format!("{turn_key}:event:{}", event.transcript_seq),
+                        text.clone(),
+                    )],
+                    attempt_id: None,
+                    timestamp_ms: parse_timestamp_to_millis(&event.timestamp),
+                })
+            }
+            CanonicalTranscriptEventKind::AssistantText { text } => {
+                let entry_id = derive_entry_id_for_snapshot_role(
+                    turn_key,
+                    &TranscriptEntryRole::Assistant,
+                    None,
+                );
+                Some(Self {
+                    entry_id,
+                    role: TranscriptEntryRole::Assistant,
+                    segments: vec![TranscriptSegment::Text {
+                        segment_id: format!("{turn_key}:event:{}", event.transcript_seq),
+                        text: text.clone(),
+                    }],
+                    attempt_id: None,
+                    timestamp_ms: parse_timestamp_to_millis(&event.timestamp),
+                })
+            }
+            CanonicalTranscriptEventKind::AssistantThought { text } => {
+                let entry_id = derive_entry_id_for_snapshot_role(
+                    turn_key,
+                    &TranscriptEntryRole::Assistant,
+                    None,
+                );
+                Some(Self {
+                    entry_id,
+                    role: TranscriptEntryRole::Assistant,
+                    segments: vec![TranscriptSegment::Thought {
+                        segment_id: format!("{turn_key}:event:{}", event.transcript_seq),
+                        text: text.clone(),
+                    }],
+                    attempt_id: None,
+                    timestamp_ms: parse_timestamp_to_millis(&event.timestamp),
+                })
+            }
+            CanonicalTranscriptEventKind::AssistantError { .. } => None,
+            CanonicalTranscriptEventKind::ToolUse {
+                tool_call_id,
+                name,
+                ..
+            } => {
+                if tool_call_id.trim().is_empty() {
+                    return None;
+                }
+                let entry_id = derive_tool_entry_id(turn_key, tool_call_id);
+                Some(Self {
+                    entry_id: entry_id.clone(),
+                    role: TranscriptEntryRole::Tool,
+                    segments: vec![TranscriptSegment::Text {
+                        segment_id: format!("{entry_id}:tool"),
+                        text: name.clone(),
+                    }],
+                    attempt_id: None,
+                    timestamp_ms: parse_timestamp_to_millis(&event.timestamp),
+                })
+            }
         }
     }
 
-    fn from_stored_entry(entry: &StoredEntry) -> Option<Self> {
+    fn from_stored_entry(entry: &StoredEntry, turn_key: &str) -> Option<Self> {
         match entry {
             StoredEntry::User {
-                id,
+                id: _,
                 message,
                 timestamp,
             } => {
+                let entry_id =
+                    derive_entry_id_for_snapshot_role(turn_key, &TranscriptEntryRole::User, None);
                 let segments = if message.chunks.is_empty() {
-                    segments_from_blocks(id, std::slice::from_ref(&message.content))
+                    segments_from_blocks(&entry_id, std::slice::from_ref(&message.content))
                 } else {
-                    segments_from_blocks(id, &message.chunks)
+                    segments_from_blocks(&entry_id, &message.chunks)
                 };
                 Some(Self {
-                    entry_id: id.clone(),
+                    entry_id,
                     role: TranscriptEntryRole::User,
                     segments,
                     attempt_id: None,
@@ -148,25 +197,32 @@ impl TranscriptEntry {
                 })
             }
             StoredEntry::Assistant {
-                id,
+                id: _,
                 message,
                 timestamp,
-            } => Some(Self {
-                entry_id: id.clone(),
-                role: TranscriptEntryRole::Assistant,
-                segments: segments_from_assistant_chunks(id, &message.chunks),
-                attempt_id: None,
-                timestamp_ms: timestamp.as_deref().and_then(parse_timestamp_to_millis),
-            }),
+            } => {
+                let entry_id = derive_entry_id_for_snapshot_role(
+                    turn_key,
+                    &TranscriptEntryRole::Assistant,
+                    None,
+                );
+                Some(Self {
+                    entry_id: entry_id.clone(),
+                    role: TranscriptEntryRole::Assistant,
+                    segments: segments_from_assistant_chunks(&entry_id, &message.chunks),
+                    attempt_id: None,
+                    timestamp_ms: timestamp.as_deref().and_then(parse_timestamp_to_millis),
+                })
+            }
             StoredEntry::ToolCall {
-                id,
+                id: _,
                 message,
                 timestamp,
             } => {
                 if should_skip_unanswered_historical_question_tool(message) {
                     return None;
                 }
-                let entry_id = normalize_tool_call_id(id);
+                let entry_id = derive_tool_entry_id(turn_key, &message.id);
                 Some(Self {
                     entry_id: entry_id.clone(),
                     role: TranscriptEntryRole::Tool,
@@ -181,20 +237,7 @@ impl TranscriptEntry {
                     timestamp_ms: timestamp.as_deref().and_then(parse_timestamp_to_millis),
                 })
             }
-            StoredEntry::Error {
-                id,
-                message,
-                timestamp,
-            } => Some(Self {
-                entry_id: id.clone(),
-                role: TranscriptEntryRole::Error,
-                segments: vec![TranscriptSegment::Text {
-                    segment_id: format!("{id}:error"),
-                    text: message.content.clone(),
-                }],
-                attempt_id: None,
-                timestamp_ms: timestamp.as_deref().and_then(parse_timestamp_to_millis),
-            }),
+            StoredEntry::Error { .. } => None,
         }
     }
 }
@@ -233,7 +276,6 @@ pub enum TranscriptEntryRole {
     User,
     Assistant,
     Tool,
-    Error,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, specta::Type, PartialEq, Eq)]
@@ -243,6 +285,76 @@ pub enum TranscriptSegment {
     Text { segment_id: String, text: String },
     #[serde(rename_all = "camelCase")]
     Thought { segment_id: String, text: String },
+    #[serde(rename_all = "camelCase")]
+    LocalCommand {
+        segment_id: String,
+        command: String,
+        message: String,
+        args: String,
+        stdout: String,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        model_display_name: Option<String>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        model_description: Option<String>,
+    },
+}
+
+pub(crate) fn user_transcript_segment_from_text(segment_id: String, text: String) -> TranscriptSegment {
+    if let Some(parsed) = crate::acp::local_command::parse_local_command(&text) {
+        return TranscriptSegment::LocalCommand {
+            segment_id,
+            command: parsed.command,
+            message: parsed.message,
+            args: parsed.args,
+            stdout: parsed.stdout,
+            model_display_name: parsed.model_display_name,
+            model_description: parsed.model_description,
+        };
+    }
+
+    TranscriptSegment::Text { segment_id, text }
+}
+
+impl TranscriptSegment {
+    pub fn primary_text(&self) -> &str {
+        match self {
+            TranscriptSegment::Text { text, .. } | TranscriptSegment::Thought { text, .. } => text,
+            TranscriptSegment::LocalCommand {
+                stdout,
+                command,
+                message,
+                ..
+            } => {
+                if !stdout.is_empty() {
+                    stdout
+                } else if !command.is_empty() {
+                    command
+                } else {
+                    message
+                }
+            }
+        }
+    }
+
+    pub fn is_nonempty(&self) -> bool {
+        match self {
+            TranscriptSegment::Text { text, .. } | TranscriptSegment::Thought { text, .. } => {
+                !text.is_empty()
+            }
+            TranscriptSegment::LocalCommand {
+                command,
+                message,
+                stdout,
+                args,
+                ..
+            } => {
+                !command.is_empty()
+                    || !message.is_empty()
+                    || !stdout.is_empty()
+                    || !args.is_empty()
+            }
+        }
+    }
 }
 
 fn segments_from_blocks(entry_id: &str, blocks: &[StoredContentBlock]) -> Vec<TranscriptSegment> {
@@ -250,9 +362,11 @@ fn segments_from_blocks(entry_id: &str, blocks: &[StoredContentBlock]) -> Vec<Tr
         .iter()
         .enumerate()
         .filter_map(|(index, block)| {
-            block.text.as_ref().map(|text| TranscriptSegment::Text {
-                segment_id: format!("{entry_id}:block:{index}"),
-                text: text.clone(),
+            block.text.as_ref().map(|text| {
+                user_transcript_segment_from_text(
+                    format!("{entry_id}:block:{index}"),
+                    text.clone(),
+                )
             })
         })
         .collect()
@@ -299,6 +413,26 @@ mod tests {
         StoredErrorMessage, StoredUserMessage,
     };
 
+    fn test_canonical_event(
+        source: AgentType,
+        transcript_seq: u64,
+        display_id: &str,
+        kind: CanonicalTranscriptEventKind,
+    ) -> CanonicalTranscriptEvent {
+        CanonicalTranscriptEvent {
+            transcript_seq,
+            source,
+            provider_row_id: format!("row-{display_id}"),
+            provider_msg_id: None,
+            request_id: Some(format!("req-{transcript_seq}")),
+            block_index: 0,
+            display_id: display_id.to_string(),
+            timestamp: "2026-05-18T00:00:00Z".to_string(),
+            model: None,
+            kind,
+        }
+    }
+
     #[test]
     fn transcript_snapshot_uses_revision_and_entry_ids_from_stored_entries() {
         let snapshot = TranscriptSnapshot::from_stored_entries(
@@ -338,21 +472,27 @@ mod tests {
 
         assert_eq!(snapshot.revision, 7);
         assert_eq!(snapshot.entries.len(), 2);
-        assert_eq!(snapshot.entries[0].entry_id, "user-1");
+        assert_eq!(
+            snapshot.entries[0].entry_id,
+            "acepe::entry::session-start::user::."
+        );
         assert_eq!(snapshot.entries[0].role, TranscriptEntryRole::User);
         assert_eq!(
             snapshot.entries[0].segments,
             vec![TranscriptSegment::Text {
-                segment_id: "user-1:block:0".to_string(),
+                segment_id: "acepe::entry::session-start::user::.:block:0".to_string(),
                 text: "hello".to_string(),
             }]
         );
-        assert_eq!(snapshot.entries[1].entry_id, "assistant-1");
+        assert_eq!(
+            snapshot.entries[1].entry_id,
+            "acepe::entry::assistant-boundary:1::assistant::."
+        );
         assert_eq!(snapshot.entries[1].role, TranscriptEntryRole::Assistant);
     }
 
     #[test]
-    fn transcript_snapshot_preserves_tool_and_error_rows_as_text_segments() {
+    fn transcript_snapshot_preserves_tool_rows_and_skips_error_rows() {
         let snapshot = TranscriptSnapshot::from_stored_entries(
             11,
             &[
@@ -397,20 +537,13 @@ mod tests {
         );
 
         assert_eq!(snapshot.revision, 11);
+        assert_eq!(snapshot.entries.len(), 1);
         assert_eq!(snapshot.entries[0].role, TranscriptEntryRole::Tool);
-        assert_eq!(snapshot.entries[1].role, TranscriptEntryRole::Error);
         assert_eq!(
             snapshot.entries[0].segments,
             vec![TranscriptSegment::Text {
-                segment_id: "tool-1:tool".to_string(),
+                segment_id: "acepe::entry::session-start::tool::tool-1:tool".to_string(),
                 text: "Read file".to_string(),
-            }]
-        );
-        assert_eq!(
-            snapshot.entries[1].segments,
-            vec![TranscriptSegment::Text {
-                segment_id: "error-1:error".to_string(),
-                text: "boom".to_string(),
             }]
         );
     }
@@ -495,11 +628,15 @@ mod tests {
             }],
         );
 
-        assert_eq!(snapshot.entries[0].entry_id, "tool%25provider%0Acursor");
+        assert_eq!(
+            snapshot.entries[0].entry_id,
+            "acepe::entry::session-start::tool::tool%25provider%0Acursor"
+        );
         assert_eq!(
             snapshot.entries[0].segments,
             vec![TranscriptSegment::Text {
-                segment_id: "tool%25provider%0Acursor:tool".to_string(),
+                segment_id:
+                    "acepe::entry::session-start::tool::tool%25provider%0Acursor:tool".to_string(),
                 text: "Read file".to_string(),
             }]
         );
@@ -539,18 +676,21 @@ mod tests {
         );
 
         assert_eq!(snapshot.entries.len(), 1);
-        assert_eq!(snapshot.entries[0].entry_id, "jsonl-event-id");
+        assert_eq!(
+            snapshot.entries[0].entry_id,
+            "acepe::entry::session-start::tool::provider-tool-id"
+        );
         assert_eq!(
             snapshot.entries[0].segments,
             vec![TranscriptSegment::Text {
-                segment_id: "jsonl-event-id:tool".to_string(),
+                segment_id: "acepe::entry::session-start::tool::provider-tool-id:tool".to_string(),
                 text: "Read file".to_string(),
             }]
         );
     }
 
     #[test]
-    fn transcript_snapshot_keeps_distinct_tool_rows_with_same_provider_tool_call_id() {
+    fn transcript_snapshot_dedupes_tool_rows_with_same_provider_tool_call_id() {
         let snapshot = TranscriptSnapshot::from_stored_entries(
             5,
             &[
@@ -611,70 +751,48 @@ mod tests {
             ],
         );
 
-        assert_eq!(snapshot.entries.len(), 2);
-        assert_eq!(snapshot.entries[0].entry_id, "jsonl-event-a");
-        assert_eq!(snapshot.entries[1].entry_id, "jsonl-event-b");
+        assert_eq!(snapshot.entries.len(), 1);
+        assert_eq!(
+            snapshot.entries[0].entry_id,
+            "acepe::entry::session-start::tool::provider-tool-id"
+        );
     }
 
     #[test]
     fn transcript_snapshot_from_canonical_events_uses_acepe_display_ids_without_remap() {
         let events = vec![
-            CanonicalTranscriptEvent {
-                transcript_seq: 0,
-                source: AgentType::ClaudeCode,
-                provider_row_id: "row-user-1".to_string(),
-                provider_msg_id: None,
-                request_id: Some("req-1".to_string()),
-                block_index: 0,
-                display_id: "user-1".to_string(),
-                timestamp: "2026-05-18T00:00:00Z".to_string(),
-                model: None,
-                kind: CanonicalTranscriptEventKind::UserText {
+            test_canonical_event(
+                AgentType::Cursor,
+                0,
+                "user-1",
+                CanonicalTranscriptEventKind::UserText {
                     text: "first".to_string(),
                 },
-            },
-            CanonicalTranscriptEvent {
-                transcript_seq: 1,
-                source: AgentType::ClaudeCode,
-                provider_row_id: "row-assistant-1".to_string(),
-                provider_msg_id: Some("provider-reused-message".to_string()),
-                request_id: Some("req-1".to_string()),
-                block_index: 0,
-                display_id: "assistant-display-1".to_string(),
-                timestamp: "2026-05-18T00:00:01Z".to_string(),
-                model: None,
-                kind: CanonicalTranscriptEventKind::AssistantText {
+            ),
+            test_canonical_event(
+                AgentType::Codex,
+                1,
+                "assistant-display-1",
+                CanonicalTranscriptEventKind::AssistantText {
                     text: "first answer".to_string(),
                 },
-            },
-            CanonicalTranscriptEvent {
-                transcript_seq: 2,
-                source: AgentType::ClaudeCode,
-                provider_row_id: "row-user-2".to_string(),
-                provider_msg_id: None,
-                request_id: Some("req-2".to_string()),
-                block_index: 0,
-                display_id: "user-2".to_string(),
-                timestamp: "2026-05-18T00:00:02Z".to_string(),
-                model: None,
-                kind: CanonicalTranscriptEventKind::UserText {
+            ),
+            test_canonical_event(
+                AgentType::OpenCode,
+                2,
+                "user-2",
+                CanonicalTranscriptEventKind::UserText {
                     text: "second".to_string(),
                 },
-            },
-            CanonicalTranscriptEvent {
-                transcript_seq: 3,
-                source: AgentType::ClaudeCode,
-                provider_row_id: "row-assistant-2".to_string(),
-                provider_msg_id: Some("provider-reused-message".to_string()),
-                request_id: Some("req-2".to_string()),
-                block_index: 0,
-                display_id: "assistant-display-2".to_string(),
-                timestamp: "2026-05-18T00:00:03Z".to_string(),
-                model: None,
-                kind: CanonicalTranscriptEventKind::AssistantText {
+            ),
+            test_canonical_event(
+                AgentType::Copilot,
+                3,
+                "assistant-display-2",
+                CanonicalTranscriptEventKind::AssistantText {
                     text: "second answer".to_string(),
                 },
-            },
+            ),
         ];
 
         let snapshot = TranscriptSnapshot::from_canonical_events(9, &events);
@@ -687,10 +805,10 @@ mod tests {
                 .map(|entry| entry.entry_id.as_str())
                 .collect::<Vec<_>>(),
             vec![
-                "user-1",
-                "assistant-display-1",
-                "user-2",
-                "assistant-display-2"
+                "acepe::entry::session-start::user::.",
+                "acepe::entry::assistant-boundary:1::assistant::.",
+                "acepe::entry::assistant-boundary:1::user::.",
+                "acepe::entry::assistant-boundary:3::assistant::.",
             ]
         );
         assert_eq!(snapshot.entries[1].role, TranscriptEntryRole::Assistant);
@@ -698,48 +816,91 @@ mod tests {
     }
 
     #[test]
-    fn transcript_snapshot_from_canonical_events_does_not_repair_missing_display_id() {
-        let events = vec![CanonicalTranscriptEvent {
-            transcript_seq: 0,
-            source: AgentType::ClaudeCode,
-            provider_row_id: "row-tool-1".to_string(),
-            provider_msg_id: Some("provider-message".to_string()),
-            request_id: Some("req-1".to_string()),
-            block_index: 0,
-            display_id: String::new(),
-            timestamp: "2026-05-18T00:00:00Z".to_string(),
-            model: None,
-            kind: CanonicalTranscriptEventKind::ToolUse {
+    fn transcript_snapshot_from_canonical_events_derives_tool_identity_from_tool_call_id() {
+        let events = vec![test_canonical_event(
+            AgentType::Cursor,
+            0,
+            "",
+            CanonicalTranscriptEventKind::ToolUse {
                 tool_call_id: "provider-tool-id".to_string(),
                 name: "Read".to_string(),
                 input: serde_json::json!({ "file_path": "/tmp/file" }),
             },
-        }];
+        )];
 
         let snapshot = TranscriptSnapshot::from_canonical_events(10, &events);
 
-        assert!(
-            snapshot.entries.is_empty(),
-            "projection must not invent display identity from provider tool id"
+        assert_eq!(snapshot.entries.len(), 1);
+        assert_eq!(
+            snapshot.entries[0].entry_id,
+            "acepe::entry::session-start::tool::provider-tool-id"
         );
     }
 
     #[test]
+    fn transcript_snapshot_entry_ids_are_independent_of_provider_source() {
+        let expected_entry_ids = vec![
+            "acepe::entry::session-start::user::.",
+            "acepe::entry::assistant-boundary:1::assistant::.",
+            "acepe::entry::assistant-boundary:1::tool::toolu_read",
+        ];
+        for source in [
+            AgentType::Cursor,
+            AgentType::Codex,
+            AgentType::OpenCode,
+            AgentType::Copilot,
+        ] {
+            let events = vec![
+                test_canonical_event(
+                    source,
+                    0,
+                    "user-1",
+                    CanonicalTranscriptEventKind::UserText {
+                        text: "hello".to_string(),
+                    },
+                ),
+                test_canonical_event(
+                    source,
+                    1,
+                    "assistant-display-1",
+                    CanonicalTranscriptEventKind::AssistantText {
+                        text: "world".to_string(),
+                    },
+                ),
+                test_canonical_event(
+                    source,
+                    2,
+                    "toolu_read",
+                    CanonicalTranscriptEventKind::ToolUse {
+                        tool_call_id: "toolu_read".to_string(),
+                        name: "Read".to_string(),
+                        input: serde_json::json!({ "file_path": "/tmp/file" }),
+                    },
+                ),
+            ];
+            let snapshot = TranscriptSnapshot::from_canonical_events(1, &events);
+            assert_eq!(
+                snapshot
+                    .entries
+                    .iter()
+                    .map(|entry| entry.entry_id.as_str())
+                    .collect::<Vec<_>>(),
+                expected_entry_ids,
+                "entry ids must not vary with AgentType::{source:?}"
+            );
+        }
+    }
+
+    #[test]
     fn transcript_snapshot_from_canonical_events_preserves_timestamp_ms() {
-        let events = vec![CanonicalTranscriptEvent {
-            transcript_seq: 0,
-            source: AgentType::ClaudeCode,
-            provider_row_id: "row-user-1".to_string(),
-            provider_msg_id: None,
-            request_id: Some("req-1".to_string()),
-            block_index: 0,
-            display_id: "user-1".to_string(),
-            timestamp: "2026-05-18T00:00:00Z".to_string(),
-            model: None,
-            kind: CanonicalTranscriptEventKind::UserText {
+        let events = vec![test_canonical_event(
+            AgentType::Cursor,
+            0,
+            "user-1",
+            CanonicalTranscriptEventKind::UserText {
                 text: "hello".to_string(),
             },
-        }];
+        )];
 
         let snapshot = TranscriptSnapshot::from_canonical_events(1, &events);
 

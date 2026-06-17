@@ -3,6 +3,7 @@
  */
 
 import type { TranscriptEntry } from "../../services/acp-types.js";
+import { segmentText } from "../session-state/transcript-text.js";
 import type { PlanApprovalInteraction } from "../types/interaction.js";
 import type { PermissionRequest } from "../types/permission.js";
 import type { QuestionRequest } from "../types/question.js";
@@ -113,11 +114,7 @@ export interface TabBarTab {
  * Extract conversation turns: each user message + count of tool calls until the next user message.
  */
 function transcriptEntryText(entry: TranscriptEntry): string {
-	let text = "";
-	for (const segment of entry.segments) {
-		text += segment.text;
-	}
-	return text;
+	return segmentText(entry);
 }
 
 function extractConversationPreview(

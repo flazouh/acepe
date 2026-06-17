@@ -2,7 +2,7 @@
 import { ResultAsync } from "neverthrow";
 import { onMount } from "svelte";
 import type { HTMLAttributes } from "svelte/elements";
-import type { UserSettingKey } from "$lib/services/converted-session-types.js";
+import type { UserSettingKey } from "$lib/services/user-settings-types.js";
 import { loadingIndicatorSettingsStore } from "$lib/stores/loading-indicator-settings-store.svelte.js";
 import { settings } from "$lib/utils/tauri-client/settings.js";
 

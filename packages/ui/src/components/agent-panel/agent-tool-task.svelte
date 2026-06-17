@@ -6,6 +6,8 @@
 	import AgentToolRow from "./agent-tool-row.svelte";
 	import ToolTally from "./tool-tally.svelte";
 	import ToolHeaderLeading from "./tool-header-leading.svelte";
+	import AgentToolDurationLabel from "./agent-tool-duration-label.svelte";
+	import type { ToolDurationTiming } from "./tool-duration.js";
 	import {
 		createTaskPreview,
 		getLastTaskToolCall,
@@ -25,7 +27,7 @@
 		status?: AgentToolStatus;
 		showDoneIcon?: boolean;
 		compact?: boolean;
-		durationLabel?: string;
+		durationTiming?: ToolDurationTiming;
 		iconBasePath?: string;
 		runningFallback?: string;
 		doneFallback?: string;
@@ -40,7 +42,7 @@
 		status = "done",
 		showDoneIcon = false,
 		compact = false,
-		durationLabel,
+		durationTiming,
 		iconBasePath = "",
 		runningFallback = "Running task…",
 		doneFallback = "Task",
@@ -103,9 +105,10 @@
 				{titleText}
 			</ToolHeaderLeading>
 		</div>
-		{#if durationLabel}
-			<span class="shrink-0 font-sans text-xs text-muted-foreground/70">{durationLabel}</span>
-		{/if}
+		<AgentToolDurationLabel
+			timing={durationTiming}
+			class="shrink-0 font-sans text-xs"
+		/>
 		{#if shouldShowDoneIcon}
 			<IconCircleCheckFilled
 				size={12}

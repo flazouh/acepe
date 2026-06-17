@@ -21,6 +21,16 @@ type TerminalTabStub = {
 	shell: string | null;
 };
 
+type BrowserPanelStub = {
+	id: string;
+	kind: "browser";
+	projectPath: string;
+	url: string;
+	title: string;
+	width: number;
+	ownerPanelId: null;
+};
+
 const saveWorkspaceStateMock = mock(
 	(_state: Record<string, boolean | number | object | string | null | undefined>) =>
 		okAsync(undefined)
@@ -44,7 +54,7 @@ function createPanelStoreStub() {
 		terminalPanelGroups: [] as TerminalPanelGroupStub[],
 		terminalTabs: [] as TerminalTabStub[],
 		terminalPanels: [],
-		browserPanels: [],
+		browserPanels: [] as BrowserPanelStub[],
 		reviewPanels: [],
 		gitPanels: [],
 		scrollX: 0,
@@ -55,7 +65,7 @@ function createPanelStoreStub() {
 		embeddedTerminals: {
 			serialize: mock(() => []),
 			restore: mock(() => {}),
-			getSelectedTabId: mock(() => null),
+			getSelectedTabId: mock((_panelId: string) => null),
 		},
 		switchFullscreen: mock((panelId: string) => {
 			store.fullscreenPanelId = panelId;
@@ -90,6 +100,114 @@ function createPanelStoreStub() {
 				return panel.ownerPanelId === null || persistableTopLevelPanelIds.has(panel.ownerPanelId);
 			});
 		}),
+		createWorkspacePersistenceSnapshot: mock(
+			(options?: { readonly getPanelScrollTop?: (panelId: string) => number }) => {
+				const persistableWorkspacePanels = store.getPersistableWorkspacePanels();
+				const workspacePanels = persistableWorkspacePanels
+					.filter((panel) => panel.kind !== "git")
+					.map((panel) => {
+						if (panel.kind === "review") {
+							return {
+								id: panel.id,
+								kind: panel.kind,
+								projectPath: panel.projectPath,
+								width: panel.width,
+								ownerPanelId: panel.ownerPanelId,
+								files: panel.modifiedFilesState.files,
+								totalEditCount: panel.modifiedFilesState.totalEditCount,
+								selectedFileIndex: panel.selectedFileIndex,
+							};
+						}
+						return panel;
+					});
+				const agentPanels = persistableWorkspacePanels.filter(
+					(panel): panel is Panel => panel.kind === "agent"
+				);
+				const filePanels = persistableWorkspacePanels.filter((panel) => panel.kind === "file");
+
+				return {
+					workspacePanels,
+					panels: agentPanels.map((panel) => {
+						const hotState = store.getHotState(panel.id);
+						return {
+							id: panel.id,
+							sessionId: panel.sessionId,
+							autoCreated: panel.autoCreated === true ? true : undefined,
+							width: panel.width,
+							pendingProjectSelection: panel.pendingProjectSelection,
+							pendingWorktreeEnabled:
+								panel.pendingWorktreeEnabled === null ||
+								panel.pendingWorktreeEnabled === undefined
+									? undefined
+									: panel.pendingWorktreeEnabled,
+							preparedWorktreeLaunch: panel.preparedWorktreeLaunch ?? null,
+							selectedAgentId: panel.selectedAgentId,
+							projectPath: panel.projectPath,
+							agentId: panel.agentId,
+							sourcePath: panel.sourcePath ?? undefined,
+							worktreePath: panel.worktreePath ?? undefined,
+							sessionTitle: panel.sessionTitle ?? undefined,
+							scrollTop: options?.getPanelScrollTop?.(panel.id) ?? 0,
+							planSidebarExpanded: hotState.planSidebarExpanded,
+							messageDraft: hotState.messageDraft || undefined,
+							reviewMode: hotState.reviewMode ? true : undefined,
+							reviewFileIndex:
+								hotState.reviewMode && hotState.reviewFileIndex !== undefined
+									? hotState.reviewFileIndex
+									: undefined,
+							embeddedTerminalDrawerOpen: hotState.embeddedTerminalDrawerOpen
+								? true
+								: undefined,
+							selectedEmbeddedTerminalTabId:
+								store.embeddedTerminals.getSelectedTabId(panel.id) ?? undefined,
+						};
+					}),
+					filePanels: filePanels.map((panel) => ({
+						id: panel.id,
+						filePath: panel.filePath,
+						projectPath: panel.projectPath,
+						ownerPanelId: panel.ownerPanelId,
+						width: panel.width,
+						targetLine: panel.targetLine,
+						targetColumn: panel.targetColumn,
+					})),
+					activeFilePanelIdByOwnerPanelId: store.getActiveFilePanelIdByOwnerPanelIdRecord(),
+					focusedPanelIndex: store.focusedPanelId
+						? persistableWorkspacePanels
+								.filter((panel) => panel.ownerPanelId === null)
+								.findIndex((panel) => panel.id === store.focusedPanelId)
+						: null,
+					panelContainerScrollX: store.scrollX,
+					fullscreenPanelIndex: store.fullscreenPanelId
+						? persistableWorkspacePanels
+								.filter((panel) => panel.ownerPanelId === null)
+								.findIndex((panel) => panel.id === store.fullscreenPanelId)
+						: null,
+					terminalPanelGroups: store.terminalPanelGroups.map((group) => ({
+						id: group.id,
+						projectPath: group.projectPath,
+						width: group.width,
+						selectedTabId: group.selectedTabId,
+						order: group.order,
+					})),
+					terminalTabs: store.terminalTabs.map((tab) => ({
+						id: tab.id,
+						groupId: tab.groupId,
+						projectPath: tab.projectPath,
+						createdAt: tab.createdAt,
+					})),
+					browserPanels: store.browserPanels.map((panel) => ({
+						projectPath: panel.projectPath,
+						url: panel.url,
+						title: panel.title,
+						width: panel.width,
+					})),
+					embeddedTerminalTabs: store.embeddedTerminals.serialize(),
+					viewMode: store.viewMode !== "multi" ? store.viewMode : undefined,
+					focusedViewProjectPath: store.focusedViewProjectPath ?? undefined,
+				};
+			}
+		),
 		setActiveFilePanelMap: mock(() => {}),
 		restoreWorkspacePanels: mock((workspacePanels: WorkspacePanel[]) => {
 			store.workspacePanels = workspacePanels;
@@ -122,7 +240,7 @@ function createPanelStoreStub() {
 		setMessageDraft: mock(() => {}),
 		setPendingReviewRestore: mock(() => {}),
 		setEmbeddedTerminalDrawerOpen: mock(() => {}),
-		getHotState: mock(() => ({
+		getHotState: mock((_panelId: string) => ({
 			planSidebarExpanded: true,
 			messageDraft: "",
 			reviewMode: false,
@@ -561,8 +679,8 @@ describe("workspace sidebar state persistence", () => {
 				sessionTitle: "Feature thread",
 				kind: "agent",
 				ownerPanelId: null,
-				sourcePath: null,
-				worktreePath: null,
+				sourcePath: "/workspace/app/.cursor/sessions/session-1.json",
+				worktreePath: "/workspace/app/.git/worktrees/feature-a",
 			},
 		] as Panel[];
 		panelStore.panels = workspacePanels;

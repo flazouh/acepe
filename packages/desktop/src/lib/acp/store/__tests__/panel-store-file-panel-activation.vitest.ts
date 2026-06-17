@@ -27,7 +27,11 @@ function createStore(persist: () => void): PanelStore {
 }
 
 afterEach(() => {
-	vi.useRealTimers();
+	if (vi.isFakeTimers()) {
+		vi.runOnlyPendingTimers();
+		vi.clearAllTimers();
+		vi.useRealTimers();
+	}
 });
 
 describe("PanelStore file panel activation", () => {

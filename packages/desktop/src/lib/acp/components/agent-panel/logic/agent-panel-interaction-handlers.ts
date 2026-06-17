@@ -41,7 +41,7 @@ export function createAgentPanelInteractionHandlers(deps: AgentPanelInteractionH
 		}
 
 		const semanticInteractionId = event.interactionId ?? event.entryId;
-		const interaction = deps.sessionStore.getSessionQuestionInteraction(
+		const interaction = deps.sessionStore.presentation.getSessionQuestionInteraction(
 			sessionId,
 			semanticInteractionId
 		);

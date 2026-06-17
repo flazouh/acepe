@@ -1,6 +1,7 @@
 ---
 title: Acepe QA wrapper should hide raw Tauri MCP friction
 date: 2026-06-07
+last_updated: 2026-06-11
 category: docs/solutions/workflow-issues
 module: visual QA workflow
 problem_type: workflow_issue
@@ -34,7 +35,7 @@ Each step was valid, but the loop was too slow and noisy for design iteration. T
 
 ## Guidance
 
-Use the repo QA wrapper first:
+Use the repo QA wrapper first, and keep using it for the whole QA pass:
 
 ```bash
 cd packages/desktop
@@ -44,7 +45,9 @@ bun run qa inspect --selector=.onboarding-preview-panel --limit=3
 bun run qa screenshot
 ```
 
-Prefer wrapper commands over direct `npx ... tauri-mcp` calls for normal Acepe UI QA.
+Prefer wrapper commands over direct `npx ... tauri-mcp` calls for Acepe UI QA.
+The wrapper is the maintained interface; direct Hypothesi/Tauri MCP CLI recipes
+should not be copied into normal agent instructions.
 
 The wrapper handles:
 
@@ -54,8 +57,12 @@ The wrapper handles:
 - returning compact text summaries
 - writing JSON artifacts under `/tmp`
 - preserving the dev-Tauri target guardrail
+- updating `.codex/state/ui-qa-evidence.json`
 
-Use raw Tauri MCP only when the wrapper lacks the primitive needed for the current investigation. If a raw command is repeated twice, promote it into `packages/desktop/scripts/acepe-qa/`.
+When the wrapper lacks the primitive needed for the current investigation, add a
+small wrapper command or helper under `packages/desktop/scripts/acepe-qa/` and
+use that. Repeated ad hoc raw MCP snippets are workflow debt: they bypass schema
+validation, compact summaries, target checks, and UI QA evidence stamping.
 
 ## What Slowed Us Down
 
@@ -91,6 +98,8 @@ Add more wrapper commands when a QA action becomes a repeated pattern, especiall
 - inspect computed styles for a selector
 - capture screenshot plus DOM facts in one artifact
 - type/send composer text
+- run a custom timing or mutation probe and return compact JSON
+- inspect console logs or route state in the WebView
 
 Keep wrappers small and schema-validated. They should reduce ceremony without hiding the evidence needed to trust the QA result.
 

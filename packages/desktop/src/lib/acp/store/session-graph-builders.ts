@@ -17,6 +17,10 @@ import type {
 	TurnFailureSnapshot,
 	TranscriptSnapshot,
 } from "../../services/acp-types.js";
+import {
+	mergeSessionGraphActivityTiming,
+	seedSessionGraphActivityTimingIfNeeded,
+} from "./envelope-reducer/merge-session-graph-activity-timing.js";
 import { mergeInteractionSnapshots, mergeOperationSnapshots } from "./snapshot-merge.js";
 
 const SESSION_STATE_GRAPH_COPY_KEYS = [
@@ -178,6 +182,15 @@ export function graphWithPatches(input: {
 	readonly operationPatches: readonly OperationSnapshot[];
 	readonly interactionPatches: readonly InteractionSnapshot[];
 }): SessionStateGraph {
+	const nextActivity =
+		input.activity === undefined
+			? input.graph.activity
+			: mergeSessionGraphActivityTiming(
+					input.graph.activity,
+					input.activity,
+					Date.now()
+				);
+
 	return {
 		requestedSessionId: input.graph.requestedSessionId,
 		canonicalSessionId: input.graph.canonicalSessionId,
@@ -211,7 +224,7 @@ export function graphWithPatches(input: {
 				? input.graph.lastTerminalTurnId
 				: input.lastTerminalTurnId,
 		lifecycle: input.graph.lifecycle,
-		activity: input.activity ?? input.graph.activity,
+		activity: nextActivity,
 		capabilities: input.graph.capabilities,
 	};
 }

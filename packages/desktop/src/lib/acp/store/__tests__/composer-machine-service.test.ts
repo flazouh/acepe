@@ -4,6 +4,8 @@ import {
 	ComposerMachineService,
 	type ComposerSessionCommitState,
 } from "../composer-machine-service.svelte.js";
+import type { LiveSessionLifecyclePresentation } from "$lib/acp/store/live-session-work.js";
+import { SessionTransientProjectionStore } from "../session-transient-projection-store.svelte.js";
 
 function makeCommitState(
 	modeId: string | null = null,
@@ -17,9 +19,25 @@ function makeCommitState(
 	};
 }
 
+function makeService(
+	getCommitState: (sessionId: string) => ComposerSessionCommitState = () => makeCommitState()
+): ComposerMachineService {
+	const transientProjectionStore = new SessionTransientProjectionStore();
+	return new ComposerMachineService({
+		getCommitState,
+		transientProjectionStore,
+		getSessionLifecyclePresentation: () =>
+			({
+				canSubmit: true,
+				connectionPhase: "connected",
+				activityPhase: "idle",
+			}) as LiveSessionLifecyclePresentation,
+	});
+}
+
 describe("ComposerMachineService", () => {
 	it("creates a reactive snapshot for a session id", () => {
-		const service = new ComposerMachineService(() => makeCommitState("build", "m1", false));
+		const service = makeService(() => makeCommitState("build", "m1", false));
 		service.createOrGetActor("s1");
 		const snap = service.getState("s1");
 		expect(snap).not.toBeNull();
@@ -27,7 +45,7 @@ describe("ComposerMachineService", () => {
 	});
 
 	it("removes actor and snapshot cache on removeMachine", () => {
-		const service = new ComposerMachineService(() => makeCommitState());
+		const service = makeService();
 		service.createOrGetActor("s1");
 		expect(service.getState("s1")).not.toBeNull();
 		service.removeMachine("s1");
@@ -35,14 +53,14 @@ describe("ComposerMachineService", () => {
 	});
 
 	it("binds unknown autonomous state without coercing it to false", () => {
-		const service = new ComposerMachineService(() => makeCommitState("build", "m1", null));
+		const service = makeService(() => makeCommitState("build", "m1", null));
 		service.bindSession("s1");
 
 		expect(service.getState("s1")?.context.committedAutonomousEnabled).toBeNull();
 	});
 
 	it("does not apply bindSession while dispatching", () => {
-		const service = new ComposerMachineService(() => makeCommitState("build", "m1", false));
+		const service = makeService(() => makeCommitState("build", "m1", false));
 		service.createOrGetActor("s1");
 		service.bindSession("s1");
 		const genBefore = service.getState("s1")!.context.boundGeneration;
@@ -54,7 +72,7 @@ describe("ComposerMachineService", () => {
 	});
 
 	it("endDispatch is idempotent", () => {
-		const service = new ComposerMachineService(() => makeCommitState());
+		const service = makeService();
 		service.createOrGetActor("s1");
 		service.beginDispatch("s1");
 		service.endDispatch("s1");
@@ -64,7 +82,7 @@ describe("ComposerMachineService", () => {
 	});
 
 	it("commits canonical config on successful config operation", async () => {
-		const service = new ComposerMachineService(() => makeCommitState("plan", "m1", true));
+		const service = makeService(() => makeCommitState("plan", "m1", true));
 		const ok = await service.runConfigOperation(
 			"s1",
 			{
@@ -84,7 +102,7 @@ describe("ComposerMachineService", () => {
 
 	it("does not mutate committed autonomous state until the config operation commits", async () => {
 		let canonicalState = makeCommitState("build", "m1", false);
-		const service = new ComposerMachineService(() => canonicalState);
+		const service = makeService(() => canonicalState);
 		service.bindSession("s1");
 		expect(service.getState("s1")?.context.committedAutonomousEnabled).toBe(false);
 
@@ -106,7 +124,7 @@ describe("ComposerMachineService", () => {
 	});
 
 	it("aborts runConfigOperation when CONFIG_BLOCK_BEGIN cannot apply", async () => {
-		const service = new ComposerMachineService(() => makeCommitState("build", "m1", false));
+		const service = makeService(() => makeCommitState("build", "m1", false));
 		service.createOrGetActor("s1");
 		service.beginDispatch("s1");
 		const ok = await service.runConfigOperation(
@@ -123,7 +141,7 @@ describe("ComposerMachineService", () => {
 	});
 
 	it("invalidates async config completion after bind bumps generation", async () => {
-		const service = new ComposerMachineService((id) =>
+		const service = makeService((id) =>
 			id === "s1" ? makeCommitState("build", "m1", false) : makeCommitState()
 		);
 		let resolveOp: (value: boolean) => void = () => {};

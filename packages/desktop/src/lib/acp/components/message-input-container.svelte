@@ -28,7 +28,7 @@ let contentRef: HTMLDivElement | null = $state(null);
 					getText={() => contentRef?.textContent ?? ""}
 					{timestamp}
 					variant="user"
-					class="rounded bg-background/80 backdrop-blur-sm px-1 py-0.5 shadow-sm"
+					class="rounded-md bg-background/80 px-1 py-0.5 shadow-sm backdrop-blur-sm"
 				/>
 			</div>
 		</div>

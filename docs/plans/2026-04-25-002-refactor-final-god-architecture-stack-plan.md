@@ -5,6 +5,7 @@ status: active
 date: 2026-04-25
 origin: docs/brainstorms/2026-04-25-final-god-architecture-requirements.md
 deepened: 2026-04-25
+errata: "2026-06-11: UI package boundary guard is scripts/forbid-ui-package-imports.ts + ui-package-boundary.test.ts (not agent-panel-architecture.test.ts)."
 ---
 
 # refactor: Final GOD architecture stack

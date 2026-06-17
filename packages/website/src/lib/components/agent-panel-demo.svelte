@@ -1,14 +1,11 @@
 <script lang="ts">
 import {
-	AgentInputAutonomousToggle,
+	AgentInputAttachMenu,
+	AgentInputActiveModeChip,
 	AgentInputConfigOptionSelector,
-	AgentInputDivider,
-	AgentInputEditor,
-	AgentInputMetricsChip,
-	AgentInputMicButton,
+	AgentInputComposerRow,
+	AgentInputComposerTrailingControls,
 	AgentInputModelSelector,
-	AgentInputModeSelector,
-	AgentInputToolbar,
 	AgentPanelDeck,
 	AgentPanelComposer,
 	AgentPanelComposerFrame,
@@ -801,10 +798,10 @@ let { bare = false }: Props = $props();
 					<AgentPanelComposer
 						class="border-t-0 p-0"
 						inputClass="flex-shrink-0 border border-border bg-input/30"
-						contentClass="p-4 py-4"
+						contentClass="px-3 py-2"
 					>
 						{#snippet content()}
-							<AgentInputEditor
+							<AgentInputComposerRow
 								bind:editorRef={panel.editorRef}
 								placeholder={panel.placeholder}
 								isEmpty={panel.draftText.trim().length === 0}
@@ -813,54 +810,73 @@ let { bare = false }: Props = $props();
 								submitAriaLabel="Send message"
 								onSubmit={() => handleSubmit(panel)}
 								oninput={(event) => handleDraftInput(panel, event)}
-							/>
-						{/snippet}
-						{#snippet footer()}
-							<AgentInputToolbar>
-								{#snippet items()}
-									<AgentInputModeSelector
-										{availableModes}
-										currentModeId={panel.currentModeId}
+							>
+								{#snippet leading()}
+									<AgentInputAttachMenu
+										modes={availableModes.map((mode) => ({
+											id: mode.id,
+											label: mode.label ?? mode.name ?? mode.id,
+											description: mode.description ?? null,
+											iconKind: mode.iconKind ?? "unknown",
+											selected: mode.id === panel.currentModeId,
+										}))}
 										onModeChange={(modeId) => handleModeChange(panel.id, modeId)}
+										autonomousToggleActive={panel.autonomousActive}
+										onAutonomousToggle={() => handleAutonomousToggle(panel.id)}
 									/>
-									<AgentInputDivider />
-									<AgentInputAutonomousToggle
-										active={panel.autonomousActive}
-										title="Autonomous mode"
-										onToggle={() => handleAutonomousToggle(panel.id)}
-									/>
-									<AgentInputDivider />
 									<AgentInputConfigOptionSelector
 										configOption={panel.configOption}
 										onValueChange={(configId, value) =>
 											handleConfigValueChange(panel.id, configId, value)}
 									/>
-									<AgentInputDivider />
-									<AgentInputModelSelector
-										triggerLabel={currentModel?.name ?? "Select model"}
-										triggerProviderBrand={currentModel?.providerBrand ?? null}
-										triggerProviderLabel={currentModel?.providerLabel}
-										currentModelId={panel.currentModelId}
-										modelGroups={panel.modelGroups}
-										favoriteModels={getFavoriteModels(panel)}
-										onModelChange={(modelId) => handleModelChange(panel.id, modelId)}
-										onSetBuildDefault={(modelId) =>
-											handleSetModeDefault(panel.id, modelId, "build")}
-										onSetPlanDefault={(modelId) =>
-											handleSetModeDefault(panel.id, modelId, "plan")}
-										onToggleFavorite={(modelId) => handleToggleFavorite(panel.id, modelId)}
-									/>
-									<AgentInputDivider />
+									{#if availableModes.length > 1}
+										<AgentInputActiveModeChip
+											label={availableModes.find((mode) => mode.id === panel.currentModeId)?.label ??
+												panel.currentModeId}
+											iconKind={availableModes.find((mode) => mode.id === panel.currentModeId)?.iconKind ??
+												"unknown"}
+											onDismiss={() => handleModeChange(panel.id, availableModes[0]?.id ?? panel.currentModeId)}
+										/>
+									{/if}
 								{/snippet}
 								{#snippet trailing()}
-									<AgentInputMetricsChip
-										label={panel.metricsLabel}
-										percent={panel.metricsPercent}
-										hideLabel={true}
-									/>
-									<AgentInputMicButton visualState="mic" title={panel.micTitle} />
+									<AgentInputComposerTrailingControls
+										inputReady={true}
+										voiceState={null}
+										voiceEnabled={false}
+										composerIsDispatching={false}
+										getMicButtonTitle={() => panel.micTitle}
+										onVoiceMicKeyDown={() => undefined}
+										voiceModels={[]}
+										voiceSelectedModelId={null}
+										voiceModelsLoading={false}
+										voiceDownloadingModelId={null}
+										voiceDownloadPercent={0}
+										voiceMenuLabel="Voice model"
+										voiceModelsLoadingLabel="Loading voice models…"
+										onVoiceSelectModel={() => undefined}
+										onVoiceDownloadModel={() => undefined}
+										voiceCloseLabel="Close"
+									>
+										{#snippet modelSelector()}
+											<AgentInputModelSelector
+												triggerLabel={currentModel?.name ?? "Select model"}
+												triggerProviderBrand={currentModel?.providerBrand ?? null}
+												triggerProviderLabel={currentModel?.providerLabel}
+												currentModelId={panel.currentModelId}
+												modelGroups={panel.modelGroups}
+												favoriteModels={getFavoriteModels(panel)}
+												onModelChange={(modelId) => handleModelChange(panel.id, modelId)}
+												onSetBuildDefault={(modelId) =>
+													handleSetModeDefault(panel.id, modelId, "build")}
+												onSetPlanDefault={(modelId) =>
+													handleSetModeDefault(panel.id, modelId, "plan")}
+												onToggleFavorite={(modelId) => handleToggleFavorite(panel.id, modelId)}
+											/>
+										{/snippet}
+									</AgentInputComposerTrailingControls>
 								{/snippet}
-							</AgentInputToolbar>
+							</AgentInputComposerRow>
 						{/snippet}
 					</AgentPanelComposer>
 				</AgentPanelComposerFrame>

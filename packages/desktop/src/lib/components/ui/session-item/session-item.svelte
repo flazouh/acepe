@@ -1,6 +1,6 @@
 <script lang="ts">
 import type { ActivityEntryQuestion } from "@acepe/ui";
-import { ActivityEntry, PrChecksSummary, ProjectLetterBadge } from "@acepe/ui";
+import { ActivityEntry, PrChecksSummary, ProjectLetterBadge, Selector } from "@acepe/ui";
 import * as DropdownMenu from "@acepe/ui/dropdown-menu";
 import { IconCheck } from "@tabler/icons-svelte";
 import { IconChevronDown } from "@tabler/icons-svelte";
@@ -231,7 +231,7 @@ const paddingLeft = $derived(`${basePadding + depth * 16}px`);
 const activePanel = $derived(panelStore?.getPanelBySessionId(session.id) ?? null);
 const hasUnseenCompletion = $derived(activePanel ? unseenStore.isUnseen(activePanel.id) : false);
 const sessionListPresentation = $derived.by(() =>
-	sessionStore.getSessionListItemPresentation({
+	sessionStore.presentation.getSessionListItemPresentation({
 		sessionId: session.id,
 		interactionStore,
 		hasUnseenCompletion,
@@ -685,19 +685,20 @@ function handleNextQuestion() {
 								</button>
 							{/if}
 						{/if}
-						<DropdownMenu.Root bind:open={isActionsMenuOpen}>
-							<DropdownMenu.Trigger
-								class="shrink-0 h-5 w-4 flex items-center justify-center rounded hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring text-muted-foreground hover:text-foreground"
-								onclick={(e: MouseEvent) => e.stopPropagation()}
-							>
-								<IconDotsVertical class="h-3.5 w-3.5" aria-hidden="true" />
-								<span class="sr-only">Session actions</span>
-							</DropdownMenu.Trigger>
-							<DropdownMenu.Content
+						<div onclick={(e: MouseEvent) => e.stopPropagation()} role="none">
+							<Selector
+								bind:open={isActionsMenuOpen}
 								align="end"
-								class="min-w-[180px]"
-								onclick={(e: MouseEvent) => e.stopPropagation()}
+								variant="ghost"
+								triggerSize="icon"
+								showChevron={false}
+								tooltipLabel="Session actions"
+								triggerAriaLabel="Session actions"
 							>
+								{#snippet renderButton()}
+									<IconDotsVertical class="h-3.5 w-3.5" aria-hidden="true" />
+								{/snippet}
+
 								<DropdownMenu.Item class="cursor-pointer">
 									<CopyButton
 										text={session.id}
@@ -738,8 +739,8 @@ function handleNextQuestion() {
 										{"Open Streaming Log"}
 									</DropdownMenu.Item>
 								{/if}
-							</DropdownMenu.Content>
-						</DropdownMenu.Root>
+							</Selector>
+						</div>
 					</div>
 				{/snippet}
 

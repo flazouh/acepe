@@ -1,6 +1,7 @@
 use crate::acp::parsers::{get_parser, AgentType};
-use crate::acp::reconciler::providers;
-use crate::acp::reconciler::session_tool::{classify_raw_tool_call, ToolClassificationHints};
+use crate::acp::reconciler::{
+    classify_kind_from_provider_name, classify_raw_tool_call, ToolClassificationHints,
+};
 use serde::Deserialize;
 use serde_json::{json, Value};
 use tauri::AppHandle;
@@ -116,7 +117,7 @@ pub(super) fn parse_permission_tool_arguments(
         ToolClassificationHints {
             name: effective_name,
             title: effective_title,
-            kind: kind_hint.map(|kind| providers::detect_tool_kind(agent_type, kind)),
+            kind: kind_hint.map(|kind| classify_kind_from_provider_name(agent_type, kind)),
             kind_hint,
             locations: None,
         },

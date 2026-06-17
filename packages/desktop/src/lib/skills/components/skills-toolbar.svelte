@@ -1,4 +1,5 @@
 <script lang="ts">
+import { Selector } from "@acepe/ui";
 import * as DropdownMenu from "@acepe/ui/dropdown-menu";
 import { Copy, MoreHorizontal, Plus, Save, Trash2 } from "@lucide/svelte/icons";
 import { Button } from "$lib/components/ui/button/index.js";
@@ -71,37 +72,32 @@ function handleDelete() {
 				Save
 			</Button>
 
-			<DropdownMenu.Root>
-				<DropdownMenu.Trigger>
-					{#snippet child({ props })}
-						<Button variant="ghost" size="icon" {...props}>
-							<MoreHorizontal class="h-4 w-4" />
-						</Button>
-					{/snippet}
-				</DropdownMenu.Trigger>
-				<DropdownMenu.Content align="end">
-					{#if otherAgents.length > 0}
-						<DropdownMenu.Sub>
-							<DropdownMenu.SubTrigger>
-								<Copy class="h-4 w-4 mr-2" />
-								Copy to
-							</DropdownMenu.SubTrigger>
-							<DropdownMenu.SubContent>
-								{#each otherAgents as agent (agent.id)}
-									<DropdownMenu.Item onclick={() => handleCopyTo(agent.agentId)}>
-										{agent.label}
-									</DropdownMenu.Item>
-								{/each}
-							</DropdownMenu.SubContent>
-						</DropdownMenu.Sub>
-						<DropdownMenu.Separator />
-					{/if}
-					<DropdownMenu.Item onclick={handleDelete} class="text-destructive">
-						<Trash2 class="h-4 w-4 mr-2" />
-						Delete
-					</DropdownMenu.Item>
-				</DropdownMenu.Content>
-			</DropdownMenu.Root>
+			<Selector align="end" triggerSize="icon" showChevron={false} variant="ghost">
+				{#snippet renderButton()}
+					<MoreHorizontal class="h-4 w-4" />
+				{/snippet}
+
+				{#if otherAgents.length > 0}
+					<DropdownMenu.Sub>
+						<DropdownMenu.SubTrigger>
+							<Copy class="h-4 w-4 mr-2" />
+							Copy to
+						</DropdownMenu.SubTrigger>
+						<DropdownMenu.SubContent>
+							{#each otherAgents as agent (agent.id)}
+								<DropdownMenu.Item onclick={() => handleCopyTo(agent.agentId)}>
+									{agent.label}
+								</DropdownMenu.Item>
+							{/each}
+						</DropdownMenu.SubContent>
+					</DropdownMenu.Sub>
+					<DropdownMenu.Separator />
+				{/if}
+				<DropdownMenu.Item onclick={handleDelete} class="text-destructive">
+					<Trash2 class="h-4 w-4 mr-2" />
+					Delete
+				</DropdownMenu.Item>
+			</Selector>
 		{/if}
 	</div>
 </div>

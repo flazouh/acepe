@@ -185,7 +185,7 @@ onMount(() => {
 		}
 	}}
 >
-	<div class="flex h-full min-h-0 w-full overflow-hidden rounded-md border border-border/60 bg-background shadow-[0_30px_80px_rgba(0,0,0,0.5)]">
+	<div class="flex h-full min-h-0 w-full overflow-hidden rounded-lg border border-border/60 bg-background shadow-[0_30px_80px_rgba(0,0,0,0.5)]">
 		<div class="flex w-80 shrink-0 flex-col border-r border-border/60 bg-card/80">
 			<div class="flex h-9 shrink-0 items-center gap-2 border-b border-border/60 pr-2.5">
 				<div class="inline-flex h-9 w-9 shrink-0 items-center justify-center border-r border-border/60">

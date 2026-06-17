@@ -1,4 +1,5 @@
 import type { TranscriptEntry } from "$lib/services/acp-types.js";
+import { segmentText } from "$lib/acp/session-state/transcript-text.js";
 import type { Checkpoint } from "../../types/checkpoint.js";
 
 const MAX_PREVIEW_LENGTH = 50;
@@ -8,12 +9,7 @@ const MAX_PREVIEW_LENGTH = 50;
  * Returns null if content is not text or is empty.
  */
 export function extractCheckpointTextPreview(entry: TranscriptEntry): string | null {
-	let content = "";
-	for (const segment of entry.segments) {
-		content += segment.text;
-	}
-
-	const text = content.trim();
+	const text = segmentText(entry).trim();
 	if (text.length === 0) return null;
 
 	return text.length > MAX_PREVIEW_LENGTH ? `${text.substring(0, MAX_PREVIEW_LENGTH)}...` : text;

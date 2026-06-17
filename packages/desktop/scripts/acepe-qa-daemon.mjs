@@ -68,9 +68,11 @@ async function handleRequest(request) {
 			undefined,
 			request.appIdentifier
 		);
+		const resultText =
+			typeof result.result === "string" ? result.result : JSON.stringify(result.result);
 		return {
 			ok: true,
-			text: `${result.result}\n\n[Executed in window: ${result.windowLabel}]`,
+			text: `${resultText}\n\n[Executed in window: ${result.windowLabel}]`,
 		};
 	}
 

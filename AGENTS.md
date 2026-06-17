@@ -151,6 +151,7 @@ Acepe uses the Compounding Engineering workflow as its engineering operating sys
 - ALWAYS invoke Svelte skills before modifying/creating Svelte code: `svelte-runes`, `svelte-components`, `sveltekit-structure`, `sveltekit-data-flow`.
 - NEVER use `$effect`. Use `$derived` for computed values, event handlers for actions. If unavoidable, guard writes with comparison.
 - ALL new UI components must be dumb/presentational in `packages/ui`. No Tauri, store, runtime, or app-specific logic — they must be reusable from `@acepe/ui`.
+- Invoke **`extract-to-ui-package`** before extracting or moving UI into `@acepe/ui` (MVC: View in `packages/ui`, Model/Controller in desktop). Enforcement: `scripts/forbid-ui-package-imports.ts` + `packages/ui/src/__tests__/ui-package-boundary.test.ts`.
 
 ### Architecture
 
@@ -174,20 +175,19 @@ Acepe uses the Compounding Engineering workflow as its engineering operating sys
 ### Visual QA
 
 - ALWAYS invoke the `acepe-dev-app-qa` skill before inspecting the Acepe desktop dev app, current dev app, Tauri WebView, session display, agent panel, or any UI-visible Acepe change.
-- For UI-visible work, do not call the work done from tests alone. After checks pass, open the affected screen in the running app or browser and verify the real user-visible result.
-- Prefer the repo QA wrapper before raw Tauri MCP. From `packages/desktop`, use `bun run qa doctor`, `bun run qa observe`, `bun run qa inspect --selector=<selector>`, `bun run qa click --selector=<selector>`, `bun run qa reset-onboarding`, and `bun run qa screenshot`.
+- **After every change that could affect what the user sees** — desktop Svelte/TS/CSS, `@acepe/ui`, or Rust on session/transcript/display paths — run **DOM verification through the repo QA CLI** before calling the work done. Unit tests and `bun run check` are not sufficient on their own.
+- **Required QA CLI pass** (from `packages/desktop`): `bun run qa doctor` → open or observe the affected screen (`bun run qa observe`) → **`bun run qa inspect --selector=<selector>`** on the element or region that proves the change → `bun run qa screenshot` when the change is visual or layout-related. Use `bun run qa click`, `send`, or `watch` when the fix is interaction-driven.
+- Prefer the repo QA wrapper before raw Tauri MCP. Other commands: `bun run qa reset-onboarding`, `bun run qa click --selector=<selector>`, `bun run qa send --text=<message>`, `bun run qa watch --text=<text>`.
 - If a QA or app interaction is not extremely smooth, improve the system before repeating the friction: add a wrapper command, helper, hook, skill instruction, or documented primitive so the next pass is easier.
-- Any UI-visible code change must be verified after the code change, not before. The QA wrapper records `.codex/state/ui-qa-evidence.json`; Codex Stop hooks should block completion when UI files changed after the latest evidence.
+- Any UI-visible code change must be verified **after** the code change, not before. The QA wrapper records `.codex/state/ui-qa-evidence.json`; Codex Stop hooks should block completion when UI files changed after the latest evidence.
 - Before interacting with a window, confirm the target is the app/build that contains the change. For dev QA, prefer the running Tauri dev app from this checkout (`target/debug/acepe` / local dev server), not the installed production bundle in `/Applications/Acepe.app`, unless the task is explicitly about the production app.
 - For desktop app QA, prefer the Tauri MCP bridge when it is available. Use it to attach to the running dev WebView, inspect the DOM/app state, read console errors, click/type, and capture screenshots inside the Tauri context. A normal browser at `localhost:1420` is not enough for Acepe desktop QA because Tauri APIs like `invoke` are missing there.
 - If Tauri MCP is unavailable, first try the running dev Tauri window via Computer Use. Only use a normal browser for routes that are known to work without Tauri APIs, and say clearly that it is browser-only evidence.
-- Capture or inspect enough of the screen to prove the main state, layout, and interaction changed as intended. Include the visual QA result in the final response.
-- If the app or dev server is not available, do not silently skip visual QA. Say it was blocked and explain exactly what was still verified.
-- Keep respecting the `bun dev` guardrail below: the user manages the dev server, so attach to an existing running app/browser instead of starting one yourself.
+- Include the DOM inspection output (selector + observed facts) and screenshot when relevant in the final response.
+- If the app or dev server is not available, start it from `packages/desktop` with `bun dev`, then run the QA CLI pass; if still blocked, say exactly what was verified and what could not be.
 
 ## Operational Guardrails
 
-- NEVER run `bun dev` — the user manages the dev server.
 - NEVER run `git stash` without explicit user consent.
 - NEVER set `core.bare=true` in this repository's root `.git/config` or otherwise convert this checkout into a bare repository. If bare-style workflows are needed, use a separate bare mirror or linked worktree instead of changing the active checkout.
 

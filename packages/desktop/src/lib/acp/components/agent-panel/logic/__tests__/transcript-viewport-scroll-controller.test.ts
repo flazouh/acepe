@@ -10,7 +10,11 @@ import {
 	shouldDispatchOutsideBufferRecovery,
 	shouldPinFollowingTailToRenderedBottom,
 	shouldPinHydratedFollowingTailProjection,
+	shouldContinueBottomPinRecovery,
+	shouldDispatchFollowTailPinOnLayoutGrowth,
 	shouldDispatchTailDetachScrollIntent,
+	shouldEmitSettledBottomPin,
+	shouldEmitSettledTopPin,
 	shouldIgnoreStaleFollowingTailTarget,
 	shouldSuppressProgrammaticScrollEvent,
 	semanticScrollIntentAtRenderedBufferEdge,
@@ -152,6 +156,7 @@ describe("transcript viewport scroll controller", () => {
 			shouldDispatchTailDetachScrollIntent({
 				modeKind: "followingTail",
 				liveNearBottom: false,
+				userScrollingAwayFromTail: false,
 				alreadyLocallyDetached: false,
 			})
 		).toBe(true);
@@ -162,9 +167,21 @@ describe("transcript viewport scroll controller", () => {
 			shouldDispatchTailDetachScrollIntent({
 				modeKind: "followingTail",
 				liveNearBottom: false,
+				userScrollingAwayFromTail: false,
 				alreadyLocallyDetached: true,
 			})
 		).toBe(false);
+	});
+
+	it("detaches from following-tail when an upward wheel starts near the bottom", () => {
+		expect(
+			shouldDispatchTailDetachScrollIntent({
+				modeKind: "followingTail",
+				liveNearBottom: true,
+				userScrollingAwayFromTail: true,
+				alreadyLocallyDetached: false,
+			})
+		).toBe(true);
 	});
 
 	it("ignores stale following-tail targets after the user locally detached", () => {
@@ -504,5 +521,173 @@ describe("transcript viewport scroll controller", () => {
 				totalHeightPx: 24_000,
 			})
 		).toBe(210);
+	});
+
+	describe("shouldContinueBottomPinRecovery", () => {
+		it("bails when canonically detached even without a bottom jump in flight", () => {
+			expect(
+				shouldContinueBottomPinRecovery({
+					modeKind: "detached",
+					bottomJumpPinRequested: false,
+					framesRemaining: 24,
+					userScrollingAwayFromTail: false,
+				})
+			).toBe(false);
+		});
+
+		it("continues re-pinning while canonically following the tail", () => {
+			expect(
+				shouldContinueBottomPinRecovery({
+					modeKind: "followingTail",
+					bottomJumpPinRequested: false,
+					framesRemaining: 24,
+					userScrollingAwayFromTail: false,
+				})
+			).toBe(true);
+		});
+
+		it("honors an in-flight bottom jump regardless of canonical mode", () => {
+			expect(
+				shouldContinueBottomPinRecovery({
+					modeKind: "detached",
+					bottomJumpPinRequested: true,
+					framesRemaining: 24,
+					userScrollingAwayFromTail: false,
+				})
+			).toBe(true);
+		});
+
+		it("bails when the frame budget is exhausted", () => {
+			expect(
+				shouldContinueBottomPinRecovery({
+					modeKind: "followingTail",
+					bottomJumpPinRequested: true,
+					framesRemaining: 0,
+					userScrollingAwayFromTail: false,
+				})
+			).toBe(false);
+		});
+
+		// Livelock fix: while canonically following the tail, the per-frame pin loop
+		// must YIELD to an active user scroll-away. Otherwise the loop yanks scrollTop
+		// back to the bottom every frame, "near bottom" stays true, the canonical
+		// tail-detach intent never dispatches, the mode never leaves followingTail, and
+		// the loop never stops — the user is stuck at the bottom.
+		it("yields the loop to an active user scroll-away even while following the tail", () => {
+			expect(
+				shouldContinueBottomPinRecovery({
+					modeKind: "followingTail",
+					bottomJumpPinRequested: false,
+					framesRemaining: 24,
+					userScrollingAwayFromTail: true,
+				})
+			).toBe(false);
+		});
+
+		// Guardrail: an explicit bottom-jump re-attach intent still wins over the
+		// scroll-away flag (in practice the wheel-up handler clears the jump, so they
+		// rarely co-occur, but the explicit re-attach must not be silently dropped).
+		it("still honors an explicit bottom jump even if the scroll-away flag is set", () => {
+			expect(
+				shouldContinueBottomPinRecovery({
+					modeKind: "followingTail",
+					bottomJumpPinRequested: true,
+					framesRemaining: 24,
+					userScrollingAwayFromTail: true,
+				})
+			).toBe(true);
+		});
+	});
+
+	describe("settled scroll authority (Phase 1)", () => {
+		it("does not emit settled bottom pin when canonically detached", () => {
+			expect(
+				shouldEmitSettledBottomPin({
+					modeKind: "detached",
+					tailBufferHydrated: true,
+					bottomJumpPinRequested: false,
+				})
+			).toBe(false);
+		});
+
+		it("emits exactly one settled bottom pin when following tail with hydrated buffer", () => {
+			expect(
+				shouldEmitSettledBottomPin({
+					modeKind: "followingTail",
+					tailBufferHydrated: true,
+					bottomJumpPinRequested: false,
+				})
+			).toBe(true);
+			expect(
+				shouldEmitSettledBottomPin({
+					modeKind: "followingTail",
+					tailBufferHydrated: false,
+					bottomJumpPinRequested: false,
+				})
+			).toBe(false);
+		});
+
+		it("honors bottom jump re-attach while canonically detached", () => {
+			expect(
+				shouldEmitSettledBottomPin({
+					modeKind: "detached",
+					tailBufferHydrated: false,
+					bottomJumpPinRequested: true,
+				})
+			).toBe(true);
+		});
+
+		it("derives top pin from per-session outside-buffer recovery at layout top", () => {
+			expect(
+				shouldEmitSettledTopPin({
+					bufferStartAtLayoutTop: true,
+					pendingRecoveryScrollTopPx: 12,
+					nearEdgeThresholdPx: 24,
+				})
+			).toBe(true);
+			expect(
+				shouldEmitSettledTopPin({
+					bufferStartAtLayoutTop: false,
+					pendingRecoveryScrollTopPx: 0,
+					nearEdgeThresholdPx: 24,
+				})
+			).toBe(false);
+		});
+
+		it("does not re-pin on an identical following-tail layout projection", () => {
+			expect(
+				shouldDispatchFollowTailPinOnLayoutGrowth({
+					modeKind: "followingTail",
+					locallyDetachedFromTail: false,
+					previousTotalHeightPx: 10_000,
+					currentTotalHeightPx: 10_000,
+				})
+			).toBe(false);
+			expect(
+				shouldDispatchFollowTailPinOnLayoutGrowth({
+					modeKind: "followingTail",
+					locallyDetachedFromTail: false,
+					previousTotalHeightPx: 10_000,
+					currentTotalHeightPx: 10_240,
+				})
+			).toBe(true);
+		});
+
+		it("preserves anchor correction path when not in settled top or bottom pin", () => {
+			expect(
+				shouldEmitSettledTopPin({
+					bufferStartAtLayoutTop: true,
+					pendingRecoveryScrollTopPx: null,
+					nearEdgeThresholdPx: 24,
+				})
+			).toBe(false);
+			expect(
+				shouldEmitSettledBottomPin({
+					modeKind: "detached",
+					tailBufferHydrated: true,
+					bottomJumpPinRequested: false,
+				})
+			).toBe(false);
+		});
 	});
 });

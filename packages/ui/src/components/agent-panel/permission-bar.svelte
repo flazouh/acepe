@@ -47,7 +47,7 @@
 			return "permission-attached-card inline-flex flex-col bg-input/30 permission-card-enter rounded-b-sm rounded-t-none px-1 py-1";
 		}
 
-		return `w-full flex flex-col gap-1.5 border border-border bg-input/30 permission-card-enter px-3 py-1 rounded-md ${command ? "rounded-b-none border-b-0" : ""}`;
+		return `w-full flex flex-col gap-1.5 border border-border bg-input/30 permission-card-enter px-3 py-1 rounded-lg ${command ? "rounded-b-none border-b-0" : ""}`;
 	});
 </script>
 
@@ -109,14 +109,14 @@
 		</div>
 
 		{#if editPreview && hasEditPreview}
-			<div class="overflow-hidden rounded-md border border-border bg-background">
+			<div class="overflow-hidden rounded-lg border border-border bg-background">
 				{@render editPreview()}
 			</div>
 		{/if}
 	</div>
 
 	{#if command}
-		<div class="max-h-[72px] overflow-y-auto rounded-b-md border border-border border-t-0 bg-input/30 px-2 py-0.5">
+		<div class="max-h-[72px] overflow-y-auto rounded-b-lg border border-border border-t-0 bg-input/30 px-2 py-0.5">
 			<code class="block min-w-0 whitespace-pre-wrap break-words font-mono text-sm text-foreground/70">
 				$ {command}
 			</code>

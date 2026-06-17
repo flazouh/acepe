@@ -123,8 +123,9 @@ pub(crate) async fn handle_session_update_notification(
 mod tests {
     use super::*;
     use crate::acp::domain_events::SessionDomainEventKind;
-    use crate::acp::providers::cursor::CursorProvider;
-    use crate::acp::providers::cursor_session_update_enrichment;
+    use crate::acp::providers::cursor::{
+        clear_test_tool_use_cache, seed_test_tool_use_cache, CursorProvider,
+    };
     use crate::acp::session_update::ToolArguments;
     use crate::acp::ui_event_dispatcher::AcpUiEventPayload;
     use serde_json::json;
@@ -349,7 +350,7 @@ mod tests {
         let expected_session_id = "cursor-live-session";
         let tool_call_id = "tool-edit-1";
 
-        cursor_session_update_enrichment::seed_test_tool_use_cache(
+seed_test_tool_use_cache(
             expected_session_id,
             tool_call_id,
             "Edit",
@@ -426,7 +427,7 @@ mod tests {
         }
 
         drop(captured);
-        cursor_session_update_enrichment::clear_test_tool_use_cache(expected_session_id);
+clear_test_tool_use_cache(expected_session_id);
     }
 
     #[tokio::test]
@@ -434,7 +435,7 @@ mod tests {
         let expected_session_id = "cursor-live-rename-session";
         let tool_call_id = "tool-rename-1";
 
-        cursor_session_update_enrichment::seed_test_tool_use_cache(
+seed_test_tool_use_cache(
             expected_session_id,
             tool_call_id,
             "Edit",
@@ -512,7 +513,7 @@ mod tests {
         }
 
         drop(captured);
-        cursor_session_update_enrichment::clear_test_tool_use_cache(expected_session_id);
+clear_test_tool_use_cache(expected_session_id);
     }
 
     #[tokio::test]
@@ -520,7 +521,7 @@ mod tests {
         let expected_session_id = "cursor-live-sequence";
         let tool_call_id = "tool-edit-sequence";
 
-        cursor_session_update_enrichment::seed_test_tool_use_cache(
+seed_test_tool_use_cache(
             expected_session_id,
             tool_call_id,
             "Edit",
@@ -655,7 +656,7 @@ mod tests {
         }
 
         drop(captured);
-        cursor_session_update_enrichment::clear_test_tool_use_cache(expected_session_id);
+clear_test_tool_use_cache(expected_session_id);
     }
 
     #[tokio::test]
@@ -663,7 +664,7 @@ mod tests {
         let expected_session_id = "cursor-live-read-sequence";
         let tool_call_id = "tool-read-sequence";
 
-        cursor_session_update_enrichment::seed_test_tool_use_cache(
+seed_test_tool_use_cache(
             expected_session_id,
             tool_call_id,
             "Read",
@@ -795,7 +796,7 @@ mod tests {
         }
 
         drop(captured);
-        cursor_session_update_enrichment::clear_test_tool_use_cache(expected_session_id);
+clear_test_tool_use_cache(expected_session_id);
     }
 
     /// Regression: when the assistant emits the **same text** in two

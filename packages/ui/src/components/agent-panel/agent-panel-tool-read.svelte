@@ -8,12 +8,14 @@
 	import AgentToolRead from "./agent-tool-read.svelte";
 	import AgentToolReadLints from "./agent-tool-read-lints.svelte";
 
+	import type { ToolDurationTiming } from "./tool-duration.js";
+
 	type ReadToolVariant = "read" | "read-lints";
 
 	interface Props {
 		entry: AgentToolEntry;
 		variant: ReadToolVariant;
-		durationLabel?: string;
+		durationTiming?: ToolDurationTiming;
 		iconBasePath?: string;
 		onToolFileSelect?: (event: AgentToolFileSelectEvent) => void;
 	}
@@ -21,7 +23,7 @@
 	let {
 		entry,
 		variant,
-		durationLabel,
+		durationTiming,
 		iconBasePath = "",
 		onToolFileSelect,
 	}: Props = $props();
@@ -44,7 +46,7 @@
 		totalFiles={lintsPresentation.totalFiles}
 		diagnostics={entry.lintDiagnostics ?? null}
 		summaryLabel={lintsPresentation.summaryLabel}
-		{durationLabel}
+		{durationTiming}
 	/>
 {:else}
 	<AgentToolRead
@@ -55,7 +57,7 @@
 		highlightSource={entry.highlightSource ?? null}
 		sourceRangeLabel={entry.sourceRangeLabel ?? null}
 		status={entry.status}
-		{durationLabel}
+		{durationTiming}
 		{iconBasePath}
 		interactive={entry.filePath !== undefined}
 		onSelect={handleFileSelect}

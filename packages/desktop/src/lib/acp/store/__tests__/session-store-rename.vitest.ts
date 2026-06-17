@@ -33,7 +33,7 @@ describe("SessionStore renameSession", () => {
 
 	it("persists a trimmed session title override without reordering the session", async () => {
 		const updatedAt = new Date("2026-04-06T10:00:00.000Z");
-		store.addSession({
+		store.write.addSession({
 			id: "session-rename-1",
 			projectPath: "/project",
 			agentId: "claude-code",
@@ -45,18 +45,18 @@ describe("SessionStore renameSession", () => {
 
 		(api.setSessionTitle as unknown as MockReturnValue).mockReturnValue(okAsync(undefined));
 
-		const result = await store.renameSession("session-rename-1", "  Renamed title  ");
+		const result = await store.write.renameSession("session-rename-1", "  Renamed title  ");
 
 		expect(result.isOk()).toBe(true);
 		expect(api.setSessionTitle).toHaveBeenCalledWith("session-rename-1", "Renamed title");
-		expect(store.getSessionCold("session-rename-1")?.title).toBe("Renamed title");
-		expect(store.getSessionCold("session-rename-1")?.updatedAt.toISOString()).toBe(
+		expect(store.read.getSessionCold("session-rename-1")?.title).toBe("Renamed title");
+		expect(store.read.getSessionCold("session-rename-1")?.updatedAt.toISOString()).toBe(
 			updatedAt.toISOString()
 		);
 	});
 
 	it("adds a session without copying the existing session list", () => {
-		store.addSession({
+		store.write.addSession({
 			id: "session-existing",
 			projectPath: "/project",
 			agentId: "claude-code",
@@ -72,7 +72,7 @@ describe("SessionStore renameSession", () => {
 		};
 
 		try {
-			store.addSession({
+			store.write.addSession({
 				id: "session-new",
 				projectPath: "/project",
 				agentId: "claude-code",
@@ -82,15 +82,15 @@ describe("SessionStore renameSession", () => {
 				parentId: null,
 			});
 
-			expect(store.getSessionCold("session-new")?.title).toBe("New");
-			expect(store.getSessionCold("session-existing")?.title).toBe("Existing");
+			expect(store.read.getSessionCold("session-new")?.title).toBe("New");
+			expect(store.read.getSessionCold("session-existing")?.title).toBe("Existing");
 		} finally {
 			sessions[Symbol.iterator] = originalIterator;
 		}
 	});
 
 	it("updates one session without mapping the whole session list", () => {
-		store.addSession({
+		store.write.addSession({
 			id: "session-one",
 			projectPath: "/project",
 			agentId: "claude-code",
@@ -99,7 +99,7 @@ describe("SessionStore renameSession", () => {
 			createdAt: new Date("2026-04-06T09:00:00.000Z"),
 			parentId: null,
 		});
-		store.addSession({
+		store.write.addSession({
 			id: "session-two",
 			projectPath: "/project",
 			agentId: "claude-code",
@@ -115,17 +115,17 @@ describe("SessionStore renameSession", () => {
 		};
 
 		try {
-			store.updateSession("session-one", { title: "One updated" }, { touchUpdatedAt: false });
+			store.write.updateSession("session-one", { title: "One updated" }, { touchUpdatedAt: false });
 
-			expect(store.getSessionCold("session-one")?.title).toBe("One updated");
-			expect(store.getSessionCold("session-two")?.title).toBe("Two");
+			expect(store.read.getSessionCold("session-one")?.title).toBe("One updated");
+			expect(store.read.getSessionCold("session-two")?.title).toBe("Two");
 		} finally {
 			sessions.map = originalMap;
 		}
 	});
 
 	it("looks up a session by id without rebuilding a derived session map", () => {
-		store.addSession({
+		store.write.addSession({
 			id: "session-indexed",
 			projectPath: "/project",
 			agentId: "claude-code",
@@ -141,15 +141,15 @@ describe("SessionStore renameSession", () => {
 		};
 
 		try {
-			expect(store.getSessionCold("session-indexed")?.title).toBe("Indexed");
-			expect(store.hasSession("session-indexed")).toBe(true);
+			expect(store.read.getSessionCold("session-indexed")?.title).toBe("Indexed");
+			expect(store.read.hasSession("session-indexed")).toBe(true);
 		} finally {
 			sessions.map = originalMap;
 		}
 	});
 
 	it("looks up project sessions without rebuilding all project groups", () => {
-		store.addSession({
+		store.write.addSession({
 			id: "session-project-a",
 			projectPath: "/project-a",
 			agentId: "claude-code",
@@ -158,7 +158,7 @@ describe("SessionStore renameSession", () => {
 			createdAt: new Date("2026-04-06T09:00:00.000Z"),
 			parentId: null,
 		});
-		store.addSession({
+		store.write.addSession({
 			id: "session-project-b",
 			projectPath: "/project-b",
 			agentId: "claude-code",
@@ -174,15 +174,15 @@ describe("SessionStore renameSession", () => {
 		};
 
 		try {
-			expect(store.getSessionIdsForProject("/project-a")).toEqual(["session-project-a"]);
-			expect(store.getSessionIdsForProject("/project-b")).toEqual(["session-project-b"]);
+			expect(store.read.getSessionIdsForProject("/project-a")).toEqual(["session-project-a"]);
+			expect(store.read.getSessionIdsForProject("/project-b")).toEqual(["session-project-b"]);
 		} finally {
 			sessions[Symbol.iterator] = originalIterator;
 		}
 	});
 
 	it("looks up project session ids without mapping project sessions", () => {
-		store.addSession({
+		store.write.addSession({
 			id: "session-project-a",
 			projectPath: "/project-a",
 			agentId: "claude-code",
@@ -201,14 +201,14 @@ describe("SessionStore renameSession", () => {
 		};
 
 		try {
-			expect(store.getSessionIdsForProject("/project-a")).toEqual(["session-project-a"]);
+			expect(store.read.getSessionIdsForProject("/project-a")).toEqual(["session-project-a"]);
 		} finally {
 			projectSessions!.map = originalMap;
 		}
 	});
 
 	it("returns session reference selectors without mapping the session list", () => {
-		store.addSession({
+		store.write.addSession({
 			id: "session-reference",
 			projectPath: "/project",
 			agentId: "claude-code",
@@ -224,7 +224,7 @@ describe("SessionStore renameSession", () => {
 		};
 
 		try {
-			const paletteReferences = store.getSessionPaletteReferences();
+			const paletteReferences = store.read.getSessionPaletteReferences();
 			expect(paletteReferences).toHaveLength(1);
 			expect(paletteReferences[0]).toEqual({
 				id: "session-reference",
@@ -232,21 +232,21 @@ describe("SessionStore renameSession", () => {
 				agentId: "claude-code",
 				title: "Reference",
 			});
-			const syncReferences = store.getLiveSessionSyncReferences();
+			const syncReferences = store.read.getLiveSessionSyncReferences();
 			expect(syncReferences).toHaveLength(1);
 			expect(syncReferences[0]).toEqual({
 				id: "session-reference",
 				updatedAtMs: Date.parse("2026-04-06T10:00:00.000Z"),
 			});
 
-			store.updateSession(
+			store.write.updateSession(
 				"session-reference",
 				{ title: "Reference updated" },
 				{ touchUpdatedAt: false }
 			);
 
-			expect(store.getSessionPaletteReferences()[0]?.title).toBe("Reference updated");
-			expect(store.getLiveSessionSyncReferences()[0]?.updatedAtMs).toBe(
+			expect(store.read.getSessionPaletteReferences()[0]?.title).toBe("Reference updated");
+			expect(store.read.getLiveSessionSyncReferences()[0]?.updatedAtMs).toBe(
 				Date.parse("2026-04-06T10:00:00.000Z")
 			);
 		} finally {
@@ -255,7 +255,7 @@ describe("SessionStore renameSession", () => {
 	});
 
 	it("snapshots all sessions without using the broad session map helper", () => {
-		store.addSession({
+		store.write.addSession({
 			id: "session-snapshot",
 			projectPath: "/project",
 			agentId: "claude-code",
@@ -271,7 +271,7 @@ describe("SessionStore renameSession", () => {
 		};
 
 		try {
-			const snapshot = store.getAllSessions();
+			const snapshot = store.read.getAllSessions();
 
 			expect(snapshot).toHaveLength(1);
 			expect(snapshot[0]?.id).toBe("session-snapshot");

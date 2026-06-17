@@ -1,11 +1,14 @@
 use std::collections::HashMap;
+use std::process::{Command, Stdio};
 use std::sync::OnceLock;
+use std::time::{Duration, Instant};
 
 use crate::acp::runtime_resolver::SpawnEnvStrategy;
 
 static SHELL_ENV_CACHE: OnceLock<HashMap<String, String>> = OnceLock::new();
 const SHELL_ENV_CAPTURE_MARKER: &[u8] = b"__ACEPE_ENV_START__\0";
 const SHELL_ENV_CAPTURE_COMMAND: &str = "printf '__ACEPE_ENV_START__\\0'; env -0";
+const SHELL_ENV_CAPTURE_TIMEOUT_SECONDS: u64 = 5;
 
 /// Strategy for building agent subprocess environment.
 pub enum EnvStrategy<'a> {
@@ -55,30 +58,66 @@ pub async fn prewarm() {
 }
 
 fn capture_login_shell_env() -> Result<HashMap<String, String>, String> {
-    let start = std::time::Instant::now();
+    let start = Instant::now();
     let shell = std::env::var("SHELL").unwrap_or_else(|_| "/bin/zsh".to_string());
 
     if !std::path::Path::new(&shell).exists() {
         return Err(format!("Shell not found: {shell}"));
     }
 
-    let output = std::process::Command::new(&shell)
-        .args(shell_capture_args(&shell))
-        .env("DISABLE_AUTO_UPDATE", "true")
-        .env("HOMEBREW_NO_AUTO_UPDATE", "1")
-        .output()
-        .map_err(|e| format!("Failed to spawn {shell}: {e}"))?;
+    let output = run_shell_capture_command(&shell, shell_env_capture_timeout())?;
 
     tracing::debug!(
         elapsed_ms = start.elapsed().as_millis(),
         "Shell spawn completed"
     );
 
-    if !output.status.success() {
-        return Err(format!("Shell exited with {}", output.status));
-    }
+    Ok(parse_env_output(shell_env_payload(&output)))
+}
 
-    Ok(parse_env_output(shell_env_payload(&output.stdout)))
+fn shell_env_capture_timeout() -> Duration {
+    Duration::from_secs(SHELL_ENV_CAPTURE_TIMEOUT_SECONDS)
+}
+
+fn run_shell_capture_command(shell: &str, timeout: Duration) -> Result<Vec<u8>, String> {
+    let stdout_file = tempfile::NamedTempFile::new()
+        .map_err(|e| format!("Failed to create shell env capture file: {e}"))?;
+    let stdout_path = stdout_file.path().to_path_buf();
+    let stdout_for_child = stdout_file
+        .reopen()
+        .map_err(|e| format!("Failed to prepare shell env capture file: {e}"))?;
+    let started_at = Instant::now();
+
+    let mut child = Command::new(shell)
+        .args(shell_capture_args(shell))
+        .env("DISABLE_AUTO_UPDATE", "true")
+        .env("HOMEBREW_NO_AUTO_UPDATE", "1")
+        .stdout(Stdio::from(stdout_for_child))
+        .stderr(Stdio::null())
+        .spawn()
+        .map_err(|e| format!("Failed to spawn {shell}: {e}"))?;
+
+    loop {
+        match child.try_wait() {
+            Ok(Some(status)) => {
+                if !status.success() {
+                    return Err(format!("Shell exited with {status}"));
+                }
+                return std::fs::read(&stdout_path)
+                    .map_err(|e| format!("Failed to read shell env capture output: {e}"));
+            }
+            Ok(None) if started_at.elapsed() >= timeout => {
+                let _ = child.kill();
+                let _ = child.wait();
+                return Err(format!(
+                    "Shell env capture timed out after {} ms",
+                    timeout.as_millis()
+                ));
+            }
+            Ok(None) => std::thread::sleep(Duration::from_millis(25)),
+            Err(error) => return Err(format!("Failed to wait for shell env capture: {error}")),
+        }
+    }
 }
 
 fn parse_env_output(bytes: &[u8]) -> HashMap<String, String> {
@@ -266,6 +305,41 @@ mod tests {
             shell_capture_args("/bin/bash"),
             ["-lc", SHELL_ENV_CAPTURE_COMMAND]
         );
+    }
+
+    #[test]
+    fn shell_env_capture_timeout_is_bounded() {
+        assert_eq!(
+            shell_env_capture_timeout(),
+            std::time::Duration::from_secs(5)
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn shell_env_capture_command_times_out() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let temp_dir = tempfile::tempdir().expect("tempdir should be created");
+        let shell_path = temp_dir.path().join("slow-shell");
+        std::fs::write(&shell_path, "#!/bin/sh\nsleep 2\n").expect("slow shell should be written");
+        let mut permissions = std::fs::metadata(&shell_path)
+            .expect("slow shell metadata should be available")
+            .permissions();
+        permissions.set_mode(0o755);
+        std::fs::set_permissions(&shell_path, permissions)
+            .expect("slow shell should be executable");
+
+        let started_at = std::time::Instant::now();
+        let result = run_shell_capture_command(
+            shell_path.to_str().expect("shell path should be utf-8"),
+            std::time::Duration::from_millis(50),
+        );
+
+        assert!(result
+            .expect_err("slow shell should time out")
+            .contains("timed out"));
+        assert!(started_at.elapsed() < std::time::Duration::from_secs(1));
     }
 
     #[test]

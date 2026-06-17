@@ -46,7 +46,7 @@ const STATUS_COLOR: Record<string, string> = {
 };
 </script>
 
-<div class="rounded-md border border-border/30 overflow-hidden">
+<div class="rounded-lg border border-border/30 overflow-hidden">
 	{#each files as file, i (file.path)}
 		{@const isExpanded = expandedFilePath === file.path}
 		{@const isLast = i === files.length - 1}

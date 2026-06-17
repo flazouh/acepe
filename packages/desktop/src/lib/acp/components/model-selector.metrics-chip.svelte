@@ -24,12 +24,12 @@ const sessionStore = getSessionStore();
 
 const usageTelemetry = $derived.by(() => {
 	if (!sessionId) return null;
-	return sessionStore.getSessionUsageTelemetry(sessionId);
+	return sessionStore.read.getSessionUsageTelemetry(sessionId);
 });
 
 const modelsDisplay = $derived.by(() => {
 	if (!sessionId) return null;
-	return sessionStore.getSessionModelsDisplay(sessionId);
+	return sessionStore.read.getSessionModelsDisplay(sessionId);
 });
 
 const contextWindow = $derived(usageTelemetry?.contextBudget?.maxTokens ?? null);

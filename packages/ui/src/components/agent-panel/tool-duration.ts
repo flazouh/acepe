@@ -1,39 +1,73 @@
 import type { AgentToolStatus } from "./types.js";
 
-interface ToolDurationLabelInput {
+export interface ToolDurationTiming {
 	startedAtMs?: number | null;
 	completedAtMs?: number | null;
 	status: AgentToolStatus;
+}
+
+interface ToolDurationLabelInput extends ToolDurationTiming {
 	nowMs: number;
 }
 
-function isRunningToolStatus(status: AgentToolStatus): boolean {
-	return status === "pending" || status === "running";
+export interface ToolDurationAnimateValue {
+	value: number;
+	minimumFractionDigits: number;
+	maximumFractionDigits: number;
 }
 
-export function formatToolDurationLabel({
-	startedAtMs,
-	completedAtMs,
-	status,
-	nowMs,
-}: ToolDurationLabelInput): string | null {
-	if (startedAtMs === null || startedAtMs === undefined) {
+function isRunningToolStatus(status: AgentToolStatus): boolean {
+	return status === "pending" || status === "running" || status === "blocked";
+}
+
+function resolveElapsedMs(input: ToolDurationLabelInput): number | null {
+	if (input.startedAtMs === null || input.startedAtMs === undefined) {
 		return null;
 	}
 
-	const isRunning = isRunningToolStatus(status);
-	if (!isRunning && (completedAtMs === null || completedAtMs === undefined)) {
+	const isRunning = isRunningToolStatus(input.status);
+	if (!isRunning && (input.completedAtMs === null || input.completedAtMs === undefined)) {
 		return null;
 	}
 
-	const endMs = isRunning ? nowMs : completedAtMs;
+	const endMs = isRunning ? input.nowMs : input.completedAtMs;
 	if (endMs === null || endMs === undefined) {
 		return null;
 	}
 
-	const elapsedMs = Math.max(0, endMs - startedAtMs);
+	return Math.max(0, endMs - input.startedAtMs);
+}
 
-	if (isRunning) {
+export function resolveToolDurationAnimateValue(
+	input: ToolDurationLabelInput
+): ToolDurationAnimateValue | null {
+	const elapsedMs = resolveElapsedMs(input);
+	if (elapsedMs === null) {
+		return null;
+	}
+
+	if (isRunningToolStatus(input.status)) {
+		return {
+			value: Math.floor(elapsedMs / 1000),
+			minimumFractionDigits: 0,
+			maximumFractionDigits: 0,
+		};
+	}
+
+	return {
+		value: elapsedMs / 1000,
+		minimumFractionDigits: 2,
+		maximumFractionDigits: 2,
+	};
+}
+
+export function formatToolDurationLabel(input: ToolDurationLabelInput): string | null {
+	const elapsedMs = resolveElapsedMs(input);
+	if (elapsedMs === null) {
+		return null;
+	}
+
+	if (isRunningToolStatus(input.status)) {
 		return `${Math.floor(elapsedMs / 1000)}s`;
 	}
 

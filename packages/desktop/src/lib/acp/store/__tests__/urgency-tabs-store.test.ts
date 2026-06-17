@@ -103,7 +103,7 @@ function createSessionStore(input: {
 }): SessionStore {
 	const sessionStore = new SessionStore();
 	const activity = createIdleActivity();
-	sessionStore.addSession({
+	sessionStore.write.addSession({
 		id: "session-1",
 		projectPath: "/repo",
 		agentId: "codex",
@@ -113,7 +113,7 @@ function createSessionStore(input: {
 		sessionLifecycleState: "persisted",
 		parentId: null,
 	});
-	sessionStore.getSessionIdentity = () =>
+	sessionStore.read.getSessionIdentity = () =>
 		input.hasSessionIdentity === false
 			? undefined
 			: {
@@ -122,7 +122,7 @@ function createSessionStore(input: {
 					agentId: "codex",
 					worktreePath: undefined,
 				};
-	sessionStore.getSessionMetadata = () =>
+	sessionStore.read.getSessionMetadata = () =>
 		input.hasSessionIdentity === false
 			? undefined
 			: {
@@ -133,7 +133,7 @@ function createSessionStore(input: {
 					sessionLifecycleState: "persisted",
 					parentId: null,
 				};
-	sessionStore.getSessionLiveWorkSource = (sessionId) =>
+	sessionStore.presentation.getSessionLiveWorkSource = (sessionId) =>
 		input.lifecycle === null
 			? { kind: "missing_canonical", sessionId: sessionId ?? "session-1" }
 			: {
@@ -145,10 +145,10 @@ function createSessionStore(input: {
 						activeTurnFailure: null,
 					},
 				};
-	sessionStore.getSessionLifecycleStatus = () => input.lifecycle?.status ?? null;
-	sessionStore.getSessionConnectionError = () => input.lifecycle?.errorMessage ?? null;
-	sessionStore.getSessionActiveTurnFailure = () => null;
-	sessionStore.getSessionStatusChangedAt = () => input.transientProjection.statusChangedAt;
+	sessionStore.read.getSessionLifecycleStatus = () => input.lifecycle?.status ?? null;
+	sessionStore.read.getSessionConnectionError = () => input.lifecycle?.errorMessage ?? null;
+	sessionStore.read.getSessionActiveTurnFailure = () => null;
+	sessionStore.read.getSessionStatusChangedAt = () => input.transientProjection.statusChangedAt;
 	return sessionStore;
 }
 

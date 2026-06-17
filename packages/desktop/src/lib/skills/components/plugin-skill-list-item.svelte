@@ -23,7 +23,7 @@ const truncatedDesc = $derived(truncateDescription(skill.description));
 
 <button
 	type="button"
-	class="w-full text-left px-2 py-2 rounded-md hover:bg-accent/50 cursor-pointer flex flex-col gap-1 {isSelected
+	class="w-full text-left px-2 py-2 rounded-lg hover:bg-accent/50 cursor-pointer flex flex-col gap-1 {isSelected
 		? 'bg-accent'
 		: ''}"
 	onclick={() => onSelect(skill.id)}

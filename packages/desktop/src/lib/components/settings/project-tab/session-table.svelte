@@ -96,21 +96,21 @@ function titleCase(s: string): string {
 
 <div class={cn("flex flex-col gap-2 h-full min-h-0 text-[13px]", className)}>
 	<!-- Filters -->
-	<div class="flex items-center gap-2 shrink-0">
-		<div class="relative flex-1">
+	<div class="flex shrink-0 items-center gap-2 border-b border-border/30 pb-2">
+		<div class="relative min-w-0 flex-1">
 			<IconSearch
-				class="absolute left-2 top-1/2 -translate-y-1/2 size-3 text-muted-foreground/50"
+				class="absolute left-0 top-1/2 size-3 -translate-y-1/2 text-muted-foreground/50"
 			/>
 			<input
 				type="text"
 				placeholder={"Search sessions..."}
 				value={state.searchQuery}
 				oninput={(e) => state.setSearchQuery(e.currentTarget.value)}
-				class="w-full h-7 pl-7 pr-2 text-[13px] bg-muted/20 border border-border/60 rounded-md outline-none placeholder:text-muted-foreground/40 focus:border-border transition-colors"
+				class="h-7 w-full border-0 bg-transparent pl-5 pr-2 text-[13px] outline-none placeholder:text-muted-foreground/40"
 			/>
 		</div>
 		<select
-			class="h-7 px-1.5 text-[12px] bg-muted/20 border border-border/60 rounded-md text-muted-foreground outline-none"
+			class="h-7 max-w-[140px] shrink-0 border-0 bg-transparent px-1 text-[12px] text-muted-foreground outline-none"
 			onchange={(e) => state.setProjectFilter(e.currentTarget.value || null)}
 		>
 			<option value="">{"All projects"}</option>
@@ -119,7 +119,7 @@ function titleCase(s: string): string {
 			{/each}
 		</select>
 		<select
-			class="h-7 px-1.5 text-[12px] bg-muted/20 border border-border/60 rounded-md text-muted-foreground outline-none"
+			class="h-7 max-w-[120px] shrink-0 border-0 bg-transparent px-1 text-[12px] text-muted-foreground outline-none"
 			onchange={(e) => state.setAgentFilter(e.currentTarget.value || null)}
 		>
 			<option value="">{"All agents"}</option>
@@ -130,10 +130,10 @@ function titleCase(s: string): string {
 	</div>
 
 	<!-- Table -->
-	<div class="flex-1 min-h-0 overflow-auto rounded-lg bg-muted/20 shadow-sm">
+	<div class="min-h-0 flex-1 overflow-auto">
 		<!-- Header -->
 		<div
-			class="flex items-center gap-1 px-3 h-8 bg-muted/20 border-b border-border/40 sticky top-0 text-[12px] font-semibold text-muted-foreground"
+			class="sticky top-0 flex h-8 items-center gap-1 border-b border-border/30 bg-popover text-[12px] font-medium text-muted-foreground"
 		>
 			{#each columns as col (col.id)}
 				<button
@@ -168,7 +168,7 @@ function titleCase(s: string): string {
 		{:else}
 			{#each paginatedRows as row (row.id)}
 				<div
-					class="flex items-center gap-1 px-3 h-8 border-t border-border/40 hover:bg-muted/30 transition-colors group text-[13px]"
+					class="group flex h-8 items-center gap-1 border-b border-border/30 text-[13px] transition-colors hover:bg-accent/40"
 				>
 					<span class="flex-[2] min-w-0 truncate font-medium text-foreground" title={row.title}>
 						{row.title || "Untitled"}
@@ -218,7 +218,7 @@ function titleCase(s: string): string {
 			<div class="flex items-center gap-0.5">
 				<button
 					type="button"
-					class="size-5 flex items-center justify-center rounded text-muted-foreground hover:text-foreground hover:bg-accent disabled:opacity-30 transition-all"
+					class="size-5 flex items-center justify-center rounded-md text-muted-foreground hover:text-foreground hover:bg-accent disabled:opacity-30 transition-all"
 					disabled={!canGoPrevious}
 					onclick={() => state.goToFirstPage()}
 				>
@@ -226,7 +226,7 @@ function titleCase(s: string): string {
 				</button>
 				<button
 					type="button"
-					class="size-5 flex items-center justify-center rounded text-muted-foreground hover:text-foreground hover:bg-accent disabled:opacity-30 transition-all"
+					class="size-5 flex items-center justify-center rounded-md text-muted-foreground hover:text-foreground hover:bg-accent disabled:opacity-30 transition-all"
 					disabled={!canGoPrevious}
 					onclick={() => state.goToPreviousPage()}
 				>
@@ -237,7 +237,7 @@ function titleCase(s: string): string {
 				</span>
 				<button
 					type="button"
-					class="size-5 flex items-center justify-center rounded text-muted-foreground hover:text-foreground hover:bg-accent disabled:opacity-30 transition-all"
+					class="size-5 flex items-center justify-center rounded-md text-muted-foreground hover:text-foreground hover:bg-accent disabled:opacity-30 transition-all"
 					disabled={!canGoNext}
 					onclick={() => state.goToNextPage(totalPages)}
 				>
@@ -245,7 +245,7 @@ function titleCase(s: string): string {
 				</button>
 				<button
 					type="button"
-					class="size-5 flex items-center justify-center rounded text-muted-foreground hover:text-foreground hover:bg-accent disabled:opacity-30 transition-all"
+					class="size-5 flex items-center justify-center rounded-md text-muted-foreground hover:text-foreground hover:bg-accent disabled:opacity-30 transition-all"
 					disabled={!canGoNext}
 					onclick={() => state.goToLastPage(totalPages)}
 				>

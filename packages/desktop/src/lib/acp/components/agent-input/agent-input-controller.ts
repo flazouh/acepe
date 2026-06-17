@@ -2,19 +2,21 @@ import { toast } from "svelte-sonner";
 import { shouldClearPersistedDraftBeforeAsyncSend } from "$lib/components/main-app-view/components/content/logic/empty-state-send-state.js";
 import { findErrorReference } from "$lib/errors/error-reference.js";
 import { PanelConnectionEvent } from "../../types/panel-connection-state.js";
-import { SoundEffect } from "../../types/sounds.js";
-import { playSound } from "../../utils/sound.js";
 import type { AgentInputControllerHost } from "./agent-input-controller-host.js";
 import { SessionCreationError } from "./errors/agent-input-error.js";
 import {
 	type ComposerRestoreSnapshot,
+	createPendingUserEntry,
+	findAuthenticationRequirement,
+	findCreationFailureReason,
 	formatPreSessionSendFailure,
+	type PreparedMessage,
+	prepareMessageForSend,
 	restoreComposerStateAfterFailedSend,
-} from "./logic/first-send-recovery.js";
-import { type PreparedMessage, prepareMessageForSend } from "./logic/message-preparation.js";
-import { createPendingUserEntry } from "./logic/pending-user-entry.js";
+} from "./composer-controller.js";
 import { prepareWorktreePathForPendingSend } from "./services/index.js";
 import type { Attachment } from "./types/attachment.js";
+import type { InlineImageReference } from "./types/inline-image-reference.js";
 
 function cloneAttachmentForRestore(attachment: Attachment): Attachment {
 	if (attachment.content !== undefined) {
@@ -92,6 +94,19 @@ export function createAgentInputController(host: AgentInputControllerHost): Agen
 			inlineTextEntries.push([refId, text]);
 		}
 
+		const inlineImageEntries: Array<[string, InlineImageReference]> = [];
+		for (const [refId, image] of inputState.inlineImageMap.entries()) {
+			inlineImageEntries.push([
+				refId,
+				{
+					displayName: image.displayName,
+					extension: image.extension,
+					content: image.content,
+					path: image.path,
+				},
+			]);
+		}
+
 		const attachments = inputState.attachments.map((attachment) =>
 			cloneAttachmentForRestore(attachment)
 		);
@@ -100,6 +115,7 @@ export function createAgentInputController(host: AgentInputControllerHost): Agen
 			draft: inputState.message,
 			attachments,
 			inlineTextEntries,
+			inlineImageEntries,
 		};
 	}
 
@@ -124,6 +140,7 @@ export function createAgentInputController(host: AgentInputControllerHost): Agen
 			draftLength: snapshot.draft.length,
 			attachmentCount: snapshot.attachments.length,
 			inlineTextCount: snapshot.inlineTextEntries.length,
+			inlineImageCount: snapshot.inlineImageEntries.length,
 		});
 	}
 
@@ -132,7 +149,8 @@ export function createAgentInputController(host: AgentInputControllerHost): Agen
 		const result = prepareMessageForSend(
 			inputState.message,
 			inputState.inlineTextMap,
-			inputState.attachments
+			inputState.attachments,
+			inputState.inlineImageMap
 		);
 		if (result.isErr()) return null;
 		const messageLength = inputState.message.length;
@@ -140,7 +158,7 @@ export function createAgentInputController(host: AgentInputControllerHost): Agen
 
 		inputState.message = "";
 		inputState.clearAttachments();
-		inputState.clearInlineTextMap();
+		inputState.clearInlineReferenceMaps();
 		host.syncEditorFromMessage(0);
 
 		if (inputState.textareaRef) {
@@ -184,7 +202,8 @@ export function createAgentInputController(host: AgentInputControllerHost): Agen
 			const result = prepareMessageForSend(
 				inputState.message,
 				inputState.inlineTextMap,
-				inputState.attachments
+				inputState.attachments,
+				inputState.inlineImageMap
 			);
 			if (result.isErr()) return;
 			const accepted = host.messageQueueStore.enqueue(
@@ -195,14 +214,14 @@ export function createAgentInputController(host: AgentInputControllerHost): Agen
 			if (!accepted) return;
 			inputState.message = "";
 			inputState.clearAttachments();
-			inputState.clearInlineTextMap();
+			inputState.clearInlineReferenceMaps();
 			clearDraft();
 			return;
 		}
 
 		const sessionIdForDispatch = props.sessionId;
 		if (sessionIdForDispatch) {
-			host.sessionStore.composerBeginDispatch(sessionIdForDispatch);
+			host.sessionStore.composer.beginDispatch(sessionIdForDispatch);
 		}
 		const restoreSnapshot = createComposerRestoreSnapshot();
 		const isPreSessionSend = Boolean(props.panelId) && !props.sessionId;
@@ -210,7 +229,7 @@ export function createAgentInputController(host: AgentInputControllerHost): Agen
 		const prepared = captureAndClearInput();
 		if (!prepared) {
 			if (sessionIdForDispatch) {
-				host.sessionStore.composerEndDispatch(sessionIdForDispatch);
+				host.sessionStore.composer.endDispatch(sessionIdForDispatch);
 			}
 			return;
 		}
@@ -243,7 +262,6 @@ export function createAgentInputController(host: AgentInputControllerHost): Agen
 			);
 		}
 
-		playSound(SoundEffect.DictationStart);
 		queueMicrotask(() => {
 			host.logger.info("handleSend: preparing send", {
 				panelId: props.panelId,
@@ -274,7 +292,7 @@ export function createAgentInputController(host: AgentInputControllerHost): Agen
 					applyComposerRestoreSnapshot(restoreSnapshot);
 				}
 				if (sessionIdForDispatch) {
-					host.sessionStore.composerEndDispatch(sessionIdForDispatch);
+					host.sessionStore.composer.endDispatch(sessionIdForDispatch);
 				}
 				return;
 			}
@@ -324,7 +342,7 @@ export function createAgentInputController(host: AgentInputControllerHost): Agen
 				props.onWorktreeCreateFailed?.(failureMessage);
 				toast.error("Failed to create worktree. Session will run without branch isolation.");
 				if (sessionIdForDispatch) {
-					host.sessionStore.composerEndDispatch(sessionIdForDispatch);
+					host.sessionStore.composer.endDispatch(sessionIdForDispatch);
 				}
 				return;
 			}
@@ -357,7 +375,7 @@ export function createAgentInputController(host: AgentInputControllerHost): Agen
 					"Failed to create worktree. Session will run without branch isolation."
 				);
 				if (sessionIdForDispatch) {
-					host.sessionStore.composerEndDispatch(sessionIdForDispatch);
+					host.sessionStore.composer.endDispatch(sessionIdForDispatch);
 				}
 				return;
 			}
@@ -411,14 +429,31 @@ export function createAgentInputController(host: AgentInputControllerHost): Agen
 					host.panelStore.setPendingComposerRestore(effectivePanelId, restoreSnapshot);
 					host.panelStore.setMessageDraft(effectivePanelId, restoreSnapshot.draft);
 					host.setLastDraftValue(restoreSnapshot.draft);
+					// Authentication-required is NOT a failure: it's an expected,
+					// recoverable precondition. Surface it as a neutral sign-in
+					// signal (rendered as a card above the composer) instead of
+					// routing into the connection-error scene, and keep the
+					// composer usable so the user can retry after signing in.
+					const signInRequirement = findAuthenticationRequirement(error);
+					if (signInRequirement !== null) {
+						host.panelStore.clearPendingUserEntry(effectivePanelId);
+						host.panelStore.setSignInRequirement(effectivePanelId, signInRequirement);
+						props.onSendError?.(effectivePanelId);
+						return error;
+					}
 					const failureMessage = formatPreSessionSendFailure(error);
 					const errorReference = findErrorReference(error);
+					// Carry the canonical classification so the panel renders the
+					// curated, lifecycle-driven card (e.g. the sign-in CTA for
+					// `authenticationRequired`) instead of the raw creation message.
+					const failureReason = findCreationFailureReason(error);
 					host.connectionStore.send(effectivePanelId, {
 						type: PanelConnectionEvent.CONNECTION_ERROR,
 						error: {
 							message: failureMessage,
 							referenceId: errorReference?.referenceId,
 							referenceSearchable: errorReference?.searchable,
+							failureReason,
 						},
 					});
 					if (props.worktreePending && preparedWorktreeLaunch) {
@@ -436,7 +471,7 @@ export function createAgentInputController(host: AgentInputControllerHost): Agen
 			)
 			.finally(() => {
 				if (sessionIdForDispatch) {
-					host.sessionStore.composerEndDispatch(sessionIdForDispatch);
+					host.sessionStore.composer.endDispatch(sessionIdForDispatch);
 				}
 			});
 	}
@@ -456,11 +491,11 @@ export function createAgentInputController(host: AgentInputControllerHost): Agen
 		if (!prepared) return;
 		clearDraft();
 
-		host.sessionStore.composerBeginDispatch(sessionId);
-		host.sessionStore
+		host.sessionStore.composer.beginDispatch(sessionId);
+		host.sessionStore.connection
 			.cancelStreaming(sessionId)
 			.andThen(() =>
-				host.sessionStore.sendMessage(sessionId, prepared.content, prepared.imageAttachments)
+				host.sessionStore.connection.sendMessage(sessionId, prepared.content, prepared.imageAttachments)
 			)
 			.mapErr((error) => {
 				console.error("Steer failed:", error);
@@ -471,7 +506,7 @@ export function createAgentInputController(host: AgentInputControllerHost): Agen
 				() => undefined
 			)
 			.finally(() => {
-				host.sessionStore.composerEndDispatch(sessionId);
+				host.sessionStore.composer.endDispatch(sessionId);
 			});
 	}
 
@@ -507,6 +542,7 @@ export function createAgentInputController(host: AgentInputControllerHost): Agen
 			draft,
 			attachments: restoredAttachments,
 			inlineTextEntries: [],
+			inlineImageEntries: [],
 		});
 	}
 

@@ -1,3 +1,5 @@
+export const dropdownMenuItemRadiusClass = "rounded-lg";
+
 export function buildDropdownMenuItemClassName(hasHighlightContext: boolean): string {
 	return [
 		hasHighlightContext
@@ -12,7 +14,7 @@ export function buildDropdownMenuItemClassName(hasHighlightContext: boolean): st
 		"dark:data-[variant=destructive]:data-highlighted:bg-destructive/20",
 		"data-[variant=destructive]:data-highlighted:text-destructive",
 		"data-[variant=destructive]:*:[svg]:!text-destructive",
-		"relative flex cursor-default items-center gap-2 rounded-sm",
+		`relative flex cursor-default items-center gap-2 ${dropdownMenuItemRadiusClass}`,
 		"px-2 py-1 text-[11px] font-medium",
 		"outline-hidden select-none",
 		"data-[disabled]:pointer-events-none data-[disabled]:opacity-50",

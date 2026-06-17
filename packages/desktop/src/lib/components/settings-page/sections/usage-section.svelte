@@ -5,10 +5,7 @@ import SettingsSection from "../settings-section.svelte";
 </script>
 
 <div class="w-full">
-	<SettingsSection
-		title="Usage"
-		description="Track your agent usage, costs, and activity over time."
-	>
+	<SettingsSection>
 		<SettingsComingSoon
 			icon={ChartLine}
 			headline="Usage & cost insights"

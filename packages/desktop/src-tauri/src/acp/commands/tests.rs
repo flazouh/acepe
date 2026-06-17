@@ -1487,6 +1487,272 @@ async fn ready_dispatch_permit_survives_non_lifecycle_session_updates() {
 }
 
 #[tokio::test]
+async fn resume_promotes_discovered_session_to_acepe_managed() {
+    // A session discovered from the filesystem starts unmanaged: no sequence
+    // number, so no project badge. Opening it in an agent panel must promote it
+    // to Acepe-managed and assign a per-project sequence_id, so the canonical
+    // session graph (and the project badge it feeds) reflect a managed session.
+    let db = setup_test_db().await;
+    let temp = tempdir().expect("temp dir");
+    let session_id = "resume-discovered-session";
+    let project_path = temp
+        .path()
+        .canonicalize()
+        .expect("canonicalize temp project path")
+        .to_string_lossy()
+        .into_owned();
+
+    // Mirror the filesystem indexer: a discovered provider session row that is
+    // NOT Acepe-managed and carries no sequence_id.
+    SessionMetadataRepository::upsert(
+        &db,
+        session_id.to_string(),
+        "Discovered session".to_string(),
+        1,
+        project_path.clone(),
+        CanonicalAgentId::ClaudeCode.as_str().to_string(),
+        format!("{project_path}/session.jsonl"),
+        0,
+        0,
+    )
+    .await
+    .expect("insert discovered session metadata");
+
+    let before = SessionMetadataRepository::get_by_id(&db, session_id)
+        .await
+        .expect("load discovered row")
+        .expect("discovered row present");
+    assert!(
+        !before.is_acepe_managed,
+        "precondition: discovered session must start unmanaged",
+    );
+    assert_eq!(
+        before.sequence_id, None,
+        "precondition: discovered session must start without a sequence_id",
+    );
+
+    let event_hub = Arc::new(crate::acp::event_hub::AcpEventHubState::new());
+    let projection_registry = Arc::new(ProjectionRegistry::new());
+    let transcript_projection_registry = Arc::new(TranscriptProjectionRegistry::new());
+    let supervisor = Arc::new(crate::acp::lifecycle::SessionSupervisor::new());
+    let session_policy = Arc::new(crate::acp::session_policy::SessionPolicyRegistry::new());
+    assert!(
+        supervisor.seed_checkpoint(
+            session_id.to_string(),
+            crate::acp::lifecycle::LifecycleCheckpoint::new(
+                1,
+                crate::acp::lifecycle::LifecycleState::detached(
+                    crate::acp::lifecycle::DetachedReason::RestoredRequiresAttach,
+                ),
+                SessionGraphCapabilities::empty(),
+            ),
+        ),
+        "seed detached checkpoint",
+    );
+    let runtime_registry = Arc::new(SessionGraphRuntimeRegistry::with_supervisor(Arc::clone(
+        &supervisor,
+    )));
+
+    let session_registry = SessionRegistry::new();
+    session_registry.store(
+        session_id.to_string(),
+        Box::new(MockAgentClient::new(MockClientState::new(false))),
+        CanonicalAgentId::ClaudeCode,
+    );
+
+    let app = mock_builder()
+        .manage(db.clone())
+        .manage(session_registry)
+        .manage(Arc::clone(&event_hub))
+        .manage(Arc::clone(&projection_registry))
+        .manage(Arc::clone(&runtime_registry))
+        .manage(Arc::clone(&transcript_projection_registry))
+        .manage(Arc::clone(&session_policy))
+        .manage(Arc::clone(&supervisor))
+        .build(mock_context(noop_assets()))
+        .expect("build mock app");
+
+    let result = super::session_commands::resume_session_with_app_handle_and_worker(
+        &app.handle().clone(),
+        session_id.to_string(),
+        project_path.clone(),
+        None,
+        None,
+        1,
+        None,
+        |_app,
+         _session_id,
+         _cwd,
+         _agent_id_enum,
+         _launch_mode_id,
+         _resume_descriptor,
+         _open_token| async move {
+            Ok(ResumeSessionResponse {
+                models: SessionModelState {
+                    available_models: vec![],
+                    current_model_id: None,
+                    models_display: Default::default(),
+                    provider_metadata: None,
+                },
+                modes: SessionModes {
+                    current_mode_id: "build".to_string(),
+                    available_modes: vec![],
+                },
+                available_commands: vec![],
+                config_options: vec![],
+            })
+        },
+    )
+    .await;
+
+    assert!(result.is_ok(), "resume invoke should succeed: {:?}", result);
+
+    let after = SessionMetadataRepository::get_by_id(&db, session_id)
+        .await
+        .expect("load promoted row")
+        .expect("row present after resume");
+    assert!(
+        after.is_acepe_managed,
+        "opening a discovered session must promote it to Acepe-managed",
+    );
+    assert!(
+        after.sequence_id.is_some(),
+        "promoted session must be assigned a per-project sequence_id",
+    );
+}
+
+#[tokio::test]
+async fn resume_promotion_is_idempotent_for_already_managed_session() {
+    let db = setup_test_db().await;
+    let temp = tempdir().expect("temp dir");
+    let session_id = "resume-managed-session";
+    let project_path = temp
+        .path()
+        .canonicalize()
+        .expect("canonicalize temp project path")
+        .to_string_lossy()
+        .into_owned();
+
+    let sequence_id = SessionMetadataRepository::ensure_exists_and_promote(
+        &db,
+        session_id,
+        &project_path,
+        CanonicalAgentId::ClaudeCode.as_str(),
+        None,
+    )
+    .await
+    .expect("seed managed session")
+    .expect("managed session must have sequence_id");
+
+    let event_hub = Arc::new(crate::acp::event_hub::AcpEventHubState::new());
+    let projection_registry = Arc::new(ProjectionRegistry::new());
+    let transcript_projection_registry = Arc::new(TranscriptProjectionRegistry::new());
+    let supervisor = Arc::new(crate::acp::lifecycle::SessionSupervisor::new());
+    let session_policy = Arc::new(crate::acp::session_policy::SessionPolicyRegistry::new());
+    assert!(
+        supervisor.seed_checkpoint(
+            session_id.to_string(),
+            crate::acp::lifecycle::LifecycleCheckpoint::new(
+                1,
+                crate::acp::lifecycle::LifecycleState::detached(
+                    crate::acp::lifecycle::DetachedReason::RestoredRequiresAttach,
+                ),
+                SessionGraphCapabilities::empty(),
+            ),
+        ),
+        "seed detached checkpoint",
+    );
+    let runtime_registry = Arc::new(SessionGraphRuntimeRegistry::with_supervisor(Arc::clone(
+        &supervisor,
+    )));
+
+    let session_registry = SessionRegistry::new();
+    session_registry.store(
+        session_id.to_string(),
+        Box::new(MockAgentClient::new(MockClientState::new(false))),
+        CanonicalAgentId::ClaudeCode,
+    );
+
+    let app = mock_builder()
+        .manage(db.clone())
+        .manage(session_registry)
+        .manage(Arc::clone(&event_hub))
+        .manage(Arc::clone(&projection_registry))
+        .manage(Arc::clone(&runtime_registry))
+        .manage(Arc::clone(&transcript_projection_registry))
+        .manage(Arc::clone(&session_policy))
+        .manage(Arc::clone(&supervisor))
+        .build(mock_context(noop_assets()))
+        .expect("build mock app");
+
+    let app_handle = app.handle().clone();
+    let resume_worker = |_app,
+     _session_id,
+     _cwd,
+     _agent_id_enum,
+     _launch_mode_id,
+     _resume_descriptor,
+     _open_token| async move {
+        Ok(ResumeSessionResponse {
+            models: SessionModelState {
+                available_models: vec![],
+                current_model_id: None,
+                models_display: Default::default(),
+                provider_metadata: None,
+            },
+            modes: SessionModes {
+                current_mode_id: "build".to_string(),
+                available_modes: vec![],
+            },
+            available_commands: vec![],
+            config_options: vec![],
+        })
+    };
+
+    let first_result = super::session_commands::resume_session_with_app_handle_and_worker(
+        &app_handle,
+        session_id.to_string(),
+        project_path.clone(),
+        None,
+        None,
+        1,
+        None,
+        resume_worker,
+    )
+    .await;
+    assert!(first_result.is_ok(), "first resume should succeed: {:?}", first_result);
+    let after_first = SessionMetadataRepository::get_by_id(&db, session_id)
+        .await
+        .expect("load row after first resume")
+        .expect("row present");
+    assert!(after_first.is_acepe_managed);
+    assert_eq!(after_first.sequence_id, Some(sequence_id));
+
+    let second_result = super::session_commands::resume_session_with_app_handle_and_worker(
+        &app_handle,
+        session_id.to_string(),
+        project_path.clone(),
+        None,
+        None,
+        1,
+        None,
+        resume_worker,
+    )
+    .await;
+    assert!(second_result.is_ok(), "second resume should succeed: {:?}", second_result);
+    let after_second = SessionMetadataRepository::get_by_id(&db, session_id)
+        .await
+        .expect("load row after second resume")
+        .expect("row present");
+    assert!(after_second.is_acepe_managed);
+    assert_eq!(
+        after_second.sequence_id,
+        Some(sequence_id),
+        "already-managed resume must not leak a new sequence_id",
+    );
+}
+
+#[tokio::test]
 async fn resume_session_emits_connecting_session_state_before_completion_events() {
     let db = setup_test_db().await;
     let temp = tempdir().expect("temp dir");

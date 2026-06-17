@@ -84,7 +84,7 @@ describe("SessionStore PR linking", () => {
 	});
 
 	it("persists manual PR overrides with a shared linked PR projection", async () => {
-		store.addSession({
+		store.write.addSession({
 			id: "session-1",
 			projectPath: "/repo",
 			agentId: "cursor",
@@ -94,9 +94,9 @@ describe("SessionStore PR linking", () => {
 			parentId: null,
 		});
 
-		await store.updateSessionPrLink("session-1", "/repo", 42, "manual");
+		await store.connection.updateSessionPrLink("session-1", "/repo", 42, "manual");
 
-		const session = store.getSessionCold("session-1");
+		const session = store.read.getSessionCold("session-1");
 		expect(session?.prNumber).toBe(42);
 		expect(session?.prLinkMode).toBe("manual");
 		expect(session?.linkedPr?.prNumber).toBe(42);
@@ -104,7 +104,7 @@ describe("SessionStore PR linking", () => {
 	});
 
 	it("ignores automatic ship workflow candidates while manual mode is active", async () => {
-		store.addSession({
+		store.write.addSession({
 			id: "session-1",
 			projectPath: "/repo",
 			agentId: "cursor",
@@ -132,14 +132,14 @@ describe("SessionStore PR linking", () => {
 		});
 		resolveAutomaticSessionPrNumberFromShipWorkflowMock.mockReturnValue(okAsync(99));
 
-		const applied = await store.applyAutomaticPrLinkFromShipWorkflow("session-1", "/repo", {
+		const applied = await store.connection.applyAutomaticPrLinkFromShipWorkflow("session-1", "/repo", {
 			status: "created",
 			number: 99,
 			url: "https://github.com/flazouh/acepe/pull/99",
 		});
 
 		expect(applied._unsafeUnwrap()).toBeNull();
-		expect(store.getSessionCold("session-1")?.prNumber).toBe(17);
+		expect(store.read.getSessionCold("session-1")?.prNumber).toBe(17);
 		expect(setSessionPrNumberMock).not.toHaveBeenCalled();
 	});
 });

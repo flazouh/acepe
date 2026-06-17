@@ -198,7 +198,7 @@
 				<div class="flex items-center gap-1.5 border-t bg-muted/30 px-2 py-1 shrink-0">
 					<kbd class="rounded border bg-muted px-1 py-px text-[10px] font-medium">Enter</kbd>
 					<span class="text-[10px] text-muted-foreground">{selectHintLabel}</span>
-					<kbd class="ml-1.5 rounded border bg-muted px-1 py-px text-[10px] font-medium">Esc</kbd>
+					<kbd class="ml-1.5 rounded-lg border bg-muted px-1 py-px text-[10px] font-medium">Esc</kbd>
 					<span class="text-[10px] text-muted-foreground">{closeHintLabel}</span>
 				</div>
 			{:else if isLoading}

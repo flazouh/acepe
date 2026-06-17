@@ -99,6 +99,17 @@ where
             ProjectAccessReason::SessionResume,
         )?;
         let agent_id_enum = resume_target.descriptor.agent_id.clone();
+
+        // Opening a session in an agent panel promotes it to Acepe-managed. A
+        // session discovered from the filesystem starts unmanaged (no
+        // sequence_id); the sidebar keeps that distinction for historical rows,
+        // but once opened the session is Acepe-owned. This runs before the
+        // snapshot envelope build below so the freshly-assigned sequence_id
+        // (read fresh from the DB by the snapshot builder) rides the canonical
+        // envelope and the project badge updates live. Idempotent for
+        // already-managed sessions.
+        persist_session_metadata_for_cwd(db.inner(), &session_id, &agent_id_enum, &cwd).await?;
+
         let runtime_registry = app.try_state::<Arc<SessionGraphRuntimeRegistry>>();
         let projection_registry = app.try_state::<Arc<ProjectionRegistry>>();
         let open_token_claim =
@@ -204,25 +215,47 @@ where
                     );
                 }
                 Ok(Err(error)) => {
-                    let classification =
-                        crate::acp::resume_failure_classifier::classify_resume_error(
-                            &agent_id_for_classifier,
-                            &error,
+                    // Authentication-required is a recoverable precondition,
+                    // not a failure: park the session as detached so the panel
+                    // renders a neutral sign-in card instead of an error.
+                    if matches!(
+                        error,
+                        crate::acp::error::SerializableAcpError::AuthenticationRequired { .. }
+                    ) {
+                        let update =
+                            crate::acp::session_update::SessionUpdate::SessionDetached {
+                                session_id: session_id.clone(),
+                                attempt_id,
+                                detached_reason:
+                                    crate::acp::lifecycle::DetachedReason::AwaitingAuthentication,
+                            };
+                        emit_lifecycle_event(&app_clone, &hub, update, &session_id).await;
+                        tracing::info!(
+                            session_id = %session_id,
+                            attempt_id,
+                            "Async resume parked: agent requires interactive sign-in"
                         );
-                    let update = crate::acp::session_update::SessionUpdate::ConnectionFailed {
-                        session_id: session_id.clone(),
-                        attempt_id,
-                        error: error.to_string(),
-                        failure_reason: classification.failure_reason,
-                    };
-                    emit_lifecycle_event(&app_clone, &hub, update, &session_id).await;
-                    tracing::error!(
-                        session_id = %session_id,
-                        attempt_id,
-                        error = %error,
-                        failure_reason = ?classification.failure_reason,
-                        "Async resume failed"
-                    );
+                    } else {
+                        let classification =
+                            crate::acp::resume_failure_classifier::classify_resume_error(
+                                &agent_id_for_classifier,
+                                &error,
+                            );
+                        let update = crate::acp::session_update::SessionUpdate::ConnectionFailed {
+                            session_id: session_id.clone(),
+                            attempt_id,
+                            error: error.to_string(),
+                            failure_reason: classification.failure_reason,
+                        };
+                        emit_lifecycle_event(&app_clone, &hub, update, &session_id).await;
+                        tracing::error!(
+                            session_id = %session_id,
+                            attempt_id,
+                            error = %error,
+                            failure_reason = ?classification.failure_reason,
+                            "Async resume failed"
+                        );
+                    }
                 }
                 Err(_elapsed) => {
                     let update = crate::acp::session_update::SessionUpdate::ConnectionFailed {
@@ -330,7 +363,7 @@ pub(super) async fn async_resume_session_work(
     let replay_context: crate::acp::session_descriptor::SessionReplayContext =
         resume_descriptor.clone().into();
     let restored_thread_snapshot =
-        crate::history::commands::session_loading::load_provider_owned_session_snapshot(
+        crate::acp::session_restore::load_provider_owned_session_snapshot(
             app.clone(),
             &replay_context,
         )
@@ -388,7 +421,7 @@ mod transcript_buffer_tests {
     use crate::acp::session_state_engine::protocol::{SessionStateDelta, SessionStatePayload};
     use crate::acp::session_state_engine::revision::SessionGraphRevision;
     use crate::acp::session_state_engine::selectors::SessionGraphActivity;
-    use crate::acp::session_state_engine::SessionStateEnvelope;
+    use crate::acp::session_state_engine::{SessionStateEnvelope, SessionStateField};
     use serde_json::{json, to_value};
 
     #[test]
@@ -421,7 +454,7 @@ mod transcript_buffer_tests {
                                 transcript_operations: vec![],
                                 operation_patches: vec![],
                                 interaction_patches: vec![],
-                                changed_fields: vec!["transcriptSnapshot".to_string()],
+                                changed_fields: vec![SessionStateField::TranscriptSnapshot],
                             },
                         },
                     })
@@ -450,7 +483,7 @@ mod transcript_buffer_tests {
                                 transcript_operations: vec![],
                                 operation_patches: vec![],
                                 interaction_patches: vec![],
-                                changed_fields: vec!["transcriptSnapshot".to_string()],
+                                changed_fields: vec![SessionStateField::TranscriptSnapshot],
                             },
                         },
                     })
@@ -626,12 +659,12 @@ mod transcript_buffer_tests {
                             activity: SessionGraphActivity::idle(),
                             turn_state: crate::acp::projections::SessionTurnState::Idle,
                             active_turn_failure: None,
-                            last_terminal_turn_id: None,
+                            last_terminal_turn_id: Some("x".repeat(70_000)),
                             active_streaming_tail: None,
                             transcript_operations: vec![],
                             operation_patches: vec![],
                             interaction_patches: vec![],
-                            changed_fields: vec!["x".repeat(70_000)],
+                            changed_fields: vec![SessionStateField::LastTerminalTurnId],
                         },
                     },
                 })

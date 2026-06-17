@@ -60,7 +60,7 @@
 	const questionIconClassName = $derived(currentQuestionAnswered ? "text-success" : "text-primary");
 </script>
 
-<div class="mt-2 flex flex-col overflow-hidden rounded border border-border/60 bg-muted/20 shadow-sm">
+<div class="mt-2 flex flex-col overflow-hidden rounded-lg border border-border/60 bg-muted/20 shadow-sm">
 	<div class="flex items-center gap-1.5 border-b border-border/60 bg-muted/40 px-2 py-1.5">
 		<IconHelpCircleFilled class={`size-3.5 shrink-0 ${questionIconClassName}`} />
 		<div class="min-w-0 flex-1 text-xs leading-tight font-medium text-foreground">
@@ -159,7 +159,7 @@
 				/>
 				<kbd
 					aria-label="Press Enter to submit"
-					class="pointer-events-none inline-flex h-5 shrink-0 items-center justify-center rounded border border-border/60 bg-background/70 px-1.5 font-mono text-[10px] text-muted-foreground/80"
+					class="pointer-events-none inline-flex h-5 shrink-0 items-center justify-center rounded-lg border border-border/60 bg-background/70 px-1.5 font-mono text-[10px] text-muted-foreground/80"
 				>
 					Enter
 				</kbd>

@@ -11,7 +11,7 @@ import type { QueueItem } from "./types.js";
  * Section IDs for the queue display.
  * Order matches display order in the UI.
  */
-export type QueueSectionId = "answer_needed" | "planning" | "working" | "needs_review" | "error";
+export type QueueSectionId = "answer_needed" | "planning" | "needs_review" | "error";
 
 /**
  * A grouped section of queue items for display.
@@ -25,10 +25,19 @@ export interface QueueSectionGroup {
 const SECTION_ORDER: readonly QueueSectionId[] = [
 	"answer_needed",
 	"planning",
-	"working",
 	"needs_review",
 	"error",
 ];
+
+function toQueueSectionId(workBucket: QueueItem["workBucket"]): QueueSectionId | null {
+	if (workBucket === "idle") {
+		return null;
+	}
+	if (workBucket === "working") {
+		return "planning";
+	}
+	return workBucket;
+}
 
 /**
  * A session needs review only when the canonical-derived queue bucket says so.
@@ -43,7 +52,7 @@ export function isNeedsReview(
  * Classify a queue item from the canonical-derived work bucket.
  */
 export function classifyItem(item: QueueItem): QueueSectionId | null {
-	return item.workBucket === "idle" ? null : item.workBucket;
+	return toQueueSectionId(item.workBucket);
 }
 
 /**

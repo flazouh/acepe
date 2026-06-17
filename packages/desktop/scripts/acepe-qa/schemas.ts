@@ -131,6 +131,21 @@ export const clickResultSchema = z.object({
 	match: domElementSummarySchema.nullable(),
 });
 
+export const thinkingToggleProbeResultSchema = z.object({
+	found: z.boolean(),
+	clicked: z.boolean(),
+	samples: z.array(
+		z.object({
+			label: z.string(),
+			expandCount: z.number(),
+			collapseCount: z.number(),
+			contentCount: z.number(),
+			firstButtonName: z.string().nullable(),
+			firstContentText: z.string().nullable(),
+		})
+	),
+});
+
 export const resetOnboardingResultSchema = z.object({
 	clickedDevTools: z.boolean(),
 	clickedReset: z.boolean(),
@@ -144,6 +159,89 @@ export const resetOnboardingResultSchema = z.object({
 	),
 });
 
+export const sendComposerResultSchema = z.object({
+	composerFound: z.boolean(),
+	textApplied: z.string(),
+	sendReady: z.boolean(),
+	sent: z.boolean(),
+});
+
+export const navigateResultSchema = z.object({
+	from: z.string(),
+	to: z.string(),
+	path: z.string(),
+});
+
+export const watchResultSchema = z.object({
+	text: z.string(),
+	presentInDom: z.boolean(),
+	visible: z.boolean(),
+	firstVisibleAtMs: z.number().nullable(),
+	elapsedMs: z.number(),
+	timedOut: z.boolean(),
+	matched: z
+		.object({
+			rect: domRectSchema,
+			display: z.string(),
+			visibility: z.string(),
+			opacity: z.string(),
+			hasOffsetParent: z.boolean(),
+		})
+		.nullable(),
+});
+
+export const firstSendTimelineSampleSchema = z.object({
+	label: z.string(),
+	elapsedMs: z.number(),
+	composerText: z.string(),
+	composerContainsPrompt: z.boolean(),
+	messageVisible: z.boolean(),
+	messageVisibleInTranscript: z.boolean(),
+	planningVisible: z.boolean(),
+	readyVisible: z.boolean(),
+	matchingTextLeafCount: z.number(),
+	matchingTranscriptViewportCount: z.number(),
+	transcriptViewportCount: z.number(),
+	bodyPreview: z.string(),
+});
+
+export const firstSendTimelineProbeResultSchema = z.object({
+	composerFound: z.boolean(),
+	selectedComposerIndex: z.number().nullable(),
+	selectedComposerName: z.string().nullable(),
+	sendFound: z.boolean(),
+	sendReadyBeforeClick: z.boolean(),
+	sent: z.boolean(),
+	prompt: z.string(),
+	samples: z.array(firstSendTimelineSampleSchema),
+});
+
+export const planningDebugSnapshotSchema = z.object({
+	sessionId: z.string().nullable(),
+	sourceKind: z.string().nullable(),
+	lifecycleStatus: z.string().nullable(),
+	activityKind: z.string().nullable(),
+	turnState: z.string().nullable(),
+	hasOptimisticPendingEntry: z.boolean(),
+	hasLocalPendingSendIntent: z.boolean(),
+	pendingSendIntentAttemptId: z.string().nullable(),
+	hasMessages: z.boolean(),
+	visibleEntryCount: z.number(),
+	showPlanningIndicator: z.boolean(),
+	capturedAtMs: z.number(),
+});
+
+export const planningDebugResultSchema = z.object({
+	available: z.boolean(),
+	snapshots: z.array(planningDebugSnapshotSchema),
+});
+
+export type SendComposerResult = z.infer<typeof sendComposerResultSchema>;
+export type PlanningDebugResult = z.infer<typeof planningDebugResultSchema>;
+export type NavigateResult = z.infer<typeof navigateResultSchema>;
+export type WatchResult = z.infer<typeof watchResultSchema>;
+export type FirstSendTimelineProbeResult = z.infer<typeof firstSendTimelineProbeResultSchema>;
+
 export type QaStatus = z.infer<typeof qaStatusSchema>;
 export type QaCommandResult = z.infer<typeof qaCommandResultSchema>;
 export type QaError = z.infer<typeof qaErrorSchema>;
@@ -154,4 +252,5 @@ export type AppObservation = z.infer<typeof appObservationSchema>;
 export type ScreenshotResult = z.infer<typeof screenshotResultSchema>;
 export type DomInspectionResult = z.infer<typeof domInspectionResultSchema>;
 export type ClickResult = z.infer<typeof clickResultSchema>;
+export type ThinkingToggleProbeResult = z.infer<typeof thinkingToggleProbeResultSchema>;
 export type ResetOnboardingResult = z.infer<typeof resetOnboardingResultSchema>;

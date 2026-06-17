@@ -58,6 +58,7 @@ export interface QueueSessionSnapshot {
 	/** Connection/agent error message (e.g. acp_resume_session failure) */
 	readonly connectionError?: string | null;
 	readonly activeTurnFailure?: ActiveTurnFailure | null;
+	readonly sequenceId: number | null;
 }
 
 export interface BuildQueueSessionSnapshotInput {
@@ -79,6 +80,7 @@ export interface BuildQueueSessionSnapshotInput {
 		"pendingPlanApproval" | "pendingPermission" | "pendingQuestion"
 	>;
 	readonly hasUnseenCompletion: boolean;
+	readonly sequenceId: number | null;
 }
 
 /**
@@ -165,6 +167,7 @@ export function buildQueueSessionSnapshot(
 		currentModeId: input.currentModeId,
 		connectionError: input.connectionError,
 		activeTurnFailure: input.activeTurnFailure,
+		sequenceId: input.sequenceId,
 	};
 }
 
@@ -221,6 +224,7 @@ export function buildQueueItem(
 		connectionError: session.connectionError ?? null,
 		activeTurnFailure: session.activeTurnFailure ?? null,
 		state: session.state,
+		sequenceId: session.sequenceId,
 	};
 }
 

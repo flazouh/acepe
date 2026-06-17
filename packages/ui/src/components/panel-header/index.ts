@@ -9,3 +9,4 @@ export { default as FullscreenAction } from "./fullscreen-action.svelte";
 export { default as OverflowMenuTriggerAction } from "./overflow-menu-trigger-action.svelte";
 export { default as BrowserNavActions } from "./browser-nav-actions.svelte";
 export { default as SegmentedToggleGroup } from "./segmented-toggle-group.svelte";
+export { PROJECT_CARD_ACTION_BUTTON_CLASS } from "./project-card-action-button-class.js";

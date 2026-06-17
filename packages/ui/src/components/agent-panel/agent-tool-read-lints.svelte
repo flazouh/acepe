@@ -3,6 +3,8 @@
 
 	import AgentToolCard from "./agent-tool-card.svelte";
 	import ToolHeaderLeading from "./tool-header-leading.svelte";
+	import AgentToolDurationLabel from "./agent-tool-duration-label.svelte";
+	import type { ToolDurationTiming } from "./tool-duration.js";
 	import type { AgentToolStatus, LintDiagnostic } from "./types.js";
 
 	interface Props {
@@ -15,7 +17,7 @@
 		/** Optional list of diagnostics for expandable detail (e.g. file, line, message) */
 		diagnostics?: LintDiagnostic[] | null;
 		/** Optional elapsed label (e.g. "0.2s") */
-		durationLabel?: string;
+		durationTiming?: ToolDurationTiming;
 		/** Label when running (e.g. "Checking lints") */
 		runningLabel?: string;
 		/** Label when done (e.g. "Read lints") */
@@ -35,7 +37,7 @@
 		totalDiagnostics = 0,
 		totalFiles = 0,
 		diagnostics = null,
-		durationLabel,
+		durationTiming,
 		runningLabel = "Checking lints",
 		doneLabel = "Read lints",
 		noIssuesLabel = "No issues",
@@ -95,11 +97,9 @@
 			{/if}
 		</div>
 
-		{#if durationLabel || (!isPending && hasContent)}
+		{#if durationTiming || (!isPending && hasContent)}
 			<div class="ml-2 flex shrink-0 items-center gap-2">
-				{#if durationLabel}
-					<span class="text-sm">{durationLabel}</span>
-				{/if}
+				<AgentToolDurationLabel timing={durationTiming} class="text-sm" />
 				{#if !isPending && hasContent}
 					<button
 						type="button"
@@ -126,7 +126,7 @@
 			{#if displayDiagnostics}
 				<ul class="mt-2 space-y-1.5 text-sm">
 					{#each displayDiagnostics as diag, i (i)}
-						<li class="flex flex-col gap-0.5 rounded border border-border/60 bg-muted/20 px-2 py-1.5">
+						<li class="flex flex-col gap-0.5 rounded-lg border border-border/60 bg-muted/20 px-2 py-1.5">
 							{#if diag.filePath}
 								<span>{diag.filePath}</span>
 							{/if}

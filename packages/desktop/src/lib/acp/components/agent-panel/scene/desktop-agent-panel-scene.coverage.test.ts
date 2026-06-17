@@ -2,12 +2,14 @@
 // The sibling desktop-agent-panel-scene.test.ts covers most of the public seam;
 // this file closes the paths it does not exercise directly — browser tool
 // payloads, todos field population, and the worktree/install/error card
-// builders inside buildDesktopAgentPanelScene — so any drift during the
-// decomposition (docs/plans/2026-06-08-001-...-plan.md) fails immediately.
+// builders — so any drift during the decomposition
+// (docs/plans/2026-06-08-001-...-plan.md) fails immediately.
 import { describe, expect, it } from "bun:test";
 import type { SessionEntry } from "../../../application/dto/session-entry.js";
 import {
-	buildDesktopAgentPanelScene,
+	buildDesktopErrorCard,
+	buildDesktopInstallCard,
+	buildDesktopWorktreeCard,
 	mapSessionEntriesToConversationModel,
 } from "./desktop-agent-panel-scene.js";
 
@@ -114,40 +116,37 @@ describe("desktop agent panel scene adapter — characterization gaps", () => {
 		]);
 	});
 
-	it("builds worktree, install, and error cards into the scene model", () => {
-		const scene = buildDesktopAgentPanelScene({
-			panelId: "agent-panel-1",
-			sessionStatus: "error",
-			entries: [],
-			turnState: "idle",
-			header: { title: "Decompose scene mapper" },
-			worktreeCard: {
-				description: "Creating isolated worktree",
-				stageLabel: "Cloning",
-				progressLabel: "40%",
-			},
-			installCard: {
-				description: "Installing agent runtime",
-				stageLabel: "Downloading",
-				progressLabel: "10%",
-			},
-			errorCard: {
-				title: "Connection lost",
-				description: "The agent disconnected mid-turn",
-				details: "EPIPE",
-			},
+	it("builds worktree, install, and error cards", () => {
+		const worktreeCard = buildDesktopWorktreeCard({
+			description: "Creating isolated worktree",
+			stageLabel: "Cloning",
+			progressLabel: "40%",
+		});
+		const installCard = buildDesktopInstallCard({
+			description: "Installing agent runtime",
+			stageLabel: "Downloading",
+			progressLabel: "10%",
+		});
+		const errorCard = buildDesktopErrorCard({
+			title: "Connection lost",
+			description: "The agent disconnected mid-turn",
+			details: "EPIPE",
 		});
 
-		expect(scene.cards?.map((card) => card.kind)).toEqual(["worktree_setup", "install", "error"]);
-		expect(scene.cards?.find((card) => card.kind === "worktree_setup")).toMatchObject({
+		expect([worktreeCard?.kind, installCard?.kind, errorCard?.kind]).toEqual([
+			"worktree_setup",
+			"install",
+			"error",
+		]);
+		expect(worktreeCard).toMatchObject({
 			id: "worktree-setup-card",
 			description: "Creating isolated worktree",
 		});
-		expect(scene.cards?.find((card) => card.kind === "install")).toMatchObject({
+		expect(installCard).toMatchObject({
 			id: "agent-install-card",
 			description: "Installing agent runtime",
 		});
-		expect(scene.cards?.find((card) => card.kind === "error")).toMatchObject({
+		expect(errorCard).toMatchObject({
 			id: "error-card",
 			title: "Connection lost",
 			description: "The agent disconnected mid-turn",

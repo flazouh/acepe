@@ -21,8 +21,12 @@ import type {
 	SessionStateEnvelope,
 	SessionStateGraph,
 	TurnFailureSnapshot,
+	ViewportBufferDelta,
+	ViewportBufferPush,
 } from "$lib/services/acp-types.js";
 import type { SessionUpdate } from "$lib/services/converted-session-types.js";
+import { routeSessionStateEnvelope } from "../../session-state/session-state-command-router.js";
+import { getSessionStateEnvelopeByteBudget } from "../../session-state/session-state-envelope-budget.js";
 import { materializeAgentPanelSceneFromGraph } from "../../session-state/agent-panel-graph-materializer.js";
 import { InteractionStore } from "../interaction-store.svelte.js";
 import type { SessionEntryStore } from "../session-entry-store.svelte.js";
@@ -36,6 +40,15 @@ type ProjectionFailureOverride = Partial<TurnFailureSnapshot> | null;
 type GraphOverride = Partial<SessionStateGraph> & {
 	activeTurnFailure?: ProjectionFailureOverride;
 };
+
+function cloneTranscriptSnapshot(
+	snapshot: SessionStateGraph["transcriptSnapshot"] | undefined
+): SessionStateGraph["transcriptSnapshot"] | undefined {
+	if (snapshot === undefined) {
+		return undefined;
+	}
+	return JSON.parse(JSON.stringify(snapshot)) as SessionStateGraph["transcriptSnapshot"];
+}
 
 function createIdleActivity(): SessionGraphActivity {
 	return {
@@ -249,7 +262,7 @@ function createSessionOpenFoundFromGraph(
 }
 
 function addColdSession(store: SessionStore, sessionId = "session-1", agentId = "codex"): void {
-	store.addSession({
+	store.write.addSession({
 		id: sessionId,
 		projectPath: "/repo",
 		agentId,
@@ -259,6 +272,82 @@ function addColdSession(store: SessionStore, sessionId = "session-1", agentId = 
 		sessionLifecycleState: "persisted",
 		parentId: null,
 	});
+}
+
+function createViewportBufferPush(
+	overrides: Partial<ViewportBufferPush> = {}
+): ViewportBufferPush {
+	return {
+		sessionId: overrides.sessionId ?? "session-1",
+		graphRevision: overrides.graphRevision ?? {
+			graphRevision: 7,
+			transcriptRevision: 7,
+			lastEventSeq: 7,
+		},
+		viewportRevision: overrides.viewportRevision ?? 1,
+		emissionSeq: overrides.emissionSeq ?? 0,
+		bufferStartIndex: overrides.bufferStartIndex ?? 0,
+		bufferEndIndex: overrides.bufferEndIndex ?? 1,
+		layoutRowCount: overrides.layoutRowCount ?? 1,
+		totalHeightPx: overrides.totalHeightPx ?? 120,
+		bufferEndOffsetPx: overrides.bufferEndOffsetPx ?? 120,
+		rows: overrides.rows ?? [
+			{
+				rowId: "transcript:assistant-1",
+				sourceEntryId: "assistant-1",
+				kind: "assistantText",
+				version: "v1",
+				anchorEligible: true,
+				activeStreamingTail: null,
+				operationLinks: [],
+				interactionLinks: [],
+				content: {
+					kind: "transcript",
+					role: "assistant",
+					segments: [
+						{
+							kind: "text",
+							segmentId: "assistant-1:text",
+							text: "hello",
+						},
+					],
+				},
+			},
+		],
+		offsetsPx: overrides.offsetsPx ?? [0],
+		mode: overrides.mode ?? { kind: "followingTail" },
+		requestGeneration: overrides.requestGeneration ?? null,
+		scrollTopTarget: overrides.scrollTopTarget ?? null,
+		scrollAnchorCorrectionPx: overrides.scrollAnchorCorrectionPx ?? null,
+		diagnostics: overrides.diagnostics ?? [],
+	};
+}
+
+function createViewportBufferDelta(
+	overrides: Partial<ViewportBufferDelta> = {}
+): ViewportBufferDelta {
+	return {
+		sessionId: overrides.sessionId ?? "session-1",
+		graphRevision: overrides.graphRevision ?? {
+			graphRevision: 7,
+			transcriptRevision: 7,
+			lastEventSeq: 7,
+		},
+		emissionSeq: overrides.emissionSeq ?? 1,
+		fromViewportRevision: overrides.fromViewportRevision ?? 1,
+		toViewportRevision: overrides.toViewportRevision ?? 2,
+		prependedRows: overrides.prependedRows ?? [],
+		prependedOffsetsPx: overrides.prependedOffsetsPx ?? [],
+		appendedRows: overrides.appendedRows ?? [],
+		appendedOffsetsPx: overrides.appendedOffsetsPx ?? [],
+		removedRowIds: overrides.removedRowIds ?? [],
+		layoutRowCount: overrides.layoutRowCount ?? 1,
+		totalHeightPx: overrides.totalHeightPx ?? 120,
+		bufferEndOffsetPx: overrides.bufferEndOffsetPx ?? 120,
+		scrollAnchorCorrectionPx: overrides.scrollAnchorCorrectionPx ?? null,
+		scrollTopTarget: overrides.scrollTopTarget ?? null,
+		diagnostics: overrides.diagnostics ?? [],
+	};
 }
 
 function createSnapshotEnvelope(
@@ -538,7 +627,9 @@ describe("SessionStore.applySessionStateGraph", () => {
 		});
 
 		expect(getSessionStateMock).not.toHaveBeenCalled();
-		expect(store.getSessionStateGraphForTest("session-1")?.transcriptSnapshot).toEqual({
+		expect(
+			cloneTranscriptSnapshot(store.getSessionStateGraphForTest("session-1")?.transcriptSnapshot)
+		).toEqual({
 			revision: 2,
 			entries: [
 				{
@@ -684,13 +775,13 @@ describe("SessionStore.applySessionStateGraph", () => {
 			},
 		});
 
-		store.replaceSessionOpenSnapshot(createSessionOpenFoundFromGraph(graph));
+		store.write.replaceSessionOpenSnapshot(createSessionOpenFoundFromGraph(graph));
 
-		expect(store.getSessionLifecycleStatus("session-1")).toBe("reserved");
-		expect(store.getSessionCanSend("session-1")).toBe(false);
-		expect(store.getSessionTurnState("session-1")).toBe("Idle");
-		expect(store.getSessionActiveTurnFailure("session-1")).toBeNull();
-		expect(store.getSessionGraphRevision("session-1")).toEqual(graph.revision);
+		expect(store.read.getSessionLifecycleStatus("session-1")).toBe("reserved");
+		expect(store.read.getSessionCanSend("session-1")).toBe(false);
+		expect(store.read.getSessionTurnState("session-1")).toBe("Idle");
+		expect(store.read.getSessionActiveTurnFailure("session-1")).toBeNull();
+		expect(store.read.getSessionGraphRevision("session-1")).toEqual(graph.revision);
 	});
 
 	it("treats backend-authored open snapshots as enough authority for session detail lookup", () => {
@@ -704,14 +795,14 @@ describe("SessionStore.applySessionStateGraph", () => {
 			activity: createIdleActivity(),
 		});
 
-		store.replaceSessionOpenSnapshot(createSessionOpenFoundFromGraph(graph));
+		store.write.replaceSessionOpenSnapshot(createSessionOpenFoundFromGraph(graph));
 
-		expect(store.getSessionDetail("session-1")).toMatchObject({
+		expect(store.read.getSessionDetail("session-1")).toMatchObject({
 			id: "session-1",
 			projectPath: "/repo",
 			agentId: "codex",
 		});
-		expect(store.hasSessionCanonicalProjection("session-1")).toBe(true);
+		expect(store.read.hasSessionCanonicalProjection("session-1")).toBe(true);
 	});
 
 	it("keeps open snapshot transcript entries spine-only while operations hold rich tool data before connect", () => {
@@ -761,7 +852,7 @@ describe("SessionStore.applySessionStateGraph", () => {
 			],
 		});
 
-		store.replaceSessionOpenSnapshot(createSessionOpenFoundFromGraph(graph));
+		store.write.replaceSessionOpenSnapshot(createSessionOpenFoundFromGraph(graph));
 
 		const entries = getSessionEntries(store, "session-1");
 		expect(entries).toHaveLength(1);
@@ -776,7 +867,7 @@ describe("SessionStore.applySessionStateGraph", () => {
 			raw: null,
 		});
 		expect(entry.message.result).toBeNull();
-		const operation = store.getToolCallById("session-1", "tool-1");
+		const operation = store.read.getToolCallById("session-1", "tool-1");
 		expect(operation).toMatchObject({
 			id: "tool-1",
 			kind: "execute",
@@ -846,7 +937,7 @@ describe("SessionStore.applySessionStateGraph", () => {
 			],
 		});
 
-		store.replaceSessionOpenSnapshot(createSessionOpenFoundFromGraph(graph));
+		store.write.replaceSessionOpenSnapshot(createSessionOpenFoundFromGraph(graph));
 
 		const restoredGraph = store.getSessionStateGraphForTest("session-1");
 		expect(restoredGraph).not.toBeNull();
@@ -918,7 +1009,7 @@ describe("SessionStore.applySessionStateGraph", () => {
 			transcriptSnapshot,
 			operations: [restoredOperation],
 		});
-		store.replaceSessionOpenSnapshot(createSessionOpenFoundFromGraph(restoredGraph));
+		store.write.replaceSessionOpenSnapshot(createSessionOpenFoundFromGraph(restoredGraph));
 
 		const reconnectGraph = createSessionStateGraph({
 			turnState: "Idle",
@@ -944,7 +1035,7 @@ describe("SessionStore.applySessionStateGraph", () => {
 			status: "degraded",
 			presentationState: "degraded_operation",
 		});
-		expect(store.getToolCallById("session-1", "tool-1")).toBeNull();
+		expect(store.read.getToolCallById("session-1", "tool-1")).toBeNull();
 	});
 
 	it("preserves restored historical scene content across connect lifecycle envelopes", () => {
@@ -1000,7 +1091,7 @@ describe("SessionStore.applySessionStateGraph", () => {
 			],
 		});
 
-		store.replaceSessionOpenSnapshot(createSessionOpenFoundFromGraph(graph));
+		store.write.replaceSessionOpenSnapshot(createSessionOpenFoundFromGraph(graph));
 		const openScene = materializeStoredScene(store);
 		const openEntries = openScene.conversation.entries;
 		expect(openEntries[0]).toMatchObject({
@@ -1140,7 +1231,7 @@ describe("SessionStore.applySessionStateGraph", () => {
 			],
 		});
 
-		store.replaceSessionOpenSnapshot(createSessionOpenFoundFromGraph(graph));
+		store.write.replaceSessionOpenSnapshot(createSessionOpenFoundFromGraph(graph));
 		const openScene = materializeStoredScene(store);
 		const stableEntry = openScene.conversation.entries[0];
 		expect(stableEntry).toMatchObject({
@@ -1251,7 +1342,7 @@ describe("SessionStore.applySessionStateGraph", () => {
 			],
 			interactions: [createPermissionInteractionSnapshot()],
 		});
-		store.replaceSessionOpenSnapshot(createSessionOpenFoundFromGraph(graph));
+		store.write.replaceSessionOpenSnapshot(createSessionOpenFoundFromGraph(graph));
 		const beforeGraph = store.getSessionStateGraphForTest("session-1");
 		if (beforeGraph === null) {
 			throw new Error("Expected graph before terminal delta");
@@ -1296,7 +1387,7 @@ describe("SessionStore.applySessionStateGraph", () => {
 
 	it("applies canonical turn-only graph deltas without requiring activity changes", () => {
 		const store = new SessionStore();
-		store.replaceSessionOpenSnapshot(
+		store.write.replaceSessionOpenSnapshot(
 			createSessionOpenFoundFromGraph(
 				createSessionStateGraph({
 					turnState: "Running",
@@ -1359,7 +1450,7 @@ describe("SessionStore.applySessionStateGraph", () => {
 		const graph = store.getSessionStateGraphForTest("session-1");
 		expect(graph?.turnState).toBe("Completed");
 		expect(graph?.lastTerminalTurnId).toBe("turn-8");
-		expect(store.getSessionTurnState("session-1")).toBe("Completed");
+		expect(store.read.getSessionTurnState("session-1")).toBe("Completed");
 	});
 
 	it("hydrates canonical failed-turn state from the graph snapshot", () => {
@@ -1367,23 +1458,23 @@ describe("SessionStore.applySessionStateGraph", () => {
 
 		store.applySessionStateGraph(createSessionStateGraph());
 
-		expect(store.getSessionLifecycleStatus("session-1")).toBe("reserved");
-		expect(store.getSessionActivity("session-1")?.kind).toBe("error");
-		expect(store.getSessionTurnState("session-1")).toBe("Failed");
-		expect(store.getSessionActiveTurnFailure("session-1")).toMatchObject({
+		expect(store.read.getSessionLifecycleStatus("session-1")).toBe("reserved");
+		expect(store.read.getSessionActivity("session-1")?.kind).toBe("error");
+		expect(store.read.getSessionTurnState("session-1")).toBe("Failed");
+		expect(store.read.getSessionActiveTurnFailure("session-1")).toMatchObject({
 			turnId: "turn-1",
 			message: "Usage limit reached",
 		});
 		expect(store.getSessionStateGraphForTest("session-1")?.turnState ?? null).toBe("Failed");
-		expect(store.getSessionConnectionError("session-1")).toBeNull();
-		expect(store.getSessionActiveTurnFailure("session-1")).toMatchObject({
+		expect(store.read.getSessionConnectionError("session-1")).toBeNull();
+		expect(store.read.getSessionActiveTurnFailure("session-1")).toMatchObject({
 			turnId: "turn-1",
 			message: "Usage limit reached",
 			code: "429",
 			kind: "recoverable",
 			source: "process",
 		});
-		expect(store.getSessionLastTerminalTurnId("session-1")).toBe("turn-1");
+		expect(store.read.getSessionLastTerminalTurnId("session-1")).toBe("turn-1");
 	});
 
 	it("clears hydrated failed-turn state when the projection no longer has one", () => {
@@ -1400,8 +1491,8 @@ describe("SessionStore.applySessionStateGraph", () => {
 		);
 
 		expect(store.getSessionStateGraphForTest("session-1")?.turnState ?? null).toBe("Completed");
-		expect(store.getSessionActiveTurnFailure("session-1")).toBeNull();
-		expect(store.getSessionLastTerminalTurnId("session-1")).toBe("turn-1");
+		expect(store.read.getSessionActiveTurnFailure("session-1")).toBeNull();
+		expect(store.read.getSessionLastTerminalTurnId("session-1")).toBe("turn-1");
 	});
 
 	it("defaults missing projected failure source to unknown during hydration", () => {
@@ -1413,7 +1504,7 @@ describe("SessionStore.applySessionStateGraph", () => {
 
 		store.applySessionStateGraph(graph);
 
-		expect(store.getSessionActiveTurnFailure("session-1")).toMatchObject({
+		expect(store.read.getSessionActiveTurnFailure("session-1")).toMatchObject({
 			source: "unknown",
 		});
 	});
@@ -1464,13 +1555,13 @@ describe("SessionStore.applySessionStateGraph", () => {
 			})
 		);
 
-		expect(store.getSessionAcpSessionId("session-1")).toBe("session-1");
-		expect(store.getSessionLifecycleStatus("session-1")).toBe("ready");
-		expect(store.getSessionCanSend("session-1")).toBe(true);
+		expect(store.read.getSessionAcpSessionId("session-1")).toBe("session-1");
+		expect(store.read.getSessionLifecycleStatus("session-1")).toBe("ready");
+		expect(store.read.getSessionCanSend("session-1")).toBe(true);
 		expect(store.getSessionStateGraphForTest("session-1")?.turnState ?? null).toBe("Running");
-		expect(store.getSessionCurrentModeId("session-1")).toBe("plan");
-		expect(store.getSessionCurrentModelId("session-1")).toBe("gpt-5");
-		expect(store.getSessionConfigOptions("session-1")).toEqual([
+		expect(store.read.getSessionCurrentModeId("session-1")).toBe("plan");
+		expect(store.read.getSessionCurrentModelId("session-1")).toBe("gpt-5");
+		expect(store.read.getSessionConfigOptions("session-1")).toEqual([
 			{
 				id: "approval-policy",
 				name: "approval-policy",
@@ -1478,23 +1569,24 @@ describe("SessionStore.applySessionStateGraph", () => {
 				type: "string",
 				currentValue: "always",
 				options: [],
+				presentation: "advanced",
 			},
 		]);
-		expect(store.getSessionAvailableModes("session-1")).toEqual([
+		expect(store.read.getSessionAvailableModes("session-1")).toEqual([
 			{
 				id: "plan",
 				name: "Plan",
 				description: undefined,
 			},
 		]);
-		expect(store.getSessionAvailableModels("session-1")).toEqual([
+		expect(store.read.getSessionAvailableModels("session-1")).toEqual([
 			{
 				id: "gpt-5",
 				name: "GPT-5",
 				description: undefined,
 			},
 		]);
-		expect(store.getSessionAvailableCommands("session-1")).toEqual([
+		expect(store.read.getSessionAvailableCommands("session-1")).toEqual([
 			{
 				name: "run",
 				description: "Run a command",
@@ -1552,9 +1644,9 @@ describe("SessionStore.applySessionStateGraph", () => {
 			},
 		});
 
-		expect(store.getSessionCurrentModelId("session-1")).toBe("gpt-5");
-		expect(store.getSessionAutonomousEnabled("session-1")).toBe(true);
-		expect(store.getSessionAvailableModels("session-1")).toEqual([
+		expect(store.read.getSessionCurrentModelId("session-1")).toBe("gpt-5");
+		expect(store.read.getSessionAutonomousEnabled("session-1")).toBe(true);
+		expect(store.read.getSessionAvailableModels("session-1")).toEqual([
 			{
 				id: "gpt-5",
 				name: "GPT-5",
@@ -1623,24 +1715,24 @@ describe("SessionStore.applySessionStateGraph", () => {
 			},
 		});
 
-		expect(store.getSessionLifecycleStatus("session-1")).toBe("ready");
-		expect(store.getSessionTurnState("session-1")).toBe("Running");
-		expect(store.getSessionCurrentModelId("session-1")).toBe("gpt-5");
-		expect(store.getSessionAutonomousEnabled("session-1")).toBe(true);
-		expect(store.getSessionGraphRevision("session-1")).toEqual({
+		expect(store.read.getSessionLifecycleStatus("session-1")).toBe("ready");
+		expect(store.read.getSessionTurnState("session-1")).toBe("Running");
+		expect(store.read.getSessionCurrentModelId("session-1")).toBe("gpt-5");
+		expect(store.read.getSessionAutonomousEnabled("session-1")).toBe(true);
+		expect(store.read.getSessionGraphRevision("session-1")).toEqual({
 			graphRevision: 8,
 			transcriptRevision: 7,
 			lastEventSeq: 8,
 		});
-		expect(store.getSessionAvailableModels("session-1")).toEqual([
+		expect(store.read.getSessionAvailableModels("session-1")).toEqual([
 			{
 				id: "gpt-5",
 				name: "GPT-5",
 				description: undefined,
 			},
 		]);
-		expect(store.getSessionCapabilityPendingMutationId("session-1")).toBe("mutation-1");
-		expect(store.getSessionCapabilityPreviewState("session-1")).toBe("pending");
+		expect(store.read.getSessionCapabilityPendingMutationId("session-1")).toBe("mutation-1");
+		expect(store.read.getSessionCapabilityPreviewState("session-1")).toBe("pending");
 	});
 
 	it("redacts unsafe config option values before writing canonical capabilities", () => {
@@ -1681,7 +1773,7 @@ describe("SessionStore.applySessionStateGraph", () => {
 
 		store.applySessionStateEnvelope("session-1", createSnapshotEnvelope(graph));
 
-		expect(store.getSessionConfigOptions("session-1")?.[0]).toMatchObject({
+		expect(store.read.getSessionConfigOptions("session-1")?.[0]).toMatchObject({
 			id: "api-key",
 			currentValue: null,
 			options: [
@@ -1691,7 +1783,7 @@ describe("SessionStore.applySessionStateGraph", () => {
 				},
 			],
 		});
-		expect(store.getSessionConfigOptions("session-1")?.[1]).toMatchObject({
+		expect(store.read.getSessionConfigOptions("session-1")?.[1]).toMatchObject({
 			id: "max-tokens",
 			currentValue: "4096",
 		});
@@ -1754,10 +1846,10 @@ describe("SessionStore.applySessionStateGraph", () => {
 			},
 		});
 
-		expect(store.getSessionAvailableModels("session-1")).toBeNull();
-		expect(store.getSessionAvailableModels("session-1")).toBeNull();
-		expect(store.getSessionAvailableModes("session-1")).toBeNull();
-		expect(store.getSessionCurrentModelId("session-1")).toBeNull();
+		expect(store.read.getSessionAvailableModels("session-1")).toBeNull();
+		expect(store.read.getSessionAvailableModels("session-1")).toBeNull();
+		expect(store.read.getSessionAvailableModes("session-1")).toBeNull();
+		expect(store.read.getSessionCurrentModelId("session-1")).toBeNull();
 	});
 
 	it("reconciles the connection machine from canonical lifecycle and turn state", () => {
@@ -1778,7 +1870,7 @@ describe("SessionStore.applySessionStateGraph", () => {
 			})
 		);
 
-		expect(store.getSessionLifecyclePresentation("session-1")).toMatchObject({
+		expect(store.presentation.getSessionLifecyclePresentation("session-1")).toMatchObject({
 			connectionPhase: "connected",
 			activityPhase: "running",
 			canCancel: true,
@@ -1795,7 +1887,7 @@ describe("SessionStore.applySessionStateGraph", () => {
 			})
 		);
 
-		expect(store.getSessionLifecyclePresentation("session-1")).toMatchObject({
+		expect(store.presentation.getSessionLifecyclePresentation("session-1")).toMatchObject({
 			connectionPhase: "connected",
 			activityPhase: "idle",
 			canCancel: false,
@@ -1830,7 +1922,7 @@ describe("SessionStore.applySessionStateGraph", () => {
 			)
 		);
 
-		expect(store.getSessionLifecyclePresentation("session-1")).toMatchObject({
+		expect(store.presentation.getSessionLifecyclePresentation("session-1")).toMatchObject({
 			showStop: true,
 			canCancel: true,
 		});
@@ -1865,13 +1957,13 @@ describe("SessionStore.applySessionStateGraph", () => {
 			},
 		});
 
-		expect(store.getSessionLifecyclePresentation("session-1")).toMatchObject({
+		expect(store.presentation.getSessionLifecyclePresentation("session-1")).toMatchObject({
 			connectionPhase: "connected",
 			activityPhase: "idle",
 			canCancel: false,
 			canSubmit: true,
 		});
-		expect(store.getSessionLifecyclePresentation("session-1")).toMatchObject({
+		expect(store.presentation.getSessionLifecyclePresentation("session-1")).toMatchObject({
 			showStop: false,
 			canCancel: false,
 			canSubmit: true,
@@ -1898,10 +1990,10 @@ describe("SessionStore.applySessionStateGraph", () => {
 				})
 			)
 		);
-		store.bindComposerSession("session-1");
-		store.composerBeginDispatch("session-1");
+		store.composer.bindSession("session-1");
+		store.composer.beginDispatch("session-1");
 
-		expect(store.getStoreComposerState("session-1")).toMatchObject({
+		expect(store.composer.getStoreComposerState("session-1")).toMatchObject({
 			isDispatching: true,
 			selectorsDisabled: true,
 		});
@@ -1936,7 +2028,7 @@ describe("SessionStore.applySessionStateGraph", () => {
 			},
 		});
 
-		expect(store.getStoreComposerState("session-1")).toMatchObject({
+		expect(store.composer.getStoreComposerState("session-1")).toMatchObject({
 			isDispatching: false,
 			selectorsDisabled: false,
 			canSubmit: true,
@@ -1977,8 +2069,8 @@ describe("SessionStore.applySessionStateGraph", () => {
 		);
 		store.applySessionStateEnvelope("session-1", {
 			sessionId: "session-1",
-			graphRevision: 7,
-			lastEventSeq: 7,
+			graphRevision: 8,
+			lastEventSeq: 8,
 			payload: {
 				kind: "assistantTextDelta",
 				delta: {
@@ -1987,7 +2079,7 @@ describe("SessionStore.applySessionStateGraph", () => {
 					charOffset: 0,
 					deltaText: " it with code.",
 					producedAtMonotonicMs: 1,
-					revision: 1,
+					revision: 8,
 				},
 			},
 		});
@@ -2193,9 +2285,9 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 		store.applySessionStateEnvelope("session-1", envelope);
 
 		expect(store.getSessionStateGraphForTest("session-1")?.operations).toHaveLength(1);
-		expect(store.getSessionAcpSessionId("session-1")).toBe("session-1");
-		expect(store.getSessionLifecycleStatus("session-1")).toBe("ready");
-		expect(store.getSessionCanSend("session-1")).toBe(true);
+		expect(store.read.getSessionAcpSessionId("session-1")).toBe("session-1");
+		expect(store.read.getSessionLifecycleStatus("session-1")).toBe("ready");
+		expect(store.read.getSessionCanSend("session-1")).toBe(true);
 	});
 
 	it("preserves the live assistant message id across graph patch deltas", () => {
@@ -2362,8 +2454,8 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 				],
 			},
 		});
-		expect(store.getSessionLifecycleStatus("session-1")).toBe("ready");
-		expect(store.getSessionCanSend("session-1")).toBe(true);
+		expect(store.read.getSessionLifecycleStatus("session-1")).toBe("ready");
+		expect(store.read.getSessionCanSend("session-1")).toBe(true);
 		expect(store.getSessionStateGraphForTest("session-1")?.transcriptSnapshot.entries).toEqual([
 			{
 				entryId: "assistant-history-7",
@@ -2424,13 +2516,13 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 		store.applySessionStateEnvelope("session-1", createSnapshotEnvelope(currentGraph));
 		store.applySessionStateEnvelope("session-1", createSnapshotEnvelope(staleGraph));
 
-		expect(store.getSessionGraphRevision("session-1")).toEqual({
+		expect(store.read.getSessionGraphRevision("session-1")).toEqual({
 			graphRevision: 10,
 			transcriptRevision: 7,
 			lastEventSeq: 10,
 		});
-		expect(store.getSessionActivity("session-1")).toEqual(currentActivity);
-		expect(store.getSessionTurnState("session-1")).toBe("Running");
+		expect(store.read.getSessionActivity("session-1")).toEqual(currentActivity);
+		expect(store.read.getSessionTurnState("session-1")).toBe("Running");
 		expect(store.getSessionStateGraphForTest("session-1")?.operations).toHaveLength(1);
 	});
 
@@ -2444,7 +2536,7 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 			dominantOperationId: "op-1",
 			blockingInteractionId: null,
 		};
-		store.setLiveSessionStateGraphConsumer(interactions);
+		store.connection.setLiveSessionStateGraphConsumer(interactions);
 		addColdSession(store);
 		store.applySessionStateEnvelope(
 			"session-1",
@@ -2508,21 +2600,21 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 			sessionId: "session-1",
 			permission: "Read",
 		});
-		expect(store.getSessionActivity("session-1")).toEqual(patchActivity);
-		expect(store.getSessionTurnState("session-1")).toBe("Running");
-		expect(store.getSessionGraphRevision("session-1")).toEqual({
+		expect(store.read.getSessionActivity("session-1")).toEqual(patchActivity);
+		expect(store.read.getSessionTurnState("session-1")).toBe("Running");
+		expect(store.read.getSessionGraphRevision("session-1")).toEqual({
 			graphRevision: 8,
 			transcriptRevision: 7,
 			lastEventSeq: 8,
 		});
-		expect(store.getSessionAvailableModels("session-1")).toEqual([
+		expect(store.read.getSessionAvailableModels("session-1")).toEqual([
 			{
 				id: "gpt-5",
 				name: "GPT-5",
 				description: undefined,
 			},
 		]);
-		expect(store.getSessionActivity("session-1")).toEqual(patchActivity);
+		expect(store.read.getSessionActivity("session-1")).toEqual(patchActivity);
 		expect(store.getSessionStateGraphForTest("session-1")?.turnState ?? null).toBe("Running");
 	});
 
@@ -2590,19 +2682,19 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 			},
 		});
 
-		expect(store.getSessionGraphRevision("session-1")).toEqual({
+		expect(store.read.getSessionGraphRevision("session-1")).toEqual({
 			graphRevision: 7,
 			transcriptRevision: 7,
 			lastEventSeq: 7,
 		});
-		expect(store.getSessionActivity("session-1")).toEqual(initialActivity);
-		expect(store.getSessionTurnState("session-1")).toBe("Idle");
+		expect(store.read.getSessionActivity("session-1")).toEqual(initialActivity);
+		expect(store.read.getSessionTurnState("session-1")).toBe("Idle");
 	});
 
 	it("applies canonical blocked to running patches to graph, operation store, and scene", () => {
 		const store = new SessionStore();
 		const interactions = new InteractionStore();
-		store.setLiveSessionStateGraphConsumer(interactions);
+		store.connection.setLiveSessionStateGraphConsumer(interactions);
 		addColdSession(store);
 		store.applySessionStateEnvelope(
 			"session-1",
@@ -2956,7 +3048,7 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 		const replaceSessionStateGraph = vi.fn();
 		const graph = createSessionStateGraph();
 
-		store.setLiveSessionStateGraphConsumer({ replaceSessionStateGraph });
+		store.connection.setLiveSessionStateGraphConsumer({ replaceSessionStateGraph });
 		store.applySessionStateEnvelope("session-1", {
 			sessionId: "session-1",
 			graphRevision: graph.revision.graphRevision,
@@ -2988,16 +3080,16 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 			},
 		});
 
-		expect(store.getSessionLifecycleStatus("session-1")).toBe("failed");
-		expect(store.getSessionCanSend("session-1")).toBe(false);
-		expect(store.getSessionConnectionError("session-1")).toBe("Connection dropped");
-		expect(store.getSessionCapabilityRevision("session-1")).toBeNull();
-		expect(store.getSessionAvailableModels("session-1")).toBeNull();
+		expect(store.read.getSessionLifecycleStatus("session-1")).toBe("failed");
+		expect(store.read.getSessionCanSend("session-1")).toBe(false);
+		expect(store.read.getSessionConnectionError("session-1")).toBe("Connection dropped");
+		expect(store.read.getSessionCapabilityRevision("session-1")).toBeNull();
+		expect(store.read.getSessionAvailableModels("session-1")).toBeNull();
 		expect(store.getSessionStateGraphForTest("session-1")?.lifecycle.status).toBe("failed");
 		expect(store.getSessionStateGraphForTest("session-1")?.lifecycle.errorMessage).toBe(
 			"Connection dropped"
 		);
-		expect(store.getSessionLifecyclePresentation("session-1")).toMatchObject({
+		expect(store.presentation.getSessionLifecyclePresentation("session-1")).toMatchObject({
 			connectionPhase: "failed",
 			canSubmit: false,
 			showStop: false,
@@ -3064,7 +3156,7 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 
 		store.applySessionStateEnvelope("session-1", createSnapshotEnvelope(graph));
 
-		expect(store.getSessionActivity("session-1")).toEqual({
+		expect(store.read.getSessionActivity("session-1")).toEqual({
 			kind: "running_operation",
 			activeOperationCount: 2,
 			activeSubagentCount: 1,
@@ -3103,7 +3195,7 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 			},
 		});
 
-		expect(store.getSessionActivity("session-1")).toEqual({
+		expect(store.read.getSessionActivity("session-1")).toEqual({
 			kind: "error",
 			activeOperationCount: 2,
 			activeSubagentCount: 1,
@@ -3148,9 +3240,9 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 			},
 		});
 
-		expect(store.getSessionLifecycleStatus("session-1")).toBe("ready");
-		expect(store.getSessionTurnState("session-1")).toBe("Running");
-		expect(store.getSessionGraphRevision("session-1")).toEqual({
+		expect(store.read.getSessionLifecycleStatus("session-1")).toBe("ready");
+		expect(store.read.getSessionTurnState("session-1")).toBe("Running");
+		expect(store.read.getSessionGraphRevision("session-1")).toEqual({
 			graphRevision: 9,
 			transcriptRevision: 7,
 			lastEventSeq: 9,
@@ -3192,7 +3284,7 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 
 		// Canonical projection should carry "Running" from the previous full-graph projection,
 		// not "Idle" from uninitialised local state, proving no authority inversion.
-		expect(store.getSessionTurnState("session-1")).toBe("Running");
+		expect(store.read.getSessionTurnState("session-1")).toBe("Running");
 	});
 
 	it("carries canonical activeTurnFailure from previous projection on lifecycle-only envelopes", () => {
@@ -3226,7 +3318,7 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 			},
 		});
 
-		expect(store.getSessionActiveTurnFailure("session-1")).toMatchObject({
+		expect(store.read.getSessionActiveTurnFailure("session-1")).toMatchObject({
 			turnId: "turn-2",
 			message: "rate limit",
 		});
@@ -3295,35 +3387,35 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 			},
 		});
 
-		expect(store.getSessionAvailableModels("session-1")).toEqual([
+		expect(store.read.getSessionAvailableModels("session-1")).toEqual([
 			{
 				id: "claude-sonnet-4.6",
 				name: "Claude Sonnet 4.6",
 				description: undefined,
 			},
 		]);
-		expect(store.getSessionAvailableModes("session-1")).toEqual([
+		expect(store.read.getSessionAvailableModes("session-1")).toEqual([
 			{
 				id: "build",
 				name: "Build",
 				description: undefined,
 			},
 		]);
-		expect(store.getSessionAvailableCommands("session-1")).toEqual([
+		expect(store.read.getSessionAvailableCommands("session-1")).toEqual([
 			{
 				name: "edit",
 				description: "Edit files",
 			},
 		]);
-		expect(store.getSessionCurrentModeId("session-1")).toBe("build");
-		expect(store.getSessionCurrentModelId("session-1")).toBe("claude-sonnet-4.6");
-		expect(store.getSessionAvailableCommands("session-1")).toEqual([
+		expect(store.read.getSessionCurrentModeId("session-1")).toBe("build");
+		expect(store.read.getSessionCurrentModelId("session-1")).toBe("claude-sonnet-4.6");
+		expect(store.read.getSessionAvailableCommands("session-1")).toEqual([
 			{
 				name: "edit",
 				description: "Edit files",
 			},
 		]);
-		expect(store.getSessionConfigOptions("session-1")).toEqual([
+		expect(store.read.getSessionConfigOptions("session-1")).toEqual([
 			{
 				id: "sandbox",
 				name: "sandbox",
@@ -3331,9 +3423,10 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 				type: "string",
 				currentValue: "workspace-write",
 				options: [],
+				presentation: "advanced",
 			},
 		]);
-		expect(store.getSessionAutonomousEnabled("session-1")).toBe(true);
+		expect(store.read.getSessionAutonomousEnabled("session-1")).toBe(true);
 	});
 
 	it("hydrates telemetry envelopes into usage telemetry state", () => {
@@ -3365,7 +3458,7 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 			},
 		});
 
-		expect(store.getSessionUsageTelemetry("session-1")).toMatchObject({
+		expect(store.read.getSessionUsageTelemetry("session-1")).toMatchObject({
 			sessionSpendUsd: 0.42,
 			latestStepCostUsd: 0.42,
 			latestTokensTotal: 50000,
@@ -3405,7 +3498,7 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 			},
 		});
 
-		expect(store.getSessionUsageTelemetry("session-1")).toMatchObject({
+		expect(store.read.getSessionUsageTelemetry("session-1")).toMatchObject({
 			contextBudget: null,
 			latestTokensTotal: 1200,
 			lastTelemetryEventId: "telemetry-2",
@@ -3472,7 +3565,7 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 			},
 		});
 
-		expect(store.getSessionUsageTelemetry("session-1")).toMatchObject({
+		expect(store.read.getSessionUsageTelemetry("session-1")).toMatchObject({
 			latestTokensTotal: 1200,
 			lastTelemetryEventId: "telemetry-new",
 		});
@@ -3708,8 +3801,8 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 			"assistant-9",
 			"assistant-10",
 		]);
-		expect(store.getSessionLifecycleStatus("session-1")).toBe("ready");
-		expect(store.getSessionCanSend("session-1")).toBe(true);
+		expect(store.read.getSessionLifecycleStatus("session-1")).toBe("ready");
+		expect(store.read.getSessionCanSend("session-1")).toBe(true);
 	});
 
 	it("advances the stored graph frontier after transcript-only deltas", () => {
@@ -4654,8 +4747,8 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 
 	it("sends the first prompt for a created reserved session without forcing resume first", async () => {
 		const store = new SessionStore();
-		const connectSession = vi.spyOn(store, "connectSession");
-		store.addSession({
+		const connectSession = vi.spyOn(store.connection, "connectSession");
+		store.write.addSession({
 			id: "session-1",
 			projectPath: "/repo",
 			agentId: "cursor",
@@ -4689,7 +4782,7 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 			)
 		);
 
-		const result = await store.sendMessage("session-1", "cursor UI diagnostic ping - reply ok");
+		const result = await store.connection.sendMessage("session-1", "cursor UI diagnostic ping - reply ok");
 
 		expect(result.isOk()).toBe(true);
 		expect(sendPromptMock).toHaveBeenCalledWith(
@@ -4702,7 +4795,7 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 
 	it("clears local pending send intent when the canonical graph accepts the send", async () => {
 		const store = new SessionStore();
-		store.addSession({
+		store.write.addSession({
 			id: "session-1",
 			projectPath: "/repo",
 			agentId: "cursor",
@@ -4736,10 +4829,10 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 			)
 		);
 
-		const result = await store.sendMessage("session-1", "cursor UI diagnostic ping - reply ok");
+		const result = await store.connection.sendMessage("session-1", "cursor UI diagnostic ping - reply ok");
 
 		expect(result.isOk()).toBe(true);
-		expect(store.getSessionPendingSendIntent("session-1")).toEqual({
+		expect(store.read.getSessionPendingSendIntent("session-1")).toEqual({
 			attemptId: expect.any(String),
 			startedAt: expect.any(Number),
 			baselineTranscriptRevision: 0,
@@ -4780,14 +4873,14 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 			)
 		);
 
-		expect(store.getSessionPendingSendIntent("session-1")).toMatchObject({
+		expect(store.read.getSessionPendingSendIntent("session-1")).toMatchObject({
 			attemptId: expect.any(String),
 		});
 	});
 
 	it("clears pending send intent only when canonical user attemptId matches", async () => {
 		const store = new SessionStore();
-		store.addSession({
+		store.write.addSession({
 			id: "session-1",
 			projectPath: "/repo",
 			agentId: "cursor",
@@ -4821,10 +4914,10 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 			)
 		);
 
-		const result = await store.sendMessage("session-1", "cursor canonical handoff test");
+		const result = await store.connection.sendMessage("session-1", "cursor canonical handoff test");
 		expect(result.isOk()).toBe(true);
 
-		const pending = store.getSessionPendingSendIntent("session-1");
+		const pending = store.read.getSessionPendingSendIntent("session-1");
 		expect(pending).not.toBeNull();
 		expect(pending).not.toBeUndefined();
 		const attemptId = pending?.attemptId;
@@ -4867,7 +4960,7 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 			)
 		);
 
-		expect(store.getSessionPendingSendIntent("session-1")).toMatchObject({
+		expect(store.read.getSessionPendingSendIntent("session-1")).toMatchObject({
 			attemptId,
 		});
 
@@ -4908,12 +5001,12 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 			)
 		);
 
-		expect(store.getSessionPendingSendIntent("session-1")).toBeNull();
+		expect(store.read.getSessionPendingSendIntent("session-1")).toBeNull();
 	});
 
 	it("clears pending send intent when a canonical transcript delta accepts the send", async () => {
 		const store = new SessionStore();
-		store.addSession({
+		store.write.addSession({
 			id: "session-1",
 			projectPath: "/repo",
 			agentId: "cursor",
@@ -4947,10 +5040,10 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 			)
 		);
 
-		const result = await store.sendMessage("session-1", "cursor delta acceptance test");
+		const result = await store.connection.sendMessage("session-1", "cursor delta acceptance test");
 		expect(result.isOk()).toBe(true);
 
-		const pending = store.getSessionPendingSendIntent("session-1");
+		const pending = store.read.getSessionPendingSendIntent("session-1");
 		expect(pending).not.toBeNull();
 		expect(pending).not.toBeUndefined();
 		const attemptId = pending?.attemptId;
@@ -5008,12 +5101,12 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 			},
 		});
 
-		expect(store.getSessionPendingSendIntent("session-1")).toBeNull();
+		expect(store.read.getSessionPendingSendIntent("session-1")).toBeNull();
 	});
 
 	it("clears pending send intent when the canonical turn completes without a user attempt id", async () => {
 		const store = new SessionStore();
-		store.addSession({
+		store.write.addSession({
 			id: "session-1",
 			projectPath: "/repo",
 			agentId: "codex",
@@ -5047,9 +5140,9 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 			)
 		);
 
-		const result = await store.sendMessage("session-1", "codex terminal cleanup test");
+		const result = await store.connection.sendMessage("session-1", "codex terminal cleanup test");
 		expect(result.isOk()).toBe(true);
-		expect(store.getSessionPendingSendIntent("session-1")).not.toBeNull();
+		expect(store.read.getSessionPendingSendIntent("session-1")).not.toBeNull();
 
 		store.applySessionStateEnvelope(
 			"session-1",
@@ -5098,12 +5191,12 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 			)
 		);
 
-		expect(store.getSessionPendingSendIntent("session-1")).toBeNull();
+		expect(store.read.getSessionPendingSendIntent("session-1")).toBeNull();
 	});
 
 	it("clears stale pending send intent from a completed canonical snapshot that already acknowledged the prompt text", async () => {
 		const store = new SessionStore();
-		store.addSession({
+		store.write.addSession({
 			id: "session-1",
 			projectPath: "/repo",
 			agentId: "copilot",
@@ -5160,9 +5253,9 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 			)
 		);
 
-		const result = await store.sendMessage("session-1", "copilot acknowledged prompt");
+		const result = await store.connection.sendMessage("session-1", "copilot acknowledged prompt");
 		expect(result.isOk()).toBe(true);
-		expect(store.getSessionPendingSendIntent("session-1")).not.toBeNull();
+		expect(store.read.getSessionPendingSendIntent("session-1")).not.toBeNull();
 
 		store.applySessionStateEnvelope(
 			"session-1",
@@ -5233,13 +5326,13 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 			)
 		);
 
-		expect(store.getSessionPendingSendIntent("session-1")).toBeNull();
+		expect(store.read.getSessionPendingSendIntent("session-1")).toBeNull();
 	});
 
 	it("fails closed for a just-created session before canonical lifecycle hydration arrives", async () => {
 		const store = new SessionStore();
-		const connectSession = vi.spyOn(store, "connectSession");
-		store.addSession({
+		const connectSession = vi.spyOn(store.connection, "connectSession");
+		store.write.addSession({
 			id: "session-1",
 			projectPath: "/repo",
 			agentId: "cursor",
@@ -5250,7 +5343,7 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 			parentId: null,
 		});
 
-		const result = await store.sendMessage("session-1", "cursor UI diagnostic ping - reply ok");
+		const result = await store.connection.sendMessage("session-1", "cursor UI diagnostic ping - reply ok");
 
 		expect(result.isErr()).toBe(true);
 		expect(sendPromptMock).not.toHaveBeenCalled();
@@ -5259,7 +5352,7 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 
 	it("keeps restored local created sessions without canonical sendability", () => {
 		const store = new SessionStore();
-		store.addSession({
+		store.write.addSession({
 			id: "session-1",
 			projectPath: "/repo",
 			agentId: "cursor",
@@ -5270,9 +5363,9 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 			parentId: null,
 		});
 
-		store.setLocalCreatedSessionLoaded("session-1");
+		store.loading.setLocalCreatedSessionLoaded("session-1");
 
-		expect(store.getSessionCanSend("session-1")).toBe(null);
+		expect(store.read.getSessionCanSend("session-1")).toBe(null);
 	});
 
 	it("selects lifecycle presentation from canonical graph instead of runtime state", () => {
@@ -5296,7 +5389,7 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 			)
 		);
 
-		expect(store.getSessionLifecyclePresentation("session-1")).toEqual({
+		expect(store.presentation.getSessionLifecyclePresentation("session-1")).toEqual({
 			connectionPhase: "connected",
 			contentPhase: "empty",
 			activityPhase: "idle",
@@ -5312,7 +5405,7 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 
 	it("exposes pending send and telemetry as narrow local selectors", async () => {
 		const store = new SessionStore();
-		store.addSession({
+		store.write.addSession({
 			id: "session-1",
 			projectPath: "/repo",
 			agentId: "cursor",
@@ -5346,18 +5439,18 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 			)
 		);
 
-		expect(store.getSessionPendingSendIntent("session-1")).toBeNull();
-		expect(store.getSessionHasLocalPendingSendIntent("session-1")).toBe(false);
-		expect(store.getSessionUsageTelemetry("session-1")).toBeNull();
+		expect(store.read.getSessionPendingSendIntent("session-1")).toBeNull();
+		expect(store.read.getSessionHasLocalPendingSendIntent("session-1")).toBe(false);
+		expect(store.read.getSessionUsageTelemetry("session-1")).toBeNull();
 
-		const result = await store.sendMessage("session-1", "cursor UI diagnostic ping - reply ok");
+		const result = await store.connection.sendMessage("session-1", "cursor UI diagnostic ping - reply ok");
 
 		expect(result.isOk()).toBe(true);
-		expect(store.getSessionPendingSendIntent("session-1")).toMatchObject({
+		expect(store.read.getSessionPendingSendIntent("session-1")).toMatchObject({
 			attemptId: expect.any(String),
 		});
-		expect(store.getSessionHasLocalPendingSendIntent("session-1")).toBe(true);
-		expect(store.getSessionLifecyclePresentation("session-1").canSubmit).toBe(false);
+		expect(store.read.getSessionHasLocalPendingSendIntent("session-1")).toBe(true);
+		expect(store.presentation.getSessionLifecyclePresentation("session-1").canSubmit).toBe(false);
 	});
 
 	it("fails closed for detached restored sessions until canonical lifecycle is sendable", async () => {
@@ -5373,7 +5466,7 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 			sessionLifecycleState: "persisted",
 			parentId: null,
 		} as const;
-		const connectSession = vi.spyOn(store, "connectSession").mockImplementation(() => {
+		const connectSession = vi.spyOn(store.connection, "connectSession").mockImplementation(() => {
 			store.applySessionStateEnvelope(
 				"session-1",
 				createSnapshotEnvelope(
@@ -5400,7 +5493,7 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 			);
 			return okAsync(restoredSession);
 		});
-		store.addSession(restoredSession);
+		store.write.addSession(restoredSession);
 		store.applySessionStateEnvelope(
 			"session-1",
 			createSnapshotEnvelope(
@@ -5426,7 +5519,7 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 			)
 		);
 
-		const result = await store.sendMessage("session-1", "cursor restored follow-up - reply ok");
+		const result = await store.connection.sendMessage("session-1", "cursor restored follow-up - reply ok");
 
 		expect(result.isErr()).toBe(true);
 		expect(connectSession).not.toHaveBeenCalled();
@@ -5435,8 +5528,8 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 
 	it("fails closed for restored local created sessions without canonical lifecycle", async () => {
 		const store = new SessionStore();
-		const connectSession = vi.spyOn(store, "connectSession");
-		store.addSession({
+		const connectSession = vi.spyOn(store.connection, "connectSession");
+		store.write.addSession({
 			id: "session-1",
 			projectPath: "/repo",
 			agentId: "cursor",
@@ -5446,7 +5539,7 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 			sessionLifecycleState: "created",
 			parentId: null,
 		});
-		const result = await store.sendMessage("session-1", "cursor restored follow-up - reply ok");
+		const result = await store.connection.sendMessage("session-1", "cursor restored follow-up - reply ok");
 
 		expect(result.isErr()).toBe(true);
 		expect(sendPromptMock).not.toHaveBeenCalled();
@@ -5509,8 +5602,272 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 				],
 			},
 		});
-		expect(store.getSessionLifecycleStatus("session-1")).toBe("failed");
-		expect(store.getSessionCanSend("session-1")).toBe(false);
-		expect(store.getSessionConnectionError("session-1")).toBe("Provider disconnected");
+		expect(store.read.getSessionLifecycleStatus("session-1")).toBe("failed");
+		expect(store.read.getSessionCanSend("session-1")).toBe(false);
+		expect(store.read.getSessionConnectionError("session-1")).toBe("Provider disconnected");
+	});
+
+	it("ignores oversized session-state envelopes without mutating canonical graph state", () => {
+		const store = new SessionStore();
+		addColdSession(store);
+		const initialGraph = createSessionStateGraph({
+			revision: {
+				graphRevision: 7,
+				transcriptRevision: 7,
+				lastEventSeq: 7,
+			},
+			turnState: "Running",
+		});
+		store.applySessionStateEnvelope("session-1", createSnapshotEnvelope(initialGraph));
+
+		store.applySessionStateEnvelope("session-1", {
+			sessionId: "session-1",
+			graphRevision: 8,
+			lastEventSeq: 10,
+			payload: {
+				kind: "assistantTextDelta",
+				delta: {
+					turnId: "turn-1",
+					rowId: "assistant-1",
+					charOffset: 0,
+					deltaText: "x".repeat(getSessionStateEnvelopeByteBudget("assistantTextDelta")),
+					producedAtMonotonicMs: 12,
+					revision: 8,
+				},
+			},
+		});
+
+		expect(store.getSessionStateGraphForTest("session-1")?.revision).toEqual({
+			graphRevision: 7,
+			transcriptRevision: 7,
+			lastEventSeq: 7,
+		});
+		expect(store.getSessionStateGraphForTest("session-1")?.turnState).toBe("Running");
+	});
+
+	it("forwards viewport buffer pushes through the session store viewport controller", () => {
+		const store = new SessionStore();
+		addColdSession(store);
+		store.applySessionStateEnvelope(
+			"session-1",
+			createSnapshotEnvelope(
+				createSessionStateGraph({
+					revision: {
+						graphRevision: 7,
+						transcriptRevision: 7,
+						lastEventSeq: 7,
+					},
+				})
+			)
+		);
+
+		const push = createViewportBufferPush();
+		store.applySessionStateEnvelope("session-1", {
+			sessionId: "session-1",
+			graphRevision: 7,
+			lastEventSeq: 7,
+			payload: {
+				kind: "viewportBufferPush",
+				push,
+			},
+		});
+
+		expect(store.viewport.getBufferProjection("session-1")).toMatchObject({
+			viewportRevision: 1,
+			bufferStartIndex: 0,
+			bufferEndIndex: 1,
+		});
+	});
+
+	it("forwards viewport buffer deltas through the session store viewport controller", () => {
+		const store = new SessionStore();
+		addColdSession(store);
+		store.applySessionStateEnvelope(
+			"session-1",
+			createSnapshotEnvelope(
+				createSessionStateGraph({
+					revision: {
+						graphRevision: 7,
+						transcriptRevision: 7,
+						lastEventSeq: 7,
+					},
+				})
+			)
+		);
+
+		store.applySessionStateEnvelope("session-1", {
+			sessionId: "session-1",
+			graphRevision: 7,
+			lastEventSeq: 7,
+			payload: {
+				kind: "viewportBufferPush",
+				push: createViewportBufferPush(),
+			},
+		});
+
+		store.applySessionStateEnvelope("session-1", {
+			sessionId: "session-1",
+			graphRevision: 7,
+			lastEventSeq: 7,
+			payload: {
+				kind: "viewportBufferDelta",
+				delta: createViewportBufferDelta({
+					fromViewportRevision: 1,
+					toViewportRevision: 2,
+					appendedRows: [
+						{
+							rowId: "transcript:assistant-2",
+							sourceEntryId: "assistant-2",
+							kind: "assistantText",
+							version: "v1",
+							anchorEligible: true,
+							activeStreamingTail: null,
+							operationLinks: [],
+							interactionLinks: [],
+							content: {
+								kind: "transcript",
+								role: "assistant",
+								segments: [
+									{
+										kind: "text",
+										segmentId: "assistant-2:text",
+										text: "world",
+									},
+								],
+							},
+						},
+					],
+					appendedOffsetsPx: [120],
+					layoutRowCount: 2,
+					totalHeightPx: 240,
+					bufferEndOffsetPx: 240,
+				}),
+			},
+		});
+
+		expect(store.viewport.getBufferProjection("session-1")).toMatchObject({
+			viewportRevision: 2,
+			bufferEndIndex: 2,
+			layoutRowCount: 2,
+		});
+	});
+
+	it("applies multi-command transcript and graph patch deltas in order and clears pending send intent after both apply", async () => {
+		const store = new SessionStore();
+		store.write.addSession({
+			id: "session-1",
+			projectPath: "/repo",
+			agentId: "cursor",
+			title: "New Thread",
+			updatedAt: new Date("2026-04-19T00:00:00.000Z"),
+			createdAt: new Date("2026-04-19T00:00:00.000Z"),
+			sessionLifecycleState: "created",
+			parentId: null,
+		});
+		store.applySessionStateEnvelope(
+			"session-1",
+			createSnapshotEnvelope(
+				createSessionStateGraph({
+					agentId: "cursor",
+					lifecycle: createGraphLifecycle("reserved"),
+					turnState: "Idle",
+					messageCount: 0,
+					activeTurnFailure: null,
+					lastTerminalTurnId: null,
+					activeStreamingTail: null,
+					transcriptSnapshot: {
+						revision: 0,
+						entries: [],
+					},
+					revision: {
+						graphRevision: 0,
+						transcriptRevision: 0,
+						lastEventSeq: 0,
+					},
+				})
+			)
+		);
+
+		const sendResult = await store.connection.sendMessage("session-1", "multi-command ordering test");
+		expect(sendResult.isOk()).toBe(true);
+		expect(store.read.getSessionPendingSendIntent("session-1")).not.toBeNull();
+
+		const pending = store.read.getSessionPendingSendIntent("session-1");
+		expect(pending).not.toBeNull();
+		expect(pending).not.toBeUndefined();
+		const attemptId = pending?.attemptId;
+		expect(typeof attemptId).toBe("string");
+
+		const deltaEnvelope: SessionStateEnvelope = {
+			sessionId: "session-1",
+			graphRevision: 1,
+			lastEventSeq: 1,
+			payload: {
+				kind: "delta",
+				delta: {
+					fromRevision: {
+						graphRevision: 0,
+						transcriptRevision: 0,
+						lastEventSeq: 0,
+					},
+					toRevision: {
+						graphRevision: 1,
+						transcriptRevision: 1,
+						lastEventSeq: 1,
+					},
+					activity: {
+						kind: "awaiting_model",
+						activeOperationCount: 0,
+						activeSubagentCount: 0,
+						dominantOperationId: null,
+						blockingInteractionId: null,
+					},
+					turnState: "Running",
+					activeTurnFailure: null,
+					lastTerminalTurnId: null,
+					activeStreamingTail: null,
+					transcriptOperations: [
+						{
+							kind: "appendEntry",
+							entry: {
+								entryId: "user-multi-command-1",
+								role: "user",
+								segments: [
+									{
+										kind: "text",
+										segmentId: "user-multi-command-1:block:0",
+										text: "multi-command ordering test",
+									},
+								],
+								attemptId,
+							},
+						},
+					],
+					operationPatches: [],
+					interactionPatches: [],
+					changedFields: ["transcriptSnapshot", "activity", "turnState"],
+				},
+			},
+		};
+
+		expect(
+			routeSessionStateEnvelope("session-1", { graphRevision: 0, transcriptRevision: 0, lastEventSeq: 0 }, deltaEnvelope)
+		).toEqual([
+			expect.objectContaining({ kind: "applyTranscriptDelta" }),
+			expect.objectContaining({ kind: "applyGraphPatches" }),
+		]);
+
+		store.applySessionStateEnvelope("session-1", deltaEnvelope);
+
+		expect(store.read.getSessionPendingSendIntent("session-1")).toBeNull();
+		const graph = store.getSessionStateGraphForTest("session-1");
+		expect(graph?.turnState).toBe("Running");
+		expect(graph?.transcriptSnapshot).toMatchObject({
+			revision: 1,
+		});
+		expect(graph?.transcriptSnapshot.entries[0]).toMatchObject({
+			entryId: "user-multi-command-1",
+			attemptId,
+		});
 	});
 });

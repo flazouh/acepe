@@ -24,7 +24,7 @@
 	}
 </script>
 
-<div class="rounded-xl border border-border/50 bg-background/80 p-3">
+<div class="rounded border border-border/50 bg-background/80 p-3">
 	<div class="flex items-start justify-between gap-3">
 		<div class="min-w-0">
 			<p class="text-sm font-medium text-foreground">{card.title}</p>

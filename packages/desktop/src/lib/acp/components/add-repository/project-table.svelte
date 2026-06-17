@@ -1,8 +1,15 @@
 <script lang="ts">
 import { CircleNotch } from "phosphor-svelte";
 import { FolderSimple } from "phosphor-svelte";
-import ActionsCell from "./cells/actions-cell.svelte";
+import {
+	Table,
+	TableBody,
+	TableCell,
+	TableRow,
+} from "@acepe/ui/table";
+import { cn } from "$lib/utils.js";
 
+import ActionsCell from "./cells/actions-cell.svelte";
 import AgentCountsCell from "./cells/agent-counts-cell.svelte";
 import type { ProjectWithSessions } from "./open-project-dialog-props.js";
 
@@ -32,11 +39,8 @@ function getDisplayCounts(
 	return agentCounts.filter(([agentId]) => selectedSet.has(agentId));
 }
 
-function shortenPath(path: string): string {
-	const home = path.replace(/^\/Users\/[^/]+/, "~");
-	const parts = home.split("/");
-	if (parts.length <= 3) return home;
-	return `${parts.slice(0, 2).join("/")}/.../${parts[parts.length - 1]}`;
+function displayPath(path: string): string {
+	return path.replace(/^\/Users\/[^/]+/, "~");
 }
 
 function handleProjectRowKeydown(event: KeyboardEvent, project: ProjectWithSessions, isAdded: boolean): void {
@@ -49,12 +53,12 @@ function handleProjectRowKeydown(event: KeyboardEvent, project: ProjectWithSessi
 </script>
 
 {#if loading}
-	<div class="flex items-center justify-center gap-2 py-12 text-muted-foreground">
+	<div class="flex h-full min-h-0 w-full items-center justify-center gap-2 text-muted-foreground">
 		<CircleNotch class="size-4 animate-spin" />
 		<span class="text-xs">{"Scanning for projects..."}</span>
 	</div>
 {:else if projects.length === 0}
-	<div class="flex flex-col items-center justify-center gap-2 py-12 text-center px-6">
+	<div class="flex h-full min-h-0 w-full flex-col items-center justify-center gap-2 px-6 text-center">
 		<FolderSimple weight="light" class="size-8 text-muted-foreground/50" />
 		<p class="text-xs text-muted-foreground">
 			{"No projects with sessions found"}
@@ -64,40 +68,49 @@ function handleProjectRowKeydown(event: KeyboardEvent, project: ProjectWithSessi
 		</p>
 	</div>
 {:else}
-	{#each projects as project (project.path)}
-		{@const isAdded = addedPaths.has(project.path)}
-		<div
-			role="button"
-			tabindex={isAdded ? -1 : 0}
-			class="group mb-0.5 flex w-full items-center justify-between gap-2.5 rounded-md px-3 py-2 text-left transition-colors last:mb-0 {isAdded
-				? 'cursor-default bg-primary/[0.12]'
-				: 'cursor-pointer bg-accent/[0.45] hover:bg-accent/70 active:bg-accent/80'}"
-			onclick={() => {
-				if (!isAdded) onImport(project.path, project.name);
-			}}
-			onkeydown={(event) => handleProjectRowKeydown(event, project, isAdded)}
-		>
-			<div class="min-w-0 flex-1">
-				<div class="flex items-center gap-2">
-					<span class="truncate text-[12px] font-medium text-foreground">
-						{project.name}
-					</span>
-				</div>
-				<span class="mt-0.5 block truncate font-mono text-[10px] text-muted-foreground/60">
-					{shortenPath(project.path)}
-				</span>
-			</div>
-
-			<div class="flex shrink-0 items-center gap-2">
-				<AgentCountsCell
-					agentCounts={getDisplayCounts(Array.from(project.agentCounts.entries()))}
-				/>
-				<ActionsCell
-					{isAdded}
-					onImport={() => onImport(project.path, project.name)}
-					onUndo={() => onUndo(project.path, project.name)}
-				/>
-			</div>
-		</div>
-	{/each}
+	<Table class="acepe-table-wrapper-fill h-full min-h-0 w-full" style="table-layout: fixed; width: 100%;">
+		<colgroup>
+			<col style="width: 20%;" />
+			<col style="width: 52%;" />
+			<col style="width: 16%;" />
+			<col style="width: 12%;" />
+		</colgroup>
+		<TableBody>
+				{#each projects as project (project.path)}
+					{@const isAdded = addedPaths.has(project.path)}
+					<TableRow
+						class={cn(isAdded ? "cursor-default" : "cursor-pointer", isAdded && "opacity-80")}
+						role={isAdded ? undefined : "button"}
+						tabindex={isAdded ? -1 : 0}
+						onclick={() => {
+							if (!isAdded) onImport(project.path, project.name);
+						}}
+						onkeydown={(event) => handleProjectRowKeydown(event, project, isAdded)}
+					>
+					<TableCell class="min-w-0">
+						<span class="block truncate font-medium" title={project.name}>
+							{project.name}
+						</span>
+					</TableCell>
+					<TableCell class="min-w-0">
+						<span class="block truncate font-mono text-muted-foreground" title={project.path}>
+							{displayPath(project.path)}
+						</span>
+					</TableCell>
+					<TableCell class="whitespace-nowrap">
+							<AgentCountsCell
+								agentCounts={getDisplayCounts(Array.from(project.agentCounts.entries()))}
+							/>
+						</TableCell>
+						<TableCell class="whitespace-nowrap text-right">
+							<ActionsCell
+								{isAdded}
+								onImport={() => onImport(project.path, project.name)}
+								onUndo={() => onUndo(project.path, project.name)}
+							/>
+						</TableCell>
+					</TableRow>
+				{/each}
+			</TableBody>
+		</Table>
 {/if}

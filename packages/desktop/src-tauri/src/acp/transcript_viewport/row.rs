@@ -15,6 +15,8 @@ pub struct TranscriptViewportRow {
     pub operation_links: Vec<TranscriptViewportOperationLink>,
     pub interaction_links: Vec<TranscriptViewportInteractionLink>,
     pub content: TranscriptViewportRowContent,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub duration_started_at_ms: Option<u64>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, specta::Type, PartialEq, Eq)]
@@ -24,7 +26,7 @@ pub enum TranscriptViewportRowKind {
     AssistantText,
     AssistantThought,
     Tool,
-    Error,
+    AwaitingPlaceholder,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, specta::Type, PartialEq, Eq)]

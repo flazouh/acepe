@@ -539,6 +539,24 @@ describe("VoiceInputState", () => {
 		);
 	});
 
+	it("plays the start sound on pointer down before press-and-hold recording starts", () => {
+		const timers = installTimerHarness();
+		getModelStatusMock.mockReturnValue(okAsync({ is_downloaded: true, is_loaded: true }));
+
+		const state = new VoiceInputState({ sessionId: "session-pointer-sound-order" });
+		state.onMicPointerDown(createPointerEvent());
+
+		expect(playSoundMock).toHaveBeenCalledTimes(1);
+		expect(getModelStatusMock).not.toHaveBeenCalled();
+
+		timers.runPendingTimeouts();
+
+		expect(getModelStatusMock).toHaveBeenCalledTimes(1);
+		expect(playSoundMock.mock.invocationCallOrder[0]).toBeLessThan(
+			getModelStatusMock.mock.invocationCallOrder[0]
+		);
+	});
+
 	it("shows a tenths timer while recording and clears it after stop", async () => {
 		const timers = installTimerHarness();
 		getModelStatusMock.mockReturnValue(okAsync({ is_downloaded: true, is_loaded: true }));

@@ -29,14 +29,14 @@
 
 {#if mergeState === "merged"}
 	<div
-		class="flex items-center gap-1 rounded border border-border/50 bg-muted px-2 py-0.5 text-[0.6875rem] font-medium text-muted-foreground opacity-60 shrink-0"
+		class="flex items-center gap-1 rounded-lg border border-border/50 bg-muted px-2 py-0.5 text-[0.6875rem] font-medium text-muted-foreground opacity-60 shrink-0"
 	>
 		<GitMerge size={11} weight="fill" class="text-[#8250df]" />
 		{mergedLabel}
 	</div>
 {:else if onMerge}
 	<div
-		class="flex items-center rounded border border-border/50 bg-muted overflow-hidden text-[0.6875rem] shrink-0 relative"
+		class="flex items-center rounded-lg border border-border/50 bg-muted overflow-hidden text-[0.6875rem] shrink-0 relative"
 		onclick={(e) => e.stopPropagation()}
 		role="none"
 	>
@@ -64,7 +64,7 @@
 				</svg>
 			</button>
 			{#if dropdownOpen}
-				<div class="absolute top-full left-0 mt-1 z-50 min-w-[150px] rounded-md border border-border bg-popover p-1 shadow-md">
+				<div class="absolute top-full left-0 mt-1 z-50 min-w-[150px] rounded-lg border border-border bg-popover p-1 shadow-md">
 					{#each options as option (option.id)}
 						<button
 							type="button"

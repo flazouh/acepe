@@ -1,27 +1,20 @@
 <script lang="ts">
-	import ChevronDown from "@lucide/svelte/icons/chevron-down";
 	import { WarningCircle } from "phosphor-svelte";
+	import { Button } from "../button/index.js";
 	import { LoadingIcon } from "../icons/index.js";
 
 	interface Props {
 		title: string;
 		summary: string;
 		details: string;
-		detailsLabel?: string;
+		detailsHtml?: string | null;
 		dismissLabel?: string;
-		referenceId?: string;
-		referenceSearchable?: boolean;
-		referenceLabel?: string;
-		searchableReferenceLabel?: string;
-		localOnlyReferenceLabel?: string;
-		copyReferenceIdLabel?: string;
 		issueActionLabel?: string;
 		retryLabel?: string;
 		retryingLabel?: string;
 		isRetrying?: boolean;
 		onRetry?: (() => void) | undefined;
 		onDismiss?: (() => void) | undefined;
-		onCopyReferenceId?: (() => void) | undefined;
 		onIssueAction?: (() => void) | undefined;
 	}
 
@@ -29,126 +22,67 @@
 		title,
 		summary,
 		details,
-		detailsLabel = "Details",
+		detailsHtml = null,
 		dismissLabel = "Dismiss",
-		referenceId = undefined,
-		referenceSearchable = false,
-		referenceLabel = "Reference ID",
-		searchableReferenceLabel = "Searchable",
-		localOnlyReferenceLabel = "Local only",
-		copyReferenceIdLabel = "Copy ID",
 		issueActionLabel = "Create issue",
 		retryLabel = "Retry",
 		retryingLabel = "Retrying…",
 		isRetrying = false,
 		onRetry,
 		onDismiss,
-		onCopyReferenceId,
 		onIssueAction,
 	}: Props = $props();
 
-	let isExpanded = $state(false);
-
-	const hasDetails = $derived(details.trim().length > 0);
-
-	function toggleExpanded(): void {
-		if (!hasDetails) {
-			return;
-		}
-
-		isExpanded = !isExpanded;
-	}
+	const hasDetailsHtml = $derived(detailsHtml !== null && detailsHtml.trim().length > 0);
+	const hasDetails = $derived(!hasDetailsHtml && details.trim().length > 0);
+	const hasSummary = $derived(summary.trim().length > 0);
 </script>
 
-<div class="w-full">
-	{#if isExpanded && hasDetails}
-		<div class="rounded-t-lg bg-accent/50 overflow-hidden">
-			<div class="max-h-[220px] overflow-y-auto px-3 py-2">
-				<pre class="font-mono text-[0.6875rem] leading-relaxed whitespace-pre-wrap break-words text-foreground/80">{details}</pre>
-			</div>
+<div class="w-full rounded-lg border border-border bg-input/30">
+	{#if hasDetailsHtml}
+		<div class="error-details-shiki max-h-[min(50vh,420px)] overflow-y-auto border-b border-border px-3 py-2">
+			{@html detailsHtml}
+		</div>
+	{:else if hasDetails}
+		<div class="max-h-[220px] overflow-y-auto border-b border-border px-3 py-2">
+			<pre
+				class="font-mono text-[0.6875rem] leading-relaxed whitespace-pre-wrap break-words text-foreground/80"
+			>{details}</pre>
 		</div>
 	{/if}
 
-	<div
-		class="w-full rounded-lg bg-accent hover:bg-accent/80 transition-colors {isExpanded &&
-		hasDetails
-			? 'rounded-t-none'
-			: ''}"
-	>
-		<button
-			type="button"
-			class="w-full flex items-center justify-between px-3 py-1"
-			onclick={toggleExpanded}
-			aria-expanded={hasDetails ? isExpanded : undefined}
-		>
-			<div class="flex items-center gap-1.5 min-w-0 text-[0.6875rem]">
-				<WarningCircle size={13} weight="fill" class="shrink-0 text-destructive" />
-				<span class="font-medium text-foreground shrink-0">{title}</span>
+	<div class="flex w-full min-w-0 items-center gap-3 pl-1 pr-3 py-1">
+		<div class="flex min-w-0 flex-1 items-center gap-1.5 text-[0.6875rem]">
+			<WarningCircle size={13} weight="fill" class="shrink-0 text-destructive" />
+			<span class="shrink-0 font-medium text-foreground">{title}</span>
+			{#if hasSummary}
 				<span class="truncate text-muted-foreground">{summary}</span>
-				{#if hasDetails}
-					<span class="shrink-0 text-muted-foreground/60 ml-0.5">{detailsLabel}</span>
-				{/if}
-			</div>
-			<ChevronDown
-				class="size-3.5 text-muted-foreground shrink-0 transition-transform duration-200 {isExpanded
-					? 'rotate-180'
-					: ''}"
-				/>
-			</button>
-			{#if referenceId}
-				<div class="flex items-center justify-between gap-2 border-t border-border/40 px-3 py-2">
-					<div class="flex min-w-0 items-center gap-2 text-[0.625rem]">
-						<span class="shrink-0 uppercase tracking-[0.12em] text-muted-foreground/80">
-							{referenceLabel}
-						</span>
-						<code class="truncate rounded bg-background/60 px-1.5 py-0.5 font-mono text-foreground">
-							{referenceId}
-						</code>
-						<span class="shrink-0 text-muted-foreground/70">
-							{referenceSearchable ? searchableReferenceLabel : localOnlyReferenceLabel}
-						</span>
-					</div>
-					{#if onCopyReferenceId}
-						<button
-							type="button"
-							class="h-6 shrink-0 rounded px-2 text-[10px] font-mono text-muted-foreground transition-colors hover:bg-accent/60 hover:text-foreground"
-							onclick={(event) => {
-								event.stopPropagation();
-								onCopyReferenceId();
-							}}
-						>
-							{copyReferenceIdLabel}
-						</button>
-					{/if}
-				</div>
 			{/if}
+		</div>
+
 		{#if onDismiss || onRetry || onIssueAction}
-			<div class="flex items-center justify-end gap-1 px-2 pb-2">
+			<div
+				class="ml-auto flex shrink-0 items-center gap-1"
+				role="none"
+				onclick={(event: MouseEvent) => event.stopPropagation()}
+			>
 				{#if onDismiss}
-					<button
-						type="button"
-						class="h-6 px-2 text-[10px] font-mono text-muted-foreground hover:text-foreground hover:bg-accent/60 rounded transition-colors cursor-pointer"
-						onclick={onDismiss}
-					>
+					<Button variant="headerAction" size="headerAction" onclick={onDismiss}>
 						{dismissLabel}
-					</button>
+					</Button>
 				{/if}
 				{#if onIssueAction}
-					<button
-						type="button"
-						class="h-6 px-2 text-[10px] font-mono text-muted-foreground hover:text-foreground hover:bg-accent/60 rounded transition-colors cursor-pointer"
-						onclick={onIssueAction}
-					>
+					<Button variant="headerAction" size="headerAction" onclick={onIssueAction}>
 						{issueActionLabel}
-					</button>
+					</Button>
 				{/if}
 				{#if onRetry}
-					<button
-						type="button"
-						class="h-6 px-2 text-[10px] font-mono font-medium text-foreground bg-accent/60 hover:bg-accent/80 rounded transition-colors cursor-pointer disabled:cursor-wait disabled:opacity-70 inline-flex items-center gap-1.5"
-						onclick={onRetry}
+					<Button
+						variant="headerAction"
+						size="headerAction"
 						disabled={isRetrying}
 						aria-busy={isRetrying ? "true" : undefined}
+						onclick={onRetry}
 					>
 						{#if isRetrying}
 							<LoadingIcon class="shrink-0" size={10} />
@@ -156,9 +90,40 @@
 						{:else}
 							{retryLabel}
 						{/if}
-					</button>
+					</Button>
 				{/if}
 			</div>
 		{/if}
 	</div>
 </div>
+
+<style>
+	.error-details-shiki {
+		font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace);
+		font-size: 0.75rem;
+		line-height: 1.5;
+		white-space: pre-wrap;
+		word-break: break-word;
+	}
+
+	.error-details-shiki :global(pre),
+	.error-details-shiki :global(code) {
+		margin: 0;
+		padding: 0;
+		background: transparent !important;
+		font-family: inherit;
+	}
+
+	.error-details-shiki :global(.line) {
+		display: block;
+		min-height: 1.5em;
+	}
+
+	.error-details-shiki :global(span) {
+		color: var(--shiki-light);
+	}
+
+	:global(.dark) .error-details-shiki :global(span) {
+		color: var(--shiki-dark);
+	}
+</style>

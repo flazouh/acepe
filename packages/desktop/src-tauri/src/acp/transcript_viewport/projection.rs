@@ -10,12 +10,17 @@ use crate::acp::transcript_viewport::row::{
 use sha2::{Digest, Sha256};
 use std::collections::BTreeMap;
 
+const AWAITING_PLACEHOLDER_ID: &str = "awaiting:planning";
+const AWAITING_PLACEHOLDER_VERSION: &str = "00000000000000000000000000000000";
+
 #[must_use]
 pub fn project_transcript_viewport_rows(
     transcript_snapshot: &TranscriptSnapshot,
     operations: &[OperationSnapshot],
     interactions: &[InteractionSnapshot],
     active_streaming_tail: Option<&ActiveStreamingTail>,
+    awaiting_placeholder: bool,
+    awaiting_duration_started_at_ms: Option<u64>,
 ) -> Vec<TranscriptViewportRow> {
     let operation_links_by_entry = operation_links_by_entry_id(operations);
     let interaction_links_by_operation = interaction_links_by_operation_id(interactions);
@@ -29,34 +34,30 @@ pub fn project_transcript_viewport_rows(
                 &operation_links_by_entry,
                 &interaction_links_by_operation,
                 active_streaming_tail,
+                awaiting_duration_started_at_ms,
             )
         })
         .collect();
 
-    ensure_unique_display_row_ids(&mut rows);
-    rows
-}
-
-/// Guarantees the display `row_id` is unique across the projected rows.
-///
-/// `row_id` is the Acepe-owned display identity for a layout row. It keys
-/// `LayoutIndex.index_by_row_id` (a map, so collisions silently collapse and
-/// corrupt offset lookups) and the WebView keyed-each (which throws on a
-/// duplicate key). A provider-derived `entry_id` is NOT guaranteed unique —
-/// history parsing can emit two entries that reuse one Bedrock/Claude
-/// `tool_use.id`. The second-and-later occurrence of a colliding id gets a
-/// stable ordinal suffix so both rows survive with distinct identities; their
-/// `source_entry_id` stays the raw provider id, so operation/interaction links
-/// (resolved by `source_entry_id`) are unaffected.
-fn ensure_unique_display_row_ids(rows: &mut [TranscriptViewportRow]) {
-    let mut occurrences: BTreeMap<String, u32> = BTreeMap::new();
-    for row in rows.iter_mut() {
-        let seen = occurrences.entry(row.row_id.clone()).or_insert(0);
-        if *seen > 0 {
-            row.row_id = format!("{}#dup{}", row.row_id, *seen);
-        }
-        *seen += 1;
+    if awaiting_placeholder {
+        rows.push(TranscriptViewportRow {
+            row_id: AWAITING_PLACEHOLDER_ID.to_string(),
+            source_entry_id: AWAITING_PLACEHOLDER_ID.to_string(),
+            kind: TranscriptViewportRowKind::AwaitingPlaceholder,
+            version: AWAITING_PLACEHOLDER_VERSION.to_string(),
+            anchor_eligible: true,
+            active_streaming_tail: None,
+            operation_links: Vec::new(),
+            interaction_links: Vec::new(),
+            content: TranscriptViewportRowContent::Transcript {
+                role: TranscriptEntryRole::Assistant,
+                segments: Vec::new(),
+            },
+            duration_started_at_ms: awaiting_duration_started_at_ms,
+        });
     }
+
+    rows
 }
 
 fn project_entry(
@@ -64,6 +65,7 @@ fn project_entry(
     operation_links_by_entry: &BTreeMap<String, Vec<TranscriptViewportOperationLink>>,
     interaction_links_by_operation: &BTreeMap<String, Vec<TranscriptViewportInteractionLink>>,
     active_streaming_tail: Option<&ActiveStreamingTail>,
+    awaiting_duration_started_at_ms: Option<u64>,
 ) -> Option<TranscriptViewportRow> {
     let entry_id = entry.entry_id.trim();
     if entry_id.is_empty() {
@@ -94,6 +96,12 @@ fn project_entry(
         &content,
     );
 
+    let duration_started_at_ms = if active_streaming_tail.is_some() {
+        awaiting_duration_started_at_ms
+    } else {
+        None
+    };
+
     Some(TranscriptViewportRow {
         row_id: format!("transcript:{entry_id}"),
         source_entry_id: entry_id.to_string(),
@@ -104,6 +112,7 @@ fn project_entry(
         operation_links,
         interaction_links,
         content,
+        duration_started_at_ms,
     })
 }
 
@@ -122,7 +131,6 @@ fn row_kind(entry: &TranscriptEntry) -> TranscriptViewportRowKind {
     match entry.role {
         TranscriptEntryRole::User => TranscriptViewportRowKind::User,
         TranscriptEntryRole::Tool => TranscriptViewportRowKind::Tool,
-        TranscriptEntryRole::Error => TranscriptViewportRowKind::Error,
         TranscriptEntryRole::Assistant => {
             if entry
                 .segments
@@ -250,6 +258,28 @@ fn row_version(
                 hasher.update(b"thought");
                 hasher.update(segment_id.as_bytes());
                 hasher.update(text.as_bytes());
+            }
+            TranscriptSegment::LocalCommand {
+                segment_id,
+                command,
+                message,
+                args,
+                stdout,
+                model_display_name,
+                model_description,
+            } => {
+                hasher.update(b"localCommand");
+                hasher.update(segment_id.as_bytes());
+                hasher.update(command.as_bytes());
+                hasher.update(message.as_bytes());
+                hasher.update(args.as_bytes());
+                hasher.update(stdout.as_bytes());
+                if let Some(name) = model_display_name {
+                    hasher.update(name.as_bytes());
+                }
+                if let Some(description) = model_description {
+                    hasher.update(description.as_bytes());
+                }
             }
         }
     }
@@ -382,7 +412,6 @@ mod tests {
                 text_entry("assistant-1", TranscriptEntryRole::Assistant, "working"),
                 thought_entry("thought-1", "thinking"),
                 text_entry("tool-1", TranscriptEntryRole::Tool, "bash"),
-                text_entry("error-1", TranscriptEntryRole::Error, "failed"),
             ]),
             &[linked_operation("tool-1", OperationState::Running)],
             &[permission_interaction("permission-1", "op:tool-1")],
@@ -390,6 +419,8 @@ mod tests {
                 row_id: "assistant-1".to_string(),
                 content_kind: ActiveStreamingTailContentKind::Message,
             }),
+            false,
+            None,
         );
 
         assert_eq!(
@@ -412,10 +443,6 @@ mod tests {
                 (
                     &"transcript:tool-1".to_string(),
                     &TranscriptViewportRowKind::Tool
-                ),
-                (
-                    &"transcript:error-1".to_string(),
-                    &TranscriptViewportRowKind::Error
                 ),
             ]
         );
@@ -445,6 +472,8 @@ mod tests {
             ],
             &[],
             None,
+            false,
+            None,
         );
 
         assert_eq!(
@@ -467,11 +496,15 @@ mod tests {
             &[linked_operation("tool-1", OperationState::Running)],
             &[],
             None,
+            false,
+            None,
         );
         let completed_rows = project_transcript_viewport_rows(
             &transcript,
             &[linked_operation("tool-1", OperationState::Completed)],
             &[],
+            None,
+            false,
             None,
         );
 
@@ -490,6 +523,8 @@ mod tests {
             &[],
             &[],
             None,
+            false,
+            None,
         );
 
         assert!(rows.is_empty());
@@ -506,6 +541,8 @@ mod tests {
             &[],
             &[],
             None,
+            false,
+            None,
         );
 
         let TranscriptViewportRowContent::Transcript { role, segments } = &rows[0].content;
@@ -520,12 +557,10 @@ mod tests {
     }
 
     #[test]
-    fn duplicate_entry_ids_get_unique_display_row_ids() {
-        // A history-parsed session can carry two transcript entries with the
-        // same provider-derived entry_id (e.g. a reused Bedrock `tool_use.id`).
-        // The viewport row_id is the Acepe-owned display identity and MUST be
-        // unique: it keys `LayoutIndex.index_by_row_id` (a map — duplicates
-        // collapse, corrupting offsets) and the WebView keyed-each.
+    fn duplicate_entry_ids_project_with_identical_row_ids_without_dup_suffix() {
+        // Authority-owned ids are unique upstream; the viewport no longer suffixes
+        // colliding row ids — duplicate source entry ids would surface as duplicate
+        // row ids (a data bug), not be masked downstream.
         let rows = project_transcript_viewport_rows(
             &snapshot(vec![
                 text_entry("toolu_bdrk_dup", TranscriptEntryRole::Tool, "first"),
@@ -535,17 +570,177 @@ mod tests {
             &[],
             &[],
             None,
+            false,
+            None,
         );
 
         assert_eq!(rows.len(), 3, "no row is dropped");
-        let row_ids: Vec<&str> = rows.iter().map(|row| row.row_id.as_str()).collect();
-        let unique: std::collections::BTreeSet<&str> = row_ids.iter().copied().collect();
-        assert_eq!(unique.len(), 3, "display row_ids are unique: {row_ids:?}");
-        // First occurrence keeps the canonical id; operation linking still
-        // resolves via source_entry_id, which stays the raw provider id.
-        assert_eq!(rows[0].row_id, "transcript:toolu_bdrk_dup");
+        assert!(rows.iter().all(|row| row.row_id == "transcript:toolu_bdrk_dup"));
         for row in &rows {
             assert_eq!(row.source_entry_id, "toolu_bdrk_dup");
         }
+    }
+
+    #[test]
+    fn streaming_assistant_row_receives_awaiting_duration_started_at_ms() {
+        let rows = project_transcript_viewport_rows(
+            &snapshot(vec![
+                text_entry("user-1", TranscriptEntryRole::User, "prompt"),
+                text_entry("assistant-1", TranscriptEntryRole::Assistant, ""),
+            ]),
+            &[],
+            &[],
+            Some(&ActiveStreamingTail {
+                row_id: "assistant-1".to_string(),
+                content_kind: ActiveStreamingTailContentKind::Message,
+            }),
+            false,
+            Some(1_700_000_000_000),
+        );
+
+        let assistant = &rows[1];
+        assert_eq!(
+            assistant.duration_started_at_ms,
+            Some(1_700_000_000_000)
+        );
+        assert_eq!(
+            assistant.active_streaming_tail,
+            Some(ActiveStreamingTailContentKind::Message)
+        );
+    }
+
+    #[test]
+    fn non_streaming_assistant_row_has_no_duration_started_at_ms() {
+        let rows = project_transcript_viewport_rows(
+            &snapshot(vec![text_entry(
+                "assistant-1",
+                TranscriptEntryRole::Assistant,
+                "hello",
+            )]),
+            &[],
+            &[],
+            None,
+            false,
+            Some(1_700_000_000_000),
+        );
+
+        assert_eq!(rows[0].duration_started_at_ms, None);
+    }
+
+    #[test]
+    fn awaiting_placeholder_appended_last_when_flag_true() {
+        let rows = project_transcript_viewport_rows(
+            &snapshot(vec![
+                text_entry("user-1", TranscriptEntryRole::User, "prompt"),
+            ]),
+            &[],
+            &[],
+            None,
+            true,
+            Some(1_700_000_000_000),
+        );
+
+        assert_eq!(rows.len(), 2);
+        let last = rows.last().unwrap();
+        assert_eq!(last.kind, TranscriptViewportRowKind::AwaitingPlaceholder);
+        assert_eq!(last.row_id, "awaiting:planning");
+        assert_eq!(last.source_entry_id, "awaiting:planning");
+        assert_eq!(last.duration_started_at_ms, Some(1_700_000_000_000));
+    }
+
+    #[test]
+    fn awaiting_placeholder_not_emitted_when_flag_false() {
+        let rows = project_transcript_viewport_rows(
+            &snapshot(vec![
+                text_entry("user-1", TranscriptEntryRole::User, "prompt"),
+            ]),
+            &[],
+            &[],
+            None,
+            false,
+            None,
+        );
+
+        assert_eq!(rows.len(), 1);
+        assert_ne!(rows[0].kind, TranscriptViewportRowKind::AwaitingPlaceholder);
+    }
+
+    #[test]
+    fn awaiting_placeholder_version_is_constant_across_projections() {
+        let snapshot = snapshot(vec![
+            text_entry("user-1", TranscriptEntryRole::User, "prompt"),
+        ]);
+        let rows1 = project_transcript_viewport_rows(
+            &snapshot, &[], &[], None, true, Some(1_700_000_000_000),
+        );
+        let rows2 = project_transcript_viewport_rows(
+            &snapshot, &[], &[], None, true, Some(1_700_000_000_000),
+        );
+
+        let version1 = &rows1.last().unwrap().version;
+        let version2 = &rows2.last().unwrap().version;
+        assert_eq!(version1, version2, "awaiting row version is stable");
+    }
+
+    #[test]
+    fn awaiting_placeholder_has_no_links_and_no_streaming_tail() {
+        let rows = project_transcript_viewport_rows(
+            &snapshot(vec![
+                text_entry("user-1", TranscriptEntryRole::User, "prompt"),
+            ]),
+            &[],
+            &[],
+            None,
+            true,
+            Some(1_700_000_000_000),
+        );
+
+        let placeholder = rows.last().unwrap();
+        assert!(placeholder.operation_links.is_empty());
+        assert!(placeholder.interaction_links.is_empty());
+        assert!(placeholder.active_streaming_tail.is_none());
+        assert!(placeholder.anchor_eligible);
+    }
+
+    #[test]
+    fn awaiting_placeholder_content_is_empty_transcript() {
+        let rows = project_transcript_viewport_rows(
+            &snapshot(vec![]),
+            &[],
+            &[],
+            None,
+            true,
+            Some(1_700_000_000_000),
+        );
+
+        let placeholder = &rows[0];
+        let TranscriptViewportRowContent::Transcript { role, segments } = &placeholder.content;
+        assert_eq!(role, &TranscriptEntryRole::Assistant);
+        assert!(segments.is_empty());
+    }
+
+    #[test]
+    fn awaiting_placeholder_id_survives_dedup_check() {
+        let mut entries: Vec<TranscriptEntry> = (0..100)
+            .map(|i| text_entry(&format!("entry-{}", i), TranscriptEntryRole::Tool, "x"))
+            .collect();
+        entries.push(text_entry("user-1", TranscriptEntryRole::User, "prompt"));
+        let rows = project_transcript_viewport_rows(
+            &snapshot(entries),
+            &[],
+            &[],
+            None,
+            true,
+            Some(1_700_000_000_000),
+        );
+
+        assert_eq!(rows.len(), 102);
+        let row_ids: Vec<&str> = rows.iter().map(|r| r.row_id.as_str()).collect();
+        let unique: std::collections::BTreeSet<&str> = row_ids.iter().copied().collect();
+        assert_eq!(unique.len(), 102, "all row_ids are unique including awaiting:planning");
+        assert!(
+            rows.iter().any(|r| r.kind == TranscriptViewportRowKind::AwaitingPlaceholder),
+            "awaiting placeholder row is present"
+        );
     }
 }

@@ -1,38 +1,38 @@
 <script lang="ts">
-	import type { Snippet } from 'svelte';
+	import type { Snippet } from "svelte";
 
-	import { ProjectLetterBadge } from '../project-letter-badge/index.js';
-	import AppSessionItem from './app-session-item.svelte';
-	import type { AppProjectGroup } from './types.js';
+	import { cn } from "../../lib/utils.js";
+	import { ProjectLetterBadge } from "../project-letter-badge/index.js";
+	import AppSessionItem from "./app-session-item.svelte";
+	import type { AppProjectGroup } from "./types.js";
 
 	interface Props {
-		group: AppProjectGroup;
-		/** Override the header row (desktop passes ProjectHeader + settings menu) */
+		group?: AppProjectGroup;
 		header?: Snippet;
-		/** Override the session list area (desktop passes VirtualizedSessionList) */
 		children?: Snippet;
-		/** Inline style for the card root (desktop uses this for flex sizing) */
+		footer?: Snippet;
 		style?: string;
+		class?: string;
 	}
 
-	let { group, header, children, style }: Props = $props();
+	let { group, header, children, footer, style, class: className = "" }: Props = $props();
 </script>
 
-<!--
-	Card wrapper — matches the per-project card in session-list-ui.svelte:
-	  flex flex-col overflow-hidden rounded-lg bg-card shadow-sm
--->
-<div class="flex flex-col overflow-hidden rounded-lg bg-card shadow-sm" {style}>
-	<!-- Header row -->
+<div
+	class={cn(
+		"flex flex-col overflow-hidden rounded-lg border border-border/50 bg-card/75 opacity-50 transition-opacity duration-150 hover:opacity-100 focus-within:opacity-100",
+		className
+	)}
+	{style}
+>
 	{#if header}
 		{@render header()}
-	{:else}
-		<!-- Default header — matches ProjectHeader visual -->
+	{:else if group}
 		<div class="shrink-0 flex items-center border-b border-border/50">
 			<div class="inline-flex items-center justify-center h-7 w-7 shrink-0">
 				<ProjectLetterBadge
 					name={group.name}
-					color={group.color ?? '#6B7280'}
+					color={group.color ?? "#6B7280"}
 					iconSrc={group.iconSrc ?? null}
 					size={16}
 				/>
@@ -43,11 +43,9 @@
 		</div>
 	{/if}
 
-	<!-- Session list area -->
 	{#if children}
 		{@render children()}
-	{:else}
-		<!-- Default sessions — gap-0.5 p-1 matches VirtualizedSessionList wrapper -->
+	{:else if group}
 		<div class="flex-1 min-h-0 overflow-auto">
 			<div class="flex flex-col gap-0.5 p-1">
 				{#each group.sessions as session (session.id)}
@@ -55,5 +53,9 @@
 				{/each}
 			</div>
 		</div>
+	{/if}
+
+	{#if footer}
+		{@render footer()}
 	{/if}
 </div>

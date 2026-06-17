@@ -169,7 +169,7 @@ onDestroy(() => {
 		<Button size="sm" onclick={nextPhase}>Next</Button>
 	</div>
 
-	<div class="min-h-0 flex-1 overflow-hidden rounded-md border border-border bg-background">
+	<div class="min-h-0 flex-1 overflow-hidden rounded-lg border border-border bg-background">
 		<AgentPanelContent
 			panelId={DEFAULT_PANEL_ID}
 			viewState={DEFAULT_VIEW_STATE}
@@ -185,7 +185,6 @@ onDestroy(() => {
 			availableAgents={[]}
 			effectiveTheme={controller.theme}
 			modifiedFilesState={null}
-			isWaitingForResponse={isWaitingForFirstAssistantText}
 		/>
 	</div>
 </div>

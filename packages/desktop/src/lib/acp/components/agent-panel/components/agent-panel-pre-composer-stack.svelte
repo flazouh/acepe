@@ -16,15 +16,17 @@ import type { TodoState } from "../../../types/todo.js";
 import type { PrGenerationConfig } from "../../modified-files/types/pr-generation-config.js";
 import PrStatusCard from "../../pr-status-card/pr-status-card.svelte";
 import ModifiedFilesHeader from "../../modified-files/modified-files-header.svelte";
-import { AgentPanelQueueCardStrip as SharedQueueCardStrip } from "@acepe/ui/agent-panel";
-import { AgentPanelTodoHeader as SharedTodoHeader } from "@acepe/ui/agent-panel";
+import {
+	AgentPanelQueueCardStrip as SharedQueueCardStrip,
+	AgentPanelTodoHeader as SharedTodoHeader,
+	AgentPanelSignInCard as SharedSignInCard,
+} from "@acepe/ui/agent-panel";
 import CopyButton from "../../messages/copy-button.svelte";
 import PermissionBar from "../../tool-calls/permission-bar.svelte";
 import PreSessionWorktreeCard from "./pre-session-worktree-card.svelte";
 import WorktreeSetupCard from "./worktree-setup-card.svelte";
 import AgentInstallCard from "./agent-install-card.svelte";
 import AgentErrorCard from "./agent-error-card.svelte";
-import { getWorktreeDefaultStore } from "../../worktree/worktree-default-store.svelte.js";
 import type { WorktreeSetupState } from "../logic/worktree-setup-events.js";
 import type { ShipCardData } from "../../ship-card/ship-card-parser.js";
 
@@ -57,14 +59,11 @@ let {
 	onCopyInlineErrorReference,
 	inlineErrorIssueDraft,
 	onIssueFromInlineError,
-	showPreSessionWorktreeCard,
-	worktreePending,
-	worktreeToggleProjectPath,
-	effectiveProjectName,
 	preSessionWorktreeFailure,
+	worktreeToggleProjectPath,
+	worktreePending,
 	onPreSessionWorktreeYes,
 	onPreSessionWorktreeNo,
-	onPreSessionWorktreeAlways,
 	onPreSessionWorktreeDismiss,
 	onRetryWorktree,
 	worktreeSetupState,
@@ -104,6 +103,8 @@ let {
 	onQueueClear,
 	onQueueResume,
 	onQueueSendNow,
+	signInRequirement,
+	onDismissSignIn,
 }: {
 	reviewMode: boolean;
 	showConversationChrome: boolean;
@@ -119,14 +120,11 @@ let {
 	onCopyInlineErrorReference: () => void;
 	inlineErrorIssueDraft: IssueReportDraft | null;
 	onIssueFromInlineError: () => void;
-	showPreSessionWorktreeCard: boolean;
-	worktreePending: boolean;
-	worktreeToggleProjectPath: string | null;
-	effectiveProjectName: string | null;
 	preSessionWorktreeFailure: string | null;
+	worktreeToggleProjectPath: string | null;
+	worktreePending: boolean;
 	onPreSessionWorktreeYes: () => void;
 	onPreSessionWorktreeNo: () => void;
-	onPreSessionWorktreeAlways: () => void;
 	onPreSessionWorktreeDismiss: () => void;
 	onRetryWorktree: () => void;
 	worktreeSetupState: WorktreeSetupState | null;
@@ -171,7 +169,18 @@ let {
 	onQueueClear: () => void;
 	onQueueResume: (() => void) | undefined;
 	onQueueSendNow: (messageId: string) => void;
+	signInRequirement: { agent: string; instructions: string } | null;
+	onDismissSignIn: () => void;
 } = $props();
+
+function resolveSignInCommand(agentDisplayName: string): string | null {
+	switch (agentDisplayName.toLowerCase()) {
+		case "cursor":
+			return "agent login";
+		default:
+			return null;
+	}
+}
 </script>
 
 <div style:display={reviewMode ? "none" : undefined}>
@@ -192,33 +201,36 @@ let {
 			<div class={centeredFullscreenContent ? "flex justify-center" : ""}>
 				<div class={centeredFullscreenContent ? "w-full max-w-[60%]" : ""}>
 					<div class="flex flex-col gap-0.5 px-5">
+						{#if signInRequirement}
+							<SharedSignInCard
+								title="Sign in to continue"
+								message={signInRequirement.instructions}
+								command={resolveSignInCommand(signInRequirement.agent)}
+								onDismiss={onDismissSignIn}
+							/>
+						{/if}
 						{#if showInlineErrorCard}
 							<AgentErrorCard
 								title={errorInfo.title}
 								summary={errorInfo.summary ?? "Failed to connect to agent"}
 								details={errorInfo.details ?? "Unknown error"}
-								referenceId={inlineErrorReferenceId}
-								referenceSearchable={inlineErrorReferenceSearchable}
 								isRetrying={isRetryingConnection}
 								onRetry={onRetryConnection}
 								onDismiss={onDismissError}
-								onCopyReferenceId={onCopyInlineErrorReference}
 								issueActionLabel={inlineErrorIssueDraft
 									? resolveIssueActionLabel(inlineErrorIssueDraft)
 									: "Create issue"}
 								onIssueAction={inlineErrorIssueDraft ? onIssueFromInlineError : undefined}
 							/>
 						{/if}
-						{#if showPreSessionWorktreeCard && worktreeToggleProjectPath}
+						{#if preSessionWorktreeFailure && worktreeToggleProjectPath}
 							<PreSessionWorktreeCard
+								variant="card"
 								pendingWorktreeEnabled={worktreePending}
-								alwaysEnabled={getWorktreeDefaultStore().globalDefault}
 								failureMessage={preSessionWorktreeFailure}
 								projectPath={worktreeToggleProjectPath}
-								projectName={effectiveProjectName ?? null}
 								onYes={onPreSessionWorktreeYes}
 								onNo={onPreSessionWorktreeNo}
-								onAlways={onPreSessionWorktreeAlways}
 								onDismiss={onPreSessionWorktreeDismiss}
 								onRetry={worktreePending ? onRetryWorktree : undefined}
 							/>

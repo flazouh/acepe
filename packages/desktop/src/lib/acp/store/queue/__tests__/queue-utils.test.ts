@@ -148,6 +148,7 @@ function createSession(overrides: Partial<QueueSessionSnapshot> = {}): QueueSess
 		updatedAt: new Date("2026-03-30T12:00:00.000Z"),
 		currentModeId,
 		connectionError: null,
+		sequenceId: null,
 		...overrides,
 	};
 }
@@ -168,7 +169,7 @@ describe("buildQueueItem", () => {
 		);
 
 		expect(item.state.activity.kind).toBe("thinking");
-		expect(classifyItem(item)).toBe("working");
+		expect(classifyItem(item)).toBe("planning");
 	});
 
 	it("keeps the last tool call while the session is planning next moves", () => {
@@ -255,6 +256,7 @@ describe("buildQueueItem", () => {
 				isThinking: true,
 				status: "error",
 				connectionError: "Resume failed",
+			sequenceId: null,
 			}),
 			null,
 			DEFAULT_URGENCY,
@@ -308,6 +310,22 @@ describe("buildQueueItem", () => {
 		expect(item.activeTurnFailure?.message).toBe("Usage limit reached");
 		expect(classifyItem(item)).toBe("error");
 	});
+	it("preserves session sequence id on queue items", () => {
+		const item = buildQueueItem(
+			createSession({ sequenceId: 7 }),
+			null,
+			DEFAULT_URGENCY,
+			false,
+			false,
+			false,
+			null,
+			null,
+			null,
+			null
+		);
+
+		expect(item.sequenceId).toBe(7);
+	});
 });
 
 describe("buildQueueSessionSnapshot", () => {
@@ -324,6 +342,7 @@ describe("buildQueueSessionSnapshot", () => {
 			updatedAt: new Date("2026-03-30T12:00:00.000Z"),
 			currentModeId: "plan",
 			connectionError: null,
+			sequenceId: null,
 			activeTurnFailure: null,
 			liveSessionSource: makeLiveSource(makeCanonicalProjection("ready", "idle")),
 			interactionSnapshot: {
@@ -354,6 +373,7 @@ describe("buildQueueSessionSnapshot", () => {
 			updatedAt: new Date("2026-03-30T12:00:00.000Z"),
 			currentModeId: "plan",
 			connectionError: null,
+			sequenceId: null,
 			activeTurnFailure: null,
 			liveSessionSource: makeLiveSource(makeCanonicalProjection("ready", "paused")),
 			interactionSnapshot: {
@@ -381,6 +401,7 @@ describe("buildQueueSessionSnapshot", () => {
 			updatedAt: new Date("2026-03-30T12:00:00.000Z"),
 			currentModeId: null,
 			connectionError: null,
+			sequenceId: null,
 			activeTurnFailure: null,
 			liveSessionSource: makeLiveSource(makeCanonicalProjection("ready", "idle")),
 			interactionSnapshot: {
@@ -422,6 +443,7 @@ describe("buildQueueSessionSnapshot", () => {
 			updatedAt: new Date("2026-03-30T12:00:00.000Z"),
 			currentModeId: "plan",
 			connectionError: null,
+			sequenceId: null,
 			activeTurnFailure: null,
 			liveSessionSource: makeLiveSource(makeCanonicalProjection("ready", "waiting_for_user")),
 			interactionSnapshot: {
@@ -453,6 +475,7 @@ describe("buildQueueSessionSnapshot", () => {
 			updatedAt: new Date("2026-03-30T12:00:00.000Z"),
 			currentModeId: "build",
 			connectionError: null,
+			sequenceId: null,
 			activeTurnFailure: null,
 			liveSessionSource: makeLiveSource(makeCanonicalProjection("ready", "running_operation")),
 			interactionSnapshot: {
@@ -482,6 +505,7 @@ describe("buildQueueSessionSnapshot", () => {
 			updatedAt: new Date("2026-03-30T12:00:00.000Z"),
 			currentModeId: null,
 			connectionError: null,
+			sequenceId: null,
 			activeTurnFailure: null,
 			liveSessionSource: makeLiveSource(makeCanonicalProjection("reserved", "awaiting_model")),
 			interactionSnapshot: {
@@ -511,6 +535,7 @@ describe("buildQueueSessionSnapshot", () => {
 			updatedAt: new Date("2026-03-30T12:00:00.000Z"),
 			currentModeId: null,
 			connectionError: "Resume failed",
+			sequenceId: null,
 			activeTurnFailure: null,
 			liveSessionSource: makeLiveSource(
 				makeCanonicalProjection("failed", "idle", "Resume failed")
@@ -540,6 +565,7 @@ describe("buildQueueSessionSnapshot", () => {
 			updatedAt: new Date("2026-03-30T12:00:00.000Z"),
 			currentModeId: null,
 			connectionError: null,
+			sequenceId: null,
 			activeTurnFailure: null,
 			liveSessionSource: makeLiveSource(null),
 			interactionSnapshot: {

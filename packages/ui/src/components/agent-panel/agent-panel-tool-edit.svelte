@@ -6,16 +6,18 @@
 	import type { EditToolTheme } from "./agent-tool-edit-theme.js";
 	import AgentToolEdit from "./agent-tool-edit.svelte";
 
+	import type { ToolDurationTiming } from "./tool-duration.js";
+
 	interface Props {
 		entry: AgentToolEntry;
-		durationLabel?: string;
+		durationTiming?: ToolDurationTiming;
 		iconBasePath?: string;
 		editToolTheme?: EditToolTheme;
 	}
 
 	let {
 		entry,
-		durationLabel,
+		durationTiming,
 		iconBasePath = "",
 		editToolTheme,
 	}: Props = $props();
@@ -37,5 +39,5 @@
 	workerPool={editToolTheme?.workerPool}
 	onBeforeRender={editToolTheme?.onBeforeRender}
 	unsafeCSS={editToolTheme?.unsafeCSS}
-	{durationLabel}
+	{durationTiming}
 />

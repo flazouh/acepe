@@ -13,15 +13,10 @@ import type {
 } from "$lib/services/acp-types.js";
 import { materializeAgentPanelSceneFromGraph } from "../../../../session-state/agent-panel-graph-materializer.js";
 import {
-	applyAgentPanelDisplayMemory,
-	buildAgentPanelBaseModel,
-	createAgentPanelDisplayMemory,
-} from "../agent-panel-display-model.js";
-import { applyAgentPanelDisplayModelToSceneEntries } from "../agent-panel-display-scene-test-helper.js";
-import {
 	createGraphSceneEntryIndex,
 	findGraphSceneEntryForDisplayEntry,
-} from "../graph-scene-entry-match.js";
+} from "../../../../session-state/graph-scene-entry-index.js";
+import { buildRevealScenePatchedEntries } from "./reveal-scene-patch-test-helper.js";
 import {
 	buildVirtualizedDisplayEntriesFromScene,
 	getVirtualizedDisplayEntryKey,
@@ -217,25 +212,9 @@ describe("canonical graph to agent panel display flow", () => {
 				title: "Canonical flow",
 			},
 		});
-		const displayResult = applyAgentPanelDisplayMemory(
-			createAgentPanelDisplayMemory(),
-			buildAgentPanelBaseModel({
-				panelId: "panel-1",
-				graph,
-				header: {
-					title: "Canonical flow",
-					agentName: "Claude Code",
-				},
-				sceneEntries: scene.conversation.entries,
-				local: {
-					pendingSendIntent: false,
-				},
-			})
-		);
-		const displayedSceneEntries = applyAgentPanelDisplayModelToSceneEntries(
-			displayResult.model,
-			displayResult.memory,
-			scene.conversation.entries
+		const displayedSceneEntries = buildRevealScenePatchedEntries(
+			scene.conversation.entries,
+			new Map()
 		);
 		const virtualizedEntries = buildVirtualizedDisplayEntriesFromScene(displayedSceneEntries);
 

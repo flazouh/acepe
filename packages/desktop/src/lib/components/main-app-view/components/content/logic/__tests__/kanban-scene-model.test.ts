@@ -59,13 +59,12 @@ describe("kanban-scene-model", () => {
 		expect(columns.map((column) => column.label)).toEqual([
 			"Input needed",
 			"Planning",
-			"Working",
 			"Needs Review",
 			"Done",
 		]);
 	});
 
-	it("places optimistic cards first in working, then session cards by board section", () => {
+	it("places optimistic cards first in planning, then session cards by board section", () => {
 		const optimisticCards: readonly OptimisticKanbanCard[] = [
 			{
 				panelId: "panel-1",
@@ -75,7 +74,7 @@ describe("kanban-scene-model", () => {
 		];
 		const threadBoard: readonly ThreadBoardGroup[] = [
 			{
-				status: "working",
+				status: "planning",
 				items: [makeItem("session-working", 20)],
 			},
 			{
@@ -100,16 +99,16 @@ describe("kanban-scene-model", () => {
 		expect(scene.placements).toEqual([
 			{
 				cardId: "panel-1",
-				columnId: "working",
+				columnId: "planning",
 				index: 0,
 				orderKey: "optimistic:0:panel-1",
 				source: "optimistic",
 			},
 			{
 				cardId: "session-working",
-				columnId: "working",
+				columnId: "planning",
 				index: 1,
-				orderKey: "session:working:20:session-working",
+				orderKey: "session:planning:20:session-working",
 				source: "session",
 			},
 			{

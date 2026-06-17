@@ -3,13 +3,15 @@
 
 	interface Props {
 		children: Snippet;
+		/** Animation duration in seconds. Cursor uses 2s. */
 		duration?: number;
+		/** Background-size multiplier. Cursor uses 200%. */
 		spread?: number;
 		delay?: number;
 		class?: string;
 	}
 
-	let { children, duration = 1.2, spread = 2, delay = 0, class: className = "" }: Props = $props();
+	let { children, duration = 2, spread = 2, delay = 0, class: className = "" }: Props = $props();
 
 	const animationDuration = $derived(`${duration}s`);
 	const animationDelay = $derived(`${delay}s`);
@@ -25,28 +27,38 @@
 
 <style>
 	.text-shimmer {
-		background: linear-gradient(
+		--shimmer-muted-color: color-mix(in srgb, currentColor 60%, transparent);
+		--shimmer-highlight-color: currentColor;
+		background-image: linear-gradient(
 			90deg,
-			currentColor 0%,
-			currentColor 40%,
-			color-mix(in srgb, currentColor 60%, transparent) 50%,
-			currentColor 60%,
-			currentColor 100%
+			var(--shimmer-muted-color) 0% 25%,
+			var(--shimmer-highlight-color) 60%,
+			var(--shimmer-muted-color) 75% 100%
 		);
 		background-size: var(--shimmer-spread) 100%;
 		background-clip: text;
 		-webkit-background-clip: text;
 		-webkit-text-fill-color: transparent;
-		animation: shimmer var(--shimmer-duration) ease-in-out infinite;
+		animation: text-shimmer var(--shimmer-duration) linear infinite;
 		animation-delay: var(--shimmer-delay);
 	}
 
-	@keyframes shimmer {
+	@keyframes text-shimmer {
 		0% {
-			background-position: -200% 0;
+			background-position: 200% 0;
 		}
 		100% {
-			background-position: 200% 0;
+			background-position: -200% 0;
+		}
+	}
+
+	@media (prefers-reduced-motion: reduce) {
+		.text-shimmer {
+			animation: none;
+			background: none;
+			background-clip: unset;
+			-webkit-background-clip: unset;
+			-webkit-text-fill-color: unset;
 		}
 	}
 </style>

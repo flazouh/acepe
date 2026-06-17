@@ -9,10 +9,7 @@ const chatPrefs = getChatPreferencesStore();
 const planPrefs = getPlanPreferenceStore();
 </script>
 
-<SettingsSection
-	title={"Chat"}
-	description="Pick the default behavior for chat and plan output."
->
+<SettingsSection>
 	{#if chatPrefs}
 		<SettingRow
 			label={"Thinking block collapsed by default"}

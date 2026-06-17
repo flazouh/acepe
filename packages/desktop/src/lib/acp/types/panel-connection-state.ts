@@ -5,6 +5,8 @@
  * using XState state machine.
  */
 
+import type { FailureReason } from "$lib/services/acp-types.js";
+
 export enum PanelConnectionState {
 	IDLE = "idle",
 	CONNECTING = "connecting",
@@ -24,6 +26,14 @@ export interface PanelConnectionErrorDetails {
 	readonly message: string;
 	readonly referenceId?: string;
 	readonly referenceSearchable?: boolean;
+	/**
+	 * Canonical lifecycle classification when this panel-level error carries one
+	 * (e.g. a pre-session creation failure that resolved to
+	 * `authenticationRequired`). Lets the panel render the same curated,
+	 * lifecycle-driven card the resume path produces, instead of the raw
+	 * creation message. `undefined`/`null` for unclassified panel errors.
+	 */
+	readonly failureReason?: FailureReason | null;
 }
 
 /**

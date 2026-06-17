@@ -56,12 +56,12 @@ export class SessionHandler {
 		sessionInfo?: SessionListItem
 	): ResultAsync<void, MainAppViewError> {
 		// Check if session exists in memory
-		const sessionExists = this.sessionStore.hasSession(sessionId);
+		const sessionExists = this.sessionStore.read.hasSession(sessionId);
 		let finalSessionId = sessionId;
 
 		// If session not in memory, try to load it
 		if (!sessionExists && sessionInfo) {
-			return this.sessionStore
+			return this.sessionStore.loading
 				.loadHistoricalSession(
 					sessionInfo.id,
 					sessionInfo.projectPath,
@@ -129,7 +129,7 @@ export class SessionHandler {
 	 * @returns ResultAsync containing the created session ID or error
 	 */
 	createSession(options: CreateSessionOptions): ResultAsync<string, MainAppViewError> {
-		return this.sessionStore
+		return this.sessionStore.connection
 			.createSession({
 				agentId: options.agentId,
 				projectPath: options.projectPath,

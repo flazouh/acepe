@@ -1,5 +1,5 @@
 <script lang="ts">
-import { BrandShaderBackground } from "@acepe/ui";
+import { BrandShaderBackground, Selector } from "@acepe/ui";
 import * as DropdownMenu from "@acepe/ui/dropdown-menu";
 import { ResultAsync } from "neverthrow";
 import { ArrowRight } from "phosphor-svelte";
@@ -442,47 +442,43 @@ async function finishOnboarding(): Promise<void> {
 	<BrandShaderBackground variant="luminar" fallback="gradient" />
 	<div class="absolute inset-0 bg-background/12"></div>
 	<div class="absolute right-6 top-6 z-20">
-		<DropdownMenu.Root>
-			<DropdownMenu.Trigger>
-				{#snippet child({ props })}
-					<button
-						{...props}
-						type="button"
-						class="flex size-8 items-center justify-center rounded-md bg-transparent text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-						title="Theme"
-						aria-label="Theme"
-					>
-						{#if themeState.theme === "light"}
-							<Sun class="size-4" weight="fill" style="color: #F8F5EE" />
-						{:else if themeState.theme === "dark"}
-							<Moon class="size-4" weight="fill" style="color: #F8F5EE" />
-						{:else}
-							<Desktop class="size-4" weight="fill" style="color: #F8F5EE" />
-						{/if}
-					</button>
-				{/snippet}
-			</DropdownMenu.Trigger>
-			<DropdownMenu.Content align="end" class="z-[60] min-w-[140px] p-1" portalProps={{ disabled: true }}>
-				<DropdownMenu.CheckboxItem
-					checked={themeState.theme === "light"}
-					onCheckedChange={(checked) => checked && themeState.setTheme("light")}
-				>
-					Light
-				</DropdownMenu.CheckboxItem>
-				<DropdownMenu.CheckboxItem
-					checked={themeState.theme === "dark"}
-					onCheckedChange={(checked) => checked && themeState.setTheme("dark")}
-				>
-					Dark
-				</DropdownMenu.CheckboxItem>
-				<DropdownMenu.CheckboxItem
-					checked={themeState.theme === "system"}
-					onCheckedChange={(checked) => checked && themeState.setTheme("system")}
-				>
-					System
-				</DropdownMenu.CheckboxItem>
-			</DropdownMenu.Content>
-		</DropdownMenu.Root>
+		<Selector
+			align="end"
+			variant="ghost"
+			triggerSize="icon"
+			showChevron={false}
+			tooltipLabel="Theme"
+			triggerAriaLabel="Theme"
+		>
+			{#snippet renderButton()}
+				{#if themeState.theme === "light"}
+					<Sun class="size-4" weight="fill" style="color: #F8F5EE" />
+				{:else if themeState.theme === "dark"}
+					<Moon class="size-4" weight="fill" style="color: #F8F5EE" />
+				{:else}
+					<Desktop class="size-4" weight="fill" style="color: #F8F5EE" />
+				{/if}
+			{/snippet}
+
+			<DropdownMenu.CheckboxItem
+				checked={themeState.theme === "light"}
+				onCheckedChange={(checked) => checked && themeState.setTheme("light")}
+			>
+				Light
+			</DropdownMenu.CheckboxItem>
+			<DropdownMenu.CheckboxItem
+				checked={themeState.theme === "dark"}
+				onCheckedChange={(checked) => checked && themeState.setTheme("dark")}
+			>
+				Dark
+			</DropdownMenu.CheckboxItem>
+			<DropdownMenu.CheckboxItem
+				checked={themeState.theme === "system"}
+				onCheckedChange={(checked) => checked && themeState.setTheme("system")}
+			>
+				System
+			</DropdownMenu.CheckboxItem>
+		</Selector>
 	</div>
 
 	{#key onboardingStep}
@@ -511,7 +507,7 @@ async function finishOnboarding(): Promise<void> {
 													style="-webkit-mask: url('/svgs/icons/claude.svg') center / contain no-repeat; mask: url('/svgs/icons/claude.svg') center / contain no-repeat;"
 												></span>
 											{:else if agent.id === "codex"}
-												<img src="/svgs/agents/codex/codex-app-icon.png" alt="" class="size-3.5 shrink-0 rounded-[4px]" />
+												<img src="/svgs/agents/codex/codex-app-icon.png" alt="" class="size-3.5 shrink-0 rounded-[22%] object-contain" />
 											{:else}
 												<img src="/svgs/icons/cursor.svg" alt="" class="size-3.5 shrink-0" />
 											{/if}
@@ -699,14 +695,11 @@ async function finishOnboarding(): Promise<void> {
 						title={onboardingImportError.title}
 						summary={onboardingImportError.summary}
 						details={onboardingImportError.details}
-						referenceId={onboardingImportError.referenceId}
-						referenceSearchable={onboardingImportError.referenceSearchable}
 						onDismiss={() => {
 							onboardingImportError = null;
 							onboardingImportProjectPath = null;
 							onboardingImportProjectName = null;
 						}}
-						onCopyReferenceId={copyOnboardingImportReferenceId}
 						issueActionLabel={onboardingIssueDraft
 							? resolveIssueActionLabel(onboardingIssueDraft)
 							: "Create issue"}
@@ -721,7 +714,7 @@ async function finishOnboarding(): Promise<void> {
 						</p>
 					</div>
 				{:else}
-					<div class="min-h-0 flex-1 overflow-y-auto">
+					<div class="flex min-h-0 flex-1 flex-col overflow-hidden">
 						<ProjectTable
 							projects={filteredProjects}
 							loading={onboardingProjectsLoading}

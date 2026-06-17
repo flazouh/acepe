@@ -17,7 +17,7 @@ export type AgentInputSlashCommandWorkspaceMarkdownResult =
 	  };
 
 export const MAX_SLASH_COMMAND_RESULTS = 20;
-export type AgentInputSlashCommandTokenType = "command" | "skill";
+export type AgentInputSlashCommandTokenType = "command" | "skill" | "mcp";
 
 export function getFilteredSlashCommands(
 	commands: ReadonlyArray<AgentInputSlashCommand>,
@@ -67,6 +67,9 @@ export function getSlashCommandEmptyState(input: {
 export function getSlashCommandKindLabel(tokenType: AgentInputSlashCommandTokenType): string {
 	if (tokenType === "skill") {
 		return "Skill";
+	}
+	if (tokenType === "mcp") {
+		return "MCP";
 	}
 	return "Command";
 }

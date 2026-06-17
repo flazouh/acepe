@@ -70,9 +70,17 @@ pub async fn acp_new_session(
                     &format!("client-initialization-failed: {error}"),
                 )
                 .await;
-                return Err(creation_failure(
+                // Authentication-required is NOT a creation failure — it's a
+                // recoverable precondition ("sign in to continue"). Surface the
+                // typed signal verbatim so the panel renders a neutral sign-in
+                // card (composer stays usable), instead of burying it in a
+                // CreationFailure that would render error chrome.
+                if matches!(error, SerializableAcpError::AuthenticationRequired { .. }) {
+                    return Err(error);
+                }
+                return Err(creation_failure_classified(
                     CreationFailureKind::ProviderFailedBeforeId,
-                    error.to_string(),
+                    &error,
                     None,
                     Some(creation_attempt_id),
                     true,

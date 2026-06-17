@@ -114,18 +114,18 @@ export class TabBarStore {
 
 		const { sessionId } = panel;
 
-		const sessionIdentity = sessionId ? this.sessionStore.getSessionIdentity(sessionId) : null;
-		const sessionMetadata = sessionId ? this.sessionStore.getSessionMetadata(sessionId) : null;
+		const sessionIdentity = sessionId ? this.sessionStore.read.getSessionIdentity(sessionId) : null;
+		const sessionMetadata = sessionId ? this.sessionStore.read.getSessionMetadata(sessionId) : null;
 		const transcriptEntries =
-			sessionId !== null ? this.sessionStore.getSessionTranscriptEntries(sessionId) : null;
+			sessionId !== null ? this.sessionStore.read.getSessionTranscriptEntries(sessionId) : null;
 		const currentModeId =
-			sessionId !== null ? this.sessionStore.getSessionCurrentModeId(sessionId) : null;
+			sessionId !== null ? this.sessionStore.read.getSessionCurrentModeId(sessionId) : null;
 		const currentToolKind =
-			sessionId !== null ? this.sessionStore.getSessionCurrentToolKind(sessionId) : null;
+			sessionId !== null ? this.sessionStore.read.getSessionCurrentToolKind(sessionId) : null;
 
 		const interactionSnapshot =
 			sessionId !== null
-				? this.sessionStore.getSessionOperationInteractionSnapshot(sessionId, this.interactions)
+				? this.sessionStore.presentation.getSessionOperationInteractionSnapshot(sessionId, this.interactions)
 				: null;
 		const pendingQuestion = interactionSnapshot?.pendingQuestion ?? null;
 		const pendingPlanApproval = interactionSnapshot?.pendingPlanApproval ?? null;
@@ -148,7 +148,7 @@ export class TabBarStore {
 			focusedPanelId,
 			agentId,
 			title,
-			liveSessionSource: this.sessionStore.getSessionLiveWorkSource(sessionId, true),
+			liveSessionSource: this.sessionStore.presentation.getSessionLiveWorkSource(sessionId, true),
 			transcriptEntries,
 			currentModeId,
 			currentToolKind,

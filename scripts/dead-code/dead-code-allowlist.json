@@ -1,0 +1,20 @@
+{
+  "version": 1,
+  "entries": [
+    {
+      "path": "packages/desktop/src-tauri/cc-sdk-local/**",
+      "classification": "generated-vendor",
+      "reason": "Vendored local cc-sdk crate; do not classify with Acepe source reachability."
+    },
+    {
+      "path": "packages/desktop/src-tauri/gen/**",
+      "classification": "generated-vendor",
+      "reason": "Tauri generated schema output."
+    },
+    {
+      "path": "packages/website/static/**",
+      "classification": "static-root",
+      "reason": "SvelteKit static assets may be URL-addressed and need explicit asset review."
+    }
+  ]
+}

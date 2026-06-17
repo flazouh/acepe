@@ -7,7 +7,6 @@ import { getAgentPreferencesStore, getPanelStore, getSessionStore } from "$lib/a
 import { getSessionArchiveStore } from "$lib/acp/store/session-archive-store.svelte.js";
 import { DEFAULT_PANEL_WIDTH } from "$lib/acp/store/types.js";
 import SessionTable from "$lib/components/settings/project-tab/session-table.svelte";
-import SettingsSectionHeader from "../settings-section-header.svelte";
 
 interface Props {
 	projectManager: ProjectManager;
@@ -22,11 +21,11 @@ const archiveStore = getSessionArchiveStore();
 
 const allSessions = $derived.by((): SessionSummary[] => {
 	const coldSessions = agentPreferencesStore.filterItemsBySelectedAgents(
-		sessionStore.getAllSessions()
+		sessionStore.read.getAllSessions()
 	);
 	return coldSessions.map((cold) => {
-		const listState = sessionStore.getSessionListState(cold.id);
-		const entryCount = sessionStore.getSessionMessageCount(cold.id);
+		const listState = sessionStore.read.getSessionListState(cold.id);
+		const entryCount = sessionStore.read.getSessionMessageCount(cold.id);
 		return buildSessionSummaryFromCold({
 			cold,
 			listState,
@@ -39,7 +38,7 @@ const archivedSessions = $derived(
 	allSessions.filter((session) => archiveStore.isArchived(session))
 );
 const projects = $derived(projectManager.projects);
-const loading = $derived(sessionStore.loading);
+const loading = $derived(sessionStore.sessionsLoading);
 
 function handleView(sessionId: string) {
 	panelStore.openSession(sessionId, DEFAULT_PANEL_WIDTH);
@@ -54,14 +53,9 @@ function handleUnarchive(session: { id: string; projectPath: string; agentId: st
 }
 </script>
 
-<div class="flex h-full min-h-0 flex-col gap-10">
-	<SettingsSectionHeader
-		title="Archived Sessions"
-		description="Sessions hidden from the main sidebar. Unarchive to restore them."
-	/>
-
+<div class="flex h-full min-h-0 flex-col">
 	<SessionTable
-		class="flex-1 min-h-0"
+		class="min-h-0 flex-1"
 		sessions={archivedSessions}
 		{projects}
 		{loading}

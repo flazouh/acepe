@@ -9,7 +9,7 @@ import { Result, ResultAsync, err, ok } from "neverthrow";
 import { z } from "zod";
 
 const TAURI_MCP_CLI_VERSION = "@hypothesi/tauri-mcp-cli@0.10.0";
-const DAEMON_PROTOCOL_VERSION = "v2";
+const DAEMON_PROTOCOL_VERSION = "v3";
 const DAEMON_START_TIMEOUT_MS = 2_500;
 const DAEMON_REQUEST_TIMEOUT_MS = 5_000;
 
@@ -103,7 +103,10 @@ function valueAfter(args: readonly string[], flag: string): string | null {
 	return args[index + 1] ?? null;
 }
 
-function daemonRequest(payload: object): ResultAsync<z.infer<typeof daemonResponseSchema>, TauriMcpFailure> {
+function daemonRequest(
+	payload: object,
+	options?: { readonly timeoutMs?: number }
+): ResultAsync<z.infer<typeof daemonResponseSchema>, TauriMcpFailure> {
 	return ResultAsync.fromPromise(
 		new Promise<z.infer<typeof daemonResponseSchema>>((resolve, reject) => {
 			const socket = new Socket();
@@ -111,7 +114,7 @@ function daemonRequest(payload: object): ResultAsync<z.infer<typeof daemonRespon
 			const timeout = setTimeout(() => {
 				socket.destroy();
 				reject(new Error("Acepe QA daemon request timed out."));
-			}, DAEMON_REQUEST_TIMEOUT_MS);
+			}, options?.timeoutMs ?? DAEMON_REQUEST_TIMEOUT_MS);
 			socket.on("data", (chunk) => {
 				buffer += chunk.toString("utf8");
 				const newlineIndex = buffer.indexOf("\n");
@@ -223,8 +226,18 @@ function commandFromDaemon(args: readonly string[]): ResultAsync<CommandExecutio
 	if (args[0] === "webview-execute-js") {
 		const appIdentifier = valueAfter(args, "--app-identifier") ?? "9223";
 		const script = valueAfter(args, "--script") ?? "";
+		const callTimeoutMs = Number.parseInt(valueAfter(args, "--call-timeout") ?? "", 10);
+		const requestTimeoutMs =
+			Number.isFinite(callTimeoutMs) && callTimeoutMs > 0
+				? callTimeoutMs + 5_000
+				: DAEMON_REQUEST_TIMEOUT_MS;
 		return ensureDaemon()
-			.andThen(() => daemonRequest({ kind: "webview-execute-js", appIdentifier, script }))
+			.andThen(() =>
+				daemonRequest(
+					{ kind: "webview-execute-js", appIdentifier, script },
+					{ timeoutMs: requestTimeoutMs }
+				)
+			)
 			.andThen((response) => {
 				if (!response.ok) {
 					return err({
@@ -326,8 +339,25 @@ export function jsonObjectPrefix(text: string): string | null {
 		return null;
 	}
 	let depth = 0;
+	let inString = false;
+	let escaped = false;
 	for (let index = start; index < text.length; index += 1) {
 		const char = text[index];
+		if (escaped) {
+			escaped = false;
+			continue;
+		}
+		if (char === "\\") {
+			escaped = inString;
+			continue;
+		}
+		if (char === "\"") {
+			inString = !inString;
+			continue;
+		}
+		if (inString) {
+			continue;
+		}
 		if (char === "{") {
 			depth += 1;
 		}
@@ -376,7 +406,7 @@ export function executeWebviewJson<T>(
 				if (jsonText === null) {
 					return err({
 						code: "tauri_payload_not_json",
-						message: "Tauri MCP did not return a JSON payload.",
+						message: `Tauri MCP did not return a JSON payload. Raw: ${text.slice(0, 500)}`,
 						raw: text.slice(0, 1_000),
 					});
 				}

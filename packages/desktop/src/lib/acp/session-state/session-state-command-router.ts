@@ -9,6 +9,7 @@ import type {
 	SessionGraphLifecycle,
 	SessionGraphRevision,
 	SessionStateDelta,
+	SessionStateField,
 	ActiveStreamingTail,
 	SessionStateEnvelope,
 	SessionStateGraph,
@@ -172,7 +173,7 @@ function commandFromDeltaResolution(
 }
 
 function graphDeltaIsMissingRequiredPatches(
-	changedFields: readonly string[] | null,
+	changedFields: readonly SessionStateField[] | null,
 	operationPatches: readonly OperationSnapshot[],
 	interactionPatches: readonly InteractionSnapshot[]
 ): boolean {
@@ -195,29 +196,31 @@ function graphDeltaIsMissingRequiredPatches(
 
 function graphDeltaIsMissingRequiredScalars(
 	delta: SessionStateDelta,
-	changedFields: readonly string[] | null
+	changedFields: readonly SessionStateField[] | null
 ): boolean {
 	if (changedFields === null) {
 		return false;
 	}
 
-	const hasOwn = (field: string): boolean =>
+	const hasOwn = (field: SessionStateField): boolean =>
 		Object.prototype.hasOwnProperty.call(delta as Record<string, unknown>, field);
 
-	if (changedFields.includes("activity") && !hasOwn("activity")) {
-		return true;
-	}
-	if (changedFields.includes("turnState") && !hasOwn("turnState")) {
-		return true;
-	}
-	if (changedFields.includes("activeTurnFailure") && !hasOwn("activeTurnFailure")) {
-		return true;
-	}
-	if (changedFields.includes("lastTerminalTurnId") && !hasOwn("lastTerminalTurnId")) {
-		return true;
-	}
-	if (changedFields.includes("activeStreamingTail") && !hasOwn("activeStreamingTail")) {
-		return true;
+	for (const field of changedFields) {
+		switch (field) {
+			case "activity":
+			case "turnState":
+			case "activeTurnFailure":
+			case "lastTerminalTurnId":
+			case "activeStreamingTail":
+				if (!hasOwn(field)) {
+					return true;
+				}
+				break;
+			case "transcriptSnapshot":
+			case "operations":
+			case "interactions":
+				break;
+		}
 	}
 
 	return false;

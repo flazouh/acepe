@@ -54,6 +54,8 @@ interface Props {
 	onExportJson?: (sessionId: string) => void | Promise<void>;
 	/** Called when project order changes from the sidebar move actions */
 	onReorderProjects?: (orderedPaths: string[]) => void;
+	/** Toggle whether discovered external CLI sessions appear in this project's list */
+	onToggleShowExternalCliSessions?: (projectPath: string, showExternalCliSessions: boolean) => void;
 }
 
 let {
@@ -86,6 +88,7 @@ let {
 	onExportMarkdown,
 	onExportJson,
 	onReorderProjects,
+	onToggleShowExternalCliSessions,
 }: Props = $props();
 
 // ✅ State manager for local UI state only
@@ -116,6 +119,11 @@ const projectSortOrderMap = $derived(
 		}
 		return map;
 	}, new Map<string, number>())
+);
+const projectShowExternalCliSessions = $derived(
+	new Map(
+		recentProjects.map((project) => [project.path, project.showExternalCliSessions ?? true])
+	)
 );
 
 // Filter sessions to only include those belonging to known projects
@@ -194,4 +202,6 @@ function handleCreateSessionForProject(projectPath: string, agentId?: string) {
 	{onExportMarkdown}
 	{onExportJson}
 	{onReorderProjects}
+	{projectShowExternalCliSessions}
+	{onToggleShowExternalCliSessions}
 />

@@ -1,101 +1,101 @@
 <!--
-  AgentInputMetricsChip - Token usage / session spend chip with segmented context bar.
+  AgentInputMetricsChip - Circular progress ring + animated blur-number percentage.
 
-  Extracted from packages/desktop/src/lib/acp/components/model-selector.metrics-chip.svelte.
-  Desktop derives these values from session store; here they are plain props.
+  Visual: a small SVG ring that fills clockwise as context is consumed,
+  with the numeric percentage rendered to its right using the digit-by-digit
+  blur-spring animation (port of animated-blur-number, MIT).
 -->
 <script lang="ts">
-	import { Skull } from "phosphor-svelte";
-	import { Colors } from "../../lib/colors.js";
+	import AnimateNumber from "../animate-number/animate-number.svelte";
 
 	interface Props {
-		/** Pre-formatted primary label (e.g., "2m/200k" or "$0.42"). */
+		/** Pre-formatted primary label (e.g., "2m/200k" or "$0.42"). Unused visually but kept for compat. */
 		label?: string | null;
-		/** Context usage 0-100. null hides the segmented bar. */
+		/** Context usage 0-100. null hides the chip entirely. */
 		percent?: number | null;
 		compact?: boolean;
 		hideLabel?: boolean;
-		segmentCount?: number;
 		ariaLabel?: string;
 		title?: string;
 	}
 
 	let {
-		label = null,
+		label: _label = null,
 		percent = null,
 		compact = false,
-		hideLabel = false,
-		segmentCount = 10,
+		hideLabel: _hideLabel = false,
 		ariaLabel = "Context usage",
 		title = "",
 	}: Props = $props();
 
 	const hasContextUsage = $derived(percent !== null);
-	const effectiveSegmentCount = $derived(compact ? 8 : segmentCount);
-	const isCritical = $derived((percent ?? 0) >= 80);
-	const barColor = $derived.by(() => {
-		const p = percent ?? 0;
-		if (p >= 80) return Colors.red;
-		if (p >= 60) return Colors.orange;
-		return Colors.green;
-	});
-	const segments = $derived.by(() => {
-		const p = percent ?? 0;
-		return Array.from({ length: effectiveSegmentCount }, (_, i) => {
-			const threshold = ((i + 1) / effectiveSegmentCount) * 100;
-			return p >= threshold;
-		});
-	});
+
+	// Ring geometry — RING_PX is both the SVG element size and the painted outer diameter.
+	const RING_PX = $derived(compact ? 14 : 19);
+	const STROKE = $derived(compact ? 1.5 : 2);
+	// Inset radius so stroke + round caps fit inside RING_PX without bleeding past the SVG box.
+	const R = $derived(RING_PX / 2 - STROKE);
+	const CENTER = $derived(RING_PX / 2);
+	const CIRC = $derived(2 * Math.PI * R);
+	const pct = $derived(Math.min(100, Math.max(0, percent ?? 0)));
+	const dashOffset = $derived(CIRC * (1 - pct / 100));
+
+	const isCritical = $derived(pct >= 80);
+	const ringColor = $derived(
+		pct >= 80 ? "hsl(var(--destructive))" : "currentColor"
+	);
 </script>
 
-<div
-	class="flex items-center text-muted-foreground {compact
-		? 'h-5 gap-1 px-0.5 text-sm'
-		: 'h-7 gap-1.5 px-1.5 text-sm'}"
-	role="status"
-	aria-label={ariaLabel}
-	{title}
->
-	{#if !hideLabel && label}
-		<span class="font-mono font-medium tabular-nums">{label}</span>
-	{/if}
-	{#if hasContextUsage}
-		<div
-			class="context-tally flex items-center gap-[1px]"
-			class:context-tally-compact={compact}
+{#if hasContextUsage}
+	<div
+		class="flex items-center gap-1 text-muted-foreground {compact ? 'h-5 text-[10px]' : 'h-7 text-[11px]'}"
+		role="status"
+		aria-label="{ariaLabel}: {pct.toFixed(1)}%"
+		{title}
+	>
+		<!-- Circular ring -->
+		<svg
+			width={RING_PX}
+			height={RING_PX}
+			viewBox="0 0 {RING_PX} {RING_PX}"
 			aria-hidden="true"
+			class="shrink-0"
+			style="color: {ringColor};"
 		>
-			{#each segments as isFilled, index (index)}
-				<span
-					class="context-tally-bar"
-					class:context-tally-bar-compact={compact}
-					class:is-filled={isFilled}
-					style={isFilled ? `background-color: ${barColor};` : undefined}
-				></span>
-			{/each}
-		</div>
-		{#if isCritical}
-			<Skull
-				size={compact ? 10 : 12}
-				color={Colors.red}
-				weight="fill"
-				aria-hidden="true"
+			<!-- Track -->
+			<circle
+				cx={CENTER}
+				cy={CENTER}
+				r={R}
+				fill="none"
+				stroke="currentColor"
+				stroke-width={STROKE}
+				opacity="0.18"
 			/>
-		{/if}
-	{/if}
-</div>
+			<!-- Fill -->
+			<circle
+				cx={CENTER}
+				cy={CENTER}
+				r={R}
+				fill="none"
+				stroke="currentColor"
+				stroke-width={STROKE}
+				stroke-dasharray={CIRC}
+				stroke-dashoffset={dashOffset}
+				stroke-linecap="round"
+				transform="rotate(-90 {CENTER} {CENTER})"
+				style="transition: stroke-dashoffset 600ms cubic-bezier(0.4, 0, 0.2, 1), stroke 300ms ease;"
+			/>
+		</svg>
 
-<style>
-	.context-tally { min-width: fit-content; }
-	.context-tally-compact { gap: 1px; }
-	.context-tally-bar {
-		width: 3px;
-		height: 10px;
-		border-radius: 1px;
-		background-color: color-mix(in srgb, var(--border) 55%, transparent);
-		transition: background-color 160ms ease-out, opacity 160ms ease-out, transform 160ms ease-out;
-		opacity: 0.55;
-	}
-	.context-tally-bar-compact { width: 2px; height: 8px; }
-	.context-tally-bar.is-filled { opacity: 1; }
-</style>
+		<!-- Animated percent number -->
+		<AnimateNumber
+			value={pct}
+			format={{ maximumFractionDigits: 0 }}
+			suffix="%"
+			duration={450}
+			blur={14}
+			class="font-mono font-medium leading-none {isCritical ? 'text-destructive' : 'text-muted-foreground'}"
+		/>
+	</div>
+{/if}

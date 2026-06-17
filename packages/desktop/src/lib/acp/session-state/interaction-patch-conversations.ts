@@ -14,7 +14,9 @@ import {
 	createAppendedSceneEntryArray,
 	createInsertedSceneEntryArray,
 	createPatchedSceneEntryArray,
-} from "./scene-entry-array.js";
+
+	conversationFromSceneEntryArrayResult,} from "./scene-entry-array.js";
+import { scenePatchIdentity } from "../components/agent-panel/logic/scene-patch.js";
 import {
 	createAppendedSceneEntryRowIndex,
 	createSplicedSceneEntryRowIndex,
@@ -140,15 +142,12 @@ export function materializeInteractionPatchedConversation(
 		activeStreamingTail: input.graph.activeStreamingTail,
 		activity: input.graph.activity,
 		transcriptEntryById: previous.transcriptEntryById,
-		conversation: {
-			entries: nextEntries,
-			isStreaming: previous.conversation.isStreaming,
-		},
+		conversation: conversationFromSceneEntryArrayResult(nextEntries, previous.conversation.isStreaming),
 		sceneEntryRowIndex,
 	};
 }
 
-export function materializeStableInteractionPatchedConversation(
+function materializeStableInteractionPatchedConversation(
 	previous: CachedConversationState,
 	input: CachedConversationInput
 ): CachedConversationState | null {
@@ -219,7 +218,7 @@ export function materializeStableInteractionPatchedConversation(
 		};
 	}
 
-	let nextEntries: readonly AgentPanelSceneEntryModel[];
+	let nextEntries: import("./scene-entry-array.js").SceneEntryArrayResult;
 	let sceneEntryRowIndex: ReadonlyMap<string, number>;
 	if (previousVisibleEntry === null && nextVisibleEntry !== null) {
 		nextEntries = createAppendedSceneEntryArray(previous.conversation.entries, [nextVisibleEntry]);
@@ -276,10 +275,7 @@ export function materializeStableInteractionPatchedConversation(
 		activeStreamingTail: input.graph.activeStreamingTail,
 		activity: input.graph.activity,
 		transcriptEntryById: previous.transcriptEntryById,
-		conversation: {
-			entries: nextEntries,
-			isStreaming: previous.conversation.isStreaming,
-		},
+		conversation: conversationFromSceneEntryArrayResult(nextEntries, previous.conversation.isStreaming),
 		sceneEntryRowIndex,
 	};
 }
@@ -335,7 +331,7 @@ export function materializeBlockingInteractionRetargetConversation(
 		};
 	}
 
-	let nextEntries: readonly AgentPanelSceneEntryModel[];
+	let nextEntries: import("./scene-entry-array.js").SceneEntryArrayResult;
 	let sceneEntryRowIndex: ReadonlyMap<string, number>;
 	if (previousVisibleEntry === null && nextVisibleEntry === null) {
 		return {
@@ -390,15 +386,12 @@ export function materializeBlockingInteractionRetargetConversation(
 		activeStreamingTail: input.graph.activeStreamingTail,
 		activity: input.graph.activity,
 		transcriptEntryById: previous.transcriptEntryById,
-		conversation: {
-			entries: nextEntries,
-			isStreaming: previous.conversation.isStreaming,
-		},
+		conversation: conversationFromSceneEntryArrayResult(nextEntries, previous.conversation.isStreaming),
 		sceneEntryRowIndex,
 	};
 }
 
-export function materializeStableInteractionAppendedConversation(
+function materializeStableInteractionAppendedConversation(
 	previous: CachedConversationState,
 	input: CachedConversationInput
 ): CachedConversationState | null {
@@ -463,7 +456,7 @@ export function materializeStableInteractionAppendedConversation(
 		};
 	}
 
-	let nextEntries: readonly AgentPanelSceneEntryModel[];
+	let nextEntries: import("./scene-entry-array.js").SceneEntryArrayResult;
 	let sceneEntryRowIndex: ReadonlyMap<string, number>;
 	if (previousVisibleEntry === null) {
 		nextEntries = createAppendedSceneEntryArray(previous.conversation.entries, [nextVisibleEntry]);
@@ -497,15 +490,12 @@ export function materializeStableInteractionAppendedConversation(
 		activeStreamingTail: input.graph.activeStreamingTail,
 		activity: input.graph.activity,
 		transcriptEntryById: previous.transcriptEntryById,
-		conversation: {
-			entries: nextEntries,
-			isStreaming: previous.conversation.isStreaming,
-		},
+		conversation: conversationFromSceneEntryArrayResult(nextEntries, previous.conversation.isStreaming),
 		sceneEntryRowIndex,
 	};
 }
 
-export function materializeStableInteractionTruncatedConversation(
+function materializeStableInteractionTruncatedConversation(
 	previous: CachedConversationState,
 	input: CachedConversationInput
 ): CachedConversationState | null {
@@ -561,15 +551,12 @@ export function materializeStableInteractionTruncatedConversation(
 		activeStreamingTail: input.graph.activeStreamingTail,
 		activity: input.graph.activity,
 		transcriptEntryById: previous.transcriptEntryById,
-		conversation: {
-			entries: createInsertedSceneEntryArray(
+		conversation: conversationFromSceneEntryArrayResult(createInsertedSceneEntryArray(
 				previous.conversation.entries,
 				transcriptSceneEntryCount,
 				[],
 				[]
-			),
-			isStreaming: previous.conversation.isStreaming,
-		},
+			), previous.conversation.isStreaming),
 		sceneEntryRowIndex: createSplicedSceneEntryRowIndex(
 			previous.sceneEntryRowIndex,
 			[previousVisibleEntry],
@@ -579,7 +566,7 @@ export function materializeStableInteractionTruncatedConversation(
 	};
 }
 
-export function materializeMarkedInteractionPatchedConversation(
+function materializeMarkedInteractionPatchedConversation(
 	previous: CachedConversationState,
 	input: CachedConversationInput,
 	patchedInteractionsByIndex: ReadonlyMap<number, InteractionSnapshot> | null,
@@ -677,7 +664,7 @@ export function materializeMarkedInteractionPatchedConversation(
 		};
 	}
 
-	let nextEntries: readonly AgentPanelSceneEntryModel[];
+	let nextEntries: import("./scene-entry-array.js").SceneEntryArrayResult;
 	let sceneEntryRowIndex: ReadonlyMap<string, number>;
 	if (previousVisibleEntry === null && nextVisibleEntry !== null) {
 		nextEntries = createAppendedSceneEntryArray(previous.conversation.entries, [nextVisibleEntry]);
@@ -734,10 +721,7 @@ export function materializeMarkedInteractionPatchedConversation(
 		activeStreamingTail: input.graph.activeStreamingTail,
 		activity: input.graph.activity,
 		transcriptEntryById: previous.transcriptEntryById,
-		conversation: {
-			entries: nextEntries,
-			isStreaming: previous.conversation.isStreaming,
-		},
+		conversation: conversationFromSceneEntryArrayResult(nextEntries, previous.conversation.isStreaming),
 		sceneEntryRowIndex,
 	};
 }

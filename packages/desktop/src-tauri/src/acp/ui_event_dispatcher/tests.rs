@@ -768,7 +768,9 @@ async fn question_request_updates_live_interactions_without_raw_journal_row() {
         crate::acp::session_state_engine::SessionStatePayload::Delta { delta } => {
             assert_eq!(delta.interaction_patches.len(), 1);
             assert_eq!(delta.interaction_patches[0].id, "question-1");
-            assert!(delta.changed_fields.contains(&"interactions".to_string()));
+            assert!(delta
+                .changed_fields
+                .contains(&crate::acp::session_state_engine::SessionStateField::Interactions));
         }
         other => panic!("expected delta payload, got {:?}", other),
     }
@@ -1173,12 +1175,12 @@ async fn runtime_registry_maps_transcript_delta_to_session_state_delta_envelope(
             assert_eq!(
                 delta.changed_fields,
                 vec![
-                    "transcriptSnapshot".to_string(),
-                    "activity".to_string(),
-                    "turnState".to_string(),
-                    "activeTurnFailure".to_string(),
-                    "lastTerminalTurnId".to_string(),
-                    "activeStreamingTail".to_string(),
+                    crate::acp::session_state_engine::SessionStateField::TranscriptSnapshot,
+                    crate::acp::session_state_engine::SessionStateField::Activity,
+                    crate::acp::session_state_engine::SessionStateField::TurnState,
+                    crate::acp::session_state_engine::SessionStateField::ActiveTurnFailure,
+                    crate::acp::session_state_engine::SessionStateField::LastTerminalTurnId,
+                    crate::acp::session_state_engine::SessionStateField::ActiveStreamingTail,
                 ]
             );
         }
@@ -1413,19 +1415,7 @@ async fn drain_emits_canonical_append_segments_for_same_message_id_chunks() {
                 };
                 rendered.clear();
                 for segment in &entry.segments {
-                    match segment {
-                        crate::acp::transcript_projection::TranscriptSegment::Text {
-                            text, ..
-                        } => {
-                            rendered.push_str(text);
-                        }
-                        crate::acp::transcript_projection::TranscriptSegment::Thought {
-                            text,
-                            ..
-                        } => {
-                            rendered.push_str(text);
-                        }
-                    }
+                    rendered.push_str(segment.primary_text());
                 }
             }
             crate::acp::session_state_engine::SessionStatePayload::Delta { delta } => {
@@ -1436,16 +1426,7 @@ async fn drain_emits_canonical_append_segments_for_same_message_id_chunks() {
                         } => {
                             rendered.clear();
                             for segment in &entry.segments {
-                                match segment {
-                                    crate::acp::transcript_projection::TranscriptSegment::Text {
-                                        text,
-                                        ..
-                                    } => rendered.push_str(text),
-                                    crate::acp::transcript_projection::TranscriptSegment::Thought {
-                                        text,
-                                        ..
-                                    } => rendered.push_str(text),
-                                }
+                                rendered.push_str(segment.primary_text());
                             }
                         }
                         crate::acp::transcript_projection::TranscriptDeltaOperation::AppendSegment {
@@ -1455,14 +1436,7 @@ async fn drain_emits_canonical_append_segments_for_same_message_id_chunks() {
                         } => {
                             assert_eq!(entry_id, "assistant-event-1");
                             match segment {
-                                crate::acp::transcript_projection::TranscriptSegment::Text {
-                                    text,
-                                    ..
-                                } => rendered.push_str(text),
-                                crate::acp::transcript_projection::TranscriptSegment::Thought {
-                                    text,
-                                    ..
-                                } => rendered.push_str(text),
+                                _ => rendered.push_str(segment.primary_text()),
                             }
                         }
                         other => panic!("unexpected transcript operation: {:?}", other),

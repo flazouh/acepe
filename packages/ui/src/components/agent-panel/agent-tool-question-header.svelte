@@ -6,6 +6,8 @@
 		HeaderActionCell,
 		HeaderTitleCell,
 	} from "../panel-header/index.js";
+	import AgentToolDurationLabel from "./agent-tool-duration-label.svelte";
+	import type { ToolDurationTiming } from "./tool-duration.js";
 
 	type QuestionHeaderState = "answered" | "cancelled" | "interactive";
 
@@ -13,10 +15,10 @@
 		state: QuestionHeaderState;
 		title: string;
 		badge?: string | null;
-		durationLabel?: string;
+		durationTiming?: ToolDurationTiming;
 	}
 
-	let { state, title, badge = null, durationLabel }: Props = $props();
+	let { state, title, badge = null, durationTiming }: Props = $props();
 </script>
 
 <EmbeddedPanelHeader class="bg-accent/40">
@@ -33,10 +35,10 @@
 			<span class="question-badge ml-1.5">{badge}</span>
 		{/if}
 	</HeaderTitleCell>
-	{#if durationLabel}
+	{#if durationTiming}
 		<HeaderActionCell>
 			<span class="inline-flex items-center px-2 text-sm">
-				{durationLabel}
+				<AgentToolDurationLabel timing={durationTiming} class="text-sm" />
 			</span>
 		</HeaderActionCell>
 	{/if}

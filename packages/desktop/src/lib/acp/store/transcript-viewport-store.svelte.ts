@@ -68,6 +68,25 @@ readonly rows: ViewportBufferPush["rows"];
 readonly offsetsPx: ViewportBufferPush["offsetsPx"];
 };
 
+/** Per-session client scroll state — settle-able facts that survive remount. */
+export type ViewportClientScrollState = {
+readonly pendingOutsideBufferScrollTopPx: number | null;
+readonly activeOutsideBufferRequestedScrollTopPx: number | null;
+readonly lastOutsideBufferRecoveryDispatchMs: number | null;
+readonly lastBottomRevealDispatchMs: number | null;
+readonly pendingQueuedScrollIntentPx: number | null;
+};
+
+function emptyClientScrollState(): ViewportClientScrollState {
+return {
+pendingOutsideBufferScrollTopPx: null,
+activeOutsideBufferRequestedScrollTopPx: null,
+lastOutsideBufferRecoveryDispatchMs: null,
+lastBottomRevealDispatchMs: null,
+pendingQueuedScrollIntentPx: null,
+};
+}
+
 /**
  * Outcome of applying a `ViewportBufferDelta`.
  *
@@ -214,6 +233,7 @@ private readonly requestGenerations = new SvelteMap<string, number>();
  * relative drift.
  */
 private readonly pendingScrollCorrectionPx = new SvelteMap<string, number>();
+private readonly clientScrollState = new SvelteMap<string, ViewportClientScrollState>();
 
 /**
  * Apply a full buffer push (reset). Ordered strictly by the monotonic
@@ -502,11 +522,78 @@ return true;
 return current === protocol;
 }
 
+getClientScrollState(sessionId: string | null): ViewportClientScrollState {
+if (sessionId === null) {
+return emptyClientScrollState();
+}
+return this.clientScrollState.get(sessionId) ?? emptyClientScrollState();
+}
+
+setPendingOutsideBufferScrollTopPx(
+sessionId: string,
+pendingOutsideBufferScrollTopPx: number | null,
+activeOutsideBufferRequestedScrollTopPx: number | null
+): void {
+const current = this.clientScrollState.get(sessionId) ?? emptyClientScrollState();
+this.clientScrollState.set(sessionId, {
+pendingOutsideBufferScrollTopPx,
+activeOutsideBufferRequestedScrollTopPx,
+lastOutsideBufferRecoveryDispatchMs: current.lastOutsideBufferRecoveryDispatchMs,
+lastBottomRevealDispatchMs: current.lastBottomRevealDispatchMs,
+pendingQueuedScrollIntentPx: current.pendingQueuedScrollIntentPx,
+});
+}
+
+setLastOutsideBufferRecoveryDispatchMs(sessionId: string, lastOutsideBufferRecoveryDispatchMs: number | null): void {
+const current = this.clientScrollState.get(sessionId) ?? emptyClientScrollState();
+this.clientScrollState.set(sessionId, {
+pendingOutsideBufferScrollTopPx: current.pendingOutsideBufferScrollTopPx,
+activeOutsideBufferRequestedScrollTopPx: current.activeOutsideBufferRequestedScrollTopPx,
+lastOutsideBufferRecoveryDispatchMs,
+lastBottomRevealDispatchMs: current.lastBottomRevealDispatchMs,
+pendingQueuedScrollIntentPx: current.pendingQueuedScrollIntentPx,
+});
+}
+
+setLastBottomRevealDispatchMs(sessionId: string, lastBottomRevealDispatchMs: number | null): void {
+const current = this.clientScrollState.get(sessionId) ?? emptyClientScrollState();
+this.clientScrollState.set(sessionId, {
+pendingOutsideBufferScrollTopPx: current.pendingOutsideBufferScrollTopPx,
+activeOutsideBufferRequestedScrollTopPx: current.activeOutsideBufferRequestedScrollTopPx,
+lastOutsideBufferRecoveryDispatchMs: current.lastOutsideBufferRecoveryDispatchMs,
+lastBottomRevealDispatchMs,
+pendingQueuedScrollIntentPx: current.pendingQueuedScrollIntentPx,
+});
+}
+
+setPendingQueuedScrollIntentPx(sessionId: string, pendingQueuedScrollIntentPx: number | null): void {
+const current = this.clientScrollState.get(sessionId) ?? emptyClientScrollState();
+this.clientScrollState.set(sessionId, {
+pendingOutsideBufferScrollTopPx: current.pendingOutsideBufferScrollTopPx,
+activeOutsideBufferRequestedScrollTopPx: current.activeOutsideBufferRequestedScrollTopPx,
+lastOutsideBufferRecoveryDispatchMs: current.lastOutsideBufferRecoveryDispatchMs,
+lastBottomRevealDispatchMs: current.lastBottomRevealDispatchMs,
+pendingQueuedScrollIntentPx,
+});
+}
+
+clearOutsideBufferRecovery(sessionId: string): void {
+const current = this.clientScrollState.get(sessionId) ?? emptyClientScrollState();
+this.clientScrollState.set(sessionId, {
+pendingOutsideBufferScrollTopPx: null,
+activeOutsideBufferRequestedScrollTopPx: null,
+lastOutsideBufferRecoveryDispatchMs: null,
+lastBottomRevealDispatchMs: current.lastBottomRevealDispatchMs,
+pendingQueuedScrollIntentPx: current.pendingQueuedScrollIntentPx,
+});
+}
+
 removeSession(sessionId: string): void {
 this.bufferProjections.delete(sessionId);
 this.attachmentStatus.delete(sessionId);
 this.protocol.delete(sessionId);
 this.pendingScrollCorrectionPx.delete(sessionId);
 this.requestGenerations.delete(sessionId);
+this.clientScrollState.delete(sessionId);
 }
 }

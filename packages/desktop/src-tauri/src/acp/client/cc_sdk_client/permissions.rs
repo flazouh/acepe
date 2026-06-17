@@ -182,6 +182,11 @@ struct PermissionBridgeState {
     resolved_group_results: HashMap<String, Value>,
     resolved_reusable_approval_results: HashMap<String, Value>,
     terminal_deny_message: Option<String>,
+    /// Set when the user requests a turn interrupt (stop button). The Claude Code
+    /// SDK reacts to `interrupt()` by emitting a generic `is_error` result; this
+    /// flag lets the streaming bridge normalize that provider quirk into a
+    /// canonical cancellation instead of a spurious turn failure.
+    cancel_requested: bool,
 }
 
 #[derive(Debug)]
@@ -550,6 +555,25 @@ impl PermissionBridge {
     pub(super) async fn clear_terminal_deny_message(&self) {
         let mut state = self.state.lock().await;
         state.terminal_deny_message = None;
+    }
+
+    /// Record that the user requested an interrupt for the active turn.
+    pub(super) async fn mark_cancel_requested(&self) {
+        let mut state = self.state.lock().await;
+        state.cancel_requested = true;
+    }
+
+    /// Consume the pending interrupt request, returning whether one was set.
+    pub(super) async fn take_cancel_requested(&self) -> bool {
+        let mut state = self.state.lock().await;
+        std::mem::take(&mut state.cancel_requested)
+    }
+
+    /// Drop a pending interrupt request without acting on it (e.g. the turn
+    /// completed successfully before the interrupt landed).
+    pub(super) async fn clear_cancel_requested(&self) {
+        let mut state = self.state.lock().await;
+        state.cancel_requested = false;
     }
 
     pub(super) async fn replace_reusable_approval_results(

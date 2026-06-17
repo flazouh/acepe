@@ -10,6 +10,17 @@ export { default as AppSessionItem } from "./app-session-item.svelte";
 export { default as AppSidebarProjectGroup } from "./app-sidebar-project-group.svelte";
 export { default as AppSidebarLayout } from "./app-sidebar-layout.svelte";
 export { default as AppSidebarFooter } from "./app-sidebar-footer.svelte";
+export { default as ProjectHeader } from "./project-header.svelte";
+export { default as ProjectHeaderOverflowMenu } from "./project-header-overflow-menu.svelte";
+export {
+	PROJECT_COLOR_OPTIONS,
+	type ProjectColorOption,
+} from "./project-color-options.js";
+export {
+	buildProjectHeaderOverflowMenuState,
+	getSelectedProjectColorHex,
+	type ProjectHeaderOverflowMenuState,
+} from "./project-menu-state.js";
 export type {
   AppTab,
   AppTabGroup,

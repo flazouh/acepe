@@ -5,10 +5,7 @@ import SettingsSection from "../settings-section.svelte";
 </script>
 
 <div class="w-full">
-	<SettingsSection
-		title="Environments"
-		description="Control which environment files are shared with worktrees and per-agent env overrides."
-	>
+	<SettingsSection>
 		<SettingsComingSoon
 			icon={FolderSimple}
 			headline="Environment management"

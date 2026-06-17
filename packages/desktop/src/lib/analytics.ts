@@ -2,7 +2,7 @@ import * as Sentry from "@sentry/browser";
 import { ResultAsync } from "neverthrow";
 import posthog from "posthog-js";
 import { createLogger } from "$lib/acp/utils/logger.js";
-import type { UserSettingKey } from "$lib/services/converted-session-types.js";
+import type { UserSettingKey } from "$lib/services/user-settings-types.js";
 import { settings } from "$lib/utils/tauri-client/settings.js";
 
 const ANALYTICS_OPT_OUT_KEY: UserSettingKey = "analytics_opt_out";

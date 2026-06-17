@@ -10,8 +10,9 @@ use crate::acp::projections::{InteractionSnapshot, ProjectionRegistry};
 use crate::acp::session_state_engine::graph::select_active_streaming_tail;
 use crate::acp::session_state_engine::{
     build_delta_envelope, select_session_graph_activity, session_state_envelope_byte_budget_status,
-    DeltaEnvelopeParts, DeltaSessionProjectionFields, LiveSessionStateEnvelopeRequest,
-    SessionGraphRevision, SessionGraphRuntimeRegistry, SessionStateEnvelope,
+    turn_terminal_change_fields, DeltaEnvelopeParts, DeltaSessionProjectionFields,
+    LiveSessionStateEnvelopeRequest, SessionGraphRevision, SessionGraphRuntimeRegistry,
+    SessionStateEnvelope, SessionStateField,
 };
 use crate::acp::session_update::SessionUpdate;
 use crate::acp::session_update_parser::session_update_to_domain_event;

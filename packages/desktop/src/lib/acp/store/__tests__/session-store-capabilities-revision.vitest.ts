@@ -12,7 +12,7 @@ import type {
 import { SessionStore } from "../session-store.svelte.js";
 
 function addColdSession(store: SessionStore, sessionId = "session-1"): void {
-	store.addSession({
+	store.write.addSession({
 		id: sessionId,
 		projectPath: "/repo",
 		agentId: "codex",
@@ -204,15 +204,15 @@ describe("SessionStore capability revision handling", () => {
 			)
 		);
 
-		expect(store.getSessionCurrentModeId("session-1")).toBe("plan");
-		expect(store.getSessionCurrentModelId("session-1")).toBe("gpt-5");
-		expect(store.getSessionCapabilityRevision("session-1")).toEqual({
+		expect(store.read.getSessionCurrentModeId("session-1")).toBe("plan");
+		expect(store.read.getSessionCurrentModelId("session-1")).toBe("gpt-5");
+		expect(store.read.getSessionCapabilityRevision("session-1")).toEqual({
 			graphRevision: 7,
 			transcriptRevision: 7,
 			lastEventSeq: 7,
 		});
-		expect(store.getSessionCapabilityPreviewState("session-1")).toBe("canonical");
-		expect(store.getSessionCapabilityPendingMutationId("session-1")).toBeNull();
+		expect(store.read.getSessionCapabilityPreviewState("session-1")).toBe("canonical");
+		expect(store.read.getSessionCapabilityPendingMutationId("session-1")).toBeNull();
 	});
 
 	it("ignores stale lower-revision capabilities envelopes", () => {
@@ -229,14 +229,14 @@ describe("SessionStore capability revision handling", () => {
 			)
 		);
 
-		expect(store.getSessionCurrentModeId("session-1")).toBe("plan");
-		expect(store.getSessionCurrentModelId("session-1")).toBe("gpt-5");
-		expect(store.getSessionCapabilityRevision("session-1")).toEqual({
+		expect(store.read.getSessionCurrentModeId("session-1")).toBe("plan");
+		expect(store.read.getSessionCurrentModelId("session-1")).toBe("gpt-5");
+		expect(store.read.getSessionCapabilityRevision("session-1")).toEqual({
 			graphRevision: 7,
 			transcriptRevision: 7,
 			lastEventSeq: 7,
 		});
-		expect(store.getSessionCapabilityPreviewState("session-1")).toBe("canonical");
+		expect(store.read.getSessionCapabilityPreviewState("session-1")).toBe("canonical");
 	});
 
 	it("applies same-revision lifecycle after capabilities for split connection complete envelopes", () => {
@@ -254,10 +254,10 @@ describe("SessionStore capability revision handling", () => {
 			createLifecycleEnvelope("session-1", revision, createGraphLifecycle("ready"))
 		);
 
-		expect(store.getSessionCurrentModeId("session-1")).toBe("plan");
-		expect(store.getSessionCurrentModelId("session-1")).toBe("gpt-5");
-		expect(store.getSessionLifecycleStatus("session-1")).toBe("ready");
-		expect(store.getSessionGraphRevision("session-1")).toEqual(revision);
+		expect(store.read.getSessionCurrentModeId("session-1")).toBe("plan");
+		expect(store.read.getSessionCurrentModelId("session-1")).toBe("gpt-5");
+		expect(store.read.getSessionLifecycleStatus("session-1")).toBe("ready");
+		expect(store.read.getSessionGraphRevision("session-1")).toEqual(revision);
 	});
 
 	it("applies same-revision capabilities after lifecycle for split connection complete envelopes", () => {
@@ -275,10 +275,10 @@ describe("SessionStore capability revision handling", () => {
 			createCapabilitiesEnvelope("session-1", revision, createCapabilities("plan", "gpt-5"))
 		);
 
-		expect(store.getSessionLifecycleStatus("session-1")).toBe("ready");
-		expect(store.getSessionCurrentModeId("session-1")).toBe("plan");
-		expect(store.getSessionCurrentModelId("session-1")).toBe("gpt-5");
-		expect(store.getSessionGraphRevision("session-1")).toEqual(revision);
+		expect(store.read.getSessionLifecycleStatus("session-1")).toBe("ready");
+		expect(store.read.getSessionCurrentModeId("session-1")).toBe("plan");
+		expect(store.read.getSessionCurrentModelId("session-1")).toBe("gpt-5");
+		expect(store.read.getSessionGraphRevision("session-1")).toEqual(revision);
 	});
 
 	it("projects pending capability envelopes into canonical session projection", () => {
@@ -299,15 +299,15 @@ describe("SessionStore capability revision handling", () => {
 			)
 		);
 
-		expect(store.getSessionCurrentModeId("session-1")).toBe("plan");
-		expect(store.getSessionCurrentModelId("session-1")).toBe("gpt-5");
-		expect(store.getSessionCapabilityRevision("session-1")).toEqual({
+		expect(store.read.getSessionCurrentModeId("session-1")).toBe("plan");
+		expect(store.read.getSessionCurrentModelId("session-1")).toBe("gpt-5");
+		expect(store.read.getSessionCapabilityRevision("session-1")).toEqual({
 			graphRevision: 8,
 			transcriptRevision: 8,
 			lastEventSeq: 8,
 		});
-		expect(store.getSessionCapabilityPreviewState("session-1")).toBe("pending");
-		expect(store.getSessionCapabilityPendingMutationId("session-1")).toBe("mutation-1");
+		expect(store.read.getSessionCapabilityPreviewState("session-1")).toBe("pending");
+		expect(store.read.getSessionCapabilityPendingMutationId("session-1")).toBe("mutation-1");
 	});
 
 	it("applies higher failed revisions as corrective envelopes", () => {
@@ -339,14 +339,14 @@ describe("SessionStore capability revision handling", () => {
 			)
 		);
 
-		expect(store.getSessionCurrentModeId("session-1")).toBe("build");
-		expect(store.getSessionCurrentModelId("session-1")).toBe("gpt-4.1");
-		expect(store.getSessionCapabilityRevision("session-1")).toEqual({
+		expect(store.read.getSessionCurrentModeId("session-1")).toBe("build");
+		expect(store.read.getSessionCurrentModelId("session-1")).toBe("gpt-4.1");
+		expect(store.read.getSessionCapabilityRevision("session-1")).toEqual({
 			graphRevision: 9,
 			transcriptRevision: 9,
 			lastEventSeq: 9,
 		});
-		expect(store.getSessionCapabilityPreviewState("session-1")).toBe("failed");
-		expect(store.getSessionCapabilityPendingMutationId("session-1")).toBeNull();
+		expect(store.read.getSessionCapabilityPreviewState("session-1")).toBe("failed");
+		expect(store.read.getSessionCapabilityPendingMutationId("session-1")).toBeNull();
 	});
 });

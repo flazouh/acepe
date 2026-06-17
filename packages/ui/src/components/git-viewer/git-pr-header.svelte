@@ -44,7 +44,7 @@
 	);
 </script>
 
-<div class={cn("rounded-lg border border-border/50 bg-card overflow-hidden", className)}>
+<div class={cn("rounded border border-border/50 bg-card overflow-hidden", className)}>
 	<!-- Primary row: icon + PR# + title + state + diff pill + actions -->
 	<div class="flex items-center gap-2 px-3 py-2">
 		<span class="shrink-0 {iconColor}">
@@ -80,7 +80,7 @@
 
 		<button
 			type="button"
-			class="shrink-0 inline-flex items-center justify-center h-5 w-5 rounded text-muted-foreground transition-all hover:text-foreground hover:bg-muted cursor-pointer"
+			class="shrink-0 inline-flex items-center justify-center h-5 w-5 rounded-md text-muted-foreground transition-all hover:text-foreground hover:bg-muted cursor-pointer"
 			onclick={() => { expanded = !expanded; }}
 			title={expanded ? "Collapse details" : "Expand details"}
 		>

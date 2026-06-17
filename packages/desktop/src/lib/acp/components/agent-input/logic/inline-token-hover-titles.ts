@@ -17,10 +17,15 @@ export function applyInlineTokenHoverTitles(editor: HTMLElement): void {
 		}
 
 		if (tokenType === "text_ref") {
-				// No native title; text references use the custom preview overlay.
-				node.removeAttribute("title");
-				continue;
-			}
+		// No native title; text references use the custom preview overlay.
+		node.removeAttribute("title");
+		continue;
+	}
+
+	if (tokenType === "image_ref") {
+		node.removeAttribute("title");
+		continue;
+	}
 
 		if (tokenType === "text") {
 			const decoded = decodeInlineTextTokenValue(tokenValue);

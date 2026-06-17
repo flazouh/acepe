@@ -83,7 +83,7 @@ const agentId = $derived.by(() => {
 	if (panelId) {
 		const panel = panelStore.getTopLevelAgentPanel(panelId);
 		if (panel?.sessionId) {
-			const identity = sessionStore.getSessionIdentity(panel.sessionId);
+			const identity = sessionStore.read.getSessionIdentity(panel.sessionId);
 			return identity?.agentId ?? null;
 		}
 		return panel?.selectedAgentId;

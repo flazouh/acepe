@@ -24,7 +24,7 @@ describe("SessionStore cancelStreaming", () => {
 			okAsync(undefined)
 		);
 
-		const result = await store.cancelStreaming("session-123");
+		const result = await store.connection.cancelStreaming("session-123");
 
 		expect(result.isOk()).toBe(true);
 		expect(onTurnInterrupted).toHaveBeenCalledWith("session-123");
@@ -38,7 +38,7 @@ describe("SessionStore cancelStreaming", () => {
 			errAsync(new AgentError("cancelStreaming", new Error("network error")))
 		);
 
-		const result = await store.cancelStreaming("session-123");
+		const result = await store.connection.cancelStreaming("session-123");
 
 		expect(result.isErr()).toBe(true);
 		expect(onTurnInterrupted).not.toHaveBeenCalled();

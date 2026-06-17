@@ -4,12 +4,14 @@ import { toast } from "svelte-sonner";
 import { getKeybindingsService, isMac } from "$lib/keybindings/index.js";
 import { getPreconnectionAgentSkillsStore } from "$lib/skills/store/preconnection-agent-skills-store.svelte.js";
 import { getVoiceSettingsStore } from "$lib/stores/voice-settings-store.svelte.js";
+import type { AttachMenuCommandItem } from "@acepe/ui/agent-panel";
 import {
-	AgentInputComposerToolbar,
+	AgentInputActiveModeChip,
+	AgentInputAttachMenu,
+	AgentInputConfigOptionSelector,
+	AgentInputComposerTrailingControls,
 	AgentPanelComposer as SharedAgentPanelComposer,
-	type AgentInputConfigOption,
 } from "@acepe/ui/agent-panel";
-import * as agentModelPrefs from "../../store/agent-model-preferences-store.svelte.js";
 import { getConnectionStore } from "../../store/connection-store.svelte.js";
 import {
 	getAgentStore,
@@ -20,82 +22,60 @@ import {
 } from "../../store/index.js";
 import type { AvailableCommand } from "../../types/available-command.js";
 import { createLogger } from "../../utils/logger.js";
-import { filterVisibleModes } from "../../utils/mode-filter.js";
 import { resolvePanelDraftOnMount } from "./services/index.js";
 import AgentInputComposerBody from "./components/agent-input-composer-body.svelte";
 import AgentInputDropZone from "./components/agent-input-drop-zone.svelte";
-import { handleVoiceMicKeyDown as handleVoiceMicKeyDownFromModule } from "./logic/voice-mic-keyboard.js";
-import { resolveVoiceMicTooltip } from "./logic/voice-mic-labels.js";
-import { toVoiceToolbarBinding } from "./logic/voice-toolbar-binding.js";
-import { ModelSelector } from "../index.js";
-import ModelSelectorMetricsChip from "../model-selector.metrics-chip.svelte";
-import { getEffectiveFilePickerProjectPath } from "./logic/file-picker-context.js";
-import { VoiceInputState } from "./state/voice-input-state.svelte.js";
-import { canStartVoiceInteraction, shouldShowVoiceOverlay } from "./logic/voice-ui-state.js";
-import { createImageAttachment, isImageMimeType } from "./logic/image-attachment.js";
 import {
+	applyInlineTokenHoverTitles,
+	canStartVoiceInteraction,
+	ComposerViewController,
+	createImageAttachment,
 	findInlineArtefactRangeAtPosition,
-	INLINE_TOKEN_PREFIX,
-} from "./logic/inline-artefact-segments.js";
-import {
 	getAdjacentInlineTokenElement,
 	getInlineTokenType,
 	getInlineTokenValue,
 	getSerializedCursorOffset,
 	getSerializedRangeForNode,
-	getSerializedSelectionRange,
 	getSerializedSelectionEnd,
-	renderInlineComposerMessage,
-	serializeInlineComposerMessage,
-	setSerializedCursorOffset,
-	toInlineTokenText,
-} from "./logic/inline-composer-dom.js";
-import { applyInlineTokenHoverTitles } from "./logic/inline-token-hover-titles.js";
-import {
+	getSerializedSelectionRange,
+	handleVoiceMicKeyDown as handleVoiceMicKeyDownFromModule,
 	hasAutocompleteTrigger,
+	INLINE_TOKEN_PREFIX,
+	isImageMimeType,
+	loadSlashCommandWorkspaceMarkdown as loadSlashCommandWorkspaceMarkdownFromModule,
+	normalizeVoiceInputText,
 	parseFilePickerTrigger,
 	parseSlashCommandTrigger,
-} from "./logic/input-parser.js";
-import {
-	resolveSlashCommandSource,
-	shouldShowSlashCommandDropdown,
-} from "./logic/slash-command-source.js";
-import {
-	resolveCapabilityContextProviderMetadata,
-	resolveCapabilitySource,
-	sessionCapabilitySourceFromCapabilities,
-} from "./logic/capability-source.js";
-import { PreconnectionCapabilitiesState } from "./logic/preconnection-capabilities-state.svelte.js";
-import { PreconnectionRemoteCommandsState } from "./logic/preconnection-remote-commands-state.svelte.js";
-import { type SubmitIntent } from "../../logic/submit-intent.js";
-import {
-	deriveComposerInteractionState,
+	PreconnectionCapabilitiesState,
+	PreconnectionRemoteCommandsState,
+	renderInlineComposerMessage,
+	resolveAttachMenuItemInsertText,
+	resolveAutonomousSupport,
 	resolveComposerEnterKeyIntent,
-} from "../../logic/composer-ui-state.js";
-import {
+	resolveDefaultModeId,
 	resolveInitialModelIdForNewSession,
-	resolvePendingToolbarSelections,
-	resolveToolbarModeId,
-	resolveToolbarModelId,
-} from "./logic/toolbar-state.js";
-import { resolveModeMenuAction, resolveSelectedModeMenuOptionId } from "./logic/mode-menu-state.js";
-import { resolveAutonomousSupport } from "./logic/autonomous-support.js";
-import { getToolbarConfigOptions } from "./logic/toolbar-config-options.js";
-import { normalizeVoiceInputText } from "./logic/voice-input-text.js";
-import {
+	resolveModeMenuAction,
+	resolveVoiceMicTooltip,
+	serializeInlineComposerMessage,
+	setSerializedCursorOffset,
+	shouldInterruptComposerStream,
 	shouldRouteWindowVoiceHold,
+	shouldShowVoiceOverlay,
 	shouldStartVoiceHold,
 	shouldStopVoiceHold,
 	shouldSyncPanelFocusOnEditorFocus,
-} from "./logic/voice-keyboard.js";
-import { shouldInterruptComposerStream } from "./logic/interrupt-shortcut.js";
-import { resolveVoiceStateLifecycle } from "./logic/voice-state-lifecycle.js";
+	toInlineTokenText,
+	toVoiceToolbarBinding,
+	type SubmitIntent,
+} from "./composer-controller.js";
+import { ModelSelector } from "../index.js";
+import ModelSelectorMetricsChip from "../model-selector.metrics-chip.svelte";
+import { VoiceInputState } from "./state/voice-input-state.svelte.js";
+import { VoiceSessionController } from "./state/voice-session-controller.svelte.js";
 import { createAgentInputController } from "./agent-input-controller.js";
 import { AgentInputState } from "./state/agent-input-state.svelte.js";
 import type { Attachment } from "./types/attachment.js";
 import type { AgentInputProps } from "./types/agent-input-props.js";
-import { hasToolbarCapabilityData, resolveSelectorsLoading } from "./logic/toolbar-loading.js";
-import { loadSlashCommandWorkspaceMarkdown as loadSlashCommandWorkspaceMarkdownFromModule } from "./logic/slash-command-markdown-loader.js";
 
 // Keep props as reactive object instead of destructuring
 const props: AgentInputProps = $props();
@@ -113,17 +93,53 @@ const voiceSettingsStore = getVoiceSettingsStore();
 const preconnectionCapabilitiesState = new PreconnectionCapabilitiesState();
 const preconnectionRemoteCommandsState = new PreconnectionRemoteCommandsState();
 const effectiveVoiceSessionId = $derived(props.voiceSessionId ?? props.sessionId ?? null);
-const filePickerProjectPath = $derived(
-	getEffectiveFilePickerProjectPath(props.projectPath, props.worktreePath)
-);
 
-// Create state instance with reactive project path getter
-const inputState = new AgentInputState(sessionStore, panelStore, () => filePickerProjectPath);
+let isShiftPressed = $state(false);
+let inputState!: AgentInputState;
 
-let voiceState: VoiceInputState | null = $state(null);
-let voiceStateSessionId: string | null = $state(null);
-let voiceStatePendingSessionId: string | null = $state(null);
-let voiceStateInitGeneration = 0;
+const composerView = new ComposerViewController({
+	getProps: () => props,
+	getInputState: () => inputState,
+	getIsShiftPressed: () => isShiftPressed,
+	sessionStore,
+	panelStore,
+	agentStore,
+	preconnectionCapabilitiesState,
+	preconnectionRemoteCommandsState,
+	preconnectionAgentSkillsStore,
+	logger,
+});
+
+inputState = new AgentInputState(sessionStore, panelStore, () => composerView.filePickerProjectPath);
+
+const voiceSessionController = new VoiceSessionController({
+	getEffectiveVoiceSessionId: () => effectiveVoiceSessionId,
+	getVoiceEnabled: () => voiceEnabled,
+	createVoiceInputState: (targetSessionId) =>
+		new VoiceInputState({
+			sessionId: targetSessionId,
+			getSelectedLanguage: () => voiceSettingsStore.language,
+			getSelectedModelId: () => voiceSettingsStore.selectedModelId,
+			onOverlayDeactivated: () => {
+				queueMicrotask(() => editorRef?.focus());
+			},
+			onTranscriptionReady: (text) => {
+				const normalizedText = normalizeVoiceInputText(text);
+				if (!normalizedText) {
+					return;
+				}
+				const cursorPos = voiceCursorSnapshot ?? inputState.message.length;
+				voiceCursorSnapshot = null;
+				const prevChar = inputState.message[cursorPos - 1];
+				const sep = cursorPos > 0 && prevChar !== " " ? " " : "";
+				inputState.insertPlainTextAtOffsets(sep + normalizedText, cursorPos, cursorPos);
+				syncEditorFromMessage(cursorPos + sep.length + normalizedText.length);
+			},
+		}),
+});
+
+const voiceState = $derived(voiceSessionController.voiceState);
+const voiceReady = $derived(voiceSessionController.ready);
 /** Cursor offset captured before voice overlay hides the editor. */
 let voiceCursorSnapshot: number | null = null;
 let autonomousStatusMessage = $state("");
@@ -178,448 +194,28 @@ const voiceOverlayActive = $derived.by(() => {
 	return shouldShowVoiceOverlay(currentVoiceState.phase);
 });
 
-const panelHotState = $derived(props.panelId ? panelStore.getHotState(props.panelId) : null);
-
-// Resolve capabilities agent from selected agent, then fall back to the session's agent.
-const sessionIdentity = $derived(
-	props.sessionId ? sessionStore.getSessionIdentity(props.sessionId) : null
-);
-const capabilitiesAgentId = $derived.by(() => {
-	if (props.sessionId) {
-		if (sessionIdentity) {
-			return sessionIdentity.agentId;
-		}
-
-		return props.selectedAgentId ? props.selectedAgentId : null;
-	}
-
-	if (props.selectedAgentId) {
-		return props.selectedAgentId;
-	}
-
-	return sessionIdentity ? sessionIdentity.agentId : null;
-});
-
-const sessionAvailableModels = $derived(
-	props.sessionId ? sessionStore.getSessionAvailableModels(props.sessionId) : null
-);
-const sessionAvailableModes = $derived(
-	props.sessionId ? sessionStore.getSessionAvailableModes(props.sessionId) : null
-);
-const sessionModelsDisplay = $derived(
-	props.sessionId ? sessionStore.getSessionModelsDisplay(props.sessionId) : null
-);
-const sessionProviderMetadata = $derived(
-	props.sessionId ? sessionStore.getSessionProviderMetadata(props.sessionId) : null
-);
-const sessionHasCanonicalCapabilities = $derived(
-	props.sessionId ? sessionStore.hasSessionCanonicalCapabilities(props.sessionId) : false
-);
-const sessionCapabilities = $derived.by(() => {
-	if (!props.sessionId || !sessionHasCanonicalCapabilities) {
-		return null;
-	}
-
-	return {
-		availableModels: sessionAvailableModels,
-		availableModes: sessionAvailableModes,
-		modelsDisplay: sessionModelsDisplay,
-		providerMetadata: sessionProviderMetadata,
-	};
-});
-const sessionCapabilitySource = $derived(
-	sessionCapabilitySourceFromCapabilities(props.sessionId ?? null, sessionCapabilities)
-);
-const capabilitiesAgent = $derived.by(() => {
-	if (!capabilitiesAgentId) {
-		return null;
-	}
-
-	for (const agent of agentStore.agents) {
-		if (agent.id === capabilitiesAgentId) {
-			return agent;
-		}
-	}
-
-	return null;
-});
-const capabilitiesProviderMetadata = $derived(
-	resolveCapabilityContextProviderMetadata({
-		sessionSource: sessionCapabilitySource,
-		selectedAgentProviderMetadata: capabilitiesAgent ? (capabilitiesAgent.providerMetadata ?? null) : null,
-	})
-);
-const preconnectionCapabilities = $derived.by(() =>
-	preconnectionCapabilitiesState.getCapabilities({
-		agentId: capabilitiesAgentId,
-		projectPath: filePickerProjectPath,
-		preconnectionCapabilityMode:
-			capabilitiesProviderMetadata?.preconnectionCapabilityMode ?? "unsupported",
-	})
-);
-
-// Local transient affordances and lifecycle presentation come through narrow selectors.
-const sessionLifecyclePresentation = $derived(
-	props.sessionId ? sessionStore.getSessionLifecyclePresentation(props.sessionId) : null
-);
-const storeComposerState = $derived(
-	props.sessionId ? sessionStore.getStoreComposerState(props.sessionId) : null
-);
-const sessionCurrentModeId = $derived(
-	props.sessionId ? sessionStore.getSessionCurrentModeId(props.sessionId) : null
-);
-const sessionCurrentModelId = $derived(
-	props.sessionId ? sessionStore.getSessionCurrentModelId(props.sessionId) : null
-);
-const sessionAutonomousEnabled = $derived(
-	props.sessionId ? sessionStore.getSessionAutonomousEnabled(props.sessionId) : null
-);
-const sessionConfigOptions = $derived(
-	props.sessionId ? (sessionStore.getSessionConfigOptions(props.sessionId) ?? []) : []
-);
-const sessionAvailableCommands = $derived(
-	props.sessionId ? (sessionStore.getSessionAvailableCommands(props.sessionId) ?? []) : []
-);
-
-let previousComposerBindSessionId: string | null = null;
 $effect(() => {
-	const sessionId = props.sessionId;
-	if (!sessionId) {
-		previousComposerBindSessionId = null;
-		return;
-	}
-	if (sessionId === previousComposerBindSessionId) {
-		return;
-	}
-	previousComposerBindSessionId = sessionId;
-	sessionStore.bindComposerSession(sessionId);
-});
-
-let provisionalModeId = $state<string | null>(props.initialModeId ?? null);
-let provisionalModelId = $state<string | null>(null);
-
-// Persisted caches (loaded from SQLite on startup, survives restarts)
-const cachedModes = $derived(
-	capabilitiesAgentId ? agentModelPrefs.getCachedModes(capabilitiesAgentId) : []
-);
-const cachedModels = $derived(
-	capabilitiesAgentId ? agentModelPrefs.getCachedModels(capabilitiesAgentId) : []
-);
-const cachedModelsDisplay = $derived(
-	capabilitiesAgentId ? agentModelPrefs.getCachedModelsDisplay(capabilitiesAgentId) : null
-);
-
-const capabilitySource = $derived.by(() =>
-	resolveCapabilitySource({
-		sessionSource: sessionCapabilitySource,
-		preconnectionCapabilities,
-		cachedModes,
-		cachedModels,
-		cachedModelsDisplay,
-		providerMetadata: capabilitiesProviderMetadata ?? null,
-	})
-);
-const effectiveCapabilityProviderMetadata = $derived(capabilitySource.providerMetadata);
-const effectiveAvailableModes = $derived(capabilitySource.availableModes ?? []);
-
-const visibleModes = $derived(filterVisibleModes(effectiveAvailableModes));
-
-const effectiveComposerProvisionalModeId = $derived(
-	props.sessionId ? (storeComposerState?.provisionalModeId ?? null) : provisionalModeId
-);
-const effectiveComposerProvisionalModelId = $derived(
-	props.sessionId ? (storeComposerState?.provisionalModelId ?? null) : provisionalModelId
-);
-
-const effectiveCurrentModeId = $derived.by(() =>
-	resolveToolbarModeId({
-		liveCurrentModeId: sessionCurrentModeId,
-		provisionalModeId: effectiveComposerProvisionalModeId,
-		visibleModes,
-	})
-);
-const effectiveCurrentModeLabel = $derived.by(() => {
-	const currentMode = visibleModes.find((mode) => mode.id === effectiveCurrentModeId);
-	return currentMode?.name ?? effectiveCurrentModeId;
-});
-
-const panelProvisionalAutonomousEnabled = $derived.by(() => {
-	if (props.panelId) {
-		return panelStore.getHotState(props.panelId).provisionalAutonomousEnabled;
-	}
-
-	return false;
-});
-
-const autonomousToggleActive = $derived.by(() => {
-	if (props.sessionId) {
-		const cs = storeComposerState;
-		if (cs && cs.provisionalAutonomousEnabled !== null) {
-			return cs.provisionalAutonomousEnabled;
-		}
-		return sessionAutonomousEnabled === true;
-	}
-	return panelProvisionalAutonomousEnabled;
-});
-
-const autoModeSupportState = $derived.by(() =>
-	resolveAutonomousSupport({
-		agentId: capabilitiesAgentId,
-		connectionPhase: sessionLifecyclePresentation
-			? sessionLifecyclePresentation.connectionPhase
-			: null,
-		currentUiModeId: effectiveCurrentModeId,
-		agents: agentStore.agents,
-	})
-);
-
-const autonomousToggleBusy = $derived(
-	props.sessionId ? sessionStore.getSessionAutonomousTransitionBusy(props.sessionId) : false
-);
-
-const autonomousDisabled = $derived(autonomousToggleBusy || !autoModeSupportState.supported);
-
-const selectedModeMenuOptionId = $derived(
-	resolveSelectedModeMenuOptionId({
-		currentModeId: effectiveCurrentModeId,
-		autonomousEnabled: autonomousToggleActive,
-	})
-);
-
-const effectiveAvailableModels = $derived(capabilitySource.availableModels ?? []);
-const effectiveModelsDisplay = $derived(capabilitySource.modelsDisplay);
-
-const effectiveCurrentModelId = $derived.by(() =>
-	resolveToolbarModelId({
-		liveCurrentModelId: sessionCurrentModelId,
-		provisionalModelId: effectiveComposerProvisionalModelId,
-		availableModels: effectiveAvailableModels,
-	})
-);
-
-const toolbarConfigOptions = $derived.by((): AgentInputConfigOption[] => {
-	if (sessionConfigOptions.length === 0) {
-		return [];
-	}
-
-	return getToolbarConfigOptions(
-		sessionConfigOptions,
-		effectiveAvailableModels,
-		effectiveModelsDisplay
-	).map((option): AgentInputConfigOption => {
-		const raw = option.currentValue;
-		const currentValue: string | number | boolean | null =
-			raw === null || raw === undefined
-				? null
-				: typeof raw === "string" || typeof raw === "number" || typeof raw === "boolean"
-					? raw
-					: null;
-		const options = option.options?.flatMap(
-			(opt): { value: string | number | boolean; name: string }[] => {
-				const v = opt.value;
-				if (typeof v === "string" || typeof v === "number" || typeof v === "boolean") {
-					return [{ value: v, name: opt.name }];
-				}
-				return [];
-			}
-		);
-			return {
-				id: option.id,
-				name: option.name,
-				category: option.category,
-				type: option.type,
-				currentValue,
-				options,
-				presentation: option.presentation ?? "advanced",
-			};
-	});
-});
-
-const liveAvailableCommands = $derived.by(() => {
-	if (sessionAvailableCommands.length > 0) {
-		return sessionAvailableCommands;
-	}
-
-	return [];
-});
-const preconnectionAvailableCommands = $derived.by(() => {
-	if (!capabilitiesAgentId) {
-		return [];
-	}
-
-	return preconnectionRemoteCommandsState.getCommands({
-		agentId: capabilitiesAgentId,
-		projectPath: filePickerProjectPath,
-		preconnectionSlashMode:
-			effectiveCapabilityProviderMetadata?.preconnectionSlashMode ?? "unsupported",
-		skillCommands: preconnectionAgentSkillsStore.getCommandsForAgent(capabilitiesAgentId),
-	});
-});
-const hasSession = $derived(props.sessionId !== null && props.sessionId !== undefined);
-const slashCommandSource = $derived.by(() => {
-	return resolveSlashCommandSource({
-		liveCommands: liveAvailableCommands,
-		hasSession,
-		hasConnectedSession: sessionLifecyclePresentation?.connectionPhase === "connected",
-		selectedAgentId: capabilitiesAgentId,
-		preconnectionCommands: preconnectionAvailableCommands,
-	});
-});
-const effectiveAvailableCommands = $derived(slashCommandSource.commands);
-const isSlashDropdownVisible = $derived.by(() =>
-	shouldShowSlashCommandDropdown({
-		isTriggerActive: inputState.showSlashDropdown,
-		source: slashCommandSource,
-		capabilitiesAgentId,
-	})
-);
-
-// Input is ready when we have a session or project path (loading state no longer blocks input)
-const inputReady = $derived(Boolean(props.sessionId) || Boolean(filePickerProjectPath));
-
-// Stop/cancel state from canonical runtime contract.
-const isStreaming = $derived(
-	props.sessionShowStop ??
-		sessionLifecyclePresentation?.showStop ??
-		props.sessionIsStreaming ??
-		false
-);
-
-// Queue while the runtime contract still allows cancellation.
-// That covers both streaming and the awaiting-response gap used by OpenCode.
-const isAgentBusy = $derived(
-	props.sessionShowStop ?? sessionLifecyclePresentation?.canCancel ?? false
-);
-
-// Submit is controlled by canonical runtime state when a session exists.
-const isSubmitDisabled = $derived(
-	props.disableSend
-		? true
-		: props.sessionId
-			? (props.sessionCanSubmit ?? sessionLifecyclePresentation?.canSubmit) !== true
-			: false
-);
-
-const isSessionConnecting = $derived(
-	sessionLifecyclePresentation?.connectionPhase === "connecting"
-);
-
-// Loading state only follows explicit connecting/loading signals.
-// Empty capabilities should show selector empty-state, not a perpetual loading shimmer.
-const hasCachedToolbarData = $derived(
-	hasToolbarCapabilityData({
-		visibleModesCount: visibleModes.length,
-		availableModelsCount: effectiveAvailableModels.length,
-		modelsDisplay: effectiveModelsDisplay,
-	})
-);
-const selectorsLoading = $derived.by(() =>
-	resolveSelectorsLoading({
-		hasSession,
-		isSessionConnecting,
-		hasSelectedAgent: Boolean(capabilitiesAgentId),
-		visibleModesCount: visibleModes.length,
-		availableModelsCount: effectiveAvailableModels.length,
-		modelsDisplay: effectiveModelsDisplay,
-		isCacheLoaded: agentModelPrefs.isCacheLoaded(),
-		isPreconnectionLoading: preconnectionCapabilitiesState.isLoading({
-			agentId: capabilitiesAgentId,
-			projectPath: filePickerProjectPath,
-			preconnectionCapabilityMode:
-				effectiveCapabilityProviderMetadata?.preconnectionCapabilityMode ?? "unsupported",
-		}),
-	})
-);
-
-$effect(() => {
-	const hasConnectedSession = sessionLifecyclePresentation?.connectionPhase === "connected";
-	preconnectionCapabilitiesState
-		.ensureLoaded({
-			agentId: capabilitiesAgentId,
-			hasConnectedSession,
-			projectPath: filePickerProjectPath,
-			preconnectionCapabilityMode:
-				effectiveCapabilityProviderMetadata?.preconnectionCapabilityMode ?? "unsupported",
-		})
-		.mapErr((error) => {
-			logger.error("Failed to warm preconnection capabilities", {
-				agentId: capabilitiesAgentId,
-				projectPath: filePickerProjectPath,
-				error: error.message,
-			});
-			return undefined;
-		});
+	composerView.syncComposerSessionBind();
 });
 
 $effect(() => {
-	const sessionId = props.sessionId;
-	if (!sessionId || isApplyingProvisionalToolbarSelections) {
-		return;
-	}
-	if (sessionLifecyclePresentation?.connectionPhase !== "connected") {
-		return;
-	}
-
-	const cs = sessionStore.getStoreComposerState(sessionId);
-	const provMode = cs?.provisionalModeId ?? null;
-	const provModel = cs?.provisionalModelId ?? null;
-
-	const resolution = resolvePendingToolbarSelections({
-		provisionalModeId: provMode,
-		provisionalModelId: provModel,
-		liveCurrentModeId: sessionCurrentModeId,
-		liveCurrentModelId: sessionCurrentModelId,
-		availableModes: visibleModes,
-		availableModels: effectiveAvailableModels,
-	});
-
-	const liveModeId = sessionCurrentModeId;
-	const liveModelId = sessionCurrentModelId;
-
-	if (!resolution.modeIdToApply && !resolution.modelIdToApply) {
-		return;
-	}
-
-	isApplyingProvisionalToolbarSelections = true;
-
-	const run = async () => {
-		const autonomousForBegin = cs?.provisionalAutonomousEnabled ?? sessionAutonomousEnabled;
-		await sessionStore.runComposerConfigOperation(
-			sessionId,
-			{
-				provisionalModeId: resolution.modeIdToApply ?? provMode ?? liveModeId,
-				provisionalModelId: resolution.modelIdToApply ?? provModel ?? liveModelId,
-				provisionalAutonomousEnabled: autonomousForBegin,
-			},
-			async () => {
-				if (resolution.modeIdToApply) {
-					const modeResult = await sessionStore.setMode(sessionId, resolution.modeIdToApply);
-					if (modeResult.isErr()) {
-						return false;
-					}
-				}
-
-				if (resolution.modelIdToApply) {
-					const modelResult = await sessionStore.setModel(sessionId, resolution.modelIdToApply);
-					if (modelResult.isErr()) {
-						return false;
-					}
-				}
-				return true;
-			}
-		);
-	};
-
-	void run().finally(() => {
-		isApplyingProvisionalToolbarSelections = false;
-	});
+	composerView.syncPreconnectionCapabilities();
 });
 
-const hasDraftInput = $derived(
-	inputState.message.trim().length > 0 || inputState.attachments.length > 0
-);
+$effect(() => {
+	composerView.syncPendingToolbarSelections();
+});
 
-const selectorsDisabledByComposer = $derived(storeComposerState?.selectorsDisabled ?? false);
+$effect(() => {
+	const catalogInput = composerView.attachMenuMcpCatalogInput;
+	if (!composerView.attachMenuShowMcpSection) {
+		return;
+	}
+	composerView.refreshAttachMenuMcpCatalog();
+	void catalogInput.agentId;
+	void catalogInput.projectPath;
+	void catalogInput.sessionId;
+});
 
 // Track previous message for draft change detection
 let lastDraftValue = "";
@@ -631,27 +227,12 @@ let draftDebounceTimer: ReturnType<typeof setTimeout> | null = null;
  * effect loop (effect writes flag → triggers itself → writes flag → …).
  */
 let editorJustSynced = false;
-let isShiftPressed = $state(false);
-let isApplyingProvisionalToolbarSelections = $state(false);
 let editorRef: HTMLDivElement | null = $state(null);
+let imageAttachInputRef: HTMLInputElement | null = $state(null);
 let overlayMode: "preview" | "edit" | null = $state(null);
 let overlayRefId: string | null = $state(null);
 let overlayAnchorRect: DOMRect | null = $state(null);
 
-const composerInteraction = $derived.by(() => {
-	const hasBlocking = storeComposerState?.isBlocked ?? false;
-	const isDispatching = storeComposerState?.isDispatching ?? false;
-	return deriveComposerInteractionState({
-		hasDraftInput,
-		hasSessionId: !!props.sessionId,
-		isAgentBusy,
-		isStreaming,
-		isShiftPressed,
-		isSubmitDisabled,
-		hasBlockingComposerConfig: hasBlocking,
-		isComposerDispatching: isDispatching,
-	});
-});
 function syncEditorFromMessage(nextCursor: number | null = null): void {
 	if (!editorRef) {
 		return;
@@ -665,6 +246,11 @@ function syncEditorFromMessage(nextCursor: number | null = null): void {
 			const preview = firstLine.length <= 24 ? firstLine : `${firstLine.slice(0, 24)}…`;
 			return { textPreview: preview, charCount: text.length };
 		}
+		if (type === "image_ref") {
+			const image = inputState.getInlineImageReference(value);
+			if (!image) return undefined;
+			return { textPreview: image.displayName, iconPath: image.displayName };
+		}
 		return undefined;
 	});
 	applyInlineTokenHoverTitles(editorRef);
@@ -673,7 +259,7 @@ function syncEditorFromMessage(nextCursor: number | null = null): void {
 
 async function handleCancel() {
 	if (props.sessionId) {
-		const result = await sessionStore.cancelStreaming(props.sessionId);
+		const result = await sessionStore.connection.cancelStreaming(props.sessionId);
 		if (result.isErr()) {
 			console.error("Failed to cancel streaming:", result.error);
 		}
@@ -683,15 +269,15 @@ async function handleCancel() {
 const agentInputController = createAgentInputController({
 	getProps: () => props,
 	inputState,
-	getComposerInteraction: () => composerInteraction,
-	getAutonomousToggleActive: () => autonomousToggleActive,
-	getProvisionalModeId: () => provisionalModeId,
+	getComposerInteraction: () => composerView.composerInteraction,
+	getAutonomousToggleActive: () => composerView.autonomousToggleActive,
+	getProvisionalModeId: () => composerView.provisionalModeId,
 	getInitialModelIdForNewSession: () =>
 		resolveInitialModelIdForNewSession({
 			sessionId: props.sessionId ?? null,
-			displayedModelId: effectiveCurrentModelId,
+			displayedModelId: composerView.effectiveCurrentModelId,
 		}),
-	getIsStreaming: () => isStreaming,
+	getIsStreaming: () => composerView.isStreaming,
 	sessionStore,
 	panelStore,
 	connectionStore,
@@ -748,10 +334,10 @@ function getCaretDropdownPosition(): { top: number; left: number } | null {
 }
 
 function handleInlineFileChipClick(filePath: string) {
-	if (!filePickerProjectPath) {
+	if (!composerView.filePickerProjectPath) {
 		return;
 	}
-	panelStore.openFilePanel(filePath, filePickerProjectPath, {
+	panelStore.openFilePanel(filePath, composerView.filePickerProjectPath, {
 		ownerPanelId: props.panelId ?? undefined,
 	});
 }
@@ -788,9 +374,9 @@ function handleEditorInput(options?: { suppressAutocomplete?: boolean }): void {
 				dismissAllDropdowns();
 			} else {
 				const trigger = fileTriggerResult.value;
-				if (filePickerProjectPath) {
+				if (composerView.filePickerProjectPath) {
 					inputState
-						.loadProjectFiles(filePickerProjectPath, {
+						.loadProjectFiles(composerView.filePickerProjectPath, {
 							refresh: !inputState.showFileDropdown,
 						})
 						.mapErr(() => undefined);
@@ -806,19 +392,19 @@ function handleEditorInput(options?: { suppressAutocomplete?: boolean }): void {
 		} else {
 			inputState.showFileDropdown = false;
 			inputState.fileQuery = "";
-			const hasConnectedSession = sessionLifecyclePresentation?.connectionPhase === "connected";
+			const hasConnectedSession = composerView.sessionLifecyclePresentation?.connectionPhase === "connected";
 
 			if (
-				capabilitiesAgentId &&
+				composerView.capabilitiesAgentId &&
 				!hasConnectedSession &&
-				effectiveCapabilityProviderMetadata?.preconnectionSlashMode === "startupGlobal" &&
+				composerView.effectiveCapabilityProviderMetadata?.preconnectionSlashMode === "startupGlobal" &&
 				!preconnectionAgentSkillsStore.loaded &&
 				!preconnectionAgentSkillsStore.loading
 			) {
 				preconnectionAgentSkillsStore.ensureLoaded(agentStore.agents).mapErr((error) => {
 					logger.error("Failed to warm preconnection skills", {
-						agentId: capabilitiesAgentId,
-						projectPath: filePickerProjectPath,
+						agentId: composerView.capabilitiesAgentId,
+						projectPath: composerView.filePickerProjectPath,
 						error: error.message,
 					});
 					return undefined;
@@ -827,16 +413,16 @@ function handleEditorInput(options?: { suppressAutocomplete?: boolean }): void {
 
 			preconnectionRemoteCommandsState
 				.ensureLoaded({
-					agentId: capabilitiesAgentId,
+					agentId: composerView.capabilitiesAgentId,
 					hasConnectedSession,
-					projectPath: filePickerProjectPath,
+					projectPath: composerView.filePickerProjectPath,
 					preconnectionSlashMode:
-						effectiveCapabilityProviderMetadata?.preconnectionSlashMode ?? "unsupported",
+						composerView.effectiveCapabilityProviderMetadata?.preconnectionSlashMode ?? "unsupported",
 				})
 				.mapErr((error) => {
 					logger.error("Failed to warm remote preconnection commands", {
-						agentId: capabilitiesAgentId,
-						projectPath: filePickerProjectPath,
+						agentId: composerView.capabilitiesAgentId,
+						projectPath: composerView.filePickerProjectPath,
 						error: error.message,
 					});
 					return undefined;
@@ -868,92 +454,28 @@ function handleEditorInput(options?: { suppressAutocomplete?: boolean }): void {
 	}
 }
 
-async function initializeVoiceState(): Promise<void> {
-	if (!effectiveVoiceSessionId || !voiceEnabled) {
-		return;
-	}
-
-	const targetSessionId = effectiveVoiceSessionId;
-	const generation = ++voiceStateInitGeneration;
-	voiceStatePendingSessionId = targetSessionId;
-
-	const nextVoiceState = new VoiceInputState({
-		sessionId: targetSessionId,
-		getSelectedLanguage: () => voiceSettingsStore.language,
-		getSelectedModelId: () => voiceSettingsStore.selectedModelId,
-		onOverlayDeactivated: () => {
-			// Editor is re-mounted after overlay hides; focus it on next microtask
-			queueMicrotask(() => editorRef?.focus());
-		},
-		onTranscriptionReady: (text) => {
-			const normalizedText = normalizeVoiceInputText(text);
-			if (!normalizedText) {
-				return;
-			}
-			const cursorPos = voiceCursorSnapshot ?? inputState.message.length;
-			voiceCursorSnapshot = null;
-			const prevChar = inputState.message[cursorPos - 1];
-			const sep = cursorPos > 0 && prevChar !== " " ? " " : "";
-			inputState.insertPlainTextAtOffsets(sep + normalizedText, cursorPos, cursorPos);
-			syncEditorFromMessage(cursorPos + sep.length + normalizedText.length);
-		},
-	});
-
-	await nextVoiceState.registerListeners();
-	if (
-		generation !== voiceStateInitGeneration ||
-		!voiceEnabled ||
-		effectiveVoiceSessionId !== targetSessionId
-	) {
-		nextVoiceState.dispose();
-		if (generation === voiceStateInitGeneration) {
-			voiceStatePendingSessionId = null;
-		}
-		return;
-	}
-
-	voiceState = nextVoiceState;
-	voiceStateSessionId = targetSessionId;
-	voiceStatePendingSessionId = null;
-}
-
-function disposeVoiceState(): void {
-	voiceStateInitGeneration += 1;
-	voiceStatePendingSessionId = null;
-	voiceStateSessionId = null;
-	voiceState?.dispose();
-	voiceState = null;
-}
-
 $effect(() => {
-	const currentManagedSessionId =
-		voiceStatePendingSessionId !== null ? voiceStatePendingSessionId : voiceStateSessionId;
-	const lifecycle = resolveVoiceStateLifecycle(
-		currentManagedSessionId,
-		effectiveVoiceSessionId,
-		voiceEnabled
-	);
-
-	if (lifecycle === "noop") {
-		return;
-	}
-
-	if (lifecycle === "dispose" || lifecycle === "replace") {
-		disposeVoiceState();
-	}
-
-	if ((lifecycle === "init" || lifecycle === "replace") && effectiveVoiceSessionId) {
-		void initializeVoiceState();
-	}
+	effectiveVoiceSessionId;
+	voiceEnabled;
+	voiceSessionController.sync();
 });
 
 onMount(() => {
 	const container = inputState.containerRef;
+	let composerWidthObserver: ResizeObserver | null = null;
+	if (container && props.onToolbarWidthChange) {
+		composerWidthObserver = new ResizeObserver(() => {
+			reportComposerRowWidth();
+		});
+		composerWidthObserver.observe(container);
+		reportComposerRowWidth();
+	}
 	const handleWindowKeyDown = (event: KeyboardEvent) => {
 		if (event.key === "Shift") {
 			isShiftPressed = true;
 		}
 		if (
+			voiceReady &&
 			voiceState &&
 			shouldUseVoiceHoldKey(event) &&
 			shouldRouteWindowVoiceHold({
@@ -988,14 +510,14 @@ onMount(() => {
 	if (props.panelId) {
 		const pendingComposerRestore = panelStore.consumePendingComposerRestore(props.panelId);
 		const draft = panelStore.getMessageDraft(props.panelId);
-		const hasPendingUserEntry = panelHotState?.pendingUserEntry !== null;
+		const hasPendingUserEntry = composerView.panelHotState?.pendingUserEntry !== null;
 		logger.info("[first-send-trace] agent input mount", {
 			panelId: props.panelId,
 			sessionId: props.sessionId ?? null,
 			draftLength: draft.length,
 			hasPendingComposerRestore: pendingComposerRestore !== null,
 			hasPendingUserEntry,
-			hasPendingWorktreeSetup: panelHotState?.pendingWorktreeSetup !== null,
+			hasPendingWorktreeSetup: composerView.panelHotState?.pendingWorktreeSetup !== null,
 			messageLengthBeforeRestore: inputState.message.length,
 		});
 		const resolution = resolvePanelDraftOnMount({
@@ -1030,6 +552,7 @@ onMount(() => {
 		}
 	}
 	syncEditorFromMessage(inputState.message.length);
+	reportComposerRowWidth();
 	logger.info("[first-send-trace] synced editor after mount", {
 		panelId: props.panelId ?? null,
 		sessionId: props.sessionId ?? null,
@@ -1038,6 +561,7 @@ onMount(() => {
 	});
 
 	return () => {
+		composerWidthObserver?.disconnect();
 		window.removeEventListener("keydown", handleWindowKeyDown);
 		window.removeEventListener("keyup", handleWindowKeyUp);
 		container?.removeEventListener("keydown", handleInputContainerKeyDown);
@@ -1046,13 +570,13 @@ onMount(() => {
 
 // Cleanup on destroy — flush any pending draft before teardown
 onDestroy(() => {
-	disposeVoiceState();
+	voiceSessionController.dispose();
 	kb.setContext("inputFocused", false);
 	logger.info("[first-send-trace] agent input destroy", {
 		panelId: props.panelId ?? null,
 		sessionId: props.sessionId ?? null,
 		messageLength: inputState.message.length,
-		hasPendingUserEntry: panelHotState?.pendingUserEntry !== null,
+		hasPendingUserEntry: composerView.panelHotState?.pendingUserEntry !== null,
 		draftDebouncePending: draftDebounceTimer !== null,
 	});
 	if (props.panelId && inputState.message) {
@@ -1071,25 +595,25 @@ onDestroy(() => {
 async function handleModeChange(modeId: string) {
 	const sessionId = props.sessionId;
 	if (sessionId) {
-		await sessionStore.runComposerConfigOperation(
+		await sessionStore.composer.runConfigOperation(
 			sessionId,
 			{
 				provisionalModeId: modeId,
-				provisionalModelId: effectiveCurrentModelId,
-				provisionalAutonomousEnabled: autonomousToggleActive,
+				provisionalModelId: composerView.effectiveCurrentModelId,
+				provisionalAutonomousEnabled: composerView.autonomousToggleActive,
 			},
 			async () => {
 				const shouldAnnounceForcedOff =
-					autonomousToggleActive &&
+					composerView.autonomousToggleActive &&
 					!resolveAutonomousSupport({
-						agentId: capabilitiesAgentId,
-						connectionPhase: sessionLifecyclePresentation
-							? sessionLifecyclePresentation.connectionPhase
+						agentId: composerView.capabilitiesAgentId,
+						connectionPhase: composerView.sessionLifecyclePresentation
+							? composerView.sessionLifecyclePresentation.connectionPhase
 							: null,
 						currentUiModeId: modeId,
 						agents: agentStore.agents,
 					}).supported;
-				const result = await sessionStore.setMode(sessionId, modeId);
+				const result = await sessionStore.connection.setMode(sessionId, modeId);
 				if (result.isErr()) {
 					toast.error("Failed to switch mode.");
 					return false;
@@ -1104,11 +628,11 @@ async function handleModeChange(modeId: string) {
 		);
 		return;
 	}
-	provisionalModeId = modeId;
+	composerView.provisionalModeId = modeId;
 	if (
-		panelProvisionalAutonomousEnabled &&
+		composerView.panelProvisionalAutonomousEnabled &&
 		!resolveAutonomousSupport({
-			agentId: capabilitiesAgentId,
+			agentId: composerView.capabilitiesAgentId,
 			connectionPhase: null,
 			currentUiModeId: modeId,
 			agents: agentStore.agents,
@@ -1127,7 +651,7 @@ async function applyAutonomousEnabledToSession(nextEnabled: boolean): Promise<bo
 		return false;
 	}
 
-	const result = await sessionStore.setAutonomousEnabled(props.sessionId, nextEnabled);
+	const result = await sessionStore.connection.setAutonomousEnabled(props.sessionId, nextEnabled);
 	if (result.isErr()) {
 		toast.error(nextEnabled ? "Failed to enable Autonomous." : "Failed to disable Autonomous.");
 		return false;
@@ -1162,19 +686,19 @@ async function setAutonomousEnabled(nextEnabled: boolean): Promise<boolean> {
 }
 
 async function handleAutonomousToggle(): Promise<void> {
-	await setAutonomousEnabled(!autonomousToggleActive);
+	await setAutonomousEnabled(!composerView.autonomousToggleActive);
 }
 
 async function handleModeMenuChange(optionId: string): Promise<void> {
 	const resolution = resolveModeMenuAction({
 		selectedOptionId: optionId,
-		currentModeId: effectiveCurrentModeId,
-		autonomousEnabled: autonomousToggleActive,
+		currentModeId: composerView.effectiveCurrentModeId,
+		autonomousEnabled: composerView.autonomousToggleActive,
 	});
 
 	if (!props.sessionId) {
 		if (resolution.modeIdToApply) {
-			provisionalModeId = resolution.modeIdToApply;
+		composerView.provisionalModeId = resolution.modeIdToApply;
 		}
 
 		if (resolution.autonomousEnabledToApply !== null) {
@@ -1185,29 +709,29 @@ async function handleModeMenuChange(optionId: string): Promise<void> {
 	}
 
 	const sessionId = props.sessionId;
-	await sessionStore.runComposerConfigOperation(
+	await sessionStore.composer.runConfigOperation(
 		sessionId,
 		{
-			provisionalModeId: resolution.modeIdToApply ?? effectiveCurrentModeId,
-			provisionalModelId: effectiveCurrentModelId,
+			provisionalModeId: resolution.modeIdToApply ?? composerView.effectiveCurrentModeId,
+			provisionalModelId: composerView.effectiveCurrentModelId,
 			provisionalAutonomousEnabled:
 				resolution.autonomousEnabledToApply !== null
 					? resolution.autonomousEnabledToApply
-					: autonomousToggleActive,
+					: composerView.autonomousToggleActive,
 		},
 		async () => {
 			if (resolution.modeIdToApply) {
 				const shouldAnnounceForcedOff =
-					autonomousToggleActive &&
+					composerView.autonomousToggleActive &&
 					!resolveAutonomousSupport({
-						agentId: capabilitiesAgentId,
-						connectionPhase: sessionLifecyclePresentation
-							? sessionLifecyclePresentation.connectionPhase
+						agentId: composerView.capabilitiesAgentId,
+						connectionPhase: composerView.sessionLifecyclePresentation
+							? composerView.sessionLifecyclePresentation.connectionPhase
 							: null,
 						currentUiModeId: resolution.modeIdToApply,
 						agents: agentStore.agents,
 					}).supported;
-				const modeResult = await sessionStore.setMode(sessionId, resolution.modeIdToApply);
+				const modeResult = await sessionStore.connection.setMode(sessionId, resolution.modeIdToApply);
 				if (modeResult.isErr()) {
 					toast.error("Failed to switch mode.");
 					return false;
@@ -1237,15 +761,15 @@ async function handleModeMenuChange(optionId: string): Promise<void> {
 async function handleModelChange(modelId: string) {
 	const sessionId = props.sessionId;
 	if (sessionId) {
-		await sessionStore.runComposerConfigOperation(
+		await sessionStore.composer.runConfigOperation(
 			sessionId,
 			{
-				provisionalModeId: effectiveCurrentModeId,
+				provisionalModeId: composerView.effectiveCurrentModeId,
 				provisionalModelId: modelId,
-				provisionalAutonomousEnabled: autonomousToggleActive,
+				provisionalAutonomousEnabled: composerView.autonomousToggleActive,
 			},
 			async () => {
-				const result = await sessionStore.setModel(sessionId, modelId);
+				const result = await sessionStore.connection.setModel(sessionId, modelId);
 				if (result.isErr()) {
 					toast.error("Failed to switch model.");
 					return false;
@@ -1255,7 +779,7 @@ async function handleModelChange(modelId: string) {
 		);
 		return;
 	}
-	provisionalModelId = modelId;
+	composerView.provisionalModelId = modelId;
 }
 
 async function handleConfigOptionChange(configId: string, value: string) {
@@ -1264,31 +788,31 @@ async function handleConfigOptionChange(configId: string, value: string) {
 	}
 
 	const sessionId = props.sessionId;
-	await sessionStore.runComposerConfigOperation(
+	await sessionStore.composer.runConfigOperation(
 		sessionId,
 		{
-			provisionalModeId: effectiveCurrentModeId,
-			provisionalModelId: effectiveCurrentModelId,
-			provisionalAutonomousEnabled: autonomousToggleActive,
+			provisionalModeId: composerView.effectiveCurrentModeId,
+			provisionalModelId: composerView.effectiveCurrentModelId,
+			provisionalAutonomousEnabled: composerView.autonomousToggleActive,
 		},
 		async () => {
-			const result = await sessionStore.setConfigOption(sessionId, configId, value);
+			const result = await sessionStore.connection.setConfigOption(sessionId, configId, value);
 			return result.isOk();
 		}
 	);
 }
 
 function cycleModeOnTab(event: KeyboardEvent): boolean {
-	if (event.key !== "Tab" || event.shiftKey || visibleModes.length === 0) {
+	if (event.key !== "Tab" || event.shiftKey || composerView.visibleModes.length === 0) {
 		return false;
 	}
 
 	event.preventDefault();
-	const currentIndex = visibleModes.findIndex((m) => m.id === effectiveCurrentModeId);
+	const currentIndex = composerView.visibleModes.findIndex((m) => m.id === composerView.effectiveCurrentModeId);
 	const nextIndex =
-		currentIndex === -1 ? 1 % visibleModes.length : (currentIndex + 1) % visibleModes.length;
-	const nextMode = visibleModes[nextIndex];
-	if (nextMode && nextMode.id !== effectiveCurrentModeId) {
+		currentIndex === -1 ? 1 % composerView.visibleModes.length : (currentIndex + 1) % composerView.visibleModes.length;
+	const nextMode = composerView.visibleModes[nextIndex];
+	if (nextMode && nextMode.id !== composerView.effectiveCurrentModeId) {
 		handleModeChange(nextMode.id);
 	}
 	return true;
@@ -1300,18 +824,18 @@ function cycleModeOnShortcut(event: KeyboardEvent): boolean {
 		!(event.metaKey || event.ctrlKey) ||
 		(event.shiftKey && event.key !== ".") ||
 		event.altKey ||
-		visibleModes.length === 0
+		composerView.visibleModes.length === 0
 	) {
 		return false;
 	}
 
 	event.preventDefault();
 	event.stopPropagation();
-	const currentIndex = visibleModes.findIndex((m) => m.id === effectiveCurrentModeId);
+	const currentIndex = composerView.visibleModes.findIndex((m) => m.id === composerView.effectiveCurrentModeId);
 	const nextIndex =
-		currentIndex === -1 ? 1 % visibleModes.length : (currentIndex + 1) % visibleModes.length;
-	const nextMode = visibleModes[nextIndex];
-	if (nextMode && nextMode.id !== effectiveCurrentModeId) {
+		currentIndex === -1 ? 1 % composerView.visibleModes.length : (currentIndex + 1) % composerView.visibleModes.length;
+	const nextMode = composerView.visibleModes[nextIndex];
+	if (nextMode && nextMode.id !== composerView.effectiveCurrentModeId) {
 		handleModeChange(nextMode.id);
 	}
 	return true;
@@ -1334,12 +858,12 @@ function shouldUseVoiceHoldKey(event: KeyboardEvent): boolean {
 	if (!shouldStartVoiceHold(event)) {
 		return false;
 	}
-	if (!voiceEnabled || currentVoiceState === null) {
+	if (!voiceEnabled || !voiceReady || currentVoiceState === null) {
 		return false;
 	}
 	return canStartVoiceInteraction(
 		currentVoiceState.phase,
-		storeComposerState?.isDispatching ?? false
+		composerView.storeComposerState?.isDispatching ?? false
 	);
 }
 
@@ -1364,7 +888,7 @@ function handleEditorKeyDown(event: KeyboardEvent): void {
 	if (
 		shouldInterruptComposerStream({
 			isMac: isMac(),
-			isStreaming,
+			isStreaming: composerView.isStreaming,
 			event,
 		})
 	) {
@@ -1379,11 +903,11 @@ function handleEditorKeyDown(event: KeyboardEvent): void {
 
 	const submitIntent: SubmitIntent = resolveComposerEnterKeyIntent(
 		{
-			hasDraftInput,
-			isAgentBusy,
-			hasBlockingComposerConfig: storeComposerState?.isBlocked ?? false,
-			isComposerDispatching: storeComposerState?.isDispatching ?? false,
-			isSubmitDisabled,
+			hasDraftInput: composerView.hasDraftInput,
+			isAgentBusy: composerView.isAgentBusy,
+			hasBlockingComposerConfig: composerView.storeComposerState?.isBlocked ?? false,
+			isComposerDispatching: composerView.storeComposerState?.isDispatching ?? false,
+			isSubmitDisabled: composerView.isSubmitDisabled,
 		},
 		event
 	);
@@ -1497,7 +1021,7 @@ function loadSlashCommandWorkspaceMarkdown(input: {
 	return loadSlashCommandWorkspaceMarkdownFromModule({
 		command: input.command,
 		tokenType: input.tokenType,
-		agentId: capabilitiesAgentId,
+		agentId: composerView.capabilitiesAgentId,
 	});
 }
 
@@ -1550,7 +1074,7 @@ function handleCommandSelect(command: AvailableCommand): void {
 	const cursorPos = getSerializedCursorOffset(editorRef);
 	const before = inputState.message.substring(0, inputState.slashStartIndex);
 	const after = inputState.message.substring(cursorPos);
-	const tokenText = toInlineTokenText(slashCommandSource.tokenType, `/${command.name}`);
+	const tokenText = toInlineTokenText(composerView.slashCommandSource.tokenType, `/${command.name}`);
 	inputState.message = `${before}${tokenText} ${after}`;
 	inputState.showSlashDropdown = false;
 	inputState.slashQuery = "";
@@ -1571,6 +1095,99 @@ function handleFileSelect(file: { path: string }): void {
 	inputState.fileQuery = "";
 	syncEditorFromMessage(before.length + tokenText.length + 1);
 	handleEditorInput();
+}
+
+function handleAddFileContextFromAttachMenu(): void {
+	if (!editorRef) {
+		return;
+	}
+	editorRef.focus();
+	const cursorPos = getSerializedCursorOffset(editorRef);
+	const before = inputState.message.substring(0, cursorPos);
+	const after = inputState.message.substring(cursorPos);
+	inputState.message = `${before}@${after}`;
+	syncEditorFromMessage(cursorPos + 1);
+	handleEditorInput();
+}
+
+function handleAttachImageFromMenu(): void {
+	imageAttachInputRef?.click();
+}
+
+async function insertInlineImageFromFile(file: File, mimeType: string): Promise<boolean> {
+	const result = await createImageAttachment(file, mimeType);
+	if (result.isErr()) {
+		if (result.error.kind === "too_large") {
+			toast.error("Image exceeds 10 MB limit");
+		}
+		return false;
+	}
+	const attachment = result.value;
+	const token = inputState.createInlineImageReferenceToken({
+		displayName: attachment.displayName,
+		extension: attachment.extension,
+		content: attachment.content,
+		path: attachment.path,
+	});
+	const cursorPos = editorRef ? getSerializedCursorOffset(editorRef) : inputState.message.length;
+	const nextCursor = inputState.insertInlineTokenAtOffsets(token, cursorPos, cursorPos);
+	syncEditorFromMessage(nextCursor);
+	return true;
+}
+
+async function handleImageAttachInputChange(event: Event): Promise<void> {
+	const target = event.currentTarget;
+	if (!(target instanceof HTMLInputElement) || !target.files) {
+		return;
+	}
+	const files = Array.from(target.files);
+	for (const file of files) {
+		if (!isImageMimeType(file.type)) {
+			continue;
+		}
+		await insertInlineImageFromFile(file, file.type);
+	}
+	target.value = "";
+	handleEditorInput({ suppressAutocomplete: true });
+}
+
+function insertAttachMenuTokenAtCursor(insertText: string): void {
+	if (!editorRef) {
+		return;
+	}
+	const cursorPos = getSerializedCursorOffset(editorRef);
+	const before = inputState.message.substring(0, cursorPos);
+	const after = inputState.message.substring(cursorPos);
+	inputState.message = `${before}${insertText} ${after}`;
+	inputState.showSlashDropdown = false;
+	inputState.slashQuery = "";
+	syncEditorFromMessage(before.length + insertText.length + 1);
+	handleEditorInput({ suppressAutocomplete: true });
+}
+
+function handleAttachMenuOpenChange(open: boolean): void {
+	if (!open) {
+		return;
+	}
+	composerView.refreshAttachMenuMcpCatalog(true);
+}
+
+function handleAttachMenuItemSelect(item: AttachMenuCommandItem): void {
+	insertAttachMenuTokenAtCursor(resolveAttachMenuItemInsertText(item));
+}
+
+function handleActiveModeDismiss(): void {
+	const defaultModeId = resolveDefaultModeId(composerView.visibleModes);
+	if (defaultModeId && defaultModeId !== composerView.effectiveCurrentModeId) {
+		void handleModeMenuChange(defaultModeId);
+	}
+}
+
+function reportComposerRowWidth(): void {
+	if (!inputState.containerRef) {
+		return;
+	}
+	props.onToolbarWidthChange?.(inputState.containerRef.getBoundingClientRect().width);
 }
 
 let overlayCloseTimer: ReturnType<typeof setTimeout> | null = null;
@@ -1730,14 +1347,9 @@ async function handleEditorPaste(event: ClipboardEvent): Promise<void> {
 		if (!file) {
 			continue;
 		}
-		const result = await createImageAttachment(file, item.type);
-		if (result.isErr()) {
-			if (result.error.kind === "too_large") {
-				toast.error("Image exceeds 10 MB limit");
-			}
-			continue;
+		if (await insertInlineImageFromFile(file, item.type)) {
+			handleEditorInput({ suppressAutocomplete: true });
 		}
-		inputState.addAttachment(result.value);
 		return;
 	}
 
@@ -1789,7 +1401,11 @@ $effect(() => {
 	bind:this={inputState.containerRef}
 	role="region"
 	aria-label="Message input with file drop zone"
-	ondrop={(e) => inputState.handleDrop(e)}
+	ondrop={async (e) => {
+		await inputState.handleDrop(e);
+		syncEditorFromMessage(inputState.message.length);
+		handleEditorInput({ suppressAutocomplete: true });
+	}}
 	ondragover={(e) => inputState.handleDragOver(e)}
 	ondragleave={(e) => {
 		// Only trigger leave if we're leaving the container entirely
@@ -1802,29 +1418,39 @@ $effect(() => {
 	{#if inputState.isDragOver}
 		<AgentInputDropZone isDragHovering={inputState.isDragHovering} label="Drop image to attach" />
 	{:else}
+		<span class="sr-only" role="status" aria-live="polite">{autonomousStatusMessage}</span>
 		<SharedAgentPanelComposer
 			class="border-t-0 p-0"
 			inputClass="flex-shrink-0 border border-border bg-input/30"
-			contentClass={voiceOverlayActive ? "relative px-3 py-2.5" : "px-3 py-2.5"}
+			contentClass={voiceOverlayActive ? "relative p-1.5" : "p-1.5"}
 		>
 			{#snippet content()}
+				<input
+					bind:this={imageAttachInputRef}
+					type="file"
+					accept="image/*"
+					class="hidden"
+					aria-hidden="true"
+					tabindex={-1}
+					onchange={(event) => { void handleImageAttachInputChange(event); }}
+				/>
 				<AgentInputComposerBody
 					bind:editorRef
 					{voiceState}
 					{voiceOverlayActive}
-					{inputReady}
+					inputReady={composerView.inputReady}
 					{inputState}
 					overlayMode={overlayMode}
 					overlayRefId={overlayRefId}
 					overlayAnchorRect={overlayAnchorRect}
-					{composerInteraction}
-					{isStreaming}
-					{hasDraftInput}
-					{isAgentBusy}
-					effectiveAvailableCommands={effectiveAvailableCommands}
-					isSlashDropdownVisible={isSlashDropdownVisible}
-					slashCommandTokenType={slashCommandSource.tokenType}
-					filePickerProjectPath={filePickerProjectPath}
+					composerInteraction={composerView.composerInteraction}
+					isStreaming={composerView.isStreaming}
+					hasDraftInput={composerView.hasDraftInput}
+					isAgentBusy={composerView.isAgentBusy}
+					effectiveAvailableCommands={composerView.effectiveAvailableCommands}
+					isSlashDropdownVisible={composerView.isSlashDropdownVisible}
+					slashCommandTokenType={composerView.slashCommandSource.tokenType}
+					filePickerProjectPath={composerView.filePickerProjectPath}
 					onEditorBeforeInput={handleEditorBeforeInput}
 					onEditorInput={() => handleEditorInput()}
 					onEditorKeyDown={handleEditorKeyDown}
@@ -1845,101 +1471,119 @@ $effect(() => {
 					onFileSelect={handleFileSelect}
 					onSlashDropdownClose={() => inputState.handleDropdownClose()}
 					onFileDropdownClose={() => inputState.handleFileDropdownClose()}
-					placeholderLabel={"Plan, @ for context, / for commands"}
+					placeholderLabel={composerView.composerPlaceholderLabel}
 					voiceOverlayPhase={voiceRecordingOverlayPhase}
 					voiceDefaultErrorMessage={"Microphone permission denied"}
 					primarySrQueue={"Queue"}
 					primarySrSend={"Send message"}
 					primarySrInterrupt={"Interrupt"}
-					tooltipQueueRowLabel={"Queue"}
-					tooltipInterruptShiftRowLabel={"Interrupt"}
-					tooltipStopStreaming={"Stop"}
-					tooltipSend={"Send message"}
-					slashLabels={{
-						header: "Commands",
-						noCommands: "No commands available",
-						noResults: "No commands found",
-						startTyping: "Start typing to search commands...",
-						selectHint: "to select",
-						closeHint: "to close",
-					}}
-					filePickerLabels={{
-						header: "Add file context",
-						noResults: "No matching files",
-						selectHint: "to select",
-						closeHint: "to close",
-					}}
-				/>
-			{/snippet}
-			{#snippet footer()}
-				<AgentInputComposerToolbar
-					{inputReady}
-					{autonomousStatusMessage}
-					{autonomousToggleActive}
-					autonomousDisabled={autonomousDisabled}
-					autonomousBusy={autonomousToggleBusy}
-					onAutonomousToggle={() => { void handleAutonomousToggle(); }}
-					modes={visibleModes}
-					currentModeId={effectiveCurrentModeId}
-					onModeChange={(modeId) => { void handleModeMenuChange(modeId); }}
-					{selectorsLoading}
-					{selectorsDisabledByComposer}
-					toolbarConfigOptions={toolbarConfigOptions}
-					onConfigOptionChange={handleConfigOptionChange}
-					agentProjectPicker={props.agentProjectPicker}
-					checkpointButton={props.checkpointButton}
-					voiceState={voiceToolbarBinding}
-					{voiceEnabled}
-					composerIsDispatching={storeComposerState?.isDispatching ?? false}
-					getMicButtonTitle={(_voice) =>
-						voiceState ? resolveVoiceMicTooltip(voiceState.phase, voiceMicTooltipLabels) : ""}
-					onVoiceMicKeyDown={(event, _binding) => {
-						if (voiceState) {
-							if (voiceState.phase === "idle") {
-								voiceCursorSnapshot = editorRef
-									? getSerializedCursorOffset(editorRef)
-									: inputState.message.length;
-							}
-							handleVoiceMicKeyDownFromModule(event, voiceState);
-						}
-					}}
-					voiceModels={voiceSettingsStore.models.map((model) => ({
-						id: model.id,
-						name: model.name,
-						sizeBytes: model.size_bytes,
-						isDownloaded: model.is_downloaded,
-					}))}
-					voiceSelectedModelId={voiceSettingsStore.selectedModelId}
-					voiceModelsLoading={voiceSettingsStore.modelsLoading}
-					voiceDownloadingModelId={voiceSettingsStore.downloadProgressModelId}
-					voiceDownloadPercent={voiceSettingsStore.downloadPercent}
-					voiceMenuLabel={"Voice model"}
-					voiceModelsLoadingLabel={"Loading voice models…"}
-					onVoiceSelectModel={(modelId) => {
-						void voiceSettingsStore.setSelectedModelId(modelId);
-					}}
-					onVoiceDownloadModel={(modelId) => {
-						void voiceSettingsStore.downloadModel(modelId);
-					}}
-					voiceCloseLabel={"Close"}
 				>
-					{#snippet modelSelector()}
-						<ModelSelector
-							availableModels={effectiveAvailableModels}
-							currentModelId={effectiveCurrentModelId}
-							modelsDisplay={effectiveModelsDisplay}
-							providerMetadata={effectiveCapabilityProviderMetadata}
-							onModelChange={handleModelChange}
-							isLoading={selectorsLoading}
-							panelId={props.panelId}
+					{#snippet leadingControls()}
+						<AgentInputAttachMenu
+							disabled={composerView.selectorsDisabledByComposer}
+							modes={composerView.attachMenuModes}
+							commandSections={composerView.attachMenuCommandSections}
+							mcpServerGroups={composerView.attachMenuMcpServerGroups}
+							mcpLoading={composerView.attachMenuMcpCatalogLoading}
+							showMcpSection={composerView.attachMenuShowMcpSection}
+							mcpCatalogLoaded={composerView.attachMenuMcpCatalogLoaded}
+							showModes={composerView.visibleModes.length > 0}
+							autonomousToggleActive={composerView.autonomousToggleActive}
+							autonomousDisabled={composerView.autonomousDisabled}
+							autonomousBusy={composerView.autonomousToggleBusy}
+							onAutonomousToggle={() => { void handleAutonomousToggle(); }}
+							onModeChange={(modeId) => { void handleModeMenuChange(modeId); }}
+							onAddFileContext={handleAddFileContextFromAttachMenu}
+							onAttachImage={handleAttachImageFromMenu}
+							onCommandItemSelect={handleAttachMenuItemSelect}
+							onOpenChange={handleAttachMenuOpenChange}
+							checkpointOverflow={
+								props.showCheckpointInAttachMenu ? props.checkpointButton : undefined
+							}
 						/>
-					{/snippet}
-					{#snippet metricsChip()}
-						{#if props.sessionId}
-							<ModelSelectorMetricsChip sessionId={props.sessionId} agentId={capabilitiesAgentId} />
+						{#if composerView.toolbarConfigOptions.length > 0}
+							<div class="flex items-center gap-0.5">
+								{#each composerView.toolbarConfigOptions as configOption (configOption.id)}
+									<AgentInputConfigOptionSelector
+										{configOption}
+										disabled={composerView.selectorsLoading || composerView.selectorsDisabledByComposer}
+										onValueChange={(configId, value) => {
+											void handleConfigOptionChange(configId, value);
+										}}
+									/>
+								{/each}
+							</div>
+						{/if}
+						{#if composerView.showActiveModeChip}
+							<AgentInputActiveModeChip
+								label={composerView.selectedModeOption.label}
+								iconKind={composerView.selectedModeOption.iconKind}
+								disabled={composerView.selectorsDisabledByComposer}
+								onDismiss={handleActiveModeDismiss}
+							/>
 						{/if}
 					{/snippet}
-				</AgentInputComposerToolbar>
+					{#snippet trailingControls()}
+						<AgentInputComposerTrailingControls
+							inputReady={composerView.inputReady}
+							agentProjectPicker={props.agentProjectPicker}
+							voiceState={voiceToolbarBinding}
+							{voiceEnabled}
+							composerIsDispatching={composerView.storeComposerState?.isDispatching ?? false}
+							getMicButtonTitle={(_voice) =>
+								voiceState ? resolveVoiceMicTooltip(voiceState.phase, voiceMicTooltipLabels) : ""}
+							onVoiceMicKeyDown={(event, _binding) => {
+								if (voiceReady && voiceState) {
+									if (voiceState.phase === "idle") {
+										voiceCursorSnapshot = editorRef
+											? getSerializedCursorOffset(editorRef)
+											: inputState.message.length;
+									}
+									handleVoiceMicKeyDownFromModule(event, voiceState);
+								}
+							}}
+							voiceModels={voiceSettingsStore.models.map((model) => ({
+								id: model.id,
+								name: model.name,
+								sizeBytes: model.size_bytes,
+								isDownloaded: model.is_downloaded,
+							}))}
+							voiceSelectedModelId={voiceSettingsStore.selectedModelId}
+							voiceModelsLoading={voiceSettingsStore.modelsLoading}
+							voiceDownloadingModelId={voiceSettingsStore.downloadProgressModelId}
+							voiceDownloadPercent={voiceSettingsStore.downloadPercent}
+							voiceMenuLabel={"Voice model"}
+							voiceModelsLoadingLabel={"Loading voice models…"}
+							onVoiceSelectModel={(modelId) => {
+								void voiceSettingsStore.setSelectedModelId(modelId);
+							}}
+							onVoiceDownloadModel={(modelId) => {
+								void voiceSettingsStore.downloadModel(modelId);
+							}}
+							voiceCloseLabel={"Close"}
+						>
+							{#snippet modelSelector()}
+								<ModelSelector
+									availableModels={composerView.effectiveAvailableModels}
+									currentModelId={composerView.effectiveCurrentModelId}
+									modelsDisplay={composerView.effectiveModelsDisplay}
+									providerMetadata={composerView.effectiveCapabilityProviderMetadata}
+									onModelChange={handleModelChange}
+									isLoading={composerView.selectorsLoading}
+									panelId={props.panelId}
+								/>
+							{/snippet}
+							{#snippet metricsChip()}
+								{#if props.sessionId}
+									<ModelSelectorMetricsChip
+										sessionId={props.sessionId}
+										agentId={composerView.capabilitiesAgentId}
+									/>
+								{/if}
+							{/snippet}
+						</AgentInputComposerTrailingControls>
+					{/snippet}
+				</AgentInputComposerBody>
 			{/snippet}
 		</SharedAgentPanelComposer>
 	{/if}

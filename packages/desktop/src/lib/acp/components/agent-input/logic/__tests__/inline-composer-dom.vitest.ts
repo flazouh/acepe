@@ -140,11 +140,11 @@ describe("inline-composer-dom", () => {
 		expect(textToken).not.toBeNull();
 		expect(fileToken).not.toBeNull();
 
-		expect(commandToken?.className).toContain("rounded-sm");
+		expect(commandToken?.className).toContain("rounded-md");
 		expect(commandToken?.className).toContain("border");
-		expect(commandToken?.className).toContain("border-border/50");
-		expect(commandToken?.className).toContain("px-1");
-		expect(commandToken?.className).toContain("py-0.5");
+		expect(commandToken?.className).toContain("border-border/60");
+		expect(commandToken?.className).toContain("bg-accent");
+		expect(commandToken?.className).toContain("text-accent-foreground");
 		expect(fileToken?.className).toContain("px-1");
 		expect(fileToken?.className).toContain("py-0.5");
 
@@ -152,8 +152,8 @@ describe("inline-composer-dom", () => {
 		const skillIcon = skillToken?.querySelector("svg");
 		const textIcon = textToken?.querySelector("svg");
 
-		expect(commandIcon?.getAttribute("class") ?? "").toContain("text-violet-500");
-		expect(skillIcon?.getAttribute("class") ?? "").toContain("text-violet-500");
+		expect(commandIcon?.getAttribute("class") ?? "").toContain("text-purple");
+		expect(skillIcon?.getAttribute("class") ?? "").toContain("text-purple");
 		expect(textIcon?.getAttribute("class") ?? "").toContain("text-success");
 	});
 });

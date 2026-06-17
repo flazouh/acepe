@@ -108,7 +108,7 @@ onDestroy(() => {
 
 <div class="flex items-center gap-2">
 	{#if isRecording}
-		<div class="flex items-center gap-1.5 px-2 py-1 rounded border border-primary/50 bg-primary/10">
+		<div class="flex items-center gap-1.5 px-2 py-1 rounded-lg border border-primary/50 bg-primary/10">
 			<span class="relative flex h-2 w-2">
 				<span
 					class="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"

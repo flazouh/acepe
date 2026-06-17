@@ -63,14 +63,25 @@ export function derivePanelErrorInfo(inputs: PanelErrorInputs): PanelErrorInfo {
 	const turnHasError = inputs.sessionTurnState === "error" && inputs.activeTurnError !== null;
 
 	if (panelHasError) {
+		// A panel-level error may carry a canonical classification (e.g. a
+		// pre-session creation failure that resolved to `authenticationRequired`).
+		// When it does, render the same curated card the resume path produces
+		// rather than the raw creation message — single classification authority.
+		const panelFailureReason = inputs.panelConnectionError?.failureReason ?? null;
+		const curated =
+			panelFailureReason !== null
+				? failureCopy(inputs.agentDisplayName, panelFailureReason)
+				: null;
+		const rawMessage = inputs.panelConnectionError?.message ?? null;
+		const display = curated ?? rawMessage;
 		return {
 			showError: true,
 			title: "Connection error",
-			summary: summarize(inputs.panelConnectionError?.message ?? null),
-			details: inputs.panelConnectionError?.message ?? null,
+			summary: summarize(display),
+			details: display,
 			referenceId: inputs.panelConnectionError?.referenceId ?? null,
 			referenceSearchable: inputs.panelConnectionError?.referenceSearchable === true,
-			failureReason: null,
+			failureReason: panelFailureReason,
 		};
 	}
 

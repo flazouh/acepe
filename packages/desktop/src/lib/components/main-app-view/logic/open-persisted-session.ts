@@ -7,16 +7,12 @@ import { createLogger } from "$lib/acp/utils/logger.js";
 
 const logger = createLogger({ id: "open-persisted-session", name: "OpenPersistedSession" });
 const inflightPanelIds = new Set<string>();
+const HYDRATED_RECONNECT_REFRESH_TIMEOUT_MS = 45_000;
+const HYDRATED_RECONNECT_REFRESH_INTERVAL_MS = 1_000;
 
 type SessionOpenStore = Pick<
 	SessionStore,
-	| "setSessionLoading"
-	| "setSessionLoaded"
-	| "setLocalCreatedSessionLoaded"
-	| "getSessionIdentity"
-	| "getSessionMetadata"
-	| "connectSession"
-	| "clearSessionEntries"
+	"read" | "loading" | "connection" | "refreshCanonicalSessionState" | "clearSessionEntries"
 >;
 
 type SessionOpenHydratorLike = Pick<
@@ -44,9 +40,44 @@ interface HydratedReconnectOptions {
 }
 
 function isProviderHistoryBackedSession(
-	sessionMetadata: NonNullable<ReturnType<SessionOpenStore["getSessionMetadata"]>>
+	sessionMetadata: NonNullable<ReturnType<SessionOpenStore["read"]["getSessionMetadata"]>>
 ): boolean {
 	return sessionMetadata.sessionLifecycleState !== "created" || Boolean(sessionMetadata.sourcePath);
+}
+
+function delay(ms: number): Promise<void> {
+	return new Promise((resolve) => {
+		setTimeout(resolve, ms);
+	});
+}
+
+async function refreshHydratedSessionUntilReady(input: HydratedReconnectOptions): Promise<void> {
+	const { source, panelId, requestedSessionId, canonicalSessionId, sessionStore } = input;
+	const deadlineMs = Date.now() + HYDRATED_RECONNECT_REFRESH_TIMEOUT_MS;
+
+	while (Date.now() <= deadlineMs) {
+		await delay(HYDRATED_RECONNECT_REFRESH_INTERVAL_MS);
+		await sessionStore
+			.refreshCanonicalSessionState(canonicalSessionId)
+			.orElse((error) => {
+				logger.warn("Failed to refresh hydrated session snapshot after reconnect start", {
+					source,
+					panelId,
+					requestedSessionId,
+					canonicalSessionId,
+					error,
+				});
+				return okAsync(undefined);
+			})
+			.match(
+				() => undefined,
+				() => undefined
+			);
+
+		if (sessionStore.read.getSessionLifecycleStatus(canonicalSessionId) === "ready") {
+			return;
+		}
+	}
 }
 
 function reattachLocalCreatedSession(input: {
@@ -57,10 +88,10 @@ function reattachLocalCreatedSession(input: {
 	readonly agentId: string;
 }): ResultAsync<void, AppError> {
 	const { source, panelId, sessionId, sessionStore, agentId } = input;
-	return sessionStore
+	return sessionStore.connection
 		.connectSession(sessionId)
 		.map(() => {
-			sessionStore.setLocalCreatedSessionLoaded(sessionId);
+			sessionStore.loading.setLocalCreatedSessionLoaded(sessionId);
 			logger.debug("Reattached local created session", {
 				source,
 				panelId,
@@ -70,7 +101,7 @@ function reattachLocalCreatedSession(input: {
 			return undefined;
 		})
 		.orElse((error: AppError) => {
-			sessionStore.setSessionLoaded(sessionId);
+			sessionStore.loading.setSessionLoaded(sessionId);
 			logger.warn("Failed to reattach local created session", {
 				source,
 				panelId,
@@ -84,7 +115,7 @@ function reattachLocalCreatedSession(input: {
 
 function reconnectHydratedSession(input: HydratedReconnectOptions): Promise<void> {
 	const { source, panelId, requestedSessionId, canonicalSessionId, openToken, sessionStore } = input;
-	const reconnect = sessionStore
+	const reconnect = sessionStore.connection
 		.connectSession(canonicalSessionId, {
 			openToken,
 		})
@@ -102,8 +133,9 @@ function reconnectHydratedSession(input: HydratedReconnectOptions): Promise<void
 			() => undefined,
 			() => undefined
 		);
+	const refresh = refreshHydratedSessionUntilReady(input);
 
-	return reconnect;
+	return Promise.all([refresh, reconnect]).then(() => undefined);
 }
 
 export function openPersistedSession(options: OpenPersistedSessionOptions): void {
@@ -125,8 +157,8 @@ export function openPersistedSession(options: OpenPersistedSessionOptions): void
 		return;
 	}
 
-	const sessionIdentity = sessionStore.getSessionIdentity(sessionId);
-	const sessionMetadata = sessionStore.getSessionMetadata(sessionId);
+	const sessionIdentity = sessionStore.read.getSessionIdentity(sessionId);
+	const sessionMetadata = sessionStore.read.getSessionMetadata(sessionId);
 	if (!sessionIdentity || !sessionMetadata) {
 		logger.warn("Cannot open session because metadata is missing", {
 			source,
@@ -142,7 +174,7 @@ export function openPersistedSession(options: OpenPersistedSessionOptions): void
 	if (isProviderHistoryBackedSession(sessionMetadata)) {
 		sessionStore.clearSessionEntries(sessionId);
 	}
-	sessionStore.setSessionLoading(sessionId);
+	sessionStore.loading.setSessionLoading(sessionId);
 	const requestToken = sessionOpenHydrator.beginAttempt(panelId);
 	let reconnectPromise: Promise<void> | null = null;
 
@@ -176,7 +208,7 @@ export function openPersistedSession(options: OpenPersistedSessionOptions): void
 						agentId: sessionIdentity.agentId,
 					});
 				}
-				sessionStore.setSessionLoaded(sessionId);
+				sessionStore.loading.setSessionLoaded(sessionId);
 				return okAsync(undefined);
 			}
 
@@ -203,7 +235,7 @@ export function openPersistedSession(options: OpenPersistedSessionOptions): void
 						agentId: sessionIdentity.agentId,
 					});
 				}
-				sessionStore.setSessionLoaded(sessionId);
+				sessionStore.loading.setSessionLoaded(sessionId);
 				return okAsync(undefined);
 			}
 
@@ -214,7 +246,7 @@ export function openPersistedSession(options: OpenPersistedSessionOptions): void
 						return okAsync(undefined);
 					}
 
-					sessionStore.setSessionLoaded(hydration.canonicalSessionId);
+					sessionStore.loading.setSessionLoaded(hydration.canonicalSessionId);
 					sessionOpenHydrator.clearAttempt(panelId);
 					reconnectPromise = reconnectHydratedSession({
 						source,
@@ -249,7 +281,7 @@ export function openPersistedSession(options: OpenPersistedSessionOptions): void
 						() => undefined
 					);
 				}
-				sessionStore.setSessionLoaded(sessionId);
+				sessionStore.loading.setSessionLoaded(sessionId);
 				logger.error("Failed to open session", {
 					source,
 					panelId,
@@ -262,7 +294,7 @@ export function openPersistedSession(options: OpenPersistedSessionOptions): void
 	Promise.race([openPromise, timeoutPromise])
 		.catch(() => {
 			sessionOpenHydrator.clearAttempt(panelId);
-			sessionStore.setSessionLoaded(sessionId);
+			sessionStore.loading.setSessionLoaded(sessionId);
 			logger.error("Session open timed out", {
 				source,
 				panelId,

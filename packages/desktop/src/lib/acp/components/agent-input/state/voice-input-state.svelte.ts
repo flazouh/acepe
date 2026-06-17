@@ -232,6 +232,7 @@ export class VoiceInputState {
 			return;
 		}
 		(event.currentTarget as HTMLElement).setPointerCapture(event.pointerId);
+		playSound(SoundEffect.DictationStart);
 		this.startPressAndHoldTimer();
 	}
 
@@ -244,8 +245,8 @@ export class VoiceInputState {
 		}
 		this.clearPressTimer();
 		this.isPressAndHold = true;
-		playSound(SoundEffect.DictationStart);
 		log("keyboard press-and-hold: starting recording immediately");
+		playSound(SoundEffect.DictationStart);
 		this.startRecording();
 	}
 
@@ -267,7 +268,7 @@ export class VoiceInputState {
 		this.isPressAndHold = false;
 		if (this.phase === "recording") {
 			log("keyboard press-and-hold release: stopping recording");
-			playSound(SoundEffect.DictationStop);
+			playSound(SoundEffect.SoundDown);
 			this.stopRecording();
 			return;
 		}
@@ -301,18 +302,17 @@ export class VoiceInputState {
 			if (this.phase === "idle") {
 				this.isPressAndHold = false;
 				log("click-to-toggle: starting recording");
-				playSound(SoundEffect.DictationStart);
 				this.startRecording();
 			} else if (this.phase === "recording") {
 				log("click-to-toggle: stopping recording");
-				playSound(SoundEffect.DictationStop);
+				playSound(SoundEffect.SoundDown);
 				this.stopRecording();
 			}
 		} else if (this.isPressAndHold && this.phase === "recording") {
 			// Released after threshold → end hold
 			this.isPressAndHold = false;
 			log("press-and-hold release: stopping recording");
-			playSound(SoundEffect.DictationStop);
+			playSound(SoundEffect.SoundDown);
 			this.stopRecording();
 		} else if (this.isPressAndHold && canCancelVoiceInteraction(this.phase)) {
 			this.isPressAndHold = false;
@@ -321,7 +321,7 @@ export class VoiceInputState {
 		} else if (this.phase === "recording") {
 			// Click-to-toggle stop: pointerdown was ignored while recording, so stop on release.
 			log("click-to-toggle: stopping recording");
-			playSound(SoundEffect.DictationStop);
+			playSound(SoundEffect.SoundDown);
 			this.stopRecording();
 		} else if (canCancelVoiceInteraction(this.phase)) {
 			log("click-to-toggle: cancelling startup");

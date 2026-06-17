@@ -5,10 +5,7 @@ import SettingsSection from "../settings-section.svelte";
 </script>
 
 <div class="w-full">
-	<SettingsSection
-		title="MCP servers"
-		description="Model Context Protocol servers extend your agents with external tools and data sources."
-	>
+	<SettingsSection>
 		<SettingsComingSoon
 			icon={Plugs}
 			headline="MCP server management"

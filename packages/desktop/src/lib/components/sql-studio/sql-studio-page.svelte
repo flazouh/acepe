@@ -490,7 +490,7 @@ function saveCellEdit(rowIndex: number, columnName: string, value: string): void
 						id="connection-string"
 						bind:value={connectionString}
 						placeholder="postgresql://user:pass@localhost:5432/app"
-						class="h-7 w-full rounded-md border border-border/40 bg-muted/30 px-2 text-[0.6875rem] text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-primary/40"
+						class="h-7 w-full rounded-lg border border-border/40 bg-muted/30 px-2 text-[0.6875rem] text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-primary/40"
 					/>
 					<button
 						type="button"
@@ -510,7 +510,7 @@ function saveCellEdit(rowIndex: number, columnName: string, value: string): void
 					id="connection-name"
 					bind:value={connectionName}
 					placeholder="Local SQLite"
-					class="h-7 w-full rounded-md border border-border/40 bg-muted/30 px-2 text-[0.6875rem] text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-primary/40"
+					class="h-7 w-full rounded-lg border border-border/40 bg-muted/30 px-2 text-[0.6875rem] text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-primary/40"
 				/>
 			</div>
 			<div class="grid gap-1">
@@ -524,7 +524,7 @@ function saveCellEdit(rowIndex: number, columnName: string, value: string): void
 							connectionEngine = v;
 						}
 					}}
-					class="h-7 w-full rounded-md border border-border/40 bg-muted/30 px-2 text-[0.6875rem] text-foreground focus:outline-none focus:ring-1 focus:ring-primary/40 cursor-pointer appearance-none"
+					class="h-7 w-full rounded-lg border border-border/40 bg-muted/30 px-2 text-[0.6875rem] text-foreground focus:outline-none focus:ring-1 focus:ring-primary/40 cursor-pointer appearance-none"
 				>
 					<option value="sqlite">sqlite</option>
 					<option value="postgres">postgres</option>
@@ -540,7 +540,7 @@ function saveCellEdit(rowIndex: number, columnName: string, value: string): void
 							id="connection-file"
 							bind:value={connectionFilePath}
 							placeholder="/path/to/db.sqlite"
-							class="h-7 w-full rounded-md border border-border/40 bg-muted/30 px-2 text-[0.6875rem] text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-primary/40"
+							class="h-7 w-full rounded-lg border border-border/40 bg-muted/30 px-2 text-[0.6875rem] text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-primary/40"
 						/>
 						<button
 							type="button"
@@ -555,31 +555,31 @@ function saveCellEdit(rowIndex: number, columnName: string, value: string): void
 			{:else}
 				<div class="grid gap-1">
 					<label for="connection-host" class="text-[0.625rem] font-medium text-muted-foreground uppercase tracking-wider">Host</label>
-					<input id="connection-host" bind:value={connectionHost} placeholder="localhost" class="h-7 w-full rounded-md border border-border/40 bg-muted/30 px-2 text-[0.6875rem] text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-primary/40" />
+					<input id="connection-host" bind:value={connectionHost} placeholder="localhost" class="h-7 w-full rounded-lg border border-border/40 bg-muted/30 px-2 text-[0.6875rem] text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-primary/40" />
 				</div>
 				<div class="grid grid-cols-2 gap-2">
 					<div class="grid gap-1">
 						<label for="connection-port" class="text-[0.625rem] font-medium text-muted-foreground uppercase tracking-wider">Port</label>
-						<input id="connection-port" bind:value={connectionPort} placeholder="5432" class="h-7 w-full rounded-md border border-border/40 bg-muted/30 px-2 text-[0.6875rem] text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-primary/40" />
+						<input id="connection-port" bind:value={connectionPort} placeholder="5432" class="h-7 w-full rounded-lg border border-border/40 bg-muted/30 px-2 text-[0.6875rem] text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-primary/40" />
 					</div>
 					<div class="grid gap-1">
 						<label for="connection-database" class="text-[0.625rem] font-medium text-muted-foreground uppercase tracking-wider">Database</label>
-						<input id="connection-database" bind:value={connectionDatabase} placeholder="app" class="h-7 w-full rounded-md border border-border/40 bg-muted/30 px-2 text-[0.6875rem] text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-primary/40" />
+						<input id="connection-database" bind:value={connectionDatabase} placeholder="app" class="h-7 w-full rounded-lg border border-border/40 bg-muted/30 px-2 text-[0.6875rem] text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-primary/40" />
 					</div>
 				</div>
 				<div class="grid grid-cols-2 gap-2">
 					<div class="grid gap-1">
 						<label for="connection-username" class="text-[0.625rem] font-medium text-muted-foreground uppercase tracking-wider">Username</label>
-						<input id="connection-username" bind:value={connectionUsername} placeholder="user" class="h-7 w-full rounded-md border border-border/40 bg-muted/30 px-2 text-[0.6875rem] text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-primary/40" />
+						<input id="connection-username" bind:value={connectionUsername} placeholder="user" class="h-7 w-full rounded-lg border border-border/40 bg-muted/30 px-2 text-[0.6875rem] text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-primary/40" />
 					</div>
 					<div class="grid gap-1">
 						<label for="connection-password" class="text-[0.625rem] font-medium text-muted-foreground uppercase tracking-wider">Password</label>
-						<input id="connection-password" type="password" bind:value={connectionPassword} placeholder="••••••••" class="h-7 w-full rounded-md border border-border/40 bg-muted/30 px-2 text-[0.6875rem] text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-primary/40" />
+						<input id="connection-password" type="password" bind:value={connectionPassword} placeholder="••••••••" class="h-7 w-full rounded-lg border border-border/40 bg-muted/30 px-2 text-[0.6875rem] text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-primary/40" />
 					</div>
 				</div>
 				<div class="grid gap-1">
 					<label for="connection-ssl" class="text-[0.625rem] font-medium text-muted-foreground uppercase tracking-wider">SSL mode (optional)</label>
-					<input id="connection-ssl" bind:value={connectionSslMode} placeholder="require" class="h-7 w-full rounded-md border border-border/40 bg-muted/30 px-2 text-[0.6875rem] text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-primary/40" />
+					<input id="connection-ssl" bind:value={connectionSslMode} placeholder="require" class="h-7 w-full rounded-lg border border-border/40 bg-muted/30 px-2 text-[0.6875rem] text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-primary/40" />
 				</div>
 			{/if}
 		</div>

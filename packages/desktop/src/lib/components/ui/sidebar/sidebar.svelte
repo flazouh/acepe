@@ -95,7 +95,7 @@ const sidebar = useSidebar();
 				data-slot="sidebar-inner"
 				class={cn(
 					"flex h-full w-full flex-col overflow-hidden",
-					variant === "floating" || variant === "inset" ? "rounded-xl" : "",
+					variant === "floating" || variant === "inset" ? "rounded-lg" : "",
 					className
 				)}
 			>

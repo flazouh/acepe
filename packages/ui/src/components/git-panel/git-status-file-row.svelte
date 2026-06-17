@@ -153,7 +153,7 @@
 			{#if onStage}
 				<button
 					type="button"
-					class="flex items-center justify-center h-5 w-5 rounded text-muted-foreground hover:text-success hover:bg-success/10 cursor-pointer transition-colors"
+					class="flex items-center justify-center h-5 w-5 rounded-md text-muted-foreground hover:text-success hover:bg-success/10 cursor-pointer transition-colors"
 					title="Stage file"
 					onclick={() => onStage?.(path)}
 				>
@@ -163,7 +163,7 @@
 			{#if onDiscard}
 				<button
 					type="button"
-					class="flex items-center justify-center h-5 w-5 rounded text-muted-foreground hover:text-destructive hover:bg-destructive/10 cursor-pointer transition-colors"
+					class="flex items-center justify-center h-5 w-5 rounded-md text-muted-foreground hover:text-destructive hover:bg-destructive/10 cursor-pointer transition-colors"
 					title="Discard changes"
 					onclick={() => onDiscard?.(path)}
 				>
@@ -174,7 +174,7 @@
 			{#if onUnstage}
 				<button
 					type="button"
-					class="flex items-center justify-center h-5 w-5 rounded text-muted-foreground hover:text-warning hover:bg-warning/10 cursor-pointer transition-colors"
+					class="flex items-center justify-center h-5 w-5 rounded-md text-muted-foreground hover:text-warning hover:bg-warning/10 cursor-pointer transition-colors"
 					title="Unstage file"
 					onclick={() => onUnstage?.(path)}
 				>

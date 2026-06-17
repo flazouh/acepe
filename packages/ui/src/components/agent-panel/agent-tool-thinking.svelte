@@ -15,6 +15,8 @@
 	interface Props {
 		/** Label to display (e.g. "Thinking", "Thinking for 3s", "Thought for 3s") */
 		headerLabel?: string;
+		/** Optional custom header content; overrides headerLabel when provided. */
+		header?: Snippet;
 		/** When false, header row is hidden (e.g. while streaming). Default true. */
 		showHeader?: boolean;
 		/** Tool status for shimmer animation */
@@ -37,6 +39,7 @@
 
 	let {
 		headerLabel = "Thought",
+		header,
 		showHeader = true,
 		status = "done",
 		collapsed = true,
@@ -85,7 +88,13 @@
 				aria-label={collapseLabel}
 				aria-expanded={!collapsed}
 			>
-				<ToolLabel {status}>{headerLabel}</ToolLabel>
+				<ToolLabel {status} size="sm">
+					{#if header}
+						{@render header()}
+					{:else}
+						{headerLabel}
+					{/if}
+				</ToolLabel>
 			</button>
 
 			<!-- Expand toggle — show on hover, left of chevron -->

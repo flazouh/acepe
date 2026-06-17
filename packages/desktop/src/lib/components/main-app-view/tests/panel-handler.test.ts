@@ -34,8 +34,10 @@ describe("PanelHandler", () => {
 		} as unknown as PanelStore;
 
 		mockSessionStore = {
-			disconnectSession: mock(() => {}),
-			connectSession: mock(() => ({ mapErr: mock(() => undefined) })),
+			connection: {
+				disconnectSession: mock(() => {}),
+				connectSession: mock(() => ({ mapErr: mock(() => undefined) })),
+			},
 		} as unknown as SessionStore;
 
 		mockConnectionStore = {
@@ -50,7 +52,7 @@ describe("PanelHandler", () => {
 			handler.closePanel("panel-1");
 
 			// Should disconnect the session
-			expect(mockSessionStore.disconnectSession).toHaveBeenCalledWith("session-1");
+			expect(mockSessionStore.connection.disconnectSession).toHaveBeenCalledWith("session-1");
 
 			// Should destroy the connection actor
 			expect(mockConnectionStore.destroy).toHaveBeenCalledWith("panel-1");
@@ -69,7 +71,7 @@ describe("PanelHandler", () => {
 			handler.closePanel("panel-2");
 
 			// Should NOT disconnect any session
-			expect(mockSessionStore.disconnectSession).not.toHaveBeenCalled();
+			expect(mockSessionStore.connection.disconnectSession).not.toHaveBeenCalled();
 
 			// Should still destroy the connection actor
 			expect(mockConnectionStore.destroy).toHaveBeenCalledWith("panel-2");
@@ -92,7 +94,7 @@ describe("PanelHandler", () => {
 
 			handler.closePanel("panel-3");
 
-			expect(mockSessionStore.disconnectSession).not.toHaveBeenCalled();
+			expect(mockSessionStore.connection.disconnectSession).not.toHaveBeenCalled();
 			expect(mockConnectionStore.destroy).toHaveBeenCalledWith("panel-3");
 			expect(mockPanelStore.closePanel).toHaveBeenCalledWith("panel-3");
 		});
@@ -104,7 +106,7 @@ describe("PanelHandler", () => {
 			handler.closePanel("non-existent");
 
 			// Should NOT disconnect any session
-			expect(mockSessionStore.disconnectSession).not.toHaveBeenCalled();
+			expect(mockSessionStore.connection.disconnectSession).not.toHaveBeenCalled();
 
 			// Should still attempt to destroy and close (they handle non-existence)
 			expect(mockConnectionStore.destroy).toHaveBeenCalledWith("non-existent");
@@ -142,13 +144,13 @@ describe("PanelHandler", () => {
 		it("does not reconnect a disconnected panel session when focused (reconnect removed)", () => {
 			handler.focusPanel("panel-1");
 
-			expect(mockSessionStore.connectSession).not.toHaveBeenCalled();
+			expect(mockSessionStore.connection.connectSession).not.toHaveBeenCalled();
 		});
 
 		it("does not reconnect an already connected panel session when focused", () => {
 			handler.focusPanel("panel-1");
 
-			expect(mockSessionStore.connectSession).not.toHaveBeenCalled();
+			expect(mockSessionStore.connection.connectSession).not.toHaveBeenCalled();
 		});
 
 		it("does not reconnect when the focused panel has no session", () => {
@@ -159,7 +161,7 @@ describe("PanelHandler", () => {
 
 			handler.focusPanel("panel-2");
 
-			expect(mockSessionStore.connectSession).not.toHaveBeenCalled();
+			expect(mockSessionStore.connection.connectSession).not.toHaveBeenCalled();
 		});
 	});
 

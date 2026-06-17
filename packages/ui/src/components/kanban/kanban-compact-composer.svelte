@@ -88,7 +88,7 @@
 
 <!-- svelte-ignore a11y_no_static_element_interactions -->
 <div
-	class="flex w-full min-w-0 items-center {embedded ? 'gap-1.5 bg-background/90 px-2 py-0.5' : 'gap-1.5 rounded-md bg-background/60 px-1.5 py-1'}"
+	class="flex w-full min-w-0 items-center {embedded ? 'gap-1.5 bg-background/90 px-2 py-0.5' : 'gap-1.5 rounded-2xl bg-background/60 px-1.5 py-1'}"
 	onclick={(e) => e.stopPropagation()}
 	onkeydown={(e) => e.stopPropagation()}
 	data-testid="kanban-compact-composer"
@@ -110,7 +110,7 @@
 		{#if onModeToggle}
 			<button
 				type="button"
-				class="flex shrink-0 items-center justify-center rounded-sm p-0.5 text-muted-foreground transition-colors hover:text-foreground"
+				class="flex shrink-0 items-center justify-center rounded-md p-0.5 text-muted-foreground transition-colors hover:text-foreground"
 				aria-label={modeToggleLabel}
 				onclick={handleModeToggle}
 			>

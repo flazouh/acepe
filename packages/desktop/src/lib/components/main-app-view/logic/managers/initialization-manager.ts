@@ -57,7 +57,7 @@ import type { WorkspaceStore } from "$lib/acp/store/workspace-store.svelte.js";
 import { createLogger } from "$lib/acp/utils/logger.js";
 import { getChangelogEntriesSince } from "$lib/changelog/index.js";
 import type { KeybindingsService } from "$lib/keybindings/service.svelte.js";
-import type { UserSettingKey } from "$lib/services/converted-session-types.js";
+import type { UserSettingKey } from "$lib/services/user-settings-types.js";
 import { getZoomService } from "$lib/services/zoom.svelte.js";
 import type { PreconnectionAgentSkillsStore } from "$lib/skills/store/preconnection-agent-skills-store.svelte.js";
 import { settings } from "$lib/utils/tauri-client/settings.js";
@@ -424,7 +424,7 @@ export class InitializationManager {
 			return this.loadSessionHistory(this.getKnownProjectPaths());
 		}
 
-		return this.sessionStore
+		return this.sessionStore.loading
 			.loadStartupSessions(restoredSessionIds)
 			.map((result) => result.aliasRemaps)
 			.mapErr(
@@ -435,7 +435,7 @@ export class InitializationManager {
 					)
 			)
 			.andThen((aliasRemaps) => {
-				this.remapAliasedPanelSessionIds(aliasRemaps);
+				this.healStartupPanelSessionIds(aliasRemaps);
 				return this.validateRestoredSessions();
 			})
 			.map(() => {
@@ -451,7 +451,7 @@ export class InitializationManager {
 	 * @returns ResultAsync indicating success or error
 	 */
 	private loadSessionHistory(projectPaths: string[]): ResultAsync<void, MainAppViewError> {
-		return this.sessionStore
+		return this.sessionStore.loading
 			.loadSessions(projectPaths)
 			.map(() => undefined)
 			.mapErr(
@@ -480,20 +480,35 @@ export class InitializationManager {
 	}
 
 	/**
-	 * Rewrites panel session IDs from alias (provider_session_id) to canonical
-	 * (Acepe session ID) before validation runs, preventing panels from being
-	 * cleared as orphaned when their stored ID was a provider alias.
+	 * One-time startup canonicalization for persisted panel session ids.
+	 * Routes alias remaps through the guarded panel bind so duplicates collapse
+	 * instead of silently overwriting the session index.
 	 */
-	private remapAliasedPanelSessionIds(aliasRemaps: Record<string, string>): void {
-		const remapEntries = Object.entries(aliasRemaps);
-		if (remapEntries.length === 0) {
-			return;
-		}
-
+	private healStartupPanelSessionIds(aliasRemaps: Record<string, string>): void {
 		for (const panel of this.panelStore.panels) {
-			if (panel.sessionId && panel.sessionId in aliasRemaps) {
-				const canonicalId = aliasRemaps[panel.sessionId];
-				logger.debug("Remapping panel session ID from alias to canonical", {
+			if (panel.sessionId === null) {
+				continue;
+			}
+
+			const remappedCanonicalId = aliasRemaps[panel.sessionId];
+			const resolverCanonicalId = this.sessionStore.read.resolveCanonicalSessionId(
+				panel.sessionId
+			);
+			const canonicalId = remappedCanonicalId ?? resolverCanonicalId;
+
+			if (canonicalId === null || canonicalId === undefined) {
+				if (panel.sessionId in aliasRemaps) {
+					continue;
+				}
+				logger.warn("Persisted panel session id could not be resolved to canonical", {
+					panelId: panel.id,
+					sessionId: panel.sessionId.substring(0, 8),
+				});
+				continue;
+			}
+
+			if (canonicalId !== panel.sessionId) {
+				logger.debug("Healing persisted panel session id to canonical", {
 					panelId: panel.id,
 					aliasId: panel.sessionId.substring(0, 8),
 					canonicalId: canonicalId.substring(0, 8),
@@ -520,8 +535,8 @@ export class InitializationManager {
 		for (const panel of this.panelStore.panels) {
 			if (
 				panel.sessionId &&
-				(!this.sessionStore.getSessionIdentity(panel.sessionId) ||
-					!this.sessionStore.getSessionMetadata(panel.sessionId))
+				(!this.sessionStore.read.getSessionIdentity(panel.sessionId) ||
+					!this.sessionStore.read.getSessionMetadata(panel.sessionId))
 			) {
 				if (this.canRecoverRegistryOnlyPanel(panel)) {
 					continue;
@@ -568,7 +583,7 @@ export class InitializationManager {
 		}
 
 		// Start scan in background - don't block initialization
-		this.sessionStore.scanSessions(projectPaths).mapErr((error) => {
+		this.sessionStore.loading.scanSessions(projectPaths).mapErr((error) => {
 			console.warn("Background session scan failed:", error);
 		});
 	}
@@ -601,7 +616,7 @@ export class InitializationManager {
 
 		// Create sessions for each panel (in background, don't block)
 		for (const panel of panelsNeedingSessions) {
-			this.sessionStore
+			this.sessionStore.connection
 				.createSession({
 					agentId: panel.selectedAgentId!,
 					projectPath: project.path,
@@ -641,15 +656,15 @@ export class InitializationManager {
 		for (const panel of this.panelStore.panels) {
 			if (!panel.sessionId) continue;
 
-			const sessionIdentity = this.sessionStore.getSessionIdentity(panel.sessionId);
-			const sessionMetadata = this.sessionStore.getSessionMetadata(panel.sessionId);
+			const sessionIdentity = this.sessionStore.read.getSessionIdentity(panel.sessionId);
+			const sessionMetadata = this.sessionStore.read.getSessionMetadata(panel.sessionId);
 			if (!sessionIdentity || !sessionMetadata) {
 				const projectPath = panel.projectPath;
 				const agentId = panel.agentId;
 				if (!projectPath || !agentId) {
 					continue;
 				}
-				this.sessionStore.registerSessionPlaceholder(panel.sessionId, projectPath, agentId, {
+				this.sessionStore.loading.registerSessionPlaceholder(panel.sessionId, projectPath, agentId, {
 					sourcePath: panel.sourcePath ?? undefined,
 					worktreePath: panel.worktreePath ?? undefined,
 					placeholderTitle: panel.sessionTitle ?? undefined,

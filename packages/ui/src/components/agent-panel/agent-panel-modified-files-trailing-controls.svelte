@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { Button } from "../button/index.js";
-	import { CaretDown, Check, CheckCircle, FileCode } from "phosphor-svelte";
+	import { CaretDown, FileCode } from "phosphor-svelte";
 	import { Colors } from "../../lib/colors.js";
 
 	import type { AgentPanelModifiedFilesTrailingModel } from "./types.js";
@@ -42,29 +42,6 @@
 			<FileCode size={11} weight="fill" class="shrink-0" style="color: {Colors.purple}" />
 			{model.reviewLabel}
 		</Button>
-
-		{#if model.keepState === "applied"}
-			<Button
-				variant="headerAction"
-				size="headerAction"
-				disabled
-				class="text-xs disabled:opacity-100"
-			>
-				<CheckCircle size={11} weight="fill" class="shrink-0 text-success" />
-				{model.appliedLabel ?? "Applied"}
-			</Button>
-		{:else}
-			<Button
-				variant="invert"
-				size="headerAction"
-				class="text-xs"
-				disabled={model.keepState === "disabled"}
-				onclick={() => model.onKeep?.()}
-			>
-				<Check size={11} weight="bold" class="shrink-0" />
-				{model.keepLabel}
-			</Button>
-		{/if}
 	</div>
 {/if}
 

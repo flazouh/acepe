@@ -92,11 +92,19 @@ fn is_session_update_method(method: &str) -> bool {
 
 #[cfg(test)]
 pub fn parse_session_update_notification(json: &Value) -> ParseResult {
-    parse_session_update_notification_for_context(
-        current_agent().unwrap_or(AgentType::ClaudeCode),
-        None,
-        json,
-    )
+    let method = match json.get("method").and_then(|v| v.as_str()) {
+        Some(method) => method,
+        None => return ParseResult::NotSessionUpdate,
+    };
+
+    if !is_session_update_method(method) {
+        return ParseResult::NotSessionUpdate;
+    }
+
+    let agent = current_agent().expect(
+        "Missing agent context for session update notification parsing",
+    );
+    parse_session_update_notification_for_context(agent, None, json)
 }
 
 fn parse_session_update_notification_for_context(
@@ -336,7 +344,9 @@ pub fn session_update_to_domain_event(
         )),
 
         // ── connection lifecycle (handled via enqueue_session_domain_event) ─
-        SessionUpdate::ConnectionComplete { .. } | SessionUpdate::ConnectionFailed { .. } => None,
+        SessionUpdate::ConnectionComplete { .. }
+        | SessionUpdate::ConnectionFailed { .. }
+        | SessionUpdate::SessionDetached { .. } => None,
 
         // ── config / mode / commands — no domain event ─────────────────────
         SessionUpdate::Plan { .. }
@@ -592,7 +602,11 @@ mod tests {
 
     mod parse_session_update_notification {
         use super::*;
-        use crate::acp::agent_context::current_agent;
+        use crate::acp::agent_context::{current_agent, with_agent};
+
+        fn parse_notification(json: &serde_json::Value) -> ParseResult {
+            with_agent(AgentType::ClaudeCode, || parse_session_update_notification(json))
+        }
 
         #[test]
         fn returns_not_session_update_for_non_session_method() {
@@ -638,7 +652,7 @@ mod tests {
                 }
             });
 
-            let result = parse_session_update_notification(&json);
+            let result = parse_notification(&json);
             assert!(
                 matches!(result, ParseResult::Typed(_)),
                 "Expected Typed, got {:?}",
@@ -671,7 +685,7 @@ mod tests {
                 }
             });
 
-            let result = parse_session_update_notification(&json);
+            let result = parse_notification(&json);
             assert!(
                 matches!(result, ParseResult::Typed(_)),
                 "Expected Typed, got {:?}",
@@ -703,7 +717,7 @@ mod tests {
                 }
             });
 
-            let result = parse_session_update_notification(&json);
+            let result = parse_notification(&json);
             assert!(
                 matches!(result, ParseResult::Typed(_)),
                 "Expected Typed, got {:?}",
@@ -726,7 +740,7 @@ mod tests {
                 }
             });
 
-            let result = parse_session_update_notification(&json);
+            let result = parse_notification(&json);
             assert!(
                 matches!(result, ParseResult::Typed(_)),
                 "Expected Typed, got {:?}",
@@ -748,7 +762,7 @@ mod tests {
                 }
             });
 
-            let result = parse_session_update_notification(&json);
+            let result = parse_notification(&json);
             match result {
                 ParseResult::Raw {
                     session_id, error, ..
@@ -773,7 +787,7 @@ mod tests {
                 }
             });
 
-            let result = parse_session_update_notification(&json);
+            let result = parse_notification(&json);
             match result {
                 ParseResult::Raw {
                     update_type,

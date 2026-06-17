@@ -5,7 +5,7 @@
 //! Session content is parsed on-demand from source files (JSONL, SQLite, etc.)
 
 use std::sync::LazyLock;
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use crate::acp::types::CanonicalAgentId;
 use crate::codex_history::parser as codex_parser;
@@ -33,9 +33,12 @@ pub use scanning::{
     discover_all_projects_with_sessions, get_startup_sessions, scan_project_sessions,
 };
 pub use session_loading::{
+    audit_session_load_timing, get_session_open_result, set_session_pr_number, set_session_title,
+    set_session_worktree_path,
+};
+pub use crate::acp::session_restore::{
     audit_restored_tool_links_cli, audit_restored_tool_links_from_snapshot,
-    audit_session_load_timing, audit_session_load_timing_cli, get_session_open_result,
-    set_session_pr_number, set_session_title, set_session_worktree_path, RestoredToolLinkAudit,
+    audit_session_load_timing_cli, RestoredToolLinkAudit, SessionLoadTiming, TimingStage,
     UnresolvedToolRowAudit,
 };
 
@@ -64,28 +67,4 @@ static SCAN_CACHE: LazyLock<ScanCache<Vec<HistoryEntry>>> =
 
 pub async fn invalidate_scan_cache() {
     SCAN_CACHE.invalidate().await;
-}
-
-/// A single timing stage for session load audit.
-#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
-pub struct TimingStage {
-    pub name: String,
-    pub ms: u128,
-}
-
-/// Timing audit result for session load.
-#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
-pub struct SessionLoadTiming {
-    pub agent: String,
-    pub total_ms: u128,
-    pub stages: Vec<TimingStage>,
-    pub entry_count: usize,
-    pub ok: bool,
-}
-
-fn add_stage(stages: &mut Vec<TimingStage>, name: &str, start: Instant) {
-    stages.push(TimingStage {
-        name: name.to_string(),
-        ms: start.elapsed().as_millis(),
-    });
 }

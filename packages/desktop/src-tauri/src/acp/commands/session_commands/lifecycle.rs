@@ -378,7 +378,7 @@ pub(super) async fn load_transcript_snapshot_for_resume_with_app(
     if let Some(app) = app {
         if let Some(replay_context) = replay_context.as_ref() {
             if let Some(provider_snapshot) =
-                crate::history::commands::session_loading::load_provider_owned_session_snapshot(
+                crate::acp::session_restore::load_provider_owned_session_snapshot(
                     app.clone(),
                     replay_context,
                 )

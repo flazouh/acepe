@@ -1,6 +1,5 @@
 import type { AskMessage } from "../../types/ask-message";
 import type { AssistantMessage } from "../../types/assistant-message";
-import type { ErrorMessage } from "../../types/error-message.js";
 import type { ToolCall } from "../../types/tool-call";
 import type { UserMessage } from "../../types/user-message";
 
@@ -37,11 +36,7 @@ export type SessionEntry =
 			readonly type: "tool_call";
 			readonly message: ToolCall;
 	  })
-	| (SessionEntryBase & { readonly type: "ask"; readonly message: AskMessage })
-	| (SessionEntryBase & {
-			readonly type: "error";
-			readonly message: ErrorMessage;
-	  });
+	| (SessionEntryBase & { readonly type: "ask"; readonly message: AskMessage });
 
 /** Type guard: narrows SessionEntry to the tool_call variant. */
 export function isToolCallEntry(

@@ -6,7 +6,7 @@
  */
 export const NON_REGISTRY_COMMANDS = {
 	notifications: {
-		send: "plugin:notification|show_notification",
+		send: "plugin:notification|notify",
 		get_permission: "plugin:notification|is_permission_granted",
 		request_permission: "plugin:notification|request_permission",
 	},

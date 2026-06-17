@@ -1,6 +1,18 @@
 import { errAsync, okAsync } from "neverthrow";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+const fetchCanonicalSessionStateEnvelopeMock = vi.fn();
+const sendPromptMock = vi.fn();
+
+vi.mock("../api.js", () => ({
+	api: {
+		fetchCanonicalSessionStateEnvelope: (
+			...args: Parameters<typeof fetchCanonicalSessionStateEnvelopeMock>
+		) => fetchCanonicalSessionStateEnvelopeMock(...args),
+		sendPrompt: (...args: Parameters<typeof sendPromptMock>) => sendPromptMock(...args),
+	},
+}));
+
 import type {
 	SessionOpenFound,
 	SessionStateEnvelope,
@@ -147,10 +159,11 @@ describe("SessionStore.createSession", () => {
 	beforeEach(() => {
 		store = new SessionStore();
 		vi.clearAllMocks();
+		sendPromptMock.mockReturnValue(okAsync(undefined));
 	});
 
 	it("returns minimal PR link references for a project", () => {
-		store.setSessions([
+		store.write.setSessions([
 			createSession({
 				id: "linked-1",
 				prNumber: 42,
@@ -169,15 +182,15 @@ describe("SessionStore.createSession", () => {
 			}),
 		]);
 
-		expect(store.getSessionPrLinkReferencesForProject("/repo")).toEqual([
+		expect(store.read.getSessionPrLinkReferencesForProject("/repo")).toEqual([
 			{
 				id: "linked-1",
 				prNumber: 42,
 				sequenceId: 7,
 			},
 		]);
-		expect(store.getSessionIdsForProject("/repo")).toEqual(["linked-1", "unlinked"]);
-		expect(store.getLiveSessionSyncReferences()).toEqual([
+		expect(store.read.getSessionIdsForProject("/repo")).toEqual(["linked-1", "unlinked"]);
+		expect(store.read.getLiveSessionSyncReferences()).toEqual([
 			{
 				id: "linked-1",
 				updatedAtMs: new Date("2026-04-18T00:00:00.000Z").getTime(),
@@ -191,7 +204,7 @@ describe("SessionStore.createSession", () => {
 				updatedAtMs: new Date("2026-04-20T00:00:00.000Z").getTime(),
 			},
 		]);
-		expect(store.getSessionPaletteReferences()).toEqual([
+		expect(store.read.getSessionPaletteReferences()).toEqual([
 			{
 				id: "linked-1",
 				projectPath: "/repo",
@@ -211,14 +224,14 @@ describe("SessionStore.createSession", () => {
 				title: "New Thread",
 			},
 		]);
-		expect(store.getSessionPaletteReference("linked-1")).toEqual({
+		expect(store.read.getSessionPaletteReference("linked-1")).toEqual({
 			id: "linked-1",
 			projectPath: "/repo",
 			agentId: "copilot",
 			title: "New Thread",
 		});
-		expect(store.hasSession("linked-1")).toBe(true);
-		expect(store.hasSession("missing-session")).toBe(false);
+		expect(store.read.hasSession("linked-1")).toBe(true);
+		expect(store.read.hasSession("missing-session")).toBe(false);
 	});
 
 	it("hydrates the canonical session-open snapshot returned during session creation", async () => {
@@ -231,7 +244,7 @@ describe("SessionStore.createSession", () => {
 			};
 		};
 
-		store.setSessionOpenHydrator({ hydrateCreated });
+		store.connection.setSessionOpenHydrator({ hydrateCreated });
 		storeWithInternals.connectionMgr = {
 			createSession: vi.fn(() =>
 				okAsync({
@@ -245,7 +258,7 @@ describe("SessionStore.createSession", () => {
 			),
 		};
 
-		const result = await store.createSession({
+		const result = await store.connection.createSession({
 			projectPath: "/repo",
 			agentId: "copilot",
 		});
@@ -273,12 +286,12 @@ describe("SessionStore.createSession", () => {
 			};
 		};
 
-		store.setSessionOpenHydrator({ hydrateCreated });
+		store.connection.setSessionOpenHydrator({ hydrateCreated });
 		storeWithInternals.connectionMgr = {
 			createSession: vi.fn(() => errAsync(new Error("Provider crashed during session creation"))),
 		};
 
-		const result = await store.createSession({
+		const result = await store.connection.createSession({
 			projectPath: "/repo",
 			agentId: "copilot",
 		});
@@ -329,7 +342,7 @@ describe("SessionStore.createSession", () => {
 			connectionMgr: { createSession: ReturnType<typeof vi.fn> };
 		};
 
-		store.setSessionOpenHydrator({ hydrateCreated });
+		store.connection.setSessionOpenHydrator({ hydrateCreated });
 		storeWithInternals.connectionMgr = {
 			createSession: vi.fn(() =>
 				okAsync({
@@ -340,7 +353,7 @@ describe("SessionStore.createSession", () => {
 			),
 		};
 
-		await store.createSession({ projectPath: "/repo", agentId: "copilot" });
+		await store.connection.createSession({ projectPath: "/repo", agentId: "copilot" });
 
 		// The hydrator must receive the full snapshot including operations
 		expect(hydrateCreated).toHaveBeenCalledWith(
@@ -365,7 +378,7 @@ describe("SessionStore.createSession", () => {
 				connectionMgr: { createSession: ReturnType<typeof vi.fn> };
 			};
 
-			storeForProvider.setSessionOpenHydrator({ hydrateCreated });
+			storeForProvider.connection.setSessionOpenHydrator({ hydrateCreated });
 			storeWithInternals.connectionMgr = {
 				createSession: vi.fn(() =>
 					okAsync({
@@ -376,7 +389,7 @@ describe("SessionStore.createSession", () => {
 				),
 			};
 
-			const result = await storeForProvider.createSession({ projectPath: "/repo", agentId });
+			const result = await storeForProvider.connection.createSession({ projectPath: "/repo", agentId });
 			expect(result.isOk(), `createSession failed for agentId=${agentId}`).toBe(true);
 			expect(
 				hydrateCreated,
@@ -406,7 +419,7 @@ describe("SessionStore.createSession", () => {
 			),
 		};
 
-		const result = await store.createSession({
+		const result = await store.connection.createSession({
 			projectPath: "/repo",
 			agentId: "claude-code",
 		});
@@ -421,8 +434,8 @@ describe("SessionStore.createSession", () => {
 			title: "Build stable panels",
 			worktreePath: null,
 		});
-		expect(store.getAllSessions()).toEqual([]);
-		expect(store.hasPendingCreationSession("provider-requested-id")).toBe(true);
+		expect(store.read.getAllSessions()).toEqual([]);
+		expect(store.connection.hasPendingCreationSession("provider-requested-id")).toBe(true);
 
 		const materialized = store.ensureSessionFromStateGraph(
 			createSessionStateGraph({
@@ -435,7 +448,7 @@ describe("SessionStore.createSession", () => {
 		);
 
 		expect(materialized).toBe(true);
-		const sessions = store.getAllSessions();
+		const sessions = store.read.getAllSessions();
 		expect(sessions).toHaveLength(1);
 		expect(sessions[0]).toEqual(
 			expect.objectContaining({
@@ -446,7 +459,7 @@ describe("SessionStore.createSession", () => {
 				sequenceId: 50,
 			})
 		);
-		expect(store.hasPendingCreationSession("provider-requested-id")).toBe(false);
+		expect(store.connection.hasPendingCreationSession("provider-requested-id")).toBe(false);
 	});
 
 	it("fills sequence id when an early event materializes a deferred session before the graph", async () => {
@@ -470,13 +483,13 @@ describe("SessionStore.createSession", () => {
 			),
 		};
 
-		await store.createSession({
+		await store.connection.createSession({
 			projectPath: "/repo",
 			agentId: "claude-code",
 		});
 
-		expect(store.materializePendingCreationSession("provider-requested-id")).toBe(true);
-		expect(store.getSessionMetadata("provider-requested-id")?.sequenceId).toBeUndefined();
+		expect(store.connection.materializePendingCreationSession("provider-requested-id")).toBe(true);
+		expect(store.read.getSessionMetadata("provider-requested-id")?.sequenceId).toBeUndefined();
 
 		const materialized = store.ensureSessionFromStateGraph(
 			createSessionStateGraph({
@@ -489,8 +502,8 @@ describe("SessionStore.createSession", () => {
 		);
 
 		expect(materialized).toBe(true);
-		expect(store.getSessionMetadata("provider-requested-id")?.sequenceId).toBe(56);
-		expect(store.getAllSessions()[0]).toEqual(
+		expect(store.read.getSessionMetadata("provider-requested-id")?.sequenceId).toBe(56);
+		expect(store.read.getAllSessions()[0]).toEqual(
 			expect.objectContaining({
 				id: "provider-requested-id",
 				sequenceId: 56,
@@ -499,7 +512,7 @@ describe("SessionStore.createSession", () => {
 	});
 
 	it("fills a null placeholder sequence from the canonical graph", () => {
-		store.addSession(
+		store.write.addSession(
 			createSession({
 				id: "claude-created-session",
 				agentId: "claude-code",
@@ -518,11 +531,11 @@ describe("SessionStore.createSession", () => {
 		);
 
 		expect(materialized).toBe(true);
-		expect(store.getSessionMetadata("claude-created-session")?.sequenceId).toBe(59);
+		expect(store.read.getSessionMetadata("claude-created-session")?.sequenceId).toBe(59);
 	});
 
 	it("fills a null placeholder sequence when a known live session receives a full graph", () => {
-		store.addSession(
+		store.write.addSession(
 			createSession({
 				id: "claude-live-session",
 				agentId: "claude-code",
@@ -540,11 +553,11 @@ describe("SessionStore.createSession", () => {
 			})
 		);
 
-		expect(store.getSessionMetadata("claude-live-session")?.sequenceId).toBe(62);
+		expect(store.read.getSessionMetadata("claude-live-session")?.sequenceId).toBe(62);
 	});
 
 	it("preserves the canonical open snapshot sequence on an existing created session", () => {
-		store.addSession(
+		store.write.addSession(
 			createSession({
 				id: "snapshot-session",
 				title: "Session snapshot-session",
@@ -552,7 +565,7 @@ describe("SessionStore.createSession", () => {
 			})
 		);
 
-		store.replaceSessionOpenSnapshot(
+		store.write.replaceSessionOpenSnapshot(
 			createSessionOpenFound({
 				canonicalSessionId: "snapshot-session",
 				requestedSessionId: "snapshot-session",
@@ -561,10 +574,10 @@ describe("SessionStore.createSession", () => {
 			})
 		);
 
-		expect(store.getSessionMetadata("snapshot-session")?.title).toBe(
+		expect(store.read.getSessionMetadata("snapshot-session")?.title).toBe(
 			"Can you find a svelte component that is too big ?"
 		);
-		expect(store.getSessionMetadata("snapshot-session")?.sequenceId).toBe(57);
+		expect(store.read.getSessionMetadata("snapshot-session")?.sequenceId).toBe(57);
 	});
 
 	it("treats a materialized created session as enough authority for detail lookup", async () => {
@@ -588,7 +601,7 @@ describe("SessionStore.createSession", () => {
 			),
 		};
 
-		await store.createSession({
+		await store.connection.createSession({
 			projectPath: "/repo",
 			agentId: "claude-code",
 		});
@@ -602,8 +615,8 @@ describe("SessionStore.createSession", () => {
 			})
 		);
 
-		expect(store.hasSessionCanonicalProjection("provider-requested-id")).toBe(false);
-		expect(store.getSessionDetail("provider-requested-id")).toMatchObject({
+		expect(store.read.hasSessionCanonicalProjection("provider-requested-id")).toBe(false);
+		expect(store.read.getSessionDetail("provider-requested-id")).toMatchObject({
 			id: "provider-requested-id",
 			projectPath: "/repo",
 			agentId: "claude-code",
@@ -633,7 +646,7 @@ describe("SessionStore.createSession", () => {
 			),
 		};
 
-		await store.createSession({
+		await store.connection.createSession({
 			projectPath: "/repo",
 			agentId: "claude-code",
 		});
@@ -649,7 +662,7 @@ describe("SessionStore.createSession", () => {
 		);
 
 		expect(materialized).toBe(true);
-		const sessions = store.getAllSessions();
+		const sessions = store.read.getAllSessions();
 		expect(sessions).toHaveLength(1);
 		expect(sessions[0]).toEqual(
 			expect.objectContaining({
@@ -657,8 +670,60 @@ describe("SessionStore.createSession", () => {
 				title: "Aliased Thread",
 			})
 		);
-		expect(store.hasPendingCreationSession("requested-local-id")).toBe(false);
-		expect(store.hasPendingCreationSession("provider-canonical-id")).toBe(false);
+		expect(store.connection.hasPendingCreationSession("requested-local-id")).toBe(false);
+		expect(store.connection.hasPendingCreationSession("provider-canonical-id")).toBe(false);
+	});
+
+	it("migrates the first-send pending intent when an aliased pending creation becomes canonical", async () => {
+		vi.spyOn(store.connectionMgr, "createSession").mockReturnValue(
+			okAsync({
+				kind: "pending" as const,
+				sessionId: "requested-local-id",
+				creationAttemptId: "attempt-1",
+				projectPath: "/repo",
+				agentId: "claude-code",
+				title: "Aliased Thread",
+				worktreePath: null,
+			})
+		);
+
+		await store.connection.createSession({
+			projectPath: "/repo",
+			agentId: "claude-code",
+		});
+
+		const sendResult = await store.connection.sendMessage(
+			"requested-local-id",
+			"first prompt survives promotion"
+		);
+		expect(sendResult.isOk()).toBe(true);
+		const requestedPending = store.read.getSessionPendingSendIntent("requested-local-id");
+		expect(requestedPending).toMatchObject({
+			attemptId: expect.any(String),
+			optimisticEntry: {
+				type: "user",
+				message: {
+					content: { type: "text", text: "first prompt survives promotion" },
+				},
+			},
+		});
+		expect(store.read.getSessionPendingSendIntent("provider-canonical-id")).toBeNull();
+
+		const materialized = store.ensureSessionFromStateGraph(
+			createSessionStateGraph({
+				requestedSessionId: "requested-local-id",
+				canonicalSessionId: "provider-canonical-id",
+				isAlias: true,
+				agentId: "claude-code",
+				projectPath: "/repo",
+			})
+		);
+
+		expect(materialized).toBe(true);
+		expect(store.read.getSessionPendingSendIntent("provider-canonical-id")).toEqual(
+			requestedPending
+		);
+		expect(store.read.getSessionPendingSendIntent("requested-local-id")).toBeNull();
 	});
 
 	it("removes pending creation when a terminal creation error arrives before materialization", async () => {
@@ -682,12 +747,12 @@ describe("SessionStore.createSession", () => {
 			),
 		};
 
-		await store.createSession({
+		await store.connection.createSession({
 			projectPath: "/repo",
 			agentId: "claude-code",
 		});
 
-		store.failPendingCreationSession("pending-session", {
+		store.connection.failPendingCreationSession("pending-session", {
 			type: "turnError",
 			session_id: "pending-session",
 			error: {
@@ -697,8 +762,8 @@ describe("SessionStore.createSession", () => {
 			},
 		});
 
-		expect(store.hasPendingCreationSession("pending-session")).toBe(false);
-		expect(store.hasSessionCanonicalProjection("pending-session")).toBe(false);
+		expect(store.connection.hasPendingCreationSession("pending-session")).toBe(false);
+		expect(store.read.hasSessionCanonicalProjection("pending-session")).toBe(false);
 
 		store.applySessionStateEnvelope(
 			"pending-session",
@@ -746,7 +811,7 @@ describe("SessionStore.createSession", () => {
 			)
 		);
 
-		expect(store.getSessionLifecycleStatus("pending-session")).toBe("failed");
-		expect(store.getSessionTurnState("pending-session")).toBe("Failed");
+		expect(store.read.getSessionLifecycleStatus("pending-session")).toBe("failed");
+		expect(store.read.getSessionTurnState("pending-session")).toBe("Failed");
 	});
 });

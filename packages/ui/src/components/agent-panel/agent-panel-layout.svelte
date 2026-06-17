@@ -17,7 +17,7 @@
 	import AgentToolSkill from "./agent-tool-skill.svelte";
 	import AgentToolTodo from "./agent-tool-todo.svelte";
 	import AgentToolWebSearch from "./agent-tool-web-search.svelte";
-	import ToolHeaderLeading from "./tool-header-leading.svelte";
+	import ToolLabel from "./tool-label.svelte";
 
 	interface Props {
 		entries: AnyAgentEntry[];
@@ -75,9 +75,10 @@
 		{#each entries as entry (entry.id)}
 			<div class="py-1.5 px-3">
 				{#if entry.type === "user"}
-					<AgentUserMessage text={entry.text} timestampMs={entry.timestampMs} />
+					<AgentUserMessage text={entry.text} chunks={entry.chunks} timestampMs={entry.timestampMs} />
 				{:else if entry.type === "assistant"}
 					<AgentAssistantMessage
+						messageId={entry.id}
 						message={{
 							chunks: [{ type: "message", block: { type: "text", text: entry.markdown } }],
 						}}
@@ -180,9 +181,9 @@
 					{/if}
 				{:else if entry.type === "thinking"}
 					<div class="flex items-center gap-2 py-2 text-sm text-muted-foreground">
-						<ToolHeaderLeading kind="think" status="running">
-							{entry.label ?? "Planning next moves…"}
-						</ToolHeaderLeading>
+						<ToolLabel status="running" size="sm">
+							{entry.label ?? "Planning next moves"}
+						</ToolLabel>
 					</div>
 				{/if}
 			</div>

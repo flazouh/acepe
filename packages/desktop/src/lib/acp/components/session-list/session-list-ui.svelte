@@ -1,13 +1,16 @@
 <script lang="ts">
-import { DiffPill } from "@acepe/ui";
+import { DiffPill, Selector } from "@acepe/ui";
+import {
+	AppSidebarProjectGroup,
+	ProjectHeader,
+	ProjectHeaderOverflowMenu,
+} from "@acepe/ui/app-layout";
 import { Colors } from "@acepe/ui/colors";
-import ChevronDown from "@lucide/svelte/icons/chevron-down";
 import ChevronUp from "@lucide/svelte/icons/chevron-up";
 import { IconArrowDown } from "@tabler/icons-svelte";
 import { IconArrowUp } from "@tabler/icons-svelte";
 import { IconPlus } from "@tabler/icons-svelte";
 import { listen } from "@tauri-apps/api/event";
-import { DropdownMenu } from "bits-ui";
 import { ArrowsClockwise } from "phosphor-svelte";
 import { BookOpen } from "phosphor-svelte";
 import { Bug } from "phosphor-svelte";
@@ -36,8 +39,6 @@ import * as Tooltip from "$lib/components/ui/tooltip/index.js";
 import { tauriClient } from "$lib/utils/tauri-client.js";
 import type { AgentInfo } from "../../logic/agent-manager.js";
 import ProjectFileSystemDialog from "../file-explorer-modal/project-file-system-dialog.svelte";
-import ProjectHeader from "../project-header.svelte";
-import ProjectHeaderOverflowMenu from "../project-header-overflow-menu.svelte";
 import {
 	getSidebarSessions,
 	getNextSessionListVisibleCount,
@@ -106,6 +107,10 @@ interface Props {
 	onExportJson?: (sessionId: string) => void | Promise<void>;
 	/** Called when project order changes from the sidebar move actions */
 	onReorderProjects?: (orderedPaths: string[]) => void;
+	/** Per-project visibility for discovered external CLI sessions */
+	projectShowExternalCliSessions?: ReadonlyMap<string, boolean>;
+	/** Toggle whether discovered external CLI sessions appear in this project's list */
+	onToggleShowExternalCliSessions?: (projectPath: string, showExternalCliSessions: boolean) => void;
 }
 
 let {
@@ -138,6 +143,8 @@ let {
 	onExportMarkdown,
 	onExportJson,
 	onReorderProjects,
+	projectShowExternalCliSessions = new Map(),
+	onToggleShowExternalCliSessions,
 }: Props = $props();
 
 // Project collapse state (hydrated from persisted state in one-time effect)
@@ -528,7 +535,15 @@ function handleOpenGitPanel(event: MouseEvent, projectPath: string) {
 }
 
 const projectHeaderHoverActionButtonClass =
-	"flex items-center justify-center size-5 rounded text-muted-foreground transition-colors hover:bg-accent hover:text-foreground";
+	"flex items-center justify-center size-5 rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground";
+
+function getShowExternalCliSessions(projectPath: string): boolean {
+	return projectShowExternalCliSessions.get(projectPath) ?? true;
+}
+
+function isAcepeOnlyFilterActive(projectPath: string): boolean {
+	return !getShowExternalCliSessions(projectPath);
+}
 
 function handleOpenFileExplorer(event: MouseEvent, group: SessionGroup): void {
 	event.stopPropagation();
@@ -708,6 +723,121 @@ function openCreateBranchDialog(projectPath: string): void {
 }
 </script>
 
+{#snippet projectOverflowMenu(group, projectIndex)}
+	<ProjectHeaderOverflowMenu
+		projectName={group.projectName}
+		currentColor={group.projectColor}
+		onColorChange={onProjectColorChange
+			? (color) => onProjectColorChange(group.projectPath, color)
+			: undefined}
+		projectIconSrc={group.projectIconSrc}
+		onResetProjectIcon={onResetProjectIcon
+			? () => onResetProjectIcon(group.projectPath)
+			: undefined}
+		onRemoveProject={onRemoveProject ? () => onRemoveProject(group.projectPath) : undefined}
+		onMoveUp={() => {
+			void handleProjectContextMove(group.projectPath, -1);
+		}}
+		onMoveDown={() => {
+			void handleProjectContextMove(group.projectPath, 1);
+		}}
+		moveUpDisabled={onReorderProjects === undefined || projectIndex === 0}
+		moveDownDisabled={onReorderProjects === undefined ||
+			projectIndex === sessionGroups.length - 1}
+		onChangeProjectIcon={onChangeProjectIcon
+			? () => onChangeProjectIcon(group.projectPath)
+			: undefined}
+		hideExternalCliSessions={isAcepeOnlyFilterActive(group.projectPath)}
+		onHideExternalCliSessionsChange={onToggleShowExternalCliSessions
+			? (hide) => onToggleShowExternalCliSessions(group.projectPath, !hide)
+			: undefined}
+	/>
+{/snippet}
+
+{#snippet projectHeaderActions(group, projectIndex)}
+	<div
+		class="flex shrink-0 items-center gap-0.5"
+		role="presentation"
+		onclick={(e) => e.stopPropagation()}
+		onkeydown={(e) => e.stopPropagation()}
+	>
+		<Tooltip.Root>
+			<Tooltip.Trigger>
+				<button
+					type="button"
+					class={projectHeaderHoverActionButtonClass}
+					onclick={(event) => handleOpenFileExplorer(event, group)}
+					aria-label={`Open file system in ${group.projectName}`}
+				>
+					<FolderOpen class="h-3 w-3" weight="fill" />
+				</button>
+			</Tooltip.Trigger>
+			<Tooltip.Content>
+				{`Open file system in ${group.projectName}`}
+			</Tooltip.Content>
+		</Tooltip.Root>
+		{@render projectOverflowMenu(group, projectIndex)}
+	</div>
+{/snippet}
+
+{#snippet projectHeaderTrailing(group)}
+	{#if shouldShowProjectCreateButton()}
+		<div
+			class="flex shrink-0 items-center"
+			role="presentation"
+			onclick={(e) => handleProjectCreateButtonClick(e, group.projectPath)}
+			onkeydown={(e) => e.stopPropagation()}
+		>
+			<Tooltip.Root>
+				<Tooltip.Trigger>
+					<button
+						type="button"
+						class="flex items-center justify-center size-5 rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+						aria-label={getProjectCreateButtonTooltipLabel(group.projectName)}
+					>
+						<IconPlus class="h-3 w-3" />
+					</button>
+				</Tooltip.Trigger>
+				<Tooltip.Content>
+					{getProjectCreateButtonTooltipLabel(group.projectName)}
+				</Tooltip.Content>
+			</Tooltip.Root>
+		</div>
+	{/if}
+{/snippet}
+
+{#snippet sidebarProjectHeader(group, projectIndex, isExpanded)}
+	<!-- svelte-ignore a11y_no_noninteractive_tabindex -->
+	<div
+		use:projectHeaderFocusTarget={group.projectPath}
+		class="shrink-0 flex items-center"
+		role="button"
+		tabindex={0}
+		onclick={() => handleProjectHeaderClick(group.projectPath)}
+		onkeydown={(e) => {
+			if (e.key === "Enter" || e.key === " ") {
+				e.preventDefault();
+				handleProjectHeaderClick(group.projectPath);
+			}
+		}}
+	>
+		<ProjectHeader
+			projectColor={group.projectColor}
+			projectName={group.projectName}
+			projectIconSrc={group.projectIconSrc}
+			expanded={isExpanded}
+			class="group min-w-0 flex-1 cursor-pointer transition-colors"
+		>
+			{#snippet actions()}
+				{@render projectHeaderActions(group, projectIndex)}
+			{/snippet}
+			{#snippet trailing()}
+				{@render projectHeaderTrailing(group)}
+			{/snippet}
+		</ProjectHeader>
+	</div>
+{/snippet}
+
 <div
 	class="relative flex h-full min-h-0 flex-col gap-2 overflow-y-auto outline-none"
 	data-thread-list-scrollable
@@ -717,111 +847,18 @@ function openCreateBranchDialog(projectPath: string): void {
 		{#if sessionGroups.length > 0}
 			<div class="flex flex-col flex-1 min-h-0 gap-0.5">
 				{#each sessionGroups as group, projectIndex (group.projectPath)}
-					<div class="flex min-w-0 flex-col overflow-hidden rounded-md border border-border/50 bg-card/75">
-						<!-- Real project header (only sessions are loading) -->
-						<!-- svelte-ignore a11y_no_noninteractive_tabindex -->
-						<div
-							use:projectHeaderFocusTarget={group.projectPath}
-							class="shrink-0 flex items-center"
-							role="button"
-							tabindex={0}
-							onclick={() => handleProjectHeaderClick(group.projectPath)}
-							onkeydown={(e) => {
-								if (e.key === "Enter" || e.key === " ") {
-									e.preventDefault();
-									handleProjectHeaderClick(group.projectPath);
-								}
-							}}
-						>
-							<ProjectHeader
-								projectColor={group.projectColor}
-								projectName={group.projectName}
-								projectIconSrc={group.projectIconSrc}
-								expanded={true}
-								class="group min-w-0 flex-1 cursor-pointer transition-colors"
+					<AppSidebarProjectGroup class="min-w-0">
+						{#snippet header()}
+							{@render sidebarProjectHeader(group, projectIndex, true)}
+						{/snippet}
+						{#snippet children()}
+							<div
+								class="flex-1 min-h-0 max-h-[22rem] overflow-y-auto overflow-x-hidden px-0.5 pb-0.5"
 							>
-										{#snippet actions()}
-											<div
-												class="flex items-center gap-0.5"
-												role="presentation"
-												onclick={(e) => e.stopPropagation()}
-												onkeydown={(e) => e.stopPropagation()}
-											>
-												<Tooltip.Root>
-													<Tooltip.Trigger>
-														<button
-															type="button"
-															class={projectHeaderHoverActionButtonClass}
-															onclick={(event) => handleOpenFileExplorer(event, group)}
-															aria-label={`Open file system in ${group.projectName}`}
-														>
-															<FolderOpen class="h-3 w-3" weight="fill" />
-														</button>
-													</Tooltip.Trigger>
-													<Tooltip.Content>
-														{`Open file system in ${group.projectName}`}
-													</Tooltip.Content>
-												</Tooltip.Root>
-												<ProjectHeaderOverflowMenu
-													projectName={group.projectName}
-													currentColor={group.projectColor}
-													onColorChange={onProjectColorChange
-														? (color) => onProjectColorChange(group.projectPath, color)
-														: undefined}
-													projectIconSrc={group.projectIconSrc}
-													onResetProjectIcon={onResetProjectIcon
-														? () => onResetProjectIcon(group.projectPath)
-														: undefined}
-													onRemoveProject={onRemoveProject
-														? () => onRemoveProject(group.projectPath)
-														: undefined}
-													onMoveUp={() => {
-														void handleProjectContextMove(group.projectPath, -1);
-													}}
-													onMoveDown={() => {
-														void handleProjectContextMove(group.projectPath, 1);
-													}}
-													moveUpDisabled={onReorderProjects === undefined || projectIndex === 0}
-													moveDownDisabled={onReorderProjects === undefined ||
-														projectIndex === sessionGroups.length - 1}
-													onChangeProjectIcon={onChangeProjectIcon
-														? () => onChangeProjectIcon(group.projectPath)
-														: undefined}
-												/>
-											</div>
-										{/snippet}
-										{#snippet trailing()}
-											{#if shouldShowProjectCreateButton()}
-												<div
-													class="flex items-center"
-													role="presentation"
-													onclick={(e) => handleProjectCreateButtonClick(e, group.projectPath)}
-													onkeydown={(e) => e.stopPropagation()}
-												>
-													<Tooltip.Root>
-														<Tooltip.Trigger>
-															<button
-																type="button"
-																class="flex items-center justify-center size-5 rounded text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-																aria-label={getProjectCreateButtonTooltipLabel(group.projectName)}
-															>
-																<IconPlus class="h-3 w-3" />
-															</button>
-														</Tooltip.Trigger>
-														<Tooltip.Content>
-															{getProjectCreateButtonTooltipLabel(group.projectName)}
-														</Tooltip.Content>
-													</Tooltip.Root>
-												</div>
-											{/if}
-										{/snippet}
-							</ProjectHeader>
-						</div>
-						<!-- Session list skeleton (sessions are what we're loading) -->
-						<div class="flex-1 min-h-0 max-h-[22rem] overflow-y-auto overflow-x-hidden px-0.5 pb-0.5">
-							<SessionListSkeleton sessionCount={3} />
-						</div>
-					</div>
+								<SessionListSkeleton sessionCount={3} />
+							</div>
+						{/snippet}
+					</AppSidebarProjectGroup>
 				{/each}
 			</div>
 		{:else}
@@ -839,113 +876,15 @@ function openCreateBranchDialog(projectPath: string): void {
 		<div class="relative flex flex-col flex-1 min-h-0 gap-0.5">
 			{#each sessionGroups as group, projectIndex (group.projectPath)}
 				{@const isExpanded = expandedProjects.has(group.projectPath)}
-					<div
-					class="flex flex-col overflow-hidden rounded-md border border-border/50 bg-card/75"
+				<AppSidebarProjectGroup
 					style={isExpanded
 						? `flex: 0 1 auto; max-height: ${maxHeightPercent}%; min-height: 0;`
 						: "flex: 0 0 auto;"}
 				>
-				<!-- Project header -->
-				<!-- svelte-ignore a11y_no_noninteractive_tabindex -->
-				<div
-					use:projectHeaderFocusTarget={group.projectPath}
-					class="shrink-0 flex items-center"
-					role="button"
-					tabindex={0}
-					onclick={() => handleProjectHeaderClick(group.projectPath)}
-					onkeydown={(e) => {
-						if (e.key === "Enter" || e.key === " ") {
-							e.preventDefault();
-							handleProjectHeaderClick(group.projectPath);
-						}
-					}}
-				>
-					<ProjectHeader
-						projectColor={group.projectColor}
-						projectName={group.projectName}
-						projectIconSrc={group.projectIconSrc}
-						expanded={isExpanded}
-						class="group min-w-0 flex-1 cursor-pointer transition-colors"
-					>
-								{#snippet actions()}
-									<div
-										class="flex shrink-0 items-center gap-0.5"
-										role="presentation"
-										onclick={(e) => e.stopPropagation()}
-										onkeydown={(e) => e.stopPropagation()}
-									>
-										<Tooltip.Root>
-											<Tooltip.Trigger>
-												<button
-													type="button"
-													class={projectHeaderHoverActionButtonClass}
-													onclick={(event) => handleOpenFileExplorer(event, group)}
-													aria-label={`Open file system in ${group.projectName}`}
-												>
-													<FolderOpen class="h-3 w-3" weight="fill" />
-												</button>
-											</Tooltip.Trigger>
-											<Tooltip.Content>
-												{`Open file system in ${group.projectName}`}
-											</Tooltip.Content>
-										</Tooltip.Root>
-										<ProjectHeaderOverflowMenu
-											projectName={group.projectName}
-											currentColor={group.projectColor}
-											onColorChange={onProjectColorChange
-												? (color) => onProjectColorChange(group.projectPath, color)
-												: undefined}
-											projectIconSrc={group.projectIconSrc}
-											onResetProjectIcon={onResetProjectIcon
-												? () => onResetProjectIcon(group.projectPath)
-												: undefined}
-											onRemoveProject={onRemoveProject
-												? () => onRemoveProject(group.projectPath)
-												: undefined}
-											onMoveUp={() => {
-												void handleProjectContextMove(group.projectPath, -1);
-											}}
-											onMoveDown={() => {
-												void handleProjectContextMove(group.projectPath, 1);
-											}}
-											moveUpDisabled={onReorderProjects === undefined || projectIndex === 0}
-											moveDownDisabled={onReorderProjects === undefined ||
-												projectIndex === sessionGroups.length - 1}
-											onChangeProjectIcon={onChangeProjectIcon
-												? () => onChangeProjectIcon(group.projectPath)
-												: undefined}
-										/>
-									</div>
-								{/snippet}
-								{#snippet trailing()}
-									{#if shouldShowProjectCreateButton()}
-										<div
-											class="flex shrink-0 items-center"
-											role="presentation"
-											onclick={(e) => handleProjectCreateButtonClick(e, group.projectPath)}
-											onkeydown={(e) => e.stopPropagation()}
-										>
-											<Tooltip.Root>
-												<Tooltip.Trigger>
-													<button
-														type="button"
-														class="flex items-center justify-center size-5 rounded text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-														aria-label={getProjectCreateButtonTooltipLabel(group.projectName)}
-													>
-														<IconPlus class="h-3 w-3" />
-													</button>
-												</Tooltip.Trigger>
-												<Tooltip.Content>
-													{getProjectCreateButtonTooltipLabel(group.projectName)}
-												</Tooltip.Content>
-											</Tooltip.Root>
-										</div>
-									{/if}
-								{/snippet}
-					</ProjectHeader>
-				</div>
-
-						<!-- Content area: sessions -->
+					{#snippet header()}
+						{@render sidebarProjectHeader(group, projectIndex, isExpanded)}
+					{/snippet}
+					{#snippet children()}
 						{#if isExpanded}
 							{@const filteredSessions = getFilteredSidebarSessionsForProject(group)}
 							{@const visibleSessions = getVisibleSessionsForProject(group)}
@@ -959,7 +898,7 @@ function openCreateBranchDialog(projectPath: string): void {
 									type="search"
 									value={getProjectHistoryQuery(group.projectPath)}
 									placeholder="Search project history..."
-									class="h-5 rounded border-border/70 bg-background/70 px-1 py-0 text-[10px] md:text-[10px]"
+									class="h-5 rounded-md border-border/70 bg-background/70 px-1 py-0 text-[10px] md:text-[10px]"
 									data-sidebar-project-history-search
 									oninput={(event) =>
 										setProjectHistoryQuery(group.projectPath, event.currentTarget.value)}
@@ -990,9 +929,9 @@ function openCreateBranchDialog(projectPath: string): void {
 								{/if}
 							</div>
 						{/if}
-
-					<!-- Git footer with branch picker -->
-					{#if isExpanded}
+					{/snippet}
+					{#snippet footer()}
+						{#if isExpanded}
 					{#if gitDataByProject.has(group.projectPath)}
 						{@const gitData = gitDataByProject.get(group.projectPath)!}
 						{@const isFetching = fetchingProjects.has(group.projectPath)}
@@ -1002,50 +941,37 @@ function openCreateBranchDialog(projectPath: string): void {
 						{@const behind = gitData.remoteStatus?.behind ?? 0}
 						<div class="shrink-0 flex items-center border-t border-border/30">
 							<!-- Branch picker segment (branch name + diff only) -->
-							<DropdownMenu.Root
+							<Selector
 								open={openBranchPickerProject === group.projectPath}
 								onOpenChange={(isOpen) => {
 									openBranchPickerProject = isOpen ? group.projectPath : null;
 								}}
+								align="start"
+								blockingOverlay
+								variant="ghost"
+								class="min-w-0 flex-1"
+								triggerSize="default"
 							>
-								<DropdownMenu.Trigger>
-									{#snippet child({ props })}
-										<button
-											{...props}
-											class="flex h-7 min-w-0 flex-1 cursor-pointer items-center gap-1 rounded-md px-2 text-xs transition-colors hover:bg-background/70"
-										>
-											<GitBranch
-												class="h-3 w-3 shrink-0"
-												weight="fill"
-												style="color: {Colors.purple}"
-											/>
-											<span class="font-mono truncate leading-none text-[11px]">
-												{gitData.branch ?? "branch"}
-											</span>
-											{#if totalIns > 0 || totalDel > 0}
-												<DiffPill
-													insertions={totalIns}
-													deletions={totalDel}
-													variant="plain"
-													class="text-[11px]"
-												/>
-											{/if}
-											<ChevronDown
-												class="h-2.5 w-2.5 shrink-0 text-muted-foreground ml-auto transition-transform duration-200 {openBranchPickerProject ===
-												group.projectPath
-													? 'rotate-180'
-													: ''}"
-											/>
-										</button>
-									{/snippet}
-								</DropdownMenu.Trigger>
-								<DropdownMenu.Portal>
-								<DropdownMenu.Content
-									align="start"
-									sideOffset={4}
-									class="z-[var(--app-blocking-z)] isolate w-[260px] overflow-hidden rounded-lg border border-border bg-popover p-1.5 text-popover-foreground shadow-md data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=top]:slide-in-from-bottom-2 data-[state=closed]:animate-out data-[state=open]:animate-in"
-								>
-										<div class="space-y-2">
+								{#snippet renderButton()}
+									<GitBranch
+										class="h-3 w-3 shrink-0"
+										weight="fill"
+										style="color: {Colors.purple}"
+									/>
+									<span class="font-mono truncate leading-none text-[11px]">
+										{gitData.branch ?? "branch"}
+									</span>
+									{#if totalIns > 0 || totalDel > 0}
+										<DiffPill
+											insertions={totalIns}
+											deletions={totalDel}
+											variant="plain"
+											class="text-[11px]"
+										/>
+									{/if}
+								{/snippet}
+
+								<div class="w-[260px] space-y-2">
 											<!-- Search input -->
 											<div class="relative">
 												<MagnifyingGlass
@@ -1110,9 +1036,7 @@ function openCreateBranchDialog(projectPath: string): void {
 												</button>
 											</div>
 										</div>
-									</DropdownMenu.Content>
-								</DropdownMenu.Portal>
-							</DropdownMenu.Root>
+							</Selector>
 
 							<!-- Up/down widget: ahead & behind counts + Update (pull) when behind -->
 							<div class="flex items-center shrink-0 text-[11px] font-mono leading-none text-muted-foreground">
@@ -1162,7 +1086,7 @@ function openCreateBranchDialog(projectPath: string): void {
 								<Tooltip.Root>
 									<Tooltip.Trigger>
 										<button
-											class="flex items-center justify-center size-5 rounded text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:cursor-not-allowed disabled:opacity-40"
+											class="flex items-center justify-center size-5 rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:cursor-not-allowed disabled:opacity-40"
 											disabled={isFetching}
 											onclick={(e) => handleFetchRemote(e, group.projectPath)}
 										>
@@ -1180,7 +1104,7 @@ function openCreateBranchDialog(projectPath: string): void {
 										<Tooltip.Root>
 											<Tooltip.Trigger>
 												<button
-													class="flex items-center justify-center size-5 rounded text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+													class="flex items-center justify-center size-5 rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
 													onclick={(e) => handleOpenGitPanel(e, group.projectPath)}
 												>
 													<GitBranch class="h-3 w-3" weight="fill" />
@@ -1207,9 +1131,10 @@ function openCreateBranchDialog(projectPath: string): void {
 								</span>
 							</button>
 						</div>
-					{/if}
-					{/if}
-				</div>
+						{/if}
+						{/if}
+					{/snippet}
+				</AppSidebarProjectGroup>
 			{/each}
 
 			<!-- Trailing project card skeletons while scanning -->
@@ -1252,56 +1177,46 @@ function openCreateBranchDialog(projectPath: string): void {
 			<!-- Button group: prefix selector + input -->
 			<div class="flex items-stretch">
 				<!-- Prefix dropdown trigger -->
-				<DropdownMenu.Root bind:open={prefixDropdownOpen}>
-					<DropdownMenu.Trigger>
-						{#snippet child({ props })}
-							<button
-								{...props}
-								type="button"
-								class="flex items-center gap-1.5 rounded-l-md border border-r-0 border-border bg-muted/50 px-2.5 text-xs hover:bg-accent transition-colors shrink-0"
-							>
-								<selectedPrefix.icon
-									class="h-3.5 w-3.5 shrink-0"
-									weight="fill"
-									style="color: {selectedPrefix.color}"
-								/>
-								<span class="font-mono">{selectedPrefix.value || "—"}</span>
-								<ChevronDown
-									class="h-3 w-3 text-muted-foreground transition-transform duration-200 {prefixDropdownOpen
-										? 'rotate-180'
-										: ''}"
-								/>
-							</button>
-						{/snippet}
-					</DropdownMenu.Trigger>
-					<DropdownMenu.Content
-						align="start"
-						sideOffset={4}
-						class="min-w-[10rem] overflow-hidden rounded-lg border border-border bg-popover p-1 text-popover-foreground shadow-md data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=top]:slide-in-from-bottom-2 data-[state=closed]:animate-out data-[state=open]:animate-in"
-					>
-						{#each BRANCH_PREFIXES as prefix (prefix.label)}
-							<button
-								type="button"
-								class="w-full flex items-center gap-2 rounded-md px-2 py-1.5 text-xs hover:bg-accent"
-								onclick={() => {
-									selectedPrefix = prefix;
-									prefixDropdownOpen = false;
-									queueMicrotask(() => newBranchInputRef?.focus());
-								}}
-							>
-								<prefix.icon
-									class="h-3.5 w-3.5 shrink-0"
-									weight="fill"
-									style="color: {prefix.color}"
-								/>
-								<span>{prefix.label}</span>
-								{#if selectedPrefix === prefix}
-									<Check class="h-3.5 w-3.5 ml-auto text-foreground shrink-0" />
-								{/if}
-							</button>
-						{/each}
-					</DropdownMenu.Content>
-				</DropdownMenu.Root>
+				<Selector
+					bind:open={prefixDropdownOpen}
+					align="start"
+					sideOffset={4}
+					blockingOverlay
+					variant="outline"
+					triggerSize="minimal"
+					class="shrink-0 rounded-l-md border-r-0"
+				>
+					{#snippet renderButton()}
+						<selectedPrefix.icon
+							class="h-3.5 w-3.5 shrink-0"
+							weight="fill"
+							style="color: {selectedPrefix.color}"
+						/>
+						<span class="font-mono">{selectedPrefix.value || "—"}</span>
+					{/snippet}
+
+					{#each BRANCH_PREFIXES as prefix (prefix.label)}
+						<button
+							type="button"
+							class="w-full flex items-center gap-2 rounded-md px-2 py-1.5 text-xs hover:bg-accent"
+							onclick={() => {
+								selectedPrefix = prefix;
+								prefixDropdownOpen = false;
+								queueMicrotask(() => newBranchInputRef?.focus());
+							}}
+						>
+							<prefix.icon
+								class="h-3.5 w-3.5 shrink-0"
+								weight="fill"
+								style="color: {prefix.color}"
+							/>
+							<span>{prefix.label}</span>
+							{#if selectedPrefix === prefix}
+								<Check class="h-3.5 w-3.5 ml-auto text-foreground shrink-0" />
+							{/if}
+						</button>
+					{/each}
+				</Selector>
 
 				<!-- Branch name input -->
 				<Input

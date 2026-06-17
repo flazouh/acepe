@@ -60,11 +60,7 @@ fn is_meta_message(json: &Value) -> bool {
 /// Check if content is a command message.
 /// Detects slash commands, XML command tags, and command output.
 fn is_command_message(content: &str) -> bool {
-    let trimmed = content.trim();
-    trimmed.starts_with('/')
-        || trimmed.contains("<command-name>")
-        || trimmed.contains("<command-message>")
-        || trimmed.contains("<local-command-stdout>")
+    crate::acp::local_command::is_local_command_text(content)
 }
 
 /// Extract text from content value (handles both string and array formats).

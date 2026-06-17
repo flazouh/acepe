@@ -149,9 +149,10 @@
 </script>
 
 {#if entry.type === "user"}
-	<AgentUserMessage text={entry.text} timestampMs={entry.timestampMs} />
+	<AgentUserMessage text={entry.text} chunks={entry.chunks} timestampMs={entry.timestampMs} />
 {:else if entry.type === "assistant"}
 	<AgentAssistantMessage
+		messageId={entry.id}
 		message={entry.message ?? {
 			chunks: [{ type: "message", block: { type: "text", text: entry.markdown } }],
 		}}
@@ -281,7 +282,7 @@
 		{iconBasePath}
 	/>
 {:else if isToolCall(entry) && entry.status === "error" && entry.resultText}
-	<div class="rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2">
+	<div class="rounded border border-destructive/30 bg-destructive/5 px-3 py-2">
 		<p class="text-sm font-medium text-destructive">{entry.title}</p>
 		{#if entry.subtitle}
 			<p class="mt-1 text-sm text-muted-foreground">{entry.subtitle}</p>

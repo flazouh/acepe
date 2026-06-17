@@ -3,6 +3,7 @@ title: Extract Agent Composer Components to @acepe/ui
 type: refactor
 status: completed
 date: 2026-04-11
+errata: "2026-06-11: Architectural guard is now scripts/forbid-ui-package-imports.ts + packages/ui/src/__tests__/ui-package-boundary.test.ts (replaces agent-panel-architecture.test.ts). See .github/skills/extract-to-ui-package/."
 ---
 
 # Extract Agent Composer Components to @acepe/ui

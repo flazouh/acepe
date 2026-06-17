@@ -11,7 +11,7 @@ use crate::acp::parsers::types::{
     ParsedQuestion, ParsedTodo, ParsedUsageTelemetry, UpdateType,
 };
 use crate::acp::parsers::CursorAdapter;
-use crate::acp::reconciler::kind_payload as kind_utils;
+use crate::acp::reconciler::{display_name_for_tool, infer_kind_from_payload_for_agent};
 use crate::acp::session_update::{
     build_tool_call_from_raw, build_tool_call_update_from_raw, tool_call_status_from_str, PlanData,
     RawToolCallInput, RawToolCallUpdateInput, ToolArguments, ToolCallStatus, ToolKind,
@@ -281,7 +281,7 @@ impl CursorParser {
             name_kind
         } else {
             let kind_hint = acp_fields::extract_kind_hint(data);
-            kind_utils::infer_kind_from_payload_for_agent(
+            infer_kind_from_payload_for_agent(
                 AgentType::Cursor,
                 &id,
                 title.as_deref(),
@@ -416,7 +416,7 @@ impl CursorParser {
         };
 
         let tool_name =
-            kind_utils::display_name_for_tool(kind, effective_name.as_deref().unwrap_or(""));
+            display_name_for_tool(kind, effective_name.as_deref().unwrap_or(""));
 
         let status = Some(
             acp_fields::extract_status(data)

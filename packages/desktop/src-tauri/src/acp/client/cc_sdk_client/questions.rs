@@ -178,7 +178,8 @@ pub(super) async fn should_suppress_update_while_awaiting_stream_only_question(
         | SessionUpdate::PermissionRequest { .. }
         | SessionUpdate::UserMessageChunk { .. }
         | SessionUpdate::ConnectionComplete { .. }
-        | SessionUpdate::ConnectionFailed { .. } => true,
+        | SessionUpdate::ConnectionFailed { .. }
+        | SessionUpdate::SessionDetached { .. } => true,
     }
 }
 

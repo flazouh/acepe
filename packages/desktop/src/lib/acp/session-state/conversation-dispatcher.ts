@@ -99,6 +99,7 @@ export function materializeCachedConversation(
 	const operationIndex = buildOperationIndex(input.graph.operations);
 	const conversation = materializeConversationWithOperationIndex(input.graph, operationIndex);
 	return {
+		// conversation already carries scenePatch from the full rebuild path
 		transcriptEntries: input.graph.transcriptSnapshot.entries,
 		operations: input.graph.operations,
 		operationIndex,

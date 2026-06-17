@@ -19,6 +19,7 @@ describe("resolvePanelDraftOnMount", () => {
 			draft: "hello",
 			attachments: [],
 			inlineTextEntries: [],
+			inlineImageEntries: [],
 		};
 		expect(
 			resolvePanelDraftOnMount({

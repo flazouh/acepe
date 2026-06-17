@@ -164,7 +164,7 @@ export class ProjectManager {
 
 				// Trigger session scan for the imported project (fire and forget)
 				if (this.sessionStore) {
-					this.sessionStore.scanSessions([importedProject.path]).mapErr((error) => {
+					this.sessionStore.loading.scanSessions([importedProject.path]).mapErr((error) => {
 						console.warn("Session scan failed:", error);
 					});
 				}
@@ -292,7 +292,7 @@ export class ProjectManager {
 					return okAsync(undefined);
 				}
 
-				return this.sessionStore
+				return this.sessionStore.loading
 					.scanSessions([path])
 					.mapErr(
 						(error) =>

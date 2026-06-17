@@ -5,28 +5,26 @@ interface Props {
 	title: string;
 	summary: string;
 	details: string;
-	referenceId?: string | null;
-	referenceSearchable?: boolean;
+	detailsHtml?: string | null;
 	isRetrying?: boolean;
 	onRetry?: (() => void) | undefined;
 	onDismiss?: (() => void) | undefined;
-	onCopyReferenceId?: (() => void) | undefined;
 	issueActionLabel?: string;
 	onIssueAction?: (() => void) | undefined;
+	retryLabel?: string;
 }
 
 let {
 	title,
 	summary,
 	details,
-	referenceId = null,
-	referenceSearchable = false,
+	detailsHtml = null,
 	isRetrying = false,
 	onRetry,
 	onDismiss,
-	onCopyReferenceId,
 	issueActionLabel = "Create issue",
 	onIssueAction,
+	retryLabel,
 }: Props = $props();
 </script>
 
@@ -34,14 +32,11 @@ let {
 	{title}
 	{summary}
 	{details}
-	referenceId={referenceId ?? undefined}
-	{referenceSearchable}
-	searchableReferenceLabel="Searchable in Sentry"
-	localOnlyReferenceLabel="Local only"
+	{detailsHtml}
 	{isRetrying}
 	{onRetry}
 	{onDismiss}
-	{onCopyReferenceId}
 	{issueActionLabel}
 	{onIssueAction}
+	{retryLabel}
 />

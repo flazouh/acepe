@@ -1,9 +1,10 @@
 use crate::acp::agent_context::with_agent;
 use crate::acp::parsers::provider_capabilities::provider_capabilities;
 use crate::acp::projections::{
-    InteractionResponse, InteractionSnapshot, InteractionState, ProjectionRegistry,
-    SessionProjectionSnapshot,
+    InteractionResponse, InteractionSnapshot, InteractionState, ProjectionApplyRoute,
+    ProjectionRegistry, SessionProjectionSnapshot, TerminalTurnGuard,
 };
+use crate::acp::projections::projection_apply_router::route_projection_apply;
 use crate::acp::provider::HistoryReplayFamily;
 use crate::acp::session_descriptor::SessionReplayContext;
 use crate::acp::session_update::{
@@ -334,6 +335,7 @@ fn rebuild_local_transcript_snapshot_until(
     max_event_seq: Option<i64>,
 ) -> Option<TranscriptSnapshot> {
     let registry = TranscriptProjectionRegistry::new();
+    let mut terminal_guard = TerminalTurnGuard::default();
     let mut applied_transcript_text = false;
     let mut ordered_events = events.iter().collect::<Vec<_>>();
     ordered_events.sort_by_key(|event| event.event_seq);
@@ -348,10 +350,19 @@ fn rebuild_local_transcript_snapshot_until(
             continue;
         };
         let session_update = update.as_ref().clone().into_session_update();
-        if let Some(delta) = registry.apply_session_update(event.event_seq, &session_update) {
+        let decision = terminal_guard.route(&session_update);
+        if let Some(delta) =
+            registry.apply_session_update(event.event_seq, &session_update, decision)
+        {
             if delta.operations.iter().any(operation_contains_text_segment) {
                 applied_transcript_text = true;
             }
+        }
+        if matches!(
+            route_projection_apply(&session_update, &terminal_guard),
+            ProjectionApplyRoute::Apply(_)
+        ) {
+            terminal_guard.advance(&session_update);
         }
     }
 
@@ -376,10 +387,7 @@ fn operation_contains_text_segment(operation: &TranscriptDeltaOperation) -> bool
 }
 
 fn segment_contains_text(segment: &TranscriptSegment) -> bool {
-    match segment {
-        TranscriptSegment::Text { text, .. } => !text.is_empty(),
-        TranscriptSegment::Thought { text, .. } => !text.is_empty(),
-    }
+    segment.is_nonempty()
 }
 
 fn decode_serialized_event(
@@ -429,6 +437,7 @@ mod tests {
     use crate::acp::session_descriptor::SessionReplayContext;
     use crate::acp::session_update::{
         ContentChunk, PermissionData, QuestionData, QuestionItem, QuestionOption, SessionUpdate,
+        TurnErrorData,
     };
     use crate::acp::transcript_projection::{TranscriptEntryRole, TranscriptSegment};
     use crate::acp::types::CanonicalAgentId;
@@ -734,10 +743,7 @@ mod tests {
         let text = snapshot.entries[0]
             .segments
             .iter()
-            .map(|segment| match segment {
-                TranscriptSegment::Text { text, .. } => text.as_str(),
-                TranscriptSegment::Thought { text, .. } => text.as_str(),
-            })
+            .map(|segment| segment.primary_text())
             .collect::<String>();
         assert_eq!(text, "hello world");
     }
@@ -831,5 +837,69 @@ mod tests {
 
         assert!(replayed.operations.is_empty());
         assert!(replayed.interactions.is_empty());
+    }
+
+    #[test]
+    fn rebuild_includes_assistant_row_after_terminal_error_and_user_re_prompt() {
+        let replay_context = replay_context();
+        let rows = vec![
+            serialized_projection_row(
+                1,
+                SessionUpdate::TurnError {
+                    error: TurnErrorData::Legacy("boom".to_string()),
+                    session_id: Some("local-session".to_string()),
+                    turn_id: Some("turn-1".to_string()),
+                },
+            ),
+            serialized_projection_row(
+                2,
+                SessionUpdate::UserMessageChunk {
+                    chunk: ContentChunk {
+                        content: ContentBlock::Text {
+                            text: "retry".to_string(),
+                        },
+                        aggregation_hint: None,
+                    },
+                    session_id: Some("local-session".to_string()),
+                    attempt_id: None,
+                },
+            ),
+            serialized_projection_row(
+                3,
+                SessionUpdate::AgentMessageChunk {
+                    chunk: ContentChunk {
+                        content: ContentBlock::Text {
+                            text: "continuing".to_string(),
+                        },
+                        aggregation_hint: None,
+                    },
+                    part_id: None,
+                    message_id: Some("assistant-1".to_string()),
+                    session_id: Some("local-session".to_string()),
+                    produced_at_monotonic_ms: None,
+                },
+            ),
+        ];
+
+        let decoded = decode_serialized_events(&replay_context, rows).expect("decode rows");
+        let snapshot = rebuild_local_transcript_snapshot(&replay_context, &decoded)
+            .expect("rebuilt transcript");
+
+        assert!(
+            !snapshot
+                .entries
+                .iter()
+                .any(|entry| entry.segments.iter().any(|segment| {
+                    matches!(segment, TranscriptSegment::Text { text, .. } if text == "boom")
+                })),
+            "turn error must not replay as transcript content"
+        );
+        assert!(
+            snapshot
+                .entries
+                .iter()
+                .any(|entry| entry.role == TranscriptEntryRole::Assistant),
+            "new-turn assistant row must be present after user re-prompt"
+        );
     }
 }

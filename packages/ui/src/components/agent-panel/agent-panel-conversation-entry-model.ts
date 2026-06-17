@@ -87,6 +87,9 @@ export function resolveConversationRenderKind(
 	if (entry.kind === "web_search") {
 		return "tool-web-search";
 	}
+	if (entry.status === "error" && entry.resultText) {
+		return "tool-error-result";
+	}
 	if (entry.kind === "other") {
 		return "tool-other";
 	}
@@ -101,9 +104,6 @@ export function resolveConversationRenderKind(
 	}
 	if (entry.kind === "exit_plan_mode" || entry.kind === "create_plan") {
 		return "tool-plan";
-	}
-	if (entry.status === "error" && entry.resultText) {
-		return "tool-error-result";
 	}
 	return "tool-row";
 }

@@ -140,3 +140,16 @@ compound-engineering.local.md
 *.tif
 *.tiff
 *.webp
+
+# Stray production build artifacts accidentally emitted to repo root
+/index.html
+/app-shell-*.js
+/app-shell-*.css
+/app-main-*.css
+/settings-row-*.js
+/profile-*.css
+
+# Stray production build artifacts accidentally emitted to packages/desktop
+packages/desktop/app-*.css
+packages/desktop/app-shell-*.js
+packages/desktop/appearance-settings-*.js

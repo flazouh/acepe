@@ -2,6 +2,7 @@ use crate::acp::projections::{
     InteractionSnapshot, OperationSnapshot, SessionTurnState, TurnFailureSnapshot,
 };
 use crate::acp::session_state_engine::graph::{ActiveStreamingTail, SessionStateGraph};
+use crate::acp::session_state_engine::session_state_field::SessionStateField;
 use crate::acp::session_state_engine::revision::SessionGraphRevision;
 use crate::acp::session_state_engine::selectors::{
     SessionGraphActivity, SessionGraphCapabilities, SessionGraphLifecycle,
@@ -46,7 +47,7 @@ pub struct SessionStateDelta {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub interaction_patches: Vec<InteractionSnapshot>,
     #[serde(default)]
-    pub changed_fields: Vec<String>,
+    pub changed_fields: Vec<SessionStateField>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]

@@ -32,8 +32,10 @@
 
 	const isSlashItem = $derived(tokenType === "command" || tokenType === "skill");
 	const isFile = $derived(tokenType === "file" || tokenType === "image");
+	const isImageRef = $derived(tokenType === "image_ref");
 	const isText = $derived(tokenType === "text" || tokenType === "text_ref");
 	const isClickable = $derived(Boolean(onclick) && isFile);
+	const iconSource = $derived(isImageRef ? label : value);
 	const iconClassName = $derived(buildInlineArtefactIconClassName(tokenType));
 	const labelClassName = $derived(buildInlineArtefactLabelClassName(tokenType));
 	const slashIconColor = $derived(
@@ -71,7 +73,7 @@
 		</svg>
 	{:else}
 		<img
-			src={getFileIconSrc(value)}
+			src={getFileIconSrc(iconSource)}
 			alt=""
 			class="h-3.5 w-3.5 shrink-0 object-contain"
 			aria-hidden="true"

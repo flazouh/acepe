@@ -68,6 +68,10 @@ export interface QueueItem {
 	/** Canonical failed-turn state when the latest turn ended in error. */
 	readonly activeTurnFailure?: ActiveTurnFailure | null;
 	/**
+	 * Per-project session sequence label (e.g. G7 → letter G, number 7).
+	 */
+	readonly sequenceId: number | null;
+	/**
 	 * Unified session state model.
 	 * Use this for queue classification instead of individual boolean flags.
 	 */

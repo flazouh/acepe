@@ -26,9 +26,9 @@
 <EmbeddedIconButton onclick={() => onToggle?.()} {title} ariaLabel={title} class={className}>
 	{#snippet children()}
 		{#if isFullscreen}
-			<ArrowsIn size={14} weight="fill" />
+			<ArrowsIn size={12} weight="fill" />
 		{:else}
-			<ArrowsOut size={14} weight="fill" />
+			<ArrowsOut size={12} weight="fill" />
 		{/if}
 	{/snippet}
 </EmbeddedIconButton>

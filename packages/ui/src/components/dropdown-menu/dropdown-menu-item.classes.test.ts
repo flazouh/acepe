@@ -18,4 +18,11 @@ describe("buildDropdownMenuItemClassName", () => {
 		expect(className).toContain("bg-transparent text-popover-foreground");
 		expect(className).not.toContain("hover:bg-muted");
 	});
+
+	it("uses rounded menu row geometry", () => {
+		const className = buildDropdownMenuItemClassName(true);
+
+		expect(className).toContain("rounded-lg");
+		expect(className).not.toContain("rounded-md");
+	});
 });

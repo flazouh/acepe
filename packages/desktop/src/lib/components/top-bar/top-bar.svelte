@@ -1,9 +1,8 @@
 <script lang="ts">
-import { Button, SegmentedToggleGroup, VoiceDownloadProgress } from "@acepe/ui";
+import { Button, SegmentedToggleGroup, Selector, VoiceDownloadProgress } from "@acepe/ui";
 import { COLOR_NAMES, Colors } from "@acepe/ui/colors";
 import * as DropdownMenu from "@acepe/ui/dropdown-menu";
 import { AppTopBar } from "@acepe/ui/app-layout";
-import { DropdownMenu as DropdownMenuPrimitive } from "bits-ui";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { Bug } from "phosphor-svelte";
 import { Check } from "phosphor-svelte";
@@ -54,8 +53,6 @@ let {
 const panelStore = getPanelStore();
 const themeState = useTheme();
 const UPDATE_BUTTON_SEGMENT_COUNT = 16;
-type DropdownMenuTriggerChildProps =
-	NonNullable<DropdownMenuPrimitive.TriggerProps["child"]> extends Snippet<[infer T]> ? T : never;
 
 const updateDownloadPercent = $derived(
 	updaterState?.kind === "installing"
@@ -153,7 +150,7 @@ function switchLayoutFamily(nextFamily: LayoutFamily): void {
 	{#snippet extraLeftActions()}
 		{#if updaterState?.kind === "available"}
 			<div class="flex items-center pl-2">
-			<Button variant="headerAction" size="headerAction" onclick={onUpdateClick}>
+			<Button variant="headerProminent" size="headerAction" onclick={onUpdateClick}>
 				{#snippet children()}
 					Update
 				{/snippet}
@@ -161,7 +158,7 @@ function switchLayoutFamily(nextFamily: LayoutFamily): void {
 			</div>
 		{:else if updaterState?.kind === "downloading" || updaterState?.kind === "installing"}
 			<div class="flex items-center pl-2">
-			<Button variant="headerAction" size="headerAction" disabled>
+			<Button variant="headerProminent" size="headerAction" disabled>
 				{#snippet children()}
 					<div class="flex items-center gap-2">
 						<span>{updateActionText}</span>
@@ -183,7 +180,7 @@ function switchLayoutFamily(nextFamily: LayoutFamily): void {
 			</div>
 		{:else if updaterState?.kind === "error"}
 			<div class="flex items-center pl-2">
-				<Button variant="headerAction" size="headerAction" onclick={onRetryUpdateClick}>
+				<Button variant="headerProminent" size="headerAction" onclick={onRetryUpdateClick}>
 					{#snippet children()}
 						Retry
 					{/snippet}
@@ -193,24 +190,19 @@ function switchLayoutFamily(nextFamily: LayoutFamily): void {
 	{/snippet}
 	{#snippet extraRightActions()}
 		{#snippet layoutControl()}
-			<DropdownMenu.Root>
-				<DropdownMenu.Trigger>
-					{#snippet child({ props }: DropdownMenuTriggerChildProps)}
-						<button
-								{...props}
-								class="flex items-center justify-center size-6 rounded text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
-								title="Layout"
-								aria-label="Layout Settings"
-							>
-								<SlidersHorizontal class="size-4" weight="fill" />
-							</button>
-					{/snippet}
-				</DropdownMenu.Trigger>
-				<DropdownMenu.Content
-					align="end"
-					class="w-[200px]"
-				>
-					<DropdownMenu.Group>
+			<Selector
+				align="end"
+				variant="ghost"
+				triggerSize="icon"
+				showChevron={false}
+				tooltipLabel="Layout"
+				triggerAriaLabel="Layout Settings"
+			>
+				{#snippet renderButton()}
+					<SlidersHorizontal class="size-4" weight="fill" />
+				{/snippet}
+
+				<DropdownMenu.Group>
 						<DropdownMenu.GroupHeading class="px-2 py-1 text-[11px] font-medium text-muted-foreground">View</DropdownMenu.GroupHeading>
 						{#each layoutFamilies as family (family.value)}
 							{@const selected = isKanbanView ? family.value === "kanban" : family.value === "standard"}
@@ -291,14 +283,13 @@ function switchLayoutFamily(nextFamily: LayoutFamily): void {
 							onChange={(id) => themeState.setTheme(id as Theme)}
 						/>
 					</div>
-				</DropdownMenu.Content>
-			</DropdownMenu.Root>
+			</Selector>
 		{/snippet}
 		{@render layoutControl()}
 		<Tooltip.Root>
 			<Tooltip.Trigger>
 				<button
-					class="flex items-center justify-center size-6 rounded text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+					class="flex items-center justify-center size-6 rounded-md text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
 					title="Feedback"
 					aria-label="Feedback"
 					onclick={() => openUrl("https://github.com/flazouh/acepe/issues")}
@@ -309,21 +300,19 @@ function switchLayoutFamily(nextFamily: LayoutFamily): void {
 			<Tooltip.Content>Feedback</Tooltip.Content>
 		</Tooltip.Root>
 		{#if import.meta.env.DEV && (onDevShowUpdatePage || onDevShowDesignSystem || onDevShowStreamingReproLab || onDevResetOnboarding)}
-			<DropdownMenu.Root>
-				<DropdownMenu.Trigger>
-					{#snippet child({ props }: DropdownMenuTriggerChildProps)}
-						<button
-							{...props}
-							class="flex items-center justify-center size-6 rounded text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
-							title="Dev Tools"
-							aria-label="Dev Tools"
-						>
-							<Wrench class="size-4" weight="fill" style="color: #FAD83C" />
-						</button>
-					{/snippet}
-				</DropdownMenu.Trigger>
-				<DropdownMenu.Content align="end" class="min-w-[160px] p-0 text-[11px]">
-					<DropdownMenu.Group>
+			<Selector
+				align="end"
+				variant="ghost"
+				triggerSize="icon"
+				showChevron={false}
+				tooltipLabel="Dev Tools"
+				triggerAriaLabel="Dev Tools"
+			>
+				{#snippet renderButton()}
+					<Wrench class="size-4" weight="fill" style="color: #FAD83C" />
+				{/snippet}
+
+				<DropdownMenu.Group>
 						<DropdownMenu.GroupHeading
 							class="px-2 py-1 text-[11px] font-semibold text-muted-foreground border-b border-border/20"
 						>Dev Overlays</DropdownMenu.GroupHeading>
@@ -364,13 +353,12 @@ function switchLayoutFamily(nextFamily: LayoutFamily): void {
 							</DropdownMenu.Item>
 						{/if}
 					</DropdownMenu.Group>
-				</DropdownMenu.Content>
-			</DropdownMenu.Root>
+			</Selector>
 		{/if}
 		<Tooltip.Root>
 			<Tooltip.Trigger>
 				<button
-					class="flex items-center justify-center size-6 rounded text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+					class="flex items-center justify-center size-6 rounded-md text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
 					title="Database Manager"
 					aria-label="Database Manager"
 					onclick={() => viewState.toggleSqlStudio()}

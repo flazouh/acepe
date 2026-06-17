@@ -23,23 +23,23 @@
 
 {#if projects.length > 0}
 	<div
-		class="flex w-fit max-w-full shrink-0 items-stretch rounded-lg bg-card px-1 py-1"
+		class="flex w-fit max-w-full shrink-0 items-stretch overflow-hidden rounded-lg border border-border/50 bg-card/75 p-0.5"
 		role="tablist"
 		aria-label="Projects"
 	>
-		<div class="flex min-w-0 items-stretch gap-1 overflow-x-auto">
+		<div class="flex min-w-0 items-stretch gap-0.5 overflow-x-auto">
 			{#each projects as project (project.path)}
 				{@const isActive = project.path === activeProjectPath}
 				<div
-					class="group/project-tab relative flex min-w-0 items-stretch rounded-md {isActive
-						? 'bg-accent text-foreground'
-						: 'bg-accent/50 text-muted-foreground hover:bg-accent hover:text-foreground'}"
+					class="group/project-tab relative flex min-w-0 items-stretch overflow-hidden rounded-lg border border-border/60 transition-all duration-150 {isActive
+						? 'border-border bg-accent/45 text-foreground opacity-100'
+						: 'bg-accent/30 text-muted-foreground opacity-50 hover:border-border hover:bg-accent/45 hover:text-foreground hover:opacity-100 focus-within:opacity-100'}"
 				>
 					<button
 						type="button"
 						role="tab"
 						aria-selected={isActive}
-						class="flex min-w-0 items-center gap-1.5 rounded-md py-1 pl-2 text-xs transition-colors cursor-pointer {project.sessionCount != null
+						class="flex min-w-0 items-center gap-1.5 rounded-lg py-1 pl-2 text-xs transition-colors cursor-pointer {project.sessionCount != null
 							? 'pr-1'
 							: 'pr-2'}"
 						onclick={() => onSelectProject(project.path)}

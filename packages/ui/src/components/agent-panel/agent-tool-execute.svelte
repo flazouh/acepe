@@ -16,6 +16,8 @@
 		shouldUseOutputHtml,
 	} from "./agent-tool-execute-state.js";
 	import ToolHeaderLeading from "./tool-header-leading.svelte";
+	import AgentToolDurationLabel from "./agent-tool-duration-label.svelte";
+	import type { ToolDurationTiming } from "./tool-duration.js";
 	import type { AgentToolStatus } from "./types.js";
 
 	interface Props {
@@ -24,7 +26,7 @@
 		stderr?: string | null;
 		exitCode?: number;
 		status?: AgentToolStatus;
-		durationLabel?: string;
+		durationTiming?: ToolDurationTiming;
 		/** Pre-highlighted HTML per command segment (e.g. from Shiki). Overrides built-in tokenizer. */
 		commandHtmls?: readonly string[];
 		/** Pre-highlighted HTML for stdout (e.g. Shiki log). When a string, replaces plain stdout. */
@@ -47,7 +49,7 @@
 		stderr,
 		exitCode,
 		status = "done",
-		durationLabel,
+		durationTiming,
 		commandHtmls,
 		stdoutHtml,
 		stderrHtml,
@@ -74,7 +76,6 @@
 	const headerText = $derived(
 		getExecuteHeaderText({
 			status,
-			durationLabel,
 			runningLabel,
 			finishedLabel,
 		})
@@ -86,14 +87,18 @@
 
 <AgentToolCard dataTestid="agent-tool-execute-card">
 	<!-- ── Header ── -->
-	<div class="flex h-6 items-center gap-1.5 px-2">
-		<div class="flex-1 truncate">
-			<ToolHeaderLeading kind="execute" status={status}>
+	<div class="flex h-6 items-center justify-between gap-1.5 px-2">
+		<div class="flex min-w-0 flex-1 items-center gap-1.5 truncate">
+			<ToolHeaderLeading kind="execute" {status}>
 				{headerText}
 			</ToolHeaderLeading>
 		</div>
 
 		<div class="ml-auto flex shrink-0 items-center gap-1">
+			<AgentToolDurationLabel
+				timing={durationTiming}
+				class="font-sans text-xs"
+			/>
 
 			{#if isSuccess}
 				<CheckCircle weight="fill" size={11} class="text-success" />
@@ -107,7 +112,7 @@
 					onclick={() => {
 						isExpanded = !isExpanded;
 					}}
-					class="flex items-center justify-center rounded-md border-none bg-transparent p-0.5 text-muted-foreground transition-colors hover:bg-accent focus-visible:outline-2 focus-visible:outline-ring focus-visible:outline-offset-2 active:scale-95"
+					class="flex items-center justify-center rounded-lg border-none bg-transparent p-0.5 text-muted-foreground transition-colors hover:bg-accent focus-visible:outline-2 focus-visible:outline-ring focus-visible:outline-offset-2 active:scale-95"
 					aria-label={isExpanded ? ariaCollapseOutput : ariaExpandOutput}
 				>
 					<CaretDown

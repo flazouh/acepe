@@ -83,6 +83,8 @@ const homepageKeywords = [
 
 const creamButton =
 	"inline-flex h-9 items-center gap-2 rounded-[2px] bg-[#f8f5ee] px-4 text-[14px] font-medium text-[#121212] transition-opacity hover:opacity-90";
+const ghostButton =
+	"inline-flex h-9 items-center gap-2 rounded-[2px] border border-[#f8f5ee]/20 px-4 text-[14px] font-medium text-[#f8f5ee] transition-colors hover:border-[#f8f5ee]/40";
 </script>
 
 <Seo
@@ -113,10 +115,11 @@ const creamButton =
 					<AppleIcon class="h-4 w-4" />
 				</a>
 				<CommandChip command={BREW} />
+				<a href="/pricing" class={ghostButton}>{"Contact sales"}</a>
 			</div>
 		</section>
 
-		<!-- Product surface — app mock floating on Cosmic Orange -->
+		<!-- Product surface — greyscale app mock floating on Cosmic Orange -->
 		<section class="mx-auto max-w-[1280px] px-6 pb-24 md:pb-32">
 			<div class="relative aspect-[16/9] overflow-hidden rounded-[4px] bg-[#0F0F10]">
 				<img
@@ -130,7 +133,7 @@ const creamButton =
 					<img
 						src="/images/landing/acepe-working-view.webp"
 						alt="Acepe running multiple coding agents side by side"
-						class="w-full max-w-[1000px] rounded-md shadow-[0_30px_90px_-24px_rgba(0,0,0,0.65)]"
+						class="w-full max-w-[1000px] rounded-md shadow-[0_30px_90px_-24px_rgba(0,0,0,0.65)] [filter:grayscale(1)_contrast(1.03)]"
 					/>
 				</div>
 			</div>
@@ -265,6 +268,7 @@ const creamButton =
 							{"Product"}
 						</div>
 						<a href="/download" class="text-[13px] text-foreground/80 hover:text-foreground">{"Download"}</a>
+						<a href="/pricing" class="text-[13px] text-foreground/80 hover:text-foreground">{"Pricing"}</a>
 						<a href="/changelog" class="text-[13px] text-foreground/80 hover:text-foreground">{"Changelog"}</a>
 						<a href="/compare" class="text-[13px] text-foreground/80 hover:text-foreground">{"Compare"}</a>
 					</div>

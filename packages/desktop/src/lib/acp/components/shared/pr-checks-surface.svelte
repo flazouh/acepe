@@ -14,6 +14,6 @@ let { projectPath, prNumber, surfaceId }: Props = $props();
 const sessionStore = getSessionStore();
 
 onMount(() => {
-	return sessionStore.registerVisiblePrChecksSurface(projectPath, prNumber, surfaceId);
+	return sessionStore.connection.registerVisiblePrChecksSurface(projectPath, prNumber, surfaceId);
 });
 </script>

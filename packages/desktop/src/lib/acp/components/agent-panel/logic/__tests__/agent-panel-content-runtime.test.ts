@@ -43,50 +43,27 @@ describe("agent panel content runtime", () => {
 				kind: "canonical",
 				projection: createCanonicalProjection("running_operation", "Running"),
 			},
-			explicitWaiting: undefined,
-			sessionWorkProjection: { canonicalActivity: "running_operation" },
 		});
 
 		expect(runtime.turnState).toBe("streaming");
 		expect(runtime.isStreaming).toBe(true);
-		expect(runtime.isWaitingForResponse).toBe(false);
 	});
 
-	it("derives waiting only from canonical awaiting-model activity when no explicit prop is passed", () => {
+	it("produces idle turn state from no_session source", () => {
 		const runtime = resolveAgentPanelContentRuntime({
-			liveSessionSource: {
-				kind: "canonical",
-				projection: createCanonicalProjection("awaiting_model", "Running"),
-			},
-			explicitWaiting: undefined,
-			sessionWorkProjection: { canonicalActivity: "awaiting_model" },
+			liveSessionSource: { kind: "no_session" },
 		});
 
-		expect(runtime.isWaitingForResponse).toBe(true);
+		expect(runtime.turnState).toBe("idle");
+		expect(runtime.isStreaming).toBe(false);
 	});
 
-	it("lets an explicit waiting prop override canonical activity", () => {
-		const runtime = resolveAgentPanelContentRuntime({
-			liveSessionSource: {
-				kind: "canonical",
-				projection: createCanonicalProjection("awaiting_model", "Running"),
-			},
-			explicitWaiting: false,
-			sessionWorkProjection: { canonicalActivity: "awaiting_model" },
-		});
-
-		expect(runtime.isWaitingForResponse).toBe(false);
-	});
-
-	it("uses an explicit error turn state when canonical data is missing", () => {
+	it("produces error turn state when canonical data is missing", () => {
 		const runtime = resolveAgentPanelContentRuntime({
 			liveSessionSource: { kind: "missing_canonical", sessionId: "session-1" },
-			explicitWaiting: undefined,
-			sessionWorkProjection: null,
 		});
 
 		expect(runtime.turnState).toBe("error");
 		expect(runtime.isStreaming).toBe(false);
-		expect(runtime.isWaitingForResponse).toBe(false);
 	});
 });

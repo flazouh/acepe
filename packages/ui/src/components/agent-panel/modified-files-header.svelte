@@ -35,7 +35,7 @@
 		{/if}
 
 		<div
-			class="flex w-full min-w-max items-center gap-3 pl-1 pr-3 py-1 rounded-md border border-border bg-input/30 {isExpanded
+			class="flex w-full min-w-max items-center gap-3 pl-1 pr-3 py-1 rounded-lg border border-border bg-input/30 {isExpanded
 				? 'rounded-t-none border-t-0'
 				: ''}"
 		>

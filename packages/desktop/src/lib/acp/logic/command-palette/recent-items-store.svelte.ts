@@ -4,7 +4,7 @@
  */
 
 import type { ResultAsync } from "neverthrow";
-import type { UserSettingKey } from "$lib/services/converted-session-types.js";
+import type { UserSettingKey } from "$lib/services/user-settings-types.js";
 import { settings } from "$lib/utils/tauri-client/settings.js";
 
 import type { PaletteMode } from "../../types/palette-mode.js";

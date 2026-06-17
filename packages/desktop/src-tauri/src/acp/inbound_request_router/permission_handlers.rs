@@ -1,7 +1,8 @@
 use crate::acp::parsers::{get_parser, AgentType};
 use crate::acp::projections::ProjectionRegistry;
-use crate::acp::reconciler::providers;
-use crate::acp::reconciler::session_tool::{resolve_raw_tool_identity, ToolClassificationHints};
+use crate::acp::reconciler::{
+    classify_kind_from_provider_name, resolve_raw_tool_identity, ToolClassificationHints,
+};
 use crate::acp::session_policy::SessionPolicyRegistry;
 use crate::acp::session_update::{
     build_tool_call_from_raw, InteractionReplyHandler, PermissionData, QuestionData, QuestionItem,
@@ -103,7 +104,7 @@ async fn handle_session_request_permission_with_state(
             kind: tool_call
                 .kind
                 .as_deref()
-                .map(|kind| providers::detect_tool_kind(agent_type, kind)),
+                .map(|kind| classify_kind_from_provider_name(agent_type, kind)),
             kind_hint: tool_call.kind.as_deref(),
             locations: None,
         },

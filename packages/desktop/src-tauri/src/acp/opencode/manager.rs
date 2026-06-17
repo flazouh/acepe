@@ -645,6 +645,21 @@ impl OpenCodeManagerRegistry {
         }
     }
 
+    /// Evict a cached permanent failure for the given project root.
+    ///
+    /// Used when auto-install resolves a previously missing binary so the
+    /// next `get_or_start` retries initialization instead of returning the
+    /// stale [`PermanentInitError::BinaryNotFound`].
+    pub async fn clear_entry(&self, project_root: &Path) {
+        let canonical_root = canonicalize_project_root(project_root);
+        let key = canonical_root.to_string_lossy().to_string();
+        tracing::info!(
+            project_key = %key,
+            "Clearing OpenCode manager registry entry (e.g. after agent install)"
+        );
+        self.shutdown_runtime(&key).await;
+    }
+
     /// Shut down a single runtime by key.
     ///
     /// Removes the cell from the map and stops the manager if initialized.

@@ -9,6 +9,8 @@
 	import AgentToolQuestionHeader from "./agent-tool-question-header.svelte";
 	import AgentToolQuestionOtherInput from "./agent-tool-question-other-input.svelte";
 	import AgentToolQuestionOptionRow from "./agent-tool-question-option-row.svelte";
+	import AgentToolDurationLabel from "./agent-tool-duration-label.svelte";
+	import type { ToolDurationTiming } from "./tool-duration.js";
 
 	interface Props {
 		/** Questions to display */
@@ -28,7 +30,7 @@
 		/** Tool status */
 		status?: AgentToolStatus;
 		/** Optional elapsed label shown in the header (e.g. "for 2.34s") */
-		durationLabel?: string;
+		durationTiming?: ToolDurationTiming;
 		/** Callback when an option is selected */
 		onSelect?: (questionIndex: number, label: string, multiSelect?: boolean) => void;
 		/** Callback when "Other" text input changes */
@@ -68,7 +70,7 @@
 		selectedLabels = {},
 		otherText = {},
 		status = "done",
-		durationLabel,
+		durationTiming,
 		onSelect,
 		onOtherInput,
 		onOtherKeydown,
@@ -119,7 +121,7 @@
 		<AgentToolQuestionHeader
 			state={isCancelled ? "cancelled" : "answered"}
 			title={isCancelled ? cancelledLabel : (questions?.[0]?.header || questionLabel)}
-			{durationLabel}
+			{durationTiming}
 		/>
 
 		<div class="question-body">
@@ -144,7 +146,7 @@
 			state="interactive"
 			title={questionLabel}
 			badge={questions[0]?.header ?? null}
-			{durationLabel}
+			{durationTiming}
 		/>
 
 		<!-- Question content -->
@@ -199,9 +201,7 @@
 	<!-- Loading state while questions stream in -->
 	<div class="flex w-full items-center justify-between gap-2">
 		<span class="text-sm">{waitingLabel}</span>
-		{#if durationLabel}
-			<span class="shrink-0 text-sm">{durationLabel}</span>
-		{/if}
+		<AgentToolDurationLabel timing={durationTiming} class="shrink-0 text-sm" />
 	</div>
 {/if}
 

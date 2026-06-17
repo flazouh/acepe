@@ -54,6 +54,8 @@ export type {
 	AgentInputModelSelectorReasoningGroup,
 	AgentInputModelSelectorVariant,
 } from "./components/agent-panel/index.js";
+// Animate number
+export { default as AnimateNumber } from "./components/animate-number/animate-number.svelte";
 // Agent panel components
 export {
 	AgentInputArtefactBadge,

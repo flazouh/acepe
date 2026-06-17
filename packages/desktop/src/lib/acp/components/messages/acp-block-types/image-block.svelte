@@ -14,7 +14,7 @@ const imageState = $derived(buildImageBlockDisplayState({ data, mimeType, uri })
 
 <div class="space-y-1">
 	{#if imageState.src}
-		<img src={imageState.src} alt="" class="max-w-full rounded border border-border/30" />
+		<img src={imageState.src} alt="" class="max-w-full rounded-lg border border-border/30" />
 	{:else}
 		<div class="text-xs text-muted-foreground/70">{imageState.fallbackLabel}</div>
 	{/if}

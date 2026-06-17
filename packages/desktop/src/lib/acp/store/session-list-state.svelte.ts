@@ -22,15 +22,25 @@ import {
 	rebuildSessionIdsByProjectIndex,
 	rebuildSessionPaletteReferences,
 	rebuildSessionsByProjectIndex,
+	sessionColdFromExistingSession,
 	sessionColdWithMutableUpdates,
 	sessionLiveSyncReferenceFromSession,
 	sessionPaletteReferenceFromSession,
 	type SessionLiveSyncReference,
 	type SessionPaletteReference,
 } from "./session-cold-index.js";
+import { sessionColdFromSlices } from "../application/dto/session-cold.js";
+import type { SessionPrLinkReference } from "../application/dto/session-linked-pr.js";
+import type { SessionEntryStore } from "./session-entry-store.svelte.js";
+import type { SessionIdentity, SessionMetadata } from "./types.js";
 import { createLogger } from "../utils/logger.js";
 
 const logger = createLogger({ id: "session-list-state", name: "SessionListState" });
+
+export type SessionListStateReadDeps = {
+	readonly entryStore: SessionEntryStore;
+	readonly hasSessionCanonicalProjection: (sessionId: string) => boolean;
+};
 
 export class SessionListState {
 	sessions = $state<SessionCold[]>([]);
@@ -42,6 +52,130 @@ export class SessionListState {
 
 	/** Project paths currently being scanned for sessions (for per-project skeleton display). */
 	readonly scanningProjectPaths = new SvelteSet<string>();
+
+	#readDeps: SessionListStateReadDeps | null = null;
+
+	configureReadDeps(deps: SessionListStateReadDeps): void {
+		this.#readDeps = deps;
+	}
+
+	getAllSessions(): SessionCold[] {
+		const sessions: SessionCold[] = [];
+		for (const session of this.sessions) {
+			sessions.push(sessionColdFromExistingSession(session));
+		}
+		return sessions;
+	}
+
+	getSessionIdentity(sessionId: string): SessionIdentity | undefined {
+		const session = this.sessionById.get(sessionId);
+		if (!session) {
+			return undefined;
+		}
+		return {
+			id: session.id,
+			projectPath: session.projectPath,
+			agentId: session.agentId,
+			worktreePath: session.worktreePath,
+		};
+	}
+
+	hasSession(sessionId: string): boolean {
+		return this.sessionById.has(sessionId);
+	}
+
+	getSessionMetadata(sessionId: string): SessionMetadata | undefined {
+		const session = this.sessionById.get(sessionId);
+		if (!session) {
+			return undefined;
+		}
+		return {
+			title: session.title,
+			createdAt: session.createdAt,
+			updatedAt: session.updatedAt,
+			sourcePath: session.sourcePath,
+			sessionLifecycleState: session.sessionLifecycleState,
+			parentId: session.parentId,
+			prNumber: session.prNumber,
+			prState: session.prState,
+			prLinkMode: session.prLinkMode,
+			linkedPr: session.linkedPr,
+			worktreeDeleted: session.worktreeDeleted,
+			sequenceId: session.sequenceId,
+		};
+	}
+
+	getSessionCold(sessionId: string): SessionCold | undefined {
+		const sessionIdentity = this.getSessionIdentity(sessionId);
+		const sessionMetadata = this.getSessionMetadata(sessionId);
+		if (!sessionIdentity || !sessionMetadata) {
+			return undefined;
+		}
+
+		return sessionColdFromSlices(sessionIdentity, sessionMetadata);
+	}
+
+	getSessionIdsForProject(projectPath: string): string[] {
+		return this.sessionIdsByProject.get(projectPath) ?? [];
+	}
+
+	getLiveSessionSyncReferences(): SessionLiveSyncReference[] {
+		return this.liveSessionSyncReferences;
+	}
+
+	getSessionPaletteReferences(): SessionPaletteReference[] {
+		return this.sessionPaletteReferences;
+	}
+
+	getSessionPaletteReference(sessionId: string): SessionPaletteReference | undefined {
+		const session = this.sessionById.get(sessionId);
+		if (!session) {
+			return undefined;
+		}
+		return {
+			id: session.id,
+			projectPath: session.projectPath,
+			agentId: session.agentId,
+			title: session.title,
+		};
+	}
+
+	getSessionPrLinkReferencesForProject(projectPath: string): SessionPrLinkReference[] {
+		const sessions = this.sessionsByProject.get(projectPath) ?? [];
+		const references: SessionPrLinkReference[] = [];
+		for (const session of sessions) {
+			if (session.prNumber == null) {
+				continue;
+			}
+			references.push({
+				id: session.id,
+				prNumber: session.prNumber,
+				sequenceId: session.sequenceId ?? undefined,
+			});
+		}
+		return references;
+	}
+
+	getSessionDetail(sessionId: string): SessionCold | null {
+		const readDeps = this.#readDeps;
+		if (readDeps === null) {
+			return null;
+		}
+
+		const sessionIdentity = this.getSessionIdentity(sessionId);
+		const sessionMetadata = this.getSessionMetadata(sessionId);
+		if (!sessionIdentity || !sessionMetadata) {
+			return null;
+		}
+		if (
+			sessionMetadata.sessionLifecycleState !== "created" &&
+			!readDeps.hasSessionCanonicalProjection(sessionId) &&
+			!readDeps.entryStore.isPreloaded(sessionId)
+		) {
+			return null;
+		}
+		return sessionColdFromSlices(sessionIdentity, sessionMetadata);
+	}
 
 	/** Set sessions array (for bulk operations). */
 	setSessions(sessions: SessionCold[]): void {

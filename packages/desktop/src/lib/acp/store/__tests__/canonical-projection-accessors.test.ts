@@ -13,6 +13,7 @@ import type {
 
 import { InteractionStore } from "../interaction-store.svelte.js";
 import { SessionStore } from "../session-store.svelte.js";
+import { transcriptSegmentPrimaryText } from "../../session-state/transcript-text.js";
 
 function createRevision(graphRevision: number): SessionGraphRevision {
 	return {
@@ -178,7 +179,7 @@ function textEntry(
 }
 
 function addColdSession(store: SessionStore): void {
-	store.addSession({
+	store.write.addSession({
 		id: "session-1",
 		projectPath: "/repo",
 		agentId: "codex",
@@ -221,9 +222,9 @@ describe("SessionStore canonical projection accessors", () => {
 				],
 			});
 
-			const transcriptEntries = store.getSessionTranscriptEntries("session-1");
+			const transcriptEntries = store.read.getSessionTranscriptEntries("session-1");
 			expect(transcriptEntries?.[0]).toBe(userEntry);
-			expect(transcriptEntries?.[1]?.segments.map((segment) => segment.text)).toEqual([
+			expect(transcriptEntries?.[1]?.segments.map((segment) => transcriptSegmentPrimaryText(segment))).toEqual([
 				"Answer",
 				" More",
 			]);
@@ -236,48 +237,48 @@ describe("SessionStore canonical projection accessors", () => {
 		const store = new SessionStore();
 
 		expect(store.getSessionStateGraphForTest("session-1")?.turnState ?? null).toBeNull();
-		expect(store.getSessionListState("session-1")).toEqual({
+		expect(store.read.getSessionListState("session-1")).toEqual({
 			status: "error",
 			isConnected: false,
 			isStreaming: false,
 		});
-		expect(store.getSessionMessageCount("session-1")).toBeNull();
-		expect(store.getSessionAgentPanelCanonicalSource("session-1")).toBeNull();
-		expect(store.getSessionAgentPanelSessionSource(null)).toEqual({
+		expect(store.read.getSessionMessageCount("session-1")).toBeNull();
+		expect(store.presentation.getSessionAgentPanelCanonicalSource("session-1")).toBeNull();
+		expect(store.presentation.getSessionAgentPanelSessionSource(null)).toEqual({
 			kind: "no_session",
 		});
-		expect(store.getSessionAgentPanelSessionSource("session-1")).toEqual({
+		expect(store.presentation.getSessionAgentPanelSessionSource("session-1")).toEqual({
 			kind: "missing_canonical",
 			sessionId: "session-1",
 		});
-		expect(store.getSessionQuestionInteraction("session-1", "question-1")).toBeNull();
-		expect(store.getSessionLiveWorkSource("session-1", true)).toEqual({
+		expect(store.presentation.getSessionQuestionInteraction("session-1", "question-1")).toBeNull();
+		expect(store.presentation.getSessionLiveWorkSource("session-1", true)).toEqual({
 			kind: "missing_canonical",
 			sessionId: "session-1",
 		});
-		expect(store.getSessionLiveWorkSource("session-1", false)).toEqual({
+		expect(store.presentation.getSessionLiveWorkSource("session-1", false)).toEqual({
 			kind: "inactive_session",
 			sessionId: "session-1",
 		});
-		expect(store.hasSessionCanonicalProjection("session-1")).toBe(false);
-		expect(store.getSessionLifecycle("session-1")).toBeNull();
-		expect(store.getSessionTurnState("session-1")).toBeNull();
-		expect(store.getSessionTranscriptEntries("session-1")).toBeNull();
-		expect(store.getSessionConnectionError("session-1")).toBeNull();
-		expect(store.getSessionActiveTurnFailure("session-1")).toBeNull();
-		expect(store.getSessionLastTerminalTurnId("session-1")).toBeNull();
-		expect(store.getSessionAutonomousEnabled("session-1")).toBeNull();
-		expect(store.getSessionCurrentModeId("session-1")).toBeNull();
-		expect(store.getSessionCurrentModelId("session-1")).toBeNull();
-		expect(store.getSessionAvailableCommands("session-1")).toBeNull();
-		expect(store.getSessionConfigOptions("session-1")).toBeNull();
-		expect(store.getSessionAvailableModels("session-1")).toBeNull();
-		expect(store.getSessionAvailableModes("session-1")).toBeNull();
-		expect(store.hasSessionCanonicalCapabilities("session-1")).toBe(false);
-		expect(store.getSessionProviderMetadata("session-1")).toBeNull();
-		expect(store.getSessionCapabilityRevision("session-1")).toBeNull();
-		expect(store.getSessionCapabilityPreviewState("session-1")).toBeNull();
-		expect(store.getSessionCapabilityPendingMutationId("session-1")).toBeNull();
+		expect(store.read.hasSessionCanonicalProjection("session-1")).toBe(false);
+		expect(store.read.getSessionLifecycle("session-1")).toBeNull();
+		expect(store.read.getSessionTurnState("session-1")).toBeNull();
+		expect(store.read.getSessionTranscriptEntries("session-1")).toBeNull();
+		expect(store.read.getSessionConnectionError("session-1")).toBeNull();
+		expect(store.read.getSessionActiveTurnFailure("session-1")).toBeNull();
+		expect(store.read.getSessionLastTerminalTurnId("session-1")).toBeNull();
+		expect(store.read.getSessionAutonomousEnabled("session-1")).toBeNull();
+		expect(store.read.getSessionCurrentModeId("session-1")).toBeNull();
+		expect(store.read.getSessionCurrentModelId("session-1")).toBeNull();
+		expect(store.read.getSessionAvailableCommands("session-1")).toBeNull();
+		expect(store.read.getSessionConfigOptions("session-1")).toBeNull();
+		expect(store.read.getSessionAvailableModels("session-1")).toBeNull();
+		expect(store.read.getSessionAvailableModes("session-1")).toBeNull();
+		expect(store.read.hasSessionCanonicalCapabilities("session-1")).toBe(false);
+		expect(store.read.getSessionProviderMetadata("session-1")).toBeNull();
+		expect(store.read.getSessionCapabilityRevision("session-1")).toBeNull();
+		expect(store.read.getSessionCapabilityPreviewState("session-1")).toBeNull();
+		expect(store.read.getSessionCapabilityPendingMutationId("session-1")).toBeNull();
 	});
 
 	it("derives all capability accessors from the canonical projection", () => {
@@ -294,25 +295,25 @@ describe("SessionStore canonical projection accessors", () => {
 		store.applySessionStateGraph(createGraph(createCapabilities(), transcriptEntries));
 
 		expect(store.getSessionStateGraphForTest("session-1")?.turnState ?? null).toBe("Running");
-		const panelSource = store.getSessionAgentPanelCanonicalSource("session-1");
+		const panelSource = store.presentation.getSessionAgentPanelCanonicalSource("session-1");
 		expect(panelSource?.canonicalSessionId).toBe("session-1");
 		expect(panelSource?.transcriptSnapshot.entries).toBe(transcriptEntries);
 		expect(panelSource?.operations).toEqual([]);
 		expect(panelSource && "capabilities" in panelSource).toBe(false);
 		expect(panelSource?.projectPath).toBe("/repo");
-		expect(store.getSessionListState("session-1")).toEqual({
+		expect(store.read.getSessionListState("session-1")).toEqual({
 			status: "streaming",
 			isConnected: true,
 			isStreaming: true,
 		});
-		expect(store.getSessionMessageCount("session-1")).toBe(1);
-		expect(store.getSessionLiveWorkSource("session-1", true)).toMatchObject({
+		expect(store.read.getSessionMessageCount("session-1")).toBe(1);
+		expect(store.presentation.getSessionLiveWorkSource("session-1", true)).toMatchObject({
 			kind: "canonical",
 		});
-		expect(store.hasSessionCanonicalProjection("session-1")).toBe(true);
-		expect(store.getSessionLifecycle("session-1")).toEqual(createReadyLifecycle());
-		expect(store.getSessionTurnState("session-1")).toBe("Running");
-		expect(store.getSessionAgentPanelSessionSource("session-1")).toEqual({
+		expect(store.read.hasSessionCanonicalProjection("session-1")).toBe(true);
+		expect(store.read.getSessionLifecycle("session-1")).toEqual(createReadyLifecycle());
+		expect(store.read.getSessionTurnState("session-1")).toBe("Running");
+		expect(store.presentation.getSessionAgentPanelSessionSource("session-1")).toEqual({
 			kind: "canonical",
 			lifecycle: createReadyLifecycle(),
 			activity: {
@@ -325,7 +326,7 @@ describe("SessionStore canonical projection accessors", () => {
 			turnState: "Running",
 		});
 		expect(
-			store.getSessionQueueSnapshot({
+			store.presentation.getSessionQueueSnapshot({
 				sessionId: "session-1",
 				agentId: "codex",
 				projectPath: "/repo",
@@ -347,7 +348,7 @@ describe("SessionStore canonical projection accessors", () => {
 			activeTurnFailure: null,
 		});
 		expect(
-			store.getSessionQueuePresentation({
+			store.presentation.getSessionQueuePresentation({
 				sessionId: "session-1",
 				agentId: "codex",
 				projectPath: "/repo",
@@ -375,7 +376,7 @@ describe("SessionStore canonical projection accessors", () => {
 			pendingPermission: null,
 		});
 		expect(
-			store.getLiveSessionPanelSyncInput(
+			store.presentation.getLiveSessionPanelSyncInput(
 				{
 					id: "session-1",
 					updatedAtMs: new Date("2026-04-28T00:00:00.000Z").getTime(),
@@ -393,7 +394,7 @@ describe("SessionStore canonical projection accessors", () => {
 			pendingPermissionId: null,
 		});
 		expect(
-			store.getSessionListItemPresentation({
+			store.presentation.getSessionListItemPresentation({
 				sessionId: "session-1",
 				interactionStore: new InteractionStore(),
 				hasUnseenCompletion: false,
@@ -421,19 +422,19 @@ describe("SessionStore canonical projection accessors", () => {
 				compactActivityKind: "idle",
 			},
 		});
-		expect(store.getSessionTranscriptEntries("session-1")).toBe(transcriptEntries);
-		expect(store.getSessionConnectionError("session-1")).toBeNull();
-		expect(store.getSessionLastTerminalTurnId("session-1")).toBeNull();
-		expect(store.getSessionAutonomousEnabled("session-1")).toBe(true);
-		expect(store.getSessionCurrentModeId("session-1")).toBe("build");
-		expect(store.getSessionCurrentModelId("session-1")).toBe("gpt-5");
-		expect(store.getSessionAvailableCommands("session-1")).toEqual([
+		expect(store.read.getSessionTranscriptEntries("session-1")).toBe(transcriptEntries);
+		expect(store.read.getSessionConnectionError("session-1")).toBeNull();
+		expect(store.read.getSessionLastTerminalTurnId("session-1")).toBeNull();
+		expect(store.read.getSessionAutonomousEnabled("session-1")).toBe(true);
+		expect(store.read.getSessionCurrentModeId("session-1")).toBe("build");
+		expect(store.read.getSessionCurrentModelId("session-1")).toBe("gpt-5");
+		expect(store.read.getSessionAvailableCommands("session-1")).toEqual([
 			{
 				name: "run",
 				description: "Run command",
 			},
 		]);
-		expect(store.getSessionConfigOptions("session-1")).toEqual([
+		expect(store.read.getSessionConfigOptions("session-1")).toEqual([
 			{
 				id: "sandbox",
 				name: "Sandbox",
@@ -444,28 +445,28 @@ describe("SessionStore canonical projection accessors", () => {
 				presentation: "advanced",
 			},
 		]);
-		expect(store.getSessionAvailableModels("session-1")).toEqual([
+		expect(store.read.getSessionAvailableModels("session-1")).toEqual([
 			{
 				id: "gpt-5",
 				name: "GPT-5",
 				description: undefined,
 			},
 		]);
-		expect(store.getSessionAvailableModes("session-1")).toEqual([
+		expect(store.read.getSessionAvailableModes("session-1")).toEqual([
 			{
 				id: "build",
 				name: "Build",
 				description: undefined,
 			},
 		]);
-		expect(store.hasSessionCanonicalCapabilities("session-1")).toBe(true);
-		expect(store.getSessionCapabilityRevision("session-1")).toEqual({
+		expect(store.read.hasSessionCanonicalCapabilities("session-1")).toBe(true);
+		expect(store.read.getSessionCapabilityRevision("session-1")).toEqual({
 			graphRevision: 7,
 			transcriptRevision: 7,
 			lastEventSeq: 7,
 		});
-		expect(store.getSessionCapabilityPendingMutationId("session-1")).toBeNull();
-		expect(store.getSessionCapabilityPreviewState("session-1")).toBe("canonical");
+		expect(store.read.getSessionCapabilityPendingMutationId("session-1")).toBeNull();
+		expect(store.read.getSessionCapabilityPreviewState("session-1")).toBe("canonical");
 	});
 
 	it("returns pending question interactions through the question selector only", () => {
@@ -475,10 +476,10 @@ describe("SessionStore canonical projection accessors", () => {
 
 		store.applySessionStateGraph(createGraph(createCapabilities(), [], [questionInteraction]));
 
-		expect(store.getSessionQuestionInteraction("session-1", "question-1")).toBe(
+		expect(store.presentation.getSessionQuestionInteraction("session-1", "question-1")).toBe(
 			questionInteraction
 		);
-		expect(store.getSessionQuestionInteraction("session-1", "missing-question")).toBeNull();
+		expect(store.presentation.getSessionQuestionInteraction("session-1", "missing-question")).toBeNull();
 	});
 
 	it("preserves missing canonical autonomous state inside materialized capabilities", () => {
@@ -495,7 +496,7 @@ describe("SessionStore canonical projection accessors", () => {
 			})
 		);
 
-		expect(store.getSessionAutonomousEnabled("session-1")).toBeNull();
+		expect(store.read.getSessionAutonomousEnabled("session-1")).toBeNull();
 	});
 
 	it("preserves missing canonical command and config capability lists", () => {
@@ -511,8 +512,8 @@ describe("SessionStore canonical projection accessors", () => {
 			})
 		);
 
-		expect(store.getSessionAvailableCommands("session-1")).toBeNull();
-		expect(store.getSessionConfigOptions("session-1")).toBeNull();
+		expect(store.read.getSessionAvailableCommands("session-1")).toBeNull();
+		expect(store.read.getSessionConfigOptions("session-1")).toBeNull();
 	});
 
 	it("preserves missing canonical model and mode capability lists", () => {
@@ -530,8 +531,8 @@ describe("SessionStore canonical projection accessors", () => {
 			})
 		);
 
-		expect(store.getSessionAvailableModels("session-1")).toBeNull();
-		expect(store.getSessionAvailableModes("session-1")).toBeNull();
+		expect(store.read.getSessionAvailableModels("session-1")).toBeNull();
+		expect(store.read.getSessionAvailableModes("session-1")).toBeNull();
 	});
 
 	it("does not synthesize provider display metadata when canonical capabilities omit it", () => {
@@ -540,8 +541,8 @@ describe("SessionStore canonical projection accessors", () => {
 
 		store.applySessionStateGraph(createGraph(createCapabilities()));
 
-		expect(store.getSessionModelsDisplay("session-1")).toBeNull();
-		expect(store.getSessionProviderMetadata("session-1")).toBeNull();
+		expect(store.read.getSessionModelsDisplay("session-1")).toBeNull();
+		expect(store.read.getSessionProviderMetadata("session-1")).toBeNull();
 	});
 
 	it("reads canonical model display metadata through a narrow selector", () => {
@@ -571,7 +572,7 @@ describe("SessionStore canonical projection accessors", () => {
 			})
 		);
 
-		expect(store.getSessionModelsDisplay("session-1")).toBe(modelsDisplay);
+		expect(store.read.getSessionModelsDisplay("session-1")).toBe(modelsDisplay);
 	});
 
 	it("preserves canonical current ids even when display lists omit them", () => {
@@ -594,9 +595,9 @@ describe("SessionStore canonical projection accessors", () => {
 			})
 		);
 
-		expect(store.getSessionCurrentModeId("session-1")).toBe("code");
-		expect(store.getSessionCurrentModelId("session-1")).toBe("vendor/model-base");
-		expect(store.getSessionAvailableModes("session-1")).toEqual([]);
-		expect(store.getSessionAvailableModels("session-1")).toEqual([]);
+		expect(store.read.getSessionCurrentModeId("session-1")).toBe("code");
+		expect(store.read.getSessionCurrentModelId("session-1")).toBe("vendor/model-base");
+		expect(store.read.getSessionAvailableModes("session-1")).toEqual([]);
+		expect(store.read.getSessionAvailableModels("session-1")).toEqual([]);
 	});
 });

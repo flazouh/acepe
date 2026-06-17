@@ -19,7 +19,7 @@ function createStore(): PanelStoreInstance {
 	const sessionStore = Object.create(SessionStore.prototype) as SessionStore;
 	const agentStore = Object.create(AgentStore.prototype) as AgentStore;
 
-	sessionStore.getSessionCold = vi.fn(() => undefined);
+	sessionStore.read.getSessionCold = vi.fn(() => undefined);
 	agentStore.getDefaultAgentId = vi.fn(() => "claude-code");
 
 	const terminalStore = new PanelStore(sessionStore, agentStore, vi.fn());
@@ -57,9 +57,9 @@ describe("PanelStore terminal groups", () => {
 		const result = store.openTerminalTab("missing-group");
 
 		expect(result).toBeNull();
-		expect(store.terminalTabs).toHaveLength(0);
-		expect(store.terminalPanelGroups).toHaveLength(0);
-		expect(store.workspacePanels).toHaveLength(0);
+		expect(store.getTerminalPanelGroupsForProject("/tmp/project")).toEqual([]);
+		expect(store.getTerminalPanelGroup("missing-group")).toBeUndefined();
+		expect(store.workspacePanels.filter((panel) => panel.kind === "terminal")).toEqual([]);
 		expect(loggerSpy).toHaveBeenCalled();
 		loggerSpy.mockRestore();
 	});

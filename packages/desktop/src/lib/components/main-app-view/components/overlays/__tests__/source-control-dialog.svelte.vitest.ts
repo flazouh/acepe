@@ -43,8 +43,8 @@ const { default: SourceControlDialog } = await import("../source-control-dialog.
 
 function createPanelStore(): PanelStore {
 	const sessionStore = Object.create(SessionStore.prototype) as SessionStore;
-	sessionStore.getSessionCold = getSessionColdMock;
-	sessionStore.sendMessage = sendMessageMock;
+	sessionStore.read.getSessionCold = getSessionColdMock;
+	sessionStore.connection.sendMessage = sendMessageMock;
 	const agentStore = Object.create(AgentStore.prototype) as AgentStore;
 	agentStore.getDefaultAgentId = getDefaultAgentIdMock;
 

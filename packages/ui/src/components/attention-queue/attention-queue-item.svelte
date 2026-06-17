@@ -19,8 +19,8 @@
 	const baseClass = $derived(
 		`flex flex-col ${collapsed ? "items-center" : ""} justify-center w-full text-left gap-1 ${paddingClass} rounded transition-[background-color] duration-75 ease-out`
 	);
-	const withHover = $derived(slidingHighlight ? "" : "hover:bg-accent/50");
-	const selectedClass = $derived(selected ? "bg-accent/20" : "");
+	const withHover = $derived(slidingHighlight ? "" : "hover:bg-accent/40");
+	const selectedClass = $derived(selected ? "bg-accent/40" : "");
 
 	function handleKeydown(event: KeyboardEvent): void {
 		if (!onSelect) return;

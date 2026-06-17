@@ -22,6 +22,7 @@ export interface AgentPanelContentProps {
 	readonly sessionId: string | null;
 	readonly sceneEntries?: readonly AgentPanelSceneEntryModel[];
 	readonly pendingUserRevealRequestKey?: string | null;
+	readonly showLocalPlanningIndicator?: boolean;
 	readonly sessionProjectPath: string | null;
 	readonly allProjects?: readonly Project[];
 	scrollContainer?: HTMLDivElement | null;
@@ -37,8 +38,6 @@ export interface AgentPanelContentProps {
 	readonly availableAgents?: AgentInfo[];
 	readonly effectiveTheme?: "light" | "dark";
 	readonly modifiedFilesState?: ModifiedFilesState | null;
-	readonly isWaitingForResponse?: boolean;
-	readonly waitingLabel?: string | null;
 	readonly onQuestionSelect?: (event: AgentPanelQuestionSelectEvent) => void;
 	readonly onPlanBuild?: (event: AgentPanelPlanActionEvent) => void;
 	readonly onPlanCancel?: (event: AgentPanelPlanActionEvent) => void;

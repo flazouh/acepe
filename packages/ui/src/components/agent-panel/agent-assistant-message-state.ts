@@ -76,6 +76,22 @@ export function getAssistantMessageContentFlags(input: {
 	};
 }
 
+export function getThinkingDurationSeconds(ms: number): number {
+	const seconds = Math.round(ms / 1000);
+	return seconds <= 1 ? 1 : seconds;
+}
+
+export function getThinkingHeaderPrefix(input: {
+	isStreaming: boolean;
+	thinkingDurationMs?: number;
+}): string {
+	const ms = input.thinkingDurationMs;
+	if (ms !== null && ms !== undefined && ms >= 0) {
+		return input.isStreaming ? "Thinking for" : "Thought for";
+	}
+	return input.isStreaming ? "Thinking" : "Thought";
+}
+
 export function getThinkingHeaderLabel(input: {
 	isStreaming: boolean;
 	thinkingDurationMs?: number;

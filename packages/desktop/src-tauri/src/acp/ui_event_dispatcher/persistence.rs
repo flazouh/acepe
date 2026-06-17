@@ -96,8 +96,13 @@ pub(super) async fn persist_dispatch_event(
                 record.event_seq,
                 update.as_ref(),
             );
-            let transcript_delta = transcript_projection_registry
-                .apply_session_update(record.event_seq, update.as_ref());
+            let terminal_decision =
+                projection_registry.route_terminal_turn(session_id, update.as_ref());
+            let transcript_delta = transcript_projection_registry.apply_session_update(
+                record.event_seq,
+                update.as_ref(),
+                terminal_decision,
+            );
             let transcript_revision = transcript_projection_registry
                 .snapshot_for_session(session_id)
                 .map(|snapshot| snapshot.revision)
@@ -150,6 +155,8 @@ pub(super) async fn persist_dispatch_event(
                 synthetic_event_seq,
                 update.as_ref(),
             );
+            let terminal_decision =
+                projection_registry.route_terminal_turn(session_id, update.as_ref());
             // Transcript revision lives in its own monotonic counter and must
             // advance by exactly +1 per transcript-bearing event. Deriving the
             // seq from `synthetic_event_seq` (which tracks graph_revision)
@@ -158,19 +165,37 @@ pub(super) async fn persist_dispatch_event(
             // invariant — see
             // `synthetic_event_seq_path_must_not_inflate_transcript_revision_past_real_progress`.
             let transcript_event_seq = previous_transcript_revision.saturating_add(1);
-            let transcript_delta = transcript_projection_registry
-                .apply_session_update(transcript_event_seq, update.as_ref());
+            let transcript_delta = transcript_projection_registry.apply_session_update(
+                transcript_event_seq,
+                update.as_ref(),
+                terminal_decision,
+            );
             let transcript_revision = transcript_projection_registry
                 .snapshot_for_session(session_id)
                 .map(|snapshot| snapshot.revision)
                 .unwrap_or(previous_transcript_revision);
             if transcript_delta.is_some() {
                 if let SessionUpdate::ToolCall { tool_call, .. } = update.as_ref() {
-                    projection_registry.relink_tool_call_to_transcript_event_seq(
-                        session_id,
-                        &tool_call.id,
-                        transcript_event_seq,
-                    );
+                    if let Some(transcript_snapshot) =
+                        transcript_projection_registry.snapshot_for_session(session_id)
+                    {
+                        if let Some(entry_id) = transcript_snapshot
+                            .entries
+                            .iter()
+                            .rev()
+                            .find(|entry| {
+                                entry.role
+                                    == crate::acp::transcript_projection::TranscriptEntryRole::Tool
+                            })
+                            .map(|entry| entry.entry_id.clone())
+                        {
+                            projection_registry.relink_tool_call_to_transcript_entry(
+                                session_id,
+                                &tool_call.id,
+                                &entry_id,
+                            );
+                        }
+                    }
                 }
             }
             let revision =

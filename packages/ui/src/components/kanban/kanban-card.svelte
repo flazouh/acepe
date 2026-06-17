@@ -84,7 +84,7 @@ function handleKeydown(event: KeyboardEvent): void {
 
 <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
 <div
-	class="w-full min-w-0 max-w-full shrink-0 flex flex-col overflow-hidden rounded-sm border border-border/60 bg-accent/30 transition-all duration-150 {isInteractive
+	class="w-full min-w-0 max-w-full shrink-0 flex flex-col overflow-hidden rounded-lg border border-border/60 bg-accent/30 transition-all duration-150 {isInteractive
 		? 'cursor-pointer hover:border-border hover:bg-accent/45 hover:shadow-[0_8px_24px_-16px_rgba(0,0,0,0.9)] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-border/80 focus-visible:ring-offset-0'
 		: isGhost
 			? 'shadow-[0_12px_32px_-20px_rgba(0,0,0,0.9)]'

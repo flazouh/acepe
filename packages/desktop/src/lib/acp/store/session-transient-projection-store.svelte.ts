@@ -9,7 +9,7 @@
 import { SvelteMap } from "svelte/reactivity";
 
 import type { ITransientProjectionManager } from "./services/interfaces/index.js";
-import type { SessionTransientProjection } from "./types.js";
+import type { SessionPendingSendIntent, SessionTransientProjection, SessionUsageTelemetry } from "./types.js";
 
 import { DEFAULT_TRANSIENT_PROJECTION } from "./types.js";
 
@@ -82,5 +82,29 @@ export class SessionTransientProjectionStore implements ITransientProjectionMana
 				Object.assign({}, DEFAULT_TRANSIENT_PROJECTION, initialState)
 			);
 		}
+	}
+
+	getSessionPendingSendIntent(sessionId: string): SessionPendingSendIntent | null {
+		return this.getTransientProjection(sessionId).pendingSendIntent ?? null;
+	}
+
+	getSessionHasLocalPendingSendIntent(sessionId: string): boolean {
+		return this.getSessionPendingSendIntent(sessionId) !== null;
+	}
+
+	getSessionAcpSessionId(sessionId: string): string | null {
+		return this.getTransientProjection(sessionId).acpSessionId;
+	}
+
+	getSessionUsageTelemetry(sessionId: string): SessionUsageTelemetry | null {
+		return this.getTransientProjection(sessionId).usageTelemetry ?? null;
+	}
+
+	getSessionAutonomousTransitionBusy(sessionId: string): boolean {
+		return this.getTransientProjection(sessionId).autonomousTransition !== "idle";
+	}
+
+	getSessionStatusChangedAt(sessionId: string): number {
+		return this.getTransientProjection(sessionId).statusChangedAt;
 	}
 }

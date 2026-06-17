@@ -15,6 +15,7 @@ import type {
 	AgentPanelStripModel,
 } from "@acepe/ui/agent-panel/types";
 import type { SessionEntry } from "../application/dto/session-entry.js";
+import type { ScenePatch } from "../components/agent-panel/logic/scene-patch.js";
 import type { AgentPanelCanonicalSource } from "./agent-panel-canonical-source.js";
 
 export const AGENT_PANEL_SCENE_TEXT_LIMITS = {
@@ -51,4 +52,5 @@ export interface AgentPanelGraphMaterializerInput {
 
 export interface AgentPanelGraphMaterializerReadModel {
 	apply(input: AgentPanelGraphMaterializerInput): AgentPanelSceneModel;
+	selectConversationScenePatch(): ScenePatch;
 }

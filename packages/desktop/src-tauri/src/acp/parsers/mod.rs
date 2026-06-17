@@ -6,8 +6,8 @@
 //!
 //! ## Architecture
 //!
-//! Tool name normalization lives under `crate::acp::reconciler::providers` (Unit 3).
-//! ACP `kind` hints and canonical display names live in `crate::acp::reconciler::kind_payload`.
+//! Tool name normalization lives under `crate::acp::reconciler` (Unit 3 / plan 009).
+//! ACP `kind` hints and canonical display names are re-exported from the tool identity authority.
 //! Parsers re-export adapter types for the `AgentParser` surface.
 
 pub mod acp_fields;
@@ -20,6 +20,7 @@ pub(crate) mod copilot_parser;
 pub(crate) mod cursor_parser;
 pub(crate) mod edit_normalizers;
 pub(crate) mod opencode_parser;
+pub mod parsed_todo;
 pub mod provider_capabilities;
 pub(crate) mod shared_chat;
 pub mod status;

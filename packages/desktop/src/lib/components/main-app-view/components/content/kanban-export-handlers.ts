@@ -42,7 +42,7 @@ export function createKanbanExportHandlers(deps: KanbanExportHandlerDeps) {
 	}
 
 	async function handleExportMarkdown(item: ThreadBoardItem): Promise<void> {
-		await deps.sessionStore
+		await deps.sessionStore.read
 			.getSessionMarkdownExportContent(item.sessionId)
 			.asyncAndThen((markdown) => {
 				return copyTextToClipboard(markdown);
@@ -54,7 +54,7 @@ export function createKanbanExportHandlers(deps: KanbanExportHandlerDeps) {
 	}
 
 	async function handleExportJson(item: ThreadBoardItem): Promise<void> {
-		await deps.sessionStore
+		await deps.sessionStore.read
 			.getSessionJsonExportContent(item.sessionId)
 			.asyncAndThen((content) => {
 				return copyTextToClipboard(content);

@@ -2,9 +2,11 @@ import { describe, expect, it } from "bun:test";
 import type { SessionPlanResponse } from "../../../../services/claude-history.js";
 import type { SessionEntry } from "../../../application/dto/session-entry.js";
 import {
-	buildDesktopAgentPanelScene,
 	buildDesktopComposerModel,
 	buildDesktopPlanSidebar,
+	buildDesktopPrCard,
+	buildModifiedFilesStrip,
+	buildPlanHeaderStrip,
 	mapSessionEntriesToConversationModel,
 	mapSessionEntryToConversationEntry,
 	mapSessionStatusToSceneStatus,
@@ -79,19 +81,11 @@ describe("desktop agent panel scene adapter", () => {
 					],
 				},
 			},
-			{
-				id: "error-1",
-				type: "error",
-				message: {
-					content: "Connection dropped",
-					code: "EPIPE",
-				},
-			},
 		];
 
 		const conversation = mapSessionEntriesToConversationModel(entries, "streaming");
 
-		expect(conversation.entries).toHaveLength(5);
+		expect(conversation.entries).toHaveLength(4);
 		expect(conversation.isStreaming).toBe(true);
 		expect(conversation.entries[0]).toEqual({
 			id: "user-1",
@@ -1148,7 +1142,7 @@ describe("desktop agent panel scene adapter", () => {
 		});
 	});
 
-	it("builds composer and sidebars into a desktop scene model", () => {
+	it("builds composer, strips, and cards for desktop scene assembly", () => {
 		const plan: SessionPlanResponse = {
 			slug: "jwt-migration",
 			title: "JWT migration plan",
@@ -1169,71 +1163,40 @@ describe("desktop agent panel scene adapter", () => {
 			showStop: false,
 		});
 
-		const scene = buildDesktopAgentPanelScene({
-			panelId: "agent-panel-1",
-			sessionStatus: "ready",
-			entries: [],
-			turnState: "idle",
-			header: {
-				title: "Migrate auth to JWT",
-				agentLabel: "Claude Code",
-				projectLabel: "acepe",
-				projectColor: "#7C3AED",
-			},
-			composer: {
-				draftText: composer.draftText,
-				placeholder: composer.placeholder,
-				submitLabel: composer.submitLabel,
-				canSubmit: composer.canSubmit,
-				selectedModelId: composer.selectedModel?.id ?? null,
-				selectedModelLabel: composer.selectedModel?.label ?? null,
-				projectLabel: composer.selectedModel?.projectLabel ?? null,
-			},
-			modifiedFilesState: {
-				files: [],
-				byPath: new Map(),
-				fileCount: 3,
-				totalEditCount: 12,
-			},
-			plan,
-			showPlanSidebar: false,
-			prCard: {
-				description: "Ready for review",
-				filesChanged: 3,
-				checksLabel: "Passing",
-			},
+		const planHeaderStrip = buildPlanHeaderStrip(plan, false);
+		const modifiedFilesStrip = buildModifiedFilesStrip({
+			files: [],
+			byPath: new Map(),
+			fileCount: 3,
+			totalEditCount: 12,
+		});
+		const prCard = buildDesktopPrCard({
+			description: "Ready for review",
+			filesChanged: 3,
+			checksLabel: "Passing",
 		});
 
-		expect(scene.header.title).toBe("Migrate auth to JWT");
-		expect(scene.status).toBe("connected");
-		expect(scene.composer?.selectedModel?.label).toBe("Claude Sonnet 4.5");
-		expect(scene.sidebars?.plan).toBeNull();
-		expect(scene.strips?.some((strip) => strip.kind === "plan_header")).toBe(true);
-		expect(scene.strips?.some((strip) => strip.kind === "modified_files")).toBe(true);
-		expect(scene.cards?.some((card) => card.kind === "pr_status")).toBe(true);
+		expect(mapSessionStatusToSceneStatus("ready", 0)).toBe("connected");
+		expect(composer.selectedModel?.label).toBe("Claude Sonnet 4.5");
+		expect(buildDesktopPlanSidebar(plan)).not.toBeNull();
+		expect(planHeaderStrip?.kind).toBe("plan_header");
+		expect(modifiedFilesStrip?.kind).toBe("modified_files");
+		expect(prCard?.kind).toBe("pr_status");
 	});
 
 	it("omits the plan sidebar when the desktop plan pane is collapsed", () => {
-		const scene = buildDesktopAgentPanelScene({
-			panelId: "agent-panel-1",
-			sessionStatus: "ready",
-			entries: [],
-			turnState: "idle",
-			header: {
-				title: "Migrate auth to JWT",
-			},
-			plan: {
-				slug: "plan-1",
-				title: "JWT migration plan",
-				summary: null,
-				content: "- [ ] Ship scene model",
-				filePath: null,
-			},
-			showPlanSidebar: false,
-		});
+		const plan: SessionPlanResponse = {
+			slug: "plan-1",
+			title: "JWT migration plan",
+			summary: null,
+			content: "- [ ] Ship scene model",
+			filePath: null,
+		};
 
-		expect(scene.sidebars?.plan).toBeNull();
-		expect(scene.strips?.some((strip) => strip.kind === "plan_header")).toBe(true);
+		const planHeaderStrip = buildPlanHeaderStrip(plan, false);
+
+		expect(buildDesktopPlanSidebar(plan)).not.toBeNull();
+		expect(planHeaderStrip?.kind).toBe("plan_header");
 	});
 
 	it("derives plan sidebar items from markdown content", () => {

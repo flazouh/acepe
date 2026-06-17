@@ -3,12 +3,16 @@ import {
 	AgentPanelHeader as AgentPanelHeaderLayout,
 	AgentPanelStatusIcon,
 } from "@acepe/ui/agent-panel";
+import { Selector } from "@acepe/ui";
 import * as DropdownMenu from "@acepe/ui/dropdown-menu";
-import { CloseAction, FullscreenAction, OverflowMenuTriggerAction } from "@acepe/ui/panel-header";
+import { IconDotsVertical } from "@tabler/icons-svelte";
+import { CloseAction, EmbeddedIconButton, FullscreenAction } from "@acepe/ui/panel-header";
 import { DownloadSimple } from "phosphor-svelte";
 import CopyButton from "../../messages/copy-button.svelte";
 import * as Tooltip from "$lib/components/ui/tooltip/index.js";
 import AttachmentChip from "../../shared/attachment-chip.svelte";
+
+import { formatRichSessionTitle } from "$lib/acp/store/session-title-policy.js";
 
 import { getPreparingThreadLabel } from "../logic/agent-panel-header-labels.js";
 import type { AgentPanelHeaderProps } from "../types/agent-panel-header-props.js";
@@ -50,6 +54,10 @@ let {
 const hasExportSubmenu = $derived(onExportMarkdown != null || onExportJson != null);
 const hasAttachments = $derived((firstMessageAttachments?.length ?? 0) > 0);
 const preparingThreadLabel = $derived(getPreparingThreadLabel(agentName));
+const titleRichText = $derived.by(() => {
+	const rawTitle = sessionTitle ?? displayTitle;
+	return formatRichSessionTitle(rawTitle, projectName).richText;
+});
 </script>
 
 	<AgentPanelHeaderLayout
@@ -57,6 +65,7 @@ const preparingThreadLabel = $derived(getPreparingThreadLabel(agentName));
 		showTrailingBorder={!isFullscreen}
 		sessionTitle={sessionTitle ? sessionTitle : undefined}
 		displayTitle={displayTitle ? displayTitle : undefined}
+		titleRichText={titleRichText}
 		agentIconSrc={agentIconSrc ? agentIconSrc : undefined}
 		{isFullscreen}
 		{pendingProjectSelection}
@@ -73,6 +82,7 @@ const preparingThreadLabel = $derived(getPreparingThreadLabel(agentName));
 		{/snippet}
 
 		{#snippet controls()}
+			<div class="flex shrink-0 items-center gap-0.5 px-0.5">
 			<AgentPanelStatusIcon
 				status={sessionStatus}
 				isRetrying={isRetryingConnection}
@@ -87,66 +97,71 @@ const preparingThreadLabel = $derived(getPreparingThreadLabel(agentName));
 				errorLabel={"Thread error - click to retry"}
 				onRetry={onRetryConnection}
 			/>
-			<DropdownMenu.Root>
-				<DropdownMenu.Trigger
-					class="h-7 w-7 flex items-center justify-center focus-visible:outline-none"
-				>
-					<OverflowMenuTriggerAction title="More actions" />
-				</DropdownMenu.Trigger>
-				<DropdownMenu.Content align="end" class="min-w-[180px]">
-					<DropdownMenu.Item class="cursor-pointer">
-						<CopyButton
-							text={sessionId ?? ""}
-							variant="menu"
-							label={"Copy session ID"}
-							hideIcon
-							size={16}
-						/>
+			<Selector
+				align="end"
+				triggerSize="icon"
+				showChevron={false}
+				tooltipLabel="More actions"
+				variant="ghost"
+			>
+				{#snippet renderButton()}
+					<IconDotsVertical class="h-3 w-3" />
+				{/snippet}
+
+				<DropdownMenu.Item class="cursor-pointer">
+					<CopyButton
+						text={sessionId ?? ""}
+						variant="menu"
+						label={"Copy session ID"}
+						hideIcon
+						size={16}
+					/>
+				</DropdownMenu.Item>
+				{#if hasExportSubmenu}
+					<DropdownMenu.Separator />
+					<DropdownMenu.Sub>
+						<DropdownMenu.SubTrigger class="cursor-pointer">
+							{"Export"}
+						</DropdownMenu.SubTrigger>
+						<DropdownMenu.SubContent class="min-w-[160px]">
+							{#if onExportMarkdown}
+								<DropdownMenu.Item onSelect={() => onExportMarkdown?.()} class="cursor-pointer">
+									{"Export as Markdown"}
+								</DropdownMenu.Item>
+							{/if}
+							{#if onExportJson}
+								<DropdownMenu.Item onSelect={() => onExportJson?.()} class="cursor-pointer">
+									{"Export as JSON"}
+								</DropdownMenu.Item>
+							{/if}
+						</DropdownMenu.SubContent>
+					</DropdownMenu.Sub>
+				{/if}
+				{#if isDev}
+					<DropdownMenu.Separator />
+					<DropdownMenu.Item onSelect={() => onCopyStreamingLogPath?.()} class="cursor-pointer">
+						Copy Streaming Log Path
 					</DropdownMenu.Item>
-					{#if hasExportSubmenu}
-						<DropdownMenu.Separator />
-						<DropdownMenu.Sub>
-							<DropdownMenu.SubTrigger class="cursor-pointer">
-								{"Export"}
-							</DropdownMenu.SubTrigger>
-							<DropdownMenu.SubContent class="min-w-[160px]">
-								{#if onExportMarkdown}
-									<DropdownMenu.Item onSelect={() => onExportMarkdown?.()} class="cursor-pointer">
-										{"Export as Markdown"}
-									</DropdownMenu.Item>
-								{/if}
-								{#if onExportJson}
-									<DropdownMenu.Item onSelect={() => onExportJson?.()} class="cursor-pointer">
-										{"Export as JSON"}
-									</DropdownMenu.Item>
-								{/if}
-							</DropdownMenu.SubContent>
-						</DropdownMenu.Sub>
-					{/if}
-					{#if isDev}
-						<DropdownMenu.Separator />
-						<DropdownMenu.Item onSelect={() => onCopyStreamingLogPath?.()} class="cursor-pointer">
-							Copy Streaming Log Path
-						</DropdownMenu.Item>
-						<DropdownMenu.Item onSelect={() => onExportRawStreaming?.()} class="cursor-pointer">
-							{"Open Streaming Log"}
-						</DropdownMenu.Item>
-					{/if}
-				</DropdownMenu.Content>
-			</DropdownMenu.Root>
+					<DropdownMenu.Item onSelect={() => onExportRawStreaming?.()} class="cursor-pointer">
+						{"Open Streaming Log"}
+					</DropdownMenu.Item>
+				{/if}
+			</Selector>
 			{#if isDev && debugPanelState}
 				<Tooltip.Root>
 					<Tooltip.Trigger>
-						<button
-							type="button"
-							class="h-7 w-7 flex items-center justify-center text-muted-foreground hover:text-foreground rounded"
+						<EmbeddedIconButton
+							ariaLabel="Copy debug state"
+							title="Copy debug state"
 							onclick={async () => {
 								const text = JSON.stringify(debugPanelState!, null, 2);
 								await navigator.clipboard.writeText(text);
 							}}
 						>
-							<DownloadSimple class="size-4" weight="fill" aria-label="Copy debug state" />
-						</button>
+							{#snippet children()}
+								<DownloadSimple class="h-3 w-3" weight="fill" />
+							{/snippet}
+						</EmbeddedIconButton>
 					</Tooltip.Trigger>
 					<Tooltip.Content side="bottom" class="max-w-none">
 						<div class="max-h-96 overflow-auto">
@@ -167,6 +182,7 @@ const preparingThreadLabel = $derived(getPreparingThreadLabel(agentName));
 				titleExit={"Exit Fullscreen"}
 			/>
 			<CloseAction {onClose} title={"Close"} />
+			</div>
 		{/snippet}
 
 		{#snippet expansion()}

@@ -12,6 +12,6 @@ let { patch }: Props = $props();
 	</div>
 	<pre
 		data-testid="plain-text-diff-preview"
-		class="max-h-[28rem] overflow-auto whitespace-pre-wrap break-words rounded-md border border-border/20 bg-background/70 p-3 text-[11px] leading-relaxed text-foreground"
+		class="max-h-[28rem] overflow-auto whitespace-pre-wrap break-words rounded-lg border border-border/20 bg-background/70 p-3 text-[11px] leading-relaxed text-foreground"
 	>{patch}</pre>
 </div>

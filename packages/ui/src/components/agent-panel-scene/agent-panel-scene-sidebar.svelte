@@ -40,7 +40,7 @@
 				<h3 class="text-sm font-medium text-foreground">{sidebars.plan.title}</h3>
 				<div class="mt-3 space-y-2">
 					{#each sidebars.plan.items as item (item.id)}
-						<div class="rounded-lg border border-border/50 bg-accent/30 px-3 py-2">
+						<div class="rounded border border-border/50 bg-accent/30 px-3 py-2">
 							<div class="text-sm text-foreground">{item.label}</div>
 							{#if item.description}
 								<p class="mt-1 text-[11px] text-muted-foreground">{item.description}</p>

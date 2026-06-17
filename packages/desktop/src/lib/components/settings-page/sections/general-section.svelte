@@ -1,5 +1,4 @@
 <script lang="ts">
-import { Warning } from "phosphor-svelte";
 import { toast } from "svelte-sonner";
 import * as AlertDialog from "$lib/components/ui/alert-dialog/index.js";
 import { Switch } from "$lib/components/ui/switch/index.js";
@@ -86,32 +85,25 @@ async function handleResetDatabase() {
 		</SettingRow>
 	</SettingsSection>
 
-	<!-- Danger Zone — standalone emphasized card (per R18) -->
-	<div class="mt-16">
+	<!-- Danger Zone -->
+	<div class="mt-8">
 		<SettingsSectionHeader
+			variant="subsection"
 			title={"Danger Zone"}
 			description="Reset local app data and start fresh."
 		/>
-		<div class="overflow-hidden rounded-lg bg-destructive/5 shadow-sm">
-			<div class="flex items-center justify-between gap-4 px-4 py-3">
-				<div class="flex items-center gap-2 min-w-0">
-					<Warning class="size-3.5 text-destructive shrink-0" weight="fill" />
-					<div class="min-w-0">
-						<p class="text-[13px] font-medium">{"Reset Database"}</p>
-						<p class="text-[12px] text-muted-foreground/60">
-							{"Deletes the local SQLite database (projects, API keys, preferences, session history). Session files on disk are not affected."}
-						</p>
-					</div>
-				</div>
-				<button
-					type="button"
-					class="shrink-0 rounded-md bg-destructive px-2.5 py-1 text-[12px] font-medium text-destructive-foreground transition-colors hover:bg-destructive/90"
-					onclick={() => (showResetConfirm = true)}
-				>
-					{"Reset Database"}
-				</button>
-			</div>
-		</div>
+		<SettingRow
+			label={"Reset Database"}
+			description="Deletes the local SQLite database (projects, API keys, preferences, session history). Session files on disk are not affected."
+		>
+			<button
+				type="button"
+				class="shrink-0 rounded-md bg-destructive px-2.5 py-1 text-[12px] font-medium text-destructive-foreground transition-colors hover:bg-destructive/90"
+				onclick={() => (showResetConfirm = true)}
+			>
+				{"Reset Database"}
+			</button>
+		</SettingRow>
 	</div>
 </div>
 

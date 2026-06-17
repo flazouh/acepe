@@ -1,12 +1,10 @@
 /**
  * ConnectionController — owns the agent panel's panel-connection state
  * (connection state/error, dismissed-error key, retry-busy flag + timer),
- * hoisted out of the `agent-panel.svelte` god controller so it is testable in
- * isolation. The connection-store subscription and the retry/cancel/dismiss
- * handlers (which touch DOM refs + stores) stay in the component and drive this
- * via setters. `isRetrying` is a $derived (plan Decision 7) over the retry flag
- * and the session's still-failed accessor — no $effect. (Plan 2026-05-29-002 U4.)
+ * including the connection-store subscription. Retry/cancel/dismiss handlers
+ * that touch DOM refs + stores stay in the component spine.
  */
+import type { ConnectionStore } from "../../../store/connection-store.svelte.js";
 import {
 	type PanelConnectionErrorDetails,
 	PanelConnectionState,
@@ -14,7 +12,9 @@ import {
 
 export interface ConnectionControllerDeps {
 	/** Whether the session is still in a failed state (from the session controller). */
-	getStillFailed: () => boolean;
+	readonly getStillFailed: () => boolean;
+	readonly connectionStore: ConnectionStore;
+	readonly getPanelId: () => string | null;
 }
 
 export class ConnectionController {
@@ -24,6 +24,8 @@ export class ConnectionController {
 	#dismissedErrorKey = $state<string | null>(null);
 	#retryActive = $state(false);
 	#retryBusyTimer: ReturnType<typeof setTimeout> | null = null;
+	#unsubscribe: (() => void) | null = null;
+	#attachedPanelId: string | null = null;
 
 	constructor(deps: ConnectionControllerDeps) {
 		this.#deps = deps;
@@ -32,22 +34,53 @@ export class ConnectionController {
 	get state(): PanelConnectionState | null {
 		return this.#state;
 	}
-	set state(value: PanelConnectionState | null) {
-		this.#state = value;
-	}
 
 	get error(): PanelConnectionErrorDetails | null {
 		return this.#error;
-	}
-	set error(value: PanelConnectionErrorDetails | null) {
-		this.#error = value;
 	}
 
 	get dismissedErrorKey(): string | null {
 		return this.#dismissedErrorKey;
 	}
-	set dismissedErrorKey(value: string | null) {
-		this.#dismissedErrorKey = value;
+
+	/**
+	 * Bind (or rebind) the store subscription for the current panel id. Returns a
+	 * cleanup that detaches. Invoked from the controller's internal `$effect` keyed
+	 * on `getPanelId()`; exposed for unit tests that run outside a Svelte root.
+	 */
+	syncSubscription(): () => void {
+		const panelId = this.#deps.getPanelId();
+		if (panelId === this.#attachedPanelId) {
+			return () => {};
+		}
+		this.#detachSubscription();
+		if (panelId === null) {
+			this.#state = null;
+			this.#error = null;
+			return () => this.#detachSubscription();
+		}
+
+		this.#attachedPanelId = panelId;
+		const store = this.#deps.connectionStore;
+		this.#state = store.getState(panelId);
+		this.#error = store.getContext(panelId)?.error ?? null;
+		this.#unsubscribe = store.onChange((id, state, context) => {
+			if (id !== panelId) {
+				return;
+			}
+			this.#state = state;
+			this.#error = context.error ?? null;
+		});
+
+		return () => this.#detachSubscription();
+	}
+
+	clearDismissedError(): void {
+		this.#dismissedErrorKey = null;
+	}
+
+	dismissError(errorKey: string): void {
+		this.#dismissedErrorKey = errorKey;
 	}
 
 	/**
@@ -75,11 +108,33 @@ export class ConnectionController {
 		return true;
 	}
 
-	/** Clear the busy timer on teardown. */
+	/** Clear the busy timer and store subscription on teardown. */
 	dispose(): void {
+		this.#detachSubscription();
 		if (this.#retryBusyTimer !== null) {
 			clearTimeout(this.#retryBusyTimer);
 			this.#retryBusyTimer = null;
 		}
 	}
+
+	#detachSubscription(): void {
+		if (this.#unsubscribe !== null) {
+			this.#unsubscribe();
+			this.#unsubscribe = null;
+		}
+		this.#attachedPanelId = null;
+	}
+}
+
+/**
+ * Host entry point: constructs the controller and owns the store subscription
+ * `$effect` keyed on `getPanelId()`. Call from a Svelte component top level only.
+ */
+export function createConnectionController(deps: ConnectionControllerDeps): ConnectionController {
+	const controller = new ConnectionController(deps);
+	$effect(() => {
+		deps.getPanelId();
+		return controller.syncSubscription();
+	});
+	return controller;
 }

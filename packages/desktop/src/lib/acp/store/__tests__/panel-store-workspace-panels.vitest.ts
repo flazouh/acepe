@@ -2,7 +2,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { ModifiedFilesState } from "../../types/modified-files-state.js";
 import type { AgentStore } from "../agent-store.svelte.js";
-import { createFilePanelCacheKey } from "../file-panel-ownership.js";
 import { PanelStore } from "../panel-store.svelte.js";
 import type { SessionStore } from "../session-store.svelte.js";
 
@@ -31,6 +30,14 @@ function createStore(): PanelStore {
 		getSessionCold: vi.fn(() => null),
 		getSessionIdentity: vi.fn(() => undefined),
 		getSessionMetadata: vi.fn(() => undefined),
+		read: {
+			resolveCanonicalSessionId: vi.fn((sessionId: string) => sessionId),
+			getSessionIdentity: vi.fn(() => undefined),
+			getSessionMetadata: vi.fn(() => undefined),
+		},
+		connection: {
+			hasPendingCreationSession: vi.fn(() => false),
+		},
 	} as unknown as SessionStore;
 	const agentStore = {
 		getDefaultAgentId: vi.fn(() => "claude-code"),
@@ -63,8 +70,10 @@ beforeEach(() => {
 });
 
 afterEach(() => {
-	vi.clearAllTimers();
-	vi.useRealTimers();
+	if (vi.isFakeTimers()) {
+		vi.clearAllTimers();
+		vi.useRealTimers();
+	}
 	if (originalLocalStorageDescriptor === undefined) {
 		Reflect.deleteProperty(globalThis, "localStorage");
 		return;
@@ -368,6 +377,103 @@ describe("PanelStore workspacePanels", () => {
 		expect(persistablePanelIds).not.toContain(autoAttachedPanel.id);
 	});
 
+	it("creates a complete workspace persistence snapshot from the panel composition root", () => {
+		const store = createStore();
+		const agentPanel = store.spawnPanel({
+			projectPath: "/tmp/project",
+			pendingWorktreeEnabled: true,
+		});
+		const filePanel = store.openFilePanel("src/main.ts", "/tmp/project", {
+			ownerPanelId: agentPanel.id,
+			targetLine: 12,
+			targetColumn: 4,
+		});
+		const browserPanel = store.openBrowserPanel("/tmp/project", "https://example.com", "Example");
+		const terminalPanel = store.openTerminalPanel("/tmp/project");
+		store.setMessageDraft(agentPanel.id, "draft");
+		store.setPlanSidebarExpanded(agentPanel.id, true);
+		store.setEmbeddedTerminalDrawerOpen(agentPanel.id, true);
+		store.focusPanel(browserPanel.id);
+
+		const snapshot = store.createWorkspacePersistenceSnapshot({
+			getPanelScrollTop: (panelId) => (panelId === agentPanel.id ? 42 : 0),
+		});
+
+		expect(snapshot.workspacePanels.map((panel) => panel.id)).toEqual([
+			browserPanel.id,
+			agentPanel.id,
+			terminalPanel.id,
+			filePanel.id,
+		]);
+		expect(snapshot.panels).toEqual([
+			{
+				id: agentPanel.id,
+				sessionId: null,
+				autoCreated: undefined,
+				width: agentPanel.width,
+				pendingProjectSelection: false,
+				selectedAgentId: agentPanel.selectedAgentId,
+				projectPath: "/tmp/project",
+				agentId: null,
+				sourcePath: undefined,
+				worktreePath: undefined,
+				sessionTitle: undefined,
+				scrollTop: 42,
+				planSidebarExpanded: true,
+				messageDraft: "draft",
+				reviewMode: undefined,
+				reviewFileIndex: undefined,
+				embeddedTerminalDrawerOpen: true,
+				selectedEmbeddedTerminalTabId: undefined,
+				sequenceId: undefined,
+				pendingWorktreeEnabled: true,
+				preparedWorktreeLaunch: null,
+			},
+		]);
+		expect(snapshot.filePanels).toEqual([
+			{
+				id: filePanel.id,
+				filePath: "src/main.ts",
+				projectPath: "/tmp/project",
+				ownerPanelId: agentPanel.id,
+				width: filePanel.width,
+				targetLine: 12,
+				targetColumn: 4,
+			},
+		]);
+		expect(snapshot.focusedPanelIndex).toBe(0);
+		expect(snapshot.fullscreenPanelIndex).toBeNull();
+		expect(snapshot.panelContainerScrollX).toBe(0);
+		expect(snapshot.browserPanels).toEqual([
+			{
+				projectPath: "/tmp/project",
+				url: "https://example.com",
+				title: "Example",
+				width: browserPanel.width,
+			},
+		]);
+		expect(snapshot.terminalPanelGroups).toEqual([
+			{
+				id: terminalPanel.id,
+				projectPath: "/tmp/project",
+				width: terminalPanel.width,
+				selectedTabId: expect.any(String),
+				order: 0,
+			},
+		]);
+		expect(snapshot.terminalTabs).toEqual([
+			{
+				id: snapshot.terminalPanelGroups[0]?.selectedTabId,
+				groupId: terminalPanel.id,
+				projectPath: "/tmp/project",
+				createdAt: expect.any(Number),
+			},
+		]);
+		expect(snapshot.embeddedTerminalTabs).toEqual([]);
+		expect(snapshot.viewMode).toBeUndefined();
+		expect(snapshot.focusedViewProjectPath).toBeUndefined();
+	});
+
 	it("selects persistable workspace panels from indexes without scanning workspace panels", () => {
 		const store = createStore();
 		const owner = store.spawnPanel({ projectPath: "/tmp/project" });
@@ -558,8 +664,8 @@ describe("PanelStore workspacePanels", () => {
 		try {
 			expect(store.filePanelCount).toBe(1);
 			expect(store.filePanels).toEqual([filePanel]);
-			expect(store.filePanelByPath.get(createFilePanelCacheKey("src/instant.ts", "/tmp/project", null))).toBe(filePanel);
 			expect(store.getFilePanelByPath("src/instant.ts", "/tmp/project")).toBe(filePanel);
+			expect(store.getFilePanel(filePanel.id)).toBe(filePanel);
 		} finally {
 			store.workspacePanels.filter = originalFilter;
 		}
@@ -607,8 +713,8 @@ describe("PanelStore workspacePanels", () => {
 		};
 
 		try {
-			expect(store.panelBySessionId.get("session-indexed")).toBe(panel);
 			expect(store.getPanelBySessionId("session-indexed")).toBe(panel);
+			expect(store.isSessionOpen("session-indexed")).toBe(true);
 		} finally {
 			agentPanels.filter = originalFilter;
 		}
@@ -785,7 +891,8 @@ describe("PanelStore workspacePanels", () => {
 
 		try {
 			expect(store.gitPanelCount).toBe(1);
-			expect(store.gitPanelByProjectPath.get("/tmp/project")).toEqual(gitPanel);
+			expect(store.gitPanels).toEqual([gitPanel]);
+			expect(store.workspacePanels.find((panel) => panel.id === gitPanel.id)).toEqual(gitPanel);
 		} finally {
 			store.workspacePanels.filter = originalFilter;
 		}
@@ -867,6 +974,31 @@ describe("PanelStore workspacePanels", () => {
 						}
 					: null
 			),
+			read: {
+				resolveCanonicalSessionId: vi.fn((sessionId: string) => sessionId),
+				getSessionIdentity: vi.fn((sessionId: string) =>
+					sessionId === "session-1"
+						? {
+								id: "session-1",
+								projectPath: "/tmp/project",
+								agentId: "cursor",
+							}
+						: undefined
+				),
+				getSessionMetadata: vi.fn((sessionId: string) =>
+					sessionId === "session-1"
+						? {
+								title: "Hello",
+								createdAt: new Date("2026-01-01T00:00:00.000Z"),
+								updatedAt: new Date("2026-01-01T00:00:00.000Z"),
+								parentId: null,
+							}
+						: null
+				),
+			},
+			connection: {
+				hasPendingCreationSession: vi.fn(() => false),
+			},
 		} as unknown as SessionStore;
 		const agentStore = {
 			getDefaultAgentId: vi.fn(() => "claude-code"),
@@ -917,6 +1049,16 @@ describe("PanelStore workspacePanels", () => {
 			getSessionIdentity: vi.fn(() => undefined),
 			getSessionMetadata: vi.fn(() => undefined),
 			hasPendingCreationSession: vi.fn((sessionId: string) => sessionId === "pending-session"),
+			read: {
+				resolveCanonicalSessionId: vi.fn((sessionId: string) => sessionId),
+				getSessionIdentity: vi.fn(() => undefined),
+				getSessionMetadata: vi.fn(() => undefined),
+			},
+			connection: {
+				hasPendingCreationSession: vi.fn(
+					(sessionId: string) => sessionId === "pending-session"
+				),
+			},
 		} as unknown as SessionStore;
 		const agentStore = {
 			getDefaultAgentId: vi.fn(() => "claude-code"),
@@ -945,6 +1087,16 @@ describe("PanelStore workspacePanels", () => {
 			getSessionIdentity: vi.fn(() => undefined),
 			getSessionMetadata: vi.fn(() => undefined),
 			hasPendingCreationSession: vi.fn((sessionId: string) => sessionId === "pending-session"),
+			read: {
+				resolveCanonicalSessionId: vi.fn((sessionId: string) => sessionId),
+				getSessionIdentity: vi.fn(() => undefined),
+				getSessionMetadata: vi.fn(() => undefined),
+			},
+			connection: {
+				hasPendingCreationSession: vi.fn(
+					(sessionId: string) => sessionId === "pending-session"
+				),
+			},
 		} as unknown as SessionStore;
 		const agentStore = {
 			getDefaultAgentId: vi.fn(() => "claude-code"),
@@ -989,6 +1141,32 @@ describe("PanelStore workspacePanels", () => {
 						}
 					: undefined
 			),
+			read: {
+				resolveCanonicalSessionId: vi.fn((sessionId: string) => sessionId),
+				getSessionIdentity: vi.fn((sessionId: string) =>
+					sessionId === "session-1"
+						? {
+								id: "session-1",
+								projectPath: "/tmp/project-b",
+								agentId: "cursor",
+							}
+						: undefined
+				),
+				getSessionMetadata: vi.fn((sessionId: string) =>
+					sessionId === "session-1"
+						? {
+								title: "Hello",
+								createdAt: new Date("2026-01-01T00:00:00.000Z"),
+								updatedAt: new Date("2026-01-01T00:00:00.000Z"),
+								parentId: null,
+								sequenceId: 42,
+							}
+						: undefined
+				),
+			},
+			connection: {
+				hasPendingCreationSession: vi.fn(() => false),
+			},
 		} as unknown as SessionStore;
 		const agentStore = {
 			getDefaultAgentId: vi.fn(() => "claude-code"),

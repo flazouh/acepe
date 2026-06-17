@@ -1,10 +1,46 @@
+//! Tool identity authority — one canonical interface for tool kind, name, and argument interpretation.
+//!
+//! External callers must route classification through the **public entry set** below. Provider name
+//! tables, signal heuristics, and post-classification promotions are private implementation details
+//! behind this surface.
+//!
+//! ## Public entry points
+//!
+//! | Entry | Use when |
+//! |---|---|
+//! | [`classify_raw_tool_call`] | Live/raw tool payloads (converters, router, permission handler) |
+//! | [`classify_serialized_tool_call`] | Materialized or history tool rows |
+//! | [`semantic_transition`] | Streaming deltas (accumulator, replay helpers) |
+//! | [`infer_kind_from_payload`] / [`infer_kind_from_payload_for_agent`] | ACP `kind` hint inference (parsers) |
+//! | [`display_name_for_tool`] / [`canonical_name_for_kind`] | User-facing display names from kind + provider name |
+//! | [`classify_kind_from_provider_name`] | Name-table kind lookup (router, enrichment) |
+//!
+//! ## Classification precedence
+//!
+//! Load-bearing order (see `docs/solutions/best-practices/deterministic-tool-call-reconciler-2026-04-18.md`):
+//!
+//! 1. Provider-owned name normalization (`providers::classify` / `detect_tool_kind`)
+//! 2. Argument-shape classification (`classify_argument_shape`)
+//! 3. ACP kind hint (`classify_kind_hint`)
+//! 4. Title heuristic (`classify_title_heuristic`)
+//! 5. Explicit [`ToolKind::Unclassified`] with non-empty `signals_tried` diagnostics
+//!
+//! Post-classification promotions (todo-SQL, web-search, browser) run once after the signal chain
+//! inside [`classify_with_provider_name_kind`].
+//!
+//! ## Never-silent-`Other` contract
+//!
+//! When every signal in the precedence chain fails, the authority emits [`ToolKind::Unclassified`]
+//! with [`ToolArguments::Unclassified`] carrying `signals_tried` — never a silent [`ToolKind::Other`].
+//! Callers must not repair or reclassify downstream; fix the canonical producer instead.
+
 use crate::acp::parsers::arguments::parse_tool_kind_arguments;
 use crate::acp::parsers::AgentType;
 use crate::acp::session_update::{ToolArguments, ToolKind};
 
-pub(crate) mod classify_signals;
+mod classify_signals;
 pub(crate) mod diagnostics;
-pub(crate) mod kind_payload;
+mod kind_payload;
 pub(crate) mod projector;
 pub(crate) mod providers;
 pub(crate) mod raw_events;
@@ -16,6 +52,38 @@ use classify_signals::{
     build_unclassified, classify_argument_shape, classify_kind_hint, classify_title_heuristic,
 };
 use kind_payload::{is_browser_tool_name, is_web_search_title, looks_like_web_search_arguments};
+
+// --- Tool identity authority: public entry set (plan 009 U2) ---
+
+pub use kind_payload::{
+    canonical_name_for_kind, display_name_for_tool, infer_kind_from_payload,
+    infer_kind_from_payload_for_agent,
+};
+pub(crate) use session_tool::{
+    classify_raw_tool_call, classify_serialized_tool_call, resolve_raw_tool_identity,
+    ClassifiedToolData, ToolClassificationHints, ToolIdentity,
+};
+
+/// Resolve tool kind from a provider tool name via the authority name-table path.
+///
+/// Used when callers already have a concrete tool name (or ACP kind string treated as a name
+/// hint) and need a [`ToolKind`] without re-entering the full raw-call funnel.
+pub fn classify_kind_from_provider_name(agent: AgentType, name: &str) -> ToolKind {
+    providers::detect_tool_kind(agent, name)
+}
+
+/// Whether id/title/argument signals indicate web-search context (Codex parser promotion path).
+pub fn web_search_context_signals(
+    id: &str,
+    title: Option<&str>,
+    arguments: Option<&serde_json::Value>,
+) -> bool {
+    id.starts_with("web_search_")
+        || title.map(is_web_search_title).unwrap_or(false)
+        || arguments
+            .map(looks_like_web_search_arguments)
+            .unwrap_or(false)
+}
 
 /// Signals tried during fallback classification (recorded for diagnostics / `Unclassified` payloads).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -55,10 +123,10 @@ pub(crate) struct ClassificationOutput {
     pub signals_tried: Vec<SignalName>,
 }
 
-/// Classify with the provider reducer + shared signals, then project through [`semantic::SemanticTransition`].
+/// Streaming-transition entry: provider dispatch + shared signals + projection.
 ///
-/// Prefer this over [`providers::classify`] at call sites (streaming, replay helpers) so
-/// provider dispatch and projection stay centralized.
+/// Authority entry for streaming deltas. Prefer this over [`providers::classify`] at call sites
+/// (streaming accumulator, replay helpers) so provider dispatch and projection stay centralized.
 pub(crate) fn semantic_transition(
     agent: AgentType,
     raw: &RawClassificationInput<'_>,

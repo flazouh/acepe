@@ -16,44 +16,44 @@
 
 :root {
 	--radius: 8px;
-	/* Light mode uses a standard neutral app palette: white canvas, cool gray surfaces. */
-	--background: #ffffff;
-	--foreground: #09090b;
-	--card: #f4f4f5;
-	--card-foreground: #09090b;
+	/* Light mode colors from Codex.app codex-light theme (app.asar). */
+	--background: #f7f7f7;
+	--foreground: #0d0d0d;
+	--card: #ffffff;
+	--card-foreground: #0d0d0d;
 	--popover: #ffffff;
-	--popover-foreground: #09090b;
-	--primary: #18181b;
+	--popover-foreground: #0d0d0d;
+	--primary: #0d0d0d;
 	--primary-foreground: #ffffff;
-	--secondary: #f4f4f5;
-	--secondary-foreground: #18181b;
-	--muted: #e4e4e7;
-	--muted-foreground: #71717a;
-	--accent: #e4e4e7;
-	--accent-foreground: #18181b;
-	--destructive: hsl(0 70% 35.2941%);
-	--destructive-foreground: hsl(0 0% 100%);
-	--success: var(--token-success-light);
-	--success-reference: var(--token-success-light);
-	--success-foreground: hsl(0 0% 100%);
+	--secondary: #f3f3f3;
+	--secondary-foreground: #0d0d0d;
+	--muted: #f3f3f3;
+	--muted-foreground: #666666;
+	--accent: #f3f3f3;
+	--accent-foreground: #0d0d0d;
+	--destructive: #e02e2a;
+	--destructive-foreground: #ffffff;
+	--success: #00a240;
+	--success-reference: #00a240;
+	--success-foreground: #ffffff;
 	--build-icon: var(--success);
 	--plan-icon: var(--token-plan-icon-light);
-	--border: rgba(24, 24, 27, 0.12);
-	--input: #d4d4d8;
-	--ring: #18181b;
-	--chart-1: #2563eb;
-	--chart-2: #16a34a;
-	--chart-3: #d97706;
-	--chart-4: #dc2626;
-	--chart-5: #7c3aed;
-	--sidebar: #f4f4f5;
-	--sidebar-foreground: #09090b;
-	--sidebar-primary: #18181b;
+	--border: rgba(13, 13, 13, 0.078);
+	--input: rgba(13, 13, 13, 0.078);
+	--ring: #0169cc;
+	--chart-1: #0169cc;
+	--chart-2: #00a240;
+	--chart-3: #751ed9;
+	--chart-4: #bd5800;
+	--chart-5: #666666;
+	--sidebar: #fcfcfc;
+	--sidebar-foreground: #212121;
+	--sidebar-primary: #0169cc;
 	--sidebar-primary-foreground: #ffffff;
-	--sidebar-accent: #e4e4e7;
-	--sidebar-accent-foreground: #18181b;
-	--sidebar-border: rgba(24, 24, 27, 0.12);
-	--sidebar-ring: #18181b;
+	--sidebar-accent: #f3f3f3;
+	--sidebar-accent-foreground: #0d0d0d;
+	--sidebar-border: rgba(13, 13, 13, 0.078);
+	--sidebar-ring: #0169cc;
 
 	/* Font families */
 	--font-sans: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
@@ -66,15 +66,15 @@
 	--shadow-blur: 3px;
 	--shadow-spread: 0px;
 	--shadow-opacity: 0.18;
-	--shadow-color: hsl(240 15% 20%);
-	--shadow-2xs: 0px 2px 3px 0px hsl(240 15% 20% / 0.07);
-	--shadow-xs: 0px 2px 3px 0px hsl(240 15% 20% / 0.07);
-	--shadow-sm: 0px 2px 3px 0px hsl(240 15% 20% / 0.12), 0px 1px 2px -1px hsl(240 15% 20% / 0.12);
-	--shadow: 0px 2px 3px 0px hsl(240 15% 20% / 0.12), 0px 1px 2px -1px hsl(240 15% 20% / 0.12);
-	--shadow-md: 0px 2px 3px 0px hsl(240 15% 20% / 0.12), 0px 2px 4px -1px hsl(240 15% 20% / 0.12);
-	--shadow-lg: 0px 2px 3px 0px hsl(240 15% 20% / 0.12), 0px 4px 6px -1px hsl(240 15% 20% / 0.12);
-	--shadow-xl: 0px 2px 3px 0px hsl(240 15% 20% / 0.12), 0px 8px 10px -1px hsl(240 15% 20% / 0.12);
-	--shadow-2xl: 0px 2px 3px 0px hsl(240 15% 20% / 0.35);
+	--shadow-color: hsl(0 0% 5%);
+	--shadow-2xs: 0px 2px 3px 0px hsl(0 0% 5% / 0.05);
+	--shadow-xs: 0px 2px 3px 0px hsl(0 0% 5% / 0.05);
+	--shadow-sm: 0px 2px 3px 0px hsl(0 0% 5% / 0.08), 0px 1px 2px -1px hsl(0 0% 5% / 0.08);
+	--shadow: 0px 2px 3px 0px hsl(0 0% 5% / 0.08), 0px 1px 2px -1px hsl(0 0% 5% / 0.08);
+	--shadow-md: 0px 2px 3px 0px hsl(0 0% 5% / 0.08), 0px 2px 4px -1px hsl(0 0% 5% / 0.08);
+	--shadow-lg: 0px 2px 3px 0px hsl(0 0% 5% / 0.08), 0px 4px 6px -1px hsl(0 0% 5% / 0.08);
+	--shadow-xl: 0px 2px 3px 0px hsl(0 0% 5% / 0.08), 0px 8px 10px -1px hsl(0 0% 5% / 0.08);
+	--shadow-2xl: 0px 2px 3px 0px hsl(0 0% 5% / 0.2);
 
 	/* Z-index: desktop app-shell layers */
 	--app-spotlight-z: 9995;
@@ -370,8 +370,26 @@
 	}
 }
 
-/* Sonner toast: compact top-center pill */
+/* Sonner toast: compact top-center */
+/* Toaster container centering — full-width flex, items centered */
+[data-sonner-toaster] {
+	left: 0 !important;
+	right: 0 !important;
+	width: 100% !important;
+	/* Sonner's bundled stylesheet applies `transform: translateX(-50%)` for the
+	   top-center position (paired with its own `left: 50%`). We center via a
+	   full-width flex container instead, so that transform must be cancelled —
+	   otherwise the full-width container is shifted half a viewport left and the
+	   toast lands clipped over the window controls. */
+	transform: none !important;
+	display: flex !important;
+	flex-direction: column !important;
+	align-items: center !important;
+	pointer-events: none !important;
+}
+
 [data-sonner-toast] {
+	pointer-events: auto;
 	border: none !important;
 	background: color-mix(in srgb, var(--popover) 92%, var(--foreground) 8%) !important;
 	backdrop-filter: blur(12px);

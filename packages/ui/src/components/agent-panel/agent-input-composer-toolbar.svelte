@@ -140,6 +140,12 @@
 			/>
 			<div class="h-full w-px bg-border/50"></div>
 		{/if}
+		{#if agentProjectPicker}
+			<div class="flex h-7 shrink-0 items-center">
+				{@render agentProjectPicker()}
+			</div>
+			<div class="h-full w-px bg-border/50"></div>
+		{/if}
 		{@render modelSelector()}
 		{#if toolbarConfigOptions.length > 0}
 			<div class="h-full w-px bg-border/50"></div>
@@ -154,10 +160,6 @@
 					/>
 				{/each}
 			</div>
-		{/if}
-		{#if agentProjectPicker}
-			<div class="h-full w-px bg-border/50"></div>
-			{@render agentProjectPicker()}
 		{/if}
 		<div class="h-full w-px bg-border/50"></div>
 	</div>

@@ -3,88 +3,103 @@
 	import {
 		ArrowCounterClockwise,
 		CaretRight,
-		CheckCircle,
+		Check,
+		Laptop,
 		Tree,
 		WarningCircle,
-		XCircle,
 	} from "phosphor-svelte";
 	import { Button } from "../button/index.js";
-	import { SegmentedToggleGroup } from "../panel-header/index.js";
+	import * as DropdownMenu from "../dropdown-menu/index.js";
+	import { Selector } from "../selector/index.js";
 	import { Tooltip, TooltipContent, TooltipTrigger } from "../tooltip/index.js";
 	import { watchPreSessionWorktreeHeaderWidth } from "./pre-session-worktree-card-effects.js";
 	import {
 		getPreSessionWorktreeIconClass,
 		getPreSessionWorktreeLockedWidth,
-		getPreSessionWorktreeToggleItems,
-		getPreSessionWorktreeToggleValue,
-		isPreSessionWorktreeOn,
+		getPreSessionWorktreeMode,
+		getPreSessionWorktreeModeOptions,
+		getSelectedPreSessionWorktreeModeOption,
 		shouldShowPreSessionWorktreeExpanded,
+		type WorktreeLaunchMode,
 	} from "./pre-session-worktree-card-state.js";
 
 	interface Props {
-		label: string;
-		yesLabel: string;
-		noLabel: string;
-		alwaysLabel: string;
+		variant?: "card" | "trigger";
+		promptLabel?: string;
+		localLabel?: string;
+		worktreeLabel?: string;
 		pendingWorktreeEnabled: boolean;
-		alwaysEnabled?: boolean;
 		failureMessage?: string | null;
 		retryLabel?: string;
 		dismissLabel?: string;
 		setupScriptsLabel?: string | null;
+		menuSide?: "top" | "bottom";
 		expandedContent?: Snippet;
 		onYes: () => void;
 		onNo: () => void;
-		onAlways: () => void;
 		onDismiss: () => void;
 		onRetry?: () => void;
 	}
 
 	let {
-		label,
-		yesLabel,
-		noLabel,
-		alwaysLabel,
+		variant = "card",
+		promptLabel = "Start in",
+		localLabel = "Work locally",
+		worktreeLabel = "New worktree",
 		pendingWorktreeEnabled,
-		alwaysEnabled = false,
 		failureMessage = null,
 		retryLabel = "Retry",
 		dismissLabel = "Dismiss",
 		setupScriptsLabel = null,
+		menuSide = "bottom",
 		expandedContent,
 		onYes,
 		onNo,
-		onAlways,
 		onDismiss,
 		onRetry,
 	}: Props = $props();
 
 	let isExpanded = $state(false);
+	let menuOpen = $state(false);
 	let headerElement = $state<HTMLDivElement | null>(null);
 	let expandedWidth = $state<number | null>(null);
 
-	const worktreeOn = $derived(isPreSessionWorktreeOn({ pendingWorktreeEnabled, alwaysEnabled }));
-	const toggleValue = $derived(getPreSessionWorktreeToggleValue({ pendingWorktreeEnabled, alwaysEnabled }));
-	const toggleItems = $derived(getPreSessionWorktreeToggleItems({ yesLabel, noLabel }));
+	const launchMode = $derived(getPreSessionWorktreeMode({ pendingWorktreeEnabled }));
+	const modeOptions = $derived(getPreSessionWorktreeModeOptions({ localLabel, worktreeLabel }));
+	const selectedOption = $derived(
+		getSelectedPreSessionWorktreeModeOption({ mode: launchMode, modeOptions })
+	);
+	const treeIconClass = $derived(getPreSessionWorktreeIconClass({ mode: launchMode }));
+	const hasExpandable = $derived(expandedContent !== undefined && variant === "card");
+	const showExpanded = $derived(shouldShowPreSessionWorktreeExpanded({ isExpanded, hasExpandable }));
+	const lockedWidth = $derived(getPreSessionWorktreeLockedWidth({ showExpanded, expandedWidth }));
+	const isTriggerOnly = $derived(variant === "trigger");
+	const triggerClass = $derived(
+		isTriggerOnly
+			? menuOpen
+				? "bg-accent text-foreground"
+				: ""
+			: "!h-6 gap-1.5 rounded-md border border-border/40 bg-background/70 px-2 text-[0.6875rem] font-medium text-foreground hover:bg-background"
+	);
+	const triggerIconSize = $derived(isTriggerOnly ? 12 : 14);
 
-	function handleToggleChange(id: string) {
-		if (id === "yes") {
+	function handleModeChange(nextMode: WorktreeLaunchMode) {
+		if (nextMode === "worktree") {
 			onYes();
 		} else {
 			onNo();
 		}
+		menuOpen = false;
 	}
 
 	function toggleExpanded() {
 		isExpanded = !isExpanded;
 	}
 
-	const treeIconClass = $derived(getPreSessionWorktreeIconClass({ alwaysEnabled, worktreeOn }));
-	const hasExpandable = $derived(expandedContent !== undefined);
-	const showExpanded = $derived(shouldShowPreSessionWorktreeExpanded({ isExpanded, hasExpandable }));
-	const lockedWidth = $derived(getPreSessionWorktreeLockedWidth({ showExpanded, expandedWidth }));
-
 	$effect(() => {
+		if (isTriggerOnly) {
+			return;
+		}
 		return watchPreSessionWorktreeHeaderWidth({
 			header: headerElement,
 			isExpanded,
@@ -95,6 +110,65 @@
 	});
 </script>
 
+{#snippet modeIcon(mode: WorktreeLaunchMode, className = "", size = triggerIconSize)}
+	{#if mode === "worktree"}
+		<Tree {size} weight="fill" class="shrink-0 {className}" />
+	{:else}
+		<Laptop {size} weight="regular" class="shrink-0 {className}" />
+	{/if}
+{/snippet}
+
+{#snippet launchModeSelector()}
+	<Selector
+		bind:open={menuOpen}
+		align="start"
+		side={menuSide}
+		sideOffset={4}
+		variant="ghost"
+		showChevron={true}
+		triggerAriaLabel={selectedOption.label}
+		contentClass="p-0.5"
+		triggerSize={isTriggerOnly ? "footer" : "default"}
+		{triggerClass}
+	>
+		{#snippet renderButton()}
+			{@render modeIcon(
+				selectedOption.id,
+				selectedOption.id === "worktree" ? treeIconClass : "text-muted-foreground"
+			)}
+			<span class="max-w-[9rem] truncate text-foreground">{selectedOption.label}</span>
+		{/snippet}
+
+		<DropdownMenu.Label
+			class="border-b-0 px-1.5 py-0.5 text-[0.625rem] leading-none font-normal text-muted-foreground"
+		>
+			{promptLabel}
+		</DropdownMenu.Label>
+
+		{#each modeOptions as option (option.id)}
+			{@const selected = option.id === launchMode}
+			<DropdownMenu.Item
+				onSelect={() => handleModeChange(option.id)}
+				class="cursor-pointer gap-1.5 rounded-sm !px-1.5 !py-0.5 text-[0.6875rem]"
+			>
+				<div class="flex w-full min-w-[8.5rem] items-center gap-1.5">
+					{@render modeIcon(
+						option.id,
+						option.id === "worktree" && selected ? "text-success" : "text-muted-foreground",
+						11
+					)}
+					<span class="min-w-0 flex-1 truncate text-foreground">{option.label}</span>
+					<Check
+						size={10}
+						weight="bold"
+						class={selected ? "shrink-0 text-foreground" : "shrink-0 text-transparent"}
+					/>
+				</div>
+			</DropdownMenu.Item>
+		{/each}
+	</Selector>
+{/snippet}
+
 {#if failureMessage}
 	<div
 		class="mx-auto w-fit worktree-card-root"
@@ -104,7 +178,7 @@
 	>
 		<div
 			bind:this={headerElement}
-			class="flex items-center gap-1.5 rounded-lg bg-input/30 px-3 py-1"
+			class="flex items-center gap-1.5 rounded-lg bg-input/30 px-2.5 py-1"
 			class:rounded-b-none={showExpanded}
 			class:w-fit={!showExpanded}
 			class:w-full={showExpanded}
@@ -118,7 +192,7 @@
 						<TooltipTrigger>
 							<button
 								type="button"
-								class="flex items-center justify-center rounded p-0.5 text-muted-foreground transition-colors hover:bg-foreground/5 hover:text-foreground"
+								class="flex items-center justify-center rounded-md p-0.5 text-muted-foreground transition-colors hover:bg-foreground/5 hover:text-foreground"
 								onclick={toggleExpanded}
 								aria-expanded={isExpanded}
 							>
@@ -150,6 +224,10 @@
 			</div>
 		{/if}
 	</div>
+{:else if isTriggerOnly}
+	<div class="flex min-w-0 items-center" onclick={(e: MouseEvent) => e.stopPropagation()} role="none">
+		{@render launchModeSelector()}
+	</div>
 {:else}
 	<div
 		class="mx-auto w-fit worktree-card-root"
@@ -159,7 +237,7 @@
 	>
 		<div
 			bind:this={headerElement}
-			class="flex items-center gap-1.5 rounded-lg bg-input/30 px-3 py-1"
+			class="flex items-center gap-2 rounded-lg bg-input/30 px-2.5 py-1"
 			class:rounded-b-none={showExpanded}
 			class:w-fit={!showExpanded}
 			class:w-full={showExpanded}
@@ -169,7 +247,7 @@
 					<TooltipTrigger>
 						<button
 							type="button"
-							class="flex items-center justify-center rounded p-0.5 text-muted-foreground transition-colors hover:bg-foreground/5 hover:text-foreground"
+							class="flex items-center justify-center rounded-md p-0.5 text-muted-foreground transition-colors hover:bg-foreground/5 hover:text-foreground"
 							onclick={toggleExpanded}
 							aria-expanded={isExpanded}
 						>
@@ -180,34 +258,10 @@
 				</Tooltip>
 			{/if}
 
-			<Tree size={12} weight="fill" class="shrink-0 {treeIconClass}" />
-			<span class="text-[0.6875rem] font-medium text-foreground">{label}</span>
+			<span class="shrink-0 text-[0.6875rem] text-muted-foreground">{promptLabel}</span>
 
-			<div class="flex shrink-0 items-center gap-1.5" onclick={(e: MouseEvent) => e.stopPropagation()} role="none">
-				<SegmentedToggleGroup
-					items={toggleItems}
-					value={toggleValue}
-					onChange={handleToggleChange}
-				>
-					{#snippet itemContent(item)}
-						{#if item.id === "yes"}
-							<CheckCircle size={12} weight={worktreeOn ? "fill" : "regular"} class={worktreeOn ? "text-success" : ""} />
-						{:else}
-							<XCircle size={12} weight={!worktreeOn ? "fill" : "regular"} class={!worktreeOn ? "text-destructive" : ""} />
-						{/if}
-						{item.label}
-					{/snippet}
-				</SegmentedToggleGroup>
-
-				<label class="flex cursor-pointer select-none items-center gap-1">
-					<input
-						type="checkbox"
-						checked={alwaysEnabled}
-						onchange={onAlways}
-						class="accent-current h-3 w-3"
-					/>
-					<span class="text-[0.625rem] text-muted-foreground">{alwaysLabel}</span>
-				</label>
+			<div class="flex shrink-0 items-center" onclick={(e: MouseEvent) => e.stopPropagation()} role="none">
+				{@render launchModeSelector()}
 			</div>
 		</div>
 
@@ -224,11 +278,6 @@
 {/if}
 
 <style>
-	/* Opening locks the root to the measured collapsed header width,
-	   so the top pill and bottom panel keep identical edges. */
-
-	/* grid-template-rows 0fr → 1fr animates to live content height,
-	   so async-loaded content (spinner → editor) does not jank mid-transition. */
 	.worktree-card-expand {
 		display: grid;
 		grid-template-rows: 0fr;

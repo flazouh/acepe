@@ -107,6 +107,22 @@ describe("tokenizeInlineArtefacts", () => {
 		]);
 	});
 
+	it("labels image_ref tokens as Image", () => {
+		const segments = tokenizeInlineArtefacts("see @[image_ref:abc123]");
+		expect(segments).toEqual([
+			{ kind: "text", text: "see " },
+			{
+				kind: "artefact",
+				tokenType: "image_ref",
+				value: "abc123",
+				label: "Image",
+				start: 4,
+				end: 23,
+				token: "@[image_ref:abc123]",
+			},
+		]);
+	});
+
 	it("labels skill tokens without leading slash", () => {
 		const segments = tokenizeInlineArtefacts("use @[skill:/Plan_review]");
 		expect(segments).toEqual([

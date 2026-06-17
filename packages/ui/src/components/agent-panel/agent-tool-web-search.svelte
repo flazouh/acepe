@@ -16,6 +16,8 @@
 		type WebSearchLink,
 	} from "./agent-tool-web-search-state.js";
 	import ToolHeaderLeading from "./tool-header-leading.svelte";
+	import AgentToolDurationLabel from "./agent-tool-duration-label.svelte";
+	import type { ToolDurationTiming } from "./tool-duration.js";
 	import type { AgentToolStatus } from "./types.js";
 
 	interface Props {
@@ -23,7 +25,7 @@
 		links?: WebSearchLink[];
 		summary?: string | null;
 		status?: AgentToolStatus;
-		durationLabel?: string;
+		durationTiming?: ToolDurationTiming;
 		onLinkClick?: (url: string, title: string) => void;
 		searchingLabel?: string;
 		searchFailedLabel?: string;
@@ -43,7 +45,7 @@
 		links = [],
 		summary = null,
 		status = "done",
-		durationLabel,
+		durationTiming,
 		onLinkClick,
 		searchingLabel = "Searching",
 		searchFailedLabel = "Search Failed",
@@ -102,15 +104,16 @@
 				{#if showNoResults}
 					<span class="font-sans text-sm text-muted-foreground/70">{noResultsLabel}</span>
 				{/if}
-				{#if durationLabel}
-					<span class="shrink-0 font-sans text-sm text-muted-foreground/70">{durationLabel}</span>
-				{/if}
+				<AgentToolDurationLabel
+					timing={durationTiming}
+					class="shrink-0 font-sans text-sm"
+				/>
 			</div>
 			{#if hasLinks || hasSummary}
 				<button
 					type="button"
 					onclick={() => { isCollapsed = !isCollapsed; }}
-					class="flex h-5 w-5 shrink-0 cursor-pointer items-center justify-center rounded border-0 bg-transparent p-0 transition-colors hover:bg-muted"
+					class="flex h-5 w-5 shrink-0 cursor-pointer items-center justify-center rounded-lg border-0 bg-transparent p-0 transition-colors hover:bg-muted"
 					aria-label={isCollapsed ? ariaExpandResults : ariaCollapseResults}
 				>
 					<CaretRight

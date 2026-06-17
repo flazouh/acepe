@@ -1,7 +1,8 @@
 <script lang="ts">
 	import { getPlanningPlaceholderLabel } from "./planning-label.js";
+	import PlanningPlaceholderRow from "./planning-placeholder-row.svelte";
 	import { resolveThinkingDurationMs, shouldRunThinkingTimer } from "./thinking-duration.js";
-	import ToolHeaderLeading from "./tool-header-leading.svelte";
+	import type { ToolDurationTiming } from "./tool-duration.js";
 
 	interface Props {
 		durationMs?: number | null;
@@ -20,6 +21,15 @@
 		})
 	);
 	const displayLabel = $derived(label ?? getPlanningPlaceholderLabel(currentDurationMs));
+	const durationTiming = $derived<ToolDurationTiming | null>(
+		startedAtMs !== null && startedAtMs !== undefined
+			? {
+					startedAtMs,
+					completedAtMs: null,
+					status: "running",
+				}
+			: null
+	);
 
 	$effect(() => {
 		if (!shouldRunThinkingTimer(startedAtMs)) {
@@ -37,8 +47,8 @@
 	});
 </script>
 
-<div class="flex items-center gap-2 py-1 text-sm text-muted-foreground">
-	<ToolHeaderLeading kind="think" status="running">
-		{displayLabel}
-	</ToolHeaderLeading>
-</div>
+<PlanningPlaceholderRow
+	timing={durationTiming}
+	label={displayLabel}
+	class="py-1 pr-1.5"
+/>

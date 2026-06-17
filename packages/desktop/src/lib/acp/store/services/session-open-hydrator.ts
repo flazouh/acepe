@@ -3,9 +3,10 @@ import { ResultAsync } from "neverthrow";
 import type { SessionOpenFound, SessionStateGraph } from "../../../services/acp-types.js";
 import { AgentError, type AppError } from "../../errors/app-error.js";
 import { materializeSnapshotFromOpenFound } from "../../session-state/session-state-protocol.js";
+import type { SessionStore } from "../session-store.svelte.js";
 
 interface SessionOpenStore {
-	replaceSessionOpenSnapshot(snapshot: SessionOpenFound): void;
+	write: Pick<SessionStore["write"], "replaceSessionOpenSnapshot">;
 }
 
 interface PanelSessionBinder {
@@ -104,7 +105,7 @@ export class SessionOpenHydrator {
 
 	private applySnapshot(found: SessionOpenFound): void {
 		const snapshotMaterialization = materializeSnapshotFromOpenFound(found);
-		this.sessionStore.replaceSessionOpenSnapshot(found);
+		this.sessionStore.write.replaceSessionOpenSnapshot(found);
 		this.stateConsumer.replaceSessionStateGraph(snapshotMaterialization.graph);
 	}
 

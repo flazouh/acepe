@@ -14,7 +14,7 @@ export { default as PanelTabs } from "./panel-tabs.svelte";
 export { default as PlanDialog } from "./plan-dialog.svelte";
 export { PlanSidebar } from "./plan-sidebar/index.js";
 export { default as PlanView } from "./plan-view.svelte";
-export { default as ProjectHeader } from "./project-header.svelte";
+export { ProjectHeader, ProjectHeaderOverflowMenu } from "@acepe/ui/app-layout";
 export { default as ProjectSelectionPanel } from "./project-selection-panel.svelte";
 export { default as ProjectSelector } from "./project-selector.svelte";
 export { QueueSection } from "./queue/index.js";

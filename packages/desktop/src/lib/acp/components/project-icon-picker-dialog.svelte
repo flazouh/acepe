@@ -73,7 +73,7 @@ function handleSelect(imagePath: string) {
 		<div class="flex shrink-0 items-center justify-end gap-2 border-t px-4 py-3">
 			<button
 				type="button"
-				class="rounded-md border border-border px-3 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+				class="rounded-lg border border-border px-3 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
 				onclick={onBrowse}
 			>
 				Browse files…

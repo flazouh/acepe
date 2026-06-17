@@ -8,16 +8,14 @@ argument-hint: "[optional: screen, session id, or bug description]"
 
 Use this skill before any visual QA or app inspection for Acepe.
 
-The normal path is **Tauri MCP first**. It is the only preferred QA surface for
-Acepe desktop UI because it talks to the real dev WebView and can inspect DOM,
-console, screenshots, route, app state, and Tauri-specific behavior in the same
-runtime the user sees.
+The normal path is **repo QA wrapper first**. The wrapper talks to the real dev
+Tauri WebView while hiding raw MCP ceremony, keeping QA fast, compact, and
+consistent. It can inspect DOM, screenshots, route, app state, and
+Tauri-specific behavior in the same runtime the user sees.
 
-## Token-Efficient Recipes (read first)
+## Wrapper-First Recipes (read first)
 
-**Prefer the repo QA wrapper for normal Acepe UI QA.** Before writing raw
-Tauri MCP commands, use `packages/desktop/scripts/acepe-qa.ts` through the
-package script:
+Use `packages/desktop/scripts/acepe-qa.ts` through the package script:
 
 ```bash
 cd packages/desktop
@@ -37,90 +35,44 @@ Successful UI QA commands also update `.codex/state/ui-qa-evidence.json`; this
 is the evidence stamp used by the Codex Stop hook to enforce that UI changes
 were verified after the latest code edit.
 
-Use raw Tauri MCP only when the wrapper lacks the needed primitive. If the same
-raw command is repeated during a QA session, add it to
-`packages/desktop/scripts/acepe-qa/` instead of keeping it as copy-pasted shell.
-If a QA or app interaction is not extremely smooth, turn that missing move into
-a wrapper command, helper, hook, or skill instruction before repeating the same
-friction.
+Do not use direct Hypothesi/Tauri MCP CLI commands as the normal QA interface.
+If the wrapper lacks a primitive, add a small command or helper under
+`packages/desktop/scripts/acepe-qa/` and use that wrapper command for the QA
+pass. This keeps driver startup, output unwrapping, evidence stamps, schema
+validation, and target guardrails in one maintained path.
 
-The Tauri MCP CLI is verbose. Every call returns the same payload three times
-(top-level `text`, `content[0].text`, and `structuredContent`). Naive use wastes
-thousands of tokens per QA pass. Follow these rules to keep a full QA pass under
-~2k tokens.
+Common wrapper commands:
 
-**1. Always strip the wrapper.** Pipe every CLI call through `jq -r`:
+| Need | Command |
+|---|---|
+| Confirm dev target and bridge | `bun run qa doctor` |
+| Summarize current app state | `bun run qa observe` |
+| Inspect DOM facts | `bun run qa inspect --selector=<selector> --limit=3` |
+| Click by selector or text | `bun run qa click --selector=<selector>` / `bun run qa click --text=<text>` |
+| Type/send composer text | `bun run qa send --text=<message>` |
+| Wait for visible text | `bun run qa watch --text=<text>` |
+| Capture screenshot | `bun run qa screenshot` |
+| Reset onboarding | `bun run qa reset-onboarding` |
 
-```bash
-TAURI() { npx -y -p @hypothesi/tauri-mcp-cli@0.10.0 tauri-mcp "$@"; }
-TJ()    { TAURI "$@" 2>/dev/null | jq -r '.content[0].text // .text // .'; }
-```
-
-Use `TJ` for any call that supports `--json`. It strips the duplicated wrapper
-and returns just the payload string.
-
-**2. Prefer one composite JS probe over many CLI calls.** A single
-`webview-execute-js` call can focus, mutate, click, and return final state. Do
-not chain 4 round-trips when 1 IIFE suffices. Have the IIFE return a small
-JSON shape with exactly the facts you need.
-
-**3. Never `webview-dom-snapshot --type structure` on `main` or no selector.**
-That dumps ~800+ elements of dense Tailwind class soup. Instead:
-
-- Use `--type accessibility` (much shorter) with a narrow `--selector`.
-- Or query directly via `webview-execute-js` returning `{ ref, text, rect }`
-  for only the elements you care about.
-
-**4. Contenteditable composers do not accept `webview-keyboard --action type`.**
-The CLI reports success but `textContent` stays empty and the send button
-remains disabled. Skip it. Use this one-shot recipe instead:
-
-```bash
-TJ webview-execute-js --app-identifier 9223 --json --script '
-(() => {
-  const ce = document.querySelectorAll("[contenteditable=true]")[0]; // 0=left, 1=right
-  ce.focus();
-  const sel = getSelection(); sel.removeAllRanges();
-  const r = document.createRange(); r.selectNodeContents(ce); r.collapse(false);
-  sel.addRange(r);
-  document.execCommand("insertText", false, "QA message text");
-  const send = ce.closest("div.relative.h-fit.flex.flex-col")
-    .querySelector("button.bg-foreground.text-background");
-  const ready = !send.disabled;
-  if (ready) send.click();
-  return { text: ce.textContent, sent: ready };
-})()'
-```
-
-This is one call, ~5 lines of output, and proves end-to-end send behaviour.
-Label this as `execCommand`-driven evidence — not the literal keystroke path —
-when that distinction matters.
-
-**5. Verify CLI flags before guessing.** Flags that look obvious do not always
-exist (e.g. `--nth` does not). When unsure, run the subcommand with `--help`
-once and cache the result mentally; do not burn calls on guessing.
-
-**6. Standard 5-call QA pass.** A full visual QA for one screen should be:
-
-1. `ps aux | rg target/debug/acepe | rg -v rg` — prove dev binary running
-2. `lsof -Pan -p <PID> -iTCP | rg LISTEN` — find bridge port (usually 9223)
-3. `TJ manage-window --action list --app-identifier 9223 --json` — confirm
-   `url=http://localhost:1420/` (one line of evidence)
-4. One composite `webview-execute-js` probe for the affected state/interaction
-5. `webview-screenshot --app-identifier 9223 --file /tmp/qa.jpg` + view
-
-Skip steps only with explicit reason. Do not re-run `manage-window` between
-interactions — the target does not change.
-
-**7. Tag once, reuse.** When you need to refer to the same element across
-multiple calls, set a `data-qa-*` attribute on it in the first probe and
-select by it afterwards. Do not re-query selectors.
-
-**8. Driver session is sticky.** Run `driver-session start --port 9223` at
-most once per shell. Subsequent CLI calls reuse it. Do not start it before
-every command.
+If an interaction needs more detail than these commands expose, improve the
+wrapper first. Repeated ad hoc raw MCP snippets are a workflow bug.
 
 ## Hard Rule
+
+**After every UI-affecting change, DOM verification through the QA CLI is mandatory
+before the task is done.** Tests and typecheck do not replace inspecting the real
+dev WebView.
+
+Minimum pass from `packages/desktop`:
+
+1. `bun run qa doctor`
+2. `bun run qa observe` (or navigate to the affected screen first)
+3. **`bun run qa inspect --selector=<selector>`** — pick a selector that proves the
+   change; cite the returned DOM facts in your summary
+4. `bun run qa screenshot` when the change is visual or layout-related
+
+Use `click`, `send`, or `watch` when verifying interactions. Record evidence via
+the wrapper (`.codex/state/ui-qa-evidence.json`).
 
 Do not open or inspect `/Applications/Acepe.app` for dev QA.
 
@@ -128,14 +80,15 @@ That is the installed production bundle. It does not prove anything about the cu
 
 For dev QA, inspect only one of these:
 
-1. the Tauri MCP bridge attached to the running dev app from this checkout
+1. the repo QA wrapper attached to the running dev app from this checkout
 2. the running Tauri dev app from this checkout, normally `packages/desktop/src-tauri/target/debug/acepe`
 3. Computer Use attached to the dev Tauri window, only after proving it is not `/Applications/Acepe.app`
 
-Do not run `bun dev`. The user manages the dev server — with one sanctioned
-exception: if the built binary is stale relative to the Rust change you are
-QA-ing, you may stop and restart the dev process so the rebuild picks up your
-code (see Step 1b). Always note that you restarted it.
+If the dev app is not running, start it from `packages/desktop` with `bun dev`
+(or a detached `bun run tauri dev` when you need a background session). If the
+built binary is stale relative to the Rust change you are QA-ing, stop and
+restart the dev process so the rebuild picks up your code (see Step 1b). Always
+note when you started or restarted it.
 
 ## Required Order
 
@@ -182,7 +135,7 @@ If the binary mtime is older than the newest relevant `.rs` source/commit, the
 running app does **not** contain your Rust change. Your QA result would be
 meaningless (you'd be testing the old producer/backend).
 
-**Sanctioned restart (the one exception to "the user manages the dev server").**
+**Restart when the binary is stale.**
 When — and only when — the binary is stale **and** your QA depends on a Rust
 change that isn't in it, you may stop the running dev process and restart it so
 the rebuild picks up your code. State clearly in your QA notes that you did this.
@@ -228,209 +181,35 @@ the rebuild picks up your code. State clearly in your QA notes that you did this
 If you are unsure whether a restart is warranted, or the rebuild fails, stop and
 tell the user rather than leaving the dev server down.
 
-### 2. Use Tauri MCP First
+### 2. Use The QA Wrapper
 
-Before trying Computer Use or a normal browser, check whether Tauri MCP is
-available. Prefer it whenever available.
+Before trying Computer Use or a normal browser, use the repo QA wrapper from
+`packages/desktop`. It is the maintained interface to the real dev Tauri
+WebView and should be extended when a new QA primitive is needed.
 
-Acepe's repo MCP configs expose the server as `tauri` through:
+Minimum useful QA pass (required after UI-affecting changes):
 
-```text
-npx -y @hypothesi/tauri-mcp-server@0.11.1
-```
+1. `bun run qa doctor` to prove the dev app, bridge, WebView, and binary
+   freshness.
+2. `bun run qa observe` to capture compact route, panel, composer, and visible
+   error facts.
+3. **`bun run qa inspect --selector=<selector>`** — mandatory DOM verification;
+   choose a selector that proves the change landed; include key facts in your
+   report.
+4. `bun run qa screenshot` for final visual evidence when the change is visual.
 
-In Codex, first use `tool_search` for `Tauri MCP` or `tauri mcp`. If it is
-available, the callable tools normally appear with MCP names like
-`mcp__tauri__driver_session`, `mcp__tauri__webview_screenshot`, and
-`mcp__tauri__webview_execute_js`.
+This wrapper-backed path is the best evidence because Acepe is a Tauri app. A
+browser at `localhost:1420` does not include the real Tauri WebView runtime or
+Tauri APIs.
 
-If `tool_search` does not expose a `tauri` MCP namespace for this turn, try the
-repo-configured MCP server over stdio before giving up:
-
-```bash
-npx -y @hypothesi/tauri-mcp-server@0.11.1
-```
-
-Send normal MCP JSON-RPC messages over stdio:
-
-- `initialize`
-- `notifications/initialized`
-- `tools/list`
-- `tools/call` with tools such as `driver_session`, `ipc_get_backend_state`,
-  `webview_dom_snapshot`, `webview_execute_js`, `read_logs`, and
-  `webview_screenshot`
-
-This path is still Tauri MCP evidence. The verified server is
-`mcp-server-tauri` version `0.11.1`, and it exposes 20 tools. If both the
-native MCP namespace and the stdio MCP server are unavailable, report that exact
-fact before using the fallback path.
-
-Use Tauri MCP to inspect the real dev WebView:
-
-- attach to the running dev Tauri target
-- read the current route or active screen
-- inspect DOM text and structure
-- inspect console errors and warnings
-- capture screenshots
-- click, type, and trigger user flows
-- evaluate app state when the MCP supports it
-- verify Tauri-only behavior that normal `localhost` cannot prove, especially `invoke`
-- confirm the UI is from the current checkout, not the installed production app
-
-Verified Tauri MCP methods:
-
-- `driver_session`: start, stop, or check status for the bridge session. Use
-  `status` first, then `start` with port `9223` when needed.
-- `ipc_get_backend_state`: read app metadata, Tauri version, and environment.
-  Use this early to prove the connected target is a debug Tauri app.
-- `manage_window`: list windows, inspect a window, or resize it. Use `list`
-  early to confirm the WebView URL and active window.
-- `webview_dom_snapshot`: inspect visible DOM structure and text.
-- `webview_execute_js`: read route, app state, selected session ids, or targeted
-  DOM facts from inside the WebView. Return values must be JSON-serializable.
-  For return values, use an IIFE such as `(() => { return 5; })()`, not a bare
-  function expression.
-- `webview_screenshot`: capture visual proof from the real Tauri WebView.
-- `webview_find_element`: find elements by selector, XPath, text, or ref id.
-- `webview_interact`: click, scroll, swipe, focus, or long-press.
-- `webview_keyboard`: type text or send key events. The `type` action requires
-  both a selector and text; use `press` for keyboard shortcuts.
-- `webview_wait_for`: wait for text, elements, or app events.
-- `webview_get_styles`: inspect computed CSS when layout or color is the issue.
-- `webview_select_element`: ask the user to click an element and return
-  metadata plus a screenshot.
-- `webview_get_pointed_element`: inspect an element the user Alt+Shift-clicked.
-- `read_logs`: read console, mobile, or system logs.
-- `ipc_execute_command`: execute Tauri IPC commands when the bug is backend or
-  command-boundary related. It is for commands supported by the bridge; if a
-  command returns "Unsupported Tauri command", inspect the frontend flow or
-  monitor IPC instead of assuming arbitrary app commands are callable.
-- `ipc_monitor`, `ipc_get_captured`, `ipc_emit_event`: monitor and replay Tauri
-  IPC traffic when debugging command/event flow.
-- `list_devices`: list mobile devices and simulators.
-- `get_setup_instructions`: inspect the bridge setup if the MCP server is
-  present but the app cannot connect.
-
-Minimum useful QA pass:
-
-1. `driver_session` with `status`, then `start` on port `9223` if disconnected.
-2. `ipc_get_backend_state` and `manage_window list` to confirm the connected app.
-3. `webview_dom_snapshot` or `webview_execute_js` to inspect the affected state.
-4. `read_logs` with console logs when UI behavior is wrong.
-5. `webview_screenshot` for final visual evidence.
-
-This is the best evidence because Acepe is a Tauri app. A browser at
-`localhost:1420` does not include the real Tauri WebView runtime or Tauri APIs.
-
-If Tauri MCP is unavailable, say exactly how you checked or why it is unavailable.
-
-### 2b. Codex CLI Path When The Tauri MCP Namespace Is Missing
-
-Sometimes Codex does not expose callable tools like `mcp__tauri__...` even
-though the dev app and bridge are running. In that case, use the Tauri MCP
-companion CLI. This is still Tauri MCP evidence because it talks to the same
-bridge inside the real dev WebView.
-
-First prove the dev app is running and find the bridge port:
-
-```bash
-ps -p <dev-acepe-pid> -o pid,comm,args
-lsof -Pan -p <dev-acepe-pid> -iTCP | rg LISTEN
-```
-
-For the Acepe dev app, the bridge normally listens on port `9223`.
-
-Start or attach the driver session:
-
-```bash
-npx -y -p @hypothesi/tauri-mcp-cli@0.10.0 tauri-mcp driver-session start --port 9223
-```
-
-Confirm the target is the dev WebView, not `/Applications/Acepe.app`:
-
-```bash
-npx -y -p @hypothesi/tauri-mcp-cli@0.10.0 tauri-mcp manage-window \
-  --action list \
-  --app-identifier 9223 \
-  --json
-```
-
-Expected useful proof:
-
-- window URL is the dev app URL, normally `http://localhost:1420/`
-- process inspection shows `target/debug/acepe` from this checkout
-- do not accept Computer Use attaching to `/Applications/Acepe.app` as proof
-
-Useful CLI commands:
-
-```bash
-# Accessibility tree for the whole app or a scoped selector
-npx -y -p @hypothesi/tauri-mcp-cli@0.10.0 tauri-mcp webview-dom-snapshot \
-  --type accessibility \
-  --selector 'main' \
-  --app-identifier 9223
-
-# DOM structure, useful for finding selectors/classes
-npx -y -p @hypothesi/tauri-mcp-cli@0.10.0 tauri-mcp webview-dom-snapshot \
-  --type structure \
-  --selector 'aside, [role=complementary]' \
-  --app-identifier 9223
-
-# Run JavaScript in the real Tauri WebView. Always use an IIFE for return values.
-npx -y -p @hypothesi/tauri-mcp-cli@0.10.0 tauri-mcp webview-execute-js \
-  --app-identifier 9223 \
-  --json \
-  --script '(() => ({ href: location.href, title: document.title }))()'
-
-# Click by ref from a DOM snapshot
-npx -y -p @hypothesi/tauri-mcp-cli@0.10.0 tauri-mcp webview-interact \
-  --app-identifier 9223 \
-  --action click \
-  --selector 'ref=e154'
-
-# Type into a textbox by ref from a DOM snapshot
-npx -y -p @hypothesi/tauri-mcp-cli@0.10.0 tauri-mcp webview-keyboard \
-  --app-identifier 9223 \
-  --action type \
-  --selector 'ref=e542' \
-  --text 'qa message'
-
-# Read WebView console logs
-npx -y -p @hypothesi/tauri-mcp-cli@0.10.0 tauri-mcp read-logs \
-  --app-identifier 9223 \
-  --source console
-
-# Screenshot proof
-npx -y -p @hypothesi/tauri-mcp-cli@0.10.0 tauri-mcp webview-screenshot \
-  --app-identifier 9223 \
-  --file /tmp/acepe-dev-qa.jpg
-```
-
-Notes from the verified Codex path:
-
-- `tool_search` may fail to expose Tauri MCP tools even while the server is
-  running.
-- Computer Use with app name `acepe` may attach to `/Applications/Acepe.app`;
-  reject that as dev QA evidence.
-- The CLI option is `--app-identifier`, not `--appIdentifier`.
-- `manage-window` requires `--action list`, `--action info`, or
-  `--action resize`.
-- `webview-execute-js` uses `--script`; the raw JSON field is not named
-  `script` unless you use the exact raw format supported by the CLI.
-- Text matching can be fragile for hidden/sidebar controls. Prefer DOM snapshot
-  refs or precise selectors after inspecting structure.
-- Acepe's composer is a `contenteditable` element, not a normal `<textarea>`.
-  After using `webview-keyboard --action type`, verify that the editor has real
-  `textContent` and that the send button state changed. If the DOM only shows a
-  synthetic `value` property while `textContent` is empty, the app did not
-  receive real input and that is not valid send-path QA.
-- For contenteditable diagnostics, a controlled `webview-execute-js` probe may
-  set `textContent` and dispatch an `InputEvent`, but label that as diagnostic
-  evidence, not proof of the normal user typing path.
+If the wrapper cannot perform the needed action, improve
+`packages/desktop/scripts/acepe-qa/` before repeating the same raw interaction.
+Document the new wrapper primitive in this skill when it becomes part of normal
+QA.
 
 ### 3. Use Computer Use Only As Fallback
 
-Use Computer Use only after Tauri MCP is unavailable or blocked.
+Use Computer Use only after the repo QA wrapper is unavailable or blocked.
 
 Before interacting, confirm the target window belongs to the dev binary.
 
@@ -447,15 +226,15 @@ Acepe is a Tauri desktop app. A normal browser at `localhost:1420` does not run
 inside the real Tauri WebView and does not prove Tauri APIs, app shell behavior,
 desktop routing, runtime state, permissions, or session display.
 
-If both Tauri MCP and safe dev-window Computer Use are unavailable, visual QA is
+If both the repo QA wrapper and safe dev-window Computer Use are unavailable, visual QA is
 blocked. Report it as blocked instead of trying localhost.
 
 ## What To Capture
 
 For every visual QA pass, capture enough evidence to prove what the user sees:
 
-- target identity: dev binary path or Tauri MCP target
-- whether Tauri MCP was used; if not, why not
+- target identity: dev binary path or QA wrapper target
+- whether the QA wrapper was used; if not, why not
 - screenshot or DOM summary of the affected screen
 - console errors, if any
 - current route or active session id, if relevant
@@ -475,9 +254,9 @@ For agent panel, transcript, session list, or tool-call display bugs:
 Use this shape in the final answer:
 
 ```text
-Dev app target: <path or Tauri MCP target>
-Tauri MCP: <used / unavailable, with reason>
+Dev app target: <path or QA wrapper target>
+QA wrapper: <used / unavailable, with reason>
 Visual QA: <what was seen>
 Verified: <commands/tests>
-Blocked: <only if dev app/Tauri MCP was unavailable>
+Blocked: <only if the dev app or QA wrapper was unavailable>
 ```

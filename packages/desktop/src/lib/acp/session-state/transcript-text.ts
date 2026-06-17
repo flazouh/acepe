@@ -4,6 +4,30 @@
  * TranscriptEntry — no canonical state, no side effects. GOD-safe.
  */
 import type { TranscriptEntry } from "../../services/acp-types.js";
+import type { TranscriptSegment } from "../../services/acp-types.js";
+
+export function transcriptSegmentPrimaryText(segment: TranscriptSegment): string {
+	if (segment.kind === "text" || segment.kind === "thought") {
+		return segment.text;
+	}
+	if (segment.stdout.length > 0) {
+		return segment.stdout;
+	}
+	if (segment.command.length > 0) {
+		return segment.command;
+	}
+	return segment.message;
+}
+
+export function transcriptSegmentLegacyUserText(segment: TranscriptSegment): string {
+	if (segment.kind === "localCommand") {
+		return `<command-name>${segment.command}</command-name><command-message>${segment.message}</command-message><command-args>${segment.args}</command-args><local-command-stdout>${segment.stdout}</local-command-stdout>`;
+	}
+	if (segment.kind === "text") {
+		return segment.text;
+	}
+	return "";
+}
 
 export function segmentText(entry: TranscriptEntry): string {
 	let text = "";
@@ -11,7 +35,11 @@ export function segmentText(entry: TranscriptEntry): string {
 		if (text.length > 0 && entry.role !== "assistant") {
 			text += "\n";
 		}
-		text += segment.text;
+		if (segment.kind === "text" || segment.kind === "thought") {
+			text += segment.text;
+		} else if (segment.kind === "localCommand") {
+			text += transcriptSegmentPrimaryText(segment);
+		}
 	}
 	return text;
 }
@@ -36,6 +64,9 @@ export function buildAssistantMessageFromTranscriptEntry(entry: TranscriptEntry)
 		};
 	}> = [];
 	for (const segment of entry.segments) {
+		if (segment.kind === "localCommand") {
+			continue;
+		}
 		chunks.push({
 			type: segment.kind === "thought" ? "thought" : "message",
 			block: {

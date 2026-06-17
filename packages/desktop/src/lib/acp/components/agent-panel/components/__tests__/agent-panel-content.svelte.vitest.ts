@@ -84,37 +84,43 @@ vi.mock("mode-watcher", () => ({
 
 vi.mock("../../../../store/session-store.svelte.js", () => ({
 	getSessionStore: () => ({
-		getHotState: () => globalThis.__agentPanelContentSessionStoreState.hotState,
-		getSessionLiveWorkSource: (
-			sessionId: string | null,
-			_active: boolean
-		): LiveSessionWorkSource => {
-			if (sessionId === null) {
-				return { kind: "no_session" };
-			}
+		presentation: {
+			getSessionLiveWorkSource: (
+				sessionId: string | null,
+				_active: boolean
+			): LiveSessionWorkSource => {
+				if (sessionId === null) {
+					return { kind: "no_session" };
+				}
 
-			const liveProjection = globalThis.__agentPanelContentSessionStoreState.liveProjection;
-			if (liveProjection === null) {
+				const liveProjection = globalThis.__agentPanelContentSessionStoreState.liveProjection;
+				if (liveProjection === null) {
+					return {
+						kind: "missing_canonical",
+						sessionId,
+					};
+				}
+
 				return {
-					kind: "missing_canonical",
-					sessionId,
+					kind: "canonical",
+					projection: liveProjection,
 				};
-			}
-
-			return {
-				kind: "canonical",
-				projection: liveProjection,
-			};
+			},
+			getSessionOperationInteractionSnapshot: () => ({
+				pendingQuestion: null,
+				pendingQuestionOperation: null,
+				pendingPermission: null,
+				pendingPermissionOperation: null,
+				pendingPlanApproval: null,
+				pendingPlanApprovalOperation: null,
+			}),
 		},
-		getSessionCurrentModeId: () => null,
-		getSessionOperationInteractionSnapshot: () => ({
-			pendingQuestion: null,
-			pendingQuestionOperation: null,
-			pendingPermission: null,
-			pendingPermissionOperation: null,
-			pendingPlanApproval: null,
-			pendingPlanApprovalOperation: null,
-		}),
+		read: {
+			getSessionCurrentModeId: () => null,
+		},
+		viewport: {
+			getBufferProjection: () => null,
+		},
 	}),
 }));
 

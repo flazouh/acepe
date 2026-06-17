@@ -13,6 +13,7 @@
  */
 import { SvelteMap } from "svelte/reactivity";
 import type {
+	FailureReason,
 	SessionGraphActivity,
 	SessionGraphLifecycle,
 	SessionGraphRevision,
@@ -20,12 +21,29 @@ import type {
 	SessionTurnState,
 	TranscriptEntry,
 } from "../../services/acp-types.js";
+import type { ActiveTurnFailure } from "../types/turn-error.js";
+import { mapProjectionTurnFailure } from "./envelope-reducer/projection-turn-failure.js";
 import type {
 	CanonicalSessionProjection,
 	RowTokenStream,
 	SessionClockAnchor,
 } from "./canonical-session-projection.js";
 import { buildRowTokenStreamKey } from "./transcript-delta.js";
+
+function connectionErrorFromGraphState(
+	lifecycle: SessionGraphLifecycle,
+	activeTurnFailure: ActiveTurnFailure | null
+): string | null {
+	if (lifecycle.status === "failed" || lifecycle.status === "detached") {
+		return lifecycle.errorMessage ?? null;
+	}
+
+	if (activeTurnFailure !== null) {
+		return null;
+	}
+
+	return null;
+}
 
 export class SessionProjectionCore {
 	readonly canonicalProjections = new SvelteMap<string, CanonicalSessionProjection>();
@@ -108,5 +126,45 @@ export class SessionProjectionCore {
 			return null;
 		}
 		return this.rowTokenStreamsByRowId.get(sessionId)?.get(rowId) ?? null;
+	}
+
+	getSessionStateGraph(sessionId: string): SessionStateGraph | null {
+		return this.sessionStateGraphs.get(sessionId) ?? null;
+	}
+
+	getSessionConnectionError(sessionId: string): string | null {
+		const graph = this.getSessionStateGraph(sessionId);
+		if (graph === null) {
+			return null;
+		}
+		return connectionErrorFromGraphState(
+			graph.lifecycle,
+			mapProjectionTurnFailure(graph.activeTurnFailure ?? null)
+		);
+	}
+
+	getSessionLifecycleFailureReason(sessionId: string): FailureReason | null {
+		const lifecycle = this.getSessionStateGraph(sessionId)?.lifecycle ?? null;
+		if (lifecycle === null) {
+			return null;
+		}
+		if (lifecycle.status !== "failed" && lifecycle.status !== "detached") {
+			return null;
+		}
+		return lifecycle.failureReason ?? null;
+	}
+
+	getSessionLifecycleDetachedReason(sessionId: string): import("$lib/services/acp-types.js").DetachedReason | null {
+		const lifecycle = this.getSessionStateGraph(sessionId)?.lifecycle ?? null;
+		if (lifecycle === null || lifecycle.status !== "detached") {
+			return null;
+		}
+		return lifecycle.detachedReason ?? null;
+	}
+
+	getSessionActiveTurnFailure(sessionId: string): ActiveTurnFailure | null {
+		return mapProjectionTurnFailure(
+			this.getSessionStateGraph(sessionId)?.activeTurnFailure ?? null
+		);
 	}
 }

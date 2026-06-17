@@ -48,22 +48,17 @@ export function hasAgentPanelHeaderMetaChips(input: {
 	);
 }
 
-export function hasAgentPanelHeaderExpansion(input: {
+export function shouldShowAgentPanelHeaderTitleTooltip(input: {
 	pendingProjectSelection: boolean;
+}): boolean {
+	return !input.pendingProjectSelection;
+}
+
+export function hasAgentPanelHeaderTooltipDetails(input: {
 	hasExpansionSlot: boolean;
 	hasMetaChips: boolean;
 }): boolean {
-	return (
-		!input.pendingProjectSelection &&
-		(input.hasExpansionSlot || input.hasMetaChips)
-	);
-}
-
-export function shouldShowAgentPanelHeaderExpansion(input: {
-	hasExpansion: boolean;
-	expansionActive: boolean;
-}): boolean {
-	return input.hasExpansion && input.expansionActive;
+	return input.hasExpansionSlot || input.hasMetaChips;
 }
 
 export function getHeaderStatusIndicatorKind(input: {

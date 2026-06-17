@@ -215,8 +215,8 @@ const threadBoardSources = $derived.by((): readonly ThreadBoardSource[] => {
 			continue;
 		}
 
-		const identity = sessionStore.getSessionIdentity(sessionId);
-		const metadata = sessionStore.getSessionMetadata(sessionId);
+		const identity = sessionStore.read.getSessionIdentity(sessionId);
+		const metadata = sessionStore.read.getSessionMetadata(sessionId);
 		const sessionProjectPath = identity ? identity.projectPath : panel.projectPath;
 		const sessionAgentId = identity ? identity.agentId : panel.agentId;
 
@@ -224,7 +224,7 @@ const threadBoardSources = $derived.by((): readonly ThreadBoardSource[] => {
 			continue;
 		}
 
-		const presentation = sessionStore.getSessionQueuePresentation({
+		const presentation = sessionStore.presentation.getSessionQueuePresentation({
 			sessionId,
 			agentId: sessionAgentId,
 			projectPath: sessionProjectPath,
@@ -263,7 +263,7 @@ const threadBoardSources = $derived.by((): readonly ThreadBoardSource[] => {
 			panelId: panel.id,
 			sessionId: queueItem.sessionId,
 			agentId: queueItem.agentId,
-			autonomousEnabled: sessionStore.getSessionAutonomousEnabled(sessionId),
+			autonomousEnabled: sessionStore.read.getSessionAutonomousEnabled(sessionId),
 			projectPath: queueItem.projectPath,
 			projectName: queueItem.projectName,
 			projectColor: queueItem.projectColor,
@@ -311,7 +311,7 @@ function mapItemToCard(item: ThreadBoardItem) {
 
 function getPermissionRequest(item: ThreadBoardItem): PermissionRequest | null {
 	const visiblePermission =
-		sessionStore.getVisiblePermissionsForSessionBar(
+		sessionStore.read.getVisiblePermissionsForSessionBar(
 			permissionStore.getForSession(item.sessionId)
 		)[0] ?? null;
 	if (visiblePermission) {
@@ -411,7 +411,7 @@ const liveInteractionBySessionId = $derived.by(() => {
 		}
 		map.set(
 			sessionId,
-			sessionStore.getSessionOperationInteractionSnapshot(sessionId, interactionStore)
+			sessionStore.presentation.getSessionOperationInteractionSnapshot(sessionId, interactionStore)
 		);
 	}
 	return map;
@@ -672,7 +672,7 @@ function resolveQuestionId(question: QuestionRequest): string {
 function getLiveInteractionSnapshot(item: ThreadBoardItem) {
 	return (
 		liveInteractionBySessionId.get(item.sessionId) ??
-		sessionStore.getSessionOperationInteractionSnapshot(item.sessionId, interactionStore)
+		sessionStore.presentation.getSessionOperationInteractionSnapshot(item.sessionId, interactionStore)
 	);
 }
 
@@ -944,45 +944,6 @@ function handleRejectPlanApproval(sessionId: string): void {
 		>
 			<div class="flex w-full flex-col px-2 py-2 [&_[contenteditable=true]]:min-h-[7.2rem]">
 				{#if canShowNewSessionInput}
-					{#if selectedProject}
-						<div class="mb-2">
-							<PreSessionWorktreeCard
-								pendingWorktreeEnabled={effectiveWorktreePending}
-								alwaysEnabled={globalWorktreeDefault}
-								projectPath={selectedProject.path}
-								projectName={selectedProject.name}
-								onYes={() => {
-									const store = getWorktreeDefaultStore();
-								if (store.globalDefault) {
-									void store.set(false);
-								}
-								preparedWorktreeLaunch = null;
-								worktreePending = true;
-							}}
-							onNo={() => {
-								const store = getWorktreeDefaultStore();
-								if (store.globalDefault) {
-									void store.set(false);
-								}
-								preparedWorktreeLaunch = null;
-								worktreePending = false;
-							}}
-							onAlways={() => {
-								const store = getWorktreeDefaultStore();
-								const toggled = !store.globalDefault;
-								void store.set(toggled);
-								if (!toggled) {
-									preparedWorktreeLaunch = null;
-								}
-								worktreePending = toggled;
-							}}
-							onDismiss={() => {
-								preparedWorktreeLaunch = null;
-								worktreePending = false;
-							}}
-						/>
-						</div>
-					{/if}
 					{#key newSessionComposerKey}
 						<AgentInput
 							panelId={KANBAN_NEW_SESSION_PANEL_ID}
@@ -1015,7 +976,6 @@ function handleRejectPlanApproval(sessionId: string): void {
 									onAgentChange={handleNewSessionAgentChange}
 								/>
 								{#if showProjectPicker}
-									<div class="h-full w-px bg-border/50"></div>
 									<ProjectSelector
 										selectedProject={selectedProject}
 										recentProjects={projects}
@@ -1026,8 +986,29 @@ function handleRejectPlanApproval(sessionId: string): void {
 							{/snippet}
 						</AgentInput>
 					{/key}
+					{#if selectedProject}
+						<div class="mt-2 flex h-7 items-center">
+							<PreSessionWorktreeCard
+								variant="trigger"
+								menuSide="top"
+								pendingWorktreeEnabled={effectiveWorktreePending}
+								onYes={() => {
+									preparedWorktreeLaunch = null;
+									worktreePending = true;
+								}}
+								onNo={() => {
+									preparedWorktreeLaunch = null;
+									worktreePending = false;
+								}}
+								onDismiss={() => {
+									preparedWorktreeLaunch = null;
+									worktreePending = false;
+								}}
+							/>
+						</div>
+					{/if}
 				{:else}
-					<div class="rounded-lg border border-dashed border-border/60 bg-muted/20 px-4 py-6 text-sm text-muted-foreground">
+					<div class="rounded border border-dashed border-border/60 bg-muted/20 px-4 py-6 text-sm text-muted-foreground">
 						Add at least one project and one available agent to start a session.
 					</div>
 				{/if}
@@ -1075,20 +1056,13 @@ function handleRejectPlanApproval(sessionId: string): void {
 			onPrFooterOpenExternal={handlePrFooterOpenExternal}
 		>
 			{#snippet columnHeaderActions(columnId)}
-				{#if columnId === "planning" || columnId === "working"}
+				{#if columnId === "planning"}
 					<button
 						type="button"
 						class="flex size-4 items-center justify-center rounded-sm text-muted-foreground/60 transition-colors hover:bg-accent hover:text-foreground"
-						aria-label={columnId === "planning"
-							? "New planning agent"
-							: "New working agent"}
+						aria-label="New agent"
 						data-testid="kanban-column-add-session-{columnId}"
-						onclick={() =>
-							handleKanbanColumnCreate(
-								columnId === "planning"
-									? CanonicalModeId.PLAN
-									: CanonicalModeId.BUILD
-							)}
+						onclick={() => handleKanbanColumnCreate(CanonicalModeId.BUILD)}
 					>
 						<Plus class="size-3" weight="bold" />
 					</button>
@@ -1099,7 +1073,7 @@ function handleRejectPlanApproval(sessionId: string): void {
 				{#if item}
 					<TodoHeader
 						sessionId={item.sessionId}
-						toolCalls={sessionStore.getSessionToolCalls(item.sessionId)}
+						toolCalls={sessionStore.read.getSessionToolCalls(item.sessionId)}
 						isConnected={item.state.connection === "connected"}
 						status={item.sessionStatus}
 						isStreaming={card.isStreaming}

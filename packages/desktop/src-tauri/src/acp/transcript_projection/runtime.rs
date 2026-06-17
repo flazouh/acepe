@@ -1,6 +1,11 @@
-use crate::acp::session_update::{SessionUpdate, ToolCallData, ToolKind, TurnErrorData};
+use crate::acp::projections::{RouteDecision, TerminalTurnGuard};
+use crate::acp::parsers::acp_fields::normalize_tool_call_id;
+use crate::acp::session_update::{SessionUpdate, ToolCallData, ToolKind};
 use crate::acp::transcript_projection::delta::{TranscriptDelta, TranscriptDeltaOperation};
-use crate::acp::transcript_projection::live_tool_entry_id_for_event_seq;
+use crate::acp::transcript_projection::display_id::{
+    assistant_boundary_entry_count_from_transcript_entries, derive_entry_id_for_snapshot_role,
+    derive_tool_entry_id, tool_call_id_from_authority_entry_id, turn_key_for_assistant_boundary,
+};
 use crate::acp::transcript_projection::snapshot::{
     TranscriptEntry, TranscriptEntryRole, TranscriptSegment, TranscriptSnapshot,
 };
@@ -50,16 +55,41 @@ impl TranscriptProjectionRegistry {
         &self,
         event_seq: i64,
         update: &SessionUpdate,
+        decision: RouteDecision,
     ) -> Option<TranscriptDelta> {
         let session_id = update.session_id()?.to_string();
         let mut session = self.sessions.entry(session_id.clone()).or_default();
-        let operations = session.apply_session_update(event_seq, update)?;
+        let operations = session.apply_session_update(event_seq, update, decision)?;
         Some(TranscriptDelta {
             event_seq,
             session_id,
             snapshot_revision: event_seq,
             operations,
         })
+    }
+
+    /// Applies one update with decide-then-advance on an explicit guard (tests and replay loops).
+    #[must_use]
+    pub fn apply_session_update_with_guard(
+        &self,
+        guard: &mut TerminalTurnGuard,
+        event_seq: i64,
+        update: &SessionUpdate,
+    ) -> Option<TranscriptDelta> {
+        let decision = guard.route(update);
+        let delta = self.apply_session_update(event_seq, update, decision);
+        guard.advance(update);
+        delta
+    }
+
+    /// Applies one update using a non-terminal idle guard (simple test paths only).
+    #[must_use]
+    pub fn apply_session_update_idle(
+        &self,
+        event_seq: i64,
+        update: &SessionUpdate,
+    ) -> Option<TranscriptDelta> {
+        self.apply_session_update(event_seq, update, TerminalTurnGuard::default().route(update))
     }
 }
 
@@ -69,7 +99,6 @@ struct SessionTranscriptProjection {
     entries: Vec<TranscriptEntry>,
     entry_indexes: HashMap<String, usize>,
     tool_entry_ids_by_tool_call_id: HashMap<String, String>,
-    assistant_entry_ids_by_turn_key: HashMap<String, String>,
     assistant_boundary_entry_count: usize,
 }
 
@@ -79,13 +108,15 @@ impl SessionTranscriptProjection {
         for (index, entry) in snapshot.entries.iter().enumerate() {
             entry_indexes.insert(entry.entry_id.clone(), index);
         }
+        let entries = snapshot.entries;
         Self {
             revision: snapshot.revision,
-            entries: snapshot.entries,
+            entries: entries.clone(),
             entry_indexes,
-            tool_entry_ids_by_tool_call_id: HashMap::new(),
-            assistant_entry_ids_by_turn_key: HashMap::new(),
-            assistant_boundary_entry_count: 0,
+            tool_entry_ids_by_tool_call_id: rebuild_tool_entry_ids_by_tool_call_id(&entries),
+            assistant_boundary_entry_count: assistant_boundary_entry_count_from_transcript_entries(
+                &entries,
+            ),
         }
     }
 
@@ -134,8 +165,9 @@ impl SessionTranscriptProjection {
         &mut self,
         event_seq: i64,
         update: &SessionUpdate,
+        decision: RouteDecision,
     ) -> Option<Vec<TranscriptDeltaOperation>> {
-        let delta = self.apply_session_update_inner(event_seq, update)?;
+        let delta = self.apply_session_update_inner(event_seq, update, decision)?;
         // Transcript revision must only advance, and only when the transcript
         // actually changed. Non-transcript-bearing updates (telemetry, plan,
         // tool-call updates, etc.) must not bump the revision — otherwise
@@ -153,19 +185,49 @@ impl SessionTranscriptProjection {
         &mut self,
         event_seq: i64,
         update: &SessionUpdate,
+        decision: RouteDecision,
     ) -> Option<Vec<TranscriptDeltaOperation>> {
+        if decision.ignore_late {
+            if matches!(
+                update,
+                SessionUpdate::TurnError { .. } | SessionUpdate::TurnComplete { .. }
+            ) {
+                return None;
+            }
+        }
+        if decision.suppress {
+            if matches!(
+                update,
+                SessionUpdate::AgentMessageChunk { .. }
+                    | SessionUpdate::AgentThoughtChunk { .. }
+                    | SessionUpdate::ToolCall { .. }
+                    | SessionUpdate::ToolCallUpdate { .. }
+            ) {
+                return None;
+            }
+        }
+        if let SessionUpdate::ToolCall { tool_call, .. } = update {
+            if should_skip_unanswered_question_tool_row(tool_call) {
+                return None;
+            }
+        }
+
         match update {
             SessionUpdate::UserMessageChunk {
                 chunk, attempt_id, ..
             } => {
                 let text = text_from_block(&chunk.content)?;
+                let turn_key = self.current_turn_key();
+                let entry_id =
+                    derive_entry_id_for_snapshot_role(&turn_key, &TranscriptEntryRole::User, None);
+                let segment = crate::acp::transcript_projection::snapshot::user_transcript_segment_from_text(
+                    format!("{entry_id}:segment:{event_seq}"),
+                    text,
+                );
                 let entry = TranscriptEntry {
-                    entry_id: format!("user-event-{event_seq}"),
+                    entry_id: entry_id.clone(),
                     role: TranscriptEntryRole::User,
-                    segments: vec![TranscriptSegment::Text {
-                        segment_id: format!("user-event-{event_seq}:segment:{event_seq}"),
-                        text,
-                    }],
+                    segments: vec![segment],
                     attempt_id: attempt_id.clone(),
                     timestamp_ms: None,
                 };
@@ -244,14 +306,14 @@ impl SessionTranscriptProjection {
                 }
             }
             SessionUpdate::ToolCall { tool_call, .. } => {
-                if should_skip_unanswered_question_tool_row(tool_call) {
-                    return None;
-                }
-                let previous_entry_id = self
+                let normalized_tool_call_id = normalize_tool_call_id(&tool_call.id);
+                let entry_id = self
                     .tool_entry_ids_by_tool_call_id
-                    .get(&tool_call.id)
-                    .cloned();
-                let entry_id = live_tool_entry_id_for_event_seq(event_seq);
+                    .get(&normalized_tool_call_id)
+                    .cloned()
+                    .unwrap_or_else(|| {
+                        derive_tool_entry_id(&self.current_turn_key(), &tool_call.id)
+                    });
                 let entry = TranscriptEntry {
                     entry_id: entry_id.clone(),
                     role: TranscriptEntryRole::Tool,
@@ -266,35 +328,20 @@ impl SessionTranscriptProjection {
                     timestamp_ms: None,
                 };
                 self.tool_entry_ids_by_tool_call_id
-                    .insert(tool_call.id.clone(), entry_id.clone());
-                if let Some(previous_entry_id) = previous_entry_id {
-                    if previous_entry_id != entry_id {
-                        self.remove_entry(&previous_entry_id);
-                        self.upsert_entry(entry);
-                        self.close_assistant_entry_boundary();
-                        let snapshot = self.snapshot();
-                        return Some(vec![TranscriptDeltaOperation::ReplaceSnapshot { snapshot }]);
-                    }
-                }
+                    .insert(normalized_tool_call_id, entry_id);
                 self.upsert_entry(entry.clone());
                 self.close_assistant_entry_boundary();
                 Some(vec![TranscriptDeltaOperation::AppendEntry { entry }])
             }
-            SessionUpdate::TurnError { error, turn_id, .. } => {
-                let entry = TranscriptEntry {
-                    entry_id: turn_id
-                        .clone()
-                        .unwrap_or_else(|| format!("error-event-{event_seq}")),
-                    role: TranscriptEntryRole::Error,
-                    segments: vec![error_segment(event_seq, error)],
-                    attempt_id: None,
-                    timestamp_ms: None,
-                };
-                self.upsert_entry(entry.clone());
+            SessionUpdate::TurnError { .. } => {
                 self.close_assistant_entry_boundary();
-                Some(vec![TranscriptDeltaOperation::AppendEntry { entry }])
+                None
             }
-            SessionUpdate::TurnComplete { .. } | SessionUpdate::TurnCancelled { .. } => {
+            SessionUpdate::TurnComplete { .. } => {
+                self.close_assistant_entry_boundary();
+                None
+            }
+            SessionUpdate::TurnCancelled { .. } => {
                 self.close_assistant_entry_boundary();
                 None
             }
@@ -318,34 +365,23 @@ impl SessionTranscriptProjection {
 
     fn assistant_entry_id_for_chunk(
         &mut self,
-        message_id: &Option<String>,
-        part_id: &Option<String>,
-        event_seq: i64,
+        _message_id: &Option<String>,
+        _part_id: &Option<String>,
+        _event_seq: i64,
     ) -> String {
-        let provider_key = assistant_provider_key(message_id, part_id);
-        let turn_key = self.current_turn_key();
-        let scoped_key = format!("{turn_key}\u{1f}{provider_key}");
-
-        if let Some(entry_id) = self.assistant_entry_ids_by_turn_key.get(&scoped_key) {
-            return entry_id.clone();
-        }
-
-        let entry_id = format!("assistant-event-{event_seq}");
-        self.assistant_entry_ids_by_turn_key
-            .insert(scoped_key, entry_id.clone());
-        entry_id
+        derive_entry_id_for_snapshot_role(
+            &self.current_turn_key(),
+            &TranscriptEntryRole::Assistant,
+            None,
+        )
     }
 
     fn current_turn_key(&self) -> String {
-        if self.assistant_boundary_entry_count == 0 {
-            return "session-start".to_string();
-        }
-        format!("assistant-boundary:{}", self.assistant_boundary_entry_count)
+        turn_key_for_assistant_boundary(self.assistant_boundary_entry_count)
     }
 
     fn close_assistant_entry_boundary(&mut self) {
         self.assistant_boundary_entry_count = self.entries.len();
-        self.assistant_entry_ids_by_turn_key.clear();
     }
 
     fn upsert_entry(&mut self, entry: TranscriptEntry) {
@@ -356,17 +392,6 @@ impl SessionTranscriptProjection {
         let index = self.entries.len();
         self.entry_indexes.insert(entry.entry_id.clone(), index);
         self.entries.push(entry);
-    }
-
-    fn remove_entry(&mut self, entry_id: &str) {
-        let Some(index) = self.entry_indexes.remove(entry_id) else {
-            return;
-        };
-        self.entries.remove(index);
-        self.entry_indexes.clear();
-        for (index, entry) in self.entries.iter().enumerate() {
-            self.entry_indexes.insert(entry.entry_id.clone(), index);
-        }
     }
 
     fn append_segment(
@@ -393,16 +418,20 @@ fn should_skip_unanswered_question_tool_row(tool_call: &ToolCallData) -> bool {
     matches!(tool_call.kind, Some(ToolKind::Question)) && tool_call.question_answer.is_none()
 }
 
-fn assistant_provider_key(message_id: &Option<String>, part_id: &Option<String>) -> String {
-    if let Some(message_id) = message_id.as_ref().filter(|value| !value.is_empty()) {
-        return message_id.clone();
+fn rebuild_tool_entry_ids_by_tool_call_id(
+    entries: &[TranscriptEntry],
+) -> HashMap<String, String> {
+    let mut map = HashMap::new();
+    for entry in entries {
+        if entry.role != TranscriptEntryRole::Tool {
+            continue;
+        }
+        let Some(tool_call_id) = tool_call_id_from_authority_entry_id(&entry.entry_id) else {
+            continue;
+        };
+        map.insert(tool_call_id.clone(), entry.entry_id.clone());
     }
-
-    if let Some(part_id) = part_id.as_ref().filter(|value| !value.is_empty()) {
-        return part_id.clone();
-    }
-
-    "assistant".to_string()
+    map
 }
 
 fn entry_closes_assistant_boundary(entry: &TranscriptEntry) -> bool {
@@ -420,19 +449,10 @@ fn text_from_block(block: &ContentBlock) -> Option<String> {
     }
 }
 
-fn error_segment(event_seq: i64, error: &TurnErrorData) -> TranscriptSegment {
-    TranscriptSegment::Text {
-        segment_id: format!("error-event-{event_seq}:error"),
-        text: match error {
-            TurnErrorData::Legacy(message) => message.clone(),
-            TurnErrorData::Structured(info) => info.message.clone(),
-        },
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::TranscriptProjectionRegistry;
+    use crate::acp::projections::TerminalTurnGuard;
     use crate::acp::session_update::{
         ContentChunk, QuestionItem, QuestionOption, SessionUpdate, ToolArguments, ToolCallData,
         ToolCallStatus, ToolKind, TurnErrorData, TurnErrorInfo, TurnErrorKind, TurnErrorSource,
@@ -447,7 +467,7 @@ mod tests {
     fn assistant_lineage_starts_with_entry_then_appends_segments() {
         let registry = TranscriptProjectionRegistry::new();
         let first = registry
-            .apply_session_update(
+            .apply_session_update_idle(
                 7,
                 &SessionUpdate::AgentMessageChunk {
                     chunk: ContentChunk {
@@ -464,7 +484,7 @@ mod tests {
             )
             .expect("first delta");
         let second = registry
-            .apply_session_update(
+            .apply_session_update_idle(
                 8,
                 &SessionUpdate::AgentMessageChunk {
                     chunk: ContentChunk {
@@ -484,12 +504,12 @@ mod tests {
         assert!(matches!(
             &first.operations[0],
             TranscriptDeltaOperation::AppendEntry { entry }
-                if entry.entry_id == "assistant-event-7"
+                if entry.entry_id == "acepe::entry::session-start::assistant::."
         ));
         assert!(matches!(
             &second.operations[0],
             TranscriptDeltaOperation::AppendSegment { entry_id, role, .. }
-                if entry_id == "assistant-event-7" && role == &TranscriptEntryRole::Assistant
+                if entry_id == "acepe::entry::session-start::assistant::." && role == &TranscriptEntryRole::Assistant
         ));
     }
 
@@ -497,7 +517,7 @@ mod tests {
     fn thought_chunk_projects_as_canonical_thought_segment() {
         let registry = TranscriptProjectionRegistry::new();
         let delta = registry
-            .apply_session_update(
+            .apply_session_update_idle(
                 7,
                 &SessionUpdate::AgentThoughtChunk {
                     chunk: ContentChunk {
@@ -542,7 +562,7 @@ mod tests {
         );
 
         let delta = registry
-            .apply_session_update(
+            .apply_session_update_idle(
                 7,
                 &SessionUpdate::AgentMessageChunk {
                     chunk: ContentChunk {
@@ -561,21 +581,24 @@ mod tests {
 
         assert!(matches!(
             &delta.operations[0],
-            TranscriptDeltaOperation::AppendEntry { entry, .. } if entry.entry_id == "assistant-event-7"
+            TranscriptDeltaOperation::AppendEntry { entry, .. } if entry.entry_id == "acepe::entry::session-start::assistant::."
         ));
         let snapshot = registry
             .snapshot_for_session("session-1")
             .expect("runtime snapshot");
         assert_eq!(snapshot.entries.len(), 2);
         assert_eq!(snapshot.entries[0].entry_id, "assistant-1");
-        assert_eq!(snapshot.entries[1].entry_id, "assistant-event-7");
+        assert_eq!(
+            snapshot.entries[1].entry_id,
+            "acepe::entry::session-start::assistant::."
+        );
     }
 
     #[test]
     fn no_message_id_assistant_chunks_share_current_turn_entry() {
         let registry = TranscriptProjectionRegistry::new();
         registry
-            .apply_session_update(
+            .apply_session_update_idle(
                 1,
                 &SessionUpdate::UserMessageChunk {
                     chunk: ContentChunk {
@@ -591,7 +614,7 @@ mod tests {
             .expect("user delta");
 
         let first = registry
-            .apply_session_update(
+            .apply_session_update_idle(
                 2,
                 &SessionUpdate::AgentMessageChunk {
                     chunk: ContentChunk {
@@ -608,7 +631,7 @@ mod tests {
             )
             .expect("first assistant delta");
         let second = registry
-            .apply_session_update(
+            .apply_session_update_idle(
                 3,
                 &SessionUpdate::AgentMessageChunk {
                     chunk: ContentChunk {
@@ -653,7 +676,7 @@ mod tests {
     fn reused_assistant_message_id_after_user_turn_starts_new_entry() {
         let registry = TranscriptProjectionRegistry::new();
         registry
-            .apply_session_update(
+            .apply_session_update_idle(
                 1,
                 &SessionUpdate::AgentMessageChunk {
                     chunk: ContentChunk {
@@ -670,7 +693,7 @@ mod tests {
             )
             .expect("first assistant delta");
         registry
-            .apply_session_update(
+            .apply_session_update_idle(
                 2,
                 &SessionUpdate::UserMessageChunk {
                     chunk: ContentChunk {
@@ -686,7 +709,7 @@ mod tests {
             .expect("user delta");
 
         let delta = registry
-            .apply_session_update(
+            .apply_session_update_idle(
                 3,
                 &SessionUpdate::AgentMessageChunk {
                     chunk: ContentChunk {
@@ -706,15 +729,24 @@ mod tests {
         assert!(matches!(
             &delta.operations[0],
             TranscriptDeltaOperation::AppendEntry { entry }
-                if entry.entry_id == "assistant-event-3"
+                if entry.entry_id == "acepe::entry::assistant-boundary:2::assistant::."
         ));
         let snapshot = registry
             .snapshot_for_session("session-1")
             .expect("runtime snapshot");
         assert_eq!(snapshot.entries.len(), 3);
-        assert_eq!(snapshot.entries[0].entry_id, "assistant-event-1");
-        assert_eq!(snapshot.entries[1].entry_id, "user-event-2");
-        assert_eq!(snapshot.entries[2].entry_id, "assistant-event-3");
+        assert_eq!(
+            snapshot.entries[0].entry_id,
+            "acepe::entry::session-start::assistant::."
+        );
+        assert_eq!(
+            snapshot.entries[1].entry_id,
+            "acepe::entry::session-start::user::."
+        );
+        assert_eq!(
+            snapshot.entries[2].entry_id,
+            "acepe::entry::assistant-boundary:2::assistant::."
+        );
         assert_eq!(snapshot.entries[0].segments.len(), 1);
         assert_eq!(snapshot.entries[2].segments.len(), 1);
     }
@@ -723,7 +755,7 @@ mod tests {
     fn reused_assistant_message_id_after_tool_boundary_starts_new_entry() {
         let registry = TranscriptProjectionRegistry::new();
         registry
-            .apply_session_update(
+            .apply_session_update_idle(
                 1,
                 &SessionUpdate::UserMessageChunk {
                     chunk: ContentChunk {
@@ -738,7 +770,7 @@ mod tests {
             )
             .expect("user delta");
         registry
-            .apply_session_update(
+            .apply_session_update_idle(
                 2,
                 &SessionUpdate::AgentMessageChunk {
                     chunk: ContentChunk {
@@ -755,7 +787,7 @@ mod tests {
             )
             .expect("first assistant delta");
         registry
-            .apply_session_update(
+            .apply_session_update_idle(
                 3,
                 &SessionUpdate::ToolCall {
                     tool_call: ToolCallData {
@@ -786,7 +818,7 @@ mod tests {
             )
             .expect("tool delta");
         let trailing = registry
-            .apply_session_update(
+            .apply_session_update_idle(
                 4,
                 &SessionUpdate::AgentMessageChunk {
                     chunk: ContentChunk {
@@ -806,7 +838,7 @@ mod tests {
         assert!(matches!(
             &trailing.operations[0],
             TranscriptDeltaOperation::AppendEntry { entry }
-                if entry.entry_id == "assistant-event-4"
+                if entry.entry_id == "acepe::entry::assistant-boundary:3::assistant::."
                     && entry.role == TranscriptEntryRole::Assistant
         ));
 
@@ -827,9 +859,18 @@ mod tests {
                 TranscriptEntryRole::Assistant,
             ]
         );
-        assert_eq!(snapshot.entries[1].entry_id, "assistant-event-2");
-        assert_eq!(snapshot.entries[2].entry_id, "tool-event-3");
-        assert_eq!(snapshot.entries[3].entry_id, "assistant-event-4");
+        assert_eq!(
+            snapshot.entries[1].entry_id,
+            "acepe::entry::assistant-boundary:1::assistant::."
+        );
+        assert_eq!(
+            snapshot.entries[2].entry_id,
+            "acepe::entry::assistant-boundary:1::tool::toolu_1"
+        );
+        assert_eq!(
+            snapshot.entries[3].entry_id,
+            "acepe::entry::assistant-boundary:3::assistant::."
+        );
         assert_eq!(snapshot.entries[1].segments.len(), 1);
         assert_eq!(snapshot.entries[3].segments.len(), 1);
     }
@@ -837,26 +878,26 @@ mod tests {
     #[test]
     fn user_message_chunk_carries_attempt_id_into_canonical_entry() {
         let registry = TranscriptProjectionRegistry::new();
-        let update: SessionUpdate = serde_json::from_value(serde_json::json!({
-            "type": "userMessageChunk",
-            "content": {
-                "type": "text",
-                "text": "hello"
+        let update = SessionUpdate::UserMessageChunk {
+            chunk: ContentChunk {
+                content: ContentBlock::Text {
+                    text: "hello".to_string(),
+                },
+                aggregation_hint: None,
             },
-            "sessionId": "session-1",
-            "attemptId": "attempt-123"
-        }))
-        .expect("user update");
+            session_id: Some("session-1".to_string()),
+            attempt_id: Some("attempt-123".to_string()),
+        };
 
         let delta = registry
-            .apply_session_update(9, &update)
+            .apply_session_update_idle(9, &update)
             .expect("user delta");
         let delta_json = serde_json::to_value(&delta).expect("serialize delta");
 
         assert!(matches!(
             &delta.operations[0],
             TranscriptDeltaOperation::AppendEntry { entry }
-                if entry.entry_id == "user-event-9"
+                if entry.entry_id == "acepe::entry::session-start::user::."
                     && entry.role == TranscriptEntryRole::User
         ));
         assert_eq!(
@@ -867,7 +908,10 @@ mod tests {
             .snapshot_for_session("session-1")
             .expect("runtime snapshot");
         let snapshot_json = serde_json::to_value(&snapshot).expect("serialize snapshot");
-        assert_eq!(snapshot.entries[0].entry_id, "user-event-9");
+        assert_eq!(
+            snapshot.entries[0].entry_id,
+            "acepe::entry::session-start::user::."
+        );
         assert_eq!(snapshot_json["entries"][0]["attemptId"], "attempt-123");
     }
 
@@ -893,7 +937,7 @@ mod tests {
         });
 
         let delta = registry
-            .apply_session_update(
+            .apply_session_update_idle(
                 8,
                 &SessionUpdate::AgentMessageChunk {
                     chunk: ContentChunk {
@@ -911,7 +955,7 @@ mod tests {
             .expect("delta");
         assert!(matches!(
             &delta.operations[0],
-            TranscriptDeltaOperation::AppendEntry { entry, .. } if entry.entry_id == "assistant-event-8"
+            TranscriptDeltaOperation::AppendEntry { entry, .. } if entry.entry_id == "acepe::entry::session-start::assistant::."
         ));
     }
 
@@ -919,7 +963,7 @@ mod tests {
     fn apply_delta_tool_entry_closes_live_assistant_boundary() {
         let registry = TranscriptProjectionRegistry::new();
         registry
-            .apply_session_update(
+            .apply_session_update_idle(
                 1,
                 &SessionUpdate::AgentMessageChunk {
                     chunk: ContentChunk {
@@ -955,7 +999,7 @@ mod tests {
         });
 
         let delta = registry
-            .apply_session_update(
+            .apply_session_update_idle(
                 3,
                 &SessionUpdate::AgentMessageChunk {
                     chunk: ContentChunk {
@@ -974,20 +1018,26 @@ mod tests {
 
         assert!(matches!(
             &delta.operations[0],
-            TranscriptDeltaOperation::AppendEntry { entry, .. } if entry.entry_id == "assistant-event-3"
+            TranscriptDeltaOperation::AppendEntry { entry, .. } if entry.entry_id == "acepe::entry::assistant-boundary:2::assistant::."
         ));
         let snapshot = registry
             .snapshot_for_session("session-1")
             .expect("runtime snapshot");
-        assert_eq!(snapshot.entries[0].entry_id, "assistant-event-1");
+        assert_eq!(
+            snapshot.entries[0].entry_id,
+            "acepe::entry::session-start::assistant::."
+        );
         assert_eq!(snapshot.entries[1].entry_id, "toolu-1");
-        assert_eq!(snapshot.entries[2].entry_id, "assistant-event-3");
+        assert_eq!(
+            snapshot.entries[2].entry_id,
+            "acepe::entry::assistant-boundary:2::assistant::."
+        );
     }
 
     #[test]
     fn live_transcript_skips_unanswered_question_tool_rows() {
         let registry = TranscriptProjectionRegistry::new();
-        let delta = registry.apply_session_update(
+        let delta = registry.apply_session_update_idle(
             9,
             &SessionUpdate::ToolCall {
                 tool_call: ToolCallData {
@@ -1052,7 +1102,7 @@ mod tests {
     fn live_transcript_replaces_duplicate_tool_call_row_for_same_tool_id() {
         let registry = TranscriptProjectionRegistry::new();
         let first = registry
-            .apply_session_update(
+            .apply_session_update_idle(
                 432,
                 &SessionUpdate::ToolCall {
                     tool_call: ToolCallData {
@@ -1082,7 +1132,7 @@ mod tests {
             )
             .expect("first tool delta");
         let second = registry
-            .apply_session_update(
+            .apply_session_update_idle(
                 433,
                 &SessionUpdate::ToolCall {
                     tool_call: ToolCallData {
@@ -1112,22 +1162,21 @@ mod tests {
             )
             .expect("replacement tool delta");
 
+        let authority_entry_id = "acepe::entry::session-start::tool::toolu_same";
         assert!(matches!(
             &first.operations[0],
-            TranscriptDeltaOperation::AppendEntry { entry } if entry.entry_id == "tool-event-432"
+            TranscriptDeltaOperation::AppendEntry { entry } if entry.entry_id == authority_entry_id
         ));
         assert!(matches!(
             &second.operations[0],
-            TranscriptDeltaOperation::ReplaceSnapshot { snapshot }
-                if snapshot.entries.len() == 1
-                    && snapshot.entries[0].entry_id == "tool-event-433"
+            TranscriptDeltaOperation::AppendEntry { entry } if entry.entry_id == authority_entry_id
         ));
 
         let snapshot = registry
             .snapshot_for_session("session-1")
             .expect("runtime snapshot");
         assert_eq!(snapshot.entries.len(), 1);
-        assert_eq!(snapshot.entries[0].entry_id, "tool-event-433");
+        assert_eq!(snapshot.entries[0].entry_id, authority_entry_id);
     }
 
     #[test]
@@ -1142,7 +1191,7 @@ mod tests {
 
         // Seed with a real transcript-bearing update at event_seq=5.
         registry
-            .apply_session_update(
+            .apply_session_update_idle(
                 5,
                 &SessionUpdate::UserMessageChunk {
                     chunk: ContentChunk {
@@ -1164,7 +1213,7 @@ mod tests {
 
         // Apply many non-transcript-bearing updates with synthetic event seqs.
         for synthetic_seq in [100i64, 150, 220, 221] {
-            let result = registry.apply_session_update(
+            let result = registry.apply_session_update_idle(
                 synthetic_seq,
                 &SessionUpdate::UsageTelemetryUpdate {
                     data: crate::acp::session_update::UsageTelemetryData {
@@ -1208,7 +1257,7 @@ mod tests {
 
         // First a real transcript-bearing update at a high event_seq.
         registry
-            .apply_session_update(
+            .apply_session_update_idle(
                 221,
                 &SessionUpdate::UserMessageChunk {
                     chunk: ContentChunk {
@@ -1233,7 +1282,7 @@ mod tests {
         // Then a real transcript-bearing update arrives at a smaller event_seq
         // (simulates real journaled event interleaved with prior higher-seq events).
         registry
-            .apply_session_update(
+            .apply_session_update_idle(
                 64,
                 &SessionUpdate::AgentMessageChunk {
                     chunk: ContentChunk {
@@ -1269,27 +1318,264 @@ mod tests {
     }
 
     #[test]
-    fn turn_error_appends_error_entry() {
+    fn turn_error_does_not_append_transcript_entry() {
         let registry = TranscriptProjectionRegistry::new();
-        let delta = registry
-            .apply_session_update(
+        let delta = registry.apply_session_update_idle(
+            9,
+            &SessionUpdate::TurnError {
+                error: TurnErrorData::Structured(TurnErrorInfo {
+                    message: "boom".to_string(),
+                    kind: TurnErrorKind::Fatal,
+                    code: None,
+                    source: Some(TurnErrorSource::Unknown),
+                }),
+                session_id: Some("session-1".to_string()),
+                turn_id: Some("turn-1".to_string()),
+            },
+        );
+        assert!(delta.is_none(), "turn errors are live-only state, not transcript content");
+        let snapshot = registry
+            .snapshot_for_session("session-1")
+            .expect("snapshot");
+        assert!(
+            snapshot.entries.is_empty(),
+            "turn error must not materialize a transcript row"
+        );
+    }
+
+    #[test]
+    fn skips_tool_call_after_terminal_turn_error() {
+        let registry = TranscriptProjectionRegistry::new();
+        let mut guard = TerminalTurnGuard::default();
+        let _ = registry.apply_session_update_with_guard(
+            &mut guard,
+            8,
+            &SessionUpdate::TurnError {
+                error: TurnErrorData::Structured(TurnErrorInfo {
+                    message: "boom".to_string(),
+                    kind: TurnErrorKind::Fatal,
+                    code: None,
+                    source: Some(TurnErrorSource::Unknown),
+                }),
+                session_id: Some("session-1".to_string()),
+                turn_id: Some("turn-1".to_string()),
+            },
+        );
+
+        let late_tool = registry.apply_session_update_with_guard(
+            &mut guard,
+            9,
+            &SessionUpdate::ToolCall {
+                tool_call: ToolCallData {
+                    id: "tool-1".to_string(),
+                    name: "bash".to_string(),
+                    arguments: ToolArguments::Execute {
+                        command: Some("echo".to_string()),
+                    },
+                    diagnostic_input: None,
+                    status: ToolCallStatus::InProgress,
+                    result: None,
+                    kind: Some(ToolKind::Execute),
+                    title: None,
+                    locations: None,
+                    skill_meta: None,
+                    normalized_questions: None,
+                    normalized_todos: None,
+                    normalized_todo_update: None,
+                    parent_tool_use_id: None,
+                    task_children: None,
+                    question_answer: None,
+                    awaiting_plan_approval: false,
+                    plan_approval_request_id: None,
+                },
+                session_id: Some("session-1".to_string()),
+            },
+        );
+        assert!(late_tool.is_none());
+    }
+
+    #[test]
+    fn appends_tool_call_for_new_turn_after_terminal_turn_error() {
+        // Regression: after a turn fails, the terminal-turn guard must reset when
+        // the user re-prompts (a genuinely new turn). A tool call belonging to the
+        // new turn is NOT a straggler of the failed turn and must appear in the
+        // transcript -- otherwise it shows only in the Attention Queue, never in chat.
+        let registry = TranscriptProjectionRegistry::new();
+        let mut guard = TerminalTurnGuard::default();
+
+        let _ = registry.apply_session_update_with_guard(
+            &mut guard,
+            8,
+            &SessionUpdate::TurnError {
+                error: TurnErrorData::Structured(TurnErrorInfo {
+                    message: "boom".to_string(),
+                    kind: TurnErrorKind::Fatal,
+                    code: None,
+                    source: Some(TurnErrorSource::Unknown),
+                }),
+                session_id: Some("session-1".to_string()),
+                turn_id: Some("turn-1".to_string()),
+            },
+        );
+
+        registry
+            .apply_session_update_with_guard(
+                &mut guard,
                 9,
-                &SessionUpdate::TurnError {
-                    error: TurnErrorData::Structured(TurnErrorInfo {
-                        message: "boom".to_string(),
-                        kind: TurnErrorKind::Fatal,
-                        code: None,
-                        source: Some(TurnErrorSource::Unknown),
-                    }),
+                &SessionUpdate::UserMessageChunk {
+                    chunk: ContentChunk {
+                        content: ContentBlock::Text {
+                            text: "What is the current branch?".to_string(),
+                        },
+                        aggregation_hint: None,
+                    },
                     session_id: Some("session-1".to_string()),
-                    turn_id: Some("turn-1".to_string()),
+                    attempt_id: None,
                 },
             )
-            .expect("delta");
-        assert!(matches!(
-            &delta.operations[0],
-            TranscriptDeltaOperation::AppendEntry { entry }
-                if entry.entry_id == "turn-1" && entry.role == TranscriptEntryRole::Error
-        ));
+            .expect("user delta");
+
+        let new_turn_tool = registry.apply_session_update_with_guard(
+            &mut guard,
+            10,
+            &SessionUpdate::ToolCall {
+                tool_call: ToolCallData {
+                    id: "tool-2".to_string(),
+                    name: "bash".to_string(),
+                    arguments: ToolArguments::Execute {
+                        command: Some("rtk git branch --show-current".to_string()),
+                    },
+                    diagnostic_input: None,
+                    status: ToolCallStatus::InProgress,
+                    result: None,
+                    kind: Some(ToolKind::Execute),
+                    title: None,
+                    locations: None,
+                    skill_meta: None,
+                    normalized_questions: None,
+                    normalized_todos: None,
+                    normalized_todo_update: None,
+                    parent_tool_use_id: None,
+                    task_children: None,
+                    question_answer: None,
+                    awaiting_plan_approval: false,
+                    plan_approval_request_id: None,
+                },
+                session_id: Some("session-1".to_string()),
+            },
+        );
+
+        assert!(
+            new_turn_tool.is_some(),
+            "tool call for a new turn after a terminal error must append a transcript row"
+        );
+    }
+
+    #[test]
+    fn skips_agent_thought_after_terminal_turn_cancelled() {
+        let registry = TranscriptProjectionRegistry::new();
+        let mut guard = TerminalTurnGuard::default();
+        let _ = registry.apply_session_update_with_guard(
+            &mut guard,
+            8,
+            &SessionUpdate::TurnCancelled {
+                session_id: Some("session-1".to_string()),
+                turn_id: Some("turn-1".to_string()),
+            },
+        );
+
+        let late_thought = registry.apply_session_update_with_guard(
+            &mut guard,
+            9,
+            &SessionUpdate::AgentThoughtChunk {
+                chunk: ContentChunk {
+                    content: ContentBlock::Text {
+                        text: "still thinking".to_string(),
+                    },
+                    aggregation_hint: None,
+                },
+                part_id: Some("part-1".to_string()),
+                message_id: Some("assistant-1".to_string()),
+                session_id: Some("session-1".to_string()),
+            },
+        );
+        assert!(late_thought.is_none());
+    }
+
+    #[test]
+    fn skips_agent_message_chunk_after_terminal_turn_error() {
+        let registry = TranscriptProjectionRegistry::new();
+        let mut guard = TerminalTurnGuard::default();
+        let _ = registry.apply_session_update_with_guard(
+            &mut guard,
+            8,
+            &SessionUpdate::TurnError {
+                error: TurnErrorData::Structured(TurnErrorInfo {
+                    message: "boom".to_string(),
+                    kind: TurnErrorKind::Fatal,
+                    code: None,
+                    source: Some(TurnErrorSource::Unknown),
+                }),
+                session_id: Some("session-1".to_string()),
+                turn_id: Some("turn-1".to_string()),
+            },
+        );
+
+        let late_chunk = registry.apply_session_update_with_guard(
+            &mut guard,
+            9,
+            &SessionUpdate::AgentMessageChunk {
+                chunk: ContentChunk {
+                    content: ContentBlock::Text {
+                        text: "late assistant".to_string(),
+                    },
+                    aggregation_hint: None,
+                },
+                part_id: None,
+                message_id: Some("assistant-1".to_string()),
+                session_id: Some("session-1".to_string()),
+                produced_at_monotonic_ms: None,
+            },
+        );
+        assert!(late_chunk.is_none());
+    }
+
+    #[test]
+    fn skips_tool_call_update_after_terminal_turn_cancelled() {
+        let registry = TranscriptProjectionRegistry::new();
+        let mut guard = TerminalTurnGuard::default();
+        let _ = registry.apply_session_update_with_guard(
+            &mut guard,
+            8,
+            &SessionUpdate::TurnCancelled {
+                session_id: Some("session-1".to_string()),
+                turn_id: Some("turn-1".to_string()),
+            },
+        );
+
+        let late_update = registry.apply_session_update_with_guard(
+            &mut guard,
+            9,
+            &SessionUpdate::ToolCallUpdate {
+                update: crate::acp::session_update::ToolCallUpdateData {
+                    tool_call_id: "tool-1".to_string(),
+                    status: Some(ToolCallStatus::Completed),
+                    result: None,
+                    content: None,
+                    raw_output: None,
+                    title: None,
+                    locations: None,
+                    streaming_input_delta: None,
+                    normalized_todos: None,
+                    normalized_questions: None,
+                    streaming_arguments: None,
+                    streaming_plan: None,
+                    arguments: None,
+                    failure_reason: None,
+                },
+                session_id: Some("session-1".to_string()),
+            },
+        );
+        assert!(late_update.is_none());
     }
 }

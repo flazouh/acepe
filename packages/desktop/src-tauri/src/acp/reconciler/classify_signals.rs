@@ -4,7 +4,7 @@
 use crate::acp::parsers::argument_enrichment::{
     parse_parsed_cmd_move, parse_parsed_cmd_path, parse_parsed_cmd_query,
 };
-use crate::acp::reconciler::kind_payload::has_sql_query_argument;
+use super::kind_payload::has_sql_query_argument;
 use crate::acp::reconciler::{RawClassificationInput, SignalName};
 use crate::acp::session_update::{ToolArguments, ToolKind};
 

@@ -26,6 +26,7 @@ import {
 	buildAssistantMessageFromTranscriptEntry,
 	segmentText,
 } from "./transcript-text.js";
+import { buildUserRowSceneModel } from "../logic/user-row-scene-model.js";
 import { logUnresolvedToolDiagnostics } from "./unresolved-tool-diagnostics.js";
 
 export function interactionSceneEntryId(interactionId: string): string {
@@ -207,22 +208,32 @@ export function materializeTranscriptEntry(
 	isStreaming: boolean
 ): AgentPanelSceneEntryModel {
 	if (entry.role === "user") {
+		const userRow = buildUserRowSceneModel(entry);
 		return {
 			id: entry.entryId,
 			type: "user",
-			text: segmentText(entry),
+			text: userRow.text,
+			chunks: userRow.chunks.length > 0 ? userRow.chunks : undefined,
 			timestampMs: entry.timestampMs ?? undefined,
 		};
 	}
 
 	if (entry.role === "assistant") {
+		const markdown = assistantMarkdownText(entry);
+		const planningStartedAtMs =
+			isStreaming &&
+			graph.activity.kind === "awaiting_model" &&
+			markdown.trim() === ""
+				? (graph.activity.kindStartedAtMs ?? null)
+				: null;
 		return {
 			id: entry.entryId,
 			type: "assistant",
-			markdown: assistantMarkdownText(entry),
+			markdown,
 			message: buildAssistantMessageFromTranscriptEntry(entry),
 			isStreaming: isStreaming,
 			timestampMs: entry.timestampMs ?? undefined,
+			planningStartedAtMs,
 		};
 	}
 
@@ -236,14 +247,7 @@ export function materializeTranscriptEntry(
 		return materializeOperationEntry(operation, graph, index, new Set<string>(), entry.entryId);
 	}
 
-	return {
-		id: entry.entryId,
-		type: "tool_call",
-		kind: "other",
-		title: "Error",
-		status: "error",
-		resultText: truncateDisplayText(segmentText(entry), AGENT_PANEL_SCENE_TEXT_LIMITS.result),
-	};
+	throw new Error(`Unsupported transcript role: ${JSON.stringify(entry)}`);
 }
 
 export function questionInteractionToSceneEntry(

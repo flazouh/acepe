@@ -11,14 +11,16 @@
 		HeaderTitleCell,
 	} from "../panel-header/index.js";
 	import { ProjectLetterBadge } from "../project-letter-badge/index.js";
+	import { RichTokenText } from "../rich-token-text/index.js";
+	import * as Tooltip from "../tooltip/index.js";
+	import AgentCopyButton from "./agent-copy-button.svelte";
 	import {
 		getAgentPanelHeaderTitle,
 		getHeaderStatusIndicatorKind,
 		getVisibleHeaderActionButtons,
-		hasAgentPanelHeaderExpansion,
 		hasAgentPanelHeaderMetaChips,
 		isHeaderActionDisabled,
-		shouldShowAgentPanelHeaderExpansion,
+		shouldShowAgentPanelHeaderTitleTooltip,
 	} from "./agent-panel-header-state.js";
 	import type {
 		AgentPanelActionCallbacks,
@@ -30,6 +32,8 @@
 	interface Props {
 		sessionTitle?: string;
 		displayTitle?: string;
+		/** Token-preserved title for rich tooltip rendering. */
+		titleRichText?: string | null;
 		agentIconSrc?: string;
 		sessionStatus?: AgentSessionStatus;
 		isFullscreen?: boolean;
@@ -50,9 +54,9 @@
 		statusAction?: Snippet;
 		controls?: Snippet;
 		/**
-		 * Optional hover-expansion slot. When provided, it renders inside a panel that
-		 * animates open on hover/focus-within of the header. When absent, a default
-		 * expansion showing subtitle/agentLabel/branchLabel/badges is used if any are set.
+		 * Optional tooltip footer slot. When provided, it renders below the title inside
+		 * the bottom tooltip. When absent, a default footer showing
+		 * subtitle/agentLabel/branchLabel/badges is used if any are set.
 		 */
 		expansion?: Snippet;
 		subtitle?: string;
@@ -68,6 +72,7 @@
 	let {
 		sessionTitle,
 		displayTitle,
+		titleRichText = null,
 		agentIconSrc,
 		sessionStatus = "empty",
 		isFullscreen = false,
@@ -102,12 +107,8 @@
 	const hasMetaChips = $derived(
 		hasAgentPanelHeaderMetaChips({ subtitle, agentLabel, branchLabel, badges })
 	);
-	const hasExpansion = $derived(
-		hasAgentPanelHeaderExpansion({
-			pendingProjectSelection,
-			hasExpansionSlot: Boolean(expansion),
-			hasMetaChips,
-		})
+	const showTitleTooltip = $derived(
+		shouldShowAgentPanelHeaderTitleTooltip({ pendingProjectSelection })
 	);
 	const statusIndicatorKind = $derived(
 		getHeaderStatusIndicatorKind({
@@ -116,41 +117,14 @@
 			sessionStatus,
 		})
 	);
-	let titleHoverRef: HTMLDivElement | undefined = $state();
-	let expansionPanelRef: HTMLDivElement | undefined = $state();
-	let expansionActive = $state(false);
-	const showExpansion = $derived(
-		shouldShowAgentPanelHeaderExpansion({ hasExpansion, expansionActive })
-	);
 
 	function runAction(action: AgentPanelActionDescriptor): void {
 		const callback = actionCallbacks[action.id];
 		callback?.();
 	}
-
-	function containsExpansionTarget(target: EventTarget | null): boolean {
-		if (!(target instanceof Node)) {
-			return false;
-		}
-		return Boolean(titleHoverRef?.contains(target) || expansionPanelRef?.contains(target));
-	}
-
-	function openExpansion(): void {
-		if (!hasExpansion) {
-			return;
-		}
-		expansionActive = true;
-	}
-
-	function closeExpansion(event: MouseEvent | FocusEvent): void {
-		if (containsExpansionTarget(event.relatedTarget)) {
-			return;
-		}
-		expansionActive = false;
-	}
 </script>
 
-<div class="relative {className}">
+<div class={className}>
 	<EmbeddedPanelHeader
 		onHeaderClick={onScrollToTop}
 	>
@@ -194,15 +168,7 @@
 			{/if}
 			<HeaderTitleCell>
 				{#snippet children()}
-					<div
-						bind:this={titleHoverRef}
-						role="group"
-						class="flex items-center gap-1.5 min-w-0 flex-1"
-						onmouseenter={openExpansion}
-						onmouseleave={closeExpansion}
-						onfocusin={openExpansion}
-						onfocusout={closeExpansion}
-					>
+					<div class="flex items-center gap-1.5 min-w-0 flex-1">
 						{#if statusIndicatorKind === "custom" && statusIndicator}
 							{@render statusIndicator()}
 						{:else if statusIndicatorKind === "connecting"}
@@ -217,18 +183,72 @@
 						{:else if statusIndicatorKind === "error"}
 							<span class="h-2 w-2 rounded-full shrink-0 bg-destructive"></span>
 						{/if}
-						<span
-							class="agent-panel-header-title min-w-0 truncate text-[12px] font-medium text-foreground"
-							class:has-expansion={showExpansion}
-							title={resolvedTitle}
-						>
-							{resolvedTitle}
-						</span>
+						<div class="group/header-title flex min-w-0 flex-1 items-center gap-0.5">
+							{#if showTitleTooltip}
+								<Tooltip.Root>
+									<Tooltip.Trigger class="min-w-0 flex-1 truncate text-left">
+										{@render titleText()}
+									</Tooltip.Trigger>
+									<Tooltip.Content
+										side="bottom"
+										sideOffset={6}
+										class="max-w-sm px-2.5 py-2 text-xs"
+									>
+										{#if titleRichText}
+											<RichTokenText
+												text={titleRichText}
+												class="text-foreground font-medium"
+											/>
+										{:else}
+											<p class="m-0 font-medium text-foreground">{resolvedTitle}</p>
+										{/if}
+										{#if expansion}
+											<div class="mt-1.5">
+												{@render expansion()}
+											</div>
+										{:else if hasMetaChips}
+											<div class="mt-1.5 flex flex-wrap items-center gap-1">
+												{#if subtitle}
+													<span
+														class="rounded-full border border-border/50 bg-background/70 px-2 py-0.5 text-[10px] text-muted-foreground"
+														>{subtitle}</span
+													>
+												{/if}
+												{#if agentLabel}
+													<span
+														class="rounded-full border border-border/50 bg-background/70 px-2 py-0.5 text-[10px] text-muted-foreground"
+														>{agentLabel}</span
+													>
+												{/if}
+												{#if branchLabel}
+													<span
+														class="rounded-full border border-border/50 bg-background/70 px-2 py-0.5 text-[10px] text-muted-foreground"
+														>{branchLabel}</span
+													>
+												{/if}
+												{#each badges ?? [] as badge (badge.id)}
+													<span
+														class="rounded-full border border-border/50 bg-background/70 px-2 py-0.5 text-[10px] text-muted-foreground"
+													>
+														{badge.label}
+													</span>
+												{/each}
+											</div>
+										{/if}
+									</Tooltip.Content>
+								</Tooltip.Root>
+							{:else}
+								<div class="min-w-0 flex-1">
+									{@render titleText()}
+								</div>
+							{/if}
+							{@render titleCopyButton()}
+						</div>
 					</div>
 				{/snippet}
 			</HeaderTitleCell>
 
-			<HeaderActionCell withDivider={true} class="divide-x divide-border/50">
+			<HeaderActionCell withDivider={false}>
 				{#snippet children()}
 					{#if controls}
 						{@render controls()}
@@ -266,82 +286,26 @@
 			</HeaderActionCell>
 		{/if}
 	</EmbeddedPanelHeader>
-
-	{#if hasExpansion}
-		<div
-			bind:this={expansionPanelRef}
-			class="agent-panel-header-expansion absolute left-0 right-0 top-full z-20 border-b border-border/50 bg-card"
-			class:is-active={showExpansion}
-			role="region"
-			aria-label="Session context"
-			onmouseenter={openExpansion}
-			onmouseleave={closeExpansion}
-			onfocusin={openExpansion}
-			onfocusout={closeExpansion}
-		>
-			<div class="expansion-inner">
-				<div class="px-3 pt-1.5 pb-1">
-					<p
-							class="m-0 max-h-12 overflow-y-auto scrollbar-thin text-[12px] font-medium text-foreground"
-					>
-						{resolvedTitle}
-					</p>
-					{#if expansion}
-						<div class="mt-1">
-							{@render expansion()}
-						</div>
-					{:else if hasMetaChips}
-						<div class="mt-1 flex flex-wrap items-center gap-1">
-							{#if subtitle}
-								<span
-									class="rounded-full border border-border/50 bg-background/70 px-2 py-0.5 text-[10px] text-muted-foreground"
-									>{subtitle}</span
-								>
-							{/if}
-							{#if agentLabel}
-								<span
-									class="rounded-full border border-border/50 bg-background/70 px-2 py-0.5 text-[10px] text-muted-foreground"
-									>{agentLabel}</span
-								>
-							{/if}
-							{#if branchLabel}
-								<span
-									class="rounded-full border border-border/50 bg-background/70 px-2 py-0.5 text-[10px] text-muted-foreground"
-									>{branchLabel}</span
-								>
-							{/if}
-							{#each badges ?? [] as badge (badge.id)}
-								<span
-									class="rounded-full border border-border/50 bg-background/70 px-2 py-0.5 text-[10px] text-muted-foreground"
-								>
-									{badge.label}
-								</span>
-							{/each}
-						</div>
-					{/if}
-				</div>
-			</div>
-		</div>
-	{/if}
 </div>
 
-<style>
-	.agent-panel-header-title.has-expansion {
-		opacity: 0;
-	}
-	.agent-panel-header-expansion {
-		display: grid;
-		grid-template-rows: 0fr;
-		opacity: 0;
-		pointer-events: none;
-	}
-	.agent-panel-header-expansion > .expansion-inner {
-		overflow: hidden;
-		min-height: 0;
-	}
-	.agent-panel-header-expansion.is-active {
-		grid-template-rows: 1fr;
-		opacity: 1;
-		pointer-events: auto;
-	}
-</style>
+{#snippet titleText()}
+	<span
+		class="agent-panel-header-title block min-w-0 truncate text-[12px] font-medium text-foreground"
+	>
+		{resolvedTitle}
+	</span>
+{/snippet}
+
+{#snippet titleCopyButton()}
+	{#if resolvedTitle.trim().length > 0}
+		<div
+			class="shrink-0 opacity-0 transition-opacity duration-150 group-hover/header-title:opacity-100 group-focus-within/header-title:opacity-100"
+		>
+			<AgentCopyButton
+				text={resolvedTitle}
+				title="Copy title"
+				size="header"
+			/>
+		</div>
+	{/if}
+{/snippet}

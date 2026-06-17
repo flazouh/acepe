@@ -31,7 +31,7 @@ let {
 
 <div class="flex-1 min-h-0 overflow-y-auto px-2.5 py-2">
 	<div class="space-y-1.5">
-		<div class="flex items-center gap-2 rounded-md border border-border/40 bg-muted/15 px-2.5 py-2">
+		<div class="flex items-center gap-2 rounded-lg border border-border/40 bg-muted/15 px-2.5 py-2">
 			<GitBranch size={12} weight="bold" class="shrink-0 text-muted-foreground" />
 			<div class="min-w-0 flex-1">
 				<div class="flex items-center gap-1.5">
@@ -52,7 +52,7 @@ let {
 			</div>
 			<button
 				type="button"
-				class="inline-flex h-6 w-6 items-center justify-center rounded-sm text-muted-foreground transition-colors hover:bg-muted/50 hover:text-foreground"
+				class="inline-flex h-6 w-6 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted/50 hover:text-foreground"
 				title="Reveal in Finder"
 				onclick={() => onRevealPath(projectPath)}
 			>
@@ -93,7 +93,7 @@ let {
 		{/if}
 		{#if worktreeItems.length === 0}
 			<div
-				class="rounded-md border border-dashed border-border/50 px-2.5 py-3 text-center text-[11px] text-muted-foreground"
+				class="rounded-lg border border-dashed border-border/50 px-2.5 py-3 text-center text-[11px] text-muted-foreground"
 			>
 				No linked worktrees for this repository yet.
 			</div>
@@ -146,7 +146,7 @@ let {
 					{:else}
 						<button
 							type="button"
-							class="inline-flex h-6 w-6 items-center justify-center rounded-sm text-muted-foreground transition-colors hover:bg-muted/50 hover:text-foreground"
+							class="inline-flex h-6 w-6 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted/50 hover:text-foreground"
 							title="Reveal in Finder"
 							onclick={() => onRevealPath(item.worktree.directory)}
 						>
@@ -154,7 +154,7 @@ let {
 						</button>
 						<button
 							type="button"
-							class="inline-flex h-6 w-6 items-center justify-center rounded-sm text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
+							class="inline-flex h-6 w-6 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
 							title="Delete worktree"
 							onclick={() => onDeleteConfirmChange(item.worktree.directory)}
 						>

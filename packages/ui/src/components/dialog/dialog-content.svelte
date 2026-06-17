@@ -36,7 +36,7 @@ let {
 			"fixed start-[50%] top-[50%] z-[var(--overlay-z)]",
 			"grid w-full max-w-[calc(100%-2rem)] gap-0 p-3",
 			"translate-x-[-50%] translate-y-[-50%]",
-			"rounded-md border border-border/40 shadow-lg duration-200",
+			"rounded-xl border border-border/40 shadow-lg duration-200",
 			className
 		)}
 		{...restProps}

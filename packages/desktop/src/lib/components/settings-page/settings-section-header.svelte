@@ -4,17 +4,27 @@ import type { Snippet } from "svelte";
 interface Props {
 	title: string;
 	description?: string;
+	/** Subsection titles inside a page that already has a top-level header. */
+	variant?: "default" | "subsection";
 	actions?: Snippet;
 }
 
-let { title, description, actions }: Props = $props();
+let { title, description, variant = "default", actions }: Props = $props();
 </script>
 
-<div class="mb-5 flex items-start justify-between gap-4">
+<div
+	class={variant === "subsection"
+		? "mb-3 flex items-start justify-between gap-4"
+		: "mb-4 flex items-start justify-between gap-4"}
+>
 	<div class="min-w-0">
-		<h2 class="text-[13px] font-semibold text-foreground">
+		<h3
+			class={variant === "subsection"
+				? "text-[12px] font-semibold text-foreground"
+				: "text-[13px] font-semibold text-foreground"}
+		>
 			{title}
-		</h2>
+		</h3>
 		{#if description}
 			<p class="mt-0.5 text-[12px] text-muted-foreground">
 				{description}

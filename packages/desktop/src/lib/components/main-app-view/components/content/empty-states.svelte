@@ -629,54 +629,13 @@ function handleEmptyStateSessionCreated(sessionId: string) {
 						title={projectImportError.title}
 						summary={projectImportError.summary}
 						details={projectImportError.details}
-						referenceId={projectImportError.referenceId}
-						referenceSearchable={projectImportError.referenceSearchable}
 						onDismiss={() => {
 							projectImportError = null;
 						}}
-						onCopyReferenceId={copyProjectImportReferenceId}
 						issueActionLabel={projectImportIssueDraft
 							? resolveIssueActionLabel(projectImportIssueDraft)
 							: "Create issue"}
 						onIssueAction={projectImportIssueDraft ? handleProjectImportIssueAction : undefined}
-					/>
-				</div>
-			{/if}
-			{#if projectPath}
-				<div class="mb-2">
-					<PreSessionWorktreeCard
-						pendingWorktreeEnabled={effectiveWorktreePending}
-						alwaysEnabled={globalWorktreeDefault}
-						{projectPath}
-						onYes={() => {
-							const store = getWorktreeDefaultStore();
-							if (store.globalDefault) {
-								void store.set(false);
-							}
-							preparedWorktreeLaunch = null;
-							worktreePending = true;
-						}}
-						onNo={() => {
-							const store = getWorktreeDefaultStore();
-							if (store.globalDefault) {
-								void store.set(false);
-							}
-							preparedWorktreeLaunch = null;
-							worktreePending = false;
-						}}
-						onAlways={() => {
-							const store = getWorktreeDefaultStore();
-							const toggled = !store.globalDefault;
-							void store.set(toggled);
-							if (!toggled) {
-								preparedWorktreeLaunch = null;
-							}
-							worktreePending = toggled;
-						}}
-						onDismiss={() => {
-							preparedWorktreeLaunch = null;
-							worktreePending = false;
-						}}
 					/>
 				</div>
 			{/if}
@@ -709,7 +668,6 @@ function handleEmptyStateSessionCreated(sessionId: string) {
 						onAgentChange={handleAgentChange}
 					/>
 					{#if showProjectPicker}
-						<div class="h-full w-px bg-border/50"></div>
 						<ProjectSelector
 							selectedProject={effectiveProject}
 							recentProjects={projects}
@@ -721,6 +679,23 @@ function handleEmptyStateSessionCreated(sessionId: string) {
 			</AgentInput>
 			{#if projectPath}
 				<div class="mt-2 flex h-7 items-center">
+					<PreSessionWorktreeCard
+						variant="trigger"
+						menuSide="top"
+						pendingWorktreeEnabled={effectiveWorktreePending}
+						onYes={() => {
+							preparedWorktreeLaunch = null;
+							worktreePending = true;
+						}}
+						onNo={() => {
+							preparedWorktreeLaunch = null;
+							worktreePending = false;
+						}}
+						onDismiss={() => {
+							preparedWorktreeLaunch = null;
+							worktreePending = false;
+						}}
+					/>
 					<div class="ml-auto h-full min-w-0 w-fit max-w-[12rem]">
 						<BranchPicker
 							{projectPath}
@@ -743,12 +718,9 @@ function handleEmptyStateSessionCreated(sessionId: string) {
 						title={projectImportError.title}
 						summary={projectImportError.summary}
 						details={projectImportError.details}
-						referenceId={projectImportError.referenceId}
-						referenceSearchable={projectImportError.referenceSearchable}
 						onDismiss={() => {
 							projectImportError = null;
 						}}
-						onCopyReferenceId={copyProjectImportReferenceId}
 						issueActionLabel={projectImportIssueDraft
 							? resolveIssueActionLabel(projectImportIssueDraft)
 							: "Create issue"}
@@ -763,7 +735,7 @@ function handleEmptyStateSessionCreated(sessionId: string) {
 							{"Browse in Finder"}
 						</Button>
 					</div>
-					<div class="h-[min(21rem,42vh)] overflow-y-auto pr-1">
+					<div class="flex h-[min(21rem,42vh)] min-h-0 flex-col overflow-hidden pr-1">
 						<ProjectTable
 							projects={visibleDiscoveredProjects}
 							loading={discoveredProjectsLoading}

@@ -35,7 +35,7 @@
 {#if visible}
 	<div class="w-full">
 		{#if isExpanded}
-			<div class="rounded-t-lg bg-input/30 overflow-hidden border border-b-0 border-border">
+			<div class="overflow-hidden rounded-t-2xl border border-b-0 border-border bg-input/30">
 				<div class="max-h-[240px] overflow-y-auto px-3 py-2">
 					<pre class="font-mono text-[0.6875rem] leading-relaxed whitespace-pre-wrap break-words text-foreground/80">{detailsText}</pre>
 				</div>
@@ -52,7 +52,7 @@
 					toggleExpanded();
 				}
 			}}
-			class="w-full flex items-center justify-between px-3 py-1 rounded-lg bg-input/30 cursor-pointer {isExpanded
+			class="w-full flex cursor-pointer items-center justify-between rounded-2xl bg-input/30 px-3 py-1 {isExpanded
 				? 'rounded-t-none'
 				: ''}"
 			aria-expanded={isExpanded}

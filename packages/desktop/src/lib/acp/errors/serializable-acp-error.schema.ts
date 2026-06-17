@@ -1,4 +1,5 @@
 import { z } from "zod";
+import type { FailureReason } from "$lib/services/acp-types.js";
 
 /**
  * Zod schema for SerializableAcpError types that match the Rust SerializableAcpError enum.
@@ -75,6 +76,34 @@ const CreationFailureKindSchema = z.enum([
 	"creation_attempt_expired",
 ]);
 
+/**
+ * Mirrors the Rust `FailureReason` taxonomy (`acp-types.ts`). The
+ * `_failureReasonInSync` assertion below makes this a compile error if the
+ * canonical union and this enum ever drift, so a new reason can't slip past
+ * `bun run check`.
+ */
+const FailureReasonSchema = z.enum([
+	"deterministicRestoreFault",
+	"activationFailed",
+	"resumeFailed",
+	"sessionGoneUpstream",
+	"providerSessionMismatch",
+	"corruptedPersistedState",
+	"explicitErrorHandlingRequired",
+	"legacyIrrecoverable",
+]);
+
+// Compile-time bidirectional equality between the canonical `FailureReason`
+// union and the Zod enum above. Either side gaining a member the other lacks
+// collapses this type to `never` and fails the assignment.
+type FailureReasonsInSync = [z.infer<typeof FailureReasonSchema>] extends [FailureReason]
+	? [FailureReason] extends [z.infer<typeof FailureReasonSchema>]
+		? true
+		: never
+	: never;
+const _failureReasonInSync: FailureReasonsInSync = true;
+void _failureReasonInSync;
+
 const CreationFailedSchema = z.object({
 	type: z.literal("creation_failed"),
 	data: z.object({
@@ -83,7 +112,15 @@ const CreationFailedSchema = z.object({
 		sessionId: z.string().nullable(),
 		creationAttemptId: z.string().nullable(),
 		retryable: z.boolean(),
+		// Canonical classification shared with the resume path. Always emitted by
+		// current Rust, but optional+nullable to tolerate older payloads.
+		failureReason: FailureReasonSchema.nullish(),
 	}),
+});
+
+const AuthenticationRequiredSchema = z.object({
+	type: z.literal("authentication_required"),
+	data: z.object({ agent: z.string(), instructions: z.string() }),
 });
 
 const ProviderHistoryFailureKindSchema = z.enum([
@@ -128,6 +165,7 @@ export const SerializableAcpErrorSchema = z.discriminatedUnion("type", [
 	TimeoutSchema,
 	InvalidStateSchema,
 	CreationFailedSchema,
+	AuthenticationRequiredSchema,
 	ProviderHistoryFailedSchema,
 	ViewportSessionNotAttachedSchema,
 ]);

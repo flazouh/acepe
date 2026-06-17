@@ -2,65 +2,41 @@ use crate::acp::client_session::SessionModes;
 use crate::acp::lifecycle::SessionSupervisor;
 use crate::acp::lifecycle::{FailureReason, LifecycleCheckpoint, LifecycleState};
 use crate::acp::projections::{ProjectionRegistry, SessionSnapshot};
-use crate::acp::session_state_engine::frontier::{
-    decide_frontier_transition, SessionFrontierDecision,
+use crate::acp::session_state_engine::anchor_ledger::AnchorLedger;
+use crate::acp::session_state_engine::buffer_emission_tracker::BufferEmissionTracker;
+use crate::acp::session_state_engine::viewport_ledger::ViewportLedger;
+use crate::acp::session_state_engine::envelope_router::{
+    interaction_id_for_patch, route_live_session_state_envelope,
+    should_emit_connection_complete, tool_call_id_for_operation_patch, BuildPlan,
+    EnvelopeBuilderKind,
 };
+use crate::acp::session_state_engine::frontier::SessionFrontierDecision;
 use crate::acp::session_state_engine::graph::select_active_streaming_tail;
-use crate::acp::session_state_engine::protocol::{
-    AssistantTextDeltaPayload, ViewportBufferDelta, ViewportBufferDiagnostic, ViewportBufferPush,
-};
+use crate::acp::session_state_engine::protocol::{AssistantTextDeltaPayload, ViewportBufferDelta};
 use crate::acp::session_state_engine::selectors::{
     select_session_graph_activity, SessionGraphCapabilities, SessionGraphLifecycle,
 };
+use crate::acp::session_state_engine::live_envelope_builder::{
+    build_assistant_text_delta_from_components, build_live_session_state_capabilities_envelope,
+    build_live_session_state_delta_envelope, build_live_session_state_lifecycle_envelope,
+    build_live_session_state_plan_envelope, build_live_session_state_telemetry_envelope,
+};
 use crate::acp::session_state_engine::{
-    build_delta_envelope, session_state_envelope_byte_budget_status, CapabilityPreviewState,
-    DeltaEnvelopeParts, DeltaSessionProjectionFields, SessionGraphRevision, SessionStateEnvelope,
-    SessionStatePayload,
+    build_delta_envelope, session_state_envelope_byte_budget_status, turn_terminal_change_fields,
+    CapabilityPreviewState, DeltaEnvelopeParts, DeltaSessionProjectionFields, SessionGraphRevision,
+    SessionStateEnvelope, SessionStateField, SessionStatePayload,
 };
 use crate::acp::session_update::{sanitize_config_options_for_canonical, SessionUpdate};
 use crate::acp::transcript_projection::{
     TranscriptDelta, TranscriptDeltaOperation, TranscriptEntry, TranscriptEntryRole,
     TranscriptProjectionRegistry, TranscriptSegment, TranscriptSnapshot,
 };
-use crate::acp::transcript_viewport::{
-    project_transcript_viewport_rows, HeightConfirmationOutcome, LayoutIndex, ScrollIntent,
-    TranscriptViewport, TranscriptViewportRow, ViewportBufferSlice, ViewportMode,
-    DEFAULT_BUFFER_OVERSCAN_ROWS,
-};
+use crate::acp::transcript_viewport::{ScrollIntent, ViewportBufferSlice, ViewportMode};
 use crate::acp::types::CanonicalAgentId;
 use crate::db::repository::SessionMetadataRepository;
 use sea_orm::DbConn;
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
-use std::sync::{Arc, Mutex};
-use std::time::Instant;
-
-/// Viewport height used ONLY to bootstrap a brand-new `TranscriptViewport` when
-/// the caller has not supplied a measured height (the streaming buffer producer
-/// passes `None` to preserve canonical stored height). Once any command resizes
-/// the viewport with a real measured height, that value persists and is never
-/// overwritten by a streaming tick — this is the B3 fix that stops the producer
-/// from clobbering the real height (which churned `viewport_revision` and
-/// oscillated the buffer window indices into a spurious delta/push storm).
-const BOOTSTRAP_VIEWPORT_HEIGHT_PX: u32 = 720;
-
-#[derive(Debug)]
-struct SessionAnchor {
-    started_at: Instant,
-}
-
-impl SessionAnchor {
-    fn new() -> Self {
-        Self {
-            started_at: Instant::now(),
-        }
-    }
-
-    fn elapsed_ms(&self) -> u64 {
-        let elapsed = self.started_at.elapsed();
-        u64::try_from(elapsed.as_millis()).unwrap_or(u64::MAX)
-    }
-}
+use std::sync::Arc;
 
 #[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
 pub struct SessionGraphRuntimeSnapshot {
@@ -79,32 +55,12 @@ impl Default for SessionGraphRuntimeSnapshot {
     }
 }
 
-/// What the producer last pushed/sent for a session's transcript buffer. The
-/// next emission diffs against this to decide push vs delta vs skip, and to
-/// assign a contiguous per-session `emission_seq`.
-///
-/// `emission_seq` is the SOLE apply-ordering authority on the consumer, because
-/// `viewport_revision` does not advance on streaming row appends and therefore
-/// cannot sequence the two independent delivery channels (command `invoke()`
-/// replies and the live event stream).
-#[derive(Debug, Clone)]
-struct BufferEmissionRecord {
-    start_index: usize,
-    row_ids: Vec<String>,
-    row_versions: Vec<String>,
-    viewport_revision: i64,
-    emission_seq: u64,
-}
-
 #[derive(Debug, Clone)]
 pub struct SessionGraphRuntimeRegistry {
     supervisor: Arc<SessionSupervisor>,
-    session_anchors: Arc<Mutex<HashMap<String, Arc<SessionAnchor>>>>,
-    transcript_viewports: Arc<Mutex<HashMap<String, TranscriptViewport>>>,
-    // LOCK ORDER: buffer_emissions -> transcript_viewports. Never acquire
-    // transcript_viewports first and then buffer_emissions, or the buffer
-    // emission method below will deadlock.
-    buffer_emissions: Arc<Mutex<HashMap<String, BufferEmissionRecord>>>,
+    anchors: AnchorLedger,
+    viewports: ViewportLedger,
+    emissions: BufferEmissionTracker,
 }
 
 /// Why the builder could not materialize a visible transcript window for a command.
@@ -131,17 +87,11 @@ pub struct TranscriptViewportHeightConfirmation {
     pub viewport_offset_px: Option<u64>,
 }
 
-#[derive(Clone, Copy)]
-pub struct LiveSessionStateEnvelopeRequest<'a> {
-    pub db: &'a DbConn,
-    pub session_id: &'a str,
-    pub update: &'a SessionUpdate,
-    pub previous_revision: SessionGraphRevision,
-    pub revision: SessionGraphRevision,
-    pub projection_registry: &'a ProjectionRegistry,
-    pub transcript_projection_registry: &'a TranscriptProjectionRegistry,
-    pub transcript_delta: Option<&'a TranscriptDelta>,
-}
+pub use crate::acp::session_state_engine::envelope_router::LiveSessionStateEnvelopeRequest;
+pub use crate::acp::session_state_engine::viewport_buffer_producer::{
+    buffer_delta_is_identity_consistent, classify_buffer_transition, compute_buffer_delta,
+    BufferEmission,
+};
 
 impl SessionGraphRuntimeRegistry {
     #[must_use]
@@ -151,29 +101,19 @@ impl SessionGraphRuntimeRegistry {
 
     #[must_use]
     pub fn with_supervisor(supervisor: Arc<SessionSupervisor>) -> Self {
+        let viewports = ViewportLedger::new();
         Self {
             supervisor,
-            session_anchors: Arc::new(Mutex::new(HashMap::new())),
-            transcript_viewports: Arc::new(Mutex::new(HashMap::new())),
-            buffer_emissions: Arc::new(Mutex::new(HashMap::new())),
+            anchors: AnchorLedger::new(),
+            emissions: BufferEmissionTracker::new(viewports.clone()),
+            viewports,
         }
     }
 
     /// Returns ms elapsed since the session anchor (created on first call).
     /// Monotonic per session under a single registry instance.
     pub fn record_chunk_timestamp(&self, session_id: &str) -> u64 {
-        self.anchor_for(session_id).elapsed_ms()
-    }
-
-    fn anchor_for(&self, session_id: &str) -> Arc<SessionAnchor> {
-        let mut guard = self
-            .session_anchors
-            .lock()
-            .expect("session_anchors mutex poisoned");
-        guard
-            .entry(session_id.to_string())
-            .or_insert_with(|| Arc::new(SessionAnchor::new()))
-            .clone()
+        self.anchors.record_chunk_timestamp(session_id)
     }
 
     #[must_use]
@@ -212,10 +152,8 @@ impl SessionGraphRuntimeRegistry {
 
     pub fn remove_session(&self, session_id: &str) {
         self.supervisor.remove_session(session_id);
-        self.transcript_viewports
-            .lock()
-            .expect("transcript_viewports mutex poisoned")
-            .remove(session_id);
+        self.anchors.remove_session(session_id);
+        self.viewports.remove_session(session_id);
     }
 
     pub fn restore_session_checkpoint(&self, session_id: String, checkpoint: LifecycleCheckpoint) {
@@ -328,157 +266,42 @@ impl SessionGraphRuntimeRegistry {
         &self,
         request: LiveSessionStateEnvelopeRequest<'_>,
     ) -> Option<SessionStateEnvelope> {
-        if should_emit_connection_complete(request.update) {
-            return Some(build_live_session_state_capabilities_envelope(
-                request.session_id,
-                self.snapshot_for_session(request.session_id).capabilities,
-                request.revision,
-                None,
-                CapabilityPreviewState::Canonical,
-            ));
-        }
+        let plan = route_live_session_state_envelope(&request)?;
+        self.dispatch_live_envelope_plan(&request, &plan).await
+    }
 
-        if should_emit_session_state_capabilities(request.update) {
-            return Some(build_live_session_state_capabilities_envelope(
-                request.session_id,
-                self.snapshot_for_session(request.session_id).capabilities,
-                request.revision,
-                None,
-                CapabilityPreviewState::Canonical,
-            ));
-        }
-
-        if should_emit_turn_state_delta(request.update) {
-            return self.build_turn_state_delta_envelope(&request).await;
-        }
-
-        if should_emit_session_state_lifecycle(request.update) {
-            return Some(build_live_session_state_lifecycle_envelope(
-                request.session_id,
-                self.snapshot_for_session(request.session_id).lifecycle,
-                request.revision,
-            ));
-        }
-
-        if let Some(interaction_id) = interaction_id_for_patch(request.update) {
-            return self
-                .build_interaction_delta_envelope(&request, interaction_id)
-                .await;
-        }
-
-        if should_emit_session_state_snapshot(request.update) {
-            return self
-                .build_snapshot_envelope(
-                    request.db,
+    async fn dispatch_live_envelope_plan(
+        &self,
+        request: &LiveSessionStateEnvelopeRequest<'_>,
+        plan: &BuildPlan,
+    ) -> Option<SessionStateEnvelope> {
+        match plan.builder {
+            EnvelopeBuilderKind::ConnectionCompleteCapabilities
+            | EnvelopeBuilderKind::SessionStateCapabilities => Some(
+                build_live_session_state_capabilities_envelope(
                     request.session_id,
+                    self.snapshot_for_session(request.session_id).capabilities,
                     request.revision,
-                    request.projection_registry,
-                    request.transcript_projection_registry,
-                )
-                .await;
-        }
-
-        if let SessionUpdate::UsageTelemetryUpdate { data } = request.update {
-            return Some(build_live_session_state_telemetry_envelope(
-                &data.session_id,
-                data.clone(),
-                request.revision,
-            ));
-        }
-
-        if let SessionUpdate::Plan { plan, .. } = request.update {
-            return Some(build_live_session_state_plan_envelope(
-                request.session_id,
-                plan.clone(),
-                request.revision,
-            ));
-        }
-
-        if let Some(tool_call_id) = tool_call_id_for_operation_patch(request.update) {
-            let transcript_operations = request
-                .transcript_delta
-                .map(|delta| delta.operations.clone())
-                .unwrap_or_default();
-            let is_transcript_bearing = !transcript_operations.is_empty();
-            let current_frontier =
-                current_frontier_from_previous_revision(request.previous_revision);
-
-            return match decide_frontier_transition(
-                current_frontier,
-                request.revision,
-                0,
-                is_transcript_bearing,
-            ) {
-                SessionFrontierDecision::RequireSnapshot { .. } => {
-                    self.build_snapshot_envelope(
-                        request.db,
-                        request.session_id,
-                        request.revision,
-                        request.projection_registry,
-                        request.transcript_projection_registry,
-                    )
+                    None,
+                    CapabilityPreviewState::Canonical,
+                ),
+            ),
+            EnvelopeBuilderKind::TurnStateDelta => {
+                self.build_turn_state_delta_envelope(request, plan).await
+            }
+            EnvelopeBuilderKind::SessionStateLifecycle => Some(
+                build_live_session_state_lifecycle_envelope(
+                    request.session_id,
+                    self.snapshot_for_session(request.session_id).lifecycle,
+                    request.revision,
+                ),
+            ),
+            EnvelopeBuilderKind::InteractionDelta => {
+                let interaction_id = interaction_id_for_patch(request.update)?;
+                self.build_interaction_delta_envelope(request, interaction_id, plan)
                     .await
-                }
-                SessionFrontierDecision::AcceptDelta {
-                    from_revision,
-                    to_revision,
-                } => {
-                    let Some(operation) = request
-                        .projection_registry
-                        .operation_for_tool_call(request.session_id, tool_call_id)
-                    else {
-                        return self
-                            .build_snapshot_envelope(
-                                request.db,
-                                request.session_id,
-                                request.revision,
-                                request.projection_registry,
-                                request.transcript_projection_registry,
-                            )
-                            .await;
-                    };
-                    let projection = self.delta_projection_for_session(
-                        request.session_id,
-                        request.projection_registry,
-                        request.transcript_projection_registry,
-                    );
-                    let mut changed_fields = vec![
-                        "operations".to_string(),
-                        "activity".to_string(),
-                        "turnState".to_string(),
-                        "activeTurnFailure".to_string(),
-                        "lastTerminalTurnId".to_string(),
-                        "activeStreamingTail".to_string(),
-                    ];
-                    if is_transcript_bearing {
-                        changed_fields.push("transcriptSnapshot".to_string());
-                    }
-                    let envelope = build_delta_envelope(DeltaEnvelopeParts {
-                        session_id: request.session_id,
-                        from_revision,
-                        to_revision,
-                        projection,
-                        transcript_operations,
-                        operation_patches: vec![operation],
-                        interaction_patches: Vec::new(),
-                        changed_fields,
-                    });
-                    self.delta_or_snapshot_repair(&request, envelope).await
-                }
-            };
-        }
-
-        let delta = request.transcript_delta?;
-        let is_transcript_bearing = !delta.operations.is_empty();
-        let current_frontier = current_frontier_from_previous_revision(request.previous_revision);
-
-        match decide_frontier_transition(
-            current_frontier,
-            request.revision,
-            0,
-            is_transcript_bearing,
-        ) {
-            SessionFrontierDecision::RequireSnapshot { .. } => {
+            }
+            EnvelopeBuilderKind::Snapshot => {
                 self.build_snapshot_envelope(
                     request.db,
                     request.session_id,
@@ -488,23 +311,33 @@ impl SessionGraphRuntimeRegistry {
                 )
                 .await
             }
-            SessionFrontierDecision::AcceptDelta {
-                from_revision,
-                to_revision,
-            } if is_transcript_bearing => {
-                let envelope = build_live_session_state_delta_envelope(
-                    delta,
-                    from_revision,
-                    to_revision,
-                    self.delta_projection_for_session(
-                        request.session_id,
-                        request.projection_registry,
-                        request.transcript_projection_registry,
-                    ),
-                );
-                self.delta_or_snapshot_repair(&request, envelope).await
+            EnvelopeBuilderKind::UsageTelemetry => {
+                let SessionUpdate::UsageTelemetryUpdate { data } = request.update else {
+                    return None;
+                };
+                Some(build_live_session_state_telemetry_envelope(
+                    &data.session_id,
+                    data.clone(),
+                    request.revision,
+                ))
             }
-            SessionFrontierDecision::AcceptDelta { .. } => None,
+            EnvelopeBuilderKind::Plan => {
+                let SessionUpdate::Plan { plan: plan_data, .. } = request.update else {
+                    return None;
+                };
+                Some(build_live_session_state_plan_envelope(
+                    request.session_id,
+                    plan_data.clone(),
+                    request.revision,
+                ))
+            }
+            EnvelopeBuilderKind::ToolCallOperationPatch => {
+                self.build_tool_call_operation_patch_envelope(request, plan)
+                    .await
+            }
+            EnvelopeBuilderKind::TranscriptDelta => {
+                self.build_transcript_delta_envelope(request, plan).await
+            }
         }
     }
 
@@ -582,20 +415,19 @@ impl SessionGraphRuntimeRegistry {
     async fn build_turn_state_delta_envelope(
         &self,
         request: &LiveSessionStateEnvelopeRequest<'_>,
+        plan: &BuildPlan,
     ) -> Option<SessionStateEnvelope> {
         let transcript_operations = request
             .transcript_delta
             .map(|delta| delta.operations.clone())
             .unwrap_or_default();
-        let is_transcript_bearing = !transcript_operations.is_empty();
-        let current_frontier = current_frontier_from_previous_revision(request.previous_revision);
+        let is_transcript_bearing = plan.is_transcript_bearing;
+        let frontier = plan
+            .frontier_transition
+            .clone()
+            .expect("turn-state route always carries frontier plan");
 
-        match decide_frontier_transition(
-            current_frontier,
-            request.revision,
-            0,
-            is_transcript_bearing,
-        ) {
+        match frontier {
             SessionFrontierDecision::RequireSnapshot { .. } => {
                 self.build_snapshot_envelope(
                     request.db,
@@ -610,15 +442,9 @@ impl SessionGraphRuntimeRegistry {
                 from_revision,
                 to_revision,
             } => {
-                let mut changed_fields = vec![
-                    "activity".to_string(),
-                    "turnState".to_string(),
-                    "activeTurnFailure".to_string(),
-                    "lastTerminalTurnId".to_string(),
-                    "activeStreamingTail".to_string(),
-                ];
+                let mut changed_fields = turn_terminal_change_fields();
                 if is_transcript_bearing {
-                    changed_fields.push("transcriptSnapshot".to_string());
+                    changed_fields.push(SessionStateField::TranscriptSnapshot);
                 }
                 let operation_patches = operation_patches_for_terminal_update(
                     request.session_id,
@@ -626,7 +452,7 @@ impl SessionGraphRuntimeRegistry {
                     request.projection_registry,
                 );
                 if !operation_patches.is_empty() {
-                    changed_fields.push("operations".to_string());
+                    changed_fields.push(SessionStateField::Operations);
                 }
 
                 let envelope = build_delta_envelope(DeltaEnvelopeParts {
@@ -652,10 +478,14 @@ impl SessionGraphRuntimeRegistry {
         &self,
         request: &LiveSessionStateEnvelopeRequest<'_>,
         interaction_id: &str,
+        plan: &BuildPlan,
     ) -> Option<SessionStateEnvelope> {
-        let current_frontier = current_frontier_from_previous_revision(request.previous_revision);
+        let frontier = plan
+            .frontier_transition
+            .clone()
+            .expect("interaction route always carries frontier plan");
 
-        match decide_frontier_transition(current_frontier, request.revision, 0, false) {
+        match frontier {
             SessionFrontierDecision::RequireSnapshot { .. } => {
                 self.build_snapshot_envelope(
                     request.db,
@@ -688,16 +518,10 @@ impl SessionGraphRuntimeRegistry {
                     .and_then(|operation_id| request.projection_registry.operation(operation_id))
                     .into_iter()
                     .collect::<Vec<_>>();
-                let mut changed_fields = vec![
-                    "interactions".to_string(),
-                    "activity".to_string(),
-                    "turnState".to_string(),
-                    "activeTurnFailure".to_string(),
-                    "lastTerminalTurnId".to_string(),
-                    "activeStreamingTail".to_string(),
-                ];
+                let mut changed_fields = turn_terminal_change_fields();
+                changed_fields.insert(0, SessionStateField::Interactions);
                 if !operation_patches.is_empty() {
-                    changed_fields.push("operations".to_string());
+                    changed_fields.push(SessionStateField::Operations);
                 }
 
                 let envelope = build_delta_envelope(DeltaEnvelopeParts {
@@ -716,6 +540,119 @@ impl SessionGraphRuntimeRegistry {
                 });
                 self.delta_or_snapshot_repair(request, envelope).await
             }
+        }
+    }
+
+    async fn build_tool_call_operation_patch_envelope(
+        &self,
+        request: &LiveSessionStateEnvelopeRequest<'_>,
+        plan: &BuildPlan,
+    ) -> Option<SessionStateEnvelope> {
+        let tool_call_id = tool_call_id_for_operation_patch(request.update)?;
+        let transcript_operations = request
+            .transcript_delta
+            .map(|delta| delta.operations.clone())
+            .unwrap_or_default();
+        let is_transcript_bearing = plan.is_transcript_bearing;
+        let frontier = plan
+            .frontier_transition
+            .clone()
+            .expect("tool-call route always carries frontier plan");
+
+        match frontier {
+            SessionFrontierDecision::RequireSnapshot { .. } => {
+                self.build_snapshot_envelope(
+                    request.db,
+                    request.session_id,
+                    request.revision,
+                    request.projection_registry,
+                    request.transcript_projection_registry,
+                )
+                .await
+            }
+            SessionFrontierDecision::AcceptDelta {
+                from_revision,
+                to_revision,
+            } => {
+                let Some(operation) = request
+                    .projection_registry
+                    .operation_for_tool_call(request.session_id, tool_call_id)
+                else {
+                    return self
+                        .build_snapshot_envelope(
+                            request.db,
+                            request.session_id,
+                            request.revision,
+                            request.projection_registry,
+                            request.transcript_projection_registry,
+                        )
+                        .await;
+                };
+                let projection = self.delta_projection_for_session(
+                    request.session_id,
+                    request.projection_registry,
+                    request.transcript_projection_registry,
+                );
+                let mut changed_fields = turn_terminal_change_fields();
+                changed_fields.insert(0, SessionStateField::Operations);
+                if is_transcript_bearing {
+                    changed_fields.push(SessionStateField::TranscriptSnapshot);
+                }
+                let envelope = build_delta_envelope(DeltaEnvelopeParts {
+                    session_id: request.session_id,
+                    from_revision,
+                    to_revision,
+                    projection,
+                    transcript_operations,
+                    operation_patches: vec![operation],
+                    interaction_patches: Vec::new(),
+                    changed_fields,
+                });
+                self.delta_or_snapshot_repair(request, envelope).await
+            }
+        }
+    }
+
+    async fn build_transcript_delta_envelope(
+        &self,
+        request: &LiveSessionStateEnvelopeRequest<'_>,
+        plan: &BuildPlan,
+    ) -> Option<SessionStateEnvelope> {
+        let delta = request.transcript_delta?;
+        let is_transcript_bearing = plan.is_transcript_bearing;
+        let frontier = plan
+            .frontier_transition
+            .clone()
+            .expect("transcript route always carries frontier plan");
+
+        match frontier {
+            SessionFrontierDecision::RequireSnapshot { .. } => {
+                self.build_snapshot_envelope(
+                    request.db,
+                    request.session_id,
+                    request.revision,
+                    request.projection_registry,
+                    request.transcript_projection_registry,
+                )
+                .await
+            }
+            SessionFrontierDecision::AcceptDelta {
+                from_revision,
+                to_revision,
+            } if is_transcript_bearing => {
+                let envelope = build_live_session_state_delta_envelope(
+                    delta,
+                    from_revision,
+                    to_revision,
+                    self.delta_projection_for_session(
+                        request.session_id,
+                        request.projection_registry,
+                        request.transcript_projection_registry,
+                    ),
+                );
+                self.delta_or_snapshot_repair(request, envelope).await
+            }
+            SessionFrontierDecision::AcceptDelta { .. } => None,
         }
     }
 
@@ -905,228 +842,6 @@ impl SessionGraphRuntimeRegistry {
         }
     }
 
-    /// Shared prologue + viewport mutation for every read-shaped viewport
-    /// command. Reads the current canonical snapshots, resyncs the effective
-    /// revision (never rejects on a stale claimed revision — see retry-storm
-    /// note below), projects rows, then locks the viewport, applies scroll /
-    /// height-confirmation, and hands a read-only view to `materialize` which
-    /// produces the wire payload. The byte budget is enforced uniformly.
-    ///
-    /// Read-shaped viewport commands (resize, scroll, reveal, confirm-height)
-    /// race the canonical revision: during streaming the transcript/graph
-    /// revision bumps on every event, so any command the UI sends is already
-    /// behind by the time it reaches the backend. Rejecting on a revision lag
-    /// produced a retry storm — the UI re-issued the same stale revision, the
-    /// layout never settled to canonical heights, and per-row observers kept
-    /// re-measuring forever, pegging the main thread. Instead we resync: build
-    /// against the CURRENT canonical snapshots and echo the current canonical
-    /// revision so the UI adopts it and converges. Canonical order and identity
-    /// always come from the current transcript snapshot, never from the
-    /// command's claimed revision, and height confirmations stay version-guarded
-    /// inside the viewport, so resync cannot corrupt state.
-    /// Run the shared viewport prologue under the `transcript_viewports` lock
-    /// (rebuild layout from canonical rows, conditionally resize, apply scroll
-    /// intent + height confirmation) and hand a read-only context to
-    /// `materialize`, which may return any `T`. Returns `T` alongside the
-    /// computed `effective_revision` for envelope finalization.
-    ///
-    /// Unlike a payload-shaped closure this lets the buffer producer pull a
-    /// `ViewportBufferSlice` (plus the canonical rows) back out of the locked
-    /// region so it can classify push/delta/no-op ABOVE the closure — the
-    /// no-op "emit nothing" outcome cannot be expressed by returning a payload.
-    fn with_materialized_viewport<T, F>(
-        &self,
-        session_id: &str,
-        revision: SessionGraphRevision,
-        projection_registry: &ProjectionRegistry,
-        transcript_projection_registry: &TranscriptProjectionRegistry,
-        viewport_height_px: Option<u32>,
-        scroll_intent: Option<ScrollIntent>,
-        height_confirmation: Option<TranscriptViewportHeightConfirmation>,
-        materialize: F,
-    ) -> Result<(T, SessionGraphRevision), VisibleTranscriptWindowMiss>
-    where
-        F: FnOnce(ViewportMaterializeCtx<'_>) -> T,
-    {
-        let transcript_snapshot = transcript_projection_registry
-            .snapshot_for_session(session_id)
-            .ok_or(VisibleTranscriptWindowMiss::SessionNotAttached)?;
-        let projection_snapshot = projection_registry.session_projection(session_id);
-        let session_snapshot = projection_snapshot
-            .session
-            .ok_or(VisibleTranscriptWindowMiss::SessionNotAttached)?;
-        let runtime_snapshot = self.snapshot_for_session(session_id);
-        let effective_revision = SessionGraphRevision {
-            graph_revision: if runtime_snapshot.graph_revision != 0 {
-                runtime_snapshot.graph_revision
-            } else {
-                revision.graph_revision
-            },
-            transcript_revision: transcript_snapshot.revision,
-            last_event_seq: revision.last_event_seq.max(transcript_snapshot.revision),
-        };
-        let operations = projection_snapshot.operations.clone();
-        let interactions = projection_snapshot.interactions.clone();
-        let activity = select_session_graph_activity(
-            &runtime_snapshot.lifecycle,
-            &session_snapshot.turn_state,
-            &operations,
-            &interactions,
-            session_snapshot.active_turn_failure.as_ref(),
-        );
-        let active_streaming_tail = select_active_streaming_tail(
-            &session_snapshot.turn_state,
-            &activity,
-            &transcript_snapshot,
-        );
-        let rows = project_transcript_viewport_rows(
-            &transcript_snapshot,
-            &operations,
-            &interactions,
-            active_streaming_tail.as_ref(),
-        );
-        let materialized = {
-            let mut viewports = self
-                .transcript_viewports
-                .lock()
-                .expect("transcript_viewports mutex poisoned");
-            if let Some(viewport) = viewports.get_mut(session_id) {
-                let layout =
-                    LayoutIndex::from_viewport_rows_preserving(rows.as_slice(), viewport.layout());
-                viewport.replace_layout_preserving_viewport(layout);
-                // `None` preserves the canonical stored height (streaming
-                // producer); only a real command-measured height resizes.
-                if let Some(height) = viewport_height_px {
-                    viewport.resize(height);
-                }
-            } else {
-                viewports.insert(
-                    session_id.to_string(),
-                    TranscriptViewport::new(
-                        LayoutIndex::from_viewport_rows(rows.as_slice()),
-                        viewport_height_px.unwrap_or(BOOTSTRAP_VIEWPORT_HEIGHT_PX),
-                    )
-                    .with_viewport_revision(effective_revision.transcript_revision),
-                );
-            }
-
-            let viewport = viewports
-                .get_mut(session_id)
-                .expect("viewport inserted before materialization");
-            if let Some(intent) = scroll_intent {
-                viewport.apply_scroll_intent(intent);
-            }
-            let mut anchor_correction_px: i64 = 0;
-            let mut height_confirmation_outcome: Option<HeightConfirmationOutcome> = None;
-            let height_diagnostic = height_confirmation.and_then(|confirmation| {
-                let live_offset_authoritative = confirmation.viewport_offset_px.is_some();
-                let can_confirm_height = viewport
-                    .layout()
-                    .row(&confirmation.row_id)
-                    .is_some_and(|row| row.version == confirmation.row_version);
-                if let (true, Some(viewport_offset_px)) =
-                    (can_confirm_height, confirmation.viewport_offset_px)
-                {
-                    viewport.apply_scroll_intent(ScrollIntent::DetachAtOffset {
-                        offset_px: viewport_offset_px,
-                    });
-                }
-                let transition = viewport.confirm_height(
-                    &confirmation.row_id,
-                    &confirmation.row_version,
-                    confirmation.height_px,
-                );
-                anchor_correction_px = if live_offset_authoritative {
-                    0
-                } else {
-                    transition.anchor_correction_px
-                };
-                transition.height_confirmation.and_then(|outcome| {
-                    height_confirmation_outcome = Some(outcome);
-                    matches!(
-                        outcome,
-                        HeightConfirmationOutcome::StaleVersion
-                            | HeightConfirmationOutcome::MissingRow
-                    )
-                    .then(|| ViewportHeightDiagnostic {
-                        code: height_confirmation_diagnostic_code(outcome).to_string(),
-                        row_id: Some(confirmation.row_id),
-                    })
-                })
-            });
-
-            materialize(ViewportMaterializeCtx {
-                session_id,
-                effective_revision,
-                rows: rows.as_slice(),
-                viewport,
-                height_confirmation_outcome,
-                height_diagnostic,
-                anchor_correction_px,
-            })
-        };
-        Ok((materialized, effective_revision))
-    }
-
-    /// Wrap a materialized payload in a `SessionStateEnvelope` and enforce the
-    /// per-payload byte budget. Shared by every viewport producer.
-    fn finalize_viewport_envelope(
-        &self,
-        session_id: &str,
-        effective_revision: SessionGraphRevision,
-        payload: SessionStatePayload,
-        budget_label: &str,
-    ) -> Result<SessionStateEnvelope, VisibleTranscriptWindowMiss> {
-        let envelope = SessionStateEnvelope {
-            session_id: session_id.to_string(),
-            graph_revision: effective_revision.graph_revision,
-            last_event_seq: effective_revision.last_event_seq,
-            payload,
-        };
-
-        match session_state_envelope_byte_budget_status(&envelope) {
-            Ok(_) => Ok(envelope),
-            Err(status) => {
-                tracing::warn!(
-                    session_id,
-                    kind = budget_label,
-                    byte_len = status.byte_len,
-                    max_bytes = status.max_bytes,
-                    "viewport envelope exceeded byte budget; skipping"
-                );
-                Err(VisibleTranscriptWindowMiss::BudgetExceeded)
-            }
-        }
-    }
-
-    fn build_session_viewport_envelope_with<F>(
-        &self,
-        session_id: &str,
-        revision: SessionGraphRevision,
-        projection_registry: &ProjectionRegistry,
-        transcript_projection_registry: &TranscriptProjectionRegistry,
-        viewport_height_px: Option<u32>,
-        scroll_intent: Option<ScrollIntent>,
-        height_confirmation: Option<TranscriptViewportHeightConfirmation>,
-        budget_label: &str,
-        materialize: F,
-    ) -> Result<SessionStateEnvelope, VisibleTranscriptWindowMiss>
-    where
-        F: FnOnce(ViewportMaterializeCtx<'_>) -> SessionStatePayload,
-    {
-        let (payload, effective_revision) = self.with_materialized_viewport(
-            session_id,
-            revision,
-            projection_registry,
-            transcript_projection_registry,
-            viewport_height_px,
-            scroll_intent,
-            height_confirmation,
-            materialize,
-        )?;
-        self.finalize_viewport_envelope(session_id, effective_revision, payload, budget_label)
-    }
-
     /// Build a `ViewportBufferPush`: a large buffered slice the WebView resolves
     /// scroll offsets against locally, refilling only when nearing its bounds.
     /// `request_generation` echoes the UI's request id so late responses can be
@@ -1144,7 +859,9 @@ impl SessionGraphRuntimeRegistry {
         request_generation: Option<u64>,
         emission_seq: u64,
     ) -> Result<SessionStateEnvelope, VisibleTranscriptWindowMiss> {
-        self.build_session_viewport_envelope_with(
+        let runtime_snapshot = self.snapshot_for_session(session_id);
+        self.emissions.build_viewport_buffer_push_envelope_for_session(
+            runtime_snapshot,
             session_id,
             revision,
             projection_registry,
@@ -1152,40 +869,8 @@ impl SessionGraphRuntimeRegistry {
             viewport_height_px,
             scroll_intent,
             height_confirmation,
-            "Viewport buffer push",
-            |ctx| {
-                let slice = ctx.viewport.buffer_window(DEFAULT_BUFFER_OVERSCAN_ROWS);
-                let rows = ctx.rows[slice.buffer_start_index..slice.buffer_end_index].to_vec();
-                let diagnostics = ctx
-                    .height_diagnostic
-                    .map(|diagnostic| {
-                        vec![ViewportBufferDiagnostic {
-                            code: diagnostic.code,
-                            row_id: diagnostic.row_id,
-                        }]
-                    })
-                    .unwrap_or_default();
-                SessionStatePayload::ViewportBufferPush {
-                    push: ViewportBufferPush {
-                        session_id: ctx.session_id.to_string(),
-                        graph_revision: ctx.effective_revision,
-                        viewport_revision: slice.viewport_revision,
-                        emission_seq,
-                        buffer_start_index: slice.buffer_start_index,
-                        buffer_end_index: slice.buffer_end_index,
-                        layout_row_count: slice.layout_row_count,
-                        total_height_px: slice.total_height_px,
-                        buffer_end_offset_px: slice.buffer_end_offset_px,
-                        rows,
-                        offsets_px: slice.offsets_px,
-                        mode: slice.mode,
-                        request_generation,
-                        scroll_top_target: Some(slice.viewport_offset_px),
-                        scroll_anchor_correction_px: None,
-                        diagnostics,
-                    },
-                }
-            },
+            request_generation,
+            emission_seq,
         )
     }
 
@@ -1207,9 +892,6 @@ impl SessionGraphRuntimeRegistry {
     /// force a `FreshPush` (re-send all offsets) whenever a height confirmation
     /// was accepted. A rejected confirmation (`height_diag.is_some()`) changed
     /// nothing and falls through to normal classification.
-    ///
-    /// LOCK ORDER: acquires `buffer_emissions` then (inside the prologue)
-    /// `transcript_viewports`. Never invert.
     pub fn build_or_advance_viewport_buffer_envelope(
         &self,
         session_id: &str,
@@ -1222,25 +904,9 @@ impl SessionGraphRuntimeRegistry {
         request_generation: Option<u64>,
         force_fresh: bool,
     ) -> Result<Option<SessionStateEnvelope>, VisibleTranscriptWindowMiss> {
-        // Captured before `scroll_intent` is moved into the materialize call.
-        // Per the scroll-authority decision contract, a `RevealRow` is an
-        // intentional reposition (absolute target), distinct from a user-driven
-        // `DetachAtOffset` refill (relative correction). `slice.mode` alone
-        // cannot distinguish them (both yield `Detached`).
-        let is_reveal_intent = matches!(scroll_intent, Some(ScrollIntent::RevealRow { .. }));
-
-        let mut emissions = self
-            .buffer_emissions
-            .lock()
-            .expect("buffer_emissions mutex poisoned");
-        let prev = emissions.get(session_id).cloned();
-
-        // Pull the slice + canonical rows + rejected-confirmation diagnostic out
-        // of the locked prologue so we can classify above the closure.
-        let (
-            (slice, full_rows, height_outcome, height_diag, anchor_correction_px),
-            effective_revision,
-        ) = self.with_materialized_viewport(
+        let runtime_snapshot = self.snapshot_for_session(session_id);
+        self.emissions.build_or_advance_viewport_buffer_envelope(
+            runtime_snapshot,
             session_id,
             revision,
             projection_registry,
@@ -1248,421 +914,9 @@ impl SessionGraphRuntimeRegistry {
             viewport_height_px,
             scroll_intent,
             height_confirmation,
-            |ctx| {
-                let slice = ctx.viewport.buffer_window(DEFAULT_BUFFER_OVERSCAN_ROWS);
-                (
-                    slice,
-                    ctx.rows.to_vec(),
-                    ctx.height_confirmation_outcome,
-                    ctx.height_diagnostic,
-                    ctx.anchor_correction_px,
-                )
-            },
-        )?;
-
-        let prev_window = prev.as_ref().map(|r| (r.start_index, r.row_ids.len()));
-        let mut emission = classify_buffer_transition(prev_window, &slice);
-        // Defensive correctness guard: if the buffer indices are identical but
-        // the canonical viewport_revision advanced (e.g. an in-buffer layout /
-        // total-height change that did not add or remove rows), a NoOp would
-        // silently drop the update. Re-send the full slice so offsets and
-        // total_height_px stay canonical.
-        if matches!(emission, BufferEmission::NoOp)
-            && prev
-                .as_ref()
-                .is_some_and(|r| r.viewport_revision != slice.viewport_revision)
-        {
-            emission = BufferEmission::FreshPush;
-        }
-        // B4: an accepted height confirmation must re-send all offsets.
-        let height_accepted = matches!(height_outcome, Some(HeightConfirmationOutcome::Accepted));
-        if height_accepted && prev.is_some() {
-            emission = BufferEmission::FreshPush;
-        }
-        // Gap recovery / bootstrap: a forced request always re-sends the full
-        // buffer (taking the next emission_seq) so the consumer can re-baseline
-        // after a delta gap or a missed open push.
-        if force_fresh {
-            emission = BufferEmission::FreshPush;
-        }
-        // Identity guard: an index-window delta is only sound when the surviving
-        // rows keep their row_ids. Mid-buffer layout mutation during streaming
-        // (operations resolving, duplicate-id ordinals shifting) breaks that, so
-        // fall back to a full push (always correct, overscan-bounded) rather than
-        // emit a delta that would duplicate a row_id in the consumer's buffer.
-        if matches!(emission, BufferEmission::Delta) {
-            if let Some(record) = prev.as_ref() {
-                if !buffer_delta_is_identity_consistent(
-                    record.start_index,
-                    &record.row_ids,
-                    &record.row_versions,
-                    &full_rows,
-                    &slice,
-                ) {
-                    emission = BufferEmission::FreshPush;
-                }
-            }
-        }
-
-        let next_seq = prev.as_ref().map_or(0, |r| r.emission_seq + 1);
-
-        // Scroll-authority decision contract: choose at most ONE of an absolute
-        // target or a relative correction, driven by the emission cause. This
-        // replaces the previous unconditional absolute target that yanked the
-        // viewport during user-driven refills (the scroll "storm").
-        let (scroll_top_target, scroll_anchor_correction_px) = decide_scroll_authority(
-            &slice.mode,
-            slice.viewport_offset_px,
-            prev.is_none(),
-            is_reveal_intent,
-            anchor_correction_px,
-        );
-
-        // Scalars/ids captured before any move out of `slice`.
-        let buffer_start_index = slice.buffer_start_index;
-        let buffer_end_index = slice.buffer_end_index;
-        let slice_viewport_revision = slice.viewport_revision;
-        let buffered_row_ids: Vec<String> = full_rows[buffer_start_index..buffer_end_index]
-            .iter()
-            .map(|row| row.row_id.clone())
-            .collect();
-        let buffered_row_versions: Vec<String> = full_rows[buffer_start_index..buffer_end_index]
-            .iter()
-            .map(|row| row.version.clone())
-            .collect();
-
-        let payload = match emission {
-            BufferEmission::NoOp => return Ok(None),
-            BufferEmission::FreshPush => {
-                let rows = full_rows[buffer_start_index..buffer_end_index].to_vec();
-                let diagnostics = height_diag
-                    .map(|diagnostic| {
-                        vec![ViewportBufferDiagnostic {
-                            code: diagnostic.code,
-                            row_id: diagnostic.row_id,
-                        }]
-                    })
-                    .unwrap_or_default();
-                SessionStatePayload::ViewportBufferPush {
-                    push: ViewportBufferPush {
-                        session_id: session_id.to_string(),
-                        graph_revision: effective_revision,
-                        viewport_revision: slice.viewport_revision,
-                        emission_seq: next_seq,
-                        buffer_start_index: slice.buffer_start_index,
-                        buffer_end_index: slice.buffer_end_index,
-                        layout_row_count: slice.layout_row_count,
-                        total_height_px: slice.total_height_px,
-                        buffer_end_offset_px: slice.buffer_end_offset_px,
-                        rows,
-                        offsets_px: slice.offsets_px,
-                        mode: slice.mode,
-                        request_generation,
-                        scroll_top_target,
-                        scroll_anchor_correction_px,
-                        diagnostics,
-                    },
-                }
-            }
-            BufferEmission::Delta => {
-                let p = prev
-                    .as_ref()
-                    .expect("classify_buffer_transition returns Delta only when prev exists");
-                let delta = compute_buffer_delta(
-                    session_id,
-                    effective_revision,
-                    next_seq,
-                    p.viewport_revision,
-                    p.start_index,
-                    &p.row_ids,
-                    &full_rows,
-                    &slice,
-                    scroll_anchor_correction_px,
-                    scroll_top_target,
-                );
-                SessionStatePayload::ViewportBufferDelta { delta }
-            }
-        };
-
-        emissions.insert(
-            session_id.to_string(),
-            BufferEmissionRecord {
-                start_index: buffer_start_index,
-                row_ids: buffered_row_ids,
-                row_versions: buffered_row_versions,
-                viewport_revision: slice_viewport_revision,
-                emission_seq: next_seq,
-            },
-        );
-
-        let envelope = self.finalize_viewport_envelope(
-            session_id,
-            effective_revision,
-            payload,
-            "Viewport buffer",
-        )?;
-        Ok(Some(envelope))
-    }
-}
-
-/// Scroll-authority decision contract for a buffer emission. Returns
-/// `(scroll_top_target, scroll_anchor_correction_px)` with **at most one** field
-/// `Some` — never both — so the consumer never double-applies a scroll
-/// correction.
-///
-/// Classified on `mode` FIRST, then intent/cause:
-/// - `FollowingTail` mode → absolute tail target (`Some(viewport_offset_px)`),
-///   no correction. Wins over the relative-correction branch even when a B4
-///   height confirmation triggered this emission, because the absolute tail
-///   target already incorporates the post-confirmation `total_height_px`. (A
-///   streaming confirmation arrives with `scroll_intent = None` while
-///   `mode == FollowingTail`; a relative correction here would race the
-///   frontend tail-pin.)
-/// - `Detached` mode, intentional reposition (`is_bootstrap` first push, or
-///   `is_reveal` RevealRow) → absolute target, no correction.
-/// - `Detached` mode, user-driven refill / accepted-confirmation re-push →
-///   `None` absolute target (the user's live scrollTop is authoritative) plus a
-///   relative `Some(Δ_above)` correction when geometry above the viewport
-///   shifted (`anchor_correction_px != 0`), else both `None`.
-#[must_use]
-fn decide_scroll_authority(
-    mode: &ViewportMode,
-    viewport_offset_px: u64,
-    is_bootstrap: bool,
-    is_reveal: bool,
-    anchor_correction_px: i64,
-) -> (Option<u64>, Option<i64>) {
-    if matches!(mode, ViewportMode::FollowingTail) || is_bootstrap || is_reveal {
-        return (Some(viewport_offset_px), None);
-    }
-    let correction = (anchor_correction_px != 0).then_some(anchor_correction_px);
-    (None, correction)
-}
-
-/// incremental mutation from a previously-pushed buffer window to the current
-/// `slice` over the full canonical `current_rows`.
-///
-/// `prev_start_index` / `prev_row_ids` describe the previous buffer (its first
-/// absolute row index and its ordered row ids). Surviving rows keep their
-/// absolute offsets, so prepended/appended offsets are read straight from
-/// `slice.offsets_px`. In a normal slide exactly one of (prepend +
-/// removed-from-bottom) [scroll up] or (append + removed-from-top) [scroll
-/// down] is non-empty.
-///
-/// PRECONDITION: the index ranges must overlap (a contiguous slide). A
-/// non-contiguous jump (`slice.buffer_start_index >= prev_end` or
-/// `slice.buffer_end_index <= prev_start_index`) cannot be bridged by a delta;
-/// the caller must emit a fresh `ViewportBufferPush` instead.
-#[must_use]
-pub fn compute_buffer_delta(
-    session_id: &str,
-    graph_revision: SessionGraphRevision,
-    emission_seq: u64,
-    from_viewport_revision: i64,
-    prev_start_index: usize,
-    prev_row_ids: &[String],
-    current_rows: &[TranscriptViewportRow],
-    slice: &ViewportBufferSlice,
-    scroll_anchor_correction_px: Option<i64>,
-    scroll_top_target: Option<u64>,
-) -> ViewportBufferDelta {
-    let c_start = slice.buffer_start_index;
-    let c_end = slice.buffer_end_index;
-    let p_start = prev_start_index;
-    let p_end = prev_start_index + prev_row_ids.len();
-    let buffer_len = c_end.saturating_sub(c_start);
-
-    // Rows newly above the previous buffer top (scroll up). Mutually exclusive
-    // with `removed_from_top`, since `c_start` cannot be both below and above
-    // `p_start`.
-    let prepend_count = p_start.saturating_sub(c_start).min(buffer_len);
-    // Rows newly below the previous buffer bottom (scroll down / streaming
-    // tail). Mutually exclusive with `removed_from_bottom`.
-    let append_count = c_end.saturating_sub(p_end).min(buffer_len);
-
-    let prepended_rows = current_rows[c_start..c_start + prepend_count].to_vec();
-    let prepended_offsets_px = slice.offsets_px[0..prepend_count].to_vec();
-
-    let append_local_start = buffer_len - append_count;
-    let appended_rows = current_rows[c_end - append_count..c_end].to_vec();
-    let appended_offsets_px = slice.offsets_px[append_local_start..buffer_len].to_vec();
-
-    // Previous rows that fell off the top / bottom of the buffer.
-    let removed_from_top = c_start.saturating_sub(p_start).min(prev_row_ids.len());
-    let removed_from_bottom = p_end
-        .saturating_sub(c_end)
-        .min(prev_row_ids.len() - removed_from_top);
-    let mut removed_row_ids = Vec::with_capacity(removed_from_top + removed_from_bottom);
-    removed_row_ids.extend_from_slice(&prev_row_ids[0..removed_from_top]);
-    removed_row_ids.extend_from_slice(&prev_row_ids[prev_row_ids.len() - removed_from_bottom..]);
-
-    ViewportBufferDelta {
-        session_id: session_id.to_string(),
-        graph_revision,
-        emission_seq,
-        from_viewport_revision,
-        to_viewport_revision: slice.viewport_revision,
-        prepended_rows,
-        prepended_offsets_px,
-        appended_rows,
-        appended_offsets_px,
-        removed_row_ids,
-        layout_row_count: slice.layout_row_count,
-        total_height_px: slice.total_height_px,
-        buffer_end_offset_px: slice.buffer_end_offset_px,
-        scroll_anchor_correction_px,
-        scroll_top_target,
-        diagnostics: Vec::new(),
-    }
-}
-
-/// Verifies that an index-window [`ViewportBufferDelta`] would be sound for this
-/// transition: the rows that survive (by absolute index) must carry the SAME
-/// `row_id`s in the previously-pushed buffer and in the current canonical
-/// layout.
-///
-/// [`compute_buffer_delta`] and [`classify_buffer_transition`] reason purely
-/// about absolute index windows, which assumes the canonical layout only
-/// mutates at its edges (history prepended at the top, streaming tail appended
-/// at the bottom). During streaming the layout also mutates *mid-buffer* —
-/// operations resolve, interactions attach, and duplicate-id ordinals shift —
-/// so the same absolute index can map to a different row across emissions. An
-/// index-window diff cannot represent a mid-list insert/remove: it emits a
-/// delta whose appended/prepended ids still collide with surviving ids, which
-/// duplicates a `row_id` in the consumer's spliced buffer (a fatal
-/// `each_key_duplicate`). When this returns `false` the caller MUST emit a
-/// fresh [`crate::acp::session_state_engine::protocol::ViewportBufferPush`]
-/// instead (always correct, overscan-bounded).
-#[must_use]
-fn buffer_delta_is_identity_consistent(
-    prev_start_index: usize,
-    prev_row_ids: &[String],
-    prev_row_versions: &[String],
-    current_rows: &[TranscriptViewportRow],
-    slice: &ViewportBufferSlice,
-) -> bool {
-    let c_start = slice.buffer_start_index;
-    let c_end = slice.buffer_end_index;
-    let p_start = prev_start_index;
-    let p_end = prev_start_index + prev_row_ids.len();
-    let buffer_len = c_end.saturating_sub(c_start);
-
-    // Index ranges accessed by `compute_buffer_delta` must be in bounds.
-    if c_end > current_rows.len() {
-        return false;
-    }
-
-    let prepend_count = p_start.saturating_sub(c_start).min(buffer_len);
-    let append_count = c_end.saturating_sub(p_end).min(buffer_len);
-    let removed_from_top = c_start.saturating_sub(p_start).min(prev_row_ids.len());
-
-    let curr_surv_start = c_start + prepend_count;
-    let curr_surv_end = c_end.saturating_sub(append_count);
-    let survivor_len = curr_surv_end.saturating_sub(curr_surv_start);
-
-    if removed_from_top + survivor_len > prev_row_ids.len() {
-        return false;
-    }
-
-    for k in 0..survivor_len {
-        let current = &current_rows[curr_surv_start + k];
-        // Identity: a mismatched id means the layout mutated mid-buffer and an
-        // index delta would duplicate a row_id (crash).
-        if current.row_id != prev_row_ids[removed_from_top + k] {
-            return false;
-        }
-        // Freshness: the consumer keeps its OWN prior survivor objects across a
-        // delta. If a survivor's version changed (content/links/tail), the
-        // delta would leave the consumer rendering stale state. Re-send the
-        // whole buffer so the survivor's new content lands.
-        if current.version != prev_row_versions[removed_from_top + k] {
-            return false;
-        }
-    }
-    true
-}
-
-/// The three mutually-exclusive outcomes of a scroll/refill intent, classified
-/// purely from the new buffer slice's index window relative to the previously
-/// pushed buffer. This is the producer-side "three outcomes" decision from the
-/// push-a-working-set design: it decides what the WebView gets, never what it
-/// renders.
-///
-/// Scope: this classifies the *scroll/refill* path only. Height-confirmation of
-/// an off-buffer row keeps an identical index window yet still requires a delta
-/// (to carry `scroll_anchor_correction_px`); that path emits `Delta`
-/// unconditionally and does not consult this classifier.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum BufferEmission {
-    /// No prior buffer, or the new window is disjoint from the prior one (a
-    /// non-contiguous jump such as jump-to-top or a far `revealRow`). A delta
-    /// cannot bridge a non-contiguous jump, so emit a fresh `ViewportBufferPush`.
-    FreshPush,
-    /// The new window overlaps but is shifted from the prior one (a contiguous
-    /// slide, or a streaming tail-append). Emit a `ViewportBufferDelta`.
-    Delta,
-    /// The new window is identical to the prior one — the scroll landed entirely
-    /// inside the already-materialized buffer. Emit nothing (zero layout bytes).
-    NoOp,
-}
-
-/// Classify a scroll/refill transition from the previously-pushed buffer window
-/// `[prev_start_index, prev_start_index + prev_len)` to the freshly-computed
-/// `slice`. See [`BufferEmission`] for the outcome semantics.
-#[must_use]
-pub fn classify_buffer_transition(
-    prev: Option<(usize, usize)>,
-    slice: &ViewportBufferSlice,
-) -> BufferEmission {
-    let Some((prev_start_index, prev_len)) = prev else {
-        return BufferEmission::FreshPush;
-    };
-    let p_start = prev_start_index;
-    let p_end = prev_start_index + prev_len;
-    let c_start = slice.buffer_start_index;
-    let c_end = slice.buffer_end_index;
-
-    // Disjoint windows cannot be bridged by a delta.
-    let overlaps = c_start < p_end && p_start < c_end;
-    if !overlaps {
-        return BufferEmission::FreshPush;
-    }
-
-    if c_start == p_start && c_end == p_end {
-        return BufferEmission::NoOp;
-    }
-
-    BufferEmission::Delta
-}
-
-/// Neutral height-confirmation diagnostic produced by the shared viewport
-/// prologue, mapped by each materializer into its payload-specific diagnostic.
-struct ViewportHeightDiagnostic {
-    code: String,
-    row_id: Option<String>,
-}
-
-/// Read-only view handed to a viewport payload materializer after the shared
-/// prologue has mutated the viewport under lock.
-struct ViewportMaterializeCtx<'a> {
-    session_id: &'a str,
-    effective_revision: SessionGraphRevision,
-    rows: &'a [TranscriptViewportRow],
-    viewport: &'a TranscriptViewport,
-    height_confirmation_outcome: Option<HeightConfirmationOutcome>,
-    height_diagnostic: Option<ViewportHeightDiagnostic>,
-    /// Signed canonical scroll-anchor correction from the height confirmation
-    /// applied in this materialization (`0` when none / rejected). See
-    /// `ViewportTransition::anchor_correction_px`.
-    anchor_correction_px: i64,
-}
-
-fn height_confirmation_diagnostic_code(outcome: HeightConfirmationOutcome) -> &'static str {
-    match outcome {
-        HeightConfirmationOutcome::Accepted => "height_accepted",
-        HeightConfirmationOutcome::Unchanged => "height_unchanged",
-        HeightConfirmationOutcome::StaleVersion => "stale_height_confirmation",
-        HeightConfirmationOutcome::MissingRow => "missing_height_confirmation_row",
+            request_generation,
+            force_fresh,
+        )
     }
 }
 
@@ -1708,6 +962,11 @@ impl SessionGraphRuntimeSnapshot {
             } => {
                 self.lifecycle = SessionGraphLifecycle::from_lifecycle_state(
                     LifecycleState::failed(*failure_reason, Some(error.clone())),
+                );
+            }
+            SessionUpdate::SessionDetached { detached_reason, .. } => {
+                self.lifecycle = SessionGraphLifecycle::from_lifecycle_state(
+                    LifecycleState::detached(*detached_reason),
                 );
             }
             SessionUpdate::TurnError { error, .. } => {
@@ -1774,384 +1033,6 @@ impl Default for SessionGraphRuntimeRegistry {
     }
 }
 
-fn build_live_session_state_delta_envelope(
-    delta: &TranscriptDelta,
-    from_revision: SessionGraphRevision,
-    to_revision: SessionGraphRevision,
-    projection: DeltaSessionProjectionFields,
-) -> SessionStateEnvelope {
-    build_delta_envelope(DeltaEnvelopeParts {
-        session_id: &delta.session_id,
-        from_revision,
-        to_revision,
-        projection,
-        transcript_operations: delta.operations.clone(),
-        operation_patches: Vec::new(),
-        interaction_patches: Vec::new(),
-        changed_fields: vec![
-            "transcriptSnapshot".to_string(),
-            "activity".to_string(),
-            "turnState".to_string(),
-            "activeTurnFailure".to_string(),
-            "lastTerminalTurnId".to_string(),
-            "activeStreamingTail".to_string(),
-        ],
-    })
-}
-
-fn build_assistant_text_delta_from_components(
-    session_id: &str,
-    update: &SessionUpdate,
-    transcript_delta: &TranscriptDelta,
-    snapshot: &TranscriptSnapshot,
-    revision: SessionGraphRevision,
-) -> Vec<SessionStateEnvelope> {
-    let SessionUpdate::AgentMessageChunk {
-        chunk,
-        produced_at_monotonic_ms: Some(produced_at_monotonic_ms),
-        ..
-    } = update
-    else {
-        return Vec::new();
-    };
-    let Some(delta_text) = assistant_text_from_update_chunk(chunk) else {
-        return Vec::new();
-    };
-    let Some(row_entry_id) = assistant_row_entry_id(transcript_delta) else {
-        return Vec::new();
-    };
-    let Some((row_index, row_entry)) = snapshot.entries.iter().enumerate().find(|(_, entry)| {
-        entry.role == TranscriptEntryRole::Assistant && entry.entry_id == row_entry_id
-    }) else {
-        return Vec::new();
-    };
-    let total_chars = transcript_entry_text_char_count(row_entry);
-    let delta_chars = delta_text.chars().count();
-    let char_offset_chars = total_chars.saturating_sub(delta_chars);
-    let start_char_offset = match u32::try_from(char_offset_chars) {
-        Ok(value) => value,
-        Err(_) => {
-            tracing::error!(
-                session_id,
-                row_entry_id,
-                char_offset_chars,
-                "Assistant text delta char offset exceeded u32::MAX; skipping envelope"
-            );
-            return Vec::new();
-        }
-    };
-    let row_id = sanitize_row_id(row_entry_id);
-    let turn_id = assistant_turn_id_from_snapshot(snapshot, row_index, &row_id);
-    build_budgeted_assistant_text_delta_state_envelopes(
-        session_id,
-        revision,
-        turn_id,
-        row_id,
-        start_char_offset,
-        delta_text,
-        *produced_at_monotonic_ms,
-    )
-}
-
-fn build_budgeted_assistant_text_delta_state_envelopes(
-    session_id: &str,
-    revision: SessionGraphRevision,
-    turn_id: String,
-    row_id: String,
-    start_char_offset: u32,
-    delta_text: &str,
-    produced_at_monotonic_ms: u64,
-) -> Vec<SessionStateEnvelope> {
-    if delta_text.is_empty() {
-        return vec![build_assistant_text_delta_state_envelope(
-            session_id,
-            revision,
-            AssistantTextDeltaPayload {
-                turn_id,
-                row_id,
-                char_offset: start_char_offset,
-                delta_text: String::new(),
-                produced_at_monotonic_ms,
-                revision: revision.transcript_revision,
-            },
-        )];
-    }
-
-    const INITIAL_CHUNK_BYTES: usize = 6_000;
-    let mut envelopes = Vec::new();
-    let mut offset = 0;
-    let mut char_offset = start_char_offset;
-
-    while offset < delta_text.len() {
-        let mut chunk_end = next_char_boundary(delta_text, offset, INITIAL_CHUNK_BYTES);
-        let mut accepted = None;
-
-        while chunk_end > offset {
-            let chunk = &delta_text[offset..chunk_end];
-            let envelope = build_assistant_text_delta_state_envelope(
-                session_id,
-                revision,
-                AssistantTextDeltaPayload {
-                    turn_id: turn_id.clone(),
-                    row_id: row_id.clone(),
-                    char_offset,
-                    delta_text: chunk.to_string(),
-                    produced_at_monotonic_ms,
-                    revision: revision.transcript_revision,
-                },
-            );
-
-            match session_state_envelope_byte_budget_status(&envelope) {
-                Ok(_) => {
-                    accepted = Some((envelope, chunk.chars().count()));
-                    break;
-                }
-                Err(status) => {
-                    if chunk.chars().count() <= 1 {
-                        tracing::warn!(
-                            session_id,
-                            byte_len = status.byte_len,
-                            max_bytes = status.max_bytes,
-                            "Skipping assistant text delta chunk that cannot fit byte budget"
-                        );
-                        return envelopes;
-                    }
-                    chunk_end = previous_midpoint_char_boundary(delta_text, offset, chunk_end);
-                }
-            }
-        }
-
-        let Some((envelope, chunk_chars)) = accepted else {
-            break;
-        };
-        envelopes.push(envelope);
-        offset = chunk_end;
-        char_offset = char_offset.saturating_add(chunk_chars as u32);
-    }
-
-    envelopes
-}
-
-fn next_char_boundary(value: &str, start: usize, max_bytes: usize) -> usize {
-    let mut end = value.len().min(start.saturating_add(max_bytes));
-    while end > start && !value.is_char_boundary(end) {
-        end -= 1;
-    }
-    if end == start {
-        value[start..]
-            .char_indices()
-            .nth(1)
-            .map(|(index, _)| start + index)
-            .unwrap_or(value.len())
-    } else {
-        end
-    }
-}
-
-fn previous_midpoint_char_boundary(value: &str, start: usize, end: usize) -> usize {
-    let mut midpoint = start + (end - start) / 2;
-    while midpoint > start && !value.is_char_boundary(midpoint) {
-        midpoint -= 1;
-    }
-    midpoint
-}
-
-fn build_assistant_text_delta_state_envelope(
-    session_id: &str,
-    revision: SessionGraphRevision,
-    delta: AssistantTextDeltaPayload,
-) -> SessionStateEnvelope {
-    SessionStateEnvelope {
-        session_id: session_id.to_string(),
-        graph_revision: revision.graph_revision,
-        last_event_seq: revision.last_event_seq,
-        payload: SessionStatePayload::AssistantTextDelta { delta },
-    }
-}
-
-fn assistant_text_from_update_chunk(
-    chunk: &crate::acp::session_update::ContentChunk,
-) -> Option<&str> {
-    match &chunk.content {
-        crate::acp::types::ContentBlock::Text { text } => Some(text.as_str()),
-        _ => None,
-    }
-}
-
-fn assistant_row_entry_id(delta: &TranscriptDelta) -> Option<&str> {
-    delta
-        .operations
-        .iter()
-        .find_map(|operation| match operation {
-            TranscriptDeltaOperation::AppendEntry { entry }
-                if entry.role == TranscriptEntryRole::Assistant =>
-            {
-                Some(entry.entry_id.as_str())
-            }
-            TranscriptDeltaOperation::AppendSegment { entry_id, role, .. }
-                if role == &TranscriptEntryRole::Assistant =>
-            {
-                Some(entry_id.as_str())
-            }
-            _ => None,
-        })
-}
-
-fn transcript_entry_text_char_count(entry: &TranscriptEntry) -> usize {
-    entry
-        .segments
-        .iter()
-        .map(|segment| match segment {
-            TranscriptSegment::Text { text, .. } => text.chars().count(),
-            TranscriptSegment::Thought { text, .. } => text.chars().count(),
-        })
-        .sum()
-}
-
-fn assistant_turn_id_from_snapshot(
-    snapshot: &TranscriptSnapshot,
-    row_index: usize,
-    sanitized_row_id: &str,
-) -> String {
-    snapshot
-        .entries
-        .iter()
-        .take(row_index)
-        .rev()
-        .find(|entry| entry.role == TranscriptEntryRole::User)
-        .map(|entry| entry.entry_id.clone())
-        .unwrap_or_else(|| sanitized_row_id.to_string())
-}
-
-fn sanitize_row_id(row_id: &str) -> String {
-    row_id
-        .chars()
-        .map(|ch| {
-            if ch.is_ascii_alphanumeric() || ch == '-' || ch == '_' {
-                ch
-            } else {
-                '-'
-            }
-        })
-        .collect()
-}
-
-fn current_frontier_from_previous_revision(
-    previous_revision: SessionGraphRevision,
-) -> Option<SessionGraphRevision> {
-    if previous_revision.graph_revision == 0
-        && previous_revision.transcript_revision == 0
-        && previous_revision.last_event_seq == 0
-    {
-        None
-    } else {
-        Some(previous_revision)
-    }
-}
-
-fn tool_call_id_for_operation_patch(update: &SessionUpdate) -> Option<&str> {
-    match update {
-        SessionUpdate::ToolCall { tool_call, .. } => Some(tool_call.id.as_str()),
-        SessionUpdate::ToolCallUpdate { update, .. } => Some(update.tool_call_id.as_str()),
-        _ => None,
-    }
-}
-
-fn build_live_session_state_telemetry_envelope(
-    session_id: &str,
-    telemetry: crate::acp::session_update::UsageTelemetryData,
-    revision: SessionGraphRevision,
-) -> SessionStateEnvelope {
-    SessionStateEnvelope {
-        session_id: session_id.to_string(),
-        graph_revision: revision.graph_revision,
-        last_event_seq: revision.last_event_seq,
-        payload: SessionStatePayload::Telemetry {
-            telemetry,
-            revision,
-        },
-    }
-}
-
-fn build_live_session_state_plan_envelope(
-    session_id: &str,
-    plan: crate::acp::session_update::PlanData,
-    revision: SessionGraphRevision,
-) -> SessionStateEnvelope {
-    SessionStateEnvelope {
-        session_id: session_id.to_string(),
-        graph_revision: revision.graph_revision,
-        last_event_seq: revision.last_event_seq,
-        payload: SessionStatePayload::Plan { plan, revision },
-    }
-}
-
-fn build_live_session_state_lifecycle_envelope(
-    session_id: &str,
-    lifecycle: SessionGraphLifecycle,
-    revision: SessionGraphRevision,
-) -> SessionStateEnvelope {
-    SessionStateEnvelope {
-        session_id: session_id.to_string(),
-        graph_revision: revision.graph_revision,
-        last_event_seq: revision.last_event_seq,
-        payload: SessionStatePayload::Lifecycle {
-            lifecycle,
-            revision,
-        },
-    }
-}
-
-fn build_live_session_state_capabilities_envelope(
-    session_id: &str,
-    capabilities: SessionGraphCapabilities,
-    revision: SessionGraphRevision,
-    pending_mutation_id: Option<String>,
-    preview_state: CapabilityPreviewState,
-) -> SessionStateEnvelope {
-    SessionStateEnvelope {
-        session_id: session_id.to_string(),
-        graph_revision: revision.graph_revision,
-        last_event_seq: revision.last_event_seq,
-        payload: SessionStatePayload::Capabilities {
-            capabilities: Box::new(capabilities),
-            revision,
-            pending_mutation_id,
-            preview_state,
-        },
-    }
-}
-
-fn should_emit_session_state_capabilities(update: &SessionUpdate) -> bool {
-    matches!(
-        update,
-        SessionUpdate::AvailableCommandsUpdate { .. }
-            | SessionUpdate::CurrentModeUpdate { .. }
-            | SessionUpdate::ConfigOptionUpdate { .. }
-    )
-}
-
-fn should_emit_connection_complete(update: &SessionUpdate) -> bool {
-    matches!(update, SessionUpdate::ConnectionComplete { .. })
-}
-
-fn should_emit_session_state_snapshot(_update: &SessionUpdate) -> bool {
-    false
-}
-
-fn should_emit_session_state_lifecycle(update: &SessionUpdate) -> bool {
-    matches!(update, SessionUpdate::ConnectionFailed { .. })
-}
-
-fn should_emit_turn_state_delta(update: &SessionUpdate) -> bool {
-    matches!(
-        update,
-        SessionUpdate::TurnComplete { .. }
-            | SessionUpdate::TurnError { .. }
-            | SessionUpdate::TurnCancelled { .. }
-    )
-}
-
 fn operation_patches_for_terminal_update(
     session_id: &str,
     update: &SessionUpdate,
@@ -2164,52 +1045,51 @@ fn operation_patches_for_terminal_update(
     projection_registry.last_cancelled_operation_patches(session_id)
 }
 
-fn interaction_id_for_patch(update: &SessionUpdate) -> Option<&str> {
-    match update {
-        SessionUpdate::PermissionRequest { permission, .. } => Some(permission.id.as_str()),
-        SessionUpdate::QuestionRequest { question, .. } => Some(question.id.as_str()),
-        _ => None,
-    }
-}
-
 #[cfg(test)]
 mod tests {
+    //! Plan 010 U1 — runtime registry invariant characterization net.
+    //!
+    //! Pins behaviors the registry split must not break. Four invariant families:
+    //!
+    //! | Family | Pins in this module | Also covered elsewhere |
+    //! |--------|---------------------|------------------------|
+    //! | Supervisor-only lifecycle / SessionNotFound | `unknown_session_*`, `apply_session_update_with_graph_seed_skips_*` | `lifecycle/supervisor_tests.rs` |
+    //! | Graph-seed skip guard (no checkpoint) | same as lifecycle family | deferred-claude learning |
+    //! | Pre-reservation ingress (no implicit lifecycle) | lifecycle pins (registry never seeds on apply) | `ui_event_dispatcher/tests.rs` drain/caps |
+    //! | Lock order (`buffer_emissions` → `viewports`) | `buffer_emission_tracker::tests` | `buffer_emission_tracker` module header |
+    //! | Chunk timestamp monotonicity | `anchor_ledger` tests | — |
+
     use super::{
+        session_state_envelope_byte_budget_status, CapabilityPreviewState,
+        LiveSessionStateEnvelopeRequest, SessionGraphRuntimeRegistry, SessionStateField,
+        VisibleTranscriptWindowMiss,
+    };
+    use crate::acp::session_state_engine::live_envelope_builder::{
         build_assistant_text_delta_from_components, build_live_session_state_capabilities_envelope,
         build_live_session_state_delta_envelope, build_live_session_state_telemetry_envelope,
-        session_state_envelope_byte_budget_status, CapabilityPreviewState,
-        LiveSessionStateEnvelopeRequest, SessionGraphRuntimeRegistry, VisibleTranscriptWindowMiss,
     };
 
-    #[test]
-    fn record_chunk_timestamp_is_monotonic_per_session() {
-        let registry = SessionGraphRuntimeRegistry::new();
-        let session_id = "sess-mono-1";
-        let t0 = registry.record_chunk_timestamp(session_id);
-        let t1 = registry.record_chunk_timestamp(session_id);
-        let t2 = registry.record_chunk_timestamp(session_id);
-        assert!(t1 >= t0, "t1={t1} t0={t0} expected non-decreasing");
-        assert!(t2 >= t1, "t2={t2} t1={t1} expected non-decreasing");
-    }
 
     #[test]
-    fn record_chunk_timestamp_isolates_sessions() {
+    fn remove_session_clears_anchors_via_registry_delegation() {
         let registry = SessionGraphRuntimeRegistry::new();
-        let _ = registry.record_chunk_timestamp("sess-a");
-        std::thread::sleep(std::time::Duration::from_millis(2));
-        let a_after_sleep = registry.record_chunk_timestamp("sess-a");
-        let b_first = registry.record_chunk_timestamp("sess-b");
-        // sess-a's anchor is older, so its elapsed time should be larger than sess-b's first sample.
+        let session_id = "sess-registry-remove";
+        let _ = registry.record_chunk_timestamp(session_id);
+        std::thread::sleep(std::time::Duration::from_millis(5));
+        let before = registry.record_chunk_timestamp(session_id);
+        assert!(before > 0, "anchor should have measurable elapsed time before remove");
+        registry.remove_session(session_id);
+        let after = registry.record_chunk_timestamp(session_id);
         assert!(
-            a_after_sleep > b_first,
-            "a_after_sleep={a_after_sleep} b_first={b_first}"
+            after < before,
+            "remove_session must reset the anchor via ledger delegation (before={before}, after={after})"
         );
     }
 
-    use super::decide_scroll_authority;
     use crate::acp::client_session::{default_modes, default_session_model_state};
-    use crate::acp::lifecycle::LifecycleStatus;
+    use crate::acp::lifecycle::{LifecycleStatus, SessionSupervisor};
     use crate::acp::projections::ProjectionRegistry;
+    use std::sync::Arc;
     use crate::acp::session_state_engine::selectors::{
         SessionGraphActivity, SessionGraphActivityKind, SessionGraphCapabilities,
         SessionGraphLifecycle,
@@ -2273,6 +1153,88 @@ mod tests {
             graph_revision,
             SessionGraphLifecycle::reserved(),
             SessionGraphCapabilities::empty(),
+        );
+    }
+
+    #[test]
+    fn unknown_session_apply_session_update_returns_seed_without_creating_lifecycle() {
+        let supervisor = Arc::new(SessionSupervisor::new());
+        let registry = SessionGraphRuntimeRegistry::with_supervisor(supervisor.clone());
+        let update = SessionUpdate::AvailableCommandsUpdate {
+            update: AvailableCommandsData {
+                available_commands: Vec::new(),
+            },
+            session_id: Some("unknown-session".to_string()),
+        };
+
+        let returned =
+            registry.apply_session_update_with_graph_seed("unknown-session", 7, &update);
+
+        assert_eq!(returned, 7);
+        assert!(
+            supervisor.snapshot_for_session("unknown-session").is_none(),
+            "unknown-session apply must not create lifecycle (SessionNotFound semantics at supervisor)"
+        );
+        assert_eq!(
+            registry.snapshot_for_session("unknown-session").graph_revision,
+            0,
+            "registry snapshot must stay default when supervisor has no checkpoint"
+        );
+    }
+
+    #[test]
+    fn unknown_session_advance_graph_revision_returns_seed_without_creating_lifecycle() {
+        let supervisor = Arc::new(SessionSupervisor::new());
+        let registry = SessionGraphRuntimeRegistry::with_supervisor(supervisor.clone());
+
+        let returned = registry.advance_graph_revision_with_seed("unknown-session", 9);
+
+        assert_eq!(returned, 9);
+        assert!(
+            supervisor.snapshot_for_session("unknown-session").is_none(),
+            "advance on unknown session must not create lifecycle"
+        );
+    }
+
+    #[test]
+    fn unknown_session_replace_capabilities_returns_seed_without_creating_lifecycle() {
+        let supervisor = Arc::new(SessionSupervisor::new());
+        let registry = SessionGraphRuntimeRegistry::with_supervisor(supervisor.clone());
+
+        let returned = registry.replace_capabilities_with_graph_seed(
+            "unknown-session",
+            5,
+            SessionGraphCapabilities::empty(),
+        );
+
+        assert_eq!(returned, 5);
+        assert!(
+            supervisor.snapshot_for_session("unknown-session").is_none(),
+            "capabilities replace on unknown session must not create lifecycle"
+        );
+    }
+
+    #[test]
+    fn apply_session_update_with_graph_seed_skips_connection_complete_without_checkpoint() {
+        let supervisor = Arc::new(SessionSupervisor::new());
+        let registry = SessionGraphRuntimeRegistry::with_supervisor(supervisor.clone());
+        let update = SessionUpdate::ConnectionComplete {
+            session_id: "deferred-claude".to_string(),
+            attempt_id: 1,
+            models: default_session_model_state(),
+            modes: default_modes(),
+            available_commands: Some(Vec::new()),
+            config_options: Some(Vec::new()),
+            autonomous_enabled: Some(false),
+        };
+
+        let returned =
+            registry.apply_session_update_with_graph_seed("deferred-claude", 11, &update);
+
+        assert_eq!(returned, 11);
+        assert!(
+            supervisor.snapshot_for_session("deferred-claude").is_none(),
+            "ConnectionComplete must not promote lifecycle before an explicit checkpoint exists"
         );
     }
 
@@ -2342,6 +1304,14 @@ mod tests {
         }
     }
 
+    fn create_turn_complete_update_for_session(session_id: &str, turn_id: &str) -> SessionUpdate {
+        SessionUpdate::TurnComplete {
+            session_id: Some(session_id.to_string()),
+            turn_id: Some(turn_id.to_string()),
+        }
+    }
+
+
     async fn build_delta_for_history_depth(
         db: &DbConn,
         history_count: usize,
@@ -2393,11 +1363,11 @@ mod tests {
             let history_update = create_completed_history_tool_call(index);
             projection_registry.apply_session_update("session-1", &history_update);
             let _ = transcript_projection_registry
-                .apply_session_update(index as i64 + 1, &history_update);
+                .apply_session_update_idle(index as i64 + 1, &history_update);
         }
         projection_registry.apply_session_update("session-1", &update_under_test);
         let _ = transcript_projection_registry
-            .apply_session_update(history_count as i64 + 1, &update_under_test);
+            .apply_session_update_idle(history_count as i64 + 1, &update_under_test);
         runtime_registry.apply_session_update("session-1", &update_under_test);
 
         runtime_registry
@@ -2437,11 +1407,11 @@ mod tests {
             let history_update = create_completed_history_tool_call(index);
             projection_registry.apply_session_update("session-1", &history_update);
             let _ = transcript_projection_registry
-                .apply_session_update(index as i64 + 1, &history_update);
+                .apply_session_update_idle(index as i64 + 1, &history_update);
         }
         projection_registry.apply_session_update("session-1", &update_under_test);
         let transcript_delta = transcript_projection_registry
-            .apply_session_update(history_count as i64 + 1, &update_under_test);
+            .apply_session_update_idle(history_count as i64 + 1, &update_under_test);
         runtime_registry.apply_session_update("session-1", &update_under_test);
 
         runtime_registry
@@ -2475,7 +1445,7 @@ mod tests {
     ) -> SessionStateEnvelope {
         let session_id = update.session_id().expect("session id on assistant chunk");
         let transcript_delta = transcript_projection_registry
-            .apply_session_update(event_seq, update)
+            .apply_session_update_idle(event_seq, update)
             .expect("transcript delta");
         let snapshot = transcript_projection_registry
             .snapshot_for_session(session_id)
@@ -2555,8 +1525,14 @@ mod tests {
 
         match second_envelope.payload {
             SessionStatePayload::AssistantTextDelta { delta } => {
-                assert_eq!(delta.row_id, "assistant-event-1");
-                assert_eq!(delta.turn_id, "assistant-event-1");
+                assert_eq!(
+                    delta.row_id,
+                    "acepe--entry--session-start--assistant---"
+                );
+                assert_eq!(
+                    delta.turn_id,
+                    "acepe--entry--session-start--assistant---"
+                );
                 assert_eq!(delta.char_offset, 5);
                 assert_eq!(delta.delta_text, "");
                 assert_eq!(delta.produced_at_monotonic_ms, 6);
@@ -2572,7 +1548,7 @@ mod tests {
         let update =
             create_agent_message_chunk_update("session-1", Some("assistant-1"), &oversized_text, 5);
         let transcript_delta = transcript_projection_registry
-            .apply_session_update(1, &update)
+            .apply_session_update_idle(1, &update)
             .expect("transcript delta");
         let snapshot = transcript_projection_registry
             .snapshot_for_session("session-1")
@@ -2613,12 +1589,12 @@ mod tests {
                 assert_eq!(
                     delta.changed_fields,
                     vec![
-                        "operations".to_string(),
-                        "activity".to_string(),
-                        "turnState".to_string(),
-                        "activeTurnFailure".to_string(),
-                        "lastTerminalTurnId".to_string(),
-                        "activeStreamingTail".to_string(),
+                        SessionStateField::Operations,
+                        SessionStateField::Activity,
+                        SessionStateField::TurnState,
+                        SessionStateField::ActiveTurnFailure,
+                        SessionStateField::LastTerminalTurnId,
+                        SessionStateField::ActiveStreamingTail,
                     ]
                 );
             }
@@ -2655,11 +1631,13 @@ mod tests {
                 assert_eq!(delta.interaction_patches[0].id, expected_interaction_id);
                 assert_eq!(delta.operation_patches.len(), 0);
                 assert!(
-                    delta.changed_fields.contains(&"interactions".to_string()),
+                    delta
+                        .changed_fields
+                        .contains(&SessionStateField::Interactions),
                     "{surface} delta should update interactions"
                 );
                 assert!(
-                    delta.changed_fields.contains(&"activity".to_string()),
+                    delta.changed_fields.contains(&SessionStateField::Activity),
                     "{surface} delta should update activity"
                 );
             }
@@ -2695,23 +1673,23 @@ mod tests {
                 assert_eq!(delta.operation_patches.len(), 0);
                 assert_eq!(delta.interaction_patches.len(), 0);
                 assert!(
-                    delta.changed_fields.contains(&"activity".to_string()),
+                    delta.changed_fields.contains(&SessionStateField::Activity),
                     "{surface} delta should update activity"
                 );
                 assert!(
-                    delta.changed_fields.contains(&"turnState".to_string()),
+                    delta.changed_fields.contains(&SessionStateField::TurnState),
                     "{surface} delta should update turn state"
                 );
                 assert!(
                     delta
                         .changed_fields
-                        .contains(&"activeTurnFailure".to_string()),
+                        .contains(&SessionStateField::ActiveTurnFailure),
                     "{surface} delta should update active turn failure"
                 );
                 assert!(
                     delta
                         .changed_fields
-                        .contains(&"lastTerminalTurnId".to_string()),
+                        .contains(&SessionStateField::LastTerminalTurnId),
                     "{surface} delta should update terminal turn"
                 );
             }
@@ -3233,12 +2211,12 @@ mod tests {
                 assert_eq!(
                     delta.changed_fields,
                     vec![
-                        "operations".to_string(),
-                        "activity".to_string(),
-                        "turnState".to_string(),
-                        "activeTurnFailure".to_string(),
-                        "lastTerminalTurnId".to_string(),
-                        "activeStreamingTail".to_string(),
+                        SessionStateField::Operations,
+                        SessionStateField::Activity,
+                        SessionStateField::TurnState,
+                        SessionStateField::ActiveTurnFailure,
+                        SessionStateField::LastTerminalTurnId,
+                        SessionStateField::ActiveStreamingTail,
                     ]
                 );
             }
@@ -3411,7 +2389,7 @@ mod tests {
                     crate::acp::projections::SessionTurnState::Cancelled
                 );
                 assert!(
-                    delta.changed_fields.contains(&"operations".to_string()),
+                    delta.changed_fields.contains(&SessionStateField::Operations),
                     "cancelled operation patches must mark operations as changed"
                 );
             }
@@ -3474,8 +2452,10 @@ mod tests {
                     delta.operation_patches[0].operation_state,
                     crate::acp::projections::OperationState::Blocked
                 );
-                assert!(delta.changed_fields.contains(&"interactions".to_string()));
-                assert!(delta.changed_fields.contains(&"operations".to_string()));
+                assert!(delta
+                    .changed_fields
+                    .contains(&SessionStateField::Interactions));
+                assert!(delta.changed_fields.contains(&SessionStateField::Operations));
             }
             other => panic!("expected delta payload, got {:?}", other),
         }
@@ -3628,11 +2608,15 @@ mod tests {
             0,
         )
         .await;
+        // Turn errors are live-only turn-failure state and no longer append an
+        // `Error` entry to the canonical transcript (see plan 2026-06-15-002:
+        // "Errors are live-only turn-failure state, never restored transcript
+        // content"), so the terminal turn-error delta carries no transcript work.
         assert_turn_state_surface_stays_history_independent(
             &db,
             "turn_error",
             create_turn_error_update(),
-            1,
+            0,
         )
         .await;
         assert_turn_state_surface_stays_history_independent(
@@ -3723,6 +2707,95 @@ mod tests {
         }
     }
 
+    #[tokio::test]
+    async fn non_transcript_accept_delta_returns_none() {
+        let db = setup_test_db().await;
+        insert_session_metadata(&db, "session-1").await;
+        let projection_registry = ProjectionRegistry::new();
+        let transcript_projection_registry = TranscriptProjectionRegistry::new();
+        let runtime_registry = SessionGraphRuntimeRegistry::new();
+        let update = create_agent_message_chunk_update("session-1", Some("assistant-1"), "", 6);
+        let transcript_delta = TranscriptDelta {
+            event_seq: 11,
+            session_id: "session-1".to_string(),
+            snapshot_revision: 11,
+            operations: Vec::new(),
+        };
+
+        let envelope = runtime_registry
+            .build_live_session_state_envelope(LiveSessionStateEnvelopeRequest {
+                db: &db,
+                session_id: "session-1",
+                update: &update,
+                previous_revision: SessionGraphRevision::new(10, 10, 10),
+                revision: SessionGraphRevision::new(11, 10, 11),
+                projection_registry: &projection_registry,
+                transcript_projection_registry: &transcript_projection_registry,
+                transcript_delta: Some(&transcript_delta),
+            })
+            .await;
+
+        assert!(
+            envelope.is_none(),
+            "non-transcript AcceptDelta must not emit a primary envelope"
+        );
+    }
+
+    #[tokio::test]
+    async fn additional_session_state_envelopes_orders_lifecycle_before_buffer_on_connection_complete(
+    ) {
+        let db = setup_test_db().await;
+        insert_session_metadata(&db, "session-1").await;
+        let projection_registry = ProjectionRegistry::new();
+        let transcript_projection_registry = TranscriptProjectionRegistry::new();
+        let runtime_registry = SessionGraphRuntimeRegistry::new();
+        seed_lifecycle(&runtime_registry, "session-1", 5);
+        projection_registry.register_session("session-1".to_string(), CanonicalAgentId::Cursor);
+        let update = create_connection_complete_update();
+
+        let envelopes = runtime_registry.build_additional_session_state_envelopes(
+            LiveSessionStateEnvelopeRequest {
+                db: &db,
+                session_id: "session-1",
+                update: &update,
+                previous_revision: SessionGraphRevision::new(5, 5, 5),
+                revision: SessionGraphRevision::new(6, 5, 6),
+                projection_registry: &projection_registry,
+                transcript_projection_registry: &transcript_projection_registry,
+                transcript_delta: None,
+            },
+        );
+
+        assert!(
+            !envelopes.is_empty(),
+            "connection complete should emit secondary envelopes"
+        );
+        match &envelopes[0].payload {
+            SessionStatePayload::Lifecycle { .. } => {}
+            other => panic!("expected lifecycle first, got {other:?}"),
+        }
+        let has_buffer = envelopes.iter().any(|envelope| {
+            matches!(
+                envelope.payload,
+                SessionStatePayload::ViewportBufferPush { .. }
+                    | SessionStatePayload::ViewportBufferDelta { .. }
+            )
+        });
+        if has_buffer {
+            let buffer_index = envelopes.iter().position(|envelope| {
+                matches!(
+                    envelope.payload,
+                    SessionStatePayload::ViewportBufferPush { .. }
+                        | SessionStatePayload::ViewportBufferDelta { .. }
+                )
+            });
+            assert!(
+                buffer_index.is_some_and(|index| index > 0),
+                "viewport buffer must follow lifecycle envelope"
+            );
+        }
+    }
+
     #[test]
     fn telemetry_envelope_carries_canonical_usage_payload() {
         let revision = SessionGraphRevision::new(15, 8, 22);
@@ -3788,1083 +2861,6 @@ mod tests {
         }
     }
 
-    #[test]
-    fn buffer_builder_reports_session_not_attached_when_no_canonical_state() {
-        let runtime_registry = SessionGraphRuntimeRegistry::new();
-        let projection_registry = ProjectionRegistry::new();
-        let transcript_projection_registry = TranscriptProjectionRegistry::new();
-
-        let outcome = runtime_registry.build_viewport_buffer_push_envelope_for_session(
-            "unknown-session",
-            SessionGraphRevision::new(1, 0, 1),
-            &projection_registry,
-            &transcript_projection_registry,
-            Some(720),
-            None,
-            None,
-            None,
-            0,
-        );
-
-        assert_eq!(
-            outcome.unwrap_err(),
-            VisibleTranscriptWindowMiss::SessionNotAttached
-        );
-    }
-
-    #[test]
-    fn buffer_builder_resyncs_when_transcript_revision_behind() {
-        // During streaming the canonical transcript revision bumps on every
-        // event, so a viewport command racing the stream arrives with a lagging
-        // transcript_revision. The builder must NOT hard-fail (that produced a
-        // retry storm). It resyncs: builds against the current canonical
-        // snapshot and echoes the current canonical revision so the UI converges.
-        let runtime_registry = SessionGraphRuntimeRegistry::new();
-        let projection_registry = ProjectionRegistry::new();
-        let transcript_projection_registry = TranscriptProjectionRegistry::new();
-
-        projection_registry.register_session("session-stale".to_string(), CanonicalAgentId::Cursor);
-        let update =
-            create_agent_message_chunk_update("session-stale", Some("assistant-1"), "hello", 5);
-        projection_registry.apply_session_update("session-stale", &update);
-        // Drive the canonical transcript revision to 7.
-        let _ = transcript_projection_registry.apply_session_update(7, &update);
-
-        // Command carries a stale transcript_revision (4 < 7).
-        let outcome = runtime_registry.build_viewport_buffer_push_envelope_for_session(
-            "session-stale",
-            SessionGraphRevision::new(0, 4, 1),
-            &projection_registry,
-            &transcript_projection_registry,
-            Some(720),
-            None,
-            None,
-            None,
-            0,
-        );
-
-        let envelope = outcome.expect("stale transcript revision must resync, not reject");
-        match envelope.payload {
-            SessionStatePayload::ViewportBufferPush { push } => {
-                assert_eq!(
-                    push.graph_revision.transcript_revision, 7,
-                    "resynced buffer must echo the current canonical transcript revision"
-                );
-            }
-            other => panic!("expected viewport buffer push payload, got {other:?}"),
-        }
-    }
-
-    #[test]
-    fn buffer_producer_with_none_height_preserves_canonical_height_without_revision_churn() {
-        // B3 regression: the streaming buffer producer must pass `None` so it
-        // preserves the canonical viewport height a real command measured —
-        // never re-forcing a bootstrap height every tick, which oscillated
-        // `viewport_revision` and the buffer window indices into a spurious
-        // delta/push storm. A real command-measured resize still bumps.
-        let runtime_registry = SessionGraphRuntimeRegistry::new();
-        let projection_registry = ProjectionRegistry::new();
-        let transcript_projection_registry = TranscriptProjectionRegistry::new();
-
-        projection_registry.register_session("session-h".to_string(), CanonicalAgentId::Cursor);
-        let update =
-            create_agent_message_chunk_update("session-h", Some("assistant-1"), "hello", 5);
-        projection_registry.apply_session_update("session-h", &update);
-        let _ = transcript_projection_registry.apply_session_update(7, &update);
-        let revision = SessionGraphRevision::new(0, 7, 1);
-
-        let push_revision = |height: Option<u32>| match runtime_registry
-            .build_viewport_buffer_push_envelope_for_session(
-                "session-h",
-                revision,
-                &projection_registry,
-                &transcript_projection_registry,
-                height,
-                None,
-                None,
-                None,
-                0,
-            )
-            .expect("buffer push must materialize")
-            .payload
-        {
-            SessionStatePayload::ViewportBufferPush { push } => push.viewport_revision,
-            other => panic!("expected viewport buffer push payload, got {other:?}"),
-        };
-
-        // First push installs a real measured height of 900.
-        let r1 = push_revision(Some(900));
-        // Streaming ticks pass `None`: preserve the stored height, no churn.
-        let r2 = push_revision(None);
-        let r3 = push_revision(None);
-        assert_eq!(
-            r1, r2,
-            "a None-height streaming tick must not churn the revision"
-        );
-        assert_eq!(r2, r3, "repeated None-height ticks stay revision-stable");
-
-        // A real command-measured resize to a DIFFERENT height bumps. This also
-        // proves the stored height was 900 (not the bootstrap 720): resizing to
-        // 720 would be a no-op if 720 were already stored.
-        let r4 = push_revision(Some(720));
-        assert!(
-            r4 > r3,
-            "a real resize away from the stored height must bump the revision"
-        );
-    }
-
-    /// Seed `count` distinct assistant rows into a fresh registry trio and
-    /// return the latest canonical revision. Each row is its own message id so
-    /// the layout has `count` rows to slice/append against.
-    fn seed_buffer_emission_session(
-        runtime_registry: &SessionGraphRuntimeRegistry,
-        projection_registry: &ProjectionRegistry,
-        transcript_projection_registry: &TranscriptProjectionRegistry,
-        session_id: &str,
-        count: usize,
-    ) -> SessionGraphRevision {
-        let _ = runtime_registry;
-        projection_registry.register_session(session_id.to_string(), CanonicalAgentId::Cursor);
-        let mut tx_revision: i64 = 0;
-        for index in 0..count {
-            let message_id = format!("m{index}");
-            let update = create_agent_message_chunk_update(
-                session_id,
-                Some(&message_id),
-                "hello world",
-                (index as u64) + 1,
-            );
-            projection_registry.apply_session_update(session_id, &update);
-            tx_revision = (index as i64) + 1;
-            let _ = transcript_projection_registry.apply_session_update(tx_revision, &update);
-        }
-        SessionGraphRevision::new(0, tx_revision, 1)
-    }
-
-    #[test]
-    fn buffer_emission_first_call_is_fresh_push_with_seq_zero() {
-        let runtime_registry = SessionGraphRuntimeRegistry::new();
-        let projection_registry = ProjectionRegistry::new();
-        let transcript_projection_registry = TranscriptProjectionRegistry::new();
-        let revision = seed_buffer_emission_session(
-            &runtime_registry,
-            &projection_registry,
-            &transcript_projection_registry,
-            "s",
-            3,
-        );
-
-        let envelope = runtime_registry
-            .build_or_advance_viewport_buffer_envelope(
-                "s",
-                revision,
-                &projection_registry,
-                &transcript_projection_registry,
-                Some(720),
-                None,
-                None,
-                None,
-                false,
-            )
-            .expect("first emission must materialize")
-            .expect("first emission must produce a payload");
-
-        match envelope.payload {
-            SessionStatePayload::ViewportBufferPush { push } => {
-                assert_eq!(
-                    push.emission_seq, 0,
-                    "first push baselines emission_seq at 0"
-                );
-                assert_eq!(push.rows.len(), 3);
-            }
-            other => panic!("expected ViewportBufferPush, got {other:?}"),
-        }
-    }
-
-    #[test]
-    fn buffer_emission_identical_window_emits_nothing() {
-        let runtime_registry = SessionGraphRuntimeRegistry::new();
-        let projection_registry = ProjectionRegistry::new();
-        let transcript_projection_registry = TranscriptProjectionRegistry::new();
-        let revision = seed_buffer_emission_session(
-            &runtime_registry,
-            &projection_registry,
-            &transcript_projection_registry,
-            "s",
-            3,
-        );
-
-        let _ = runtime_registry
-            .build_or_advance_viewport_buffer_envelope(
-                "s",
-                revision,
-                &projection_registry,
-                &transcript_projection_registry,
-                Some(720),
-                None,
-                None,
-                None,
-                false,
-            )
-            .expect("first emission")
-            .expect("first push");
-
-        // No new rows, identical height, no scroll -> identical window -> NoOp.
-        let second = runtime_registry
-            .build_or_advance_viewport_buffer_envelope(
-                "s",
-                revision,
-                &projection_registry,
-                &transcript_projection_registry,
-                Some(720),
-                None,
-                None,
-                None,
-                false,
-            )
-            .expect("second emission must not error");
-        assert!(second.is_none(), "an identical window must emit nothing");
-    }
-
-    #[test]
-    fn buffer_emission_streaming_append_that_moves_tail_is_fresh_push_and_noop_does_not_consume_seq(
-    ) {
-        let runtime_registry = SessionGraphRuntimeRegistry::new();
-        let projection_registry = ProjectionRegistry::new();
-        let transcript_projection_registry = TranscriptProjectionRegistry::new();
-        let revision = seed_buffer_emission_session(
-            &runtime_registry,
-            &projection_registry,
-            &transcript_projection_registry,
-            "s",
-            3,
-        );
-
-        // seq 0 push.
-        let _ = runtime_registry
-            .build_or_advance_viewport_buffer_envelope(
-                "s",
-                revision,
-                &projection_registry,
-                &transcript_projection_registry,
-                Some(720),
-                None,
-                None,
-                None,
-                false,
-            )
-            .expect("first")
-            .expect("push");
-
-        // A NoOp tick in between must NOT consume an emission_seq.
-        assert!(runtime_registry
-            .build_or_advance_viewport_buffer_envelope(
-                "s",
-                revision,
-                &projection_registry,
-                &transcript_projection_registry,
-                Some(720),
-                None,
-                None,
-                None,
-                false,
-            )
-            .expect("noop tick")
-            .is_none());
-
-        // Append a new tail row + advance the canonical transcript revision.
-        let update = create_agent_message_chunk_update("s", Some("m_tail"), "more", 99);
-        projection_registry.apply_session_update("s", &update);
-        let _ = transcript_projection_registry.apply_session_update(50, &update);
-        let revision2 = SessionGraphRevision::new(0, 50, 1);
-
-        let envelope = runtime_registry
-            .build_or_advance_viewport_buffer_envelope(
-                "s",
-                revision2,
-                &projection_registry,
-                &transcript_projection_registry,
-                None,
-                None,
-                None,
-                None,
-                false,
-            )
-            .expect("streaming emission")
-            .expect("streaming append must emit a payload");
-
-        // Appending a new trailing assistant row moves the active streaming tail off the
-        // previous tail row, changing that survivor's content version. The delta wire cannot
-        // express "a survivor changed" (only prepend/append/remove), so the identity guard
-        // must promote to a FreshPush to avoid leaving the consumer rendering a stale
-        // streaming-tail indicator. The intervening NoOp must still not have consumed a seq.
-        match envelope.payload {
-            SessionStatePayload::ViewportBufferPush { push } => {
-                assert_eq!(
-                    push.emission_seq, 1,
-                    "fresh push seq is prev+1; the intervening NoOp must not have consumed a seq"
-                );
-                assert_eq!(
-                    push.rows.len(),
-                    4,
-                    "fresh push re-sends the whole buffer incl. the de-tailed survivor and new tail"
-                );
-                assert!(
-                    push.rows
-                        .last()
-                        .is_some_and(|row| row.active_streaming_tail.is_some()),
-                    "the newly appended row is the streaming tail"
-                );
-                assert!(
-                    push.rows[..push.rows.len() - 1]
-                        .iter()
-                        .all(|row| row.active_streaming_tail.is_none()),
-                    "prior survivors are no longer the streaming tail"
-                );
-            }
-            other => panic!("expected ViewportBufferPush, got {other:?}"),
-        }
-    }
-
-    // Regression guard: the identity-soundness check must be SURGICAL. It promotes to a
-    // FreshPush only when surviving rows actually drift (id or version). A pure scroll slide
-    // over a layout larger than the overscan buffer leaves survivors byte-identical, so the
-    // stateful emitter must still emit a real ViewportBufferDelta. This proves the guard did
-    // not globally defeat the byte-optimal scroll-refill path while fixing the streaming crash.
-    #[test]
-    fn buffer_emission_scroll_slide_with_stable_survivors_still_emits_delta() {
-        let runtime_registry = SessionGraphRuntimeRegistry::new();
-        let projection_registry = ProjectionRegistry::new();
-        let transcript_projection_registry = TranscriptProjectionRegistry::new();
-        // 120 rows @ 120px each (1440px tall) far exceeds the 50-row overscan window, so a
-        // scroll slides the buffer instead of always covering the whole layout.
-        let revision = seed_buffer_emission_session(
-            &runtime_registry,
-            &projection_registry,
-            &transcript_projection_registry,
-            "s",
-            120,
-        );
-
-        // seq 0 baseline push, following the tail at a fixed height.
-        let baseline = runtime_registry
-            .build_or_advance_viewport_buffer_envelope(
-                "s",
-                revision,
-                &projection_registry,
-                &transcript_projection_registry,
-                Some(720),
-                None,
-                None,
-                None,
-                false,
-            )
-            .expect("baseline emission")
-            .expect("baseline push");
-        let baseline_end = match baseline.payload {
-            SessionStatePayload::ViewportBufferPush { push } => push.buffer_end_index,
-            other => panic!("expected baseline ViewportBufferPush, got {other:?}"),
-        };
-
-        // Scroll up ~10 rows. Same height (no height-confirm push), same content (no version
-        // drift), window slides toward the top -> prepend-only delta with stable survivors.
-        let envelope = runtime_registry
-            .build_or_advance_viewport_buffer_envelope(
-                "s",
-                revision,
-                &projection_registry,
-                &transcript_projection_registry,
-                Some(720),
-                Some(
-                    crate::acp::transcript_viewport::ScrollIntent::DetachAtOffset {
-                        offset_px: 12_480,
-                    },
-                ),
-                None,
-                None,
-                false,
-            )
-            .expect("scroll emission")
-            .expect("scroll slide must emit a payload");
-
-        match envelope.payload {
-            SessionStatePayload::ViewportBufferDelta { delta } => {
-                assert_eq!(
-                    delta.emission_seq, 1,
-                    "delta takes prev+1 after the baseline push"
-                );
-                assert!(
-                    !delta.prepended_rows.is_empty(),
-                    "scrolling up reveals earlier rows as a prepend"
-                );
-                assert!(
-                    delta.appended_rows.is_empty() && delta.removed_row_ids.is_empty(),
-                    "an upward scroll only prepends; survivors and tail are untouched"
-                );
-                let _ = baseline_end;
-            }
-            other => panic!("scroll slide with stable survivors must stay a Delta, got {other:?}"),
-        }
-    }
-
-    #[test]
-    fn buffer_emission_accepted_height_confirmation_forces_fresh_push() {
-        let runtime_registry = SessionGraphRuntimeRegistry::new();
-        let projection_registry = ProjectionRegistry::new();
-        let transcript_projection_registry = TranscriptProjectionRegistry::new();
-        let revision = seed_buffer_emission_session(
-            &runtime_registry,
-            &projection_registry,
-            &transcript_projection_registry,
-            "s",
-            3,
-        );
-
-        let first = runtime_registry
-            .build_or_advance_viewport_buffer_envelope(
-                "s",
-                revision,
-                &projection_registry,
-                &transcript_projection_registry,
-                Some(720),
-                None,
-                None,
-                None,
-                false,
-            )
-            .expect("first")
-            .expect("push");
-        let (row_id, row_version) = match first.payload {
-            SessionStatePayload::ViewportBufferPush { push } => {
-                let row = &push.rows[0];
-                (row.row_id.clone(), row.version.clone())
-            }
-            other => panic!("expected push, got {other:?}"),
-        };
-
-        // Accepted height confirmation (valid row + version) shifts offsets of
-        // every row below it. The window index range is unchanged, so the
-        // classifier would say NoOp; B4 must force a FreshPush so all offsets
-        // are re-sent. emission_seq must advance so the consumer rebaselines.
-        let envelope = runtime_registry
-            .build_or_advance_viewport_buffer_envelope(
-                "s",
-                revision,
-                &projection_registry,
-                &transcript_projection_registry,
-                Some(720),
-                None,
-                Some(super::TranscriptViewportHeightConfirmation {
-                    row_id,
-                    row_version,
-                    height_px: 321,
-                    viewport_offset_px: None,
-                }),
-                None,
-                false,
-            )
-            .expect("height-confirm emission")
-            .expect("accepted height confirmation must emit a fresh push");
-
-        match envelope.payload {
-            SessionStatePayload::ViewportBufferPush { push } => {
-                assert_eq!(push.emission_seq, 1, "forced push must advance the seq");
-            }
-            other => panic!("expected forced ViewportBufferPush, got {other:?}"),
-        }
-    }
-
-    #[test]
-    fn duplicate_height_confirmation_does_not_emit_fresh_push() {
-        let runtime_registry = SessionGraphRuntimeRegistry::new();
-        let projection_registry = ProjectionRegistry::new();
-        let transcript_projection_registry = TranscriptProjectionRegistry::new();
-        let revision = seed_buffer_emission_session(
-            &runtime_registry,
-            &projection_registry,
-            &transcript_projection_registry,
-            "s",
-            3,
-        );
-
-        let first = runtime_registry
-            .build_or_advance_viewport_buffer_envelope(
-                "s",
-                revision,
-                &projection_registry,
-                &transcript_projection_registry,
-                Some(720),
-                None,
-                None,
-                None,
-                false,
-            )
-            .expect("first")
-            .expect("push");
-        let (row_id, row_version) = match first.payload {
-            SessionStatePayload::ViewportBufferPush { push } => {
-                let row = &push.rows[0];
-                (row.row_id.clone(), row.version.clone())
-            }
-            other => panic!("expected push, got {other:?}"),
-        };
-
-        let _ = runtime_registry
-            .build_or_advance_viewport_buffer_envelope(
-                "s",
-                revision,
-                &projection_registry,
-                &transcript_projection_registry,
-                Some(720),
-                None,
-                Some(super::TranscriptViewportHeightConfirmation {
-                    row_id: row_id.clone(),
-                    row_version: row_version.clone(),
-                    height_px: 321,
-                    viewport_offset_px: None,
-                }),
-                None,
-                false,
-            )
-            .expect("first height confirmation")
-            .expect("first accepted height confirmation must emit");
-
-        let duplicate = runtime_registry
-            .build_or_advance_viewport_buffer_envelope(
-                "s",
-                revision,
-                &projection_registry,
-                &transcript_projection_registry,
-                Some(720),
-                None,
-                Some(super::TranscriptViewportHeightConfirmation {
-                    row_id,
-                    row_version,
-                    height_px: 321,
-                    viewport_offset_px: None,
-                }),
-                None,
-                false,
-            )
-            .expect("duplicate height confirmation");
-
-        assert!(
-            duplicate.is_none(),
-            "an unchanged height confirmation must not emit another fresh push"
-        );
-    }
-
-    #[test]
-    fn buffer_emission_rejected_height_confirmation_does_not_force_push() {
-        let runtime_registry = SessionGraphRuntimeRegistry::new();
-        let projection_registry = ProjectionRegistry::new();
-        let transcript_projection_registry = TranscriptProjectionRegistry::new();
-        let revision = seed_buffer_emission_session(
-            &runtime_registry,
-            &projection_registry,
-            &transcript_projection_registry,
-            "s",
-            3,
-        );
-
-        let _ = runtime_registry
-            .build_or_advance_viewport_buffer_envelope(
-                "s",
-                revision,
-                &projection_registry,
-                &transcript_projection_registry,
-                Some(720),
-                None,
-                None,
-                None,
-                false,
-            )
-            .expect("first")
-            .expect("push");
-
-        // A rejected confirmation (bogus version) changed nothing; the safe gate
-        // must NOT force a push for it (otherwise a stale-version retry storm
-        // would each spawn a full re-push). Identical window -> NoOp.
-        let second = runtime_registry
-            .build_or_advance_viewport_buffer_envelope(
-                "s",
-                revision,
-                &projection_registry,
-                &transcript_projection_registry,
-                Some(720),
-                None,
-                Some(super::TranscriptViewportHeightConfirmation {
-                    row_id: "m0".to_string(),
-                    row_version: "definitely-not-the-current-version".to_string(),
-                    height_px: 321,
-                    viewport_offset_px: Some(1200),
-                }),
-                None,
-                false,
-            )
-            .expect("rejected-confirm emission must not error");
-        assert!(
-            second.is_none(),
-            "a rejected height confirmation must not force a fresh push"
-        );
-    }
-
-    #[test]
-    fn following_tail_confirmation_push_uses_absolute_target_not_correction() {
-        // The dominant streaming case: viewport in FollowingTail, a row grows via
-        // an accepted height confirmation (scroll_intent = None). The producer
-        // MUST emit an absolute tail target and NO relative correction, because
-        // the absolute target already incorporates the post-confirmation
-        // total_height_px. A correction here would race the frontend tail-pin.
-        let runtime_registry = SessionGraphRuntimeRegistry::new();
-        let projection_registry = ProjectionRegistry::new();
-        let transcript_projection_registry = TranscriptProjectionRegistry::new();
-        let revision = seed_buffer_emission_session(
-            &runtime_registry,
-            &projection_registry,
-            &transcript_projection_registry,
-            "s",
-            20,
-        );
-
-        let first = runtime_registry
-            .build_or_advance_viewport_buffer_envelope(
-                "s",
-                revision,
-                &projection_registry,
-                &transcript_projection_registry,
-                Some(720),
-                None,
-                None,
-                None,
-                false,
-            )
-            .expect("first")
-            .expect("push");
-        let (row_id, row_version) = match first.payload {
-            SessionStatePayload::ViewportBufferPush { push } => {
-                assert_eq!(push.mode, ViewportMode::FollowingTail);
-                let row = &push.rows[0];
-                (row.row_id.clone(), row.version.clone())
-            }
-            other => panic!("expected push, got {other:?}"),
-        };
-
-        let envelope = runtime_registry
-            .build_or_advance_viewport_buffer_envelope(
-                "s",
-                revision,
-                &projection_registry,
-                &transcript_projection_registry,
-                Some(720),
-                None,
-                Some(super::TranscriptViewportHeightConfirmation {
-                    row_id,
-                    row_version,
-                    height_px: 321,
-                    viewport_offset_px: None,
-                }),
-                None,
-                false,
-            )
-            .expect("confirm")
-            .expect("forced push");
-
-        match envelope.payload {
-            SessionStatePayload::ViewportBufferPush { push } => {
-                assert_eq!(push.mode, ViewportMode::FollowingTail);
-                assert!(
-                    push.scroll_top_target.is_some(),
-                    "FollowingTail must carry an absolute tail target"
-                );
-                assert_eq!(
-                    push.scroll_anchor_correction_px, None,
-                    "FollowingTail must never carry a relative correction"
-                );
-            }
-            other => panic!("expected push, got {other:?}"),
-        }
-    }
-
-    #[test]
-    fn detached_refill_push_has_no_absolute_scroll_target() {
-        // A user-driven refill (DetachAtOffset) must NOT yank scrollTop back to a
-        // request-time absolute position. With no above-viewport geometry change
-        // there is also no correction — the user's live scrollTop is preserved.
-        let runtime_registry = SessionGraphRuntimeRegistry::new();
-        let projection_registry = ProjectionRegistry::new();
-        let transcript_projection_registry = TranscriptProjectionRegistry::new();
-        let revision = seed_buffer_emission_session(
-            &runtime_registry,
-            &projection_registry,
-            &transcript_projection_registry,
-            "s",
-            20,
-        );
-
-        let _ = runtime_registry
-            .build_or_advance_viewport_buffer_envelope(
-                "s",
-                revision,
-                &projection_registry,
-                &transcript_projection_registry,
-                Some(720),
-                None,
-                None,
-                None,
-                false,
-            )
-            .expect("first")
-            .expect("push");
-
-        let envelope = runtime_registry
-            .build_or_advance_viewport_buffer_envelope(
-                "s",
-                revision,
-                &projection_registry,
-                &transcript_projection_registry,
-                Some(720),
-                Some(ScrollIntent::DetachAtOffset { offset_px: 1200 }),
-                None,
-                None,
-                true,
-            )
-            .expect("detach refill")
-            .expect("forced push");
-
-        match envelope.payload {
-            SessionStatePayload::ViewportBufferPush { push } => {
-                assert!(
-                    matches!(push.mode, ViewportMode::Detached { .. }),
-                    "expected Detached mode"
-                );
-                assert_eq!(
-                    push.scroll_top_target, None,
-                    "a user-driven refill must not reposition scrollTop"
-                );
-                assert_eq!(push.scroll_anchor_correction_px, None);
-            }
-            other => panic!("expected push, got {other:?}"),
-        }
-    }
-
-    #[test]
-    fn detached_accepted_confirmation_above_viewport_emits_relative_correction() {
-        // The storm fix: a row ABOVE the viewport re-measures while the user is
-        // scrolled (Detached). The producer must emit a relative correction
-        // (Δ_above) and NO absolute target, so the frontend adds the shift to its
-        // live scrollTop instead of being yanked to a stale absolute position.
-        let runtime_registry = SessionGraphRuntimeRegistry::new();
-        let projection_registry = ProjectionRegistry::new();
-        let transcript_projection_registry = TranscriptProjectionRegistry::new();
-        let revision = seed_buffer_emission_session(
-            &runtime_registry,
-            &projection_registry,
-            &transcript_projection_registry,
-            "s",
-            20,
-        );
-
-        let _ = runtime_registry
-            .build_or_advance_viewport_buffer_envelope(
-                "s",
-                revision,
-                &projection_registry,
-                &transcript_projection_registry,
-                Some(720),
-                None,
-                None,
-                None,
-                false,
-            )
-            .expect("first")
-            .expect("push");
-
-        // Detach mid-layout: anchor lands on the row at offset 1200 (index 10 of
-        // 120px rows). Rows above it are above the viewport offset.
-        let detach = runtime_registry
-            .build_or_advance_viewport_buffer_envelope(
-                "s",
-                revision,
-                &projection_registry,
-                &transcript_projection_registry,
-                Some(720),
-                Some(ScrollIntent::DetachAtOffset { offset_px: 1200 }),
-                None,
-                None,
-                true,
-            )
-            .expect("detach")
-            .expect("push");
-        let (above_row_id, above_row_version) = match detach.payload {
-            SessionStatePayload::ViewportBufferPush { push } => {
-                // Row index 2 sits at offset 240 < 1200 (above the viewport).
-                let row = &push.rows[2];
-                (row.row_id.clone(), row.version.clone())
-            }
-            other => panic!("expected push, got {other:?}"),
-        };
-
-        // Grow the above-viewport row 120 -> 320 (+200).
-        let envelope = runtime_registry
-            .build_or_advance_viewport_buffer_envelope(
-                "s",
-                revision,
-                &projection_registry,
-                &transcript_projection_registry,
-                Some(720),
-                None,
-                Some(super::TranscriptViewportHeightConfirmation {
-                    row_id: above_row_id,
-                    row_version: above_row_version,
-                    height_px: 320,
-                    viewport_offset_px: None,
-                }),
-                None,
-                false,
-            )
-            .expect("confirm")
-            .expect("forced push");
-
-        match envelope.payload {
-            SessionStatePayload::ViewportBufferPush { push } => {
-                assert!(
-                    matches!(push.mode, ViewportMode::Detached { .. }),
-                    "expected Detached mode"
-                );
-                assert_eq!(
-                    push.scroll_top_target, None,
-                    "Detached confirmation must not use an absolute target"
-                );
-                assert_eq!(
-                    push.scroll_anchor_correction_px,
-                    Some(200),
-                    "above-viewport growth must produce a +Δ relative correction"
-                );
-            }
-            other => panic!("expected push, got {other:?}"),
-        }
-    }
-
-    #[test]
-    fn height_confirmation_uses_live_offset_without_scroll_correction_when_frontend_scrolled_inside_buffer(
-    ) {
-        // Native in-buffer scrolling intentionally avoids a scroll-intent round
-        // trip. Height confirmations still arrive during that scroll, so the
-        // confirmation must carry the live WebView offset and re-anchor Rust
-        // before materializing the buffer. Because that live offset is the
-        // user's active scroll position, it is already authoritative; emitting
-        // Δ_above back to the WebView would fight the active upward scroll.
-        let runtime_registry = SessionGraphRuntimeRegistry::new();
-        let projection_registry = ProjectionRegistry::new();
-        let transcript_projection_registry = TranscriptProjectionRegistry::new();
-        let revision = seed_buffer_emission_session(
-            &runtime_registry,
-            &projection_registry,
-            &transcript_projection_registry,
-            "s",
-            20,
-        );
-
-        let first = runtime_registry
-            .build_or_advance_viewport_buffer_envelope(
-                "s",
-                revision,
-                &projection_registry,
-                &transcript_projection_registry,
-                Some(720),
-                None,
-                None,
-                None,
-                false,
-            )
-            .expect("first")
-            .expect("push");
-
-        let (above_row_id, above_row_version) = match first.payload {
-            SessionStatePayload::ViewportBufferPush { push } => {
-                assert_eq!(push.mode, ViewportMode::FollowingTail);
-                // Row index 2 starts at 240px, above the live offset below.
-                let row = &push.rows[2];
-                (row.row_id.clone(), row.version.clone())
-            }
-            other => panic!("expected push, got {other:?}"),
-        };
-
-        let envelope = runtime_registry
-            .build_or_advance_viewport_buffer_envelope(
-                "s",
-                revision,
-                &projection_registry,
-                &transcript_projection_registry,
-                Some(720),
-                None,
-                Some(super::TranscriptViewportHeightConfirmation {
-                    row_id: above_row_id,
-                    row_version: above_row_version,
-                    height_px: 320,
-                    viewport_offset_px: Some(1200),
-                }),
-                None,
-                false,
-            )
-            .expect("confirm")
-            .expect("forced push");
-
-        match envelope.payload {
-            SessionStatePayload::ViewportBufferPush { push } => {
-                assert!(
-                    matches!(push.mode, ViewportMode::Detached { .. }),
-                    "live offset should re-anchor stale follow-tail mode before confirmation"
-                );
-                assert_eq!(
-                    push.scroll_top_target, None,
-                    "a live user offset is not an intentional absolute reposition"
-                );
-                assert_eq!(
-                    push.scroll_anchor_correction_px, None,
-                    "live user offset supersedes Δ_above during active in-buffer scrolling"
-                );
-            }
-            other => panic!("expected push, got {other:?}"),
-        }
-    }
-
-    #[test]
-    fn decide_scroll_authority_never_sets_both_fields() {
-        // Invariant across the contract: at most one of the two scroll fields is
-        // ever Some, so the consumer never double-applies a correction.
-        let cases = [
-            (ViewportMode::FollowingTail, true, false, 0_i64),
-            (ViewportMode::FollowingTail, false, false, 200),
-            (
-                ViewportMode::Detached {
-                    anchor_row_id: "a".to_string(),
-                    offset_from_anchor_px: 0,
-                },
-                true,
-                false,
-                0,
-            ),
-            (
-                ViewportMode::Detached {
-                    anchor_row_id: "a".to_string(),
-                    offset_from_anchor_px: 0,
-                },
-                false,
-                true,
-                0,
-            ),
-            (
-                ViewportMode::Detached {
-                    anchor_row_id: "a".to_string(),
-                    offset_from_anchor_px: 0,
-                },
-                false,
-                false,
-                200,
-            ),
-            (
-                ViewportMode::Detached {
-                    anchor_row_id: "a".to_string(),
-                    offset_from_anchor_px: 0,
-                },
-                false,
-                false,
-                0,
-            ),
-        ];
-        for (mode, is_bootstrap, is_reveal, correction) in cases {
-            let (target, corr) =
-                decide_scroll_authority(&mode, 500, is_bootstrap, is_reveal, correction);
-            assert!(
-                !(target.is_some() && corr.is_some()),
-                "target and correction must be mutually exclusive (mode={mode:?})"
-            );
-        }
-    }
-
-    #[test]
-    fn buffer_builder_resyncs_when_graph_revision_behind() {
-        let runtime_registry = SessionGraphRuntimeRegistry::new();
-        let projection_registry = ProjectionRegistry::new();
-        let transcript_projection_registry = TranscriptProjectionRegistry::new();
-
-        // Seed the runtime with a canonical graph revision of 5.
-        runtime_registry.restore_session_checkpoint(
-            "session-graph".to_string(),
-            crate::acp::lifecycle::LifecycleCheckpoint::new(
-                5,
-                crate::acp::lifecycle::LifecycleState::ready(),
-                SessionGraphCapabilities::empty(),
-            ),
-        );
-        projection_registry.register_session("session-graph".to_string(), CanonicalAgentId::Cursor);
-        let update =
-            create_agent_message_chunk_update("session-graph", Some("assistant-1"), "hello", 5);
-        projection_registry.apply_session_update("session-graph", &update);
-        let _ = transcript_projection_registry.apply_session_update(7, &update);
-
-        // Command carries the current transcript_revision but a stale graph_revision (0 < 5).
-        let outcome = runtime_registry.build_viewport_buffer_push_envelope_for_session(
-            "session-graph",
-            SessionGraphRevision::new(0, 7, 1),
-            &projection_registry,
-            &transcript_projection_registry,
-            Some(720),
-            None,
-            None,
-            None,
-            0,
-        );
-
-        let envelope = outcome.expect("stale graph revision must resync, not reject");
-        match envelope.payload {
-            SessionStatePayload::ViewportBufferPush { push } => {
-                assert_eq!(
-                    push.graph_revision.graph_revision, 5,
-                    "resynced buffer must echo the current canonical graph revision"
-                );
-                assert_eq!(push.graph_revision.transcript_revision, 7);
-            }
-            other => panic!("expected viewport buffer push payload, got {other:?}"),
-        }
-    }
-
-    #[test]
-    fn buffer_builder_requires_projection_session_even_when_transcript_present() {
-        let runtime_registry = SessionGraphRuntimeRegistry::new();
-        let projection_registry = ProjectionRegistry::new();
-        let transcript_projection_registry = TranscriptProjectionRegistry::new();
-
-        // Transcript snapshot is present and revision-aligned, but the projection
-        // registry has no session snapshot for this id. The builder must miss as
-        // SessionNotAttached rather than fabricate an empty session.
-        transcript_projection_registry.restore_session_snapshot(
-            "session-missing-projection".to_string(),
-            TranscriptSnapshot {
-                revision: 3,
-                entries: Vec::new(),
-            },
-        );
-
-        let outcome = runtime_registry.build_viewport_buffer_push_envelope_for_session(
-            "session-missing-projection",
-            SessionGraphRevision::new(0, 3, 1),
-            &projection_registry,
-            &transcript_projection_registry,
-            Some(720),
-            None,
-            None,
-            None,
-            0,
-        );
-
-        assert_eq!(
-            outcome.unwrap_err(),
-            VisibleTranscriptWindowMiss::SessionNotAttached
-        );
-    }
 
     use super::{buffer_delta_is_identity_consistent, compute_buffer_delta};
     use crate::acp::transcript_projection::TranscriptEntryRole;
@@ -4873,319 +2869,4 @@ mod tests {
         ViewportBufferSlice, ViewportMode,
     };
 
-    fn delta_row(index: usize) -> TranscriptViewportRow {
-        TranscriptViewportRow {
-            row_id: format!("transcript:row-{index}"),
-            source_entry_id: format!("row-{index}"),
-            kind: TranscriptViewportRowKind::AssistantText,
-            version: format!("v-{index}"),
-            anchor_eligible: true,
-            active_streaming_tail: None,
-            operation_links: Vec::new(),
-            interaction_links: Vec::new(),
-            content: TranscriptViewportRowContent::Transcript {
-                role: TranscriptEntryRole::Assistant,
-                segments: Vec::new(),
-            },
-        }
-    }
-
-    const DELTA_ROW_HEIGHT_PX: u64 = 100;
-
-    fn delta_layout(row_count: usize) -> Vec<TranscriptViewportRow> {
-        (0..row_count).map(delta_row).collect()
-    }
-
-    fn delta_slice(
-        start: usize,
-        end: usize,
-        layout_row_count: usize,
-        viewport_revision: i64,
-    ) -> ViewportBufferSlice {
-        let offsets_px = (start..end)
-            .map(|i| i as u64 * DELTA_ROW_HEIGHT_PX)
-            .collect();
-        ViewportBufferSlice {
-            buffer_start_index: start,
-            buffer_end_index: end,
-            layout_row_count,
-            offsets_px,
-            total_height_px: layout_row_count as u64 * DELTA_ROW_HEIGHT_PX,
-            buffer_end_offset_px: end as u64 * DELTA_ROW_HEIGHT_PX,
-            viewport_offset_px: start as u64 * DELTA_ROW_HEIGHT_PX,
-            mode: ViewportMode::FollowingTail,
-            viewport_revision,
-        }
-    }
-
-    fn row_ids(indices: std::ops::Range<usize>) -> Vec<String> {
-        indices.map(|i| format!("transcript:row-{i}")).collect()
-    }
-
-    fn row_versions(indices: std::ops::Range<usize>) -> Vec<String> {
-        indices.map(|i| format!("v-{i}")).collect()
-    }
-
-    #[test]
-    fn compute_buffer_delta_scroll_down_appends_and_removes_top() {
-        let layout = delta_layout(20);
-        let prev_ids = row_ids(2..6);
-        let slice = delta_slice(4, 8, 20, 5);
-
-        let delta = compute_buffer_delta(
-            "session-1",
-            SessionGraphRevision::new(3, 3, 3),
-            7,
-            4,
-            2,
-            &prev_ids,
-            &layout,
-            &slice,
-            None,
-            Some(400),
-        );
-
-        assert_eq!(delta.emission_seq, 7);
-        assert_eq!(delta.from_viewport_revision, 4);
-        assert_eq!(delta.to_viewport_revision, 5);
-        assert!(delta.prepended_rows.is_empty());
-        assert_eq!(
-            delta
-                .appended_rows
-                .iter()
-                .map(|row| row.row_id.as_str())
-                .collect::<Vec<_>>(),
-            vec!["transcript:row-6", "transcript:row-7"]
-        );
-        assert_eq!(delta.appended_offsets_px, vec![600, 700]);
-        assert_eq!(
-            delta.removed_row_ids,
-            vec![
-                "transcript:row-2".to_string(),
-                "transcript:row-3".to_string()
-            ]
-        );
-        assert_eq!(delta.layout_row_count, 20);
-        assert_eq!(delta.buffer_end_offset_px, 800);
-        assert_eq!(delta.scroll_top_target, Some(400));
-    }
-
-    #[test]
-    fn compute_buffer_delta_scroll_up_prepends_and_removes_bottom() {
-        let layout = delta_layout(30);
-        let prev_ids = row_ids(10..14);
-        let slice = delta_slice(8, 12, 30, 2);
-
-        let delta = compute_buffer_delta(
-            "session-1",
-            SessionGraphRevision::new(1, 1, 1),
-            12,
-            1,
-            10,
-            &prev_ids,
-            &layout,
-            &slice,
-            None,
-            None,
-        );
-
-        assert_eq!(delta.emission_seq, 12);
-        assert_eq!(
-            delta
-                .prepended_rows
-                .iter()
-                .map(|row| row.row_id.as_str())
-                .collect::<Vec<_>>(),
-            vec!["transcript:row-8", "transcript:row-9"]
-        );
-        assert_eq!(delta.prepended_offsets_px, vec![800, 900]);
-        assert!(delta.appended_rows.is_empty());
-        assert_eq!(
-            delta.removed_row_ids,
-            vec![
-                "transcript:row-12".to_string(),
-                "transcript:row-13".to_string()
-            ]
-        );
-    }
-
-    #[test]
-    fn compute_buffer_delta_streaming_tail_appends_without_removals() {
-        let layout = delta_layout(7);
-        let prev_ids = row_ids(0..5);
-        let slice = delta_slice(0, 7, 7, 2);
-
-        let delta = compute_buffer_delta(
-            "session-1",
-            SessionGraphRevision::new(1, 1, 1),
-            3,
-            1,
-            0,
-            &prev_ids,
-            &layout,
-            &slice,
-            None,
-            None,
-        );
-
-        assert!(delta.prepended_rows.is_empty());
-        assert!(delta.removed_row_ids.is_empty());
-        assert_eq!(delta.emission_seq, 3);
-        assert_eq!(
-            delta
-                .appended_rows
-                .iter()
-                .map(|row| row.row_id.as_str())
-                .collect::<Vec<_>>(),
-            vec!["transcript:row-5", "transcript:row-6"]
-        );
-        assert_eq!(delta.appended_offsets_px, vec![500, 600]);
-        assert_eq!(delta.layout_row_count, 7);
-    }
-
-    #[test]
-    fn compute_buffer_delta_no_movement_is_empty() {
-        let layout = delta_layout(5);
-        let prev_ids = row_ids(0..5);
-        let slice = delta_slice(0, 5, 5, 9);
-
-        let delta = compute_buffer_delta(
-            "session-1",
-            SessionGraphRevision::new(1, 1, 1),
-            42,
-            8,
-            0,
-            &prev_ids,
-            &layout,
-            &slice,
-            None,
-            None,
-        );
-
-        assert_eq!(delta.emission_seq, 42);
-        assert!(delta.prepended_rows.is_empty());
-        assert!(delta.appended_rows.is_empty());
-        assert!(delta.removed_row_ids.is_empty());
-        assert_eq!(delta.from_viewport_revision, 8);
-        assert_eq!(delta.to_viewport_revision, 9);
-    }
-
-    #[test]
-    fn buffer_delta_identity_consistent_accepts_clean_tail_append() {
-        // Streaming tail-append: prev buffer [row-0..row-4], current grows to 7
-        // rows, window [0,7). Survivors keep their ids and versions, so an index
-        // delta is sound.
-        let layout = delta_layout(7);
-        let prev_ids = row_ids(0..5);
-        let prev_versions = row_versions(0..5);
-        let slice = delta_slice(0, 7, 7, 2);
-
-        assert!(buffer_delta_is_identity_consistent(
-            0,
-            &prev_ids,
-            &prev_versions,
-            &layout,
-            &slice
-        ));
-    }
-
-    #[test]
-    fn buffer_delta_identity_inconsistent_on_mid_buffer_insert() {
-        // A row is inserted mid-buffer between emissions (e.g. an operation
-        // resolves) and the tail-follow window shifts. The index-window delta
-        // would keep `row-4` as a survivor AND re-append it, duplicating a
-        // row_id in the consumer's spliced buffer. The producer must detect the
-        // identity drift and fall back to a fresh push.
-        let prev_ids = row_ids(0..5); // [row-0, row-1, row-2, row-3, row-4]
-        let prev_versions = row_versions(0..5);
-        let current = vec![
-            delta_row(0),
-            delta_row(99), // inserted mid-buffer
-            delta_row(1),
-            delta_row(2),
-            delta_row(3),
-            delta_row(4),
-        ];
-        // Window slid to [1,6): current buffer ids [row-99, row-1, row-2, row-3, row-4].
-        let slice = delta_slice(1, 6, 6, 2);
-
-        assert!(!buffer_delta_is_identity_consistent(
-            0,
-            &prev_ids,
-            &prev_versions,
-            &current,
-            &slice
-        ));
-    }
-
-    #[test]
-    fn buffer_delta_identity_inconsistent_on_survivor_version_change() {
-        // A survivor keeps its row_id but its content changed (new version). An
-        // index delta would not re-send it, so the consumer would render stale
-        // content. The producer must fall back to a fresh push.
-        let layout = delta_layout(7);
-        let prev_ids = row_ids(0..5);
-        let mut prev_versions = row_versions(0..5);
-        prev_versions[2] = "stale-version".to_string();
-        let slice = delta_slice(0, 7, 7, 2);
-
-        assert!(!buffer_delta_is_identity_consistent(
-            0,
-            &prev_ids,
-            &prev_versions,
-            &layout,
-            &slice
-        ));
-    }
-
-    use super::{classify_buffer_transition, BufferEmission};
-
-    #[test]
-    fn classify_buffer_transition_no_prior_is_fresh_push() {
-        let slice = delta_slice(4, 8, 20, 5);
-        assert_eq!(
-            classify_buffer_transition(None, &slice),
-            BufferEmission::FreshPush
-        );
-    }
-
-    #[test]
-    fn classify_buffer_transition_identical_window_is_noop() {
-        let slice = delta_slice(4, 8, 20, 5);
-        assert_eq!(
-            classify_buffer_transition(Some((4, 4)), &slice),
-            BufferEmission::NoOp
-        );
-    }
-
-    #[test]
-    fn classify_buffer_transition_overlapping_slide_is_delta() {
-        let slice = delta_slice(4, 8, 20, 5);
-        // Scroll down: prev [2,6) overlaps new [4,8).
-        assert_eq!(
-            classify_buffer_transition(Some((2, 4)), &slice),
-            BufferEmission::Delta
-        );
-        // Streaming tail append: prev [4,7) overlaps new [4,8) (same start, grown end).
-        assert_eq!(
-            classify_buffer_transition(Some((4, 3)), &slice),
-            BufferEmission::Delta
-        );
-    }
-
-    #[test]
-    fn classify_buffer_transition_disjoint_jump_is_fresh_push() {
-        let slice = delta_slice(40, 44, 100, 7);
-        // Prior buffer far above: prev [2,6) shares no rows with new [40,44).
-        assert_eq!(
-            classify_buffer_transition(Some((2, 4)), &slice),
-            BufferEmission::FreshPush
-        );
-        // Adjacent-but-touching (prev_end == new_start) is still disjoint: prev
-        // [36,40) and new [40,44) share no row index.
-        assert_eq!(
-            classify_buffer_transition(Some((36, 4)), &slice),
-            BufferEmission::FreshPush
-        );
-    }
 }

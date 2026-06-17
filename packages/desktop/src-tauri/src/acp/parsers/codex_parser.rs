@@ -10,7 +10,9 @@ use crate::acp::parsers::types::{
     ParsedUsageTelemetry, ParsedUsageTokens, UpdateType,
 };
 use crate::acp::parsers::CodexAdapter;
-use crate::acp::reconciler::kind_payload as kind_utils;
+use crate::acp::reconciler::{
+    canonical_name_for_kind, infer_kind_from_payload_for_agent, web_search_context_signals,
+};
 use crate::acp::session_update::{
     build_tool_call_from_raw, build_tool_call_update_from_raw, tool_call_status_from_str,
     RawToolCallInput, RawToolCallUpdateInput, ToolArguments, ToolCallStatus, ToolKind,
@@ -141,11 +143,7 @@ impl CodexParser {
         };
 
         if matches!(base, ToolKind::Fetch | ToolKind::Search)
-            && (id.starts_with("web_search_")
-                || title.map(kind_utils::is_web_search_title).unwrap_or(false)
-                || arguments
-                    .map(kind_utils::looks_like_web_search_arguments)
-                    .unwrap_or(false))
+            && web_search_context_signals(id, title, arguments)
         {
             ToolKind::WebSearch
         } else {
@@ -178,12 +176,12 @@ impl CodexParser {
         }
 
         if let Some(title_value) = title.map(str::trim).filter(|value| !value.is_empty()) {
-            if id.starts_with("web_search_") || kind_utils::is_web_search_title(title_value) {
+            if web_search_context_signals(id, Some(title_value), None) {
                 return "WebSearch".to_string();
             }
         }
 
-        kind_utils::canonical_name_for_kind(inferred_kind).to_string()
+        canonical_name_for_kind(inferred_kind).to_string()
     }
 
     fn merge_outer_arguments(raw: &serde_json::Value) -> serde_json::Value {
@@ -405,7 +403,7 @@ impl CodexParser {
             .get("title")
             .and_then(|v| v.as_str())
             .map(|s| s.to_string());
-        let payload_kind = kind_utils::infer_kind_from_payload_for_agent(
+        let payload_kind = infer_kind_from_payload_for_agent(
             AgentType::Codex,
             &id,
             title.as_deref(),
@@ -459,7 +457,7 @@ impl CodexParser {
         {
             if let Some(query) = title
                 .as_deref()
-                .filter(|value| !kind_utils::is_web_search_title(value))
+                .filter(|value| !web_search_context_signals("", Some(value), None))
                 .map(str::trim)
                 .filter(|value| !value.is_empty())
             {
@@ -535,7 +533,7 @@ impl CodexParser {
             .map(|value| Self::merge_outer_arguments(&value));
 
         let explicit_name = data.get("name").and_then(|value| value.as_str());
-        let payload_kind = kind_utils::infer_kind_from_payload_for_agent(
+        let payload_kind = infer_kind_from_payload_for_agent(
             AgentType::Codex,
             &id,
             title.as_deref(),

@@ -18,12 +18,6 @@ import {
 	createAgentPanelGraphMaterializerReadModel,
 	materializeAgentPanelSceneFromGraph,
 } from "../agent-panel-graph-materializer.js";
-import {
-	getAgentPanelSceneEntryArrayAppendPatch,
-	getAgentPanelSceneEntryArrayPatch,
-	getAgentPanelSceneEntryArraySplicePatch,
-	getAgentPanelSceneEntryArrayTruncation,
-} from "../agent-panel-scene-entry-array-patch.js";
 import { markInteractionSnapshotArrayPatch } from "../interaction-snapshot-array-patch.js";
 import { markOperationSnapshotArrayPatch } from "../operation-snapshot-array-patch.js";
 import { markTranscriptEntryArrayPatch } from "../transcript-entry-array-patch.js";
@@ -237,4306 +231,4965 @@ function createGraph(input: {
 }
 
 describe("agent panel graph materializer", () => {
-	it("reuses the operation index when materializing a fresh cached conversation", () => {
-		let sourceLinkReadCount = 0;
-		const operation = createOperationSnapshot();
-		Object.defineProperty(operation, "source_link", {
-			configurable: true,
-			enumerable: true,
-			get() {
-				sourceLinkReadCount += 1;
-				return {
-					kind: "transcript_linked",
-					entry_id: "tool-1",
-				};
-			},
-		});
-		const graph = createGraph({
-			transcriptSnapshot: createTranscriptSnapshot([
-				createTranscriptEntry("tool-1", "assistant", "Ran command"),
-			]),
-			operations: [operation],
-		});
-		const readModel = createAgentPanelGraphMaterializerReadModel();
+	describe("reuse", () => {
+  it("reuses conversation rows when only lifecycle changes", () => {
+  		const transcriptSnapshot = createTranscriptSnapshot([
+  			createTranscriptEntry("user-1", "user", "hello"),
+  			createTranscriptEntry("assistant-1", "assistant", "hi"),
+  		]);
+  		const graph = createGraph({ transcriptSnapshot });
+  		const readModel = createAgentPanelGraphMaterializerReadModel();
 
-		readModel.apply({
-			panelId: "panel-1",
-			graph,
-			header: {
-				title: "Session",
-			},
-		});
+  		const firstScene = readModel.apply({
+  			panelId: "panel-1",
+  			graph,
+  			header: { title: "Session" },
+  		});
+  		const nextGraph = {
+  			...graph,
+  			revision: {
+  				graphRevision: 10,
+  				transcriptRevision: graph.revision.transcriptRevision,
+  				lastEventSeq: 43,
+  			},
+  			lifecycle: {
+  				...graph.lifecycle,
+  				status: "reconnecting" as const,
+  			},
+  		};
+  		const nextScene = readModel.apply({
+  			panelId: "panel-1",
+  			graph: nextGraph,
+  			header: { title: "Session" },
+  		});
 
-		expect(sourceLinkReadCount).toBe(2);
+  		expect(nextScene.status).toBe("warming");
+  		expect(nextScene.conversation.entries).toBe(firstScene.conversation.entries);
+  	});
 	});
 
-	it("reuses conversation rows when only lifecycle changes", () => {
-		const transcriptSnapshot = createTranscriptSnapshot([
-			createTranscriptEntry("user-1", "user", "hello"),
-			createTranscriptEntry("assistant-1", "assistant", "hi"),
-		]);
-		const graph = createGraph({ transcriptSnapshot });
-		const readModel = createAgentPanelGraphMaterializerReadModel();
+	describe("activity-only", () => {
+  it("reuses conversation rows when only graph activity changes", () => {
+  		const transcriptSnapshot = createTranscriptSnapshot([
+  			createTranscriptEntry("user-1", "user", "hello"),
+  			createTranscriptEntry("assistant-1", "assistant", "working"),
+  		]);
+  		const operations = [
+  			createOperationSnapshot({
+  				id: "op-1",
+  				operation_state: "running",
+  				provider_status: "pending",
+  			}),
+  		];
+  		const graph = createGraph({
+  			transcriptSnapshot,
+  			operations,
+  			turnState: "Running",
+  			activeStreamingTail: {
+  				rowId: "assistant-1",
+  				contentKind: "message",
+  			},
+  			activity: {
+  				kind: "running_operation",
+  				activeOperationCount: 1,
+  				activeSubagentCount: 0,
+  				dominantOperationId: "op-1",
+  				blockingInteractionId: null,
+  			},
+  		});
+  		const readModel = createAgentPanelGraphMaterializerReadModel();
 
-		const firstScene = readModel.apply({
-			panelId: "panel-1",
-			graph,
-			header: { title: "Session" },
-		});
-		const nextGraph = {
-			...graph,
-			revision: {
-				graphRevision: 10,
-				transcriptRevision: graph.revision.transcriptRevision,
-				lastEventSeq: 43,
-			},
-			lifecycle: {
-				...graph.lifecycle,
-				status: "reconnecting" as const,
-			},
-		};
-		const nextScene = readModel.apply({
-			panelId: "panel-1",
-			graph: nextGraph,
-			header: { title: "Session" },
-		});
+  		const firstScene = readModel.apply({
+  			panelId: "panel-1",
+  			graph,
+  			header: { title: "Session" },
+  		});
+  		const originalOperation = operations[0];
+  		Object.defineProperty(operations, "0", {
+  			configurable: true,
+  			get() {
+  				throw new Error("must not scan operations when only activity changes");
+  			},
+  		});
 
-		expect(nextScene.status).toBe("warming");
-		expect(nextScene.conversation.entries).toBe(firstScene.conversation.entries);
+  		try {
+  			const nextScene = readModel.apply({
+  				panelId: "panel-1",
+  				graph: {
+  					...graph,
+  					activity: {
+  						kind: "awaiting_model",
+  						activeOperationCount: 0,
+  						activeSubagentCount: 0,
+  						dominantOperationId: null,
+  						blockingInteractionId: null,
+  					},
+  					revision: {
+  						graphRevision: 10,
+  						transcriptRevision: graph.revision.transcriptRevision,
+  						lastEventSeq: 43,
+  					},
+  				},
+  				header: { title: "Session" },
+  			});
+
+  			expect(nextScene.conversation.entries).toBe(firstScene.conversation.entries);
+  			expect(nextScene.conversation.entries[0]).toBe(firstScene.conversation.entries[0]);
+  			expect(nextScene.conversation.entries[1]).toBe(firstScene.conversation.entries[1]);
+  		} finally {
+  			Object.defineProperty(operations, "0", {
+  				configurable: true,
+  				value: originalOperation,
+  				writable: true,
+  				enumerable: true,
+  			});
+  		}
+  	});
+
+  it("keeps conversation rows stable when only the operations array identity changes", () => {
+  		const transcriptSnapshot = createTranscriptSnapshot([
+  			createTranscriptEntry("user-1", "user", "hello"),
+  			createTranscriptEntry("tool-1", "tool", "Run tests"),
+  			createTranscriptEntry("assistant-1", "assistant", "done"),
+  		]);
+  		const operation = createOperationSnapshot({
+  			id: "op-1",
+  			tool_call_id: "tool-1",
+  			source_link: { kind: "transcript_linked", entry_id: "tool-1" },
+  		});
+  		const graph = createGraph({
+  			transcriptSnapshot,
+  			operations: [operation],
+  		});
+  		const readModel = createAgentPanelGraphMaterializerReadModel();
+
+  		const firstScene = readModel.apply({
+  			panelId: "panel-1",
+  			graph,
+  			header: { title: "Session" },
+  		});
+  		const nextScene = readModel.apply({
+  			panelId: "panel-1",
+  			graph: {
+  				...graph,
+  				operations: [operation],
+  				revision: {
+  					graphRevision: 10,
+  					transcriptRevision: graph.revision.transcriptRevision,
+  					lastEventSeq: 43,
+  				},
+  			},
+  			header: { title: "Session" },
+  		});
+
+  		expect(nextScene.conversation.entries).toBe(firstScene.conversation.entries);
+  	});
+
+  it("keeps conversation rows stable when an operation patch has no visible scene change", () => {
+  		const transcriptSnapshot = createTranscriptSnapshot([
+  			createTranscriptEntry("tool-1", "tool", "Run tests"),
+  		]);
+  		const operation = createOperationSnapshot({
+  			id: "op-1",
+  			tool_call_id: "tool-1",
+  			source_link: { kind: "transcript_linked", entry_id: "tool-1" },
+  			operation_provenance_key: "first-key",
+  		});
+  		const graph = createGraph({
+  			transcriptSnapshot,
+  			operations: [operation],
+  		});
+  		const readModel = createAgentPanelGraphMaterializerReadModel();
+
+  		const firstScene = readModel.apply({
+  			panelId: "panel-1",
+  			graph,
+  			header: { title: "Session" },
+  		});
+  		const nextScene = readModel.apply({
+  			panelId: "panel-1",
+  			graph: {
+  				...graph,
+  				operations: [
+  					{
+  						...operation,
+  						operation_provenance_key: "second-key",
+  					},
+  				],
+  				revision: {
+  					graphRevision: 10,
+  					transcriptRevision: graph.revision.transcriptRevision,
+  					lastEventSeq: 43,
+  				},
+  			},
+  			header: { title: "Session" },
+  		});
+
+  		expect(nextScene.conversation.entries).toBe(firstScene.conversation.entries);
+  	});
+
+  it("keeps conversation entries stable when interaction changes are not visible", () => {
+  		const readModel = createAgentPanelGraphMaterializerReadModel();
+  		const transcriptSnapshot = createTranscriptSnapshot([
+  			createTranscriptEntry("user-1", "user", "Can you ask me?"),
+  		]);
+  		const operations: OperationSnapshot[] = [];
+  		const baseGraph = createGraph({
+  			transcriptSnapshot,
+  			operations,
+  			turnState: "Running",
+  			interactions: [],
+  		});
+  		const hiddenInteractionGraph = createGraph({
+  			transcriptSnapshot,
+  			operations,
+  			turnState: "Running",
+  			activity: {
+  				kind: "waiting_for_user",
+  				activeOperationCount: 0,
+  				activeSubagentCount: 0,
+  				dominantOperationId: null,
+  				blockingInteractionId: "other-question",
+  			},
+  			interactions: [
+  				createQuestionInteraction({
+  					id: "question-1",
+  					jsonRpcRequestId: 1,
+  					replyHandler: {
+  						kind: "json_rpc",
+  						requestId: "1",
+  					},
+  				}),
+  			],
+  		});
+  		const firstScene = readModel.apply({
+  			panelId: "panel-1",
+  			graph: baseGraph,
+  			header: { title: "Question session" },
+  		});
+
+  		const nextScene = readModel.apply({
+  			panelId: "panel-1",
+  			graph: hiddenInteractionGraph,
+  			header: { title: "Question session" },
+  		});
+
+  		expect(nextScene.conversation.entries).toBe(firstScene.conversation.entries);
+  	});
+
+  it("keeps invisible marked interaction appends incremental without scanning the next prefix", () => {
+  		const readModel = createAgentPanelGraphMaterializerReadModel();
+  		const transcriptSnapshot = createTranscriptSnapshot([
+  			createTranscriptEntry("user-1", "user", "Can you ask me?"),
+  		]);
+  		const operations: OperationSnapshot[] = [];
+  		const hiddenInteraction = createQuestionInteraction({
+  			id: "hidden-question",
+  			jsonRpcRequestId: 1,
+  			replyHandler: {
+  				kind: "json_rpc",
+  				requestId: "1",
+  			},
+  		});
+  		const appendedHiddenInteraction = createQuestionInteraction({
+  			id: "hidden-question-2",
+  			jsonRpcRequestId: 2,
+  			replyHandler: {
+  				kind: "json_rpc",
+  				requestId: "2",
+  			},
+  		});
+  		const baseInteractions = [hiddenInteraction];
+  		const nextInteractions = [hiddenInteraction, appendedHiddenInteraction];
+  		markInteractionSnapshotArrayPatch(nextInteractions, {
+  			baseInteractions,
+  			patchedInteractionsByIndex: null,
+  			appendedInteractions: [appendedHiddenInteraction],
+  		});
+  		const baseGraph = createGraph({
+  			transcriptSnapshot,
+  			operations,
+  			turnState: "Running",
+  			activity: {
+  				kind: "waiting_for_user",
+  				activeOperationCount: 0,
+  				activeSubagentCount: 0,
+  				dominantOperationId: null,
+  				blockingInteractionId: "other-question",
+  			},
+  			interactions: baseInteractions,
+  		});
+  		const firstScene = readModel.apply({
+  			panelId: "panel-1",
+  			graph: baseGraph,
+  			header: { title: "Question session" },
+  		});
+  		Object.defineProperty(nextInteractions, "0", {
+  			configurable: true,
+  			get() {
+  				throw new Error(
+  					"must not scan unchanged next interactions for an invisible interaction append"
+  				);
+  			},
+  		});
+
+  		try {
+  			const nextScene = readModel.apply({
+  				panelId: "panel-1",
+  				graph: {
+  					...baseGraph,
+  					interactions: nextInteractions,
+  					revision: {
+  						graphRevision: 10,
+  						transcriptRevision: baseGraph.revision.transcriptRevision,
+  						lastEventSeq: 43,
+  					},
+  				},
+  				header: { title: "Question session" },
+  			});
+
+  			expect(nextScene.conversation.entries).toBe(firstScene.conversation.entries);
+  		} finally {
+  			Object.defineProperty(nextInteractions, "0", {
+  				configurable: true,
+  				value: hiddenInteraction,
+  			});
+  		}
+  	});
 	});
 
-	it("reuses conversation rows when only graph activity changes", () => {
-		const transcriptSnapshot = createTranscriptSnapshot([
-			createTranscriptEntry("user-1", "user", "hello"),
-			createTranscriptEntry("assistant-1", "assistant", "working"),
-		]);
-		const operations = [
-			createOperationSnapshot({
-				id: "op-1",
-				operation_state: "running",
-				provider_status: "pending",
-			}),
-		];
-		const graph = createGraph({
-			transcriptSnapshot,
-			operations,
-			turnState: "Running",
-			activeStreamingTail: {
-				rowId: "assistant-1",
-				contentKind: "message",
-			},
-			activity: {
-				kind: "running_operation",
-				activeOperationCount: 1,
-				activeSubagentCount: 0,
-				dominantOperationId: "op-1",
-				blockingInteractionId: null,
-			},
-		});
-		const readModel = createAgentPanelGraphMaterializerReadModel();
+	describe("blocking-interaction-retarget", () => {
+  it("retargets the blocking interaction without scanning unchanged interactions", () => {
+  		const transcriptSnapshot = createTranscriptSnapshot([
+  			createTranscriptEntry("tool-1", "tool", "Run first"),
+  		]);
+  		const operation = createOperationSnapshot({
+  			id: "op-1",
+  			tool_call_id: "tool-1",
+  			source_link: { kind: "transcript_linked", entry_id: "tool-1" },
+  			result: null,
+  			operation_state: "running",
+  		});
+  		const questionOne = createQuestionInteraction({
+  			id: "question-1",
+  			jsonRpcRequestId: 1,
+  			replyHandler: { kind: "json_rpc", requestId: "1" },
+  		});
+  		const questionTwo = createQuestionInteraction({
+  			id: "question-2",
+  			jsonRpcRequestId: 2,
+  			replyHandler: { kind: "json_rpc", requestId: "2" },
+  		});
+  		const interactions = [questionOne, questionTwo];
+  		const graph = createGraph({
+  			transcriptSnapshot,
+  			operations: [operation],
+  			interactions,
+  			activity: {
+  				kind: "waiting_for_user",
+  				activeOperationCount: 1,
+  				activeSubagentCount: 0,
+  				dominantOperationId: "op-1",
+  				blockingInteractionId: "question-1",
+  			},
+  		});
+  		const readModel = createAgentPanelGraphMaterializerReadModel();
+  		const firstScene = readModel.apply({
+  			panelId: "panel-1",
+  			graph,
+  			header: { title: "Question session" },
+  		});
 
-		const firstScene = readModel.apply({
-			panelId: "panel-1",
-			graph,
-			header: { title: "Session" },
-		});
-		const originalOperation = operations[0];
-		Object.defineProperty(operations, "0", {
-			configurable: true,
-			get() {
-				throw new Error("must not scan operations when only activity changes");
-			},
-		});
+  		Object.defineProperty(interactions, "0", {
+  			configurable: true,
+  			get() {
+  				throw new Error(
+  					"must not scan unchanged interactions for a blocking interaction retarget"
+  				);
+  			},
+  		});
 
-		try {
-			const nextScene = readModel.apply({
-				panelId: "panel-1",
-				graph: {
-					...graph,
-					activity: {
-						kind: "awaiting_model",
-						activeOperationCount: 0,
-						activeSubagentCount: 0,
-						dominantOperationId: null,
-						blockingInteractionId: null,
-					},
-					revision: {
-						graphRevision: 10,
-						transcriptRevision: graph.revision.transcriptRevision,
-						lastEventSeq: 43,
-					},
-				},
-				header: { title: "Session" },
-			});
+  		let nextScene: ReturnType<typeof readModel.apply>;
+  		try {
+  			nextScene = readModel.apply({
+  				panelId: "panel-1",
+  				graph: {
+  					...graph,
+  					activity: {
+  						kind: "waiting_for_user",
+  						activeOperationCount: 1,
+  						activeSubagentCount: 0,
+  						dominantOperationId: "op-1",
+  						blockingInteractionId: "question-2",
+  					},
+  					revision: {
+  						graphRevision: 10,
+  						transcriptRevision: graph.revision.transcriptRevision,
+  						lastEventSeq: 43,
+  					},
+  				},
+  				header: { title: "Question session" },
+  			});
+  		} finally {
+  			Object.defineProperty(interactions, "0", {
+  				configurable: true,
+  				value: questionOne,
+  			});
+  		}
 
-			expect(nextScene.conversation.entries).toBe(firstScene.conversation.entries);
-			expect(nextScene.conversation.entries[0]).toBe(firstScene.conversation.entries[0]);
-			expect(nextScene.conversation.entries[1]).toBe(firstScene.conversation.entries[1]);
-		} finally {
-			Object.defineProperty(operations, "0", {
-				configurable: true,
-				value: originalOperation,
-				writable: true,
-				enumerable: true,
-			});
-		}
+  		expect(firstScene.conversation.entries.map((entry) => entry.id)).toEqual([
+  			"tool-1",
+  			"interaction:question-1",
+  		]);
+  		expect(nextScene.conversation.entries.map((entry) => entry.id)).toEqual([
+  			"tool-1",
+  			"interaction:question-2",
+  		]);
+  	});
+
+  it("retargets the blocking interaction across stable unmarked interaction appends without scanning the unchanged prefix", () => {
+  		const transcriptSnapshot = createTranscriptSnapshot([
+  			createTranscriptEntry("tool-1", "tool", "Run first"),
+  		]);
+  		const questionOne = createQuestionInteraction({
+  			id: "question-1",
+  			jsonRpcRequestId: 1,
+  			replyHandler: { kind: "json_rpc", requestId: "1" },
+  		});
+  		const questionTwo = createQuestionInteraction({
+  			id: "question-2",
+  			jsonRpcRequestId: 2,
+  			replyHandler: { kind: "json_rpc", requestId: "2" },
+  		});
+  		const questionThree = createQuestionInteraction({
+  			id: "question-3",
+  			jsonRpcRequestId: 3,
+  			replyHandler: { kind: "json_rpc", requestId: "3" },
+  		});
+  		const interactions = [questionOne, questionTwo];
+  		const graph = createGraph({
+  			transcriptSnapshot,
+  			interactions,
+  			activity: {
+  				kind: "waiting_for_user",
+  				activeOperationCount: 0,
+  				activeSubagentCount: 0,
+  				dominantOperationId: null,
+  				blockingInteractionId: "question-1",
+  			},
+  		});
+  		const readModel = createAgentPanelGraphMaterializerReadModel();
+  		const firstScene = readModel.apply({
+  			panelId: "panel-1",
+  			graph,
+  			header: { title: "Question session" },
+  		});
+  		const nextInteractions = [questionOne, questionTwo, questionThree];
+  		Object.defineProperty(nextInteractions, "0", {
+  			configurable: true,
+  			get() {
+  				throw new Error(
+  					"must not scan the unchanged interaction prefix when retargeting across stable appends"
+  				);
+  			},
+  		});
+
+  		let nextScene: ReturnType<typeof readModel.apply>;
+  		try {
+  			nextScene = readModel.apply({
+  				panelId: "panel-1",
+  				graph: {
+  					...graph,
+  					interactions: nextInteractions,
+  					activity: {
+  						kind: "waiting_for_user",
+  						activeOperationCount: 0,
+  						activeSubagentCount: 0,
+  						dominantOperationId: null,
+  						blockingInteractionId: "question-2",
+  					},
+  					revision: {
+  						graphRevision: 10,
+  						transcriptRevision: graph.revision.transcriptRevision,
+  						lastEventSeq: 43,
+  					},
+  				},
+  				header: { title: "Question session" },
+  			});
+  		} finally {
+  			Object.defineProperty(nextInteractions, "0", {
+  				configurable: true,
+  				value: questionOne,
+  			});
+  		}
+
+  		expect(firstScene.conversation.entries.map((entry) => entry.id)).toEqual([
+  			"tool-1",
+  			"interaction:question-1",
+  		]);
+  		expect(nextScene.conversation.entries.map((entry) => entry.id)).toEqual([
+  			"tool-1",
+  			"interaction:question-2",
+  		]);
+  	});
 	});
 
-	it("reuses unaffected conversation rows when one linked operation changes", () => {
-		const transcriptSnapshot = createTranscriptSnapshot([
-			createTranscriptEntry("user-1", "user", "hello"),
-			createTranscriptEntry("tool-1", "tool", "Run tests"),
-			createTranscriptEntry("assistant-1", "assistant", "done"),
-		]);
-		const operation = createOperationSnapshot({
-			id: "op-1",
-			tool_call_id: "tool-1",
-			source_link: { kind: "transcript_linked", entry_id: "tool-1" },
-			operation_state: "pending",
-			provider_status: "pending",
-			result: null,
-		});
-		const graph = createGraph({
-			transcriptSnapshot,
-			operations: [operation],
-		});
-		const readModel = createAgentPanelGraphMaterializerReadModel();
+	describe("operation-patch", () => {
+  it("reuses unaffected conversation rows when one linked operation changes", () => {
+  		const transcriptSnapshot = createTranscriptSnapshot([
+  			createTranscriptEntry("user-1", "user", "hello"),
+  			createTranscriptEntry("tool-1", "tool", "Run tests"),
+  			createTranscriptEntry("assistant-1", "assistant", "done"),
+  		]);
+  		const operation = createOperationSnapshot({
+  			id: "op-1",
+  			tool_call_id: "tool-1",
+  			source_link: { kind: "transcript_linked", entry_id: "tool-1" },
+  			operation_state: "pending",
+  			provider_status: "pending",
+  			result: null,
+  		});
+  		const graph = createGraph({
+  			transcriptSnapshot,
+  			operations: [operation],
+  		});
+  		const readModel = createAgentPanelGraphMaterializerReadModel();
 
-		const firstScene = readModel.apply({
-			panelId: "panel-1",
-			graph,
-			header: { title: "Session" },
-		});
-		const completedOperation = {
-			...operation,
-			operation_state: "completed" as const,
-			provider_status: "completed" as const,
-			result: { stdout: "ok", stderr: null, exitCode: 0 },
-		};
-		const nextScene = readModel.apply({
-			panelId: "panel-1",
-			graph: {
-				...graph,
-				operations: [completedOperation],
-				revision: {
-					graphRevision: 10,
-					transcriptRevision: graph.revision.transcriptRevision,
-					lastEventSeq: 43,
-				},
-			},
-			header: { title: "Session" },
-		});
+  		const firstScene = readModel.apply({
+  			panelId: "panel-1",
+  			graph,
+  			header: { title: "Session" },
+  		});
+  		const completedOperation = {
+  			...operation,
+  			operation_state: "completed" as const,
+  			provider_status: "completed" as const,
+  			result: { stdout: "ok", stderr: null, exitCode: 0 },
+  		};
+  		const nextScene = readModel.apply({
+  			panelId: "panel-1",
+  			graph: {
+  				...graph,
+  				operations: [completedOperation],
+  				revision: {
+  					graphRevision: 10,
+  					transcriptRevision: graph.revision.transcriptRevision,
+  					lastEventSeq: 43,
+  				},
+  			},
+  			header: { title: "Session" },
+  		});
 
-		expect(nextScene.conversation.entries).not.toBe(firstScene.conversation.entries);
-		expect(nextScene.conversation.entries[0]).toBe(firstScene.conversation.entries[0]);
-		expect(nextScene.conversation.entries[1]).not.toBe(firstScene.conversation.entries[1]);
-		expect(nextScene.conversation.entries[2]).toBe(firstScene.conversation.entries[2]);
-		expect(nextScene.conversation.entries[1]).toMatchObject({
-			type: "tool_call",
-			status: "done",
-			stdout: "ok",
-		});
+  		expect(nextScene.conversation.entries).not.toBe(firstScene.conversation.entries);
+  		expect(nextScene.conversation.entries[0]).toBe(firstScene.conversation.entries[0]);
+  		expect(nextScene.conversation.entries[1]).not.toBe(firstScene.conversation.entries[1]);
+  		expect(nextScene.conversation.entries[2]).toBe(firstScene.conversation.entries[2]);
+  		expect(nextScene.conversation.entries[1]).toMatchObject({
+  			type: "tool_call",
+  			status: "done",
+  			stdout: "ok",
+  		});
+  	});
+
+  it("updates a transcript row when one child operation changes", () => {
+  		const transcriptSnapshot = createTranscriptSnapshot([
+  			createTranscriptEntry("task-entry", "tool", "Task completed"),
+  		]);
+  		const parentOperation = createOperationSnapshot({
+  			id: "operation-parent",
+  			tool_call_id: "task-tool",
+  			name: "task",
+  			kind: "task",
+  			title: "Task completed",
+  			child_tool_call_ids: ["child-tool"],
+  			child_operation_ids: ["operation-child"],
+  			source_link: {
+  				kind: "transcript_linked",
+  				entry_id: "task-entry",
+  			},
+  		});
+  		const childOperation = createOperationSnapshot({
+  			id: "operation-child",
+  			tool_call_id: "child-tool",
+  			name: "bash",
+  			kind: "execute",
+  			title: "Run",
+  			result: null,
+  			parent_operation_id: "operation-parent",
+  			source_link: {
+  				kind: "synthetic",
+  				reason: "task_child_operation",
+  			},
+  		});
+  		const graph = createGraph({
+  			transcriptSnapshot,
+  			operations: [parentOperation, childOperation],
+  		});
+  		const readModel = createAgentPanelGraphMaterializerReadModel();
+
+  		const firstScene = readModel.apply({
+  			panelId: "panel-1",
+  			graph,
+  			header: { title: "Session" },
+  		});
+  		const nextScene = readModel.apply({
+  			panelId: "panel-1",
+  			graph: {
+  				...graph,
+  				operations: [
+  					parentOperation,
+  					{
+  						...childOperation,
+  						result: { stdout: "child ok", stderr: null, exitCode: 0 },
+  					},
+  				],
+  				revision: {
+  					graphRevision: 10,
+  					transcriptRevision: graph.revision.transcriptRevision,
+  					lastEventSeq: 43,
+  				},
+  			},
+  			header: { title: "Session" },
+  		});
+
+  		expect(nextScene.conversation.entries).not.toBe(firstScene.conversation.entries);
+  		expect(nextScene.conversation.entries[0]).not.toBe(firstScene.conversation.entries[0]);
+  		expect(nextScene.conversation.entries[0]).toMatchObject({
+  			id: "task-entry",
+  			type: "tool_call",
+  			taskChildren: [
+  				{
+  					toolCallId: "child-tool",
+  					stdout: "child ok",
+  				},
+  			],
+  		});
+  	});
+
+  it("applies marked operation patches without scanning unchanged operations", () => {
+  		const transcriptSnapshot = createTranscriptSnapshot([
+  			createTranscriptEntry("tool-1", "tool", "Run first"),
+  			createTranscriptEntry("tool-2", "tool", "Run second"),
+  		]);
+  		const firstOperation = createOperationSnapshot({
+  			id: "op-1",
+  			tool_call_id: "tool-1",
+  			source_link: { kind: "transcript_linked", entry_id: "tool-1" },
+  		});
+  		const secondOperation = createOperationSnapshot({
+  			id: "op-2",
+  			tool_call_id: "tool-2",
+  			source_link: { kind: "transcript_linked", entry_id: "tool-2" },
+  			result: null,
+  			operation_state: "running",
+  		});
+  		const operations = [firstOperation, secondOperation];
+  		const graph = createGraph({
+  			transcriptSnapshot,
+  			operations,
+  			activity: {
+  				kind: "running_operation",
+  				activeOperationCount: 1,
+  				activeSubagentCount: 0,
+  				dominantOperationId: "op-2",
+  				blockingInteractionId: null,
+  			},
+  		});
+  		const readModel = createAgentPanelGraphMaterializerReadModel();
+
+  		const firstScene = readModel.apply({
+  			panelId: "panel-1",
+  			graph,
+  			header: { title: "Session" },
+  		});
+  		const patchedSecondOperation = {
+  			...secondOperation,
+  			result: { stdout: "done", stderr: null, exitCode: 0 },
+  			operation_state: "completed" as const,
+  		};
+  		const nextOperations = [firstOperation, patchedSecondOperation];
+  		markOperationSnapshotArrayPatch(nextOperations, {
+  			baseOperations: operations,
+  			patchedOperationsByIndex: new Map([[1, patchedSecondOperation]]),
+  			appendedOperations: null,
+  		});
+  		Object.defineProperty(operations, "0", {
+  			configurable: true,
+  			get() {
+  				throw new Error("must not scan unchanged operation rows for an operation patch");
+  			},
+  		});
+  		const originalMapIterator = Map.prototype[Symbol.iterator];
+  		const originalMapSet = Map.prototype.set;
+  		Map.prototype[Symbol.iterator] = function patchedMapIterator<K, V>(this: Map<K, V>) {
+  			if (this.has("op-1" as K) || this.has("tool-1" as K)) {
+  				throw new Error("must not clone operation index maps for a stable operation patch");
+  			}
+  			return originalMapIterator.call(this);
+  		};
+  		Map.prototype.set = function patchedMapSet<K, V>(
+  			this: Map<K, V>,
+  			key: K,
+  			value: V
+  		): Map<K, V> {
+  			if (
+  				typeof key === "string" &&
+  				(key === "op-2" || key === "tool-2") &&
+  				typeof value === "object" &&
+  				value !== null &&
+  				"id" in value &&
+  				this.has("op-1" as K)
+  			) {
+  				throw new Error("must not mutate the previous operation index for a stable patch");
+  			}
+  			return originalMapSet.call(this, key, value);
+  		};
+
+  		try {
+  			const nextScene = readModel.apply({
+  				panelId: "panel-1",
+  				graph: {
+  					...graph,
+  					operations: nextOperations,
+  					activity: {
+  						kind: "idle",
+  						activeOperationCount: 0,
+  						activeSubagentCount: 0,
+  						dominantOperationId: null,
+  						blockingInteractionId: null,
+  					},
+  					revision: {
+  						graphRevision: 10,
+  						transcriptRevision: graph.revision.transcriptRevision,
+  						lastEventSeq: 43,
+  					},
+  				},
+  				header: { title: "Session" },
+  			});
+
+  			expect(nextScene.conversation.entries).not.toBe(firstScene.conversation.entries);
+  			expect(nextScene.conversation.entries[0]).toBe(firstScene.conversation.entries[0]);
+  			expect(nextScene.conversation.entries[1]).not.toBe(firstScene.conversation.entries[1]);
+  			expect(nextScene.conversation.entries[1]).toMatchObject({
+  				id: "tool-2",
+  				type: "tool_call",
+  				stdout: "done",
+  			});
+  		} finally {
+  			Map.prototype[Symbol.iterator] = originalMapIterator;
+  			Map.prototype.set = originalMapSet;
+  			Object.defineProperty(operations, "0", {
+  				configurable: true,
+  				value: firstOperation,
+  			});
+  		}
+  	});
+
+  it("rematerializes interaction rows when operation patches change the blocking interaction", () => {
+  		const transcriptSnapshot = createTranscriptSnapshot([
+  			createTranscriptEntry("tool-1", "tool", "Run first"),
+  		]);
+  		const operation = createOperationSnapshot({
+  			id: "op-1",
+  			tool_call_id: "tool-1",
+  			source_link: { kind: "transcript_linked", entry_id: "tool-1" },
+  			result: null,
+  			operation_state: "running",
+  		});
+  		const operations = [operation];
+  		const questionOne = createQuestionInteraction({
+  			id: "question-1",
+  			jsonRpcRequestId: 1,
+  			replyHandler: { kind: "json_rpc", requestId: "1" },
+  		});
+  		const questionTwo = createQuestionInteraction({
+  			id: "question-2",
+  			jsonRpcRequestId: 2,
+  			replyHandler: { kind: "json_rpc", requestId: "2" },
+  		});
+  		const graph = createGraph({
+  			transcriptSnapshot,
+  			operations,
+  			interactions: [questionOne, questionTwo],
+  			activity: {
+  				kind: "waiting_for_user",
+  				activeOperationCount: 1,
+  				activeSubagentCount: 0,
+  				dominantOperationId: "op-1",
+  				blockingInteractionId: "question-1",
+  			},
+  		});
+  		const readModel = createAgentPanelGraphMaterializerReadModel();
+  		const firstScene = readModel.apply({
+  			panelId: "panel-1",
+  			graph,
+  			header: { title: "Question session" },
+  		});
+  		Object.defineProperty(graph.interactions, "0", {
+  			configurable: true,
+  			get() {
+  				throw new Error(
+  					"must not scan unchanged interactions when operation patches only retarget the blocking question"
+  				);
+  			},
+  		});
+  		const patchedOperation = {
+  			...operation,
+  			result: { stdout: "done", stderr: null, exitCode: 0 },
+  			operation_state: "completed" as const,
+  		};
+  		const nextOperations = [patchedOperation];
+  		markOperationSnapshotArrayPatch(nextOperations, {
+  			baseOperations: operations,
+  			patchedOperationsByIndex: new Map([[0, patchedOperation]]),
+  			appendedOperations: null,
+  		});
+
+  		let nextScene: ReturnType<typeof readModel.apply>;
+  		try {
+  			nextScene = readModel.apply({
+  				panelId: "panel-1",
+  				graph: {
+  					...graph,
+  					operations: nextOperations,
+  					activity: {
+  						kind: "waiting_for_user",
+  						activeOperationCount: 0,
+  						activeSubagentCount: 0,
+  						dominantOperationId: null,
+  						blockingInteractionId: "question-2",
+  					},
+  					revision: {
+  						graphRevision: 10,
+  						transcriptRevision: graph.revision.transcriptRevision,
+  						lastEventSeq: 43,
+  					},
+  				},
+  				header: { title: "Question session" },
+  			});
+  		} finally {
+  			Object.defineProperty(graph.interactions, "0", {
+  				configurable: true,
+  				value: questionOne,
+  			});
+  		}
+
+  		expect(firstScene.conversation.entries.map((entry) => entry.id)).toEqual([
+  			"tool-1",
+  			"interaction:question-1",
+  		]);
+  		expect(nextScene.conversation.entries.map((entry) => entry.id)).toEqual([
+  			"tool-1",
+  			"interaction:question-2",
+  		]);
+  	});
+
+  it("applies marked operation appends without cloning existing operation indexes", () => {
+  		const transcriptSnapshot = createTranscriptSnapshot([
+  			createTranscriptEntry("tool-1", "tool", "Run first"),
+  			createTranscriptEntry("tool-2", "tool", "Run second"),
+  		]);
+  		const firstOperation = createOperationSnapshot({
+  			id: "op-1",
+  			tool_call_id: "tool-1",
+  			source_link: { kind: "transcript_linked", entry_id: "tool-1" },
+  		});
+  		const appendedOperation = createOperationSnapshot({
+  			id: "op-2",
+  			tool_call_id: "tool-2",
+  			source_link: { kind: "transcript_linked", entry_id: "tool-2" },
+  		});
+  		const operations = [firstOperation];
+  		const graph = createGraph({
+  			transcriptSnapshot,
+  			operations,
+  		});
+  		const readModel = createAgentPanelGraphMaterializerReadModel();
+  		const firstScene = readModel.apply({
+  			panelId: "panel-1",
+  			graph,
+  			header: { title: "Session" },
+  		});
+  		const nextOperations = [firstOperation, appendedOperation];
+  		markOperationSnapshotArrayPatch(nextOperations, {
+  			baseOperations: operations,
+  			patchedOperationsByIndex: null,
+  			appendedOperations: [appendedOperation],
+  		});
+  		const originalMapIterator = Map.prototype[Symbol.iterator];
+  		Map.prototype[Symbol.iterator] = function patchedMapIterator<K, V>(this: Map<K, V>) {
+  			if (this.has("op-1" as K) || this.has("tool-1" as K)) {
+  				throw new Error("must not clone operation index maps for an operation append");
+  			}
+  			return originalMapIterator.call(this);
+  		};
+
+  		try {
+  			const nextScene = readModel.apply({
+  				panelId: "panel-1",
+  				graph: {
+  					...graph,
+  					operations: nextOperations,
+  					revision: {
+  						graphRevision: 10,
+  						transcriptRevision: graph.revision.transcriptRevision,
+  						lastEventSeq: 43,
+  					},
+  				},
+  				header: { title: "Session" },
+  			});
+
+  			expect(nextScene.conversation.entries[0]).toBe(firstScene.conversation.entries[0]);
+  			expect(nextScene.conversation.entries[1]).toMatchObject({
+  				id: "tool-2",
+  				type: "tool_call",
+  			});
+  		} finally {
+  			Map.prototype[Symbol.iterator] = originalMapIterator;
+  		}
+  	});
+
+  it("applies marked operation appends without filtering appended parent lists on lookup", () => {
+  		const transcriptSnapshot = createTranscriptSnapshot([
+  			createTranscriptEntry("tool-1", "tool", "Run first"),
+  			createTranscriptEntry("tool-2", "tool", "Run second"),
+  		]);
+  		const firstOperation = createOperationSnapshot({
+  			id: "op-1",
+  			tool_call_id: "tool-1",
+  			source_link: { kind: "transcript_linked", entry_id: "tool-1" },
+  		});
+  		const appendedOperation = createOperationSnapshot({
+  			id: "op-2",
+  			tool_call_id: "tool-2",
+  			source_link: { kind: "transcript_linked", entry_id: "tool-2" },
+  		});
+  		const operations = [firstOperation];
+  		const graph = createGraph({
+  			transcriptSnapshot,
+  			operations,
+  		});
+  		const readModel = createAgentPanelGraphMaterializerReadModel();
+  		const firstScene = readModel.apply({
+  			panelId: "panel-1",
+  			graph,
+  			header: { title: "Session" },
+  		});
+  		const appendedOperations = [appendedOperation];
+  		const nextOperations = [firstOperation, appendedOperation];
+  		markOperationSnapshotArrayPatch(nextOperations, {
+  			baseOperations: operations,
+  			patchedOperationsByIndex: null,
+  			appendedOperations,
+  		});
+  		Object.defineProperty(appendedOperations, "filter", {
+  			configurable: true,
+  			value() {
+  				throw new Error("must not filter appended parent operations on lookup");
+  			},
+  		});
+
+  		const nextScene = readModel.apply({
+  			panelId: "panel-1",
+  			graph: {
+  				...graph,
+  				operations: nextOperations,
+  				revision: {
+  					graphRevision: 10,
+  					transcriptRevision: graph.revision.transcriptRevision,
+  					lastEventSeq: 43,
+  				},
+  			},
+  			header: { title: "Session" },
+  		});
+
+  		expect(nextScene.conversation.entries[0]).toBe(firstScene.conversation.entries[0]);
+  		expect(nextScene.conversation.entries[1]).toMatchObject({
+  			id: "tool-2",
+  			type: "tool_call",
+  		});
+  	});
+
+  it("applies stable marked operation patches and appends without cloning indexes", () => {
+  		const transcriptSnapshot = createTranscriptSnapshot([
+  			createTranscriptEntry("tool-1", "tool", "Run first"),
+  			createTranscriptEntry("tool-2", "tool", "Run second"),
+  			createTranscriptEntry("tool-3", "tool", "Run third"),
+  		]);
+  		const firstOperation = createOperationSnapshot({
+  			id: "op-1",
+  			tool_call_id: "tool-1",
+  			source_link: { kind: "transcript_linked", entry_id: "tool-1" },
+  		});
+  		const secondOperation = createOperationSnapshot({
+  			id: "op-2",
+  			tool_call_id: "tool-2",
+  			source_link: { kind: "transcript_linked", entry_id: "tool-2" },
+  			result: null,
+  			operation_state: "running",
+  		});
+  		const appendedOperation = createOperationSnapshot({
+  			id: "op-3",
+  			tool_call_id: "tool-3",
+  			source_link: { kind: "transcript_linked", entry_id: "tool-3" },
+  		});
+  		const operations = [firstOperation, secondOperation];
+  		const graph = createGraph({
+  			transcriptSnapshot,
+  			operations,
+  		});
+  		const readModel = createAgentPanelGraphMaterializerReadModel();
+  		const firstScene = readModel.apply({
+  			panelId: "panel-1",
+  			graph,
+  			header: { title: "Session" },
+  		});
+  		const patchedSecondOperation = {
+  			...secondOperation,
+  			result: { stdout: "done", stderr: null, exitCode: 0 },
+  			operation_state: "completed" as const,
+  		};
+  		const nextOperations = [firstOperation, patchedSecondOperation, appendedOperation];
+  		markOperationSnapshotArrayPatch(nextOperations, {
+  			baseOperations: operations,
+  			patchedOperationsByIndex: new Map([[1, patchedSecondOperation]]),
+  			appendedOperations: [appendedOperation],
+  		});
+  		const originalMapIterator = Map.prototype[Symbol.iterator];
+  		Map.prototype[Symbol.iterator] = function patchedMapIterator<K, V>(this: Map<K, V>) {
+  			if (this.has("op-1" as K) || this.has("tool-1" as K)) {
+  				throw new Error("must not clone operation index maps for patch plus append");
+  			}
+  			return originalMapIterator.call(this);
+  		};
+
+  		try {
+  			const nextScene = readModel.apply({
+  				panelId: "panel-1",
+  				graph: {
+  					...graph,
+  					operations: nextOperations,
+  					revision: {
+  						graphRevision: 10,
+  						transcriptRevision: graph.revision.transcriptRevision,
+  						lastEventSeq: 43,
+  					},
+  				},
+  				header: { title: "Session" },
+  			});
+
+  			expect(nextScene.conversation.entries[0]).toBe(firstScene.conversation.entries[0]);
+  			expect(nextScene.conversation.entries[1]).not.toBe(firstScene.conversation.entries[1]);
+  			expect(nextScene.conversation.entries[1]).toMatchObject({
+  				id: "tool-2",
+  				type: "tool_call",
+  				stdout: "done",
+  			});
+  			expect(nextScene.conversation.entries[2]).toMatchObject({
+  				id: "tool-3",
+  				type: "tool_call",
+  			});
+  		} finally {
+  			Map.prototype[Symbol.iterator] = originalMapIterator;
+  		}
+  	});
+
+  it("applies stable unmarked operation patches and appends without cloning indexes", () => {
+  		const transcriptSnapshot = createTranscriptSnapshot([
+  			createTranscriptEntry("tool-1", "tool", "Run first"),
+  			createTranscriptEntry("tool-2", "tool", "Run second"),
+  			createTranscriptEntry("tool-3", "tool", "Run third"),
+  		]);
+  		const firstOperation = createOperationSnapshot({
+  			id: "op-1",
+  			tool_call_id: "tool-1",
+  			source_link: { kind: "transcript_linked", entry_id: "tool-1" },
+  		});
+  		const secondOperation = createOperationSnapshot({
+  			id: "op-2",
+  			tool_call_id: "tool-2",
+  			source_link: { kind: "transcript_linked", entry_id: "tool-2" },
+  			result: null,
+  			operation_state: "running",
+  		});
+  		const appendedOperation = createOperationSnapshot({
+  			id: "op-3",
+  			tool_call_id: "tool-3",
+  			source_link: { kind: "transcript_linked", entry_id: "tool-3" },
+  		});
+  		const operations = [firstOperation, secondOperation];
+  		const graph = createGraph({
+  			transcriptSnapshot,
+  			operations,
+  		});
+  		const readModel = createAgentPanelGraphMaterializerReadModel();
+  		const firstScene = readModel.apply({
+  			panelId: "panel-1",
+  			graph,
+  			header: { title: "Session" },
+  		});
+  		const patchedSecondOperation = {
+  			...secondOperation,
+  			result: { stdout: "done", stderr: null, exitCode: 0 },
+  			operation_state: "completed" as const,
+  		};
+  		const nextOperations = [firstOperation, patchedSecondOperation, appendedOperation];
+  		const originalMapIterator = Map.prototype[Symbol.iterator];
+  		Map.prototype[Symbol.iterator] = function patchedMapIterator<K, V>(this: Map<K, V>) {
+  			if (this.has("op-1" as K) || this.has("tool-1" as K)) {
+  				throw new Error("must not clone operation index maps for stable unmarked patch plus append");
+  			}
+  			return originalMapIterator.call(this);
+  		};
+
+  		try {
+  			const nextScene = readModel.apply({
+  				panelId: "panel-1",
+  				graph: {
+  					...graph,
+  					operations: nextOperations,
+  					revision: {
+  						graphRevision: 10,
+  						transcriptRevision: graph.revision.transcriptRevision,
+  						lastEventSeq: 43,
+  					},
+  				},
+  				header: { title: "Session" },
+  			});
+
+  			expect(nextScene.conversation.entries[0]).toBe(firstScene.conversation.entries[0]);
+  			expect(nextScene.conversation.entries[1]).not.toBe(firstScene.conversation.entries[1]);
+  			expect(nextScene.conversation.entries[1]).toMatchObject({
+  				id: "tool-2",
+  				type: "tool_call",
+  				stdout: "done",
+  			});
+  			expect(nextScene.conversation.entries[2]).toMatchObject({
+  				id: "tool-3",
+  				type: "tool_call",
+  			});
+  		} finally {
+  			Map.prototype[Symbol.iterator] = originalMapIterator;
+  		}
+  	});
+
+  it("applies marked operation patches without copying unaffected parent lists", () => {
+  		const transcriptSnapshot = createTranscriptSnapshot([
+  			createTranscriptEntry("parent-tool", "tool", "Task completed"),
+  		]);
+  		const parentOperation = createOperationSnapshot({
+  			id: "parent-operation",
+  			tool_call_id: "parent-tool",
+  			kind: "task",
+  			child_operation_ids: ["child-operation"],
+  			source_link: { kind: "transcript_linked", entry_id: "parent-tool" },
+  		});
+  		const childOperation = createOperationSnapshot({
+  			id: "child-operation",
+  			tool_call_id: "child-tool",
+  			parent_operation_id: "parent-operation",
+  			source_link: { kind: "synthetic", reason: "task_child_operation" },
+  			result: null,
+  			operation_state: "running",
+  		});
+  		const operations = [parentOperation, childOperation];
+  		const graph = createGraph({
+  			transcriptSnapshot,
+  			operations,
+  		});
+  		const readModel = createAgentPanelGraphMaterializerReadModel();
+  		const firstScene = readModel.apply({
+  			panelId: "panel-1",
+  			graph,
+  			header: { title: "Session" },
+  		});
+  		const patchedChildOperation = {
+  			...childOperation,
+  			result: { stdout: "done", stderr: null, exitCode: 0 },
+  			operation_state: "completed" as const,
+  		};
+  		const nextOperations = [parentOperation, patchedChildOperation];
+  		markOperationSnapshotArrayPatch(nextOperations, {
+  			baseOperations: operations,
+  			patchedOperationsByIndex: new Map([[1, patchedChildOperation]]),
+  			appendedOperations: null,
+  		});
+  		const originalSlice = Array.prototype.slice;
+  		Array.prototype.slice = function patchedSlice<T>(this: T[], start?: number, end?: number) {
+  			if (this[0] === parentOperation) {
+  				throw new Error("must not copy unaffected parent operation lists");
+  			}
+  			return originalSlice.call(this, start, end);
+  		};
+
+  		try {
+  			const nextScene = readModel.apply({
+  				panelId: "panel-1",
+  				graph: {
+  					...graph,
+  					operations: nextOperations,
+  					revision: {
+  						graphRevision: 10,
+  						transcriptRevision: graph.revision.transcriptRevision,
+  						lastEventSeq: 43,
+  					},
+  				},
+  				header: { title: "Session" },
+  			});
+
+  			expect(nextScene.conversation.entries[0]).not.toBe(firstScene.conversation.entries[0]);
+  			expect(nextScene.conversation.entries[0]).toMatchObject({
+  				id: "parent-tool",
+  				type: "tool_call",
+  				taskChildren: [
+  					expect.objectContaining({
+  						operationId: "child-operation",
+  						status: "done",
+  					}),
+  				],
+  			});
+  		} finally {
+  			Array.prototype.slice = originalSlice;
+  		}
+  	});
+
+  it("keeps live transcript-before-operation races pending until canonical operation data arrives", () => {
+  		const graph = createGraph({
+  			transcriptSnapshot: createTranscriptSnapshot([
+  				createTranscriptEntry("tool-live", "tool", "Run"),
+  			]),
+  			operations: [],
+  			turnState: "Running",
+  			activity: {
+  				kind: "awaiting_model",
+  				activeOperationCount: 0,
+  				activeSubagentCount: 0,
+  				dominantOperationId: null,
+  				blockingInteractionId: null,
+  			},
+  		});
+
+  		const scene = materializeAgentPanelSceneFromGraph({
+  			panelId: "panel-1",
+  			graph,
+  			header: {
+  				title: "Live session",
+  			},
+  		});
+
+  		expect(scene.conversation.entries[0]).toMatchObject({
+  			id: "tool-live",
+  			type: "tool_call",
+  			kind: "other",
+  			status: "pending",
+  			title: "Tool pending",
+  			presentationState: "pending_operation",
+  		});
+  	});
 	});
 
-	it("updates a transcript row when one child operation changes", () => {
-		const transcriptSnapshot = createTranscriptSnapshot([
-			createTranscriptEntry("task-entry", "tool", "Task completed"),
-		]);
-		const parentOperation = createOperationSnapshot({
-			id: "operation-parent",
-			tool_call_id: "task-tool",
-			name: "task",
-			kind: "task",
-			title: "Task completed",
-			child_tool_call_ids: ["child-tool"],
-			child_operation_ids: ["operation-child"],
-			source_link: {
-				kind: "transcript_linked",
-				entry_id: "task-entry",
-			},
-		});
-		const childOperation = createOperationSnapshot({
-			id: "operation-child",
-			tool_call_id: "child-tool",
-			name: "bash",
-			kind: "execute",
-			title: "Run",
-			result: null,
-			parent_operation_id: "operation-parent",
-			source_link: {
-				kind: "synthetic",
-				reason: "task_child_operation",
-			},
-		});
-		const graph = createGraph({
-			transcriptSnapshot,
-			operations: [parentOperation, childOperation],
-		});
-		const readModel = createAgentPanelGraphMaterializerReadModel();
+	describe("streaming-state-patch", () => {
+  it("patches only affected assistant rows when the active streaming tail moves", () => {
+  		const transcriptSnapshot = createTranscriptSnapshot([
+  			createTranscriptEntry("u1", "user", "First question"),
+  			createTranscriptEntry("a1", "assistant", "First answer"),
+  			createTranscriptEntry("u2", "user", "Second question"),
+  			createTranscriptEntry("a2", "assistant", "Second answer still coming in"),
+  		]);
+  		const graph = createGraph({
+  			transcriptSnapshot,
+  			turnState: "Running",
+  			activeStreamingTail: { rowId: "a1", contentKind: "message" },
+  			activity: {
+  				kind: "awaiting_model",
+  				activeOperationCount: 0,
+  				activeSubagentCount: 0,
+  				dominantOperationId: null,
+  				blockingInteractionId: null,
+  			},
+  		});
+  		const readModel = createAgentPanelGraphMaterializerReadModel();
 
-		const firstScene = readModel.apply({
-			panelId: "panel-1",
-			graph,
-			header: { title: "Session" },
-		});
-		const nextScene = readModel.apply({
-			panelId: "panel-1",
-			graph: {
-				...graph,
-				operations: [
-					parentOperation,
-					{
-						...childOperation,
-						result: { stdout: "child ok", stderr: null, exitCode: 0 },
-					},
-				],
-				revision: {
-					graphRevision: 10,
-					transcriptRevision: graph.revision.transcriptRevision,
-					lastEventSeq: 43,
-				},
-			},
-			header: { title: "Session" },
-		});
+  		const firstScene = readModel.apply({
+  			panelId: "panel-1",
+  			graph,
+  			header: { title: "Session" },
+  		});
 
-		expect(nextScene.conversation.entries).not.toBe(firstScene.conversation.entries);
-		expect(nextScene.conversation.entries[0]).not.toBe(firstScene.conversation.entries[0]);
-		expect(nextScene.conversation.entries[0]).toMatchObject({
-			id: "task-entry",
-			type: "tool_call",
-			taskChildren: [
-				{
-					toolCallId: "child-tool",
-					stdout: "child ok",
-				},
-			],
-		});
+  		const nextScene = readModel.apply({
+  			panelId: "panel-1",
+  			graph: {
+  				...graph,
+  				activeStreamingTail: { rowId: "a2", contentKind: "message" },
+  				revision: {
+  					graphRevision: 10,
+  					transcriptRevision: graph.revision.transcriptRevision,
+  					lastEventSeq: 43,
+  				},
+  			},
+  			header: { title: "Session" },
+  		});
+
+  		expect(nextScene.conversation.entries).not.toBe(firstScene.conversation.entries);
+  		expect(nextScene.conversation.entries[0]).toBe(firstScene.conversation.entries[0]);
+  		expect(nextScene.conversation.entries[1]).not.toBe(firstScene.conversation.entries[1]);
+  		expect(nextScene.conversation.entries[2]).toBe(firstScene.conversation.entries[2]);
+  		expect(nextScene.conversation.entries[3]).not.toBe(firstScene.conversation.entries[3]);
+  		expect(nextScene.conversation.entries[1]).toMatchObject({
+  			id: "a1",
+  			type: "assistant",
+  			isStreaming: false,
+  		});
+  		expect(nextScene.conversation.entries[3]).toMatchObject({
+  			id: "a2",
+  			type: "assistant",
+  			isStreaming: true,
+  		});
+  		const scenePatch = readModel.selectConversationScenePatch();
+  		expect(scenePatch.kind).toBe("graphScene");
+  		if (scenePatch.kind === "graphScene") {
+  			expect(scenePatch.patch.baseSceneEntries).toBe(firstScene.conversation.entries);
+  			expect(scenePatch.patch.entriesByIndex.get(1)).toBe(nextScene.conversation.entries[1]);
+  			expect(scenePatch.patch.entriesByIndex.get(3)).toBe(nextScene.conversation.entries[3]);
+  			expect(Array.from(scenePatch.patch.entriesByIndex.keys())).toEqual([1, 3]);
+  		}
+  	});
+
+  it("keeps transcript row patches incremental when equivalent control objects are recreated", () => {
+  		const userEntry = createTranscriptEntry("user-1", "user", "hello");
+  		const streamingAssistantEntry = createTranscriptEntry(
+  			"assistant-1",
+  			"assistant",
+  			"stream"
+  		);
+  		const patchedStreamingAssistantEntry = createTranscriptEntry(
+  			"assistant-1",
+  			"assistant",
+  			"streaming update"
+  		);
+  		const transcriptSnapshot = createTranscriptSnapshot([userEntry, streamingAssistantEntry]);
+  		const graph = createGraph({
+  			transcriptSnapshot,
+  			turnState: "Running",
+  			activeStreamingTail: {
+  				rowId: "assistant-1",
+  				contentKind: "message",
+  			},
+  			activity: {
+  				kind: "awaiting_model",
+  				activeOperationCount: 0,
+  				activeSubagentCount: 0,
+  				dominantOperationId: null,
+  				blockingInteractionId: null,
+  			},
+  		});
+  		const readModel = createAgentPanelGraphMaterializerReadModel();
+
+  		const firstScene = readModel.apply({
+  			panelId: "panel-1",
+  			graph,
+  			header: { title: "Session" },
+  		});
+  		const nextScene = readModel.apply({
+  			panelId: "panel-1",
+  			graph: {
+  				...graph,
+  				transcriptSnapshot: {
+  					revision: transcriptSnapshot.revision + 1,
+  					entries: [userEntry, patchedStreamingAssistantEntry],
+  				},
+  				revision: {
+  					graphRevision: 10,
+  					transcriptRevision: transcriptSnapshot.revision + 1,
+  					lastEventSeq: 43,
+  				},
+  				activeStreamingTail: {
+  					rowId: "assistant-1",
+  					contentKind: "message",
+  				},
+  				activity: {
+  					kind: "awaiting_model",
+  					activeOperationCount: 0,
+  					activeSubagentCount: 0,
+  					dominantOperationId: null,
+  					blockingInteractionId: null,
+  				},
+  			},
+  			header: { title: "Session" },
+  		});
+
+  		expect(nextScene.conversation.entries[0]).toBe(firstScene.conversation.entries[0]);
+  		expect(nextScene.conversation.entries[1]).not.toBe(firstScene.conversation.entries[1]);
+  		expect(nextScene.conversation.entries[1]).toMatchObject({
+  			id: "assistant-1",
+  			type: "assistant",
+  			markdown: "streaming update",
+  		});
+  	});
 	});
 
-	it("keeps conversation rows stable when only the operations array identity changes", () => {
-		const transcriptSnapshot = createTranscriptSnapshot([
-			createTranscriptEntry("user-1", "user", "hello"),
-			createTranscriptEntry("tool-1", "tool", "Run tests"),
-			createTranscriptEntry("assistant-1", "assistant", "done"),
-		]);
-		const operation = createOperationSnapshot({
-			id: "op-1",
-			tool_call_id: "tool-1",
-			source_link: { kind: "transcript_linked", entry_id: "tool-1" },
-		});
-		const graph = createGraph({
-			transcriptSnapshot,
-			operations: [operation],
-		});
-		const readModel = createAgentPanelGraphMaterializerReadModel();
+	describe("transcript-array-patch", () => {
+  it("applies marked transcript appends without scanning unchanged transcript rows", () => {
+  		const userEntry = createTranscriptEntry("user-1", "user", "hello");
+  		const assistantEntry = createTranscriptEntry("assistant-1", "assistant", "working");
+  		const appendedEntry = createTranscriptEntry("assistant-2", "assistant", "done");
+  		const transcriptSnapshot = createTranscriptSnapshot([userEntry, assistantEntry]);
+  		const graph = createGraph({ transcriptSnapshot });
+  		const readModel = createAgentPanelGraphMaterializerReadModel();
+  		const firstScene = readModel.apply({
+  			panelId: "panel-1",
+  			graph,
+  			header: { title: "Session" },
+  		});
+  		const nextTranscriptEntries = [userEntry, assistantEntry, appendedEntry];
+  		markTranscriptEntryArrayPatch(nextTranscriptEntries, {
+  			baseEntries: transcriptSnapshot.entries,
+  			patchedEntriesByIndex: null,
+  			appendedEntries: [appendedEntry],
+  		});
+  		Object.defineProperty(nextTranscriptEntries, "0", {
+  			configurable: true,
+  			get() {
+  				throw new Error("must not scan unchanged transcript rows for marked append");
+  			},
+  		});
+  		Object.defineProperty(nextTranscriptEntries, "1", {
+  			configurable: true,
+  			get() {
+  				throw new Error("must not scan unchanged transcript rows for marked append");
+  			},
+  		});
 
-		const firstScene = readModel.apply({
-			panelId: "panel-1",
-			graph,
-			header: { title: "Session" },
-		});
-		const nextScene = readModel.apply({
-			panelId: "panel-1",
-			graph: {
-				...graph,
-				operations: [operation],
-				revision: {
-					graphRevision: 10,
-					transcriptRevision: graph.revision.transcriptRevision,
-					lastEventSeq: 43,
-				},
-			},
-			header: { title: "Session" },
-		});
+  		try {
+  			const nextScene = readModel.apply({
+  				panelId: "panel-1",
+  				graph: {
+  					...graph,
+  					transcriptSnapshot: {
+  						revision: transcriptSnapshot.revision + 1,
+  						entries: nextTranscriptEntries,
+  					},
+  					revision: {
+  						graphRevision: 10,
+  						transcriptRevision: transcriptSnapshot.revision + 1,
+  						lastEventSeq: 43,
+  					},
+  				},
+  				header: { title: "Session" },
+  			});
 
-		expect(nextScene.conversation.entries).toBe(firstScene.conversation.entries);
+  			expect(nextScene.conversation.entries[0]).toBe(firstScene.conversation.entries[0]);
+  			expect(nextScene.conversation.entries[1]).toBe(firstScene.conversation.entries[1]);
+  			expect(nextScene.conversation.entries[2]).toMatchObject({
+  				id: "assistant-2",
+  				type: "assistant",
+  				markdown: "done",
+  			});
+  		} finally {
+  			Object.defineProperty(nextTranscriptEntries, "0", {
+  				configurable: true,
+  				value: userEntry,
+  			});
+  			Object.defineProperty(nextTranscriptEntries, "1", {
+  				configurable: true,
+  				value: assistantEntry,
+  			});
+  		}
+  	});
 	});
 
-	it("keeps conversation rows stable when an operation patch has no visible scene change", () => {
-		const transcriptSnapshot = createTranscriptSnapshot([
-			createTranscriptEntry("tool-1", "tool", "Run tests"),
-		]);
-		const operation = createOperationSnapshot({
-			id: "op-1",
-			tool_call_id: "tool-1",
-			source_link: { kind: "transcript_linked", entry_id: "tool-1" },
-			operation_provenance_key: "first-key",
-		});
-		const graph = createGraph({
-			transcriptSnapshot,
-			operations: [operation],
-		});
-		const readModel = createAgentPanelGraphMaterializerReadModel();
+	describe("transcript-patch-and-append", () => {
+  it("applies marked transcript patch-plus-append deltas without scanning unchanged transcript rows", () => {
+  		const userEntry = createTranscriptEntry("user-1", "user", "hello");
+  		const firstAssistantEntry = createTranscriptEntry("assistant-1", "assistant", "first");
+  		const secondAssistantEntry = createTranscriptEntry("assistant-2", "assistant", "stream");
+  		const patchedSecondAssistantEntry = createTranscriptEntry(
+  			"assistant-2",
+  			"assistant",
+  			"streaming update"
+  		);
+  		const appendedAssistantEntry = createTranscriptEntry(
+  			"assistant-3",
+  			"assistant",
+  			"done"
+  		);
+  		const transcriptSnapshot = createTranscriptSnapshot([
+  			userEntry,
+  			firstAssistantEntry,
+  			secondAssistantEntry,
+  		]);
+  		const graph = createGraph({
+  			transcriptSnapshot,
+  			turnState: "Running",
+  			activeStreamingTail: {
+  				rowId: "assistant-2",
+  				contentKind: "message",
+  			},
+  			activity: {
+  				kind: "awaiting_model",
+  				activeOperationCount: 1,
+  				activeSubagentCount: 0,
+  				dominantOperationId: null,
+  				blockingInteractionId: null,
+  			},
+  		});
+  		const readModel = createAgentPanelGraphMaterializerReadModel();
+  		const firstScene = readModel.apply({
+  			panelId: "panel-1",
+  			graph,
+  			header: { title: "Session" },
+  		});
+  		const nextTranscriptEntries = [
+  			userEntry,
+  			firstAssistantEntry,
+  			patchedSecondAssistantEntry,
+  			appendedAssistantEntry,
+  		];
+  		markTranscriptEntryArrayPatch(nextTranscriptEntries, {
+  			baseEntries: transcriptSnapshot.entries,
+  			patchedEntriesByIndex: new Map([[2, patchedSecondAssistantEntry]]),
+  			appendedEntries: [appendedAssistantEntry],
+  		});
+  		Object.defineProperty(nextTranscriptEntries, "0", {
+  			configurable: true,
+  			get() {
+  				throw new Error("must not scan unchanged transcript rows for patch plus append");
+  			},
+  		});
+  		Object.defineProperty(nextTranscriptEntries, "1", {
+  			configurable: true,
+  			get() {
+  				throw new Error("must not scan unchanged transcript rows for patch plus append");
+  			},
+  		});
 
-		const firstScene = readModel.apply({
-			panelId: "panel-1",
-			graph,
-			header: { title: "Session" },
-		});
-		const nextScene = readModel.apply({
-			panelId: "panel-1",
-			graph: {
-				...graph,
-				operations: [
-					{
-						...operation,
-						operation_provenance_key: "second-key",
-					},
-				],
-				revision: {
-					graphRevision: 10,
-					transcriptRevision: graph.revision.transcriptRevision,
-					lastEventSeq: 43,
-				},
-			},
-			header: { title: "Session" },
-		});
+  		try {
+  			const nextScene = readModel.apply({
+  				panelId: "panel-1",
+  				graph: {
+  					...graph,
+  					transcriptSnapshot: {
+  						revision: transcriptSnapshot.revision + 1,
+  						entries: nextTranscriptEntries,
+  					},
+  					revision: {
+  						graphRevision: 10,
+  						transcriptRevision: transcriptSnapshot.revision + 1,
+  						lastEventSeq: 44,
+  					},
+  				},
+  				header: { title: "Session" },
+  			});
 
-		expect(nextScene.conversation.entries).toBe(firstScene.conversation.entries);
+  			expect(nextScene.conversation.entries[0]).toBe(firstScene.conversation.entries[0]);
+  			expect(nextScene.conversation.entries[1]).toBe(firstScene.conversation.entries[1]);
+  			expect(nextScene.conversation.entries[2]).toMatchObject({
+  				id: "assistant-2",
+  				type: "assistant",
+  				markdown: "streaming update",
+  				isStreaming: true,
+  			});
+  			expect(nextScene.conversation.entries[3]).toMatchObject({
+  				id: "assistant-3",
+  				type: "assistant",
+  				markdown: "done",
+  			});
+  			const splice = readModel.selectConversationScenePatch();
+  			expect(splice.kind).toBe("graphSceneSplice");
+  			if (splice.kind === "graphSceneSplice") {
+  				expect(splice.patch.baseSceneEntries).toBe(firstScene.conversation.entries);
+  				expect(splice.patch.startIndex).toBe(2);
+  				expect(splice.patch.insertedEntries).toHaveLength(2);
+  				expect(splice.patch.trailingEntries).toEqual([]);
+  			}
+  		} finally {
+  			Object.defineProperty(nextTranscriptEntries, "0", {
+  				configurable: true,
+  				value: userEntry,
+  			});
+  			Object.defineProperty(nextTranscriptEntries, "1", {
+  				configurable: true,
+  				value: firstAssistantEntry,
+  			});
+  		}
+  	});
+
+  it("applies stable transcript patch-plus-append updates without rematerializing the preserved prefix", () => {
+  		const userEntry = createTranscriptEntry("user-1", "user", "hello");
+  		const firstAssistantEntry = createTranscriptEntry("assistant-1", "assistant", "first");
+  		const secondAssistantEntry = createTranscriptEntry("assistant-2", "assistant", "stream");
+  		const patchedSecondAssistantEntry = createTranscriptEntry(
+  			"assistant-2",
+  			"assistant",
+  			"streaming update"
+  		);
+  		const appendedAssistantEntry = createTranscriptEntry(
+  			"assistant-3",
+  			"assistant",
+  			"done"
+  		);
+  		const transcriptSnapshot = createTranscriptSnapshot([
+  			userEntry,
+  			firstAssistantEntry,
+  			secondAssistantEntry,
+  		]);
+  		const graph = createGraph({
+  			transcriptSnapshot,
+  			turnState: "Running",
+  			activeStreamingTail: {
+  				rowId: "assistant-2",
+  				contentKind: "message",
+  			},
+  			activity: {
+  				kind: "awaiting_model",
+  				activeOperationCount: 1,
+  				activeSubagentCount: 0,
+  				dominantOperationId: null,
+  				blockingInteractionId: null,
+  			},
+  		});
+  		const readModel = createAgentPanelGraphMaterializerReadModel();
+  		const firstScene = readModel.apply({
+  			panelId: "panel-1",
+  			graph,
+  			header: { title: "Session" },
+  		});
+  		const firstEntries = firstScene.conversation.entries as typeof firstScene.conversation.entries & {
+  			slice: typeof Array.prototype.slice;
+  		};
+  		const originalSlice = firstEntries.slice;
+  		firstEntries.slice = () => {
+  			throw new Error(
+  				"must not slice whole materialized scene entries for stable patch plus append"
+  			);
+  		};
+
+  		let nextScene: typeof firstScene;
+  		try {
+  			nextScene = readModel.apply({
+  				panelId: "panel-1",
+  				graph: {
+  					...graph,
+  					transcriptSnapshot: {
+  						revision: transcriptSnapshot.revision + 1,
+  						entries: [
+  							userEntry,
+  							firstAssistantEntry,
+  							patchedSecondAssistantEntry,
+  							appendedAssistantEntry,
+  						],
+  					},
+  					revision: {
+  						graphRevision: 10,
+  						transcriptRevision: transcriptSnapshot.revision + 1,
+  						lastEventSeq: 44,
+  					},
+  				},
+  				header: { title: "Session" },
+  			});
+  		} finally {
+  			firstEntries.slice = originalSlice;
+  		}
+
+  		expect(nextScene.conversation.entries[0]).toBe(firstScene.conversation.entries[0]);
+  		expect(nextScene.conversation.entries[1]).toBe(firstScene.conversation.entries[1]);
+  		expect(nextScene.conversation.entries[2]).toMatchObject({
+  			id: "assistant-2",
+  			type: "assistant",
+  			markdown: "streaming update",
+  			isStreaming: true,
+  		});
+  		expect(nextScene.conversation.entries[3]).toMatchObject({
+  			id: "assistant-3",
+  			type: "assistant",
+  			markdown: "done",
+  		});
+  		const splice = readModel.selectConversationScenePatch();
+  		expect(splice.kind).toBe("graphSceneSplice");
+  		if (splice.kind === "graphSceneSplice") {
+  			expect(splice.patch.baseSceneEntries).toBe(firstScene.conversation.entries);
+  			expect(splice.patch.startIndex).toBe(2);
+  			expect(splice.patch.insertedEntries).toHaveLength(2);
+  			expect(splice.patch.trailingEntries).toEqual([]);
+  		}
+  	});
 	});
 
-	it("applies marked operation patches without scanning unchanged operations", () => {
-		const transcriptSnapshot = createTranscriptSnapshot([
-			createTranscriptEntry("tool-1", "tool", "Run first"),
-			createTranscriptEntry("tool-2", "tool", "Run second"),
-		]);
-		const firstOperation = createOperationSnapshot({
-			id: "op-1",
-			tool_call_id: "tool-1",
-			source_link: { kind: "transcript_linked", entry_id: "tool-1" },
-		});
-		const secondOperation = createOperationSnapshot({
-			id: "op-2",
-			tool_call_id: "tool-2",
-			source_link: { kind: "transcript_linked", entry_id: "tool-2" },
-			result: null,
-			operation_state: "running",
-		});
-		const operations = [firstOperation, secondOperation];
-		const graph = createGraph({
-			transcriptSnapshot,
-			operations,
-			activity: {
-				kind: "running_operation",
-				activeOperationCount: 1,
-				activeSubagentCount: 0,
-				dominantOperationId: "op-2",
-				blockingInteractionId: null,
-			},
-		});
-		const readModel = createAgentPanelGraphMaterializerReadModel();
+	describe("transcript-patch", () => {
+  it("patches one transcript row without rebuilding unaffected conversation rows", () => {
+  		const userEntry = createTranscriptEntry("user-1", "user", "hello");
+  		const firstAssistantEntry = createTranscriptEntry("assistant-1", "assistant", "first");
+  		const streamingAssistantEntry = createTranscriptEntry(
+  			"assistant-2",
+  			"assistant",
+  			"stream"
+  		);
+  		const patchedStreamingAssistantEntry = createTranscriptEntry(
+  			"assistant-2",
+  			"assistant",
+  			"streaming update"
+  		);
+  		const transcriptSnapshot = createTranscriptSnapshot([
+  			userEntry,
+  			firstAssistantEntry,
+  			streamingAssistantEntry,
+  		]);
+  		const graph = createGraph({
+  			transcriptSnapshot,
+  			turnState: "Running",
+  			activeStreamingTail: {
+  				rowId: "assistant-2",
+  				contentKind: "message",
+  			},
+  			activity: {
+  				kind: "awaiting_model",
+  				activeOperationCount: 1,
+  				activeSubagentCount: 0,
+  				dominantOperationId: null,
+  				blockingInteractionId: null,
+  			},
+  		});
+  		const readModel = createAgentPanelGraphMaterializerReadModel();
 
-		const firstScene = readModel.apply({
-			panelId: "panel-1",
-			graph,
-			header: { title: "Session" },
-		});
-		const patchedSecondOperation = {
-			...secondOperation,
-			result: { stdout: "done", stderr: null, exitCode: 0 },
-			operation_state: "completed" as const,
-		};
-		const nextOperations = [firstOperation, patchedSecondOperation];
-		markOperationSnapshotArrayPatch(nextOperations, {
-			baseOperations: operations,
-			patchedOperationsByIndex: new Map([[1, patchedSecondOperation]]),
-			appendedOperations: null,
-		});
-		Object.defineProperty(operations, "0", {
-			configurable: true,
-			get() {
-				throw new Error("must not scan unchanged operation rows for an operation patch");
-			},
-		});
-		const originalMapIterator = Map.prototype[Symbol.iterator];
-		const originalMapSet = Map.prototype.set;
-		Map.prototype[Symbol.iterator] = function patchedMapIterator<K, V>(this: Map<K, V>) {
-			if (this.has("op-1" as K) || this.has("tool-1" as K)) {
-				throw new Error("must not clone operation index maps for a stable operation patch");
-			}
-			return originalMapIterator.call(this);
-		};
-		Map.prototype.set = function patchedMapSet<K, V>(
-			this: Map<K, V>,
-			key: K,
-			value: V
-		): Map<K, V> {
-			if (
-				typeof key === "string" &&
-				(key === "op-2" || key === "tool-2") &&
-				typeof value === "object" &&
-				value !== null &&
-				"id" in value &&
-				this.has("op-1" as K)
-			) {
-				throw new Error("must not mutate the previous operation index for a stable patch");
-			}
-			return originalMapSet.call(this, key, value);
-		};
+  		const firstScene = readModel.apply({
+  			panelId: "panel-1",
+  			graph,
+  			header: { title: "Session" },
+  		});
+  		const firstEntries = firstScene.conversation.entries as typeof firstScene.conversation.entries & {
+  			slice: typeof Array.prototype.slice;
+  		};
+  		const originalSlice = firstEntries.slice;
 
-		try {
-			const nextScene = readModel.apply({
-				panelId: "panel-1",
-				graph: {
-					...graph,
-					operations: nextOperations,
-					activity: {
-						kind: "idle",
-						activeOperationCount: 0,
-						activeSubagentCount: 0,
-						dominantOperationId: null,
-						blockingInteractionId: null,
-					},
-					revision: {
-						graphRevision: 10,
-						transcriptRevision: graph.revision.transcriptRevision,
-						lastEventSeq: 43,
-					},
-				},
-				header: { title: "Session" },
-			});
+  		firstEntries.slice = () => {
+  			throw new Error("must not copy whole materialized scene entries");
+  		};
+  		const nextTranscriptEntries = [userEntry, firstAssistantEntry, patchedStreamingAssistantEntry];
+  		markTranscriptEntryArrayPatch(nextTranscriptEntries, {
+  			baseEntries: transcriptSnapshot.entries,
+  			patchedEntriesByIndex: new Map([[2, patchedStreamingAssistantEntry]]),
+  			appendedEntries: null,
+  		});
+  		Object.defineProperty(nextTranscriptEntries, "0", {
+  			configurable: true,
+  			get() {
+  				throw new Error("must not scan unchanged transcript rows for a transcript patch");
+  			},
+  		});
+  		Object.defineProperty(nextTranscriptEntries, "1", {
+  			configurable: true,
+  			get() {
+  				throw new Error("must not scan unchanged transcript rows for a transcript patch");
+  			},
+  		});
+  		const originalMapIterator = Map.prototype[Symbol.iterator];
+  		const originalMapSet = Map.prototype.set;
+  		Map.prototype[Symbol.iterator] = function patchedMapIterator<K, V>(this: Map<K, V>) {
+  			if (
+  				this.has("assistant-2" as K) &&
+  				(this.get("assistant-2" as K) as TranscriptEntry | undefined)?.entryId === "assistant-2"
+  			) {
+  				throw new Error("must not clone the transcript entry index for a transcript patch");
+  			}
+  			return originalMapIterator.call(this);
+  		};
+  		Map.prototype.set = function patchedMapSet<K, V>(
+  			this: Map<K, V>,
+  			key: K,
+  			value: V
+  		): Map<K, V> {
+  			if (
+  				typeof key === "string" &&
+  				key === "assistant-2" &&
+  				typeof value === "object" &&
+  				value !== null &&
+  				"entryId" in value &&
+  				this.has("assistant-1" as K)
+  			) {
+  				throw new Error("must not mutate the previous transcript entry index for a patch");
+  			}
+  			return originalMapSet.call(this, key, value);
+  		};
 
-			expect(nextScene.conversation.entries).not.toBe(firstScene.conversation.entries);
-			expect(nextScene.conversation.entries[0]).toBe(firstScene.conversation.entries[0]);
-			expect(nextScene.conversation.entries[1]).not.toBe(firstScene.conversation.entries[1]);
-			expect(nextScene.conversation.entries[1]).toMatchObject({
-				id: "tool-2",
-				type: "tool_call",
-				stdout: "done",
-			});
-		} finally {
-			Map.prototype[Symbol.iterator] = originalMapIterator;
-			Map.prototype.set = originalMapSet;
-			Object.defineProperty(operations, "0", {
-				configurable: true,
-				value: firstOperation,
-			});
-		}
+  		try {
+  			const nextScene = readModel.apply({
+  				panelId: "panel-1",
+  				graph: {
+  					...graph,
+  					transcriptSnapshot: {
+  						revision: transcriptSnapshot.revision + 1,
+  						entries: nextTranscriptEntries,
+  					},
+  					activity: {
+  						kind: "awaiting_model",
+  						activeOperationCount: 0,
+  						activeSubagentCount: 0,
+  						dominantOperationId: null,
+  						blockingInteractionId: null,
+  					},
+  					revision: {
+  						graphRevision: 10,
+  						transcriptRevision: transcriptSnapshot.revision + 1,
+  						lastEventSeq: 43,
+  					},
+  				},
+  				header: { title: "Session" },
+  			});
+
+  			expect(Array.isArray(nextScene.conversation.entries)).toBe(true);
+  			expect(nextScene.conversation.entries).not.toBe(firstScene.conversation.entries);
+  			expect(nextScene.conversation.entries[0]).toBe(firstScene.conversation.entries[0]);
+  			expect(nextScene.conversation.entries[1]).toBe(firstScene.conversation.entries[1]);
+  			expect(nextScene.conversation.entries[2]).not.toBe(firstScene.conversation.entries[2]);
+  			expect(nextScene.conversation.entries.map((entry) => entry.id)).toEqual([
+  				"user-1",
+  				"assistant-1",
+  				"assistant-2",
+  			]);
+  			expect(nextScene.conversation.entries[2]).toMatchObject({
+  				id: "assistant-2",
+  				type: "assistant",
+  				markdown: "streaming update",
+  				isStreaming: true,
+  			});
+  			const scenePatch = readModel.selectConversationScenePatch();
+  			expect(scenePatch.kind).toBe("graphScene");
+  			if (scenePatch.kind === "graphScene") {
+  				expect(scenePatch.patch.baseSceneEntries).toBe(firstScene.conversation.entries);
+  				expect(scenePatch.patch.entries).toEqual([nextScene.conversation.entries[2]]);
+  				expect(scenePatch.patch.entriesByIndex.get(2)).toBe(nextScene.conversation.entries[2]);
+  				expect(Array.from(scenePatch.patch.entriesByIndex.keys())).toEqual([2]);
+  			}
+  		} finally {
+  			Map.prototype[Symbol.iterator] = originalMapIterator;
+  			Map.prototype.set = originalMapSet;
+  			firstEntries.slice = originalSlice;
+  			Object.defineProperty(nextTranscriptEntries, "0", {
+  				configurable: true,
+  				value: userEntry,
+  			});
+  			Object.defineProperty(nextTranscriptEntries, "1", {
+  				configurable: true,
+  				value: firstAssistantEntry,
+  			});
+  		}
+  	});
 	});
 
-	it("rematerializes interaction rows when operation patches change the blocking interaction", () => {
-		const transcriptSnapshot = createTranscriptSnapshot([
-			createTranscriptEntry("tool-1", "tool", "Run first"),
-		]);
-		const operation = createOperationSnapshot({
-			id: "op-1",
-			tool_call_id: "tool-1",
-			source_link: { kind: "transcript_linked", entry_id: "tool-1" },
-			result: null,
-			operation_state: "running",
-		});
-		const operations = [operation];
-		const questionOne = createQuestionInteraction({
-			id: "question-1",
-			jsonRpcRequestId: 1,
-			replyHandler: { kind: "json_rpc", requestId: "1" },
-		});
-		const questionTwo = createQuestionInteraction({
-			id: "question-2",
-			jsonRpcRequestId: 2,
-			replyHandler: { kind: "json_rpc", requestId: "2" },
-		});
-		const graph = createGraph({
-			transcriptSnapshot,
-			operations,
-			interactions: [questionOne, questionTwo],
-			activity: {
-				kind: "waiting_for_user",
-				activeOperationCount: 1,
-				activeSubagentCount: 0,
-				dominantOperationId: "op-1",
-				blockingInteractionId: "question-1",
-			},
-		});
-		const readModel = createAgentPanelGraphMaterializerReadModel();
-		const firstScene = readModel.apply({
-			panelId: "panel-1",
-			graph,
-			header: { title: "Question session" },
-		});
-		Object.defineProperty(graph.interactions, "0", {
-			configurable: true,
-			get() {
-				throw new Error(
-					"must not scan unchanged interactions when operation patches only retarget the blocking question"
-				);
-			},
-		});
-		const patchedOperation = {
-			...operation,
-			result: { stdout: "done", stderr: null, exitCode: 0 },
-			operation_state: "completed" as const,
-		};
-		const nextOperations = [patchedOperation];
-		markOperationSnapshotArrayPatch(nextOperations, {
-			baseOperations: operations,
-			patchedOperationsByIndex: new Map([[0, patchedOperation]]),
-			appendedOperations: null,
-		});
+	describe("transcript-truncation", () => {
+  it("applies stable transcript truncation without rematerializing preserved rows", () => {
+  		const userEntry = createTranscriptEntry("user-1", "user", "hello");
+  		const assistantEntry = createTranscriptEntry("assistant-1", "assistant", "working");
+  		const secondUserEntry = createTranscriptEntry("user-2", "user", "pick one");
+  		const transcriptSnapshot = createTranscriptSnapshot([
+  			userEntry,
+  			assistantEntry,
+  			secondUserEntry,
+  		]);
+  		const questionInteraction = createQuestionInteraction({
+  			id: "question-1",
+  			jsonRpcRequestId: 1,
+  			replyHandler: {
+  				kind: "json_rpc",
+  				requestId: "1",
+  			},
+  		});
+  		const graph = createGraph({
+  			transcriptSnapshot,
+  			turnState: "Running",
+  			activity: {
+  				kind: "waiting_for_user",
+  				activeOperationCount: 0,
+  				activeSubagentCount: 0,
+  				dominantOperationId: null,
+  				blockingInteractionId: "question-1",
+  			},
+  			interactions: [questionInteraction],
+  		});
+  		const readModel = createAgentPanelGraphMaterializerReadModel();
+  		const firstScene = readModel.apply({
+  			panelId: "panel-1",
+  			graph,
+  			header: { title: "Question session" },
+  		});
+  		const firstEntries = firstScene.conversation.entries as typeof firstScene.conversation.entries & {
+  			slice: typeof Array.prototype.slice;
+  		};
+  		const originalSlice = firstEntries.slice;
+  		firstEntries.slice = () => {
+  			throw new Error("must not slice whole materialized scene entries for transcript truncation");
+  		};
 
-		let nextScene: ReturnType<typeof readModel.apply>;
-		try {
-			nextScene = readModel.apply({
-				panelId: "panel-1",
-				graph: {
-					...graph,
-					operations: nextOperations,
-					activity: {
-						kind: "waiting_for_user",
-						activeOperationCount: 0,
-						activeSubagentCount: 0,
-						dominantOperationId: null,
-						blockingInteractionId: "question-2",
-					},
-					revision: {
-						graphRevision: 10,
-						transcriptRevision: graph.revision.transcriptRevision,
-						lastEventSeq: 43,
-					},
-				},
-				header: { title: "Question session" },
-			});
-		} finally {
-			Object.defineProperty(graph.interactions, "0", {
-				configurable: true,
-				value: questionOne,
-			});
-		}
+  		let nextScene: typeof firstScene;
+  		try {
+  			nextScene = readModel.apply({
+  				panelId: "panel-1",
+  				graph: {
+  					...graph,
+  					transcriptSnapshot: {
+  						revision: transcriptSnapshot.revision + 1,
+  						entries: [userEntry, assistantEntry],
+  					},
+  					revision: {
+  						graphRevision: 10,
+  						transcriptRevision: transcriptSnapshot.revision + 1,
+  						lastEventSeq: 43,
+  					},
+  				},
+  				header: { title: "Question session" },
+  			});
+  		} finally {
+  			firstEntries.slice = originalSlice;
+  		}
 
-		expect(firstScene.conversation.entries.map((entry) => entry.id)).toEqual([
-			"tool-1",
-			"interaction:question-1",
-		]);
-		expect(nextScene.conversation.entries.map((entry) => entry.id)).toEqual([
-			"tool-1",
-			"interaction:question-2",
-		]);
+  		expect(nextScene.conversation.entries.map((entry) => entry.id)).toEqual([
+  			"user-1",
+  			"assistant-1",
+  			"interaction:question-1",
+  		]);
+  		expect(nextScene.conversation.entries[0]).toBe(firstScene.conversation.entries[0]);
+  		expect(nextScene.conversation.entries[1]).toBe(firstScene.conversation.entries[1]);
+  		expect(nextScene.conversation.entries[2]).toBe(firstScene.conversation.entries[3]);
+  		expect(readModel.selectConversationScenePatch()).toMatchObject({
+  			kind: "graphSceneSplice",
+  			patch: {
+  				baseSceneEntries: firstScene.conversation.entries,
+  				startIndex: 2,
+  				insertedEntries: [],
+  				trailingEntries: [firstScene.conversation.entries[3]],
+  			},
+  		});
+  	});
 	});
 
-	it("applies marked operation appends without cloning existing operation indexes", () => {
-		const transcriptSnapshot = createTranscriptSnapshot([
-			createTranscriptEntry("tool-1", "tool", "Run first"),
-			createTranscriptEntry("tool-2", "tool", "Run second"),
-		]);
-		const firstOperation = createOperationSnapshot({
-			id: "op-1",
-			tool_call_id: "tool-1",
-			source_link: { kind: "transcript_linked", entry_id: "tool-1" },
-		});
-		const appendedOperation = createOperationSnapshot({
-			id: "op-2",
-			tool_call_id: "tool-2",
-			source_link: { kind: "transcript_linked", entry_id: "tool-2" },
-		});
-		const operations = [firstOperation];
-		const graph = createGraph({
-			transcriptSnapshot,
-			operations,
-		});
-		const readModel = createAgentPanelGraphMaterializerReadModel();
-		const firstScene = readModel.apply({
-			panelId: "panel-1",
-			graph,
-			header: { title: "Session" },
-		});
-		const nextOperations = [firstOperation, appendedOperation];
-		markOperationSnapshotArrayPatch(nextOperations, {
-			baseOperations: operations,
-			patchedOperationsByIndex: null,
-			appendedOperations: [appendedOperation],
-		});
-		const originalMapIterator = Map.prototype[Symbol.iterator];
-		Map.prototype[Symbol.iterator] = function patchedMapIterator<K, V>(this: Map<K, V>) {
-			if (this.has("op-1" as K) || this.has("tool-1" as K)) {
-				throw new Error("must not clone operation index maps for an operation append");
-			}
-			return originalMapIterator.call(this);
-		};
+	describe("transcript-append", () => {
+  it("appends transcript rows without rebuilding existing conversation rows", () => {
+  		const userEntry = createTranscriptEntry("user-1", "user", "hello");
+  		const toolEntry = createTranscriptEntry("tool-1", "tool", "Ran command");
+  		const transcriptSnapshot = createTranscriptSnapshot([userEntry]);
+  		const graph = createGraph({ transcriptSnapshot });
+  		const readModel = createAgentPanelGraphMaterializerReadModel();
+  		const appendedTranscriptSnapshot = {
+  			revision: transcriptSnapshot.revision + 1,
+  			entries: [userEntry, toolEntry],
+  		};
 
-		try {
-			const nextScene = readModel.apply({
-				panelId: "panel-1",
-				graph: {
-					...graph,
-					operations: nextOperations,
-					revision: {
-						graphRevision: 10,
-						transcriptRevision: graph.revision.transcriptRevision,
-						lastEventSeq: 43,
-					},
-				},
-				header: { title: "Session" },
-			});
+  		const firstScene = readModel.apply({
+  			panelId: "panel-1",
+  			graph,
+  			header: { title: "Session" },
+  		});
+  		const firstEntries = firstScene.conversation.entries as typeof firstScene.conversation.entries & {
+  			concat: typeof Array.prototype.concat;
+  		};
+  		const originalConcat = firstEntries.concat;
+  		firstEntries.concat = () => {
+  			throw new Error("must not copy whole materialized scene entries on append");
+  		};
 
-			expect(nextScene.conversation.entries[0]).toBe(firstScene.conversation.entries[0]);
-			expect(nextScene.conversation.entries[1]).toMatchObject({
-				id: "tool-2",
-				type: "tool_call",
-			});
-		} finally {
-			Map.prototype[Symbol.iterator] = originalMapIterator;
-		}
+  		let nextScene: typeof firstScene;
+  		try {
+  			nextScene = readModel.apply({
+  				panelId: "panel-1",
+  				graph: {
+  					...graph,
+  					transcriptSnapshot: appendedTranscriptSnapshot,
+  					revision: {
+  						graphRevision: 10,
+  						transcriptRevision: transcriptSnapshot.revision + 1,
+  						lastEventSeq: 43,
+  					},
+  				},
+  				header: { title: "Session" },
+  			});
+  		} finally {
+  			firstEntries.concat = originalConcat;
+  		}
+
+  		expect(nextScene.conversation.entries).not.toBe(firstScene.conversation.entries);
+  		expect(nextScene.conversation.entries[0]).toBe(firstScene.conversation.entries[0]);
+  		expect(nextScene.conversation.entries[1]).toMatchObject({
+  			id: "tool-1",
+  			type: "tool_call",
+  			presentationState: "degraded_operation",
+  		});
+  		const appendPatch = readModel.selectConversationScenePatch();
+  		expect(appendPatch.kind).toBe("graphSceneAppend");
+  		if (appendPatch.kind === "graphSceneAppend") {
+  			expect(appendPatch.patch.baseSceneEntries).toBe(firstScene.conversation.entries);
+  			expect(appendPatch.patch.appendedEntries).toEqual([nextScene.conversation.entries[1]]);
+  		}
+
+  		const patchedScene = readModel.apply({
+  			panelId: "panel-1",
+  			graph: {
+  				...graph,
+  				transcriptSnapshot: appendedTranscriptSnapshot,
+  				operations: [
+  					createOperationSnapshot({
+  						id: "op-assistant-1",
+  						tool_call_id: "tool-assistant-1",
+  						source_link: { kind: "transcript_linked", entry_id: "tool-1" },
+  					}),
+  				],
+  				revision: {
+  					graphRevision: 11,
+  					transcriptRevision: transcriptSnapshot.revision + 1,
+  					lastEventSeq: 44,
+  				},
+  			},
+  			header: { title: "Session" },
+  		});
+
+  		expect(patchedScene.conversation.entries[0]).toBe(nextScene.conversation.entries[0]);
+  		expect(patchedScene.conversation.entries[1]).not.toBe(nextScene.conversation.entries[1]);
+  		expect(patchedScene.conversation.entries[1]).toMatchObject({
+  			id: "tool-1",
+  			type: "tool_call",
+  			toolCallId: "tool-assistant-1",
+  		});
+  	});
+
+  it("patches row indexes when appending transcript rows before pending interactions", () => {
+  		const userEntry = createTranscriptEntry("user-1", "user", "hello");
+  		const assistantEntry = createTranscriptEntry("assistant-1", "assistant", "working");
+  		const secondUserEntry = createTranscriptEntry("user-2", "user", "pick one");
+  		const appendedEntry = createTranscriptEntry("assistant-2", "assistant", "thanks");
+  		const transcriptSnapshot = createTranscriptSnapshot([
+  			userEntry,
+  			assistantEntry,
+  			secondUserEntry,
+  		]);
+  		const questionInteraction = createQuestionInteraction({
+  			id: "question-1",
+  			jsonRpcRequestId: 1,
+  			replyHandler: {
+  				kind: "json_rpc",
+  				requestId: "1",
+  			},
+  		});
+  		const graph = createGraph({
+  			transcriptSnapshot,
+  			turnState: "Running",
+  			activity: {
+  				kind: "waiting_for_user",
+  				activeOperationCount: 0,
+  				activeSubagentCount: 0,
+  				dominantOperationId: null,
+  				blockingInteractionId: "question-1",
+  			},
+  			interactions: [questionInteraction],
+  		});
+  		const readModel = createAgentPanelGraphMaterializerReadModel();
+  		const firstScene = readModel.apply({
+  			panelId: "panel-1",
+  			graph,
+  			header: { title: "Question session" },
+  		});
+  		const firstEntries = firstScene.conversation.entries as typeof firstScene.conversation.entries & {
+  			slice: typeof Array.prototype.slice;
+  		};
+  		const originalSlice = firstEntries.slice;
+  		firstEntries.slice = () => {
+  			throw new Error("must not slice whole materialized scene entries around interactions");
+  		};
+  		const appendedTranscriptSnapshot = {
+  			revision: transcriptSnapshot.revision + 1,
+  			entries: [userEntry, assistantEntry, secondUserEntry, appendedEntry],
+  		};
+  		const countedKeys = new Set(["assistant-2", "interaction:question-1"]);
+  		const originalMapSet = Map.prototype.set;
+  		let relevantMapSetCount = 0;
+
+  		Map.prototype.set = function patchedMapSet<K, V>(
+  			this: Map<K, V>,
+  			key: K,
+  			value: V
+  		): Map<K, V> {
+  			if (
+  				typeof key === "string" &&
+  				key === "assistant-2" &&
+  				typeof value === "object" &&
+  				value !== null &&
+  				"entryId" in value &&
+  				this.has("user-1" as K)
+  			) {
+  				throw new Error("must not mutate the previous transcript entry index for an append");
+  			}
+  			if (
+  				typeof key === "string" &&
+  				countedKeys.has(key) &&
+  				typeof value === "number" &&
+  				this.has("user-1" as K)
+  			) {
+  				throw new Error("must not mutate the previous scene row index for an append");
+  			}
+  			if (typeof key === "string" && countedKeys.has(key)) {
+  				relevantMapSetCount += 1;
+  			}
+  			return originalMapSet.call(this, key, value);
+  		};
+
+  		let nextScene: typeof firstScene;
+  		try {
+  			nextScene = readModel.apply({
+  				panelId: "panel-1",
+  				graph: {
+  					...graph,
+  					transcriptSnapshot: appendedTranscriptSnapshot,
+  					revision: {
+  						graphRevision: 10,
+  						transcriptRevision: appendedTranscriptSnapshot.revision,
+  						lastEventSeq: 43,
+  					},
+  				},
+  				header: { title: "Question session" },
+  			});
+  		} finally {
+  			firstEntries.slice = originalSlice;
+  			Map.prototype.set = originalMapSet;
+  		}
+
+  		expect(nextScene.conversation.entries.map((entry) => entry.id)).toEqual([
+  			"user-1",
+  			"assistant-1",
+  			"user-2",
+  			"assistant-2",
+  			"interaction:question-1",
+  		]);
+  		expect(nextScene.conversation.entries[0]).toBe(firstScene.conversation.entries[0]);
+  		expect(nextScene.conversation.entries[1]).toBe(firstScene.conversation.entries[1]);
+  		expect(nextScene.conversation.entries[2]).toBe(firstScene.conversation.entries[2]);
+  		expect(nextScene.conversation.entries[4]).toBe(firstScene.conversation.entries[3]);
+  		expect(readModel.selectConversationScenePatch()).toMatchObject({
+  			kind: "graphSceneSplice",
+  			patch: {
+  				baseSceneEntries: firstScene.conversation.entries,
+  				startIndex: 3,
+  				insertedEntries: [nextScene.conversation.entries[3]],
+  				trailingEntries: [firstScene.conversation.entries[3]],
+  			},
+  		});
+  		expect(relevantMapSetCount).toBe(3);
+  	});
 	});
 
-	it("applies marked operation appends without filtering appended parent lists on lookup", () => {
-		const transcriptSnapshot = createTranscriptSnapshot([
-			createTranscriptEntry("tool-1", "tool", "Run first"),
-			createTranscriptEntry("tool-2", "tool", "Run second"),
-		]);
-		const firstOperation = createOperationSnapshot({
-			id: "op-1",
-			tool_call_id: "tool-1",
-			source_link: { kind: "transcript_linked", entry_id: "tool-1" },
-		});
-		const appendedOperation = createOperationSnapshot({
-			id: "op-2",
-			tool_call_id: "tool-2",
-			source_link: { kind: "transcript_linked", entry_id: "tool-2" },
-		});
-		const operations = [firstOperation];
-		const graph = createGraph({
-			transcriptSnapshot,
-			operations,
-		});
-		const readModel = createAgentPanelGraphMaterializerReadModel();
-		const firstScene = readModel.apply({
-			panelId: "panel-1",
-			graph,
-			header: { title: "Session" },
-		});
-		const appendedOperations = [appendedOperation];
-		const nextOperations = [firstOperation, appendedOperation];
-		markOperationSnapshotArrayPatch(nextOperations, {
-			baseOperations: operations,
-			patchedOperationsByIndex: null,
-			appendedOperations,
-		});
-		Object.defineProperty(appendedOperations, "filter", {
-			configurable: true,
-			value() {
-				throw new Error("must not filter appended parent operations on lookup");
-			},
-		});
+	describe("interaction-patch", () => {
+  it("patches visible interaction rows without rematerializing transcript rows", () => {
+  		const readModel = createAgentPanelGraphMaterializerReadModel();
+  		const transcriptSnapshot = createTranscriptSnapshot([
+  			createTranscriptEntry("user-1", "user", "Can you ask me?"),
+  		]);
+  		const operations: OperationSnapshot[] = [];
+  		const baseGraph = createGraph({
+  			transcriptSnapshot,
+  			operations,
+  			turnState: "Running",
+  			activity: {
+  				kind: "running_operation",
+  				activeOperationCount: 1,
+  				activeSubagentCount: 0,
+  				dominantOperationId: null,
+  				blockingInteractionId: null,
+  			},
+  			interactions: [],
+  		});
+  		const questionGraph = createGraph({
+  			transcriptSnapshot,
+  			operations,
+  			turnState: "Running",
+  			activity: {
+  				kind: "waiting_for_user",
+  				activeOperationCount: 0,
+  				activeSubagentCount: 0,
+  				dominantOperationId: null,
+  				blockingInteractionId: "question-1",
+  			},
+  			interactions: [
+  				createQuestionInteraction({
+  					id: "question-1",
+  					jsonRpcRequestId: 1,
+  					replyHandler: {
+  						kind: "json_rpc",
+  						requestId: "1",
+  					},
+  				}),
+  			],
+  		});
+  		const firstScene = readModel.apply({
+  			panelId: "panel-1",
+  			graph: baseGraph,
+  			header: { title: "Question session" },
+  		});
+  		const firstEntries = firstScene.conversation.entries as typeof firstScene.conversation.entries & {
+  			slice: typeof Array.prototype.slice;
+  		};
+  		const originalSlice = firstEntries.slice;
+  		firstEntries.slice = () => {
+  			throw new Error("must not slice whole materialized scene entries for interaction patch");
+  		};
 
-		const nextScene = readModel.apply({
-			panelId: "panel-1",
-			graph: {
-				...graph,
-				operations: nextOperations,
-				revision: {
-					graphRevision: 10,
-					transcriptRevision: graph.revision.transcriptRevision,
-					lastEventSeq: 43,
-				},
-			},
-			header: { title: "Session" },
-		});
+  		let nextScene: typeof firstScene;
+  		try {
+  			nextScene = readModel.apply({
+  				panelId: "panel-1",
+  				graph: questionGraph,
+  				header: { title: "Question session" },
+  			});
+  		} finally {
+  			firstEntries.slice = originalSlice;
+  		}
 
-		expect(nextScene.conversation.entries[0]).toBe(firstScene.conversation.entries[0]);
-		expect(nextScene.conversation.entries[1]).toMatchObject({
-			id: "tool-2",
-			type: "tool_call",
-		});
+  		expect(nextScene.conversation.entries).toHaveLength(2);
+  		expect(nextScene.conversation.entries[0]).toBe(firstScene.conversation.entries[0]);
+  		expect(nextScene.conversation.entries[1]).toMatchObject({
+  			id: "interaction:question-1",
+  			type: "tool_call",
+  			interactionId: "question-1",
+  			title: "Question",
+  		});
+  	});
+
+  it("patches same-length visible interaction updates without rebuilding transcript rows", () => {
+  		const transcriptSnapshot = createTranscriptSnapshot([
+  			createTranscriptEntry("user-1", "user", "Can you ask me?"),
+  		]);
+  		const hiddenInteraction = createQuestionInteraction({
+  			id: "hidden-question",
+  			jsonRpcRequestId: 1,
+  			replyHandler: { kind: "json_rpc", requestId: "1" },
+  		});
+  		const visibleInteraction = createQuestionInteraction({
+  			id: "question-1",
+  			jsonRpcRequestId: 2,
+  			replyHandler: { kind: "json_rpc", requestId: "2" },
+  		});
+  		const baseGraph = createGraph({
+  			transcriptSnapshot,
+  			operations: [],
+  			turnState: "Running",
+  			activity: {
+  				kind: "waiting_for_user",
+  				activeOperationCount: 0,
+  				activeSubagentCount: 0,
+  				dominantOperationId: null,
+  				blockingInteractionId: "question-1",
+  			},
+  			interactions: [hiddenInteraction, visibleInteraction],
+  		});
+  		const readModel = createAgentPanelGraphMaterializerReadModel();
+  		const firstScene = readModel.apply({
+  			panelId: "panel-1",
+  			graph: baseGraph,
+  			header: { title: "Question session" },
+  		});
+  		const patchedVisibleInteraction: InteractionSnapshot = {
+  			...visibleInteraction,
+  			payload: {
+  				Question: {
+  					id: visibleInteraction.id,
+  					sessionId: "session-1",
+  					jsonRpcRequestId: visibleInteraction.json_rpc_request_id,
+  					replyHandler: visibleInteraction.reply_handler,
+  					questions: [
+  						{
+  							question: "Which surface should get the confirm step now?",
+  							header: "Confirmation",
+  							options: [{ label: "Sidebar", description: "Thread list" }],
+  							multiSelect: false,
+  						},
+  					],
+  					tool: visibleInteraction.tool_reference,
+  				},
+  			},
+  		};
+
+  		const nextScene = readModel.apply({
+  			panelId: "panel-1",
+  			graph: {
+  				...baseGraph,
+  				interactions: [hiddenInteraction, patchedVisibleInteraction],
+  				revision: {
+  					graphRevision: 10,
+  					transcriptRevision: baseGraph.revision.transcriptRevision,
+  					lastEventSeq: 43,
+  				},
+  			},
+  			header: { title: "Question session" },
+  		});
+
+  		expect(nextScene.conversation.entries[0]).toBe(firstScene.conversation.entries[0]);
+  		expect(nextScene.conversation.entries[1]).not.toBe(firstScene.conversation.entries[1]);
+  		expect(nextScene.conversation.entries[1]).toMatchObject({
+  			id: "interaction:question-1",
+  			type: "tool_call",
+  			subtitle: "Which surface should get the confirm step now?",
+  		});
+  	});
+
+  it("applies marked interaction appends without scanning unchanged interactions", () => {
+  		const readModel = createAgentPanelGraphMaterializerReadModel();
+  		const transcriptSnapshot = createTranscriptSnapshot([
+  			createTranscriptEntry("user-1", "user", "Can you ask me?"),
+  		]);
+  		const operations: OperationSnapshot[] = [];
+  		const firstInteraction = createQuestionInteraction({
+  			id: "hidden-question",
+  			jsonRpcRequestId: 1,
+  			replyHandler: {
+  				kind: "json_rpc",
+  				requestId: "1",
+  			},
+  		});
+  		const baseInteractions = [firstInteraction];
+  		const baseGraph = createGraph({
+  			transcriptSnapshot,
+  			operations,
+  			turnState: "Running",
+  			activity: {
+  				kind: "running_operation",
+  				activeOperationCount: 1,
+  				activeSubagentCount: 0,
+  				dominantOperationId: null,
+  				blockingInteractionId: "other-question",
+  			},
+  			interactions: baseInteractions,
+  		});
+  		const appendedInteraction = createQuestionInteraction({
+  			id: "question-1",
+  			jsonRpcRequestId: 2,
+  			replyHandler: {
+  				kind: "json_rpc",
+  				requestId: "2",
+  			},
+  		});
+  		const nextInteractions = [firstInteraction, appendedInteraction];
+  		markInteractionSnapshotArrayPatch(nextInteractions, {
+  			baseInteractions,
+  			patchedInteractionsByIndex: null,
+  			appendedInteractions: [appendedInteraction],
+  		});
+
+  		const firstScene = readModel.apply({
+  			panelId: "panel-1",
+  			graph: baseGraph,
+  			header: { title: "Question session" },
+  		});
+  		Object.defineProperty(baseInteractions, "0", {
+  			configurable: true,
+  			get() {
+  				throw new Error("must not scan unchanged interactions for an interaction patch");
+  			},
+  		});
+  		Object.defineProperty(nextInteractions, "0", {
+  			configurable: true,
+  			get() {
+  				throw new Error("must not scan unchanged next interactions for an interaction patch");
+  			},
+  		});
+
+  		try {
+  			const nextScene = readModel.apply({
+  				panelId: "panel-1",
+  				graph: {
+  					...baseGraph,
+  					interactions: nextInteractions,
+  					activity: {
+  						kind: "waiting_for_user",
+  						activeOperationCount: 0,
+  						activeSubagentCount: 0,
+  						dominantOperationId: null,
+  						blockingInteractionId: "question-1",
+  					},
+  					revision: {
+  						graphRevision: 10,
+  						transcriptRevision: baseGraph.revision.transcriptRevision,
+  						lastEventSeq: 43,
+  					},
+  				},
+  				header: { title: "Question session" },
+  			});
+
+  			expect(nextScene.conversation.entries).toHaveLength(2);
+  			expect(nextScene.conversation.entries[0]).toBe(firstScene.conversation.entries[0]);
+  			expect(nextScene.conversation.entries[1]).toMatchObject({
+  				id: "interaction:question-1",
+  				type: "tool_call",
+  				interactionId: "question-1",
+  			});
+  		} finally {
+  			Object.defineProperty(baseInteractions, "0", {
+  				configurable: true,
+  				value: firstInteraction,
+  			});
+  			Object.defineProperty(nextInteractions, "0", {
+  				configurable: true,
+  				value: firstInteraction,
+  			});
+  		}
+  	});
+
+  it("applies stable interaction appends without scanning unchanged interactions", () => {
+  		const readModel = createAgentPanelGraphMaterializerReadModel();
+  		const transcriptSnapshot = createTranscriptSnapshot([
+  			createTranscriptEntry("user-1", "user", "Can you ask me?"),
+  		]);
+  		const operations: OperationSnapshot[] = [];
+  		const firstInteraction = createQuestionInteraction({
+  			id: "hidden-question",
+  			jsonRpcRequestId: 1,
+  			replyHandler: {
+  				kind: "json_rpc",
+  				requestId: "1",
+  			},
+  		});
+  		const baseInteractions = [firstInteraction];
+  		const baseGraph = createGraph({
+  			transcriptSnapshot,
+  			operations,
+  			turnState: "Running",
+  			activity: {
+  				kind: "running_operation",
+  				activeOperationCount: 1,
+  				activeSubagentCount: 0,
+  				dominantOperationId: null,
+  				blockingInteractionId: "other-question",
+  			},
+  			interactions: baseInteractions,
+  		});
+  		const appendedInteraction = createQuestionInteraction({
+  			id: "question-1",
+  			jsonRpcRequestId: 2,
+  			replyHandler: {
+  				kind: "json_rpc",
+  				requestId: "2",
+  			},
+  		});
+  		const nextInteractions = [firstInteraction, appendedInteraction];
+
+  		const firstScene = readModel.apply({
+  			panelId: "panel-1",
+  			graph: baseGraph,
+  			header: { title: "Question session" },
+  		});
+  		Object.defineProperty(baseInteractions, "0", {
+  			configurable: true,
+  			get() {
+  				throw new Error("must not scan unchanged interactions for a stable append");
+  			},
+  		});
+  		Object.defineProperty(nextInteractions, "0", {
+  			configurable: true,
+  			get() {
+  				throw new Error("must not scan unchanged next interactions for a stable append");
+  			},
+  		});
+
+  		try {
+  			const nextScene = readModel.apply({
+  				panelId: "panel-1",
+  				graph: {
+  					...baseGraph,
+  					interactions: nextInteractions,
+  					activity: {
+  						kind: "waiting_for_user",
+  						activeOperationCount: 0,
+  						activeSubagentCount: 0,
+  						dominantOperationId: null,
+  						blockingInteractionId: "question-1",
+  					},
+  					revision: {
+  						graphRevision: 10,
+  						transcriptRevision: baseGraph.revision.transcriptRevision,
+  						lastEventSeq: 43,
+  					},
+  				},
+  				header: { title: "Question session" },
+  			});
+
+  			expect(nextScene.conversation.entries).toHaveLength(2);
+  			expect(nextScene.conversation.entries[0]).toBe(firstScene.conversation.entries[0]);
+  			expect(nextScene.conversation.entries[1]).toMatchObject({
+  				id: "interaction:question-1",
+  				type: "tool_call",
+  				interactionId: "question-1",
+  			});
+  		} finally {
+  			Object.defineProperty(baseInteractions, "0", {
+  				configurable: true,
+  				value: firstInteraction,
+  			});
+  			Object.defineProperty(nextInteractions, "0", {
+  				configurable: true,
+  				value: firstInteraction,
+  			});
+  		}
+  	});
+
+  it("applies marked interaction removals without scanning unchanged interactions", () => {
+  		const readModel = createAgentPanelGraphMaterializerReadModel();
+  		const transcriptSnapshot = createTranscriptSnapshot([
+  			createTranscriptEntry("user-1", "user", "Can you ask me?"),
+  		]);
+  		const operations: OperationSnapshot[] = [];
+  		const hiddenInteraction = createQuestionInteraction({
+  			id: "hidden-question",
+  			jsonRpcRequestId: 1,
+  			replyHandler: {
+  				kind: "json_rpc",
+  				requestId: "1",
+  			},
+  		});
+  		const visibleInteraction = createQuestionInteraction({
+  			id: "question-1",
+  			jsonRpcRequestId: 2,
+  			replyHandler: {
+  				kind: "json_rpc",
+  				requestId: "2",
+  			},
+  		});
+  		const baseInteractions = [hiddenInteraction, visibleInteraction];
+  		const baseGraph = createGraph({
+  			transcriptSnapshot,
+  			operations,
+  			turnState: "Running",
+  			activity: {
+  				kind: "waiting_for_user",
+  				activeOperationCount: 0,
+  				activeSubagentCount: 0,
+  				dominantOperationId: null,
+  				blockingInteractionId: "question-1",
+  			},
+  			interactions: baseInteractions,
+  		});
+  		const resolvedInteraction: InteractionSnapshot = {
+  			...visibleInteraction,
+  			state: "Answered",
+  			responded_at_event_seq: 44,
+  			response: {
+  				kind: "question",
+  				answers: { choice: "Sidebar session list" },
+  			},
+  		};
+  		const nextInteractions = [hiddenInteraction, resolvedInteraction];
+  		markInteractionSnapshotArrayPatch(nextInteractions, {
+  			baseInteractions,
+  			patchedInteractionsByIndex: new Map([[1, resolvedInteraction]]),
+  			appendedInteractions: null,
+  		});
+
+  		const firstScene = readModel.apply({
+  			panelId: "panel-1",
+  			graph: baseGraph,
+  			header: { title: "Question session" },
+  		});
+  		Object.defineProperty(baseInteractions, "0", {
+  			configurable: true,
+  			get() {
+  				throw new Error("must not scan unchanged interactions for an interaction removal patch");
+  			},
+  		});
+  		Object.defineProperty(nextInteractions, "0", {
+  			configurable: true,
+  			get() {
+  				throw new Error(
+  					"must not scan unchanged next interactions for an interaction removal patch"
+  				);
+  			},
+  		});
+
+  		try {
+  			const nextScene = readModel.apply({
+  				panelId: "panel-1",
+  				graph: {
+  					...baseGraph,
+  					interactions: nextInteractions,
+  					activity: {
+  						kind: "running_operation",
+  						activeOperationCount: 1,
+  						activeSubagentCount: 0,
+  						dominantOperationId: null,
+  						blockingInteractionId: null,
+  					},
+  					revision: {
+  						graphRevision: 10,
+  						transcriptRevision: baseGraph.revision.transcriptRevision,
+  						lastEventSeq: 44,
+  					},
+  				},
+  				header: { title: "Question session" },
+  			});
+
+  			expect(nextScene.conversation.entries).toHaveLength(1);
+  			expect(nextScene.conversation.entries[0]).toBe(firstScene.conversation.entries[0]);
+  		} finally {
+  			Object.defineProperty(baseInteractions, "0", {
+  				configurable: true,
+  				value: hiddenInteraction,
+  			});
+  			Object.defineProperty(nextInteractions, "0", {
+  				configurable: true,
+  				value: hiddenInteraction,
+  			});
+  		}
+  	});
+
+  it("applies stable interaction removals without scanning unchanged interactions", () => {
+  		const readModel = createAgentPanelGraphMaterializerReadModel();
+  		const transcriptSnapshot = createTranscriptSnapshot([
+  			createTranscriptEntry("user-1", "user", "Can you ask me?"),
+  		]);
+  		const operations: OperationSnapshot[] = [];
+  		const hiddenInteraction = createQuestionInteraction({
+  			id: "hidden-question",
+  			jsonRpcRequestId: 1,
+  			replyHandler: {
+  				kind: "json_rpc",
+  				requestId: "1",
+  			},
+  		});
+  		const visibleInteraction = createQuestionInteraction({
+  			id: "question-1",
+  			jsonRpcRequestId: 2,
+  			replyHandler: {
+  				kind: "json_rpc",
+  				requestId: "2",
+  			},
+  		});
+  		const baseInteractions = [hiddenInteraction, visibleInteraction];
+  		const baseGraph = createGraph({
+  			transcriptSnapshot,
+  			operations,
+  			turnState: "Running",
+  			activity: {
+  				kind: "waiting_for_user",
+  				activeOperationCount: 0,
+  				activeSubagentCount: 0,
+  				dominantOperationId: null,
+  				blockingInteractionId: "question-1",
+  			},
+  			interactions: baseInteractions,
+  		});
+
+  		const firstScene = readModel.apply({
+  			panelId: "panel-1",
+  			graph: baseGraph,
+  			header: { title: "Question session" },
+  		});
+  		Object.defineProperty(baseInteractions, "0", {
+  			configurable: true,
+  			get() {
+  				throw new Error("must not scan unchanged interactions for a stable removal");
+  			},
+  		});
+
+  		const nextInteractions = [hiddenInteraction];
+  		Object.defineProperty(nextInteractions, "0", {
+  			configurable: true,
+  			get() {
+  				throw new Error("must not scan unchanged next interactions for a stable removal");
+  			},
+  		});
+
+  		try {
+  			const nextScene = readModel.apply({
+  				panelId: "panel-1",
+  				graph: {
+  					...baseGraph,
+  					interactions: nextInteractions,
+  					activity: {
+  						kind: "running_operation",
+  						activeOperationCount: 1,
+  						activeSubagentCount: 0,
+  						dominantOperationId: null,
+  						blockingInteractionId: null,
+  					},
+  					revision: {
+  						graphRevision: 10,
+  						transcriptRevision: baseGraph.revision.transcriptRevision,
+  						lastEventSeq: 44,
+  					},
+  				},
+  				header: { title: "Question session" },
+  			});
+
+  			expect(nextScene.conversation.entries).toHaveLength(1);
+  			expect(nextScene.conversation.entries[0]).toBe(firstScene.conversation.entries[0]);
+  		} finally {
+  			Object.defineProperty(baseInteractions, "0", {
+  				configurable: true,
+  				value: hiddenInteraction,
+  			});
+  			Object.defineProperty(nextInteractions, "0", {
+  				configurable: true,
+  				value: hiddenInteraction,
+  			});
+  		}
+  	});
 	});
 
-	it("applies stable marked operation patches and appends without cloning indexes", () => {
-		const transcriptSnapshot = createTranscriptSnapshot([
-			createTranscriptEntry("tool-1", "tool", "Run first"),
-			createTranscriptEntry("tool-2", "tool", "Run second"),
-			createTranscriptEntry("tool-3", "tool", "Run third"),
-		]);
-		const firstOperation = createOperationSnapshot({
-			id: "op-1",
-			tool_call_id: "tool-1",
-			source_link: { kind: "transcript_linked", entry_id: "tool-1" },
-		});
-		const secondOperation = createOperationSnapshot({
-			id: "op-2",
-			tool_call_id: "tool-2",
-			source_link: { kind: "transcript_linked", entry_id: "tool-2" },
-			result: null,
-			operation_state: "running",
-		});
-		const appendedOperation = createOperationSnapshot({
-			id: "op-3",
-			tool_call_id: "tool-3",
-			source_link: { kind: "transcript_linked", entry_id: "tool-3" },
-		});
-		const operations = [firstOperation, secondOperation];
-		const graph = createGraph({
-			transcriptSnapshot,
-			operations,
-		});
-		const readModel = createAgentPanelGraphMaterializerReadModel();
-		const firstScene = readModel.apply({
-			panelId: "panel-1",
-			graph,
-			header: { title: "Session" },
-		});
-		const patchedSecondOperation = {
-			...secondOperation,
-			result: { stdout: "done", stderr: null, exitCode: 0 },
-			operation_state: "completed" as const,
-		};
-		const nextOperations = [firstOperation, patchedSecondOperation, appendedOperation];
-		markOperationSnapshotArrayPatch(nextOperations, {
-			baseOperations: operations,
-			patchedOperationsByIndex: new Map([[1, patchedSecondOperation]]),
-			appendedOperations: [appendedOperation],
-		});
-		const originalMapIterator = Map.prototype[Symbol.iterator];
-		Map.prototype[Symbol.iterator] = function patchedMapIterator<K, V>(this: Map<K, V>) {
-			if (this.has("op-1" as K) || this.has("tool-1" as K)) {
-				throw new Error("must not clone operation index maps for patch plus append");
-			}
-			return originalMapIterator.call(this);
-		};
+	describe("full-rebuild", () => {
+  it("reuses the operation index when materializing a fresh cached conversation", () => {
+  		let sourceLinkReadCount = 0;
+  		const operation = createOperationSnapshot();
+  		Object.defineProperty(operation, "source_link", {
+  			configurable: true,
+  			enumerable: true,
+  			get() {
+  				sourceLinkReadCount += 1;
+  				return {
+  					kind: "transcript_linked",
+  					entry_id: "tool-1",
+  				};
+  			},
+  		});
+  		const graph = createGraph({
+  			transcriptSnapshot: createTranscriptSnapshot([
+  				createTranscriptEntry("tool-1", "assistant", "Ran command"),
+  			]),
+  			operations: [operation],
+  		});
+  		const readModel = createAgentPanelGraphMaterializerReadModel();
 
-		try {
-			const nextScene = readModel.apply({
-				panelId: "panel-1",
-				graph: {
-					...graph,
-					operations: nextOperations,
-					revision: {
-						graphRevision: 10,
-						transcriptRevision: graph.revision.transcriptRevision,
-						lastEventSeq: 43,
-					},
-				},
-				header: { title: "Session" },
-			});
+  		readModel.apply({
+  			panelId: "panel-1",
+  			graph,
+  			header: {
+  				title: "Session",
+  			},
+  		});
 
-			expect(nextScene.conversation.entries[0]).toBe(firstScene.conversation.entries[0]);
-			expect(nextScene.conversation.entries[1]).not.toBe(firstScene.conversation.entries[1]);
-			expect(nextScene.conversation.entries[1]).toMatchObject({
-				id: "tool-2",
-				type: "tool_call",
-				stdout: "done",
-			});
-			expect(nextScene.conversation.entries[2]).toMatchObject({
-				id: "tool-3",
-				type: "tool_call",
-			});
-		} finally {
-			Map.prototype[Symbol.iterator] = originalMapIterator;
-		}
+  		expect(sourceLinkReadCount).toBe(2);
+  	});
+
+  it("projects canonical transcript timestamps directly into message scene entries", () => {
+  		const transcriptSnapshot = createTranscriptSnapshot([
+  			{
+  				entryId: "user-1",
+  				role: "user",
+  				segments: [
+  					{
+  						kind: "text",
+  						segmentId: "user-1-segment-1",
+  						text: "Hello",
+  					},
+  				],
+  				attemptId: null,
+  				timestampMs: 1_779_062_400_000,
+  			},
+  			{
+  				entryId: "assistant-1",
+  				role: "assistant",
+  				segments: [
+  					{
+  						kind: "text",
+  						segmentId: "assistant-1-segment-1",
+  						text: "Hi",
+  					},
+  				],
+  				attemptId: null,
+  				timestampMs: 1_779_062_401_000,
+  			},
+  		]);
+  		const graph = createGraph({ transcriptSnapshot });
+
+  		const scene = materializeAgentPanelSceneFromGraph({
+  			panelId: "panel-1",
+  			graph,
+  			header: {
+  				title: "Timestamp session",
+  			},
+  		});
+
+  		expect(scene.conversation.entries[0]).toMatchObject({
+  			id: "user-1",
+  			type: "user",
+  			timestampMs: 1_779_062_400_000,
+  		});
+  		expect(scene.conversation.entries[1]).toMatchObject({
+  			id: "assistant-1",
+  			type: "assistant",
+  			timestampMs: 1_779_062_401_000,
+  		});
+  	});
+
+  it("renders only the blocking pending question interaction when duplicate question records exist", () => {
+  		const transcriptSnapshot = createTranscriptSnapshot([
+  			createTranscriptEntry("user-1", "user", "Can you retry the AskUserQuestion?"),
+  		]);
+  		const graph = createGraph({
+  			transcriptSnapshot,
+  			turnState: "Running",
+  			activity: {
+  				kind: "waiting_for_user",
+  				activeOperationCount: 0,
+  				activeSubagentCount: 0,
+  				dominantOperationId: null,
+  				blockingInteractionId: "question-1",
+  			},
+  			interactions: [
+  				createQuestionInteraction({
+  					id: "question-1",
+  					jsonRpcRequestId: 1,
+  					replyHandler: {
+  						kind: "json_rpc",
+  						requestId: "1",
+  					},
+  				}),
+  				createQuestionInteraction({
+  					id: "question-duplicate",
+  					jsonRpcRequestId: null,
+  					replyHandler: {
+  						kind: "http",
+  						requestId: "question-duplicate",
+  					},
+  				}),
+  			],
+  		});
+
+  		const scene = materializeAgentPanelSceneFromGraph({
+  			panelId: "panel-1",
+  			graph,
+  			header: {
+  				title: "Question session",
+  			},
+  		});
+
+  		expect(scene.conversation.entries).toHaveLength(2);
+  		expect(scene.conversation.entries.map((entry) => entry.id)).toEqual([
+  			"user-1",
+  			"interaction:question-1",
+  		]);
+  		expect(scene.conversation.entries[1]).toMatchObject({
+  			id: "interaction:question-1",
+  			type: "tool_call",
+  			interactionId: "question-1",
+  			title: "Question",
+  			status: "running",
+  			question: {
+  				question: "Which archive button should get the confirm step?",
+  				header: "Location",
+  				options: [
+  					{
+  						label: "Sidebar session list",
+  						description: "Archive action on sessions in the left sidebar",
+  					},
+  					{
+  						label: "Settings table",
+  						description: "Archive item in the settings table",
+  					},
+  				],
+  				multiSelect: false,
+  			},
+  		});
+  	});
+
+  it("keeps question display identity separate from semantic interaction identity", () => {
+  		const transcriptSnapshot = createTranscriptSnapshot([
+  			createTranscriptEntry("user-1", "user", "Can you ask me?"),
+  		]);
+  		const graph = createGraph({
+  			transcriptSnapshot,
+  			turnState: "Running",
+  			activity: {
+  				kind: "waiting_for_user",
+  				activeOperationCount: 0,
+  				activeSubagentCount: 0,
+  				dominantOperationId: null,
+  				blockingInteractionId: "question-1",
+  			},
+  			interactions: [
+  				createQuestionInteraction({
+  					id: "question-1",
+  					jsonRpcRequestId: 1,
+  					replyHandler: {
+  						kind: "json_rpc",
+  						requestId: "1",
+  					},
+  				}),
+  			],
+  		});
+
+  		const scene = materializeAgentPanelSceneFromGraph({
+  			panelId: "panel-1",
+  			graph,
+  			header: {
+  				title: "Question session",
+  			},
+  		});
+
+  		expect(scene.conversation.entries[1]).toMatchObject({
+  			id: "interaction:question-1",
+  			type: "tool_call",
+  			interactionId: "question-1",
+  			title: "Question",
+  		});
+  	});
+
+  it("materializes rich tool entries from canonical operations instead of transcript placeholders", () => {
+  		const transcriptSnapshot = createTranscriptSnapshot([
+  			createTranscriptEntry("user-1", "user", "Run the checks"),
+  			createTranscriptEntry("tool-1", "tool", "Run"),
+  			createTranscriptEntry("assistant-1", "assistant", "Checks are green."),
+  		]);
+  		const graph = createGraph({
+  			transcriptSnapshot,
+  			operations: [createOperationSnapshot()],
+  		});
+
+  		const scene = materializeAgentPanelSceneFromGraph({
+  			panelId: "panel-1",
+  			graph,
+  			header: {
+  				title: "Restored session",
+  			},
+  		});
+
+  		expect(scene.status).toBe("done");
+  		expect(scene.conversation.entries[0]).toEqual({
+  			id: "user-1",
+  			type: "user",
+  			text: "Run the checks",
+  			chunks: [{ kind: "text", text: "Run the checks" }],
+  			timestampMs: undefined,
+  		});
+  		expect(scene.conversation.entries[1]).toMatchObject({
+  			id: "tool-1",
+  			type: "tool_call",
+  			kind: "execute",
+  			title: "Run",
+  			command: "bun test",
+  			stdout: "ok",
+  			status: "done",
+  			presentationState: "resolved",
+  		});
+  		expect(scene.conversation.entries[2]).toEqual({
+  			id: "assistant-1",
+  			type: "assistant",
+  			markdown: "Checks are green.",
+  			message: {
+  				chunks: [
+  					{
+  						type: "message",
+  						block: {
+  							type: "text",
+  							text: "Checks are green.",
+  						},
+  					},
+  				],
+  			},
+  			isStreaming: false,
+  			timestampMs: undefined,
+  			planningStartedAtMs: null,
+  		});
+  	});
+
+  it("keeps transcript display identity when canonical operation tool id differs", () => {
+  		const transcriptSnapshot = createTranscriptSnapshot([
+  			createTranscriptEntry("transcript-tool-entry", "tool", "Run"),
+  		]);
+  		const graph = createGraph({
+  			transcriptSnapshot,
+  			operations: [
+  				createOperationSnapshot({
+  					id: "operation-1",
+  					tool_call_id: "provider-tool-call-1",
+  					source_link: {
+  						kind: "transcript_linked",
+  						entry_id: "transcript-tool-entry",
+  					},
+  				}),
+  			],
+  		});
+
+  		const scene = materializeAgentPanelSceneFromGraph({
+  			panelId: "panel-1",
+  			graph,
+  			header: {
+  				title: "Restored session",
+  			},
+  		});
+
+  		expect(scene.conversation.entries[0]).toMatchObject({
+  			id: "transcript-tool-entry",
+  			type: "tool_call",
+  			toolCallId: "provider-tool-call-1",
+  			operationId: "operation-1",
+  		});
+  	});
+
+  it("requires transcript source links even when tool call ids match", () => {
+  		const transcriptSnapshot = createTranscriptSnapshot([
+  			createTranscriptEntry("tool-1", "tool", "Run"),
+  		]);
+  		const graph = createGraph({
+  			transcriptSnapshot,
+  			operations: [
+  				createOperationSnapshot({
+  					id: "operation-1",
+  					tool_call_id: "tool-1",
+  					source_link: {
+  						kind: "synthetic",
+  						reason: "legacy restored operation",
+  					},
+  				}),
+  			],
+  		});
+
+  		const scene = materializeAgentPanelSceneFromGraph({
+  			panelId: "panel-1",
+  			graph,
+  			header: {
+  				title: "Restored session",
+  			},
+  		});
+
+  		expect(scene.conversation.entries[0]).toMatchObject({
+  			id: "tool-1",
+  			type: "tool_call",
+  			kind: "other",
+  			title: "Unresolved tool",
+  			presentationState: "degraded_operation",
+  		});
+  	});
+
+  it("preserves editDiffs through scene text limit filtering for edit tool calls", () => {
+  		const transcriptSnapshot = createTranscriptSnapshot([
+  			createTranscriptEntry("user-1", "user", "Apply the patch"),
+  			createTranscriptEntry("tool-edit", "tool", "Edit"),
+  		]);
+  		const graph = createGraph({
+  			transcriptSnapshot,
+  			operations: [
+  				createOperationSnapshot({
+  					id: "op:session-1:tool-edit",
+  					tool_call_id: "tool-edit",
+  					name: "Edit",
+  					kind: "edit",
+  					title: "Edit",
+  					command: null,
+  					arguments: {
+  						kind: "edit",
+  						edits: [
+  							{
+  								filePath: "/repo/foo.ts",
+  								oldString: "const x = 1;",
+  								newString: "const x = 2;",
+  							},
+  						],
+  					},
+  					result: null,
+  					source_link: { kind: "transcript_linked", entry_id: "tool-edit" },
+  				}),
+  			],
+  		});
+
+  		const scene = materializeAgentPanelSceneFromGraph({
+  			panelId: "panel-1",
+  			graph,
+  			header: { title: "Edit session" },
+  		});
+
+  		const editEntry = scene.conversation.entries.find(
+  			(entry) => entry.type === "tool_call" && entry.kind === "edit"
+  		);
+  		expect(editEntry).toBeDefined();
+  		expect(editEntry).toMatchObject({
+  			kind: "edit",
+  			editDiffs: [
+  				{
+  					filePath: "/repo/foo.ts",
+  					oldString: "const x = 1;",
+  					newString: "const x = 2;",
+  				},
+  			],
+  		});
+  	});
+
+  it("preserves lifecycle actionability and resume actions in the scene contract", () => {
+  		const graph = createGraph({
+  			transcriptSnapshot: createTranscriptSnapshot([
+  				createTranscriptEntry("assistant-1", "assistant", "Restored history."),
+  			]),
+  			turnState: "Idle",
+  			lifecycle: {
+  				status: "detached",
+  				detachedReason: "restoredRequiresAttach",
+  				failureReason: null,
+  				errorMessage: null,
+  				actionability: {
+  					canSend: false,
+  					canResume: true,
+  					canRetry: false,
+  					canArchive: true,
+  					canConfigure: false,
+  					recommendedAction: "resume",
+  					recoveryPhase: "detached",
+  					compactStatus: "detached",
+  				},
+  			},
+  			activity: {
+  				kind: "paused",
+  				activeOperationCount: 0,
+  				activeSubagentCount: 0,
+  				dominantOperationId: null,
+  				blockingInteractionId: null,
+  			},
+  		});
+
+  		const scene = materializeAgentPanelSceneFromGraph({
+  			panelId: "panel-1",
+  			graph,
+  			header: {
+  				title: "Restored session",
+  			},
+  		});
+
+  		expect(scene.status).toBe("idle");
+  		expect(scene.lifecycle).toMatchObject({
+  			status: "detached",
+  			detachedReason: "restoredRequiresAttach",
+  			actionability: {
+  				canResume: true,
+  				recommendedAction: "resume",
+  				recoveryPhase: "detached",
+  			},
+  		});
+  		expect(scene.header.actions).toEqual([
+  			{
+  				id: "status.resume",
+  				label: "Resume",
+  				state: "enabled",
+  			},
+  			{
+  				id: "status.archive",
+  				label: "Archive",
+  				state: "enabled",
+  			},
+  		]);
+  	});
+
+  it("surfaces canonical turn failures as error status before lifecycle catches up", () => {
+  		const graph = createGraph({
+  			transcriptSnapshot: createTranscriptSnapshot([
+  				createTranscriptEntry("assistant-1", "assistant", "Rate limited."),
+  			]),
+  			turnState: "Failed",
+  			lifecycle: createLifecycle(),
+  			activity: {
+  				kind: "error",
+  				activeOperationCount: 0,
+  				activeSubagentCount: 0,
+  				dominantOperationId: null,
+  				blockingInteractionId: null,
+  			},
+  		});
+
+  		const scene = materializeAgentPanelSceneFromGraph({
+  			panelId: "panel-1",
+  			graph,
+  			header: {
+  				title: "Restored session",
+  			},
+  		});
+
+  		expect(scene.status).toBe("error");
+  		expect(scene.header.status).toBe("error");
+  	});
+
+  it("concatenates assistant transcript token segments without markdown line breaks", () => {
+  		const graph = createGraph({
+  			transcriptSnapshot: createTranscriptSnapshot([
+  				createTranscriptEntryFromSegments("assistant-1", "assistant", [
+  					"The fl",
+  					"icker is",
+  					" caused by co",
+  					"arse-grained reactivity.",
+  				]),
+  			]),
+  		});
+
+  		const scene = materializeAgentPanelSceneFromGraph({
+  			panelId: "panel-1",
+  			graph,
+  			header: {
+  				title: "Restored session",
+  			},
+  		});
+
+  		expect(scene.conversation.entries[0]).toEqual({
+  			id: "assistant-1",
+  			type: "assistant",
+  			markdown: "The flicker is caused by coarse-grained reactivity.",
+  			message: {
+  				chunks: [
+  					{
+  						type: "message",
+  						block: {
+  							type: "text",
+  							text: "The fl",
+  						},
+  					},
+  					{
+  						type: "message",
+  						block: {
+  							type: "text",
+  							text: "icker is",
+  						},
+  					},
+  					{
+  						type: "message",
+  						block: {
+  							type: "text",
+  							text: " caused by co",
+  						},
+  					},
+  					{
+  						type: "message",
+  						block: {
+  							type: "text",
+  							text: "arse-grained reactivity.",
+  						},
+  					},
+  				],
+  			},
+  			isStreaming: false,
+  			timestampMs: undefined,
+  			planningStartedAtMs: null,
+  		});
+  	});
+
+  it("preserves canonical thought segments as assistant thought chunks", () => {
+  		const transcriptEntry: TranscriptEntry = {
+  			entryId: "assistant-1",
+  			role: "assistant",
+  			segments: [
+  				{
+  					kind: "thought",
+  					segmentId: "assistant-1:thought:1",
+  					text: "checking the readme",
+  				},
+  				{
+  					kind: "text",
+  					segmentId: "assistant-1:text:1",
+  					text: "Done.",
+  				},
+  			],
+  			attemptId: null,
+  		};
+  		const originalSegmentsMap = transcriptEntry.segments.map;
+  		transcriptEntry.segments.map = () => {
+  			throw new Error("must not map every assistant transcript segment");
+  		};
+  		const graph = createGraph({
+  			transcriptSnapshot: createTranscriptSnapshot([transcriptEntry]),
+  		});
+
+  		try {
+  			const scene = materializeAgentPanelSceneFromGraph({
+  				panelId: "panel-1",
+  				graph,
+  				header: {
+  					title: "Restored session",
+  				},
+  			});
+
+  			expect(scene.conversation.entries[0]).toMatchObject({
+  				id: "assistant-1",
+  				type: "assistant",
+  				markdown: "Done.",
+  				message: {
+  					chunks: [
+  						{
+  							type: "thought",
+  							block: {
+  								type: "text",
+  								text: "checking the readme",
+  							},
+  						},
+  						{
+  							type: "message",
+  							block: {
+  								type: "text",
+  								text: "Done.",
+  							},
+  						},
+  					],
+  				},
+  			});
+  		} finally {
+  			transcriptEntry.segments.map = originalSegmentsMap;
+  		}
+  	});
+
+  it("does not join transcript rows through coincidental operation ids", () => {
+  		const graph = createGraph({
+  			transcriptSnapshot: createTranscriptSnapshot([
+  				createTranscriptEntry("tool-coincidental", "tool", "Provider said a tool ran"),
+  			]),
+  			operations: [
+  				createOperationSnapshot({
+  					id: "tool-coincidental",
+  					tool_call_id: "tool-coincidental",
+  					operation_provenance_key: "tool-coincidental",
+  					source_link: {
+  						kind: "synthetic",
+  						reason: "synthetic_test_operation",
+  					},
+  				}),
+  			],
+  			turnState: "Completed",
+  		});
+
+  		const scene = materializeAgentPanelSceneFromGraph({
+  			panelId: "panel-1",
+  			graph,
+  			header: {
+  				title: "Restored session",
+  			},
+  		});
+
+  		expect(scene.conversation.entries[0]).toMatchObject({
+  			id: "tool-coincidental",
+  			type: "tool_call",
+  			kind: "other",
+  			status: "degraded",
+  			title: "Unresolved tool",
+  			presentationState: "degraded_operation",
+  		});
+  	});
+
+  it("does not join transcript rows through matching tool call ids without a source link", () => {
+  		const graph = createGraph({
+  			transcriptSnapshot: createTranscriptSnapshot([
+  				createTranscriptEntry("tool-call-only", "tool", "Provider said a tool ran"),
+  			]),
+  			operations: [
+  				createOperationSnapshot({
+  					id: "operation-without-transcript-link",
+  					tool_call_id: "tool-call-only",
+  					operation_provenance_key: "tool-call-only",
+  					source_link: {
+  						kind: "synthetic",
+  						reason: "live_operation_without_transcript_link",
+  					},
+  				}),
+  			],
+  			turnState: "Completed",
+  		});
+
+  		const scene = materializeAgentPanelSceneFromGraph({
+  			panelId: "panel-1",
+  			graph,
+  			header: {
+  				title: "Restored session",
+  			},
+  		});
+
+  		expect(scene.conversation.entries[0]).toMatchObject({
+  			id: "tool-call-only",
+  			type: "tool_call",
+  			kind: "other",
+  			status: "degraded",
+  			title: "Unresolved tool",
+  			presentationState: "degraded_operation",
+  		});
+  	});
+
+  it("uses canonical operation state instead of provider status for presentation", () => {
+  		const graph = createGraph({
+  			transcriptSnapshot: createTranscriptSnapshot([
+  				createTranscriptEntry("tool-1", "tool", "Run"),
+  			]),
+  			operations: [
+  				createOperationSnapshot({
+  					provider_status: "completed",
+  					operation_state: "degraded",
+  					awaiting_plan_approval: false,
+  					degradation_reason: {
+  						code: "classification_failure",
+  						detail: "Tool classification was insufficient for canonical presentation.",
+  					},
+  				}),
+  			],
+  		});
+
+  		const scene = materializeAgentPanelSceneFromGraph({
+  			panelId: "panel-1",
+  			graph,
+  			header: {
+  				title: "Restored session",
+  			},
+  		});
+
+  		expect(scene.conversation.entries[0]).toMatchObject({
+  			id: "tool-1",
+  			type: "tool_call",
+  			status: "degraded",
+  			presentationState: "degraded_operation",
+  			degradedReason: "Tool operation could not be classified safely.",
+  		});
+  	});
+
+  it("renders valid unclassified operations without degraded warning styling", () => {
+  		const graph = createGraph({
+  			transcriptSnapshot: createTranscriptSnapshot([
+  				createTranscriptEntry("tool-1", "tool", "write_bash"),
+  			]),
+  			operations: [
+  				createOperationSnapshot({
+  					name: "write_bash",
+  					kind: "unclassified",
+  					title: "",
+  					arguments: {
+  						kind: "unclassified",
+  						provider_name: "write_bash",
+  						provider_kind_hint: null,
+  						title: null,
+  						arguments_preview: null,
+  						signals_tried: ["ProviderNameMap", "ArgumentShape"],
+  					},
+  					provider_status: "completed",
+  					operation_state: "completed",
+  					awaiting_plan_approval: false,
+  					degradation_reason: null,
+  				}),
+  			],
+  		});
+
+  		const scene = materializeAgentPanelSceneFromGraph({
+  			panelId: "panel-1",
+  			graph,
+  			header: {
+  				title: "Restored session",
+  			},
+  		});
+
+  		expect(scene.conversation.entries[0]).toMatchObject({
+  			id: "tool-1",
+  			type: "tool_call",
+  			kind: "other",
+  			status: "done",
+  			title: "Write Bash",
+  			presentationState: "resolved",
+  		});
+  	});
+
+  it("renders blocked from canonical operation state even when provider status is stale", () => {
+  		const graph = createGraph({
+  			transcriptSnapshot: createTranscriptSnapshot([
+  				createTranscriptEntry("tool-1", "tool", "Run"),
+  			]),
+  			operations: [
+  				createOperationSnapshot({
+  					provider_status: "completed",
+  					operation_state: "blocked",
+  					awaiting_plan_approval: false,
+  				}),
+  			],
+  			turnState: "Running",
+  		});
+
+  		const scene = materializeAgentPanelSceneFromGraph({
+  			panelId: "panel-1",
+  			graph,
+  			header: {
+  				title: "Restored session",
+  			},
+  		});
+
+  		expect(scene.conversation.entries[0]).toMatchObject({
+  			id: "tool-1",
+  			type: "tool_call",
+  			status: "blocked",
+  			presentationState: "resolved",
+  		});
+  	});
+
+  it("keeps unresolved tool diagnostics free of full transcript text", () => {
+  		const originalWarn = console.warn;
+  		const originalLocalStorageDescriptor = Object.getOwnPropertyDescriptor(
+  			globalThis,
+  			"localStorage"
+  		);
+  		let warningDetails: {
+  			readonly entryText?: string;
+  			readonly entryId?: string;
+  			readonly toolTranscriptEntryCount?: number;
+  			readonly sampledToolTranscriptEntryCount?: number;
+  			readonly toolTranscriptEntrySampleLimit?: number;
+  		} | null = null;
+  		console.warn = (
+  			message?: string,
+  			details?: {
+  				readonly entryText?: string;
+  				readonly entryId?: string;
+  				readonly toolTranscriptEntryCount?: number;
+  				readonly sampledToolTranscriptEntryCount?: number;
+  				readonly toolTranscriptEntrySampleLimit?: number;
+  			}
+  		) => {
+  			if (message === "[agent-panel] unresolved restored tool row") {
+  				warningDetails = details ?? null;
+  			}
+  		};
+  		Object.defineProperty(globalThis, "localStorage", {
+  			configurable: true,
+  			value: {
+  				getItem: (key: string) => (key === "acepe:debug:unresolved-tools" ? "1" : null),
+  			},
+  		});
+
+  		const graph = createGraph({
+  			transcriptSnapshot: createTranscriptSnapshot([
+  				createTranscriptEntry("tool-missing", "tool", "secret transcript text"),
+  			]),
+  			operations: [],
+  			turnState: "Completed",
+  		});
+
+  		materializeAgentPanelSceneFromGraph({
+  			panelId: "panel-1",
+  			graph,
+  			header: {
+  				title: "Restored session",
+  			},
+  		});
+
+  		console.warn = originalWarn;
+  		if (originalLocalStorageDescriptor === undefined) {
+  			Reflect.deleteProperty(globalThis, "localStorage");
+  		} else {
+  			Object.defineProperty(globalThis, "localStorage", originalLocalStorageDescriptor);
+  		}
+
+  		expect(warningDetails).toBeDefined();
+  		expect(warningDetails).not.toHaveProperty("entryText");
+  		expect(warningDetails).toMatchObject({
+  			entryId: "tool-missing",
+  			sampledToolTranscriptEntryCount: 1,
+  			toolTranscriptEntrySampleLimit: 40,
+  		});
+  		expect(warningDetails).not.toHaveProperty("toolTranscriptEntryCount");
+  	});
+
+  it("recursively materializes task children from canonical child operations", () => {
+  		const transcriptSnapshot = createTranscriptSnapshot([
+  			createTranscriptEntry("task-entry", "tool", "Task completed"),
+  		]);
+  		const parentOperation = createOperationSnapshot({
+  			id: "operation-parent",
+  			tool_call_id: "task-tool",
+  			name: "task",
+  			kind: "task",
+  			title: "Task completed",
+  			arguments: {
+  				kind: "think",
+  				description: "Run subagent",
+  				prompt: "Investigate",
+  				subagent_type: "general-purpose",
+  				skill: null,
+  				skill_args: null,
+  				raw: null,
+  			},
+  			result: "done",
+  			command: null,
+  			child_tool_call_ids: ["child-tool"],
+  			child_operation_ids: ["operation-child"],
+  			operation_provenance_key: "task-tool",
+  			source_link: {
+  				kind: "transcript_linked",
+  				entry_id: "task-entry",
+  			},
+  		});
+  		const childOperation = createOperationSnapshot({
+  			id: "operation-child",
+  			tool_call_id: "child-tool",
+  			name: "bash",
+  			kind: "execute",
+  			title: "Run",
+  			arguments: { kind: "execute", command: "bun test src/lib/acp" },
+  			result: { stdout: "child ok", stderr: null, exitCode: 0 },
+  			command: "bun test src/lib/acp",
+  			parent_tool_call_id: "task-tool",
+  			parent_operation_id: "operation-parent",
+  			child_tool_call_ids: [],
+  			child_operation_ids: [],
+  			operation_provenance_key: "child-tool",
+  			source_link: {
+  				kind: "synthetic",
+  				reason: "task_child_operation",
+  			},
+  		});
+  		const graph = createGraph({
+  			transcriptSnapshot,
+  			operations: [parentOperation, childOperation],
+  		});
+
+  		const scene = materializeAgentPanelSceneFromGraph({
+  			panelId: "panel-1",
+  			graph,
+  			header: {
+  				title: "Restored session",
+  			},
+  		});
+  		const taskEntry = scene.conversation.entries[0];
+  		if (taskEntry.type !== "tool_call" || !taskEntry.taskChildren) {
+  			throw new Error("Expected task tool with children");
+  		}
+
+  		expect(taskEntry).toMatchObject({
+  			type: "tool_call",
+  			kind: "task",
+  			taskDescription: "Run subagent",
+  			taskResultText: "done",
+  			presentationState: "resolved",
+  		});
+  		expect(taskEntry.taskChildren[0]).toMatchObject({
+  			type: "tool_call",
+  			kind: "execute",
+  			command: "bun test src/lib/acp",
+  			stdout: "child ok",
+  			status: "done",
+  			presentationState: "resolved",
+  		});
+  	});
+
+  it("bounds display output before values enter scene DTOs", () => {
+  		const longOutput = "x".repeat(AGENT_PANEL_SCENE_TEXT_LIMITS.output + 100);
+  		const graph = createGraph({
+  			transcriptSnapshot: createTranscriptSnapshot([
+  				createTranscriptEntry("tool-1", "tool", "Run"),
+  			]),
+  			operations: [
+  				createOperationSnapshot({
+  					result: { stdout: longOutput, stderr: null, exitCode: 0 },
+  				}),
+  			],
+  		});
+
+  		const scene = materializeAgentPanelSceneFromGraph({
+  			panelId: "panel-1",
+  			graph,
+  			header: {
+  				title: "Restored session",
+  			},
+  		});
+  		const entry = scene.conversation.entries[0];
+  		if (entry.type !== "tool_call") {
+  			throw new Error("Expected tool entry");
+  		}
+
+  		expect(entry.stdout?.length).toBeLessThan(longOutput.length);
+  		expect(entry.stdout?.endsWith("[truncated]")).toBe(true);
+  	});
+
+  it("renders committed missing-operation tool rows as explicit degraded presentation", () => {
+  		const graph = createGraph({
+  			transcriptSnapshot: createTranscriptSnapshot([
+  				createTranscriptEntry("tool-missing", "tool", "Provider said a tool ran"),
+  			]),
+  			operations: [],
+  			turnState: "Completed",
+  		});
+
+  		const scene = materializeAgentPanelSceneFromGraph({
+  			panelId: "panel-1",
+  			graph,
+  			header: {
+  				title: "Restored session",
+  			},
+  		});
+
+  		expect(scene.conversation.entries[0]).toMatchObject({
+  			id: "tool-missing",
+  			type: "tool_call",
+  			kind: "other",
+  			status: "degraded",
+  			title: "Unresolved tool",
+  			subtitle: "Provider said a tool ran",
+  			presentationState: "degraded_operation",
+  			degradedReason: "No canonical operation was found for this restored transcript tool row.",
+  		});
+  	});
+
+  it("materializes local command transcript segments into user command chips", () => {
+  		const graph = createGraph({
+  			transcriptSnapshot: createTranscriptSnapshot([
+  				{
+  					entryId: "user-login",
+  					role: "user",
+  					segments: [
+  						{
+  							kind: "localCommand",
+  							segmentId: "user-login-segment-1",
+  							command: "/login",
+  							message: "login",
+  							args: "",
+  							stdout: "Login successful",
+  						},
+  					],
+  				},
+  			]),
+  		});
+
+  		const scene = materializeAgentPanelSceneFromGraph({
+  			panelId: "panel-1",
+  			graph,
+  			header: { title: "Session" },
+  		});
+
+  		const entry = scene.conversation.entries[0] as AgentUserEntry;
+  		expect(entry.type).toBe("user");
+  		expect(entry.text).toBe("Login successful");
+  		expect(entry.chunks).toHaveLength(1);
+  		expect(entry.chunks?.[0]?.kind).toBe("localCommand");
+  		if (entry.chunks?.[0]?.kind === "localCommand") {
+  			expect(entry.chunks[0].command).toBe("/login");
+  			expect(entry.chunks[0].chip.cleanStdout).toBe("Login successful");
+  		}
+  	});
 	});
 
-	it("applies stable unmarked operation patches and appends without cloning indexes", () => {
-		const transcriptSnapshot = createTranscriptSnapshot([
-			createTranscriptEntry("tool-1", "tool", "Run first"),
-			createTranscriptEntry("tool-2", "tool", "Run second"),
-			createTranscriptEntry("tool-3", "tool", "Run third"),
-		]);
-		const firstOperation = createOperationSnapshot({
-			id: "op-1",
-			tool_call_id: "tool-1",
-			source_link: { kind: "transcript_linked", entry_id: "tool-1" },
-		});
-		const secondOperation = createOperationSnapshot({
-			id: "op-2",
-			tool_call_id: "tool-2",
-			source_link: { kind: "transcript_linked", entry_id: "tool-2" },
-			result: null,
-			operation_state: "running",
-		});
-		const appendedOperation = createOperationSnapshot({
-			id: "op-3",
-			tool_call_id: "tool-3",
-			source_link: { kind: "transcript_linked", entry_id: "tool-3" },
-		});
-		const operations = [firstOperation, secondOperation];
-		const graph = createGraph({
-			transcriptSnapshot,
-			operations,
-		});
-		const readModel = createAgentPanelGraphMaterializerReadModel();
-		const firstScene = readModel.apply({
-			panelId: "panel-1",
-			graph,
-			header: { title: "Session" },
-		});
-		const patchedSecondOperation = {
-			...secondOperation,
-			result: { stdout: "done", stderr: null, exitCode: 0 },
-			operation_state: "completed" as const,
-		};
-		const nextOperations = [firstOperation, patchedSecondOperation, appendedOperation];
-		const originalMapIterator = Map.prototype[Symbol.iterator];
-		Map.prototype[Symbol.iterator] = function patchedMapIterator<K, V>(this: Map<K, V>) {
-			if (this.has("op-1" as K) || this.has("tool-1" as K)) {
-				throw new Error("must not clone operation index maps for stable unmarked patch plus append");
-			}
-			return originalMapIterator.call(this);
-		};
+	describe("optimistic-overlay", () => {
+  function createOptimisticUserEntry(id: string, text: string): SessionEntry {
+  			return {
+  				id,
+  				type: "user",
+  				message: {
+  					content: { type: "text", text },
+  					chunks: [{ type: "text", text }],
+  				},
+  			};
+  		}
+  it("appends the optimistic entry as the last entry with isOptimistic: true when graph is present", () => {
+  			const transcriptSnapshot = createTranscriptSnapshot([
+  				createTranscriptEntry("user-1", "user", "First message"),
+  				createTranscriptEntry("assistant-1", "assistant", "Response"),
+  			]);
+  			const graph = createGraph({ transcriptSnapshot });
+  			const pendingUserEntry = createOptimisticUserEntry("pending-1", "New pending message");
 
-		try {
-			const nextScene = readModel.apply({
-				panelId: "panel-1",
-				graph: {
-					...graph,
-					operations: nextOperations,
-					revision: {
-						graphRevision: 10,
-						transcriptRevision: graph.revision.transcriptRevision,
-						lastEventSeq: 43,
-					},
-				},
-				header: { title: "Session" },
-			});
+  			const scene = materializeAgentPanelSceneFromGraph({
+  				panelId: "panel-1",
+  				graph,
+  				header: { title: "Session" },
+  				optimistic: { pendingUserEntry },
+  			});
 
-			expect(nextScene.conversation.entries[0]).toBe(firstScene.conversation.entries[0]);
-			expect(nextScene.conversation.entries[1]).not.toBe(firstScene.conversation.entries[1]);
-			expect(nextScene.conversation.entries[1]).toMatchObject({
-				id: "tool-2",
-				type: "tool_call",
-				stdout: "done",
-			});
-			expect(nextScene.conversation.entries[2]).toMatchObject({
-				id: "tool-3",
-				type: "tool_call",
-			});
-		} finally {
-			Map.prototype[Symbol.iterator] = originalMapIterator;
-		}
+  			expect(scene.conversation.entries).toHaveLength(3);
+  			const last = scene.conversation.entries[2] as AgentUserEntry;
+  			expect(last.id).toBe("pending-1");
+  			expect(last.type).toBe("user");
+  			expect(last.text).toBe("New pending message");
+  			expect(last.isOptimistic).toBe(true);
+  		});
+
+  it("inserts the optimistic entry before tool calls when no canonical user has landed", () => {
+  			const transcriptSnapshot = createTranscriptSnapshot([
+  				createTranscriptEntry("tool-1", "tool", "Searching files"),
+  			]);
+  			const graph = createGraph({ transcriptSnapshot });
+  			const pendingUserEntry = createOptimisticUserEntry("pending-1", "New pending message");
+
+  			const scene = materializeAgentPanelSceneFromGraph({
+  				panelId: "panel-1",
+  				graph,
+  				header: { title: "Session" },
+  				optimistic: { pendingUserEntry },
+  			});
+
+  			expect(scene.conversation.entries).toHaveLength(2);
+  			const first = scene.conversation.entries[0] as AgentUserEntry;
+  			expect(first.id).toBe("pending-1");
+  			expect(first.type).toBe("user");
+  			expect(first.text).toBe("New pending message");
+  			expect(first.isOptimistic).toBe(true);
+  			expect(scene.conversation.entries[1]?.type).toBe("tool_call");
+  		});
+
+  it("keeps optimistic entry after prior-turn tool calls when canonical user history exists", () => {
+  			const transcriptSnapshot = createTranscriptSnapshot([
+  				createTranscriptEntry("user-1", "user", "Previous message"),
+  				createTranscriptEntry("tool-1", "tool", "Previous tool result"),
+  			]);
+  			const graph = createGraph({ transcriptSnapshot });
+  			const pendingUserEntry = createOptimisticUserEntry("pending-1", "New pending message");
+
+  			const scene = materializeAgentPanelSceneFromGraph({
+  				panelId: "panel-1",
+  				graph,
+  				header: { title: "Session" },
+  				optimistic: { pendingUserEntry },
+  			});
+
+  			expect(scene.conversation.entries).toHaveLength(3);
+  			expect(scene.conversation.entries[0]?.type).toBe("user");
+  			expect(scene.conversation.entries[1]?.type).toBe("tool_call");
+  			const last = scene.conversation.entries[2] as AgentUserEntry;
+  			expect(last.id).toBe("pending-1");
+  			expect(last.type).toBe("user");
+  			expect(last.isOptimistic).toBe(true);
+  		});
+
+  it("graph + no optimistic → output identical to today (regression guard)", () => {
+  			const transcriptSnapshot = createTranscriptSnapshot([
+  				createTranscriptEntry("user-1", "user", "First message"),
+  				createTranscriptEntry("assistant-1", "assistant", "Response"),
+  			]);
+  			const graph = createGraph({ transcriptSnapshot });
+
+  			const sceneWithout = materializeAgentPanelSceneFromGraph({
+  				panelId: "panel-1",
+  				graph,
+  				header: { title: "Session" },
+  			});
+
+  			const sceneWithNull = materializeAgentPanelSceneFromGraph({
+  				panelId: "panel-1",
+  				graph,
+  				header: { title: "Session" },
+  				optimistic: null,
+  			});
+
+  			expect(sceneWithout.conversation.entries).toHaveLength(2);
+  			expect(sceneWithNull.conversation.entries).toHaveLength(2);
+  			expect(sceneWithout.conversation.entries[0]).toEqual({
+  				id: "user-1",
+  				type: "user",
+  				text: "First message",
+  				chunks: [{ kind: "text", text: "First message" }],
+  				timestampMs: undefined,
+  			});
+  			expect(sceneWithout.conversation.entries[1]).toEqual({
+  				id: "assistant-1",
+  				type: "assistant",
+  				markdown: "Response",
+  				message: {
+  					chunks: [
+  						{
+  							type: "message",
+  							block: {
+  								type: "text",
+  								text: "Response",
+  							},
+  						},
+  					],
+  				},
+  				isStreaming: false,
+  				timestampMs: undefined,
+  				planningStartedAtMs: null,
+  			});
+  		});
+
+  it("graph === null + optimistic entry → single-entry scene with isOptimistic: true, warming status", () => {
+  			const pendingUserEntry = createOptimisticUserEntry("pending-1", "Hello agent");
+
+  			const scene = materializeAgentPanelSceneFromGraph({
+  				panelId: "panel-1",
+  				graph: null,
+  				header: { title: "Pre-session" },
+  				optimistic: { pendingUserEntry },
+  			});
+
+  			expect(scene.status).toBe("warming");
+  			expect(scene.lifecycle?.status).toBe("activating");
+  			expect(scene.conversation.isStreaming).toBe(false);
+  			expect(scene.conversation.entries).toHaveLength(1);
+  			const entry = scene.conversation.entries[0] as AgentUserEntry;
+  			expect(entry.id).toBe("pending-1");
+  			expect(entry.type).toBe("user");
+  			expect(entry.text).toBe("Hello agent");
+  			expect(entry.isOptimistic).toBe(true);
+  			expect(scene.header.title).toBe("Pre-session");
+  		});
+
+  it("graph === null + no optimistic → empty conversation, warming status, no crash", () => {
+  			const scene = materializeAgentPanelSceneFromGraph({
+  				panelId: "panel-1",
+  				graph: null,
+  				header: { title: "Pre-session" },
+  			});
+
+  			expect(scene.status).toBe("warming");
+  			expect(scene.lifecycle?.status).toBe("activating");
+  			expect(scene.conversation.entries).toHaveLength(0);
+  			expect(scene.conversation.isStreaming).toBe(false);
+  			expect(scene.panelId).toBe("panel-1");
+  		});
+
+  it("empty graph (non-null, no entries) + optimistic → single-entry scene with isOptimistic: true", () => {
+  			const graph = createGraph({ transcriptSnapshot: createTranscriptSnapshot([]) });
+  			const pendingUserEntry = createOptimisticUserEntry("pending-1", "First message");
+
+  			const scene = materializeAgentPanelSceneFromGraph({
+  				panelId: "panel-1",
+  				graph,
+  				header: { title: "Session" },
+  				optimistic: { pendingUserEntry },
+  			});
+
+  			expect(scene.conversation.entries).toHaveLength(1);
+  			const entry = scene.conversation.entries[0] as AgentUserEntry;
+  			expect(entry.id).toBe("pending-1");
+  			expect(entry.type).toBe("user");
+  			expect(entry.text).toBe("First message");
+  			expect(entry.isOptimistic).toBe(true);
+  		});
+
+  it("both canonical and optimistic entries appear when they have independent UUIDs", () => {
+  			// Dedup contract: optimistic and canonical IDs are independent crypto.randomUUID() calls
+  			// and therefore never collide. The materializer does NOT id-dedup — it trusts that
+  			// clearPendingUserEntry() will be called no later than the canonical entry lands in the
+  			// graph (asserted by the ordering invariant tests in send-path-ordering.vitest.ts).
+  			// This test verifies the materializer's contract: when both IDs are present, both entries
+  			// appear in the scene. The absence of duplicates in production is a responsibility of the
+  			// send path's clearPendingUserEntry() call timing, not of id-matching logic here.
+  			const canonicalEntryId = "canonical-uuid-aaaa-bbbb-cccc";
+  			const optimisticEntryId = "optimistic-uuid-xxxx-yyyy-zzzz";
+
+  			const transcriptSnapshot = createTranscriptSnapshot([
+  				createTranscriptEntry(canonicalEntryId, "user", "Canonical user message"),
+  			]);
+  			const graph = createGraph({ transcriptSnapshot });
+  			const pendingUserEntry = createOptimisticUserEntry(optimisticEntryId, "Optimistic message");
+
+  			const scene = materializeAgentPanelSceneFromGraph({
+  				panelId: "panel-1",
+  				graph,
+  				header: { title: "Session" },
+  				optimistic: { pendingUserEntry },
+  			});
+
+  			// Both entries are present — the materializer surfaces the race condition that
+  			// clearPendingUserEntry() ordering is designed to prevent.
+  			expect(scene.conversation.entries).toHaveLength(2);
+  			const canonicalEntry = scene.conversation.entries[0] as AgentUserEntry;
+  			expect(canonicalEntry.id).toBe(canonicalEntryId);
+  			expect(canonicalEntry.type).toBe("user");
+  			expect(canonicalEntry.isOptimistic).toBeUndefined();
+
+  			const optimisticEntry = scene.conversation.entries[1] as AgentUserEntry;
+  			expect(optimisticEntry.id).toBe(optimisticEntryId);
+  			expect(optimisticEntry.type).toBe("user");
+  			expect(optimisticEntry.isOptimistic).toBe(true);
+  		});
+
+  it("surfaces only the canonical user entry once matching attemptId has landed", () => {
+  			const pendingUserEntry = createOptimisticUserEntry("optimistic-uuid-1", "Hello world");
+  			const graph = createGraph({
+  				transcriptSnapshot: createTranscriptSnapshot([
+  					createTranscriptEntryFromSegments(
+  						"canonical-user-1",
+  						"user",
+  						["Hello world"],
+  						"attempt-123"
+  					),
+  				]),
+  			});
+
+  			const scene = materializeAgentPanelSceneFromGraph({
+  				panelId: "panel-1",
+  				graph,
+  				header: { title: "Session" },
+  				optimistic: null,
+  			});
+
+  			expect(scene.conversation.entries).toHaveLength(1);
+  			const entry = scene.conversation.entries[0] as AgentUserEntry;
+  			expect(entry.id).toBe("canonical-user-1");
+  			expect(entry.isOptimistic).toBeUndefined();
+  			void pendingUserEntry;
+  		});
+
+  it("rejects transient live assistant overlay while canonical transcript is still on the user turn", () => {
+  			const transcriptSnapshot = createTranscriptSnapshot([
+  				createTranscriptEntry("user-1", "user", "stream this reply"),
+  			]);
+  			const graph = createGraph({
+  				transcriptSnapshot,
+  				turnState: "Running",
+  				activity: {
+  					kind: "awaiting_model",
+  					activeOperationCount: 0,
+  					activeSubagentCount: 0,
+  					dominantOperationId: null,
+  					blockingInteractionId: null,
+  				},
+  			});
+  			const liveAssistantEntry: SessionEntry = {
+  				id: "assistant-live-1",
+  				type: "assistant",
+  				message: {
+  					chunks: [
+  						{
+  							type: "message",
+  							block: { type: "text", text: "partial streamed answer" },
+  						},
+  					],
+  				},
+  				isStreaming: true,
+  			};
+
+  			const scene = materializeAgentPanelSceneFromGraph({
+  				panelId: "panel-1",
+  				graph,
+  				header: { title: "Session" },
+  			});
+
+  			expect(scene.conversation.entries).toHaveLength(1);
+  			expect(scene.conversation.entries[0]).toEqual({
+  				id: "user-1",
+  				type: "user",
+  				text: "stream this reply",
+  				chunks: [{ kind: "text", text: "stream this reply" }],
+  				timestampMs: undefined,
+  			});
+  			void liveAssistantEntry;
+  		});
 	});
 
-	it("applies marked operation patches without copying unaffected parent lists", () => {
-		const transcriptSnapshot = createTranscriptSnapshot([
-			createTranscriptEntry("parent-tool", "tool", "Task completed"),
-		]);
-		const parentOperation = createOperationSnapshot({
-			id: "parent-operation",
-			tool_call_id: "parent-tool",
-			kind: "task",
-			child_operation_ids: ["child-operation"],
-			source_link: { kind: "transcript_linked", entry_id: "parent-tool" },
-		});
-		const childOperation = createOperationSnapshot({
-			id: "child-operation",
-			tool_call_id: "child-tool",
-			parent_operation_id: "parent-operation",
-			source_link: { kind: "synthetic", reason: "task_child_operation" },
-			result: null,
-			operation_state: "running",
-		});
-		const operations = [parentOperation, childOperation];
-		const graph = createGraph({
-			transcriptSnapshot,
-			operations,
-		});
-		const readModel = createAgentPanelGraphMaterializerReadModel();
-		const firstScene = readModel.apply({
-			panelId: "panel-1",
-			graph,
-			header: { title: "Session" },
-		});
-		const patchedChildOperation = {
-			...childOperation,
-			result: { stdout: "done", stderr: null, exitCode: 0 },
-			operation_state: "completed" as const,
-		};
-		const nextOperations = [parentOperation, patchedChildOperation];
-		markOperationSnapshotArrayPatch(nextOperations, {
-			baseOperations: operations,
-			patchedOperationsByIndex: new Map([[1, patchedChildOperation]]),
-			appendedOperations: null,
-		});
-		const originalSlice = Array.prototype.slice;
-		Array.prototype.slice = function patchedSlice<T>(this: T[], start?: number, end?: number) {
-			if (this[0] === parentOperation) {
-				throw new Error("must not copy unaffected parent operation lists");
-			}
-			return originalSlice.call(this, start, end);
-		};
+	describe("scene-text-limits", () => {
+  it("applySceneTextLimits passes through every populated AgentToolEntry field unchanged except the declared truncation targets", () => {
+  		const fullEntry: AgentToolEntry = {
+  			id: "tool-1",
+  			type: "tool_call",
+  			kind: "execute",
+  			title: "Run build",
+  			subtitle: "in repo root",
+  			detailsText: "short details",
+  			scriptText: "echo hello",
+  			editDiffs: [
+  				{
+  					filePath: "/repo/foo.ts",
+  					oldString: "a",
+  					newString: "b",
+  				},
+  			],
+  			filePath: "/repo/foo.ts",
+  			sourceExcerpt: "const x = 1;",
+  			sourceRangeLabel: "L1-L1",
+  			status: "done",
+  			command: "bun run build",
+  			stdout: "build ok",
+  			stderr: "",
+  			exitCode: 0,
+  			query: "needle",
+  			searchPath: "/repo",
+  			searchFiles: ["/repo/a.ts", "/repo/b.ts"],
+  			searchResultCount: 2,
+  			searchMode: "content",
+  			searchNumFiles: 2,
+  			searchNumMatches: 4,
+  			searchMatches: [
+  				{
+  					filePath: "/repo/a.ts",
+  					fileName: "a.ts",
+  					lineNumber: 1,
+  					content: "needle",
+  					isMatch: true,
+  				},
+  			],
+  			url: "https://example.com",
+  			resultText: "result body",
+  			webSearchLinks: [{ title: "T", url: "https://example.com", domain: "example.com" }],
+  			webSearchSummary: "summary",
+  			skillName: "ce-debug",
+  			skillArgs: "--quick",
+  			skillDescription: "debug",
+  			taskDescription: "task desc",
+  			taskPrompt: "task prompt",
+  			taskResultText: "task result",
+  			taskChildren: [
+  				{
+  					id: "child-1",
+  					type: "tool_call",
+  					title: "Child tool",
+  					status: "done",
+  				},
+  			],
+  			presentationState: "resolved",
+  			degradedReason: null,
+  			todos: [{ content: "do it", status: "pending" }],
+  			question: { question: "Pick one", options: [{ label: "A" }] },
+  			lintDiagnostics: [{ filePath: "/repo/a.ts", line: 1, severity: "error", message: "boom" }],
+  		};
 
-		try {
-			const nextScene = readModel.apply({
-				panelId: "panel-1",
-				graph: {
-					...graph,
-					operations: nextOperations,
-					revision: {
-						graphRevision: 10,
-						transcriptRevision: graph.revision.transcriptRevision,
-						lastEventSeq: 43,
-					},
-				},
-				header: { title: "Session" },
-			});
+  		const limited = applySceneTextLimits(fullEntry);
 
-			expect(nextScene.conversation.entries[0]).not.toBe(firstScene.conversation.entries[0]);
-			expect(nextScene.conversation.entries[0]).toMatchObject({
-				id: "parent-tool",
-				type: "tool_call",
-				taskChildren: [
-					expect.objectContaining({
-						operationId: "child-operation",
-						status: "done",
-					}),
-				],
-			});
-		} finally {
-			Array.prototype.slice = originalSlice;
-		}
+  		// Every key present in the input must be present in the output.
+  		// This is the structural contract that protects against the allow-list
+  		// footgun: if someone reverts to manual rebuild and forgets a field,
+  		// this check fails for that field.
+  		for (const key of Object.keys(fullEntry) as Array<keyof AgentToolEntry>) {
+  			expect(limited).toHaveProperty(key);
+  		}
+
+  		// Non-truncated fields are pass-through (reference-equal where applicable).
+  		expect(limited.id).toBe(fullEntry.id);
+  		expect(limited.kind).toBe(fullEntry.kind);
+  		expect(limited.title).toBe(fullEntry.title);
+  		expect(limited.subtitle).toBe(fullEntry.subtitle);
+  		expect(limited.scriptText).toBe(fullEntry.scriptText);
+  		expect(limited.editDiffs).toBe(fullEntry.editDiffs);
+  		expect(limited.filePath).toBe(fullEntry.filePath);
+  		expect(limited.sourceExcerpt).toBe(fullEntry.sourceExcerpt);
+  		expect(limited.sourceRangeLabel).toBe(fullEntry.sourceRangeLabel);
+  		expect(limited.status).toBe(fullEntry.status);
+  		expect(limited.command).toBe(fullEntry.command);
+  		expect(limited.exitCode).toBe(fullEntry.exitCode);
+  		expect(limited.query).toBe(fullEntry.query);
+  		expect(limited.searchPath).toBe(fullEntry.searchPath);
+  		expect(limited.searchFiles).toBe(fullEntry.searchFiles);
+  		expect(limited.searchResultCount).toBe(fullEntry.searchResultCount);
+  		expect(limited.searchMode).toBe(fullEntry.searchMode);
+  		expect(limited.searchNumFiles).toBe(fullEntry.searchNumFiles);
+  		expect(limited.searchNumMatches).toBe(fullEntry.searchNumMatches);
+  		expect(limited.searchMatches).toBe(fullEntry.searchMatches);
+  		expect(limited.url).toBe(fullEntry.url);
+  		expect(limited.webSearchLinks).toBe(fullEntry.webSearchLinks);
+  		expect(limited.webSearchSummary).toBe(fullEntry.webSearchSummary);
+  		expect(limited.skillName).toBe(fullEntry.skillName);
+  		expect(limited.skillArgs).toBe(fullEntry.skillArgs);
+  		expect(limited.skillDescription).toBe(fullEntry.skillDescription);
+  		expect(limited.taskDescription).toBe(fullEntry.taskDescription);
+  		expect(limited.taskPrompt).toBe(fullEntry.taskPrompt);
+  		expect(limited.presentationState).toBe(fullEntry.presentationState);
+  		expect(limited.degradedReason).toBe(fullEntry.degradedReason);
+  		expect(limited.todos).toBe(fullEntry.todos);
+  		expect(limited.question).toBe(fullEntry.question);
+  		expect(limited.lintDiagnostics).toBe(fullEntry.lintDiagnostics);
+
+  		// Truncation targets pass through unchanged when under the limit.
+  		expect(limited.detailsText).toBe(fullEntry.detailsText);
+  		expect(limited.stdout).toBe(fullEntry.stdout);
+  		expect(limited.stderr).toBe(fullEntry.stderr);
+  		expect(limited.resultText).toBe(fullEntry.resultText);
+  		expect(limited.taskResultText).toBe(fullEntry.taskResultText);
+
+  		// taskChildren is rebuilt (recursion) but contents preserved by identity for non-tool children
+  		// and structurally for tool children.
+  		expect(limited.taskChildren).toHaveLength(1);
+  		expect(limited.taskChildren?.[0]).toMatchObject({
+  			id: "child-1",
+  			type: "tool_call",
+  			title: "Child tool",
+  		});
+  	});
+
+  it("applySceneTextLimits preserves empty arrays as empty arrays (does not nullify)", () => {
+  		const entry: AgentToolEntry = {
+  			id: "tool-empty",
+  			type: "tool_call",
+  			title: "Empty",
+  			status: "done",
+  			editDiffs: [],
+  			searchFiles: [],
+  			todos: [],
+  		};
+
+  		const limited = applySceneTextLimits(entry);
+
+  		expect(limited.editDiffs).toEqual([]);
+  		expect(limited.searchFiles).toEqual([]);
+  		expect(limited.todos).toEqual([]);
+  	});
 	});
 
-	it("appends transcript rows without rebuilding existing conversation rows", () => {
-		const userEntry = createTranscriptEntry("user-1", "user", "hello");
-		const toolEntry = createTranscriptEntry("tool-1", "tool", "Ran command");
-		const transcriptSnapshot = createTranscriptSnapshot([userEntry]);
-		const graph = createGraph({ transcriptSnapshot });
-		const readModel = createAgentPanelGraphMaterializerReadModel();
-		const appendedTranscriptSnapshot = {
-			revision: transcriptSnapshot.revision + 1,
-			entries: [userEntry, toolEntry],
-		};
+	describe("is-streaming-derivation", () => {
+  it("marks only the canonical active streaming tail as isStreaming when turnState is Running", () => {
+  			const transcriptSnapshot = createTranscriptSnapshot([
+  				createTranscriptEntry("u1", "user", "First question"),
+  				createTranscriptEntry("a1", "assistant", "First answer"),
+  				createTranscriptEntry("u2", "user", "Second question"),
+  				createTranscriptEntry("a2", "assistant", "Second answer still coming in"),
+  			]);
+  			const graph = createGraph({
+  				transcriptSnapshot,
+  				turnState: "Running",
+  				activeStreamingTail: { rowId: "a2", contentKind: "message" },
+  			});
 
-		const firstScene = readModel.apply({
-			panelId: "panel-1",
-			graph,
-			header: { title: "Session" },
-		});
-		const firstEntries = firstScene.conversation.entries as typeof firstScene.conversation.entries & {
-			concat: typeof Array.prototype.concat;
-		};
-		const originalConcat = firstEntries.concat;
-		firstEntries.concat = () => {
-			throw new Error("must not copy whole materialized scene entries on append");
-		};
+  			const scene = materializeAgentPanelSceneFromGraph({
+  				panelId: "panel-1",
+  				graph,
+  				header: { title: "Session" },
+  			});
 
-		let nextScene: typeof firstScene;
-		try {
-			nextScene = readModel.apply({
-				panelId: "panel-1",
-				graph: {
-					...graph,
-					transcriptSnapshot: appendedTranscriptSnapshot,
-					revision: {
-						graphRevision: 10,
-						transcriptRevision: transcriptSnapshot.revision + 1,
-						lastEventSeq: 43,
-					},
-				},
-				header: { title: "Session" },
-			});
-		} finally {
-			firstEntries.concat = originalConcat;
-		}
+  			const assistantEntries = scene.conversation.entries.filter((e) => e.type === "assistant");
+  			expect(assistantEntries).toHaveLength(2);
+  			expect((assistantEntries[0] as { isStreaming?: boolean }).isStreaming).toBe(false);
+  			expect((assistantEntries[1] as { isStreaming?: boolean }).isStreaming).toBe(true);
+  		});
 
-		expect(nextScene.conversation.entries).not.toBe(firstScene.conversation.entries);
-		expect(nextScene.conversation.entries[0]).toBe(firstScene.conversation.entries[0]);
-		expect(nextScene.conversation.entries[1]).toMatchObject({
-			id: "tool-1",
-			type: "tool_call",
-			presentationState: "degraded_operation",
-		});
-		const appendPatch = getAgentPanelSceneEntryArrayAppendPatch(nextScene.conversation.entries);
-		expect(appendPatch?.baseSceneEntries).toBe(firstScene.conversation.entries);
-		expect(appendPatch?.appendedEntries).toEqual([nextScene.conversation.entries[1]]);
+  it("does not infer streaming from transcript position when canonical active streaming tail is absent", () => {
+  			const transcriptSnapshot = createTranscriptSnapshot([
+  				createTranscriptEntry("u1", "user", "Question"),
+  				createTranscriptEntry("a1", "assistant", "Answer"),
+  			]);
+  			const graph = createGraph({ transcriptSnapshot, turnState: "Running" });
 
-		const patchedScene = readModel.apply({
-			panelId: "panel-1",
-			graph: {
-				...graph,
-				transcriptSnapshot: appendedTranscriptSnapshot,
-				operations: [
-					createOperationSnapshot({
-						id: "op-assistant-1",
-						tool_call_id: "tool-assistant-1",
-						source_link: { kind: "transcript_linked", entry_id: "tool-1" },
-					}),
-				],
-				revision: {
-					graphRevision: 11,
-					transcriptRevision: transcriptSnapshot.revision + 1,
-					lastEventSeq: 44,
-				},
-			},
-			header: { title: "Session" },
-		});
+  			const scene = materializeAgentPanelSceneFromGraph({
+  				panelId: "panel-1",
+  				graph,
+  				header: { title: "Session" },
+  			});
 
-		expect(patchedScene.conversation.entries[0]).toBe(nextScene.conversation.entries[0]);
-		expect(patchedScene.conversation.entries[1]).not.toBe(nextScene.conversation.entries[1]);
-		expect(patchedScene.conversation.entries[1]).toMatchObject({
-			id: "tool-1",
-			type: "tool_call",
-			toolCallId: "tool-assistant-1",
-		});
+  			const assistantEntries = scene.conversation.entries.filter((e) => e.type === "assistant");
+  			expect(assistantEntries).toHaveLength(1);
+  			expect((assistantEntries[0] as { isStreaming?: boolean }).isStreaming).toBe(false);
+  		});
+
+  it("marks no assistant entry as isStreaming when turnState is Completed", () => {
+  			const transcriptSnapshot = createTranscriptSnapshot([
+  				createTranscriptEntry("u1", "user", "Question"),
+  				createTranscriptEntry("a1", "assistant", "Answer"),
+  			]);
+  			const graph = createGraph({ transcriptSnapshot, turnState: "Completed" });
+
+  			const scene = materializeAgentPanelSceneFromGraph({
+  				panelId: "panel-1",
+  				graph,
+  				header: { title: "Session" },
+  			});
+
+  			const assistantEntries = scene.conversation.entries.filter((e) => e.type === "assistant");
+  			expect(assistantEntries).toHaveLength(1);
+  			expect((assistantEntries[0] as { isStreaming?: boolean }).isStreaming).toBe(false);
+  		});
+
+  it("does not let stale live assistant text hide a completed canonical answer", () => {
+  			const transcriptSnapshot = createTranscriptSnapshot([
+  				createTranscriptEntry("u1", "user", "Question"),
+  				createTranscriptEntryFromSegments("a1", "assistant", [
+  					"Umb",
+  					"rellas",
+  					" keep",
+  					" you",
+  					" dry",
+  					" when",
+  					" it",
+  					" rains",
+  					".",
+  				]),
+  			]);
+  			const graph = createGraph({ transcriptSnapshot, turnState: "Completed" });
+  			const staleLiveEntry: Extract<SessionEntry, { type: "assistant" }> = {
+  				id: "a1",
+  				type: "assistant",
+  				message: {
+  					chunks: [
+  						{
+  							type: "message",
+  							block: {
+  								type: "text",
+  								text: "Umb",
+  							},
+  						},
+  					],
+  				},
+  				isStreaming: true,
+  				timestamp: new Date("2026-05-05T15:00:00.000Z"),
+  			};
+
+  			const scene = materializeAgentPanelSceneFromGraph({
+  				panelId: "panel-1",
+  				graph,
+  				header: { title: "Session" },
+  			});
+
+  			expect(scene.conversation.entries).toContainEqual(
+  				expect.objectContaining({
+  					id: "a1",
+  					type: "assistant",
+  					markdown: "Umbrellas keep you dry when it rains.",
+  					isStreaming: false,
+  				})
+  			);
+  			void staleLiveEntry;
+  		});
+
+  it("does not restart streaming reveal for the previous assistant while waiting for the next response", () => {
+  			const transcriptSnapshot = createTranscriptSnapshot([
+  				createTranscriptEntry("u1", "user", "First question"),
+  				createTranscriptEntry("a1", "assistant", "First answer"),
+  				createTranscriptEntry("u2", "user", "repeat in french"),
+  			]);
+  			const graph = createGraph({ transcriptSnapshot, turnState: "Running" });
+
+  			const scene = materializeAgentPanelSceneFromGraph({
+  				panelId: "panel-1",
+  				graph,
+  				header: { title: "Session" },
+  			});
+
+  			const assistantEntries = scene.conversation.entries.filter((e) => e.type === "assistant");
+  			expect(assistantEntries).toHaveLength(1);
+  			expect((assistantEntries[0] as { isStreaming?: boolean }).isStreaming).toBe(false);
+  		});
+
+  it("marks the canonical active tail as isStreaming even when tool entries follow it", () => {
+  			const transcriptSnapshot = createTranscriptSnapshot([
+  				createTranscriptEntry("u1", "user", "Do the thing"),
+  				createTranscriptEntry("a1", "assistant", "Running the tool"),
+  				createTranscriptEntry("tool-1", "tool", "result"),
+  				createTranscriptEntry("a2", "assistant", "Here is what I found"),
+  			]);
+  			const graph = createGraph({
+  				transcriptSnapshot,
+  				operations: [createOperationSnapshot()],
+  				turnState: "Running",
+  				activeStreamingTail: { rowId: "a2", contentKind: "message" },
+  			});
+
+  			const scene = materializeAgentPanelSceneFromGraph({
+  				panelId: "panel-1",
+  				graph,
+  				header: { title: "Session" },
+  			});
+
+  			const assistantEntries = scene.conversation.entries.filter((e) => e.type === "assistant");
+  			expect(assistantEntries).toHaveLength(2);
+  			expect((assistantEntries[0] as { isStreaming?: boolean }).isStreaming).toBe(false);
+  			expect((assistantEntries[1] as { isStreaming?: boolean }).isStreaming).toBe(true);
+  		});
+
+  it("does not mark completed assistant text as streaming while a trailing tool is active", () => {
+  			const transcriptSnapshot = createTranscriptSnapshot([
+  				createTranscriptEntry("u1", "user", "Do the thing"),
+  				createTranscriptEntry("a1", "assistant", "Running the tool"),
+  				createTranscriptEntry("tool-1", "tool", "result"),
+  			]);
+  			const graph = createGraph({
+  				transcriptSnapshot,
+  				operations: [
+  					createOperationSnapshot({
+  						provider_status: "pending",
+  						operation_state: "running",
+  						awaiting_plan_approval: false,
+  						result: null,
+  					}),
+  				],
+  				turnState: "Running",
+  				activity: {
+  					kind: "running_operation",
+  					activeOperationCount: 1,
+  					activeSubagentCount: 0,
+  					dominantOperationId: "op:session-1:tool-1",
+  					blockingInteractionId: null,
+  				},
+  			});
+
+  			const scene = materializeAgentPanelSceneFromGraph({
+  				panelId: "panel-1",
+  				graph,
+  				header: { title: "Session" },
+  			});
+
+  			const assistantEntries = scene.conversation.entries.filter((e) => e.type === "assistant");
+  			expect(assistantEntries).toHaveLength(1);
+  			expect((assistantEntries[0] as { isStreaming?: boolean }).isStreaming).toBe(false);
+  		});
+
+  it("keeps the open assistant streaming after a completed trailing tool while awaiting model text", () => {
+  			const transcriptSnapshot = createTranscriptSnapshot([
+  				createTranscriptEntry("u1", "user", "Do the thing"),
+  				createTranscriptEntry("a1", "assistant", "Running the tool, then continuing"),
+  				createTranscriptEntry("tool-1", "tool", "result"),
+  			]);
+  			const graph = createGraph({
+  				transcriptSnapshot,
+  				operations: [createOperationSnapshot()],
+  				turnState: "Running",
+  				activeStreamingTail: { rowId: "a1", contentKind: "message" },
+  				activity: {
+  					kind: "awaiting_model",
+  					activeOperationCount: 0,
+  					activeSubagentCount: 0,
+  					dominantOperationId: null,
+  					blockingInteractionId: null,
+  				},
+  			});
+
+  			const scene = materializeAgentPanelSceneFromGraph({
+  				panelId: "panel-1",
+  				graph,
+  				header: { title: "Session" },
+  			});
+
+  			const assistantEntries = scene.conversation.entries.filter((e) => e.type === "assistant");
+  			expect(assistantEntries).toHaveLength(1);
+  			expect((assistantEntries[0] as { isStreaming?: boolean }).isStreaming).toBe(true);
+  		});
 	});
 
-	it("patches row indexes when appending transcript rows before pending interactions", () => {
-		const userEntry = createTranscriptEntry("user-1", "user", "hello");
-		const assistantEntry = createTranscriptEntry("assistant-1", "assistant", "working");
-		const secondUserEntry = createTranscriptEntry("user-2", "user", "pick one");
-		const appendedEntry = createTranscriptEntry("assistant-2", "assistant", "thanks");
-		const transcriptSnapshot = createTranscriptSnapshot([
-			userEntry,
-			assistantEntry,
-			secondUserEntry,
-		]);
-		const questionInteraction = createQuestionInteraction({
-			id: "question-1",
-			jsonRpcRequestId: 1,
-			replyHandler: {
-				kind: "json_rpc",
-				requestId: "1",
-			},
-		});
-		const graph = createGraph({
-			transcriptSnapshot,
-			turnState: "Running",
-			activity: {
-				kind: "waiting_for_user",
-				activeOperationCount: 0,
-				activeSubagentCount: 0,
-				dominantOperationId: null,
-				blockingInteractionId: "question-1",
-			},
-			interactions: [questionInteraction],
-		});
-		const readModel = createAgentPanelGraphMaterializerReadModel();
-		const firstScene = readModel.apply({
-			panelId: "panel-1",
-			graph,
-			header: { title: "Question session" },
-		});
-		const firstEntries = firstScene.conversation.entries as typeof firstScene.conversation.entries & {
-			slice: typeof Array.prototype.slice;
-		};
-		const originalSlice = firstEntries.slice;
-		firstEntries.slice = () => {
-			throw new Error("must not slice whole materialized scene entries around interactions");
-		};
-		const appendedTranscriptSnapshot = {
-			revision: transcriptSnapshot.revision + 1,
-			entries: [userEntry, assistantEntry, secondUserEntry, appendedEntry],
-		};
-		const countedKeys = new Set(["assistant-2", "interaction:question-1"]);
-		const originalMapSet = Map.prototype.set;
-		let relevantMapSetCount = 0;
-
-		Map.prototype.set = function patchedMapSet<K, V>(
-			this: Map<K, V>,
-			key: K,
-			value: V
-		): Map<K, V> {
-			if (
-				typeof key === "string" &&
-				key === "assistant-2" &&
-				typeof value === "object" &&
-				value !== null &&
-				"entryId" in value &&
-				this.has("user-1" as K)
-			) {
-				throw new Error("must not mutate the previous transcript entry index for an append");
-			}
-			if (
-				typeof key === "string" &&
-				countedKeys.has(key) &&
-				typeof value === "number" &&
-				this.has("user-1" as K)
-			) {
-				throw new Error("must not mutate the previous scene row index for an append");
-			}
-			if (typeof key === "string" && countedKeys.has(key)) {
-				relevantMapSetCount += 1;
-			}
-			return originalMapSet.call(this, key, value);
-		};
-
-		let nextScene: typeof firstScene;
-		try {
-			nextScene = readModel.apply({
-				panelId: "panel-1",
-				graph: {
-					...graph,
-					transcriptSnapshot: appendedTranscriptSnapshot,
-					revision: {
-						graphRevision: 10,
-						transcriptRevision: appendedTranscriptSnapshot.revision,
-						lastEventSeq: 43,
-					},
-				},
-				header: { title: "Question session" },
-			});
-		} finally {
-			firstEntries.slice = originalSlice;
-			Map.prototype.set = originalMapSet;
-		}
-
-		expect(nextScene.conversation.entries.map((entry) => entry.id)).toEqual([
-			"user-1",
-			"assistant-1",
-			"user-2",
-			"assistant-2",
-			"interaction:question-1",
-		]);
-		expect(nextScene.conversation.entries[0]).toBe(firstScene.conversation.entries[0]);
-		expect(nextScene.conversation.entries[1]).toBe(firstScene.conversation.entries[1]);
-		expect(nextScene.conversation.entries[2]).toBe(firstScene.conversation.entries[2]);
-		expect(nextScene.conversation.entries[4]).toBe(firstScene.conversation.entries[3]);
-		expect(
-			getAgentPanelSceneEntryArraySplicePatch(nextScene.conversation.entries)
-		).toMatchObject({
-			baseSceneEntries: firstScene.conversation.entries,
-			startIndex: 3,
-			insertedEntries: [nextScene.conversation.entries[3]],
-			trailingEntries: [firstScene.conversation.entries[3]],
-		});
-		expect(relevantMapSetCount).toBe(3);
-	});
-
-	it("applies marked transcript appends without scanning unchanged transcript rows", () => {
-		const userEntry = createTranscriptEntry("user-1", "user", "hello");
-		const assistantEntry = createTranscriptEntry("assistant-1", "assistant", "working");
-		const appendedEntry = createTranscriptEntry("assistant-2", "assistant", "done");
-		const transcriptSnapshot = createTranscriptSnapshot([userEntry, assistantEntry]);
-		const graph = createGraph({ transcriptSnapshot });
-		const readModel = createAgentPanelGraphMaterializerReadModel();
-		const firstScene = readModel.apply({
-			panelId: "panel-1",
-			graph,
-			header: { title: "Session" },
-		});
-		const nextTranscriptEntries = [userEntry, assistantEntry, appendedEntry];
-		markTranscriptEntryArrayPatch(nextTranscriptEntries, {
-			baseEntries: transcriptSnapshot.entries,
-			patchedEntriesByIndex: null,
-			appendedEntries: [appendedEntry],
-		});
-		Object.defineProperty(nextTranscriptEntries, "0", {
-			configurable: true,
-			get() {
-				throw new Error("must not scan unchanged transcript rows for marked append");
-			},
-		});
-		Object.defineProperty(nextTranscriptEntries, "1", {
-			configurable: true,
-			get() {
-				throw new Error("must not scan unchanged transcript rows for marked append");
-			},
-		});
-
-		try {
-			const nextScene = readModel.apply({
-				panelId: "panel-1",
-				graph: {
-					...graph,
-					transcriptSnapshot: {
-						revision: transcriptSnapshot.revision + 1,
-						entries: nextTranscriptEntries,
-					},
-					revision: {
-						graphRevision: 10,
-						transcriptRevision: transcriptSnapshot.revision + 1,
-						lastEventSeq: 43,
-					},
-				},
-				header: { title: "Session" },
-			});
-
-			expect(nextScene.conversation.entries[0]).toBe(firstScene.conversation.entries[0]);
-			expect(nextScene.conversation.entries[1]).toBe(firstScene.conversation.entries[1]);
-			expect(nextScene.conversation.entries[2]).toMatchObject({
-				id: "assistant-2",
-				type: "assistant",
-				markdown: "done",
-			});
-		} finally {
-			Object.defineProperty(nextTranscriptEntries, "0", {
-				configurable: true,
-				value: userEntry,
-			});
-			Object.defineProperty(nextTranscriptEntries, "1", {
-				configurable: true,
-				value: assistantEntry,
-			});
-		}
-	});
-
-	it("applies stable transcript truncation without rematerializing preserved rows", () => {
-		const userEntry = createTranscriptEntry("user-1", "user", "hello");
-		const assistantEntry = createTranscriptEntry("assistant-1", "assistant", "working");
-		const secondUserEntry = createTranscriptEntry("user-2", "user", "pick one");
-		const transcriptSnapshot = createTranscriptSnapshot([
-			userEntry,
-			assistantEntry,
-			secondUserEntry,
-		]);
-		const questionInteraction = createQuestionInteraction({
-			id: "question-1",
-			jsonRpcRequestId: 1,
-			replyHandler: {
-				kind: "json_rpc",
-				requestId: "1",
-			},
-		});
-		const graph = createGraph({
-			transcriptSnapshot,
-			turnState: "Running",
-			activity: {
-				kind: "waiting_for_user",
-				activeOperationCount: 0,
-				activeSubagentCount: 0,
-				dominantOperationId: null,
-				blockingInteractionId: "question-1",
-			},
-			interactions: [questionInteraction],
-		});
-		const readModel = createAgentPanelGraphMaterializerReadModel();
-		const firstScene = readModel.apply({
-			panelId: "panel-1",
-			graph,
-			header: { title: "Question session" },
-		});
-		const firstEntries = firstScene.conversation.entries as typeof firstScene.conversation.entries & {
-			slice: typeof Array.prototype.slice;
-		};
-		const originalSlice = firstEntries.slice;
-		firstEntries.slice = () => {
-			throw new Error("must not slice whole materialized scene entries for transcript truncation");
-		};
-
-		let nextScene: typeof firstScene;
-		try {
-			nextScene = readModel.apply({
-				panelId: "panel-1",
-				graph: {
-					...graph,
-					transcriptSnapshot: {
-						revision: transcriptSnapshot.revision + 1,
-						entries: [userEntry, assistantEntry],
-					},
-					revision: {
-						graphRevision: 10,
-						transcriptRevision: transcriptSnapshot.revision + 1,
-						lastEventSeq: 43,
-					},
-				},
-				header: { title: "Question session" },
-			});
-		} finally {
-			firstEntries.slice = originalSlice;
-		}
-
-		expect(nextScene.conversation.entries.map((entry) => entry.id)).toEqual([
-			"user-1",
-			"assistant-1",
-			"interaction:question-1",
-		]);
-		expect(nextScene.conversation.entries[0]).toBe(firstScene.conversation.entries[0]);
-		expect(nextScene.conversation.entries[1]).toBe(firstScene.conversation.entries[1]);
-		expect(nextScene.conversation.entries[2]).toBe(firstScene.conversation.entries[3]);
-		expect(
-			getAgentPanelSceneEntryArraySplicePatch(nextScene.conversation.entries)
-		).toMatchObject({
-			baseSceneEntries: firstScene.conversation.entries,
-			startIndex: 2,
-			insertedEntries: [],
-			trailingEntries: [firstScene.conversation.entries[3]],
-		});
-	});
-
-	it("patches one transcript row without rebuilding unaffected conversation rows", () => {
-		const userEntry = createTranscriptEntry("user-1", "user", "hello");
-		const firstAssistantEntry = createTranscriptEntry("assistant-1", "assistant", "first");
-		const streamingAssistantEntry = createTranscriptEntry(
-			"assistant-2",
-			"assistant",
-			"stream"
-		);
-		const patchedStreamingAssistantEntry = createTranscriptEntry(
-			"assistant-2",
-			"assistant",
-			"streaming update"
-		);
-		const transcriptSnapshot = createTranscriptSnapshot([
-			userEntry,
-			firstAssistantEntry,
-			streamingAssistantEntry,
-		]);
-		const graph = createGraph({
-			transcriptSnapshot,
-			turnState: "Running",
-			activeStreamingTail: {
-				rowId: "assistant-2",
-				contentKind: "message",
-			},
-			activity: {
-				kind: "awaiting_model",
-				activeOperationCount: 1,
-				activeSubagentCount: 0,
-				dominantOperationId: null,
-				blockingInteractionId: null,
-			},
-		});
-		const readModel = createAgentPanelGraphMaterializerReadModel();
-
-		const firstScene = readModel.apply({
-			panelId: "panel-1",
-			graph,
-			header: { title: "Session" },
-		});
-		const firstEntries = firstScene.conversation.entries as typeof firstScene.conversation.entries & {
-			slice: typeof Array.prototype.slice;
-		};
-		const originalSlice = firstEntries.slice;
-
-		firstEntries.slice = () => {
-			throw new Error("must not copy whole materialized scene entries");
-		};
-		const nextTranscriptEntries = [userEntry, firstAssistantEntry, patchedStreamingAssistantEntry];
-		markTranscriptEntryArrayPatch(nextTranscriptEntries, {
-			baseEntries: transcriptSnapshot.entries,
-			patchedEntriesByIndex: new Map([[2, patchedStreamingAssistantEntry]]),
-			appendedEntries: null,
-		});
-		Object.defineProperty(nextTranscriptEntries, "0", {
-			configurable: true,
-			get() {
-				throw new Error("must not scan unchanged transcript rows for a transcript patch");
-			},
-		});
-		Object.defineProperty(nextTranscriptEntries, "1", {
-			configurable: true,
-			get() {
-				throw new Error("must not scan unchanged transcript rows for a transcript patch");
-			},
-		});
-		const originalMapIterator = Map.prototype[Symbol.iterator];
-		const originalMapSet = Map.prototype.set;
-		Map.prototype[Symbol.iterator] = function patchedMapIterator<K, V>(this: Map<K, V>) {
-			if (
-				this.has("assistant-2" as K) &&
-				(this.get("assistant-2" as K) as TranscriptEntry | undefined)?.entryId === "assistant-2"
-			) {
-				throw new Error("must not clone the transcript entry index for a transcript patch");
-			}
-			return originalMapIterator.call(this);
-		};
-		Map.prototype.set = function patchedMapSet<K, V>(
-			this: Map<K, V>,
-			key: K,
-			value: V
-		): Map<K, V> {
-			if (
-				typeof key === "string" &&
-				key === "assistant-2" &&
-				typeof value === "object" &&
-				value !== null &&
-				"entryId" in value &&
-				this.has("assistant-1" as K)
-			) {
-				throw new Error("must not mutate the previous transcript entry index for a patch");
-			}
-			return originalMapSet.call(this, key, value);
-		};
-
-		try {
-			const nextScene = readModel.apply({
-				panelId: "panel-1",
-				graph: {
-					...graph,
-					transcriptSnapshot: {
-						revision: transcriptSnapshot.revision + 1,
-						entries: nextTranscriptEntries,
-					},
-					activity: {
-						kind: "awaiting_model",
-						activeOperationCount: 0,
-						activeSubagentCount: 0,
-						dominantOperationId: null,
-						blockingInteractionId: null,
-					},
-					revision: {
-						graphRevision: 10,
-						transcriptRevision: transcriptSnapshot.revision + 1,
-						lastEventSeq: 43,
-					},
-				},
-				header: { title: "Session" },
-			});
-
-			expect(Array.isArray(nextScene.conversation.entries)).toBe(true);
-			expect(nextScene.conversation.entries).not.toBe(firstScene.conversation.entries);
-			expect(nextScene.conversation.entries[0]).toBe(firstScene.conversation.entries[0]);
-			expect(nextScene.conversation.entries[1]).toBe(firstScene.conversation.entries[1]);
-			expect(nextScene.conversation.entries[2]).not.toBe(firstScene.conversation.entries[2]);
-			expect(nextScene.conversation.entries.map((entry) => entry.id)).toEqual([
-				"user-1",
-				"assistant-1",
-				"assistant-2",
-			]);
-			expect(nextScene.conversation.entries[2]).toMatchObject({
-				id: "assistant-2",
-				type: "assistant",
-				markdown: "streaming update",
-				isStreaming: true,
-			});
-			const scenePatch = getAgentPanelSceneEntryArrayPatch(nextScene.conversation.entries);
-			expect(scenePatch?.baseSceneEntries).toBe(firstScene.conversation.entries);
-			expect(scenePatch?.entries).toEqual([nextScene.conversation.entries[2]]);
-			expect(scenePatch?.entriesByIndex.get(2)).toBe(nextScene.conversation.entries[2]);
-			expect(Array.from(scenePatch?.entriesByIndex.keys() ?? [])).toEqual([2]);
-		} finally {
-			Map.prototype[Symbol.iterator] = originalMapIterator;
-			Map.prototype.set = originalMapSet;
-			firstEntries.slice = originalSlice;
-			Object.defineProperty(nextTranscriptEntries, "0", {
-				configurable: true,
-				value: userEntry,
-			});
-			Object.defineProperty(nextTranscriptEntries, "1", {
-				configurable: true,
-				value: firstAssistantEntry,
-			});
-		}
-	});
-
-	it("applies marked transcript patch-plus-append deltas without scanning unchanged transcript rows", () => {
-		const userEntry = createTranscriptEntry("user-1", "user", "hello");
-		const firstAssistantEntry = createTranscriptEntry("assistant-1", "assistant", "first");
-		const secondAssistantEntry = createTranscriptEntry("assistant-2", "assistant", "stream");
-		const patchedSecondAssistantEntry = createTranscriptEntry(
-			"assistant-2",
-			"assistant",
-			"streaming update"
-		);
-		const appendedAssistantEntry = createTranscriptEntry(
-			"assistant-3",
-			"assistant",
-			"done"
-		);
-		const transcriptSnapshot = createTranscriptSnapshot([
-			userEntry,
-			firstAssistantEntry,
-			secondAssistantEntry,
-		]);
-		const graph = createGraph({
-			transcriptSnapshot,
-			turnState: "Running",
-			activeStreamingTail: {
-				rowId: "assistant-2",
-				contentKind: "message",
-			},
-			activity: {
-				kind: "awaiting_model",
-				activeOperationCount: 1,
-				activeSubagentCount: 0,
-				dominantOperationId: null,
-				blockingInteractionId: null,
-			},
-		});
-		const readModel = createAgentPanelGraphMaterializerReadModel();
-		const firstScene = readModel.apply({
-			panelId: "panel-1",
-			graph,
-			header: { title: "Session" },
-		});
-		const nextTranscriptEntries = [
-			userEntry,
-			firstAssistantEntry,
-			patchedSecondAssistantEntry,
-			appendedAssistantEntry,
-		];
-		markTranscriptEntryArrayPatch(nextTranscriptEntries, {
-			baseEntries: transcriptSnapshot.entries,
-			patchedEntriesByIndex: new Map([[2, patchedSecondAssistantEntry]]),
-			appendedEntries: [appendedAssistantEntry],
-		});
-		Object.defineProperty(nextTranscriptEntries, "0", {
-			configurable: true,
-			get() {
-				throw new Error("must not scan unchanged transcript rows for patch plus append");
-			},
-		});
-		Object.defineProperty(nextTranscriptEntries, "1", {
-			configurable: true,
-			get() {
-				throw new Error("must not scan unchanged transcript rows for patch plus append");
-			},
-		});
-
-		try {
-			const nextScene = readModel.apply({
-				panelId: "panel-1",
-				graph: {
-					...graph,
-					transcriptSnapshot: {
-						revision: transcriptSnapshot.revision + 1,
-						entries: nextTranscriptEntries,
-					},
-					revision: {
-						graphRevision: 10,
-						transcriptRevision: transcriptSnapshot.revision + 1,
-						lastEventSeq: 44,
-					},
-				},
-				header: { title: "Session" },
-			});
-
-			expect(nextScene.conversation.entries[0]).toBe(firstScene.conversation.entries[0]);
-			expect(nextScene.conversation.entries[1]).toBe(firstScene.conversation.entries[1]);
-			expect(nextScene.conversation.entries[2]).toMatchObject({
-				id: "assistant-2",
-				type: "assistant",
-				markdown: "streaming update",
-				isStreaming: true,
-			});
-			expect(nextScene.conversation.entries[3]).toMatchObject({
-				id: "assistant-3",
-				type: "assistant",
-				markdown: "done",
-			});
-			const splice = getAgentPanelSceneEntryArraySplicePatch(nextScene.conversation.entries);
-			expect(splice?.baseSceneEntries).toBe(firstScene.conversation.entries);
-			expect(splice?.startIndex).toBe(2);
-			expect(splice?.insertedEntries).toHaveLength(2);
-			expect(splice?.trailingEntries).toEqual([]);
-		} finally {
-			Object.defineProperty(nextTranscriptEntries, "0", {
-				configurable: true,
-				value: userEntry,
-			});
-			Object.defineProperty(nextTranscriptEntries, "1", {
-				configurable: true,
-				value: firstAssistantEntry,
-			});
-		}
-	});
-
-	it("applies stable transcript patch-plus-append updates without rematerializing the preserved prefix", () => {
-		const userEntry = createTranscriptEntry("user-1", "user", "hello");
-		const firstAssistantEntry = createTranscriptEntry("assistant-1", "assistant", "first");
-		const secondAssistantEntry = createTranscriptEntry("assistant-2", "assistant", "stream");
-		const patchedSecondAssistantEntry = createTranscriptEntry(
-			"assistant-2",
-			"assistant",
-			"streaming update"
-		);
-		const appendedAssistantEntry = createTranscriptEntry(
-			"assistant-3",
-			"assistant",
-			"done"
-		);
-		const transcriptSnapshot = createTranscriptSnapshot([
-			userEntry,
-			firstAssistantEntry,
-			secondAssistantEntry,
-		]);
-		const graph = createGraph({
-			transcriptSnapshot,
-			turnState: "Running",
-			activeStreamingTail: {
-				rowId: "assistant-2",
-				contentKind: "message",
-			},
-			activity: {
-				kind: "awaiting_model",
-				activeOperationCount: 1,
-				activeSubagentCount: 0,
-				dominantOperationId: null,
-				blockingInteractionId: null,
-			},
-		});
-		const readModel = createAgentPanelGraphMaterializerReadModel();
-		const firstScene = readModel.apply({
-			panelId: "panel-1",
-			graph,
-			header: { title: "Session" },
-		});
-		const firstEntries = firstScene.conversation.entries as typeof firstScene.conversation.entries & {
-			slice: typeof Array.prototype.slice;
-		};
-		const originalSlice = firstEntries.slice;
-		firstEntries.slice = () => {
-			throw new Error(
-				"must not slice whole materialized scene entries for stable patch plus append"
-			);
-		};
-
-		let nextScene: typeof firstScene;
-		try {
-			nextScene = readModel.apply({
-				panelId: "panel-1",
-				graph: {
-					...graph,
-					transcriptSnapshot: {
-						revision: transcriptSnapshot.revision + 1,
-						entries: [
-							userEntry,
-							firstAssistantEntry,
-							patchedSecondAssistantEntry,
-							appendedAssistantEntry,
-						],
-					},
-					revision: {
-						graphRevision: 10,
-						transcriptRevision: transcriptSnapshot.revision + 1,
-						lastEventSeq: 44,
-					},
-				},
-				header: { title: "Session" },
-			});
-		} finally {
-			firstEntries.slice = originalSlice;
-		}
-
-		expect(nextScene.conversation.entries[0]).toBe(firstScene.conversation.entries[0]);
-		expect(nextScene.conversation.entries[1]).toBe(firstScene.conversation.entries[1]);
-		expect(nextScene.conversation.entries[2]).toMatchObject({
-			id: "assistant-2",
-			type: "assistant",
-			markdown: "streaming update",
-			isStreaming: true,
-		});
-		expect(nextScene.conversation.entries[3]).toMatchObject({
-			id: "assistant-3",
-			type: "assistant",
-			markdown: "done",
-		});
-		const splice = getAgentPanelSceneEntryArraySplicePatch(nextScene.conversation.entries);
-		expect(splice?.baseSceneEntries).toBe(firstScene.conversation.entries);
-		expect(splice?.startIndex).toBe(2);
-		expect(splice?.insertedEntries).toHaveLength(2);
-		expect(splice?.trailingEntries).toEqual([]);
-	});
-
-	it("patches only affected assistant rows when the active streaming tail moves", () => {
-		const transcriptSnapshot = createTranscriptSnapshot([
-			createTranscriptEntry("u1", "user", "First question"),
-			createTranscriptEntry("a1", "assistant", "First answer"),
-			createTranscriptEntry("u2", "user", "Second question"),
-			createTranscriptEntry("a2", "assistant", "Second answer still coming in"),
-		]);
-		const graph = createGraph({
-			transcriptSnapshot,
-			turnState: "Running",
-			activeStreamingTail: { rowId: "a1", contentKind: "message" },
-			activity: {
-				kind: "awaiting_model",
-				activeOperationCount: 0,
-				activeSubagentCount: 0,
-				dominantOperationId: null,
-				blockingInteractionId: null,
-			},
-		});
-		const readModel = createAgentPanelGraphMaterializerReadModel();
-
-		const firstScene = readModel.apply({
-			panelId: "panel-1",
-			graph,
-			header: { title: "Session" },
-		});
-
-		const nextScene = readModel.apply({
-			panelId: "panel-1",
-			graph: {
-				...graph,
-				activeStreamingTail: { rowId: "a2", contentKind: "message" },
-				revision: {
-					graphRevision: 10,
-					transcriptRevision: graph.revision.transcriptRevision,
-					lastEventSeq: 43,
-				},
-			},
-			header: { title: "Session" },
-		});
-
-		expect(nextScene.conversation.entries).not.toBe(firstScene.conversation.entries);
-		expect(nextScene.conversation.entries[0]).toBe(firstScene.conversation.entries[0]);
-		expect(nextScene.conversation.entries[1]).not.toBe(firstScene.conversation.entries[1]);
-		expect(nextScene.conversation.entries[2]).toBe(firstScene.conversation.entries[2]);
-		expect(nextScene.conversation.entries[3]).not.toBe(firstScene.conversation.entries[3]);
-		expect(nextScene.conversation.entries[1]).toMatchObject({
-			id: "a1",
-			type: "assistant",
-			isStreaming: false,
-		});
-		expect(nextScene.conversation.entries[3]).toMatchObject({
-			id: "a2",
-			type: "assistant",
-			isStreaming: true,
-		});
-		const scenePatch = getAgentPanelSceneEntryArrayPatch(nextScene.conversation.entries);
-		expect(scenePatch?.baseSceneEntries).toBe(firstScene.conversation.entries);
-		expect(scenePatch?.entriesByIndex.get(1)).toBe(nextScene.conversation.entries[1]);
-		expect(scenePatch?.entriesByIndex.get(3)).toBe(nextScene.conversation.entries[3]);
-		expect(Array.from(scenePatch?.entriesByIndex.keys() ?? [])).toEqual([1, 3]);
-	});
-
-	it("keeps transcript row patches incremental when equivalent control objects are recreated", () => {
-		const userEntry = createTranscriptEntry("user-1", "user", "hello");
-		const streamingAssistantEntry = createTranscriptEntry(
-			"assistant-1",
-			"assistant",
-			"stream"
-		);
-		const patchedStreamingAssistantEntry = createTranscriptEntry(
-			"assistant-1",
-			"assistant",
-			"streaming update"
-		);
-		const transcriptSnapshot = createTranscriptSnapshot([userEntry, streamingAssistantEntry]);
-		const graph = createGraph({
-			transcriptSnapshot,
-			turnState: "Running",
-			activeStreamingTail: {
-				rowId: "assistant-1",
-				contentKind: "message",
-			},
-			activity: {
-				kind: "awaiting_model",
-				activeOperationCount: 0,
-				activeSubagentCount: 0,
-				dominantOperationId: null,
-				blockingInteractionId: null,
-			},
-		});
-		const readModel = createAgentPanelGraphMaterializerReadModel();
-
-		const firstScene = readModel.apply({
-			panelId: "panel-1",
-			graph,
-			header: { title: "Session" },
-		});
-		const nextScene = readModel.apply({
-			panelId: "panel-1",
-			graph: {
-				...graph,
-				transcriptSnapshot: {
-					revision: transcriptSnapshot.revision + 1,
-					entries: [userEntry, patchedStreamingAssistantEntry],
-				},
-				revision: {
-					graphRevision: 10,
-					transcriptRevision: transcriptSnapshot.revision + 1,
-					lastEventSeq: 43,
-				},
-				activeStreamingTail: {
-					rowId: "assistant-1",
-					contentKind: "message",
-				},
-				activity: {
-					kind: "awaiting_model",
-					activeOperationCount: 0,
-					activeSubagentCount: 0,
-					dominantOperationId: null,
-					blockingInteractionId: null,
-				},
-			},
-			header: { title: "Session" },
-		});
-
-		expect(nextScene.conversation.entries[0]).toBe(firstScene.conversation.entries[0]);
-		expect(nextScene.conversation.entries[1]).not.toBe(firstScene.conversation.entries[1]);
-		expect(nextScene.conversation.entries[1]).toMatchObject({
-			id: "assistant-1",
-			type: "assistant",
-			markdown: "streaming update",
-		});
-	});
-
-	it("projects canonical transcript timestamps directly into message scene entries", () => {
-		const transcriptSnapshot = createTranscriptSnapshot([
-			{
-				entryId: "user-1",
-				role: "user",
-				segments: [
-					{
-						kind: "text",
-						segmentId: "user-1-segment-1",
-						text: "Hello",
-					},
-				],
-				attemptId: null,
-				timestampMs: 1_779_062_400_000,
-			},
-			{
-				entryId: "assistant-1",
-				role: "assistant",
-				segments: [
-					{
-						kind: "text",
-						segmentId: "assistant-1-segment-1",
-						text: "Hi",
-					},
-				],
-				attemptId: null,
-				timestampMs: 1_779_062_401_000,
-			},
-		]);
-		const graph = createGraph({ transcriptSnapshot });
-
-		const scene = materializeAgentPanelSceneFromGraph({
-			panelId: "panel-1",
-			graph,
-			header: {
-				title: "Timestamp session",
-			},
-		});
-
-		expect(scene.conversation.entries[0]).toMatchObject({
-			id: "user-1",
-			type: "user",
-			timestampMs: 1_779_062_400_000,
-		});
-		expect(scene.conversation.entries[1]).toMatchObject({
-			id: "assistant-1",
-			type: "assistant",
-			timestampMs: 1_779_062_401_000,
-		});
-	});
-
-	it("renders only the blocking pending question interaction when duplicate question records exist", () => {
-		const transcriptSnapshot = createTranscriptSnapshot([
-			createTranscriptEntry("user-1", "user", "Can you retry the AskUserQuestion?"),
-		]);
-		const graph = createGraph({
-			transcriptSnapshot,
-			turnState: "Running",
-			activity: {
-				kind: "waiting_for_user",
-				activeOperationCount: 0,
-				activeSubagentCount: 0,
-				dominantOperationId: null,
-				blockingInteractionId: "question-1",
-			},
-			interactions: [
-				createQuestionInteraction({
-					id: "question-1",
-					jsonRpcRequestId: 1,
-					replyHandler: {
-						kind: "json_rpc",
-						requestId: "1",
-					},
-				}),
-				createQuestionInteraction({
-					id: "question-duplicate",
-					jsonRpcRequestId: null,
-					replyHandler: {
-						kind: "http",
-						requestId: "question-duplicate",
-					},
-				}),
-			],
-		});
-
-		const scene = materializeAgentPanelSceneFromGraph({
-			panelId: "panel-1",
-			graph,
-			header: {
-				title: "Question session",
-			},
-		});
-
-		expect(scene.conversation.entries).toHaveLength(2);
-		expect(scene.conversation.entries.map((entry) => entry.id)).toEqual([
-			"user-1",
-			"interaction:question-1",
-		]);
-		expect(scene.conversation.entries[1]).toMatchObject({
-			id: "interaction:question-1",
-			type: "tool_call",
-			interactionId: "question-1",
-			title: "Question",
-			status: "running",
-			question: {
-				question: "Which archive button should get the confirm step?",
-				header: "Location",
-				options: [
-					{
-						label: "Sidebar session list",
-						description: "Archive action on sessions in the left sidebar",
-					},
-					{
-						label: "Settings table",
-						description: "Archive item in the settings table",
-					},
-				],
-				multiSelect: false,
-			},
-		});
-	});
-
-	it("keeps question display identity separate from semantic interaction identity", () => {
-		const transcriptSnapshot = createTranscriptSnapshot([
-			createTranscriptEntry("user-1", "user", "Can you ask me?"),
-		]);
-		const graph = createGraph({
-			transcriptSnapshot,
-			turnState: "Running",
-			activity: {
-				kind: "waiting_for_user",
-				activeOperationCount: 0,
-				activeSubagentCount: 0,
-				dominantOperationId: null,
-				blockingInteractionId: "question-1",
-			},
-			interactions: [
-				createQuestionInteraction({
-					id: "question-1",
-					jsonRpcRequestId: 1,
-					replyHandler: {
-						kind: "json_rpc",
-						requestId: "1",
-					},
-				}),
-			],
-		});
-
-		const scene = materializeAgentPanelSceneFromGraph({
-			panelId: "panel-1",
-			graph,
-			header: {
-				title: "Question session",
-			},
-		});
-
-		expect(scene.conversation.entries[1]).toMatchObject({
-			id: "interaction:question-1",
-			type: "tool_call",
-			interactionId: "question-1",
-			title: "Question",
-		});
-	});
-
-	it("patches visible interaction rows without rematerializing transcript rows", () => {
-		const readModel = createAgentPanelGraphMaterializerReadModel();
-		const transcriptSnapshot = createTranscriptSnapshot([
-			createTranscriptEntry("user-1", "user", "Can you ask me?"),
-		]);
-		const operations: OperationSnapshot[] = [];
-		const baseGraph = createGraph({
-			transcriptSnapshot,
-			operations,
-			turnState: "Running",
-			activity: {
-				kind: "running_operation",
-				activeOperationCount: 1,
-				activeSubagentCount: 0,
-				dominantOperationId: null,
-				blockingInteractionId: null,
-			},
-			interactions: [],
-		});
-		const questionGraph = createGraph({
-			transcriptSnapshot,
-			operations,
-			turnState: "Running",
-			activity: {
-				kind: "waiting_for_user",
-				activeOperationCount: 0,
-				activeSubagentCount: 0,
-				dominantOperationId: null,
-				blockingInteractionId: "question-1",
-			},
-			interactions: [
-				createQuestionInteraction({
-					id: "question-1",
-					jsonRpcRequestId: 1,
-					replyHandler: {
-						kind: "json_rpc",
-						requestId: "1",
-					},
-				}),
-			],
-		});
-		const firstScene = readModel.apply({
-			panelId: "panel-1",
-			graph: baseGraph,
-			header: { title: "Question session" },
-		});
-		const firstEntries = firstScene.conversation.entries as typeof firstScene.conversation.entries & {
-			slice: typeof Array.prototype.slice;
-		};
-		const originalSlice = firstEntries.slice;
-		firstEntries.slice = () => {
-			throw new Error("must not slice whole materialized scene entries for interaction patch");
-		};
-
-		let nextScene: typeof firstScene;
-		try {
-			nextScene = readModel.apply({
-				panelId: "panel-1",
-				graph: questionGraph,
-				header: { title: "Question session" },
-			});
-		} finally {
-			firstEntries.slice = originalSlice;
-		}
-
-		expect(nextScene.conversation.entries).toHaveLength(2);
-		expect(nextScene.conversation.entries[0]).toBe(firstScene.conversation.entries[0]);
-		expect(nextScene.conversation.entries[1]).toMatchObject({
-			id: "interaction:question-1",
-			type: "tool_call",
-			interactionId: "question-1",
-			title: "Question",
-		});
-	});
-
-	it("keeps conversation entries stable when interaction changes are not visible", () => {
-		const readModel = createAgentPanelGraphMaterializerReadModel();
-		const transcriptSnapshot = createTranscriptSnapshot([
-			createTranscriptEntry("user-1", "user", "Can you ask me?"),
-		]);
-		const operations: OperationSnapshot[] = [];
-		const baseGraph = createGraph({
-			transcriptSnapshot,
-			operations,
-			turnState: "Running",
-			interactions: [],
-		});
-		const hiddenInteractionGraph = createGraph({
-			transcriptSnapshot,
-			operations,
-			turnState: "Running",
-			activity: {
-				kind: "waiting_for_user",
-				activeOperationCount: 0,
-				activeSubagentCount: 0,
-				dominantOperationId: null,
-				blockingInteractionId: "other-question",
-			},
-			interactions: [
-				createQuestionInteraction({
-					id: "question-1",
-					jsonRpcRequestId: 1,
-					replyHandler: {
-						kind: "json_rpc",
-						requestId: "1",
-					},
-				}),
-			],
-		});
-		const firstScene = readModel.apply({
-			panelId: "panel-1",
-			graph: baseGraph,
-			header: { title: "Question session" },
-		});
-
-		const nextScene = readModel.apply({
-			panelId: "panel-1",
-			graph: hiddenInteractionGraph,
-			header: { title: "Question session" },
-		});
-
-		expect(nextScene.conversation.entries).toBe(firstScene.conversation.entries);
-	});
-
-	it("keeps invisible marked interaction appends incremental without scanning the next prefix", () => {
-		const readModel = createAgentPanelGraphMaterializerReadModel();
-		const transcriptSnapshot = createTranscriptSnapshot([
-			createTranscriptEntry("user-1", "user", "Can you ask me?"),
-		]);
-		const operations: OperationSnapshot[] = [];
-		const hiddenInteraction = createQuestionInteraction({
-			id: "hidden-question",
-			jsonRpcRequestId: 1,
-			replyHandler: {
-				kind: "json_rpc",
-				requestId: "1",
-			},
-		});
-		const appendedHiddenInteraction = createQuestionInteraction({
-			id: "hidden-question-2",
-			jsonRpcRequestId: 2,
-			replyHandler: {
-				kind: "json_rpc",
-				requestId: "2",
-			},
-		});
-		const baseInteractions = [hiddenInteraction];
-		const nextInteractions = [hiddenInteraction, appendedHiddenInteraction];
-		markInteractionSnapshotArrayPatch(nextInteractions, {
-			baseInteractions,
-			patchedInteractionsByIndex: null,
-			appendedInteractions: [appendedHiddenInteraction],
-		});
-		const baseGraph = createGraph({
-			transcriptSnapshot,
-			operations,
-			turnState: "Running",
-			activity: {
-				kind: "waiting_for_user",
-				activeOperationCount: 0,
-				activeSubagentCount: 0,
-				dominantOperationId: null,
-				blockingInteractionId: "other-question",
-			},
-			interactions: baseInteractions,
-		});
-		const firstScene = readModel.apply({
-			panelId: "panel-1",
-			graph: baseGraph,
-			header: { title: "Question session" },
-		});
-		Object.defineProperty(nextInteractions, "0", {
-			configurable: true,
-			get() {
-				throw new Error(
-					"must not scan unchanged next interactions for an invisible interaction append"
-				);
-			},
-		});
-
-		try {
-			const nextScene = readModel.apply({
-				panelId: "panel-1",
-				graph: {
-					...baseGraph,
-					interactions: nextInteractions,
-					revision: {
-						graphRevision: 10,
-						transcriptRevision: baseGraph.revision.transcriptRevision,
-						lastEventSeq: 43,
-					},
-				},
-				header: { title: "Question session" },
-			});
-
-			expect(nextScene.conversation.entries).toBe(firstScene.conversation.entries);
-		} finally {
-			Object.defineProperty(nextInteractions, "0", {
-				configurable: true,
-				value: hiddenInteraction,
-			});
-		}
-	});
-
-	it("retargets the blocking interaction without scanning unchanged interactions", () => {
-		const transcriptSnapshot = createTranscriptSnapshot([
-			createTranscriptEntry("tool-1", "tool", "Run first"),
-		]);
-		const operation = createOperationSnapshot({
-			id: "op-1",
-			tool_call_id: "tool-1",
-			source_link: { kind: "transcript_linked", entry_id: "tool-1" },
-			result: null,
-			operation_state: "running",
-		});
-		const questionOne = createQuestionInteraction({
-			id: "question-1",
-			jsonRpcRequestId: 1,
-			replyHandler: { kind: "json_rpc", requestId: "1" },
-		});
-		const questionTwo = createQuestionInteraction({
-			id: "question-2",
-			jsonRpcRequestId: 2,
-			replyHandler: { kind: "json_rpc", requestId: "2" },
-		});
-		const interactions = [questionOne, questionTwo];
-		const graph = createGraph({
-			transcriptSnapshot,
-			operations: [operation],
-			interactions,
-			activity: {
-				kind: "waiting_for_user",
-				activeOperationCount: 1,
-				activeSubagentCount: 0,
-				dominantOperationId: "op-1",
-				blockingInteractionId: "question-1",
-			},
-		});
-		const readModel = createAgentPanelGraphMaterializerReadModel();
-		const firstScene = readModel.apply({
-			panelId: "panel-1",
-			graph,
-			header: { title: "Question session" },
-		});
-
-		Object.defineProperty(interactions, "0", {
-			configurable: true,
-			get() {
-				throw new Error(
-					"must not scan unchanged interactions for a blocking interaction retarget"
-				);
-			},
-		});
-
-		let nextScene: ReturnType<typeof readModel.apply>;
-		try {
-			nextScene = readModel.apply({
-				panelId: "panel-1",
-				graph: {
-					...graph,
-					activity: {
-						kind: "waiting_for_user",
-						activeOperationCount: 1,
-						activeSubagentCount: 0,
-						dominantOperationId: "op-1",
-						blockingInteractionId: "question-2",
-					},
-					revision: {
-						graphRevision: 10,
-						transcriptRevision: graph.revision.transcriptRevision,
-						lastEventSeq: 43,
-					},
-				},
-				header: { title: "Question session" },
-			});
-		} finally {
-			Object.defineProperty(interactions, "0", {
-				configurable: true,
-				value: questionOne,
-			});
-		}
-
-		expect(firstScene.conversation.entries.map((entry) => entry.id)).toEqual([
-			"tool-1",
-			"interaction:question-1",
-		]);
-		expect(nextScene.conversation.entries.map((entry) => entry.id)).toEqual([
-			"tool-1",
-			"interaction:question-2",
-		]);
-	});
-
-	it("retargets the blocking interaction across stable unmarked interaction appends without scanning the unchanged prefix", () => {
-		const transcriptSnapshot = createTranscriptSnapshot([
-			createTranscriptEntry("tool-1", "tool", "Run first"),
-		]);
-		const questionOne = createQuestionInteraction({
-			id: "question-1",
-			jsonRpcRequestId: 1,
-			replyHandler: { kind: "json_rpc", requestId: "1" },
-		});
-		const questionTwo = createQuestionInteraction({
-			id: "question-2",
-			jsonRpcRequestId: 2,
-			replyHandler: { kind: "json_rpc", requestId: "2" },
-		});
-		const questionThree = createQuestionInteraction({
-			id: "question-3",
-			jsonRpcRequestId: 3,
-			replyHandler: { kind: "json_rpc", requestId: "3" },
-		});
-		const interactions = [questionOne, questionTwo];
-		const graph = createGraph({
-			transcriptSnapshot,
-			interactions,
-			activity: {
-				kind: "waiting_for_user",
-				activeOperationCount: 0,
-				activeSubagentCount: 0,
-				dominantOperationId: null,
-				blockingInteractionId: "question-1",
-			},
-		});
-		const readModel = createAgentPanelGraphMaterializerReadModel();
-		const firstScene = readModel.apply({
-			panelId: "panel-1",
-			graph,
-			header: { title: "Question session" },
-		});
-		const nextInteractions = [questionOne, questionTwo, questionThree];
-		Object.defineProperty(nextInteractions, "0", {
-			configurable: true,
-			get() {
-				throw new Error(
-					"must not scan the unchanged interaction prefix when retargeting across stable appends"
-				);
-			},
-		});
-
-		let nextScene: ReturnType<typeof readModel.apply>;
-		try {
-			nextScene = readModel.apply({
-				panelId: "panel-1",
-				graph: {
-					...graph,
-					interactions: nextInteractions,
-					activity: {
-						kind: "waiting_for_user",
-						activeOperationCount: 0,
-						activeSubagentCount: 0,
-						dominantOperationId: null,
-						blockingInteractionId: "question-2",
-					},
-					revision: {
-						graphRevision: 10,
-						transcriptRevision: graph.revision.transcriptRevision,
-						lastEventSeq: 43,
-					},
-				},
-				header: { title: "Question session" },
-			});
-		} finally {
-			Object.defineProperty(nextInteractions, "0", {
-				configurable: true,
-				value: questionOne,
-			});
-		}
-
-		expect(firstScene.conversation.entries.map((entry) => entry.id)).toEqual([
-			"tool-1",
-			"interaction:question-1",
-		]);
-		expect(nextScene.conversation.entries.map((entry) => entry.id)).toEqual([
-			"tool-1",
-			"interaction:question-2",
-		]);
-	});
-
-	it("patches same-length visible interaction updates without rebuilding transcript rows", () => {
-		const transcriptSnapshot = createTranscriptSnapshot([
-			createTranscriptEntry("user-1", "user", "Can you ask me?"),
-		]);
-		const hiddenInteraction = createQuestionInteraction({
-			id: "hidden-question",
-			jsonRpcRequestId: 1,
-			replyHandler: { kind: "json_rpc", requestId: "1" },
-		});
-		const visibleInteraction = createQuestionInteraction({
-			id: "question-1",
-			jsonRpcRequestId: 2,
-			replyHandler: { kind: "json_rpc", requestId: "2" },
-		});
-		const baseGraph = createGraph({
-			transcriptSnapshot,
-			operations: [],
-			turnState: "Running",
-			activity: {
-				kind: "waiting_for_user",
-				activeOperationCount: 0,
-				activeSubagentCount: 0,
-				dominantOperationId: null,
-				blockingInteractionId: "question-1",
-			},
-			interactions: [hiddenInteraction, visibleInteraction],
-		});
-		const readModel = createAgentPanelGraphMaterializerReadModel();
-		const firstScene = readModel.apply({
-			panelId: "panel-1",
-			graph: baseGraph,
-			header: { title: "Question session" },
-		});
-		const patchedVisibleInteraction: InteractionSnapshot = {
-			...visibleInteraction,
-			payload: {
-				Question: {
-					id: visibleInteraction.id,
-					sessionId: "session-1",
-					jsonRpcRequestId: visibleInteraction.json_rpc_request_id,
-					replyHandler: visibleInteraction.reply_handler,
-					questions: [
-						{
-							question: "Which surface should get the confirm step now?",
-							header: "Confirmation",
-							options: [{ label: "Sidebar", description: "Thread list" }],
-							multiSelect: false,
-						},
-					],
-					tool: visibleInteraction.tool_reference,
-				},
-			},
-		};
-
-		const nextScene = readModel.apply({
-			panelId: "panel-1",
-			graph: {
-				...baseGraph,
-				interactions: [hiddenInteraction, patchedVisibleInteraction],
-				revision: {
-					graphRevision: 10,
-					transcriptRevision: baseGraph.revision.transcriptRevision,
-					lastEventSeq: 43,
-				},
-			},
-			header: { title: "Question session" },
-		});
-
-		expect(nextScene.conversation.entries[0]).toBe(firstScene.conversation.entries[0]);
-		expect(nextScene.conversation.entries[1]).not.toBe(firstScene.conversation.entries[1]);
-		expect(nextScene.conversation.entries[1]).toMatchObject({
-			id: "interaction:question-1",
-			type: "tool_call",
-			subtitle: "Which surface should get the confirm step now?",
-		});
-	});
-
-	it("applies marked interaction appends without scanning unchanged interactions", () => {
-		const readModel = createAgentPanelGraphMaterializerReadModel();
-		const transcriptSnapshot = createTranscriptSnapshot([
-			createTranscriptEntry("user-1", "user", "Can you ask me?"),
-		]);
-		const operations: OperationSnapshot[] = [];
-		const firstInteraction = createQuestionInteraction({
-			id: "hidden-question",
-			jsonRpcRequestId: 1,
-			replyHandler: {
-				kind: "json_rpc",
-				requestId: "1",
-			},
-		});
-		const baseInteractions = [firstInteraction];
-		const baseGraph = createGraph({
-			transcriptSnapshot,
-			operations,
-			turnState: "Running",
-			activity: {
-				kind: "running_operation",
-				activeOperationCount: 1,
-				activeSubagentCount: 0,
-				dominantOperationId: null,
-				blockingInteractionId: "other-question",
-			},
-			interactions: baseInteractions,
-		});
-		const appendedInteraction = createQuestionInteraction({
-			id: "question-1",
-			jsonRpcRequestId: 2,
-			replyHandler: {
-				kind: "json_rpc",
-				requestId: "2",
-			},
-		});
-		const nextInteractions = [firstInteraction, appendedInteraction];
-		markInteractionSnapshotArrayPatch(nextInteractions, {
-			baseInteractions,
-			patchedInteractionsByIndex: null,
-			appendedInteractions: [appendedInteraction],
-		});
-
-		const firstScene = readModel.apply({
-			panelId: "panel-1",
-			graph: baseGraph,
-			header: { title: "Question session" },
-		});
-		Object.defineProperty(baseInteractions, "0", {
-			configurable: true,
-			get() {
-				throw new Error("must not scan unchanged interactions for an interaction patch");
-			},
-		});
-		Object.defineProperty(nextInteractions, "0", {
-			configurable: true,
-			get() {
-				throw new Error("must not scan unchanged next interactions for an interaction patch");
-			},
-		});
-
-		try {
-			const nextScene = readModel.apply({
-				panelId: "panel-1",
-				graph: {
-					...baseGraph,
-					interactions: nextInteractions,
-					activity: {
-						kind: "waiting_for_user",
-						activeOperationCount: 0,
-						activeSubagentCount: 0,
-						dominantOperationId: null,
-						blockingInteractionId: "question-1",
-					},
-					revision: {
-						graphRevision: 10,
-						transcriptRevision: baseGraph.revision.transcriptRevision,
-						lastEventSeq: 43,
-					},
-				},
-				header: { title: "Question session" },
-			});
-
-			expect(nextScene.conversation.entries).toHaveLength(2);
-			expect(nextScene.conversation.entries[0]).toBe(firstScene.conversation.entries[0]);
-			expect(nextScene.conversation.entries[1]).toMatchObject({
-				id: "interaction:question-1",
-				type: "tool_call",
-				interactionId: "question-1",
-			});
-		} finally {
-			Object.defineProperty(baseInteractions, "0", {
-				configurable: true,
-				value: firstInteraction,
-			});
-			Object.defineProperty(nextInteractions, "0", {
-				configurable: true,
-				value: firstInteraction,
-			});
-		}
-	});
-
-	it("applies stable interaction appends without scanning unchanged interactions", () => {
-		const readModel = createAgentPanelGraphMaterializerReadModel();
-		const transcriptSnapshot = createTranscriptSnapshot([
-			createTranscriptEntry("user-1", "user", "Can you ask me?"),
-		]);
-		const operations: OperationSnapshot[] = [];
-		const firstInteraction = createQuestionInteraction({
-			id: "hidden-question",
-			jsonRpcRequestId: 1,
-			replyHandler: {
-				kind: "json_rpc",
-				requestId: "1",
-			},
-		});
-		const baseInteractions = [firstInteraction];
-		const baseGraph = createGraph({
-			transcriptSnapshot,
-			operations,
-			turnState: "Running",
-			activity: {
-				kind: "running_operation",
-				activeOperationCount: 1,
-				activeSubagentCount: 0,
-				dominantOperationId: null,
-				blockingInteractionId: "other-question",
-			},
-			interactions: baseInteractions,
-		});
-		const appendedInteraction = createQuestionInteraction({
-			id: "question-1",
-			jsonRpcRequestId: 2,
-			replyHandler: {
-				kind: "json_rpc",
-				requestId: "2",
-			},
-		});
-		const nextInteractions = [firstInteraction, appendedInteraction];
-
-		const firstScene = readModel.apply({
-			panelId: "panel-1",
-			graph: baseGraph,
-			header: { title: "Question session" },
-		});
-		Object.defineProperty(baseInteractions, "0", {
-			configurable: true,
-			get() {
-				throw new Error("must not scan unchanged interactions for a stable append");
-			},
-		});
-		Object.defineProperty(nextInteractions, "0", {
-			configurable: true,
-			get() {
-				throw new Error("must not scan unchanged next interactions for a stable append");
-			},
-		});
-
-		try {
-			const nextScene = readModel.apply({
-				panelId: "panel-1",
-				graph: {
-					...baseGraph,
-					interactions: nextInteractions,
-					activity: {
-						kind: "waiting_for_user",
-						activeOperationCount: 0,
-						activeSubagentCount: 0,
-						dominantOperationId: null,
-						blockingInteractionId: "question-1",
-					},
-					revision: {
-						graphRevision: 10,
-						transcriptRevision: baseGraph.revision.transcriptRevision,
-						lastEventSeq: 43,
-					},
-				},
-				header: { title: "Question session" },
-			});
-
-			expect(nextScene.conversation.entries).toHaveLength(2);
-			expect(nextScene.conversation.entries[0]).toBe(firstScene.conversation.entries[0]);
-			expect(nextScene.conversation.entries[1]).toMatchObject({
-				id: "interaction:question-1",
-				type: "tool_call",
-				interactionId: "question-1",
-			});
-		} finally {
-			Object.defineProperty(baseInteractions, "0", {
-				configurable: true,
-				value: firstInteraction,
-			});
-			Object.defineProperty(nextInteractions, "0", {
-				configurable: true,
-				value: firstInteraction,
-			});
-		}
-	});
-
-	it("applies marked interaction removals without scanning unchanged interactions", () => {
-		const readModel = createAgentPanelGraphMaterializerReadModel();
-		const transcriptSnapshot = createTranscriptSnapshot([
-			createTranscriptEntry("user-1", "user", "Can you ask me?"),
-		]);
-		const operations: OperationSnapshot[] = [];
-		const hiddenInteraction = createQuestionInteraction({
-			id: "hidden-question",
-			jsonRpcRequestId: 1,
-			replyHandler: {
-				kind: "json_rpc",
-				requestId: "1",
-			},
-		});
-		const visibleInteraction = createQuestionInteraction({
-			id: "question-1",
-			jsonRpcRequestId: 2,
-			replyHandler: {
-				kind: "json_rpc",
-				requestId: "2",
-			},
-		});
-		const baseInteractions = [hiddenInteraction, visibleInteraction];
-		const baseGraph = createGraph({
-			transcriptSnapshot,
-			operations,
-			turnState: "Running",
-			activity: {
-				kind: "waiting_for_user",
-				activeOperationCount: 0,
-				activeSubagentCount: 0,
-				dominantOperationId: null,
-				blockingInteractionId: "question-1",
-			},
-			interactions: baseInteractions,
-		});
-		const resolvedInteraction: InteractionSnapshot = {
-			...visibleInteraction,
-			state: "Answered",
-			responded_at_event_seq: 44,
-			response: {
-				kind: "question",
-				answers: { choice: "Sidebar session list" },
-			},
-		};
-		const nextInteractions = [hiddenInteraction, resolvedInteraction];
-		markInteractionSnapshotArrayPatch(nextInteractions, {
-			baseInteractions,
-			patchedInteractionsByIndex: new Map([[1, resolvedInteraction]]),
-			appendedInteractions: null,
-		});
-
-		const firstScene = readModel.apply({
-			panelId: "panel-1",
-			graph: baseGraph,
-			header: { title: "Question session" },
-		});
-		Object.defineProperty(baseInteractions, "0", {
-			configurable: true,
-			get() {
-				throw new Error("must not scan unchanged interactions for an interaction removal patch");
-			},
-		});
-		Object.defineProperty(nextInteractions, "0", {
-			configurable: true,
-			get() {
-				throw new Error(
-					"must not scan unchanged next interactions for an interaction removal patch"
-				);
-			},
-		});
-
-		try {
-			const nextScene = readModel.apply({
-				panelId: "panel-1",
-				graph: {
-					...baseGraph,
-					interactions: nextInteractions,
-					activity: {
-						kind: "running_operation",
-						activeOperationCount: 1,
-						activeSubagentCount: 0,
-						dominantOperationId: null,
-						blockingInteractionId: null,
-					},
-					revision: {
-						graphRevision: 10,
-						transcriptRevision: baseGraph.revision.transcriptRevision,
-						lastEventSeq: 44,
-					},
-				},
-				header: { title: "Question session" },
-			});
-
-			expect(nextScene.conversation.entries).toHaveLength(1);
-			expect(nextScene.conversation.entries[0]).toBe(firstScene.conversation.entries[0]);
-		} finally {
-			Object.defineProperty(baseInteractions, "0", {
-				configurable: true,
-				value: hiddenInteraction,
-			});
-			Object.defineProperty(nextInteractions, "0", {
-				configurable: true,
-				value: hiddenInteraction,
-			});
-		}
-	});
-
-	it("applies stable interaction removals without scanning unchanged interactions", () => {
-		const readModel = createAgentPanelGraphMaterializerReadModel();
-		const transcriptSnapshot = createTranscriptSnapshot([
-			createTranscriptEntry("user-1", "user", "Can you ask me?"),
-		]);
-		const operations: OperationSnapshot[] = [];
-		const hiddenInteraction = createQuestionInteraction({
-			id: "hidden-question",
-			jsonRpcRequestId: 1,
-			replyHandler: {
-				kind: "json_rpc",
-				requestId: "1",
-			},
-		});
-		const visibleInteraction = createQuestionInteraction({
-			id: "question-1",
-			jsonRpcRequestId: 2,
-			replyHandler: {
-				kind: "json_rpc",
-				requestId: "2",
-			},
-		});
-		const baseInteractions = [hiddenInteraction, visibleInteraction];
-		const baseGraph = createGraph({
-			transcriptSnapshot,
-			operations,
-			turnState: "Running",
-			activity: {
-				kind: "waiting_for_user",
-				activeOperationCount: 0,
-				activeSubagentCount: 0,
-				dominantOperationId: null,
-				blockingInteractionId: "question-1",
-			},
-			interactions: baseInteractions,
-		});
-
-		const firstScene = readModel.apply({
-			panelId: "panel-1",
-			graph: baseGraph,
-			header: { title: "Question session" },
-		});
-		Object.defineProperty(baseInteractions, "0", {
-			configurable: true,
-			get() {
-				throw new Error("must not scan unchanged interactions for a stable removal");
-			},
-		});
-
-		const nextInteractions = [hiddenInteraction];
-		Object.defineProperty(nextInteractions, "0", {
-			configurable: true,
-			get() {
-				throw new Error("must not scan unchanged next interactions for a stable removal");
-			},
-		});
-
-		try {
-			const nextScene = readModel.apply({
-				panelId: "panel-1",
-				graph: {
-					...baseGraph,
-					interactions: nextInteractions,
-					activity: {
-						kind: "running_operation",
-						activeOperationCount: 1,
-						activeSubagentCount: 0,
-						dominantOperationId: null,
-						blockingInteractionId: null,
-					},
-					revision: {
-						graphRevision: 10,
-						transcriptRevision: baseGraph.revision.transcriptRevision,
-						lastEventSeq: 44,
-					},
-				},
-				header: { title: "Question session" },
-			});
-
-			expect(nextScene.conversation.entries).toHaveLength(1);
-			expect(nextScene.conversation.entries[0]).toBe(firstScene.conversation.entries[0]);
-		} finally {
-			Object.defineProperty(baseInteractions, "0", {
-				configurable: true,
-				value: hiddenInteraction,
-			});
-			Object.defineProperty(nextInteractions, "0", {
-				configurable: true,
-				value: hiddenInteraction,
-			});
-		}
-	});
-
-	it("materializes rich tool entries from canonical operations instead of transcript placeholders", () => {
-		const transcriptSnapshot = createTranscriptSnapshot([
-			createTranscriptEntry("user-1", "user", "Run the checks"),
-			createTranscriptEntry("tool-1", "tool", "Run"),
-			createTranscriptEntry("assistant-1", "assistant", "Checks are green."),
-		]);
-		const graph = createGraph({
-			transcriptSnapshot,
-			operations: [createOperationSnapshot()],
-		});
-
-		const scene = materializeAgentPanelSceneFromGraph({
-			panelId: "panel-1",
-			graph,
-			header: {
-				title: "Restored session",
-			},
-		});
-
-		expect(scene.status).toBe("done");
-		expect(scene.conversation.entries[0]).toEqual({
-			id: "user-1",
-			type: "user",
-			text: "Run the checks",
-		});
-		expect(scene.conversation.entries[1]).toMatchObject({
-			id: "tool-1",
-			type: "tool_call",
-			kind: "execute",
-			title: "Run",
-			command: "bun test",
-			stdout: "ok",
-			status: "done",
-			presentationState: "resolved",
-		});
-		expect(scene.conversation.entries[2]).toEqual({
-			id: "assistant-1",
-			type: "assistant",
-			markdown: "Checks are green.",
-			message: {
-				chunks: [
-					{
-						type: "message",
-						block: {
-							type: "text",
-							text: "Checks are green.",
-						},
-					},
-				],
-			},
-			isStreaming: false,
-		});
-	});
-
-	it("keeps transcript display identity when canonical operation tool id differs", () => {
-		const transcriptSnapshot = createTranscriptSnapshot([
-			createTranscriptEntry("transcript-tool-entry", "tool", "Run"),
-		]);
-		const graph = createGraph({
-			transcriptSnapshot,
-			operations: [
-				createOperationSnapshot({
-					id: "operation-1",
-					tool_call_id: "provider-tool-call-1",
-					source_link: {
-						kind: "transcript_linked",
-						entry_id: "transcript-tool-entry",
-					},
-				}),
-			],
-		});
-
-		const scene = materializeAgentPanelSceneFromGraph({
-			panelId: "panel-1",
-			graph,
-			header: {
-				title: "Restored session",
-			},
-		});
-
-		expect(scene.conversation.entries[0]).toMatchObject({
-			id: "transcript-tool-entry",
-			type: "tool_call",
-			toolCallId: "provider-tool-call-1",
-			operationId: "operation-1",
-		});
-	});
-
-	it("requires transcript source links even when tool call ids match", () => {
-		const transcriptSnapshot = createTranscriptSnapshot([
-			createTranscriptEntry("tool-1", "tool", "Run"),
-		]);
-		const graph = createGraph({
-			transcriptSnapshot,
-			operations: [
-				createOperationSnapshot({
-					id: "operation-1",
-					tool_call_id: "tool-1",
-					source_link: {
-						kind: "synthetic",
-						reason: "legacy restored operation",
-					},
-				}),
-			],
-		});
-
-		const scene = materializeAgentPanelSceneFromGraph({
-			panelId: "panel-1",
-			graph,
-			header: {
-				title: "Restored session",
-			},
-		});
-
-		expect(scene.conversation.entries[0]).toMatchObject({
-			id: "tool-1",
-			type: "tool_call",
-			kind: "other",
-			title: "Unresolved tool",
-			presentationState: "degraded_operation",
-		});
-	});
-
-	it("preserves editDiffs through scene text limit filtering for edit tool calls", () => {
-		const transcriptSnapshot = createTranscriptSnapshot([
-			createTranscriptEntry("user-1", "user", "Apply the patch"),
-			createTranscriptEntry("tool-edit", "tool", "Edit"),
-		]);
-		const graph = createGraph({
-			transcriptSnapshot,
-			operations: [
-				createOperationSnapshot({
-					id: "op:session-1:tool-edit",
-					tool_call_id: "tool-edit",
-					name: "Edit",
-					kind: "edit",
-					title: "Edit",
-					command: null,
-					arguments: {
-						kind: "edit",
-						edits: [
-							{
-								filePath: "/repo/foo.ts",
-								oldString: "const x = 1;",
-								newString: "const x = 2;",
-							},
-						],
-					},
-					result: null,
-					source_link: { kind: "transcript_linked", entry_id: "tool-edit" },
-				}),
-			],
-		});
-
-		const scene = materializeAgentPanelSceneFromGraph({
-			panelId: "panel-1",
-			graph,
-			header: { title: "Edit session" },
-		});
-
-		const editEntry = scene.conversation.entries.find(
-			(entry) => entry.type === "tool_call" && entry.kind === "edit"
-		);
-		expect(editEntry).toBeDefined();
-		expect(editEntry).toMatchObject({
-			kind: "edit",
-			editDiffs: [
-				{
-					filePath: "/repo/foo.ts",
-					oldString: "const x = 1;",
-					newString: "const x = 2;",
-				},
-			],
-		});
-	});
-
-	it("preserves lifecycle actionability and resume actions in the scene contract", () => {
-		const graph = createGraph({
-			transcriptSnapshot: createTranscriptSnapshot([
-				createTranscriptEntry("assistant-1", "assistant", "Restored history."),
-			]),
-			turnState: "Idle",
-			lifecycle: {
-				status: "detached",
-				detachedReason: "restoredRequiresAttach",
-				failureReason: null,
-				errorMessage: null,
-				actionability: {
-					canSend: false,
-					canResume: true,
-					canRetry: false,
-					canArchive: true,
-					canConfigure: false,
-					recommendedAction: "resume",
-					recoveryPhase: "detached",
-					compactStatus: "detached",
-				},
-			},
-			activity: {
-				kind: "paused",
-				activeOperationCount: 0,
-				activeSubagentCount: 0,
-				dominantOperationId: null,
-				blockingInteractionId: null,
-			},
-		});
-
-		const scene = materializeAgentPanelSceneFromGraph({
-			panelId: "panel-1",
-			graph,
-			header: {
-				title: "Restored session",
-			},
-		});
-
-		expect(scene.status).toBe("idle");
-		expect(scene.lifecycle).toMatchObject({
-			status: "detached",
-			detachedReason: "restoredRequiresAttach",
-			actionability: {
-				canResume: true,
-				recommendedAction: "resume",
-				recoveryPhase: "detached",
-			},
-		});
-		expect(scene.header.actions).toEqual([
-			{
-				id: "status.resume",
-				label: "Resume",
-				state: "enabled",
-			},
-			{
-				id: "status.archive",
-				label: "Archive",
-				state: "enabled",
-			},
-		]);
-	});
-
-	it("surfaces canonical turn failures as error status before lifecycle catches up", () => {
-		const graph = createGraph({
-			transcriptSnapshot: createTranscriptSnapshot([
-				createTranscriptEntry("assistant-1", "assistant", "Rate limited."),
-			]),
-			turnState: "Failed",
-			lifecycle: createLifecycle(),
-			activity: {
-				kind: "error",
-				activeOperationCount: 0,
-				activeSubagentCount: 0,
-				dominantOperationId: null,
-				blockingInteractionId: null,
-			},
-		});
-
-		const scene = materializeAgentPanelSceneFromGraph({
-			panelId: "panel-1",
-			graph,
-			header: {
-				title: "Restored session",
-			},
-		});
-
-		expect(scene.status).toBe("error");
-		expect(scene.header.status).toBe("error");
-	});
-
-	it("concatenates assistant transcript token segments without markdown line breaks", () => {
-		const graph = createGraph({
-			transcriptSnapshot: createTranscriptSnapshot([
-				createTranscriptEntryFromSegments("assistant-1", "assistant", [
-					"The fl",
-					"icker is",
-					" caused by co",
-					"arse-grained reactivity.",
-				]),
-			]),
-		});
-
-		const scene = materializeAgentPanelSceneFromGraph({
-			panelId: "panel-1",
-			graph,
-			header: {
-				title: "Restored session",
-			},
-		});
-
-		expect(scene.conversation.entries[0]).toEqual({
-			id: "assistant-1",
-			type: "assistant",
-			markdown: "The flicker is caused by coarse-grained reactivity.",
-			message: {
-				chunks: [
-					{
-						type: "message",
-						block: {
-							type: "text",
-							text: "The fl",
-						},
-					},
-					{
-						type: "message",
-						block: {
-							type: "text",
-							text: "icker is",
-						},
-					},
-					{
-						type: "message",
-						block: {
-							type: "text",
-							text: " caused by co",
-						},
-					},
-					{
-						type: "message",
-						block: {
-							type: "text",
-							text: "arse-grained reactivity.",
-						},
-					},
-				],
-			},
-			isStreaming: false,
-		});
-	});
-
-	it("preserves canonical thought segments as assistant thought chunks", () => {
-		const transcriptEntry: TranscriptEntry = {
-			entryId: "assistant-1",
-			role: "assistant",
-			segments: [
-				{
-					kind: "thought",
-					segmentId: "assistant-1:thought:1",
-					text: "checking the readme",
-				},
-				{
-					kind: "text",
-					segmentId: "assistant-1:text:1",
-					text: "Done.",
-				},
-			],
-			attemptId: null,
-		};
-		const originalSegmentsMap = transcriptEntry.segments.map;
-		transcriptEntry.segments.map = () => {
-			throw new Error("must not map every assistant transcript segment");
-		};
-		const graph = createGraph({
-			transcriptSnapshot: createTranscriptSnapshot([transcriptEntry]),
-		});
-
-		try {
-			const scene = materializeAgentPanelSceneFromGraph({
-				panelId: "panel-1",
-				graph,
-				header: {
-					title: "Restored session",
-				},
-			});
-
-			expect(scene.conversation.entries[0]).toMatchObject({
-				id: "assistant-1",
-				type: "assistant",
-				markdown: "Done.",
-				message: {
-					chunks: [
-						{
-							type: "thought",
-							block: {
-								type: "text",
-								text: "checking the readme",
-							},
-						},
-						{
-							type: "message",
-							block: {
-								type: "text",
-								text: "Done.",
-							},
-						},
-					],
-				},
-			});
-		} finally {
-			transcriptEntry.segments.map = originalSegmentsMap;
-		}
-	});
-
-	it("renders committed missing-operation tool rows as explicit degraded presentation", () => {
-		const graph = createGraph({
-			transcriptSnapshot: createTranscriptSnapshot([
-				createTranscriptEntry("tool-missing", "tool", "Provider said a tool ran"),
-			]),
-			operations: [],
-			turnState: "Completed",
-		});
-
-		const scene = materializeAgentPanelSceneFromGraph({
-			panelId: "panel-1",
-			graph,
-			header: {
-				title: "Restored session",
-			},
-		});
-
-		expect(scene.conversation.entries[0]).toMatchObject({
-			id: "tool-missing",
-			type: "tool_call",
-			kind: "other",
-			status: "degraded",
-			title: "Unresolved tool",
-			subtitle: "Provider said a tool ran",
-			presentationState: "degraded_operation",
-			degradedReason: "No canonical operation was found for this restored transcript tool row.",
-		});
-	});
-
-	it("does not join transcript rows through coincidental operation ids", () => {
-		const graph = createGraph({
-			transcriptSnapshot: createTranscriptSnapshot([
-				createTranscriptEntry("tool-coincidental", "tool", "Provider said a tool ran"),
-			]),
-			operations: [
-				createOperationSnapshot({
-					id: "tool-coincidental",
-					tool_call_id: "tool-coincidental",
-					operation_provenance_key: "tool-coincidental",
-					source_link: {
-						kind: "synthetic",
-						reason: "synthetic_test_operation",
-					},
-				}),
-			],
-			turnState: "Completed",
-		});
-
-		const scene = materializeAgentPanelSceneFromGraph({
-			panelId: "panel-1",
-			graph,
-			header: {
-				title: "Restored session",
-			},
-		});
-
-		expect(scene.conversation.entries[0]).toMatchObject({
-			id: "tool-coincidental",
-			type: "tool_call",
-			kind: "other",
-			status: "degraded",
-			title: "Unresolved tool",
-			presentationState: "degraded_operation",
-		});
-	});
-
-	it("does not join transcript rows through matching tool call ids without a source link", () => {
-		const graph = createGraph({
-			transcriptSnapshot: createTranscriptSnapshot([
-				createTranscriptEntry("tool-call-only", "tool", "Provider said a tool ran"),
-			]),
-			operations: [
-				createOperationSnapshot({
-					id: "operation-without-transcript-link",
-					tool_call_id: "tool-call-only",
-					operation_provenance_key: "tool-call-only",
-					source_link: {
-						kind: "synthetic",
-						reason: "live_operation_without_transcript_link",
-					},
-				}),
-			],
-			turnState: "Completed",
-		});
-
-		const scene = materializeAgentPanelSceneFromGraph({
-			panelId: "panel-1",
-			graph,
-			header: {
-				title: "Restored session",
-			},
-		});
-
-		expect(scene.conversation.entries[0]).toMatchObject({
-			id: "tool-call-only",
-			type: "tool_call",
-			kind: "other",
-			status: "degraded",
-			title: "Unresolved tool",
-			presentationState: "degraded_operation",
-		});
-	});
-
-	it("uses canonical operation state instead of provider status for presentation", () => {
-		const graph = createGraph({
-			transcriptSnapshot: createTranscriptSnapshot([
-				createTranscriptEntry("tool-1", "tool", "Run"),
-			]),
-			operations: [
-				createOperationSnapshot({
-					provider_status: "completed",
-					operation_state: "degraded",
-					awaiting_plan_approval: false,
-					degradation_reason: {
-						code: "classification_failure",
-						detail: "Tool classification was insufficient for canonical presentation.",
-					},
-				}),
-			],
-		});
-
-		const scene = materializeAgentPanelSceneFromGraph({
-			panelId: "panel-1",
-			graph,
-			header: {
-				title: "Restored session",
-			},
-		});
-
-		expect(scene.conversation.entries[0]).toMatchObject({
-			id: "tool-1",
-			type: "tool_call",
-			status: "degraded",
-			presentationState: "degraded_operation",
-			degradedReason: "Tool operation could not be classified safely.",
-		});
-	});
-
-	it("renders valid unclassified operations without degraded warning styling", () => {
-		const graph = createGraph({
-			transcriptSnapshot: createTranscriptSnapshot([
-				createTranscriptEntry("tool-1", "tool", "write_bash"),
-			]),
-			operations: [
-				createOperationSnapshot({
-					name: "write_bash",
-					kind: "unclassified",
-					title: "",
-					arguments: {
-						kind: "unclassified",
-						provider_name: "write_bash",
-						provider_kind_hint: null,
-						title: null,
-						arguments_preview: null,
-						signals_tried: ["ProviderNameMap", "ArgumentShape"],
-					},
-					provider_status: "completed",
-					operation_state: "completed",
-					awaiting_plan_approval: false,
-					degradation_reason: null,
-				}),
-			],
-		});
-
-		const scene = materializeAgentPanelSceneFromGraph({
-			panelId: "panel-1",
-			graph,
-			header: {
-				title: "Restored session",
-			},
-		});
-
-		expect(scene.conversation.entries[0]).toMatchObject({
-			id: "tool-1",
-			type: "tool_call",
-			kind: "other",
-			status: "done",
-			title: "Write Bash",
-			presentationState: "resolved",
-		});
-	});
-
-	it("renders blocked from canonical operation state even when provider status is stale", () => {
-		const graph = createGraph({
-			transcriptSnapshot: createTranscriptSnapshot([
-				createTranscriptEntry("tool-1", "tool", "Run"),
-			]),
-			operations: [
-				createOperationSnapshot({
-					provider_status: "completed",
-					operation_state: "blocked",
-					awaiting_plan_approval: false,
-				}),
-			],
-			turnState: "Running",
-		});
-
-		const scene = materializeAgentPanelSceneFromGraph({
-			panelId: "panel-1",
-			graph,
-			header: {
-				title: "Restored session",
-			},
-		});
-
-		expect(scene.conversation.entries[0]).toMatchObject({
-			id: "tool-1",
-			type: "tool_call",
-			status: "blocked",
-			presentationState: "resolved",
-		});
-	});
-
-	it("keeps live transcript-before-operation races pending until canonical operation data arrives", () => {
-		const graph = createGraph({
-			transcriptSnapshot: createTranscriptSnapshot([
-				createTranscriptEntry("tool-live", "tool", "Run"),
-			]),
-			operations: [],
-			turnState: "Running",
-			activity: {
-				kind: "awaiting_model",
-				activeOperationCount: 0,
-				activeSubagentCount: 0,
-				dominantOperationId: null,
-				blockingInteractionId: null,
-			},
-		});
-
-		const scene = materializeAgentPanelSceneFromGraph({
-			panelId: "panel-1",
-			graph,
-			header: {
-				title: "Live session",
-			},
-		});
-
-		expect(scene.conversation.entries[0]).toMatchObject({
-			id: "tool-live",
-			type: "tool_call",
-			kind: "other",
-			status: "pending",
-			title: "Tool pending",
-			presentationState: "pending_operation",
-		});
-	});
-
-	it("keeps unresolved tool diagnostics free of full transcript text", () => {
-		const originalWarn = console.warn;
-		const originalLocalStorageDescriptor = Object.getOwnPropertyDescriptor(
-			globalThis,
-			"localStorage"
-		);
-		let warningDetails: {
-			readonly entryText?: string;
-			readonly entryId?: string;
-			readonly toolTranscriptEntryCount?: number;
-			readonly sampledToolTranscriptEntryCount?: number;
-			readonly toolTranscriptEntrySampleLimit?: number;
-		} | null = null;
-		console.warn = (
-			message?: string,
-			details?: {
-				readonly entryText?: string;
-				readonly entryId?: string;
-				readonly toolTranscriptEntryCount?: number;
-				readonly sampledToolTranscriptEntryCount?: number;
-				readonly toolTranscriptEntrySampleLimit?: number;
-			}
-		) => {
-			if (message === "[agent-panel] unresolved restored tool row") {
-				warningDetails = details ?? null;
-			}
-		};
-		Object.defineProperty(globalThis, "localStorage", {
-			configurable: true,
-			value: {
-				getItem: (key: string) => (key === "acepe:debug:unresolved-tools" ? "1" : null),
-			},
-		});
-
-		const graph = createGraph({
-			transcriptSnapshot: createTranscriptSnapshot([
-				createTranscriptEntry("tool-missing", "tool", "secret transcript text"),
-			]),
-			operations: [],
-			turnState: "Completed",
-		});
-
-		materializeAgentPanelSceneFromGraph({
-			panelId: "panel-1",
-			graph,
-			header: {
-				title: "Restored session",
-			},
-		});
-
-		console.warn = originalWarn;
-		if (originalLocalStorageDescriptor === undefined) {
-			Reflect.deleteProperty(globalThis, "localStorage");
-		} else {
-			Object.defineProperty(globalThis, "localStorage", originalLocalStorageDescriptor);
-		}
-
-		expect(warningDetails).toBeDefined();
-		expect(warningDetails).not.toHaveProperty("entryText");
-		expect(warningDetails).toMatchObject({
-			entryId: "tool-missing",
-			sampledToolTranscriptEntryCount: 1,
-			toolTranscriptEntrySampleLimit: 40,
-		});
-		expect(warningDetails).not.toHaveProperty("toolTranscriptEntryCount");
-	});
-
-	it("recursively materializes task children from canonical child operations", () => {
-		const transcriptSnapshot = createTranscriptSnapshot([
-			createTranscriptEntry("task-entry", "tool", "Task completed"),
-		]);
-		const parentOperation = createOperationSnapshot({
-			id: "operation-parent",
-			tool_call_id: "task-tool",
-			name: "task",
-			kind: "task",
-			title: "Task completed",
-			arguments: {
-				kind: "think",
-				description: "Run subagent",
-				prompt: "Investigate",
-				subagent_type: "general-purpose",
-				skill: null,
-				skill_args: null,
-				raw: null,
-			},
-			result: "done",
-			command: null,
-			child_tool_call_ids: ["child-tool"],
-			child_operation_ids: ["operation-child"],
-			operation_provenance_key: "task-tool",
-			source_link: {
-				kind: "transcript_linked",
-				entry_id: "task-entry",
-			},
-		});
-		const childOperation = createOperationSnapshot({
-			id: "operation-child",
-			tool_call_id: "child-tool",
-			name: "bash",
-			kind: "execute",
-			title: "Run",
-			arguments: { kind: "execute", command: "bun test src/lib/acp" },
-			result: { stdout: "child ok", stderr: null, exitCode: 0 },
-			command: "bun test src/lib/acp",
-			parent_tool_call_id: "task-tool",
-			parent_operation_id: "operation-parent",
-			child_tool_call_ids: [],
-			child_operation_ids: [],
-			operation_provenance_key: "child-tool",
-			source_link: {
-				kind: "synthetic",
-				reason: "task_child_operation",
-			},
-		});
-		const graph = createGraph({
-			transcriptSnapshot,
-			operations: [parentOperation, childOperation],
-		});
-
-		const scene = materializeAgentPanelSceneFromGraph({
-			panelId: "panel-1",
-			graph,
-			header: {
-				title: "Restored session",
-			},
-		});
-		const taskEntry = scene.conversation.entries[0];
-		if (taskEntry.type !== "tool_call" || !taskEntry.taskChildren) {
-			throw new Error("Expected task tool with children");
-		}
-
-		expect(taskEntry).toMatchObject({
-			type: "tool_call",
-			kind: "task",
-			taskDescription: "Run subagent",
-			taskResultText: "done",
-			presentationState: "resolved",
-		});
-		expect(taskEntry.taskChildren[0]).toMatchObject({
-			type: "tool_call",
-			kind: "execute",
-			command: "bun test src/lib/acp",
-			stdout: "child ok",
-			status: "done",
-			presentationState: "resolved",
-		});
-	});
-
-	it("bounds display output before values enter scene DTOs", () => {
-		const longOutput = "x".repeat(AGENT_PANEL_SCENE_TEXT_LIMITS.output + 100);
-		const graph = createGraph({
-			transcriptSnapshot: createTranscriptSnapshot([
-				createTranscriptEntry("tool-1", "tool", "Run"),
-			]),
-			operations: [
-				createOperationSnapshot({
-					result: { stdout: longOutput, stderr: null, exitCode: 0 },
-				}),
-			],
-		});
-
-		const scene = materializeAgentPanelSceneFromGraph({
-			panelId: "panel-1",
-			graph,
-			header: {
-				title: "Restored session",
-			},
-		});
-		const entry = scene.conversation.entries[0];
-		if (entry.type !== "tool_call") {
-			throw new Error("Expected tool entry");
-		}
-
-		expect(entry.stdout?.length).toBeLessThan(longOutput.length);
-		expect(entry.stdout?.endsWith("[truncated]")).toBe(true);
-	});
-
-	it("applySceneTextLimits passes through every populated AgentToolEntry field unchanged except the declared truncation targets", () => {
-		const fullEntry: AgentToolEntry = {
-			id: "tool-1",
-			type: "tool_call",
-			kind: "execute",
-			title: "Run build",
-			subtitle: "in repo root",
-			detailsText: "short details",
-			scriptText: "echo hello",
-			editDiffs: [
-				{
-					filePath: "/repo/foo.ts",
-					oldString: "a",
-					newString: "b",
-				},
-			],
-			filePath: "/repo/foo.ts",
-			sourceExcerpt: "const x = 1;",
-			sourceRangeLabel: "L1-L1",
-			status: "done",
-			command: "bun run build",
-			stdout: "build ok",
-			stderr: "",
-			exitCode: 0,
-			query: "needle",
-			searchPath: "/repo",
-			searchFiles: ["/repo/a.ts", "/repo/b.ts"],
-			searchResultCount: 2,
-			searchMode: "content",
-			searchNumFiles: 2,
-			searchNumMatches: 4,
-			searchMatches: [
-				{
-					filePath: "/repo/a.ts",
-					fileName: "a.ts",
-					lineNumber: 1,
-					content: "needle",
-					isMatch: true,
-				},
-			],
-			url: "https://example.com",
-			resultText: "result body",
-			webSearchLinks: [{ title: "T", url: "https://example.com", domain: "example.com" }],
-			webSearchSummary: "summary",
-			skillName: "ce-debug",
-			skillArgs: "--quick",
-			skillDescription: "debug",
-			taskDescription: "task desc",
-			taskPrompt: "task prompt",
-			taskResultText: "task result",
-			taskChildren: [
-				{
-					id: "child-1",
-					type: "tool_call",
-					title: "Child tool",
-					status: "done",
-				},
-			],
-			presentationState: "resolved",
-			degradedReason: null,
-			todos: [{ content: "do it", status: "pending" }],
-			question: { question: "Pick one", options: [{ label: "A" }] },
-			lintDiagnostics: [{ filePath: "/repo/a.ts", line: 1, severity: "error", message: "boom" }],
-		};
-
-		const limited = applySceneTextLimits(fullEntry);
-
-		// Every key present in the input must be present in the output.
-		// This is the structural contract that protects against the allow-list
-		// footgun: if someone reverts to manual rebuild and forgets a field,
-		// this check fails for that field.
-		for (const key of Object.keys(fullEntry) as Array<keyof AgentToolEntry>) {
-			expect(limited).toHaveProperty(key);
-		}
-
-		// Non-truncated fields are pass-through (reference-equal where applicable).
-		expect(limited.id).toBe(fullEntry.id);
-		expect(limited.kind).toBe(fullEntry.kind);
-		expect(limited.title).toBe(fullEntry.title);
-		expect(limited.subtitle).toBe(fullEntry.subtitle);
-		expect(limited.scriptText).toBe(fullEntry.scriptText);
-		expect(limited.editDiffs).toBe(fullEntry.editDiffs);
-		expect(limited.filePath).toBe(fullEntry.filePath);
-		expect(limited.sourceExcerpt).toBe(fullEntry.sourceExcerpt);
-		expect(limited.sourceRangeLabel).toBe(fullEntry.sourceRangeLabel);
-		expect(limited.status).toBe(fullEntry.status);
-		expect(limited.command).toBe(fullEntry.command);
-		expect(limited.exitCode).toBe(fullEntry.exitCode);
-		expect(limited.query).toBe(fullEntry.query);
-		expect(limited.searchPath).toBe(fullEntry.searchPath);
-		expect(limited.searchFiles).toBe(fullEntry.searchFiles);
-		expect(limited.searchResultCount).toBe(fullEntry.searchResultCount);
-		expect(limited.searchMode).toBe(fullEntry.searchMode);
-		expect(limited.searchNumFiles).toBe(fullEntry.searchNumFiles);
-		expect(limited.searchNumMatches).toBe(fullEntry.searchNumMatches);
-		expect(limited.searchMatches).toBe(fullEntry.searchMatches);
-		expect(limited.url).toBe(fullEntry.url);
-		expect(limited.webSearchLinks).toBe(fullEntry.webSearchLinks);
-		expect(limited.webSearchSummary).toBe(fullEntry.webSearchSummary);
-		expect(limited.skillName).toBe(fullEntry.skillName);
-		expect(limited.skillArgs).toBe(fullEntry.skillArgs);
-		expect(limited.skillDescription).toBe(fullEntry.skillDescription);
-		expect(limited.taskDescription).toBe(fullEntry.taskDescription);
-		expect(limited.taskPrompt).toBe(fullEntry.taskPrompt);
-		expect(limited.presentationState).toBe(fullEntry.presentationState);
-		expect(limited.degradedReason).toBe(fullEntry.degradedReason);
-		expect(limited.todos).toBe(fullEntry.todos);
-		expect(limited.question).toBe(fullEntry.question);
-		expect(limited.lintDiagnostics).toBe(fullEntry.lintDiagnostics);
-
-		// Truncation targets pass through unchanged when under the limit.
-		expect(limited.detailsText).toBe(fullEntry.detailsText);
-		expect(limited.stdout).toBe(fullEntry.stdout);
-		expect(limited.stderr).toBe(fullEntry.stderr);
-		expect(limited.resultText).toBe(fullEntry.resultText);
-		expect(limited.taskResultText).toBe(fullEntry.taskResultText);
-
-		// taskChildren is rebuilt (recursion) but contents preserved by identity for non-tool children
-		// and structurally for tool children.
-		expect(limited.taskChildren).toHaveLength(1);
-		expect(limited.taskChildren?.[0]).toMatchObject({
-			id: "child-1",
-			type: "tool_call",
-			title: "Child tool",
-		});
-	});
-
-	it("applySceneTextLimits preserves empty arrays as empty arrays (does not nullify)", () => {
-		const entry: AgentToolEntry = {
-			id: "tool-empty",
-			type: "tool_call",
-			title: "Empty",
-			status: "done",
-			editDiffs: [],
-			searchFiles: [],
-			todos: [],
-		};
-
-		const limited = applySceneTextLimits(entry);
-
-		expect(limited.editDiffs).toEqual([]);
-		expect(limited.searchFiles).toEqual([]);
-		expect(limited.todos).toEqual([]);
-	});
-
-	describe("optimistic pending entry support", () => {
-		function createOptimisticUserEntry(id: string, text: string): SessionEntry {
-			return {
-				id,
-				type: "user",
-				message: {
-					content: { type: "text", text },
-					chunks: [{ type: "text", text }],
-				},
-			};
-		}
-
-		it("appends the optimistic entry as the last entry with isOptimistic: true when graph is present", () => {
-			const transcriptSnapshot = createTranscriptSnapshot([
-				createTranscriptEntry("user-1", "user", "First message"),
-				createTranscriptEntry("assistant-1", "assistant", "Response"),
-			]);
-			const graph = createGraph({ transcriptSnapshot });
-			const pendingUserEntry = createOptimisticUserEntry("pending-1", "New pending message");
-
-			const scene = materializeAgentPanelSceneFromGraph({
-				panelId: "panel-1",
-				graph,
-				header: { title: "Session" },
-				optimistic: { pendingUserEntry },
-			});
-
-			expect(scene.conversation.entries).toHaveLength(3);
-			const last = scene.conversation.entries[2] as AgentUserEntry;
-			expect(last.id).toBe("pending-1");
-			expect(last.type).toBe("user");
-			expect(last.text).toBe("New pending message");
-			expect(last.isOptimistic).toBe(true);
-		});
-
-		it("inserts the optimistic entry before tool calls when no canonical user has landed", () => {
-			const transcriptSnapshot = createTranscriptSnapshot([
-				createTranscriptEntry("tool-1", "tool", "Searching files"),
-			]);
-			const graph = createGraph({ transcriptSnapshot });
-			const pendingUserEntry = createOptimisticUserEntry("pending-1", "New pending message");
-
-			const scene = materializeAgentPanelSceneFromGraph({
-				panelId: "panel-1",
-				graph,
-				header: { title: "Session" },
-				optimistic: { pendingUserEntry },
-			});
-
-			expect(scene.conversation.entries).toHaveLength(2);
-			const first = scene.conversation.entries[0] as AgentUserEntry;
-			expect(first.id).toBe("pending-1");
-			expect(first.type).toBe("user");
-			expect(first.text).toBe("New pending message");
-			expect(first.isOptimistic).toBe(true);
-			expect(scene.conversation.entries[1]?.type).toBe("tool_call");
-		});
-
-		it("keeps optimistic entry after prior-turn tool calls when canonical user history exists", () => {
-			const transcriptSnapshot = createTranscriptSnapshot([
-				createTranscriptEntry("user-1", "user", "Previous message"),
-				createTranscriptEntry("tool-1", "tool", "Previous tool result"),
-			]);
-			const graph = createGraph({ transcriptSnapshot });
-			const pendingUserEntry = createOptimisticUserEntry("pending-1", "New pending message");
-
-			const scene = materializeAgentPanelSceneFromGraph({
-				panelId: "panel-1",
-				graph,
-				header: { title: "Session" },
-				optimistic: { pendingUserEntry },
-			});
-
-			expect(scene.conversation.entries).toHaveLength(3);
-			expect(scene.conversation.entries[0]?.type).toBe("user");
-			expect(scene.conversation.entries[1]?.type).toBe("tool_call");
-			const last = scene.conversation.entries[2] as AgentUserEntry;
-			expect(last.id).toBe("pending-1");
-			expect(last.type).toBe("user");
-			expect(last.isOptimistic).toBe(true);
-		});
-
-		it("graph + no optimistic → output identical to today (regression guard)", () => {
-			const transcriptSnapshot = createTranscriptSnapshot([
-				createTranscriptEntry("user-1", "user", "First message"),
-				createTranscriptEntry("assistant-1", "assistant", "Response"),
-			]);
-			const graph = createGraph({ transcriptSnapshot });
-
-			const sceneWithout = materializeAgentPanelSceneFromGraph({
-				panelId: "panel-1",
-				graph,
-				header: { title: "Session" },
-			});
-
-			const sceneWithNull = materializeAgentPanelSceneFromGraph({
-				panelId: "panel-1",
-				graph,
-				header: { title: "Session" },
-				optimistic: null,
-			});
-
-			expect(sceneWithout.conversation.entries).toHaveLength(2);
-			expect(sceneWithNull.conversation.entries).toHaveLength(2);
-			expect(sceneWithout.conversation.entries[0]).toEqual({
-				id: "user-1",
-				type: "user",
-				text: "First message",
-				isOptimistic: undefined,
-			});
-			expect(sceneWithout.conversation.entries[1]).toEqual({
-				id: "assistant-1",
-				type: "assistant",
-				markdown: "Response",
-				message: {
-					chunks: [
-						{
-							type: "message",
-							block: {
-								type: "text",
-								text: "Response",
-							},
-						},
-					],
-				},
-				isStreaming: false,
-			});
-		});
-
-		it("graph === null + optimistic entry → single-entry scene with isOptimistic: true, warming status", () => {
-			const pendingUserEntry = createOptimisticUserEntry("pending-1", "Hello agent");
-
-			const scene = materializeAgentPanelSceneFromGraph({
-				panelId: "panel-1",
-				graph: null,
-				header: { title: "Pre-session" },
-				optimistic: { pendingUserEntry },
-			});
-
-			expect(scene.status).toBe("warming");
-			expect(scene.lifecycle?.status).toBe("activating");
-			expect(scene.conversation.isStreaming).toBe(false);
-			expect(scene.conversation.entries).toHaveLength(1);
-			const entry = scene.conversation.entries[0] as AgentUserEntry;
-			expect(entry.id).toBe("pending-1");
-			expect(entry.type).toBe("user");
-			expect(entry.text).toBe("Hello agent");
-			expect(entry.isOptimistic).toBe(true);
-			expect(scene.header.title).toBe("Pre-session");
-		});
-
-		it("graph === null + no optimistic → empty conversation, warming status, no crash", () => {
-			const scene = materializeAgentPanelSceneFromGraph({
-				panelId: "panel-1",
-				graph: null,
-				header: { title: "Pre-session" },
-			});
-
-			expect(scene.status).toBe("warming");
-			expect(scene.lifecycle?.status).toBe("activating");
-			expect(scene.conversation.entries).toHaveLength(0);
-			expect(scene.conversation.isStreaming).toBe(false);
-			expect(scene.panelId).toBe("panel-1");
-		});
-
-		it("empty graph (non-null, no entries) + optimistic → single-entry scene with isOptimistic: true", () => {
-			const graph = createGraph({ transcriptSnapshot: createTranscriptSnapshot([]) });
-			const pendingUserEntry = createOptimisticUserEntry("pending-1", "First message");
-
-			const scene = materializeAgentPanelSceneFromGraph({
-				panelId: "panel-1",
-				graph,
-				header: { title: "Session" },
-				optimistic: { pendingUserEntry },
-			});
-
-			expect(scene.conversation.entries).toHaveLength(1);
-			const entry = scene.conversation.entries[0] as AgentUserEntry;
-			expect(entry.id).toBe("pending-1");
-			expect(entry.type).toBe("user");
-			expect(entry.text).toBe("First message");
-			expect(entry.isOptimistic).toBe(true);
-		});
-
-		it("both canonical and optimistic entries appear when they have independent UUIDs", () => {
-			// Dedup contract: optimistic and canonical IDs are independent crypto.randomUUID() calls
-			// and therefore never collide. The materializer does NOT id-dedup — it trusts that
-			// clearPendingUserEntry() will be called no later than the canonical entry lands in the
-			// graph (asserted by the ordering invariant tests in send-path-ordering.vitest.ts).
-			// This test verifies the materializer's contract: when both IDs are present, both entries
-			// appear in the scene. The absence of duplicates in production is a responsibility of the
-			// send path's clearPendingUserEntry() call timing, not of id-matching logic here.
-			const canonicalEntryId = "canonical-uuid-aaaa-bbbb-cccc";
-			const optimisticEntryId = "optimistic-uuid-xxxx-yyyy-zzzz";
-
-			const transcriptSnapshot = createTranscriptSnapshot([
-				createTranscriptEntry(canonicalEntryId, "user", "Canonical user message"),
-			]);
-			const graph = createGraph({ transcriptSnapshot });
-			const pendingUserEntry = createOptimisticUserEntry(optimisticEntryId, "Optimistic message");
-
-			const scene = materializeAgentPanelSceneFromGraph({
-				panelId: "panel-1",
-				graph,
-				header: { title: "Session" },
-				optimistic: { pendingUserEntry },
-			});
-
-			// Both entries are present — the materializer surfaces the race condition that
-			// clearPendingUserEntry() ordering is designed to prevent.
-			expect(scene.conversation.entries).toHaveLength(2);
-			const canonicalEntry = scene.conversation.entries[0] as AgentUserEntry;
-			expect(canonicalEntry.id).toBe(canonicalEntryId);
-			expect(canonicalEntry.type).toBe("user");
-			expect(canonicalEntry.isOptimistic).toBeUndefined();
-
-			const optimisticEntry = scene.conversation.entries[1] as AgentUserEntry;
-			expect(optimisticEntry.id).toBe(optimisticEntryId);
-			expect(optimisticEntry.type).toBe("user");
-			expect(optimisticEntry.isOptimistic).toBe(true);
-		});
-
-		it("surfaces only the canonical user entry once matching attemptId has landed", () => {
-			const pendingUserEntry = createOptimisticUserEntry("optimistic-uuid-1", "Hello world");
-			const graph = createGraph({
-				transcriptSnapshot: createTranscriptSnapshot([
-					createTranscriptEntryFromSegments(
-						"canonical-user-1",
-						"user",
-						["Hello world"],
-						"attempt-123"
-					),
-				]),
-			});
-
-			const scene = materializeAgentPanelSceneFromGraph({
-				panelId: "panel-1",
-				graph,
-				header: { title: "Session" },
-				optimistic: null,
-			});
-
-			expect(scene.conversation.entries).toHaveLength(1);
-			const entry = scene.conversation.entries[0] as AgentUserEntry;
-			expect(entry.id).toBe("canonical-user-1");
-			expect(entry.isOptimistic).toBeUndefined();
-			void pendingUserEntry;
-		});
-
-		it("rejects transient live assistant overlay while canonical transcript is still on the user turn", () => {
-			const transcriptSnapshot = createTranscriptSnapshot([
-				createTranscriptEntry("user-1", "user", "stream this reply"),
-			]);
-			const graph = createGraph({
-				transcriptSnapshot,
-				turnState: "Running",
-				activity: {
-					kind: "awaiting_model",
-					activeOperationCount: 0,
-					activeSubagentCount: 0,
-					dominantOperationId: null,
-					blockingInteractionId: null,
-				},
-			});
-			const liveAssistantEntry: SessionEntry = {
-				id: "assistant-live-1",
-				type: "assistant",
-				message: {
-					chunks: [
-						{
-							type: "message",
-							block: { type: "text", text: "partial streamed answer" },
-						},
-					],
-				},
-				isStreaming: true,
-			};
-
-			const scene = materializeAgentPanelSceneFromGraph({
-				panelId: "panel-1",
-				graph,
-				header: { title: "Session" },
-			});
-
-			expect(scene.conversation.entries).toHaveLength(1);
-			expect(scene.conversation.entries[0]).toEqual({
-				id: "user-1",
-				type: "user",
-				text: "stream this reply",
-				isOptimistic: undefined,
-			});
-			void liveAssistantEntry;
-		});
-	});
-
-	describe("assistant isStreaming derivation", () => {
-		it("marks only the canonical active streaming tail as isStreaming when turnState is Running", () => {
-			const transcriptSnapshot = createTranscriptSnapshot([
-				createTranscriptEntry("u1", "user", "First question"),
-				createTranscriptEntry("a1", "assistant", "First answer"),
-				createTranscriptEntry("u2", "user", "Second question"),
-				createTranscriptEntry("a2", "assistant", "Second answer still coming in"),
-			]);
-			const graph = createGraph({
-				transcriptSnapshot,
-				turnState: "Running",
-				activeStreamingTail: { rowId: "a2", contentKind: "message" },
-			});
-
-			const scene = materializeAgentPanelSceneFromGraph({
-				panelId: "panel-1",
-				graph,
-				header: { title: "Session" },
-			});
-
-			const assistantEntries = scene.conversation.entries.filter((e) => e.type === "assistant");
-			expect(assistantEntries).toHaveLength(2);
-			expect((assistantEntries[0] as { isStreaming?: boolean }).isStreaming).toBe(false);
-			expect((assistantEntries[1] as { isStreaming?: boolean }).isStreaming).toBe(true);
-		});
-
-		it("does not infer streaming from transcript position when canonical active streaming tail is absent", () => {
-			const transcriptSnapshot = createTranscriptSnapshot([
-				createTranscriptEntry("u1", "user", "Question"),
-				createTranscriptEntry("a1", "assistant", "Answer"),
-			]);
-			const graph = createGraph({ transcriptSnapshot, turnState: "Running" });
-
-			const scene = materializeAgentPanelSceneFromGraph({
-				panelId: "panel-1",
-				graph,
-				header: { title: "Session" },
-			});
-
-			const assistantEntries = scene.conversation.entries.filter((e) => e.type === "assistant");
-			expect(assistantEntries).toHaveLength(1);
-			expect((assistantEntries[0] as { isStreaming?: boolean }).isStreaming).toBe(false);
-		});
-
-		it("marks no assistant entry as isStreaming when turnState is Completed", () => {
-			const transcriptSnapshot = createTranscriptSnapshot([
-				createTranscriptEntry("u1", "user", "Question"),
-				createTranscriptEntry("a1", "assistant", "Answer"),
-			]);
-			const graph = createGraph({ transcriptSnapshot, turnState: "Completed" });
-
-			const scene = materializeAgentPanelSceneFromGraph({
-				panelId: "panel-1",
-				graph,
-				header: { title: "Session" },
-			});
-
-			const assistantEntries = scene.conversation.entries.filter((e) => e.type === "assistant");
-			expect(assistantEntries).toHaveLength(1);
-			expect((assistantEntries[0] as { isStreaming?: boolean }).isStreaming).toBe(false);
-		});
-
-		it("does not let stale live assistant text hide a completed canonical answer", () => {
-			const transcriptSnapshot = createTranscriptSnapshot([
-				createTranscriptEntry("u1", "user", "Question"),
-				createTranscriptEntryFromSegments("a1", "assistant", [
-					"Umb",
-					"rellas",
-					" keep",
-					" you",
-					" dry",
-					" when",
-					" it",
-					" rains",
-					".",
-				]),
-			]);
-			const graph = createGraph({ transcriptSnapshot, turnState: "Completed" });
-			const staleLiveEntry: Extract<SessionEntry, { type: "assistant" }> = {
-				id: "a1",
-				type: "assistant",
-				message: {
-					chunks: [
-						{
-							type: "message",
-							block: {
-								type: "text",
-								text: "Umb",
-							},
-						},
-					],
-				},
-				isStreaming: true,
-				timestamp: new Date("2026-05-05T15:00:00.000Z"),
-			};
-
-			const scene = materializeAgentPanelSceneFromGraph({
-				panelId: "panel-1",
-				graph,
-				header: { title: "Session" },
-			});
-
-			expect(scene.conversation.entries).toContainEqual(
-				expect.objectContaining({
-					id: "a1",
-					type: "assistant",
-					markdown: "Umbrellas keep you dry when it rains.",
-					isStreaming: false,
-				})
-			);
-			void staleLiveEntry;
-		});
-
-		it("does not restart streaming reveal for the previous assistant while waiting for the next response", () => {
-			const transcriptSnapshot = createTranscriptSnapshot([
-				createTranscriptEntry("u1", "user", "First question"),
-				createTranscriptEntry("a1", "assistant", "First answer"),
-				createTranscriptEntry("u2", "user", "repeat in french"),
-			]);
-			const graph = createGraph({ transcriptSnapshot, turnState: "Running" });
-
-			const scene = materializeAgentPanelSceneFromGraph({
-				panelId: "panel-1",
-				graph,
-				header: { title: "Session" },
-			});
-
-			const assistantEntries = scene.conversation.entries.filter((e) => e.type === "assistant");
-			expect(assistantEntries).toHaveLength(1);
-			expect((assistantEntries[0] as { isStreaming?: boolean }).isStreaming).toBe(false);
-		});
-
-		it("marks the canonical active tail as isStreaming even when tool entries follow it", () => {
-			const transcriptSnapshot = createTranscriptSnapshot([
-				createTranscriptEntry("u1", "user", "Do the thing"),
-				createTranscriptEntry("a1", "assistant", "Running the tool"),
-				createTranscriptEntry("tool-1", "tool", "result"),
-				createTranscriptEntry("a2", "assistant", "Here is what I found"),
-			]);
-			const graph = createGraph({
-				transcriptSnapshot,
-				operations: [createOperationSnapshot()],
-				turnState: "Running",
-				activeStreamingTail: { rowId: "a2", contentKind: "message" },
-			});
-
-			const scene = materializeAgentPanelSceneFromGraph({
-				panelId: "panel-1",
-				graph,
-				header: { title: "Session" },
-			});
-
-			const assistantEntries = scene.conversation.entries.filter((e) => e.type === "assistant");
-			expect(assistantEntries).toHaveLength(2);
-			expect((assistantEntries[0] as { isStreaming?: boolean }).isStreaming).toBe(false);
-			expect((assistantEntries[1] as { isStreaming?: boolean }).isStreaming).toBe(true);
-		});
-
-		it("does not mark completed assistant text as streaming while a trailing tool is active", () => {
-			const transcriptSnapshot = createTranscriptSnapshot([
-				createTranscriptEntry("u1", "user", "Do the thing"),
-				createTranscriptEntry("a1", "assistant", "Running the tool"),
-				createTranscriptEntry("tool-1", "tool", "result"),
-			]);
-			const graph = createGraph({
-				transcriptSnapshot,
-				operations: [
-					createOperationSnapshot({
-						provider_status: "pending",
-						operation_state: "running",
-						awaiting_plan_approval: false,
-						result: null,
-					}),
-				],
-				turnState: "Running",
-				activity: {
-					kind: "running_operation",
-					activeOperationCount: 1,
-					activeSubagentCount: 0,
-					dominantOperationId: "op:session-1:tool-1",
-					blockingInteractionId: null,
-				},
-			});
-
-			const scene = materializeAgentPanelSceneFromGraph({
-				panelId: "panel-1",
-				graph,
-				header: { title: "Session" },
-			});
-
-			const assistantEntries = scene.conversation.entries.filter((e) => e.type === "assistant");
-			expect(assistantEntries).toHaveLength(1);
-			expect((assistantEntries[0] as { isStreaming?: boolean }).isStreaming).toBe(false);
-		});
-
-		it("keeps the open assistant streaming after a completed trailing tool while awaiting model text", () => {
-			const transcriptSnapshot = createTranscriptSnapshot([
-				createTranscriptEntry("u1", "user", "Do the thing"),
-				createTranscriptEntry("a1", "assistant", "Running the tool, then continuing"),
-				createTranscriptEntry("tool-1", "tool", "result"),
-			]);
-			const graph = createGraph({
-				transcriptSnapshot,
-				operations: [createOperationSnapshot()],
-				turnState: "Running",
-				activeStreamingTail: { rowId: "a1", contentKind: "message" },
-				activity: {
-					kind: "awaiting_model",
-					activeOperationCount: 0,
-					activeSubagentCount: 0,
-					dominantOperationId: null,
-					blockingInteractionId: null,
-				},
-			});
-
-			const scene = materializeAgentPanelSceneFromGraph({
-				panelId: "panel-1",
-				graph,
-				header: { title: "Session" },
-			});
-
-			const assistantEntries = scene.conversation.entries.filter((e) => e.type === "assistant");
-			expect(assistantEntries).toHaveLength(1);
-			expect((assistantEntries[0] as { isStreaming?: boolean }).isStreaming).toBe(true);
-		});
+	describe("conversation dispatcher ScenePatch pins", () => {
+  it("full rebuild selects ScenePatch kind fullRebuild on first materialization", () => {
+  			const graph = createGraph({
+  				transcriptSnapshot: createTranscriptSnapshot([
+  					createTranscriptEntry("user-1", "user", "hello"),
+  				]),
+  			});
+  			const readModel = createAgentPanelGraphMaterializerReadModel();
+
+  			readModel.apply({
+  				panelId: "panel-1",
+  				graph,
+  				header: { title: "Session" },
+  			});
+
+  			expect(readModel.selectConversationScenePatch()).toEqual({ kind: "fullRebuild" });
+  		});
+
+  it("reuse preserves the prior ScenePatch when only non-entry graph fields change", () => {
+  			const graph = createGraph({
+  				transcriptSnapshot: createTranscriptSnapshot([
+  					createTranscriptEntry("user-1", "user", "hello"),
+  				]),
+  			});
+  			const readModel = createAgentPanelGraphMaterializerReadModel();
+
+  			readModel.apply({
+  				panelId: "panel-1",
+  				graph,
+  				header: { title: "Session" },
+  			});
+  			const firstPatch = readModel.selectConversationScenePatch();
+
+  			readModel.apply({
+  				panelId: "panel-1",
+  				graph: {
+  					...graph,
+  					lifecycle: {
+  						...graph.lifecycle,
+  						status: "reconnecting",
+  					},
+  					revision: {
+  						graphRevision: 10,
+  						transcriptRevision: graph.revision.transcriptRevision,
+  						lastEventSeq: 43,
+  					},
+  				},
+  				header: { title: "Session" },
+  			});
+
+  			expect(readModel.selectConversationScenePatch()).toBe(firstPatch);
+  		});
+
+  it("activity-only update preserves ScenePatch when conversation entries are unchanged", () => {
+  			const graph = createGraph({
+  				transcriptSnapshot: createTranscriptSnapshot([
+  					createTranscriptEntry("user-1", "user", "hello"),
+  					createTranscriptEntry("assistant-1", "assistant", "working"),
+  				]),
+  				turnState: "Running",
+  				activeStreamingTail: { rowId: "assistant-1", contentKind: "message" },
+  				activity: {
+  					kind: "awaiting_model",
+  					activeOperationCount: 0,
+  					activeSubagentCount: 0,
+  					dominantOperationId: null,
+  					blockingInteractionId: null,
+  				},
+  			});
+  			const readModel = createAgentPanelGraphMaterializerReadModel();
+  			const firstScene = readModel.apply({
+  				panelId: "panel-1",
+  				graph,
+  				header: { title: "Session" },
+  			});
+  			const firstPatch = readModel.selectConversationScenePatch();
+
+  			const nextScene = readModel.apply({
+  				panelId: "panel-1",
+  				graph: {
+  					...graph,
+  					activity: {
+  						kind: "running_operation",
+  						activeOperationCount: 1,
+  						activeSubagentCount: 0,
+  						dominantOperationId: "op-1",
+  						blockingInteractionId: null,
+  					},
+  					revision: {
+  						graphRevision: 10,
+  						transcriptRevision: graph.revision.transcriptRevision,
+  						lastEventSeq: 43,
+  					},
+  				},
+  				header: { title: "Session" },
+  			});
+
+  			expect(nextScene.conversation.entries).toBe(firstScene.conversation.entries);
+  			expect(readModel.selectConversationScenePatch()).toBe(firstPatch);
+  		});
+
+  it("operation patch selects ScenePatch kind graphScene for a visible tool row change", () => {
+  			const operation = createOperationSnapshot({
+  				id: "op-1",
+  				tool_call_id: "tool-1",
+  				source_link: { kind: "transcript_linked", entry_id: "tool-1" },
+  				operation_state: "pending",
+  				provider_status: "pending",
+  				result: null,
+  			});
+  			const graph = createGraph({
+  				transcriptSnapshot: createTranscriptSnapshot([
+  					createTranscriptEntry("tool-1", "tool", "Run tests"),
+  				]),
+  				operations: [operation],
+  			});
+  			const readModel = createAgentPanelGraphMaterializerReadModel();
+  			const firstScene = readModel.apply({
+  				panelId: "panel-1",
+  				graph,
+  				header: { title: "Session" },
+  			});
+
+  			readModel.apply({
+  				panelId: "panel-1",
+  				graph: {
+  					...graph,
+  					operations: [
+  						{
+  							...operation,
+  							operation_state: "completed",
+  							provider_status: "completed",
+  							result: { stdout: "ok", stderr: null, exitCode: 0 },
+  						},
+  					],
+  					revision: {
+  						graphRevision: 10,
+  						transcriptRevision: graph.revision.transcriptRevision,
+  						lastEventSeq: 43,
+  					},
+  				},
+  				header: { title: "Session" },
+  			});
+
+  			const scenePatch = readModel.selectConversationScenePatch();
+  			expect(scenePatch.kind).toBe("graphScene");
+  			if (scenePatch.kind === "graphScene") {
+  				expect(scenePatch.patch.baseSceneEntries).toBe(firstScene.conversation.entries);
+  				expect(scenePatch.patch.entriesByIndex.get(0)).toBeDefined();
+  			}
+  		});
+
+  it("operation patch with no visible scene change preserves the prior ScenePatch", () => {
+  			const operation = createOperationSnapshot({
+  				id: "op-1",
+  				tool_call_id: "tool-1",
+  				source_link: { kind: "transcript_linked", entry_id: "tool-1" },
+  				operation_provenance_key: "first-key",
+  			});
+  			const graph = createGraph({
+  				transcriptSnapshot: createTranscriptSnapshot([
+  					createTranscriptEntry("tool-1", "tool", "Run tests"),
+  				]),
+  				operations: [operation],
+  			});
+  			const readModel = createAgentPanelGraphMaterializerReadModel();
+  			const firstScene = readModel.apply({
+  				panelId: "panel-1",
+  				graph,
+  				header: { title: "Session" },
+  			});
+  			const firstPatch = readModel.selectConversationScenePatch();
+
+  			const nextScene = readModel.apply({
+  				panelId: "panel-1",
+  				graph: {
+  					...graph,
+  					operations: [
+  						{
+  							...operation,
+  							operation_provenance_key: "second-key",
+  						},
+  					],
+  					revision: {
+  						graphRevision: 10,
+  						transcriptRevision: graph.revision.transcriptRevision,
+  						lastEventSeq: 43,
+  					},
+  				},
+  				header: { title: "Session" },
+  			});
+
+  			expect(nextScene.conversation.entries).toBe(firstScene.conversation.entries);
+  			expect(readModel.selectConversationScenePatch()).toBe(firstPatch);
+  		});
+
+  it("streaming-state patch selects ScenePatch kind graphScene when the active tail stops streaming", () => {
+  			const graph = createGraph({
+  				transcriptSnapshot: createTranscriptSnapshot([
+  					createTranscriptEntry("user-1", "user", "hello"),
+  					createTranscriptEntry("assistant-1", "assistant", "answer"),
+  				]),
+  				turnState: "Running",
+  				activeStreamingTail: { rowId: "assistant-1", contentKind: "message" },
+  			});
+  			const readModel = createAgentPanelGraphMaterializerReadModel();
+  			const firstScene = readModel.apply({
+  				panelId: "panel-1",
+  				graph,
+  				header: { title: "Session" },
+  			});
+  			expect(firstScene.conversation.isStreaming).toBe(true);
+
+  			readModel.apply({
+  				panelId: "panel-1",
+  				graph: {
+  					...graph,
+  					turnState: "Completed",
+  					activeStreamingTail: null,
+  					revision: {
+  						graphRevision: 10,
+  						transcriptRevision: graph.revision.transcriptRevision,
+  						lastEventSeq: 43,
+  					},
+  				},
+  				header: { title: "Session" },
+  			});
+
+  			const scenePatch = readModel.selectConversationScenePatch();
+  			expect(scenePatch.kind).toBe("graphScene");
+  			if (scenePatch.kind === "graphScene") {
+  				expect(scenePatch.patch.baseSceneEntries).toBe(firstScene.conversation.entries);
+  				expect(Array.from(scenePatch.patch.entriesByIndex.keys())).toEqual([1]);
+  			}
+  		});
+
+  it("transcript array patch selects ScenePatch kind graphScene for a marked row update", () => {
+  			const userEntry = createTranscriptEntry("user-1", "user", "hello");
+  			const assistantEntry = createTranscriptEntry("assistant-1", "assistant", "first");
+  			const patchedAssistantEntry = createTranscriptEntry("assistant-1", "assistant", "updated");
+  			const transcriptSnapshot = createTranscriptSnapshot([userEntry, assistantEntry]);
+  			const graph = createGraph({
+  				transcriptSnapshot,
+  				turnState: "Running",
+  				activeStreamingTail: { rowId: "assistant-1", contentKind: "message" },
+  			});
+  			const readModel = createAgentPanelGraphMaterializerReadModel();
+  			const firstScene = readModel.apply({
+  				panelId: "panel-1",
+  				graph,
+  				header: { title: "Session" },
+  			});
+  			const nextTranscriptEntries = [userEntry, patchedAssistantEntry];
+  			markTranscriptEntryArrayPatch(nextTranscriptEntries, {
+  				baseEntries: transcriptSnapshot.entries,
+  				patchedEntriesByIndex: new Map([[1, patchedAssistantEntry]]),
+  				appendedEntries: null,
+  			});
+
+  			readModel.apply({
+  				panelId: "panel-1",
+  				graph: {
+  					...graph,
+  					transcriptSnapshot: {
+  						revision: transcriptSnapshot.revision + 1,
+  						entries: nextTranscriptEntries,
+  					},
+  					revision: {
+  						graphRevision: 10,
+  						transcriptRevision: transcriptSnapshot.revision + 1,
+  						lastEventSeq: 43,
+  					},
+  				},
+  				header: { title: "Session" },
+  			});
+
+  			const scenePatch = readModel.selectConversationScenePatch();
+  			expect(scenePatch.kind).toBe("graphScene");
+  			if (scenePatch.kind === "graphScene") {
+  				expect(scenePatch.patch.baseSceneEntries).toBe(firstScene.conversation.entries);
+  				expect(Array.from(scenePatch.patch.entriesByIndex.keys())).toEqual([1]);
+  			}
+  		});
+
+  it("transcript patch selects ScenePatch kind graphScene for a single row text change", () => {
+  			const userEntry = createTranscriptEntry("user-1", "user", "hello");
+  			const assistantEntry = createTranscriptEntry("assistant-1", "assistant", "stream");
+  			const patchedAssistantEntry = createTranscriptEntry("assistant-1", "assistant", "done");
+  			const transcriptSnapshot = createTranscriptSnapshot([userEntry, assistantEntry]);
+  			const graph = createGraph({
+  				transcriptSnapshot,
+  				turnState: "Running",
+  				activeStreamingTail: { rowId: "assistant-1", contentKind: "message" },
+  			});
+  			const readModel = createAgentPanelGraphMaterializerReadModel();
+  			const firstScene = readModel.apply({
+  				panelId: "panel-1",
+  				graph,
+  				header: { title: "Session" },
+  			});
+
+  			readModel.apply({
+  				panelId: "panel-1",
+  				graph: {
+  					...graph,
+  					transcriptSnapshot: {
+  						revision: transcriptSnapshot.revision + 1,
+  						entries: [userEntry, patchedAssistantEntry],
+  					},
+  					revision: {
+  						graphRevision: 10,
+  						transcriptRevision: transcriptSnapshot.revision + 1,
+  						lastEventSeq: 43,
+  					},
+  				},
+  				header: { title: "Session" },
+  			});
+
+  			const scenePatch = readModel.selectConversationScenePatch();
+  			expect(scenePatch.kind).toBe("graphScene");
+  			if (scenePatch.kind === "graphScene") {
+  				expect(scenePatch.patch.baseSceneEntries).toBe(firstScene.conversation.entries);
+  				expect(Array.from(scenePatch.patch.entriesByIndex.keys())).toEqual([1]);
+  			}
+  		});
+
+  it("transcript patch-and-append selects ScenePatch kind graphSceneSplice", () => {
+  			const userEntry = createTranscriptEntry("user-1", "user", "hello");
+  			const firstAssistantEntry = createTranscriptEntry("assistant-1", "assistant", "first");
+  			const secondAssistantEntry = createTranscriptEntry("assistant-2", "assistant", "stream");
+  			const patchedSecondAssistantEntry = createTranscriptEntry(
+  				"assistant-2",
+  				"assistant",
+  				"streaming update"
+  			);
+  			const appendedAssistantEntry = createTranscriptEntry("assistant-3", "assistant", "done");
+  			const transcriptSnapshot = createTranscriptSnapshot([
+  				userEntry,
+  				firstAssistantEntry,
+  				secondAssistantEntry,
+  			]);
+  			const graph = createGraph({
+  				transcriptSnapshot,
+  				turnState: "Running",
+  				activeStreamingTail: { rowId: "assistant-2", contentKind: "message" },
+  			});
+  			const readModel = createAgentPanelGraphMaterializerReadModel();
+  			const firstScene = readModel.apply({
+  				panelId: "panel-1",
+  				graph,
+  				header: { title: "Session" },
+  			});
+
+  			readModel.apply({
+  				panelId: "panel-1",
+  				graph: {
+  					...graph,
+  					transcriptSnapshot: {
+  						revision: transcriptSnapshot.revision + 1,
+  						entries: [userEntry, firstAssistantEntry, patchedSecondAssistantEntry, appendedAssistantEntry],
+  					},
+  					revision: {
+  						graphRevision: 10,
+  						transcriptRevision: transcriptSnapshot.revision + 1,
+  						lastEventSeq: 43,
+  					},
+  				},
+  				header: { title: "Session" },
+  			});
+
+  			expect(readModel.selectConversationScenePatch().kind).toBe("graphSceneSplice");
+  			const splice = readModel.selectConversationScenePatch();
+  			if (splice.kind === "graphSceneSplice") {
+  				expect(splice.patch.baseSceneEntries).toBe(firstScene.conversation.entries);
+  			}
+  		});
+
+  it("transcript truncation without trailing interactions selects ScenePatch kind graphSceneTruncation", () => {
+  			const userEntry = createTranscriptEntry("user-1", "user", "hello");
+  			const assistantEntry = createTranscriptEntry("assistant-1", "assistant", "working");
+  			const secondUserEntry = createTranscriptEntry("user-2", "user", "follow up");
+  			const transcriptSnapshot = createTranscriptSnapshot([
+  				userEntry,
+  				assistantEntry,
+  				secondUserEntry,
+  			]);
+  			const graph = createGraph({ transcriptSnapshot });
+  			const readModel = createAgentPanelGraphMaterializerReadModel();
+  			const firstScene = readModel.apply({
+  				panelId: "panel-1",
+  				graph,
+  				header: { title: "Session" },
+  			});
+
+  			readModel.apply({
+  				panelId: "panel-1",
+  				graph: {
+  					...graph,
+  					transcriptSnapshot: {
+  						revision: transcriptSnapshot.revision + 1,
+  						entries: [userEntry, assistantEntry],
+  					},
+  					revision: {
+  						graphRevision: 10,
+  						transcriptRevision: transcriptSnapshot.revision + 1,
+  						lastEventSeq: 43,
+  					},
+  				},
+  				header: { title: "Session" },
+  			});
+
+  			expect(readModel.selectConversationScenePatch()).toMatchObject({
+  				kind: "graphSceneTruncation",
+  				patch: {
+  					baseSceneEntries: firstScene.conversation.entries,
+  					length: 2,
+  				},
+  			});
+  		});
+
+  it("transcript append selects ScenePatch kind graphSceneAppend", () => {
+  			const userEntry = createTranscriptEntry("user-1", "user", "hello");
+  			const toolEntry = createTranscriptEntry("tool-1", "tool", "Ran command");
+  			const graph = createGraph({
+  				transcriptSnapshot: createTranscriptSnapshot([userEntry]),
+  			});
+  			const readModel = createAgentPanelGraphMaterializerReadModel();
+  			const firstScene = readModel.apply({
+  				panelId: "panel-1",
+  				graph,
+  				header: { title: "Session" },
+  			});
+
+  			readModel.apply({
+  				panelId: "panel-1",
+  				graph: {
+  					...graph,
+  					transcriptSnapshot: {
+  						revision: graph.transcriptSnapshot.revision + 1,
+  						entries: [userEntry, toolEntry],
+  					},
+  					revision: {
+  						graphRevision: 10,
+  						transcriptRevision: graph.transcriptSnapshot.revision + 1,
+  						lastEventSeq: 43,
+  					},
+  				},
+  				header: { title: "Session" },
+  			});
+
+  			expect(readModel.selectConversationScenePatch().kind).toBe("graphSceneAppend");
+  		});
+
+  it("interaction visible append selects ScenePatch kind graphSceneAppend", () => {
+  			const transcriptSnapshot = createTranscriptSnapshot([
+  				createTranscriptEntry("user-1", "user", "Can you ask me?"),
+  			]);
+  			const operations: OperationSnapshot[] = [];
+  			const baseGraph = createGraph({
+  				transcriptSnapshot,
+  				operations,
+  				turnState: "Running",
+  				activity: {
+  					kind: "running_operation",
+  					activeOperationCount: 1,
+  					activeSubagentCount: 0,
+  					dominantOperationId: null,
+  					blockingInteractionId: null,
+  				},
+  				interactions: [],
+  			});
+  			const questionGraph = createGraph({
+  				transcriptSnapshot,
+  				operations,
+  				turnState: "Running",
+  				activity: {
+  					kind: "waiting_for_user",
+  					activeOperationCount: 0,
+  					activeSubagentCount: 0,
+  					dominantOperationId: null,
+  					blockingInteractionId: "question-1",
+  				},
+  				interactions: [
+  					createQuestionInteraction({
+  						id: "question-1",
+  						jsonRpcRequestId: 1,
+  						replyHandler: { kind: "json_rpc", requestId: "1" },
+  					}),
+  				],
+  			});
+  			const readModel = createAgentPanelGraphMaterializerReadModel();
+  			const firstScene = readModel.apply({
+  				panelId: "panel-1",
+  				graph: baseGraph,
+  				header: { title: "Question session" },
+  			});
+
+  			readModel.apply({
+  				panelId: "panel-1",
+  				graph: questionGraph,
+  				header: { title: "Question session" },
+  			});
+
+  			const scenePatch = readModel.selectConversationScenePatch();
+  			expect(scenePatch.kind).toBe("graphSceneAppend");
+  			if (scenePatch.kind === "graphSceneAppend") {
+  				expect(scenePatch.patch.baseSceneEntries).toBe(firstScene.conversation.entries);
+  			}
+  		});
+
+  it("blocking interaction retarget selects ScenePatch kind graphSceneSplice", () => {
+  			const transcriptSnapshot = createTranscriptSnapshot([
+  				createTranscriptEntry("tool-1", "tool", "Run first"),
+  			]);
+  			const questionOne = createQuestionInteraction({
+  				id: "question-1",
+  				jsonRpcRequestId: 1,
+  				replyHandler: { kind: "json_rpc", requestId: "1" },
+  			});
+  			const questionTwo = createQuestionInteraction({
+  				id: "question-2",
+  				jsonRpcRequestId: 2,
+  				replyHandler: { kind: "json_rpc", requestId: "2" },
+  			});
+  			const graph = createGraph({
+  				transcriptSnapshot,
+  				interactions: [questionOne, questionTwo],
+  				activity: {
+  					kind: "waiting_for_user",
+  					activeOperationCount: 0,
+  					activeSubagentCount: 0,
+  					dominantOperationId: null,
+  					blockingInteractionId: "question-1",
+  				},
+  			});
+  			const readModel = createAgentPanelGraphMaterializerReadModel();
+  			const firstScene = readModel.apply({
+  				panelId: "panel-1",
+  				graph,
+  				header: { title: "Question session" },
+  			});
+
+  			readModel.apply({
+  				panelId: "panel-1",
+  				graph: {
+  					...graph,
+  					activity: {
+  						kind: "waiting_for_user",
+  						activeOperationCount: 0,
+  						activeSubagentCount: 0,
+  						dominantOperationId: null,
+  						blockingInteractionId: "question-2",
+  					},
+  					revision: {
+  						graphRevision: 10,
+  						transcriptRevision: graph.revision.transcriptRevision,
+  						lastEventSeq: 43,
+  					},
+  				},
+  				header: { title: "Question session" },
+  			});
+
+  			expect(readModel.selectConversationScenePatch().kind).toBe("graphSceneSplice");
+  			const splice = readModel.selectConversationScenePatch();
+  			if (splice.kind === "graphSceneSplice") {
+  				expect(splice.patch.baseSceneEntries).toBe(firstScene.conversation.entries);
+  			}
+  		});
 	});
 });

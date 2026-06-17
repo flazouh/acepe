@@ -914,3 +914,40 @@ describe("TranscriptViewportStore buffer protocol", () => {
 		});
 	});
 });
+
+describe("TranscriptViewportStore client scroll state", () => {
+	it("stores per-session outside-buffer recovery intent", () => {
+		const store = new TranscriptViewportStore();
+		store.setPendingOutsideBufferScrollTopPx("session-a", 640_000, 640_000);
+		expect(store.getClientScrollState("session-a").pendingOutsideBufferScrollTopPx).toBe(640_000);
+		expect(store.getClientScrollState("session-a").activeOutsideBufferRequestedScrollTopPx).toBe(
+			640_000
+		);
+	});
+
+	it("resets outside-buffer recovery when switching sessions", () => {
+		const store = new TranscriptViewportStore();
+		store.setPendingOutsideBufferScrollTopPx("session-a", 9_500, 9_500);
+		store.setLastOutsideBufferRecoveryDispatchMs("session-a", 1_000);
+
+		expect(store.getClientScrollState("session-b").pendingOutsideBufferScrollTopPx).toBeNull();
+		expect(store.getClientScrollState("session-b").lastOutsideBufferRecoveryDispatchMs).toBeNull();
+	});
+
+	it("clears outside-buffer recovery without dropping queued scroll intent", () => {
+		const store = new TranscriptViewportStore();
+		store.setPendingOutsideBufferScrollTopPx("session-a", 100, 100);
+		store.setPendingQueuedScrollIntentPx("session-a", 500);
+		store.clearOutsideBufferRecovery("session-a");
+
+		expect(store.getClientScrollState("session-a").pendingOutsideBufferScrollTopPx).toBeNull();
+		expect(store.getClientScrollState("session-a").pendingQueuedScrollIntentPx).toBe(500);
+	});
+
+	it("drops client scroll state on removeSession", () => {
+		const store = new TranscriptViewportStore();
+		store.setPendingOutsideBufferScrollTopPx("session-a", 100, 100);
+		store.removeSession("session-a");
+		expect(store.getClientScrollState("session-a").pendingOutsideBufferScrollTopPx).toBeNull();
+	});
+});

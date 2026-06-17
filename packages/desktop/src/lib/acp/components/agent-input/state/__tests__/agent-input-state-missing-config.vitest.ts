@@ -90,24 +90,30 @@ describe("AgentInputState - sendPreparedMessage input guards", () => {
 	});
 
 	it("returns a session creation error when a deferred first prompt fails", async () => {
-		const mockStore: Partial<SessionStore> = {
-			createSession: vi.fn(() =>
-				// Claude Code can reserve a pending session before the first prompt
-				// actually starts the subprocess.
-				okAsync({
-					kind: "pending",
-					sessionId: "pending-session",
-					creationAttemptId: "attempt-1",
-					projectPath: "/tmp/project",
-					agentId: "claude-code",
-					title: "hello",
-					worktreePath: null,
-				} satisfies SessionCreationResult)
-			),
-			sendMessage: vi.fn(() =>
-				errAsync(new AgentError("sendPrompt", new Error("transport unavailable")))
-			),
-		};
+		const mockStore = {
+			connection: {
+				createSession: vi.fn(() =>
+					// Claude Code can reserve a pending session before the first prompt
+					// actually starts the subprocess.
+					okAsync({
+						kind: "pending",
+						sessionId: "pending-session",
+						creationAttemptId: "attempt-1",
+						projectPath: "/tmp/project",
+						agentId: "claude-code",
+						title: "hello",
+						worktreePath: null,
+					} satisfies SessionCreationResult)
+				),
+				sendMessage: vi.fn(() =>
+					errAsync(new AgentError("sendPrompt", new Error("transport unavailable")))
+				),
+			},
+			composer: {
+				beginDispatch: vi.fn(() => {}),
+				endDispatch: vi.fn(() => {}),
+			},
+		} as unknown as SessionStore;
 		const mockPanelStore: Partial<PanelStore> = {
 			getHotState: vi.fn(() => DEFAULT_PANEL_HOT_STATE),
 			setPendingUserEntry: vi.fn(),

@@ -12,9 +12,21 @@ export type {
 export { default as AgentAssistantMessage } from "./agent-assistant-message.svelte";
 export { default as AgentAttachedFilePane } from "./agent-attached-file-pane.svelte";
 export { default as AgentPanelErrorCard } from "./agent-error-card.svelte";
+export { default as AgentPanelSignInCard } from "./agent-sign-in-card.svelte";
+export { default as AgentInputActiveModeChip } from "./agent-input-active-mode-chip.svelte";
 export { default as AgentInputArtefactBadge } from "./agent-input-artefact-badge.svelte";
+export { default as AgentInputAttachMenu } from "./agent-input-attach-menu.svelte";
+export type {
+	AttachMenuCommandItem,
+	AttachMenuCommandSection,
+	AttachMenuMcpServerGroup,
+	AttachMenuModeItem,
+} from "./agent-input-attach-menu-state.js";
+export { filterAttachMenuItems } from "./agent-input-attach-menu-state.js";
 export { default as AgentInputAutonomousToggle } from "./agent-input-autonomous-toggle.svelte";
+export { default as AgentInputComposerRow } from "./agent-input-composer-row.svelte";
 export { default as AgentInputComposerToolbar } from "./agent-input-composer-toolbar.svelte";
+export { default as AgentInputComposerTrailingControls } from "./agent-input-composer-trailing-controls.svelte";
 export { default as AgentInputConfigOptionSelector } from "./agent-input-config-option-selector.svelte";
 export type { AgentInputConfigOption } from "./agent-input-config-option-types.js";
 export { default as AgentInputDivider } from "./agent-input-divider.svelte";
@@ -22,8 +34,16 @@ export { default as AgentInputEditor } from "./agent-input-editor.svelte";
 export { default as AgentInputFilePickerDropdown } from "./agent-input-file-picker-dropdown.svelte";
 export { default as AgentInputMetricsChip } from "./agent-input-metrics-chip.svelte";
 export { default as AgentInputMicButton } from "./agent-input-mic-button.svelte";
+export { default as AgentInputModeIcon } from "./agent-input-mode-icon.svelte";
 export { default as AgentInputModePill } from "./agent-input-mode-pill.svelte";
 export { default as AgentInputModeSelector } from "./agent-input-mode-selector.svelte";
+export {
+	getModeDropdownOptions,
+	getSelectedModeOption,
+	shouldEmitModeChange,
+	type AgentInputMode,
+	type ModeIconKind,
+} from "./agent-input-mode-selector-state.js";
 export { default as AgentInputModelFavoriteStar } from "./agent-input-model-favorite-star.svelte";
 export { default as AgentInputModelRow } from "./agent-input-model-row.svelte";
 export { default as AgentInputModelSelector } from "./agent-input-model-selector.svelte";
@@ -95,6 +115,9 @@ export { default as AgentToolSearch } from "./agent-tool-search.svelte";
 export { default as AgentToolSkill } from "./agent-tool-skill.svelte";
 export { default as AgentToolTask } from "./agent-tool-task.svelte";
 export { default as AgentToolThinking } from "./agent-tool-thinking.svelte";
+export { default as AgentThinkingDurationHeader } from "./agent-thinking-duration-header.svelte";
+export { default as AgentToolDurationLabel } from "./agent-tool-duration-label.svelte";
+export type { ToolDurationTiming } from "./tool-duration.js";
 export { default as ThinkingDotMatrix } from "./thinking-dot-matrix.svelte";
 export { default as AgentToolTodo } from "./agent-tool-todo.svelte";
 export { default as AgentToolWebSearch } from "./agent-tool-web-search.svelte";
@@ -102,6 +125,8 @@ export { default as ToolKindIcon } from "./tool-kind-icon.svelte";
 export { default as ToolHeaderLeading } from "./tool-header-leading.svelte";
 export { resolveThinkingDurationMs, shouldRunThinkingTimer } from "./thinking-duration.js";
 export { default as AgentUserMessage } from "./agent-user-message.svelte";
+export { CommandChip } from "../command-chip/index.js";
+export type { CommandChipModel } from "../command-chip/index.js";
 export { default as AgentPanelBrowserPanel } from "./browser-panel.svelte";
 export { default as AgentCompactToolDisplay } from "./compact-tool-display.svelte";
 export { default as AgentPanelCreatePrButton } from "./create-pr-button.svelte";
@@ -198,6 +223,7 @@ export type {
 	AgentToolKind,
 	AgentToolPresentationState,
 	AgentToolStatus,
+	AgentUserContentChunk,
 	AgentUserEntry,
 	AgentWebSearchLink,
 	AnyAgentEntry,

@@ -23,18 +23,12 @@ const IconComponent = $derived(icon ?? Sparkle);
 		className
 	)}
 >
-	<div
-		class="flex size-10 items-center justify-center rounded-full border border-border/50 bg-background text-muted-foreground/60"
-	>
-		<IconComponent class="size-4" weight="regular" />
-	</div>
-	<div class="flex flex-col gap-1 max-w-[360px]">
+	<IconComponent class="size-5 text-muted-foreground/50" weight="regular" />
+	<div class="flex max-w-[360px] flex-col gap-1">
 		<p class="text-[13px] font-medium text-foreground/80">{headline}</p>
 		<p class="text-[12px] leading-relaxed text-muted-foreground/60">{description}</p>
 	</div>
-	<span
-		class="mt-1 rounded-full border border-border/50 bg-background px-2 py-0.5 text-[10px] font-medium text-muted-foreground"
-	>
+	<span class="text-[10px] font-medium uppercase tracking-[0.08em] text-muted-foreground/50">
 		Coming soon
 	</span>
 </div>

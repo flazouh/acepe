@@ -1,38 +1,39 @@
-export type WorktreeToggleValue = "yes" | "no";
+export type WorktreeLaunchMode = "local" | "worktree";
 
-export function isPreSessionWorktreeOn(input: {
-	pendingWorktreeEnabled: boolean;
-	alwaysEnabled: boolean;
-}): boolean {
-	return input.pendingWorktreeEnabled || input.alwaysEnabled;
+export interface PreSessionWorktreeModeOption {
+	readonly id: WorktreeLaunchMode;
+	readonly label: string;
 }
 
-export function getPreSessionWorktreeToggleValue(input: {
+export function getPreSessionWorktreeMode(input: {
 	pendingWorktreeEnabled: boolean;
-	alwaysEnabled: boolean;
-}): WorktreeToggleValue {
-	return isPreSessionWorktreeOn(input) ? "yes" : "no";
+}): WorktreeLaunchMode {
+	return input.pendingWorktreeEnabled ? "worktree" : "local";
 }
 
-export function getPreSessionWorktreeToggleItems(input: {
-	yesLabel: string;
-	noLabel: string;
-}): readonly [
-	{ readonly id: "yes"; readonly label: string },
-	{ readonly id: "no"; readonly label: string },
-] {
+export function getPreSessionWorktreeModeOptions(input: {
+	localLabel: string;
+	worktreeLabel: string;
+}): readonly [PreSessionWorktreeModeOption, PreSessionWorktreeModeOption] {
 	return [
-		{ id: "yes", label: input.yesLabel },
-		{ id: "no", label: input.noLabel },
+		{ id: "local", label: input.localLabel },
+		{ id: "worktree", label: input.worktreeLabel },
 	];
 }
 
+export function getSelectedPreSessionWorktreeModeOption(input: {
+	mode: WorktreeLaunchMode;
+	modeOptions: readonly PreSessionWorktreeModeOption[];
+}): PreSessionWorktreeModeOption {
+	return (
+		input.modeOptions.find((option) => option.id === input.mode) ?? input.modeOptions[0]
+	);
+}
+
 export function getPreSessionWorktreeIconClass(input: {
-	worktreeOn: boolean;
-	alwaysEnabled: boolean;
+	mode: WorktreeLaunchMode;
 }): string {
-	if (input.alwaysEnabled) return "text-purple-400";
-	return input.worktreeOn ? "text-success" : "text-destructive";
+	return input.mode === "worktree" ? "text-success" : "text-muted-foreground";
 }
 
 export function shouldShowPreSessionWorktreeExpanded(input: {

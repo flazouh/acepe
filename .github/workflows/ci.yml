@@ -176,10 +176,14 @@ jobs:
           cache: true
           cache-dependency-path: bun.lock
 
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Audit dependencies
+        run: bun run audit
+
       - name: Forbid structural tests
-        run: |
-          bun install --frozen-lockfile
-          bun scripts/forbid-structural-tests.ts packages
+        run: bun scripts/forbid-structural-tests.ts packages
 
   # ── JS/TS: format+lint+typecheck + all package tests (parallel) ────
   frontend:

@@ -1,16 +1,16 @@
 <script lang="ts">
 	import { IconTerminal } from "@tabler/icons-svelte";
-	import { BookOpenText } from "phosphor-svelte";
+	import { IconPlug } from "@tabler/icons-svelte";
 	import * as Dialog from "../dialog/index.js";
 	import { StreamdownMarkdown } from "../streamdown-markdown/index.js";
 	import { INLINE_ARTEFACT_PACKAGE_PATH } from "../inline-artefact-badge/inline-artefact-badge.styles.js";
-	import { COLOR_NAMES, Colors } from "../../lib/colors.js";
+	import AgentInputSlashCommandRow from "./agent-input-slash-command-row.svelte";
+	import { getSlashCommandIconColor } from "./agent-input-slash-command-row-state.js";
 	import {
 		getEffectiveSlashCommandIndex,
 		getFilteredSlashCommands,
 		getNextSlashCommandIndex,
 		getSlashCommandEmptyState,
-		getSlashCommandMetaLabel,
 		getSlashCommandWorkspaceMarkdown,
 		type AgentInputSlashCommand,
 		type AgentInputSlashCommandTokenType,
@@ -106,9 +106,7 @@
 			? `${fallbackWorkspaceMarkdown}\n\n---\n\n## Skill content\n\n${loadedWorkspaceMarkdown}`
 			: fallbackWorkspaceMarkdown
 	);
-	const iconColor = $derived(
-		tokenType === "skill" ? Colors[COLOR_NAMES.PURPLE] : Colors[COLOR_NAMES.AMBER]
-	);
+	const iconColor = $derived(getSlashCommandIconColor(tokenType));
 
 	function scrollSelectedIntoView(): void {
 		const item = itemRefs[effectiveSelectedIndex];
@@ -200,7 +198,7 @@
 	<!-- svelte-ignore a11y_no_static_element_interactions -->
 	<div
 		use:portalToBody
-		class="fixed z-[var(--overlay-z)] w-72 overflow-hidden rounded-xl border bg-popover/98 shadow-xl backdrop-blur"
+		class="fixed z-[var(--overlay-z)] w-72 overflow-hidden rounded-lg border bg-popover/98 shadow-xl backdrop-blur"
 		style="top: {position.top}px; left: {position.left}px; transform: translateY(-100%); margin-top: -6px;"
 		onmousedown={(event) => event.preventDefault()}
 	>
@@ -217,63 +215,18 @@
 			<div class="flex max-h-56 flex-col overflow-y-auto py-1">
 				{#each filteredCommands as command, index (`${command.name}-${index}`)}
 					{@const isSelected = index === effectiveSelectedIndex}
-					{@const metaLabel = getSlashCommandMetaLabel({ command, tokenType })}
-					<!-- svelte-ignore a11y_click_events_have_key_events -->
-					<!-- svelte-ignore a11y_no_static_element_interactions -->
-					<div
-						bind:this={itemRefs[index]}
-						class="mx-1.5 flex cursor-pointer items-start gap-2 rounded-md px-2 py-1.5 {isSelected ? 'bg-accent text-accent-foreground' : 'hover:bg-accent/50'}"
-						title={command.description}
-						onclick={() => onSelect(command)}
-						onmouseenter={() => {
-							selectedIndex = index;
-						}}
-					>
-						<div
-							class="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-[5px]"
-							style="color: {iconColor};"
-						>
-							{#if tokenType === "skill"}
-								<svg
-									viewBox="0 0 256 256"
-									fill="currentColor"
-									class="h-2.5 w-2.5"
-									aria-hidden="true"
-								>
-									<path d={INLINE_ARTEFACT_PACKAGE_PATH} />
-								</svg>
-							{:else}
-								<IconTerminal class="h-2.5 w-2.5" />
-							{/if}
-						</div>
-						<div class="min-w-0 flex-1">
-							<div class="flex min-w-0 items-baseline gap-1.5">
-								<span class="min-w-0 truncate font-mono text-[12px] font-medium leading-4">
-									/{command.name}
-								</span>
-							</div>
-							{#if command.description.trim().length > 0}
-								<div class="truncate text-[11px] leading-4 text-muted-foreground">
-									{command.description}
-								</div>
-							{/if}
-							<div class="truncate text-[10px] leading-3 text-muted-foreground/70">
-								{metaLabel}
-							</div>
-						</div>
-						<button
-							type="button"
-							class="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-md text-muted-foreground transition hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-							title="Open readable details"
-							aria-label="Open readable details for /{command.name}"
-							onclick={(event) => {
-								event.preventDefault();
-								event.stopPropagation();
-								openWorkspaceModal(command);
+					<div bind:this={itemRefs[index]}>
+						<AgentInputSlashCommandRow
+							{command}
+							{tokenType}
+							selected={isSelected}
+							showPreviewButton={tokenType === "skill"}
+							onSelect={() => onSelect(command)}
+							onPreview={() => openWorkspaceModal(command)}
+							onHover={() => {
+								selectedIndex = index;
 							}}
-						>
-							<BookOpenText weight="fill" class="h-3 w-3" />
-						</button>
+						/>
 					</div>
 				{/each}
 			</div>
@@ -281,7 +234,7 @@
 			<div class="flex items-center gap-1.5 border-t border-border/60 bg-muted/20 px-2.5 py-1 shrink-0">
 				<kbd class="rounded border bg-muted px-1 py-0.5 text-[10px] font-medium leading-none">Enter</kbd>
 				<span class="text-[10px] text-muted-foreground">{selectHintLabel}</span>
-				<kbd class="ml-1 rounded border bg-muted px-1 py-0.5 text-[10px] font-medium leading-none">Esc</kbd>
+				<kbd class="ml-1 rounded-lg border bg-muted px-1 py-0.5 text-[10px] font-medium leading-none">Esc</kbd>
 				<span class="text-[10px] text-muted-foreground">{closeHintLabel}</span>
 			</div>
 		{:else if emptyState === "no-commands"}
@@ -310,6 +263,8 @@
 						<svg viewBox="0 0 256 256" fill="currentColor" class="h-3 w-3" aria-hidden="true">
 							<path d={INLINE_ARTEFACT_PACKAGE_PATH} />
 						</svg>
+					{:else if tokenType === "mcp"}
+						<IconPlug class="h-3 w-3" />
 					{:else}
 						<IconTerminal class="h-3 w-3" />
 					{/if}
@@ -325,7 +280,7 @@
 				<div class="mb-3 text-[11px] text-muted-foreground">Loading full skill content...</div>
 			{/if}
 			{#if workspaceMarkdownError}
-				<div class="mb-3 rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-[11px] text-destructive">
+				<div class="mb-3 rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-[11px] text-destructive">
 					{workspaceMarkdownError}
 				</div>
 			{/if}

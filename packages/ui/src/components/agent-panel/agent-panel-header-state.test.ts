@@ -3,10 +3,10 @@ import {
 	getAgentPanelHeaderTitle,
 	getHeaderStatusIndicatorKind,
 	getVisibleHeaderActionButtons,
-	hasAgentPanelHeaderExpansion,
 	hasAgentPanelHeaderMetaChips,
+	hasAgentPanelHeaderTooltipDetails,
 	isHeaderActionDisabled,
-	shouldShowAgentPanelHeaderExpansion,
+	shouldShowAgentPanelHeaderTitleTooltip,
 } from "./agent-panel-header-state.js";
 import type { AgentPanelActionDescriptor } from "./types.js";
 
@@ -52,40 +52,35 @@ describe("agent panel header state", () => {
 		).toBe(true);
 	});
 
-	test("detects whether expansion is available and visible", () => {
+	test("detects title tooltip visibility and extra tooltip details", () => {
 		expect(
-			hasAgentPanelHeaderExpansion({
+			shouldShowAgentPanelHeaderTitleTooltip({
 				pendingProjectSelection: true,
-				hasExpansionSlot: true,
-				hasMetaChips: true,
 			})
 		).toBe(false);
 		expect(
-			hasAgentPanelHeaderExpansion({
+			shouldShowAgentPanelHeaderTitleTooltip({
 				pendingProjectSelection: false,
+			})
+		).toBe(true);
+		expect(
+			hasAgentPanelHeaderTooltipDetails({
 				hasExpansionSlot: false,
 				hasMetaChips: false,
 			})
 		).toBe(false);
 		expect(
-			hasAgentPanelHeaderExpansion({
-				pendingProjectSelection: false,
+			hasAgentPanelHeaderTooltipDetails({
 				hasExpansionSlot: true,
 				hasMetaChips: false,
 			})
 		).toBe(true);
 		expect(
-			shouldShowAgentPanelHeaderExpansion({
-				hasExpansion: true,
-				expansionActive: true,
+			hasAgentPanelHeaderTooltipDetails({
+				hasExpansionSlot: false,
+				hasMetaChips: true,
 			})
 		).toBe(true);
-		expect(
-			shouldShowAgentPanelHeaderExpansion({
-				hasExpansion: true,
-				expansionActive: false,
-			})
-		).toBe(false);
 	});
 
 	test("maps status indicator kind", () => {

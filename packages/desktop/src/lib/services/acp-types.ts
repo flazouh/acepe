@@ -24,6 +24,31 @@ hint: string }
 export type AvailableCommand = { name: string; description: string; input?: CommandInput | null }
 
 /**
+ * How the composer MCP catalog was assembled.
+ */
+export type ComposerMcpCatalogSource = "preconnectionConfig" | "liveSession" | "mixed"
+
+/**
+ * Connection status for a composer MCP server row.
+ */
+export type ComposerMcpConnectionStatus = "connected" | "failed" | "needs-auth" | "pending" | "disabled" | "unknown"
+
+/**
+ * Selectable MCP tool row in the composer attach menu.
+ */
+export type ComposerMcpTool = { id: string; name: string; description: string | null; insertText: string }
+
+/**
+ * MCP server group with slash commands and tools for the composer.
+ */
+export type ComposerMcpServer = { id: string; name: string; status: ComposerMcpConnectionStatus; error: string | null; tools: ComposerMcpTool[]; slashCommands: AvailableCommand[] }
+
+/**
+ * Project-scoped MCP catalog for the composer attach menu.
+ */
+export type ComposerMcpCatalog = { source: ComposerMcpCatalogSource; servers: ComposerMcpServer[] }
+
+/**
  * Pre-computed model info for display. Frontend uses this directly.
  */
 export type DisplayableModel = { modelId: string; displayName: string; description?: string | null }
@@ -289,9 +314,9 @@ export type TodoUpdateOperation = "replace" | "upsert" | "set_status" | "set_sta
  */
 export type TodoUpdate = { operation: TodoUpdateOperation; items?: TodoItem[] | null; fromStatuses?: TodoStatus[] | null; toStatus?: TodoStatus | null }
 
-export type TranscriptEntryRole = "user" | "assistant" | "tool" | "error"
+export type TranscriptEntryRole = "user" | "assistant" | "tool"
 
-export type TranscriptSegment = { kind: "text"; segmentId: string; text: string } | { kind: "thought"; segmentId: string; text: string }
+export type TranscriptSegment = { kind: "text"; segmentId: string; text: string } | { kind: "thought"; segmentId: string; text: string } | { kind: "localCommand"; segmentId: string; command: string; message: string; args: string; stdout: string; modelDisplayName?: string | null; modelDescription?: string | null }
 
 export type TranscriptEntry = { entryId: string; role: TranscriptEntryRole; segments: TranscriptSegment[]; attemptId?: string | null; timestampMs?: number | null }
 
@@ -355,7 +380,7 @@ answers: Partial<{ [key in string]: JsonValue }> }
 
 export type SessionTurnState = "Idle" | "Running" | "Completed" | "Failed" | "Cancelled"
 
-export type SessionSnapshot = { session_id: string; agent_id: CanonicalAgentId | null; last_event_seq: number; turn_state: SessionTurnState; message_count: number; active_tool_call_ids: string[]; completed_tool_call_ids: string[]; active_turn_failure?: TurnFailureSnapshot | null; last_terminal_turn_id?: string | null }
+export type SessionSnapshot = { session_id: string; agent_id: CanonicalAgentId | null; last_event_seq: number; turn_state: SessionTurnState; message_count: number; active_tool_call_ids: string[]; completed_tool_call_ids: string[]; active_turn_failure?: TurnFailureSnapshot | null; last_terminal_turn_id?: string | null; assistant_boundary_entry_count?: number; transcript_entry_count?: number }
 
 export type OperationState = "pending" | "running" | "blocked" | "completed" | "failed" | "cancelled" | "degraded"
 
@@ -397,7 +422,14 @@ export type TurnFailureSnapshot = { turn_id: string | null; message: string; cod
 
 export type LifecycleStatus = "reserved" | "activating" | "ready" | "reconnecting" | "detached" | "failed" | "archived"
 
-export type DetachedReason = "restoredRequiresAttach" | "reconnectExhausted" | "abandonedInFlight" | "legacyAmbiguousRestore" | "closedByClient"
+export type DetachedReason = "restoredRequiresAttach" | "reconnectExhausted" | "abandonedInFlight" | "legacyAmbiguousRestore" | "closedByClient" |
+/**
+ * The agent requires an interactive sign-in before it can activate.
+ * Distinct from a failure: the session is parked awaiting user action and
+ * can be retried once authentication completes. Rendered as a neutral
+ * sign-in card (no error chrome) above the composer.
+ */
+"awaitingAuthentication"
 
 export type FailureReason = "deterministicRestoreFault" | "activationFailed" | "resumeFailed" | "sessionGoneUpstream" | "providerSessionMismatch" | "corruptedPersistedState" | "explicitErrorHandlingRequired" | "legacyIrrecoverable"
 
@@ -500,13 +532,13 @@ export type CapabilityPreviewState = "canonical" | "pending" | "failed" | "parti
 
 export type SessionGraphActivityKind = "awaiting_model" | "running_operation" | "waiting_for_user" | "paused" | "error" | "idle"
 
-export type SessionGraphActivity = { kind: SessionGraphActivityKind; activeOperationCount: number; activeSubagentCount: number; dominantOperationId?: string | null; blockingInteractionId?: string | null }
+export type SessionGraphActivity = { kind: SessionGraphActivityKind; activeOperationCount: number; activeSubagentCount: number; dominantOperationId?: string | null; blockingInteractionId?: string | null; kindStartedAtMs?: number | null }
 
 export type ActiveStreamingTailContentKind = "thought" | "message"
 
 export type ActiveStreamingTail = { rowId: string; contentKind: ActiveStreamingTailContentKind }
 
-export type TranscriptViewportRowKind = "user" | "assistantText" | "assistantThought" | "tool" | "error"
+export type TranscriptViewportRowKind = "user" | "assistantText" | "assistantThought" | "tool" | "awaitingPlaceholder"
 
 export type TranscriptViewportOperationLink = { operationId: string; toolCallId: string; name: string; state: OperationState }
 
@@ -514,7 +546,7 @@ export type TranscriptViewportInteractionLink = { interactionId: string; kind: I
 
 export type TranscriptViewportRowContent = { kind: "transcript"; role: TranscriptEntryRole; segments: TranscriptSegment[] }
 
-export type TranscriptViewportRow = { rowId: string; sourceEntryId: string; kind: TranscriptViewportRowKind; version: string; anchorEligible: boolean; activeStreamingTail: ActiveStreamingTailContentKind | null; operationLinks: TranscriptViewportOperationLink[]; interactionLinks: TranscriptViewportInteractionLink[]; content: TranscriptViewportRowContent }
+export type TranscriptViewportRow = { rowId: string; sourceEntryId: string; kind: TranscriptViewportRowKind; version: string; anchorEligible: boolean; activeStreamingTail: ActiveStreamingTailContentKind | null; operationLinks: TranscriptViewportOperationLink[]; interactionLinks: TranscriptViewportInteractionLink[]; content: TranscriptViewportRowContent; durationStartedAtMs?: number | null }
 
 export type ViewportMode = { kind: "followingTail" } | { kind: "detached"; anchorRowId: string; offsetFromAnchorPx: number }
 
@@ -524,7 +556,9 @@ export type SessionStateGraph = { requestedSessionId: string; canonicalSessionId
 
 export type SessionStateSnapshotMaterialization = { graph: SessionStateGraph }
 
-export type SessionStateDelta = { fromRevision: SessionGraphRevision; toRevision: SessionGraphRevision; activity: SessionGraphActivity; turnState: SessionTurnState; activeTurnFailure?: TurnFailureSnapshot | null; lastTerminalTurnId?: string | null; activeStreamingTail: ActiveStreamingTail | null; transcriptOperations: TranscriptDeltaOperation[]; operationPatches: OperationSnapshot[]; interactionPatches: InteractionSnapshot[]; changedFields?: string[] }
+export type SessionStateField = "transcriptSnapshot" | "operations" | "activity" | "turnState" | "activeTurnFailure" | "lastTerminalTurnId" | "activeStreamingTail" | "interactions"
+
+export type SessionStateDelta = { fromRevision: SessionGraphRevision; toRevision: SessionGraphRevision; activity: SessionGraphActivity; turnState: SessionTurnState; activeTurnFailure?: TurnFailureSnapshot | null; lastTerminalTurnId?: string | null; activeStreamingTail: ActiveStreamingTail | null; transcriptOperations: TranscriptDeltaOperation[]; operationPatches: OperationSnapshot[]; interactionPatches: InteractionSnapshot[]; changedFields?: SessionStateField[] }
 
 export type AssistantTextDeltaPayload = { turnId: string; rowId: string; charOffset: number; deltaText: string; producedAtMonotonicMs: number; revision: number }
 

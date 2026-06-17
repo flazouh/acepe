@@ -14,6 +14,6 @@
 
 <EmbeddedIconButton onclick={() => onClose?.()} {title} ariaLabel={title} class={className}>
 	{#snippet children()}
-		<X size={14} weight="bold" />
+		<X size={12} weight="bold" />
 	{/snippet}
 </EmbeddedIconButton>
