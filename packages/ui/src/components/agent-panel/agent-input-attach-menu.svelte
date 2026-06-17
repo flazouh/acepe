@@ -1,5 +1,5 @@
 <!--
-  AgentInputAttachMenu - + button popover for modes, context, skills, and overflow controls.
+  AgentInputAttachMenu - + button popover for modes, context, skills, and MCP.
 -->
 <script lang="ts">
 	import type { Snippet } from "svelte";
@@ -10,11 +10,13 @@
 	import { Selector } from "../selector/index.js";
 	import AgentInputModeIcon from "./agent-input-mode-icon.svelte";
 	import AgentInputAutonomousToggle from "./agent-input-autonomous-toggle.svelte";
-	import AgentInputConfigOptionSelector from "./agent-input-config-option-selector.svelte";
-	import type { AgentInputConfigOption } from "./agent-input-config-option-types.js";
+	import AgentInputSlashCommandRow from "./agent-input-slash-command-row.svelte";
+	import AgentInputMcpServerGroup from "./agent-input-mcp-server-group.svelte";
 	import {
 		filterAttachMenuItems,
 		type AttachMenuCommandItem,
+		type AttachMenuCommandSection,
+		type AttachMenuMcpServerGroup,
 		type AttachMenuModeItem,
 	} from "./agent-input-attach-menu-state.js";
 
@@ -22,67 +24,140 @@
 		disabled?: boolean;
 		searchPlaceholder?: string;
 		modes?: readonly AttachMenuModeItem[];
-		commands?: readonly AttachMenuCommandItem[];
+		commandSections?: readonly AttachMenuCommandSection[];
+		mcpServerGroups?: readonly AttachMenuMcpServerGroup[];
+		mcpLoading?: boolean;
+		showMcpSection?: boolean;
+		mcpCatalogLoaded?: boolean;
+		mcpEmptyLabel?: string;
 		showModes?: boolean;
 		showContextActions?: boolean;
 		addFileContextLabel?: string;
 		attachImageLabel?: string;
-		skillsSubmenuLabel?: string;
-		modesGroupLabel?: string;
-		overflow?: Snippet;
+		mcpSectionLabel?: string;
+		checkpointOverflow?: Snippet;
 		autonomousToggleActive?: boolean;
 		autonomousDisabled?: boolean;
 		autonomousBusy?: boolean;
 		autonomousTooltip?: string;
 		onAutonomousToggle?: () => void;
-		toolbarConfigOptions?: readonly AgentInputConfigOption[];
-		configOptionsDisabled?: boolean;
-		onConfigOptionChange?: (configId: string, value: string) => void | Promise<void>;
 		onModeChange?: (modeId: string) => void;
 		onAddFileContext?: () => void;
 		onAttachImage?: () => void;
-		onCommandSelect?: (commandId: string) => void;
+		onCommandItemSelect?: (item: AttachMenuCommandItem) => void;
+		onOpenChange?: (open: boolean) => void;
 	}
 
 	let {
 		disabled = false,
 		searchPlaceholder = "Add context, tools…",
 		modes = [],
-		commands = [],
+		commandSections = [],
+		mcpServerGroups = [],
+		mcpLoading = false,
+		showMcpSection = false,
+		mcpCatalogLoaded = false,
+		mcpEmptyLabel = "No MCP servers configured for this project",
 		showModes = true,
 		showContextActions = true,
 		addFileContextLabel = "Add file context",
 		attachImageLabel = "Attach image",
-		skillsSubmenuLabel = "Skills",
-		modesGroupLabel = "Modes",
-		overflow,
+		mcpSectionLabel = "MCP",
+		checkpointOverflow,
 		autonomousToggleActive = false,
 		autonomousDisabled = false,
 		autonomousBusy = false,
 		autonomousTooltip,
 		onAutonomousToggle,
-		toolbarConfigOptions = [],
-		configOptionsDisabled = false,
-		onConfigOptionChange,
 		onModeChange,
 		onAddFileContext,
 		onAttachImage,
-		onCommandSelect,
+		onCommandItemSelect,
+		onOpenChange,
 	}: Props = $props();
 
 	let menuOpen = $state(false);
 	let searchQuery = $state("");
+	let collapsedMcpServers = $state<Set<string>>(new Set());
 
 	const filteredItems = $derived(
 		filterAttachMenuItems({
 			query: searchQuery,
 			modes: showModes ? modes : [],
-			commands,
+			commandSections,
+			mcpServerGroups,
 		})
 	);
 
+	const hasCommandContent = $derived(
+		filteredItems.commandSections.length > 0 ||
+			showMcpSection ||
+			searchQuery.trim().length > 0
+	);
+
+	const skillsSection = $derived(
+		filteredItems.commandSections.find((section) => section.id === "skills") ?? null
+	);
+	const commandsSection = $derived(
+		filteredItems.commandSections.find((section) => section.id === "commands") ?? null
+	);
+	const flattenedSearchItems = $derived.by(() => {
+		if (searchQuery.trim().length === 0) {
+			return [] as AttachMenuCommandItem[];
+		}
+		const items: AttachMenuCommandItem[] = [];
+		for (const section of filteredItems.commandSections) {
+			for (const item of section.items) {
+				items.push(item);
+			}
+		}
+		for (const group of filteredItems.mcpServerGroups) {
+			for (const item of group.slashItems) {
+				items.push(item);
+			}
+			for (const item of group.toolItems) {
+				items.push(item);
+			}
+		}
+		return items;
+	});
+	const showMcpSubmenu = $derived(showMcpSection);
+
+	const attachSubmenuContentProps = {
+		side: "right",
+		align: "start",
+		sideOffset: 2,
+		avoidCollisions: false,
+	} as const;
+
+	const attachMenuContentClass = "w-72 max-w-[18rem] !max-h-none h-auto overflow-y-auto";
+	const attachSubmenuContentClass = "w-80 max-w-[20rem] !max-h-72 h-auto overflow-y-auto p-0";
+
+	function isMcpServerExpanded(serverId: string): boolean {
+		return !collapsedMcpServers.has(serverId);
+	}
+
+	function toggleMcpServer(serverId: string): void {
+		const next = new Set(collapsedMcpServers);
+		if (next.has(serverId)) {
+			next.delete(serverId);
+		} else {
+			next.add(serverId);
+		}
+		collapsedMcpServers = next;
+	}
+
+	function toSlashCommand(item: AttachMenuCommandItem) {
+		return {
+			name: item.label,
+			description: item.description ?? "",
+			input: null,
+		};
+	}
+
 	function handleOpenChange(open: boolean): void {
 		menuOpen = open;
+		onOpenChange?.(open);
 		if (!open) {
 			searchQuery = "";
 		}
@@ -106,13 +181,14 @@
 		searchQuery = "";
 	}
 
-	function handleCommandSelect(commandId: string): void {
-		onCommandSelect?.(commandId);
+	function handleCommandItemSelect(item: AttachMenuCommandItem): void {
+		onCommandItemSelect?.(item);
 		menuOpen = false;
 		searchQuery = "";
 	}
 </script>
 
+<div class="flex items-center gap-0.5">
 <Selector
 	bind:open={menuOpen}
 	{disabled}
@@ -123,47 +199,42 @@
 	variant="headerAction"
 	showChevron={false}
 	triggerSize="attach"
+	triggerClass="hover:bg-accent hover:text-foreground"
 	triggerAriaLabel="Add context and tools"
+	contentClass={attachMenuContentClass}
 >
 	{#snippet renderButton()}
 		<IconPlus class="size-3.5" />
 	{/snippet}
 
-	<div class="px-1 pb-1">
+	<div class="flex h-auto flex-col gap-0 pb-0">
+	<div class="px-1.5 pb-0.5 pt-0">
 			<input
 				type="search"
 				bind:value={searchQuery}
 				placeholder={searchPlaceholder}
-				class="h-8 w-full rounded-md border border-border/60 bg-background px-2 text-xs text-foreground outline-none placeholder:text-muted-foreground focus-visible:ring-1 focus-visible:ring-ring"
+				class="h-5 w-full border-none bg-transparent px-0 py-0 text-[11px] leading-tight text-foreground shadow-none outline-none ring-0 placeholder:text-muted-foreground/50 focus-visible:outline-none focus-visible:ring-0 [&::-webkit-search-cancel-button]:appearance-none [&::-webkit-search-decoration]:appearance-none"
 				aria-label={searchPlaceholder}
+				autocomplete="off"
+				spellcheck={false}
 			/>
 		</div>
 
 		{#if showModes && filteredItems.modes.length > 0}
-			<DropdownMenu.Label class="px-2 py-1 text-[11px] text-muted-foreground">
-				{modesGroupLabel}
-			</DropdownMenu.Label>
 			{#each filteredItems.modes as mode (mode.id)}
 				<DropdownMenu.Item
 					disabled={mode.disabled}
 					onSelect={() => handleModeSelect(mode.id)}
-					class="cursor-pointer rounded-md px-1.5 py-1.5"
+					class="cursor-pointer"
 				>
-					<div class="flex w-full items-start gap-1.5">
-						<AgentInputModeIcon iconKind={mode.iconKind} class="mt-0.5 size-3 shrink-0 self-start" />
-						<div class="flex min-w-0 flex-1 flex-col">
-							<span class="text-xs font-medium">{mode.label}</span>
-							{#if mode.description}
-								<span class="text-[11px] leading-[1.25] text-muted-foreground">{mode.description}</span>
-							{/if}
-						</div>
-						<CheckCircle
-							class={mode.selected
-								? "mt-0.5 size-3.5 shrink-0 self-start text-foreground"
-								: "mt-0.5 size-3.5 shrink-0 self-start text-transparent"}
-							weight="fill"
-						/>
-					</div>
+					<AgentInputModeIcon iconKind={mode.iconKind} class="size-3.5 shrink-0" monochrome />
+					<span class="min-w-0 flex-1 truncate text-xs">{mode.label}</span>
+					<CheckCircle
+						class={mode.selected
+							? "size-3.5 shrink-0 text-foreground"
+							: "size-3.5 shrink-0 text-transparent"}
+						weight="fill"
+					/>
 				</DropdownMenu.Item>
 			{/each}
 		{/if}
@@ -180,63 +251,151 @@
 			</DropdownMenu.Item>
 		{/if}
 
-		{#if filteredItems.commands.length > 0}
+		{#if hasCommandContent}
 			<DropdownMenu.Separator />
-			<DropdownMenu.Sub>
-				<DropdownMenu.SubTrigger class="cursor-pointer rounded-md px-2 py-1.5 text-xs">
-					{skillsSubmenuLabel}
-				</DropdownMenu.SubTrigger>
-				<DropdownMenu.SubContent class="max-h-64 w-[240px]">
-					{#each filteredItems.commands as command (command.id)}
-						<DropdownMenu.Item
-							onSelect={() => handleCommandSelect(command.id)}
-							class="cursor-pointer rounded-md px-2 py-1.5"
-						>
-							<div class="flex min-w-0 flex-col">
-								<span class="truncate text-xs font-medium">{command.label}</span>
-								{#if command.description}
-									<span class="truncate text-[11px] text-muted-foreground">{command.description}</span>
-								{/if}
-							</div>
-						</DropdownMenu.Item>
-					{/each}
-				</DropdownMenu.SubContent>
-			</DropdownMenu.Sub>
-		{/if}
-
-		{#if searchQuery.length === 0 && (onAutonomousToggle || toolbarConfigOptions.length > 0)}
-			<DropdownMenu.Separator />
-			{#if onAutonomousToggle}
-				<div class="flex items-center justify-between px-2 py-1.5">
-					<span class="text-xs text-muted-foreground">Autonomous</span>
-					<AgentInputAutonomousToggle
-						active={autonomousToggleActive}
-						disabled={autonomousDisabled}
-						busy={autonomousBusy}
-						title={autonomousTooltip ?? "Autonomous"}
-						ariaLabel={autonomousTooltip ?? "Autonomous"}
-						tooltipDescription="Skip permission prompts and let the agent run tools automatically."
-						onToggle={onAutonomousToggle}
-					/>
-				</div>
-			{/if}
-			{#if toolbarConfigOptions.length > 0}
-				<div class="flex flex-col gap-0.5 px-1 py-1">
-					{#each toolbarConfigOptions as configOption (configOption.id)}
-						<AgentInputConfigOptionSelector
-							{configOption}
-							disabled={configOptionsDisabled}
-							onValueChange={(configId, value) => {
-								void onConfigOptionChange?.(configId, value);
-							}}
+			{#if searchQuery.trim().length > 0}
+				<div class="max-h-72 overflow-y-auto py-1">
+					{#each flattenedSearchItems as item (item.id)}
+						<AgentInputSlashCommandRow
+							command={toSlashCommand(item)}
+							tokenType={item.tokenType}
+							onSelect={() => handleCommandItemSelect(item)}
 						/>
 					{/each}
+					{#if flattenedSearchItems.length === 0}
+						<div class="px-2.5 py-2 text-center text-[11px] text-muted-foreground">
+							No matching skills or MCP tools
+						</div>
+					{/if}
 				</div>
+			{:else}
+				{#if skillsSection && skillsSection.items.length > 0}
+					<DropdownMenu.Sub>
+						<DropdownMenu.SubTrigger class="cursor-pointer rounded-md px-2 py-1.5 text-xs">
+							<span class="min-w-0 flex-1 truncate">{skillsSection.label}</span>
+							<span class="rounded-full bg-muted px-1.5 py-0.5 text-[10px] tabular-nums text-muted-foreground">
+								{skillsSection.items.length}
+							</span>
+						</DropdownMenu.SubTrigger>
+						<DropdownMenu.SubContent
+							class={attachSubmenuContentClass}
+							side={attachSubmenuContentProps.side}
+							align={attachSubmenuContentProps.align}
+							sideOffset={attachSubmenuContentProps.sideOffset}
+							avoidCollisions={attachSubmenuContentProps.avoidCollisions}
+						>
+							<div class="flex max-h-72 flex-col overflow-y-auto py-1">
+								{#each skillsSection.items as item (item.id)}
+									<AgentInputSlashCommandRow
+										command={toSlashCommand(item)}
+										tokenType={item.tokenType}
+										onSelect={() => handleCommandItemSelect(item)}
+									/>
+								{/each}
+							</div>
+						</DropdownMenu.SubContent>
+					</DropdownMenu.Sub>
+				{/if}
+
+				{#if commandsSection && commandsSection.items.length > 0}
+					<DropdownMenu.Sub>
+						<DropdownMenu.SubTrigger class="cursor-pointer rounded-md px-2 py-1.5 text-xs">
+							<span class="min-w-0 flex-1 truncate">{commandsSection.label}</span>
+							<span class="rounded-full bg-muted px-1.5 py-0.5 text-[10px] tabular-nums text-muted-foreground">
+								{commandsSection.items.length}
+							</span>
+						</DropdownMenu.SubTrigger>
+						<DropdownMenu.SubContent
+							class={attachSubmenuContentClass}
+							side={attachSubmenuContentProps.side}
+							align={attachSubmenuContentProps.align}
+							sideOffset={attachSubmenuContentProps.sideOffset}
+							avoidCollisions={attachSubmenuContentProps.avoidCollisions}
+						>
+							<div class="flex max-h-72 flex-col overflow-y-auto py-1">
+								{#each commandsSection.items as item (item.id)}
+									<AgentInputSlashCommandRow
+										command={toSlashCommand(item)}
+										tokenType={item.tokenType}
+										onSelect={() => handleCommandItemSelect(item)}
+									/>
+								{/each}
+							</div>
+						</DropdownMenu.SubContent>
+					</DropdownMenu.Sub>
+				{/if}
+
+				{#if showMcpSubmenu}
+					<DropdownMenu.Sub>
+						<DropdownMenu.SubTrigger class="cursor-pointer rounded-md px-2 py-1.5 text-xs">
+							<span class="min-w-0 flex-1 truncate">{mcpSectionLabel}</span>
+							<span class="rounded-full bg-muted px-1.5 py-0.5 text-[10px] tabular-nums text-muted-foreground">
+								{#if mcpLoading}
+									…
+								{:else if filteredItems.mcpServerGroups.length > 0}
+									{filteredItems.mcpServerGroups.length}
+								{:else if mcpCatalogLoaded}
+									0
+								{:else}
+									…
+								{/if}
+							</span>
+						</DropdownMenu.SubTrigger>
+						<DropdownMenu.SubContent
+							class={attachSubmenuContentClass}
+							side={attachSubmenuContentProps.side}
+							align={attachSubmenuContentProps.align}
+							sideOffset={attachSubmenuContentProps.sideOffset}
+							avoidCollisions={attachSubmenuContentProps.avoidCollisions}
+						>
+							<div class="max-h-72 overflow-y-auto">
+								{#if mcpLoading && filteredItems.mcpServerGroups.length === 0}
+									<div class="px-2.5 py-2 text-[11px] text-muted-foreground">
+										Loading MCP servers…
+									</div>
+								{:else if filteredItems.mcpServerGroups.length === 0}
+									<div class="px-2.5 py-2 text-[11px] text-muted-foreground">
+										{mcpEmptyLabel}
+									</div>
+								{/if}
+								{#each filteredItems.mcpServerGroups as group (group.id)}
+									<AgentInputMcpServerGroup
+										id={group.id}
+										name={group.name}
+										status={group.status}
+										error={group.error}
+										slashItems={group.slashItems}
+										toolItems={group.toolItems}
+										expanded={isMcpServerExpanded(group.id)}
+										onToggle={() => toggleMcpServer(group.id)}
+										onItemSelect={handleCommandItemSelect}
+									/>
+								{/each}
+							</div>
+						</DropdownMenu.SubContent>
+					</DropdownMenu.Sub>
+				{/if}
 			{/if}
 		{/if}
 
-		{#if overflow && searchQuery.length === 0}
+		{#if checkpointOverflow}
 			<DropdownMenu.Separator />
-		{@render overflow()}
-	{/if}
+			<div class="px-2 py-1">
+				{@render checkpointOverflow()}
+			</div>
+		{/if}
+	</div>
 </Selector>
+{#if onAutonomousToggle}
+	<AgentInputAutonomousToggle
+		active={autonomousToggleActive}
+		disabled={autonomousDisabled || disabled}
+		busy={autonomousBusy}
+		compact
+		title={autonomousTooltip ?? "Autonomous"}
+		ariaLabel={autonomousTooltip ?? "Autonomous"}
+		tooltipDescription="Skip permission prompts and let the agent run tools automatically."
+		onToggle={onAutonomousToggle}
+	/>
+{/if}
+</div>

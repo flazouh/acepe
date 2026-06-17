@@ -172,6 +172,7 @@ mod tests {
                 active_subagent_count: 0,
                 dominant_operation_id: None,
                 blocking_interaction_id: None,
+                kind_started_at_ms: None,
             },
             &snapshot(vec![
                 text_entry("a1", TranscriptEntryRole::Assistant),
@@ -198,6 +199,7 @@ mod tests {
                 active_subagent_count: 0,
                 dominant_operation_id: Some("op-1".to_string()),
                 blocking_interaction_id: None,
+                kind_started_at_ms: None,
             },
             &snapshot(vec![
                 text_entry("a1", TranscriptEntryRole::Assistant),
@@ -218,6 +220,7 @@ mod tests {
                 active_subagent_count: 0,
                 dominant_operation_id: None,
                 blocking_interaction_id: None,
+                kind_started_at_ms: None,
             },
             &snapshot(vec![
                 text_entry("u1", TranscriptEntryRole::User),
@@ -242,6 +245,7 @@ mod tests {
             active_subagent_count: 0,
             dominant_operation_id: None,
             blocking_interaction_id: None,
+            kind_started_at_ms: None,
         }
     }
 
@@ -252,6 +256,7 @@ mod tests {
             active_subagent_count: 0,
             dominant_operation_id: Some("op-1".to_string()),
             blocking_interaction_id: None,
+            kind_started_at_ms: None,
         }
     }
 

@@ -9,8 +9,14 @@ mock.module("../../analytics.js", () => ({
 }));
 
 import { invokeAsyncWithRuntimeForTesting, TauriCommandError } from "./invoke.js";
+import { CMD } from "./commands.js";
 
 const invokeMock = mock(async (_cmd: string, _args?: InvokeArgs) => undefined);
+
+async function flushDynamicImports(): Promise<void> {
+	await Promise.resolve();
+	await Bun.sleep(0);
+}
 
 describe("invokeAsync", () => {
 	beforeEach(() => {
@@ -65,6 +71,7 @@ describe("invokeAsync", () => {
 		expect(error.message).toBe("Failed to save user setting");
 		expect((error as TauriCommandError).backendCorrelationId).toBe("corr-123");
 		expect((error as TauriCommandError).backendEventId).toBe("event-456");
+		await flushDynamicImports();
 		expect(captureCommandFailureMock).toHaveBeenCalledWith(
 			error,
 			expect.objectContaining({
@@ -86,7 +93,7 @@ describe("invokeAsync", () => {
 
 		const result = await invokeAsyncWithRuntimeForTesting(
 			<T>(cmd: string, args?: InvokeArgs) => invokeMock(cmd, args) as Promise<T>,
-			"plugin:notification|show_notification",
+			CMD.notifications.send,
 			{ options: { title: "Task Complete", body: "Agent finished work" } },
 			{ reportFailure: false }
 		);
@@ -94,7 +101,7 @@ describe("invokeAsync", () => {
 		expect(result.isErr()).toBe(true);
 		const error = result._unsafeUnwrapErr();
 		expect(error).toBeInstanceOf(AgentError);
-		expect(error.message).toBe("Agent operation failed: plugin:notification|show_notification");
+		expect(error.message).toBe("Agent operation failed: plugin:notification|notify");
 		expect(captureCommandFailureMock).not.toHaveBeenCalled();
 	});
 });

@@ -2,13 +2,13 @@ import { toast } from "svelte-sonner";
 import { shouldClearPersistedDraftBeforeAsyncSend } from "$lib/components/main-app-view/components/content/logic/empty-state-send-state.js";
 import { findErrorReference } from "$lib/errors/error-reference.js";
 import { PanelConnectionEvent } from "../../types/panel-connection-state.js";
-import { SoundEffect } from "../../types/sounds.js";
-import { playSound } from "../../utils/sound.js";
 import type { AgentInputControllerHost } from "./agent-input-controller-host.js";
 import { SessionCreationError } from "./errors/agent-input-error.js";
 import {
 	type ComposerRestoreSnapshot,
 	createPendingUserEntry,
+	findAuthenticationRequirement,
+	findCreationFailureReason,
 	formatPreSessionSendFailure,
 	type PreparedMessage,
 	prepareMessageForSend,
@@ -262,7 +262,6 @@ export function createAgentInputController(host: AgentInputControllerHost): Agen
 			);
 		}
 
-		playSound(SoundEffect.DictationStart);
 		queueMicrotask(() => {
 			host.logger.info("handleSend: preparing send", {
 				panelId: props.panelId,
@@ -430,14 +429,31 @@ export function createAgentInputController(host: AgentInputControllerHost): Agen
 					host.panelStore.setPendingComposerRestore(effectivePanelId, restoreSnapshot);
 					host.panelStore.setMessageDraft(effectivePanelId, restoreSnapshot.draft);
 					host.setLastDraftValue(restoreSnapshot.draft);
+					// Authentication-required is NOT a failure: it's an expected,
+					// recoverable precondition. Surface it as a neutral sign-in
+					// signal (rendered as a card above the composer) instead of
+					// routing into the connection-error scene, and keep the
+					// composer usable so the user can retry after signing in.
+					const signInRequirement = findAuthenticationRequirement(error);
+					if (signInRequirement !== null) {
+						host.panelStore.clearPendingUserEntry(effectivePanelId);
+						host.panelStore.setSignInRequirement(effectivePanelId, signInRequirement);
+						props.onSendError?.(effectivePanelId);
+						return error;
+					}
 					const failureMessage = formatPreSessionSendFailure(error);
 					const errorReference = findErrorReference(error);
+					// Carry the canonical classification so the panel renders the
+					// curated, lifecycle-driven card (e.g. the sign-in CTA for
+					// `authenticationRequired`) instead of the raw creation message.
+					const failureReason = findCreationFailureReason(error);
 					host.connectionStore.send(effectivePanelId, {
 						type: PanelConnectionEvent.CONNECTION_ERROR,
 						error: {
 							message: failureMessage,
 							referenceId: errorReference?.referenceId,
 							referenceSearchable: errorReference?.searchable,
+							failureReason,
 						},
 					});
 					if (props.worktreePending && preparedWorktreeLaunch) {

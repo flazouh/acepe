@@ -118,6 +118,7 @@ describe("agent input slash command dropdown state", () => {
 
 		expect(getSlashCommandKindLabel("command")).toBe("Command");
 		expect(getSlashCommandKindLabel("skill")).toBe("Skill");
+		expect(getSlashCommandKindLabel("mcp")).toBe("MCP");
 		expect(getSlashCommandDescriptionCharCount(command)).toBe(11);
 		expect(getSlashCommandMetaLabel({ command, tokenType: "skill" })).toBe(
 			"Skill - 11 chars - path"

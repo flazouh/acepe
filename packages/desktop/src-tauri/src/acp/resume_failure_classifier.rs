@@ -27,6 +27,28 @@ pub(crate) struct ClassifiedResumeFailure {
     pub failure_reason: FailureReason,
 }
 
+/// Cross-cutting activation-failure classification shared by **both** the
+/// resume path ([`classify_resume_error`]) and the new-session creation path
+/// (`new_session.rs`).
+///
+/// These are root errors whose canonical meaning is identical regardless of
+/// which activation path surfaced them: an upstream-gone session is
+/// `SessionGoneUpstream` either way. Authentication-required is intentionally
+/// NOT classified here — it bypasses `ConnectionFailed` entirely and is routed
+/// to `SessionDetached { AwaitingAuthentication }` in each activation path.
+///
+/// Returns `None` for errors with no cross-cutting canonical mapping; each
+/// caller then applies its own path-specific default (`ResumeFailed` for
+/// resume, the creation-kind default for creation).
+pub(crate) fn cross_cutting_failure_reason(
+    error: &SerializableAcpError,
+) -> Option<FailureReason> {
+    match error {
+        SerializableAcpError::SessionNotFound { .. } => Some(FailureReason::SessionGoneUpstream),
+        _ => None,
+    }
+}
+
 /// Inspect a structured ACP error returned from `session/load` and pick
 /// the canonical [`FailureReason`] for the `ConnectionFailed` envelope.
 ///
@@ -37,10 +59,11 @@ pub(crate) fn classify_resume_error(
     agent_id: &CanonicalAgentId,
     error: &SerializableAcpError,
 ) -> ClassifiedResumeFailure {
+    if let Some(failure_reason) = cross_cutting_failure_reason(error) {
+        return ClassifiedResumeFailure { failure_reason };
+    }
+
     match error {
-        SerializableAcpError::SessionNotFound { .. } => ClassifiedResumeFailure {
-            failure_reason: FailureReason::SessionGoneUpstream,
-        },
         SerializableAcpError::JsonRpcError { message } => {
             // Defensive fallback: the conversion at `load_session` should
             // have already mapped these to `SessionNotFound`, but if a
@@ -173,6 +196,24 @@ mod tests {
         assert_classified(
             &error,
             &CanonicalAgentId::Copilot,
+            FailureReason::ResumeFailed,
+        );
+    }
+
+    #[test]
+    fn authentication_required_never_reaches_classifier() {
+        // Auth errors are intercepted *before* `classify_resume_error` is called
+        // (the resume path emits `SessionDetached { AwaitingAuthentication }`
+        // instead of `ConnectionFailed`). If an auth error somehow slips
+        // through, it must not crash — it falls back to `ResumeFailed`, which
+        // is recoverable and signals the panel to show a retry path.
+        let error = SerializableAcpError::AuthenticationRequired {
+            agent: "Cursor".to_string(),
+            instructions: "Run `agent login` in your terminal to authenticate.".to_string(),
+        };
+        assert_classified(
+            &error,
+            &CanonicalAgentId::Cursor,
             FailureReason::ResumeFailed,
         );
     }

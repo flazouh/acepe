@@ -964,6 +964,11 @@ impl SessionGraphRuntimeSnapshot {
                     LifecycleState::failed(*failure_reason, Some(error.clone())),
                 );
             }
+            SessionUpdate::SessionDetached { detached_reason, .. } => {
+                self.lifecycle = SessionGraphLifecycle::from_lifecycle_state(
+                    LifecycleState::detached(*detached_reason),
+                );
+            }
             SessionUpdate::TurnError { error, .. } => {
                 if matches!(
                     self.lifecycle.status,

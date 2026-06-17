@@ -30,17 +30,12 @@ describe("convertTranscriptSnapshotToSessionEntries", () => {
 						role: "tool",
 						segments: [{ kind: "text", segmentId: "tool-1:tool", text: "Read file" }],
 					},
-					{
-						entryId: "error-1",
-						role: "error",
-						segments: [{ kind: "text", segmentId: "error-1:error", text: "boom" }],
-					},
 				],
 			},
 			timestamp
 		);
 
-		expect(entries).toHaveLength(4);
+		expect(entries).toHaveLength(3);
 		expect(entries[0]).toEqual({
 			id: "user-1",
 			type: "user",
@@ -82,14 +77,6 @@ describe("convertTranscriptSnapshotToSessionEntries", () => {
 				questionAnswer: null,
 				awaitingPlanApproval: false,
 				planApprovalRequestId: null,
-			},
-			timestamp,
-		});
-		expect(entries[3]).toEqual({
-			id: "error-1",
-			type: "error",
-			message: {
-				content: "boom",
 			},
 			timestamp,
 		});

@@ -21,6 +21,11 @@ pub enum DetachedReason {
     AbandonedInFlight,
     LegacyAmbiguousRestore,
     ClosedByClient,
+    /// The agent requires an interactive sign-in before it can activate.
+    /// Distinct from a failure: the session is parked awaiting user action and
+    /// can be retried once authentication completes. Rendered as a neutral
+    /// sign-in card (no error chrome) above the composer.
+    AwaitingAuthentication,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Type)]

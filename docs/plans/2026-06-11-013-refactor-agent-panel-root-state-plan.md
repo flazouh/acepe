@@ -115,6 +115,8 @@ The repo already has the template: the deterministic transcript viewport control
 
 ### U2. Create `AgentPanelRootState` and move instantiation + wiring
 
+**Status:** Complete 2026-06-16.
+
 **Goal:** The composition becomes a class; the component constructs one object.
 **Requirements:** R1, R3, R6
 **Dependencies:** U1
@@ -130,6 +132,9 @@ The repo already has the template: the deterministic transcript viewport control
 - Component test from U1 green with the root state in place.
 
 **Verification:** Zero controller `new` expressions remain in the component; `check:svelte` baseline unchanged.
+
+Completed with `AgentPanelRootState` owning controller/store construction and
+`agent-panel.svelte` retaining local aliases for the follow-up U3/U4 migration.
 
 ### U3. Migrate composed derivations and reactive aliases into the root state
 

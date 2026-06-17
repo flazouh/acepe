@@ -195,6 +195,53 @@ export class SessionMessagingService {
 		});
 	}
 
+	migratePendingSendIntentAlias(requestedSessionId: string, canonicalSessionId: string): void {
+		if (requestedSessionId === canonicalSessionId) {
+			return;
+		}
+		const pendingSendIntent =
+			this.transientProjectionManager.getTransientProjection(requestedSessionId)
+				.pendingSendIntent ?? null;
+		if (pendingSendIntent === null) {
+			return;
+		}
+
+		const canonicalPendingSendIntent =
+			this.transientProjectionManager.getTransientProjection(canonicalSessionId)
+				.pendingSendIntent ?? null;
+		this.transientProjectionManager.updateTransientProjection(requestedSessionId, {
+			pendingSendIntent: null,
+		});
+		this.pendingSendAttemptIds.delete(requestedSessionId);
+		const requestedTimeout = this.pendingSendIntentTimeouts.get(requestedSessionId);
+		if (requestedTimeout !== undefined) {
+			clearTimeout(requestedTimeout);
+			this.pendingSendIntentTimeouts.delete(requestedSessionId);
+		}
+		if (canonicalPendingSendIntent !== null) {
+			return;
+		}
+
+		this.transientProjectionManager.updateTransientProjection(canonicalSessionId, {
+			pendingSendIntent: pendingSendIntent,
+		});
+		this.pendingSendAttemptIds.set(canonicalSessionId, pendingSendIntent.attemptId);
+
+		const canonicalTimeout = this.pendingSendIntentTimeouts.get(canonicalSessionId);
+		if (canonicalTimeout !== undefined) {
+			clearTimeout(canonicalTimeout);
+		}
+		const remainingMs = Math.max(
+			0,
+			pendingSendIntent.startedAt + PENDING_SEND_INTENT_TIMEOUT_MS - Date.now()
+		);
+		const timeoutId = setTimeout(() => {
+			this.clearPendingSendIntent(canonicalSessionId, pendingSendIntent.attemptId);
+		}, remainingMs);
+		(timeoutId as UnrefableTimeout).unref?.();
+		this.pendingSendIntentTimeouts.set(canonicalSessionId, timeoutId);
+	}
+
 	private recordTerminalTurnForSession(sessionId: string): void {
 		this.pendingSendAttemptIds.delete(sessionId);
 		const timeoutId = this.pendingSendIntentTimeouts.get(sessionId);

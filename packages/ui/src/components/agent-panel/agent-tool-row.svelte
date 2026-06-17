@@ -1,14 +1,16 @@
 <script lang="ts">
 	import { FilePathBadge } from "../file-path-badge/index.js";
 	import ToolLabel from "./tool-label.svelte";
+	import AgentToolDurationLabel from "./agent-tool-duration-label.svelte";
 	import type { AgentToolStatus } from "./types.js";
+	import type { ToolDurationTiming } from "./tool-duration.js";
 
 	interface Props {
 		title: string;
 		subtitle?: string;
 		filePath?: string;
 		status?: AgentToolStatus;
-		durationLabel?: string;
+		durationTiming?: ToolDurationTiming;
 		padded?: boolean;
 		/** Base path for file type SVG icons (e.g. "/svgs/icons") */
 		iconBasePath?: string;
@@ -21,7 +23,7 @@
 		subtitle,
 		filePath,
 		status = "done",
-		durationLabel,
+		durationTiming,
 		padded = false,
 		iconBasePath = "",
 	}: Props = $props();
@@ -49,9 +51,8 @@
 			{/if}
 		</div>
 	</div>
-	{#if durationLabel}
-		<span class="shrink-0 pt-0.5 font-sans text-sm text-muted-foreground/70">
-			{durationLabel}
-		</span>
-	{/if}
+	<AgentToolDurationLabel
+		timing={durationTiming}
+		class="shrink-0 pt-0.5 font-sans text-sm"
+	/>
 </div>

@@ -73,6 +73,7 @@ function applyVisibleTextToAssistantEntry(
 		isStreaming: entry.isStreaming,
 		tokenRevealCss: entry.tokenRevealCss,
 		timestampMs: entry.timestampMs,
+		planningStartedAtMs: entry.planningStartedAtMs,
 	};
 }
 

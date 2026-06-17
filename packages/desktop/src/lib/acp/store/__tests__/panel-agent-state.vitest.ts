@@ -62,6 +62,7 @@ function createAgentState(
 		getSessionIdentity: (sessionId) => sessionIdentityById.get(sessionId),
 		getSessionMetadata: (sessionId) => sessionMetadataById.get(sessionId),
 		hasPendingCreationSession: () => false,
+		resolveCanonicalSessionId: () => null,
 		focusOpenedTopLevelPanel: () => {},
 		onSpawnedPanelFocused: () => {},
 		onExistingSessionOpened: () => {},

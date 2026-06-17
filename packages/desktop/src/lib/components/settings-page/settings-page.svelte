@@ -50,11 +50,11 @@ function handleSectionChange(section: SettingsSectionId) {
 			description={activeSectionDefinition.description}
 		/>
 
-		<main class="min-h-0 flex-1 overflow-auto px-6 py-5 lg:px-8 lg:py-6">
+		<main class="min-h-0 flex-1 overflow-auto p-4">
 			<div
 				class={activeSectionDefinition.fullWidth === true
 					? "flex h-full min-h-0 w-full flex-col"
-					: "mx-auto w-full max-w-2xl"}
+					: "w-full max-w-4xl"}
 			>
 				{#if activeSection === "general"}
 					<GeneralSection />

@@ -8,7 +8,7 @@
 	import { cn } from "../../lib/utils.js";
 	import { Button, type ButtonVariant } from "../button/index.js";
 
-	type SelectorTriggerSize = "default" | "icon" | "square" | "attach" | "minimal" | "pill";
+	type SelectorTriggerSize = "default" | "icon" | "square" | "attach" | "minimal" | "pill" | "footer";
 
 	interface Props {
 		/**
@@ -87,6 +87,11 @@
 		triggerSize?: SelectorTriggerSize;
 
 		/**
+		 * Extra classes merged onto the trigger button (after preset triggerSize classes).
+		 */
+		triggerClass?: string;
+
+		/**
 		 * Raise dropdown content above blocking overlays (branch picker, etc.).
 		 */
 		blockingOverlay?: boolean;
@@ -95,6 +100,11 @@
 		 * Distance between trigger and dropdown content.
 		 */
 		sideOffset?: number;
+
+		/**
+		 * Extra classes merged onto dropdown menu content.
+		 */
+		contentClass?: string;
 	}
 
 	let {
@@ -113,12 +123,15 @@
 		triggerAriaLabel,
 		triggerRef = $bindable(null),
 		triggerSize = "default",
+		triggerClass: triggerClassOverride = "",
 		blockingOverlay = false,
 		sideOffset = 4,
+		contentClass: menuContentClass = "",
 	}: Props = $props();
 
 	const triggerClass = $derived.by(() => {
-		switch (triggerSize) {
+		const sizeClass = (() => {
+			switch (triggerSize) {
 			case "icon":
 				return "size-5 min-w-0 shrink-0 rounded-md gap-0 p-0 text-muted-foreground hover:bg-accent hover:text-foreground";
 			case "square":
@@ -129,15 +142,20 @@
 				return "!border-0 !h-[26px] rounded-md hover:rounded-full transition-[border-radius] gap-1.5 px-2 text-[11px]";
 			case "pill":
 				return "gap-1.5 h-7 flex-1 min-w-0 max-w-full rounded-md border-0 px-2.5 text-[11px]";
+			case "footer":
+				return "h-5 min-w-0 shrink-0 gap-1 rounded-md border-0 !px-1 has-[>svg]:!px-1 text-[0.6875rem] font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground [&_svg]:size-3";
 			default:
 				return "gap-1.5 h-7 flex-1 min-w-0 max-w-full rounded-none border-0 px-2 text-[11px]";
-		}
+			}
+		})();
+		return cn(sizeClass, triggerClassOverride);
 	});
 
 	const contentClass = $derived(
 		cn(
 			"w-fit max-w-[280px]",
-			blockingOverlay && "z-[var(--app-blocking-z)] isolate"
+			blockingOverlay && "z-[var(--app-blocking-z)] isolate",
+			menuContentClass
 		)
 	);
 

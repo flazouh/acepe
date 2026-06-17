@@ -102,6 +102,14 @@ export type SessionOpenSnapshotApplierDeps = {
 	readonly getCanonicalProjection: (sessionId: string) => CanonicalSessionProjection | null;
 	readonly sendContentLoad: (sessionId: string) => void;
 	readonly sendContentLoaded: (sessionId: string) => void;
+	readonly recordAliasRelationship: (
+		requestedSessionId: string,
+		canonicalSessionId: string
+	) => void;
+	readonly migratePendingSendIntentAlias: (
+		requestedSessionId: string,
+		canonicalSessionId: string
+	) => void;
 };
 
 export class SessionOpenSnapshotApplier {
@@ -114,6 +122,10 @@ export class SessionOpenSnapshotApplier {
 	replaceSessionOpenSnapshot(snapshot: SessionOpenFound): void {
 		const canonicalSessionId = snapshot.canonicalSessionId;
 		const requestedSessionId = snapshot.requestedSessionId;
+		if (snapshot.isAlias && requestedSessionId !== canonicalSessionId) {
+			this.#deps.recordAliasRelationship(requestedSessionId, canonicalSessionId);
+			this.#deps.migratePendingSendIntentAlias(requestedSessionId, canonicalSessionId);
+		}
 		const aliasSessionIdentity =
 			snapshot.isAlias && requestedSessionId !== canonicalSessionId
 				? this.#deps.getSessionIdentity(requestedSessionId)
@@ -204,6 +216,13 @@ export class SessionOpenSnapshotApplier {
 
 	ensureSessionFromStateGraph(graph: SessionStateGraph): boolean {
 		const sessionId = graph.canonicalSessionId;
+		if (graph.isAlias && graph.requestedSessionId !== graph.canonicalSessionId) {
+			this.#deps.recordAliasRelationship(graph.requestedSessionId, graph.canonicalSessionId);
+			this.#deps.migratePendingSendIntentAlias(
+				graph.requestedSessionId,
+				graph.canonicalSessionId
+			);
+		}
 		if (this.#deps.getSessionIdentity(sessionId)) {
 			this.syncSessionSequenceFromGraph(graph);
 			this.#deps.creationCoordinator.completePendingCreation(sessionId);

@@ -583,6 +583,49 @@ pub(crate) fn extract_text_from_json_value(value: &Value) -> Option<String> {
     }
 }
 
+fn is_active_operation_state(state: &OperationState) -> bool {
+    matches!(
+        state,
+        OperationState::Pending | OperationState::Running | OperationState::Blocked
+    )
+}
+
+pub(crate) fn apply_operation_lifecycle_timing(
+    previous: Option<&OperationSnapshot>,
+    operation: &mut OperationSnapshot,
+    now_ms: u64,
+) {
+    let was_active = previous
+        .map(|snapshot| is_active_operation_state(&snapshot.operation_state))
+        .unwrap_or(false);
+    let is_active = is_active_operation_state(&operation.operation_state);
+
+    if is_active && operation.started_at_ms.is_none() {
+        operation.started_at_ms = Some(now_ms);
+    }
+
+    if was_active && !is_active && operation.completed_at_ms.is_none() {
+        operation.completed_at_ms = Some(now_ms);
+    }
+}
+
+pub(crate) fn finalize_operation_snapshot(
+    existing: Option<&OperationSnapshot>,
+    operation: OperationSnapshot,
+) -> OperationSnapshot {
+    if let Some(existing) = existing {
+        merge_operation_snapshot_evidence(existing, operation)
+    } else {
+        let mut created = operation;
+        apply_operation_lifecycle_timing(
+            None,
+            &mut created,
+            crate::acp::session_state_engine::timing::wall_clock_ms(),
+        );
+        created
+    }
+}
+
 pub(crate) fn merge_operation_snapshot_evidence(
     existing: &OperationSnapshot,
     mut incoming: OperationSnapshot,
@@ -654,6 +697,7 @@ pub(crate) fn merge_operation_snapshot_evidence(
         .or(existing.plan_approval_request_id);
     incoming.started_at_ms = incoming.started_at_ms.or(existing.started_at_ms);
     incoming.completed_at_ms = incoming.completed_at_ms.or(existing.completed_at_ms);
+    apply_operation_lifecycle_timing(Some(existing), &mut incoming, crate::acp::session_state_engine::timing::wall_clock_ms());
     incoming.source_link = if conflicts {
         OperationSourceLink::degraded(OperationDegradationReason {
             code: OperationDegradationCode::ImpossibleTransition,

@@ -17,8 +17,7 @@
 	import AgentPanelToolQuestion from "./agent-panel-tool-question.svelte";
 	import AgentPanelToolRead from "./agent-panel-tool-read.svelte";
 	import AgentPanelToolEdit from "./agent-panel-tool-edit.svelte";
-	import { toolDurationClock } from "./tool-duration-clock.js";
-	import { formatToolDurationLabel } from "./tool-duration.js";
+	import type { ToolDurationTiming } from "./tool-duration.js";
 
 	interface Props {
 		entry: AgentToolEntry;
@@ -45,39 +44,36 @@
 	}: Props = $props();
 
 	const renderKind = $derived(resolveConversationRenderKind(entry));
-	const toolDurationLabel = $derived(
-		formatToolDurationLabel({
-			startedAtMs: entry.startedAtMs,
-			completedAtMs: entry.completedAtMs,
-			status: entry.status,
-			nowMs: $toolDurationClock,
-		})
-	);
+	const durationTiming = $derived<ToolDurationTiming>({
+		startedAtMs: entry.startedAtMs,
+		completedAtMs: entry.completedAtMs,
+		status: entry.status,
+	});
 </script>
 
 {#if renderKind === "tool-todo"}
 	<AgentToolTodo
 		todos={entry.todos ?? []}
 		isLive={entry.status === "running"}
-		durationLabel={toolDurationLabel ?? undefined}
+		{durationTiming}
 	/>
 {:else if renderKind === "tool-question"}
 	<AgentPanelToolQuestion
 		{entry}
-		durationLabel={toolDurationLabel ?? undefined}
+		{durationTiming}
 		{onQuestionSelect}
 	/>
 {:else if renderKind === "tool-read-lints"}
 	<AgentPanelToolRead
 		{entry}
 		variant="read-lints"
-		durationLabel={toolDurationLabel ?? undefined}
+		{durationTiming}
 	/>
 {:else if renderKind === "tool-read"}
 	<AgentPanelToolRead
 		{entry}
 		variant="read"
-		durationLabel={toolDurationLabel ?? undefined}
+		{durationTiming}
 		{iconBasePath}
 		{onToolFileSelect}
 	/>
@@ -86,7 +82,7 @@
 		{entry}
 		{iconBasePath}
 		{editToolTheme}
-		durationLabel={toolDurationLabel ?? undefined}
+		{durationTiming}
 	/>
 {:else if renderKind === "tool-plan"}
 	<AgentPanelToolPlan
@@ -100,7 +96,7 @@
 	<AgentPanelStandardToolEntry
 		{entry}
 		{renderKind}
-		durationLabel={toolDurationLabel ?? undefined}
+		{durationTiming}
 		{iconBasePath}
 	/>
 {/if}

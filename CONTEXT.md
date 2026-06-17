@@ -43,10 +43,10 @@ Truth is **owned by canonical, Rust-side data**. Provider output is *input*, not
 ### Agent panel (MVC)
 - **Agent panel** — the primary surface that renders a session. Split View–Model–Controller across packages (see `CLAUDE.md` for the enforced table).
   - **View** — presentational components in `@acepe/ui` (`packages/ui/src/components/agent-panel/`). No Tauri, stores, or app logic.
-  - **Scene model (`AgentPanelSceneModel`)** — the contract between Model and View; defined in `packages/agent-panel-contract/`.
+  - **Scene model (`AgentPanelSceneModel`)** — the contract between Model and View; defined in `@acepe/ui` (`packages/ui/src/components/agent-panel/types.ts`).
   - **Model / scene mapper** — focused modules mapping desktop domain types → scene entry/strip/card models; composed by the materializer (`agent-panel-graph-materializer.ts`). `desktop-agent-panel-scene.ts` is a re-export barrel for those modules.
   - **Controller** — `agent-panel.svelte` (desktop): reads stores, builds the model, routes actions, supplies platform-specific snippet overrides.
-  - **Scene** (`AgentPanelScene`) — convenience renderer mapping a `AgentPanelSceneModel` to the `AgentPanel` shell slots.
+  - **Scene** (`AgentPanelScene`) — convenience renderer in `@acepe/ui` mapping a `AgentPanelSceneModel` to the `AgentPanel` shell slots.
 - **Materializer** — builds canonical agent-panel state from session state (`agent-panel-graph-materializer.ts` / `createAgentPanelGraphMaterializerReadModel`). Exposes the read model the Controller consumes; delegates conversation assembly to the **conversation-builder seam** (`conversation-dispatcher.ts` as the sole public entry for patch/rebuild paths). Entry-index fast paths (`graph-scene-entry-index.ts`) live behind the session-state seam, not in Controller logic. Canonical; GOD-gated.
 - **Conversation-builder seam** — `conversation-dispatcher.ts`: pure orchestration that selects reuse → activity-only → patch fast paths → full rebuild and returns `{ conversation, scenePatch }`. Patch builders in `*-patch-conversations.ts` are dispatcher-internal; only the materializer read model and dispatcher may compose them.
 - **Spine** — the thin, readable service/controller file that names and orders the focused units it composes. For agent-panel scene assembly, the spine is the graph materializer composing the conversation-builder seam; `desktop-agent-panel-scene.ts` is a re-export hub, not the spine. Every decomposition leaves one; fragments without a spine are shrapnel.

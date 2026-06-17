@@ -154,6 +154,14 @@ export class SessionProjectionCore {
 		return lifecycle.failureReason ?? null;
 	}
 
+	getSessionLifecycleDetachedReason(sessionId: string): import("$lib/services/acp-types.js").DetachedReason | null {
+		const lifecycle = this.getSessionStateGraph(sessionId)?.lifecycle ?? null;
+		if (lifecycle === null || lifecycle.status !== "detached") {
+			return null;
+		}
+		return lifecycle.detachedReason ?? null;
+	}
+
 	getSessionActiveTurnFailure(sessionId: string): ActiveTurnFailure | null {
 		return mapProjectionTurnFailure(
 			this.getSessionStateGraph(sessionId)?.activeTurnFailure ?? null

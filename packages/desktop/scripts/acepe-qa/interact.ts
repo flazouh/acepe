@@ -2,7 +2,9 @@ import { err, okAsync, ResultAsync } from "neverthrow";
 import type {
 	ClickResult,
 	DomInspectionResult,
+	FirstSendTimelineProbeResult,
 	NavigateResult,
+	PlanningDebugResult,
 	ResetOnboardingResult,
 	SendComposerResult,
 	ThinkingToggleProbeResult,
@@ -10,8 +12,11 @@ import type {
 } from "./schemas";
 import {
 	clickResultSchema,
+	firstSendTimelineSampleSchema,
 	domInspectionResultSchema,
+	firstSendTimelineProbeResultSchema,
 	navigateResultSchema,
+	planningDebugResultSchema,
 	resetOnboardingResultSchema,
 	sendComposerResultSchema,
 	thinkingToggleProbeResultSchema,
@@ -123,6 +128,35 @@ export function inspectDom(
 				appIdentifier: options.appIdentifier,
 				script,
 				schema: domInspectionResultSchema,
+			},
+			runner
+		);
+	});
+}
+
+export function readPlanningDebug(
+	options: DriverOptions & {
+		readonly sessionId: string | null;
+	}
+): ResultAsync<PlanningDebugResult, TauriMcpFailure> {
+	const runner = options.runner ?? runCommand;
+	return driverReady(options).andThen(() => {
+		const script = `
+(() => {
+  const fn = window.__acepePlanningSnapshot;
+  if (typeof fn !== "function") {
+    return { available: false, snapshots: [] };
+  }
+  const sessionId = ${escapedJson(options.sessionId ?? "")};
+  const snapshots = fn(sessionId.length > 0 ? sessionId : null);
+  return { available: true, snapshots: Array.isArray(snapshots) ? snapshots : [] };
+})()
+`;
+		return executeWebviewJson(
+			{
+				appIdentifier: options.appIdentifier,
+				script,
+				schema: planningDebugResultSchema,
 			},
 			runner
 		);
@@ -380,6 +414,237 @@ export function sendComposer(
 			runner
 		);
 	});
+}
+
+export function probeFirstSendTimeline(
+	options: DriverOptions & {
+		readonly text: string;
+		readonly selector: string;
+		readonly timeoutMs: number;
+	}
+): ResultAsync<FirstSendTimelineProbeResult, TauriMcpFailure> {
+	const runner = options.runner ?? runCommand;
+	return driverReady(options).andThen(() =>
+		ResultAsync.fromPromise(
+			(async () => {
+				const initial = await executeWebviewJson(
+					{
+						appIdentifier: options.appIdentifier,
+						script: firstSendSubmitScript(options.text, options.selector),
+						schema: firstSendTimelineProbeResultSchema,
+						callTimeoutMs: 5_000,
+					},
+					runner
+				).match(
+					(value) => value,
+					(error) => {
+						throw new FirstSendProbeError(error);
+					}
+				);
+				const samples = Array.from(initial.samples);
+				const earlyDelays = [10, 40, 50, 150, 250, 500];
+				for (const delay of earlyDelays) {
+					await sleepMs(delay);
+					const sample = await firstSendTimelineSample(
+						options.appIdentifier,
+						options.text,
+						runner
+					);
+					samples.push(sample);
+				}
+				while ((samples[samples.length - 1]?.elapsedMs ?? 0) < options.timeoutMs) {
+					await sleepMs(500);
+					const sample = await firstSendTimelineSample(
+						options.appIdentifier,
+						options.text,
+						runner
+					);
+					samples.push(sample);
+				}
+				return {
+					composerFound: initial.composerFound,
+					selectedComposerIndex: initial.selectedComposerIndex,
+					selectedComposerName: initial.selectedComposerName,
+					sendFound: initial.sendFound,
+					sendReadyBeforeClick: initial.sendReadyBeforeClick,
+					sent: initial.sent,
+					prompt: initial.prompt,
+					samples,
+				};
+			})(),
+			(error) =>
+				error instanceof FirstSendProbeError
+					? error.failure
+					: {
+							code: "first_send_probe_failed",
+							message:
+								error instanceof Error
+									? error.message
+									: "Unable to collect first-send timeline.",
+						}
+		)
+	);
+}
+
+class FirstSendProbeError extends Error {
+	constructor(readonly failure: TauriMcpFailure) {
+		super(failure.message);
+	}
+}
+
+function sleepMs(delayMs: number): Promise<void> {
+	return new Promise((resolve) => setTimeout(resolve, delayMs));
+}
+
+type FirstSendTimelineSample = FirstSendTimelineProbeResult["samples"][number];
+
+function firstSendSharedSamplerScript(promptExpression: string, labelExpression: string): string {
+	return `
+  const probePrompt = ${promptExpression};
+  const sampleLabel = ${labelExpression};
+  const probeState = window.__acepeFirstSendProbe || { startedAt: performance.now() };
+  const text = (node) => node ? (node.textContent || "").trim().replace(/\\s+/g, " ") : "";
+  const isVisible = (node) => {
+    const style = getComputedStyle(node);
+    const rect = node.getBoundingClientRect();
+    return style.display !== "none" && style.visibility !== "hidden" && Number(style.opacity) > 0 && rect.width > 0 && rect.height > 0;
+  };
+  const leafTextNodes = () => Array.from(document.querySelectorAll("body *")).filter((node) => node.children.length === 0);
+  const hasVisibleLeafContaining = (needle) => leafTextNodes().some((node) => isVisible(node) && text(node).includes(needle));
+  const countVisibleLeavesContaining = (needle) => leafTextNodes().filter((node) => isVisible(node) && text(node).includes(needle)).length;
+  const visibleTranscriptViewports = () => Array.from(document.querySelectorAll("[data-testid='rust-transcript-viewport']")).filter(isVisible);
+  const countVisibleTranscriptsContaining = (needle) => visibleTranscriptViewports().filter((node) => text(node).includes(needle)).length;
+  const visibleComposers = Array.from(document.querySelectorAll("[contenteditable=true], textarea")).filter(isVisible);
+  const composerText = visibleComposers.map((node) => text(node)).find((value) => value.includes(probePrompt)) || "";
+  const bodyText = text(document.body);
+  const matchingTranscriptViewportCount = countVisibleTranscriptsContaining(probePrompt);
+  return {
+    label: sampleLabel,
+    elapsedMs: Math.round(performance.now() - probeState.startedAt),
+    composerText,
+    composerContainsPrompt: composerText.includes(probePrompt),
+    messageVisible: matchingTranscriptViewportCount > 0,
+    messageVisibleInTranscript: matchingTranscriptViewportCount > 0,
+    planningVisible: hasVisibleLeafContaining("Planning next moves") || bodyText.includes("Planning next moves"),
+    readyVisible: hasVisibleLeafContaining("Ready to assist") || bodyText.includes("Ready to assist"),
+    matchingTextLeafCount: countVisibleLeavesContaining(probePrompt),
+    matchingTranscriptViewportCount,
+    transcriptViewportCount: document.querySelectorAll("[data-testid='rust-transcript-viewport']").length,
+    bodyPreview: bodyText.slice(0, 500),
+  };
+`;
+}
+
+function firstSendSubmitScript(prompt: string, selector: string): string {
+	return `
+(async () => {
+  const prompt = ${escapedJson(prompt)};
+  const selector = ${escapedJson(selector)};
+  const baseSelector = selector.length > 0 ? selector : "[contenteditable=true], textarea";
+  const text = (node) => node ? (node.textContent || "").trim().replace(/\\s+/g, " ") : "";
+  const isVisible = (node) => {
+    const style = getComputedStyle(node);
+    const rect = node.getBoundingClientRect();
+    return style.display !== "none" && style.visibility !== "hidden" && Number(style.opacity) > 0 && rect.width > 0 && rect.height > 0;
+  };
+  const candidates = Array.from(document.querySelectorAll(baseSelector)).filter(isVisible);
+  const composer = candidates[0] || null;
+  const composerIndex = composer ? candidates.indexOf(composer) : null;
+  const composerName = composer ? (composer.getAttribute("aria-label") || composer.getAttribute("placeholder") || "") : null;
+  window.__acepeFirstSendProbe = { startedAt: performance.now(), prompt };
+  const samples = [];
+  const sample = (label) => {
+    samples.push((() => {
+${firstSendSharedSamplerScript("prompt", "label")}
+    })());
+  };
+  sample("before-input");
+  if (!composer) {
+    return {
+      composerFound: false,
+      selectedComposerIndex: null,
+      selectedComposerName: null,
+      sendFound: false,
+      sendReadyBeforeClick: false,
+      sent: false,
+      prompt,
+      samples,
+    };
+  }
+  composer.focus();
+  if (composer instanceof HTMLTextAreaElement || composer instanceof HTMLInputElement) {
+    composer.value = prompt;
+  } else {
+    const selection = getSelection();
+    if (selection) {
+      selection.removeAllRanges();
+      const range = document.createRange();
+      range.selectNodeContents(composer);
+      range.collapse(false);
+      selection.addRange(range);
+    }
+    composer.dispatchEvent(new InputEvent("beforeinput", { bubbles: true, cancelable: true, inputType: "insertText", data: prompt }));
+    document.execCommand("insertText", false, prompt);
+  }
+  composer.dispatchEvent(new InputEvent("input", { bubbles: true, inputType: "insertText", data: prompt }));
+  sample("after-input");
+  await Promise.resolve();
+  sample("after-input-microtask");
+  let send = null;
+  let node = composer;
+  for (let i = 0; i < 10 && node; i += 1) {
+    node = node.parentElement;
+    if (!node) break;
+    const buttons = Array.from(node.querySelectorAll("button"));
+    send = buttons.find((button) => button.classList.contains("bg-foreground") && button.classList.contains("text-background")) || null;
+    if (send) break;
+  }
+  const sendReadyBeforeClick = Boolean(send) && !send.disabled;
+  let sent = false;
+  if (sendReadyBeforeClick) {
+    send.click();
+    sent = true;
+  }
+  sample("after-click");
+  await Promise.resolve();
+  sample("after-click-microtask");
+  return {
+    composerFound: true,
+    selectedComposerIndex: composerIndex,
+    selectedComposerName: composerName,
+    sendFound: Boolean(send),
+    sendReadyBeforeClick,
+    sent,
+    prompt,
+    samples,
+  };
+})()
+`;
+}
+
+async function firstSendTimelineSample(
+	appIdentifier: string,
+	prompt: string,
+	runner: CommandRunner
+): Promise<FirstSendTimelineSample> {
+	return executeWebviewJson(
+		{
+			appIdentifier,
+			script: `
+(() => {
+${firstSendSharedSamplerScript(escapedJson(prompt), `"after-" + Math.round(performance.now() - ((window.__acepeFirstSendProbe || { startedAt: performance.now() }).startedAt)).toString() + "ms"`)}
+})()
+`,
+			schema: firstSendTimelineSampleSchema,
+			callTimeoutMs: 5_000,
+		},
+		runner
+	).match(
+		(value) => value,
+		(error) => {
+			throw new FirstSendProbeError(error);
+		}
+	);
 }
 
 // Poll for a node whose text contains `text` and report whether it is actually

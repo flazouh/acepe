@@ -23,9 +23,9 @@
 </script>
 
 <div
-	class="flex flex-col h-full min-h-0 bg-background border border-border overflow-hidden relative {isDragging
+	class="flex flex-col h-full min-h-0 bg-background overflow-hidden relative {isDragging
 		? 'select-none'
-		: ''} {isFillContainer ? 'flex-1 min-w-0' : 'shrink-0 grow-0'}"
+		: ''} {isFillContainer ? 'flex-1 min-w-0' : 'shrink-0 grow-0 border border-border'}"
 	style={widthStyle}
 >
 	<div class="shrink-0">

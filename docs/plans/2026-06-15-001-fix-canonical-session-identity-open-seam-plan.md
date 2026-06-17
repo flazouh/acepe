@@ -92,7 +92,8 @@ not repairing provider quirks downstream.
 
 The pre-investigation hypothesis was "promotion-on-open is the keystone we must
 build, because `acp_resume_session` never promotes." **This is stale.** Promotion
-on open already exists and was committed 2026-06-14 (`5e06858a1`):
+on open already exists in the committed tree (the `resume.rs:111` promotion call is
+present as of 2026-06-14; `git log -L` attributes the last touch to `5e06858a1`):
 
 - `resume.rs:111` calls `persist_session_metadata_for_cwd` →
   `metadata.rs:39` `SessionMetadataRepository::ensure_exists_and_promote`.
@@ -132,56 +133,109 @@ Carried from `docs/solutions/` (verified relevant):
   sanctioned residual hot-state field "for local provider-session id mapping."
   Resolve *through* known canonical surfaces; no new alias structure.
 
-## Correctness Argument (why resolving at the seam is sufficient)
+## Correctness Argument (two-layer guarantee: IU2 best-effort, IU3 authoritative)
 
 The duplicate-panel hang *requires* the session to already be open (panel A under
-canonical `C`). At the moment of the second open, the session store therefore
-already holds `C` and the requested→canonical mapping (materialized via
-`ensureSessionFromStateGraph` when the first open's `SessionStateGraph` arrived). So
-a synchronous resolver consulted by the panel open seam *has the answer* exactly in
-the failure scenario.
+canonical `C`). The fix has two layers, and **IU3 is the load-bearing guarantee**;
+IU2 is a best-effort early dedup that avoids spawning the duplicate at all when the
+mapping is already known.
 
-For a cold open where the session is not yet materialized, a discovered/new session
-is canonical by definition (`requestedId == canonicalId`, `isAlias == false` —
-promotion-on-open makes `session_metadata.id` the provider id), so dedup on the
-requested id is already correct. The alias case only matters when the canonical
-session already exists in the store — which is precisely when the resolver resolves.
-This bounds the fix: no async round-trip is needed at the seam.
+**IU2 (seam dedup) — best-effort.** When the requested→canonical mapping for alias
+`A`→`C` is already known to the resolver, the open seam focuses the incumbent and no
+second panel is born. But the mapping is learned **asynchronously**: it is only
+recorded once the alias open's snapshot (`SessionOpenFound` / `SessionStateGraph`
+with `isAlias=true`, `requestedSessionId=A`, `canonicalSessionId=C`) has been
+applied — which arrives via a Tauri round-trip / SSE, not synchronously at the first
+open. A first-ever open of alias `A` while `C` is already open therefore resolves to
+`null` at the seam, IU2 misses, and a second panel spawns. **IU2 cannot be relied on
+to close the bug by itself.**
+
+**IU3 (bind invariant) — authoritative.** The duplicate's late rebind to `C`
+(`session-open-hydrator.ts:139` `updatePanelSession(panel2, C)`) is the single point
+the second panel acquires the shared canonical id. IU3 makes that rebind collapse to
+one panel regardless of how the duplicate was born. Because IU3 sits on the binding
+chokepoint, it closes the bug whether the duplicate came from a runtime alias open,
+the async-open window above, or the startup heal (IU4).
+
+**Cold non-alias opens.** A discovered/new session is canonical by definition
+(`requestedId == canonicalId`, `isAlias == false` — promotion-on-open makes
+`session_metadata.id` the provider id), so seam dedup on the requested id is already
+correct and IU3 is a no-op. The alias case is the only one that exercises IU3.
+
+This framing replaces the earlier (incorrect) claim that the resolver always "has
+the answer at the seam." It does not, and the plan does not depend on it.
 
 ## Implementation Units
 
-### IU1 — Canonical session-identity resolver (read surface)
-**Goal.** Expose a synchronous, read-only `resolveCanonicalSessionId(requestedId):
-string | null` from the session store, backed by the canonical identity index the
-store already builds from `SessionStateGraph` (`isAlias` / `canonicalSessionId`).
+### IU1 — Canonical session-identity resolver (durable alias index)
+**Goal.** Expose a synchronous `resolveCanonicalSessionId(requestedId):
+string | null` from the session store, backed by a **durable in-memory
+alias→canonical index** that records `requestedId → canonicalId` whenever Rust
+asserts an alias relationship, and **survives the collapse that removes the alias
+session row**.
+
+**Correction (do not skip).** This is a *new write path*, not a pure read over
+existing state. The named-but-wrong assumption was that
+`ensureSessionFromStateGraph` (`session-open-snapshot-applier.svelte.ts:205`)
+already holds the mapping — it does not: it early-returns when the canonical session
+already exists, and the sibling snapshot path (`replaceSessionOpenSnapshot`,
+~:114-144) calls `removeSession(requestedSessionId)` on collapse (~:142-143), so the
+alias row is deleted and no surviving `A→C` mapping remains for a read-only resolver.
+IU1 must therefore build and persist its own index that is **not** evicted by
+`removeSession(alias)`.
 
 **Files (implementation).**
-- `src/lib/acp/store/session-open-snapshot-applier.svelte.ts` — already collapses
-  alias→canonical in `ensureSessionFromStateGraph` (:205); capture the
-  requested→canonical mapping here as the authority for the resolver.
-- `src/lib/acp/store/session-store.svelte.ts` + the store read facade — add the
-  read accessor (no new write path; consumes existing canonical state).
+- `src/lib/acp/store/session-open-snapshot-applier.svelte.ts` — populate the
+  alias index from the alias-bearing events where `isAlias` / `requestedSessionId` /
+  `canonicalSessionId` are present: `replaceSessionOpenSnapshot` (~:114-144) and the
+  non-early-return branches of `ensureSessionFromStateGraph`.
+- `src/lib/acp/store/session-store.svelte.ts` + the store read facade — own the
+  alias index and expose the read accessor.
+
+**Index lifecycle.** Entry `A→C` is written when Rust asserts the alias. It is
+invalidated only when canonical session `C` is genuinely closed/removed (not when the
+alias row `A` is collapsed). A stale `A→C` pointing at a disposed panel must never be
+returned — covered by scenario 5.
 
 **Test file.** `src/lib/acp/store/__tests__/session-identity-resolver.vitest.ts`
 **Scenarios.**
-1. After a `SessionStateGraph` with `isAlias=true`, `requestedSessionId=A`,
+1. After a snapshot with `isAlias=true`, `requestedSessionId=A`,
    `canonicalSessionId=C` is applied, `resolveCanonicalSessionId(A) === C`.
 2. `resolveCanonicalSessionId(C) === C` (canonical resolves to itself).
 3. Unknown id → `null` (never throws, never fabricates).
 4. A non-alias graph (`isAlias=false`) maps the id to itself.
+5. After the alias session `A` is removed via collapse (`removeSession(A)`),
+   `resolveCanonicalSessionId(A)` **still returns `C`**; after canonical `C` is
+   genuinely closed, it returns `null`.
 
-**GOD.** Read-only projection of Rust-owned identity; no fallback, no repair.
+**GOD.** The index is a projection of Rust-asserted identity (`isAlias` truth),
+written only from canonical events; never repairs or infers identity the backend
+did not assert.
 
 ### IU2 — Canonical-keyed dedup at the open seam
-**Goal.** `focusOrOpenSessionPanel` and `openSession` resolve requested→canonical
-via IU1 before the dedup/spawn decision and key on canonical id.
+**Goal.** Resolve requested→canonical via IU1 before the dedup/spawn decision and
+key on canonical id. **Place the resolution inside the store methods, not at a single
+caller**, so every entry point inherits it.
+
+**Why centralize.** `focusOrOpenSessionPanel` is not the only opener. Raw
+`panelStore.openSession(...)` / `materializeSessionPanel(...)` is also called from at
+least: `settings/project-tab.svelte:41`, `settings-page/sections/archived-sessions-section.svelte:44`,
+`main-app-view/logic/main-app-view-state.svelte.ts:693`, `session-handler.ts:108` and
+`:140`, `app-queue-row.svelte:103`, and `kanban-new-session-handoff.ts:25`. Fixing
+only `focusOrOpenSessionPanel` would leave the alias bug reproducible from those
+surfaces. Resolving inside `openSession` / `materializeSessionPanel` covers all
+callers with one change.
 
 **Files.**
-- `src/lib/components/main-app-view.svelte:212` `focusOrOpenSessionPanel` — resolve
-  canonical, then `getPanelBySessionId(canonical)` / `openSession(canonical)`.
-- `src/lib/acp/store/panel-agent-state.svelte.ts:355` `openSession` — dedup on the
-  resolved canonical id (line 359). When the resolver returns a canonical id that
-  differs from the requested id and a panel already holds it, return that panel.
+- `src/lib/acp/store/panel-agent-state.svelte.ts:355` `openSession` — resolve the
+  requested id to canonical via IU1, then dedup on the canonical id (line 359). Same
+  treatment for `materializeSessionPanel` (:395).
+- `src/lib/components/main-app-view.svelte:212` `focusOrOpenSessionPanel` — its
+  `getPanelBySessionId` lookup also resolves to canonical first (so passive focus
+  finds the incumbent), but the authoritative dedup lives in the store method.
+- `openingSessionIds` in-flight guard (panel-agent-state.svelte.ts:371-375) — key it
+  on the **canonical** id (or add a canonical entry) so a concurrent alias open
+  during a cold first-open composes with the guard instead of slipping past it.
 
 **Test file.** `src/lib/acp/store/__tests__/panel-open-canonical-dedup.vitest.ts`
 **Scenarios.**
@@ -190,23 +244,42 @@ via IU1 before the dedup/spawn decision and key on canonical id.
 2. Opening under canonical `C` twice focuses the existing panel (regression guard
    for today's behavior).
 3. Opening a genuinely new id (resolver → null) spawns exactly one panel.
+4. `materializeSessionPanel(A)` while `C` is open (resolver: A→C) returns the
+   incumbent, spawns no second panel.
+5. Concurrent open of alias `A` while canonical `C` is mid-flight in
+   `openingSessionIds` does not spawn a second panel (guard keyed on canonical).
 
-### IU3 — One-panel-per-canonical bind invariant
+### IU3 — One-panel-per-canonical bind invariant (authoritative fix)
 **Goal.** Make the 1:1 index a real invariant. Binding a panel to a canonical
 session that another panel already holds must collapse to one panel (keep/focus the
 incumbent, dispose the duplicate) — never silently overwrite the index while
 leaving a duplicate in `topLevelAgentPanelList`.
 
-**Files.**
-- `src/lib/acp/store/panel-agent-state.svelte.ts` — `updatePanelSession` (:463),
-  and the index mutation seams: `syncTopLevelAgentPanelIndex` (:98-102),
-  `patchTopLevelAgentPanel` (:173), `insertTopLevelAgentPanel` (:195). The bind path
-  must detect an existing different panel holding the target session id and collapse
-  rather than overwrite.
+**Disposal MUST be disconnect-safe (load-bearing).** The reported bug *is* that
+closing a panel disconnects the shared session (`panel-handler.ts:47-48`
+`closePanel` → `disconnectSession`). Because the duplicate and incumbent share
+canonical `C` after the rebind, routing collapse-disposal through
+`PanelHandler.closePanel` would disconnect `C` and reproduce the bug *during the
+fix*. Collapse disposal MUST use the store-internal pure list-removal
+(`panel-agent-state.svelte.ts` `removeAgentPanel`, ~:294-304 / the store-level panel
+removal that performs **no** `disconnectSession`) and MUST NOT route through
+`PanelHandler.closePanel`. Also cancel/clean the disposed panel's in-flight
+hydration (`session-open-hydrator.ts` `activeRequestTokens` / `panelChains` keyed by
+the disposed `panelId`) so a late `applyFound` cannot resurrect a duplicate bind.
+
+**Centralize the invariant.** Enforce one-panel-per-canonical at the single bind
+chokepoint so every path inherits it, rather than patching each seam separately:
+- `src/lib/acp/store/panel-agent-state.svelte.ts` — `updatePanelSession` (:463) and
+  `insertTopLevelAgentPanel` (:191-205) are the two ways a panel acquires a session
+  id; both `openSession` (:379) and `materializeSessionPanel` (:410) reach the index
+  via `insertTopLevelAgentPanel`. Put the "already held by another panel? collapse"
+  check there. The downstream index mutators —
+  `syncTopLevelAgentPanelIndex` (:98-102), `patchTopLevelAgentPanel` (:173) — must
+  not silently last-wins overwrite; assert/repair to the single-holder invariant.
 - `src/lib/acp/store/services/session-open-hydrator.ts:139` — the producer
-  (`updatePanelSession(panelId, found.canonicalSessionId)`) routes through the
-  guarded bind; when the canonical session is already bound elsewhere, the second
-  panel collapses instead of orphaning a list entry.
+  (`updatePanelSession(panel2, C)`) routes through the guarded bind; when `C` is
+  already bound elsewhere, the second panel collapses (disconnect-safe) instead of
+  orphaning a list entry.
 
 **Test file.** `src/lib/acp/store/__tests__/panel-bind-uniqueness.vitest.ts`
 **Scenarios.**
@@ -214,8 +287,12 @@ leaving a duplicate in `topLevelAgentPanelList`.
    panel in `topLevelAgentPanelList` (no orphaned duplicate), index[`C`] stable.
 2. Hydrator attaching `C` to a freshly-spawned `panel2` while A holds `C` yields one
    rendered panel for `C`.
-3. Closing the surviving panel after a collapse disconnects the session exactly once
-   and leaves no panel stuck in "loading" (the reported bug, asserted dead).
+3. **Collapse is disconnect-safe**: collapsing `panel2` onto incumbent A makes
+   **zero** `disconnectSession` / `acp_close_session` calls on `C`.
+4. `materializeSessionPanel`/`insertTopLevelAgentPanel` adding a second panel for an
+   already-held `C` collapses via the same chokepoint.
+5. Closing the surviving panel *after* a collapse disconnects the session exactly
+   once and leaves no panel stuck in "loading" (the reported bug, asserted dead).
 
 **GOD.** Invariant enforced on TS-owned panel state keyed by canonical Rust truth.
 
@@ -226,13 +303,30 @@ panel's id via IU1 / the Rust startup `aliasRemaps` and binds through the guarde
 IU3 bind, so legacy duplicates collapse instead of overwriting. Unresolved aliases
 are logged as diagnostics, not silently remapped.
 
+**What IU4 changes beyond IU3.** Once IU3 makes the bind collapse-safe, much of
+`remapAliasedPanelSessionIds` becomes redundant — it already calls
+`updatePanelSession`. IU4's residual value is (a) the **ordering** problem: the remap
+runs as a separate startup pass relative to `validateRestoredSessions`
+(`initialization-manager.ts:518`); a persisted alias Rust cannot resolve must not be
+silently cleared as a "missing" session. (b) Replacing the batch alias-remap with a
+single-pass heal through the IU3 guarded bind. If IU3 alone proves sufficient for the
+duplicate case, IU4 may shrink to "remove the redundant remap pass + add the
+unresolved-alias diagnostic" — confirm during implementation.
+
+**`aliasRemaps` has two consumers — only one is retired.** Besides
+`remapAliasedPanelSessionIds`, `aliasRemaps` is consumed by
+`reconcileAliasedStartupSessions` (`session-repository.ts:585-654`, invoked inside the
+producer ~:383), which merges alias session metadata (PR number, link mode, title)
+into the canonical row. That consumer **stays**; IU4 retires only the panel-side remap.
+
 **Files.**
 - `src/lib/components/main-app-view/logic/managers/initialization-manager.ts` —
-  remove `remapAliasedPanelSessionIds` (:487-503) consumption at :429-438; replace
-  with the one-time heal that routes through the guarded bind.
+  remove the `remapAliasedPanelSessionIds` (:487-504) consumption at :429-438; replace
+  with the one-time heal that routes through the guarded bind, ordered so unresolved
+  aliases are diagnosed before `validateRestoredSessions` (:518) can clear them.
 - `src/lib/acp/store/services/session-repository.ts:359-403` — the `aliasRemaps`
-  producer (Rust-resolved) stays as the data source for the one-time heal; its
-  consumer changes only.
+  producer (Rust-resolved) stays as the data source for the one-time heal;
+  `reconcileAliasedStartupSessions` (:585-654) is unchanged.
 
 **Test file.**
 `src/lib/components/main-app-view/logic/managers/tests/startup-canonicalization.test.ts`
@@ -242,6 +336,8 @@ are logged as diagnostics, not silently remapped.
 2. A persisted alias with a known `aliasRemaps` entry binds to its canonical id.
 3. A persisted alias with **no** resolution is left as-is and emits a diagnostic
    (no silent remap, no fabricated canonical id).
+4. An unresolved persisted alias is **not** silently dropped by the subsequent
+   `validateRestoredSessions` pass (ordering preserved; the panel does not vanish).
 
 **Risk note.** This is the *only* place new duplicates could still arise (per origin
 learnings — conflict-prone migration). The heal must reuse the IU3 guarded bind so
@@ -257,20 +353,28 @@ duplicate-fix refactor cannot silently regress the badge).
   `metadata.rs:31-60`, `db/repository/session_metadata.rs`
   (`ensure_exists_and_promote`, `mark_session_as_acepe_tracked`) — verify only.
 
-**Test file.** `src-tauri/src/acp/commands/session_commands/tests.rs` (extend).
+**Test files.** `src-tauri/src/acp/commands/session_commands/tests.rs` (extend) for
+the Rust DB scenarios; a lightweight TS projection test for the display propagation.
 **Scenarios.**
-1. Resuming a discovered (`is_acepe_managed=0`, `sequence_id=NULL`) session promotes
-   it: `is_acepe_managed=1` and a per-project `sequence_id` is assigned.
-2. Resuming an already-managed session is idempotent (same `sequence_id`, no leak).
+1. (Rust) Resuming a discovered (`is_acepe_managed=0`, `sequence_id=NULL`) session
+   promotes it: `is_acepe_managed=1` and a per-project `sequence_id` is assigned.
+2. (Rust) Resuming an already-managed session is idempotent (same `sequence_id`, no
+   leak).
+3. (TS) After a resume snapshot envelope is applied, the session's `sequenceId` in
+   the canonical projection is non-null — proving the assigned `sequence_id` rides the
+   envelope to the display layer (the badge path the Keystone Correction claims), not
+   just that Rust wrote it to the DB.
 
 ## Sequencing & Dependencies
 
 ```
 IU1 (resolver)
-  └─> IU2 (canonical dedup)  ─┐
-  └─> IU3 (bind invariant)   ─┴─> IU4 (startup heal, uses IU1 + IU3 guarded bind)
+  ├─> IU2 (canonical dedup)
+  └─> IU3 (bind invariant) ──> IU4 (startup heal, uses IU1 + IU3 guarded bind)
 IU5 (badge regression)  — independent, can land first as a safety net
 ```
+IU2 and IU3 both depend on IU1 and are otherwise independent of each other. IU4
+depends on IU1 and IU3 (not IU2).
 
 - IU1 is the foundation; IU2 and IU3 both depend on it.
 - IU4 depends on IU1 (resolver) and IU3 (guarded bind).
@@ -296,16 +400,38 @@ IU5 (badge regression)  — independent, can land first as a safety net
 1. **Startup heal as a new duplicate source (highest).** Mitigated by routing the
    heal exclusively through the IU3 guarded bind (collapse-only) and diagnosing
    unresolved aliases instead of remapping. Covered by IU4 scenarios 1 & 3.
-2. **Resolver availability timing.** The correctness argument shows canonical is
-   known exactly in the failure scenario; for cold opens the requested id is already
-   canonical. If a future provider returns an alias on a *cold* first open, the IU3
-   bind invariant still collapses the late rebind — defense in depth.
-3. **Branch debt noise.** ~30 pre-existing panel-store stub failures and the
+2. **Resolver availability timing.** IU2's resolver only resolves *repeat* alias
+   opens; a first-ever alias open while canonical is open misses at the seam (the
+   mapping arrives async). IU3's collapse-on-rebind is the actual guarantee — see the
+   Correctness Argument. IU2 is best-effort; do not weaken IU3.
+3. **Collapse disposal is the single most fragile point.** Any route through
+   `PanelHandler.closePanel`/`disconnectSession` on the shared canonical session
+   reproduces the bug during the fix. IU3 disposal MUST use the disconnect-free
+   `removeAgentPanel` path; IU3 scenario 3 asserts zero disconnects on collapse.
+4. **Branch debt noise.** ~30 pre-existing panel-store stub failures and the
    `sessionStore.read.*` wiring WIP can mask/contaminate new test runs. Author new
    tests against current wiring; report new failures separately from the known set.
-4. **Multiple index seams.** The 1:1 index is mutated in three places
-   (`:98-102`, `:173`, `:195`); the invariant must hold at all three, not just the
-   hydrator path. IU3 must cover each.
+   Note: IU1's resolver accessor lands on the very read facade that is mid-refactor.
+5. **Multiple index seams.** The 1:1 index is mutated in several places
+   (`:98-102`, `:173`, `:195`) reached via `insertTopLevelAgentPanel` and
+   `updatePanelSession`; centralize the invariant at the bind chokepoint so all paths
+   (`openSession`, `materializeSessionPanel`, hydrator rebind) inherit it.
+
+## Open Question for Implementation (unresolved by this plan)
+
+**Is the runtime second-open the real producer, or is it startup persisted-alias
+rebind?** The adversarial review could not exhibit a concrete *runtime* caller that
+opens an already-open canonical session under a *different* alias (sidebar rows are
+normally already canonical; same-id concurrent opens are deduped by
+`openingSessionIds`). The clearest concrete alias-keyed-panel producer in the code is
+the **persisted** path (`remapAliasedPanelSessionIds` rebinding a persisted provider
+alias to `C`). If the "closed g7, the g7 behind it hangs" repro is actually a
+startup/persisted-alias reattach, then **IU3 + IU4 are the primary fix and IU2 is
+defense-in-depth** — the opposite emphasis from a runtime-first reading. This does
+not change *what* is built (IU3 closes the bug either way), but it changes test
+weighting and which scenario is the canonical red test. Resolve by reproducing the
+exact repro at the start of `ce-work` (which entry point spawned the duplicate) before
+writing the first red test.
 
 ## Acceptance
 
@@ -318,4 +444,3 @@ IU5 (badge regression)  — independent, can land first as a safety net
   aliases heal once at startup with collapse-only semantics and diagnostics for
   unresolved rows.
 - All new tests green; `bun run check`, `cargo clippy`, and the QA DOM pass clean.
-```

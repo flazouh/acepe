@@ -18,6 +18,7 @@ let {
 	sessionId,
 	sceneEntries,
 	pendingUserRevealRequestKey = null,
+	showLocalPlanningIndicator = false,
 	sessionProjectPath,
 	allProjects = [],
 	scrollContainer = $bindable(null),
@@ -175,6 +176,7 @@ export function scrollToTop() {
 				{bufferProjection}
 				{sessionId}
 				{pendingUserRevealRequestKey}
+				{showLocalPlanningIndicator}
 				{turnState}
 				projectPath={sessionProjectPath ?? undefined}
 				{isFullscreen}

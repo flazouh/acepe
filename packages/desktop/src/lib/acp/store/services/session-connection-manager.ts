@@ -26,6 +26,7 @@ import { tauriClient } from "../../../utils/tauri-client.js";
 import type { AppError } from "../../errors/app-error.js";
 import {
 	AgentError,
+	AuthenticationRequiredError,
 	ConnectionError,
 	CreationFailureError,
 	SessionNotFoundError,
@@ -639,6 +640,16 @@ export class SessionConnectionManager {
 				if (
 					error instanceof TauriCommandError &&
 					error.domain?.type === "acp" &&
+					error.domain.data.type === "authentication_required"
+				) {
+					// Not a failure — a recoverable sign-in precondition. Carry the
+					// typed signal so the panel renders a neutral sign-in card.
+					const auth = error.domain.data.data;
+					return new AuthenticationRequiredError(auth.agent, auth.instructions, error);
+				}
+				if (
+					error instanceof TauriCommandError &&
+					error.domain?.type === "acp" &&
 					error.domain.data.type === "creation_failed"
 				) {
 					const failure = error.domain.data.data;
@@ -648,6 +659,7 @@ export class SessionConnectionManager {
 						failure.sessionId,
 						failure.creationAttemptId,
 						failure.retryable,
+						failure.failureReason ?? null,
 						error
 					);
 				}

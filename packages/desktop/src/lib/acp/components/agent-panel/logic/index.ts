@@ -23,7 +23,6 @@ export {
 	resolveCanonicalAgentPanelSessionSource,
 	resolveCanonicalAgentPanelTurnState,
 } from "./session-status-mapper";
-export { resolveVisibleSessionEntries } from "./visible-session-entries";
 export {
 	createPendingWorktreeCloseConfirmationState,
 	createResolvedWorktreeCloseConfirmationState,

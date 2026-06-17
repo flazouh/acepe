@@ -210,6 +210,8 @@ pub struct SessionGraphActivity {
     pub dominant_operation_id: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub blocking_interaction_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub kind_started_at_ms: Option<u64>,
 }
 
 impl SessionGraphActivity {
@@ -221,7 +223,39 @@ impl SessionGraphActivity {
             active_subagent_count: 0,
             dominant_operation_id: None,
             blocking_interaction_id: None,
+            kind_started_at_ms: None,
         }
+    }
+}
+
+#[must_use]
+pub fn merge_session_graph_activity_timing(
+    previous: &SessionGraphActivity,
+    selected: SessionGraphActivity,
+    now_ms: u64,
+) -> SessionGraphActivity {
+    let kind_started_at_ms = if previous.kind == selected.kind {
+        previous.kind_started_at_ms.or(selected.kind_started_at_ms)
+    } else {
+        Some(now_ms)
+    };
+
+    SessionGraphActivity {
+        kind: selected.kind,
+        active_operation_count: selected.active_operation_count,
+        active_subagent_count: selected.active_subagent_count,
+        dominant_operation_id: selected.dominant_operation_id,
+        blocking_interaction_id: selected.blocking_interaction_id,
+        kind_started_at_ms,
+    }
+}
+
+#[must_use]
+pub fn seed_activity_timing_if_needed(activity: &mut SessionGraphActivity, now_ms: u64) {
+    if activity.kind_started_at_ms.is_none()
+        && activity.kind != SessionGraphActivityKind::Idle
+    {
+        activity.kind_started_at_ms = Some(now_ms);
     }
 }
 
@@ -266,6 +300,7 @@ pub fn select_session_graph_activity(
             active_subagent_count,
             dominant_operation_id,
             blocking_interaction_id: blocking_interaction.map(|interaction| interaction.id.clone()),
+            kind_started_at_ms: None,
         };
     }
 
@@ -279,6 +314,7 @@ pub fn select_session_graph_activity(
             active_subagent_count,
             dominant_operation_id,
             blocking_interaction_id: blocking_interaction.map(|interaction| interaction.id.clone()),
+            kind_started_at_ms: None,
         };
     }
 
@@ -289,6 +325,7 @@ pub fn select_session_graph_activity(
             active_subagent_count,
             dominant_operation_id,
             blocking_interaction_id: Some(interaction.id.clone()),
+            kind_started_at_ms: None,
         };
     }
 
@@ -299,6 +336,7 @@ pub fn select_session_graph_activity(
             active_subagent_count,
             dominant_operation_id,
             blocking_interaction_id: None,
+            kind_started_at_ms: None,
         };
     }
 
@@ -309,6 +347,7 @@ pub fn select_session_graph_activity(
             active_subagent_count: 0,
             dominant_operation_id: None,
             blocking_interaction_id: None,
+            kind_started_at_ms: None,
         };
     }
 
@@ -318,7 +357,8 @@ pub fn select_session_graph_activity(
 #[cfg(test)]
 mod tests {
     use super::{
-        select_session_graph_activity, SessionGraphActivityKind, SessionGraphCapabilities,
+        merge_session_graph_activity_timing, select_session_graph_activity,
+        SessionGraphActivity, SessionGraphActivityKind, SessionGraphCapabilities,
         SessionGraphLifecycle, SessionRecommendedAction,
     };
     use crate::acp::lifecycle::{DetachedReason, FailureReason, LifecycleStatus};
@@ -547,5 +587,51 @@ mod tests {
         let archived = SessionGraphLifecycle::archived();
         assert_eq!(archived.status, LifecycleStatus::Archived);
         assert!(!archived.actionability.can_archive);
+    }
+
+    #[test]
+    fn merge_activity_timing_preserves_anchor_for_same_kind() {
+        let previous = SessionGraphActivity {
+            kind: SessionGraphActivityKind::AwaitingModel,
+            active_operation_count: 0,
+            active_subagent_count: 0,
+            dominant_operation_id: None,
+            blocking_interaction_id: None,
+            kind_started_at_ms: Some(1_000),
+        };
+        let selected = SessionGraphActivity {
+            kind: SessionGraphActivityKind::AwaitingModel,
+            active_operation_count: 0,
+            active_subagent_count: 0,
+            dominant_operation_id: None,
+            blocking_interaction_id: None,
+            kind_started_at_ms: None,
+        };
+
+        let merged = super::merge_session_graph_activity_timing(&previous, selected, 9_000);
+        assert_eq!(merged.kind_started_at_ms, Some(1_000));
+    }
+
+    #[test]
+    fn merge_activity_timing_resets_anchor_on_kind_change() {
+        let previous = SessionGraphActivity {
+            kind: SessionGraphActivityKind::RunningOperation,
+            active_operation_count: 1,
+            active_subagent_count: 0,
+            dominant_operation_id: Some("op-1".to_string()),
+            blocking_interaction_id: None,
+            kind_started_at_ms: Some(1_000),
+        };
+        let selected = SessionGraphActivity {
+            kind: SessionGraphActivityKind::AwaitingModel,
+            active_operation_count: 0,
+            active_subagent_count: 0,
+            dominant_operation_id: None,
+            blocking_interaction_id: None,
+            kind_started_at_ms: None,
+        };
+
+        let merged = super::merge_session_graph_activity_timing(&previous, selected, 4_000);
+        assert_eq!(merged.kind_started_at_ms, Some(4_000));
     }
 }

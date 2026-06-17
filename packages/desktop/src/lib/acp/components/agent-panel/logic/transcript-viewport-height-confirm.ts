@@ -3,6 +3,7 @@ import type {
 	SessionStateEnvelope,
 	TranscriptViewportRow,
 } from "../../../../services/acp-types.js";
+import type { AppError } from "../../../errors/app-error.js";
 import { confirmTranscriptViewportHeight } from "../../../session-state/session-state-viewport-command-service.js";
 
 export type PendingHeightConfirmation = {
@@ -20,7 +21,7 @@ export type TranscriptViewportHeightConfirmDeps = {
 	isDispatchSuppressed: () => boolean;
 	nextViewportRequestGeneration: () => number;
 	applyEnvelope: (envelope: SessionStateEnvelope | null) => void;
-	handleDispatchError: (error: unknown) => void;
+	handleDispatchError: (error: AppError) => void;
 };
 
 export class TranscriptViewportHeightConfirmCoordinator {

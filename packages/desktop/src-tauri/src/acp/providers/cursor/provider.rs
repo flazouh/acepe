@@ -1,10 +1,13 @@
 //! Cursor Agent Provider
 //!
-//! This provider spawns Cursor CLI's native ACP server via `agent acp`.
+//! This provider spawns Cursor's native ACP server from the Acepe-managed
+//! `cursor-agent` binary (auto-installed via the agent installer). Availability
+//! and launch resolution key on the managed cache only — never on whatever
+//! happens to be named `agent` on the user's PATH.
 
 use crate::acp::provider::{
-    command_exists, AgentProvider, ModelFallbackCandidate, ProjectDiscoveryCompleteness,
-    ProjectPathListing, SpawnConfig, WebSearchNotificationDedupRecord,
+    AgentProvider, ModelFallbackCandidate, ProjectDiscoveryCompleteness, ProjectPathListing,
+    SpawnConfig, WebSearchNotificationDedupRecord,
 };
 use super::enrichment::enrich_cursor_session_update;
 use crate::acp::capability_resolution::resolve_generic_preconnection_capabilities;
@@ -50,10 +53,11 @@ impl AgentProvider for CursorProvider {
 
         self.spawn_configs().into_iter().next().unwrap_or_else(|| {
             tracing::warn!(
-                "Cursor launcher unavailable in cache and PATH; returning placeholder spawn config"
+                "Cursor managed binary not installed; returning placeholder spawn config. \
+                 Connect should auto-install before spawn, so this path is unexpected."
             );
             SpawnConfig {
-                command: "agent".to_string(),
+                command: "cursor-agent".to_string(),
                 args: vec!["acp".to_string()],
                 env: HashMap::new(),
                 env_strategy: Some(filtered_env_strategy()),
@@ -68,7 +72,6 @@ impl AgentProvider for CursorProvider {
             crate::acp::agent_installer::get_cached_binary(&canonical)
                 .map(|path| path.to_string_lossy().to_string()),
             crate::acp::agent_installer::get_cached_args(&canonical),
-            command_exists("agent"),
         )
     }
 
@@ -77,9 +80,9 @@ impl AgentProvider for CursorProvider {
     }
 
     fn is_available(&self) -> bool {
-        crate::acp::agent_installer::get_cached_binary(&crate::acp::types::CanonicalAgentId::Cursor)
-            .is_some()
-            || command_exists("agent")
+        // Managed cache only. A bare `agent` on PATH is not Cursor — trusting it
+        // both mis-launches a foreign binary and suppresses auto-install-on-connect.
+        crate::acp::agent_installer::is_installed(&crate::acp::types::CanonicalAgentId::Cursor)
     }
 
     fn model_discovery_commands(&self) -> Vec<SpawnConfig> {
@@ -581,10 +584,16 @@ fn extract_query_from_cursor_permission_title(title: &str) -> Option<String> {
     Some(query.to_string())
 }
 
+/// Resolve Cursor launchers from the Acepe-managed install only.
+///
+/// Returns the cached managed binary as the sole launcher, or empty when Cursor
+/// is not installed. It deliberately does not fall back to a PATH-resolved
+/// `agent` command: that name is generic enough to collide with unrelated CLIs
+/// (e.g. grok's `~/.grok/bin/agent`), which would both spawn a foreign binary
+/// and trick `is_available()` into suppressing auto-install-on-connect.
 fn resolve_cursor_spawn_configs(
     cached_command: Option<String>,
     cached_args: Vec<String>,
-    path_agent_available: bool,
 ) -> Vec<SpawnConfig> {
     let mut configs = Vec::new();
 
@@ -594,18 +603,6 @@ fn resolve_cursor_spawn_configs(
             SpawnConfig {
                 command,
                 args: normalize_cursor_acp_args(cached_args),
-                env: HashMap::new(),
-                env_strategy: Some(filtered_env_strategy()),
-            },
-        );
-    }
-
-    if path_agent_available {
-        push_unique_spawn_config(
-            &mut configs,
-            SpawnConfig {
-                command: "agent".to_string(),
-                args: vec!["acp".to_string()],
                 env: HashMap::new(),
                 env_strategy: Some(filtered_env_strategy()),
             },
@@ -674,25 +671,28 @@ mod tests {
     use super::*;
 
     #[test]
-    fn resolve_spawn_configs_prefers_cached_binary_before_path_agent() {
+    fn resolve_spawn_configs_uses_managed_binary_only() {
         let configs = resolve_cursor_spawn_configs(
             Some("/tmp/cursor-agent".to_string()),
             vec!["acp".to_string()],
-            true,
         );
 
-        assert_eq!(configs.len(), 2);
+        assert_eq!(configs.len(), 1);
         assert_eq!(configs[0].command, "/tmp/cursor-agent");
         assert_eq!(configs[0].args, vec!["acp"]);
-        assert_eq!(configs[1].command, "agent");
-        assert_eq!(configs[1].args, vec!["acp"]);
     }
 
     #[test]
-    fn resolve_spawn_configs_omits_fake_agent_fallback_when_unavailable() {
-        let configs = resolve_cursor_spawn_configs(None, Vec::new(), false);
+    fn resolve_spawn_configs_is_empty_when_not_installed() {
+        // No managed binary cached ⇒ no launcher. Acepe must auto-install the
+        // managed `cursor-agent` before it can spawn Cursor; there is no PATH
+        // fallback that could mask a missing install.
+        let configs = resolve_cursor_spawn_configs(None, Vec::new());
 
-        assert!(configs.is_empty());
+        assert!(
+            configs.is_empty(),
+            "uninstalled Cursor must not resolve any launcher (no foreign PATH `agent` fallback)"
+        );
     }
 
     #[test]
@@ -711,7 +711,6 @@ mod tests {
         let attempts = resolve_cursor_model_discovery_commands(resolve_cursor_spawn_configs(
             Some("/tmp/cursor-agent".to_string()),
             vec!["acp".to_string()],
-            false,
         ));
 
         assert_eq!(attempts.len(), 3);
@@ -827,12 +826,15 @@ mod tests {
     }
 
     #[test]
-    fn build_mode_round_trips_to_cursor_agent_mode() {
+    fn agent_mode_round_trips_through_cursor_protocol() {
         let provider = CursorProvider;
 
-        assert_eq!(provider.map_outbound_mode_id("build"), "agent");
-        assert_eq!(provider.normalize_mode_id("agent"), "build");
-        assert_eq!(provider.normalize_mode_id("ask"), "build");
+        // Acepe's canonical mode name is now "agent" (not "build").
+        // "build" is a legacy alias the provider accepts for backward compat.
+        assert_eq!(provider.map_outbound_mode_id("agent"), "agent");
+        assert_eq!(provider.normalize_mode_id("agent"), "agent");
+        assert_eq!(provider.normalize_mode_id("build"), "agent");
+        assert_eq!(provider.normalize_mode_id("ask"), "ask");
     }
 
     #[test]

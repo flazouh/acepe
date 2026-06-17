@@ -4,9 +4,11 @@ import { toast } from "svelte-sonner";
 import { getKeybindingsService, isMac } from "$lib/keybindings/index.js";
 import { getPreconnectionAgentSkillsStore } from "$lib/skills/store/preconnection-agent-skills-store.svelte.js";
 import { getVoiceSettingsStore } from "$lib/stores/voice-settings-store.svelte.js";
+import type { AttachMenuCommandItem } from "@acepe/ui/agent-panel";
 import {
 	AgentInputActiveModeChip,
 	AgentInputAttachMenu,
+	AgentInputConfigOptionSelector,
 	AgentInputComposerTrailingControls,
 	AgentPanelComposer as SharedAgentPanelComposer,
 } from "@acepe/ui/agent-panel";
@@ -47,6 +49,7 @@ import {
 	PreconnectionCapabilitiesState,
 	PreconnectionRemoteCommandsState,
 	renderInlineComposerMessage,
+	resolveAttachMenuItemInsertText,
 	resolveAutonomousSupport,
 	resolveComposerEnterKeyIntent,
 	resolveDefaultModeId,
@@ -201,6 +204,17 @@ $effect(() => {
 
 $effect(() => {
 	composerView.syncPendingToolbarSelections();
+});
+
+$effect(() => {
+	const catalogInput = composerView.attachMenuMcpCatalogInput;
+	if (!composerView.attachMenuShowMcpSection) {
+		return;
+	}
+	composerView.refreshAttachMenuMcpCatalog();
+	void catalogInput.agentId;
+	void catalogInput.projectPath;
+	void catalogInput.sessionId;
 });
 
 // Track previous message for draft change detection
@@ -1137,20 +1151,29 @@ async function handleImageAttachInputChange(event: Event): Promise<void> {
 	handleEditorInput({ suppressAutocomplete: true });
 }
 
-function handleAttachMenuCommandSelect(commandId: string): void {
-	const command = composerView.effectiveAvailableCommands.find((item) => item.name === commandId);
-	if (!command || !editorRef) {
+function insertAttachMenuTokenAtCursor(insertText: string): void {
+	if (!editorRef) {
 		return;
 	}
 	const cursorPos = getSerializedCursorOffset(editorRef);
 	const before = inputState.message.substring(0, cursorPos);
 	const after = inputState.message.substring(cursorPos);
-	const tokenText = toInlineTokenText(composerView.slashCommandSource.tokenType, `/${command.name}`);
-	inputState.message = `${before}${tokenText} ${after}`;
+	inputState.message = `${before}${insertText} ${after}`;
 	inputState.showSlashDropdown = false;
 	inputState.slashQuery = "";
-	syncEditorFromMessage(before.length + tokenText.length + 1);
+	syncEditorFromMessage(before.length + insertText.length + 1);
 	handleEditorInput({ suppressAutocomplete: true });
+}
+
+function handleAttachMenuOpenChange(open: boolean): void {
+	if (!open) {
+		return;
+	}
+	composerView.refreshAttachMenuMcpCatalog(true);
+}
+
+function handleAttachMenuItemSelect(item: AttachMenuCommandItem): void {
+	insertAttachMenuTokenAtCursor(resolveAttachMenuItemInsertText(item));
 }
 
 function handleActiveModeDismiss(): void {
@@ -1399,7 +1422,7 @@ $effect(() => {
 		<SharedAgentPanelComposer
 			class="border-t-0 p-0"
 			inputClass="flex-shrink-0 border border-border bg-input/30"
-			contentClass={voiceOverlayActive ? "relative px-2 py-1.5" : "px-2 py-1.5"}
+			contentClass={voiceOverlayActive ? "relative p-1.5" : "p-1.5"}
 		>
 			{#snippet content()}
 				<input
@@ -1459,38 +1482,38 @@ $effect(() => {
 						<AgentInputAttachMenu
 							disabled={composerView.selectorsDisabledByComposer}
 							modes={composerView.attachMenuModes}
-							commands={composerView.attachMenuCommands}
+							commandSections={composerView.attachMenuCommandSections}
+							mcpServerGroups={composerView.attachMenuMcpServerGroups}
+							mcpLoading={composerView.attachMenuMcpCatalogLoading}
+							showMcpSection={composerView.attachMenuShowMcpSection}
+							mcpCatalogLoaded={composerView.attachMenuMcpCatalogLoaded}
 							showModes={composerView.visibleModes.length > 0}
 							autonomousToggleActive={composerView.autonomousToggleActive}
 							autonomousDisabled={composerView.autonomousDisabled}
 							autonomousBusy={composerView.autonomousToggleBusy}
 							onAutonomousToggle={() => { void handleAutonomousToggle(); }}
-							toolbarConfigOptions={composerView.toolbarConfigOptions}
-							configOptionsDisabled={composerView.selectorsLoading || composerView.selectorsDisabledByComposer}
-							onConfigOptionChange={handleConfigOptionChange}
 							onModeChange={(modeId) => { void handleModeMenuChange(modeId); }}
 							onAddFileContext={handleAddFileContextFromAttachMenu}
 							onAttachImage={handleAttachImageFromMenu}
-							onCommandSelect={handleAttachMenuCommandSelect}
-						>
-							{#snippet overflow()}
-								{#if props.agentProjectPicker}
-									<div class="px-2 py-1">
-										{@render props.agentProjectPicker()}
-									</div>
-								{/if}
-								{#if props.sessionId}
-									<div class="px-2 py-1">
-										<ModelSelectorMetricsChip sessionId={props.sessionId} agentId={composerView.capabilitiesAgentId} />
-									</div>
-								{/if}
-								{#if props.checkpointButton}
-									<div class="px-2 py-1">
-										{@render props.checkpointButton()}
-									</div>
-								{/if}
-							{/snippet}
-						</AgentInputAttachMenu>
+							onCommandItemSelect={handleAttachMenuItemSelect}
+							onOpenChange={handleAttachMenuOpenChange}
+							checkpointOverflow={
+								props.showCheckpointInAttachMenu ? props.checkpointButton : undefined
+							}
+						/>
+						{#if composerView.toolbarConfigOptions.length > 0}
+							<div class="flex items-center gap-0.5">
+								{#each composerView.toolbarConfigOptions as configOption (configOption.id)}
+									<AgentInputConfigOptionSelector
+										{configOption}
+										disabled={composerView.selectorsLoading || composerView.selectorsDisabledByComposer}
+										onValueChange={(configId, value) => {
+											void handleConfigOptionChange(configId, value);
+										}}
+									/>
+								{/each}
+							</div>
+						{/if}
 						{#if composerView.showActiveModeChip}
 							<AgentInputActiveModeChip
 								label={composerView.selectedModeOption.label}
@@ -1503,6 +1526,7 @@ $effect(() => {
 					{#snippet trailingControls()}
 						<AgentInputComposerTrailingControls
 							inputReady={composerView.inputReady}
+							agentProjectPicker={props.agentProjectPicker}
 							voiceState={voiceToolbarBinding}
 							{voiceEnabled}
 							composerIsDispatching={composerView.storeComposerState?.isDispatching ?? false}
@@ -1548,6 +1572,14 @@ $effect(() => {
 									isLoading={composerView.selectorsLoading}
 									panelId={props.panelId}
 								/>
+							{/snippet}
+							{#snippet metricsChip()}
+								{#if props.sessionId}
+									<ModelSelectorMetricsChip
+										sessionId={props.sessionId}
+										agentId={composerView.capabilitiesAgentId}
+									/>
+								{/if}
 							{/snippet}
 						</AgentInputComposerTrailingControls>
 					{/snippet}

@@ -2,6 +2,7 @@
 import {
 	AgentInputAttachMenu,
 	AgentInputActiveModeChip,
+	AgentInputConfigOptionSelector,
 	AgentInputComposerRow,
 	AgentInputComposerTrailingControls,
 	AgentInputModelSelector,
@@ -822,8 +823,10 @@ let { bare = false }: Props = $props();
 										onModeChange={(modeId) => handleModeChange(panel.id, modeId)}
 										autonomousToggleActive={panel.autonomousActive}
 										onAutonomousToggle={() => handleAutonomousToggle(panel.id)}
-										toolbarConfigOptions={[panel.configOption]}
-										onConfigOptionChange={(configId, value) =>
+									/>
+									<AgentInputConfigOptionSelector
+										configOption={panel.configOption}
+										onValueChange={(configId, value) =>
 											handleConfigValueChange(panel.id, configId, value)}
 									/>
 									{#if availableModes.length > 1}

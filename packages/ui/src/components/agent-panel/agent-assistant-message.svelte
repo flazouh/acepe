@@ -7,15 +7,16 @@ import { untrack } from "svelte";
 import type { Snippet } from "svelte";
 import { MarkdownDisplay } from "../markdown/index.js";
 import AgentToolThinking from "./agent-tool-thinking.svelte";
+import AgentThinkingDurationHeader from "./agent-thinking-duration-header.svelte";
 import AgentMessageMeta from "./agent-message-meta.svelte";
-import ToolHeaderLeading from "./tool-header-leading.svelte";
+import PlanningPlaceholderRow from "./planning-placeholder-row.svelte";
+import type { ToolDurationTiming } from "./tool-duration.js";
 import {
 findLastTextGroupIndex,
 getAssistantMessageContentFlags,
 getAssistantTextContent,
 getFilteredAssistantThoughtGroups,
 getSanitizedAssistantChunkGroups,
-getThinkingHeaderLabel,
 } from "./agent-assistant-message-state.js";
 import type { ChunkGroup } from "../../lib/assistant-message/assistant-chunk-grouper.js";
 import {
@@ -63,6 +64,8 @@ interface Props {
 	initiallyCollapsed?: boolean;
 	/** Base path for file type SVG icons (used by the MarkdownDisplay fallback) */
 	iconBasePath?: string;
+	/** Canonical awaiting-model anchor while the planning placeholder is visible. */
+	planningStartedAtMs?: number | null;
 	/**
 	 * Optional snippet to render chunk groups.
 	 * When provided it is called for ALL groups (text and non-text), enabling hosts
@@ -83,8 +86,19 @@ let {
 	streamingAnimationMode = "smooth",
 	initiallyCollapsed,
 	iconBasePath = "",
+	planningStartedAtMs = null,
 	renderBlock,
 }: Props = $props();
+
+const planningDurationTiming = $derived<ToolDurationTiming | null>(
+	planningStartedAtMs !== null && planningStartedAtMs !== undefined
+		? {
+				startedAtMs: planningStartedAtMs,
+				completedAtMs: null,
+				status: "running",
+			}
+		: null
+);
 
 const groupedChunks = $derived.by(() => {
 	return getSanitizedAssistantChunkGroups(message);
@@ -112,6 +126,9 @@ const contentFlags = $derived(
 const hasMessageContent = $derived(contentFlags.hasMessageContent);
 const hasAnyContent = $derived(contentFlags.hasAnyContent);
 const showThinkingBlock = $derived(contentFlags.showThinkingBlock);
+const showPlanningPlaceholder = $derived(
+	isStreaming === true && planningDurationTiming !== null && !hasAnyContent
+);
 
 const thinkingPrefs = getThinkingPreferences();
 
@@ -146,13 +163,6 @@ const visibleMessageGroups = $derived.by(() => {
 });
 
 const activeTokenRevealCss = $derived(isStreaming ? tokenRevealCss : undefined);
-
-const thinkingHeaderLabel = $derived(
-	getThinkingHeaderLabel({
-		isStreaming,
-		thinkingDurationMs: message.thinkingDurationMs,
-	})
-);
 
 let thinkingContainerRef = $state<HTMLDivElement | undefined>();
 let thinkingContentRef = $state<HTMLDivElement | undefined>();
@@ -202,15 +212,20 @@ thinkingFollowScheduler.cancel();
 <div class="space-y-1.5">
 {#if showThinkingBlock}
 <AgentToolThinking
-headerLabel={thinkingHeaderLabel}
-showHeader={!isStreaming || message.thinkingDurationMs != null}
-status={isStreaming ? "running" : "done"}
-collapsed={isCollapsed}
-onCollapseChange={(next: boolean) => {
-isCollapsed = next;
-persistThinkingCollapse(next);
+	showHeader={!isStreaming || message.thinkingDurationMs != null}
+	status={isStreaming ? "running" : "done"}
+	collapsed={isCollapsed}
+	onCollapseChange={(next: boolean) => {
+	isCollapsed = next;
+	persistThinkingCollapse(next);
 }}
 >
+{#snippet header()}
+	<AgentThinkingDurationHeader
+		{isStreaming}
+		thinkingDurationMs={message.thinkingDurationMs}
+	/>
+{/snippet}
 <div
 class="thinking-content scrollbar-none overflow-y-auto opacity-60"
 style={thinkingViewportCssText(DEFAULT_THINKING_VIEWPORT_POLICY)}
@@ -250,6 +265,9 @@ bind:this={thinkingContainerRef}
 {@const isLastTextGroup = index === lastMessageTextGroupIndex}
 <div class="space-y-1.5">
 {#if renderBlock}
+			{#if isStreaming && isLastTextGroup && group.type === "text" && group.text.length === 0 && planningDurationTiming !== null}
+<PlanningPlaceholderRow timing={planningDurationTiming} class="py-2 pr-1.5" />
+			{:else}
 			{@render renderBlock({
 				group,
 				isStreaming: shouldStreamAssistantTextContent({
@@ -260,11 +278,10 @@ bind:this={thinkingContainerRef}
 				projectPath,
 				streamingAnimationMode,
 			})}
+			{/if}
 {:else if group.type === "text"}
 {#if isStreaming && !group.text}
-<div class="flex items-center gap-2 py-2 text-sm text-muted-foreground">
-<ToolHeaderLeading kind="think" status="running">Planning next moves…</ToolHeaderLeading>
-</div>
+<PlanningPlaceholderRow timing={planningDurationTiming} class="py-2 pr-1.5" />
 {:else}
 <MarkdownDisplay
 	content={group.text}
@@ -291,6 +308,10 @@ model={message.displayModel}
 </div>
 {/if}
 </div>
+</div>
+{:else if showPlanningPlaceholder}
+<div class="w-full mb-2">
+<PlanningPlaceholderRow timing={planningDurationTiming} class="py-2 pr-1.5" />
 </div>
 {/if}
 

@@ -22,6 +22,7 @@ export interface AgentPanelContentProps {
 	readonly sessionId: string | null;
 	readonly sceneEntries?: readonly AgentPanelSceneEntryModel[];
 	readonly pendingUserRevealRequestKey?: string | null;
+	readonly showLocalPlanningIndicator?: boolean;
 	readonly sessionProjectPath: string | null;
 	readonly allProjects?: readonly Project[];
 	scrollContainer?: HTMLDivElement | null;

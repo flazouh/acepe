@@ -3,7 +3,7 @@ const persistedThinkingCollapseByMessageId = new Map<string, boolean>();
 </script>
 
 <script lang="ts">
-import { AgentToolThinking } from "@acepe/ui/agent-panel";
+import { AgentToolThinking, AgentThinkingDurationHeader } from "@acepe/ui/agent-panel";
 import { getChatPreferencesStore } from "../../store/chat-preferences-store.svelte.js";
 import type { AssistantMessage } from "../../types/assistant-message.js";
 import {
@@ -150,7 +150,6 @@ $effect(() => {
 		<div class="space-y-1.5">
 			{#if messageState.showThinkingBlock}
 				<AgentToolThinking
-					headerLabel={messageState.thinkingHeaderLabel}
 					showHeader={!isStreaming || messageState.safeMessage.thinkingDurationMs != null}
 					status={isStreaming ? "running" : "done"}
 					collapsed={isCollapsed}
@@ -163,6 +162,12 @@ $effect(() => {
 						chatPrefs?.setThinkingBlockCollapsedByDefault(!chatPrefs.thinkingBlockCollapsedByDefault);
 					}}
 				>
+					{#snippet header()}
+						<AgentThinkingDurationHeader
+							{isStreaming}
+							thinkingDurationMs={messageState.safeMessage.thinkingDurationMs}
+						/>
+					{/snippet}
 					<div
 						class="thinking-content scrollbar-none overflow-y-auto text-xs opacity-60"
 						style={thinkingViewportCssText(DEFAULT_THINKING_VIEWPORT_POLICY)}

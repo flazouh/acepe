@@ -232,4 +232,12 @@ export class PanelHotStateStore {
 	clearPendingWorktreeSetup(panelId: string): void {
 		this.updateHotState(panelId, { pendingWorktreeSetup: null });
 	}
+
+	setSignInRequirement(panelId: string, requirement: PanelHotState["signInRequirement"]): void {
+		this.updateHotState(panelId, { signInRequirement: requirement });
+	}
+
+	clearSignInRequirement(panelId: string): void {
+		this.updateHotState(panelId, { signInRequirement: null });
+	}
 }

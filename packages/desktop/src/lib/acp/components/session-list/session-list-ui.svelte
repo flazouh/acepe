@@ -107,6 +107,10 @@ interface Props {
 	onExportJson?: (sessionId: string) => void | Promise<void>;
 	/** Called when project order changes from the sidebar move actions */
 	onReorderProjects?: (orderedPaths: string[]) => void;
+	/** Per-project visibility for discovered external CLI sessions */
+	projectShowExternalCliSessions?: ReadonlyMap<string, boolean>;
+	/** Toggle whether discovered external CLI sessions appear in this project's list */
+	onToggleShowExternalCliSessions?: (projectPath: string, showExternalCliSessions: boolean) => void;
 }
 
 let {
@@ -139,6 +143,8 @@ let {
 	onExportMarkdown,
 	onExportJson,
 	onReorderProjects,
+	projectShowExternalCliSessions = new Map(),
+	onToggleShowExternalCliSessions,
 }: Props = $props();
 
 // Project collapse state (hydrated from persisted state in one-time effect)
@@ -531,6 +537,14 @@ function handleOpenGitPanel(event: MouseEvent, projectPath: string) {
 const projectHeaderHoverActionButtonClass =
 	"flex items-center justify-center size-5 rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground";
 
+function getShowExternalCliSessions(projectPath: string): boolean {
+	return projectShowExternalCliSessions.get(projectPath) ?? true;
+}
+
+function isAcepeOnlyFilterActive(projectPath: string): boolean {
+	return !getShowExternalCliSessions(projectPath);
+}
+
 function handleOpenFileExplorer(event: MouseEvent, group: SessionGroup): void {
 	event.stopPropagation();
 	fileExplorerDialogProject = {
@@ -733,6 +747,10 @@ function openCreateBranchDialog(projectPath: string): void {
 		onChangeProjectIcon={onChangeProjectIcon
 			? () => onChangeProjectIcon(group.projectPath)
 			: undefined}
+		hideExternalCliSessions={isAcepeOnlyFilterActive(group.projectPath)}
+		onHideExternalCliSessionsChange={onToggleShowExternalCliSessions
+			? (hide) => onToggleShowExternalCliSessions(group.projectPath, !hide)
+			: undefined}
 	/>
 {/snippet}
 
@@ -880,7 +898,7 @@ function openCreateBranchDialog(projectPath: string): void {
 									type="search"
 									value={getProjectHistoryQuery(group.projectPath)}
 									placeholder="Search project history..."
-									class="h-5 rounded-lg border-border/70 bg-background/70 px-1 py-0 text-[10px] md:text-[10px]"
+									class="h-5 rounded-md border-border/70 bg-background/70 px-1 py-0 text-[10px] md:text-[10px]"
 									data-sidebar-project-history-search
 									oninput={(event) =>
 										setProjectHistoryQuery(group.projectPath, event.currentTarget.value)}

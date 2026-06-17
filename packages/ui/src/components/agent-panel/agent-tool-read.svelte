@@ -15,6 +15,8 @@
 		hasReadSourceExcerptHtml,
 	} from "./agent-tool-read-state.js";
 	import ToolHeaderLeading from "./tool-header-leading.svelte";
+	import AgentToolDurationLabel from "./agent-tool-duration-label.svelte";
+	import type { ToolDurationTiming } from "./tool-duration.js";
 	import type { AgentToolStatus } from "./types.js";
 	import type { AgentSourceHighlighter } from "./types.js";
 
@@ -40,7 +42,7 @@
 		/** Tool status */
 		status?: AgentToolStatus;
 		/** Optional elapsed label shown in the header (e.g. "for 2.34s") */
-		durationLabel?: string;
+		durationTiming?: ToolDurationTiming;
 		/** Base path for file type SVG icons (e.g. "/svgs/icons") */
 		iconBasePath?: string;
 		/** Whether clicking the file should be interactive */
@@ -68,7 +70,7 @@
 		additions = 0,
 		deletions = 0,
 		status = "done",
-		durationLabel,
+		durationTiming,
 		iconBasePath = "",
 		interactive = false,
 		onSelect,
@@ -129,11 +131,10 @@
 				{/if}
 			</div>
 		</div>
-		{#if durationLabel}
-			<span class="ml-1.5 shrink-0 font-sans text-xs text-muted-foreground/70">
-				{durationLabel}
-			</span>
-		{/if}
+		<AgentToolDurationLabel
+			timing={durationTiming}
+			class="ml-1.5 shrink-0 font-sans text-xs"
+		/>
 		{#if sourceExcerpt}
 			<button
 				type="button"

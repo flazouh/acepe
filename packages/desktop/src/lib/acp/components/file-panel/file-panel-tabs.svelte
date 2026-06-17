@@ -86,5 +86,6 @@ const viewState = $derived(buildFilePanelTabsViewState({ filePanels, activeFileP
 	.file-tab :global(.file-path-badge:hover),
 	.file-tab :global(.file-path-badge-selected) {
 		background: transparent !important;
+		border: none !important;
 	}
 </style>

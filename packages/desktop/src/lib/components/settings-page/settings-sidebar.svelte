@@ -21,13 +21,13 @@ function sectionsForGroup(groupId: SettingsNavGroupId) {
 </script>
 
 <nav
-	class="flex w-[208px] shrink-0 flex-col overflow-y-auto border-r border-border/40 px-2 py-3"
+	class="flex w-[208px] shrink-0 flex-col overflow-y-auto border-r border-border/40 px-2 py-2"
 	aria-label="Settings sections"
 >
 	{#each SETTINGS_NAV_GROUPS as group (group.id)}
 		{@const groupSections = sectionsForGroup(group.id)}
 		{#if groupSections.length > 0}
-			<div class="px-2 pb-1 pt-3 first:pt-1">
+			<div class="px-2 pb-1 pt-2 first:pt-1">
 				<p class="text-[10px] font-medium uppercase tracking-[0.08em] text-muted-foreground/55">
 					{group.label}
 				</p>

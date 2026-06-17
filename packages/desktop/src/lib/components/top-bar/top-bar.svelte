@@ -150,7 +150,7 @@ function switchLayoutFamily(nextFamily: LayoutFamily): void {
 	{#snippet extraLeftActions()}
 		{#if updaterState?.kind === "available"}
 			<div class="flex items-center pl-2">
-			<Button variant="headerAction" size="headerAction" onclick={onUpdateClick}>
+			<Button variant="headerProminent" size="headerAction" onclick={onUpdateClick}>
 				{#snippet children()}
 					Update
 				{/snippet}
@@ -158,7 +158,7 @@ function switchLayoutFamily(nextFamily: LayoutFamily): void {
 			</div>
 		{:else if updaterState?.kind === "downloading" || updaterState?.kind === "installing"}
 			<div class="flex items-center pl-2">
-			<Button variant="headerAction" size="headerAction" disabled>
+			<Button variant="headerProminent" size="headerAction" disabled>
 				{#snippet children()}
 					<div class="flex items-center gap-2">
 						<span>{updateActionText}</span>
@@ -180,7 +180,7 @@ function switchLayoutFamily(nextFamily: LayoutFamily): void {
 			</div>
 		{:else if updaterState?.kind === "error"}
 			<div class="flex items-center pl-2">
-				<Button variant="headerAction" size="headerAction" onclick={onRetryUpdateClick}>
+				<Button variant="headerProminent" size="headerAction" onclick={onRetryUpdateClick}>
 					{#snippet children()}
 						Retry
 					{/snippet}

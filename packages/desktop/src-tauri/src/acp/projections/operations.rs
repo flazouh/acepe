@@ -288,16 +288,7 @@ impl ProjectionRegistry {
                         &mut assistant_boundary_entry_count,
                     );
                 }
-                StoredEntry::Error { message, .. } => {
-                    snapshot.active_turn_failure = Some(convert_stored_error_snapshot(message));
-                    snapshot.last_terminal_turn_id = None;
-                    snapshot.active_tool_call_ids.clear();
-                    note_imported_transcript_boundary(
-                        TranscriptEntryRole::Error,
-                        &mut transcript_entry_count,
-                        &mut assistant_boundary_entry_count,
-                    );
-                }
+                StoredEntry::Error { .. } => {}
             }
         }
 
@@ -444,10 +435,7 @@ impl ProjectionRegistry {
             degradation_reason: None,
         };
 
-        let operation = existing
-            .as_ref()
-            .map(|existing| merge_operation_snapshot_evidence(existing, operation.clone()))
-            .unwrap_or(operation);
+        let operation = finalize_operation_snapshot(existing.as_ref(), operation);
 
         self.operations_by_id
             .insert(operation_id.clone(), operation.clone());
@@ -575,10 +563,7 @@ impl ProjectionRegistry {
             degradation_reason,
             source_link,
         );
-        let operation = existing
-            .as_ref()
-            .map(|existing| merge_operation_snapshot_evidence(existing, operation.clone()))
-            .unwrap_or(operation);
+        let operation = finalize_operation_snapshot(existing.as_ref(), operation);
 
         self.operations_by_id
             .insert(operation_id.clone(), operation.clone());

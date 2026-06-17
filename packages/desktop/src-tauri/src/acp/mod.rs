@@ -23,6 +23,7 @@ pub mod session_restore;
 pub mod inbound_request_router;
 pub mod journal_write_lock;
 pub mod local_command;
+pub mod mcp_catalog;
 pub mod lifecycle;
 pub mod model_display;
 pub mod non_streaming_batcher;

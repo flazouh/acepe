@@ -55,7 +55,7 @@
 	});
 </script>
 
-<EmbeddedPanelHeader class="bg-background border-b border-border shrink-0">
+<EmbeddedPanelHeader class="shrink-0 border-b border-border bg-card">
 	<HeaderActionCell withDivider={false}>
 		<BrowserNavActions
 			onBack={props.onBack}
@@ -73,7 +73,7 @@
 				name="browser-url"
 				type="text"
 				value={inputValue}
-				class="h-5 min-w-0 flex-1 bg-transparent text-sm font-mono text-foreground outline-none placeholder:text-muted-foreground/70"
+				class="h-5 min-w-0 flex-1 bg-transparent text-xs font-mono text-foreground outline-none placeholder:text-muted-foreground/70"
 				autocapitalize="off"
 				autocomplete="off"
 				spellcheck="false"
@@ -83,7 +83,7 @@
 		</form>
 	</HeaderTitleCell>
 
-	<HeaderActionCell class="overflow-hidden" withDivider={true}>
+	<HeaderActionCell class="overflow-hidden" withDivider={false}>
 		<BrowserNavActions
 			onOpenExternal={props.onOpenExternal}
 			openExternalLabel={props.openExternalLabel}

@@ -23,6 +23,8 @@
 	let {
 		inputReady,
 		modelSelector,
+		metricsChip,
+		agentProjectPicker,
 		voiceState,
 		voiceEnabled,
 		composerIsDispatching,
@@ -41,6 +43,8 @@
 	}: {
 		inputReady: boolean;
 		modelSelector: Snippet;
+		metricsChip?: Snippet;
+		agentProjectPicker?: Snippet;
 		voiceState: AgentComposerToolbarVoiceBinding | null;
 		voiceEnabled: boolean;
 		composerIsDispatching: boolean;
@@ -94,7 +98,17 @@
 				class:opacity-0={voiceActive}
 				class:pointer-events-none={voiceActive}
 			>
+				{#if agentProjectPicker}
+					<div class="flex h-7 shrink-0 items-center">
+						{@render agentProjectPicker()}
+					</div>
+				{/if}
 				{@render modelSelector()}
+				{#if metricsChip}
+					<div class="flex h-7 shrink-0 items-center">
+						{@render metricsChip()}
+					</div>
+				{/if}
 			</div>
 			{#if currentVoiceState !== null && shouldShowVoiceControls({ voiceState: currentVoiceState, voiceEnabled, isRecordingUi: recordingUi })}
 				{#if shouldShowVoiceErrorDismiss({ voiceState: currentVoiceState, voiceEnabled })}

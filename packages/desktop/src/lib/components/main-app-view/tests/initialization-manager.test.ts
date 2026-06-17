@@ -197,6 +197,7 @@ describe("InitializationManager", () => {
 						sequenceId: session.sequenceId,
 					};
 				}),
+				resolveCanonicalSessionId: mock(() => null),
 			},
 		} as unknown as SessionStore;
 

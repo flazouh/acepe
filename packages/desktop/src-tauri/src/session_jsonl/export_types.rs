@@ -2,6 +2,10 @@
 // Run: cargo test --lib session_jsonl::export_types::tests::export_types
 
 use crate::acp::capability_resolution::{ResolvedCapabilities, ResolvedCapabilityStatus};
+use crate::acp::mcp_catalog::{
+    ComposerMcpCatalog, ComposerMcpCatalogSource, ComposerMcpConnectionStatus, ComposerMcpServer,
+    ComposerMcpTool,
+};
 use crate::acp::client::{
     AvailableMode, AvailableModel, NewSessionResponse, ResumeSessionResponse, SessionModelState,
     SessionModes,
@@ -350,6 +354,11 @@ pub fn export_all_types() {
     export_acp_type!(AvailableMode);
     export_acp_type!(CommandInput);
     export_acp_type!(AvailableCommand);
+    export_acp_type!(ComposerMcpCatalogSource);
+    export_acp_type!(ComposerMcpConnectionStatus);
+    export_acp_type!(ComposerMcpTool);
+    export_acp_type!(ComposerMcpServer);
+    export_acp_type!(ComposerMcpCatalog);
     export_acp_type!(DisplayableModel);
     export_acp_type!(DisplayModelGroup);
     export_acp_type!(ModelDisplayFamily);

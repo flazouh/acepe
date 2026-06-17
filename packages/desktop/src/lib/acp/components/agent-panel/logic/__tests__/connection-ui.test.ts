@@ -27,6 +27,47 @@ describe("derivePanelErrorInfo", () => {
 		expect(result.failureReason).toBeNull();
 	});
 
+	it("renders raw panel error message when there is no curated failure copy", () => {
+		// Auth errors no longer flow through failureReason — they are surfaced as
+		// a separate signInRequirement signal (Slice 1: pre-session hot-state;
+		// Slice 2: canonical Detached(AwaitingAuthentication) lifecycle). This
+		// ensures non-auth panel errors still surface their raw message.
+		const result = derivePanelErrorInfo({
+			panelConnectionState: PanelConnectionState.ERROR,
+			panelConnectionError: {
+				message: "Failed to create session (ProviderFailedBeforeId): subprocess spawn failed",
+				failureReason: null,
+			},
+			sessionConnectionError: null,
+			activeTurnError: null,
+			sessionFailureReason: null,
+			agentDisplayName: "Cursor",
+		});
+
+		expect(result.showError).toBe(true);
+		expect(result.failureReason).toBeNull();
+		expect(result.details).toBe(
+			"Failed to create session (ProviderFailedBeforeId): subprocess spawn failed"
+		);
+	});
+
+	it("keeps the raw panel message when the panel error has no failure reason", () => {
+		const result = derivePanelErrorInfo({
+			panelConnectionState: PanelConnectionState.ERROR,
+			panelConnectionError: {
+				message: "npm error 404",
+				failureReason: null,
+			},
+			sessionConnectionError: null,
+			activeTurnError: null,
+			sessionFailureReason: null,
+			agentDisplayName: "Cursor",
+		});
+
+		expect(result.details).toBe("npm error 404");
+		expect(result.failureReason).toBeNull();
+	});
+
 	it("returns session error details when session connection fails", () => {
 		const result = derivePanelErrorInfo({
 			panelConnectionState: PanelConnectionState.CONNECTING,
@@ -60,6 +101,25 @@ describe("derivePanelErrorInfo", () => {
 			"This GitHub Copilot session is no longer available to reopen. Start a new session to continue."
 		);
 		expect(result.failureReason).toBe("sessionGoneUpstream");
+	});
+
+	it("shows raw resume error when the failure reason has no curated copy (resumeFailed)", () => {
+		// Authentication errors on the resume path now surface as
+		// Detached(AwaitingAuthentication) and are rendered via signInRequirement,
+		// not as a connection error. This test covers the remaining case where a
+		// generic resumeFailed falls back to raw provider text.
+		const result = derivePanelErrorInfo({
+			panelConnectionState: PanelConnectionState.CONNECTING,
+			panelConnectionError: null,
+			sessionConnectionError: "JSON-RPC error -32000 Internal server error",
+			activeTurnError: null,
+			sessionFailureReason: "resumeFailed",
+			agentDisplayName: "Cursor",
+		});
+
+		expect(result.showError).toBe(true);
+		expect(result.failureReason).toBe("resumeFailed");
+		expect(result.details).toBe("JSON-RPC error -32000 Internal server error");
 	});
 
 	it("falls back to raw text when the failure reason has no curated copy", () => {

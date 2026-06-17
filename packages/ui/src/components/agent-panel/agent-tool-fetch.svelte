@@ -9,6 +9,8 @@
 		hasFetchResult,
 	} from "./agent-tool-fetch-state.js";
 	import ToolHeaderLeading from "./tool-header-leading.svelte";
+	import AgentToolDurationLabel from "./agent-tool-duration-label.svelte";
+	import type { ToolDurationTiming } from "./tool-duration.js";
 	import type { AgentToolStatus } from "./types.js";
 
 	interface Props {
@@ -16,7 +18,7 @@
 		domain?: string | null;
 		resultText?: string | null;
 		status?: AgentToolStatus;
-		durationLabel?: string;
+		durationTiming?: ToolDurationTiming;
 		/** Label when tool is running (e.g. "Fetching") */
 		fetchingLabel?: string;
 		/** Label when tool failed (e.g. "Fetch failed") */
@@ -34,7 +36,7 @@
 		domain = null,
 		resultText = null,
 		status = "done",
-		durationLabel,
+		durationTiming,
 		fetchingLabel = "Fetching",
 		fetchFailedLabel = "Fetch failed",
 		fetchedLabel = "Fetched",
@@ -69,11 +71,10 @@
 			<span class="min-w-0 truncate text-muted-foreground/70">{targetText}</span>
 		{/if}
 
-		{#if durationLabel}
-			<span class="ml-auto shrink-0 font-sans text-sm text-muted-foreground/70">
-				{durationLabel}
-			</span>
-		{/if}
+		<AgentToolDurationLabel
+			timing={durationTiming}
+			class="ml-auto shrink-0 font-sans text-sm"
+		/>
 	</div>
 
 	{#if hasResult && resultText}

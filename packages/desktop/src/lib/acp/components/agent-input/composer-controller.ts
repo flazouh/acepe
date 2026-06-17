@@ -7,11 +7,14 @@
  * and `agent-input-controller.ts` for send actions.
  */
 export {
-	buildAttachMenuCommands,
+	buildAttachMenuCommandSections,
+	buildAttachMenuMcpServerGroups,
 	buildAttachMenuModes,
+	resolveAttachMenuItemInsertText,
 	resolveDefaultModeId,
 	shouldShowActiveModeChip,
 } from "./logic/attach-menu-items.js";
+export { ComposerMcpCatalogState } from "./logic/composer-mcp-catalog-state.svelte.js";
 export {
 	resolveCapabilityContextProviderMetadata,
 	resolveCapabilitySource,
@@ -84,6 +87,8 @@ export { type SubmitIntent } from "../../logic/submit-intent.js";
 
 export type { ComposerRestoreSnapshot } from "./logic/first-send-recovery.js";
 export {
+	findAuthenticationRequirement,
+	findCreationFailureReason,
 	formatPreSessionSendFailure,
 	restoreComposerStateAfterFailedSend,
 } from "./logic/first-send-recovery.js";

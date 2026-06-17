@@ -65,32 +65,20 @@ import {
 } from "../logic";
 import { DEFAULT_BROWSER_HOME_URL } from "../../../constants/browser-defaults.js";
 import { getProviderBrandIcon } from "../../../constants/thread-list-constants.js";
-import { createPanelBranchLookupController } from "../logic/panel-branch-lookup.js";
 import { createAgentPanelExportHandlers } from "../logic/agent-panel-export-handlers.js";
 import { createAgentPanelInteractionHandlers } from "../logic/agent-panel-interaction-handlers.js";
-import { AgentPanelSessionController } from "../state/agent-panel-session-controller.svelte.js";
-import { AgentPanelScenePipelineController } from "../state/agent-panel-scene-pipeline-controller.svelte.js";
-import { AgentPanelViewStateController } from "../state/agent-panel-view-state-controller.svelte.js";
-import { AgentPanelWorktreeController } from "../state/agent-panel-worktree-controller.svelte.js";
 import {
 	ATTACHED_COLUMN_WIDTH,
 	BROWSER_SIDEBAR_COLUMN_WIDTH,
-	AgentPanelLayoutController,
+	PLAN_SIDEBAR_COLUMN_WIDTH,
 } from "../state/agent-panel-layout-controller.svelte.js";
-import { CheckpointTimelineController } from "../state/checkpoint-timeline-controller.svelte.js";
-import { ReviewDialogController } from "../state/review-dialog-controller.svelte.js";
-import { PrCardController } from "../state/pr-card-controller.svelte.js";
-import { WorktreeCloseConfirmationController } from "../state/worktree-close-confirmation-controller.svelte.js";
-import { WorktreeSetupController } from "../state/worktree-setup-controller.svelte.js";
-import { ContentScrollRevealController } from "../state/content-scroll-reveal-controller.svelte.js";
-import { createConnectionController } from "../state/connection-controller.svelte.js";
+import { AgentPanelRootState } from "../state/agent-panel-root-state.svelte.js";
 import { shouldAutoScrollOnPanelActivation } from "../logic/should-auto-scroll-on-panel-activation.js";
 import { isInteractiveClickTarget } from "../logic/panel-focus-guard.js";
 import { deriveAgentPanelHeaderDisplayTitle } from "../logic/agent-panel-header-title.js";
 import { resolveAgentPanelProviderBrand } from "../logic/agent-panel-provider-brand.js";
 import { resolveWorktreeToggleProjectPath } from "../logic/worktree-toggle-project-path.js";
 import { buildTodoMarkdown } from "./agent-panel-pure-helpers.js";
-import { AgentPanelState } from "../state/agent-panel-state.svelte";
 import type { AgentPanelProps } from "../types";
 import { AgentPanelFooter as SharedFooter } from "@acepe/ui/agent-panel";
 import WorktreeFooterButton from "../../shared/worktree-footer-button.svelte";
@@ -102,6 +90,7 @@ import type { ReviewControlsSnapshot } from "./agent-panel-review-content-types.
 import WorkspaceDialogFrame from "$lib/components/ui/workspace-dialog-frame.svelte";
 import AgentPanelTerminalDrawer from "./agent-panel-terminal-drawer.svelte";
 import AgentPanelPreComposerStack from "./agent-panel-pre-composer-stack.svelte";
+import PreSessionWorktreeCard from "./pre-session-worktree-card.svelte";
 import { PlanSidebar } from "../../plan-sidebar/index.js";
 import { BrowserPanel as BrowserPanelComponent } from "../../browser-panel/index.js";
 import {
@@ -121,7 +110,6 @@ import {
 	fetchPanelGitBranch,
 	fetchWorktreeHasUncommittedChanges,
 	fetchWorktreePathListedForProject,
-	loadCheckpointsBeforeTimelineOpen,
 	runCreatePrWorkflow,
 	runMergePrWorkflow,
 	runPanelConnectionRetry,
@@ -166,33 +154,97 @@ let {
 	onCreateIssueReport,
 }: AgentPanelProps = $props();
 
-// ✅ State managers (must be before derived values that use them)
-const sessionStore = getSessionStore();
-const panelStore = getPanelStore();
-const chatPreferencesStore = getChatPreferencesStore();
+const logger = createLogger({ id: "agent-panel-render-trace", name: "AgentPanelRenderTrace" });
+let lastPanelTraceSignature = $state<string | null>(null);
+let prefersReducedMotion = $state(false);
 
-// Session-derived reactive state is being hoisted into this controller,
-// cluster by cluster (see docs/plans/2026-05-29-002-...). Instantiated once;
-// consumed incrementally as derivations migrate.
-const sessionController: AgentPanelSessionController = new AgentPanelSessionController({
-	getSessionId: () => sessionId,
+const rootState = new AgentPanelRootState({
+	stores: {
+		sessionStore: getSessionStore(),
+		panelStore: getPanelStore(),
+		chatPreferencesStore: getChatPreferencesStore() ?? null,
+		connectionStore: getConnectionStore(),
+		interactionStore: getInteractionStore(),
+		permissionStore: getPermissionStore(),
+		agentStore: getAgentStore(),
+		messageQueueStore: getMessageQueueStore(),
+	},
 	getPanelId: () => panelId,
-	sessionStore,
-	panelStore,
-	getPanelConnectionState: () => connection.state,
-	getPanelConnectionError: () => connection.error,
+	getSessionId: () => sessionId,
+	getPanelWidth: () => width,
+	getHasAttachedFilePane: () => hasAttachedFilePane,
+	getIsFullscreen: () => isFullscreen,
+	getReviewMode: () => reviewMode,
+	getHasPlan: () => planState.plan !== null,
 	getAgentName: () => agentName,
+	getViewStateInput: (state) => ({
+		lifecyclePresentation: state.sessionController.lifecyclePresentation,
+		entriesCount: state.sessionController.knownVisibleEntryCount,
+		hasSession: sessionId !== null,
+		isAwaitingModelResponse: state.sessionController.isAwaitingModelResponse,
+		hasImmediatePendingSendIntent: state.sessionController.hasImmediatePendingSendIntent,
+		showProjectSelection,
+		hasEffectiveProjectPath: !!effectiveProjectPath,
+		errorInfo: state.sessionController.errorInfo,
+	}),
+	getGraphMaterializerInput: (state) => ({
+		panelId: state.sessionController.effectivePanelId,
+		graph: state.sessionController.agentPanelCanonicalSource,
+		header: {
+			title: graphHeaderTitle,
+			subtitle: state.sessionController.sessionTitle,
+			agentIconSrc,
+			agentLabel: agentName,
+			projectLabel: displayProjectName,
+			projectColor,
+			sequenceId,
+		},
+		optimistic:
+			state.sessionController.optimisticUserEntryForGraph != null
+				? {
+						pendingUserEntry: state.sessionController.optimisticUserEntryForGraph,
+					}
+				: null,
+	}),
+	getPrefersReducedMotion: () => prefersReducedMotion,
+	getWorktreeToggleProjectPath: () => worktreeToggleProjectPath,
+	getPanelPendingWorktreeEnabled: () => panelPendingWorktreeEnabled,
+	getPanelPreparedWorktreeLaunch: () => panelPreparedWorktreeLaunch,
+	getPendingWorktreeSetup: (state) =>
+		state.sessionController.panelHotState?.pendingWorktreeSetup ?? null,
+	getPendingProjectSelection: () => pendingProjectSelection,
+	getAllProjects: () => allProjects,
+	onClose,
+	logWorktreeCreated: (details) => {
+		logger.info("[worktree-flow] handleWorktreeCreated: entry", details);
+	},
+	logWorktreeCreatedEarlyReturn: () => {
+		logger.info("[worktree-flow] handleWorktreeCreated: early return (no projectPath)");
+	},
 });
 
-const connectionStore = getConnectionStore();
-
-// Panel-connection state — owned by a testable controller. Mutually-referential
-// with sessionController via lazy accessors (stillFailed ↔ connection state/error).
-const connection = createConnectionController({
-	getStillFailed: () => sessionController.stillFailed,
-	connectionStore,
-	getPanelId: () => panelId ?? null,
-});
+const sessionStore = rootState.sessionStore;
+const panelStore = rootState.panelStore;
+const chatPreferencesStore = rootState.chatPreferencesStore;
+const connectionStore = rootState.connectionStore;
+const interactionStore = rootState.interactionStore;
+const permissionStore = rootState.permissionStore;
+const agentStore = rootState.agentStore;
+const messageQueueStore = rootState.messageQueueStore;
+const sessionController = rootState.sessionController;
+const connection = rootState.connection;
+const panelState = rootState.panelState;
+const panelBranchLookup = rootState.panelBranchLookup;
+const layoutController = rootState.layoutController;
+const contentScrollReveal = rootState.contentScrollReveal;
+const checkpointTimeline = rootState.checkpointTimeline;
+const worktreeSetup = rootState.worktreeSetup;
+const worktreeCloseConfirm = rootState.worktreeCloseConfirm;
+const worktreeController = rootState.worktreeController;
+const viewStateController = rootState.viewStateController;
+const scenePipelineController = rootState.scenePipelineController;
+const prCard = rootState.prCard;
+const reviewDialog = rootState.reviewDialog;
 
 setThinkingPreferences({
 	get defaultExpanded() {
@@ -204,13 +256,6 @@ setThinkingPreferences({
 		);
 	},
 });
-const interactionStore = getInteractionStore();
-const permissionStore = getPermissionStore();
-const agentStore = getAgentStore();
-const messageQueueStore = getMessageQueueStore();
-const logger = createLogger({ id: "agent-panel-render-trace", name: "AgentPanelRenderTrace" });
-let lastPanelTraceSignature = $state<string | null>(null);
-let prefersReducedMotion = $state(false);
 
 onMount(() => {
 	const mediaQuery = window.matchMedia?.("(prefers-reduced-motion: reduce)") ?? null;
@@ -247,11 +292,6 @@ const panelPreparedWorktreeLaunch = $derived(
 	panelSnapshot?.kind === "agent" ? (panelSnapshot.preparedWorktreeLaunch ?? null) : null
 );
 
-// Current model from canonical capabilities (for PR popover default)
-
-// ✅ State manager for local UI state only (drag, dialog)
-const panelState = new AgentPanelState();
-const panelBranchLookup = createPanelBranchLookupController();
 let inlinePlanDialogPlan = $state<{ title: string; content: string; summary: null } | null>(null);
 
 // ✅ Hooks at component level (they need prop reactivity)
@@ -262,34 +302,14 @@ const planState = usePlanLoader(() =>
 		: null
 );
 
-const layoutController = new AgentPanelLayoutController({
-	getPanelId: () => panelId,
-	getPanelWidth: () => width,
-	getHasAttachedFilePane: () => hasAttachedFilePane,
-	getIsFullscreen: () => isFullscreen,
-	getReviewMode: () => reviewMode,
-	getHasPlan: () => planState.plan !== null,
-	panelStore,
-});
-
 // Simple scroll container binding (updated via bind:)
 let scrollContainer: HTMLDivElement | null = $state(null);
 
 // Reference to content component for scroll control
 let contentRef: AgentPanelContent | null = $state(null);
 
-// Content scroll-position + token-reveal state — owned by a testable controller.
-const contentScrollReveal = new ContentScrollRevealController();
-
 // Scroll viewport reference for scroll-to-bottom button (bindable from child)
 let contentScrollViewport: HTMLElement | null = $state(null);
-
-// Checkpoint timeline state — owned by an independently-testable controller.
-const checkpointTimeline = new CheckpointTimelineController({
-	getSessionId: () => sessionId,
-	getCheckpoints: (id) => checkpointStore.getCheckpoints(id),
-	loadCheckpoints: loadCheckpointsBeforeTimelineOpen,
-});
 
 let _panelBranch = $state<string | null>(null);
 let branchRequestVersion = 0;
@@ -338,38 +358,11 @@ const worktreeToggleProjectPath = $derived(
 		singleProjectPath: projectCount === 1 ? (allProjects[0]?.path ?? null) : null,
 	})
 );
-const worktreeSetup = new WorktreeSetupController();
-const worktreeCloseConfirm = new WorktreeCloseConfirmationController();
-const worktreeController = new AgentPanelWorktreeController({
-	getSessionId: () => sessionId,
-	getPanelId: () => panelId,
-	getSessionWorktreePath: () => sessionController.sessionWorktreePath,
-	getSessionProjectPath: () => sessionController.sessionProjectPath,
-	getSessionAgentId: () => sessionController.sessionAgentId,
-	getWorktreeToggleProjectPath: () => worktreeToggleProjectPath,
-	getHasMessages: () => sessionController.hasMessages,
-	getPendingProjectSelection: () => pendingProjectSelection,
-	getPanelPendingWorktreeEnabled: () => panelPendingWorktreeEnabled,
-	getPanelPreparedWorktreeLaunch: () => panelPreparedWorktreeLaunch,
-	getPendingWorktreeSetup: () =>
-		sessionController.panelHotState?.pendingWorktreeSetup ?? null,
-	getAllProjects: () => allProjects,
-	panelStore,
-	sessionStore,
-	worktreeSetup,
-	worktreeCloseConfirm,
-	onClose,
-	logWorktreeCreated: (details) => {
-		logger.info("[worktree-flow] handleWorktreeCreated: entry", details);
-	},
-	logWorktreeCreatedEarlyReturn: () => {
-		logger.info("[worktree-flow] handleWorktreeCreated: early return (no projectPath)");
-	},
-});
 const activeWorktreePath = $derived(worktreeController.activeWorktreePath);
 const activeWorktreeOwnerProjectPath = $derived(worktreeController.activeWorktreeOwnerProjectPath);
 const scopedActiveWorktreePath = $derived(worktreeController.scopedActiveWorktreePath);
 const effectiveActiveWorktreePath = $derived(worktreeController.effectiveActiveWorktreePath);
+const _activeWorktreeName = $derived(worktreeController.activeWorktreeName);
 const worktreeDeleted = $derived(worktreeController.worktreeDeleted);
 const effectivePathForGit = $derived(worktreeController.effectivePathForGit);
 
@@ -417,18 +410,6 @@ const errorDismissed = $derived(
 	sessionController.errorDismissalKey !== null && connection.dismissedErrorKey === sessionController.errorDismissalKey
 );
 
-const viewStateController = new AgentPanelViewStateController({
-	getViewStateInput: () => ({
-		lifecyclePresentation: sessionController.lifecyclePresentation,
-		entriesCount,
-		hasSession,
-		isAwaitingModelResponse: sessionController.isAwaitingModelResponse,
-		hasImmediatePendingSendIntent: sessionController.hasImmediatePendingSendIntent,
-		showProjectSelection,
-		hasEffectiveProjectPath: !!effectiveProjectPath,
-		errorInfo: sessionController.errorInfo,
-	}),
-});
 const viewState = $derived(viewStateController.viewState);
 const panelViewKind = $derived(viewStateController.panelViewKind);
 
@@ -625,32 +606,6 @@ const effectivePanelProviderBrand = $derived.by(() => {
 	});
 });
 const agentIconSrc = $derived(getProviderBrandIcon(effectivePanelProviderBrand, effectiveTheme));
-const scenePipelineController = new AgentPanelScenePipelineController({
-	getSessionId: () => sessionId,
-	getGraphMaterializerInput: () => ({
-		panelId: sessionController.effectivePanelId,
-		graph: sessionController.agentPanelCanonicalSource,
-		header: {
-			title: graphHeaderTitle,
-			subtitle: sessionController.sessionTitle,
-			agentIconSrc,
-			agentLabel: agentName,
-			projectLabel: displayProjectName,
-			projectColor,
-			sequenceId,
-		},
-		optimistic:
-			sessionController.optimisticUserEntryForGraph != null
-				? {
-						pendingUserEntry: sessionController.optimisticUserEntryForGraph,
-					}
-				: null,
-	}),
-	sessionStore,
-	chatPreferencesStore,
-	getPrefersReducedMotion: () => prefersReducedMotion,
-	contentScrollReveal,
-});
 const graphMaterializedScene = $derived(scenePipelineController.graphMaterializedScene);
 const graphSceneEntries = $derived(scenePipelineController.graphSceneEntries);
 const tokenRevealSceneEntries = $derived(scenePipelineController.tokenRevealSceneEntries);
@@ -697,8 +652,6 @@ const projectForPr = $derived.by(() => {
 });
 
 const hasPlan = $derived(planState.plan !== null);
-// PR/git-card reactive state — owned by an independently-testable controller.
-const prCard = new PrCardController();
 const preSessionWorktreeFailure = $derived(worktreeController.preSessionWorktreeFailure);
 let agentInputRef = $state<{
 	retrySend: () => void;
@@ -707,7 +660,7 @@ let agentInputRef = $state<{
 let headerRef: HTMLElement | undefined = $state();
 
 onDestroy(() => {
-	connection.dispose();
+	rootState.dispose();
 });
 
 const worktreeSetupMatchContext = $derived.by(() => {
@@ -791,9 +744,6 @@ const clampedReviewFileIndex = $derived.by(() => {
 	if (fileCount === 0) return 0;
 	return Math.min(reviewFileIndex, fileCount - 1);
 });
-
-// Review-dialog UI state — owned by an independently-testable controller.
-const reviewDialog = new ReviewDialogController();
 
 const effectiveWidth = $derived(layoutController.effectiveWidth);
 const widthStyle = $derived(layoutController.widthStyle);
@@ -1048,6 +998,9 @@ function installAgentThenCreateSession(project: Project, agentId: string) {
 
 function handleSessionCreated(sessionIdParam: string) {
 	worktreeController.onSessionCreated();
+	if (panelId) {
+		panelStore.clearSignInRequirement(panelId);
+	}
 	onSessionCreated?.(sessionIdParam);
 }
 
@@ -1210,6 +1163,12 @@ function handleDismissError() {
 	}
 }
 
+function handleDismissSignIn() {
+	if (panelId) {
+		panelStore.clearSignInRequirement(panelId);
+	}
+}
+
 function handleCopyInlineErrorReference() {
 	const referenceId = sessionController.inlineErrorReferenceId;
 	if (referenceId === null) {
@@ -1320,7 +1279,6 @@ const queueStripDisplayMessages = $derived.by(() => {
 
 const handlePreSessionWorktreeYes = () => worktreeController.handlePreSessionWorktreeYes();
 const handlePreSessionWorktreeNo = () => worktreeController.handlePreSessionWorktreeNo();
-const handlePreSessionWorktreeAlways = () => worktreeController.handlePreSessionWorktreeAlways();
 const handlePreSessionWorktreeDismiss = () => worktreeController.handlePreSessionWorktreeDismiss();
 
 function handleQueueStripCancel(messageId: string): void {
@@ -1517,6 +1475,7 @@ async function handlePlanSidebarSendMessage(sid: string, message: string): Promi
 						{sessionId}
 						sceneEntries={tokenRevealSceneEntries}
 						{pendingUserRevealRequestKey}
+						showLocalPlanningIndicator={sessionController.showPlanningIndicator}
 						sessionProjectPath={effectiveProjectPath ?? sessionController.sessionProjectPath}
 						{allProjects}
 						onProjectSelected={handleProjectSelected}
@@ -1582,18 +1541,15 @@ async function handlePlanSidebarSendMessage(sid: string, message: string): Promi
 			isRetryingConnection={connection.isRetrying}
 			onDismissError={handleDismissError}
 			onCopyInlineErrorReference={handleCopyInlineErrorReference}
-			inlineErrorIssueDraft={inlineErrorIssueDraft}
+			inlineErrorIssueDraft=			{inlineErrorIssueDraft}
 			onIssueFromInlineError={handleIssueFromInlineError}
-			{showPreSessionWorktreeCard}
-			{worktreePending}
-			worktreeToggleProjectPath={worktreeToggleProjectPath}
-			effectiveProjectName={effectiveProjectName ?? null}
 			{preSessionWorktreeFailure}
+			worktreeToggleProjectPath={worktreeToggleProjectPath}
+			onPreSessionWorktreeDismiss={handlePreSessionWorktreeDismiss}
 			onPreSessionWorktreeYes={handlePreSessionWorktreeYes}
 			onPreSessionWorktreeNo={handlePreSessionWorktreeNo}
-			onPreSessionWorktreeAlways={handlePreSessionWorktreeAlways}
-			onPreSessionWorktreeDismiss={handlePreSessionWorktreeDismiss}
 			onRetryWorktree={handleRetryWorktree}
+			worktreePending={worktreePending}
 			worktreeSetupState={worktreeSetup.state}
 			{agentInstallState}
 			{sessionId}
@@ -1631,6 +1587,8 @@ async function handlePlanSidebarSendMessage(sid: string, message: string): Promi
 			onQueueClear={handleQueueStripClear}
 			onQueueResume={queueIsPaused && sessionId ? () => messageQueueStore.resume(sessionId) : undefined}
 			onQueueSendNow={handleQueueStripSendNow}
+			signInRequirement={sessionController.signInRequirement}
+			onDismissSignIn={handleDismissSignIn}
 		/>
 	{/snippet}
 
@@ -1643,19 +1601,16 @@ async function handlePlanSidebarSendMessage(sid: string, message: string): Promi
 				>
 					{#key inputRenderKey}
 						{#snippet preSessionAgentPicker()}
-							<div class="flex h-7 shrink-0 items-center">
-								<AgentSelector
-									{availableAgents}
-									currentAgentId={effectivePanelAgentId}
-									{onAgentChange}
-								/>
-								<div class="h-full w-px shrink-0 bg-border/50"></div>
-								<ProjectSelector
-									selectedProject={preSessionSelectedProject}
-									recentProjects={allProjects}
-									onProjectChange={handleComposerProjectSelected}
-								/>
-							</div>
+							<AgentSelector
+								{availableAgents}
+								currentAgentId={effectivePanelAgentId}
+								{onAgentChange}
+							/>
+							<ProjectSelector
+								selectedProject={preSessionSelectedProject}
+								recentProjects={allProjects}
+								onProjectChange={handleComposerProjectSelected}
+							/>
 						{/snippet}
 						<AgentInput
 							bind:this={agentInputRef}
@@ -1697,6 +1652,10 @@ async function handlePlanSidebarSendMessage(sid: string, message: string): Promi
 							onToolbarWidthChange={(w) => {
 								layoutController.setToolbarMinWidth(w);
 							}}
+							showCheckpointInAttachMenu={Boolean(
+								sessionController.sessionProjectPath &&
+									checkpointTimeline.checkpoints.length > 0
+							)}
 						>
 							{#snippet checkpointButton()}
 								{#if sessionController.sessionProjectPath && checkpointTimeline.checkpoints.length > 0}
@@ -1747,8 +1706,17 @@ async function handlePlanSidebarSendMessage(sid: string, message: string): Promi
 					}}
 				>
 					{#snippet left()}
-						<div class="flex items-center divide-x divide-border/50">
-							{#if footerWorktreeStatus}
+						<div class="flex items-center gap-0.5 px-1.5">
+							{#if showPreSessionWorktreeCard && worktreeToggleProjectPath}
+								<PreSessionWorktreeCard
+									variant="trigger"
+									menuSide="top"
+									pendingWorktreeEnabled={worktreePending}
+									onYes={handlePreSessionWorktreeYes}
+									onNo={handlePreSessionWorktreeNo}
+									onDismiss={handlePreSessionWorktreeDismiss}
+								/>
+							{:else if footerWorktreeStatus}
 								<WorktreeFooterButton
 									worktreePath={effectiveActiveWorktreePath}
 									label={footerWorktreeStatus.primaryLabel}

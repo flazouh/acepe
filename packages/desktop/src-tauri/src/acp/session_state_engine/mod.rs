@@ -15,6 +15,7 @@ pub mod runtime_registry;
 pub mod selectors;
 pub mod viewport_buffer_producer;
 pub mod snapshot_builder;
+pub mod timing;
 
 pub use bridge::{
     build_delta_envelope, build_snapshot_envelope, DeltaEnvelopeParts, DeltaSessionProjectionFields,
@@ -37,8 +38,10 @@ pub use runtime_registry::{
     LiveSessionStateEnvelopeRequest, SessionGraphRuntimeRegistry, SessionGraphRuntimeSnapshot,
 };
 pub use selectors::{
+    merge_session_graph_activity_timing, seed_activity_timing_if_needed,
     select_session_graph_activity, SessionGraphActionability, SessionGraphActivity,
     SessionGraphActivityKind, SessionGraphCapabilities, SessionGraphLifecycle,
     SessionRecommendedAction, SessionRecoveryPhase,
 };
+pub use timing::wall_clock_ms;
 pub use snapshot_builder::build_graph_from_open_found;

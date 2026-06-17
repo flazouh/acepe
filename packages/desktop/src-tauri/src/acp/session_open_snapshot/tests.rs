@@ -1379,7 +1379,7 @@ async fn provider_thread_snapshot_open_does_not_reactivate_stale_historical_erro
     assert_eq!(found.graph_revision, 3);
     assert_eq!(found.turn_state, SessionTurnState::Idle);
     assert!(found.active_turn_failure.is_none());
-    assert_eq!(found.transcript_snapshot.entries.len(), 2);
+    assert_eq!(found.transcript_snapshot.entries.len(), 1);
 }
 
 #[tokio::test]

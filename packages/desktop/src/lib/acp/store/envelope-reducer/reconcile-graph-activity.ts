@@ -1,5 +1,9 @@
 import type { SessionGraphActivity, SessionGraphLifecycle, SessionTurnState } from "../../../services/acp-types.js";
 import type { ActiveTurnFailure } from "../../types/turn-error.js";
+import {
+	mergeSessionGraphActivityTiming,
+	seedSessionGraphActivityTimingIfNeeded,
+} from "./merge-session-graph-activity-timing.js";
 
 function cloneSessionGraphActivity(activity: SessionGraphActivity): SessionGraphActivity {
 	return {
@@ -8,6 +12,7 @@ function cloneSessionGraphActivity(activity: SessionGraphActivity): SessionGraph
 		activeSubagentCount: activity.activeSubagentCount,
 		dominantOperationId: activity.dominantOperationId ?? null,
 		blockingInteractionId: activity.blockingInteractionId ?? null,
+		kindStartedAtMs: activity.kindStartedAtMs ?? null,
 	};
 }
 
@@ -18,6 +23,7 @@ function emptySessionGraphActivity(kind: SessionGraphActivity["kind"]): SessionG
 		activeSubagentCount: 0,
 		dominantOperationId: null,
 		blockingInteractionId: null,
+		kindStartedAtMs: null,
 	};
 }
 
@@ -76,7 +82,10 @@ export function reconcileStoredGraphActivity(
 	}
 
 	if (previousActivity.kind === "idle" && turnState === "Running") {
-		return emptySessionGraphActivity("awaiting_model");
+		return seedSessionGraphActivityTimingIfNeeded(
+			emptySessionGraphActivity("awaiting_model"),
+			Date.now()
+		);
 	}
 
 	if (previousActivity.kind === "awaiting_model" && turnState !== "Running") {
@@ -87,13 +96,17 @@ export function reconcileStoredGraphActivity(
 		return cloneSessionGraphActivity(previousActivity);
 	}
 
-	return {
-		kind: deriveRecoveredActivityKind(previousActivity, turnState),
-		activeOperationCount: previousActivity.activeOperationCount,
-		activeSubagentCount: previousActivity.activeSubagentCount,
-		dominantOperationId: previousActivity.dominantOperationId ?? null,
-		blockingInteractionId: previousActivity.blockingInteractionId ?? null,
-	};
+	return seedSessionGraphActivityTimingIfNeeded(
+		{
+			kind: deriveRecoveredActivityKind(previousActivity, turnState),
+			activeOperationCount: previousActivity.activeOperationCount,
+			activeSubagentCount: previousActivity.activeSubagentCount,
+			dominantOperationId: previousActivity.dominantOperationId ?? null,
+			blockingInteractionId: previousActivity.blockingInteractionId ?? null,
+			kindStartedAtMs: null,
+		},
+		Date.now()
+	);
 }
 
 export function defaultIdleActivity(): SessionGraphActivity {
@@ -103,5 +116,8 @@ export function defaultIdleActivity(): SessionGraphActivity {
 		activeSubagentCount: 0,
 		dominantOperationId: null,
 		blockingInteractionId: null,
+		kindStartedAtMs: null,
 	};
 }
+
+export { mergeSessionGraphActivityTiming, seedSessionGraphActivityTimingIfNeeded };

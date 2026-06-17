@@ -32,6 +32,10 @@ import { createLifecycleOnlyGraph } from "./lifecycle-only-graph.js";
 import { pendingSendIntentClearUpdate } from "./pending-send-acknowledgement.js";
 import { mapProjectionTurnFailure } from "./projection-turn-failure.js";
 import {
+	mergeSessionGraphActivityTiming,
+	seedSessionGraphActivityTimingIfNeeded,
+} from "./merge-session-graph-activity-timing.js";
+import {
 	defaultIdleActivity,
 	reconcileStoredGraphActivity,
 } from "./reconcile-graph-activity.js";
@@ -265,7 +269,58 @@ function buildReplaceGraphProjection(
 		currentTranscriptRevision === undefined ||
 		previousGraph === null
 	) {
-		return operationGraph;
+		if (previousGraph === null) {
+			return {
+				requestedSessionId: operationGraph.requestedSessionId,
+				canonicalSessionId: operationGraph.canonicalSessionId,
+				isAlias: operationGraph.isAlias,
+				agentId: operationGraph.agentId,
+				projectPath: operationGraph.projectPath,
+				worktreePath: operationGraph.worktreePath ?? null,
+				sourcePath: operationGraph.sourcePath ?? null,
+				revision: operationGraph.revision,
+				transcriptSnapshot: operationGraph.transcriptSnapshot,
+				operations: operationGraph.operations,
+				interactions: operationGraph.interactions,
+				turnState: operationGraph.turnState,
+				messageCount: operationGraph.messageCount,
+				activeStreamingTail: operationGraph.activeStreamingTail ?? null,
+				activeTurnFailure: operationGraph.activeTurnFailure ?? null,
+				lastTerminalTurnId: operationGraph.lastTerminalTurnId ?? null,
+				lifecycle: operationGraph.lifecycle,
+				activity: seedSessionGraphActivityTimingIfNeeded(
+					operationGraph.activity,
+					Date.now()
+				),
+				capabilities: operationGraph.capabilities,
+			};
+		}
+
+		return {
+			requestedSessionId: operationGraph.requestedSessionId,
+			canonicalSessionId: operationGraph.canonicalSessionId,
+			isAlias: operationGraph.isAlias,
+			agentId: operationGraph.agentId,
+			projectPath: operationGraph.projectPath,
+			worktreePath: operationGraph.worktreePath ?? null,
+			sourcePath: operationGraph.sourcePath ?? null,
+			revision: operationGraph.revision,
+			transcriptSnapshot: operationGraph.transcriptSnapshot,
+			operations: operationGraph.operations,
+			interactions: operationGraph.interactions,
+			turnState: operationGraph.turnState,
+			messageCount: operationGraph.messageCount,
+			activeStreamingTail: operationGraph.activeStreamingTail ?? null,
+			activeTurnFailure: operationGraph.activeTurnFailure ?? null,
+			lastTerminalTurnId: operationGraph.lastTerminalTurnId ?? null,
+			lifecycle: operationGraph.lifecycle,
+			activity: mergeSessionGraphActivityTiming(
+				previousGraph.activity,
+				operationGraph.activity,
+				Date.now()
+			),
+			capabilities: operationGraph.capabilities,
+		};
 	}
 
 	return graphWithTranscriptSnapshot(operationGraph, previousGraph.transcriptSnapshot);
@@ -328,7 +383,11 @@ function reduceApplyLifecycle(
 			graph: graphWithLifecycle(
 				previousGraph,
 				command.lifecycle,
-				reconciledActivity,
+				mergeSessionGraphActivityTiming(
+					previousGraph.activity,
+					reconciledActivity,
+					nowMs
+				),
 				lifecycleRevision
 			),
 		});
@@ -426,7 +485,14 @@ function reduceApplyGraphPatches(
 		command.activeTurnFailure === undefined
 			? previousProjection.activeTurnFailure
 			: mapProjectionTurnFailure(command.activeTurnFailure);
-	const nextActivity = command.activity ?? previousProjection.activity;
+	const nextActivity =
+		command.activity === undefined
+			? previousProjection.activity
+			: mergeSessionGraphActivityTiming(
+					previousProjection.activity,
+					command.activity,
+					Date.now()
+				);
 	const nextTurnState = command.turnState ?? previousProjection.turnState;
 	const nextLastTerminalTurnId =
 		command.lastTerminalTurnId === undefined

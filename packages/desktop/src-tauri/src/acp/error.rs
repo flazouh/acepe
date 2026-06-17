@@ -1,3 +1,4 @@
+use crate::acp::lifecycle::FailureReason;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
@@ -12,6 +13,25 @@ pub enum CreationFailureKind {
     CreationAttemptExpired,
 }
 
+/// Default canonical [`FailureReason`] for a creation-stage failure kind.
+///
+/// `CreationFailureKind` is creation-stage bookkeeping (which step failed,
+/// retryability). The user-facing classification authority is the single
+/// canonical `FailureReason`, shared with the resume path — so the new-session
+/// creation failure renders the same lifecycle-driven card as a resume
+/// failure instead of a parallel "Unable to load session" treatment.
+#[must_use]
+pub fn default_failure_reason_for_creation_kind(kind: &CreationFailureKind) -> FailureReason {
+    match kind {
+        CreationFailureKind::ProviderIdentityMismatch => FailureReason::ProviderSessionMismatch,
+        CreationFailureKind::ProviderFailedBeforeId
+        | CreationFailureKind::InvalidProviderSessionId
+        | CreationFailureKind::MetadataCommitFailed
+        | CreationFailureKind::LaunchTokenUnavailable
+        | CreationFailureKind::CreationAttemptExpired => FailureReason::ActivationFailed,
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CreationFailure {
@@ -20,6 +40,10 @@ pub struct CreationFailure {
     pub session_id: Option<String>,
     pub creation_attempt_id: Option<String>,
     pub retryable: bool,
+    /// Canonical lifecycle classification for this failure. Lets the UI project
+    /// the same `failureReason`-driven card the resume path uses, rather than
+    /// rendering the raw provider/creation message.
+    pub failure_reason: FailureReason,
 }
 
 impl CreationFailure {
@@ -30,13 +54,25 @@ impl CreationFailure {
         creation_attempt_id: Option<String>,
         retryable: bool,
     ) -> Self {
+        let failure_reason = default_failure_reason_for_creation_kind(&kind);
         Self {
             kind,
             message: message.into(),
             session_id,
             creation_attempt_id,
             retryable,
+            failure_reason,
         }
+    }
+
+    /// Build a creation failure whose canonical classification is supplied
+    /// explicitly — used when the underlying activation error (e.g.
+    /// `AuthenticationRequired`) carries a more specific `FailureReason` than
+    /// the creation-stage kind's default.
+    #[must_use]
+    pub fn with_failure_reason(mut self, failure_reason: FailureReason) -> Self {
+        self.failure_reason = failure_reason;
+        self
     }
 }
 
@@ -118,6 +154,9 @@ pub enum SerializableAcpError {
     #[serde(rename = "invalid_state")]
     InvalidState { message: String },
 
+    #[serde(rename = "authentication_required")]
+    AuthenticationRequired { agent: String, instructions: String },
+
     #[serde(rename = "creation_failed")]
     CreationFailed(CreationFailure),
 
@@ -155,6 +194,13 @@ impl From<AcpError> for SerializableAcpError {
             AcpError::ChannelClosed => SerializableAcpError::ChannelClosed,
             AcpError::Timeout(operation) => SerializableAcpError::Timeout { operation },
             AcpError::InvalidState(message) => SerializableAcpError::InvalidState { message },
+            AcpError::AuthenticationRequired {
+                agent,
+                instructions,
+            } => SerializableAcpError::AuthenticationRequired {
+                agent,
+                instructions,
+            },
         }
     }
 }
@@ -236,6 +282,12 @@ impl std::fmt::Display for SerializableAcpError {
             SerializableAcpError::InvalidState { message } => {
                 write!(f, "Invalid state: {}", message)
             }
+            SerializableAcpError::AuthenticationRequired {
+                agent,
+                instructions,
+            } => {
+                write!(f, "{} requires authentication. {}", agent, instructions)
+            }
             SerializableAcpError::CreationFailed(failure) => {
                 write!(
                     f,
@@ -305,6 +357,9 @@ pub enum AcpError {
 
     #[error("Invalid state: {0}")]
     InvalidState(String),
+
+    #[error("{agent} requires authentication. {instructions}")]
+    AuthenticationRequired { agent: String, instructions: String },
 }
 
 pub type AcpResult<T> = Result<T, AcpError>;

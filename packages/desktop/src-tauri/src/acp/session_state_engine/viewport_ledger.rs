@@ -5,7 +5,10 @@ use crate::acp::session_state_engine::graph::{
 use crate::acp::session_state_engine::runtime_registry::{
     SessionGraphRuntimeSnapshot, TranscriptViewportHeightConfirmation, VisibleTranscriptWindowMiss,
 };
-use crate::acp::session_state_engine::selectors::select_session_graph_activity;
+use crate::acp::session_state_engine::selectors::{
+    merge_session_graph_activity_timing, select_session_graph_activity,
+};
+use crate::acp::session_state_engine::timing::wall_clock_ms;
 use crate::acp::session_state_engine::{
     session_state_envelope_byte_budget_status, SessionGraphRevision, SessionStateEnvelope,
     SessionStatePayload,
@@ -30,6 +33,7 @@ const BOOTSTRAP_VIEWPORT_HEIGHT_PX: u32 = 720;
 #[derive(Debug, Clone)]
 pub struct ViewportLedger {
     transcript_viewports: Arc<Mutex<HashMap<String, TranscriptViewport>>>,
+    activity_by_session: Arc<Mutex<HashMap<String, crate::acp::session_state_engine::selectors::SessionGraphActivity>>>,
 }
 
 impl ViewportLedger {
@@ -37,6 +41,7 @@ impl ViewportLedger {
     pub fn new() -> Self {
         Self {
             transcript_viewports: Arc::new(Mutex::new(HashMap::new())),
+            activity_by_session: Arc::new(Mutex::new(HashMap::new())),
         }
     }
 
@@ -45,6 +50,29 @@ impl ViewportLedger {
             .lock()
             .expect("transcript_viewports mutex poisoned")
             .remove(session_id);
+        self.activity_by_session
+            .lock()
+            .expect("activity_by_session mutex poisoned")
+            .remove(session_id);
+    }
+
+    fn resolve_viewport_activity(
+        &self,
+        session_id: &str,
+        selected: crate::acp::session_state_engine::selectors::SessionGraphActivity,
+        now_ms: u64,
+    ) -> crate::acp::session_state_engine::selectors::SessionGraphActivity {
+        let mut store = self
+            .activity_by_session
+            .lock()
+            .expect("activity_by_session mutex poisoned");
+        let previous = store
+            .get(session_id)
+            .cloned()
+            .unwrap_or_else(crate::acp::session_state_engine::selectors::SessionGraphActivity::idle);
+        let merged = merge_session_graph_activity_timing(&previous, selected, now_ms);
+        store.insert(session_id.to_string(), merged.clone());
+        merged
     }
 
     /// Shared prologue + viewport mutation for every read-shaped viewport
@@ -109,13 +137,14 @@ impl ViewportLedger {
         };
         let operations = projection_snapshot.operations.clone();
         let interactions = projection_snapshot.interactions.clone();
-        let activity = select_session_graph_activity(
+        let selected_activity = select_session_graph_activity(
             &runtime_snapshot.lifecycle,
             &session_snapshot.turn_state,
             &operations,
             &interactions,
             session_snapshot.active_turn_failure.as_ref(),
         );
+        let activity = self.resolve_viewport_activity(session_id, selected_activity, wall_clock_ms());
         let active_streaming_tail = select_active_streaming_tail(
             &session_snapshot.turn_state,
             &activity,
@@ -132,6 +161,7 @@ impl ViewportLedger {
             &interactions,
             active_streaming_tail.as_ref(),
             awaiting_placeholder,
+            activity.kind_started_at_ms,
         );
         let materialized = {
             let mut viewports = self
@@ -352,7 +382,27 @@ fn height_confirmation_diagnostic_code(outcome: HeightConfirmationOutcome) -> &'
 #[cfg(test)]
 mod tests {
     use super::decide_scroll_authority;
+    use crate::acp::session_state_engine::selectors::{
+        SessionGraphActivity, SessionGraphActivityKind,
+    };
     use crate::acp::transcript_viewport::ViewportMode;
+
+    #[test]
+    fn resolve_viewport_activity_preserves_awaiting_anchor_across_reselection() {
+        let ledger = super::ViewportLedger::new();
+        let selected = SessionGraphActivity {
+            kind: SessionGraphActivityKind::AwaitingModel,
+            active_operation_count: 0,
+            active_subagent_count: 0,
+            dominant_operation_id: None,
+            blocking_interaction_id: None,
+            kind_started_at_ms: None,
+        };
+        let first = ledger.resolve_viewport_activity("session-1", selected.clone(), 1_000);
+        let second = ledger.resolve_viewport_activity("session-1", selected, 9_000);
+        assert_eq!(first.kind_started_at_ms, Some(1_000));
+        assert_eq!(second.kind_started_at_ms, Some(1_000));
+    }
 
     #[test]
     fn decide_scroll_authority_never_sets_both_fields() {

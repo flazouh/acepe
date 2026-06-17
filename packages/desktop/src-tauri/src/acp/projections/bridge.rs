@@ -36,7 +36,7 @@ impl ProjectionRegistry {
             return Some(existing);
         }
 
-        let updated = OperationSnapshot {
+        let mut updated = OperationSnapshot {
             id: existing.id.clone(),
             session_id: existing.session_id.clone(),
             tool_call_id: existing.tool_call_id.clone(),
@@ -66,6 +66,11 @@ impl ProjectionRegistry {
             source_link: existing.source_link.clone(),
             degradation_reason: existing.degradation_reason.clone(),
         };
+        apply_operation_lifecycle_timing(
+            Some(&existing),
+            &mut updated,
+            crate::acp::session_state_engine::timing::wall_clock_ms(),
+        );
         self.operations_by_id
             .insert(operation_id.to_string(), updated.clone());
         Some(updated)

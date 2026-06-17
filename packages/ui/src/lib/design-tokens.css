@@ -8,7 +8,7 @@
 	/** Shared brand primary accent used for action surfaces. */
 	--token-brand-primary: #d97757;
 	--token-brand-primary-foreground: #191c22;
-	--token-success-light: #17803d;
+	--token-success-light: #00a240;
 	/** Reference green for dark success-adjacent UIs not tied to build token */
 	--token-success-dark: #15db95;
 	/** Build accent + dark --success (same as Colors.green) */

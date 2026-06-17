@@ -90,6 +90,8 @@ function handleOpenChange(open: boolean) {
 	bind:open={isOpen}
 	disabled={isLoading || (recentProjects.length === 0 && !hasProjectActions)}
 	onOpenChange={handleOpenChange}
+	variant="ghost"
+	triggerClass="rounded-lg"
 >
 	{#snippet renderButton()}
 		{#if isLoading}

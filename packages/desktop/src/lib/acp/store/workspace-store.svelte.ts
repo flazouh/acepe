@@ -121,32 +121,6 @@ function scheduleIdleWorkspacePersist(work: () => void): DeferredWorkspacePersis
 	};
 }
 
-function isPersistableAgentPanel(panel: Panel): boolean {
-	return panel.autoCreated !== true;
-}
-
-function selectPersistableRuntimePanels(
-	workspacePanels: ReadonlyArray<WorkspacePanel>
-): {
-	readonly agentPanels: Panel[];
-	readonly filePanels: FilePanel[];
-} {
-	const agentPanels: Panel[] = [];
-	const filePanels: FilePanel[] = [];
-	for (const panel of workspacePanels) {
-		if (panel.kind === "agent") {
-			if (isPersistableAgentPanel(panel)) {
-				agentPanels.push(panel);
-			}
-			continue;
-		}
-		if (panel.kind === "file") {
-			filePanels.push(panel);
-		}
-	}
-	return { agentPanels, filePanels };
-}
-
 function isPersistablePersistedAgentPanel(
 	panel: PersistedAgentWorkspacePanelState | PersistedPanelState
 ): boolean {
@@ -592,69 +566,17 @@ export class WorkspaceStore {
 	persist(immediate = false): void {
 		const saveState = () => {
 			this.persistDebounce = null;
-			const persistableWorkspacePanels = this.panelStore.getPersistableWorkspacePanels();
-			const { agentPanels: persistableAgentPanels, filePanels: persistableFilePanels } =
-				selectPersistableRuntimePanels(persistableWorkspacePanels);
+			const panelSnapshot = this.panelStore.createWorkspacePersistenceSnapshot({
+				getPanelScrollTop: (panelId) => this.providers.getPanelScrollTop?.(panelId) ?? 0,
+			});
 			const state: PersistedWorkspaceState = {
 				version: 12,
-				workspacePanels: serializeWorkspacePanels(persistableWorkspacePanels),
-				panels: persistableAgentPanels.map((p) => {
-					// Use immutable session identity when possible to avoid reconstructing full session objects.
-					const sessionIdentity = p.sessionId
-						? this.sessionStore.read.getSessionIdentity(p.sessionId)
-						: undefined;
-					const sessionMetadata = p.sessionId
-						? this.sessionStore.read.getSessionMetadata(p.sessionId)
-						: undefined;
-					// Get plan sidebar state from PanelStore hot state
-					const hotState = this.panelStore.getHotState(p.id);
-					return {
-						id: p.id,
-						sessionId: p.sessionId,
-						autoCreated: p.autoCreated === true ? true : undefined,
-						width: p.width,
-						pendingProjectSelection: p.pendingProjectSelection,
-						selectedAgentId: p.selectedAgentId,
-						projectPath:
-							p.sessionId !== null
-								? (sessionIdentity?.projectPath ?? null)
-								: (p.projectPath ?? null),
-						agentId:
-							p.sessionId !== null ? (sessionIdentity?.agentId ?? null) : (p.agentId ?? null),
-						sourcePath:
-							p.sessionId !== null
-								? (sessionMetadata?.sourcePath ?? undefined)
-								: (p.sourcePath ?? undefined),
-						worktreePath:
-							p.sessionId !== null
-								? (sessionIdentity?.worktreePath ?? undefined)
-								: (p.worktreePath ?? undefined),
-						sessionTitle:
-							p.sessionId !== null
-								? (sessionMetadata?.title ?? undefined)
-								: (p.sessionTitle ?? undefined),
-						scrollTop: this.providers.getPanelScrollTop?.(p.id) ?? 0,
-						planSidebarExpanded: hotState.planSidebarExpanded,
-						messageDraft: hotState.messageDraft || undefined,
-						reviewMode: hotState.reviewMode ? true : undefined,
-						reviewFileIndex:
-							hotState.reviewMode && hotState.reviewFileIndex !== undefined
-								? hotState.reviewFileIndex
-								: undefined,
-						// Embedded terminal drawer state (version 9+)
-						embeddedTerminalDrawerOpen: hotState.embeddedTerminalDrawerOpen ? true : undefined,
-						selectedEmbeddedTerminalTabId:
-							this.panelStore.embeddedTerminals.getSelectedTabId(p.id) || undefined,
-						sequenceId:
-							p.sessionId !== null ? (sessionMetadata?.sequenceId ?? undefined) : undefined,
-					};
-				}),
-				filePanels: serializeFilePanels(persistableFilePanels),
-				activeFilePanelIdByOwnerPanelId: this.panelStore.getActiveFilePanelIdByOwnerPanelIdRecord(),
-				focusedPanelIndex: this.panelStore.focusedPanelId
-					? this.panelStore.getPersistableTopLevelWorkspacePanelIndex(this.panelStore.focusedPanelId)
-					: null,
-				panelContainerScrollX: this.panelStore.scrollX,
+				workspacePanels: panelSnapshot.workspacePanels,
+				panels: panelSnapshot.panels,
+				filePanels: panelSnapshot.filePanels,
+				activeFilePanelIdByOwnerPanelId: panelSnapshot.activeFilePanelIdByOwnerPanelId,
+				focusedPanelIndex: panelSnapshot.focusedPanelIndex,
+				panelContainerScrollX: panelSnapshot.panelContainerScrollX,
 				savedAt: new Date().toISOString(),
 				// Additional state from providers
 				sidebarOpen: this.providers.getSidebarOpen?.() ?? true,
@@ -662,22 +584,20 @@ export class WorkspaceStore {
 				fileTreeExpansion: this.providers.getFileTreeExpansion?.() ?? {},
 				projectFileViewModes: this.providers.getProjectFileViewModes?.() ?? {},
 				// Fullscreen state
-				fullscreenPanelIndex: this.panelStore.fullscreenPanelId
-					? this.panelStore.getPersistableTopLevelWorkspacePanelIndex(this.panelStore.fullscreenPanelId)
-					: null,
+				fullscreenPanelIndex: panelSnapshot.fullscreenPanelIndex,
 				// SQL Studio state
 				sqlStudio: this.providers.getSqlStudioState?.(),
 				// Full-screen review state
 				reviewFullscreen: this.providers.getReviewFullscreenState?.(),
 				// Terminal + browser panels
-				terminalPanelGroups: serializeTerminalPanelGroups(this.panelStore.terminalPanelGroups),
-				terminalTabs: serializeTerminalTabs(this.panelStore.terminalTabs),
-				browserPanels: serializeBrowserPanels(this.panelStore.browserPanels),
+				terminalPanelGroups: panelSnapshot.terminalPanelGroups,
+				terminalTabs: panelSnapshot.terminalTabs,
+				browserPanels: panelSnapshot.browserPanels,
 				// Embedded terminal tabs per panel (version 9+)
-				embeddedTerminalTabs: this.panelStore.embeddedTerminals.serialize(),
+				embeddedTerminalTabs: panelSnapshot.embeddedTerminalTabs,
 				// View mode state (version 8+)
-				viewMode: this.panelStore.viewMode !== "multi" ? this.panelStore.viewMode : undefined,
-				focusedViewProjectPath: this.panelStore.focusedViewProjectPath ?? undefined,
+				viewMode: panelSnapshot.viewMode,
+				focusedViewProjectPath: panelSnapshot.focusedViewProjectPath,
 				// Sidebar card collapse state
 				collapsedProjectPaths: this.providers.getCollapsedProjectPaths?.() ?? [],
 				queueExpanded: this.providers.getQueueExpanded?.(),

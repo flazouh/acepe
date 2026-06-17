@@ -34,11 +34,6 @@ function estimateSessionEntryExtraHeight(entry: SessionEntry): number {
 		return Math.min(120, entry.message.options.length * 20);
 	}
 
-	if (entry.type === "error") {
-		const estimatedLines = Math.ceil(entry.message.content.length / 120);
-		return Math.min(120, Math.max(0, estimatedLines - 1) * 18);
-	}
-
 	return 0;
 }
 
@@ -48,7 +43,6 @@ export function estimateSessionEntryHeight(entry: SessionEntry): number {
 		assistant: 108,
 		tool_call: 124,
 		ask: 96,
-		error: 92,
 	};
 
 	return Math.max(

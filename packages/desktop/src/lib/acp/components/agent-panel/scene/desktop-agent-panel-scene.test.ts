@@ -81,19 +81,11 @@ describe("desktop agent panel scene adapter", () => {
 					],
 				},
 			},
-			{
-				id: "error-1",
-				type: "error",
-				message: {
-					content: "Connection dropped",
-					code: "EPIPE",
-				},
-			},
 		];
 
 		const conversation = mapSessionEntriesToConversationModel(entries, "streaming");
 
-		expect(conversation.entries).toHaveLength(5);
+		expect(conversation.entries).toHaveLength(4);
 		expect(conversation.isStreaming).toBe(true);
 		expect(conversation.entries[0]).toEqual({
 			id: "user-1",

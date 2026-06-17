@@ -9,7 +9,6 @@ import type { Project } from "../../../logic/project-manager.svelte.js";
 import type { PanelStore } from "../../../store/panel-store.svelte.js";
 import type { SessionStore } from "../../../store/session-store.svelte.js";
 import type { PreparedWorktreeLaunch, WorktreeInfo } from "../../../types/worktree-info.js";
-import { getWorktreeDefaultStore } from "../../worktree/worktree-default-store.svelte.js";
 import { removeWorktreeAndMarkSessionWorktreeDeleted } from "../logic/index.js";
 import { shouldShowPreSessionWorktreeCard } from "../logic/pre-session-worktree-card-visibility.js";
 import { resolveAgentPanelWorktreePending } from "../logic/worktree-pending.js";
@@ -277,10 +276,6 @@ export class AgentPanelWorktreeController {
 
 	handlePreSessionWorktreeYes(): void {
 		this.#preSessionWorktreeFailure = null;
-		const store = getWorktreeDefaultStore();
-		if (store.globalDefault) {
-			void store.set(false);
-		}
 		const panelId = this.#deps.getPanelId();
 		if (panelId) {
 			this.#deps.panelStore.setPendingWorktreeEnabled(panelId, true);
@@ -289,10 +284,6 @@ export class AgentPanelWorktreeController {
 
 	handlePreSessionWorktreeNo(): void {
 		this.#preSessionWorktreeFailure = null;
-		const store = getWorktreeDefaultStore();
-		if (store.globalDefault) {
-			void store.set(false);
-		}
 		const panelId = this.#deps.getPanelId();
 		if (!panelId) {
 			return;
@@ -309,17 +300,6 @@ export class AgentPanelWorktreeController {
 			);
 		}
 		this.#deps.panelStore.setPendingWorktreeEnabled(panelId, false);
-	}
-
-	handlePreSessionWorktreeAlways(): void {
-		this.#preSessionWorktreeFailure = null;
-		const store = getWorktreeDefaultStore();
-		const toggled = !store.globalDefault;
-		void store.set(toggled);
-		const panelId = this.#deps.getPanelId();
-		if (panelId) {
-			this.#deps.panelStore.setPendingWorktreeEnabled(panelId, toggled);
-		}
 	}
 
 	handlePreSessionWorktreeDismiss(): void {

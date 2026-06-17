@@ -104,13 +104,6 @@ export function sessionGraphToMarkdown(graph: SessionStateGraph): string {
 				}
 				break;
 			}
-			case "error": {
-				const text = transcriptSegmentText(entry);
-				lines.push("## Error\n");
-				lines.push(text.trim() || "Unknown error");
-				lines.push("\n");
-				break;
-			}
 		}
 	}
 

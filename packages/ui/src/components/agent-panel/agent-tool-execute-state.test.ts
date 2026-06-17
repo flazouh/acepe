@@ -35,14 +35,13 @@ describe("agent tool execute state", () => {
 		expect(hasExecuteOutput({ stdout: "", stderr: null })).toBe(false);
 	});
 
-	test("chooses header text from status and duration", () => {
+	test("chooses header text from status", () => {
 		expect(
 			getExecuteHeaderText({
 				status: "running",
-				durationLabel: "2s",
 				...baseLabels,
 			})
-		).toBe("Executing for 2s");
+		).toBe("Executing...");
 		expect(
 			getExecuteHeaderText({
 				status: "blocked",
@@ -58,10 +57,9 @@ describe("agent tool execute state", () => {
 		expect(
 			getExecuteHeaderText({
 				status: "done",
-				durationLabel: "3s",
 				...baseLabels,
 			})
-		).toBe("Executed in 3s");
+		).toBe("Executed");
 	});
 
 	test("builds command display html from command or provider html", () => {

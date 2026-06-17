@@ -462,6 +462,7 @@ mod tests {
                             role: crate::acp::transcript_projection::TranscriptEntryRole::Assistant,
                             segments: Vec::new(),
                         },
+                    duration_started_at_ms: None,
                 },
             )
             .collect::<Vec<_>>();
@@ -668,6 +669,7 @@ mod tests {
                 role: crate::acp::transcript_projection::TranscriptEntryRole::Assistant,
                 segments: Vec::new(),
             },
+            duration_started_at_ms: None,
         }
     }
 

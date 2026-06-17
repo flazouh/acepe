@@ -171,15 +171,11 @@ export function mapSessionEntryToConversationEntry(
 		};
 	}
 
-	return {
-		id: entry.id,
-		type: "tool_call",
-		kind: "other",
-		title: "Error",
-		subtitle: entry.message.code,
-		status: "error",
-		resultText: entry.message.content,
-	};
+	return assertUnreachableSessionEntry(entry);
+}
+
+function assertUnreachableSessionEntry(entry: never): never {
+	throw new Error(`Unsupported session entry type: ${JSON.stringify(entry)}`);
 }
 
 export function mapVirtualizedDisplayEntryToConversationEntry(

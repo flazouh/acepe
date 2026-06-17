@@ -165,6 +165,7 @@ mod tests {
                     text,
                 }],
             },
+            duration_started_at_ms: None,
         }
     }
 

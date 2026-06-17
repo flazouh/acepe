@@ -3,6 +3,8 @@
 	import { CaretDown } from "phosphor-svelte";
 	import { ArrowRight } from "phosphor-svelte";
 	import ToolHeaderLeading from "./tool-header-leading.svelte";
+	import AgentToolDurationLabel from "./agent-tool-duration-label.svelte";
+	import type { ToolDurationTiming } from "./tool-duration.js";
 	import AgentToolCard from "./agent-tool-card.svelte";
 	import { FilePathBadge } from "../file-path-badge/index.js";
 	import type { AgentSearchMatch, AgentToolStatus } from "./types.js";
@@ -27,7 +29,7 @@
 		searchNumMatches?: number;
 		searchMatches?: AgentSearchMatch[];
 		status?: AgentToolStatus;
-		durationLabel?: string;
+		durationTiming?: ToolDurationTiming;
 		iconBasePath?: string;
 		/** "grep" shows Grepping/Grepped, "glob" shows Finding/Found */
 		variant?: "grep" | "glob";
@@ -52,7 +54,7 @@
 		searchNumMatches,
 		searchMatches = [],
 		status = "done",
-		durationLabel,
+		durationTiming,
 		iconBasePath = "",
 		variant = "grep",
 		findingLabel = "Finding",
@@ -133,9 +135,10 @@
 				{/if}
 			</div>
 			<div class="flex shrink-0 items-center gap-1.5">
-				{#if durationLabel}
-					<span class="font-sans text-xs text-muted-foreground/70">{durationLabel}</span>
-				{/if}
+				<AgentToolDurationLabel
+					timing={durationTiming}
+					class="font-sans text-xs"
+				/>
 				{#if hasExpandableContent}
 					<CaretRight
 						size={9}

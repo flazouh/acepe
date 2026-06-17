@@ -3,7 +3,11 @@ import { describe, expect, it } from "bun:test";
 import { PanelConnectionState } from "../../../../types/panel-connection-state.js";
 import type { Attachment } from "../../types/attachment.js";
 import type { InlineImageReference } from "../../types/inline-image-reference.js";
+import { AuthenticationRequiredError, CreationFailureError } from "../../../../errors/app-error.js";
+import { SessionCreationError } from "../../errors/agent-input-error.js";
 import {
+	findAuthenticationRequirement,
+	findCreationFailureReason,
 	formatPreSessionSendFailure,
 	restoreComposerStateAfterFailedSend,
 	shouldDisableSendForFailedFirstSend,
@@ -58,6 +62,57 @@ describe("first-send-recovery", () => {
 		});
 
 		expect(formatPreSessionSendFailure(error)).toContain("No such file or directory (os error 2)");
+	});
+
+	it("finds the canonical failure reason carried by a nested CreationFailureError", () => {
+		const error = new SessionCreationError(
+			"cursor",
+			"/repo",
+			new CreationFailureError(
+				"provider_failed_before_id",
+				"Cursor requires authentication.",
+				null,
+				"attempt-1",
+				true,
+				"sessionGoneUpstream"
+			)
+		);
+
+		expect(findCreationFailureReason(error)).toBe("sessionGoneUpstream");
+	});
+
+	it("finds an AuthenticationRequiredError anywhere in the cause chain", () => {
+		const authError = new AuthenticationRequiredError(
+			"Cursor",
+			"Run `agent login` in your terminal to authenticate."
+		);
+		const error = new SessionCreationError("cursor", "/repo", authError);
+
+		const result = findAuthenticationRequirement(error);
+		expect(result).toEqual({
+			agent: "Cursor",
+			instructions: "Run `agent login` in your terminal to authenticate.",
+		});
+	});
+
+	it("returns null from findAuthenticationRequirement when no auth error in chain", () => {
+		const error = new SessionCreationError(
+			"cursor",
+			"/repo",
+			new Error("generic connection failure")
+		);
+
+		expect(findAuthenticationRequirement(error)).toBeNull();
+	});
+
+	it("returns null when no creation failure in the chain carries a reason", () => {
+		const error = new SessionCreationError(
+			"codex",
+			"/repo",
+			new Error("Failed to spawn subprocess")
+		);
+
+		expect(findCreationFailureReason(error)).toBeNull();
 	});
 
 	it("blocks sending while a pre-session panel error is active", () => {

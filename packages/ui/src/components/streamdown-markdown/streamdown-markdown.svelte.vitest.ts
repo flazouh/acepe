@@ -213,7 +213,7 @@ describe("StreamdownMarkdown", () => {
 			expect(container.querySelector("table")).not.toBeNull();
 		});
 
-		expect(container.querySelector(".table-wrapper table")).not.toBeNull();
+		expect(container.querySelector(".acepe-table-wrapper table")).not.toBeNull();
 		expect(container.querySelector("th")?.textContent).toBe("Name");
 		expect(container.querySelector("td")?.textContent).toBe("Tables");
 	});

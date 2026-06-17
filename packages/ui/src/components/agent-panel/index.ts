@@ -12,11 +12,14 @@ export type {
 export { default as AgentAssistantMessage } from "./agent-assistant-message.svelte";
 export { default as AgentAttachedFilePane } from "./agent-attached-file-pane.svelte";
 export { default as AgentPanelErrorCard } from "./agent-error-card.svelte";
+export { default as AgentPanelSignInCard } from "./agent-sign-in-card.svelte";
 export { default as AgentInputActiveModeChip } from "./agent-input-active-mode-chip.svelte";
 export { default as AgentInputArtefactBadge } from "./agent-input-artefact-badge.svelte";
 export { default as AgentInputAttachMenu } from "./agent-input-attach-menu.svelte";
 export type {
 	AttachMenuCommandItem,
+	AttachMenuCommandSection,
+	AttachMenuMcpServerGroup,
 	AttachMenuModeItem,
 } from "./agent-input-attach-menu-state.js";
 export { filterAttachMenuItems } from "./agent-input-attach-menu-state.js";
@@ -112,6 +115,9 @@ export { default as AgentToolSearch } from "./agent-tool-search.svelte";
 export { default as AgentToolSkill } from "./agent-tool-skill.svelte";
 export { default as AgentToolTask } from "./agent-tool-task.svelte";
 export { default as AgentToolThinking } from "./agent-tool-thinking.svelte";
+export { default as AgentThinkingDurationHeader } from "./agent-thinking-duration-header.svelte";
+export { default as AgentToolDurationLabel } from "./agent-tool-duration-label.svelte";
+export type { ToolDurationTiming } from "./tool-duration.js";
 export { default as ThinkingDotMatrix } from "./thinking-dot-matrix.svelte";
 export { default as AgentToolTodo } from "./agent-tool-todo.svelte";
 export { default as AgentToolWebSearch } from "./agent-tool-web-search.svelte";

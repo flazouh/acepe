@@ -527,6 +527,15 @@ pub trait AgentProvider: Send + Sync {
         }
     }
 
+    /// Provider-owned live MCP server statuses for an active session.
+    fn get_live_mcp_server_statuses<'a>(
+        &'a self,
+        _app: &'a AppHandle,
+        _session_id: Option<&'a str>,
+    ) -> Pin<Box<dyn Future<Output = Vec<crate::cc_sdk::McpServerStatus>> + Send + 'a>> {
+        Box::pin(async { Vec::new() })
+    }
+
     /// Provider-owned capability loading before a session exists.
     fn list_preconnection_capabilities<'a>(
         &'a self,

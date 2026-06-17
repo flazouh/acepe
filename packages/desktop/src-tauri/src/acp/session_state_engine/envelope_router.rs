@@ -223,7 +223,10 @@ pub fn should_emit_session_state_snapshot(_update: &SessionUpdate) -> bool {
 
 #[must_use]
 pub fn should_emit_session_state_lifecycle(update: &SessionUpdate) -> bool {
-    matches!(update, SessionUpdate::ConnectionFailed { .. })
+    matches!(
+        update,
+        SessionUpdate::ConnectionFailed { .. } | SessionUpdate::SessionDetached { .. }
+    )
 }
 
 #[must_use]

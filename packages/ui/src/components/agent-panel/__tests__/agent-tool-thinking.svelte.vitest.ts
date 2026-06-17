@@ -30,7 +30,7 @@ describe("AgentToolThinking", () => {
 		expect(view.getByTestId("thinking-copy").textContent).toBe("Checking the next move.");
 	});
 
-	it("keeps live thinking labels on the normal loading indicator", () => {
+	it("keeps live planning labels on shimmer text without a loading indicator", () => {
 		const view = render(AgentThinkingSceneEntry, {
 			props: {
 				durationMs: 1200,
@@ -39,7 +39,7 @@ describe("AgentToolThinking", () => {
 			},
 		});
 
-		expect(view.container.querySelector(".acepe-dotm-root")).not.toBeNull();
+		expect(view.container.querySelector(".acepe-dotm-root")).toBeNull();
 		expect(view.container.querySelector("[data-testid='thinking-header-line']")).toBeNull();
 		expect(view.getByText("Planning next moves...")).toBeTruthy();
 	});

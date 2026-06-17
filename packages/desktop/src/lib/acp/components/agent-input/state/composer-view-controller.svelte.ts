@@ -8,8 +8,10 @@ import type { PreconnectionAgentSkillsStore } from "../../../../skills/store/pre
 import { filterVisibleModes } from "../../../utils/mode-filter.js";
 import type { createLogger } from "../../../utils/logger.js";
 import {
-	buildAttachMenuCommands,
+	buildAttachMenuCommandSections,
+	buildAttachMenuMcpServerGroups,
 	buildAttachMenuModes,
+	ComposerMcpCatalogState,
 	deriveComposerInteractionState,
 	getEffectiveFilePickerProjectPath,
 	getToolbarConfigOptions,
@@ -399,6 +401,8 @@ export class ComposerViewController {
 
 	readonly effectiveAvailableCommands = $derived.by(() => this.slashCommandSource.commands);
 
+	readonly mcpCatalogState = new ComposerMcpCatalogState();
+
 	readonly attachMenuModes = $derived.by(() =>
 		buildAttachMenuModes({
 			modes: this.visibleModes,
@@ -406,12 +410,53 @@ export class ComposerViewController {
 		})
 	);
 
-	readonly attachMenuCommands = $derived.by(() =>
-		buildAttachMenuCommands({
+	readonly attachMenuCommandSections = $derived.by(() =>
+		buildAttachMenuCommandSections({
 			commands: this.effectiveAvailableCommands,
-			tokenType: this.slashCommandSource.tokenType,
+			preconnectionCommands: this.preconnectionAvailableCommands,
 		})
 	);
+
+	readonly attachMenuMcpServerGroups = $derived.by(() =>
+		buildAttachMenuMcpServerGroups(
+			this.mcpCatalogState.getCatalog({
+				agentId: this.capabilitiesAgentId,
+				projectPath: this.filePickerProjectPath,
+				sessionId: this.#deps.getProps().sessionId ?? null,
+			})
+		)
+	);
+
+	readonly attachMenuMcpCatalogLoading = $derived.by(() =>
+		this.mcpCatalogState.isLoading({
+			agentId: this.capabilitiesAgentId,
+			projectPath: this.filePickerProjectPath,
+			sessionId: this.#deps.getProps().sessionId ?? null,
+		})
+	);
+
+	readonly attachMenuMcpCatalogInput = $derived.by(() => ({
+		agentId: this.capabilitiesAgentId,
+		projectPath: this.filePickerProjectPath,
+		sessionId: this.#deps.getProps().sessionId ?? null,
+	}));
+
+	readonly attachMenuShowMcpSection = $derived.by(
+		() =>
+			this.attachMenuMcpCatalogInput.agentId !== null &&
+			this.attachMenuMcpCatalogInput.projectPath !== null
+	);
+
+	readonly attachMenuMcpCatalogLoaded = $derived.by(() =>
+		this.mcpCatalogState.hasLoaded(this.attachMenuMcpCatalogInput)
+	);
+
+	refreshAttachMenuMcpCatalog(force = false): void {
+		if (!this.attachMenuShowMcpSection) {
+			return;
+		}
+		void this.mcpCatalogState.ensureLoaded(this.attachMenuMcpCatalogInput, { force });
+	}
 
 	readonly selectedModeOption = $derived.by(() =>
 		getSelectedModeOption({

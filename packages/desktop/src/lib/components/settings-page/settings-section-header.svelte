@@ -14,8 +14,8 @@ let { title, description, variant = "default", actions }: Props = $props();
 
 <div
 	class={variant === "subsection"
-		? "mb-4 flex items-start justify-between gap-4"
-		: "mb-5 flex items-start justify-between gap-4"}
+		? "mb-3 flex items-start justify-between gap-4"
+		: "mb-4 flex items-start justify-between gap-4"}
 >
 	<div class="min-w-0">
 		<h3

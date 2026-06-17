@@ -604,7 +604,7 @@ mod tests {
         assert_eq!(
             provider
                 .normalize_mode_id("https://agentclientprotocol.com/protocol/session-modes#agent"),
-            "build"
+            "agent"
         );
         assert_eq!(
             provider
@@ -615,11 +615,11 @@ mod tests {
             provider.normalize_mode_id(
                 "https://agentclientprotocol.com/protocol/session-modes#autopilot"
             ),
-            "build"
+            "autopilot"
         );
         assert_eq!(
             provider.normalize_mode_id("https://github.com/github/copilot-cli/mode#agent"),
-            "build"
+            "agent"
         );
         assert_eq!(
             provider.normalize_mode_id("https://github.com/github/copilot-cli/mode#plan"),
@@ -631,15 +631,20 @@ mod tests {
     fn provider_maps_execution_profiles_to_native_mode_uris() {
         let provider = CopilotProvider;
 
+        // "build" is accepted as a legacy alias for "agent" (backward compat).
         assert_eq!(
             provider.map_outbound_mode_id("build"),
+            "https://agentclientprotocol.com/protocol/session-modes#agent"
+        );
+        assert_eq!(
+            provider.map_outbound_mode_id("agent"),
             "https://agentclientprotocol.com/protocol/session-modes#agent"
         );
         assert_eq!(
             provider.map_outbound_mode_id("plan"),
             "https://agentclientprotocol.com/protocol/session-modes#plan"
         );
-        assert_eq!(provider.autonomous_supported_mode_ids(), &["build"]);
+        assert_eq!(provider.autonomous_supported_mode_ids(), &["agent", "autopilot"]);
     }
 
     #[test]

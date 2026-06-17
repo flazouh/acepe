@@ -3,77 +3,46 @@ import { describe, expect, test } from "bun:test";
 import {
 	getPreSessionWorktreeIconClass,
 	getPreSessionWorktreeLockedWidth,
-	getPreSessionWorktreeToggleItems,
-	getPreSessionWorktreeToggleValue,
-	isPreSessionWorktreeOn,
+	getPreSessionWorktreeMode,
+	getPreSessionWorktreeModeOptions,
+	getSelectedPreSessionWorktreeModeOption,
 	shouldShowPreSessionWorktreeExpanded,
 } from "./pre-session-worktree-card-state.js";
 
 describe("pre-session worktree card state", () => {
-	test("turns worktree on when either normal or always mode is enabled", () => {
-		expect(
-			isPreSessionWorktreeOn({
-				pendingWorktreeEnabled: false,
-				alwaysEnabled: false,
-			})
-		).toBe(false);
-		expect(
-			isPreSessionWorktreeOn({
-				pendingWorktreeEnabled: true,
-				alwaysEnabled: false,
-			})
-		).toBe(true);
-		expect(
-			isPreSessionWorktreeOn({
-				pendingWorktreeEnabled: false,
-				alwaysEnabled: true,
-			})
-		).toBe(true);
+	test("maps pending selection to launch mode", () => {
+		expect(getPreSessionWorktreeMode({ pendingWorktreeEnabled: false })).toBe("local");
+		expect(getPreSessionWorktreeMode({ pendingWorktreeEnabled: true })).toBe("worktree");
 	});
 
-	test("builds toggle value and items from labels", () => {
+	test("builds mode options from labels", () => {
 		expect(
-			getPreSessionWorktreeToggleValue({
-				pendingWorktreeEnabled: false,
-				alwaysEnabled: false,
-			})
-		).toBe("no");
-		expect(
-			getPreSessionWorktreeToggleValue({
-				pendingWorktreeEnabled: false,
-				alwaysEnabled: true,
-			})
-		).toBe("yes");
-		expect(
-			getPreSessionWorktreeToggleItems({
-				yesLabel: "Yes",
-				noLabel: "No",
+			getPreSessionWorktreeModeOptions({
+				localLabel: "Work locally",
+				worktreeLabel: "New worktree",
 			})
 		).toEqual([
-			{ id: "yes", label: "Yes" },
-			{ id: "no", label: "No" },
+			{ id: "local", label: "Work locally" },
+			{ id: "worktree", label: "New worktree" },
 		]);
 	});
 
-	test("maps the tree icon color from worktree state", () => {
+	test("resolves the selected mode option", () => {
+		const modeOptions = getPreSessionWorktreeModeOptions({
+			localLabel: "Work locally",
+			worktreeLabel: "New worktree",
+		});
 		expect(
-			getPreSessionWorktreeIconClass({
-				worktreeOn: true,
-				alwaysEnabled: true,
+			getSelectedPreSessionWorktreeModeOption({
+				mode: "worktree",
+				modeOptions,
 			})
-		).toBe("text-purple-400");
-		expect(
-			getPreSessionWorktreeIconClass({
-				worktreeOn: true,
-				alwaysEnabled: false,
-			})
-		).toBe("text-success");
-		expect(
-			getPreSessionWorktreeIconClass({
-				worktreeOn: false,
-				alwaysEnabled: false,
-			})
-		).toBe("text-destructive");
+		).toEqual({ id: "worktree", label: "New worktree" });
+	});
+
+	test("maps the tree icon color from launch mode", () => {
+		expect(getPreSessionWorktreeIconClass({ mode: "worktree" })).toBe("text-success");
+		expect(getPreSessionWorktreeIconClass({ mode: "local" })).toBe("text-muted-foreground");
 	});
 
 	test("only shows expanded content when it is open and available", () => {

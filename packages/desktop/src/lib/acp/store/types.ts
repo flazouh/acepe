@@ -170,6 +170,16 @@ export interface PanelHotState {
 		readonly worktreePath: string | null;
 		readonly phase: "creating-worktree" | "running";
 	} | null;
+	/**
+	 * Pre-session sign-in requirement. Set when activating the agent reports it
+	 * needs an interactive sign-in before a session can be created. This is a
+	 * recoverable precondition, NOT an error — it drives a neutral sign-in card
+	 * above the composer, never error chrome. Cleared on the next send/retry.
+	 */
+	readonly signInRequirement: {
+		readonly agent: string;
+		readonly instructions: string;
+	} | null;
 }
 
 /**
@@ -189,6 +199,7 @@ export const DEFAULT_PANEL_HOT_STATE: PanelHotState = {
 	embeddedTerminalDrawerOpen: false,
 	pendingUserEntry: null,
 	pendingWorktreeSetup: null,
+	signInRequirement: null,
 };
 
 /**

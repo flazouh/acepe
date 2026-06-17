@@ -750,6 +750,99 @@ mod tests {
         }
     }
 
+    // Bug #2 regression: a Cursor turn streams an assistant tail (turn Running,
+    // activity AwaitingModel -> the trailing row carries an active streaming tail
+    // and a `duration_started_at_ms`, which the UI animates as "Planning next
+    // moves for Ns"). When the turn completes IN PLACE on that same last row (the
+    // assistant message arrives, then TurnComplete, with NO new row appended),
+    // `select_active_streaming_tail` clears the tail canonically. The buffer
+    // producer MUST re-emit so the consumer drops the counting planning row. The
+    // delta wire cannot express "a survivor's tail changed" (only prepend/append/
+    // remove), so this must promote to a FreshPush. If it falls through to NoOp,
+    // the WebView is frozen rendering a perpetual "Planning next moves" indicator
+    // even though the canonical turn is Completed.
+    #[test]
+    fn terminal_turn_in_place_detail_re_pushes_buffer_to_clear_streaming_tail() {
+        let tracker = BufferEmissionTracker::new(ViewportLedger::new());
+        let projection_registry = ProjectionRegistry::new();
+        let transcript_projection_registry = TranscriptProjectionRegistry::new();
+
+        projection_registry.register_session("s".to_string(), CanonicalAgentId::Cursor);
+        // Streaming assistant chunk, NO turn complete -> turn_state Running ->
+        // the trailing assistant row is the active streaming tail.
+        let chunk = create_agent_message_chunk_update("s", None, "Upgrade your plan", 10);
+        projection_registry.apply_session_update("s", &chunk);
+        let _ = transcript_projection_registry.apply_session_update_idle(1, &chunk);
+        let streaming_revision = SessionGraphRevision::new(0, 1, 1);
+
+        let first = tracker
+            .build_or_advance_viewport_buffer_envelope(
+                SessionGraphRuntimeSnapshot::default(),
+                "s",
+                streaming_revision,
+                &projection_registry,
+                &transcript_projection_registry,
+                Some(720),
+                None,
+                None,
+                None,
+                false,
+            )
+            .expect("streaming emission")
+            .expect("streaming push");
+        match first.payload {
+            SessionStatePayload::ViewportBufferPush { push } => {
+                assert!(
+                    push.rows
+                        .last()
+                        .is_some_and(|row| row.active_streaming_tail.is_some()
+                            && row.duration_started_at_ms.is_some()),
+                    "setup: the streamed trailing row must carry the active tail + planning timer"
+                );
+            }
+            other => panic!("expected initial ViewportBufferPush, got {other:?}"),
+        }
+
+        // Same row completes in place: TurnComplete, no new transcript row.
+        let turn_complete = create_turn_complete_update_for_session("s", "turn-1");
+        projection_registry.apply_session_update("s", &turn_complete);
+        let _ = transcript_projection_registry.apply_session_update_idle(2, &turn_complete);
+        let completed_revision = SessionGraphRevision::new(1, 1, 2);
+
+        let envelope = tracker
+            .build_or_advance_viewport_buffer_envelope(
+                SessionGraphRuntimeSnapshot::default(),
+                "s",
+                completed_revision,
+                &projection_registry,
+                &transcript_projection_registry,
+                Some(720),
+                None,
+                None,
+                None,
+                false,
+            )
+            .expect("terminal emission must not error")
+            .expect("terminal turn must re-emit the buffer to clear the streaming tail");
+        match envelope.payload {
+            SessionStatePayload::ViewportBufferPush { push } => {
+                assert!(
+                    push.rows
+                        .iter()
+                        .all(|row| row.active_streaming_tail.is_none()),
+                    "a completed turn must leave no active streaming tail"
+                );
+                assert!(
+                    push.rows
+                        .iter()
+                        .all(|row| row.duration_started_at_ms.is_none()),
+                    "a completed turn must clear the planning timer on every row"
+                );
+            }
+            other => panic!("expected ViewportBufferPush clearing the tail, got {other:?}"),
+        }
+    }
+
     // Regression guard: the identity-soundness check must be SURGICAL. It promotes to a
     // FreshPush only when surviving rows actually drift (id or version). A pure scroll slide
     // over a layout larger than the overscan buffer leaves survivors byte-identical, so the
@@ -1562,6 +1655,7 @@ mod tests {
                 role: TranscriptEntryRole::Assistant,
                 segments: Vec::new(),
             },
+            duration_started_at_ms: None,
         }
     }
 

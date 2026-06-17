@@ -1,6 +1,6 @@
 use crate::acp::projections::{RouteDecision, TerminalTurnGuard};
 use crate::acp::parsers::acp_fields::normalize_tool_call_id;
-use crate::acp::session_update::{SessionUpdate, ToolCallData, ToolKind, TurnErrorData};
+use crate::acp::session_update::{SessionUpdate, ToolCallData, ToolKind};
 use crate::acp::transcript_projection::delta::{TranscriptDelta, TranscriptDeltaOperation};
 use crate::acp::transcript_projection::display_id::{
     assistant_boundary_entry_count_from_transcript_entries, derive_entry_id_for_snapshot_role,
@@ -333,23 +333,9 @@ impl SessionTranscriptProjection {
                 self.close_assistant_entry_boundary();
                 Some(vec![TranscriptDeltaOperation::AppendEntry { entry }])
             }
-            SessionUpdate::TurnError { error, .. } => {
-                let turn_key = self.current_turn_key();
-                let entry_id = derive_entry_id_for_snapshot_role(
-                    &turn_key,
-                    &TranscriptEntryRole::Error,
-                    None,
-                );
-                let entry = TranscriptEntry {
-                    entry_id,
-                    role: TranscriptEntryRole::Error,
-                    segments: vec![error_segment(event_seq, error)],
-                    attempt_id: None,
-                    timestamp_ms: None,
-                };
-                self.upsert_entry(entry.clone());
+            SessionUpdate::TurnError { .. } => {
                 self.close_assistant_entry_boundary();
-                Some(vec![TranscriptDeltaOperation::AppendEntry { entry }])
+                None
             }
             SessionUpdate::TurnComplete { .. } => {
                 self.close_assistant_entry_boundary();
@@ -460,16 +446,6 @@ fn text_from_block(block: &ContentBlock) -> Option<String> {
     match block {
         ContentBlock::Text { text } => Some(text.clone()),
         _ => None,
-    }
-}
-
-fn error_segment(event_seq: i64, error: &TurnErrorData) -> TranscriptSegment {
-    TranscriptSegment::Text {
-        segment_id: format!("error-event-{event_seq}:error"),
-        text: match error {
-            TurnErrorData::Legacy(message) => message.clone(),
-            TurnErrorData::Structured(info) => info.message.clone(),
-        },
     }
 }
 
@@ -1342,51 +1318,49 @@ mod tests {
     }
 
     #[test]
-    fn turn_error_appends_error_entry() {
+    fn turn_error_does_not_append_transcript_entry() {
         let registry = TranscriptProjectionRegistry::new();
-        let delta = registry
-            .apply_session_update_idle(
-                9,
-                &SessionUpdate::TurnError {
-                    error: TurnErrorData::Structured(TurnErrorInfo {
-                        message: "boom".to_string(),
-                        kind: TurnErrorKind::Fatal,
-                        code: None,
-                        source: Some(TurnErrorSource::Unknown),
-                    }),
-                    session_id: Some("session-1".to_string()),
-                    turn_id: Some("turn-1".to_string()),
-                },
-            )
-            .expect("delta");
-        assert!(matches!(
-            &delta.operations[0],
-            TranscriptDeltaOperation::AppendEntry { entry }
-                if entry.entry_id == "acepe::entry::session-start::error::."
-                    && entry.role == TranscriptEntryRole::Error
-        ));
+        let delta = registry.apply_session_update_idle(
+            9,
+            &SessionUpdate::TurnError {
+                error: TurnErrorData::Structured(TurnErrorInfo {
+                    message: "boom".to_string(),
+                    kind: TurnErrorKind::Fatal,
+                    code: None,
+                    source: Some(TurnErrorSource::Unknown),
+                }),
+                session_id: Some("session-1".to_string()),
+                turn_id: Some("turn-1".to_string()),
+            },
+        );
+        assert!(delta.is_none(), "turn errors are live-only state, not transcript content");
+        let snapshot = registry
+            .snapshot_for_session("session-1")
+            .expect("snapshot");
+        assert!(
+            snapshot.entries.is_empty(),
+            "turn error must not materialize a transcript row"
+        );
     }
 
     #[test]
     fn skips_tool_call_after_terminal_turn_error() {
         let registry = TranscriptProjectionRegistry::new();
         let mut guard = TerminalTurnGuard::default();
-        registry
-            .apply_session_update_with_guard(
-                &mut guard,
-                8,
-                &SessionUpdate::TurnError {
-                    error: TurnErrorData::Structured(TurnErrorInfo {
-                        message: "boom".to_string(),
-                        kind: TurnErrorKind::Fatal,
-                        code: None,
-                        source: Some(TurnErrorSource::Unknown),
-                    }),
-                    session_id: Some("session-1".to_string()),
-                    turn_id: Some("turn-1".to_string()),
-                },
-            )
-            .expect("error delta");
+        let _ = registry.apply_session_update_with_guard(
+            &mut guard,
+            8,
+            &SessionUpdate::TurnError {
+                error: TurnErrorData::Structured(TurnErrorInfo {
+                    message: "boom".to_string(),
+                    kind: TurnErrorKind::Fatal,
+                    code: None,
+                    source: Some(TurnErrorSource::Unknown),
+                }),
+                session_id: Some("session-1".to_string()),
+                turn_id: Some("turn-1".to_string()),
+            },
+        );
 
         let late_tool = registry.apply_session_update_with_guard(
             &mut guard,
@@ -1429,22 +1403,20 @@ mod tests {
         let registry = TranscriptProjectionRegistry::new();
         let mut guard = TerminalTurnGuard::default();
 
-        registry
-            .apply_session_update_with_guard(
-                &mut guard,
-                8,
-                &SessionUpdate::TurnError {
-                    error: TurnErrorData::Structured(TurnErrorInfo {
-                        message: "boom".to_string(),
-                        kind: TurnErrorKind::Fatal,
-                        code: None,
-                        source: Some(TurnErrorSource::Unknown),
-                    }),
-                    session_id: Some("session-1".to_string()),
-                    turn_id: Some("turn-1".to_string()),
-                },
-            )
-            .expect("error delta");
+        let _ = registry.apply_session_update_with_guard(
+            &mut guard,
+            8,
+            &SessionUpdate::TurnError {
+                error: TurnErrorData::Structured(TurnErrorInfo {
+                    message: "boom".to_string(),
+                    kind: TurnErrorKind::Fatal,
+                    code: None,
+                    source: Some(TurnErrorSource::Unknown),
+                }),
+                session_id: Some("session-1".to_string()),
+                turn_id: Some("turn-1".to_string()),
+            },
+        );
 
         registry
             .apply_session_update_with_guard(
@@ -1534,22 +1506,20 @@ mod tests {
     fn skips_agent_message_chunk_after_terminal_turn_error() {
         let registry = TranscriptProjectionRegistry::new();
         let mut guard = TerminalTurnGuard::default();
-        registry
-            .apply_session_update_with_guard(
-                &mut guard,
-                8,
-                &SessionUpdate::TurnError {
-                    error: TurnErrorData::Structured(TurnErrorInfo {
-                        message: "boom".to_string(),
-                        kind: TurnErrorKind::Fatal,
-                        code: None,
-                        source: Some(TurnErrorSource::Unknown),
-                    }),
-                    session_id: Some("session-1".to_string()),
-                    turn_id: Some("turn-1".to_string()),
-                },
-            )
-            .expect("error delta");
+        let _ = registry.apply_session_update_with_guard(
+            &mut guard,
+            8,
+            &SessionUpdate::TurnError {
+                error: TurnErrorData::Structured(TurnErrorInfo {
+                    message: "boom".to_string(),
+                    kind: TurnErrorKind::Fatal,
+                    code: None,
+                    source: Some(TurnErrorSource::Unknown),
+                }),
+                session_id: Some("session-1".to_string()),
+                turn_id: Some("turn-1".to_string()),
+            },
+        );
 
         let late_chunk = registry.apply_session_update_with_guard(
             &mut guard,

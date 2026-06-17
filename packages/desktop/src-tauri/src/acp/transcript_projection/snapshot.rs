@@ -150,20 +150,7 @@ impl TranscriptEntry {
                     timestamp_ms: parse_timestamp_to_millis(&event.timestamp),
                 })
             }
-            CanonicalTranscriptEventKind::AssistantError { text, .. } => {
-                let entry_id =
-                    derive_entry_id_for_snapshot_role(turn_key, &TranscriptEntryRole::Error, None);
-                Some(Self {
-                    entry_id,
-                    role: TranscriptEntryRole::Error,
-                    segments: vec![TranscriptSegment::Text {
-                        segment_id: format!("{turn_key}:error:{}", event.transcript_seq),
-                        text: text.clone(),
-                    }],
-                    attempt_id: None,
-                    timestamp_ms: parse_timestamp_to_millis(&event.timestamp),
-                })
-            }
+            CanonicalTranscriptEventKind::AssistantError { .. } => None,
             CanonicalTranscriptEventKind::ToolUse {
                 tool_call_id,
                 name,
@@ -250,24 +237,7 @@ impl TranscriptEntry {
                     timestamp_ms: timestamp.as_deref().and_then(parse_timestamp_to_millis),
                 })
             }
-            StoredEntry::Error {
-                id: _,
-                message,
-                timestamp,
-            } => {
-                let entry_id =
-                    derive_entry_id_for_snapshot_role(turn_key, &TranscriptEntryRole::Error, None);
-                Some(Self {
-                    entry_id: entry_id.clone(),
-                    role: TranscriptEntryRole::Error,
-                    segments: vec![TranscriptSegment::Text {
-                        segment_id: format!("{entry_id}:error"),
-                        text: message.content.clone(),
-                    }],
-                    attempt_id: None,
-                    timestamp_ms: timestamp.as_deref().and_then(parse_timestamp_to_millis),
-                })
-            }
+            StoredEntry::Error { .. } => None,
         }
     }
 }
@@ -306,7 +276,6 @@ pub enum TranscriptEntryRole {
     User,
     Assistant,
     Tool,
-    Error,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, specta::Type, PartialEq, Eq)]
@@ -523,7 +492,7 @@ mod tests {
     }
 
     #[test]
-    fn transcript_snapshot_preserves_tool_and_error_rows_as_text_segments() {
+    fn transcript_snapshot_preserves_tool_rows_and_skips_error_rows() {
         let snapshot = TranscriptSnapshot::from_stored_entries(
             11,
             &[
@@ -568,20 +537,13 @@ mod tests {
         );
 
         assert_eq!(snapshot.revision, 11);
+        assert_eq!(snapshot.entries.len(), 1);
         assert_eq!(snapshot.entries[0].role, TranscriptEntryRole::Tool);
-        assert_eq!(snapshot.entries[1].role, TranscriptEntryRole::Error);
         assert_eq!(
             snapshot.entries[0].segments,
             vec![TranscriptSegment::Text {
                 segment_id: "acepe::entry::session-start::tool::tool-1:tool".to_string(),
                 text: "Read file".to_string(),
-            }]
-        );
-        assert_eq!(
-            snapshot.entries[1].segments,
-            vec![TranscriptSegment::Text {
-                segment_id: "acepe::entry::assistant-boundary:1::error::.:error".to_string(),
-                text: "boom".to_string(),
             }]
         );
     }

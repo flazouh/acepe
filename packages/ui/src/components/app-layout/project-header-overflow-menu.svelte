@@ -11,6 +11,7 @@
 	import { Trash } from "phosphor-svelte";
 
 	import { Selector } from "../selector/index.js";
+	import { Switch } from "../switch/index.js";
 	import { PROJECT_COLOR_OPTIONS } from "./project-color-options.js";
 	import { buildProjectHeaderOverflowMenuState } from "./project-menu-state.js";
 
@@ -26,6 +27,9 @@
 		moveUpDisabled?: boolean;
 		moveDownDisabled?: boolean;
 		onChangeProjectIcon?: () => void;
+		hideExternalCliSessions?: boolean;
+		onHideExternalCliSessionsChange?: (hide: boolean) => void;
+		hideExternalCliSessionsLabel?: string;
 	}
 
 	let {
@@ -40,6 +44,9 @@
 		moveUpDisabled = false,
 		moveDownDisabled = false,
 		onChangeProjectIcon,
+		hideExternalCliSessions = false,
+		onHideExternalCliSessionsChange,
+		hideExternalCliSessionsLabel = "Hide external CLI sessions",
 	}: Props = $props();
 
 	let menuOpen = $state(false);
@@ -67,6 +74,7 @@
 	const hasResetProjectIcon = $derived(menuState.hasResetProjectIcon);
 	const showColorPicker = $derived(menuState.showColorPicker);
 	const showSettingsSection = $derived(menuState.showSettingsSection);
+	const showSessionsSection = $derived(Boolean(onHideExternalCliSessionsChange));
 	const colorTriggerClass = $derived(menuState.colorTriggerClass);
 
 	function handleRemoveClick() {
@@ -114,6 +122,30 @@
 				<ArrowDown class="h-3.5 w-3.5 mr-2" weight="bold" />
 				Move Down
 			</DropdownMenu.Item>
+		</DropdownMenu.Group>
+	{/if}
+	{#if showSessionsSection}
+		<DropdownMenu.Group>
+			<DropdownMenu.GroupHeading
+				class="px-2 py-1 text-[11px] font-semibold text-muted-foreground border-b border-border/20"
+			>
+				Sessions
+			</DropdownMenu.GroupHeading>
+			<div
+				class="flex items-center justify-between gap-3 px-2 py-1.5"
+				role="presentation"
+				onclick={(event) => event.stopPropagation()}
+				onkeydown={(event) => event.stopPropagation()}
+			>
+				<span class="min-w-0 text-[11px] text-foreground">{hideExternalCliSessionsLabel}</span>
+				<Switch
+					checked={hideExternalCliSessions}
+					onCheckedChange={(checked) => {
+						onHideExternalCliSessionsChange?.(checked === true);
+					}}
+					aria-label={hideExternalCliSessionsLabel}
+				/>
+			</div>
 		</DropdownMenu.Group>
 	{/if}
 	{#if showSettingsSection}

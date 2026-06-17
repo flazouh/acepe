@@ -49,6 +49,28 @@ pub fn decide_buffer_emission(
         emission = BufferEmission::FreshPush;
     }
 
+    // A NoOp means the window BOUNDS are unchanged, but a surviving row's derived
+    // content can still have drifted in place without bumping the transcript
+    // viewport_revision — e.g. a turn completing clears the trailing row's active
+    // streaming tail (and its `duration_started_at_ms`) yet emits no new transcript
+    // row. The delta wire cannot express an in-place survivor change, so promote to
+    // a FreshPush whenever a surviving row's id/version no longer matches what was
+    // last pushed. Without this the consumer is frozen rendering a perpetual
+    // "Planning next moves" indicator after the canonical turn is Completed.
+    if matches!(emission, BufferEmission::NoOp) {
+        if let Some(record) = prev {
+            if !buffer_delta_is_identity_consistent(
+                record.start_index,
+                &record.row_ids,
+                &record.row_versions,
+                full_rows,
+                slice,
+            ) {
+                emission = BufferEmission::FreshPush;
+            }
+        }
+    }
+
     let height_accepted = matches!(flags.height_outcome, Some(HeightConfirmationOutcome::Accepted));
     if height_accepted && flags.has_prior {
         emission = BufferEmission::FreshPush;
@@ -246,6 +268,7 @@ mod tests {
                 role: TranscriptEntryRole::Assistant,
                 segments: Vec::new(),
             },
+            duration_started_at_ms: None,
         }
     }
 

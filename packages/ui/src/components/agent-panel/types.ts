@@ -82,6 +82,8 @@ export interface AgentAssistantEntry {
 	isStreaming?: boolean;
 	tokenRevealCss?: TokenRevealCss;
 	timestampMs?: number;
+	/** Canonical awaiting-model anchor for the planning placeholder while streaming. */
+	planningStartedAtMs?: number | null;
 }
 
 export interface TokenRevealCss {

@@ -190,9 +190,57 @@ export const watchResultSchema = z.object({
 		.nullable(),
 });
 
+export const firstSendTimelineSampleSchema = z.object({
+	label: z.string(),
+	elapsedMs: z.number(),
+	composerText: z.string(),
+	composerContainsPrompt: z.boolean(),
+	messageVisible: z.boolean(),
+	messageVisibleInTranscript: z.boolean(),
+	planningVisible: z.boolean(),
+	readyVisible: z.boolean(),
+	matchingTextLeafCount: z.number(),
+	matchingTranscriptViewportCount: z.number(),
+	transcriptViewportCount: z.number(),
+	bodyPreview: z.string(),
+});
+
+export const firstSendTimelineProbeResultSchema = z.object({
+	composerFound: z.boolean(),
+	selectedComposerIndex: z.number().nullable(),
+	selectedComposerName: z.string().nullable(),
+	sendFound: z.boolean(),
+	sendReadyBeforeClick: z.boolean(),
+	sent: z.boolean(),
+	prompt: z.string(),
+	samples: z.array(firstSendTimelineSampleSchema),
+});
+
+export const planningDebugSnapshotSchema = z.object({
+	sessionId: z.string().nullable(),
+	sourceKind: z.string().nullable(),
+	lifecycleStatus: z.string().nullable(),
+	activityKind: z.string().nullable(),
+	turnState: z.string().nullable(),
+	hasOptimisticPendingEntry: z.boolean(),
+	hasLocalPendingSendIntent: z.boolean(),
+	pendingSendIntentAttemptId: z.string().nullable(),
+	hasMessages: z.boolean(),
+	visibleEntryCount: z.number(),
+	showPlanningIndicator: z.boolean(),
+	capturedAtMs: z.number(),
+});
+
+export const planningDebugResultSchema = z.object({
+	available: z.boolean(),
+	snapshots: z.array(planningDebugSnapshotSchema),
+});
+
 export type SendComposerResult = z.infer<typeof sendComposerResultSchema>;
+export type PlanningDebugResult = z.infer<typeof planningDebugResultSchema>;
 export type NavigateResult = z.infer<typeof navigateResultSchema>;
 export type WatchResult = z.infer<typeof watchResultSchema>;
+export type FirstSendTimelineProbeResult = z.infer<typeof firstSendTimelineProbeResultSchema>;
 
 export type QaStatus = z.infer<typeof qaStatusSchema>;
 export type QaCommandResult = z.infer<typeof qaCommandResultSchema>;

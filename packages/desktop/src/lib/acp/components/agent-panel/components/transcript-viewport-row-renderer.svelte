@@ -4,22 +4,17 @@ import type {
 	AgentPanelPlanActionEvent,
 	AgentPanelPlanViewEvent,
 	AgentPanelQuestionSelectEvent,
-	AgentPanelSceneEntryModel,
 	AgentToolFileSelectEvent,
 	AssistantRenderBlockContext,
 } from "@acepe/ui/agent-panel";
-import type { Snippet } from "svelte";
+import type { ComponentProps, Snippet } from "svelte";
 import type { TranscriptViewportRow } from "../../../../services/acp-types.js";
-import type { PermissionRequest } from "../../../types/permission-request.js";
+import type { PermissionRequest } from "../../../types/permission.js";
+import type { RenderedTranscriptViewportRow } from "../logic/transcript-viewport-rendered-rows.js";
 import MessageWrapper from "../../messages/message-wrapper.svelte";
 import PermissionBar from "../../tool-calls/permission-bar.svelte";
 
-type RenderedViewportRow = {
-	readonly row: TranscriptViewportRow;
-	readonly index: number;
-	readonly offsetPx: number;
-	readonly entry: AgentPanelSceneEntryModel;
-};
+type ConversationEntryProps = ComponentProps<typeof AgentPanelConversationEntry>;
 
 let {
 	renderedRows,
@@ -38,12 +33,12 @@ let {
 	getAttachedPermission,
 	confirmRowHeight,
 }: {
-	renderedRows: readonly RenderedViewportRow[];
+	renderedRows: readonly RenderedTranscriptViewportRow[];
 	sessionId?: string | null;
 	projectPath: string | undefined;
 	isFullscreen?: boolean;
-	streamingAnimationMode: string;
-	editToolTheme: string;
+	streamingAnimationMode: ConversationEntryProps["streamingAnimationMode"];
+	editToolTheme: ConversationEntryProps["editToolTheme"];
 	renderAssistantBlock: Snippet<[AssistantRenderBlockContext]>;
 	onQuestionSelect?: (event: AgentPanelQuestionSelectEvent) => void;
 	onPlanBuild?: (event: AgentPanelPlanActionEvent) => void;
@@ -60,10 +55,18 @@ let {
 		destroy: () => void;
 	};
 } = $props();
+
+function ignoreLocalRowHeight(_node: HTMLDivElement, _row: TranscriptViewportRow) {
+	return {
+		update(_nextRow: TranscriptViewportRow) {},
+		destroy() {},
+	};
+}
 </script>
 
 {#each renderedRows as rendered (rendered.row.rowId)}
-	<div use:confirmRowHeight={rendered.row} data-entry-key={rendered.row.rowId}>
+	{@const rowHeightAction = rendered.localOnly ? ignoreLocalRowHeight : confirmRowHeight}
+	<div use:rowHeightAction={rendered.row} data-entry-key={rendered.row.rowId}>
 		<MessageWrapper
 			entryIndex={rendered.index}
 			entryKey={rendered.row.rowId}

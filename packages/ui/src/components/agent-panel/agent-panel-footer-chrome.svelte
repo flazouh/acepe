@@ -57,7 +57,7 @@
 	{/if}
 
 	{#if onSettings}
-		<div class="flex items-center gap-0.5 px-0.5">
+		<div class="flex items-center gap-0.5 px-1.5">
 			<EmbeddedIconButton
 				title={settingsTitle}
 				ariaLabel={settingsAriaLabel ?? settingsTitle}
@@ -69,7 +69,7 @@
 	{/if}
 
 	{#if showBrowserToggle || showTerminalToggle}
-		<div class="ml-auto flex items-center gap-0.5 px-0.5">
+		<div class="ml-auto flex items-center gap-0.5 px-1.5">
 			{#if showBrowserToggle}
 				<EmbeddedIconButton
 					active={browserActive}

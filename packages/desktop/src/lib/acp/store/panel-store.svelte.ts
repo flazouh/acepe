@@ -53,6 +53,13 @@ import type {
 	FileWorkspacePanel,
 	Panel,
 	PanelHotState,
+	PersistedBrowserPanelState,
+	PersistedEmbeddedTerminalState,
+	PersistedFilePanelState,
+	PersistedPanelState,
+	PersistedTerminalPanelGroupState,
+	PersistedTerminalTabState,
+	PersistedWorkspacePanelState,
 	SessionEntry,
 	TerminalPanelGroup,
 	TerminalTab,
@@ -68,6 +75,26 @@ const logger = createLogger({ id: "panel-store", name: "PanelStore" });
 
 function isPersistableWorkspacePanel(panel: WorkspacePanel): boolean {
 	return panel.kind !== "agent" || panel.autoCreated !== true;
+}
+
+export interface PanelWorkspacePersistenceSnapshotOptions {
+	readonly getPanelScrollTop?: (panelId: string) => number;
+}
+
+export interface PanelWorkspacePersistenceSnapshot {
+	readonly workspacePanels: PersistedWorkspacePanelState[];
+	readonly panels: PersistedPanelState[];
+	readonly filePanels: PersistedFilePanelState[];
+	readonly activeFilePanelIdByOwnerPanelId: Record<string, string>;
+	readonly focusedPanelIndex: number | null;
+	readonly panelContainerScrollX: number;
+	readonly fullscreenPanelIndex: number | null;
+	readonly terminalPanelGroups: PersistedTerminalPanelGroupState[];
+	readonly terminalTabs: PersistedTerminalTabState[];
+	readonly browserPanels: PersistedBrowserPanelState[];
+	readonly embeddedTerminalTabs: PersistedEmbeddedTerminalState[];
+	readonly viewMode: ViewMode | undefined;
+	readonly focusedViewProjectPath: string | undefined;
 }
 
 export class PanelStore {
@@ -220,6 +247,12 @@ export class PanelStore {
 	/** Optional callback invoked when a panel is focused. */
 	onPanelFocused: ((panelId: string) => void) | null = null;
 
+	private duplicatePanelDisposalHandler: ((panelId: string) => void) | null = null;
+
+	setDuplicatePanelDisposalHandler(handler: (panelId: string) => void): void {
+		this.duplicatePanelDisposalHandler = handler;
+	}
+
 	/** Embedded terminal state per agent panel (bottom drawer tabs). */
 	readonly embeddedTerminals: EmbeddedTerminalStore;
 
@@ -284,6 +317,8 @@ export class PanelStore {
 			hasPendingCreationSession: (sessionId) =>
 				typeof this.sessionStore.connection.hasPendingCreationSession === "function" &&
 				this.sessionStore.connection.hasPendingCreationSession(sessionId),
+			resolveCanonicalSessionId: (requestedId) =>
+				this.sessionStore.read.resolveCanonicalSessionId(requestedId),
 			focusOpenedTopLevelPanel: (panelId) => this.focusOpenedTopLevelPanel(panelId),
 			onSpawnedPanelFocused: (panel) => {
 				this.focusedPanelId = panel.id;
@@ -300,6 +335,9 @@ export class PanelStore {
 				if (this.viewMode === "single" || this.fullscreenPanelId !== null) {
 					this.switchFullscreen(panel.id);
 				}
+			},
+			onDuplicatePanelDisposed: (panelId) => {
+				this.duplicatePanelDisposalHandler?.(panelId);
 			},
 			clearAutoSessionSuppression: (sessionId) =>
 				this.hotStateStore.clearAutoSessionSuppression(sessionId),
@@ -604,6 +642,237 @@ export class PanelStore {
 			persistableIndex += 1;
 		}
 		return -1;
+	}
+
+	createWorkspacePersistenceSnapshot(
+		options: PanelWorkspacePersistenceSnapshotOptions = {}
+	): PanelWorkspacePersistenceSnapshot {
+		const persistableWorkspacePanels = this.getPersistableWorkspacePanels();
+		const persistableAgentPanels: Panel[] = [];
+		const persistableFilePanels: FilePanel[] = [];
+
+		for (const panel of persistableWorkspacePanels) {
+			if (panel.kind === "agent") {
+				persistableAgentPanels.push(panel);
+				continue;
+			}
+			if (panel.kind === "file") {
+				persistableFilePanels.push(panel);
+			}
+		}
+
+		return {
+			workspacePanels: this.serializeWorkspacePanels(persistableWorkspacePanels),
+			panels: persistableAgentPanels.map((panel) =>
+				this.serializeLegacyAgentPanel(panel, options.getPanelScrollTop)
+			),
+			filePanels: this.serializeFilePanels(persistableFilePanels),
+			activeFilePanelIdByOwnerPanelId: this.getActiveFilePanelIdByOwnerPanelIdRecord(),
+			focusedPanelIndex: this.focusedPanelId
+				? this.getPersistableTopLevelWorkspacePanelIndex(this.focusedPanelId)
+				: null,
+			panelContainerScrollX: this.scrollX,
+			fullscreenPanelIndex: this.fullscreenPanelId
+				? this.getPersistableTopLevelWorkspacePanelIndex(this.fullscreenPanelId)
+				: null,
+			terminalPanelGroups: this.serializeTerminalPanelGroups(this.terminalPanelGroups),
+			terminalTabs: this.serializeTerminalTabs(this.terminalTabs),
+			browserPanels: this.serializeBrowserPanels(this.browserPanels),
+			embeddedTerminalTabs: this.embeddedTerminals.serialize(),
+			viewMode: this.viewMode !== "multi" ? this.viewMode : undefined,
+			focusedViewProjectPath: this.focusedViewProjectPath ?? undefined,
+		};
+	}
+
+	private serializeLegacyAgentPanel(
+		panel: Panel,
+		getPanelScrollTop: ((panelId: string) => number) | undefined
+	): PersistedPanelState {
+		const sessionIdentity =
+			panel.sessionId !== null
+				? this.sessionStore.read.getSessionIdentity(panel.sessionId)
+				: undefined;
+		const sessionMetadata =
+			panel.sessionId !== null
+				? this.sessionStore.read.getSessionMetadata(panel.sessionId)
+				: undefined;
+		const hotState = this.getHotState(panel.id);
+		return {
+			id: panel.id,
+			sessionId: panel.sessionId,
+			autoCreated: panel.autoCreated === true ? true : undefined,
+			width: panel.width,
+			pendingProjectSelection: panel.pendingProjectSelection,
+			selectedAgentId: panel.selectedAgentId,
+			projectPath:
+				panel.sessionId !== null
+					? (sessionIdentity?.projectPath ?? null)
+					: (panel.projectPath ?? null),
+			agentId:
+				panel.sessionId !== null ? (sessionIdentity?.agentId ?? null) : (panel.agentId ?? null),
+			sourcePath:
+				panel.sessionId !== null
+					? (sessionMetadata?.sourcePath ?? undefined)
+					: (panel.sourcePath ? panel.sourcePath : undefined),
+			worktreePath:
+				panel.sessionId !== null
+					? (sessionIdentity?.worktreePath ?? undefined)
+					: (panel.worktreePath ? panel.worktreePath : undefined),
+			sessionTitle:
+				panel.sessionId !== null
+					? (sessionMetadata?.title ?? undefined)
+					: (panel.sessionTitle ?? undefined),
+			scrollTop: getPanelScrollTop?.(panel.id) ?? 0,
+			planSidebarExpanded: hotState.planSidebarExpanded,
+			messageDraft: hotState.messageDraft || undefined,
+			reviewMode: hotState.reviewMode ? true : undefined,
+			reviewFileIndex:
+				hotState.reviewMode && hotState.reviewFileIndex !== undefined
+					? hotState.reviewFileIndex
+					: undefined,
+			embeddedTerminalDrawerOpen: hotState.embeddedTerminalDrawerOpen ? true : undefined,
+			selectedEmbeddedTerminalTabId:
+				this.embeddedTerminals.getSelectedTabId(panel.id) || undefined,
+			sequenceId:
+				panel.sessionId !== null ? (sessionMetadata?.sequenceId ?? undefined) : undefined,
+			pendingWorktreeEnabled:
+				panel.pendingWorktreeEnabled === null || panel.pendingWorktreeEnabled === undefined
+					? undefined
+					: panel.pendingWorktreeEnabled,
+			preparedWorktreeLaunch: panel.preparedWorktreeLaunch ?? null,
+		};
+	}
+
+	private serializeWorkspacePanels(
+		workspacePanels: ReadonlyArray<WorkspacePanel>
+	): PersistedWorkspacePanelState[] {
+		const persistedPanels: PersistedWorkspacePanelState[] = [];
+		for (const panel of workspacePanels) {
+			const persistedPanel = this.serializeWorkspacePanel(panel);
+			if (persistedPanel !== null) {
+				persistedPanels.push(persistedPanel);
+			}
+		}
+		return persistedPanels;
+	}
+
+	private serializeWorkspacePanel(panel: WorkspacePanel): PersistedWorkspacePanelState | null {
+		if (panel.kind === "agent") {
+			return {
+				id: panel.id,
+				kind: "agent",
+				projectPath: panel.projectPath,
+				width: panel.width,
+				ownerPanelId: panel.ownerPanelId,
+				sessionId: panel.sessionId,
+				autoCreated: panel.autoCreated === true ? true : undefined,
+				pendingProjectSelection: panel.pendingProjectSelection,
+				pendingWorktreeEnabled:
+					panel.pendingWorktreeEnabled === null || panel.pendingWorktreeEnabled === undefined
+						? undefined
+						: panel.pendingWorktreeEnabled,
+				preparedWorktreeLaunch: panel.preparedWorktreeLaunch ?? null,
+				selectedAgentId: panel.selectedAgentId,
+				agentId: panel.agentId,
+				sourcePath: panel.sourcePath ? panel.sourcePath : undefined,
+				worktreePath: panel.worktreePath ? panel.worktreePath : undefined,
+				sessionTitle: panel.sessionTitle ?? undefined,
+				sequenceId: panel.sequenceId ?? undefined,
+			};
+		}
+
+		if (panel.kind === "file") {
+			return {
+				id: panel.id,
+				kind: "file",
+				projectPath: panel.projectPath,
+				width: panel.width,
+				ownerPanelId: panel.ownerPanelId,
+				filePath: panel.filePath,
+				targetLine: panel.targetLine,
+				targetColumn: panel.targetColumn,
+			};
+		}
+
+		if (panel.kind === "terminal") {
+			return {
+				id: panel.id,
+				kind: "terminal",
+				projectPath: panel.projectPath,
+				width: panel.width,
+				ownerPanelId: panel.ownerPanelId,
+				groupId: panel.groupId,
+			};
+		}
+
+		if (panel.kind === "review") {
+			return {
+				id: panel.id,
+				kind: "review",
+				projectPath: panel.projectPath,
+				width: panel.width,
+				ownerPanelId: panel.ownerPanelId,
+				files: panel.modifiedFilesState.files,
+				totalEditCount: panel.modifiedFilesState.totalEditCount,
+				selectedFileIndex: panel.selectedFileIndex,
+			};
+		}
+
+		if (panel.kind === "git") {
+			return null;
+		}
+
+		return {
+			id: panel.id,
+			kind: "browser",
+			projectPath: panel.projectPath,
+			width: panel.width,
+			ownerPanelId: panel.ownerPanelId,
+			url: panel.url,
+			title: panel.title,
+		};
+	}
+
+	private serializeFilePanels(filePanels: ReadonlyArray<FilePanel>): PersistedFilePanelState[] {
+		return filePanels.map((panel) => ({
+			id: panel.id,
+			filePath: panel.filePath,
+			projectPath: panel.projectPath,
+			ownerPanelId: panel.ownerPanelId,
+			width: panel.width,
+			targetLine: panel.targetLine,
+			targetColumn: panel.targetColumn,
+		}));
+	}
+
+	private serializeTerminalPanelGroups(
+		terminalPanelGroups: ReadonlyArray<TerminalPanelGroup>
+	): PersistedTerminalPanelGroupState[] {
+		return terminalPanelGroups.map((group) => ({
+			id: group.id,
+			projectPath: group.projectPath,
+			width: group.width,
+			selectedTabId: group.selectedTabId,
+			order: group.order,
+		}));
+	}
+
+	private serializeTerminalTabs(terminalTabs: ReadonlyArray<TerminalTab>): PersistedTerminalTabState[] {
+		return terminalTabs.map((tab) => ({
+			id: tab.id,
+			groupId: tab.groupId,
+			projectPath: tab.projectPath,
+			createdAt: tab.createdAt,
+		}));
+	}
+
+	private serializeBrowserPanels(browserPanels: ReadonlyArray<BrowserPanel>): PersistedBrowserPanelState[] {
+		return browserPanels.map((panel) => ({
+			projectPath: panel.projectPath,
+			url: panel.url,
+			title: panel.title,
+			width: panel.width,
+		}));
 	}
 
 	private getNextTopLevelPanelId(closedPanelId: string): string | null {
@@ -1170,6 +1439,14 @@ export class PanelStore {
 
 	clearPendingWorktreeSetup(panelId: string): void {
 		this.hotStateStore.clearPendingWorktreeSetup(panelId);
+	}
+
+	setSignInRequirement(panelId: string, requirement: PanelHotState["signInRequirement"]): void {
+		this.hotStateStore.setSignInRequirement(panelId, requirement);
+	}
+
+	clearSignInRequirement(panelId: string): void {
+		this.hotStateStore.clearSignInRequirement(panelId);
 	}
 
 	// ============================================

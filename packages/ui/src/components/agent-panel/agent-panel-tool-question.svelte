@@ -9,13 +9,15 @@
 		type QuestionOtherTextByEntry,
 	} from "./agent-panel-conversation-entry-model.js";
 
+	import type { ToolDurationTiming } from "./tool-duration.js";
+
 	interface Props {
 		entry: AgentToolEntry;
-		durationLabel?: string;
+		durationTiming?: ToolDurationTiming;
 		onQuestionSelect?: (event: AgentPanelQuestionSelectEvent) => void;
 	}
 
-	let { entry, durationLabel, onQuestionSelect }: Props = $props();
+	let { entry, durationTiming, onQuestionSelect }: Props = $props();
 
 	let otherTextByEntry = $state<QuestionOtherTextByEntry>({});
 
@@ -57,7 +59,7 @@
 		status={entry.status}
 		isInteractive={entry.status === "running"}
 		otherText={otherText(entry)}
-		{durationLabel}
+		{durationTiming}
 		onSelect={(questionIndex, label, multiSelect) =>
 			onQuestionSelect?.({
 				entryId: entry.id,

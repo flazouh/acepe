@@ -17,7 +17,7 @@
 	import AgentToolSkill from "./agent-tool-skill.svelte";
 	import AgentToolTodo from "./agent-tool-todo.svelte";
 	import AgentToolWebSearch from "./agent-tool-web-search.svelte";
-	import ToolHeaderLeading from "./tool-header-leading.svelte";
+	import ToolLabel from "./tool-label.svelte";
 
 	interface Props {
 		entries: AnyAgentEntry[];
@@ -181,9 +181,9 @@
 					{/if}
 				{:else if entry.type === "thinking"}
 					<div class="flex items-center gap-2 py-2 text-sm text-muted-foreground">
-						<ToolHeaderLeading kind="think" status="running">
-							{entry.label ?? "Planning next moves…"}
-						</ToolHeaderLeading>
+						<ToolLabel status="running" size="sm">
+							{entry.label ?? "Planning next moves"}
+						</ToolLabel>
 					</div>
 				{/if}
 			</div>

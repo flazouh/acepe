@@ -225,6 +225,7 @@ macro_rules! acp_command_entries {
             list_agents: acp_list_agents,
             list_preconnection_capabilities: acp_list_preconnection_capabilities,
             list_preconnection_commands: acp_list_preconnection_commands,
+            get_composer_mcp_catalog: acp_get_composer_mcp_catalog,
             install_agent: acp_install_agent,
             uninstall_agent: acp_uninstall_agent,
             close_session: acp_close_session,

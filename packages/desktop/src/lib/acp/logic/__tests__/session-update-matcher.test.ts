@@ -109,6 +109,7 @@ describe("SessionUpdateMatcher", () => {
 				usageTelemetryUpdate: () => "telemetry",
 				connectionComplete: () => "connectionComplete",
 				connectionFailed: () => "connectionFailed",
+				sessionDetached: () => "sessionDetached",
 			};
 
 			const result = matchSessionUpdate(update, handlers);
@@ -140,6 +141,7 @@ describe("SessionUpdateMatcher", () => {
 				usageTelemetryUpdate: () => "telemetry",
 				connectionComplete: () => "connectionComplete",
 				connectionFailed: () => "connectionFailed",
+				sessionDetached: () => "sessionDetached",
 			};
 
 			const result = matchSessionUpdate(update, handlers);
@@ -177,6 +179,7 @@ describe("SessionUpdateMatcher", () => {
 				usageTelemetryUpdate: () => "telemetry",
 				connectionComplete: () => "connectionComplete",
 				connectionFailed: () => "connectionFailed",
+				sessionDetached: () => "sessionDetached",
 			};
 
 			const result = matchSessionUpdate(update, handlers);
@@ -210,6 +213,7 @@ describe("SessionUpdateMatcher", () => {
 				usageTelemetryUpdate: () => "telemetry",
 				connectionComplete: () => "connectionComplete",
 				connectionFailed: () => "connectionFailed",
+				sessionDetached: () => "sessionDetached",
 			};
 
 			const result = matchSessionUpdate(update, handlers);
@@ -296,6 +300,7 @@ describe("SessionUpdateMatcher", () => {
 				usageTelemetryUpdate: () => "telemetry",
 				connectionComplete: () => "connectionComplete",
 				connectionFailed: () => "connectionFailed",
+				sessionDetached: () => "sessionDetached",
 			};
 
 			for (const update of metadataUpdates) {

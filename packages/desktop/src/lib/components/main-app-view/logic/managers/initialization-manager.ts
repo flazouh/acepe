@@ -435,7 +435,7 @@ export class InitializationManager {
 					)
 			)
 			.andThen((aliasRemaps) => {
-				this.remapAliasedPanelSessionIds(aliasRemaps);
+				this.healStartupPanelSessionIds(aliasRemaps);
 				return this.validateRestoredSessions();
 			})
 			.map(() => {
@@ -480,20 +480,35 @@ export class InitializationManager {
 	}
 
 	/**
-	 * Rewrites panel session IDs from alias (provider_session_id) to canonical
-	 * (Acepe session ID) before validation runs, preventing panels from being
-	 * cleared as orphaned when their stored ID was a provider alias.
+	 * One-time startup canonicalization for persisted panel session ids.
+	 * Routes alias remaps through the guarded panel bind so duplicates collapse
+	 * instead of silently overwriting the session index.
 	 */
-	private remapAliasedPanelSessionIds(aliasRemaps: Record<string, string>): void {
-		const remapEntries = Object.entries(aliasRemaps);
-		if (remapEntries.length === 0) {
-			return;
-		}
-
+	private healStartupPanelSessionIds(aliasRemaps: Record<string, string>): void {
 		for (const panel of this.panelStore.panels) {
-			if (panel.sessionId && panel.sessionId in aliasRemaps) {
-				const canonicalId = aliasRemaps[panel.sessionId];
-				logger.debug("Remapping panel session ID from alias to canonical", {
+			if (panel.sessionId === null) {
+				continue;
+			}
+
+			const remappedCanonicalId = aliasRemaps[panel.sessionId];
+			const resolverCanonicalId = this.sessionStore.read.resolveCanonicalSessionId(
+				panel.sessionId
+			);
+			const canonicalId = remappedCanonicalId ?? resolverCanonicalId;
+
+			if (canonicalId === null || canonicalId === undefined) {
+				if (panel.sessionId in aliasRemaps) {
+					continue;
+				}
+				logger.warn("Persisted panel session id could not be resolved to canonical", {
+					panelId: panel.id,
+					sessionId: panel.sessionId.substring(0, 8),
+				});
+				continue;
+			}
+
+			if (canonicalId !== panel.sessionId) {
+				logger.debug("Healing persisted panel session id to canonical", {
 					panelId: panel.id,
 					aliasId: panel.sessionId.substring(0, 8),
 					canonicalId: canonicalId.substring(0, 8),

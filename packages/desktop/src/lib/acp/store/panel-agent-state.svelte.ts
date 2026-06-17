@@ -59,9 +59,11 @@ export interface PanelAgentStateDeps {
 	getSessionIdentity: (sessionId: string) => SessionIdentitySlice | undefined;
 	getSessionMetadata: (sessionId: string) => SessionMetadataSlice | undefined;
 	hasPendingCreationSession: (sessionId: string) => boolean;
+	resolveCanonicalSessionId: (requestedId: string) => string | null;
 	focusOpenedTopLevelPanel: (panelId: string) => void;
 	onSpawnedPanelFocused: (panel: Panel) => void;
 	onExistingSessionOpened: (panel: Panel) => void;
+	onDuplicatePanelDisposed?: (panelId: string) => void;
 	clearAutoSessionSuppression: (sessionId: string) => void;
 	onPersist: () => void;
 }
@@ -99,7 +101,11 @@ export class PanelAgentState {
 		const panelsByProject = new Map<string, Panel[]>();
 		for (const panel of nextPanels) {
 			if (panel.sessionId !== null) {
-				this.topLevelAgentPanelBySessionId.set(panel.sessionId, panel);
+				const canonicalSessionId = this.resolveOpenSessionId(panel.sessionId);
+				const incumbent = this.topLevelAgentPanelBySessionId.get(canonicalSessionId);
+				if (incumbent === undefined) {
+					this.topLevelAgentPanelBySessionId.set(canonicalSessionId, panel);
+				}
 			}
 			if (panel.projectPath !== null) {
 				const projectPanels = panelsByProject.get(panel.projectPath);
@@ -167,10 +173,16 @@ export class PanelAgentState {
 			ref.current = updatedPanel;
 		}
 		if (currentPanel.sessionId !== null && currentPanel.sessionId !== updatedPanel.sessionId) {
-			this.topLevelAgentPanelBySessionId.delete(currentPanel.sessionId);
+			const previousCanonicalId = this.resolveOpenSessionId(currentPanel.sessionId);
+			this.topLevelAgentPanelBySessionId.delete(previousCanonicalId);
 		}
 		if (updatedPanel.sessionId !== null) {
-			this.topLevelAgentPanelBySessionId.set(updatedPanel.sessionId, updatedPanel);
+			const canonicalSessionId = this.resolveOpenSessionId(updatedPanel.sessionId);
+			const incumbent = this.topLevelAgentPanelBySessionId.get(canonicalSessionId);
+			if (incumbent !== undefined && incumbent.id !== updatedPanel.id) {
+				return;
+			}
+			this.topLevelAgentPanelBySessionId.set(canonicalSessionId, updatedPanel);
 		}
 		this.topLevelAgentPanelList = createPatchedItemArray(
 			this.topLevelAgentPanelList,
@@ -189,10 +201,20 @@ export class PanelAgentState {
 	}
 
 	private insertTopLevelAgentPanel(panel: Panel, placement: "prepend" | "append"): void {
+		if (panel.sessionId !== null) {
+			const canonicalSessionId = this.resolveOpenSessionId(panel.sessionId);
+			const incumbent = this.topLevelAgentPanelBySessionId.get(canonicalSessionId);
+			if (incumbent !== undefined) {
+				this.deps.onExistingSessionOpened(incumbent);
+				return;
+			}
+		}
+
 		this.topLevelAgentPanelsById.set(panel.id, panel);
 		this.topLevelAgentPanelRefs.set(panel.id, createReactiveValue(panel));
 		if (panel.sessionId !== null) {
-			this.topLevelAgentPanelBySessionId.set(panel.sessionId, panel);
+			const canonicalSessionId = this.resolveOpenSessionId(panel.sessionId);
+			this.topLevelAgentPanelBySessionId.set(canonicalSessionId, panel);
 		}
 		if (panel.projectPath !== null) {
 			const projectPanels = this.topLevelAgentPanelsByProject.get(panel.projectPath) ?? [];
@@ -280,11 +302,47 @@ export class PanelAgentState {
 	}
 
 	getPanelBySessionId(sessionId: string): Panel | undefined {
+		const canonicalSessionId = this.deps.resolveCanonicalSessionId(sessionId);
+		if (canonicalSessionId !== null) {
+			return this.topLevelAgentPanelBySessionId.get(canonicalSessionId);
+		}
 		return this.topLevelAgentPanelBySessionId.get(sessionId);
 	}
 
 	isSessionOpen(sessionId: string): boolean {
-		return this.topLevelAgentPanelBySessionId.has(sessionId);
+		return this.getPanelBySessionId(sessionId) !== undefined;
+	}
+
+	private resolveOpenSessionId(requestedId: string): string {
+		const canonicalId = this.deps.resolveCanonicalSessionId(requestedId);
+		return canonicalId ?? requestedId;
+	}
+
+	private collapseDuplicatePanel(duplicatePanelId: string, incumbent: Panel): void {
+		this.deps.onDuplicatePanelDisposed?.(duplicatePanelId);
+		this.removeAgentPanel(duplicatePanelId);
+		this.deps.onExistingSessionOpened(incumbent);
+	}
+
+	private claimOpeningSessionIds(requestedId: string, canonicalId: string): boolean {
+		if (this.openingSessionIds.has(canonicalId)) {
+			return false;
+		}
+		if (requestedId !== canonicalId && this.openingSessionIds.has(requestedId)) {
+			return false;
+		}
+		this.openingSessionIds.add(canonicalId);
+		if (requestedId !== canonicalId) {
+			this.openingSessionIds.add(requestedId);
+		}
+		return true;
+	}
+
+	private releaseOpeningSessionIds(requestedId: string, canonicalId: string): void {
+		this.openingSessionIds.delete(canonicalId);
+		if (requestedId !== canonicalId) {
+			this.openingSessionIds.delete(requestedId);
+		}
 	}
 
 	clearOpeningSessionId(sessionId: string): void {
@@ -354,9 +412,13 @@ export class PanelAgentState {
 
 	openSession(sessionId: string, width: number): Panel | null {
 		const t0 = performance.now();
+		const canonicalSessionId = this.resolveOpenSessionId(sessionId);
 		this.deps.clearAutoSessionSuppression(sessionId);
+		if (canonicalSessionId !== sessionId) {
+			this.deps.clearAutoSessionSuppression(canonicalSessionId);
+		}
 
-		let existing = this.topLevelAgentPanelBySessionId.get(sessionId);
+		let existing = this.topLevelAgentPanelBySessionId.get(canonicalSessionId);
 		if (existing) {
 			if (existing.autoCreated === true) {
 				const promoted = this.setPanelAutoCreated(existing.id, false);
@@ -368,24 +430,27 @@ export class PanelAgentState {
 			return existing;
 		}
 
-		if (this.openingSessionIds.has(sessionId)) {
-			logger.debug("Panel already being opened, skipping duplicate", { sessionId });
+		if (!this.claimOpeningSessionIds(sessionId, canonicalSessionId)) {
+			logger.debug("Panel already being opened, skipping duplicate", {
+				sessionId,
+				canonicalSessionId,
+			});
 			return null;
 		}
-		this.openingSessionIds.add(sessionId);
 
-		const panel = this.createSessionPanel(sessionId, width, false);
+		const panel = this.createSessionPanel(canonicalSessionId, width, false);
 
 		this.insertTopLevelAgentPanel(panel, "prepend");
 		this.deps.focusOpenedTopLevelPanel(panel.id);
 		this.deps.onPersist();
 
 		queueMicrotask(() => {
-			this.openingSessionIds.delete(sessionId);
+			this.releaseOpeningSessionIds(sessionId, canonicalSessionId);
 		});
 
 		logger.info("[PERF] openSession: panel added to store", {
 			sessionId,
+			canonicalSessionId,
 			panelId: panel.id,
 			elapsed_ms: Math.round(performance.now() - t0),
 		});
@@ -393,29 +458,31 @@ export class PanelAgentState {
 	}
 
 	materializeSessionPanel(sessionId: string, width: number): Panel | null {
-		const existing = this.topLevelAgentPanelBySessionId.get(sessionId);
+		const canonicalSessionId = this.resolveOpenSessionId(sessionId);
+		const existing = this.topLevelAgentPanelBySessionId.get(canonicalSessionId);
 		if (existing) {
 			return existing;
 		}
 
-		if (this.openingSessionIds.has(sessionId)) {
+		if (!this.claimOpeningSessionIds(sessionId, canonicalSessionId)) {
 			logger.debug("Panel already being opened, skipping duplicate background materialization", {
 				sessionId,
+				canonicalSessionId,
 			});
 			return null;
 		}
-		this.openingSessionIds.add(sessionId);
 
-		const panel = this.createSessionPanel(sessionId, width, true);
+		const panel = this.createSessionPanel(canonicalSessionId, width, true);
 		this.insertTopLevelAgentPanel(panel, "append");
 		this.deps.onPersist();
 
 		queueMicrotask(() => {
-			this.openingSessionIds.delete(sessionId);
+			this.releaseOpeningSessionIds(sessionId, canonicalSessionId);
 		});
 
 		logger.debug("Materialized session panel in background", {
 			sessionId,
+			canonicalSessionId,
 			panelId: panel.id,
 		});
 		return panel;
@@ -462,6 +529,15 @@ export class PanelAgentState {
 
 	updatePanelSession(panelId: string, sessionId: string | null): void {
 		logger.info("[worktree-flow] updatePanelSession", { panelId, sessionId });
+		if (sessionId !== null) {
+			const canonicalSessionId = this.resolveOpenSessionId(sessionId);
+			const incumbent = this.topLevelAgentPanelBySessionId.get(canonicalSessionId);
+			if (incumbent !== undefined && incumbent.id !== panelId) {
+				this.collapseDuplicatePanel(panelId, incumbent);
+				return;
+			}
+			sessionId = canonicalSessionId;
+		}
 		const sessionIdentity =
 			sessionId !== null ? this.deps.getSessionIdentity(sessionId) : undefined;
 		const sessionMetadata =

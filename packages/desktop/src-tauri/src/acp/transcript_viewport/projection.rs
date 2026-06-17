@@ -20,6 +20,7 @@ pub fn project_transcript_viewport_rows(
     interactions: &[InteractionSnapshot],
     active_streaming_tail: Option<&ActiveStreamingTail>,
     awaiting_placeholder: bool,
+    awaiting_duration_started_at_ms: Option<u64>,
 ) -> Vec<TranscriptViewportRow> {
     let operation_links_by_entry = operation_links_by_entry_id(operations);
     let interaction_links_by_operation = interaction_links_by_operation_id(interactions);
@@ -33,6 +34,7 @@ pub fn project_transcript_viewport_rows(
                 &operation_links_by_entry,
                 &interaction_links_by_operation,
                 active_streaming_tail,
+                awaiting_duration_started_at_ms,
             )
         })
         .collect();
@@ -51,6 +53,7 @@ pub fn project_transcript_viewport_rows(
                 role: TranscriptEntryRole::Assistant,
                 segments: Vec::new(),
             },
+            duration_started_at_ms: awaiting_duration_started_at_ms,
         });
     }
 
@@ -62,6 +65,7 @@ fn project_entry(
     operation_links_by_entry: &BTreeMap<String, Vec<TranscriptViewportOperationLink>>,
     interaction_links_by_operation: &BTreeMap<String, Vec<TranscriptViewportInteractionLink>>,
     active_streaming_tail: Option<&ActiveStreamingTail>,
+    awaiting_duration_started_at_ms: Option<u64>,
 ) -> Option<TranscriptViewportRow> {
     let entry_id = entry.entry_id.trim();
     if entry_id.is_empty() {
@@ -92,6 +96,12 @@ fn project_entry(
         &content,
     );
 
+    let duration_started_at_ms = if active_streaming_tail.is_some() {
+        awaiting_duration_started_at_ms
+    } else {
+        None
+    };
+
     Some(TranscriptViewportRow {
         row_id: format!("transcript:{entry_id}"),
         source_entry_id: entry_id.to_string(),
@@ -102,6 +112,7 @@ fn project_entry(
         operation_links,
         interaction_links,
         content,
+        duration_started_at_ms,
     })
 }
 
@@ -120,7 +131,6 @@ fn row_kind(entry: &TranscriptEntry) -> TranscriptViewportRowKind {
     match entry.role {
         TranscriptEntryRole::User => TranscriptViewportRowKind::User,
         TranscriptEntryRole::Tool => TranscriptViewportRowKind::Tool,
-        TranscriptEntryRole::Error => TranscriptViewportRowKind::Error,
         TranscriptEntryRole::Assistant => {
             if entry
                 .segments
@@ -402,7 +412,6 @@ mod tests {
                 text_entry("assistant-1", TranscriptEntryRole::Assistant, "working"),
                 thought_entry("thought-1", "thinking"),
                 text_entry("tool-1", TranscriptEntryRole::Tool, "bash"),
-                text_entry("error-1", TranscriptEntryRole::Error, "failed"),
             ]),
             &[linked_operation("tool-1", OperationState::Running)],
             &[permission_interaction("permission-1", "op:tool-1")],
@@ -411,6 +420,7 @@ mod tests {
                 content_kind: ActiveStreamingTailContentKind::Message,
             }),
             false,
+            None,
         );
 
         assert_eq!(
@@ -433,10 +443,6 @@ mod tests {
                 (
                     &"transcript:tool-1".to_string(),
                     &TranscriptViewportRowKind::Tool
-                ),
-                (
-                    &"transcript:error-1".to_string(),
-                    &TranscriptViewportRowKind::Error
                 ),
             ]
         );
@@ -467,6 +473,7 @@ mod tests {
             &[],
             None,
             false,
+            None,
         );
 
         assert_eq!(
@@ -490,6 +497,7 @@ mod tests {
             &[],
             None,
             false,
+            None,
         );
         let completed_rows = project_transcript_viewport_rows(
             &transcript,
@@ -497,6 +505,7 @@ mod tests {
             &[],
             None,
             false,
+            None,
         );
 
         assert_eq!(running_rows[0].row_id, completed_rows[0].row_id);
@@ -515,6 +524,7 @@ mod tests {
             &[],
             None,
             false,
+            None,
         );
 
         assert!(rows.is_empty());
@@ -532,6 +542,7 @@ mod tests {
             &[],
             None,
             false,
+            None,
         );
 
         let TranscriptViewportRowContent::Transcript { role, segments } = &rows[0].content;
@@ -560,6 +571,7 @@ mod tests {
             &[],
             None,
             false,
+            None,
         );
 
         assert_eq!(rows.len(), 3, "no row is dropped");
@@ -567,6 +579,52 @@ mod tests {
         for row in &rows {
             assert_eq!(row.source_entry_id, "toolu_bdrk_dup");
         }
+    }
+
+    #[test]
+    fn streaming_assistant_row_receives_awaiting_duration_started_at_ms() {
+        let rows = project_transcript_viewport_rows(
+            &snapshot(vec![
+                text_entry("user-1", TranscriptEntryRole::User, "prompt"),
+                text_entry("assistant-1", TranscriptEntryRole::Assistant, ""),
+            ]),
+            &[],
+            &[],
+            Some(&ActiveStreamingTail {
+                row_id: "assistant-1".to_string(),
+                content_kind: ActiveStreamingTailContentKind::Message,
+            }),
+            false,
+            Some(1_700_000_000_000),
+        );
+
+        let assistant = &rows[1];
+        assert_eq!(
+            assistant.duration_started_at_ms,
+            Some(1_700_000_000_000)
+        );
+        assert_eq!(
+            assistant.active_streaming_tail,
+            Some(ActiveStreamingTailContentKind::Message)
+        );
+    }
+
+    #[test]
+    fn non_streaming_assistant_row_has_no_duration_started_at_ms() {
+        let rows = project_transcript_viewport_rows(
+            &snapshot(vec![text_entry(
+                "assistant-1",
+                TranscriptEntryRole::Assistant,
+                "hello",
+            )]),
+            &[],
+            &[],
+            None,
+            false,
+            Some(1_700_000_000_000),
+        );
+
+        assert_eq!(rows[0].duration_started_at_ms, None);
     }
 
     #[test]
@@ -579,6 +637,7 @@ mod tests {
             &[],
             None,
             true,
+            Some(1_700_000_000_000),
         );
 
         assert_eq!(rows.len(), 2);
@@ -586,6 +645,7 @@ mod tests {
         assert_eq!(last.kind, TranscriptViewportRowKind::AwaitingPlaceholder);
         assert_eq!(last.row_id, "awaiting:planning");
         assert_eq!(last.source_entry_id, "awaiting:planning");
+        assert_eq!(last.duration_started_at_ms, Some(1_700_000_000_000));
     }
 
     #[test]
@@ -598,6 +658,7 @@ mod tests {
             &[],
             None,
             false,
+            None,
         );
 
         assert_eq!(rows.len(), 1);
@@ -610,10 +671,10 @@ mod tests {
             text_entry("user-1", TranscriptEntryRole::User, "prompt"),
         ]);
         let rows1 = project_transcript_viewport_rows(
-            &snapshot, &[], &[], None, true,
+            &snapshot, &[], &[], None, true, Some(1_700_000_000_000),
         );
         let rows2 = project_transcript_viewport_rows(
-            &snapshot, &[], &[], None, true,
+            &snapshot, &[], &[], None, true, Some(1_700_000_000_000),
         );
 
         let version1 = &rows1.last().unwrap().version;
@@ -631,6 +692,7 @@ mod tests {
             &[],
             None,
             true,
+            Some(1_700_000_000_000),
         );
 
         let placeholder = rows.last().unwrap();
@@ -648,6 +710,7 @@ mod tests {
             &[],
             None,
             true,
+            Some(1_700_000_000_000),
         );
 
         let placeholder = &rows[0];
@@ -668,6 +731,7 @@ mod tests {
             &[],
             None,
             true,
+            Some(1_700_000_000_000),
         );
 
         assert_eq!(rows.len(), 102);

@@ -144,14 +144,19 @@ export interface AgentInputProps {
 	readonly onSendError?: (panelId: string | null) => void;
 
 	/**
-	 * Optional agent/project picker snippet to render in the left side of the footer (empty state).
+	 * Optional agent/project picker snippet rendered left of the model selector in the composer footer.
 	 */
 	readonly agentProjectPicker?: Snippet;
 
 	/**
-	 * Optional checkpoint button snippet to render in the right side of the controls row.
+	 * Optional checkpoint button snippet to render in the attach menu overflow.
 	 */
 	readonly checkpointButton?: Snippet;
+
+	/**
+	 * When false, {@link checkpointButton} is not shown in the attach menu even if provided.
+	 */
+	readonly showCheckpointInAttachMenu?: boolean;
 
 	/**
 	 * Reports the intrinsic (natural) width of the toolbar row.

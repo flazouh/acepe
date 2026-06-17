@@ -1,6 +1,18 @@
 import { errAsync, okAsync } from "neverthrow";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+const fetchCanonicalSessionStateEnvelopeMock = vi.fn();
+const sendPromptMock = vi.fn();
+
+vi.mock("../api.js", () => ({
+	api: {
+		fetchCanonicalSessionStateEnvelope: (
+			...args: Parameters<typeof fetchCanonicalSessionStateEnvelopeMock>
+		) => fetchCanonicalSessionStateEnvelopeMock(...args),
+		sendPrompt: (...args: Parameters<typeof sendPromptMock>) => sendPromptMock(...args),
+	},
+}));
+
 import type {
 	SessionOpenFound,
 	SessionStateEnvelope,
@@ -147,6 +159,7 @@ describe("SessionStore.createSession", () => {
 	beforeEach(() => {
 		store = new SessionStore();
 		vi.clearAllMocks();
+		sendPromptMock.mockReturnValue(okAsync(undefined));
 	});
 
 	it("returns minimal PR link references for a project", () => {
@@ -659,6 +672,58 @@ describe("SessionStore.createSession", () => {
 		);
 		expect(store.connection.hasPendingCreationSession("requested-local-id")).toBe(false);
 		expect(store.connection.hasPendingCreationSession("provider-canonical-id")).toBe(false);
+	});
+
+	it("migrates the first-send pending intent when an aliased pending creation becomes canonical", async () => {
+		vi.spyOn(store.connectionMgr, "createSession").mockReturnValue(
+			okAsync({
+				kind: "pending" as const,
+				sessionId: "requested-local-id",
+				creationAttemptId: "attempt-1",
+				projectPath: "/repo",
+				agentId: "claude-code",
+				title: "Aliased Thread",
+				worktreePath: null,
+			})
+		);
+
+		await store.connection.createSession({
+			projectPath: "/repo",
+			agentId: "claude-code",
+		});
+
+		const sendResult = await store.connection.sendMessage(
+			"requested-local-id",
+			"first prompt survives promotion"
+		);
+		expect(sendResult.isOk()).toBe(true);
+		const requestedPending = store.read.getSessionPendingSendIntent("requested-local-id");
+		expect(requestedPending).toMatchObject({
+			attemptId: expect.any(String),
+			optimisticEntry: {
+				type: "user",
+				message: {
+					content: { type: "text", text: "first prompt survives promotion" },
+				},
+			},
+		});
+		expect(store.read.getSessionPendingSendIntent("provider-canonical-id")).toBeNull();
+
+		const materialized = store.ensureSessionFromStateGraph(
+			createSessionStateGraph({
+				requestedSessionId: "requested-local-id",
+				canonicalSessionId: "provider-canonical-id",
+				isAlias: true,
+				agentId: "claude-code",
+				projectPath: "/repo",
+			})
+		);
+
+		expect(materialized).toBe(true);
+		expect(store.read.getSessionPendingSendIntent("provider-canonical-id")).toEqual(
+			requestedPending
+		);
+		expect(store.read.getSessionPendingSendIntent("requested-local-id")).toBeNull();
 	});
 
 	it("removes pending creation when a terminal creation error arrives before materialization", async () => {

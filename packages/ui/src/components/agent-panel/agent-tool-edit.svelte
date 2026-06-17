@@ -4,6 +4,8 @@ import { CaretRight } from "phosphor-svelte";
 
 import { FilePathBadge } from "../file-path-badge/index.js";
 import ToolHeaderLeading from "./tool-header-leading.svelte";
+import AgentToolDurationLabel from "./agent-tool-duration-label.svelte";
+import type { ToolDurationTiming } from "./tool-duration.js";
 
 import AgentToolCard from "./agent-tool-card.svelte";
 import AgentToolEditDiff from "./agent-tool-edit-diff.svelte";
@@ -42,7 +44,7 @@ interface Props {
 	/** Whether this edit is currently waiting for user approval. */
 	awaitingApproval?: boolean;
 	/** Optional elapsed label shown in the header (e.g. "for 2.34s") */
-	durationLabel?: string;
+	durationTiming?: ToolDurationTiming;
 	/** Base path for file type SVG icons (e.g. "/svgs/icons") */
 	iconBasePath?: string;
 	/** Whether clicking the file should be interactive */
@@ -87,7 +89,7 @@ let {
 	status = "done",
 	applied = status === "done",
 	awaitingApproval = false,
-	durationLabel,
+	durationTiming,
 	iconBasePath = "",
 	interactive = false,
 	onSelect,
@@ -199,12 +201,12 @@ function expand() {
 		</div>
 
 		<!-- Right side: elapsed label + expand button -->
-		{#if durationLabel || (!isPending && displayModel.hasContent)}
-			<div class="ml-1.5 flex shrink-0 items-center gap-1.5">
-				{#if durationLabel}
-					<span class="font-sans text-xs text-muted-foreground/70">{durationLabel}</span>
-				{/if}
-				{#if !isPending && displayModel.hasContent}
+		<div class="ml-1.5 flex shrink-0 items-center gap-1.5">
+			<AgentToolDurationLabel
+				timing={durationTiming}
+				class="font-sans text-xs"
+			/>
+			{#if !isPending && displayModel.hasContent}
 					<button
 						type="button"
 						onclick={toggleExpand}
@@ -220,7 +222,6 @@ function expand() {
 					</button>
 				{/if}
 			</div>
-		{/if}
 	</div>
 
 	<!-- Pierre diffs content -->

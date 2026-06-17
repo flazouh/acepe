@@ -8,10 +8,7 @@ use crate::acp::session_update::{
     SessionUpdate, ToolArguments, ToolCallData, ToolCallStatus, ToolKind, TurnErrorData,
     TurnErrorInfo, TurnErrorKind, TurnErrorSource,
 };
-use crate::acp::transcript_projection::display_id::{
-    assistant_boundary_entry_count_from_transcript_entries, derive_entry_id_for_snapshot_role,
-    derive_tool_entry_id, turn_key_for_assistant_boundary,
-};
+use crate::acp::transcript_projection::display_id::derive_tool_entry_id;
 use crate::acp::transcript_projection::snapshot::{
     TranscriptEntry, TranscriptEntryRole, TranscriptSegment, TranscriptSnapshot,
 };
@@ -212,7 +209,7 @@ fn resume_seam_live_tool_status_update_upserts_same_authority_entry_id() {
 }
 
 #[test]
-fn resume_seam_live_turn_error_uses_authority_error_entry_id() {
+fn resume_seam_live_turn_error_does_not_append_transcript_entry() {
     let restored_entries = vec![TranscriptEntry {
         entry_id: expected_tool_entry_id("toolu_prior"),
         role: TranscriptEntryRole::Tool,
@@ -223,11 +220,6 @@ fn resume_seam_live_turn_error_uses_authority_error_entry_id() {
         attempt_id: None,
         timestamp_ms: None,
     }];
-    let turn_key = turn_key_for_assistant_boundary(
-        assistant_boundary_entry_count_from_transcript_entries(&restored_entries),
-    );
-    let authority_error_id =
-        derive_entry_id_for_snapshot_role(&turn_key, &TranscriptEntryRole::Error, None);
 
     let registry = TranscriptProjectionRegistry::new();
     registry.restore_session_snapshot(
@@ -238,35 +230,31 @@ fn resume_seam_live_turn_error_uses_authority_error_entry_id() {
         },
     );
 
-    let live_delta = registry
-        .apply_session_update_idle(
-            700,
-            &SessionUpdate::TurnError {
-                error: TurnErrorData::Structured(TurnErrorInfo {
-                    message: "resume failed".to_string(),
-                    kind: TurnErrorKind::Recoverable,
-                    code: Some(429),
-                    source: Some(TurnErrorSource::Process),
-                }),
-                session_id: Some("session-1".to_string()),
-                turn_id: Some("turn-resume".to_string()),
-            },
-        )
-        .expect("live turn error after restore");
+    let live_delta = registry.apply_session_update_idle(
+        700,
+        &SessionUpdate::TurnError {
+            error: TurnErrorData::Structured(TurnErrorInfo {
+                message: "resume failed".to_string(),
+                kind: TurnErrorKind::Recoverable,
+                code: Some(429),
+                source: Some(TurnErrorSource::Process),
+            }),
+            session_id: Some("session-1".to_string()),
+            turn_id: Some("turn-resume".to_string()),
+        },
+    );
 
-    assert!(matches!(
-        &live_delta.operations[0],
-        TranscriptDeltaOperation::AppendEntry { entry }
-            if entry.entry_id == authority_error_id
-                && entry.role == TranscriptEntryRole::Error
-    ));
+    assert!(
+        live_delta.is_none(),
+        "live turn errors are state-only and must not append transcript rows after restore"
+    );
 
     let snapshot = registry
         .snapshot_for_session("session-1")
         .expect("post-resume snapshot");
-    assert_eq!(snapshot.entries.len(), 2);
+    assert_eq!(snapshot.entries.len(), 1);
     assert_eq!(
-        snapshot.entries[1].entry_id, authority_error_id,
-        "live TurnError must use authority-owned error entry id after history restore"
+        snapshot.entries[0].entry_id,
+        expected_tool_entry_id("toolu_prior")
     );
 }

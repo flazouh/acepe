@@ -3150,6 +3150,8 @@ describe("agent panel graph materializer", () => {
   			id: "user-1",
   			type: "user",
   			text: "Run the checks",
+  			chunks: [{ kind: "text", text: "Run the checks" }],
+  			timestampMs: undefined,
   		});
   		expect(scene.conversation.entries[1]).toMatchObject({
   			id: "tool-1",
@@ -3177,6 +3179,8 @@ describe("agent panel graph materializer", () => {
   				],
   			},
   			isStreaming: false,
+  			timestampMs: undefined,
+  			planningStartedAtMs: null,
   		});
   	});
 
@@ -3450,6 +3454,8 @@ describe("agent panel graph materializer", () => {
   				],
   			},
   			isStreaming: false,
+  			timestampMs: undefined,
+  			planningStartedAtMs: null,
   		});
   	});
 
@@ -4052,7 +4058,8 @@ describe("agent panel graph materializer", () => {
   				id: "user-1",
   				type: "user",
   				text: "First message",
-  				isOptimistic: undefined,
+  				chunks: [{ kind: "text", text: "First message" }],
+  				timestampMs: undefined,
   			});
   			expect(sceneWithout.conversation.entries[1]).toEqual({
   				id: "assistant-1",
@@ -4070,6 +4077,8 @@ describe("agent panel graph materializer", () => {
   					],
   				},
   				isStreaming: false,
+  				timestampMs: undefined,
+  				planningStartedAtMs: null,
   			});
   		});
 
@@ -4233,7 +4242,8 @@ describe("agent panel graph materializer", () => {
   				id: "user-1",
   				type: "user",
   				text: "stream this reply",
-  				isOptimistic: undefined,
+  				chunks: [{ kind: "text", text: "stream this reply" }],
+  				timestampMs: undefined,
   			});
   			void liveAssistantEntry;
   		});

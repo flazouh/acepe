@@ -31,22 +31,17 @@ export function hasExecuteOutput(input: {
 
 export function getExecuteHeaderText(input: {
 	status: AgentToolStatus;
-	durationLabel?: string;
 	runningLabel: string;
 	finishedLabel: string;
 }): string {
 	if (isExecutePending(input.status)) {
-		return input.durationLabel
-			? `Executing for ${input.durationLabel}`
-			: input.runningLabel;
+		return input.runningLabel;
 	}
 	if (input.status === "blocked") return "Waiting for permission";
 	if (input.status === "degraded") return "Degraded";
 	if (input.status === "cancelled") return "Cancelled";
 	if (input.status === "error") return "Command failed";
-	return input.durationLabel
-		? `Executed in ${input.durationLabel}`
-		: input.finishedLabel;
+	return input.finishedLabel;
 }
 
 export function getExecuteCommandSegments(command: string | null): readonly string[] {

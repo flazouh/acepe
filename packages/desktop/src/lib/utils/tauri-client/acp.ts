@@ -4,7 +4,7 @@ import type { AppError } from "../../acp/errors/app-error.js";
 import type { AgentInfo } from "../../acp/store/api.js";
 import type { ResumeSessionResult } from "../../acp/store/types.js";
 import type { InteractionReplyRequest } from "../../acp/types/interaction-reply-request.js";
-import type { ResolvedCapabilities, SessionStateEnvelope } from "../../services/acp-types.js";
+import type { ResolvedCapabilities, SessionStateEnvelope, ComposerMcpCatalog } from "../../services/acp-types.js";
 import { TAURI_COMMAND_CLIENT } from "../../services/tauri-command-client.js";
 import { ACP_PREFIX } from "./commands.js";
 import { invokeAsync } from "./invoke.js";
@@ -45,6 +45,18 @@ export const acp = {
 			cwd,
 			agentId,
 		}) as ResultAsync<ResolvedCapabilities, AppError>;
+	},
+
+	getComposerMcpCatalog: (
+		cwd: string,
+		agentId: string,
+		sessionId: string | null
+	): ResultAsync<ComposerMcpCatalog, AppError> => {
+		return acpCommands.get_composer_mcp_catalog.invoke<ComposerMcpCatalog>({
+			cwd,
+			agentId,
+			sessionId,
+		});
 	},
 
 	resumeSession: (

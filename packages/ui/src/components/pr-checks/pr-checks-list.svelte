@@ -159,7 +159,7 @@
 		{:else if checks.length > 0}
 			{#if showDetails}
 				<div class="markdown-content">
-					<div class="table-wrapper !my-1">
+					<div class="acepe-table-wrapper !my-1">
 						<table>
 							<tbody>
 								{#each detailChecks as check (`${check.name}:${check.workflowName ?? ""}:${check.startedAt ?? ""}:${check.detailsUrl ?? ""}`)}

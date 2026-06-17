@@ -20,15 +20,20 @@
 //! To disable, use `default-features = false` in your Cargo.toml.
 
 use super::errors::{Result, SdkError};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 #[allow(unused_imports)]
 use tracing::{debug, info, warn};
 
 /// Minimum CLI version required by this SDK
-pub const MIN_CLI_VERSION: &str = "2.1.0";
+pub const MIN_CLI_VERSION: &str = PINNED_CLI_VERSION;
 
 /// Default CLI version to download if not specified
-pub const DEFAULT_CLI_VERSION: &str = "latest";
+pub const DEFAULT_CLI_VERSION: &str = PINNED_CLI_VERSION;
+
+const CLAUDE_CODE_NPM_PACKAGE: &str = "@anthropic-ai/claude-code";
+const PINNED_CLI_VERSION: &str = "2.1.0";
+const CLAUDE_CODE_NPM_INTEGRITY_2_1_0: &str =
+    "sha512-DnNyKVXIhzcKLJf3GIOyDFTvOfrcjtCOoP98RJM1xmvClWos2LRraMFMKQRjOJNfoCsobrvOJvBIAboVUruCNA==";
 
 type DownloadProgressCallback = Box<dyn Fn(u64, Option<u64>) + Send + Sync>;
 
@@ -84,7 +89,7 @@ pub fn is_cli_cached() -> bool {
 ///
 /// # Arguments
 ///
-/// * `version` - Version to download ("latest" or specific version like "2.0.62")
+/// * `version` - Exact version to download, for example "2.1.0"
 /// * `on_progress` - Optional callback for download progress (bytes_downloaded, total_bytes)
 ///
 /// # Returns
@@ -119,6 +124,70 @@ pub async fn download_cli(
 
     info!("Claude Code CLI installed to: {}", install_result.display());
     Ok(install_result)
+}
+
+fn npm_package_for_version(version: &str) -> Result<String> {
+    expected_npm_integrity(version)?;
+    if !is_exact_semver(version) {
+        return Err(SdkError::ConfigError(format!(
+            "Claude CLI auto-download requires an exact semver version, got `{version}`"
+        )));
+    }
+
+    Ok(format!("{CLAUDE_CODE_NPM_PACKAGE}@{version}"))
+}
+
+fn is_exact_semver(version: &str) -> bool {
+    let parts = version.split('.').collect::<Vec<_>>();
+    parts.len() == 3
+        && parts
+            .iter()
+            .all(|part| !part.is_empty() && part.chars().all(|ch| ch.is_ascii_digit()))
+}
+
+fn expected_npm_integrity(version: &str) -> Result<&'static str> {
+    match version {
+        PINNED_CLI_VERSION => Ok(CLAUDE_CODE_NPM_INTEGRITY_2_1_0),
+        _ => Err(SdkError::ConfigError(format!(
+            "No pinned npm integrity is recorded for Claude CLI version `{version}`"
+        ))),
+    }
+}
+
+fn verify_npm_package_lock_integrity(temp_dir: &Path, version: &str) -> Result<()> {
+    let package_lock_path = temp_dir.join("package-lock.json");
+    let lockfile = std::fs::read_to_string(&package_lock_path).map_err(|e| {
+        SdkError::ConfigError(format!(
+            "Failed to read npm package-lock for integrity verification: {}",
+            e
+        ))
+    })?;
+    let package_lock: serde_json::Value = serde_json::from_str(&lockfile).map_err(|e| {
+        SdkError::ConfigError(format!(
+            "Failed to parse npm package-lock for integrity verification: {}",
+            e
+        ))
+    })?;
+    let package_path = format!("node_modules/{CLAUDE_CODE_NPM_PACKAGE}");
+    let actual_integrity = package_lock
+        .get("packages")
+        .and_then(|packages| packages.get(&package_path))
+        .and_then(|package| package.get("integrity"))
+        .and_then(|integrity| integrity.as_str())
+        .ok_or_else(|| {
+            SdkError::ConfigError(format!(
+                "Missing package-lock integrity for {CLAUDE_CODE_NPM_PACKAGE}"
+            ))
+        })?;
+    let expected_integrity = expected_npm_integrity(version)?;
+
+    if actual_integrity != expected_integrity {
+        return Err(SdkError::ConfigError(format!(
+            "Claude CLI package integrity mismatch for version `{version}`"
+        )));
+    }
+
+    Ok(())
 }
 
 /// Stub for download_cli when auto-download feature is disabled
@@ -165,105 +234,83 @@ async fn install_cli_unix(
         progress(0, None);
     }
 
-    // Method 1: Try using npm to install and copy
-    if which::which("npm").is_ok() {
-        debug!("Attempting to install via npm...");
-
-        let npm_package = if version == "latest" {
-            "@anthropic-ai/claude-code".to_string()
-        } else {
-            format!("@anthropic-ai/claude-code@{}", version)
-        };
-
-        let temp_dir = std::env::temp_dir().join("cc-sdk-npm-install");
-        let _ = std::fs::remove_dir_all(&temp_dir);
-        std::fs::create_dir_all(&temp_dir).map_err(|e| {
-            SdkError::ConfigError(format!("Failed to create temp directory: {}", e))
-        })?;
-
-        let output = Command::new("npm")
-            .args([
-                "install",
-                "--prefix",
-                temp_dir.to_str().unwrap(),
-                &npm_package,
-            ])
-            .output()
-            .await
-            .map_err(SdkError::ProcessError)?;
-
-        if output.status.success() {
-            let npm_bin_path = temp_dir.join("node_modules/.bin/claude");
-            if npm_bin_path.exists() {
-                std::fs::copy(&npm_bin_path, target_path).map_err(|e| {
-                    SdkError::ConfigError(format!("Failed to copy CLI to cache: {}", e))
-                })?;
-
-                #[cfg(unix)]
-                {
-                    use std::os::unix::fs::PermissionsExt;
-                    let mut perms = std::fs::metadata(target_path)
-                        .map_err(|e| {
-                            SdkError::ConfigError(format!("Failed to get file permissions: {}", e))
-                        })?
-                        .permissions();
-                    perms.set_mode(0o755);
-                    std::fs::set_permissions(target_path, perms).map_err(|e| {
-                        SdkError::ConfigError(format!("Failed to set file permissions: {}", e))
-                    })?;
-                }
-
-                let _ = std::fs::remove_dir_all(&temp_dir);
-
-                if let Some(ref progress) = on_progress {
-                    progress(100, Some(100));
-                }
-
-                return Ok(target_path.clone());
-            }
-        } else {
-            let stderr = String::from_utf8_lossy(&output.stderr);
-            warn!("npm install failed: {}", stderr);
-        }
-
-        let _ = std::fs::remove_dir_all(&temp_dir);
+    if which::which("npm").is_err() {
+        return Err(SdkError::CliNotFound {
+            searched_paths: format!(
+                "Failed to automatically install Claude Code CLI because npm was not found.\n\
+                Install npm, or install the pinned CLI manually:\n\n\
+                npm install -g {CLAUDE_CODE_NPM_PACKAGE}@{version}"
+            ),
+        });
     }
 
-    // Method 2: Try using the official install script
-    debug!("Attempting to install via official script...");
+    debug!("Attempting to install pinned Claude CLI via npm...");
 
-    let install_script_url = "https://claude.ai/install.sh";
+    let npm_package = npm_package_for_version(version)?;
+    let temp_dir = std::env::temp_dir().join("cc-sdk-npm-install");
+    let _ = std::fs::remove_dir_all(&temp_dir);
+    std::fs::create_dir_all(&temp_dir)
+        .map_err(|e| SdkError::ConfigError(format!("Failed to create temp directory: {}", e)))?;
 
-    let client = reqwest::Client::new();
-    let response = client.get(install_script_url).send().await.map_err(|e| {
-        SdkError::ConnectionError(format!("Failed to download install script: {}", e))
-    })?;
-
-    if !response.status().is_success() {
-        return Err(SdkError::ConnectionError(format!(
-            "Failed to download install script: HTTP {}",
-            response.status()
-        )));
-    }
-
-    let script_content = response
-        .text()
-        .await
-        .map_err(|e| SdkError::ConnectionError(format!("Failed to read install script: {}", e)))?;
-
-    let parent_dir = target_path
-        .parent()
-        .ok_or_else(|| SdkError::ConfigError("Invalid target path".to_string()))?;
-
-    let output = Command::new("bash")
-        .arg("-c")
-        .arg(&script_content)
-        .env("CLAUDE_INSTALL_DIR", parent_dir)
+    let output = Command::new("npm")
+        .args([
+            "install",
+            "--ignore-scripts",
+            "--prefix",
+            temp_dir.to_str().unwrap(),
+            &npm_package,
+        ])
         .output()
         .await
         .map_err(SdkError::ProcessError)?;
 
-    if output.status.success() && target_path.exists() {
+    if output.status.success() {
+        if let Err(error) = verify_npm_package_lock_integrity(&temp_dir, version) {
+            let _ = std::fs::remove_dir_all(&temp_dir);
+            return Err(error);
+        }
+        let npm_bin_path = temp_dir.join("node_modules/.bin/claude");
+        if npm_bin_path.exists() {
+            std::fs::copy(&npm_bin_path, target_path).map_err(|e| {
+                let _ = std::fs::remove_dir_all(&temp_dir);
+                SdkError::ConfigError(format!("Failed to copy CLI to cache: {}", e))
+            })?;
+
+            #[cfg(unix)]
+            {
+                use std::os::unix::fs::PermissionsExt;
+                let mut perms = std::fs::metadata(target_path)
+                    .map_err(|e| {
+                        SdkError::ConfigError(format!("Failed to get file permissions: {}", e))
+                    })?
+                    .permissions();
+                perms.set_mode(0o755);
+                std::fs::set_permissions(target_path, perms).map_err(|e| {
+                    SdkError::ConfigError(format!("Failed to set file permissions: {}", e))
+                })?;
+            }
+
+            let _ = std::fs::remove_dir_all(&temp_dir);
+
+            if let Some(ref progress) = on_progress {
+                progress(100, Some(100));
+            }
+
+            return Ok(target_path.clone());
+        }
+    } else {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        warn!("npm install failed: {}", stderr);
+    }
+
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    let _ = std::fs::remove_dir_all(&temp_dir);
+
+    if !stderr.is_empty() {
+        warn!("Claude CLI npm install failed: {}", stderr);
+    }
+
+    if target_path.exists() {
         if let Some(ref progress) = on_progress {
             progress(100, Some(100));
         }
@@ -272,14 +319,11 @@ async fn install_cli_unix(
 
     Err(SdkError::CliNotFound {
         searched_paths: format!(
-            "Failed to automatically download Claude Code CLI.\n\
+            "Failed to automatically install pinned Claude Code CLI.\n\
             Please install manually:\n\n\
-            Option 1 (npm):\n\
-            npm install -g @anthropic-ai/claude-code\n\n\
-            Option 2 (official script):\n\
-            curl -fsSL https://claude.ai/install.sh | bash\n\n\
+            npm install -g {CLAUDE_CODE_NPM_PACKAGE}@{version}\n\n\
             Error details: {}",
-            String::from_utf8_lossy(&output.stderr)
+            stderr
         ),
     })
 }
@@ -297,79 +341,62 @@ async fn install_cli_windows(
         progress(0, None);
     }
 
-    // Method 1: Try using npm
-    if which::which("npm").is_ok() {
-        debug!("Attempting to install via npm...");
-
-        let npm_package = if version == "latest" {
-            "@anthropic-ai/claude-code".to_string()
-        } else {
-            format!("@anthropic-ai/claude-code@{}", version)
-        };
-
-        let temp_dir = std::env::temp_dir().join("cc-sdk-npm-install");
-        let _ = std::fs::remove_dir_all(&temp_dir);
-        std::fs::create_dir_all(&temp_dir).map_err(|e| {
-            SdkError::ConfigError(format!("Failed to create temp directory: {}", e))
-        })?;
-
-        let output = Command::new("npm")
-            .args([
-                "install",
-                "--prefix",
-                temp_dir.to_str().unwrap(),
-                &npm_package,
-            ])
-            .output()
-            .await
-            .map_err(SdkError::ProcessError)?;
-
-        if output.status.success() {
-            let npm_bin_path = temp_dir.join("node_modules/.bin/claude.cmd");
-            if npm_bin_path.exists() {
-                std::fs::copy(&npm_bin_path, target_path).map_err(|e| {
-                    SdkError::ConfigError(format!("Failed to copy CLI to cache: {}", e))
-                })?;
-
-                let _ = std::fs::remove_dir_all(&temp_dir);
-
-                if let Some(ref progress) = on_progress {
-                    progress(100, Some(100));
-                }
-
-                return Ok(target_path.clone());
-            }
-        }
-
-        let _ = std::fs::remove_dir_all(&temp_dir);
+    if which::which("npm").is_err() {
+        return Err(SdkError::CliNotFound {
+            searched_paths: format!(
+                "Failed to automatically install Claude Code CLI because npm was not found.\n\
+                Install npm, or install the pinned CLI manually:\n\n\
+                npm install -g {CLAUDE_CODE_NPM_PACKAGE}@{version}"
+            ),
+        });
     }
 
-    // Method 2: Try PowerShell install script
-    debug!("Attempting to install via PowerShell script...");
+    debug!("Attempting to install pinned Claude CLI via npm...");
 
-    let install_script_url = "https://claude.ai/install.ps1";
+    let npm_package = npm_package_for_version(version)?;
+    let temp_dir = std::env::temp_dir().join("cc-sdk-npm-install");
+    let _ = std::fs::remove_dir_all(&temp_dir);
+    std::fs::create_dir_all(&temp_dir)
+        .map_err(|e| SdkError::ConfigError(format!("Failed to create temp directory: {}", e)))?;
 
-    let parent_dir = target_path
-        .parent()
-        .ok_or_else(|| SdkError::ConfigError("Invalid target path".to_string()))?;
-
-    let output = Command::new("powershell")
+    let output = Command::new("npm")
         .args([
-            "-NoProfile",
-            "-ExecutionPolicy",
-            "Bypass",
-            "-Command",
-            &format!(
-                "$env:CLAUDE_INSTALL_DIR='{}'; iex (iwr -useb {})",
-                parent_dir.display(),
-                install_script_url
-            ),
+            "install",
+            "--ignore-scripts",
+            "--prefix",
+            temp_dir.to_str().unwrap(),
+            &npm_package,
         ])
         .output()
         .await
         .map_err(SdkError::ProcessError)?;
 
-    if output.status.success() && target_path.exists() {
+    if output.status.success() {
+        if let Err(error) = verify_npm_package_lock_integrity(&temp_dir, version) {
+            let _ = std::fs::remove_dir_all(&temp_dir);
+            return Err(error);
+        }
+        let npm_bin_path = temp_dir.join("node_modules/.bin/claude.cmd");
+        if npm_bin_path.exists() {
+            std::fs::copy(&npm_bin_path, target_path).map_err(|e| {
+                let _ = std::fs::remove_dir_all(&temp_dir);
+                SdkError::ConfigError(format!("Failed to copy CLI to cache: {}", e))
+            })?;
+
+            let _ = std::fs::remove_dir_all(&temp_dir);
+
+            if let Some(ref progress) = on_progress {
+                progress(100, Some(100));
+            }
+
+            return Ok(target_path.clone());
+        }
+    }
+
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    let _ = std::fs::remove_dir_all(&temp_dir);
+
+    if target_path.exists() {
         if let Some(ref progress) = on_progress {
             progress(100, Some(100));
         }
@@ -378,14 +405,11 @@ async fn install_cli_windows(
 
     Err(SdkError::CliNotFound {
         searched_paths: format!(
-            "Failed to automatically download Claude Code CLI.\n\
+            "Failed to automatically install pinned Claude Code CLI.\n\
             Please install manually:\n\n\
-            Option 1 (npm):\n\
-            npm install -g @anthropic-ai/claude-code\n\n\
-            Option 2 (PowerShell):\n\
-            iwr -useb https://claude.ai/install.ps1 | iex\n\n\
+            npm install -g {CLAUDE_CODE_NPM_PACKAGE}@{version}\n\n\
             Error details: {}",
-            String::from_utf8_lossy(&output.stderr)
+            stderr
         ),
     })
 }
@@ -415,7 +439,7 @@ pub async fn ensure_cli(auto_download: bool) -> Result<PathBuf> {
                 .build();\n\
             ```\n\n\
             Or install manually:\n\
-            npm install -g @anthropic-ai/claude-code"
+            npm install -g @anthropic-ai/claude-code@2.1.0"
             .to_string(),
     })
 }
@@ -449,7 +473,9 @@ mod tests {
         // Verify version constants are set
         assert!(!MIN_CLI_VERSION.is_empty());
         assert!(!DEFAULT_CLI_VERSION.is_empty());
-        assert_eq!(DEFAULT_CLI_VERSION, "latest");
+        assert_ne!(DEFAULT_CLI_VERSION, "latest");
+        assert_eq!(DEFAULT_CLI_VERSION, MIN_CLI_VERSION);
+        assert_eq!(DEFAULT_CLI_VERSION, PINNED_CLI_VERSION);
 
         // Verify MIN_CLI_VERSION is valid semver-ish format
         let parts: Vec<&str> = MIN_CLI_VERSION.split('.').collect();
@@ -458,6 +484,47 @@ mod tests {
             3,
             "MIN_CLI_VERSION should be semver format x.y.z"
         );
+    }
+
+    #[test]
+    fn test_download_package_requires_exact_version() {
+        assert_eq!(
+            npm_package_for_version("2.1.0").expect("pinned package should be accepted"),
+            "@anthropic-ai/claude-code@2.1.0".to_string()
+        );
+        assert!(npm_package_for_version("latest").is_err());
+        assert!(npm_package_for_version("^2.1.0").is_err());
+        assert!(npm_package_for_version("2.1").is_err());
+    }
+
+    #[test]
+    fn test_package_lock_integrity_must_match_pin() {
+        let temp_dir = tempfile::tempdir().expect("tempdir should be created");
+        let lockfile = format!(
+            r#"{{
+                "packages": {{
+                    "node_modules/@anthropic-ai/claude-code": {{
+                        "integrity": "{CLAUDE_CODE_NPM_INTEGRITY_2_1_0}"
+                    }}
+                }}
+            }}"#
+        );
+        std::fs::write(temp_dir.path().join("package-lock.json"), lockfile)
+            .expect("package-lock should be written");
+
+        assert!(verify_npm_package_lock_integrity(temp_dir.path(), MIN_CLI_VERSION).is_ok());
+
+        let bad_lockfile = r#"{
+            "packages": {
+                "node_modules/@anthropic-ai/claude-code": {
+                    "integrity": "sha512-bad"
+                }
+            }
+        }"#;
+        std::fs::write(temp_dir.path().join("package-lock.json"), bad_lockfile)
+            .expect("package-lock should be overwritten");
+
+        assert!(verify_npm_package_lock_integrity(temp_dir.path(), MIN_CLI_VERSION).is_err());
     }
 
     #[test]

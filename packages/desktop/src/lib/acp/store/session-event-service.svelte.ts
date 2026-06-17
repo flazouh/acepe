@@ -566,6 +566,14 @@ export class SessionEventService {
 				break;
 			}
 
+			case "sessionDetached": {
+				logger.info("sessionDetached received on raw lane", {
+					sessionId,
+					detachedReason: update.detached_reason,
+				});
+				break;
+			}
+
 			default: {
 				update satisfies never;
 			}

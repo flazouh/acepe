@@ -47,6 +47,7 @@ import type {
 	SessionUsageTelemetry,
 } from "./types.js";
 import type { ISessionStateReader } from "./services/interfaces/index.js";
+import type { SessionIdentityResolver } from "./session-identity-resolver.js";
 
 export type SessionReadFacadeDeps = {
 	readonly listState: SessionListStateStore;
@@ -57,6 +58,7 @@ export type SessionReadFacadeDeps = {
 	readonly exportService: SessionExportService;
 	readonly presentation: SessionPresentationModel;
 	readonly getCanonicalProjection: (sessionId: string) => CanonicalSessionProjection | null;
+	readonly identityResolver: SessionIdentityResolver;
 };
 
 export class SessionReadFacade implements ISessionStateReader {
@@ -156,6 +158,12 @@ export class SessionReadFacade implements ISessionStateReader {
 
 	getSessionLifecycleFailureReason(sessionId: string): FailureReason | null {
 		return this.#deps.projectionCore.getSessionLifecycleFailureReason(sessionId);
+	}
+
+	getSessionLifecycleDetachedReason(
+		sessionId: string
+	): import("$lib/services/acp-types.js").DetachedReason | null {
+		return this.#deps.projectionCore.getSessionLifecycleDetachedReason(sessionId);
 	}
 
 	getSessionActiveTurnFailure(sessionId: string): ActiveTurnFailure | null {
@@ -318,6 +326,10 @@ export class SessionReadFacade implements ISessionStateReader {
 
 	getSessionAgentPanelCanonicalSource(sessionId: string): AgentPanelCanonicalSource | null {
 		return this.#deps.presentation.getSessionAgentPanelCanonicalSource(sessionId);
+	}
+
+	resolveCanonicalSessionId(requestedId: string): string | null {
+		return this.#deps.identityResolver.resolveCanonicalSessionId(requestedId);
 	}
 
 	getSessionOperationInteractionSnapshot(

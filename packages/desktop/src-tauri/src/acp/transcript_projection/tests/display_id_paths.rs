@@ -269,7 +269,7 @@ fn duplicate_provider_derived_entry_ids_no_longer_need_viewport_dup_suffix() {
         ],
     };
 
-    let rows = project_transcript_viewport_rows(&snapshot, &[], &[], None, false);
+    let rows = project_transcript_viewport_rows(&snapshot, &[], &[], None, false, None);
 
     assert_eq!(rows[0].row_id, format!("transcript:{authority_id}"));
     assert_eq!(

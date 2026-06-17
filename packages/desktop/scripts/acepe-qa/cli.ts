@@ -1,6 +1,6 @@
 import { writeJsonArtifact } from "./artifacts";
 import { writeUiQaEvidence } from "./evidence";
-import { clickWebview, inspectDom, navigateWebview, probeThinkingToggle, resetOnboarding, sendComposer, watchForVisibleText } from "./interact";
+import { clickWebview, inspectDom, navigateWebview, probeFirstSendTimeline, probeThinkingToggle, readPlanningDebug, resetOnboarding, sendComposer, watchForVisibleText } from "./interact";
 import { observeApp, screenshotApp } from "./observe";
 import { buildResult, dependencyError, formatCommandResult, statusExitCode, type OutputFormat } from "./output";
 import { runDoctor } from "./process-target";
@@ -14,6 +14,7 @@ type CliOptions = {
 	readonly level: "summary" | "focused" | "raw";
 	readonly selector: string;
 	readonly text: string;
+	readonly sessionId: string;
 	readonly path: string;
 	readonly limit: number;
 	readonly delayMs: number;
@@ -50,6 +51,7 @@ function parseOptions(args: readonly string[], checkoutRoot: string): CliOptions
 			level: "summary",
 			selector: "",
 			text: "",
+			sessionId: "",
 			path: "",
 			limit: 10,
 			delayMs: 300,
@@ -72,6 +74,7 @@ function parseOptions(args: readonly string[], checkoutRoot: string): CliOptions
 		level,
 		selector: valueArg(args, "--selector", ""),
 		text: valueArg(args, "--text", ""),
+		sessionId: valueArg(args, "--session-id", ""),
 		path: valueArg(args, "--path", ""),
 		limit: Number.parseInt(valueArg(args, "--limit", "10"), 10),
 		delayMs: Number.parseInt(valueArg(args, "--delay", "300"), 10),
@@ -110,7 +113,7 @@ export async function runCli(args: readonly string[], checkoutRoot: string = pro
 			command: "help",
 			status: "ok",
 			summary: [
-				"usage: bun run qa [doctor|observe|screenshot|navigate|inspect|click|thinking-toggle-probe|send|watch|reset-onboarding] [--app=9223] [--format=json]",
+				"usage: bun run qa [doctor|observe|screenshot|navigate|inspect|click|thinking-toggle-probe|first-send-probe|send|watch|reset-onboarding] [--app=9223] [--format=json]",
 				"doctor checks the real dev Tauri target before QA.",
 				"observe returns compact app facts before screenshots.",
 				"screenshot captures the current WebView.",
@@ -118,6 +121,7 @@ export async function runCli(args: readonly string[], checkoutRoot: string = pro
 				"inspect returns compact DOM facts for --selector.",
 				"click clicks by --selector or --text.",
 				"thinking-toggle-probe clicks the first thinking block and samples open/closed state over 500ms.",
+				"first-send-probe types into the first composer, clicks send, and samples optimistic/planning visibility.",
 				"send types --text into the composer and submits (use --no-submit to type only).",
 				"watch polls for --text and reports whether it is actually VISIBLE (not just in the DOM), with --timeout ms.",
 				"reset-onboarding opens Dev Tools, resets onboarding, and returns onboarding facts.",
@@ -302,6 +306,51 @@ export async function runCli(args: readonly string[], checkoutRoot: string = pro
 		return emitVerifiedUiResult(options, result);
 	}
 
+	if (options.command === "planning-debug") {
+		const debug = await readPlanningDebug({
+			appIdentifier: options.appIdentifier,
+			sessionId: options.sessionId.length === 0 ? null : options.sessionId,
+			skipDriver: options.skipDriver,
+		});
+		if (debug.isErr()) {
+			const result = buildResult({
+				command: "planning-debug",
+				status: "fail",
+				summary: ["Unable to read planning-debug snapshots."],
+				error: dependencyError(
+					debug.error.code,
+					debug.error.message,
+					"Run acepe-qa doctor, then retry. The hook is installed once an agent panel mounts."
+				),
+			});
+			process.stdout.write(formatCommandResult(result, options.format));
+			return statusExitCode(result.status);
+		}
+		const artifact = await writeJsonArtifact("planning-debug", debug.value);
+		const artifactPath = artifact.isOk() ? artifact.value : undefined;
+		const summary = debug.value.available
+			? [
+					`snapshots: ${debug.value.snapshots.length.toString()}`,
+					...debug.value.snapshots.map(
+						(snapshot) =>
+							`- ${snapshot.sessionId ?? "null"} planning=${snapshot.showPlanningIndicator} | optimistic=${snapshot.hasOptimisticPendingEntry} pendingSend=${snapshot.hasLocalPendingSendIntent} activity=${snapshot.activityKind ?? "null"} turn=${snapshot.turnState ?? "null"} lifecycle=${snapshot.lifecycleStatus ?? "null"} source=${snapshot.sourceKind ?? "null"} entries=${snapshot.visibleEntryCount.toString()}`
+					),
+				]
+			: ["hook not installed (window.__acepePlanningSnapshot missing) — open an agent panel and retry"];
+		const result = buildResult({
+			command: "planning-debug",
+			status: "ok",
+			summary,
+			artifactPath,
+			artifactKind: artifactPath === undefined ? undefined : "planning-debug",
+			error: artifact.isErr()
+				? dependencyError(artifact.error.code, artifact.error.message, "Check /tmp permissions.")
+				: undefined,
+		});
+		process.stdout.write(formatCommandResult(result, options.format));
+		return statusExitCode(result.status);
+	}
+
 	if (options.command === "click") {
 		if (options.selector.length === 0 && options.text.length === 0) {
 			const result = buildResult({
@@ -426,6 +475,71 @@ export async function runCli(args: readonly string[], checkoutRoot: string = pro
 			summary,
 			artifactPath,
 			artifactKind: artifactPath === undefined ? undefined : "thinking-toggle-probe",
+			error: artifact.isErr()
+				? dependencyError(artifact.error.code, artifact.error.message, "Check /tmp permissions.")
+				: undefined,
+		});
+		return emitVerifiedUiResult(options, result);
+	}
+
+	if (options.command === "first-send-probe") {
+		if (options.text.length === 0) {
+			const result = buildResult({
+				command: "first-send-probe",
+				status: "fail",
+				summary: ["Missing --text."],
+				error: dependencyError(
+					"missing_text",
+					"first-send-probe needs --text.",
+					"Example: bun run qa first-send-probe --text='QA ping: reply ok'"
+				),
+			});
+			process.stdout.write(formatCommandResult(result, options.format));
+			return statusExitCode(result.status);
+		}
+		const probe = await probeFirstSendTimeline({
+			appIdentifier: options.appIdentifier,
+			text: options.text,
+			selector: options.selector,
+			timeoutMs: Number.isFinite(options.timeoutMs) ? options.timeoutMs : 5_000,
+			skipDriver: options.skipDriver,
+		});
+		if (probe.isErr()) {
+			const result = buildResult({
+				command: "first-send-probe",
+				status: "fail",
+				summary: ["Unable to probe first-send timing."],
+				error: dependencyError(
+					probe.error.code,
+					probe.error.message,
+					"Run acepe-qa doctor; ensure the target composer is visible."
+				),
+			});
+			process.stdout.write(formatCommandResult(result, options.format));
+			return statusExitCode(result.status);
+		}
+		const artifact = await writeJsonArtifact("first-send-probe", probe.value);
+		const artifactPath = artifact.isOk() ? artifact.value : undefined;
+		const firstVisible = probe.value.samples.find((sample) => sample.messageVisible);
+		const firstComposerEcho = probe.value.samples.find((sample) => sample.composerContainsPrompt);
+		const firstPlanning = probe.value.samples.find((sample) => sample.planningVisible);
+		const result = buildResult({
+			command: "first-send-probe",
+			status: probe.value.sent ? "ok" : "warn",
+			summary: [
+				`composer: ${probe.value.composerFound ? "found" : "missing"}`,
+				`composer index: ${probe.value.selectedComposerIndex === null ? "none" : probe.value.selectedComposerIndex.toString()}`,
+				`composer name: ${probe.value.selectedComposerName ?? "none"}`,
+				`send: ${probe.value.sendFound ? "found" : "missing"}`,
+				`send ready: ${probe.value.sendReadyBeforeClick ? "yes" : "no"}`,
+				`sent: ${probe.value.sent ? "yes" : "no"}`,
+				`composer echo: ${firstComposerEcho === undefined ? "never" : `${firstComposerEcho.elapsedMs.toString()}ms`}`,
+				`transcript message visible: ${firstVisible === undefined ? "never" : `${firstVisible.elapsedMs.toString()}ms`}`,
+				`planning visible: ${firstPlanning === undefined ? "never" : `${firstPlanning.elapsedMs.toString()}ms`}`,
+				`samples: ${probe.value.samples.length.toString()}`,
+			],
+			artifactPath,
+			artifactKind: artifactPath === undefined ? undefined : "first-send-probe",
 			error: artifact.isErr()
 				? dependencyError(artifact.error.code, artifact.error.message, "Check /tmp permissions.")
 				: undefined,

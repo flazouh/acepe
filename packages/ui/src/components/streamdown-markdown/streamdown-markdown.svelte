@@ -773,7 +773,7 @@
 	function MarkdownTable(props: TableProps) {
 		return createElement(
 			"div",
-			{ className: "table-wrapper" },
+			{ className: "acepe-table-wrapper" },
 			createElement(
 				"table",
 				{

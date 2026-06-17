@@ -12,6 +12,8 @@
  * - Distinct (not duplicates of other errors)
  */
 
+import type { FailureReason } from "$lib/services/acp-types.js";
+
 /**
  * Error codes for telemetry and programmatic handling.
  */
@@ -19,6 +21,7 @@ export type AppErrorCode =
 	| "SESSION_NOT_FOUND"
 	| "CONNECTION_ERROR"
 	| "CREATION_FAILURE"
+	| "AUTHENTICATION_REQUIRED"
 	| "AGENT_ERROR"
 	| "VALIDATION_ERROR"
 	| "PANEL_ERROR"
@@ -81,9 +84,37 @@ export class CreationFailureError extends AppError {
 		readonly sessionId: string | null,
 		readonly creationAttemptId: string | null,
 		readonly retryable: boolean,
+		/**
+		 * Canonical lifecycle classification carried by the Rust `CreationFailure`.
+		 * Shared with the resume path so a creation-stage auth failure (or
+		 * upstream-gone session) renders the same curated card. `null` when the
+		 * failure has no cross-cutting canonical meaning beyond its kind.
+		 */
+		readonly failureReason: FailureReason | null,
 		cause?: Error
 	) {
 		super(message, cause);
+	}
+}
+
+/**
+ * The agent requires an interactive sign-in before it can do work.
+ *
+ * This is NOT a failure — it's a recoverable precondition. It carries the
+ * agent display name and instructions so the UI can render a neutral sign-in
+ * card (never error chrome). Used as the cause inside a `SessionCreationError`
+ * on the pre-session activation path; walk the cause chain with
+ * `findAuthenticationRequirement` to recover it.
+ */
+export class AuthenticationRequiredError extends AppError {
+	readonly code = "AUTHENTICATION_REQUIRED" as const;
+
+	constructor(
+		readonly agent: string,
+		readonly instructions: string,
+		cause?: Error
+	) {
+		super(`${agent} requires authentication. ${instructions}`, cause);
 	}
 }
 

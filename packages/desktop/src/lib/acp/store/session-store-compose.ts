@@ -42,6 +42,7 @@ import type { ISessionStateWriter } from "./services/interfaces/index.js";
 import type { SessionEventHandler } from "./session-event-handler.js";
 import type { SessionStoreCallbacks } from "./session-store.svelte.js";
 import { ViewportProjectionController } from "./viewport-projection-controller.svelte.js";
+import { SessionIdentityResolver } from "./session-identity-resolver.js";
 
 export type SessionStoreParts = {
 	readonly listState: SessionListState;
@@ -81,6 +82,7 @@ export type SessionStoreParts = {
 	readonly getSessionStateGraphs: () => SvelteMap<string, SessionStateGraph>;
 	readonly getCanonicalCapabilitiesMaterialized: () => SvelteMap<string, boolean>;
 	readonly getRowTokenStreamsByRowId: () => Map<string, Map<string, RowTokenStream>>;
+	readonly identityResolver: SessionIdentityResolver;
 };
 
 export type ComposeSessionStorePartsInput = {
@@ -97,6 +99,9 @@ export function composeSessionStoreParts(input: ComposeSessionStorePartsInput): 
 	let callbacks: SessionStoreCallbacks = {};
 
 	const listState = new SessionListState();
+	const identityResolver = new SessionIdentityResolver({
+		hasSession: (sessionId) => listState.hasSession(sessionId),
+	});
 	const projectionCore = new SessionProjectionCore();
 	const transientProjectionStore = new SessionTransientProjectionStore();
 	const operationStore = new OperationStore();
@@ -152,6 +157,7 @@ export function composeSessionStoreParts(input: ComposeSessionStorePartsInput): 
 		exportService,
 		presentation,
 		getCanonicalProjection,
+		identityResolver,
 	});
 
 	listState.configureReadDeps({
@@ -210,6 +216,7 @@ export function composeSessionStoreParts(input: ComposeSessionStorePartsInput): 
 		composerMachineService,
 		entryStore,
 		onRemoveCallbacks,
+		identityResolver,
 	});
 
 	const openSnapshotApplier = new SessionOpenSnapshotApplier({
@@ -240,6 +247,10 @@ export function composeSessionStoreParts(input: ComposeSessionStorePartsInput): 
 		getCanonicalProjection,
 		sendContentLoad: (sessionId) => connectionService.sendContentLoad(sessionId),
 		sendContentLoaded: (sessionId) => connectionService.sendContentLoaded(sessionId),
+		recordAliasRelationship: (requestedSessionId, canonicalSessionId) =>
+			identityResolver.recordAliasRelationship(requestedSessionId, canonicalSessionId),
+		migratePendingSendIntentAlias: (requestedSessionId, canonicalSessionId) =>
+			messagingSvc.migratePendingSendIntentAlias(requestedSessionId, canonicalSessionId),
 	});
 
 	const write = new SessionWriteFacade({
@@ -469,5 +480,6 @@ export function composeSessionStoreParts(input: ComposeSessionStorePartsInput): 
 		getSessionStateGraphs: () => projectionCore.sessionStateGraphs,
 		getCanonicalCapabilitiesMaterialized: () => projectionCore.canonicalCapabilitiesMaterialized,
 		getRowTokenStreamsByRowId: () => projectionCore.rowTokenStreamsByRowId,
+		identityResolver,
 	};
 }

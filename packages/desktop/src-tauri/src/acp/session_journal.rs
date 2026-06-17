@@ -886,11 +886,13 @@ mod tests {
             .expect("rebuilt transcript");
 
         assert!(
-            snapshot
+            !snapshot
                 .entries
                 .iter()
-                .any(|entry| entry.role == TranscriptEntryRole::Error),
-            "error row must be present"
+                .any(|entry| entry.segments.iter().any(|segment| {
+                    matches!(segment, TranscriptSegment::Text { text, .. } if text == "boom")
+                })),
+            "turn error must not replay as transcript content"
         );
         assert!(
             snapshot

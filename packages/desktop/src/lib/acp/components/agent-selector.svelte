@@ -25,6 +25,7 @@ interface AgentSelectorProps {
 	class?: string;
 	showChevron?: boolean;
 	variant?: ButtonVariant;
+	triggerClass?: string;
 }
 
 let {
@@ -35,7 +36,8 @@ let {
 	ontoggle,
 	class: className = "",
 	showChevron = true,
-	variant = "outline",
+	variant = "ghost",
+	triggerClass = "rounded-lg",
 }: AgentSelectorProps = $props();
 
 let selectorRef: { toggle: () => void } | undefined = $state();
@@ -86,6 +88,7 @@ const displayAgent = $derived(currentAgent ?? availableAgents[0] ?? null);
 	class={className}
 	{showChevron}
 	{variant}
+	{triggerClass}
 >
 	{#snippet renderButton()}
 		{#if isLoading}

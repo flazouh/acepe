@@ -1,10 +1,13 @@
+use crate::acp::projections::helpers::finalize_operation_snapshot;
 use crate::acp::projections::is_terminal_operation_state;
 use crate::acp::session_state_engine::graph::SessionStateGraph;
 use crate::acp::session_state_engine::protocol::SessionStateDelta;
 use crate::acp::session_state_engine::revision::SessionGraphRevision;
 use crate::acp::session_state_engine::selectors::{
-    select_session_graph_activity, SessionGraphCapabilities, SessionGraphLifecycle,
+    merge_session_graph_activity_timing, select_session_graph_activity,
+    seed_activity_timing_if_needed, SessionGraphCapabilities, SessionGraphLifecycle,
 };
+use crate::acp::session_state_engine::timing::wall_clock_ms;
 use crate::acp::transcript_projection::{
     TranscriptDeltaOperation, TranscriptEntry, TranscriptSnapshot,
 };
@@ -39,6 +42,15 @@ impl SessionStateReducer {
                 graph: replacement_graph,
             } => {
                 *graph = *replacement_graph;
+                let now_ms = wall_clock_ms();
+                seed_activity_timing_if_needed(&mut graph.activity, now_ms);
+                for operation in &mut graph.operations {
+                    crate::acp::projections::helpers::apply_operation_lifecycle_timing(
+                        None,
+                        operation,
+                        now_ms,
+                    );
+                }
             }
             SessionStateGraphMutation::ApplyDelta { delta } => {
                 let delta = *delta;
@@ -55,7 +67,11 @@ impl SessionStateReducer {
                 for interaction in delta.interaction_patches {
                     upsert_interaction_patch(&mut graph.interactions, interaction);
                 }
-                graph.activity = delta.activity;
+                graph.activity = merge_session_graph_activity_timing(
+                    &graph.activity,
+                    delta.activity,
+                    wall_clock_ms(),
+                );
                 graph.turn_state = delta.turn_state;
                 graph.active_turn_failure = delta.active_turn_failure;
                 graph.last_terminal_turn_id = delta.last_terminal_turn_id;
@@ -67,12 +83,16 @@ impl SessionStateReducer {
                 revision,
             } => {
                 graph.lifecycle = lifecycle;
-                graph.activity = select_session_graph_activity(
-                    &graph.lifecycle,
-                    &graph.turn_state,
-                    &graph.operations,
-                    &graph.interactions,
-                    graph.active_turn_failure.as_ref(),
+                graph.activity = merge_session_graph_activity_timing(
+                    &graph.activity,
+                    select_session_graph_activity(
+                        &graph.lifecycle,
+                        &graph.turn_state,
+                        &graph.operations,
+                        &graph.interactions,
+                        graph.active_turn_failure.as_ref(),
+                    ),
+                    wall_clock_ms(),
                 );
                 graph.revision = revision;
             }
@@ -90,7 +110,13 @@ impl SessionStateReducer {
                 if let Some(op) = graph.operations.iter_mut().find(|o| o.id == operation_id) {
                     let is_terminal = is_terminal_operation_state(&op.operation_state);
                     if !is_terminal {
+                        let previous = op.clone();
                         op.operation_state = new_state;
+                        crate::acp::projections::helpers::apply_operation_lifecycle_timing(
+                            Some(&previous),
+                            op,
+                            wall_clock_ms(),
+                        );
                     }
                 }
             }
@@ -110,7 +136,7 @@ fn upsert_operation_patch(
         return;
     }
 
-    operations.push(operation);
+    operations.push(finalize_operation_snapshot(None, operation));
 }
 
 fn upsert_interaction_patch(
@@ -404,6 +430,7 @@ mod tests {
             active_subagent_count: 0,
             dominant_operation_id: None,
             blocking_interaction_id: None,
+            kind_started_at_ms: None,
         };
         let delta = SessionStateDelta {
             from_revision: SessionGraphRevision::new(1, 1, 1),

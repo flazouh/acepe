@@ -344,7 +344,9 @@ pub fn session_update_to_domain_event(
         )),
 
         // ── connection lifecycle (handled via enqueue_session_domain_event) ─
-        SessionUpdate::ConnectionComplete { .. } | SessionUpdate::ConnectionFailed { .. } => None,
+        SessionUpdate::ConnectionComplete { .. }
+        | SessionUpdate::ConnectionFailed { .. }
+        | SessionUpdate::SessionDetached { .. } => None,
 
         // ── config / mode / commands — no domain event ─────────────────────
         SessionUpdate::Plan { .. }

@@ -66,8 +66,8 @@ use lifecycle::{
 };
 pub(crate) use lifecycle::{emit_lifecycle_event, publish_session_state_envelope};
 use metadata::{
-    creation_failure, ensure_session_anchor_snapshots, mark_creation_attempt_failed,
-    resolve_fork_session_target, resolve_resume_session_target,
+    creation_failure, creation_failure_classified, ensure_session_anchor_snapshots,
+    mark_creation_attempt_failed, resolve_fork_session_target, resolve_resume_session_target,
 };
 pub(crate) use metadata::{
     persist_session_metadata_for_cwd, resolve_requested_agent_id,

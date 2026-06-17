@@ -11,7 +11,6 @@ pub enum DisplayElementRole {
     User,
     Assistant,
     Tool,
-    Error,
 }
 
 impl DisplayElementRole {
@@ -20,7 +19,6 @@ impl DisplayElementRole {
             Self::User => "user",
             Self::Assistant => "assistant",
             Self::Tool => "tool",
-            Self::Error => "error",
         }
     }
 }
@@ -45,9 +43,7 @@ pub fn derive_entry_id(input: &DisplayIdInput) -> String {
             .filter(|id| !id.trim().is_empty())
             .map(normalize_tool_call_id)
             .unwrap_or_else(|| ".".to_string()),
-        DisplayElementRole::User | DisplayElementRole::Assistant | DisplayElementRole::Error => {
-            ".".to_string()
-        }
+        DisplayElementRole::User | DisplayElementRole::Assistant => ".".to_string(),
     };
     format!(
         "acepe::entry::{}::{}::{}",
@@ -124,7 +120,6 @@ pub fn derive_entry_id_for_snapshot_role(
         TranscriptEntryRole::User => DisplayElementRole::User,
         TranscriptEntryRole::Assistant => DisplayElementRole::Assistant,
         TranscriptEntryRole::Tool => DisplayElementRole::Tool,
-        TranscriptEntryRole::Error => DisplayElementRole::Error,
     };
     derive_entry_id(&DisplayIdInput {
         turn_key: turn_key.to_string(),

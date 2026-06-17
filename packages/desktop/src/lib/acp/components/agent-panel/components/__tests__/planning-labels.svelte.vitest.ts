@@ -28,9 +28,25 @@ describe("planning placeholder labels", () => {
 			},
 		});
 
-		expect(view.getByText("Planning next moves…")).toBeTruthy();
-		expect(view.getByRole("status", { name: "Loading" })).toBeTruthy();
-		expect(view.queryByText("Planning next moves for 4s…")).toBeNull();
+		expect(view.getByText("Planning next moves")).toBeTruthy();
+		expect(view.queryByRole("status", { name: "Loading" })).toBeNull();
+		expect(view.queryByText("Planning next moves for 4s")).toBeNull();
+		expect(view.queryByText("Planning next moves…")).toBeNull();
+	});
+
+	it("shows a for-duration chip beside the thinking planning placeholder", () => {
+		const startedAtMs = Date.now() - 4_000;
+		const view = render(AgentPanelConversationEntry, {
+			entry: {
+				id: "thinking-entry",
+				type: "thinking",
+				durationMs: null,
+				startedAtMs,
+			},
+		});
+
+		expect(view.getByText(/Planning next moves for/)).toBeTruthy();
+		expect(view.getByTestId("agent-tool-duration-label")).toBeTruthy();
 	});
 
 	it("keeps the scene entry label static even when duration is present", () => {
@@ -42,9 +58,10 @@ describe("planning placeholder labels", () => {
 			},
 		});
 
-		expect(view.getByText("Planning next moves…")).toBeTruthy();
-		expect(view.getByRole("status", { name: "Loading" })).toBeTruthy();
-		expect(view.queryByText("Planning next moves for 4s…")).toBeNull();
+		expect(view.getByText("Planning next moves")).toBeTruthy();
+		expect(view.queryByRole("status", { name: "Loading" })).toBeNull();
+		expect(view.queryByText("Planning next moves for 4s")).toBeNull();
+		expect(view.queryByText("Planning next moves…")).toBeNull();
 	});
 });
 

@@ -20,71 +20,47 @@ afterEach(() => {
 });
 
 describe("PreSessionWorktreeCard desktop wrapper", () => {
-	it("shows worktree label and current selection", () => {
+	it("shows start-in prompt and current local selection", () => {
 		const onYes = vi.fn();
 		const onNo = vi.fn();
-		const onAlways = vi.fn();
 		const onDismiss = vi.fn();
 
 		render(PreSessionWorktreeCard, {
 			pendingWorktreeEnabled: false,
 			onYes,
 			onNo,
-			onAlways,
 			onDismiss,
 		});
 
-		expect(screen.getByText("Worktree")).toBeTruthy();
-		expect(screen.getByText("No")).toBeTruthy();
+		expect(screen.getByText("Start in")).toBeTruthy();
+		expect(screen.getByText("Work locally")).toBeTruthy();
+		expect(screen.queryByText("Remember")).toBeNull();
 	});
 
-	it("shows Yes as current selection when worktree is enabled", () => {
+	it("shows new worktree as current selection when enabled", () => {
 		const onYes = vi.fn();
 		const onNo = vi.fn();
-		const onAlways = vi.fn();
 		const onDismiss = vi.fn();
 
 		render(PreSessionWorktreeCard, {
 			pendingWorktreeEnabled: true,
 			onYes,
 			onNo,
-			onAlways,
 			onDismiss,
 		});
 
-		expect(screen.getByText("Worktree")).toBeTruthy();
-		expect(screen.getByText("Yes")).toBeTruthy();
-	});
-
-	it("shows Yes when alwaysEnabled is true", () => {
-		const onYes = vi.fn();
-		const onNo = vi.fn();
-		const onAlways = vi.fn();
-		const onDismiss = vi.fn();
-
-		render(PreSessionWorktreeCard, {
-			pendingWorktreeEnabled: true,
-			alwaysEnabled: true,
-			onYes,
-			onNo,
-			onAlways,
-			onDismiss,
-		});
-
-		expect(screen.getByText("Yes")).toBeTruthy();
+		expect(screen.getByText("New worktree")).toBeTruthy();
 	});
 
 	it("does not render a dismiss button in the standard card", () => {
 		const onYes = vi.fn();
 		const onNo = vi.fn();
-		const onAlways = vi.fn();
 		const onDismiss = vi.fn();
 
 		render(PreSessionWorktreeCard, {
 			pendingWorktreeEnabled: false,
 			onYes,
 			onNo,
-			onAlways,
 			onDismiss,
 		});
 

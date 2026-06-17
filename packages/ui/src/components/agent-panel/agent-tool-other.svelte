@@ -7,6 +7,8 @@
 		hasOtherToolDetails,
 	} from "./agent-tool-other-state.js";
 	import ToolLabel from "./tool-label.svelte";
+	import AgentToolDurationLabel from "./agent-tool-duration-label.svelte";
+	import type { ToolDurationTiming } from "./tool-duration.js";
 	import type { AgentToolStatus } from "./types.js";
 
 	interface Props {
@@ -14,7 +16,7 @@
 		subtitle?: string | null;
 		detailsText?: string | null;
 		status?: AgentToolStatus;
-		durationLabel?: string;
+		durationTiming?: ToolDurationTiming;
 		detailsLabel?: string;
 		ariaExpandDetails?: string;
 		ariaCollapseDetails?: string;
@@ -25,7 +27,7 @@
 		subtitle = null,
 		detailsText = null,
 		status = "done",
-		durationLabel,
+		durationTiming,
 		detailsLabel = "Tool payload",
 		ariaExpandDetails = "Expand tool payload",
 		ariaCollapseDetails = "Collapse tool payload",
@@ -49,11 +51,10 @@
 			<span class="min-w-0 truncate text-muted-foreground/70">{subtitle}</span>
 		{/if}
 
-		{#if durationLabel}
-			<span class="ml-auto shrink-0 font-sans text-sm text-muted-foreground/70">
-				{durationLabel}
-			</span>
-		{/if}
+		<AgentToolDurationLabel
+			timing={durationTiming}
+			class="ml-auto shrink-0 font-sans text-sm"
+		/>
 	</div>
 
 	{#if hasDetails && detailsText}

@@ -1,12 +1,15 @@
 import { describe, expect, it } from "vitest";
 
 import {
-	buildAttachMenuCommands,
+	buildAttachMenuCommandSections,
+	buildAttachMenuMcpServerGroups,
 	buildAttachMenuModes,
+	resolveAttachMenuItemInsertText,
 	resolveDefaultModeId,
 	shouldShowActiveModeChip,
 } from "../attach-menu-items.js";
 import { resolveComposerPlaceholder } from "../composer-placeholder.js";
+import type { ComposerMcpCatalog } from "$lib/services/acp-types.js";
 
 describe("buildAttachMenuModes", () => {
 	it("maps available modes to attach menu items with selection state", () => {
@@ -31,21 +34,128 @@ describe("buildAttachMenuModes", () => {
 	});
 });
 
-describe("buildAttachMenuCommands", () => {
-	it("maps slash commands to attach menu command items", () => {
-		const items = buildAttachMenuCommands({
-			tokenType: "skill",
-			commands: [{ name: "ce-plan", description: "Create a plan" }],
+describe("buildAttachMenuCommandSections", () => {
+	it("groups skills and non-mcp commands into separate sections", () => {
+		const sections = buildAttachMenuCommandSections({
+			commands: [
+				{ name: "ce-plan", description: "Create a plan" },
+				{ name: "mcp:github", description: "GitHub MCP" },
+				{ name: "review", description: "Run review" },
+			],
+			preconnectionCommands: [{ name: "ce-plan", description: "Create a plan" }],
 		});
 
-		expect(items).toEqual([
+		expect(sections).toHaveLength(2);
+		expect(sections[0]).toEqual({
+			id: "skills",
+			label: "Skills",
+			items: [
+				{
+					id: "ce-plan",
+					label: "ce-plan",
+					description: "Create a plan",
+					tokenType: "skill",
+				},
+			],
+		});
+		expect(sections[1]?.id).toBe("commands");
+		expect(sections[1]?.items).toEqual([
 			{
-				id: "ce-plan",
-				label: "ce-plan",
-				description: "Create a plan",
-				tokenType: "skill",
+				id: "review",
+				label: "review",
+				description: "Run review",
+				tokenType: "command",
 			},
 		]);
+	});
+});
+
+describe("buildAttachMenuMcpServerGroups", () => {
+	it("maps catalog servers to attach menu MCP groups with insert text", () => {
+		const catalog: ComposerMcpCatalog = {
+			source: "mixed",
+			servers: [
+				{
+					id: "github",
+					name: "github",
+					status: "connected",
+					error: null,
+					slashCommands: [{ name: "mcp:github", description: "GitHub server" }],
+					tools: [
+						{
+							id: "github-search",
+							name: "search_issues",
+							description: "Search issues",
+							insertText: "@[command:/mcp:github/search_issues]",
+						},
+					],
+				},
+			],
+		};
+
+		expect(buildAttachMenuMcpServerGroups(catalog)).toEqual([
+			{
+				id: "github",
+				name: "github",
+				status: "connected",
+				error: null,
+				slashItems: [
+					{
+						id: "mcp:github",
+						label: "mcp:github",
+						description: "GitHub server",
+						tokenType: "mcp",
+						insertText: "@[command:/mcp:github]",
+					},
+				],
+				toolItems: [
+					{
+						id: "github-search",
+						label: "search_issues",
+						description: "Search issues",
+						tokenType: "mcp",
+						insertText: "@[command:/mcp:github/search_issues]",
+					},
+				],
+			},
+		]);
+	});
+
+	it("returns empty array when catalog is null or has no servers", () => {
+		expect(buildAttachMenuMcpServerGroups(null)).toEqual([]);
+		expect(buildAttachMenuMcpServerGroups({ source: "preconnectionConfig", servers: [] })).toEqual(
+			[]
+		);
+	});
+});
+
+describe("resolveAttachMenuItemInsertText", () => {
+	it("uses explicit insert text when provided", () => {
+		expect(
+			resolveAttachMenuItemInsertText({
+				id: "tool-1",
+				label: "search",
+				tokenType: "mcp",
+				insertText: "@[command:/mcp:github/search]",
+			})
+		).toBe("@[command:/mcp:github/search]");
+	});
+
+	it("builds skill and command tokens from label when insert text is absent", () => {
+		expect(
+			resolveAttachMenuItemInsertText({
+				id: "ce-plan",
+				label: "ce-plan",
+				tokenType: "skill",
+			})
+		).toBe("@[skill:/ce-plan]");
+		expect(
+			resolveAttachMenuItemInsertText({
+				id: "review",
+				label: "review",
+				tokenType: "command",
+			})
+		).toBe("@[command:/review]");
 	});
 });
 

@@ -39,6 +39,34 @@ describe("transcript-viewport-row-mapper", () => {
 		expect(entry).toBe(canonical);
 	});
 
+	it("overlays viewport planning timing onto canonical assistant entries", () => {
+		const row = {
+			rowId: "assistant-1",
+			sourceEntryId: "assistant-1",
+			kind: "assistant",
+			version: 1,
+			content: { kind: "transcript", role: "assistant", segments: [] },
+			operationLinks: [],
+			activeStreamingTail: "message",
+			durationStartedAtMs: 1_700_000_000_000,
+		} as unknown as TranscriptViewportRow;
+		const canonical = {
+			id: "assistant-1",
+			type: "assistant" as const,
+			markdown: "",
+			message: { chunks: [] },
+			isStreaming: true,
+			planningStartedAtMs: null,
+		};
+		expect(
+			resolveTranscriptViewportSceneEntry(row, new Map([["assistant-1", canonical]]))
+		).toMatchObject({
+			id: "assistant-1",
+			type: "assistant",
+			planningStartedAtMs: 1_700_000_000_000,
+		});
+	});
+
 	it("maps awaiting placeholder rows to thinking entries", () => {
 		const row = {
 			rowId: "awaiting-1",
@@ -48,11 +76,36 @@ describe("transcript-viewport-row-mapper", () => {
 			content: { kind: "placeholder" },
 			operationLinks: [],
 			activeStreamingTail: null,
+			durationStartedAtMs: 1_700_000_000_000,
 		} as unknown as TranscriptViewportRow;
 		expect(resolveTranscriptViewportSceneEntry(row, new Map())).toEqual({
 			id: "awaiting-1",
 			type: "thinking",
 			durationMs: null,
+			startedAtMs: 1_700_000_000_000,
+		});
+	});
+
+	it("maps streaming assistant rows to planning duration anchors", () => {
+		const row = {
+			rowId: "assistant-1",
+			sourceEntryId: "assistant-1",
+			kind: "assistant",
+			version: 1,
+			content: {
+				kind: "transcript",
+				role: "assistant",
+				segments: [{ kind: "thought", segmentId: "s1", text: "" }],
+			},
+			operationLinks: [],
+			activeStreamingTail: "message",
+			durationStartedAtMs: 1_700_000_000_000,
+		} as unknown as TranscriptViewportRow;
+		expect(resolveTranscriptViewportSceneEntry(row, new Map())).toMatchObject({
+			id: "assistant-1",
+			type: "assistant",
+			isStreaming: true,
+			planningStartedAtMs: 1_700_000_000_000,
 		});
 	});
 

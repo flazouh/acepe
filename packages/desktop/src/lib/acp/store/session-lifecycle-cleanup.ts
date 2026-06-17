@@ -10,6 +10,7 @@ import type { SessionRepository } from "./services/session-repository.js";
 import type { SessionProjectionCore } from "./session-projection-core.svelte.js";
 import type { SessionTransientProjectionStore } from "./session-transient-projection-store.svelte.js";
 import type { ViewportProjectionController } from "./viewport-projection-controller.svelte.js";
+import type { SessionIdentityResolver } from "./session-identity-resolver.js";
 
 export type SessionLifecycleCleanupDeps = {
 	readonly repository: SessionRepository;
@@ -20,6 +21,7 @@ export type SessionLifecycleCleanupDeps = {
 	readonly composerMachineService: ComposerMachineService;
 	readonly entryStore: SessionEntryStore;
 	readonly onRemoveCallbacks: ReadonlyArray<(sessionId: string) => void>;
+	readonly identityResolver: SessionIdentityResolver;
 };
 
 export class SessionLifecycleCleanup {
@@ -30,6 +32,7 @@ export class SessionLifecycleCleanup {
 	}
 
 	removeSession(sessionId: string): void {
+		this.#deps.identityResolver.onCanonicalSessionRemoved(sessionId);
 		this.#deps.repository.removeSession(sessionId);
 		this.#deps.transientProjectionStore.removeTransientProjection(sessionId);
 		this.#deps.projectionCore.canonicalProjections.delete(sessionId);

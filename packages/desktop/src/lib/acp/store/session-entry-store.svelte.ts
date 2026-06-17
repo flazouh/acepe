@@ -168,6 +168,9 @@ export class SessionEntryStore implements IEntryManager, IEntryStoreInternal {
 			if (operation.kind === "appendEntry") {
 				const existingIndex = this.entryIndex.getEntryIdIndex(sessionId, operation.entry.entryId);
 				const convertedEntry = convertTranscriptEntryToSessionEntry(operation.entry, timestamp);
+				if (convertedEntry === null) {
+					continue;
+				}
 				if (existingIndex === undefined) {
 					this.appendTranscriptEntry(sessionId, convertedEntry);
 				} else {
@@ -186,6 +189,9 @@ export class SessionEntryStore implements IEntryManager, IEntryStoreInternal {
 					},
 					timestamp
 				);
+				if (nextEntry === null) {
+					continue;
+				}
 				this.appendTranscriptEntry(sessionId, nextEntry);
 				continue;
 			}
@@ -263,9 +269,11 @@ export class SessionEntryStore implements IEntryManager, IEntryStoreInternal {
 			}
 
 			if (operation.kind === "appendEntry") {
-				const convertedEntry = this.normalizeRuntimeEntry(
-					convertTranscriptEntryToSessionEntry(operation.entry, timestamp)
-				);
+				const sessionEntry = convertTranscriptEntryToSessionEntry(operation.entry, timestamp);
+				if (sessionEntry === null) {
+					continue;
+				}
+				const convertedEntry = this.normalizeRuntimeEntry(sessionEntry);
 				const existingIndex = resolveEntryIndex(operation.entry.entryId);
 				if (existingIndex === undefined) {
 					const nextIndex = entries.length + appendedEntries.length;
@@ -282,16 +290,18 @@ export class SessionEntryStore implements IEntryManager, IEntryStoreInternal {
 
 			const existingIndex = resolveEntryIndex(operation.entryId);
 			if (existingIndex === undefined) {
-				const nextEntry = this.normalizeRuntimeEntry(
-					convertTranscriptEntryToSessionEntry(
-						{
-							entryId: operation.entryId,
-							role: operation.role,
-							segments: [operation.segment],
-						},
-						timestamp
-					)
+				const sessionEntry = convertTranscriptEntryToSessionEntry(
+					{
+						entryId: operation.entryId,
+						role: operation.role,
+						segments: [operation.segment],
+					},
+					timestamp
 				);
+				if (sessionEntry === null) {
+					continue;
+				}
+				const nextEntry = this.normalizeRuntimeEntry(sessionEntry);
 				const nextIndex = entries.length + appendedEntries.length;
 				appendedEntryIndexes.set(operation.entryId, nextIndex);
 				appendedEntries.push(nextEntry);

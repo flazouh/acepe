@@ -94,6 +94,22 @@ function handleProjectColorChange(projectPath: string, color: string) {
 	});
 }
 
+function handleToggleShowExternalCliSessions(
+	projectPath: string,
+	showExternalCliSessions: boolean
+) {
+	projectManager.updateProjectShowExternalCliSessions(projectPath, showExternalCliSessions).mapErr(
+		(error) => {
+			toast.error(`Failed to update session visibility: ${error.message}`);
+			logger.error("[ProjectVisibility] Failed to update external CLI visibility", {
+				projectPath,
+				showExternalCliSessions,
+				error,
+			});
+		}
+	);
+}
+
 function handleChangeProjectIcon(projectPath: string) {
 	void projectManager.listProjectImages(projectPath).match(
 		(images) => {
@@ -470,6 +486,7 @@ const visibleSessions = $derived.by(() => {
 			onExportMarkdown={handleExportMarkdown}
 			onExportJson={handleExportJson}
 			onReorderProjects={handleReorderProjects}
+			onToggleShowExternalCliSessions={handleToggleShowExternalCliSessions}
 		/>
 	{/snippet}
 

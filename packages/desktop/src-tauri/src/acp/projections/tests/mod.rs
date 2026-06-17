@@ -1231,7 +1231,7 @@ use super::*;
     }
 
     #[test]
-    fn project_converted_session_preserves_stored_error_source() {
+    fn project_converted_session_does_not_restore_stored_error_as_live_failure() {
         let thread_snapshot = SessionThreadSnapshot {
             entries: vec![StoredEntry::Error {
                 id: "error-1".to_string(),
@@ -1257,13 +1257,15 @@ use super::*;
         let session = projection
             .session
             .expect("expected imported session snapshot");
-        assert_eq!(session.turn_state, SessionTurnState::Failed);
-        assert_eq!(
-            session
-                .active_turn_failure
-                .as_ref()
-                .map(|failure| failure.source),
-            Some(crate::acp::session_update::TurnErrorSource::Process)
+        assert_eq!(session.turn_state, SessionTurnState::Completed);
+        assert!(session.active_turn_failure.is_none());
+        let transcript = crate::acp::transcript_projection::TranscriptSnapshot::from_stored_entries(
+            session.last_event_seq,
+            &thread_snapshot.entries,
+        );
+        assert!(
+            transcript.entries.is_empty(),
+            "stored errors must not materialize as transcript rows"
         );
     }
 
@@ -1487,7 +1489,7 @@ use super::*;
     }
 
     #[test]
-    fn project_converted_session_defaults_missing_stored_error_source_to_unknown() {
+    fn project_converted_session_ignores_stored_error_without_source_metadata() {
         let thread_snapshot = SessionThreadSnapshot {
             entries: vec![StoredEntry::Error {
                 id: "error-1".to_string(),
@@ -1513,13 +1515,8 @@ use super::*;
         let session = projection
             .session
             .expect("expected imported session snapshot");
-        assert_eq!(
-            session
-                .active_turn_failure
-                .as_ref()
-                .map(|failure| failure.source),
-            Some(crate::acp::session_update::TurnErrorSource::Unknown)
-        );
+        assert!(session.active_turn_failure.is_none());
+        assert_eq!(session.turn_state, SessionTurnState::Completed);
     }
 
     // --- Unit 3: canonical entrypoint idempotency and ordering ---

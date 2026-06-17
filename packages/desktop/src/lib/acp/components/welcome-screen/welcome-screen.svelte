@@ -714,7 +714,7 @@ async function finishOnboarding(): Promise<void> {
 						</p>
 					</div>
 				{:else}
-					<div class="min-h-0 flex-1 overflow-y-auto">
+					<div class="flex min-h-0 flex-1 flex-col overflow-hidden">
 						<ProjectTable
 							projects={filteredProjects}
 							loading={onboardingProjectsLoading}

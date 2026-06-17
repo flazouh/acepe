@@ -215,25 +215,47 @@ where
                     );
                 }
                 Ok(Err(error)) => {
-                    let classification =
-                        crate::acp::resume_failure_classifier::classify_resume_error(
-                            &agent_id_for_classifier,
-                            &error,
+                    // Authentication-required is a recoverable precondition,
+                    // not a failure: park the session as detached so the panel
+                    // renders a neutral sign-in card instead of an error.
+                    if matches!(
+                        error,
+                        crate::acp::error::SerializableAcpError::AuthenticationRequired { .. }
+                    ) {
+                        let update =
+                            crate::acp::session_update::SessionUpdate::SessionDetached {
+                                session_id: session_id.clone(),
+                                attempt_id,
+                                detached_reason:
+                                    crate::acp::lifecycle::DetachedReason::AwaitingAuthentication,
+                            };
+                        emit_lifecycle_event(&app_clone, &hub, update, &session_id).await;
+                        tracing::info!(
+                            session_id = %session_id,
+                            attempt_id,
+                            "Async resume parked: agent requires interactive sign-in"
                         );
-                    let update = crate::acp::session_update::SessionUpdate::ConnectionFailed {
-                        session_id: session_id.clone(),
-                        attempt_id,
-                        error: error.to_string(),
-                        failure_reason: classification.failure_reason,
-                    };
-                    emit_lifecycle_event(&app_clone, &hub, update, &session_id).await;
-                    tracing::error!(
-                        session_id = %session_id,
-                        attempt_id,
-                        error = %error,
-                        failure_reason = ?classification.failure_reason,
-                        "Async resume failed"
-                    );
+                    } else {
+                        let classification =
+                            crate::acp::resume_failure_classifier::classify_resume_error(
+                                &agent_id_for_classifier,
+                                &error,
+                            );
+                        let update = crate::acp::session_update::SessionUpdate::ConnectionFailed {
+                            session_id: session_id.clone(),
+                            attempt_id,
+                            error: error.to_string(),
+                            failure_reason: classification.failure_reason,
+                        };
+                        emit_lifecycle_event(&app_clone, &hub, update, &session_id).await;
+                        tracing::error!(
+                            session_id = %session_id,
+                            attempt_id,
+                            error = %error,
+                            failure_reason = ?classification.failure_reason,
+                            "Async resume failed"
+                        );
+                    }
                 }
                 Err(_elapsed) => {
                     let update = crate::acp::session_update::SessionUpdate::ConnectionFailed {

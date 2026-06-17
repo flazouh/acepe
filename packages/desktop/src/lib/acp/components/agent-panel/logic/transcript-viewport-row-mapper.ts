@@ -40,13 +40,66 @@ export function toolStatusFromOperationState(state: OperationState): AgentToolSt
 	return "pending";
 }
 
+function withViewportPlanningTiming(
+	entry: AgentPanelSceneEntryModel,
+	row: TranscriptViewportRow
+): AgentPanelSceneEntryModel {
+	const durationStartedAtMs = row.durationStartedAtMs;
+	if (durationStartedAtMs === null || durationStartedAtMs === undefined) {
+		return entry;
+	}
+
+	if (entry.type === "thinking") {
+		if (entry.startedAtMs !== null && entry.startedAtMs !== undefined) {
+			return entry;
+		}
+		return {
+			id: entry.id,
+			type: entry.type,
+			durationMs: entry.durationMs ?? null,
+			startedAtMs: durationStartedAtMs,
+			label: entry.label,
+		};
+	}
+
+	if (entry.type === "assistant") {
+		if (entry.planningStartedAtMs !== null && entry.planningStartedAtMs !== undefined) {
+			return entry;
+		}
+		if (entry.isStreaming !== true) {
+			return entry;
+		}
+		return {
+			id: entry.id,
+			type: entry.type,
+			markdown: entry.markdown,
+			message: entry.message,
+			isStreaming: entry.isStreaming,
+			tokenRevealCss: entry.tokenRevealCss,
+			timestampMs: entry.timestampMs,
+			planningStartedAtMs: durationStartedAtMs,
+		};
+	}
+
+	return entry;
+}
+
 export function resolveTranscriptViewportSceneEntry(
 	row: TranscriptViewportRow,
-	sceneEntryById: ReadonlyMap<string, AgentPanelSceneEntryModel>
+	sceneEntryById: ReadonlyMap<string, AgentPanelSceneEntryModel>,
+	sceneEntryByToolCallId: ReadonlyMap<string, AgentPanelSceneEntryModel> = new Map()
 ): AgentPanelSceneEntryModel {
 	const canonicalEntry = sceneEntryById.get(row.sourceEntryId);
 	if (canonicalEntry !== undefined) {
-		return canonicalEntry;
+		return withViewportPlanningTiming(canonicalEntry, row);
+	}
+
+	const linkedToolCallId = row.operationLinks[0]?.toolCallId;
+	if (linkedToolCallId !== undefined) {
+		const canonicalToolEntry = sceneEntryByToolCallId.get(linkedToolCallId);
+		if (canonicalToolEntry !== undefined) {
+			return canonicalToolEntry;
+		}
 	}
 
 	if (row.kind === "awaitingPlaceholder") {
@@ -54,6 +107,7 @@ export function resolveTranscriptViewportSceneEntry(
 			id: row.sourceEntryId,
 			type: "thinking",
 			durationMs: null,
+			startedAtMs: row.durationStartedAtMs ?? null,
 		};
 	}
 
@@ -93,6 +147,7 @@ export function resolveTranscriptViewportSceneEntry(
 				}),
 			},
 			isStreaming: row.activeStreamingTail !== null,
+			planningStartedAtMs: row.durationStartedAtMs ?? null,
 		};
 	}
 
@@ -103,7 +158,7 @@ export function resolveTranscriptViewportSceneEntry(
 		toolCallId: operation?.toolCallId,
 		operationId: operation?.operationId,
 		kind: "other",
-		title: operation?.name ?? (row.kind === "error" ? "Error" : "Tool"),
+		title: operation?.name ?? "Tool",
 		status: operation === undefined ? "degraded" : toolStatusFromOperationState(operation.state),
 		presentationState: operation === undefined ? "degraded_operation" : "resolved",
 		degradedReason: operation === undefined ? "Viewport row has no linked operation." : null,

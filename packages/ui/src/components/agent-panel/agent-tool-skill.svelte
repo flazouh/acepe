@@ -11,6 +11,8 @@
 		getSkillViewState,
 	} from "./agent-tool-skill-state.js";
 	import type { AgentToolStatus } from "./types.js";
+	import AgentToolDurationLabel from "./agent-tool-duration-label.svelte";
+	import type { ToolDurationTiming } from "./tool-duration.js";
 
 	interface Props {
 		/** Skill name (e.g., "research", "commit") */
@@ -21,7 +23,7 @@
 		description?: string | null;
 		/** Tool status */
 		status?: AgentToolStatus;
-		durationLabel?: string;
+		durationTiming?: ToolDurationTiming;
 		/** Label when loading (skill name not yet streamed) */
 		loadingLabel?: string;
 		/** Fallback label when no skill name */
@@ -41,7 +43,7 @@
 		skillArgs,
 		description,
 		status = "done",
-		durationLabel,
+		durationTiming,
 		loadingLabel = "Loading skill",
 		fallbackLabel = "Skill",
 		runningStatusLabel = "Running",
@@ -106,9 +108,10 @@
 
 			<!-- Right side: status + expand button -->
 			<div class="ml-1.5 flex shrink-0 items-center gap-1.5">
-				{#if durationLabel}
-					<span class="font-sans text-xs text-muted-foreground/70">{durationLabel}</span>
-				{/if}
+				<AgentToolDurationLabel
+					timing={durationTiming}
+					class="font-sans text-xs"
+				/>
 				<!-- Status indicator -->
 				<div class="flex items-center gap-1 font-sans text-xs text-muted-foreground">
 					{#if viewState.isPending}

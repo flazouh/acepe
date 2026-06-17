@@ -418,7 +418,14 @@ fn find_file_in_project(file_path: &str, project_path: &str) -> Result<PathBuf, 
                     // Exact suffix match - high confidence
                     return Ok(path.to_path_buf());
                 }
-                matches.push(path.to_path_buf());
+                // Only collect bare-filename fallback matches when the caller gave a
+                // bare name (single segment).  A multi-segment path like
+                // ".claude/settings.json" must match by suffix; guessing from the
+                // filename alone risks returning an unrelated file (e.g.
+                // ".vscode/settings.json").
+                if search_segments.len() == 1 {
+                    matches.push(path.to_path_buf());
+                }
             }
         }
     }
@@ -595,8 +602,9 @@ pub async fn delete_path(project_path: String, relative_path: String) -> Command
 #[cfg(test)]
 mod tests {
     use super::{
-        validate_existing_path_within_project, validate_preview_path_within_project,
-        validate_project_path_for_indexing, validate_target_under_project,
+        find_file_in_project, validate_existing_path_within_project,
+        validate_preview_path_within_project, validate_project_path_for_indexing,
+        validate_target_under_project,
     };
     use std::fs;
     use tempfile::tempdir;
@@ -671,6 +679,61 @@ mod tests {
             validate_preview_path_within_project(&project.path().to_string_lossy(), "gone.ts");
 
         assert!(result.is_ok());
+    }
+
+    // --- find_file_in_project ---
+
+    #[test]
+    fn find_file_in_project_resolves_bare_filename_when_unambiguous() {
+        let dir = tempdir().expect("temp dir");
+        fs::create_dir_all(dir.path().join("src")).expect("create dir");
+        fs::write(dir.path().join("src/types.ts"), "export type Foo = {}").expect("write file");
+
+        let result = find_file_in_project("types.ts", &dir.path().to_string_lossy());
+
+        assert!(result.is_ok(), "expected Ok but got: {:?}", result);
+        assert!(result.unwrap().ends_with("types.ts"));
+    }
+
+    #[test]
+    fn find_file_in_project_finds_exact_suffix_match_for_multi_segment_path() {
+        let dir = tempdir().expect("temp dir");
+
+        // Create a settings.json at the exact requested sub-path.
+        fs::create_dir_all(dir.path().join(".claude")).expect("create dir");
+        fs::write(dir.path().join(".claude/settings.json"), "{}").expect("write file");
+        // Also create a distractor with the same filename but different directory.
+        fs::create_dir_all(dir.path().join("other")).expect("create dir");
+        fs::write(dir.path().join("other/settings.json"), "other").expect("write file");
+
+        let result =
+            find_file_in_project(".claude/settings.json", &dir.path().to_string_lossy());
+
+        assert!(result.is_ok(), "expected Ok but got: {:?}", result);
+        assert!(
+            result.unwrap().ends_with(".claude/settings.json"),
+            "returned wrong file"
+        );
+    }
+
+    #[test]
+    fn find_file_in_project_rejects_filename_only_match_for_multi_segment_path() {
+        let dir = tempdir().expect("temp dir");
+
+        // Simulate a project with a settings.json in a different directory
+        // (e.g. .vscode/settings.json) but no .claude/settings.json anywhere.
+        fs::create_dir_all(dir.path().join("other")).expect("create dir");
+        fs::write(dir.path().join("other/settings.json"), "{}").expect("write file");
+
+        // Requesting .claude/settings.json should NOT silently return other/settings.json.
+        let result =
+            find_file_in_project(".claude/settings.json", &dir.path().to_string_lossy());
+
+        assert!(
+            result.is_err(),
+            "expected File not found but got: {:?}",
+            result
+        );
     }
 }
 

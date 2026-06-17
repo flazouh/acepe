@@ -14,6 +14,7 @@
 		active: boolean;
 		disabled?: boolean;
 		busy?: boolean;
+		compact?: boolean;
 		title?: string;
 		ariaLabel?: string;
 		/** Optional richer description rendered below the title in the tooltip. */
@@ -25,6 +26,7 @@
 		active,
 		disabled = false,
 		busy = false,
+		compact = false,
 		title = "Autonomous",
 		ariaLabel = "Autonomous",
 		tooltipDescription,
@@ -32,8 +34,9 @@
 	}: Props = $props();
 
 	const buttonClass = $derived.by(() => {
-		let classes =
-			"flex h-7 w-7 items-center justify-center rounded-none transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring";
+		let classes = compact
+			? "flex h-6 w-6 items-center justify-center rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+			: "flex h-7 w-7 items-center justify-center rounded-none transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring";
 
 		if (active) {
 			if (!busy) {

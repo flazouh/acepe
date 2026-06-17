@@ -3,6 +3,8 @@
 
 	import AgentToolCard from "./agent-tool-card.svelte";
 	import ToolHeaderLeading from "./tool-header-leading.svelte";
+	import AgentToolDurationLabel from "./agent-tool-duration-label.svelte";
+	import type { ToolDurationTiming } from "./tool-duration.js";
 	import type { AgentToolStatus } from "./types.js";
 	import {
 		buildBrowserToolDetailsPreview,
@@ -18,7 +20,7 @@
 		detailsText?: string | null;
 		scriptText?: string | null;
 		status?: AgentToolStatus;
-		durationLabel?: string;
+		durationTiming?: ToolDurationTiming;
 		detailsLabel?: string;
 		scriptLabel?: string;
 	}
@@ -29,7 +31,7 @@
 		detailsText = null,
 		scriptText = null,
 		status = "done",
-		durationLabel,
+		durationTiming,
 		detailsLabel = "Result",
 		scriptLabel = "Script",
 	}: Props = $props();
@@ -68,11 +70,10 @@
 			<span class="min-w-0 truncate text-muted-foreground/55">{preview}</span>
 		{/if}
 
-		{#if durationLabel}
-			<span class="ml-auto shrink-0 font-sans text-sm text-muted-foreground/70">
-				{durationLabel}
-			</span>
-		{/if}
+		<AgentToolDurationLabel
+			timing={durationTiming}
+			class="ml-auto shrink-0 font-sans text-sm"
+		/>
 	</div>
 
 	{#if hasScript}

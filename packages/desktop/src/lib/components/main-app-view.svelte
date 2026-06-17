@@ -199,6 +199,9 @@ const sessionOpenHydrator = new SessionOpenHydrator(
 	createSessionOpenInteractionGraphConsumer({ interactionStore })
 );
 sessionStore.connection.setSessionOpenHydrator(sessionOpenHydrator);
+panelStore.setDuplicatePanelDisposalHandler((panelId) => {
+	sessionOpenHydrator.clearAttempt(panelId);
+});
 // Create voice settings store (context for voice-section and agent-input-ui)
 const voiceSettingsStore = createVoiceSettingsStore();
 const preconnectionAgentSkillsStore = createPreconnectionAgentSkillsStore();
@@ -1246,9 +1249,6 @@ onDestroy(() => {
 			}
 		}}
 	>
-		{#snippet topLeft()}
-			<span class="px-2 text-[11px] font-semibold text-muted-foreground">Settings</span>
-		{/snippet}
 		<SettingsPage {projectManager} />
 	</WorkspaceDialogFrame>
 

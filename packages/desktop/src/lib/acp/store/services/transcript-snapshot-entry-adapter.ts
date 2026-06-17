@@ -84,7 +84,7 @@ function toTranscriptToolSpineMessage(entry: TranscriptEntry): ToolCallData {
 export function convertTranscriptEntryToSessionEntry(
 	entry: TranscriptEntry,
 	timestamp: Date
-): SessionEntry {
+): SessionEntry | null {
 	if (entry.role === "user") {
 		const blocks = segmentBlocks(entry);
 		return {
@@ -132,14 +132,7 @@ export function convertTranscriptEntryToSessionEntry(
 		};
 	}
 
-	return {
-		id: entry.entryId,
-		type: "error",
-		message: {
-			content: segmentText(entry),
-		},
-		timestamp,
-	};
+	return null;
 }
 
 export function appendTranscriptSegmentToSessionEntry(
@@ -193,21 +186,6 @@ export function appendTranscriptSegmentToSessionEntry(
 		};
 	}
 
-	if (entry.type === "error") {
-		return {
-			id: entry.id,
-			type: "error",
-			message: {
-				content: `${entry.message.content}\n${transcriptSegmentPrimaryText(segment)}`,
-				code: entry.message.code,
-				kind: entry.message.kind,
-				source: entry.message.source,
-			},
-			timestamp: entry.timestamp,
-			isStreaming: entry.isStreaming,
-		};
-	}
-
 	if (entry.type === "tool_call") {
 		const segmentTextValue = transcriptSegmentPrimaryText(segment);
 		const previousTitle = entry.message.title ?? entry.message.name;
@@ -250,7 +228,10 @@ export function convertTranscriptSnapshotToSessionEntries(
 ): SessionEntry[] {
 	const entries: SessionEntry[] = [];
 	for (const entry of snapshot.entries) {
-		entries.push(convertTranscriptEntryToSessionEntry(entry, timestamp));
+		const sessionEntry = convertTranscriptEntryToSessionEntry(entry, timestamp);
+		if (sessionEntry !== null) {
+			entries.push(sessionEntry);
+		}
 	}
 	return entries;
 }

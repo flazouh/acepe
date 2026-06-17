@@ -328,10 +328,10 @@ function handleOpenChange(newOpen: boolean) {
 		</EmbeddedIconButton>
 	{/snippet}
 
-	<div class="flex h-full min-h-0 flex-col overflow-hidden rounded-md border border-border/40 bg-background">
+	<div class="flex h-full min-h-0 flex-col overflow-hidden">
 		{#if activeView === "import"}
 			<!-- Project list (scrollable body) -->
-			<div class="flex-1 min-h-0 overflow-y-auto">
+			<div class="flex flex-1 min-h-0 flex-col overflow-hidden">
 				<ProjectTable
 					projects={filteredProjects}
 					{loading}

@@ -1,5 +1,5 @@
 use crate::acp::provider::{
-    command_exists, AgentProvider, ProjectDiscoveryCompleteness, ProjectPathListing, SpawnConfig,
+    AgentProvider, ProjectDiscoveryCompleteness, ProjectPathListing, SpawnConfig,
 };
 use crate::acp::capability_resolution::{
     failed_capabilities, resolve_static_capabilities, ResolvedCapabilityStatus,
@@ -32,13 +32,25 @@ impl AgentProvider for CodexProvider {
     }
 
     fn spawn_config(&self) -> SpawnConfig {
-        self.spawn_configs()
-            .into_iter()
-            .next()
-            .expect("Codex provider must return at least one spawn config")
+        self.spawn_configs().into_iter().next().unwrap_or_else(|| {
+            tracing::warn!(
+                "Codex managed binary not installed; returning placeholder spawn config. \
+                 Connect should auto-install before spawn, so this path is unexpected."
+            );
+            SpawnConfig {
+                command: "codex".to_string(),
+                args: vec!["app-server".to_string()],
+                env: std::collections::HashMap::new(),
+                env_strategy: Some(codex_env_strategy()),
+            }
+        })
     }
 
     fn spawn_configs(&self) -> Vec<SpawnConfig> {
+        // Managed install only. We do not append a bare `codex` PATH launcher:
+        // an unmanaged binary on PATH would be spawned in place of the version
+        // Acepe provisions, and would also make `is_available()` report true and
+        // suppress auto-install-on-connect.
         let mut configs = Vec::new();
 
         if let Some(cached) = agent_installer::get_cached_binary(&CanonicalAgentId::Codex) {
@@ -52,16 +64,6 @@ impl AgentProvider for CodexProvider {
                 },
             );
         }
-
-        push_unique_spawn_config(
-            &mut configs,
-            SpawnConfig {
-                command: "codex".to_string(),
-                args: vec!["app-server".to_string()],
-                env: std::collections::HashMap::new(),
-                env_strategy: Some(codex_env_strategy()),
-            },
-        );
 
         configs
     }
@@ -125,8 +127,9 @@ impl AgentProvider for CodexProvider {
     }
 
     fn is_available(&self) -> bool {
-        agent_installer::get_cached_binary(&CanonicalAgentId::Codex).is_some()
-            || command_exists("codex")
+        // Managed cache only. A `codex` on PATH is not the Acepe-provisioned
+        // binary — trusting it mis-launches and suppresses auto-install-on-connect.
+        agent_installer::is_installed(&CanonicalAgentId::Codex)
     }
 
     fn load_provider_owned_session<'a>(
@@ -352,6 +355,24 @@ mod tests {
     }
 
     #[test]
+    fn spawn_configs_use_managed_binary_only() {
+        // With the managed Codex binary installed, resolution must return only
+        // that binary — never also append a bare `codex` PATH launcher. Trusting
+        // a PATH `codex` both spawns an unmanaged binary and tricks
+        // `is_available()` into suppressing auto-install-on-connect.
+        ensure_test_codex_cache_dir();
+        let provider = CodexProvider;
+        let configs = provider.spawn_configs();
+
+        assert_eq!(
+            configs.len(),
+            1,
+            "managed Codex must not append a bare `codex` PATH fallback"
+        );
+        assert_ne!(configs[0].command, "codex");
+    }
+
+    #[test]
     fn provider_uses_native_communication_mode() {
         let provider = CodexProvider;
 
@@ -362,9 +383,10 @@ mod tests {
     }
 
     #[test]
-    fn codex_provider_reports_build_autonomy_support() {
+    fn codex_provider_reports_agent_mode_autonomy_support() {
+        // Acepe's canonical autonomous mode name is "agent" (was "build").
         let provider = CodexProvider;
 
-        assert_eq!(provider.autonomous_supported_mode_ids(), &["build"]);
+        assert_eq!(provider.autonomous_supported_mode_ids(), &["agent"]);
     }
 }

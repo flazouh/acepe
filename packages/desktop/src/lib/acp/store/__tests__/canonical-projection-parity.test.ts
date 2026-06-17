@@ -274,4 +274,112 @@ describe("canonical projection parity", () => {
 		expect(liveStore.read.getSessionCurrentModelId("session-1")).toBe("gpt-5");
 		expect(liveStore.read.getSessionAutonomousEnabled("session-1")).toBe(true);
 	});
+
+	it("keeps turn failures live-only: neither cold-open nor live snapshot envelopes materialize transcript error rows", () => {
+		const lifecycle = createReadyLifecycle();
+		const transcriptSnapshot = {
+			revision: 3,
+			entries: [
+				{
+					entryId: "user-1",
+					role: "user" as const,
+					segments: [
+						{
+							kind: "text" as const,
+							segmentId: "user-1:block:0",
+							text: "what is this project?",
+						},
+					],
+				},
+			],
+		};
+		const liveFailureGraph: SessionStateGraph = {
+			requestedSessionId: "session-1",
+			canonicalSessionId: "session-1",
+			isAlias: false,
+			agentId: "claude-code",
+			projectPath: "/repo",
+			worktreePath: "/repo",
+			sourcePath: "/repo/.acepe/sessions/session-1.json",
+			sequenceId: null,
+			revision: {
+				graphRevision: 7,
+				transcriptRevision: 3,
+				lastEventSeq: 11,
+			},
+			transcriptSnapshot,
+			operations: [],
+			interactions: [],
+			turnState: "Failed",
+			messageCount: 1,
+			activeTurnFailure: {
+				turn_id: "turn-1",
+				message: "rate_limit",
+				code: "429",
+				kind: "recoverable",
+				source: "process",
+			},
+			lastTerminalTurnId: "turn-1",
+			activeStreamingTail: null,
+			lifecycle,
+			activity: {
+				kind: "error",
+				activeOperationCount: 0,
+				activeSubagentCount: 0,
+				dominantOperationId: null,
+				blockingInteractionId: null,
+			},
+			capabilities: createRepresentativeGraph().capabilities,
+		};
+		const restoredGraph: SessionStateGraph = {
+			requestedSessionId: liveFailureGraph.requestedSessionId,
+			canonicalSessionId: liveFailureGraph.canonicalSessionId,
+			isAlias: liveFailureGraph.isAlias,
+			agentId: liveFailureGraph.agentId,
+			projectPath: liveFailureGraph.projectPath,
+			worktreePath: liveFailureGraph.worktreePath,
+			sourcePath: liveFailureGraph.sourcePath,
+			sequenceId: liveFailureGraph.sequenceId,
+			revision: {
+				graphRevision: 4,
+				transcriptRevision: 3,
+				lastEventSeq: 3,
+			},
+			transcriptSnapshot,
+			operations: [],
+			interactions: [],
+			turnState: "Completed",
+			messageCount: 1,
+			activeTurnFailure: null,
+			lastTerminalTurnId: null,
+			activeStreamingTail: null,
+			lifecycle,
+			activity: {
+				kind: "idle",
+				activeOperationCount: 0,
+				activeSubagentCount: 0,
+				dominantOperationId: null,
+				blockingInteractionId: null,
+			},
+			capabilities: liveFailureGraph.capabilities,
+		};
+
+		const liveStore = new SessionStore();
+		const coldStore = new SessionStore();
+		addSession(liveStore);
+		addSession(coldStore);
+		liveStore.applySessionStateEnvelope("session-1", createSnapshotEnvelope(liveFailureGraph));
+		coldStore.write.replaceSessionOpenSnapshot(createSessionOpenFoundFromGraph(restoredGraph));
+
+		const hasTranscriptErrorRole = (
+			entries: SessionStateGraph["transcriptSnapshot"]["entries"]
+		): boolean => entries.some((entry) => (entry.role as string) === "error");
+
+		expect(hasTranscriptErrorRole(liveStore.getSessionStateGraphForTest("session-1")!.transcriptSnapshot.entries)).toBe(false);
+		expect(hasTranscriptErrorRole(coldStore.getSessionStateGraphForTest("session-1")!.transcriptSnapshot.entries)).toBe(false);
+		expect(liveStore.getSessionStateGraphForTest("session-1")?.activeTurnFailure).not.toBeNull();
+		expect(coldStore.getSessionStateGraphForTest("session-1")?.activeTurnFailure).toBeNull();
+		expect(liveStore.getSessionStateGraphForTest("session-1")?.turnState).toBe("Failed");
+		expect(coldStore.getSessionStateGraphForTest("session-1")?.turnState).toBe("Completed");
+	});
 });
