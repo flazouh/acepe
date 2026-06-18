@@ -226,3 +226,6 @@ Canonical triage label vocabulary (`needs-triage`, `needs-info`, `ready-for-agen
 ### Domain docs
 
 Single-context layout — `CONTEXT.md` (domain glossary) + `docs/adr/` (decision log) at the repo root. Read `CONTEXT.md` before naming concepts and `docs/adr/` before working in an area; both are extended by `grill-with-docs`. See `docs/agents/domain.md`.
+
+<!-- test line: added 2026-06-18 -->
+
