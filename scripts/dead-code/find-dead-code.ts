@@ -899,6 +899,267 @@ export function parseGitPorcelain(output: string): Candidate[] {
 	return candidates;
 }
 
+type BarrelExportBinding = {
+	readonly local: string;
+	readonly exported: string;
+};
+
+function parseExportBinding(binding: string): BarrelExportBinding {
+	const trimmed = binding.trim();
+	if (trimmed.length === 0) {
+		return { local: "", exported: "" };
+	}
+	const asIndex = trimmed.lastIndexOf(" as ");
+	if (asIndex !== -1) {
+		return {
+			local: trimmed.slice(0, asIndex).trim(),
+			exported: trimmed.slice(asIndex + 4).trim(),
+		};
+	}
+	return { local: trimmed, exported: trimmed };
+}
+
+function parseExportBindingsClause(clause: string): readonly BarrelExportBinding[] {
+	const bindings: BarrelExportBinding[] = [];
+	for (const part of clause.split(",")) {
+		const parsed = parseExportBinding(part);
+		if (parsed.local.length > 0) {
+			bindings.push(parsed);
+		}
+	}
+	return bindings;
+}
+
+function parseImportNames(clause: string): string[] {
+	const names: string[] = [];
+	for (const part of clause.split(",")) {
+		const trimmed = part.trim();
+		if (trimmed.length === 0) {
+			continue;
+		}
+		if (trimmed.startsWith("type ")) {
+			continue;
+		}
+		const typePrefix = trimmed.match(/^type\s+(.+)$/);
+		const token = typePrefix !== null ? typePrefix[1] ?? "" : trimmed;
+		const asIndex = token.lastIndexOf(" as ");
+		if (asIndex !== -1) {
+			names.push(token.slice(asIndex + 4).trim());
+		} else {
+			names.push(token.trim());
+		}
+	}
+	return names;
+}
+
+function extractNamedImportBindings(source: string): { specifier: string; names: string[] }[] {
+	const results: { specifier: string; names: string[] }[] = [];
+	const pattern = /import\s+(?:type\s+)?\{([^}]+)\}\s+from\s+['"]([^'"]+)['"]/g;
+	let match = pattern.exec(source);
+	while (match !== null) {
+		const clause = match[1];
+		const specifier = match[2];
+		if (clause === undefined || specifier === undefined) {
+			match = pattern.exec(source);
+			continue;
+		}
+		if (/^\s*import\s+type\s+\{/.test(match[0])) {
+			match = pattern.exec(source);
+			continue;
+		}
+		const names = parseImportNames(clause);
+		if (names.length > 0) {
+			results.push({ specifier: specifier, names: names });
+		}
+		match = pattern.exec(source);
+	}
+	return results;
+}
+
+function resolveReexportTarget(
+	repoRoot: string,
+	localName: string,
+	resolvedModule: string,
+	packages: readonly PackageInfo[],
+	packagesByName: ReadonlyMap<string, PackageInfo>,
+	exportMapCache: Map<string, Map<string, string>>,
+	stack: Set<string>
+): string | null {
+	const childMap = buildModuleExportMap(
+		repoRoot,
+		resolvedModule,
+		packages,
+		packagesByName,
+		exportMapCache,
+		stack
+	);
+	const fromChild = childMap.get(localName);
+	if (fromChild !== undefined) {
+		return fromChild;
+	}
+	if (localName === "default") {
+		return resolvedModule;
+	}
+	return resolvedModule;
+}
+
+function buildModuleExportMap(
+	repoRoot: string,
+	modulePath: string,
+	packages: readonly PackageInfo[],
+	packagesByName: ReadonlyMap<string, PackageInfo>,
+	exportMapCache: Map<string, Map<string, string>>,
+	stack: Set<string>
+): Map<string, string> {
+	const cached = exportMapCache.get(modulePath);
+	if (cached !== undefined) {
+		return cached;
+	}
+	if (stack.has(modulePath)) {
+		return new Map();
+	}
+	stack.add(modulePath);
+
+	const exportMap = new Map<string, string>();
+	const absolutePath = toAbsolutePath(repoRoot, modulePath);
+	if (existsSync(absolutePath)) {
+		const source = readFileSync(absolutePath, "utf8");
+		const importSource = sourceForImportScan(source, modulePath);
+
+		const namedReexportPattern =
+			/export\s+(?:type\s+)?\{([^}]+)\}\s+from\s+['"]([^'"]+)['"]/g;
+		let match = namedReexportPattern.exec(importSource);
+		while (match !== null) {
+			const clause = match[1];
+			const fromSpecifier = match[2];
+			if (clause !== undefined && fromSpecifier !== undefined) {
+				const resolved = resolveSpecifier(
+					repoRoot,
+					modulePath,
+					fromSpecifier,
+					packages,
+					packagesByName
+				);
+				if (resolved !== null) {
+					const bindings = parseExportBindingsClause(clause);
+					for (const binding of bindings) {
+						const target = resolveReexportTarget(
+							repoRoot,
+							binding.local,
+							resolved,
+							packages,
+							packagesByName,
+							exportMapCache,
+							stack
+						);
+						if (target !== null) {
+							exportMap.set(binding.exported, target);
+						}
+					}
+				}
+			}
+			match = namedReexportPattern.exec(importSource);
+		}
+
+		const starReexportPattern = /export\s+\*\s+from\s+['"]([^'"]+)['"]/g;
+		match = starReexportPattern.exec(importSource);
+		while (match !== null) {
+			const fromSpecifier = match[1];
+			if (fromSpecifier !== undefined) {
+				const resolved = resolveSpecifier(
+					repoRoot,
+					modulePath,
+					fromSpecifier,
+					packages,
+					packagesByName
+				);
+				if (resolved !== null) {
+					const childMap = buildModuleExportMap(
+						repoRoot,
+						resolved,
+						packages,
+						packagesByName,
+						exportMapCache,
+						stack
+					);
+					for (const [name, target] of childMap) {
+						if (!exportMap.has(name)) {
+							exportMap.set(name, target);
+						}
+					}
+				}
+			}
+			match = starReexportPattern.exec(importSource);
+		}
+	}
+
+	stack.delete(modulePath);
+	exportMapCache.set(modulePath, exportMap);
+	return exportMap;
+}
+
+function collectBarrelConsumedFiles(
+	repoRoot: string,
+	files: readonly string[],
+	productionReachable: Set<string>,
+	packages: readonly PackageInfo[],
+	packagesByName: ReadonlyMap<string, PackageInfo>
+): Set<string> {
+	const consumed = new Set<string>();
+	const exportMapCache = new Map<string, Map<string, string>>();
+	const stack = new Set<string>();
+
+	for (const file of files) {
+		if (!productionReachable.has(file)) {
+			continue;
+		}
+		if (classifyFileKind(file) !== "source") {
+			continue;
+		}
+		if (isTestPath(file)) {
+			continue;
+		}
+
+		const absolutePath = toAbsolutePath(repoRoot, file);
+		const source = readFileSync(absolutePath, "utf8");
+		const importSource = sourceForImportScan(source, file);
+
+		for (const binding of extractNamedImportBindings(importSource)) {
+			const resolved = resolveSpecifier(
+				repoRoot,
+				file,
+				binding.specifier,
+				packages,
+				packagesByName
+			);
+			if (resolved === null) {
+				continue;
+			}
+
+			const exportMap = buildModuleExportMap(
+				repoRoot,
+				resolved,
+				packages,
+				packagesByName,
+				exportMapCache,
+				stack
+			);
+			if (exportMap.size === 0) {
+				continue;
+			}
+
+			for (const name of binding.names) {
+				const target = exportMap.get(name);
+				if (target !== undefined) {
+					consumed.add(target);
+				}
+			}
+		}
+	}
+
+	return consumed;
+}
+
 function isBarrelIndexPath(path: string): boolean {
 	return /\/index\.(?:ts|tsx|js|mjs|cjs)$/.test(path);
 }
@@ -1040,6 +1301,13 @@ export function analyzeDeadCode(options: AnalysisOptions): Result<DeadCodeAnalys
 	const scriptReachable = traverse(scriptRoots, collected.edges);
 	const testReachable = traverse(testRoots, collected.edges);
 	const staticReachable = traverse(staticRoots, collected.edges);
+	const barrelConsumed = collectBarrelConsumedFiles(
+		repoRoot,
+		files,
+		productionReachable,
+		packages,
+		packagesByName
+	);
 
 	const candidates: Candidate[] = [];
 	for (const file of files) {
@@ -1081,6 +1349,7 @@ export function analyzeDeadCode(options: AnalysisOptions): Result<DeadCodeAnalys
 			!directProductionReachable.has(file) &&
 			!packageExportEntryReachable.has(file) &&
 			!isBarrelIndexPath(file) &&
+			!barrelConsumed.has(file) &&
 			kind === "source"
 		) {
 			candidates.push({
@@ -1088,7 +1357,7 @@ export function analyzeDeadCode(options: AnalysisOptions): Result<DeadCodeAnalys
 				classification: "export-barrel-only",
 				fileKind: kind,
 				reasons: [
-					"reachable only through index/barrel re-exports, with no direct production import",
+					"reachable only through index/barrel re-exports, with no named production import from a barrel",
 				],
 			});
 			continue;

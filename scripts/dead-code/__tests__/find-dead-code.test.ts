@@ -246,8 +246,55 @@ describe("find-dead-code", () => {
 		writeFixtureFile(
 			root,
 			"packages/app/src/components/index.ts",
-			"export { default as OrphanView } from '../orphan-view.svelte';\n"
+			"export { default as UsedView } from '../used-view.svelte';\nexport { default as OrphanView } from '../orphan-view.svelte';\n"
 		);
+		writeFixtureFile(root, "packages/app/src/used-view.svelte", "<p>used</p>\n");
+		writeFixtureFile(root, "packages/app/src/orphan-view.svelte", "<p>orphan</p>\n");
+		writeFixtureFile(
+			root,
+			"packages/app/src/routes/+page.ts",
+			"import { UsedView } from '../components/index.js';\nexport const host = UsedView;\n"
+		);
+		writeFixtureFile(root, "packages/app/src/unused.ts", "export const unused = 1;\n");
+
+		const analysis = analyzeFixture(root);
+		const byPath = new Map(analysis.candidates.map((candidate) => [candidate.path, candidate]));
+
+		expect(byPath.get("packages/app/src/public-api.ts")?.classification).toBe("production-reachable");
+		expect(byPath.get("packages/app/src/panel.ts")?.classification).toBe("production-reachable");
+		expect(byPath.get("packages/app/src/used-view.svelte")?.classification).toBe("production-reachable");
+		expect(byPath.get("packages/app/src/orphan-view.svelte")?.classification).toBe(
+			"export-barrel-only"
+		);
+		expect(byPath.get("packages/app/src/unused.ts")?.classification).toBe("strong-dead");
+
+		rmSync(root, { recursive: true, force: true });
+	});
+
+	test("treats named imports through star re-export barrels as production reachable", () => {
+		const root = createFixture();
+		writeFixtureFile(
+			root,
+			"packages/app/package.json",
+			JSON.stringify({
+				name: "@fixture/app",
+				exports: {
+					".": "./src/public-api.ts",
+				},
+			})
+		);
+		writeFixtureFile(
+			root,
+			"packages/app/src/public-api.ts",
+			"export { panel } from './panel.js';\n"
+		);
+		writeFixtureFile(root, "packages/app/src/panel.ts", "export const panel = 1;\n");
+		writeFixtureFile(
+			root,
+			"packages/app/src/components/index.ts",
+			"export { default as UsedView } from '../used-view.svelte';\nexport { default as OrphanView } from '../orphan-view.svelte';\n"
+		);
+		writeFixtureFile(root, "packages/app/src/used-view.svelte", "<p>used</p>\n");
 		writeFixtureFile(root, "packages/app/src/orphan-view.svelte", "<p>orphan</p>\n");
 		writeFixtureFile(
 			root,
@@ -257,19 +304,16 @@ describe("find-dead-code", () => {
 		writeFixtureFile(
 			root,
 			"packages/app/src/routes/+page.ts",
-			"import { OrphanView } from '../route-host.js';\nexport const host = OrphanView;\n"
+			"import { UsedView } from '../route-host.js';\nexport const host = UsedView;\n"
 		);
-		writeFixtureFile(root, "packages/app/src/unused.ts", "export const unused = 1;\n");
 
 		const analysis = analyzeFixture(root);
 		const byPath = new Map(analysis.candidates.map((candidate) => [candidate.path, candidate]));
 
-		expect(byPath.get("packages/app/src/public-api.ts")?.classification).toBe("production-reachable");
-		expect(byPath.get("packages/app/src/panel.ts")?.classification).toBe("production-reachable");
+		expect(byPath.get("packages/app/src/used-view.svelte")?.classification).toBe("production-reachable");
 		expect(byPath.get("packages/app/src/orphan-view.svelte")?.classification).toBe(
 			"export-barrel-only"
 		);
-		expect(byPath.get("packages/app/src/unused.ts")?.classification).toBe("strong-dead");
 
 		rmSync(root, { recursive: true, force: true });
 	});

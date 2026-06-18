@@ -147,10 +147,6 @@ vi.mock("../../messages/user-message.svelte", async () => ({
 	default: (await import("./fixtures/user-message-stub.svelte")).default,
 }));
 
-vi.mock("../../messages/assistant-message.svelte", async () => ({
-	default: (await import("./fixtures/user-message-stub.svelte")).default,
-}));
-
 vi.mock("../../project-selection-panel.svelte", async () => ({
 	default: (await import("./fixtures/user-message-stub.svelte")).default,
 }));
