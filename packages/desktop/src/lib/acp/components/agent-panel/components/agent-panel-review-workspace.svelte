@@ -83,6 +83,7 @@ function handleWorkspaceFileSelect(displayIndex: number): void {
 }
 </script>
 
+<div class="flex h-full min-h-0 flex-1 flex-col">
 <ReviewWorkspace
 	files={reviewWorkspaceFiles}
 	selectedFileIndex={reviewWorkspaceSelectedIndex}
@@ -111,3 +112,4 @@ function handleWorkspaceFileSelect(displayIndex: number): void {
 		/>
 	{/snippet}
 </ReviewWorkspace>
+</div>

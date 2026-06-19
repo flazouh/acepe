@@ -199,6 +199,7 @@ export async function runCli(args: readonly string[], checkoutRoot: string = pro
 			`url: ${observation.value.url ?? "unknown"}`,
 			`panels: ${observation.value.panelCount.toString()}`,
 			`composer: ${observation.value.composer.present ? "present" : "missing"}`,
+			`sessionCanSubmit: ${observation.value.composer.sessionCanSubmit === null ? "unknown" : observation.value.composer.sessionCanSubmit.toString()}`,
 			`visible errors: ${observation.value.visibleSessionErrors.length.toString()}`,
 			`refs: ${observation.value.refs.length.toString()}`,
 		];
@@ -333,7 +334,7 @@ export async function runCli(args: readonly string[], checkoutRoot: string = pro
 					`snapshots: ${debug.value.snapshots.length.toString()}`,
 					...debug.value.snapshots.map(
 						(snapshot) =>
-							`- ${snapshot.sessionId ?? "null"} planning=${snapshot.showPlanningIndicator} | optimistic=${snapshot.hasOptimisticPendingEntry} pendingSend=${snapshot.hasLocalPendingSendIntent} activity=${snapshot.activityKind ?? "null"} turn=${snapshot.turnState ?? "null"} lifecycle=${snapshot.lifecycleStatus ?? "null"} source=${snapshot.sourceKind ?? "null"} entries=${snapshot.visibleEntryCount.toString()}`
+							`- ${snapshot.sessionId ?? "null"} planning=${snapshot.showPlanningIndicator} | optimistic=${snapshot.hasOptimisticPendingEntry} pendingSend=${snapshot.hasLocalPendingSendIntent} activity=${snapshot.activityKind ?? "null"} turn=${snapshot.turnState ?? "null"} lifecycle=${snapshot.lifecycleStatus ?? "null"} source=${snapshot.sourceKind ?? "null"} canSend=${snapshot.actionabilityCanSend === null ? "null" : snapshot.actionabilityCanSend.toString()} canSubmit=${snapshot.sessionCanSubmit.toString()} disableSend=${snapshot.disableSendForFailedFirstSend.toString()} entries=${snapshot.visibleEntryCount.toString()}`
 					),
 				]
 			: ["hook not installed (window.__acepePlanningSnapshot missing) — open an agent panel and retry"];

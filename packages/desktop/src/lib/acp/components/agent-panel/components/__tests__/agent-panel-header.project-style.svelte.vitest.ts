@@ -16,7 +16,7 @@ afterEach(() => {
 });
 
 describe("AgentPanelHeader project-header style", () => {
-	it("keeps fullscreen and close behaviors while using embedded controls", async () => {
+	it("moves fullscreen into the overflow menu while keeping close in the header", async () => {
 		const onClose = vi.fn();
 		const onToggleFullscreen = vi.fn();
 
@@ -56,19 +56,17 @@ describe("AgentPanelHeader project-header style", () => {
 			debugPanelState: null,
 		});
 
-		const fullscreen = container.querySelector(`button[title='${"Fullscreen"}']`);
 		const close = container.querySelector(`button[title='${"Close"}']`);
 		const header = container.firstElementChild;
 
-		expect(fullscreen).not.toBeNull();
+		expect(container.querySelector(`button[title='${"Fullscreen"}']`)).toBeNull();
 		expect(close).not.toBeNull();
 		expect(header?.className).toContain("bg-card/50");
-		expect(fullscreen?.className).toContain("size-5");
 		expect(close?.className).toContain("size-5");
 
-		if (fullscreen) {
-			await fireEvent.click(fullscreen);
-		}
+		await fireEvent.click(screen.getByLabelText("More actions"));
+		await fireEvent.click(screen.getByRole("menuitem", { name: "Fullscreen" }));
+
 		if (close) {
 			await fireEvent.click(close);
 		}
@@ -255,7 +253,10 @@ describe("AgentPanelHeader project-header style", () => {
 		expect(screen.getByLabelText("Retrying thread")).not.toBeNull();
 	});
 
-	it("keeps the overflow menu limited to copy and export actions", async () => {
+	it("shows panel tools in the overflow menu", async () => {
+		const onToggleBrowser = vi.fn();
+		const onToggleTerminal = vi.fn();
+
 		render(AgentPanelHeader, {
 			pendingProjectSelection: false,
 			isConnecting: false,
@@ -274,6 +275,8 @@ describe("AgentPanelHeader project-header style", () => {
 			hideProjectBadge: true,
 			onClose: vi.fn(),
 			onToggleFullscreen: vi.fn(),
+			onToggleBrowser,
+			onToggleTerminal,
 			onCopyContent: undefined,
 			onOpenInFinder: vi.fn(),
 			onExportRawStreaming: undefined,
@@ -295,7 +298,15 @@ describe("AgentPanelHeader project-header style", () => {
 		await fireEvent.click(screen.getByLabelText("More actions"));
 
 		expect(screen.getByRole("menuitem", { name: "Copy session ID" })).not.toBeNull();
+		expect(screen.getByRole("menuitemcheckbox", { name: "Toggle browser" })).not.toBeNull();
+		expect(screen.getByRole("menuitemcheckbox", { name: "Toggle terminal" })).not.toBeNull();
 		expect(screen.queryByRole("menuitem", { name: "Open Thread in Finder" })).toBeNull();
 		expect(screen.queryByRole("menuitem", { name: "Delete session" })).toBeNull();
+
+		await fireEvent.click(screen.getByRole("menuitemcheckbox", { name: "Toggle browser" }));
+		await fireEvent.click(screen.getByRole("menuitemcheckbox", { name: "Toggle terminal" }));
+
+		expect(onToggleBrowser).toHaveBeenCalledTimes(1);
+		expect(onToggleTerminal).toHaveBeenCalledTimes(1);
 	});
 });

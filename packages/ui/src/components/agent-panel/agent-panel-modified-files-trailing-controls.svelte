@@ -1,7 +1,6 @@
 <script lang="ts">
 	import { Button } from "../button/index.js";
 	import { CaretDown, FileCode } from "phosphor-svelte";
-	import { Colors } from "../../lib/colors.js";
 
 	import type { AgentPanelModifiedFilesTrailingModel } from "./types.js";
 
@@ -35,21 +34,24 @@
 		<Button
 			variant="headerAction"
 			size="headerAction"
-			class="text-xs"
 			disabled={reviewDisabled}
 			onclick={() => model.onReview?.()}
 		>
-			<FileCode size={11} weight="fill" class="shrink-0" style="color: {Colors.purple}" />
+			<FileCode size={11} weight="fill" class="shrink-0" />
 			{model.reviewLabel}
 		</Button>
 	</div>
 {/if}
 
 {#if showToggle}
-	<button
-		type="button"
-		class="flex items-center gap-1 rounded px-1.5 py-0.5 text-muted-foreground tabular-nums text-[0.6875rem] transition-colors hover:bg-accent/50 hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring cursor-pointer"
-		onclick={(event: MouseEvent) => { event.stopPropagation(); onToggle?.(); }}
+	<Button
+		variant="headerAction"
+		size="headerAction"
+		class="tabular-nums"
+		onclick={(event: MouseEvent) => {
+			event.stopPropagation();
+			onToggle?.();
+		}}
 	>
 		{model.reviewedCount}/{model.totalCount}
 		<CaretDown
@@ -57,5 +59,5 @@
 			weight="bold"
 			class="shrink-0 transition-transform {isExpanded ? 'rotate-180' : ''}"
 		/>
-	</button>
+	</Button>
 {/if}

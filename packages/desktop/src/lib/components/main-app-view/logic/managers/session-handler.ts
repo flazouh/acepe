@@ -102,13 +102,26 @@ export class SessionHandler {
 	 * @param sessionId - The session ID
 	 * @returns ResultAsync indicating success or error
 	 */
+	private shouldResumePersistedSession(sessionId: string): boolean {
+		if (this.sessionStore.read.getSessionCanSend(sessionId) === true) {
+			return false;
+		}
+
+		const lifecycleStatus = this.sessionStore.read.getSessionLifecycleStatus(sessionId);
+		return (
+			lifecycleStatus === "activating" ||
+			lifecycleStatus === "reconnecting" ||
+			lifecycleStatus === "ready"
+		);
+	}
+
 	private preloadAndOpenSession(sessionId: string): ResultAsync<void, MainAppViewError> {
 		// Open panel IMMEDIATELY for zero-latency response
 		const wasAlreadyOpen = this.panelStore.isSessionOpen(sessionId);
 		const openedPanel = this.panelStore.openSession(sessionId, DEFAULT_PANEL_WIDTH);
 		const panelId = openedPanel?.id ?? this.panelStore.getPanelBySessionId(sessionId)?.id;
 
-		if (panelId && !wasAlreadyOpen) {
+		if (panelId && (!wasAlreadyOpen || this.shouldResumePersistedSession(sessionId))) {
 			openPersistedSession({
 				panelId,
 				sessionId,

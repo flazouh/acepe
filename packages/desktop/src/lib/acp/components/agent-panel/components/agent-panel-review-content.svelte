@@ -517,7 +517,7 @@ $effect(() => {
 
 <div class="flex h-full w-full flex-col overflow-hidden">
 	<div class="relative flex min-h-0 flex-1 flex-col overflow-hidden">
-		<div class="min-h-0 flex-1 overflow-auto pb-10">
+		<div class="min-h-0 flex-1 overflow-auto {hideBottomWidget ? 'h-0' : 'pb-10'}">
 			{@render reviewBody()}
 		</div>
 		{@render reviewFooter()}

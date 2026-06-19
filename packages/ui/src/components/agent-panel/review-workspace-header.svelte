@@ -1,6 +1,8 @@
 <script lang="ts">
 	import { ArrowRight, CaretLeft } from "phosphor-svelte";
 
+	import { Button } from "../button/index.js";
+
 	interface Props {
 		label: string;
 		closeButtonLabel?: string;
@@ -54,15 +56,15 @@
 >
 	{#if showCloseButton}
 		<div class="flex min-w-0 items-center gap-2">
-			<button
-				type="button"
-				class="inline-flex h-5 items-center gap-1 rounded px-1 text-xs font-medium text-muted-foreground transition-colors hover:bg-accent/50 hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+			<Button
+				variant="headerAction"
+				size="headerAction"
 				onclick={() => onClose?.()}
 				data-testid="review-workspace-close"
 			>
 				<CaretLeft size={9} weight="bold" class="shrink-0" />
 				{closeButtonLabel}
-			</button>
+			</Button>
 		</div>
 	{/if}
 
@@ -75,9 +77,9 @@
 				{filePositionLabel}
 			</span>
 
-			<button
-				type="button"
-				class="inline-flex h-6 w-6 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent/50 hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-35"
+			<Button
+				variant="headerAction"
+				size="headerAction"
 				disabled={!hasPreviousFile}
 				onclick={() => onPreviousFile?.()}
 				aria-label="Previous file"
@@ -85,18 +87,18 @@
 				data-testid="review-workspace-previous-file"
 			>
 				<CaretLeft size={12} weight="bold" />
-			</button>
+			</Button>
 
-			<button
-				type="button"
-				class="inline-flex h-6 items-center gap-1 rounded bg-primary px-2.5 text-xs font-medium text-primary-foreground transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-35"
+			<Button
+				variant="headerAction"
+				size="headerAction"
 				disabled={!hasNextFile}
 				onclick={() => onNextFile?.()}
 				data-testid="review-workspace-next-file"
 			>
 				{primaryButtonLabel}
 				<ArrowRight size={12} weight="bold" />
-			</button>
+			</Button>
 		</div>
 	{/if}
 </div>

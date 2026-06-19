@@ -4,14 +4,14 @@ import {
 	AgentPanelModifiedFilesHeader as SharedAgentPanelModifiedFilesHeader,
 	AgentPanelModifiedFilesTrailingControls as SharedAgentPanelModifiedFilesTrailingControls,
 	DiffPill,
-	Selector,
 	type AgentPanelModifiedFilesTrailingModel,
 } from "@acepe/ui";
 import { Button } from "@acepe/ui/button";
+import * as ButtonGroup from "@acepe/ui/button-group";
 import * as Dialog from "@acepe/ui/dialog";
 import * as DropdownMenu from "@acepe/ui/dropdown-menu";
 import { Textarea } from "$lib/components/ui/textarea/index.js";
-import { GitMerge, GitPullRequest, LinkSimple, SlidersHorizontal } from "phosphor-svelte";
+import { GitMerge, GitPullRequest, DotsThreeVertical, CaretDown } from "phosphor-svelte";
 import { toast } from "svelte-sonner";
 import { tauriClient } from "$lib/utils/tauri-client.js";
 import { Spinner } from "$lib/components/ui/spinner/index.js";
@@ -339,20 +339,21 @@ function handlePromptResetClick(): void {
 		{/snippet}
 
 		{#snippet leadingContent()}
-				<!-- PR action group: open PR + generation settings + link existing -->
+				<!-- PR action group: open PR + options menu -->
 				{#if onCreatePr}
 					<div
 						class="flex shrink-0 items-center gap-1"
+						onclick={(e: MouseEvent) => e.stopPropagation()}
+						role="none"
 					>
-						<div
-							class="flex shrink-0 items-center rounded-lg border border-border/50 bg-muted text-[0.6875rem]"
-							onclick={(e: MouseEvent) => e.stopPropagation()}
-							role="none"
+						<ButtonGroup.Root
+							class="shrink-0 text-[0.6875rem]"
+							aria-label="Open pull request"
 						>
 							<Button
 								variant="headerAction"
 								size="headerAction"
-								class="group/open-pr rounded-none border-0 bg-transparent shadow-none"
+								class="group/open-pr"
 								disabled={createPrLoading}
 								onclick={handleCreatePrClick}
 							>
@@ -361,30 +362,35 @@ function handlePromptResetClick(): void {
 										<Spinner class="shrink-0" size={12} />
 										{createPrLabel ? createPrLabel : "Open PR"}
 									{:else}
-										<GitPullRequest size={11} weight="bold" class="shrink-0 text-muted-foreground transition-colors group-hover/open-pr:text-success" />
+										<GitPullRequest
+											size={11}
+											weight="bold"
+											class="shrink-0 text-muted-foreground transition-colors group-hover/open-pr:text-success"
+										/>
 										{"Open PR"}
 									{/if}
 								</span>
 								<DiffPill insertions={diffTotals.totalAdded} deletions={diffTotals.totalRemoved} variant="plain" />
 							</Button>
 
-							<!-- Generation settings: agent / model / prompt -->
-							<Selector
-								align="start"
-								sideOffset={6}
-								disabled={createPrLoading}
-								variant="ghost"
-								triggerSize="square"
-								showChevron={false}
-								tooltipLabel="PR generation settings"
-								triggerAriaLabel="PR generation settings"
-								class="self-stretch border-l border-border/50"
-							>
-								{#snippet renderButton()}
-									<SlidersHorizontal size={11} weight="bold" class="shrink-0" />
-								{/snippet}
-
-								<DropdownMenu.Sub>
+							<DropdownMenu.Root>
+								<DropdownMenu.Trigger>
+									{#snippet child({ props })}
+										<Button
+											{...props}
+											variant="headerAction"
+											size="headerAction"
+											class="!px-1"
+											disabled={createPrLoading}
+											aria-label="PR options"
+											title="PR options"
+										>
+											<DotsThreeVertical size={11} weight="bold" class="shrink-0" />
+										</Button>
+									{/snippet}
+								</DropdownMenu.Trigger>
+								<DropdownMenu.Content align="start" sideOffset={6} class="min-w-[200px]">
+									<DropdownMenu.Sub>
 										<DropdownMenu.SubTrigger disabled={availableAgents.length === 0} class="cursor-pointer">
 											<span class="flex-1">Agent</span>
 											<span class="max-w-[100px] truncate text-[10px] text-muted-foreground">
@@ -449,21 +455,22 @@ function handlePromptResetClick(): void {
 										<span class="flex-1">Prompt</span>
 										<span class="text-[10px] text-muted-foreground">{promptEditorState.statusLabel}</span>
 									</DropdownMenu.Item>
-							</Selector>
 
-							<!-- Link existing PR: dedicated picker -->
-							{#if sessionId && projectPath}
-								<PrLinkFooterButton
-									{sessionId}
-									{projectPath}
-									{linkedPr}
-									prLinkMode={prLinkMode ?? "automatic"}
-									{projectPrLinkReferences}
-									{project}
-									variant="header-icon"
-								/>
-							{/if}
-						</div>
+									{#if sessionId && projectPath}
+										<DropdownMenu.Separator />
+										<PrLinkFooterButton
+											{sessionId}
+											{projectPath}
+											{linkedPr}
+											prLinkMode={prLinkMode ?? "automatic"}
+											{projectPrLinkReferences}
+											{project}
+											variant="menu"
+										/>
+									{/if}
+								</DropdownMenu.Content>
+							</DropdownMenu.Root>
+						</ButtonGroup.Root>
 
 						<SharedAgentPanelModifiedFilesTrailingControls
 							model={trailingControlsModel}
@@ -484,53 +491,43 @@ function handlePromptResetClick(): void {
 				<!-- Merge split button: shown after PR is created -->
 				{#if !onCreatePr && onMerge}
 					{#if prState === "MERGED"}
-						<div
-							class="flex items-center gap-1 rounded-lg border border-border/50 bg-muted px-2 py-0.5 text-[0.6875rem] font-medium text-muted-foreground opacity-60 shrink-0"
-							onclick={(e: MouseEvent) => e.stopPropagation()}
-							role="none"
-						>
-							<PrStateIcon state="MERGED" size={11} />
-							{"Merged"}
+						<div onclick={(e: MouseEvent) => e.stopPropagation()} role="none">
+							<Button variant="headerAction" size="headerAction" disabled>
+								<PrStateIcon state="MERGED" size={11} />
+								{"Merged"}
+							</Button>
 						</div>
 					{:else}
-						<div
-							class="flex items-center rounded-lg border border-border/50 bg-muted overflow-hidden text-[0.6875rem] shrink-0"
-							onclick={(e: MouseEvent) => e.stopPropagation()}
-							role="none"
-						>
-							<button
-								type="button"
+						<ButtonGroup.Root class="shrink-0 text-[0.6875rem]" aria-label="Merge pull request">
+							<Button
+								variant="headerAction"
+								size="headerAction"
 								disabled={merging}
 								onclick={() => onMerge(mergeStrategyStore.strategy)}
-								class="px-2 py-0.5 text-[0.6875rem] font-medium text-foreground/80 hover:text-foreground hover:bg-muted/80 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
 							>
 								{#if merging}
-									<span class="flex items-center gap-1">
-										<Spinner size={11} />
-										{"Merge"}
-									</span>
+									<Spinner size={11} />
+									{"Merge"}
 								{:else}
-									<span class="flex items-center gap-1">
-										<GitMerge size={11} weight="fill" />
-										{"Merge"}
-									</span>
+									<GitMerge size={11} weight="fill" />
+									{"Merge"}
 								{/if}
-							</button>
-							<Selector
-								align="start"
-								disabled={merging}
-								variant="ghost"
-								triggerSize="square"
-								showChevron={false}
-								triggerAriaLabel="Merge options"
-								class="self-stretch border-l border-border/50"
-							>
-								{#snippet renderButton()}
-									<svg class="size-2.5 text-muted-foreground" viewBox="0 0 10 10" fill="none">
-										<path d="M2 3.5L5 6.5L8 3.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-									</svg>
-								{/snippet}
-
+							</Button>
+							<DropdownMenu.Root>
+								<DropdownMenu.Trigger>
+									{#snippet child({ props })}
+										<Button
+											{...props}
+											variant="headerAction"
+											size="headerAction"
+											disabled={merging}
+											aria-label="Merge options"
+										>
+											<CaretDown size={11} weight="bold" class="shrink-0" />
+										</Button>
+									{/snippet}
+								</DropdownMenu.Trigger>
+								<DropdownMenu.Content align="start" class="min-w-[160px]">
 								<DropdownMenu.Item
 									onSelect={() => { void mergeStrategyStore.set("squash"); onMerge("squash"); }}
 									class="cursor-pointer text-[0.6875rem]"
@@ -549,8 +546,9 @@ function handlePromptResetClick(): void {
 								>
 									{"Rebase merge"}
 								</DropdownMenu.Item>
-							</Selector>
-						</div>
+								</DropdownMenu.Content>
+							</DropdownMenu.Root>
+						</ButtonGroup.Root>
 					{/if}
 				{/if}
 

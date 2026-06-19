@@ -3,6 +3,7 @@
 	import { GitPullRequest } from "phosphor-svelte";
 
 	import { Button } from "../button/index.js";
+	import * as ButtonGroup from "../button-group/index.js";
 	import { DiffPill } from "../diff-pill/index.js";
 
 	interface Props {
@@ -28,19 +29,19 @@
 	}: Props = $props();
 </script>
 
-<div
-	class="flex items-center rounded-lg border border-border/50 bg-muted overflow-hidden text-[0.6875rem] shrink-0"
-	onclick={(e) => e.stopPropagation()}
-	role="none"
+<ButtonGroup.Root
+	class="shrink-0 text-[0.6875rem]"
+	aria-label="Create pull request"
+	onclick={(event: MouseEvent) => event.stopPropagation()}
 >
 	<Button
 		variant="headerAction"
 		size="headerAction"
-		class="group/open-pr rounded-none border-0 bg-transparent shadow-none"
+		class="group/open-pr"
 		disabled={loading || disabled}
 		{onclick}
 	>
-		<span class="flex items-center gap-1 shrink-0">
+		<span class="flex shrink-0 items-center gap-1">
 			<GitPullRequest
 				size={11}
 				weight="bold"
@@ -53,4 +54,4 @@
 	{#if settingsTrigger}
 		{@render settingsTrigger()}
 	{/if}
-</div>
+</ButtonGroup.Root>

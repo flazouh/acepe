@@ -1,5 +1,5 @@
 <script lang="ts">
-import { onDestroy, untrack } from "svelte";
+import { onDestroy, tick, untrack } from "svelte";
 import { useTheme } from "$lib/components/theme/context.svelte.js";
 import { fileContentCache } from "../../services/file-content-cache.svelte.js";
 import {
@@ -70,11 +70,37 @@ function handleHunkAction(
 	}
 }
 
-function renderDiff(container: HTMLDivElement): void {
+function waitForContainerLayout(container: HTMLElement): Promise<void> {
+	if (container.clientWidth > 0 && container.clientHeight > 0) {
+		return Promise.resolve();
+	}
+
+	return new Promise((resolve) => {
+		const observer = new ResizeObserver((entries) => {
+			const entry = entries[0];
+			if (!entry) {
+				return;
+			}
+
+			const width = entry.contentRect.width;
+			const height = entry.contentRect.height;
+			if (width > 0 && height > 0) {
+				observer.disconnect();
+				resolve();
+			}
+		});
+		observer.observe(container);
+	});
+}
+
+async function renderDiff(container: HTMLDivElement): Promise<void> {
 	if (!diffData) return;
 
+	await tick();
+	await waitForContainerLayout(container);
+
 	diffViewState.themeType = effectiveTheme;
-	diffViewState
+	await diffViewState
 		.initializeDiff(
 			diffData,
 			container,
@@ -129,7 +155,7 @@ $effect(() => {
 
 	if (container && currentFile && diff) {
 		untrack(() => {
-			renderDiff(container);
+			void renderDiff(container);
 		});
 	}
 });
@@ -160,6 +186,6 @@ onDestroy(() => {
 
 <svelte:window onkeydown={handleKeydown} />
 
-<div class="flex-1 overflow-auto min-h-0">
+<div class="flex h-full min-h-0 flex-1 flex-col overflow-auto">
 	<div bind:this={containerRef} class="min-h-[200px]"></div>
 </div>

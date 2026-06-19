@@ -65,6 +65,7 @@ export const appObservationSchema = z.object({
 		present: z.boolean(),
 		text: z.string(),
 		sendEnabled: z.boolean(),
+		sessionCanSubmit: z.boolean().nullable(),
 	}),
 	consoleErrors: z.array(z.string()),
 	refs: z.array(
@@ -228,6 +229,9 @@ export const planningDebugSnapshotSchema = z.object({
 	hasMessages: z.boolean(),
 	visibleEntryCount: z.number(),
 	showPlanningIndicator: z.boolean(),
+	actionabilityCanSend: z.boolean().nullable(),
+	sessionCanSubmit: z.boolean(),
+	disableSendForFailedFirstSend: z.boolean(),
 	capturedAtMs: z.number(),
 });
 

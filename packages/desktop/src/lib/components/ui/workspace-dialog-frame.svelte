@@ -30,7 +30,7 @@ let {
 
 const bodyClass = $derived(
 	contentOverflow === "hidden"
-		? "min-h-0 flex-1 overflow-hidden p-1"
+		? "flex min-h-0 flex-1 flex-col overflow-hidden p-1"
 		: "min-h-0 flex-1 overflow-y-auto p-1"
 );
 </script>

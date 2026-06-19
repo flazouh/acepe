@@ -8,7 +8,15 @@
 	import { cn } from "../../lib/utils.js";
 	import { Button, type ButtonVariant } from "../button/index.js";
 
-	type SelectorTriggerSize = "default" | "icon" | "square" | "attach" | "minimal" | "pill" | "footer";
+	type SelectorTriggerSize =
+		| "default"
+		| "icon"
+		| "square"
+		| "attach"
+		| "minimal"
+		| "pill"
+		| "footer"
+		| "headerAction";
 
 	interface Props {
 		/**
@@ -144,12 +152,16 @@
 				return "gap-1.5 h-7 flex-1 min-w-0 max-w-full rounded-md border-0 px-2.5 text-[11px]";
 			case "footer":
 				return "h-5 min-w-0 shrink-0 gap-1 rounded-md border-0 !px-1 has-[>svg]:!px-1 text-[0.6875rem] font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground [&_svg]:size-3";
+			case "headerAction":
+				return "";
 			default:
 				return "gap-1.5 h-7 flex-1 min-w-0 max-w-full rounded-none border-0 px-2 text-[11px]";
 			}
 		})();
 		return cn(sizeClass, triggerClassOverride);
 	});
+
+	const buttonSize = $derived(triggerSize === "headerAction" ? "headerAction" : "sm");
 
 	const contentClass = $derived(
 		cn(
@@ -173,7 +185,7 @@
 					{...props}
 					bind:ref={triggerRef}
 					{variant}
-					size="sm"
+					size={buttonSize}
 					class={triggerClass}
 					{disabled}
 					aria-label={triggerAriaLabel}
@@ -205,7 +217,7 @@
 									{...props}
 									bind:ref={triggerRef}
 									{variant}
-									size="sm"
+									size={buttonSize}
 									class={triggerClass}
 									{disabled}
 									aria-label={triggerAriaLabel ?? tooltipLabel}

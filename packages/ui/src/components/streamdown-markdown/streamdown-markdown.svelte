@@ -37,6 +37,7 @@
 		createAcepeStreamdownConfig,
 		type AcepeStreamdownConfig,
 	} from "./streamdown-config.js";
+	import { createTokenRevealAnimationResetKey } from "./token-reveal-animation-reset-key.js";
 
 	interface StreamdownActionOptions {
 		readonly markdown: string;
@@ -417,15 +418,6 @@
 		};
 	}
 
-	function createTokenRevealAnimationResetKey(
-		tokenRevealTiming: StreamdownTokenRevealTiming | undefined
-	): string | undefined {
-		if (tokenRevealTiming === undefined || tokenRevealTiming.mode === "instant") {
-			return undefined;
-		}
-
-		return `tail:${String(tokenRevealTiming.revealCount)}`;
-	}
 
 	function createTokenRevealStyle(
 		tokenRevealTiming: StreamdownTokenRevealTiming | undefined

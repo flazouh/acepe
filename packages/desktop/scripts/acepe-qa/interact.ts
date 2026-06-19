@@ -401,8 +401,14 @@ export function sendComposer(
   ce.dispatchEvent(new InputEvent("beforeinput", { bubbles: true, cancelable: true, inputType: "insertText", data: text }));
   document.execCommand("insertText", false, text);
   ce.dispatchEvent(new InputEvent("input", { bubbles: true, inputType: "insertText", data: text }));
+  // Find the composer's circular submit button. It is the rounded-full
+  // bg-foreground button (the rectangular toolbar "Update" button is rounded-md
+  // and must not match). Walk ancestors to the document root with no hop cap:
+  // the editor and its own send button are deeply nested through a common
+  // ancestor, and the nearest ancestor that contains a circular submit button
+  // belongs to the editor's own panel, so multi-panel layouts pick the right one.
   let send = null, node = ce;
-  for (let i = 0; i < 8 && node; i++) { node = node.parentElement; if (!node) break; const b = node.querySelector("button.bg-foreground.text-background"); if (b) { send = b; break; } }
+  while (node) { node = node.parentElement; if (!node) break; const b = node.querySelector("button.rounded-full.bg-foreground.text-background, button[aria-label='Send message']"); if (b) { send = b; break; } }
   const sendReady = Boolean(send) && !send.disabled;
   let sent = false;
   if (submit && sendReady) { send.click(); sent = true; }

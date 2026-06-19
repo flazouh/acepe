@@ -43,6 +43,8 @@ describe("SessionHandler", () => {
 				getSessionDetail: mock(() => null),
 				getSession: mock((id: string) => mockSessionsArray.find((s: { id: string }) => s.id === id)),
 				getSessionById: mock((id: string) => mockSessionsArray.find((s: { id: string }) => s.id === id)),
+				getSessionCanSend: mock(() => true),
+				getSessionLifecycleStatus: mock(() => "ready"),
 			},
 			loading: {
 				loadHistoricalSession: mock((sessionId: string) => {
@@ -190,7 +192,7 @@ describe("SessionHandler", () => {
 			});
 		});
 
-		it("should only focus when the session is already open", async () => {
+		it("should only focus when the session is already open and sendable", async () => {
 			const existingPanel = {
 				id: "existing-panel",
 				kind: "agent" as const,
@@ -206,6 +208,8 @@ describe("SessionHandler", () => {
 			mockPanelStore.isSessionOpen = mock(() => true);
 			mockPanelStore.openSession = mock(() => existingPanel);
 			mockPanelStore.getPanelBySessionId = mock(() => existingPanel);
+			mockSessionStore.read.getSessionCanSend = mock(() => true);
+			mockSessionStore.read.getSessionLifecycleStatus = mock(() => "ready" as const);
 			mockSessionsArray.push({
 				id: "session-1",
 				projectPath: "/test",
@@ -217,6 +221,43 @@ describe("SessionHandler", () => {
 			expect(result.isOk()).toBe(true);
 			expect(mockPanelStore.openSession).toHaveBeenCalledWith("session-1", DEFAULT_PANEL_WIDTH);
 			expect(openPersistedSessionMock).not.toHaveBeenCalled();
+		});
+
+		it("should resume open when the session panel is already open but not sendable", async () => {
+			const existingPanel = {
+				id: "existing-panel",
+				kind: "agent" as const,
+				ownerPanelId: null,
+				sessionId: "session-1",
+				width: 450,
+				pendingProjectSelection: false,
+				selectedAgentId: "agent-1",
+				projectPath: null,
+				agentId: null,
+				sessionTitle: null,
+			};
+			mockPanelStore.isSessionOpen = mock(() => true);
+			mockPanelStore.openSession = mock(() => existingPanel);
+			mockPanelStore.getPanelBySessionId = mock(() => existingPanel);
+			mockSessionStore.read.getSessionCanSend = mock(() => false);
+			mockSessionStore.read.getSessionLifecycleStatus = mock(() => "activating" as const);
+			mockSessionsArray.push({
+				id: "session-1",
+				projectPath: "/test",
+				agentId: "claude-code",
+			} as any);
+
+			const result = await handler.selectSession("session-1");
+
+			expect(result.isOk()).toBe(true);
+			expect(openPersistedSessionMock).toHaveBeenCalledWith({
+				panelId: "existing-panel",
+				sessionId: "session-1",
+				sessionStore: mockSessionStore,
+				sessionOpenHydrator: mockSessionOpenHydrator,
+				timeoutMs: 30_000,
+				source: "session-handler",
+			});
 		});
 
 		it("should not directly connect during selectSession", async () => {

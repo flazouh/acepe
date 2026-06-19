@@ -8,6 +8,8 @@ import {
 	type AgentToolFileSelectEvent,
 } from "@acepe/ui/agent-panel";
 import { DiffPill, setThinkingPreferences } from "@acepe/ui";
+import { Button } from "@acepe/ui/button";
+import * as ButtonGroup from "@acepe/ui/button-group";
 import { EmbeddedIconButton } from "@acepe/ui/panel-header";
 import ArrowUp from "@lucide/svelte/icons/arrow-up";
 import {
@@ -81,7 +83,6 @@ import { resolveAgentPanelProviderBrand } from "../logic/agent-panel-provider-br
 import { resolveWorktreeToggleProjectPath } from "../logic/worktree-toggle-project-path.js";
 import { buildTodoMarkdown } from "./agent-panel-pure-helpers.js";
 import type { AgentPanelProps } from "../types";
-import { AgentPanelFooter as SharedFooter } from "@acepe/ui/agent-panel";
 import WorktreeFooterButton from "../../shared/worktree-footer-button.svelte";
 import AgentPanelContent from "./agent-panel-content.svelte";
 import AgentPanelHeader from "./agent-panel-header.svelte";
@@ -650,6 +651,11 @@ const branchLookupPath = $derived(
 	(worktreeDeleted ? null : effectiveActiveWorktreePath) ?? effectiveProjectPath ?? null
 );
 const footerWorktreeStatus = $derived(worktreeController.footerWorktreeStatus);
+const showComposerContextPicker = $derived(
+	!hasSession ||
+		(showPreSessionWorktreeCard && worktreeToggleProjectPath !== null) ||
+		footerWorktreeStatus !== null
+);
 
 /** Minimal linked-session references for the modified-header PR picker. */
 const projectPrLinkReferences = $derived.by(() => {
@@ -1424,6 +1430,29 @@ async function handlePlanSidebarSendMessage(sid: string, message: string): Promi
 			onExportMarkdown={sessionId ? handleExportMarkdown : undefined}
 			onExportJson={sessionId ? handleExportJson : undefined}
 			{onAgentChange}
+			browserActive={showBrowserSidebar}
+			browserTitle="Toggle browser"
+			browserAriaLabel="Toggle browser"
+			onToggleBrowser={
+				panelId
+					? () => {
+							panelStore.toggleBrowserSidebar(panelId);
+						}
+					: undefined
+			}
+			terminalActive={isTerminalDrawerOpen}
+			terminalDisabled={effectivePathForGit === null}
+			terminalTitle={
+				effectivePathForGit !== null ? "Toggle terminal" : "No project selected"
+			}
+			terminalAriaLabel="Toggle terminal"
+			onToggleTerminal={
+				panelId && effectivePathForGit
+					? () => {
+							panelStore.toggleEmbeddedTerminalDrawer(panelId, effectivePathForGit);
+						}
+					: undefined
+			}
 		/>
 		</div>
 	{/snippet}
@@ -1612,17 +1641,37 @@ async function handlePlanSidebarSendMessage(sid: string, message: string): Promi
 					widthClass="max-w-[60%]"
 				>
 					{#key inputRenderKey}
-						{#snippet preSessionAgentPicker()}
-							<AgentSelector
-								{availableAgents}
-								currentAgentId={effectivePanelAgentId}
-								{onAgentChange}
-							/>
-							<ProjectSelector
-								selectedProject={preSessionSelectedProject}
-								recentProjects={allProjects}
-								onProjectChange={handleComposerProjectSelected}
-							/>
+						{#snippet composerContextPicker()}
+							<div class="flex h-7 items-center gap-0.5">
+								{#if !hasSession}
+									<AgentSelector
+										{availableAgents}
+										currentAgentId={effectivePanelAgentId}
+										{onAgentChange}
+									/>
+									<ProjectSelector
+										selectedProject={preSessionSelectedProject}
+										recentProjects={allProjects}
+										onProjectChange={handleComposerProjectSelected}
+									/>
+								{/if}
+								{#if showPreSessionWorktreeCard && worktreeToggleProjectPath}
+									<PreSessionWorktreeCard
+										variant="trigger"
+										menuSide="top"
+										pendingWorktreeEnabled={worktreePending}
+										onYes={handlePreSessionWorktreeYes}
+										onNo={handlePreSessionWorktreeNo}
+										onDismiss={handlePreSessionWorktreeDismiss}
+									/>
+								{:else if footerWorktreeStatus}
+									<WorktreeFooterButton
+										worktreePath={effectiveActiveWorktreePath}
+										label={footerWorktreeStatus.primaryLabel}
+										mode={footerWorktreeStatus.mode}
+									/>
+								{/if}
+							</div>
 						{/snippet}
 						<AgentInput
 							bind:this={agentInputRef}
@@ -1657,7 +1706,7 @@ async function handlePlanSidebarSendMessage(sid: string, message: string): Promi
 							{selectedAgentId}
 							{availableAgents}
 							{onAgentChange}
-							agentProjectPicker={hasSession ? undefined : preSessionAgentPicker}
+							agentProjectPicker={showComposerContextPicker ? composerContextPicker : undefined}
 							pendingProjectSelection={pendingProjectSelection && !isWaitingForSession}
 							onSessionCreated={handleSessionCreated}
 							onWillSend={prepareForNextUserReveal}
@@ -1684,60 +1733,6 @@ async function handlePlanSidebarSendMessage(sid: string, message: string): Promi
 						</AgentInput>
 					{/key}
 				</SharedAgentPanelComposerFrame>
-			{/if}
-		</div>
-	{/snippet}
-
-	{#snippet footer()}
-		<div style:display={reviewMode ? "none" : undefined}>
-			{#if
-				(viewState.kind === "conversation" || viewState.kind === "ready" || viewState.kind === "error") &&
-				worktreeToggleProjectPath &&
-				panelId
-			}
-				<SharedFooter
-					showTrailingBorder={!isFullscreen}
-					browserActive={showBrowserSidebar}
-					browserTitle="Toggle browser"
-					browserAriaLabel="Toggle browser"
-					onToggleBrowser={() => {
-						if (panelId) {
-							panelStore.toggleBrowserSidebar(panelId);
-						}
-					}}
-					terminalActive={isTerminalDrawerOpen}
-					terminalDisabled={effectivePathForGit === null}
-					terminalTitle={effectivePathForGit !== null
-						? "Toggle terminal"
-						: "No project selected"}
-					terminalAriaLabel={"Toggle terminal"}
-					onToggleTerminal={() => {
-						if (panelId && effectivePathForGit) {
-							panelStore.toggleEmbeddedTerminalDrawer(panelId, effectivePathForGit);
-						}
-					}}
-				>
-					{#snippet left()}
-						<div class="flex items-center gap-0.5 px-1.5">
-							{#if showPreSessionWorktreeCard && worktreeToggleProjectPath}
-								<PreSessionWorktreeCard
-									variant="trigger"
-									menuSide="top"
-									pendingWorktreeEnabled={worktreePending}
-									onYes={handlePreSessionWorktreeYes}
-									onNo={handlePreSessionWorktreeNo}
-									onDismiss={handlePreSessionWorktreeDismiss}
-								/>
-							{:else if footerWorktreeStatus}
-								<WorktreeFooterButton
-									worktreePath={effectiveActiveWorktreePath}
-									label={footerWorktreeStatus.primaryLabel}
-									mode={footerWorktreeStatus.mode}
-								/>
-							{/if}
-						</div>
-					{/snippet}
-				</SharedFooter>
 			{/if}
 		</div>
 	{/snippet}
@@ -1817,103 +1812,90 @@ async function handlePlanSidebarSendMessage(sid: string, message: string): Promi
 	{#snippet topRight()}
 		{@const controls = reviewDialog.controls}
 		{#if controls && controls.fileTotal > 1}
-			<div
-				class="flex h-5 shrink-0 items-center rounded-lg border border-border bg-muted/60 text-[11px]"
-			>
-				<button
-					type="button"
-					class="inline-flex h-full items-center justify-center px-1.5 text-muted-foreground transition-colors hover:text-foreground disabled:pointer-events-none disabled:opacity-40"
+			<ButtonGroup.Root class="shrink-0" aria-label="File navigation">
+				<Button
+					variant="headerAction"
+					size="headerAction"
 					disabled={!controls.hasPrevPendingFile}
 					onclick={controls.onPrevFile}
 					aria-label="Previous file"
 					title="Previous file"
 				>
 					<CaretLeft size={10} weight="bold" />
-				</button>
-				<span
-					class="inline-flex h-full items-center justify-center px-1 font-medium tabular-nums text-foreground/80"
+				</Button>
+				<Button
+					variant="headerAction"
+					size="headerAction"
+					class="tabular-nums pointer-events-none"
+					disabled
 					aria-label="File {controls.fileCurrent} of {controls.fileTotal}"
 				>
 					{controls.fileCurrent}/{controls.fileTotal}
-				</span>
-				<button
-					type="button"
-					class="inline-flex h-full items-center justify-center px-1.5 text-muted-foreground transition-colors hover:text-foreground disabled:pointer-events-none disabled:opacity-40"
+				</Button>
+				<Button
+					variant="headerAction"
+					size="headerAction"
 					disabled={!controls.hasNextPendingFile}
 					onclick={controls.onNextFile}
 					aria-label="Next file"
 					title="Next file"
 				>
 					<CaretRight size={10} weight="bold" />
-				</button>
-			</div>
+				</Button>
+			</ButtonGroup.Root>
 		{/if}
 
 		{#if controls}
-			<div
-				class="flex h-5 shrink-0 items-center rounded-lg border border-border bg-muted/60 text-[11px]"
-			>
-				<button
-					type="button"
-					class="inline-flex h-full items-center gap-1 px-1.5 font-medium text-foreground transition-colors hover:bg-muted disabled:pointer-events-none disabled:opacity-40"
+			<ButtonGroup.Root class="shrink-0" aria-label="Review actions">
+				<Button
+					variant="headerAction"
+					size="headerAction"
 					disabled={!controls.hasPendingHunks}
 					onclick={controls.onRejectFile}
 					title="Reject file"
 				>
 					<XCircle size={11} weight="fill" style="color: {Colors.red};" />
 					Undo
-				</button>
-				<div class="h-3 w-px bg-border/70"></div>
-				<button
-					type="button"
-					class="inline-flex h-full items-center gap-1 px-1.5 font-medium text-foreground transition-colors hover:bg-muted disabled:pointer-events-none disabled:opacity-40"
+				</Button>
+				<Button
+					variant="headerAction"
+					size="headerAction"
 					disabled={!controls.hasPendingHunks}
 					onclick={controls.onAcceptFile}
 					title="Keep file"
 				>
 					<CheckCircle size={11} weight="fill" class="text-success" />
 					Keep
-				</button>
-			</div>
+				</Button>
+			</ButtonGroup.Root>
 		{/if}
 
 		{#if !createdPr}
-			<button
-				type="button"
-				class="group/open-pr flex h-5 shrink-0 items-center justify-between gap-1 rounded-lg border border-border bg-muted/60 px-1.5 text-[11px] transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-45"
+			<Button
+				variant="headerAction"
+				size="headerAction"
+				class="shrink-0"
 				disabled={prCard.createRunning || !effectivePathForGit}
 				onclick={() => void handleCreatePr()}
 			>
-				<span class="flex min-w-0 items-center gap-1">
-					<GitPullRequest
-						size={11}
-						weight="bold"
-						class="shrink-0 text-muted-foreground transition-colors group-hover/open-pr:text-success"
-					/>
-					<span class="font-medium text-foreground leading-none">
-						{prCard.createLabel ?? "Open PR"}
-					</span>
-				</span>
+				<GitPullRequest size={11} weight="bold" class="shrink-0" />
+				{prCard.createLabel ?? "Open PR"}
 				<DiffPill
 					insertions={reviewDialog.diffStats.insertions}
 					deletions={reviewDialog.diffStats.deletions}
 					variant="plain"
 				/>
-			</button>
+			</Button>
 		{:else}
-			<div
-				class="flex h-5 shrink-0 items-center justify-between gap-1 rounded-lg border border-border bg-muted/60 px-1.5 text-[11px]"
-			>
-				<span class="flex min-w-0 items-center gap-1">
-					<GitPullRequest size={11} weight="bold" class="shrink-0 text-success" />
-					<span class="font-medium text-foreground leading-none tabular-nums">#{createdPr}</span>
-				</span>
+			<Button variant="headerAction" size="headerAction" class="shrink-0" disabled>
+				<GitPullRequest size={11} weight="bold" class="shrink-0 text-success" />
+				#{createdPr}
 				<DiffPill
 					insertions={reviewDialog.diffStats.insertions}
 					deletions={reviewDialog.diffStats.deletions}
 					variant="plain"
 				/>
-			</div>
+			</Button>
 		{/if}
 	{/snippet}
 

@@ -6,8 +6,8 @@ import {
 import { Selector } from "@acepe/ui";
 import * as DropdownMenu from "@acepe/ui/dropdown-menu";
 import { IconDotsVertical } from "@tabler/icons-svelte";
-import { CloseAction, EmbeddedIconButton, FullscreenAction } from "@acepe/ui/panel-header";
-import { DownloadSimple } from "phosphor-svelte";
+import { CloseAction, EmbeddedIconButton } from "@acepe/ui/panel-header";
+import { ArrowsIn, ArrowsOut, Browser, DownloadSimple, Terminal } from "phosphor-svelte";
 import CopyButton from "../../messages/copy-button.svelte";
 import * as Tooltip from "$lib/components/ui/tooltip/index.js";
 import AttachmentChip from "../../shared/attachment-chip.svelte";
@@ -49,8 +49,21 @@ let {
 	onScrollToTop,
 	firstMessageAttachments = [],
 	debugPanelState,
+	browserActive = false,
+	browserTitle = "Toggle browser",
+	browserAriaLabel,
+	onToggleBrowser,
+	terminalActive = false,
+	terminalDisabled = false,
+	terminalTitle = "Toggle terminal",
+	terminalAriaLabel,
+	onToggleTerminal,
 }: AgentPanelHeaderProps = $props();
 
+const hasPanelToolsMenu = $derived(
+	onToggleFullscreen != null || onToggleBrowser != null || onToggleTerminal != null
+);
+const fullscreenMenuLabel = $derived(isFullscreen ? "Exit fullscreen" : "Fullscreen");
 const hasExportSubmenu = $derived(onExportMarkdown != null || onExportJson != null);
 const hasAttachments = $derived((firstMessageAttachments?.length ?? 0) > 0);
 const preparingThreadLabel = $derived(getPreparingThreadLabel(agentName));
@@ -74,7 +87,7 @@ const titleRichText = $derived.by(() => {
 		projectIconSrc={hideProjectBadge ? undefined : projectIconSrc}
 		sequenceId={hideProjectBadge ? undefined : sequenceId}
 		{onClose}
-		{onToggleFullscreen}
+		onToggleFullscreen={undefined}
 		{onScrollToTop}
 	>
 		{#snippet statusIndicator()}
@@ -146,6 +159,50 @@ const titleRichText = $derived.by(() => {
 						{"Open Streaming Log"}
 					</DropdownMenu.Item>
 				{/if}
+				{#if hasPanelToolsMenu}
+					<DropdownMenu.Separator />
+					{#if onToggleFullscreen}
+						<DropdownMenu.Item onSelect={() => onToggleFullscreen?.()} class="cursor-pointer">
+							<span class="mr-2 inline-flex h-3.5 w-3.5 items-center justify-center">
+								{#if isFullscreen}
+									<ArrowsIn class="h-3.5 w-3.5" weight="fill" />
+								{:else}
+									<ArrowsOut class="h-3.5 w-3.5" weight="fill" />
+								{/if}
+							</span>
+							{fullscreenMenuLabel}
+						</DropdownMenu.Item>
+					{/if}
+					{#if onToggleBrowser}
+						<DropdownMenu.CheckboxItem
+							checked={browserActive}
+							onCheckedChange={() => onToggleBrowser?.()}
+							class="cursor-pointer"
+						>
+							<span class="mr-2 inline-flex h-3.5 w-3.5 items-center justify-center">
+								<Browser class="h-3.5 w-3.5" weight={browserActive ? "fill" : "regular"} />
+							</span>
+							{browserAriaLabel ?? browserTitle}
+						</DropdownMenu.CheckboxItem>
+					{/if}
+					{#if onToggleTerminal}
+						<DropdownMenu.CheckboxItem
+							checked={terminalActive}
+							disabled={terminalDisabled}
+							onCheckedChange={() => {
+								if (!terminalDisabled) {
+									onToggleTerminal?.();
+								}
+							}}
+							class="cursor-pointer"
+						>
+							<span class="mr-2 inline-flex h-3.5 w-3.5 items-center justify-center">
+								<Terminal class="h-3.5 w-3.5" weight="fill" />
+							</span>
+							{terminalAriaLabel ?? terminalTitle}
+						</DropdownMenu.CheckboxItem>
+					{/if}
+				{/if}
 			</Selector>
 			{#if isDev && debugPanelState}
 				<Tooltip.Root>
@@ -175,12 +232,6 @@ const titleRichText = $derived.by(() => {
 					</Tooltip.Content>
 				</Tooltip.Root>
 			{/if}
-			<FullscreenAction
-				{isFullscreen}
-				onToggle={onToggleFullscreen}
-				titleEnter={"Fullscreen"}
-				titleExit={"Exit Fullscreen"}
-			/>
 			<CloseAction {onClose} title={"Close"} />
 			</div>
 		{/snippet}

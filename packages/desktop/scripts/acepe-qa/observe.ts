@@ -19,7 +19,17 @@ const OBSERVE_SCRIPT = `
   const active = document.activeElement;
   const titleNodes = Array.from(document.querySelectorAll(".agent-panel-header-title"));
   const composer = document.querySelector("[contenteditable='true'], textarea, input[type='text']");
-  const sendButton = document.querySelector("[data-testid='send-button'], button[aria-label*='Send'], button[type='submit']");
+  const sendButton = (() => {
+    if (!composer) return null;
+    let node = composer;
+    while (node) {
+      node = node.parentElement;
+      if (!node) break;
+      const match = node.querySelector("button.rounded-full.bg-foreground.text-background, button[aria-label='Send message']");
+      if (match) return match;
+    }
+    return document.querySelector("[data-testid='send-button'], button[aria-label*='Send'], button[type='submit']");
+  })();
   const errors = Array.from(document.querySelectorAll("[role='alert'], [data-testid*='error'], .error"))
     .map((node) => text(node))
     .filter((value) => value.length > 0)
@@ -32,6 +42,10 @@ const OBSERVE_SCRIPT = `
       name: node.getAttribute("aria-label") || text(node).slice(0, 80),
       selector: node.id ? "#" + node.id : node.tagName.toLowerCase(),
     }));
+  const planningSnapshot = typeof window.__acepePlanningSnapshot === "function"
+    ? window.__acepePlanningSnapshot(null)
+    : [];
+  const readySessions = planningSnapshot.filter((snapshot) => snapshot.sessionCanSubmit === true);
   return {
     url: window.location.href || null,
     title: document.title || null,
@@ -43,6 +57,7 @@ const OBSERVE_SCRIPT = `
       present: !!composer,
       text: composer ? text(composer) : "",
       sendEnabled: sendButton ? !sendButton.disabled : false,
+      sessionCanSubmit: readySessions.length > 0 ? true : planningSnapshot.some((snapshot) => snapshot.sessionId !== null) ? false : null,
     },
     consoleErrors: Array.isArray(window.__ACEPE_QA_CONSOLE_ERRORS__) ? window.__ACEPE_QA_CONSOLE_ERRORS__.slice(-8) : [],
     refs: buttons,

@@ -12,7 +12,7 @@ import PrStateIcon from "$lib/acp/components/pr-state-icon.svelte";
 import { listPullRequests, getRepoContext } from "$lib/acp/services/github-service.js";
 import { getSessionStore } from "$lib/acp/store/session-store.svelte.js";
 import { Input } from "$lib/components/ui/input/index.js";
-import { GitHubBadge, ProjectLetterBadge } from "@acepe/ui";
+import { GitHubBadge, ProjectLetterBadge, Button } from "@acepe/ui";
 import { Tooltip } from "bits-ui";
 import { LinkSimple } from "phosphor-svelte";
 import { toast } from "svelte-sonner";
@@ -40,6 +40,10 @@ interface Props {
 	 * - "menu": DropdownMenu.Sub trigger inside a parent DropdownMenu
 	 * - "header-icon": icon-only button inside a button-group (e.g. modified-files header) */
 	variant?: "footer" | "menu" | "header-icon";
+	/** Extra classes for the header-icon trigger button (e.g. button-group segment styling). */
+	triggerClass?: string;
+	/** When true, render a bare segment button for shadcn ButtonGroup (no tooltip wrapper). */
+	inButtonGroup?: boolean;
 }
 
 let {
@@ -50,6 +54,8 @@ let {
 	projectPrLinkReferences = [],
 	project = null,
 	variant = "footer",
+	triggerClass = "",
+	inButtonGroup = false,
 }: Props = $props();
 
 const sessionStore = getSessionStore();
@@ -197,9 +203,30 @@ async function handleTransferPrLink(otherSessionId: string, prNumber: number): P
 }
 </script>
 
-<div bind:this={anchorRef} class={variant === "footer" ? "flex items-center" : "contents"}>
-	{#if variant === "menu"}
-		<DropdownMenu.Sub onOpenChange={handleSubmenuOpenChange}>
+{#snippet headerIconGroupButton()}
+	<Button
+		bind:ref={headerIconRef}
+		variant="outline"
+		size="headerAction"
+		type="button"
+		class={triggerClass}
+		title={headerPrLinkLabel}
+		onclick={handleTogglePicker}
+		aria-label={headerPrLinkLabel}
+	>
+		{#if linkedPr}
+			<PrStateIcon state={linkedPr.state} size={11} />
+			#{linkedPr.prNumber}
+		{:else}
+			<LinkSimple size={11} weight="bold" class="shrink-0" />
+		{/if}
+	</Button>
+{/snippet}
+
+{#if variant === "header-icon" && inButtonGroup}
+	{@render headerIconGroupButton()}
+{:else if variant === "menu"}
+	<DropdownMenu.Sub onOpenChange={handleSubmenuOpenChange}>
 			<DropdownMenu.SubTrigger class="cursor-pointer">
 				<span class="flex-1">Link existing</span>
 				{#if linkedPr}
@@ -304,81 +331,82 @@ async function handleTransferPrLink(otherSessionId: string, prNumber: number): P
 				</div>
 			</DropdownMenu.SubContent>
 		</DropdownMenu.Sub>
-	{:else if variant === "header-icon"}
-		<Tooltip.Provider delayDuration={400}>
-			<Tooltip.Root>
-				<Tooltip.Trigger>
-					{#snippet child({ props })}
-						<button
-							{...props}
-							bind:this={headerIconRef}
-							type="button"
-							onclick={handleTogglePicker}
-							class="self-stretch flex items-center px-1.5 border-l border-border/50 text-muted-foreground hover:text-foreground hover:bg-muted/80 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:ring-inset {pickerOpen
-								? 'bg-muted/80 text-foreground'
-								: ''}"
-							aria-label={headerPrLinkLabel}
-						>
-							{#if linkedPr}
-								<span class="inline-flex items-center gap-1 text-[0.6875rem] font-medium tabular-nums shrink-0">
+{:else}
+	<div bind:this={anchorRef} class={variant === "footer" ? "flex items-center" : "contents"}>
+		{#if variant === "header-icon"}
+			<Tooltip.Provider delayDuration={400}>
+				<Tooltip.Root>
+					<Tooltip.Trigger>
+						{#snippet child({ props })}
+							<Button
+								{...props}
+								bind:ref={headerIconRef}
+								variant="headerAction"
+								size="headerAction"
+								type="button"
+								class={triggerClass}
+								onclick={handleTogglePicker}
+								aria-label={headerPrLinkLabel}
+							>
+								{#if linkedPr}
 									<PrStateIcon state={linkedPr.state} size={11} />
 									#{linkedPr.prNumber}
-								</span>
-							{:else}
-								<LinkSimple size={11} weight="bold" class="shrink-0" />
-							{/if}
-						</button>
-					{/snippet}
-				</Tooltip.Trigger>
-				<Tooltip.Portal>
-					<Tooltip.Content
-						class="z-[var(--overlay-z)] rounded-md bg-popover px-2 py-1 text-[11px] text-popover-foreground shadow-md max-w-[320px] truncate"
-						sideOffset={4}
-						side="top"
-					>
-						{headerPrLinkLabel}
-					</Tooltip.Content>
-				</Tooltip.Portal>
-			</Tooltip.Root>
-		</Tooltip.Provider>
-	{:else}
-		<Tooltip.Provider delayDuration={400}>
-			<Tooltip.Root>
-				<Tooltip.Trigger>
-					{#snippet child({ props })}
-						<button
-							{...props}
-							type="button"
-							onclick={handleTogglePicker}
-							class="h-7 inline-flex items-center gap-1.5 px-3 text-muted-foreground transition-colors hover:bg-accent/50 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:ring-inset {pickerOpen
-								? 'bg-accent text-foreground'
-								: ''}"
-							aria-label={tooltipLabel}
+								{:else}
+									<LinkSimple size={11} weight="bold" class="shrink-0" />
+								{/if}
+							</Button>
+						{/snippet}
+					</Tooltip.Trigger>
+					<Tooltip.Portal>
+						<Tooltip.Content
+							class="z-[var(--overlay-z)] rounded-md bg-popover px-2 py-1 text-[11px] text-popover-foreground shadow-md max-w-[320px] truncate"
+							sideOffset={4}
+							side="top"
 						>
-							{#if linkedPr}
-								<PrStateIcon state={linkedPr.state} size={12} />
-								<span class="text-[0.6875rem] font-medium tabular-nums text-foreground shrink-0">
-									#{linkedPr.prNumber}
-								</span>
-							{:else}
-								<span class="text-[0.6875rem] font-medium">Link PR</span>
-							{/if}
-						</button>
-					{/snippet}
-				</Tooltip.Trigger>
-				<Tooltip.Portal>
-					<Tooltip.Content
-						class="z-[var(--overlay-z)] rounded-md bg-popover px-3 py-1.5 text-xs text-popover-foreground shadow-md max-w-[320px] truncate"
-						sideOffset={4}
-						side="top"
-					>
-						{tooltipLabel}
-					</Tooltip.Content>
-				</Tooltip.Portal>
-			</Tooltip.Root>
-		</Tooltip.Provider>
-	{/if}
-</div>
+							{headerPrLinkLabel}
+						</Tooltip.Content>
+					</Tooltip.Portal>
+				</Tooltip.Root>
+			</Tooltip.Provider>
+		{:else}
+			<Tooltip.Provider delayDuration={400}>
+				<Tooltip.Root>
+					<Tooltip.Trigger>
+						{#snippet child({ props })}
+							<button
+								{...props}
+								type="button"
+								onclick={handleTogglePicker}
+								class="h-7 inline-flex items-center gap-1.5 px-3 text-muted-foreground transition-colors hover:bg-accent/50 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:ring-inset {pickerOpen
+									? 'bg-accent text-foreground'
+									: ''}"
+								aria-label={tooltipLabel}
+							>
+								{#if linkedPr}
+									<PrStateIcon state={linkedPr.state} size={12} />
+									<span class="text-[0.6875rem] font-medium tabular-nums text-foreground shrink-0">
+										#{linkedPr.prNumber}
+									</span>
+								{:else}
+									<span class="text-[0.6875rem] font-medium">Link PR</span>
+								{/if}
+							</button>
+						{/snippet}
+					</Tooltip.Trigger>
+					<Tooltip.Portal>
+						<Tooltip.Content
+							class="z-[var(--overlay-z)] rounded-md bg-popover px-3 py-1.5 text-xs text-popover-foreground shadow-md max-w-[320px] truncate"
+							sideOffset={4}
+							side="top"
+						>
+							{tooltipLabel}
+						</Tooltip.Content>
+					</Tooltip.Portal>
+				</Tooltip.Root>
+			</Tooltip.Provider>
+		{/if}
+	</div>
+{/if}
 
 {#if variant === "footer" || variant === "header-icon"}
 	<Popover.Root bind:open={pickerOpen}>

@@ -38,8 +38,8 @@
 	const showEmptyState = $derived(files.length === 0 || !content);
 	const rootClass = $derived(
 		compact
-			? "flex h-full min-h-0 w-full min-w-0 flex-col gap-1 overflow-hidden"
-			: "flex h-full min-h-0 w-full min-w-0 flex-col gap-2 overflow-hidden"
+			? "flex h-full min-h-0 flex-1 w-full min-w-0 flex-col gap-1 overflow-hidden"
+			: "flex h-full min-h-0 flex-1 w-full min-w-0 flex-col gap-2 overflow-hidden"
 	);
 	const bodyClass = $derived(
 		compact
@@ -130,7 +130,7 @@
 				{:else if content}
 					<div class={codeCardClass} data-testid="review-workspace-code-card">
 						<div
-							class="flex h-full min-h-0 flex-1 overflow-hidden"
+							class="flex h-0 min-h-0 flex-1 flex-col overflow-hidden"
 							data-testid="review-workspace-code-scroll-shell"
 						>
 							{@render content()}

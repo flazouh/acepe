@@ -19,7 +19,7 @@ export const buttonVariants = tv({
 			header:
 				"border border-border/50 bg-background text-foreground shadow-none hover:bg-accent/40 hover:text-foreground",
 			headerAction:
-				"border border-border/50 bg-muted text-foreground/80 shadow-none hover:bg-muted/80 hover:text-foreground transition-colors",
+				"border border-border/50 bg-secondary text-secondary-foreground shadow-none hover:bg-secondary/80 transition-colors",
 			/** High-contrast header CTA: foreground fill, background text. */
 			headerProminent:
 				"border-0 bg-foreground text-background shadow-none hover:bg-foreground/90 hover:text-background transition-colors",

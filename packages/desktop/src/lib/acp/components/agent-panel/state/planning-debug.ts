@@ -33,6 +33,9 @@ export interface PlanningDebugSnapshot {
 	readonly hasMessages: boolean;
 	readonly visibleEntryCount: number;
 	readonly showPlanningIndicator: boolean;
+	readonly actionabilityCanSend: boolean | null;
+	readonly sessionCanSubmit: boolean;
+	readonly disableSendForFailedFirstSend: boolean;
 	readonly capturedAtMs: number;
 }
 
@@ -72,4 +75,9 @@ export function registerPlanningDebugSource(key: object, thunk: SnapshotThunk): 
 /** Drop a controller's thunk (call on teardown to keep the registry bounded). */
 export function unregisterPlanningDebugSource(key: object): void {
 	sources.delete(key);
+}
+
+/** Test-only: count of registered planning-debug sources (controller lifecycle seam). */
+export function planningDebugSourceCountForTest(): number {
+	return sources.size;
 }

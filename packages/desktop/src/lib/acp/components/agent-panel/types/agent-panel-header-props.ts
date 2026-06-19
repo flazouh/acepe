@@ -76,6 +76,15 @@ export interface AgentPanelHeaderProps {
 	readonly onExportJson?: () => Promise<void>;
 	readonly onAgentChange?: (agentId: string) => void;
 	readonly onScrollToTop?: () => void;
+	readonly browserActive?: boolean;
+	readonly browserTitle?: string;
+	readonly browserAriaLabel?: string;
+	readonly onToggleBrowser?: () => void;
+	readonly terminalActive?: boolean;
+	readonly terminalDisabled?: boolean;
+	readonly terminalTitle?: string;
+	readonly terminalAriaLabel?: string;
+	readonly onToggleTerminal?: () => void;
 	/**
 	 * Attachment chips for the first user message of this session. Shown inside
 	 * the header's hover expansion. Extracted via `extractAttachmentsFromChunks`.

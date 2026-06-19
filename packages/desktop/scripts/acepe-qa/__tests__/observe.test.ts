@@ -38,6 +38,7 @@ describe("acepe-qa observe", () => {
 							present: true,
 							text: "hello",
 							sendEnabled: true,
+							sessionCanSubmit: null,
 						},
 						consoleErrors: [],
 						refs: [
@@ -66,6 +67,7 @@ describe("acepe-qa observe", () => {
 			present: true,
 			text: "hello",
 			sendEnabled: true,
+			sessionCanSubmit: null,
 		});
 		expect(result._unsafeUnwrap().refs).toEqual([
 			{

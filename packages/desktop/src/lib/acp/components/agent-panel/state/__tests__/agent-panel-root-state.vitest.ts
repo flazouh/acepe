@@ -3,6 +3,7 @@ import { PanelConnectionState } from "../../../../types/panel-connection-state.j
 import {
 	AgentPanelRootState,
 	type AgentPanelConnectionController,
+	type AgentPanelRootStateDeps,
 	type AgentPanelRootStateStores,
 } from "../agent-panel-root-state.svelte.js";
 import { AgentPanelLayoutController } from "../agent-panel-layout-controller.svelte.js";

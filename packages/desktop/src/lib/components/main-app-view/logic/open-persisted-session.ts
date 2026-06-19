@@ -51,6 +51,13 @@ function delay(ms: number): Promise<void> {
 	});
 }
 
+function isHydratedSessionSendable(
+	sessionStore: SessionOpenStore,
+	canonicalSessionId: string
+): boolean {
+	return sessionStore.read.getSessionCanSend(canonicalSessionId) === true;
+}
+
 async function refreshHydratedSessionUntilReady(input: HydratedReconnectOptions): Promise<void> {
 	const { source, panelId, requestedSessionId, canonicalSessionId, sessionStore } = input;
 	const deadlineMs = Date.now() + HYDRATED_RECONNECT_REFRESH_TIMEOUT_MS;
@@ -74,7 +81,7 @@ async function refreshHydratedSessionUntilReady(input: HydratedReconnectOptions)
 				() => undefined
 			);
 
-		if (sessionStore.read.getSessionLifecycleStatus(canonicalSessionId) === "ready") {
+		if (isHydratedSessionSendable(sessionStore, canonicalSessionId)) {
 			return;
 		}
 	}

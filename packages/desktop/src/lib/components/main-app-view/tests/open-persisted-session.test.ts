@@ -71,7 +71,8 @@ describe("openPersistedSession", () => {
 				getSessionCold: mock(() => null),
 				getSessionIdentity: mock(() => undefined),
 				getSessionMetadata: mock(() => undefined),
-				getSessionLifecycleStatus: mock(() => "ready"),
+				getSessionLifecycleStatus: mock(() => "ready" as const),
+				getSessionCanSend: mock(() => true),
 			},
 			loading: {
 				setSessionLoading: mock(() => {}),
@@ -376,6 +377,31 @@ describe("openPersistedSession", () => {
 		expect(sessionStore.connection.connectSession).toHaveBeenCalledWith("session-1", {
 			openToken: "open-token-1",
 		});
+	});
+
+	it("keeps refreshing after lifecycle is ready until canonical canSend becomes true", async () => {
+		let canSend = false;
+		sessionStore.read.getSessionCanSend = mock(() => canSend);
+		sessionStore.read.getSessionLifecycleStatus = mock(() => "ready" as const);
+		sessionStore.refreshCanonicalSessionState = mock(() => {
+			canSend = true;
+			return okAsync(undefined);
+		});
+
+		openPersistedSession({
+			panelId: "panel-1",
+			sessionId: "session-1",
+			sessionStore,
+			sessionOpenHydrator,
+			getSessionOpenResult: getSessionOpenResultMock,
+			timeoutMs: 10_000,
+			source: "initialization-manager",
+		});
+
+		await new Promise((resolve) => setTimeout(resolve, 1_100));
+
+		expect(sessionStore.refreshCanonicalSessionState).toHaveBeenCalled();
+		expect(sessionStore.read.getSessionCanSend).toHaveBeenCalled();
 	});
 
 	it("swallows reconnect failures after hydration", async () => {

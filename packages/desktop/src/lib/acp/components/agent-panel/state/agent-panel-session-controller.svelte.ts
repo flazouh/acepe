@@ -85,6 +85,10 @@ export class AgentPanelSessionController {
 			hasMessages: this.hasMessages,
 			visibleEntryCount: this.knownVisibleEntryCount,
 			showPlanningIndicator: this.showPlanningIndicator,
+			actionabilityCanSend:
+				source.kind === "canonical" ? source.lifecycle.actionability.canSend : null,
+			sessionCanSubmit: this.sessionCanSubmit,
+			disableSendForFailedFirstSend: this.disableSendForFailedFirstSend,
 			capturedAtMs: Date.now(),
 		};
 	}
