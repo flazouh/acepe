@@ -1,21 +1,21 @@
 pub mod anchor_ledger;
-pub mod buffer_emission_tracker;
-pub mod viewport_ledger;
 pub mod bridge;
+pub mod buffer_emission_tracker;
 pub mod envelope;
 pub mod envelope_router;
 pub mod frontier;
 pub mod graph;
+pub mod live_envelope_builder;
 pub mod protocol;
-pub mod session_state_field;
 pub mod reducer;
 pub mod revision;
-pub mod live_envelope_builder;
 pub mod runtime_registry;
 pub mod selectors;
-pub mod viewport_buffer_producer;
+pub mod session_state_field;
 pub mod snapshot_builder;
 pub mod timing;
+pub mod viewport_buffer_producer;
+pub mod viewport_ledger;
 
 pub use bridge::{
     build_delta_envelope, build_snapshot_envelope, DeltaEnvelopeParts, DeltaSessionProjectionFields,
@@ -31,7 +31,6 @@ pub use protocol::{
     SessionStateSnapshotMaterialization, ViewportBufferDelta, ViewportBufferDiagnostic,
     ViewportBufferPush,
 };
-pub use session_state_field::{turn_terminal_change_fields, SessionStateField};
 pub use reducer::{SessionStateGraphMutation, SessionStateReducer};
 pub use revision::SessionGraphRevision;
 pub use runtime_registry::{
@@ -43,5 +42,6 @@ pub use selectors::{
     SessionGraphActivityKind, SessionGraphCapabilities, SessionGraphLifecycle,
     SessionRecommendedAction, SessionRecoveryPhase,
 };
-pub use timing::wall_clock_ms;
+pub use session_state_field::{turn_terminal_change_fields, SessionStateField};
 pub use snapshot_builder::build_graph_from_open_found;
+pub use timing::wall_clock_ms;

@@ -1,7 +1,6 @@
 use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
 
-use serde::Deserialize;
 use serde_json::Value;
 
 /// Server names discovered from on-disk MCP configuration (project + user).
@@ -56,12 +55,6 @@ fn parse_mcp_server_names(value: &Value) -> Vec<String> {
     servers.keys().cloned().collect()
 }
 
-#[derive(Debug, Deserialize)]
-struct McpServersFile {
-    #[serde(rename = "mcpServers")]
-    mcp_servers: Option<serde_json::Map<String, Value>>,
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -79,7 +72,8 @@ mod tests {
         )
         .expect("write mcp.json");
 
-        let names = load_mcp_server_names_from_candidates(&project_mcp_config_candidates(temp.path()));
+        let names =
+            load_mcp_server_names_from_candidates(&project_mcp_config_candidates(temp.path()));
         assert_eq!(names, vec!["github".to_string(), "linear".to_string()]);
     }
 
@@ -97,6 +91,9 @@ mod tests {
     #[test]
     fn returns_empty_when_no_project_config_exists() {
         let temp = tempdir().expect("temp dir");
-        assert!(load_mcp_server_names_from_candidates(&project_mcp_config_candidates(temp.path())).is_empty());
+        assert!(
+            load_mcp_server_names_from_candidates(&project_mcp_config_candidates(temp.path()))
+                .is_empty()
+        );
     }
 }

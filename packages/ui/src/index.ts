@@ -395,6 +395,7 @@ export {
 	Tooltip,
 	TooltipContent,
 	TooltipPortal,
+	TooltipProvider,
 	TooltipTrigger,
 } from "./components/tooltip/index.js";
 export { UserMessageContainer } from "./components/user-message-container/index.js";

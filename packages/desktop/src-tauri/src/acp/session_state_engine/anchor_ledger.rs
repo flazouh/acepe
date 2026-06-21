@@ -99,7 +99,10 @@ mod tests {
         let _ = ledger.record_chunk_timestamp(session_id);
         std::thread::sleep(std::time::Duration::from_millis(5));
         let before = ledger.record_chunk_timestamp(session_id);
-        assert!(before > 0, "anchor should have measurable elapsed time before remove");
+        assert!(
+            before > 0,
+            "anchor should have measurable elapsed time before remove"
+        );
         ledger.remove_session(session_id);
         let after = ledger.record_chunk_timestamp(session_id);
         assert!(

@@ -6,9 +6,7 @@ use crate::acp::session_state_engine::runtime_registry::SessionGraphRuntimeRegis
 use crate::acp::session_state_engine::selectors::{
     SessionGraphCapabilities, SessionGraphLifecycle,
 };
-use crate::acp::session_thread_snapshot::{
-    ProviderOwnedSessionSnapshot, SessionThreadSnapshot,
-};
+use crate::acp::session_thread_snapshot::{ProviderOwnedSessionSnapshot, SessionThreadSnapshot};
 use crate::acp::session_update::{
     AvailableCommand, ToolArguments, ToolCallData, ToolCallStatus, ToolKind, TurnErrorKind,
     TurnErrorSource,
@@ -633,8 +631,7 @@ async fn provider_thread_snapshot_open_prefers_completed_local_journal_transcrip
 }
 
 #[tokio::test]
-async fn provider_thread_snapshot_open_keeps_provider_tool_rows_with_local_journal_transcript()
-{
+async fn provider_thread_snapshot_open_keeps_provider_tool_rows_with_local_journal_transcript() {
     let db = setup_db().await;
     let hub = make_hub();
     let session_id = "provider-local-journal-with-skill-tool-open";
@@ -1167,8 +1164,7 @@ async fn provider_thread_snapshot_open_merges_replayed_operation_evidence() {
 }
 
 #[tokio::test]
-async fn provider_thread_snapshot_open_downgrades_stale_active_operations_when_journal_is_ahead(
-) {
+async fn provider_thread_snapshot_open_downgrades_stale_active_operations_when_journal_is_ahead() {
     let db = setup_db().await;
     let hub = make_hub();
     let session_id = "provider-stale-active-operation-open";
@@ -1215,8 +1211,7 @@ async fn provider_thread_snapshot_open_downgrades_stale_active_operations_when_j
 }
 
 #[tokio::test]
-async fn provider_thread_snapshot_open_closes_historical_active_operation_without_journal_gap()
-{
+async fn provider_thread_snapshot_open_closes_historical_active_operation_without_journal_gap() {
     let db = setup_db().await;
     let hub = make_hub();
     let session_id = "provider-historical-active-operation-open";
@@ -1255,8 +1250,7 @@ async fn provider_thread_snapshot_open_closes_historical_active_operation_withou
 }
 
 #[tokio::test]
-async fn provider_thread_snapshot_open_does_not_reopen_tool_interrupted_by_later_user_message()
-{
+async fn provider_thread_snapshot_open_does_not_reopen_tool_interrupted_by_later_user_message() {
     let db = setup_db().await;
     let hub = make_hub();
     let session_id = "provider-user-boundary-tool-open";

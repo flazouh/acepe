@@ -22,9 +22,7 @@ pub async fn resolve_composer_mcp_catalog(
     let mut available_commands = resolve_available_commands(app, provider, cwd, session_id).await;
     let had_session_commands = !available_commands.is_empty();
 
-    let live_server_statuses = provider
-        .get_live_mcp_server_statuses(app, session_id)
-        .await;
+    let live_server_statuses = provider.get_live_mcp_server_statuses(app, session_id).await;
     let had_live_statuses = !live_server_statuses.is_empty();
 
     available_commands.retain(|command| is_mcp_slash_command(&command.name));

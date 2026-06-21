@@ -5,7 +5,12 @@ import {
 	getConfigOptionIconKind,
 	getConfigOptionIconWeight,
 	getConfigOptionNextBooleanValue,
+	getConfigOptionTooltipBody,
+	getConfigOptionTooltipDescription,
 	getConfigOptionViewState,
+	getReasoningEffortBarPercent,
+	getReasoningEffortBarSegments,
+	getReasoningEffortNextValue,
 	isBooleanConfigOption,
 	isConfigOptionBooleanEnabled,
 	shouldEmitConfigOptionValueChange,
@@ -135,6 +140,123 @@ describe("agent input config option selector state", () => {
 		expect(state.iconWeight).toBe("fill");
 		expect(state.currentValueLabel).toBe("On");
 		expect(state.buttonTitle).toBe("Fast mode: On");
+		expect(state.tooltipTitle).toBe("Fast mode");
+		expect(state.tooltipDescription).toContain("Uses Codex's fast service tier");
+		expect(state.tooltipDescription).not.toContain("Currently:");
+		expect(state.reasoningBarSegmentCount).toBe(0);
+		expect(state.reasoningBarFilledSegmentCount).toBe(0);
+		expect(state.reasoningBarPercent).toBe(0);
+	});
+
+	test("uses provider description when available and builds reasoning tooltip copy", () => {
+		expect(
+			getConfigOptionTooltipBody(
+				makeOption({
+					presentation: "compactReasoning",
+					description: "Provider-specific reasoning help.",
+				})
+			)
+		).toBe("Provider-specific reasoning help.");
+
+		expect(
+			getConfigOptionTooltipDescription({
+				configOption: makeOption({
+					presentation: "compactReasoning",
+					name: "Reasoning Effort",
+					currentValue: "high",
+					options: [{ value: "high", name: "High" }],
+				}),
+				currentValueLabel: "High",
+			})
+		).toContain("Click to step up reasoning depth");
+		expect(
+			getConfigOptionTooltipDescription({
+				configOption: makeOption({
+					presentation: "compactReasoning",
+					name: "Reasoning Effort",
+					currentValue: "high",
+					options: [{ value: "high", name: "High" }],
+				}),
+				currentValueLabel: "High",
+			})
+		).not.toContain("Currently:");
+	});
+
+	test("maps reasoning effort to segmented bar fill", () => {
+		const reasoningOption = makeOption({
+			presentation: "compactReasoning",
+			currentValue: "medium",
+			options: [
+				{ value: "xhigh", name: "Extra High" },
+				{ value: "high", name: "High" },
+				{ value: "medium", name: "Medium" },
+				{ value: "low", name: "Low" },
+				{ value: "minimal", name: "Minimal" },
+			],
+		});
+
+		expect(
+			getReasoningEffortBarSegments({
+				configOption: reasoningOption,
+				currentValue: null,
+			})
+		).toEqual({ segmentCount: 5, filledSegmentCount: 0 });
+		expect(
+			getReasoningEffortBarSegments({
+				configOption: reasoningOption,
+				currentValue: "minimal",
+			})
+		).toEqual({ segmentCount: 5, filledSegmentCount: 1 });
+		expect(
+			getReasoningEffortBarSegments({
+				configOption: reasoningOption,
+				currentValue: "medium",
+			})
+		).toEqual({ segmentCount: 5, filledSegmentCount: 3 });
+		expect(
+			getReasoningEffortBarSegments({
+				configOption: reasoningOption,
+				currentValue: "xhigh",
+			})
+		).toEqual({ segmentCount: 5, filledSegmentCount: 5 });
+		expect(
+			getReasoningEffortBarPercent({
+				configOption: reasoningOption,
+				currentValue: "medium",
+			})
+		).toBe(60);
+
+		const state = getConfigOptionViewState(reasoningOption);
+		expect(state.reasoningBarSegmentCount).toBe(5);
+		expect(state.reasoningBarFilledSegmentCount).toBe(3);
+		expect(state.reasoningBarPercent).toBe(60);
+	});
+
+	test("cycles reasoning effort forward and wraps at maximum", () => {
+		const reasoningOption = makeOption({
+			presentation: "compactReasoning",
+			currentValue: "medium",
+			options: [
+				{ value: "xhigh", name: "Extra High" },
+				{ value: "high", name: "High" },
+				{ value: "medium", name: "Medium" },
+				{ value: "low", name: "Low" },
+				{ value: "minimal", name: "Minimal" },
+			],
+		});
+
+		expect(
+			getReasoningEffortNextValue({
+				configOption: reasoningOption,
+				currentValue: "medium",
+			})
+		).toBe("high");
+		expect(
+			getReasoningEffortNextValue({
+				configOption: reasoningOption,
+				currentValue: "xhigh",
+			})
+		).toBe("minimal");
 	});
 
 	test("computes toggle and value-change decisions", () => {

@@ -104,7 +104,6 @@ describe("getAgentModelDefaultsEntries", () => {
 			description: "",
 			icon: "copilot",
 			availability_kind: { kind: "installable", installed: true },
-			autonomous_supported_mode_ids: [],
 			default_selection_rank: 30,
 			providerMetadata: copilotProviderMetadata,
 		},
@@ -114,7 +113,6 @@ describe("getAgentModelDefaultsEntries", () => {
 			description: "",
 			icon: "cursor",
 			availability_kind: { kind: "installable", installed: true },
-			autonomous_supported_mode_ids: [],
 			default_selection_rank: 20,
 			providerMetadata: cursorProviderMetadata,
 		},
@@ -124,7 +122,6 @@ describe("getAgentModelDefaultsEntries", () => {
 			description: "",
 			icon: "claude-code",
 			availability_kind: { kind: "installable", installed: true },
-			autonomous_supported_mode_ids: [],
 			default_selection_rank: 10,
 			providerMetadata: claudeProviderMetadata,
 		},
@@ -168,7 +165,6 @@ describe("getAgentsByProviderOrder", () => {
 					description: "",
 					icon: "custom",
 					availability_kind: { kind: "installable", installed: true },
-					autonomous_supported_mode_ids: [],
 					default_selection_rank: 99,
 				},
 				{
@@ -177,7 +173,6 @@ describe("getAgentsByProviderOrder", () => {
 					description: "",
 					icon: "cursor",
 					availability_kind: { kind: "installable", installed: true },
-					autonomous_supported_mode_ids: [],
 					default_selection_rank: 20,
 					providerMetadata: {
 						providerBrand: "cursor",
@@ -198,7 +193,6 @@ describe("getAgentsByProviderOrder", () => {
 					description: "",
 					icon: "claude-code",
 					availability_kind: { kind: "installable", installed: true },
-					autonomous_supported_mode_ids: [],
 					default_selection_rank: 10,
 					providerMetadata: {
 						providerBrand: "claude-code",

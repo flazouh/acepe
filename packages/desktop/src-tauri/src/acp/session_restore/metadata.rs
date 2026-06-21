@@ -2,7 +2,9 @@ use crate::acp::session_thread_snapshot::{ProviderOwnedSessionSnapshot, SessionT
 use crate::db::repository::SessionMetadataRow;
 use crate::session_jsonl::types::StoredEntry;
 
-pub fn canonicalize_persisted_worktree_path(worktree_path: &str) -> Result<std::path::PathBuf, String> {
+pub fn canonicalize_persisted_worktree_path(
+    worktree_path: &str,
+) -> Result<std::path::PathBuf, String> {
     let canonical = std::path::Path::new(worktree_path)
         .canonicalize()
         .map_err(|e| format!("Failed to canonicalize worktree path: {}", e))?;
@@ -69,7 +71,9 @@ pub fn derive_current_mode_id_from_entries(entries: &[StoredEntry]) -> Option<St
     current_mode_id
 }
 
-pub fn apply_derived_current_mode_metadata(mut session: SessionThreadSnapshot) -> SessionThreadSnapshot {
+pub fn apply_derived_current_mode_metadata(
+    mut session: SessionThreadSnapshot,
+) -> SessionThreadSnapshot {
     if session.current_mode_id.is_none() {
         session.current_mode_id = derive_current_mode_id_from_entries(&session.entries);
     }
@@ -100,7 +104,11 @@ mod tests {
         }
     }
 
-    fn make_tool_call_entry(id: &str, kind: ToolKind, status: ToolCallStatus) -> crate::session_jsonl::types::StoredEntry {
+    fn make_tool_call_entry(
+        id: &str,
+        kind: ToolKind,
+        status: ToolCallStatus,
+    ) -> crate::session_jsonl::types::StoredEntry {
         use crate::acp::session_update::{ToolArguments, ToolCallData};
         crate::session_jsonl::types::StoredEntry::ToolCall {
             id: id.to_string(),

@@ -11,7 +11,7 @@
 
 use crate::acp::parsers::AgentType;
 use crate::acp::reconciler::providers;
-use crate::acp::reconciler::{RawClassificationInput};
+use crate::acp::reconciler::RawClassificationInput;
 use crate::acp::session_update::{ToolArguments, ToolKind};
 use crate::acp::streaming_accumulator::SessionStreamingState;
 

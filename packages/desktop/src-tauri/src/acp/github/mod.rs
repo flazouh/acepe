@@ -10,6 +10,8 @@ pub use issues::{
     is_expected_github_api_error, list_issue_comments, list_issues, parse_issue, search_issues,
     toggle_comment_reaction, toggle_issue_reaction,
 };
-pub use pull_requests::{fetch_pr_diff, gh_api_output_is_not_found, gh_api_output_summary, list_pull_requests};
+pub use pull_requests::{
+    fetch_pr_diff, gh_api_output_is_not_found, gh_api_output_summary, list_pull_requests,
+};
 pub use repo_context::{get_repo_context, parse_github_remote};
 pub use types::*;

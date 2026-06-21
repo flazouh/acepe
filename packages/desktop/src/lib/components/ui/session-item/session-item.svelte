@@ -225,7 +225,7 @@ function handleRenameKeydown(event: KeyboardEvent) {
 	}
 }
 
-const basePadding = 1;
+const basePadding = 0;
 const paddingLeft = $derived(`${basePadding + depth * 16}px`);
 
 const activePanel = $derived(panelStore?.getPanelBySessionId(session.id) ?? null);

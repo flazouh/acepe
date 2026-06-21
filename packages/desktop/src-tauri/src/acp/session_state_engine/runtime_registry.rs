@@ -4,23 +4,21 @@ use crate::acp::lifecycle::{FailureReason, LifecycleCheckpoint, LifecycleState};
 use crate::acp::projections::{ProjectionRegistry, SessionSnapshot};
 use crate::acp::session_state_engine::anchor_ledger::AnchorLedger;
 use crate::acp::session_state_engine::buffer_emission_tracker::BufferEmissionTracker;
-use crate::acp::session_state_engine::viewport_ledger::ViewportLedger;
 use crate::acp::session_state_engine::envelope_router::{
-    interaction_id_for_patch, route_live_session_state_envelope,
-    should_emit_connection_complete, tool_call_id_for_operation_patch, BuildPlan,
-    EnvelopeBuilderKind,
+    interaction_id_for_patch, route_live_session_state_envelope, should_emit_connection_complete,
+    tool_call_id_for_operation_patch, BuildPlan, EnvelopeBuilderKind,
 };
 use crate::acp::session_state_engine::frontier::SessionFrontierDecision;
 use crate::acp::session_state_engine::graph::select_active_streaming_tail;
-use crate::acp::session_state_engine::protocol::{AssistantTextDeltaPayload, ViewportBufferDelta};
-use crate::acp::session_state_engine::selectors::{
-    select_session_graph_activity, SessionGraphCapabilities, SessionGraphLifecycle,
-};
 use crate::acp::session_state_engine::live_envelope_builder::{
     build_assistant_text_delta_from_components, build_live_session_state_capabilities_envelope,
     build_live_session_state_delta_envelope, build_live_session_state_lifecycle_envelope,
     build_live_session_state_plan_envelope, build_live_session_state_telemetry_envelope,
 };
+use crate::acp::session_state_engine::selectors::{
+    select_session_graph_activity, SessionGraphCapabilities, SessionGraphLifecycle,
+};
+use crate::acp::session_state_engine::viewport_ledger::ViewportLedger;
 use crate::acp::session_state_engine::{
     build_delta_envelope, session_state_envelope_byte_budget_status, turn_terminal_change_fields,
     CapabilityPreviewState, DeltaEnvelopeParts, DeltaSessionProjectionFields, SessionGraphRevision,
@@ -28,10 +26,9 @@ use crate::acp::session_state_engine::{
 };
 use crate::acp::session_update::{sanitize_config_options_for_canonical, SessionUpdate};
 use crate::acp::transcript_projection::{
-    TranscriptDelta, TranscriptDeltaOperation, TranscriptEntry, TranscriptEntryRole,
-    TranscriptProjectionRegistry, TranscriptSegment, TranscriptSnapshot,
+    TranscriptProjectionRegistry, TranscriptSnapshot,
 };
-use crate::acp::transcript_viewport::{ScrollIntent, ViewportBufferSlice, ViewportMode};
+use crate::acp::transcript_viewport::ScrollIntent;
 use crate::acp::types::CanonicalAgentId;
 use crate::db::repository::SessionMetadataRepository;
 use sea_orm::DbConn;
@@ -277,25 +274,25 @@ impl SessionGraphRuntimeRegistry {
     ) -> Option<SessionStateEnvelope> {
         match plan.builder {
             EnvelopeBuilderKind::ConnectionCompleteCapabilities
-            | EnvelopeBuilderKind::SessionStateCapabilities => Some(
-                build_live_session_state_capabilities_envelope(
+            | EnvelopeBuilderKind::SessionStateCapabilities => {
+                Some(build_live_session_state_capabilities_envelope(
                     request.session_id,
                     self.snapshot_for_session(request.session_id).capabilities,
                     request.revision,
                     None,
                     CapabilityPreviewState::Canonical,
-                ),
-            ),
+                ))
+            }
             EnvelopeBuilderKind::TurnStateDelta => {
                 self.build_turn_state_delta_envelope(request, plan).await
             }
-            EnvelopeBuilderKind::SessionStateLifecycle => Some(
-                build_live_session_state_lifecycle_envelope(
+            EnvelopeBuilderKind::SessionStateLifecycle => {
+                Some(build_live_session_state_lifecycle_envelope(
                     request.session_id,
                     self.snapshot_for_session(request.session_id).lifecycle,
                     request.revision,
-                ),
-            ),
+                ))
+            }
             EnvelopeBuilderKind::InteractionDelta => {
                 let interaction_id = interaction_id_for_patch(request.update)?;
                 self.build_interaction_delta_envelope(request, interaction_id, plan)
@@ -322,7 +319,10 @@ impl SessionGraphRuntimeRegistry {
                 ))
             }
             EnvelopeBuilderKind::Plan => {
-                let SessionUpdate::Plan { plan: plan_data, .. } = request.update else {
+                let SessionUpdate::Plan {
+                    plan: plan_data, ..
+                } = request.update
+                else {
                     return None;
                 };
                 Some(build_live_session_state_plan_envelope(
@@ -860,18 +860,19 @@ impl SessionGraphRuntimeRegistry {
         emission_seq: u64,
     ) -> Result<SessionStateEnvelope, VisibleTranscriptWindowMiss> {
         let runtime_snapshot = self.snapshot_for_session(session_id);
-        self.emissions.build_viewport_buffer_push_envelope_for_session(
-            runtime_snapshot,
-            session_id,
-            revision,
-            projection_registry,
-            transcript_projection_registry,
-            viewport_height_px,
-            scroll_intent,
-            height_confirmation,
-            request_generation,
-            emission_seq,
-        )
+        self.emissions
+            .build_viewport_buffer_push_envelope_for_session(
+                runtime_snapshot,
+                session_id,
+                revision,
+                projection_registry,
+                transcript_projection_registry,
+                viewport_height_px,
+                scroll_intent,
+                height_confirmation,
+                request_generation,
+                emission_seq,
+            )
     }
 
     /// Stateful producer entry point for the push-a-working-set protocol. Diffs
@@ -964,7 +965,9 @@ impl SessionGraphRuntimeSnapshot {
                     LifecycleState::failed(*failure_reason, Some(error.clone())),
                 );
             }
-            SessionUpdate::SessionDetached { detached_reason, .. } => {
+            SessionUpdate::SessionDetached {
+                detached_reason, ..
+            } => {
                 self.lifecycle = SessionGraphLifecycle::from_lifecycle_state(
                     LifecycleState::detached(*detached_reason),
                 );
@@ -1069,7 +1072,6 @@ mod tests {
         build_live_session_state_delta_envelope, build_live_session_state_telemetry_envelope,
     };
 
-
     #[test]
     fn remove_session_clears_anchors_via_registry_delegation() {
         let registry = SessionGraphRuntimeRegistry::new();
@@ -1077,7 +1079,10 @@ mod tests {
         let _ = registry.record_chunk_timestamp(session_id);
         std::thread::sleep(std::time::Duration::from_millis(5));
         let before = registry.record_chunk_timestamp(session_id);
-        assert!(before > 0, "anchor should have measurable elapsed time before remove");
+        assert!(
+            before > 0,
+            "anchor should have measurable elapsed time before remove"
+        );
         registry.remove_session(session_id);
         let after = registry.record_chunk_timestamp(session_id);
         assert!(
@@ -1089,7 +1094,6 @@ mod tests {
     use crate::acp::client_session::{default_modes, default_session_model_state};
     use crate::acp::lifecycle::{LifecycleStatus, SessionSupervisor};
     use crate::acp::projections::ProjectionRegistry;
-    use std::sync::Arc;
     use crate::acp::session_state_engine::selectors::{
         SessionGraphActivity, SessionGraphActivityKind, SessionGraphCapabilities,
         SessionGraphLifecycle,
@@ -1114,6 +1118,7 @@ mod tests {
     use crate::db::repository::SessionMetadataRepository;
     use sea_orm::{Database, DbConn};
     use sea_orm_migration::MigratorTrait;
+    use std::sync::Arc;
 
     async fn setup_test_db() -> DbConn {
         let db = Database::connect("sqlite::memory:")
@@ -1167,8 +1172,7 @@ mod tests {
             session_id: Some("unknown-session".to_string()),
         };
 
-        let returned =
-            registry.apply_session_update_with_graph_seed("unknown-session", 7, &update);
+        let returned = registry.apply_session_update_with_graph_seed("unknown-session", 7, &update);
 
         assert_eq!(returned, 7);
         assert!(
@@ -1176,7 +1180,9 @@ mod tests {
             "unknown-session apply must not create lifecycle (SessionNotFound semantics at supervisor)"
         );
         assert_eq!(
-            registry.snapshot_for_session("unknown-session").graph_revision,
+            registry
+                .snapshot_for_session("unknown-session")
+                .graph_revision,
             0,
             "registry snapshot must stay default when supervisor has no checkpoint"
         );
@@ -1310,7 +1316,6 @@ mod tests {
             turn_id: Some(turn_id.to_string()),
         }
     }
-
 
     async fn build_delta_for_history_depth(
         db: &DbConn,
@@ -1525,14 +1530,8 @@ mod tests {
 
         match second_envelope.payload {
             SessionStatePayload::AssistantTextDelta { delta } => {
-                assert_eq!(
-                    delta.row_id,
-                    "acepe--entry--session-start--assistant---"
-                );
-                assert_eq!(
-                    delta.turn_id,
-                    "acepe--entry--session-start--assistant---"
-                );
+                assert_eq!(delta.row_id, "acepe--entry--session-start--assistant---");
+                assert_eq!(delta.turn_id, "acepe--entry--session-start--assistant---");
                 assert_eq!(delta.char_offset, 5);
                 assert_eq!(delta.delta_text, "");
                 assert_eq!(delta.produced_at_monotonic_ms, 6);
@@ -2389,7 +2388,9 @@ mod tests {
                     crate::acp::projections::SessionTurnState::Cancelled
                 );
                 assert!(
-                    delta.changed_fields.contains(&SessionStateField::Operations),
+                    delta
+                        .changed_fields
+                        .contains(&SessionStateField::Operations),
                     "cancelled operation patches must mark operations as changed"
                 );
             }
@@ -2455,7 +2456,9 @@ mod tests {
                 assert!(delta
                     .changed_fields
                     .contains(&SessionStateField::Interactions));
-                assert!(delta.changed_fields.contains(&SessionStateField::Operations));
+                assert!(delta
+                    .changed_fields
+                    .contains(&SessionStateField::Operations));
             }
             other => panic!("expected delta payload, got {:?}", other),
         }
@@ -2861,12 +2864,10 @@ mod tests {
         }
     }
 
-
     use super::{buffer_delta_is_identity_consistent, compute_buffer_delta};
     use crate::acp::transcript_projection::TranscriptEntryRole;
     use crate::acp::transcript_viewport::{
         TranscriptViewportRow, TranscriptViewportRowContent, TranscriptViewportRowKind,
         ViewportBufferSlice, ViewportMode,
     };
-
 }

@@ -9,14 +9,14 @@
 use std::fmt;
 
 use crate::acp::parsers::provider_capabilities::{provider_capabilities, ProviderCapabilities};
+#[cfg(test)]
+use crate::acp::parsers::{ClaudeCodeParser, CodexParser, CursorParser, OpenCodeParser};
 use crate::acp::providers::cursor::parse_sql_todo_updates;
 use crate::acp::reconciler::canonical_name_for_kind;
 use crate::acp::session_update::{
     PlanConfidence, PlanData, PlanSource, ToolArguments, ToolCallData, ToolCallUpdateData,
     ToolKind, UsageTelemetryData, UsageTelemetryTokens,
 };
-#[cfg(test)]
-use crate::acp::parsers::{ClaudeCodeParser, CodexParser, CursorParser, OpenCodeParser};
 
 /// Identifies which agent we're parsing for.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

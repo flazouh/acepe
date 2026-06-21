@@ -26,6 +26,8 @@ interface ProjectSelectorProps {
 	isLoading?: boolean;
 	ontoggle?: (isOpen: boolean) => void;
 	placeholder?: string;
+	/** When true, the trigger shows the project name next to its badge. */
+	showLabel?: boolean;
 }
 
 let {
@@ -39,6 +41,7 @@ let {
 	isLoading = false,
 	ontoggle,
 	placeholder = "Select project...",
+	showLabel = false,
 }: ProjectSelectorProps = $props();
 
 let selectorRef: { toggle: () => void } | undefined = $state();
@@ -92,7 +95,7 @@ function handleOpenChange(open: boolean) {
 	onOpenChange={handleOpenChange}
 	variant="ghost"
 	showChevron={false}
-	triggerSize="icon"
+	triggerSize={showLabel ? "setupChip" : "icon"}
 	triggerClass={isOpen ? "bg-accent text-foreground" : ""}
 	triggerAriaLabel={selectedProject?.name ?? placeholder}
 >
@@ -108,8 +111,14 @@ function handleOpenChange(open: boolean) {
 					iconSrc={selectedProject.iconPath ?? null}
 					size={14}
 				/>
+				{#if showLabel}
+					<span class="whitespace-nowrap text-xs">{selectedProject.name}</span>
+				{/if}
 			{:else}
 				<div class="size-3.5 shrink-0 rounded-md" style="background-color: {color};"></div>
+				{#if showLabel}
+					<span class="whitespace-nowrap text-xs text-muted-foreground">{placeholder}</span>
+				{/if}
 			{/if}
 		{/if}
 	{/snippet}
@@ -128,9 +137,9 @@ function handleOpenChange(open: boolean) {
 							name={project.name}
 							{color}
 							iconSrc={project.iconPath ?? null}
-							size={16}
+							size={14}
 						/>
-						<span class="flex-1 text-sm truncate line-through">{project.name}</span>
+						<span class="flex-1 text-xs font-normal truncate line-through">{project.name}</span>
 						<span class="text-[10px] text-destructive/70 shrink-0">Missing</span>
 					</div>
 				</DropdownMenu.Item>
@@ -144,9 +153,9 @@ function handleOpenChange(open: boolean) {
 							name={project.name}
 							{color}
 							iconSrc={project.iconPath ?? null}
-							size={16}
+							size={14}
 						/>
-						<span class="flex-1 text-sm truncate">{project.name}</span>
+						<span class="flex-1 text-xs font-normal truncate">{project.name}</span>
 						<SelectorCheck visible={isSelected} />
 					</div>
 				</DropdownMenu.Item>

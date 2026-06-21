@@ -389,11 +389,6 @@ pub trait AgentProvider: Send + Sync {
         &[]
     }
 
-    /// Visible UI mode IDs that support Acepe-managed Autonomous execution.
-    fn autonomous_supported_mode_ids(&self) -> &'static [&'static str] {
-        &["agent"]
-    }
-
     /// Provider-owned fallback modes used when the provider does not return any modes.
     fn default_session_modes(&self) -> SessionModes {
         agent_modes()
@@ -552,6 +547,7 @@ pub trait AgentProvider: Send + Sync {
                 provider_metadata,
                 available_modes: Vec::new(),
                 current_mode_id: None,
+                config_options: Vec::new(),
             }
         })
     }

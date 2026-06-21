@@ -27,8 +27,6 @@ pub struct AgentInfo {
     pub icon: String,
     /// Current setup state for this agent.
     pub availability_kind: AgentAvailabilityKind,
-    /// Visible UI modes that support wrapper-managed Autonomous execution.
-    pub autonomous_supported_mode_ids: Vec<String>,
     /// Provider-owned metadata for shared frontend surfaces.
     pub provider_metadata: FrontendProviderProjection,
     /// Registry-owned default selection precedence for UI surfaces.
@@ -139,11 +137,6 @@ impl AgentRegistry {
                         agent_id,
                         check_availability,
                     ),
-                    autonomous_supported_mode_ids: provider
-                        .autonomous_supported_mode_ids()
-                        .iter()
-                        .map(|mode_id| (*mode_id).to_string())
-                        .collect(),
                     provider_metadata: provider.frontend_projection(),
                     default_selection_rank: Some(index as u16),
                     supports_project_discovery: provider.supports_project_discovery(),
@@ -175,11 +168,6 @@ impl AgentRegistry {
                     provider.as_ref(),
                     check_availability,
                 ),
-                autonomous_supported_mode_ids: provider
-                    .autonomous_supported_mode_ids()
-                    .iter()
-                    .map(|mode_id| (*mode_id).to_string())
-                    .collect(),
                 provider_metadata: provider.frontend_projection(),
                 default_selection_rank: None,
                 supports_project_discovery: provider.supports_project_discovery(),
@@ -323,45 +311,6 @@ mod tests {
             copilot.availability_kind,
             AgentAvailabilityKind::Installable { .. }
         ));
-    }
-
-    #[test]
-    fn list_all_for_ui_includes_autonomous_support_metadata() {
-        let registry = AgentRegistry::new();
-        let agents = registry.list_all_for_ui();
-        let claude = agents
-            .iter()
-            .find(|agent| agent.id == "claude-code")
-            .expect("Claude agent should exist");
-        let cursor = agents
-            .iter()
-            .find(|agent| agent.id == "cursor")
-            .expect("Cursor agent should exist");
-        let opencode = agents
-            .iter()
-            .find(|agent| agent.id == "opencode")
-            .expect("OpenCode agent should exist");
-        let codex = agents
-            .iter()
-            .find(|agent| agent.id == "codex")
-            .expect("Codex agent should exist");
-
-        assert_eq!(
-            claude.autonomous_supported_mode_ids,
-            vec!["build".to_string()]
-        );
-        assert_eq!(
-            cursor.autonomous_supported_mode_ids,
-            vec!["build".to_string()]
-        );
-        assert_eq!(
-            opencode.autonomous_supported_mode_ids,
-            vec!["build".to_string()]
-        );
-        assert_eq!(
-            codex.autonomous_supported_mode_ids,
-            vec!["build".to_string()]
-        );
     }
 
     #[test]

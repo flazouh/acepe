@@ -1,7 +1,6 @@
 use super::*;
 
 impl ProjectionRegistry {
-
     #[must_use]
     pub fn operation_for_tool_call(
         &self,
@@ -25,8 +24,7 @@ impl ProjectionRegistry {
             return;
         };
         if let Some(mut operation) = self.operations_by_id.get_mut(&operation_id) {
-            operation.source_link =
-                OperationSourceLink::transcript_linked(entry_id.to_string());
+            operation.source_link = OperationSourceLink::transcript_linked(entry_id.to_string());
         }
     }
 
@@ -576,7 +574,11 @@ impl ProjectionRegistry {
         operation
     }
 
-    pub(crate) fn apply_tool_call_update_projection(&self, session_id: &str, update: &ToolCallUpdateData) {
+    pub(crate) fn apply_tool_call_update_projection(
+        &self,
+        session_id: &str,
+        update: &ToolCallUpdateData,
+    ) {
         let Some(operation_id) =
             self.lookup_operation_id_by_tool_call(session_id, &update.tool_call_id)
         else {
@@ -670,7 +672,6 @@ impl ProjectionRegistry {
         let merged_operation = merge_operation_snapshot_evidence(&existing, updated_operation);
         self.operations_by_id.insert(operation_id, merged_operation);
     }
-
 }
 
 fn note_imported_transcript_boundary(

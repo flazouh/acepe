@@ -6,28 +6,57 @@
 -->
 <script lang="ts">
 	import { IconCircleCheckFilled } from "@tabler/icons-svelte";
-	import { Brain, Lightning, ShieldCheck } from "phosphor-svelte";
+	import { Lightning, ShieldCheck } from "phosphor-svelte";
 
 	import * as DropdownMenu from "../dropdown-menu/index.js";
+	import { Button } from "../button/index.js";
 	import { Selector } from "../selector/index.js";
+	import * as Tooltip from "../tooltip/index.js";
+	import { VoiceDownloadProgress } from "../voice-download-progress/index.js";
 	import {
+		getConfigOptionFastTriggerClass,
 		getConfigOptionNextBooleanValue,
+		getConfigOptionReasoningBarOnlyTriggerClass,
+		getConfigOptionReasoningTriggerClass,
 		getConfigOptionViewState,
+		getReasoningEffortNextValue,
+		isReasoningConfigOption,
 		shouldEmitConfigOptionValueChange,
 	} from "./agent-input-config-option-selector-state.js";
 	import type { AgentInputConfigOption } from "./agent-input-config-option-types.js";
 
 	export type { AgentInputConfigOption };
 
+	type ConfigOptionDisplayMode = "default" | "barOnly";
+
 	interface Props {
 		configOption: AgentInputConfigOption;
 		disabled?: boolean;
+		displayMode?: ConfigOptionDisplayMode;
 		onValueChange: (configId: string, value: string) => void;
 	}
 
-	let { configOption, disabled = false, onValueChange }: Props = $props();
+	let {
+		configOption,
+		disabled = false,
+		displayMode = "default",
+		onValueChange,
+	}: Props = $props();
 
 	const viewState = $derived(getConfigOptionViewState(configOption));
+	const isReasoningOption = $derived(isReasoningConfigOption(configOption));
+	const reasoningTriggerClass = $derived(
+		displayMode === "barOnly"
+			? getConfigOptionReasoningBarOnlyTriggerClass()
+			: getConfigOptionReasoningTriggerClass()
+	);
+	const showReasoningLabel = $derived(displayMode !== "barOnly");
+	const fastTriggerClass = $derived(
+		getConfigOptionFastTriggerClass({
+			disabled,
+			isEnabled: viewState.isBooleanEnabled,
+		})
+	);
 
 	function handleSelect(value: string) {
 		if (
@@ -52,9 +81,110 @@
 			onValueChange(configOption.id, nextValue);
 		}
 	}
+
+	function handleReasoningCycle() {
+		if (disabled) return;
+		const nextValue = getReasoningEffortNextValue({
+			configOption,
+			currentValue: viewState.currentValue,
+		});
+		if (
+			nextValue != null &&
+			shouldEmitConfigOptionValueChange({
+				nextValue,
+				currentValue: viewState.currentValue,
+			})
+		) {
+			onValueChange(configOption.id, nextValue);
+		}
+	}
 </script>
 
-{#if !viewState.isBooleanConfigOption}
+{#snippet configOptionIcon()}
+	{#if viewState.iconKind === "fast"}
+		<Lightning class={viewState.iconClass} size={14} weight={viewState.iconWeight} style={viewState.iconStyle} />
+	{:else}
+		<ShieldCheck size={14} weight="fill" style="color: {viewState.iconColor}" />
+	{/if}
+{/snippet}
+
+{#snippet configOptionTooltipContent()}
+	<Tooltip.Content side="top" class="max-w-[17rem] leading-relaxed font-normal">
+		<span class="font-semibold text-foreground">{viewState.tooltipTitle}</span>
+		<span class="mt-1 block">{viewState.tooltipDescription}</span>
+	</Tooltip.Content>
+{/snippet}
+
+{#if isReasoningOption}
+	<Tooltip.Root>
+		<Tooltip.Trigger>
+			{#snippet child({ props })}
+				<Button
+					{...props}
+					type="button"
+					variant="ghost"
+					size="sm"
+					{disabled}
+					class={reasoningTriggerClass}
+					data-testid={displayMode === "barOnly" ? "setup-bar-reasoning" : undefined}
+					aria-label={viewState.buttonTitle}
+					onclick={handleReasoningCycle}
+				>
+					{#if showReasoningLabel}
+						<span class="max-w-16 font-medium leading-none">
+							{viewState.currentValueLabel}
+						</span>
+					{/if}
+					{#if viewState.reasoningBarSegmentCount > 0}
+						<div
+							class={displayMode === "barOnly"
+								? "absolute inset-0 flex min-h-0 min-w-0"
+								: "flex min-h-0 min-w-0"}
+						>
+							<VoiceDownloadProgress
+								ariaLabel={viewState.buttonTitle}
+								compact={true}
+								decorative={true}
+								fillWidth={displayMode === "barOnly"}
+								filledSegmentCount={viewState.reasoningBarFilledSegmentCount}
+								label=""
+								orientation="vertical"
+								percent={viewState.reasoningBarPercent}
+								segmentCount={viewState.reasoningBarSegmentCount}
+								segmentFillPalette="level"
+								setupBar={displayMode === "barOnly"}
+								showContainerBorder={false}
+								showPercent={false}
+							/>
+						</div>
+					{/if}
+				</Button>
+			{/snippet}
+		</Tooltip.Trigger>
+		{@render configOptionTooltipContent()}
+	</Tooltip.Root>
+{:else if viewState.isBooleanConfigOption}
+	<Tooltip.Root>
+		<Tooltip.Trigger>
+			{#snippet child({ props })}
+				<Button
+					{...props}
+					type="button"
+					variant="ghost"
+					size="sm"
+					{disabled}
+					class={fastTriggerClass}
+					aria-pressed={viewState.isBooleanEnabled}
+					aria-label={viewState.buttonTitle}
+					onclick={handleBooleanToggle}
+				>
+					{@render configOptionIcon()}
+				</Button>
+			{/snippet}
+		</Tooltip.Trigger>
+		{@render configOptionTooltipContent()}
+	</Tooltip.Root>
+{:else}
 	<Selector
 		{disabled}
 		align="start"
@@ -62,15 +192,12 @@
 		showChevron={false}
 		triggerSize="square"
 		triggerAriaLabel={viewState.buttonTitle}
+		tooltipTitle={viewState.tooltipTitle}
+		tooltipDescription={viewState.tooltipDescription}
+		tooltipSide="top"
 	>
 		{#snippet renderButton()}
-			{#if viewState.iconKind === "reasoning"}
-				<Brain class={viewState.iconClass} size={14} weight={viewState.iconWeight} style={viewState.iconStyle} />
-			{:else if viewState.iconKind === "fast"}
-				<Lightning class={viewState.iconClass} size={14} weight={viewState.iconWeight} style={viewState.iconStyle} />
-			{:else}
-				<ShieldCheck size={14} weight="fill" style="color: {viewState.iconColor}" />
-			{/if}
+			{@render configOptionIcon()}
 		{/snippet}
 
 		{#each configOption.options ?? [] as option (String(option.value))}
@@ -89,26 +216,4 @@
 			</DropdownMenu.Item>
 		{/each}
 	</Selector>
-{:else}
-	<button
-		type="button"
-		{disabled}
-		aria-pressed={viewState.isBooleanEnabled}
-		onclick={handleBooleanToggle}
-		title={viewState.buttonTitle}
-		class="flex items-center justify-center w-7 h-7 transition-colors rounded-none
-			{disabled
-			? 'text-muted-foreground/50 cursor-not-allowed'
-			: viewState.isBooleanEnabled
-				? 'bg-accent/60 text-foreground hover:bg-accent/80'
-				: 'text-muted-foreground hover:bg-accent/50 hover:text-foreground'}"
-	>
-		{#if viewState.iconKind === "reasoning"}
-			<Brain class={viewState.iconClass} size={14} weight={viewState.iconWeight} style={viewState.iconStyle} />
-		{:else if viewState.iconKind === "fast"}
-			<Lightning class={viewState.iconClass} size={14} weight={viewState.iconWeight} style={viewState.iconStyle} />
-		{:else}
-			<ShieldCheck size={14} weight="fill" style="color: {viewState.iconColor}" />
-		{/if}
-	</button>
 {/if}

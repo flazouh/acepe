@@ -40,9 +40,7 @@ pub(crate) struct ClassifiedResumeFailure {
 /// Returns `None` for errors with no cross-cutting canonical mapping; each
 /// caller then applies its own path-specific default (`ResumeFailed` for
 /// resume, the creation-kind default for creation).
-pub(crate) fn cross_cutting_failure_reason(
-    error: &SerializableAcpError,
-) -> Option<FailureReason> {
+pub(crate) fn cross_cutting_failure_reason(error: &SerializableAcpError) -> Option<FailureReason> {
     match error {
         SerializableAcpError::SessionNotFound { .. } => Some(FailureReason::SessionGoneUpstream),
         _ => None,

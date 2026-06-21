@@ -2,11 +2,11 @@ use crate::acp::projections::{
     InteractionSnapshot, OperationSnapshot, SessionTurnState, TurnFailureSnapshot,
 };
 use crate::acp::session_state_engine::graph::{ActiveStreamingTail, SessionStateGraph};
-use crate::acp::session_state_engine::session_state_field::SessionStateField;
 use crate::acp::session_state_engine::revision::SessionGraphRevision;
 use crate::acp::session_state_engine::selectors::{
     SessionGraphActivity, SessionGraphCapabilities, SessionGraphLifecycle,
 };
+use crate::acp::session_state_engine::session_state_field::SessionStateField;
 use crate::acp::session_update::{PlanData, UsageTelemetryData};
 use crate::acp::transcript_projection::TranscriptDeltaOperation;
 use crate::acp::transcript_viewport::{TranscriptViewportRow, ViewportMode};

@@ -28,9 +28,8 @@ impl AcpClient {
             return Ok(());
         };
 
-        let instructions = format!(
-            "Sign in to {provider_name} from its CLI, then retry the connection."
-        );
+        let instructions =
+            format!("Sign in to {provider_name} from its CLI, then retry the connection.");
 
         match tokio::time::timeout(
             INTERACTIVE_AUTH_TIMEOUT,

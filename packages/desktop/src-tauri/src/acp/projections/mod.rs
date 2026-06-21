@@ -52,15 +52,16 @@ pub struct ProjectionRegistry {
     session_interaction_ids: Arc<DashMap<String, Vec<String>>>,
 }
 
-
+pub mod bridge;
+pub mod helpers;
+pub mod interactions;
+pub mod operations;
 pub mod projection_apply_router;
 pub mod session_lifecycle;
-pub mod operations;
-pub mod bridge;
-pub mod interactions;
-pub mod helpers;
-pub use projection_apply_router::{route_projection_apply, ProjectionApplyArm, ProjectionApplyRoute};
 pub(crate) use helpers::*;
+pub use projection_apply_router::{
+    route_projection_apply, ProjectionApplyArm, ProjectionApplyRoute,
+};
 
 #[cfg(test)]
 #[path = "tests/mod.rs"]

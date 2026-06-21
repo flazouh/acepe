@@ -6,6 +6,7 @@ use crate::acp::error::AcpResult;
 use crate::acp::model_display::build_models_for_display;
 use crate::acp::provider::{AgentProvider, FrontendProviderProjection};
 use crate::acp::runtime_resolver::resolve_effective_runtime;
+use crate::acp::session_update::ConfigOptionData;
 use serde::Serialize;
 use specta::Type;
 use std::path::Path;
@@ -32,6 +33,7 @@ pub struct ResolvedCapabilities {
     pub provider_metadata: FrontendProviderProjection,
     pub available_modes: Vec<AvailableMode>,
     pub current_mode_id: Option<String>,
+    pub config_options: Vec<ConfigOptionData>,
 }
 
 pub async fn discover_models_from_provider_cli(
@@ -156,6 +158,7 @@ fn finalize_capabilities(
             .unwrap_or_else(|| provider.frontend_projection()),
         available_modes: modes.available_modes,
         current_mode_id: Some(modes.current_mode_id),
+        config_options: Vec::new(),
     })
 }
 
@@ -228,6 +231,7 @@ pub fn unsupported_capabilities(provider: &dyn AgentProvider) -> ResolvedCapabil
         provider_metadata: provider.frontend_projection(),
         available_modes: Vec::new(),
         current_mode_id: None,
+        config_options: Vec::new(),
     }
 }
 
@@ -241,6 +245,7 @@ pub fn failed_capabilities(provider: &dyn AgentProvider, error: String) -> Resol
         provider_metadata: provider.frontend_projection(),
         available_modes: provider.default_session_modes().available_modes,
         current_mode_id: Some(provider.default_session_modes().current_mode_id),
+        config_options: Vec::new(),
     }
 }
 

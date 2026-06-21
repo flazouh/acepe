@@ -596,7 +596,12 @@ pub fn toggle_issue_reaction(number: i32, content: String) -> Result<bool, Strin
     let list_endpoint = format!("repos/{}/{}/issues/{}/reactions", OWNER, REPO, number);
     toggle_reaction(
         &list_endpoint,
-        |reaction_id| format!("repos/{}/{}/issues/{}/reactions/{}", OWNER, REPO, number, reaction_id),
+        |reaction_id| {
+            format!(
+                "repos/{}/{}/issues/{}/reactions/{}",
+                OWNER, REPO, number, reaction_id
+            )
+        },
         &content,
     )
 }

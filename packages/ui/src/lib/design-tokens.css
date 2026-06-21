@@ -16,6 +16,11 @@
 	/** Plan / pencil-ruler icon — light: same as Colors.orange */
 	--token-plan-icon-light: #ff8d20;
 	--token-plan-icon-dark: #ffc799;
+	/** Segmented download / install progress fill and level meter penultimate stage */
+	--token-download-progress: #bf8700;
+	/** Level meter endpoints — use app theme success/destructive at runtime */
+	--token-level-fill-low: var(--success);
+	--token-level-fill-high: var(--destructive);
 	/** Default floating surface layer. Desktop overrides this above app-shell overlays. */
 	--overlay-z: 50;
 	/** Badge icon background when showing a project image (neutral, not project color) */

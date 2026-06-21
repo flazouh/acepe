@@ -1,5 +1,6 @@
 <script lang="ts">
 import type { ProviderBrand } from "../provider-mark/index.js";
+import type { SelectorTriggerSize } from "../selector/selector-trigger-classes.js";
 
 import AgentInputReasoningModelSelector from "./agent-input-reasoning-model-selector.svelte";
 import AgentInputStandardModelSelector from "./agent-input-standard-model-selector.svelte";
@@ -46,6 +47,7 @@ interface Props {
 	onModelChange: (modelId: string) => void | Promise<void>;
 	onToggleFavorite?: (modelId: string) => void;
 	hideTriggerProviderMark?: boolean;
+	triggerSize?: SelectorTriggerSize;
 	primaryTriggerProviderBrand?: ProviderBrand | null;
 	primaryTriggerProviderLabel?: string;
 }
@@ -71,6 +73,7 @@ let {
 	onModelChange,
 	onToggleFavorite,
 	hideTriggerProviderMark = false,
+	triggerSize = "pill",
 	primaryTriggerProviderBrand = triggerProviderBrand,
 	primaryTriggerProviderLabel = triggerProviderLabel,
 }: Props = $props();
@@ -206,6 +209,7 @@ const showGroups = $derived(shouldShowModelGroups(filteredGroups));
 		{loadingLabel}
 		{noModelsLabel}
 		{hideTriggerProviderMark}
+		{triggerSize}
 		onOpenChange={setStandardOpen}
 		onSearchChange={setSearchQuery}
 		onSelect={selectModel}

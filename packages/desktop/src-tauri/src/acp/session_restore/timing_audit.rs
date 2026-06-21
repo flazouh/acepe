@@ -218,10 +218,9 @@ pub async fn audit_session_load_timing_with_app(
             add_stage(&mut stages, "read_and_parse", t1);
 
             let t2 = Instant::now();
-            let snapshot =
-                crate::session_converter::convert_claude_full_session_to_thread_snapshot(
-                    &full_session,
-                );
+            let snapshot = crate::session_converter::convert_claude_full_session_to_thread_snapshot(
+                &full_session,
+            );
             add_stage(&mut stages, "convert", t2);
 
             (Some(snapshot), "claude-code".to_string())
@@ -312,10 +311,13 @@ pub async fn audit_session_load_timing_with_app(
         }
         CanonicalAgentId::Codex => {
             let t0 = Instant::now();
-            let codex_result =
-                codex_parser::load_thread_snapshot(&session_id, &project_path, source_path.as_deref())
-                    .await
-                    .map_err(|e| format!("Failed to parse Codex session: {}", e))?;
+            let codex_result = codex_parser::load_thread_snapshot(
+                &session_id,
+                &project_path,
+                source_path.as_deref(),
+            )
+            .await
+            .map_err(|e| format!("Failed to parse Codex session: {}", e))?;
             add_stage(&mut stages, "load_session", t0);
             (codex_result, "codex".to_string())
         }

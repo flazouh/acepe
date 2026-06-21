@@ -310,10 +310,8 @@ fn live_duplicate_tool_call_updates_upsert_same_authority_entry_id() {
         &second.operations[0],
         TranscriptDeltaOperation::AppendEntry { entry } if entry.entry_id == authority_entry_id
     ));
-    assert!(
-        !matches!(
-            &second.operations[0],
-            TranscriptDeltaOperation::ReplaceSnapshot { .. }
-        )
-    );
+    assert!(!matches!(
+        &second.operations[0],
+        TranscriptDeltaOperation::ReplaceSnapshot { .. }
+    ));
 }

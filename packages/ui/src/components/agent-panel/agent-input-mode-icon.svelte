@@ -1,7 +1,6 @@
 <script lang="ts">
 	import {
 		ChatCircle,
-		Lightning,
 		ListChecks,
 		PencilSimple,
 		Question,
@@ -29,7 +28,7 @@
 {:else if iconKind === "plan"}
 	<ListChecks class={className} weight={iconWeight} style={iconStyle} />
 {:else if iconKind === "autonomous"}
-	<Lightning class={className} weight={iconWeight} style={iconStyle} />
+	<ShieldCheck class={className} weight={iconWeight} style={iconStyle} />
 {:else if iconKind === "bypass"}
 	<ShieldCheck class={className} weight={iconWeight} style={iconStyle} />
 {:else if iconKind === "ask"}

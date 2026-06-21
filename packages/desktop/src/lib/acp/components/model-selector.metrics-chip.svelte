@@ -1,7 +1,7 @@
 <script lang="ts">
 import { AgentInputMetricsChip } from "@acepe/ui";
 import { getSessionStore } from "$lib/acp/store/index.js";
-import * as Tooltip from "$lib/components/ui/tooltip/index.js";
+import * as Tooltip from "@acepe/ui/tooltip";
 
 import {
 	formatTokenCountCompact,

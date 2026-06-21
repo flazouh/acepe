@@ -1,2 +1,2 @@
 export { default as Toaster } from "./sonner.svelte";
-export { toastError, toastSuccess } from "./toast-bridge.js";
+export { toastError, toastInfo, toastSuccess, toastWarning } from "./toast-bridge.js";

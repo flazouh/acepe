@@ -1783,10 +1783,11 @@ mod session_metadata_tests {
         )
         .await
         .unwrap();
-        let recent =
-            SessionMetadataRepository::create_creation_attempt(&db, "/project", "copilot", None, None, None)
-                .await
-                .unwrap();
+        let recent = SessionMetadataRepository::create_creation_attempt(
+            &db, "/project", "copilot", None, None, None,
+        )
+        .await
+        .unwrap();
 
         db.execute(Statement::from_sql_and_values(
             db.get_database_backend(),

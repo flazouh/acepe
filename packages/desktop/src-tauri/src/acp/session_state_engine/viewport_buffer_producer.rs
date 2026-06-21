@@ -43,8 +43,7 @@ pub fn decide_buffer_emission(
     let mut emission = classify_buffer_transition(prev_window, slice);
 
     if matches!(emission, BufferEmission::NoOp)
-        && prev
-            .is_some_and(|record| record.viewport_revision != slice.viewport_revision)
+        && prev.is_some_and(|record| record.viewport_revision != slice.viewport_revision)
     {
         emission = BufferEmission::FreshPush;
     }
@@ -71,7 +70,10 @@ pub fn decide_buffer_emission(
         }
     }
 
-    let height_accepted = matches!(flags.height_outcome, Some(HeightConfirmationOutcome::Accepted));
+    let height_accepted = matches!(
+        flags.height_outcome,
+        Some(HeightConfirmationOutcome::Accepted)
+    );
     if height_accepted && flags.has_prior {
         emission = BufferEmission::FreshPush;
     }
@@ -291,12 +293,7 @@ mod tests {
             viewport_revision: 1,
         };
         assert_eq!(
-            decide_buffer_emission(
-                Some(&prev),
-                &slice,
-                &[],
-                BufferEmissionFlags::default(),
-            ),
+            decide_buffer_emission(Some(&prev), &slice, &[], BufferEmissionFlags::default(),),
             BufferEmission::FreshPush
         );
     }
@@ -343,10 +340,15 @@ mod tests {
             viewport_revision: 1,
         };
         assert_eq!(
-            decide_buffer_emission(Some(&prev), &slice, &rows, BufferEmissionFlags {
-                has_prior: true,
-                ..BufferEmissionFlags::default()
-            }),
+            decide_buffer_emission(
+                Some(&prev),
+                &slice,
+                &rows,
+                BufferEmissionFlags {
+                    has_prior: true,
+                    ..BufferEmissionFlags::default()
+                }
+            ),
             BufferEmission::FreshPush
         );
     }

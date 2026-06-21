@@ -5,6 +5,35 @@ import type { AgentInfo } from "../../../logic/agent-manager.js";
 import type { PreparedWorktreeLaunch } from "../../../types/worktree-info.js";
 
 /**
+ * Host-provided bindings for the new-chat-panel stacked options surface.
+ *
+ * When supplied (and the panel has no session yet), AgentInput renders a stacked
+ * Project/Agent/Model/Worktree/Autonomous surface above the composer input. The
+ * project and agent controls are passed as snippets (they wrap desktop
+ * selectors); worktree is driven by boolean + handler so the composer can place
+ * it as an on/off row. Model and Autonomous are sourced from the composer's own
+ * pre-session state.
+ */
+export interface NewThreadContextBinding {
+	/** Project selector control rendered in the Project row. */
+	readonly project: Snippet;
+	/** Agent selector control rendered in the Agent row. */
+	readonly agent: Snippet;
+	/** Whether the worktree row applies (e.g. the project is a git repo). */
+	readonly showWorktree: boolean;
+	/** Whether a new worktree is requested for the thread. */
+	readonly worktreeOn: boolean;
+	/** Disables the worktree toggle while it cannot be changed. */
+	readonly worktreeDisabled: boolean;
+	/** Toggles the pending worktree request. */
+	readonly onWorktreeToggle: (on: boolean) => void;
+	/** Whether new sessions default to creating a worktree (persisted global preference). */
+	readonly worktreeDefaultOn: boolean;
+	/** Persists the global "use worktrees by default" preference. */
+	readonly onWorktreeDefaultToggle: (on: boolean) => void;
+}
+
+/**
  * Props for the AgentInput component.
  *
  * All props are optional to support different usage scenarios:
@@ -147,6 +176,14 @@ export interface AgentInputProps {
 	 * Optional agent/project picker snippet rendered left of the model selector in the composer footer.
 	 */
 	readonly agentProjectPicker?: Snippet;
+
+	/**
+	 * Optional bindings for the new-chat-panel stacked options surface. When set
+	 * and the panel has no session, a stacked Project/Agent/Model/Worktree/
+	 * Autonomous surface renders above the composer input and the footer's
+	 * inline model selector is suppressed (those controls move into the surface).
+	 */
+	readonly newThreadContext?: NewThreadContextBinding | null;
 
 	/**
 	 * Optional checkpoint button snippet to render in the attach menu overflow.

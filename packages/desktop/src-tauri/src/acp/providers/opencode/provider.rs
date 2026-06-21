@@ -1,6 +1,3 @@
-use crate::acp::provider::{
-    AgentProvider, ProjectDiscoveryCompleteness, ProjectPathListing, SpawnConfig,
-};
 use super::settings::apply_opencode_session_defaults;
 use crate::acp::capability_resolution::{
     failed_capabilities, resolve_static_capabilities, ResolvedCapabilityStatus,
@@ -9,6 +6,9 @@ use crate::acp::client_session::{SessionModelState, SessionModes};
 use crate::acp::client_trait::CommunicationMode;
 use crate::acp::error::AcpResult;
 use crate::acp::opencode::{OpenCodeHttpClient, OpenCodeManagerRegistry};
+use crate::acp::provider::{
+    AgentProvider, ProjectDiscoveryCompleteness, ProjectPathListing, SpawnConfig,
+};
 use crate::acp::runtime_resolver::SpawnEnvStrategy;
 use crate::acp::session_descriptor::SessionReplayContext;
 use crate::acp::session_thread_snapshot::ProviderOwnedSessionSnapshot;

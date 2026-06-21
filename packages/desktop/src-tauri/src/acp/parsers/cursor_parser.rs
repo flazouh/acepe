@@ -281,13 +281,8 @@ impl CursorParser {
             name_kind
         } else {
             let kind_hint = acp_fields::extract_kind_hint(data);
-            infer_kind_from_payload_for_agent(
-                AgentType::Cursor,
-                &id,
-                title.as_deref(),
-                kind_hint,
-            )
-            .unwrap_or(name_kind)
+            infer_kind_from_payload_for_agent(AgentType::Cursor, &id, title.as_deref(), kind_hint)
+                .unwrap_or(name_kind)
         };
 
         let has_locations = data
@@ -415,8 +410,7 @@ impl CursorParser {
                 .unwrap_or(ToolKind::Other)
         };
 
-        let tool_name =
-            display_name_for_tool(kind, effective_name.as_deref().unwrap_or(""));
+        let tool_name = display_name_for_tool(kind, effective_name.as_deref().unwrap_or(""));
 
         let status = Some(
             acp_fields::extract_status(data)

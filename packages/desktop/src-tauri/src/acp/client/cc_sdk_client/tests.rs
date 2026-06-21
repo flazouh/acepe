@@ -821,10 +821,16 @@ async fn provider_session_id_alias_persistence_rejects_new_session_identity_mism
 #[tokio::test]
 async fn provider_session_id_alias_persistence_rejects_canonical_session_identity_mismatch() {
     let db = setup_test_db().await;
-    let attempt =
-        SessionMetadataRepository::create_creation_attempt(&db, "/project", "claude-code", None, None, None)
-            .await
-            .expect("attempt");
+    let attempt = SessionMetadataRepository::create_creation_attempt(
+        &db,
+        "/project",
+        "claude-code",
+        None,
+        None,
+        None,
+    )
+    .await
+    .expect("attempt");
     SessionMetadataRepository::promote_creation_attempt(
         &db,
         &attempt.id,
@@ -3869,10 +3875,16 @@ async fn run_streaming_bridge_completes_unresolved_tool_use_when_next_message_st
 #[tokio::test]
 async fn run_streaming_bridge_promotes_pending_creation_attempt_before_buffered_dispatch() {
     let db = setup_test_db().await;
-    let attempt =
-        SessionMetadataRepository::create_creation_attempt(&db, "/project", "claude-code", None, None, None)
-            .await
-            .expect("attempt");
+    let attempt = SessionMetadataRepository::create_creation_attempt(
+        &db,
+        "/project",
+        "claude-code",
+        None,
+        None,
+        None,
+    )
+    .await
+    .expect("attempt");
     let (dispatcher, sink) = AcpUiEventDispatcher::test_sink();
     let provider = Arc::new(crate::acp::providers::claude_code::ClaudeCodeProvider);
     let context = StreamingBridgeContext {
@@ -3945,10 +3957,16 @@ async fn run_streaming_bridge_promotes_pending_creation_attempt_before_buffered_
 async fn promote_verified_pending_creation_attempt_reuses_reserved_lifecycle_checkpoint() {
     let db = setup_test_db().await;
     let session_id = "provider-canonical";
-    let attempt =
-        SessionMetadataRepository::create_creation_attempt(&db, "/project", "claude-code", None, None, None)
-            .await
-            .expect("attempt");
+    let attempt = SessionMetadataRepository::create_creation_attempt(
+        &db,
+        "/project",
+        "claude-code",
+        None,
+        None,
+        None,
+    )
+    .await
+    .expect("attempt");
     let projection_registry = Arc::new(ProjectionRegistry::new());
     let supervisor = Arc::new(crate::acp::lifecycle::SessionSupervisor::new());
     let seeded = supervisor.seed_checkpoint(
@@ -3993,10 +4011,16 @@ async fn promote_verified_pending_creation_attempt_reuses_reserved_lifecycle_che
 async fn reserve_promoted_claude_session_preserves_capabilities() {
     let db = setup_test_db().await;
     let session_id = "provider-canonical";
-    let attempt =
-        SessionMetadataRepository::create_creation_attempt(&db, "/project", "claude-code", None, None, None)
-            .await
-            .expect("attempt");
+    let attempt = SessionMetadataRepository::create_creation_attempt(
+        &db,
+        "/project",
+        "claude-code",
+        None,
+        None,
+        None,
+    )
+    .await
+    .expect("attempt");
     SessionMetadataRepository::promote_creation_attempt(&db, &attempt.id, session_id)
         .await
         .expect("promote metadata");
@@ -4050,10 +4074,16 @@ async fn reserve_promoted_claude_session_preserves_capabilities() {
 #[tokio::test]
 async fn run_streaming_bridge_promotes_pending_creation_before_buffered_auth_error() {
     let db = setup_test_db().await;
-    let attempt =
-        SessionMetadataRepository::create_creation_attempt(&db, "/project", "claude-code", None, None, None)
-            .await
-            .expect("attempt");
+    let attempt = SessionMetadataRepository::create_creation_attempt(
+        &db,
+        "/project",
+        "claude-code",
+        None,
+        None,
+        None,
+    )
+    .await
+    .expect("attempt");
     let (dispatcher, sink) = AcpUiEventDispatcher::test_sink();
     let provider = Arc::new(crate::acp::providers::claude_code::ClaudeCodeProvider);
     let context = StreamingBridgeContext {
@@ -4134,10 +4164,16 @@ async fn run_streaming_bridge_promotes_pending_creation_before_buffered_auth_err
 #[tokio::test]
 async fn run_streaming_bridge_fails_pending_creation_attempt_on_provider_id_mismatch() {
     let db = setup_test_db().await;
-    let attempt =
-        SessionMetadataRepository::create_creation_attempt(&db, "/project", "claude-code", None, None, None)
-            .await
-            .expect("attempt");
+    let attempt = SessionMetadataRepository::create_creation_attempt(
+        &db,
+        "/project",
+        "claude-code",
+        None,
+        None,
+        None,
+    )
+    .await
+    .expect("attempt");
     let (dispatcher, sink) = AcpUiEventDispatcher::test_sink();
     let provider = Arc::new(crate::acp::providers::claude_code::ClaudeCodeProvider);
     let context = StreamingBridgeContext {

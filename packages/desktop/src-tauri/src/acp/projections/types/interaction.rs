@@ -2,7 +2,9 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use specta::Type;
 
-use crate::acp::session_update::{InteractionReplyHandler, PermissionData, QuestionData, ToolReference};
+use crate::acp::session_update::{
+    InteractionReplyHandler, PermissionData, QuestionData, ToolReference,
+};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Type)]
 pub enum InteractionKind {

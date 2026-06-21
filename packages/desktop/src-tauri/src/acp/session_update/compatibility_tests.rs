@@ -5,7 +5,9 @@ use crate::acp::types::ContentBlock;
 use serde_json::json;
 
 fn deserialize_session_update(json: serde_json::Value) -> SessionUpdate {
-    with_agent(AgentType::ClaudeCode, || serde_json::from_value(json).unwrap())
+    with_agent(AgentType::ClaudeCode, || {
+        serde_json::from_value(json).unwrap()
+    })
 }
 
 #[test]

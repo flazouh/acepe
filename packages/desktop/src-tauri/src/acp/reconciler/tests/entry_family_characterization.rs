@@ -75,7 +75,10 @@ fn raw_web_search_promotion_matches_engine_for_cursor_ws_id() {
     );
 
     assert_eq!(engine.kind, ToolKind::WebSearch);
-    assert_eq!(session.kind, engine.kind, "session_tool web-search promotion must match engine");
+    assert_eq!(
+        session.kind, engine.kind,
+        "session_tool web-search promotion must match engine"
+    );
     assert_eq!(session.name, "WebSearch");
 }
 
@@ -106,7 +109,10 @@ fn raw_browser_promotion_matches_engine_for_webview_title() {
     );
 
     assert_eq!(engine.kind, ToolKind::Browser);
-    assert_eq!(session.kind, engine.kind, "session_tool browser promotion must match engine");
+    assert_eq!(
+        session.kind, engine.kind,
+        "session_tool browser promotion must match engine"
+    );
 }
 
 #[test]
@@ -269,30 +275,15 @@ fn semantic_transition_never_surfaces_other_for_empty_signals() {
 #[test]
 fn infer_kind_from_payload_for_each_provider_table() {
     assert_eq!(
-        infer_kind_from_payload_for_agent(
-            AgentType::ClaudeCode,
-            "id",
-            None,
-            Some("read")
-        ),
+        infer_kind_from_payload_for_agent(AgentType::ClaudeCode, "id", None, Some("read")),
         Some(ToolKind::Read)
     );
     assert_eq!(
-        infer_kind_from_payload_for_agent(
-            AgentType::Copilot,
-            "id",
-            None,
-            Some("read")
-        ),
+        infer_kind_from_payload_for_agent(AgentType::Copilot, "id", None, Some("read")),
         Some(ToolKind::Read)
     );
     assert_eq!(
-        infer_kind_from_payload_for_agent(
-            AgentType::Cursor,
-            "ws_cursor",
-            None,
-            Some("search")
-        ),
+        infer_kind_from_payload_for_agent(AgentType::Cursor, "ws_cursor", None, Some("search")),
         Some(ToolKind::WebSearch)
     );
     assert_eq!(
@@ -305,12 +296,7 @@ fn infer_kind_from_payload_for_each_provider_table() {
         Some(ToolKind::Execute)
     );
     assert_eq!(
-        infer_kind_from_payload_for_agent(
-            AgentType::OpenCode,
-            "id",
-            None,
-            Some("glob")
-        ),
+        infer_kind_from_payload_for_agent(AgentType::OpenCode, "id", None, Some("glob")),
         Some(ToolKind::Glob)
     );
 }
@@ -328,7 +314,10 @@ fn infer_kind_from_payload_title_heuristic_pins_browser() {
 #[test]
 fn display_name_for_tool_uses_canonical_kind_name() {
     assert_eq!(display_name_for_tool(ToolKind::Read, "read_file"), "Read");
-    assert_eq!(display_name_for_tool(ToolKind::WebSearch, "ws_tool"), "Web Search");
+    assert_eq!(
+        display_name_for_tool(ToolKind::WebSearch, "ws_tool"),
+        "Web Search"
+    );
 }
 
 #[test]

@@ -7,16 +7,7 @@
 
 	import { cn } from "../../lib/utils.js";
 	import { Button, type ButtonVariant } from "../button/index.js";
-
-	type SelectorTriggerSize =
-		| "default"
-		| "icon"
-		| "square"
-		| "attach"
-		| "minimal"
-		| "pill"
-		| "footer"
-		| "headerAction";
+	import { getSelectorTriggerClass, type SelectorTriggerSize } from "./selector-trigger-classes.js";
 
 	interface Props {
 		/**
@@ -75,6 +66,16 @@
 		tooltipLabel?: string;
 
 		/**
+		 * Rich tooltip title (used with tooltipDescription).
+		 */
+		tooltipTitle?: string;
+
+		/**
+		 * Rich tooltip body shown below tooltipTitle.
+		 */
+		tooltipDescription?: string;
+
+		/**
 		 * Tooltip side relative to the trigger.
 		 */
 		tooltipSide?: "top" | "right" | "bottom" | "left";
@@ -127,6 +128,8 @@
 		onOpenChange,
 		showChevron = true,
 		tooltipLabel,
+		tooltipTitle,
+		tooltipDescription,
 		tooltipSide = "bottom",
 		triggerAriaLabel,
 		triggerRef = $bindable(null),
@@ -137,31 +140,20 @@
 		contentClass: menuContentClass = "",
 	}: Props = $props();
 
-	const triggerClass = $derived.by(() => {
-		const sizeClass = (() => {
-			switch (triggerSize) {
-			case "icon":
-				return "size-5 min-w-0 shrink-0 rounded-md gap-0 p-0 text-muted-foreground hover:bg-accent hover:text-foreground";
-			case "square":
-				return "h-7 w-7 shrink-0 rounded-none border-0 p-0 gap-0 text-muted-foreground hover:bg-muted/80 hover:text-foreground";
-			case "attach":
-				return "size-5 min-w-0 shrink-0 rounded-md gap-0 !p-0";
-			case "minimal":
-				return "!border-0 !h-[26px] rounded-md hover:rounded-full transition-[border-radius] gap-1.5 px-2 text-[11px]";
-			case "pill":
-				return "gap-1.5 h-7 flex-1 min-w-0 max-w-full rounded-md border-0 px-2.5 text-[11px]";
-			case "footer":
-				return "h-5 min-w-0 shrink-0 gap-1 rounded-md border-0 !px-1 has-[>svg]:!px-1 text-[0.6875rem] font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground [&_svg]:size-3";
-			case "headerAction":
-				return "";
-			default:
-				return "gap-1.5 h-7 flex-1 min-w-0 max-w-full rounded-none border-0 px-2 text-[11px]";
-			}
-		})();
-		return cn(sizeClass, triggerClassOverride);
-	});
+	const triggerClass = $derived(
+		getSelectorTriggerClass({
+			triggerSize,
+			triggerClass: triggerClassOverride,
+		})
+	);
 
-	const buttonSize = $derived(triggerSize === "headerAction" ? "headerAction" : "sm");
+	const buttonSize = $derived(
+		triggerSize === "headerAction"
+			? "headerAction"
+			: triggerSize === "setupChip"
+				? "setupChip"
+				: "sm"
+	);
 
 	const contentClass = $derived(
 		cn(
@@ -205,7 +197,7 @@
 {/snippet}
 
 <DropdownMenu.Root bind:open {onOpenChange}>
-	{#if tooltipLabel}
+	{#if tooltipLabel || tooltipDescription}
 		<Tooltip.Root>
 			<Tooltip.Trigger>
 				{#snippet child({ props: tooltipProps })}
@@ -220,7 +212,7 @@
 									size={buttonSize}
 									class={triggerClass}
 									{disabled}
-									aria-label={triggerAriaLabel ?? tooltipLabel}
+									aria-label={triggerAriaLabel ?? tooltipTitle ?? tooltipLabel}
 								>
 									{@render renderButton()}
 									{#if showChevron}
@@ -236,7 +228,17 @@
 					</DropdownMenu.Trigger>
 				{/snippet}
 			</Tooltip.Trigger>
-			<Tooltip.Content side={tooltipSide}>{tooltipLabel}</Tooltip.Content>
+			<Tooltip.Content
+				side={tooltipSide}
+				class={tooltipDescription ? "max-w-[17rem] leading-relaxed font-normal" : undefined}
+			>
+				{#if tooltipDescription}
+					<span class="font-semibold text-foreground">{tooltipTitle ?? tooltipLabel ?? ""}</span>
+					<span class="mt-1 block">{tooltipDescription}</span>
+				{:else if tooltipLabel}
+					{tooltipLabel}
+				{/if}
+			</Tooltip.Content>
 		</Tooltip.Root>
 	{:else}
 		{@render selectorTrigger()}

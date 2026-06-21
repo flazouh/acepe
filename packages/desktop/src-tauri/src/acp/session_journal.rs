@@ -1,10 +1,10 @@
 use crate::acp::agent_context::with_agent;
 use crate::acp::parsers::provider_capabilities::provider_capabilities;
+use crate::acp::projections::projection_apply_router::route_projection_apply;
 use crate::acp::projections::{
     InteractionResponse, InteractionSnapshot, InteractionState, ProjectionApplyRoute,
     ProjectionRegistry, SessionProjectionSnapshot, TerminalTurnGuard,
 };
-use crate::acp::projections::projection_apply_router::route_projection_apply;
 use crate::acp::provider::HistoryReplayFamily;
 use crate::acp::session_descriptor::SessionReplayContext;
 use crate::acp::session_update::{

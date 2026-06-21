@@ -251,7 +251,7 @@ mod tests {
     };
     use crate::acp::session_state_engine::revision::SessionGraphRevision;
     use crate::acp::session_update::{
-        PermissionData, SessionUpdate, ToolCallData, ToolCallStatus, ToolArguments, ToolKind,
+        PermissionData, SessionUpdate, ToolArguments, ToolCallData, ToolCallStatus, ToolKind,
     };
     use crate::acp::transcript_projection::{
         TranscriptDelta, TranscriptProjectionRegistry, TranscriptSnapshot,
@@ -357,12 +357,14 @@ mod tests {
             event_seq: 11,
             session_id: "session-1".to_string(),
             snapshot_revision: 11,
-            operations: vec![crate::acp::transcript_projection::TranscriptDeltaOperation::ReplaceSnapshot {
-                snapshot: TranscriptSnapshot {
-                    revision: 11,
-                    entries: Vec::new(),
+            operations: vec![
+                crate::acp::transcript_projection::TranscriptDeltaOperation::ReplaceSnapshot {
+                    snapshot: TranscriptSnapshot {
+                        revision: 11,
+                        entries: Vec::new(),
+                    },
                 },
-            }],
+            ],
         };
         let ctx = RoutingTestContext::new().await;
         let request = ctx.request(&update, Some(&transcript_delta));
@@ -486,7 +488,10 @@ mod tests {
         let ctx = RoutingTestContext::new().await;
         let request = ctx.request(&update, None);
         let plan = route_live_session_state_envelope(&request).expect("connection complete route");
-        assert_eq!(plan.builder, EnvelopeBuilderKind::ConnectionCompleteCapabilities);
+        assert_eq!(
+            plan.builder,
+            EnvelopeBuilderKind::ConnectionCompleteCapabilities
+        );
         assert!(!plan.is_transcript_bearing);
     }
 

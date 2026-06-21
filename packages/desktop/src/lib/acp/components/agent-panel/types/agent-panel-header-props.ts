@@ -18,7 +18,6 @@ import type { SessionStatusUI } from "./session-status-ui";
  * @property sessionStatus - Mapped session status for UI display
  * @property projectName - Display name of the project for badge
  * @property projectColor - Color for the project badge
- * @property debugPanelState - Debug information about the panel state
  * @property onClose - Callback when close button is clicked
  * @property onToggleFullscreen - Callback when fullscreen is toggled
  * @property onCopyContent - Callback when copy content is selected
@@ -55,7 +54,6 @@ export interface AgentPanelHeaderProps {
 	readonly linkedPr?: SessionLinkedPr | null;
 	readonly prLinkMode?: SessionPrLinkMode | null;
 	readonly hideProjectBadge?: boolean;
-	readonly debugPanelState?: unknown;
 	readonly onClose?: () => void;
 	readonly onToggleFullscreen?: () => void;
 	readonly onRetryConnection?: () => void;
@@ -85,6 +83,10 @@ export interface AgentPanelHeaderProps {
 	readonly terminalTitle?: string;
 	readonly terminalAriaLabel?: string;
 	readonly onToggleTerminal?: () => void;
+	/** Active session worktree path — enables "Open worktree" in the overflow menu. */
+	readonly activeWorktreePath?: string | null;
+	readonly activeWorktreeLabel?: string | null;
+	readonly onOpenWorktree?: () => void;
 	/**
 	 * Attachment chips for the first user message of this session. Shown inside
 	 * the header's hover expansion. Extracted via `extractAttachmentsFromChunks`.

@@ -350,7 +350,7 @@ mod tests {
         let expected_session_id = "cursor-live-session";
         let tool_call_id = "tool-edit-1";
 
-seed_test_tool_use_cache(
+        seed_test_tool_use_cache(
             expected_session_id,
             tool_call_id,
             "Edit",
@@ -427,7 +427,7 @@ seed_test_tool_use_cache(
         }
 
         drop(captured);
-clear_test_tool_use_cache(expected_session_id);
+        clear_test_tool_use_cache(expected_session_id);
     }
 
     #[tokio::test]
@@ -435,7 +435,7 @@ clear_test_tool_use_cache(expected_session_id);
         let expected_session_id = "cursor-live-rename-session";
         let tool_call_id = "tool-rename-1";
 
-seed_test_tool_use_cache(
+        seed_test_tool_use_cache(
             expected_session_id,
             tool_call_id,
             "Edit",
@@ -513,7 +513,7 @@ seed_test_tool_use_cache(
         }
 
         drop(captured);
-clear_test_tool_use_cache(expected_session_id);
+        clear_test_tool_use_cache(expected_session_id);
     }
 
     #[tokio::test]
@@ -521,7 +521,7 @@ clear_test_tool_use_cache(expected_session_id);
         let expected_session_id = "cursor-live-sequence";
         let tool_call_id = "tool-edit-sequence";
 
-seed_test_tool_use_cache(
+        seed_test_tool_use_cache(
             expected_session_id,
             tool_call_id,
             "Edit",
@@ -656,7 +656,7 @@ seed_test_tool_use_cache(
         }
 
         drop(captured);
-clear_test_tool_use_cache(expected_session_id);
+        clear_test_tool_use_cache(expected_session_id);
     }
 
     #[tokio::test]
@@ -664,7 +664,7 @@ clear_test_tool_use_cache(expected_session_id);
         let expected_session_id = "cursor-live-read-sequence";
         let tool_call_id = "tool-read-sequence";
 
-seed_test_tool_use_cache(
+        seed_test_tool_use_cache(
             expected_session_id,
             tool_call_id,
             "Read",
@@ -796,7 +796,7 @@ seed_test_tool_use_cache(
         }
 
         drop(captured);
-clear_test_tool_use_cache(expected_session_id);
+        clear_test_tool_use_cache(expected_session_id);
     }
 
     /// Regression: when the assistant emits the **same text** in two

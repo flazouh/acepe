@@ -82,9 +82,6 @@ export class AgentStore {
 						kind: "installable" as const,
 						installed: true,
 					},
-					autonomous_supported_mode_ids: a.autonomous_supported_mode_ids
-						? a.autonomous_supported_mode_ids
-						: [],
 					default_selection_rank: a.default_selection_rank,
 					providerMetadata: a.provider_metadata,
 					supportsProjectDiscovery: a.supports_project_discovery ?? false,

@@ -1,8 +1,5 @@
 <script lang="ts">
-import CircleCheckIcon from "@lucide/svelte/icons/circle-check";
-import InfoIcon from "@lucide/svelte/icons/info";
-import OctagonXIcon from "@lucide/svelte/icons/octagon-x";
-import TriangleAlertIcon from "@lucide/svelte/icons/triangle-alert";
+import { X } from "phosphor-svelte";
 import { mode } from "mode-watcher";
 import { Toaster as Sonner, toast, type ToasterProps as SonnerProps } from "svelte-sonner";
 import Spinner from "$lib/components/ui/spinner/spinner.svelte";
@@ -23,33 +20,100 @@ registerToastBridge({
 	position="top-center"
 	closeButton
 	offset="18px"
-	class="toaster group"
-	style="--normal-bg: color-mix(in srgb, var(--popover) 92%, var(--foreground) 8%); --normal-text: var(--color-popover-foreground);"
+	class="acepe-toaster"
+	style="--normal-bg: var(--card); --normal-text: var(--color-card-foreground);"
 	toastOptions={{
 		classes: {
-			toast:
-				"!bg-[color-mix(in_srgb,var(--popover)_92%,var(--foreground)_8%)] text-popover-foreground shadow-lg rounded-lg !border-none backdrop-blur-md",
-			title: "truncate",
-			description: "hidden",
-			icon: "hidden",
-			closeButton:
-				"!end-2 !start-auto !top-[calc(50%-14px)] !translate-x-0 !translate-y-0 !opacity-100",
+			toast: "acepe-toast",
+			title: "acepe-toast-title",
+			description: "acepe-toast-description",
+			icon: "acepe-toast-icon",
+			closeButton: "acepe-toast-close",
 		},
 	}}
 	{...restProps}
-	>{#snippet loadingIcon()}
+>
+	{#snippet loadingIcon()}
 		<Spinner size={16} />
 	{/snippet}
-	{#snippet successIcon()}
-		<CircleCheckIcon class="size-4" />
-	{/snippet}
-	{#snippet errorIcon()}
-		<OctagonXIcon class="size-4" />
-	{/snippet}
-	{#snippet infoIcon()}
-		<InfoIcon class="size-4" />
-	{/snippet}
-	{#snippet warningIcon()}
-		<TriangleAlertIcon class="size-4" />
+	{#snippet closeIcon()}
+		<X size={12} weight="bold" />
 	{/snippet}
 </Sonner>
+
+<style>
+	/* Tauri top-center: cancel Sonner's translateX(-50%) so toasts stay centered in the window. */
+	:global([data-sonner-toaster].acepe-toaster) {
+		left: 0 !important;
+		right: 0 !important;
+		width: 100% !important;
+		transform: none !important;
+		display: flex !important;
+		flex-direction: column !important;
+		align-items: center !important;
+		pointer-events: none !important;
+	}
+
+	:global([data-sonner-toaster].acepe-toaster [data-sonner-toast].acepe-toast) {
+		pointer-events: auto;
+		border: 1px solid color-mix(in srgb, var(--border) 70%, transparent) !important;
+		background: var(--card) !important;
+		backdrop-filter: blur(12px);
+		min-height: 38px !important;
+		width: fit-content !important;
+		max-width: min(520px, calc(100vw - 32px)) !important;
+		padding: 0 38px 0 16px !important;
+		border-radius: var(--radius-lg) !important;
+		box-shadow: 0 14px 42px rgb(0 0 0 / 0.24) !important;
+		color: var(--card-foreground);
+	}
+
+	:global([data-sonner-toaster].acepe-toaster [data-sonner-toast] [data-content]) {
+		min-width: 0;
+	}
+
+	:global([data-sonner-toaster].acepe-toaster [data-sonner-toast] .acepe-toast-title) {
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+		font-size: 13px;
+		line-height: 18px;
+		font-weight: 500;
+	}
+
+	:global([data-sonner-toaster].acepe-toaster [data-sonner-toast] .acepe-toast-description),
+	:global([data-sonner-toaster].acepe-toaster [data-sonner-toast] .acepe-toast-icon) {
+		display: none !important;
+	}
+
+	/* Match agent header close geometry (size-5, rounded-md) with destructive colors. */
+	:global([data-sonner-toaster].acepe-toaster [data-sonner-toast] .acepe-toast-close) {
+		right: 8px !important;
+		left: auto !important;
+		top: calc(50% - 10px) !important;
+		transform: none !important;
+		display: inline-flex !important;
+		align-items: center !important;
+		justify-content: center !important;
+		width: 20px !important;
+		height: 20px !important;
+		min-width: 20px !important;
+		min-height: 20px !important;
+		padding: 0 !important;
+		margin: 0 !important;
+		opacity: 1 !important;
+		border: none !important;
+		border-radius: var(--radius-md) !important;
+		background: transparent !important;
+		color: color-mix(in srgb, var(--destructive) 72%, transparent) !important;
+		box-shadow: none !important;
+		transition-property: color, background-color;
+		transition-duration: 75ms;
+		transition-timing-function: ease-out;
+	}
+
+	:global([data-sonner-toaster].acepe-toaster [data-sonner-toast] .acepe-toast-close:hover) {
+		color: var(--destructive) !important;
+		background: color-mix(in srgb, var(--destructive) 12%, transparent) !important;
+	}
+</style>

@@ -95,21 +95,33 @@ fn parse_model_display_from_stdout(stdout: &str) -> (Option<String>, Option<Stri
     let clean = strip_ansi_codes(stdout);
     if let Some(caps) = model_detail_regex().captures(&clean) {
         return (
-            Some(caps.get(1).map(|m| m.as_str().to_string()).unwrap_or_default()),
-            Some(caps.get(2).map(|m| m.as_str().to_string()).unwrap_or_default()),
+            Some(
+                caps.get(1)
+                    .map(|m| m.as_str().to_string())
+                    .unwrap_or_default(),
+            ),
+            Some(
+                caps.get(2)
+                    .map(|m| m.as_str().to_string())
+                    .unwrap_or_default(),
+            ),
         );
     }
     if let Some(caps) = model_simple_regex().captures(&clean) {
-        return (Some(caps.get(1).map(|m| m.as_str().trim().to_string()).unwrap_or_default()), None);
+        return (
+            Some(
+                caps.get(1)
+                    .map(|m| m.as_str().trim().to_string())
+                    .unwrap_or_default(),
+            ),
+            None,
+        );
     }
     (None, None)
 }
 
 fn strip_ansi_codes(value: &str) -> String {
-    ansi_regex()
-        .replace_all(value, "")
-        .trim()
-        .to_string()
+    ansi_regex().replace_all(value, "").trim().to_string()
 }
 
 fn model_detail_regex() -> &'static Regex {

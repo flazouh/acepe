@@ -29,6 +29,7 @@ import {
 	getModelSelectorDisplayName,
 	getModelSelectorItemId,
 	getModelSelectorItemLabel,
+	getModelSelectorProviderBrand,
 	getModelSelectorSearchText,
 	getPreferredReasoningVariantId,
 	getSelectedModel,
@@ -45,6 +46,8 @@ interface ModelSelectorProps {
 	isLoading?: boolean;
 	panelId?: string;
 	ontoggle?: (isOpen: boolean) => void;
+	/** Compact chip sizing for the new-thread setup row. */
+	compactSetup?: boolean;
 }
 
 let {
@@ -56,6 +59,7 @@ let {
 	isLoading = false,
 	panelId,
 	ontoggle,
+	compactSetup = false,
 }: ModelSelectorProps = $props();
 
 const panelStore = getPanelStore();
@@ -101,7 +105,9 @@ const displayName = $derived(
 	})
 );
 
-const providerBrand = $derived<ProviderBrand | null>(providerMetadata?.providerBrand ?? null);
+const modelProviderBrand = $derived<ProviderBrand | null>(
+	getModelSelectorProviderBrand(providerMetadata?.providerBrand)
+);
 const providerLabel = $derived(providerMetadata?.displayName);
 
 const usesVariantSelector = $derived(supportsReasoningEffortPicker(availableModels, modelsDisplay));
@@ -148,7 +154,7 @@ function toSelectorItem(model: Model | DisplayableModel): AgentInputModelSelecto
 	return {
 		id,
 		name,
-		providerBrand,
+		providerBrand: modelProviderBrand,
 		providerLabel,
 		description: model.description ?? undefined,
 		searchText: getModelSelectorSearchText({
@@ -179,7 +185,7 @@ const modelGroups = $derived.by<AgentInputModelSelectorGroup[]>(() => {
 	if (hasDisplayGroups) {
 		return displayGroups.map((group) => ({
 			label: group.label,
-			providerBrand,
+			providerBrand: modelProviderBrand,
 			providerLabel,
 			items: Array.from(group.models)
 				.sort((left, right) =>
@@ -193,7 +199,7 @@ const modelGroups = $derived.by<AgentInputModelSelectorGroup[]>(() => {
 
 	return groupModelsForFallback(validModels).map((group) => ({
 		label: group.label,
-		providerBrand,
+		providerBrand: modelProviderBrand,
 		providerLabel,
 		items: group.models.map(toSelectorItem),
 	}));
@@ -203,7 +209,7 @@ const reasoningGroups = $derived.by<AgentInputModelSelectorReasoningGroup[]>(() 
 	reasoningBaseGroups.map((group) => ({
 		baseModelId: group.baseModelId,
 		baseModelName: group.baseModelName,
-		providerBrand,
+		providerBrand: modelProviderBrand,
 		providerLabel,
 		preferredVariantId: getPreferredReasoningVariantId({
 			baseModelId: group.baseModelId,
@@ -254,11 +260,12 @@ async function handleSharedModelChange(modelId: string): Promise<void> {
 <SharedAgentInputModelSelector
 	bind:this={sharedSelectorRef}
 	triggerLabel={displayName}
-	triggerProviderBrand={providerBrand}
+	triggerProviderBrand={modelProviderBrand}
 	triggerProviderLabel={providerLabel}
 	currentModelId={currentModelId}
 	{isLoading}
 	{ontoggle}
+	triggerSize={compactSetup ? "setupChip" : "pill"}
 	{modelGroups}
 	{favoriteModels}
 	hideTriggerProviderMark={isDefaultChoiceModelId(currentModelId)}
@@ -266,7 +273,7 @@ async function handleSharedModelChange(modelId: string): Promise<void> {
 	selectedReasoningBaseId={selectedReasoningVariant?.baseModelId ?? null}
 	selectedReasoningVariantId={currentModelId}
 	primarySelectorLabel={primarySelectorLabel}
-	primaryTriggerProviderBrand={providerBrand}
+	primaryTriggerProviderBrand={modelProviderBrand}
 	primaryTriggerProviderLabel={providerLabel}
 	searchPlaceholder={"Search models..."}
 	loadingLabel="Loading models..."

@@ -4,8 +4,8 @@
 //! distinct providers. Keep that shared vocabulary here so provider adapters
 //! can depend on neutral ownership instead of each other.
 
-use super::any_eq;
 use super::super::kind_payload::is_browser_tool_name;
+use super::any_eq;
 use crate::acp::session_update::ToolKind;
 
 pub(crate) fn normalize_shared_chat_tool_name(name: &str) -> ToolKind {

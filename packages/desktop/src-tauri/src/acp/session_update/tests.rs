@@ -8,9 +8,7 @@ use crate::acp::parsers::{get_parser, AgentType};
 use crate::acp::types::ContentBlock;
 use serde_json::json;
 
-fn deserialize_session_update(
-    json: serde_json::Value,
-) -> Result<SessionUpdate, serde_json::Error> {
+fn deserialize_session_update(json: serde_json::Value) -> Result<SessionUpdate, serde_json::Error> {
     with_agent(AgentType::ClaudeCode, || serde_json::from_value(json))
 }
 
@@ -275,7 +273,10 @@ mod agent_context_deserialization {
             let result: Result<SessionUpdate, serde_json::Error> = serde_json::from_value(json);
 
             match result.expect("codex scoped SessionUpdate should parse") {
-                SessionUpdate::ToolCall { tool_call, session_id } => {
+                SessionUpdate::ToolCall {
+                    tool_call,
+                    session_id,
+                } => {
                     assert_eq!(session_id.as_deref(), Some("sess-codex"));
                     assert_eq!(tool_call.id, "tool-search-1");
                     assert_eq!(tool_call.name, "Search");
@@ -307,7 +308,10 @@ mod agent_context_deserialization {
             let result: Result<SessionUpdate, serde_json::Error> = serde_json::from_value(json);
 
             match result.expect("cursor scoped SessionUpdate should parse") {
-                SessionUpdate::ToolCall { tool_call, session_id } => {
+                SessionUpdate::ToolCall {
+                    tool_call,
+                    session_id,
+                } => {
                     assert_eq!(session_id.as_deref(), Some("sess-cursor"));
                     assert_eq!(tool_call.id, "tool-find-1");
                     assert_eq!(tool_call.kind, Some(ToolKind::Glob));
@@ -2478,12 +2482,13 @@ mod parse_tool_call_update_from_acp {
     use crate::acp::session_update_parser::parse_session_update_notification_with_agent;
     use crate::acp::streaming_accumulator::{has_tool_state, reset_streaming_state_for_test};
 
-
     fn parse_claude_tool_call_update(
         data: &serde_json::Value,
         session_id: Option<&str>,
     ) -> Result<ToolCallUpdateData, serde_json::Error> {
-        with_agent(AgentType::ClaudeCode, || parse_tool_call_update_from_acp(data, session_id))
+        with_agent(AgentType::ClaudeCode, || {
+            parse_tool_call_update_from_acp(data, session_id)
+        })
     }
     #[test]
     fn parses_acp_format_with_nested_content() {

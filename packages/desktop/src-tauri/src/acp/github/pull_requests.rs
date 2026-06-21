@@ -55,7 +55,10 @@ pub fn fetch_pr_diff(owner: String, repo: String, pr_number: i32) -> Result<PrDi
         if gh_api_output_is_not_found(&pr_output) {
             return Err("PR not found".to_string());
         }
-        return Err(gh_api_output_summary("Failed to fetch PR metadata", &pr_output));
+        return Err(gh_api_output_summary(
+            "Failed to fetch PR metadata",
+            &pr_output,
+        ));
     }
 
     let pr_json: serde_json::Value = serde_json::from_slice(&pr_output.stdout)

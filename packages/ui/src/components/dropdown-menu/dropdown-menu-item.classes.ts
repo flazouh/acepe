@@ -1,4 +1,4 @@
-export const dropdownMenuItemRadiusClass = "rounded-lg";
+export const dropdownMenuItemRadiusClass = "rounded-md";
 
 export function buildDropdownMenuItemClassName(hasHighlightContext: boolean): string {
 	return [

@@ -507,7 +507,7 @@ async function finishOnboarding(): Promise<void> {
 													style="-webkit-mask: url('/svgs/icons/claude.svg') center / contain no-repeat; mask: url('/svgs/icons/claude.svg') center / contain no-repeat;"
 												></span>
 											{:else if agent.id === "codex"}
-												<img src="/svgs/agents/codex/codex-app-icon.png" alt="" class="size-3.5 shrink-0 rounded-[22%] object-contain" />
+												<img src="/svgs/agents/codex/codex-icon.svg" alt="" class="size-3.5 shrink-0 object-contain" />
 											{:else}
 												<img src="/svgs/icons/cursor.svg" alt="" class="size-3.5 shrink-0" />
 											{/if}

@@ -47,7 +47,7 @@ import type { PlanApprovalInteraction } from "$lib/acp/types/interaction.js";
 import type { QuestionRequest } from "$lib/acp/types/question.js";
 import { createLogger } from "$lib/acp/utils/logger.js";
 import { ThemeProvider } from "$lib/components/theme/index.js";
-import DesignSystemShowcase from "$lib/components/dev/design-system-showcase.svelte";
+import DesignSystemPage from "$lib/components/dev/design-system-page.svelte";
 import { KEYBINDING_ACTIONS } from "$lib/keybindings/constants.js";
 import { getKeybindingsService } from "$lib/keybindings/index.js";
 import {
@@ -1103,7 +1103,7 @@ onDestroy(() => {
 					</div>
 				{/if}
 				<main
-					class="flex-1 flex min-h-0 flex-col gap-0.5 overflow-hidden transition-[background-color] duration-200 ease-out {showPanelsContainer
+					class="flex-1 flex min-h-0 flex-col gap-0.5 overflow-hidden transition-[background-color] duration-200 ease-out {showPanelsContainer || viewState.designSystemOpen
 						? ''
 						: 'justify-center items-center overflow-x-auto'}"
 				>
@@ -1122,7 +1122,13 @@ onDestroy(() => {
 						</div>
 					{/if}
 					<svelte:boundary onerror={(e) => console.error('[boundary:main-content]', e)}>
-						{#if showPanelsContainer}
+						{#if viewState.designSystemOpen}
+							<DesignSystemPage
+								onClose={() => {
+									viewState.designSystemOpen = false;
+								}}
+							/>
+						{:else if showPanelsContainer}
 							<div class="flex min-h-0 flex-1 flex-col gap-0.5 overflow-hidden">
 								<PanelsContainer
 									{projectManager}
@@ -1156,12 +1162,6 @@ onDestroy(() => {
 	</div>
 	<AppOverlays state={viewState} {commandPalette} />
 	<SourceControlDialog {projectManager} />
-	<DesignSystemShowcase
-		open={viewState.designSystemOpen}
-		onOpenChange={(open) => {
-			viewState.designSystemOpen = open;
-		}}
-	/>
 
 	<OpenProjectDialog
 		open={addProjectDialogOpen}

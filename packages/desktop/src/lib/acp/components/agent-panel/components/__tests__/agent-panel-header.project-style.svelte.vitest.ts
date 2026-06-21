@@ -53,7 +53,6 @@ describe("AgentPanelHeader project-header style", () => {
 			onExportJson: undefined,
 			onAgentChange: undefined,
 			onScrollToTop: undefined,
-			debugPanelState: null,
 		});
 
 		const close = container.querySelector(`button[title='${"Close"}']`);
@@ -109,7 +108,6 @@ describe("AgentPanelHeader project-header style", () => {
 			onExportJson: undefined,
 			onAgentChange: undefined,
 			onScrollToTop: undefined,
-			debugPanelState: null,
 		});
 
 		expect(container.firstElementChild?.className).not.toContain("border-r");
@@ -149,7 +147,6 @@ describe("AgentPanelHeader project-header style", () => {
 			onExportJson: undefined,
 			onAgentChange: undefined,
 			onScrollToTop: undefined,
-			debugPanelState: null,
 		});
 
 		expect(screen.getAllByText("Fix login redirect race").length).toBeGreaterThan(0);
@@ -190,7 +187,6 @@ describe("AgentPanelHeader project-header style", () => {
 			onExportJson: undefined,
 			onAgentChange: undefined,
 			onScrollToTop: undefined,
-			debugPanelState: null,
 		});
 
 		expect(container.querySelector('img[src="/agent.svg"]')).not.toBeNull();
@@ -235,7 +231,6 @@ describe("AgentPanelHeader project-header style", () => {
 			onExportJson: undefined,
 			onAgentChange: undefined,
 			onScrollToTop: undefined,
-			debugPanelState: null,
 		} satisfies AgentPanelHeaderProps;
 
 		const view = render(AgentPanelHeader, props);
@@ -292,19 +287,21 @@ describe("AgentPanelHeader project-header style", () => {
 			onExportJson: undefined,
 			onAgentChange: undefined,
 			onScrollToTop: undefined,
-			debugPanelState: null,
 		});
 
 		await fireEvent.click(screen.getByLabelText("More actions"));
 
 		expect(screen.getByRole("menuitem", { name: "Copy session ID" })).not.toBeNull();
-		expect(screen.getByRole("menuitemcheckbox", { name: "Toggle browser" })).not.toBeNull();
-		expect(screen.getByRole("menuitemcheckbox", { name: "Toggle terminal" })).not.toBeNull();
+		expect(screen.getByRole("menuitem", { name: "Toggle browser" })).not.toBeNull();
+		expect(screen.getByRole("menuitem", { name: "Toggle terminal" })).not.toBeNull();
 		expect(screen.queryByRole("menuitem", { name: "Open Thread in Finder" })).toBeNull();
 		expect(screen.queryByRole("menuitem", { name: "Delete session" })).toBeNull();
 
-		await fireEvent.click(screen.getByRole("menuitemcheckbox", { name: "Toggle browser" }));
-		await fireEvent.click(screen.getByRole("menuitemcheckbox", { name: "Toggle terminal" }));
+		await fireEvent.click(screen.getByRole("menuitem", { name: "Toggle browser" }));
+		expect(onToggleBrowser).toHaveBeenCalledTimes(1);
+
+		await fireEvent.click(screen.getByLabelText("More actions"));
+		await fireEvent.click(screen.getByRole("menuitem", { name: "Toggle terminal" }));
 
 		expect(onToggleBrowser).toHaveBeenCalledTimes(1);
 		expect(onToggleTerminal).toHaveBeenCalledTimes(1);

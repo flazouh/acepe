@@ -5,6 +5,7 @@
 //! is enforced in `with_buffer_emissions_locked` — never invert.
 
 use crate::acp::projections::ProjectionRegistry;
+use crate::acp::session_state_engine::protocol::{ViewportBufferDiagnostic, ViewportBufferPush};
 use crate::acp::session_state_engine::runtime_registry::{
     SessionGraphRuntimeSnapshot, TranscriptViewportHeightConfirmation, VisibleTranscriptWindowMiss,
 };
@@ -15,9 +16,6 @@ use crate::acp::session_state_engine::viewport_buffer_producer::{
 use crate::acp::session_state_engine::viewport_ledger::{decide_scroll_authority, ViewportLedger};
 use crate::acp::session_state_engine::{
     SessionGraphRevision, SessionStateEnvelope, SessionStatePayload,
-};
-use crate::acp::session_state_engine::protocol::{
-    ViewportBufferDiagnostic, ViewportBufferPush,
 };
 use crate::acp::transcript_projection::TranscriptProjectionRegistry;
 use crate::acp::transcript_viewport::{ScrollIntent, DEFAULT_BUFFER_OVERSCAN_ROWS};
@@ -224,7 +222,8 @@ impl BufferEmissionTracker {
                 .iter()
                 .map(|row| row.row_id.clone())
                 .collect();
-            let buffered_row_versions: Vec<String> = full_rows[buffer_start_index..buffer_end_index]
+            let buffered_row_versions: Vec<String> = full_rows
+                [buffer_start_index..buffer_end_index]
                 .iter()
                 .map(|row| row.version.clone())
                 .collect();
@@ -309,10 +308,7 @@ impl BufferEmissionTracker {
     /// `buffer_emissions`.
     fn with_buffer_emissions_locked<R, F>(&self, f: F) -> R
     where
-        F: FnOnce(
-            &mut HashMap<String, BufferEmissionRecord>,
-            &ViewportLedger,
-        ) -> R,
+        F: FnOnce(&mut HashMap<String, BufferEmissionRecord>, &ViewportLedger) -> R,
     {
         let mut emissions = self
             .buffer_emissions
@@ -335,19 +331,22 @@ mod tests {
     use super::BufferEmissionTracker;
     use crate::acp::projections::ProjectionRegistry;
     use crate::acp::session_state_engine::runtime_registry::{
-        SessionGraphRuntimeSnapshot, TranscriptViewportHeightConfirmation, VisibleTranscriptWindowMiss,
+        SessionGraphRuntimeSnapshot, TranscriptViewportHeightConfirmation,
+        VisibleTranscriptWindowMiss,
     };
-    use crate::acp::session_state_engine::viewport_ledger::ViewportLedger;
     use crate::acp::session_state_engine::viewport_buffer_producer::{
         buffer_delta_is_identity_consistent, classify_buffer_transition, compute_buffer_delta,
         BufferEmission,
     };
+    use crate::acp::session_state_engine::viewport_ledger::ViewportLedger;
     use crate::acp::session_state_engine::{SessionGraphRevision, SessionStatePayload};
     use crate::acp::session_update::{ContentChunk, SessionUpdate};
-    use crate::acp::transcript_projection::{TranscriptEntryRole, TranscriptProjectionRegistry, TranscriptSnapshot};
+    use crate::acp::transcript_projection::{
+        TranscriptEntryRole, TranscriptProjectionRegistry, TranscriptSnapshot,
+    };
     use crate::acp::transcript_viewport::{
-        ScrollIntent, TranscriptViewportRow, TranscriptViewportRowContent, TranscriptViewportRowKind,
-        ViewportBufferSlice, ViewportMode,
+        ScrollIntent, TranscriptViewportRow, TranscriptViewportRowContent,
+        TranscriptViewportRowKind, ViewportBufferSlice, ViewportMode,
     };
     use crate::acp::types::{CanonicalAgentId, ContentBlock};
 
@@ -403,15 +402,11 @@ mod tests {
         for index in 0..count {
             if index > 0 {
                 tx_revision += 1;
-                let turn_complete = create_turn_complete_update_for_session(
-                    session_id,
-                    &format!("turn-{index}"),
-                );
+                let turn_complete =
+                    create_turn_complete_update_for_session(session_id, &format!("turn-{index}"));
                 projection_registry.apply_session_update(session_id, &turn_complete);
-                let _ = transcript_projection_registry.apply_session_update_idle(
-                    tx_revision,
-                    &turn_complete,
-                );
+                let _ = transcript_projection_registry
+                    .apply_session_update_idle(tx_revision, &turn_complete);
             }
             tx_revision += 1;
             let update = create_agent_message_chunk_update(
@@ -552,8 +547,6 @@ mod tests {
             "a real resize away from the stored height must bump the revision"
         );
     }
-
-
 
     #[test]
     fn buffer_emission_first_call_is_fresh_push_with_seq_zero() {
@@ -1541,8 +1534,7 @@ mod tests {
     /// under concurrent buffer emission + height confirmation + scroll intent.
     /// A deadlock here means an inverted acquisition path was introduced.
     #[test]
-    fn buffer_emission_and_height_confirmation_concurrent_interleave_completes_without_deadlock(
-    ) {
+    fn buffer_emission_and_height_confirmation_concurrent_interleave_completes_without_deadlock() {
         use std::sync::{Arc, Barrier};
         use std::time::{Duration, Instant};
 
@@ -1905,7 +1897,6 @@ mod tests {
             &slice
         ));
     }
-
 
     #[test]
     fn classify_buffer_transition_no_prior_is_fresh_push() {

@@ -184,6 +184,10 @@
       "svelte": "./src/components/dropdown-menu/index.ts",
       "default": "./src/components/dropdown-menu/index.ts"
     },
+    "./tooltip": {
+      "svelte": "./src/components/tooltip/index.ts",
+      "default": "./src/components/tooltip/index.ts"
+    },
     "./button-group": {
       "svelte": "./src/components/button-group/index.ts",
       "default": "./src/components/button-group/index.ts"

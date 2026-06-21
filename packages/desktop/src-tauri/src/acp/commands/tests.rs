@@ -1689,12 +1689,12 @@ async fn resume_promotion_is_idempotent_for_already_managed_session() {
 
     let app_handle = app.handle().clone();
     let resume_worker = |_app,
-     _session_id,
-     _cwd,
-     _agent_id_enum,
-     _launch_mode_id,
-     _resume_descriptor,
-     _open_token| async move {
+                         _session_id,
+                         _cwd,
+                         _agent_id_enum,
+                         _launch_mode_id,
+                         _resume_descriptor,
+                         _open_token| async move {
         Ok(ResumeSessionResponse {
             models: SessionModelState {
                 available_models: vec![],
@@ -1722,7 +1722,11 @@ async fn resume_promotion_is_idempotent_for_already_managed_session() {
         resume_worker,
     )
     .await;
-    assert!(first_result.is_ok(), "first resume should succeed: {:?}", first_result);
+    assert!(
+        first_result.is_ok(),
+        "first resume should succeed: {:?}",
+        first_result
+    );
     let after_first = SessionMetadataRepository::get_by_id(&db, session_id)
         .await
         .expect("load row after first resume")
@@ -1741,7 +1745,11 @@ async fn resume_promotion_is_idempotent_for_already_managed_session() {
         resume_worker,
     )
     .await;
-    assert!(second_result.is_ok(), "second resume should succeed: {:?}", second_result);
+    assert!(
+        second_result.is_ok(),
+        "second resume should succeed: {:?}",
+        second_result
+    );
     let after_second = SessionMetadataRepository::get_by_id(&db, session_id)
         .await
         .expect("load row after second resume")

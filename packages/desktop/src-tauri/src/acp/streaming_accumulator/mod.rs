@@ -13,9 +13,7 @@ use dashmap::DashMap;
 use std::sync::LazyLock;
 
 pub use plan_streaming::PlanStreamingState;
-pub use tool_streaming::{
-    SessionStreamingState, StreamingNormalized, ToolStreamingDeltaResult,
-};
+pub use tool_streaming::{SessionStreamingState, StreamingNormalized, ToolStreamingDeltaResult};
 
 use crate::acp::parsers::AgentType;
 use crate::acp::session_update::PlanData;

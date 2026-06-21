@@ -33,7 +33,9 @@ const BOOTSTRAP_VIEWPORT_HEIGHT_PX: u32 = 720;
 #[derive(Debug, Clone)]
 pub struct ViewportLedger {
     transcript_viewports: Arc<Mutex<HashMap<String, TranscriptViewport>>>,
-    activity_by_session: Arc<Mutex<HashMap<String, crate::acp::session_state_engine::selectors::SessionGraphActivity>>>,
+    activity_by_session: Arc<
+        Mutex<HashMap<String, crate::acp::session_state_engine::selectors::SessionGraphActivity>>,
+    >,
 }
 
 impl ViewportLedger {
@@ -66,10 +68,9 @@ impl ViewportLedger {
             .activity_by_session
             .lock()
             .expect("activity_by_session mutex poisoned");
-        let previous = store
-            .get(session_id)
-            .cloned()
-            .unwrap_or_else(crate::acp::session_state_engine::selectors::SessionGraphActivity::idle);
+        let previous = store.get(session_id).cloned().unwrap_or_else(
+            crate::acp::session_state_engine::selectors::SessionGraphActivity::idle,
+        );
         let merged = merge_session_graph_activity_timing(&previous, selected, now_ms);
         store.insert(session_id.to_string(), merged.clone());
         merged
@@ -144,7 +145,8 @@ impl ViewportLedger {
             &interactions,
             session_snapshot.active_turn_failure.as_ref(),
         );
-        let activity = self.resolve_viewport_activity(session_id, selected_activity, wall_clock_ms());
+        let activity =
+            self.resolve_viewport_activity(session_id, selected_activity, wall_clock_ms());
         let active_streaming_tail = select_active_streaming_tail(
             &session_snapshot.turn_state,
             &activity,

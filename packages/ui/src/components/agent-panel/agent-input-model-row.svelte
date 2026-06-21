@@ -27,7 +27,7 @@
 >
 	<div class="flex w-full items-center gap-2">
 		{#if leading}{@render leading()}{/if}
-		<span class="flex-1 truncate text-xs">{modelName}</span>
+		<span class="flex-1 truncate text-xs font-normal">{modelName}</span>
 		{#if actions}{@render actions()}{/if}
 	</div>
 </DropdownMenu.Item>

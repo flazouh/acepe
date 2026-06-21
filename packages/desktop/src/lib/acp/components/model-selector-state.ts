@@ -1,4 +1,6 @@
+import type { ProviderBrand as ModelPickerProviderBrand } from "@acepe/ui";
 import type { DisplayableModel, ModelsForDisplay } from "../../services/acp-types.js";
+import type { ProviderBrand as AgentProviderBrand } from "../../services/acp-types.js";
 import type { Model } from "../application/dto/model.js";
 import type { ModelId } from "../types/model-id.js";
 import {
@@ -95,4 +97,14 @@ export function getModelSelectorSearchText(input: {
 	providerLabel?: string | null;
 }): string {
 	return `${input.name} ${input.id} ${input.description ?? ""} ${input.providerLabel ?? ""}`;
+}
+
+export function getModelSelectorProviderBrand(
+	providerBrand: AgentProviderBrand | null | undefined
+): ModelPickerProviderBrand | null {
+	if (!providerBrand) {
+		return null;
+	}
+
+	return providerBrand === "claude-code" ? "anthropic" : providerBrand;
 }

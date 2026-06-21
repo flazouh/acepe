@@ -19,3 +19,11 @@ export function toastSuccess(message: string): void {
 export function toastError(message: string): void {
 	showToast("error", message);
 }
+
+export function toastInfo(message: string): void {
+	showToast("info", message);
+}
+
+export function toastWarning(message: string): void {
+	showToast("warning", message);
+}

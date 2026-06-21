@@ -148,19 +148,11 @@
 	}
 
 	.permission-tally-bar :global(.voice-download-segments) {
-		grid-auto-columns: 3px;
-		gap: 2px;
-		height: 9px;
+		height: 12px;
 	}
 
-	.permission-tally-bar :global(.voice-download-segment) {
-		width: 3px;
-		height: 9px;
-		border-radius: 1.5px;
-	}
-
-	.permission-tally-bar :global(.voice-download-segment-vertical:not(.filled)) {
-		height: 6px;
+	.permission-tally-bar :global(.compact .voice-download-segments) {
+		height: 10px;
 	}
 
 	@keyframes slideUp {

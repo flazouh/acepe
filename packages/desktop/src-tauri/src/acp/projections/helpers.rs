@@ -18,7 +18,9 @@ pub(crate) fn plan_mode_arguments_have_plan(arguments: &ToolArguments) -> bool {
     )
 }
 
-pub(crate) fn read_exit_plan_arguments_from_permission(permission: &PermissionData) -> Option<ToolArguments> {
+pub(crate) fn read_exit_plan_arguments_from_permission(
+    permission: &PermissionData,
+) -> Option<ToolArguments> {
     permission
         .metadata
         .get("parsedArguments")
@@ -89,20 +91,6 @@ pub(crate) fn convert_turn_error_snapshot(
                 .source
                 .unwrap_or(crate::acp::session_update::TurnErrorSource::Unknown),
         },
-    }
-}
-
-pub(crate) fn convert_stored_error_snapshot(
-    message: &crate::session_jsonl::types::StoredErrorMessage,
-) -> TurnFailureSnapshot {
-    TurnFailureSnapshot {
-        turn_id: None,
-        message: message.content.clone(),
-        code: message.code.clone(),
-        kind: message.kind,
-        source: message
-            .source
-            .unwrap_or(crate::acp::session_update::TurnErrorSource::Unknown),
     }
 }
 
@@ -307,7 +295,9 @@ pub(crate) fn operation_identity_conflicts(
     )
 }
 
-pub(crate) fn is_path_access_permission_placeholder_operation(operation: &OperationSnapshot) -> bool {
+pub(crate) fn is_path_access_permission_placeholder_operation(
+    operation: &OperationSnapshot,
+) -> bool {
     if !matches!(
         operation.provider_status,
         ToolCallStatus::Pending | ToolCallStatus::InProgress
@@ -697,7 +687,11 @@ pub(crate) fn merge_operation_snapshot_evidence(
         .or(existing.plan_approval_request_id);
     incoming.started_at_ms = incoming.started_at_ms.or(existing.started_at_ms);
     incoming.completed_at_ms = incoming.completed_at_ms.or(existing.completed_at_ms);
-    apply_operation_lifecycle_timing(Some(existing), &mut incoming, crate::acp::session_state_engine::timing::wall_clock_ms());
+    apply_operation_lifecycle_timing(
+        Some(existing),
+        &mut incoming,
+        crate::acp::session_state_engine::timing::wall_clock_ms(),
+    );
     incoming.source_link = if conflicts {
         OperationSourceLink::degraded(OperationDegradationReason {
             code: OperationDegradationCode::ImpossibleTransition,

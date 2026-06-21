@@ -1,7 +1,7 @@
 <script lang="ts">
 import { ChevronDown } from "@lucide/svelte/icons";
 import { Button } from "$lib/components/ui/button/index.js";
-import * as Tooltip from "$lib/components/ui/tooltip/index.js";
+import * as Tooltip from "@acepe/ui/tooltip";
 
 import type { AskMessage } from "../../types/ask-message.js";
 

@@ -3,11 +3,7 @@ import type { ProviderBrand } from "@acepe/ui";
 import { useTheme } from "$lib/components/theme/context.svelte.js";
 import { getAgentStore } from "$lib/acp/store/index.js";
 
-import {
-	CODEX_APP_ICON_IMG_CLASS,
-	getProviderBrandIcon,
-	isCodexProviderBrand,
-} from "../constants/thread-list-constants.js";
+import { getProviderBrandIcon } from "../constants/thread-list-constants.js";
 
 interface Props {
 	agentId: string;
@@ -37,13 +33,7 @@ const effectiveProviderLabel = $derived(
 );
 const iconPath = $derived(getProviderBrandIcon(effectiveProviderBrand, themeState.effectiveTheme));
 const iconClass = $derived(
-	[
-		"block shrink-0 object-contain",
-		isCodexProviderBrand(effectiveProviderBrand) ? CODEX_APP_ICON_IMG_CLASS : "",
-		className,
-	]
-		.filter(Boolean)
-		.join(" ")
+	["block shrink-0 object-contain", className].filter(Boolean).join(" ")
 );
 </script>
 

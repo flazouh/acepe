@@ -133,9 +133,9 @@
 				active={autonomousToggleActive}
 				disabled={autonomousDisabled || selectorsDisabledByComposer}
 				busy={autonomousBusy}
-				title={autonomousTooltip ?? "Autonomous"}
-				ariaLabel={autonomousTooltip ?? "Autonomous"}
-				tooltipDescription="Skip permission prompts and let the agent run tools automatically."
+				title={autonomousTooltip ?? "Auto-approve"}
+				ariaLabel={autonomousTooltip ?? "Auto-approve"}
+				tooltipDescription="Acepe auto-approves every permission request — file edits, commands, and other actions — without asking. Questions and plan reviews still surface."
 				onToggle={onAutonomousToggle}
 			/>
 			<div class="h-full w-px bg-border/50"></div>

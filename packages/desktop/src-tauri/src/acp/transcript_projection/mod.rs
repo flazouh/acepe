@@ -11,10 +11,10 @@ mod characterization_tests;
 pub(crate) use canonical_event::{CanonicalTranscriptEvent, CanonicalTranscriptEventKind};
 pub use delta::{TranscriptDelta, TranscriptDeltaOperation};
 pub use display_id::{
-    derive_entry_id, derive_entry_id_for_snapshot_role, derive_entry_id_from_history_facts,
+    assistant_boundary_entry_count_from_transcript_entries, derive_entry_id,
+    derive_entry_id_for_snapshot_role, derive_entry_id_from_history_facts,
     derive_entry_id_from_live_facts, derive_tool_entry_id, tool_call_id_from_authority_entry_id,
-    assistant_boundary_entry_count_from_transcript_entries, turn_key_for_assistant_boundary,
-    DisplayElementRole, DisplayIdInput,
+    turn_key_for_assistant_boundary, DisplayElementRole, DisplayIdInput,
 };
 pub use runtime::TranscriptProjectionRegistry;
 pub use snapshot::{TranscriptEntry, TranscriptEntryRole, TranscriptSegment, TranscriptSnapshot};

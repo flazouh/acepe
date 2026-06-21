@@ -14,7 +14,7 @@ import {
 	buildConfigOptionSelectorState,
 	getNextBooleanConfigOptionValue,
 } from "./config-option-selector-state.js";
-import * as Tooltip from "$lib/components/ui/tooltip/index.js";
+import * as Tooltip from "@acepe/ui/tooltip";
 
 interface ConfigOptionSelectorProps {
 	configOption: ConfigOptionData;

@@ -1,6 +1,3 @@
-use crate::acp::provider::{
-    AgentProvider, ProjectDiscoveryCompleteness, ProjectPathListing, SpawnConfig,
-};
 use super::settings::{
     apply_claude_session_defaults, compare_claude_model_ids, is_claude_model_id,
     resolve_claude_runtime_mode_id,
@@ -15,6 +12,9 @@ use crate::acp::client_session::{
 };
 use crate::acp::client_trait::CommunicationMode;
 use crate::acp::error::AcpResult;
+use crate::acp::provider::{
+    AgentProvider, ProjectDiscoveryCompleteness, ProjectPathListing, SpawnConfig,
+};
 use crate::acp::runtime_resolver::SpawnEnvStrategy;
 use crate::acp::session_descriptor::SessionReplayContext;
 use crate::acp::session_thread_snapshot::ProviderOwnedSessionSnapshot;
@@ -105,10 +105,6 @@ impl AgentProvider for ClaudeCodeProvider {
 
     fn visible_mode_ids(&self) -> &'static [&'static str] {
         &["default", "acceptEdits", "plan", "bypassPermissions"]
-    }
-
-    fn autonomous_supported_mode_ids(&self) -> &'static [&'static str] {
-        &["bypassPermissions"]
     }
 
     fn default_session_modes(&self) -> SessionModes {
@@ -340,8 +336,7 @@ fn resolve_claude_preconnection_capabilities<'a>(
             // (opus / sonnet / haiku) only. Older-generation models remain available via
             // --model <id> and are re-injected by apply_claude_session_defaults for any
             // configured model that falls outside this curated set.
-            models.available_models =
-                model_catalog::filter_to_picker_defaults(&snapshot.models);
+            models.available_models = model_catalog::filter_to_picker_defaults(&snapshot.models);
         }
 
         if let Some(reason) = catalog.refresh_reason {
@@ -788,16 +783,6 @@ mod tests {
         let provider = ClaudeCodeProvider;
 
         assert_eq!(provider.model_discovery_timeout(), Duration::from_secs(15));
-    }
-
-    #[test]
-    fn claude_provider_reports_autonomous_support_for_bypass_permissions_only() {
-        let provider = ClaudeCodeProvider;
-
-        assert_eq!(
-            provider.autonomous_supported_mode_ids(),
-            &["bypassPermissions"]
-        );
     }
 
     #[test]

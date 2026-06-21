@@ -5,6 +5,7 @@
 <script lang="ts">
 	import type { Snippet } from "svelte";
 
+	import AgentInputConfigOptionSelector from "./agent-input-config-option-selector.svelte";
 	import AgentInputMicButton from "./agent-input-mic-button.svelte";
 	import AgentInputVoiceModelMenu from "./agent-input-voice-model-menu.svelte";
 	import {
@@ -15,6 +16,7 @@
 		shouldShowVoiceErrorDismiss,
 		shouldShowVoiceRecordingBar,
 	} from "./agent-input-composer-toolbar-state.js";
+	import type { AgentInputConfigOption } from "./agent-input-config-option-types.js";
 	import {
 		getMicButtonVisualState,
 		type AgentComposerToolbarVoiceBinding,
@@ -40,6 +42,10 @@
 		onVoiceSelectModel,
 		onVoiceDownloadModel,
 		voiceCloseLabel,
+		toolbarConfigOptions = [],
+		onConfigOptionChange,
+		selectorsLoading = false,
+		selectorsDisabledByComposer = false,
 	}: {
 		inputReady: boolean;
 		modelSelector: Snippet;
@@ -65,6 +71,10 @@
 		onVoiceSelectModel: (modelId: string) => void;
 		onVoiceDownloadModel: (modelId: string) => void;
 		voiceCloseLabel: string;
+		toolbarConfigOptions?: readonly AgentInputConfigOption[];
+		onConfigOptionChange?: (configId: string, value: string) => void | Promise<void>;
+		selectorsLoading?: boolean;
+		selectorsDisabledByComposer?: boolean;
 	} = $props();
 </script>
 
@@ -104,6 +114,19 @@
 					</div>
 				{/if}
 				{@render modelSelector()}
+				{#if toolbarConfigOptions.length > 0 && onConfigOptionChange}
+					<div class="flex h-7 shrink-0 items-center">
+						{#each toolbarConfigOptions as configOption (configOption.id)}
+							<AgentInputConfigOptionSelector
+								{configOption}
+								onValueChange={(configId, value) => {
+									void onConfigOptionChange(configId, value);
+								}}
+								disabled={selectorsLoading || selectorsDisabledByComposer}
+							/>
+						{/each}
+					</div>
+				{/if}
 				{#if metricsChip}
 					<div class="flex h-7 shrink-0 items-center">
 						{@render metricsChip()}

@@ -95,7 +95,10 @@ impl ProjectionRegistry {
         })
     }
 
-    pub(crate) fn block_operation_for_pending_interaction(&self, interaction: &InteractionSnapshot) {
+    pub(crate) fn block_operation_for_pending_interaction(
+        &self,
+        interaction: &InteractionSnapshot,
+    ) {
         if interaction.state != InteractionState::Pending {
             return;
         }
@@ -107,7 +110,10 @@ impl ProjectionRegistry {
         let _ = self.patch_operation_state(operation_id, OperationState::Blocked);
     }
 
-    pub(crate) fn advance_operation_after_interaction_resolution(&self, interaction: &InteractionSnapshot) {
+    pub(crate) fn advance_operation_after_interaction_resolution(
+        &self,
+        interaction: &InteractionSnapshot,
+    ) {
         let Some(operation_id) = interaction.canonical_operation_id.as_deref() else {
             return;
         };
@@ -127,5 +133,4 @@ impl ProjectionRegistry {
             InteractionState::Pending => {}
         }
     }
-
 }

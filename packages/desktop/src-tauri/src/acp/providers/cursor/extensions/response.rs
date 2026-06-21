@@ -1,6 +1,4 @@
-use crate::acp::provider_extensions::{
-    InboundResponseAdapter, QuestionOptionResponseAdapter, QuestionResponseAdapter,
-};
+use crate::acp::provider_extensions::InboundResponseAdapter;
 use serde_json::{json, Map, Value};
 
 pub fn adapt_cursor_response(adapter: &InboundResponseAdapter, result: &Value) -> Value {

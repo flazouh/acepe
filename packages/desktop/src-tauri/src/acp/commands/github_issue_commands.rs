@@ -33,9 +33,9 @@ pub async fn list_github_issues(
 ) -> CommandResult<IssueListResult> {
     match domain_list_issues(state, labels, sort, direction, page, per_page).await {
         Ok(result) => Ok(result),
-        Err(error) if is_expected_github_api_error(&error) => {
-            Err(SerializableCommandError::expected("list_github_issues", error))
-        }
+        Err(error) if is_expected_github_api_error(&error) => Err(
+            SerializableCommandError::expected("list_github_issues", error),
+        ),
         Err(error) => Err(capture_unexpected_command_error(
             "list_github_issues",
             "Failed to list GitHub issues",

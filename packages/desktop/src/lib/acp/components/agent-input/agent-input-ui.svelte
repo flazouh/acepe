@@ -8,8 +8,9 @@ import type { AttachMenuCommandItem } from "@acepe/ui/agent-panel";
 import {
 	AgentInputActiveModeChip,
 	AgentInputAttachMenu,
-	AgentInputConfigOptionSelector,
 	AgentInputComposerTrailingControls,
+	AgentInputConfigOptionSelector,
+	AgentInputNewThreadOptions,
 	AgentPanelComposer as SharedAgentPanelComposer,
 } from "@acepe/ui/agent-panel";
 import { getConnectionStore } from "../../store/connection-store.svelte.js";
@@ -50,7 +51,6 @@ import {
 	PreconnectionRemoteCommandsState,
 	renderInlineComposerMessage,
 	resolveAttachMenuItemInsertText,
-	resolveAutonomousSupport,
 	resolveComposerEnterKeyIntent,
 	resolveDefaultModeId,
 	resolveInitialModelIdForNewSession,
@@ -140,6 +140,38 @@ const voiceSessionController = new VoiceSessionController({
 
 const voiceState = $derived(voiceSessionController.voiceState);
 const voiceReady = $derived(voiceSessionController.ready);
+/**
+ * The stacked new-chat-panel options surface renders only before a session
+ * exists and only when the host supplies the bindings. When active, the inline
+ * footer model selector is suppressed (model moves into the surface).
+ */
+/**
+ * Set the instant a pre-session send begins so the new-thread setup bar
+ * disappears immediately, without waiting for the async session creation to
+ * flip `hasSession`. Transient, truly-local UI state.
+ */
+let preSessionSendStarted = $state(false);
+const showNewThreadOptions = $derived(
+	!composerView.hasSession && !preSessionSendStarted && props.newThreadContext != null
+);
+const setupBarReasoningConfigOption = $derived(
+	composerView.toolbarConfigOptions.find((option) => option.presentation === "compactReasoning") ??
+		null
+);
+const composerTrailingConfigOptions = $derived(
+	showNewThreadOptions
+		? composerView.toolbarConfigOptions.filter(
+				(option) => option.presentation !== "compactReasoning"
+			)
+		: composerView.toolbarConfigOptions
+);
+
+/** Hide the setup bar immediately when a real pre-session send is dispatched. */
+function markPreSessionSendStarted(): void {
+	if (!composerView.hasSession && !composerView.isSubmitDisabled) {
+		preSessionSendStarted = true;
+	}
+}
 /** Cursor offset captured before voice overlay hides the editor. */
 let voiceCursorSnapshot: number | null = null;
 let autonomousStatusMessage = $state("");
@@ -603,25 +635,10 @@ async function handleModeChange(modeId: string) {
 				provisionalAutonomousEnabled: composerView.autonomousToggleActive,
 			},
 			async () => {
-				const shouldAnnounceForcedOff =
-					composerView.autonomousToggleActive &&
-					!resolveAutonomousSupport({
-						agentId: composerView.capabilitiesAgentId,
-						connectionPhase: composerView.sessionLifecyclePresentation
-							? composerView.sessionLifecyclePresentation.connectionPhase
-							: null,
-						currentUiModeId: modeId,
-						agents: agentStore.agents,
-					}).supported;
 				const result = await sessionStore.connection.setMode(sessionId, modeId);
 				if (result.isErr()) {
 					toast.error("Failed to switch mode.");
 					return false;
-				}
-
-				if (shouldAnnounceForcedOff) {
-					autonomousStatusMessage =
-						"Autonomous turned off because this mode is unsupported for the current agent.";
 				}
 				return true;
 			}
@@ -629,21 +646,6 @@ async function handleModeChange(modeId: string) {
 		return;
 	}
 	composerView.provisionalModeId = modeId;
-	if (
-		composerView.panelProvisionalAutonomousEnabled &&
-		!resolveAutonomousSupport({
-			agentId: composerView.capabilitiesAgentId,
-			connectionPhase: null,
-			currentUiModeId: modeId,
-			agents: agentStore.agents,
-		}).supported
-	) {
-		if (props.panelId) {
-			panelStore.setProvisionalAutonomousEnabled(props.panelId, false);
-		}
-		autonomousStatusMessage =
-			"Autonomous turned off because this mode is unsupported for the current agent.";
-	}
 }
 
 async function applyAutonomousEnabledToSession(nextEnabled: boolean): Promise<boolean> {
@@ -653,15 +655,15 @@ async function applyAutonomousEnabledToSession(nextEnabled: boolean): Promise<bo
 
 	const result = await sessionStore.connection.setAutonomousEnabled(props.sessionId, nextEnabled);
 	if (result.isErr()) {
-		toast.error(nextEnabled ? "Failed to enable Autonomous." : "Failed to disable Autonomous.");
+		toast.error(nextEnabled ? "Failed to enable Auto-approve." : "Failed to disable Auto-approve.");
 		return false;
 	}
 
 	if (nextEnabled) {
 		const drainResult = await permissionStore.drainPendingForSession(props.sessionId);
 		if (drainResult.isErr()) {
-			logger.error("Failed to drain Autonomous permissions", { error: drainResult.error });
-			toast.error("Autonomous is on, but some pending permissions still need attention.");
+			logger.error("Failed to drain Auto-approve permissions", { error: drainResult.error });
+			toast.error("Auto-approve is on, but some pending permissions still need attention.");
 		}
 		return true;
 	}
@@ -721,25 +723,10 @@ async function handleModeMenuChange(optionId: string): Promise<void> {
 		},
 		async () => {
 			if (resolution.modeIdToApply) {
-				const shouldAnnounceForcedOff =
-					composerView.autonomousToggleActive &&
-					!resolveAutonomousSupport({
-						agentId: composerView.capabilitiesAgentId,
-						connectionPhase: composerView.sessionLifecyclePresentation
-							? composerView.sessionLifecyclePresentation.connectionPhase
-							: null,
-						currentUiModeId: resolution.modeIdToApply,
-						agents: agentStore.agents,
-					}).supported;
 				const modeResult = await sessionStore.connection.setMode(sessionId, resolution.modeIdToApply);
 				if (modeResult.isErr()) {
 					toast.error("Failed to switch mode.");
 					return false;
-				}
-
-				if (shouldAnnounceForcedOff) {
-					autonomousStatusMessage =
-						"Autonomous turned off because this mode is unsupported for the current agent.";
 				}
 			}
 
@@ -784,6 +771,7 @@ async function handleModelChange(modelId: string) {
 
 async function handleConfigOptionChange(configId: string, value: string) {
 	if (!props.sessionId) {
+		composerView.setProvisionalConfigOption(configId, value);
 		return;
 	}
 
@@ -920,6 +908,7 @@ function handleEditorKeyDown(event: KeyboardEvent): void {
 
 	if (event.key === "Enter" && submitIntent === "send") {
 		event.preventDefault();
+		markPreSessionSendStarted();
 		void handleSend();
 		return;
 	}
@@ -1397,6 +1386,32 @@ $effect(() => {
 });
 </script>
 
+{#snippet newThreadModelControl()}
+	<ModelSelector
+		availableModels={composerView.effectiveAvailableModels}
+		currentModelId={composerView.effectiveCurrentModelId}
+		modelsDisplay={composerView.effectiveModelsDisplay}
+		providerMetadata={composerView.effectiveCapabilityProviderMetadata}
+		onModelChange={handleModelChange}
+		isLoading={composerView.selectorsLoading}
+		panelId={props.panelId}
+		compactSetup
+	/>
+{/snippet}
+
+{#snippet setupBarReasoningControl()}
+	{#if setupBarReasoningConfigOption}
+		<AgentInputConfigOptionSelector
+			configOption={setupBarReasoningConfigOption}
+			displayMode="barOnly"
+			disabled={composerView.selectorsLoading || composerView.selectorsDisabledByComposer}
+			onValueChange={(configId, value) => {
+				void handleConfigOptionChange(configId, value);
+			}}
+		/>
+	{/if}
+{/snippet}
+
 <div
 	bind:this={inputState.containerRef}
 	role="region"
@@ -1419,6 +1434,24 @@ $effect(() => {
 		<AgentInputDropZone isDragHovering={inputState.isDragHovering} label="Drop image to attach" />
 	{:else}
 		<span class="sr-only" role="status" aria-live="polite">{autonomousStatusMessage}</span>
+		{#if showNewThreadOptions && props.newThreadContext}
+			{@const newThread = props.newThreadContext}
+			<div class="mb-1.5">
+				<AgentInputNewThreadOptions
+					project={newThread.project}
+					agent={newThread.agent}
+					model={newThreadModelControl}
+					reasoning={setupBarReasoningControl}
+					showReasoning={setupBarReasoningConfigOption !== null}
+					showWorktree={newThread.showWorktree}
+					worktreeOn={newThread.worktreeOn}
+					worktreeDisabled={newThread.worktreeDisabled}
+					onWorktreeToggle={newThread.onWorktreeToggle}
+					worktreeDefaultOn={newThread.worktreeDefaultOn}
+					onWorktreeDefaultToggle={newThread.onWorktreeDefaultToggle}
+				/>
+			</div>
+		{/if}
 		<SharedAgentPanelComposer
 			class="border-t-0 p-0"
 			inputClass="flex-shrink-0 border border-border bg-input/30"
@@ -1465,7 +1498,10 @@ $effect(() => {
 					onOverlaySave={handleOverlaySave}
 					onOverlayClose={closeOverlay}
 					onOverlayMouseEnterCancel={cancelOverlayClose}
-					onPrimaryButtonClick={handlePrimaryButtonClick}
+					onPrimaryButtonClick={() => {
+						markPreSessionSendStarted();
+						void handlePrimaryButtonClick();
+					}}
 					onCommandSelect={handleCommandSelect}
 					loadSlashCommandWorkspaceMarkdown={loadSlashCommandWorkspaceMarkdown}
 					onFileSelect={handleFileSelect}
@@ -1501,19 +1537,6 @@ $effect(() => {
 								props.showCheckpointInAttachMenu ? props.checkpointButton : undefined
 							}
 						/>
-						{#if composerView.toolbarConfigOptions.length > 0}
-							<div class="flex items-center gap-0.5">
-								{#each composerView.toolbarConfigOptions as configOption (configOption.id)}
-									<AgentInputConfigOptionSelector
-										{configOption}
-										disabled={composerView.selectorsLoading || composerView.selectorsDisabledByComposer}
-										onValueChange={(configId, value) => {
-											void handleConfigOptionChange(configId, value);
-										}}
-									/>
-								{/each}
-							</div>
-						{/if}
 						{#if composerView.showActiveModeChip}
 							<AgentInputActiveModeChip
 								label={composerView.selectedModeOption.label}
@@ -1527,6 +1550,12 @@ $effect(() => {
 						<AgentInputComposerTrailingControls
 							inputReady={composerView.inputReady}
 							agentProjectPicker={props.agentProjectPicker}
+							toolbarConfigOptions={composerTrailingConfigOptions}
+							onConfigOptionChange={(configId, value) => {
+								void handleConfigOptionChange(configId, value);
+							}}
+							selectorsLoading={composerView.selectorsLoading}
+							selectorsDisabledByComposer={composerView.selectorsDisabledByComposer}
 							voiceState={voiceToolbarBinding}
 							{voiceEnabled}
 							composerIsDispatching={composerView.storeComposerState?.isDispatching ?? false}
@@ -1563,15 +1592,9 @@ $effect(() => {
 							voiceCloseLabel={"Close"}
 						>
 							{#snippet modelSelector()}
-								<ModelSelector
-									availableModels={composerView.effectiveAvailableModels}
-									currentModelId={composerView.effectiveCurrentModelId}
-									modelsDisplay={composerView.effectiveModelsDisplay}
-									providerMetadata={composerView.effectiveCapabilityProviderMetadata}
-									onModelChange={handleModelChange}
-									isLoading={composerView.selectorsLoading}
-									panelId={props.panelId}
-								/>
+								{#if !showNewThreadOptions}
+									{@render newThreadModelControl()}
+								{/if}
 							{/snippet}
 							{#snippet metricsChip()}
 								{#if props.sessionId}

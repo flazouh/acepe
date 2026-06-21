@@ -5,20 +5,20 @@
 //! and launch resolution key on the managed cache only — never on whatever
 //! happens to be named `agent` on the user's PATH.
 
+use super::enrichment::enrich_cursor_session_update;
+use crate::acp::capability_resolution::resolve_generic_preconnection_capabilities;
+use crate::acp::client_session::{AvailableMode, ModeIconKind, SessionModes};
+use crate::acp::error::{AcpError, AcpResult};
+use crate::acp::parsers::arguments::parse_tool_kind_arguments;
 use crate::acp::provider::{
     AgentProvider, ModelFallbackCandidate, ProjectDiscoveryCompleteness, ProjectPathListing,
     SpawnConfig, WebSearchNotificationDedupRecord,
 };
-use super::enrichment::enrich_cursor_session_update;
-use crate::acp::capability_resolution::resolve_generic_preconnection_capabilities;
-use crate::acp::client_session::{AvailableMode, ModeIconKind, SessionModes};
+use crate::acp::provider_extensions::{InboundResponseAdapter, ProviderExtensionEvent};
 use crate::acp::providers::cursor::{
     adapt_cursor_response, cursor_extension_kind, is_cursor_extension_pre_tool,
     normalize_cursor_extension,
 };
-use crate::acp::error::{AcpError, AcpResult};
-use crate::acp::parsers::arguments::parse_tool_kind_arguments;
-use crate::acp::provider_extensions::{InboundResponseAdapter, ProviderExtensionEvent};
 use crate::acp::runtime_resolver::SpawnEnvStrategy;
 use crate::acp::session_descriptor::SessionReplayContext;
 use crate::acp::session_thread_snapshot::ProviderOwnedSessionSnapshot;
@@ -178,10 +178,6 @@ impl AgentProvider for CursorProvider {
 
     fn visible_mode_ids(&self) -> &'static [&'static str] {
         &["agent", "ask"]
-    }
-
-    fn autonomous_supported_mode_ids(&self) -> &'static [&'static str] {
-        &["agent"]
     }
 
     fn default_session_modes(&self) -> SessionModes {

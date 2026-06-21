@@ -1,5 +1,8 @@
 <script lang="ts">
-import { CODEX_APP_ICON_IMG_CLASS, CODEX_APP_ICON_SRC } from "../../lib/provider-brand-icons.js";
+import {
+	ANTHROPIC_ICON_DARK_SRC,
+	ANTHROPIC_ICON_LIGHT_SRC,
+} from "../../lib/provider-brand-icons.js";
 import { getProviderBrandDisplayName, type ProviderBrand } from "../../lib/provider-brand.js";
 import { cn } from "../../lib/utils";
 
@@ -31,7 +34,18 @@ const brandToneClass = $derived.by(() => {
 		className
 	)}
 >
-	{#if brand === "claude-code"}
+	{#if brand === "anthropic"}
+		<img
+			src={ANTHROPIC_ICON_LIGHT_SRC}
+			alt=""
+			class="size-full object-contain dark:hidden"
+		/>
+		<img
+			src={ANTHROPIC_ICON_DARK_SRC}
+			alt=""
+			class="hidden size-full object-contain dark:block"
+		/>
+	{:else if brand === "claude-code"}
 		<img
 			src="/svgs/agents/claude/claude-icon-light.svg"
 			alt=""
@@ -44,9 +58,14 @@ const brandToneClass = $derived.by(() => {
 		/>
 	{:else if brand === "codex"}
 		<img
-			src={CODEX_APP_ICON_SRC}
+			src="/svgs/agents/codex/openai-icon-light.svg"
 			alt=""
-			class={cn("size-full", CODEX_APP_ICON_IMG_CLASS)}
+			class="size-full object-contain dark:hidden"
+		/>
+		<img
+			src="/svgs/agents/codex/openai-icon-dark.svg"
+			alt=""
+			class="hidden size-full object-contain dark:block"
 		/>
 	{:else if brand === "opencode"}
 		<img

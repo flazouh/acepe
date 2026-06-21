@@ -75,7 +75,7 @@ export type SessionModes = { currentModeId?: string; availableModes?: AvailableM
 
 export type ResolvedCapabilityStatus = "resolved" | "partial" | "unsupported" | "failed"
 
-export type ResolvedCapabilities = { status: ResolvedCapabilityStatus; availableModels: AvailableModel[]; currentModelId: string | null; modelsDisplay: ModelsForDisplay; providerMetadata: FrontendProviderProjection; availableModes: AvailableMode[]; currentModeId: string | null }
+export type ResolvedCapabilities = { status: ResolvedCapabilityStatus; availableModels: AvailableModel[]; currentModelId: string | null; modelsDisplay: ModelsForDisplay; providerMetadata: FrontendProviderProjection; availableModes: AvailableMode[]; currentModeId: string | null; configOptions?: ConfigOptionData[] }
 
 export type ConfigOptionPresentation = "hidden" | "advanced" | "compactReasoning" | "compactSpeed"
 

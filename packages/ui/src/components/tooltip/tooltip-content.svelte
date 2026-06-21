@@ -1,6 +1,9 @@
 <script lang="ts">
+	import type { ComponentProps, Snippet } from "svelte";
+
 	import { Tooltip as TooltipPrimitive } from "bits-ui";
-	import { cn } from "../../lib/utils.js";
+	import { type WithoutChildrenOrChild, cn } from "../../lib/utils.js";
+	import { buildCardSurfaceShellClassName } from "../../lib/card-surface-shell.classes.js";
 	import TooltipPortal from "./tooltip-portal.svelte";
 
 	let {
@@ -9,18 +12,24 @@
 		sideOffset = 4,
 		side = "top",
 		children,
+		portalProps,
 		...restProps
-	}: TooltipPrimitive.ContentProps = $props();
+	}: TooltipPrimitive.ContentProps & {
+		portalProps?: WithoutChildrenOrChild<ComponentProps<typeof TooltipPortal>>;
+		children?: Snippet;
+	} = $props();
 </script>
 
-<TooltipPortal>
+<TooltipPortal {...portalProps}>
 	<TooltipPrimitive.Content
 		bind:ref
 		data-slot="tooltip-content"
 		{sideOffset}
 		{side}
 		class={cn(
-			"bg-popover border border-border text-foreground z-50 w-fit max-w-48 rounded-md px-2 py-1.5 text-xs shadow-md",
+			buildCardSurfaceShellClassName(
+				"z-[var(--overlay-z)] w-fit max-w-48 border border-border px-2 py-1.5 text-xs font-medium outline-hidden"
+			),
 			className
 		)}
 		{...restProps}

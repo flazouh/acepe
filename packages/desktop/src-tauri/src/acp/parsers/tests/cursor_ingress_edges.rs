@@ -11,8 +11,8 @@
 use super::*;
 use crate::acp::parsers::acp_fields::normalize_tool_call_id;
 use crate::acp::session_update::{ToolArguments, ToolCallStatus, ToolKind};
-use crate::acp::transcript_projection::snapshot::TranscriptSnapshot;
 use crate::acp::transcript_projection::display_id::tool_call_id_from_authority_entry_id;
+use crate::acp::transcript_projection::snapshot::TranscriptSnapshot;
 use crate::session_converter::convert_cursor_full_session_to_thread_snapshot;
 use crate::session_jsonl::types::{
     ContentBlock, FullSession, OrderedMessage, SessionStats, StoredEntry,
@@ -106,10 +106,9 @@ mod history_restore_edge {
 
     #[test]
     fn history_restore_normalizes_composite_tool_call_ids() {
-        let snapshot =
-            convert_cursor_full_session_to_thread_snapshot(&full_session_with_tool_use(
-                RAW_COMPOSITE_ID,
-            ));
+        let snapshot = convert_cursor_full_session_to_thread_snapshot(&full_session_with_tool_use(
+            RAW_COMPOSITE_ID,
+        ));
         let (stored_id, message) = snapshot
             .entries
             .iter()
@@ -141,10 +140,9 @@ mod cross_edge_parity {
             .unwrap()
             .id;
 
-        let history_snapshot =
-            convert_cursor_full_session_to_thread_snapshot(&full_session_with_tool_use(
-                RAW_COMPOSITE_ID,
-            ));
+        let history_snapshot = convert_cursor_full_session_to_thread_snapshot(
+            &full_session_with_tool_use(RAW_COMPOSITE_ID),
+        );
         let history_id = history_snapshot
             .entries
             .iter()
@@ -154,7 +152,10 @@ mod cross_edge_parity {
             })
             .expect("history tool call id");
 
-        assert_eq!(live_id, history_id, "live ingress and history restore must emit the same canonical tool-call id");
+        assert_eq!(
+            live_id, history_id,
+            "live ingress and history restore must emit the same canonical tool-call id"
+        );
         assert_eq!(live_id, CANONICAL_COMPOSITE_ID);
     }
 }

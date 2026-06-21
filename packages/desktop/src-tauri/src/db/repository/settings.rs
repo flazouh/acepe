@@ -5,8 +5,7 @@ use crate::db::entities::prelude::*;
 use anyhow::Result;
 use chrono::Utc;
 use sea_orm::{
-    sea_query::OnConflict, ActiveModelTrait, ColumnTrait, DbConn, EntityTrait, QueryFilter,
-    QuerySelect, Set,
+    sea_query::OnConflict, ActiveModelTrait, ColumnTrait, DbConn, EntityTrait, QueryFilter, Set,
 };
 use uuid::Uuid;
 

@@ -2,7 +2,9 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use specta::Type;
 
-use crate::acp::session_update::{QuestionItem, SkillMeta, TodoItem, ToolCallLocation, ToolCallStatus, ToolKind};
+use crate::acp::session_update::{
+    QuestionItem, SkillMeta, TodoItem, ToolCallLocation, ToolCallStatus, ToolKind,
+};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Type)]
 #[serde(rename_all = "snake_case")]

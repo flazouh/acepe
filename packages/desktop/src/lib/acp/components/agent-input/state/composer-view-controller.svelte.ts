@@ -18,7 +18,6 @@ import {
 	hasToolbarCapabilityData,
 	PreconnectionCapabilitiesState,
 	PreconnectionRemoteCommandsState,
-	resolveAutonomousSupport,
 	resolveCapabilityContextProviderMetadata,
 	resolveCapabilitySource,
 	resolvePendingToolbarSelections,
@@ -33,6 +32,11 @@ import {
 	shouldShowSlashCommandDropdown,
 } from "../composer-controller.js";
 import { resolveResolvableToolbarModelId } from "../logic/resolve-resolvable-toolbar-model-id.js";
+import {
+	applyProvisionalConfigOptionOverrides,
+	listProvisionalConfigEntriesToApply,
+} from "../logic/provisional-config-options.js";
+import type { ConfigOptionData } from "../../../../services/converted-session-types.js";
 import type { AgentInputState } from "./agent-input-state.svelte.js";
 import type { AgentInputProps } from "../types/agent-input-props.js";
 
@@ -61,6 +65,7 @@ export class ComposerViewController {
 
 	provisionalModeId = $state<string | null>(null);
 	provisionalModelId = $state<string | null>(null);
+	provisionalConfigOptions = $state<Record<string, string>>({});
 	isApplyingProvisionalToolbarSelections = $state(false);
 
 	#previousComposerBindSessionId = $state<string | null>(null);
@@ -197,9 +202,12 @@ export class ComposerViewController {
 		return sessionId ? this.#deps.sessionStore.read.getSessionAutonomousEnabled(sessionId) : null;
 	});
 
-	readonly sessionConfigOptions = $derived.by(() => {
+	readonly sessionConfigOptions = $derived.by((): ConfigOptionData[] => {
 		const sessionId = this.#deps.getProps().sessionId;
-		return sessionId ? (this.#deps.sessionStore.read.getSessionConfigOptions(sessionId) ?? []) : [];
+		const baseOptions = sessionId
+			? (this.#deps.sessionStore.read.getSessionConfigOptions(sessionId) ?? [])
+			: (this.preconnectionCapabilities?.configOptions ?? []);
+		return applyProvisionalConfigOptionOverrides(baseOptions, this.provisionalConfigOptions);
 	});
 
 	readonly sessionAvailableCommands = $derived.by(() => {
@@ -285,17 +293,6 @@ export class ComposerViewController {
 		return this.panelProvisionalAutonomousEnabled;
 	});
 
-	readonly autoModeSupportState = $derived.by(() =>
-		resolveAutonomousSupport({
-			agentId: this.capabilitiesAgentId,
-			connectionPhase: this.sessionLifecyclePresentation
-				? this.sessionLifecyclePresentation.connectionPhase
-				: null,
-			currentUiModeId: this.effectiveCurrentModeId,
-			agents: this.#deps.agentStore.agents,
-		})
-	);
-
 	readonly autonomousToggleBusy = $derived.by(() => {
 		const sessionId = this.#deps.getProps().sessionId;
 		return sessionId
@@ -303,9 +300,10 @@ export class ComposerViewController {
 			: false;
 	});
 
-	readonly autonomousDisabled = $derived.by(
-		() => this.autonomousToggleBusy || !this.autoModeSupportState.supported
-	);
+	// Auto-approve is an Acepe-side, agent-agnostic permission policy. The toggle
+	// is always available; it is only disabled while an enable/disable transition
+	// is in flight.
+	readonly autonomousDisabled = $derived.by(() => this.autonomousToggleBusy);
 
 	readonly selectedModeMenuOptionId = $derived.by(() =>
 		resolveSelectedModeMenuOptionId({
@@ -363,6 +361,7 @@ export class ComposerViewController {
 				name: option.name,
 				category: option.category,
 				type: option.type,
+				description: option.description ?? null,
 				currentValue,
 				options,
 				presentation: option.presentation ?? "advanced",
@@ -617,6 +616,19 @@ export class ComposerViewController {
 			});
 	}
 
+	setProvisionalConfigOption(configId: string, value: string): void {
+		const next: Record<string, string> = {};
+		for (const [key, existingValue] of Object.entries(this.provisionalConfigOptions)) {
+			next[key] = existingValue;
+		}
+		next[configId] = value;
+		this.provisionalConfigOptions = next;
+	}
+
+	clearProvisionalConfigOptions(): void {
+		this.provisionalConfigOptions = {};
+	}
+
 	syncPendingToolbarSelections(): void {
 		const sessionId = this.#deps.getProps().sessionId;
 		if (!sessionId || this.isApplyingProvisionalToolbarSelections) {
@@ -641,8 +653,16 @@ export class ComposerViewController {
 
 		const liveModeId = this.sessionCurrentModeId;
 		const liveModelId = this.sessionCurrentModelId;
+		const configEntriesToApply = listProvisionalConfigEntriesToApply({
+			provisionalValues: this.provisionalConfigOptions,
+			liveConfigOptions: this.#deps.sessionStore.read.getSessionConfigOptions(sessionId),
+		});
 
-		if (!resolution.modeIdToApply && !resolution.modelIdToApply) {
+		if (
+			!resolution.modeIdToApply &&
+			!resolution.modelIdToApply &&
+			configEntriesToApply.length === 0
+		) {
 			return;
 		}
 
@@ -677,6 +697,18 @@ export class ComposerViewController {
 							return false;
 						}
 					}
+
+					for (const entry of configEntriesToApply) {
+						const configResult = await this.#deps.sessionStore.connection.setConfigOption(
+							sessionId,
+							entry.configId,
+							entry.value
+						);
+						if (configResult.isErr()) {
+							return false;
+						}
+					}
+
 					return true;
 				}
 			);
@@ -684,6 +716,9 @@ export class ComposerViewController {
 
 		void run().finally(() => {
 			this.isApplyingProvisionalToolbarSelections = false;
+			if (configEntriesToApply.length > 0) {
+				this.clearProvisionalConfigOptions();
+			}
 		});
 	}
 }

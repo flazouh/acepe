@@ -1,7 +1,5 @@
 use crate::acp::provider_extensions::ProviderExtensionEvent;
-use crate::acp::session_update::{
-    ContentChunk, SessionUpdate, ToolCallStatus, ToolCallUpdateData,
-};
+use crate::acp::session_update::{ContentChunk, SessionUpdate, ToolCallStatus, ToolCallUpdateData};
 use crate::acp::types::ContentBlock;
 use serde::Deserialize;
 use serde_json::{json, Value};

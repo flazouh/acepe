@@ -1,5 +1,5 @@
-use crate::acp::projections::{RouteDecision, TerminalTurnGuard};
 use crate::acp::parsers::acp_fields::normalize_tool_call_id;
+use crate::acp::projections::{RouteDecision, TerminalTurnGuard};
 use crate::acp::session_update::{SessionUpdate, ToolCallData, ToolKind};
 use crate::acp::transcript_projection::delta::{TranscriptDelta, TranscriptDeltaOperation};
 use crate::acp::transcript_projection::display_id::{
@@ -89,7 +89,11 @@ impl TranscriptProjectionRegistry {
         event_seq: i64,
         update: &SessionUpdate,
     ) -> Option<TranscriptDelta> {
-        self.apply_session_update(event_seq, update, TerminalTurnGuard::default().route(update))
+        self.apply_session_update(
+            event_seq,
+            update,
+            TerminalTurnGuard::default().route(update),
+        )
     }
 }
 
@@ -220,10 +224,11 @@ impl SessionTranscriptProjection {
                 let turn_key = self.current_turn_key();
                 let entry_id =
                     derive_entry_id_for_snapshot_role(&turn_key, &TranscriptEntryRole::User, None);
-                let segment = crate::acp::transcript_projection::snapshot::user_transcript_segment_from_text(
-                    format!("{entry_id}:segment:{event_seq}"),
-                    text,
-                );
+                let segment =
+                    crate::acp::transcript_projection::snapshot::user_transcript_segment_from_text(
+                        format!("{entry_id}:segment:{event_seq}"),
+                        text,
+                    );
                 let entry = TranscriptEntry {
                     entry_id: entry_id.clone(),
                     role: TranscriptEntryRole::User,
@@ -418,9 +423,7 @@ fn should_skip_unanswered_question_tool_row(tool_call: &ToolCallData) -> bool {
     matches!(tool_call.kind, Some(ToolKind::Question)) && tool_call.question_answer.is_none()
 }
 
-fn rebuild_tool_entry_ids_by_tool_call_id(
-    entries: &[TranscriptEntry],
-) -> HashMap<String, String> {
+fn rebuild_tool_entry_ids_by_tool_call_id(entries: &[TranscriptEntry]) -> HashMap<String, String> {
     let mut map = HashMap::new();
     for entry in entries {
         if entry.role != TranscriptEntryRole::Tool {
@@ -1333,7 +1336,10 @@ mod tests {
                 turn_id: Some("turn-1".to_string()),
             },
         );
-        assert!(delta.is_none(), "turn errors are live-only state, not transcript content");
+        assert!(
+            delta.is_none(),
+            "turn errors are live-only state, not transcript content"
+        );
         let snapshot = registry
             .snapshot_for_session("session-1")
             .expect("snapshot");

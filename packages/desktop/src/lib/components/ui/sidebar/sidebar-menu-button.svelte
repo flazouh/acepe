@@ -30,7 +30,7 @@ export type SidebarMenuButtonSize = VariantProps<typeof sidebarMenuButtonVariant
 	import type { HTMLAttributes } from "svelte/elements";
 
 	import { type WithoutChildrenOrChild, type WithElementRef, cn } from "$lib/utils.js";
-	import * as Tooltip from "$lib/components/ui/tooltip/index.js";
+	import * as Tooltip from "@acepe/ui/tooltip";
 	import { mergeProps } from "bits-ui";
 
 	import { useSidebar } from "./context.svelte.js";

@@ -3,6 +3,7 @@
 	import { LoadingIcon } from "../icons/index.js";
 	import { ProviderMark, type ProviderBrand } from "../provider-mark/index.js";
 	import { Selector } from "../selector/index.js";
+	import type { SelectorTriggerSize } from "../selector/selector-trigger-classes.js";
 	import * as DropdownMenu from "../dropdown-menu/index.js";
 	import AgentInputModelSelectorItemRow from "./agent-input-model-selector-item-row.svelte";
 	import type {
@@ -28,6 +29,7 @@
 		loadingLabel?: string;
 		noModelsLabel?: string;
 		hideTriggerProviderMark?: boolean;
+		triggerSize?: SelectorTriggerSize;
 		onOpenChange?: (open: boolean) => void;
 		onSearchChange?: (query: string) => void;
 		onSelect: (modelId: string) => void;
@@ -52,6 +54,7 @@
 		loadingLabel = "Loading models...",
 		noModelsLabel = "No models available",
 		hideTriggerProviderMark = false,
+		triggerSize = "pill",
 		onOpenChange,
 		onSearchChange,
 		onSelect,
@@ -65,7 +68,8 @@
 		disabled={isLoading || totalModelCount === 0}
 		onOpenChange={onOpenChange}
 		variant="ghost"
-		triggerSize="pill"
+		{triggerSize}
+		showChevron={false}
 	>
 		{#snippet renderButton()}
 			{#if isLoading}
@@ -112,7 +116,7 @@
 			<div class="flex flex-col gap-0.5 max-h-[250px] overflow-y-auto px-0 scrollbar-thin scrollbar-thumb-muted scrollbar-track-transparent">
 				{#each filteredGroups as group, groupIndex (group.label)}
 					{#if showGroups}
-						<DropdownMenu.Label class="flex items-center gap-1.5 px-1.5 py-1 text-[10px] font-semibold">
+						<DropdownMenu.Label class="flex items-center gap-1.5 px-1.5 py-1 text-[10px] font-normal">
 							{#if group.providerBrand}
 								<ProviderMark
 									brand={group.providerBrand}

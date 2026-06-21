@@ -15,9 +15,10 @@
 
 	let { selected = false, onSelect, children, slidingHighlight = false, compactPadding = false, collapsed = false }: Props = $props();
 
-	const paddingClass = $derived(collapsed ? "px-0 py-0.5" : compactPadding ? "px-1.5 py-1" : "px-2 py-1.5");
+	const paddingClass = $derived(collapsed ? "px-0 py-0.5" : compactPadding ? "px-1 py-1" : "px-2 py-1.5");
+	const roundingClass = $derived(slidingHighlight ? "rounded-md" : "rounded");
 	const baseClass = $derived(
-		`flex flex-col ${collapsed ? "items-center" : ""} justify-center w-full text-left gap-1 ${paddingClass} rounded transition-[background-color] duration-75 ease-out`
+		`flex flex-col ${collapsed ? "items-center" : ""} justify-center w-full text-left gap-1 ${paddingClass} ${roundingClass} transition-[background-color] duration-75 ease-out`
 	);
 	const withHover = $derived(slidingHighlight ? "" : "hover:bg-accent/40");
 	const selectedClass = $derived(selected ? "bg-accent/40" : "");

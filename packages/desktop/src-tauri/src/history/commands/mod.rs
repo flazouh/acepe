@@ -8,7 +8,6 @@ use std::sync::LazyLock;
 use std::time::Duration;
 
 use crate::acp::types::CanonicalAgentId;
-use crate::codex_history::parser as codex_parser;
 use crate::codex_history::scanner as codex_scanner;
 use crate::cursor_history::parser as cursor_parser;
 use crate::cursor_history::plan_loader as cursor_plan_loader;
@@ -27,6 +26,11 @@ pub(crate) mod projects;
 pub(crate) mod scanning;
 pub(crate) mod session_loading;
 
+pub use crate::acp::session_restore::{
+    audit_restored_tool_links_cli, audit_restored_tool_links_from_snapshot,
+    audit_session_load_timing_cli, RestoredToolLinkAudit, SessionLoadTiming, TimingStage,
+    UnresolvedToolRowAudit,
+};
 pub use plans::get_unified_plan;
 pub use projects::{count_sessions_for_project, list_all_project_paths};
 pub use scanning::{
@@ -35,11 +39,6 @@ pub use scanning::{
 pub use session_loading::{
     audit_session_load_timing, get_session_open_result, set_session_pr_number, set_session_title,
     set_session_worktree_path,
-};
-pub use crate::acp::session_restore::{
-    audit_restored_tool_links_cli, audit_restored_tool_links_from_snapshot,
-    audit_session_load_timing_cli, RestoredToolLinkAudit, SessionLoadTiming, TimingStage,
-    UnresolvedToolRowAudit,
 };
 
 /// Information about a project with session counts per agent.

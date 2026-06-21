@@ -49,8 +49,7 @@ where
 {
     parse_tool_call_from_acp_with_agent(
         data,
-        current_agent()
-            .ok_or_else(|| E::custom("Missing agent context for tool call parsing"))?,
+        current_agent().ok_or_else(|| E::custom("Missing agent context for tool call parsing"))?,
     )
 }
 

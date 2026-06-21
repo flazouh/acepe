@@ -81,9 +81,10 @@ import { deriveAgentPanelHeaderDisplayTitle } from "../logic/agent-panel-header-
 import { resolveAgentPanelHeaderSequenceId } from "../logic/agent-panel-header-sequence-id.js";
 import { resolveAgentPanelProviderBrand } from "../logic/agent-panel-provider-brand.js";
 import { resolveWorktreeToggleProjectPath } from "../logic/worktree-toggle-project-path.js";
+import { getWorktreeDefaultStore } from "$lib/acp/components/worktree/worktree-default-store.svelte.js";
 import { buildTodoMarkdown } from "./agent-panel-pure-helpers.js";
 import type { AgentPanelProps } from "../types";
-import WorktreeFooterButton from "../../shared/worktree-footer-button.svelte";
+import { revealInFinder } from "$lib/utils/tauri-client/opener.js";
 import AgentPanelContent from "./agent-panel-content.svelte";
 import AgentPanelHeader from "./agent-panel-header.svelte";
 import AgentPanelResizeEdge from "./agent-panel-resize-edge.svelte";
@@ -92,7 +93,6 @@ import type { ReviewControlsSnapshot } from "./agent-panel-review-content-types.
 import WorkspaceDialogFrame from "$lib/components/ui/workspace-dialog-frame.svelte";
 import AgentPanelTerminalDrawer from "./agent-panel-terminal-drawer.svelte";
 import AgentPanelPreComposerStack from "./agent-panel-pre-composer-stack.svelte";
-import PreSessionWorktreeCard from "./pre-session-worktree-card.svelte";
 import { PlanSidebar } from "../../plan-sidebar/index.js";
 import { BrowserPanel as BrowserPanelComponent } from "../../browser-panel/index.js";
 import {
@@ -243,6 +243,7 @@ const checkpointTimeline = rootState.checkpointTimeline;
 const worktreeSetup = rootState.worktreeSetup;
 const worktreeCloseConfirm = rootState.worktreeCloseConfirm;
 const worktreeController = rootState.worktreeController;
+const worktreeDefaultStore = getWorktreeDefaultStore();
 const viewStateController = rootState.viewStateController;
 const scenePipelineController = rootState.scenePipelineController;
 const prCard = rootState.prCard;
@@ -651,11 +652,6 @@ const branchLookupPath = $derived(
 	(worktreeDeleted ? null : effectiveActiveWorktreePath) ?? effectiveProjectPath ?? null
 );
 const footerWorktreeStatus = $derived(worktreeController.footerWorktreeStatus);
-const showComposerContextPicker = $derived(
-	!hasSession ||
-		(showPreSessionWorktreeCard && worktreeToggleProjectPath !== null) ||
-		footerWorktreeStatus !== null
-);
 
 /** Minimal linked-session references for the modified-header PR picker. */
 const projectPrLinkReferences = $derived.by(() => {
@@ -765,46 +761,6 @@ const clampedReviewFileIndex = $derived.by(() => {
 
 const effectiveWidth = $derived(layoutController.effectiveWidth);
 const widthStyle = $derived(layoutController.widthStyle);
-
-// Debug state for panel debugging (inert in production — deps behind early return are not tracked)
-const debugPanelState = $derived.by(() => {
-	if (!import.meta.env.DEV) return null;
-	return {
-		// Panel identification
-		panelId: sessionController.effectivePanelId,
-		// Panel state
-		isFullscreen,
-		isFocused,
-		// Session state
-		hasSession: sessionId !== null,
-		sessionId,
-		sessionTitle: sessionController.sessionTitle,
-		sessionStatus: sessionController.panelSessionStatus,
-		sessionProjectPath: sessionController.sessionProjectPath,
-		sessionAgentId: sessionController.sessionAgentId,
-		selectedAgentId,
-		// Loading states
-		isWaitingForSession,
-		pendingProjectSelection,
-		// Project info
-		projectCount,
-		projectName: project?.name,
-		projectPath: project?.path,
-		// UI conditions
-		viewStateKind: viewState.kind,
-		// Available agents
-		availableAgentsCount: availableAgents.length,
-		availableAgentIds: availableAgents.map((a) => a.id),
-		// Plan state
-		hasPlan,
-		planTitle: planState.plan?.title,
-		// Dimensions
-		width,
-		widthStyle,
-		// Theme
-		effectiveTheme,
-	};
-});
 
 // Pure derivation of modified files from canonical operations.
 //
@@ -1101,6 +1057,20 @@ const {
 	panelStore,
 	logger,
 });
+
+function handleOpenWorktree(): void {
+	const path = effectiveActiveWorktreePath;
+	if (!path) {
+		return;
+	}
+
+	void revealInFinder(path).match(
+		() => {},
+		(error) => {
+			toast.error(`Could not reveal in Finder: ${error.message}`);
+		}
+	);
+}
 
 function handlePanelClick(e: MouseEvent) {
 	const target = e.target as HTMLElement;
@@ -1409,7 +1379,6 @@ async function handlePlanSidebarSendMessage(sid: string, message: string): Promi
 			{projectIconSrc}
 			linkedPr={sessionController.sessionMetadata?.linkedPr ?? null}
 			prLinkMode={sessionController.sessionMetadata?.prLinkMode ?? "automatic"}
-			{debugPanelState}
 			onClose={handleClose}
 			{onToggleFullscreen}
 			onRetryConnection={handleRetryConnection}
@@ -1453,6 +1422,9 @@ async function handlePlanSidebarSendMessage(sid: string, message: string): Promi
 						}
 					: undefined
 			}
+			activeWorktreePath={footerWorktreeStatus ? effectiveActiveWorktreePath : null}
+			activeWorktreeLabel={footerWorktreeStatus?.primaryLabel ?? null}
+			onOpenWorktree={footerWorktreeStatus ? handleOpenWorktree : undefined}
 		/>
 		</div>
 	{/snippet}
@@ -1641,37 +1613,21 @@ async function handlePlanSidebarSendMessage(sid: string, message: string): Promi
 					widthClass="max-w-[60%]"
 				>
 					{#key inputRenderKey}
-						{#snippet composerContextPicker()}
-							<div class="flex h-7 items-center gap-0.5">
-								{#if !hasSession}
-									<AgentSelector
-										{availableAgents}
-										currentAgentId={effectivePanelAgentId}
-										{onAgentChange}
-									/>
-									<ProjectSelector
-										selectedProject={preSessionSelectedProject}
-										recentProjects={allProjects}
-										onProjectChange={handleComposerProjectSelected}
-									/>
-								{/if}
-								{#if showPreSessionWorktreeCard && worktreeToggleProjectPath}
-									<PreSessionWorktreeCard
-										variant="trigger"
-										menuSide="top"
-										pendingWorktreeEnabled={worktreePending}
-										onYes={handlePreSessionWorktreeYes}
-										onNo={handlePreSessionWorktreeNo}
-										onDismiss={handlePreSessionWorktreeDismiss}
-									/>
-								{:else if footerWorktreeStatus}
-									<WorktreeFooterButton
-										worktreePath={effectiveActiveWorktreePath}
-										label={footerWorktreeStatus.primaryLabel}
-										mode={footerWorktreeStatus.mode}
-									/>
-								{/if}
-							</div>
+						{#snippet newThreadProjectControl()}
+							<ProjectSelector
+								selectedProject={preSessionSelectedProject}
+								recentProjects={allProjects}
+								onProjectChange={handleComposerProjectSelected}
+								showLabel
+							/>
+						{/snippet}
+						{#snippet newThreadAgentControl()}
+							<AgentSelector
+								{availableAgents}
+								currentAgentId={effectivePanelAgentId}
+								{onAgentChange}
+								showLabel
+							/>
 						{/snippet}
 						<AgentInput
 							bind:this={agentInputRef}
@@ -1706,7 +1662,28 @@ async function handlePlanSidebarSendMessage(sid: string, message: string): Promi
 							{selectedAgentId}
 							{availableAgents}
 							{onAgentChange}
-							agentProjectPicker={showComposerContextPicker ? composerContextPicker : undefined}
+							newThreadContext={
+								!hasSession
+									? {
+										project: newThreadProjectControl,
+										agent: newThreadAgentControl,
+										showWorktree: showPreSessionWorktreeCard && worktreeToggleProjectPath !== null,
+										worktreeOn: worktreePending,
+										worktreeDisabled: false,
+										onWorktreeToggle: (on) => {
+											if (on) {
+												handlePreSessionWorktreeYes();
+											} else {
+												handlePreSessionWorktreeNo();
+											}
+										},
+										worktreeDefaultOn: worktreeDefaultStore.globalDefault,
+										onWorktreeDefaultToggle: (on) => {
+											void worktreeDefaultStore.set(on);
+										},
+									}
+									: null
+							}
 							pendingProjectSelection={pendingProjectSelection && !isWaitingForSession}
 							onSessionCreated={handleSessionCreated}
 							onWillSend={prepareForNextUserReveal}

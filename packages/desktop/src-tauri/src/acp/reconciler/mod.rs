@@ -60,8 +60,7 @@ pub use kind_payload::{
     infer_kind_from_payload_for_agent,
 };
 pub(crate) use session_tool::{
-    classify_raw_tool_call, classify_serialized_tool_call, resolve_raw_tool_identity,
-    ClassifiedToolData, ToolClassificationHints, ToolIdentity,
+    classify_raw_tool_call, resolve_raw_tool_identity, ToolClassificationHints,
 };
 
 /// Resolve tool kind from a provider tool name via the authority name-table path.

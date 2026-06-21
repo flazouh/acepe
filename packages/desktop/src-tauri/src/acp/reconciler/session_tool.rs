@@ -149,12 +149,8 @@ fn resolve_identity_impl(
         kind_hint: hints.kind_hint,
         arguments: classification_arguments,
     };
-    let kind = classify_with_provider_name_kind(
-        parser.agent_type(),
-        Some(pre_promotion_kind),
-        &raw,
-    )
-    .kind;
+    let kind =
+        classify_with_provider_name_kind(parser.agent_type(), Some(pre_promotion_kind), &raw).kind;
 
     let name = if let Some(name) = explicit_name {
         if let Some(original_kind) = detected_kind {

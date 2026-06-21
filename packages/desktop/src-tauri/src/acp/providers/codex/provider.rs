@@ -1,11 +1,13 @@
-use crate::acp::provider::{
-    AgentProvider, ProjectDiscoveryCompleteness, ProjectPathListing, SpawnConfig,
-};
 use crate::acp::capability_resolution::{
     failed_capabilities, resolve_static_capabilities, ResolvedCapabilityStatus,
 };
-use crate::acp::client::codex_native_config::load_codex_native_config_state;
+use crate::acp::client::codex_native_config::{
+    build_codex_native_config_options, load_codex_native_config_state,
+};
 use crate::acp::client_trait::CommunicationMode;
+use crate::acp::provider::{
+    AgentProvider, ProjectDiscoveryCompleteness, ProjectPathListing, SpawnConfig,
+};
 use crate::acp::runtime_resolver::SpawnEnvStrategy;
 use crate::acp::session_descriptor::SessionReplayContext;
 use crate::acp::session_thread_snapshot::ProviderOwnedSessionSnapshot;
@@ -114,7 +116,11 @@ impl AgentProvider for CodexProvider {
                     ),
                     self.default_session_modes(),
                 ) {
-                    Ok(capabilities) => capabilities,
+                    Ok(mut capabilities) => {
+                        capabilities.config_options =
+                            build_codex_native_config_options(&state);
+                        capabilities
+                    }
                     Err(error) => failed_capabilities(self, error.to_string()),
                 },
                 Err(error) => failed_capabilities(self, error.to_string()),
@@ -380,13 +386,5 @@ mod tests {
             provider.communication_mode(),
             CommunicationMode::CodexNative
         );
-    }
-
-    #[test]
-    fn codex_provider_reports_agent_mode_autonomy_support() {
-        // Acepe's canonical autonomous mode name is "agent" (was "build").
-        let provider = CodexProvider;
-
-        assert_eq!(provider.autonomous_supported_mode_ids(), &["agent"]);
     }
 }

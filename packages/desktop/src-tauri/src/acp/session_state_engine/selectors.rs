@@ -250,11 +250,8 @@ pub fn merge_session_graph_activity_timing(
     }
 }
 
-#[must_use]
 pub fn seed_activity_timing_if_needed(activity: &mut SessionGraphActivity, now_ms: u64) {
-    if activity.kind_started_at_ms.is_none()
-        && activity.kind != SessionGraphActivityKind::Idle
-    {
+    if activity.kind_started_at_ms.is_none() && activity.kind != SessionGraphActivityKind::Idle {
         activity.kind_started_at_ms = Some(now_ms);
     }
 }
@@ -357,9 +354,9 @@ pub fn select_session_graph_activity(
 #[cfg(test)]
 mod tests {
     use super::{
-        merge_session_graph_activity_timing, select_session_graph_activity,
-        SessionGraphActivity, SessionGraphActivityKind, SessionGraphCapabilities,
-        SessionGraphLifecycle, SessionRecommendedAction,
+        merge_session_graph_activity_timing, select_session_graph_activity, SessionGraphActivity,
+        SessionGraphActivityKind, SessionGraphCapabilities, SessionGraphLifecycle,
+        SessionRecommendedAction,
     };
     use crate::acp::lifecycle::{DetachedReason, FailureReason, LifecycleStatus};
     use crate::acp::projections::{

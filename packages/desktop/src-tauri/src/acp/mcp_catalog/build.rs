@@ -43,7 +43,12 @@ pub fn build_composer_mcp_catalog(input: BuildComposerMcpCatalogInput) -> Compos
         let slash_commands = slash_by_server.remove(&server_name).unwrap_or_default();
         let tools = live_status
             .and_then(|status| status.tools.as_ref())
-            .map(|tools| tools.iter().map(|tool| map_tool(&server_name, tool)).collect())
+            .map(|tools| {
+                tools
+                    .iter()
+                    .map(|tool| map_tool(&server_name, tool))
+                    .collect()
+            })
             .unwrap_or_default();
 
         servers.push(ComposerMcpServer {
@@ -105,7 +110,7 @@ fn map_connection_status(status: &McpConnectionStatus) -> ComposerMcpConnectionS
 fn map_tool(server_name: &str, tool: &McpToolInfo) -> ComposerMcpTool {
     let insert_text = format!("@[command:/mcp:{server_name}/{}]", tool.name);
     ComposerMcpTool {
-        id: format!("{server_name}::{}" , tool.name),
+        id: format!("{server_name}::{}", tool.name),
         name: tool.name.clone(),
         description: tool.description.clone(),
         insert_text,
@@ -139,11 +144,7 @@ pub fn parse_mcp_slash_server_name(command_name: &str) -> Option<String> {
     if remainder.is_empty() {
         return None;
     }
-    let server_name = remainder
-        .split(':')
-        .next()
-        .unwrap_or(remainder)
-        .trim();
+    let server_name = remainder.split(':').next().unwrap_or(remainder).trim();
     if server_name.is_empty() {
         None
     } else {
@@ -210,7 +211,10 @@ mod tests {
 
         assert_eq!(catalog.source, ComposerMcpCatalogSource::Mixed);
         assert_eq!(catalog.servers.len(), 1);
-        assert_eq!(catalog.servers[0].status, ComposerMcpConnectionStatus::Connected);
+        assert_eq!(
+            catalog.servers[0].status,
+            ComposerMcpConnectionStatus::Connected
+        );
         assert_eq!(catalog.servers[0].tools.len(), 1);
         assert_eq!(
             catalog.servers[0].tools[0].insert_text,

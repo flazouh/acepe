@@ -99,7 +99,7 @@ export class MainAppViewState {
 	fileExplorerOpen = $state(false);
 
 	/**
-	 * Whether the design system overlay is open (DEV only).
+	 * Whether the design system page is open (DEV only).
 	 */
 	designSystemOpen = $state(false);
 
@@ -767,7 +767,7 @@ export class MainAppViewState {
 	}
 
 	/**
-	 * Toggles the design system overlay open/closed (DEV only).
+	 * Toggles the design system page open/closed (DEV only).
 	 */
 	toggleDesignSystem(): void {
 		this.designSystemOpen = !this.designSystemOpen;

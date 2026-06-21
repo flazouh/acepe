@@ -33,11 +33,7 @@ pub fn fetch_commit_diff(
     unexpected_command_result(
         "fetch_commit_diff",
         "Failed to fetch commit diff",
-        domain_fetch_commit_diff(
-            &sha,
-            Path::new(&project_path),
-            repo_context.as_ref(),
-        ),
+        domain_fetch_commit_diff(&sha, Path::new(&project_path), repo_context.as_ref()),
     )
 }
 
@@ -74,10 +70,9 @@ pub fn git_working_file_diff(
 pub fn fetch_pr_diff(owner: String, repo: String, pr_number: i32) -> CommandResult<PrDiff> {
     match domain_fetch_pr_diff(owner, repo, pr_number) {
         Ok(diff) => Ok(diff),
-        Err(error) if error == "PR not found" => Err(SerializableCommandError::expected(
-            "fetch_pr_diff",
-            error,
-        )),
+        Err(error) if error == "PR not found" => {
+            Err(SerializableCommandError::expected("fetch_pr_diff", error))
+        }
         Err(error) => Err(capture_unexpected_command_error(
             "fetch_pr_diff",
             "Failed to fetch PR diff",

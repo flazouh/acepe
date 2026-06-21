@@ -6,7 +6,7 @@ import { ensureWorkerPoolInitialized } from "$lib/acp/utils/worker-pool-singleto
 import { initAnalytics } from "$lib/analytics.js";
 import ErrorBoundary from "$lib/components/error-boundary.svelte";
 import { Toaster } from "$lib/components/ui/sonner/index.js";
-import { TooltipProvider } from "$lib/components/ui/tooltip/index.js";
+import { TooltipProvider } from "@acepe/ui/tooltip";
 
 onMount(async () => {
 	// Fire-and-forget — nothing downstream depends on analytics being ready

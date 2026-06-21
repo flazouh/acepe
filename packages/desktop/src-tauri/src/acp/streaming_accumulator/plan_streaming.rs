@@ -3,8 +3,8 @@
 use std::time::Instant;
 
 use super::{StreamingStateRegistry, MAX_ACCUMULATED_SIZE, THROTTLE_MS};
-use crate::acp::partial_json::parse_partial_json;
 use crate::acp::parsers::AgentType;
+use crate::acp::partial_json::parse_partial_json;
 use crate::acp::session_update::{PlanConfidence, PlanData, PlanSource};
 
 /// Per-session plan streaming state.

@@ -12,10 +12,10 @@
 use crate::acp::agent_context::with_agent;
 use crate::acp::parsers::{get_parser, AgentType};
 use crate::acp::reconciler::{providers, semantic_transition, RawClassificationInput};
+use crate::acp::session_update::ToolKind;
 use crate::acp::session_update::{
     build_tool_call_update_from_raw, RawToolCallUpdateInput, ToolArguments, ToolCallStatus,
 };
-use crate::acp::session_update::ToolKind;
 use crate::acp::streaming_accumulator::{
     has_plan_streaming, has_tool_state, reset_streaming_state_for_test, seed_tool_name,
 };
@@ -277,7 +277,10 @@ fn lifecycle_plan_detect_accumulate_finalize_round_trip() {
             .expect("terminal should finalize plan via finalize_plan_streaming_for_tool");
         assert!(!final_plan.streaming);
         assert!(
-            final_plan.content.as_deref().is_some_and(|c| c.contains("# Pinned Plan")),
+            final_plan
+                .content
+                .as_deref()
+                .is_some_and(|c| c.contains("# Pinned Plan")),
             "finalized plan should retain accumulated content"
         );
         assert!(!has_plan_streaming(&session_id));
@@ -313,7 +316,9 @@ async fn lifecycle_concurrent_delta_and_terminal_does_not_deadlock() {
         content: None,
         title: None,
         locations: None,
-        streaming_input_delta: Some(r#"{"todos": [{"content": "x", "status": "pending"}]}"#.to_string()),
+        streaming_input_delta: Some(
+            r#"{"todos": [{"content": "x", "status": "pending"}]}"#.to_string(),
+        ),
         tool_name: Some("TodoWrite".to_string()),
         raw_input: None,
         kind: None,

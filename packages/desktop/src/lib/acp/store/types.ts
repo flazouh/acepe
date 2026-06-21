@@ -444,8 +444,6 @@ export interface Agent {
 	readonly icon: string;
 	/** Current setup state for this agent (set by store when loading from API) */
 	readonly availability_kind?: AgentAvailabilityKind;
-	/** Visible UI modes that support wrapper-managed Autonomous execution. */
-	readonly autonomous_supported_mode_ids?: ReadonlyArray<string>;
 	/** Registry-owned precedence for default selection. */
 	readonly default_selection_rank?: number;
 	/** Canonical provider metadata projection for shared frontend surfaces. */

@@ -22,7 +22,7 @@ describe("buildDropdownMenuItemClassName", () => {
 	it("uses rounded menu row geometry", () => {
 		const className = buildDropdownMenuItemClassName(true);
 
-		expect(className).toContain("rounded-lg");
-		expect(className).not.toContain("rounded-md");
+		expect(className).toContain("rounded-md");
+		expect(className).not.toContain("rounded-lg");
 	});
 });

@@ -706,8 +706,7 @@ mod tests {
         fs::create_dir_all(dir.path().join("other")).expect("create dir");
         fs::write(dir.path().join("other/settings.json"), "other").expect("write file");
 
-        let result =
-            find_file_in_project(".claude/settings.json", &dir.path().to_string_lossy());
+        let result = find_file_in_project(".claude/settings.json", &dir.path().to_string_lossy());
 
         assert!(result.is_ok(), "expected Ok but got: {:?}", result);
         assert!(
@@ -726,8 +725,7 @@ mod tests {
         fs::write(dir.path().join("other/settings.json"), "{}").expect("write file");
 
         // Requesting .claude/settings.json should NOT silently return other/settings.json.
-        let result =
-            find_file_in_project(".claude/settings.json", &dir.path().to_string_lossy());
+        let result = find_file_in_project(".claude/settings.json", &dir.path().to_string_lossy());
 
         assert!(
             result.is_err(),

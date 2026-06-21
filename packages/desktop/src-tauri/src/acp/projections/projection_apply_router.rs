@@ -56,7 +56,9 @@ pub fn route_projection_apply(
             }
             let normalized = normalize_tool_call_for_operation_ingress(tool_call);
             if should_skip_unanswered_question_tool_operation(&normalized) {
-                return ProjectionApplyRoute::Apply(ProjectionApplyArm::ToolCallAsConvertedQuestion);
+                return ProjectionApplyRoute::Apply(
+                    ProjectionApplyArm::ToolCallAsConvertedQuestion,
+                );
             }
             ProjectionApplyRoute::Apply(ProjectionApplyArm::ToolCall)
         }
@@ -88,9 +90,7 @@ pub fn route_projection_apply(
 
 #[cfg(test)]
 mod tests {
-    use super::{
-        route_projection_apply, ProjectionApplyArm, ProjectionApplyRoute,
-    };
+    use super::{route_projection_apply, ProjectionApplyArm, ProjectionApplyRoute};
     use crate::acp::projections::terminal_turn_guard::TerminalTurnGuard;
     use crate::acp::projections::types::{SessionTurnState, TurnFailureSnapshot};
     use crate::acp::session_update::{
@@ -202,7 +202,10 @@ mod tests {
             ProjectionApplyRoute::Apply(ProjectionApplyArm::AgentThoughtChunk)
         );
         let failed = failed_guard("turn-1");
-        assert_eq!(route_projection_apply(&thought, &failed), ProjectionApplyRoute::Skip);
+        assert_eq!(
+            route_projection_apply(&thought, &failed),
+            ProjectionApplyRoute::Skip
+        );
     }
 
     #[test]
@@ -375,6 +378,9 @@ mod tests {
             plan: PlanData::from_steps(vec![]),
             session_id: Some("session-1".to_string()),
         };
-        assert_eq!(route_projection_apply(&plan, &guard), ProjectionApplyRoute::Skip);
+        assert_eq!(
+            route_projection_apply(&plan, &guard),
+            ProjectionApplyRoute::Skip
+        );
     }
 }

@@ -10,7 +10,11 @@ impl ProjectionRegistry {
         snapshot.last_event_seq
     }
 
-    pub(crate) fn register_permission_interaction(&self, permission: &PermissionData, event_seq: i64) {
+    pub(crate) fn register_permission_interaction(
+        &self,
+        permission: &PermissionData,
+        event_seq: i64,
+    ) {
         let interaction = InteractionSnapshot {
             id: permission.id.clone(),
             session_id: permission.session_id.clone(),
@@ -138,7 +142,11 @@ impl ProjectionRegistry {
         self.upsert_interaction(interaction);
     }
 
-    pub(crate) fn register_plan_approval_interaction(&self, session_id: &str, tool_call: &ToolCallData) {
+    pub(crate) fn register_plan_approval_interaction(
+        &self,
+        session_id: &str,
+        tool_call: &ToolCallData,
+    ) {
         if !tool_call.awaiting_plan_approval {
             return;
         }

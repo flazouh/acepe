@@ -1,6 +1,6 @@
 <script lang="ts">
 import { IconAlertCircle, IconCircleCheckFilled } from "@tabler/icons-svelte";
-import * as Tooltip from "$lib/components/ui/tooltip/index.js";
+import * as Tooltip from "@acepe/ui/tooltip";
 import type { SessionStatus } from "../state/index.js";
 import { resolveSessionStatusIndicatorPresentation } from "./session-status-indicator-presentation.js";
 

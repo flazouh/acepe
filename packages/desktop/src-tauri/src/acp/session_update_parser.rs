@@ -101,9 +101,8 @@ pub fn parse_session_update_notification(json: &Value) -> ParseResult {
         return ParseResult::NotSessionUpdate;
     }
 
-    let agent = current_agent().expect(
-        "Missing agent context for session update notification parsing",
-    );
+    let agent =
+        current_agent().expect("Missing agent context for session update notification parsing");
     parse_session_update_notification_for_context(agent, None, json)
 }
 
@@ -605,7 +604,9 @@ mod tests {
         use crate::acp::agent_context::{current_agent, with_agent};
 
         fn parse_notification(json: &serde_json::Value) -> ParseResult {
-            with_agent(AgentType::ClaudeCode, || parse_session_update_notification(json))
+            with_agent(AgentType::ClaudeCode, || {
+                parse_session_update_notification(json)
+            })
         }
 
         #[test]

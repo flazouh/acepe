@@ -48,7 +48,6 @@ export {
 	parseFilePickerTrigger,
 	parseSlashCommandTrigger,
 } from "./logic/input-parser.js";
-export { resolveAutonomousSupport } from "./logic/autonomous-support.js";
 export { resolveModeMenuAction, resolveSelectedModeMenuOptionId } from "./logic/mode-menu-state.js";
 export { createPendingUserEntry } from "./logic/pending-user-entry.js";
 export { PreconnectionCapabilitiesState } from "./logic/preconnection-capabilities-state.svelte.js";

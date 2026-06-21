@@ -34,7 +34,7 @@ describe("VoiceDownloadProgress", () => {
 		expect(container.textContent).not.toContain("49%");
 	});
 
-	it("renders download progress as vertical bars", () => {
+	it("renders download progress as a segmented pill", () => {
 		const { container } = render(VoiceDownloadProgress, {
 			ariaLabel: "Downloading model",
 			compact: false,
@@ -44,10 +44,58 @@ describe("VoiceDownloadProgress", () => {
 		});
 
 		const segmentsRoot = container.querySelector(".voice-download-segments");
-		const firstSegment = container.querySelector(".voice-download-segment");
+		const segments = container.querySelectorAll(".voice-download-segment");
 
-		expect(segmentsRoot?.className).toContain("voice-download-segments");
-		expect(firstSegment).not.toBeNull();
-		expect(firstSegment?.className).toContain("voice-download-segment-vertical");
+		expect(segmentsRoot?.className).toContain("rounded-sm");
+		expect(segments).toHaveLength(20);
+		expect(segments[0]?.className).not.toContain("rounded-l-md");
+		expect(segments[19]?.className).not.toContain("rounded-r-md");
+	});
+
+	it("renders level palette with only filled segments", () => {
+		const { container } = render(VoiceDownloadProgress, {
+			ariaLabel: "Reasoning effort",
+			compact: true,
+			decorative: true,
+			filledSegmentCount: 1,
+			label: "",
+			orientation: "vertical",
+			percent: 20,
+			segmentCount: 5,
+			segmentFillPalette: "level",
+			showContainerBorder: false,
+			showPercent: false,
+		});
+
+		const segments = container.querySelectorAll(".voice-download-segment");
+		expect(segments).toHaveLength(1);
+		expect(segments[0]?.className).toContain("filled");
+	});
+
+	it("renders grouped setup bar with bottom-up fill across the full cell", () => {
+		const { container } = render(VoiceDownloadProgress, {
+			ariaLabel: "Reasoning effort",
+			compact: true,
+			decorative: true,
+			fillWidth: true,
+			filledSegmentCount: 2,
+			label: "",
+			orientation: "vertical",
+			percent: 40,
+			segmentCount: 5,
+			segmentFillPalette: "level",
+			setupBar: true,
+			showContainerBorder: false,
+			showPercent: false,
+		});
+
+		const root = container.querySelector(".voice-download-progress");
+		const segments = container.querySelectorAll(".voice-download-segment");
+		const filledSegments = container.querySelectorAll(".voice-download-segment.filled");
+
+		expect(root?.className).toContain("fill-width");
+		expect(root?.className).toContain("setup-bar");
+		expect(segments).toHaveLength(5);
+		expect(filledSegments).toHaveLength(2);
 	});
 });

@@ -5,7 +5,7 @@ import { ArrowsClockwise } from "phosphor-svelte";
 import { CheckCircle } from "phosphor-svelte";
 import { Warning as PhosphorWarning } from "phosphor-svelte";
 import { Spinner } from "$lib/components/ui/spinner/index.js";
-import * as Tooltip from "$lib/components/ui/tooltip/index.js";
+import * as Tooltip from "@acepe/ui/tooltip";
 
 import type { LibrarySkillWithSync } from "../types/index.js";
 

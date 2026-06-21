@@ -2,13 +2,16 @@ use std::sync::Arc;
 
 use crate::acp::event_hub::AcpEventHubState;
 use crate::acp::session_open_snapshot::{
-    session_open_result_from_completed_local_journal, session_open_result_from_provider_owned_snapshot,
-    SessionOpenError, SessionOpenMissing, SessionOpenResult,
+    session_open_result_from_completed_local_journal,
+    session_open_result_from_provider_owned_snapshot, SessionOpenError, SessionOpenMissing,
+    SessionOpenResult,
 };
 use sea_orm::DbConn;
 use tauri::{AppHandle, Manager};
 
-use super::provider_load::{load_provider_owned_session_snapshot, session_open_error_from_provider_load};
+use super::provider_load::{
+    load_provider_owned_session_snapshot, session_open_error_from_provider_load,
+};
 use super::restore_authority::restore_session_open_authority;
 
 pub async fn get_session_open_result_domain(

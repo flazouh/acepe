@@ -38,6 +38,34 @@
 		type AcepeStreamdownConfig,
 	} from "./streamdown-config.js";
 	import { createTokenRevealAnimationResetKey } from "./token-reveal-animation-reset-key.js";
+	import { cn } from "../../lib/utils.js";
+
+	const STREAMDOWN_CODE_BLOCK_CLASS = cn(
+		"my-2 overflow-hidden !gap-0 !p-0",
+		"rounded-lg border border-border/70 bg-input/24"
+	);
+	const STREAMDOWN_CODE_BLOCK_HEADER_CLASS = cn(
+		"flex h-6 items-center justify-between border-b border-border pl-2 pr-1.5 text-sm"
+	);
+	const STREAMDOWN_CODE_BLOCK_HEADER_LEFT_CLASS = "flex min-w-0 flex-1 items-center gap-1";
+	const STREAMDOWN_CODE_BLOCK_HEADER_INNER_CLASS =
+		"flex min-w-0 items-center gap-1 text-muted-foreground";
+	const ACEPE_CODE_LANGUAGE_ICON_CLASS = "h-3.5 w-3.5 shrink-0 object-contain";
+	const ACEPE_CODE_LANGUAGE_LABEL_CLASS =
+		"min-w-0 truncate font-mono text-[0.6875rem] leading-none";
+	const STREAMDOWN_CODE_BLOCK_HEADER_ACTIONS_CLASS =
+		"ml-1.5 flex shrink-0 items-center gap-1.5";
+	const ACEPE_CODE_COPY_BUTTON_CLASS = cn(
+		"flex items-center justify-center rounded-sm border-0 bg-transparent p-0.5",
+		"cursor-pointer text-muted-foreground transition-colors hover:bg-muted/50 hover:text-foreground"
+	);
+	const STREAMDOWN_CODE_BLOCK_BODY_CLASS = cn(
+		"border-0 rounded-none bg-transparent px-2.5 py-2 text-[0.8125rem] !leading-normal",
+		"[&_pre]:!m-0 [&_pre]:!rounded-none [&_pre]:!bg-transparent [&_pre]:!p-0",
+		"[&_pre]:!text-[0.8125rem] [&_pre]:!leading-normal"
+	);
+	const STREAMDOWN_CODE_BLOCK_BODY_PRE_CLASS =
+		"!m-0 !p-0 rounded-none bg-transparent text-inherit !text-[0.8125rem] !leading-normal";
 
 	interface StreamdownActionOptions {
 		readonly markdown: string;
@@ -603,7 +631,7 @@
 			"button",
 			{
 				"aria-label": copied ? "Copied code" : "Copy code",
-				className: "acepe-code-copy-button",
+				className: cn(ACEPE_CODE_COPY_BUTTON_CLASS, copied && "text-success"),
 				"data-acepe-code-copy-button": "true",
 				"data-copy-state": copied ? "copied" : "idle",
 				onClick: handleClick,
@@ -691,36 +719,55 @@
 		return createElement(
 			"div",
 			{
-				className,
+				className: cn(STREAMDOWN_CODE_BLOCK_CLASS, className),
 				"data-language": normalizedLanguage,
 				"data-streamdown": "code-block",
 			},
 			createElement(
 				"div",
 				{
+					role: "group",
+					className: STREAMDOWN_CODE_BLOCK_HEADER_CLASS,
 					"data-acepe-code-language": normalizedLanguage || "text",
 					"data-streamdown": "code-block-header",
 				},
 				createElement(
 					"div",
-					{ className: "acepe-code-language-badge" },
-					createElement("img", {
-						alt: "",
-						className: "acepe-code-language-icon",
-						src: languageIconSrc,
-					}),
-					createElement("span", null, languageLabel)
+					{ className: STREAMDOWN_CODE_BLOCK_HEADER_LEFT_CLASS },
+					createElement(
+						"div",
+						{
+							className: STREAMDOWN_CODE_BLOCK_HEADER_INNER_CLASS,
+							title: languageLabel,
+						},
+						createElement("img", {
+							alt: "",
+							className: ACEPE_CODE_LANGUAGE_ICON_CLASS,
+							src: languageIconSrc,
+						}),
+						createElement(
+							"span",
+							{ className: ACEPE_CODE_LANGUAGE_LABEL_CLASS },
+							languageLabel
+						)
+					)
 				),
 				createElement(
 					"div",
-					{ "data-streamdown": "code-block-actions" },
+					{
+						className: STREAMDOWN_CODE_BLOCK_HEADER_ACTIONS_CLASS,
+						"data-streamdown": "code-block-actions",
+					},
 					children
 				)
 			),
 			createElement(
 				"div",
 				{
-					className: `language-${normalizedLanguage || "text"}`,
+					className: cn(
+						STREAMDOWN_CODE_BLOCK_BODY_CLASS,
+						`language-${normalizedLanguage || "text"}`
+					),
 					"data-streamdown": "code-block-body",
 				},
 				highlightedHtml
@@ -732,7 +779,12 @@
 						})
 					: createElement(
 							"pre",
-							{ className: `language-${normalizedLanguage || "text"}` },
+							{
+								className: cn(
+									STREAMDOWN_CODE_BLOCK_BODY_PRE_CLASS,
+									`language-${normalizedLanguage || "text"}`
+								),
+							},
 							createElement("code", { style: codeStyle }, code)
 						)
 			)

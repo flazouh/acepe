@@ -1,11 +1,12 @@
 <!--
-  AgentInputAutonomousToggle - Robot toggle button in the composer toolbar.
+  AgentInputAutonomousToggle - Autonomous (lightning) toggle button in the composer toolbar.
 
   Extracted from packages/desktop/src/lib/acp/components/agent-input/components/autonomous-toggle-button.svelte.
   Wraps the button in a rich Tooltip when a description is provided.
+  Uses the Lightning icon so Robot stays reserved for "agent" across the app.
 -->
 <script lang="ts">
-	import { Robot } from "phosphor-svelte";
+	import { ShieldCheck } from "phosphor-svelte";
 
 	import { Colors } from "../../lib/colors.js";
 	import { Tooltip, TooltipContent, TooltipTrigger } from "../tooltip/index.js";
@@ -27,8 +28,8 @@
 		disabled = false,
 		busy = false,
 		compact = false,
-		title = "Autonomous",
-		ariaLabel = "Autonomous",
+		title = "Auto-approve",
+		ariaLabel = "Auto-approve",
 		tooltipDescription,
 		onToggle,
 	}: Props = $props();
@@ -96,7 +97,7 @@
 				class={buttonClass}
 				style={buttonStyle}
 			>
-				<Robot class={iconClass} size={14} weight={active ? "fill" : "regular"} />
+				<ShieldCheck class={iconClass} size={14} weight={active ? "fill" : "regular"} />
 			</button>
 		{/snippet}
 	</TooltipTrigger>

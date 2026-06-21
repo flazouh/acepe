@@ -1,6 +1,3 @@
-use crate::acp::provider::{
-    AgentProvider, ProjectDiscoveryCompleteness, ProjectPathListing, SpawnConfig,
-};
 use super::model_catalog;
 use super::settings::apply_copilot_session_defaults;
 use crate::acp::capability_resolution::{
@@ -12,6 +9,9 @@ use crate::acp::client_session::{
 };
 use crate::acp::error::{AcpError, AcpResult};
 use crate::acp::parsers::AgentType;
+use crate::acp::provider::{
+    AgentProvider, ProjectDiscoveryCompleteness, ProjectPathListing, SpawnConfig,
+};
 use crate::acp::runtime_resolver::SpawnEnvStrategy;
 use crate::acp::session_descriptor::SessionReplayContext;
 use crate::acp::session_thread_snapshot::ProviderOwnedSessionSnapshot;
@@ -183,10 +183,6 @@ impl AgentProvider for CopilotProvider {
 
     fn visible_mode_ids(&self) -> &'static [&'static str] {
         &["agent", "autopilot", "plan"]
-    }
-
-    fn autonomous_supported_mode_ids(&self) -> &'static [&'static str] {
-        &["agent", "autopilot"]
     }
 
     fn default_session_modes(&self) -> SessionModes {
@@ -644,7 +640,6 @@ mod tests {
             provider.map_outbound_mode_id("plan"),
             "https://agentclientprotocol.com/protocol/session-modes#plan"
         );
-        assert_eq!(provider.autonomous_supported_mode_ids(), &["agent", "autopilot"]);
     }
 
     #[test]

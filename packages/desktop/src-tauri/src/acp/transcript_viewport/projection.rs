@@ -575,7 +575,9 @@ mod tests {
         );
 
         assert_eq!(rows.len(), 3, "no row is dropped");
-        assert!(rows.iter().all(|row| row.row_id == "transcript:toolu_bdrk_dup"));
+        assert!(rows
+            .iter()
+            .all(|row| row.row_id == "transcript:toolu_bdrk_dup"));
         for row in &rows {
             assert_eq!(row.source_entry_id, "toolu_bdrk_dup");
         }
@@ -599,10 +601,7 @@ mod tests {
         );
 
         let assistant = &rows[1];
-        assert_eq!(
-            assistant.duration_started_at_ms,
-            Some(1_700_000_000_000)
-        );
+        assert_eq!(assistant.duration_started_at_ms, Some(1_700_000_000_000));
         assert_eq!(
             assistant.active_streaming_tail,
             Some(ActiveStreamingTailContentKind::Message)
@@ -630,9 +629,11 @@ mod tests {
     #[test]
     fn awaiting_placeholder_appended_last_when_flag_true() {
         let rows = project_transcript_viewport_rows(
-            &snapshot(vec![
-                text_entry("user-1", TranscriptEntryRole::User, "prompt"),
-            ]),
+            &snapshot(vec![text_entry(
+                "user-1",
+                TranscriptEntryRole::User,
+                "prompt",
+            )]),
             &[],
             &[],
             None,
@@ -651,9 +652,11 @@ mod tests {
     #[test]
     fn awaiting_placeholder_not_emitted_when_flag_false() {
         let rows = project_transcript_viewport_rows(
-            &snapshot(vec![
-                text_entry("user-1", TranscriptEntryRole::User, "prompt"),
-            ]),
+            &snapshot(vec![text_entry(
+                "user-1",
+                TranscriptEntryRole::User,
+                "prompt",
+            )]),
             &[],
             &[],
             None,
@@ -667,14 +670,26 @@ mod tests {
 
     #[test]
     fn awaiting_placeholder_version_is_constant_across_projections() {
-        let snapshot = snapshot(vec![
-            text_entry("user-1", TranscriptEntryRole::User, "prompt"),
-        ]);
+        let snapshot = snapshot(vec![text_entry(
+            "user-1",
+            TranscriptEntryRole::User,
+            "prompt",
+        )]);
         let rows1 = project_transcript_viewport_rows(
-            &snapshot, &[], &[], None, true, Some(1_700_000_000_000),
+            &snapshot,
+            &[],
+            &[],
+            None,
+            true,
+            Some(1_700_000_000_000),
         );
         let rows2 = project_transcript_viewport_rows(
-            &snapshot, &[], &[], None, true, Some(1_700_000_000_000),
+            &snapshot,
+            &[],
+            &[],
+            None,
+            true,
+            Some(1_700_000_000_000),
         );
 
         let version1 = &rows1.last().unwrap().version;
@@ -685,9 +700,11 @@ mod tests {
     #[test]
     fn awaiting_placeholder_has_no_links_and_no_streaming_tail() {
         let rows = project_transcript_viewport_rows(
-            &snapshot(vec![
-                text_entry("user-1", TranscriptEntryRole::User, "prompt"),
-            ]),
+            &snapshot(vec![text_entry(
+                "user-1",
+                TranscriptEntryRole::User,
+                "prompt",
+            )]),
             &[],
             &[],
             None,
@@ -737,9 +754,14 @@ mod tests {
         assert_eq!(rows.len(), 102);
         let row_ids: Vec<&str> = rows.iter().map(|r| r.row_id.as_str()).collect();
         let unique: std::collections::BTreeSet<&str> = row_ids.iter().copied().collect();
-        assert_eq!(unique.len(), 102, "all row_ids are unique including awaiting:planning");
+        assert_eq!(
+            unique.len(),
+            102,
+            "all row_ids are unique including awaiting:planning"
+        );
         assert!(
-            rows.iter().any(|r| r.kind == TranscriptViewportRowKind::AwaitingPlaceholder),
+            rows.iter()
+                .any(|r| r.kind == TranscriptViewportRowKind::AwaitingPlaceholder),
             "awaiting placeholder row is present"
         );
     }

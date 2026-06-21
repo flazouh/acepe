@@ -262,8 +262,8 @@ mod tests {
     };
     use crate::acp::session_update::{ToolArguments, ToolCallData, ToolCallStatus, ToolKind};
     use crate::acp::transcript_projection::{
-        CanonicalTranscriptEvent, CanonicalTranscriptEventKind, TranscriptEntry,
-        TranscriptEntryRole, TranscriptSegment, TranscriptSnapshot, derive_tool_entry_id,
+        derive_tool_entry_id, CanonicalTranscriptEvent, CanonicalTranscriptEventKind,
+        TranscriptEntry, TranscriptEntryRole, TranscriptSegment, TranscriptSnapshot,
     };
     use crate::acp::types::CanonicalAgentId;
     use crate::session_jsonl::types::{
@@ -372,10 +372,11 @@ mod tests {
     fn ensure_returns_operations_unchanged_for_unlinked_transcript_tool_row() {
         // After relinking, any unmatched row is missing provider evidence — ensure is a tripwire
         // assertion, not a degraded-op factory. Operations pass through unchanged.
-        let operations =
-            ensure_transcript_tool_operations("session-1", &tool_transcript("tool-missing"), vec![
-                linked_operation("session-1", "other-tool"),
-            ]);
+        let operations = ensure_transcript_tool_operations(
+            "session-1",
+            &tool_transcript("tool-missing"),
+            vec![linked_operation("session-1", "other-tool")],
+        );
 
         assert_eq!(operations.len(), 1);
         assert_eq!(operations[0].tool_call_id, "other-tool");

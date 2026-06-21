@@ -241,9 +241,8 @@ fn deserialization_paths_do_not_silently_default_to_claude_code() {
 
     for relative_path in guarded_files {
         let source_path = acp_root.join(relative_path);
-        let source = fs::read_to_string(&source_path).unwrap_or_else(|error| {
-            panic!("failed to read {}: {error}", source_path.display())
-        });
+        let source = fs::read_to_string(&source_path)
+            .unwrap_or_else(|error| panic!("failed to read {}: {error}", source_path.display()));
 
         assert!(
             !source.contains("unwrap_or(AgentType::ClaudeCode)"),

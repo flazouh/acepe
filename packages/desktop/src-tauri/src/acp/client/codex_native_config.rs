@@ -447,7 +447,7 @@ fn normalize_reasoning_effort(value: &str) -> AcpResult<String> {
 fn parse_codex_service_tier(value: &str) -> AcpResult<bool> {
     match value.trim().to_lowercase().as_str() {
         "fast" => Ok(true),
-        "flex" => Ok(false),
+        "flex" | "default" => Ok(false),
         _ => Err(AcpError::ProtocolError(format!(
             "Unsupported Codex service tier: {value}"
         ))),
@@ -660,6 +660,29 @@ service_tier = "flex"
 
         assert_eq!(state.current_model_id, "gpt-oss-custom");
         assert_eq!(state.reasoning_effort, "minimal");
+        assert!(!state.fast_mode);
+    }
+
+    #[test]
+    fn codex_config_accepts_default_service_tier_as_standard_mode() {
+        let temp = tempfile::tempdir().expect("tempdir");
+        let global_config = temp.path().join("global.toml");
+        let project_config = temp.path().join("missing-project.toml");
+
+        fs::write(
+            &global_config,
+            r#"
+service_tier = "default"
+"#,
+        )
+        .expect("write global config");
+
+        let state = load_codex_native_config_state_from_paths(
+            Some(global_config.as_path()),
+            project_config.as_path(),
+        )
+        .expect("default service tier should load");
+
         assert!(!state.fast_mode);
     }
 

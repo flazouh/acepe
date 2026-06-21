@@ -37,6 +37,7 @@ export { default as AgentInputMicButton } from "./agent-input-mic-button.svelte"
 export { default as AgentInputModeIcon } from "./agent-input-mode-icon.svelte";
 export { default as AgentInputModePill } from "./agent-input-mode-pill.svelte";
 export { default as AgentInputModeSelector } from "./agent-input-mode-selector.svelte";
+export { default as AgentInputNewThreadOptions } from "./agent-input-new-thread-options.svelte";
 export {
 	getModeDropdownOptions,
 	getSelectedModeOption,

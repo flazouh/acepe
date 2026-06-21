@@ -70,19 +70,13 @@ impl TerminalTurnGuard {
         self.preserves_terminal_turn()
             && (self.last_terminal_turn_id.is_none()
                 || turn_id.is_none()
-                || Self::matches_terminal_turn_id(
-                    self.last_terminal_turn_id.as_deref(),
-                    turn_id,
-                ))
+                || Self::matches_terminal_turn_id(self.last_terminal_turn_id.as_deref(), turn_id))
     }
 
     fn should_ignore_late_turn_failure(&self, turn_id: Option<&str>) -> bool {
         self.preserves_terminal_turn()
             && (self.last_terminal_turn_id.is_none()
-                || Self::matches_terminal_turn_id(
-                    self.last_terminal_turn_id.as_deref(),
-                    turn_id,
-                ))
+                || Self::matches_terminal_turn_id(self.last_terminal_turn_id.as_deref(), turn_id))
     }
 
     pub fn reset_to_running_turn(&mut self) {

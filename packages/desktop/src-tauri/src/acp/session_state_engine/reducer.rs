@@ -4,8 +4,8 @@ use crate::acp::session_state_engine::graph::SessionStateGraph;
 use crate::acp::session_state_engine::protocol::SessionStateDelta;
 use crate::acp::session_state_engine::revision::SessionGraphRevision;
 use crate::acp::session_state_engine::selectors::{
-    merge_session_graph_activity_timing, select_session_graph_activity,
-    seed_activity_timing_if_needed, SessionGraphCapabilities, SessionGraphLifecycle,
+    merge_session_graph_activity_timing, seed_activity_timing_if_needed,
+    select_session_graph_activity, SessionGraphCapabilities, SessionGraphLifecycle,
 };
 use crate::acp::session_state_engine::timing::wall_clock_ms;
 use crate::acp::transcript_projection::{
@@ -46,9 +46,7 @@ impl SessionStateReducer {
                 seed_activity_timing_if_needed(&mut graph.activity, now_ms);
                 for operation in &mut graph.operations {
                     crate::acp::projections::helpers::apply_operation_lifecycle_timing(
-                        None,
-                        operation,
-                        now_ms,
+                        None, operation, now_ms,
                     );
                 }
             }
@@ -201,7 +199,6 @@ mod tests {
     use crate::acp::projections::{SessionTurnState, TurnFailureSnapshot};
     use crate::acp::session_state_engine::graph::SessionStateGraph;
     use crate::acp::session_state_engine::protocol::SessionStateDelta;
-    use crate::acp::session_state_engine::SessionStateField;
     use crate::acp::session_state_engine::reducer::{
         SessionStateGraphMutation, SessionStateReducer,
     };
@@ -210,6 +207,7 @@ mod tests {
         SessionGraphActivity, SessionGraphActivityKind, SessionGraphCapabilities,
         SessionGraphLifecycle,
     };
+    use crate::acp::session_state_engine::SessionStateField;
     use crate::acp::session_update::{TurnErrorKind, TurnErrorSource};
     use crate::acp::transcript_projection::{
         TranscriptDeltaOperation, TranscriptEntry, TranscriptEntryRole, TranscriptSegment,

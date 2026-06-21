@@ -15,11 +15,7 @@ impl MigrationTrait for Migration {
                 .alter_table(
                     Table::alter()
                         .table(CreationAttempts::Table)
-                        .add_column(
-                            ColumnDef::new(CreationAttempts::ModelId)
-                                .string()
-                                .null(),
-                        )
+                        .add_column(ColumnDef::new(CreationAttempts::ModelId).string().null())
                         .to_owned(),
                 )
                 .await?;
@@ -30,11 +26,7 @@ impl MigrationTrait for Migration {
                 .alter_table(
                     Table::alter()
                         .table(CreationAttempts::Table)
-                        .add_column(
-                            ColumnDef::new(CreationAttempts::ModeId)
-                                .string()
-                                .null(),
-                        )
+                        .add_column(ColumnDef::new(CreationAttempts::ModeId).string().null())
                         .to_owned(),
                 )
                 .await?;

@@ -15,7 +15,7 @@ import { VoiceDownloadProgress } from "@acepe/ui";
 import { Microphone } from "phosphor-svelte";
 import { Spinner } from "$lib/components/ui/spinner/index.js";
 import { Kbd, KbdGroup } from "$lib/components/ui/kbd/index.js";
-import * as Tooltip from "$lib/components/ui/tooltip/index.js";
+import * as Tooltip from "@acepe/ui/tooltip";
 import { canCancelVoiceInteraction } from "../logic/voice-ui-state.js";
 import { getMicButtonTitle, getMicButtonVisualState } from "./mic-button-state.js";
 import type { VoiceInputState } from "../state/voice-input-state.svelte.js";

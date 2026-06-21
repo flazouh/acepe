@@ -692,20 +692,15 @@ mod tests {
     #[test]
     fn following_tail_survives_awaiting_to_assistant_swap() {
         let mut viewport = TranscriptViewport::new(
-            LayoutIndex::new(vec![
-                row("user-1", 60),
-                row("awaiting:planning", 38),
-            ]),
+            LayoutIndex::new(vec![row("user-1", 60), row("awaiting:planning", 38)]),
             400,
         )
         .with_overscan(0);
 
         assert_eq!(viewport.mode(), &ViewportMode::FollowingTail);
 
-        let layout_with_assistant = LayoutIndex::new(vec![
-            row("user-1", 60),
-            row("assistant-1", 120),
-        ]);
+        let layout_with_assistant =
+            LayoutIndex::new(vec![row("user-1", 60), row("assistant-1", 120)]);
         viewport.replace_layout_preserving_viewport(layout_with_assistant);
 
         assert_eq!(viewport.mode(), &ViewportMode::FollowingTail);
@@ -717,10 +712,7 @@ mod tests {
     #[test]
     fn detached_viewport_reattaches_to_nearest_row_on_awaiting_swap() {
         let mut viewport = TranscriptViewport::new(
-            LayoutIndex::new(vec![
-                row("user-1", 60),
-                row("awaiting:planning", 38),
-            ]),
+            LayoutIndex::new(vec![row("user-1", 60), row("awaiting:planning", 38)]),
             400,
         );
         viewport.apply_scroll_intent(ScrollIntent::DetachAtOffset { offset_px: 40 });

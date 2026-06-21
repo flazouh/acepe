@@ -4,7 +4,9 @@
 //! plan envelope builders plus UTF-8 char-boundary slicing utilities.
 
 use crate::acp::session_state_engine::protocol::AssistantTextDeltaPayload;
-use crate::acp::session_state_engine::selectors::{SessionGraphCapabilities, SessionGraphLifecycle};
+use crate::acp::session_state_engine::selectors::{
+    SessionGraphCapabilities, SessionGraphLifecycle,
+};
 use crate::acp::session_state_engine::{
     build_delta_envelope, session_state_envelope_byte_budget_status, turn_terminal_change_fields,
     CapabilityPreviewState, DeltaEnvelopeParts, DeltaSessionProjectionFields, SessionGraphRevision,
@@ -12,8 +14,7 @@ use crate::acp::session_state_engine::{
 };
 use crate::acp::session_update::SessionUpdate;
 use crate::acp::transcript_projection::{
-    TranscriptDelta, TranscriptDeltaOperation, TranscriptEntry, TranscriptEntryRole,
-    TranscriptSegment, TranscriptSnapshot,
+    TranscriptDelta, TranscriptDeltaOperation, TranscriptEntry, TranscriptEntryRole, TranscriptSnapshot,
 };
 
 pub(crate) fn build_live_session_state_delta_envelope(

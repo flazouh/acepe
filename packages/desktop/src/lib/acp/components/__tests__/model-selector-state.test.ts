@@ -7,6 +7,7 @@ import {
 	getModelSelectorDisplayName,
 	getModelSelectorItemId,
 	getModelSelectorItemLabel,
+	getModelSelectorProviderBrand,
 	getModelSelectorSearchText,
 	getPreferredReasoningVariantId,
 	getSelectedModel,
@@ -156,5 +157,11 @@ describe("model selector state", () => {
 				providerLabel: "OpenAI",
 			})
 		).toBe("GPT-5 gpt-5 Fast OpenAI");
+	});
+
+	it("uses the Anthropic mark for Claude Code models", () => {
+		expect(getModelSelectorProviderBrand("claude-code")).toBe("anthropic");
+		expect(getModelSelectorProviderBrand("codex")).toBe("codex");
+		expect(getModelSelectorProviderBrand(null)).toBeNull();
 	});
 });

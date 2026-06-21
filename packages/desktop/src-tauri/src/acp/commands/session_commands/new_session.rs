@@ -474,10 +474,8 @@ mod deferred_bind_tests {
         let error = require_creation_attempt_for_deferred_bind("attempt-1", None)
             .expect_err("missing attempt should fail closed");
 
-        assert!(
-            error
-                .to_string()
-                .contains("Creation attempt attempt-1 missing for deferred bind")
-        );
+        assert!(error
+            .to_string()
+            .contains("Creation attempt attempt-1 missing for deferred bind"));
     }
 }

@@ -152,9 +152,7 @@ impl TranscriptEntry {
             }
             CanonicalTranscriptEventKind::AssistantError { .. } => None,
             CanonicalTranscriptEventKind::ToolUse {
-                tool_call_id,
-                name,
-                ..
+                tool_call_id, name, ..
             } => {
                 if tool_call_id.trim().is_empty() {
                     return None;
@@ -299,7 +297,10 @@ pub enum TranscriptSegment {
     },
 }
 
-pub(crate) fn user_transcript_segment_from_text(segment_id: String, text: String) -> TranscriptSegment {
+pub(crate) fn user_transcript_segment_from_text(
+    segment_id: String,
+    text: String,
+) -> TranscriptSegment {
     if let Some(parsed) = crate::acp::local_command::parse_local_command(&text) {
         return TranscriptSegment::LocalCommand {
             segment_id,
@@ -348,10 +349,7 @@ impl TranscriptSegment {
                 args,
                 ..
             } => {
-                !command.is_empty()
-                    || !message.is_empty()
-                    || !stdout.is_empty()
-                    || !args.is_empty()
+                !command.is_empty() || !message.is_empty() || !stdout.is_empty() || !args.is_empty()
             }
         }
     }
@@ -363,10 +361,7 @@ fn segments_from_blocks(entry_id: &str, blocks: &[StoredContentBlock]) -> Vec<Tr
         .enumerate()
         .filter_map(|(index, block)| {
             block.text.as_ref().map(|text| {
-                user_transcript_segment_from_text(
-                    format!("{entry_id}:block:{index}"),
-                    text.clone(),
-                )
+                user_transcript_segment_from_text(format!("{entry_id}:block:{index}"), text.clone())
             })
         })
         .collect()
@@ -635,8 +630,8 @@ mod tests {
         assert_eq!(
             snapshot.entries[0].segments,
             vec![TranscriptSegment::Text {
-                segment_id:
-                    "acepe::entry::session-start::tool::tool%25provider%0Acursor:tool".to_string(),
+                segment_id: "acepe::entry::session-start::tool::tool%25provider%0Acursor:tool"
+                    .to_string(),
                 text: "Read file".to_string(),
             }]
         );

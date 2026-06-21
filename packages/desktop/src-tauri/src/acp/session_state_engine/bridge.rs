@@ -2,9 +2,9 @@ use crate::acp::session_open_snapshot::SessionOpenFound;
 use crate::acp::session_state_engine::envelope::SessionStateEnvelope;
 use crate::acp::session_state_engine::graph::ActiveStreamingTail;
 use crate::acp::session_state_engine::protocol::{SessionStateDelta, SessionStatePayload};
-use crate::acp::session_state_engine::session_state_field::SessionStateField;
 use crate::acp::session_state_engine::revision::SessionGraphRevision;
 use crate::acp::session_state_engine::selectors::SessionGraphActivity;
+use crate::acp::session_state_engine::session_state_field::SessionStateField;
 use crate::acp::session_state_engine::snapshot_builder::build_graph_from_open_found;
 use crate::acp::transcript_projection::TranscriptDeltaOperation;
 

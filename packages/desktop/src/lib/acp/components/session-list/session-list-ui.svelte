@@ -35,7 +35,7 @@ import {
 	SessionListSkeleton,
 	Skeleton,
 } from "$lib/components/ui/skeleton/index.js";
-import * as Tooltip from "$lib/components/ui/tooltip/index.js";
+import * as Tooltip from "@acepe/ui/tooltip";
 import { tauriClient } from "$lib/utils/tauri-client.js";
 import type { AgentInfo } from "../../logic/agent-manager.js";
 import ProjectFileSystemDialog from "../file-explorer-modal/project-file-system-dialog.svelte";
@@ -761,6 +761,23 @@ function openCreateBranchDialog(projectPath: string): void {
 		onclick={(e) => e.stopPropagation()}
 		onkeydown={(e) => e.stopPropagation()}
 	>
+		{#if shouldShowProjectCreateButton()}
+			<Tooltip.Root>
+				<Tooltip.Trigger>
+					<button
+						type="button"
+						class={projectHeaderHoverActionButtonClass}
+						onclick={(event) => handleProjectCreateButtonClick(event, group.projectPath)}
+						aria-label={getProjectCreateButtonTooltipLabel(group.projectName)}
+					>
+						<IconPlus class="h-3 w-3" />
+					</button>
+				</Tooltip.Trigger>
+				<Tooltip.Content>
+					{getProjectCreateButtonTooltipLabel(group.projectName)}
+				</Tooltip.Content>
+			</Tooltip.Root>
+		{/if}
 		<Tooltip.Root>
 			<Tooltip.Trigger>
 				<button
@@ -778,32 +795,6 @@ function openCreateBranchDialog(projectPath: string): void {
 		</Tooltip.Root>
 		{@render projectOverflowMenu(group, projectIndex)}
 	</div>
-{/snippet}
-
-{#snippet projectHeaderTrailing(group)}
-	{#if shouldShowProjectCreateButton()}
-		<div
-			class="flex shrink-0 items-center"
-			role="presentation"
-			onclick={(e) => handleProjectCreateButtonClick(e, group.projectPath)}
-			onkeydown={(e) => e.stopPropagation()}
-		>
-			<Tooltip.Root>
-				<Tooltip.Trigger>
-					<button
-						type="button"
-						class="flex items-center justify-center size-5 rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-						aria-label={getProjectCreateButtonTooltipLabel(group.projectName)}
-					>
-						<IconPlus class="h-3 w-3" />
-					</button>
-				</Tooltip.Trigger>
-				<Tooltip.Content>
-					{getProjectCreateButtonTooltipLabel(group.projectName)}
-				</Tooltip.Content>
-			</Tooltip.Root>
-		</div>
-	{/if}
 {/snippet}
 
 {#snippet sidebarProjectHeader(group, projectIndex, isExpanded)}
@@ -831,9 +822,6 @@ function openCreateBranchDialog(projectPath: string): void {
 			{#snippet actions()}
 				{@render projectHeaderActions(group, projectIndex)}
 			{/snippet}
-			{#snippet trailing()}
-				{@render projectHeaderTrailing(group)}
-			{/snippet}
 		</ProjectHeader>
 	</div>
 {/snippet}
@@ -853,7 +841,7 @@ function openCreateBranchDialog(projectPath: string): void {
 						{/snippet}
 						{#snippet children()}
 							<div
-								class="flex-1 min-h-0 max-h-[22rem] overflow-y-auto overflow-x-hidden px-0.5 pb-0.5"
+								class="flex-1 min-h-0 max-h-[22rem] overflow-y-auto overflow-x-hidden pb-0.5"
 							>
 								<SessionListSkeleton sessionCount={3} />
 							</div>
@@ -905,7 +893,7 @@ function openCreateBranchDialog(projectPath: string): void {
 								/>
 							</div>
 							<div
-								class="min-h-0 max-h-[22rem] overflow-y-auto overflow-x-hidden px-0.5 pb-0.5"
+								class="min-h-0 max-h-[22rem] overflow-y-auto overflow-x-hidden pb-0.5"
 								use:sessionListContainer={{ projectPath: group.projectPath, totalSessions: filteredSessions.length }}
 								onscroll={() => handleSessionListScroll(group.projectPath, filteredSessions.length)}
 							>

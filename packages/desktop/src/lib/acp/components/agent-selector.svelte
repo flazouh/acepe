@@ -26,6 +26,8 @@ interface AgentSelectorProps {
 	showChevron?: boolean;
 	variant?: ButtonVariant;
 	triggerClass?: string;
+	/** When true, the trigger shows the agent name next to its icon. */
+	showLabel?: boolean;
 }
 
 let {
@@ -38,6 +40,7 @@ let {
 	showChevron = true,
 	variant = "ghost",
 	triggerClass = "rounded-lg",
+	showLabel = false,
 }: AgentSelectorProps = $props();
 
 let selectorRef: { toggle: () => void } | undefined = $state();
@@ -78,6 +81,14 @@ const currentAgent = $derived(
 	currentAgentId ? (availableAgents.find((a) => a.id === currentAgentId) ?? null) : null
 );
 const displayAgent = $derived(currentAgent ?? availableAgents[0] ?? null);
+
+// In the new-thread setup card (showLabel) every picker shares the same compact chip size;
+// elsewhere the agent selector keeps its default styling.
+const effectiveTriggerSize = $derived(showLabel ? "setupChip" : "default");
+const effectiveTriggerClass = $derived(
+	showLabel ? (isDropdownOpen ? "bg-accent text-foreground" : "") : triggerClass
+);
+const effectiveShowChevron = $derived(showLabel ? false : showChevron);
 </script>
 
 <Selector
@@ -86,9 +97,10 @@ const displayAgent = $derived(currentAgent ?? availableAgents[0] ?? null);
 	disabled={isLoading || availableAgents.length === 0}
 	onOpenChange={handleOpenChange}
 	class={className}
-	{showChevron}
+	showChevron={effectiveShowChevron}
 	{variant}
-	{triggerClass}
+	triggerSize={effectiveTriggerSize}
+	triggerClass={effectiveTriggerClass}
 >
 	{#snippet renderButton()}
 		{#if isLoading}
@@ -102,6 +114,9 @@ const displayAgent = $derived(currentAgent ?? availableAgents[0] ?? null);
 				class="h-4 w-4 shrink-0"
 				size={16}
 			/>
+			{#if showLabel}
+				<span class="whitespace-nowrap text-xs">{capitalizeName(displayAgent.name)}</span>
+			{/if}
 		{/if}
 	{/snippet}
 
@@ -121,10 +136,10 @@ const displayAgent = $derived(currentAgent ?? availableAgents[0] ?? null);
 						agentId={agent.id}
 						providerBrand={agent.provider_metadata?.providerBrand ?? null}
 						providerLabel={agent.provider_metadata?.displayName ?? agent.name}
-						class="h-4 w-4 shrink-0"
-						size={16}
+						class="h-3.5 w-3.5 shrink-0"
+						size={14}
 					/>
-					<span class="flex-1 text-sm truncate">{capitalizeName(agent.name)}</span>
+					<span class="flex-1 text-xs font-normal truncate">{capitalizeName(agent.name)}</span>
 					<button
 						type="button"
 						class="default-agent-toggle shrink-0 {agent.id === defaultAgentId ? '' : 'opacity-0 group-hover/item:opacity-100 focus-visible:opacity-100 text-muted-foreground'} transition-opacity"

@@ -1,7 +1,6 @@
 use crate::acp::projections::{
-    InteractionSnapshot, InteractionState, is_terminal_operation_state,
-    OperationDegradationCode, OperationDegradationReason, OperationSnapshot, OperationSourceLink,
-    OperationState,
+    is_terminal_operation_state, InteractionSnapshot, InteractionState, OperationDegradationCode,
+    OperationDegradationReason, OperationSnapshot, OperationSourceLink, OperationState,
 };
 use crate::acp::session_update::ToolCallStatus;
 use crate::acp::transcript_projection::{TranscriptEntryRole, TranscriptSnapshot};
