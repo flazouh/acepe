@@ -53,6 +53,7 @@ use crate::cc_sdk;
 mod permission_handler;
 mod permissions;
 mod questions;
+mod reasoning_config;
 mod streaming_bridge;
 mod tracking;
 
@@ -123,6 +124,8 @@ pub struct ClaudeCcSdkClient {
     pending_model_id: Option<String>,
     current_cwd: Option<PathBuf>,
     pending_creation_attempt_id: Option<String>,
+    /// Per-session reasoning-effort selection, fed into `--effort` per turn.
+    reasoning_config: reasoning_config::ClaudeReasoningConfigState,
 }
 
 impl ClaudeCcSdkClient {
@@ -158,6 +161,7 @@ impl ClaudeCcSdkClient {
             pending_model_id: None,
             current_cwd: Some(cwd),
             pending_creation_attempt_id: None,
+            reasoning_config: reasoning_config::ClaudeReasoningConfigState::default(),
         })
     }
 
@@ -174,6 +178,53 @@ impl ClaudeCcSdkClient {
 
     fn reset_pending_mode_for_safe_resume(&mut self) {
         self.pending_mode_id = Some("default".to_string());
+    }
+
+    /// Restore per-session config-option selections persisted by a prior set,
+    /// replaying each through the same setter used for live changes. Best-effort:
+    /// a missing DB, load error, or unknown option id is logged and skipped.
+    async fn apply_persisted_config_selections(&mut self, session_id: &str) {
+        let Some(db) = self.db.clone() else {
+            return;
+        };
+        let selections = match crate::db::repository::SessionConfigSelectionRepository::get_all(
+            &db, session_id,
+        )
+        .await
+        {
+            Ok(selections) => selections,
+            Err(error) => {
+                tracing::warn!(
+                    session_id = %session_id,
+                    error = %error,
+                    "Failed to load persisted config selections"
+                );
+                return;
+            }
+        };
+        for (config_id, value) in selections {
+            match config_id.as_str() {
+                reasoning_config::REASONING_CONFIG_ID => {
+                    if let Err(error) =
+                        reasoning_config::set_reasoning_effort(&mut self.reasoning_config, &value)
+                    {
+                        tracing::warn!(
+                            session_id = %session_id,
+                            config_id = %config_id,
+                            error = %error,
+                            "Skipping invalid persisted reasoning selection"
+                        );
+                    }
+                }
+                _ => {
+                    tracing::debug!(
+                        session_id = %session_id,
+                        config_id = %config_id,
+                        "Skipping persisted selection for unadvertised config option"
+                    );
+                }
+            }
+        }
     }
 
     async fn restore_session_permission_approvals(&self, session_id: &str) {
@@ -322,6 +373,10 @@ impl ClaudeCcSdkClient {
 
         if let Some(model_id) = &self.pending_model_id {
             builder = builder.model(model_id.clone());
+        }
+
+        if let Some(effort) = self.reasoning_config.effort {
+            builder = builder.effort(effort);
         }
 
         if let Some(resume_session_id) = resume {
@@ -730,7 +785,9 @@ impl AgentClient for ClaudeCcSdkClient {
             models,
             modes: self.hydrated_session_modes(),
             available_commands,
-            config_options: vec![],
+            config_options: reasoning_config::build_claude_reasoning_config_options(
+                &self.reasoning_config,
+            ),
         })
     }
 
@@ -768,6 +825,7 @@ impl AgentClient for ClaudeCcSdkClient {
             self.reset_pending_mode_for_safe_resume();
         }
         self.restore_session_permission_approvals(&session_id).await;
+        self.apply_persisted_config_selections(&session_id).await;
         let history_session_id = self.history_session_id_for_app_session(&session_id).await;
         if !self.session_has_persisted_history(&session_id, &cwd).await {
             self.session_id = Some(session_id.clone());
@@ -787,7 +845,9 @@ impl AgentClient for ClaudeCcSdkClient {
                 models,
                 modes: self.hydrated_session_modes(),
                 available_commands,
-                config_options: vec![],
+                config_options: reasoning_config::build_claude_reasoning_config_options(
+                &self.reasoning_config,
+            ),
             });
         }
 
@@ -810,7 +870,9 @@ impl AgentClient for ClaudeCcSdkClient {
             models,
             modes: self.hydrated_session_modes(),
             available_commands,
-            config_options: vec![],
+            config_options: reasoning_config::build_claude_reasoning_config_options(
+                &self.reasoning_config,
+            ),
         })
     }
 
@@ -857,7 +919,9 @@ impl AgentClient for ClaudeCcSdkClient {
             models,
             modes: self.hydrated_session_modes(),
             available_commands,
-            config_options: vec![],
+            config_options: reasoning_config::build_claude_reasoning_config_options(
+                &self.reasoning_config,
+            ),
         })
     }
 
@@ -875,6 +939,24 @@ impl AgentClient for ClaudeCcSdkClient {
         }
         let _ = session_id;
         Ok(())
+    }
+
+    async fn set_session_config_option(
+        &mut self,
+        _session_id: String,
+        config_id: String,
+        value: String,
+    ) -> AcpResult<Value> {
+        match config_id.as_str() {
+            reasoning_config::REASONING_CONFIG_ID => {
+                let config_options =
+                    reasoning_config::set_reasoning_effort(&mut self.reasoning_config, &value)?;
+                Ok(serde_json::json!({ "configOptions": config_options }))
+            }
+            other => Err(AcpError::ProtocolError(format!(
+                "Unsupported Claude config option: {other}"
+            ))),
+        }
     }
 
     async fn send_prompt(&mut self, request: PromptRequest) -> AcpResult<Value> {

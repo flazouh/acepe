@@ -29,6 +29,7 @@ mod m20260427_000001_create_creation_attempts;
 mod m20260427_000002_migrate_legacy_provider_aliases;
 mod m20260427_000003_drop_provider_identity_bridge;
 mod m20260617_000001_add_creation_attempt_model_mode;
+mod m20260622_000001_create_session_config_selection;
 
 pub struct Migrator;
 
@@ -65,6 +66,7 @@ impl MigratorTrait for Migrator {
             Box::new(m20260427_000002_migrate_legacy_provider_aliases::Migration),
             Box::new(m20260427_000003_drop_provider_identity_bridge::Migration),
             Box::new(m20260617_000001_add_creation_attempt_model_mode::Migration),
+            Box::new(m20260622_000001_create_session_config_selection::Migration),
         ]
     }
 }

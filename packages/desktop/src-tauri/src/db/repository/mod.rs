@@ -6,6 +6,7 @@
 
 mod database_reset;
 mod project;
+mod session_config_selection;
 mod session_journal;
 mod session_metadata;
 mod session_review;
@@ -15,6 +16,7 @@ mod sql_studio;
 
 pub use database_reset::*;
 pub use project::*;
+pub use session_config_selection::*;
 pub use session_journal::*;
 pub use session_metadata::*;
 pub use session_review::*;

@@ -2624,3 +2624,134 @@ mod session_metadata_tests {
         );
     }
 }
+
+#[cfg(test)]
+mod session_config_selection_tests {
+    use crate::db::repository::{SessionConfigSelectionRepository, SessionMetadataRepository};
+    use sea_orm::{Database, DbConn};
+    use sea_orm_migration::MigratorTrait;
+
+    /// Create an in-memory SQLite database with migrations applied.
+    async fn setup_test_db() -> DbConn {
+        let db = Database::connect("sqlite::memory:")
+            .await
+            .expect("Failed to connect to in-memory SQLite");
+        crate::db::migrations::Migrator::up(&db, None)
+            .await
+            .expect("Failed to run migrations");
+        db
+    }
+
+    /// Insert a parent session row so the config-selection foreign key resolves.
+    async fn seed_session(db: &DbConn, session_id: &str) {
+        SessionMetadataRepository::upsert(
+            db,
+            session_id.to_string(),
+            "Test".to_string(),
+            1_704_067_200_000,
+            "/Users/test/project".to_string(),
+            "claude-code".to_string(),
+            format!("-Users-test-project/{session_id}.jsonl"),
+            1_704_067_200,
+            1024,
+        )
+        .await
+        .expect("seed session metadata");
+    }
+
+    #[tokio::test]
+    async fn set_then_get_all_round_trips_selection() {
+        let db = setup_test_db().await;
+        seed_session(&db, "session-1").await;
+
+        SessionConfigSelectionRepository::set(&db, "session-1", "reasoning_effort", "high")
+            .await
+            .expect("set selection");
+
+        let selections = SessionConfigSelectionRepository::get_all(&db, "session-1")
+            .await
+            .expect("get selections");
+        assert_eq!(
+            selections,
+            vec![("reasoning_effort".to_string(), "high".to_string())]
+        );
+    }
+
+    #[tokio::test]
+    async fn get_all_is_empty_for_unknown_session() {
+        let db = setup_test_db().await;
+
+        let selections = SessionConfigSelectionRepository::get_all(&db, "missing")
+            .await
+            .expect("get selections");
+        assert!(selections.is_empty());
+    }
+
+    #[tokio::test]
+    async fn set_twice_keeps_latest_value() {
+        let db = setup_test_db().await;
+        seed_session(&db, "session-1").await;
+
+        SessionConfigSelectionRepository::set(&db, "session-1", "reasoning_effort", "high")
+            .await
+            .expect("first set");
+        SessionConfigSelectionRepository::set(&db, "session-1", "reasoning_effort", "low")
+            .await
+            .expect("second set");
+
+        let selections = SessionConfigSelectionRepository::get_all(&db, "session-1")
+            .await
+            .expect("get selections");
+        assert_eq!(
+            selections,
+            vec![("reasoning_effort".to_string(), "low".to_string())]
+        );
+    }
+
+    #[tokio::test]
+    async fn clear_removes_only_target_selection() {
+        let db = setup_test_db().await;
+        seed_session(&db, "session-1").await;
+
+        SessionConfigSelectionRepository::set(&db, "session-1", "reasoning_effort", "high")
+            .await
+            .expect("set effort");
+        SessionConfigSelectionRepository::set(&db, "session-1", "fast_mode", "true")
+            .await
+            .expect("set fast mode");
+
+        SessionConfigSelectionRepository::clear(&db, "session-1", "reasoning_effort")
+            .await
+            .expect("clear effort");
+
+        let selections = SessionConfigSelectionRepository::get_all(&db, "session-1")
+            .await
+            .expect("get selections");
+        assert_eq!(
+            selections,
+            vec![("fast_mode".to_string(), "true".to_string())]
+        );
+    }
+
+    #[tokio::test]
+    async fn selections_are_scoped_per_session() {
+        let db = setup_test_db().await;
+        seed_session(&db, "session-1").await;
+        seed_session(&db, "session-2").await;
+
+        SessionConfigSelectionRepository::set(&db, "session-1", "reasoning_effort", "high")
+            .await
+            .expect("set s1");
+        SessionConfigSelectionRepository::set(&db, "session-2", "reasoning_effort", "xhigh")
+            .await
+            .expect("set s2");
+
+        let s1 = SessionConfigSelectionRepository::get_all(&db, "session-1")
+            .await
+            .expect("get s1");
+        assert_eq!(
+            s1,
+            vec![("reasoning_effort".to_string(), "high".to_string())]
+        );
+    }
+}

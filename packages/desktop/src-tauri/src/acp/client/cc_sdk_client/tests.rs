@@ -323,6 +323,7 @@ fn make_test_client_with_provider(provider: Arc<dyn AgentProvider>) -> ClaudeCcS
         pending_model_id: None,
         current_cwd: Some(PathBuf::from("/tmp")),
         pending_creation_attempt_id: None,
+        reasoning_config: Default::default(),
     }
 }
 
@@ -391,6 +392,114 @@ async fn new_session_hydrates_available_commands_from_provider() {
 
     assert_eq!(response.available_commands.len(), 1);
     assert_eq!(response.available_commands[0].name, "ce-debug");
+}
+
+#[tokio::test]
+async fn new_session_emits_default_reasoning_option() {
+    let mut client = make_test_client();
+
+    let response = client
+        .new_session("/tmp/acepe-project".to_string())
+        .await
+        .expect("new session");
+
+    let reasoning = response
+        .config_options
+        .iter()
+        .find(|option| option.id == "reasoning_effort")
+        .expect("reasoning option present");
+    assert_eq!(
+        reasoning.presentation,
+        crate::acp::session_update::ConfigOptionPresentation::CompactReasoning
+    );
+    assert_eq!(
+        reasoning.current_value,
+        Some(serde_json::Value::String("auto".to_string()))
+    );
+}
+
+#[tokio::test]
+async fn set_reasoning_effort_returns_updated_config_options() {
+    let mut client = make_test_client();
+
+    let response = client
+        .set_session_config_option(
+            "session-1".to_string(),
+            "reasoning_effort".to_string(),
+            "high".to_string(),
+        )
+        .await
+        .expect("set reasoning effort");
+
+    let options = response
+        .get("configOptions")
+        .and_then(|value| value.as_array())
+        .expect("configOptions array");
+    let current = options[0]
+        .get("currentValue")
+        .and_then(|value| value.as_str())
+        .expect("current value");
+    assert_eq!(current, "high");
+}
+
+#[tokio::test]
+async fn set_unknown_config_option_errors() {
+    let mut client = make_test_client();
+
+    let result = client
+        .set_session_config_option(
+            "session-1".to_string(),
+            "made_up_option".to_string(),
+            "x".to_string(),
+        )
+        .await;
+
+    assert!(result.is_err());
+}
+
+#[tokio::test]
+async fn apply_persisted_config_selections_restores_reasoning_effort() {
+    let db = setup_test_db().await;
+    crate::db::repository::SessionMetadataRepository::upsert(
+        &db,
+        "sess-restore".to_string(),
+        "Test".to_string(),
+        1_704_067_200_000,
+        "/tmp/project".to_string(),
+        "claude-code".to_string(),
+        "-tmp-project/sess-restore.jsonl".to_string(),
+        1_704_067_200,
+        1024,
+    )
+    .await
+    .expect("seed session");
+    crate::db::repository::SessionConfigSelectionRepository::set(
+        &db,
+        "sess-restore",
+        "reasoning_effort",
+        "xhigh",
+    )
+    .await
+    .expect("persist selection");
+
+    let mut client = make_test_client();
+    client.db = Some(db);
+    client.apply_persisted_config_selections("sess-restore").await;
+
+    assert_eq!(client.reasoning_config.effort, Some(crate::cc_sdk::Effort::Xhigh));
+}
+
+#[tokio::test]
+async fn apply_persisted_config_selections_is_noop_without_persisted_value() {
+    let db = setup_test_db().await;
+    let mut client = make_test_client();
+    client.db = Some(db);
+
+    client
+        .apply_persisted_config_selections("sess-absent")
+        .await;
+
+    assert_eq!(client.reasoning_config.effort, None);
 }
 
 #[test]

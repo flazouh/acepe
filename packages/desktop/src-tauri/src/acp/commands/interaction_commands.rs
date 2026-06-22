@@ -381,7 +381,7 @@ pub(crate) async fn acp_set_config_option_for_handle<R: tauri::Runtime>(
 
     let mut client_guard =
         lock_session_client(&client_mutex, "acp_set_config_option: lock").await?;
-    run_capability_mutation(
+    let result = run_capability_mutation(
         &app,
         &session_id,
         |capabilities| set_pending_config_option(capabilities, &config_id, &value),
@@ -410,9 +410,44 @@ pub(crate) async fn acp_set_config_option_for_handle<R: tauri::Runtime>(
             capabilities
         },
     )
-    .await
+    .await;
+
+    // Persist the selection per session (agent-agnostic) so it is restored on
+    // reopen. Best-effort: a persistence failure must not fail the live set.
+    if result.is_ok() {
+        persist_session_config_selection(&app, &session_id, &config_id, &value).await;
+    }
+
+    result
     }
     .await)
+}
+
+/// Persist a per-session config-option selection. Best-effort; logs on failure.
+async fn persist_session_config_selection<R: tauri::Runtime>(
+    app: &tauri::AppHandle<R>,
+    session_id: &str,
+    config_id: &str,
+    value: &str,
+) {
+    let Some(db) = app.try_state::<sea_orm::DbConn>() else {
+        return;
+    };
+    if let Err(error) = crate::db::repository::SessionConfigSelectionRepository::set(
+        db.inner(),
+        session_id,
+        config_id,
+        value,
+    )
+    .await
+    {
+        tracing::warn!(
+            session_id = %session_id,
+            config_id = %config_id,
+            error = %error,
+            "Failed to persist session config selection"
+        );
+    }
 }
 
 /// Send a prompt to a session (fire-and-forget)

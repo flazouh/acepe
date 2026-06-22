@@ -1,170 +1,207 @@
 ---
-title: "feat: Claude reasoning-effort config option (cc_sdk provider)"
+title: "feat: Agent-agnostic per-session config-option persistence + Claude reasoning-effort option"
 type: feat
 status: active
 date: 2026-06-22
+deepened: 2026-06-22
 ---
 
-# feat: Claude reasoning-effort config option (cc_sdk provider)
+# feat: Agent-agnostic per-session config-option persistence + Claude reasoning-effort option
 
 ## Overview
 
-The agent-input toolbar renders a compact "reasoning" widget for any session whose canonical
-`config_options` contains an entry with `presentation: CompactReasoning`. Codex surfaces this
-today; Claude does not, so the widget disappears when Claude Code is selected.
+Two coupled changes:
 
-Acepe's Claude provider runs over `CommunicationMode::CcSdk` — a native Rust transport that drives
-the `claude` CLI directly. The cc_sdk options already carry an `effort: Option<Effort>` field and
-`cc_sdk/query.rs` already translates it to the `--effort <level>` CLI flag (confirmed present in
-`claude` CLI v2.1.185: *"Effort level for the current session"*). The only missing piece is that
-`CcSdkClient` emits `config_options: vec![]` and never sets `effort`.
+1. **Per-session config-option persistence (agent-agnostic).** A user's config-option selections
+   (reasoning effort, fast mode, etc.) are persisted per session in Acepe-owned canonical state and
+   restored when the session is reopened — for **every** provider, not just Claude. Persisted
+   selections are applied by **replaying them through each provider's own
+   `set_session_config_option`** at session open, so there is exactly one canonical application path
+   (the same one a user click uses).
 
-This plan adds a Claude reasoning-effort config option by mirroring the existing Codex pattern
-end-to-end on the Rust side: a per-session config state holds the chosen effort, it is emitted as a
-canonical `ConfigOptionData` in the new-session and resume responses, the setter mutates it and
-returns the updated options through the existing canonical capability-mutation path, and
-`build_options` feeds it into each turn's `--effort` flag. **No TypeScript or `packages/ui` changes
-are required** — the toolbar already consumes the canonical option generically.
+2. **Claude reasoning-effort config option.** Claude Code (over `CommunicationMode::CcSdk`) gains a
+   compact reasoning widget identical to Codex's, by emitting a canonical `ConfigOptionData`
+   (`presentation: CompactReasoning`) and feeding the chosen level into the existing `--effort` CLI
+   flag. With change (1) in place, the Claude selection then persists per session automatically.
+
+The persistence mechanism is the cross-cutting core; the Claude option is the first new consumer.
+**Codex gains per-session persistence with no Codex-specific code** — it already emits its reasoning
+option and implements the setter, so the generic persist + replay covers it.
+
+No TypeScript or `packages/ui` changes are required: the toolbar already consumes canonical
+`config_options` generically, and persistence/restore lives entirely in Rust.
 
 ## Problem Frame
 
-Diagnosed this session: the reasoning widget is entirely agent-driven. `getToolbarConfigOptions`
-(`packages/desktop/src/lib/acp/components/agent-input/logic/toolbar-config-options.ts`) keeps only
-options whose `presentation` is `compactReasoning`/`compactSpeed`. That presentation is produced
-canonically in Rust. Codex builds it via `build_codex_native_config_options`; the cc_sdk Claude path
-builds none. Result: Claude users cannot control reasoning depth from the UI even though the CLI and
-the cc_sdk transport already support it.
+Diagnosed this session: the reasoning widget is agent-driven. `getToolbarConfigOptions`
+(`packages/desktop/src/lib/acp/components/agent-input/logic/toolbar-config-options.ts`) renders only
+options whose canonical `presentation` is `compactReasoning`/`compactSpeed`. Codex emits such an
+option; the cc_sdk Claude path emits `config_options: vec![]`, so Claude shows nothing.
+
+Separately, config-option selections today are not persisted per session canonically. Codex seeds its
+reasoning effort from a config file (global/project), but a per-session choice is not remembered as
+Acepe-owned per-session state. The user wants the selection remembered **per session** and for that
+to be the **global behavior across all agents**.
 
 ## Requirements Trace
 
-- R1. When Claude Code is the active provider, the agent-input toolbar shows a compact reasoning
-  widget (presentation `CompactReasoning`), exactly like Codex.
-- R2. Selecting a level persists for the session and is applied to subsequent turns via the
-  `--effort` CLI flag.
-- R3. The selected level survives session resume.
-- R4. The change is canonical/Rust-side only: no `agentId === "claude"` branch in TS/UI, no hot-state
-  write of `config_options`.
-- R5. The default behavior for users who never touch the widget is unchanged (no surprise override of
-  the CLI's own default).
+- R1. When Claude Code is active, the agent-input toolbar shows a compact reasoning widget
+  (`CompactReasoning`), like Codex.
+- R2. Selecting a Claude level applies to subsequent turns via the `--effort` CLI flag.
+- R3. A config-option selection is persisted **per session** in Acepe-owned canonical state and
+  restored when that session is reopened (including after app restart).
+- R4. Persistence and restore are **agent-agnostic** — any provider that emits config options and
+  implements the setter participates automatically (verified for Claude and Codex).
+- R5. The change is canonical/Rust-side only: no `agentId === "claude"` branch in TS/UI, no hot-state
+  write of `config_options`, no reader-time `canonical ?? fallback`.
+- R6. Default behavior is unchanged for users who never touch a widget (no surprise override of a
+  provider's own default).
 
 ## Scope Boundaries
 
-- Not exposing a raw thinking-token-budget control. We expose the `--effort` level only. (See Key
-  Technical Decisions.)
-- Not changing the agent-input toolbar, selector components, or any `packages/ui` code.
-- Not adding reasoning support to other cc_sdk-backed providers in this plan (cursor/copilot/etc.).
-  The implementation lives in `CcSdkClient`, so it would become available to any provider that opts
-  in, but only Claude is wired and tested here.
-- Not persisting the chosen effort to disk / global Claude config. Per-session in-memory only.
+- Not exposing a raw thinking-token-budget control for Claude. Effort level only.
+- No `packages/ui` / agent-input toolbar changes — the widget already exists and is generic.
+- Not migrating Codex's config-file seeding away; the file value remains Codex's **default** when no
+  per-session selection exists. Per-session selection becomes authoritative once set (resolved once in
+  Rust at open — see Key Technical Decisions).
+- Persistence stores config-option selections only (id → value), not transcript or turn state.
 
 ### Deferred to Separate Tasks
 
-- Thinking-token-budget (`--max-thinking-tokens`) control as a separate/advanced option: future
-  iteration if product wants finer control than the four effort levels.
-- Reading a user/global default effort from a Claude settings source (mirror of Codex's
-  `load_codex_native_config_state`): future iteration, only if a canonical Claude config source is
-  identified.
+- Claude thinking-token-budget (`--max-thinking-tokens`) as an advanced option: future iteration.
+- Extending the option to other cc_sdk-backed providers (cursor/copilot/opencode): they inherit the
+  generic persistence automatically once they emit a config option + setter, but wiring/testing each is
+  out of scope here.
 
 ## Context & Research
 
 ### Relevant Code and Patterns
 
-- **Pattern to mirror (authoritative reference):**
-  `packages/desktop/src-tauri/src/acp/client/codex_native_config.rs`
-  - `CodexNativeConfigState` (`reasoning_effort` field), `default_codex_native_config_state`
-  - `build_codex_native_config_options` → emits `ConfigOptionData { presentation: CompactReasoning, .. }`
-  - `build_codex_native_new_session_response_with_state` / `..._resume_session_response` embed
-    `config_options`
-  - `set_codex_native_config_option` mutates state, returns updated `Vec<ConfigOptionData>`
-  - Constants: `DEFAULT_REASONING_EFFORT = "high"`, `CODEX_REASONING_OPTIONS`, `REASONING_CONFIG_ID`
-- **Codex client trait wiring (mirror for routing):**
-  `packages/desktop/src-tauri/src/acp/client/codex_native_client.rs:573` —
-  `set_session_config_option` returns `Ok(json!({ "configOptions": config_options }))`; `send_prompt`
-  builds turn params from `self.config_state`.
-- **Target client:** `packages/desktop/src-tauri/src/acp/client/cc_sdk_client/mod.rs`
-  - struct `CcSdkClient` (per-session; already holds `pending_model_id` / `pending_mode_id`, ~line 122)
-  - `build_options` (line 259) — `ClaudeCodeOptions::builder()`; insertion point for `.effort(..)`
-  - `new_session` (~line 724, `config_options: vec![]`) and resume paths (~lines 786, 809, 851)
-  - implements `set_session_model` / `set_session_mode` (line 864+) but **not**
-    `set_session_config_option` (uses trait default that errors)
-- **CLI flag translation (already done):** `packages/desktop/src-tauri/src/cc_sdk/query.rs:288` emits
-  `--effort <level>` from `options.effort`.
-- **Effort enum:** `packages/desktop/src-tauri/src/cc_sdk/types/effort.rs` — `Low | Medium | High | Max`,
-  `Display` renders lowercase; serde `rename_all = "lowercase"`.
-- **Options builder:** `packages/desktop/src-tauri/src/cc_sdk/types/options.rs` — `effort: Option<Effort>`
-  (line 187). Confirm/extend builder method for `.effort(..)` (a `.thinking(..)` builder exists at
-  line 638).
-- **Canonical presentation classifier:**
-  `packages/desktop/src-tauri/src/acp/session_update/types/config.rs:207-234` —
-  `classify_config_option_presentation` maps any id/name/category containing `reason` or `thought` to
-  `CompactReasoning`. We will also set `presentation` explicitly when constructing `ConfigOptionData`
-  (Codex does), so classification is belt-and-suspenders.
-- **Canonical setter → envelope flow (confirmed):**
-  `packages/desktop/src-tauri/src/acp/commands/interaction_commands.rs:370-415` — `acp_set_config_option`
-  calls `client.set_session_config_option(..)`, then `config_options_from_response(response)` extracts
-  `{ configOptions }` and writes `capabilities.config_options` through `run_capability_mutation` (the
-  canonical capability-mutation envelope path). This is the GOD-approved channel; the return shape must
-  be `{ "configOptions": [...] }`.
-- **New/resume config_options → capabilities:**
-  `packages/desktop/src-tauri/src/acp/client/cc_sdk_client/streaming_bridge.rs:813-835` already routes a
-  response's `config_options` through `sanitize_config_options_for_canonical` into capabilities.
-- **UI consumer (no change):**
-  `packages/desktop/src/lib/acp/components/agent-input/logic/toolbar-config-options.ts`,
-  `agent-input/agent-input-ui.svelte:158-164`.
+**Persistence surface (new home — agent-agnostic):**
+- `packages/desktop/src-tauri/src/db/entities/acepe_session_state.rs` — Acepe-owned per-session state,
+  `session_id` PK = `session_metadata.id`; already holds `pr_link_mode`, `sequence_id`, runtime
+  checkpoint. The config-selections store is added here.
+- `packages/desktop/src-tauri/src/db/migrations/m20260406_000001_create_acepe_session_state.rs` (table
+  origin) and later `add_*` migrations show the column-addition pattern to follow.
+- `packages/desktop/src-tauri/src/db/repository/session_metadata.rs` (and the session-state repository)
+  — read/write pattern for per-session rows.
+
+**Canonical config-option flow (confirmed this session):**
+- `packages/desktop/src-tauri/src/acp/commands/interaction_commands.rs:370-415` — `acp_set_config_option`
+  calls `client.set_session_config_option(..)`, then `config_options_from_response` (line 233) extracts
+  `{ configOptions }` and writes `capabilities.config_options` via `run_capability_mutation` (the
+  canonical envelope path). The optimistic pre-mutation `set_pending_config_option` (line 207) already
+  updates `current_value` generically for whichever option id matches — no change needed.
+- New/resume responses route `config_options` into capabilities via
+  `packages/desktop/src-tauri/src/acp/client/cc_sdk_client/streaming_bridge.rs:813-835`
+  (`sanitize_config_options_for_canonical`).
+
+**Provider pattern to mirror (Claude option):**
+- `packages/desktop/src-tauri/src/acp/client/codex_native_config.rs` — `CodexNativeConfigState`,
+  `build_codex_native_config_options` (emits `ConfigOptionData { presentation: CompactReasoning, .. }`),
+  `set_codex_native_config_option` (mutates + returns updated options), constants
+  `DEFAULT_REASONING_EFFORT = "high"`, `CODEX_REASONING_OPTIONS`, `REASONING_CONFIG_ID`.
+- `packages/desktop/src-tauri/src/acp/client/codex_native_client.rs:573-582` — the trait
+  `set_session_config_option` returns `Ok(json!({ "configOptions": config_options }))`.
+
+**Claude / cc_sdk target:**
+- `packages/desktop/src-tauri/src/acp/client/cc_sdk_client/mod.rs` — `CcSdkClient` (per-session; holds
+  `pending_model_id`/`pending_mode_id`, ~line 122); `build_options` (line 259); **four**
+  `config_options: vec![]` sites at lines 733, 790, 813, 860; implements `set_session_model`/
+  `set_session_mode` (864+) but **not** `set_session_config_option` (inherits the erroring trait
+  default at `client_trait.rs:109`).
+- `packages/desktop/src-tauri/src/cc_sdk/types/effort.rs` — `Effort { Low, Medium, High, Max }`, lowercase
+  `Display`/serde.
+- `packages/desktop/src-tauri/src/cc_sdk/types/options.rs` — `effort: Option<Effort>` (line 187) and a
+  public `effort(..)` builder (line 621). No options.rs change needed; `query.rs:288` already emits
+  `--effort`.
+
+**Canonical presentation classifier:**
+- `packages/desktop/src-tauri/src/acp/session_update/types/config.rs:207-234` —
+  `classify_config_option_presentation` maps an id/name/category containing `reason`/`thought` to
+  `CompactReasoning`. We also set `presentation` explicitly (Codex does) — belt and suspenders.
+
+**UI consumers (no change):**
+- `packages/desktop/src/lib/acp/components/agent-input/logic/toolbar-config-options.ts`,
+  `packages/desktop/src/lib/acp/components/agent-input/agent-input-ui.svelte:158-164`.
 
 ### Institutional Learnings
 
-- The GOD architecture gate was run for this change and cleared GREEN: `config_options` is canonical,
-  Rust-owned, consumed read-only by TS/UI. `config_options` is explicitly forbidden in hot state — the
-  effort value must travel via the new/resume response and the `run_capability_mutation` path, never a
-  parallel hot-state write.
+- GOD gate run twice for this work and cleared GREEN. Key constraints honored: `config_options` is
+  canonical and forbidden in hot state; persisted selections live in Acepe-owned `acepe_session_state`;
+  restore is applied by **replaying through each provider's own canonical setter** (single application
+  path, no dual system); Codex's config-file value is resolved to a default once in Rust at session
+  open, not via a reader-time fallback.
 
 ### External References
 
 - `claude --help` (Claude Code CLI v2.1.185): `--effort <level>` — "Effort level for the current
-  session". Accepted level set must be verified against the installed CLI (Unit 0).
+  session". Exact accepted level set verified in Unit 0.
 
 ## Key Technical Decisions
 
-- **Expose effort level, not token budget.** The `--effort` flag maps cleanly to a compact select like
-  Codex's reasoning widget and is the smallest, most product-legible control. Token-budget is deferred.
-  Rationale: matches the existing UI affordance and the Codex precedent; avoids exposing a raw integer
-  spinner the toolbar widget isn't designed for.
-- **A "default/auto" choice that passes no flag.** The config option includes an explicit default entry
-  representing `Option<Effort> = None`; when selected, `build_options` does **not** emit `--effort`,
-  preserving the CLI's own default. Concrete levels (low/medium/high/max — pending Unit 0 verification)
-  map to `Some(Effort::_)`. Rationale: satisfies R5 (no surprise override) and mirrors the model
-  selector's existing `default`/`auto` handling (`isDefaultChoiceModelId`).
-- **Per-session in-memory state on `CcSdkClient`.** `CcSdkClient` is per-session and already holds
-  `pending_model_id`/`pending_mode_id`. Add a `config_state` (or `pending_effort`) field rather than a
-  global/file-backed store. Rationale: simplest correct scope; resume restoration handled by re-emitting
-  config_options from the resume response built from this state.
-- **Return shape `{ "configOptions": [...] }` from the setter.** Required by
-  `config_options_from_response` so the canonical capability-mutation path picks it up. Mirrors Codex.
-- **Next-turn application semantics.** Effort applies to the next turn's `build_options`; we do not
-  attempt to mutate an in-flight turn. Rationale: `--effort` is a per-invocation CLI flag; there is no
-  mid-turn channel, and Codex behaves analogously.
-- **Config id contains "reasoning".** Use an id like `reasoning_effort` so the canonical classifier
-  independently agrees with the explicitly-set `CompactReasoning` presentation.
+- **Persist in `acepe_session_state`, agent-agnostic, keyed by config id.** Store a small JSON map of
+  `config_id → value` (or a dedicated typed column if a single option is preferred initially). Rationale:
+  this is the existing Acepe-owned canonical per-session table; a generic id→value map supports any
+  provider's options without per-provider schema.
+- **Restore by replaying through the provider's own `set_session_config_option`.** At session open, load
+  persisted selections and replay each `(id, value)` through the already-connected client. Rationale:
+  one canonical application path (identical to a user click), updates both the provider's internal state
+  and the emitted `config_options`; no provider-specific restore branching, no dual write.
+- **Resolve provider default vs persisted selection once, in Rust, at open.** If a per-session selection
+  exists it is authoritative; otherwise the provider's own default applies (for Codex, its config-file
+  value). Rationale: avoids a GOD-forbidden reader-time fallback; the merge is a single canonical
+  computation.
+- **Persist on successful set, in the command layer.** `acp_set_config_option` writes the selection to
+  `acepe_session_state` after the client returns the updated options. Rationale: agent-agnostic single
+  write point; works for every client implementation.
+- **Claude exposes effort level, with a "default/auto" entry that passes no flag.** The option includes
+  an explicit default entry mapping to `Option<Effort> = None`; `build_options` omits `--effort` for it,
+  preserving the CLI default (R6). Concrete levels (low/medium/high/max — pending Unit 0) map to
+  `Some(Effort::_)`. Mirrors the model selector's `default`/`auto` handling.
+- **Next-turn application semantics.** Effort applies to the next turn's `build_options`; no mid-turn
+  mutation (matches the per-invocation CLI flag and Codex).
+- **Claude config id contains "reasoning"** (e.g. `reasoning_effort`) so the classifier independently
+  agrees with the explicitly-set `CompactReasoning` presentation.
 
 ## Open Questions
 
 ### Resolved During Planning
 
-- Does the installed `claude` CLI support `--effort`? — Yes (v2.1.185, confirmed via `--help`).
-- Is the cc_sdk→CLI plumbing present? — Yes (`query.rs:288`).
-- How does a setter result reach the UI canonically? — Via `acp_set_config_option` →
-  `config_options_from_response` → `run_capability_mutation` (interaction_commands.rs:370-415).
-- Does `CcSdkClient` already implement the setter? — No; it inherits the erroring trait default. We add it.
-- effort vs thinking-budget? — effort (see Key Technical Decisions); budget deferred.
+- `claude` CLI supports `--effort`? — Yes (v2.1.185).
+- cc_sdk→CLI plumbing present? — Yes (`query.rs:288`); `.effort(..)` builder exists (`options.rs:621`).
+- How does a setter result reach the UI canonically? — `acp_set_config_option` →
+  `config_options_from_response` → `run_capability_mutation`.
+- Where do per-session selections persist canonically? — `acepe_session_state` (Acepe-owned, Rust).
+- How is restore applied agent-agnostically? — Replay through `client.set_session_config_option` at open.
+- Codex config-file vs per-session conflict? — Per-session authoritative once set; file value is the
+  default, resolved once in Rust at open.
+- effort vs thinking-budget for Claude? — effort; budget deferred.
 
-### Deferred to Implementation
+### Resolved During Implementation
 
-- **Exact accepted `--effort` value set** (is `max` valid? is there `minimal`/`xhigh`?). Resolved by
-  Unit 0's CLI probe before finalizing the option list and any `Effort` enum adjustment.
-- Whether `Effort` enum needs new variants or renames to match the CLI's accepted strings — depends on
-  Unit 0 findings. The enum's `Display` output must equal the CLI-accepted token exactly.
-- The user-facing default's display label ("Auto" vs "Default") — cosmetic, decided at implementation.
+- **Accepted `--effort` values**: `low, medium, high, xhigh, max` (CLI v2.1.185 help). The `Effort` enum
+  was missing `Xhigh` — added it (with a Display test). Claude option list = `auto` (sentinel) + these five.
+- **Storage shape**: a **dedicated `session_config_selection` table** keyed by `(session_id, config_id)`,
+  not a JSON column on `acepe_session_state`. Reason: `acepe_session_state` rows are optional per session
+  (the compose helper takes `Option<&Model>`) and its `relationship`/`project_path` are NOT NULL, so a
+  JSON column would force synthesizing partial parent rows at set-time. The dedicated child table (FK to
+  `session_metadata`, cascade delete) avoids that and is race-free per `(session_id, config_id)`.
+- **Default/auto semantics**: no clear-on-default needed — we always persist the chosen value (including
+  `auto`). Replaying `auto` sets effort `None` → no `--effort` flag → CLI default. Users who never touch
+  the widget have no row → no replay → provider default (R6).
+- **Restore seam**: localized to `ClaudeCcSdkClient::resume_session` (the reopen path), which seeds
+  `reasoning_config` via the shared `set_reasoning_effort` before `build_options`/option emission. This
+  keeps the GOD-sensitive command lifecycle paths (new/fork) untouched. New sessions have no persisted
+  selections, so only resume needs restore.
+- Display label for Claude's default entry: "Auto".
+
+### Deferred to Separate Follow-up
+
+- **Codex restore parity**: persistence (Unit 2, command layer) is already agent-agnostic, so Codex
+  selections are *written*. Restoring them on Codex resume needs the same one-line
+  `apply_persisted_config_selections` hook in `codex_native_client`'s resume path. Small, isolated; not
+  wired in this change.
 
 ## High-Level Technical Design
 
@@ -172,268 +209,283 @@ the cc_sdk transport already support it.
 > specification. The implementing agent should treat it as context, not code to reproduce.*
 
 ```
-                    Toolbar reasoning widget  (NO CHANGE — generic CompactReasoning consumer)
-                                 │  user picks level
-                                 ▼
-        acp_set_config_option  (interaction_commands.rs)         ← existing command
-                                 │ client.set_session_config_option(id,value)
-                                 ▼
-        CcSdkClient.set_session_config_option   ← NEW (mirror Codex)
-            • parse value → Option<Effort>  (default/auto → None)
-            • store in self.config_state
-            • return { "configOptions": build_cc_sdk_config_options(state) }
-                                 │
-                                 ▼
-        config_options_from_response → run_capability_mutation   ← existing canonical envelope path
-                                 │ writes capabilities.config_options
-                                 ▼
-               CanonicalSessionProjection → UI (read-only)
+  USER PICKS LEVEL (any agent)                         SESSION REOPEN (any agent)
+        │                                                     │
+        ▼                                                     ▼
+  acp_set_config_option ─────────────┐         load persisted selections from
+        │ client.set_session_config_option     acepe_session_state (Unit 1/3)
+        │   • mutate provider state             │
+        │   • return { configOptions }          │  for each (id, value):
+        ▼                                        ▼     client.set_session_config_option(id, value)   ◄── REPLAY
+  config_options_from_response                       (same canonical setter — Unit 3)
+  → run_capability_mutation (canonical envelope)     │
+        │                                            ▼
+        ├─► capabilities.config_options ──► CanonicalSessionProjection ──► UI (read-only)
+        │
+        └─► PERSIST (id,value) → acepe_session_state (Unit 2)
 
-   new_session / resume_session  ← emit config_options from config_state (was vec![])
-   build_options (per turn)      ← if config_state.effort = Some(e): builder.effort(e)
-                                          else: omit --effort
+  PER TURN (Claude): build_options reads provider state → builder.effort(e) → --effort (Unit 5)
+  Default resolution at open: persisted selection if present, else provider default (Codex: config file)
 ```
 
 ## Implementation Units
 
 - [ ] **Unit 0: Verify CLI `--effort` contract (pre-implementation gate)**
 
-**Goal:** Pin the exact set of accepted `--effort` values for the installed `claude` CLI so the option
-list and `Effort` enum are correct before code is written.
+**Goal:** Pin the exact accepted `--effort` values for the installed `claude` CLI before hardcoding the
+option list / `Effort` enum.
 
-**Requirements:** R2 (correct flag values).
+**Requirements:** R2.
 
 **Dependencies:** None.
 
 **Files:**
-- Modify (only if mismatch found): `packages/desktop/src-tauri/src/cc_sdk/types/effort.rs`
+- Modify (only on mismatch): `packages/desktop/src-tauri/src/cc_sdk/types/effort.rs`
 
 **Approach:**
-- Probe the installed CLI for accepted effort levels (e.g. inspect `claude --help` detail and attempt a
-  trivial non-destructive invocation per candidate level), and record the authoritative list.
-- Compare against the `Effort` enum (`low/medium/high/max`). If the CLI rejects a variant (e.g. `max`)
-  or accepts others, adjust the enum variants and/or `Display` mapping so each emitted token is valid.
-- This is a research/verification gate, not a behavioral code change unless a mismatch is found.
+- Determine the authoritative accepted level set (inspect CLI help detail; non-destructive probes).
+- Compare to `Effort` (`low/medium/high/max`); adjust variants/`Display` so each emitted token is valid.
 
-**Execution note:** Verification gate — resolve before Units 2-4 hardcode the option list.
+**Execution note:** Verification gate — resolve before Units 4-5 hardcode the level list.
 
 **Test scenarios:**
-- Test expectation: none unless the enum changes — if `effort.rs` is modified, add a unit test asserting
-  `Effort::_.to_string()` equals each CLI-accepted token exactly.
+- Test expectation: none unless the enum changes — if modified, assert `Effort::_.to_string()` equals
+  each accepted CLI token.
 
-**Verification:**
-- A recorded, authoritative list of accepted `--effort` values; `Effort` enum `Display` output matches
-  it one-for-one.
+**Verification:** Recorded accepted value list; `Effort` `Display` matches it one-for-one.
 
-- [ ] **Unit 1: Claude reasoning config state + option builder**
+- [ ] **Unit 1: Persistence schema + repository for per-session config selections**
 
-**Goal:** Introduce a cc_sdk reasoning config state and a pure builder that produces the canonical
-`ConfigOptionData` list, mirroring `codex_native_config.rs`.
+**Goal:** Add an Acepe-owned, agent-agnostic per-session store of config-option selections.
 
-**Requirements:** R1, R5.
+**Requirements:** R3, R4.
 
-**Dependencies:** Unit 0 (value list).
+**Dependencies:** None.
 
 **Files:**
-- Create: `packages/desktop/src-tauri/src/acp/client/cc_sdk_client/reasoning_config.rs` (or a
-  `cc_sdk_config.rs` module beside the client; name per local convention)
-- Modify: `packages/desktop/src-tauri/src/acp/client/cc_sdk_client/mod.rs` (module declaration)
-- Test: inline `#[cfg(test)]` module in the new file (mirror codex_native_config tests)
+- Create: `packages/desktop/src-tauri/src/db/migrations/<new>_add_config_selections_to_acepe_session_state.rs`
+- Modify: `packages/desktop/src-tauri/src/db/entities/acepe_session_state.rs`
+- Modify: the acepe-session-state repository (under `packages/desktop/src-tauri/src/db/repository/`)
+- Modify: `packages/desktop/src-tauri/src/db/migrations/` migrator registration
+- Test: repository unit tests beside the repository (mirror existing session-state repo tests)
 
 **Approach:**
-- Define a small state struct holding `effort: Option<Effort>` (None = default/auto) plus a
-  `default_*` constructor (default `None`).
-- Define constants: a `REASONING_CONFIG_ID` containing `"reasoning"` (e.g. `"reasoning_effort"`), the
-  ordered option list `[(value, label)]` where one entry is the default/auto sentinel and the rest are
-  the verified levels.
-- `build_cc_sdk_reasoning_config_options(state) -> Vec<ConfigOptionData>` returns a single
-  `ConfigOptionData` with `option_type: "select"`, `presentation: CompactReasoning`, `current_value`
-  reflecting the state (default sentinel when `None`), and the option list.
-- A pure `parse_effort_value(value: &str) -> AcpResult<Option<Effort>>` mapping the default sentinel to
-  `None` and known tokens to `Some(Effort::_)`, erroring on unknown values (mirror
-  `normalize_reasoning_effort`).
-- A pure `set_reasoning_effort(state, value) -> AcpResult<Vec<ConfigOptionData>>` that mutates and
-  returns the rebuilt options (mirror `set_codex_native_config_option`).
+- Add a nullable column holding a serialized `config_id → value` map (JSON text), defaulting to
+  empty/absent.
+- Add entity field + repository helpers: `get_config_selections(session_id) -> map` and
+  `upsert_config_selection(session_id, config_id, value)` (and a clear/remove for the default/auto case
+  if a selection is reset).
+- Follow the existing `add_*_to_acepe_session_state` migration and repository conventions.
 
 **Patterns to follow:**
-- `codex_native_config.rs`: `build_codex_native_config_options`, `set_codex_native_config_option`,
-  `normalize_reasoning_effort`, the `CODEX_REASONING_OPTIONS`/`REASONING_CONFIG_ID` constants.
+- `m20260423_000002_add_pr_link_mode_to_acepe_session_state.rs` (column-addition migration);
+  existing `acepe_session_state` read/write in the repository.
 
 **Test scenarios:**
-- Happy path: `build_*` on default state returns exactly one option, id contains `reasoning`,
-  `presentation == CompactReasoning`, `current_value` is the default sentinel, option list matches the
-  verified levels + default entry.
-- Happy path: `set_reasoning_effort(state, "high")` sets `Some(Effort::High)` and the returned option's
-  `current_value` reflects `"high"`.
-- Edge case: `set_reasoning_effort(state, <default-sentinel>)` resets to `None` and `current_value`
-  shows the default sentinel.
-- Error path: `set_reasoning_effort(state, "bogus")` returns an error and leaves state unchanged.
-- Edge case: `parse_effort_value` round-trips every verified level to the exact CLI token via
-  `Effort::Display`.
+- Happy path: upsert `(session, "reasoning_effort", "high")` then read back returns `{reasoning_effort: high}`.
+- Edge case: reading a session with no stored selections returns empty (not error).
+- Edge case: upserting the same id twice keeps the latest value (no duplicate keys).
+- Edge case: resetting to the default/auto value removes or nulls the entry so provider default re-applies.
+- Migration: applies cleanly on an existing DB and is reversible (down migration drops the column).
 
-**Verification:**
-- New file compiles; unit tests pass; option shape is byte-compatible with what Codex emits
-  (same `ConfigOptionData` fields populated).
+**Verification:** Migration runs; repository round-trips selections; existing session-state tests pass.
 
-- [ ] **Unit 2: Hold state on `CcSdkClient` and emit options in new/resume responses**
+- [ ] **Unit 2: Persist selection on successful set (command layer, agent-agnostic)**
 
-**Goal:** Store the reasoning config state on the client and stop emitting `config_options: vec![]` for
-new and resumed Claude sessions.
+**Goal:** When any config option is set, persist the selection to `acepe_session_state`.
 
-**Requirements:** R1, R3.
+**Requirements:** R3, R4, R5.
 
 **Dependencies:** Unit 1.
 
 **Files:**
+- Modify: `packages/desktop/src-tauri/src/acp/commands/interaction_commands.rs` (`acp_set_config_option`)
+- Test: `packages/desktop/src-tauri/src/acp/commands/tests.rs`
+
+**Approach:**
+- After `set_session_config_option` succeeds and the response is reconciled into capabilities, upsert the
+  `(config_id, value)` into `acepe_session_state` for the session.
+- Keep this in the command layer so it is provider-independent. No hot-state writes; persistence is
+  canonical Acepe-owned state.
+
+**Patterns to follow:** existing repository access from command handlers; `run_capability_mutation` usage
+already in `acp_set_config_option`.
+
+**Test scenarios:**
+- Happy path: calling `acp_set_config_option(session, "reasoning_effort", "high")` writes the selection to
+  `acepe_session_state`.
+- Integration: after the command, the repository returns the persisted selection (proves command→DB wiring).
+- Error path: when the client setter errors, no selection is persisted (write only on success).
+- Edge case: setting the default/auto value clears the persisted entry (per Unit 1 semantics).
+
+**Verification:** Setting an option in the running app survives a session reopen (combined with Unit 3).
+
+- [ ] **Unit 3: Restore selections at session open by replaying the canonical setter**
+
+**Goal:** On session open/resume, load persisted selections and apply them through each provider's own
+`set_session_config_option`, agent-agnostically.
+
+**Requirements:** R3, R4, R5.
+
+**Dependencies:** Unit 1; Unit 2; (for Claude) Unit 5's setter.
+
+**Files:**
+- Modify: the session-open/resume completion path in
+  `packages/desktop/src-tauri/src/acp/commands/session_commands/` (e.g. `open_result.rs` / `resume.rs` /
+  `new_session.rs`) — the seam after capabilities are materialized and before the first prompt
+- Test: `packages/desktop/src-tauri/src/acp/commands/session_commands/tests.rs`
+
+**Approach:**
+- After the session is connected and its initial `config_options` are in capabilities, load persisted
+  selections for the session and, for each `(id, value)`, invoke `client.set_session_config_option(id,
+  value)`, feeding the returned options back through the same canonical capability-mutation path used by
+  `acp_set_config_option` (extract a shared helper if needed).
+- Skip ids the provider does not currently advertise (defensive: a stored id no longer offered).
+- Default resolution is implicit: no persisted selection → no replay → provider default stands.
+
+**Execution note:** Start with a failing integration test that opens a session with a stored selection and
+asserts the emitted capabilities reflect it.
+
+**Test scenarios:**
+- Integration (agent-agnostic): a session with a stored selection, on open, ends with
+  `capabilities.config_options` reflecting the stored `current_value` (test with a fake/Codex client to
+  prove agent-independence).
+- Integration (Claude): opening a Claude session with stored `reasoning_effort=high` results in the
+  client's internal state set to `Some(High)` and the option's `current_value == "high"`.
+- Edge case: a stored id the provider no longer advertises is skipped without error.
+- Edge case: a session with no stored selections opens unchanged (provider default stands).
+
+**Verification:** Reopen a session (and restart the app) — the previously chosen option is restored in the
+widget for both Claude and Codex.
+
+- [ ] **Unit 4: Claude reasoning config state + option builder**
+
+**Goal:** Add a cc_sdk reasoning config state and a pure builder producing the canonical `ConfigOptionData`,
+mirroring `codex_native_config.rs`.
+
+**Requirements:** R1, R6.
+
+**Dependencies:** Unit 0.
+
+**Files:**
+- Create: `packages/desktop/src-tauri/src/acp/client/cc_sdk_client/reasoning_config.rs`
+- Modify: `packages/desktop/src-tauri/src/acp/client/cc_sdk_client/mod.rs` (module declaration)
+- Test: inline `#[cfg(test)]` in the new file (mirror codex_native_config tests)
+
+**Approach:**
+- State struct holding `effort: Option<Effort>` (None = default/auto), default `None`.
+- Constants: `REASONING_CONFIG_ID` containing `"reasoning"`; ordered option list `[(value,label)]` with a
+  default/auto sentinel + the verified levels.
+- `build_cc_sdk_reasoning_config_options(state) -> Vec<ConfigOptionData>`: one option, `option_type:
+  "select"`, `presentation: CompactReasoning`, `current_value` reflecting state.
+- `parse_effort_value(&str) -> AcpResult<Option<Effort>>` (sentinel → None; known token → Some; else error).
+- `set_reasoning_effort(state, value) -> AcpResult<Vec<ConfigOptionData>>` mutating + rebuilding options.
+
+**Patterns to follow:** `build_codex_native_config_options`, `set_codex_native_config_option`,
+`normalize_reasoning_effort`.
+
+**Test scenarios:**
+- Happy path: default state → one option, id contains `reasoning`, `presentation == CompactReasoning`,
+  current_value is the sentinel, option list = default + verified levels.
+- Happy path: `set_reasoning_effort(state,"high")` → `Some(High)`, current_value `"high"`.
+- Edge case: setting the sentinel resets to `None`.
+- Error path: `"bogus"` errors, state unchanged.
+- Edge case: every level round-trips to the exact CLI token via `Effort::Display`.
+
+**Verification:** New file compiles; tests pass; option shape matches Codex's `ConfigOptionData` fields.
+
+- [ ] **Unit 5: Wire Claude option into `CcSdkClient` (emit, set, apply)**
+
+**Goal:** Hold the reasoning state on the client, emit the option at all session-response sites, implement
+the setter, and feed effort into each turn.
+
+**Requirements:** R1, R2.
+
+**Dependencies:** Unit 4.
+
+**Files:**
 - Modify: `packages/desktop/src-tauri/src/acp/client/cc_sdk_client/mod.rs`
 - Test: `packages/desktop/src-tauri/src/acp/client/cc_sdk_client/tests.rs`
 
 **Approach:**
-- Add a `reasoning_config` (state) field to `CcSdkClient`, initialized to default in the constructor
-  (beside `pending_model_id`/`pending_mode_id`).
-- In `new_session` (~line 724) and each resume response (~lines 786, 809, 851), replace
-  `config_options: vec![]` with `build_cc_sdk_reasoning_config_options(&self.reasoning_config)`.
-- Confirm these responses flow through `streaming_bridge.rs` config_options handling (sanitize →
-  capabilities) without further change; if resume builds capabilities elsewhere, populate there too.
-- Gate emission to the Claude provider if `CcSdkClient` is shared by other providers that should not yet
-  expose reasoning (check `self.provider` / `parser_agent_type`). Only Claude returns the option in this
-  plan; others keep `vec![]`.
+- Add a `reasoning_config` field to `CcSdkClient`, default in the constructor (beside
+  `pending_model_id`/`pending_mode_id`).
+- Replace **all four** `config_options: vec![]` sites — line 733 (`new_session`), lines 790 and 813
+  (resume returns), line 860 (fork/new-session return) — with
+  `build_cc_sdk_reasoning_config_options(&self.reasoning_config)`.
+- Gate emission to the Claude provider (via `self.provider.parser_agent_type()` / provider id) so other
+  cc_sdk-backed providers keep `vec![]` until separately enabled.
+- Implement `set_session_config_option`: for `REASONING_CONFIG_ID`, call `set_reasoning_effort(&mut
+  self.reasoning_config, &value)?` and return `Ok(json!({ "configOptions": options }))`; unknown ids keep
+  the trait-default error.
+- In `build_options` (line 259): `if let Some(e) = self.reasoning_config.effort { builder =
+  builder.effort(e); }` (builder method exists at `options.rs:621`); `None` omits `--effort`.
 
-**Patterns to follow:**
-- `build_codex_native_new_session_response_with_state` / `build_codex_native_resume_session_response`
-  embedding `config_options`.
+**Patterns to follow:** `codex_native_client.rs:573-582` (setter shape); existing `build_options`
+model/mode handling.
 
 **Test scenarios:**
-- Happy path: a Claude `new_session` response's `config_options` contains exactly the reasoning option
-  with the default `current_value`.
-- Happy path: a resume response carries the reasoning option reflecting the client's current
-  `reasoning_config` (set the state, resume, assert `current_value`). (R3)
-- Edge case (if provider-gated): a non-Claude cc_sdk provider's `new_session` still returns empty
+- Happy path: Claude `new_session` response `config_options` contains exactly the reasoning option with
+  the default current_value.
+- Happy path: a resume response carries the option reflecting the client's current `reasoning_config`.
+- Edge case (provider-gated): a non-Claude cc_sdk provider's `new_session` still returns empty
   `config_options`.
+- Happy path: `set_session_config_option(reasoning id, "high")` returns `{ "configOptions": [..] }` with
+  current_value `"high"` and mutates state.
+- Error path: unknown `config_id` returns the unsupported/method-not-found error.
+- Integration: `config_options_from_response` (real helper) extracts a non-empty list from the setter's
+  return shape.
+- Happy path: with `effort = Some(High)`, `build_options(..)` yields options whose `effort == Some(High)`;
+  with `None`, no effort is set.
 
-**Verification:**
-- Selecting Claude in the running app shows the reasoning widget (DOM-verified via QA CLI, per repo
-  Visual QA rules); new and resumed Claude sessions both show it.
-
-- [ ] **Unit 3: Implement `set_session_config_option` on `CcSdkClient`**
-
-**Goal:** Route the toolbar's config change into the client state and return the canonical updated
-options so the existing capability-mutation path refreshes the UI.
-
-**Requirements:** R2, R4.
-
-**Dependencies:** Unit 1, Unit 2.
-
-**Files:**
-- Modify: `packages/desktop/src-tauri/src/acp/client/cc_sdk_client/mod.rs`
-- Test: `packages/desktop/src-tauri/src/acp/client/cc_sdk_client/tests.rs`
-
-**Approach:**
-- Override the trait method (currently the erroring default):
-  `set_session_config_option(session_id, config_id, value)`.
-- For `config_id` matching `REASONING_CONFIG_ID`, call `set_reasoning_effort(&mut self.reasoning_config,
-  &value)?` and return `Ok(json!({ "configOptions": options }))` (exact Codex shape so
-  `config_options_from_response` consumes it).
-- For unknown `config_id`, preserve the trait default error (or a clear unsupported-option error).
-- No hot-state writes; the canonical envelope is produced by `run_capability_mutation` at the command
-  layer (existing).
-
-**Patterns to follow:**
-- `codex_native_client.rs:573-582` (`set_session_config_option`).
-
-**Test scenarios:**
-- Happy path: calling the method with the reasoning id and `"high"` returns
-  `{ "configOptions": [..] }` whose option `current_value` is `"high"`, and mutates client state.
-- Error path: an unknown `config_id` returns an unsupported/method-not-found-style error.
-- Integration: after the call, `config_options_from_response` (the real command-layer helper) extracts a
-  non-empty list — assert against the returned JSON shape to prove the contract the command relies on.
-
-**Verification:**
-- In the running app, changing the Claude reasoning level updates the widget's displayed value and
-  persists for the session (no error toast, capabilities envelope observed).
-
-- [ ] **Unit 4: Feed effort into `build_options` (per-turn flag)**
-
-**Goal:** Apply the chosen effort to each turn so the `claude` CLI receives `--effort <level>` (or
-nothing for default/auto).
-
-**Requirements:** R2, R5.
-
-**Dependencies:** Unit 1, Unit 2.
-
-**Files:**
-- Modify: `packages/desktop/src-tauri/src/acp/client/cc_sdk_client/mod.rs` (`build_options`, line 259)
-- Modify (if a builder method is missing): `packages/desktop/src-tauri/src/cc_sdk/types/options.rs`
-- Test: `packages/desktop/src-tauri/src/acp/client/cc_sdk_client/tests.rs`
-
-**Approach:**
-- In `build_options`, when `self.reasoning_config.effort` is `Some(e)`, call the builder's effort method
-  (`builder = builder.effort(e)`); when `None`, omit it.
-- Confirm `ClaudeCodeOptions::builder()` exposes an `.effort(..)` setter; if only the field exists, add a
-  builder method beside the existing `.thinking(..)` (options.rs:638).
-- Rely on the existing `query.rs:288` translation to emit `--effort`.
-
-**Patterns to follow:**
-- Existing `build_options` model/mode handling (`self.pending_model_id` → `builder.model(..)`).
-- `codex_native_client.rs` `send_prompt` reading `self.config_state`.
-
-**Test scenarios:**
-- Happy path: with `effort = Some(High)`, `build_options(..)` yields `ClaudeCodeOptions` whose `effort`
-  is `Some(High)` (assert on the built options struct).
-- Edge case: with `effort = None`, the built options carry no effort (default/auto path; no `--effort`).
-- Integration (if a thin seam exists): building the CLI command from those options includes
-  `--effort high` for `Some(High)` and omits it for `None`. If asserting on argv is impractical, assert
-  on the `ClaudeCodeOptions.effort` field and rely on `query.rs`'s existing behavior (already covered by
-  cc_sdk tests).
-
-**Verification:**
-- A turn started after selecting a level passes `--effort <level>` to the subprocess (observed via
-  streaming/debug logs or the command-construction test); default/auto starts a turn with no `--effort`.
+**Verification:** Selecting Claude shows the reasoning widget (DOM-verified via QA CLI); changing it updates
+the displayed value and a subsequent turn passes `--effort <level>`; default/auto passes none.
 
 ## System-Wide Impact
 
-- **Interaction graph:** Reuses the existing `acp_set_config_option` command and
-  `run_capability_mutation` path; no new commands or events. The setter's `{ configOptions }` contract is
-  the only coupling and is identical to Codex.
-- **Error propagation:** Unknown config ids return a clear error from the client and surface through the
-  existing command error channel; invalid effort values are rejected in `set_reasoning_effort` before any
-  state mutation.
-- **State lifecycle risks:** State is per-session in-memory; resume rebuilds the option from the same
-  state object. No persistence, cache, or partial-write concerns. No hot-state write of `config_options`
-  (GOD constraint honored).
-- **API surface parity:** Other cc_sdk-backed providers (cursor/copilot/opencode) share `CcSdkClient`.
-  This plan provider-gates emission to Claude so their behavior is unchanged; they remain candidates for
-  the same option later.
-- **Integration coverage:** Unit 3's contract test (return shape consumed by `config_options_from_response`)
-  and the app-level DOM verification prove the canonical round-trip that mocks alone would not.
-- **Unchanged invariants:** Toolbar/selector components and all `packages/ui` code are untouched; the
-  canonical `ConfigOptionData` schema and `CompactReasoning` classifier are unchanged. No
-  `agentId === "claude"` branch anywhere in TS/UI.
+- **Interaction graph:** Reuses `acp_set_config_option` + `run_capability_mutation` for sets; restore
+  (Unit 3) replays the same setter at open. No new commands/events. Persistence adds one DB write
+  (command layer) and one DB read (open layer).
+- **Error propagation:** Setter errors prevent persistence (Unit 2); a stored id no longer advertised is
+  skipped on restore (Unit 3); invalid effort rejected before state mutation (Unit 4).
+- **State lifecycle risks:** Persisted selections live in canonical `acepe_session_state` keyed by
+  session_id; restore is idempotent (replay yields the same canonical state). No hot-state writes of
+  `config_options`. Default-vs-persisted resolved once at open (no reader-time fallback).
+- **API surface parity:** All providers share the persist/restore path. Codex gains persistence with no
+  Codex code change (already emits option + setter); other cc_sdk providers inherit it once they emit an
+  option + setter.
+- **Integration coverage:** Unit 3's agent-agnostic open-replay test and Unit 2's command→DB test prove
+  the canonical round-trip mocks alone would not; app-level DOM verification confirms the UI outcome.
+- **Unchanged invariants:** Toolbar/selector and all `packages/ui` code untouched; `ConfigOptionData`
+  schema and `CompactReasoning` classifier unchanged; no `agentId === "claude"` branch anywhere in TS/UI;
+  Codex's config-file seeding still provides its default.
 
 ## Risks & Dependencies
 
 | Risk | Mitigation |
 |------|------------|
-| Installed `claude` CLI accepts a different effort value set than the `Effort` enum (e.g. `max` invalid). | Unit 0 verification gate pins the real value set and adjusts the enum before option list is hardcoded. |
-| `CcSdkClient` is shared across providers; emitting the option for all could surprise non-Claude providers. | Provider-gate emission to Claude (`self.provider`/`parser_agent_type`); test that other providers stay empty. |
-| `ClaudeCodeOptions` builder lacks a public `.effort(..)` method (only the field exists). | Add a builder method beside the existing `.thinking(..)` (options.rs:638); covered in Unit 4 files. |
-| Resume path builds capabilities differently from new_session and silently drops the option. | Unit 2 explicitly verifies resume response carries the option and traces through `streaming_bridge.rs`. |
-| Mid-turn change expectation by users (apply to in-flight turn). | Documented as next-turn semantics (Key Technical Decisions); matches CLI flag reality and Codex. |
+| Installed `claude` CLI accepts a different effort set than the `Effort` enum (e.g. `max` invalid). | Unit 0 pins the real set and adjusts the enum before levels are hardcoded. |
+| Replay-at-open seam runs before capabilities are materialized or after the first turn starts. | Unit 3 targets the seam between connect and first prompt; integration test asserts capabilities reflect restored values pre-turn. |
+| Replaying the setter at open emits redundant capability-mutation envelopes / visible churn. | Replay is idempotent and uses the canonical path; if churn is observed, gate replay to only ids whose persisted value differs from the provider default. |
+| `CcSdkClient` is shared across providers; emitting the Claude option for all could surprise them. | Provider-gate emission to Claude; test other providers stay empty. |
+| Codex dual-source (config file vs per-session) creates ambiguity. | Resolved once in Rust at open: persisted selection authoritative, else provider default; documented decision. |
+| Storage-shape choice (JSON map vs typed column) churns later. | Unit 1 picks a JSON `id→value` map for extensibility, matching repository serialization conventions. |
 
 ## Documentation / Operational Notes
 
 - After implementation, run the repo Visual QA flow (QA CLI: `doctor` → `observe` → `inspect
-  --selector=<reasoning widget>` → `screenshot`) to DOM-verify the widget appears for Claude and updates
-  on selection. Do not rely on tests alone for the UI-visible outcome.
-- `bun run check` (TS) is unaffected (no TS changes) but should still pass; `cargo clippy` + Rust tests
-  in `src-tauri/` are the primary gate.
+  --selector=<reasoning widget>` → `screenshot`) to DOM-verify the widget appears for Claude and that a
+  reopened session restores the selection. Do not rely on tests alone for UI-visible outcomes.
+- Primary gates: `cargo clippy` + Rust tests in `src-tauri/`; `bun run check` should still pass (no TS
+  changes). New DB migration must apply on existing databases.
 
 ## Sources & References
 
-- Diagnosis (this session): cc_sdk transport, `query.rs:288`, empty `config_options` in
-  `cc_sdk_client/mod.rs`, Codex pattern in `codex_native_config.rs`, classifier in
-  `session_update/types/config.rs:207-234`, canonical setter flow in
-  `interaction_commands.rs:370-415`.
-- GOD architecture gate: cleared GREEN for this change (canonical config_options, no hot-state, no UI
-  branch).
+- Diagnosis (this session): cc_sdk transport; `query.rs:288`; `.effort(..)` builder `options.rs:621`;
+  empty `config_options` at `cc_sdk_client/mod.rs` lines 733/790/813/860; Codex pattern in
+  `codex_native_config.rs`; classifier `session_update/types/config.rs:207-234`; canonical setter flow
+  `interaction_commands.rs:207-415`; persistence surface `db/entities/acepe_session_state.rs`.
+- GOD architecture gate: run for both the original Claude-option scope and the expanded agent-agnostic
+  persistence scope; both cleared GREEN (canonical `acepe_session_state` storage; replay-through-setter
+  single application path; default resolved once in Rust).
 - CLI: `claude --help` v2.1.185 — `--effort <level>`.
