@@ -23,78 +23,70 @@ describe("VoiceDownloadProgress", () => {
 	it("can hide the percent label while preserving segmented progress", () => {
 		const { container } = render(VoiceDownloadProgress, {
 			ariaLabel: "Downloading model",
-			compact: true,
 			label: "",
 			percent: 49,
 			segmentCount: 20,
 			showPercent: false,
+			variant: "downloadCompact",
 		});
 
-		expect(container.querySelectorAll(".voice-download-segment")).toHaveLength(20);
+		expect(container.querySelector('[data-variant="downloadCompact"]')).not.toBeNull();
+		expect(container.querySelectorAll('[data-variant="downloadCompact"] > div:nth-child(1) > div')).toHaveLength(20);
 		expect(container.textContent).not.toContain("49%");
 	});
 
 	it("renders download progress as a segmented pill", () => {
 		const { container } = render(VoiceDownloadProgress, {
 			ariaLabel: "Downloading model",
-			compact: false,
 			label: "",
 			percent: 49,
 			segmentCount: 20,
+			variant: "download",
 		});
 
-		const segmentsRoot = container.querySelector(".voice-download-segments");
-		const segments = container.querySelectorAll(".voice-download-segment");
+		const root = container.querySelector('[data-variant="download"]');
+		const segments = container.querySelectorAll('[data-variant="download"] > div:nth-child(1) > div');
 
-		expect(segmentsRoot?.className).toContain("rounded-sm");
+		expect(root).not.toBeNull();
 		expect(segments).toHaveLength(20);
-		expect(segments[0]?.className).not.toContain("rounded-l-md");
-		expect(segments[19]?.className).not.toContain("rounded-r-md");
 	});
 
-	it("renders level palette with only filled segments", () => {
+	it("renders reasoningDiscrete with only filled segments", () => {
 		const { container } = render(VoiceDownloadProgress, {
 			ariaLabel: "Reasoning effort",
-			compact: true,
 			decorative: true,
 			filledSegmentCount: 1,
 			label: "",
-			orientation: "vertical",
 			percent: 20,
 			segmentCount: 5,
-			segmentFillPalette: "level",
-			showContainerBorder: false,
 			showPercent: false,
+			variant: "reasoningDiscrete",
 		});
 
-		const segments = container.querySelectorAll(".voice-download-segment");
+		const segments = container.querySelectorAll('[data-variant="reasoningDiscrete"] > div:nth-child(1) > div');
 		expect(segments).toHaveLength(1);
-		expect(segments[0]?.className).toContain("filled");
+		expect(segments[0]?.className).toContain("bg-[var(--segment-fill");
 	});
 
-	it("renders grouped setup bar with bottom-up fill across the full cell", () => {
+	it("renders setupReasoningBar with bottom-up fill across the full cell", () => {
 		const { container } = render(VoiceDownloadProgress, {
 			ariaLabel: "Reasoning effort",
-			compact: true,
 			decorative: true,
-			fillWidth: true,
 			filledSegmentCount: 2,
 			label: "",
-			orientation: "vertical",
 			percent: 40,
 			segmentCount: 5,
-			segmentFillPalette: "level",
-			setupBar: true,
-			showContainerBorder: false,
 			showPercent: false,
+			variant: "setupReasoningBar",
 		});
 
-		const root = container.querySelector(".voice-download-progress");
-		const segments = container.querySelectorAll(".voice-download-segment");
-		const filledSegments = container.querySelectorAll(".voice-download-segment.filled");
+		const root = container.querySelector('[data-variant="setupReasoningBar"]');
+		const segments = container.querySelectorAll('[data-variant="setupReasoningBar"] > div > div');
+		const filledSegments = Array.from(segments).filter((segment) =>
+			segment.className.includes("bg-[var(--segment-fill")
+		);
 
-		expect(root?.className).toContain("fill-width");
-		expect(root?.className).toContain("setup-bar");
+		expect(root).not.toBeNull();
 		expect(segments).toHaveLength(5);
 		expect(filledSegments).toHaveLength(2);
 	});

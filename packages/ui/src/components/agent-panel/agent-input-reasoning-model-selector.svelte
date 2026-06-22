@@ -48,7 +48,7 @@
 	}: Props = $props();
 </script>
 
-<div class="flex items-center h-7 overflow-hidden rounded-md bg-muted">
+<div class="flex items-end h-7 overflow-hidden rounded-md bg-muted">
 	<Selector
 		open={primaryOpen}
 		disabled={isLoading}

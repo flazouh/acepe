@@ -10,6 +10,7 @@
 
 	import * as DropdownMenu from "../dropdown-menu/index.js";
 	import { Button } from "../button/index.js";
+	import { EmbeddedIconButton } from "../panel-header/index.js";
 	import { Selector } from "../selector/index.js";
 	import * as Tooltip from "../tooltip/index.js";
 	import { VoiceDownloadProgress } from "../voice-download-progress/index.js";
@@ -111,6 +112,11 @@
 {#snippet configOptionTooltipContent()}
 	<Tooltip.Content side="top" class="max-w-[17rem] leading-relaxed font-normal">
 		<span class="font-semibold text-foreground">{viewState.tooltipTitle}</span>
+		{#if viewState.tooltipCurrentValueLabel != null}
+			<span class="mt-1 block font-medium text-foreground">
+				Currently: {viewState.tooltipCurrentValueLabel}
+			</span>
+		{/if}
 		<span class="mt-1 block">{viewState.tooltipDescription}</span>
 	</Tooltip.Content>
 {/snippet}
@@ -123,7 +129,7 @@
 					{...props}
 					type="button"
 					variant="ghost"
-					size="sm"
+					size={displayMode === "barOnly" ? "2xs" : "sm"}
 					{disabled}
 					class={reasoningTriggerClass}
 					data-testid={displayMode === "barOnly" ? "setup-bar-reasoning" : undefined}
@@ -136,27 +142,16 @@
 						</span>
 					{/if}
 					{#if viewState.reasoningBarSegmentCount > 0}
-						<div
-							class={displayMode === "barOnly"
-								? "absolute inset-0 flex min-h-0 min-w-0"
-								: "flex min-h-0 min-w-0"}
-						>
-							<VoiceDownloadProgress
-								ariaLabel={viewState.buttonTitle}
-								compact={true}
-								decorative={true}
-								fillWidth={displayMode === "barOnly"}
-								filledSegmentCount={viewState.reasoningBarFilledSegmentCount}
-								label=""
-								orientation="vertical"
-								percent={viewState.reasoningBarPercent}
-								segmentCount={viewState.reasoningBarSegmentCount}
-								segmentFillPalette="level"
-								setupBar={displayMode === "barOnly"}
-								showContainerBorder={false}
-								showPercent={false}
-							/>
-						</div>
+						<VoiceDownloadProgress
+							ariaLabel={viewState.buttonTitle}
+							decorative={true}
+							filledSegmentCount={viewState.reasoningBarFilledSegmentCount}
+							label=""
+							percent={viewState.reasoningBarPercent}
+							segmentCount={viewState.reasoningBarSegmentCount}
+							showPercent={false}
+							variant={displayMode === "barOnly" ? "setupReasoningBar" : "reasoningDiscrete"}
+						/>
 					{/if}
 				</Button>
 			{/snippet}
@@ -167,19 +162,25 @@
 	<Tooltip.Root>
 		<Tooltip.Trigger>
 			{#snippet child({ props })}
-				<Button
+				<EmbeddedIconButton
 					{...props}
-					type="button"
-					variant="ghost"
-					size="sm"
-					{disabled}
+					title={viewState.buttonTitle}
+					ariaLabel={viewState.buttonTitle}
+					active={viewState.isBooleanEnabled}
+					disabled={disabled}
 					class={fastTriggerClass}
 					aria-pressed={viewState.isBooleanEnabled}
-					aria-label={viewState.buttonTitle}
 					onclick={handleBooleanToggle}
 				>
-					{@render configOptionIcon()}
-				</Button>
+					{#snippet children()}
+						<Lightning
+							class={viewState.iconClass}
+							size={12}
+							weight={viewState.iconWeight}
+							style={viewState.iconStyle}
+						/>
+					{/snippet}
+				</EmbeddedIconButton>
 			{/snippet}
 		</Tooltip.Trigger>
 		{@render configOptionTooltipContent()}

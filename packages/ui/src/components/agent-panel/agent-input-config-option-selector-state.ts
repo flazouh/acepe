@@ -4,7 +4,7 @@ import { getSelectorTriggerClass } from "../selector/selector-trigger-classes.js
 import type { AgentInputConfigOption } from "./agent-input-config-option-types.js";
 
 export type ConfigOptionIconKind = "reasoning" | "fast" | "default";
-export type ConfigOptionIconWeight = "fill" | "regular";
+export type ConfigOptionIconWeight = "fill" | "bold";
 
 export interface ConfigOptionViewState {
 	currentValue: string | null;
@@ -21,6 +21,7 @@ export interface ConfigOptionViewState {
 	iconStyle: string;
 	buttonTitle: string;
 	tooltipTitle: string;
+	tooltipCurrentValueLabel: string | null;
 	tooltipDescription: string;
 }
 
@@ -135,8 +136,22 @@ export function getConfigOptionTooltipDescription(input: {
 	configOption: AgentInputConfigOption;
 	currentValueLabel: string;
 }): string {
-	void input.currentValueLabel;
 	return getConfigOptionTooltipBody(input.configOption);
+}
+
+export function getConfigOptionTooltipCurrentValueLabel(input: {
+	configOption: AgentInputConfigOption;
+	currentValueLabel: string;
+}): string | null {
+	if (!isReasoningConfigOption(input.configOption)) {
+		return null;
+	}
+
+	if (input.currentValueLabel.length === 0) {
+		return null;
+	}
+
+	return input.currentValueLabel;
 }
 
 export function isBooleanConfigOption(opt: AgentInputConfigOption): boolean {
@@ -221,7 +236,7 @@ export function getConfigOptionIconWeight(input: {
 			return "fill";
 		}
 	}
-	return "regular";
+	return "bold";
 }
 
 export function getConfigOptionNextBooleanValue(
@@ -243,7 +258,7 @@ export function getConfigOptionReasoningTriggerClass(): string {
 
 export function getConfigOptionReasoningBarOnlyTriggerClass(): string {
 	return cn(
-		"relative !flex !h-full !w-full !min-h-0 !min-w-0 !items-stretch !justify-stretch !rounded-none !border-0 !bg-transparent !p-0 shadow-none hover:!bg-transparent"
+		"relative overflow-hidden !box-border !flex !h-full !w-full !min-h-0 !min-w-full !flex-1 !items-stretch !justify-stretch !self-stretch !rounded-none !border-0 !bg-transparent !p-0 !px-0 !py-0 !gap-0 shadow-none hover:!bg-transparent [&_[data-variant=setupReasoningBar]]:min-h-0 [&_[data-variant=setupReasoningBar]]:flex-1"
 	);
 }
 
@@ -251,14 +266,11 @@ export function getConfigOptionFastTriggerClass(input: {
 	disabled: boolean;
 	isEnabled: boolean;
 }): string {
-	return cn(
-		getSelectorTriggerClass({ triggerSize: "square" }),
-		input.disabled
-			? "text-muted-foreground/50 cursor-not-allowed"
-			: input.isEnabled
-				? "bg-accent/60 text-foreground hover:bg-accent/80"
-				: "text-muted-foreground hover:bg-accent/50 hover:text-foreground"
-	);
+	void input.isEnabled;
+	if (input.disabled) {
+		return "opacity-50";
+	}
+	return "";
 }
 
 export function getConfigOptionViewState(
@@ -284,9 +296,13 @@ export function getConfigOptionViewState(
 		isBooleanEnabled,
 		currentValue,
 	});
-	const useMuted = iconKind === "fast" && iconWeight === "regular";
+	const useMuted = iconKind === "fast" && iconWeight === "bold";
 	const tooltipTitle = configOption.name;
 	const tooltipDescription = getConfigOptionTooltipDescription({
+		configOption,
+		currentValueLabel,
+	});
+	const tooltipCurrentValueLabel = getConfigOptionTooltipCurrentValueLabel({
 		configOption,
 		currentValueLabel,
 	});
@@ -314,6 +330,7 @@ export function getConfigOptionViewState(
 		iconStyle: useMuted ? "" : `color: ${iconColor}`,
 		buttonTitle: `${configOption.name}: ${currentValueLabel}`,
 		tooltipTitle,
+		tooltipCurrentValueLabel,
 		tooltipDescription,
 	};
 }

@@ -152,7 +152,9 @@
 			? "headerAction"
 			: triggerSize === "setupChip"
 				? "setupChip"
-				: "sm"
+				: triggerSize === "icon" || triggerSize === "attach"
+					? "2xs"
+					: "sm"
 	);
 
 	const contentClass = $derived(

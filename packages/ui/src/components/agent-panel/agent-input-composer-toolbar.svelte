@@ -10,6 +10,7 @@
 	import AgentInputMicButton from "./agent-input-mic-button.svelte";
 	import AgentInputModeSelector from "./agent-input-mode-selector.svelte";
 	import AgentInputVoiceModelMenu from "./agent-input-voice-model-menu.svelte";
+	import { ButtonGroup } from "../button-group/index.js";
 	import {
 		isMicButtonDisabled,
 		isToolbarLeftSideDisabled,
@@ -105,6 +106,8 @@
 		onVoiceDownloadModel: (modelId: string) => void;
 		voiceCloseLabel: string;
 	} = $props();
+
+	const voiceControlGroupClass = "overflow-hidden rounded-md bg-accent/30";
 </script>
 
 {#if inputReady}
@@ -208,28 +211,32 @@
 					</button>
 				{/if}
 				<div class="voice-controls flex items-center">
-					<AgentInputVoiceModelMenu
-						models={voiceModels}
-						selectedModelId={voiceSelectedModelId}
-						modelsLoading={voiceModelsLoading}
-						downloadingModelId={voiceDownloadingModelId}
-						downloadPercent={voiceDownloadPercent}
-						menuLabel={voiceMenuLabel}
-						loadingLabel={voiceModelsLoadingLabel}
-						onSelectModel={onVoiceSelectModel}
-						onDownloadModel={onVoiceDownloadModel}
-					/>
-					<AgentInputMicButton
-						visualState={getMicButtonVisualState(currentVoiceState.phase)}
-						downloadPercent={currentVoiceState.downloadPercent}
-					title={getMicButtonTitle(currentVoiceState)}
-					ariaLabel={getMicButtonTitle(currentVoiceState)}
-					disabled={isMicButtonDisabled({ voiceState: currentVoiceState, composerIsDispatching })}
-					onpointerdown={(event) => currentVoiceState.onMicPointerDown(event)}
-						onpointerup={() => currentVoiceState.onMicPointerUp()}
-						onpointercancel={() => currentVoiceState.onMicPointerCancel()}
-						onkeydown={(event) => onVoiceMicKeyDown(event, currentVoiceState)}
-					/>
+					<ButtonGroup class={voiceControlGroupClass}>
+						<AgentInputMicButton
+							embeddedInGroup
+							visualState={getMicButtonVisualState(currentVoiceState.phase)}
+							downloadPercent={currentVoiceState.downloadPercent}
+							title={getMicButtonTitle(currentVoiceState)}
+							ariaLabel={getMicButtonTitle(currentVoiceState)}
+							disabled={isMicButtonDisabled({ voiceState: currentVoiceState, composerIsDispatching })}
+							onpointerdown={(event) => currentVoiceState.onMicPointerDown(event)}
+							onpointerup={() => currentVoiceState.onMicPointerUp()}
+							onpointercancel={() => currentVoiceState.onMicPointerCancel()}
+							onkeydown={(event) => onVoiceMicKeyDown(event, currentVoiceState)}
+						/>
+						<AgentInputVoiceModelMenu
+							embeddedInGroup
+							models={voiceModels}
+							selectedModelId={voiceSelectedModelId}
+							modelsLoading={voiceModelsLoading}
+							downloadingModelId={voiceDownloadingModelId}
+							downloadPercent={voiceDownloadPercent}
+							menuLabel={voiceMenuLabel}
+							loadingLabel={voiceModelsLoadingLabel}
+							onSelectModel={onVoiceSelectModel}
+							onDownloadModel={onVoiceDownloadModel}
+						/>
+					</ButtonGroup>
 				</div>
 			{/if}
 		{/if}

@@ -6,6 +6,7 @@ import {
 	getConfigOptionIconWeight,
 	getConfigOptionNextBooleanValue,
 	getConfigOptionTooltipBody,
+	getConfigOptionTooltipCurrentValueLabel,
 	getConfigOptionTooltipDescription,
 	getConfigOptionViewState,
 	getReasoningEffortBarPercent,
@@ -106,7 +107,7 @@ describe("agent input config option selector state", () => {
 				isBooleanEnabled: false,
 				currentValue: "false",
 			})
-		).toBe("regular");
+		).toBe("bold");
 		expect(
 			getConfigOptionIconWeight({
 				iconKind: "fast",
@@ -170,7 +171,7 @@ describe("agent input config option selector state", () => {
 			})
 		).toContain("Click to step up reasoning depth");
 		expect(
-			getConfigOptionTooltipDescription({
+			getConfigOptionTooltipCurrentValueLabel({
 				configOption: makeOption({
 					presentation: "compactReasoning",
 					name: "Reasoning Effort",
@@ -179,7 +180,17 @@ describe("agent input config option selector state", () => {
 				}),
 				currentValueLabel: "High",
 			})
-		).not.toContain("Currently:");
+		).toBe("High");
+		expect(
+			getConfigOptionViewState(
+				makeOption({
+					presentation: "compactReasoning",
+					name: "Reasoning Effort",
+					currentValue: "high",
+					options: [{ value: "high", name: "High" }],
+				})
+			).tooltipCurrentValueLabel
+		).toBe("High");
 	});
 
 	test("maps reasoning effort to segmented bar fill", () => {

@@ -167,11 +167,11 @@ function switchLayoutFamily(nextFamily: LayoutFamily): void {
 								ariaLabel={updaterState?.kind === "installing"
 									? "Installing update..."
 									: "Downloading update"}
-								compact={true}
 								label=""
 								percent={updateDownloadPercent}
 								segmentCount={UPDATE_BUTTON_SEGMENT_COUNT}
 								showPercent={false}
+								variant="downloadCompact"
 							/>
 						</div>
 					</div>

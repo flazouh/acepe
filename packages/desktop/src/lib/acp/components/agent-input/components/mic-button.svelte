@@ -96,11 +96,11 @@ const STOP_RED = "#FF5D5A";
 				{#if visualState === "download_progress"}
 					<VoiceDownloadProgress
 						ariaLabel={title}
-						compact={true}
 						label=""
 						percent={voiceState.downloadPercent}
 						segmentCount={20}
 						showPercent={false}
+						variant="downloadCompact"
 					/>
 				{:else if visualState === "spinner"}
 					<!-- Loading spinner (uses shared LoadingIcon) -->

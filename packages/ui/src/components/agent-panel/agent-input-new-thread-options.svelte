@@ -15,6 +15,7 @@
 	import * as DropdownMenu from "../dropdown-menu/index.js";
 	import { Switch } from "../switch/index.js";
 	import * as Tooltip from "../tooltip/index.js";
+	import { cn } from "../../lib/utils.js";
 
 	interface Props {
 		worktreeLabel?: string;
@@ -59,6 +60,19 @@
 		"[&_button]:flex [&_button]:flex-none [&_button]:items-center [&_button]:gap-1 [&_button]:rounded-md [&_button]:bg-transparent [&_button]:text-muted-foreground [&_button]:transition-colors [&_button:hover]:bg-accent [&_button:hover]:text-foreground";
 	const setupWorktreeButtonClass =
 		"flex h-auto shrink-0 items-center justify-center gap-1 py-1 transition-colors hover:bg-accent";
+	const modelReasoningModelClass = "model-reasoning-group__model flex min-h-full items-stretch";
+	const modelReasoningReasoningClass =
+		"model-reasoning-group__reasoning flex w-2.5 min-w-2.5 shrink-0 basis-2.5 items-stretch border-l border-border/40";
+	const modelReasoningGroupClass = cn(
+		setupChipGroupClass,
+		setupChipButtonClass,
+		"items-stretch",
+		"[&_.model-reasoning-group__model_[role=group]_button]:box-border [&_.model-reasoning-group__model_[role=group]_button]:inline-flex [&_.model-reasoning-group__model_[role=group]_button]:items-center [&_.model-reasoning-group__model_[role=group]_button]:gap-1 [&_.model-reasoning-group__model_[role=group]_button]:rounded-none [&_.model-reasoning-group__model_[role=group]_button]:border-0 [&_.model-reasoning-group__model_[role=group]_button]:bg-transparent [&_.model-reasoning-group__model_[role=group]_button]:px-1.5 [&_.model-reasoning-group__model_[role=group]_button]:pe-1 [&_.model-reasoning-group__model_[role=group]_button]:text-xs [&_.model-reasoning-group__model_[role=group]_button]:leading-4 [&_.model-reasoning-group__model_[role=group]_button]:text-muted-foreground [&_.model-reasoning-group__model_[role=group]_button]:shadow-none [&_.model-reasoning-group__model_[role=group]_button]:rounded-s-md",
+		"[&_.model-reasoning-group__model_[role=group]_button:hover]:bg-accent [&_.model-reasoning-group__model_[role=group]_button:hover]:text-foreground",
+		"[&_.model-reasoning-group__reasoning_button]:relative [&_.model-reasoning-group__reasoning_button]:overflow-hidden [&_.model-reasoning-group__reasoning_button]:flex [&_.model-reasoning-group__reasoning_button]:h-full [&_.model-reasoning-group__reasoning_button]:w-full [&_.model-reasoning-group__reasoning_button]:min-w-full [&_.model-reasoning-group__reasoning_button]:items-stretch [&_.model-reasoning-group__reasoning_button]:justify-stretch [&_.model-reasoning-group__reasoning_button]:gap-0 [&_.model-reasoning-group__reasoning_button]:rounded-none [&_.model-reasoning-group__reasoning_button]:border-0 [&_.model-reasoning-group__reasoning_button]:bg-transparent [&_.model-reasoning-group__reasoning_button]:p-0 [&_.model-reasoning-group__reasoning_button]:text-muted-foreground [&_.model-reasoning-group__reasoning_button]:shadow-none [&_.model-reasoning-group__reasoning_button]:rounded-e-md",
+		"[&_.model-reasoning-group__reasoning_button:hover]:bg-accent [&_.model-reasoning-group__reasoning_button:hover]:text-foreground",
+		"[&_.model-reasoning-group__reasoning_[data-variant=setupReasoningBar]]:min-h-0 [&_.model-reasoning-group__reasoning_[data-variant=setupReasoningBar]]:h-full [&_.model-reasoning-group__reasoning_[data-variant=setupReasoningBar]]:w-full [&_.model-reasoning-group__reasoning_[data-variant=setupReasoningBar]]:flex-1"
+	);
 </script>
 
 <div
@@ -78,12 +92,12 @@
 		{#if showReasoning && reasoning}
 			<ButtonGroup
 				data-testid="model-reasoning-group"
-				class="model-reasoning-group {setupChipGroupClass} {setupChipButtonClass}"
+				class="model-reasoning-group {modelReasoningGroupClass}"
 			>
-				<div class="model-reasoning-group__model">
+				<div class={modelReasoningModelClass}>
 					{@render model()}
 				</div>
-				<div class="model-reasoning-group__reasoning">
+				<div class={modelReasoningReasoningClass}>
 					{@render reasoning()}
 				</div>
 			</ButtonGroup>
@@ -161,67 +175,3 @@
 		</ButtonGroup>
 	{/if}
 </div>
-
-<style>
-	.model-reasoning-group {
-		align-items: stretch;
-	}
-
-	.model-reasoning-group__model,
-	.model-reasoning-group__reasoning {
-		display: flex;
-		align-items: stretch;
-		min-height: 100%;
-	}
-
-	.model-reasoning-group :global(.model-reasoning-group__model [role="group"] button),
-	.model-reasoning-group :global(.model-reasoning-group__reasoning button) {
-		box-sizing: border-box;
-		border: 0;
-		border-radius: 0;
-		background: transparent;
-		box-shadow: none;
-		color: var(--muted-foreground);
-	}
-
-	.model-reasoning-group :global(.model-reasoning-group__model [role="group"] button) {
-		display: inline-flex;
-		align-items: center;
-		border-top-left-radius: 0.375rem;
-		border-bottom-left-radius: 0.375rem;
-		padding-inline: 0.375rem 0.25rem;
-		font-size: 0.75rem;
-		line-height: 1rem;
-		gap: 0.25rem;
-	}
-
-	.model-reasoning-group :global(.model-reasoning-group__model [role="group"] button:hover),
-	.model-reasoning-group :global(.model-reasoning-group__reasoning button:hover) {
-		background: var(--accent);
-		color: var(--foreground);
-	}
-
-	.model-reasoning-group__reasoning {
-		flex: 1 1 0;
-		min-width: 2rem;
-		border-left: 1px solid color-mix(in srgb, var(--border) 40%, transparent);
-	}
-
-	.model-reasoning-group :global(.model-reasoning-group__reasoning button) {
-		display: flex;
-		align-items: stretch;
-		width: 100%;
-		min-width: 0;
-		height: 100%;
-		align-self: stretch;
-		border-top-right-radius: 0.375rem;
-		border-bottom-right-radius: 0.375rem;
-		padding: 0;
-	}
-
-	.model-reasoning-group :global(.model-reasoning-group__reasoning .voice-download-progress) {
-		width: 100%;
-		height: 100%;
-		align-items: stretch;
-	}
-</style>

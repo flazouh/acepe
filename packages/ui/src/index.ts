@@ -307,6 +307,11 @@ export {
 	clampVoiceDownloadPercent,
 	countFilledVoiceDownloadSegments,
 	formatVoiceDownloadPercent,
+	getVoiceDownloadProgressRenderMode,
+	isLevelPaletteVariant,
+	voiceDownloadProgressVariants,
+	type VoiceDownloadProgressRenderMode,
+	type VoiceDownloadProgressVariant,
 } from "./components/voice-download-progress/index.js";
 export {
 	InlineArtefactBadge,

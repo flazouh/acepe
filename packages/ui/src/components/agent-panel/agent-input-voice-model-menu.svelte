@@ -9,7 +9,7 @@
 
 	import { Button } from "../button/index.js";
 	import * as DropdownMenu from "../dropdown-menu/index.js";
-	import { Selector } from "../selector/index.js";
+	import { EmbeddedIconButton } from "../panel-header/index.js";
 	import { VoiceDownloadProgress } from "../voice-download-progress/index.js";
 
 	export interface AgentInputVoiceModel {
@@ -29,6 +29,8 @@
 		loadingLabel?: string;
 		onSelectModel: (modelId: string) => void;
 		onDownloadModel: (modelId: string) => void;
+		/** When true, styles the overflow trigger for a fused voice control button group. */
+		embeddedInGroup?: boolean;
 	}
 
 	let {
@@ -41,6 +43,7 @@
 		loadingLabel = "Loading voice models...",
 		onSelectModel,
 		onDownloadModel,
+		embeddedInGroup = false,
 	}: Props = $props();
 
 	let menuOpen = $state(false);
@@ -111,22 +114,25 @@
 	});
 </script>
 
-<Selector
-	bind:open={menuOpen}
-	align="end"
-	side="top"
-	sideOffset={8}
-	variant="ghost"
-	showChevron={false}
-	triggerSize="icon"
-	triggerAriaLabel={menuLabel}
-	class="voice-more-selector"
->
-	{#snippet renderButton()}
-		<DotsThreeVertical class="h-3.5 w-3.5" weight="bold" />
-	{/snippet}
-
-	<DropdownMenu.Group>
+<DropdownMenu.Root bind:open={menuOpen}>
+	<DropdownMenu.Trigger>
+		{#snippet child({ props })}
+			<EmbeddedIconButton
+				{...props}
+				title={menuLabel}
+				ariaLabel={menuLabel}
+				class={embeddedInGroup
+					? "rounded-none border-0 border-l border-border/30 bg-transparent shadow-none hover:!bg-accent"
+					: ""}
+			>
+				{#snippet children()}
+					<DotsThreeVertical class="h-3 w-3" weight="bold" />
+				{/snippet}
+			</EmbeddedIconButton>
+		{/snippet}
+	</DropdownMenu.Trigger>
+	<DropdownMenu.Content side="top" align="end" sideOffset={8} class="w-fit max-w-[280px]">
+		<DropdownMenu.Group>
 			<DropdownMenu.GroupHeading class="text-[10px]">
 				{menuLabel}
 			</DropdownMenu.GroupHeading>
@@ -183,11 +189,11 @@
 							{#if isDownloading}
 								<VoiceDownloadProgress
 									ariaLabel={`Downloading ${model.name}`}
-									compact={true}
 									label=""
 									percent={downloadPercent}
 									segmentCount={20}
 									showPercent={false}
+									variant="downloadCompact"
 								/>
 							{:else}
 								<Button
@@ -208,24 +214,5 @@
 				{/each}
 			{/each}
 		{/if}
-</Selector>
-
-<style>
-	.voice-more-selector :global(button) {
-		width: 22px;
-		height: 22px;
-		color: var(--muted-foreground);
-		opacity: 0;
-		pointer-events: none;
-		transition: opacity 150ms ease-out, color 150ms ease-out, transform 150ms ease-out;
-	}
-	:global(.voice-controls:hover) .voice-more-selector :global(button),
-	.voice-more-selector:has([data-state='open']) :global(button) {
-		opacity: 1;
-		pointer-events: auto;
-	}
-	.voice-more-selector :global(button:hover) {
-		color: var(--foreground);
-		transform: scale(1.08);
-	}
-</style>
+	</DropdownMenu.Content>
+</DropdownMenu.Root>

@@ -13,6 +13,9 @@
 <script lang="ts">
 	import { Microphone } from "phosphor-svelte";
 
+	import { PROJECT_CARD_ACTION_BUTTON_CLASS } from "../panel-header/project-card-action-button-class.js";
+	import { cn } from "../../lib/utils.js";
+
 	export type AgentInputMicVisualState = "mic" | "spinner" | "stop" | "download_progress";
 
 	interface Props {
@@ -21,6 +24,7 @@
 		disabled?: boolean;
 		title?: string;
 		ariaLabel?: string;
+		embeddedInGroup?: boolean;
 		onpointerdown?: (event: PointerEvent) => void;
 		onpointerup?: () => void;
 		onpointercancel?: () => void;
@@ -33,6 +37,7 @@
 		disabled = false,
 		title = "Record",
 		ariaLabel = "Record",
+		embeddedInGroup = false,
 		onpointerdown,
 		onpointerup,
 		onpointercancel,
@@ -42,18 +47,27 @@
 	let isHovered = $state(false);
 	const isRecording = $derived(visualState === "stop");
 	const STOP_RED = "#FF5D5A";
+	const buttonClass = $derived(
+		cn(
+			"group relative flex items-center justify-center transition-all duration-200 ease-out focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
+			embeddedInGroup
+				? cn(
+						PROJECT_CARD_ACTION_BUTTON_CLASS,
+						"rounded-none border-0 bg-transparent shadow-none hover:!bg-accent"
+					)
+				: "mic-btn rounded-full",
+			visualState === "mic" && "mic-idle",
+			visualState === "stop" && "mic-recording",
+			(visualState === "spinner" || visualState === "download_progress") && "mic-busy",
+			visualState === "download_progress" && "mic-downloading",
+			embeddedInGroup && visualState === "download_progress" && "mic-downloading-wide min-w-[74px] justify-end px-1.5",
+			disabled && "opacity-40 cursor-not-allowed"
+		)
+	);
 </script>
 
 <button
-	class="mic-btn group relative flex items-center justify-center rounded-full
-		transition-all duration-200 ease-out focus-visible:outline-none focus-visible:ring-1
-		focus-visible:ring-ring"
-	class:mic-idle={visualState === "mic"}
-	class:mic-recording={visualState === "stop"}
-	class:mic-busy={visualState === "spinner" || visualState === "download_progress"}
-	class:mic-downloading={visualState === "download_progress"}
-	class:opacity-40={disabled}
-	class:cursor-not-allowed={disabled}
+	class={buttonClass}
 	aria-label={ariaLabel}
 	aria-pressed={isRecording}
 	{disabled}
@@ -88,7 +102,7 @@
 		<div class="mic-icon-wrap">
 			<Microphone
 				class="h-[15px] w-[15px] transition-all duration-150 ease-out"
-				weight={isHovered ? "fill" : "regular"}
+				weight={isHovered ? "fill" : "bold"}
 			/>
 		</div>
 	{/if}
@@ -100,7 +114,8 @@
 		height: 26px;
 		color: var(--muted-foreground);
 	}
-	.mic-downloading {
+	.mic-downloading,
+	.mic-downloading-wide {
 		width: auto;
 		min-width: 74px;
 		padding-inline: 6px;

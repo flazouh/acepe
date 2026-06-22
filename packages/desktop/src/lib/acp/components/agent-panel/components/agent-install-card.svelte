@@ -32,11 +32,11 @@ const installTitle = $derived(`Setting up ${agentName}...`);
 	{#snippet progressIndicator()}
 		<VoiceDownloadProgress
 			ariaLabel={`${installTitle} ${stage}`}
-			compact={true}
 			label=""
 			percent={progressPercent}
 			segmentCount={20}
 			showPercent={false}
+			variant="downloadCompact"
 		/>
 	{/snippet}
 </SharedAgentPanelInstallCard>

@@ -96,10 +96,10 @@ function formatBytes(bytes: number): string {
 						{#if isDownloading}
 							<VoiceDownloadProgress
 								ariaLabel={`Downloading ${model.name}`}
-								compact={false}
 								label=""
 								percent={voiceSettingsStore.downloadPercent}
 								segmentCount={20}
+								variant="download"
 							/>
 						{:else if model.is_downloaded}
 							<button

@@ -3,11 +3,10 @@
 -->
 <script lang="ts">
 	import type { Snippet } from "svelte";
-	import { IconPlus } from "@tabler/icons-svelte";
-	import { CheckCircle, File, Image as ImageIcon } from "phosphor-svelte";
+	import { CheckCircle, File, Image as ImageIcon, Plus } from "phosphor-svelte";
 
 	import * as DropdownMenu from "../dropdown-menu/index.js";
-	import { Selector } from "../selector/index.js";
+	import { EmbeddedIconButton } from "../panel-header/index.js";
 	import AgentInputModeIcon from "./agent-input-mode-icon.svelte";
 	import AgentInputAutonomousToggle from "./agent-input-autonomous-toggle.svelte";
 	import AgentInputSlashCommandRow from "./agent-input-slash-command-row.svelte";
@@ -188,25 +187,24 @@
 	}
 </script>
 
-<div class="flex items-center gap-0.5">
-<Selector
-	bind:open={menuOpen}
-	{disabled}
-	onOpenChange={handleOpenChange}
-	align="start"
-	side="top"
-	sideOffset={8}
-	variant="ghost"
-	showChevron={false}
-	triggerSize="icon"
-	triggerClass={menuOpen ? "bg-accent text-foreground" : ""}
-	triggerAriaLabel="Add context and tools"
-	contentClass={attachMenuContentClass}
->
-	{#snippet renderButton()}
-		<IconPlus class="h-3 w-3" />
-	{/snippet}
-
+<div class="flex items-end gap-0.5">
+<DropdownMenu.Root bind:open={menuOpen} onOpenChange={handleOpenChange}>
+	<DropdownMenu.Trigger>
+		{#snippet child({ props })}
+			<EmbeddedIconButton
+				{...props}
+				{disabled}
+				active={menuOpen}
+				title="Add context and tools"
+				ariaLabel="Add context and tools"
+			>
+				{#snippet children()}
+					<Plus size={12} weight="bold" />
+				{/snippet}
+			</EmbeddedIconButton>
+		{/snippet}
+	</DropdownMenu.Trigger>
+	<DropdownMenu.Content side="top" align="start" sideOffset={8} class={attachMenuContentClass}>
 	<div class="flex h-auto flex-col gap-0 pb-0">
 	<div class="px-1.5 pb-0.5 pt-0">
 			<input
@@ -385,13 +383,13 @@
 			</div>
 		{/if}
 	</div>
-</Selector>
+	</DropdownMenu.Content>
+</DropdownMenu.Root>
 {#if onAutonomousToggle}
 	<AgentInputAutonomousToggle
 		active={autonomousToggleActive}
 		disabled={autonomousDisabled || disabled}
 		busy={autonomousBusy}
-		compact
 		title={autonomousTooltip ?? "Auto-approve"}
 		ariaLabel={autonomousTooltip ?? "Auto-approve"}
 		tooltipDescription="Acepe auto-approves every permission request — file edits, commands, and other actions — without asking. Questions and plan reviews still surface."

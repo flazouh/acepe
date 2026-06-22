@@ -95,12 +95,11 @@ onMount(() => {
 
 					<VoiceDownloadProgress
 						ariaLabel={isInstalling ? "Installing update..." : "Downloading update"}
-						compact={true}
-						fillWidth={true}
 						label=""
 						percent={downloadPercent !== null ? downloadPercent : 0}
 						segmentCount={UPDATE_PROGRESS_SEGMENT_COUNT}
 						showPercent={false}
+						variant="downloadFillWidth"
 					/>
 
 					{#if updaterState.kind === "downloading"}

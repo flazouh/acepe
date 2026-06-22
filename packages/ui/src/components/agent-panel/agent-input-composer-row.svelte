@@ -99,13 +99,13 @@
 			{/if}
 		{/if}
 	</div>
-	<div class="flex items-center justify-between gap-1 min-w-0">
-		<div class="flex items-center gap-0.5 shrink-0">
+	<div class="flex items-end justify-between gap-1 min-w-0">
+		<div class="flex items-end gap-0.5 shrink-0">
 			{#if leading}
 				{@render leading()}
 			{/if}
 		</div>
-		<div class="flex items-center gap-0.5 shrink-0">
+		<div class="flex items-end gap-2 shrink-0">
 			{#if trailing}
 				{@render trailing()}
 			{/if}
@@ -115,7 +115,7 @@
 					size="icon"
 					onclick={onSubmit}
 					disabled={submitDisabled}
-					class="h-7 w-7 cursor-pointer shrink-0 rounded-full bg-foreground text-background hover:bg-foreground/85"
+					class="h-7 w-7 cursor-pointer shrink-0 rounded-lg bg-foreground text-background hover:bg-foreground/85"
 				>
 					<Stop weight="fill" class="h-3.5 w-3.5" />
 					<span class="sr-only">{submitAriaLabel}</span>
@@ -126,7 +126,7 @@
 					size="icon"
 					onclick={onSubmit}
 					disabled={submitDisabled}
-					class="h-7 w-7 cursor-pointer shrink-0 rounded-full bg-foreground text-background hover:bg-foreground/85"
+					class="h-7 w-7 cursor-pointer shrink-0 rounded-lg bg-foreground text-background hover:bg-foreground/85"
 				>
 					<IconArrowUp class="h-3.5 w-3.5" />
 					<span class="sr-only">{submitAriaLabel}</span>

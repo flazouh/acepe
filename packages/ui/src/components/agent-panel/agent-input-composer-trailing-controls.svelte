@@ -8,6 +8,7 @@
 	import AgentInputConfigOptionSelector from "./agent-input-config-option-selector.svelte";
 	import AgentInputMicButton from "./agent-input-mic-button.svelte";
 	import AgentInputVoiceModelMenu from "./agent-input-voice-model-menu.svelte";
+	import { ButtonGroup } from "../button-group/index.js";
 	import {
 		isMicButtonDisabled,
 		isVoiceActive,
@@ -76,6 +77,8 @@
 		selectorsLoading?: boolean;
 		selectorsDisabledByComposer?: boolean;
 	} = $props();
+
+	const voiceControlGroupClass = "overflow-hidden rounded-md bg-accent/30";
 </script>
 
 {#if inputReady}
@@ -104,18 +107,18 @@
 			</div>
 		{:else}
 			<div
-				class="flex items-center gap-1 transition-opacity duration-200 ease-out"
+				class="flex items-end gap-1 transition-opacity duration-200 ease-out"
 				class:opacity-0={voiceActive}
 				class:pointer-events-none={voiceActive}
 			>
 				{#if agentProjectPicker}
-					<div class="flex h-7 shrink-0 items-center">
+					<div class="flex shrink-0 items-end">
 						{@render agentProjectPicker()}
 					</div>
 				{/if}
 				{@render modelSelector()}
 				{#if toolbarConfigOptions.length > 0 && onConfigOptionChange}
-					<div class="flex h-7 shrink-0 items-center">
+					<div class="flex shrink-0 items-end">
 						{#each toolbarConfigOptions as configOption (configOption.id)}
 							<AgentInputConfigOptionSelector
 								{configOption}
@@ -128,7 +131,7 @@
 					</div>
 				{/if}
 				{#if metricsChip}
-					<div class="flex h-7 shrink-0 items-center">
+					<div class="flex shrink-0 items-end">
 						{@render metricsChip()}
 					</div>
 				{/if}
@@ -143,29 +146,33 @@
 						{voiceCloseLabel}
 					</button>
 				{/if}
-				<div class="voice-controls flex items-center">
-					<AgentInputVoiceModelMenu
-						models={voiceModels}
-						selectedModelId={voiceSelectedModelId}
-						modelsLoading={voiceModelsLoading}
-						downloadingModelId={voiceDownloadingModelId}
-						downloadPercent={voiceDownloadPercent}
-						menuLabel={voiceMenuLabel}
-						loadingLabel={voiceModelsLoadingLabel}
-						onSelectModel={onVoiceSelectModel}
-						onDownloadModel={onVoiceDownloadModel}
-					/>
-					<AgentInputMicButton
-						visualState={getMicButtonVisualState(currentVoiceState.phase)}
-						downloadPercent={currentVoiceState.downloadPercent}
-						title={getMicButtonTitle(currentVoiceState)}
-						ariaLabel={getMicButtonTitle(currentVoiceState)}
-						disabled={isMicButtonDisabled({ voiceState: currentVoiceState, composerIsDispatching })}
-						onpointerdown={(event) => currentVoiceState.onMicPointerDown(event)}
-						onpointerup={() => currentVoiceState.onMicPointerUp()}
-						onpointercancel={() => currentVoiceState.onMicPointerCancel()}
-						onkeydown={(event) => onVoiceMicKeyDown(event, currentVoiceState)}
-					/>
+				<div class="voice-controls flex items-end">
+					<ButtonGroup class={voiceControlGroupClass}>
+						<AgentInputMicButton
+							embeddedInGroup
+							visualState={getMicButtonVisualState(currentVoiceState.phase)}
+							downloadPercent={currentVoiceState.downloadPercent}
+							title={getMicButtonTitle(currentVoiceState)}
+							ariaLabel={getMicButtonTitle(currentVoiceState)}
+							disabled={isMicButtonDisabled({ voiceState: currentVoiceState, composerIsDispatching })}
+							onpointerdown={(event) => currentVoiceState.onMicPointerDown(event)}
+							onpointerup={() => currentVoiceState.onMicPointerUp()}
+							onpointercancel={() => currentVoiceState.onMicPointerCancel()}
+							onkeydown={(event) => onVoiceMicKeyDown(event, currentVoiceState)}
+						/>
+						<AgentInputVoiceModelMenu
+							embeddedInGroup
+							models={voiceModels}
+							selectedModelId={voiceSelectedModelId}
+							modelsLoading={voiceModelsLoading}
+							downloadingModelId={voiceDownloadingModelId}
+							downloadPercent={voiceDownloadPercent}
+							menuLabel={voiceMenuLabel}
+							loadingLabel={voiceModelsLoadingLabel}
+							onSelectModel={onVoiceSelectModel}
+							onDownloadModel={onVoiceDownloadModel}
+						/>
+					</ButtonGroup>
 				</div>
 			{/if}
 		{/if}

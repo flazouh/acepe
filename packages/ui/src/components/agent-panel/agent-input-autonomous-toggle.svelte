@@ -9,13 +9,14 @@
 	import { ShieldCheck } from "phosphor-svelte";
 
 	import { Colors } from "../../lib/colors.js";
+	import { cn } from "../../lib/utils.js";
+	import { EmbeddedIconButton } from "../panel-header/index.js";
 	import { Tooltip, TooltipContent, TooltipTrigger } from "../tooltip/index.js";
 
 	interface Props {
 		active: boolean;
 		disabled?: boolean;
 		busy?: boolean;
-		compact?: boolean;
 		title?: string;
 		ariaLabel?: string;
 		/** Optional richer description rendered below the title in the tooltip. */
@@ -27,45 +28,13 @@
 		active,
 		disabled = false,
 		busy = false,
-		compact = false,
 		title = "Auto-approve",
 		ariaLabel = "Auto-approve",
 		tooltipDescription,
 		onToggle,
 	}: Props = $props();
 
-	const buttonClass = $derived.by(() => {
-		let classes = compact
-			? "flex h-6 w-6 items-center justify-center rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-			: "flex h-7 w-7 items-center justify-center rounded-none transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring";
-
-		if (active) {
-			if (!busy) {
-				classes += " autonomous-toggle--active-hover";
-			}
-		} else {
-			if (!disabled) {
-				classes += " text-muted-foreground";
-				if (!busy) {
-					classes += " hover:bg-accent/50 hover:text-foreground";
-				}
-			}
-		}
-
-		if (disabled && !active) {
-			classes += " text-muted-foreground/60";
-		}
-
-		if (disabled || busy) {
-			classes += " cursor-default";
-		}
-
-		if (busy && !active) {
-			classes += " opacity-70";
-		}
-
-		return classes;
-	});
+	const buttonClass = $derived(cn(busy && !active ? "opacity-70" : "", disabled || busy ? "cursor-default" : ""));
 
 	const iconClass = $derived.by(() => {
 		if (active) return "";
@@ -75,7 +44,7 @@
 
 	const buttonStyle = $derived.by(() => {
 		if (!active) return undefined;
-		return `color: ${Colors.purple}; --autonomous-toggle-active-color: ${Colors.purple};`;
+		return `color: ${Colors.purple};`;
 	});
 
 	function handleClick(): void {
@@ -87,18 +56,21 @@
 <Tooltip>
 	<TooltipTrigger>
 		{#snippet child({ props: triggerProps })}
-			<button
+			<EmbeddedIconButton
 				{...triggerProps}
-				type="button"
-				onclick={handleClick}
-				aria-label={ariaLabel}
-				aria-pressed={active}
-				aria-disabled={disabled || busy}
+				title={title}
+				ariaLabel={ariaLabel}
+				active={active}
+				disabled={disabled || busy}
 				class={buttonClass}
 				style={buttonStyle}
+				aria-pressed={active}
+				onclick={handleClick}
 			>
-				<ShieldCheck class={iconClass} size={14} weight={active ? "fill" : "regular"} />
-			</button>
+				{#snippet children()}
+					<ShieldCheck class={iconClass} size={12} weight={active ? "fill" : "bold"} />
+				{/snippet}
+			</EmbeddedIconButton>
 		{/snippet}
 	</TooltipTrigger>
 	<TooltipContent class="max-w-xs">
@@ -110,9 +82,3 @@
 		</div>
 	</TooltipContent>
 </Tooltip>
-
-<style>
-	.autonomous-toggle--active-hover:hover {
-		background-color: color-mix(in srgb, var(--autonomous-toggle-active-color) 10%, transparent);
-	}
-</style>
