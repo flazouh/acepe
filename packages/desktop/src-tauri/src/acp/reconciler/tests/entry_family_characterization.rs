@@ -13,10 +13,11 @@
 
 use crate::acp::parsers::{get_parser, AgentType, CopilotParser};
 use crate::acp::reconciler::providers;
+use crate::acp::reconciler::session_tool::classify_serialized_tool_call;
 use crate::acp::reconciler::{
-    classify_raw_tool_call, classify_serialized_tool_call, classify_with_provider_name_kind,
-    display_name_for_tool, infer_kind_from_payload, infer_kind_from_payload_for_agent,
-    semantic_transition, RawClassificationInput, SignalName, ToolClassificationHints,
+    classify_raw_tool_call, classify_with_provider_name_kind, display_name_for_tool,
+    infer_kind_from_payload, infer_kind_from_payload_for_agent, semantic_transition,
+    RawClassificationInput, SignalName, ToolClassificationHints,
 };
 use crate::acp::session_update::{ToolArguments, ToolKind};
 
