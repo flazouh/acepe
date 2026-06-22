@@ -23,7 +23,9 @@ use crate::acp::provider_extensions::{InboundResponseAdapter, ProviderExtensionE
 use crate::acp::runtime_resolver::SpawnEnvStrategy;
 use crate::acp::session_descriptor::SessionReplayContext;
 use crate::acp::session_thread_snapshot::ProviderOwnedSessionSnapshot;
-use crate::acp::session_update::{AvailableCommand, PlanConfidence, PlanSource, SessionUpdate};
+use crate::acp::session_update::{
+    AvailableCommand, ConfigOptionData, PlanConfidence, PlanSource, SessionUpdate,
+};
 use crate::acp::task_reconciler::TaskReconciler;
 use crate::acp::task_reconciler::TaskReconciliationPolicy;
 use crate::acp::types::CanonicalAgentId;
@@ -387,6 +389,15 @@ pub trait AgentProvider: Send + Sync {
     /// Mode IDs visible to the UI for this provider.
     fn visible_mode_ids(&self) -> &'static [&'static str] {
         &[]
+    }
+
+    /// Config options to surface before a live session exists (the new-thread
+    /// setup bar and other preconnection capability resolution). Providers whose
+    /// session creation is deferred (e.g. cc_sdk) must advertise their config
+    /// options here so the toolbar widget appears pre-start, matching providers
+    /// whose synchronous `new_session` already returns config options.
+    fn preconnection_config_options(&self) -> Vec<ConfigOptionData> {
+        Vec::new()
     }
 
     /// Provider-owned fallback modes used when the provider does not return any modes.

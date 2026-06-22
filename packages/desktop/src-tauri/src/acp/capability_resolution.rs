@@ -158,7 +158,7 @@ fn finalize_capabilities(
             .unwrap_or_else(|| provider.frontend_projection()),
         available_modes: modes.available_modes,
         current_mode_id: Some(modes.current_mode_id),
-        config_options: Vec::new(),
+        config_options: provider.preconnection_config_options(),
     })
 }
 

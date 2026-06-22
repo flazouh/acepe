@@ -53,7 +53,7 @@ use crate::cc_sdk;
 mod permission_handler;
 mod permissions;
 mod questions;
-mod reasoning_config;
+pub(crate) mod reasoning_config;
 mod streaming_bridge;
 mod tracking;
 

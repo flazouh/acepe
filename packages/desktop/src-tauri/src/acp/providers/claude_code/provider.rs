@@ -71,6 +71,18 @@ impl AgentProvider for ClaudeCodeProvider {
         CommunicationMode::CcSdk
     }
 
+    fn preconnection_config_options(
+        &self,
+    ) -> Vec<crate::acp::session_update::ConfigOptionData> {
+        // Claude uses deferred (cc_sdk) creation, so `new_session` does not run
+        // before the first prompt. Advertise the reasoning option here so the
+        // compact reasoning widget appears in the new-thread setup bar, matching
+        // providers whose synchronous new_session already returns it.
+        crate::acp::client::cc_sdk_client::reasoning_config::build_claude_reasoning_config_options(
+            &crate::acp::client::cc_sdk_client::reasoning_config::ClaudeReasoningConfigState::default(),
+        )
+    }
+
     fn icon(&self) -> &str {
         "claude"
     }
@@ -766,6 +778,24 @@ mod tests {
         let provider = ClaudeCodeProvider;
 
         assert_eq!(provider.communication_mode(), CommunicationMode::CcSdk);
+    }
+
+    #[test]
+    fn preconnection_config_options_advertise_reasoning_for_deferred_setup_bar() {
+        let provider = ClaudeCodeProvider;
+
+        let options = provider.preconnection_config_options();
+
+        // Claude is deferred-creation (cc_sdk), so the new-thread setup bar relies
+        // on this preconnection path to surface the reasoning widget pre-start.
+        let reasoning = options
+            .iter()
+            .find(|option| option.id == "reasoning_effort")
+            .expect("reasoning option advertised pre-connection");
+        assert_eq!(
+            reasoning.presentation,
+            crate::acp::session_update::ConfigOptionPresentation::CompactReasoning
+        );
     }
 
     #[test]
