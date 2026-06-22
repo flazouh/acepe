@@ -127,11 +127,20 @@ fn reconnect_error_allows_cached_ready_snapshot(
 
 async fn reconnect_client_session(
     client: &mut (dyn AgentClient + Send + Sync + 'static),
+    db: Option<&sea_orm::DbConn>,
     session_id: &str,
     cwd: &str,
     launch_mode_id: Option<String>,
     operation: &str,
 ) -> Result<ResumeSessionResponse, SerializableAcpError> {
+    // Agent-agnostic restore: replay persisted config selections through the
+    // canonical setter BEFORE reconnecting, so connect-time consumers (e.g.
+    // Claude's --effort) and per-turn consumers (e.g. Codex) both see them.
+    if let Some(db) = db {
+        client
+            .restore_persisted_config_selections(db, session_id)
+            .await;
+    }
     timeout(
         SESSION_CLIENT_OPERATION_TIMEOUT,
         client.reconnect_session(session_id.to_string(), cwd.to_string(), launch_mode_id),
@@ -151,6 +160,7 @@ async fn reconnect_client_session(
 
 pub(super) async fn resume_or_create_session_client<F, Fut>(
     session_registry: &SessionRegistry,
+    db: Option<&sea_orm::DbConn>,
     session_id: String,
     cwd: String,
     agent_id: CanonicalAgentId,
@@ -175,6 +185,7 @@ where
                 .await?;
                 reconnect_client_session(
                     existing_client.as_mut(),
+                    db,
                     &session_id,
                     &cwd,
                     launch_mode_id.clone(),
@@ -219,6 +230,7 @@ where
     let mut client = create_client_fn().await?;
     let result = reconnect_client_session(
         client.as_mut(),
+        db,
         &session_id,
         &cwd,
         launch_mode_id,

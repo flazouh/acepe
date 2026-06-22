@@ -363,6 +363,7 @@ async fn resume_or_create_reuses_existing_client() {
 
     let result = resume_or_create_session_client(
         &session_registry,
+        None,
         session_id.clone(),
         cwd,
         agent_id,
@@ -403,6 +404,7 @@ async fn resume_or_create_builds_client_when_missing() {
 
     let result = resume_or_create_session_client(
         &session_registry,
+        None,
         session_id.clone(),
         cwd,
         agent_id,
@@ -697,6 +699,7 @@ async fn resume_or_create_uses_provider_owned_load_reconnect_behavior() {
 
     let result = resume_or_create_session_client(
         &session_registry,
+        None,
         session_id.clone(),
         cwd,
         agent_id,
@@ -766,6 +769,7 @@ async fn resume_or_create_reuses_cached_snapshot_when_existing_client_is_already
 
     let result = resume_or_create_session_client(
         &session_registry,
+        None,
         session_id.clone(),
         cwd,
         agent_id,
@@ -849,6 +853,7 @@ async fn resume_or_create_does_not_reuse_cached_snapshot_when_copilot_reports_mi
 
     let result = resume_or_create_session_client(
         &session_registry,
+        None,
         session_id.clone(),
         cwd,
         agent_id,
@@ -895,6 +900,7 @@ async fn resume_or_create_does_not_store_client_when_new_resume_fails() {
 
     let result = resume_or_create_session_client(
         &session_registry,
+        None,
         session_id.clone(),
         cwd,
         agent_id,
@@ -1131,6 +1137,7 @@ async fn resume_or_create_replaces_client_when_existing_resume_fails() {
 
     let result = resume_or_create_session_client(
         &session_registry,
+        None,
         session_id.clone(),
         cwd,
         agent_id,
@@ -2070,6 +2077,7 @@ async fn resume_or_create_passes_launch_mode_through_provider_owned_reconnect() 
     let replacement_state = MockClientState::new(false);
     let result = resume_or_create_session_client(
         &session_registry,
+        None,
         session_id.clone(),
         cwd,
         agent_id,

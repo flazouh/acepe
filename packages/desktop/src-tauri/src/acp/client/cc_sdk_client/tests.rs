@@ -483,8 +483,9 @@ async fn apply_persisted_config_selections_restores_reasoning_effort() {
     .expect("persist selection");
 
     let mut client = make_test_client();
-    client.db = Some(db);
-    client.apply_persisted_config_selections("sess-restore").await;
+    client
+        .restore_persisted_config_selections(&db, "sess-restore")
+        .await;
 
     assert_eq!(client.reasoning_config.effort, Some(crate::cc_sdk::Effort::Xhigh));
 }
@@ -493,10 +494,9 @@ async fn apply_persisted_config_selections_restores_reasoning_effort() {
 async fn apply_persisted_config_selections_is_noop_without_persisted_value() {
     let db = setup_test_db().await;
     let mut client = make_test_client();
-    client.db = Some(db);
 
     client
-        .apply_persisted_config_selections("sess-absent")
+        .restore_persisted_config_selections(&db, "sess-absent")
         .await;
 
     assert_eq!(client.reasoning_config.effort, None);

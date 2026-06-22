@@ -117,6 +117,54 @@ pub trait AgentClient: Send + Sync {
         ))
     }
 
+    /// Restore per-session config-option selections persisted by a prior set,
+    /// replaying each through the canonical `set_session_config_option` so the
+    /// choice (e.g. reasoning effort) survives reopen. Agent-agnostic: any
+    /// provider that implements the setter participates with no extra code.
+    ///
+    /// Called from the shared resume seam BEFORE the client connects, so
+    /// connect-time consumers (e.g. Claude's `--effort` in `build_options`) see
+    /// the restored value, and per-turn consumers (e.g. Codex) do too.
+    ///
+    /// CONTRACT: `set_session_config_option` implementations must be pure
+    /// in-memory state mutations — no I/O and no assumption of a live agent
+    /// connection — because this runs pre-connect.
+    async fn restore_persisted_config_selections(
+        &mut self,
+        db: &sea_orm::DbConn,
+        session_id: &str,
+    ) {
+        let mut selections =
+            match crate::db::repository::SessionConfigSelectionRepository::get_all(db, session_id)
+                .await
+            {
+                Ok(selections) => selections,
+                Err(error) => {
+                    tracing::warn!(
+                        session_id = %session_id,
+                        error = %error,
+                        "Failed to load persisted config selections"
+                    );
+                    return;
+                }
+            };
+        // Deterministic replay order for reproducibility.
+        selections.sort_by(|a, b| a.0.cmp(&b.0));
+        for (config_id, value) in selections {
+            if let Err(error) = self
+                .set_session_config_option(session_id.to_string(), config_id.clone(), value)
+                .await
+            {
+                tracing::debug!(
+                    session_id = %session_id,
+                    config_id = %config_id,
+                    error = %error,
+                    "Skipping persisted config selection not accepted by this provider"
+                );
+            }
+        }
+    }
+
     /// Send prompt to session (blocking - waits for response)
     async fn send_prompt(&mut self, request: PromptRequest) -> AcpResult<Value>;
 

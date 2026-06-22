@@ -180,53 +180,6 @@ impl ClaudeCcSdkClient {
         self.pending_mode_id = Some("default".to_string());
     }
 
-    /// Restore per-session config-option selections persisted by a prior set,
-    /// replaying each through the same setter used for live changes. Best-effort:
-    /// a missing DB, load error, or unknown option id is logged and skipped.
-    async fn apply_persisted_config_selections(&mut self, session_id: &str) {
-        let Some(db) = self.db.clone() else {
-            return;
-        };
-        let selections = match crate::db::repository::SessionConfigSelectionRepository::get_all(
-            &db, session_id,
-        )
-        .await
-        {
-            Ok(selections) => selections,
-            Err(error) => {
-                tracing::warn!(
-                    session_id = %session_id,
-                    error = %error,
-                    "Failed to load persisted config selections"
-                );
-                return;
-            }
-        };
-        for (config_id, value) in selections {
-            match config_id.as_str() {
-                reasoning_config::REASONING_CONFIG_ID => {
-                    if let Err(error) =
-                        reasoning_config::set_reasoning_effort(&mut self.reasoning_config, &value)
-                    {
-                        tracing::warn!(
-                            session_id = %session_id,
-                            config_id = %config_id,
-                            error = %error,
-                            "Skipping invalid persisted reasoning selection"
-                        );
-                    }
-                }
-                _ => {
-                    tracing::debug!(
-                        session_id = %session_id,
-                        config_id = %config_id,
-                        "Skipping persisted selection for unadvertised config option"
-                    );
-                }
-            }
-        }
-    }
-
     async fn restore_session_permission_approvals(&self, session_id: &str) {
         let _ = self.permission_bridge.drain_all_as_denied().await;
 
@@ -825,7 +778,6 @@ impl AgentClient for ClaudeCcSdkClient {
             self.reset_pending_mode_for_safe_resume();
         }
         self.restore_session_permission_approvals(&session_id).await;
-        self.apply_persisted_config_selections(&session_id).await;
         let history_session_id = self.history_session_id_for_app_session(&session_id).await;
         if !self.session_has_persisted_history(&session_id, &cwd).await {
             self.session_id = Some(session_id.clone());

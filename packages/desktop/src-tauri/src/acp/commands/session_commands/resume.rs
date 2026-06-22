@@ -335,6 +335,7 @@ pub(super) async fn async_resume_session_work(
     let cwd_str = cwd.to_string_lossy().to_string();
     let result = resume_or_create_session_client(
         &session_registry,
+        Some(db.inner()),
         session_id.to_string(),
         cwd_str,
         agent_id_enum.clone(),
