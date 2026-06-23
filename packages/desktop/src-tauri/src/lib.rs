@@ -5,6 +5,7 @@ pub mod cc_sdk;
 pub mod checkpoint;
 pub mod codex_history;
 mod commands;
+pub mod computer_use;
 pub mod copilot_history;
 pub mod cursor_history;
 pub mod db;
@@ -18,6 +19,7 @@ mod macos_resource_limits;
 pub mod opencode_history;
 pub mod path_safety;
 pub mod project_access;
+pub mod provider_account_usage;
 pub mod pty;
 mod session_converter;
 pub mod session_jsonl;
@@ -99,6 +101,7 @@ use history::commands::{
 };
 use history::indexer::IndexerActor;
 use opencode_history::commands::{get_opencode_history, get_opencode_sessions_for_project};
+use provider_account_usage::get_provider_account_usage;
 use pty::commands::get_default_shell;
 use session_jsonl::commands::{
     get_cache_stats, get_index_status, invalidate_history_cache, reindex_sessions,
@@ -766,9 +769,39 @@ pub fn run() {
             if crate::acp::agent_installer::is_installed(
                 &crate::acp::types::CanonicalAgentId::ClaudeCode,
             ) {
+                // Warm the picker from the currently-installed binary immediately so it
+                // is never blocked on the network probe below.
                 crate::acp::providers::claude_code_model_catalog::warm_catalog_in_background(
                     app.handle().clone(),
                 );
+
+                // In the background, advance the managed Claude CLI to the latest
+                // published release (best-effort, non-blocking). Only if it actually
+                // updated do we invalidate the catalog snapshot and re-warm so the
+                // picker reflects the new binary's models. `ensure_managed_claude_up_to_date`
+                // self-skips when the binary is absent (cold install stays with the
+                // install flow), so this is safe to fire unconditionally here.
+                let claude_update_handle = app.handle().clone();
+                tauri::async_runtime::spawn(async move {
+                    let outcome =
+                        crate::cc_sdk::cli_download::ensure_managed_claude_up_to_date().await;
+                    if let crate::cc_sdk::cli_download::UpdateOutcome::Updated { .. } = outcome {
+                        if let Err(error) =
+                            crate::acp::providers::claude_code_model_catalog::invalidate_catalog_snapshot_for_app(
+                                &claude_update_handle,
+                            )
+                            .await
+                        {
+                            tracing::warn!(
+                                error = %error,
+                                "Failed to invalidate Claude catalog snapshot after CLI update"
+                            );
+                        }
+                        crate::acp::providers::claude_code_model_catalog::warm_catalog_in_background(
+                            claude_update_handle,
+                        );
+                    }
+                });
             }
 
             // Initialize database

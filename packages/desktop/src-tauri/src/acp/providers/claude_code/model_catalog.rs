@@ -849,6 +849,42 @@ mod tests {
     use std::sync::Arc;
     use tempfile::tempdir;
 
+    // ── scan ≡ spawn invariant (regression lock for plan U5) ─────────────────
+
+    /// The catalog scan's binary fingerprint and the subprocess spawn path must
+    /// always derive from the same resolver (`find_claude_cli`). They must be
+    /// consistently present or consistently absent — never diverge — and the
+    /// fingerprint path must equal the canonicalized spawn path when a managed
+    /// binary is resolvable. Now that the binary can be auto-updated underneath
+    /// these paths, this guards against any future divergence.
+    #[test]
+    fn fingerprint_path_matches_find_claude_cli_resolver() {
+        use crate::cc_sdk::transport::subprocess::find_claude_cli;
+
+        match find_claude_cli() {
+            Ok(spawn_path) => {
+                let canonical = spawn_path
+                    .canonicalize()
+                    .expect("resolved spawn path should canonicalize");
+                let (fingerprint_path, _, _) = current_binary_fingerprint()
+                    .expect("fingerprint must be present when the CLI resolves");
+                assert_eq!(
+                    fingerprint_path,
+                    canonical.to_string_lossy(),
+                    "catalog scan and spawn must resolve the same binary"
+                );
+            }
+            Err(_) => {
+                // No managed CLI in this environment: the fingerprint must also be
+                // absent, proving both derive from the same resolver.
+                assert!(
+                    current_binary_fingerprint().is_none(),
+                    "fingerprint must be absent when no CLI resolves"
+                );
+            }
+        }
+    }
+
     // ── derive_display_name ──────────────────────────────────────────────────
 
     #[test]

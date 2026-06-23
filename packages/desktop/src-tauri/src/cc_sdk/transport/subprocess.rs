@@ -25,15 +25,15 @@ const CHANNEL_BUFFER_SIZE: usize = 100;
 const CLI_VERSION_TIMEOUT: Duration = Duration::from_secs(5);
 
 /// Simple semantic version struct
-#[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
-struct SemVer {
-    major: u32,
-    minor: u32,
-    patch: u32,
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub(crate) struct SemVer {
+    pub(crate) major: u32,
+    pub(crate) minor: u32,
+    pub(crate) patch: u32,
 }
 
 impl SemVer {
-    fn new(major: u32, minor: u32, patch: u32) -> Self {
+    pub(crate) fn new(major: u32, minor: u32, patch: u32) -> Self {
         Self {
             major,
             minor,
@@ -42,7 +42,7 @@ impl SemVer {
     }
 
     /// Parse semantic version from string (e.g., "2.0.0" or "v2.0.0")
-    fn parse(version: &str) -> Option<Self> {
+    pub(crate) fn parse(version: &str) -> Option<Self> {
         let version = version.trim().trim_start_matches('v');
 
         // Handle versions like "@anthropic-ai/claude-code/2.0.0"
@@ -141,7 +141,7 @@ fn read_claude_cli_version_with_timeout(path: &Path, timeout: Duration) -> Resul
     }
 }
 
-fn read_claude_cli_version(path: &Path) -> Result<SemVer> {
+pub(crate) fn read_claude_cli_version(path: &Path) -> Result<SemVer> {
     read_claude_cli_version_with_timeout(path, CLI_VERSION_TIMEOUT)
 }
 
