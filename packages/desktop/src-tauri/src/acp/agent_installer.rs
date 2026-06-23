@@ -850,7 +850,7 @@ async fn fetch_codex_download_info(client: &reqwest::Client) -> AcpResult<Downlo
         "codex",
         "rust-v",
         codex_release_asset_name(),
-        codex_release_command(),
+        &codex_release_command(),
     )
     .await
 }
@@ -1164,14 +1164,17 @@ fn codex_release_asset_name() -> &'static str {
     panic!("Unsupported platform for Codex release asset")
 }
 
-#[cfg(windows)]
-fn codex_release_command() -> &'static str {
-    "./codex.exe"
-}
-
-#[cfg(not(windows))]
-fn codex_release_command() -> &'static str {
-    "./codex"
+/// Codex release archives extract a single binary named after the asset (the Rust
+/// target triple), e.g. `codex-aarch64-apple-darwin` (or `…-msvc.exe` on Windows) —
+/// NOT `codex`. The run command is that binary name with the archive extension
+/// stripped, so the recorded `cmd` matches what actually lands on disk.
+fn codex_release_command() -> String {
+    let asset = codex_release_asset_name();
+    let base = asset
+        .strip_suffix(".tar.gz")
+        .or_else(|| asset.strip_suffix(".zip"))
+        .unwrap_or(asset);
+    format!("./{base}")
 }
 
 fn copilot_release_asset_name_for(os: &str, arch: &str) -> AcpResult<&'static str> {
@@ -1385,7 +1388,10 @@ mod tests {
     fn sha256_from_asset_digest_extracts_validates_and_lowercases() {
         let hex_upper = "AB".repeat(32); // 64 hex chars
         assert_eq!(
-            sha256_from_asset_digest(&test_asset("x.tar.gz", Some(&format!("sha256:{hex_upper}")))),
+            sha256_from_asset_digest(&test_asset(
+                "x.tar.gz",
+                Some(&format!("sha256:{hex_upper}"))
+            )),
             Some(hex_upper.to_ascii_lowercase())
         );
         // Missing digest → None (caller refuses to install unverified).
@@ -1402,9 +1408,26 @@ mod tests {
         );
         // Non-hex → None.
         assert_eq!(
-            sha256_from_asset_digest(&test_asset("x", Some(&format!("sha256:{}", "zz".repeat(32))))),
+            sha256_from_asset_digest(&test_asset(
+                "x",
+                Some(&format!("sha256:{}", "zz".repeat(32)))
+            )),
             None
         );
+    }
+
+    #[test]
+    fn codex_release_command_matches_extracted_binary_name() {
+        // The cmd must be the asset basename (archive extension stripped), e.g.
+        // ./codex-aarch64-apple-darwin — never ./codex, which does not exist on disk.
+        let cmd = codex_release_command();
+        let asset = codex_release_asset_name();
+        let expected_base = asset
+            .strip_suffix(".tar.gz")
+            .or_else(|| asset.strip_suffix(".zip"))
+            .unwrap_or(asset);
+        assert_eq!(cmd, format!("./{expected_base}"));
+        assert_ne!(cmd, "./codex", "must not use the bogus ./codex path");
     }
 
     #[test]

@@ -31,7 +31,9 @@ impl ManagedAgentRuntime for ClaudeRuntime {
             {
                 tracing::warn!(error = %error, "Failed invalidating Claude catalog after CLI update");
             }
-            crate::acp::providers::claude_code_model_catalog::warm_catalog_in_background(app.clone());
+            crate::acp::providers::claude_code_model_catalog::warm_catalog_in_background(
+                app.clone(),
+            );
         }
 
         map_claude_outcome(claude_outcome)

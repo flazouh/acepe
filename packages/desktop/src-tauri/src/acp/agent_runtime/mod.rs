@@ -94,4 +94,3 @@ mod tests {
         assert_eq!(ids.len(), 3, "exactly the three verified agents");
     }
 }
-
