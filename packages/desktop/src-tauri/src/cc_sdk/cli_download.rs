@@ -301,30 +301,33 @@ fn atomically_install_binary(source: &Path, target: &Path) -> Result<()> {
     Ok(())
 }
 
-/// Install CLI using platform-specific method
+/// Relative path inside the installed npm package to the real native binary. The
+/// package's `bin` field maps `claude` -> `bin/claude.exe` on every platform (the
+/// `.exe` name is used even on macOS/Linux).
+#[cfg(feature = "auto-download")]
+const CLAUDE_NATIVE_BIN_REL: &str = "bin/claude.exe";
+
+/// Sanity floor for the installed native binary. The real binary is ~200 MB; the
+/// package's fallback `bin/claude.exe` (when the platform binary was never fetched)
+/// is a ~500-byte error shim. Anything this small means the postinstall did not
+/// produce a real binary, so we refuse to install it over a working one.
+#[cfg(feature = "auto-download")]
+const MIN_NATIVE_BINARY_BYTES: u64 = 1_000_000;
+
+/// Install the managed Claude CLI via npm.
+///
+/// `@anthropic-ai/claude-code` delivers the real native binary through a postinstall
+/// (`install.cjs`) that copies it from a platform-specific optional dependency into
+/// `bin/claude.exe`. We keep `--ignore-scripts` so no arbitrary dependency-tree
+/// scripts run, then invoke ONLY that trusted package's own installer explicitly —
+/// the package's documented manual step. Copying `node_modules/.bin/claude` without
+/// this yields a ~500-byte error shim, not a working binary.
 #[cfg(feature = "auto-download")]
 async fn install_cli_for_platform(
     version: &str,
     target_path: &Path,
     on_progress: Option<DownloadProgressCallback>,
 ) -> Result<PathBuf> {
-    #[cfg(unix)]
-    {
-        install_cli_unix(version, target_path, on_progress).await
-    }
-    #[cfg(windows)]
-    {
-        install_cli_windows(version, target_path, on_progress).await
-    }
-}
-
-/// Install CLI on Unix systems (macOS, Linux)
-#[cfg(all(unix, feature = "auto-download"))]
-async fn install_cli_unix(
-    version: &str,
-    target_path: &Path,
-    on_progress: Option<DownloadProgressCallback>,
-) -> Result<PathBuf> {
     use tokio::process::Command;
 
     if let Some(ref progress) = on_progress {
@@ -347,9 +350,12 @@ async fn install_cli_unix(
     let temp_dir = std::env::temp_dir().join(format!("cc-sdk-npm-install-{}", unique_token()));
     let _ = std::fs::remove_dir_all(&temp_dir);
     std::fs::create_dir_all(&temp_dir)
-        .map_err(|e| SdkError::ConfigError(format!("Failed to create temp directory: {}", e)))?;
+        .map_err(|e| SdkError::ConfigError(format!("Failed to create temp directory: {e}")))?;
 
-    let output = Command::new("npm")
+    // 1. Install the package + its platform-native optional dependency. We keep
+    //    --ignore-scripts; this leaves bin/claude.exe as a fallback shim that step 2
+    //    replaces with the real binary.
+    let install = Command::new("npm")
         .args([
             "install",
             "--ignore-scripts",
@@ -360,127 +366,74 @@ async fn install_cli_unix(
         .output()
         .await
         .map_err(SdkError::ProcessError)?;
-
-    if output.status.success() {
-        let npm_bin_path = temp_dir.join("node_modules/.bin/claude");
-        if npm_bin_path.exists() {
-            let install_result = atomically_install_binary(&npm_bin_path, target_path);
-            let _ = std::fs::remove_dir_all(&temp_dir);
-            install_result?;
-
-            if let Some(ref progress) = on_progress {
-                progress(100, Some(100));
-            }
-
-            return Ok(target_path.to_path_buf());
-        }
-    } else {
-        let stderr = String::from_utf8_lossy(&output.stderr);
-        warn!("npm install failed: {}", stderr);
-    }
-
-    let stderr = String::from_utf8_lossy(&output.stderr);
-    let _ = std::fs::remove_dir_all(&temp_dir);
-
-    if !stderr.is_empty() {
-        warn!("Claude CLI npm install failed: {}", stderr);
-    }
-
-    if target_path.exists() {
-        if let Some(ref progress) = on_progress {
-            progress(100, Some(100));
-        }
-        return Ok(target_path.to_path_buf());
-    }
-
-    Err(SdkError::CliNotFound {
-        searched_paths: format!(
-            "Failed to automatically install Claude Code CLI.\n\
-            Please install manually:\n\n\
-            npm install -g {CLAUDE_CODE_NPM_PACKAGE}@{version}\n\n\
-            Error details: {}",
-            stderr
-        ),
-    })
-}
-
-/// Install CLI on Windows systems
-#[cfg(all(windows, feature = "auto-download"))]
-async fn install_cli_windows(
-    version: &str,
-    target_path: &Path,
-    on_progress: Option<DownloadProgressCallback>,
-) -> Result<PathBuf> {
-    use tokio::process::Command;
-
-    if let Some(ref progress) = on_progress {
-        progress(0, None);
-    }
-
-    if which::which("npm").is_err() {
+    if !install.status.success() {
+        let stderr = String::from_utf8_lossy(&install.stderr);
+        warn!("Claude CLI npm install failed: {}", stderr.trim());
+        let _ = std::fs::remove_dir_all(&temp_dir);
         return Err(SdkError::CliNotFound {
             searched_paths: format!(
-                "Failed to automatically install Claude Code CLI because npm was not found.\n\
-                Install npm, or install the CLI manually:\n\n\
-                npm install -g {CLAUDE_CODE_NPM_PACKAGE}@{version}"
+                "Failed to automatically install Claude Code CLI.\n\
+                Please install manually:\n\n\
+                npm install -g {CLAUDE_CODE_NPM_PACKAGE}@{version}\n\n\
+                Error details: {}",
+                stderr.trim()
             ),
         });
     }
 
-    debug!("Attempting to install Claude CLI {version} via npm...");
-
-    let npm_package = npm_package_for_version(version)?;
-    let temp_dir = std::env::temp_dir().join(format!("cc-sdk-npm-install-{}", unique_token()));
-    let _ = std::fs::remove_dir_all(&temp_dir);
-    std::fs::create_dir_all(&temp_dir)
-        .map_err(|e| SdkError::ConfigError(format!("Failed to create temp directory: {}", e)))?;
-
-    let output = Command::new("npm")
-        .args([
-            "install",
-            "--ignore-scripts",
-            "--prefix",
-            temp_dir.to_str().unwrap(),
-            &npm_package,
-        ])
+    // 2. Run the package's own installer to fetch the real native binary into
+    //    bin/claude.exe (the postinstall we skipped above). Invoked exactly as the
+    //    package documents: `node node_modules/<pkg>/install.cjs` from the prefix.
+    let installer_rel = format!("node_modules/{CLAUDE_CODE_NPM_PACKAGE}/install.cjs");
+    let postinstall = Command::new("node")
+        .arg(&installer_rel)
+        .current_dir(&temp_dir)
         .output()
         .await
         .map_err(SdkError::ProcessError)?;
+    if !postinstall.status.success() {
+        let stderr = String::from_utf8_lossy(&postinstall.stderr);
+        let _ = std::fs::remove_dir_all(&temp_dir);
+        return Err(SdkError::ConfigError(format!(
+            "Claude CLI postinstall (install.cjs) failed: {}",
+            stderr.trim()
+        )));
+    }
 
-    if output.status.success() {
-        let npm_bin_path = temp_dir.join("node_modules/.bin/claude.cmd");
-        if npm_bin_path.exists() {
-            let install_result = atomically_install_binary(&npm_bin_path, target_path);
+    // 3. The real native binary now lives at bin/claude.exe. Verify it is a real
+    //    binary (not the ~500-byte shim) before atomically installing it; on any
+    //    problem we leave the existing managed binary untouched.
+    let native_binary = temp_dir
+        .join("node_modules")
+        .join(CLAUDE_CODE_NPM_PACKAGE)
+        .join(CLAUDE_NATIVE_BIN_REL);
+    match std::fs::metadata(&native_binary) {
+        Ok(meta) if meta.len() >= MIN_NATIVE_BINARY_BYTES => {}
+        Ok(meta) => {
             let _ = std::fs::remove_dir_all(&temp_dir);
-            install_result?;
-
-            if let Some(ref progress) = on_progress {
-                progress(100, Some(100));
-            }
-
-            return Ok(target_path.to_path_buf());
+            return Err(SdkError::ConfigError(format!(
+                "Claude CLI native binary at {} is only {} bytes after postinstall (expected a real binary); refusing to install a shim",
+                native_binary.display(),
+                meta.len()
+            )));
+        }
+        Err(error) => {
+            let _ = std::fs::remove_dir_all(&temp_dir);
+            return Err(SdkError::ConfigError(format!(
+                "Claude CLI native binary missing after postinstall at {}: {error}",
+                native_binary.display()
+            )));
         }
     }
 
-    let stderr = String::from_utf8_lossy(&output.stderr);
+    let install_result = atomically_install_binary(&native_binary, target_path);
     let _ = std::fs::remove_dir_all(&temp_dir);
+    install_result?;
 
-    if target_path.exists() {
-        if let Some(ref progress) = on_progress {
-            progress(100, Some(100));
-        }
-        return Ok(target_path.to_path_buf());
+    if let Some(ref progress) = on_progress {
+        progress(100, Some(100));
     }
-
-    Err(SdkError::CliNotFound {
-        searched_paths: format!(
-            "Failed to automatically install Claude Code CLI.\n\
-            Please install manually:\n\n\
-            npm install -g {CLAUDE_CODE_NPM_PACKAGE}@{version}\n\n\
-            Error details: {}",
-            stderr
-        ),
-    })
+    Ok(target_path.to_path_buf())
 }
 
 /// Ensure the CLI is available, downloading if necessary

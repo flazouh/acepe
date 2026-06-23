@@ -116,7 +116,13 @@ fn read_claude_cli_version_with_timeout(path: &Path, timeout: Duration) -> Resul
                 }
 
                 let version_str = String::from_utf8_lossy(&stdout_bytes);
-                return SemVer::parse(version_str.trim()).ok_or_else(|| {
+                // `claude --version` prints e.g. "2.1.186 (Claude Code)" — take the
+                // first whitespace-delimited token so the trailing " (Claude Code)"
+                // does not corrupt the patch component (SemVer::parse would otherwise
+                // fail to parse "186 (Claude Code)" and silently default patch to 0,
+                // making the version read back as 2.1.0 and forcing perpetual updates).
+                let version_token = version_str.split_whitespace().next().unwrap_or("");
+                return SemVer::parse(version_token).ok_or_else(|| {
                     SdkError::ConfigError(format!(
                         "Acepe could not parse the managed Claude CLI version at {} from output {:?}",
                         path.display(),
@@ -1479,13 +1485,17 @@ mod tests {
         let cli_path = temp.path().join("claude");
         write_test_executable(
             &cli_path,
-            "#!/bin/sh\nif [ \"$1\" = \"--version\" ]; then\n  echo 2.1.104\nelse\n  exit 1\nfi\n",
+            // Real CLI prints a trailing label, e.g. "2.1.186 (Claude Code)".
+            "#!/bin/sh\nif [ \"$1\" = \"--version\" ]; then\n  echo '2.1.186 (Claude Code)'\nelse\n  exit 1\nfi\n",
         );
 
         let version = read_claude_cli_version(&cli_path).expect("version should parse");
         assert_eq!(version.major, 2);
         assert_eq!(version.minor, 1);
-        assert_eq!(version.patch, 104);
+        assert_eq!(
+            version.patch, 186,
+            "patch must survive the trailing ' (Claude Code)' label"
+        );
     }
 
     #[cfg(unix)]
