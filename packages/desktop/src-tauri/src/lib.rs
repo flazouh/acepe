@@ -770,39 +770,19 @@ pub fn run() {
                 &crate::acp::types::CanonicalAgentId::ClaudeCode,
             ) {
                 // Warm the picker from the currently-installed binary immediately so it
-                // is never blocked on the network probe below.
+                // is never blocked on the background update check below.
                 crate::acp::providers::claude_code_model_catalog::warm_catalog_in_background(
                     app.handle().clone(),
                 );
-
-                // In the background, advance the managed Claude CLI to the latest
-                // published release (best-effort, non-blocking). Only if it actually
-                // updated do we invalidate the catalog snapshot and re-warm so the
-                // picker reflects the new binary's models. `ensure_managed_claude_up_to_date`
-                // self-skips when the binary is absent (cold install stays with the
-                // install flow), so this is safe to fire unconditionally here.
-                let claude_update_handle = app.handle().clone();
-                tauri::async_runtime::spawn(async move {
-                    let outcome =
-                        crate::cc_sdk::cli_download::ensure_managed_claude_up_to_date().await;
-                    if let crate::cc_sdk::cli_download::UpdateOutcome::Updated { .. } = outcome {
-                        if let Err(error) =
-                            crate::acp::providers::claude_code_model_catalog::invalidate_catalog_snapshot_for_app(
-                                &claude_update_handle,
-                            )
-                            .await
-                        {
-                            tracing::warn!(
-                                error = %error,
-                                "Failed to invalidate Claude catalog snapshot after CLI update"
-                            );
-                        }
-                        crate::acp::providers::claude_code_model_catalog::warm_catalog_in_background(
-                            claude_update_handle,
-                        );
-                    }
-                });
             }
+
+            // Keep every enrolled managed agent CLI (Claude, Copilot, Codex) on its
+            // latest integrity-verified version. Agent-agnostic, best-effort, and
+            // non-blocking: each adapter self-skips when its agent is not installed,
+            // and a successful Claude/Copilot update re-warms its own catalog (inside
+            // the adapter / install_agent). Cursor/OpenCode are not enrolled (no
+            // verifiable integrity source yet).
+            crate::acp::agent_runtime::spawn_update_all(app.handle().clone());
 
             // Initialize database
             let app_handle = app.handle().clone();

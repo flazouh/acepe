@@ -149,6 +149,10 @@ fn agent_source(agent_id: &CanonicalAgentId) -> AgentSource {
 #[derive(Debug, Deserialize)]
 struct GitHubRelease {
     tag_name: String,
+    #[serde(default)]
+    prerelease: bool,
+    #[serde(default)]
+    draft: bool,
     assets: Vec<GitHubAsset>,
 }
 
@@ -156,6 +160,9 @@ struct GitHubRelease {
 struct GitHubAsset {
     name: String,
     browser_download_url: String,
+    /// Per-asset content digest, e.g. `"sha256:abc…"`, when GitHub provides one.
+    #[serde(default)]
+    digest: Option<String>,
 }
 
 // ============================================
@@ -257,6 +264,36 @@ pub fn get_cached_version(agent_id: &CanonicalAgentId) -> Option<String> {
         return None;
     };
     Some(meta.version)
+}
+
+/// Resolve the latest available version string for an installer-backed managed agent.
+///
+/// Metadata only — does not download the archive. Only the integrity-verified
+/// GitHub-release sources (Copilot, Codex) are supported; registry agents
+/// (Cursor/OpenCode — no published digest) and Claude (own updater) are rejected so
+/// they are never auto-updated through this path.
+pub(crate) async fn resolve_latest_version(agent_id: &CanonicalAgentId) -> AcpResult<String> {
+    let client = reqwest::Client::builder()
+        .timeout(HTTP_TIMEOUT)
+        .build()
+        .map_err(AcpError::HttpError)?;
+
+    let info = match agent_source(agent_id) {
+        AgentSource::CopilotGitHubRelease => fetch_copilot_download_info(&client).await?,
+        AgentSource::CodexGitHubRelease => fetch_codex_download_info(&client).await?,
+        AgentSource::Registry => {
+            return Err(AcpError::InvalidState(format!(
+                "Auto-update version resolution is unsupported for registry agent '{}' (no integrity source)",
+                agent_id_str(agent_id)
+            )));
+        }
+        AgentSource::ClaudeCli => {
+            return Err(AcpError::InvalidState(
+                "Claude resolves its own latest version via its own updater".to_string(),
+            ));
+        }
+    };
+    Ok(info.version)
 }
 
 /// Check if an agent is installed in the cache.
@@ -498,17 +535,59 @@ async fn install_agent_inner(agent_id: &CanonicalAgentId, app: &AppHandle) -> Ac
         }
     }
 
-    // 9. Atomic rename: .tmp/ → final/
-    if agent_dir.exists() {
-        std::fs::remove_dir_all(&agent_dir).map_err(|e| {
-            AcpError::InvalidState(format!("Failed to remove old agent dir: {}", e))
+    // 9. Crash-safe swap with last-known-good rollback.
+    //    Back the existing install aside (rename, not delete) so a failed swap or an
+    //    unhealthy new binary can be restored. This both removes the old non-atomic
+    //    remove-then-rename window and provides revert-on-failure.
+    let bak_dir = base_dir.join(format!("{}.bak", id_str));
+    let _ = std::fs::remove_dir_all(&bak_dir); // clear any stale backup
+
+    let had_previous = agent_dir.exists();
+    if had_previous {
+        std::fs::rename(&agent_dir, &bak_dir).map_err(|e| {
+            AcpError::InvalidState(format!("Failed to back up existing agent dir: {}", e))
         })?;
     }
-    std::fs::rename(&tmp_dir, &agent_dir).map_err(|e| {
-        AcpError::InvalidState(format!("Failed to finalize install (rename): {}", e))
-    })?;
+
+    if let Err(e) = std::fs::rename(&tmp_dir, &agent_dir) {
+        // Swap failed before the new dir landed — restore the previous binary.
+        if had_previous {
+            let _ = std::fs::rename(&bak_dir, &agent_dir);
+        }
+        let _ = std::fs::remove_dir_all(&tmp_dir);
+        return Err(AcpError::InvalidState(format!(
+            "Failed to finalize install (rename): {}",
+            e
+        )));
+    }
 
     let final_binary = agent_dir.join(cmd_rel);
+
+    // Post-install health probe: the new binary must actually be executable. This
+    // catches corrupt / wrong-arch / shim binaries. On failure, roll back to the
+    // previous version so the user is never left with a broken agent.
+    if !probe_binary_runs(&final_binary) {
+        let _ = std::fs::remove_dir_all(&agent_dir);
+        if had_previous {
+            let _ = std::fs::rename(&bak_dir, &agent_dir);
+            tracing::warn!(
+                agent = %id_str,
+                version = %download_info.version,
+                "Updated agent binary failed health probe; rolled back to previous version"
+            );
+            return Err(AcpError::AgentUpdateRolledBack {
+                agent: id_str.clone(),
+            });
+        }
+        return Err(AcpError::InvalidState(format!(
+            "Installed '{}' binary failed its health check and no previous version was available",
+            id_str
+        )));
+    }
+
+    // Success — drop the backup.
+    let _ = std::fs::remove_dir_all(&bak_dir);
+
     tracing::info!(
         agent = %id_str,
         version = %download_info.version,
@@ -519,6 +598,44 @@ async fn install_agent_inner(agent_id: &CanonicalAgentId, app: &AppHandle) -> Ac
     emit_progress(app, &id_str, "complete", Some(1.0), "Installed");
 
     Ok(final_binary)
+}
+
+/// Best-effort liveness probe: can this binary be executed at all?
+///
+/// Spawns the binary with `--version` and a short timeout. A spawn failure means a
+/// corrupt / non-executable / wrong-architecture binary (unhealthy → revert). If it
+/// spawns at all — regardless of exit code or a slow `--version` — it is a runnable
+/// executable (healthy); we do not judge the agent on its exit status here.
+fn probe_binary_runs(binary: &std::path::Path) -> bool {
+    use std::process::{Command, Stdio};
+    use std::time::{Duration, Instant};
+
+    let mut child = match Command::new(binary)
+        .arg("--version")
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .spawn()
+    {
+        Ok(child) => child,
+        Err(_) => return false, // cannot execute → unhealthy
+    };
+
+    let deadline = Instant::now() + Duration::from_secs(10);
+    loop {
+        match child.try_wait() {
+            Ok(Some(_status)) => return true, // ran to completion → healthy
+            Ok(None) => {
+                if Instant::now() >= deadline {
+                    let _ = child.kill();
+                    let _ = child.wait();
+                    return true; // it executed (just slow) → healthy enough
+                }
+                std::thread::sleep(Duration::from_millis(50));
+            }
+            Err(_) => return false,
+        }
+    }
 }
 
 async fn install_claude_cli(app: &AppHandle, agent_id: &str) -> AcpResult<PathBuf> {
@@ -634,13 +751,18 @@ async fn fetch_github_release_download_info(
     expected_asset: &str,
     cmd: &str,
 ) -> AcpResult<DownloadInfo> {
-    // Fetch releases and find the latest one matching our tag prefix
+    // Fetch releases and find the latest STABLE one matching our tag prefix.
+    // We list several and skip pre-releases/drafts: the GitHub `/releases` list is
+    // ordered newest-first, but the newest entry can be a pre-release/draft, which
+    // must never be auto-installed (it would flap or downgrade against the stable
+    // version). `per_page` is generous so a stable release is in the window even
+    // when several recent entries are pre-releases.
     let api_url = format!("https://api.github.com/repos/{}/{}/releases", owner, repo);
     let releases: Vec<GitHubRelease> = client
         .get(&api_url)
         .header("Accept", "application/vnd.github+json")
         .header("User-Agent", "acepe-agent-installer")
-        .query(&[("per_page", "5")])
+        .query(&[("per_page", "30")])
         .send()
         .await
         .map_err(AcpError::HttpError)?
@@ -650,15 +772,12 @@ async fn fetch_github_release_download_info(
         .await
         .map_err(AcpError::HttpError)?;
 
-    let release = releases
-        .iter()
-        .find(|r| r.tag_name.starts_with(tag_prefix))
-        .ok_or_else(|| {
-            AcpError::AgentNotFound(format!(
-                "No GitHub release found with tag prefix '{}' in {}/{}",
-                tag_prefix, owner, repo
-            ))
-        })?;
+    let release = select_latest_stable_release(&releases, tag_prefix).ok_or_else(|| {
+        AcpError::AgentNotFound(format!(
+            "No stable GitHub release found with tag prefix '{}' in {}/{}",
+            tag_prefix, owner, repo
+        ))
+    })?;
 
     let version = release
         .tag_name
@@ -684,13 +803,44 @@ async fn fetch_github_release_download_info(
             ))
         })?;
 
+    // Integrity: require the asset's content digest so install_agent_inner verifies
+    // the downloaded archive. Refuse to install unverified (no silent fallback).
+    let official_sha256 = sha256_from_asset_digest(asset).ok_or_else(|| {
+        AcpError::InvalidState(format!(
+            "GitHub asset '{}' in release '{}' has no usable sha256 digest; refusing to install unverified",
+            expected_asset, release.tag_name
+        ))
+    })?;
+
     Ok(DownloadInfo {
         archive_url: asset.browser_download_url.clone(),
         version,
         cmd: cmd.to_string(),
         args: vec![],
-        official_sha256: None,
+        official_sha256: Some(official_sha256),
     })
+}
+
+/// Pick the newest non-prerelease, non-draft release whose tag matches `tag_prefix`.
+/// `releases` is GitHub's newest-first ordering, so the first match is the latest stable.
+fn select_latest_stable_release<'a>(
+    releases: &'a [GitHubRelease],
+    tag_prefix: &str,
+) -> Option<&'a GitHubRelease> {
+    releases
+        .iter()
+        .find(|r| !r.prerelease && !r.draft && r.tag_name.starts_with(tag_prefix))
+}
+
+/// Extract a lowercase-hex sha256 from a GitHub asset's `digest` field (format
+/// `"sha256:<hex>"`), matching the lowercase hex `install_agent_inner` computes.
+fn sha256_from_asset_digest(asset: &GitHubAsset) -> Option<String> {
+    asset
+        .digest
+        .as_deref()
+        .and_then(|d| d.strip_prefix("sha256:"))
+        .map(|hex| hex.trim().to_ascii_lowercase())
+        .filter(|hex| hex.len() == 64 && hex.bytes().all(|b| b.is_ascii_hexdigit()))
 }
 
 async fn fetch_codex_download_info(client: &reqwest::Client) -> AcpResult<DownloadInfo> {
@@ -1180,6 +1330,93 @@ mod tests {
     #[test]
     fn copilot_uses_official_cache_key() {
         assert_eq!(agent_id_str(&CanonicalAgentId::Copilot), "copilot");
+    }
+
+    fn test_asset(name: &str, digest: Option<&str>) -> GitHubAsset {
+        GitHubAsset {
+            name: name.to_string(),
+            browser_download_url: format!("https://example.test/{name}"),
+            digest: digest.map(|d| d.to_string()),
+        }
+    }
+
+    fn test_release(tag: &str, prerelease: bool, draft: bool) -> GitHubRelease {
+        GitHubRelease {
+            tag_name: tag.to_string(),
+            prerelease,
+            draft,
+            assets: vec![],
+        }
+    }
+
+    #[test]
+    fn select_latest_stable_skips_prerelease_and_draft() {
+        // Newest-first ordering with a prerelease and a draft ahead of the stable.
+        let releases = vec![
+            test_release("rust-v0.9.0-alpha", true, false),
+            test_release("rust-v0.8.0", false, true),
+            test_release("rust-v0.7.0", false, false),
+            test_release("rust-v0.6.0", false, false),
+        ];
+        assert_eq!(
+            select_latest_stable_release(&releases, "rust-v")
+                .expect("a stable release")
+                .tag_name,
+            "rust-v0.7.0"
+        );
+    }
+
+    #[test]
+    fn select_latest_stable_respects_tag_prefix() {
+        let releases = vec![
+            test_release("other-v1.0.0", false, false),
+            test_release("rust-v0.7.0", false, false),
+        ];
+        assert_eq!(
+            select_latest_stable_release(&releases, "rust-v")
+                .unwrap()
+                .tag_name,
+            "rust-v0.7.0"
+        );
+        assert!(select_latest_stable_release(&releases, "none-").is_none());
+    }
+
+    #[test]
+    fn sha256_from_asset_digest_extracts_validates_and_lowercases() {
+        let hex_upper = "AB".repeat(32); // 64 hex chars
+        assert_eq!(
+            sha256_from_asset_digest(&test_asset("x.tar.gz", Some(&format!("sha256:{hex_upper}")))),
+            Some(hex_upper.to_ascii_lowercase())
+        );
+        // Missing digest → None (caller refuses to install unverified).
+        assert_eq!(sha256_from_asset_digest(&test_asset("x", None)), None);
+        // Wrong algorithm / no sha256 prefix → None.
+        assert_eq!(
+            sha256_from_asset_digest(&test_asset("x", Some("sha512:deadbeef"))),
+            None
+        );
+        // Too short → None.
+        assert_eq!(
+            sha256_from_asset_digest(&test_asset("x", Some("sha256:abc"))),
+            None
+        );
+        // Non-hex → None.
+        assert_eq!(
+            sha256_from_asset_digest(&test_asset("x", Some(&format!("sha256:{}", "zz".repeat(32))))),
+            None
+        );
+    }
+
+    #[test]
+    fn probe_binary_runs_distinguishes_executable_from_missing() {
+        // A real, runnable binary probes healthy; a non-existent path cannot execute.
+        let echo = std::path::Path::new("/bin/echo");
+        if echo.exists() {
+            assert!(probe_binary_runs(echo));
+        }
+        assert!(!probe_binary_runs(std::path::Path::new(
+            "/nonexistent/acepe-probe-xyz"
+        )));
     }
 
     #[test]

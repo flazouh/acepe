@@ -201,6 +201,11 @@ impl From<AcpError> for SerializableAcpError {
                 agent,
                 instructions,
             },
+            AcpError::AgentUpdateRolledBack { agent } => SerializableAcpError::InvalidState {
+                message: format!(
+                    "{agent} update failed its health check and was rolled back to the previous version"
+                ),
+            },
         }
     }
 }
@@ -360,6 +365,9 @@ pub enum AcpError {
 
     #[error("{agent} requires authentication. {instructions}")]
     AuthenticationRequired { agent: String, instructions: String },
+
+    #[error("{agent} update failed its health check and was rolled back to the previous version")]
+    AgentUpdateRolledBack { agent: String },
 }
 
 pub type AcpResult<T> = Result<T, AcpError>;
