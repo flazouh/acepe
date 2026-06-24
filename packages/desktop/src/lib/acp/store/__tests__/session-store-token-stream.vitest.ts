@@ -108,8 +108,14 @@ function createAssistantTextDeltaEnvelope(
 ): SessionStateEnvelope {
 	return {
 		sessionId,
-		graphRevision: delta.revision,
-		lastEventSeq: delta.revision,
+		// delta.revision is a transcript_revision. In real sessions the envelope's
+		// graph_revision and last_event_seq run AHEAD of it (they advance on
+		// lifecycle/activity/turn events too), and all three differ. Keep them
+		// deliberately divergent here so any code that cross-compares them against
+		// delta.revision — the bug that left token-reveal dormant — fails a test
+		// instead of passing because the test happened to set them equal.
+		graphRevision: delta.revision + 3,
+		lastEventSeq: delta.revision + 5,
 		payload: {
 			kind: "assistantTextDelta",
 			delta,
