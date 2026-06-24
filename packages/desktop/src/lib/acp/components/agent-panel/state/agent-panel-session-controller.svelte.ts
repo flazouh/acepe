@@ -264,12 +264,18 @@ export class AgentPanelSessionController {
 		resolveCanonicalAgentPanelTurnState(this.canonicalPanelSessionSource)
 	);
 
+	readonly hasActiveStreamingTail = $derived.by(() => {
+		const id = this.#deps.getSessionId();
+		return id !== null && this.#deps.sessionStore.read.getActiveStreamingTailRowId(id) !== null;
+	});
+
 	readonly canonicalPanelSessionState = $derived.by(() =>
 		deriveCanonicalAgentPanelSessionState({
 			source: this.canonicalPanelSessionSource,
 			hasEntries: this.hasMessages,
 			hasOptimisticPendingEntry: this.preSessionPendingUserEntry !== null,
 			hasLocalPendingSendIntent: this.sessionPendingSendIntent !== null,
+			hasActiveStreamingTail: this.hasActiveStreamingTail,
 		})
 	);
 

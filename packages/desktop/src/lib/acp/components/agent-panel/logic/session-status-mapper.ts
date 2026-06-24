@@ -35,6 +35,12 @@ export interface CanonicalAgentPanelSessionStateInput {
 	readonly hasEntries?: boolean;
 	readonly hasOptimisticPendingEntry?: boolean;
 	readonly hasLocalPendingSendIntent?: boolean;
+	/**
+	 * Canonical "the model is producing output" signal (message text OR reasoning
+	 * is streaming). Once true, the turn is no longer *awaiting* the model, so the
+	 * "Planning next moves" placeholder must not render beneath the streaming row.
+	 */
+	readonly hasActiveStreamingTail?: boolean;
 }
 
 export interface CanonicalAgentPanelSessionState {
@@ -220,7 +226,7 @@ export function deriveCanonicalAgentPanelSessionState(
 	const showPlanningIndicator =
 		input.hasOptimisticPendingEntry === true ||
 		input.hasLocalPendingSendIntent === true ||
-		effectiveActivity?.kind === "awaiting_model";
+		(effectiveActivity?.kind === "awaiting_model" && input.hasActiveStreamingTail !== true);
 	const baseStatus = mapCanonicalSessionToPanelStatus({
 		lifecycle: input.source.lifecycle,
 		activity: effectiveActivity,
