@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import type {
+	AssistantTextDeltaPayload,
 	OperationSnapshot,
 	SessionGraphActivity,
 	SessionGraphRevision,
@@ -1502,21 +1503,25 @@ describe("routeSessionStateEnvelope", () => {
 		});
 	});
 
-	it("refreshes when an assistant text delta envelope frontier disagrees with the delta revision", () => {
+	it("applies an assistant text delta even when the envelope frontier disagrees with the delta revision", () => {
+		// Regression guard: the router must NOT refresh just because the envelope's
+		// graph_revision / last_event_seq differ from delta.revision (transcript). That
+		// equality gate dropped every real streaming delta and left token-reveal dormant.
+		const delta = {
+			turnId: "turn-1",
+			rowId: "assistant-1",
+			charOffset: 0,
+			deltaText: "hello",
+			producedAtMonotonicMs: 12,
+			revision: 9,
+		};
 		const envelope: SessionStateEnvelope = {
 			sessionId: "session-1",
 			graphRevision: 8,
 			lastEventSeq: 10,
 			payload: {
 				kind: "assistantTextDelta",
-				delta: {
-					turnId: "turn-1",
-					rowId: "assistant-1",
-					charOffset: 0,
-					deltaText: "hello",
-					producedAtMonotonicMs: 12,
-					revision: 9,
-				},
+				delta,
 			},
 		};
 
@@ -1530,12 +1535,62 @@ describe("routeSessionStateEnvelope", () => {
 				},
 				envelope
 			)
-		).toEqual([
-			{
-				kind: "refreshSnapshot",
-				fromRevision: 9,
-				toRevision: 8,
-			},
+		).toEqual([{ kind: "applyAssistantTextDelta", delta }]);
+	});
+
+	// Bug #1: assistant-text-deltas must apply on transcript-revision contiguity, not
+	// on the (normally divergent) equality of graph_revision / transcript_revision /
+	// last_event_seq. current revision here is { graph 8, transcript 8, seq 10 }.
+	function assistantTextDelta(deltaRevision: number): AssistantTextDeltaPayload {
+		return {
+			turnId: "turn-1",
+			rowId: "assistant-1",
+			charOffset: 0,
+			deltaText: "Hello",
+			producedAtMonotonicMs: 1_000,
+			revision: deltaRevision,
+		};
+	}
+
+	it("applies a contiguous assistant text delta even when graph/event revisions diverge", () => {
+		const delta = assistantTextDelta(9); // transcript 8 -> 9 (contiguous)
+		const envelope: SessionStateEnvelope = {
+			sessionId: "session-1",
+			graphRevision: 12,
+			lastEventSeq: 13,
+			payload: { kind: "assistantTextDelta", delta },
+		};
+
+		expect(routeSessionStateEnvelope("session-1", revision, envelope)).toEqual([
+			{ kind: "applyAssistantTextDelta", delta },
+		]);
+	});
+
+	it("applies an additional assistant text delta at the current transcript frontier", () => {
+		const delta = assistantTextDelta(8); // same transcript revision — a char-append
+		const envelope: SessionStateEnvelope = {
+			sessionId: "session-1",
+			graphRevision: 11,
+			lastEventSeq: 12,
+			payload: { kind: "assistantTextDelta", delta },
+		};
+
+		expect(routeSessionStateEnvelope("session-1", revision, envelope)).toEqual([
+			{ kind: "applyAssistantTextDelta", delta },
+		]);
+	});
+
+	it("applies an assistant text delta with a higher revision (reducer orders by charOffset, never the router by counter equality)", () => {
+		const delta = assistantTextDelta(11); // higher transcript revision
+		const envelope: SessionStateEnvelope = {
+			sessionId: "session-1",
+			graphRevision: 12,
+			lastEventSeq: 13,
+			payload: { kind: "assistantTextDelta", delta },
+		};
+
+		expect(routeSessionStateEnvelope("session-1", revision, envelope)).toEqual([
+			{ kind: "applyAssistantTextDelta", delta },
 		]);
 	});
 });

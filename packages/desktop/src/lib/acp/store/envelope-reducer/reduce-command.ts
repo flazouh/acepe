@@ -635,11 +635,18 @@ function reduceApplyAssistantTextDelta(
 	if (previousRow !== null && delta.revision < previousRow.revision) {
 		return [];
 	}
-	if (delta.revision <= projection.revision.graphRevision) {
+	// Same-counter staleness: drop deltas the transcript has already moved past
+	// (e.g. a snapshot superseded them). delta.revision IS a transcript_revision, so
+	// compare it against the transcript frontier — NOT projection.revision.graphRevision.
+	// graph_revision and transcript_revision are independent counters and graph is
+	// normally ahead; the old cross-counter `<= graphRevision` guard dropped every
+	// valid streaming delta and left token-reveal dormant.
+	if (delta.revision < projection.revision.transcriptRevision) {
 		return [];
 	}
 
 	const currentText = previousRow?.accumulatedText ?? "";
+	// Append contiguity is the within-revision ordering authority for char-streams.
 	if (delta.charOffset !== currentText.length) {
 		return [];
 	}
