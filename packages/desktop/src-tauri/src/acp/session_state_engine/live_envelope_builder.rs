@@ -14,7 +14,8 @@ use crate::acp::session_state_engine::{
 };
 use crate::acp::session_update::SessionUpdate;
 use crate::acp::transcript_projection::{
-    TranscriptDelta, TranscriptDeltaOperation, TranscriptEntry, TranscriptEntryRole, TranscriptSnapshot,
+    TranscriptDelta, TranscriptDeltaOperation, TranscriptEntry, TranscriptEntryRole,
+    TranscriptSnapshot,
 };
 
 pub(crate) fn build_live_session_state_delta_envelope(
@@ -80,7 +81,12 @@ pub(crate) fn build_assistant_text_delta_from_components(
             return Vec::new();
         }
     };
-    let row_id = sanitize_row_id(row_entry_id);
+    // The token-stream rowId MUST be the canonical transcript entry_id verbatim.
+    // It is the single streaming-row identity shared with activeStreamingTail.row_id
+    // and the scene entries; the reveal controller looks the stream up by it. A
+    // sanitized variant minted a second identity the consumer could never reconcile,
+    // so the token stream was unreachable and token-reveal stayed dormant.
+    let row_id = row_entry_id.to_string();
     let turn_id = assistant_turn_id_from_snapshot(snapshot, row_index, &row_id);
     build_budgeted_assistant_text_delta_state_envelopes(
         session_id,
@@ -313,7 +319,7 @@ fn transcript_entry_text_char_count(entry: &TranscriptEntry) -> usize {
 fn assistant_turn_id_from_snapshot(
     snapshot: &TranscriptSnapshot,
     row_index: usize,
-    sanitized_row_id: &str,
+    fallback_row_id: &str,
 ) -> String {
     snapshot
         .entries
@@ -322,20 +328,7 @@ fn assistant_turn_id_from_snapshot(
         .rev()
         .find(|entry| entry.role == TranscriptEntryRole::User)
         .map(|entry| entry.entry_id.clone())
-        .unwrap_or_else(|| sanitized_row_id.to_string())
-}
-
-fn sanitize_row_id(row_id: &str) -> String {
-    row_id
-        .chars()
-        .map(|ch| {
-            if ch.is_ascii_alphanumeric() || ch == '-' || ch == '_' {
-                ch
-            } else {
-                '-'
-            }
-        })
-        .collect()
+        .unwrap_or_else(|| fallback_row_id.to_string())
 }
 
 #[cfg(test)]
@@ -354,5 +347,71 @@ mod tests {
     fn previous_midpoint_char_boundary_steps_back_to_boundary() {
         let value = "abcdef";
         assert_eq!(previous_midpoint_char_boundary(value, 0, 4), 2);
+    }
+
+    #[test]
+    fn assistant_text_delta_row_id_is_the_canonical_entry_id() {
+        use super::build_assistant_text_delta_from_components;
+        use crate::acp::session_state_engine::protocol::SessionStatePayload;
+        use crate::acp::session_state_engine::revision::SessionGraphRevision;
+        use crate::acp::session_update::{ContentChunk, SessionUpdate};
+        use crate::acp::transcript_projection::{
+            TranscriptDelta, TranscriptDeltaOperation, TranscriptEntry, TranscriptEntryRole,
+            TranscriptSegment, TranscriptSnapshot,
+        };
+        use crate::acp::types::ContentBlock;
+
+        // The canonical transcript entry_id contains ':' and '.' — sanitizing it
+        // would mint a second identity the reveal consumer can never reconcile.
+        let entry_id = "acepe::entry::assistant-boundary:1::assistant::.";
+        let entry = TranscriptEntry {
+            entry_id: entry_id.to_string(),
+            role: TranscriptEntryRole::Assistant,
+            segments: vec![TranscriptSegment::Text {
+                segment_id: format!("{entry_id}:block:0"),
+                text: "Hello".to_string(),
+            }],
+            attempt_id: None,
+            timestamp_ms: None,
+        };
+        let snapshot = TranscriptSnapshot {
+            revision: 1,
+            entries: vec![entry.clone()],
+        };
+        let delta = TranscriptDelta {
+            event_seq: 1,
+            session_id: "session-1".to_string(),
+            snapshot_revision: 1,
+            operations: vec![TranscriptDeltaOperation::AppendEntry { entry }],
+        };
+        let update = SessionUpdate::AgentMessageChunk {
+            chunk: ContentChunk {
+                content: ContentBlock::Text {
+                    text: "Hello".to_string(),
+                },
+                aggregation_hint: None,
+            },
+            part_id: None,
+            message_id: None,
+            session_id: Some("session-1".to_string()),
+            produced_at_monotonic_ms: Some(1_000),
+        };
+
+        let envelopes = build_assistant_text_delta_from_components(
+            "session-1",
+            &update,
+            &delta,
+            &snapshot,
+            SessionGraphRevision::new(5, 2, 8),
+        );
+
+        assert_eq!(envelopes.len(), 1);
+        let SessionStatePayload::AssistantTextDelta { delta: payload } = &envelopes[0].payload else {
+            panic!("expected an AssistantTextDelta payload");
+        };
+        assert_eq!(
+            payload.row_id, entry_id,
+            "token-stream rowId must be the canonical entry_id (matches activeStreamingTail.row_id and scene ids), not a sanitized variant"
+        );
     }
 }
