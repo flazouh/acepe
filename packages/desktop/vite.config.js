@@ -7,14 +7,56 @@ import { defineConfig } from "vitest/config";
 
 const host = process.env.TAURI_DEV_HOST;
 const viteConfigDir = path.dirname(fileURLToPath(import.meta.url));
-const uiPackageSrc = path.resolve(viteConfigDir, "../ui/src");
+const uiPackageRoot = path.resolve(viteConfigDir, "../ui");
+const uiPackageSrc = path.resolve(uiPackageRoot, "src");
+const uiPackageLinkedRoot = path.resolve(viteConfigDir, "node_modules/@acepe/ui");
 
-/** @returns {import("vite").Plugin} */
-function watchUiPackage() {
+/**
+ * Keep @acepe/ui out of Vite's dep cache and invalidate the module graph when
+ * workspace UI sources change (symlinked packages are easy to watch but hard to HMR).
+ *
+ * @returns {import("vite").Plugin}
+ */
+function acepeUiPackageDev() {
 	return {
-		name: "acepe-watch-ui-package",
+		name: "acepe-ui-package-dev",
 		configureServer(server) {
 			server.watcher.add(uiPackageSrc);
+
+			const invalidateUiFile = (file) => {
+				const normalizedFile = path.normalize(file);
+				if (!normalizedFile.startsWith(uiPackageSrc)) {
+					return;
+				}
+
+				let invalidated = false;
+				const pathsToCheck = [normalizedFile];
+
+				const relativePath = path.relative(uiPackageSrc, normalizedFile);
+				if (relativePath && !relativePath.startsWith("..")) {
+					pathsToCheck.push(path.join(uiPackageLinkedRoot, relativePath));
+				}
+
+				for (const filePath of pathsToCheck) {
+					const modules = server.moduleGraph.getModulesByFile(filePath);
+					if (!modules) {
+						continue;
+					}
+
+					for (const module of modules) {
+						server.moduleGraph.invalidateModule(module);
+						invalidated = true;
+					}
+				}
+
+				if (!invalidated) {
+					server.ws.send({ type: "full-reload" });
+				}
+			};
+
+			server.watcher.on("change", invalidateUiFile);
+			server.watcher.on("add", invalidateUiFile);
+			server.watcher.on("unlink", invalidateUiFile);
 		},
 	};
 }
@@ -39,11 +81,22 @@ export default defineConfig({
 	worker: {
 		format: "es",
 	},
-	plugins: [watchUiPackage(), sveltekit(), tailwindcss()],
+	plugins: [acepeUiPackageDev(), sveltekit(), tailwindcss()],
 
-	// Pre-bundle icon libraries to avoid HMR issues with dynamic imports
+	resolve: {
+		// Resolve @acepe/ui through real paths so file watchers and HMR line up.
+		preserveSymlinks: false,
+		dedupe: ["@acepe/ui"],
+	},
+
+	// Keep workspace UI source out of the dep pre-bundle cache.
 	optimizeDeps: {
 		include: ["@tabler/icons-svelte", "phosphor-svelte"],
+		exclude: ["@acepe/ui"],
+	},
+
+	ssr: {
+		noExternal: ["@acepe/ui"],
 	},
 
 	// Vite options tailored for Tauri development and only applied in `tauri dev` or `tauri build`
@@ -67,7 +120,7 @@ export default defineConfig({
 			ignored: ignoredDevWatchPaths,
 		},
 		fs: {
-			allow: [uiPackageSrc],
+			allow: [uiPackageRoot, uiPackageSrc],
 		},
 	},
 

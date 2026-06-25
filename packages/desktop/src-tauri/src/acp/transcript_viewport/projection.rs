@@ -356,6 +356,7 @@ mod tests {
             result: None,
             command: None,
             normalized_todos: None,
+            computer_payload: None,
             parent_tool_call_id: None,
             parent_operation_id: None,
             child_tool_call_ids: Vec::new(),

@@ -1,5 +1,5 @@
 <script lang="ts">
-import { VoiceDownloadProgress } from "@acepe/ui";
+import { SegmentedProgressBar } from "@acepe/ui";
 import { DownloadSimple, Trash } from "phosphor-svelte";
 
 import { Switch } from "$lib/components/ui/switch/index.js";
@@ -28,7 +28,7 @@ function formatBytes(bytes: number): string {
 }
 </script>
 
-<div class="w-full space-y-8">
+<div class="w-full space-y-4">
 	<SettingRow label={"Enable voice dictation"}>
 		<Switch
 			checked={voiceSettingsStore.enabled}
@@ -54,7 +54,7 @@ function formatBytes(bytes: number): string {
 					{@const isSelected = voiceSettingsStore.selectedModelId === model.id}
 					{@const isDownloading = voiceSettingsStore.downloadProgressModelId === model.id}
 
-					<div class="flex items-center gap-2 border-b border-border/30 py-2.5 last:border-b-0">
+					<div class="flex items-center gap-2 border-b border-border/30 py-1.5 last:border-b-0">
 						<button
 							type="button"
 							role="radio"
@@ -73,7 +73,7 @@ function formatBytes(bytes: number): string {
 							</div>
 
 							<span
-								class="truncate text-[13px] font-medium {isSelected
+								class="truncate text-xs font-medium {isSelected
 									? 'text-foreground'
 									: 'text-foreground/80'}"
 							>
@@ -94,7 +94,7 @@ function formatBytes(bytes: number): string {
 						</button>
 
 						{#if isDownloading}
-							<VoiceDownloadProgress
+							<SegmentedProgressBar
 								ariaLabel={`Downloading ${model.name}`}
 								label=""
 								percent={voiceSettingsStore.downloadPercent}

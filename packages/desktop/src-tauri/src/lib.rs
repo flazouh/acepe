@@ -41,7 +41,7 @@ use acp::commands::{
     acp_cancel, acp_close_session, acp_confirm_transcript_viewport_height, acp_fork_session,
     acp_get_composer_mcp_catalog, acp_get_event_bridge_info, acp_get_session_state, acp_initialize,
     acp_install_agent, acp_list_agents, acp_list_preconnection_capabilities,
-    acp_list_preconnection_commands, acp_new_session, acp_read_text_file,
+    acp_list_preconnection_commands, acp_new_session, acp_probe_computer_use, acp_read_text_file,
     acp_register_custom_agent, acp_reply_interaction, acp_request_transcript_viewport_buffer,
     acp_resize_transcript_viewport, acp_respond_inbound_request, acp_resume_session,
     acp_reveal_transcript_viewport_row, acp_scroll_transcript_viewport, acp_send_prompt,
@@ -69,6 +69,7 @@ use checkpoint::commands::{
     checkpoint_get_file_snapshots, checkpoint_list, checkpoint_revert, checkpoint_revert_file,
 };
 use commands::window::activate_window;
+use computer_use::{load_persisted_app_window_scopes, ComputerRuntimeRegistry};
 use cursor_history::commands::{has_cursor_history, is_cursor_installed};
 use db::repository::{AppSettingsRepository, ProjectRepository, SessionMetadataRepository};
 use file_index::{
@@ -1025,6 +1026,23 @@ pub fn run() {
 
             // Session client registry
             app.manage(SessionRegistry::new());
+            let computer_runtime_registry = Arc::new(ComputerRuntimeRegistry::default());
+            let persisted_computer_scopes =
+                tauri::async_runtime::block_on(load_persisted_app_window_scopes(&db_conn));
+            match persisted_computer_scopes {
+                Ok(scopes) => {
+                    tauri::async_runtime::block_on(
+                        computer_runtime_registry.replace_persisted_app_window_scopes(scopes),
+                    );
+                }
+                Err(error) => {
+                    tracing::warn!(
+                        %error,
+                        "Failed to load persisted computer app/window allow-list"
+                    );
+                }
+            }
+            app.manage(computer_runtime_registry);
             app.manage(Arc::new(SessionPolicyRegistry::new()));
             app.manage(Arc::new(ProjectionRegistry::new()));
             app.manage(Arc::new(PreReservationEventBuffer::new()));

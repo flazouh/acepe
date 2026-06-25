@@ -90,4 +90,38 @@ describe("tauri ACP client", () => {
 			},
 		});
 	});
+
+	it("serializes local computer permission replies", async () => {
+		const request: InteractionReplyRequest = {
+			sessionId: "session-3",
+			interactionId: "computer-permission-1",
+			replyHandler: {
+				kind: "http",
+				requestId: "computer-permission-1",
+			},
+			payload: {
+				kind: "computer_permission",
+				accepted: true,
+				scope: "always",
+			},
+		};
+
+		await acp.replyInteraction(request);
+
+		expect(mockInvokeAsync).toHaveBeenCalledWith(CMD.acp.reply_interaction, {
+			request: {
+				sessionId: "session-3",
+				interactionId: "computer-permission-1",
+				replyHandler: {
+					kind: "http",
+					requestId: "computer-permission-1",
+				},
+				payload: {
+					kind: "computer_permission",
+					accepted: true,
+					scope: "always",
+				},
+			},
+		});
+	});
 });

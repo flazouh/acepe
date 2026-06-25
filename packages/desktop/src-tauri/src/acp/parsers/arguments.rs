@@ -44,6 +44,16 @@ pub(crate) fn extract_parser_string_list(
     })
 }
 
+pub(crate) fn extract_parser_bool(value: &serde_json::Value, keys: &[&str]) -> Option<bool> {
+    keys.iter()
+        .find_map(|key| value.get(key).and_then(serde_json::Value::as_bool))
+}
+
+pub(crate) fn extract_parser_i64(value: &serde_json::Value, keys: &[&str]) -> Option<i64> {
+    keys.iter()
+        .find_map(|key| value.get(key).and_then(serde_json::Value::as_i64))
+}
+
 fn has_plan_payload(raw_arguments: &serde_json::Value) -> bool {
     extract_parser_string(raw_arguments, &["plan", "content", "planMarkdown"]).is_some()
 }
@@ -468,6 +478,48 @@ pub(crate) fn parse_tool_kind_arguments(
             selector: extract_parser_string(raw_arguments, &["selector"]),
             script: extract_parser_string(raw_arguments, &["script"]),
         },
+        ToolKind::Computer => ToolArguments::Computer {
+            verb: extract_parser_string(raw_arguments, &["v", "verb", "action"]),
+            target_id: extract_parser_string(
+                raw_arguments,
+                &[
+                    "t",
+                    "target_id",
+                    "targetId",
+                    "target",
+                    "element_id",
+                    "elementId",
+                ],
+            ),
+            epoch: extract_parser_string(
+                raw_arguments,
+                &["e", "epoch", "snapshot_epoch", "snapshotEpoch"],
+            ),
+            text: extract_parser_string(raw_arguments, &["txt", "text"]),
+            key: extract_parser_string(raw_arguments, &["k", "key"]),
+            delta_x: extract_parser_i64(raw_arguments, &["dx", "delta_x", "deltaX"]),
+            delta_y: extract_parser_i64(raw_arguments, &["dy", "delta_y", "deltaY"]),
+            include_bounds: extract_parser_bool(
+                raw_arguments,
+                &[
+                    "b",
+                    "include_bounds",
+                    "includeBounds",
+                    "with_bounds",
+                    "withBounds",
+                ],
+            ),
+            include_screenshot: extract_parser_bool(
+                raw_arguments,
+                &[
+                    "s",
+                    "include_screenshot",
+                    "includeScreenshot",
+                    "with_screenshot",
+                    "withScreenshot",
+                ],
+            ),
+        },
         ToolKind::Unclassified => ToolArguments::Unclassified {
             provider_name: extract_parser_string(
                 raw_arguments,
@@ -537,6 +589,49 @@ mod tests {
                 assert_eq!(script.as_deref(), Some("document.body.innerText"));
             }
             other => panic!("expected browser arguments, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn parses_computer_action_fields_from_raw_arguments() {
+        let args = parse_tool_kind_arguments(
+            ToolKind::Computer,
+            &json!({
+                "v": "click",
+                "t": "e_4f2",
+                "e": "s_912",
+                "txt": "hello",
+                "k": "enter",
+                "dx": 8,
+                "dy": -4,
+                "b": true,
+                "s": false,
+            }),
+        );
+
+        match args {
+            ToolArguments::Computer {
+                verb,
+                target_id,
+                epoch,
+                text,
+                key,
+                delta_x,
+                delta_y,
+                include_bounds,
+                include_screenshot,
+            } => {
+                assert_eq!(verb.as_deref(), Some("click"));
+                assert_eq!(target_id.as_deref(), Some("e_4f2"));
+                assert_eq!(epoch.as_deref(), Some("s_912"));
+                assert_eq!(text.as_deref(), Some("hello"));
+                assert_eq!(key.as_deref(), Some("enter"));
+                assert_eq!(delta_x, Some(8));
+                assert_eq!(delta_y, Some(-4));
+                assert_eq!(include_bounds, Some(true));
+                assert_eq!(include_screenshot, Some(false));
+            }
+            other => panic!("expected computer arguments, got {other:?}"),
         }
     }
 

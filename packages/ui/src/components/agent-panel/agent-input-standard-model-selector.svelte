@@ -70,6 +70,8 @@
 		variant="ghost"
 		{triggerSize}
 		showChevron={false}
+		side="top"
+		sideOffset={8}
 	>
 		{#snippet renderButton()}
 			{#if isLoading}

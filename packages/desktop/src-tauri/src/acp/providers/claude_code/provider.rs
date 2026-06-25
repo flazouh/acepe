@@ -71,9 +71,7 @@ impl AgentProvider for ClaudeCodeProvider {
         CommunicationMode::CcSdk
     }
 
-    fn preconnection_config_options(
-        &self,
-    ) -> Vec<crate::acp::session_update::ConfigOptionData> {
+    fn preconnection_config_options(&self) -> Vec<crate::acp::session_update::ConfigOptionData> {
         // Claude uses deferred (cc_sdk) creation, so `new_session` does not run
         // before the first prompt. Advertise the reasoning option here so the
         // compact reasoning widget appears in the new-thread setup bar, matching

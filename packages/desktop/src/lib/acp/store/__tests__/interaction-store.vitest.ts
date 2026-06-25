@@ -101,6 +101,37 @@ function createPendingPlanApprovalInteraction(
 	};
 }
 
+function createPendingComputerPermissionInteraction(
+	overrides?: Partial<InteractionSnapshot>
+): InteractionSnapshot {
+	const id = overrides?.id ?? "computer-permission-1";
+	const sessionId = overrides?.session_id ?? "session-1";
+	return {
+		id,
+		session_id: sessionId,
+		kind: overrides?.kind ?? "ComputerPermission",
+		state: overrides?.state ?? "Pending",
+		json_rpc_request_id: overrides?.json_rpc_request_id ?? null,
+		reply_handler: overrides?.reply_handler ?? null,
+		tool_reference: overrides?.tool_reference ?? {
+			messageId: null,
+			callId: "computer-tool-1",
+		},
+		responded_at_event_seq: overrides?.responded_at_event_seq ?? null,
+		response: overrides?.response ?? null,
+		payload: overrides?.payload ?? {
+			ComputerPermission: {
+				id,
+				session_id: sessionId,
+				permission_kind: "accessibility",
+				reason: "Acepe needs macOS Accessibility permission.",
+				tool: { messageId: null, callId: "computer-tool-1" },
+			},
+		},
+		canonical_operation_id: overrides?.canonical_operation_id ?? "operation-computer-1",
+	};
+}
+
 describe("InteractionStore", () => {
 	it("preserves pending permission identity for duplicate patches", () => {
 		const store = new InteractionStore();
@@ -182,5 +213,64 @@ describe("InteractionStore", () => {
 
 		const approval = store.getPendingPlanApprovalsForSession("session-1")[0];
 		expect(approval?.canonicalOperationId).toBe("operation-3");
+	});
+
+	it("indexes pending computer permissions by session without treating them as provider permissions", () => {
+		const store = new InteractionStore();
+
+		store.applySessionInteractionPatches([createPendingComputerPermissionInteraction()]);
+
+		expect(store.permissionsPending.size).toBe(0);
+		const permission = store.getPendingComputerPermissionsForSession("session-1")[0];
+		expect(permission).toEqual({
+			id: "computer-permission-1",
+			kind: "computer_permission",
+			sessionId: "session-1",
+			permissionKind: "accessibility",
+			reason: "Acepe needs macOS Accessibility permission.",
+			tool: { messageID: null, callID: "computer-tool-1" },
+			status: "pending",
+			canonicalOperationId: "operation-computer-1",
+		});
+	});
+
+	it("keeps app/window scope on pending computer permissions", () => {
+		const store = new InteractionStore();
+
+		store.applySessionInteractionPatches([
+			createPendingComputerPermissionInteraction({
+				payload: {
+					ComputerPermission: {
+						id: "computer-scope-1",
+						session_id: "session-1",
+						permission_kind: "app_window_scope",
+						reason: "Allow computer use for Safari / GitHub?",
+						app: "Safari",
+						window: "GitHub",
+						tool: { messageId: null, callId: "computer-tool-1" },
+					},
+				},
+			}),
+		]);
+
+		const permission = store.getPendingComputerPermissionsForSession("session-1")[0];
+		expect(permission.permissionKind).toBe("app_window_scope");
+		expect(permission.app).toBe("Safari");
+		expect(permission.window).toBe("GitHub");
+	});
+
+	it("removes resolved computer permissions from the pending session index", () => {
+		const store = new InteractionStore();
+
+		store.applySessionInteractionPatches([createPendingComputerPermissionInteraction()]);
+		store.applySessionInteractionPatches([
+			createPendingComputerPermissionInteraction({
+				state: "Approved",
+				response: { kind: "computer_permission", accepted: true },
+			}),
+		]);
+
+		expect(store.computerPermissionsPending.size).toBe(0);
+		expect(store.getPendingComputerPermissionsForSession("session-1")).toHaveLength(0);
 	});
 });

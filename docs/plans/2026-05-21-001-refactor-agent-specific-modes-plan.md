@@ -354,7 +354,7 @@ flowchart LR
 - Run focused Rust tests for provider capability mode behavior.
 - If generated TypeScript types change from Rust, regenerate them using the existing project workflow.
 - Use the `acepe-dev-app-qa` skill before visual inspection.
-- Do not run `bun dev`; attach to the user's running dev app if available.
+- If the dev app is not running when UI QA is required, start it from `packages/desktop` with `bun run tauri`, then run the QA CLI pass.
 
 **Test scenarios:**
 - Integration: selected agent with modes `ask` and `agent` shows both in the left dropdown.

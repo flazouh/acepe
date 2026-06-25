@@ -4,7 +4,10 @@
 
 import type { TranscriptEntry } from "../../services/acp-types.js";
 import { segmentText } from "../session-state/transcript-text.js";
-import type { PlanApprovalInteraction } from "../types/interaction.js";
+import type {
+	ComputerPermissionInteraction,
+	PlanApprovalInteraction,
+} from "../types/interaction.js";
 import type { PermissionRequest } from "../types/permission.js";
 import type { QuestionRequest } from "../types/question.js";
 import type { ToolKind } from "../types/tool-kind.js";
@@ -50,6 +53,7 @@ export interface PanelToTabInput {
 	readonly pendingQuestion: QuestionRequest | null;
 	readonly pendingPlanApproval: PlanApprovalInteraction | null;
 	readonly pendingPermission: PermissionRequest | null;
+	readonly pendingComputerPermission?: ComputerPermissionInteraction | null;
 	readonly isUnseen: boolean;
 	/** Project name for badge (from session/panel) */
 	readonly projectName: string | null;
@@ -259,6 +263,7 @@ export function panelToTab(input: PanelToTabInput): TabBarTab {
 		pendingQuestion,
 		pendingPlanApproval,
 		pendingPermission,
+		pendingComputerPermission = null,
 		isUnseen,
 		projectName,
 		projectColor,
@@ -273,6 +278,7 @@ export function panelToTab(input: PanelToTabInput): TabBarTab {
 		interactionSnapshot: {
 			pendingQuestion,
 			pendingPlanApproval,
+			pendingComputerPermission,
 			pendingPermission,
 		},
 		hasUnseenCompletion: isUnseen,
@@ -350,6 +356,7 @@ export function nonAgentPanelToTab(input: NonAgentPanelToTabInput): TabBarTab {
 			tool: null,
 			pendingQuestion: null,
 			pendingPlanApproval: null,
+			pendingComputerPermission: null,
 			pendingPermission: null,
 			hasUnseenCompletion: false,
 		}),

@@ -6,6 +6,7 @@ import type { TargetDoctorResult, TargetProcess } from "./schemas";
 import { executeWebviewJson, runCommand, type CommandRunner, type TauriMcpFailure } from "./tauri-mcp";
 
 const DEFAULT_APP_IDENTIFIER = "9223";
+const DEFAULT_APP_IDENTIFIER_CANDIDATES = ["9223", "9224", "9225", "9226", "9227"];
 
 const webviewPingSchema = z.object({
 	url: z.string().nullable(),
@@ -66,6 +67,42 @@ function detectPort(processes: readonly TargetProcess[], fallback: string): stri
 		}
 	}
 	return fallback;
+}
+
+function appIdentifierCandidates(primary: string): readonly string[] {
+	const candidates = [primary];
+	for (const candidate of DEFAULT_APP_IDENTIFIER_CANDIDATES) {
+		if (!candidates.includes(candidate)) {
+			candidates.push(candidate);
+		}
+	}
+	return candidates;
+}
+
+function probeWebview(
+	appIdentifiers: readonly string[],
+	runner: CommandRunner,
+	index: number = 0
+): ResultAsync<{ readonly port: string; readonly webview: z.infer<typeof webviewPingSchema> }, TauriMcpFailure> {
+	const port = appIdentifiers[index] ?? DEFAULT_APP_IDENTIFIER;
+	return executeWebviewJson(
+		{
+			appIdentifier: port,
+			script: "(() => ({ url: window.location.href || null, title: document.title || null }))()",
+			schema: webviewPingSchema,
+			callTimeoutMs: 5_000,
+		},
+		runner
+	).map((webview) => ({
+		port,
+		webview,
+	})).orElse((failure) => {
+		const nextIndex = index + 1;
+		if (nextIndex >= appIdentifiers.length) {
+			return err(failure);
+		}
+		return probeWebview(appIdentifiers, runner, nextIndex);
+	});
 }
 
 function latestSourceMtime(paths: readonly string[]): ResultAsync<number, TauriMcpFailure> {
@@ -183,17 +220,10 @@ export function runDoctor(options: DoctorOptions): ResultAsync<TargetDoctorResul
 			const devProcesses = processes.filter((process) => process.kind === "dev");
 			const productionProcesses = processes.filter((process) => process.kind === "production");
 			const port = detectPort(devProcesses, appIdentifier);
+			const appIdentifiers = appIdentifierCandidates(port);
 			return binaryFreshness(options.checkoutRoot).andThen((freshness) =>
-				executeWebviewJson(
-					{
-						appIdentifier: port,
-						script: "(() => ({ url: window.location.href || null, title: document.title || null }))()",
-						schema: webviewPingSchema,
-						callTimeoutMs: 5_000,
-					},
-					runner
-				)
-					.map((webview) => {
+				probeWebview(appIdentifiers, runner)
+					.map((probe) => {
 						const findings = buildFindings({
 							devProcesses,
 							productionProcesses,
@@ -204,21 +234,21 @@ export function runDoctor(options: DoctorOptions): ResultAsync<TargetDoctorResul
 						});
 						return {
 							checkoutRoot: options.checkoutRoot,
-							appIdentifier: port,
+							appIdentifier: probe.port,
 							status: statusFromFindings(findings, freshness),
 							devProcessCount: devProcesses.length,
 							productionProcessCount: productionProcesses.length,
 							devProcesses,
 							productionProcesses,
 							bridge: {
-								port,
+								port: probe.port,
 								available: true,
 							},
 							binaryFreshness: freshness,
 							webview: {
 								responsive: true,
-								url: webview.url,
-								title: webview.title,
+								url: probe.webview.url,
+								title: probe.webview.title,
 								error: null,
 							},
 							findings,

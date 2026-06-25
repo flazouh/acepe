@@ -65,6 +65,8 @@ const interactionSnapshot = $derived.by(() => {
 			pendingQuestionOperation: null,
 			pendingPermission: null,
 			pendingPermissionOperation: null,
+			pendingComputerPermission: null,
+			pendingComputerPermissionOperation: null,
 			pendingPlanApproval: null,
 			pendingPlanApprovalOperation: null,
 		};
@@ -81,6 +83,7 @@ const sessionWorkProjection = $derived.by(() => {
 		interactionSnapshot: {
 			pendingQuestion: interactionSnapshot.pendingQuestion,
 			pendingPlanApproval: interactionSnapshot.pendingPlanApproval,
+			pendingComputerPermission: interactionSnapshot.pendingComputerPermission,
 			pendingPermission: interactionSnapshot.pendingPermission,
 		},
 		hasUnseenCompletion: false,

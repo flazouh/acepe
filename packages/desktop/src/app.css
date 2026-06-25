@@ -29,7 +29,7 @@
 	--secondary-foreground: #0d0d0d;
 	--muted: #f3f3f3;
 	--muted-foreground: #666666;
-	--accent: #f3f3f3;
+	--accent: #e8e8e8;
 	--accent-foreground: #0d0d0d;
 	--destructive: #e02e2a;
 	--destructive-foreground: #ffffff;
@@ -50,7 +50,7 @@
 	--sidebar-foreground: #212121;
 	--sidebar-primary: #0169cc;
 	--sidebar-primary-foreground: #ffffff;
-	--sidebar-accent: #f3f3f3;
+	--sidebar-accent: #e8e8e8;
 	--sidebar-accent-foreground: #0d0d0d;
 	--sidebar-border: rgba(13, 13, 13, 0.078);
 	--sidebar-ring: #0169cc;

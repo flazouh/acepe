@@ -95,6 +95,7 @@ function createStateReader(state: SessionStoreState): ISessionStateReader {
 				sourcePath: session.sourcePath,
 				parentId: session.parentId,
 				sequenceId: session.sequenceId,
+				usageStats: session.usageStats,
 			};
 		},
 		getAllSessions: () => state.sessions,
@@ -302,6 +303,51 @@ describe("SessionRepository.loadStartupSessions", () => {
 		expect(reconciled[0]?.prState).toBe("OPEN");
 		expect(reconciled[0]?.parentId).toBeNull();
 		expect(reconciled[0]?.sequenceId).toBe(42);
+	});
+
+	it("preserves indexed usage stats when startup sessions merge with existing metadata", async () => {
+		const state: SessionStoreState = {
+			sessions: [
+				createSession({
+					id: "session-123",
+					title: "Loading...",
+					usageStats: undefined,
+				}),
+			],
+		};
+		const repository = new SessionRepository(
+			createStateReader(state),
+			createStateWriter(state),
+			entryManager,
+			connectionManager
+		);
+		getStartupSessionsMock.mockReturnValueOnce(
+			okAsync({
+				entries: [
+					createHistoryEntry({
+						usageStats: {
+							totalMessages: 4,
+							userMessages: 2,
+							assistantMessages: 2,
+							totalInputTokens: 120_000,
+							totalOutputTokens: 8_500,
+						},
+					}),
+				],
+				aliasRemaps: {},
+			})
+		);
+
+		const result = await repository.loadStartupSessions(state.sessions, ["new-session"]);
+
+		expect(result.isOk()).toBe(true);
+		expect(state.sessions.find((session) => session.id === "session-123")?.usageStats).toEqual({
+			totalMessages: 4,
+			userMessages: 2,
+			assistantMessages: 2,
+			totalInputTokens: 120_000,
+			totalOutputTokens: 8_500,
+		});
 	});
 
 	it("returns empty alias remaps when all sessions match by canonical id", async () => {

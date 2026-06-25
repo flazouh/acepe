@@ -502,7 +502,7 @@ export interface PersistedWorkspaceState {
 	readonly savedAt: string;
 	/** Whether the sidebar is open (added in version 2) */
 	readonly sidebarOpen?: boolean;
-	/** Whether the top bar is visible (added in version 7) */
+	/** @deprecated Tab bar is always shown; ignored on restore */
 	readonly topBarVisible?: boolean;
 	/** File tree expansion state per project (added in version 2) */
 	readonly fileTreeExpansion?: Record<string, string[]>;

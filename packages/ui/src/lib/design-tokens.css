@@ -17,7 +17,9 @@
 	--token-plan-icon-light: #ff8d20;
 	--token-plan-icon-dark: #ffc799;
 	/** Segmented download / install progress fill and level meter penultimate stage */
-	--token-download-progress: #bf8700;
+	--token-download-progress: #16db95;
+	/** Completeness ramp mid stop (orange) between success and destructive */
+	--token-completeness-mid: var(--token-plan-icon-light);
 	/** Level meter endpoints — use app theme success/destructive at runtime */
 	--token-level-fill-low: var(--success);
 	--token-level-fill-high: var(--destructive);

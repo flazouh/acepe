@@ -12,7 +12,10 @@
  */
 
 import { getContext, setContext } from "svelte";
-import type { PlanApprovalInteraction } from "../../types/interaction.js";
+import type {
+	ComputerPermissionInteraction,
+	PlanApprovalInteraction,
+} from "../../types/interaction.js";
 import type { PermissionRequest } from "../../types/permission.js";
 import type { QuestionRequest } from "../../types/question.js";
 import type { QueueItem } from "./types.js";
@@ -45,6 +48,7 @@ export interface QueueUpdateInput {
 	readonly pendingQuestionText: string | null;
 	readonly pendingQuestion: QuestionRequest | null;
 	readonly pendingPlanApproval: PlanApprovalInteraction | null;
+	readonly pendingComputerPermission?: ComputerPermissionInteraction | null;
 	readonly pendingPermission: PermissionRequest | null;
 }
 
@@ -161,7 +165,8 @@ export function createQueueStore(): QueueStore {
 					input.pendingPlanApproval,
 					input.pendingPermission,
 					getProjectColor,
-					getProjectIconSrc ?? undefined
+					getProjectIconSrc ?? undefined,
+					input.pendingComputerPermission ?? null
 				);
 			});
 		},

@@ -46,6 +46,7 @@ function makeResolvedCapabilities(): ResolvedCapabilities {
 		providerMetadata: CLAUDE_CODE_PROVIDER_METADATA,
 		availableModes: [{ id: "build", name: "Build" }],
 		currentModeId: "build",
+		configOptions: [],
 	};
 }
 

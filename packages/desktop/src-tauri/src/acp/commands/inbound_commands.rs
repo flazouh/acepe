@@ -11,6 +11,9 @@ use crate::commands::observability::{
     expected_acp_command_result, CommandResult, SerializableCommandError,
     SerializableCommandErrorDomain,
 };
+use crate::computer_use::permissions::{ComputerPermissionApprovalScope, ComputerPermissionKind};
+use crate::computer_use::runtime::ComputerAppWindowScope;
+use crate::computer_use::ComputerRuntimeRegistry;
 use crate::db::repository::SessionJournalEventRepository;
 use sea_orm::DbConn;
 use specta::Type;
@@ -159,10 +162,23 @@ pub struct CanonicalInteractionReplyRequest {
 #[derive(Debug, Clone, serde::Deserialize, Type)]
 #[serde(rename_all = "snake_case", tag = "kind")]
 pub enum CanonicalInteractionReplyPayload {
-    Permission { reply: String, option_id: String },
-    Question { answers: Value, answer_map: Value },
+    Permission {
+        reply: String,
+        option_id: String,
+    },
+    Question {
+        answers: Value,
+        answer_map: Value,
+    },
     QuestionCancel,
-    PlanApproval { approved: bool },
+    PlanApproval {
+        approved: bool,
+    },
+    ComputerPermission {
+        accepted: bool,
+        #[serde(default)]
+        scope: ComputerPermissionApprovalScope,
+    },
 }
 
 fn parse_json_rpc_request_id(
@@ -188,6 +204,9 @@ fn interaction_kind_for_payload(payload: &CanonicalInteractionReplyPayload) -> I
         CanonicalInteractionReplyPayload::Question { .. }
         | CanonicalInteractionReplyPayload::QuestionCancel => InteractionKind::Question,
         CanonicalInteractionReplyPayload::PlanApproval { .. } => InteractionKind::PlanApproval,
+        CanonicalInteractionReplyPayload::ComputerPermission { .. } => {
+            InteractionKind::ComputerPermission
+        }
     }
 }
 
@@ -222,6 +241,9 @@ fn adapted_result_from_payload(payload: &CanonicalInteractionReplyPayload) -> Va
         }
         CanonicalInteractionReplyPayload::PlanApproval { approved } => {
             json!({ "approved": approved })
+        }
+        CanonicalInteractionReplyPayload::ComputerPermission { accepted, .. } => {
+            json!({ "accepted": accepted })
         }
     }
 }
@@ -260,6 +282,88 @@ async fn persist_canonical_interaction_reply(
         "acp_reply_interaction",
     )
     .await;
+
+    Ok(())
+}
+
+async fn apply_computer_permission_runtime_policy(
+    app: &AppHandle,
+    request: &CanonicalInteractionReplyRequest,
+) -> Result<(), SerializableAcpError> {
+    let CanonicalInteractionReplyPayload::ComputerPermission {
+        accepted,
+        scope: approval_scope,
+    } = request.payload
+    else {
+        return Ok(());
+    };
+
+    let Some(interaction_id) = request.interaction_id.as_deref() else {
+        return Err(SerializableAcpError::InvalidState {
+            message: "Computer permission replies require interactionId".to_string(),
+        });
+    };
+
+    let projection_registry = app.state::<Arc<ProjectionRegistry>>();
+    let Some(interaction) = projection_registry.interaction(interaction_id) else {
+        return Err(SerializableAcpError::InvalidState {
+            message: "Computer permission interaction was not found".to_string(),
+        });
+    };
+
+    let crate::acp::projections::InteractionPayload::ComputerPermission(permission) =
+        interaction.payload
+    else {
+        return Err(SerializableAcpError::InvalidState {
+            message: "Interaction is not a computer permission".to_string(),
+        });
+    };
+
+    if permission.permission_kind != ComputerPermissionKind::AppWindowScope {
+        return Ok(());
+    }
+
+    let scope = ComputerAppWindowScope {
+        app: permission.app,
+        window: permission.window,
+    };
+    let computer_runtime_registry = app.state::<Arc<ComputerRuntimeRegistry>>();
+    if accepted {
+        computer_runtime_registry
+            .allow_app_window_scope(&request.session_id, scope.clone())
+            .await;
+        if approval_scope == ComputerPermissionApprovalScope::Always {
+            let db = app.state::<DbConn>();
+            let persisted_scopes =
+                crate::computer_use::persist_app_window_scope_allowed(db.inner(), scope)
+                    .await
+                    .map_err(|error| SerializableAcpError::InvalidState {
+                        message: format!(
+                            "Failed to persist computer permission allow-list: {error}"
+                        ),
+                    })?;
+            computer_runtime_registry
+                .replace_persisted_app_window_scopes(persisted_scopes)
+                .await;
+        }
+    } else {
+        computer_runtime_registry
+            .deny_app_window_scope(&request.session_id, &scope)
+            .await;
+        let db = app.state::<DbConn>();
+        let persisted_scopes =
+            crate::computer_use::persist_app_window_scope_denied(db.inner(), &scope)
+                .await
+                .map_err(|error| SerializableAcpError::InvalidState {
+                    message: format!("Failed to persist computer permission denial: {error}"),
+                })?;
+        computer_runtime_registry
+            .replace_persisted_app_window_scopes(persisted_scopes)
+            .await;
+        computer_runtime_registry
+            .deny_app_window_scope_for_all(&scope)
+            .await;
+    }
 
     Ok(())
 }
@@ -514,6 +618,15 @@ pub async fn acp_reply_interaction(
     expected_acp_command_result(
         "acp_reply_interaction",
         async {
+            if matches!(
+                request.payload,
+                CanonicalInteractionReplyPayload::ComputerPermission { .. }
+            ) {
+                let adapted_result = adapted_result_from_payload(&request.payload);
+                apply_computer_permission_runtime_policy(&app, &request).await?;
+                return persist_canonical_interaction_reply(&app, &request, &adapted_result).await;
+            }
+
             match request.reply_handler.kind {
                 InteractionReplyHandlerKind::Http => match &request.payload {
                     CanonicalInteractionReplyPayload::Permission { reply, .. } => {
@@ -552,6 +665,11 @@ pub async fn acp_reply_interaction(
                         Err(SerializableAcpError::InvalidState {
                             message: "Plan approval replies do not support HTTP routing"
                                 .to_string(),
+                        })
+                    }
+                    CanonicalInteractionReplyPayload::ComputerPermission { .. } => {
+                        Err(SerializableAcpError::InvalidState {
+                            message: "Computer permission replies are local only".to_string(),
                         })
                     }
                 },

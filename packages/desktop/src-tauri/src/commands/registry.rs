@@ -74,6 +74,17 @@ macro_rules! __all_command_entries_after_cursor_history {
 #[macro_export]
 macro_rules! __all_command_entries_after_opencode_history {
     ([$callback:ident $(, $args:tt)*], [$($acc:tt)*], $($entries:tt)*) => {
+        $crate::provider_account_usage_command_entries!(
+            __all_command_entries_after_provider_account_usage,
+            [$callback $(, $args)*],
+            [$($acc)* $($entries)*,]
+        );
+    };
+}
+
+#[macro_export]
+macro_rules! __all_command_entries_after_provider_account_usage {
+    ([$callback:ident $(, $args:tt)*], [$($acc:tt)*], $($entries:tt)*) => {
         $crate::storage_command_entries!(
             __all_command_entries_after_storage,
             [$callback $(, $args)*],
@@ -226,6 +237,7 @@ macro_rules! acp_command_entries {
             list_preconnection_capabilities: acp_list_preconnection_capabilities,
             list_preconnection_commands: acp_list_preconnection_commands,
             get_composer_mcp_catalog: acp_get_composer_mcp_catalog,
+            probe_computer_use: acp_probe_computer_use,
             install_agent: acp_install_agent,
             uninstall_agent: acp_uninstall_agent,
             close_session: acp_close_session,
@@ -284,6 +296,15 @@ macro_rules! opencode_history_command_entries {
         $callback!($($args,)*
             get_opencode_history: get_opencode_history,
             get_opencode_sessions_for_project: get_opencode_sessions_for_project
+        );
+    };
+}
+
+#[macro_export]
+macro_rules! provider_account_usage_command_entries {
+    ($callback:ident $(, $args:tt)*) => {
+        $callback!($($args,)*
+            get: get_provider_account_usage
         );
     };
 }

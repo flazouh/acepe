@@ -8,6 +8,7 @@ export type {
 } from "../../services/converted-session-types.js";
 
 // Import the data types directly to avoid circular dependencies
+import type { ComputerOperationPayload } from "../../services/acp-types.js";
 import type {
 	ToolCallData as _ToolCallData,
 	ToolArguments,
@@ -35,4 +36,5 @@ export interface ToolCall extends ProductToolCallData, ToolCallTiming {
 	normalizedResult?: NormalizedToolResult | null;
 	taskChildren?: ToolCall[] | null;
 	presentationStatus?: ToolPresentationStatus;
+	computerPayload?: ComputerOperationPayload | null;
 }

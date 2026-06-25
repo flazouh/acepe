@@ -17,6 +17,8 @@ export type CanonicalAgentId = "claude-code" | "copilot" | "cursor" | "opencode"
 
 export type SessionLifecycleState = "created" | "persisted"
 
+export type HistoryUsageStats = { totalMessages: number; userMessages: number; assistantMessages: number; totalInputTokens: number; totalOutputTokens: number }
+
 export type HistoryEntry = {
 /**
  * Database ID (UUID)
@@ -50,7 +52,11 @@ worktreeDeleted?: boolean | null; sessionLifecycleState?: SessionLifecycleState 
 /**
  * Per-project sequence ID for Acepe-native sessions (None for scanned sessions).
  */
-sequenceId?: number | null }
+sequenceId?: number | null;
+/**
+ * Lightweight usage totals collected while indexing persisted provider history.
+ */
+usageStats?: HistoryUsageStats | null }
 
 /**
  * Response wrapper for get_startup_sessions.

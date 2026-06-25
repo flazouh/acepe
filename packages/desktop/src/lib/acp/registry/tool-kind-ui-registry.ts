@@ -460,6 +460,20 @@ export const TOOL_KIND_UI_REGISTRY: Record<ToolKind, ToolKindUI> = {
 		subtitle: getBrowserSubtitle,
 	},
 
+	computer: {
+		title: (toolCall, turnState) => {
+			const status = getToolStatus(toolCall, turnState);
+			return status.isPending ? "Using computer" : "Computer";
+		},
+		subtitle: (toolCall) => {
+			if (toolCall.arguments.kind !== "computer") return "";
+			const verb = toolCall.arguments.verb;
+			const targetId = toolCall.arguments.target_id;
+			if (verb && targetId) return `${verb} -> ${truncateText(targetId, 30)}`;
+			return verb ?? targetId ?? "";
+		},
+	},
+
 	sql: {
 		title: (toolCall, turnState) => {
 			if (toolCall.title?.trim()) {

@@ -181,8 +181,10 @@ const voiceToolbarBinding = $derived.by(() => {
 	if (!base) return null;
 	return {
 		phase: base.phase,
-		recordingElapsedLabel: base.recordingElapsedLabel,
+		recordingElapsedTenths: base.recordingElapsedTenths,
 		downloadPercent: base.downloadPercent,
+		meterLevels: base.meterLevels,
+		barCount: base.barCount,
 		onMicPointerDown: (e: PointerEvent) => {
 			voiceCursorSnapshot = editorRef
 				? getSerializedCursorOffset(editorRef)
@@ -1399,19 +1401,6 @@ $effect(() => {
 	/>
 {/snippet}
 
-{#snippet setupBarReasoningControl()}
-	{#if setupBarReasoningConfigOption}
-		<AgentInputConfigOptionSelector
-			configOption={setupBarReasoningConfigOption}
-			displayMode="barOnly"
-			disabled={composerView.selectorsLoading || composerView.selectorsDisabledByComposer}
-			onValueChange={(configId, value) => {
-				void handleConfigOptionChange(configId, value);
-			}}
-		/>
-	{/if}
-{/snippet}
-
 <div
 	bind:this={inputState.containerRef}
 	role="region"
@@ -1436,13 +1425,16 @@ $effect(() => {
 		<span class="sr-only" role="status" aria-live="polite">{autonomousStatusMessage}</span>
 		{#if showNewThreadOptions && props.newThreadContext}
 			{@const newThread = props.newThreadContext}
-			<div class="mb-1.5">
+			<div class="mb-1">
 				<AgentInputNewThreadOptions
 					project={newThread.project}
 					agent={newThread.agent}
 					model={newThreadModelControl}
-					reasoning={setupBarReasoningControl}
-					showReasoning={setupBarReasoningConfigOption !== null}
+					reasoningConfigOption={setupBarReasoningConfigOption}
+					reasoningDisabled={composerView.selectorsLoading || composerView.selectorsDisabledByComposer}
+					onReasoningValueChange={(configId, value) => {
+						void handleConfigOptionChange(configId, value);
+					}}
 					showWorktree={newThread.showWorktree}
 					worktreeOn={newThread.worktreeOn}
 					worktreeDisabled={newThread.worktreeDisabled}
@@ -1455,7 +1447,7 @@ $effect(() => {
 		<SharedAgentPanelComposer
 			class="border-t-0 p-0"
 			inputClass="flex-shrink-0 border border-border bg-input/30"
-			contentClass={voiceOverlayActive ? "relative p-1.5" : "p-1.5"}
+			contentClass={voiceOverlayActive ? "relative p-1" : "p-1"}
 		>
 			{#snippet content()}
 				<input
@@ -1549,7 +1541,7 @@ $effect(() => {
 					{#snippet trailingControls()}
 						<AgentInputComposerTrailingControls
 							inputReady={composerView.inputReady}
-							agentProjectPicker={props.agentProjectPicker}
+							agentProjectPicker={showNewThreadOptions ? undefined : props.agentProjectPicker}
 							toolbarConfigOptions={composerTrailingConfigOptions}
 							onConfigOptionChange={(configId, value) => {
 								void handleConfigOptionChange(configId, value);

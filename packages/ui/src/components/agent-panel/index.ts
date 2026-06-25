@@ -38,6 +38,7 @@ export { default as AgentInputModeIcon } from "./agent-input-mode-icon.svelte";
 export { default as AgentInputModePill } from "./agent-input-mode-pill.svelte";
 export { default as AgentInputModeSelector } from "./agent-input-mode-selector.svelte";
 export { default as AgentInputNewThreadOptions } from "./agent-input-new-thread-options.svelte";
+export { default as AgentInputSetupReasoning } from "./agent-input-setup-reasoning.svelte";
 export {
 	getModeDropdownOptions,
 	getSelectedModeOption,
@@ -56,7 +57,7 @@ export type {
 } from "./agent-input-model-selector-types.js";
 export { default as AgentInputModelTrigger } from "./agent-input-model-trigger.svelte";
 export { default as AgentInputPastedTextOverlay } from "./agent-input-pasted-text-overlay.svelte";
-export { default as AgentInputSelectorCheck } from "./agent-input-selector-check.svelte";
+export { default as AgentInputSelectorItemRow } from "./agent-input-selector-item-row.svelte";
 export { default as AgentInputSlashCommandDropdown } from "./agent-input-slash-command-dropdown.svelte";
 export type {
 	AgentInputSlashCommand,

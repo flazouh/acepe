@@ -292,7 +292,7 @@ class AgentPanelSessionController {
 - Edge: `disableSendForFailedFirstSend` false when `panelConnectionState` null; honors `shouldDisableSendForFailedFirstSend` when set.
 - Integration: `viewState` (still in component) reflects `controller.errorInfo` changes identically to before.
 
-**Verification:** `bun run check` exit 0; controller error + connection tests pass; full agent-panel vitest suite green; **manual app QA required** (per acepe-dev-app-qa) — trigger a connection error, retry, dismiss; confirm inline error card, retry spinner, and dismissal behave exactly as before. Flag this manual step in the commit body; the user manages the dev server (never run `bun dev`).
+**Verification:** `bun run check` exit 0; controller error + connection tests pass; full agent-panel vitest suite green; **manual app QA required** (per acepe-dev-app-qa) — trigger a connection error, retry, dismiss; confirm inline error card, retry spinner, and dismissal behave exactly as before. If the dev app is not running, start it from `packages/desktop` with `bun run tauri`, then run the QA CLI pass.
 
 ---
 

@@ -550,7 +550,7 @@ flowchart TB
 ## Documentation / Operational Notes
 
 - Update `docs/solutions/ui-bugs/assistant-text-reveal-streaming-block.md` after implementation. The learning should say the final architecture uses cosmetic visible text plus passive fade metadata, not markdown-owned pacing.
-- Do not run `bun dev`; the user manages the dev server.
+- If the dev app is not running when UI QA is required, start it from `packages/desktop` with `bun run tauri`, then run the QA CLI pass.
 - QA order after implementation: focused unit tests, `bun run --cwd packages/ui check`, `bun run --cwd packages/ui test`, `bun run --cwd packages/desktop check`, focused desktop tests, repro lab via MCP/DOM values, then one live dev-app session.
 
 ## Sources & References

@@ -19,14 +19,14 @@ const IconComponent = $derived(icon ?? Sparkle);
 
 <div
 	class={cn(
-		"flex flex-col items-center justify-center gap-3 px-8 py-14 text-center",
+		"flex flex-col items-center justify-center gap-2 px-6 py-10 text-center",
 		className
 	)}
 >
-	<IconComponent class="size-5 text-muted-foreground/50" weight="regular" />
-	<div class="flex max-w-[360px] flex-col gap-1">
-		<p class="text-[13px] font-medium text-foreground/80">{headline}</p>
-		<p class="text-[12px] leading-relaxed text-muted-foreground/60">{description}</p>
+	<IconComponent class="size-4 text-muted-foreground/50" weight="regular" />
+	<div class="flex max-w-[320px] flex-col gap-0.5">
+		<p class="text-xs font-medium text-foreground/80">{headline}</p>
+		<p class="text-[11px] leading-snug text-muted-foreground/60">{description}</p>
 	</div>
 	<span class="text-[10px] font-medium uppercase tracking-[0.08em] text-muted-foreground/50">
 		Coming soon

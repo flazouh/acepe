@@ -48,6 +48,7 @@ export type {
 	Interaction,
 	InteractionKind,
 	InteractionToolReference,
+	ComputerPermissionInteraction,
 	PermissionInteraction,
 	PlanApprovalInteraction,
 	QuestionInteraction,

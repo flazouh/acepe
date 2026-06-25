@@ -147,6 +147,7 @@ function makeItem(
 		insertions: 0,
 		deletions: 0,
 		pendingQuestion: null,
+		pendingComputerPermission: null,
 		status: "ready",
 		connectionError: null,
 		sequenceId: null,

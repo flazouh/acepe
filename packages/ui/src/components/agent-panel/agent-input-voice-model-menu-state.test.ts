@@ -52,4 +52,29 @@ describe("agent input voice model menu state", () => {
 			},
 		]);
 	});
+
+	it("sorts models by tier before building rows", () => {
+		const unsorted: AgentInputVoiceModel[] = [
+			{
+				id: "large",
+				name: "Large",
+				sizeBytes: 1024,
+				isDownloaded: true,
+			},
+			{
+				id: "tiny",
+				name: "Tiny",
+				sizeBytes: 512,
+				isDownloaded: true,
+			},
+		];
+
+		expect(
+			getVoiceModelRows({
+				models: unsorted,
+				selectedModelId: null,
+				downloadingModelId: null,
+			}).map((row) => row.model.id)
+		).toEqual(["tiny", "large"]);
+	});
 });

@@ -95,10 +95,6 @@ vi.mock("../pr-state-icon.svelte", async () => ({
 	default: (await import("../pr-status-card/test-component-stub.svelte")).default,
 }));
 
-vi.mock("../selector-check.svelte", async () => ({
-	default: (await import("../pr-status-card/test-component-stub.svelte")).default,
-}));
-
 vi.mock("../shared/pr-link-footer-button.svelte", async () => ({
 	default: (await import("../pr-status-card/test-component-stub.svelte")).default,
 }));

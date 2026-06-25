@@ -1,6 +1,6 @@
 <script lang="ts">
 import { Colors } from "@acepe/ui/colors";
-import { Selector } from "@acepe/ui";
+import { Selector, AgentInputSelectorItemRow } from "@acepe/ui";
 import type { ButtonVariant } from "@acepe/ui";
 import * as DropdownMenu from "@acepe/ui/dropdown-menu";
 import { Skeleton } from "$lib/components/ui/skeleton/index.js";
@@ -9,7 +9,6 @@ import { getAgentPreferencesStore } from "../store/index.js";
 import { capitalizeName } from "../utils/index.js";
 import { createLogger } from "../utils/logger.js";
 import AgentIcon from "./agent-icon.svelte";
-import SelectorCheck from "./selector-check.svelte";
 import type { ProviderMetadataProjection } from "$lib/services/acp-types.js";
 
 interface AgentSelectorProps {
@@ -101,6 +100,8 @@ const effectiveShowChevron = $derived(showLabel ? false : showChevron);
 	{variant}
 	triggerSize={effectiveTriggerSize}
 	triggerClass={effectiveTriggerClass}
+	side="top"
+	sideOffset={8}
 >
 	{#snippet renderButton()}
 		{#if isLoading}
@@ -127,11 +128,12 @@ const effectiveShowChevron = $derived(showLabel ? false : showChevron);
 	{:else}
 		{#each availableAgents as agent (agent.id)}
 			{@const isSelected = agent.id === currentAgentId}
-			<DropdownMenu.Item
+			<AgentInputSelectorItemRow
+				label={capitalizeName(agent.name)}
+				selected={isSelected}
 				onSelect={() => handleAgentSelect(agent.id)}
-				class="group/item py-1 {isSelected ? 'bg-accent' : ''}"
 			>
-				<div class="flex items-center gap-2 w-full">
+				{#snippet leading()}
 					<AgentIcon
 						agentId={agent.id}
 						providerBrand={agent.provider_metadata?.providerBrand ?? null}
@@ -139,7 +141,8 @@ const effectiveShowChevron = $derived(showLabel ? false : showChevron);
 						class="h-3.5 w-3.5 shrink-0"
 						size={14}
 					/>
-					<span class="flex-1 text-xs font-normal truncate">{capitalizeName(agent.name)}</span>
+				{/snippet}
+				{#snippet trailing()}
 					<button
 						type="button"
 						class="default-agent-toggle shrink-0 {agent.id === defaultAgentId ? '' : 'opacity-0 group-hover/item:opacity-100 focus-visible:opacity-100 text-muted-foreground'} transition-opacity"
@@ -153,15 +156,14 @@ const effectiveShowChevron = $derived(showLabel ? false : showChevron);
 							? `Unset ${agent.name} as default agent`
 							: `Set ${agent.name} as default agent`}
 					>
-							{#if agent.id === defaultAgentId}
+						{#if agent.id === defaultAgentId}
 							<Heart size={14} weight="fill" color={Colors.red} />
 						{:else}
 							<Heart size={14} weight="regular" />
 						{/if}
 					</button>
-					<SelectorCheck visible={isSelected} />
-				</div>
-			</DropdownMenu.Item>
+				{/snippet}
+			</AgentInputSelectorItemRow>
 		{/each}
 	{/if}
 </Selector>

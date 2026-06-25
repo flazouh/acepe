@@ -93,6 +93,7 @@ impl ProjectionRegistry {
             arguments,
             progressive_arguments: existing.progressive_arguments.clone(),
             result: existing.result.clone(),
+            computer_payload: None,
             command: existing.command.clone(),
             normalized_todos: existing.normalized_todos.clone(),
             parent_tool_call_id: existing.parent_tool_call_id.clone(),
@@ -138,6 +139,30 @@ impl ProjectionRegistry {
                 .tool
                 .as_ref()
                 .map(|t| build_canonical_operation_id(&question.session_id, &t.call_id)),
+        };
+        self.upsert_interaction(interaction);
+    }
+
+    pub(crate) fn register_computer_permission_interaction(
+        &self,
+        permission: ComputerPermissionData,
+    ) {
+        let canonical_operation_id = permission
+            .tool
+            .as_ref()
+            .map(|tool| build_canonical_operation_id(&permission.session_id, &tool.call_id));
+        let interaction = InteractionSnapshot {
+            id: permission.id.clone(),
+            session_id: permission.session_id.clone(),
+            kind: InteractionKind::ComputerPermission,
+            state: InteractionState::Pending,
+            json_rpc_request_id: None,
+            reply_handler: None,
+            tool_reference: permission.tool.clone(),
+            responded_at_event_seq: None,
+            response: None,
+            payload: InteractionPayload::ComputerPermission(permission),
+            canonical_operation_id,
         };
         self.upsert_interaction(interaction);
     }

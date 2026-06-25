@@ -18,8 +18,10 @@ function makeVoiceState(
 ): AgentComposerToolbarVoiceBinding {
 	return {
 		phase,
-		recordingElapsedLabel: null,
+		recordingElapsedTenths: null,
 		downloadPercent: 0,
+		meterLevels: [],
+		barCount: 0,
 		onMicPointerDown: () => {},
 		onMicPointerUp: () => {},
 		onMicPointerCancel: () => {},
@@ -53,14 +55,12 @@ describe("agent input composer toolbar state", () => {
 			shouldShowVoiceControls({
 				voiceState: recording,
 				voiceEnabled: true,
-				isRecordingUi: true,
 			})
-		).toBe(false);
+		).toBe(true);
 		expect(
 			shouldShowVoiceControls({
 				voiceState: error,
 				voiceEnabled: true,
-				isRecordingUi: false,
 			})
 		).toBe(true);
 		expect(shouldShowVoiceErrorDismiss({ voiceState: error, voiceEnabled: true })).toBe(

@@ -1,7 +1,6 @@
 <script lang="ts">
-import { Selector } from "@acepe/ui";
+import { Selector, AgentInputSelectorItemRow } from "@acepe/ui";
 import * as DropdownMenu from "@acepe/ui/dropdown-menu";
-import { IconCircleCheckFilled } from "@tabler/icons-svelte";
 import { Brain } from "phosphor-svelte";
 import { Lightning } from "phosphor-svelte";
 import { ShieldCheck } from "phosphor-svelte";
@@ -86,7 +85,8 @@ function handleBooleanToggle() {
 	<Selector
 		{disabled}
 		align="start"
-		sideOffset={4}
+		side="top"
+		sideOffset={8}
 		triggerSize="square"
 		showChevron={false}
 		variant="ghost"
@@ -105,18 +105,11 @@ function handleBooleanToggle() {
 		<div class="max-h-[250px] overflow-y-auto scrollbar-thin">
 			{#each configOption.options ? configOption.options : [] as option (String(option.value))}
 				{@const optValue = String(option.value)}
-				{@const isSelected = optValue === currentValue}
-				<DropdownMenu.Item
+				<AgentInputSelectorItemRow
+					label={option.name}
+					selected={optValue === currentValue}
 					onSelect={() => handleSelect(optValue)}
-					class="group/item py-1 {isSelected ? 'bg-accent' : ''}"
-				>
-					<div class="flex items-center gap-3 w-full">
-						<span class="flex-1 text-sm truncate">{option.name}</span>
-						{#if isSelected}
-							<IconCircleCheckFilled class="h-4 w-4 shrink-0 text-foreground" />
-						{/if}
-					</div>
-				</DropdownMenu.Item>
+				/>
 			{/each}
 		</div>
 	</Selector>

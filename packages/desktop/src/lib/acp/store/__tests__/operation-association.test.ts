@@ -1,12 +1,16 @@
 import { describe, expect, it } from "bun:test";
 
 import type { InteractionSnapshot, OperationSnapshot } from "../../../services/acp-types.js";
-import type { PlanApprovalInteraction } from "../../types/interaction.js";
+import type {
+	ComputerPermissionInteraction,
+	PlanApprovalInteraction,
+} from "../../types/interaction.js";
 import { buildAcpPermissionId, type PermissionRequest } from "../../types/permission.js";
 import type { QuestionRequest } from "../../types/question.js";
 import {
 	buildSessionOperationInteractionSnapshot,
 	findOperationForPermission,
+	findOperationForComputerPermission,
 	findOperationForPlanApproval,
 	findOperationForQuestion,
 } from "../operation-association.js";
@@ -166,6 +170,41 @@ function createPendingPlanApprovalInteraction(
 	};
 }
 
+function createPendingComputerPermissionInteraction(
+	sessionId: string,
+	toolCallId: string,
+	canonicalOperationId?: string | null
+): InteractionSnapshot {
+	return {
+		id: `computer-permission-${sessionId}-${toolCallId}`,
+		session_id: sessionId,
+		kind: "ComputerPermission",
+		state: "Pending",
+		json_rpc_request_id: null,
+		reply_handler: null,
+		tool_reference: {
+			messageId: toolCallId,
+			callId: toolCallId,
+		},
+		responded_at_event_seq: null,
+		response: null,
+		canonical_operation_id:
+			canonicalOperationId === undefined ? `op-${toolCallId}` : canonicalOperationId,
+		payload: {
+			ComputerPermission: {
+				id: `computer-permission-${sessionId}-${toolCallId}`,
+				session_id: sessionId,
+				permission_kind: "accessibility",
+				reason: "Accessibility permission is required to operate the desktop.",
+				tool: {
+					messageId: toolCallId,
+					callId: toolCallId,
+				},
+			},
+		},
+	};
+}
+
 describe("operation association", () => {
 	it("prefers explicit tool references over semantic fallback", () => {
 		const operationStore = new OperationStore();
@@ -227,6 +266,27 @@ describe("operation association", () => {
 
 		expect(findOperationForQuestion(operationStore, question)?.toolCallId).toBe("tool-1");
 		expect(findOperationForPlanApproval(operationStore, approval)?.toolCallId).toBe("tool-1");
+	});
+
+	it("resolves computer permissions by canonical operation id before tool reference", () => {
+		const operationStore = new OperationStore();
+		operationStore.replaceSessionOperations("session-1", [
+			createExecuteOperation("tool-1", "computer action"),
+		]);
+		const permission: ComputerPermissionInteraction = {
+			id: "computer-permission-1",
+			kind: "computer_permission",
+			sessionId: "session-1",
+			permissionKind: "accessibility",
+			reason: "Accessibility permission is required.",
+			tool: { messageID: "", callID: "stale-tool-ref" },
+			status: "pending",
+			canonicalOperationId: "op-tool-1",
+		};
+
+		expect(findOperationForComputerPermission(operationStore, permission)?.toolCallId).toBe(
+			"tool-1"
+		);
 	});
 
 	it("resolves interactions by operation provenance key when tool-call storage id differs", () => {
@@ -303,6 +363,23 @@ describe("operation association", () => {
 		expect(snapshot.pendingPermissionOperation).toBeNull();
 	});
 
+	it("does not choose the first pending computer permission when no operation match exists", () => {
+		const operationStore = new OperationStore();
+		const interactions = new InteractionStore();
+		interactions.applySessionInteractionPatches([
+			createPendingComputerPermissionInteraction("session-1", "missing-tool", null),
+		]);
+
+		const snapshot = buildSessionOperationInteractionSnapshot(
+			"session-1",
+			operationStore,
+			interactions
+		);
+
+		expect(snapshot.pendingComputerPermission).toBeNull();
+		expect(snapshot.pendingComputerPermissionOperation).toBeNull();
+	});
+
 	it("uses session-scoped pending permission indexes for operation snapshots", () => {
 		const operationStore = new OperationStore();
 		operationStore.replaceSessionOperations("session-1", [
@@ -333,11 +410,46 @@ describe("operation association", () => {
 		}
 	});
 
+	it("uses session-scoped pending computer permission indexes for operation snapshots", () => {
+		const operationStore = new OperationStore();
+		operationStore.replaceSessionOperations("session-1", [
+			createExecuteOperation("tool-1", "computer action"),
+		]);
+		const interactions = new InteractionStore();
+		interactions.applySessionInteractionPatches([
+			createPendingComputerPermissionInteraction("other-session", "other-tool"),
+			createPendingComputerPermissionInteraction("session-1", "tool-1"),
+		]);
+		const values = interactions.computerPermissionsPending.values.bind(
+			interactions.computerPermissionsPending
+		);
+		(interactions.computerPermissionsPending as unknown as {
+			values: () => IterableIterator<ComputerPermissionInteraction>;
+		}).values = () => {
+			throw new Error("snapshot selector must not scan all pending computer permissions");
+		};
+
+		try {
+			const snapshot = buildSessionOperationInteractionSnapshot(
+				"session-1",
+				operationStore,
+				interactions
+			);
+
+			expect(snapshot.pendingComputerPermission?.sessionId).toBe("session-1");
+			expect(snapshot.pendingComputerPermissionOperation?.toolCallId).toBe("tool-1");
+		} finally {
+			(interactions.computerPermissionsPending as unknown as { values: typeof values }).values =
+				values;
+		}
+	});
+
 	it("does not scan global pending interactions for sessions without pending input", () => {
 		const interactions = new InteractionStore();
 		interactions.applySessionInteractionPatches([
 			createPendingQuestionInteraction("other-session", "other-tool"),
 			createPendingPermissionInteraction("other-session", "other-tool"),
+			createPendingComputerPermissionInteraction("other-session", "other-tool"),
 			createPendingPlanApprovalInteraction("other-session", "other-tool"),
 		]);
 		const questionValues = interactions.questionsPending.values.bind(interactions.questionsPending);
@@ -346,6 +458,9 @@ describe("operation association", () => {
 		);
 		const approvalValues = interactions.planApprovalsPending.values.bind(
 			interactions.planApprovalsPending
+		);
+		const computerPermissionValues = interactions.computerPermissionsPending.values.bind(
+			interactions.computerPermissionsPending
 		);
 		(interactions.questionsPending as unknown as { values: () => IterableIterator<QuestionRequest> }).values =
 			() => {
@@ -359,10 +474,16 @@ describe("operation association", () => {
 			() => {
 				throw new Error("approval selector must not scan all pending approvals");
 			};
+		(interactions.computerPermissionsPending as unknown as {
+			values: () => IterableIterator<ComputerPermissionInteraction>;
+		}).values = () => {
+			throw new Error("computer permission selector must not scan all pending computer permissions");
+		};
 
 		try {
 			expect(interactions.getPendingQuestionsForSession("session-1")).toEqual([]);
 			expect(interactions.getPendingPermissionsForSession("session-1")).toEqual([]);
+			expect(interactions.getPendingComputerPermissionsForSession("session-1")).toEqual([]);
 			expect(interactions.getPendingPlanApprovalsForSession("session-1")).toEqual([]);
 		} finally {
 			(interactions.questionsPending as unknown as { values: typeof questionValues }).values =
@@ -371,6 +492,11 @@ describe("operation association", () => {
 				permissionValues;
 			(interactions.planApprovalsPending as unknown as { values: typeof approvalValues }).values =
 				approvalValues;
+			(
+				interactions.computerPermissionsPending as unknown as {
+					values: typeof computerPermissionValues;
+				}
+			).values = computerPermissionValues;
 		}
 	});
 

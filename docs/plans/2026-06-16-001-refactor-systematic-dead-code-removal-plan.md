@@ -71,8 +71,8 @@ kept alive by stale tests.
 - Do not use source-reading structural tests. The detector itself may read the
   repository, but product tests must remain behavior-focused.
 - Do not introduce an external dead-code service or network-dependent tool.
-- Do not run the dev server. If UI-visible verification is needed, attach to the
-  existing dev app with the repo QA wrapper.
+- If UI-visible verification is needed and the dev app is not running, start it
+  from `packages/desktop` with `bun run tauri`, then run the QA CLI pass.
 - Do not turn ambiguous dynamic-use candidates into automatic deletions.
 
 ### Deferred to Separate Tasks
@@ -562,7 +562,8 @@ before the detector stabilizes.
 - If a deletion changes desktop UI behavior or route structure, run `bun run qa
   doctor`, `bun run qa observe`, targeted `bun run qa inspect`, and screenshot
   through the existing dev Tauri app.
-- Do not start `bun dev`; attach to the user's running dev app.
+- If the dev app is not running when UI QA is required, start it from
+  `packages/desktop` with `bun run tauri`, then run the QA CLI pass.
 
 ## Alternative Approaches Considered
 

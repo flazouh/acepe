@@ -16,7 +16,7 @@ const context = [
 	"- Prefer the wrapper over raw Tauri MCP commands. Use raw Tauri MCP only when the wrapper lacks the needed primitive.",
 	"- If a new QA/app interaction is not extremely smooth, make the workflow smoother before repeating it: add a wrapper command, helper, hook, skill instruction, or documented primitive so the friction becomes part of the system instead of staying in the conversation.",
 	"- For UI-visible work, verification is not complete until the running dev app is inspected through the QA wrapper or Tauri WebView path. Browser-only localhost evidence is not enough for desktop QA.",
-	"- Never run `bun dev`; the user owns the dev server. Attach to the existing running dev app.",
+	"- If the Acepe dev app or dev server is not available when UI QA is required, start it from `packages/desktop` with `bun run tauri`, then run the QA wrapper pass.",
 ];
 
 const output = {

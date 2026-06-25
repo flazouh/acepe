@@ -1,5 +1,5 @@
 <script lang="ts">
-import { VoiceDownloadProgress } from "@acepe/ui";
+import { SegmentedProgressBar } from "@acepe/ui";
 import { AgentPanelInstallCard as SharedAgentPanelInstallCard } from "@acepe/ui/agent-panel";
 import { Spinner } from "$lib/components/ui/spinner/index.js";
 import AgentIcon from "../../agent-icon.svelte";
@@ -30,7 +30,7 @@ const installTitle = $derived(`Setting up ${agentName}...`);
 	{/snippet}
 
 	{#snippet progressIndicator()}
-		<VoiceDownloadProgress
+		<SegmentedProgressBar
 			ariaLabel={`${installTitle} ${stage}`}
 			label=""
 			percent={progressPercent}

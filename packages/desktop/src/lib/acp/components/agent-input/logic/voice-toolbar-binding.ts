@@ -10,8 +10,10 @@ export function toVoiceToolbarBinding(
 	}
 	return {
 		phase: voice.phase,
-		recordingElapsedLabel: voice.recordingElapsedLabel,
+		recordingElapsedTenths: voice.recordingElapsedTenthsDisplay,
 		downloadPercent: voice.downloadPercent,
+		meterLevels: voice.waveform.meterLevels,
+		barCount: voice.waveform.barCount,
 		onMicPointerDown: (e: PointerEvent) => {
 			voice.onMicPointerDown(e);
 		},

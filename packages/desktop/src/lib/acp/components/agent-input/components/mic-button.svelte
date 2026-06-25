@@ -11,7 +11,7 @@
 	- checking_permission / recording: red filled circle with rounded stop square, soft pulsing glow
 -->
 <script lang="ts">
-import { VoiceDownloadProgress } from "@acepe/ui";
+import { SegmentedProgressBar } from "@acepe/ui";
 import { Microphone } from "phosphor-svelte";
 import { Spinner } from "$lib/components/ui/spinner/index.js";
 import { Kbd, KbdGroup } from "$lib/components/ui/kbd/index.js";
@@ -94,12 +94,12 @@ const STOP_RED = "#FF5D5A";
 				tabindex="0"
 			>
 				{#if visualState === "download_progress"}
-					<VoiceDownloadProgress
+					<SegmentedProgressBar
 						ariaLabel={title}
 						label=""
 						percent={voiceState.downloadPercent}
 						segmentCount={20}
-						showPercent={false}
+						showPercent={true}
 						variant="downloadCompact"
 					/>
 				{:else if visualState === "spinner"}

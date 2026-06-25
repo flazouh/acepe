@@ -1,7 +1,7 @@
 ---
 title: "feat: Unified agent-agnostic auto-update for managed agent CLIs (verified agents)"
 type: feat
-status: active
+status: completed
 date: 2026-06-24
 ---
 

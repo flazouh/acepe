@@ -1,4 +1,7 @@
-import type { PlanApprovalInteraction } from "../types/interaction.js";
+import type {
+	ComputerPermissionInteraction,
+	PlanApprovalInteraction,
+} from "../types/interaction.js";
 import type { Operation } from "../types/operation.js";
 import type { PermissionRequest } from "../types/permission.js";
 import type { QuestionRequest } from "../types/question.js";
@@ -45,6 +48,24 @@ export function planApprovalMatchesOperation(
 	return false;
 }
 
+export function computerPermissionMatchesOperation(
+	permission: ComputerPermissionInteraction,
+	operation: Operation
+): boolean {
+	if (permission.canonicalOperationId === operation.id) {
+		return true;
+	}
+
+	if (permission.tool == null) {
+		return false;
+	}
+
+	return (
+		permission.tool.callID === operation.operationProvenanceKey ||
+		permission.tool.callID === operation.toolCallId
+	);
+}
+
 export function findOperationForPermission(
 	operationStore: OperationStore,
 	permission: PermissionRequest
@@ -88,11 +109,36 @@ export function findOperationForPlanApproval(
 	);
 }
 
+export function findOperationForComputerPermission(
+	operationStore: OperationStore,
+	permission: ComputerPermissionInteraction
+): Operation | null {
+	if (permission.canonicalOperationId != null) {
+		const operation = operationStore.getById(permission.canonicalOperationId);
+		if (operation != null) {
+			return operation;
+		}
+	}
+
+	const toolCallId = permission.tool?.callID;
+	if (toolCallId == null) {
+		return null;
+	}
+
+	return (
+		operationStore.getByProvenanceKey(permission.sessionId, toolCallId) ??
+		operationStore.getByToolCallId(permission.sessionId, toolCallId) ??
+		null
+	);
+}
+
 export interface SessionOperationInteractionSnapshot {
 	readonly pendingQuestion: QuestionRequest | null;
 	readonly pendingQuestionOperation: Operation | null;
 	readonly pendingPermission: PermissionRequest | null;
 	readonly pendingPermissionOperation: Operation | null;
+	readonly pendingComputerPermission: ComputerPermissionInteraction | null;
+	readonly pendingComputerPermissionOperation: Operation | null;
 	readonly pendingPlanApproval: PlanApprovalInteraction | null;
 	readonly pendingPlanApprovalOperation: Operation | null;
 }
@@ -124,6 +170,17 @@ export function buildSessionOperationInteractionSnapshot(
 		}
 	}
 
+	let pendingComputerPermission: ComputerPermissionInteraction | null = null;
+	let pendingComputerPermissionOperation: Operation | null = null;
+	for (const permission of interactions.getPendingComputerPermissionsForSession(sessionId)) {
+		const operation = findOperationForComputerPermission(operationStore, permission);
+		if (operation != null) {
+			pendingComputerPermission = permission;
+			pendingComputerPermissionOperation = operation;
+			break;
+		}
+	}
+
 	let pendingPlanApproval: PlanApprovalInteraction | null = null;
 	let pendingPlanApprovalOperation: Operation | null = null;
 	for (const approval of interactions.getPendingPlanApprovalsForSession(sessionId)) {
@@ -144,6 +201,8 @@ export function buildSessionOperationInteractionSnapshot(
 		pendingQuestionOperation,
 		pendingPermission,
 		pendingPermissionOperation,
+		pendingComputerPermission,
+		pendingComputerPermissionOperation,
 		pendingPlanApproval,
 		pendingPlanApprovalOperation,
 	};

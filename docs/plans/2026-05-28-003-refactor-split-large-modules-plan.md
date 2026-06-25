@@ -455,7 +455,7 @@ The "cohesive cluster" judgment for each file is in the per-unit `Approach` sect
 **Verification:**
 - `bun run check` passes.
 - `bun test` passes.
-- Manual: open the dev app and confirm panel behavior (per CLAUDE.md "For UI or frontend changes, start the dev server and use the feature in a browser before reporting the task as complete"). Per the operational guardrail, **do not run `bun dev`** — the user manages the dev server. Flag the manual verification step in the commit body and ask the user to confirm before merging.
+- Manual: open the dev app and confirm panel behavior. If the dev app is not running, start it from `packages/desktop` with `bun run tauri`, then run the QA CLI pass.
 
 ---
 

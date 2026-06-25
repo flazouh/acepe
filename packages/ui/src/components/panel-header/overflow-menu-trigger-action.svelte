@@ -2,6 +2,7 @@
 	import { IconDotsVertical } from "@tabler/icons-svelte";
 
 	import EmbeddedIconButton from "./embedded-icon-button.svelte";
+	import { OVERFLOW_DOTS_ICON_CLASS } from "./project-card-action-button-class.js";
 
 	interface Props {
 		title?: string;
@@ -14,6 +15,6 @@
 
 <EmbeddedIconButton {title} ariaLabel={title} class={className} {onclick}>
 	{#snippet children()}
-		<IconDotsVertical class="h-3 w-3" />
+		<IconDotsVertical class={OVERFLOW_DOTS_ICON_CLASS} />
 	{/snippet}
 </EmbeddedIconButton>

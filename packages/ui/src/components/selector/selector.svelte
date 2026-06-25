@@ -148,7 +148,11 @@
 	);
 
 	const buttonSize = $derived(
-		triggerSize === "headerAction"
+		triggerSize === "chromeIconMd"
+			? "chromeIconMd"
+			: triggerSize === "chromeIcon"
+				? "chromeIcon"
+				: triggerSize === "headerAction"
 			? "headerAction"
 			: triggerSize === "setupChip"
 				? "setupChip"

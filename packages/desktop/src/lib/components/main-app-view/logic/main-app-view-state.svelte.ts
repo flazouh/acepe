@@ -120,11 +120,6 @@ export class MainAppViewState {
 	 */
 	sidebarOpen = $state(true);
 
-	/**
-	 * Whether the top bar is visible.
-	 */
-	topBarVisible = $state(true);
-
 	/** View mode before entering fullscreen, so we can restore it on exit. */
 	private preFullscreenViewMode: ViewMode | null = null;
 
@@ -347,10 +342,6 @@ export class MainAppViewState {
 			getSidebarOpen: () => this.sidebarOpen,
 			setSidebarOpen: (open) => {
 				this.sidebarOpen = open;
-			},
-			getTopBarVisible: () => this.topBarVisible,
-			setTopBarVisible: (visible) => {
-				this.topBarVisible = visible;
 			},
 			getFileTreeExpansion: () => this.fileTreeExpansion,
 			setFileTreeExpansion: (expansion) => {
@@ -857,24 +848,6 @@ export class MainAppViewState {
 	 */
 	setSidebarOpen(open: boolean): void {
 		this.sidebarOpen = open;
-		this.workspaceStore.persist();
-	}
-
-	/**
-	 * Toggles the top bar visibility and persists it.
-	 */
-	toggleTopBar(): void {
-		this.topBarVisible = !this.topBarVisible;
-		this.workspaceStore.persist();
-	}
-
-	/**
-	 * Sets the top bar visibility and persists it.
-	 *
-	 * @param visible - Whether the top bar should be visible
-	 */
-	setTopBarVisible(visible: boolean): void {
-		this.topBarVisible = visible;
 		this.workspaceStore.persist();
 	}
 

@@ -46,7 +46,6 @@ export const KEYBINDING_ACTIONS = {
 	// Navigation
 	COMMAND_PALETTE_TOGGLE: "commandPalette.toggle",
 	SIDEBAR_TOGGLE: "sidebar.toggle",
-	TOP_BAR_TOGGLE: "topbar.toggle",
 	SETTINGS_OPEN: "settings.open",
 	SQL_STUDIO_OPEN: "sqlStudio.open",
 	DEBUG_TOGGLE: "debug.toggle",

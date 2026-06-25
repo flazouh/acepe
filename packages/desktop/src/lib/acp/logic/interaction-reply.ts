@@ -2,7 +2,7 @@ import type { ResultAsync } from "neverthrow";
 
 import type { AppError } from "../errors/app-error.js";
 import { api } from "../store/api.js";
-import type { PlanApprovalInteraction } from "../types/interaction.js";
+import type { ComputerPermissionInteraction, PlanApprovalInteraction } from "../types/interaction.js";
 import type { InteractionReplyRequest } from "../types/interaction-reply-request.js";
 import type { PermissionReply, PermissionRequest } from "../types/permission.js";
 import type { QuestionAnswer, QuestionRequest } from "../types/question.js";
@@ -26,6 +26,8 @@ type PlanApprovalReplyTarget =
 			replyHandler?: InteractionReplyHandler;
 			id?: string;
 	  };
+
+export type ComputerPermissionApprovalScope = "once" | "always";
 
 function resolveReplyHandler(target: InteractionReplyTarget): InteractionReplyHandler {
 	return (
@@ -84,6 +86,17 @@ function createInteractionReplyRequest(
 				payload: {
 					kind: "plan_approval",
 					approved: payload.approved,
+				},
+			};
+		case "computer_permission":
+			return {
+				sessionId: base.sessionId,
+				interactionId: base.interactionId,
+				replyHandler: base.replyHandler,
+				payload: {
+					kind: "computer_permission",
+					accepted: payload.accepted,
+					scope: payload.scope,
 				},
 			};
 	}
@@ -145,5 +158,25 @@ export function replyToPlanApprovalRequest(
 			kind: "plan_approval",
 			approved: resolvedApproved,
 		})
+	);
+}
+
+export function replyToComputerPermissionRequest(
+	permission: ComputerPermissionInteraction,
+	accepted: boolean,
+	scope: ComputerPermissionApprovalScope = "once"
+): ResultAsync<void, AppError> {
+	return api.replyInteraction(
+		createInteractionReplyRequest(
+			{
+				sessionId: permission.sessionId,
+				id: permission.id,
+			},
+			{
+				kind: "computer_permission",
+				accepted,
+				scope,
+			}
+		)
 	);
 }

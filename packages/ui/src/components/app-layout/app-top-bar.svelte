@@ -4,6 +4,7 @@
 	import { GearSix } from "phosphor-svelte";
 	import { Sidebar } from "phosphor-svelte";
 	import AppSearchButton from "./app-search-button.svelte";
+	import { Button } from "../button/index.js";
 
 	interface Props {
 		showTrafficLights?: boolean;
@@ -36,7 +37,8 @@
 		showSearch?: boolean;
 	}
 
-	const ICON = "size-4";
+	const ICON = "size-3.5";
+	const chromeIconButton = { variant: "chromeIcon" as const, size: "chromeIcon" as const };
 
 	let {
 		showTrafficLights = true,
@@ -78,26 +80,26 @@
 		{/if}
 		<div class="flex items-center gap-1">
 			{#if showSidebarToggle}
-				<button
-					class="flex items-center justify-center size-6 rounded-md text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+				<Button
+					{...chromeIconButton}
 					title="Toggle sidebar"
 					aria-label="Toggle Sidebar"
 					onclick={onToggleSidebar}
 				>
-					<Sidebar class={ICON} weight="fill" />
-				</button>
+					{#snippet children()}
+						<Sidebar class={ICON} weight="fill" />
+					{/snippet}
+				</Button>
 			{/if}
 			{#if showAddProject}
 				{#if addProjectButton}
 					{@render addProjectButton()}
 				{:else}
-					<button
-						class="flex items-center justify-center size-6 rounded-md text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
-						title="Add project"
-						aria-label="Add Project"
-					>
-						<FolderPlus class={ICON} weight="fill" />
-					</button>
+					<Button {...chromeIconButton} title="Add project" aria-label="Add Project">
+						{#snippet children()}
+							<FolderPlus class={ICON} weight="fill" />
+						{/snippet}
+					</Button>
 				{/if}
 			{/if}
 		</div>
@@ -121,14 +123,11 @@
 			{@render extraRightActions()}
 		{/if}
 		{#if showSettings}
-			<button
-				class="flex items-center justify-center size-6 rounded-md text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
-				title="Settings"
-				aria-label="Settings"
-				onclick={onSettings}
-			>
-				<GearSix class={ICON} weight="fill" />
-			</button>
+			<Button {...chromeIconButton} title="Settings" aria-label="Settings" onclick={onSettings}>
+				{#snippet children()}
+					<GearSix class={ICON} weight="fill" />
+				{/snippet}
+			</Button>
 		{/if}
 		{#if showAvatar}
 			{#if avatar}

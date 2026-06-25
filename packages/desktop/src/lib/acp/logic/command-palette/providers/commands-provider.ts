@@ -9,7 +9,6 @@ import {
 	Database,
 	GearSix,
 	Plus,
-	Rows,
 	Sidebar,
 	Terminal,
 	X,
@@ -50,8 +49,6 @@ export interface CommandsProviderConfig {
 	onOpenSqlStudio: () => void;
 	/** Handler for toggling sidebar */
 	onToggleSidebar: () => void;
-	/** Handler for toggling top bar */
-	onToggleTopBar: () => void;
 	/** Handler for toggling debug panel */
 	onToggleDebug?: () => void;
 	/** Handler for closing current thread */
@@ -117,15 +114,6 @@ export class CommandsProvider implements PaletteProvider {
 				icon: Sidebar,
 				handler: this.config.onToggleSidebar,
 				keybinding: "Cmd+B",
-				category: "view",
-			},
-			{
-				id: "topbar.toggle",
-				label: "Toggle tab bar",
-				description: "Show or hide the tab bar",
-				icon: Rows,
-				handler: this.config.onToggleTopBar,
-				keybinding: "Cmd+Shift+B",
 				category: "view",
 			},
 		];

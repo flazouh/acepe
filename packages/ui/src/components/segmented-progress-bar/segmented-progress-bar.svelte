@@ -1,18 +1,20 @@
 <script lang="ts">
+	import AnimateNumber from "../animate-number/animate-number.svelte";
 	import { cn } from "../../lib/utils.js";
 	import {
 		buildDiscreteFilledSegments,
-		buildVoiceDownloadSegments,
-		clampVoiceDownloadPercent,
-		formatVoiceDownloadPercent,
+		buildPercentFilledSegments,
+		clampSegmentedPercent,
+		getCompletenessRampFillColor,
 		getLevelStageFillColor,
-	} from "./voice-download-progress.js";
+	} from "./segmented-progress-bar.js";
 	import {
-		getVoiceDownloadProgressRenderMode,
+		getSegmentedProgressBarRenderMode,
+		isCompletenessRampVariant,
 		isLevelPaletteVariant,
-		voiceDownloadProgressVariants,
-		type VoiceDownloadProgressVariant,
-	} from "./voice-download-progress-variants.js";
+		segmentedProgressBarVariants,
+		type SegmentedProgressBarVariant,
+	} from "./segmented-progress-bar-variants.js";
 
 	interface Props {
 		ariaLabel: string;
@@ -22,7 +24,7 @@
 		percent: number;
 		segmentCount: number;
 		showPercent?: boolean;
-		variant?: VoiceDownloadProgressVariant;
+		variant?: SegmentedProgressBarVariant;
 	}
 
 	const {
@@ -36,21 +38,21 @@
 		variant = "download",
 	}: Props = $props();
 
-	const classes = $derived(voiceDownloadProgressVariants({ variant }));
-	const renderMode = $derived(getVoiceDownloadProgressRenderMode(variant));
+	const classes = $derived(segmentedProgressBarVariants({ variant }));
+	const renderMode = $derived(getSegmentedProgressBarRenderMode(variant));
 	const isLevelPalette = $derived(isLevelPaletteVariant(variant));
+	const isCompletenessRamp = $derived(isCompletenessRampVariant(variant));
 	const isDiscreteFilledOnly = $derived(renderMode === "discreteFilledOnly");
 	const isGroupedSetupBar = $derived(renderMode === "discreteGroupedAll");
-	const percentLabel = $derived(formatVoiceDownloadPercent(percent));
 	const segments = $derived(
 		filledSegmentCount != null
 			? buildDiscreteFilledSegments(filledSegmentCount, segmentCount)
-			: buildVoiceDownloadSegments(percent, segmentCount)
+			: buildPercentFilledSegments(percent, segmentCount)
 	);
 	const clampedPercent = $derived(
 		filledSegmentCount != null && segmentCount > 0
 			? (filledSegmentCount / segmentCount) * 100
-			: clampVoiceDownloadPercent(percent)
+			: clampSegmentedPercent(percent)
 	);
 	const activeLevelRank = $derived.by(() => {
 		if (filledSegmentCount != null) {
@@ -82,20 +84,28 @@
 		return indexes;
 	});
 
-	function getSegmentFillStyle(isFilled: boolean): string | undefined {
-		if (!isFilled || levelFillColor == null) {
+	function getSegmentFillStyle(isFilled: boolean, segmentIndex: number): string | undefined {
+		if (!isFilled) {
 			return undefined;
 		}
 
-		return `--segment-fill: ${levelFillColor}`;
+		if (isCompletenessRamp && segmentCount > 0) {
+			return `--segment-fill: ${getCompletenessRampFillColor(segmentIndex + 1, segmentCount)}`;
+		}
+
+		if (levelFillColor != null) {
+			return `--segment-fill: ${levelFillColor}`;
+		}
+
+		return undefined;
 	}
 
-	function getLevelSegmentFillStyle(): string | undefined {
+	function getFilledSegmentBackgroundStyle(): string | undefined {
 		if (levelFillColor == null) {
 			return undefined;
 		}
 
-		return `--segment-fill: ${levelFillColor}`;
+		return `background-color: ${levelFillColor}`;
 	}
 </script>
 
@@ -111,7 +121,7 @@
 
 	<div
 		class={classes.segments()}
-		style={`--voice-segment-count: ${segmentCount}; --voice-filled-count: ${activeLevelRank};`}
+		style={`--segmented-progress-count: ${segmentCount}; --segmented-filled-count: ${activeLevelRank};`}
 		role={decorative ? undefined : "progressbar"}
 		aria-valuemin={decorative ? undefined : 0}
 		aria-valuemax={decorative ? undefined : 100}
@@ -121,28 +131,32 @@
 			{#each Array.from({ length: segmentCount }, (_, index) => index) as index (index)}
 				{@const isFilled = index < filledSegmentCount}
 				<div
-					class={cn(classes.segment(), isFilled ? classes.segmentFilled() : undefined)}
-					style={isFilled ? getLevelSegmentFillStyle() : undefined}
+					class={cn(classes.segment(), isFilled ? undefined : "bg-muted-foreground/[0.18]")}
+					style={isFilled ? getFilledSegmentBackgroundStyle() : undefined}
 				></div>
 			{/each}
 		{:else if isDiscreteFilledOnly}
 			{#each levelBarFilledIndexes as index (index)}
-				<div
-					class={cn(classes.segment(), classes.segmentFilled())}
-					style={getLevelSegmentFillStyle()}
-				></div>
+				<div class={classes.segment()} style={getFilledSegmentBackgroundStyle()}></div>
 			{/each}
 		{:else}
 			{#each segments as isFilled, index (index)}
 				<div
 					class={cn(classes.segment(), isFilled ? classes.segmentFilled() : undefined)}
-					style={getSegmentFillStyle(isFilled)}
+					style={getSegmentFillStyle(isFilled, index)}
 				></div>
 			{/each}
 		{/if}
 	</div>
 
 	{#if showPercent}
-		<span class={classes.percent()}>{percentLabel}</span>
+		<AnimateNumber
+			value={Math.round(clampedPercent)}
+			format={{ maximumFractionDigits: 0 }}
+			suffix="%"
+			duration={450}
+			blur={14}
+			class={cn(classes.percent(), "font-medium")}
+		/>
 	{/if}
 </div>

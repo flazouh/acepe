@@ -13,8 +13,10 @@ export type AgentInputToolbarVoicePhase =
 /** Minimal voice surface for toolbar mic controls (host maps VoiceInputState → this). */
 export interface AgentComposerToolbarVoiceBinding {
 	phase: AgentInputToolbarVoicePhase;
-	recordingElapsedLabel: string | null;
+	recordingElapsedTenths: number | null;
 	downloadPercent: number;
+	meterLevels: readonly number[];
+	barCount: number;
 	onMicPointerDown: (event: PointerEvent) => void;
 	onMicPointerUp: () => void;
 	onMicPointerCancel: () => void;

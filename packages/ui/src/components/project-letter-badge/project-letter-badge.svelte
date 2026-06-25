@@ -42,80 +42,90 @@
 
 	const fontSize = $derived(fontSizeProp ?? size * 0.715);
 	const radius = $derived(size * 0.25);
-	// When rendering an image, keep the badge background transparent so the
-	// anti-aliased pixels at the rounded corners blend with the ambient surface
-	// instead of the opaque `--badge-icon-bg` (which is near-foreground and
-	// produces dark hairlines around white images).
-	const badgeBg = $derived(showImage ? 'transparent' : displayColor);
-	const badgeFg = $derived(showImage ? 'var(--background)' : `color-mix(in srgb, ${displayColor} 30%, black)`);
-	const badgeBorder = $derived(showImage ? 'var(--badge-icon-border)' : `color-mix(in srgb, ${displayColor} 30%, black)`);
-	const seqBg = $derived(showImage ? 'var(--badge-seq-bg)' : badgeBg);
-	const seqFg = $derived(showImage ? 'var(--badge-seq-fg)' : badgeFg);
+	const shellBg = "var(--foreground)";
+	const shellFg = "var(--background)";
+	const badgeBg = $derived(displayColor);
+	const badgeFg = $derived(`color-mix(in srgb, ${displayColor} 30%, black)`);
+	const badgeBorder = $derived(`color-mix(in srgb, ${displayColor} 30%, black)`);
 </script>
 
 <span class="inline-flex items-center {className}" style="gap: 0px;">
-	{#if showLetter}
-		<div
-			class="relative flex items-center justify-center shrink-0 overflow-hidden"
+	{#if showImage && showLetter}
+		<span
+			class="inline-flex shrink-0 items-center overflow-hidden"
 			style="
-				background-color: {badgeBg};
-				width: {size}px;
 				height: {size}px;
-				border-radius: {hasSequenceId ? `${radius}px 0 0 ${radius}px` : `${radius}px`};
+				border-radius: {radius}px;
+				background-color: {shellBg};
 			"
 		>
 			<div
-				class="absolute inset-0 flex items-center justify-center transition-opacity duration-150 ease-out motion-reduce:transition-none"
+				class="relative flex shrink-0 items-center justify-center overflow-hidden"
+				style="width: {size}px; height: {size}px;"
 			>
-				{#if showImage}
-					<img
-						src={iconSrc}
-						alt={iconAlt}
-						class="block h-full w-full object-cover"
-						draggable="false"
-						onerror={(e: Event) => {
-							const img = e.currentTarget as HTMLImageElement;
-							hasError = true;
-							errorSrc = img.src;
-						}}
-					/>
-				{:else}
+				<img
+					src={iconSrc}
+					alt={iconAlt}
+					class="block h-full w-full object-cover"
+					draggable="false"
+					onerror={(e: Event) => {
+						const img = e.currentTarget as HTMLImageElement;
+						hasError = true;
+						errorSrc = img.src;
+					}}
+				/>
+			</div>
+			{#if hasSequenceId}
+				<span
+					class="inline-flex shrink-0 items-center justify-center"
+					style="height: {size}px; padding: 0 {size * 0.25}px;"
+				>
 					<span
 						class="font-black leading-none"
-						style="font-size: {fontSize}px; color: {badgeFg};"
+						style="font-size: {fontSize}px; color: {shellFg};"
 					>
-						{letter}
+						{sequenceId}
 					</span>
-				{/if}
-			</div>
-		</div>
-	{/if}
-	{#if hasSequenceId}
-		<span
-			class="inline-flex items-center justify-center shrink-0"
-			style="
-				height: {size}px;
-				padding: 0 {size * 0.25}px;
-				{showLetter ? `border-left: 1px solid ${badgeBorder};` : ''}
-				border-radius: {showLetter ? `0 ${radius}px ${radius}px 0` : `${radius}px`};
-				background-color: {seqBg};
-			"
-		>
-			<span
-				class="font-black leading-none"
-				style="font-size: {fontSize}px; color: {seqFg};"
-			>{sequenceId}</span>
+				</span>
+			{/if}
 		</span>
+	{:else}
+		{#if showLetter}
+			<div
+				class="relative flex shrink-0 items-center justify-center overflow-hidden"
+				style="
+					background-color: {badgeBg};
+					width: {size}px;
+					height: {size}px;
+					border-radius: {hasSequenceId ? `${radius}px 0 0 ${radius}px` : `${radius}px`};
+				"
+			>
+				<span
+					class="font-black leading-none"
+					style="font-size: {fontSize}px; color: {badgeFg};"
+				>
+					{letter}
+				</span>
+			</div>
+		{/if}
+		{#if hasSequenceId}
+			<span
+				class="inline-flex shrink-0 items-center justify-center"
+				style="
+					height: {size}px;
+					padding: 0 {size * 0.25}px;
+					{showLetter ? `border-left: 1px solid ${badgeBorder};` : ''}
+					border-radius: {showLetter ? `0 ${radius}px ${radius}px 0` : `${radius}px`};
+					background-color: {badgeBg};
+				"
+			>
+				<span
+					class="font-black leading-none"
+					style="font-size: {fontSize}px; color: {badgeFg};"
+				>
+					{sequenceId}
+				</span>
+			</span>
+		{/if}
 	{/if}
 </span>
-
-<style>
-	:global(:root) {
-		--badge-seq-bg: #141413;
-		--badge-seq-fg: #B0AEA5;
-	}
-	:global(.dark) {
-		--badge-seq-bg: #B0AEA5;
-		--badge-seq-fg: #141413;
-	}
-</style>

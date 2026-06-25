@@ -60,7 +60,7 @@
 
 	<SettingsSection
 		title="Reasoning levels"
-		description="Reasoning effort grouped with the model picker — bar-only control, one filled segment per level."
+		description="Reasoning effort as its own chip — brain icon opens a dropdown to pick the level."
 	>
 		{#snippet headerActions()}
 			<Badge variant="secondary" class="font-mono text-[10px]">
@@ -96,7 +96,7 @@
 					showWorktree={false}
 				/>
 			</SettingRow>
-			<SettingRow stacked label="Worktree off" description="Outline tree icon with label; default branch checkout.">
+			<SettingRow stacked label="Worktree off" description="Icon-only tree toggle; default branch checkout.">
 				<DesignSystemNewThreadOptionsBarDemo
 					reasoningOption={buildReasoningConfigOption("medium")}
 					worktreeOn={false}

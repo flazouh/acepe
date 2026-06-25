@@ -118,12 +118,6 @@ export const DEFAULT_KEYBINDINGS: Keybinding[] = [
 		source: "default",
 	},
 	{
-		key: "$mod+Shift+b",
-		command: KEYBINDING_ACTIONS.TOP_BAR_TOGGLE,
-		when: "!settingsOpen && !modalOpen",
-		source: "default",
-	},
-	{
 		key: "$mod+\\",
 		command: "panel.split",
 		when: "!settingsOpen && !modalOpen",

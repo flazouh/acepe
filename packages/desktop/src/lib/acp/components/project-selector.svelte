@@ -1,7 +1,7 @@
 <script lang="ts">
 import { onMount } from "svelte";
 import { SvelteSet } from "svelte/reactivity";
-import { ProjectLetterBadge, Selector } from "@acepe/ui";
+import { ProjectLetterBadge, Selector, AgentInputSelectorItemRow } from "@acepe/ui";
 import * as DropdownMenu from "@acepe/ui/dropdown-menu";
 import { useTheme } from "$lib/components/theme/context.svelte.js";
 import { Skeleton } from "$lib/components/ui/skeleton/index.js";
@@ -13,7 +13,6 @@ import type { Project } from "../logic/project-manager.svelte.js";
 import { AGENT_IDS } from "../types/agent-id.js";
 import { getProjectColor, TAG_COLORS } from "@acepe/ui/colors";
 import { createLogger } from "../utils/logger.js";
-import SelectorCheck from "./selector-check.svelte";
 
 interface ProjectSelectorProps {
 	selectedProject: Project | null;
@@ -98,6 +97,8 @@ function handleOpenChange(open: boolean) {
 	triggerSize={showLabel ? "setupChip" : "icon"}
 	triggerClass={isOpen ? "bg-accent text-foreground" : ""}
 	triggerAriaLabel={selectedProject?.name ?? placeholder}
+	side="top"
+	sideOffset={8}
 >
 	{#snippet renderButton()}
 		{#if isLoading}
@@ -131,34 +132,38 @@ function handleOpenChange(open: boolean) {
 			{@const isSelected = project.path === selectedProject?.path}
 			{@const isMissing = effectiveMissingPaths.has(project.path)}
 			{#if isMissing}
-				<DropdownMenu.Item disabled class="group/item py-1 opacity-50">
-					<div class="flex items-center gap-2 w-full min-w-0">
-						<ProjectLetterBadge
-							name={project.name}
-							{color}
-							iconSrc={project.iconPath ?? null}
-							size={14}
-						/>
-						<span class="flex-1 text-xs font-normal truncate line-through">{project.name}</span>
-						<span class="text-[10px] text-destructive/70 shrink-0">Missing</span>
-					</div>
-				</DropdownMenu.Item>
-			{:else}
-				<DropdownMenu.Item
-					onSelect={() => handleProjectSelect(project)}
-					class="group/item py-1 {isSelected ? 'bg-accent' : ''}"
+				<AgentInputSelectorItemRow
+					label={project.name}
+					disabled={true}
+					labelClass="line-through"
 				>
-					<div class="flex items-center gap-2 w-full min-w-0">
+					{#snippet leading()}
 						<ProjectLetterBadge
 							name={project.name}
 							{color}
 							iconSrc={project.iconPath ?? null}
 							size={14}
 						/>
-						<span class="flex-1 text-xs font-normal truncate">{project.name}</span>
-						<SelectorCheck visible={isSelected} />
-					</div>
-				</DropdownMenu.Item>
+					{/snippet}
+					{#snippet trailing()}
+						<span class="shrink-0 text-[10px] text-destructive/70">Missing</span>
+					{/snippet}
+				</AgentInputSelectorItemRow>
+			{:else}
+				<AgentInputSelectorItemRow
+					label={project.name}
+					selected={isSelected}
+					onSelect={() => handleProjectSelect(project)}
+				>
+					{#snippet leading()}
+						<ProjectLetterBadge
+							name={project.name}
+							{color}
+							iconSrc={project.iconPath ?? null}
+							size={14}
+						/>
+					{/snippet}
+				</AgentInputSelectorItemRow>
 			{/if}
 		{/each}
 	{/if}

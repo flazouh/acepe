@@ -42,7 +42,8 @@ export interface LiveSessionWorkInput {
 	readonly interactionSnapshot: Pick<
 		SessionOperationInteractionSnapshot,
 		"pendingPlanApproval" | "pendingPermission" | "pendingQuestion"
-	>;
+	> &
+		Partial<Pick<SessionOperationInteractionSnapshot, "pendingComputerPermission">>;
 	readonly hasUnseenCompletion: boolean;
 }
 
@@ -257,6 +258,10 @@ export function deriveLiveSessionState(input: LiveSessionWorkInput): SessionStat
 			: null;
 	const pendingPermission =
 		canonicalActivity === "waiting_for_user" ? input.interactionSnapshot.pendingPermission : null;
+	const pendingComputerPermission =
+		canonicalActivity === "waiting_for_user"
+			? (input.interactionSnapshot.pendingComputerPermission ?? null)
+			: null;
 
 	return deriveSessionState({
 		connectionState: deriveLiveConnectionState(input),
@@ -264,6 +269,7 @@ export function deriveLiveSessionState(input: LiveSessionWorkInput): SessionStat
 		tool: null,
 		pendingQuestion,
 		pendingPlanApproval,
+		pendingComputerPermission,
 		pendingPermission,
 		hasUnseenCompletion: input.hasUnseenCompletion,
 	});
@@ -354,6 +360,7 @@ export function deriveLiveSessionLifecyclePresentation(
 		source: input.source,
 		currentModeId: null,
 		interactionSnapshot: {
+			pendingComputerPermission: null,
 			pendingPlanApproval: null,
 			pendingPermission: null,
 			pendingQuestion: null,

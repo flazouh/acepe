@@ -64,8 +64,13 @@ export class VoiceInputState {
 			this.phase === "loading_model" ||
 			this.phase === "transcribing"
 	);
+	readonly recordingElapsedTenthsDisplay = $derived(
+		this.phase === "recording" ? this.recordingElapsedTenths : null
+	);
 	readonly recordingElapsedLabel = $derived(
-		this.phase === "recording" ? `${(this.recordingElapsedTenths / 10).toFixed(1)}s` : null
+		this.recordingElapsedTenthsDisplay === null
+			? null
+			: `${(this.recordingElapsedTenthsDisplay / 10).toFixed(1)}s`
 	);
 
 	private readonly unlisteners: UnlistenFn[] = [];

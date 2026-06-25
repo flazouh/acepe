@@ -464,6 +464,7 @@ export function sessionColdFromExistingSession(session: SessionCold): SessionCol
 			linkedPr: session.linkedPr,
 			worktreeDeleted: session.worktreeDeleted,
 			sequenceId: session.sequenceId,
+			usageStats: session.usageStats,
 		}
 	);
 }
@@ -498,7 +499,7 @@ export function sessionColdWithMutableUpdates(
 			worktreeDeleted:
 				"worktreeDeleted" in updates ? updates.worktreeDeleted : session.worktreeDeleted,
 			sequenceId: "sequenceId" in updates ? updates.sequenceId : session.sequenceId,
+			usageStats: "usageStats" in updates ? updates.usageStats : session.usageStats,
 		}
 	);
 }
-

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "bun:test";
 
 import type { LifecycleStatus, SessionGraphActivityKind } from "../../../services/acp-types.js";
+import type { ComputerPermissionInteraction } from "../../types/interaction.js";
 import type { ToolCall } from "../../types/tool-call.js";
 import type { ActiveTurnFailure } from "../../types/turn-error.js";
 import type { CanonicalSessionProjection } from "../canonical-session-projection.js";
@@ -93,6 +94,7 @@ interface MakeInputOptions {
 	readonly source?: LiveSessionWorkSource;
 	readonly currentModeId?: string | null;
 	readonly hasPendingQuestion?: boolean;
+	readonly pendingComputerPermission?: ComputerPermissionInteraction | null;
 	readonly hasUnseenCompletion?: boolean;
 }
 
@@ -118,6 +120,7 @@ function makeInput(options: MakeInputOptions = {}): LiveSessionWorkInput {
 		interactionSnapshot: {
 			pendingQuestion,
 			pendingPlanApproval: null,
+			pendingComputerPermission: options.pendingComputerPermission ?? null,
 			pendingPermission: null,
 		},
 		hasUnseenCompletion: options.hasUnseenCompletion ?? false,
@@ -207,6 +210,30 @@ describe("deriveLiveSessionState", () => {
 		);
 
 		expect(state.pendingInput.kind).toBe("question");
+	});
+
+	it("uses computer permission input when canonical activity waits for user", () => {
+		const computerPermission: ComputerPermissionInteraction = {
+			id: "computer-permission-1",
+			kind: "computer_permission",
+			sessionId: "session-1",
+			permissionKind: "accessibility",
+			reason: "Accessibility permission is required.",
+			status: "pending",
+			canonicalOperationId: "op-1",
+		};
+		const state = deriveLiveSessionState(
+			makeInput({
+				canonicalProjection: makeCanonicalProjection("ready", "waiting_for_user"),
+				pendingComputerPermission: computerPermission,
+			})
+		);
+
+		expect(state.pendingInput.kind).toBe("computer_permission");
+		if (state.pendingInput.kind !== "computer_permission") {
+			throw new Error("Expected computer permission pending input");
+		}
+		expect(state.pendingInput.request).toBe(computerPermission);
 	});
 });
 

@@ -26,7 +26,7 @@ describe("voice-ui-state", () => {
 		"recording",
 	];
 
-	const OVERLAY_PHASES: VoiceInputPhase[] = ["checking_permission", "recording", "error"];
+	const OVERLAY_PHASES: VoiceInputPhase[] = ["error"];
 
 	describe("canCancelVoiceInteraction", () => {
 		it.each(CANCELLABLE_PHASES)("returns true for %s", (phase) => {

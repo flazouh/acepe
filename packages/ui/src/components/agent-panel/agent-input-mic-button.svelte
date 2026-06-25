@@ -13,7 +13,8 @@
 <script lang="ts">
 	import { Microphone } from "phosphor-svelte";
 
-	import { PROJECT_CARD_ACTION_BUTTON_CLASS } from "../panel-header/project-card-action-button-class.js";
+	import { SegmentedProgressBar } from "../segmented-progress-bar/index.js";
+	import { FUSED_CONTROL_PRIMARY_BUTTON_CLASS } from "../panel-header/project-card-action-button-class.js";
 	import { cn } from "../../lib/utils.js";
 
 	export type AgentInputMicVisualState = "mic" | "spinner" | "stop" | "download_progress";
@@ -51,16 +52,13 @@
 		cn(
 			"group relative flex items-center justify-center transition-all duration-200 ease-out focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
 			embeddedInGroup
-				? cn(
-						PROJECT_CARD_ACTION_BUTTON_CLASS,
-						"rounded-none border-0 bg-transparent shadow-none hover:!bg-accent"
-					)
+				? cn(FUSED_CONTROL_PRIMARY_BUTTON_CLASS, "shadow-none")
 				: "mic-btn rounded-full",
 			visualState === "mic" && "mic-idle",
 			visualState === "stop" && "mic-recording",
 			(visualState === "spinner" || visualState === "download_progress") && "mic-busy",
 			visualState === "download_progress" && "mic-downloading",
-			embeddedInGroup && visualState === "download_progress" && "mic-downloading-wide min-w-[74px] justify-end px-1.5",
+			embeddedInGroup && visualState === "download_progress" && "mic-downloading-wide min-w-[88px] justify-end px-1.5",
 			disabled && "opacity-40 cursor-not-allowed"
 		)
 	);
@@ -68,6 +66,7 @@
 
 <button
 	class={buttonClass}
+	data-slot={embeddedInGroup ? "button" : undefined}
 	aria-label={ariaLabel}
 	aria-pressed={isRecording}
 	{disabled}
@@ -81,21 +80,20 @@
 	tabindex="0"
 >
 	{#if visualState === "download_progress"}
-		<div class="flex items-center gap-[2px]" aria-label={title}>
-			{#each Array(20) as _, i (i)}
-				<div
-					class="rounded-full transition-all duration-150 {downloadPercent >= (i + 1) * 5
-						? 'h-[9px] w-[3px] bg-foreground'
-						: 'h-[6px] w-[3px] bg-foreground/25'}"
-				></div>
-			{/each}
-		</div>
+		<SegmentedProgressBar
+			ariaLabel={title}
+			label=""
+			percent={downloadPercent}
+			segmentCount={20}
+			showPercent={true}
+			variant="downloadCompact"
+		/>
 	{:else if visualState === "spinner"}
 		<div class="h-4 w-4 animate-spin rounded-full border-2 border-muted-foreground border-t-transparent"></div>
 	{:else if visualState === "stop"}
-		<div class="mic-stop-container flex items-center justify-center">
-			<div class="mic-stop-circle" style:background-color={STOP_RED}>
-				<div class="mic-stop-square"></div>
+		<div class="mic-stop-container flex items-center justify-center" class:embedded={embeddedInGroup}>
+			<div class="mic-stop-circle" class:embedded={embeddedInGroup} style:background-color={STOP_RED}>
+				<div class="mic-stop-square" class:embedded={embeddedInGroup}></div>
 			</div>
 		</div>
 	{:else}
@@ -128,6 +126,7 @@
 	.mic-recording { cursor: pointer; }
 	.mic-busy { cursor: default; }
 	.mic-stop-container { width: 22px; height: 22px; }
+	.mic-stop-container.embedded { width: 18px; height: 18px; }
 	.mic-stop-circle {
 		width: 22px;
 		height: 22px;
@@ -138,13 +137,24 @@
 		animation: mic-glow-pulse 2s ease-in-out infinite;
 		transition: transform 150ms ease-out;
 	}
+	.mic-stop-circle.embedded {
+		width: 16px;
+		height: 16px;
+		animation: none;
+	}
 	.mic-recording:hover .mic-stop-circle { transform: scale(1.08); }
+	.mic-recording:hover .mic-stop-circle.embedded { transform: scale(1.04); }
 	.mic-recording:active .mic-stop-circle { transform: scale(0.92); }
 	.mic-stop-square {
 		width: 8px;
 		height: 8px;
 		border-radius: 2px;
 		background-color: white;
+	}
+	.mic-stop-square.embedded {
+		width: 6px;
+		height: 6px;
+		border-radius: 1.5px;
 	}
 	.mic-icon-wrap {
 		display: flex;

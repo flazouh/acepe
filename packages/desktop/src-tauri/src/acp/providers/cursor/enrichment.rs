@@ -241,6 +241,12 @@ fn tool_arguments_need_enrichment(arguments: &ToolArguments) -> bool {
             query.is_none() || max_results.is_none()
         }
         ToolArguments::Browser { .. } => false,
+        ToolArguments::Computer {
+            verb,
+            target_id,
+            epoch,
+            ..
+        } => verb.is_none() || target_id.is_none() || epoch.is_none(),
         ToolArguments::Sql { query, .. } => query.is_none(),
         ToolArguments::Unclassified { .. } => false,
         ToolArguments::Other { .. } => tool_arguments_detail_score(arguments) == 0,
@@ -449,6 +455,27 @@ fn tool_arguments_detail_score(arguments: &ToolArguments) -> usize {
             } else {
                 1
             }
+        }
+        ToolArguments::Computer {
+            verb,
+            target_id,
+            epoch,
+            text,
+            key,
+            delta_x,
+            delta_y,
+            include_bounds,
+            include_screenshot,
+        } => {
+            usize::from(verb.is_some())
+                + usize::from(target_id.is_some())
+                + usize::from(epoch.is_some())
+                + usize::from(text.is_some())
+                + usize::from(key.is_some())
+                + usize::from(delta_x.is_some())
+                + usize::from(delta_y.is_some())
+                + usize::from(include_bounds.is_some())
+                + usize::from(include_screenshot.is_some())
         }
         ToolArguments::Sql { query, description } => {
             usize::from(query.is_some()) + usize::from(description.is_some())

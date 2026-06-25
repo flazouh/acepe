@@ -156,8 +156,6 @@ const submitAriaLabel = $derived(
 	{#snippet voiceOverlayArea()}
 		<AgentInputVoiceRecordingOverlay
 			phase={voiceOverlayPhase}
-			meterLevels={voiceState?.waveform.meterLevels ?? []}
-			barCount={voiceState?.waveform.barCount ?? 0}
 			errorMessage={voiceState?.errorMessage ?? null}
 			defaultErrorMessage={voiceDefaultErrorMessage}
 		/>

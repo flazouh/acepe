@@ -22,7 +22,7 @@
 	let {
 		label: _label = null,
 		percent = null,
-		compact = false,
+		compact: _compact = false,
 		hideLabel: _hideLabel = false,
 		ariaLabel = "Context usage",
 		title = "",
@@ -30,9 +30,9 @@
 
 	const hasContextUsage = $derived(percent !== null);
 
-	// Ring geometry — RING_PX is both the SVG element size and the painted outer diameter.
-	const RING_PX = $derived(compact ? 14 : 19);
-	const STROKE = $derived(compact ? 1.5 : 2);
+	// Ring geometry — matches chromeIcon footprint (20px row, 14px ring).
+	const RING_PX = 14;
+	const STROKE = 1.5;
 	// Inset radius so stroke + round caps fit inside RING_PX without bleeding past the SVG box.
 	const R = $derived(RING_PX / 2 - STROKE);
 	const CENTER = $derived(RING_PX / 2);
@@ -48,7 +48,7 @@
 
 {#if hasContextUsage}
 	<div
-		class="flex items-center gap-1 text-muted-foreground {compact ? 'h-5 text-[10px]' : 'h-7 text-[11px]'}"
+		class="flex h-5 min-h-5 items-center gap-1 text-[10px] text-muted-foreground"
 		role="status"
 		aria-label="{ariaLabel}: {pct.toFixed(1)}%"
 		{title}

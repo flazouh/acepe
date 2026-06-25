@@ -289,7 +289,7 @@ Tactical Option A overlaps with perf edits already in the working tree (rAF scro
 
 ## Execution Posture
 
-GOD-gated canonical change. Before coding each Rust unit, re-confirm with `god-architecture-check` that the change moves/keeps truth upstream (it does: Rust still owns rows/order/offsets/mode; the WebView only resolves pixel position from pushed canonical numbers). TDD: U1 characterization-first; U2/U3 protocol tests before wiring; U4 gated on the live rAF benchmark. Do not commit without explicit user consent. Do not run `bun dev`. Coordinate on `desktop-agent-panel-scene.ts` before U5.
+GOD-gated canonical change. Before coding each Rust unit, re-confirm with `god-architecture-check` that the change moves/keeps truth upstream (it does: Rust still owns rows/order/offsets/mode; the WebView only resolves pixel position from pushed canonical numbers). TDD: U1 characterization-first; U2/U3 protocol tests before wiring; U4 gated on the live rAF benchmark. Do not commit without explicit user consent. If the dev app is not running when UI QA is required, start it from `packages/desktop` with `bun run tauri`, then run the QA CLI pass. Coordinate on `desktop-agent-panel-scene.ts` before U5.
 
 ---
 

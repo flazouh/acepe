@@ -25,6 +25,9 @@ export const buttonVariants = tv({
 				"border-0 bg-foreground text-background shadow-none hover:bg-foreground/90 hover:text-background transition-colors",
 			toolbar:
 				"border border-border/50 bg-muted text-foreground/80 hover:text-foreground hover:bg-muted/80 transition-colors",
+			/** Muted icon chrome for app header/footer rails (GitHub, settings, sidebar toggle, etc.). */
+			chromeIcon:
+				"border-0 bg-transparent text-muted-foreground/60 shadow-none hover:bg-accent hover:text-foreground transition-colors",
 		},
 		size: {
 			default: "h-9 px-4 py-2 has-[>svg]:px-3",
@@ -43,6 +46,13 @@ export const buttonVariants = tv({
 			"icon-xs": "size-6 rounded-md [&_svg:not([class*='size-'])]:size-3",
 			"icon-sm": "size-8",
 			"icon-lg": "size-10",
+			/** 20px chrome icon button (sidebar footer social links). */
+			chromeIcon: "size-5 gap-0 p-0 [&_svg:not([class*='size-'])]:size-3.5",
+			/** 20px-tall chrome trigger with room for an inline meter (AI usage). */
+			chromeIconMeter:
+				"h-5 min-h-5 w-auto gap-1 rounded-md px-1 py-0 [&_svg:not([class*='size-'])]:size-3.5",
+			/** 24px chrome icon button (app top bar actions). */
+			chromeIconMd: "size-6 gap-0 p-0 [&_svg:not([class*='size-'])]:size-4",
 		},
 	},
 	defaultVariants: {

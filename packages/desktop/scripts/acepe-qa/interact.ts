@@ -1,6 +1,7 @@
 import { err, okAsync, ResultAsync } from "neverthrow";
 import type {
 	ClickResult,
+	ComputerUseProbeResult,
 	DomInspectionResult,
 	FirstSendTimelineProbeResult,
 	NavigateResult,
@@ -12,6 +13,7 @@ import type {
 } from "./schemas";
 import {
 	clickResultSchema,
+	computerUseProbeResultSchema,
 	firstSendTimelineSampleSchema,
 	domInspectionResultSchema,
 	firstSendTimelineProbeResultSchema,
@@ -78,9 +80,11 @@ const qaSummary = (node, index) => ({
   role: node.getAttribute("role"),
   name: node.getAttribute("aria-label") || qaText(node).slice(0, 90),
   text: qaText(node).slice(0, 300),
+  value: "value" in node ? String(node.value) : null,
   src: node instanceof HTMLImageElement ? node.getAttribute("src") : null,
   classes: typeof node.className === "string" ? node.className : "",
   visible: getComputedStyle(node).display !== "none" && getComputedStyle(node).visibility !== "hidden",
+  focused: document.activeElement === node,
   computedStyle: {
     display: getComputedStyle(node).display,
     gap: getComputedStyle(node).gap,
@@ -157,6 +161,112 @@ export function readPlanningDebug(
 				appIdentifier: options.appIdentifier,
 				script,
 				schema: planningDebugResultSchema,
+			},
+			runner
+		);
+	});
+}
+
+export function probeComputerUse(
+	options: DriverOptions & {
+		readonly sessionId: string;
+		readonly action: string;
+		readonly targetLabel: string;
+		readonly text: string;
+		readonly key: string;
+		readonly dx: number | null;
+		readonly dy: number | null;
+	}
+): ResultAsync<ComputerUseProbeResult, TauriMcpFailure> {
+	const runner = options.runner ?? runCommand;
+	return driverReady(options).andThen(() => {
+		const script = `
+(async () => {
+  const sessionId = ${escapedJson(options.sessionId)};
+  const action = ${options.action.length === 0 ? "null" : escapedJson(options.action)};
+  const targetLabel = ${options.targetLabel.length === 0 ? "null" : escapedJson(options.targetLabel)};
+  const text = ${options.text.length === 0 ? "null" : escapedJson(options.text)};
+  const key = ${options.key.length === 0 ? "null" : escapedJson(options.key)};
+  const dx = ${options.dx === null ? "null" : options.dx.toString()};
+  const dy = ${options.dy === null ? "null" : options.dy.toString()};
+  const tauriCore = window.__TAURI__ && window.__TAURI__.core;
+  if (!tauriCore || typeof tauriCore.invoke !== "function") {
+    return {
+      serverName: "acepe_computer",
+      toolName: "act",
+      sessionId,
+      transport: "tauri_command_to_in_process_mcp",
+      ok: false,
+      isError: true,
+      payloadJson: "{}",
+      app: null,
+      window: null,
+      elementCount: 0,
+      errorCode: "tauri_invoke_unavailable",
+      permissionKind: null,
+      actionVerb: action,
+      actionTargetLabel: targetLabel,
+      actionTargetId: null,
+      actionOk: false,
+      actionErrorCode: "tauri_invoke_unavailable",
+      actionChangedCount: null,
+      actionElementCount: null,
+    };
+  }
+  try {
+    const tauriWindow = window.__TAURI__ && window.__TAURI__.window;
+    const currentWindow =
+      tauriWindow &&
+      typeof tauriWindow.getCurrentWindow === "function" &&
+      tauriWindow.getCurrentWindow();
+    if (currentWindow && typeof currentWindow.setFocus === "function") {
+      await currentWindow.setFocus().catch(() => undefined);
+      await new Promise((resolve) => setTimeout(resolve, 150));
+    }
+    return await tauriCore.invoke("acp_probe_computer_use", {
+      sessionId,
+      action,
+      targetLabel,
+      text,
+      key,
+      dx,
+      dy,
+    });
+  } catch (error) {
+    const errorText =
+      error && typeof error === "object"
+        ? JSON.stringify(error)
+        : String(error);
+    return {
+      serverName: "acepe_computer",
+      toolName: "act",
+      sessionId,
+      transport: "tauri_command_to_in_process_mcp",
+      ok: false,
+      isError: true,
+      payloadJson: JSON.stringify({ ok: false, error: errorText }),
+      app: null,
+      window: null,
+      elementCount: 0,
+      errorCode: "tauri_invoke_failed",
+      permissionKind: null,
+      actionVerb: action,
+      actionTargetLabel: targetLabel,
+      actionTargetId: null,
+      actionOk: false,
+      actionErrorCode: "tauri_invoke_failed",
+      actionChangedCount: null,
+      actionElementCount: null,
+    };
+  }
+})()
+`;
+		return executeWebviewJson(
+			{
+				appIdentifier: options.appIdentifier,
+				script,
+				schema: computerUseProbeResultSchema,
+				callTimeoutMs: 20_000,
 			},
 			runner
 		);
@@ -246,6 +356,11 @@ export function navigateWebview(
     await sleep(50);
   }
   await sleep(150);
+  window.scrollTo(0, 0);
+  if (document.scrollingElement) {
+    document.scrollingElement.scrollTop = 0;
+    document.scrollingElement.scrollLeft = 0;
+  }
   return {
     from,
     to: window.location.href,
@@ -385,15 +500,23 @@ export function sendComposer(
 	options: DriverOptions & {
 		readonly text: string;
 		readonly submit: boolean;
+		readonly selector: string;
 	}
 ): ResultAsync<SendComposerResult, TauriMcpFailure> {
 	const runner = options.runner ?? runCommand;
 	return driverReady(options).andThen(() => {
 		const script = `
-(() => {
+(async () => {
   const text = ${escapedJson(options.text)};
   const submit = ${options.submit ? "true" : "false"};
-  const ce = document.querySelector("[contenteditable=true]");
+  const selector = ${escapedJson(options.selector)};
+  const composerSelector = selector.length > 0 ? selector : "[contenteditable=true]";
+  const candidates = Array.from(document.querySelectorAll(composerSelector));
+  const ce = candidates.find((node) => {
+    const style = getComputedStyle(node);
+    const rect = node.getBoundingClientRect();
+    return style.display !== "none" && style.visibility !== "hidden" && Number(style.opacity) > 0 && rect.width > 0 && rect.height > 0;
+  }) || null;
   if (!ce) return { composerFound: false, textApplied: "", sendReady: false, sent: false };
   ce.focus();
   const sel = getSelection(); sel.removeAllRanges();
@@ -401,14 +524,26 @@ export function sendComposer(
   ce.dispatchEvent(new InputEvent("beforeinput", { bubbles: true, cancelable: true, inputType: "insertText", data: text }));
   document.execCommand("insertText", false, text);
   ce.dispatchEvent(new InputEvent("input", { bubbles: true, inputType: "insertText", data: text }));
-  // Find the composer's circular submit button. It is the rounded-full
-  // bg-foreground button (the rectangular toolbar "Update" button is rounded-md
-  // and must not match). Walk ancestors to the document root with no hop cap:
-  // the editor and its own send button are deeply nested through a common
-  // ancestor, and the nearest ancestor that contains a circular submit button
-  // belongs to the editor's own panel, so multi-panel layouts pick the right one.
-  let send = null, node = ce;
-  while (node) { node = node.parentElement; if (!node) break; const b = node.querySelector("button.rounded-full.bg-foreground.text-background, button[aria-label='Send message']"); if (b) { send = b; break; } }
+  await Promise.resolve();
+  await new Promise((resolve) => setTimeout(resolve, 100));
+  const isVisible = (node) => {
+    const style = getComputedStyle(node);
+    const rect = node.getBoundingClientRect();
+    return style.display !== "none" && style.visibility !== "hidden" && Number(style.opacity) > 0 && rect.width > 0 && rect.height > 0;
+  };
+  const composerRect = ce.getBoundingClientRect();
+  const composerCenterX = composerRect.left + composerRect.width / 2;
+  const composerCenterY = composerRect.top + composerRect.height / 2;
+  const sendCandidates = Array.from(document.querySelectorAll("button[aria-label='Send message']"))
+    .filter(isVisible)
+    .map((button) => {
+      const rect = button.getBoundingClientRect();
+      const dx = rect.left + rect.width / 2 - composerCenterX;
+      const dy = rect.top + rect.height / 2 - composerCenterY;
+      return { button, distance: Math.abs(dx) + Math.abs(dy) };
+    })
+    .sort((left, right) => left.distance - right.distance);
+  const send = sendCandidates[0]?.button || null;
   const sendReady = Boolean(send) && !send.disabled;
   let sent = false;
   if (submit && sendReady) { send.click(); sent = true; }

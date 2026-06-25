@@ -32,7 +32,6 @@ describe("KeybindingManager", () => {
 		MainAppViewState,
 		| "toggleSettings"
 		| "toggleSqlStudio"
-		| "toggleTopBar"
 		| "commandPaletteOpen"
 		| "handleClosePanel"
 		| "debugPanelOpen"
@@ -54,7 +53,6 @@ describe("KeybindingManager", () => {
 		mockState = {
 			toggleSettings: mock(() => {}),
 			toggleSqlStudio: mock(() => {}),
-			toggleTopBar: mock(() => {}),
 			commandPaletteOpen: false,
 			handleClosePanel: mock(() => {}),
 			debugPanelOpen: false,

@@ -487,7 +487,10 @@ async fn apply_persisted_config_selections_restores_reasoning_effort() {
         .restore_persisted_config_selections(&db, "sess-restore")
         .await;
 
-    assert_eq!(client.reasoning_config.effort, Some(crate::cc_sdk::Effort::Xhigh));
+    assert_eq!(
+        client.reasoning_config.effort,
+        Some(crate::cc_sdk::Effort::Xhigh)
+    );
 }
 
 #[tokio::test]
@@ -595,6 +598,53 @@ fn build_options_applies_pending_mode_and_model() {
             cc_sdk::SettingSource::Project,
             cc_sdk::SettingSource::Local,
         ])
+    );
+}
+
+#[tokio::test]
+async fn build_options_registers_callable_acepe_computer_mcp_server() {
+    let client = make_test_client();
+
+    let options = client.build_options("/tmp", "session-1", None, false);
+
+    let server = options
+        .mcp_servers
+        .get(crate::computer_use::COMPUTER_MCP_SERVER_NAME)
+        .expect("acepe computer MCP server");
+    let cc_sdk::McpServerConfig::Sdk { name, instance } = server else {
+        panic!("acepe computer MCP server must be an SDK server");
+    };
+    assert_eq!(name, crate::computer_use::COMPUTER_MCP_SERVER_NAME);
+
+    let sdk_server = instance
+        .as_ref()
+        .downcast_ref::<cc_sdk::SdkMcpServer>()
+        .expect("acepe computer MCP server instance");
+    let tools_response = sdk_server
+        .handle_message(serde_json::json!({
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "tools/list"
+        }))
+        .await
+        .expect("list acepe computer tools");
+    let tools = tools_response
+        .get("result")
+        .and_then(|result| result.get("tools"))
+        .and_then(serde_json::Value::as_array)
+        .expect("tools/list result");
+    assert!(tools
+        .iter()
+        .any(|tool| { tool.get("name").and_then(serde_json::Value::as_str) == Some("act") }));
+
+    let config = serde_json::to_value(server).expect("serialize MCP server config");
+    assert_eq!(
+        config.get("type").and_then(serde_json::Value::as_str),
+        Some("sdk")
+    );
+    assert_eq!(
+        config.get("name").and_then(serde_json::Value::as_str),
+        Some(crate::computer_use::COMPUTER_MCP_SERVER_NAME)
     );
 }
 

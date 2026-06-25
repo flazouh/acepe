@@ -47,6 +47,7 @@ impl ProjectionRegistry {
             arguments: existing.arguments.clone(),
             progressive_arguments: existing.progressive_arguments.clone(),
             result: existing.result.clone(),
+            computer_payload: existing.computer_payload.clone(),
             command: existing.command.clone(),
             normalized_todos: existing.normalized_todos.clone(),
             parent_tool_call_id: existing.parent_tool_call_id.clone(),

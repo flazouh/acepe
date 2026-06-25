@@ -527,7 +527,7 @@ flowchart TB
 
 - Update the superseded active plan so future implementers do not continue building the custom token-stream renderer.
 - Add a `docs/solutions/architectural/` note after implementation because this is a durable renderer-boundary decision.
-- Do not run `bun dev`; implementation verification should use existing package checks and tests.
+- If the dev app is not running when UI QA is required, start it from `packages/desktop` with `bun run tauri`, then run the QA CLI pass.
 - Expected verification during implementation: `bun run --cwd packages/ui test`, `bun run --cwd packages/desktop check:svelte`, `bun run --cwd packages/desktop test`, `bun run --cwd packages/website test`, and root `bun test` as scope warrants.
 
 ## Sources & References

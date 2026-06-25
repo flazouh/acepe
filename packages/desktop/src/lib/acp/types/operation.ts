@@ -1,4 +1,8 @@
-import type { OperationDegradationReason, OperationSourceLink } from "../../services/acp-types.js";
+import type {
+	ComputerOperationPayload,
+	OperationDegradationReason,
+	OperationSourceLink,
+} from "../../services/acp-types.js";
 import type {
 	JsonValue,
 	QuestionAnswer,
@@ -36,6 +40,7 @@ export type OperationKind =
 	| "create_plan"
 	| "tool_search"
 	| "browser"
+	| "computer"
 	| "sql"
 	| "unclassified"
 	| "other"
@@ -59,6 +64,7 @@ export interface Operation {
 	readonly arguments: ToolArguments;
 	readonly progressiveArguments?: ToolArguments;
 	readonly result: JsonValue | null | undefined;
+	readonly computerPayload?: ComputerOperationPayload | null;
 	readonly locations: ToolCallLocation[] | null | undefined;
 	readonly skillMeta: SkillMeta | null | undefined;
 	readonly normalizedQuestions: QuestionItem[] | null | undefined;

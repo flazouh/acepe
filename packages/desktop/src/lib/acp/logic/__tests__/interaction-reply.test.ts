@@ -5,6 +5,7 @@ import type { PermissionRequest } from "../../types/permission.js";
 import type { QuestionAnswer, QuestionRequest } from "../../types/question.js";
 import {
 	cancelQuestionRequest,
+	replyToComputerPermissionRequest,
 	replyToPermissionRequest,
 	replyToPlanApprovalRequest,
 	replyToQuestionRequest,
@@ -354,6 +355,97 @@ describe("interaction reply", () => {
 				},
 			});
 			expect(mockRespondToPlanApproval).not.toHaveBeenCalled();
+		});
+	});
+
+	describe("replyToComputerPermissionRequest", () => {
+		it("routes local computer permission approvals through the canonical interaction command", async () => {
+			await replyToComputerPermissionRequest(
+				{
+					id: "computer-permission-1",
+					kind: "computer_permission",
+					sessionId: "session-computer",
+					permissionKind: "app_window_scope",
+					reason: "Allow computer use for Safari / GitHub?",
+					app: "Safari",
+					window: "GitHub",
+					status: "pending",
+				},
+				true
+			);
+
+			expect(mockReplyInteraction).toHaveBeenCalledWith({
+				sessionId: "session-computer",
+				interactionId: "computer-permission-1",
+				replyHandler: {
+					kind: "http",
+					requestId: "computer-permission-1",
+				},
+				payload: {
+					kind: "computer_permission",
+					accepted: true,
+					scope: "once",
+				},
+			});
+		});
+
+		it("routes persistent computer permission approvals with always scope", async () => {
+			await replyToComputerPermissionRequest(
+				{
+					id: "computer-permission-3",
+					kind: "computer_permission",
+					sessionId: "session-computer",
+					permissionKind: "app_window_scope",
+					reason: "Allow computer use for Safari / GitHub?",
+					app: "Safari",
+					window: "GitHub",
+					status: "pending",
+				},
+				true,
+				"always"
+			);
+
+			expect(mockReplyInteraction).toHaveBeenCalledWith({
+				sessionId: "session-computer",
+				interactionId: "computer-permission-3",
+				replyHandler: {
+					kind: "http",
+					requestId: "computer-permission-3",
+				},
+				payload: {
+					kind: "computer_permission",
+					accepted: true,
+					scope: "always",
+				},
+			});
+		});
+
+		it("routes local computer permission rejections through the canonical interaction command", async () => {
+			await replyToComputerPermissionRequest(
+				{
+					id: "computer-permission-2",
+					kind: "computer_permission",
+					sessionId: "session-computer",
+					permissionKind: "screen_recording",
+					reason: "Acepe needs Screen Recording.",
+					status: "pending",
+				},
+				false
+			);
+
+			expect(mockReplyInteraction).toHaveBeenCalledWith({
+				sessionId: "session-computer",
+				interactionId: "computer-permission-2",
+				replyHandler: {
+					kind: "http",
+					requestId: "computer-permission-2",
+				},
+				payload: {
+					kind: "computer_permission",
+					accepted: false,
+					scope: "once",
+				},
+			});
 		});
 	});
 });

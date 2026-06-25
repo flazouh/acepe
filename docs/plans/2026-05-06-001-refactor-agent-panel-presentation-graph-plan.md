@@ -499,7 +499,7 @@ Verification:
 - Run `bun test` for the touched TypeScript/Svelte test files.
 - Run `bun run check`.
 - Run Svelte-aware checks if the baseline allows it, or compare before/after errors if the baseline is dirty.
-- Manual app QA after the user restarts the dev app, because `bun dev` is user-owned in this repo.
+- Manual app QA in the dev app. If it is not running, start it from `packages/desktop` with `bun run tauri`, then run the QA CLI pass.
 
 ## Sequencing
 
@@ -606,8 +606,8 @@ Follow these steps in order. Do not start a later step if the stop condition for
     - If Svelte contract files changed and the baseline allows it, run the Svelte-aware check or compare before/after errors.
     - Stop condition: no new TypeScript/Svelte errors from this work.
 
-15. **Manual QA after user restart**
-    - Do not run `bun dev`.
+15. **Manual QA in the dev app**
+    - If the dev app is not running, start it from `packages/desktop` with `bun run tauri`, then run the QA CLI pass.
     - After the user restarts the app, QA: short prompt completes, no stuck waiting label, no blank blink, same-key replacement fixture, long markdown stream, session switch, animation on/off text equality, WebContent CPU returns near idle.
     - Stop condition: QA evidence is added to `docs/reports/2026-05-05-streaming-qa-incident-report.md`.
 

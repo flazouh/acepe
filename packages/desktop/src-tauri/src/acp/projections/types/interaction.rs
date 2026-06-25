@@ -5,12 +5,14 @@ use specta::Type;
 use crate::acp::session_update::{
     InteractionReplyHandler, PermissionData, QuestionData, ToolReference,
 };
+use crate::computer_use::permissions::ComputerPermissionKind;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Type)]
 pub enum InteractionKind {
     Permission,
     Question,
     PlanApproval,
+    ComputerPermission,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Type)]
@@ -29,10 +31,25 @@ pub enum PlanApprovalSource {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
+pub struct ComputerPermissionData {
+    pub id: String,
+    pub session_id: String,
+    pub permission_kind: ComputerPermissionKind,
+    pub reason: String,
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub app: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub window: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub tool: Option<ToolReference>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
 pub enum InteractionPayload {
     Permission(PermissionData),
     Question(QuestionData),
     PlanApproval { source: PlanApprovalSource },
+    ComputerPermission(ComputerPermissionData),
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
@@ -50,6 +67,9 @@ pub enum InteractionResponse {
     },
     PlanApproval {
         approved: bool,
+    },
+    ComputerPermission {
+        accepted: bool,
     },
 }
 

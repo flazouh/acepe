@@ -3,6 +3,8 @@ import { cn } from "../../lib/utils.js";
 export type SelectorTriggerSize =
 	| "default"
 	| "icon"
+	| "chromeIcon"
+	| "chromeIconMd"
 	| "square"
 	| "attach"
 	| "minimal"
@@ -13,6 +15,10 @@ export type SelectorTriggerSize =
 
 export function getSelectorTriggerSizeClass(triggerSize: SelectorTriggerSize): string {
 	switch (triggerSize) {
+	case "chromeIcon":
+		return "[&_svg]:block";
+	case "chromeIconMd":
+		return "[&_svg]:block";
 	case "icon":
 		return "size-5 min-w-0 shrink-0 rounded-md gap-0 !h-5 !w-5 !p-0 !px-0 !py-0 has-[>svg]:!px-0 text-muted-foreground hover:bg-accent hover:text-foreground [&_svg]:block";
 	case "square":

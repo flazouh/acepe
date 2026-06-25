@@ -203,6 +203,10 @@
     "./user-message-container": {
       "svelte": "./src/components/user-message-container/index.ts",
       "default": "./src/components/user-message-container/index.ts"
+    },
+    "./usage-widget": {
+      "svelte": "./src/components/usage-widget/index.ts",
+      "default": "./src/components/usage-widget/index.ts"
     }
   },
   "scripts": {

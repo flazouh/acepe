@@ -1,13 +1,12 @@
 <!--
   AgentInputModelRow - Single model row inside the model selector dropdown.
 
-  Extracted from packages/desktop/src/lib/acp/components/model-selector.row.svelte.
+  Thin wrapper over AgentInputSelectorItemRow for model-specific call sites.
 -->
 <script lang="ts">
 	import type { Snippet } from "svelte";
 
-	import * as DropdownMenu from "../dropdown-menu/index.js";
-	import AgentInputSelectorCheck from "./agent-input-selector-check.svelte";
+	import AgentInputSelectorItemRow from "./agent-input-selector-item-row.svelte";
 
 	interface Props {
 		modelId: string;
@@ -21,13 +20,10 @@
 	let { modelId, modelName, currentModelId, onSelect, leading, actions }: Props = $props();
 </script>
 
-<DropdownMenu.Item
+<AgentInputSelectorItemRow
+	label={modelName}
+	selected={modelId === currentModelId}
 	{onSelect}
-	class="group/item transition-colors {modelId === currentModelId ? 'bg-accent' : ''}"
->
-	<div class="flex w-full items-center gap-2">
-		{#if leading}{@render leading()}{/if}
-		<span class="flex-1 truncate text-xs font-normal">{modelName}</span>
-		{#if actions}{@render actions()}{/if}
-	</div>
-</DropdownMenu.Item>
+	{leading}
+	trailing={actions}
+/>

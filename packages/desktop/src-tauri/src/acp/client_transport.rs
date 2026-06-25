@@ -299,6 +299,24 @@ pub(crate) fn interaction_transition_from_result(
                 InteractionResponse::PlanApproval { approved },
             ))
         }
+        InteractionKind::ComputerPermission => {
+            let accepted = adapted_result.get("accepted").and_then(Value::as_bool)?;
+            let state = if accepted {
+                InteractionState::Approved
+            } else {
+                InteractionState::Rejected
+            };
+            let domain_event_kind = if accepted {
+                SessionDomainEventKind::InteractionResolved
+            } else {
+                SessionDomainEventKind::InteractionCancelled
+            };
+            Some((
+                state,
+                domain_event_kind,
+                InteractionResponse::ComputerPermission { accepted },
+            ))
+        }
     }
 }
 
@@ -495,6 +513,39 @@ mod tests {
             },
             session_id: Some(session_id.to_string()),
         }
+    }
+
+    #[test]
+    fn computer_permission_transition_is_local_and_typed() {
+        let approved = interaction_transition_from_result(
+            &InteractionKind::ComputerPermission,
+            &json!({ "accepted": true }),
+        )
+        .expect("approved computer permission transition");
+        assert_eq!(approved.0, InteractionState::Approved);
+        assert!(matches!(
+            approved.1,
+            SessionDomainEventKind::InteractionResolved
+        ));
+        assert!(matches!(
+            approved.2,
+            InteractionResponse::ComputerPermission { accepted: true }
+        ));
+
+        let rejected = interaction_transition_from_result(
+            &InteractionKind::ComputerPermission,
+            &json!({ "accepted": false }),
+        )
+        .expect("rejected computer permission transition");
+        assert_eq!(rejected.0, InteractionState::Rejected);
+        assert!(matches!(
+            rejected.1,
+            SessionDomainEventKind::InteractionCancelled
+        ));
+        assert!(matches!(
+            rejected.2,
+            InteractionResponse::ComputerPermission { accepted: false }
+        ));
     }
 
     #[tokio::test]

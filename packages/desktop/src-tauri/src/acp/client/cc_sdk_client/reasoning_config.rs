@@ -102,8 +102,14 @@ mod tests {
         assert_eq!(options.len(), 1);
         let option = &options[0];
         assert!(option.id.contains("reasoning"));
-        assert_eq!(option.presentation, ConfigOptionPresentation::CompactReasoning);
-        assert_eq!(option.current_value, Some(Value::String("auto".to_string())));
+        assert_eq!(
+            option.presentation,
+            ConfigOptionPresentation::CompactReasoning
+        );
+        assert_eq!(
+            option.current_value,
+            Some(Value::String("auto".to_string()))
+        );
         // Auto sentinel + five CLI levels.
         assert_eq!(option.options.len(), 6);
     }
@@ -113,7 +119,10 @@ mod tests {
         let mut state = ClaudeReasoningConfigState::default();
         let options = set_reasoning_effort(&mut state, "high").expect("set high");
         assert_eq!(state.effort, Some(Effort::High));
-        assert_eq!(options[0].current_value, Some(Value::String("high".to_string())));
+        assert_eq!(
+            options[0].current_value,
+            Some(Value::String("high".to_string()))
+        );
     }
 
     #[test]
@@ -123,7 +132,10 @@ mod tests {
         };
         let options = set_reasoning_effort(&mut state, "auto").expect("set auto");
         assert_eq!(state.effort, None);
-        assert_eq!(options[0].current_value, Some(Value::String("auto".to_string())));
+        assert_eq!(
+            options[0].current_value,
+            Some(Value::String("auto".to_string()))
+        );
     }
 
     #[test]

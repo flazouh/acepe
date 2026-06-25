@@ -1,6 +1,18 @@
+import { spawnSync } from "node:child_process";
 import { writeJsonArtifact } from "./artifacts";
 import { writeUiQaEvidence } from "./evidence";
-import { clickWebview, inspectDom, navigateWebview, probeFirstSendTimeline, probeThinkingToggle, readPlanningDebug, resetOnboarding, sendComposer, watchForVisibleText } from "./interact";
+import {
+	clickWebview,
+	inspectDom,
+	navigateWebview,
+	probeComputerUse,
+	probeFirstSendTimeline,
+	probeThinkingToggle,
+	readPlanningDebug,
+	resetOnboarding,
+	sendComposer,
+	watchForVisibleText,
+} from "./interact";
 import { observeApp, screenshotApp } from "./observe";
 import { buildResult, dependencyError, formatCommandResult, statusExitCode, type OutputFormat } from "./output";
 import { runDoctor } from "./process-target";
@@ -14,6 +26,11 @@ type CliOptions = {
 	readonly level: "summary" | "focused" | "raw";
 	readonly selector: string;
 	readonly text: string;
+	readonly action: string;
+	readonly targetLabel: string;
+	readonly key: string;
+	readonly dx: number | null;
+	readonly dy: number | null;
 	readonly sessionId: string;
 	readonly path: string;
 	readonly limit: number;
@@ -51,6 +68,11 @@ function parseOptions(args: readonly string[], checkoutRoot: string): CliOptions
 			level: "summary",
 			selector: "",
 			text: "",
+			action: "",
+			targetLabel: "",
+			key: "",
+			dx: null,
+			dy: null,
 			sessionId: "",
 			path: "",
 			limit: 10,
@@ -74,6 +96,11 @@ function parseOptions(args: readonly string[], checkoutRoot: string): CliOptions
 		level,
 		selector: valueArg(args, "--selector", ""),
 		text: valueArg(args, "--text", ""),
+		action: valueArg(args, "--action", ""),
+		targetLabel: valueArg(args, "--target-label", ""),
+		key: valueArg(args, "--key", ""),
+		dx: numberArg(args, "--dx"),
+		dy: numberArg(args, "--dy"),
 		sessionId: valueArg(args, "--session-id", ""),
 		path: valueArg(args, "--path", ""),
 		limit: Number.parseInt(valueArg(args, "--limit", "10"), 10),
@@ -81,6 +108,71 @@ function parseOptions(args: readonly string[], checkoutRoot: string): CliOptions
 		timeoutMs: Number.parseInt(valueArg(args, "--timeout", "20000"), 10),
 		noSubmit: hasArg(args, "--no-submit"),
 		skipDriver: hasArg(args, "--skip-driver"),
+	};
+}
+
+function numberArg(args: readonly string[], name: string): number | null {
+	const value = valueArg(args, name, "");
+	if (value.length === 0) {
+		return null;
+	}
+	const parsed = Number.parseInt(value, 10);
+	return Number.isFinite(parsed) ? parsed : null;
+}
+
+function bridgeProcessId(appIdentifier: string): string {
+	if (!/^\d+$/.test(appIdentifier)) {
+		return "";
+	}
+	const result = spawnSync("lsof", [`-tiTCP:${appIdentifier}`, "-sTCP:LISTEN"], {
+		encoding: "utf8",
+	});
+	if (result.status !== 0) {
+		return "";
+	}
+	return result.stdout
+		.split(/\s+/)
+		.map((entry) => entry.trim())
+		.find((entry) => /^\d+$/.test(entry)) ?? "";
+}
+
+function focusAcepeApp(appIdentifier: string): { readonly ok: boolean; readonly message: string } {
+	if (process.platform !== "darwin") {
+		return {
+			ok: false,
+			message: "focus-app is currently implemented for macOS only.",
+		};
+	}
+	const pid = bridgeProcessId(appIdentifier);
+	const script = [
+		'tell application "System Events"',
+		pid.length > 0
+			? `  set targetProcesses to every process whose unix id is ${pid}`
+			: '  set targetProcesses to every process whose bundle identifier is "com.acepe.app"',
+		'  if (count of targetProcesses) is 0 then set targetProcesses to every process whose name is "acepe"',
+		'  if (count of targetProcesses) is 0 then set targetProcesses to every process whose name is "Acepe"',
+		"  if (count of targetProcesses) is 0 then error \"Acepe process not found\"",
+		"  set targetProcess to item 1 of targetProcesses",
+		"  if (count of windows of targetProcess) is 0 then error \"Acepe process has no accessibility windows\"",
+		"  set value of attribute \"AXFrontmost\" of targetProcess to true",
+		"  perform action \"AXRaise\" of window 1 of targetProcess",
+		"  set frontmost of targetProcess to true",
+		"  delay 0.2",
+		"  if frontmost of targetProcess is false then error \"Acepe process did not become frontmost\"",
+	"end tell",
+	].join("\n");
+	const result = spawnSync("osascript", ["-e", script], {
+		encoding: "utf8",
+	});
+	if (result.status === 0) {
+		return {
+			ok: true,
+			message: pid.length > 0 ? `Acepe app focused via bridge pid ${pid}.` : "Acepe app focused.",
+		};
+	}
+	return {
+		ok: false,
+		message: result.stderr.trim() || result.stdout.trim() || "Unable to focus Acepe app.",
 	};
 }
 
@@ -113,13 +205,15 @@ export async function runCli(args: readonly string[], checkoutRoot: string = pro
 			command: "help",
 			status: "ok",
 			summary: [
-				"usage: bun run qa [doctor|observe|screenshot|navigate|inspect|click|thinking-toggle-probe|first-send-probe|send|watch|reset-onboarding] [--app=9223] [--format=json]",
+				"usage: bun run qa [doctor|focus-app|observe|screenshot|navigate|inspect|click|computer-probe|thinking-toggle-probe|first-send-probe|send|watch|reset-onboarding] [--app=9223] [--format=json]",
 				"doctor checks the real dev Tauri target before QA.",
+				"focus-app brings the Acepe desktop app to the macOS foreground.",
 				"observe returns compact app facts before screenshots.",
 				"screenshot captures the current WebView.",
 				"navigate opens an app route with --path=/some-route.",
 				"inspect returns compact DOM facts for --selector.",
 				"click clicks by --selector or --text.",
+				"computer-probe invokes the real app's acepe_computer.act MCP path; add --action and --target-label to act.",
 				"thinking-toggle-probe clicks the first thinking block and samples open/closed state over 500ms.",
 				"first-send-probe types into the first composer, clicks send, and samples optimistic/planning visibility.",
 				"send types --text into the composer and submits (use --no-submit to type only).",
@@ -171,6 +265,19 @@ export async function runCli(args: readonly string[], checkoutRoot: string = pro
 		});
 		process.stdout.write(formatCommandResult(result, options.format));
 		return statusExitCode(result.status);
+	}
+
+	if (options.command === "focus-app") {
+		const focus = focusAcepeApp(options.appIdentifier);
+		const result = buildResult({
+			command: "focus-app",
+			status: focus.ok ? "ok" : "fail",
+			summary: [focus.message],
+			error: focus.ok
+				? undefined
+				: dependencyError("focus_app_failed", focus.message, "Start the Tauri dev app, then retry focus-app."),
+		});
+		return emitVerifiedUiResult(options, result);
 	}
 
 	if (options.command === "observe") {
@@ -289,6 +396,9 @@ export async function runCli(args: readonly string[], checkoutRoot: string = pro
 			`matches: ${inspection.value.count.toString()}`,
 			`returned: ${inspection.value.elements.length.toString()}`,
 			first === undefined ? "first: none" : `first: ${first.tag} ${first.rect.width.toFixed(0)}x${first.rect.height.toFixed(0)} "${first.text.slice(0, 80)}"`,
+			first === undefined
+				? "value: none"
+				: `value: ${first.value === null ? "none" : JSON.stringify(first.value)} focused=${first.focused ? "yes" : "no"}`,
 			first?.src === undefined || first.src === null ? "src: none" : `src: ${first.src}`,
 			first === undefined ? "computed: none" : `computed: display=${first.computedStyle.display} gap=${first.computedStyle.gap} rowGap=${first.computedStyle.rowGap} columnGap=${first.computedStyle.columnGap}`,
 			first === undefined ? "padding: none" : `padding: top=${first.computedStyle.paddingTop} right=${first.computedStyle.paddingRight} bottom=${first.computedStyle.paddingBottom} left=${first.computedStyle.paddingLeft}`,
@@ -350,6 +460,89 @@ export async function runCli(args: readonly string[], checkoutRoot: string = pro
 		});
 		process.stdout.write(formatCommandResult(result, options.format));
 		return statusExitCode(result.status);
+	}
+
+	if (options.command === "computer-probe") {
+		const sessionId = options.sessionId.length === 0 ? "acepe-computer-use-qa" : options.sessionId;
+		const probe = await probeComputerUse({
+			appIdentifier: options.appIdentifier,
+			sessionId,
+			action: options.action,
+			targetLabel: options.targetLabel,
+			text: options.text,
+			key: options.key,
+			dx: options.dx,
+			dy: options.dy,
+			skipDriver: options.skipDriver,
+		});
+		if (probe.isErr()) {
+			const result = buildResult({
+				command: "computer-probe",
+				status: "fail",
+				summary: ["Unable to invoke the Acepe computer-use probe."],
+				error: dependencyError(
+					probe.error.code,
+					probe.error.message,
+					"Run acepe-qa doctor, then retry computer-probe against the dev app."
+				),
+			});
+			process.stdout.write(formatCommandResult(result, options.format));
+			return statusExitCode(result.status);
+		}
+		const artifact = await writeJsonArtifact("computer-probe", probe.value);
+		const artifactPath = artifact.isOk() ? artifact.value : undefined;
+		const hasAction = probe.value.actionVerb !== null;
+		const hasObservationFacts =
+			probe.value.app !== null || probe.value.window !== null || probe.value.elementCount > 0;
+		const actionChanged =
+			probe.value.actionChangedCount !== null && probe.value.actionChangedCount > 0;
+		const actionNeedsObservedChange = probe.value.actionVerb === "type";
+		const actionSucceeded =
+			hasAction &&
+			probe.value.actionOk === true &&
+			(!actionNeedsObservedChange || actionChanged);
+		const observationSucceeded =
+			!hasAction &&
+			((probe.value.ok && hasObservationFacts) ||
+				probe.value.errorCode === "computer_permission_required");
+		const status = actionSucceeded || observationSucceeded ? "ok" : "warn";
+		const baseSummary = [
+				`server: ${probe.value.serverName}`,
+				`tool: ${probe.value.toolName}`,
+				`transport: ${probe.value.transport}`,
+				`session: ${probe.value.sessionId}`,
+				`ok: ${probe.value.ok ? "yes" : "no"}`,
+				`isError: ${probe.value.isError ? "yes" : "no"}`,
+				`app: ${probe.value.app ?? "none"}`,
+				`window: ${probe.value.window ?? "none"}`,
+				`elements: ${probe.value.elementCount.toString()}`,
+				`observation facts: ${hasObservationFacts ? "present" : "empty"}`,
+				`error: ${probe.value.errorCode ?? "none"}`,
+				`permission: ${probe.value.permissionKind ?? "none"}`,
+		];
+		const actionSummary =
+			probe.value.actionVerb === null
+				? []
+				: [
+						`action: ${probe.value.actionVerb}`,
+						`target label: ${probe.value.actionTargetLabel ?? "none"}`,
+						`target id: ${probe.value.actionTargetId ?? "none"}`,
+						`action ok: ${probe.value.actionOk === true ? "yes" : "no"}`,
+						`action changed: ${probe.value.actionChangedCount === null ? "unknown" : probe.value.actionChangedCount.toString()}`,
+						`action elements: ${probe.value.actionElementCount === null ? "unknown" : probe.value.actionElementCount.toString()}`,
+						`action error: ${probe.value.actionErrorCode ?? "none"}`,
+					];
+		const result = buildResult({
+			command: "computer-probe",
+			status,
+			summary: baseSummary.concat(actionSummary),
+			artifactPath,
+			artifactKind: artifactPath === undefined ? undefined : "computer-probe",
+			error: artifact.isErr()
+				? dependencyError(artifact.error.code, artifact.error.message, "Check /tmp permissions.")
+				: undefined,
+		});
+		return emitVerifiedUiResult(options, result);
 	}
 
 	if (options.command === "click") {
@@ -599,6 +792,7 @@ export async function runCli(args: readonly string[], checkoutRoot: string = pro
 		const send = await sendComposer({
 			appIdentifier: options.appIdentifier,
 			text: options.text,
+			selector: options.selector,
 			submit: !options.noSubmit,
 			skipDriver: options.skipDriver,
 		});

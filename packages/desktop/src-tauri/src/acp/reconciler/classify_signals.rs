@@ -37,6 +37,7 @@ pub(crate) fn classify_kind_hint(kind_hint: Option<&str>) -> Option<ToolKind> {
         "task_output" | "taskoutput" | "task-output" => Some(ToolKind::TaskOutput),
         "tool_search" | "toolsearch" | "tool-search" => Some(ToolKind::ToolSearch),
         "browser" => Some(ToolKind::Browser),
+        "computer" | "computer_use" | "computer-use" | "computeruse" => Some(ToolKind::Computer),
         "sql" => Some(ToolKind::Sql),
         "unclassified" => Some(ToolKind::Unclassified),
         _ => None,
@@ -101,6 +102,21 @@ pub(crate) fn classify_argument_shape(arguments: &serde_json::Value) -> Option<T
 
     if object.contains_key("task_id") || object.contains_key("taskId") {
         return Some(ToolKind::TaskOutput);
+    }
+
+    if (object.contains_key("v") || object.contains_key("verb") || object.contains_key("action"))
+        && (object.contains_key("t")
+            || object.contains_key("target_id")
+            || object.contains_key("targetId")
+            || object.contains_key("target")
+            || object.contains_key("element_id")
+            || object.contains_key("elementId"))
+        && (object.contains_key("e")
+            || object.contains_key("epoch")
+            || object.contains_key("snapshot_epoch")
+            || object.contains_key("snapshotEpoch"))
+    {
+        return Some(ToolKind::Computer);
     }
 
     if object.contains_key("skill")
@@ -342,6 +358,18 @@ mod tests {
                 "new_string": "after"
             })),
             Some(ToolKind::Edit)
+        );
+    }
+
+    #[test]
+    fn detects_compact_computer_shape() {
+        assert_eq!(
+            classify_argument_shape(&serde_json::json!({
+                "v": "click",
+                "t": "e_4f2",
+                "e": "s_912"
+            })),
+            Some(ToolKind::Computer)
         );
     }
 

@@ -2,6 +2,14 @@ import type { SessionLinkedPr, SessionPrLinkMode } from "./session-linked-pr.js"
 
 export type SessionLifecycleState = "created" | "persisted";
 
+export interface SessionUsageStats {
+	readonly totalMessages: number;
+	readonly userMessages: number;
+	readonly assistantMessages: number;
+	readonly totalInputTokens: number;
+	readonly totalOutputTokens: number;
+}
+
 /**
  * Session metadata - rarely changing, serializable data.
  *
@@ -57,4 +65,9 @@ export interface SessionMetadata {
 	 * Null/undefined for scanned/discovered sessions.
 	 */
 	readonly sequenceId?: number | null;
+	/**
+	 * Real usage totals collected while indexing persisted provider history.
+	 * Missing when a provider cannot expose cheap indexed usage yet.
+	 */
+	readonly usageStats?: SessionUsageStats;
 }

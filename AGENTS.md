@@ -184,7 +184,7 @@ Acepe uses the Compounding Engineering workflow as its engineering operating sys
 - For desktop app QA, prefer the Tauri MCP bridge when it is available. Use it to attach to the running dev WebView, inspect the DOM/app state, read console errors, click/type, and capture screenshots inside the Tauri context. A normal browser at `localhost:1420` is not enough for Acepe desktop QA because Tauri APIs like `invoke` are missing there.
 - If Tauri MCP is unavailable, first try the running dev Tauri window via Computer Use. Only use a normal browser for routes that are known to work without Tauri APIs, and say clearly that it is browser-only evidence.
 - Include the DOM inspection output (selector + observed facts) and screenshot when relevant in the final response.
-- If the app or dev server is not available, start it from `packages/desktop` with `bun dev`, then run the QA CLI pass; if still blocked, say exactly what was verified and what could not be.
+- If the app or dev server is not available, start it from `packages/desktop` with `bun run tauri`, then run the QA CLI pass; if still blocked, say exactly what was verified and what could not be.
 
 ## Operational Guardrails
 

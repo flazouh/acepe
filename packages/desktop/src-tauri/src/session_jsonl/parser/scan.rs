@@ -8,7 +8,7 @@ use tokio::io::{AsyncBufReadExt, BufReader};
 use crate::acp::types::CanonicalAgentId;
 use crate::history::constants::{MAX_PROJECTS_TO_SCAN, MAX_SESSIONS_PER_PROJECT};
 use crate::session_jsonl::cache::get_cache;
-use crate::session_jsonl::types::{HistoryEntry, SessionMessage};
+use crate::session_jsonl::types::{HistoryEntry, HistoryUsageStats, SessionMessage};
 
 use super::text_utils::{
     extract_display_name_from_user_message, get_session_jsonl_root, is_valid_uuid,
@@ -19,6 +19,7 @@ struct MetadataParseState {
     first_message_json: Option<Value>,
     display: Option<String>,
     saw_any_line: bool,
+    usage_stats: HistoryUsageStats,
 }
 
 impl MetadataParseState {
@@ -27,6 +28,7 @@ impl MetadataParseState {
             first_message_json: None,
             display: None,
             saw_any_line: false,
+            usage_stats: HistoryUsageStats::default(),
         }
     }
 
@@ -62,6 +64,25 @@ impl MetadataParseState {
             return;
         }
 
+        self.usage_stats.total_messages += 1;
+        if is_user {
+            self.usage_stats.user_messages += 1;
+        }
+        if is_assistant {
+            self.usage_stats.assistant_messages += 1;
+        }
+
+        if let Some(usage) = json.get("message").and_then(|message| message.get("usage")) {
+            self.usage_stats.total_input_tokens += usage
+                .get("input_tokens")
+                .and_then(|value| value.as_i64())
+                .unwrap_or(0);
+            self.usage_stats.total_output_tokens += usage
+                .get("output_tokens")
+                .and_then(|value| value.as_i64())
+                .unwrap_or(0);
+        }
+
         if self.first_message_json.is_none() {
             self.first_message_json = Some(json.clone());
         }
@@ -69,10 +90,6 @@ impl MetadataParseState {
         if is_user && self.display.is_none() {
             self.display = extract_display_name_from_user_message(&json);
         }
-    }
-
-    fn is_complete(&self) -> bool {
-        self.first_message_json.is_some() && self.display.is_some()
     }
 
     fn into_history_entry(self, file_name: &str) -> Result<Option<HistoryEntry>> {
@@ -99,6 +116,7 @@ impl MetadataParseState {
                         crate::db::repository::SessionLifecycleState::Persisted,
                     ),
                     sequence_id: None,
+                    usage_stats: None,
                 }));
             }
             return Ok(None);
@@ -151,6 +169,7 @@ impl MetadataParseState {
             worktree_deleted: None,
             session_lifecycle_state: Some(crate::db::repository::SessionLifecycleState::Persisted),
             sequence_id: None,
+            usage_stats: Some(self.usage_stats),
         }))
     }
 }
@@ -165,9 +184,6 @@ fn build_history_entry_from_values(
     for line_result in lines {
         let line = line_result?;
         state.process_line(file_path, &line);
-        if state.is_complete() {
-            break;
-        }
     }
 
     state.into_history_entry(file_name)
@@ -220,9 +236,6 @@ pub async fn extract_thread_metadata(file_path: &PathBuf) -> Result<Option<Histo
 
     while let Some(line) = lines.next_line().await? {
         state.process_line(file_path, &line);
-        if state.is_complete() {
-            break;
-        }
     }
 
     state.into_history_entry(file_name)

@@ -1,6 +1,5 @@
 <script lang="ts">
 	import {
-		AgentInputConfigOptionSelector,
 		AgentInputNewThreadOptions,
 		type AgentInputConfigOption,
 	} from "@acepe/ui/agent-panel";
@@ -44,8 +43,6 @@
 		onReasoningChange,
 		onWorktreeToggle,
 	}: Props = $props();
-
-	const showReasoning = $derived(reasoningOption !== null);
 </script>
 
 {#snippet projectControl()}
@@ -84,24 +81,12 @@
 	/>
 {/snippet}
 
-{#snippet reasoningControl()}
-	{#if reasoningOption}
-		<AgentInputConfigOptionSelector
-			configOption={reasoningOption}
-			displayMode="barOnly"
-			onValueChange={(configId, value) => {
-				onReasoningChange?.(configId, value);
-			}}
-		/>
-	{/if}
-{/snippet}
-
 <AgentInputNewThreadOptions
 	project={projectControl}
 	agent={agentControl}
 	model={modelControl}
-	reasoning={reasoningControl}
-	{showReasoning}
+	reasoningConfigOption={reasoningOption}
+	onReasoningValueChange={onReasoningChange}
 	{showWorktree}
 	{worktreeOn}
 	worktreeDisabled={false}

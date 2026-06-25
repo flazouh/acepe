@@ -31,5 +31,6 @@ export function sessionColdFromSlices(
 		linkedPr: sessionMetadata.linkedPr,
 		worktreeDeleted: sessionMetadata.worktreeDeleted,
 		sequenceId: sessionMetadata.sequenceId,
+		usageStats: sessionMetadata.usageStats,
 	};
 }

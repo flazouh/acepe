@@ -212,5 +212,11 @@ function serializeInteractionReplyPayload(
 				kind: "plan_approval",
 				approved: payload.approved,
 			};
+		case "computer_permission":
+			return {
+				kind: "computer_permission",
+				accepted: payload.accepted,
+				scope: payload.scope,
+			};
 	}
 }

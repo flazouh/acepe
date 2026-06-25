@@ -84,7 +84,7 @@ For dev QA, inspect only one of these:
 2. the running Tauri dev app from this checkout, normally `packages/desktop/src-tauri/target/debug/acepe`
 3. Computer Use attached to the dev Tauri window, only after proving it is not `/Applications/Acepe.app`
 
-If the dev app is not running, start it from `packages/desktop` with `bun dev`
+If the dev app is not running, start it from `packages/desktop` with `bun run tauri`
 (or a detached `bun run tauri dev` when you need a background session). If the
 built binary is stale relative to the Rust change you are QA-ing, stop and
 restart the dev process so the rebuild picks up your code (see Step 1b). Always

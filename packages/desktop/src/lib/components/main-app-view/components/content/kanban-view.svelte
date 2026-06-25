@@ -256,7 +256,8 @@ const threadBoardSources = $derived.by((): readonly ThreadBoardSource[] => {
 			(projectPath) => {
 				const project = projectManager.getProject(projectPath);
 				return project ? (project.iconPath ?? null) : null;
-			}
+			},
+			presentation.pendingComputerPermission
 		);
 
 		sources.push({

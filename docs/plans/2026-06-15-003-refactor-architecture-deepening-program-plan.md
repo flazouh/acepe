@@ -626,7 +626,7 @@ flowchart TB
   transcript-shaped, session-shaped, or Operation projection paths.
 - For UI-visible units, final implementation evidence must include QA wrapper
   doctor/observe/inspect and screenshot where layout is affected.
-- Do not start the dev server; attach to the existing running dev app.
+- If the dev app is not running when UI QA is required, start it from `packages/desktop` with `bun run tauri`, then run the QA CLI pass.
 
 ## Alternative Approaches Considered
 

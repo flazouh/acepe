@@ -1,6 +1,7 @@
 import { describe, expect, it } from "bun:test";
 
 import type { SessionStatus } from "../../../application/dto/session-status.js";
+import type { ComputerPermissionInteraction } from "../../../types/interaction.js";
 import type { PermissionRequest } from "../../../types/permission.js";
 import type { ToolCall } from "../../../types/tool-call.js";
 import type { CanonicalSessionProjection } from "../../canonical-session-projection.js";
@@ -459,6 +460,49 @@ describe("buildQueueSessionSnapshot", () => {
 			throw new Error("Expected permission pending input");
 		}
 		expect(snapshot.state.pendingInput.request).toBe(permission);
+		expect(snapshot.currentStreamingToolCall).toBeNull();
+	});
+
+	it("keeps interaction-backed computer permission visible without a runtime tool", () => {
+		const computerPermission: ComputerPermissionInteraction = {
+			id: "computer-permission-1",
+			kind: "computer_permission",
+			sessionId: "session-1",
+			permissionKind: "screen_recording",
+			reason: "Screen Recording permission is required.",
+			status: "pending",
+			canonicalOperationId: "op-1",
+		};
+		const snapshot = buildQueueSessionSnapshot({
+			id: "session-1",
+			agentId: "opencode",
+			projectPath: "/repo",
+			title: "Queue item",
+			currentStreamingToolCall: null,
+			currentToolKind: null,
+			lastToolCall: null,
+			lastTodoToolCall: null,
+			updatedAt: new Date("2026-03-30T12:00:00.000Z"),
+			currentModeId: "plan",
+			connectionError: null,
+			sequenceId: null,
+			activeTurnFailure: null,
+			liveSessionSource: makeLiveSource(makeCanonicalProjection("ready", "waiting_for_user")),
+			interactionSnapshot: {
+				pendingQuestion: null,
+				pendingPermission: null,
+				pendingComputerPermission: computerPermission,
+				pendingPlanApproval: null,
+			},
+			hasUnseenCompletion: false,
+		});
+
+		expect(snapshot.state.pendingInput.kind).toBe("computer_permission");
+		if (snapshot.state.pendingInput.kind !== "computer_permission") {
+			throw new Error("Expected computer permission pending input");
+		}
+		expect(snapshot.state.pendingInput.request).toBe(computerPermission);
+		expect(snapshot.workBucket).toBe("answer_needed");
 		expect(snapshot.currentStreamingToolCall).toBeNull();
 	});
 

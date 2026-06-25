@@ -419,6 +419,7 @@ mod tests {
             worktree_deleted: None,
             session_lifecycle_state: Some(crate::db::repository::SessionLifecycleState::Persisted),
             sequence_id: None,
+            usage_stats: None,
         }
     }
 

@@ -205,7 +205,7 @@ Update the learning: after changing viewport/scroll code, restart or confirm the
 - Do not restore TanStack Virtual as the transcript viewport authority.
 - Do not make historical sessions read-only.
 - Do not fix transcript ordering, row identity, or provider parsing in the UI.
-- Do not start the dev server with `bun dev`; the user manages that process.
+- If the dev app is not running when UI QA is required, start it from `packages/desktop` with `bun run tauri`, then run the QA CLI pass.
 
 ## Risks
 

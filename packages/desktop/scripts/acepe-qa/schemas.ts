@@ -100,9 +100,11 @@ export const domElementSummarySchema = z.object({
 	role: z.string().nullable(),
 	name: z.string(),
 	text: z.string(),
+	value: z.string().nullable(),
 	src: z.string().nullable(),
 	classes: z.string(),
 	visible: z.boolean(),
+	focused: z.boolean(),
 	computedStyle: z.object({
 		display: z.string(),
 		gap: z.string(),
@@ -240,8 +242,31 @@ export const planningDebugResultSchema = z.object({
 	snapshots: z.array(planningDebugSnapshotSchema),
 });
 
+export const computerUseProbeResultSchema = z.object({
+	serverName: z.string(),
+	toolName: z.string(),
+	sessionId: z.string(),
+	transport: z.string(),
+	ok: z.boolean(),
+	isError: z.boolean(),
+	payloadJson: z.string(),
+	app: z.string().nullable(),
+	window: z.string().nullable(),
+	elementCount: z.number(),
+	errorCode: z.string().nullable(),
+	permissionKind: z.string().nullable(),
+	actionVerb: z.string().nullable(),
+	actionTargetLabel: z.string().nullable(),
+	actionTargetId: z.string().nullable(),
+	actionOk: z.boolean().nullable(),
+	actionErrorCode: z.string().nullable(),
+	actionChangedCount: z.number().nullable(),
+	actionElementCount: z.number().nullable(),
+});
+
 export type SendComposerResult = z.infer<typeof sendComposerResultSchema>;
 export type PlanningDebugResult = z.infer<typeof planningDebugResultSchema>;
+export type ComputerUseProbeResult = z.infer<typeof computerUseProbeResultSchema>;
 export type NavigateResult = z.infer<typeof navigateResultSchema>;
 export type WatchResult = z.infer<typeof watchResultSchema>;
 export type FirstSendTimelineProbeResult = z.infer<typeof firstSendTimelineProbeResultSchema>;

@@ -25,9 +25,7 @@ use crate::acp::session_state_engine::{
     SessionStateEnvelope, SessionStateField, SessionStatePayload,
 };
 use crate::acp::session_update::{sanitize_config_options_for_canonical, SessionUpdate};
-use crate::acp::transcript_projection::{
-    TranscriptProjectionRegistry, TranscriptSnapshot,
-};
+use crate::acp::transcript_projection::{TranscriptProjectionRegistry, TranscriptSnapshot};
 use crate::acp::transcript_viewport::ScrollIntent;
 use crate::acp::types::CanonicalAgentId;
 use crate::db::repository::SessionMetadataRepository;

@@ -60,6 +60,9 @@ export const COMMANDS = {
     "get_opencode_history": "get_opencode_history",
     "get_opencode_sessions_for_project": "get_opencode_sessions_for_project"
   },
+  "provider_account_usage": {
+    "get": "get_provider_account_usage"
+  },
   "storage": {
     "get_projects": "get_projects",
     "get_recent_projects": "get_recent_projects",
@@ -271,6 +274,7 @@ export type FsCommands = Commands["fs"];
 export type HistoryCommands = Commands["history"];
 export type CursorHistoryCommands = Commands["cursor_history"];
 export type OpenCodeHistoryCommands = Commands["opencode_history"];
+export type ProviderAccountUsageCommands = Commands["provider_account_usage"];
 export type StorageCommands = Commands["storage"];
 export type FileIndexCommands = Commands["file_index"];
 export type TerminalCommands = Commands["terminal"];

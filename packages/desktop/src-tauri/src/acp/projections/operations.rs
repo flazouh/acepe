@@ -1,4 +1,5 @@
 use super::*;
+use crate::computer_use::types::{ComputerError, ComputerObservation};
 
 impl ProjectionRegistry {
     #[must_use]
@@ -394,6 +395,7 @@ impl ProjectionRegistry {
                 .as_ref()
                 .and_then(|operation| operation.progressive_arguments.clone()),
             result: tool_call.result.clone(),
+            computer_payload: build_computer_payload(&arguments, tool_call.result.as_ref()),
             command: extract_operation_command(
                 Some(&arguments),
                 existing
@@ -622,10 +624,13 @@ impl ProjectionRegistry {
             .normalized_todos
             .clone()
             .or(existing.normalized_todos.clone());
+        let computer_permission_error = extract_computer_permission_error(update);
 
         let derived_state = derive_operation_state(&next_status);
         let mut next_operation_state = if is_terminal_operation_state(&existing.operation_state) {
             existing.operation_state.clone()
+        } else if computer_permission_error.is_some() {
+            OperationState::Blocked
         } else {
             derived_state
         };
@@ -634,6 +639,7 @@ impl ProjectionRegistry {
         {
             next_operation_state = OperationState::Blocked;
         }
+        let computer_payload = build_computer_payload(&next_arguments, next_result.as_ref());
 
         let updated_operation = OperationSnapshot {
             id: existing.id.clone(),
@@ -646,6 +652,7 @@ impl ProjectionRegistry {
             arguments: next_arguments.clone(),
             progressive_arguments: next_progressive_arguments.clone(),
             result: next_result,
+            computer_payload,
             command: extract_operation_command(
                 Some(&next_arguments),
                 next_progressive_arguments.as_ref(),
@@ -670,8 +677,144 @@ impl ProjectionRegistry {
             degradation_reason: existing.degradation_reason.clone(),
         };
         let merged_operation = merge_operation_snapshot_evidence(&existing, updated_operation);
-        self.operations_by_id.insert(operation_id, merged_operation);
+        self.operations_by_id
+            .insert(operation_id.clone(), merged_operation);
+        if let Some(error) = computer_permission_error {
+            if let Some(permission_kind) = error.permission_kind {
+                let interaction_id = build_computer_permission_interaction_id(
+                    session_id,
+                    &existing.tool_call_id,
+                    permission_kind,
+                );
+                self.register_computer_permission_interaction(ComputerPermissionData {
+                    id: interaction_id,
+                    session_id: session_id.to_string(),
+                    permission_kind,
+                    reason: error.message,
+                    app: error.app.map(String::from),
+                    window: error.window.map(String::from),
+                    tool: Some(ToolReference {
+                        message_id: None,
+                        call_id: existing.tool_call_id.clone(),
+                    }),
+                });
+            }
+        }
     }
+}
+
+fn extract_computer_permission_error(update: &ToolCallUpdateData) -> Option<ComputerError> {
+    let error = update
+        .result
+        .as_ref()
+        .and_then(computer_error_from_value)
+        .or_else(|| {
+            update
+                .raw_output
+                .as_ref()
+                .and_then(computer_error_from_value)
+        })
+        .or_else(|| {
+            extract_tool_update_text(update).and_then(|text| {
+                serde_json::from_str::<Value>(&text)
+                    .ok()
+                    .and_then(|value| computer_error_from_value(&value))
+            })
+        })?;
+
+    (error.code == "computer_permission_required" && error.permission_kind.is_some())
+        .then_some(error)
+}
+
+fn computer_error_from_value(value: &Value) -> Option<ComputerError> {
+    let error_value = value
+        .get("error")
+        .or_else(|| value.get("err"))
+        .unwrap_or(value);
+    serde_json::from_value::<ComputerError>(error_value.clone()).ok()
+}
+
+fn build_computer_payload(
+    arguments: &ToolArguments,
+    result: Option<&Value>,
+) -> Option<ComputerOperationPayload> {
+    let input = computer_input_payload_from_arguments(arguments)?;
+    let output = result
+        .and_then(computer_observation_from_value)
+        .map(|observation| ComputerOperationOutputPayload {
+            epoch: Some(observation.epoch),
+            settled_ms: observation.settled_ms,
+            app: observation
+                .environment
+                .as_ref()
+                .and_then(|environment| environment.app.clone()),
+            window: observation
+                .environment
+                .as_ref()
+                .and_then(|environment| environment.window.clone()),
+            focused_target_id: observation
+                .environment
+                .as_ref()
+                .and_then(|environment| environment.focused_target_id.clone()),
+            busy: observation
+                .environment
+                .as_ref()
+                .and_then(|environment| environment.busy),
+            changed_target_ids: observation.changed,
+            element_count: Some(observation.elements.len()),
+            screenshot_ref: observation.screenshot_ref,
+        });
+    let error =
+        result
+            .and_then(computer_error_from_value)
+            .map(|error| ComputerOperationErrorPayload {
+                code: error.code,
+                message: error.message,
+                permission_kind: error.permission_kind,
+                app: error.app.map(String::from),
+                window: error.window.map(String::from),
+                current_epoch: error.current_epoch,
+                reobserve: error.reobserve,
+            });
+
+    Some(ComputerOperationPayload {
+        input,
+        output,
+        error,
+    })
+}
+
+fn computer_input_payload_from_arguments(
+    arguments: &ToolArguments,
+) -> Option<ComputerOperationInputPayload> {
+    match arguments {
+        ToolArguments::Computer {
+            verb,
+            target_id,
+            epoch,
+            text,
+            key,
+            delta_x,
+            delta_y,
+            include_bounds,
+            include_screenshot,
+        } => Some(ComputerOperationInputPayload {
+            verb: verb.clone(),
+            target_id: target_id.clone(),
+            epoch: epoch.clone(),
+            text: text.clone(),
+            key: key.clone(),
+            delta_x: *delta_x,
+            delta_y: *delta_y,
+            include_bounds: *include_bounds,
+            include_screenshot: *include_screenshot,
+        }),
+        _ => None,
+    }
+}
+
+fn computer_observation_from_value(value: &Value) -> Option<ComputerObservation> {
+    serde_json::from_value::<ComputerObservation>(value.clone()).ok()
 }
 
 fn note_imported_transcript_boundary(

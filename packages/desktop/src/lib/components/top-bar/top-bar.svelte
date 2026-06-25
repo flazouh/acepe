@@ -1,8 +1,15 @@
 <script lang="ts">
-import { Button, SegmentedToggleGroup, Selector, VoiceDownloadProgress } from "@acepe/ui";
+import {
+	Button,
+	SegmentedToggleGroup,
+	Selector,
+	UsageLimitWidget,
+	SegmentedProgressBar,
+} from "@acepe/ui";
 import { COLOR_NAMES, Colors } from "@acepe/ui/colors";
 import * as DropdownMenu from "@acepe/ui/dropdown-menu";
 import { AppTopBar } from "@acepe/ui/app-layout";
+import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { Bug } from "phosphor-svelte";
 import { Check } from "phosphor-svelte";
@@ -15,14 +22,23 @@ import { SlidersHorizontal } from "phosphor-svelte";
 import { Square } from "phosphor-svelte";
 import { SquaresFour } from "phosphor-svelte";
 import { Wrench } from "phosphor-svelte";
-import type { Snippet } from "svelte";
-import { getPanelStore } from "$lib/acp/store/index.js";
+import { onMount, type Snippet } from "svelte";
+import { getPanelStore, getSessionStore } from "$lib/acp/store/index.js";
 import type { ViewMode } from "$lib/acp/store/types.js";
 import type { MainAppViewState } from "$lib/components/main-app-view/logic/main-app-view-state.svelte.js";
 import type { UpdaterBannerState } from "$lib/components/main-app-view/logic/updater-state.js";
 import { useTheme, type Theme } from "$lib/components/theme/index.js";
-import { Switch } from "$lib/components/ui/switch/index.js";
 import * as Tooltip from "@acepe/ui/tooltip";
+import {
+	buildLiveUsageWidgetModel,
+	type UsageProviderAccount,
+	type UsageWidgetTelemetrySession,
+} from "./usage-widget-model.js";
+import {
+	buildProviderUsageCheckingAccounts,
+	buildProviderUsageErrorAccounts,
+	loadProviderAccountUsageAccounts,
+} from "./provider-account-usage-source.js";
 interface Props {
 	viewState: MainAppViewState;
 	/** Optional snippet for add project/repository button (e.g. dropdown). Rendered in top bar left after decorations. */
@@ -51,8 +67,15 @@ let {
 }: Props = $props();
 
 const panelStore = getPanelStore();
+const sessionStore = getSessionStore();
 const themeState = useTheme();
 const UPDATE_BUTTON_SEGMENT_COUNT = 16;
+const USAGE_REFRESH_INTERVAL_MS = 60_000;
+const USAGE_EVENT_REFRESH_DEBOUNCE_MS = 250;
+const PROVIDER_ACCOUNT_USAGE_UPDATED_EVENT = "provider-account-usage://updated";
+let providerUsageAccounts = $state.raw<ReadonlyArray<UsageProviderAccount>>(
+	buildProviderUsageCheckingAccounts()
+);
 
 const updateDownloadPercent = $derived(
 	updaterState?.kind === "installing"
@@ -118,6 +141,30 @@ const standardViewModes: {
 
 const isKanbanView = $derived(panelStore.viewMode === "kanban");
 
+const focusedSessionId = $derived(panelStore.focusedPanel?.sessionId ?? null);
+const usageTelemetrySessions = $derived.by((): UsageWidgetTelemetrySession[] => {
+	const sessions = sessionStore.read.getAllSessions();
+	const telemetrySessions: UsageWidgetTelemetrySession[] = [];
+
+	for (const session of sessions) {
+		telemetrySessions.push({
+			session,
+			telemetry: sessionStore.read.getSessionUsageTelemetry(session.id),
+			currentModelId: sessionStore.read.getSessionCurrentModelId(session.id),
+			focused: session.id === focusedSessionId,
+		});
+	}
+
+	return telemetrySessions;
+});
+const usageWidgetModel = $derived(
+	buildLiveUsageWidgetModel({
+		sessions: usageTelemetrySessions,
+		nowMs: Date.now(),
+		accounts: providerUsageAccounts,
+	})
+);
+
 const activeStandardViewMode = $derived.by((): Exclude<ViewMode, "kanban"> => {
 	if (panelStore.viewMode === "kanban") {
 		return "multi";
@@ -133,6 +180,57 @@ function switchLayoutFamily(nextFamily: LayoutFamily): void {
 
 	panelStore.setViewMode(activeStandardViewMode);
 }
+
+function refreshProviderUsageAccounts(): void {
+	void loadProviderAccountUsageAccounts().match(
+		(accounts) => {
+			providerUsageAccounts = accounts;
+		},
+		() => {
+			providerUsageAccounts = buildProviderUsageErrorAccounts();
+		}
+	);
+}
+
+onMount(() => {
+	let disposed = false;
+	let quotaUpdateUnlisten: UnlistenFn | null = null;
+	let quotaUpdateRefreshTimeout: ReturnType<typeof window.setTimeout> | null = null;
+
+	function scheduleProviderUsageRefresh(): void {
+		if (quotaUpdateRefreshTimeout !== null) {
+			window.clearTimeout(quotaUpdateRefreshTimeout);
+		}
+
+		quotaUpdateRefreshTimeout = window.setTimeout(() => {
+			quotaUpdateRefreshTimeout = null;
+			refreshProviderUsageAccounts();
+		}, USAGE_EVENT_REFRESH_DEBOUNCE_MS);
+	}
+
+	refreshProviderUsageAccounts();
+	const intervalId = window.setInterval(refreshProviderUsageAccounts, USAGE_REFRESH_INTERVAL_MS);
+	void listen(PROVIDER_ACCOUNT_USAGE_UPDATED_EVENT, () => {
+		scheduleProviderUsageRefresh();
+	}).then((unlisten) => {
+		if (disposed) {
+			void unlisten();
+			return;
+		}
+		quotaUpdateUnlisten = unlisten;
+	});
+
+	return () => {
+		disposed = true;
+		window.clearInterval(intervalId);
+		if (quotaUpdateRefreshTimeout !== null) {
+			window.clearTimeout(quotaUpdateRefreshTimeout);
+		}
+		if (quotaUpdateUnlisten !== null) {
+			quotaUpdateUnlisten();
+		}
+	};
+});
 </script>
 
 <AppTopBar
@@ -150,7 +248,7 @@ function switchLayoutFamily(nextFamily: LayoutFamily): void {
 	{#snippet extraLeftActions()}
 		{#if updaterState?.kind === "available"}
 			<div class="flex items-center pl-2">
-			<Button variant="headerProminent" size="headerAction" onclick={onUpdateClick}>
+			<Button variant="headerProminent" size="headerAction" class="!h-5 !min-h-5" onclick={onUpdateClick}>
 				{#snippet children()}
 					Update
 				{/snippet}
@@ -158,12 +256,12 @@ function switchLayoutFamily(nextFamily: LayoutFamily): void {
 			</div>
 		{:else if updaterState?.kind === "downloading" || updaterState?.kind === "installing"}
 			<div class="flex items-center pl-2">
-			<Button variant="headerProminent" size="headerAction" disabled>
+			<Button variant="headerProminent" size="headerAction" class="!h-5 !min-h-5" disabled>
 				{#snippet children()}
 					<div class="flex items-center gap-2">
 						<span>{updateActionText}</span>
 						<div class="w-[52px]">
-							<VoiceDownloadProgress
+							<SegmentedProgressBar
 								ariaLabel={updaterState?.kind === "installing"
 									? "Installing update..."
 									: "Downloading update"}
@@ -180,7 +278,7 @@ function switchLayoutFamily(nextFamily: LayoutFamily): void {
 			</div>
 		{:else if updaterState?.kind === "error"}
 			<div class="flex items-center pl-2">
-				<Button variant="headerProminent" size="headerAction" onclick={onRetryUpdateClick}>
+				<Button variant="headerProminent" size="headerAction" class="!h-5 !min-h-5" onclick={onRetryUpdateClick}>
 					{#snippet children()}
 						Retry
 					{/snippet}
@@ -192,14 +290,14 @@ function switchLayoutFamily(nextFamily: LayoutFamily): void {
 		{#snippet layoutControl()}
 			<Selector
 				align="end"
-				variant="ghost"
-				triggerSize="icon"
+				variant="chromeIcon"
+				triggerSize="chromeIcon"
 				showChevron={false}
 				tooltipLabel="Layout"
 				triggerAriaLabel="Layout Settings"
 			>
 				{#snippet renderButton()}
-					<SlidersHorizontal class="size-4" weight="fill" />
+					<SlidersHorizontal class="size-3.5" weight="fill" />
 				{/snippet}
 
 				<DropdownMenu.Group>
@@ -261,15 +359,6 @@ function switchLayoutFamily(nextFamily: LayoutFamily): void {
 										</div>
 									</div>
 								</DropdownMenu.Item>
-								{#if mode.value === "single" && selected}
-									<div class="flex items-center justify-between py-1 pl-[52px] pr-2">
-										<span class="text-[11px] text-muted-foreground">Tab Bar</span>
-										<Switch
-											checked={viewState.topBarVisible}
-											onclick={() => viewState.setTopBarVisible(!viewState.topBarVisible)}
-										/>
-									</div>
-								{/if}
 							{/each}
 						</DropdownMenu.Group>
 					{/if}
@@ -285,31 +374,37 @@ function switchLayoutFamily(nextFamily: LayoutFamily): void {
 					</div>
 			</Selector>
 		{/snippet}
+		<UsageLimitWidget model={usageWidgetModel} onRefresh={refreshProviderUsageAccounts} />
 		{@render layoutControl()}
 		<Tooltip.Root>
 			<Tooltip.Trigger>
-				<button
-					class="flex items-center justify-center size-6 rounded-md text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
-					title="Feedback"
-					aria-label="Feedback"
-					onclick={() => openUrl("https://github.com/flazouh/acepe/issues")}
-				>
-					<Bug weight="fill" class="size-4" style="color: #FF5D5A" />
-				</button>
+				{#snippet child({ props })}
+					<Button
+						{...props}
+						variant="chromeIcon"
+						size="chromeIcon"
+						aria-label="Feedback"
+						onclick={() => openUrl("https://github.com/flazouh/acepe/issues")}
+					>
+						{#snippet children()}
+							<Bug weight="fill" class="size-3.5" style="color: #FF5D5A" />
+						{/snippet}
+					</Button>
+				{/snippet}
 			</Tooltip.Trigger>
 			<Tooltip.Content>Feedback</Tooltip.Content>
 		</Tooltip.Root>
 		{#if import.meta.env.DEV && (onDevShowUpdatePage || onDevShowDesignSystem || onDevShowStreamingReproLab || onDevResetOnboarding)}
 			<Selector
 				align="end"
-				variant="ghost"
-				triggerSize="icon"
+				variant="chromeIcon"
+				triggerSize="chromeIcon"
 				showChevron={false}
 				tooltipLabel="Dev Tools"
 				triggerAriaLabel="Dev Tools"
 			>
 				{#snippet renderButton()}
-					<Wrench class="size-4" weight="fill" style="color: #FAD83C" />
+					<Wrench class="size-3.5" weight="fill" style="color: #FAD83C" />
 				{/snippet}
 
 				<DropdownMenu.Group>
@@ -357,14 +452,19 @@ function switchLayoutFamily(nextFamily: LayoutFamily): void {
 		{/if}
 		<Tooltip.Root>
 			<Tooltip.Trigger>
-				<button
-					class="flex items-center justify-center size-6 rounded-md text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
-					title="Database Manager"
-					aria-label="Database Manager"
-					onclick={() => viewState.toggleSqlStudio()}
-				>
-					<HardDrives weight="fill" class="size-4" />
-				</button>
+				{#snippet child({ props })}
+					<Button
+						{...props}
+						variant="chromeIcon"
+						size="chromeIcon"
+						aria-label="Database Manager"
+						onclick={() => viewState.toggleSqlStudio()}
+					>
+						{#snippet children()}
+							<HardDrives weight="fill" class="size-3.5" />
+						{/snippet}
+					</Button>
+				{/snippet}
 			</Tooltip.Trigger>
 			<Tooltip.Content>Database Manager</Tooltip.Content>
 		</Tooltip.Root>

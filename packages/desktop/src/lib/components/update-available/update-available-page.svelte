@@ -1,5 +1,5 @@
 <script lang="ts">
-import { BrandLockup, BrandShaderBackground, TextShimmer, VoiceDownloadProgress } from "@acepe/ui";
+import { BrandLockup, BrandShaderBackground, TextShimmer, SegmentedProgressBar } from "@acepe/ui";
 import RefreshCw from "@lucide/svelte/icons/refresh-cw";
 import { onMount } from "svelte";
 import {
@@ -93,7 +93,7 @@ onMount(() => {
 						{/if}
 					</div>
 
-					<VoiceDownloadProgress
+					<SegmentedProgressBar
 						ariaLabel={isInstalling ? "Installing update..." : "Downloading update"}
 						label=""
 						percent={downloadPercent !== null ? downloadPercent : 0}

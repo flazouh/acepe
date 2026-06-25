@@ -76,6 +76,28 @@ pub struct HistoryEntry {
         rename = "sequenceId"
     )]
     pub sequence_id: Option<i32>,
+
+    /// Lightweight usage totals collected while indexing persisted provider history.
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        rename = "usageStats"
+    )]
+    pub usage_stats: Option<HistoryUsageStats>,
+}
+
+#[derive(Debug, Clone, Default, Deserialize, Serialize, specta::Type)]
+pub struct HistoryUsageStats {
+    #[serde(rename = "totalMessages")]
+    pub total_messages: usize,
+    #[serde(rename = "userMessages")]
+    pub user_messages: usize,
+    #[serde(rename = "assistantMessages")]
+    pub assistant_messages: usize,
+    #[serde(rename = "totalInputTokens")]
+    pub total_input_tokens: i64,
+    #[serde(rename = "totalOutputTokens")]
+    pub total_output_tokens: i64,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize, specta::Type)]

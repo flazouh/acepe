@@ -15,7 +15,11 @@ import {
 import { PlanCard } from "@acepe/ui/plan-card";
 import { CheckCircle, FileCode, XCircle } from "phosphor-svelte";
 import type { QueueItem } from "$lib/acp/store/queue/types.js";
-import { replyToPlanApprovalRequest } from "../../logic/interaction-reply.js";
+import {
+	replyToComputerPermissionRequest,
+	replyToPlanApprovalRequest,
+	type ComputerPermissionApprovalScope,
+} from "../../logic/interaction-reply.js";
 import { getInteractionStore } from "../../store/interaction-store.svelte.js";
 import { getQuestionSelectionStore } from "../../store/question-selection-store.svelte.js";
 import { getQuestionStore } from "../../store/question-store.svelte.js";
@@ -111,6 +115,19 @@ const pendingPlanApproval = $derived.by(() => {
 	return liveApproval.status === "pending" ? liveApproval : null;
 });
 const hasPendingPlanApproval = $derived(pendingPlanApproval !== null);
+
+const pendingComputerPermission = $derived.by(() => {
+	const snapshotPermission =
+		item.state.pendingInput.kind === "computer_permission" ? item.state.pendingInput.request : null;
+	if (!snapshotPermission) {
+		return null;
+	}
+
+	const livePermission =
+		interactionStore.computerPermissionsPending.get(snapshotPermission.id) ?? snapshotPermission;
+	return livePermission.status === "pending" ? livePermission : null;
+});
+const hasPendingComputerPermission = $derived(pendingComputerPermission !== null);
 
 // Detect ExitPlanMode permissions for custom plan card rendering
 const isExitPlanMode = $derived.by(() => {
@@ -209,7 +226,11 @@ const statusText = $derived.by(() => {
 });
 
 const showShimmer = $derived(
-	shouldShowQueueItemShimmer({ isThinking, hasPendingQuestion, hasPendingPlanApproval })
+	shouldShowQueueItemShimmer({
+		isThinking,
+		hasPendingQuestion,
+		hasPendingPlanApproval: hasPendingPlanApproval || hasPendingComputerPermission,
+	})
 );
 
 const todoProgress = $derived<ActivityEntryTodoProgress | null>(
@@ -238,6 +259,28 @@ const planApprovalToolCall = $derived.by(() => {
 	});
 });
 const planApprovalPrompt = $derived(getQueuePlanApprovalPrompt(planApprovalToolCall));
+
+const computerPermissionPrompt = $derived.by(() => {
+	if (!pendingComputerPermission) {
+		return "Computer permission";
+	}
+
+	if (pendingComputerPermission.permissionKind === "app_window_scope") {
+		const appName = pendingComputerPermission.app ?? "current app";
+		const windowName = pendingComputerPermission.window ?? "current window";
+		return `${appName} / ${windowName}`;
+	}
+
+	if (pendingComputerPermission.permissionKind === "screen_recording") {
+		return "Screen Recording";
+	}
+
+	return "Accessibility";
+});
+
+const canAlwaysAllowComputerPermission = $derived(
+	pendingComputerPermission?.permissionKind === "app_window_scope"
+);
 
 const toolContent = $derived(activityProjection.toolContent);
 const isFileTool = $derived(activityProjection.isFileTool);
@@ -296,6 +339,36 @@ function handlePlanReject() {
 			interactionStore.setPlanApprovalStatus(approval.id, "pending");
 		}
 	);
+}
+
+function handleComputerPermissionDecision(
+	accepted: boolean,
+	scope: ComputerPermissionApprovalScope
+) {
+	if (!pendingComputerPermission) return;
+	const permission = pendingComputerPermission;
+	interactionStore.setComputerPermissionStatus(
+		permission.id,
+		accepted ? "approved" : "rejected"
+	);
+	void replyToComputerPermissionRequest(permission, accepted, scope).match(
+		() => {},
+		() => {
+			interactionStore.setComputerPermissionStatus(permission.id, "pending");
+		}
+	);
+}
+
+function handleComputerPermissionReject() {
+	handleComputerPermissionDecision(false, "once");
+}
+
+function handleComputerPermissionAllowOnce() {
+	handleComputerPermissionDecision(true, "once");
+}
+
+function handleComputerPermissionAllowAlways() {
+	handleComputerPermissionDecision(true, "always");
 }
 
 function handleExitPlanBuild() {
@@ -470,6 +543,72 @@ function handleNextQuestion() {
 			<PermissionActionBar permission={pendingPermission} compact hideHeader />
 		{/snippet}
 	</PermissionFeedItem>
+{:else if hasPendingComputerPermission && pendingComputerPermission}
+	<!-- svelte-ignore a11y_click_events_have_key_events -->
+	<!-- svelte-ignore a11y_no_static_element_interactions -->
+	<div
+		data-testid="computer-permission-queue-item"
+		class="flex flex-col rounded-lg border border-border/50 bg-accent/20 overflow-hidden cursor-pointer transition-colors hover:bg-accent/40 {isSelected ? '!bg-accent/40' : ''}"
+		onclick={handleSelect}
+		role="button"
+		tabindex="0"
+	>
+		<div class="flex items-center gap-1.5 px-2 py-1.5">
+			{@render projectBadge()}
+			{@render agentBadge()}
+			<span class="flex-1 min-w-0 text-xs font-medium truncate">{displayTitle}</span>
+			{#if timeAgo}
+				<span class="text-[10px] text-muted-foreground/60 tabular-nums shrink-0">{timeAgo}</span>
+			{/if}
+		</div>
+		<div class="border-t border-border/50" onclick={(e) => e.stopPropagation()}>
+			<EmbeddedPanelHeader>
+				<HeaderTitleCell compactPadding>
+					<FileCode class="mr-1 size-3 shrink-0" weight="fill" />
+					<span
+						class="text-[10px] font-mono text-muted-foreground select-none truncate leading-none"
+					>
+						{computerPermissionPrompt}
+					</span>
+				</HeaderTitleCell>
+				<HeaderActionCell withDivider={false}>
+					<button
+						type="button"
+						class="plan-queue-action"
+						aria-label="Reject computer permission"
+						onclick={handleComputerPermissionReject}
+					>
+						<XCircle weight="fill" class="size-3 shrink-0" style="color: {redColor}" />
+						Reject
+					</button>
+				</HeaderActionCell>
+				<HeaderActionCell>
+					<button
+						type="button"
+						class="plan-queue-action"
+						aria-label="Allow computer permission once"
+						onclick={handleComputerPermissionAllowOnce}
+					>
+						<CheckCircle weight="fill" class="size-3 shrink-0" />
+						{canAlwaysAllowComputerPermission ? "Once" : "Allow"}
+					</button>
+				</HeaderActionCell>
+				{#if canAlwaysAllowComputerPermission}
+					<HeaderActionCell>
+						<button
+							type="button"
+							class="plan-queue-action"
+							aria-label="Always allow this app and window"
+							onclick={handleComputerPermissionAllowAlways}
+						>
+							<CheckCircle weight="fill" class="size-3 shrink-0" />
+							Always
+						</button>
+					</HeaderActionCell>
+				{/if}
+			</EmbeddedPanelHeader>
+		</div>
+	</div>
 {:else if hasPendingPlanApproval && pendingPlanApproval}
 	<!-- svelte-ignore a11y_click_events_have_key_events -->
 	<!-- svelte-ignore a11y_no_static_element_interactions -->

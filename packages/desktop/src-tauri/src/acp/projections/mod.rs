@@ -13,6 +13,7 @@ use crate::acp::session_update::{
 use crate::acp::transcript_projection::{live_tool_entry_id_for_tool_call, TranscriptEntryRole};
 use crate::acp::types::CanonicalAgentId;
 use crate::acp::types::ContentBlock;
+use crate::computer_use::permissions::build_computer_permission_interaction_id;
 use crate::session_jsonl::types::StoredEntry;
 use dashmap::DashMap;
 use serde::{Deserialize, Serialize};

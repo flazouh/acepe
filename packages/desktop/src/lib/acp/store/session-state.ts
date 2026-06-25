@@ -11,7 +11,10 @@
  * 4. AttentionMeta - attention metadata (unseen completion)
  */
 
-import type { PlanApprovalInteraction } from "../types/interaction.js";
+import type {
+	ComputerPermissionInteraction,
+	PlanApprovalInteraction,
+} from "../types/interaction.js";
 import type { PermissionRequest } from "../types/permission.js";
 import type { QuestionRequest } from "../types/question.js";
 import type { ToolCall } from "../types/tool-call.js";
@@ -87,6 +90,7 @@ export type PendingInput =
 	| { readonly kind: "none" }
 	| { readonly kind: "question"; readonly request: QuestionRequest }
 	| { readonly kind: "plan_approval"; readonly request: PlanApprovalInteraction }
+	| { readonly kind: "computer_permission"; readonly request: ComputerPermissionInteraction }
 	| { readonly kind: "permission"; readonly request: PermissionRequest };
 
 /** Type guard for no pending input. */
@@ -113,6 +117,13 @@ export function hasPendingPermission(
 	input: PendingInput
 ): input is { kind: "permission"; request: PermissionRequest } {
 	return input.kind === "permission";
+}
+
+/** Type guard for pending computer permission. */
+export function hasPendingComputerPermission(
+	input: PendingInput
+): input is { kind: "computer_permission"; request: ComputerPermissionInteraction } {
+	return input.kind === "computer_permission";
 }
 
 /** Check if any input is pending. */
@@ -189,6 +200,13 @@ export function createPendingQuestion(request: QuestionRequest): PendingInput {
 /** Create a pending plan approval. */
 export function createPendingPlanApproval(request: PlanApprovalInteraction): PendingInput {
 	return { kind: "plan_approval", request };
+}
+
+/** Create a pending computer permission. */
+export function createPendingComputerPermission(
+	request: ComputerPermissionInteraction
+): PendingInput {
+	return { kind: "computer_permission", request };
 }
 
 /** Create a pending permission. */
@@ -369,6 +387,8 @@ export interface DeriveSessionStateInput {
 	pendingPlanApproval: PlanApprovalInteraction | null;
 	/** Pending permission request */
 	pendingPermission: PermissionRequest | null;
+	/** Pending local computer permission request */
+	pendingComputerPermission?: ComputerPermissionInteraction | null;
 	/** Whether there's an unseen completion */
 	hasUnseenCompletion: boolean;
 }
@@ -387,6 +407,7 @@ export function deriveSessionState(input: DeriveSessionStateInput): SessionState
 		pendingQuestion,
 		pendingPlanApproval,
 		pendingPermission,
+		pendingComputerPermission,
 		hasUnseenCompletion,
 	} = input;
 
@@ -422,6 +443,8 @@ export function deriveSessionState(input: DeriveSessionStateInput): SessionState
 		pendingInput = { kind: "question", request: pendingQuestion };
 	} else if (pendingPlanApproval) {
 		pendingInput = { kind: "plan_approval", request: pendingPlanApproval };
+	} else if (pendingComputerPermission) {
+		pendingInput = { kind: "computer_permission", request: pendingComputerPermission };
 	} else if (pendingPermission) {
 		pendingInput = { kind: "permission", request: pendingPermission };
 	} else {

@@ -130,6 +130,7 @@ export class TabBarStore {
 		const pendingQuestion = interactionSnapshot?.pendingQuestion ?? null;
 		const pendingPlanApproval = interactionSnapshot?.pendingPlanApproval ?? null;
 		const pendingPermission = interactionSnapshot?.pendingPermission ?? null;
+		const pendingComputerPermission = interactionSnapshot?.pendingComputerPermission ?? null;
 		const agentId =
 			sessionId !== null
 				? (sessionIdentity?.agentId ?? null)
@@ -155,6 +156,7 @@ export class TabBarStore {
 			pendingQuestion,
 			pendingPlanApproval,
 			pendingPermission,
+			pendingComputerPermission,
 			isUnseen: this.unseenStore.isUnseen(panel.id),
 			projectName,
 			projectColor,

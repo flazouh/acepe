@@ -5,6 +5,7 @@ use specta::Type;
 use crate::acp::session_update::{
     QuestionItem, SkillMeta, TodoItem, ToolCallLocation, ToolCallStatus, ToolKind,
 };
+use crate::computer_use::permissions::ComputerPermissionKind;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Type)]
 #[serde(rename_all = "snake_case")]
@@ -105,6 +106,75 @@ pub fn build_validated_canonical_operation_id(
 /// Do NOT use for canonical state decisions — use [`OperationState`] instead.
 pub type OperationProviderStatus = ToolCallStatus;
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Type)]
+pub struct ComputerOperationInputPayload {
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub verb: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub target_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub epoch: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub text: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub key: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub delta_x: Option<i64>,
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub delta_y: Option<i64>,
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub include_bounds: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub include_screenshot: Option<bool>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Type)]
+pub struct ComputerOperationOutputPayload {
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub epoch: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub settled_ms: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub app: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub window: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub focused_target_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub busy: Option<bool>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub changed_target_ids: Vec<String>,
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub element_count: Option<usize>,
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub screenshot_ref: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Type)]
+pub struct ComputerOperationErrorPayload {
+    pub code: String,
+    pub message: String,
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub permission_kind: Option<ComputerPermissionKind>,
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub app: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub window: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub current_epoch: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub reobserve: Option<bool>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Type)]
+pub struct ComputerOperationPayload {
+    pub input: ComputerOperationInputPayload,
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub output: Option<ComputerOperationOutputPayload>,
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub error: Option<ComputerOperationErrorPayload>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 pub struct OperationSnapshot {
     pub id: String,
@@ -118,6 +188,8 @@ pub struct OperationSnapshot {
     pub arguments: crate::acp::session_update::ToolArguments,
     pub progressive_arguments: Option<crate::acp::session_update::ToolArguments>,
     pub result: Option<Value>,
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub computer_payload: Option<ComputerOperationPayload>,
     pub command: Option<String>,
     pub normalized_todos: Option<Vec<TodoItem>>,
     pub parent_tool_call_id: Option<String>,

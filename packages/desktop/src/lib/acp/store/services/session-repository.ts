@@ -115,6 +115,7 @@ function sessionMetadataWithAliasFallback(
 		linkedPr: canonical.linkedPr ?? alias.linkedPr,
 		worktreeDeleted: canonical.worktreeDeleted ?? alias.worktreeDeleted,
 		sequenceId: canonical.sequenceId ?? alias.sequenceId,
+		usageStats: canonical.usageStats ?? alias.usageStats,
 	};
 }
 
@@ -314,6 +315,7 @@ export class SessionRepository {
 					worktreePath: scannedSession.worktreePath ?? existingSession.worktreePath,
 					prNumber: scannedSession.prNumber ?? existingSession.prNumber,
 					sequenceId: scannedSession.sequenceId ?? existingSession.sequenceId,
+					usageStats: scannedSession.usageStats ?? existingSession.usageStats,
 				});
 
 				existingSessionsMap.delete(scannedSession.id);
@@ -553,6 +555,7 @@ export class SessionRepository {
 					worktreePath: existingSession.worktreePath ?? historySession.worktreePath,
 					prNumber: historySession.prNumber ?? existingSession.prNumber,
 					sequenceId: existingSession.sequenceId ?? historySession.sequenceId,
+					usageStats: historySession.usageStats ?? existingSession.usageStats,
 					title,
 					updatedAt: historySession.updatedAt,
 				});
@@ -701,6 +704,7 @@ export class SessionRepository {
 					? undefined
 					: buildPartialSessionLinkedPr(entry.prNumber, undefined),
 			sequenceId: entry.sequenceId === null ? undefined : entry.sequenceId,
+			usageStats: entry.usageStats === null ? undefined : entry.usageStats,
 		};
 	}
 }

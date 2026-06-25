@@ -167,14 +167,17 @@ impl SdkMcpServer {
                     })?;
 
                 let result = tool.handler.execute(arguments.clone()).await?;
+                let mut call_result = json!({
+                    "content": result.content
+                });
+                if let Some(is_error) = result.is_error {
+                    call_result["isError"] = json!(is_error);
+                }
 
                 Ok(json!({
                     "jsonrpc": "2.0",
                     "id": id,
-                    "result": {
-                        "content": result.content,
-                        "isError": result.is_error
-                    }
+                    "result": call_result
                 }))
             }
 
@@ -365,5 +368,12 @@ mod tests {
 
         let response = server.handle_message(call_msg).await.unwrap();
         assert_eq!(response["result"]["content"][0]["text"], "Hello, Alice!");
+        assert!(
+            response
+                .get("result")
+                .and_then(|result| result.get("isError"))
+                .is_none(),
+            "successful tool results must omit isError instead of serializing null"
+        );
     }
 }

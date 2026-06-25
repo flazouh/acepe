@@ -1,4 +1,5 @@
 <script lang="ts">
+import { Button } from "@acepe/ui";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { relaunch } from "@tauri-apps/plugin-process";
 import { check, type DownloadEvent } from "@tauri-apps/plugin-updater";
@@ -706,9 +707,6 @@ const commandPalette = useAdvancedCommandPalette({
 		onToggleSidebar: () => {
 			viewState.sidebarOpen = !viewState.sidebarOpen;
 		},
-		onToggleTopBar: () => {
-			viewState.toggleTopBar();
-		},
 		onCloseThread: () => {
 			const focusedPanelId = panelStore.focusedPanelId;
 			if (focusedPanelId) {
@@ -1012,8 +1010,7 @@ const showSidebar = $derived(
 const showTabBarStrip = $derived(
 	!viewState.reviewFullscreenOpen &&
 		viewState.isFullscreen &&
-		tabBarStore.tabs.length > 1 &&
-		viewState.topBarVisible
+		tabBarStore.tabs.length > 1
 );
 
 // Cleanup on destroy
@@ -1074,14 +1071,17 @@ onDestroy(() => {
 				onDevResetOnboarding={handleDevResetOnboarding}
 			>
 				{#snippet addProjectButton()}
-					<button
-						class="flex items-center justify-center size-6 rounded-md text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+					<Button
+						variant="chromeIcon"
+						size="chromeIcon"
 						title={"Add repository"}
 						aria-label={"Add repository"}
 						onclick={() => (addProjectDialogOpen = true)}
 					>
-						<FolderPlus class="size-4" weight="fill" />
-					</button>
+						{#snippet children()}
+							<FolderPlus class="size-3.5" weight="fill" />
+						{/snippet}
+					</Button>
 				{/snippet}
 			</TopBar>
 		</div>
@@ -1243,6 +1243,7 @@ onDestroy(() => {
 		title="Settings"
 		closeLabel="Close settings"
 		contentOverflow="hidden"
+		size="compact"
 		onOpenChange={(open) => {
 			if (!open) {
 				viewState.closeSettings();

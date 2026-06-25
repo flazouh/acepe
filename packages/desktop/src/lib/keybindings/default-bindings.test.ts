@@ -15,7 +15,6 @@ describe("default keybindings", () => {
 	it("suppresses app-level toggles while a modal is open", () => {
 		expect(getBinding(KEYBINDING_ACTIONS.COMMAND_PALETTE_TOGGLE)?.when).toContain("!modalOpen");
 		expect(getBinding(KEYBINDING_ACTIONS.SIDEBAR_TOGGLE)?.when).toContain("!modalOpen");
-		expect(getBinding(KEYBINDING_ACTIONS.TOP_BAR_TOGGLE)?.when).toContain("!modalOpen");
 		expect(getBinding(KEYBINDING_ACTIONS.THREAD_CREATE)?.when).toContain("!modalOpen");
 		expect(getBinding(KEYBINDING_ACTIONS.THREAD_CLOSE)?.when).toContain("!modalOpen");
 		expect(getBinding(KEYBINDING_ACTIONS.DEBUG_TOGGLE)?.when).toContain("!modalOpen");

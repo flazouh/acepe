@@ -86,7 +86,7 @@ async function handleResetDatabase() {
 	</SettingsSection>
 
 	<!-- Danger Zone -->
-	<div class="mt-8">
+	<div class="mt-5">
 		<SettingsSectionHeader
 			variant="subsection"
 			title={"Danger Zone"}

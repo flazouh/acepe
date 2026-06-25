@@ -11,6 +11,7 @@ import {
 	createIdleActivity,
 	createNoPendingInput,
 	createPausedActivity,
+	createPendingComputerPermission,
 	createPendingPermission,
 	createPendingPlanApproval,
 	createPendingQuestion,
@@ -18,6 +19,7 @@ import {
 	createThinkingActivity,
 	deriveSessionState,
 	hasAnyPendingInput,
+	hasPendingComputerPermission,
 	hasNoPendingInput,
 	hasPendingPermission,
 	hasPendingPlanApproval,
@@ -135,6 +137,22 @@ describe("PendingInput type guards", () => {
 		expect(hasPendingPlanApproval(input)).toBe(true);
 	});
 
+	it("hasPendingComputerPermission returns true for computer permission", () => {
+		const input: PendingInput = {
+			kind: "computer_permission",
+			request: {
+				id: "computer-permission-1",
+				kind: "computer_permission",
+				sessionId: "s-1",
+				permissionKind: "accessibility",
+				reason: "Accessibility permission is required.",
+				status: "pending",
+				canonicalOperationId: null,
+			},
+		};
+		expect(hasPendingComputerPermission(input)).toBe(true);
+	});
+
 	it("hasAnyPendingInput returns true for question or permission", () => {
 		expect(
 			hasAnyPendingInput({
@@ -230,6 +248,22 @@ describe("PendingInput factory functions", () => {
 			status: "pending" as const,
 		};
 		expect(createPendingPlanApproval(request)).toEqual({ kind: "plan_approval", request });
+	});
+
+	it("createPendingComputerPermission returns computer permission with request", () => {
+		const request = {
+			id: "computer-permission-1",
+			kind: "computer_permission" as const,
+			sessionId: "s-1",
+			permissionKind: "accessibility" as const,
+			reason: "Accessibility permission is required.",
+			status: "pending" as const,
+			canonicalOperationId: null,
+		};
+		expect(createPendingComputerPermission(request)).toEqual({
+			kind: "computer_permission",
+			request,
+		});
 	});
 });
 
@@ -508,6 +542,34 @@ describe("deriveSessionState", () => {
 		});
 
 		expect(state.pendingInput.kind).toBe("plan_approval");
+	});
+
+	it("derives pending computer permission state", () => {
+		const computerPermission = {
+			id: "computer-permission-1",
+			kind: "computer_permission" as const,
+			sessionId: "s-1",
+			permissionKind: "screen_recording" as const,
+			reason: "Screen Recording permission is required.",
+			status: "pending" as const,
+			canonicalOperationId: null,
+		};
+		const state = deriveSessionState({
+			connectionState: "ready",
+			modeId: null,
+			tool: null,
+			pendingQuestion: null,
+			pendingPlanApproval: null,
+			pendingComputerPermission: computerPermission,
+			pendingPermission: null,
+			hasUnseenCompletion: false,
+		});
+
+		expect(state.pendingInput.kind).toBe("computer_permission");
+		if (state.pendingInput.kind !== "computer_permission") {
+			throw new Error("Expected computer permission pending input");
+		}
+		expect(state.pendingInput.request).toBe(computerPermission);
 	});
 
 	it("prioritizes question over permission", () => {

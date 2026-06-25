@@ -127,6 +127,7 @@ pub(crate) fn rejected_operation_snapshot(
         arguments: tool_call.arguments.clone(),
         progressive_arguments: None,
         result: tool_call.result.clone(),
+        computer_payload: None,
         command: extract_operation_command(
             Some(&tool_call.arguments),
             None,
@@ -655,6 +656,9 @@ pub(crate) fn merge_operation_snapshot_evidence(
             .or_else(|| existing.progressive_arguments.clone());
     }
     incoming.result = incoming.result.or_else(|| existing.result.clone());
+    incoming.computer_payload = incoming
+        .computer_payload
+        .or_else(|| existing.computer_payload.clone());
     incoming.command = incoming.command.or_else(|| existing.command.clone());
     incoming.normalized_todos = incoming
         .normalized_todos

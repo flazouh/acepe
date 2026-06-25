@@ -1,6 +1,6 @@
 import { describe, expect, it } from "bun:test";
 import { okAsync } from "neverthrow";
-import { clickWebview, inspectDom, navigateWebview, resetOnboarding } from "../interact";
+import { clickWebview, inspectDom, navigateWebview, probeComputerUse, resetOnboarding } from "../interact";
 import type { CommandRunner } from "../tauri-mcp";
 
 function wrapped(text: string): string {
@@ -37,9 +37,11 @@ describe("acepe-qa interaction helpers", () => {
 								role: null,
 								name: "Claude",
 								text: "Claude Planning",
+								value: null,
 								src: null,
 								classes: "onboarding-preview-panel",
 								visible: true,
+								focused: false,
 								computedStyle: {
 									display: "block",
 									gap: "normal",
@@ -106,9 +108,11 @@ describe("acepe-qa interaction helpers", () => {
 							role: null,
 							name: "Reset Onboarding",
 							text: "Reset Onboarding",
+							value: null,
 							src: null,
 							classes: "",
 							visible: true,
+							focused: false,
 							computedStyle: {
 								display: "flow-root",
 								gap: "normal",
@@ -154,6 +158,7 @@ describe("acepe-qa interaction helpers", () => {
 	});
 
 	it("navigates the WebView to an app route", async () => {
+		let sawScrollReset = false;
 		const runner: CommandRunner = (command) => {
 			const joined = command.join(" ");
 			if (joined.includes("driver-session")) {
@@ -163,6 +168,7 @@ describe("acepe-qa interaction helpers", () => {
 					stderr: "",
 				});
 			}
+			sawScrollReset = joined.includes("window.scrollTo(0, 0)");
 			return okAsync({
 				code: 0,
 				stdout: wrapped(
@@ -184,6 +190,65 @@ describe("acepe-qa interaction helpers", () => {
 
 		expect(result.isOk()).toBe(true);
 		expect(result._unsafeUnwrap().path).toBe("/test-thinking-block");
+		expect(sawScrollReset).toBe(true);
+	});
+
+	it("focuses the Tauri window before probing native computer use", async () => {
+		let sawWindowFocus = false;
+		const runner: CommandRunner = (command) => {
+			const joined = command.join(" ");
+			if (joined.includes("driver-session")) {
+				return okAsync({
+					code: 0,
+					stdout: "",
+					stderr: "",
+				});
+			}
+			sawWindowFocus =
+				joined.includes("getCurrentWindow") && joined.includes("setFocus") && joined.includes("150");
+			return okAsync({
+				code: 0,
+				stdout: wrapped(
+					JSON.stringify({
+						serverName: "acepe_computer",
+						toolName: "act",
+						sessionId: "qa-native-focus",
+						transport: "tauri_command_to_in_process_mcp",
+						ok: true,
+						isError: false,
+						payloadJson: "{\"ok\":true,\"epoch\":\"s_0\",\"elements\":[]}",
+						app: "Acepe",
+						window: "Acepe",
+						elementCount: 1,
+						errorCode: null,
+						permissionKind: null,
+						actionVerb: null,
+						actionTargetLabel: null,
+						actionTargetId: null,
+						actionOk: null,
+						actionErrorCode: null,
+						actionChangedCount: null,
+						actionElementCount: null,
+					})
+				),
+				stderr: "",
+			});
+		};
+
+		const result = await probeComputerUse({
+			appIdentifier: "9223",
+			sessionId: "qa-native-focus",
+			action: "",
+			targetLabel: "",
+			text: "",
+			key: "",
+			dx: null,
+			dy: null,
+			runner,
+		});
+
+		expect(result.isOk()).toBe(true);
+		expect(sawWindowFocus).toBe(true);
 	});
 
 	it("resets onboarding and returns compact facts", async () => {

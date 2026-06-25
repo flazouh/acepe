@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { DiscordLogo, GithubLogo } from "phosphor-svelte";
+	import { Button } from "../button/index.js";
 
 	interface Props {
 		githubUrl: string;
@@ -13,82 +14,95 @@
 
 	let { githubUrl, xUrl, discordUrl, version, onLinkClick }: Props = $props();
 
+	const chromeIconButton = { variant: "chromeIcon" as const, size: "chromeIcon" as const };
+
 	const releaseUrl = $derived(
 		version ? `https://github.com/flazouh/acepe/releases/tag/v${version}` : null
 	);
-
-	const iconButtonClass =
-		"flex items-center justify-center size-5 rounded-md text-muted-foreground/60 hover:text-foreground hover:bg-accent transition-colors";
 </script>
 
 <div class="shrink-0 px-2 py-1.5 flex items-center gap-0.5">
 	<div class="flex items-center gap-0.5">
 		{#if onLinkClick}
-			<button
-				type="button"
-				class={iconButtonClass}
+			<Button
+				{...chromeIconButton}
 				title="GitHub"
 				aria-label="GitHub"
 				onclick={() => onLinkClick(githubUrl)}
 			>
-				<GithubLogo class="size-3.5" weight="fill" />
-			</button>
-			<button
-				type="button"
-				class={iconButtonClass}
+				{#snippet children()}
+					<GithubLogo class="size-3.5" weight="fill" />
+				{/snippet}
+			</Button>
+			<Button
+				{...chromeIconButton}
 				title="X"
 				aria-label="X"
 				onclick={() => onLinkClick(xUrl)}
 			>
-				<svg viewBox="0 0 24 24" aria-hidden="true" class="size-3 fill-current">
-					<path
-						d="M18.244 2H21.5l-7.1 8.117L22 22h-5.956l-4.663-6.104L6.04 22H2.78l7.594-8.68L2 2h6.108l4.215 5.56L18.244 2Zm-1.143 18h1.804L5.128 3.895H3.193L17.1 20Z"
-					/>
-				</svg>
-			</button>
-			<button
-				type="button"
-				class={iconButtonClass}
+				{#snippet children()}
+					<svg viewBox="0 0 24 24" aria-hidden="true" class="size-3 fill-current">
+						<path
+							d="M18.244 2H21.5l-7.1 8.117L22 22h-5.956l-4.663-6.104L6.04 22H2.78l7.594-8.68L2 2h6.108l4.215 5.56L18.244 2Zm-1.143 18h1.804L5.128 3.895H3.193L17.1 20Z"
+						/>
+					</svg>
+				{/snippet}
+			</Button>
+			<Button
+				{...chromeIconButton}
 				title="Discord"
 				aria-label="Discord"
 				onclick={() => onLinkClick(discordUrl)}
 			>
-				<DiscordLogo class="size-3.5" style="color: #6C75E8" weight="fill" />
-			</button>
+				{#snippet children()}
+					<DiscordLogo class="size-3.5" style="color: #6C75E8" weight="fill" />
+				{/snippet}
+			</Button>
 		{:else}
-			<a href={githubUrl} class={iconButtonClass} title="GitHub" aria-label="GitHub">
-				<GithubLogo class="size-3.5" weight="fill" />
-			</a>
-			<a href={xUrl} class={iconButtonClass} title="X" aria-label="X">
-				<svg viewBox="0 0 24 24" aria-hidden="true" class="size-3 fill-current">
-					<path
-						d="M18.244 2H21.5l-7.1 8.117L22 22h-5.956l-4.663-6.104L6.04 22H2.78l7.594-8.68L2 2h6.108l4.215 5.56L18.244 2Zm-1.143 18h1.804L5.128 3.895H3.193L17.1 20Z"
-					/>
-				</svg>
-			</a>
-			<a href={discordUrl} class={iconButtonClass} title="Discord" aria-label="Discord">
-				<DiscordLogo class="size-3.5" style="color: #6C75E8" weight="fill" />
-			</a>
+			<Button {...chromeIconButton} href={githubUrl} title="GitHub" aria-label="GitHub">
+				{#snippet children()}
+					<GithubLogo class="size-3.5" weight="fill" />
+				{/snippet}
+			</Button>
+			<Button {...chromeIconButton} href={xUrl} title="X" aria-label="X">
+				{#snippet children()}
+					<svg viewBox="0 0 24 24" aria-hidden="true" class="size-3 fill-current">
+						<path
+							d="M18.244 2H21.5l-7.1 8.117L22 22h-5.956l-4.663-6.104L6.04 22H2.78l7.594-8.68L2 2h6.108l4.215 5.56L18.244 2Zm-1.143 18h1.804L5.128 3.895H3.193L17.1 20Z"
+						/>
+					</svg>
+				{/snippet}
+			</Button>
+			<Button {...chromeIconButton} href={discordUrl} title="Discord" aria-label="Discord">
+				{#snippet children()}
+					<DiscordLogo class="size-3.5" style="color: #6C75E8" weight="fill" />
+				{/snippet}
+			</Button>
 		{/if}
 	</div>
 	{#if version !== null}
 		{#if onLinkClick && releaseUrl}
-			<button
-				type="button"
+			<Button
+				variant="ghost"
+				class="ml-auto h-auto min-h-0 gap-0 p-0 text-[10px] font-normal text-muted-foreground/50 hover:bg-transparent hover:text-muted-foreground"
+				title={`Open release notes for v${version}`}
 				onclick={() => onLinkClick(releaseUrl)}
-				class="ml-auto text-[10px] text-muted-foreground/50 hover:text-muted-foreground transition-colors"
-				title={`Open release notes for v${version}`}
 			>
-				v{version}
-			</button>
+				{#snippet children()}
+					v{version}
+				{/snippet}
+			</Button>
 		{:else if releaseUrl}
-			<a
+			<Button
+				variant="ghost"
 				href={releaseUrl}
-				class="ml-auto text-[10px] text-muted-foreground/50 hover:text-muted-foreground transition-colors"
+				class="ml-auto h-auto min-h-0 gap-0 p-0 text-[10px] font-normal text-muted-foreground/50 hover:bg-transparent hover:text-muted-foreground"
 				title={`Open release notes for v${version}`}
 			>
-				v{version}
-			</a>
+				{#snippet children()}
+					v{version}
+				{/snippet}
+			</Button>
 		{/if}
 	{/if}
 </div>

@@ -590,6 +590,7 @@ mod transcript_buffer_tests {
                                 },
                                 progressive_arguments: None,
                                 result: None,
+                                computer_payload: None,
                                 command: None,
                                 normalized_todos: None,
                                 parent_tool_call_id: None,

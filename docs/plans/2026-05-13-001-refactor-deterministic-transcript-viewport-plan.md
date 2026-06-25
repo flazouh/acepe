@@ -797,7 +797,7 @@ Effects are values. The Svelte layer executes them later.
 
 ## Documentation / Operational Notes
 
-- Do not run `bun dev`; the user owns the dev server.
+- If the dev app is not running when UI QA is required, start it from `packages/desktop` with `bun run tauri`, then run the QA CLI pass.
 - Use Tauri MCP/runtime QA only after implementation units have test coverage.
 - Add the final architecture learning to `docs/solutions/architectural/`.
 - PR description should include a before/after explanation of the single-scroll-authority invariant and the send-time no-fallback proof.

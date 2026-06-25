@@ -5,53 +5,38 @@
   Accepts a normalized config option shape; desktop still derives ConfigOptionData from session state.
 -->
 <script lang="ts">
-	import { IconCircleCheckFilled } from "@tabler/icons-svelte";
-	import { Lightning, ShieldCheck } from "phosphor-svelte";
+	import { Brain, Lightning, ShieldCheck } from "phosphor-svelte";
 
-	import * as DropdownMenu from "../dropdown-menu/index.js";
-	import { Button } from "../button/index.js";
 	import { EmbeddedIconButton } from "../panel-header/index.js";
 	import { Selector } from "../selector/index.js";
+	import type { SelectorTriggerSize } from "../selector/selector-trigger-classes.js";
 	import * as Tooltip from "../tooltip/index.js";
-	import { VoiceDownloadProgress } from "../voice-download-progress/index.js";
+	import AgentInputSelectorItemRow from "./agent-input-selector-item-row.svelte";
 	import {
 		getConfigOptionFastTriggerClass,
 		getConfigOptionNextBooleanValue,
-		getConfigOptionReasoningBarOnlyTriggerClass,
-		getConfigOptionReasoningTriggerClass,
 		getConfigOptionViewState,
-		getReasoningEffortNextValue,
-		isReasoningConfigOption,
 		shouldEmitConfigOptionValueChange,
 	} from "./agent-input-config-option-selector-state.js";
 	import type { AgentInputConfigOption } from "./agent-input-config-option-types.js";
 
 	export type { AgentInputConfigOption };
 
-	type ConfigOptionDisplayMode = "default" | "barOnly";
-
 	interface Props {
 		configOption: AgentInputConfigOption;
 		disabled?: boolean;
-		displayMode?: ConfigOptionDisplayMode;
+		triggerSize?: SelectorTriggerSize;
 		onValueChange: (configId: string, value: string) => void;
 	}
 
 	let {
 		configOption,
 		disabled = false,
-		displayMode = "default",
+		triggerSize = "chromeIcon",
 		onValueChange,
 	}: Props = $props();
 
 	const viewState = $derived(getConfigOptionViewState(configOption));
-	const isReasoningOption = $derived(isReasoningConfigOption(configOption));
-	const reasoningTriggerClass = $derived(
-		displayMode === "barOnly"
-			? getConfigOptionReasoningBarOnlyTriggerClass()
-			: getConfigOptionReasoningTriggerClass()
-	);
-	const showReasoningLabel = $derived(displayMode !== "barOnly");
 	const fastTriggerClass = $derived(
 		getConfigOptionFastTriggerClass({
 			disabled,
@@ -82,30 +67,15 @@
 			onValueChange(configOption.id, nextValue);
 		}
 	}
-
-	function handleReasoningCycle() {
-		if (disabled) return;
-		const nextValue = getReasoningEffortNextValue({
-			configOption,
-			currentValue: viewState.currentValue,
-		});
-		if (
-			nextValue != null &&
-			shouldEmitConfigOptionValueChange({
-				nextValue,
-				currentValue: viewState.currentValue,
-			})
-		) {
-			onValueChange(configOption.id, nextValue);
-		}
-	}
 </script>
 
 {#snippet configOptionIcon()}
 	{#if viewState.iconKind === "fast"}
-		<Lightning class={viewState.iconClass} size={14} weight={viewState.iconWeight} style={viewState.iconStyle} />
+		<Lightning class="{viewState.iconClass} size-3.5" weight={viewState.iconWeight} style={viewState.iconStyle} />
+	{:else if viewState.iconKind === "reasoning"}
+		<Brain class="{viewState.iconClass} size-3.5" weight={viewState.iconWeight} style={viewState.iconStyle} />
 	{:else}
-		<ShieldCheck size={14} weight="fill" style="color: {viewState.iconColor}" />
+		<ShieldCheck class="size-3.5" weight="fill" style="color: {viewState.iconColor}" />
 	{/if}
 {/snippet}
 
@@ -121,44 +91,7 @@
 	</Tooltip.Content>
 {/snippet}
 
-{#if isReasoningOption}
-	<Tooltip.Root>
-		<Tooltip.Trigger>
-			{#snippet child({ props })}
-				<Button
-					{...props}
-					type="button"
-					variant="ghost"
-					size={displayMode === "barOnly" ? "2xs" : "sm"}
-					{disabled}
-					class={reasoningTriggerClass}
-					data-testid={displayMode === "barOnly" ? "setup-bar-reasoning" : undefined}
-					aria-label={viewState.buttonTitle}
-					onclick={handleReasoningCycle}
-				>
-					{#if showReasoningLabel}
-						<span class="max-w-16 font-medium leading-none">
-							{viewState.currentValueLabel}
-						</span>
-					{/if}
-					{#if viewState.reasoningBarSegmentCount > 0}
-						<VoiceDownloadProgress
-							ariaLabel={viewState.buttonTitle}
-							decorative={true}
-							filledSegmentCount={viewState.reasoningBarFilledSegmentCount}
-							label=""
-							percent={viewState.reasoningBarPercent}
-							segmentCount={viewState.reasoningBarSegmentCount}
-							showPercent={false}
-							variant={displayMode === "barOnly" ? "setupReasoningBar" : "reasoningDiscrete"}
-						/>
-					{/if}
-				</Button>
-			{/snippet}
-		</Tooltip.Trigger>
-		{@render configOptionTooltipContent()}
-	</Tooltip.Root>
-{:else if viewState.isBooleanConfigOption}
+{#if viewState.isBooleanConfigOption}
 	<Tooltip.Root>
 		<Tooltip.Trigger>
 			{#snippet child({ props })}
@@ -189,32 +122,29 @@
 	<Selector
 		{disabled}
 		align="start"
-		variant="ghost"
+		variant="chromeIcon"
 		showChevron={false}
-		triggerSize="square"
+		{triggerSize}
 		triggerAriaLabel={viewState.buttonTitle}
 		tooltipTitle={viewState.tooltipTitle}
 		tooltipDescription={viewState.tooltipDescription}
 		tooltipSide="top"
+		side="top"
+		sideOffset={8}
 	>
 		{#snippet renderButton()}
 			{@render configOptionIcon()}
 		{/snippet}
 
-		{#each configOption.options ?? [] as option (String(option.value))}
-			{@const optValue = String(option.value)}
-			{@const isSelected = optValue === viewState.currentValue}
-			<DropdownMenu.Item
-				onSelect={() => handleSelect(optValue)}
-				class="group/item py-1 {isSelected ? 'bg-accent' : ''}"
-			>
-				<div class="flex items-center gap-3 w-full">
-					<span class="flex-1 text-sm truncate">{option.name}</span>
-					{#if isSelected}
-						<IconCircleCheckFilled class="h-4 w-4 shrink-0 text-foreground" />
-					{/if}
-				</div>
-			</DropdownMenu.Item>
-		{/each}
+		<div class="max-h-[250px] overflow-y-auto scrollbar-thin">
+			{#each configOption.options ?? [] as option (String(option.value))}
+				{@const optValue = String(option.value)}
+				<AgentInputSelectorItemRow
+					label={option.name}
+					selected={optValue === viewState.currentValue}
+					onSelect={() => handleSelect(optValue)}
+				/>
+			{/each}
+		</div>
 	</Selector>
 {/if}

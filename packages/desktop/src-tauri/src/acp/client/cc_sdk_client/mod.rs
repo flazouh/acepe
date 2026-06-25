@@ -49,6 +49,10 @@ use crate::acp::task_reconciler::TaskReconciler;
 use crate::acp::types::{ContentBlock, PromptRequest};
 use crate::acp::ui_event_dispatcher::{AcpUiEvent, AcpUiEventDispatcher, DispatchPolicy};
 use crate::cc_sdk;
+use crate::computer_use::{
+    build_computer_mcp_server, build_computer_mcp_server_with_runtime, ComputerRuntimeRegistry,
+    COMPUTER_MCP_SERVER_NAME,
+};
 
 mod permission_handler;
 mod permissions;
@@ -339,6 +343,25 @@ impl ClaudeCcSdkClient {
         if fork {
             builder = builder.fork_session(true);
         }
+
+        let computer_mcp_server = self
+            .app_handle
+            .as_ref()
+            .and_then(|app_handle| {
+                app_handle
+                    .try_state::<Arc<ComputerRuntimeRegistry>>()
+                    .map(|state| {
+                        build_computer_mcp_server_with_runtime(
+                            state.inner().runtime_for_session(session_id),
+                        )
+                    })
+            })
+            .unwrap_or_else(build_computer_mcp_server);
+
+        builder = builder.add_mcp_server(
+            COMPUTER_MCP_SERVER_NAME.to_string(),
+            computer_mcp_server.to_config(),
+        );
 
         let mut options = builder.build();
         options.can_use_tool = Some(Arc::new(handler));
@@ -798,8 +821,8 @@ impl AgentClient for ClaudeCcSdkClient {
                 modes: self.hydrated_session_modes(),
                 available_commands,
                 config_options: reasoning_config::build_claude_reasoning_config_options(
-                &self.reasoning_config,
-            ),
+                    &self.reasoning_config,
+                ),
             });
         }
 

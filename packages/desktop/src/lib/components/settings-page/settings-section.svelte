@@ -15,7 +15,7 @@ interface Props {
 let { title, description, class: className, headerActions, children }: Props = $props();
 </script>
 
-<section class={cn("mb-6 last:mb-0", className)}>
+<section class={cn("mb-4 last:mb-0", className)}>
 	{#if title}
 		<SettingsSectionHeader
 			variant="subsection"

@@ -16,7 +16,6 @@ type KeybindingState = Pick<
 	MainAppViewState,
 	| "toggleSettings"
 	| "toggleSqlStudio"
-	| "toggleTopBar"
 	| "commandPaletteOpen"
 	| "handleClosePanel"
 	| "debugPanelOpen"
@@ -146,16 +145,6 @@ export class KeybindingManager {
 			category: "view",
 			handler: () => {
 				this.state.sidebarOpen = !this.state.sidebarOpen;
-			},
-		});
-
-		// Top bar toggle
-		this.keybindingsService.upsertAction({
-			id: KEYBINDING_ACTIONS.TOP_BAR_TOGGLE,
-			label: "Toggle Top Bar",
-			category: "view",
-			handler: () => {
-				this.state.toggleTopBar();
 			},
 		});
 

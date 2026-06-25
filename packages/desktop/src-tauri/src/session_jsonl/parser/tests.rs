@@ -243,6 +243,29 @@ async fn test_extract_thread_metadata_sync_matches_async_for_malformed_then_vali
 }
 
 #[tokio::test]
+async fn test_extract_thread_metadata_collects_usage_stats() {
+    let (_temp_dir, claude_dir) = setup_test_claude_dir().unwrap();
+    let projects_dir = claude_dir.join("projects").join("test-project");
+    fs::create_dir_all(&projects_dir).unwrap();
+
+    let file_path = projects_dir.join("agent-a123456.jsonl");
+    let content = r#"{"type":"user","cwd":"/Users/test","sessionId":"550e8400-e29b-41d4-a716-446655440000","message":{"role":"user","content":"Measure this"},"timestamp":"2025-12-16T19:53:41.812Z"}
+{"type":"assistant","message":{"role":"assistant","content":"First","usage":{"input_tokens":1200,"output_tokens":80}},"sessionId":"550e8400-e29b-41d4-a716-446655440000","timestamp":"2025-12-16T19:53:42.812Z"}
+{"type":"assistant","message":{"role":"assistant","content":"Second","usage":{"input_tokens":300,"output_tokens":20}},"sessionId":"550e8400-e29b-41d4-a716-446655440000","timestamp":"2025-12-16T19:53:43.812Z"}"#;
+    fs::write(&file_path, content).unwrap();
+
+    let result = extract_thread_metadata(&file_path).await.unwrap();
+    let entry = result.expect("entry should exist");
+    let stats = entry.usage_stats.expect("usage stats should exist");
+
+    assert_eq!(stats.total_messages, 3);
+    assert_eq!(stats.user_messages, 1);
+    assert_eq!(stats.assistant_messages, 2);
+    assert_eq!(stats.total_input_tokens, 1500);
+    assert_eq!(stats.total_output_tokens, 100);
+}
+
+#[tokio::test]
 async fn test_extract_thread_metadata_sync_missing_file_matches_async() {
     let file_path = PathBuf::from("/tmp/acepe-session-jsonl-does-not-exist.jsonl");
 
@@ -1412,6 +1435,7 @@ fn test_process_cached_entry_for_project_corrects_mismatch() {
         worktree_deleted: None,
         session_lifecycle_state: Some(crate::db::repository::SessionLifecycleState::Persisted),
         sequence_id: None,
+        usage_stats: None,
     };
 
     let expected_project = "/Users/test/Documents/project"; // Correct - from database
@@ -1453,6 +1477,7 @@ fn test_process_cached_entry_for_project_no_change_when_matching() {
         worktree_deleted: None,
         session_lifecycle_state: Some(crate::db::repository::SessionLifecycleState::Persisted),
         sequence_id: None,
+        usage_stats: None,
     };
 
     let result = process_cached_entry_for_project(cached_entry.clone(), project_path);

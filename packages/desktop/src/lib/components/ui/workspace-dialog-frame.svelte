@@ -13,6 +13,8 @@ interface Props {
 	contentClass?: string;
 	contentOverflow?: "auto" | "hidden";
 	closeLabel?: string;
+	/** Slightly smaller frame for dense surfaces like Settings. */
+	size?: "default" | "compact";
 	onOpenChange: (open: boolean) => void;
 }
 
@@ -25,19 +27,26 @@ let {
 	contentClass = "",
 	contentOverflow = "auto",
 	closeLabel = "Close dialog",
+	size = "default",
 	onOpenChange,
 }: Props = $props();
 
+const dialogSizeClass = $derived(
+	size === "compact"
+		? "h-[min(78vh,680px)] w-[min(92vw,920px)]"
+		: "h-[min(86vh,860px)] w-[min(94vw,1180px)]"
+);
+
 const bodyClass = $derived(
 	contentOverflow === "hidden"
-		? "flex min-h-0 flex-1 flex-col overflow-hidden p-1"
-		: "min-h-0 flex-1 overflow-y-auto p-1"
+		? "flex min-h-0 flex-1 flex-col overflow-hidden p-0.5"
+		: "min-h-0 flex-1 overflow-y-auto p-0.5"
 );
 </script>
 
 <Dialog.Root {open} {onOpenChange}>
 	<Dialog.Content
-		class="!flex h-[min(86vh,860px)] min-h-0 w-[min(94vw,1180px)] max-w-none flex-col overflow-hidden p-0 {contentClass}"
+		class="!flex {dialogSizeClass} min-h-0 max-w-none flex-col overflow-hidden p-0 {contentClass}"
 		showCloseButton={false}
 	>
 		<Dialog.Title class="sr-only">{title}</Dialog.Title>

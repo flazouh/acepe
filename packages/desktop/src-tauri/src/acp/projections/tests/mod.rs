@@ -1,11 +1,11 @@
 use super::*;
-use super::*;
 use crate::acp::session_thread_snapshot::SessionThreadSnapshot;
 use crate::acp::session_update::{
     ContentChunk, EditEntry, QuestionItem, ToolArguments, ToolCallData, ToolCallUpdateData,
     ToolKind,
 };
 use crate::acp::types::ContentBlock;
+use crate::computer_use::permissions::ComputerPermissionKind;
 use crate::session_jsonl::types::{
     QuestionAnswer, StoredAssistantChunk, StoredAssistantMessage, StoredContentBlock, StoredEntry,
     StoredUserMessage,
@@ -376,6 +376,39 @@ fn create_execute_tool_call(id: &str, command: &str, status: ToolCallStatus) -> 
         result: None,
         kind: Some(ToolKind::Execute),
         title: Some("Run command".to_string()),
+        locations: None,
+        skill_meta: None,
+        normalized_questions: None,
+        normalized_todos: None,
+        normalized_todo_update: None,
+        parent_tool_use_id: None,
+        task_children: None,
+        question_answer: None,
+        awaiting_plan_approval: false,
+        plan_approval_request_id: None,
+    }
+}
+
+fn create_computer_tool_call(id: &str, status: ToolCallStatus) -> ToolCallData {
+    ToolCallData {
+        id: id.to_string(),
+        name: "mcp__acepe_computer__act".to_string(),
+        arguments: ToolArguments::Computer {
+            verb: Some("observe".to_string()),
+            target_id: None,
+            epoch: None,
+            text: None,
+            key: None,
+            delta_x: None,
+            delta_y: None,
+            include_bounds: None,
+            include_screenshot: None,
+        },
+        diagnostic_input: None,
+        status,
+        result: None,
+        kind: Some(ToolKind::Computer),
+        title: Some("Computer".to_string()),
         locations: None,
         skill_meta: None,
         normalized_questions: None,
@@ -917,6 +950,7 @@ fn restore_session_projection_rehydrates_indexes() {
             },
             progressive_arguments: None,
             result: Some(json!("done")),
+            computer_payload: None,
             command: Some("bun test".to_string()),
             normalized_todos: None,
             parent_tool_call_id: None,
@@ -2841,6 +2875,453 @@ fn pending_permission_blocks_linked_operation_and_approval_resumes_it() {
 }
 
 #[test]
+fn computer_permission_interaction_blocks_linked_operation_and_approval_resumes_it() {
+    let registry = ProjectionRegistry::new();
+    registry.apply_session_update(
+        "session-1",
+        &SessionUpdate::ToolCall {
+            tool_call: create_computer_tool_call("computer-tool", ToolCallStatus::InProgress),
+            session_id: Some("session-1".to_string()),
+        },
+    );
+
+    let interaction_id = build_computer_permission_interaction_id(
+        "session-1",
+        "computer-tool",
+        ComputerPermissionKind::Accessibility,
+    );
+    registry.register_computer_permission_interaction(ComputerPermissionData {
+        id: interaction_id.clone(),
+        session_id: "session-1".to_string(),
+        permission_kind: ComputerPermissionKind::Accessibility,
+        reason: "Acepe needs Accessibility permission to click UI controls.".to_string(),
+        app: None,
+        window: None,
+        tool: Some(ToolReference {
+            message_id: None,
+            call_id: "computer-tool".to_string(),
+        }),
+    });
+
+    let projection = registry.session_projection("session-1");
+    let interaction = projection
+        .interactions
+        .iter()
+        .find(|interaction| interaction.id == interaction_id)
+        .expect("expected computer permission interaction");
+    assert_eq!(interaction.kind, InteractionKind::ComputerPermission);
+    assert_eq!(interaction.state, InteractionState::Pending);
+    assert_eq!(interaction.json_rpc_request_id, None);
+    assert_eq!(interaction.reply_handler, None);
+    assert_eq!(
+        interaction.canonical_operation_id,
+        Some(build_canonical_operation_id("session-1", "computer-tool"))
+    );
+
+    let blocked = registry
+        .operation_for_tool_call("session-1", "computer-tool")
+        .expect("expected blocked operation");
+    assert_eq!(blocked.operation_state, OperationState::Blocked);
+
+    registry
+        .resolve_interaction(
+            "session-1",
+            &interaction_id,
+            InteractionState::Approved,
+            InteractionResponse::ComputerPermission { accepted: true },
+        )
+        .expect("expected computer permission resolution");
+
+    let resumed = registry
+        .operation_for_tool_call("session-1", "computer-tool")
+        .expect("expected resumed operation");
+    assert_eq!(resumed.operation_state, OperationState::Running);
+}
+
+#[test]
+fn restored_pending_computer_permission_reblocks_and_resumes_linked_operation() {
+    let source = ProjectionRegistry::new();
+    source.apply_session_update(
+        "session-1",
+        &SessionUpdate::ToolCall {
+            tool_call: create_computer_tool_call("computer-tool", ToolCallStatus::InProgress),
+            session_id: Some("session-1".to_string()),
+        },
+    );
+
+    let interaction_id = build_computer_permission_interaction_id(
+        "session-1",
+        "computer-tool",
+        ComputerPermissionKind::Accessibility,
+    );
+    source.register_computer_permission_interaction(ComputerPermissionData {
+        id: interaction_id.clone(),
+        session_id: "session-1".to_string(),
+        permission_kind: ComputerPermissionKind::Accessibility,
+        reason: "Acepe needs Accessibility permission to click UI controls.".to_string(),
+        app: None,
+        window: None,
+        tool: Some(ToolReference {
+            message_id: None,
+            call_id: "computer-tool".to_string(),
+        }),
+    });
+
+    let mut projection = source.session_projection("session-1");
+    projection
+        .operations
+        .get_mut(0)
+        .expect("expected restored operation seed")
+        .operation_state = OperationState::Running;
+
+    let restored = ProjectionRegistry::new();
+    restored.restore_session_projection(projection);
+
+    let blocked = restored
+        .operation_for_tool_call("session-1", "computer-tool")
+        .expect("expected restored computer operation");
+    assert_eq!(blocked.operation_state, OperationState::Blocked);
+
+    restored
+        .resolve_interaction(
+            "session-1",
+            &interaction_id,
+            InteractionState::Approved,
+            InteractionResponse::ComputerPermission { accepted: true },
+        )
+        .expect("expected restored computer permission resolution");
+
+    let resumed = restored
+        .operation_for_tool_call("session-1", "computer-tool")
+        .expect("expected restored resumed operation");
+    assert_eq!(resumed.operation_state, OperationState::Running);
+}
+
+#[test]
+fn computer_permission_interaction_denial_cancels_linked_operation() {
+    let registry = ProjectionRegistry::new();
+    registry.apply_session_update(
+        "session-1",
+        &SessionUpdate::ToolCall {
+            tool_call: create_computer_tool_call("computer-tool", ToolCallStatus::InProgress),
+            session_id: Some("session-1".to_string()),
+        },
+    );
+
+    registry.apply_session_update(
+        "session-1",
+        &SessionUpdate::ToolCallUpdate {
+            update: ToolCallUpdateData {
+                tool_call_id: "computer-tool".to_string(),
+                status: Some(ToolCallStatus::Failed),
+                result: Some(json!({
+                    "ok": false,
+                    "error": {
+                        "code": "computer_permission_required",
+                        "message": "Acepe needs Screen Recording permission to capture the window.",
+                        "permission_kind": "screen_recording"
+                    }
+                })),
+                ..ToolCallUpdateData::default()
+            },
+            session_id: Some("session-1".to_string()),
+        },
+    );
+
+    let interaction_id = build_computer_permission_interaction_id(
+        "session-1",
+        "computer-tool",
+        ComputerPermissionKind::ScreenRecording,
+    );
+    let blocked = registry
+        .operation_for_tool_call("session-1", "computer-tool")
+        .expect("expected blocked operation");
+    assert_eq!(blocked.operation_state, OperationState::Blocked);
+    assert!(blocked.computer_payload.is_some());
+
+    registry
+        .resolve_interaction(
+            "session-1",
+            &interaction_id,
+            InteractionState::Rejected,
+            InteractionResponse::ComputerPermission { accepted: false },
+        )
+        .expect("expected computer permission rejection");
+
+    let cancelled = registry
+        .operation_for_tool_call("session-1", "computer-tool")
+        .expect("expected cancelled operation");
+    assert_eq!(cancelled.operation_state, OperationState::Cancelled);
+    assert!(cancelled.computer_payload.is_some());
+}
+
+#[test]
+fn computer_permission_error_update_materializes_local_interaction() {
+    let registry = ProjectionRegistry::new();
+    registry.apply_session_update(
+        "session-1",
+        &SessionUpdate::ToolCall {
+            tool_call: create_computer_tool_call("computer-tool", ToolCallStatus::InProgress),
+            session_id: Some("session-1".to_string()),
+        },
+    );
+
+    registry.apply_session_update(
+        "session-1",
+        &SessionUpdate::ToolCallUpdate {
+            update: ToolCallUpdateData {
+                tool_call_id: "computer-tool".to_string(),
+                status: Some(ToolCallStatus::Failed),
+                result: Some(json!({
+                    "ok": false,
+                    "error": {
+                        "code": "computer_permission_required",
+                        "message": "Acepe needs Accessibility permission to click UI controls.",
+                        "permission_kind": "accessibility"
+                    }
+                })),
+                ..ToolCallUpdateData::default()
+            },
+            session_id: Some("session-1".to_string()),
+        },
+    );
+
+    let operation = registry
+        .operation_for_tool_call("session-1", "computer-tool")
+        .expect("expected computer operation");
+    assert_eq!(operation.operation_state, OperationState::Blocked);
+
+    let interaction_id = build_computer_permission_interaction_id(
+        "session-1",
+        "computer-tool",
+        ComputerPermissionKind::Accessibility,
+    );
+    let interaction = registry
+        .interaction(&interaction_id)
+        .expect("expected computer permission interaction");
+    assert_eq!(interaction.kind, InteractionKind::ComputerPermission);
+    assert_eq!(interaction.state, InteractionState::Pending);
+    assert_eq!(
+        interaction.canonical_operation_id,
+        Some(build_canonical_operation_id("session-1", "computer-tool"))
+    );
+    match interaction.payload {
+        InteractionPayload::ComputerPermission(payload) => {
+            assert_eq!(
+                payload.reason,
+                "Acepe needs Accessibility permission to click UI controls."
+            );
+            assert_eq!(
+                payload.permission_kind,
+                ComputerPermissionKind::Accessibility
+            );
+        }
+        other => panic!("expected computer permission payload, got {other:?}"),
+    }
+}
+
+#[test]
+fn computer_app_window_scope_error_materializes_scoped_interaction() {
+    let registry = ProjectionRegistry::new();
+    registry.apply_session_update(
+        "session-1",
+        &SessionUpdate::ToolCall {
+            tool_call: create_computer_tool_call("computer-tool", ToolCallStatus::InProgress),
+            session_id: Some("session-1".to_string()),
+        },
+    );
+
+    registry.apply_session_update(
+        "session-1",
+        &SessionUpdate::ToolCallUpdate {
+            update: ToolCallUpdateData {
+                tool_call_id: "computer-tool".to_string(),
+                status: Some(ToolCallStatus::Failed),
+                result: Some(json!({
+                    "err": {
+                        "c": "computer_permission_required",
+                        "m": "Allow computer use for Safari / GitHub?",
+                        "pk": "app_window_scope",
+                        "a": "Safari",
+                        "w": "GitHub"
+                    }
+                })),
+                ..ToolCallUpdateData::default()
+            },
+            session_id: Some("session-1".to_string()),
+        },
+    );
+
+    let operation = registry
+        .operation_for_tool_call("session-1", "computer-tool")
+        .expect("expected computer operation");
+    assert_eq!(operation.operation_state, OperationState::Blocked);
+    let error = operation
+        .computer_payload
+        .and_then(|payload| payload.error)
+        .expect("expected computer operation error");
+    assert_eq!(
+        error.permission_kind,
+        Some(ComputerPermissionKind::AppWindowScope)
+    );
+    assert_eq!(error.app.as_deref(), Some("Safari"));
+    assert_eq!(error.window.as_deref(), Some("GitHub"));
+
+    let interaction_id = build_computer_permission_interaction_id(
+        "session-1",
+        "computer-tool",
+        ComputerPermissionKind::AppWindowScope,
+    );
+    let interaction = registry
+        .interaction(&interaction_id)
+        .expect("expected scoped computer permission interaction");
+    assert_eq!(interaction.kind, InteractionKind::ComputerPermission);
+    assert_eq!(interaction.state, InteractionState::Pending);
+    assert_eq!(
+        interaction.canonical_operation_id,
+        Some(build_canonical_operation_id("session-1", "computer-tool"))
+    );
+    match interaction.payload {
+        InteractionPayload::ComputerPermission(payload) => {
+            assert_eq!(
+                payload.permission_kind,
+                ComputerPermissionKind::AppWindowScope
+            );
+            assert_eq!(payload.reason, "Allow computer use for Safari / GitHub?");
+            assert_eq!(payload.app.as_deref(), Some("Safari"));
+            assert_eq!(payload.window.as_deref(), Some("GitHub"));
+        }
+        other => panic!("expected computer permission payload, got {other:?}"),
+    }
+}
+
+#[test]
+fn computer_scope_changed_error_requires_reobserve_without_permission_interaction() {
+    let registry = ProjectionRegistry::new();
+    registry.apply_session_update(
+        "session-1",
+        &SessionUpdate::ToolCall {
+            tool_call: create_computer_tool_call("computer-tool", ToolCallStatus::InProgress),
+            session_id: Some("session-1".to_string()),
+        },
+    );
+
+    registry.apply_session_update(
+        "session-1",
+        &SessionUpdate::ToolCallUpdate {
+            update: ToolCallUpdateData {
+                tool_call_id: "computer-tool".to_string(),
+                status: Some(ToolCallStatus::Failed),
+                result: Some(json!({
+                    "err": {
+                        "c": "computer_scope_changed",
+                        "m": "Focused app or window changed after observation; observe again before acting.",
+                        "a": "Safari",
+                        "w": "GitHub",
+                        "r": true
+                    }
+                })),
+                ..ToolCallUpdateData::default()
+            },
+            session_id: Some("session-1".to_string()),
+        },
+    );
+
+    let operation = registry
+        .operation_for_tool_call("session-1", "computer-tool")
+        .expect("expected computer operation");
+    assert_eq!(operation.operation_state, OperationState::Failed);
+    let error = operation
+        .computer_payload
+        .and_then(|payload| payload.error)
+        .expect("expected computer operation error");
+    assert_eq!(error.code, "computer_scope_changed");
+    assert_eq!(error.permission_kind, None);
+    assert_eq!(error.app.as_deref(), Some("Safari"));
+    assert_eq!(error.window.as_deref(), Some("GitHub"));
+    assert_eq!(error.reobserve, Some(true));
+
+    let interaction_id = build_computer_permission_interaction_id(
+        "session-1",
+        "computer-tool",
+        ComputerPermissionKind::AppWindowScope,
+    );
+    assert!(registry.interaction(&interaction_id).is_none());
+}
+
+#[test]
+fn computer_operation_payload_summarizes_input_and_result() {
+    let registry = ProjectionRegistry::new();
+    let mut tool_call = create_computer_tool_call("computer-tool", ToolCallStatus::InProgress);
+    tool_call.arguments = ToolArguments::Computer {
+        verb: Some("scroll".to_string()),
+        target_id: Some("e_target".to_string()),
+        epoch: Some("s_1".to_string()),
+        text: None,
+        key: None,
+        delta_x: Some(0),
+        delta_y: Some(-240),
+        include_bounds: Some(false),
+        include_screenshot: Some(false),
+    };
+    registry.apply_session_update(
+        "session-1",
+        &SessionUpdate::ToolCall {
+            tool_call,
+            session_id: Some("session-1".to_string()),
+        },
+    );
+
+    registry.apply_session_update(
+        "session-1",
+        &SessionUpdate::ToolCallUpdate {
+            update: ToolCallUpdateData {
+                tool_call_id: "computer-tool".to_string(),
+                status: Some(ToolCallStatus::Completed),
+                result: Some(json!({
+                    "e": "s_2",
+                    "ms": 128,
+                    "env": {
+                        "a": "Acepe",
+                        "w": "Main",
+                        "f": "e_target",
+                        "b": false
+                    },
+                    "els": [],
+                    "c": ["e_target"],
+                    "sr": "file:///tmp/acepe-computer.png"
+                })),
+                ..ToolCallUpdateData::default()
+            },
+            session_id: Some("session-1".to_string()),
+        },
+    );
+
+    let operation = registry
+        .operation_for_tool_call("session-1", "computer-tool")
+        .expect("expected computer operation");
+    let payload = operation
+        .computer_payload
+        .expect("expected computer payload");
+
+    assert_eq!(payload.input.verb.as_deref(), Some("scroll"));
+    assert_eq!(payload.input.delta_y, Some(-240));
+    let output = payload.output.expect("expected computer output");
+    assert_eq!(output.epoch.as_deref(), Some("s_2"));
+    assert_eq!(output.settled_ms, Some(128));
+    assert_eq!(output.app.as_deref(), Some("Acepe"));
+    assert_eq!(output.window.as_deref(), Some("Main"));
+    assert_eq!(output.focused_target_id.as_deref(), Some("e_target"));
+    assert_eq!(output.busy, Some(false));
+    assert_eq!(output.changed_target_ids, vec!["e_target".to_string()]);
+    assert_eq!(output.element_count, Some(0));
+    assert_eq!(
+        output.screenshot_ref.as_deref(),
+        Some("file:///tmp/acepe-computer.png")
+    );
+}
+
+#[test]
 fn pending_question_blocks_linked_operation_and_answer_resumes_it() {
     let registry = ProjectionRegistry::new();
     registry.apply_session_update(
@@ -3107,6 +3588,7 @@ fn live_tool_call_patch_preserves_restored_transcript_source_link() {
             },
             progressive_arguments: None,
             result: Some(json!("done")),
+            computer_payload: None,
             command: Some("pwd".to_string()),
             normalized_todos: None,
             parent_tool_call_id: None,

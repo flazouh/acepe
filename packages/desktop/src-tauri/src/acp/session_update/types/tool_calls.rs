@@ -35,6 +35,7 @@ pub enum ToolKind {
     CreatePlan,
     ToolSearch,
     Browser,
+    Computer,
     Sql,
     Unclassified,
     Other,
@@ -66,6 +67,7 @@ impl ToolKind {
             ToolKind::CreatePlan => "create_plan",
             ToolKind::ToolSearch => "tool_search",
             ToolKind::Browser => "browser",
+            ToolKind::Computer => "computer",
             ToolKind::Sql => "sql",
             ToolKind::Unclassified => "unclassified",
             ToolKind::Other => "other",
@@ -268,6 +270,26 @@ pub enum ToolArguments {
         #[serde(skip_serializing_if = "Option::is_none")]
         script: Option<String>,
     },
+    Computer {
+        #[serde(skip_serializing_if = "Option::is_none")]
+        verb: Option<String>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        target_id: Option<String>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        epoch: Option<String>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        text: Option<String>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        key: Option<String>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        delta_x: Option<i64>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        delta_y: Option<i64>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        include_bounds: Option<bool>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        include_screenshot: Option<bool>,
+    },
     Sql {
         #[serde(skip_serializing_if = "Option::is_none")]
         query: Option<String>,
@@ -318,6 +340,7 @@ impl ToolArguments {
             ToolArguments::PlanMode { .. } => ToolKind::Other,
             ToolArguments::ToolSearch { .. } => ToolKind::ToolSearch,
             ToolArguments::Browser { .. } => ToolKind::Browser,
+            ToolArguments::Computer { .. } => ToolKind::Computer,
             ToolArguments::Sql { .. } => ToolKind::Sql,
             ToolArguments::Unclassified { .. } => ToolKind::Unclassified,
             ToolArguments::Other { .. } => ToolKind::Other,
@@ -348,6 +371,40 @@ mod tests {
             }
         ));
         assert_eq!(arguments.tool_kind(), ToolKind::Sql);
+    }
+
+    #[test]
+    fn computer_arguments_round_trip_to_computer_kind() {
+        let arguments = ToolArguments::from_raw(
+            ToolKind::Computer,
+            json!({
+                "v": "click",
+                "t": "e_4f2",
+                "e": "s_912",
+                "txt": "hello",
+                "k": "enter",
+                "dx": 0,
+                "dy": -3,
+                "b": false,
+                "s": false
+            }),
+        );
+
+        assert!(matches!(
+            arguments,
+            ToolArguments::Computer {
+                verb: Some(_),
+                target_id: Some(_),
+                epoch: Some(_),
+                text: Some(_),
+                key: Some(_),
+                delta_x: Some(0),
+                delta_y: Some(-3),
+                include_bounds: Some(false),
+                include_screenshot: Some(false)
+            }
+        ));
+        assert_eq!(arguments.tool_kind(), ToolKind::Computer);
     }
 
     #[test]

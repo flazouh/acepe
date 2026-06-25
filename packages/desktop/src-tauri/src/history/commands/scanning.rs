@@ -1,13 +1,62 @@
 use crate::commands::observability::{unexpected_command_result, CommandResult};
 use crate::db::repository::SessionMetadataRow;
 use std::cmp::Reverse;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::time::Instant;
 
 use super::*;
 
 fn indexed_source_path(file_path: String) -> Option<String> {
     SessionMetadataRepository::normalized_source_path(&file_path)
+}
+
+async fn enrich_history_entry_usage_stats(entry: &mut HistoryEntry) {
+    if entry.usage_stats.is_some() {
+        return;
+    }
+
+    if entry.agent_id != CanonicalAgentId::ClaudeCode {
+        return;
+    }
+
+    let source_path = match entry.source_path.as_ref() {
+        Some(path) if path.ends_with(".jsonl") => path.clone(),
+        _ => return,
+    };
+
+    let file_path = resolve_claude_source_path(&source_path);
+
+    match crate::session_jsonl::parser::extract_thread_metadata(&file_path).await {
+        Ok(Some(source_entry)) => {
+            entry.usage_stats = source_entry.usage_stats;
+        }
+        Ok(None) => {}
+        Err(error) => {
+            tracing::debug!(
+                session_id = %entry.session_id,
+                error = %error,
+                "Failed to enrich indexed history usage stats from source path"
+            );
+        }
+    }
+}
+
+fn resolve_claude_source_path(source_path: &str) -> PathBuf {
+    let path = PathBuf::from(source_path);
+    if path.is_absolute() {
+        return path;
+    }
+
+    match crate::session_jsonl::parser::get_session_jsonl_root() {
+        Ok(root) => root.join("projects").join(source_path),
+        Err(_) => path,
+    }
+}
+
+async fn enrich_history_entries_usage_stats(entries: &mut [HistoryEntry]) {
+    for entry in entries {
+        enrich_history_entry_usage_stats(entry).await;
+    }
 }
 
 fn derive_title_from_converted_session(
@@ -80,6 +129,7 @@ fn copilot_session_to_history_entry(
         worktree_deleted: None,
         session_lifecycle_state: Some(SessionLifecycleState::Persisted),
         sequence_id: None,
+        usage_stats: None,
     }
 }
 
@@ -157,7 +207,7 @@ pub async fn get_startup_sessions(
                     .worktree_path
                     .as_ref()
                     .map(|path| !Path::new(path).exists());
-                entries.push(HistoryEntry {
+                let mut entry = HistoryEntry {
                     id: session.id.clone(),
                     display: session.display,
                     timestamp: session.timestamp,
@@ -174,7 +224,10 @@ pub async fn get_startup_sessions(
                     pr_link_mode: session.pr_link_mode,
                     session_lifecycle_state: Some(session_lifecycle_state),
                     sequence_id: session.sequence_id,
-                });
+                    usage_stats: None,
+                };
+                enrich_history_entry_usage_stats(&mut entry).await;
+                entries.push(entry);
             }
 
             Ok(crate::session_jsonl::types::StartupSessionsResponse {
@@ -261,6 +314,7 @@ fn indexed_session_rows_to_history_entries(indexed: Vec<SessionMetadataRow>) -> 
             pr_link_mode: s.pr_link_mode,
             session_lifecycle_state: Some(session_lifecycle_state),
             sequence_id: s.sequence_id,
+            usage_stats: None,
         });
     }
     entries
@@ -366,6 +420,7 @@ async fn scan_project_sessions_inner(
     if let Some(indexed) = from_index {
         let index_count = indexed.len();
         let mut entries = indexed_session_rows_to_history_entries(indexed);
+        enrich_history_entries_usage_stats(&mut entries).await;
         let missing_project_paths = project_paths_missing_from_index(&project_paths, &entries);
 
         if !missing_project_paths.is_empty() {
@@ -478,6 +533,7 @@ mod tests {
             worktree_deleted: None,
             session_lifecycle_state: Some(SessionLifecycleState::Persisted),
             sequence_id: None,
+            usage_stats: None,
         }
     }
 

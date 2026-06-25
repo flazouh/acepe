@@ -452,7 +452,7 @@ Design acceptance criteria:
 
 - After implementation, add or update a `docs/solutions/` note explaining that reveal animation is a cosmetic projection over the display model, not a lifecycle authority.
 - QA should use the streaming repro lab and one live dev-app session. The expected failure mode for reveal is instant full text, not blank text or hanging state.
-- Do not run `bun dev`; the user owns the dev server.
+- If the dev app is not running when UI QA is required, start it from `packages/desktop` with `bun run tauri`, then run the QA CLI pass.
 
 ## Sources & References
 

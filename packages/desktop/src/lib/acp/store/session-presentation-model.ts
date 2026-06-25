@@ -187,15 +187,17 @@ export class SessionPresentationModel {
 		const pendingQuestion = interactionSnapshot.pendingQuestion;
 		const pendingPlanApproval = interactionSnapshot.pendingPlanApproval;
 		const pendingPermission = interactionSnapshot.pendingPermission;
+		const pendingComputerPermission = interactionSnapshot.pendingComputerPermission;
 
 		return {
 			session,
 			hasPendingQuestion: pendingQuestion !== null,
-			hasPendingPermission: pendingPermission !== null,
+			hasPendingPermission: pendingPermission !== null || pendingComputerPermission !== null,
 			hasUnseenCompletion: session.state.attention.hasUnseenCompletion,
 			pendingQuestionText: getPrimaryQuestionText(pendingQuestion),
 			pendingQuestion,
 			pendingPlanApproval,
+			pendingComputerPermission,
 			pendingPermission,
 		};
 	}
@@ -240,6 +242,7 @@ export class SessionPresentationModel {
 			previewActivityKind: sessionWorkProjection.compactActivityKind,
 			pendingQuestion: interactionSnapshot.pendingQuestion,
 			pendingPermission: interactionSnapshot.pendingPermission,
+			pendingComputerPermission: interactionSnapshot.pendingComputerPermission,
 			pendingPlanApproval: interactionSnapshot.pendingPlanApproval,
 		};
 	}
@@ -256,6 +259,7 @@ export class SessionPresentationModel {
 		const pendingQuestion = interactionSnapshot.pendingQuestion;
 		const pendingPlanApproval = interactionSnapshot.pendingPlanApproval;
 		const pendingPermission = interactionSnapshot.pendingPermission;
+		const pendingComputerPermission = interactionSnapshot.pendingComputerPermission;
 
 		return {
 			sessionId: reference.id,
@@ -265,7 +269,8 @@ export class SessionPresentationModel {
 			activityPhase: lifecyclePresentation.activityPhase,
 			pendingQuestionId: pendingQuestion ? pendingQuestion.id : null,
 			pendingPlanApprovalId: pendingPlanApproval ? pendingPlanApproval.id : null,
-			pendingPermissionId: pendingPermission ? pendingPermission.id : null,
+			pendingPermissionId:
+				pendingPermission?.id ?? pendingComputerPermission?.id ?? null,
 		};
 	}
 
@@ -274,7 +279,8 @@ export class SessionPresentationModel {
 		interactionSnapshot: Pick<
 			SessionOperationInteractionSnapshot,
 			"pendingPlanApproval" | "pendingPermission" | "pendingQuestion"
-		>
+		> &
+			Partial<Pick<SessionOperationInteractionSnapshot, "pendingComputerPermission">>
 	): QueueSessionSnapshot {
 		const sessionId = input.sessionId;
 		return buildQueueSessionSnapshot({

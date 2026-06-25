@@ -508,10 +508,6 @@ export interface WorkspaceStateProviders {
 	getSidebarOpen?: () => boolean;
 	/** Set sidebar open state on restore */
 	setSidebarOpen?: (open: boolean) => void;
-	/** Get current top bar visibility state */
-	getTopBarVisible?: () => boolean;
-	/** Set top bar visibility state on restore */
-	setTopBarVisible?: (visible: boolean) => void;
 	/** Get file tree expansion state (projectPath -> expanded folder paths) */
 	getFileTreeExpansion?: () => Record<string, string[]>;
 	/** Set file tree expansion state on restore */
@@ -580,7 +576,6 @@ export class WorkspaceStore {
 				savedAt: new Date().toISOString(),
 				// Additional state from providers
 				sidebarOpen: this.providers.getSidebarOpen?.() ?? true,
-				topBarVisible: this.providers.getTopBarVisible?.() ?? true,
 				fileTreeExpansion: this.providers.getFileTreeExpansion?.() ?? {},
 				projectFileViewModes: this.providers.getProjectFileViewModes?.() ?? {},
 				// Fullscreen state
@@ -633,9 +628,6 @@ export class WorkspaceStore {
 	private restoreProviderState(state: PersistedWorkspaceRestoreState): void {
 		if (state.sidebarOpen !== undefined) {
 			this.providers.setSidebarOpen?.(state.sidebarOpen);
-		}
-		if (state.topBarVisible !== undefined) {
-			this.providers.setTopBarVisible?.(state.topBarVisible);
 		}
 		if (state.fileTreeExpansion) {
 			this.providers.setFileTreeExpansion?.(state.fileTreeExpansion);

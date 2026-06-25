@@ -10,7 +10,10 @@ import type {
 	SessionStateGraph,
 	ToolReference,
 } from "../../services/acp-types.js";
-import type { PlanApprovalInteraction } from "../types/interaction.js";
+import type {
+	ComputerPermissionInteraction,
+	PlanApprovalInteraction,
+} from "../types/interaction.js";
 import {
 	buildPermissionGroupKey,
 	createPermissionRequest,
@@ -32,6 +35,7 @@ export class InteractionStore {
 	readonly questionsPending = new SvelteMap<string, QuestionRequest>();
 	readonly answeredQuestions = new SvelteMap<string, AnsweredQuestion>();
 	readonly planApprovalsPending = new SvelteMap<string, PlanApprovalInteraction>();
+	readonly computerPermissionsPending = new SvelteMap<string, ComputerPermissionInteraction>();
 	private readonly answeredQuestionSessionIds = new SvelteMap<string, string>();
 	private readonly pendingPermissionsBySession = new Map<
 		string,
@@ -42,6 +46,10 @@ export class InteractionStore {
 		string,
 		Map<string, PlanApprovalInteraction>
 	>();
+	private readonly pendingComputerPermissionsBySession = new Map<
+		string,
+		Map<string, ComputerPermissionInteraction>
+	>();
 	private readonly pendingPermissionValuesBySession = new Map<
 		string,
 		readonly PermissionRequest[]
@@ -50,6 +58,10 @@ export class InteractionStore {
 	private readonly pendingPlanApprovalValuesBySession = new Map<
 		string,
 		readonly PlanApprovalInteraction[]
+	>();
+	private readonly pendingComputerPermissionValuesBySession = new Map<
+		string,
+		readonly ComputerPermissionInteraction[]
 	>();
 
 	setPlanApprovalStatus(interactionId: string, status: PlanApprovalInteraction["status"]): void {
@@ -73,6 +85,29 @@ export class InteractionStore {
 		});
 	}
 
+	setComputerPermissionStatus(
+		interactionId: string,
+		status: ComputerPermissionInteraction["status"]
+	): void {
+		const permission = this.computerPermissionsPending.get(interactionId);
+		if (permission === undefined) {
+			return;
+		}
+
+		this.setPendingComputerPermission(interactionId, {
+			id: permission.id,
+			kind: permission.kind,
+			sessionId: permission.sessionId,
+			permissionKind: permission.permissionKind,
+			reason: permission.reason,
+			app: permission.app,
+			window: permission.window,
+			tool: permission.tool,
+			status,
+			canonicalOperationId: permission.canonicalOperationId,
+		});
+	}
+
 	getPendingQuestionsForSession(sessionId: string): readonly QuestionRequest[] {
 		return readSessionIndexValues(
 			this.pendingQuestionsBySession,
@@ -93,6 +128,16 @@ export class InteractionStore {
 		return readSessionIndexValues(
 			this.pendingPlanApprovalsBySession,
 			this.pendingPlanApprovalValuesBySession,
+			sessionId
+		);
+	}
+
+	getPendingComputerPermissionsForSession(
+		sessionId: string
+	): readonly ComputerPermissionInteraction[] {
+		return readSessionIndexValues(
+			this.pendingComputerPermissionsBySession,
+			this.pendingComputerPermissionValuesBySession,
 			sessionId
 		);
 	}
@@ -138,6 +183,12 @@ export class InteractionStore {
 				this.deletePendingPlanApproval(interactionId);
 			}
 		}
+
+		for (const [interactionId, permission] of this.computerPermissionsPending) {
+			if (permission.sessionId === sessionId) {
+				this.deletePendingComputerPermission(interactionId);
+			}
+		}
 	}
 
 	replaceSessionStateGraph(graph: SessionStateGraph): void {
@@ -166,6 +217,11 @@ export class InteractionStore {
 
 		if ("PlanApproval" in interaction.payload) {
 			this.applyPlanApprovalInteraction(interaction, interaction.payload.PlanApproval.source);
+			return;
+		}
+
+		if ("ComputerPermission" in interaction.payload) {
+			this.applyComputerPermissionInteraction(interaction);
 		}
 	}
 
@@ -270,6 +326,37 @@ export class InteractionStore {
 			status,
 			canonicalOperationId: interaction.canonical_operation_id ?? null,
 		});
+	}
+
+	private applyComputerPermissionInteraction(interaction: InteractionSnapshot): void {
+		if (!("ComputerPermission" in interaction.payload)) {
+			return;
+		}
+
+		if (interaction.state !== "Pending") {
+			this.deletePendingComputerPermission(interaction.id);
+			return;
+		}
+
+		const payload = interaction.payload.ComputerPermission;
+		const tool = toInteractionToolReference(payload.tool);
+		const permission: ComputerPermissionInteraction = {
+			id: interaction.id,
+			kind: "computer_permission",
+			sessionId: payload.session_id,
+			permissionKind: payload.permission_kind,
+			reason: payload.reason,
+			tool,
+			status: "pending",
+			canonicalOperationId: interaction.canonical_operation_id ?? null,
+		};
+		if (payload.app !== null && payload.app !== undefined) {
+			permission.app = payload.app;
+		}
+		if (payload.window !== null && payload.window !== undefined) {
+			permission.window = payload.window;
+		}
+		this.setPendingComputerPermission(interaction.id, permission);
 	}
 
 	private setPendingPermission(interactionId: string, permission: PermissionRequest): void {
@@ -406,6 +493,60 @@ export class InteractionStore {
 		);
 		removeCachedSessionIndexValue(
 			this.pendingPlanApprovalValuesBySession,
+			existing.sessionId,
+			(candidate) => candidate.id === interactionId
+		);
+	}
+
+	private setPendingComputerPermission(
+		interactionId: string,
+		permission: ComputerPermissionInteraction
+	): void {
+		const existing = this.computerPermissionsPending.get(interactionId);
+		if (
+			existing !== undefined &&
+			areComputerPermissionsEquivalent(existing, permission)
+		) {
+			return;
+		}
+		if (existing !== undefined) {
+			deleteSessionIndexEntry(
+				this.pendingComputerPermissionsBySession,
+				existing.sessionId,
+				interactionId
+			);
+			removeCachedSessionIndexValue(
+				this.pendingComputerPermissionValuesBySession,
+				existing.sessionId,
+				(candidate) => candidate.id === interactionId
+			);
+		}
+		this.computerPermissionsPending.set(interactionId, permission);
+		getOrCreateSessionIndex(
+			this.pendingComputerPermissionsBySession,
+			permission.sessionId
+		).set(interactionId, permission);
+		upsertCachedSessionIndexValue(
+			this.pendingComputerPermissionValuesBySession,
+			permission.sessionId,
+			permission,
+			(candidate) => candidate.id === interactionId
+		);
+	}
+
+	private deletePendingComputerPermission(interactionId: string): void {
+		const existing = this.computerPermissionsPending.get(interactionId);
+		if (existing === undefined) {
+			return;
+		}
+		this.computerPermissionsPending.delete(interactionId);
+		deleteSessionIndexEntry(
+			this.pendingComputerPermissionsBySession,
+			existing.sessionId,
+			interactionId
+		);
+		removeCachedSessionIndexValue(
+			this.pendingComputerPermissionValuesBySession,
 			existing.sessionId,
 			(candidate) => candidate.id === interactionId
 		);
@@ -656,6 +797,24 @@ function arePlanApprovalsEquivalent(
 		areJsonLikeValuesEquivalent(left.tool, right.tool) &&
 		left.jsonRpcRequestId === right.jsonRpcRequestId &&
 		areJsonLikeValuesEquivalent(left.replyHandler, right.replyHandler) &&
+		left.status === right.status &&
+		left.canonicalOperationId === right.canonicalOperationId
+	);
+}
+
+function areComputerPermissionsEquivalent(
+	left: ComputerPermissionInteraction,
+	right: ComputerPermissionInteraction
+): boolean {
+	return (
+		left.id === right.id &&
+		left.kind === right.kind &&
+		left.sessionId === right.sessionId &&
+		left.permissionKind === right.permissionKind &&
+		left.reason === right.reason &&
+		left.app === right.app &&
+		left.window === right.window &&
+		areJsonLikeValuesEquivalent(left.tool, right.tool) &&
 		left.status === right.status &&
 		left.canonicalOperationId === right.canonicalOperationId
 	);

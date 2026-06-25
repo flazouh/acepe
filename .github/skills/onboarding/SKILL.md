@@ -74,7 +74,7 @@ Synthesize the inventory data and key file contents into the sections defined be
 Voice and tone:
 - Write in second person ("you") -- speak directly to the new contributor
 - Use active voice and present tense: "The router dispatches requests to handlers" not "Requests are dispatched by the router to handlers"
-- Be direct. Lead sentences with what matters, not with setup: "Run `bun dev` to start the server" not "In order to start the development server, you will need to run the following command"
+- Be direct. Lead sentences with what matters, not with setup: "Run the dev command from the README" not "In order to start the development server, you will need to run the following command"
 - Match the formality of the codebase. A scrappy prototype gets casual prose. An enterprise system gets more precise language. Read the README and existing docs for tone cues.
 
 Clarity:
@@ -322,7 +322,7 @@ Cover these areas:
    ```
    bun install
    cp .env.example .env
-   bun dev
+   bun run dev
    ```
 
 2. **Running and testing** -- How to start the dev server, run tests, lint. Use the inventory's detected scripts.

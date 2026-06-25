@@ -7,7 +7,6 @@ import AgentSelector from "$lib/acp/components/agent-selector.svelte";
 import BranchPicker from "$lib/acp/components/branch-picker/branch-picker.svelte";
 import ProjectSelector from "$lib/acp/components/project-selector.svelte";
 import ProjectTable from "$lib/acp/components/add-repository/project-table.svelte";
-import PreSessionWorktreeCard from "$lib/acp/components/agent-panel/components/pre-session-worktree-card.svelte";
 import { getWorktreeDefaultStore } from "$lib/acp/components/worktree/worktree-default-store.svelte.js";
 import { Button } from "$lib/components/ui/button/index.js";
 import { getErrorCauseDetails } from "$lib/acp/errors/error-cause-details.js";
@@ -619,10 +618,10 @@ function handleEmptyStateSessionCreated(sessionId: string) {
 		{emptyStateTitle}
 	</h1>
 
-	<div class="flex w-full max-w-[44rem] flex-col px-6">
+	<div class="flex w-full max-w-[40rem] flex-col px-6">
 	{#if canShowInput}
 		<!-- Agent Input -->
-		<div class="w-full [&_[contenteditable=true]]:min-h-20">
+		<div class="w-full">
 			{#if projectImportError}
 				<div class="mb-3">
 					<AgentErrorCard
@@ -639,6 +638,33 @@ function handleEmptyStateSessionCreated(sessionId: string) {
 					/>
 				</div>
 			{/if}
+			{#snippet newThreadProjectControl()}
+				{#if showProjectPicker}
+					<ProjectSelector
+						selectedProject={effectiveProject}
+						recentProjects={projects}
+						onProjectChange={handleProjectChange}
+						onBrowse={handleBrowseProject}
+						showLabel
+					/>
+				{:else if effectiveProject}
+					<ProjectSelector
+						selectedProject={effectiveProject}
+						recentProjects={projects}
+						onProjectChange={handleProjectChange}
+						onBrowse={handleBrowseProject}
+						showLabel
+					/>
+				{/if}
+			{/snippet}
+			{#snippet newThreadAgentControl()}
+				<AgentSelector
+					{availableAgents}
+					currentAgentId={effectiveAgentId}
+					onAgentChange={handleAgentChange}
+					showLabel
+				/>
+			{/snippet}
 			<AgentInput
 				panelId={EMPTY_STATE_PANEL_ID}
 				projectPath={projectPath ?? undefined}
@@ -660,52 +686,38 @@ function handleEmptyStateSessionCreated(sessionId: string) {
 				onPreparedWorktreeLaunch={(launch) => {
 					preparedWorktreeLaunch = launch;
 				}}
-			>
-				{#snippet agentProjectPicker()}
-					<AgentSelector
-						{availableAgents}
-						currentAgentId={effectiveAgentId}
-						onAgentChange={handleAgentChange}
-					/>
-					{#if showProjectPicker}
-						<ProjectSelector
-							selectedProject={effectiveProject}
-							recentProjects={projects}
-							onProjectChange={handleProjectChange}
-							onBrowse={handleBrowseProject}
-						/>
-					{/if}
-				{/snippet}
-			</AgentInput>
+				newThreadContext={{
+					project: newThreadProjectControl,
+					agent: newThreadAgentControl,
+					showWorktree: projectPath !== null,
+					worktreeOn: effectiveWorktreePending,
+					worktreeDisabled: false,
+					onWorktreeToggle: (on) => {
+						preparedWorktreeLaunch = null;
+						worktreePending = on;
+					},
+					worktreeDefaultOn: globalWorktreeDefault,
+					onWorktreeDefaultToggle: (on) => {
+						void worktreeDefaultStore.set(on);
+					},
+				}}
+			/>
 			{#if projectPath}
-				<div class="mt-2 flex h-7 items-center">
-					<PreSessionWorktreeCard
-						variant="trigger"
-						menuSide="top"
-						pendingWorktreeEnabled={effectiveWorktreePending}
-						onYes={() => {
-							preparedWorktreeLaunch = null;
-							worktreePending = true;
-						}}
-						onNo={() => {
-							preparedWorktreeLaunch = null;
-							worktreePending = false;
-						}}
-						onDismiss={() => {
-							preparedWorktreeLaunch = null;
-							worktreePending = false;
-						}}
-					/>
-					<div class="ml-auto h-full min-w-0 w-fit max-w-[12rem]">
-						<BranchPicker
-							{projectPath}
-							{currentBranch}
-							{diffStats}
-							{isGitRepo}
-							variant="minimal"
-							onBranchSelected={handleBranchSelected}
-							onInitGitRepo={handleInitGitRepo}
-						/>
+				<div class="mt-0.5 flex min-w-0 items-end justify-between gap-1 px-1">
+					<div class="shrink-0"></div>
+					<div class="flex shrink-0 items-end gap-2">
+						<div class="flex h-7 min-w-0 items-center justify-end">
+							<BranchPicker
+								{projectPath}
+								{currentBranch}
+								{diffStats}
+								{isGitRepo}
+								variant="minimal"
+								onBranchSelected={handleBranchSelected}
+								onInitGitRepo={handleInitGitRepo}
+							/>
+						</div>
+						<div class="h-7 w-7 shrink-0" aria-hidden="true"></div>
 					</div>
 				</div>
 			{/if}

@@ -9,4 +9,13 @@ export { default as FullscreenAction } from "./fullscreen-action.svelte";
 export { default as OverflowMenuTriggerAction } from "./overflow-menu-trigger-action.svelte";
 export { default as BrowserNavActions } from "./browser-nav-actions.svelte";
 export { default as SegmentedToggleGroup } from "./segmented-toggle-group.svelte";
-export { PROJECT_CARD_ACTION_BUTTON_CLASS } from "./project-card-action-button-class.js";
+export { default as FusedPrimaryOverflowGroup } from "./fused-primary-overflow-group.svelte";
+export { default as FusedOverflowDotsTrigger } from "./fused-overflow-dots-trigger.svelte";
+export {
+	FUSED_CONTROL_CHIP_GROUP_CLASS,
+	FUSED_CONTROL_OVERFLOW_BUTTON_CLASS,
+	FUSED_CONTROL_PRIMARY_BUTTON_CLASS,
+	OVERFLOW_DOTS_ICON_CLASS,
+	PROJECT_CARD_ACTION_BUTTON_CLASS,
+	SETUP_CHIP_OVERFLOW_BUTTON_CLASS,
+} from "./project-card-action-button-class.js";

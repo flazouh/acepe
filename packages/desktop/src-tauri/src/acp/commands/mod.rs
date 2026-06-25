@@ -21,6 +21,7 @@ use tokio::sync::Mutex as TokioMutex;
 use tokio::time::{timeout, Duration};
 
 mod client_ops;
+mod computer_probe;
 mod file_commands;
 mod github_diff_commands;
 mod github_issue_commands;
@@ -41,6 +42,7 @@ mod tests;
 use client_ops::{
     create_and_initialize_client, lock_session_client, resume_or_create_session_client,
 };
+pub use computer_probe::acp_probe_computer_use;
 pub use file_commands::{acp_read_text_file, acp_write_text_file};
 pub use github_diff_commands::{
     fetch_commit_diff, fetch_pr_diff, get_github_repo_context, git_working_file_diff,

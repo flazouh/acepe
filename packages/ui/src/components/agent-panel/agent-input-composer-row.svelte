@@ -62,7 +62,7 @@
 	const showStop = $derived(submitIntent === "stop" || submitIntent === "steer");
 </script>
 
-<div class="flex flex-col gap-1 min-w-0">
+<div class="flex flex-col gap-0.5 min-w-0">
 	<div class="relative min-w-0">
 		{#if editorArea}
 			{@render editorArea()}

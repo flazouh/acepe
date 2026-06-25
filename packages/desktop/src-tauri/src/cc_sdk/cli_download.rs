@@ -283,9 +283,7 @@ fn atomically_install_binary(source: &Path, target: &Path) -> Result<()> {
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
-        if let Err(e) =
-            std::fs::set_permissions(&staging, std::fs::Permissions::from_mode(0o755))
-        {
+        if let Err(e) = std::fs::set_permissions(&staging, std::fs::Permissions::from_mode(0o755)) {
             let _ = std::fs::remove_file(&staging);
             return Err(SdkError::ConfigError(format!(
                 "Failed to set CLI permissions: {e}"

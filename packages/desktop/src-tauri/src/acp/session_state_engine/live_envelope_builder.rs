@@ -14,7 +14,8 @@ use crate::acp::session_state_engine::{
 };
 use crate::acp::session_update::SessionUpdate;
 use crate::acp::transcript_projection::{
-    TranscriptDelta, TranscriptDeltaOperation, TranscriptEntry, TranscriptEntryRole, TranscriptSnapshot,
+    TranscriptDelta, TranscriptDeltaOperation, TranscriptEntry, TranscriptEntryRole,
+    TranscriptSnapshot,
 };
 
 pub(crate) fn build_live_session_state_delta_envelope(

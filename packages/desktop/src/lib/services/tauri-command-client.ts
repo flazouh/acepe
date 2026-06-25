@@ -167,6 +167,9 @@ export const TAURI_COMMAND_CLIENT = {
     get_opencode_history: createGeneratedCommand(COMMANDS.opencode_history.get_opencode_history),
     get_opencode_sessions_for_project: createGeneratedCommand(COMMANDS.opencode_history.get_opencode_sessions_for_project),
   },
+  provider_account_usage: {
+    get: createGeneratedCommand(COMMANDS.provider_account_usage.get),
+  },
   skills: {
     copy_plugin_skill_to_agent: createGeneratedCommand(COMMANDS.skills.copy_plugin_skill_to_agent),
     copy_to: createGeneratedCommand(COMMANDS.skills.copy_to),

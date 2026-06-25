@@ -54,6 +54,8 @@
 		disabled={isLoading}
 		onOpenChange={onPrimaryOpenChange}
 		variant="ghost"
+		side="top"
+		sideOffset={8}
 	>
 		{#snippet renderButton()}
 			{#if isLoading}
@@ -97,11 +99,13 @@
 		open={variantOpen}
 		disabled={isLoading || !selectedReasoningGroup}
 		onOpenChange={onVariantOpenChange}
-		variant="ghost"
+		variant="chromeIcon"
 		align="start"
 		showChevron={false}
-		triggerSize="square"
+		triggerSize="chromeIcon"
 		triggerAriaLabel={reasoningEffortTooltipLabel}
+		side="top"
+		sideOffset={8}
 	>
 		{#snippet renderButton()}
 			<Brain

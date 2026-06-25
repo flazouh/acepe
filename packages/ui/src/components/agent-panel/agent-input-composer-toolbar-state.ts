@@ -45,13 +45,8 @@ export function shouldShowVoiceErrorDismiss(
 export function shouldShowVoiceControls(input: {
 	voiceState: AgentComposerToolbarVoiceBinding | null;
 	voiceEnabled: boolean;
-	isRecordingUi: boolean;
 }): boolean {
-	return (
-		input.voiceState !== null &&
-		input.voiceEnabled &&
-		!input.isRecordingUi
-	);
+	return input.voiceState !== null && input.voiceEnabled;
 }
 
 export function isToolbarLeftSideDisabled(input: {

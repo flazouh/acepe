@@ -311,6 +311,7 @@ describe("resolveSettingsCapabilitySource", () => {
 					{ id: "build", name: "Build" },
 				],
 				currentModeId: "plan",
+				configOptions: [],
 			},
 			cachedModes: [],
 			cachedModels: [],

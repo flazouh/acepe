@@ -1,5 +1,4 @@
 use super::*;
-
 pub(super) struct StreamingBridgeContext {
     pub(super) dispatcher: AcpUiEventDispatcher,
     pub(super) bridge: Arc<PermissionBridge>,

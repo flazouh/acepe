@@ -4,7 +4,10 @@
 
 import type { SessionStatus } from "../../application/dto/session-status.js";
 import { extractTodoProgressFromToolCall } from "../../components/session-list/session-list-logic.js";
-import type { PlanApprovalInteraction } from "../../types/interaction.js";
+import type {
+	ComputerPermissionInteraction,
+	PlanApprovalInteraction,
+} from "../../types/interaction.js";
 import type { PermissionRequest } from "../../types/permission.js";
 import type { QuestionRequest } from "../../types/question.js";
 import type { ToolCall } from "../../types/tool-call.js";
@@ -78,7 +81,8 @@ export interface BuildQueueSessionSnapshotInput {
 	readonly interactionSnapshot: Pick<
 		SessionOperationInteractionSnapshot,
 		"pendingPlanApproval" | "pendingPermission" | "pendingQuestion"
-	>;
+	> &
+		Partial<Pick<SessionOperationInteractionSnapshot, "pendingComputerPermission">>;
 	readonly hasUnseenCompletion: boolean;
 	readonly sequenceId: number | null;
 }
@@ -111,6 +115,7 @@ export interface QueueSessionStateInput {
 	readonly currentStreamingToolCall: ToolCall | null;
 	readonly pendingQuestion: QuestionRequest | null;
 	readonly pendingPlanApproval: PlanApprovalInteraction | null;
+	readonly pendingComputerPermission?: ComputerPermissionInteraction | null;
 	readonly pendingPermission: PermissionRequest | null;
 	readonly hasUnseenCompletion: boolean;
 }
@@ -128,6 +133,7 @@ export function deriveQueueSessionState(input: QueueSessionStateInput) {
 		tool: input.currentStreamingToolCall,
 		pendingQuestion: input.pendingQuestion,
 		pendingPlanApproval: input.pendingPlanApproval,
+		pendingComputerPermission: input.pendingComputerPermission ?? null,
 		pendingPermission: input.pendingPermission,
 		hasUnseenCompletion: input.hasUnseenCompletion,
 	});
@@ -186,7 +192,8 @@ export function buildQueueItem(
 	pendingPlanApproval: PlanApprovalInteraction | null,
 	pendingPermission: PermissionRequest | null,
 	getProjectColor?: ProjectColorLookup,
-	getProjectIconSrc?: ProjectIconSrcLookup
+	getProjectIconSrc?: ProjectIconSrcLookup,
+	pendingComputerPermission: ComputerPermissionInteraction | null = null
 ): QueueItem {
 	const pendingText = pendingQuestionText ?? null;
 	const projectColor =
@@ -219,6 +226,7 @@ export function buildQueueItem(
 		deletions: diffStats.deletions,
 		pendingQuestion,
 		pendingPlanApproval,
+		pendingComputerPermission,
 		status: session.status,
 		workBucket: session.workBucket,
 		connectionError: session.connectionError ?? null,

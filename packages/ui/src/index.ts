@@ -71,7 +71,7 @@ export {
 	AgentInputModelRow,
 	AgentInputModelSelector,
 	AgentInputModelTrigger,
-	AgentInputSelectorCheck,
+	AgentInputSelectorItemRow,
 	AgentInputSlashCommandDropdown,
 	AgentInputPastedTextOverlay,
 	AgentInputToolbar,
@@ -184,6 +184,19 @@ export {
 	type Props as ButtonPropsAlias,
 	Root as ButtonRoot,
 } from "./components/button/index.js";
+export { UsageLimitWidget } from "./components/usage-widget/index.js";
+export type {
+	UsageBadgeLine,
+	UsageMetricLine,
+	UsageMetricTone,
+	UsageProgressLine,
+	UsageProvider,
+	UsageProviderState,
+	UsageTextLine,
+	UsageWidgetCopy,
+	UsageWidgetModel,
+	UsageWidgetSummary,
+} from "./components/usage-widget/index.js";
 export type {
 	CheckpointData,
 	CheckpointFile,
@@ -302,17 +315,19 @@ export {
 export { ProviderMark } from "./components/provider-mark/index.js";
 export type { ProviderBrand } from "./components/provider-mark/index.js";
 export {
-	VoiceDownloadProgress,
-	buildVoiceDownloadSegments,
-	clampVoiceDownloadPercent,
-	countFilledVoiceDownloadSegments,
-	formatVoiceDownloadPercent,
-	getVoiceDownloadProgressRenderMode,
+	SegmentedProgressBar,
+	buildPercentFilledSegments,
+	clampSegmentedPercent,
+	countFilledSegments,
+	formatSegmentedPercent,
+	getCompletenessRampFillColor,
+	getSegmentedProgressBarRenderMode,
+	isCompletenessRampVariant,
 	isLevelPaletteVariant,
-	voiceDownloadProgressVariants,
-	type VoiceDownloadProgressRenderMode,
-	type VoiceDownloadProgressVariant,
-} from "./components/voice-download-progress/index.js";
+	segmentedProgressBarVariants,
+	type SegmentedProgressBarRenderMode,
+	type SegmentedProgressBarVariant,
+} from "./components/segmented-progress-bar/index.js";
 export {
 	InlineArtefactBadge,
 	buildInlineArtefactIconClassName,
@@ -377,6 +392,8 @@ export {
 	EmbeddedIconButton,
 	EmbeddedPanelHeader,
 	FullscreenAction,
+	FusedOverflowDotsTrigger,
+	FusedPrimaryOverflowGroup,
 	HeaderActionCell,
 	HeaderCell,
 	HeaderDivider,

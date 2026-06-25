@@ -37,8 +37,17 @@ export interface PlanApprovalInteractionReplyRequest extends InteractionReplyReq
 	};
 }
 
+export interface ComputerPermissionInteractionReplyRequest extends InteractionReplyRequestBase {
+	payload: {
+		kind: "computer_permission";
+		accepted: boolean;
+		scope: "once" | "always";
+	};
+}
+
 export type InteractionReplyRequest =
 	| PermissionInteractionReplyRequest
 	| QuestionInteractionReplyRequest
 	| QuestionCancelInteractionReplyRequest
-	| PlanApprovalInteractionReplyRequest;
+	| PlanApprovalInteractionReplyRequest
+	| ComputerPermissionInteractionReplyRequest;

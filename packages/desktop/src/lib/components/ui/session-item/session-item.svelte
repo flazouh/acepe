@@ -21,6 +21,7 @@ import {
 	extractPermissionFilePath,
 } from "$lib/acp/components/tool-calls/permission-display.js";
 import AgentIcon from "$lib/acp/components/agent-icon.svelte";
+import ClaudeWorkingSpark from "$lib/acp/components/claude-working-spark.svelte";
 import {
 	AGENT_ICON_BASE_CLASS,
 	UNKNOWN_TIME_TEXT,
@@ -48,6 +49,7 @@ import { makeWorkspaceRelative } from "$lib/acp/utils/path-utils.js";
 import { tauriClient } from "$lib/utils/tauri-client/index.js";
 import type { SessionDisplayItem as BaseSessionDisplayItem } from "$lib/acp/types/thread-display-item.js";
 import PrChecksSurface from "$lib/acp/components/shared/pr-checks-surface.svelte";
+import { shouldShowClaudeWorkingSpark } from "./claude-working-spark-visibility.js";
 
 const logger = createLogger({ id: "session-item", name: "Session Item" });
 
@@ -405,6 +407,13 @@ const projectedIsStreaming = $derived(
 		? false
 		: (activityProjection?.isStreaming ?? previewActivityKind === "streaming")
 );
+const showClaudeWorkingSpark = $derived(
+	shouldShowClaudeWorkingSpark({
+		agentId: session.agentId,
+		projectedIsStreaming,
+		activityIsStreaming: session.activity?.isStreaming,
+	})
+);
 const activityEntryLatestToolDisplay = $derived(
 	suppressPlanApprovalToolPreview ? null : (activityProjection?.latestToolEntry ?? null)
 );
@@ -593,11 +602,15 @@ function handleNextQuestion() {
 
 			<div class="flex-1 min-w-0">
 				{#snippet agentBadge()}
-					<AgentIcon
-						agentId={session.agentId ?? "historical-session"}
-						class="{agentIconBaseClass} shrink-0 m-0.5"
-						size={12}
-					/>
+					{#if showClaudeWorkingSpark}
+						<ClaudeWorkingSpark class="{agentIconBaseClass} m-0.5" size={12} />
+					{:else}
+						<AgentIcon
+							agentId={session.agentId ?? "historical-session"}
+							class="{agentIconBaseClass} shrink-0 m-0.5"
+							size={12}
+						/>
+					{/if}
 					{#if session.sequenceId != null && session.projectName != null && session.projectColor != null}
 						<ProjectLetterBadge
 							name={session.projectName}

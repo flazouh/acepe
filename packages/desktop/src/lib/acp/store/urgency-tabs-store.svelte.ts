@@ -221,6 +221,7 @@ export class UrgencyTabsStore {
 			interactionSnapshot: {
 				pendingQuestion,
 				pendingPlanApproval,
+				pendingComputerPermission: interactionSnapshot?.pendingComputerPermission ?? null,
 				pendingPermission: interactionSnapshot?.pendingPermission ?? null,
 			},
 			hasUnseenCompletion: false,

@@ -48,6 +48,7 @@ function operationTarget(args: ToolArguments): string {
 			return args.arguments_preview ?? args.title ?? args.provider_name;
 		case "readLints":
 		case "browser":
+		case "computer":
 		case "other":
 			return "";
 	}

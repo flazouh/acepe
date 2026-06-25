@@ -31,7 +31,7 @@ import { getReviewPreferenceStore } from "../../store/review-preference-store.sv
 import { sessionReviewStateStore } from "../../store/session-review-state-store.svelte.js";
 import { capitalizeName } from "../../utils/string-formatting.js";
 import { getModelDisplayName } from "../model-selector-logic.js";
-import SelectorCheck from "../selector-check.svelte";
+import { AgentInputSelectorItemRow } from "@acepe/ui";
 import AgentIcon from "../agent-icon.svelte";
 import type { FileReviewStatus } from "../review-panel/review-session-state.js";
 import { normalizeCustomShipInstructions } from "./logic/build-pr-prompt-preview.js";
@@ -399,12 +399,12 @@ function handlePromptResetClick(): void {
 										</DropdownMenu.SubTrigger>
 										<DropdownMenu.SubContent class="w-[220px] max-h-[260px]">
 											{#each availableAgents as agent (agent.id)}
-												{@const isSelected = agent.id === effectiveAgentId}
-												<DropdownMenu.Item
+												<AgentInputSelectorItemRow
+													label={capitalizeName(agent.name)}
+													selected={agent.id === effectiveAgentId}
 													onSelect={() => handleAgentPickerChange(agent.id)}
-													class="group/item py-0.5 {isSelected ? 'bg-accent' : ''}"
 												>
-													<div class="flex w-full min-w-0 items-center gap-1.5">
+													{#snippet leading()}
 														<AgentIcon
 															agentId={agent.id}
 															providerBrand={agent.provider_metadata?.providerBrand ?? null}
@@ -412,10 +412,8 @@ function handlePromptResetClick(): void {
 															class="h-3.5 w-3.5 shrink-0"
 															size={14}
 														/>
-														<span class="flex-1 truncate text-[11px]">{capitalizeName(agent.name)}</span>
-														<SelectorCheck visible={isSelected} />
-													</div>
-												</DropdownMenu.Item>
+													{/snippet}
+												</AgentInputSelectorItemRow>
 											{/each}
 										</DropdownMenu.SubContent>
 									</DropdownMenu.Sub>
@@ -430,16 +428,11 @@ function handlePromptResetClick(): void {
 										<DropdownMenu.SubContent class="w-[240px] max-h-[280px]">
 											{#each reactiveModels as model (model.id)}
 												{@const displayName = getModelDisplayName(model, effectiveAgentId, reactiveModelsDisplay)}
-												{@const isSelected = model.id === effectiveModelId}
-												<DropdownMenu.Item
+												<AgentInputSelectorItemRow
+													label={displayName}
+													selected={model.id === effectiveModelId}
 													onSelect={() => handleModelPickerChange(model.id)}
-													class="group/item py-0.5 {isSelected ? 'bg-accent' : ''}"
-												>
-													<div class="flex w-full min-w-0 items-center gap-1.5">
-														<span class="flex-1 truncate text-[11px]">{displayName}</span>
-														<SelectorCheck visible={isSelected} />
-													</div>
-												</DropdownMenu.Item>
+												/>
 											{/each}
 										</DropdownMenu.SubContent>
 									</DropdownMenu.Sub>

@@ -35,6 +35,11 @@ crate::opencode_history_command_entries!(
     OpenCodeHistoryCommands,
     OPENCODE_HISTORY_COMMANDS
 );
+crate::provider_account_usage_command_entries!(
+    define_command_group,
+    ProviderAccountUsageCommands,
+    PROVIDER_ACCOUNT_USAGE_COMMANDS
+);
 crate::storage_command_entries!(define_command_group, StorageCommands, STORAGE_COMMANDS);
 crate::file_index_command_entries!(define_command_group, FileIndexCommands, FILE_INDEX_COMMANDS);
 crate::terminal_command_entries!(define_command_group, TerminalCommands, TERMINAL_COMMANDS);
@@ -64,6 +69,7 @@ pub struct Commands {
     pub history: HistoryCommands,
     pub cursor_history: CursorHistoryCommands,
     pub opencode_history: OpenCodeHistoryCommands,
+    pub provider_account_usage: ProviderAccountUsageCommands,
     pub storage: StorageCommands,
     pub file_index: FileIndexCommands,
     pub terminal: TerminalCommands,
@@ -84,6 +90,7 @@ pub const COMMANDS: Commands = Commands {
     history: HISTORY_COMMANDS,
     cursor_history: CURSOR_HISTORY_COMMANDS,
     opencode_history: OPENCODE_HISTORY_COMMANDS,
+    provider_account_usage: PROVIDER_ACCOUNT_USAGE_COMMANDS,
     storage: STORAGE_COMMANDS,
     file_index: FILE_INDEX_COMMANDS,
     terminal: TERMINAL_COMMANDS,
@@ -159,6 +166,8 @@ mod tests {
             .expect("Failed to export CursorHistoryCommands");
         specta_typescript::export::<OpenCodeHistoryCommands>(&Default::default())
             .expect("Failed to export OpenCodeHistoryCommands");
+        specta_typescript::export::<ProviderAccountUsageCommands>(&Default::default())
+            .expect("Failed to export ProviderAccountUsageCommands");
         specta_typescript::export::<StorageCommands>(&Default::default())
             .expect("Failed to export StorageCommands");
         specta_typescript::export::<FileIndexCommands>(&Default::default())
@@ -207,6 +216,9 @@ mod tests {
         output.push_str("export type HistoryCommands = Commands[\"history\"];\n");
         output.push_str("export type CursorHistoryCommands = Commands[\"cursor_history\"];\n");
         output.push_str("export type OpenCodeHistoryCommands = Commands[\"opencode_history\"];\n");
+        output.push_str(
+            "export type ProviderAccountUsageCommands = Commands[\"provider_account_usage\"];\n",
+        );
         output.push_str("export type StorageCommands = Commands[\"storage\"];\n");
         output.push_str("export type FileIndexCommands = Commands[\"file_index\"];\n");
         output.push_str("export type TerminalCommands = Commands[\"terminal\"];\n");

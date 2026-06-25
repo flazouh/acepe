@@ -1,6 +1,4 @@
 import { Colors } from "../../lib/colors.js";
-import { cn } from "../../lib/utils.js";
-import { getSelectorTriggerClass } from "../selector/selector-trigger-classes.js";
 import type { AgentInputConfigOption } from "./agent-input-config-option-types.js";
 
 export type ConfigOptionIconKind = "reasoning" | "fast" | "default";
@@ -250,16 +248,6 @@ export function shouldEmitConfigOptionValueChange(input: {
 	currentValue: string | null;
 }): boolean {
 	return input.nextValue !== input.currentValue;
-}
-
-export function getConfigOptionReasoningTriggerClass(): string {
-	return getSelectorTriggerClass({ triggerSize: "minimal" });
-}
-
-export function getConfigOptionReasoningBarOnlyTriggerClass(): string {
-	return cn(
-		"relative overflow-hidden !box-border !flex !h-full !w-full !min-h-0 !min-w-full !flex-1 !items-stretch !justify-stretch !self-stretch !rounded-none !border-0 !bg-transparent !p-0 !px-0 !py-0 !gap-0 shadow-none hover:!bg-transparent [&_[data-variant=setupReasoningBar]]:min-h-0 [&_[data-variant=setupReasoningBar]]:flex-1"
-	);
 }
 
 export function getConfigOptionFastTriggerClass(input: {

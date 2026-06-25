@@ -75,7 +75,7 @@ export type SessionModes = { currentModeId?: string; availableModes?: AvailableM
 
 export type ResolvedCapabilityStatus = "resolved" | "partial" | "unsupported" | "failed"
 
-export type ResolvedCapabilities = { status: ResolvedCapabilityStatus; availableModels: AvailableModel[]; currentModelId: string | null; modelsDisplay: ModelsForDisplay; providerMetadata: FrontendProviderProjection; availableModes: AvailableMode[]; currentModeId: string | null; configOptions?: ConfigOptionData[] }
+export type ResolvedCapabilities = { status: ResolvedCapabilityStatus; availableModels: AvailableModel[]; currentModelId: string | null; modelsDisplay: ModelsForDisplay; providerMetadata: FrontendProviderProjection; availableModes: AvailableMode[]; currentModeId: string | null; configOptions: ConfigOptionData[] }
 
 export type ConfigOptionPresentation = "hidden" | "advanced" | "compactReasoning" | "compactSpeed"
 
@@ -108,7 +108,7 @@ export type CanonicalAgentId = "claude-code" | "copilot" | "cursor" | "opencode"
 /**
  * Tool kind for routing to appropriate UI components.
  */
-export type ToolKind = "read" | "read_lints" | "edit" | "execute" | "shell_input" | "search" | "glob" | "fetch" | "web_search" | "think" | "todo" | "question" | "task" | "task_output" | "skill" | "move" | "delete" | "enter_plan_mode" | "exit_plan_mode" | "create_plan" | "tool_search" | "browser" | "sql" | "unclassified" | "other"
+export type ToolKind = "read" | "read_lints" | "edit" | "execute" | "shell_input" | "search" | "glob" | "fetch" | "web_search" | "think" | "todo" | "question" | "task" | "task_output" | "skill" | "move" | "delete" | "enter_plan_mode" | "exit_plan_mode" | "create_plan" | "tool_search" | "browser" | "computer" | "sql" | "unclassified" | "other"
 
 /**
  * Tool call status.
@@ -173,7 +173,7 @@ export type ToolArguments = { kind: "read"; file_path?: string | null; source_co
  * `edits` is always a non-empty Vec. Single-file edits have exactly one entry;
  * multi-file edits (OpenCode `patch`, Codex multi-entry `changes` map) have N entries.
  */
-{ kind: "edit"; edits: EditEntry[] } | { kind: "execute"; command?: string | null } | { kind: "shellInput"; shell_id?: string | null; input?: string | null } | { kind: "search"; query?: string | null; file_path?: string | null } | { kind: "glob"; pattern?: string | null; path?: string | null } | { kind: "fetch"; url?: string | null } | { kind: "webSearch"; query?: string | null } | { kind: "think"; description?: string | null; prompt?: string | null; subagent_type?: string | null; skill?: string | null; skill_args?: string | null; raw?: JsonValue | null } | { kind: "taskOutput"; task_id?: string | null; timeout?: number | null } | { kind: "move"; from?: string | null; to?: string | null } | { kind: "delete"; file_path?: string | null; file_paths?: string[] | null } | { kind: "planMode"; mode?: string | null; plan?: string | null; plan_file_path?: string | null; title?: string | null } | { kind: "toolSearch"; query?: string | null; max_results?: number | null } | { kind: "browser"; raw: JsonValue; action?: string | null; selector?: string | null; script?: string | null } | { kind: "sql"; query?: string | null; description?: string | null } | { kind: "unclassified"; provider_name: string; provider_kind_hint?: string | null; title?: string | null; arguments_preview?: string | null; signals_tried: string[] } | { kind: "other"; raw: JsonValue; intent?: string | null }
+{ kind: "edit"; edits: EditEntry[] } | { kind: "execute"; command?: string | null } | { kind: "shellInput"; shell_id?: string | null; input?: string | null } | { kind: "search"; query?: string | null; file_path?: string | null } | { kind: "glob"; pattern?: string | null; path?: string | null } | { kind: "fetch"; url?: string | null } | { kind: "webSearch"; query?: string | null } | { kind: "think"; description?: string | null; prompt?: string | null; subagent_type?: string | null; skill?: string | null; skill_args?: string | null; raw?: JsonValue | null } | { kind: "taskOutput"; task_id?: string | null; timeout?: number | null } | { kind: "move"; from?: string | null; to?: string | null } | { kind: "delete"; file_path?: string | null; file_paths?: string[] | null } | { kind: "planMode"; mode?: string | null; plan?: string | null; plan_file_path?: string | null; title?: string | null } | { kind: "toolSearch"; query?: string | null; max_results?: number | null } | { kind: "browser"; raw: JsonValue; action?: string | null; selector?: string | null; script?: string | null } | { kind: "computer"; verb?: string | null; target_id?: string | null; epoch?: string | null; text?: string | null; key?: string | null; delta_x?: number | null; delta_y?: number | null; include_bounds?: boolean | null; include_screenshot?: boolean | null } | { kind: "sql"; query?: string | null; description?: string | null } | { kind: "unclassified"; provider_name: string; provider_kind_hint?: string | null; title?: string | null; arguments_preview?: string | null; signals_tried: string[] } | { kind: "other"; raw: JsonValue; intent?: string | null }
 
 /**
  * Tool reference for permission/question requests.
@@ -390,21 +390,33 @@ export type OperationDegradationReason = { code: OperationDegradationCode; detai
 
 export type OperationSourceLink = { kind: "transcript_linked"; entry_id: string } | { kind: "synthetic"; reason: string } | { kind: "degraded"; reason: OperationDegradationReason }
 
+export type ComputerOperationInputPayload = { verb?: string | null; target_id?: string | null; epoch?: string | null; text?: string | null; key?: string | null; delta_x?: number | null; delta_y?: number | null; include_bounds?: boolean | null; include_screenshot?: boolean | null }
+
+export type ComputerOperationOutputPayload = { epoch?: string | null; settled_ms?: number | null; app?: string | null; window?: string | null; focused_target_id?: string | null; busy?: boolean | null; changed_target_ids: string[]; element_count?: number | null; screenshot_ref?: string | null }
+
+export type ComputerOperationErrorPayload = { code: string; message: string; permission_kind?: ComputerPermissionKind | null; app?: string | null; window?: string | null; current_epoch?: string | null; reobserve?: boolean | null }
+
+export type ComputerOperationPayload = { input: ComputerOperationInputPayload; output?: ComputerOperationOutputPayload | null; error?: ComputerOperationErrorPayload | null }
+
+export type ComputerPermissionKind = "accessibility" | "screen_recording" | "app_window_scope"
+
+export type ComputerPermissionData = { id: string; session_id: string; permission_kind: ComputerPermissionKind; reason: string; app?: string | null; window?: string | null; tool?: ToolReference | null }
+
 export type OperationSnapshot = { id: string; session_id: string; tool_call_id: string; name: string; kind: ToolKind | null;
 /**
  * Provider-layer provenance status. Use `operation_state` for canonical state decisions.
  */
-provider_status: ToolCallStatus; title: string | null; arguments: ToolArguments; progressive_arguments: ToolArguments | null; result: JsonValue | null; command: string | null; normalized_todos: TodoItem[] | null; parent_tool_call_id: string | null; parent_operation_id: string | null; child_tool_call_ids: string[]; child_operation_ids: string[]; operation_provenance_key?: string | null; operation_state: OperationState; locations?: ToolCallLocation[] | null; skill_meta?: SkillMeta | null; normalized_questions?: QuestionItem[] | null; question_answer?: QuestionAnswer | null; awaiting_plan_approval: boolean; plan_approval_request_id?: number | null; started_at_ms?: number | null; completed_at_ms?: number | null; source_link: OperationSourceLink; degradation_reason?: OperationDegradationReason | null }
+provider_status: ToolCallStatus; title: string | null; arguments: ToolArguments; progressive_arguments: ToolArguments | null; result: JsonValue | null; computer_payload?: ComputerOperationPayload | null; command: string | null; normalized_todos: TodoItem[] | null; parent_tool_call_id: string | null; parent_operation_id: string | null; child_tool_call_ids: string[]; child_operation_ids: string[]; operation_provenance_key?: string | null; operation_state: OperationState; locations?: ToolCallLocation[] | null; skill_meta?: SkillMeta | null; normalized_questions?: QuestionItem[] | null; question_answer?: QuestionAnswer | null; awaiting_plan_approval: boolean; plan_approval_request_id?: number | null; started_at_ms?: number | null; completed_at_ms?: number | null; source_link: OperationSourceLink; degradation_reason?: OperationDegradationReason | null }
 
-export type InteractionKind = "Permission" | "Question" | "PlanApproval"
+export type InteractionKind = "Permission" | "Question" | "PlanApproval" | "ComputerPermission"
 
 export type InteractionState = "Pending" | "Approved" | "Rejected" | "Answered" | "Unresolved"
 
 export type PlanApprovalSource = "CreatePlan" | "ExitPlanMode"
 
-export type InteractionPayload = { Permission: PermissionData } | { Question: QuestionData } | { PlanApproval: { source: PlanApprovalSource } }
+export type InteractionPayload = { Permission: PermissionData } | { Question: QuestionData } | { PlanApproval: { source: PlanApprovalSource } } | { ComputerPermission: ComputerPermissionData }
 
-export type InteractionResponse = { kind: "permission"; accepted: boolean; option_id?: string | null; reply?: string | null } | { kind: "question"; answers: JsonValue } | { kind: "plan_approval"; approved: boolean }
+export type InteractionResponse = { kind: "permission"; accepted: boolean; option_id?: string | null; reply?: string | null } | { kind: "question"; answers: JsonValue } | { kind: "plan_approval"; approved: boolean } | { kind: "computer_permission"; accepted: boolean }
 
 export type InteractionSnapshot = { id: string; session_id: string; kind: InteractionKind; state: InteractionState; json_rpc_request_id: number | null; reply_handler: InteractionReplyHandler | null; tool_reference: ToolReference | null; responded_at_event_seq: number | null; response: InteractionResponse | null; payload: InteractionPayload; canonical_operation_id?: string | null }
 
