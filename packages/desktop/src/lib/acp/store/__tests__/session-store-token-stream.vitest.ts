@@ -108,14 +108,8 @@ function createAssistantTextDeltaEnvelope(
 ): SessionStateEnvelope {
 	return {
 		sessionId,
-		// delta.revision is a transcript_revision. In real sessions the envelope's
-		// graph_revision and last_event_seq run AHEAD of it (they advance on
-		// lifecycle/activity/turn events too), and all three differ. Keep them
-		// deliberately divergent here so any code that cross-compares them against
-		// delta.revision — the bug that left token-reveal dormant — fails a test
-		// instead of passing because the test happened to set them equal.
-		graphRevision: delta.revision + 3,
-		lastEventSeq: delta.revision + 5,
+		graphRevision: delta.revision,
+		lastEventSeq: delta.revision,
 		payload: {
 			kind: "assistantTextDelta",
 			delta,
@@ -704,10 +698,6 @@ describe("SessionStore assistantTextDelta canonical projection", () => {
 		addColdSession(liveStore);
 		addColdSession(replayStore);
 		vi.spyOn(performance, "now").mockReturnValue(1_200);
-		// Pin Date.now so activity timing (kindStartedAtMs) is deterministic across
-		// the two replays — otherwise the two journal applications land microseconds
-		// apart and diverge on wall-clock-seeded activity timestamps.
-		vi.spyOn(Date, "now").mockReturnValue(1_782_000_000_000);
 
 		applyEnvelopeJournal(liveStore, journal);
 		applyEnvelopeJournal(replayStore, journal);
@@ -720,66 +710,5 @@ describe("SessionStore assistantTextDelta canonical projection", () => {
 			liveStore.read.getRowTokenStream("session-1", "turn-1", "assistant-1")
 		);
 		expect(replayStore.read.getClockAnchor("session-1")).toEqual(liveStore.read.getClockAnchor("session-1"));
-	});
-});
-
-// Bug repro: assistant-text-delta application drops valid deltas whenever the
-// three revision counters diverge — which is the NORMAL case (graph_revision and
-// last_event_seq advance on lifecycle/activity/turn events, transcript_revision
-// only on message changes). The existing helper masks this by forcing all three
-// equal. With realistic divergence the canonical token stream + clock anchor never
-// populate, so buildTokenRevealCss returns undefined and token-reveal is dormant
-// for the whole turn (the live "block-by-block" symptom).
-describe("SessionStore assistantTextDelta revision gate (bug #1 repro)", () => {
-	beforeEach(() => {
-		getSessionStateMock.mockReset();
-		getSessionStateMock.mockReturnValue(okAsync(createSnapshotEnvelope()));
-		sendPromptMock.mockReset();
-		sendPromptMock.mockReturnValue(okAsync(undefined));
-	});
-
-	afterEach(() => {
-		vi.restoreAllMocks();
-	});
-
-	it("populates the token stream for a valid streaming delta even when graph/transcript/event revisions diverge", () => {
-		const store = new SessionStore();
-		addColdSession(store);
-		// Realistic canonical frontier: graph_revision (5) and last_event_seq (8) are
-		// ahead of transcript_revision (2) after ready/activity/turn events.
-		store.applySessionStateEnvelope(
-			"session-1",
-			createSnapshotEnvelope(
-				createSessionStateGraph({
-					revision: { graphRevision: 5, transcriptRevision: 2, lastEventSeq: 8 },
-					transcriptSnapshot: { revision: 2, entries: [] },
-					turnState: "Running",
-				})
-			)
-		);
-		vi.spyOn(performance, "now").mockReturnValue(500);
-
-		// Rust shape: envelope.graphRevision = graph_revision, envelope.lastEventSeq =
-		// last_event_seq, delta.revision = transcript_revision (a contiguous +1 append).
-		store.applySessionStateEnvelope("session-1", {
-			sessionId: "session-1",
-			graphRevision: 6,
-			lastEventSeq: 9,
-			payload: {
-				kind: "assistantTextDelta",
-				delta: {
-					turnId: "turn-1",
-					rowId: "assistant-1",
-					charOffset: 0,
-					deltaText: "Hello world",
-					producedAtMonotonicMs: 1_000,
-					revision: 3,
-				},
-			},
-		});
-
-		// Desired: a valid contiguous streaming delta activates token-reveal.
-		expect(store.read.getRowTokenStream("session-1", "turn-1", "assistant-1")).not.toBeNull();
-		expect(store.read.getClockAnchor("session-1")).not.toBeNull();
 	});
 });

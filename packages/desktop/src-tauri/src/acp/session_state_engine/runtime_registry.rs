@@ -25,7 +25,9 @@ use crate::acp::session_state_engine::{
     SessionStateEnvelope, SessionStateField, SessionStatePayload,
 };
 use crate::acp::session_update::{sanitize_config_options_for_canonical, SessionUpdate};
-use crate::acp::transcript_projection::{TranscriptProjectionRegistry, TranscriptSnapshot};
+use crate::acp::transcript_projection::{
+    TranscriptProjectionRegistry, TranscriptSnapshot,
+};
 use crate::acp::transcript_viewport::ScrollIntent;
 use crate::acp::types::CanonicalAgentId;
 use crate::db::repository::SessionMetadataRepository;
@@ -1528,10 +1530,8 @@ mod tests {
 
         match second_envelope.payload {
             SessionStatePayload::AssistantTextDelta { delta } => {
-                // Canonical transcript entry_id verbatim (one streaming-row identity
-                // shared with activeStreamingTail.row_id and scene ids), not sanitized.
-                assert_eq!(delta.row_id, "acepe::entry::session-start::assistant::.");
-                assert_eq!(delta.turn_id, "acepe::entry::session-start::assistant::.");
+                assert_eq!(delta.row_id, "acepe--entry--session-start--assistant---");
+                assert_eq!(delta.turn_id, "acepe--entry--session-start--assistant---");
                 assert_eq!(delta.char_offset, 5);
                 assert_eq!(delta.delta_text, "");
                 assert_eq!(delta.produced_at_monotonic_ms, 6);

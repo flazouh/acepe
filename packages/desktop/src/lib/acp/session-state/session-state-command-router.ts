@@ -139,6 +139,13 @@ function envelopeFrontierMatchesRevision(
 	);
 }
 
+function envelopeFrontierMatchesAssistantTextDelta(
+	envelope: Pick<SessionStateEnvelope, "graphRevision" | "lastEventSeq">,
+	delta: AssistantTextDeltaPayload
+): boolean {
+	return envelope.graphRevision === delta.revision && envelope.lastEventSeq === delta.revision;
+}
+
 function commandFromDeltaResolution(
 	resolution: SessionStateDeltaResolution,
 	revision: SessionGraphRevision
@@ -485,13 +492,15 @@ export function routeSessionStateEnvelope(
 			return commands;
 		}
 		case "assistantTextDelta":
-			// Pass through to the reducer, which is the ordering authority for this
-			// delta type: per-row `revision` (stale-drop) + `charOffset` append
-			// contiguity. Unlike graph/transcript deltas, assistant-text-deltas carry
-			// no `fromRevision` and do not advance the transcript frontier, so the
-			// envelope's graph_revision / transcript_revision / last_event_seq are
-			// diagnostics only — never gate on them (doing so dropped every valid
-			// streaming delta and left token-reveal dormant).
+			if (!envelopeFrontierMatchesAssistantTextDelta(envelope, envelope.payload.delta)) {
+				return [
+					{
+						kind: "refreshSnapshot",
+						fromRevision: envelope.payload.delta.revision,
+						toRevision: envelope.graphRevision,
+					},
+				];
+			}
 			return [
 				{
 					kind: "applyAssistantTextDelta",
