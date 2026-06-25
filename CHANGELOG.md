@@ -7,6 +7,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2026.6.25] - 2026-06-25
+
+### Added
+- Computer-use runtime with macOS provider wiring, permission prompts, and agent-panel tool rendering
+- Provider account usage widget in the top bar with simplified usage panel and refresh-on-open behavior
+- New-thread setup bar with fused project, agent, model, and reasoning controls before the first send
+- Per-session config-option persistence, including Claude reasoning effort in the composer
+- Unified agent-agnostic auto-update for managed agent CLIs
+- Rust-pushed transcript viewport with scroll-anchor correction and buffer delta protocol
+- Voice recording controls in the fused composer toolbar with live green waveform meter and elapsed timer
+- Auto-approve permissions control in the composer toolbar
+- Slash-command skills can open full skill content in the workspace panel
+- WebView devtools enabled on the main desktop window
+
+### Changed
+- Composer chrome and trailing controls refactored around fused button groups and shared `@acepe/ui` selectors
+- Empty-state composer matches pre-session agent panel layout with tighter sizing and branch picker placement
+- Agent panel session controller now owns identity, status, and error derivations previously spread across the view
+- Website root now uses the Warp-style landing page; legacy marketing moved to `/old`
+- Segmented progress bars replace the old voice-download progress component for shared meter styling
+
+### Fixed
+- Claude managed CLI auto-update installs the real native binary instead of the npm shim
+- Agent panel no longer shows “Planning next moves” while assistant output is already streaming
+- Session creation now persists the selected model and mode on pending send attempts
+- Codex auto-update derives the run command from the release asset name
+- Historical session open, reconnect, and transcript frontier validation hardened across session-state envelopes
+- Reverted experimental streaming token-reveal patches that regressed live assistant text rendering
+
 ## [2026.5.17] - 2026-05-17
 
 ### Added
