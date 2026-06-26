@@ -3,6 +3,8 @@
 	import type { Snippet } from "svelte";
 	import { WarningCircle } from "phosphor-svelte";
 
+	import { LoadingIcon } from "../icons/index.js";
+
 	interface Props {
 		visible: boolean;
 		title: string;
@@ -63,9 +65,7 @@
 				{:else if tone === "error"}
 					<WarningCircle size={13} weight="fill" class="shrink-0 text-destructive" />
 				{:else}
-					<div
-						class="size-[13px] rounded-full border-2 border-muted-foreground/30 border-t-foreground/70 animate-spin shrink-0"
-					></div>
+					<LoadingIcon class="shrink-0 text-muted-foreground" size={13} aria-label="Loading" />
 				{/if}
 
 				<span class="font-medium text-foreground shrink-0">{title}</span>

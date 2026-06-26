@@ -6,6 +6,7 @@
  */
 
 import {
+	AgentInputMicButton,
 	CloseAction,
 	EmbeddedPanelHeader,
 	FilePathBadge,
@@ -15,6 +16,7 @@ import {
 	HeaderTitleCell,
 	MarkdownDisplay,
 	ProjectLetterBadge,
+	getMicButtonVisualState,
 } from "@acepe/ui";
 import { GitPanelLayout, type GitLogEntryFile as UILogEntryFile } from "@acepe/ui/git-panel";
 import { listen } from "@tauri-apps/api/event";
@@ -27,7 +29,8 @@ import { onMount, untrack } from "svelte";
 import { toast } from "svelte-sonner";
 import type { CommitDiff } from "$lib/acp/types/github-integration.js";
 import type { WorktreeInfo } from "$lib/acp/types/worktree-info.js";
-import MicButton from "../agent-input/components/mic-button.svelte";
+import { handleVoiceMicKeyDown } from "../agent-input/logic/voice-mic-keyboard.js";
+import { resolveVoiceMicTooltip } from "../agent-input/logic/voice-mic-labels.js";
 import { normalizeVoiceInputText } from "../agent-input/logic/voice-input-text.js";
 import {
 	canCancelVoiceInteraction,
@@ -210,6 +213,15 @@ const commitMicDisabled = $derived.by(() => {
 		!canCancelVoiceInteraction(voiceState.phase)
 	);
 });
+
+const voiceMicTooltipLabels = {
+	downloadingModel: "Downloading speech model…",
+	loadingModel: "Loading model...",
+	checkingPermission: "Checking...",
+	transcribing: "Transcribing…",
+	stopRecording: "Stop recording",
+	startRecording: "Start voice recording",
+} as const;
 
 onMount(() => {
 	if (!voiceEnabled || !voiceSessionId) {
@@ -845,7 +857,34 @@ async function handleOpenPr(prNumber: number) {
 
 	{#snippet commitMicButton()}
 		{#if voiceState}
-			<MicButton voiceState={voiceState} disabled={commitMicDisabled} />
+			{@const currentVoiceState = voiceState}
+			{@const micTitle = resolveVoiceMicTooltip(currentVoiceState.phase, voiceMicTooltipLabels)}
+			<AgentInputMicButton
+				visualState={getMicButtonVisualState(currentVoiceState.phase)}
+				downloadPercent={currentVoiceState.downloadPercent}
+				disabled={commitMicDisabled}
+				title={micTitle}
+				ariaLabel={micTitle}
+				onpointerdown={(event) => {
+					if (commitMicDisabled) {
+						return;
+					}
+					currentVoiceState.onMicPointerDown(event);
+				}}
+				onpointerup={() => {
+					if (commitMicDisabled) {
+						return;
+					}
+					currentVoiceState.onMicPointerUp();
+				}}
+				onpointercancel={() => currentVoiceState.onMicPointerCancel()}
+				onkeydown={(event) => {
+					if (commitMicDisabled) {
+						return;
+					}
+					handleVoiceMicKeyDown(event, currentVoiceState);
+				}}
+			/>
 		{/if}
 	{/snippet}
 

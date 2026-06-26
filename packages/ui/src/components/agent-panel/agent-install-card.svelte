@@ -2,6 +2,8 @@
 	import ChevronDown from "@lucide/svelte/icons/chevron-down";
 	import type { Snippet } from "svelte";
 
+	import { LoadingIcon } from "../icons/index.js";
+
 	const SEGMENT_COUNT = 20;
 	const segmentIndexes = Array.from({ length: SEGMENT_COUNT }, (_, index) => index);
 
@@ -57,9 +59,7 @@
 			{#if leading}
 				{@render leading()}
 			{:else}
-				<div
-					class="size-[13px] rounded-full border-2 border-muted-foreground/30 border-t-foreground/70 animate-spin shrink-0"
-				></div>
+				<LoadingIcon class="shrink-0 text-muted-foreground" size={13} aria-label="Loading" />
 			{/if}
 
 			<span class="font-medium text-foreground shrink-0">{title}</span>

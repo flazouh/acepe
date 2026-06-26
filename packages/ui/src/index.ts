@@ -56,6 +56,16 @@ export type {
 } from "./components/agent-panel/index.js";
 // Animate number
 export { default as AnimateNumber } from "./components/animate-number/animate-number.svelte";
+export {
+	Table,
+	TableBody,
+	TableCaption,
+	TableCell,
+	TableFooter,
+	TableHead,
+	TableHeader,
+	TableRow,
+} from "./components/table/index.js";
 // Agent panel components
 export {
 	AgentInputArtefactBadge,
@@ -141,6 +151,7 @@ export {
 export {
 	getReviewWorkspaceDefaultIndex,
 	resolveReviewWorkspaceSelectedIndex,
+	getMicButtonVisualState,
 } from "./components/agent-panel/index.js";
 export type {
 	PrChecksItem,

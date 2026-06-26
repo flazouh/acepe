@@ -43,6 +43,7 @@
 			{iconBasePath}
 			interactive={false}
 			size="sm"
+			variant="plain"
 			class={fileChipClass}
 		/>
 	{:else if tool.subtitle}

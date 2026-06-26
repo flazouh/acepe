@@ -67,7 +67,7 @@
 						<span class="shrink-0 text-sm font-medium text-muted-foreground">{verb}</span>
 						{#if filePath && showFilePath}
 							<div class="min-w-0 flex-1 cursor-pointer">
-								<FilePathBadge {filePath} interactive={false} />
+								<FilePathBadge {filePath} interactive={false} variant="plain" />
 							</div>
 						{/if}
 					</div>

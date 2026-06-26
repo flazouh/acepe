@@ -44,6 +44,7 @@
 					fileName={fileName}
 					{iconBasePath}
 					interactive={false}
+					variant="plain"
 					class="font-normal text-muted-foreground/60"
 				/>
 			{:else if subtitle}

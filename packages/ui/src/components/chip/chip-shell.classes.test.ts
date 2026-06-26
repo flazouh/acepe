@@ -36,6 +36,15 @@ describe("buildChipShellClassName", () => {
 		expect(className).toContain("text-[11px]");
 	});
 
+	it("supports plain header chips without badge chrome", () => {
+		const className = buildChipShellClassName({ density: "plain", interactive: true });
+
+		expect(className).toContain("bg-transparent");
+		expect(className).toContain("border-0");
+		expect(className).not.toContain("bg-accent");
+		expect(className).toContain("hover:text-foreground");
+	});
+
 	it("supports selected chips", () => {
 		const className = buildChipShellClassName({ density: "badge", selected: true });
 

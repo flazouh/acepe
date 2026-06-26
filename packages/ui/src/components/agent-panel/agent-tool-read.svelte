@@ -126,6 +126,7 @@
 						linesRemoved={deletions}
 						{iconBasePath}
 						{interactive}
+						variant="plain"
 						{onSelect}
 					/>
 				{/if}

@@ -40,7 +40,12 @@ function handleColorChange(value: string): void {
 			label={"Loading indicator"}
 			description="Choose the dot animation used across Acepe."
 		>
-			<Selector align="start" variant="outline" class="w-[220px]">
+			<Selector
+				align="start"
+				variant="outline"
+				class="w-[240px]"
+				contentClass="max-h-[min(24rem,70vh)] overflow-y-auto"
+			>
 				{#snippet renderButton()}
 					<span class="flex items-center gap-1.5 min-w-0 flex-1">
 						<LoadingIcon

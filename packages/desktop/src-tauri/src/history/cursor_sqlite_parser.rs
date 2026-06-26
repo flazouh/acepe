@@ -279,6 +279,100 @@ fn looks_like_plain_text_message(text: &str) -> bool {
     has_sentence_chars && !contains_path && !contains_code_markers
 }
 
+fn normalize_cursor_sdk_tool_name(name: &str) -> String {
+    let trimmed = name.trim();
+    let normalized = match trimmed {
+        "read" => "Read",
+        "write" => "Write",
+        "delete" => "Delete",
+        "glob" => "Glob",
+        "grep" => "Grep",
+        "shell" => "Shell",
+        "edit" => "Edit",
+        "ls" => "Ls",
+        "readLints" => "ReadLints",
+        "semSearch" => "SemanticSearch",
+        "generateImage" => "GenerateImage",
+        "createPlan" => "CreatePlan",
+        "updateTodos" => "UpdateTodos",
+        "task" => "Task",
+        _ => trimmed,
+    };
+    normalized.to_string()
+}
+
+fn parse_cursor_tool_use_block(item: &JsonValue) -> Option<ContentBlock> {
+    let message = item.get("message").unwrap_or(item);
+    let id = item
+        .get("id")
+        .or_else(|| item.get("toolCallId"))
+        .or_else(|| message.get("id"))
+        .or_else(|| message.get("toolCallId"))
+        .and_then(|v| v.as_str())
+        .map(str::trim)
+        .filter(|value| !value.is_empty())?
+        .to_string();
+    let name = item
+        .get("name")
+        .or_else(|| item.get("toolName"))
+        .or_else(|| message.get("name"))
+        .or_else(|| message.get("toolName"))
+        .or_else(|| message.get("type"))
+        .and_then(|v| v.as_str())
+        .map(normalize_cursor_sdk_tool_name)
+        .filter(|value| !value.is_empty())?;
+    let input = item
+        .get("input")
+        .or_else(|| item.get("arguments"))
+        .or_else(|| item.get("args"))
+        .or_else(|| message.get("input"))
+        .or_else(|| message.get("arguments"))
+        .or_else(|| message.get("args"))
+        .cloned()
+        .unwrap_or(serde_json::json!({}));
+
+    Some(ContentBlock::ToolUse { id, name, input })
+}
+
+fn extract_cursor_tool_result_text(value: &JsonValue) -> Option<String> {
+    if let Some(text) = value.as_str() {
+        return Some(text.to_string());
+    }
+
+    if let Some(content) = value.get("content").and_then(|content| content.as_str()) {
+        return Some(content.to_string());
+    }
+
+    if let Some(result) = value.get("result") {
+        return extract_cursor_tool_result_text(result);
+    }
+
+    if let Some(result_value) = value.get("value") {
+        return extract_cursor_tool_result_text(result_value);
+    }
+
+    if let Some(error) = value.get("error") {
+        return extract_cursor_tool_result_text(error)
+            .or_else(|| serde_json::to_string(error).ok());
+    }
+
+    None
+}
+
+fn parse_cursor_inline_tool_result_block(
+    item: &JsonValue,
+    tool_use_id: &str,
+) -> Option<ContentBlock> {
+    let message = item.get("message").unwrap_or(item);
+    let result = message.get("result").or_else(|| item.get("result"))?;
+    let content = extract_cursor_tool_result_text(result)?;
+
+    Some(ContentBlock::ToolResult {
+        tool_use_id: tool_use_id.to_string(),
+        content,
+    })
+}
+
 fn build_text_message(
     role: &str,
     text: String,
@@ -596,29 +690,18 @@ fn parse_cursor_content(content: &JsonValue) -> Result<Vec<ContentBlock>> {
                             }
                         }
                     }
-                    "tool_use" | "tool-use" | "tool-call" => {
-                        // Tool use block (Cursor uses "tool-call" type with "args" field)
-                        let id = item
-                            .get("id")
-                            .or_else(|| item.get("toolCallId"))
-                            .and_then(|v| v.as_str())
-                            .unwrap_or("")
-                            .to_string();
-                        let name = item
-                            .get("name")
-                            .or_else(|| item.get("toolName"))
-                            .and_then(|v| v.as_str())
-                            .unwrap_or("")
-                            .to_string();
-                        let input = item
-                            .get("input")
-                            .or_else(|| item.get("arguments"))
-                            .or_else(|| item.get("args"))
-                            .cloned()
-                            .unwrap_or(serde_json::json!({}));
-
-                        if !id.is_empty() && !name.is_empty() {
-                            blocks.push(ContentBlock::ToolUse { id, name, input });
+                    "tool_use" | "tool-use" | "tool-call" | "toolCall" => {
+                        if let Some(block) = parse_cursor_tool_use_block(item) {
+                            let tool_use_id = match &block {
+                                ContentBlock::ToolUse { id, .. } => id.clone(),
+                                _ => String::new(),
+                            };
+                            blocks.push(block);
+                            if let Some(result_block) =
+                                parse_cursor_inline_tool_result_block(item, &tool_use_id)
+                            {
+                                blocks.push(result_block);
+                            }
                         }
                     }
                     "tool_result" | "tool-result" => {
@@ -1162,6 +1245,46 @@ mod tests {
                 assert_eq!(content, "package main");
             }
             other => panic!("expected tool result block, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn test_parse_cursor_content_recovers_sdk_tool_call_read_args() {
+        let content = json!([
+            {
+                "type": "toolCall",
+                "toolCallId": "tool_read_123",
+                "message": {
+                    "type": "read",
+                    "args": {
+                        "path": "/repo/src/main.ts"
+                    },
+                    "result": {
+                        "status": "success",
+                        "value": {
+                            "content": "export const value = 1;",
+                            "totalLines": 1,
+                            "fileSize": 23
+                        }
+                    }
+                }
+            }
+        ]);
+
+        let blocks = parse_cursor_content(&content).expect("content should parse");
+
+        match blocks.as_slice() {
+            [ContentBlock::ToolUse { id, name, input }, ContentBlock::ToolResult {
+                tool_use_id,
+                content,
+            }] => {
+                assert_eq!(id, "tool_read_123");
+                assert_eq!(name, "Read");
+                assert_eq!(input["path"], "/repo/src/main.ts");
+                assert_eq!(tool_use_id, "tool_read_123");
+                assert_eq!(content, "export const value = 1;");
+            }
+            other => panic!("expected sdk read tool use and result blocks, got {other:?}"),
         }
     }
 

@@ -19,6 +19,7 @@
   import SqlStudioMessageBar from "./sql-studio-message-bar.svelte";
   import SqlStudioDataGrid from "./sql-studio-data-grid.svelte";
   import SqlStudioStatusBar from "./sql-studio-status-bar.svelte";
+  import { LoadingIcon } from "../icons/index.js";
 
   interface Props {
     // Sidebar
@@ -195,9 +196,7 @@
 
       {#if isLoading}
         <div class="flex-1 flex items-center justify-center gap-2">
-          <span
-            class="inline-block h-3 w-3 animate-spin rounded-full border-2 border-muted-foreground border-t-transparent"
-          ></span>
+          <LoadingIcon class="shrink-0 text-muted-foreground" size={12} aria-label="Loading rows" />
           <span class="text-[0.8125rem] text-muted-foreground"
             >Loading rows...</span
           >

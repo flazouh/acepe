@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2026.6.26] - 2026-06-23
+
+### Added
+- Full Dot Matrix loading indicator catalog (70 registry loaders plus Arc Spin) in Appearance settings, with legacy Prism Bloom id migration
+- Shared `@acepe/ui` dotmatrix runtime for square, circular, triangle, and hex loaders
+
+### Changed
+- Default loading indicator is now Arc Spin instead of Prism Bloom
+- Mic and git-panel spinners use the shared `LoadingIcon`; removed the duplicate desktop mic-button implementation
+- File path badges in tool headers use a plain variant without chip backgrounds
+
+### Fixed
+- Cursor SQLite history parsing and session conversion for restored tool calls
+- Voice composer meter levels and loading spinner consistency across the fused toolbar
+
 ## [2026.6.25] - 2026-06-25
 
 ### Added
@@ -639,7 +654,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Intel build support from release process
 - Intel download button from website
 
-[Unreleased]: https://github.com/flazouh/acepe/compare/v2026.4.14...HEAD
+[Unreleased]: https://github.com/flazouh/acepe/compare/v2026.6.26...HEAD
+[2026.6.26]: https://github.com/flazouh/acepe/compare/v2026.6.25...v2026.6.26
+[2026.6.25]: https://github.com/flazouh/acepe/releases/tag/v2026.6.25
 [2026.4.14]: https://github.com/flazouh/acepe/releases/tag/v2026.4.14
 [2026.4.4]: https://github.com/flazouh/acepe/releases/tag/v2026.4.4
 [2026.4.3]: https://github.com/flazouh/acepe/releases/tag/v2026.4.3

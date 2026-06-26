@@ -1,7 +1,6 @@
 <!--
   AgentInputMicButton - Mic toggle with recording/idle visual states.
 
-  Extracted from packages/desktop/src/lib/acp/components/agent-input/components/mic-button.svelte.
   State machine stays in desktop; this component accepts the resolved visual state as a prop.
 
   Visual states:
@@ -13,6 +12,7 @@
 <script lang="ts">
 	import { Microphone } from "phosphor-svelte";
 
+	import { LoadingIcon } from "../icons/index.js";
 	import { SegmentedProgressBar } from "../segmented-progress-bar/index.js";
 	import { FUSED_CONTROL_PRIMARY_BUTTON_CLASS } from "../panel-header/project-card-action-button-class.js";
 	import { cn } from "../../lib/utils.js";
@@ -89,7 +89,7 @@
 			variant="downloadCompact"
 		/>
 	{:else if visualState === "spinner"}
-		<div class="h-4 w-4 animate-spin rounded-full border-2 border-muted-foreground border-t-transparent"></div>
+		<LoadingIcon class="shrink-0 text-muted-foreground" size={16} aria-label={title} />
 	{:else if visualState === "stop"}
 		<div class="mic-stop-container flex items-center justify-center" class:embedded={embeddedInGroup}>
 			<div class="mic-stop-circle" class:embedded={embeddedInGroup} style:background-color={STOP_RED}>

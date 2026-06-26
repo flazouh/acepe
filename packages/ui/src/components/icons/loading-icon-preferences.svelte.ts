@@ -1,52 +1,49 @@
 import { createSubscriber } from "svelte/reactivity";
+import {
+	DOTMATRIX_REGISTRY_MANIFEST,
+	type DotmatrixRegistryId,
+} from "./dotmatrix/dotmatrix-registry.js";
 
-export const DOT_MATRIX_LOADER_OPTIONS = [
-	{
-		id: "prism-bloom",
-		label: "Prism Bloom",
-	},
-	{
-		id: "honey-gate",
-		label: "Honey Gate",
-	},
-	{
-		id: "vertex-relay",
-		label: "Vertex Relay",
-	},
-	{
-		id: "spiral-lattice",
-		label: "Spiral Lattice",
-	},
-	{
-		id: "chevron-march",
-		label: "Chevron March",
-	},
-	{
-		id: "hourglass-flip",
-		label: "Hourglass Flip",
-	},
-	{
-		id: "glyph-flip",
-		label: "Glyph Flip",
-	},
-	{
-		id: "petal-shimmer",
-		label: "Petal Shimmer",
-	},
-	{
-		id: "liquid-vortex",
-		label: "Liquid Vortex",
-	},
-	{
+export type DotMatrixLoaderId = DotmatrixRegistryId | "arc-spin";
+
+export type DotMatrixLoaderOption = {
+	readonly id: DotMatrixLoaderId;
+	readonly label: string;
+};
+
+/**
+ * Maps pre-registry Acepe loading indicator ids to canonical dotmatrix ids.
+ */
+export const LEGACY_LOADER_ID_MAP: Readonly<Record<string, DotMatrixLoaderId>> = {
+	"prism-bloom": "dotm-hex-2",
+	"honey-gate": "dotm-hex-3",
+	"vertex-relay": "dotm-hex-4",
+	"spiral-lattice": "dotm-hex-5",
+	"chevron-march": "dotm-hex-6",
+	"hourglass-flip": "dotm-hex-7",
+	"glyph-flip": "dotm-hex-8",
+	"petal-shimmer": "dotm-hex-9",
+	"liquid-vortex": "dotm-hex-10",
+};
+
+function buildDotMatrixLoaderOptions(): readonly DotMatrixLoaderOption[] {
+	const options: DotMatrixLoaderOption[] = [];
+	for (const entry of DOTMATRIX_REGISTRY_MANIFEST) {
+		options.push({
+			id: entry.id,
+			label: entry.label,
+		});
+	}
+	options.push({
 		id: "arc-spin",
 		label: "Arc Spin",
-	},
-] as const;
+	});
+	return options;
+}
 
-export type DotMatrixLoaderId =
-	(typeof DOT_MATRIX_LOADER_OPTIONS)[number]["id"];
+export const DOT_MATRIX_LOADER_OPTIONS = buildDotMatrixLoaderOptions();
 
-export const DEFAULT_DOT_MATRIX_LOADER_ID: DotMatrixLoaderId = "prism-bloom";
+export const DEFAULT_DOT_MATRIX_LOADER_ID: DotMatrixLoaderId = "arc-spin";
 
 /**
  * Curated Tailwind 500-shade palette for the loading indicator color picker.
@@ -117,12 +114,22 @@ function notifyLoadingIconPreferenceSubscribers(): void {
 export function isDotMatrixLoaderId(
 	value: string | null | undefined,
 ): value is DotMatrixLoaderId {
-	return DOT_MATRIX_LOADER_OPTIONS.some((option) => option.id === value);
+	if (value === "arc-spin") {
+		return true;
+	}
+	return DOTMATRIX_REGISTRY_MANIFEST.some((entry) => entry.id === value);
 }
 
 export function normalizeDotMatrixLoaderId(
 	value: string | null | undefined,
 ): DotMatrixLoaderId {
+	if (value === null || value === undefined) {
+		return DEFAULT_DOT_MATRIX_LOADER_ID;
+	}
+	const legacyMatch = LEGACY_LOADER_ID_MAP[value];
+	if (legacyMatch !== undefined) {
+		return legacyMatch;
+	}
 	if (isDotMatrixLoaderId(value)) {
 		return value;
 	}

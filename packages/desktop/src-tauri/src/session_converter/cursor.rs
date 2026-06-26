@@ -387,6 +387,76 @@ mod tests {
     }
 
     #[test]
+    fn cursor_inline_assistant_tool_result_completes_restored_read_tool_call() {
+        let session = FullSession {
+            session_id: "cursor-inline-read-result".to_string(),
+            project_path: "/tmp/project".to_string(),
+            title: "Cursor Session".to_string(),
+            created_at: "2026-04-30T00:00:00+00:00".to_string(),
+            stats: SessionStats {
+                total_messages: 1,
+                user_messages: 0,
+                assistant_messages: 1,
+                tool_uses: 1,
+                tool_results: 1,
+                thinking_blocks: 0,
+                total_input_tokens: 0,
+                total_output_tokens: 0,
+            },
+            messages: vec![OrderedMessage {
+                uuid: "assistant-1".to_string(),
+                parent_uuid: None,
+                role: "assistant".to_string(),
+                provider_message_id: None,
+                timestamp: "2026-04-30T00:00:01+00:00".to_string(),
+                content_blocks: vec![
+                    ContentBlock::ToolUse {
+                        id: "tool_read_123".to_string(),
+                        name: "Read".to_string(),
+                        input: serde_json::json!({
+                            "path": "/repo/src/main.ts"
+                        }),
+                    },
+                    ContentBlock::ToolResult {
+                        tool_use_id: "tool_read_123".to_string(),
+                        content: "export const value = 1;".to_string(),
+                    },
+                ],
+                model: None,
+                usage: None,
+                error: None,
+                request_id: None,
+                is_meta: false,
+                source_tool_use_id: None,
+                tool_use_result: None,
+                source_tool_assistant_uuid: None,
+            }],
+        };
+
+        let snapshot = convert_cursor_full_session_to_thread_snapshot(&session);
+        let tool_call = snapshot
+            .entries
+            .iter()
+            .find_map(|entry| match entry {
+                StoredEntry::ToolCall { message, .. } => Some(message),
+                _ => None,
+            })
+            .expect("read tool call should be restored");
+
+        assert_eq!(tool_call.status, ToolCallStatus::Completed);
+        assert_eq!(
+            tool_call.result.as_ref(),
+            Some(&serde_json::json!("export const value = 1;"))
+        );
+        match &tool_call.arguments {
+            ToolArguments::Read { file_path, .. } => {
+                assert_eq!(file_path.as_deref(), Some("/repo/src/main.ts"));
+            }
+            other => panic!("expected read arguments, got {:?}", other),
+        }
+    }
+
+    #[test]
     fn streaming_overlay_matches_raw_cursor_ids_against_normalized_restore_entries() {
         let session_id = "cursor-streaming-overlay-normalized-id-test";
         let _ = clear_session_log(session_id);

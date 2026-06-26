@@ -2,10 +2,12 @@ import {
 	DEFAULT_DOT_MATRIX_LOADER_ID,
 	DEFAULT_LOADING_ICON_COLOR_ID,
 	DOT_MATRIX_LOADER_OPTIONS,
+	LEGACY_LOADER_ID_MAP,
 	LOADING_ICON_COLOR_OPTIONS,
 	isDotMatrixLoaderId,
 	isLoadingIconColorId,
 	loadingIconPreference,
+	normalizeDotMatrixLoaderId,
 	type DotMatrixLoaderId,
 	type LoadingIconColorId,
 } from "@acepe/ui/icons";
@@ -34,8 +36,8 @@ class LoadingIndicatorSettingsStore {
 			tauriClient.settings.get<string>(LOADING_INDICATOR_COLOR_KEY),
 		]);
 
-		if (variantResult.isOk() && isDotMatrixLoaderId(variantResult.value)) {
-			this.applyVariant(variantResult.value);
+		if (variantResult.isOk()) {
+			this.applyVariant(normalizeDotMatrixLoaderId(variantResult.value));
 		}
 		if (colorResult.isOk() && isLoadingIconColorId(colorResult.value)) {
 			this.applyColor(colorResult.value);
@@ -45,13 +47,14 @@ class LoadingIndicatorSettingsStore {
 	}
 
 	async setVariant(value: string): Promise<void> {
-		if (!isDotMatrixLoaderId(value)) {
+		if (!isDotMatrixLoaderId(value) && LEGACY_LOADER_ID_MAP[value] === undefined) {
 			return;
 		}
 
-		this.applyVariant(value);
+		const normalized = normalizeDotMatrixLoaderId(value);
+		this.applyVariant(normalized);
 
-		const result = await tauriClient.settings.set(LOADING_INDICATOR_VARIANT_KEY, value);
+		const result = await tauriClient.settings.set(LOADING_INDICATOR_VARIANT_KEY, normalized);
 		if (result.isErr()) {
 			toast.error(result.error.message);
 		}

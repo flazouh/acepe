@@ -1,12 +1,12 @@
 <script lang="ts">
-import { CircleNotch } from "phosphor-svelte";
 import { FolderSimple } from "phosphor-svelte";
 import {
 	Table,
 	TableBody,
 	TableCell,
 	TableRow,
-} from "@acepe/ui/table";
+	LoadingIcon,
+} from "@acepe/ui";
 import { cn } from "$lib/utils.js";
 
 import ActionsCell from "./cells/actions-cell.svelte";
@@ -54,7 +54,7 @@ function handleProjectRowKeydown(event: KeyboardEvent, project: ProjectWithSessi
 
 {#if loading}
 	<div class="flex h-full min-h-0 w-full items-center justify-center gap-2 text-muted-foreground">
-		<CircleNotch class="size-4 animate-spin" />
+		<LoadingIcon class="shrink-0" size={16} aria-label="Scanning for projects" />
 		<span class="text-xs">{"Scanning for projects..."}</span>
 	</div>
 {:else if projects.length === 0}

@@ -113,10 +113,12 @@ fn convert_full_session_impl(
 ) -> ProviderOwnedSessionSnapshot {
     let mut entries: Vec<StoredEntry> = Vec::new();
 
-    // First pass: collect tool results from user messages
+    // First pass: collect tool results. Most providers store these as user-side
+    // tool result messages, while Cursor SDK history can inline them beside the
+    // assistant tool call.
     let mut tool_results: HashMap<String, String> = HashMap::new();
     for msg in &session.messages {
-        if msg.is_meta || msg.role != "user" {
+        if msg.is_meta {
             continue;
         }
         for block in &msg.content_blocks {

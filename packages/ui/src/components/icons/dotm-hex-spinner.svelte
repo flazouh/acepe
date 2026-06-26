@@ -1,12 +1,16 @@
 <!--
-  Ported from @dotmatrix/dotm-hex-2..10
-  (https://dotmatrix.zzzzshawn.cloud/r/dotm-hex-2.json through dotm-hex-10.json).
+  Ported from @dotmatrix/dotm-hex-1..10
+  (https://dotmatrix.zzzzshawn.cloud/r/dotm-hex-1.json through dotm-hex-10.json).
+  Accepts registry ids (dotm-hex-2) and legacy Acepe ids (prism-bloom).
   The original React loaders compute a phase in JS. This Svelte port samples the same
   opacity formulas into SVG opacity animations, so the icon stays app-wide and lightweight.
 -->
 <script lang="ts">
 	import { cn } from "../../lib/utils";
-	import type { DotMatrixLoaderId } from "./loading-icon-preferences.svelte.js";
+	import { LEGACY_LOADER_ID_MAP } from "./loading-icon-preferences.svelte.js";
+	import type { DotmHexLoaderVariant } from "./dotmatrix/dotmatrix-loader-routing.js";
+
+	type HexSpinnerInput = DotmHexLoaderVariant | keyof typeof LEGACY_LOADER_ID_MAP;
 
 	interface Props {
 		class?: string;
@@ -18,7 +22,7 @@
 		color?: string;
 		animated?: boolean;
 		speed?: number;
-		variant?: DotMatrixLoaderId;
+		variant?: HexSpinnerInput;
 	}
 
 	interface HexPoint {
@@ -49,10 +53,41 @@
 		color = "#bf8700",
 		animated = true,
 		speed = undefined,
-		variant = "prism-bloom",
+		variant = "dotm-hex-2",
 	}: Props = $props();
 
+	function resolveHexVariant(input: HexSpinnerInput): DotmHexLoaderVariant {
+		const legacyMatch = LEGACY_LOADER_ID_MAP[input];
+		if (legacyMatch !== undefined && legacyMatch.startsWith("dotm-hex-")) {
+			return legacyMatch as DotmHexLoaderVariant;
+		}
+		return input as DotmHexLoaderVariant;
+	}
+
+	const resolvedVariant = $derived(resolveHexVariant(variant));
+
 	const ROW_COUNTS = [3, 4, 5, 4, 3] as const;
+	const HEX_ORBIT_BASE_OPACITY = 0.1;
+	const HEX_ORBIT_MID_OPACITY = 0.2;
+	const HEX_ORBIT_HIGH_OPACITY = 0.96;
+	const HEX_ORBIT_CENTER_OPACITY = 0.1;
+	const HEX_ORBIT_TRAIL_SPAN = 5;
+	const HEX_ORBIT_PERIMETER_PATH = [
+		"0,0",
+		"0,1",
+		"0,2",
+		"1,3",
+		"2,4",
+		"3,3",
+		"4,2",
+		"4,1",
+		"4,0",
+		"3,0",
+		"2,0",
+		"1,0",
+	] as const;
+	const HEX_ORBIT_PATH_LEN = HEX_ORBIT_PERIMETER_PATH.length;
+	const HEX_ORBIT_HALF_PATH = HEX_ORBIT_PATH_LEN / 2;
 	const HEX_ROW_PITCH_RATIO = Math.sqrt(3) / 2;
 	const SAMPLE_COUNT = 24;
 	const TWO_PI = Math.PI * 2;
@@ -173,8 +208,8 @@
 	};
 
 	const isDecorative = $derived(role === undefined && ariaLabel === undefined);
-	const defaultSpeed = $derived(speed ?? speedForVariant(variant));
-	const cycleMs = $derived(cycleMsForVariant(variant) / (defaultSpeed > 0 ? defaultSpeed : 1));
+	const defaultSpeed = $derived(speed ?? speedForVariant(resolvedVariant));
+	const cycleMs = $derived(cycleMsForVariant(resolvedVariant) / (defaultSpeed > 0 ? defaultSpeed : 1));
 	const rootStyle = $derived(`width:${size}px;height:${size}px;color:${color};${styleAttr}`.trim());
 	const gap = $derived(Math.max(0.25, (size - dotSize * ROW_COUNTS[2]) / (ROW_COUNTS[2] - 1)));
 	const rowGap = $derived(Math.max(0.25, (dotSize + gap) * HEX_ROW_PITCH_RATIO - dotSize));
@@ -242,6 +277,43 @@
 		return Math.max(0, 1 - distance / width);
 	}
 
+	function smoothstep01(edge0: number, edge1: number, x: number): number {
+		if (edge1 <= edge0) {
+			return x >= edge1 ? 1 : 0;
+		}
+		const t = Math.max(0, Math.min(1, (x - edge0) / (edge1 - edge0)));
+		return t * t * (3 - 2 * t);
+	}
+
+	function glowAlongHexOrbitPath(head: number, pathIndex: number | null): number {
+		if (pathIndex === null) {
+			return HEX_ORBIT_BASE_OPACITY;
+		}
+		const distance = modF(head - pathIndex, HEX_ORBIT_PATH_LEN);
+		const glow = 1 - smoothstep01(0, HEX_ORBIT_TRAIL_SPAN, distance);
+		return HEX_ORBIT_BASE_OPACITY + glow * (HEX_ORBIT_HIGH_OPACITY - HEX_ORBIT_BASE_OPACITY);
+	}
+
+	function opacityForHexOrbitCell(row: number, col: number, phase: number): number {
+		const id = `${row},${col}`;
+		if (id === "2,2") {
+			return HEX_ORBIT_CENTER_OPACITY;
+		}
+		const pathIndex = HEX_ORBIT_PERIMETER_PATH.indexOf(id as (typeof HEX_ORBIT_PERIMETER_PATH)[number]);
+		const normalizedPathIndex = pathIndex === -1 ? null : pathIndex;
+		const headA = phase * HEX_ORBIT_PATH_LEN;
+		const headB = modF(headA + HEX_ORBIT_HALF_PATH, HEX_ORBIT_PATH_LEN);
+		const perimeterGlow = Math.max(
+			glowAlongHexOrbitPath(headA, normalizedPathIndex),
+			glowAlongHexOrbitPath(headB, normalizedPathIndex) * 0.74,
+		);
+		if (normalizedPathIndex !== null) {
+			return Math.min(HEX_ORBIT_HIGH_OPACITY, perimeterGlow);
+		}
+		const centerFalloff = col === 2 ? HEX_ORBIT_MID_OPACITY : 0.18;
+		return Math.max(HEX_ORBIT_BASE_OPACITY, centerFalloff);
+	}
+
 	function frameOpacity(frames: readonly HexFrame[], row: number, col: number, phase: number): number {
 		const frameIndex = Math.floor(phase * frames.length) % frames.length;
 		const frame = frames[frameIndex] ?? frames[0];
@@ -255,10 +327,14 @@
 		return 0.2;
 	}
 
-	function opacityForCell(row: number, col: number, phase: number, loaderVariant: DotMatrixLoaderId): number {
+	function opacityForCell(row: number, col: number, phase: number, loaderVariant: DotmHexLoaderVariant): number {
+		if (loaderVariant === "dotm-hex-1") {
+			return opacityForHexOrbitCell(row, col, phase);
+		}
+
 		const point = pointForCell(row, col);
 
-		if (loaderVariant === "prism-bloom") {
+		if (loaderVariant === "dotm-hex-2") {
 			if (point.radius < 0.01) {
 				return 0.44 + Math.sin(phase * TWO_PI) * 0.18;
 			}
@@ -274,7 +350,7 @@
 			return Math.min(0.98, 0.08 + spokeGlow * 0.78 + shellLift);
 		}
 
-		if (loaderVariant === "honey-gate") {
+		if (loaderVariant === "dotm-hex-3") {
 			const sweep = triangularWave(phase) * 3.9 - 1.95;
 			const diagA = point.x * 0.86 + point.y * 0.5;
 			const diagB = point.x * -0.86 + point.y * 0.5;
@@ -286,7 +362,7 @@
 			return Math.min(0.96, 0.08 + gateA * 0.7 + gateB * 0.7 + centerFlash * 0.42 + wake);
 		}
 
-		if (loaderVariant === "vertex-relay") {
+		if (loaderVariant === "dotm-hex-4") {
 			const id = `${row},${col}`;
 			const pathLen = VERTEX_PATH.length;
 			const head = phase * pathLen;
@@ -314,14 +390,14 @@
 			return Math.min(0.98, opacity + softFill);
 		}
 
-		if (loaderVariant === "spiral-lattice") {
+		if (loaderVariant === "dotm-hex-5") {
 			const spiral = phase + point.radius * 0.18 + point.angle / TWO_PI;
 			const counterSpiral = phase * 0.72 - point.radius * 0.16 - point.angle / TWO_PI;
 			const core = point.radius < 0.1 ? 0.54 + Math.sin(phase * Math.PI * 4) * 0.26 : 0;
 			return Math.min(0.96, 0.08 + wavePeak(spiral) * 0.7 + wavePeak(counterSpiral) * 0.231 + core);
 		}
 
-		if (loaderVariant === "chevron-march") {
+		if (loaderVariant === "dotm-hex-6") {
 			const count = ROW_COUNTS[row] ?? 1;
 			const x = col - (count - 1) / 2;
 			const y = row - 2;
@@ -338,15 +414,15 @@
 			return Math.min(0.98, 0.1 + primary * 0.78 + secondary * 0.38 + centerLift);
 		}
 
-		if (loaderVariant === "hourglass-flip") {
+		if (loaderVariant === "dotm-hex-7") {
 			return frameOpacity(HOURGLASS_FRAMES, row, col, phase);
 		}
 
-		if (loaderVariant === "glyph-flip") {
+		if (loaderVariant === "dotm-hex-8") {
 			return frameOpacity(GLYPH_FRAMES, row, col, phase);
 		}
 
-		if (loaderVariant === "petal-shimmer") {
+		if (loaderVariant === "dotm-hex-9") {
 			if (point.radius < 0.1) {
 				return 0.42 + Math.sin(phase * TWO_PI) * 0.2;
 			}
@@ -386,37 +462,39 @@
 
 	function sampledOpacityValues(row: number, col: number): string {
 		if (!animated) {
-			return opacityForCell(row, col, 0.12, variant).toFixed(3);
+			return opacityForCell(row, col, 0.12, resolvedVariant).toFixed(3);
 		}
 		const values: string[] = [];
 		for (let index = 0; index <= SAMPLE_COUNT; index += 1) {
 			const phase = index / SAMPLE_COUNT;
-			values.push(opacityForCell(row, col, phase, variant).toFixed(3));
+			values.push(opacityForCell(row, col, phase, resolvedVariant).toFixed(3));
 		}
 		return values.join(";");
 	}
 
-	function speedForVariant(loaderVariant: DotMatrixLoaderId): number {
-		if (loaderVariant === "honey-gate") return 1.45;
-		if (loaderVariant === "vertex-relay") return 1.5;
-		if (loaderVariant === "spiral-lattice") return 1.75;
-		if (loaderVariant === "chevron-march") return 1.55;
-		if (loaderVariant === "hourglass-flip") return 1.9;
-		if (loaderVariant === "glyph-flip") return 1.35;
-		if (loaderVariant === "petal-shimmer") return 1.8;
-		if (loaderVariant === "liquid-vortex") return 1.55;
+	function speedForVariant(loaderVariant: DotmHexLoaderVariant): number {
+		if (loaderVariant === "dotm-hex-1") return 1.6;
+		if (loaderVariant === "dotm-hex-3") return 1.45;
+		if (loaderVariant === "dotm-hex-4") return 1.5;
+		if (loaderVariant === "dotm-hex-5") return 1.75;
+		if (loaderVariant === "dotm-hex-6") return 1.55;
+		if (loaderVariant === "dotm-hex-7") return 1.9;
+		if (loaderVariant === "dotm-hex-8") return 1.35;
+		if (loaderVariant === "dotm-hex-9") return 1.8;
+		if (loaderVariant === "dotm-hex-10") return 1.55;
 		return 1.7;
 	}
 
-	function cycleMsForVariant(loaderVariant: DotMatrixLoaderId): number {
-		if (loaderVariant === "prism-bloom") return 1500;
-		if (loaderVariant === "honey-gate") return 1850;
-		if (loaderVariant === "vertex-relay") return 1650;
-		if (loaderVariant === "spiral-lattice") return 1450;
-		if (loaderVariant === "chevron-march") return 1260;
-		if (loaderVariant === "hourglass-flip") return 1520;
-		if (loaderVariant === "glyph-flip") return 1400;
-		if (loaderVariant === "petal-shimmer") return 1650;
+	function cycleMsForVariant(loaderVariant: DotmHexLoaderVariant): number {
+		if (loaderVariant === "dotm-hex-1") return 1500;
+		if (loaderVariant === "dotm-hex-2") return 1500;
+		if (loaderVariant === "dotm-hex-3") return 1850;
+		if (loaderVariant === "dotm-hex-4") return 1650;
+		if (loaderVariant === "dotm-hex-5") return 1450;
+		if (loaderVariant === "dotm-hex-6") return 1260;
+		if (loaderVariant === "dotm-hex-7") return 1520;
+		if (loaderVariant === "dotm-hex-8") return 1400;
+		if (loaderVariant === "dotm-hex-9") return 1650;
 		return 1850;
 	}
 </script>
@@ -439,7 +517,7 @@
 			cy={cell.cy}
 			r={dotSize / 2}
 			fill="currentColor"
-			opacity={opacityForCell(cell.row, cell.col, 0.12, variant)}
+			opacity={opacityForCell(cell.row, cell.col, 0.12, resolvedVariant)}
 		>
 			{#if animated}
 				<animate

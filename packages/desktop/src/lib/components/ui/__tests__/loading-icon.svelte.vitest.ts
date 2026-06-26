@@ -17,6 +17,7 @@ describe("LoadingIcon", () => {
 	it("applies caller-provided dimensions to the rendered spinner", () => {
 		const { container } = render(LoadingIcon, {
 			size: 14,
+			variant: "dotm-hex-2",
 		});
 
 		const spinner = container.querySelector(".acepe-dotm-root");
@@ -27,5 +28,15 @@ describe("LoadingIcon", () => {
 		expect(spinnerStyle).toContain("width: 14px");
 		expect(spinnerStyle).toContain("height: 14px");
 		expect(spinnerClass).not.toContain("size-4");
+	});
+
+	it("renders arc-spin without the dot matrix root class", () => {
+		const { container } = render(LoadingIcon, {
+			size: 16,
+			variant: "arc-spin",
+		});
+
+		expect(container.querySelector(".acepe-dotm-root")).toBeNull();
+		expect(container.querySelector("svg")).not.toBeNull();
 	});
 });

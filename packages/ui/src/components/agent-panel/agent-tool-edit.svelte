@@ -181,6 +181,7 @@ function expand() {
 						linesRemoved={displayModel.displayedDeletions}
 						{iconBasePath}
 						{interactive}
+						variant="plain"
 						onSelect={interactive ? () => onSelect?.(displayModel.displayedFilePath) : undefined}
 					/>
 				</div>

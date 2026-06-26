@@ -35,6 +35,8 @@
 		yml: "#cb171e",
 	};
 
+	type FilePathBadgeVariant = "chip" | "plain";
+
 	interface Props {
 		filePath: string;
 		fileName?: string | null;
@@ -44,6 +46,8 @@
 		selected?: boolean;
 		interactive?: boolean;
 		size?: "default" | "sm";
+		/** `plain` removes chip background for inline tool headers */
+		variant?: FilePathBadgeVariant;
 		onSelect?: () => void;
 		class?: string;
 	}
@@ -57,9 +61,12 @@
 		selected = false,
 		interactive = true,
 		size = "default",
+		variant = "chip",
 		onSelect,
 		class: className = "",
 	}: Props = $props();
+
+	const chipDensity = $derived(variant === "plain" ? "plain" : "badge");
 
 	const isSm = $derived(size === "sm");
 	const displayFileName = $derived(fileNameProp ?? getFileName(filePath));
@@ -111,8 +118,10 @@
 	title={displayFileName}
 	ariaLabel={interactive ? undefined : displayFileName}
 	role={interactive ? undefined : "img"}
+	density={chipDensity}
 	size={size}
 	selected={selected}
+	interactive={interactive}
 	onclick={onSelect}
 >
 	{@render fileIcon()}

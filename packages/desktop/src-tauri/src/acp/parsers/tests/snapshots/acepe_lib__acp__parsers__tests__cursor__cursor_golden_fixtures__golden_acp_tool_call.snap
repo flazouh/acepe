@@ -12,7 +12,7 @@ ToolCallData {
         ),
         source_context: None,
     },
-    raw_input: Some(
+    diagnostic_input: Some(
         Object {
             "path": String("/tmp/main.go"),
         },

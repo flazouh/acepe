@@ -9,6 +9,7 @@
 	import { GitCommit } from "phosphor-svelte";
 
 	import { DiffPill } from "../diff-pill/index.js";
+	import { LoadingIcon } from "../icons/index.js";
 	import { getFileIconSrc, getFallbackIconSrc } from "../../lib/file-icon/index.js";
 	import { cn } from "../../lib/utils.js";
 	import type { GitLogEntry, GitLogEntryFile } from "./types.js";
@@ -152,7 +153,7 @@
 				<div class="border-b border-border/20 bg-muted/10">
 					{#if !files}
 						<div class="flex items-center gap-2 px-6 py-2 text-[0.6875rem] text-muted-foreground">
-							<span class="inline-block h-3 w-3 animate-spin rounded-full border-2 border-muted-foreground border-t-transparent"></span>
+							<LoadingIcon class="shrink-0" size={12} aria-label="Loading files" />
 							Loading files...
 						</div>
 					{:else if files.length === 0}
