@@ -87,22 +87,11 @@ export default defineConfig({
 		// Resolve @acepe/ui through real paths so file watchers and HMR line up.
 		preserveSymlinks: false,
 		dedupe: ["@acepe/ui"],
-		// TEMPORARY design exploration: render Notion's icon set in place of phosphor
-		// so we can see the look. Remove this alias to revert to phosphor-svelte.
-		alias: [
-			{
-				find: /^phosphor-svelte$/,
-				replacement: path.resolve(
-					viteConfigDir,
-					"src/lib/notion-preview/phosphor-svelte-shim/index.ts"
-				),
-			},
-		],
 	},
 
 	// Keep workspace UI source out of the dep pre-bundle cache.
 	optimizeDeps: {
-		include: ["@tabler/icons-svelte"],
+		include: ["@tabler/icons-svelte", "phosphor-svelte"],
 		exclude: ["@acepe/ui"],
 	},
 
