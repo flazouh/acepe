@@ -507,7 +507,7 @@ mod tests {
                     "title": "Access paths outside trusted directories",
                     "kind": "read",
                     "rawInput": {
-                        "file_path": "/repo/src/workspace-dialog-frame.svelte"
+                        "file_path": "/repo/src/dialog-frame.svelte"
                     }
                 },
                 "options": [

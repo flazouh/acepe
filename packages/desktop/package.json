@@ -40,7 +40,6 @@
 		"directory": "packages/desktop"
 	},
 	"dependencies": {
-		"@acepe/changelog": "workspace:*",
 		"@acepe/ui": "workspace:*",
 		"@codemirror/autocomplete": "^6.20.0",
 		"@codemirror/commands": "^6.10.1",

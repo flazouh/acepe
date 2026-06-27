@@ -54,7 +54,7 @@ function formatBytes(bytes: number): string {
 					{@const isSelected = voiceSettingsStore.selectedModelId === model.id}
 					{@const isDownloading = voiceSettingsStore.downloadProgressModelId === model.id}
 
-					<div class="flex items-center gap-2 border-b border-border/30 py-1.5 last:border-b-0">
+					<div class="flex items-center gap-2 border-b border-border/50 py-1.5 last:border-b-0">
 						<button
 							type="button"
 							role="radio"

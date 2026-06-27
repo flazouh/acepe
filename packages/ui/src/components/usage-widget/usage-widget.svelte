@@ -2,7 +2,11 @@
 	import AnimateNumber from "../animate-number/animate-number.svelte";
 	import { Button } from "../button/index.js";
 	import { ProviderMark } from "../provider-mark/index.js";
-	import { SegmentedProgressBar } from "../segmented-progress-bar/index.js";
+	import {
+		SegmentedProgressBar,
+		SEGMENTED_PROGRESS_USAGE_COMPACT_SEGMENT_COUNT,
+		SEGMENTED_PROGRESS_USAGE_FILL_WIDTH_SEGMENT_COUNT,
+	} from "../segmented-progress-bar/index.js";
 	import {
 		clampPercent,
 		getProgressAriaValue,
@@ -92,11 +96,12 @@
 									<SegmentedProgressBar
 										ariaLabel=""
 										decorative={true}
+										fillMode="wholeBarRamp"
 										label=""
 										percent={clampPercent(item.percentUsed)}
-										segmentCount={10}
+										segmentCount={SEGMENTED_PROGRESS_USAGE_COMPACT_SEGMENT_COUNT}
 										showPercent={false}
-										variant="usageCompact"
+										variant="downloadCompact"
 									/>
 								</span>
 								<AnimateNumber
@@ -191,11 +196,12 @@
 												<SegmentedProgressBar
 													ariaLabel=""
 													decorative={true}
+													fillMode="wholeBarRamp"
 													label=""
 													percent={getProgressAriaValue(line)}
-													segmentCount={18}
+													segmentCount={SEGMENTED_PROGRESS_USAGE_FILL_WIDTH_SEGMENT_COUNT}
 													showPercent={false}
-													variant="usageFillWidth"
+													variant="downloadFillWidth"
 												/>
 												{#if line.projectedPercent !== null}
 													<div

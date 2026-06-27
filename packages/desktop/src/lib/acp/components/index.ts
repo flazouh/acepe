@@ -3,7 +3,6 @@ export { AgentPanel } from "./agent-panel/index.js";
 export { default as AgentSelector } from "./agent-selector.svelte";
 export { default as AnimatedChevron } from "./animated-chevron.svelte";
 export { default as CommandPalette } from "./command-palette.svelte";
-export { default as ConfigOptionSelector } from "./config-option-selector.svelte";
 export { default as DebugPanel } from "./debug-panel.svelte";
 export { default as MessageEditor } from "./message-editor.svelte";
 // Message components

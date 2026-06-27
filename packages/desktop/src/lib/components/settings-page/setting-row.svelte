@@ -16,15 +16,15 @@ let { label, description, stacked = false, class: className, children }: Props =
 
 <div
 	class={cn(
-		"border-b border-border/30 py-1.5 last:border-b-0",
-		stacked ? "flex flex-col gap-1.5" : "flex items-center justify-between gap-3",
+		"border-b border-border/50 py-3 last:border-b-0",
+		stacked ? "flex flex-col gap-2" : "flex items-center justify-between gap-6",
 		className
 	)}
 >
-	<div class="min-w-0 flex-1 pr-1">
-		<div class="text-xs font-medium leading-4 text-foreground">{label}</div>
+	<div class={cn("min-w-0", stacked ? "w-full" : "max-w-[28rem] flex-1")}>
+		<div class="text-sm font-medium leading-5 text-foreground">{label}</div>
 		{#if description}
-			<div class="mt-0.5 text-[11px] leading-snug text-muted-foreground/60">{description}</div>
+			<div class="mt-1 text-[13px] leading-snug text-muted-foreground">{description}</div>
 		{/if}
 	</div>
 	<div class={stacked ? "w-full" : "shrink-0"}>

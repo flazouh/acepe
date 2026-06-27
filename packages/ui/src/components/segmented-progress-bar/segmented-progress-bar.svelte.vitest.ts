@@ -65,6 +65,30 @@ describe("SegmentedProgressBar", () => {
 		expect(segments).toHaveLength(20);
 	});
 
+	it("renders downloadCompact with whole-bar ramp fills for AI usage", () => {
+		const { container } = render(SegmentedProgressBar, {
+			ariaLabel: "AI usage",
+			decorative: true,
+			fillMode: "wholeBarRamp",
+			label: "",
+			percent: 90,
+			segmentCount: 10,
+			showPercent: false,
+			variant: "downloadCompact",
+		});
+
+		const filledSegments = Array.from(
+			container.querySelectorAll('[data-variant="downloadCompact"] > div:nth-child(1) > div')
+		).filter((segment) => segment.getAttribute("style")?.includes("--segment-fill"));
+
+		expect(filledSegments).toHaveLength(9);
+		const firstFill = filledSegments[0]?.getAttribute("style") ?? "";
+		expect(firstFill).toContain("var(--token-completeness-mid)");
+		for (const segment of filledSegments) {
+			expect(segment.getAttribute("style")).toBe(firstFill);
+		}
+	});
+
 	it("renders usageCompact with per-segment completeness ramp fills", () => {
 		const { container } = render(SegmentedProgressBar, {
 			ariaLabel: "AI usage",

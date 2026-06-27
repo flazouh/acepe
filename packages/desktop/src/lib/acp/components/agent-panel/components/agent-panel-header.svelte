@@ -40,6 +40,7 @@ let {
 	agentIconSrc,
 	agentName,
 	isFullscreen,
+	isStreaming = false,
 	sessionStatus,
 	projectPath: _projectPath,
 	projectName,
@@ -126,6 +127,7 @@ function handleCopySessionId(): void {
 		titleRichText={titleRichText}
 		agentIconSrc={agentIconSrc ? agentIconSrc : undefined}
 		{isFullscreen}
+		{isStreaming}
 		{pendingProjectSelection}
 		projectName={hideProjectBadge ? undefined : projectName}
 		projectColor={hideProjectBadge ? undefined : projectColor}

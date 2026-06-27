@@ -55,7 +55,6 @@ import type { SessionOpenHydrator } from "$lib/acp/store/services/session-open-h
 import type { SessionStore } from "$lib/acp/store/session-store.svelte.js";
 import type { WorkspaceStore } from "$lib/acp/store/workspace-store.svelte.js";
 import { createLogger } from "$lib/acp/utils/logger.js";
-import { getChangelogEntriesSince } from "$lib/changelog/index.js";
 import type { KeybindingsService } from "$lib/keybindings/service.svelte.js";
 import type { UserSettingKey } from "$lib/services/user-settings-types.js";
 import { getZoomService } from "$lib/services/zoom.svelte.js";
@@ -69,7 +68,6 @@ const logger = createLogger({
 	name: "InitializationManager",
 });
 const HAS_SEEN_SPLASH_KEY: UserSettingKey = "has_seen_splash";
-const LAST_SEEN_VERSION_KEY: UserSettingKey = "last_seen_version";
 const SESSION_OPEN_TIMEOUT_MS = 30_000;
 
 import { InitializationError, type MainAppViewError } from "../../errors/main-app-view-error.js";
@@ -139,9 +137,6 @@ export class InitializationManager {
 		// This runs BEFORE anything else so splash shows immediately if needed
 		void this.resolveSplashScreen();
 
-		// Phase 0.6: Check if changelog should be shown (async but fast)
-		this.checkChangelog();
-
 		// Phase 1: Initialize core systems in parallel
 		// - Keybindings (synchronous but wrapped)
 		// - Session update subscription (sets up event listener)
@@ -202,63 +197,6 @@ export class InitializationManager {
 			});
 
 		return this.splashResolutionPromise;
-	}
-
-	/**
-	 * Checks if changelog should be shown based on version comparison.
-	 * Shows changelog if:
-	 * 1. User has seen splash (not first launch)
-	 * 2. Version has changed since last seen
-	 * 3. Changelog exists for current version
-	 *
-	 * This is fire-and-forget to not block initialization.
-	 */
-	private checkChangelog(): void {
-		// Fire-and-forget: errors are logged but don't block initialization
-		this.performChangelogCheck().catch(
-			(error: Error | string | number | boolean | null | undefined) => {
-				logger.warn("Failed to check changelog", {
-					error: error instanceof Error ? error.message : String(error),
-					stack: error instanceof Error ? error.stack : undefined,
-				});
-			}
-		);
-	}
-
-	/**
-	 * Performs the actual changelog check logic.
-	 * Separated for cleaner error handling in the fire-and-forget wrapper.
-	 */
-	private async performChangelogCheck(): Promise<void> {
-		if (!this.hasTauriInvoke()) {
-			return;
-		}
-
-		const { getVersion } = await import("@tauri-apps/api/app");
-		const currentVersion = await getVersion();
-		const lastSeenVersion = await settings.getRaw(LAST_SEEN_VERSION_KEY).match(
-			(value) => value,
-			() => null
-		);
-
-		// Show changelog entries between last seen and current version
-		if (lastSeenVersion && lastSeenVersion !== currentVersion) {
-			const entries = getChangelogEntriesSince(lastSeenVersion, currentVersion);
-			if (entries.length > 0) {
-				this.state.changelogEntries = entries;
-				logger.debug("Showing changelog for version upgrade", {
-					from: lastSeenVersion,
-					to: currentVersion,
-					entriesCount: entries.length,
-				});
-			}
-		}
-
-		// Always update last seen version (even on first launch)
-		await settings.setRaw(LAST_SEEN_VERSION_KEY, currentVersion).match(
-			() => undefined,
-			() => undefined
-		);
 	}
 
 	/**

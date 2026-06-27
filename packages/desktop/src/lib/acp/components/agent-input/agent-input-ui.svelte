@@ -9,7 +9,6 @@ import {
 	AgentInputActiveModeChip,
 	AgentInputAttachMenu,
 	AgentInputComposerTrailingControls,
-	AgentInputConfigOptionSelector,
 	AgentInputNewThreadOptions,
 	AgentPanelComposer as SharedAgentPanelComposer,
 } from "@acepe/ui/agent-panel";
@@ -141,29 +140,13 @@ const voiceSessionController = new VoiceSessionController({
 const voiceState = $derived(voiceSessionController.voiceState);
 const voiceReady = $derived(voiceSessionController.ready);
 /**
- * The stacked new-chat-panel options surface renders only before a session
- * exists and only when the host supplies the bindings. When active, the inline
- * footer model selector is suppressed (model moves into the surface).
- */
-/**
- * Set the instant a pre-session send begins so the new-thread setup bar
- * disappears immediately, without waiting for the async session creation to
- * flip `hasSession`. Transient, truly-local UI state.
+ * The new-chat setup bar renders only before a session exists and only when the
+ * host supplies the bindings. Model and reasoning stay in the composer trailing
+ * toolbar in all states.
  */
 let preSessionSendStarted = $state(false);
 const showNewThreadOptions = $derived(
 	!composerView.hasSession && !preSessionSendStarted && props.newThreadContext != null
-);
-const setupBarReasoningConfigOption = $derived(
-	composerView.toolbarConfigOptions.find((option) => option.presentation === "compactReasoning") ??
-		null
-);
-const composerTrailingConfigOptions = $derived(
-	showNewThreadOptions
-		? composerView.toolbarConfigOptions.filter(
-				(option) => option.presentation !== "compactReasoning"
-			)
-		: composerView.toolbarConfigOptions
 );
 
 /** Hide the setup bar immediately when a real pre-session send is dispatched. */
@@ -1429,12 +1412,7 @@ $effect(() => {
 				<AgentInputNewThreadOptions
 					project={newThread.project}
 					agent={newThread.agent}
-					model={newThreadModelControl}
-					reasoningConfigOption={setupBarReasoningConfigOption}
-					reasoningDisabled={composerView.selectorsLoading || composerView.selectorsDisabledByComposer}
-					onReasoningValueChange={(configId, value) => {
-						void handleConfigOptionChange(configId, value);
-					}}
+					branch={newThread.branch}
 					showWorktree={newThread.showWorktree}
 					worktreeOn={newThread.worktreeOn}
 					worktreeDisabled={newThread.worktreeDisabled}
@@ -1542,7 +1520,7 @@ $effect(() => {
 						<AgentInputComposerTrailingControls
 							inputReady={composerView.inputReady}
 							agentProjectPicker={showNewThreadOptions ? undefined : props.agentProjectPicker}
-							toolbarConfigOptions={composerTrailingConfigOptions}
+							toolbarConfigOptions={composerView.toolbarConfigOptions}
 							onConfigOptionChange={(configId, value) => {
 								void handleConfigOptionChange(configId, value);
 							}}
@@ -1584,9 +1562,7 @@ $effect(() => {
 							voiceCloseLabel={"Close"}
 						>
 							{#snippet modelSelector()}
-								{#if !showNewThreadOptions}
-									{@render newThreadModelControl()}
-								{/if}
+								{@render newThreadModelControl()}
 							{/snippet}
 							{#snippet metricsChip()}
 								{#if props.sessionId}

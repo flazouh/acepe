@@ -18,6 +18,15 @@
 		type AttachMenuMcpServerGroup,
 		type AttachMenuModeItem,
 	} from "./agent-input-attach-menu-state.js";
+	import ComposerFilterDropdownFilterInput from "./composer-filter-dropdown-filter-input.svelte";
+	import {
+		composerFilterDropdownBodyClass,
+		composerFilterDropdownContentClass,
+		composerFilterDropdownEmptyStateClass,
+		composerFilterDropdownFilterRowClass,
+		composerFilterDropdownItemClass,
+		composerFilterDropdownSubmenuContentClass,
+	} from "./composer-filter-dropdown-menu.classes.js";
 
 	interface Props {
 		disabled?: boolean;
@@ -129,9 +138,6 @@
 		avoidCollisions: false,
 	} as const;
 
-	const attachMenuContentClass = "w-72 max-w-[18rem] !max-h-none h-auto overflow-y-auto";
-	const attachSubmenuContentClass = "w-80 max-w-[20rem] !max-h-72 h-auto overflow-y-auto p-0";
-
 	function isMcpServerExpanded(serverId: string): boolean {
 		return !collapsedMcpServers.has(serverId);
 	}
@@ -204,17 +210,13 @@
 			</EmbeddedIconButton>
 		{/snippet}
 	</DropdownMenu.Trigger>
-	<DropdownMenu.Content side="top" align="start" sideOffset={8} class={attachMenuContentClass}>
-	<div class="flex h-auto flex-col gap-0 pb-0">
-	<div class="px-1.5 pb-0.5 pt-0">
-			<input
-				type="search"
+	<DropdownMenu.Content side="top" align="start" sideOffset={8} class={composerFilterDropdownContentClass}>
+	<div class={composerFilterDropdownBodyClass}>
+	<div class={composerFilterDropdownFilterRowClass}>
+			<ComposerFilterDropdownFilterInput
 				bind:value={searchQuery}
 				placeholder={searchPlaceholder}
-				class="h-5 w-full border-none bg-transparent px-0 py-0 text-[11px] leading-tight text-foreground shadow-none outline-none ring-0 placeholder:text-muted-foreground/50 focus-visible:outline-none focus-visible:ring-0 [&::-webkit-search-cancel-button]:appearance-none [&::-webkit-search-decoration]:appearance-none"
-				aria-label={searchPlaceholder}
-				autocomplete="off"
-				spellcheck={false}
+				ariaLabel={searchPlaceholder}
 			/>
 		</div>
 
@@ -223,7 +225,7 @@
 				<DropdownMenu.Item
 					disabled={mode.disabled}
 					onSelect={() => handleModeSelect(mode.id)}
-					class="cursor-pointer"
+					class={composerFilterDropdownItemClass}
 				>
 					<AgentInputModeIcon iconKind={mode.iconKind} class="size-3.5 shrink-0" monochrome />
 					<span class="min-w-0 flex-1 truncate text-xs">{mode.label}</span>
@@ -239,11 +241,11 @@
 
 		{#if showContextActions && searchQuery.length === 0}
 			<DropdownMenu.Separator />
-			<DropdownMenu.Item onSelect={handleAddFileContext} class="cursor-pointer rounded-md px-2 py-1.5">
+			<DropdownMenu.Item onSelect={handleAddFileContext} class={composerFilterDropdownItemClass}>
 				<File class="size-3.5 shrink-0" />
 				<span class="text-xs">{addFileContextLabel}</span>
 			</DropdownMenu.Item>
-			<DropdownMenu.Item onSelect={handleAttachImage} class="cursor-pointer rounded-md px-2 py-1.5">
+			<DropdownMenu.Item onSelect={handleAttachImage} class={composerFilterDropdownItemClass}>
 				<ImageIcon class="size-3.5 shrink-0" />
 				<span class="text-xs">{attachImageLabel}</span>
 			</DropdownMenu.Item>
@@ -261,7 +263,7 @@
 						/>
 					{/each}
 					{#if flattenedSearchItems.length === 0}
-						<div class="px-2.5 py-2 text-center text-[11px] text-muted-foreground">
+						<div class={composerFilterDropdownEmptyStateClass}>
 							No matching skills or MCP tools
 						</div>
 					{/if}
@@ -269,14 +271,14 @@
 			{:else}
 				{#if skillsSection && skillsSection.items.length > 0}
 					<DropdownMenu.Sub>
-						<DropdownMenu.SubTrigger class="cursor-pointer rounded-md px-2 py-1.5 text-xs">
+						<DropdownMenu.SubTrigger class="{composerFilterDropdownItemClass} text-xs">
 							<span class="min-w-0 flex-1 truncate">{skillsSection.label}</span>
 							<span class="rounded-full bg-muted px-1.5 py-0.5 text-[10px] tabular-nums text-muted-foreground">
 								{skillsSection.items.length}
 							</span>
 						</DropdownMenu.SubTrigger>
 						<DropdownMenu.SubContent
-							class={attachSubmenuContentClass}
+							class={composerFilterDropdownSubmenuContentClass}
 							side={attachSubmenuContentProps.side}
 							align={attachSubmenuContentProps.align}
 							sideOffset={attachSubmenuContentProps.sideOffset}
@@ -297,14 +299,14 @@
 
 				{#if commandsSection && commandsSection.items.length > 0}
 					<DropdownMenu.Sub>
-						<DropdownMenu.SubTrigger class="cursor-pointer rounded-md px-2 py-1.5 text-xs">
+						<DropdownMenu.SubTrigger class="{composerFilterDropdownItemClass} text-xs">
 							<span class="min-w-0 flex-1 truncate">{commandsSection.label}</span>
 							<span class="rounded-full bg-muted px-1.5 py-0.5 text-[10px] tabular-nums text-muted-foreground">
 								{commandsSection.items.length}
 							</span>
 						</DropdownMenu.SubTrigger>
 						<DropdownMenu.SubContent
-							class={attachSubmenuContentClass}
+							class={composerFilterDropdownSubmenuContentClass}
 							side={attachSubmenuContentProps.side}
 							align={attachSubmenuContentProps.align}
 							sideOffset={attachSubmenuContentProps.sideOffset}
@@ -325,7 +327,7 @@
 
 				{#if showMcpSubmenu}
 					<DropdownMenu.Sub>
-						<DropdownMenu.SubTrigger class="cursor-pointer rounded-md px-2 py-1.5 text-xs">
+						<DropdownMenu.SubTrigger class="{composerFilterDropdownItemClass} text-xs">
 							<span class="min-w-0 flex-1 truncate">{mcpSectionLabel}</span>
 							<span class="rounded-full bg-muted px-1.5 py-0.5 text-[10px] tabular-nums text-muted-foreground">
 								{#if mcpLoading}
@@ -340,7 +342,7 @@
 							</span>
 						</DropdownMenu.SubTrigger>
 						<DropdownMenu.SubContent
-							class={attachSubmenuContentClass}
+							class={composerFilterDropdownSubmenuContentClass}
 							side={attachSubmenuContentProps.side}
 							align={attachSubmenuContentProps.align}
 							sideOffset={attachSubmenuContentProps.sideOffset}
@@ -348,11 +350,11 @@
 						>
 							<div class="max-h-72 overflow-y-auto">
 								{#if mcpLoading && filteredItems.mcpServerGroups.length === 0}
-									<div class="px-2.5 py-2 text-[11px] text-muted-foreground">
+									<div class="{composerFilterDropdownEmptyStateClass} text-left">
 										Loading MCP servers…
 									</div>
 								{:else if filteredItems.mcpServerGroups.length === 0}
-									<div class="px-2.5 py-2 text-[11px] text-muted-foreground">
+									<div class="{composerFilterDropdownEmptyStateClass} text-left">
 										{mcpEmptyLabel}
 									</div>
 								{/if}

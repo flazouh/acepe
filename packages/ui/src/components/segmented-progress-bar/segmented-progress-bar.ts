@@ -1,3 +1,8 @@
+export type SegmentedProgressBarFillMode = "uniform" | "wholeBarRamp";
+
+export const SEGMENTED_PROGRESS_USAGE_COMPACT_SEGMENT_COUNT = 10;
+export const SEGMENTED_PROGRESS_USAGE_FILL_WIDTH_SEGMENT_COUNT = 18;
+
 export function clampSegmentedPercent(percent: number): number {
 	if (percent < 0) {
 		return 0;

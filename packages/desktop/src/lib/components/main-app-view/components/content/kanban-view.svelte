@@ -1,12 +1,11 @@
 <script lang="ts">
 import {
-	Dialog,
-	DialogContent,
 	KanbanSceneBoard,
 	type KanbanSceneCardData,
 	type KanbanSceneColumnData,
 	type KanbanSceneModel,
 } from "@acepe/ui";
+import DialogFrame from "$lib/components/ui/dialog-frame.svelte";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { Colors } from "@acepe/ui/colors";
 import { SvelteMap } from "svelte/reactivity";
@@ -930,20 +929,24 @@ function handleRejectPlanApproval(sessionId: string): void {
 </script>
 
 <div class="flex h-full min-h-0 min-w-0 flex-1 flex-col">
-	<Dialog bind:open={newSessionOpen} onOpenChange={handleNewSessionOpenChange}>
-		<DialogContent
-			bind:ref={newSessionDialogRef}
-			showCloseButton={false}
-			class="overflow-hidden max-w-[34rem] gap-0 rounded-2xl !border-0 bg-background p-0 shadow-xl !backdrop-blur-none"
-			portalProps={{ disabled: true }}
-			onOpenAutoFocus={(e: Event) => {
-				e.preventDefault();
-				requestAnimationFrame(() => {
-					newSessionDialogRef?.querySelector<HTMLElement>("[contenteditable]")?.focus();
-				});
-			}}
-		>
-			<div class="flex w-full flex-col px-2 py-2 [&_[contenteditable=true]]:min-h-[7.2rem]">
+	<DialogFrame
+		bind:open={newSessionOpen}
+		title="New session"
+		closeLabel="Close new session dialog"
+		size="medium"
+		hideHeader={true}
+		portalDisabled={true}
+		bind:contentRef={newSessionDialogRef}
+		contentClass="overflow-hidden max-w-[34rem] rounded-2xl !border-0 bg-background p-0 shadow-xl !backdrop-blur-none"
+		onOpenChange={handleNewSessionOpenChange}
+		onOpenAutoFocus={(e: Event) => {
+			e.preventDefault();
+			requestAnimationFrame(() => {
+				newSessionDialogRef?.querySelector<HTMLElement>("[contenteditable]")?.focus();
+			});
+		}}
+	>
+		<div class="flex w-full flex-col px-2 py-2 [&_[contenteditable=true]]:min-h-[7.2rem]">
 				{#if canShowNewSessionInput}
 					{#key newSessionComposerKey}
 						<AgentInput
@@ -1013,9 +1016,8 @@ function handleRejectPlanApproval(sessionId: string): void {
 						Add at least one project and one available agent to start a session.
 					</div>
 				{/if}
-			</div>
-		</DialogContent>
-	</Dialog>
+		</div>
+	</DialogFrame>
 
 	<div class="min-h-0 min-w-0 flex-1 overflow-hidden">
 		{#each threadBoard as section (section.status)}

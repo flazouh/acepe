@@ -77,7 +77,7 @@
 				contenteditable="true"
 				autocapitalize="off"
 				spellcheck={false}
-				class="min-h-6 max-h-[400px] overflow-y-auto whitespace-pre-wrap break-words text-sm leading-snug text-foreground outline-none"
+				class="min-h-6 max-h-[400px] overflow-y-auto whitespace-pre-wrap break-words pl-1 pt-1 text-sm leading-snug text-foreground outline-none"
 				{onbeforeinput}
 				{oninput}
 				{onkeydown}
@@ -92,7 +92,7 @@
 			></div>
 			{#if isEmpty}
 				<div
-					class="pointer-events-none absolute left-0 top-0 text-sm leading-snug text-muted-foreground select-none"
+					class="pointer-events-none absolute left-1 top-1 text-sm leading-snug text-muted-foreground select-none"
 				>
 					{placeholder}
 				</div>

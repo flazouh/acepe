@@ -34,7 +34,6 @@ import type {
 } from "$lib/acp/store/types.js";
 import type { WorkspaceStore } from "$lib/acp/store/workspace-store.svelte.js";
 import { createLogger } from "$lib/acp/utils/logger.js";
-import { CHANGELOG, type ChangelogEntry } from "$lib/changelog/index.js";
 import { type IssueReportDraft, openIssueReportDraft } from "$lib/errors/issue-report.js";
 import type { KeybindingsService } from "$lib/keybindings/service.svelte.js";
 import type { PreconnectionAgentSkillsStore } from "$lib/skills/store/preconnection-agent-skills-store.svelte.js";
@@ -165,12 +164,6 @@ export class MainAppViewState {
 	 * Starts as null (unknown) until we check the database.
 	 */
 	showSplash = $state<boolean | null>(null);
-
-	/**
-	 * Changelog entries to display after an update.
-	 * Non-empty array means the modal is visible.
-	 */
-	changelogEntries = $state<ChangelogEntry[]>([]);
 
 	// ============================================
 	// DERIVED STATE ($derived for computed values)
@@ -857,20 +850,6 @@ export class MainAppViewState {
 	 */
 	dismissSplash(): void {
 		this.showSplash = false;
-	}
-
-	/**
-	 * Opens the changelog modal with all entries.
-	 */
-	openChangelog(): void {
-		this.changelogEntries = CHANGELOG;
-	}
-
-	/**
-	 * Dismisses the changelog modal.
-	 */
-	dismissChangelog(): void {
-		this.changelogEntries = [];
 	}
 
 	// ============================================

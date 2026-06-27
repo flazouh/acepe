@@ -5,7 +5,6 @@ packages/desktop/src/
 packages/desktop/static/
 packages/acps/
 packages/analytics/
-packages/changelog/
 docs/
 todos/
 assets/

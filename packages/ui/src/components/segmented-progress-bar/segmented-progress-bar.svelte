@@ -15,11 +15,13 @@
 		segmentedProgressBarVariants,
 		type SegmentedProgressBarVariant,
 	} from "./segmented-progress-bar-variants.js";
+	import type { SegmentedProgressBarFillMode } from "./segmented-progress-bar.js";
 
 	interface Props {
 		ariaLabel: string;
 		decorative?: boolean;
 		filledSegmentCount?: number;
+		fillMode?: SegmentedProgressBarFillMode;
 		label: string;
 		percent: number;
 		segmentCount: number;
@@ -31,6 +33,7 @@
 		ariaLabel,
 		decorative = false,
 		filledSegmentCount,
+		fillMode = "uniform",
 		label,
 		percent,
 		segmentCount,
@@ -87,6 +90,10 @@
 	function getSegmentFillStyle(isFilled: boolean, segmentIndex: number): string | undefined {
 		if (!isFilled) {
 			return undefined;
+		}
+
+		if (fillMode === "wholeBarRamp" && segmentCount > 0 && activeLevelRank > 0) {
+			return `--segment-fill: ${getCompletenessRampFillColor(activeLevelRank, segmentCount)}`;
 		}
 
 		if (isCompletenessRamp && segmentCount > 0) {

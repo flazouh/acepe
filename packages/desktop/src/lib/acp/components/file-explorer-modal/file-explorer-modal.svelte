@@ -12,7 +12,7 @@
  */
 import { onMount } from "svelte";
 import type { FileExplorerProjectInfo } from "$lib/components/main-app-view/logic/file-explorer-context.js";
-import WorkspaceDialogFrame from "$lib/components/ui/workspace-dialog-frame.svelte";
+import DialogFrame from "$lib/components/ui/dialog-frame.svelte";
 import { tauriClient } from "$lib/utils/tauri-client.js";
 import type { FileExplorerRow } from "$lib/services/converted-session-types.js";
 import { FileExplorerModalState } from "./file-explorer-modal-state.svelte.js";
@@ -198,7 +198,7 @@ function handleSelect(row: FileExplorerRow) {
 }
 </script>
 
-<WorkspaceDialogFrame
+<DialogFrame
 	open={true}
 	title="File Explorer"
 	closeLabel="Close file explorer"
@@ -277,4 +277,4 @@ function handleSelect(row: FileExplorerRow) {
 			</div>
 		</div>
 	</div>
-</WorkspaceDialogFrame>
+</DialogFrame>

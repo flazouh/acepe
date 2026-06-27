@@ -1,6 +1,6 @@
 <script lang="ts">
 import { Button } from "$lib/components/ui/button/index.js";
-import WorkspaceDialogFrame from "$lib/components/ui/workspace-dialog-frame.svelte";
+import DialogFrame from "$lib/components/ui/dialog-frame.svelte";
 import type {
 	FileExplorerPreviewResponse,
 	FileGitStatus,
@@ -175,7 +175,7 @@ onMount(() => {
 });
 </script>
 
-<WorkspaceDialogFrame
+<DialogFrame
 	{open}
 	title={`File system for ${projectName}`}
 	closeLabel="Close file system"
@@ -289,4 +289,4 @@ onMount(() => {
 			{/if}
 		</div>
 	</div>
-</WorkspaceDialogFrame>
+</DialogFrame>

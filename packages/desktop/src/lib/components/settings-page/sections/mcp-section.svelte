@@ -10,7 +10,7 @@ import { BUILT_IN_MCP_TOOLS } from "./mcp-section.logic.js";
 		description="Acepe-owned MCP tools that are attached by the app, not by user config files."
 	>
 		<div
-			class="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] items-center gap-3 border-b border-border/30 py-2 text-[12px] font-medium text-muted-foreground"
+			class="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] items-center gap-3 border-b border-border/50 py-2 text-[12px] font-medium text-muted-foreground"
 		>
 			<span>Tool</span>
 			<span>Command</span>
@@ -22,14 +22,14 @@ import { BUILT_IN_MCP_TOOLS } from "./mcp-section.logic.js";
 				<div class="flex min-w-0 items-center gap-2">
 					<Plugs class="size-3.5 shrink-0 text-muted-foreground" weight="regular" />
 					<div class="min-w-0">
-						<div class="truncate text-[13px] font-medium text-foreground">{tool.name}</div>
+						<div class="truncate text-[12px] font-medium text-foreground">{tool.name}</div>
 						<div class="mt-0.5 text-[12px] leading-relaxed text-muted-foreground/60">
 							{tool.description}
 						</div>
 					</div>
 				</div>
 
-				<code class="truncate rounded border border-border/40 bg-muted/30 px-1.5 py-1 text-[11px]">
+				<code class="truncate rounded border border-border/50 bg-muted/30 px-1.5 py-1 text-[11px]">
 					{tool.command}
 				</code>
 
@@ -43,7 +43,7 @@ import { BUILT_IN_MCP_TOOLS } from "./mcp-section.logic.js";
 			</div>
 
 			<div
-				class="flex items-start gap-2 border-t border-border/30 py-3 text-[12px] text-muted-foreground/70"
+				class="flex items-start gap-2 border-t border-border/50 py-3 text-[12px] text-muted-foreground/70"
 			>
 				<WarningCircle class="mt-0.5 size-3.5 shrink-0 text-amber-500" weight="regular" />
 				<p class="leading-relaxed">{tool.limitation}</p>

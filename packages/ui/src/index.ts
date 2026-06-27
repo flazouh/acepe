@@ -336,6 +336,9 @@ export {
 	isCompletenessRampVariant,
 	isLevelPaletteVariant,
 	segmentedProgressBarVariants,
+	SEGMENTED_PROGRESS_USAGE_COMPACT_SEGMENT_COUNT,
+	SEGMENTED_PROGRESS_USAGE_FILL_WIDTH_SEGMENT_COUNT,
+	type SegmentedProgressBarFillMode,
 	type SegmentedProgressBarRenderMode,
 	type SegmentedProgressBarVariant,
 } from "./components/segmented-progress-bar/index.js";

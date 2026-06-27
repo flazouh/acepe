@@ -114,16 +114,16 @@ function setAgentChecked(agentId: string, checked: boolean): void {
 }
 </script>
 
-<div class="w-full space-y-8">
-	<div class="flex items-center justify-between border-b border-border/30 py-2.5">
-		<span class="text-[13px] font-medium text-foreground">Default agent</span>
+<div class="w-full space-y-6">
+	<div class="flex items-center justify-between border-b border-border/50 py-2.5">
+		<span class="text-[12px] font-medium text-foreground">Default agent</span>
 		<Selector align="end" variant="ghost" triggerSize="minimal" showChevron={false}>
 			{#snippet renderButton()}
 				{#if defaultAgent}
 					<AgentIcon agentId={defaultAgent.id} class="size-3.5 shrink-0" size={14} />
-					<span class="text-[13px] font-medium text-foreground">{defaultAgent.name}</span>
+					<span class="text-[12px] font-medium text-foreground">{defaultAgent.name}</span>
 				{:else}
-					<span class="text-[13px] font-medium text-foreground">First available</span>
+					<span class="text-[12px] font-medium text-foreground">First available</span>
 				{/if}
 				<CaretDown class="ml-1 size-2.5 shrink-0 opacity-40" weight="bold" />
 			{/snippet}
@@ -134,7 +134,7 @@ function setAgentChecked(agentId: string, checked: boolean): void {
 						class={defaultAgentId === null ? "size-3 text-foreground" : "size-3 text-transparent"}
 						weight="bold"
 					/>
-					<span class="text-[13px]">First available</span>
+					<span class="text-[12px]">First available</span>
 				</div>
 			</DropdownMenu.Item>
 			<DropdownMenu.Separator />
@@ -146,15 +146,16 @@ function setAgentChecked(agentId: string, checked: boolean): void {
 							weight="bold"
 						/>
 						<AgentIcon agentId={agent.id} class="size-3.5 shrink-0" size={14} />
-						<span class="text-[13px]">{agent.name}</span>
+						<span class="text-[12px]">{agent.name}</span>
 					</div>
 				</DropdownMenu.Item>
 			{/each}
 		</Selector>
 	</div>
 
+	<div>
 	<div
-		class="grid grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-2 border-b border-border/30 py-2 text-[12px] font-medium text-muted-foreground"
+		class="grid grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-2 border-b border-border/50 py-2 text-[12px] font-medium text-muted-foreground"
 	>
 		<span>Agent</span>
 		<span class="text-right">Environment</span>
@@ -167,12 +168,12 @@ function setAgentChecked(agentId: string, checked: boolean): void {
 
 		<div
 			class="grid grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-2 py-2.5 {index > 0
-				? 'border-t border-border/30'
+				? 'border-t border-border/50'
 				: ''}"
 		>
 			<div class="flex min-w-0 items-center gap-2">
 				<AgentIcon agentId={agent.id} class="size-3.5 shrink-0" size={14} />
-				<span class="truncate text-[13px] font-medium text-foreground">{agent.name}</span>
+				<span class="truncate text-[12px] font-medium text-foreground">{agent.name}</span>
 			</div>
 
 			<div class="flex justify-end">
@@ -205,6 +206,7 @@ function setAgentChecked(agentId: string, checked: boolean): void {
 			</div>
 		</div>
 	{/each}
+	</div>
 
 	{#if agentPreferencesStore.customAgentConfigs.length > 0}
 		<div class="space-y-3 pt-2">
@@ -214,7 +216,7 @@ function setAgentChecked(agentId: string, checked: boolean): void {
 				description="Saved custom agent commands available on this machine."
 			/>
 			<div
-				class="grid grid-cols-[minmax(0,1fr)_minmax(0,2fr)] items-center gap-2 border-b border-border/30 py-2 text-[12px] font-medium text-muted-foreground"
+				class="grid grid-cols-[minmax(0,1fr)_minmax(0,2fr)] items-center gap-2 border-b border-border/50 py-2 text-[12px] font-medium text-muted-foreground"
 			>
 				<span>Name</span>
 				<span>Command</span>
@@ -222,10 +224,10 @@ function setAgentChecked(agentId: string, checked: boolean): void {
 			{#each agentPreferencesStore.customAgentConfigs as config, index (config.id)}
 				<div
 					class="grid grid-cols-[minmax(0,1fr)_minmax(0,2fr)] items-center gap-2 py-2.5 {index > 0
-						? 'border-t border-border/30'
+						? 'border-t border-border/50'
 						: ''}"
 				>
-					<span class="truncate text-[13px] font-medium text-foreground">{config.name}</span>
+					<span class="truncate text-[12px] font-medium text-foreground">{config.name}</span>
 					<span class="truncate font-mono text-[12px] text-muted-foreground">{config.command}</span>
 				</div>
 			{/each}

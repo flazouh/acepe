@@ -32,7 +32,7 @@ const navLinkClass =
 			class="relative flex h-9 items-center justify-center gap-2 bg-[#0d0d0d] px-10 text-center"
 		>
 			<span class="text-[13px] text-[#f8f5ee]/80">{announcement}</span>
-			<a href="/changelog" class="text-[13px] font-medium text-[#f8f5ee] underline-offset-2 hover:underline">
+			<a href="/download" class="text-[13px] font-medium text-[#f8f5ee] underline-offset-2 hover:underline">
 				{"Learn more"}
 			</a>
 			<button
@@ -56,7 +56,6 @@ const navLinkClass =
 				<nav class="hidden items-center gap-7 md:flex">
 					<a href="/blog" class={navLinkClass}>{"Product"}</a>
 					<a href="/compare" class={navLinkClass}>{"Compare"}</a>
-					<a href="/changelog" class={navLinkClass}>{"Changelog"}</a>
 					<a href="/pricing" class={navLinkClass}>{"Pricing"}</a>
 				</nav>
 			</div>

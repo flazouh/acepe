@@ -139,11 +139,6 @@ const downloadJsonLd = {
 								{"Blog"}
 							</a>
 						</li>
-						<li>
-							<a href="/changelog" class="text-[13px] text-muted-foreground transition-colors hover:text-foreground">
-								{"Changelog"}
-							</a>
-						</li>
 					</ul>
 				</div>
 

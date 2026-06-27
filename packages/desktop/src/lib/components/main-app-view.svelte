@@ -69,7 +69,6 @@ import { createWindowFocusStore } from "$lib/stores/window-focus-store.svelte.js
 import { tauriClient } from "$lib/utils/tauri-client.js";
 import { playSound, preloadSound } from "$lib/acp/utils/sound.js";
 import { SoundEffect } from "$lib/acp/types/sounds.js";
-import { ChangelogModal } from "./changelog-modal/index.js";
 import { FileExplorerModal } from "$lib/acp/components/file-explorer-modal/index.js";
 import EmptyStates from "./main-app-view/components/content/empty-states.svelte";
 import PanelsContainer from "./main-app-view/components/content/panels-container.svelte";
@@ -109,7 +108,7 @@ import { SettingsPage } from "./settings-page/index.js";
 import SqlStudioPage from "./sql-studio/sql-studio-page.svelte";
 import { TopBar } from "./top-bar/index.js";
 import { UpdateAvailablePage } from "./update-available/index.js";
-import WorkspaceDialogFrame from "$lib/components/ui/workspace-dialog-frame.svelte";
+import DialogFrame from "$lib/components/ui/dialog-frame.svelte";
 import {
 	createLiveInteractionGraphConsumer,
 	createSessionOpenInteractionGraphConsumer,
@@ -1238,7 +1237,7 @@ onDestroy(() => {
 	{/if}
 
 	<!-- Settings Modal -->
-	<WorkspaceDialogFrame
+	<DialogFrame
 		open={viewState.settingsModalOpen}
 		title="Settings"
 		closeLabel="Close settings"
@@ -1250,8 +1249,14 @@ onDestroy(() => {
 			}
 		}}
 	>
+		{#snippet topLeft()}
+			<div class="flex items-center gap-1.5 pl-1.5 text-foreground">
+				<GearFine class="size-3.5 shrink-0 text-muted-foreground" weight="fill" />
+				<span class="text-[12px] font-medium tracking-tight">Settings</span>
+			</div>
+		{/snippet}
 		<SettingsPage {projectManager} />
-	</WorkspaceDialogFrame>
+	</DialogFrame>
 
 	<!-- File Explorer Modal (Cmd+I) -->
 	{#if viewState.fileExplorerVisible && fileExplorerProjectPaths.length > 0}
@@ -1314,14 +1319,6 @@ onDestroy(() => {
 				} : undefined}
 			/>
 		</div>
-	{/if}
-
-	<!-- Changelog Modal (shows after app updates) -->
-	{#if viewState.changelogEntries.length > 0}
-		<ChangelogModal
-			entries={viewState.changelogEntries}
-			onDismiss={() => viewState.dismissChangelog()}
-		/>
 	{/if}
 
 </ThemeProvider>

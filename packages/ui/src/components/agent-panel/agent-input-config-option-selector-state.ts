@@ -1,4 +1,5 @@
 import { Colors } from "../../lib/colors.js";
+import type { SelectorTriggerSize } from "../selector/selector-trigger-classes.js";
 import type { AgentInputConfigOption } from "./agent-input-config-option-types.js";
 
 export type ConfigOptionIconKind = "reasoning" | "fast" | "default";
@@ -166,6 +167,17 @@ export function isReasoningConfigOption(opt: AgentInputConfigOption): boolean {
 
 export function isFastConfigOption(opt: AgentInputConfigOption): boolean {
 	return opt.presentation === "compactSpeed";
+}
+
+export function getConfigOptionResolvedTriggerSize(
+	configOption: AgentInputConfigOption,
+	defaultTriggerSize: SelectorTriggerSize = "setupChip"
+): SelectorTriggerSize {
+	if (isReasoningConfigOption(configOption)) {
+		return "setupChipIcon";
+	}
+
+	return defaultTriggerSize;
 }
 
 export function getConfigOptionCurrentValue(

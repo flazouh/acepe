@@ -2206,7 +2206,7 @@ fn path_access_permission_placeholder_adopts_later_edit_tool_evidence() {
         id: "tool-edit".to_string(),
         name: "Read".to_string(),
         arguments: ToolArguments::Read {
-            file_path: Some("/repo/src/workspace-dialog-frame.svelte".to_string()),
+            file_path: Some("/repo/src/dialog-frame.svelte".to_string()),
             source_context: None,
         },
         diagnostic_input: None,
@@ -2245,7 +2245,7 @@ fn path_access_permission_placeholder_adopts_later_edit_tool_evidence() {
                 metadata: json!({
                     "parsedArguments": {
                         "kind": "read",
-                        "file_path": "/repo/src/workspace-dialog-frame.svelte"
+                        "file_path": "/repo/src/dialog-frame.svelte"
                     },
                     "options": []
                 }),
@@ -2265,7 +2265,7 @@ fn path_access_permission_placeholder_adopts_later_edit_tool_evidence() {
         name: "Edit".to_string(),
         arguments: ToolArguments::Edit {
             edits: vec![EditEntry {
-                file_path: Some("/repo/src/workspace-dialog-frame.svelte".to_string()),
+                file_path: Some("/repo/src/dialog-frame.svelte".to_string()),
                 move_from: None,
                 old_string: Some("topLeft?: Snippet;".to_string()),
                 new_string: Some("topLeft?: Snippet;\ntopRight?: Snippet;".to_string()),
@@ -2276,7 +2276,7 @@ fn path_access_permission_placeholder_adopts_later_edit_tool_evidence() {
         status: ToolCallStatus::InProgress,
         result: None,
         kind: Some(ToolKind::Edit),
-        title: Some("workspace-dialog-frame.svelte".to_string()),
+        title: Some("dialog-frame.svelte".to_string()),
         locations: None,
         skill_meta: None,
         normalized_questions: None,

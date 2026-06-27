@@ -14,7 +14,7 @@
 
 	import { LoadingIcon } from "../icons/index.js";
 	import { SegmentedProgressBar } from "../segmented-progress-bar/index.js";
-	import { FUSED_CONTROL_PRIMARY_BUTTON_CLASS } from "../panel-header/project-card-action-button-class.js";
+	import { FUSED_CONTROL_COMPOSER_ICON_SIZE_CLASS, FUSED_CONTROL_PRIMARY_BUTTON_CLASS } from "../panel-header/project-card-action-button-class.js";
 	import { cn } from "../../lib/utils.js";
 
 	export type AgentInputMicVisualState = "mic" | "spinner" | "stop" | "download_progress";
@@ -50,10 +50,10 @@
 	const STOP_RED = "#FF5D5A";
 	const buttonClass = $derived(
 		cn(
-			"group relative flex items-center justify-center transition-all duration-200 ease-out focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
+			"group relative flex items-center justify-center focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
 			embeddedInGroup
-				? cn(FUSED_CONTROL_PRIMARY_BUTTON_CLASS, "shadow-none")
-				: "mic-btn rounded-full",
+				? cn(FUSED_CONTROL_PRIMARY_BUTTON_CLASS, "shadow-none transition-colors duration-200 ease-out")
+				: "mic-btn rounded-full transition-all duration-200 ease-out",
 			visualState === "mic" && "mic-idle",
 			visualState === "stop" && "mic-recording",
 			(visualState === "spinner" || visualState === "download_progress") && "mic-busy",
@@ -99,7 +99,7 @@
 	{:else}
 		<div class="mic-icon-wrap">
 			<Microphone
-				class="h-[15px] w-[15px] transition-all duration-150 ease-out"
+				class="{FUSED_CONTROL_COMPOSER_ICON_SIZE_CLASS} transition-all duration-150 ease-out"
 				weight={isHovered ? "fill" : "bold"}
 			/>
 		</div>
@@ -120,7 +120,7 @@
 		justify-content: flex-end;
 	}
 	.mic-idle { cursor: pointer; }
-	.mic-idle:hover { color: #f9c396; }
+	.mic-idle:hover { color: var(--foreground); }
 	.mic-idle :global(svg) { transition: fill 150ms ease-out; }
 	.mic-idle:hover :global(svg) { fill: currentColor; }
 	.mic-recording { cursor: pointer; }

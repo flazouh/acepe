@@ -23,6 +23,16 @@ export type {
 	AttachMenuModeItem,
 } from "./agent-input-attach-menu-state.js";
 export { filterAttachMenuItems } from "./agent-input-attach-menu-state.js";
+export { default as ComposerFilterDropdownFilterInput } from "./composer-filter-dropdown-filter-input.svelte";
+export {
+	composerFilterDropdownBodyClass,
+	composerFilterDropdownContentClass,
+	composerFilterDropdownEmptyStateClass,
+	composerFilterDropdownFilterRowClass,
+	composerFilterDropdownItemClass,
+	composerFilterDropdownListClass,
+	composerFilterDropdownSubmenuContentClass,
+} from "./composer-filter-dropdown-menu.classes.js";
 export { default as AgentInputAutonomousToggle } from "./agent-input-autonomous-toggle.svelte";
 export { default as AgentInputComposerRow } from "./agent-input-composer-row.svelte";
 export { default as AgentInputComposerToolbar } from "./agent-input-composer-toolbar.svelte";
@@ -38,7 +48,6 @@ export { default as AgentInputModeIcon } from "./agent-input-mode-icon.svelte";
 export { default as AgentInputModePill } from "./agent-input-mode-pill.svelte";
 export { default as AgentInputModeSelector } from "./agent-input-mode-selector.svelte";
 export { default as AgentInputNewThreadOptions } from "./agent-input-new-thread-options.svelte";
-export { default as AgentInputSetupReasoning } from "./agent-input-setup-reasoning.svelte";
 export {
 	getModeDropdownOptions,
 	getSelectedModeOption,

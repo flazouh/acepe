@@ -45,6 +45,8 @@ export interface AgentPanelHeaderProps {
 	readonly agentIconSrc: string | null;
 	readonly agentName: string | null;
 	readonly isFullscreen: boolean;
+	/** Whether the active session is currently streaming a response. */
+	readonly isStreaming?: boolean;
 	readonly sessionStatus: SessionStatusUI;
 	readonly projectPath: string | null;
 	readonly projectName: string;

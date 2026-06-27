@@ -1,15 +1,10 @@
 <script lang="ts">
 import { PlanIcon } from "@acepe/ui/icons";
-import {
-	EmbeddedIconButton,
-	EmbeddedPanelHeader,
-	HeaderActionCell,
-	HeaderTitleCell,
-} from "@acepe/ui/panel-header";
+import { EmbeddedIconButton } from "@acepe/ui/panel-header";
 import { DownloadSimple } from "phosphor-svelte";
 import { toastSuccess } from "$lib/components/ui/sonner/toast-bridge.js";
+import DialogFrame from "$lib/components/ui/dialog-frame.svelte";
 import type { SessionPlanResponse } from "../../services/claude-history.js";
-import WorkspaceDialogFrame from "$lib/components/ui/workspace-dialog-frame.svelte";
 
 import CopyButton from "./messages/copy-button.svelte";
 import MarkdownText from "./messages/markdown-text.svelte";
@@ -43,33 +38,33 @@ function downloadAsMarkdown() {
 }
 </script>
 
-<WorkspaceDialogFrame {open} title={plan.title} closeLabel="Close plan" {onOpenChange}>
+<DialogFrame
+	{open}
+	title={plan.title}
+	closeLabel="Close plan"
+	contentOverflow="hidden"
+	{onOpenChange}
+>
+	{#snippet topLeft()}
+		<PlanIcon size="md" class="shrink-0" />
+		<span
+			class="truncate text-[11px] font-semibold font-mono text-foreground select-none leading-none"
+		>
+			{plan.title}
+		</span>
+	{/snippet}
+
+	{#snippet topRight()}
+		<CopyButton text={plan.content} variant="embedded" stopPropagation={true} />
+		<EmbeddedIconButton title={"Download"} ariaLabel={"Download"} onclick={downloadAsMarkdown}>
+			<DownloadSimple size={14} weight="bold" />
+		</EmbeddedIconButton>
+	{/snippet}
+
 	<div class="flex h-full min-h-0 flex-col overflow-hidden rounded-lg border border-border/40 bg-background">
-		<EmbeddedPanelHeader class="bg-muted/10 border-border/30">
-			<HeaderTitleCell>
-				<PlanIcon size="md" class="shrink-0 mr-1.5" />
-				<span
-					class="text-[11px] font-semibold font-mono text-foreground select-none truncate leading-none"
-				>
-					{plan.title}
-				</span>
-			</HeaderTitleCell>
-
-			<HeaderActionCell withDivider={false}>
-				<CopyButton text={plan.content} variant="embedded" stopPropagation={true} />
-				<EmbeddedIconButton
-					title={"Download"}
-					ariaLabel={"Download"}
-					onclick={downloadAsMarkdown}
-				>
-					<DownloadSimple size={14} weight="bold" />
-				</EmbeddedIconButton>
-			</HeaderActionCell>
-		</EmbeddedPanelHeader>
-
 		{#if plan.summary}
-			<div class="px-5 py-2 border-b border-border/20 bg-muted/10">
-				<p class="text-[12px] text-muted-foreground leading-relaxed">{plan.summary}</p>
+			<div class="border-b border-border/20 bg-muted/10 px-5 py-2">
+				<p class="text-[12px] leading-relaxed text-muted-foreground">{plan.summary}</p>
 			</div>
 		{/if}
 
@@ -79,11 +74,10 @@ function downloadAsMarkdown() {
 			</div>
 		</div>
 
-		<!-- Footer -->
-		<div class="px-5 py-2 border-t border-border/20 bg-muted/10 shrink-0">
-			<p class="text-[10px] font-mono text-muted-foreground/50">
+		<div class="shrink-0 border-t border-border/20 bg-muted/10 px-5 py-2">
+			<p class="font-mono text-[10px] text-muted-foreground/50">
 				{plan.content.length.toLocaleString()} characters
 			</p>
 		</div>
 	</div>
-</WorkspaceDialogFrame>
+</DialogFrame>

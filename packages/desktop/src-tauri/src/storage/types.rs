@@ -41,8 +41,6 @@ pub enum UserSettingKey {
     RecentModels,
     /// Whether user has seen the splash screen (boolean string "true"/"false")
     HasSeenSplash,
-    /// Last app version the user has seen the changelog for
-    LastSeenVersion,
     /// Whether user has completed first-run onboarding
     HasCompletedOnboarding,
     /// Selected agent IDs for UI visibility/filtering (JSON array)
@@ -110,7 +108,6 @@ impl UserSettingKey {
             UserSettingKey::FavoriteModels => "favorite_models",
             UserSettingKey::RecentModels => "recent_models",
             UserSettingKey::HasSeenSplash => "has_seen_splash",
-            UserSettingKey::LastSeenVersion => "last_seen_version",
             UserSettingKey::HasCompletedOnboarding => "has_completed_onboarding",
             UserSettingKey::SelectedAgentIds => "selected_agent_ids",
             UserSettingKey::CustomAgentConfigs => "custom_agent_configs",

@@ -5,25 +5,14 @@
  * and desktop-only dialogs (connection form, cell edit, delete confirmation).
  */
 
-import {
-	CloseAction,
-	EmbeddedPanelHeader,
-	HeaderActionCell,
-	HeaderTitleCell,
-} from "@acepe/ui/panel-header";
 import type { SqlConnection, SqlFilterOperator, SqlSchemaInfo } from "@acepe/ui/sql-studio";
 import { SqlStudioLayout } from "@acepe/ui/sql-studio";
-import { Database } from "phosphor-svelte";
-import { FloppyDisk } from "phosphor-svelte";
-import { FolderOpen } from "phosphor-svelte";
-import { Lightning } from "phosphor-svelte";
-import { X } from "phosphor-svelte";
+import { Database, FolderOpen } from "phosphor-svelte";
 import { onMount } from "svelte";
 import { toast } from "svelte-sonner";
 import { getWorkspaceStore } from "$lib/acp/store/workspace-store.svelte.js";
-import * as AlertDialog from "$lib/components/ui/alert-dialog/index.js";
-import { CodeMirrorEditor } from "$lib/components/ui/codemirror-editor/index.js";
-import * as Dialog from "@acepe/ui/dialog";
+import { Button } from "$lib/components/ui/button/index.js";
+import DialogFrame from "$lib/components/ui/dialog-frame.svelte";
 import {
 	type ConnectionFormInput,
 	type DbEngine,
@@ -462,183 +451,236 @@ function saveCellEdit(rowIndex: number, columnName: string, value: string): void
 />
 
 <!-- Connection Dialog -->
-<Dialog.Root bind:open={createDialogOpen} onOpenChange={(open) => (createDialogOpen = open)}>
-	<Dialog.Content
-		showCloseButton={false}
-		class="sm:max-w-md flex flex-col gap-0 !p-0 overflow-hidden"
-		portalProps={{ disabled: true }}
-	>
-		<!-- Header -->
-		<EmbeddedPanelHeader>
-			<HeaderTitleCell>
-				<Database size={14} weight="bold" class="shrink-0 mr-1.5 text-primary" />
-				<span class="text-[11px] font-semibold text-foreground select-none truncate leading-none">
-					New Connection
-				</span>
-			</HeaderTitleCell>
-			<HeaderActionCell>
-				<CloseAction onClose={() => (createDialogOpen = false)} />
-			</HeaderActionCell>
-		</EmbeddedPanelHeader>
+<DialogFrame
+	bind:open={createDialogOpen}
+	title="New Connection"
+	closeLabel="Close new connection dialog"
+	size="form"
+	portalDisabled={true}
+	onOpenChange={(open) => (createDialogOpen = open)}
+>
+	{#snippet topLeft()}
+		<Database size={14} weight="bold" class="shrink-0 text-primary" />
+		<span class="truncate text-[11px] font-semibold text-foreground select-none leading-none">
+			New Connection
+		</span>
+	{/snippet}
 
-		<!-- Form -->
-		<div class="grid gap-2.5 px-3 py-3">
+	<div class="grid gap-2.5 px-3 py-3">
+		<div class="grid gap-1">
+			<label
+				for="connection-string"
+				class="text-[0.625rem] font-medium text-muted-foreground uppercase tracking-wider"
+				>Connection string</label
+			>
+			<div class="grid grid-cols-[1fr_auto] items-center gap-1.5">
+				<input
+					id="connection-string"
+					bind:value={connectionString}
+					placeholder="postgresql://user:pass@localhost:5432/app"
+					class="h-7 w-full rounded-lg border border-border/40 bg-muted/30 px-2 text-[0.6875rem] text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-primary/40"
+				/>
+				<Button variant="header" size="header" onclick={applyConnectionString}>Apply</Button>
+			</div>
+			{#if connectionStringError}
+				<p class="text-[0.625rem] text-destructive">{connectionStringError}</p>
+			{/if}
+		</div>
+		<div class="grid gap-1">
+			<label
+				for="connection-name"
+				class="text-[0.625rem] font-medium text-muted-foreground uppercase tracking-wider">Name</label
+			>
+			<input
+				id="connection-name"
+				bind:value={connectionName}
+				placeholder="Local SQLite"
+				class="h-7 w-full rounded-lg border border-border/40 bg-muted/30 px-2 text-[0.6875rem] text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-primary/40"
+			/>
+		</div>
+		<div class="grid gap-1">
+			<label
+				for="connection-engine"
+				class="text-[0.625rem] font-medium text-muted-foreground uppercase tracking-wider">Engine</label
+			>
+			<select
+				id="connection-engine"
+				value={connectionEngine}
+				onchange={(e) => {
+					const v = (e.currentTarget as HTMLSelectElement).value;
+					if (v === "sqlite" || v === "postgres" || v === "mysql") {
+						connectionEngine = v;
+					}
+				}}
+				class="h-7 w-full cursor-pointer appearance-none rounded-lg border border-border/40 bg-muted/30 px-2 text-[0.6875rem] text-foreground focus:outline-none focus:ring-1 focus:ring-primary/40"
+			>
+				<option value="sqlite">sqlite</option>
+				<option value="postgres">postgres</option>
+				<option value="mysql">mysql</option>
+			</select>
+		</div>
+
+		{#if connectionEngine === "sqlite"}
 			<div class="grid gap-1">
-				<label for="connection-string" class="text-[0.625rem] font-medium text-muted-foreground uppercase tracking-wider">Connection string</label>
-				<div class="grid grid-cols-[1fr_auto] gap-1.5 items-center">
+				<label
+					for="connection-file"
+					class="text-[0.625rem] font-medium text-muted-foreground uppercase tracking-wider"
+					>SQLite file path</label
+				>
+				<div class="grid grid-cols-[1fr_auto] items-center gap-1.5">
 					<input
-						id="connection-string"
-						bind:value={connectionString}
-						placeholder="postgresql://user:pass@localhost:5432/app"
+						id="connection-file"
+						bind:value={connectionFilePath}
+						placeholder="/path/to/db.sqlite"
 						class="h-7 w-full rounded-lg border border-border/40 bg-muted/30 px-2 text-[0.6875rem] text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-primary/40"
 					/>
-					<button
-						type="button"
-						class="h-7 px-2.5 text-[0.625rem] font-medium text-muted-foreground hover:text-foreground hover:bg-muted/50 rounded-md transition-colors cursor-pointer"
-						onclick={applyConnectionString}
-					>
-						Apply
-					</button>
+					<Button variant="header" size="header" onclick={browseSqliteFile}>
+						<FolderOpen weight="regular" size={13} class="text-primary" />
+						Browse
+					</Button>
 				</div>
-				{#if connectionStringError}
-					<p class="text-[0.625rem] text-destructive">{connectionStringError}</p>
-				{/if}
 			</div>
+		{:else}
 			<div class="grid gap-1">
-				<label for="connection-name" class="text-[0.625rem] font-medium text-muted-foreground uppercase tracking-wider">Name</label>
+				<label
+					for="connection-host"
+					class="text-[0.625rem] font-medium text-muted-foreground uppercase tracking-wider">Host</label
+				>
 				<input
-					id="connection-name"
-					bind:value={connectionName}
-					placeholder="Local SQLite"
+					id="connection-host"
+					bind:value={connectionHost}
+					placeholder="localhost"
 					class="h-7 w-full rounded-lg border border-border/40 bg-muted/30 px-2 text-[0.6875rem] text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-primary/40"
 				/>
 			</div>
-			<div class="grid gap-1">
-				<label for="connection-engine" class="text-[0.625rem] font-medium text-muted-foreground uppercase tracking-wider">Engine</label>
-				<select
-					id="connection-engine"
-					value={connectionEngine}
-					onchange={(e) => {
-						const v = (e.currentTarget as HTMLSelectElement).value;
-						if (v === "sqlite" || v === "postgres" || v === "mysql") {
-							connectionEngine = v;
-						}
-					}}
-					class="h-7 w-full rounded-lg border border-border/40 bg-muted/30 px-2 text-[0.6875rem] text-foreground focus:outline-none focus:ring-1 focus:ring-primary/40 cursor-pointer appearance-none"
-				>
-					<option value="sqlite">sqlite</option>
-					<option value="postgres">postgres</option>
-					<option value="mysql">mysql</option>
-				</select>
+			<div class="grid grid-cols-2 gap-2">
+				<div class="grid gap-1">
+					<label
+						for="connection-port"
+						class="text-[0.625rem] font-medium text-muted-foreground uppercase tracking-wider">Port</label
+					>
+					<input
+						id="connection-port"
+						bind:value={connectionPort}
+						placeholder="5432"
+						class="h-7 w-full rounded-lg border border-border/40 bg-muted/30 px-2 text-[0.6875rem] text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-primary/40"
+					/>
+				</div>
+				<div class="grid gap-1">
+					<label
+						for="connection-database"
+						class="text-[0.625rem] font-medium text-muted-foreground uppercase tracking-wider"
+						>Database</label
+					>
+					<input
+						id="connection-database"
+						bind:value={connectionDatabase}
+						placeholder="app"
+						class="h-7 w-full rounded-lg border border-border/40 bg-muted/30 px-2 text-[0.6875rem] text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-primary/40"
+					/>
+				</div>
 			</div>
+			<div class="grid grid-cols-2 gap-2">
+				<div class="grid gap-1">
+					<label
+						for="connection-username"
+						class="text-[0.625rem] font-medium text-muted-foreground uppercase tracking-wider"
+						>Username</label
+					>
+					<input
+						id="connection-username"
+						bind:value={connectionUsername}
+						placeholder="user"
+						class="h-7 w-full rounded-lg border border-border/40 bg-muted/30 px-2 text-[0.6875rem] text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-primary/40"
+					/>
+				</div>
+				<div class="grid gap-1">
+					<label
+						for="connection-password"
+						class="text-[0.625rem] font-medium text-muted-foreground uppercase tracking-wider"
+						>Password</label
+					>
+					<input
+						id="connection-password"
+						type="password"
+						bind:value={connectionPassword}
+						placeholder="••••••••"
+						class="h-7 w-full rounded-lg border border-border/40 bg-muted/30 px-2 text-[0.6875rem] text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-primary/40"
+					/>
+				</div>
+			</div>
+			<div class="grid gap-1">
+				<label
+					for="connection-ssl"
+					class="text-[0.625rem] font-medium text-muted-foreground uppercase tracking-wider"
+					>SSL mode (optional)</label
+				>
+				<input
+					id="connection-ssl"
+					bind:value={connectionSslMode}
+					placeholder="require"
+					class="h-7 w-full rounded-lg border border-border/40 bg-muted/30 px-2 text-[0.6875rem] text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-primary/40"
+				/>
+			</div>
+		{/if}
+	</div>
 
-			{#if connectionEngine === "sqlite"}
-				<div class="grid gap-1">
-					<label for="connection-file" class="text-[0.625rem] font-medium text-muted-foreground uppercase tracking-wider">SQLite file path</label>
-					<div class="grid grid-cols-[1fr_auto] gap-1.5 items-center">
-						<input
-							id="connection-file"
-							bind:value={connectionFilePath}
-							placeholder="/path/to/db.sqlite"
-							class="h-7 w-full rounded-lg border border-border/40 bg-muted/30 px-2 text-[0.6875rem] text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-primary/40"
-						/>
-						<button
-							type="button"
-							class="h-7 px-2.5 text-[0.625rem] font-medium text-muted-foreground hover:text-foreground hover:bg-muted/50 rounded-md transition-colors cursor-pointer inline-flex items-center gap-1"
-							onclick={browseSqliteFile}
-						>
-							<FolderOpen weight="regular" size={13} class="text-primary" />
-							Browse
-						</button>
-					</div>
-				</div>
-			{:else}
-				<div class="grid gap-1">
-					<label for="connection-host" class="text-[0.625rem] font-medium text-muted-foreground uppercase tracking-wider">Host</label>
-					<input id="connection-host" bind:value={connectionHost} placeholder="localhost" class="h-7 w-full rounded-lg border border-border/40 bg-muted/30 px-2 text-[0.6875rem] text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-primary/40" />
-				</div>
-				<div class="grid grid-cols-2 gap-2">
-					<div class="grid gap-1">
-						<label for="connection-port" class="text-[0.625rem] font-medium text-muted-foreground uppercase tracking-wider">Port</label>
-						<input id="connection-port" bind:value={connectionPort} placeholder="5432" class="h-7 w-full rounded-lg border border-border/40 bg-muted/30 px-2 text-[0.6875rem] text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-primary/40" />
-					</div>
-					<div class="grid gap-1">
-						<label for="connection-database" class="text-[0.625rem] font-medium text-muted-foreground uppercase tracking-wider">Database</label>
-						<input id="connection-database" bind:value={connectionDatabase} placeholder="app" class="h-7 w-full rounded-lg border border-border/40 bg-muted/30 px-2 text-[0.6875rem] text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-primary/40" />
-					</div>
-				</div>
-				<div class="grid grid-cols-2 gap-2">
-					<div class="grid gap-1">
-						<label for="connection-username" class="text-[0.625rem] font-medium text-muted-foreground uppercase tracking-wider">Username</label>
-						<input id="connection-username" bind:value={connectionUsername} placeholder="user" class="h-7 w-full rounded-lg border border-border/40 bg-muted/30 px-2 text-[0.6875rem] text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-primary/40" />
-					</div>
-					<div class="grid gap-1">
-						<label for="connection-password" class="text-[0.625rem] font-medium text-muted-foreground uppercase tracking-wider">Password</label>
-						<input id="connection-password" type="password" bind:value={connectionPassword} placeholder="••••••••" class="h-7 w-full rounded-lg border border-border/40 bg-muted/30 px-2 text-[0.6875rem] text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-primary/40" />
-					</div>
-				</div>
-				<div class="grid gap-1">
-					<label for="connection-ssl" class="text-[0.625rem] font-medium text-muted-foreground uppercase tracking-wider">SSL mode (optional)</label>
-					<input id="connection-ssl" bind:value={connectionSslMode} placeholder="require" class="h-7 w-full rounded-lg border border-border/40 bg-muted/30 px-2 text-[0.6875rem] text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-primary/40" />
-				</div>
-			{/if}
-		</div>
-
-		<!-- Footer -->
-		<div class="flex items-center justify-end px-1 border-t border-border/30 shrink-0" style="height: 28px;">
-			<button
-				type="button"
-				class="h-7 px-2 inline-flex items-center gap-1 text-[11px] text-muted-foreground transition-colors hover:bg-accent/50 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:ring-inset disabled:opacity-50 disabled:pointer-events-none"
-				onclick={() => (createDialogOpen = false)}
-			>
-				<X size={14} weight="bold" />
-				Cancel
-			</button>
-			<button
-				type="button"
-				class="h-7 px-2 inline-flex items-center gap-1 text-[11px] text-muted-foreground transition-colors hover:bg-accent/50 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:ring-inset disabled:opacity-50 disabled:pointer-events-none"
-				onclick={testCurrentConnection}
-				disabled={!canSaveConnection || store.isSavingConnection || testingConnection}
-			>
-				<Lightning size={14} weight="bold" />
-				{testingConnection ? "Testing..." : "Test"}
-			</button>
-			<button
-				type="button"
-				class="h-7 px-2 inline-flex items-center gap-1 text-[11px] text-muted-foreground transition-colors hover:bg-accent/50 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:ring-inset disabled:opacity-50 disabled:pointer-events-none"
-				onclick={saveConnection}
-				disabled={!canSaveConnection || store.isSavingConnection}
-			>
-				<FloppyDisk size={14} weight="bold" />
-				{store.isSavingConnection ? "Saving..." : "Save"}
-			</button>
-		</div>
-	</Dialog.Content>
-</Dialog.Root>
+	{#snippet footer()}
+		<Button variant="header" size="header" onclick={() => (createDialogOpen = false)}>Cancel</Button>
+		<Button
+			variant="header"
+			size="header"
+			onclick={testCurrentConnection}
+			disabled={!canSaveConnection || store.isSavingConnection || testingConnection}
+		>
+			{testingConnection ? "Testing..." : "Test"}
+		</Button>
+		<Button
+			variant="invert"
+			size="header"
+			onclick={saveConnection}
+			disabled={!canSaveConnection || store.isSavingConnection}
+		>
+			{store.isSavingConnection ? "Saving..." : "Save"}
+		</Button>
+	{/snippet}
+</DialogFrame>
 
 <!-- Delete Connection Confirmation -->
-<AlertDialog.Root bind:open={deleteConfirmOpen}>
-	<AlertDialog.Content portalProps={{ disabled: true }}>
-		<AlertDialog.Header>
-			<AlertDialog.Title>Delete connection</AlertDialog.Title>
-			<AlertDialog.Description>
-				This will permanently remove this connection. This action cannot be undone.
-			</AlertDialog.Description>
-		</AlertDialog.Header>
-		<AlertDialog.Footer>
-			<AlertDialog.Cancel>Cancel</AlertDialog.Cancel>
-			<AlertDialog.Action
-				class="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-				onclick={() => {
-					if (deleteTargetId) {
-						store.deleteConnectionById(deleteTargetId).mapErr(() => {});
-						deleteTargetId = null;
-					}
-					deleteConfirmOpen = false;
-				}}
-			>
-				Delete
-			</AlertDialog.Action>
-		</AlertDialog.Footer>
-	</AlertDialog.Content>
-</AlertDialog.Root>
+<DialogFrame
+	bind:open={deleteConfirmOpen}
+	title="Delete connection"
+	closeLabel="Close delete connection dialog"
+	size="form"
+	portalDisabled={true}
+	onOpenChange={(open) => (deleteConfirmOpen = open)}
+>
+	{#snippet topLeft()}
+		<span class="truncate text-[11px] font-semibold text-foreground select-none">
+			Delete connection
+		</span>
+	{/snippet}
+
+	<div class="px-3 py-3">
+		<p class="text-[12px] text-muted-foreground">
+			This will permanently remove this connection. This action cannot be undone.
+		</p>
+	</div>
+
+	{#snippet footer()}
+		<Button variant="header" size="header" onclick={() => (deleteConfirmOpen = false)}>Cancel</Button>
+		<Button
+			variant="destructive"
+			size="header"
+			onclick={() => {
+				if (deleteTargetId) {
+					store.deleteConnectionById(deleteTargetId).mapErr(() => {});
+					deleteTargetId = null;
+				}
+				deleteConfirmOpen = false;
+			}}
+		>
+			Delete
+		</Button>
+	{/snippet}
+</DialogFrame>

@@ -152,13 +152,13 @@
 			? "chromeIconMd"
 			: triggerSize === "chromeIcon"
 				? "chromeIcon"
-				: triggerSize === "headerAction"
-			? "headerAction"
-			: triggerSize === "setupChip"
-				? "setupChip"
-				: triggerSize === "icon" || triggerSize === "attach"
-					? "2xs"
-					: "sm"
+				: triggerSize === "setupChipIcon" || triggerSize === "setupChip"
+					? "setupChip"
+					: triggerSize === "headerAction"
+						? "headerAction"
+						: triggerSize === "icon" || triggerSize === "attach"
+							? "2xs"
+							: "sm"
 	);
 
 	const contentClass = $derived(

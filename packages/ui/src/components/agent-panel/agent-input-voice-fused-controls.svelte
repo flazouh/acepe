@@ -109,14 +109,10 @@
 				onDownloadModel={onVoiceDownloadModel}
 			/>
 		{/snippet}
-		{#if recordingUi}
-			<FusedPrimaryOverflowGroup
-				leading={recordingLeading}
-				primary={micPrimary}
-				overflow={voiceOverflow}
-			/>
-		{:else}
-			<FusedPrimaryOverflowGroup primary={micPrimary} overflow={voiceOverflow} />
-		{/if}
+		<FusedPrimaryOverflowGroup
+			leading={recordingUi ? recordingLeading : undefined}
+			primary={micPrimary}
+			overflow={voiceOverflow}
+		/>
 	</div>
 {/if}

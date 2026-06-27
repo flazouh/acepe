@@ -1,4 +1,8 @@
 import { cn } from "../../lib/utils.js";
+import {
+	FUSED_CONTROL_COMPOSER_CHIP_LABEL_BUTTON_CLASS,
+	FUSED_CONTROL_COMPOSER_STANDALONE_ICON_CHIP_CLASS,
+} from "../panel-header/project-card-action-button-class.js";
 
 export type SelectorTriggerSize =
 	| "default"
@@ -11,6 +15,7 @@ export type SelectorTriggerSize =
 	| "pill"
 	| "footer"
 	| "setupChip"
+	| "setupChipIcon"
 	| "headerAction";
 
 export function getSelectorTriggerSizeClass(triggerSize: SelectorTriggerSize): string {
@@ -32,7 +37,9 @@ export function getSelectorTriggerSizeClass(triggerSize: SelectorTriggerSize): s
 	case "footer":
 		return "h-5 min-w-0 shrink-0 gap-1 rounded-md border-0 !px-1 has-[>svg]:!px-1 text-[0.6875rem] font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground [&_svg]:size-3";
 	case "setupChip":
-		return "h-auto shrink-0 gap-1 rounded-md border-0 bg-transparent px-1.5 py-1 text-xs leading-none w-auto flex-none text-muted-foreground transition-colors hover:bg-accent hover:text-foreground";
+		return FUSED_CONTROL_COMPOSER_CHIP_LABEL_BUTTON_CLASS;
+	case "setupChipIcon":
+		return FUSED_CONTROL_COMPOSER_STANDALONE_ICON_CHIP_CLASS;
 	case "headerAction":
 		return "";
 	default:

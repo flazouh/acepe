@@ -14,19 +14,19 @@ let { title, description, variant = "default", actions }: Props = $props();
 
 <div
 	class={variant === "subsection"
-		? "mb-2 flex items-start justify-between gap-3"
+		? "mb-1.5 flex items-start justify-between gap-3"
 		: "mb-3 flex items-start justify-between gap-3"}
 >
 	<div class="min-w-0">
 		<h3
 			class={variant === "subsection"
-				? "text-[11px] font-semibold text-foreground"
-				: "text-xs font-semibold text-foreground"}
+				? "text-[13px] font-semibold text-foreground"
+				: "text-sm font-semibold text-foreground"}
 		>
 			{title}
 		</h3>
 		{#if description}
-			<p class="mt-0.5 text-[11px] leading-snug text-muted-foreground/70">
+			<p class="mt-0.5 text-[12px] leading-snug text-muted-foreground">
 				{description}
 			</p>
 		{/if}

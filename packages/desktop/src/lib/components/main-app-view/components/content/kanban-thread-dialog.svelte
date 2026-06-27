@@ -8,7 +8,7 @@ import {
 	getSessionStore,
 } from "$lib/acp/store/index.js";
 import { useTheme } from "$lib/components/theme/context.svelte.js";
-import * as Dialog from "@acepe/ui/dialog";
+import DialogFrame from "$lib/components/ui/dialog-frame.svelte";
 
 import type { MainAppViewState } from "../../logic/main-app-view-state.svelte.js";
 import { getSpawnableSessionAgents } from "../../logic/spawnable-agents.js";
@@ -115,15 +115,19 @@ function handleDialogOpenAutoFocus(): void {
 }
 </script>
 
-<Dialog.Root open={isPanelOpen} onOpenChange={handleOpenChange}>
-	<Dialog.Content
-		class="flex h-[90vh] w-fit max-w-[96vw] items-center justify-center overflow-visible border-0 bg-transparent p-0 shadow-none"
-		onOpenAutoFocus={handleDialogOpenAutoFocus}
-		portalProps={{ disabled: true }}
-		showCloseButton={false}
-	>
-		{#if isPanelOpen}
-			<AgentPanel
+<DialogFrame
+	open={isPanelOpen}
+	title="Kanban thread"
+	closeLabel="Close kanban thread"
+	size="bare"
+	hideHeader={true}
+	portalDisabled={true}
+	contentClass="!flex items-center justify-center overflow-visible !border-0 !bg-transparent !p-0 !shadow-none"
+	onOpenChange={handleOpenChange}
+	onOpenAutoFocus={handleDialogOpenAutoFocus}
+>
+	{#if isPanelOpen}
+		<AgentPanel
 				bind:this={agentPanelRef}
 				panelId={panelSnapshot.panelId}
 				sessionId={panelSnapshot.sessionId}
@@ -171,7 +175,6 @@ function handleDialogOpenAutoFocus(): void {
 				onReviewFileIndexChange={(index) => panelStore.setReviewFileIndex(panelSnapshot.panelId, index)}
 				onCreateIssueReport={(draft) => mainAppState.openUserReportsWithDraft(draft)}
 				hasAttachedFilePane={panelStore.hasAttachedFilePanels(panelSnapshot.panelId)}
-			/>
-		{/if}
-	</Dialog.Content>
-</Dialog.Root>
+		/>
+	{/if}
+</DialogFrame>

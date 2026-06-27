@@ -6,46 +6,30 @@
 	import SettingsSection from "$lib/components/settings-page/settings-section.svelte";
 
 	import DesignSystemNewThreadOptionsBarDemo from "./design-system-new-thread-options-bar-demo.svelte";
-	import {
-		buildReasoningConfigOption,
-		featuredNewThreadOptionsSpecimen,
-		mockProjects,
-		reasoningLevelSpecimens,
-	} from "./design-system-new-thread-options-specimens.js";
+	import { featuredNewThreadOptionsSpecimen, mockProjects } from "./design-system-new-thread-options-specimens.js";
 
 	let featuredProject = $state(featuredNewThreadOptionsSpecimen.project);
 	let featuredAgentId = $state(featuredNewThreadOptionsSpecimen.agentId);
-	let featuredModelId = $state(featuredNewThreadOptionsSpecimen.modelId);
-	let featuredReasoningValue = $state(featuredNewThreadOptionsSpecimen.reasoningValue);
 	let featuredWorktreeOn = $state(featuredNewThreadOptionsSpecimen.worktreeOn);
-
-	const featuredReasoningOption = $derived(buildReasoningConfigOption(featuredReasoningValue));
 </script>
 
 <div class="w-full">
 	<SettingsSection
 		title="In context"
-		description="Live setup row above a composer shell — controls are interactive."
+		description="Live setup row above a composer shell — project, agent, branch, and worktree controls are interactive. Model and reasoning stay in the composer trailing toolbar."
 	>
 		<InputContainer class="border border-border bg-input/30" contentClass="flex flex-col gap-2 p-2">
 			{#snippet content()}
 				<DesignSystemNewThreadOptionsBarDemo
 					selectedProject={featuredProject}
 					selectedAgentId={featuredAgentId}
-					selectedModelId={featuredModelId}
-					reasoningOption={featuredReasoningOption}
 					worktreeOn={featuredWorktreeOn}
+					showBranch={true}
 					onProjectChange={(project) => {
 						featuredProject = project;
 					}}
 					onAgentChange={(agentId) => {
 						featuredAgentId = agentId;
-					}}
-					onModelChange={(modelId) => {
-						featuredModelId = modelId;
-					}}
-					onReasoningChange={(_configId, value) => {
-						featuredReasoningValue = value;
 					}}
 					onWorktreeToggle={(on) => {
 						featuredWorktreeOn = on;
@@ -59,48 +43,30 @@
 	</SettingsSection>
 
 	<SettingsSection
-		title="Reasoning levels"
-		description="Reasoning effort as its own chip — brain icon opens a dropdown to pick the level."
-	>
-		{#snippet headerActions()}
-			<Badge variant="secondary" class="font-mono text-[10px]">
-				{reasoningLevelSpecimens.length} levels
-			</Badge>
-		{/snippet}
-
-		<div class="overflow-hidden rounded-lg border border-border/40 bg-card px-3">
-			{#each reasoningLevelSpecimens as specimen (specimen.id)}
-				<SettingRow stacked label={specimen.label} description={specimen.caption}>
-					<DesignSystemNewThreadOptionsBarDemo
-						selectedProject={mockProjects[0]}
-						selectedAgentId="codex"
-						selectedModelId="gpt-5.5"
-						reasoningOption={buildReasoningConfigOption(specimen.currentValue)}
-						worktreeOn={false}
-						showWorktree={false}
-					/>
-				</SettingRow>
-			{/each}
-		</div>
-	</SettingsSection>
-
-	<SettingsSection
 		title="Variants"
 		description="Optional regions and grouped controls in the setup row."
 	>
 		<div class="overflow-hidden rounded-lg border border-border/40 bg-card px-3">
-			<SettingRow stacked label="Without reasoning" description="Model picker only; no reasoning group.">
+			<SettingRow stacked label="Without branch" description="Project and agent chips only.">
 				<DesignSystemNewThreadOptionsBarDemo
-					reasoningOption={null}
 					worktreeOn={false}
 					showWorktree={false}
+					showBranch={false}
+				/>
+			</SettingRow>
+			<SettingRow stacked label="With branch" description="Branch chip matches project/agent setup styling.">
+				<DesignSystemNewThreadOptionsBarDemo
+					selectedProject={mockProjects[0]}
+					worktreeOn={false}
+					showWorktree={false}
+					showBranch={true}
 				/>
 			</SettingRow>
 			<SettingRow stacked label="Worktree off" description="Icon-only tree toggle; default branch checkout.">
 				<DesignSystemNewThreadOptionsBarDemo
-					reasoningOption={buildReasoningConfigOption("medium")}
 					worktreeOn={false}
 					showWorktree={true}
+					showBranch={true}
 				/>
 			</SettingRow>
 			<SettingRow
@@ -109,9 +75,9 @@
 				description="Filled green tree icon; isolated worktree branch."
 			>
 				<DesignSystemNewThreadOptionsBarDemo
-					reasoningOption={buildReasoningConfigOption("medium")}
 					worktreeOn={true}
 					showWorktree={true}
+					showBranch={true}
 				/>
 			</SettingRow>
 		</div>

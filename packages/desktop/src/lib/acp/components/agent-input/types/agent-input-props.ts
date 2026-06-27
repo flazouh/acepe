@@ -5,20 +5,21 @@ import type { AgentInfo } from "../../../logic/agent-manager.js";
 import type { PreparedWorktreeLaunch } from "../../../types/worktree-info.js";
 
 /**
- * Host-provided bindings for the new-chat-panel stacked options surface.
+ * Host-provided bindings for the new-chat-panel setup bar above the composer.
  *
- * When supplied (and the panel has no session yet), AgentInput renders a stacked
- * Project/Agent/Model/Worktree/Autonomous surface above the composer input. The
- * project and agent controls are passed as snippets (they wrap desktop
- * selectors); worktree is driven by boolean + handler so the composer can place
- * it as an on/off row. Model and Autonomous are sourced from the composer's own
- * pre-session state.
+ * When supplied (and the panel has no session yet), AgentInput renders a compact
+ * Project/Agent/Branch/Worktree bar above the composer input. Project, agent, and
+ * branch controls are passed as snippets (they wrap desktop selectors); worktree
+ * is driven by boolean + handler. Model, reasoning, and auto-approve stay in the
+ * composer toolbar.
  */
 export interface NewThreadContextBinding {
-	/** Project selector control rendered in the Project row. */
+	/** Project selector control rendered in the setup bar. */
 	readonly project: Snippet;
-	/** Agent selector control rendered in the Agent row. */
+	/** Agent selector control rendered in the setup bar. */
 	readonly agent: Snippet;
+	/** Optional branch picker control rendered in the setup bar. */
+	readonly branch?: Snippet;
 	/** Whether the worktree row applies (e.g. the project is a git repo). */
 	readonly showWorktree: boolean;
 	/** Whether a new worktree is requested for the thread. */
@@ -178,10 +179,9 @@ export interface AgentInputProps {
 	readonly agentProjectPicker?: Snippet;
 
 	/**
-	 * Optional bindings for the new-chat-panel stacked options surface. When set
-	 * and the panel has no session, a stacked Project/Agent/Model/Worktree/
-	 * Autonomous surface renders above the composer input and the footer's
-	 * inline model selector is suppressed (those controls move into the surface).
+	 * Optional bindings for the new-chat-panel setup bar. When set and the panel
+	 * has no session, a compact Project/Agent/Branch/Worktree bar renders above
+	 * the composer input. Model and reasoning remain in the composer trailing toolbar.
 	 */
 	readonly newThreadContext?: NewThreadContextBinding | null;
 

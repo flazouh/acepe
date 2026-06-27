@@ -1,20 +1,21 @@
 <!--
   AgentInputConfigOptionSelector - Toolbar button for a config option (fast mode, reasoning, etc).
 
-  Extracted from packages/desktop/src/lib/acp/components/config-option-selector.svelte.
-  Accepts a normalized config option shape; desktop still derives ConfigOptionData from session state.
+  Accepts a normalized config option shape; desktop derives AgentInputConfigOption from session state.
 -->
 <script lang="ts">
-	import { Brain, Lightning, ShieldCheck } from "phosphor-svelte";
+	import { Lightning, ShieldCheck } from "phosphor-svelte";
 
 	import { EmbeddedIconButton } from "../panel-header/index.js";
 	import { Selector } from "../selector/index.js";
 	import type { SelectorTriggerSize } from "../selector/selector-trigger-classes.js";
 	import * as Tooltip from "../tooltip/index.js";
+	import AgentInputReasoningEffortTrigger from "./agent-input-reasoning-effort-trigger.svelte";
 	import AgentInputSelectorItemRow from "./agent-input-selector-item-row.svelte";
 	import {
 		getConfigOptionFastTriggerClass,
 		getConfigOptionNextBooleanValue,
+		getConfigOptionResolvedTriggerSize,
 		getConfigOptionViewState,
 		shouldEmitConfigOptionValueChange,
 	} from "./agent-input-config-option-selector-state.js";
@@ -32,11 +33,19 @@
 	let {
 		configOption,
 		disabled = false,
-		triggerSize = "chromeIcon",
+		triggerSize = "setupChip",
 		onValueChange,
 	}: Props = $props();
 
 	const viewState = $derived(getConfigOptionViewState(configOption));
+	const resolvedTriggerSize = $derived(
+		getConfigOptionResolvedTriggerSize(configOption, triggerSize)
+	);
+	const selectorVariant = $derived(
+		resolvedTriggerSize === "setupChip" || resolvedTriggerSize === "setupChipIcon"
+			? "ghost"
+			: "chromeIcon"
+	);
 	const fastTriggerClass = $derived(
 		getConfigOptionFastTriggerClass({
 			disabled,
@@ -72,11 +81,22 @@
 {#snippet configOptionIcon()}
 	{#if viewState.iconKind === "fast"}
 		<Lightning class="{viewState.iconClass} size-3.5" weight={viewState.iconWeight} style={viewState.iconStyle} />
-	{:else if viewState.iconKind === "reasoning"}
-		<Brain class="{viewState.iconClass} size-3.5" weight={viewState.iconWeight} style={viewState.iconStyle} />
 	{:else}
 		<ShieldCheck class="size-3.5" weight="fill" style="color: {viewState.iconColor}" />
 	{/if}
+{/snippet}
+
+{#snippet configOptionDropdownRows()}
+	<div class="max-h-[250px] overflow-y-auto scrollbar-thin">
+		{#each configOption.options ?? [] as option (String(option.value))}
+			{@const optValue = String(option.value)}
+			<AgentInputSelectorItemRow
+				label={option.name}
+				selected={optValue === viewState.currentValue}
+				onSelect={() => handleSelect(optValue)}
+			/>
+		{/each}
+	</div>
 {/snippet}
 
 {#snippet configOptionTooltipContent()}
@@ -118,13 +138,26 @@
 		</Tooltip.Trigger>
 		{@render configOptionTooltipContent()}
 	</Tooltip.Root>
+{:else if viewState.iconKind === "reasoning"}
+	<AgentInputReasoningEffortTrigger
+		{disabled}
+		triggerAriaLabel={viewState.buttonTitle}
+		tooltipTitle={viewState.tooltipTitle}
+		tooltipDescription={viewState.tooltipDescription}
+		tooltipSide="top"
+		side="top"
+	>
+		{#snippet children()}
+			{@render configOptionDropdownRows()}
+		{/snippet}
+	</AgentInputReasoningEffortTrigger>
 {:else}
 	<Selector
 		{disabled}
 		align="start"
-		variant="chromeIcon"
+		variant={selectorVariant}
 		showChevron={false}
-		{triggerSize}
+		triggerSize={resolvedTriggerSize}
 		triggerAriaLabel={viewState.buttonTitle}
 		tooltipTitle={viewState.tooltipTitle}
 		tooltipDescription={viewState.tooltipDescription}
@@ -136,15 +169,6 @@
 			{@render configOptionIcon()}
 		{/snippet}
 
-		<div class="max-h-[250px] overflow-y-auto scrollbar-thin">
-			{#each configOption.options ?? [] as option (String(option.value))}
-				{@const optValue = String(option.value)}
-				<AgentInputSelectorItemRow
-					label={option.name}
-					selected={optValue === viewState.currentValue}
-					onSelect={() => handleSelect(optValue)}
-				/>
-			{/each}
-		</div>
+		{@render configOptionDropdownRows()}
 	</Selector>
 {/if}

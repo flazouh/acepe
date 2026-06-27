@@ -5,6 +5,7 @@ import {
 	getConfigOptionIconKind,
 	getConfigOptionIconWeight,
 	getConfigOptionNextBooleanValue,
+	getConfigOptionResolvedTriggerSize,
 	getConfigOptionTooltipBody,
 	getConfigOptionTooltipCurrentValueLabel,
 	getConfigOptionTooltipDescription,
@@ -124,6 +125,17 @@ describe("agent input config option selector state", () => {
 				currentValue: null,
 			})
 		).toBe("fill");
+	});
+
+	test("resolves composer trigger size for reasoning and other compact options", () => {
+		expect(
+			getConfigOptionResolvedTriggerSize(
+				makeOption({ presentation: "compactReasoning", id: "reasoning" })
+			)
+		).toBe("setupChipIcon");
+		expect(getConfigOptionResolvedTriggerSize(makeOption({ presentation: "compactSpeed" }))).toBe(
+			"setupChip"
+		);
 	});
 
 	test("builds full view state", () => {

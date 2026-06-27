@@ -2,7 +2,7 @@
 import { GitPanel } from "$lib/acp/components/git-panel/index.js";
 import type { ProjectManager } from "$lib/acp/logic/project-manager.svelte.js";
 import { getPanelStore, getSessionStore } from "$lib/acp/store/index.js";
-import WorkspaceDialogFrame from "$lib/components/ui/workspace-dialog-frame.svelte";
+import DialogFrame from "$lib/components/ui/dialog-frame.svelte";
 
 interface Props {
 	projectManager: ProjectManager;
@@ -35,7 +35,7 @@ function handleRequestGeneration(projectPath: string, prompt: string) {
 		project?.name ??
 		activeGitDialog.projectPath.split("/").pop() ??
 		activeGitDialog.projectPath}
-	<WorkspaceDialogFrame
+	<DialogFrame
 		open={true}
 		title="Source Control — {projectName}"
 		closeLabel="Close source control"
@@ -63,5 +63,5 @@ function handleRequestGeneration(projectPath: string, prompt: string) {
 				/>
 			</div>
 		{/key}
-	</WorkspaceDialogFrame>
+	</DialogFrame>
 {/if}

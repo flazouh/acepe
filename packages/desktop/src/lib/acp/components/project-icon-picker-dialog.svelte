@@ -1,6 +1,6 @@
 <script lang="ts">
-import * as Dialog from "@acepe/ui/dialog";
-
+import { Button } from "$lib/components/ui/button/index.js";
+import DialogFrame from "$lib/components/ui/dialog-frame.svelte";
 import { convertIconPath } from "../logic/project-client.js";
 
 interface Props {
@@ -28,15 +28,25 @@ function handleSelect(imagePath: string) {
 }
 </script>
 
-<Dialog.Root {open} {onOpenChange}>
-	<Dialog.Content class="max-w-lg max-h-[70vh] flex flex-col p-0 gap-0">
-		<Dialog.Header class="px-4 pt-4 pb-2">
-			<Dialog.Title class="text-sm font-semibold">Choose Project Icon</Dialog.Title>
-			<Dialog.Description class="text-xs text-muted-foreground">
-				Select an image from your project or browse for a custom one.
-			</Dialog.Description>
-		</Dialog.Header>
-		<div class="flex-1 min-h-0 overflow-y-auto px-4 pb-2">
+<DialogFrame
+	{open}
+	title="Choose Project Icon"
+	closeLabel="Close project icon picker"
+	size="medium"
+	contentOverflow="hidden"
+	{onOpenChange}
+>
+	{#snippet topLeft()}
+		<span class="truncate text-[11px] font-semibold text-foreground select-none">
+			Choose Project Icon
+		</span>
+	{/snippet}
+
+	<div class="flex min-h-0 flex-1 flex-col px-3 py-2">
+		<p class="pb-2 text-[12px] text-muted-foreground">
+			Select an image from your project or browse for a custom one.
+		</p>
+		<div class="min-h-0 flex-1 overflow-y-auto">
 			{#if images.length === 0}
 				<div class="flex items-center justify-center py-8 text-sm text-muted-foreground">
 					No images found in this project.
@@ -52,7 +62,9 @@ function handleSelect(imagePath: string) {
 							title={label}
 							onclick={() => handleSelect(imagePath)}
 						>
-							<div class="flex h-12 w-12 items-center justify-center overflow-hidden rounded-md bg-muted/30">
+							<div
+								class="flex h-12 w-12 items-center justify-center overflow-hidden rounded-md bg-muted/30"
+							>
 								{#if src}
 									<img
 										{src}
@@ -62,7 +74,9 @@ function handleSelect(imagePath: string) {
 									/>
 								{/if}
 							</div>
-							<span class="w-full truncate text-center text-[9px] leading-tight text-muted-foreground">
+							<span
+								class="w-full truncate text-center text-[9px] leading-tight text-muted-foreground"
+							>
 								{label}
 							</span>
 						</button>
@@ -70,21 +84,10 @@ function handleSelect(imagePath: string) {
 				</div>
 			{/if}
 		</div>
-		<div class="flex shrink-0 items-center justify-end gap-2 border-t px-4 py-3">
-			<button
-				type="button"
-				class="rounded-lg border border-border px-3 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-				onclick={onBrowse}
-			>
-				Browse files…
-			</button>
-			<button
-				type="button"
-				class="rounded-md px-3 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-				onclick={() => onOpenChange(false)}
-			>
-				Cancel
-			</button>
-		</div>
-	</Dialog.Content>
-</Dialog.Root>
+	</div>
+
+	{#snippet footer()}
+		<Button variant="header" size="header" onclick={onBrowse}>Browse files…</Button>
+		<Button variant="header" size="header" onclick={() => onOpenChange(false)}>Cancel</Button>
+	{/snippet}
+</DialogFrame>

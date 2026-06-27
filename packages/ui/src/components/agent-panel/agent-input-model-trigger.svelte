@@ -29,7 +29,7 @@
 	{disabled}
 	{title}
 	{onclick}
-	class="inline-flex items-center gap-1 h-7 px-2 text-[11px] font-medium text-foreground/85 transition-colors hover:bg-accent/50 hover:text-foreground disabled:opacity-50 disabled:cursor-not-allowed"
+	class="inline-flex items-center gap-1 px-2 py-1 text-[11px] font-medium text-foreground/85 transition-colors hover:bg-accent/50 hover:text-foreground disabled:opacity-50 disabled:cursor-not-allowed"
 >
 	{#if agentIconSrc}
 		<img src={agentIconSrc} alt="" class="h-3 w-3 shrink-0" role="presentation" />

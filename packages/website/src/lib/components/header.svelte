@@ -52,9 +52,6 @@ const mobileNavLinkClass =
 					{"Roadmap"}
 				</a>
 			{/if}
-			<a href="/changelog" class={desktopNavLinkClass}>
-				{"Changelog"}
-			</a>
 			<a href="/compare" class={desktopNavLinkClass}>
 				{"Compare"}
 			</a>
@@ -199,9 +196,6 @@ const mobileNavLinkClass =
 									{"Roadmap"}
 								</a>
 							{/if}
-							<a href="/changelog" class={mobileNavLinkClass} onclick={() => (drawerOpen = false)}>
-								{"Changelog"}
-							</a>
 							<a href="/compare" class={mobileNavLinkClass} onclick={() => (drawerOpen = false)}>
 								{"Compare"}
 							</a>

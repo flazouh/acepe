@@ -22,7 +22,6 @@
 		"db:studio": "drizzle-kit studio"
 	},
 	"dependencies": {
-		"@acepe/changelog": "workspace:*",
 		"@acepe/ui": "workspace:*",
 		"@aws-sdk/client-s3": "^3.1069.0",
 		"@aws-sdk/s3-request-presigner": "^3.1069.0",

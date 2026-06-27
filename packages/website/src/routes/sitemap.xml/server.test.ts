@@ -16,7 +16,6 @@ describe("sitemap.xml", () => {
 		expect(xml).toContain(
 			"<loc>https://acepe.dev/blog/attention-queue</loc>\n    <lastmod>2026-02-20</lastmod>"
 		);
-		expect(xml).toContain("<loc>https://acepe.dev/changelog</loc>");
 		expect(xml).toContain("<loc>https://acepe.dev/compare</loc>");
 		expect(xml).toContain("<loc>https://acepe.dev/compare/cursor</loc>");
 		expect(xml).toContain("<loc>https://acepe.dev/compare/superset</loc>");

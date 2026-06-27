@@ -78,10 +78,6 @@ export type UserSettingKey =
  */
 "has_seen_splash" |
 /**
- * Last app version the user has seen the changelog for
- */
-"last_seen_version" |
-/**
  * Whether user has completed first-run onboarding
  */
 "has_completed_onboarding" |

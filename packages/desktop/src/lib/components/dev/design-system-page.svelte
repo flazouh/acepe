@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { Button } from "@acepe/ui";
-	import { CaretLeft, DownloadSimple, Rows } from "phosphor-svelte";
+	import { CaretLeft, DownloadSimple, Microphone, Rows } from "phosphor-svelte";
 
 	import { Badge } from "$lib/components/ui/badge/index.js";
 	import SettingsPageHeader from "$lib/components/settings-page/settings-page-header.svelte";
@@ -8,6 +8,8 @@
 
 	import DesignSystemInstallCardSection from "./design-system-install-card-section.svelte";
 	import { installCardSectionMeta } from "./design-system-install-card-specimens.js";
+	import DesignSystemMicButtonSection from "./design-system-mic-button-section.svelte";
+	import { micButtonSectionMeta } from "./design-system-mic-button-specimens.js";
 	import DesignSystemNewThreadOptionsSection from "./design-system-new-thread-options-section.svelte";
 	import { newThreadOptionsSectionMeta } from "./design-system-new-thread-options-specimens.js";
 
@@ -17,15 +19,17 @@
 
 	let { onClose }: Props = $props();
 
-	type DesignSystemSection = "install-card" | "new-thread-options";
+	type DesignSystemSection = "install-card" | "mic-button" | "new-thread-options";
 
 	const sections: ReadonlyArray<{ id: DesignSystemSection; label: string }> = [
 		{ id: "install-card", label: installCardSectionMeta.title },
+		{ id: "mic-button", label: micButtonSectionMeta.title },
 		{ id: "new-thread-options", label: newThreadOptionsSectionMeta.title },
 	];
 
 	const sectionMetaById = {
 		"install-card": installCardSectionMeta,
+		"mic-button": micButtonSectionMeta,
 		"new-thread-options": newThreadOptionsSectionMeta,
 	} as const;
 
@@ -34,7 +38,9 @@
 	const activeSectionMeta = $derived(sectionMetaById[activeSection]);
 
 	function sectionIcon(sectionId: DesignSystemSection) {
-		return sectionId === "new-thread-options" ? Rows : DownloadSimple;
+		if (sectionId === "new-thread-options") return Rows;
+		if (sectionId === "mic-button") return Microphone;
+		return DownloadSimple;
 	}
 </script>
 
@@ -91,6 +97,8 @@
 			<div class="w-full max-w-4xl">
 				{#if activeSection === "install-card"}
 					<DesignSystemInstallCardSection />
+				{:else if activeSection === "mic-button"}
+					<DesignSystemMicButtonSection />
 				{:else if activeSection === "new-thread-options"}
 					<DesignSystemNewThreadOptionsSection />
 				{/if}

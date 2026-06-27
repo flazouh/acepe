@@ -8,8 +8,8 @@ import {
 } from "@acepe/ui";
 import { Button } from "@acepe/ui/button";
 import * as ButtonGroup from "@acepe/ui/button-group";
-import * as Dialog from "@acepe/ui/dialog";
 import * as DropdownMenu from "@acepe/ui/dropdown-menu";
+import DialogFrame from "$lib/components/ui/dialog-frame.svelte";
 import { Textarea } from "$lib/components/ui/textarea/index.js";
 import { GitMerge, GitPullRequest, DotsThreeVertical, CaretDown } from "phosphor-svelte";
 import { toast } from "svelte-sonner";
@@ -561,46 +561,51 @@ function handlePromptResetClick(): void {
 		{/snippet}
 	</SharedAgentPanelModifiedFilesHeader>
 
-	<Dialog.Root bind:open={promptDialogOpen}>
-		<Dialog.Content class="max-w-lg">
-			<Dialog.Header>
-				<Dialog.Title>PR prompt</Dialog.Title>
-				<Dialog.Description>
-					Customize the instructions Acepe uses before it adds branch, changed-file, diff, and XML response context.
-				</Dialog.Description>
-			</Dialog.Header>
+	<DialogFrame
+		bind:open={promptDialogOpen}
+		title="PR prompt"
+		closeLabel="Close PR prompt editor"
+		size="medium"
+		contentClass="max-w-lg"
+	>
+		{#snippet topLeft()}
+			<span class="truncate text-[11px] font-semibold text-foreground select-none">PR prompt</span>
+		{/snippet}
 
-			<div class="grid gap-2 py-2">
-				<Textarea
-					class="min-h-[240px] max-h-[420px] resize-y text-xs leading-relaxed"
-					placeholder="Add PR instructions for Acepe to apply"
-					spellcheck="false"
-					value={promptEditorState.value}
-					oninput={handlePromptChange}
-				/>
-				<p class="text-xs text-muted-foreground">
-					{promptEditorState.helperText}
-				</p>
-			</div>
+		<div class="grid gap-2 px-3 py-3">
+			<p class="text-[12px] text-muted-foreground">
+				Customize the instructions Acepe uses before it adds branch, changed-file, diff, and XML
+				response context.
+			</p>
+			<Textarea
+				class="min-h-[240px] max-h-[420px] resize-y text-xs leading-relaxed"
+				placeholder="Add PR instructions for Acepe to apply"
+				spellcheck="false"
+				value={promptEditorState.value}
+				oninput={handlePromptChange}
+			/>
+			<p class="text-xs text-muted-foreground">
+				{promptEditorState.helperText}
+			</p>
+		</div>
 
-			<Dialog.Footer>
-				<Button
-					variant="header"
-					size="header"
-					disabled={!promptEditorState.canReset}
-					onclick={handlePromptResetClick}
-				>
-					Reset
-				</Button>
-				<Button
-					variant="invert"
-					size="header"
-					disabled={!promptEditorState.canSave}
-					onclick={handlePromptSaveClick}
-				>
-					Save prompt
-				</Button>
-			</Dialog.Footer>
-		</Dialog.Content>
-	</Dialog.Root>
+		{#snippet footer()}
+			<Button
+				variant="header"
+				size="header"
+				disabled={!promptEditorState.canReset}
+				onclick={handlePromptResetClick}
+			>
+				Reset
+			</Button>
+			<Button
+				variant="invert"
+				size="header"
+				disabled={!promptEditorState.canSave}
+				onclick={handlePromptSaveClick}
+			>
+				Save prompt
+			</Button>
+		{/snippet}
+	</DialogFrame>
 {/if}

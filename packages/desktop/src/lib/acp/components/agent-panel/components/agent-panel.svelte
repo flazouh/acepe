@@ -45,7 +45,10 @@ import { Colors, getProjectColor, TAG_COLORS } from "@acepe/ui/colors";
 import { createLogger } from "../../../utils/logger.js";
 import AgentInput from "../../agent-input/agent-input-ui.svelte";
 import AgentSelector from "../../agent-selector.svelte";
+import BranchPicker from "../../branch-picker/branch-picker.svelte";
 import ProjectSelector from "../../project-selector.svelte";
+import { createEmptyStateBranchMetadataLoader } from "../../../../components/main-app-view/components/content/logic/empty-state-branch-metadata-loader.js";
+import { tauriClient } from "$lib/utils/tauri-client.js";
 import type { Attachment } from "../../agent-input/types/attachment.js";
 import { CheckpointTimeline } from "../../checkpoint/index.js";
 import type { PrGenerationConfig } from "../../modified-files/types/pr-generation-config.js";
@@ -90,7 +93,7 @@ import AgentPanelHeader from "./agent-panel-header.svelte";
 import AgentPanelResizeEdge from "./agent-panel-resize-edge.svelte";
 import AgentPanelReviewWorkspace from "./agent-panel-review-workspace.svelte";
 import type { ReviewControlsSnapshot } from "./agent-panel-review-content-types.js";
-import WorkspaceDialogFrame from "$lib/components/ui/workspace-dialog-frame.svelte";
+import DialogFrame from "$lib/components/ui/dialog-frame.svelte";
 import AgentPanelTerminalDrawer from "./agent-panel-terminal-drawer.svelte";
 import AgentPanelPreComposerStack from "./agent-panel-pre-composer-stack.svelte";
 import { PlanSidebar } from "../../plan-sidebar/index.js";
@@ -315,6 +318,28 @@ let contentRef: AgentPanelContent | null = $state(null);
 let contentScrollViewport: HTMLElement | null = $state(null);
 
 let _panelBranch = $state<string | null>(null);
+let preSessionCurrentBranch = $state<string | null>(null);
+let preSessionDiffStats = $state<{ insertions: number; deletions: number } | null>(null);
+let preSessionIsGitRepo = $state<boolean | null>(null);
+const preSessionBranchMetadataLoader = createEmptyStateBranchMetadataLoader({
+	gitClient: tauriClient.git,
+	writer: {
+		reset() {
+			preSessionCurrentBranch = null;
+			preSessionDiffStats = null;
+			preSessionIsGitRepo = null;
+		},
+		setIsGitRepo(value) {
+			preSessionIsGitRepo = value;
+		},
+		setCurrentBranch(value) {
+			preSessionCurrentBranch = value;
+		},
+		setDiffStats(value) {
+			preSessionDiffStats = value;
+		},
+	},
+});
 let branchRequestVersion = 0;
 
 function scrollToTop() {
@@ -847,6 +872,15 @@ $effect(() => {
 });
 
 $effect(() => {
+	const preSessionPath = !hasSession ? worktreeToggleProjectPath : null;
+	if (preSessionPath === null) {
+		preSessionBranchMetadataLoader.reset();
+		return;
+	}
+	preSessionBranchMetadataLoader.refresh(preSessionPath);
+});
+
+$effect(() => {
 	const decision = panelBranchLookup.next({
 		lookupPath: branchLookupPath,
 		viewKind: panelViewKind,
@@ -1370,6 +1404,7 @@ async function handlePlanSidebarSendMessage(sid: string, message: string): Promi
 			{agentIconSrc}
 			{agentName}
 			{isFullscreen}
+			isStreaming={sessionController.sessionIsStreaming}
 			{hideProjectBadge}
 			{sequenceId}
 			sessionStatus={sessionController.panelSessionStatus}
@@ -1629,6 +1664,38 @@ async function handlePlanSidebarSendMessage(sid: string, message: string): Promi
 								showLabel
 							/>
 						{/snippet}
+						{#snippet newThreadBranchControl()}
+							{#if worktreeToggleProjectPath}
+								<BranchPicker
+									projectPath={worktreeToggleProjectPath}
+									currentBranch={preSessionCurrentBranch}
+									diffStats={preSessionDiffStats}
+									isGitRepo={preSessionIsGitRepo}
+									variant="setupChip"
+									onBranchSelected={(branch) => {
+										preSessionCurrentBranch = branch;
+										if (worktreeToggleProjectPath) {
+											preSessionBranchMetadataLoader.refresh(worktreeToggleProjectPath);
+										}
+									}}
+									onInitGitRepo={() => {
+										if (!worktreeToggleProjectPath) {
+											return;
+										}
+										void tauriClient.git.init(worktreeToggleProjectPath).match(
+											() => {
+												preSessionBranchMetadataLoader.refresh(worktreeToggleProjectPath);
+											},
+											(error) => {
+												const message =
+													error.cause?.message ?? error.message ?? "Failed to initialize git";
+												toast.error(message);
+											}
+										);
+									}}
+								/>
+							{/if}
+						{/snippet}
 						<AgentInput
 							bind:this={agentInputRef}
 							sessionId={sessionId ?? undefined}
@@ -1667,6 +1734,7 @@ async function handlePlanSidebarSendMessage(sid: string, message: string): Promi
 									? {
 										project: newThreadProjectControl,
 										agent: newThreadAgentControl,
+										branch: newThreadBranchControl,
 										showWorktree: showPreSessionWorktreeCard && worktreeToggleProjectPath !== null,
 										worktreeOn: worktreePending,
 										worktreeDisabled: false,
@@ -1779,7 +1847,7 @@ async function handlePlanSidebarSendMessage(sid: string, message: string): Promi
 	{/snippet}
 </AgentPanelShell>
 
-<WorkspaceDialogFrame
+<DialogFrame
 	open={reviewDialog.isOpen}
 	title="Review changes"
 	closeLabel="Close review"
@@ -1893,7 +1961,7 @@ async function handlePlanSidebarSendMessage(sid: string, message: string): Promi
 			onFileIndexChange={(index) => reviewDialog.setFileIndex(index)}
 		/>
 	{/if}
-</WorkspaceDialogFrame>
+</DialogFrame>
 
 {#if inlinePlanDialogPlan}
 	<PlanDialog

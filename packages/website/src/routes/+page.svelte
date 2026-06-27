@@ -269,7 +269,6 @@ const ghostButton =
 						</div>
 						<a href="/download" class="text-[13px] text-foreground/80 hover:text-foreground">{"Download"}</a>
 						<a href="/pricing" class="text-[13px] text-foreground/80 hover:text-foreground">{"Pricing"}</a>
-						<a href="/changelog" class="text-[13px] text-foreground/80 hover:text-foreground">{"Changelog"}</a>
 						<a href="/compare" class="text-[13px] text-foreground/80 hover:text-foreground">{"Compare"}</a>
 					</div>
 					<div class="flex flex-col gap-3">

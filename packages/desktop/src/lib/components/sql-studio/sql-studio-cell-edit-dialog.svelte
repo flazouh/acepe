@@ -1,8 +1,7 @@
 <script lang="ts">
-import { FloppyDisk } from "phosphor-svelte";
 import { Button } from "$lib/components/ui/button/index.js";
 import { CodeMirrorEditor } from "$lib/components/ui/codemirror-editor/index.js";
-import * as Dialog from "@acepe/ui/dialog";
+import DialogFrame from "$lib/components/ui/dialog-frame.svelte";
 
 export interface CellEditState {
 	rowIndex: number;
@@ -39,7 +38,6 @@ function detectLanguage(cellState: CellEditState | null): string {
 	if (dt.includes("xml")) return "xml";
 	if (dt.includes("html")) return "html";
 
-	// Heuristic: if the value looks like JSON, use JSON highlighting
 	const trimmed = cellState.value.trim();
 	if (
 		(trimmed.startsWith("{") && trimmed.endsWith("}")) ||
@@ -70,7 +68,6 @@ function tryFormatValue(value: string, dataType: string): string {
 
 function handleSave(): void {
 	if (cell) {
-		// Compact JSON back before saving
 		let saveValue = draftValue;
 		if (editorLanguage === "json") {
 			try {
@@ -85,26 +82,34 @@ function handleSave(): void {
 }
 </script>
 
-<Dialog.Root {open} {onOpenChange}>
-	<Dialog.Content class="sm:max-w-2xl" portalProps={{ disabled: true }}>
-		<Dialog.Header>
-			<Dialog.Title>Edit cell</Dialog.Title>
-			<Dialog.Description>
-				{#if cell}
-					<span class="font-medium">{cell.columnName}</span>
-					{#if cell.columnDataType}
-						<span class="text-muted-foreground"> ({cell.columnDataType})</span>
-					{/if}
-					{#if editorLanguage !== "text"}
-						<span
-							class="ml-2 inline-flex items-center rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-medium uppercase text-primary"
-						>
-							{editorLanguage}
-						</span>
-					{/if}
+<DialogFrame
+	{open}
+	title="Edit cell"
+	closeLabel="Close cell editor"
+	size="wide"
+	portalDisabled={true}
+	{onOpenChange}
+>
+	{#snippet topLeft()}
+		<span class="truncate text-[11px] font-semibold text-foreground select-none">Edit cell</span>
+		{#if cell}
+			<span class="truncate text-[11px] text-muted-foreground">
+				{cell.columnName}
+				{#if cell.columnDataType}
+					({cell.columnDataType})
 				{/if}
-			</Dialog.Description>
-		</Dialog.Header>
+			</span>
+			{#if editorLanguage !== "text"}
+				<span
+					class="inline-flex items-center rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-medium uppercase text-primary"
+				>
+					{editorLanguage}
+				</span>
+			{/if}
+		{/if}
+	{/snippet}
+
+	<div class="px-3 py-3">
 		<div class="h-[320px] overflow-hidden rounded-lg border border-input">
 			{#if open}
 				<CodeMirrorEditor
@@ -116,16 +121,9 @@ function handleSave(): void {
 				/>
 			{/if}
 		</div>
-		<Dialog.Footer>
-			<Button
-				variant="outline"
-				class="h-8 px-4 rounded-full"
-				onclick={handleSave}
-				disabled={readOnly}
-			>
-				<FloppyDisk weight="fill" class="size-4 mr-1 text-primary" />
-				Save
-			</Button>
-		</Dialog.Footer>
-	</Dialog.Content>
-</Dialog.Root>
+	</div>
+
+	{#snippet footer()}
+		<Button variant="invert" size="header" onclick={handleSave} disabled={readOnly}>Save</Button>
+	{/snippet}
+</DialogFrame>

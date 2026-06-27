@@ -19,7 +19,7 @@
 </script>
 
 <div
-	class="flex items-center h-7 w-full transition-opacity duration-200 ease-out"
+	class="flex items-center w-full transition-opacity duration-200 ease-out"
 	class:opacity-0={hidden}
 	class:pointer-events-none={hidden}
 >
@@ -30,7 +30,7 @@
 	{/if}
 
 	{#if trailing}
-		<div class="flex items-center h-7 ml-auto">
+		<div class="flex items-center ml-auto">
 			{@render trailing()}
 		</div>
 	{/if}

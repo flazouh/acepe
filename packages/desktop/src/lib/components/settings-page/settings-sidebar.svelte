@@ -21,7 +21,7 @@ function sectionsForGroup(groupId: SettingsNavGroupId) {
 </script>
 
 <nav
-	class="flex w-[168px] shrink-0 flex-col overflow-y-auto border-r border-border/40 bg-input/10 px-1.5 py-1.5"
+	class="flex w-[210px] shrink-0 flex-col overflow-y-auto border-r border-border/50 bg-input/10 px-2 py-3"
 	aria-label="Settings sections"
 >
 	{#each SETTINGS_NAV_GROUPS as group (group.id)}
@@ -41,12 +41,19 @@ function sectionsForGroup(groupId: SettingsNavGroupId) {
 						onclick={() => onSectionChange(section.id)}
 						aria-current={isActive ? "page" : undefined}
 						class={cn(
-							"flex items-center gap-1.5 rounded-md px-1.5 py-1 text-left text-xs font-medium transition-colors",
-							"hover:bg-accent hover:text-foreground",
-							isActive ? "bg-accent text-foreground" : "text-muted-foreground"
+							"flex items-center gap-2 rounded-md px-2 py-1.5 text-left text-[13px] font-medium transition-colors duration-150",
+							isActive
+								? "bg-accent text-foreground"
+								: "text-muted-foreground hover:bg-accent/50 hover:text-foreground"
 						)}
 					>
-						<Icon weight="fill" class="size-3 shrink-0" />
+						<Icon
+							weight="fill"
+							class={cn(
+								"size-3.5 shrink-0 transition-colors",
+								isActive ? "text-foreground" : "text-muted-foreground"
+							)}
+						/>
 						<span class="truncate">{section.label}</span>
 					</button>
 				{/each}

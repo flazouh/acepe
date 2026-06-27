@@ -24,7 +24,7 @@ env:
   RUST_BACKTRACE: short
 
 jobs:
-  # ── Which stacks to run: js (desktop/website/ui/changelog/contract/scripts), rust (src-tauri), shared (lock + root + workflows) ──
+  # ── Which stacks to run: js (desktop/website/ui/contract/scripts), rust (src-tauri), shared (lock + root + workflows) ──
   # dorny/paths-filter@v3.0.2
   filter:
     name: Path filter
@@ -61,8 +61,6 @@ jobs:
               - 'packages/ui/**'
             agent_panel_contract:
               - 'packages/agent-panel-contract/**'
-            changelog:
-              - 'packages/changelog/**'
             root_scripts:
               - 'scripts/**'
             shared:
@@ -108,18 +106,17 @@ jobs:
           website='${{ steps.paths.outputs.website }}'
           ui='${{ steps.paths.outputs.ui }}'
           agent_panel_contract='${{ steps.paths.outputs.agent_panel_contract }}'
-          changelog='${{ steps.paths.outputs.changelog }}'
           root_scripts='${{ steps.paths.outputs.root_scripts }}'
           shared='${{ steps.paths.outputs.shared }}'
           gpui_agent_panel_poc='${{ steps.paths.outputs.gpui_agent_panel_poc }}'
 
-          if [ "$desktop_frontend" = "true" ] || [ "$desktop_rust" = "true" ] || [ "$ui" = "true" ] || [ "$agent_panel_contract" = "true" ] || [ "$changelog" = "true" ] || [ "$root_scripts" = "true" ] || [ "$shared" = "true" ]; then
+          if [ "$desktop_frontend" = "true" ] || [ "$desktop_rust" = "true" ] || [ "$ui" = "true" ] || [ "$agent_panel_contract" = "true" ] || [ "$root_scripts" = "true" ] || [ "$shared" = "true" ]; then
             echo "run_desktop=true" >> "$GITHUB_OUTPUT"
           else
             echo "run_desktop=false" >> "$GITHUB_OUTPUT"
           fi
 
-          if [ "$website" = "true" ] || [ "$ui" = "true" ] || [ "$agent_panel_contract" = "true" ] || [ "$changelog" = "true" ] || [ "$shared" = "true" ]; then
+          if [ "$website" = "true" ] || [ "$ui" = "true" ] || [ "$agent_panel_contract" = "true" ] || [ "$shared" = "true" ]; then
             echo "run_website=true" >> "$GITHUB_OUTPUT"
           else
             echo "run_website=false" >> "$GITHUB_OUTPUT"
@@ -137,7 +134,7 @@ jobs:
             echo "run_agent_panel_contract=false" >> "$GITHUB_OUTPUT"
           fi
 
-          if [ "$desktop_frontend" = "true" ] || [ "$desktop_rust" = "true" ] || [ "$website" = "true" ] || [ "$ui" = "true" ] || [ "$agent_panel_contract" = "true" ] || [ "$changelog" = "true" ] || [ "$root_scripts" = "true" ] || [ "$shared" = "true" ]; then
+          if [ "$desktop_frontend" = "true" ] || [ "$desktop_rust" = "true" ] || [ "$website" = "true" ] || [ "$ui" = "true" ] || [ "$agent_panel_contract" = "true" ] || [ "$root_scripts" = "true" ] || [ "$shared" = "true" ]; then
             echo "run_frontend=true" >> "$GITHUB_OUTPUT"
           else
             echo "run_frontend=false" >> "$GITHUB_OUTPUT"

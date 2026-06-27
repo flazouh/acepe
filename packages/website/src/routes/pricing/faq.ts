@@ -22,7 +22,7 @@ export const pricingFaqItems: readonly PricingFaqItem[] = [
 	},
 	{
 		q: "When will Premium launch?",
-		a: "We're building the cloud infrastructure now. We'll announce Premium availability on the site, changelog, and GitHub releases.",
+		a: "We're building the cloud infrastructure now. We'll announce Premium availability on the site and GitHub releases.",
 		comparisonLink: null,
 	},
 	{

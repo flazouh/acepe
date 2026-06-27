@@ -273,7 +273,7 @@ describe("permission-display", () => {
 		const permission = createPermission({
 			parsedArguments: {
 				kind: "read",
-				file_path: "/repo/packages/desktop/src/lib/components/ui/workspace-dialog-frame.svelte",
+				file_path: "/repo/packages/desktop/src/lib/components/ui/dialog-frame.svelte",
 			},
 		});
 		permission.permission = "Access paths outside trusted directories";
@@ -283,14 +283,14 @@ describe("permission-display", () => {
 				permission,
 				"/repo",
 				createEditToolCall(
-					"/repo/packages/desktop/src/lib/components/ui/workspace-dialog-frame.svelte"
+					"/repo/packages/desktop/src/lib/components/ui/dialog-frame.svelte"
 				)
 			)
 		).toEqual({
 			kind: "edit",
 			label: "Edit",
 			command: null,
-			filePath: "packages/desktop/src/lib/components/ui/workspace-dialog-frame.svelte",
+			filePath: "packages/desktop/src/lib/components/ui/dialog-frame.svelte",
 		});
 	});
 
@@ -298,7 +298,7 @@ describe("permission-display", () => {
 		const permission = createPermission({
 			parsedArguments: {
 				kind: "read",
-				file_path: "/repo/packages/desktop/src/lib/components/ui/workspace-dialog-frame.svelte",
+				file_path: "/repo/packages/desktop/src/lib/components/ui/dialog-frame.svelte",
 			},
 		});
 		permission.permission = "Access paths outside trusted directories";
@@ -307,7 +307,7 @@ describe("permission-display", () => {
 			kind: "other",
 			label: "Access",
 			command: null,
-			filePath: "packages/desktop/src/lib/components/ui/workspace-dialog-frame.svelte",
+			filePath: "packages/desktop/src/lib/components/ui/dialog-frame.svelte",
 		});
 	});
 
@@ -315,7 +315,7 @@ describe("permission-display", () => {
 		const permission = createPermission({
 			parsedArguments: {
 				kind: "read",
-				file_path: "/repo/packages/desktop/src/lib/components/ui/workspace-dialog-frame.svelte",
+				file_path: "/repo/packages/desktop/src/lib/components/ui/dialog-frame.svelte",
 			},
 		});
 		permission.permission = "Access paths outside trusted directories";
@@ -331,14 +331,14 @@ describe("permission-display", () => {
 	});
 
 	it("can hide permission summary when the represented edit tool row already has file context", () => {
-		const filePath = "/repo/packages/desktop/src/lib/components/ui/workspace-dialog-frame.svelte";
+		const filePath = "/repo/packages/desktop/src/lib/components/ui/dialog-frame.svelte";
 		const permission = createPermission({
 			parsedArguments: {
 				kind: "edit",
 				edits: [{ filePath, oldString: null, newString: null, content: null }],
 			},
 		});
-		permission.permission = "Edit /repo/packages/desktop/src/lib/components/ui/workspace-dialog-frame.svelte";
+		permission.permission = "Edit /repo/packages/desktop/src/lib/components/ui/dialog-frame.svelte";
 		const toolCall = createEditToolCall(filePath);
 		const display = extractCompactPermissionDisplay(permission, "/repo", toolCall);
 

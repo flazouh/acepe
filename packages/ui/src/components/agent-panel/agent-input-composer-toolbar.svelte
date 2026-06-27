@@ -105,7 +105,7 @@
 	{@const voiceActive = isVoiceActive(currentVoiceState)}
 	<span class="sr-only" role="status" aria-live="polite">{autonomousStatusMessage}</span>
 	<div
-		class="flex items-center h-7 transition-opacity duration-200 ease-out"
+		class="flex items-center transition-opacity duration-200 ease-out"
 		class:opacity-0={recordingUi}
 		class:pointer-events-none={isToolbarLeftSideDisabled({
 			isRecordingUi: recordingUi,
@@ -133,7 +133,7 @@
 			<div class="h-full w-px bg-border/50"></div>
 		{/if}
 		{#if agentProjectPicker}
-			<div class="flex h-7 shrink-0 items-center">
+			<div class="flex shrink-0 items-center">
 				{@render agentProjectPicker()}
 			</div>
 			<div class="h-full w-px bg-border/50"></div>
@@ -156,7 +156,7 @@
 		<div class="h-full w-px bg-border/50"></div>
 	</div>
 
-	<div class="flex items-center h-7 ml-auto">
+	<div class="flex items-center ml-auto">
 		<div
 			class="flex items-center gap-1.5 transition-opacity duration-200 ease-out"
 			class:opacity-0={voiceActive}

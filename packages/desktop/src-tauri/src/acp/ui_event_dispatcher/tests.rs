@@ -126,7 +126,7 @@ fn read_tool_call_update(session_id: &str, tool_call_id: &str) -> SessionUpdate 
             id: tool_call_id.to_string(),
             name: "Read".to_string(),
             arguments: ToolArguments::Read {
-                file_path: Some("workspace-dialog-frame.svelte".to_string()),
+                file_path: Some("dialog-frame.svelte".to_string()),
                 source_context: None,
             },
             diagnostic_input: None,

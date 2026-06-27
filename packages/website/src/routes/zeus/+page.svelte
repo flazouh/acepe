@@ -252,11 +252,6 @@ const meta = [
 							</a>
 						</li>
 						<li>
-							<a href="/changelog" class="text-[13px] text-muted-foreground transition-colors hover:text-foreground">
-								Changelog
-							</a>
-						</li>
-						<li>
 							<a href="/compare" class="text-[13px] text-muted-foreground transition-colors hover:text-foreground">
 								Compare
 							</a>

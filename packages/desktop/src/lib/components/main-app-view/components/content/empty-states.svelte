@@ -160,9 +160,6 @@ const showProjectPicker = $derived(shouldShowEmptyStateProjectPicker(projects.le
 const showProjectChooser = $derived(
 	projectImportFlowActive || shouldShowEmptyStateProjectChooser(projects.length)
 );
-const emptyStateTitle = $derived(
-	showProjectChooser ? "Choose a project to start" : "What do you want to build?"
-);
 const canShowInput = $derived(
 	!showProjectChooser &&
 		canShowEmptyStateInput({
@@ -614,9 +611,11 @@ function handleEmptyStateSessionCreated(sessionId: string) {
 </script>
 
 <div class="flex flex-col items-center justify-center h-full w-full py-6">
-	<h1 class="mb-4 text-center font-sans text-[1.65rem] font-semibold tracking-tight text-foreground sm:text-[2rem]">
-		{emptyStateTitle}
-	</h1>
+	{#if showProjectChooser}
+		<h1 class="mb-4 text-center font-sans text-[1.65rem] font-semibold tracking-tight text-foreground sm:text-[2rem]">
+			Choose a project to start
+		</h1>
+	{/if}
 
 	<div class="flex w-full max-w-[40rem] flex-col px-6">
 	{#if canShowInput}
@@ -665,6 +664,19 @@ function handleEmptyStateSessionCreated(sessionId: string) {
 					showLabel
 				/>
 			{/snippet}
+			{#snippet newThreadBranchControl()}
+				{#if projectPath}
+					<BranchPicker
+						{projectPath}
+						{currentBranch}
+						{diffStats}
+						{isGitRepo}
+						variant="setupChip"
+						onBranchSelected={handleBranchSelected}
+						onInitGitRepo={handleInitGitRepo}
+					/>
+				{/if}
+			{/snippet}
 			<AgentInput
 				panelId={EMPTY_STATE_PANEL_ID}
 				projectPath={projectPath ?? undefined}
@@ -689,6 +701,7 @@ function handleEmptyStateSessionCreated(sessionId: string) {
 				newThreadContext={{
 					project: newThreadProjectControl,
 					agent: newThreadAgentControl,
+					branch: newThreadBranchControl,
 					showWorktree: projectPath !== null,
 					worktreeOn: effectiveWorktreePending,
 					worktreeDisabled: false,
@@ -702,25 +715,6 @@ function handleEmptyStateSessionCreated(sessionId: string) {
 					},
 				}}
 			/>
-			{#if projectPath}
-				<div class="mt-0.5 flex min-w-0 items-end justify-between gap-1 px-1">
-					<div class="shrink-0"></div>
-					<div class="flex shrink-0 items-end gap-2">
-						<div class="flex h-7 min-w-0 items-center justify-end">
-							<BranchPicker
-								{projectPath}
-								{currentBranch}
-								{diffStats}
-								{isGitRepo}
-								variant="minimal"
-								onBranchSelected={handleBranchSelected}
-								onInitGitRepo={handleInitGitRepo}
-							/>
-						</div>
-						<div class="h-7 w-7 shrink-0" aria-hidden="true"></div>
-					</div>
-				</div>
-			{/if}
 		</div>
 	{:else}
 		<div class="flex w-full flex-col items-center gap-3">

@@ -43,7 +43,7 @@
 			type="button"
 			{disabled}
 			aria-pressed={isSelected}
-			class="inline-flex h-7 flex-1 items-center justify-center gap-1 px-2 text-[11px] font-medium leading-none transition-colors
+			class="inline-flex flex-1 items-center justify-center gap-1 px-2 py-1 text-[11px] font-medium leading-none transition-colors
 				{isSelected ? 'bg-background dark:bg-input/30 text-foreground' : 'text-muted-foreground hover:text-foreground'}
 				{disabled ? 'cursor-default opacity-50' : 'cursor-pointer'}"
 			onclick={() => { if (!disabled) onModeChange(mode.id); }}

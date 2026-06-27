@@ -41,7 +41,7 @@ export const buttonVariants = tv({
 			toolbar:
 				"h-auto gap-1 rounded px-2 py-0.5 text-[0.6875rem] [&_svg:not([class*='size-'])]:size-3",
 			setupChip:
-				"h-auto gap-1 rounded-md px-1.5 py-1 text-xs leading-none has-[>svg]:px-1.5 [&_svg:not([class*='size-'])]:size-3.5",
+				"h-auto gap-1 rounded-md border-0 px-0 py-0 text-xs leading-none [&_svg:not([class*='size-'])]:size-[15px]",
 			icon: "size-9",
 			"icon-xs": "size-6 rounded-md [&_svg:not([class*='size-'])]:size-3",
 			"icon-sm": "size-8",

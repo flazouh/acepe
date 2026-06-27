@@ -353,7 +353,7 @@ const projectPanels = $derived<DemoProjectPanel[]>([
 			searchSubtitle: "launch-note surfaces",
 			searchQuery: "queue demo kanban release notes",
 			searchFiles: [
-				"packages/website/src/routes/changelog/+page.svelte",
+				"packages/website/src/routes/blog/+page.svelte",
 				"packages/website/src/lib/components/feature-showcase.svelte",
 			],
 			editFilePath: "packages/website/src/lib/components/landing-kanban-demo.svelte",

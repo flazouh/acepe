@@ -2,18 +2,17 @@
   AgentInputNewThreadOptions - A single compact row shown above the composer when
   a new chat panel has no session yet.
 
-  Presentational only. Project / Agent / Model controls are passed as snippets by
+  Presentational only. Project / Agent / Branch controls are passed as snippets by
   the host (they wrap desktop selectors) and render as inline chips. Worktree
   is the leftmost icon-only toggle (filled tree; green when on) with overflow menu.
-  Reasoning renders via AgentInputSetupReasoning (brain icon + dropdown) to the right of the model chip.
-  (Auto-approve lives in the composer toolbar, not here.)
+  Model and reasoning live in the composer trailing toolbar, not here.
+  (Auto-approve lives in the composer attach menu, not here.)
 -->
 <script lang="ts">
 	import type { Snippet } from "svelte";
 	import { Tree } from "phosphor-svelte";
 
 	import {
-		FUSED_CONTROL_CHIP_GROUP_CLASS,
 		FUSED_CONTROL_PRIMARY_BUTTON_CLASS,
 		FusedOverflowDotsTrigger,
 		FusedPrimaryOverflowGroup,
@@ -21,8 +20,6 @@
 	import * as DropdownMenu from "../dropdown-menu/index.js";
 	import { Switch } from "../switch/index.js";
 	import * as Tooltip from "../tooltip/index.js";
-	import type { AgentInputConfigOption } from "./agent-input-config-option-types.js";
-	import AgentInputSetupReasoning from "./agent-input-setup-reasoning.svelte";
 
 	interface Props {
 		worktreeLabel?: string;
@@ -31,11 +28,8 @@
 		/** Control snippets for the selector chips. */
 		project: Snippet;
 		agent: Snippet;
-		model: Snippet;
-		/** Reasoning config option; when set, shows brain dropdown to the right of model. */
-		reasoningConfigOption?: AgentInputConfigOption | null;
-		reasoningDisabled?: boolean;
-		onReasoningValueChange?: (configId: string, value: string) => void;
+		/** Optional branch picker snippet (host wraps desktop BranchPicker). */
+		branch?: Snippet;
 		/** Hide the worktree toggle when worktrees do not apply (e.g. not a git repo). */
 		showWorktree?: boolean;
 		worktreeOn: boolean;
@@ -51,10 +45,7 @@
 		worktreeDefaultLabel = "Use worktrees by default",
 		project,
 		agent,
-		model,
-		reasoningConfigOption = null,
-		reasoningDisabled = false,
-		onReasoningValueChange,
+		branch,
 		showWorktree = true,
 		worktreeOn,
 		worktreeDisabled = false,
@@ -63,12 +54,9 @@
 		onWorktreeDefaultToggle,
 	}: Props = $props();
 
-	const showReasoning = $derived(reasoningConfigOption !== null);
-
 	const TOGGLE_ICON = 15;
-	const setupChipGroupClass = FUSED_CONTROL_CHIP_GROUP_CLASS;
 	const setupChipButtonClass =
-		"[&_button]:flex [&_button]:flex-none [&_button]:items-center [&_button]:gap-1 [&_button]:rounded-md [&_button]:bg-transparent [&_button]:text-muted-foreground [&_button]:transition-colors [&_button:hover]:bg-accent [&_button:hover]:text-foreground";
+		"[&_button]:flex [&_button]:flex-none [&_button]:items-center [&_button]:gap-1 [&_button]:text-muted-foreground [&_button]:transition-colors [&_button:hover]:bg-accent [&_button:hover]:text-foreground";
 </script>
 
 <div
@@ -137,21 +125,14 @@
 		</FusedPrimaryOverflowGroup>
 	{/if}
 
-	<!-- Selector chips: project / agent / model (+ optional reasoning) -->
+	<!-- Selector chips: project / agent / optional branch -->
 	<div class="flex items-center gap-2 text-xs">
-		<div class="{setupChipGroupClass} flex items-center gap-2 {setupChipButtonClass}">
+		<div class="flex items-center gap-2 {setupChipButtonClass}">
 			{@render project()}
 			{@render agent()}
-			{@render model()}
+			{#if branch}
+				{@render branch()}
+			{/if}
 		</div>
-		{#if showReasoning && reasoningConfigOption}
-			<div class="setup-chip {setupChipGroupClass} {setupChipButtonClass}">
-				<AgentInputSetupReasoning
-					configOption={reasoningConfigOption}
-					disabled={reasoningDisabled || onReasoningValueChange === undefined}
-					onValueChange={onReasoningValueChange ?? (() => {})}
-				/>
-			</div>
-		{/if}
 	</div>
 </div>

@@ -10,7 +10,7 @@ import { MagnifyingGlass } from "phosphor-svelte";
 import { toast } from "svelte-sonner";
 import { ProjectClient } from "$lib/acp/logic/project-client.js";
 import { Spinner } from "$lib/components/ui/spinner/index.js";
-import WorkspaceDialogFrame from "$lib/components/ui/workspace-dialog-frame.svelte";
+import DialogFrame from "$lib/components/ui/dialog-frame.svelte";
 import { tauriClient } from "$lib/utils/tauri-client.js";
 
 import type {
@@ -275,7 +275,7 @@ function handleOpenChange(newOpen: boolean) {
 }
 </script>
 
-<WorkspaceDialogFrame
+<DialogFrame
 	{open}
 	title="Add Project"
 	closeLabel="Close add project"
@@ -434,4 +434,4 @@ function handleOpenChange(newOpen: boolean) {
 			</div>
 		{/if}
 	</div>
-</WorkspaceDialogFrame>
+</DialogFrame>

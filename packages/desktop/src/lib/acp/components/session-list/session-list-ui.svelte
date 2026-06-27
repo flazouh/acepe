@@ -12,23 +12,15 @@ import { IconArrowUp } from "@tabler/icons-svelte";
 import { IconPlus } from "@tabler/icons-svelte";
 import { listen } from "@tauri-apps/api/event";
 import { ArrowsClockwise } from "phosphor-svelte";
-import { BookOpen } from "phosphor-svelte";
-import { Bug } from "phosphor-svelte";
 import { Check } from "phosphor-svelte";
 import { GitBranch } from "phosphor-svelte";
 import { FolderOpen } from "phosphor-svelte";
 import { MagnifyingGlass } from "phosphor-svelte";
-import { Recycle } from "phosphor-svelte";
-import { Sparkle } from "phosphor-svelte";
-import { TestTube } from "phosphor-svelte";
-import { Wrench } from "phosphor-svelte";
-import type { Component } from "svelte";
 import { tick } from "svelte";
 import { SvelteMap, SvelteSet } from "svelte/reactivity";
 import { toast } from "svelte-sonner";
 import type { SessionDisplayItem } from "$lib/acp/types/thread-display-item.js";
 import { Button } from "$lib/components/ui/button/index.js";
-import * as Dialog from "@acepe/ui/dialog";
 import { Input } from "$lib/components/ui/input/index.js";
 import {
 	ProjectCardSkeleton,
@@ -39,6 +31,7 @@ import * as Tooltip from "@acepe/ui/tooltip";
 import { tauriClient } from "$lib/utils/tauri-client.js";
 import type { AgentInfo } from "../../logic/agent-manager.js";
 import ProjectFileSystemDialog from "../file-explorer-modal/project-file-system-dialog.svelte";
+import CreateBranchDialog from "../branch-picker/create-branch-dialog.svelte";
 import {
 	getSidebarSessions,
 	getNextSessionListVisibleCount,
@@ -606,23 +599,6 @@ async function handleProjectContextMove(projectPath: string, offset: -1 | 1): Pr
 
 // ─── Branch picker ───────────────────────────────────────────────
 
-interface BranchPrefix {
-	label: string;
-	value: string;
-	icon: Component;
-	color: string;
-}
-
-const BRANCH_PREFIXES: BranchPrefix[] = [
-	{ label: "None", value: "", icon: GitBranch, color: Colors.purple },
-	{ label: "feat", value: "feat/", icon: Sparkle, color: "var(--success)" },
-	{ label: "fix", value: "fix/", icon: Bug, color: Colors.red },
-	{ label: "chore", value: "chore/", icon: Wrench, color: Colors.orange },
-	{ label: "refactor", value: "refactor/", icon: Recycle, color: Colors.cyan },
-	{ label: "docs", value: "docs/", icon: BookOpen, color: Colors.yellow },
-	{ label: "test", value: "test/", icon: TestTube, color: Colors.pink },
-];
-
 let openBranchPickerProject = $state<string | null>(null);
 let branchQuery = $state("");
 let branches = $state<string[]>([]);
@@ -633,31 +609,11 @@ let branchLoadFailed = $state(false);
 
 let createBranchDialogOpen = $state(false);
 let createBranchProjectPath = $state<string | null>(null);
-let newBranchName = $state("");
-let selectedPrefix = $state(BRANCH_PREFIXES[0]);
-let prefixDropdownOpen = $state(false);
-let newBranchInputRef = $state<HTMLInputElement | null>(null);
 
 const normalizedBranchQuery = $derived(branchQuery.trim().toLowerCase());
 const filteredBranches = $derived.by(() => {
 	if (!normalizedBranchQuery) return branches;
 	return branches.filter((b) => b.toLowerCase().includes(normalizedBranchQuery));
-});
-
-const normalizedNewBranchName = $derived(newBranchName.trim());
-const fullBranchName = $derived(selectedPrefix.value + normalizedNewBranchName);
-const newBranchExists = $derived.by(() =>
-	branches.some((b) => b.toLowerCase() === fullBranchName.toLowerCase())
-);
-const newBranchNameError = $derived.by(() => {
-	if (normalizedNewBranchName.length === 0) return null;
-	if (newBranchExists) return "Branch already exists";
-	if (normalizedNewBranchName.endsWith("/")) return 'Branch name cannot end with "/"';
-	if (normalizedNewBranchName.includes(" ")) return "Branch name cannot contain spaces";
-	return null;
-});
-const canCreateBranch = $derived.by(() => {
-	return normalizedNewBranchName.length > 0 && !newBranchNameError && !switchingBranch;
 });
 
 $effect(() => {
@@ -708,18 +664,15 @@ function handleSwitchBranch(projectPath: string, branch: string, create: boolean
 	);
 }
 
-function handleCreateBranchSubmit(): void {
-	if (!canCreateBranch || !createBranchProjectPath) return;
+function handleCreateBranchFromDialog(fullBranchName: string): void {
+	if (!createBranchProjectPath) return;
 	handleSwitchBranch(createBranchProjectPath, fullBranchName, true);
 }
 
 function openCreateBranchDialog(projectPath: string): void {
 	openBranchPickerProject = null;
 	createBranchProjectPath = projectPath;
-	newBranchName = "";
-	selectedPrefix = BRANCH_PREFIXES[0];
 	createBranchDialogOpen = true;
-	queueMicrotask(() => newBranchInputRef?.focus());
 }
 </script>
 
@@ -1154,84 +1107,10 @@ function openCreateBranchDialog(projectPath: string): void {
 	/>
 {/if}
 
-<!-- Create branch dialog -->
-<Dialog.Root bind:open={createBranchDialogOpen}>
-	<Dialog.Content class="max-w-md rounded-2xl">
-		<Dialog.Header>
-			<Dialog.Title>Create and checkout branch</Dialog.Title>
-		</Dialog.Header>
-		<div class="space-y-3 py-2">
-			<label for="sidebar-new-branch-name" class="text-sm font-medium">Branch name</label>
-			<!-- Button group: prefix selector + input -->
-			<div class="flex items-stretch">
-				<!-- Prefix dropdown trigger -->
-				<Selector
-					bind:open={prefixDropdownOpen}
-					align="start"
-					sideOffset={4}
-					blockingOverlay
-					variant="outline"
-					triggerSize="minimal"
-					class="shrink-0 rounded-l-md border-r-0"
-				>
-					{#snippet renderButton()}
-						<selectedPrefix.icon
-							class="h-3.5 w-3.5 shrink-0"
-							weight="fill"
-							style="color: {selectedPrefix.color}"
-						/>
-						<span class="font-mono">{selectedPrefix.value || "—"}</span>
-					{/snippet}
-
-					{#each BRANCH_PREFIXES as prefix (prefix.label)}
-						<button
-							type="button"
-							class="w-full flex items-center gap-2 rounded-md px-2 py-1.5 text-xs hover:bg-accent"
-							onclick={() => {
-								selectedPrefix = prefix;
-								prefixDropdownOpen = false;
-								queueMicrotask(() => newBranchInputRef?.focus());
-							}}
-						>
-							<prefix.icon
-								class="h-3.5 w-3.5 shrink-0"
-								weight="fill"
-								style="color: {prefix.color}"
-							/>
-							<span>{prefix.label}</span>
-							{#if selectedPrefix === prefix}
-								<Check class="h-3.5 w-3.5 ml-auto text-foreground shrink-0" />
-							{/if}
-						</button>
-					{/each}
-				</Selector>
-
-				<!-- Branch name input -->
-				<Input
-					id="sidebar-new-branch-name"
-					bind:ref={newBranchInputRef}
-					bind:value={newBranchName}
-					placeholder="my-feature"
-					class="rounded-l-none font-mono"
-					onkeydown={(event) => {
-						if (event.key === "Enter") {
-							event.preventDefault();
-							handleCreateBranchSubmit();
-						}
-					}}
-				/>
-			</div>
-			{#if newBranchNameError}
-				<p class="text-[12px] text-destructive">{newBranchNameError}</p>
-			{/if}
-		</div>
-		<Dialog.Footer>
-			<Button variant="ghost" class="rounded-lg" onclick={() => (createBranchDialogOpen = false)}>
-				Close
-			</Button>
-			<Button class="rounded-lg" disabled={!canCreateBranch} onclick={handleCreateBranchSubmit}>
-				Create and checkout
-			</Button>
-		</Dialog.Footer>
-	</Dialog.Content>
-</Dialog.Root>
+<CreateBranchDialog
+	bind:open={createBranchDialogOpen}
+	{branches}
+	{switchingBranch}
+	inputId="sidebar-new-branch-name"
+	onCreate={handleCreateBranchFromDialog}
+/>

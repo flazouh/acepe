@@ -1,6 +1,7 @@
 <script lang="ts">
 import { toast } from "svelte-sonner";
-import * as AlertDialog from "$lib/components/ui/alert-dialog/index.js";
+import { Button } from "$lib/components/ui/button/index.js";
+import DialogFrame from "$lib/components/ui/dialog-frame.svelte";
 import { Switch } from "$lib/components/ui/switch/index.js";
 import { getAnalyticsPreferencesStore } from "$lib/stores/analytics-preferences-store.svelte.js";
 import { getAttentionQueueStore } from "$lib/stores/attention-queue-store.svelte.js";
@@ -108,22 +109,29 @@ async function handleResetDatabase() {
 </div>
 
 <!-- Reset Database Confirmation Dialog -->
-<AlertDialog.Root bind:open={showResetConfirm}>
-	<AlertDialog.Content>
-		<AlertDialog.Header>
-			<AlertDialog.Title>{"Reset Database?"}</AlertDialog.Title>
-			<AlertDialog.Description>
-				{"This will permanently delete the local SQLite database containing all your projects, API keys, preferences, and session history. Your session files on disk will not be affected. This action cannot be undone."}
-			</AlertDialog.Description>
-		</AlertDialog.Header>
-		<AlertDialog.Footer>
-			<AlertDialog.Cancel>{"Cancel"}</AlertDialog.Cancel>
-			<AlertDialog.Action
-				class="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-				onclick={handleResetDatabase}
-			>
-				{"Reset Database"}
-			</AlertDialog.Action>
-		</AlertDialog.Footer>
-	</AlertDialog.Content>
-</AlertDialog.Root>
+<DialogFrame
+	bind:open={showResetConfirm}
+	title="Reset Database?"
+	closeLabel="Close reset database dialog"
+	size="form"
+	onOpenChange={(open) => (showResetConfirm = open)}
+>
+	{#snippet topLeft()}
+		<span class="truncate text-[11px] font-semibold text-foreground select-none">Reset Database?</span>
+	{/snippet}
+
+	<div class="px-3 py-3">
+		<p class="text-[12px] text-muted-foreground">
+			This will permanently delete the local SQLite database containing all your projects, API keys,
+			preferences, and session history. Your session files on disk will not be affected. This action
+			cannot be undone.
+		</p>
+	</div>
+
+	{#snippet footer()}
+		<Button variant="header" size="header" onclick={() => (showResetConfirm = false)}>Cancel</Button>
+		<Button variant="destructive" size="header" onclick={handleResetDatabase}>
+			Reset Database
+		</Button>
+	{/snippet}
+</DialogFrame>

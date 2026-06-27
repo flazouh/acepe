@@ -5,9 +5,8 @@ import { FileText } from "phosphor-svelte";
 import { PuzzlePiece } from "phosphor-svelte";
 import { Trash } from "phosphor-svelte";
 import { onMount } from "svelte";
-import { EmbeddedPanelHeader, HeaderActionCell, HeaderTitleCell } from "@acepe/ui/panel-header";
 import AgentIcon from "$lib/acp/components/agent-icon.svelte";
-import * as AlertDialog from "$lib/components/ui/alert-dialog/index.js";
+import DialogFrame from "$lib/components/ui/dialog-frame.svelte";
 import { Button } from "$lib/components/ui/button/index.js";
 import { CodeMirrorEditor } from "$lib/components/ui/codemirror-editor/index.js";
 import { Label } from "$lib/components/ui/label/index.js";
@@ -121,11 +120,9 @@ function getSyncStatusForSkill(
 <div class="flex h-full w-full min-h-0">
 	<!-- Left Panel: Skills List -->
 	<div class="flex w-[220px] shrink-0 flex-col border-r border-border/50 min-h-0">
-		<EmbeddedPanelHeader>
-			<HeaderTitleCell>
-				<span class="truncate text-[11px] font-medium text-foreground">Library</span>
-			</HeaderTitleCell>
-		</EmbeddedPanelHeader>
+		<div class="flex h-7 shrink-0 items-center border-b border-border/40 px-2">
+			<span class="truncate text-[11px] font-medium text-foreground">Library</span>
+		</div>
 		<!-- Skills list -->
 		<div class="flex-1 overflow-y-auto p-1.5 min-h-0">
 			{#if store.loading && store.skills.length === 0}
@@ -169,45 +166,39 @@ function getSyncStatusForSkill(
 
 	<!-- Right Panel: Editor -->
 	<div class="flex-1 flex flex-col min-w-0 min-h-0">
-		<EmbeddedPanelHeader>
-			<HeaderTitleCell>
+		<div class="flex h-7 shrink-0 items-center gap-2 border-b border-border/40 px-2">
+			<div class="flex min-w-0 flex-1 items-center gap-1.5">
 				{#if isViewingPluginSkill && store.selectedPluginSkill}
-					<PuzzlePiece class="mr-1.5 h-3.5 w-3.5 shrink-0 text-muted-foreground" weight="fill" />
+					<PuzzlePiece class="h-3.5 w-3.5 shrink-0 text-muted-foreground" weight="fill" />
 					<span class="truncate text-[11px] font-medium text-foreground">
 						{store.selectedPluginSkill.name}
 					</span>
-					<span class="ml-1 text-[11px] text-muted-foreground/60">(read-only)</span>
+					<span class="text-[11px] text-muted-foreground/60">(read-only)</span>
 				{:else if store.selectedSkill}
 					<span class="truncate text-[11px] font-medium text-foreground">
 						{store.selectedSkill.skill.name}
 					</span>
 					{#if store.isSaving}
-						<Spinner class="ml-1 text-muted-foreground" size={12} />
+						<Spinner class="text-muted-foreground" size={12} />
 					{/if}
 				{:else}
 					<span class="text-[11px] text-muted-foreground">No skill selected</span>
 				{/if}
-			</HeaderTitleCell>
-			<HeaderActionCell>
-			{#if isViewingPluginSkill && store.selectedPluginSkill}
-				<Button variant="outline" size="sm" class="h-7 text-[11px]" onclick={handleCopyToLibrary}>
-					<Copy class="mr-1.5 h-3.5 w-3.5" weight="bold" />
-					Copy to Library
-				</Button>
-			{:else if store.selectedSkill}
-				<Button
-					variant="ghost"
-					size="icon-sm"
-					class="h-7 w-7"
-					onclick={openDeleteDialog}
-					title="Delete Skill"
-				>
-					<Trash class="h-3.5 w-3.5 text-muted-foreground hover:text-destructive" weight="fill" />
-				</Button>
-				<SyncDropdownButton />
-			{/if}
-			</HeaderActionCell>
-		</EmbeddedPanelHeader>
+			</div>
+			<div class="flex shrink-0 items-center gap-1">
+				{#if isViewingPluginSkill && store.selectedPluginSkill}
+					<Button variant="header" size="header" onclick={handleCopyToLibrary}>
+						<Copy class="h-3.5 w-3.5" weight="bold" />
+						Copy to Library
+					</Button>
+				{:else if store.selectedSkill}
+					<Button variant="header" size="header" onclick={openDeleteDialog} title="Delete Skill">
+						<Trash class="h-3.5 w-3.5" weight="fill" />
+					</Button>
+					<SyncDropdownButton />
+				{/if}
+			</div>
+		</div>
 
 		{#if isViewingPluginSkill && store.selectedPluginSkill}
 			<div class="flex-1 overflow-hidden min-h-0 bg-background">
@@ -243,18 +234,24 @@ function getSyncStatusForSkill(
 <CreateSkillDialog bind:open={createDialogOpen} onOpenChange={(v) => (createDialogOpen = v)} />
 
 <!-- Delete Confirmation Dialog -->
-<AlertDialog.Root bind:open={deleteDialogOpen}>
-	<AlertDialog.Content>
-		<AlertDialog.Header>
-			<AlertDialog.Title>Delete Skill</AlertDialog.Title>
-			<AlertDialog.Description>
-				Are you sure you want to delete "{store.selectedSkill?.skill.name}"? This action cannot be
-				undone.
-			</AlertDialog.Description>
-		</AlertDialog.Header>
+<DialogFrame
+	bind:open={deleteDialogOpen}
+	title="Delete Skill"
+	closeLabel="Close delete skill dialog"
+	size="medium"
+	onOpenChange={(open) => (deleteDialogOpen = open)}
+>
+	{#snippet topLeft()}
+		<span class="truncate text-[11px] font-semibold text-foreground select-none">Delete Skill</span>
+	{/snippet}
+
+	<div class="space-y-4 px-3 py-3">
+		<p class="text-[12px] text-muted-foreground">
+			Are you sure you want to delete "{store.selectedSkill?.skill.name}"? This action cannot be undone.
+		</p>
 
 		{#if syncedAgents.length > 0}
-			<div class="py-4">
+			<div>
 				<div class="flex items-center justify-between">
 					<Label for="delete-from-agents" class="text-sm font-medium">
 						Also delete from agent folders
@@ -265,12 +262,12 @@ function getSyncStatusForSkill(
 						onchange={(e) => (deleteFromAgents = (e.target as HTMLInputElement).checked)}
 					/>
 				</div>
-				<p class="text-xs text-muted-foreground mt-1.5">
+				<p class="mt-1.5 text-xs text-muted-foreground">
 					Remove the skill files from these synced agents:
 				</p>
-				<div class="space-y-2 mt-2">
+				<div class="mt-2 space-y-2">
 					{#each syncedAgents as agent (agent.agentId)}
-						<div class="flex items-center justify-between px-2 py-1.5 bg-muted rounded-lg">
+						<div class="flex items-center justify-between rounded-lg bg-muted px-2 py-1.5">
 							<div class="flex items-center gap-2">
 								<AgentIcon agentId={agent.agentId} size={16} class="h-4 w-4" />
 								<span class="text-sm">{agent.agentName}</span>
@@ -280,15 +277,17 @@ function getSyncStatusForSkill(
 				</div>
 			</div>
 		{/if}
+	</div>
 
-		<AlertDialog.Footer>
-			<AlertDialog.Cancel disabled={isDeleting}>Cancel</AlertDialog.Cancel>
-			<AlertDialog.Action onclick={handleDeleteSkill} disabled={isDeleting}>
-				{isDeleting ? "Deleting..." : "Delete"}
-			</AlertDialog.Action>
-		</AlertDialog.Footer>
-	</AlertDialog.Content>
-</AlertDialog.Root>
+	{#snippet footer()}
+		<Button variant="header" size="header" disabled={isDeleting} onclick={() => (deleteDialogOpen = false)}>
+			Cancel
+		</Button>
+		<Button variant="destructive" size="header" disabled={isDeleting} onclick={handleDeleteSkill}>
+			{isDeleting ? "Deleting..." : "Delete"}
+		</Button>
+	{/snippet}
+</DialogFrame>
 
 <!-- Error display -->
 {#if store.error}
