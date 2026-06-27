@@ -1,5 +1,9 @@
 <script lang="ts">
-import { CLAUDE_WORKING_SPARK_FRAME_SRCS } from "./claude-working-spark-frames.js";
+import {
+	CLAUDE_WORKING_SPARK_DURATION_MS,
+	CLAUDE_WORKING_SPARK_FRAME_COUNT,
+	CLAUDE_WORKING_SPARK_SPRITE_SRC,
+} from "./claude-working-spark-frames.js";
 
 interface Props {
 	class?: string;
@@ -10,81 +14,63 @@ interface Props {
 let { class: className = "", size = 12, label = "Claude is working" }: Props = $props();
 </script>
 
+<!--
+	Claude's real "working" spark, reproduced 1:1 from the Claude desktop app:
+	an 84-frame vertical sprite (48x48/frame) used as a CSS mask and filled with
+	`currentColor`, scrolled with `steps(84, jump-none)` over 5040ms so the spark
+	morphs through its shapes. The outer box clips to a single frame; the inner
+	sprite is `frames x` taller and translated upward one frame per step.
+-->
 <span
 	class={`claude-working-spark ${className}`}
 	style:--spark-size={`${size}px`}
+	style:--spark-frames={CLAUDE_WORKING_SPARK_FRAME_COUNT}
+	style:--spark-duration={`${CLAUDE_WORKING_SPARK_DURATION_MS}ms`}
+	style:--spark-src={`url("${CLAUDE_WORKING_SPARK_SPRITE_SRC}")`}
 	aria-label={label}
 	role="img"
 	data-claude-working-spark
 >
-	{#each CLAUDE_WORKING_SPARK_FRAME_SRCS as frameSrc, frameIndex (frameSrc)}
-		<span
-			class="claude-working-spark__frame"
-			style:--frame-index={frameIndex}
-			style:--frame-src={`url("${frameSrc}")`}
-			aria-hidden="true"
-		></span>
-	{/each}
+	<span class="claude-working-spark__sprite" aria-hidden="true"></span>
 </span>
 
 <style>
 	.claude-working-spark {
-		position: relative;
 		display: inline-flex;
 		width: var(--spark-size);
 		height: var(--spark-size);
+		overflow: hidden;
 		flex-shrink: 0;
-		align-items: center;
-		justify-content: center;
+		/* Claude brand color; override `color` on the host to re-tint. */
 		color: #d97757;
 	}
 
-	/*
-	 * The upstream frames are black-pixel alpha masks (RGB 0,0,0 + alpha shape),
-	 * so rendering them as <img> would paint the spark black regardless of the
-	 * container `color`. Use them as CSS masks instead and fill with `currentColor`
-	 * so the spark renders in the Claude brand color (#d97757) and can be re-tinted
-	 * by overriding `color` on the host element.
-	 */
-	.claude-working-spark__frame {
-		position: absolute;
-		inset: 0;
+	.claude-working-spark__sprite {
 		width: 100%;
-		height: 100%;
+		height: calc(var(--spark-size) * var(--spark-frames));
 		background-color: currentColor;
-		opacity: 0;
-		-webkit-mask-image: var(--frame-src);
-		mask-image: var(--frame-src);
+		-webkit-mask-image: var(--spark-src);
+		mask-image: var(--spark-src);
+		-webkit-mask-size: 100% 100%;
+		mask-size: 100% 100%;
 		-webkit-mask-repeat: no-repeat;
 		mask-repeat: no-repeat;
-		-webkit-mask-position: center;
-		mask-position: center;
-		-webkit-mask-size: contain;
-		mask-size: contain;
-		animation: claude-working-spark-frame 960ms steps(1, end) infinite;
-		animation-delay: calc(var(--frame-index) * -120ms);
+		animation: claude-working-spark-spin var(--spark-duration)
+			steps(var(--spark-frames), jump-none) infinite;
 	}
 
-	@keyframes claude-working-spark-frame {
-		0%,
-		12.49% {
-			opacity: 1;
+	@keyframes claude-working-spark-spin {
+		from {
+			transform: translateY(0);
 		}
-
-		12.5%,
-		100% {
-			opacity: 0;
+		to {
+			transform: translateY(calc(-100% * (var(--spark-frames) - 1) / var(--spark-frames)));
 		}
 	}
 
 	@media (prefers-reduced-motion: reduce) {
-		.claude-working-spark__frame {
+		.claude-working-spark__sprite {
 			animation: none;
-			opacity: 0;
-		}
-
-		.claude-working-spark__frame:first-child {
-			opacity: 1;
 		}
 	}
 </style>
