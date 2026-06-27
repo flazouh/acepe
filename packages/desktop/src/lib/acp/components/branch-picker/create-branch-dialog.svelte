@@ -1,8 +1,7 @@
 <script lang="ts">
-import { Selector } from "@acepe/ui";
+import { Button, Selector } from "@acepe/ui";
 import * as DropdownMenu from "@acepe/ui/dropdown-menu";
 import { Check, GitBranch } from "phosphor-svelte";
-import { Button } from "$lib/components/ui/button/index.js";
 import DialogFrame from "$lib/components/ui/dialog-frame.svelte";
 import {
 	canCreateBranch as getCanCreateBranch,
@@ -170,9 +169,16 @@ $effect(() => {
 	</div>
 
 	{#snippet footer()}
-		<Button variant="header" size="header" onclick={handleClose}>Cancel</Button>
-		<Button variant="invert" size="header" disabled={!canCreateBranch} onclick={handleCreate}>
-			Create and checkout
+		<Button variant="header" size="header" disabled={switchingBranch} onclick={handleClose}>
+			Cancel
+		</Button>
+		<Button
+			variant="invert"
+			size="header"
+			disabled={!canCreateBranch}
+			onclick={handleCreate}
+		>
+			{switchingBranch ? "Creating..." : "Create and checkout"}
 		</Button>
 	{/snippet}
 </DialogFrame>
