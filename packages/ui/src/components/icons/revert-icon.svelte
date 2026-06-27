@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { ArrowCounterClockwise } from "phosphor-svelte";
+	import { ArrowCounterClockwise } from "./index.js";
 
 	interface Props {
 		size?: "xs" | "sm" | "md" | "lg";

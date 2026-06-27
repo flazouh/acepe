@@ -1,6 +1,6 @@
 <script lang="ts">
 import type { WorkerPoolManager } from "@pierre/diffs/worker";
-import { CaretRight } from "phosphor-svelte";
+import { CaretRight } from "../icons/index.js";
 
 import { FilePathBadge } from "../file-path-badge/index.js";
 import ToolHeaderLeading from "./tool-header-leading.svelte";

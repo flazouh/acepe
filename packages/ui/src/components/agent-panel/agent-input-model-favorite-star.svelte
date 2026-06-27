@@ -4,7 +4,7 @@
   Extracted from packages/desktop/src/lib/acp/components/model-selector.favorite-star.svelte.
 -->
 <script lang="ts">
-	import { Star } from "phosphor-svelte";
+	import { Star } from "../icons/index.js";
 
 	import { cn } from "../../lib/utils.js";
 	import { Colors } from "../../lib/colors.js";

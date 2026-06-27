@@ -1,7 +1,7 @@
 <script lang="ts">
-import { ChatCircle } from "phosphor-svelte";
-import { File } from "phosphor-svelte";
-import { Terminal } from "phosphor-svelte";
+import { ChatCircle } from "@acepe/ui/icons";
+import { File } from "@acepe/ui/icons";
+import { Terminal } from "@acepe/ui/icons";
 
 import type { PaletteMode } from "../../types/palette-mode.js";
 

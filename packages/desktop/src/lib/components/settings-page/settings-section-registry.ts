@@ -13,7 +13,7 @@ import {
 	PuzzlePiece,
 	Robot,
 	Tree,
-} from "phosphor-svelte";
+} from "@acepe/ui/icons";
 
 import type { SettingsSectionId } from "./settings-types.js";
 

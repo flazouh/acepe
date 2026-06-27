@@ -2,7 +2,7 @@
 import { untrack } from "svelte";
 import { AgentAttachedFilePane as SharedAgentAttachedFilePane } from "@acepe/ui/agent-panel";
 import { FilePathBadge } from "@acepe/ui";
-import { IconX } from "@tabler/icons-svelte";
+import { IconX } from "@acepe/ui/icons";
 import { FilePanel } from "$lib/acp/components/file-panel/index.js";
 import { scheduleLazyPanelMetadataWork } from "$lib/acp/components/file-panel/file-panel-defer.js";
 import { toFilePanelGitStatus } from "$lib/acp/components/file-panel/file-panel-git-status.js";

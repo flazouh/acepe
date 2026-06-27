@@ -1,5 +1,5 @@
 <script lang="ts">
-import { Tree } from "phosphor-svelte";
+import { Tree } from "@acepe/ui/icons";
 import type { MergeStrategy } from "$lib/utils/tauri-client/git.js";
 import type { PrDetails } from "$lib/utils/tauri-client/git.js";
 import type { IssueReportDraft } from "$lib/errors/issue-report.js";

@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { SignIn } from "phosphor-svelte";
+	import { SignIn } from "../icons/index.js";
 	import { Button } from "../button/index.js";
 
 	interface Props {

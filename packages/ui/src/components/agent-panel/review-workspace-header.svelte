@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { ArrowRight, CaretLeft } from "phosphor-svelte";
+	import { ArrowRight, CaretLeft } from "../icons/index.js";
 
 	import { Button } from "../button/index.js";
 

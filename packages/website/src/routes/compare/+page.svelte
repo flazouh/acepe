@@ -1,7 +1,7 @@
 <script lang="ts">
 import Header from "$lib/components/header.svelte";
 import Seo from "$lib/components/seo/seo.svelte";
-import { ArrowRight } from "@lucide/svelte";
+import { ArrowRight } from "@acepe/ui/icons";
 import { getAllComparisonSlugs, getComparison } from "$lib/compare/data.js";
 
 let { data } = $props();

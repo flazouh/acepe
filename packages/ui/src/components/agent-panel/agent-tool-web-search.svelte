@@ -1,7 +1,7 @@
 <script lang="ts">
-	import { ArrowSquareOut } from "phosphor-svelte";
-	import { CaretDown } from "phosphor-svelte";
-	import { CaretRight } from "phosphor-svelte";
+	import { ArrowSquareOut } from "../icons/index.js";
+	import { CaretDown } from "../icons/index.js";
+	import { CaretRight } from "../icons/index.js";
 	import AgentToolCard from "./agent-tool-card.svelte";
 	import {
 		getDisplayedWebSearchLinks,

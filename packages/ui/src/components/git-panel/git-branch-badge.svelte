@@ -2,7 +2,7 @@
 	/**
 	 * GitBranchBadge — Branch name badge with git branch icon.
 	 */
-	import { GitBranch } from "phosphor-svelte";
+	import { GitBranch } from "../icons/index.js";
 
 	import { cn } from "../../lib/utils.js";
 

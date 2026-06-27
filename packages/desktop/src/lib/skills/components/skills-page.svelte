@@ -1,9 +1,9 @@
 <script lang="ts">
 import { okAsync } from "neverthrow";
-import { Copy } from "phosphor-svelte";
-import { FileText } from "phosphor-svelte";
-import { PuzzlePiece } from "phosphor-svelte";
-import { Trash } from "phosphor-svelte";
+import { Copy } from "@acepe/ui/icons";
+import { FileText } from "@acepe/ui/icons";
+import { PuzzlePiece } from "@acepe/ui/icons";
+import { Trash } from "@acepe/ui/icons";
 import { onMount } from "svelte";
 import AgentIcon from "$lib/acp/components/agent-icon.svelte";
 import DialogFrame from "$lib/components/ui/dialog-frame.svelte";

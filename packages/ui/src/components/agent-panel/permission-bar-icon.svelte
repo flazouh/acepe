@@ -9,7 +9,7 @@
 		ShieldWarning,
 		Terminal,
 		Trash,
-	} from "phosphor-svelte";
+	} from "../icons/index.js";
 
 	interface Props {
 		kind: string;

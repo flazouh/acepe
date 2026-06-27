@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { ArrowSquareOut, GitPullRequest } from "phosphor-svelte";
+	import { ArrowSquareOut, GitPullRequest } from "../icons/index.js";
 
 	import { DiffPill } from "../diff-pill/index.js";
 	import { PrChecksList, PrChecksSummary, type PrChecksItem } from "../pr-checks/index.js";

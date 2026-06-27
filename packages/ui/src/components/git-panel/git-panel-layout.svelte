@@ -5,12 +5,12 @@
 	 * All data-driven via props, no Tauri coupling.
 	 */
 	import type { Snippet } from "svelte";
-	import { ArrowUp } from "phosphor-svelte";
-	import { ArrowDown } from "phosphor-svelte";
-	import { ArrowsClockwise } from "phosphor-svelte";
-	import { GitDiff } from "phosphor-svelte";
-	import { ClockCounterClockwise } from "phosphor-svelte";
-	import { Package } from "phosphor-svelte";
+	import { ArrowUp } from "../icons/index.js";
+	import { ArrowDown } from "../icons/index.js";
+	import { ArrowsClockwise } from "../icons/index.js";
+	import { GitDiff } from "../icons/index.js";
+	import { ClockCounterClockwise } from "../icons/index.js";
+	import { Package } from "../icons/index.js";
 
 	import { cn } from "../../lib/utils.js";
 	import type { GitStatusFile, GitStashEntry, GitLogEntry, GitLogEntryFile, GitRemoteStatus } from "./types.js";

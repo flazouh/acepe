@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { CaretRight } from "phosphor-svelte";
+	import { CaretRight } from "../icons/index.js";
 
 	import AgentToolCard from "./agent-tool-card.svelte";
 	import {

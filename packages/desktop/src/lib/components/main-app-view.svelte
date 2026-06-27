@@ -4,7 +4,7 @@ import { getCurrentWindow } from "@tauri-apps/api/window";
 import { relaunch } from "@tauri-apps/plugin-process";
 import { check, type DownloadEvent } from "@tauri-apps/plugin-updater";
 import { okAsync, ResultAsync } from "neverthrow";
-import { FolderPlus, GearFine } from "phosphor-svelte";
+import { FolderPlus, GearFine } from "@acepe/ui/icons";
 import { onDestroy, onMount } from "svelte";
 import { toast } from "svelte-sonner";
 import OpenProjectDialog from "$lib/acp/components/add-repository/open-project-dialog.svelte";

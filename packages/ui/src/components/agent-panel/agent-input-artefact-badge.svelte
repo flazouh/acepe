@@ -5,7 +5,7 @@
   Purely presentational — accepts display data and a remove callback.
 -->
 <script lang="ts">
-	import X from "@lucide/svelte/icons/x";
+	import { LuX as X } from "../icons/index.js";
 
 	interface Props {
 		displayName: string;

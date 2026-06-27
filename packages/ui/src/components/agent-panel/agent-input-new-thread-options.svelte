@@ -10,7 +10,7 @@
 -->
 <script lang="ts">
 	import type { Snippet } from "svelte";
-	import { Tree } from "phosphor-svelte";
+	import { Tree } from "../icons/index.js";
 
 	import {
 		FUSED_CONTROL_PRIMARY_BUTTON_CLASS,

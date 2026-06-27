@@ -1,5 +1,5 @@
 <script lang="ts">
-import { ChevronDown } from "@lucide/svelte/icons";
+import { ChevronDown } from "@acepe/ui/icons";
 import { Button } from "$lib/components/ui/button/index.js";
 import * as Tooltip from "@acepe/ui/tooltip";
 

@@ -1,9 +1,9 @@
 <script lang="ts">
 	import type { Snippet } from "svelte";
 
-	import { Browser } from "phosphor-svelte";
-	import { Gear } from "phosphor-svelte";
-	import { Terminal } from "phosphor-svelte";
+	import { Browser } from "../icons/index.js";
+	import { Gear } from "../icons/index.js";
+	import { Terminal } from "../icons/index.js";
 	import { EmbeddedIconButton } from "../panel-header/index.js";
 
 	interface Props {

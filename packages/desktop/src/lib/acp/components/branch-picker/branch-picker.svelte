@@ -12,7 +12,7 @@ import {
 import { FUSED_CONTROL_COMPOSER_CHIP_LABEL_BUTTON_CLASS } from "@acepe/ui/panel-header";
 import { Colors } from "@acepe/ui/colors";
 import * as DropdownMenu from "@acepe/ui/dropdown-menu";
-import { CheckCircle, GitBranch } from "phosphor-svelte";
+import { CheckCircle, GitBranch } from "@acepe/ui/icons";
 import { toast } from "svelte-sonner";
 import { Button } from "$lib/components/ui/button/index.js";
 import { cn } from "$lib/utils.js";

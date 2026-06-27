@@ -1,8 +1,8 @@
 <script lang="ts">
 import { EmbeddedIconButton } from "@acepe/ui/panel-header";
 import { PlanSidebarLayout } from "@acepe/ui/plan-sidebar";
-import { ArrowsOut } from "phosphor-svelte";
-import { DownloadSimple } from "phosphor-svelte";
+import { ArrowsOut } from "@acepe/ui/icons";
+import { DownloadSimple } from "@acepe/ui/icons";
 import { toast } from "svelte-sonner";
 import { ScrollArea } from "$lib/components/ui/scroll-area/index.js";
 import type { SessionPlanResponse } from "$lib/services/converted-session-types.js";

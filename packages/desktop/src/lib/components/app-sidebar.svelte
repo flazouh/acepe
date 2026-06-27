@@ -39,10 +39,10 @@ const data = {
 	import type { ComponentProps } from "svelte";
 
 	import * as Collapsible from "$lib/components/ui/collapsible/index.js";
-	import ChevronRightIcon from "@lucide/svelte/icons/chevron-right";
+	import { LuChevronRight as ChevronRightIcon } from "@acepe/ui/icons";
 	import * as Sidebar from "$lib/components/ui/sidebar/index.js";
-	import FolderIcon from "@lucide/svelte/icons/folder";
-	import FileIcon from "@lucide/svelte/icons/file";
+	import { LuFolder as FolderIcon } from "@acepe/ui/icons";
+	import { LuFile as FileIcon } from "@acepe/ui/icons";
 
 	let { ref = $bindable(null), ...restProps }: ComponentProps<typeof Sidebar.Root> = $props();
 </script>

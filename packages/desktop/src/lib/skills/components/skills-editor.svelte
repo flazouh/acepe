@@ -1,5 +1,5 @@
 <script lang="ts">
-import { Copy, FileText, Lock, Puzzle } from "@lucide/svelte/icons";
+import { Copy, FileText, Lock, Puzzle } from "@acepe/ui/icons";
 import { AGENT_IDS } from "$lib/acp/types/agent-id.js";
 import { Button } from "$lib/components/ui/button/index.js";
 import { CodeMirrorEditor } from "$lib/components/ui/codemirror-editor/index.js";

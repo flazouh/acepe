@@ -4,12 +4,12 @@
 	 * Reuses the same tree-building logic as the desktop file list,
 	 * stripped of context menus and Tauri.
 	 */
-	import { CaretRight } from "phosphor-svelte";
-	import { FilePlus } from "phosphor-svelte";
-	import { FileX } from "phosphor-svelte";
-	import { FileDashed } from "phosphor-svelte";
-	import { File } from "phosphor-svelte";
-	import { FolderSimple } from "phosphor-svelte";
+	import { CaretRight } from "../icons/index.js";
+	import { FilePlus } from "../icons/index.js";
+	import { FileX } from "../icons/index.js";
+	import { FileDashed } from "../icons/index.js";
+	import { File } from "../icons/index.js";
+	import { FolderSimple } from "../icons/index.js";
 	import { SvelteSet } from "svelte/reactivity";
 
 	import { DiffPill } from "../diff-pill/index.js";

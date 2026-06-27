@@ -1,7 +1,7 @@
 <script lang="ts">
 import { FilePathBadge } from "@acepe/ui/file-path-badge";
 import { Button } from "@acepe/ui/button";
-import { CheckCircle, ShieldCheck, ShieldWarning, XCircle } from "phosphor-svelte";
+import { CheckCircle, ShieldCheck, ShieldWarning, XCircle } from "@acepe/ui/icons";
 import { getPermissionStore } from "../../store/permission-store.svelte.js";
 import type { PermissionRequest } from "../../types/permission.js";
 import { COLOR_NAMES, Colors } from "@acepe/ui/colors";

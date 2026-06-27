@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { Check, XCircle } from "phosphor-svelte";
+	import { Check, XCircle } from "../icons/index.js";
 
 	interface Props {
 		hasSelections?: boolean;

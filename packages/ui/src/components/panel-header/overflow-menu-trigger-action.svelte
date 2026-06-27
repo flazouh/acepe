@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { IconDotsVertical } from "@tabler/icons-svelte";
+	import { IconDotsVertical } from "../icons/index.js";
 
 	import EmbeddedIconButton from "./embedded-icon-button.svelte";
 	import { OVERFLOW_DOTS_ICON_CLASS } from "./project-card-action-button-class.js";

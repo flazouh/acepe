@@ -1,5 +1,5 @@
 <script lang="ts">
-import { Terminal } from "phosphor-svelte";
+import { Terminal } from "@acepe/ui/icons";
 
 import type { PermissionRequest } from "../../types/permission.js";
 import PermissionActionBar from "./permission-action-bar.svelte";

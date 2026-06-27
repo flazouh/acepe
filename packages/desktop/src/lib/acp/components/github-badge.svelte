@@ -1,7 +1,7 @@
 <script lang="ts">
 import { GitHubBadge } from "@acepe/ui";
 import { openUrl } from "@tauri-apps/plugin-opener";
-import { GithubLogo } from "phosphor-svelte";
+import { GithubLogo } from "@acepe/ui/icons";
 
 import type { GitHubReference } from "../constants/github-badge-html.js";
 import { getGitHubURL } from "../constants/github-badge-html.js";

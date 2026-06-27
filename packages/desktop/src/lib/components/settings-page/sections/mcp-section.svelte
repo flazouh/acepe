@@ -1,5 +1,5 @@
 <script lang="ts">
-import { CheckCircle, Plugs, WarningCircle } from "phosphor-svelte";
+import { CheckCircle, Plugs, WarningCircle } from "@acepe/ui/icons";
 import SettingsSection from "../settings-section.svelte";
 import { BUILT_IN_MCP_TOOLS } from "./mcp-section.logic.js";
 </script>

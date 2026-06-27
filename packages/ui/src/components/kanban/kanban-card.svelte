@@ -1,6 +1,6 @@
 <script lang="ts">
 	import type { Snippet } from "svelte";
-	import { Robot, Tree, X } from "phosphor-svelte";
+	import { Robot, Tree, X } from "../icons/index.js";
 	import AgentToolTask from "../agent-panel/agent-tool-task.svelte";
 	import AgentCompactToolDisplay from "../agent-panel/compact-tool-display.svelte";
 	import { DiffPill } from "../diff-pill/index.js";

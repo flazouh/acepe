@@ -2,8 +2,8 @@
 import { BrandLockup, TextShimmer } from "@acepe/ui";
 import Header from "$lib/components/header.svelte";
 import Seo from "$lib/components/seo/seo.svelte";
-import { Check, ArrowRight, Terminal } from "@lucide/svelte";
-import { GithubLogo } from "phosphor-svelte";
+import { Check, ArrowRight, Terminal } from "@acepe/ui/icons";
+import { GithubLogo } from "@acepe/ui/icons";
 import { pricingFaqItems } from "./faq.js";
 
 let { data } = $props();

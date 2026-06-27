@@ -1,9 +1,9 @@
 <script lang="ts">
-import { IconEye } from "@tabler/icons-svelte";
-import { IconEyeOff } from "@tabler/icons-svelte";
-import { IconPlus } from "@tabler/icons-svelte";
-import { IconTrash } from "@tabler/icons-svelte";
-import { FloppyDisk, SlidersHorizontal } from "phosphor-svelte";
+import { IconEye } from "@acepe/ui/icons";
+import { IconEyeOff } from "@acepe/ui/icons";
+import { IconPlus } from "@acepe/ui/icons";
+import { IconTrash } from "@acepe/ui/icons";
+import { FloppyDisk, SlidersHorizontal } from "@acepe/ui/icons";
 import { Button, Input } from "@acepe/ui";
 import { Button as DesktopButton } from "$lib/components/ui/button/index.js";
 import DialogFrame from "$lib/components/ui/dialog-frame.svelte";

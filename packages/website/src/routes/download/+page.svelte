@@ -2,8 +2,8 @@
 import { BrandLockup } from "@acepe/ui";
 import Header from "$lib/components/header.svelte";
 import Seo from "$lib/components/seo/seo.svelte";
-import { Download } from "@lucide/svelte";
-import { AppleLogo, GithubLogo } from "phosphor-svelte";
+import { Download } from "@acepe/ui/icons";
+import { AppleLogo, GithubLogo } from "@acepe/ui/icons";
 
 const { data } = $props();
 

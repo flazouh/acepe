@@ -10,7 +10,7 @@
   - recording: red filled circle with stop square, pulsing glow
 -->
 <script lang="ts">
-	import { Microphone } from "phosphor-svelte";
+	import { Microphone } from "../icons/index.js";
 
 	import { LoadingIcon } from "../icons/index.js";
 	import { SegmentedProgressBar } from "../segmented-progress-bar/index.js";

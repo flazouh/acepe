@@ -1,7 +1,7 @@
 <script lang="ts">
-	import { CaretRight } from "phosphor-svelte";
-	import { CaretDown } from "phosphor-svelte";
-	import { ArrowRight } from "phosphor-svelte";
+	import { CaretRight } from "../icons/index.js";
+	import { CaretDown } from "../icons/index.js";
+	import { ArrowRight } from "../icons/index.js";
 	import ToolHeaderLeading from "./tool-header-leading.svelte";
 	import AgentToolDurationLabel from "./agent-tool-duration-label.svelte";
 	import type { ToolDurationTiming } from "./tool-duration.js";

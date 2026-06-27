@@ -1,11 +1,11 @@
 <script lang="ts">
 import { Colors } from "@acepe/ui/colors";
-import { CaretDown } from "phosphor-svelte";
-import { CaretLeft } from "phosphor-svelte";
-import { CaretRight } from "phosphor-svelte";
-import { CaretUp } from "phosphor-svelte";
-import { CheckCircle } from "phosphor-svelte";
-import { XCircle } from "phosphor-svelte";
+import { CaretDown } from "@acepe/ui/icons";
+import { CaretLeft } from "@acepe/ui/icons";
+import { CaretRight } from "@acepe/ui/icons";
+import { CaretUp } from "@acepe/ui/icons";
+import { CheckCircle } from "@acepe/ui/icons";
+import { XCircle } from "@acepe/ui/icons";
 interface Props {
 	hunkCurrent: number;
 	hunkTotal: number;

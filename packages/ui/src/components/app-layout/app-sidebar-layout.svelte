@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { Sparkle } from "phosphor-svelte";
+	import { Sparkle } from "../icons/index.js";
 	import type { Snippet } from "svelte";
 
 interface Props {

@@ -1,10 +1,10 @@
 <script lang="ts">
 import { PlanIcon } from "@acepe/ui";
-import { CaretDown } from "phosphor-svelte";
-import { CaretRight } from "phosphor-svelte";
-import { CheckCircle } from "phosphor-svelte";
-import { CircleDashed } from "phosphor-svelte";
-import { Folder } from "phosphor-svelte";
+import { CaretDown } from "@acepe/ui/icons";
+import { CaretRight } from "@acepe/ui/icons";
+import { CheckCircle } from "@acepe/ui/icons";
+import { CircleDashed } from "@acepe/ui/icons";
+import { Folder } from "@acepe/ui/icons";
 
 import type { StructuredData } from "./format/types.js";
 import { buildStructuredNodeDisplayState } from "./file-panel-structured-node-state.js";

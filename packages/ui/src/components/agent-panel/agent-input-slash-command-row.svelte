@@ -1,7 +1,7 @@
 <script lang="ts">
-	import { IconTerminal } from "@tabler/icons-svelte";
-	import { IconPlug } from "@tabler/icons-svelte";
-	import { BookOpenText } from "phosphor-svelte";
+	import { IconTerminal } from "../icons/index.js";
+	import { IconPlug } from "../icons/index.js";
+	import { BookOpenText } from "../icons/index.js";
 	import { INLINE_ARTEFACT_PACKAGE_PATH } from "../inline-artefact-badge/inline-artefact-badge.styles.js";
 	import {
 		getSlashCommandDisplayName,

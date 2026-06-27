@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { Button } from "../button/index.js";
-	import { MagnifyingGlass } from "phosphor-svelte";
+	import { MagnifyingGlass } from "../icons/index.js";
 
 	interface Props {
 		label?: string;

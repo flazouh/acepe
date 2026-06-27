@@ -3,7 +3,7 @@
 
 	import { DiffPill } from "../diff-pill/index.js";
 	import { FilePathBadge } from "../file-path-badge/index.js";
-	import { ShieldWarning } from "phosphor-svelte";
+	import { ShieldWarning } from "../icons/index.js";
 
 	import FeedItem from "./attention-queue-item.svelte";
 

@@ -1,5 +1,5 @@
 <script lang="ts">
-import { IconBrandGoogle } from "@tabler/icons-svelte";
+import { IconBrandGoogle } from "@acepe/ui/icons";
 import { Button } from "$lib/components/ui/button/index.js";
 </script>
 

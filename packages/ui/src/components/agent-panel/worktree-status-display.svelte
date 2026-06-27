@@ -1,6 +1,6 @@
 <script lang="ts">
-	import Folder from "@lucide/svelte/icons/folder-open";
-	import { Tree } from "phosphor-svelte";
+	import { LuFolderOpen as Folder } from "../icons/index.js";
+	import { Tree } from "../icons/index.js";
 
 	interface Props {
 		mode: "worktree" | "project-root";

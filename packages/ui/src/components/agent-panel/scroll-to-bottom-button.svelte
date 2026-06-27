@@ -1,5 +1,5 @@
 <script lang="ts">
-	import ArrowDown from "@lucide/svelte/icons/arrow-down";
+	import { LuArrowDown as ArrowDown } from "../icons/index.js";
 
 	interface Props {
 		visible: boolean;

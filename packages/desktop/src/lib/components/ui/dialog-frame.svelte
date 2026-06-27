@@ -1,7 +1,7 @@
 <script lang="ts">
 import * as Dialog from "@acepe/ui/dialog";
 import { PROJECT_CARD_ACTION_BUTTON_CLASS } from "@acepe/ui/panel-header";
-import { X } from "phosphor-svelte";
+import { X } from "@acepe/ui/icons";
 import type { Snippet } from "svelte";
 
 interface Props {

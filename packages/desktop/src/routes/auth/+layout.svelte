@@ -1,6 +1,6 @@
 <script lang="ts">
 import { BrandLockup } from "@acepe/ui";
-import { IconArrowLeft } from "@tabler/icons-svelte";
+import { IconArrowLeft } from "@acepe/ui/icons";
 import AnimatedBackground from "$lib/components/animated-background.svelte";
 import { Button } from "$lib/components/ui/button/index.js";
 </script>

@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { CheckCircle, CircleDashed, XCircle } from "phosphor-svelte";
+	import { CheckCircle, CircleDashed, XCircle } from "../icons/index.js";
 
 	import { FilePathBadge } from "../file-path-badge/index.js";
 	import type { AgentPanelFileReviewStatus } from "./types.js";

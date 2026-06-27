@@ -1,5 +1,5 @@
 <script lang="ts">
-import { WarningCircle } from "phosphor-svelte";
+import { WarningCircle } from "@acepe/ui/icons";
 
 import type { ErrorMessage } from "../../types/error-message.js";
 

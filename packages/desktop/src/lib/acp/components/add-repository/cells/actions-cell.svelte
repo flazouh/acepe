@@ -1,6 +1,6 @@
 <script lang="ts">
 import { Button } from "@acepe/ui/button";
-import { Trash } from "phosphor-svelte";
+import { Trash } from "@acepe/ui/icons";
 
 interface Props {
 	isAdded: boolean;

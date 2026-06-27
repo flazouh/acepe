@@ -26,7 +26,7 @@ import {
 } from "@acepe/ui/app-layout";
 import { CloseAction, FullscreenAction, OverflowMenuTriggerAction } from "@acepe/ui/panel-header";
 import { ProjectCard } from "@acepe/ui/project-card";
-import { Browser, CaretDown, DotsThreeVertical, Plus, Terminal } from "phosphor-svelte";
+import { Browser, CaretDown, DotsThreeVertical, Plus, Terminal } from "@acepe/ui/icons";
 import type { AgentPanelSceneModel } from "@acepe/ui";
 
 import LandingDemoFrame from "./landing-demo-frame.svelte";

@@ -1,7 +1,7 @@
 <script lang="ts">
 import { AgentPanelWorktreeSetupCard as SharedAgentPanelWorktreeSetupCard } from "@acepe/ui/agent-panel";
 import { Spinner } from "$lib/components/ui/spinner/index.js";
-import { WarningCircle } from "phosphor-svelte";
+import { WarningCircle } from "@acepe/ui/icons";
 import type { WorktreeSetupState } from "../logic/worktree-setup-events.js";
 
 interface Props {

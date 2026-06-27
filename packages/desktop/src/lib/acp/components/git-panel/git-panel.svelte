@@ -21,10 +21,10 @@ import {
 import { GitPanelLayout, type GitLogEntryFile as UILogEntryFile } from "@acepe/ui/git-panel";
 import { listen } from "@tauri-apps/api/event";
 import { openUrl } from "@tauri-apps/plugin-opener";
-import { GitBranch } from "phosphor-svelte";
-import { GitPullRequest } from "phosphor-svelte";
-import { Tree } from "phosphor-svelte";
-import { X } from "phosphor-svelte";
+import { GitBranch } from "@acepe/ui/icons";
+import { GitPullRequest } from "@acepe/ui/icons";
+import { Tree } from "@acepe/ui/icons";
+import { X } from "@acepe/ui/icons";
 import { onMount, untrack } from "svelte";
 import { toast } from "svelte-sonner";
 import type { CommitDiff } from "$lib/acp/types/github-integration.js";

@@ -1,6 +1,6 @@
 <script lang="ts">
-import { IconRotateClockwise } from "@tabler/icons-svelte";
-import { IconSearch } from "@tabler/icons-svelte";
+import { IconRotateClockwise } from "@acepe/ui/icons";
+import { IconSearch } from "@acepe/ui/icons";
 import { SvelteMap } from "svelte/reactivity";
 import { createLogger } from "$lib/acp/utils/logger.js";
 import { Kbd, KbdGroup } from "$lib/components/ui/kbd/index.js";

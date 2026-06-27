@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { CaretRight, CheckCircle, Package } from "phosphor-svelte";
+	import { CaretRight, CheckCircle, Package } from "../icons/index.js";
 	import AgentToolCard from "./agent-tool-card.svelte";
 	import ToolLabel from "./tool-label.svelte";
 	import TextShimmer from "../text-shimmer/text-shimmer.svelte";

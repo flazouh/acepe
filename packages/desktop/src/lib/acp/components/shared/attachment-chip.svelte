@@ -1,5 +1,5 @@
 <script lang="ts">
-import X from "@lucide/svelte/icons/x";
+import { LuX as X } from "@acepe/ui/icons";
 import FileIcon from "$lib/components/ui/file-icon/file-icon.svelte";
 
 import type { ParsedAttachment } from "../../utils/attachment-token-parser.js";

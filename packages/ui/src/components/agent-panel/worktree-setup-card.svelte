@@ -1,7 +1,7 @@
 <script lang="ts">
-	import ChevronDown from "@lucide/svelte/icons/chevron-down";
+	import { LuChevronDown as ChevronDown } from "../icons/index.js";
 	import type { Snippet } from "svelte";
-	import { WarningCircle } from "phosphor-svelte";
+	import { WarningCircle } from "../icons/index.js";
 
 	import { LoadingIcon } from "../icons/index.js";
 

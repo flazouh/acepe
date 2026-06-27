@@ -1,12 +1,12 @@
 <script lang="ts">
 	import type { Snippet } from "svelte";
 
-	import { IconListTree } from "@tabler/icons-svelte";
-	import { IconTable } from "@tabler/icons-svelte";
-	import { IconCode } from "@tabler/icons-svelte";
-	import { IconEye } from "@tabler/icons-svelte";
-	import { PencilSimple } from "phosphor-svelte";
-	import { BookOpenText } from "phosphor-svelte";
+	import { IconListTree } from "../icons/index.js";
+	import { IconTable } from "../icons/index.js";
+	import { IconCode } from "../icons/index.js";
+	import { IconEye } from "../icons/index.js";
+	import { PencilSimple } from "../icons/index.js";
+	import { BookOpenText } from "../icons/index.js";
 	import { ProjectLetterBadge } from "../project-letter-badge/index.js";
 	import { DiffPill } from "../diff-pill/index.js";
 	import {

@@ -1,9 +1,9 @@
 <script lang="ts">
-	import { IconSquare } from "@tabler/icons-svelte";
-	import { IconCheck } from "@tabler/icons-svelte";
-	import { IconHelpCircleFilled } from "@tabler/icons-svelte";
-	import { CaretRight } from "phosphor-svelte";
-	import { CaretLeft } from "phosphor-svelte";
+	import { IconSquare } from "../icons/index.js";
+	import { IconCheck } from "../icons/index.js";
+	import { IconHelpCircleFilled } from "../icons/index.js";
+	import { CaretRight } from "../icons/index.js";
+	import { CaretLeft } from "../icons/index.js";
 
 	import type {
 		ActivityEntryQuestion,

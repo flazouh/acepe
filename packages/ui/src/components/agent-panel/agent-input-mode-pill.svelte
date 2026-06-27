@@ -3,7 +3,7 @@
   Sits inline next to the submit button in the composer editor row.
 -->
 <script lang="ts">
-	import { SlidersHorizontal } from "phosphor-svelte";
+	import { SlidersHorizontal } from "../icons/index.js";
 
 	interface Mode {
 		readonly id: string;

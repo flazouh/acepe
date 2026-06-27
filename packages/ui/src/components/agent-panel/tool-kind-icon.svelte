@@ -9,7 +9,7 @@ import {
 	PencilSimple,
 	Terminal,
 	ListChecks,
-} from "phosphor-svelte";
+} from "../icons/index.js";
 import { LoadingIcon } from "../icons/index.js";
 import { Colors } from "../../lib/colors.js";
 import type { AgentToolKind, AgentToolStatus } from "./types.js";

@@ -1,11 +1,11 @@
 <script lang="ts">
 import { Selector } from "@acepe/ui";
 import * as DropdownMenu from "@acepe/ui/dropdown-menu";
-import { ChevronDown, FolderOpen } from "@lucide/svelte/icons";
+import { ChevronDown, FolderOpen } from "@acepe/ui/icons";
 import { revealItemInDir } from "@tauri-apps/plugin-opener";
-import { ArrowsClockwise } from "phosphor-svelte";
-import { CheckCircle } from "phosphor-svelte";
-import { Warning as PhosphorWarning } from "phosphor-svelte";
+import { ArrowsClockwise } from "@acepe/ui/icons";
+import { CheckCircle } from "@acepe/ui/icons";
+import { Warning as PhosphorWarning } from "@acepe/ui/icons";
 import AgentIcon from "$lib/acp/components/agent-icon.svelte";
 import { Spinner } from "$lib/components/ui/spinner/index.js";
 import { Switch } from "$lib/components/ui/switch/index.js";

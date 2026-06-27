@@ -12,7 +12,7 @@ import {
 	Sidebar,
 	Terminal,
 	X,
-} from "phosphor-svelte";
+} from "@acepe/ui/icons";
 import type { PaletteCommandDef } from "../../../types/palette-command.js";
 import type { PaletteItem, PaletteItemMetadata } from "../../../types/palette-item.js";
 import { fuzzySearch } from "../fuzzy-search.js";

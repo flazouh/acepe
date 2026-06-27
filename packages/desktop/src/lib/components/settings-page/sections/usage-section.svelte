@@ -1,5 +1,5 @@
 <script lang="ts">
-import { ChartLine } from "phosphor-svelte";
+import { ChartLine } from "@acepe/ui/icons";
 import SettingsComingSoon from "../settings-coming-soon.svelte";
 import SettingsSection from "../settings-section.svelte";
 </script>

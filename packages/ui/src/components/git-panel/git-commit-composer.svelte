@@ -3,8 +3,8 @@
 	 * GitCommitComposer — dedicated commit composer using the agent input surface pattern.
 	 */
 	import type { Snippet } from "svelte";
-	import { ArrowUp } from "phosphor-svelte";
-	import { Sparkle } from "phosphor-svelte";
+	import { ArrowUp } from "../icons/index.js";
+	import { Sparkle } from "../icons/index.js";
 	import { cn } from "../../lib/utils.js";
 	import { InputContainer } from "../input-container/index.js";
 

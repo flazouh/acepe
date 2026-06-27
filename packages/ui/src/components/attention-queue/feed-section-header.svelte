@@ -1,9 +1,9 @@
 <script lang="ts">
-	import { CheckCircle, Pulse } from "phosphor-svelte";
-	import { Eye } from "phosphor-svelte";
-	import { FileCode } from "phosphor-svelte";
-	import { Keyboard } from "phosphor-svelte";
-	import { Warning } from "phosphor-svelte";
+	import { CheckCircle, Pulse } from "../icons/index.js";
+	import { Eye } from "../icons/index.js";
+	import { FileCode } from "../icons/index.js";
+	import { Keyboard } from "../icons/index.js";
+	import { Warning } from "../icons/index.js";
 	import type { Snippet } from "svelte";
 	import type { SectionedFeedSectionId } from "./types.js";
 

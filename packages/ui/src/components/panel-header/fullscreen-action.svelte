@@ -1,6 +1,6 @@
 <script lang="ts">
-	import { ArrowsIn } from "phosphor-svelte";
-	import { ArrowsOut } from "phosphor-svelte";
+	import { ArrowsIn } from "../icons/index.js";
+	import { ArrowsOut } from "../icons/index.js";
 
 	import EmbeddedIconButton from "./embedded-icon-button.svelte";
 

@@ -33,7 +33,7 @@ import {
 	Microphone,
 	ShieldCheck,
 	Plug,
-} from "phosphor-svelte";
+} from "@acepe/ui/icons";
 
 let { data } = $props();
 

@@ -1,7 +1,7 @@
 <script lang="ts">
 import { FilePanelHeader as FilePanelHeaderLayout } from "@acepe/ui/file-panel";
 import { CloseAction, EmbeddedIconButton } from "@acepe/ui/panel-header";
-import { FolderOpen } from "phosphor-svelte";
+import { FolderOpen } from "@acepe/ui/icons";
 import { toast } from "svelte-sonner";
 import { FileIcon } from "$lib/components/ui/file-icon/index.js";
 import { revealInFinder, tauriClient } from "$lib/utils/tauri-client.js";

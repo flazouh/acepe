@@ -7,7 +7,7 @@ import { Input } from "$lib/components/ui/input/index.js";
 import { Label } from "$lib/components/ui/label/index.js";
 import { Switch } from "$lib/components/ui/switch/index.js";
 import { Textarea } from "$lib/components/ui/textarea/index.js";
-import { Sparkle } from "phosphor-svelte";
+import { Sparkle } from "@acepe/ui/icons";
 
 import { getLibraryStore } from "../store/library-store.svelte.js";
 

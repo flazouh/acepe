@@ -1,7 +1,7 @@
 <script lang="ts">
-import { Tree } from "phosphor-svelte";
+import { Tree } from "@acepe/ui/icons";
 import { Tooltip } from "bits-ui";
-import Folder from "@lucide/svelte/icons/folder-open";
+import { LuFolderOpen as Folder } from "@acepe/ui/icons";
 import { revealInFinder } from "$lib/utils/tauri-client/opener.js";
 import { toast } from "svelte-sonner";
 

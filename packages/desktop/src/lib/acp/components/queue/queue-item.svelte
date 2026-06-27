@@ -13,7 +13,7 @@ import {
 	ProjectLetterBadge,
 } from "@acepe/ui";
 import { PlanCard } from "@acepe/ui/plan-card";
-import { CheckCircle, FileCode, XCircle } from "phosphor-svelte";
+import { CheckCircle, FileCode, XCircle } from "@acepe/ui/icons";
 import type { QueueItem } from "$lib/acp/store/queue/types.js";
 import {
 	replyToComputerPermissionRequest,

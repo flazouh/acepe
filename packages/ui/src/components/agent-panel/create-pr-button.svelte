@@ -1,6 +1,6 @@
 <script lang="ts">
 	import type { Snippet } from "svelte";
-	import { GitPullRequest } from "phosphor-svelte";
+	import { GitPullRequest } from "../icons/index.js";
 
 	import { Button } from "../button/index.js";
 	import * as ButtonGroup from "../button-group/index.js";

@@ -1,5 +1,5 @@
 <script lang="ts">
-import { Plus } from "@lucide/svelte/icons";
+import { Plus } from "@acepe/ui/icons";
 import { Button } from "$lib/components/ui/button/index.js";
 import DialogFrame from "$lib/components/ui/dialog-frame.svelte";
 

@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { Screwdriver } from "phosphor-svelte";
+	import { Screwdriver } from "./index.js";
 
 	interface Props {
 		size?: "sm" | "md" | "lg";

@@ -1,6 +1,6 @@
 <script lang="ts">
 import { SegmentedProgressBar } from "@acepe/ui";
-import { DownloadSimple, Trash } from "phosphor-svelte";
+import { DownloadSimple, Trash } from "@acepe/ui/icons";
 
 import { Switch } from "$lib/components/ui/switch/index.js";
 import { getVoiceSettingsStore } from "$lib/stores/voice-settings-store.svelte.js";

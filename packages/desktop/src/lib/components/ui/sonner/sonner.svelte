@@ -1,5 +1,5 @@
 <script lang="ts">
-import { X } from "phosphor-svelte";
+import { X } from "@acepe/ui/icons";
 import { mode } from "mode-watcher";
 import { Toaster as Sonner, toast, type ToasterProps as SonnerProps } from "svelte-sonner";
 import Spinner from "$lib/components/ui/spinner/spinner.svelte";

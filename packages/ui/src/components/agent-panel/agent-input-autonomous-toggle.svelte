@@ -6,7 +6,7 @@
   Uses the Lightning icon so Robot stays reserved for "agent" across the app.
 -->
 <script lang="ts">
-	import { ShieldCheck } from "phosphor-svelte";
+	import { ShieldCheck } from "../icons/index.js";
 
 	import { Colors } from "../../lib/colors.js";
 	import { cn } from "../../lib/utils.js";

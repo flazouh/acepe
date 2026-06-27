@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { WarningCircle } from "phosphor-svelte";
+	import { WarningCircle } from "../icons/index.js";
 	import { Button } from "../button/index.js";
 	import { LoadingIcon } from "../icons/index.js";
 

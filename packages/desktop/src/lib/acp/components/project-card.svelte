@@ -1,8 +1,8 @@
 <script lang="ts">
 import { DiffPill, ProjectLetterBadge } from "@acepe/ui";
-import { ArrowDown } from "phosphor-svelte";
-import { ArrowUp } from "phosphor-svelte";
-import { GitBranch } from "phosphor-svelte";
+import { ArrowDown } from "@acepe/ui/icons";
+import { ArrowUp } from "@acepe/ui/icons";
+import { GitBranch } from "@acepe/ui/icons";
 import { Kbd, KbdGroup } from "$lib/components/ui/kbd/index.js";
 import type { ProjectCardData } from "./project-card-data.js";
 

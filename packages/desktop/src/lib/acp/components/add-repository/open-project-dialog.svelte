@@ -1,12 +1,12 @@
 <script lang="ts">
 import { PillButton } from "@acepe/ui";
 import { EmbeddedIconButton } from "@acepe/ui/panel-header";
-import { DownloadSimple } from "phosphor-svelte";
-import { Folder } from "phosphor-svelte";
-import { FolderOpen } from "phosphor-svelte";
-import { GitBranch } from "phosphor-svelte";
-import { Link } from "phosphor-svelte";
-import { MagnifyingGlass } from "phosphor-svelte";
+import { DownloadSimple } from "@acepe/ui/icons";
+import { Folder } from "@acepe/ui/icons";
+import { FolderOpen } from "@acepe/ui/icons";
+import { GitBranch } from "@acepe/ui/icons";
+import { Link } from "@acepe/ui/icons";
+import { MagnifyingGlass } from "@acepe/ui/icons";
 import { toast } from "svelte-sonner";
 import { ProjectClient } from "$lib/acp/logic/project-client.js";
 import { Spinner } from "$lib/components/ui/spinner/index.js";

@@ -5,7 +5,7 @@
   Accepts model list and callbacks as props; state machine lives in the desktop.
 -->
 <script lang="ts">
-	import { DotsThreeVertical, DownloadSimple } from "phosphor-svelte";
+	import { DotsThreeVertical, DownloadSimple } from "../icons/index.js";
 
 	import { Button } from "../button/index.js";
 	import * as DropdownMenu from "../dropdown-menu/index.js";

@@ -6,7 +6,7 @@
 -->
 <script lang="ts">
 	import { onMount, untrack } from "svelte";
-	import { Check, X } from "phosphor-svelte";
+	import { Check, X } from "../icons/index.js";
 
 	interface Props {
 		mode: "preview" | "edit";

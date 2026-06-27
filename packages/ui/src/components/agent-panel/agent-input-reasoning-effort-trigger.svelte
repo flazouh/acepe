@@ -3,7 +3,7 @@
   Used by config-option and Codex model-variant composer controls.
 -->
 <script lang="ts">
-	import { Brain } from "phosphor-svelte";
+	import { Brain } from "../icons/index.js";
 	import type { Snippet } from "svelte";
 
 	import { Colors } from "../../lib/colors.js";

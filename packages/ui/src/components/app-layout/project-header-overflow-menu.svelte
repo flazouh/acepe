@@ -2,13 +2,13 @@
 	import * as DropdownMenu from "../dropdown-menu/index.js";
 	import * as Popover from "../popover/index.js";
 	import * as Tooltip from "../tooltip/index.js";
-	import { ArrowCounterClockwise } from "phosphor-svelte";
-	import { ArrowDown } from "phosphor-svelte";
-	import { ArrowUp } from "phosphor-svelte";
-	import { DotsThreeVertical } from "phosphor-svelte";
-	import { ImageSquare } from "phosphor-svelte";
-	import { Palette } from "phosphor-svelte";
-	import { Trash } from "phosphor-svelte";
+	import { ArrowCounterClockwise } from "../icons/index.js";
+	import { ArrowDown } from "../icons/index.js";
+	import { ArrowUp } from "../icons/index.js";
+	import { DotsThreeVertical } from "../icons/index.js";
+	import { ImageSquare } from "../icons/index.js";
+	import { Palette } from "../icons/index.js";
+	import { Trash } from "../icons/index.js";
 
 	import { Selector } from "../selector/index.js";
 	import { Switch } from "../switch/index.js";

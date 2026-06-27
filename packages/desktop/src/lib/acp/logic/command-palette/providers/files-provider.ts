@@ -4,7 +4,7 @@
  */
 
 import { okAsync, ResultAsync as RA, type ResultAsync } from "neverthrow";
-import { File } from "phosphor-svelte";
+import { File } from "@acepe/ui/icons";
 import { fileIndex } from "$lib/utils/tauri-client/file-index.js";
 
 import type { IndexedFile, ProjectIndex } from "../../../../services/converted-session-types.js";

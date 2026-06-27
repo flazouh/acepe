@@ -1,6 +1,6 @@
 <script lang="ts">
 import { BrandLockup, BrandShaderBackground, TextShimmer, SegmentedProgressBar } from "@acepe/ui";
-import RefreshCw from "@lucide/svelte/icons/refresh-cw";
+import { LuRefreshCw as RefreshCw } from "@acepe/ui/icons";
 import { onMount } from "svelte";
 import {
 	isUpdaterInstallInProgress,

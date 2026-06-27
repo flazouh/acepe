@@ -1,7 +1,7 @@
 <script lang="ts">
 import { PlanIcon } from "@acepe/ui/icons";
 import { EmbeddedIconButton } from "@acepe/ui/panel-header";
-import { DownloadSimple } from "phosphor-svelte";
+import { DownloadSimple } from "@acepe/ui/icons";
 import { toastSuccess } from "$lib/components/ui/sonner/toast-bridge.js";
 import DialogFrame from "$lib/components/ui/dialog-frame.svelte";
 import type { SessionPlanResponse } from "../../services/claude-history.js";

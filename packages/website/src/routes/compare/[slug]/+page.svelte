@@ -2,7 +2,7 @@
 import Header from "$lib/components/header.svelte";
 import Seo from "$lib/components/seo/seo.svelte";
 import { attentionQueueBlogPost, checkpointsBlogPost, sqlStudioBlogPost } from "$lib/blog/posts.js";
-import { Check, X, ArrowRight, Minus } from "@lucide/svelte";
+import { Check, X, ArrowRight, Minus } from "@acepe/ui/icons";
 import type { ComparisonFeatureRow } from "$lib/compare/types.js";
 
 let { data } = $props();

@@ -9,8 +9,8 @@
 <script lang="ts">
 	import type { Snippet } from "svelte";
 
-	import { IconArrowUp } from "@tabler/icons-svelte";
-	import { Stop } from "phosphor-svelte";
+	import { IconArrowUp } from "../icons/index.js";
+	import { Stop } from "../icons/index.js";
 
 	import { Button } from "../button/index.js";
 

@@ -7,7 +7,7 @@ import {
 	HeaderTitleCell,
 	ReviewWorkspaceFileList,
 } from "@acepe/ui";
-import { IconChevronLeft } from "@tabler/icons-svelte";
+import { IconChevronLeft } from "@acepe/ui/icons";
 import { SvelteMap } from "svelte/reactivity";
 import { Skeleton } from "$lib/components/ui/skeleton/index.js";
 import { createReviewFileRevisionKey } from "../../review/review-file-revision.js";
