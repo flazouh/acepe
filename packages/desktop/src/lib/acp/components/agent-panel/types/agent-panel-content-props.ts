@@ -34,6 +34,8 @@ export interface AgentPanelContentProps {
 	readonly onRetryConnection?: () => void;
 	readonly onCancelConnection?: () => void;
 	readonly agentIconSrc?: string;
+	/** When true, the transcript's planning placeholder shows the Claude working spark. */
+	readonly showWorkingSpark?: boolean;
 	readonly isFullscreen?: boolean;
 	readonly availableAgents?: AgentInfo[];
 	readonly effectiveTheme?: "light" | "dark";

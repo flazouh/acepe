@@ -2,7 +2,15 @@ import { describe, expect, it } from "bun:test";
 
 import { buildDropdownMenuItemClassName } from "./dropdown-menu-item.classes";
 
+import {
+	dropdownMenuItemTypographyClass,
+} from "./dropdown-menu-typography.js";
+
 describe("buildDropdownMenuItemClassName", () => {
+	it("uses picker-aligned row typography", () => {
+		const className = buildDropdownMenuItemClassName(false);
+		expect(className).toContain(dropdownMenuItemTypographyClass);
+	});
 	it("keeps nested SVG icons muted by default but restores currentColor in interactive states", () => {
 		const className = buildDropdownMenuItemClassName(false);
 

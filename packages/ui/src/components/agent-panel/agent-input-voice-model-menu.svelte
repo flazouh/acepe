@@ -10,7 +10,7 @@
 	import { Button } from "../button/index.js";
 	import * as DropdownMenu from "../dropdown-menu/index.js";
 	import { SegmentedProgressBar } from "../segmented-progress-bar/index.js";
-	import { EmbeddedIconButton, FusedOverflowDotsTrigger } from "../panel-header/index.js";
+	import { FusedOverflowDotsTrigger } from "../panel-header/index.js";
 	import AgentInputSelectorItemRow from "./agent-input-selector-item-row.svelte";
 	import {
 		getVoiceModelRows,
@@ -63,11 +63,18 @@
 			{#if embeddedInGroup}
 				<FusedOverflowDotsTrigger {...props} ariaLabel={menuLabel} title={menuLabel} />
 			{:else}
-				<EmbeddedIconButton {...props} title={menuLabel} ariaLabel={menuLabel}>
+				<Button
+					{...props}
+					variant="chromeIcon"
+					size="chromeIcon"
+					data-header-control
+					title={menuLabel}
+					aria-label={menuLabel}
+				>
 					{#snippet children()}
 						<DotsThreeVertical class="h-3 w-3 shrink-0" weight="bold" />
 					{/snippet}
-				</EmbeddedIconButton>
+				</Button>
 			{/if}
 		{/snippet}
 	</DropdownMenu.Trigger>

@@ -2,7 +2,7 @@
 	import { IconCheck } from "@tabler/icons-svelte";
 	import { Copy } from "phosphor-svelte";
 
-	import EmbeddedIconButton from "../panel-header/embedded-icon-button.svelte";
+	import { Button } from "../button/index.js";
 
 	interface Props {
 		text: string;
@@ -50,7 +50,15 @@
 </script>
 
 {#if size === "header"}
-	<EmbeddedIconButton title={tooltip} ariaLabel={tooltip} onclick={handleCopy} class={className}>
+	<Button
+		variant="chromeIcon"
+		size="chromeIcon"
+		data-header-control
+		title={tooltip}
+		aria-label={tooltip}
+		onclick={handleCopy}
+		class={className}
+	>
 		{#snippet children()}
 			{#if copied}
 				<IconCheck size={iconSize} stroke={2} />
@@ -58,7 +66,7 @@
 				<Copy size={iconSize} weight="fill" />
 			{/if}
 		{/snippet}
-	</EmbeddedIconButton>
+	</Button>
 {:else}
 	<button
 		type="button"

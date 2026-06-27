@@ -1,11 +1,13 @@
 <script lang="ts">
 	import { Button } from "@acepe/ui";
-	import { CaretLeft, DownloadSimple, Microphone, Rows } from "phosphor-svelte";
+	import { CaretLeft, DownloadSimple, Microphone, Rows, Sparkle } from "phosphor-svelte";
 
 	import { Badge } from "$lib/components/ui/badge/index.js";
 	import SettingsPageHeader from "$lib/components/settings-page/settings-page-header.svelte";
 	import { cn } from "$lib/utils.js";
 
+	import DesignSystemClaudeSparkSection from "./design-system-claude-spark-section.svelte";
+	import { claudeSparkSectionMeta } from "./design-system-claude-spark-specimens.js";
 	import DesignSystemInstallCardSection from "./design-system-install-card-section.svelte";
 	import { installCardSectionMeta } from "./design-system-install-card-specimens.js";
 	import DesignSystemMicButtonSection from "./design-system-mic-button-section.svelte";
@@ -19,25 +21,32 @@
 
 	let { onClose }: Props = $props();
 
-	type DesignSystemSection = "install-card" | "mic-button" | "new-thread-options";
+	type DesignSystemSection =
+		| "claude-spark"
+		| "install-card"
+		| "mic-button"
+		| "new-thread-options";
 
 	const sections: ReadonlyArray<{ id: DesignSystemSection; label: string }> = [
+		{ id: "claude-spark", label: claudeSparkSectionMeta.title },
 		{ id: "install-card", label: installCardSectionMeta.title },
 		{ id: "mic-button", label: micButtonSectionMeta.title },
 		{ id: "new-thread-options", label: newThreadOptionsSectionMeta.title },
 	];
 
 	const sectionMetaById = {
+		"claude-spark": claudeSparkSectionMeta,
 		"install-card": installCardSectionMeta,
 		"mic-button": micButtonSectionMeta,
 		"new-thread-options": newThreadOptionsSectionMeta,
 	} as const;
 
-	let activeSection = $state<DesignSystemSection>("install-card");
+	let activeSection = $state<DesignSystemSection>("claude-spark");
 
 	const activeSectionMeta = $derived(sectionMetaById[activeSection]);
 
 	function sectionIcon(sectionId: DesignSystemSection) {
+		if (sectionId === "claude-spark") return Sparkle;
 		if (sectionId === "new-thread-options") return Rows;
 		if (sectionId === "mic-button") return Microphone;
 		return DownloadSimple;
@@ -95,7 +104,9 @@
 
 		<main class="min-h-0 flex-1 overflow-auto p-4">
 			<div class="w-full max-w-4xl">
-				{#if activeSection === "install-card"}
+				{#if activeSection === "claude-spark"}
+					<DesignSystemClaudeSparkSection />
+				{:else if activeSection === "install-card"}
 					<DesignSystemInstallCardSection />
 				{:else if activeSection === "mic-button"}
 					<DesignSystemMicButtonSection />

@@ -1,8 +1,8 @@
 <script lang="ts">
 import { IconDotsVertical } from "@tabler/icons-svelte";
 import {
+	Button,
 	CloseAction,
-	EmbeddedIconButton,
 	EmbeddedPanelHeader,
 	FullscreenAction,
 	HeaderActionCell,
@@ -230,12 +230,18 @@ function handleFullscreenToggle() {
 
 	<HeaderActionCell withDivider={true}>
 		{#if onNewTab}
-			<EmbeddedIconButton
+			<Button
+				variant="chromeIcon"
+				size="chromeIcon"
+				data-header-control
 				title={NEW_TAB_LABEL}
+				aria-label={NEW_TAB_LABEL}
 				onclick={onNewTab}
 			>
-				<IconPlus class="h-3.5 w-3.5" />
-			</EmbeddedIconButton>
+				{#snippet children()}
+					<IconPlus class="h-3.5 w-3.5" />
+				{/snippet}
+			</Button>
 		{/if}
 		{#if showFullscreen}
 			<FullscreenAction

@@ -4,7 +4,7 @@ import { getCurrentWindow } from "@tauri-apps/api/window";
 import { relaunch } from "@tauri-apps/plugin-process";
 import { check, type DownloadEvent } from "@tauri-apps/plugin-updater";
 import { okAsync, ResultAsync } from "neverthrow";
-import { FolderPlus, GearFine } from "phosphor-svelte";
+import { FolderPlus } from "phosphor-svelte";
 import { onDestroy, onMount } from "svelte";
 import { toast } from "svelte-sonner";
 import OpenProjectDialog from "$lib/acp/components/add-repository/open-project-dialog.svelte";
@@ -1242,6 +1242,7 @@ onDestroy(() => {
 		title="Settings"
 		closeLabel="Close settings"
 		contentOverflow="hidden"
+		contentClass="bg-background"
 		size="compact"
 		onOpenChange={(open) => {
 			if (!open) {
@@ -1249,12 +1250,6 @@ onDestroy(() => {
 			}
 		}}
 	>
-		{#snippet topLeft()}
-			<div class="flex items-center gap-1.5 pl-1.5 text-foreground">
-				<GearFine class="size-3.5 shrink-0 text-muted-foreground" weight="fill" />
-				<span class="text-[12px] font-medium tracking-tight">Settings</span>
-			</div>
-		{/snippet}
 		<SettingsPage {projectManager} />
 	</DialogFrame>
 

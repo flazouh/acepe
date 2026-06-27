@@ -6,7 +6,7 @@
 <script lang="ts">
 	import { Lightning, ShieldCheck } from "phosphor-svelte";
 
-	import { EmbeddedIconButton } from "../panel-header/index.js";
+	import { Button } from "../button/index.js";
 	import { Selector } from "../selector/index.js";
 	import type { SelectorTriggerSize } from "../selector/selector-trigger-classes.js";
 	import * as Tooltip from "../tooltip/index.js";
@@ -115,10 +115,13 @@
 	<Tooltip.Root>
 		<Tooltip.Trigger>
 			{#snippet child({ props })}
-				<EmbeddedIconButton
+				<Button
 					{...props}
+					variant="chromeIcon"
+					size="chromeIcon"
+					data-header-control
 					title={viewState.buttonTitle}
-					ariaLabel={viewState.buttonTitle}
+					aria-label={viewState.buttonTitle}
 					active={viewState.isBooleanEnabled}
 					disabled={disabled}
 					class={fastTriggerClass}
@@ -133,7 +136,7 @@
 							style={viewState.iconStyle}
 						/>
 					{/snippet}
-				</EmbeddedIconButton>
+				</Button>
 			{/snippet}
 		</Tooltip.Trigger>
 		{@render configOptionTooltipContent()}

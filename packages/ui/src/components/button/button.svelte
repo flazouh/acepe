@@ -6,6 +6,7 @@
     class: className,
     variant = "default",
     size = "default",
+    active = false,
     ref = $bindable(null),
     href,
     type = "button",
@@ -21,7 +22,7 @@
     data-slot="button"
     data-variant={variant}
     data-size={size}
-    class={cn(buttonVariants({ variant, size }), className)}
+    class={cn(buttonVariants({ variant, size, active }), className)}
     href={disabled ? undefined : href}
     aria-disabled={disabled}
     role={disabled ? "link" : null}
@@ -36,7 +37,7 @@
     data-slot="button"
     data-variant={variant}
     data-size={size}
-    class={cn(buttonVariants({ variant, size }), className)}
+    class={cn(buttonVariants({ variant, size, active }), className)}
     {type}
     {disabled}
     {...restProps}

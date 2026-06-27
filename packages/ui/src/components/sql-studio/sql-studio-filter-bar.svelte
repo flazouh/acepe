@@ -1,6 +1,8 @@
 <script lang="ts">
 	import { MagnifyingGlass } from "phosphor-svelte";
 	import { cn } from "../../lib/utils.js";
+	import * as DropdownMenu from "../dropdown-menu/index.js";
+	import { Selector } from "../selector/index.js";
 	import type { SqlFilterOperator } from "./types.js";
 
 	interface Props {
@@ -27,32 +29,84 @@
 		class: className,
 	}: Props = $props();
 
-	const operators: SqlFilterOperator[] = ["equals", "contains", "starts with", "greater than", "less than"];
+	const operators: SqlFilterOperator[] = [
+		"equals",
+		"contains",
+		"starts with",
+		"greater than",
+		"less than",
+	];
+
+	const columnTriggerLabel = $derived(filterColumn ?? "Column");
+
+	const filterTriggerClass =
+		"h-6 min-w-0 font-mono text-[0.6875rem] rounded-md bg-muted/40 border-0 text-foreground";
+
+	function handleColumnChange(value: string): void {
+		onColumnChange(value.length > 0 ? value : null);
+	}
+
+	function handleOperatorChange(value: string): void {
+		if (
+			value === "equals" ||
+			value === "contains" ||
+			value === "starts with" ||
+			value === "greater than" ||
+			value === "less than"
+		) {
+			onOperatorChange(value);
+		}
+	}
 </script>
 
-<div class={cn("shrink-0 flex flex-wrap items-center gap-1.5 px-2 py-1 border-b border-border/30 bg-muted/10", className)}>
+<div
+	class={cn(
+		"shrink-0 flex flex-wrap items-center gap-1.5 px-2 py-1 border-b border-border/30 bg-muted/10",
+		className
+	)}
+>
 	<MagnifyingGlass size={10} weight="bold" class="shrink-0 text-muted-foreground" />
 
-	<select
-		class="h-6 px-2 py-0.5 text-[0.6875rem] font-mono rounded-md bg-muted/40 border-0 text-foreground cursor-pointer appearance-none min-w-[100px]"
-		value={filterColumn ?? ""}
-		onchange={(e) => onColumnChange(e.currentTarget.value || null)}
+	<Selector
+		align="start"
+		variant="ghost"
+		triggerSize="minimal"
+		class="min-w-[100px] shrink-0"
+		triggerClass={`${filterTriggerClass} min-w-[100px]`}
+		triggerAriaLabel="Filter column"
+		contentClass="min-w-[140px]"
 	>
-		<option value="">Column</option>
-		{#each columns as col (col)}
-			<option value={col}>{col}</option>
-		{/each}
-	</select>
+		{#snippet renderButton()}
+			<span class="truncate">{columnTriggerLabel}</span>
+		{/snippet}
 
-	<select
-		class="h-6 px-2 py-0.5 text-[0.6875rem] font-mono rounded-md bg-muted/40 border-0 text-foreground cursor-pointer appearance-none min-w-[90px]"
-		value={filterOperator}
-		onchange={(e) => onOperatorChange(e.currentTarget.value as SqlFilterOperator)}
+		<DropdownMenu.RadioGroup value={filterColumn ?? ""} onValueChange={handleColumnChange}>
+			<DropdownMenu.RadioItem value="">Column</DropdownMenu.RadioItem>
+			{#each columns as col (col)}
+				<DropdownMenu.RadioItem value={col}>{col}</DropdownMenu.RadioItem>
+			{/each}
+		</DropdownMenu.RadioGroup>
+	</Selector>
+
+	<Selector
+		align="start"
+		variant="ghost"
+		triggerSize="minimal"
+		class="min-w-[90px] shrink-0"
+		triggerClass={`${filterTriggerClass} min-w-[90px]`}
+		triggerAriaLabel="Filter operator"
+		contentClass="min-w-[120px]"
 	>
-		{#each operators as op (op)}
-			<option value={op}>{op}</option>
-		{/each}
-	</select>
+		{#snippet renderButton()}
+			<span class="truncate">{filterOperator}</span>
+		{/snippet}
+
+		<DropdownMenu.RadioGroup value={filterOperator} onValueChange={handleOperatorChange}>
+			{#each operators as op (op)}
+				<DropdownMenu.RadioItem value={op}>{op}</DropdownMenu.RadioItem>
+			{/each}
+		</DropdownMenu.RadioGroup>
+	</Selector>
 
 	<input
 		type="text"

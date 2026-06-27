@@ -2,7 +2,7 @@
 	import { ArrowsIn } from "phosphor-svelte";
 	import { ArrowsOut } from "phosphor-svelte";
 
-	import EmbeddedIconButton from "./embedded-icon-button.svelte";
+	import { Button } from "../button/index.js";
 
 	interface Props {
 		isFullscreen: boolean;
@@ -23,7 +23,15 @@
 	const title = $derived(isFullscreen ? titleExit : titleEnter);
 </script>
 
-<EmbeddedIconButton onclick={() => onToggle?.()} {title} ariaLabel={title} class={className}>
+<Button
+	variant="chromeIcon"
+	size="chromeIcon"
+	data-header-control
+	onclick={() => onToggle?.()}
+	{title}
+	aria-label={title}
+	class={className}
+>
 	{#snippet children()}
 		{#if isFullscreen}
 			<ArrowsIn size={12} weight="fill" />
@@ -31,4 +39,4 @@
 			<ArrowsOut size={12} weight="fill" />
 		{/if}
 	{/snippet}
-</EmbeddedIconButton>
+</Button>

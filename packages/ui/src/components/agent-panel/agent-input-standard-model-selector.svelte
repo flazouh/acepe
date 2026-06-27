@@ -118,7 +118,7 @@
 			<div class="flex flex-col gap-0.5 max-h-[250px] overflow-y-auto px-0 scrollbar-thin scrollbar-thumb-muted scrollbar-track-transparent">
 				{#each filteredGroups as group, groupIndex (group.label)}
 					{#if showGroups}
-						<DropdownMenu.Label class="flex items-center gap-1.5 px-1.5 py-1 text-[10px] font-normal">
+						<DropdownMenu.Label class="flex items-center gap-1.5 px-1.5 py-1">
 							{#if group.providerBrand}
 								<ProviderMark
 									brand={group.providerBrand}

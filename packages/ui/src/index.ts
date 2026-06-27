@@ -403,7 +403,6 @@ export {
 export {
 	BrowserNavActions,
 	CloseAction,
-	EmbeddedIconButton,
 	EmbeddedPanelHeader,
 	FullscreenAction,
 	FusedOverflowDotsTrigger,

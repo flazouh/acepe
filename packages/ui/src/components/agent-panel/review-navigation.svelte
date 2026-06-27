@@ -2,7 +2,8 @@
 	import { CaretDown, CaretLeft, CaretRight, CaretUp, CheckCircle, XCircle } from "phosphor-svelte";
 
 	import { Colors } from "../../lib/colors.js";
-	import { EmbeddedIconButton, HeaderActionCell } from "../panel-header/index.js";
+	import { Button } from "../button/index.js";
+	import { HeaderActionCell } from "../panel-header/index.js";
 
 	interface Props {
 		hunkCurrent: number;
@@ -107,55 +108,75 @@
 
 	{#if hunkTotal > 1}
 		<HeaderActionCell>
-			<EmbeddedIconButton
+			<Button
+				variant="chromeIcon"
+				size="chromeIcon"
+				data-header-control
 				disabled={!hasPrevHunk}
 				title={prevHunkLabel}
-				ariaLabel={prevHunkLabel}
+				aria-label={prevHunkLabel}
 				onclick={onPrevHunk}
 			>
-				<CaretUp class="h-3.5 w-3.5" weight="fill" />
-			</EmbeddedIconButton>
+				{#snippet children()}
+					<CaretUp class="h-3.5 w-3.5" weight="fill" />
+				{/snippet}
+			</Button>
 			<span
 				class="h-7 inline-flex items-center justify-center px-1 text-sm tabular-nums min-w-[2rem]"
 				aria-label="Hunk {hunkCurrent} of {hunkTotal}"
 			>
 				{hunkCurrent}/{hunkTotal}
 			</span>
-			<EmbeddedIconButton
+			<Button
+				variant="chromeIcon"
+				size="chromeIcon"
+				data-header-control
 				disabled={!hasNextHunk}
 				title={nextHunkLabel}
-				ariaLabel={nextHunkLabel}
+				aria-label={nextHunkLabel}
 				onclick={onNextHunk}
 			>
-				<CaretDown class="h-3.5 w-3.5" weight="fill" />
-			</EmbeddedIconButton>
+				{#snippet children()}
+					<CaretDown class="h-3.5 w-3.5" weight="fill" />
+				{/snippet}
+			</Button>
 		</HeaderActionCell>
 	{/if}
 
 	{#if fileTotal > 1}
 		<HeaderActionCell>
-			<EmbeddedIconButton
+			<Button
+				variant="chromeIcon"
+				size="chromeIcon"
+				data-header-control
 				disabled={!hasPrevPendingFile}
 				title={prevFileLabel}
-				ariaLabel={prevFileLabel}
+				aria-label={prevFileLabel}
 				onclick={onPrevFile}
 			>
-				<CaretLeft class="h-3.5 w-3.5" weight="fill" />
-			</EmbeddedIconButton>
+				{#snippet children()}
+					<CaretLeft class="h-3.5 w-3.5" weight="fill" />
+				{/snippet}
+			</Button>
 			<span
 				class="h-7 inline-flex items-center justify-center px-1 text-sm tabular-nums min-w-[2rem]"
 				aria-label="File {fileCurrent} of {fileTotal}"
 			>
 				{fileCurrent}/{fileTotal}
 			</span>
-			<EmbeddedIconButton
+			<Button
+				variant="chromeIcon"
+				size="chromeIcon"
+				data-header-control
 				disabled={!hasNextPendingFile}
 				title={nextFileLabel}
-				ariaLabel={nextFileLabel}
+				aria-label={nextFileLabel}
 				onclick={onNextFile}
 			>
-				<CaretRight class="h-3.5 w-3.5" weight="fill" />
-			</EmbeddedIconButton>
+				{#snippet children()}
+					<CaretRight class="h-3.5 w-3.5" weight="fill" />
+				{/snippet}
+			</Button>
 		</HeaderActionCell>
 	{/if}
 </div>

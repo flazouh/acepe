@@ -8,6 +8,7 @@
 	import type { Snippet } from "svelte";
 
 	import * as DropdownMenu from "../dropdown-menu/index.js";
+	import { dropdownMenuItemTypographyClass } from "../dropdown-menu/dropdown-menu-typography.js";
 
 	interface Props {
 		label: string;
@@ -39,7 +40,7 @@
 >
 	<div class="flex w-full min-w-0 items-center gap-2">
 		{#if leading}{@render leading()}{/if}
-		<span class="flex-1 truncate text-xs font-normal {labelClass}">{label}</span>
+		<span class="flex-1 truncate {dropdownMenuItemTypographyClass} {labelClass}">{label}</span>
 		{#if trailing}{@render trailing()}{/if}
 	</div>
 </DropdownMenu.Item>

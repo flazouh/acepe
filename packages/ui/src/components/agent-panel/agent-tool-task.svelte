@@ -1,22 +1,28 @@
 <script lang="ts">
 	import { IconCircleCheckFilled } from "@tabler/icons-svelte";
-	import { CaretRight } from "phosphor-svelte";
+	import { ArrowsOutSimple } from "phosphor-svelte";
+	import type { Snippet } from "svelte";
+	import * as Dialog from "../dialog/index.js";
+	import AgentPanelSceneConversation from "../agent-panel-scene/agent-panel-scene-conversation.svelte";
+	import { SegmentedProgressBar } from "../segmented-progress-bar/index.js";
+	import { Button } from "../button/index.js";
 	import type { AgentToolStatus, AnyAgentEntry } from "./types.js";
 	import AgentToolCard from "./agent-tool-card.svelte";
-	import AgentToolRow from "./agent-tool-row.svelte";
-	import ToolTally from "./tool-tally.svelte";
 	import ToolHeaderLeading from "./tool-header-leading.svelte";
+	import ToolLabel from "./tool-label.svelte";
 	import AgentToolDurationLabel from "./agent-tool-duration-label.svelte";
 	import type { ToolDurationTiming } from "./tool-duration.js";
+	import type { EditToolTheme } from "./agent-tool-edit-theme.js";
 	import {
-		createTaskPreview,
 		getLastTaskToolCall,
-		getTaskHeaderBorderClass,
+		getTaskCurrentToolLabel,
+		getTaskProgress,
 		getTaskTitle,
 		getTaskToolChildren,
 		getTaskUiClasses,
 		hasTaskPrompt,
 		hasTaskResult,
+		shouldShowTaskProgress,
 	} from "./agent-tool-task-state.js";
 
 	interface Props {
@@ -29,9 +35,13 @@
 		compact?: boolean;
 		durationTiming?: ToolDurationTiming;
 		iconBasePath?: string;
+		editToolTheme?: EditToolTheme;
 		runningFallback?: string;
 		doneFallback?: string;
 		resultLabel?: string;
+		detailOpen?: boolean;
+		onDetailOpenChange?: (open: boolean) => void;
+		renderDetailEntry?: Snippet<[AnyAgentEntry]>;
 	}
 
 	let {
@@ -44,13 +54,14 @@
 		compact = false,
 		durationTiming,
 		iconBasePath = "",
+		editToolTheme,
 		runningFallback = "Running task…",
 		doneFallback = "Task",
 		resultLabel = "Result",
+		detailOpen = $bindable(false),
+		onDetailOpenChange,
+		renderDetailEntry,
 	}: Props = $props();
-
-	let isPromptCollapsed = $state(true);
-	let isResultCollapsed = $state(true);
 
 	const isDone = $derived(status === "done");
 	const titleText = $derived(
@@ -63,52 +74,85 @@
 	);
 
 	const taskChildren = $derived(Array.from(children));
-
-	/** Child tool entries only (tool_call type) for the Tool calls section. */
 	const toolCallChildren = $derived(getTaskToolChildren(taskChildren));
-
 	const lastToolCall = $derived(getLastTaskToolCall(toolCallChildren));
+	const currentToolLabel = $derived(getTaskCurrentToolLabel(lastToolCall));
+	const currentToolStatus = $derived(lastToolCall?.status ?? status);
+	const taskProgress = $derived(getTaskProgress({ toolCallChildren }));
+	const showProgress = $derived(shouldShowTaskProgress(taskProgress.totalCount));
 
 	const hasPrompt = $derived(hasTaskPrompt(prompt));
 	const hasResult = $derived(hasTaskResult({ status, resultText }));
-	const hasChildren = $derived(toolCallChildren.length > 0);
-
-	const hasBorder = $derived(hasPrompt || hasResult);
+	const hasChildren = $derived(taskChildren.length > 0);
 	const shouldShowDoneIcon = $derived(showDoneIcon && isDone);
 	const taskClasses = $derived(getTaskUiClasses(compact));
 	const cardClass = $derived(taskClasses.card);
 	const headerClass = $derived(taskClasses.header);
-	const headerBorderClass = $derived(getTaskHeaderBorderClass({ compact, hasBorder }));
 	const headerContentClass = $derived(taskClasses.headerContent);
-	const promptButtonClass = $derived(taskClasses.promptButton);
-	const promptBodyClass = $derived(taskClasses.promptBody);
-	const promptContentClass = $derived(taskClasses.promptContent);
-	const resultSectionClass = $derived(taskClasses.resultSection);
-	const resultButtonClass = $derived(taskClasses.resultButton);
-	const resultBodyClass = $derived(taskClasses.resultBody);
-	const resultContentClass = $derived(taskClasses.resultContent);
-	const rowSectionClass = $derived(taskClasses.rowSection);
-	const showLiveToolRow = $derived(!compact && hasChildren && lastToolCall !== null);
-	const tallyInline = $derived(false);
-	const tallyWrapperClass = $derived("");
-	const promptPreview = $derived(prompt ? createTaskPreview({ text: prompt, limit: 80 }) : "");
-	const resultPreview = $derived(
-		resultText ? createTaskPreview({ text: resultText, limit: 100 }) : ""
+	const progressAriaLabel = $derived(
+		`${taskProgress.filledCount} of ${taskProgress.totalCount} tool calls complete`
 	);
+	const showDetailTrigger = $derived(hasChildren || hasPrompt || hasResult);
+	const detailConversation = $derived({ entries: taskChildren });
+
+	function handleDetailOpenChange(nextOpen: boolean): void {
+		detailOpen = nextOpen;
+		onDetailOpenChange?.(nextOpen);
+	}
 </script>
 
 <AgentToolCard class={cardClass} dataTestid="agent-tool-task-card">
-	<!-- Header: fixed h-7 height -->
-	<div class="{headerClass} {headerBorderClass}">
+	<div class={headerClass}>
 		<div class={headerContentClass}>
-			<ToolHeaderLeading kind="task" {status}>
-				{titleText}
-			</ToolHeaderLeading>
+			<div class="flex min-w-0 flex-1 items-center gap-2">
+				<ToolHeaderLeading kind="task" {status} class="min-w-0 flex-1 truncate">
+					{titleText}
+				</ToolHeaderLeading>
+				{#if currentToolLabel}
+					<span class="shrink-0" data-testid="agent-tool-task-current-tool-label">
+						<ToolLabel status={currentToolStatus}>
+							{currentToolLabel}
+						</ToolLabel>
+					</span>
+				{/if}
+			</div>
 		</div>
-		<AgentToolDurationLabel
-			timing={durationTiming}
-			class="shrink-0 font-sans text-xs"
-		/>
+
+		{#if showProgress}
+			<div class="w-[52px] shrink-0" data-testid="agent-tool-task-progress">
+				<SegmentedProgressBar
+					ariaLabel={progressAriaLabel}
+					label=""
+					percent={0}
+					filledSegmentCount={taskProgress.filledCount}
+					segmentCount={taskProgress.totalCount}
+					showPercent={false}
+					decorative={true}
+					variant="downloadCompact"
+				/>
+			</div>
+		{/if}
+
+		<AgentToolDurationLabel timing={durationTiming} class="shrink-0 font-sans text-xs" />
+
+		{#if showDetailTrigger}
+			<Button
+				variant="chromeIcon"
+				size="chromeIcon"
+				data-header-control
+				aria-label="Open subtask transcript"
+				title="Open subtask transcript"
+				data-testid="agent-tool-task-open-button"
+				onclick={() => {
+					handleDetailOpenChange(true);
+				}}
+			>
+				{#snippet children()}
+					<ArrowsOutSimple size={12} weight="bold" />
+				{/snippet}
+			</Button>
+		{/if}
+
 		{#if shouldShowDoneIcon}
 			<IconCircleCheckFilled
 				size={12}
@@ -117,82 +161,66 @@
 			/>
 		{/if}
 	</div>
-
-	<!-- Prompt section (collapsible) -->
-	{#if hasPrompt && prompt}
-		<button
-			type="button"
-			onclick={() => { isPromptCollapsed = !isPromptCollapsed; }}
-			class={promptButtonClass}
-		>
-			<CaretRight
-				size={10}
-				weight="bold"
-				class="shrink-0 transition-transform duration-150 {isPromptCollapsed ? '' : 'rotate-90'}"
-			/>
-			<span class="flex-1 truncate text-left">
-				{promptPreview}
-			</span>
-		</button>
-
-		{#if !isPromptCollapsed}
-			<div class={promptBodyClass}>
-				<div class={promptContentClass}>
-					{prompt}
-				</div>
-			</div>
-		{/if}
-	{/if}
-
-	<!-- Result section (collapsible) -->
-	{#if hasResult && resultText}
-		<div class={resultSectionClass}>
-			<button
-				type="button"
-				onclick={() => { isResultCollapsed = !isResultCollapsed; }}
-				class={resultButtonClass}
-			>
-				<CaretRight
-					size={10}
-					weight="bold"
-					class="shrink-0 transition-transform duration-150 {isResultCollapsed ? '' : 'rotate-90'}"
-				/>
-				<span>{resultLabel}</span>
-				{#if isResultCollapsed}
-					<span class="flex-1 truncate text-left">
-						{resultPreview}
-					</span>
-				{/if}
-			</button>
-
-			{#if !isResultCollapsed}
-				<div class={resultBodyClass}>
-					<div class={resultContentClass}>
-						{resultText}
-					</div>
-				</div>
-			{/if}
-		</div>
-	{/if}
-
-	<!-- Last tool used + tool tally strip -->
-	{#if showLiveToolRow && lastToolCall}
-		<div class={rowSectionClass}>
-			<AgentToolRow
-				title={lastToolCall.title}
-				subtitle={lastToolCall.subtitle}
-				filePath={lastToolCall.filePath}
-				status={lastToolCall.status}
-				kind={lastToolCall.kind}
-				padded={true}
-				{iconBasePath}
-			/>
-		</div>
-	{/if}
-	{#if hasChildren}
-		<div class={tallyWrapperClass}>
-			<ToolTally toolCalls={toolCallChildren} inline={tallyInline} compact={compact} />
-		</div>
-	{/if}
-
 </AgentToolCard>
+
+<Dialog.Root open={detailOpen} onOpenChange={handleDetailOpenChange}>
+	<Dialog.Content class="flex max-h-[min(86vh,860px)] w-full max-w-2xl flex-col overflow-hidden p-0 sm:max-w-2xl">
+		<Dialog.Title class="sr-only">{titleText}</Dialog.Title>
+		<div class="flex min-h-0 flex-col">
+			<div class="flex shrink-0 items-center gap-2 border-b border-border/30 px-3 py-2">
+				<ToolHeaderLeading kind="task" {status}>
+					{titleText}
+				</ToolHeaderLeading>
+				{#if showProgress}
+					<SegmentedProgressBar
+						ariaLabel={progressAriaLabel}
+						label=""
+						percent={0}
+						filledSegmentCount={taskProgress.filledCount}
+						segmentCount={taskProgress.totalCount}
+						showPercent={false}
+						decorative={true}
+						variant="downloadCompact"
+					/>
+				{/if}
+			</div>
+
+			<div class="flex min-h-0 flex-1 flex-col overflow-hidden" data-testid="agent-tool-task-detail-body">
+				{#if hasPrompt && prompt}
+					<div class="shrink-0 px-3 py-1.5">
+						<div class="rounded-md border border-border/40 bg-muted/20 px-3 py-2 text-sm whitespace-pre-wrap break-words">
+							{prompt}
+						</div>
+					</div>
+				{/if}
+
+				{#if hasChildren}
+					{#if renderDetailEntry}
+						<div class="min-h-0 flex-1 overflow-y-auto py-2">
+							{#each taskChildren as child (child.id)}
+								<div class="px-3 py-1.5">
+									{@render renderDetailEntry(child)}
+								</div>
+							{/each}
+						</div>
+					{:else}
+						<AgentPanelSceneConversation
+							conversation={detailConversation}
+							{iconBasePath}
+							{editToolTheme}
+						/>
+					{/if}
+				{/if}
+
+				{#if hasResult && resultText}
+					<div class="shrink-0 px-3 py-1.5">
+						<div class="rounded-md border border-border/40 bg-muted/30 px-3 py-2">
+							<div class="mb-1 text-xs font-medium text-muted-foreground">{resultLabel}</div>
+							<div class="text-sm whitespace-pre-wrap break-words">{resultText}</div>
+						</div>
+					</div>
+				{/if}
+			</div>
+		</div>
+	</Dialog.Content>
+</Dialog.Root>

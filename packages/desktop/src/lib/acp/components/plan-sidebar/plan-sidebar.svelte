@@ -1,5 +1,5 @@
 <script lang="ts">
-import { EmbeddedIconButton } from "@acepe/ui/panel-header";
+import { Button } from "@acepe/ui";
 import { PlanSidebarLayout } from "@acepe/ui/plan-sidebar";
 import { ArrowsOut } from "phosphor-svelte";
 import { DownloadSimple } from "phosphor-svelte";
@@ -52,20 +52,30 @@ function handleDownloadMarkdown() {
 	>
 		{#snippet headerActions()}
 			<CopyButton text={plan.content} variant="embedded" stopPropagation={true} />
-			<EmbeddedIconButton
-				title={"Download"}
-				ariaLabel={"Download"}
+			<Button
+				variant="chromeIcon"
+				size="chromeIcon"
+				data-header-control
+				title="Download"
+				aria-label="Download"
 				onclick={handleDownloadMarkdown}
 			>
-				<DownloadSimple size={14} weight="bold" />
-			</EmbeddedIconButton>
-			<EmbeddedIconButton
-				title={"Open in fullscreen"}
-				ariaLabel={"Open in fullscreen"}
+				{#snippet children()}
+					<DownloadSimple size={14} weight="bold" />
+				{/snippet}
+			</Button>
+			<Button
+				variant="chromeIcon"
+				size="chromeIcon"
+				data-header-control
+				title="Open in fullscreen"
+				aria-label="Open in fullscreen"
 				onclick={onOpenFullscreen}
 			>
-				<ArrowsOut size={14} weight="bold" />
-			</EmbeddedIconButton>
+				{#snippet children()}
+					<ArrowsOut size={14} weight="bold" />
+				{/snippet}
+			</Button>
 		{/snippet}
 		{#snippet contentRenderer()}
 			<ScrollArea class="h-full min-h-0 flex-1">

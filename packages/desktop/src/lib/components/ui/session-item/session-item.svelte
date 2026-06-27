@@ -21,7 +21,7 @@ import {
 	extractPermissionFilePath,
 } from "$lib/acp/components/tool-calls/permission-display.js";
 import AgentIcon from "$lib/acp/components/agent-icon.svelte";
-import ClaudeWorkingSpark from "$lib/acp/components/claude-working-spark.svelte";
+import { ClaudeWorkingSpark } from "@acepe/ui/agent-panel";
 import {
 	AGENT_ICON_BASE_CLASS,
 	UNKNOWN_TIME_TEXT,

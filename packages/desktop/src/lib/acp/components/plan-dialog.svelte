@@ -1,6 +1,6 @@
 <script lang="ts">
 import { PlanIcon } from "@acepe/ui/icons";
-import { EmbeddedIconButton } from "@acepe/ui/panel-header";
+import { Button } from "@acepe/ui";
 import { DownloadSimple } from "phosphor-svelte";
 import { toastSuccess } from "$lib/components/ui/sonner/toast-bridge.js";
 import DialogFrame from "$lib/components/ui/dialog-frame.svelte";
@@ -56,9 +56,18 @@ function downloadAsMarkdown() {
 
 	{#snippet topRight()}
 		<CopyButton text={plan.content} variant="embedded" stopPropagation={true} />
-		<EmbeddedIconButton title={"Download"} ariaLabel={"Download"} onclick={downloadAsMarkdown}>
-			<DownloadSimple size={14} weight="bold" />
-		</EmbeddedIconButton>
+		<Button
+			variant="chromeIcon"
+			size="chromeIcon"
+			data-header-control
+			title="Download"
+			aria-label="Download"
+			onclick={downloadAsMarkdown}
+		>
+			{#snippet children()}
+				<DownloadSimple size={14} weight="bold" />
+			{/snippet}
+		</Button>
 	{/snippet}
 
 	<div class="flex h-full min-h-0 flex-col overflow-hidden rounded-lg border border-border/40 bg-background">

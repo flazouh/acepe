@@ -38,7 +38,7 @@
 		sessionStatus?: AgentSessionStatus;
 		isFullscreen?: boolean;
 		isConnecting?: boolean;
-		/** When true, the agent icon pulses to signal an in-progress stream. */
+		/** Retained for API compatibility; the header icon is intentionally static. */
 		isStreaming?: boolean;
 		pendingProjectSelection?: boolean;
 		projectName?: string;
@@ -166,12 +166,7 @@
 				</HeaderCell>
 			{:else if agentIconSrc}
 				<HeaderCell>
-					<img
-						src={agentIconSrc}
-						alt=""
-						class={["w-3.5 h-3.5 agent-panel-header-icon", isStreaming && "is-streaming"]}
-						role="presentation"
-					/>
+					<img src={agentIconSrc} alt="" class="w-3.5 h-3.5" role="presentation" />
 				</HeaderCell>
 			{/if}
 			<HeaderTitleCell>
@@ -317,30 +312,3 @@
 		</div>
 	{/if}
 {/snippet}
-
-<style>
-	.agent-panel-header-icon.is-streaming {
-		animation: agent-panel-header-icon-pulse 1.4s ease-in-out infinite;
-		transform-origin: center;
-		will-change: transform, opacity;
-	}
-
-	@keyframes agent-panel-header-icon-pulse {
-		0%,
-		100% {
-			transform: scale(1);
-			opacity: 0.65;
-		}
-		50% {
-			transform: scale(1.18);
-			opacity: 1;
-		}
-	}
-
-	@media (prefers-reduced-motion: reduce) {
-		.agent-panel-header-icon.is-streaming {
-			animation: none;
-			opacity: 1;
-		}
-	}
-</style>

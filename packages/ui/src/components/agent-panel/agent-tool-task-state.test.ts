@@ -1,15 +1,16 @@
 import { describe, expect, it } from "bun:test";
 
 import {
-	createTaskPreview,
 	getLastTaskToolCall,
-	getTaskHeaderBorderClass,
+	getTaskCurrentToolLabel,
+	getTaskProgress,
 	getTaskTitle,
 	getTaskToolChildren,
 	getTaskUiClasses,
 	hasTaskPrompt,
 	hasTaskResult,
 	isTaskPending,
+	shouldShowTaskProgress,
 } from "./agent-tool-task-state.js";
 import type { AnyAgentEntry, AgentToolEntry } from "./types.js";
 
@@ -61,12 +62,41 @@ describe("agent tool task state", () => {
 		).toBe("Custom task");
 	});
 
+	it("counts completed tool calls for progress", () => {
+		const runningTool: AgentToolEntry = {
+			id: "tool-2",
+			type: "tool_call",
+			kind: "execute",
+			title: "Next step",
+			status: "running",
+		};
+		const toolChildren = [toolEntry, runningTool];
+		expect(getTaskProgress({ toolCallChildren: toolChildren })).toEqual({
+			filledCount: 1,
+			totalCount: 2,
+		});
+		expect(shouldShowTaskProgress(0)).toBe(false);
+		expect(shouldShowTaskProgress(2)).toBe(true);
+	});
+
 	it("filters child tool calls and finds the latest one", () => {
 		const children = [nonToolEntry, toolEntry];
 		const toolChildren = getTaskToolChildren(children);
 		expect(toolChildren).toEqual([toolEntry]);
 		expect(getLastTaskToolCall(toolChildren)).toBe(toolEntry);
 		expect(getLastTaskToolCall([])).toBeNull();
+	});
+
+	it("returns the latest child tool title for the inline current-tool label", () => {
+		const runningTool: AgentToolEntry = {
+			id: "tool-2",
+			type: "tool_call",
+			kind: "read",
+			title: "Reading",
+			status: "running",
+		};
+		expect(getTaskCurrentToolLabel(runningTool)).toBe("Reading");
+		expect(getTaskCurrentToolLabel(null)).toBeNull();
 	});
 
 	it("computes prompt and result visibility", () => {
@@ -76,17 +106,8 @@ describe("agent tool task state", () => {
 		expect(hasTaskResult({ status: "running", resultText: "result" })).toBe(false);
 	});
 
-	it("creates short text previews", () => {
-		expect(createTaskPreview({ text: "abcdef", limit: 10 })).toBe("abcdef");
-		expect(createTaskPreview({ text: "abcdefghijkl", limit: 5 })).toBe("abcde...");
-	});
-
 	it("returns compact and normal class sets", () => {
 		expect(getTaskUiClasses(true).card).toContain("bg-accent");
 		expect(getTaskUiClasses(false).header).toContain("h-7");
-		expect(getTaskHeaderBorderClass({ compact: true, hasBorder: true })).toBe(
-			"border-b border-border/60"
-		);
-		expect(getTaskHeaderBorderClass({ compact: false, hasBorder: false })).toBe("");
 	});
 });

@@ -6,7 +6,7 @@
 	import { CheckCircle, File, Image as ImageIcon, Plus } from "phosphor-svelte";
 
 	import * as DropdownMenu from "../dropdown-menu/index.js";
-	import { EmbeddedIconButton } from "../panel-header/index.js";
+	import { Button } from "../button/index.js";
 	import AgentInputModeIcon from "./agent-input-mode-icon.svelte";
 	import AgentInputAutonomousToggle from "./agent-input-autonomous-toggle.svelte";
 	import AgentInputSlashCommandRow from "./agent-input-slash-command-row.svelte";
@@ -197,17 +197,20 @@
 <DropdownMenu.Root bind:open={menuOpen} onOpenChange={handleOpenChange}>
 	<DropdownMenu.Trigger>
 		{#snippet child({ props })}
-			<EmbeddedIconButton
+			<Button
 				{...props}
+				variant="chromeIcon"
+				size="chromeIcon"
+				data-header-control
 				{disabled}
 				active={menuOpen}
 				title="Add context and tools"
-				ariaLabel="Add context and tools"
+				aria-label="Add context and tools"
 			>
 				{#snippet children()}
 					<Plus size={12} weight="bold" />
 				{/snippet}
-			</EmbeddedIconButton>
+			</Button>
 		{/snippet}
 	</DropdownMenu.Trigger>
 	<DropdownMenu.Content side="top" align="start" sideOffset={8} class={composerFilterDropdownContentClass}>

@@ -1,6 +1,5 @@
 <script lang="ts">
-import { PillButton } from "@acepe/ui";
-import { EmbeddedIconButton } from "@acepe/ui/panel-header";
+import { Button, PillButton } from "@acepe/ui";
 import { DownloadSimple } from "phosphor-svelte";
 import { Folder } from "phosphor-svelte";
 import { FolderOpen } from "phosphor-svelte";
@@ -303,29 +302,51 @@ function handleOpenChange(newOpen: boolean) {
 	{/snippet}
 
 	{#snippet topRight()}
-		<EmbeddedIconButton
+		<Button
+			variant="chromeIcon"
+			size="chromeIcon"
+			data-header-control
 			class="rounded-sm"
 			active={activeView === "import"}
 			title="Import from history"
+			aria-label="Import from history"
 			onclick={() => {
 				activeView = "import";
 			}}
 		>
-			<DownloadSimple size={14} />
-		</EmbeddedIconButton>
-		<EmbeddedIconButton
+			{#snippet children()}
+				<DownloadSimple size={14} />
+			{/snippet}
+		</Button>
+		<Button
+			variant="chromeIcon"
+			size="chromeIcon"
+			data-header-control
 			class="rounded-sm"
 			active={activeView === "clone"}
 			title="Clone repository"
+			aria-label="Clone repository"
 			onclick={() => {
 				activeView = "clone";
 			}}
 		>
-			<GitBranch size={14} />
-		</EmbeddedIconButton>
-		<EmbeddedIconButton class="rounded-sm" title="Browse folder" onclick={() => onBrowseFolder()}>
-			<Folder size={14} />
-		</EmbeddedIconButton>
+			{#snippet children()}
+				<GitBranch size={14} />
+			{/snippet}
+		</Button>
+		<Button
+			variant="chromeIcon"
+			size="chromeIcon"
+			data-header-control
+			class="rounded-sm"
+			title="Browse folder"
+			aria-label="Browse folder"
+			onclick={() => onBrowseFolder()}
+		>
+			{#snippet children()}
+				<Folder size={14} />
+			{/snippet}
+		</Button>
 	{/snippet}
 
 	<div class="flex h-full min-h-0 flex-col overflow-hidden">

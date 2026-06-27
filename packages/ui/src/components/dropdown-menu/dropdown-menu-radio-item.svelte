@@ -3,6 +3,7 @@
 	import { type WithoutChild, cn } from "../../lib/utils";
 	import CircleIcon from "@lucide/svelte/icons/circle";
 	import { dropdownMenuItemRadiusClass } from "./dropdown-menu-item.classes.js";
+	import { dropdownMenuItemTypographyClass } from "./dropdown-menu-typography.js";
 	import { getDropdownMenuHighlightContext } from "./dropdown-menu-highlight-context";
 
 	let {
@@ -44,7 +45,7 @@
 		"aria-selected:bg-accent aria-selected:text-accent-foreground",
 		// Layout & typography (embedded design)
 		`relative flex cursor-default items-center gap-2 ${dropdownMenuItemRadiusClass}`,
-		"py-1 ps-8 pe-2 text-[11px] font-medium",
+		`py-1 ps-8 pe-2 ${dropdownMenuItemTypographyClass}`,
 		"outline-hidden select-none",
 		// States & svg
 		"data-[disabled]:pointer-events-none data-[disabled]:opacity-50",

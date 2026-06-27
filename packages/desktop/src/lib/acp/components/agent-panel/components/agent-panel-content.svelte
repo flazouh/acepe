@@ -30,6 +30,7 @@ let {
 	onRetryConnection,
 	onCancelConnection,
 	agentIconSrc = "",
+	showWorkingSpark = false,
 	isFullscreen = false,
 	availableAgents = [],
 	effectiveTheme = "dark",
@@ -182,6 +183,7 @@ export function scrollToTop() {
 				{showLocalPlanningIndicator}
 				{turnState}
 				projectPath={sessionProjectPath ?? undefined}
+				{showWorkingSpark}
 				{isFullscreen}
 				{modifiedFilesState}
 				{onQuestionSelect}

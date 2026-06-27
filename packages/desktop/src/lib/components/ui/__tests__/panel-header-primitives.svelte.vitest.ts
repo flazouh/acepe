@@ -1,4 +1,4 @@
-import { EmbeddedIconButton, EmbeddedPanelHeader } from "@acepe/ui/panel-header";
+import { Button, EmbeddedPanelHeader } from "@acepe/ui";
 import { cleanup, render } from "@testing-library/svelte";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -23,8 +23,13 @@ describe("panel header primitives", () => {
 		expect(root?.className).not.toContain("px-3");
 	});
 
-	it("renders embedded icon button with project-card action sizing", () => {
-		const { container } = render(EmbeddedIconButton, { title: "Action" });
+	it("renders chrome icon button with project-card action sizing", () => {
+		const { container } = render(Button, {
+			variant: "chromeIcon",
+			size: "chromeIcon",
+			title: "Action",
+			"aria-label": "Action",
+		});
 		const button = container.querySelector("button");
 		expect(button).not.toBeNull();
 		expect(button?.className).toContain("size-5");

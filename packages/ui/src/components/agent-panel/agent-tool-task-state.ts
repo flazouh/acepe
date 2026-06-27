@@ -30,6 +30,32 @@ export function getLastTaskToolCall(
 	return toolCallChildren.length > 0 ? toolCallChildren[toolCallChildren.length - 1] : null;
 }
 
+export function getTaskCurrentToolLabel(
+	lastToolCall: AgentToolEntry | null
+): string | null {
+	if (!lastToolCall) {
+		return null;
+	}
+	return lastToolCall.title;
+}
+
+export function getTaskProgress(input: {
+	readonly toolCallChildren: readonly AgentToolEntry[];
+}): { readonly filledCount: number; readonly totalCount: number } {
+	const totalCount = input.toolCallChildren.length;
+	let filledCount = 0;
+	for (const entry of input.toolCallChildren) {
+		if (entry.status === "done") {
+			filledCount = filledCount + 1;
+		}
+	}
+	return { filledCount, totalCount };
+}
+
+export function shouldShowTaskProgress(totalCount: number): boolean {
+	return totalCount > 0;
+}
+
 export function hasTaskPrompt(prompt: string | null | undefined): boolean {
 	return Boolean(prompt);
 }
@@ -41,16 +67,6 @@ export function hasTaskResult(input: {
 	return input.status === "done" && Boolean(input.resultText);
 }
 
-export function createTaskPreview(input: {
-	readonly text: string;
-	readonly limit: number;
-}): string {
-	if (input.text.length <= input.limit) {
-		return input.text;
-	}
-	return `${input.text.slice(0, input.limit)}...`;
-}
-
 export function getTaskUiClasses(compact: boolean) {
 	return {
 		card: compact ? "bg-accent/30 border-border/60" : "",
@@ -60,29 +76,5 @@ export function getTaskUiClasses(compact: boolean) {
 		headerContent: compact
 			? "flex min-w-0 flex-1 items-center justify-start gap-1"
 			: "flex min-w-0 flex-1 items-center justify-start gap-2",
-		promptButton: compact
-			? "w-full flex items-center gap-1 px-1 py-0.5 text-sm hover:bg-muted/30 transition-colors border-none bg-transparent cursor-pointer"
-			: "w-full flex items-center gap-2 px-2.5 py-1.5 text-sm hover:bg-muted/30 transition-colors border-none bg-transparent cursor-pointer",
-		promptBody: compact ? "px-1 pb-0.5" : "px-3 pb-2",
-		promptContent: "text-sm whitespace-pre-wrap break-words",
-		resultSection: compact ? "border-t border-border/60" : "border-t border-border",
-		resultButton: compact
-			? "w-full flex items-center gap-1 px-1 py-0.5 text-sm hover:bg-muted/30 transition-colors border-none bg-transparent cursor-pointer"
-			: "w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-muted/30 transition-colors border-none bg-transparent cursor-pointer",
-		resultBody: compact ? "px-1 pb-1" : "px-3 pb-3",
-		resultContent: compact
-			? "bg-muted/30 rounded-sm p-1 text-sm whitespace-pre-wrap break-words"
-			: "bg-muted/30 rounded-md p-3 text-sm whitespace-pre-wrap break-words",
-		rowSection: compact ? "border-t border-border/60 py-0.5" : "border-t border-border py-1.5",
 	};
-}
-
-export function getTaskHeaderBorderClass(input: {
-	readonly compact: boolean;
-	readonly hasBorder: boolean;
-}): string {
-	if (!input.hasBorder) {
-		return "";
-	}
-	return input.compact ? "border-b border-border/60" : "border-b border-border";
 }

@@ -1,7 +1,7 @@
 <script lang="ts">
 import {
+	Button,
 	CloseAction,
-	EmbeddedIconButton,
 	EmbeddedPanelHeader,
 	HeaderActionCell,
 	HeaderTitleCell,
@@ -302,9 +302,18 @@ function handlePointerUp() {
 >
 	<EmbeddedPanelHeader>
 		<HeaderActionCell withDivider={false}>
-			<EmbeddedIconButton onclick={onClose} title={"Back"}>
-				<IconChevronLeft class="h-4 w-4" />
-			</EmbeddedIconButton>
+			<Button
+				variant="chromeIcon"
+				size="chromeIcon"
+				data-header-control
+				onclick={onClose}
+				title="Back"
+				aria-label="Back"
+			>
+				{#snippet children()}
+					<IconChevronLeft class="h-4 w-4" />
+				{/snippet}
+			</Button>
 		</HeaderActionCell>
 
 		<HeaderTitleCell>

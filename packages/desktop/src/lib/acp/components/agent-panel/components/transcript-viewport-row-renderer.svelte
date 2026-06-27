@@ -20,6 +20,7 @@ let {
 	renderedRows,
 	sessionId = null,
 	projectPath,
+	showWorkingSpark = false,
 	isFullscreen = false,
 	streamingAnimationMode,
 	editToolTheme,
@@ -36,6 +37,7 @@ let {
 	renderedRows: readonly RenderedTranscriptViewportRow[];
 	sessionId?: string | null;
 	projectPath: string | undefined;
+	showWorkingSpark?: boolean;
 	isFullscreen?: boolean;
 	streamingAnimationMode: ConversationEntryProps["streamingAnimationMode"];
 	editToolTheme: ConversationEntryProps["editToolTheme"];
@@ -80,6 +82,7 @@ function ignoreLocalRowHeight(_node: HTMLDivElement, _row: TranscriptViewportRow
 				{editToolTheme}
 				{projectPath}
 				{streamingAnimationMode}
+				{showWorkingSpark}
 				{renderAssistantBlock}
 				{onQuestionSelect}
 				{onPlanBuild}

@@ -10,7 +10,7 @@
 
 	import { Colors } from "../../lib/colors.js";
 	import { cn } from "../../lib/utils.js";
-	import { EmbeddedIconButton } from "../panel-header/index.js";
+	import { Button } from "../button/index.js";
 	import { Tooltip, TooltipContent, TooltipTrigger } from "../tooltip/index.js";
 
 	interface Props {
@@ -56,10 +56,13 @@
 <Tooltip>
 	<TooltipTrigger>
 		{#snippet child({ props: triggerProps })}
-			<EmbeddedIconButton
+			<Button
 				{...triggerProps}
+				variant="chromeIcon"
+				size="chromeIcon"
+				data-header-control
 				title={title}
-				ariaLabel={ariaLabel}
+				aria-label={ariaLabel}
 				active={active}
 				disabled={disabled || busy}
 				class={buttonClass}
@@ -70,7 +73,7 @@
 				{#snippet children()}
 					<ShieldCheck class={iconClass} size={12} weight={active ? "fill" : "bold"} />
 				{/snippet}
-			</EmbeddedIconButton>
+			</Button>
 		{/snippet}
 	</TooltipTrigger>
 	<TooltipContent class="max-w-xs">

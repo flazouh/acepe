@@ -33,8 +33,6 @@ describe("project menu state", () => {
 			hasResetProjectIcon: false,
 			showColorPicker: true,
 			showSettingsSection: true,
-			displaySectionClass: "px-2 py-1.5 border-b border-border/20",
-			colorTriggerClass: "rounded-none px-2 py-1.5 text-[11px] border-b border-border/20",
 		});
 	});
 
@@ -68,8 +66,6 @@ describe("project menu state", () => {
 			})
 		).toMatchObject({
 			showSettingsSection: false,
-			displaySectionClass: "px-2 py-1.5",
-			colorTriggerClass: "rounded-none px-2 py-1.5 text-[11px]",
 		});
 	});
 });

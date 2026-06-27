@@ -7,6 +7,8 @@ import { IconChevronsLeft } from "@tabler/icons-svelte";
 import { IconChevronsRight } from "@tabler/icons-svelte";
 import { IconSearch } from "@tabler/icons-svelte";
 import { IconSelector } from "@tabler/icons-svelte";
+import { Selector } from "@acepe/ui";
+import * as DropdownMenu from "@acepe/ui/dropdown-menu";
 import type { SessionSummary } from "$lib/acp/application/dto/session-summary.js";
 import type { Project } from "$lib/acp/logic/project-manager.svelte.js";
 import { cn } from "$lib/utils.js";
@@ -59,6 +61,37 @@ const hasResults = $derived(filteredRows.length > 0);
 const totalCount = $derived(sessions.length);
 const filteredCount = $derived(filteredRows.length);
 
+function titleCase(s: string): string {
+	return s
+		.split("-")
+		.map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+		.join(" ");
+}
+
+const selectedProjectLabel = $derived.by(() => {
+	if (!state.projectFilter) {
+		return "All projects";
+	}
+	for (const project of uniqueProjects) {
+		if (project.path === state.projectFilter) {
+			return project.name;
+		}
+	}
+	return "All projects";
+});
+
+const selectedAgentLabel = $derived(
+	state.agentFilter ? titleCase(state.agentFilter) : "All agents"
+);
+
+function handleProjectFilterChange(value: string): void {
+	state.setProjectFilter(value.length > 0 ? value : null);
+}
+
+function handleAgentFilterChange(value: string): void {
+	state.setAgentFilter(value.length > 0 ? value : null);
+}
+
 function handleSort(col: string) {
 	state.toggleSort(col as SortColumn);
 }
@@ -85,13 +118,6 @@ function formatDate(date: Date): string {
 	if (date.getFullYear() !== new Date().getFullYear()) o.year = "numeric";
 	return new Intl.DateTimeFormat("en", o).format(date);
 }
-
-function titleCase(s: string): string {
-	return s
-		.split("-")
-		.map((w) => w.charAt(0).toUpperCase() + w.slice(1))
-		.join(" ");
-}
 </script>
 
 <div class={cn("flex flex-col gap-2 h-full min-h-0 text-[13px]", className)}>
@@ -109,24 +135,50 @@ function titleCase(s: string): string {
 				class="h-7 w-full border-0 bg-transparent pl-5 pr-2 text-[13px] outline-none placeholder:text-muted-foreground/40"
 			/>
 		</div>
-		<select
-			class="h-7 max-w-[140px] shrink-0 border-0 bg-transparent px-1 text-[12px] text-muted-foreground outline-none"
-			onchange={(e) => state.setProjectFilter(e.currentTarget.value || null)}
+		<Selector
+			align="end"
+			variant="ghost"
+			triggerSize="minimal"
+			class="max-w-[140px] shrink-0"
+			triggerClass="max-w-[140px] text-[12px] text-muted-foreground"
+			triggerAriaLabel="Filter by project"
 		>
-			<option value="">{"All projects"}</option>
-			{#each uniqueProjects as project (project.path)}
-				<option value={project.path}>{project.name}</option>
-			{/each}
-		</select>
-		<select
-			class="h-7 max-w-[120px] shrink-0 border-0 bg-transparent px-1 text-[12px] text-muted-foreground outline-none"
-			onchange={(e) => state.setAgentFilter(e.currentTarget.value || null)}
+			{#snippet renderButton()}
+				<span class="truncate">{selectedProjectLabel}</span>
+			{/snippet}
+
+			<DropdownMenu.RadioGroup
+				value={state.projectFilter ?? ""}
+				onValueChange={handleProjectFilterChange}
+			>
+				<DropdownMenu.RadioItem value="">All projects</DropdownMenu.RadioItem>
+				{#each uniqueProjects as project (project.path)}
+					<DropdownMenu.RadioItem value={project.path}>{project.name}</DropdownMenu.RadioItem>
+				{/each}
+			</DropdownMenu.RadioGroup>
+		</Selector>
+		<Selector
+			align="end"
+			variant="ghost"
+			triggerSize="minimal"
+			class="max-w-[120px] shrink-0"
+			triggerClass="max-w-[120px] text-[12px] text-muted-foreground"
+			triggerAriaLabel="Filter by agent"
 		>
-			<option value="">{"All agents"}</option>
-			{#each uniqueAgents as agent (agent)}
-				<option value={agent}>{titleCase(agent)}</option>
-			{/each}
-		</select>
+			{#snippet renderButton()}
+				<span class="truncate">{selectedAgentLabel}</span>
+			{/snippet}
+
+			<DropdownMenu.RadioGroup
+				value={state.agentFilter ?? ""}
+				onValueChange={handleAgentFilterChange}
+			>
+				<DropdownMenu.RadioItem value="">All agents</DropdownMenu.RadioItem>
+				{#each uniqueAgents as agent (agent)}
+					<DropdownMenu.RadioItem value={agent}>{titleCase(agent)}</DropdownMenu.RadioItem>
+				{/each}
+			</DropdownMenu.RadioGroup>
+		</Selector>
 	</div>
 
 	<!-- Table -->

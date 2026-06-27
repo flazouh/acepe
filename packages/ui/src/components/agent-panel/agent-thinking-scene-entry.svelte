@@ -8,9 +8,15 @@
 		durationMs?: number | null;
 		startedAtMs?: number | null;
 		label?: string | null;
+		showWorkingSpark?: boolean;
 	}
 
-	let { durationMs = null, startedAtMs = null, label = null }: Props = $props();
+	let {
+		durationMs = null,
+		startedAtMs = null,
+		label = null,
+		showWorkingSpark = false,
+	}: Props = $props();
 	let nowMs = $state(Date.now());
 
 	const currentDurationMs = $derived(
@@ -50,5 +56,6 @@
 <PlanningPlaceholderRow
 	timing={durationTiming}
 	label={displayLabel}
+	{showWorkingSpark}
 	class="py-1 pr-1.5"
 />

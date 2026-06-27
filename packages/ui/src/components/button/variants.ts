@@ -29,6 +29,10 @@ export const buttonVariants = tv({
 			chromeIcon:
 				"border-0 bg-transparent text-muted-foreground/60 shadow-none hover:bg-accent hover:text-foreground transition-colors",
 		},
+		active: {
+			true: "",
+			false: "",
+		},
 		size: {
 			default: "h-9 px-4 py-2 has-[>svg]:px-3",
 			"2xs": "h-5 gap-0.5 rounded-sm px-2 text-[10px] has-[>svg]:px-1.5 [&_svg:not([class*='size-'])]:size-2.5",
@@ -58,7 +62,15 @@ export const buttonVariants = tv({
 	defaultVariants: {
 		variant: "default",
 		size: "default",
+		active: false,
 	},
+	compoundVariants: [
+		{
+			variant: "chromeIcon",
+			active: true,
+			class: "bg-accent text-foreground",
+		},
+	],
 });
 
 export type ButtonVariant = VariantProps<typeof buttonVariants>["variant"];
@@ -68,4 +80,5 @@ export type ButtonProps = WithElementRef<HTMLButtonAttributes> &
 	WithElementRef<HTMLAnchorAttributes> & {
 		variant?: ButtonVariant;
 		size?: ButtonSize;
+		active?: boolean;
 	};

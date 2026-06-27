@@ -3,6 +3,7 @@
 	import { DropdownMenu as DropdownMenuPrimitive } from "bits-ui";
 	import { cn } from "../../lib/utils";
 	import { dropdownMenuItemRadiusClass } from "./dropdown-menu-item.classes.js";
+	import { dropdownMenuItemTypographyClass } from "./dropdown-menu-typography.js";
 	import { getDropdownMenuHighlightContext } from "./dropdown-menu-highlight-context";
 
 	let {
@@ -47,7 +48,7 @@
 		"data-[state=open]:bg-muted data-[state=open]:text-accent-foreground",
 		// Layout & typography (embedded design); relative z-10 so content stacks above sliding highlight
 		`relative z-10 flex cursor-default items-center gap-2 ${dropdownMenuItemRadiusClass}`,
-		"px-2 py-1 text-[11px] font-medium",
+		`px-2 py-1 ${dropdownMenuItemTypographyClass}`,
 		"outline-hidden select-none",
 		// States & svg
 		"data-[disabled]:pointer-events-none data-[disabled]:opacity-50",

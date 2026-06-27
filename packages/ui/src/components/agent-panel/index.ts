@@ -10,6 +10,12 @@ export type {
 	StreamingAnimationMode,
 } from "../../lib/assistant-message/types.js";
 export { default as AgentAssistantMessage } from "./agent-assistant-message.svelte";
+export { default as ClaudeWorkingSpark } from "./claude-working-spark.svelte";
+export {
+	CLAUDE_WORKING_SPARK_DURATION_MS,
+	CLAUDE_WORKING_SPARK_FRAME_COUNT,
+	CLAUDE_WORKING_SPARK_SPRITE_SRC,
+} from "./claude-working-spark-frames.js";
 export { default as AgentAttachedFilePane } from "./agent-attached-file-pane.svelte";
 export { default as AgentPanelErrorCard } from "./agent-error-card.svelte";
 export { default as AgentPanelSignInCard } from "./agent-sign-in-card.svelte";
@@ -128,6 +134,7 @@ export { default as AgentToolTask } from "./agent-tool-task.svelte";
 export { default as AgentToolThinking } from "./agent-tool-thinking.svelte";
 export { default as AgentThinkingDurationHeader } from "./agent-thinking-duration-header.svelte";
 export { default as AgentToolDurationLabel } from "./agent-tool-duration-label.svelte";
+export { default as PlanningPlaceholderRow } from "./planning-placeholder-row.svelte";
 export type { ToolDurationTiming } from "./tool-duration.js";
 export { default as ThinkingDotMatrix } from "./thinking-dot-matrix.svelte";
 export { default as AgentToolTodo } from "./agent-tool-todo.svelte";

@@ -21,7 +21,7 @@ function sectionsForGroup(groupId: SettingsNavGroupId) {
 </script>
 
 <nav
-	class="flex w-[210px] shrink-0 flex-col overflow-y-auto border-r border-border/50 bg-input/10 px-2 py-3"
+	class="flex w-[210px] shrink-0 flex-col overflow-y-auto border-r border-border/50 bg-input/10 px-2 py-2"
 	aria-label="Settings sections"
 >
 	{#each SETTINGS_NAV_GROUPS as group (group.id)}
@@ -41,7 +41,7 @@ function sectionsForGroup(groupId: SettingsNavGroupId) {
 						onclick={() => onSectionChange(section.id)}
 						aria-current={isActive ? "page" : undefined}
 						class={cn(
-							"flex items-center gap-2 rounded-md px-2 py-1.5 text-left text-[13px] font-medium transition-colors duration-150",
+							"flex items-center gap-1.5 rounded-md px-2 py-1 text-left text-[13px] font-medium transition-colors duration-150",
 							isActive
 								? "bg-accent text-foreground"
 								: "text-muted-foreground hover:bg-accent/50 hover:text-foreground"

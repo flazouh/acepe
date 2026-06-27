@@ -6,8 +6,8 @@
 	import { DiffPill } from "../diff-pill/index.js";
 	import { Colors } from "../../lib/colors.js";
 	import { capitalizeLeadingCharacter } from "../../lib/utils.js";
+	import { Button } from "../button/index.js";
 	import {
-		EmbeddedIconButton,
 	EmbeddedPanelHeader,
 	HeaderActionCell,
 	HeaderCell,
@@ -160,11 +160,19 @@ function handleKeydown(event: KeyboardEvent): void {
 				<HeaderActionCell withDivider={false}>
 					<!-- svelte-ignore a11y_no_static_element_interactions -->
 					<div class="flex h-7 items-center justify-center" onclick={(e) => e.stopPropagation()} onkeydown={(e) => e.stopPropagation()}>
-						<EmbeddedIconButton onclick={onClose} title="Close" ariaLabel="Close" class="!h-full border-l border-border/40">
+						<Button
+							variant="chromeIcon"
+							size="chromeIcon"
+							data-header-control
+							onclick={onClose}
+							title="Close"
+							aria-label="Close"
+							class="!h-full border-l border-border/40"
+						>
 							{#snippet children()}
 								<X size={12} weight="bold" />
 							{/snippet}
-						</EmbeddedIconButton>
+						</Button>
 					</div>
 				</HeaderActionCell>
 			{/if}

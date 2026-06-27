@@ -45,6 +45,7 @@ type SceneContentViewportProps = {
 	sessionId: string | null;
 	pendingUserRevealRequestKey?: string | null;
 	showLocalPlanningIndicator?: boolean;
+	showWorkingSpark?: boolean;
 	isFullscreen?: boolean;
 	modifiedFilesState?: ModifiedFilesState | null;
 	onNearBottomChange?: (isNearBottom: boolean) => void;
@@ -69,6 +70,7 @@ let {
 	sessionId,
 	pendingUserRevealRequestKey = null,
 	showLocalPlanningIndicator = false,
+	showWorkingSpark = false,
 	isFullscreen = false,
 	modifiedFilesState = null,
 	onNearBottomChange,
@@ -440,6 +442,7 @@ export function scrollToTop() {
 					{renderedRows}
 					{sessionId}
 					{projectPath}
+					{showWorkingSpark}
 					{isFullscreen}
 					{streamingAnimationMode}
 					{editToolTheme}

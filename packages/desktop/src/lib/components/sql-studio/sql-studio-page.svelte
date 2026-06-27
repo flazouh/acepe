@@ -7,6 +7,8 @@
 
 import type { SqlConnection, SqlFilterOperator, SqlSchemaInfo } from "@acepe/ui/sql-studio";
 import { SqlStudioLayout } from "@acepe/ui/sql-studio";
+import { Selector } from "@acepe/ui";
+import * as DropdownMenu from "@acepe/ui/dropdown-menu";
 import { Database, FolderOpen } from "phosphor-svelte";
 import { onMount } from "svelte";
 import { toast } from "svelte-sonner";
@@ -54,6 +56,18 @@ let connectionUsername = $state("");
 let connectionPassword = $state("");
 let connectionFilePath = $state("");
 let connectionSslMode = $state("");
+
+const connectionEngineOptions: readonly { readonly value: DbEngine; readonly label: string }[] = [
+	{ value: "sqlite", label: "sqlite" },
+	{ value: "postgres", label: "postgres" },
+	{ value: "mysql", label: "mysql" },
+];
+
+function handleConnectionEngineChange(value: string): void {
+	if (value === "sqlite" || value === "postgres" || value === "mysql") {
+		connectionEngine = value;
+	}
+}
 
 onMount(() => {
 	store.queryText = sql;
@@ -499,25 +513,30 @@ function saveCellEdit(rowIndex: number, columnName: string, value: string): void
 			/>
 		</div>
 		<div class="grid gap-1">
-			<label
-				for="connection-engine"
-				class="text-[0.625rem] font-medium text-muted-foreground uppercase tracking-wider">Engine</label
+			<span class="text-[0.625rem] font-medium text-muted-foreground uppercase tracking-wider"
+				>Engine</span
 			>
-			<select
-				id="connection-engine"
-				value={connectionEngine}
-				onchange={(e) => {
-					const v = (e.currentTarget as HTMLSelectElement).value;
-					if (v === "sqlite" || v === "postgres" || v === "mysql") {
-						connectionEngine = v;
-					}
-				}}
-				class="h-7 w-full cursor-pointer appearance-none rounded-lg border border-border/40 bg-muted/30 px-2 text-[0.6875rem] text-foreground focus:outline-none focus:ring-1 focus:ring-primary/40"
+			<Selector
+				align="start"
+				variant="outline"
+				class="w-full"
+				triggerClass="h-7 w-full justify-between rounded-lg border border-border/40 bg-muted/30 px-2 text-[0.6875rem] font-normal text-foreground"
+				triggerAriaLabel="Database engine"
+				contentClass="min-w-[var(--bits-dropdown-menu-anchor-width)]"
 			>
-				<option value="sqlite">sqlite</option>
-				<option value="postgres">postgres</option>
-				<option value="mysql">mysql</option>
-			</select>
+				{#snippet renderButton()}
+					<span class="truncate">{connectionEngine}</span>
+				{/snippet}
+
+				<DropdownMenu.RadioGroup
+					value={connectionEngine}
+					onValueChange={handleConnectionEngineChange}
+				>
+					{#each connectionEngineOptions as option (option.value)}
+						<DropdownMenu.RadioItem value={option.value}>{option.label}</DropdownMenu.RadioItem>
+					{/each}
+				</DropdownMenu.RadioGroup>
+			</Selector>
 		</div>
 
 		{#if connectionEngine === "sqlite"}

@@ -2,8 +2,8 @@
 	import { ArrowsInSimple, ArrowsOutSimple } from "phosphor-svelte";
 
 	import { PlanIcon } from "../icons/index.js";
+	import { Button } from "../button/index.js";
 	import {
-		EmbeddedIconButton,
 		EmbeddedPanelHeader,
 		HeaderActionCell,
 		HeaderTitleCell,
@@ -31,12 +31,21 @@
 	</HeaderTitleCell>
 
 	<HeaderActionCell withDivider={false}>
-		<EmbeddedIconButton title={toggleLabel} ariaLabel={toggleLabel} onclick={onToggleSidebar}>
-			{#if isExpanded}
-				<ArrowsInSimple size={14} weight="bold" />
-			{:else}
-				<ArrowsOutSimple size={14} weight="bold" />
-			{/if}
-		</EmbeddedIconButton>
+		<Button
+			variant="chromeIcon"
+			size="chromeIcon"
+			data-header-control
+			title={toggleLabel}
+			aria-label={toggleLabel}
+			onclick={onToggleSidebar}
+		>
+			{#snippet children()}
+				{#if isExpanded}
+					<ArrowsInSimple size={14} weight="bold" />
+				{:else}
+					<ArrowsOutSimple size={14} weight="bold" />
+				{/if}
+			{/snippet}
+		</Button>
 	</HeaderActionCell>
 </EmbeddedPanelHeader>

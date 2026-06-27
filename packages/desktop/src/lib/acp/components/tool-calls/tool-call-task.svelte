@@ -12,10 +12,9 @@ interface Props {
 	toolCall: ToolCall;
 	turnState?: TurnState;
 	projectPath?: string;
-	elapsedLabel?: string | null;
 }
 
-let { toolCall, turnState, elapsedLabel }: Props = $props();
+let { toolCall, turnState }: Props = $props();
 
 const sessionStore = getSessionStore();
 const toolStatus = $derived(getToolStatus(toolCall, turnState));
@@ -41,6 +40,12 @@ const agentStatus = $derived.by(() => {
 
 // Convert task children to presentational entries
 const children = $derived(convertTaskChildren(toolCall.taskChildren, turnState, toolStatus.isSuccess));
+
+const durationTiming = $derived({
+	startedAtMs: toolCall.startedAtMs,
+	completedAtMs: toolCall.completedAtMs,
+	status: agentStatus,
+});
 </script>
 
 <AgentToolTask
@@ -51,7 +56,7 @@ const children = $derived(convertTaskChildren(toolCall.taskChildren, turnState, 
 	status={agentStatus}
 	showDoneIcon={toolStatus.isSuccess}
 	iconBasePath="/svgs/icons"
-	durationLabel={elapsedLabel ?? undefined}
+	{durationTiming}
 	runningFallback={m.tool_task_running_fallback()}
 	doneFallback={m.tool_task_fallback()}
 	resultLabel={m.tool_task_result_label()}

@@ -8,8 +8,6 @@ export interface ProjectHeaderOverflowMenuState {
 	readonly hasResetProjectIcon: boolean;
 	readonly showColorPicker: boolean;
 	readonly showSettingsSection: boolean;
-	readonly displaySectionClass: string;
-	readonly colorTriggerClass: string;
 }
 
 export function getSelectedProjectColorHex(input: {
@@ -50,11 +48,5 @@ export function buildProjectHeaderOverflowMenuState(input: {
 		hasResetProjectIcon,
 		showColorPicker,
 		showSettingsSection,
-		displaySectionClass: `px-2 py-1.5${
-			showSettingsSection ? " border-b border-border/20" : ""
-		}`,
-		colorTriggerClass: `rounded-none px-2 py-1.5 text-[11px]${
-			input.hasRemoveProjectAction || hasResetProjectIcon ? " border-b border-border/20" : ""
-		}`,
 	};
 }

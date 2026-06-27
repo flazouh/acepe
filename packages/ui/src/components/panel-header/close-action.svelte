@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { X } from "phosphor-svelte";
 
-	import EmbeddedIconButton from "./embedded-icon-button.svelte";
+	import { Button } from "../button/index.js";
 
 	interface Props {
 		onClose?: (() => void) | undefined;
@@ -12,8 +12,16 @@
 	let { onClose, title = "Close", class: className = "" }: Props = $props();
 </script>
 
-<EmbeddedIconButton onclick={() => onClose?.()} {title} ariaLabel={title} class={className}>
+<Button
+	variant="chromeIcon"
+	size="chromeIcon"
+	data-header-control
+	onclick={() => onClose?.()}
+	{title}
+	aria-label={title}
+	class={className}
+>
 	{#snippet children()}
 		<X size={12} weight="bold" />
 	{/snippet}
-</EmbeddedIconButton>
+</Button>

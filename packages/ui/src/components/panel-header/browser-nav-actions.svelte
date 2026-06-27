@@ -4,7 +4,7 @@
 	import { IconRefresh } from "@tabler/icons-svelte";
 	import { IconExternalLink } from "@tabler/icons-svelte";
 
-	import EmbeddedIconButton from "./embedded-icon-button.svelte";
+	import { Button } from "../button/index.js";
 
 	interface Props {
 		onBack?: (() => void) | undefined;
@@ -34,22 +34,46 @@
 </script>
 
 	{#if showNavigation}
-		<EmbeddedIconButton onclick={() => onBack?.()} title={backLabel} ariaLabel={backLabel}>
+		<Button
+			variant="chromeIcon"
+			size="chromeIcon"
+			data-header-control
+			onclick={() => onBack?.()}
+			title={backLabel}
+			aria-label={backLabel}
+		>
 			{#snippet children()}<IconArrowLeft class="h-4 w-4" />{/snippet}
-		</EmbeddedIconButton>
-		<EmbeddedIconButton onclick={() => onForward?.()} title={forwardLabel} ariaLabel={forwardLabel}>
+		</Button>
+		<Button
+			variant="chromeIcon"
+			size="chromeIcon"
+			data-header-control
+			onclick={() => onForward?.()}
+			title={forwardLabel}
+			aria-label={forwardLabel}
+		>
 			{#snippet children()}<IconArrowRight class="h-4 w-4" />{/snippet}
-		</EmbeddedIconButton>
-		<EmbeddedIconButton onclick={() => onReload?.()} title={reloadLabel} ariaLabel={reloadLabel}>
+		</Button>
+		<Button
+			variant="chromeIcon"
+			size="chromeIcon"
+			data-header-control
+			onclick={() => onReload?.()}
+			title={reloadLabel}
+			aria-label={reloadLabel}
+		>
 			{#snippet children()}<IconRefresh class="h-4 w-4" />{/snippet}
-		</EmbeddedIconButton>
+		</Button>
 	{/if}
 	{#if showExternal}
-		<EmbeddedIconButton
+		<Button
+			variant="chromeIcon"
+			size="chromeIcon"
+			data-header-control
 			onclick={() => onOpenExternal?.()}
 			title={openExternalLabel}
-			ariaLabel={openExternalLabel}
+			aria-label={openExternalLabel}
 		>
 			{#snippet children()}<IconExternalLink class="h-4 w-4" />{/snippet}
-		</EmbeddedIconButton>
+		</Button>
 	{/if}

@@ -10,7 +10,6 @@ import {
 import { DiffPill, setThinkingPreferences } from "@acepe/ui";
 import { Button } from "@acepe/ui/button";
 import * as ButtonGroup from "@acepe/ui/button-group";
-import { EmbeddedIconButton } from "@acepe/ui/panel-header";
 import ArrowUp from "@lucide/svelte/icons/arrow-up";
 import {
 	CaretLeft,
@@ -423,6 +422,9 @@ const preSessionSelectedProject = $derived(worktreeController.preSessionSelected
 
 // ✅ Derived values from granular session data
 const effectivePanelAgentId = $derived(selectedAgentId ?? sessionController.sessionAgentId);
+// Claude is the only agent with a bespoke working spark; the transcript's planning
+// placeholder swaps it in for the label while streaming (gated on canonical agentId).
+const showWorkingSpark = $derived(sessionController.sessionAgentId === "claude-code");
 const agentName = $derived.by(() => {
 	if (!effectivePanelAgentId) {
 		return null;
@@ -1530,6 +1532,7 @@ async function handlePlanSidebarSendMessage(sid: string, message: string): Promi
 						onRetryConnection={handleRetryConnection}
 						onCancelConnection={handleCancelConnection}
 						agentIconSrc={agentIconSrc ?? undefined}
+						{showWorkingSpark}
 						{isFullscreen}
 						{availableAgents}
 						{effectiveTheme}
@@ -1765,14 +1768,19 @@ async function handlePlanSidebarSendMessage(sid: string, message: string): Promi
 						>
 							{#snippet checkpointButton()}
 								{#if sessionController.sessionProjectPath && checkpointTimeline.checkpoints.length > 0}
-									<EmbeddedIconButton
+									<Button
+										variant="chromeIcon"
+										size="chromeIcon"
+										data-header-control
 										active={checkpointTimeline.isOpen}
-										title={"View checkpoints"}
-										ariaLabel={"View checkpoints"}
+										title="View checkpoints"
+										aria-label="View checkpoints"
 										onclick={() => checkpointTimeline.toggle()}
 									>
-										<Clock class="h-3.5 w-3.5" weight="fill" />
-									</EmbeddedIconButton>
+										{#snippet children()}
+											<Clock class="h-3.5 w-3.5" weight="fill" />
+										{/snippet}
+									</Button>
 								{/if}
 							{/snippet}
 						</AgentInput>

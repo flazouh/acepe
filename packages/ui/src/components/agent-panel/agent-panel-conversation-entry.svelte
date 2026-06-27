@@ -25,6 +25,8 @@
 		editToolTheme?: EditToolTheme;
 		projectPath?: string;
 		streamingAnimationMode?: StreamingAnimationMode;
+		/** When true, streaming placeholders show the Claude working spark instead of the label. */
+		showWorkingSpark?: boolean;
 		renderAssistantBlock?: Snippet<[AssistantRenderBlockContext]>;
 		onQuestionSelect?: (event: AgentPanelQuestionSelectEvent) => void;
 		onPlanBuild?: (event: AgentPanelPlanActionEvent) => void;
@@ -40,6 +42,7 @@
 		editToolTheme,
 		projectPath,
 		streamingAnimationMode = "smooth",
+		showWorkingSpark = false,
 		renderAssistantBlock,
 		onQuestionSelect,
 		onPlanBuild,
@@ -64,6 +67,7 @@
 			planningStartedAtMs={entry.planningStartedAtMs}
 			{projectPath}
 			{streamingAnimationMode}
+			{showWorkingSpark}
 		{iconBasePath}
 		renderBlock={renderAssistantBlock}
 	/>
@@ -72,6 +76,7 @@
 		durationMs={entry.durationMs}
 		startedAtMs={entry.startedAtMs}
 		label={entry.label}
+		{showWorkingSpark}
 	/>
 {:else if entry.type === "missing"}
 	<AgentMissingSceneEntry

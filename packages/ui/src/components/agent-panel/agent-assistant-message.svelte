@@ -67,6 +67,8 @@ interface Props {
 	iconBasePath?: string;
 	/** Canonical awaiting-model anchor while the planning placeholder is visible. */
 	planningStartedAtMs?: number | null;
+	/** When true, the planning placeholder shows the Claude working spark instead of the label. */
+	showWorkingSpark?: boolean;
 	/**
 	 * Optional snippet to render chunk groups.
 	 * When provided it is called for ALL groups (text and non-text), enabling hosts
@@ -88,6 +90,7 @@ let {
 	initiallyCollapsed,
 	iconBasePath = "",
 	planningStartedAtMs = null,
+	showWorkingSpark = false,
 	renderBlock,
 }: Props = $props();
 
@@ -281,7 +284,7 @@ bind:this={thinkingContainerRef}
 <div class="space-y-1.5">
 {#if renderBlock}
 			{#if isStreaming && isLastTextGroup && group.type === "text" && group.text.length === 0 && planningDurationTiming !== null}
-<PlanningPlaceholderRow timing={planningDurationTiming} class="py-2 pr-1.5" />
+<PlanningPlaceholderRow timing={planningDurationTiming} {showWorkingSpark} class="py-2 pr-1.5" />
 			{:else}
 			{@render renderBlock({
 				group,
@@ -296,7 +299,7 @@ bind:this={thinkingContainerRef}
 			{/if}
 {:else if group.type === "text"}
 {#if isStreaming && !group.text}
-<PlanningPlaceholderRow timing={planningDurationTiming} class="py-2 pr-1.5" />
+<PlanningPlaceholderRow timing={planningDurationTiming} {showWorkingSpark} class="py-2 pr-1.5" />
 {:else}
 <MarkdownDisplay
 	content={group.text}
@@ -326,7 +329,7 @@ model={message.displayModel}
 </div>
 {:else if showPlanningPlaceholder}
 <div class="w-full mb-2">
-<PlanningPlaceholderRow timing={planningDurationTiming} class="py-2 pr-1.5" />
+<PlanningPlaceholderRow timing={planningDurationTiming} {showWorkingSpark} class="py-2 pr-1.5" />
 </div>
 {/if}
 

@@ -4,7 +4,7 @@
 	import { Browser } from "phosphor-svelte";
 	import { Gear } from "phosphor-svelte";
 	import { Terminal } from "phosphor-svelte";
-	import { EmbeddedIconButton } from "../panel-header/index.js";
+	import { Button } from "../button/index.js";
 
 	interface Props {
 		children?: Snippet;
@@ -58,38 +58,53 @@
 
 	{#if onSettings}
 		<div class="flex items-center gap-0.5 px-1.5">
-			<EmbeddedIconButton
+			<Button
+				variant="chromeIcon"
+				size="chromeIcon"
+				data-header-control
 				title={settingsTitle}
-				ariaLabel={settingsAriaLabel ?? settingsTitle}
+				aria-label={settingsAriaLabel ?? settingsTitle}
 				onclick={onSettings}
 			>
-				<Gear class="h-3 w-3" weight="fill" />
-			</EmbeddedIconButton>
+				{#snippet children()}
+					<Gear class="h-3 w-3" weight="fill" />
+				{/snippet}
+			</Button>
 		</div>
 	{/if}
 
 	{#if showBrowserToggle || showTerminalToggle}
 		<div class="ml-auto flex items-center gap-0.5 px-1.5">
 			{#if showBrowserToggle}
-				<EmbeddedIconButton
+				<Button
+					variant="chromeIcon"
+					size="chromeIcon"
+					data-header-control
 					active={browserActive}
 					title={browserTitle}
-					ariaLabel={browserAriaLabel ?? browserTitle}
+					aria-label={browserAriaLabel ?? browserTitle}
 					onclick={onToggleBrowser}
 				>
-					<Browser class="h-3 w-3" weight={browserActive ? "fill" : "regular"} />
-				</EmbeddedIconButton>
+					{#snippet children()}
+						<Browser class="h-3 w-3" weight={browserActive ? "fill" : "regular"} />
+					{/snippet}
+				</Button>
 			{/if}
 			{#if showTerminalToggle}
-				<EmbeddedIconButton
+				<Button
+					variant="chromeIcon"
+					size="chromeIcon"
+					data-header-control
 					active={terminalActive}
 					disabled={terminalDisabled}
 					title={terminalTitle}
-					ariaLabel={terminalAriaLabel ?? terminalTitle}
+					aria-label={terminalAriaLabel ?? terminalTitle}
 					onclick={onToggleTerminal}
 				>
-					<Terminal class="h-3 w-3" weight="fill" />
-				</EmbeddedIconButton>
+					{#snippet children()}
+						<Terminal class="h-3 w-3" weight="fill" />
+					{/snippet}
+				</Button>
 			{/if}
 		</div>
 	{/if}

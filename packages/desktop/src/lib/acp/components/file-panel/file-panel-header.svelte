@@ -1,6 +1,7 @@
 <script lang="ts">
 import { FilePanelHeader as FilePanelHeaderLayout } from "@acepe/ui/file-panel";
-import { CloseAction, EmbeddedIconButton } from "@acepe/ui/panel-header";
+import { Button } from "@acepe/ui";
+import { CloseAction } from "@acepe/ui/panel-header";
 import { FolderOpen } from "phosphor-svelte";
 import { toast } from "svelte-sonner";
 import { FileIcon } from "$lib/components/ui/file-icon/index.js";
@@ -128,10 +129,19 @@ function handleEditorModeChange(modeId: string) {
 				/>
 			</div>
 		{/if}
-		<EmbeddedIconButton onclick={handleOpenInFinder} title={"Open in Finder"}>
-			<FolderOpen class="h-3.5 w-3.5" weight="fill" />
-			<span class="sr-only">{"Open in Finder"}</span>
-		</EmbeddedIconButton>
+		<Button
+			variant="chromeIcon"
+			size="chromeIcon"
+			data-header-control
+			onclick={handleOpenInFinder}
+			title="Open in Finder"
+			aria-label="Open in Finder"
+		>
+			{#snippet children()}
+				<FolderOpen class="h-3.5 w-3.5" weight="fill" />
+				<span class="sr-only">{"Open in Finder"}</span>
+			{/snippet}
+		</Button>
 		{#if !compact}
 			<CloseAction onClose={onClose} title={"Close"} />
 		{/if}

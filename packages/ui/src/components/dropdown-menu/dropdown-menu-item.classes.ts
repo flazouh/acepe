@@ -1,3 +1,7 @@
+import {
+	dropdownMenuItemTypographyClass,
+} from "./dropdown-menu-typography.js";
+
 export const dropdownMenuItemRadiusClass = "rounded-md";
 
 export function buildDropdownMenuItemClassName(hasHighlightContext: boolean): string {
@@ -15,7 +19,7 @@ export function buildDropdownMenuItemClassName(hasHighlightContext: boolean): st
 		"data-[variant=destructive]:data-highlighted:text-destructive",
 		"data-[variant=destructive]:*:[svg]:!text-destructive",
 		`relative flex cursor-default items-center gap-2 ${dropdownMenuItemRadiusClass}`,
-		"px-2 py-1 text-[11px] font-medium",
+		`px-2 py-1 ${dropdownMenuItemTypographyClass}`,
 		"outline-hidden select-none",
 		"data-[disabled]:pointer-events-none data-[disabled]:opacity-50",
 		"data-[inset]:ps-8",
