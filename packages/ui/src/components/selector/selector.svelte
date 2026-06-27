@@ -1,7 +1,7 @@
 <script lang="ts">
 	import * as DropdownMenu from "../dropdown-menu/index.js";
 	import * as Tooltip from "../tooltip/index.js";
-	import { LuChevronDown as ChevronDown } from "../icons/index.js";
+	import ChevronDown from "@lucide/svelte/icons/chevron-down";
 	import { mergeProps } from "bits-ui";
 	import type { Snippet } from "svelte";
 

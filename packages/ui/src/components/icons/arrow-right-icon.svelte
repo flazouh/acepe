@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { IconArrowRight } from "./index.js";
+	import { IconArrowRight } from "@tabler/icons-svelte";
 
 	interface Props {
 		size?: "sm" | "md" | "lg";

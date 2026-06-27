@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { Check, Square } from "../icons/index.js";
+	import { Check, Square } from "phosphor-svelte";
 	import type { AgentQuestionOption } from "./types.js";
 	import { getQuestionOptionClasses } from "./agent-tool-question-state.js";
 

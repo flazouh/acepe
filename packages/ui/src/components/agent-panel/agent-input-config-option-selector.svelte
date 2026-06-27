@@ -4,7 +4,7 @@
   Accepts a normalized config option shape; desktop derives AgentInputConfigOption from session state.
 -->
 <script lang="ts">
-	import { Lightning, ShieldCheck } from "../icons/index.js";
+	import { Lightning, ShieldCheck } from "phosphor-svelte";
 
 	import { EmbeddedIconButton } from "../panel-header/index.js";
 	import { Selector } from "../selector/index.js";

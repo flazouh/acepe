@@ -1,5 +1,5 @@
 <script lang="ts">
-import { Kanban, Columns, Square, SquaresFour } from "@acepe/ui/icons";
+import { Kanban, Columns, Square, SquaresFour } from "phosphor-svelte";
 
 interface Feature {
 	id: string;

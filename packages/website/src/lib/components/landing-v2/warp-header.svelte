@@ -1,8 +1,8 @@
 <script lang="ts">
 import { page } from "$app/stores";
 import AcepeMark from "./acepe-mark.svelte";
-import { X } from "@acepe/ui/icons";
-import { GithubLogo, Star } from "@acepe/ui/icons";
+import { X } from "@lucide/svelte";
+import { GithubLogo, Star } from "phosphor-svelte";
 
 interface Props {
 	announcement?: string;

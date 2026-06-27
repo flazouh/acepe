@@ -1,9 +1,9 @@
 <script lang="ts">
 import { Selector } from "@acepe/ui";
 import * as DropdownMenu from "@acepe/ui/dropdown-menu";
-import { IconDotsVertical } from "@acepe/ui/icons";
-import { IconEye } from "@acepe/ui/icons";
-import { IconFolder } from "@acepe/ui/icons";
+import { IconDotsVertical } from "@tabler/icons-svelte";
+import { IconEye } from "@tabler/icons-svelte";
+import { IconFolder } from "@tabler/icons-svelte";
 interface Props {
 	sessionId: string;
 	projectPath: string;

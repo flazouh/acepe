@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { CaretDown, CheckCircle, GithubLogo, MinusCircle, XCircle } from "../icons/index.js";
+	import { CaretDown, CheckCircle, GithubLogo, MinusCircle, XCircle } from "phosphor-svelte";
 	import { untrack } from "svelte";
 
 	import type { PrChecksItem, PrChecksItemConclusion } from "./types.js";

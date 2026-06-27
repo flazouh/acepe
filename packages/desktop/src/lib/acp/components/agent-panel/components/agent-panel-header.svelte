@@ -5,7 +5,7 @@ import {
 } from "@acepe/ui/agent-panel";
 import { Selector } from "@acepe/ui";
 import * as DropdownMenu from "@acepe/ui/dropdown-menu";
-import { IconDotsVertical } from "@acepe/ui/icons";
+import { IconDotsVertical } from "@tabler/icons-svelte";
 import { CloseAction } from "@acepe/ui/panel-header";
 import {
 	ArrowsIn,
@@ -18,7 +18,7 @@ import {
 	FileMd,
 	Terminal,
 	Tree,
-} from "@acepe/ui/icons";
+} from "phosphor-svelte";
 import { toast } from "svelte-sonner";
 import AttachmentChip from "../../shared/attachment-chip.svelte";
 

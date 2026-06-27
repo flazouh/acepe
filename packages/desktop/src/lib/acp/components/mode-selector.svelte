@@ -1,5 +1,5 @@
 <script lang="ts">
-import { SlidersHorizontal } from "@acepe/ui/icons";
+import { SlidersHorizontal } from "phosphor-svelte";
 import { onDestroy, onMount } from "svelte";
 import * as Tooltip from "@acepe/ui/tooltip";
 import { getSelectorRegistry } from "../logic/selector-registry.svelte.js";

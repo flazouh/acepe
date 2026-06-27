@@ -1,5 +1,5 @@
 <script lang="ts">
-import { LuEllipsis as EllipsisIcon } from "@acepe/ui/icons";
+import EllipsisIcon from "@lucide/svelte/icons/ellipsis";
 import type { HTMLAttributes } from "svelte/elements";
 import { cn, type WithElementRef, type WithoutChildren } from "$lib/utils.js";
 

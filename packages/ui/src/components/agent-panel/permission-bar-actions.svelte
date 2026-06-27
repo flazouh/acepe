@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { CheckCircle, ShieldCheck, XCircle } from "../icons/index.js";
+	import { CheckCircle, ShieldCheck, XCircle } from "phosphor-svelte";
 
 	import { Button } from "../button/index.js";
 	import { COLOR_NAMES, Colors } from "../../lib/colors.js";

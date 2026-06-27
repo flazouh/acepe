@@ -1,9 +1,9 @@
 <script lang="ts">
 import { BrandLockup } from "@acepe/ui";
 import { page } from "$app/stores";
-import { Download, Menu } from "@acepe/ui/icons";
+import { Download, Menu } from "@lucide/svelte";
 import { Drawer, DrawerContent, DrawerOverlay, DrawerPortal, DrawerTrigger } from "@acepe/ui";
-import { DiscordLogo, GithubLogo, Star } from "@acepe/ui/icons";
+import { DiscordLogo, GithubLogo, Star } from "phosphor-svelte";
 
 interface Props {
 	showLogin?: boolean;

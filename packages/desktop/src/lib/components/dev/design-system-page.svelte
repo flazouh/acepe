@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { Button } from "@acepe/ui";
-	import { CaretLeft, DownloadSimple, Microphone, Rows } from "@acepe/ui/icons";
+	import { CaretLeft, DownloadSimple, Microphone, Rows } from "phosphor-svelte";
 
 	import { Badge } from "$lib/components/ui/badge/index.js";
 	import SettingsPageHeader from "$lib/components/settings-page/settings-page-header.svelte";

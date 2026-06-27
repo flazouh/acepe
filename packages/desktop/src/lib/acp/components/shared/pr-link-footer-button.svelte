@@ -14,7 +14,7 @@ import { getSessionStore } from "$lib/acp/store/session-store.svelte.js";
 import { Input } from "$lib/components/ui/input/index.js";
 import { GitHubBadge, ProjectLetterBadge, Button } from "@acepe/ui";
 import { Tooltip } from "bits-ui";
-import { LinkSimple } from "@acepe/ui/icons";
+import { LinkSimple } from "phosphor-svelte";
 import { toast } from "svelte-sonner";
 import {
 	filterPullRequestsByQuery,

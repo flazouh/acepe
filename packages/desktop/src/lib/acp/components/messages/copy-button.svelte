@@ -1,7 +1,7 @@
 <script lang="ts">
-import { IconCheck } from "@acepe/ui/icons";
+import { IconCheck } from "@tabler/icons-svelte";
 import { ResultAsync } from "neverthrow";
-import { Copy } from "@acepe/ui/icons";
+import { Copy } from "phosphor-svelte";
 import { toastError, toastSuccess } from "$lib/components/ui/sonner/toast-bridge.js";
 import {
 	buildCopyButtonDisplayState,

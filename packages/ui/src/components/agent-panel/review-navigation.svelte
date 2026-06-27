@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { CaretDown, CaretLeft, CaretRight, CaretUp, CheckCircle, XCircle } from "../icons/index.js";
+	import { CaretDown, CaretLeft, CaretRight, CaretUp, CheckCircle, XCircle } from "phosphor-svelte";
 
 	import { Colors } from "../../lib/colors.js";
 	import { EmbeddedIconButton, HeaderActionCell } from "../panel-header/index.js";

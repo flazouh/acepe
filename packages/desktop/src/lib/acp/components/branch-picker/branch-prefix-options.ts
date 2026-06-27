@@ -7,7 +7,7 @@ import {
 	Sparkle,
 	TestTube,
 	Wrench,
-} from "@acepe/ui/icons";
+} from "phosphor-svelte";
 import type { Component } from "svelte";
 
 export interface BranchPrefix {

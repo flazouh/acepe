@@ -1,6 +1,6 @@
 <script lang="ts">
-	import { GitPullRequest, GitMerge } from "../icons/index.js";
-	import { CaretDown } from "../icons/index.js";
+	import { GitPullRequest, GitMerge } from "phosphor-svelte";
+	import { CaretDown } from "phosphor-svelte";
 
 	import type { AgentPanelPrCardModel } from "./types.js";
 

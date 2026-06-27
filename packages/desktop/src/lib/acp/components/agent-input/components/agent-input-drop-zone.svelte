@@ -1,5 +1,5 @@
 <script lang="ts">
-import { ImageSquare } from "@acepe/ui/icons";
+import { ImageSquare } from "phosphor-svelte";
 
 let { isDragHovering, label }: { isDragHovering: boolean; label: string } = $props();
 </script>

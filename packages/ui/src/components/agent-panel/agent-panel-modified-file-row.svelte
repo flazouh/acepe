@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { ArrowCounterClockwise, CheckCircle, CircleDashed, XCircle } from "../icons/index.js";
+	import { ArrowCounterClockwise, CheckCircle, CircleDashed, XCircle } from "phosphor-svelte";
 
 	import type { AgentPanelModifiedFileItem } from "./types.js";
 

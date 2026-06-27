@@ -2,9 +2,9 @@
 	/**
 	 * GitStashList — List of stash entries with pop/drop actions.
 	 */
-	import { Package } from "../icons/index.js";
-	import { ArrowCounterClockwise } from "../icons/index.js";
-	import { Trash } from "../icons/index.js";
+	import { Package } from "phosphor-svelte";
+	import { ArrowCounterClockwise } from "phosphor-svelte";
+	import { Trash } from "phosphor-svelte";
 
 	import { cn } from "../../lib/utils.js";
 	import type { GitStashEntry } from "./types.js";

@@ -2,9 +2,9 @@
 import type { Snippet } from "svelte";
 import type { SectionedFeedGroup, SectionedFeedItemData } from "./types.js";
 
-import { BellSimple } from "../icons/index.js";
-import { CaretDown } from "../icons/index.js";
-import { CaretRight } from "../icons/index.js";
+import { BellSimple } from "phosphor-svelte";
+import { CaretDown } from "phosphor-svelte";
+import { CaretRight } from "phosphor-svelte";
 
 import FeedSectionHeader from "./feed-section-header.svelte";
 import { sectionColor } from "./section-color.js";

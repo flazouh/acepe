@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { Database } from "../icons/index.js";
+  import { Database } from "phosphor-svelte";
   import { cn } from "../../lib/utils.js";
   import {
     EmbeddedPanelHeader,

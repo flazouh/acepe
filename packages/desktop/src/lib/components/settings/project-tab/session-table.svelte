@@ -1,12 +1,12 @@
 <script lang="ts">
-import { IconArrowDown } from "@acepe/ui/icons";
-import { IconArrowUp } from "@acepe/ui/icons";
-import { IconChevronLeft } from "@acepe/ui/icons";
-import { IconChevronRight } from "@acepe/ui/icons";
-import { IconChevronsLeft } from "@acepe/ui/icons";
-import { IconChevronsRight } from "@acepe/ui/icons";
-import { IconSearch } from "@acepe/ui/icons";
-import { IconSelector } from "@acepe/ui/icons";
+import { IconArrowDown } from "@tabler/icons-svelte";
+import { IconArrowUp } from "@tabler/icons-svelte";
+import { IconChevronLeft } from "@tabler/icons-svelte";
+import { IconChevronRight } from "@tabler/icons-svelte";
+import { IconChevronsLeft } from "@tabler/icons-svelte";
+import { IconChevronsRight } from "@tabler/icons-svelte";
+import { IconSearch } from "@tabler/icons-svelte";
+import { IconSelector } from "@tabler/icons-svelte";
 import type { SessionSummary } from "$lib/acp/application/dto/session-summary.js";
 import type { Project } from "$lib/acp/logic/project-manager.svelte.js";
 import { cn } from "$lib/utils.js";

@@ -39,6 +39,3 @@ export {
 export type { DotmatrixLoaderConfig, DotmatrixLoaderRuntime } from "./dotmatrix/loader-types.js";
 export { default as PlanIcon } from "./plan-icon.svelte";
 export { default as RevertIcon } from "./revert-icon.svelte";
-
-// Notion-backed general icon glyphs (phosphor/tabler/lucide replacements).
-export * from "./glyphs/index.js";

@@ -2,7 +2,7 @@
   FusedOverflowDotsTrigger — Right-segment overflow trigger for FusedPrimaryOverflowGroup.
 -->
 <script lang="ts">
-	import { DotsThreeVertical } from "../icons/index.js";
+	import { DotsThreeVertical } from "phosphor-svelte";
 	import type { HTMLButtonAttributes } from "svelte/elements";
 
 	import { cn } from "../../lib/utils.js";

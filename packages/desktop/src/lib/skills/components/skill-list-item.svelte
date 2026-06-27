@@ -1,9 +1,9 @@
 <script lang="ts">
 import type { IconWeight } from "$lib/types/phosphor-icon-types.js";
 
-import { ArrowsClockwise } from "@acepe/ui/icons";
-import { CheckCircle } from "@acepe/ui/icons";
-import { Warning as PhosphorWarning } from "@acepe/ui/icons";
+import { ArrowsClockwise } from "phosphor-svelte";
+import { CheckCircle } from "phosphor-svelte";
+import { Warning as PhosphorWarning } from "phosphor-svelte";
 import { Spinner } from "$lib/components/ui/spinner/index.js";
 import * as Tooltip from "@acepe/ui/tooltip";
 

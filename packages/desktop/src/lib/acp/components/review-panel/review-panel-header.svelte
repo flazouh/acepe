@@ -1,7 +1,7 @@
 <script lang="ts">
 import { FilePathBadge } from "@acepe/ui";
-import { IconChevronLeft } from "@acepe/ui/icons";
-import { IconChevronRight } from "@acepe/ui/icons";
+import { IconChevronLeft } from "@tabler/icons-svelte";
+import { IconChevronRight } from "@tabler/icons-svelte";
 import { Button } from "$lib/components/ui/button/index.js";
 import type { ModifiedFilesState } from "../../types/modified-files-state.js";
 

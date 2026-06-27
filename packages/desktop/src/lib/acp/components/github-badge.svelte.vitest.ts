@@ -21,6 +21,10 @@ vi.mock("@tauri-apps/plugin-opener", () => ({
 	openUrl: vi.fn(),
 }));
 
+vi.mock("phosphor-svelte/lib/GithubLogo", async () => ({
+	default: (await import("./pr-status-card/test-component-stub.svelte")).default,
+}));
+
 vi.mock("./messages/copy-button.svelte", async () => ({
 	default: (await import("./pr-status-card/test-component-stub.svelte")).default,
 }));

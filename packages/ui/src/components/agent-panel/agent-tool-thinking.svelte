@@ -1,6 +1,6 @@
 <script lang="ts">
 	import type { Snippet } from "svelte";
-	import { CaretRight, Brain } from "../icons/index.js";
+	import { CaretRight, Brain } from "phosphor-svelte";
 	import ToolLabel from "./tool-label.svelte";
 	import type { AgentToolStatus } from "./types.js";
 	import { getThinkingPreferences } from "../../lib/thinking-preferences-context.js";

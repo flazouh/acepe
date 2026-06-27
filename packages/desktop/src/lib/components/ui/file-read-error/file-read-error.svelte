@@ -1,5 +1,5 @@
 <script lang="ts">
-import { XCircle } from "@acepe/ui/icons";
+import { XCircle } from "phosphor-svelte";
 import { Card } from "$lib/components/ui/card/index.js";
 interface Props {
 	/** Error message from the file read operation (e.g. "No such file or directory") */

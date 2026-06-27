@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { IconDotsVertical } from "../icons/index.js";
+	import { IconDotsVertical } from "@tabler/icons-svelte";
 
 	import * as DropdownMenu from "../dropdown-menu/index.js";
 	import { Selector } from "../selector/index.js";

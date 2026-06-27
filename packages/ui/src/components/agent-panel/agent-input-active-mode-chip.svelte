@@ -2,7 +2,7 @@
   AgentInputActiveModeChip - Dismissible pill showing the active composer mode.
 -->
 <script lang="ts">
-	import { X } from "../icons/index.js";
+	import { X } from "phosphor-svelte";
 
 	import { Button } from "../button/index.js";
 	import AgentInputModeIcon from "./agent-input-mode-icon.svelte";

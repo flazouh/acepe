@@ -1,5 +1,5 @@
 <script lang="ts">
-import { IconX } from "@acepe/ui/icons";
+import { IconX } from "@tabler/icons-svelte";
 import AgentPanelReviewContent from "$lib/acp/components/agent-panel/components/agent-panel-review-content.svelte";
 import { getSessionStore } from "$lib/acp/store/session-store.svelte.js";
 import { Button } from "$lib/components/ui/button/index.js";

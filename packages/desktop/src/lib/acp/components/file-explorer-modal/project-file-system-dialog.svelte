@@ -9,7 +9,7 @@ import type {
 import { tauriClient } from "$lib/utils/tauri-client.js";
 import { DiffPill, ProjectLetterBadge } from "@acepe/ui";
 import { Colors } from "@acepe/ui/colors";
-import { FolderOpen } from "@acepe/ui/icons";
+import { FolderOpen } from "phosphor-svelte";
 import { onMount } from "svelte";
 import { SvelteSet } from "svelte/reactivity";
 import FileIcon from "../file-list/file-icon.svelte";

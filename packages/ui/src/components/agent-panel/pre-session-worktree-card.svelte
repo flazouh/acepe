@@ -7,7 +7,7 @@
 		Laptop,
 		Tree,
 		WarningCircle,
-	} from "../icons/index.js";
+	} from "phosphor-svelte";
 	import { Button } from "../button/index.js";
 	import * as DropdownMenu from "../dropdown-menu/index.js";
 	import { Selector } from "../selector/index.js";

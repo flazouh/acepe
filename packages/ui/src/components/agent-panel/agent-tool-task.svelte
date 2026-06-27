@@ -1,6 +1,6 @@
 <script lang="ts">
-	import { IconCircleCheckFilled } from "../icons/index.js";
-	import { CaretRight } from "../icons/index.js";
+	import { IconCircleCheckFilled } from "@tabler/icons-svelte";
+	import { CaretRight } from "phosphor-svelte";
 	import type { AgentToolStatus, AnyAgentEntry } from "./types.js";
 	import AgentToolCard from "./agent-tool-card.svelte";
 	import AgentToolRow from "./agent-tool-row.svelte";

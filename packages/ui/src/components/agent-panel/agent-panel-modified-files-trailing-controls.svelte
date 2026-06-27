@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { Button } from "../button/index.js";
-	import { CaretDown, FileCode } from "../icons/index.js";
+	import { CaretDown, FileCode } from "phosphor-svelte";
 
 	import type { AgentPanelModifiedFilesTrailingModel } from "./types.js";
 

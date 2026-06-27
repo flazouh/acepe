@@ -1,5 +1,5 @@
 <script lang="ts">
-import { ArrowLeft } from "@acepe/ui/icons";
+import { ArrowLeft } from "phosphor-svelte";
 import { SvelteMap, SvelteSet } from "svelte/reactivity";
 import { toast } from "svelte-sonner";
 import { Button } from "$lib/components/ui/button/index.js";

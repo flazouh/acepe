@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { HardDrives } from "../icons/index.js";
+	import { HardDrives } from "phosphor-svelte";
 	import { cn } from "../../lib/utils.js";
 	import type { SqlDbEngine } from "./types.js";
 

@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { CaretDown } from "../icons/index.js";
+	import { CaretDown } from "phosphor-svelte";
 	import { untrack } from "svelte";
 	import { FilePathBadge } from "../file-path-badge/index.js";
 	import AgentToolCard from "./agent-tool-card.svelte";

@@ -24,7 +24,7 @@ import {
 	type AppProjectGroup,
 	type AppTab,
 } from "@acepe/ui/app-layout";
-import { CaretDown, Plus, DotsThreeVertical, Terminal, Browser } from "@acepe/ui/icons";
+import { CaretDown, Plus, DotsThreeVertical, Terminal, Browser } from "phosphor-svelte";
 import { ProjectLetterBadge } from "@acepe/ui";
 import { CloseAction, FullscreenAction, OverflowMenuTriggerAction } from "@acepe/ui/panel-header";
 

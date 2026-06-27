@@ -1,6 +1,6 @@
 <script lang="ts">
-import { CaretRight } from "@acepe/ui/icons";
-import { PuzzlePiece } from "@acepe/ui/icons";
+import { CaretRight } from "phosphor-svelte";
+import { PuzzlePiece } from "phosphor-svelte";
 import { SvelteSet } from "svelte/reactivity";
 import * as Collapsible from "$lib/components/ui/collapsible/index.js";
 

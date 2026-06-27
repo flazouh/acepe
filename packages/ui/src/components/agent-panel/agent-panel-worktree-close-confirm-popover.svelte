@@ -3,7 +3,7 @@
   All copy is supplied by the host app.
 -->
 <script lang="ts">
-	import { Trash } from "../icons/index.js";
+	import { Trash } from "phosphor-svelte";
 
 	import * as Popover from "../popover/index.js";
 

@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { ArrowsInSimple, ArrowsOutSimple } from "../icons/index.js";
+	import { ArrowsInSimple, ArrowsOutSimple } from "phosphor-svelte";
 
 	import { PlanIcon } from "../icons/index.js";
 	import {

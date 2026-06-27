@@ -1,5 +1,5 @@
 <script lang="ts">
-import { Plus } from "@acepe/ui/icons";
+import { Plus } from "phosphor-svelte";
 import SkillsPage from "$lib/skills/components/skills-page.svelte";
 
 let skillsPageRef: ReturnType<typeof SkillsPage> | undefined = $state();

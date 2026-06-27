@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { DropdownMenu as DropdownMenuPrimitive } from "bits-ui";
 	import { type WithoutChild, cn } from "../../lib/utils";
-	import { LuCircle as CircleIcon } from "../icons/index.js";
+	import CircleIcon from "@lucide/svelte/icons/circle";
 	import { dropdownMenuItemRadiusClass } from "./dropdown-menu-item.classes.js";
 	import { getDropdownMenuHighlightContext } from "./dropdown-menu-highlight-context";
 

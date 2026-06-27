@@ -1,8 +1,8 @@
 <script lang="ts">
 import { Selector } from "@acepe/ui";
 import * as DropdownMenu from "@acepe/ui/dropdown-menu";
-import { Moon } from "@acepe/ui/icons";
-import { Sun } from "@acepe/ui/icons";
+import { Moon } from "phosphor-svelte";
+import { Sun } from "phosphor-svelte";
 
 import { useTheme } from "./context.svelte.js";
 

@@ -1,5 +1,5 @@
 <script lang="ts">
-import { Check, FolderOpen, GitBranch, Trash, Tree } from "@acepe/ui/icons";
+import { Check, FolderOpen, GitBranch, Trash, Tree } from "phosphor-svelte";
 import type { WorktreeListItem } from "../../store/git-modal-state.js";
 import type { WorktreeInfo } from "../../types/worktree-info.js";
 

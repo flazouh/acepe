@@ -1,6 +1,6 @@
 <script lang="ts">
-import { CheckCircle } from "@acepe/ui/icons";
-import { X } from "@acepe/ui/icons";
+import { CheckCircle } from "phosphor-svelte";
+import { X } from "phosphor-svelte";
 import { Button } from "$lib/components/ui/button/index.js";
 import { cn } from "$lib/utils.js";
 

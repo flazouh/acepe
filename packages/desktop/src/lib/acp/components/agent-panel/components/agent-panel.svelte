@@ -11,7 +11,7 @@ import { DiffPill, setThinkingPreferences } from "@acepe/ui";
 import { Button } from "@acepe/ui/button";
 import * as ButtonGroup from "@acepe/ui/button-group";
 import { EmbeddedIconButton } from "@acepe/ui/panel-header";
-import { LuArrowUp as ArrowUp } from "@acepe/ui/icons";
+import ArrowUp from "@lucide/svelte/icons/arrow-up";
 import {
 	CaretLeft,
 	CaretRight,
@@ -19,7 +19,7 @@ import {
 	Clock,
 	GitPullRequest,
 	XCircle,
-} from "@acepe/ui/icons";
+} from "phosphor-svelte";
 import { onDestroy, onMount, tick } from "svelte";
 import { toast } from "svelte-sonner";
 import type { TurnState } from "../../../store/types.js";

@@ -1,5 +1,5 @@
 <script lang="ts">
-import { LuChevronDown as ChevronDown } from "@acepe/ui/icons";
+import ChevronDown from "@lucide/svelte/icons/chevron-down";
 
 interface AnimatedChevronProps {
 	/**

@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { IconAdjustments, IconArrowRight, IconTerminal } from "../icons/index.js";
+	import { IconAdjustments, IconArrowRight, IconTerminal } from "@tabler/icons-svelte";
 	import AgentToolCard from "../agent-panel/agent-tool-card.svelte";
 	import type { CommandChipModel } from "./command-chip.types.js";
 

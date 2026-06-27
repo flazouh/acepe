@@ -3,7 +3,7 @@
 -->
 <script lang="ts">
 	import type { Snippet } from "svelte";
-	import { CheckCircle, File, Image as ImageIcon, Plus } from "../icons/index.js";
+	import { CheckCircle, File, Image as ImageIcon, Plus } from "phosphor-svelte";
 
 	import * as DropdownMenu from "../dropdown-menu/index.js";
 	import { EmbeddedIconButton } from "../panel-header/index.js";

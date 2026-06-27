@@ -1,5 +1,5 @@
 <script lang="ts">
-import { LuPanelLeft as PanelLeftIcon } from "@acepe/ui/icons";
+import PanelLeftIcon from "@lucide/svelte/icons/panel-left";
 import type { ComponentProps } from "svelte";
 import { Button } from "$lib/components/ui/button/index.js";
 import { cn } from "$lib/utils.js";

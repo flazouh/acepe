@@ -7,7 +7,7 @@
 
 import type { SqlConnection, SqlFilterOperator, SqlSchemaInfo } from "@acepe/ui/sql-studio";
 import { SqlStudioLayout } from "@acepe/ui/sql-studio";
-import { Database, FolderOpen } from "@acepe/ui/icons";
+import { Database, FolderOpen } from "phosphor-svelte";
 import { onMount } from "svelte";
 import { toast } from "svelte-sonner";
 import { getWorkspaceStore } from "$lib/acp/store/workspace-store.svelte.js";

@@ -1,17 +1,17 @@
 <script lang="ts">
-	import { NumberCircleOne } from "../icons/index.js";
-	import { NumberCircleTwo } from "../icons/index.js";
-	import { NumberCircleThree } from "../icons/index.js";
-	import { NumberCircleFour } from "../icons/index.js";
-	import { NumberCircleFive } from "../icons/index.js";
-	import { NumberCircleSix } from "../icons/index.js";
-	import { NumberCircleSeven } from "../icons/index.js";
-	import { NumberCircleEight } from "../icons/index.js";
-	import { NumberCircleNine } from "../icons/index.js";
-	import { CheckCircle } from "../icons/index.js";
-	import { CircleNotch } from "../icons/index.js";
-	import { XCircle } from "../icons/index.js";
-	import { Circle } from "../icons/index.js";
+	import { NumberCircleOne } from "phosphor-svelte";
+	import { NumberCircleTwo } from "phosphor-svelte";
+	import { NumberCircleThree } from "phosphor-svelte";
+	import { NumberCircleFour } from "phosphor-svelte";
+	import { NumberCircleFive } from "phosphor-svelte";
+	import { NumberCircleSix } from "phosphor-svelte";
+	import { NumberCircleSeven } from "phosphor-svelte";
+	import { NumberCircleEight } from "phosphor-svelte";
+	import { NumberCircleNine } from "phosphor-svelte";
+	import { CheckCircle } from "phosphor-svelte";
+	import { CircleNotch } from "phosphor-svelte";
+	import { XCircle } from "phosphor-svelte";
+	import { Circle } from "phosphor-svelte";
 
 	import type { AgentTodoStatus } from "./types.js";
 

@@ -9,7 +9,7 @@
 	 * - <span>   otherwise
 	 */
 	import type { Snippet } from 'svelte';
-	import { GitCommit, GitMerge, GitPullRequest } from '../icons/index.js';
+	import { GitCommit, GitMerge, GitPullRequest } from 'phosphor-svelte';
 
 	import { ChipShell } from '../chip/index.js';
 	import { DiffPill } from '../diff-pill/index.js';

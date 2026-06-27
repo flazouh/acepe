@@ -50,7 +50,7 @@ import type { PermissionRequest } from "$lib/acp/types/permission.js";
 import type { QuestionRequest } from "$lib/acp/types/question.js";
 import { useTheme } from "$lib/components/theme/context.svelte.js";
 import { tauriClient } from "$lib/utils/tauri-client.js";
-import { Plus } from "@acepe/ui/icons";
+import { Plus } from "phosphor-svelte";
 import { toast } from "svelte-sonner";
 import { replyToPlanApprovalRequest } from "$lib/acp/logic/interaction-reply.js";
 

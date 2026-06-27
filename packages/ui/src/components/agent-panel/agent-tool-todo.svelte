@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { ListChecks } from "../icons/index.js";
+	import { ListChecks } from "phosphor-svelte";
 	import AgentToolCard from "./agent-tool-card.svelte";
 	import {
 		getTodoDisplayRows,

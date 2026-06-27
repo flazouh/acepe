@@ -4,7 +4,7 @@
  */
 
 import { okAsync, type ResultAsync } from "neverthrow";
-import { ChatCircle } from "@acepe/ui/icons";
+import { ChatCircle } from "phosphor-svelte";
 import type { SessionPaletteReference } from "../../../store/session-cold-index.js";
 import type { SessionStore } from "../../../store/session-store.svelte.js";
 import { normalizeTitleForDisplay } from "../../../store/session-title-policy.js";

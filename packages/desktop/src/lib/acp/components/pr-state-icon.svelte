@@ -1,7 +1,7 @@
 <script lang="ts">
 import { Colors } from "@acepe/ui/colors";
-import { GitMerge } from "@acepe/ui/icons";
-import { GitPullRequest } from "@acepe/ui/icons";
+import { GitMerge } from "phosphor-svelte";
+import { GitPullRequest } from "phosphor-svelte";
 import type { PrState } from "$lib/utils/tauri-client/git.js";
 
 interface Props {

@@ -1,8 +1,8 @@
 <script lang="ts">
-import { IconSquare } from "../icons/index.js";
+import { IconSquare } from "@tabler/icons-svelte";
 import type { Snippet } from "svelte";
 
-import { CheckCircle, FileCode, Keyboard, Pulse, Warning } from "../icons/index.js";
+import { CheckCircle, FileCode, Keyboard, Pulse, Warning } from "phosphor-svelte";
 
 import AgentCompactToolDisplay from "../agent-panel/compact-tool-display.svelte";
 import AgentToolBrowser from "../agent-panel/agent-tool-browser.svelte";

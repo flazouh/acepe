@@ -1,5 +1,5 @@
 <script lang="ts">
-import { GitBranch, ChatCircle, Lightning } from "@acepe/ui/icons";
+import { GitBranch, ChatCircle, Lightning } from "phosphor-svelte";
 import type { ProviderBrand } from "@acepe/ui";
 
 import LandingDemoFrame from "./landing-demo-frame.svelte";

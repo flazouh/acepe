@@ -1,5 +1,5 @@
 <script lang="ts">
-import { GitBranch } from "@acepe/ui/icons";
+import { GitBranch } from "phosphor-svelte";
 import SettingsComingSoon from "../settings-coming-soon.svelte";
 import SettingsSection from "../settings-section.svelte";
 </script>

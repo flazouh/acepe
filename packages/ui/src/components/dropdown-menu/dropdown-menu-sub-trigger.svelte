@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { LuChevronRight as ChevronRightIcon } from "../icons/index.js";
+	import ChevronRightIcon from "@lucide/svelte/icons/chevron-right";
 	import { DropdownMenu as DropdownMenuPrimitive } from "bits-ui";
 	import { cn } from "../../lib/utils";
 	import { dropdownMenuItemRadiusClass } from "./dropdown-menu-item.classes.js";

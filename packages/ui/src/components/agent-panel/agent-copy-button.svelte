@@ -1,6 +1,6 @@
 <script lang="ts">
-	import { IconCheck } from "../icons/index.js";
-	import { Copy } from "../icons/index.js";
+	import { IconCheck } from "@tabler/icons-svelte";
+	import { Copy } from "phosphor-svelte";
 
 	import EmbeddedIconButton from "../panel-header/embedded-icon-button.svelte";
 

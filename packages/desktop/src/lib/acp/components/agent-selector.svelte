@@ -4,7 +4,7 @@ import { Selector, AgentInputSelectorItemRow } from "@acepe/ui";
 import type { ButtonVariant } from "@acepe/ui";
 import * as DropdownMenu from "@acepe/ui/dropdown-menu";
 import { Skeleton } from "$lib/components/ui/skeleton/index.js";
-import { Heart } from "@acepe/ui/icons";
+import { Heart } from "phosphor-svelte";
 import { getAgentPreferencesStore } from "../store/index.js";
 import { capitalizeName } from "../utils/index.js";
 import { createLogger } from "../utils/logger.js";

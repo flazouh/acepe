@@ -1,5 +1,5 @@
 <script lang="ts">
-import { Bug, HardDrives, SlidersHorizontal } from "@acepe/ui/icons";
+import { Bug, HardDrives, SlidersHorizontal } from "phosphor-svelte";
 import type { Snippet } from "svelte";
 
 import { AppTopBar } from "@acepe/ui/app-layout";

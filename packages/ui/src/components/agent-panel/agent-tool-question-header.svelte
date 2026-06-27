@@ -1,6 +1,6 @@
 <script lang="ts">
-	import { XCircle } from "../icons/index.js";
-	import { IconHelpCircleFilled } from "../icons/index.js";
+	import { XCircle } from "phosphor-svelte";
+	import { IconHelpCircleFilled } from "@tabler/icons-svelte";
 	import {
 		EmbeddedPanelHeader,
 		HeaderActionCell,

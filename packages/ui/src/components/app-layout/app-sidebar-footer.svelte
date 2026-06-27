@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { DiscordLogo, GithubLogo } from "../icons/index.js";
+	import { DiscordLogo, GithubLogo } from "phosphor-svelte";
 	import { Button } from "../button/index.js";
 
 	interface Props {

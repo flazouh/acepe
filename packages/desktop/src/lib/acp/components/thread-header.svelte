@@ -1,6 +1,6 @@
 <script lang="ts">
-import { IconTrash } from "@acepe/ui/icons";
-import { IconX } from "@acepe/ui/icons";
+import { IconTrash } from "@tabler/icons-svelte";
+import { IconX } from "@tabler/icons-svelte";
 import { Badge } from "$lib/components/ui/badge/index.js";
 import { Button } from "$lib/components/ui/button/index.js";
 import type { ThreadState } from "../types/thread-state.js";

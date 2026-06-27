@@ -1,6 +1,6 @@
 <script lang="ts">
-	import { IconTerminal } from "../icons/index.js";
-	import { IconPlug } from "../icons/index.js";
+	import { IconTerminal } from "@tabler/icons-svelte";
+	import { IconPlug } from "@tabler/icons-svelte";
 	import * as Dialog from "../dialog/index.js";
 	import { StreamdownMarkdown } from "../streamdown-markdown/index.js";
 	import { INLINE_ARTEFACT_PACKAGE_PATH } from "../inline-artefact-badge/inline-artefact-badge.styles.js";

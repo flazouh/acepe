@@ -4,7 +4,7 @@
   State and registry stay in desktop. Component accepts the current state and callbacks.
 -->
 <script lang="ts">
-	import { CheckCircle } from "../icons/index.js";
+	import { CheckCircle } from "phosphor-svelte";
 
 	import * as DropdownMenu from "../dropdown-menu/index.js";
 	import { Selector } from "../selector/index.js";

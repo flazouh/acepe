@@ -3,7 +3,7 @@ import { ArrowRightIcon, PillButton, BrandLockup } from "@acepe/ui";
 import Header from "$lib/components/header.svelte";
 import Seo from "$lib/components/seo/seo.svelte";
 import ZeusShaderStage from "$lib/components/zeus-shader-stage.svelte";
-import { GithubLogo } from "@acepe/ui/icons";
+import { GithubLogo } from "phosphor-svelte";
 
 let { data } = $props();
 

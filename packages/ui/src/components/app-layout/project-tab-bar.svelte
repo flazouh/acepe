@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { IconPlus } from "../icons/index.js";
+	import { IconPlus } from "@tabler/icons-svelte";
 	import { ProjectLetterBadge } from "../project-letter-badge/index.js";
 
 	interface ProjectTab {

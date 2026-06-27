@@ -1,8 +1,8 @@
 <script lang="ts">
 import { AgentToolCard } from "@acepe/ui/agent-panel";
-import { IconAdjustments } from "@acepe/ui/icons";
-import { IconArrowRight } from "@acepe/ui/icons";
-import { IconTerminal } from "@acepe/ui/icons";
+import { IconAdjustments } from "@tabler/icons-svelte";
+import { IconArrowRight } from "@tabler/icons-svelte";
+import { IconTerminal } from "@tabler/icons-svelte";
 
 import type { CommandOutput } from "../../utils/command-output-parser.js";
 import { buildCommandOutputCardState } from "./command-output-card-state.js";

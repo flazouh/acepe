@@ -26,7 +26,7 @@ export type Side = VariantProps<typeof sheetVariants>["side"];
 
 	import { type WithoutChildrenOrChild, cn } from "$lib/utils.js";
 	import { Dialog as SheetPrimitive } from "bits-ui";
-	import { LuX as XIcon } from "@acepe/ui/icons";
+	import XIcon from "@lucide/svelte/icons/x";
 
 	import SheetOverlay from "./sheet-overlay.svelte";
 	import SheetPortal from "./sheet-portal.svelte";

@@ -7,7 +7,7 @@
 		Robot,
 		SealQuestion,
 		ShieldCheck,
-	} from "../icons/index.js";
+	} from "phosphor-svelte";
 
 	import { getModeIconColor, type ModeIconKind } from "./agent-input-mode-selector-state.js";
 

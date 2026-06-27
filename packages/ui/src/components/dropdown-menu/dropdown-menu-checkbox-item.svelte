@@ -3,8 +3,8 @@
 
 	import { DropdownMenu as DropdownMenuPrimitive } from "bits-ui";
 	import { type WithoutChildrenOrChild, cn } from "../../lib/utils";
-	import { LuCheck as CheckIcon } from "../icons/index.js";
-	import { LuMinus as MinusIcon } from "../icons/index.js";
+	import CheckIcon from "@lucide/svelte/icons/check";
+	import MinusIcon from "@lucide/svelte/icons/minus";
 	import { dropdownMenuItemRadiusClass } from "./dropdown-menu-item.classes.js";
 	import { getDropdownMenuHighlightContext } from "./dropdown-menu-highlight-context";
 

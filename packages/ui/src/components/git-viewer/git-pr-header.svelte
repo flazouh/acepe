@@ -1,8 +1,8 @@
 <script lang="ts">
-	import { GitPullRequest } from "../icons/index.js";
-	import { ArrowSquareOut } from "../icons/index.js";
-	import { CaretDown } from "../icons/index.js";
-	import { GitMerge } from "../icons/index.js";
+	import { GitPullRequest } from "phosphor-svelte";
+	import { ArrowSquareOut } from "phosphor-svelte";
+	import { CaretDown } from "phosphor-svelte";
+	import { GitMerge } from "phosphor-svelte";
 
 	import { DiffPill } from "../diff-pill/index.js";
 	import { cn } from "../../lib/utils.js";

@@ -5,7 +5,7 @@
 	 *
 	 * This is a "dumb" component - all data and actions are passed via props.
 	 */
-	import { ArrowLeft } from '../icons/index.js';
+	import { ArrowLeft } from 'phosphor-svelte';
 	import { LoadingIcon } from '../icons/index.js';
 	import type { Snippet } from 'svelte';
 	import { Button } from '../button/index.js';

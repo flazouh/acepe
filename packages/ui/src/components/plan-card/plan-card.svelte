@@ -16,8 +16,8 @@
   } from "../panel-header/index.js";
   import { Button } from "../button/index.js";
   import { PlanIcon, BuildIcon, LoadingIcon } from "../icons/index.js";
-  import { XCircle } from "../icons/index.js";
-  import { ArrowsOut } from "../icons/index.js";
+  import { XCircle } from "phosphor-svelte";
+  import { ArrowsOut } from "phosphor-svelte";
 
   interface Props {
     content: string;

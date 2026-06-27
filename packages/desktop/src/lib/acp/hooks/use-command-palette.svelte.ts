@@ -1,4 +1,4 @@
-import { IconPlus } from "@acepe/ui/icons";
+import { IconPlus } from "@tabler/icons-svelte";
 import { okAsync, type ResultAsync } from "neverthrow";
 import { LOGGER_IDS } from "../constants/logger-ids.js";
 import { CommandPaletteManager } from "../logic/command-palette-manager.js";

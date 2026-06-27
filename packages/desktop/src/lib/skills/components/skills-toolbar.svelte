@@ -1,7 +1,7 @@
 <script lang="ts">
 import { Selector } from "@acepe/ui";
 import * as DropdownMenu from "@acepe/ui/dropdown-menu";
-import { Copy, MoreHorizontal, Plus, Save, Trash2 } from "@acepe/ui/icons";
+import { Copy, MoreHorizontal, Plus, Save, Trash2 } from "@lucide/svelte/icons";
 import { Button } from "$lib/components/ui/button/index.js";
 import { Spinner } from "$lib/components/ui/spinner/index.js";
 

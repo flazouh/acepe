@@ -1,7 +1,7 @@
 <script lang="ts">
 	import type { Snippet } from "svelte";
 
-	import { IconTerminal } from "../icons/index.js";
+	import { IconTerminal } from "@tabler/icons-svelte";
 	import { ProjectLetterBadge } from "../project-letter-badge/index.js";
 	import {
 		CloseAction,

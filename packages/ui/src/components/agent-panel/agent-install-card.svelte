@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { LuChevronDown as ChevronDown } from "../icons/index.js";
+	import ChevronDown from "@lucide/svelte/icons/chevron-down";
 	import type { Snippet } from "svelte";
 
 	import { LoadingIcon } from "../icons/index.js";

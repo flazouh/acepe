@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { Check, DotsThree } from "../icons/index.js";
+	import { Check, DotsThree } from "phosphor-svelte";
 	import { shouldStopQuestionOtherKey } from "./agent-tool-question-state.js";
 
 	interface Props {

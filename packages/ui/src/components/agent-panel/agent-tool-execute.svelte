@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { CheckCircle, XCircle, CaretDown } from "../icons/index.js";
+	import { CheckCircle, XCircle, CaretDown } from "phosphor-svelte";
 	import AgentToolCard from "./agent-tool-card.svelte";
 	import { scrollToEnd } from "./agent-tool-execute-effects.js";
 	import {

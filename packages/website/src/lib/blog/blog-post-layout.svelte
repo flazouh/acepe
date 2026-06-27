@@ -1,7 +1,7 @@
 <script lang="ts">
 import Header from "$lib/components/header.svelte";
 import Seo from "$lib/components/seo/seo.svelte";
-import { ArrowLeft } from "@acepe/ui/icons";
+import { ArrowLeft } from "@lucide/svelte";
 import type { BlogPostMetadata } from "./types.js";
 import type { Snippet } from "svelte";
 

@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { PencilRuler } from "./index.js";
+	import { PencilRuler } from "phosphor-svelte";
 
 	interface Props {
 		size?: "sm" | "md" | "lg";

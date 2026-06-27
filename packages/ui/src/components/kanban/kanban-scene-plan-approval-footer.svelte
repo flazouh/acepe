@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { CheckCircle, FileCode, XCircle } from "../icons/index.js";
+	import { CheckCircle, FileCode, XCircle } from "phosphor-svelte";
 
 	import { EmbeddedPanelHeader, HeaderActionCell, HeaderTitleCell } from "../panel-header/index.js";
 

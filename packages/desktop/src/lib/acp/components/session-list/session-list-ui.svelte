@@ -6,16 +6,16 @@ import {
 	ProjectHeaderOverflowMenu,
 } from "@acepe/ui/app-layout";
 import { Colors } from "@acepe/ui/colors";
-import { LuChevronUp as ChevronUp } from "@acepe/ui/icons";
-import { IconArrowDown } from "@acepe/ui/icons";
-import { IconArrowUp } from "@acepe/ui/icons";
-import { IconPlus } from "@acepe/ui/icons";
+import ChevronUp from "@lucide/svelte/icons/chevron-up";
+import { IconArrowDown } from "@tabler/icons-svelte";
+import { IconArrowUp } from "@tabler/icons-svelte";
+import { IconPlus } from "@tabler/icons-svelte";
 import { listen } from "@tauri-apps/api/event";
-import { ArrowsClockwise } from "@acepe/ui/icons";
-import { Check } from "@acepe/ui/icons";
-import { GitBranch } from "@acepe/ui/icons";
-import { FolderOpen } from "@acepe/ui/icons";
-import { MagnifyingGlass } from "@acepe/ui/icons";
+import { ArrowsClockwise } from "phosphor-svelte";
+import { Check } from "phosphor-svelte";
+import { GitBranch } from "phosphor-svelte";
+import { FolderOpen } from "phosphor-svelte";
+import { MagnifyingGlass } from "phosphor-svelte";
 import { tick } from "svelte";
 import { SvelteMap, SvelteSet } from "svelte/reactivity";
 import { toast } from "svelte-sonner";

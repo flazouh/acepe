@@ -1,5 +1,5 @@
 <script lang="ts">
-import { Check, Copy } from "@acepe/ui/icons";
+import { Check, Copy } from "@lucide/svelte";
 
 interface Props {
 	/** The shell command shown after the `$` prompt, e.g. `brew install --cask acepe`. */

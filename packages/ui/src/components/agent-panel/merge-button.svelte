@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { GitMerge } from "../icons/index.js";
+	import { GitMerge } from "phosphor-svelte";
 
 	interface MergeOption {
 		id: string;

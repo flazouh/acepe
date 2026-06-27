@@ -1,7 +1,7 @@
 <script lang="ts">
 import { Colors } from "@acepe/ui/colors";
-import { CheckCircle } from "@acepe/ui/icons";
-import { XCircle } from "@acepe/ui/icons";
+import { CheckCircle } from "phosphor-svelte";
+import { XCircle } from "phosphor-svelte";
 interface Props {
 	onUndo: () => void;
 	onKeep: () => void;

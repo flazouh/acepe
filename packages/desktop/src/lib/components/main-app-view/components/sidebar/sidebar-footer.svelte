@@ -1,7 +1,7 @@
 <script lang="ts">
 import { Button } from "@acepe/ui";
 import { openUrl } from "@tauri-apps/plugin-opener";
-import { DiscordLogo, GithubLogo } from "@acepe/ui/icons";
+import { DiscordLogo, GithubLogo } from "phosphor-svelte";
 import { onMount } from "svelte";
 import type { ProjectManager } from "$lib/acp/logic/project-manager.svelte.js";
 

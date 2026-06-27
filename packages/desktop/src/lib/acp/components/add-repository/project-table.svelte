@@ -1,5 +1,5 @@
 <script lang="ts">
-import { FolderSimple } from "@acepe/ui/icons";
+import { FolderSimple } from "phosphor-svelte";
 import {
 	Table,
 	TableBody,

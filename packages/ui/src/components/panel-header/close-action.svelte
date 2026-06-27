@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { X } from "../icons/index.js";
+	import { X } from "phosphor-svelte";
 
 	import EmbeddedIconButton from "./embedded-icon-button.svelte";
 

@@ -1,5 +1,5 @@
 <script lang="ts">
-import { ChevronDown, ChevronRight, FileText, FolderOpen, Puzzle } from "@acepe/ui/icons";
+import { ChevronDown, ChevronRight, FileText, FolderOpen, Puzzle } from "@lucide/svelte/icons";
 import AgentIcon from "$lib/acp/components/agent-icon.svelte";
 import { cn } from "$lib/utils.js";
 import { getSkillsStore } from "../store/skills-store.svelte.js";

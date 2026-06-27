@@ -5,8 +5,8 @@ import Seo from "$lib/components/seo/seo.svelte";
 import type { BlogPostMetadata } from "$lib/blog/types.js";
 import { getAllBlogPosts } from "$lib/blog/posts.js";
 import type { Component } from "svelte";
-import { ArrowRight } from "@acepe/ui/icons";
-import { HardDrives, Eye, GitBranch, ClockCounterClockwise, BellRinging } from "@acepe/ui/icons";
+import { ArrowRight } from "@lucide/svelte";
+import { HardDrives, Eye, GitBranch, ClockCounterClockwise, BellRinging } from "phosphor-svelte";
 
 let { data } = $props();
 

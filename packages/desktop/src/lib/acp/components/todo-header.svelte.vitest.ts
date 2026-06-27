@@ -61,6 +61,14 @@ vi.mock("./messages/copy-button.svelte", async () => {
 	};
 });
 
+vi.mock("phosphor-svelte/lib/CheckCircle", async () => {
+	const Stub = (await import("./pr-status-card/test-component-stub.svelte")).default;
+
+	return {
+		default: Stub,
+	};
+});
+
 afterEach(() => {
 	cleanup();
 	mockGetTodoStateFromToolCalls.mockReset();

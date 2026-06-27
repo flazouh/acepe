@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { SlidersHorizontal } from "../icons/index.js";
+	import { SlidersHorizontal } from "phosphor-svelte";
 	import type { Snippet } from "svelte";
 
 	interface Props {
