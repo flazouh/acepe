@@ -115,15 +115,15 @@ function setAgentChecked(agentId: string, checked: boolean): void {
 </script>
 
 <div class="w-full space-y-6">
-	<div class="flex items-center justify-between border-b border-border/50 py-2.5">
-		<span class="text-[12px] font-medium text-foreground">Default agent</span>
+	<div class="flex items-center justify-between border-b border-border/50 py-3">
+		<span class="text-sm font-medium text-foreground">Default agent</span>
 		<Selector align="end" variant="ghost" triggerSize="minimal" showChevron={false}>
 			{#snippet renderButton()}
 				{#if defaultAgent}
 					<AgentIcon agentId={defaultAgent.id} class="size-3.5 shrink-0" size={14} />
-					<span class="text-[12px] font-medium text-foreground">{defaultAgent.name}</span>
+					<span class="text-sm font-medium text-foreground">{defaultAgent.name}</span>
 				{:else}
-					<span class="text-[12px] font-medium text-foreground">First available</span>
+					<span class="text-sm font-medium text-foreground">First available</span>
 				{/if}
 				<CaretDown class="ml-1 size-2.5 shrink-0 opacity-40" weight="bold" />
 			{/snippet}
@@ -167,13 +167,13 @@ function setAgentChecked(agentId: string, checked: boolean): void {
 		{@const isEnabled = agentPreferencesStore.selectedAgentIds.includes(agent.id)}
 
 		<div
-			class="grid grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-2 py-2.5 {index > 0
+			class="grid grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-2 py-3 {index > 0
 				? 'border-t border-border/50'
 				: ''}"
 		>
 			<div class="flex min-w-0 items-center gap-2">
 				<AgentIcon agentId={agent.id} class="size-3.5 shrink-0" size={14} />
-				<span class="truncate text-[12px] font-medium text-foreground">{agent.name}</span>
+				<span class="truncate text-sm font-medium text-foreground">{agent.name}</span>
 			</div>
 
 			<div class="flex justify-end">
@@ -223,11 +223,11 @@ function setAgentChecked(agentId: string, checked: boolean): void {
 			</div>
 			{#each agentPreferencesStore.customAgentConfigs as config, index (config.id)}
 				<div
-					class="grid grid-cols-[minmax(0,1fr)_minmax(0,2fr)] items-center gap-2 py-2.5 {index > 0
+					class="grid grid-cols-[minmax(0,1fr)_minmax(0,2fr)] items-center gap-2 py-3 {index > 0
 						? 'border-t border-border/50'
 						: ''}"
 				>
-					<span class="truncate text-[12px] font-medium text-foreground">{config.name}</span>
+					<span class="truncate text-sm font-medium text-foreground">{config.name}</span>
 					<span class="truncate font-mono text-[12px] text-muted-foreground">{config.command}</span>
 				</div>
 			{/each}
