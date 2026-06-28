@@ -1228,6 +1228,7 @@ mod tests {
                         source_model_id: None,
                         timestamp_ms: None,
                         context_window_size: None,
+                        parent_tool_use_id: None,
                     },
                 },
             );

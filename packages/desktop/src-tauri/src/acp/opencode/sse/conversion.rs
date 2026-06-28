@@ -583,6 +583,7 @@ pub(super) fn convert_message_part_to_session_update(properties: &Value) -> Part
             source_model_id: None,
             timestamp_ms: None,
             context_window_size: None,
+            parent_tool_use_id: None,
         };
         return PartConversionResult::Converted(Box::new(SessionUpdate::UsageTelemetryUpdate {
             data,

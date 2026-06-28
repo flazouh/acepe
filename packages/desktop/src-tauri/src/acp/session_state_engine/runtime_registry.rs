@@ -2818,6 +2818,7 @@ mod tests {
                 source_model_id: None,
                 timestamp_ms: Some(1_234),
                 context_window_size: Some(200_000),
+                parent_tool_use_id: None,
             },
             revision,
         );

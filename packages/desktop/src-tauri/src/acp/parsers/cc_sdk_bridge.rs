@@ -203,7 +203,8 @@ fn translate_assistant(
     if let Some(error) = message.error.as_ref() {
         if message.parent_tool_use_id.is_none() {
             if let Some(usage) = message.usage.as_ref() {
-                if let Some(telemetry) = build_usage_telemetry_from_json(usage, session_id.clone())
+                if let Some(telemetry) =
+                    build_usage_telemetry_from_json(usage, session_id.clone(), None, None)
                 {
                     updates.push(SessionUpdate::UsageTelemetryUpdate { data: telemetry });
                 }
@@ -219,6 +220,7 @@ fn translate_assistant(
     }
 
     let parent_tool_use_id = message.parent_tool_use_id.clone();
+    let message_model = message.model.clone();
 
     for block in message.content {
         match block {
@@ -322,12 +324,24 @@ fn translate_assistant(
         }
     }
 
-    // Emit usage telemetry if present
-    if parent_tool_use_id.is_none() {
-        if let Some(usage) = message.usage {
-            if let Some(telemetry) = build_usage_telemetry_from_json(&usage, session_id.clone()) {
-                updates.push(SessionUpdate::UsageTelemetryUpdate { data: telemetry });
-            }
+    // Emit usage telemetry if present. Top-level messages produce session-level
+    // telemetry (parent_tool_use_id = None); sub-agent messages produce per-sub-agent
+    // telemetry keyed by the parent Task tool-call id and carrying the sub-agent's
+    // own model — previously these were discarded.
+    if let Some(usage) = message.usage {
+        // Carry the sub-agent's own model only for sub-agent telemetry.
+        let source_model_id = if parent_tool_use_id.is_some() {
+            message_model.clone()
+        } else {
+            None
+        };
+        if let Some(telemetry) = build_usage_telemetry_from_json(
+            &usage,
+            session_id.clone(),
+            parent_tool_use_id.clone(),
+            source_model_id,
+        ) {
+            updates.push(SessionUpdate::UsageTelemetryUpdate { data: telemetry });
         }
     }
 
@@ -783,6 +797,7 @@ fn translate_system_message(
             .or_else(|| data.get("timestamp_ms"))
             .and_then(|v| v.as_i64()),
         context_window_size,
+        parent_tool_use_id: None,
     };
 
     vec![SessionUpdate::UsageTelemetryUpdate { data: telemetry }]
@@ -818,9 +833,15 @@ fn context_window_for_model(model_id: &str) -> Option<u64> {
 // ---------------------------------------------------------------------------
 
 /// Build `UsageTelemetryData` from an assistant-message `usage` JSON blob.
+///
+/// `parent_tool_use_id` + `source_model_id` are `None` for top-level session
+/// telemetry and `Some(..)` for a spawned sub-agent's per-call usage (keyed by the
+/// parent `Task` tool-call id and carrying the sub-agent's own model).
 fn build_usage_telemetry_from_json(
     usage: &serde_json::Value,
     session_id: Option<String>,
+    parent_tool_use_id: Option<String>,
+    source_model_id: Option<String>,
 ) -> Option<UsageTelemetryData> {
     let sid = session_id.filter(|session_id| !session_id.is_empty())?;
 
@@ -852,9 +873,10 @@ fn build_usage_telemetry_from_json(
             cache_write,
             reasoning: None,
         },
-        source_model_id: None,
+        source_model_id,
         timestamp_ms: None,
         context_window_size: None,
+        parent_tool_use_id,
     })
 }
 
@@ -908,6 +930,7 @@ fn build_result_telemetry(
             .and_then(|usage| model_id.and_then(|model| usage.get(model)))
             .and_then(|usage| usage.get("contextWindow"))
             .and_then(|value| value.as_u64()),
+        parent_tool_use_id: None,
     })
 }
 
