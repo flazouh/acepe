@@ -697,6 +697,10 @@ export class TranscriptViewportWebviewAdapter {
 	}
 
 	scrollToTop(): void {
+		this.#userScrollingAwayFromTail = true;
+		this.#locallyDetachedFromTail = true;
+		this.#bottomJumpPinRequested = false;
+		this.#queuePhysicalScrollCommand("resolvedOutsideBufferTarget", 0, "immediate");
 		this.#dispatchScrollIntent(0, { forceFresh: true });
 	}
 

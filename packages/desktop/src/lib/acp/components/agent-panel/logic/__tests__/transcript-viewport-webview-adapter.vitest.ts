@@ -410,4 +410,21 @@ describe("TranscriptViewportWebviewAdapter", () => {
 		expect(state.scrollIntents).toEqual([]);
 		expect(state.forcedScrollIntents).toEqual([]);
 	});
+
+	it("scrollToTop physically moves the viewport and requests a fresh top intent", () => {
+		const { adapter, state } = createHarness({
+			projection: projection({ mode: { kind: "followingTail" } }),
+		});
+		const { node, scrollWrites } = createScrollContainer({
+			scrollTop: 800,
+			scrollHeight: 1200,
+			clientHeight: 400,
+		});
+		adapter.attachScrollContainer(node);
+
+		adapter.scrollToTop();
+
+		expect(scrollWrites()).toEqual([0]);
+		expect(state.forcedScrollIntents).toEqual([0]);
+	});
 });
