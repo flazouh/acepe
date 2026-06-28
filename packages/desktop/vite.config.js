@@ -29,9 +29,15 @@ const uiPackageSrc = path.resolve(uiPackageRoot, "src");
  * racing native HMR, is exactly what turned every UI-package edit into a full
  * page reload. Leaving content changes to Vite fixes that.
  *
- * Only structural changes — a UI source file being added or removed, which can
- * shift the package's export surface and isn't a safe in-place HMR boundary —
- * fall back to a (rare) full reload.
+ * Adding a new UI source file does NOT need a reload: a brand-new file isn't in
+ * the module graph until something imports it, and the edit that adds that
+ * import HMR-updates the importer, which loads the new module on demand. So we
+ * let `add` flow through native HMR — this is what makes creating `@acepe/ui`
+ * components (very common during UI work) hot-update instead of full-reloading.
+ *
+ * Deleting a file (`unlink`) is the one case we still fall back to a (rare) full
+ * reload: a removed module can leave dangling references in the graph that HMR
+ * can't reconcile in place.
  *
  * @returns {import("vite").Plugin}
  */
@@ -41,9 +47,9 @@ function acepeUiPackageDev() {
 		configureServer(server) {
 			server.watcher.add(uiPackageSrc);
 
-			// Vite's watcher uses ignoreInitial, so these only fire for files
-			// genuinely created/deleted after startup — not the initial scan.
-			const fullReloadOnStructuralChange = (file) => {
+			// Vite's watcher uses ignoreInitial, so this only fires for files
+			// genuinely deleted after startup — not the initial scan.
+			const fullReloadOnDelete = (file) => {
 				const normalizedFile = path.normalize(file);
 				if (!normalizedFile.startsWith(uiPackageSrc)) {
 					return;
@@ -51,8 +57,7 @@ function acepeUiPackageDev() {
 				server.ws.send({ type: "full-reload" });
 			};
 
-			server.watcher.on("add", fullReloadOnStructuralChange);
-			server.watcher.on("unlink", fullReloadOnStructuralChange);
+			server.watcher.on("unlink", fullReloadOnDelete);
 		},
 	};
 }
