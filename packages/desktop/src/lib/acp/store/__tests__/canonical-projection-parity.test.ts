@@ -242,7 +242,12 @@ function addSession(store: SessionStore): void {
 //   - `sequenceId` is optional (`number | null`); the cold path coalesces a missing
 //     value to `null`, the live path leaves it `undefined`. Both are type-valid.
 // Everything else must match exactly.
-function normalizeForCanonicalParity(graph: SessionStateGraph): SessionStateGraph {
+function normalizeForCanonicalParity(
+	graph: SessionStateGraph | null
+): SessionStateGraph | null {
+	if (graph === null) {
+		return null;
+	}
 	return {
 		...graph,
 		sequenceId: graph.sequenceId ?? null,
