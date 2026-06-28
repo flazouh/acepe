@@ -228,7 +228,7 @@ StickToBottom controller (DOM-only):
 
 ### Phase 2 — Build the new view (parallel to old)
 
-- [ ] **Unit 3: Version-aware ordered-rows store**
+- [x] **Unit 3: Version-aware ordered-rows store** — DONE (GOD-cleared: canonical-narrowing, keys on Acepe `rowId`+`version`, no pixels). Pure reducers `transcript-rows-store.ts` (`applyRowsPush`/`applyRowsDelta`/`renderKey` + wire-boundary `rowsPushFromBuffer`/`rowsDeltaFromBuffer` that drop all pixel fields) + reactive `transcript-rows-store.svelte.ts`; 11 bun tests green incl. **B1** (tail-clear + version bump ⇒ `renderKey` changes ⇒ no stuck "Planning"). **Deferred:** dropping `offsetPx` from `transcript-viewport-rendered-rows.ts` is moved to **Unit 4** — its only live consumer (`scene-content-viewport.svelte:143` translateY) is rewritten there; removing it in Unit 3 would break the parallel-to-old path for no benefit (new store never touches `rendered-rows`).
 
 **Goal:** A reactive list of canonical rows keyed on `{display_id, version}`, no pixels/mode/offsets, that re-renders in-place survivor changes.
 
