@@ -9,7 +9,7 @@ import { TAG_COLORS } from "@acepe/ui/colors";
 export const newThreadOptionsSectionMeta = {
 	title: "New thread options",
 	description:
-		"Compact setup row above the composer before a session exists: project, agent, and model pickers; optional reasoning effort grouped with the model; worktree toggle with overflow menu.",
+		"Floating setup chips above the composer before a session exists: project, agent, branch, and worktree controls; model and reasoning stay in the composer toolbar.",
 };
 
 export const mockProjects: readonly Project[] = [

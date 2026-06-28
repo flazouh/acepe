@@ -90,7 +90,6 @@ $effect(() => {
 	title="Create and checkout branch"
 	closeLabel="Close create branch dialog"
 	size="form"
-	portalDisabled={true}
 	onOpenChange={handleOpenChange}
 >
 	{#snippet topLeft()}
@@ -173,12 +172,13 @@ $effect(() => {
 			Cancel
 		</Button>
 		<Button
-			variant="invert"
+			variant="headerProminent"
 			size="header"
+			class="max-w-none shrink-0"
 			disabled={!canCreateBranch}
 			onclick={handleCreate}
 		>
-			{switchingBranch ? "Creating..." : "Create and checkout"}
+			<span>{switchingBranch ? "Creating..." : "Create and checkout"}</span>
 		</Button>
 	{/snippet}
 </DialogFrame>

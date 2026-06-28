@@ -260,5 +260,8 @@ async fn preview_adapter_returns_capability_snapshot() {
 
     assert_eq!(snapshot.freshness, CapabilityFreshness::Stale);
     assert_eq!(snapshot.provenance, CapabilityProvenance::Preview);
-    assert_eq!(json!(snapshot.capabilities.available_commands), json!([]));
+    // `empty()` capabilities mean commands are UNKNOWN (not discovered yet for a
+    // Preview snapshot), which is `None` -> serializes to null, distinct from an
+    // empty `[]` "known to have no commands".
+    assert_eq!(json!(snapshot.capabilities.available_commands), json!(null));
 }

@@ -1,6 +1,5 @@
 <script lang="ts">
 	import { FilePathBadge } from "../file-path-badge/index.js";
-	import PermissionBarIcon from "./permission-bar-icon.svelte";
 	import ToolLabel from "./tool-label.svelte";
 	import type { AgentToolKind, AgentToolStatus } from "./types.js";
 
@@ -14,7 +13,6 @@
 			status: AgentToolStatus;
 		};
 		class?: string;
-		iconSize?: number;
 		iconBasePath?: string;
 		fileChipClass?: string;
 	}
@@ -22,7 +20,6 @@
 	let {
 		tool,
 		class: className = "",
-		iconSize = 10,
 		iconBasePath = "/svgs/icons",
 		fileChipClass = "font-normal text-muted-foreground/60",
 	}: Props = $props();
@@ -31,24 +28,22 @@
 </script>
 
 <div class={`flex min-w-0 items-center gap-1.5 text-sm text-muted-foreground ${className}`.trim()}>
-	{#if tool.kind}
-		<PermissionBarIcon kind={tool.kind} color="var(--token-plan-icon-dark)" size={iconSize} />
-	{/if}
+	<ToolLabel status={tool.status}>{tool.title}</ToolLabel>
 
 	{#if tool.filePath && fileName}
-		<ToolLabel status={tool.status}>{tool.title}</ToolLabel>
 		<FilePathBadge
 			filePath={tool.filePath}
 			{fileName}
 			{iconBasePath}
 			interactive={false}
+			showIcon={false}
 			size="sm"
 			variant="plain"
 			class={fileChipClass}
 		/>
-	{:else if tool.subtitle}
+	{/if}
+
+	{#if tool.subtitle}
 		<span class="min-w-0 truncate font-normal text-muted-foreground/60">{tool.subtitle}</span>
-	{:else}
-		<ToolLabel status={tool.status}>{tool.title}</ToolLabel>
 	{/if}
 </div>

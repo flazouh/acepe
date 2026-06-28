@@ -31,13 +31,24 @@ export class SessionCreationCoordinator {
 
 	readonly #messagingSvc: SessionMessagingService;
 	readonly #onTurnError?: (sessionId: string) => void;
+	readonly #registerOptimisticSession?: (result: CreatedPendingSessionResult) => void;
+	readonly #removeOptimisticSession?: (sessionId: string) => void;
 
 	constructor(deps: {
 		messagingSvc: SessionMessagingService;
 		onTurnError?: (sessionId: string) => void;
+		/**
+		 * Register the optimistic cold session for a deferred creation so the
+		 * agent panel resolves identity + title before canonical promotion.
+		 */
+		registerOptimisticSession?: (result: CreatedPendingSessionResult) => void;
+		/** Remove the optimistic cold session if the creation fails pre-promotion. */
+		removeOptimisticSession?: (sessionId: string) => void;
 	}) {
 		this.#messagingSvc = deps.messagingSvc;
 		this.#onTurnError = deps.onTurnError;
+		this.#registerOptimisticSession = deps.registerOptimisticSession;
+		this.#removeOptimisticSession = deps.removeOptimisticSession;
 	}
 
 	attachSessionConsumers(consumers: {
@@ -54,6 +65,7 @@ export class SessionCreationCoordinator {
 
 	beginPendingCreation(sessionId: string, result: CreatedPendingSessionResult): void {
 		this.#pendingCreationSessions.set(sessionId, result);
+		this.#registerOptimisticSession?.(result);
 	}
 
 	hasPendingCreation(sessionId: string): boolean {
@@ -74,6 +86,9 @@ export class SessionCreationCoordinator {
 		}
 		this.#messagingSvc.handleCanonicalTurnFailure(sessionId, update);
 		this.#pendingCreationSessions.delete(sessionId);
+		// Drop the optimistic cold record — the session was never confirmed by
+		// the backend, so it must not linger as a phantom list row.
+		this.#removeOptimisticSession?.(sessionId);
 		this.#onTurnError?.(sessionId);
 	}
 

@@ -420,7 +420,7 @@ describe("SessionStore.createSession", () => {
 		}
 	});
 
-	it("tracks deferred creation without adding a real session until canonical graph promotion", async () => {
+	it("registers an optimistic deferred session and reconciles it into the canonical graph on promotion", async () => {
 		const storeWithInternals = store as unknown as {
 			connectionMgr: {
 				createSession: ReturnType<typeof vi.fn>;
@@ -438,7 +438,9 @@ describe("SessionStore.createSession", () => {
 
 		expect(result.isOk()).toBe(true);
 		expect(result._unsafeUnwrap()).toEqual(createPendingSessionResult());
-		expect(store.read.getAllSessions()).toEqual([]);
+		// Optimistic identity is registered immediately (panel can resolve agent +
+		// title), while still tracked as pending until canonical promotion.
+		expect(store.read.getAllSessions()).toHaveLength(1);
 		expect(store.connection.hasPendingCreationSession("provider-requested-id")).toBe(true);
 
 		const materialized = store.ensureSessionFromStateGraph(
@@ -464,6 +466,91 @@ describe("SessionStore.createSession", () => {
 			})
 		);
 		expect(store.connection.hasPendingCreationSession("provider-requested-id")).toBe(false);
+	});
+
+	it("registers an optimistic session for deferred creation so the panel resolves identity and title immediately", async () => {
+		const storeWithInternals = store as unknown as {
+			connectionMgr: {
+				createSession: ReturnType<typeof vi.fn>;
+			};
+		};
+
+		storeWithInternals.connectionMgr = {
+			createSession: vi.fn(() =>
+				okAsync(
+					createPendingSessionResult({
+						agentId: "claude-code",
+						title: "Build stable panels",
+					})
+				)
+			),
+		};
+
+		await store.connection.createSession({
+			projectPath: "/repo",
+			agentId: "claude-code",
+		});
+
+		// Identity + title must be resolvable from the cold registry BEFORE the
+		// canonical graph materializes, so the agent panel shows the agent icon,
+		// the working spark, and the user-derived title (not "Conversation in ...").
+		expect(store.read.getSessionIdentity("provider-requested-id")).toEqual(
+			expect.objectContaining({
+				id: "provider-requested-id",
+				projectPath: "/repo",
+				agentId: "claude-code",
+			})
+		);
+		expect(store.read.getSessionMetadata("provider-requested-id")?.title).toBe(
+			"Build stable panels"
+		);
+
+		// Still tracked as pending and NOT yet canonical — only the optimistic
+		// identity is promoted early; canonical authority arrives on promotion.
+		expect(store.connection.hasPendingCreationSession("provider-requested-id")).toBe(true);
+		expect(store.read.hasSessionCanonicalProjection("provider-requested-id")).toBe(false);
+	});
+
+	it("removes the optimistic deferred session when creation fails before materialization", async () => {
+		const storeWithInternals = store as unknown as {
+			connectionMgr: {
+				createSession: ReturnType<typeof vi.fn>;
+			};
+		};
+
+		storeWithInternals.connectionMgr = {
+			createSession: vi.fn(() =>
+				okAsync(
+					createPendingSessionResult({
+						sessionId: "pending-session",
+						title: "Failed Thread",
+					})
+				)
+			),
+		};
+
+		await store.connection.createSession({
+			projectPath: "/repo",
+			agentId: "claude-code",
+		});
+
+		// Optimistic session is present after creation...
+		expect(store.read.getSessionIdentity("pending-session")).toBeDefined();
+
+		store.connection.failPendingCreationSession("pending-session", {
+			type: "turnError",
+			session_id: "pending-session",
+			error: {
+				message: "Claude provider session identity could not be verified",
+				kind: "fatal",
+				source: "transport",
+			},
+		});
+
+		// ...and removed cleanly on terminal pre-materialization failure (no phantom row).
+		expect(store.read.getSessionIdentity("pending-session")).toBeUndefined();
+		expect(store.read.getAllSessions()).toEqual([]);
+		expect(store.connection.hasPendingCreationSession("pending-session")).toBe(false);
 	});
 
 	it("materializes pending creation with projected sequence id before promotion", async () => {

@@ -1,6 +1,6 @@
 <script lang="ts">
 import { Button } from "@acepe/ui/button";
-import { Trash } from "phosphor-svelte";
+import { Plus, Trash } from "phosphor-svelte";
 
 interface Props {
 	isAdded: boolean;
@@ -14,26 +14,27 @@ let { isAdded, onImport, onUndo }: Props = $props();
 {#if isAdded}
 	<Button
 		variant="secondary"
-		size="2xs"
-		class="gap-0.5 rounded-md"
+		size="icon-xs"
+		class="rounded-md"
+		aria-label="Remove project"
 		onclick={(event: MouseEvent) => {
 			event.stopPropagation();
 			onUndo();
 		}}
 	>
-		{"Remove"}
-		<Trash weight="fill" size={10} class="text-destructive" />
+		<Trash weight="fill" class="text-destructive" />
 	</Button>
 {:else}
 	<Button
 		variant="default"
-		size="2xs"
-		class="gap-0.5 rounded-md"
+		size="icon-xs"
+		class="rounded-md"
+		aria-label="Import project"
 		onclick={(event: MouseEvent) => {
 			event.stopPropagation();
 			onImport();
 		}}
 	>
-		{"Import"}
+		<Plus weight="bold" />
 	</Button>
 {/if}

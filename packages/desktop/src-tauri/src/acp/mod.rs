@@ -62,3 +62,21 @@ pub mod transcript_viewport;
 pub mod transport;
 pub mod types;
 pub mod ui_event_dispatcher;
+
+/// Process-global serialization lock for tests that mutate or read the global
+/// `HOME` environment (and the CLI/cache paths derived from it). `std::env::set_var`
+/// is process-wide, so a test mutating `HOME` races every concurrent test that
+/// resolves a home-relative path. All such tests must hold THIS one lock — three
+/// per-module locks previously failed to serialize against each other. Use
+/// [`lock_home_env_for_test`] which is poison-tolerant.
+#[cfg(test)]
+pub(crate) static HOME_ENV_TEST_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
+/// Acquire the shared HOME-env test lock, recovering from poisoning so a failing
+/// HOME-touching test does not cascade-fail the rest.
+#[cfg(test)]
+pub(crate) fn lock_home_env_for_test() -> std::sync::MutexGuard<'static, ()> {
+    HOME_ENV_TEST_LOCK
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
+}

@@ -40,6 +40,16 @@ export const FUSED_CONTROL_LEADING_SEGMENT_CLASS =
 export const FUSED_CONTROL_PRIMARY_BUTTON_CLASS =
 	"flex shrink-0 items-center justify-center rounded-none rounded-l-md border-0 bg-transparent px-1 py-1 leading-none text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:ring-inset disabled:pointer-events-none disabled:opacity-50 [&_svg]:block [&_svg]:size-[15px] [&_svg]:shrink-0";
 
+/** Middle segment inside a multi-item {@link FUSED_CONTROL_CHIP_GROUP_CLASS}. */
+export const FUSED_CONTROL_GROUPED_MIDDLE_BUTTON_CLASS =
+	"flex shrink-0 items-center justify-center rounded-none border-0 border-l border-border/30 bg-transparent px-1 py-1 leading-none text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:ring-inset disabled:pointer-events-none disabled:opacity-50 [&_svg]:block [&_svg]:size-[15px] [&_svg]:shrink-0";
+
+/** Labelled setup chip when it is the first segment of a fused button group. */
+export const FUSED_CONTROL_GROUPED_CHIP_LABEL_BUTTON_CLASS = cn(
+	FUSED_CONTROL_COMPOSER_CHIP_LABEL_BUTTON_CLASS,
+	"!rounded-none !bg-transparent shadow-none"
+);
+
 /** Overflow segment (right) with three-dot menu — no horizontal padding; right corners match fused shell (`rounded-md`). */
 export const FUSED_CONTROL_OVERFLOW_BUTTON_CLASS =
 	"flex shrink-0 items-center justify-center rounded-none rounded-r-md border-0 border-l border-border/30 bg-transparent p-0 py-1 leading-none text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:ring-inset disabled:pointer-events-none disabled:opacity-50 [&_svg]:block [&_svg]:shrink-0";

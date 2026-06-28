@@ -832,7 +832,7 @@ mod tests {
     #[test]
     fn codex_streaming_update_prefers_explicit_agent_seed_over_current_agent() {
         with_agent(AgentType::ClaudeCode, || {
-            reset_streaming_state_for_test();
+            let _streaming_test_guard = reset_streaming_state_for_test();
             let session_id = "codex-streaming-explicit-agent";
             let tool_call_id = "tool-codex-exec";
             seed_tool_name_via_reconciler(session_id, tool_call_id, "functions.exec_command");
@@ -870,7 +870,7 @@ mod tests {
     #[test]
     fn codex_streaming_overflow_reuses_cached_value_with_explicit_agent() {
         with_agent(AgentType::ClaudeCode, || {
-            reset_streaming_state_for_test();
+            let _streaming_test_guard = reset_streaming_state_for_test();
             let session_id = "codex-streaming-explicit-agent-overflow";
             let tool_call_id = "tool-codex-exec-overflow";
             seed_tool_name_via_reconciler(session_id, tool_call_id, "functions.exec_command");

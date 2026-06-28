@@ -1,6 +1,12 @@
 <script lang="ts">
-import * as Popover from "$lib/components/ui/popover/index.js";
+import * as Popover from "@acepe/ui/popover";
 import * as DropdownMenu from "@acepe/ui/dropdown-menu";
+import {
+	Button,
+	SessionPrLinkPickerPanel,
+	type SessionPrLinkPickerProject,
+	type SessionPrLinkPickerPullRequest,
+} from "@acepe/ui";
 import type { PrListItem, RepoContext } from "$lib/acp/types/github-integration.js";
 import type {
 	SessionLinkedPr,
@@ -11,11 +17,9 @@ import type { Project } from "$lib/acp/logic/project-manager.svelte.js";
 import PrStateIcon from "$lib/acp/components/pr-state-icon.svelte";
 import { listPullRequests, getRepoContext } from "$lib/acp/services/github-service.js";
 import { getSessionStore } from "$lib/acp/store/session-store.svelte.js";
-import { Input } from "$lib/components/ui/input/index.js";
-import { GitHubBadge, ProjectLetterBadge, Button } from "@acepe/ui";
-import { Tooltip } from "bits-ui";
 import { LinkSimple } from "phosphor-svelte";
 import { toast } from "svelte-sonner";
+import { Tooltip } from "bits-ui";
 import {
 	filterPullRequestsByQuery,
 	getHeaderPrLinkLabel,
@@ -31,18 +35,10 @@ interface Props {
 	projectPath: string;
 	linkedPr?: SessionLinkedPr | null;
 	prLinkMode?: SessionPrLinkMode | null;
-	/** Minimal session references for PRs already linked in this project. */
 	projectPrLinkReferences?: readonly SessionPrLinkReference[];
-	/** Project metadata, used to render the project-letter badge (color, icon). */
 	project?: Project | null;
-	/** Render mode:
-	 * - "footer": standalone tooltip-anchored footer button (legacy)
-	 * - "menu": DropdownMenu.Sub trigger inside a parent DropdownMenu
-	 * - "header-icon": icon-only button inside a button-group (e.g. modified-files header) */
 	variant?: "footer" | "menu" | "header-icon";
-	/** Extra classes for the header-icon trigger button (e.g. button-group segment styling). */
 	triggerClass?: string;
-	/** When true, render a bare segment button for shadcn ButtonGroup (no tooltip wrapper). */
 	inButtonGroup?: boolean;
 }
 
@@ -74,7 +70,8 @@ let loadedRepoContext = $state<RepoContext | null>(null);
 const tooltipLabel = $derived(getLinkedPrTooltipLabel(linkedPr));
 const headerPrLinkLabel = $derived(getHeaderPrLinkLabel(linkedPr));
 const sessionsByPrNumber = $derived(groupSessionPrLinksByNumber(projectPrLinkReferences));
-const filteredPullRequests = $derived(filterPullRequestsByQuery(openPullRequests, query));
+const pickerPullRequests = $derived(mapPullRequestsForPicker(openPullRequests));
+const filteredPullRequests = $derived(filterPullRequestsByQuery(pickerPullRequests, query));
 const showSearchInput = $derived(shouldShowPrSearchInput(openPullRequests.length));
 const listState = $derived(
 	getPrPickerListState({
@@ -83,6 +80,37 @@ const listState = $derived(
 		filteredPullRequests,
 	})
 );
+const pickerProject = $derived(mapProjectForPicker(project));
+const pickerRepoContext = $derived(
+	loadedRepoContext
+		? {
+				owner: loadedRepoContext.owner,
+				repo: loadedRepoContext.repo,
+			}
+		: null
+);
+
+function mapPullRequestsForPicker(
+	pullRequests: readonly PrListItem[]
+): readonly SessionPrLinkPickerPullRequest[] {
+	return pullRequests.map((pullRequest) => ({
+		number: pullRequest.number,
+		title: pullRequest.title,
+		author: pullRequest.author,
+		state: pullRequest.state,
+	}));
+}
+
+function mapProjectForPicker(value: Project | null): SessionPrLinkPickerProject | null {
+	if (!value) {
+		return null;
+	}
+	return {
+		name: value.name,
+		color: value.color,
+		iconPath: value.iconPath ?? null,
+	};
+}
 
 function ensureOpenPullRequestsLoaded(): void {
 	if (
@@ -101,15 +129,15 @@ function ensureOpenPullRequestsLoaded(): void {
 	loadError = null;
 	void getRepoContext(requestedProjectPath)
 		.andThen((repoContext) =>
-			listPullRequests(repoContext.owner, repoContext.repo, "open").map((prs) => ({
-				prs,
+			listPullRequests(repoContext.owner, repoContext.repo, "open").map((pullRequests) => ({
+				pullRequests,
 				repoContext,
 			}))
 		)
 		.match(
-			({ prs, repoContext }) => {
+			({ pullRequests, repoContext }) => {
 				if (loadingProjectPath !== requestedProjectPath) return;
-				openPullRequests = prs;
+				openPullRequests = pullRequests;
 				loadedProjectPath = requestedProjectPath;
 				loadedRepoContext = repoContext;
 				loading = false;
@@ -158,7 +186,7 @@ function handleUseAutomaticLinking(): void {
 	);
 }
 
-function handleSelectPullRequest(pr: PrListItem): void {
+function handleSelectPullRequest(pr: SessionPrLinkPickerPullRequest): void {
 	void sessionStore.connection.updateSessionPrLink(sessionId, projectPath, pr.number, "manual").match(
 		() => {
 			handleClosePicker();
@@ -169,13 +197,7 @@ function handleSelectPullRequest(pr: PrListItem): void {
 	);
 }
 
-/**
- * Transfer a PR link from `otherSessionId` to the current session:
- * 1. Unlink `otherSessionId` (set its prNumber to null, manual mode).
- * 2. Link current session to the same PR (manual mode).
- */
 async function handleTransferPrLink(otherSessionId: string, prNumber: number): Promise<void> {
-	// Unlink the other session first.
 	const unlinkResult = await sessionStore.connection.updateSessionPrLink(
 		otherSessionId,
 		projectPath,
@@ -187,7 +209,6 @@ async function handleTransferPrLink(otherSessionId: string, prNumber: number): P
 		return;
 	}
 
-	// Link this session.
 	const linkResult = await sessionStore.connection.updateSessionPrLink(
 		sessionId,
 		projectPath,
@@ -202,6 +223,28 @@ async function handleTransferPrLink(otherSessionId: string, prNumber: number): P
 	handleClosePicker();
 }
 </script>
+
+{#snippet pickerPanel()}
+	<SessionPrLinkPickerPanel
+		{listState}
+		{query}
+		{showSearchInput}
+		{linkedPr}
+		{sessionId}
+		project={pickerProject}
+		repoContext={pickerRepoContext}
+		{sessionsByPrNumber}
+		showAutomaticLinkingOption={prLinkMode === "manual"}
+		onQueryChange={(nextQuery) => {
+			query = nextQuery;
+		}}
+		onSelectPullRequest={handleSelectPullRequest}
+		onUseAutomaticLinking={handleUseAutomaticLinking}
+		onTransferPrLink={(otherSessionId, prNumber) => {
+			void handleTransferPrLink(otherSessionId, prNumber);
+		}}
+	/>
+{/snippet}
 
 {#snippet headerIconGroupButton()}
 	<Button
@@ -227,110 +270,16 @@ async function handleTransferPrLink(otherSessionId: string, prNumber: number): P
 	{@render headerIconGroupButton()}
 {:else if variant === "menu"}
 	<DropdownMenu.Sub onOpenChange={handleSubmenuOpenChange}>
-			<DropdownMenu.SubTrigger class="cursor-pointer">
-				<span class="flex-1">Link existing</span>
-				{#if linkedPr}
-					<span class="text-[10px] text-muted-foreground tabular-nums">#{linkedPr.prNumber}</span>
-				{/if}
-			</DropdownMenu.SubTrigger>
-			<DropdownMenu.SubContent class="w-[300px] overflow-hidden">
-				{#if showSearchInput}
-					<div class="px-2 py-1.5">
-						<Input bind:value={query} placeholder="Search open PRs" class="h-7 text-xs" />
-					</div>
-				{/if}
-
-				<div class="max-h-80 overflow-y-auto px-1 py-1">
-					{#if prLinkMode === "manual"}
-						<button
-							type="button"
-							class="flex w-full items-center justify-between rounded-md px-2 py-1.5 text-left text-[11px] hover:bg-accent"
-							onclick={handleUseAutomaticLinking}
-						>
-							<span>Use automatic linking</span>
-							<span class="text-[10px] text-muted-foreground">Clear lock</span>
-						</button>
-					{/if}
-
-					{#if listState.kind === "loading"}
-						<div class="px-2 py-3 text-[11px] text-muted-foreground">{listState.message}</div>
-					{:else if listState.kind === "error"}
-						<div class="px-2 py-3 text-[11px] text-destructive">{listState.message}</div>
-					{:else if listState.kind === "empty"}
-						<div class="px-2 py-3 text-[11px] text-muted-foreground">
-							{listState.message}
-						</div>
-					{:else}
-						{#each listState.pullRequests as pr (pr.number)}
-							{@const linkedSessions = sessionsByPrNumber.get(pr.number) ?? []}
-							{@const isCurrent = linkedPr?.prNumber === pr.number}
-							<div
-								class="group flex w-full items-center gap-2 rounded-md px-1.5 py-1.5 hover:bg-accent {isCurrent
-									? 'bg-accent/60'
-									: ''}"
-							>
-								<button
-									type="button"
-									class="flex flex-1 min-w-0 items-center gap-2 text-left"
-									onclick={() => handleSelectPullRequest(pr)}
-								>
-									{#if loadedRepoContext}
-										<GitHubBadge
-											ref={{
-												type: "pr",
-												owner: loadedRepoContext.owner,
-												repo: loadedRepoContext.repo,
-												number: pr.number,
-											}}
-											prState={pr.state}
-										/>
-									{/if}
-									<div class="min-w-0 flex-1">
-										<div class="truncate text-[11px] leading-tight text-foreground">{pr.title}</div>
-										<div class="truncate text-[10px] leading-tight text-muted-foreground">
-											{pr.author}
-										</div>
-									</div>
-								</button>
-								{#if linkedSessions.length > 0 && project}
-									<div class="flex items-center gap-0.5 shrink-0">
-										{#each linkedSessions as linkedSession (linkedSession.id)}
-											{@const isSelf = linkedSession.id === sessionId}
-											<button
-												type="button"
-												class="shrink-0 rounded transition-opacity {isSelf
-													? 'opacity-100'
-													: 'opacity-70 hover:opacity-100'}"
-												title={isSelf
-													? "This session"
-													: `Transfer link from this session (#${pr.number})`}
-												aria-label={isSelf
-													? "Currently linked session"
-													: `Transfer PR link from session`}
-												disabled={isSelf}
-												onclick={(e) => {
-													e.stopPropagation();
-													if (isSelf) return;
-													void handleTransferPrLink(linkedSession.id, pr.number);
-												}}
-											>
-												<ProjectLetterBadge
-													name={project.name}
-													color={project.color}
-													iconSrc={project.iconPath ?? null}
-													size={16}
-													sequenceId={linkedSession.sequenceId ?? null}
-												/>
-											</button>
-										{/each}
-									</div>
-								{/if}
-							</div>
-						{/each}
-					{/if}
-				</div>
-			</DropdownMenu.SubContent>
-		</DropdownMenu.Sub>
+		<DropdownMenu.SubTrigger class="cursor-pointer">
+			<span class="flex-1">Link existing</span>
+			{#if linkedPr}
+				<span class="text-[10px] text-muted-foreground tabular-nums">#{linkedPr.prNumber}</span>
+			{/if}
+		</DropdownMenu.SubTrigger>
+		<DropdownMenu.SubContent class="w-[300px] overflow-hidden p-0">
+			{@render pickerPanel()}
+		</DropdownMenu.SubContent>
+	</DropdownMenu.Sub>
 {:else}
 	<div bind:this={anchorRef} class={variant === "footer" ? "flex items-center" : "contents"}>
 		{#if variant === "header-icon"}
@@ -418,101 +367,7 @@ async function handleTransferPrLink(otherSessionId: string, prNumber: number): P
 			class="w-[300px] p-0 overflow-hidden"
 			onInteractOutside={handleClosePicker}
 		>
-			{#if showSearchInput}
-				<div class="px-2 py-1.5">
-					<Input bind:value={query} placeholder="Search open PRs" class="h-7 text-xs" />
-				</div>
-			{/if}
-
-			<div class="max-h-80 overflow-y-auto px-1 py-1">
-				{#if prLinkMode === "manual"}
-					<button
-						type="button"
-						class="flex w-full items-center justify-between rounded-md px-2 py-1.5 text-left text-[11px] hover:bg-accent"
-						onclick={handleUseAutomaticLinking}
-					>
-						<span>Use automatic linking</span>
-						<span class="text-[10px] text-muted-foreground">Clear lock</span>
-					</button>
-				{/if}
-
-				{#if listState.kind === "loading"}
-					<div class="px-2 py-3 text-[11px] text-muted-foreground">{listState.message}</div>
-				{:else if listState.kind === "error"}
-					<div class="px-2 py-3 text-[11px] text-destructive">{listState.message}</div>
-				{:else if listState.kind === "empty"}
-					<div class="px-2 py-3 text-[11px] text-muted-foreground">
-						{listState.message}
-					</div>
-				{:else}
-					{#each listState.pullRequests as pr (pr.number)}
-						{@const linkedSessions = sessionsByPrNumber.get(pr.number) ?? []}
-						{@const isCurrent = linkedPr?.prNumber === pr.number}
-						<div
-							class="group flex w-full items-center gap-2 rounded-md px-1.5 py-1.5 hover:bg-accent {isCurrent
-								? 'bg-accent/60'
-								: ''}"
-						>
-							<button
-								type="button"
-								class="flex flex-1 min-w-0 items-center gap-2 text-left"
-								onclick={() => handleSelectPullRequest(pr)}
-							>
-								{#if loadedRepoContext}
-									<GitHubBadge
-										ref={{
-											type: "pr",
-											owner: loadedRepoContext.owner,
-											repo: loadedRepoContext.repo,
-											number: pr.number,
-										}}
-										prState={pr.state}
-									/>
-								{/if}
-								<div class="min-w-0 flex-1">
-									<div class="truncate text-[11px] leading-tight text-foreground">{pr.title}</div>
-									<div class="truncate text-[10px] leading-tight text-muted-foreground">
-										{pr.author}
-									</div>
-								</div>
-							</button>
-							{#if linkedSessions.length > 0 && project}
-								<div class="flex items-center gap-0.5 shrink-0">
-									{#each linkedSessions as linkedSession (linkedSession.id)}
-										{@const isSelf = linkedSession.id === sessionId}
-										<button
-											type="button"
-											class="shrink-0 rounded transition-opacity {isSelf
-												? 'opacity-100'
-												: 'opacity-70 hover:opacity-100'}"
-											title={isSelf
-												? "This session"
-												: `Transfer link from this session (#${pr.number})`}
-											aria-label={isSelf
-												? "Currently linked session"
-												: `Transfer PR link from session`}
-											disabled={isSelf}
-											onclick={(e) => {
-												e.stopPropagation();
-												if (isSelf) return;
-												void handleTransferPrLink(linkedSession.id, pr.number);
-											}}
-										>
-											<ProjectLetterBadge
-												name={project.name}
-												color={project.color}
-												iconSrc={project.iconPath ?? null}
-												size={16}
-												sequenceId={linkedSession.sequenceId ?? null}
-											/>
-										</button>
-									{/each}
-								</div>
-							{/if}
-						</div>
-					{/each}
-				{/if}
-			</div>
+			{@render pickerPanel()}
 		</Popover.Content>
 	</Popover.Root>
 {/if}

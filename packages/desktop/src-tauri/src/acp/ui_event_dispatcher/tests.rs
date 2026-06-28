@@ -543,8 +543,8 @@ async fn persist_dispatch_event_emits_assistant_text_delta_envelope_for_streamin
             _ => None,
         })
         .expect("assistant text delta payload");
-    assert_eq!(delta.row_id, "assistant-event-1");
-    assert_eq!(delta.turn_id, "assistant-event-1");
+    assert_eq!(delta.row_id, "acepe--entry--session-start--assistant---");
+    assert_eq!(delta.turn_id, "acepe--entry--session-start--assistant---");
     assert_eq!(delta.char_offset, 0);
     assert_eq!(delta.delta_text, "hello");
     assert_eq!(delta.produced_at_monotonic_ms, 5);
@@ -1434,7 +1434,7 @@ async fn drain_emits_canonical_append_segments_for_same_message_id_chunks() {
                             segment,
                             ..
                         } => {
-                            assert_eq!(entry_id, "assistant-event-1");
+                            assert_eq!(entry_id, "acepe::entry::session-start::assistant::.");
                             match segment {
                                 _ => rendered.push_str(segment.primary_text()),
                             }

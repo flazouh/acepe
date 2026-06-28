@@ -48,6 +48,8 @@
 		size?: "default" | "sm";
 		/** `plain` removes chip background for inline tool headers */
 		variant?: FilePathBadgeVariant;
+		/** When false, renders filename only without a file-type icon */
+		showIcon?: boolean;
 		onSelect?: () => void;
 		class?: string;
 	}
@@ -62,6 +64,7 @@
 		interactive = true,
 		size = "default",
 		variant = "chip",
+		showIcon = true,
 		onSelect,
 		class: className = "",
 	}: Props = $props();
@@ -124,7 +127,9 @@
 	interactive={interactive}
 	onclick={onSelect}
 >
-	{@render fileIcon()}
+	{#if showIcon}
+		{@render fileIcon()}
+	{/if}
 	<span class="file-name min-w-0 truncate font-mono leading-none {isSm ? 'text-[0.625rem]' : 'text-[0.6875rem]'}"
 		>{displayFileName}</span
 	>

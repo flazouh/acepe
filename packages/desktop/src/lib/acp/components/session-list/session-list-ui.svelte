@@ -1,5 +1,4 @@
 <script lang="ts">
-import { DiffPill, Selector } from "@acepe/ui";
 import {
 	AppSidebarProjectGroup,
 	ProjectHeader,
@@ -12,10 +11,8 @@ import { IconArrowUp } from "@tabler/icons-svelte";
 import { IconPlus } from "@tabler/icons-svelte";
 import { listen } from "@tauri-apps/api/event";
 import { ArrowsClockwise } from "phosphor-svelte";
-import { Check } from "phosphor-svelte";
 import { GitBranch } from "phosphor-svelte";
 import { FolderOpen } from "phosphor-svelte";
-import { MagnifyingGlass } from "phosphor-svelte";
 import { tick } from "svelte";
 import { SvelteMap, SvelteSet } from "svelte/reactivity";
 import { toast } from "svelte-sonner";
@@ -31,7 +28,7 @@ import * as Tooltip from "@acepe/ui/tooltip";
 import { tauriClient } from "$lib/utils/tauri-client.js";
 import type { AgentInfo } from "../../logic/agent-manager.js";
 import ProjectFileSystemDialog from "../file-explorer-modal/project-file-system-dialog.svelte";
-import CreateBranchDialog from "../branch-picker/create-branch-dialog.svelte";
+import BranchPicker from "../branch-picker/branch-picker.svelte";
 import {
 	getSidebarSessions,
 	getNextSessionListVisibleCount,
@@ -214,9 +211,6 @@ function toggleProject(projectPath: string) {
 		collapsedProjects.delete(projectPath);
 	} else {
 		collapsedProjects.add(projectPath);
-		if (openBranchPickerProject === projectPath) {
-			openBranchPickerProject = null;
-		}
 	}
 	notifyCollapsedProjectPathsChange();
 }
@@ -388,8 +382,7 @@ function loadGitOverview(projectPath: string) {
 	loadGitOverviewImpl(gitOverviewState, projectPath);
 }
 
-function handleInitGitRepo(event: MouseEvent, projectPath: string): void {
-	event.stopPropagation();
+function handleInitGitRepo(projectPath: string): void {
 	if (initializingGitProject) return;
 	initializingGitProject = projectPath;
 	void tauriClient.git.init(projectPath).match(
@@ -597,82 +590,9 @@ async function handleProjectContextMove(projectPath: string, offset: -1 | 1): Pr
 	await focusProjectContextTrigger(projectPath);
 }
 
-// ─── Branch picker ───────────────────────────────────────────────
-
-let openBranchPickerProject = $state<string | null>(null);
-let branchQuery = $state("");
-let branches = $state<string[]>([]);
-let loadingBranches = $state(false);
-let switchingBranch = $state(false);
-let branchInputRef = $state<HTMLInputElement | null>(null);
-let branchLoadFailed = $state(false);
-
-let createBranchDialogOpen = $state(false);
-let createBranchProjectPath = $state<string | null>(null);
-
-const normalizedBranchQuery = $derived(branchQuery.trim().toLowerCase());
-const filteredBranches = $derived.by(() => {
-	if (!normalizedBranchQuery) return branches;
-	return branches.filter((b) => b.toLowerCase().includes(normalizedBranchQuery));
-});
-
-$effect(() => {
-	const projectPath = openBranchPickerProject;
-	if (!projectPath) {
-		branchQuery = "";
-		return;
-	}
-	queueMicrotask(() => branchInputRef?.focus());
-	loadingBranches = true;
-	branchLoadFailed = false;
-	let cancelled = false;
-	void tauriClient.git.listBranches(projectPath).match(
-		(availableBranches) => {
-			if (cancelled) return;
-			branches = availableBranches;
-			loadingBranches = false;
-		},
-		(error) => {
-			if (cancelled) return;
-			loadingBranches = false;
-			branchLoadFailed = true;
-			const message = error.cause?.message ?? error.message ?? "Failed to list branches";
-			toast.error(message);
-		}
-	);
-	return () => {
-		cancelled = true;
-	};
-});
-
-function handleSwitchBranch(projectPath: string, branch: string, create: boolean): void {
-	if (switchingBranch) return;
-	switchingBranch = true;
-	void tauriClient.git.checkoutBranch(projectPath, branch, create).match(
-		() => {
-			switchingBranch = false;
-			openBranchPickerProject = null;
-			createBranchDialogOpen = false;
-			gitLoadedProjects.delete(projectPath);
-			loadGitOverview(projectPath);
-		},
-		(error) => {
-			switchingBranch = false;
-			const message = error.cause?.message ?? error.message ?? "Failed to switch branch";
-			toast.error(message);
-		}
-	);
-}
-
-function handleCreateBranchFromDialog(fullBranchName: string): void {
-	if (!createBranchProjectPath) return;
-	handleSwitchBranch(createBranchProjectPath, fullBranchName, true);
-}
-
-function openCreateBranchDialog(projectPath: string): void {
-	openBranchPickerProject = null;
-	createBranchProjectPath = projectPath;
-	createBranchDialogOpen = true;
+function handleBranchSelected(projectPath: string): void {
+	gitLoadedProjects.delete(projectPath);
+	loadGitOverview(projectPath);
 }
 </script>
 
@@ -881,103 +801,16 @@ function openCreateBranchDialog(projectPath: string): void {
 						{@const ahead = gitData.remoteStatus?.ahead ?? 0}
 						{@const behind = gitData.remoteStatus?.behind ?? 0}
 						<div class="shrink-0 flex items-center border-t border-border/30">
-							<!-- Branch picker segment (branch name + diff only) -->
-							<Selector
-								open={openBranchPickerProject === group.projectPath}
-								onOpenChange={(isOpen) => {
-									openBranchPickerProject = isOpen ? group.projectPath : null;
-								}}
-								align="start"
-								blockingOverlay
-								variant="ghost"
+							<BranchPicker
+								projectPath={group.projectPath}
+								currentBranch={gitData.branch}
+								diffStats={totalIns > 0 || totalDel > 0
+									? { insertions: totalIns, deletions: totalDel }
+									: null}
+								isGitRepo={true}
 								class="min-w-0 flex-1"
-								triggerSize="default"
-							>
-								{#snippet renderButton()}
-									<GitBranch
-										class="h-3 w-3 shrink-0"
-										weight="fill"
-										style="color: {Colors.purple}"
-									/>
-									<span class="font-mono truncate leading-none text-[11px]">
-										{gitData.branch ?? "branch"}
-									</span>
-									{#if totalIns > 0 || totalDel > 0}
-										<DiffPill
-											insertions={totalIns}
-											deletions={totalDel}
-											variant="plain"
-											class="text-[11px]"
-										/>
-									{/if}
-								{/snippet}
-
-								<div class="w-[260px] space-y-2">
-											<!-- Search input -->
-											<div class="relative">
-												<MagnifyingGlass
-													class="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground pointer-events-none"
-												/>
-												<Input
-													bind:ref={branchInputRef}
-													bind:value={branchQuery}
-													placeholder="Search branches"
-													class="h-8 rounded-md border-border/80 pl-8 text-xs"
-												/>
-											</div>
-
-											<!-- Branch list -->
-											<div class="px-1 text-[11px] text-muted-foreground font-medium">Branches</div>
-											<div class="max-h-[180px] overflow-y-auto space-y-0.5 pr-0.5">
-												{#if loadingBranches}
-													<div class="px-2 py-1.5 text-[11px] text-muted-foreground">
-														Loading branches...
-													</div>
-												{:else if branchLoadFailed}
-													<div class="px-2 py-1.5 text-[11px] text-muted-foreground">
-														Could not load branches
-													</div>
-												{:else if filteredBranches.length === 0}
-													<div class="px-2 py-1.5 text-[11px] text-muted-foreground">
-														No branches found
-													</div>
-												{:else}
-													{#each filteredBranches as branch (branch)}
-														<button
-															type="button"
-															class="w-full flex items-center justify-between rounded-md px-2 py-1.5 text-xs hover:bg-accent"
-															onclick={() => handleSwitchBranch(group.projectPath, branch, false)}
-															disabled={switchingBranch}
-														>
-															<span class="flex items-center gap-2 min-w-0">
-																<GitBranch
-																	class="h-3 w-3 shrink-0"
-																	style="color: {Colors.purple}"
-																/>
-																<span class="font-mono truncate">{branch}</span>
-															</span>
-															{#if branch === gitData.branch}
-																<Check class="h-3.5 w-3.5 text-foreground shrink-0" />
-															{/if}
-														</button>
-													{/each}
-												{/if}
-											</div>
-
-											<!-- Actions -->
-											<div class="h-px bg-border/80"></div>
-											<div class="space-y-0.5">
-												<button
-													type="button"
-													class="w-full flex items-center gap-2 rounded-md px-2 py-1.5 text-[11px] hover:bg-accent text-muted-foreground"
-													onclick={() => openCreateBranchDialog(group.projectPath)}
-												>
-													<GitBranch class="h-3 w-3 shrink-0" style="color: {Colors.purple}" />
-													<span>Create and checkout new branch...</span>
-												</button>
-											</div>
-										</div>
-							</Selector>
+								onBranchSelected={() => handleBranchSelected(group.projectPath)}
+							/>
 
 							<!-- Up/down widget: ahead & behind counts + Update (pull) when behind -->
 							<div class="flex items-center shrink-0 text-[11px] font-mono leading-none text-muted-foreground">
@@ -1057,20 +890,16 @@ function openCreateBranchDialog(projectPath: string): void {
 							</div>
 						</div>
 					{:else if nonGitProjects.has(group.projectPath)}
-						<!-- Non-git repo: show initialize button in branch picker style -->
 						<div class="shrink-0 flex items-center border-t border-border/30">
-							<button
-								class="flex h-7 min-w-0 flex-1 cursor-pointer items-center gap-1 rounded-md px-2 text-xs text-muted-foreground transition-colors hover:bg-background/70 hover:text-foreground disabled:cursor-not-allowed disabled:opacity-40"
-								disabled={initializingGitProject === group.projectPath}
-								onclick={(e) => handleInitGitRepo(e, group.projectPath)}
-							>
-								<GitBranch class="h-3 w-3 shrink-0" />
-								<span class="text-[11px]">
-									{initializingGitProject === group.projectPath
-										? "Initializing..."
-										: "Initialize Git Repository"}
-								</span>
-							</button>
+							<BranchPicker
+								projectPath={group.projectPath}
+								currentBranch={null}
+								diffStats={null}
+								isGitRepo={false}
+								class="min-w-0 flex-1"
+								initGitLoading={initializingGitProject === group.projectPath}
+								onInitGitRepo={() => handleInitGitRepo(group.projectPath)}
+							/>
 						</div>
 						{/if}
 						{/if}
@@ -1106,11 +935,3 @@ function openCreateBranchDialog(projectPath: string): void {
 		}}
 	/>
 {/if}
-
-<CreateBranchDialog
-	bind:open={createBranchDialogOpen}
-	{branches}
-	{switchingBranch}
-	inputId="sidebar-new-branch-name"
-	onCreate={handleCreateBranchFromDialog}
-/>

@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import {
+	extractExecuteCommandFilePath,
 	getExecuteCommandSegments,
 	getExecuteDisplayHtmls,
 	getExecuteHeaderText,
@@ -91,5 +92,15 @@ describe("agent tool execute state", () => {
 		expect(shouldUseOutputHtml("")).toBe(true);
 		expect(shouldUseOutputHtml(null)).toBe(false);
 		expect(shouldUseOutputHtml(undefined)).toBe(false);
+	});
+
+	test("extracts trailing file paths from execute commands for compact chips", () => {
+		expect(
+			extractExecuteCommandFilePath(
+				"bun test src/components/agent-panel/agent-tool-compact-display-state.test.ts"
+			)
+		).toBe("src/components/agent-panel/agent-tool-compact-display-state.test.ts");
+		expect(extractExecuteCommandFilePath("cargo check -p acepe-desktop")).toBeNull();
+		expect(extractExecuteCommandFilePath("cd packages/ui && bun run check")).toBeNull();
 	});
 });

@@ -1,4 +1,5 @@
 import type { HTMLAnchorAttributes, HTMLButtonAttributes } from "svelte/elements";
+import type { Snippet } from "svelte";
 
 import { tv, type VariantProps } from "tailwind-variants";
 import type { WithElementRef } from "../../lib/utils.js";
@@ -81,4 +82,5 @@ export type ButtonProps = WithElementRef<HTMLButtonAttributes> &
 		variant?: ButtonVariant;
 		size?: ButtonSize;
 		active?: boolean;
+		children?: Snippet;
 	};

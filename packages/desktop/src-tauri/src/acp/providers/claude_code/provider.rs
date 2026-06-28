@@ -618,10 +618,6 @@ fn push_unique_spawn_config(configs: &mut Vec<SpawnConfig>, candidate: SpawnConf
 mod tests {
     use super::*;
     use std::ffi::OsString;
-    use std::sync::Mutex as StdMutex;
-
-    static HOME_ENV_LOCK: std::sync::LazyLock<StdMutex<()>> =
-        std::sync::LazyLock::new(|| StdMutex::new(()));
 
     struct TempHomeEnvGuard {
         previous_home: Option<OsString>,
@@ -672,7 +668,7 @@ mod tests {
     }
 
     fn with_temp_home<T>(test: impl FnOnce() -> T) -> T {
-        let _guard = HOME_ENV_LOCK.lock().expect("lock HOME env");
+        let _guard = crate::acp::lock_home_env_for_test();
         let temp = tempfile::tempdir().expect("temp dir");
         let _home_guard = TempHomeEnvGuard::install(temp.path());
         test()

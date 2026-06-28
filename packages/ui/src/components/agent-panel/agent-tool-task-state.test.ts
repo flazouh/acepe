@@ -2,7 +2,7 @@ import { describe, expect, it } from "bun:test";
 
 import {
 	getLastTaskToolCall,
-	getTaskCurrentToolLabel,
+	getTaskCurrentToolDisplay,
 	getTaskProgress,
 	getTaskTitle,
 	getTaskToolChildren,
@@ -87,16 +87,17 @@ describe("agent tool task state", () => {
 		expect(getLastTaskToolCall([])).toBeNull();
 	});
 
-	it("returns the latest child tool title for the inline current-tool label", () => {
-		const runningTool: AgentToolEntry = {
-			id: "tool-2",
+	it("delegates current tool display mapping to the shared compact display helper", () => {
+		const runningReadTool: AgentToolEntry = {
+			id: "tool-read",
 			type: "tool_call",
 			kind: "read",
-			title: "Reading",
+			title: "Read",
+			filePath: "/repo/src/main.ts",
 			status: "running",
 		};
-		expect(getTaskCurrentToolLabel(runningTool)).toBe("Reading");
-		expect(getTaskCurrentToolLabel(null)).toBeNull();
+		expect(getTaskCurrentToolDisplay(runningReadTool)?.title).toBe("Reading");
+		expect(getTaskCurrentToolDisplay(null)).toBeNull();
 	});
 
 	it("computes prompt and result visibility", () => {

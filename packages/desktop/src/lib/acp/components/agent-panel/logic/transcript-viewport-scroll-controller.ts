@@ -104,18 +104,30 @@ export function shouldDispatchTailDetachScrollIntent(input: {
 	);
 }
 
-export function shouldIgnoreStaleFollowingTailTarget(input: {
+// Drop a stale absolute scroll target when the user's LIVE scroll position is
+// the authoritative one. The adapter owns the live DOM offset; Rust never sees
+// in-buffer detached scrolls, so an absolute target Rust computed before the
+// user scrolled away (a follow-tail pin, or the post-send reveal of the latest
+// user row) must not yank them back. Two stale cases, both only while the user
+// is parked away from the bottom and a target has already been applied once
+// (the initial open/reveal target must always land):
+//   - followingTail: a follow-tail pin must yield once the user locally detached.
+//   - any mode: an absolute target must not override an active scroll-away from
+//     the tail (the reveal-vs-scroll-up race that re-pinned a detached viewport).
+export function shouldIgnoreStaleScrollTopTarget(input: {
 	readonly modeKind: TranscriptViewportModeKind;
 	readonly liveNearBottom: boolean;
 	readonly locallyDetachedFromTail: boolean;
+	readonly userScrollingAwayFromTail: boolean;
 	readonly hasAppliedAnyScrollTarget: boolean;
 }): boolean {
-	return (
-		input.modeKind === "followingTail" &&
-		input.locallyDetachedFromTail &&
-		!input.liveNearBottom &&
-		input.hasAppliedAnyScrollTarget
-	);
+	if (!input.hasAppliedAnyScrollTarget || input.liveNearBottom) {
+		return false;
+	}
+	if (input.modeKind === "followingTail" && input.locallyDetachedFromTail) {
+		return true;
+	}
+	return input.userScrollingAwayFromTail;
 }
 
 export function shouldSuppressProgrammaticScrollEvent(input: {

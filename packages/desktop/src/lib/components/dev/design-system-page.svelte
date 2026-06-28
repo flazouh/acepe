@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { Button } from "@acepe/ui";
-	import { CaretLeft, DownloadSimple, Microphone, Rows, Sparkle } from "phosphor-svelte";
+	import { CaretLeft, DownloadSimple, ListChecks, Microphone, Rows, Sparkle } from "phosphor-svelte";
 
 	import { Badge } from "$lib/components/ui/badge/index.js";
 	import SettingsPageHeader from "$lib/components/settings-page/settings-page-header.svelte";
@@ -14,6 +14,8 @@
 	import { micButtonSectionMeta } from "./design-system-mic-button-specimens.js";
 	import DesignSystemNewThreadOptionsSection from "./design-system-new-thread-options-section.svelte";
 	import { newThreadOptionsSectionMeta } from "./design-system-new-thread-options-specimens.js";
+	import DesignSystemTaskToolSection from "./design-system-task-tool-section.svelte";
+	import { taskToolSectionMeta } from "./design-system-task-tool-specimens.js";
 
 	interface Props {
 		onClose: () => void;
@@ -25,13 +27,15 @@
 		| "claude-spark"
 		| "install-card"
 		| "mic-button"
-		| "new-thread-options";
+		| "new-thread-options"
+		| "task-tool";
 
 	const sections: ReadonlyArray<{ id: DesignSystemSection; label: string }> = [
 		{ id: "claude-spark", label: claudeSparkSectionMeta.title },
 		{ id: "install-card", label: installCardSectionMeta.title },
 		{ id: "mic-button", label: micButtonSectionMeta.title },
 		{ id: "new-thread-options", label: newThreadOptionsSectionMeta.title },
+		{ id: "task-tool", label: taskToolSectionMeta.title },
 	];
 
 	const sectionMetaById = {
@@ -39,6 +43,7 @@
 		"install-card": installCardSectionMeta,
 		"mic-button": micButtonSectionMeta,
 		"new-thread-options": newThreadOptionsSectionMeta,
+		"task-tool": taskToolSectionMeta,
 	} as const;
 
 	let activeSection = $state<DesignSystemSection>("claude-spark");
@@ -49,6 +54,7 @@
 		if (sectionId === "claude-spark") return Sparkle;
 		if (sectionId === "new-thread-options") return Rows;
 		if (sectionId === "mic-button") return Microphone;
+		if (sectionId === "task-tool") return ListChecks;
 		return DownloadSimple;
 	}
 </script>
@@ -112,6 +118,8 @@
 					<DesignSystemMicButtonSection />
 				{:else if activeSection === "new-thread-options"}
 					<DesignSystemNewThreadOptionsSection />
+				{:else if activeSection === "task-tool"}
+					<DesignSystemTaskToolSection />
 				{/if}
 			</div>
 		</main>

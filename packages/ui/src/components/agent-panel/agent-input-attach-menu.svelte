@@ -7,6 +7,12 @@
 
 	import * as DropdownMenu from "../dropdown-menu/index.js";
 	import { Button } from "../button/index.js";
+	import {
+		ComposerFilterDropdown,
+		composerFilterDropdownEmptyStateClass,
+		composerFilterDropdownItemClass,
+		composerFilterDropdownSubmenuContentClass,
+	} from "../composer/index.js";
 	import AgentInputModeIcon from "./agent-input-mode-icon.svelte";
 	import AgentInputAutonomousToggle from "./agent-input-autonomous-toggle.svelte";
 	import AgentInputSlashCommandRow from "./agent-input-slash-command-row.svelte";
@@ -18,15 +24,6 @@
 		type AttachMenuMcpServerGroup,
 		type AttachMenuModeItem,
 	} from "./agent-input-attach-menu-state.js";
-	import ComposerFilterDropdownFilterInput from "./composer-filter-dropdown-filter-input.svelte";
-	import {
-		composerFilterDropdownBodyClass,
-		composerFilterDropdownContentClass,
-		composerFilterDropdownEmptyStateClass,
-		composerFilterDropdownFilterRowClass,
-		composerFilterDropdownItemClass,
-		composerFilterDropdownSubmenuContentClass,
-	} from "./composer-filter-dropdown-menu.classes.js";
 
 	interface Props {
 		disabled?: boolean;
@@ -194,202 +191,195 @@
 </script>
 
 <div class="flex items-end gap-0.5">
-<DropdownMenu.Root bind:open={menuOpen} onOpenChange={handleOpenChange}>
-	<DropdownMenu.Trigger>
-		{#snippet child({ props })}
-			<Button
-				{...props}
-				variant="chromeIcon"
-				size="chromeIcon"
-				data-header-control
-				{disabled}
-				active={menuOpen}
-				title="Add context and tools"
-				aria-label="Add context and tools"
+<ComposerFilterDropdown
+	bind:open={menuOpen}
+	onOpenChange={handleOpenChange}
+	bind:searchQuery
+	searchPlaceholder={searchPlaceholder}
+	searchAriaLabel={searchPlaceholder}
+>
+	{#snippet trigger({ props })}
+		<Button
+			{...props}
+			variant="chromeIcon"
+			size="chromeIcon"
+			data-header-control
+			{disabled}
+			active={menuOpen}
+			title="Add context and tools"
+			aria-label="Add context and tools"
+		>
+			{#snippet children()}
+				<Plus size={12} weight="bold" />
+			{/snippet}
+		</Button>
+	{/snippet}
+
+	{#if showModes && filteredItems.modes.length > 0}
+		{#each filteredItems.modes as mode (mode.id)}
+			<DropdownMenu.Item
+				disabled={mode.disabled}
+				onSelect={() => handleModeSelect(mode.id)}
+				class={composerFilterDropdownItemClass}
 			>
-				{#snippet children()}
-					<Plus size={12} weight="bold" />
-				{/snippet}
-			</Button>
-		{/snippet}
-	</DropdownMenu.Trigger>
-	<DropdownMenu.Content side="top" align="start" sideOffset={8} class={composerFilterDropdownContentClass}>
-	<div class={composerFilterDropdownBodyClass}>
-	<div class={composerFilterDropdownFilterRowClass}>
-			<ComposerFilterDropdownFilterInput
-				bind:value={searchQuery}
-				placeholder={searchPlaceholder}
-				ariaLabel={searchPlaceholder}
-			/>
-		</div>
+				<AgentInputModeIcon iconKind={mode.iconKind} class="size-3.5 shrink-0" monochrome />
+				<span class="min-w-0 flex-1 truncate text-xs">{mode.label}</span>
+				<CheckCircle
+					class={mode.selected
+						? "size-3.5 shrink-0 text-foreground"
+						: "size-3.5 shrink-0 text-transparent"}
+					weight="fill"
+				/>
+			</DropdownMenu.Item>
+		{/each}
+	{/if}
 
-		{#if showModes && filteredItems.modes.length > 0}
-			{#each filteredItems.modes as mode (mode.id)}
-				<DropdownMenu.Item
-					disabled={mode.disabled}
-					onSelect={() => handleModeSelect(mode.id)}
-					class={composerFilterDropdownItemClass}
-				>
-					<AgentInputModeIcon iconKind={mode.iconKind} class="size-3.5 shrink-0" monochrome />
-					<span class="min-w-0 flex-1 truncate text-xs">{mode.label}</span>
-					<CheckCircle
-						class={mode.selected
-							? "size-3.5 shrink-0 text-foreground"
-							: "size-3.5 shrink-0 text-transparent"}
-						weight="fill"
+	{#if showContextActions && searchQuery.length === 0}
+		<DropdownMenu.Separator />
+		<DropdownMenu.Item onSelect={handleAddFileContext} class={composerFilterDropdownItemClass}>
+			<File class="size-3.5 shrink-0" />
+			<span class="text-xs">{addFileContextLabel}</span>
+		</DropdownMenu.Item>
+		<DropdownMenu.Item onSelect={handleAttachImage} class={composerFilterDropdownItemClass}>
+			<ImageIcon class="size-3.5 shrink-0" />
+			<span class="text-xs">{attachImageLabel}</span>
+		</DropdownMenu.Item>
+	{/if}
+
+	{#if hasCommandContent}
+		<DropdownMenu.Separator />
+		{#if searchQuery.trim().length > 0}
+			<div class="max-h-72 overflow-y-auto py-1">
+				{#each flattenedSearchItems as item (item.id)}
+					<AgentInputSlashCommandRow
+						command={toSlashCommand(item)}
+						tokenType={item.tokenType}
+						onSelect={() => handleCommandItemSelect(item)}
 					/>
-				</DropdownMenu.Item>
-			{/each}
-		{/if}
-
-		{#if showContextActions && searchQuery.length === 0}
-			<DropdownMenu.Separator />
-			<DropdownMenu.Item onSelect={handleAddFileContext} class={composerFilterDropdownItemClass}>
-				<File class="size-3.5 shrink-0" />
-				<span class="text-xs">{addFileContextLabel}</span>
-			</DropdownMenu.Item>
-			<DropdownMenu.Item onSelect={handleAttachImage} class={composerFilterDropdownItemClass}>
-				<ImageIcon class="size-3.5 shrink-0" />
-				<span class="text-xs">{attachImageLabel}</span>
-			</DropdownMenu.Item>
-		{/if}
-
-		{#if hasCommandContent}
-			<DropdownMenu.Separator />
-			{#if searchQuery.trim().length > 0}
-				<div class="max-h-72 overflow-y-auto py-1">
-					{#each flattenedSearchItems as item (item.id)}
-						<AgentInputSlashCommandRow
-							command={toSlashCommand(item)}
-							tokenType={item.tokenType}
-							onSelect={() => handleCommandItemSelect(item)}
-						/>
-					{/each}
-					{#if flattenedSearchItems.length === 0}
-						<div class={composerFilterDropdownEmptyStateClass}>
-							No matching skills or MCP tools
+				{/each}
+				{#if flattenedSearchItems.length === 0}
+					<div class={composerFilterDropdownEmptyStateClass}>
+						No matching skills or MCP tools
+					</div>
+				{/if}
+			</div>
+		{:else}
+			{#if skillsSection && skillsSection.items.length > 0}
+				<DropdownMenu.Sub>
+					<DropdownMenu.SubTrigger class="{composerFilterDropdownItemClass} text-xs">
+						<span class="min-w-0 flex-1 truncate">{skillsSection.label}</span>
+						<span class="rounded-full bg-muted px-1.5 py-0.5 text-[10px] tabular-nums text-muted-foreground">
+							{skillsSection.items.length}
+						</span>
+					</DropdownMenu.SubTrigger>
+					<DropdownMenu.SubContent
+						class={composerFilterDropdownSubmenuContentClass}
+						side={attachSubmenuContentProps.side}
+						align={attachSubmenuContentProps.align}
+						sideOffset={attachSubmenuContentProps.sideOffset}
+						avoidCollisions={attachSubmenuContentProps.avoidCollisions}
+					>
+						<div class="flex max-h-72 flex-col overflow-y-auto py-1">
+							{#each skillsSection.items as item (item.id)}
+								<AgentInputSlashCommandRow
+									command={toSlashCommand(item)}
+									tokenType={item.tokenType}
+									onSelect={() => handleCommandItemSelect(item)}
+								/>
+							{/each}
 						</div>
-					{/if}
-				</div>
-			{:else}
-				{#if skillsSection && skillsSection.items.length > 0}
-					<DropdownMenu.Sub>
-						<DropdownMenu.SubTrigger class="{composerFilterDropdownItemClass} text-xs">
-							<span class="min-w-0 flex-1 truncate">{skillsSection.label}</span>
-							<span class="rounded-full bg-muted px-1.5 py-0.5 text-[10px] tabular-nums text-muted-foreground">
-								{skillsSection.items.length}
-							</span>
-						</DropdownMenu.SubTrigger>
-						<DropdownMenu.SubContent
-							class={composerFilterDropdownSubmenuContentClass}
-							side={attachSubmenuContentProps.side}
-							align={attachSubmenuContentProps.align}
-							sideOffset={attachSubmenuContentProps.sideOffset}
-							avoidCollisions={attachSubmenuContentProps.avoidCollisions}
-						>
-							<div class="flex max-h-72 flex-col overflow-y-auto py-1">
-								{#each skillsSection.items as item (item.id)}
-									<AgentInputSlashCommandRow
-										command={toSlashCommand(item)}
-										tokenType={item.tokenType}
-										onSelect={() => handleCommandItemSelect(item)}
-									/>
-								{/each}
-							</div>
-						</DropdownMenu.SubContent>
-					</DropdownMenu.Sub>
-				{/if}
+					</DropdownMenu.SubContent>
+				</DropdownMenu.Sub>
+			{/if}
 
-				{#if commandsSection && commandsSection.items.length > 0}
-					<DropdownMenu.Sub>
-						<DropdownMenu.SubTrigger class="{composerFilterDropdownItemClass} text-xs">
-							<span class="min-w-0 flex-1 truncate">{commandsSection.label}</span>
-							<span class="rounded-full bg-muted px-1.5 py-0.5 text-[10px] tabular-nums text-muted-foreground">
-								{commandsSection.items.length}
-							</span>
-						</DropdownMenu.SubTrigger>
-						<DropdownMenu.SubContent
-							class={composerFilterDropdownSubmenuContentClass}
-							side={attachSubmenuContentProps.side}
-							align={attachSubmenuContentProps.align}
-							sideOffset={attachSubmenuContentProps.sideOffset}
-							avoidCollisions={attachSubmenuContentProps.avoidCollisions}
-						>
-							<div class="flex max-h-72 flex-col overflow-y-auto py-1">
-								{#each commandsSection.items as item (item.id)}
-									<AgentInputSlashCommandRow
-										command={toSlashCommand(item)}
-										tokenType={item.tokenType}
-										onSelect={() => handleCommandItemSelect(item)}
-									/>
-								{/each}
-							</div>
-						</DropdownMenu.SubContent>
-					</DropdownMenu.Sub>
-				{/if}
+			{#if commandsSection && commandsSection.items.length > 0}
+				<DropdownMenu.Sub>
+					<DropdownMenu.SubTrigger class="{composerFilterDropdownItemClass} text-xs">
+						<span class="min-w-0 flex-1 truncate">{commandsSection.label}</span>
+						<span class="rounded-full bg-muted px-1.5 py-0.5 text-[10px] tabular-nums text-muted-foreground">
+							{commandsSection.items.length}
+						</span>
+					</DropdownMenu.SubTrigger>
+					<DropdownMenu.SubContent
+						class={composerFilterDropdownSubmenuContentClass}
+						side={attachSubmenuContentProps.side}
+						align={attachSubmenuContentProps.align}
+						sideOffset={attachSubmenuContentProps.sideOffset}
+						avoidCollisions={attachSubmenuContentProps.avoidCollisions}
+					>
+						<div class="flex max-h-72 flex-col overflow-y-auto py-1">
+							{#each commandsSection.items as item (item.id)}
+								<AgentInputSlashCommandRow
+									command={toSlashCommand(item)}
+									tokenType={item.tokenType}
+									onSelect={() => handleCommandItemSelect(item)}
+								/>
+							{/each}
+						</div>
+					</DropdownMenu.SubContent>
+				</DropdownMenu.Sub>
+			{/if}
 
-				{#if showMcpSubmenu}
-					<DropdownMenu.Sub>
-						<DropdownMenu.SubTrigger class="{composerFilterDropdownItemClass} text-xs">
-							<span class="min-w-0 flex-1 truncate">{mcpSectionLabel}</span>
-							<span class="rounded-full bg-muted px-1.5 py-0.5 text-[10px] tabular-nums text-muted-foreground">
-								{#if mcpLoading}
-									…
-								{:else if filteredItems.mcpServerGroups.length > 0}
-									{filteredItems.mcpServerGroups.length}
-								{:else if mcpCatalogLoaded}
-									0
-								{:else}
-									…
-								{/if}
-							</span>
-						</DropdownMenu.SubTrigger>
-						<DropdownMenu.SubContent
-							class={composerFilterDropdownSubmenuContentClass}
-							side={attachSubmenuContentProps.side}
-							align={attachSubmenuContentProps.align}
-							sideOffset={attachSubmenuContentProps.sideOffset}
-							avoidCollisions={attachSubmenuContentProps.avoidCollisions}
-						>
-							<div class="max-h-72 overflow-y-auto">
-								{#if mcpLoading && filteredItems.mcpServerGroups.length === 0}
-									<div class="{composerFilterDropdownEmptyStateClass} text-left">
-										Loading MCP servers…
-									</div>
-								{:else if filteredItems.mcpServerGroups.length === 0}
-									<div class="{composerFilterDropdownEmptyStateClass} text-left">
-										{mcpEmptyLabel}
-									</div>
-								{/if}
-								{#each filteredItems.mcpServerGroups as group (group.id)}
-									<AgentInputMcpServerGroup
-										id={group.id}
-										name={group.name}
-										status={group.status}
-										error={group.error}
-										slashItems={group.slashItems}
-										toolItems={group.toolItems}
-										expanded={isMcpServerExpanded(group.id)}
-										onToggle={() => toggleMcpServer(group.id)}
-										onItemSelect={handleCommandItemSelect}
-									/>
-								{/each}
-							</div>
-						</DropdownMenu.SubContent>
-					</DropdownMenu.Sub>
-				{/if}
+			{#if showMcpSubmenu}
+				<DropdownMenu.Sub>
+					<DropdownMenu.SubTrigger class="{composerFilterDropdownItemClass} text-xs">
+						<span class="min-w-0 flex-1 truncate">{mcpSectionLabel}</span>
+						<span class="rounded-full bg-muted px-1.5 py-0.5 text-[10px] tabular-nums text-muted-foreground">
+							{#if mcpLoading}
+								…
+							{:else if filteredItems.mcpServerGroups.length > 0}
+								{filteredItems.mcpServerGroups.length}
+							{:else if mcpCatalogLoaded}
+								0
+							{:else}
+								…
+							{/if}
+						</span>
+					</DropdownMenu.SubTrigger>
+					<DropdownMenu.SubContent
+						class={composerFilterDropdownSubmenuContentClass}
+						side={attachSubmenuContentProps.side}
+						align={attachSubmenuContentProps.align}
+						sideOffset={attachSubmenuContentProps.sideOffset}
+						avoidCollisions={attachSubmenuContentProps.avoidCollisions}
+					>
+						<div class="max-h-72 overflow-y-auto">
+							{#if mcpLoading && filteredItems.mcpServerGroups.length === 0}
+								<div class="{composerFilterDropdownEmptyStateClass} text-left">
+									Loading MCP servers…
+								</div>
+							{:else if filteredItems.mcpServerGroups.length === 0}
+								<div class="{composerFilterDropdownEmptyStateClass} text-left">
+									{mcpEmptyLabel}
+								</div>
+							{/if}
+							{#each filteredItems.mcpServerGroups as group (group.id)}
+								<AgentInputMcpServerGroup
+									id={group.id}
+									name={group.name}
+									status={group.status}
+									error={group.error}
+									slashItems={group.slashItems}
+									toolItems={group.toolItems}
+									expanded={isMcpServerExpanded(group.id)}
+									onToggle={() => toggleMcpServer(group.id)}
+									onItemSelect={handleCommandItemSelect}
+								/>
+							{/each}
+						</div>
+					</DropdownMenu.SubContent>
+				</DropdownMenu.Sub>
 			{/if}
 		{/if}
+	{/if}
 
-		{#if checkpointOverflow}
-			<DropdownMenu.Separator />
-			<div class="px-2 py-1">
-				{@render checkpointOverflow()}
-			</div>
-		{/if}
-	</div>
-	</DropdownMenu.Content>
-</DropdownMenu.Root>
+	{#if checkpointOverflow}
+		<DropdownMenu.Separator />
+		<div class="px-2 py-1">
+			{@render checkpointOverflow()}
+		</div>
+	{/if}
+</ComposerFilterDropdown>
 {#if onAutonomousToggle}
 	<AgentInputAutonomousToggle
 		active={autonomousToggleActive}

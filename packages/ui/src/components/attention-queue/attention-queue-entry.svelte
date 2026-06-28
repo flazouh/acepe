@@ -2,8 +2,6 @@
 import { IconSquare } from "@tabler/icons-svelte";
 import type { Snippet } from "svelte";
 
-import { CheckCircle, FileCode, Keyboard, Pulse, Warning } from "phosphor-svelte";
-
 import AgentCompactToolDisplay from "../agent-panel/compact-tool-display.svelte";
 import AgentToolBrowser from "../agent-panel/agent-tool-browser.svelte";
 import AgentToolTask from "../agent-panel/agent-tool-task.svelte";
@@ -13,7 +11,6 @@ import { DiffPill } from "../diff-pill/index.js";
 import { SegmentedProgress } from "../segmented-progress/index.js";
 import AttentionQueueQuestionCard from "./attention-queue-question-card.svelte";
 import FeedItem from "./attention-queue-item.svelte";
-import type { SectionedFeedSectionId } from "./types.js";
 import type {
 	ActivityEntryMode,
 	ActivityEntryQuestion,
@@ -37,8 +34,6 @@ interface Props {
 	mode: ActivityEntryMode;
 	title: string;
 	timeAgo: string | null;
-	statusSectionId?: SectionedFeedSectionId | null;
-	statusIconColor?: string | null;
 	insertions: number;
 	deletions: number;
 	projectBadge?: Snippet;
@@ -95,8 +90,6 @@ let {
 	mode,
 	title,
 	timeAgo,
-	statusSectionId = null,
-	statusIconColor = null,
 	insertions,
 	deletions,
 	projectBadge,
@@ -225,31 +218,13 @@ const showTaskWidget = $derived(visibleTaskWidgetSummary !== null);
 			{#if trailingAction}
 				{@render trailingAction()}
 			{:else}
-				{#if !statusSectionId && timeAgo}
+				{#if timeAgo}
 					<span class="text-[10px] text-muted-foreground/60 tabular-nums shrink-0">{timeAgo}</span>
 				{/if}
 
 				<div class="text-[10px] shrink-0 tabular-nums text-muted-foreground/70">
 					<DiffPill {insertions} {deletions} variant="plain" />
 				</div>
-
-				{#if statusSectionId}
-					<span class="inline-flex shrink-0 items-center justify-center">
-						{#if statusSectionId === "answer_needed"}
-							<Keyboard class="size-2.5 shrink-0" weight="fill" style="color: {statusIconColor}" />
-						{:else if statusSectionId === "working"}
-							<Pulse class="size-2.5 shrink-0" weight="fill" style="color: {statusIconColor}" />
-						{:else if statusSectionId === "planning"}
-							<Pulse class="size-2.5 shrink-0" weight="regular" style="color: {statusIconColor}" />
-						{:else if statusSectionId === "needs_review"}
-							<FileCode class="size-2.5 shrink-0" weight="fill" style="color: {statusIconColor}" />
-						{:else if statusSectionId === "idle"}
-							<CheckCircle class="size-2.5 shrink-0" weight="fill" style="color: {statusIconColor}" />
-						{:else if statusSectionId === "error"}
-							<Warning class="size-2.5 shrink-0" weight="fill" style="color: {statusIconColor}" />
-						{/if}
-					</span>
-				{/if}
 			{/if}
 		</div>
 

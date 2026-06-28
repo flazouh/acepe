@@ -741,7 +741,7 @@ async fn provider_thread_snapshot_open_keeps_provider_tool_rows_with_local_journ
         .transcript_snapshot
         .entries
         .iter()
-        .find(|entry| entry.entry_id == "toolu_skill")
+        .find(|entry| entry.role == TranscriptEntryRole::Tool)
         .expect("skill tool transcript row should survive local transcript merge");
 
     assert_eq!(
@@ -755,7 +755,7 @@ async fn provider_thread_snapshot_open_keeps_provider_tool_rows_with_local_journ
     assert_eq!(
         tool_entry.segments,
         vec![TranscriptSegment::Text {
-            segment_id: "toolu_skill:tool".to_string(),
+            segment_id: "acepe::entry::assistant-boundary:1::tool::toolu_skill:tool".to_string(),
             text: "diagnose".to_string(),
         }]
     );
@@ -934,7 +934,10 @@ async fn provider_owned_open_pipeline_restores_each_builtin_agent_to_canonical_s
         assert_eq!(
             found.operations[0].source_link,
             OperationSourceLink::TranscriptLinked {
-                entry_id: format!("{}-tool-read", agent_id.as_str())
+                entry_id: format!(
+                    "acepe::entry::assistant-boundary:1::tool::{}-tool-read",
+                    agent_id.as_str()
+                )
             }
         );
         assert_eq!(
@@ -988,12 +991,13 @@ async fn provider_thread_snapshot_open_normalizes_tool_transcript_ids_to_match_o
     assert_eq!(found.transcript_snapshot.entries.len(), 1);
     assert_eq!(
         found.transcript_snapshot.entries[0].entry_id,
-        "provider-tool%0Acursor-call"
+        "acepe::entry::session-start::tool::provider-tool%0Acursor-call"
     );
     assert_eq!(
         found.transcript_snapshot.entries[0].segments,
         vec![crate::acp::transcript_projection::TranscriptSegment::Text {
-            segment_id: "provider-tool%0Acursor-call:tool".to_string(),
+            segment_id: "acepe::entry::session-start::tool::provider-tool%0Acursor-call:tool"
+                .to_string(),
             text: "Read file".to_string(),
         }]
     );
@@ -1003,7 +1007,7 @@ async fn provider_thread_snapshot_open_normalizes_tool_transcript_ids_to_match_o
     assert_eq!(
         operation.source_link,
         crate::acp::projections::OperationSourceLink::TranscriptLinked {
-            entry_id: "provider-tool%0Acursor-call".to_string()
+            entry_id: "acepe::entry::session-start::tool::provider-tool%0Acursor-call".to_string()
         }
     );
     assert_ne!(

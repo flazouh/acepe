@@ -1847,9 +1847,9 @@ async function handlePlanSidebarSendMessage(sid: string, message: string): Promi
 		{#if !isFullscreen}
 			<AgentPanelResizeEdge
 				isDragging={panelState.isDraggingEdge}
-				onPointerDown={(e) => panelState.handlePointerDownEdge(e, panelId)}
-				onPointerMove={(e) => panelState.handlePointerMoveEdge(e, panelId, onResizePanel)}
-				onPointerUp={() => panelState.handlePointerUpEdge()}
+				onPointerDown={(e) => panelState.handlePointerDownEdge(e, panelId, width)}
+				onPointerMove={(e) => panelState.handlePointerMoveEdge(e, panelId)}
+				onPointerUp={() => panelState.handlePointerUpEdge(panelId, onResizePanel)}
 			/>
 		{/if}
 	{/snippet}

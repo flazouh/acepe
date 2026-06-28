@@ -488,6 +488,82 @@ describe("reduceCommand", () => {
 		expect(patches).toEqual([]);
 	});
 
+	it("preserves authoritative context occupancy when a cost-only result event arrives", () => {
+		// Regression: Claude Code's Result message is the only cost-bearing telemetry
+		// event, and it carries cumulative-per-turn tokens (cache reads summed across
+		// every API round-trip) — a value that overshoots the physical context window.
+		// It must NOT clobber the authoritative occupancy snapshot established by an
+		// earlier usage_update / assistant message. A cost-only event (no token total)
+		// updates cost while leaving the occupancy untouched.
+		const patches = reduceCommand(
+			createSnapshot({
+				transientProjection: {
+					acpSessionId: "session-1",
+					pendingSendIntent: null,
+					autonomousTransition: "idle",
+					statusChangedAt: 1,
+					usageTelemetry: {
+						sessionSpendUsd: 0,
+						latestStepCostUsd: null,
+						latestTokensTotal: 184_000,
+						latestTokensInput: 1_200,
+						latestTokensOutput: null,
+						latestTokensCacheRead: 182_000,
+						latestTokensCacheWrite: 800,
+						latestTokensReasoning: null,
+						lastTelemetryEventId: "usage-update-1",
+						contextBudget: {
+							maxTokens: 1_000_000,
+							source: "provider-explicit",
+							scope: "turn",
+							updatedAt: 1,
+						},
+						updatedAt: 1,
+					},
+				},
+			}),
+			{
+				kind: "applyTelemetry",
+				revision: newerRevision,
+				telemetry: {
+					sessionId: "session-1",
+					eventId: null,
+					scope: "step",
+					costUsd: 2.0568,
+					sourceModelId: "claude-opus-4-8",
+					contextWindowSize: 1_000_000,
+				},
+			},
+			1_700_000_000_000
+		);
+
+		expect(patches).toEqual([
+			{
+				kind: "setUsageTelemetry",
+				sessionId: "session-1",
+				telemetry: {
+					sessionSpendUsd: 2.0568,
+					latestStepCostUsd: 2.0568,
+					// occupancy preserved, NOT replaced by a cumulative result total
+					latestTokensTotal: 184_000,
+					latestTokensInput: 1_200,
+					latestTokensOutput: null,
+					latestTokensCacheRead: 182_000,
+					latestTokensCacheWrite: 800,
+					latestTokensReasoning: null,
+					lastTelemetryEventId: null,
+					contextBudget: {
+						maxTokens: 1_000_000,
+						source: "provider-explicit",
+						scope: "step",
+						updatedAt: 1_700_000_000_000,
+					},
+					updatedAt: 1_700_000_000_000,
+				},
+			},
+		]);
+	});
+
 	it("emits refresh snapshot intent for transcript frontier mismatch", () => {
 		const patches = reduceCommand(
 			createSnapshot({

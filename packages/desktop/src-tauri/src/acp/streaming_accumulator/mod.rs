@@ -109,11 +109,25 @@ pub fn streaming_state_registry() -> &'static StreamingStateRegistry {
     &STREAMING_STATE_REGISTRY
 }
 
-/// Reset the process-scoped registry. Call at the start of streaming tests that
-/// exercise production code paths through module-level accessors.
+/// Serializes streaming tests against each other: the registry above is a single
+/// process-global singleton, and `reset_for_test()` clears ALL sessions, so two
+/// streaming tests running concurrently would wipe each other's seeded state.
 #[cfg(test)]
-pub fn reset_streaming_state_for_test() {
+static STREAMING_TEST_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
+/// Reset the process-scoped registry and return a guard that holds the
+/// streaming-test serialization lock for the rest of the calling test. Bind it
+/// (`let _guard = reset_streaming_state_for_test();`) so the lock is held until
+/// the test's assertions complete. Poison-tolerant so one failing streaming test
+/// does not cascade-fail the rest.
+#[cfg(test)]
+#[must_use = "bind the returned guard so the streaming-test lock is held for the test's duration"]
+pub fn reset_streaming_state_for_test() -> std::sync::MutexGuard<'static, ()> {
+    let guard = STREAMING_TEST_LOCK
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
     streaming_state_registry().reset_for_test();
+    guard
 }
 
 /// Cache tool name from initial tool_call event for use during streaming deltas.

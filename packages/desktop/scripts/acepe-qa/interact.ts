@@ -6,6 +6,8 @@ import type {
 	FirstSendTimelineProbeResult,
 	NavigateResult,
 	PlanningDebugResult,
+	ResizeProbeResult,
+	ResizeStreamProbeResult,
 	ResetOnboardingResult,
 	SendComposerResult,
 	ThinkingToggleProbeResult,
@@ -19,6 +21,8 @@ import {
 	firstSendTimelineProbeResultSchema,
 	navigateResultSchema,
 	planningDebugResultSchema,
+	resizeProbeResultSchema,
+	resizeStreamProbeResultSchema,
 	resetOnboardingResultSchema,
 	sendComposerResultSchema,
 	thinkingToggleProbeResultSchema,
@@ -52,7 +56,8 @@ function driverReady(options: DriverOptions): ResultAsync<null, TauriMcpFailure>
 		if (session.code !== 0) {
 			return err({
 				code: "driver_session_failed",
-				message: session.stderr.trim() || session.stdout.trim() || "Unable to start Tauri driver session.",
+				message:
+					session.stderr.trim() || session.stdout.trim() || "Unable to start Tauri driver session.",
 			});
 		}
 		return okAsync(null);
@@ -379,6 +384,451 @@ export function navigateWebview(
 	});
 }
 
+export function probePanelResize(
+	options: DriverOptions & {
+		readonly dx: number;
+		readonly steps: number;
+		readonly stepDelayMs: number;
+	}
+): ResultAsync<ResizeProbeResult, TauriMcpFailure> {
+	const runner = options.runner ?? runCommand;
+	return driverReady(options).andThen(() => {
+		const script = `
+	(async () => {
+	  const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+	  const nextFrame = () => new Promise((resolve) => requestAnimationFrame((time) => resolve(time)));
+	  const rectOf = (node) => {
+	    const rect = node.getBoundingClientRect();
+	    return {
+	      x: rect.x,
+	      y: rect.y,
+	      width: rect.width,
+	      height: rect.height,
+	      top: rect.top,
+	      right: rect.right,
+	      bottom: rect.bottom,
+	      left: rect.left,
+	    };
+	  };
+	  const isVisible = (node) => {
+	    const style = getComputedStyle(node);
+	    const rect = node.getBoundingClientRect();
+	    return style.display !== "none" && style.visibility !== "hidden" && Number(style.opacity) > 0 && rect.width > 0 && rect.height > 0;
+	  };
+	  const emptyResult = (edgeRect, panelRectBefore) => ({
+	    found: false,
+	    edgeRect,
+	    panelRectBefore,
+	    panelRectAfter: null,
+	    requestedDelta: ${options.dx.toString()},
+	    steps: ${options.steps.toString()},
+	    stepDelayMs: ${options.stepDelayMs.toString()},
+	    originalWidth: panelRectBefore ? panelRectBefore.width : null,
+	    finalWidthBeforeRestore: null,
+	    restoredWidth: null,
+	    observedDeltaBeforeRestore: null,
+	    finalLagPx: null,
+	    maxImmediateLagPx: null,
+	    maxFrameLagPx: null,
+	    avgFrameDelayMs: null,
+	    maxFrameDelayMs: null,
+	    transitionProperty: null,
+	    transitionDuration: null,
+	    samples: [],
+	  });
+	  const edge = Array.from(document.querySelectorAll("[class*='cursor-col-resize'], [class*='cursor-ew-resize']"))
+	    .find(isVisible) || null;
+	  if (!edge) {
+	    return emptyResult(null, null);
+	  }
+	  const panel = edge.closest("[style*='min-width'][style*='max-width']") ||
+	    Array.from(document.querySelectorAll("[style*='min-width'][style*='max-width']")).find(isVisible) ||
+	    null;
+	  if (!panel) {
+	    return emptyResult(rectOf(edge), null);
+	  }
+	  const requestedDelta = ${options.dx.toString()};
+	  const steps = Math.max(1, ${options.steps.toString()});
+	  const stepDelayMs = Math.max(0, ${options.stepDelayMs.toString()});
+	  const edgeRect = rectOf(edge);
+	  const panelRectBefore = rectOf(panel);
+	  const styleBefore = getComputedStyle(panel);
+	  const originalWidth = panelRectBefore.width;
+	  const startX = edgeRect.left + edgeRect.width / 2;
+	  const startY = edgeRect.top + edgeRect.height / 2;
+	  const pointerId = 1007;
+	  const originalSetPointerCapture = edge.setPointerCapture;
+	  const originalReleasePointerCapture = edge.releasePointerCapture;
+	  edge.setPointerCapture = () => undefined;
+	  edge.releasePointerCapture = () => undefined;
+	  const dispatchPointer = (type, clientX) => {
+	    const event = new PointerEvent(type, {
+	      bubbles: true,
+	      cancelable: true,
+	      view: window,
+	      pointerId,
+	      pointerType: "mouse",
+	      isPrimary: true,
+	      buttons: type === "pointerup" ? 0 : 1,
+	      button: 0,
+	      clientX,
+	      clientY: startY,
+	    });
+	    edge.dispatchEvent(event);
+	  };
+	  const samples = [];
+	  const startedAt = performance.now();
+	  dispatchPointer("pointerdown", startX);
+	  await Promise.resolve();
+	  await nextFrame();
+	  for (let step = 1; step <= steps; step += 1) {
+	    const stepStartedAt = performance.now();
+	    const targetDelta = requestedDelta * step / steps;
+	    const expectedWidth = Math.max(400, originalWidth + targetDelta);
+	    dispatchPointer("pointermove", startX + targetDelta);
+	    const immediateWidth = panel.getBoundingClientRect().width;
+	    const afterDispatchAt = performance.now();
+	    await Promise.resolve();
+	    const microtaskWidth = panel.getBoundingClientRect().width;
+	    const frameAt = await nextFrame();
+	    const frameWidth = panel.getBoundingClientRect().width;
+	    samples.push({
+	      step,
+	      elapsedMs: Math.round(performance.now() - startedAt),
+	      targetDelta,
+	      expectedWidth,
+	      immediateWidth,
+	      microtaskWidth,
+	      frameWidth,
+	      dispatchMs: afterDispatchAt - stepStartedAt,
+	      frameDelayMs: Number(frameAt) - stepStartedAt,
+	    });
+	    const remainingDelay = stepDelayMs - (performance.now() - stepStartedAt);
+	    if (remainingDelay > 0) {
+	      await sleep(remainingDelay);
+	    }
+	  }
+	  dispatchPointer("pointerup", startX + requestedDelta);
+	  await Promise.resolve();
+	  await nextFrame();
+	  const panelRectAfter = rectOf(panel);
+	  const finalWidthBeforeRestore = panelRectAfter.width;
+	  const observedDeltaBeforeRestore = finalWidthBeforeRestore - originalWidth;
+	  const waitForWidthNear = async (targetWidth) => {
+	    let width = panel.getBoundingClientRect().width;
+	    for (let attempt = 0; attempt < 12 && Math.abs(width - targetWidth) > 1; attempt += 1) {
+	      await nextFrame();
+	      width = panel.getBoundingClientRect().width;
+	    }
+	    return width;
+	  };
+	  const restoreEdge = Array.from(document.querySelectorAll("[class*='cursor-col-resize'], [class*='cursor-ew-resize']"))
+	    .find(isVisible) || edge;
+	  const restoreEdgeRect = rectOf(restoreEdge);
+	  const restoreStartX = restoreEdgeRect.left + restoreEdgeRect.width / 2;
+	  const restoreY = restoreEdgeRect.top + restoreEdgeRect.height / 2;
+	  const restoreDelta = originalWidth - finalWidthBeforeRestore;
+	  const restoreSetPointerCapture = restoreEdge.setPointerCapture;
+	  const restoreReleasePointerCapture = restoreEdge.releasePointerCapture;
+	  restoreEdge.setPointerCapture = () => undefined;
+	  restoreEdge.releasePointerCapture = () => undefined;
+	  const restoreDispatch = (type, clientX) => {
+	    const event = new PointerEvent(type, {
+	      bubbles: true,
+	      cancelable: true,
+	      view: window,
+	      pointerId: pointerId + 1,
+	      pointerType: "mouse",
+	      isPrimary: true,
+	      buttons: type === "pointerup" ? 0 : 1,
+	      button: 0,
+	      clientX,
+	      clientY: restoreY,
+	    });
+	    restoreEdge.dispatchEvent(event);
+	  };
+	  restoreDispatch("pointerdown", restoreStartX);
+	  restoreDispatch("pointermove", restoreStartX + restoreDelta);
+	  restoreDispatch("pointerup", restoreStartX + restoreDelta);
+	  await Promise.resolve();
+	  await sleep(500);
+	  const restoredWidth = await waitForWidthNear(originalWidth);
+	  restoreEdge.setPointerCapture = restoreSetPointerCapture;
+	  restoreEdge.releasePointerCapture = restoreReleasePointerCapture;
+	  edge.setPointerCapture = originalSetPointerCapture;
+	  edge.releasePointerCapture = originalReleasePointerCapture;
+	  const immediateLagValues = samples.map((sample) => Math.abs(sample.expectedWidth - sample.immediateWidth));
+	  const frameLagValues = samples.map((sample) => Math.abs(sample.expectedWidth - sample.frameWidth));
+	  const frameDelayValues = samples.map((sample) => sample.frameDelayMs);
+	  const maxImmediateLagPx = immediateLagValues.length === 0 ? null : Math.max(...immediateLagValues);
+	  const maxFrameLagPx = frameLagValues.length === 0 ? null : Math.max(...frameLagValues);
+	  const maxFrameDelayMs = frameDelayValues.length === 0 ? null : Math.max(...frameDelayValues);
+	  const avgFrameDelayMs = frameDelayValues.length === 0
+	    ? null
+	    : frameDelayValues.reduce((sum, value) => sum + value, 0) / frameDelayValues.length;
+	  return {
+	    found: true,
+	    edgeRect,
+	    panelRectBefore,
+	    panelRectAfter,
+	    requestedDelta,
+	    steps,
+	    stepDelayMs,
+	    originalWidth,
+	    finalWidthBeforeRestore,
+	    restoredWidth,
+	    observedDeltaBeforeRestore,
+	    finalLagPx: Math.abs(Math.max(400, originalWidth + requestedDelta) - finalWidthBeforeRestore),
+	    maxImmediateLagPx,
+	    maxFrameLagPx,
+	    avgFrameDelayMs,
+	    maxFrameDelayMs,
+	    transitionProperty: styleBefore.transitionProperty,
+	    transitionDuration: styleBefore.transitionDuration,
+	    samples,
+	  };
+	})()
+	`;
+		return executeWebviewJson(
+			{
+				appIdentifier: options.appIdentifier,
+				script,
+				schema: resizeProbeResultSchema,
+				callTimeoutMs: 20_000,
+			},
+			runner
+		);
+	});
+}
+
+export function probePanelResizeStream(
+	options: DriverOptions & {
+		readonly dx: number;
+		readonly durationMs: number;
+		readonly moveIntervalMs: number;
+	}
+): ResultAsync<ResizeStreamProbeResult, TauriMcpFailure> {
+	const runner = options.runner ?? runCommand;
+	return driverReady(options).andThen(() => {
+		const script = `
+	(async () => {
+	  const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+	  const nextFrame = () => new Promise((resolve) => requestAnimationFrame((time) => resolve(time)));
+	  const rectOf = (node) => {
+	    const rect = node.getBoundingClientRect();
+	    return {
+	      x: rect.x,
+	      y: rect.y,
+	      width: rect.width,
+	      height: rect.height,
+	      top: rect.top,
+	      right: rect.right,
+	      bottom: rect.bottom,
+	      left: rect.left,
+	    };
+	  };
+	  const isVisible = (node) => {
+	    const style = getComputedStyle(node);
+	    const rect = node.getBoundingClientRect();
+	    return style.display !== "none" && style.visibility !== "hidden" && Number(style.opacity) > 0 && rect.width > 0 && rect.height > 0;
+	  };
+	  const emptyResult = (edgeRect, panelRectBefore) => ({
+	    found: false,
+	    edgeRect,
+	    panelRectBefore,
+	    panelRectAfter: null,
+	    requestedDelta: ${options.dx.toString()},
+	    durationMs: ${options.durationMs.toString()},
+	    moveIntervalMs: ${options.moveIntervalMs.toString()},
+	    originalWidth: panelRectBefore ? panelRectBefore.width : null,
+	    finalWidthBeforeRestore: null,
+	    restoredWidth: null,
+	    moveCount: 0,
+	    frameCount: 0,
+	    maxLagPx: null,
+	    avgLagPx: null,
+	    maxFrameIntervalMs: null,
+	    avgFrameIntervalMs: null,
+	    framesOver50Ms: 0,
+	    transitionProperty: null,
+	    transitionDuration: null,
+	    samples: [],
+	  });
+	  const edge = Array.from(document.querySelectorAll("[class*='cursor-col-resize'], [class*='cursor-ew-resize']"))
+	    .find(isVisible) || null;
+	  if (!edge) {
+	    return emptyResult(null, null);
+	  }
+	  const panel = edge.closest("[style*='min-width'][style*='max-width']") ||
+	    Array.from(document.querySelectorAll("[style*='min-width'][style*='max-width']")).find(isVisible) ||
+	    null;
+	  if (!panel) {
+	    return emptyResult(rectOf(edge), null);
+	  }
+
+	  const requestedDelta = ${options.dx.toString()};
+	  const durationMs = Math.max(50, ${options.durationMs.toString()});
+	  const moveIntervalMs = Math.max(1, ${options.moveIntervalMs.toString()});
+	  const edgeRect = rectOf(edge);
+	  const panelRectBefore = rectOf(panel);
+	  const styleBefore = getComputedStyle(panel);
+	  const originalWidth = panelRectBefore.width;
+	  const startX = edgeRect.left + edgeRect.width / 2;
+	  const startY = edgeRect.top + edgeRect.height / 2;
+	  const pointerId = 1009;
+	  const originalSetPointerCapture = edge.setPointerCapture;
+	  const originalReleasePointerCapture = edge.releasePointerCapture;
+	  edge.setPointerCapture = () => undefined;
+	  edge.releasePointerCapture = () => undefined;
+	  const dispatchPointer = (type, clientX) => {
+	    const event = new PointerEvent(type, {
+	      bubbles: true,
+	      cancelable: true,
+	      view: window,
+	      pointerId,
+	      pointerType: "mouse",
+	      isPrimary: true,
+	      buttons: type === "pointerup" ? 0 : 1,
+	      button: 0,
+	      clientX,
+	      clientY: startY,
+	    });
+	    edge.dispatchEvent(event);
+	  };
+
+	  const samples = [];
+	  const frameIntervals = [];
+	  let moveCount = 0;
+	  let latestExpectedWidth = originalWidth;
+	  let lastFrameAt = null;
+	  let frameCount = 0;
+	  const startedAt = performance.now();
+	  dispatchPointer("pointerdown", startX);
+	  await Promise.resolve();
+
+	  const moveTimer = window.setInterval(() => {
+	    const elapsedMs = performance.now() - startedAt;
+	    const progress = Math.min(1, elapsedMs / durationMs);
+	    const targetDelta = requestedDelta * progress;
+	    latestExpectedWidth = Math.max(400, originalWidth + targetDelta);
+	    dispatchPointer("pointermove", startX + targetDelta);
+	    moveCount += 1;
+	    if (progress >= 1) {
+	      window.clearInterval(moveTimer);
+	    }
+	  }, moveIntervalMs);
+
+	  while (performance.now() - startedAt < durationMs + 80) {
+	    const frameAt = await nextFrame();
+	    frameCount += 1;
+	    if (lastFrameAt !== null) {
+	      frameIntervals.push(Number(frameAt) - lastFrameAt);
+	    }
+	    lastFrameAt = Number(frameAt);
+	    const width = panel.getBoundingClientRect().width;
+	    samples.push({
+	      elapsedMs: Math.round(performance.now() - startedAt),
+	      expectedWidth: latestExpectedWidth,
+	      width,
+	      lagPx: Math.abs(latestExpectedWidth - width),
+	    });
+	  }
+
+	  window.clearInterval(moveTimer);
+	  latestExpectedWidth = Math.max(400, originalWidth + requestedDelta);
+	  dispatchPointer("pointermove", startX + requestedDelta);
+	  dispatchPointer("pointerup", startX + requestedDelta);
+	  await Promise.resolve();
+	  await nextFrame();
+	  const panelRectAfter = rectOf(panel);
+	  const finalWidthBeforeRestore = panelRectAfter.width;
+
+	  const restoreEdge = Array.from(document.querySelectorAll("[class*='cursor-col-resize'], [class*='cursor-ew-resize']"))
+	    .find(isVisible) || edge;
+	  const restoreEdgeRect = rectOf(restoreEdge);
+	  const restoreStartX = restoreEdgeRect.left + restoreEdgeRect.width / 2;
+	  const restoreY = restoreEdgeRect.top + restoreEdgeRect.height / 2;
+	  const restorePointerId = pointerId + 1;
+	  const restoreSetPointerCapture = restoreEdge.setPointerCapture;
+	  const restoreReleasePointerCapture = restoreEdge.releasePointerCapture;
+	  restoreEdge.setPointerCapture = () => undefined;
+	  restoreEdge.releasePointerCapture = () => undefined;
+	  const restoreDispatch = (type, clientX) => {
+	    const event = new PointerEvent(type, {
+	      bubbles: true,
+	      cancelable: true,
+	      view: window,
+	      pointerId: restorePointerId,
+	      pointerType: "mouse",
+	      isPrimary: true,
+	      buttons: type === "pointerup" ? 0 : 1,
+	      button: 0,
+	      clientX,
+	      clientY: restoreY,
+	    });
+	    restoreEdge.dispatchEvent(event);
+	  };
+	  const restoreDelta = originalWidth - finalWidthBeforeRestore;
+	  restoreDispatch("pointerdown", restoreStartX);
+	  restoreDispatch("pointermove", restoreStartX + restoreDelta);
+	  restoreDispatch("pointerup", restoreStartX + restoreDelta);
+	  await sleep(500);
+	  let restoredWidth = panel.getBoundingClientRect().width;
+	  for (let attempt = 0; attempt < 12 && Math.abs(restoredWidth - originalWidth) > 1; attempt += 1) {
+	    await nextFrame();
+	    restoredWidth = panel.getBoundingClientRect().width;
+	  }
+
+	  restoreEdge.setPointerCapture = restoreSetPointerCapture;
+	  restoreEdge.releasePointerCapture = restoreReleasePointerCapture;
+	  edge.setPointerCapture = originalSetPointerCapture;
+	  edge.releasePointerCapture = originalReleasePointerCapture;
+
+	  const lagValues = samples.map((sample) => sample.lagPx);
+	  const maxLagPx = lagValues.length === 0 ? null : Math.max(...lagValues);
+	  const avgLagPx = lagValues.length === 0
+	    ? null
+	    : lagValues.reduce((sum, value) => sum + value, 0) / lagValues.length;
+	  const maxFrameIntervalMs = frameIntervals.length === 0 ? null : Math.max(...frameIntervals);
+	  const avgFrameIntervalMs = frameIntervals.length === 0
+	    ? null
+	    : frameIntervals.reduce((sum, value) => sum + value, 0) / frameIntervals.length;
+	  return {
+	    found: true,
+	    edgeRect,
+	    panelRectBefore,
+	    panelRectAfter,
+	    requestedDelta,
+	    durationMs,
+	    moveIntervalMs,
+	    originalWidth,
+	    finalWidthBeforeRestore,
+	    restoredWidth,
+	    moveCount,
+	    frameCount,
+	    maxLagPx,
+	    avgLagPx,
+	    maxFrameIntervalMs,
+	    avgFrameIntervalMs,
+	    framesOver50Ms: frameIntervals.filter((value) => value > 50).length,
+	    transitionProperty: styleBefore.transitionProperty,
+	    transitionDuration: styleBefore.transitionDuration,
+	    samples,
+	  };
+	})()
+	`;
+		return executeWebviewJson(
+			{
+				appIdentifier: options.appIdentifier,
+				script,
+				schema: resizeStreamProbeResultSchema,
+				callTimeoutMs: 20_000,
+			},
+			runner
+		);
+	});
+}
+
 export function probeThinkingToggle(
 	options: DriverOptions
 ): ResultAsync<ThinkingToggleProbeResult, TauriMcpFailure> {
@@ -551,7 +1001,11 @@ export function sendComposer(
 })()
 `;
 		return executeWebviewJson(
-			{ appIdentifier: options.appIdentifier, script, schema: sendComposerResultSchema },
+			{
+				appIdentifier: options.appIdentifier,
+				script,
+				schema: sendComposerResultSchema,
+			},
 			runner
 		);
 	});
@@ -586,20 +1040,12 @@ export function probeFirstSendTimeline(
 				const earlyDelays = [10, 40, 50, 150, 250, 500];
 				for (const delay of earlyDelays) {
 					await sleepMs(delay);
-					const sample = await firstSendTimelineSample(
-						options.appIdentifier,
-						options.text,
-						runner
-					);
+					const sample = await firstSendTimelineSample(options.appIdentifier, options.text, runner);
 					samples.push(sample);
 				}
 				while ((samples[samples.length - 1]?.elapsedMs ?? 0) < options.timeoutMs) {
 					await sleepMs(500);
-					const sample = await firstSendTimelineSample(
-						options.appIdentifier,
-						options.text,
-						runner
-					);
+					const sample = await firstSendTimelineSample(options.appIdentifier, options.text, runner);
 					samples.push(sample);
 				}
 				return {
@@ -619,9 +1065,7 @@ export function probeFirstSendTimeline(
 					: {
 							code: "first_send_probe_failed",
 							message:
-								error instanceof Error
-									? error.message
-									: "Unable to collect first-send timeline.",
+								error instanceof Error ? error.message : "Unable to collect first-send timeline.",
 						}
 		)
 	);

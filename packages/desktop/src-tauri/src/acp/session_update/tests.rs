@@ -2927,7 +2927,7 @@ mod parse_tool_call_update_from_acp {
         use crate::acp::session_update::ToolArguments;
 
         with_agent(AgentType::ClaudeCode, || {
-            reset_streaming_state_for_test();
+            let _streaming_test_guard = reset_streaming_state_for_test();
             let session_id = "stream-test-session";
             let tool_call_id = "stream-test-tool";
 
@@ -2970,7 +2970,7 @@ mod parse_tool_call_update_from_acp {
         use crate::acp::streaming_accumulator::{reset_streaming_state_for_test, seed_tool_name};
 
         with_agent(AgentType::ClaudeCode, || {
-            reset_streaming_state_for_test();
+            let _streaming_test_guard = reset_streaming_state_for_test();
             let session_id = "plan-seed-session";
             let tool_call_id = "plan-seed-tool";
 
@@ -3038,7 +3038,7 @@ mod parse_tool_call_update_from_acp {
     #[test]
     fn streaming_state_scoped_to_session_and_cleared_on_completion() {
         with_agent(AgentType::ClaudeCode, || {
-            reset_streaming_state_for_test();
+            let _streaming_test_guard = reset_streaming_state_for_test();
             let session_id = "sess-123";
             let tool_call_id = "tool-abc";
 

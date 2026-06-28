@@ -235,7 +235,10 @@ fn deserialization_paths_do_not_silently_default_to_claude_code() {
     let guarded_files = [
         "session_update/tool_calls.rs",
         "session_update/deserialize.rs",
-        "streaming_accumulator.rs",
+        // `streaming_accumulator.rs` was split into a module directory.
+        "streaming_accumulator/mod.rs",
+        "streaming_accumulator/plan_streaming.rs",
+        "streaming_accumulator/tool_streaming.rs",
         "session_update_parser.rs",
     ];
 

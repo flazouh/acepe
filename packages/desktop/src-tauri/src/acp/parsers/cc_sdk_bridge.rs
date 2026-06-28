@@ -881,18 +881,20 @@ fn build_result_telemetry(
         })
         .unwrap_or((None, None, None, None));
 
-    let total = match (input, output) {
-        (Some(i), Some(o)) => Some(i + o + cache_read.unwrap_or(0) + cache_write.unwrap_or(0)),
-        _ => None,
-    };
-
+    // The Result `usage` is cumulative across every API round-trip in the turn, so
+    // summing input + output + cache_read + cache_write counts the cached prefix many
+    // times and overshoots the physical context window. That sum is billing data, not
+    // current context occupancy — leave `total` unset so it cannot clobber the
+    // authoritative occupancy snapshot from `usage_update` / assistant messages. Cost
+    // and context-window size below are the parts the Result message authoritatively
+    // carries.
     Some(UsageTelemetryData {
         session_id: sid,
         event_id: None,
         scope: "step".to_string(),
         cost_usd: total_cost_usd,
         tokens: UsageTelemetryTokens {
-            total,
+            total: None,
             input,
             output,
             cache_read,
@@ -1395,6 +1397,59 @@ mod tests {
     }
 
     #[test]
+    fn result_telemetry_does_not_report_cumulative_tokens_as_context_occupancy() {
+        // The Claude Code Result message carries usage summed across every API
+        // round-trip in the turn, so cache reads are counted many times. The naive
+        // sum (1200 + 8000 + 1_100_000 + 64_708 = 1_173_908) overshoots the 1,000,000
+        // context window — it is billing data, not current context occupancy. The
+        // Result event must report cost + window only and leave the occupancy total
+        // unset, so it cannot clobber the authoritative usage_update snapshot.
+        let updates = translate_cc_sdk_message_with_turn_state(
+            AgentType::ClaudeCode,
+            Message::Result {
+                subtype: "conversation_turn".to_string(),
+                duration_ms: 1000,
+                duration_api_ms: 800,
+                is_error: false,
+                num_turns: 1,
+                session_id: "ses-cumulative".to_string(),
+                total_cost_usd: Some(2.0568),
+                usage: Some(serde_json::json!({
+                    "input_tokens": 1200,
+                    "output_tokens": 8000,
+                    "cache_read_input_tokens": 1_100_000,
+                    "cache_creation_input_tokens": 64_708,
+                })),
+                model_usage: Some(serde_json::json!({
+                    "claude-opus-4-8": {
+                        "contextWindow": 1_000_000,
+                        "maxOutputTokens": 32000
+                    }
+                })),
+                result: None,
+                structured_output: None,
+                stop_reason: None,
+            },
+            Some("ses-cumulative".to_string()),
+            CcSdkTurnStreamState {
+                saw_text_delta: false,
+                saw_thinking_delta: false,
+                model_id: Some("claude-opus-4-8".to_string()),
+                ..Default::default()
+            },
+        );
+
+        let SessionUpdate::UsageTelemetryUpdate { data } = &updates[0] else {
+            panic!("Expected UsageTelemetryUpdate");
+        };
+        // Cost and window are still reported...
+        assert_eq!(data.cost_usd, Some(2.0568));
+        assert_eq!(data.context_window_size, Some(1_000_000));
+        // ...but the cumulative token sum is NOT a context-occupancy total.
+        assert_eq!(data.tokens.total, None);
+    }
+
+    #[test]
     fn context_window_for_all_claude_models() {
         use super::context_window_for_model;
 
@@ -1814,7 +1869,7 @@ mod tests {
     }
 
     #[test]
-    fn assistant_subagent_tool_use_does_not_emit_usage_telemetry() {
+    fn assistant_subagent_tool_use_emits_subagent_usage_telemetry() {
         with_agent(AgentType::ClaudeCode, || {
             let updates = translate_cc_sdk_message(
                 AgentType::ClaudeCode,
@@ -1839,28 +1894,76 @@ mod tests {
                 Some("ses-test".to_string()),
             );
 
+            // The tool call is still emitted, AND a per-sub-agent usage telemetry
+            // update keyed by the parent Task tool-call id (no longer discarded).
+            let tool_call = updates
+                .iter()
+                .find_map(|update| match update {
+                    SessionUpdate::ToolCall { tool_call, .. } => Some(tool_call),
+                    _ => None,
+                })
+                .expect("expected a ToolCall update");
+            assert_eq!(tool_call.id, "toolu_child_telemetry_001");
+            assert_eq!(tool_call.kind, Some(ToolKind::Execute));
             assert_eq!(
-                updates.len(),
-                1,
-                "subagent child usage should not emit parent-session telemetry"
-            );
-            assert!(
-                updates
-                    .iter()
-                    .all(|update| !matches!(update, SessionUpdate::UsageTelemetryUpdate { .. })),
-                "subagent child assistant messages should not emit usage telemetry"
+                tool_call.parent_tool_use_id.as_deref(),
+                Some("toolu_task_parent")
             );
 
-            if let SessionUpdate::ToolCall { tool_call, .. } = &updates[0] {
-                assert_eq!(tool_call.id, "toolu_child_telemetry_001");
-                assert_eq!(tool_call.kind, Some(ToolKind::Execute));
-                assert_eq!(
-                    tool_call.parent_tool_use_id.as_deref(),
-                    Some("toolu_task_parent")
-                );
-            } else {
-                panic!("expected SessionUpdate::ToolCall, got {:?}", updates[0]);
-            }
+            let telemetry = updates
+                .iter()
+                .find_map(|update| match update {
+                    SessionUpdate::UsageTelemetryUpdate { data } => Some(data),
+                    _ => None,
+                })
+                .expect("expected a per-sub-agent UsageTelemetryUpdate");
+            assert_eq!(
+                telemetry.parent_tool_use_id.as_deref(),
+                Some("toolu_task_parent"),
+                "sub-agent telemetry must carry the parent Task tool-call id"
+            );
+            assert_eq!(
+                telemetry.source_model_id.as_deref(),
+                Some("claude-haiku-4-5-20251001"),
+                "sub-agent telemetry must carry the sub-agent's own model"
+            );
+            assert_eq!(telemetry.tokens.input, Some(3));
+            assert_eq!(telemetry.tokens.output, Some(3));
+            assert_eq!(telemetry.tokens.cache_write, Some(22537));
+        });
+    }
+
+    #[test]
+    fn assistant_subagent_error_message_does_not_emit_session_level_telemetry() {
+        // Invariant: a sub-agent (parent_tool_use_id.is_some()) message must NEVER
+        // produce a session-level (parent_tool_use_id = None) usage record, on any
+        // emission site including the error path.
+        with_agent(AgentType::ClaudeCode, || {
+            let updates = translate_cc_sdk_message(
+                AgentType::ClaudeCode,
+                Message::Assistant {
+                    message: cc_sdk::AssistantMessage {
+                        content: vec![],
+                        model: Some("claude-haiku-4-5-20251001".to_string()),
+                        usage: Some(serde_json::json!({
+                            "input_tokens": 10,
+                            "output_tokens": 1,
+                        })),
+                        error: Some(cc_sdk::AssistantMessageError::ServerError),
+                        parent_tool_use_id: Some("toolu_task_parent".to_string()),
+                    },
+                },
+                Some("ses-test".to_string()),
+            );
+
+            assert!(
+                updates.iter().all(|update| match update {
+                    SessionUpdate::UsageTelemetryUpdate { data } =>
+                        data.parent_tool_use_id.is_some(),
+                    _ => true,
+                }),
+                "no session-level (parent=None) telemetry may come from a sub-agent message"
+            );
         });
     }
 

@@ -1,15 +1,13 @@
 <script lang="ts">
 import { DiffPill, Selector } from "@acepe/ui";
 import {
-	ComposerFilterDropdownFilterInput,
-	composerFilterDropdownBodyClass,
+	ComposerFilterDropdownBody,
 	composerFilterDropdownContentClass,
 	composerFilterDropdownEmptyStateClass,
-	composerFilterDropdownFilterRowClass,
 	composerFilterDropdownItemClass,
 	composerFilterDropdownListClass,
-} from "@acepe/ui/agent-panel";
-import { FUSED_CONTROL_COMPOSER_CHIP_LABEL_BUTTON_CLASS } from "@acepe/ui/panel-header";
+} from "@acepe/ui";
+import { FUSED_CONTROL_COMPOSER_CHIP_LABEL_BUTTON_CLASS, FUSED_CONTROL_GROUPED_CHIP_LABEL_BUTTON_CLASS } from "@acepe/ui/panel-header";
 import { Colors } from "@acepe/ui/colors";
 import * as DropdownMenu from "@acepe/ui/dropdown-menu";
 import { CheckCircle, GitBranch } from "phosphor-svelte";
@@ -33,8 +31,10 @@ interface Props {
 	isWorktree?: boolean;
 	onBranchSelected?: (branch: string) => void;
 	onInitGitRepo?: () => void;
-	/** "minimal" = pill triggers, no border; "setupChip" = new-thread setup bar chip. */
-	variant?: "default" | "minimal" | "setupChip";
+	initGitLoading?: boolean;
+	/** "minimal" = pill triggers, no border; "setupChip" = new-thread setup bar chip; "setupChipGrouped" = first segment in setup git button group. */
+	variant?: "default" | "minimal" | "setupChip" | "setupChipGrouped";
+	class?: string;
 }
 
 let {
@@ -45,7 +45,9 @@ let {
 	isWorktree = false,
 	onBranchSelected,
 	onInitGitRepo,
+	initGitLoading = false,
 	variant = "default",
+	class: className = "",
 }: Props = $props();
 
 let branchPopoverOpen = $state(false);
@@ -64,15 +66,34 @@ const setupChipTriggerClass = cn(
 	FUSED_CONTROL_COMPOSER_CHIP_LABEL_BUTTON_CLASS,
 	"w-auto flex-none"
 );
+const setupChipGroupedTriggerClass = cn(
+	FUSED_CONTROL_GROUPED_CHIP_LABEL_BUTTON_CLASS,
+	"w-auto flex-none"
+);
+const branchTriggerClass = $derived(
+	variant === "setupChipGrouped"
+		? setupChipGroupedTriggerClass
+		: variant === "setupChip"
+			? setupChipTriggerClass
+			: variant === "minimal"
+				? minimalTriggerClass
+				: undefined
+);
 const triggerSize = $derived(
-	variant === "setupChip" ? "setupChip" : variant === "minimal" ? "minimal" : "default"
+	variant === "setupChip" || variant === "setupChipGrouped"
+		? "setupChip"
+		: variant === "minimal"
+			? "minimal"
+			: "default"
 );
 const initGitButtonClass = $derived(
-	variant === "setupChip"
-		? setupChipTriggerClass
-		: variant === "minimal"
-			? minimalTriggerClass
-			: "h-7"
+	variant === "setupChipGrouped"
+		? setupChipGroupedTriggerClass
+		: variant === "setupChip"
+			? setupChipTriggerClass
+			: variant === "minimal"
+				? minimalTriggerClass
+				: "h-7"
 );
 
 const filteredBranches = $derived(filterBranchesByQuery(branches, branchQuery));
@@ -164,11 +185,13 @@ function openCreateBranchDialog(): void {
 			variant === "setupChip" ? "w-auto shrink-0 px-1.5 py-1" : "w-full px-2",
 			initGitButtonClass
 		)}
-		disabled={!projectPath || !onInitGitRepo}
+		disabled={!projectPath || !onInitGitRepo || initGitLoading}
 		onclick={() => onInitGitRepo?.()}
 	>
 		<GitBranch class="h-3 w-3 shrink-0" weight="fill" />
-		<span class="text-[11px] leading-none">Initialize Git</span>
+		<span class="text-[11px] leading-none">
+			{initGitLoading ? "Initializing..." : "Initialize Git"}
+		</span>
 	</Button>
 {:else}
 	<Selector
@@ -177,17 +200,29 @@ function openCreateBranchDialog(): void {
 		align="end"
 		blockingOverlay
 		variant="ghost"
-		showChevron={variant !== "setupChip"}
-		class={variant === "setupChip" ? "w-auto flex-none" : "w-full h-full"}
+		showChevron={variant !== "setupChip" && variant !== "setupChipGrouped"}
+		class={cn(
+			variant === "setupChip" || variant === "setupChipGrouped" ? "w-auto flex-none" : "w-full h-full",
+			className
+		)}
 		contentClass={composerFilterDropdownContentClass}
 		triggerSize={triggerSize}
+		triggerClass={branchTriggerClass}
 	>
 		{#snippet renderButton()}
-			<GitBranch class="size-3 shrink-0" weight="fill" style="color: {Colors.purple}" />
+			<GitBranch
+				class="size-3 shrink-0 {variant === 'setupChip' || variant === 'setupChipGrouped'
+					? 'text-foreground'
+					: ''}"
+				weight="fill"
+				style={variant === "setupChip" || variant === "setupChipGrouped"
+					? undefined
+					: `color: ${Colors.purple}`}
+			/>
 			<span class="text-xs font-mono max-w-[9rem] truncate" title={currentBranch || "branch"}>
 				{currentBranch || "branch"}
 			</span>
-			{#if diffStats}
+			{#if diffStats && variant !== "setupChip" && variant !== "setupChipGrouped"}
 				<DiffPill
 					insertions={diffStats.insertions}
 					deletions={diffStats.deletions}
@@ -196,16 +231,12 @@ function openCreateBranchDialog(): void {
 			{/if}
 		{/snippet}
 
-		<div class={composerFilterDropdownBodyClass}>
-			<div class={composerFilterDropdownFilterRowClass}>
-				<ComposerFilterDropdownFilterInput
-					bind:value={branchQuery}
-					bind:inputRef={branchInputRef}
-					placeholder="Filter branches…"
-					ariaLabel="Filter branches"
-				/>
-			</div>
-
+		<ComposerFilterDropdownBody
+			bind:searchQuery={branchQuery}
+			searchPlaceholder="Filter branches…"
+			searchAriaLabel="Filter branches"
+			bind:inputRef={branchInputRef}
+		>
 			<div class={composerFilterDropdownListClass}>
 				{#if branchListDisplay.kind === "loading"}
 					<div class={composerFilterDropdownEmptyStateClass}>
@@ -241,7 +272,7 @@ function openCreateBranchDialog(): void {
 					<span class="text-xs">New branch…</span>
 				</DropdownMenu.Item>
 			{/if}
-		</div>
+		</ComposerFilterDropdownBody>
 	</Selector>
 {/if}
 

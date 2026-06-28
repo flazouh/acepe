@@ -424,7 +424,41 @@ export { ProjectLetterBadge } from "./components/project-letter-badge/index.js";
 export { RichTokenText } from "./components/rich-token-text/index.js";
 export { SegmentedProgress } from "./components/segmented-progress/index.js";
 // Selector
+export { ComposerOverflowMenu } from "./components/composer/index.js";
+export {
+	ComposerFilterDropdown,
+	ComposerFilterDropdownBody,
+	ComposerFilterDropdownFilterInput,
+	composerFilterDropdownBodyClass,
+	composerFilterDropdownContentClass,
+	composerFilterDropdownEmptyStateClass,
+	composerFilterDropdownFilterRowClass,
+	composerFilterDropdownItemClass,
+	composerFilterDropdownListClass,
+	composerFilterDropdownSubmenuContentClass,
+} from "./components/composer/index.js";
 export { Selector } from "./components/selector/index.js";
+export {
+	SessionPrLinkPickerPanel,
+	filterPullRequestsByQuery,
+	getHeaderPrLinkLabel,
+	getLinkedPrTooltipLabel,
+	getPrPickerListState,
+	getSessionPrLinkMenuStatusLabel,
+	getSessionPrLinkMenuTriggerLabel,
+	groupSessionPrLinksByNumber,
+	normalizePrListItemState,
+	shouldLoadOpenPullRequests,
+	shouldShowPrSearchInput,
+	type PrPickerListState,
+	type SessionPrLinkPickerLinkedPr,
+	type SessionPrLinkPickerMode,
+	type SessionPrLinkPickerProject,
+	type SessionPrLinkPickerPrState,
+	type SessionPrLinkPickerPullRequest,
+	type SessionPrLinkPickerReference,
+	type SessionPrLinkPickerRepoContext,
+} from "./components/session-pr-link/index.js";
 export { TextShimmer } from "./components/text-shimmer/index.js";
 export {
 	Tooltip,

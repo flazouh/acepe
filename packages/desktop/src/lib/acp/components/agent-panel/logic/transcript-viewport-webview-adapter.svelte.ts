@@ -27,7 +27,7 @@ import {
 	shouldDispatchTailDetachScrollIntent,
 	shouldEmitSettledBottomPin,
 	shouldEmitSettledTopPin,
-	shouldIgnoreStaleFollowingTailTarget,
+	shouldIgnoreStaleScrollTopTarget,
 	shouldPinFollowingTailToRenderedBottom,
 	shouldPinHydratedFollowingTailProjection,
 	shouldSuppressProgrammaticScrollEvent,
@@ -364,10 +364,11 @@ export class TranscriptViewportWebviewAdapter {
 				return;
 			}
 			if (
-				shouldIgnoreStaleFollowingTailTarget({
+				shouldIgnoreStaleScrollTopTarget({
 					modeKind: projection.mode.kind,
 					liveNearBottom: this.#isLiveViewportNearBottom(),
 					locallyDetachedFromTail: this.#locallyDetachedFromTail,
+					userScrollingAwayFromTail: this.#userScrollingAwayFromTail,
 					hasAppliedAnyScrollTarget,
 				})
 			) {

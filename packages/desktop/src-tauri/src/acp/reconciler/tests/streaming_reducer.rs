@@ -58,7 +58,7 @@ fn semantic_transition_matches_provider_classify_for_streaming_shape() {
 #[test]
 fn lifecycle_seed_delta_terminal_clears_tool_state() {
     with_agent(AgentType::ClaudeCode, || {
-        reset_streaming_state_for_test();
+        let _streaming_test_guard = reset_streaming_state_for_test();
         let session_id = unique_session("lifecycle-seed-delta-terminal");
         let tool_call_id = "lifecycle-tool-1";
         let parser = get_parser(AgentType::ClaudeCode);
@@ -119,7 +119,7 @@ fn lifecycle_seed_delta_terminal_clears_tool_state() {
 #[test]
 fn lifecycle_cross_session_same_tool_call_id_isolated() {
     with_agent(AgentType::ClaudeCode, || {
-        reset_streaming_state_for_test();
+        let _streaming_test_guard = reset_streaming_state_for_test();
         let session_a = unique_session("lifecycle-cross-a");
         let session_b = unique_session("lifecycle-cross-b");
         let tool_call_id = "shared-tool-call-id";
@@ -211,7 +211,7 @@ fn lifecycle_cross_session_same_tool_call_id_isolated() {
 #[test]
 fn lifecycle_plan_detect_accumulate_finalize_round_trip() {
     with_agent(AgentType::ClaudeCode, || {
-        reset_streaming_state_for_test();
+        let _streaming_test_guard = reset_streaming_state_for_test();
         let session_id = unique_session("lifecycle-plan-roundtrip");
         let tool_call_id = "plan-tool-1";
         let parser = get_parser(AgentType::ClaudeCode);
@@ -299,7 +299,7 @@ async fn lifecycle_concurrent_delta_and_terminal_does_not_deadlock() {
     let tool_call_id = "concurrent-tool";
 
     with_agent(AgentType::ClaudeCode, || {
-        reset_streaming_state_for_test();
+        let _streaming_test_guard = reset_streaming_state_for_test();
         seed_tool_name(
             session_id.as_str(),
             tool_call_id,

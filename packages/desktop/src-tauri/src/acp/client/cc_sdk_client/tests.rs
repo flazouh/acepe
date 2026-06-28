@@ -12,9 +12,6 @@ use cc_sdk::{CanUseTool, HookCallback};
 use sea_orm::Database;
 use sea_orm_migration::MigratorTrait;
 use std::path::Path;
-use std::sync::{LazyLock, Mutex as StdMutex};
-
-static HOME_ENV_LOCK: LazyLock<StdMutex<()>> = LazyLock::new(|| StdMutex::new(()));
 
 #[test]
 fn claude_history_tool_result_backfill_preserves_stdout_stderr_payload() {
@@ -650,7 +647,7 @@ async fn build_options_registers_callable_acepe_computer_mcp_server() {
 
 #[test]
 fn build_options_respects_bypass_permissions_from_claude_user_settings_when_mode_unset() {
-    let _guard = HOME_ENV_LOCK.lock().expect("lock HOME env");
+    let _guard = crate::acp::lock_home_env_for_test();
     let previous_home = std::env::var_os("HOME");
     let temp = tempfile::tempdir().expect("temp dir");
     let home = temp.path().join("home");

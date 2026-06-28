@@ -39,15 +39,33 @@ export function buildCanonicalUsageTelemetry(
 	const sessionSpendUsd = (previous?.sessionSpendUsd ?? 0) + costUsd;
 	const tokens = usageTelemetryData.tokens;
 
+	// Context-window occupancy ("used") is a point-in-time snapshot, reported by
+	// `usage_update` system messages and per-assistant-message usage. Cost-only events
+	// (notably the Claude Code Result message, whose token usage is cumulative across
+	// the turn and overshoots the window) carry no occupancy total — when that happens
+	// we keep the last authoritative snapshot rather than wiping it. Cost always
+	// updates regardless.
+	const hasOccupancySnapshot = tokens?.total != null;
+
 	return {
 		sessionSpendUsd,
 		latestStepCostUsd: usageTelemetryData.costUsd ?? null,
-		latestTokensTotal: tokens?.total ?? null,
-		latestTokensInput: tokens?.input ?? null,
-		latestTokensOutput: tokens?.output ?? null,
-		latestTokensCacheRead: tokens?.cacheRead ?? null,
-		latestTokensCacheWrite: tokens?.cacheWrite ?? null,
-		latestTokensReasoning: tokens?.reasoning ?? null,
+		latestTokensTotal: hasOccupancySnapshot ? tokens.total ?? null : previous?.latestTokensTotal ?? null,
+		latestTokensInput: hasOccupancySnapshot
+			? tokens.input ?? null
+			: previous?.latestTokensInput ?? null,
+		latestTokensOutput: hasOccupancySnapshot
+			? tokens.output ?? null
+			: previous?.latestTokensOutput ?? null,
+		latestTokensCacheRead: hasOccupancySnapshot
+			? tokens.cacheRead ?? null
+			: previous?.latestTokensCacheRead ?? null,
+		latestTokensCacheWrite: hasOccupancySnapshot
+			? tokens.cacheWrite ?? null
+			: previous?.latestTokensCacheWrite ?? null,
+		latestTokensReasoning: hasOccupancySnapshot
+			? tokens.reasoning ?? null
+			: previous?.latestTokensReasoning ?? null,
 		lastTelemetryEventId: eventId,
 		contextBudget: resolveContextBudget(usageTelemetryData, previous, currentModelId, updatedAt),
 		updatedAt,

@@ -15,7 +15,7 @@ import {
 	shouldDispatchTailDetachScrollIntent,
 	shouldEmitSettledBottomPin,
 	shouldEmitSettledTopPin,
-	shouldIgnoreStaleFollowingTailTarget,
+	shouldIgnoreStaleScrollTopTarget,
 	shouldSuppressProgrammaticScrollEvent,
 	semanticScrollIntentAtRenderedBufferEdge,
 } from "../transcript-viewport-scroll-controller.js";
@@ -186,10 +186,11 @@ describe("transcript viewport scroll controller", () => {
 
 	it("ignores stale following-tail targets after the user locally detached", () => {
 		expect(
-			shouldIgnoreStaleFollowingTailTarget({
+			shouldIgnoreStaleScrollTopTarget({
 				modeKind: "followingTail",
 				liveNearBottom: false,
 				locallyDetachedFromTail: true,
+				userScrollingAwayFromTail: false,
 				hasAppliedAnyScrollTarget: true,
 			})
 		).toBe(true);
@@ -197,11 +198,41 @@ describe("transcript viewport scroll controller", () => {
 
 	it("keeps the initial following-tail target allowed", () => {
 		expect(
-			shouldIgnoreStaleFollowingTailTarget({
+			shouldIgnoreStaleScrollTopTarget({
 				modeKind: "followingTail",
 				liveNearBottom: false,
 				locallyDetachedFromTail: true,
+				userScrollingAwayFromTail: false,
 				hasAppliedAnyScrollTarget: false,
+			})
+		).toBe(false);
+	});
+
+	// Regression: the live "can't scroll up, snaps back to bottom" bug. While an
+	// agent streams, the frontend reveals the latest user row (an absolute Rust
+	// scroll_top_target). If that target lands AFTER the user has scrolled up
+	// (canonical mode = detached, user actively scrolling away from the tail),
+	// the adapter must drop it instead of yanking the viewport to the bottom.
+	it("ignores a stale absolute target when the user scrolls away in detached mode (reveal-race)", () => {
+		expect(
+			shouldIgnoreStaleScrollTopTarget({
+				modeKind: "detached",
+				liveNearBottom: false,
+				locallyDetachedFromTail: false,
+				userScrollingAwayFromTail: true,
+				hasAppliedAnyScrollTarget: true,
+			})
+		).toBe(true);
+	});
+
+	it("still applies a user-initiated reveal target (not actively scrolling away)", () => {
+		expect(
+			shouldIgnoreStaleScrollTopTarget({
+				modeKind: "detached",
+				liveNearBottom: false,
+				locallyDetachedFromTail: false,
+				userScrollingAwayFromTail: false,
+				hasAppliedAnyScrollTarget: true,
 			})
 		).toBe(false);
 	});

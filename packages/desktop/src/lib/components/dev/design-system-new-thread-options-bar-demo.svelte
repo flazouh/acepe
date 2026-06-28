@@ -58,7 +58,7 @@
 {#snippet branchControl()}
 	<button
 		type="button"
-		class="flex shrink-0 items-center gap-1 rounded-md bg-transparent px-1.5 py-1 text-xs leading-none text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+		class="flex shrink-0 items-center gap-1 rounded-md bg-accent/30 px-1.5 py-1 text-xs leading-none text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
 	>
 		<span class="font-mono">main</span>
 	</button>

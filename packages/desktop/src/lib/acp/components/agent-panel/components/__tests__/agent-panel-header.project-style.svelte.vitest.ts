@@ -194,6 +194,46 @@ describe("AgentPanelHeader project-header style", () => {
 		expect(container.querySelector(".animate-ping")).toBeNull();
 	});
 
+	it("renders no warming spinner while connecting after first send", () => {
+		render(AgentPanelHeader, {
+			pendingProjectSelection: false,
+			isConnecting: false,
+			sessionId: null,
+			sessionTitle: null,
+			sessionAgentId: null,
+			currentAgentId: "claude-code",
+			availableAgents: [],
+			agentIconSrc: "/agent.svg",
+			agentName: "Claude",
+			isFullscreen: false,
+			sessionStatus: "warming",
+			projectPath: "/repo",
+			projectName: "repo",
+			projectColor: "#FF5D5A",
+			hideProjectBadge: false,
+			onClose: vi.fn(),
+			onToggleFullscreen: vi.fn(),
+			onCopyContent: undefined,
+			onOpenInFinder: undefined,
+			onExportRawStreaming: undefined,
+			displayTitle: "Diagnostic ping - reply with ok",
+			entriesCount: 1,
+			insertions: 0,
+			deletions: 0,
+			createdAt: null,
+			updatedAt: null,
+			onOpenRawFile: undefined,
+			onOpenInAcepe: undefined,
+			onExportMarkdown: undefined,
+			onExportJson: undefined,
+			onAgentChange: undefined,
+			onScrollToTop: undefined,
+		});
+
+		expect(screen.queryByLabelText("Connecting to Claude...")).toBeNull();
+		expect(screen.queryByLabelText("Retrying thread")).toBeNull();
+	});
+
 	it("shows immediate retry feedback in the header status bubble", async () => {
 		const onRetryConnection = vi.fn();
 		const props = {

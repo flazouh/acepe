@@ -303,13 +303,10 @@ fn claude_model_sort_key(model_id: &str) -> ClaudeModelSortKey {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::sync::{LazyLock, Mutex};
-
-    static HOME_ENV_LOCK: LazyLock<Mutex<()>> = LazyLock::new(|| Mutex::new(()));
 
     #[test]
     fn resolve_claude_runtime_mode_id_uses_user_settings_for_default_requests() {
-        let _guard = HOME_ENV_LOCK.lock().expect("lock HOME env");
+        let _guard = crate::acp::lock_home_env_for_test();
         let previous_home = std::env::var_os("HOME");
         let temp = tempfile::tempdir().expect("temp dir");
         let home = temp.path().join("home");

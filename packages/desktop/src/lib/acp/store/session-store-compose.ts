@@ -17,6 +17,7 @@ import { PrLinkStateStore } from "./pr-link-state-store.svelte.js";
 import { SessionConnectionFacade } from "./session-connection-facade.js";
 import { SessionConnectionService } from "./session-connection-service.svelte.js";
 import { SessionCreationCoordinator } from "./session-creation-coordinator.svelte.js";
+import { optimisticSessionColdFromPendingCreation } from "./services/optimistic-pending-session.js";
 import { SessionEnvelopeApplier } from "./session-envelope-applier.svelte.js";
 import { SessionEntryStore } from "./session-entry-store.svelte.js";
 import { SessionExportService } from "./session-export-service.js";
@@ -205,6 +206,16 @@ export function composeSessionStoreParts(input: ComposeSessionStorePartsInput): 
 	const creationCoordinator = new SessionCreationCoordinator({
 		messagingSvc,
 		onTurnError: (sessionId) => callbacks.onTurnError?.(sessionId),
+		registerOptimisticSession: (result) => {
+			if (listState.hasSession(result.sessionId)) {
+				return;
+			}
+			listState.addSession(optimisticSessionColdFromPendingCreation(result, new Date()));
+		},
+		// Light list-level removal: the optimistic record was never materialized,
+		// so a full lifecycle teardown (DB + model-pref persistence) is both
+		// unnecessary and wrong. `repository.removeSession` just filters the list.
+		removeOptimisticSession: (sessionId) => repository.removeSession(sessionId),
 	});
 
 	const lifecycleCleanup = new SessionLifecycleCleanup({
@@ -226,6 +237,7 @@ export function composeSessionStoreParts(input: ComposeSessionStorePartsInput): 
 		getSessionMetadata: (sessionId) => listState.getSessionMetadata(sessionId),
 		addSession: (session) => listState.addSession(session),
 		removeSession: (sessionId) => lifecycleCleanup.removeSession(sessionId),
+		removeOptimisticSession: (sessionId) => repository.removeSession(sessionId),
 		updateSession: (id, updates, options) => listState.updateSession(id, updates, options),
 		replaceSessionOperations: (sessionId, operations) =>
 			operationStore.replaceSessionOperations(sessionId, operations),

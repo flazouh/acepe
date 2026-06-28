@@ -167,6 +167,20 @@ const effectiveAgentDisplayName = $derived.by(() => {
 	return capitalizeName(effectiveAgent.name);
 });
 
+const mergeStrategyOptions: readonly { readonly value: MergeStrategy; readonly label: string }[] = [
+	{ value: "squash", label: "Squash merge" },
+	{ value: "merge", label: "Merge commit" },
+	{ value: "rebase", label: "Rebase merge" },
+];
+
+function handleMergeStrategyChange(value: string): void {
+	if (value !== "squash" && value !== "merge" && value !== "rebase") {
+		return;
+	}
+	void mergeStrategyStore.set(value);
+	onMerge?.(value);
+}
+
 const promptEditorState = $derived.by(() =>
 	getPromptEditorState({
 		savedPrompt: prPrefs.customPrompt,
@@ -521,24 +535,16 @@ function handlePromptResetClick(): void {
 									{/snippet}
 								</DropdownMenu.Trigger>
 								<DropdownMenu.Content align="start" class="min-w-[160px]">
-								<DropdownMenu.Item
-									onSelect={() => { void mergeStrategyStore.set("squash"); onMerge("squash"); }}
-									class="cursor-pointer text-[0.6875rem]"
-								>
-									{"Squash merge"}
-								</DropdownMenu.Item>
-								<DropdownMenu.Item
-									onSelect={() => { void mergeStrategyStore.set("merge"); onMerge("merge"); }}
-									class="cursor-pointer text-[0.6875rem]"
-								>
-									{"Merge commit"}
-								</DropdownMenu.Item>
-								<DropdownMenu.Item
-									onSelect={() => { void mergeStrategyStore.set("rebase"); onMerge("rebase"); }}
-									class="cursor-pointer text-[0.6875rem]"
-								>
-									{"Rebase merge"}
-								</DropdownMenu.Item>
+									<DropdownMenu.RadioGroup
+										value={mergeStrategyStore.strategy}
+										onValueChange={handleMergeStrategyChange}
+									>
+										{#each mergeStrategyOptions as option (option.value)}
+											<DropdownMenu.RadioItem value={option.value} class="cursor-pointer text-[0.6875rem]">
+												{option.label}
+											</DropdownMenu.RadioItem>
+										{/each}
+									</DropdownMenu.RadioGroup>
 								</DropdownMenu.Content>
 							</DropdownMenu.Root>
 						</ButtonGroup.Root>

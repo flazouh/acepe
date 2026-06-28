@@ -8,9 +8,9 @@
 	import { DotsThreeVertical, DownloadSimple } from "phosphor-svelte";
 
 	import { Button } from "../button/index.js";
+	import { ComposerOverflowMenu } from "../composer/index.js";
 	import * as DropdownMenu from "../dropdown-menu/index.js";
 	import { SegmentedProgressBar } from "../segmented-progress-bar/index.js";
-	import { FusedOverflowDotsTrigger } from "../panel-header/index.js";
 	import AgentInputSelectorItemRow from "./agent-input-selector-item-row.svelte";
 	import {
 		getVoiceModelRows,
@@ -57,12 +57,74 @@
 	);
 </script>
 
-<DropdownMenu.Root bind:open={menuOpen}>
-	<DropdownMenu.Trigger>
-		{#snippet child({ props })}
-			{#if embeddedInGroup}
-				<FusedOverflowDotsTrigger {...props} ariaLabel={menuLabel} title={menuLabel} />
+{#snippet menuContent()}
+	{#if modelsLoading}
+		<div class="px-2 py-1 text-xs text-muted-foreground">
+			{loadingLabel}
+		</div>
+	{:else}
+		{#each modelRows as row (row.model.id)}
+			{#if row.model.isDownloaded}
+				<AgentInputSelectorItemRow
+					label={row.model.name}
+					selected={row.isSelected}
+					dense={true}
+					onSelect={() => onSelectModel(row.model.id)}
+				>
+					{#snippet trailing()}
+						<span class="shrink-0 text-[10px] leading-none text-muted-foreground/50">
+							{row.sizeLabel}
+						</span>
+					{/snippet}
+				</AgentInputSelectorItemRow>
 			{:else}
+				<div class="flex items-center gap-2 rounded-sm px-2 py-0.5 text-xs select-none">
+					<span class="min-w-0 flex-1 truncate text-xs text-muted-foreground">
+						{row.model.name}
+					</span>
+
+					{#if row.isDownloading}
+						<SegmentedProgressBar
+							ariaLabel={`Downloading ${row.model.name}`}
+							label=""
+							percent={downloadPercent}
+							segmentCount={12}
+							showPercent={true}
+							variant="downloadCompact"
+						/>
+					{:else}
+						<Button
+							variant="headerAction"
+							size="headerAction"
+							class="h-5 shrink-0 gap-0.5 px-1 py-0 text-[10px] leading-none font-mono"
+							onclick={(event: MouseEvent) => {
+								event.stopPropagation();
+								onDownloadModel(row.model.id);
+							}}
+						>
+							<span>{row.sizeLabel}</span>
+							<DownloadSimple class="size-2" weight="bold" />
+						</Button>
+					{/if}
+				</div>
+			{/if}
+		{/each}
+	{/if}
+{/snippet}
+
+{#if embeddedInGroup}
+	<ComposerOverflowMenu
+		bind:open={menuOpen}
+		ariaLabel={menuLabel}
+		title={menuLabel}
+		contentClass="w-fit min-w-[11rem] p-1"
+	>
+		{@render menuContent()}
+	</ComposerOverflowMenu>
+{:else}
+	<DropdownMenu.Root bind:open={menuOpen}>
+		<DropdownMenu.Trigger>
+			{#snippet child({ props })}
 				<Button
 					{...props}
 					variant="chromeIcon"
@@ -75,63 +137,10 @@
 						<DotsThreeVertical class="h-3 w-3 shrink-0" weight="bold" />
 					{/snippet}
 				</Button>
-			{/if}
-		{/snippet}
-	</DropdownMenu.Trigger>
-	<DropdownMenu.Content side="top" align="end" sideOffset={8} class="w-fit min-w-[11rem] p-1">
-		{#if modelsLoading}
-			<div class="px-2 py-1 text-xs text-muted-foreground">
-				{loadingLabel}
-			</div>
-		{:else}
-			{#each modelRows as row (row.model.id)}
-				{#if row.model.isDownloaded}
-					<AgentInputSelectorItemRow
-						label={row.model.name}
-						selected={row.isSelected}
-						dense={true}
-						onSelect={() => onSelectModel(row.model.id)}
-					>
-						{#snippet trailing()}
-							<span class="shrink-0 text-[10px] leading-none text-muted-foreground/50">
-								{row.sizeLabel}
-							</span>
-						{/snippet}
-					</AgentInputSelectorItemRow>
-				{:else}
-					<div
-						class="flex items-center gap-2 rounded-sm px-2 py-0.5 text-xs select-none"
-					>
-						<span class="min-w-0 flex-1 truncate text-xs text-muted-foreground">
-							{row.model.name}
-						</span>
-
-						{#if row.isDownloading}
-							<SegmentedProgressBar
-								ariaLabel={`Downloading ${row.model.name}`}
-								label=""
-								percent={downloadPercent}
-								segmentCount={12}
-								showPercent={true}
-								variant="downloadCompact"
-							/>
-						{:else}
-							<Button
-								variant="headerAction"
-								size="headerAction"
-								class="h-5 shrink-0 gap-0.5 px-1 py-0 text-[10px] leading-none font-mono"
-								onclick={(e: MouseEvent) => {
-									e.stopPropagation();
-									onDownloadModel(row.model.id);
-								}}
-							>
-								<span>{row.sizeLabel}</span>
-								<DownloadSimple class="size-2" weight="bold" />
-							</Button>
-						{/if}
-					</div>
-				{/if}
-			{/each}
-		{/if}
-	</DropdownMenu.Content>
-</DropdownMenu.Root>
+			{/snippet}
+		</DropdownMenu.Trigger>
+		<DropdownMenu.Content side="top" align="end" sideOffset={8} class="w-fit min-w-[11rem] p-1">
+			{@render menuContent()}
+		</DropdownMenu.Content>
+	</DropdownMenu.Root>
+{/if}

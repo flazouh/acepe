@@ -234,6 +234,22 @@ function addSession(store: SessionStore): void {
 	});
 }
 
+// Normalize the two fields that are legitimately representation-dependent rather
+// than canonical parity invariants:
+//   - `kindStartedAtMs` is a CLIENT-stamped observation timestamp (Date.now): the
+//     live path stamps "when I first observed this activity", while a cold-open
+//     restore cannot know the original start time. They can never be bit-equal.
+//   - `sequenceId` is optional (`number | null`); the cold path coalesces a missing
+//     value to `null`, the live path leaves it `undefined`. Both are type-valid.
+// Everything else must match exactly.
+function normalizeForCanonicalParity(graph: SessionStateGraph): SessionStateGraph {
+	return {
+		...graph,
+		sequenceId: graph.sequenceId ?? null,
+		activity: { ...graph.activity, kindStartedAtMs: null },
+	};
+}
+
 describe("canonical projection parity", () => {
 	it("projects equivalent canonical state from cold-open snapshots and live snapshot envelopes", () => {
 		const graph = createRepresentativeGraph();
@@ -246,9 +262,9 @@ describe("canonical projection parity", () => {
 
 		expect(coldStore.read.hasSessionCanonicalProjection("session-1")).toBe(true);
 		expect(liveStore.read.hasSessionCanonicalProjection("session-1")).toBe(true);
-		expect(liveStore.getSessionStateGraphForTest("session-1")).toEqual(
-			coldStore.getSessionStateGraphForTest("session-1")
-		);
+		expect(
+			normalizeForCanonicalParity(liveStore.getSessionStateGraphForTest("session-1"))
+		).toEqual(normalizeForCanonicalParity(coldStore.getSessionStateGraphForTest("session-1")));
 		expect(liveStore.read.getSessionAvailableModels("session-1")).toEqual(
 			coldStore.read.getSessionAvailableModels("session-1")
 		);

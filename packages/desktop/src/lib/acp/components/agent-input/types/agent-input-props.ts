@@ -5,21 +5,23 @@ import type { AgentInfo } from "../../../logic/agent-manager.js";
 import type { PreparedWorktreeLaunch } from "../../../types/worktree-info.js";
 
 /**
- * Host-provided bindings for the new-chat-panel setup bar above the composer.
+ * Host-provided bindings for floating setup chips above the composer.
  *
- * When supplied (and the panel has no session yet), AgentInput renders a compact
- * Project/Agent/Branch/Worktree bar above the composer input. Project, agent, and
+ * When supplied (and the panel has no session yet), AgentInput renders project,
+ * agent, branch, and worktree chips above the composer input. Project, agent, and
  * branch controls are passed as snippets (they wrap desktop selectors); worktree
  * is driven by boolean + handler. Model, reasoning, and auto-approve stay in the
  * composer toolbar.
  */
 export interface NewThreadContextBinding {
-	/** Project selector control rendered in the setup bar. */
+	/** Project selector control rendered above the composer. */
 	readonly project: Snippet;
-	/** Agent selector control rendered in the setup bar. */
+	/** Agent selector control rendered above the composer. */
 	readonly agent: Snippet;
-	/** Optional branch picker control rendered in the setup bar. */
+	/** Optional branch picker control rendered above the composer. */
 	readonly branch?: Snippet;
+	/** Optional extra rows in the setup settings menu (above the worktree default toggle). */
+	readonly settingsMenu?: Snippet;
 	/** Whether the worktree row applies (e.g. the project is a git repo). */
 	readonly showWorktree: boolean;
 	/** Whether a new worktree is requested for the thread. */
@@ -179,8 +181,8 @@ export interface AgentInputProps {
 	readonly agentProjectPicker?: Snippet;
 
 	/**
-	 * Optional bindings for the new-chat-panel setup bar. When set and the panel
-	 * has no session, a compact Project/Agent/Branch/Worktree bar renders above
+	 * Optional bindings for floating setup chips above the composer. When set and
+	 * the panel has no session, project/agent/branch/worktree chips render above
 	 * the composer input. Model and reasoning remain in the composer trailing toolbar.
 	 */
 	readonly newThreadContext?: NewThreadContextBinding | null;

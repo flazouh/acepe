@@ -1,8 +1,12 @@
 <script lang="ts">
 import * as Dialog from "@acepe/ui/dialog";
-import { PROJECT_CARD_ACTION_BUTTON_CLASS } from "@acepe/ui/panel-header";
 import { X } from "phosphor-svelte";
 import type { Snippet } from "svelte";
+
+/** Mirrors Button `variant="chromeIcon" size="chromeIcon" class="rounded-sm"` so the
+ * dialog close glyph matches the other top-right chrome-icon controls. */
+const CHROME_ICON_CLOSE_CLASS =
+	"inline-flex size-5 shrink-0 items-center justify-center gap-0 rounded-sm border-0 bg-transparent p-0 text-muted-foreground/60 shadow-none transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:ring-inset [&_svg:not([class*='size-'])]:size-3.5";
 
 interface Props {
 	open?: boolean;
@@ -124,10 +128,10 @@ function handleOpenChange(nextOpen: boolean): void {
 					{/if}
 					<Dialog.Close
 						aria-label={closeLabel}
-						class="{PROJECT_CARD_ACTION_BUTTON_CLASS} shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:ring-inset"
+						class={CHROME_ICON_CLOSE_CLASS}
 						data-header-control
 					>
-						<X size={12} weight="bold" />
+						<X size={14} />
 					</Dialog.Close>
 				</div>
 			{/if}
@@ -136,8 +140,7 @@ function handleOpenChange(nextOpen: boolean): void {
 			</div>
 			{#if footer}
 				<div
-					class="flex shrink-0 items-center justify-end gap-1 border-t border-border/30 px-1"
-					style="height: 28px;"
+					class="flex shrink-0 items-center justify-end gap-1.5 border-t border-border/30 px-2 py-1.5"
 				>
 					{@render footer()}
 				</div>

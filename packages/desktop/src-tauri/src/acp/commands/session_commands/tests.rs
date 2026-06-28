@@ -137,7 +137,7 @@ fn unresolved_tool_entry_ids_detects_transcript_tool_without_operation_link() {
 
     assert_eq!(
         unresolved_tool_entry_ids(&transcript, &[]),
-        vec!["tool-1".to_string()]
+        vec!["acepe::entry::session-start::tool::tool-1".to_string()]
     );
 }
 

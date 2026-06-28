@@ -10,7 +10,12 @@
 		HeaderCell,
 		HeaderTitleCell,
 	} from "../panel-header/index.js";
-	import { ProjectLetterBadge } from "../project-letter-badge/index.js";
+	import {
+		ProjectLetterBadge,
+		SESSION_PROJECT_BADGE_CLASS,
+		SESSION_PROJECT_BADGE_SIZE,
+		shouldShowSessionProjectBadge,
+	} from "../project-letter-badge/index.js";
 	import { RichTokenText } from "../rich-token-text/index.js";
 	import * as Tooltip from "../tooltip/index.js";
 	import AgentCopyButton from "./agent-copy-button.svelte";
@@ -148,15 +153,16 @@
 				{/snippet}
 			</HeaderActionCell>
 		{:else}
-			{#if projectName && projectColor}
+			{#if shouldShowSessionProjectBadge({ sequenceId, projectName, projectColor })}
 				<HeaderCell withDivider={false}>
 					<ProjectLetterBadge
 						name={projectName}
 						color={projectColor}
 						iconSrc={projectIconSrc}
-						size={14}
+						size={SESSION_PROJECT_BADGE_SIZE}
 						sequenceId={sequenceId}
-						class="shrink-0"
+						showLetter={false}
+						class="{SESSION_PROJECT_BADGE_CLASS} shrink-0"
 					/>
 				</HeaderCell>
 			{/if}

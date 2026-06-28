@@ -5,6 +5,8 @@ import {
 	clickWebview,
 	inspectDom,
 	navigateWebview,
+	probePanelResize,
+	probePanelResizeStream,
 	probeComputerUse,
 	probeFirstSendTimeline,
 	probeThinkingToggle,
@@ -14,7 +16,13 @@ import {
 	watchForVisibleText,
 } from "./interact";
 import { observeApp, screenshotApp } from "./observe";
-import { buildResult, dependencyError, formatCommandResult, statusExitCode, type OutputFormat } from "./output";
+import {
+	buildResult,
+	dependencyError,
+	formatCommandResult,
+	statusExitCode,
+	type OutputFormat,
+} from "./output";
 import { runDoctor } from "./process-target";
 import { observeLevelSchema } from "./schemas";
 
@@ -130,13 +138,18 @@ function bridgeProcessId(appIdentifier: string): string {
 	if (result.status !== 0) {
 		return "";
 	}
-	return result.stdout
-		.split(/\s+/)
-		.map((entry) => entry.trim())
-		.find((entry) => /^\d+$/.test(entry)) ?? "";
+	return (
+		result.stdout
+			.split(/\s+/)
+			.map((entry) => entry.trim())
+			.find((entry) => /^\d+$/.test(entry)) ?? ""
+	);
 }
 
-function focusAcepeApp(appIdentifier: string): { readonly ok: boolean; readonly message: string } {
+function focusAcepeApp(appIdentifier: string): {
+	readonly ok: boolean;
+	readonly message: string;
+} {
 	if (process.platform !== "darwin") {
 		return {
 			ok: false,
@@ -151,15 +164,15 @@ function focusAcepeApp(appIdentifier: string): { readonly ok: boolean; readonly 
 			: '  set targetProcesses to every process whose bundle identifier is "com.acepe.app"',
 		'  if (count of targetProcesses) is 0 then set targetProcesses to every process whose name is "acepe"',
 		'  if (count of targetProcesses) is 0 then set targetProcesses to every process whose name is "Acepe"',
-		"  if (count of targetProcesses) is 0 then error \"Acepe process not found\"",
+		'  if (count of targetProcesses) is 0 then error "Acepe process not found"',
 		"  set targetProcess to item 1 of targetProcesses",
-		"  if (count of windows of targetProcess) is 0 then error \"Acepe process has no accessibility windows\"",
-		"  set value of attribute \"AXFrontmost\" of targetProcess to true",
-		"  perform action \"AXRaise\" of window 1 of targetProcess",
+		'  if (count of windows of targetProcess) is 0 then error "Acepe process has no accessibility windows"',
+		'  set value of attribute "AXFrontmost" of targetProcess to true',
+		'  perform action "AXRaise" of window 1 of targetProcess',
 		"  set frontmost of targetProcess to true",
 		"  delay 0.2",
-		"  if frontmost of targetProcess is false then error \"Acepe process did not become frontmost\"",
-	"end tell",
+		'  if frontmost of targetProcess is false then error "Acepe process did not become frontmost"',
+		"end tell",
 	].join("\n");
 	const result = spawnSync("osascript", ["-e", script], {
 		encoding: "utf8",
@@ -176,7 +189,10 @@ function focusAcepeApp(appIdentifier: string): { readonly ok: boolean; readonly 
 	};
 }
 
-async function emitVerifiedUiResult(options: CliOptions, result: ReturnType<typeof buildResult>): Promise<number> {
+async function emitVerifiedUiResult(
+	options: CliOptions,
+	result: ReturnType<typeof buildResult>
+): Promise<number> {
 	const evidence = await writeUiQaEvidence({
 		checkoutRoot: options.checkoutRoot,
 		command: result.command,
@@ -184,28 +200,30 @@ async function emitVerifiedUiResult(options: CliOptions, result: ReturnType<type
 		summary: result.summary,
 		artifactPath: result.artifact?.path,
 	});
-	const output =
-		evidence.isOk()
-			? {
-					command: result.command,
-					status: result.status,
-					summary: result.summary.concat(`ui qa evidence: ${evidence.value}`),
-					artifact: result.artifact,
-					error: result.error,
-				}
-			: result;
+	const output = evidence.isOk()
+		? {
+				command: result.command,
+				status: result.status,
+				summary: result.summary.concat(`ui qa evidence: ${evidence.value}`),
+				artifact: result.artifact,
+				error: result.error,
+			}
+		: result;
 	process.stdout.write(formatCommandResult(output, options.format));
 	return statusExitCode(result.status);
 }
 
-export async function runCli(args: readonly string[], checkoutRoot: string = process.cwd()): Promise<number> {
+export async function runCli(
+	args: readonly string[],
+	checkoutRoot: string = process.cwd()
+): Promise<number> {
 	const options = parseOptions(args, checkoutRoot);
 	if (options.command === "help") {
 		const result = buildResult({
 			command: "help",
 			status: "ok",
 			summary: [
-				"usage: bun run qa [doctor|focus-app|observe|screenshot|navigate|inspect|click|computer-probe|thinking-toggle-probe|first-send-probe|send|watch|reset-onboarding] [--app=9223] [--format=json]",
+				"usage: bun run qa [doctor|focus-app|observe|screenshot|navigate|inspect|click|computer-probe|resize-probe|resize-stream-probe|thinking-toggle-probe|first-send-probe|send|watch|reset-onboarding] [--app=9223] [--format=json]",
 				"doctor checks the real dev Tauri target before QA.",
 				"focus-app brings the Acepe desktop app to the macOS foreground.",
 				"observe returns compact app facts before screenshots.",
@@ -214,6 +232,8 @@ export async function runCli(args: readonly string[], checkoutRoot: string = pro
 				"inspect returns compact DOM facts for --selector.",
 				"click clicks by --selector or --text.",
 				"computer-probe invokes the real app's acepe_computer.act MCP path; add --action and --target-label to act.",
+				"resize-probe drags the first panel resize edge and reports frame-by-frame width lag; tune with --dx, --limit steps, --delay ms.",
+				"resize-stream-probe streams pointer moves over --timeout ms and reports continuous-drag lag.",
 				"thinking-toggle-probe clicks the first thinking block and samples open/closed state over 500ms.",
 				"first-send-probe types into the first composer, clicks send, and samples optimistic/planning visibility.",
 				"send types --text into the composer and submits (use --no-submit to type only).",
@@ -275,7 +295,11 @@ export async function runCli(args: readonly string[], checkoutRoot: string = pro
 			summary: [focus.message],
 			error: focus.ok
 				? undefined
-				: dependencyError("focus_app_failed", focus.message, "Start the Tauri dev app, then retry focus-app."),
+				: dependencyError(
+						"focus_app_failed",
+						focus.message,
+						"Start the Tauri dev app, then retry focus-app."
+					),
 		});
 		return emitVerifiedUiResult(options, result);
 	}
@@ -363,7 +387,11 @@ export async function runCli(args: readonly string[], checkoutRoot: string = pro
 				command: "inspect",
 				status: "fail",
 				summary: ["Missing --selector."],
-				error: dependencyError("missing_selector", "--selector is required.", "Example: bun run qa inspect --selector=.onboarding-preview-panel"),
+				error: dependencyError(
+					"missing_selector",
+					"--selector is required.",
+					"Example: bun run qa inspect --selector=.onboarding-preview-panel"
+				),
 			});
 			process.stdout.write(formatCommandResult(result, options.format));
 			return statusExitCode(result.status);
@@ -395,14 +423,22 @@ export async function runCli(args: readonly string[], checkoutRoot: string = pro
 			`selector: ${inspection.value.selector}`,
 			`matches: ${inspection.value.count.toString()}`,
 			`returned: ${inspection.value.elements.length.toString()}`,
-			first === undefined ? "first: none" : `first: ${first.tag} ${first.rect.width.toFixed(0)}x${first.rect.height.toFixed(0)} "${first.text.slice(0, 80)}"`,
+			first === undefined
+				? "first: none"
+				: `first: ${first.tag} ${first.rect.width.toFixed(0)}x${first.rect.height.toFixed(0)} "${first.text.slice(0, 80)}"`,
 			first === undefined
 				? "value: none"
 				: `value: ${first.value === null ? "none" : JSON.stringify(first.value)} focused=${first.focused ? "yes" : "no"}`,
 			first?.src === undefined || first.src === null ? "src: none" : `src: ${first.src}`,
-			first === undefined ? "computed: none" : `computed: display=${first.computedStyle.display} gap=${first.computedStyle.gap} rowGap=${first.computedStyle.rowGap} columnGap=${first.computedStyle.columnGap}`,
-			first === undefined ? "padding: none" : `padding: top=${first.computedStyle.paddingTop} right=${first.computedStyle.paddingRight} bottom=${first.computedStyle.paddingBottom} left=${first.computedStyle.paddingLeft}`,
-			first === undefined ? "animation: none" : `animation: name=${first.computedStyle.animationName} duration=${first.computedStyle.animationDuration} delay=${first.computedStyle.animationDelay} iteration=${first.computedStyle.animationIterationCount}`,
+			first === undefined
+				? "computed: none"
+				: `computed: display=${first.computedStyle.display} gap=${first.computedStyle.gap} rowGap=${first.computedStyle.rowGap} columnGap=${first.computedStyle.columnGap}`,
+			first === undefined
+				? "padding: none"
+				: `padding: top=${first.computedStyle.paddingTop} right=${first.computedStyle.paddingRight} bottom=${first.computedStyle.paddingBottom} left=${first.computedStyle.paddingLeft}`,
+			first === undefined
+				? "animation: none"
+				: `animation: name=${first.computedStyle.animationName} duration=${first.computedStyle.animationDuration} delay=${first.computedStyle.animationDelay} iteration=${first.computedStyle.animationIterationCount}`,
 		];
 		const result = buildResult({
 			command: "inspect",
@@ -447,7 +483,9 @@ export async function runCli(args: readonly string[], checkoutRoot: string = pro
 							`- ${snapshot.sessionId ?? "null"} planning=${snapshot.showPlanningIndicator} | optimistic=${snapshot.hasOptimisticPendingEntry} pendingSend=${snapshot.hasLocalPendingSendIntent} activity=${snapshot.activityKind ?? "null"} turn=${snapshot.turnState ?? "null"} lifecycle=${snapshot.lifecycleStatus ?? "null"} source=${snapshot.sourceKind ?? "null"} canSend=${snapshot.actionabilityCanSend === null ? "null" : snapshot.actionabilityCanSend.toString()} canSubmit=${snapshot.sessionCanSubmit.toString()} disableSend=${snapshot.disableSendForFailedFirstSend.toString()} entries=${snapshot.visibleEntryCount.toString()}`
 					),
 				]
-			: ["hook not installed (window.__acepePlanningSnapshot missing) — open an agent panel and retry"];
+			: [
+					"hook not installed (window.__acepePlanningSnapshot missing) — open an agent panel and retry",
+				];
 		const result = buildResult({
 			command: "planning-debug",
 			status: "ok",
@@ -498,27 +536,25 @@ export async function runCli(args: readonly string[], checkoutRoot: string = pro
 			probe.value.actionChangedCount !== null && probe.value.actionChangedCount > 0;
 		const actionNeedsObservedChange = probe.value.actionVerb === "type";
 		const actionSucceeded =
-			hasAction &&
-			probe.value.actionOk === true &&
-			(!actionNeedsObservedChange || actionChanged);
+			hasAction && probe.value.actionOk === true && (!actionNeedsObservedChange || actionChanged);
 		const observationSucceeded =
 			!hasAction &&
 			((probe.value.ok && hasObservationFacts) ||
 				probe.value.errorCode === "computer_permission_required");
 		const status = actionSucceeded || observationSucceeded ? "ok" : "warn";
 		const baseSummary = [
-				`server: ${probe.value.serverName}`,
-				`tool: ${probe.value.toolName}`,
-				`transport: ${probe.value.transport}`,
-				`session: ${probe.value.sessionId}`,
-				`ok: ${probe.value.ok ? "yes" : "no"}`,
-				`isError: ${probe.value.isError ? "yes" : "no"}`,
-				`app: ${probe.value.app ?? "none"}`,
-				`window: ${probe.value.window ?? "none"}`,
-				`elements: ${probe.value.elementCount.toString()}`,
-				`observation facts: ${hasObservationFacts ? "present" : "empty"}`,
-				`error: ${probe.value.errorCode ?? "none"}`,
-				`permission: ${probe.value.permissionKind ?? "none"}`,
+			`server: ${probe.value.serverName}`,
+			`tool: ${probe.value.toolName}`,
+			`transport: ${probe.value.transport}`,
+			`session: ${probe.value.sessionId}`,
+			`ok: ${probe.value.ok ? "yes" : "no"}`,
+			`isError: ${probe.value.isError ? "yes" : "no"}`,
+			`app: ${probe.value.app ?? "none"}`,
+			`window: ${probe.value.window ?? "none"}`,
+			`elements: ${probe.value.elementCount.toString()}`,
+			`observation facts: ${hasObservationFacts ? "present" : "empty"}`,
+			`error: ${probe.value.errorCode ?? "none"}`,
+			`permission: ${probe.value.permissionKind ?? "none"}`,
 		];
 		const actionSummary =
 			probe.value.actionVerb === null
@@ -545,13 +581,141 @@ export async function runCli(args: readonly string[], checkoutRoot: string = pro
 		return emitVerifiedUiResult(options, result);
 	}
 
+	if (options.command === "resize-probe") {
+		const probe = await probePanelResize({
+			appIdentifier: options.appIdentifier,
+			dx: options.dx ?? 220,
+			steps: Number.isFinite(options.limit) ? options.limit : 24,
+			stepDelayMs: Number.isFinite(options.delayMs) ? options.delayMs : 16,
+			skipDriver: options.skipDriver,
+		});
+		if (probe.isErr()) {
+			const result = buildResult({
+				command: "resize-probe",
+				status: "fail",
+				summary: ["Unable to run the panel resize probe."],
+				error: dependencyError(
+					probe.error.code,
+					probe.error.message,
+					"Run acepe-qa doctor, then retry resize-probe against the dev app."
+				),
+			});
+			process.stdout.write(formatCommandResult(result, options.format));
+			return statusExitCode(result.status);
+		}
+		const artifact = await writeJsonArtifact("resize-probe", probe.value);
+		const artifactPath = artifact.isOk() ? artifact.value : undefined;
+		const observedDelta =
+			probe.value.observedDeltaBeforeRestore === null
+				? "unknown"
+				: probe.value.observedDeltaBeforeRestore.toFixed(1);
+		const finalLag =
+			probe.value.finalLagPx === null ? "unknown" : probe.value.finalLagPx.toFixed(1);
+		const frameLag =
+			probe.value.maxFrameLagPx === null ? "unknown" : probe.value.maxFrameLagPx.toFixed(1);
+		const frameDelay =
+			probe.value.maxFrameDelayMs === null ? "unknown" : probe.value.maxFrameDelayMs.toFixed(1);
+		const avgFrameDelay =
+			probe.value.avgFrameDelayMs === null ? "unknown" : probe.value.avgFrameDelayMs.toFixed(1);
+		const status =
+			!probe.value.found ||
+			(probe.value.maxFrameDelayMs !== null && probe.value.maxFrameDelayMs > 32)
+				? "warn"
+				: "ok";
+		const result = buildResult({
+			command: "resize-probe",
+			status,
+			summary: [
+				`found: ${probe.value.found ? "yes" : "no"}`,
+				`requested dx: ${probe.value.requestedDelta.toString()}px over ${probe.value.steps.toString()} steps`,
+				`width: ${probe.value.originalWidth === null ? "unknown" : probe.value.originalWidth.toFixed(1)}px -> ${probe.value.finalWidthBeforeRestore === null ? "unknown" : probe.value.finalWidthBeforeRestore.toFixed(1)}px before restore`,
+				`observed delta: ${observedDelta}px`,
+				`final lag: ${finalLag}px`,
+				`max frame lag: ${frameLag}px`,
+				`frame delay: avg=${avgFrameDelay}ms max=${frameDelay}ms`,
+				`transition: ${probe.value.transitionProperty ?? "unknown"} duration=${probe.value.transitionDuration ?? "unknown"}`,
+				`restored width: ${probe.value.restoredWidth === null ? "unknown" : probe.value.restoredWidth.toFixed(1)}px`,
+			],
+			artifactPath,
+			artifactKind: artifactPath === undefined ? undefined : "resize-probe",
+			error: artifact.isErr()
+				? dependencyError(artifact.error.code, artifact.error.message, "Check /tmp permissions.")
+				: undefined,
+		});
+		return emitVerifiedUiResult(options, result);
+	}
+
+	if (options.command === "resize-stream-probe") {
+		const probe = await probePanelResizeStream({
+			appIdentifier: options.appIdentifier,
+			dx: options.dx ?? 220,
+			durationMs: Number.isFinite(options.timeoutMs) ? options.timeoutMs : 600,
+			moveIntervalMs: Number.isFinite(options.delayMs) ? options.delayMs : 8,
+			skipDriver: options.skipDriver,
+		});
+		if (probe.isErr()) {
+			const result = buildResult({
+				command: "resize-stream-probe",
+				status: "fail",
+				summary: ["Unable to run the continuous panel resize probe."],
+				error: dependencyError(
+					probe.error.code,
+					probe.error.message,
+					"Run acepe-qa doctor, then retry resize-stream-probe against the dev app."
+				),
+			});
+			process.stdout.write(formatCommandResult(result, options.format));
+			return statusExitCode(result.status);
+		}
+		const artifact = await writeJsonArtifact("resize-stream-probe", probe.value);
+		const artifactPath = artifact.isOk() ? artifact.value : undefined;
+		const maxLag = probe.value.maxLagPx === null ? "unknown" : probe.value.maxLagPx.toFixed(1);
+		const avgLag = probe.value.avgLagPx === null ? "unknown" : probe.value.avgLagPx.toFixed(1);
+		const avgFrame =
+			probe.value.avgFrameIntervalMs === null
+				? "unknown"
+				: probe.value.avgFrameIntervalMs.toFixed(1);
+		const maxFrame =
+			probe.value.maxFrameIntervalMs === null
+				? "unknown"
+				: probe.value.maxFrameIntervalMs.toFixed(1);
+		const status =
+			!probe.value.found || (probe.value.maxLagPx !== null && probe.value.maxLagPx > 24)
+				? "warn"
+				: "ok";
+		const result = buildResult({
+			command: "resize-stream-probe",
+			status,
+			summary: [
+				`found: ${probe.value.found ? "yes" : "no"}`,
+				`requested dx: ${probe.value.requestedDelta.toString()}px over ${probe.value.durationMs.toString()}ms`,
+				`moves: ${probe.value.moveCount.toString()} every ${probe.value.moveIntervalMs.toString()}ms`,
+				`frames: ${probe.value.frameCount.toString()} avg=${avgFrame}ms max=${maxFrame}ms over50=${probe.value.framesOver50Ms.toString()}`,
+				`lag: avg=${avgLag}px max=${maxLag}px`,
+				`width: ${probe.value.originalWidth === null ? "unknown" : probe.value.originalWidth.toFixed(1)}px -> ${probe.value.finalWidthBeforeRestore === null ? "unknown" : probe.value.finalWidthBeforeRestore.toFixed(1)}px before restore`,
+				`transition: ${probe.value.transitionProperty ?? "unknown"} duration=${probe.value.transitionDuration ?? "unknown"}`,
+				`restored width: ${probe.value.restoredWidth === null ? "unknown" : probe.value.restoredWidth.toFixed(1)}px`,
+			],
+			artifactPath,
+			artifactKind: artifactPath === undefined ? undefined : "resize-stream-probe",
+			error: artifact.isErr()
+				? dependencyError(artifact.error.code, artifact.error.message, "Check /tmp permissions.")
+				: undefined,
+		});
+		return emitVerifiedUiResult(options, result);
+	}
+
 	if (options.command === "click") {
 		if (options.selector.length === 0 && options.text.length === 0) {
 			const result = buildResult({
 				command: "click",
 				status: "fail",
 				summary: ["Missing --selector or --text."],
-				error: dependencyError("missing_target", "Click needs a selector or text.", "Example: bun run qa click --text='Reset Onboarding'"),
+				error: dependencyError(
+					"missing_target",
+					"Click needs a selector or text.",
+					"Example: bun run qa click --text='Reset Onboarding'"
+				),
 			});
 			process.stdout.write(formatCommandResult(result, options.format));
 			return statusExitCode(result.status);
@@ -567,7 +731,11 @@ export async function runCli(args: readonly string[], checkoutRoot: string = pro
 				command: "click",
 				status: "fail",
 				summary: ["Unable to click in the Acepe WebView."],
-				error: dependencyError(click.error.code, click.error.message, "Run acepe-qa doctor, then retry click."),
+				error: dependencyError(
+					click.error.code,
+					click.error.message,
+					"Run acepe-qa doctor, then retry click."
+				),
 			});
 			process.stdout.write(formatCommandResult(result, options.format));
 			return statusExitCode(result.status);
@@ -579,7 +747,9 @@ export async function runCli(args: readonly string[], checkoutRoot: string = pro
 			status: click.value.clicked ? "ok" : "warn",
 			summary: [
 				`clicked: ${click.value.clicked ? "yes" : "no"}`,
-				click.value.match === null ? "match: none" : `match: ${click.value.match.tag} "${click.value.match.text.slice(0, 80)}"`,
+				click.value.match === null
+					? "match: none"
+					: `match: ${click.value.match.tag} "${click.value.match.text.slice(0, 80)}"`,
 			],
 			artifactPath,
 			artifactKind: artifactPath === undefined ? undefined : "click",
@@ -596,7 +766,11 @@ export async function runCli(args: readonly string[], checkoutRoot: string = pro
 				command: "navigate",
 				status: "fail",
 				summary: ["Missing --path."],
-				error: dependencyError("missing_path", "--path is required.", "Example: bun run qa navigate --path=/test-thinking-block"),
+				error: dependencyError(
+					"missing_path",
+					"--path is required.",
+					"Example: bun run qa navigate --path=/test-thinking-block"
+				),
 			});
 			process.stdout.write(formatCommandResult(result, options.format));
 			return statusExitCode(result.status);
@@ -611,7 +785,11 @@ export async function runCli(args: readonly string[], checkoutRoot: string = pro
 				command: "navigate",
 				status: "fail",
 				summary: ["Unable to navigate the Acepe WebView."],
-				error: dependencyError(navigation.error.code, navigation.error.message, "Run acepe-qa doctor, then retry navigate."),
+				error: dependencyError(
+					navigation.error.code,
+					navigation.error.message,
+					"Run acepe-qa doctor, then retry navigate."
+				),
 			});
 			process.stdout.write(formatCommandResult(result, options.format));
 			return statusExitCode(result.status);
@@ -645,7 +823,11 @@ export async function runCli(args: readonly string[], checkoutRoot: string = pro
 				command: "thinking-toggle-probe",
 				status: "fail",
 				summary: ["Unable to probe the thinking toggle."],
-				error: dependencyError(probe.error.code, probe.error.message, "Run acepe-qa doctor, then retry thinking-toggle-probe."),
+				error: dependencyError(
+					probe.error.code,
+					probe.error.message,
+					"Run acepe-qa doctor, then retry thinking-toggle-probe."
+				),
 			});
 			process.stdout.write(formatCommandResult(result, options.format));
 			return statusExitCode(result.status);
@@ -657,13 +839,16 @@ export async function runCli(args: readonly string[], checkoutRoot: string = pro
 			`clicked: ${probe.value.clicked ? "yes" : "no"}`,
 		].concat(
 			probe.value.samples.map((sample) => {
-				const content = sample.firstContentText === null ? "" : ` text="${sample.firstContentText.slice(0, 60)}"`;
+				const content =
+					sample.firstContentText === null ? "" : ` text="${sample.firstContentText.slice(0, 60)}"`;
 				return `${sample.label}: expand=${sample.expandCount.toString()} collapse=${sample.collapseCount.toString()} content=${sample.contentCount.toString()} first=${sample.firstButtonName ?? "none"}${content}`;
 			})
 		);
 		const result = buildResult({
 			command: "thinking-toggle-probe",
-			status: probe.value.samples.some((sample) => sample.collapseCount > 0 && sample.contentCount > 0)
+			status: probe.value.samples.some(
+				(sample) => sample.collapseCount > 0 && sample.contentCount > 0
+			)
 				? "ok"
 				: "warn",
 			summary,
@@ -752,7 +937,11 @@ export async function runCli(args: readonly string[], checkoutRoot: string = pro
 				command: "reset-onboarding",
 				status: "fail",
 				summary: ["Unable to reset onboarding in the Acepe WebView."],
-				error: dependencyError(reset.error.code, reset.error.message, "Run acepe-qa doctor, then retry reset-onboarding."),
+				error: dependencyError(
+					reset.error.code,
+					reset.error.message,
+					"Run acepe-qa doctor, then retry reset-onboarding."
+				),
 			});
 			process.stdout.write(formatCommandResult(result, options.format));
 			return statusExitCode(result.status);
@@ -761,7 +950,10 @@ export async function runCli(args: readonly string[], checkoutRoot: string = pro
 		const artifactPath = artifact.isOk() ? artifact.value : undefined;
 		const result = buildResult({
 			command: "reset-onboarding",
-			status: reset.value.clickedDevTools && reset.value.clickedReset && reset.value.hasWelcome ? "ok" : "warn",
+			status:
+				reset.value.clickedDevTools && reset.value.clickedReset && reset.value.hasWelcome
+					? "ok"
+					: "warn",
 			summary: [
 				`dev tools: ${reset.value.clickedDevTools ? "clicked" : "missing"}`,
 				`reset: ${reset.value.clickedReset ? "clicked" : "missing"}`,
@@ -784,7 +976,11 @@ export async function runCli(args: readonly string[], checkoutRoot: string = pro
 				command: "send",
 				status: "fail",
 				summary: ["Missing --text."],
-				error: dependencyError("missing_text", "send needs --text.", "Example: bun run qa send --text='reply with one word: ok'"),
+				error: dependencyError(
+					"missing_text",
+					"send needs --text.",
+					"Example: bun run qa send --text='reply with one word: ok'"
+				),
 			});
 			process.stdout.write(formatCommandResult(result, options.format));
 			return statusExitCode(result.status);
@@ -801,7 +997,11 @@ export async function runCli(args: readonly string[], checkoutRoot: string = pro
 				command: "send",
 				status: "fail",
 				summary: ["Unable to send via the composer."],
-				error: dependencyError(send.error.code, send.error.message, "Run acepe-qa doctor; ensure a sendable session is open."),
+				error: dependencyError(
+					send.error.code,
+					send.error.message,
+					"Run acepe-qa doctor; ensure a sendable session is open."
+				),
 			});
 			process.stdout.write(formatCommandResult(result, options.format));
 			return statusExitCode(result.status);
@@ -829,7 +1029,11 @@ export async function runCli(args: readonly string[], checkoutRoot: string = pro
 				command: "watch",
 				status: "fail",
 				summary: ["Missing --text."],
-				error: dependencyError("missing_text", "watch needs --text.", "Example: bun run qa watch --text='Planning next moves' --timeout=20000"),
+				error: dependencyError(
+					"missing_text",
+					"watch needs --text.",
+					"Example: bun run qa watch --text='Planning next moves' --timeout=20000"
+				),
 			});
 			process.stdout.write(formatCommandResult(result, options.format));
 			return statusExitCode(result.status);
@@ -845,7 +1049,11 @@ export async function runCli(args: readonly string[], checkoutRoot: string = pro
 				command: "watch",
 				status: "fail",
 				summary: ["Unable to watch the Acepe WebView."],
-				error: dependencyError(watch.error.code, watch.error.message, "Run acepe-qa doctor, then retry watch."),
+				error: dependencyError(
+					watch.error.code,
+					watch.error.message,
+					"Run acepe-qa doctor, then retry watch."
+				),
 			});
 			process.stdout.write(formatCommandResult(result, options.format));
 			return statusExitCode(result.status);
@@ -861,9 +1069,13 @@ export async function runCli(args: readonly string[], checkoutRoot: string = pro
 				`text: "${watch.value.text.slice(0, 60)}"`,
 				`present in dom: ${watch.value.presentInDom ? "yes" : "no"}`,
 				`visible: ${watch.value.visible ? "yes" : "no"}`,
-				watch.value.firstVisibleAtMs === null ? "first visible: never" : `first visible: ${watch.value.firstVisibleAtMs.toString()}ms`,
+				watch.value.firstVisibleAtMs === null
+					? "first visible: never"
+					: `first visible: ${watch.value.firstVisibleAtMs.toString()}ms`,
 				`elapsed: ${watch.value.elapsedMs.toString()}ms${watch.value.timedOut ? " (timed out)" : ""}`,
-				m === null ? "matched: none" : `matched: ${m.rect.width.toFixed(0)}x${m.rect.height.toFixed(0)} display=${m.display} visibility=${m.visibility} opacity=${m.opacity} offsetParent=${m.hasOffsetParent ? "yes" : "no"}`,
+				m === null
+					? "matched: none"
+					: `matched: ${m.rect.width.toFixed(0)}x${m.rect.height.toFixed(0)} display=${m.display} visibility=${m.visibility} opacity=${m.opacity} offsetParent=${m.hasOffsetParent ? "yes" : "no"}`,
 			],
 			artifactPath,
 			artifactKind: artifactPath === undefined ? undefined : "watch",
@@ -875,7 +1087,11 @@ export async function runCli(args: readonly string[], checkoutRoot: string = pro
 		command: options.command,
 		status: "fail",
 		summary: ["Unknown command."],
-		error: dependencyError("unknown_command", options.command, "Use doctor, observe, screenshot, navigate, inspect, click, thinking-toggle-probe, send, watch, or reset-onboarding."),
+		error: dependencyError(
+			"unknown_command",
+			options.command,
+			"Use doctor, observe, screenshot, navigate, inspect, click, thinking-toggle-probe, send, watch, or reset-onboarding."
+		),
 	});
 	process.stdout.write(formatCommandResult(result, options.format));
 	return statusExitCode(result.status);

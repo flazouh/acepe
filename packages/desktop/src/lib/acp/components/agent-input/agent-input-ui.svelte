@@ -140,7 +140,7 @@ const voiceSessionController = new VoiceSessionController({
 const voiceState = $derived(voiceSessionController.voiceState);
 const voiceReady = $derived(voiceSessionController.ready);
 /**
- * The new-chat setup bar renders only before a session exists and only when the
+ * Floating setup chips render only before a session exists and only when the
  * host supplies the bindings. Model and reasoning stay in the composer trailing
  * toolbar in all states.
  */
@@ -149,7 +149,7 @@ const showNewThreadOptions = $derived(
 	!composerView.hasSession && !preSessionSendStarted && props.newThreadContext != null
 );
 
-/** Hide the setup bar immediately when a real pre-session send is dispatched. */
+/** Hide floating setup chips immediately when a real pre-session send is dispatched. */
 function markPreSessionSendStarted(): void {
 	if (!composerView.hasSession && !composerView.isSubmitDisabled) {
 		preSessionSendStarted = true;
@@ -1408,11 +1408,12 @@ $effect(() => {
 		<span class="sr-only" role="status" aria-live="polite">{autonomousStatusMessage}</span>
 		{#if showNewThreadOptions && props.newThreadContext}
 			{@const newThread = props.newThreadContext}
-			<div class="mb-1">
+			<div class="mb-1 flex w-full justify-center">
 				<AgentInputNewThreadOptions
 					project={newThread.project}
 					agent={newThread.agent}
 					branch={newThread.branch}
+					settingsMenu={newThread.settingsMenu}
 					showWorktree={newThread.showWorktree}
 					worktreeOn={newThread.worktreeOn}
 					worktreeDisabled={newThread.worktreeDisabled}

@@ -47,17 +47,21 @@ export class SessionMessagingOrchestrator {
 		content: string,
 		attachments: readonly Attachment[] = []
 	): ResultAsync<void, AppError> {
+		// Route the first send on the explicit pending-creation flag, NOT on
+		// identity-absence. A deferred session now carries optimistic identity for
+		// display (agent icon, title, working spark), so identity presence no
+		// longer signals "already materialized" — the pending-creation flag does.
+		if (this.#deps.creationCoordinator.hasPendingCreation(sessionId)) {
+			return this.#deps.messagingSvc
+				.sendPendingCreationMessage(sessionId, content, attachments)
+				.mapErr((error) => {
+					this.#deps.creationCoordinator.completePendingCreation(sessionId);
+					return error;
+				});
+		}
 		const sessionIdentity = this.#deps.getSessionIdentity(sessionId);
 		const sessionMetadata = this.#deps.getSessionMetadata(sessionId);
 		if (!sessionIdentity) {
-			if (this.#deps.creationCoordinator.hasPendingCreation(sessionId)) {
-				return this.#deps.messagingSvc
-					.sendPendingCreationMessage(sessionId, content, attachments)
-					.mapErr((error) => {
-						this.#deps.creationCoordinator.completePendingCreation(sessionId);
-						return error;
-					});
-			}
 			return errAsync(new SessionNotFoundError(sessionId));
 		}
 		if (!sessionMetadata) {

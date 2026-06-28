@@ -181,10 +181,24 @@ impl TranscriptViewport {
             }
             ScrollIntent::RevealRow { row_id } => {
                 if self.layout.row(&row_id).is_some() {
-                    self.mode = ViewportMode::Detached {
-                        anchor_row_id: row_id,
-                        offset_from_anchor_px: 0,
-                    };
+                    // Revealing the tail row is a request to sit at the bottom, not
+                    // a persistent detach. Re-enter FollowingTail so the streaming
+                    // response is followed; otherwise the post-send "reveal latest
+                    // user message" intent would freeze the viewport detached for
+                    // the whole turn while new content streams below the fold.
+                    let reveals_tail = self
+                        .layout
+                        .rows()
+                        .last()
+                        .is_some_and(|last| last.row_id == row_id);
+                    if reveals_tail {
+                        self.mode = ViewportMode::FollowingTail;
+                    } else {
+                        self.mode = ViewportMode::Detached {
+                            anchor_row_id: row_id,
+                            offset_from_anchor_px: 0,
+                        };
+                    }
                 }
             }
         }
@@ -360,6 +374,58 @@ mod tests {
         assert_eq!(window.offset_px, 200);
     }
 
+    // Regression: the live "stuck detached, doesn't follow the stream" bug. After
+    // a send, the frontend reveals the latest user row — which, at send time, is
+    // the tail. RevealRow must NOT lock the viewport detached for the whole turn:
+    // revealing the tail row is a request to sit at the bottom, so it must
+    // re-enter FollowingTail and follow the streaming response.
+    #[test]
+    fn reveal_tail_row_reenters_follow_mode() {
+        let mut viewport = TranscriptViewport::new(
+            LayoutIndex::new(vec![
+                row("row-1", 100),
+                row("row-2", 100),
+                row("row-3", 100),
+            ]),
+            100,
+        );
+        // Start detached up at the top.
+        viewport.apply_scroll_intent(ScrollIntent::DetachAtOffset { offset_px: 0 });
+
+        let window = viewport.apply_scroll_intent(ScrollIntent::RevealRow {
+            row_id: "row-3".to_string(),
+        });
+
+        assert_eq!(window.mode, ViewportMode::FollowingTail);
+        assert_eq!(window.offset_px, 200);
+    }
+
+    // Boundary guard: revealing a NON-tail (mid-history) row is a deliberate jump
+    // and must stay Detached anchored at that row.
+    #[test]
+    fn reveal_mid_history_row_stays_detached() {
+        let mut viewport = TranscriptViewport::new(
+            LayoutIndex::new(vec![
+                row("row-1", 100),
+                row("row-2", 100),
+                row("row-3", 100),
+            ]),
+            100,
+        );
+
+        let window = viewport.apply_scroll_intent(ScrollIntent::RevealRow {
+            row_id: "row-1".to_string(),
+        });
+
+        assert_eq!(
+            window.mode,
+            ViewportMode::Detached {
+                anchor_row_id: "row-1".to_string(),
+                offset_from_anchor_px: 0,
+            }
+        );
+    }
+
     #[test]
     fn detached_anchor_survives_insertions_before_anchor() {
         let mut viewport = TranscriptViewport::new(
@@ -500,8 +566,14 @@ mod tests {
 
     #[test]
     fn height_correction_preserves_detached_anchor_position() {
+        // row-2 is a mid-history anchor (row-3 is the tail), so revealing it is a
+        // deliberate detach — not a tail reveal that would re-enter FollowingTail.
         let mut viewport = TranscriptViewport::new(
-            LayoutIndex::new(vec![row("row-1", 100), row("row-2", 100)]),
+            LayoutIndex::new(vec![
+                row("row-1", 100),
+                row("row-2", 100),
+                row("row-3", 100),
+            ]),
             100,
         );
         viewport.apply_scroll_intent(ScrollIntent::RevealRow {

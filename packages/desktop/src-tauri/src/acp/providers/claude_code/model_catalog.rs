@@ -861,6 +861,11 @@ mod tests {
     fn fingerprint_path_matches_find_claude_cli_resolver() {
         use crate::cc_sdk::transport::subprocess::find_claude_cli;
 
+        // This test resolves the CLI via the global HOME; hold the shared HOME-env
+        // lock so a concurrent test mutating HOME can't make the catalog scan and
+        // the spawn resolver observe different home directories.
+        let _home_guard = crate::acp::lock_home_env_for_test();
+
         match find_claude_cli() {
             Ok(spawn_path) => {
                 let canonical = spawn_path

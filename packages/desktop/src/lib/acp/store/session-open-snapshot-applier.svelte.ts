@@ -72,6 +72,12 @@ export type SessionOpenSnapshotApplierDeps = {
 	readonly getSessionMetadata: (sessionId: string) => SessionMetadata | undefined;
 	readonly addSession: (session: SessionCold) => void;
 	readonly removeSession: (sessionId: string) => void;
+	/**
+	 * Light list-level removal for an optimistic, never-materialized record
+	 * (no canonical projection / model-pref state to tear down). Used when an
+	 * aliased deferred creation promotes under a different canonical id.
+	 */
+	readonly removeOptimisticSession: (sessionId: string) => void;
 	readonly updateSession: (
 		id: string,
 		updates: SessionMutableColdUpdates,
@@ -241,6 +247,18 @@ export class SessionOpenSnapshotApplier {
 				: null);
 		if (pendingCreation === null) {
 			return false;
+		}
+
+		// An aliased deferred creation promotes under a different canonical id than
+		// the optimistic record was registered under. Drop the stale requested-id
+		// record so the session doesn't appear twice (the pending-send intent was
+		// already migrated above).
+		if (
+			graph.isAlias &&
+			graph.requestedSessionId !== sessionId &&
+			this.#deps.getSessionIdentity(graph.requestedSessionId)
+		) {
+			this.#deps.removeOptimisticSession(graph.requestedSessionId);
 		}
 
 		const now = new Date();

@@ -80,3 +80,119 @@ export function getExecuteStderrColor(
 export function shouldUseOutputHtml(outputHtml?: string | null): boolean {
 	return typeof outputHtml === "string";
 }
+
+const COMPACT_COMMAND_FILE_EXTENSIONS = [
+	".ts",
+	".tsx",
+	".js",
+	".jsx",
+	".mjs",
+	".cjs",
+	".svelte",
+	".rs",
+	".py",
+	".go",
+	".json",
+	".md",
+	".css",
+	".html",
+	".yaml",
+	".yml",
+	".toml",
+	".test.ts",
+	".spec.ts",
+	".vitest.ts",
+] as const;
+
+function stripCommandTokenQuotes(token: string): string {
+	const trimmed = token.trim();
+	if (
+		(trimmed.startsWith('"') && trimmed.endsWith('"')) ||
+		(trimmed.startsWith("'") && trimmed.endsWith("'"))
+	) {
+		return trimmed.slice(1, -1);
+	}
+	return trimmed;
+}
+
+function tokenizeCommandWords(command: string): string[] {
+	const tokens: string[] = [];
+	let current = "";
+	let quote: "'" | '"' | null = null;
+
+	for (const character of command) {
+		if (quote) {
+			if (character === quote) {
+				quote = null;
+				continue;
+			}
+			current = current + character;
+			continue;
+		}
+
+		if (character === "'" || character === '"') {
+			quote = character;
+			continue;
+		}
+
+		if (character === " " || character === "\t") {
+			if (current.length > 0) {
+				tokens.push(current);
+				current = "";
+			}
+			continue;
+		}
+
+		current = current + character;
+	}
+
+	if (current.length > 0) {
+		tokens.push(current);
+	}
+
+	return tokens;
+}
+
+function looksLikeCompactCommandFilePath(token: string): boolean {
+	const value = stripCommandTokenQuotes(token);
+	if (!value || value.startsWith("-")) {
+		return false;
+	}
+	if (value.includes("://")) {
+		return false;
+	}
+	if (value.includes("/")) {
+		return true;
+	}
+	for (const extension of COMPACT_COMMAND_FILE_EXTENSIONS) {
+		if (value.endsWith(extension)) {
+			return true;
+		}
+	}
+	return false;
+}
+
+export function extractExecuteCommandFilePath(
+	command: string | null | undefined
+): string | null {
+	if (!command) {
+		return null;
+	}
+
+	const segments = splitCommandSegments(command);
+	const activeSegment = segments.length > 0 ? segments[segments.length - 1] : command;
+	const tokens = tokenizeCommandWords(activeSegment);
+
+	for (let index = tokens.length - 1; index >= 0; index -= 1) {
+		const token = tokens[index];
+		if (!token) {
+			continue;
+		}
+		const candidate = stripCommandTokenQuotes(token);
+		if (looksLikeCompactCommandFilePath(candidate)) {
+			return candidate;
+		}
+	}
+
+	return null;
+}

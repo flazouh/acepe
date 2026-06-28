@@ -193,6 +193,70 @@ export const watchResultSchema = z.object({
 		.nullable(),
 });
 
+export const resizeProbeSampleSchema = z.object({
+	step: z.number(),
+	elapsedMs: z.number(),
+	targetDelta: z.number(),
+	expectedWidth: z.number(),
+	immediateWidth: z.number(),
+	microtaskWidth: z.number(),
+	frameWidth: z.number(),
+	dispatchMs: z.number(),
+	frameDelayMs: z.number(),
+});
+
+export const resizeProbeResultSchema = z.object({
+	found: z.boolean(),
+	edgeRect: domRectSchema.nullable(),
+	panelRectBefore: domRectSchema.nullable(),
+	panelRectAfter: domRectSchema.nullable(),
+	requestedDelta: z.number(),
+	steps: z.number(),
+	stepDelayMs: z.number(),
+	originalWidth: z.number().nullable(),
+	finalWidthBeforeRestore: z.number().nullable(),
+	restoredWidth: z.number().nullable(),
+	observedDeltaBeforeRestore: z.number().nullable(),
+	finalLagPx: z.number().nullable(),
+	maxImmediateLagPx: z.number().nullable(),
+	maxFrameLagPx: z.number().nullable(),
+	avgFrameDelayMs: z.number().nullable(),
+	maxFrameDelayMs: z.number().nullable(),
+	transitionProperty: z.string().nullable(),
+	transitionDuration: z.string().nullable(),
+	samples: z.array(resizeProbeSampleSchema),
+});
+
+export const resizeStreamProbeSampleSchema = z.object({
+	elapsedMs: z.number(),
+	expectedWidth: z.number(),
+	width: z.number(),
+	lagPx: z.number(),
+});
+
+export const resizeStreamProbeResultSchema = z.object({
+	found: z.boolean(),
+	edgeRect: domRectSchema.nullable(),
+	panelRectBefore: domRectSchema.nullable(),
+	panelRectAfter: domRectSchema.nullable(),
+	requestedDelta: z.number(),
+	durationMs: z.number(),
+	moveIntervalMs: z.number(),
+	originalWidth: z.number().nullable(),
+	finalWidthBeforeRestore: z.number().nullable(),
+	restoredWidth: z.number().nullable(),
+	moveCount: z.number(),
+	frameCount: z.number(),
+	maxLagPx: z.number().nullable(),
+	avgLagPx: z.number().nullable(),
+	maxFrameIntervalMs: z.number().nullable(),
+	avgFrameIntervalMs: z.number().nullable(),
+	framesOver50Ms: z.number(),
+	transitionProperty: z.string().nullable(),
+	transitionDuration: z.string().nullable(),
+	samples: z.array(resizeStreamProbeSampleSchema),
+});
+
 export const firstSendTimelineSampleSchema = z.object({
 	label: z.string(),
 	elapsedMs: z.number(),
@@ -269,6 +333,8 @@ export type PlanningDebugResult = z.infer<typeof planningDebugResultSchema>;
 export type ComputerUseProbeResult = z.infer<typeof computerUseProbeResultSchema>;
 export type NavigateResult = z.infer<typeof navigateResultSchema>;
 export type WatchResult = z.infer<typeof watchResultSchema>;
+export type ResizeProbeResult = z.infer<typeof resizeProbeResultSchema>;
+export type ResizeStreamProbeResult = z.infer<typeof resizeStreamProbeResultSchema>;
 export type FirstSendTimelineProbeResult = z.infer<typeof firstSendTimelineProbeResultSchema>;
 
 export type QaStatus = z.infer<typeof qaStatusSchema>;

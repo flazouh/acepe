@@ -39,9 +39,17 @@ describe("AgentPanelLayoutController", () => {
 	});
 
 	it("tracks toolbar minimum width with padding", () => {
-		const controller = make();
+		const controller = make({ width: 200 });
 		controller.setToolbarMinWidth(300);
 		expect(controller.toolbarMinWidthWithPadding).toBe(316);
 		expect(controller.baseWidth).toBe(316);
+	});
+
+	it("keeps the smallest observed toolbar minimum instead of ratcheting upward", () => {
+		const controller = make({ width: 400 });
+		controller.setToolbarMinWidth(390);
+		controller.setToolbarMinWidth(620);
+		expect(controller.toolbarMinWidthWithPadding).toBe(406);
+		expect(controller.baseWidth).toBe(406);
 	});
 });

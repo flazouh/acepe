@@ -218,6 +218,7 @@ export class AgentPanelRootState {
 	}
 
 	dispose(): void {
+		this.panelState.dispose();
 		this.connection.dispose();
 		this.sessionController.dispose();
 	}

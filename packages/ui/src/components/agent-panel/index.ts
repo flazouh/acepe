@@ -29,7 +29,7 @@ export type {
 	AttachMenuModeItem,
 } from "./agent-input-attach-menu-state.js";
 export { filterAttachMenuItems } from "./agent-input-attach-menu-state.js";
-export { default as ComposerFilterDropdownFilterInput } from "./composer-filter-dropdown-filter-input.svelte";
+export { default as ComposerFilterDropdownFilterInput } from "../composer/composer-filter-dropdown-filter-input.svelte";
 export {
 	composerFilterDropdownBodyClass,
 	composerFilterDropdownContentClass,

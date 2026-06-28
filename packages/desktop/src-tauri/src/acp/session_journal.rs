@@ -687,7 +687,7 @@ mod tests {
         assert_eq!(
             snapshot.entries[0].segments[0],
             TranscriptSegment::Thought {
-                segment_id: "assistant-event-1:segment:1".to_string(),
+                segment_id: "acepe::entry::session-start::assistant::.:segment:1".to_string(),
                 text: "checking the readme".to_string(),
             }
         );
@@ -797,7 +797,7 @@ mod tests {
         assert_eq!(
             snapshot.entries[1].segments[0],
             TranscriptSegment::Text {
-                segment_id: "user-event-3:segment:3".to_string(),
+                segment_id: "acepe::entry::assistant-boundary:1::user::.:segment:3".to_string(),
                 text: "missing question".to_string(),
             }
         );

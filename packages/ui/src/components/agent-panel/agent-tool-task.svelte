@@ -3,19 +3,19 @@
 	import { ArrowsOutSimple } from "phosphor-svelte";
 	import type { Snippet } from "svelte";
 	import * as Dialog from "../dialog/index.js";
-	import AgentPanelSceneConversation from "../agent-panel-scene/agent-panel-scene-conversation.svelte";
+	import AgentPanelSceneEntry from "../agent-panel-scene/agent-panel-scene-entry.svelte";
 	import { SegmentedProgressBar } from "../segmented-progress-bar/index.js";
 	import { Button } from "../button/index.js";
 	import type { AgentToolStatus, AnyAgentEntry } from "./types.js";
 	import AgentToolCard from "./agent-tool-card.svelte";
+	import AgentCompactToolDisplay from "./compact-tool-display.svelte";
 	import ToolHeaderLeading from "./tool-header-leading.svelte";
-	import ToolLabel from "./tool-label.svelte";
 	import AgentToolDurationLabel from "./agent-tool-duration-label.svelte";
 	import type { ToolDurationTiming } from "./tool-duration.js";
 	import type { EditToolTheme } from "./agent-tool-edit-theme.js";
 	import {
 		getLastTaskToolCall,
-		getTaskCurrentToolLabel,
+		getTaskCurrentToolDisplay,
 		getTaskProgress,
 		getTaskTitle,
 		getTaskToolChildren,
@@ -76,8 +76,7 @@
 	const taskChildren = $derived(Array.from(children));
 	const toolCallChildren = $derived(getTaskToolChildren(taskChildren));
 	const lastToolCall = $derived(getLastTaskToolCall(toolCallChildren));
-	const currentToolLabel = $derived(getTaskCurrentToolLabel(lastToolCall));
-	const currentToolStatus = $derived(lastToolCall?.status ?? status);
+	const currentToolDisplay = $derived(getTaskCurrentToolDisplay(lastToolCall));
 	const taskProgress = $derived(getTaskProgress({ toolCallChildren }));
 	const showProgress = $derived(shouldShowTaskProgress(taskProgress.totalCount));
 
@@ -93,7 +92,7 @@
 		`${taskProgress.filledCount} of ${taskProgress.totalCount} tool calls complete`
 	);
 	const showDetailTrigger = $derived(hasChildren || hasPrompt || hasResult);
-	const detailConversation = $derived({ entries: taskChildren });
+	const currentToolClass = $derived(compact ? "text-xs" : "text-sm");
 
 	function handleDetailOpenChange(nextOpen: boolean): void {
 		detailOpen = nextOpen;
@@ -108,12 +107,14 @@
 				<ToolHeaderLeading kind="task" {status} class="min-w-0 flex-1 truncate">
 					{titleText}
 				</ToolHeaderLeading>
-				{#if currentToolLabel}
-					<span class="shrink-0" data-testid="agent-tool-task-current-tool-label">
-						<ToolLabel status={currentToolStatus}>
-							{currentToolLabel}
-						</ToolLabel>
-					</span>
+				{#if currentToolDisplay}
+					<div class="shrink-0" data-testid="agent-tool-task-current-tool-label">
+						<AgentCompactToolDisplay
+							tool={currentToolDisplay}
+							class={currentToolClass}
+							{iconBasePath}
+						/>
+					</div>
 				{/if}
 			</div>
 		</div>
@@ -164,9 +165,9 @@
 </AgentToolCard>
 
 <Dialog.Root open={detailOpen} onOpenChange={handleDetailOpenChange}>
-	<Dialog.Content class="flex max-h-[min(86vh,860px)] w-full max-w-2xl flex-col overflow-hidden p-0 sm:max-w-2xl">
+	<Dialog.Content class="flex h-[min(86vh,860px)] max-h-[min(86vh,860px)] w-full max-w-2xl flex-col overflow-hidden p-0 sm:max-w-2xl">
 		<Dialog.Title class="sr-only">{titleText}</Dialog.Title>
-		<div class="flex min-h-0 flex-col">
+		<div class="flex min-h-0 flex-1 flex-col overflow-hidden">
 			<div class="flex shrink-0 items-center gap-2 border-b border-border/30 px-3 py-2">
 				<ToolHeaderLeading kind="task" {status}>
 					{titleText}
@@ -185,9 +186,9 @@
 				{/if}
 			</div>
 
-			<div class="flex min-h-0 flex-1 flex-col overflow-hidden" data-testid="agent-tool-task-detail-body">
+			<div class="min-h-0 flex-1 overflow-y-auto" data-testid="agent-tool-task-detail-body">
 				{#if hasPrompt && prompt}
-					<div class="shrink-0 px-3 py-1.5">
+					<div class="px-3 py-1.5">
 						<div class="rounded-md border border-border/40 bg-muted/20 px-3 py-2 text-sm whitespace-pre-wrap break-words">
 							{prompt}
 						</div>
@@ -196,7 +197,7 @@
 
 				{#if hasChildren}
 					{#if renderDetailEntry}
-						<div class="min-h-0 flex-1 overflow-y-auto py-2">
+						<div class="py-2">
 							{#each taskChildren as child (child.id)}
 								<div class="px-3 py-1.5">
 									{@render renderDetailEntry(child)}
@@ -204,16 +205,18 @@
 							{/each}
 						</div>
 					{:else}
-						<AgentPanelSceneConversation
-							conversation={detailConversation}
-							{iconBasePath}
-							{editToolTheme}
-						/>
+						<div class="py-2">
+							{#each taskChildren as child (child.id)}
+								<div class="px-3 py-1.5">
+									<AgentPanelSceneEntry entry={child} {iconBasePath} {editToolTheme} />
+								</div>
+							{/each}
+						</div>
 					{/if}
 				{/if}
 
 				{#if hasResult && resultText}
-					<div class="shrink-0 px-3 py-1.5">
+					<div class="px-3 py-1.5">
 						<div class="rounded-md border border-border/40 bg-muted/30 px-3 py-2">
 							<div class="mb-1 text-xs font-medium text-muted-foreground">{resultLabel}</div>
 							<div class="text-sm whitespace-pre-wrap break-words">{resultText}</div>

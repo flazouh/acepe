@@ -1,6 +1,11 @@
 <script lang="ts">
 import type { ActivityEntryQuestion } from "@acepe/ui";
 import { ActivityEntry, PrChecksSummary, ProjectLetterBadge, Selector } from "@acepe/ui";
+import {
+	SESSION_PROJECT_BADGE_CLASS,
+	SESSION_PROJECT_BADGE_SIZE,
+	shouldShowSessionProjectBadge,
+} from "@acepe/ui/project-letter-badge";
 import * as DropdownMenu from "@acepe/ui/dropdown-menu";
 import { IconCheck } from "@tabler/icons-svelte";
 import { IconChevronDown } from "@tabler/icons-svelte";
@@ -42,8 +47,6 @@ import {
 	isActiveCompactActivityKind,
 	projectSessionPreviewActivity,
 } from "$lib/acp/components/activity-entry/activity-entry-projection.js";
-import { selectSessionWorkBucket } from "$lib/acp/store/session-work-projection.js";
-import { sectionColor, type SectionedFeedSectionId } from "@acepe/ui/attention-queue";
 import { Input } from "$lib/components/ui/input/index.js";
 import { makeWorkspaceRelative } from "$lib/acp/utils/path-utils.js";
 import { tauriClient } from "$lib/utils/tauri-client/index.js";
@@ -433,15 +436,6 @@ const activityEntryShowToolShimmer = $derived(
 const displayTitle = $derived(formatSessionTitleForDisplay(session.title, session.projectName));
 
 const queueTimeAgo = $derived(formatTimeAgoSafe(session.updatedAt ?? session.createdAt));
-const sessionBoardStatus = $derived(selectSessionWorkBucket(sessionWorkProjection));
-const sessionStatusSectionId = $derived<SectionedFeedSectionId | null>(
-	sessionBoardStatus === "idle" ? null : sessionBoardStatus
-);
-const sessionStatusIconColor = $derived.by((): string | null => {
-	if (!sessionStatusSectionId) return null;
-	if (sessionStatusSectionId === "needs_review") return Colors[COLOR_NAMES.PURPLE];
-	return sectionColor(sessionStatusSectionId);
-});
 let isRowHovered = $state(false);
 let isActionsMenuOpen = $state(false);
 let isRenaming = $state(false);
@@ -611,15 +605,15 @@ function handleNextQuestion() {
 							size={12}
 						/>
 					{/if}
-					{#if session.sequenceId != null && session.projectName != null && session.projectColor != null}
+					{#if shouldShowSessionProjectBadge(session)}
 						<ProjectLetterBadge
 							name={session.projectName}
 							color={session.projectColor}
 							iconSrc={session.projectIconSrc}
-							size={12}
+							size={SESSION_PROJECT_BADGE_SIZE}
 							sequenceId={session.sequenceId}
 							showLetter={false}
-							class="font-mono"
+							class={SESSION_PROJECT_BADGE_CLASS}
 						/>
 					{/if}
 					{#if session.worktreePath}
@@ -784,8 +778,6 @@ function handleNextQuestion() {
 					mode={null}
 					title={displayTitle}
 					timeAgo={queueTimeAgo}
-					statusSectionId={sessionStatusSectionId}
-					statusIconColor={sessionStatusIconColor}
 					insertions={session.insertions ?? 0}
 					deletions={session.deletions ?? 0}
 					{titleContent}

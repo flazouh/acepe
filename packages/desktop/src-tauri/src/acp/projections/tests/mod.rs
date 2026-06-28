@@ -2567,7 +2567,7 @@ fn thread_snapshot_ingress_normalizes_control_character_tool_ids() {
     assert_eq!(
         operation.source_link,
         OperationSourceLink::TranscriptLinked {
-            entry_id: "restored%0Acursor".to_string(),
+            entry_id: "acepe::entry::session-start::tool::restored%0Acursor".to_string(),
         }
     );
     assert_eq!(

@@ -39,6 +39,14 @@ export class AgentPanelLayoutController {
 	}
 
 	setToolbarMinWidth(value: number): void {
+		if (value <= 0) {
+			return;
+		}
+
+		if (this.#toolbarMinWidth !== 0 && value >= this.#toolbarMinWidth) {
+			return;
+		}
+
 		this.#toolbarMinWidth = value;
 	}
 

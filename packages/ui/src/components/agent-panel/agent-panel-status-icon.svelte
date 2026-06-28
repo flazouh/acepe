@@ -5,12 +5,13 @@
 	import { LoadingIcon } from "../icons/index.js";
 	import { Colors } from "../../lib/colors.js";
 
+	import { resolveAgentPanelStatusIconPresentation } from "./agent-panel-status-icon-state.js";
 	import type { AgentSessionStatus } from "./types.js";
 
 	interface Props {
 		/** Mapped session status for display */
 		status?: AgentSessionStatus;
-		/** When true, show a spinner (e.g. connecting before session exists) */
+		/** Retained for API compatibility; connecting states show no loading affordance. */
 		isConnecting?: boolean;
 		/** When true, show immediate feedback after the user clicks retry */
 		isRetrying?: boolean;
@@ -43,13 +44,15 @@
 		onRetry,
 	}: Props = $props();
 
-	const shouldShow = $derived(status !== "empty" || isConnecting || isRetrying);
+	const presentation = $derived(
+		resolveAgentPanelStatusIconPresentation({ status, isConnecting, isRetrying })
+	);
 </script>
 
-{#if shouldShow}
+{#if presentation !== "none"}
 	<Tooltip.Provider delayDuration={0}>
 		<div class="flex size-5 shrink-0 items-center justify-center">
-			{#if isConnecting || isRetrying || status === "warming"}
+			{#if presentation === "loading"}
 				<Tooltip.Root>
 					<Tooltip.Trigger>
 						<div class="animate-in fade-in duration-150">
@@ -68,7 +71,7 @@
 						</Tooltip.Content>
 					</Tooltip.Portal>
 				</Tooltip.Root>
-			{:else if status === "connected" || status === "done" || status === "idle" || status === "running"}
+			{:else if presentation === "connected"}
 				<Tooltip.Root>
 					<Tooltip.Trigger>
 						<div
@@ -100,7 +103,7 @@
 						</Tooltip.Content>
 					</Tooltip.Portal>
 				</Tooltip.Root>
-				{:else if status === "error"}
+				{:else if presentation === "error"}
 					<Tooltip.Root>
 						<Tooltip.Trigger>
 						<button

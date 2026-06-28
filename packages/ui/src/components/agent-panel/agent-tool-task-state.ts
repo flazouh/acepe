@@ -1,4 +1,12 @@
 import type { AgentToolStatus, AnyAgentEntry, AgentToolEntry } from "./types.js";
+import {
+	getTaskCurrentToolDisplay,
+	type AgentToolCompactDisplay,
+} from "./agent-tool-compact-display-state.js";
+
+export type TaskCurrentToolDisplay = AgentToolCompactDisplay;
+
+export { getTaskCurrentToolDisplay };
 
 export function isTaskPending(status: AgentToolStatus): boolean {
 	return status === "pending" || status === "running";
@@ -28,15 +36,6 @@ export function getLastTaskToolCall(
 	toolCallChildren: readonly AgentToolEntry[]
 ): AgentToolEntry | null {
 	return toolCallChildren.length > 0 ? toolCallChildren[toolCallChildren.length - 1] : null;
-}
-
-export function getTaskCurrentToolLabel(
-	lastToolCall: AgentToolEntry | null
-): string | null {
-	if (!lastToolCall) {
-		return null;
-	}
-	return lastToolCall.title;
 }
 
 export function getTaskProgress(input: {

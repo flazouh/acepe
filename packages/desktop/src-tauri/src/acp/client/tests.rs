@@ -780,11 +780,10 @@ fn new_session_response_handles_null_modes() {
         "models": { "availableModels": [], "currentModelId": "auto" }
     });
     let response: NewSessionResponse = serde_json::from_value(json).unwrap();
-    // null modes should deserialize to defaults (build + plan)
-    assert_eq!(response.modes.available_modes.len(), 2);
-    assert_eq!(response.modes.current_mode_id, "build");
-    assert_eq!(response.modes.available_modes[0].id, "build");
-    assert_eq!(response.modes.available_modes[1].id, "plan");
+    // null modes should deserialize to the default single "agent" mode
+    assert_eq!(response.modes.available_modes.len(), 1);
+    assert_eq!(response.modes.current_mode_id, "agent");
+    assert_eq!(response.modes.available_modes[0].id, "agent");
 }
 
 #[test]
@@ -794,9 +793,9 @@ fn new_session_response_handles_missing_modes() {
         "models": { "availableModels": [], "currentModelId": "auto" }
     });
     let response: NewSessionResponse = serde_json::from_value(json).unwrap();
-    // missing modes should also use defaults
-    assert_eq!(response.modes.available_modes.len(), 2);
-    assert_eq!(response.modes.current_mode_id, "build");
+    // missing modes should also use the default single "agent" mode
+    assert_eq!(response.modes.available_modes.len(), 1);
+    assert_eq!(response.modes.current_mode_id, "agent");
 }
 
 #[test]
@@ -818,7 +817,9 @@ fn new_session_response_handles_partial_models() {
     });
     let response: NewSessionResponse = serde_json::from_value(json).unwrap();
     assert!(response.models.available_models.is_empty());
-    assert_eq!(response.models.current_model_id.as_deref(), Some("auto"));
+    // A present-but-empty `models` object faithfully omits the current model
+    // (None); only a fully-absent `models` field synthesizes the "auto" default.
+    assert_eq!(response.models.current_model_id.as_deref(), None);
 }
 
 #[test]
@@ -828,8 +829,8 @@ fn resume_session_response_handles_null_modes() {
         "models": { "availableModels": [], "currentModelId": "auto" }
     });
     let response: ResumeSessionResponse = serde_json::from_value(json).unwrap();
-    assert_eq!(response.modes.available_modes.len(), 2);
-    assert_eq!(response.modes.current_mode_id, "build");
+    assert_eq!(response.modes.available_modes.len(), 1);
+    assert_eq!(response.modes.current_mode_id, "agent");
 }
 
 #[test]

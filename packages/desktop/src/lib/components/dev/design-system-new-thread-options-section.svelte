@@ -16,7 +16,7 @@
 <div class="w-full">
 	<SettingsSection
 		title="In context"
-		description="Live setup row above a composer shell — project, agent, branch, and worktree controls are interactive. Model and reasoning stay in the composer trailing toolbar."
+		description="Floating setup chips above a composer shell — project, agent, branch, and worktree controls are interactive. Model and reasoning stay in the composer trailing toolbar."
 	>
 		<InputContainer class="border border-border bg-input/30" contentClass="flex flex-col gap-2 p-2">
 			{#snippet content()}
@@ -44,7 +44,7 @@
 
 	<SettingsSection
 		title="Variants"
-		description="Optional regions and grouped controls in the setup row."
+		description="Each control floats as its own chip above the composer; worktree and settings share a button group."
 	>
 		<div class="overflow-hidden rounded-lg border border-border/40 bg-card px-3">
 			<SettingRow stacked label="Without branch" description="Project and agent chips only.">
@@ -54,7 +54,7 @@
 					showBranch={false}
 				/>
 			</SettingRow>
-			<SettingRow stacked label="With branch" description="Branch chip matches project/agent setup styling.">
+			<SettingRow stacked label="With branch" description="Branch chip sits beside project and agent.">
 				<DesignSystemNewThreadOptionsBarDemo
 					selectedProject={mockProjects[0]}
 					worktreeOn={false}
@@ -62,7 +62,7 @@
 					showBranch={true}
 				/>
 			</SettingRow>
-			<SettingRow stacked label="Worktree off" description="Icon-only tree toggle; default branch checkout.">
+			<SettingRow stacked label="Worktree off" description="Unchecked worktree toggle; default branch checkout.">
 				<DesignSystemNewThreadOptionsBarDemo
 					worktreeOn={false}
 					showWorktree={true}
@@ -72,7 +72,7 @@
 			<SettingRow
 				stacked
 				label="Worktree on"
-				description="Filled green tree icon; isolated worktree branch."
+				description="Checked green worktree checkbox; isolated worktree branch."
 			>
 				<DesignSystemNewThreadOptionsBarDemo
 					worktreeOn={true}
