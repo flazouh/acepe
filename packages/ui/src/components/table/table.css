@@ -70,6 +70,12 @@
 	white-space: nowrap;
 }
 
+/* An empty header cell (e.g. the corner of a row-header table) shows no tile. */
+.acepe-table-wrapper th:empty,
+.markdown-content .table-wrapper th:empty {
+	background: transparent;
+}
+
 .acepe-table-wrapper td,
 .markdown-content .table-wrapper td {
 	padding: 0.375rem 0.5rem;

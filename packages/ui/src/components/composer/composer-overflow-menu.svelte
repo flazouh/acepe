@@ -19,6 +19,8 @@
 		contentClass?: string;
 		open?: boolean;
 		onOpenChange?: (open: boolean) => void;
+		/** When true, dropdown root uses display:contents for fused button groups. */
+		embeddedInGroup?: boolean;
 		/** dots = three-dot overflow; gear = setup settings trigger. */
 		triggerIcon?: "dots" | "gear";
 		triggerClass?: string;
@@ -34,13 +36,14 @@
 		contentClass = "min-w-[11rem] p-1",
 		open = $bindable(false),
 		onOpenChange,
+		embeddedInGroup = false,
 		triggerIcon = "dots",
 		triggerClass = "",
 		children,
 	}: Props = $props();
 </script>
 
-<DropdownMenu.Root bind:open {onOpenChange}>
+<DropdownMenu.Root bind:open {onOpenChange} class={embeddedInGroup ? "contents" : undefined}>
 	<DropdownMenu.Trigger>
 		{#snippet child({ props })}
 			{#if triggerIcon === "gear"}

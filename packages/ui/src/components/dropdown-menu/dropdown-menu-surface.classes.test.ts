@@ -7,8 +7,8 @@ describe("buildDropdownMenuSurfaceClassName", () => {
 		const className = buildDropdownMenuSurfaceClassName();
 
 		expect(className).toContain("rounded-lg");
-		expect(className).not.toContain("rounded-xl");
-		expect(className).toContain("p-1");
+		expect(className).not.toContain("rounded-md");
+		expect(className).toContain("p-0.5");
 		expect(className).toContain("shadow-md");
 		expect(className).not.toContain("zoom-in-95");
 	});

@@ -6,6 +6,7 @@
 	import { Selector } from "../selector/index.js";
 	import AgentInputSelectorItemRow from "../agent-panel/agent-input-selector-item-row.svelte";
 	import { PROJECT_COLOR_OPTIONS } from "./project-color-options.js";
+	import ProjectColorSwatch from "./project-color-swatch.svelte";
 	import { buildProjectHeaderOverflowMenuState } from "./project-menu-state.js";
 
 	interface Props {
@@ -151,7 +152,11 @@
 								label={option.label}
 								selected={currentColor === option.name || currentColor === option.hex}
 								onSelect={() => handleColorSelect(option.name)}
-							/>
+							>
+								{#snippet leading()}
+									<ProjectColorSwatch hex={option.hex} />
+								{/snippet}
+							</AgentInputSelectorItemRow>
 						{/each}
 					</DropdownMenu.SubContent>
 				</DropdownMenu.Sub>

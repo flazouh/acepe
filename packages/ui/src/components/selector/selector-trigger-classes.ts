@@ -2,6 +2,8 @@ import { cn } from "../../lib/utils.js";
 import {
 	FUSED_CONTROL_COMPOSER_CHIP_LABEL_BUTTON_CLASS,
 	FUSED_CONTROL_COMPOSER_STANDALONE_ICON_CHIP_CLASS,
+	FUSED_CONTROL_SETUP_CHIP_BUTTON_CLASS,
+	FUSED_CONTROL_SETUP_GROUPED_CHIP_LABEL_BUTTON_CLASS,
 } from "../panel-header/project-card-action-button-class.js";
 
 export type SelectorTriggerSize =
@@ -14,12 +16,40 @@ export type SelectorTriggerSize =
 	| "minimal"
 	| "pill"
 	| "footer"
+	| "setupBarChip"
+	| "setupBarChipGrouped"
+	| "composerChipLabel"
+	| "composerChipIcon"
+	| "headerAction"
+	/** @deprecated Use {@link setupBarChip} */
 	| "setupChip"
-	| "setupChipIcon"
-	| "headerAction";
+	/** @deprecated Use {@link composerChipIcon} */
+	| "setupChipIcon";
+
+/** Normalize legacy trigger size names after the setup-bar/composer split. */
+export function resolveSelectorTriggerSize(triggerSize: SelectorTriggerSize): SelectorTriggerSize {
+	switch (triggerSize) {
+	case "setupChip":
+		return "setupBarChip";
+	case "setupChipIcon":
+		return "composerChipIcon";
+	default:
+		return triggerSize;
+	}
+}
+
+export function isFusedComposerChipTriggerSize(triggerSize: SelectorTriggerSize): boolean {
+	const resolved = resolveSelectorTriggerSize(triggerSize);
+	return (
+		resolved === "composerChipIcon" ||
+		resolved === "composerChipLabel" ||
+		resolved === "setupBarChip" ||
+		resolved === "setupBarChipGrouped"
+	);
+}
 
 export function getSelectorTriggerSizeClass(triggerSize: SelectorTriggerSize): string {
-	switch (triggerSize) {
+	switch (resolveSelectorTriggerSize(triggerSize)) {
 	case "chromeIcon":
 		return "[&_svg]:block";
 	case "chromeIconMd":
@@ -36,9 +66,13 @@ export function getSelectorTriggerSizeClass(triggerSize: SelectorTriggerSize): s
 		return "gap-1.5 h-7 flex-1 min-w-0 max-w-full rounded-md border-0 px-2.5 text-xs";
 	case "footer":
 		return "h-5 min-w-0 shrink-0 gap-1 rounded-md border-0 !px-1 has-[>svg]:!px-1 text-[0.6875rem] font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground [&_svg]:size-3";
-	case "setupChip":
+	case "setupBarChip":
+		return FUSED_CONTROL_SETUP_CHIP_BUTTON_CLASS;
+	case "setupBarChipGrouped":
+		return FUSED_CONTROL_SETUP_GROUPED_CHIP_LABEL_BUTTON_CLASS;
+	case "composerChipLabel":
 		return FUSED_CONTROL_COMPOSER_CHIP_LABEL_BUTTON_CLASS;
-	case "setupChipIcon":
+	case "composerChipIcon":
 		return FUSED_CONTROL_COMPOSER_STANDALONE_ICON_CHIP_CLASS;
 	case "headerAction":
 		return "";

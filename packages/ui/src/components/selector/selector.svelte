@@ -7,7 +7,11 @@
 
 	import { cn } from "../../lib/utils.js";
 	import { Button, type ButtonVariant } from "../button/index.js";
-	import { getSelectorTriggerClass, type SelectorTriggerSize } from "./selector-trigger-classes.js";
+	import {
+		FUSED_CONTROL_GROUPED_CHIP_LABEL_BUTTON_CLASS,
+		FUSED_CONTROL_OVERFLOW_BUTTON_CLASS,
+	} from "../panel-header/project-card-action-button-class.js";
+	import { getSelectorTriggerClass, isFusedComposerChipTriggerSize, resolveSelectorTriggerSize, type SelectorTriggerSize } from "./selector-trigger-classes.js";
 
 	interface Props {
 		/**
@@ -101,6 +105,11 @@
 		triggerClass?: string;
 
 		/**
+		 * When true, marks the trigger for fused button-group segment styling.
+		 */
+		embeddedInGroup?: boolean;
+
+		/**
 		 * Raise dropdown content above blocking overlays (branch picker, etc.).
 		 */
 		blockingOverlay?: boolean;
@@ -135,16 +144,31 @@
 		triggerRef = $bindable(null),
 		triggerSize = "default",
 		triggerClass: triggerClassOverride = "",
+		embeddedInGroup = false,
 		blockingOverlay = false,
 		sideOffset = 4,
 		contentClass: menuContentClass = "",
 	}: Props = $props();
 
+	const resolvedTriggerSize = $derived(resolveSelectorTriggerSize(triggerSize));
+
 	const triggerClass = $derived(
-		getSelectorTriggerClass({
-			triggerSize,
-			triggerClass: triggerClassOverride,
-		})
+		embeddedInGroup
+			? cn(
+					resolvedTriggerSize === "composerChipIcon"
+						? cn(FUSED_CONTROL_OVERFLOW_BUTTON_CLASS, "px-1", triggerClassOverride)
+						: resolvedTriggerSize === "composerChipLabel"
+							? cn(FUSED_CONTROL_GROUPED_CHIP_LABEL_BUTTON_CLASS, triggerClassOverride)
+							: triggerClassOverride
+				)
+			: getSelectorTriggerClass({
+					triggerSize,
+					triggerClass: triggerClassOverride,
+				})
+	);
+
+	const resolvedTriggerAriaLabel = $derived(
+		triggerAriaLabel ?? tooltipTitle ?? tooltipLabel
 	);
 
 	const buttonSize = $derived(
@@ -152,7 +176,7 @@
 			? "chromeIconMd"
 			: triggerSize === "chromeIcon"
 				? "chromeIcon"
-				: triggerSize === "setupChipIcon" || triggerSize === "setupChip"
+				: isFusedComposerChipTriggerSize(triggerSize)
 					? "setupChip"
 					: triggerSize === "headerAction"
 						? "headerAction"
@@ -175,61 +199,68 @@
 	}
 </script>
 
+{#snippet selectorTriggerButton(buttonProps: Record<string, unknown>)}
+	{#if embeddedInGroup}
+		<button
+			{...buttonProps}
+			bind:this={triggerRef}
+			type="button"
+			data-slot="button"
+			class={cn(triggerClass, className)}
+			disabled={disabled}
+			aria-label={resolvedTriggerAriaLabel}
+			title={tooltipTitle ?? tooltipLabel ?? undefined}
+		>
+			{@render renderButton()}
+			{#if showChevron}
+				<ChevronDown
+					class="h-3 w-3 shrink-0 text-muted-foreground transition-transform duration-200 {open
+						? 'rotate-180'
+						: ''}"
+				/>
+			{/if}
+		</button>
+	{:else}
+		<div role="group" class={cn("flex w-fit items-stretch", className)}>
+			<Button
+				{...buttonProps}
+				bind:ref={triggerRef}
+				{variant}
+				size={buttonSize}
+				class={triggerClass}
+				{disabled}
+				aria-label={resolvedTriggerAriaLabel}
+			>
+				{@render renderButton()}
+				{#if showChevron}
+					<ChevronDown
+						class="h-3 w-3 shrink-0 text-muted-foreground transition-transform duration-200 {open
+							? 'rotate-180'
+							: ''}"
+					/>
+				{/if}
+			</Button>
+		</div>
+	{/if}
+{/snippet}
+
 {#snippet selectorTrigger()}
 	<DropdownMenu.Trigger>
 		{#snippet child({ props })}
-			<div role="group" class={cn("flex w-fit items-stretch", className)}>
-				<Button
-					{...props}
-					bind:ref={triggerRef}
-					{variant}
-					size={buttonSize}
-					class={triggerClass}
-					{disabled}
-					aria-label={triggerAriaLabel}
-				>
-					{@render renderButton()}
-					{#if showChevron}
-						<ChevronDown
-							class="h-3 w-3 shrink-0 text-muted-foreground transition-transform duration-200 {open
-								? 'rotate-180'
-								: ''}"
-						/>
-					{/if}
-				</Button>
-			</div>
+			{@render selectorTriggerButton(props)}
 		{/snippet}
 	</DropdownMenu.Trigger>
 {/snippet}
 
-<DropdownMenu.Root bind:open {onOpenChange}>
-	{#if tooltipLabel || tooltipDescription}
+<DropdownMenu.Root bind:open {onOpenChange} class={embeddedInGroup ? "contents" : undefined}>
+	{#if (tooltipLabel || tooltipDescription) && !embeddedInGroup}
 		<Tooltip.Root>
 			<Tooltip.Trigger>
 				{#snippet child({ props: tooltipProps })}
 					<DropdownMenu.Trigger>
 						{#snippet child({ props: dropdownProps })}
 							{@const props = mergeProps(tooltipProps, dropdownProps)}
-							<div role="group" class={cn("flex w-fit items-stretch", className)}>
-								<Button
-									{...props}
-									bind:ref={triggerRef}
-									{variant}
-									size={buttonSize}
-									class={triggerClass}
-									{disabled}
-									aria-label={triggerAriaLabel ?? tooltipTitle ?? tooltipLabel}
-								>
-									{@render renderButton()}
-									{#if showChevron}
-										<ChevronDown
-											class="h-3 w-3 shrink-0 text-muted-foreground transition-transform duration-200 {open
-												? 'rotate-180'
-												: ''}"
-										/>
-									{/if}
-								</Button>
-							</div>
+							{@render selectorTriggerButton(props)}
 						{/snippet}
 					</DropdownMenu.Trigger>
 				{/snippet}

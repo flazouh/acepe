@@ -620,7 +620,7 @@ function handleEmptyStateSessionCreated(sessionId: string) {
 	<div class="flex w-full max-w-[40rem] flex-col px-6">
 	{#if canShowInput}
 		<!-- Agent Input -->
-		<div class="w-full">
+		<div class="w-full [&_[contenteditable=true]]:min-h-[4.5rem]">
 			{#if projectImportError}
 				<div class="mb-3">
 					<AgentErrorCard
@@ -679,6 +679,7 @@ function handleEmptyStateSessionCreated(sessionId: string) {
 			{/snippet}
 			<AgentInput
 				panelId={EMPTY_STATE_PANEL_ID}
+				composerInputClass="flex-shrink-0 rounded-lg bg-input/30 shadow-md"
 				projectPath={projectPath ?? undefined}
 				projectName={projectName ?? undefined}
 				selectedAgentId={effectiveAgentId}
@@ -702,6 +703,7 @@ function handleEmptyStateSessionCreated(sessionId: string) {
 					project: newThreadProjectControl,
 					agent: newThreadAgentControl,
 					branch: newThreadBranchControl,
+					setupBarAlign: "start",
 					showWorktree: projectPath !== null,
 					worktreeOn: effectiveWorktreePending,
 					worktreeDisabled: false,

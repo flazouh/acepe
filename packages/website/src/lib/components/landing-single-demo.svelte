@@ -262,7 +262,7 @@ const favoriteModels = $derived(
 									<AgentPanelComposerFrame>
 										<AgentPanelComposer
 											class="border-t-0 p-0"
-											inputClass="flex-shrink-0 border border-border bg-input/30"
+											inputClass="flex-shrink-0 rounded-lg border border-border bg-input/30"
 											contentClass="p-4 py-4"
 										>
 											{#snippet content()}

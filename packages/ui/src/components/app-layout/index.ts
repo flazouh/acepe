@@ -12,6 +12,7 @@ export { default as AppSidebarLayout } from "./app-sidebar-layout.svelte";
 export { default as AppSidebarFooter } from "./app-sidebar-footer.svelte";
 export { default as ProjectHeader } from "./project-header.svelte";
 export { default as ProjectHeaderOverflowMenu } from "./project-header-overflow-menu.svelte";
+export { default as ProjectColorSwatch } from "./project-color-swatch.svelte";
 export {
 	PROJECT_COLOR_OPTIONS,
 	type ProjectColorOption,

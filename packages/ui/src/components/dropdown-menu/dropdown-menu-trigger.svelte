@@ -11,8 +11,8 @@
 
 <DropdownMenuPrimitive.Trigger
 	bind:ref
-	data-slot="dropdown-menu-trigger"
-	class="cursor-pointer"
+	data-slot={child ? "button" : "dropdown-menu-trigger"}
+	class={child ? undefined : "cursor-pointer"}
 	{child}
 	{...restProps}
 >

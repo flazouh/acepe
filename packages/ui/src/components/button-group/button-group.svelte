@@ -6,9 +6,9 @@
 		variants: {
 			orientation: {
 				horizontal:
-					"overflow-hidden rounded-md [&>[data-slot]:first-child]:!rounded-none [&>[data-slot]:first-child]:!rounded-l-md [&>[data-slot]:last-child]:!rounded-none [&>[data-slot]:last-child]:!rounded-r-md [&>[data-slot]:not(:first-child):not(:last-child)]:!rounded-none [&>[data-slot]~[data-slot]]:border-l-0",
+					"overflow-hidden rounded-md [&>[data-slot=button]:first-child]:!rounded-none [&>[data-slot=button]:first-child]:!rounded-l-md [&>[data-slot=button]:last-child]:!rounded-none [&>[data-slot=button]:last-child]:!rounded-r-md [&>[data-slot=button]:not(:first-child):not(:last-child)]:!rounded-none [&>[data-slot=button]~[data-slot=button]]:border-l-0",
 				vertical:
-					"overflow-hidden rounded-md flex-col [&>[data-slot]:first-child]:!rounded-none [&>[data-slot]:first-child]:!rounded-t-md [&>[data-slot]:last-child]:!rounded-none [&>[data-slot]:last-child]:!rounded-b-md [&>[data-slot]:not(:first-child):not(:last-child)]:!rounded-none [&>[data-slot]~[data-slot]]:border-t-0",
+					"overflow-hidden rounded-md flex-col [&>[data-slot=button]:first-child]:!rounded-none [&>[data-slot=button]:first-child]:!rounded-t-md [&>[data-slot=button]:last-child]:!rounded-none [&>[data-slot=button]:last-child]:!rounded-b-md [&>[data-slot=button]:not(:first-child):not(:last-child)]:!rounded-none [&>[data-slot=button]~[data-slot=button]]:border-t-0",
 			},
 		},
 		defaultVariants: {

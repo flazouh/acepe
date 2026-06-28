@@ -8,7 +8,7 @@ export function buildDropdownMenuSurfaceClassName(className?: string): string {
 		"data-[side=right]:slide-in-from-start-2",
 		"data-[side=top]:slide-in-from-bottom-2",
 		"z-[var(--overlay-z)] max-h-(--bits-dropdown-menu-content-available-height)",
-		"min-w-[8rem] overflow-y-auto overflow-x-hidden p-1",
+		"min-w-[8rem] overflow-y-auto overflow-x-hidden p-0.5",
 		"bg-popover text-popover-foreground shadow-md",
 		"data-[state=closed]:animate-out data-[state=open]:animate-in",
 		"border border-border",

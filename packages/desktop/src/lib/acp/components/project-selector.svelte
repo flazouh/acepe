@@ -2,6 +2,7 @@
 import { onMount } from "svelte";
 import { SvelteSet } from "svelte/reactivity";
 import { ProjectLetterBadge, Selector, AgentInputSelectorItemRow } from "@acepe/ui";
+import { FUSED_CONTROL_SETUP_CHIP_ICON_SIZE_CLASS, FUSED_CONTROL_SETUP_CHIP_ICON_SIZE_PX, FUSED_CONTROL_SETUP_CHIP_LABEL_TEXT_CLASS } from "@acepe/ui/panel-header";
 import * as DropdownMenu from "@acepe/ui/dropdown-menu";
 import { useTheme } from "$lib/components/theme/context.svelte.js";
 import { Skeleton } from "$lib/components/ui/skeleton/index.js";
@@ -12,6 +13,7 @@ import { getProviderBrandIcon } from "../constants/thread-list-constants.js";
 import type { Project } from "../logic/project-manager.svelte.js";
 import { AGENT_IDS } from "../types/agent-id.js";
 import { getProjectColor, TAG_COLORS } from "@acepe/ui/colors";
+import { cn } from "$lib/utils.js";
 import { createLogger } from "../utils/logger.js";
 
 interface ProjectSelectorProps {
@@ -94,7 +96,7 @@ function handleOpenChange(open: boolean) {
 	onOpenChange={handleOpenChange}
 	variant="ghost"
 	showChevron={false}
-	triggerSize={showLabel ? "setupChip" : "icon"}
+	triggerSize={showLabel ? "setupBarChip" : "icon"}
 	triggerClass={isOpen ? "bg-accent text-foreground" : ""}
 	triggerAriaLabel={selectedProject?.name ?? placeholder}
 	side="top"
@@ -102,7 +104,7 @@ function handleOpenChange(open: boolean) {
 >
 	{#snippet renderButton()}
 		{#if isLoading}
-			<Skeleton class="size-3.5 shrink-0 rounded-md" />
+			<Skeleton class="{FUSED_CONTROL_SETUP_CHIP_ICON_SIZE_CLASS} rounded-md" />
 		{:else}
 			{@const color = selectedProject ? getProjectColor(selectedProject) : TAG_COLORS[0]}
 			{#if selectedProject}
@@ -110,15 +112,15 @@ function handleOpenChange(open: boolean) {
 					name={selectedProject.name}
 					{color}
 					iconSrc={selectedProject.iconPath ?? null}
-					size={14}
+					size={FUSED_CONTROL_SETUP_CHIP_ICON_SIZE_PX}
 				/>
 				{#if showLabel}
-					<span class="whitespace-nowrap text-xs">{selectedProject.name}</span>
+					<span class={cn("whitespace-nowrap", FUSED_CONTROL_SETUP_CHIP_LABEL_TEXT_CLASS)}>{selectedProject.name}</span>
 				{/if}
 			{:else}
-				<div class="size-3.5 shrink-0 rounded-md" style="background-color: {color};"></div>
+				<div class="{FUSED_CONTROL_SETUP_CHIP_ICON_SIZE_CLASS} rounded-md" style="background-color: {color};"></div>
 				{#if showLabel}
-					<span class="whitespace-nowrap text-xs text-muted-foreground">{placeholder}</span>
+					<span class={cn("whitespace-nowrap text-muted-foreground", FUSED_CONTROL_SETUP_CHIP_LABEL_TEXT_CLASS)}>{placeholder}</span>
 				{/if}
 			{/if}
 		{/if}

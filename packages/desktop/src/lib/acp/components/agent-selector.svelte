@@ -1,5 +1,6 @@
 <script lang="ts">
 import { Colors } from "@acepe/ui/colors";
+import { FUSED_CONTROL_SETUP_CHIP_ICON_SIZE_CLASS, FUSED_CONTROL_SETUP_CHIP_ICON_SIZE_PX, FUSED_CONTROL_SETUP_CHIP_LABEL_TEXT_CLASS } from "@acepe/ui/panel-header";
 import { Selector, AgentInputSelectorItemRow } from "@acepe/ui";
 import type { ButtonVariant } from "@acepe/ui";
 import * as DropdownMenu from "@acepe/ui/dropdown-menu";
@@ -7,6 +8,7 @@ import { Skeleton } from "$lib/components/ui/skeleton/index.js";
 import { Heart } from "phosphor-svelte";
 import { getAgentPreferencesStore } from "../store/index.js";
 import { capitalizeName } from "../utils/index.js";
+import { cn } from "$lib/utils.js";
 import { createLogger } from "../utils/logger.js";
 import AgentIcon from "./agent-icon.svelte";
 import type { ProviderMetadataProjection } from "$lib/services/acp-types.js";
@@ -83,11 +85,13 @@ const displayAgent = $derived(currentAgent ?? availableAgents[0] ?? null);
 
 // In the new-thread setup card (showLabel) every picker shares the same compact chip size;
 // elsewhere the agent selector keeps its default styling.
-const effectiveTriggerSize = $derived(showLabel ? "setupChip" : "default");
+const effectiveTriggerSize = $derived(showLabel ? "setupBarChip" : "default");
 const effectiveTriggerClass = $derived(
 	showLabel ? (isDropdownOpen ? "bg-accent text-foreground" : "") : triggerClass
 );
 const effectiveShowChevron = $derived(showLabel ? false : showChevron);
+const setupChipIconClass = $derived(showLabel ? FUSED_CONTROL_SETUP_CHIP_ICON_SIZE_CLASS : "h-4 w-4 shrink-0");
+const setupChipIconSize = $derived(showLabel ? FUSED_CONTROL_SETUP_CHIP_ICON_SIZE_PX : 16);
 </script>
 
 <Selector
@@ -105,18 +109,18 @@ const effectiveShowChevron = $derived(showLabel ? false : showChevron);
 >
 	{#snippet renderButton()}
 		{#if isLoading}
-			<Skeleton class="h-4 w-4 shrink-0 rounded" />
+			<Skeleton class="{FUSED_CONTROL_SETUP_CHIP_ICON_SIZE_CLASS} rounded" />
 			<Skeleton class="h-3 w-20" />
 		{:else if displayAgent}
 			<AgentIcon
 				agentId={displayAgent.id}
 				providerBrand={displayAgent.provider_metadata?.providerBrand ?? null}
 				providerLabel={displayAgent.provider_metadata?.displayName ?? displayAgent.name}
-				class="h-4 w-4 shrink-0"
-				size={16}
+				class={setupChipIconClass}
+				size={setupChipIconSize}
 			/>
 			{#if showLabel}
-				<span class="whitespace-nowrap text-xs">{capitalizeName(displayAgent.name)}</span>
+				<span class={cn("whitespace-nowrap", FUSED_CONTROL_SETUP_CHIP_LABEL_TEXT_CLASS)}>{capitalizeName(displayAgent.name)}</span>
 			{/if}
 		{/if}
 	{/snippet}

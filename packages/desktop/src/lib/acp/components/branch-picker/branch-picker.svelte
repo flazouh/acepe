@@ -7,7 +7,7 @@ import {
 	composerFilterDropdownItemClass,
 	composerFilterDropdownListClass,
 } from "@acepe/ui";
-import { FUSED_CONTROL_COMPOSER_CHIP_LABEL_BUTTON_CLASS, FUSED_CONTROL_GROUPED_CHIP_LABEL_BUTTON_CLASS } from "@acepe/ui/panel-header";
+import { FUSED_CONTROL_SETUP_CHIP_BUTTON_CLASS, FUSED_CONTROL_SETUP_GROUPED_CHIP_LABEL_BUTTON_CLASS, FUSED_CONTROL_SETUP_CHIP_ICON_SIZE_CLASS, FUSED_CONTROL_SETUP_CHIP_ICON_SIZE_PX, FUSED_CONTROL_SETUP_CHIP_LABEL_TEXT_CLASS } from "@acepe/ui/panel-header";
 import { Colors } from "@acepe/ui/colors";
 import * as DropdownMenu from "@acepe/ui/dropdown-menu";
 import { CheckCircle, GitBranch } from "phosphor-svelte";
@@ -62,35 +62,28 @@ let createBranchDialogOpen = $state(false);
 
 const minimalTriggerClass =
 	"!border-0 !h-[26px] rounded-md hover:rounded-full transition-[border-radius]";
-const setupChipTriggerClass = cn(
-	FUSED_CONTROL_COMPOSER_CHIP_LABEL_BUTTON_CLASS,
-	"w-auto flex-none"
-);
-const setupChipGroupedTriggerClass = cn(
-	FUSED_CONTROL_GROUPED_CHIP_LABEL_BUTTON_CLASS,
-	"w-auto flex-none"
-);
+const setupBarLayoutClass = "w-auto flex-none";
 const branchTriggerClass = $derived(
-	variant === "setupChipGrouped"
-		? setupChipGroupedTriggerClass
-		: variant === "setupChip"
-			? setupChipTriggerClass
-			: variant === "minimal"
-				? minimalTriggerClass
-				: undefined
+	variant === "setupChip" || variant === "setupChipGrouped"
+		? setupBarLayoutClass
+		: variant === "minimal"
+			? minimalTriggerClass
+			: undefined
 );
 const triggerSize = $derived(
-	variant === "setupChip" || variant === "setupChipGrouped"
-		? "setupChip"
-		: variant === "minimal"
-			? "minimal"
-			: "default"
+	variant === "setupChipGrouped"
+		? "setupBarChipGrouped"
+		: variant === "setupChip"
+			? "setupBarChip"
+			: variant === "minimal"
+				? "minimal"
+				: "default"
 );
 const initGitButtonClass = $derived(
 	variant === "setupChipGrouped"
-		? setupChipGroupedTriggerClass
+		? cn(FUSED_CONTROL_SETUP_GROUPED_CHIP_LABEL_BUTTON_CLASS, setupBarLayoutClass)
 		: variant === "setupChip"
-			? setupChipTriggerClass
+			? cn(FUSED_CONTROL_SETUP_CHIP_BUTTON_CLASS, setupBarLayoutClass)
 			: variant === "minimal"
 				? minimalTriggerClass
 				: "h-7"
@@ -179,17 +172,17 @@ function openCreateBranchDialog(): void {
 {#if isGitRepo === false}
 	<Button
 		variant="ghost"
-		size="sm"
+		size={variant === "setupChip" || variant === "setupChipGrouped" ? "setupChip" : "sm"}
 		class={cn(
-			"gap-1.5 text-[11px]",
+			"gap-1.5",
 			variant === "setupChip" ? "w-auto shrink-0 px-1.5 py-1" : "w-full px-2",
 			initGitButtonClass
 		)}
 		disabled={!projectPath || !onInitGitRepo || initGitLoading}
 		onclick={() => onInitGitRepo?.()}
 	>
-		<GitBranch class="h-3 w-3 shrink-0" weight="fill" />
-		<span class="text-[11px] leading-none">
+		<GitBranch class={FUSED_CONTROL_SETUP_CHIP_ICON_SIZE_CLASS} size={FUSED_CONTROL_SETUP_CHIP_ICON_SIZE_PX} weight="fill" />
+		<span class={FUSED_CONTROL_SETUP_CHIP_LABEL_TEXT_CLASS}>
 			{initGitLoading ? "Initializing..." : "Initialize Git"}
 		</span>
 	</Button>
@@ -211,15 +204,21 @@ function openCreateBranchDialog(): void {
 	>
 		{#snippet renderButton()}
 			<GitBranch
-				class="size-3 shrink-0 {variant === 'setupChip' || variant === 'setupChipGrouped'
-					? 'text-foreground'
-					: ''}"
+				class={cn(
+					variant === "setupChip" || variant === "setupChipGrouped"
+						? FUSED_CONTROL_SETUP_CHIP_ICON_SIZE_CLASS
+						: "size-3 shrink-0",
+					variant === "setupChip" || variant === "setupChipGrouped" ? "text-foreground" : ""
+				)}
+				size={variant === "setupChip" || variant === "setupChipGrouped"
+					? FUSED_CONTROL_SETUP_CHIP_ICON_SIZE_PX
+					: undefined}
 				weight="fill"
 				style={variant === "setupChip" || variant === "setupChipGrouped"
 					? undefined
 					: `color: ${Colors.purple}`}
 			/>
-			<span class="text-xs font-mono max-w-[9rem] truncate" title={currentBranch || "branch"}>
+			<span class={cn("max-w-[9rem] truncate", FUSED_CONTROL_SETUP_CHIP_LABEL_TEXT_CLASS)} title={currentBranch || "branch"}>
 				{currentBranch || "branch"}
 			</span>
 			{#if diffStats && variant !== "setupChip" && variant !== "setupChipGrouped"}

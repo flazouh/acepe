@@ -3,6 +3,7 @@ import {
 } from "./dropdown-menu-typography.js";
 
 export const dropdownMenuItemRadiusClass = "rounded-md";
+export const dropdownMenuItemListGapClass = "gap-0.5";
 
 export function buildDropdownMenuItemClassName(hasHighlightContext: boolean): string {
 	return [
