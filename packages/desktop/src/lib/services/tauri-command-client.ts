@@ -18,6 +18,7 @@ export const TAURI_COMMAND_CLIENT = {
     list_preconnection_capabilities: createGeneratedCommand(COMMANDS.acp.list_preconnection_capabilities),
     list_preconnection_commands: createGeneratedCommand(COMMANDS.acp.list_preconnection_commands),
     new_session: createGeneratedCommand(COMMANDS.acp.new_session),
+    probe_computer_use: createGeneratedCommand(COMMANDS.acp.probe_computer_use),
     register_custom_agent: createGeneratedCommand(COMMANDS.acp.register_custom_agent),
     reply_interaction: createGeneratedCommand(COMMANDS.acp.reply_interaction),
     request_transcript_viewport_buffer: createGeneratedCommand(COMMANDS.acp.request_transcript_viewport_buffer),
