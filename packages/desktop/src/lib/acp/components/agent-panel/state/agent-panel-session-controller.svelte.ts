@@ -35,9 +35,11 @@ import {
 	deriveCanonicalUserEntryPresence,
 	derivePanelErrorInfo,
 	resolveCanonicalAgentPanelTurnState,
+	resolveOptimisticHeaderTitle,
 	resolveOptimisticUserEntryForGraph,
 	resolveVisibleEntryCount,
 } from "../logic";
+import { contentBlocksToText } from "../scene/assistant-content.js";
 
 export interface AgentPanelSessionControllerDeps {
 	getSessionId: () => string | null;
@@ -147,6 +149,28 @@ export class AgentPanelSessionController {
 	readonly preSessionPendingUserEntry = $derived.by(() => {
 		const id = this.#deps.getSessionId();
 		return id === null || id === undefined ? (this.panelHotState?.pendingUserEntry ?? null) : null;
+	});
+
+	/**
+	 * Optimistic header title for the whole pre-canonical window. Derived from
+	 * the pending first user message — sourced from the pre-session hot entry
+	 * (no session id yet) OR the pending-send-intent's optimistic entry (session
+	 * id exists but canonical not yet materialized, sourceKind "missing_canonical")
+	 * — so the header reads the message from t=0 through canonical promotion
+	 * without reverting to the generic placeholder. Defers to canonical the
+	 * instant a real (non-fallback) title exists.
+	 */
+	readonly optimisticHeaderTitle = $derived.by((): string | null => {
+		const entry =
+			this.preSessionPendingUserEntry ?? this.sessionPendingSendIntent?.optimisticEntry ?? null;
+		const pendingUserMessageText =
+			entry !== null && entry.type === "user"
+				? contentBlocksToText(entry.message.chunks ?? [])
+				: null;
+		return resolveOptimisticHeaderTitle({
+			canonicalTitle: this.sessionTitle,
+			pendingUserMessageText,
+		});
 	});
 
 	/**
