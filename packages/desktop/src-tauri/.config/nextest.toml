@@ -1,0 +1,11 @@
+# cargo-nextest configuration.
+#
+# nextest runs each test in its own process, which removes the process-global
+# state pollution (HOME env via std::env::set_var, singleton registries) that
+# flaked under the threaded `cargo test` runner.
+
+[profile.default]
+# Report every failure in a run instead of stopping at the first.
+fail-fast = false
+# Warn about pathologically slow tests; no unit test should take this long.
+slow-timeout = "60s"

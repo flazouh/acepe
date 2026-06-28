@@ -303,13 +303,22 @@ jobs:
             libwebkit2gtk-4.1-dev librsvg2-dev \
             libgtk-3-dev libayatana-appindicator3-dev libasound2-dev patchelf
 
+      - name: Install nextest
+        if: env.RUN_TAURI_BACKEND == 'true'
+        uses: taiki-e/install-action@nextest
+
       - name: Tauri clippy + test
         if: env.RUN_TAURI_BACKEND == 'true'
         working-directory: packages/desktop/src-tauri
         run: |
           set -o pipefail
           cargo clippy --all-targets --no-default-features -- -D warnings
-          cargo test --no-default-features -- --skip claude_history::export_types
+          # nextest runs each test in its own process: prevents the global-state
+          # pollution (HOME env, process-global registries) that flakes under the
+          # threaded `cargo test` runner.
+          cargo nextest run --no-default-features -E 'not test(claude_history::export_types)'
+          # nextest does not run doctests; run them separately to keep coverage.
+          cargo test --no-default-features --doc
           cargo check --no-default-features --features auto-download
 
       - name: gpui-agent-panel-poc clippy + test
