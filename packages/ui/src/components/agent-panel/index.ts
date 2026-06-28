@@ -188,6 +188,19 @@ export { default as AgentPanelReviewTabStrip } from "./review-tab-strip.svelte";
 export { default as ReviewWorkspace } from "./review-workspace.svelte";
 export { default as ReviewWorkspaceFileList } from "./review-workspace-file-list.svelte";
 export { default as ReviewWorkspaceHeader } from "./review-workspace-header.svelte";
+export { default as MessageScroller } from "./message-scroller.svelte";
+export {
+	DEFAULT_ROW_ESTIMATE_PX,
+	rowEstimatePx,
+	type MessageScrollerItem,
+	type MessageScrollerRowKind,
+} from "./message-scroller-types.js";
+export {
+	createStickToBottomController,
+	stickToBottom,
+	type StickToBottomController,
+	type StickToBottomParams,
+} from "./stick-to-bottom-effects.js";
 export { default as AgentPanelScrollToBottomButton } from "./scroll-to-bottom-button.svelte";
 export { default as AgentPanelTranscriptScrollControls } from "./agent-panel-transcript-scroll-controls.svelte";
 export { default as AgentPanelTodoHeader } from "./todo-header.svelte";

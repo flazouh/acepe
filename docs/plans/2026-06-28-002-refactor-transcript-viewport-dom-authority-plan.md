@@ -250,7 +250,7 @@ StickToBottom controller (DOM-only):
 - **Stuck-indicator (B1):** a survivor row whose `active_streaming_tail` clears with a stable id and bumped `version` ⇒ the rendered row updates (no perpetual "Planning…"); a red test reproducing today's stuck state must go green here.
 - Edge: duplicate id last-write-wins; empty session ⇒ empty list.
 
-- [ ] **Unit 4: Native-scroll viewport with content-visibility, unread indicator, a11y**
+- [~] **Unit 4: Native-scroll viewport with content-visibility, unread indicator, a11y** — *presentational half DONE; Controller integration pending.* Created `@acepe/ui` `message-scroller.svelte` (focusable `role="log"` region, native `overflow-y:auto`, `{@attach}` stick-to-bottom controller, release-driven jump-to-latest + unread), `message-scroller-item.svelte` (`content-visibility:auto`/`contain-intrinsic-size:auto <est>`; active tail → `visible`; `data-anchor`/`data-row-id`), `message-scroller-types.ts` (per-kind estimate seeds). 5 `dom.vitest` green (order, tail opt-out, anchor attrs, release shows jump, onReady). Barrels updated. **REMAINING:** rewrite `scene-content-viewport.svelte` (Controller: rows from Unit 3 store, render `@acepe/ui` parts, **remove the adapter**, drop `offsetPx` from `rendered-rows`), then dev-app QA (fling/heavy-rows = Unit 2 gate).
 
 **Goal:** Presentational scroll container rendering all rows as real DOM with `content-visibility`, wired to Unit 1; unread indicator; a11y; tail-row paint exemption. No spacer/translateY.
 

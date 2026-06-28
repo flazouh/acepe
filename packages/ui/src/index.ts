@@ -125,6 +125,7 @@ export {
 	AgentPanelReviewTabStrip,
 	AgentPanelScrollToBottomButton,
 	AgentPanelTranscriptScrollControls,
+	MessageScroller,
 	AgentPanelShell,
 	AgentPanelStatusStrip,
 	AgentPanelStatePanel,
