@@ -62,6 +62,7 @@
     },
     "./design-tokens.css": "./src/lib/design-tokens.css",
     "./surface-tokens.css": "./src/lib/surface-tokens.css",
+    "./dropdown-menu-motion.css": "./src/lib/dropdown-menu-motion.css",
     "./diff-pill": {
       "svelte": "./src/components/diff-pill/index.ts",
       "default": "./src/components/diff-pill/index.ts"
