@@ -2,3 +2,7 @@ target/**
 logs/**
 **/.git/**
 **/node_modules/**
+# Atomic-write temp files (e.g. foo.rs.tmp.<pid>.<hash>) created by editors and
+# agent tooling — without this the dev watcher rebuild-loops on every save.
+**/*.tmp.*
+**/*.tmp
