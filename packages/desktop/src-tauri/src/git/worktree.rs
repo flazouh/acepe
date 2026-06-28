@@ -10,7 +10,6 @@ use crate::commands::observability::{
 use crate::db::repository::SessionMetadataRepository;
 use crate::git::worktree_config;
 use crate::path_safety;
-use chrono::{Datelike, Utc};
 use rand::seq::SliceRandom;
 use sea_orm::DbConn;
 use serde::{Deserialize, Serialize};
@@ -124,96 +123,12 @@ fn generate_name() -> String {
     format!("{}-{}", adjective, noun)
 }
 
-fn slugify_project_name(project_path: &Path) -> String {
-    let raw = project_path
-        .file_name()
-        .and_then(|name| name.to_str())
-        .unwrap_or("project")
-        .to_ascii_lowercase();
-    let mut slug = String::new();
-    let mut last_was_dash = false;
-    for ch in raw.chars() {
-        let normalized = if ch.is_ascii_alphanumeric() {
-            Some(ch)
-        } else {
-            None
-        };
-        if let Some(value) = normalized {
-            slug.push(value);
-            last_was_dash = false;
-        } else if !last_was_dash {
-            slug.push('-');
-            last_was_dash = true;
-        }
-    }
-    let trimmed = slug.trim_matches('-');
-    if trimmed.is_empty() {
-        "project".to_string()
-    } else {
-        trimmed.to_string()
-    }
-}
-
-fn month_name(month: u32) -> &'static str {
-    match month {
-        1 => "january",
-        2 => "february",
-        3 => "march",
-        4 => "april",
-        5 => "may",
-        6 => "june",
-        7 => "july",
-        8 => "august",
-        9 => "september",
-        10 => "october",
-        11 => "november",
-        12 => "december",
-        _ => "unknown",
-    }
-}
-
-fn slugify_text(value: &str, fallback: &str) -> String {
-    let mut slug = String::with_capacity(value.len());
-    let mut last_was_dash = false;
-    for ch in value.chars() {
-        if ch.is_ascii_alphanumeric() {
-            slug.push(ch.to_ascii_lowercase());
-            last_was_dash = false;
-        } else if !last_was_dash {
-            slug.push('-');
-            last_was_dash = true;
-        }
-    }
-    let trimmed = slug.trim_matches('-');
-    if trimmed.is_empty() {
-        fallback.to_string()
-    } else {
-        trimmed.to_string()
-    }
-}
-
-fn format_reserved_worktree_relative_path_at(
-    now: chrono::DateTime<Utc>,
-    project_path: &Path,
-    sequence_id: i32,
-    agent_id: &str,
-) -> String {
-    let day = now.day();
-    let month = month_name(now.month());
-    let year = now.year();
-    let hour = now.format("%H");
-    let minute = now.format("%M");
-    let project_slug = slugify_project_name(project_path);
-    let agent_slug = slugify_text(agent_id, "agent");
-    format!("{day}-{month}-{year}-{hour}:{minute}/{project_slug}/{sequence_id}/{agent_slug}")
-}
-
-fn format_reserved_worktree_relative_path(
-    project_path: &Path,
-    sequence_id: i32,
-    agent_id: &str,
-) -> String {
-    format_reserved_worktree_relative_path_at(Utc::now(), project_path, sequence_id, agent_id)
+#[cfg(test)]
+fn is_adjective_noun_name(name: &str) -> bool {
+    let parts: Vec<&str> = name.split('-').collect();
+    parts.len() == 2
+        && ADJECTIVES.contains(&parts[0])
+        && NOUNS.contains(&parts[1])
 }
 
 fn worktree_branch_name(name: &str) -> String {
@@ -440,13 +355,9 @@ fn ensure_initial_commit_for_unborn_repo(repo_path: &Path) -> Result<bool, Strin
 fn generate_unique_candidate(
     project_path: &Path,
     worktrees_dir: &Path,
-    base_name: Option<&str>,
 ) -> Result<WorktreeInfo, String> {
     for _ in 0..26 {
-        let name = match base_name {
-            Some(base) => format!("{}-{}", base, generate_name()),
-            None => generate_name(),
-        };
+        let name = generate_name();
         let branch = worktree_branch_name(&name);
         let directory = worktrees_dir.join(&name);
 
@@ -464,30 +375,19 @@ fn generate_unique_candidate(
     Err("Failed to generate unique worktree name after 26 attempts".to_string())
 }
 
-fn generate_unique_candidate_from_basename(
-    project_path: &Path,
-    worktrees_dir: &Path,
-    basename: &str,
-) -> Result<WorktreeInfo, String> {
-    for suffix in 1..=99 {
-        let name = if suffix == 1 {
-            basename.to_string()
-        } else {
-            format!("{basename}-{suffix}")
-        };
-        let branch = worktree_branch_name(&name);
-        let directory = worktrees_dir.join(&name);
-        if !directory.exists() && !branch_exists(project_path, &branch)? {
-            return Ok(WorktreeInfo {
-                name,
-                branch,
-                directory: directory.to_string_lossy().to_string(),
-                origin: WorktreeOrigin::Acepe,
-            });
-        }
+fn create_managed_worktree(project_path: &str) -> Result<WorktreeInfo, String> {
+    let project_path_buf = PathBuf::from(project_path);
+    if !check_git_repo_state(&project_path_buf)? {
+        return Err("This project is not a git repository".to_string());
     }
 
-    Err("Failed to generate unique deterministic worktree name after 99 attempts".to_string())
+    let worktrees_dir = get_project_worktrees_dir(project_path)?;
+    std::fs::create_dir_all(&worktrees_dir)
+        .map_err(|e| format!("Failed to create worktrees directory: {}", e))?;
+
+    let info = generate_unique_candidate(&project_path_buf, &worktrees_dir)?;
+    create_worktree_from_info(project_path, &info)?;
+    Ok(info)
 }
 
 fn build_renamed_worktree_path(current_path: &Path, new_name: &str) -> Result<PathBuf, String> {
@@ -559,20 +459,15 @@ fn create_worktree_from_info(project_path: &str, info: &WorktreeInfo) -> Result<
     Ok(())
 }
 
-/// Create a new git worktree for isolated agent work
+/// Create a new git worktree for isolated agent work.
 ///
-/// # Arguments
-/// * `project_path` - The path to the main git repository
-/// * `name` - Optional user-provided name (will be combined with random suffix if provided)
-///
-/// # Returns
-/// * `WorktreeInfo` with the name, branch, and directory of the created worktree
+/// Worktrees always receive a short adjective-noun name like "clever-falcon".
 #[tauri::command]
 #[specta::specta]
 pub async fn git_worktree_create(
     _app: AppHandle,
     project_path: String,
-    name: Option<String>,
+    _name: Option<String>,
 ) -> CommandResult<WorktreeInfo> {
     let project_path_buf = PathBuf::from(&project_path);
 
@@ -594,44 +489,16 @@ pub async fn git_worktree_create(
         ));
     }
 
-    if let Some(ref n) = name {
-        path_safety::validate_path_segment(n, "worktree name").map_err(|e| {
-            SerializableCommandError::expected(
-                "git_worktree_create",
-                format!("Invalid worktree name: {}", e),
-            )
-        })?;
-    }
-
     unexpected_command_result(
         "git_worktree_create",
         "Failed to create git worktree",
         async {
             tracing::info!(
                 project_path = %project_path,
-                name = ?name,
                 "Creating git worktree"
             );
 
-            // Get the worktrees directory for this project
-            let worktrees_dir = get_project_worktrees_dir(&project_path)?;
-
-            // Create the worktrees directory if it doesn't exist
-            std::fs::create_dir_all(&worktrees_dir)
-                .map_err(|e| format!("Failed to create worktrees directory: {}", e))?;
-
-            // Generate a unique worktree name and branch
-            let info =
-                generate_unique_candidate(&project_path_buf, &worktrees_dir, name.as_deref())?;
-
-            tracing::info!(
-                worktree_name = %info.name,
-                branch = %info.branch,
-                directory = %info.directory,
-                "Creating worktree"
-            );
-
-            create_worktree_from_info(&project_path, &info)?;
+            let info = create_managed_worktree(&project_path)?;
 
             tracing::info!(
                 worktree_name = %info.name,
@@ -670,36 +537,7 @@ pub async fn git_prepare_worktree_session_launch(
             .await
             .map_err(|error| format!("Failed to reserve worktree launch: {error}"))?;
 
-            let worktrees_dir = match get_project_worktrees_dir(&project_path) {
-                Ok(path) => path,
-                Err(error) => {
-                    let _ = SessionMetadataRepository::discard_reserved_worktree_launch(
-                        db.inner(),
-                        &reserved.launch_token,
-                    )
-                    .await;
-                    return Err(error);
-                }
-            };
-            if let Err(error) = std::fs::create_dir_all(&worktrees_dir) {
-                let _ = SessionMetadataRepository::discard_reserved_worktree_launch(
-                    db.inner(),
-                    &reserved.launch_token,
-                )
-                .await;
-                return Err(format!("Failed to create worktrees directory: {error}"));
-            }
-
-            let basename = format_reserved_worktree_relative_path(
-                &project_path_buf,
-                reserved.sequence_id,
-                &agent_id,
-            );
-            let info = match generate_unique_candidate_from_basename(
-                &project_path_buf,
-                &worktrees_dir,
-                &basename,
-            ) {
+            let info = match create_managed_worktree(&project_path) {
                 Ok(info) => info,
                 Err(error) => {
                     let _ = SessionMetadataRepository::discard_reserved_worktree_launch(
@@ -710,15 +548,6 @@ pub async fn git_prepare_worktree_session_launch(
                     return Err(error);
                 }
             };
-
-            if let Err(error) = create_worktree_from_info(&project_path, &info) {
-                let _ = SessionMetadataRepository::discard_reserved_worktree_launch(
-                    db.inner(),
-                    &reserved.launch_token,
-                )
-                .await;
-                return Err(error);
-            }
 
             let attached = match SessionMetadataRepository::attach_reserved_worktree_launch(
                 db.inner(),
@@ -1528,7 +1357,6 @@ pub async fn git_has_uncommitted_changes(project_path: String) -> CommandResult<
 #[cfg(test)]
 mod tests {
     use super::*;
-    use chrono::TimeZone;
     use std::fs;
     use tempfile::TempDir;
 
@@ -1600,23 +1428,29 @@ mod tests {
     }
 
     #[test]
-    fn formats_reserved_worktree_relative_path_with_timestamp_project_sequence_and_agent() {
-        let now = Utc
-            .with_ymd_and_hms(2026, 4, 14, 14, 35, 0)
-            .single()
-            .expect("fixed datetime should be valid");
-        let formatted = format_reserved_worktree_relative_path_at(
-            now,
-            Path::new("/tmp/My Project"),
-            41,
-            "claude-code",
-        );
+    fn generate_unique_candidate_produces_adjective_noun_name() {
+        let repo_dir = init_repo();
+        let worktrees_dir = get_project_worktrees_dir(
+            repo_dir
+                .path()
+                .to_str()
+                .expect("repo path should be valid utf8"),
+        )
+        .expect("worktrees dir should resolve");
 
-        assert_eq!(formatted, "14-april-2026-14:35/my-project/41/claude-code");
+        let info = generate_unique_candidate(repo_dir.path(), &worktrees_dir)
+            .expect("candidate should be generated");
+
+        assert!(
+            is_adjective_noun_name(&info.name),
+            "worktree name should be adjective-noun, got {}",
+            info.name
+        );
+        assert_eq!(info.branch, info.name);
     }
 
     #[test]
-    fn branch_name_sanitizes_colons_but_preserves_hierarchy() {
+    fn branch_name_sanitizes_colons_for_legacy_hierarchical_paths() {
         let branch = worktree_branch_name("14-april-2026-14:35/my-project/41/claude-code");
 
         assert_eq!(branch, "14-april-2026-14-35/my-project/41/claude-code");
