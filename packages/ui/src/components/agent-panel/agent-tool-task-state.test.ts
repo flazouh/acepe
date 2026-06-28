@@ -109,6 +109,11 @@ describe("agent tool task state", () => {
 
 	it("returns compact and normal class sets", () => {
 		expect(getTaskUiClasses(true).card).toContain("bg-accent");
-		expect(getTaskUiClasses(false).header).toContain("h-7");
+		expect(getTaskUiClasses(false).header).toContain("min-h-7");
+	});
+
+	it("exposes a live-row class for the second (animated) tool row", () => {
+		expect(getTaskUiClasses(false).liveRow).toContain("px-2");
+		expect(getTaskUiClasses(true).liveRow).toContain("px-1");
 	});
 });

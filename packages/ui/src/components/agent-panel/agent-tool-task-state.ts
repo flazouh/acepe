@@ -70,10 +70,11 @@ export function getTaskUiClasses(compact: boolean) {
 	return {
 		card: compact ? "bg-accent/30 border-border/60" : "",
 		header: compact
-			? "flex min-w-0 items-center justify-between gap-1 px-1 py-0.5 text-sm"
-			: "flex h-7 items-center justify-between gap-1 px-2 text-sm",
+			? "flex min-h-7 min-w-0 items-center justify-between gap-1 px-1 py-0.5 text-sm"
+			: "flex min-h-7 items-center justify-between gap-1 px-2 text-sm",
 		headerContent: compact
 			? "flex min-w-0 flex-1 items-center justify-start gap-1"
 			: "flex min-w-0 flex-1 items-center justify-start gap-2",
+		liveRow: compact ? "px-1 pb-1 pt-0.5" : "px-2 pb-1.5",
 	};
 }

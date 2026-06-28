@@ -1,5 +1,7 @@
 <script lang="ts">
+	import { Package } from "phosphor-svelte";
 	import { FilePathBadge } from "../file-path-badge/index.js";
+	import { Colors } from "../../lib/colors.js";
 	import ToolLabel from "./tool-label.svelte";
 	import type { AgentToolKind, AgentToolStatus } from "./types.js";
 
@@ -14,20 +16,25 @@
 		};
 		class?: string;
 		iconBasePath?: string;
-		fileChipClass?: string;
 	}
 
-	let {
-		tool,
-		class: className = "",
-		iconBasePath = "/svgs/icons",
-		fileChipClass = "font-normal text-muted-foreground/60",
-	}: Props = $props();
+	let { tool, class: className = "", iconBasePath = "/svgs/icons" }: Props = $props();
 
 	const fileName = $derived(tool.filePath ? (tool.filePath.split("/").pop() || tool.filePath) : null);
+	const isSkill = $derived(tool.kind === "skill");
 </script>
 
-<div class={`flex min-w-0 items-center gap-1.5 text-sm text-muted-foreground ${className}`.trim()}>
+<div class={`flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground ${className}`.trim()}>
+	{#if isSkill}
+		<Package
+			weight="fill"
+			size={12}
+			class="shrink-0"
+			style="color: {Colors.purple}"
+			aria-hidden="true"
+		/>
+	{/if}
+
 	<ToolLabel status={tool.status}>{tool.title}</ToolLabel>
 
 	{#if tool.filePath && fileName}
@@ -36,10 +43,8 @@
 			{fileName}
 			{iconBasePath}
 			interactive={false}
-			showIcon={false}
-			size="sm"
 			variant="plain"
-			class={fileChipClass}
+			class="font-normal text-muted-foreground/60"
 		/>
 	{/if}
 

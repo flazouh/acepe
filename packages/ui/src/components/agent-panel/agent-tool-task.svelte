@@ -9,6 +9,7 @@
 	import type { AgentToolStatus, AnyAgentEntry } from "./types.js";
 	import AgentToolCard from "./agent-tool-card.svelte";
 	import AgentCompactToolDisplay from "./compact-tool-display.svelte";
+	import CylinderSwap from "./cylinder-swap.svelte";
 	import ToolHeaderLeading from "./tool-header-leading.svelte";
 	import AgentToolDurationLabel from "./agent-tool-duration-label.svelte";
 	import type { ToolDurationTiming } from "./tool-duration.js";
@@ -22,6 +23,7 @@
 		getTaskUiClasses,
 		hasTaskPrompt,
 		hasTaskResult,
+		isTaskPending,
 		shouldShowTaskProgress,
 	} from "./agent-tool-task-state.js";
 
@@ -88,11 +90,13 @@
 	const cardClass = $derived(taskClasses.card);
 	const headerClass = $derived(taskClasses.header);
 	const headerContentClass = $derived(taskClasses.headerContent);
+	const liveRowClass = $derived(taskClasses.liveRow);
 	const progressAriaLabel = $derived(
 		`${taskProgress.filledCount} of ${taskProgress.totalCount} tool calls complete`
 	);
 	const showDetailTrigger = $derived(hasChildren || hasPrompt || hasResult);
-	const currentToolClass = $derived(compact ? "text-xs" : "text-sm");
+	const showLiveRow = $derived(isTaskPending(status) && currentToolDisplay !== null);
+	const liveRowHeight = $derived(compact ? "1.25rem" : "1.375rem");
 
 	function handleDetailOpenChange(nextOpen: boolean): void {
 		detailOpen = nextOpen;
@@ -103,20 +107,9 @@
 <AgentToolCard class={cardClass} dataTestid="agent-tool-task-card">
 	<div class={headerClass}>
 		<div class={headerContentClass}>
-			<div class="flex min-w-0 flex-1 items-center gap-2">
-				<ToolHeaderLeading kind="task" {status} class="min-w-0 flex-1 truncate">
-					{titleText}
-				</ToolHeaderLeading>
-				{#if currentToolDisplay}
-					<div class="shrink-0" data-testid="agent-tool-task-current-tool-label">
-						<AgentCompactToolDisplay
-							tool={currentToolDisplay}
-							class={currentToolClass}
-							{iconBasePath}
-						/>
-					</div>
-				{/if}
-			</div>
+			<ToolHeaderLeading kind="task" {status} class="min-w-0 flex-1 truncate">
+				{titleText}
+			</ToolHeaderLeading>
 		</div>
 
 		{#if showProgress}
@@ -162,6 +155,18 @@
 			/>
 		{/if}
 	</div>
+
+	{#if showLiveRow && currentToolDisplay}
+		<div class={liveRowClass} data-testid="agent-tool-task-live-tool">
+			<CylinderSwap key={currentToolDisplay.id} height={liveRowHeight} class="w-full">
+				{#snippet children()}
+					<div data-testid="agent-tool-task-current-tool-label" class="min-w-0">
+						<AgentCompactToolDisplay tool={currentToolDisplay} {iconBasePath} />
+					</div>
+				{/snippet}
+			</CylinderSwap>
+		</div>
+	{/if}
 </AgentToolCard>
 
 <Dialog.Root open={detailOpen} onOpenChange={handleDetailOpenChange}>
