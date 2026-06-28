@@ -1,12 +1,11 @@
 <!--
-  AgentInputReasoningEffortTrigger - Shared brain icon + setupChipIcon shell for reasoning effort.
-  Used by config-option and Codex model-variant composer controls.
+  AgentInputReasoningEffortTrigger - Shared brain icon + composerChipIcon shell for reasoning effort.
+  Used by config-option composer controls. Model-variant picker uses FusedPrimaryOverflowGroup directly.
 -->
 <script lang="ts">
 	import { Brain } from "phosphor-svelte";
 	import type { Snippet } from "svelte";
 
-	import { Colors } from "../../lib/colors.js";
 	import { Selector } from "../selector/index.js";
 	import {
 		REASONING_EFFORT_BRAIN_ICON_CLASS,
@@ -20,6 +19,7 @@
 		disabled?: boolean;
 		open?: boolean;
 		onOpenChange?: (isOpen: boolean) => void;
+		embeddedInGroup?: boolean;
 		align?: "start" | "center" | "end";
 		side?: "top" | "right" | "bottom" | "left";
 		sideOffset?: number;
@@ -27,6 +27,7 @@
 		tooltipTitle?: string;
 		tooltipDescription?: string;
 		tooltipSide?: "top" | "right" | "bottom" | "left";
+		iconStyle?: string;
 	}
 
 	let {
@@ -34,6 +35,7 @@
 		disabled = false,
 		open = $bindable(false),
 		onOpenChange,
+		embeddedInGroup = false,
 		align = "start",
 		side = "top",
 		sideOffset = REASONING_EFFORT_SELECTOR_SIDE_OFFSET,
@@ -41,6 +43,7 @@
 		tooltipTitle,
 		tooltipDescription,
 		tooltipSide = "top",
+		iconStyle = "",
 	}: Props = $props();
 </script>
 
@@ -48,6 +51,7 @@
 	{disabled}
 	bind:open
 	{onOpenChange}
+	{embeddedInGroup}
 	{align}
 	{side}
 	{sideOffset}
@@ -63,8 +67,8 @@
 		<Brain
 			class={REASONING_EFFORT_BRAIN_ICON_CLASS}
 			weight="fill"
-			style={`color: ${Colors.purple}`}
 			aria-hidden="true"
+			style={iconStyle}
 		/>
 	{/snippet}
 

@@ -2,9 +2,11 @@
 	import { Input } from "../input/index.js";
 	import { LoadingIcon } from "../icons/index.js";
 	import { ProviderMark, type ProviderBrand } from "../provider-mark/index.js";
+	import { FUSED_CONTROL_SETUP_CHIP_LABEL_TEXT_CLASS } from "../panel-header/project-card-action-button-class.js";
 	import { Selector } from "../selector/index.js";
 	import type { SelectorTriggerSize } from "../selector/selector-trigger-classes.js";
 	import * as DropdownMenu from "../dropdown-menu/index.js";
+	import { cn } from "../../lib/utils.js";
 	import AgentInputModelSelectorItemRow from "./agent-input-model-selector-item-row.svelte";
 	import type {
 		AgentInputModelSelectorGroup,
@@ -30,6 +32,7 @@
 		noModelsLabel?: string;
 		hideTriggerProviderMark?: boolean;
 		triggerSize?: SelectorTriggerSize;
+		embeddedInGroup?: boolean;
 		onOpenChange?: (open: boolean) => void;
 		onSearchChange?: (query: string) => void;
 		onSelect: (modelId: string) => void;
@@ -55,6 +58,7 @@
 		noModelsLabel = "No models available",
 		hideTriggerProviderMark = false,
 		triggerSize = "pill",
+		embeddedInGroup = false,
 		onOpenChange,
 		onSearchChange,
 		onSelect,
@@ -62,13 +66,14 @@
 	}: Props = $props();
 </script>
 
-<div class="flex items-center gap-0">
+<div class={embeddedInGroup ? "contents" : "flex items-center gap-0"}>
 	<Selector
 		{open}
 		disabled={isLoading || totalModelCount === 0}
 		onOpenChange={onOpenChange}
 		variant="ghost"
 		{triggerSize}
+		{embeddedInGroup}
 		showChevron={false}
 		side="top"
 		sideOffset={8}
@@ -84,7 +89,7 @@
 						class="size-3.5"
 					/>
 				{/if}
-				<span class="truncate text-xs">{triggerLabel}</span>
+				<span class={cn("truncate", FUSED_CONTROL_SETUP_CHIP_LABEL_TEXT_CLASS)}>{triggerLabel}</span>
 			{/if}
 		{/snippet}
 

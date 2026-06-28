@@ -1,4 +1,5 @@
 import { Colors } from "../../lib/colors.js";
+import { getCompletenessRampFillColor } from "../segmented-progress-bar/segmented-progress-bar.js";
 import type { SelectorTriggerSize } from "../selector/selector-trigger-classes.js";
 import type { AgentInputConfigOption } from "./agent-input-config-option-types.js";
 
@@ -37,7 +38,12 @@ function getReasoningEffortRank(value: string): number {
 	if (normalized === "medium") return 3;
 	if (normalized === "high") return 4;
 	if (normalized === "xhigh") return 5;
+	if (normalized === "max") return 6;
 	return 0;
+}
+
+function isMaxReasoningValue(value: string | null | undefined): boolean {
+	return value != null && value.toLowerCase() === "max";
 }
 
 export function getReasoningEffortBarSegments(input: {
@@ -171,10 +177,10 @@ export function isFastConfigOption(opt: AgentInputConfigOption): boolean {
 
 export function getConfigOptionResolvedTriggerSize(
 	configOption: AgentInputConfigOption,
-	defaultTriggerSize: SelectorTriggerSize = "setupChip"
+	defaultTriggerSize: SelectorTriggerSize = "composerChipLabel"
 ): SelectorTriggerSize {
 	if (isReasoningConfigOption(configOption)) {
-		return "setupChipIcon";
+		return "composerChipIcon";
 	}
 
 	return defaultTriggerSize;
@@ -221,9 +227,48 @@ export function getConfigOptionIconKind(
 	return "default";
 }
 
+export function getReasoningEffortIconColor(input: {
+	segmentCount: number;
+	filledSegmentCount: number;
+	currentValue?: string | null;
+}): string {
+	if (isMaxReasoningValue(input.currentValue)) {
+		return Colors.purple;
+	}
+
+	if (input.segmentCount <= 0 || input.filledSegmentCount <= 0) {
+		return "var(--muted-foreground)";
+	}
+
+	return getCompletenessRampFillColor(input.filledSegmentCount, input.segmentCount);
+}
+
+export function getReasoningVariantIconColor(input: {
+	variants: readonly { id: string }[];
+	selectedVariantId: string | null;
+}): string {
+	const segmentCount = input.variants.length;
+	if (segmentCount <= 0) {
+		return "var(--muted-foreground)";
+	}
+
+	const selectedIndex = input.selectedVariantId
+		? input.variants.findIndex((variant) => variant.id === input.selectedVariantId)
+		: -1;
+	if (selectedIndex < 0) {
+		return "var(--muted-foreground)";
+	}
+
+	const selectedVariantId = input.variants[selectedIndex]?.id ?? null;
+	if (isMaxReasoningValue(selectedVariantId)) {
+		return Colors.purple;
+	}
+
+	return getCompletenessRampFillColor(selectedIndex + 1, segmentCount);
+}
+
 export function getConfigOptionIconColor(iconKind: ConfigOptionIconKind): string {
 	if (iconKind === "fast") return Colors.yellow;
-	if (iconKind === "reasoning") return Colors.purple;
 	return Colors.cyan;
 }
 
@@ -289,7 +334,21 @@ export function getConfigOptionViewState(
 		isBooleanEnabled,
 	});
 	const iconKind = getConfigOptionIconKind(configOption);
-	const iconColor = getConfigOptionIconColor(iconKind);
+	const reasoningBarSegments = isReasoningConfigOption(configOption)
+		? getReasoningEffortBarSegments({ configOption, currentValue })
+		: { segmentCount: 0, filledSegmentCount: 0 };
+	const reasoningBarSegmentCount = reasoningBarSegments.segmentCount;
+	const reasoningBarFilledSegmentCount = reasoningBarSegments.filledSegmentCount;
+	const reasoningBarPercent = isReasoningConfigOption(configOption)
+		? getReasoningEffortBarPercent({ configOption, currentValue })
+		: 0;
+	const iconColor = isReasoningConfigOption(configOption)
+		? getReasoningEffortIconColor({
+				segmentCount: reasoningBarSegmentCount,
+				filledSegmentCount: reasoningBarFilledSegmentCount,
+				currentValue,
+			})
+		: getConfigOptionIconColor(iconKind);
 	const iconWeight = getConfigOptionIconWeight({
 		iconKind,
 		isBooleanConfigOption: isBooleanOption,
@@ -306,14 +365,6 @@ export function getConfigOptionViewState(
 		configOption,
 		currentValueLabel,
 	});
-	const reasoningBarSegments = isReasoningConfigOption(configOption)
-		? getReasoningEffortBarSegments({ configOption, currentValue })
-		: { segmentCount: 0, filledSegmentCount: 0 };
-	const reasoningBarSegmentCount = reasoningBarSegments.segmentCount;
-	const reasoningBarFilledSegmentCount = reasoningBarSegments.filledSegmentCount;
-	const reasoningBarPercent = isReasoningConfigOption(configOption)
-		? getReasoningEffortBarPercent({ configOption, currentValue })
-		: 0;
 
 	return {
 		currentValue,

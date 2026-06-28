@@ -73,7 +73,7 @@
 			{voiceCloseLabel}
 		</button>
 	{/if}
-	<div class="voice-controls flex items-end">
+	<div class="voice-controls flex shrink-0 items-end">
 		{#snippet recordingLeading()}
 			<AgentInputVoiceRecordingLeading
 				meterLevels={currentVoiceState.meterLevels}

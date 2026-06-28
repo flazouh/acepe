@@ -6,7 +6,9 @@
 	import type { Snippet } from "svelte";
 
 	import AgentInputConfigOptionSelector from "./agent-input-config-option-selector.svelte";
+	import AgentInputModelReasoningFusedControls from "./agent-input-model-reasoning-fused-controls.svelte";
 	import AgentInputVoiceFusedControls from "./agent-input-voice-fused-controls.svelte";
+	import { isReasoningConfigOption } from "./agent-input-config-option-selector-state.js";
 	import { isVoiceActive } from "./agent-input-composer-toolbar-state.js";
 	import type { AgentInputConfigOption } from "./agent-input-config-option-types.js";
 	import type { AgentComposerToolbarVoiceBinding } from "./agent-input-toolbar-voice.js";
@@ -65,41 +67,60 @@
 		selectorsLoading?: boolean;
 		selectorsDisabledByComposer?: boolean;
 	} = $props();
+
+	const fadeWhenVoiceActiveClass = $derived(
+		isVoiceActive(voiceState) ? "pointer-events-none opacity-0" : "opacity-100"
+	);
+
+	const reasoningToolbarOption = $derived(
+		toolbarConfigOptions.find((configOption) => isReasoningConfigOption(configOption)) ?? null
+	);
+
+	const otherToolbarConfigOptions = $derived(
+		toolbarConfigOptions.filter((configOption) => !isReasoningConfigOption(configOption))
+	);
+
+	const fuseModelWithReasoning = $derived(reasoningToolbarOption !== null && onConfigOptionChange !== undefined);
 </script>
 
 {#if inputReady}
-	{@const voiceActive = isVoiceActive(voiceState)}
-	<div class="flex items-end gap-1 shrink-0">
-		<div
-			class="flex items-end gap-1 transition-opacity duration-200 ease-out"
-			class:opacity-0={voiceActive}
-			class:pointer-events-none={voiceActive}
-		>
-			{#if agentProjectPicker}
-				<div class="flex shrink-0 items-end">
-					{@render agentProjectPicker()}
-				</div>
-			{/if}
-			{@render modelSelector()}
-			{#if toolbarConfigOptions.length > 0 && onConfigOptionChange}
-				<div class="flex shrink-0 items-end">
-					{#each toolbarConfigOptions as configOption (configOption.id)}
-						<AgentInputConfigOptionSelector
-							{configOption}
-							onValueChange={(configId, value) => {
-								void onConfigOptionChange(configId, value);
-							}}
-							disabled={selectorsLoading || selectorsDisabledByComposer}
-						/>
-					{/each}
-				</div>
-			{/if}
-			{#if metricsChip}
-				<div class="flex shrink-0 items-end">
-					{@render metricsChip()}
-				</div>
+	<div class="flex shrink-0 items-end gap-0.5">
+		{#if agentProjectPicker}
+			<div
+				class="shrink-0 transition-opacity duration-200 ease-out {fadeWhenVoiceActiveClass}"
+			>
+				{@render agentProjectPicker()}
+			</div>
+		{/if}
+		<div class="shrink-0 transition-opacity duration-200 ease-out {fadeWhenVoiceActiveClass}">
+			{#if fuseModelWithReasoning && reasoningToolbarOption && onConfigOptionChange}
+				<AgentInputModelReasoningFusedControls
+					{modelSelector}
+					reasoningConfigOption={reasoningToolbarOption}
+					disabled={selectorsLoading || selectorsDisabledByComposer}
+					onConfigOptionChange={(configId, value) => {
+						void onConfigOptionChange(configId, value);
+					}}
+				/>
+			{:else}
+				{@render modelSelector()}
 			{/if}
 		</div>
+		{#if otherToolbarConfigOptions.length > 0 && onConfigOptionChange}
+			{#each otherToolbarConfigOptions as configOption (configOption.id)}
+				<div
+					class="shrink-0 transition-opacity duration-200 ease-out {fadeWhenVoiceActiveClass}"
+				>
+					<AgentInputConfigOptionSelector
+						{configOption}
+						onValueChange={(configId, value) => {
+							void onConfigOptionChange(configId, value);
+						}}
+						disabled={selectorsLoading || selectorsDisabledByComposer}
+					/>
+				</div>
+			{/each}
+		{/if}
 		<AgentInputVoiceFusedControls
 			{voiceState}
 			{voiceEnabled}
@@ -117,5 +138,10 @@
 			{onVoiceDownloadModel}
 			{voiceCloseLabel}
 		/>
+		{#if metricsChip}
+			<div class="shrink-0 transition-opacity duration-200 ease-out {fadeWhenVoiceActiveClass}">
+				{@render metricsChip()}
+			</div>
+		{/if}
 	</div>
 {/if}

@@ -115,6 +115,7 @@
 {#if embeddedInGroup}
 	<ComposerOverflowMenu
 		bind:open={menuOpen}
+		embeddedInGroup
 		ariaLabel={menuLabel}
 		title={menuLabel}
 		contentClass="w-fit min-w-[11rem] p-1"

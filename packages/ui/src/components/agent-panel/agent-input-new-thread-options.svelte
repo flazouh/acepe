@@ -15,6 +15,8 @@
 	import {
 		FUSED_CONTROL_CHIP_GROUP_CLASS,
 		FUSED_CONTROL_OVERFLOW_BUTTON_CLASS,
+		FUSED_CONTROL_SETUP_CHIP_LABEL_TEXT_CLASS,
+		FUSED_CONTROL_SETUP_GROUPED_CHIP_LABEL_BUTTON_CLASS,
 	} from "../panel-header/index.js";
 	import { Switch } from "../switch/index.js";
 	import * as Tooltip from "../tooltip/index.js";
@@ -40,6 +42,7 @@
 		/** Whether new sessions default to using a worktree (persisted preference). */
 		worktreeDefaultOn?: boolean;
 		onWorktreeDefaultToggle?: (on: boolean) => void;
+		align?: "start" | "center";
 	}
 
 	let {
@@ -56,19 +59,18 @@
 		onWorktreeToggle,
 		worktreeDefaultOn = false,
 		onWorktreeDefaultToggle,
+		align = "center",
 	}: Props = $props();
+
+	const rowAlignClass = $derived(align === "start" ? "justify-start" : "mx-auto justify-center");
 
 	const setupChipButtonClass =
 		"[&_button]:flex [&_button]:flex-none [&_button]:items-center [&_button]:gap-1 [&_button]:text-muted-foreground [&_button]:transition-colors [&_button:hover]:bg-accent [&_button:hover]:text-foreground";
 
-	/** Primary grouped segment without [&_svg]:size-[15px] — worktree uses a tiny checkbox mark. */
-	const worktreeGroupPrimaryButtonClass =
-		"flex shrink-0 items-center justify-center rounded-none rounded-l-md border-0 bg-transparent px-1.5 py-1 leading-none transition-colors hover:!bg-transparent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:ring-inset disabled:pointer-events-none disabled:opacity-50";
-
 	const worktreeTriggerClass = $derived(
 		cn(
-			worktreeGroupPrimaryButtonClass,
-			"gap-1.5",
+			FUSED_CONTROL_SETUP_GROUPED_CHIP_LABEL_BUTTON_CLASS,
+			"disabled:pointer-events-none disabled:opacity-50",
 			worktreeOn ? "text-[var(--success)]" : "text-muted-foreground"
 		)
 	);
@@ -85,7 +87,7 @@
 
 <div
 	data-testid="new-thread-options"
-	class="mx-auto flex max-w-full flex-wrap items-center justify-center gap-2 text-xs {setupChipButtonClass}"
+	class="flex max-w-full flex-wrap items-center gap-0.5 text-xs {rowAlignClass} {setupChipButtonClass}"
 >
 	{@render project()}
 	{@render agent()}
@@ -94,7 +96,12 @@
 	{/if}
 
 	{#if showWorktree}
-		<ButtonGroup class={FUSED_CONTROL_CHIP_GROUP_CLASS}>
+		<ButtonGroup
+			class={cn(
+				FUSED_CONTROL_CHIP_GROUP_CLASS,
+				"min-h-[23px] [&_[data-slot=button]]:min-h-[23px]"
+			)}
+		>
 			<Tooltip.Root>
 				<Tooltip.Trigger>
 					{#snippet child({ props })}
@@ -116,7 +123,7 @@
 									></span>
 								{/if}
 							</span>
-							<span class="text-xs leading-none">{worktreeLabel}</span>
+							<span class={FUSED_CONTROL_SETUP_CHIP_LABEL_TEXT_CLASS}>{worktreeLabel}</span>
 						</button>
 					{/snippet}
 				</Tooltip.Trigger>

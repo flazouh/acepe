@@ -9,7 +9,7 @@ import {
 describe("agent input reasoning effort trigger props", () => {
 	test("uses shared composer brain trigger chrome", () => {
 		expect(REASONING_EFFORT_SELECTOR_VARIANT).toBe("ghost");
-		expect(REASONING_EFFORT_SELECTOR_TRIGGER_SIZE).toBe("setupChipIcon");
+		expect(REASONING_EFFORT_SELECTOR_TRIGGER_SIZE).toBe("composerChipIcon");
 		expect(REASONING_EFFORT_SELECTOR_SIDE_OFFSET).toBe(8);
 	});
 });

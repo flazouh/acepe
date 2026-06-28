@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import { Colors } from "../../lib/colors.js";
 import {
 	getConfigOptionCurrentValue,
 	getConfigOptionCurrentValueLabel,
@@ -12,7 +13,9 @@ import {
 	getConfigOptionViewState,
 	getReasoningEffortBarPercent,
 	getReasoningEffortBarSegments,
+	getReasoningEffortIconColor,
 	getReasoningEffortNextValue,
+	getReasoningVariantIconColor,
 	isBooleanConfigOption,
 	isConfigOptionBooleanEnabled,
 	shouldEmitConfigOptionValueChange,
@@ -132,9 +135,9 @@ describe("agent input config option selector state", () => {
 			getConfigOptionResolvedTriggerSize(
 				makeOption({ presentation: "compactReasoning", id: "reasoning" })
 			)
-		).toBe("setupChipIcon");
+		).toBe("composerChipIcon");
 		expect(getConfigOptionResolvedTriggerSize(makeOption({ presentation: "compactSpeed" }))).toBe(
-			"setupChip"
+			"composerChipLabel"
 		);
 	});
 
@@ -253,6 +256,66 @@ describe("agent input config option selector state", () => {
 		expect(state.reasoningBarSegmentCount).toBe(5);
 		expect(state.reasoningBarFilledSegmentCount).toBe(3);
 		expect(state.reasoningBarPercent).toBe(60);
+		expect(state.iconColor).toBe(
+			getReasoningEffortIconColor({
+				segmentCount: 5,
+				filledSegmentCount: 3,
+				currentValue: "medium",
+			})
+		);
+		expect(state.iconStyle).toBe(`color: ${state.iconColor}`);
+	});
+
+	test("maps reasoning effort icon color from low green to max red", () => {
+		expect(getReasoningEffortIconColor({ segmentCount: 5, filledSegmentCount: 0 })).toBe(
+			"var(--muted-foreground)"
+		);
+		expect(getReasoningEffortIconColor({ segmentCount: 5, filledSegmentCount: 1 })).toBe(
+			"var(--success)"
+		);
+		expect(getReasoningEffortIconColor({ segmentCount: 5, filledSegmentCount: 5 })).toBe(
+			"var(--destructive)"
+		);
+		expect(
+			getReasoningEffortIconColor({
+				segmentCount: 6,
+				filledSegmentCount: 6,
+				currentValue: "max",
+			})
+		).toBe(Colors.purple);
+	});
+
+	test("maps reasoning variant icon color by selected variant index", () => {
+		const variants = [
+			{ id: "low", name: "Low" },
+			{ id: "medium", name: "Medium" },
+			{ id: "high", name: "High" },
+		];
+
+		expect(
+			getReasoningVariantIconColor({
+				variants,
+				selectedVariantId: null,
+			})
+		).toBe("var(--muted-foreground)");
+		expect(
+			getReasoningVariantIconColor({
+				variants,
+				selectedVariantId: "low",
+			})
+		).toBe("var(--success)");
+		expect(
+			getReasoningVariantIconColor({
+				variants,
+				selectedVariantId: "high",
+			})
+		).toBe("var(--destructive)");
+		expect(
+			getReasoningVariantIconColor({
+				variants: [{ id: "max", name: "Max" }],
+				selectedVariantId: "max",
+			})
+		).toBe(Colors.purple);
 	});
 
 	test("cycles reasoning effort forward and wraps at maximum", () => {

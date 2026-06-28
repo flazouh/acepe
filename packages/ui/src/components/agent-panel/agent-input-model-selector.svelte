@@ -48,6 +48,7 @@ interface Props {
 	onToggleFavorite?: (modelId: string) => void;
 	hideTriggerProviderMark?: boolean;
 	triggerSize?: SelectorTriggerSize;
+	embeddedInGroup?: boolean;
 	primaryTriggerProviderBrand?: ProviderBrand | null;
 	primaryTriggerProviderLabel?: string;
 }
@@ -74,6 +75,7 @@ let {
 	onToggleFavorite,
 	hideTriggerProviderMark = false,
 	triggerSize = "pill",
+	embeddedInGroup = false,
 	primaryTriggerProviderBrand = triggerProviderBrand,
 	primaryTriggerProviderLabel = triggerProviderLabel,
 }: Props = $props();
@@ -210,6 +212,7 @@ const showGroups = $derived(shouldShowModelGroups(filteredGroups));
 		{noModelsLabel}
 		{hideTriggerProviderMark}
 		{triggerSize}
+		{embeddedInGroup}
 		onOpenChange={setStandardOpen}
 		onSearchChange={setSearchQuery}
 		onSelect={selectModel}

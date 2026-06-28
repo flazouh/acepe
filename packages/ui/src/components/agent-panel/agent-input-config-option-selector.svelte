@@ -9,6 +9,7 @@
 	import { Button } from "../button/index.js";
 	import { Selector } from "../selector/index.js";
 	import type { SelectorTriggerSize } from "../selector/selector-trigger-classes.js";
+	import { resolveSelectorTriggerSize } from "../selector/selector-trigger-classes.js";
 	import * as Tooltip from "../tooltip/index.js";
 	import AgentInputReasoningEffortTrigger from "./agent-input-reasoning-effort-trigger.svelte";
 	import AgentInputSelectorItemRow from "./agent-input-selector-item-row.svelte";
@@ -27,13 +28,15 @@
 		configOption: AgentInputConfigOption;
 		disabled?: boolean;
 		triggerSize?: SelectorTriggerSize;
+		embeddedInGroup?: boolean;
 		onValueChange: (configId: string, value: string) => void;
 	}
 
 	let {
 		configOption,
 		disabled = false,
-		triggerSize = "setupChip",
+		triggerSize = "composerChipLabel",
+		embeddedInGroup = false,
 		onValueChange,
 	}: Props = $props();
 
@@ -41,11 +44,12 @@
 	const resolvedTriggerSize = $derived(
 		getConfigOptionResolvedTriggerSize(configOption, triggerSize)
 	);
-	const selectorVariant = $derived(
-		resolvedTriggerSize === "setupChip" || resolvedTriggerSize === "setupChipIcon"
+	const selectorVariant = $derived(() => {
+		const resolved = resolveSelectorTriggerSize(resolvedTriggerSize);
+		return resolved === "composerChipLabel" || resolved === "composerChipIcon"
 			? "ghost"
-			: "chromeIcon"
-	);
+			: "chromeIcon";
+	});
 	const fastTriggerClass = $derived(
 		getConfigOptionFastTriggerClass({
 			disabled,
@@ -144,6 +148,8 @@
 {:else if viewState.iconKind === "reasoning"}
 	<AgentInputReasoningEffortTrigger
 		{disabled}
+		{embeddedInGroup}
+		iconStyle={viewState.iconStyle}
 		triggerAriaLabel={viewState.buttonTitle}
 		tooltipTitle={viewState.tooltipTitle}
 		tooltipDescription={viewState.tooltipDescription}
