@@ -84,6 +84,10 @@ import {
 	buildFileExplorerProjectInfoByPath,
 	buildFileExplorerProjectPaths,
 } from "./main-app-view/logic/file-explorer-context.js";
+import {
+	resolveWorkspaceFrameClass,
+	resolveWorkspaceSidebarClass,
+} from "./main-app-view/logic/main-app-layout-classes.js";
 import { MainAppViewState } from "./main-app-view/logic/main-app-view-state.svelte.js";
 import { applyDownloadEventToProgress } from "./main-app-view/logic/update-download-progress.js";
 import {
@@ -1085,9 +1089,9 @@ onDestroy(() => {
 			</TopBar>
 		</div>
 		{#if !viewState.reviewFullscreenOpen}
-			<div class="flex-1 flex min-h-0 gap-0.5 overflow-hidden transition-[padding] duration-200 ease-out">
+			<div class={resolveWorkspaceFrameClass()}>
 				{#if showSidebar}
-					<div class="shrink-0 flex flex-col h-full min-h-0 overflow-hidden transition-[width,opacity] duration-200 ease-out {viewState.sidebarOpen ? 'opacity-100' : 'w-0 opacity-0 pointer-events-none'}">
+					<div class={resolveWorkspaceSidebarClass(viewState.sidebarOpen)}>
 						<svelte:boundary onerror={(e) => console.error('[boundary:sidebar]', e)}>
 							<AppSidebar {projectManager} state={viewState} />
 							{#snippet failed(error, reset)}
