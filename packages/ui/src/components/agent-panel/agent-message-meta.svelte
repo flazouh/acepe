@@ -33,35 +33,22 @@
 
 	const showModel = $derived(isAssistant && model != null && model.length > 0);
 
-	// Subtle tone differences between user and assistant chips.
-	const containerToneClass = $derived(
-		isAssistant
-			? "border-border/60 bg-background/85 backdrop-blur-sm"
-			: "border-border/40 bg-muted/40",
-	);
+	// Match the soft-filled "setup card" look (e.g. the worktree setup card):
+	// a borderless, rounded pill on a subtle `bg-input/30` fill. Tone only the
+	// text/dividers per variant so user vs assistant chips still read distinct.
 	const textToneClass = $derived(isAssistant ? "text-muted-foreground" : "text-muted-foreground/70");
-	const dividerToneClass = $derived(isAssistant ? "bg-border/60" : "bg-border/40");
 </script>
 
-<div class="inline-flex items-center overflow-hidden rounded-lg border {containerToneClass}">
+<div class="inline-flex items-center gap-1.5 overflow-hidden rounded-lg bg-input/30 px-2 py-0.5">
 	{#if showModel}
-		<span class="whitespace-nowrap px-2 text-[11px] {textToneClass}">{model}</span>
+		<span class="whitespace-nowrap text-[11px] {textToneClass}">{model}</span>
 	{/if}
 	{#if timestampLabel}
-		{#if showModel}
-			<div class="h-4 w-px shrink-0 {dividerToneClass}"></div>
-		{/if}
-		<span
-			class="px-2 text-[11px] tabular-nums {textToneClass}"
-			title={timestampTitle}
-		>
+		<span class="text-[11px] tabular-nums {textToneClass}" title={timestampTitle}>
 			{timestampLabel}
 		</span>
 	{/if}
 	{#if showCopy}
-		{#if showModel || timestampLabel}
-			<div class="h-4 w-px shrink-0 {dividerToneClass}"></div>
-		{/if}
-		<AgentCopyButton {text} class={textToneClass} />
+		<AgentCopyButton {text} class="rounded-md {textToneClass}" />
 	{/if}
 </div>
