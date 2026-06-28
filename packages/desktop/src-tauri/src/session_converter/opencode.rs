@@ -482,7 +482,7 @@ mod tests {
         assert_eq!(materialized.transcript_snapshot.entries.len(), 2);
         assert_eq!(
             materialized.transcript_snapshot.entries[1].entry_id,
-            "opencode-event-1:assistant"
+            "acepe::entry::assistant-boundary:1::assistant::."
         );
         assert_eq!(
             materialized.transcript_snapshot.entries[1].role,
@@ -491,7 +491,7 @@ mod tests {
         assert_eq!(
             materialized.transcript_snapshot.entries[1].segments,
             vec![TranscriptSegment::Text {
-                segment_id: "opencode-event-1:assistant:event:1".to_string(),
+                segment_id: "assistant-boundary:1:event:1".to_string(),
                 text: "Looks good".to_string(),
             }]
         );
