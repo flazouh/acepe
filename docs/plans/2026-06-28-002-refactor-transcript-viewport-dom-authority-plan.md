@@ -183,7 +183,7 @@ StickToBottom controller (DOM-only):
 
 ### Phase 1 — Prove the controller (de-risk)
 
-- [x] **Unit 1: Port `useStickToBottom` to a framework-agnostic Svelte module** — pure module + 20 tests green (commit `feat(agent-panel): pure stick-to-bottom controller (Unit 1)`). `-effects.ts` DOM wiring + `.dom.vitest.ts` still pending.
+- [x] **Unit 1: Port `useStickToBottom` to a framework-agnostic Svelte module** — DONE. Pure module + 20 tests (`stick-to-bottom.ts`); DOM wiring `stick-to-bottom-effects.ts` (`createStickToBottomController` + `use:` action + `applyScrollAction`/`readScrollMetrics`) + 13 `.dom.vitest.ts` green (programmatic guard, release/re-engage, follow-pin, anchor-preserve vs unread-below heuristic, jump-to-latest, on-send anchor-near-top, destroy teardown). No `$effect`; RO guarded.
 
 **Goal:** DOM-only controller owning follow/release/anchor/unread logic; no app/Rust deps.
 
