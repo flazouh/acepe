@@ -1,6 +1,7 @@
 @import "@acepe/ui/design-tokens.css";
 @import "@acepe/ui/surface-tokens.css";
 @import "@acepe/ui/dropdown-menu-motion.css";
+@import "@acepe/ui/font-weight-shift.css";
 @import "tailwindcss";
 @import "streamdown/styles.css";
 @import "@fontsource/jetbrains-mono/400.css";
