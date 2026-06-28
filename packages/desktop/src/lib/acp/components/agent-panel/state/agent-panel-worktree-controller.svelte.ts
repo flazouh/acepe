@@ -1,7 +1,7 @@
 /**
  * AgentPanelWorktreeController — owns worktree/pre-session local state,
  * derived path chain, and event handlers hoisted from agent-panel.svelte.
- * Composes with WorktreeSetupController and WorktreeCloseConfirmationController.
+ * Composes with WorktreeSetupController.
  */
 
 import { toast } from "svelte-sonner";
@@ -9,15 +9,12 @@ import type { Project } from "../../../logic/project-manager.svelte.js";
 import type { PanelStore } from "../../../store/panel-store.svelte.js";
 import type { SessionStore } from "../../../store/session-store.svelte.js";
 import type { PreparedWorktreeLaunch, WorktreeInfo } from "../../../types/worktree-info.js";
-import { removeWorktreeAndMarkSessionWorktreeDeleted } from "../logic/index.js";
 import { shouldShowPreSessionWorktreeCard } from "../logic/pre-session-worktree-card-visibility.js";
 import { resolveAgentPanelWorktreePending } from "../logic/worktree-pending.js";
 import {
 	discardPreparedWorktreeSessionLaunch,
 	persistSessionWorktreePathAfterRename,
-	removeWorktreeFromDisk,
 } from "../services/index.js";
-import type { WorktreeCloseConfirmationController } from "./worktree-close-confirmation-controller.svelte.js";
 import type { WorktreeSetupController } from "./worktree-setup-controller.svelte.js";
 
 export interface AgentPanelWorktreeControllerDeps {
@@ -36,8 +33,6 @@ export interface AgentPanelWorktreeControllerDeps {
 	panelStore: PanelStore;
 	sessionStore: SessionStore;
 	worktreeSetup: WorktreeSetupController;
-	worktreeCloseConfirm: WorktreeCloseConfirmationController;
-	onClose?: () => void;
 	logWorktreeCreated?: (details: Record<string, string | null>) => void;
 	logWorktreeCreatedEarlyReturn?: () => void;
 }
@@ -156,45 +151,6 @@ export class AgentPanelWorktreeController {
 			null
 		);
 	});
-
-	handleWorktreeCloseOnly(): void {
-		this.#deps.worktreeCloseConfirm.dismiss();
-		this.#deps.onClose?.();
-	}
-
-	handleWorktreeRemoveAndClose(): void {
-		const worktreePath = this.effectiveActiveWorktreePath;
-		const currentSessionId = this.#deps.getSessionId();
-		const force = this.#deps.worktreeCloseConfirm.hasDirtyChanges;
-		this.#deps.worktreeCloseConfirm.dismiss();
-		this.#deps.onClose?.();
-		void removeWorktreeAndMarkSessionWorktreeDeleted(
-			{
-				force,
-				sessionId: currentSessionId,
-				worktreePath,
-			},
-			{
-				removeWorktree: (path, shouldForce) => removeWorktreeFromDisk(path, shouldForce),
-				markSessionWorktreeDeleted: (id) => {
-					this.#deps.sessionStore.write.updateSession(id, { worktreeDeleted: true });
-				},
-				clearSessionWorktreeDeleted: (id) => {
-					this.#deps.sessionStore.write.updateSession(id, { worktreeDeleted: false });
-				},
-				disconnectSession: (id) => {
-					this.#deps.sessionStore.connection.disconnectSession(id);
-				},
-			}
-		).mapErr((error) => {
-			console.error("[AgentPanel] Failed to remove worktree", { error });
-			toast.error(`Failed to remove worktree: ${error.message}`);
-		});
-	}
-
-	handleWorktreeCloseCancel(): void {
-		this.#deps.worktreeCloseConfirm.cancel();
-	}
 
 	handleWorktreeCreated(info: WorktreeInfo | string): void {
 		const nextDirectory = typeof info === "string" ? info : info.directory;

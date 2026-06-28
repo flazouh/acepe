@@ -10,7 +10,6 @@ import {
 import { DiffPill, setThinkingPreferences } from "@acepe/ui";
 import { Button } from "@acepe/ui/button";
 import * as ButtonGroup from "@acepe/ui/button-group";
-import ArrowUp from "@lucide/svelte/icons/arrow-up";
 import {
 	CaretLeft,
 	CaretRight,
@@ -55,6 +54,7 @@ import * as agentModelPrefs from "../../../store/agent-model-preferences-store.s
 import {
 	AgentPanelComposerFrame as SharedAgentPanelComposerFrame,
 	AgentPanelPlanHeader as SharedPlanHeader,
+	AgentPanelTranscriptScrollControls as SharedAgentPanelTranscriptScrollControls,
 } from "@acepe/ui/agent-panel";
 import PlanDialog from "../../plan-dialog.svelte";
 import { getMessageQueueStore } from "../../../store/message-queue/message-queue-store.svelte.js";
@@ -65,7 +65,7 @@ import {
 	copyTextToClipboard,
 	matchesWorktreeSetupContext,
 	resolveEffectiveProjectPath,
-	shouldConfirmWorktreeClose,
+	shouldShowClaudeWorkingSpark,
 } from "../logic";
 import { DEFAULT_BROWSER_HOME_URL } from "../../../constants/browser-defaults.js";
 import { getProviderBrandIcon } from "../../../constants/thread-list-constants.js";
@@ -99,9 +99,7 @@ import { PlanSidebar } from "../../plan-sidebar/index.js";
 import { BrowserPanel as BrowserPanelComponent } from "../../browser-panel/index.js";
 import {
 	AgentPanelTrailingPaneLayout,
-	AgentPanelWorktreeCloseConfirmPopover,
 } from "@acepe/ui/agent-panel";
-import ScrollToBottomButton from "./scroll-to-bottom-button.svelte";
 import { buildAgentErrorIssueDraft } from "../logic/issue-report-draft.js";
 import { resolveInitialReviewWorkspaceIndex } from "./review-workspace-model.js";
 import {
@@ -112,7 +110,6 @@ import {
 } from "../logic/queue-strip-handlers.js";
 import {
 	fetchPanelGitBranch,
-	fetchWorktreeHasUncommittedChanges,
 	fetchWorktreePathListedForProject,
 	runCreatePrWorkflow,
 	runMergePrWorkflow,
@@ -139,7 +136,6 @@ let {
 	onAgentChange,
 	effectiveTheme,
 	onClose,
-	bypassWorktreeCloseConfirmation = false,
 	onCreateSessionForProject,
 	onSessionCreated,
 	onResizePanel,
@@ -218,7 +214,6 @@ const rootState = new AgentPanelRootState({
 		state.sessionController.panelHotState?.pendingWorktreeSetup ?? null,
 	getPendingProjectSelection: () => pendingProjectSelection,
 	getAllProjects: () => allProjects,
-	onClose,
 	logWorktreeCreated: (details) => {
 		logger.info("[worktree-flow] handleWorktreeCreated: entry", details);
 	},
@@ -243,7 +238,6 @@ const layoutController = rootState.layoutController;
 const contentScrollReveal = rootState.contentScrollReveal;
 const checkpointTimeline = rootState.checkpointTimeline;
 const worktreeSetup = rootState.worktreeSetup;
-const worktreeCloseConfirm = rootState.worktreeCloseConfirm;
 const worktreeController = rootState.worktreeController;
 const worktreeDefaultStore = getWorktreeDefaultStore();
 const viewStateController = rootState.viewStateController;
@@ -389,7 +383,6 @@ const activeWorktreePath = $derived(worktreeController.activeWorktreePath);
 const activeWorktreeOwnerProjectPath = $derived(worktreeController.activeWorktreeOwnerProjectPath);
 const scopedActiveWorktreePath = $derived(worktreeController.scopedActiveWorktreePath);
 const effectiveActiveWorktreePath = $derived(worktreeController.effectiveActiveWorktreePath);
-const _activeWorktreeName = $derived(worktreeController.activeWorktreeName);
 const worktreeDeleted = $derived(worktreeController.worktreeDeleted);
 const effectivePathForGit = $derived(worktreeController.effectivePathForGit);
 
@@ -424,7 +417,12 @@ const preSessionSelectedProject = $derived(worktreeController.preSessionSelected
 const effectivePanelAgentId = $derived(selectedAgentId ?? sessionController.sessionAgentId);
 // Claude is the only agent with a bespoke working spark; the transcript's planning
 // placeholder swaps it in for the label while streaming (gated on canonical agentId).
-const showWorkingSpark = $derived(sessionController.sessionAgentId === "claude-code");
+const showWorkingSpark = $derived(
+		shouldShowClaudeWorkingSpark({
+			sessionAgentId: sessionController.sessionAgentId,
+			selectedAgentId,
+		})
+	);
 const agentName = $derived.by(() => {
 	if (!effectivePanelAgentId) {
 		return null;
@@ -611,7 +609,11 @@ const sequenceId = $derived.by(() => {
 
 const displayTitle = $derived.by(() => {
 	return deriveAgentPanelHeaderDisplayTitle({
-		sessionTitle: sessionController.sessionTitle,
+		// Optimistic title (pending first user message) covers the whole
+		// pre-canonical window so the header reads the message from t=0 without
+		// reverting to "Conversation in <project>"; it self-defers to a real
+		// canonical title, so canonical still wins once promoted.
+		sessionTitle: sessionController.optimisticHeaderTitle ?? sessionController.sessionTitle,
 		projectName: displayProjectName,
 	});
 });
@@ -698,7 +700,6 @@ let agentInputRef = $state<{
 	retrySend: () => void;
 	restoreQueuedMessage: (draft: string, attachments: readonly Attachment[]) => void;
 } | null>(null);
-let headerRef: HTMLElement | undefined = $state();
 
 onDestroy(() => {
 	rootState.dispose();
@@ -953,36 +954,6 @@ $effect(() => {
 });
 
 // ✅ Event handlers - can access current props directly
-async function handleClose() {
-	if (
-		shouldConfirmWorktreeClose({
-			bypassConfirmation: bypassWorktreeCloseConfirmation,
-			worktreePath: effectiveActiveWorktreePath,
-			worktreeDeleted,
-		})
-	) {
-		const worktreePath = effectiveActiveWorktreePath;
-		if (worktreePath == null) {
-			return;
-		}
-		worktreeCloseConfirm.beginPending();
-		const hasDirtyChanges = await fetchWorktreeHasUncommittedChanges(worktreePath).match(
-			(dirty) => dirty,
-			() => false // safe default on error — show normal confirmation
-		);
-		worktreeCloseConfirm.resolve(hasDirtyChanges);
-		return;
-	}
-	onClose?.();
-}
-
-export function requestClosePanelConfirmation(): void {
-	void handleClose();
-}
-
-const handleWorktreeCloseOnly = () => worktreeController.handleWorktreeCloseOnly();
-const handleWorktreeRemoveAndClose = () => worktreeController.handleWorktreeRemoveAndClose();
-const handleWorktreeCloseCancel = () => worktreeController.handleWorktreeCloseCancel();
 
 function handleProjectAgentSelected(project: Project, agentId: string) {
 	onAgentChange?.(agentId);
@@ -1392,8 +1363,6 @@ async function handlePlanSidebarSendMessage(sid: string, message: string): Promi
 	onkeydown={handlePanelKeyDown}
 >
 	{#snippet header()}
-		<!-- svelte-ignore a11y_no_static_element_interactions -->
-		<div bind:this={headerRef}>
 		<AgentPanelHeader
 			{pendingProjectSelection}
 			{isConnecting}
@@ -1416,7 +1385,7 @@ async function handlePlanSidebarSendMessage(sid: string, message: string): Promi
 			{projectIconSrc}
 			linkedPr={sessionController.sessionMetadata?.linkedPr ?? null}
 			prLinkMode={sessionController.sessionMetadata?.prLinkMode ?? "automatic"}
-			onClose={handleClose}
+			onClose={onClose}
 			{onToggleFullscreen}
 			onRetryConnection={handleRetryConnection}
 			onScrollToTop={scrollToTop}
@@ -1463,7 +1432,6 @@ async function handlePlanSidebarSendMessage(sid: string, message: string): Promi
 			activeWorktreeLabel={footerWorktreeStatus?.primaryLabel ?? null}
 			onOpenWorktree={footerWorktreeStatus ? handleOpenWorktree : undefined}
 		/>
-		</div>
 	{/snippet}
 
 	{#snippet leadingPane()}
@@ -1545,22 +1513,6 @@ async function handlePlanSidebarSendMessage(sid: string, message: string): Promi
 						{isPlanActionAvailable}
 					/>
 				</div>
-				{#if viewState.kind === "conversation" && !contentScrollReveal.isAtTop}
-					<div class="absolute top-4 left-1/2 -translate-x-1/2 z-10">
-						<button
-							class="h-8 w-8 flex items-center justify-center rounded-full border border-border bg-background shadow-sm hover:bg-muted transition-colors"
-							onclick={scrollToTop}
-							aria-label={"Scroll Top"}
-						>
-							<ArrowUp class="h-4 w-4" />
-						</button>
-					</div>
-				{/if}
-				{#if viewState.kind === "conversation" && !contentScrollReveal.isAtBottom}
-					<div class="absolute bottom-4 left-1/2 -translate-x-1/2 z-10">
-						<ScrollToBottomButton visible={true} onClick={scrollToBottom} />
-					</div>
-				{/if}
 			{/if}
 		</div>
 		{#if reviewMode && reviewFilesState}
@@ -1646,6 +1598,15 @@ async function handlePlanSidebarSendMessage(sid: string, message: string): Promi
 	{#snippet composer()}
 		<div style:display={reviewMode ? "none" : undefined}>
 			{#if viewState.kind === "conversation" || viewState.kind === "ready" || viewState.kind === "error"}
+				{#if viewState.kind === "conversation"}
+					<SharedAgentPanelTranscriptScrollControls
+						showScrollToTop={!contentScrollReveal.isAtTop}
+						showScrollToBottom={!contentScrollReveal.isAtBottom}
+						onScrollToTop={scrollToTop}
+						onScrollToBottom={scrollToBottom}
+						centered={centeredFullscreenContent}
+					/>
+				{/if}
 				<SharedAgentPanelComposerFrame
 					centered={centeredFullscreenContent}
 					widthClass="max-w-[60%]"
@@ -1979,19 +1940,3 @@ async function handlePlanSidebarSendMessage(sid: string, message: string): Promi
 		projectPath={sessionController.sessionProjectPath ?? undefined}
 	/>
 {/if}
-
-<AgentPanelWorktreeCloseConfirmPopover
-	bind:open={worktreeCloseConfirm.confirming}
-	headerAnchor={headerRef}
-	title={worktreeCloseConfirm.dirtyCheckPending
-		? "Checking repository..."
-		: worktreeCloseConfirm.hasDirtyChanges
-			? `Has uncommitted changes — remove "${_activeWorktreeName ?? "worktree"}"?`
-			: `Remove worktree "${_activeWorktreeName ?? "worktree"}"?`}
-	description={"The worktree branch and directory will be permanently deleted."}
-	cancelLabel={"Cancel"}
-	confirmLabel={"Confirm"}
-	confirmDisabled={worktreeCloseConfirm.dirtyCheckPending}
-	onCancel={handleWorktreeCloseCancel}
-	onConfirmRemoveAndClose={handleWorktreeRemoveAndClose}
-/>

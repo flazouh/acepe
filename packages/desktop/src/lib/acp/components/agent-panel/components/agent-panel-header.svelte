@@ -7,18 +7,6 @@ import { Selector } from "@acepe/ui";
 import * as DropdownMenu from "@acepe/ui/dropdown-menu";
 import { IconDotsVertical } from "@tabler/icons-svelte";
 import { CloseAction } from "@acepe/ui/panel-header";
-import {
-	ArrowsIn,
-	ArrowsOut,
-	BracketsCurly,
-	Browser,
-	Bug,
-	Copy,
-	DownloadSimple,
-	FileMd,
-	Terminal,
-	Tree,
-} from "phosphor-svelte";
 import { toast } from "svelte-sonner";
 import AttachmentChip from "../../shared/attachment-chip.svelte";
 
@@ -98,9 +86,6 @@ const titleRichText = $derived.by(() => {
 	return formatRichSessionTitle(rawTitle, projectName).richText;
 });
 
-const menuIconSlotClass =
-	"inline-flex size-3.5 shrink-0 items-center justify-center text-muted-foreground";
-
 function handleCopySessionId(): void {
 	const content = sessionId?.trim() ?? "";
 	if (content.length === 0) {
@@ -169,16 +154,10 @@ function handleCopySessionId(): void {
 				{/snippet}
 
 				<DropdownMenu.Item onSelect={handleCopySessionId} class="cursor-pointer">
-					<span class={menuIconSlotClass} aria-hidden="true">
-						<Copy class="size-3.5" weight="regular" />
-					</span>
 					{"Copy session ID"}
 				</DropdownMenu.Item>
 				{#if hasWorktreeMenu}
 					<DropdownMenu.Item onSelect={() => onOpenWorktree?.()} class="cursor-pointer">
-						<span class={menuIconSlotClass}>
-							<Tree class="size-3.5 text-success" weight="fill" />
-						</span>
 						{openWorktreeMenuLabel}
 					</DropdownMenu.Item>
 				{/if}
@@ -186,25 +165,16 @@ function handleCopySessionId(): void {
 					<DropdownMenu.Separator />
 					<DropdownMenu.Sub>
 						<DropdownMenu.SubTrigger class="cursor-pointer">
-							<span class={menuIconSlotClass} aria-hidden="true">
-								<DownloadSimple class="size-3.5" weight="regular" />
-							</span>
 							{"Export"}
 						</DropdownMenu.SubTrigger>
 						<DropdownMenu.SubContent class="min-w-[160px]">
 							{#if onExportMarkdown}
 								<DropdownMenu.Item onSelect={() => onExportMarkdown?.()} class="cursor-pointer">
-									<span class={menuIconSlotClass} aria-hidden="true">
-										<FileMd class="size-3.5" weight="regular" />
-									</span>
 									{"Export as Markdown"}
 								</DropdownMenu.Item>
 							{/if}
 							{#if onExportJson}
 								<DropdownMenu.Item onSelect={() => onExportJson?.()} class="cursor-pointer">
-									<span class={menuIconSlotClass} aria-hidden="true">
-										<BracketsCurly class="size-3.5" weight="regular" />
-									</span>
 									{"Export as JSON"}
 								</DropdownMenu.Item>
 							{/if}
@@ -214,15 +184,9 @@ function handleCopySessionId(): void {
 				{#if isDev}
 					<DropdownMenu.Separator />
 					<DropdownMenu.Item onSelect={() => onCopyStreamingLogPath?.()} class="cursor-pointer">
-						<span class={menuIconSlotClass} aria-hidden="true">
-							<Bug class="size-3.5" weight="fill" style="color: #FF5D5A" />
-						</span>
 						Copy Streaming Log Path
 					</DropdownMenu.Item>
 					<DropdownMenu.Item onSelect={() => onExportRawStreaming?.()} class="cursor-pointer">
-						<span class={menuIconSlotClass} aria-hidden="true">
-							<Bug class="size-3.5" weight="fill" style="color: #FF5D5A" />
-						</span>
 						{"Open Streaming Log"}
 					</DropdownMenu.Item>
 				{/if}
@@ -230,13 +194,6 @@ function handleCopySessionId(): void {
 					<DropdownMenu.Separator />
 					{#if onToggleFullscreen}
 						<DropdownMenu.Item onSelect={() => onToggleFullscreen?.()} class="cursor-pointer">
-							<span class={menuIconSlotClass}>
-								{#if isFullscreen}
-									<ArrowsIn class="size-3.5" weight="fill" />
-								{:else}
-									<ArrowsOut class="size-3.5" weight="fill" />
-								{/if}
-							</span>
 							{fullscreenMenuLabel}
 						</DropdownMenu.Item>
 					{/if}
@@ -246,9 +203,6 @@ function handleCopySessionId(): void {
 							class="cursor-pointer"
 							aria-checked={browserActive}
 						>
-							<span class={menuIconSlotClass}>
-								<Browser class="size-3.5" weight={browserActive ? "fill" : "regular"} />
-							</span>
 							{browserAriaLabel ?? browserTitle}
 						</DropdownMenu.Item>
 					{/if}
@@ -263,9 +217,6 @@ function handleCopySessionId(): void {
 							disabled={terminalDisabled}
 							aria-checked={terminalActive}
 						>
-							<span class={menuIconSlotClass}>
-								<Terminal class="size-3.5" weight={terminalActive ? "fill" : "regular"} />
-							</span>
 							{terminalAriaLabel ?? terminalTitle}
 						</DropdownMenu.Item>
 					{/if}

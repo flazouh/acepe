@@ -40,7 +40,6 @@ import {
 import { ContentScrollRevealController } from "./content-scroll-reveal-controller.svelte.js";
 import { PrCardController } from "./pr-card-controller.svelte.js";
 import { ReviewDialogController } from "./review-dialog-controller.svelte.js";
-import { WorktreeCloseConfirmationController } from "./worktree-close-confirmation-controller.svelte.js";
 import { WorktreeSetupController } from "./worktree-setup-controller.svelte.js";
 
 export interface AgentPanelConnectionController {
@@ -93,7 +92,6 @@ export interface AgentPanelRootStateDeps {
 	) => AgentPanelPendingWorktreeSetupSnapshot | null;
 	readonly getPendingProjectSelection: () => boolean;
 	readonly getAllProjects: () => readonly Project[];
-	readonly onClose?: () => void;
 	readonly logWorktreeCreated?: (details: Record<string, string | null>) => void;
 	readonly logWorktreeCreatedEarlyReturn?: () => void;
 	readonly createConnectionController?: (
@@ -121,7 +119,6 @@ export class AgentPanelRootState {
 	readonly contentScrollReveal: ContentScrollRevealController;
 	readonly checkpointTimeline: CheckpointTimelineController;
 	readonly worktreeSetup: WorktreeSetupController;
-	readonly worktreeCloseConfirm: WorktreeCloseConfirmationController;
 	readonly worktreeController: AgentPanelWorktreeController;
 	readonly viewStateController: AgentPanelViewStateController;
 	readonly scenePipelineController: AgentPanelScenePipelineController;
@@ -177,7 +174,6 @@ export class AgentPanelRootState {
 		});
 
 		this.worktreeSetup = new WorktreeSetupController();
-		this.worktreeCloseConfirm = new WorktreeCloseConfirmationController();
 		this.worktreeController = new AgentPanelWorktreeController({
 			getSessionId: deps.getSessionId,
 			getPanelId: deps.getPanelId,
@@ -194,8 +190,6 @@ export class AgentPanelRootState {
 			panelStore: this.panelStore,
 			sessionStore: this.sessionStore,
 			worktreeSetup: this.worktreeSetup,
-			worktreeCloseConfirm: this.worktreeCloseConfirm,
-			onClose: deps.onClose,
 			logWorktreeCreated: deps.logWorktreeCreated,
 			logWorktreeCreatedEarlyReturn: deps.logWorktreeCreatedEarlyReturn,
 		});

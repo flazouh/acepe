@@ -17,18 +17,16 @@ export {
 	resolveVisibleEntryCount,
 } from "./optimistic-user-entry.js";
 export {
+	resolveOptimisticHeaderTitle,
+	shouldShowClaudeWorkingSpark,
+} from "./pre-session-optimistic-identity.js";
+export {
 	deriveCanonicalAgentPanelSessionState,
 	mapCanonicalSessionToPanelStatus,
 	mapSessionStatusToUI,
 	resolveCanonicalAgentPanelSessionSource,
 	resolveCanonicalAgentPanelTurnState,
 } from "./session-status-mapper";
-export {
-	createPendingWorktreeCloseConfirmationState,
-	createResolvedWorktreeCloseConfirmationState,
-	shouldConfirmWorktreeClose,
-} from "./worktree-close-confirmation";
-export { removeWorktreeAndMarkSessionWorktreeDeleted } from "./worktree-removal";
 export {
 	createWorktreeCreationState,
 	createWorktreeSetupMatchContext,

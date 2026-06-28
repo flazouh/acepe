@@ -15,7 +15,6 @@ import { CheckpointTimelineController } from "../checkpoint-timeline-controller.
 import { ContentScrollRevealController } from "../content-scroll-reveal-controller.svelte.js";
 import { PrCardController } from "../pr-card-controller.svelte.js";
 import { ReviewDialogController } from "../review-dialog-controller.svelte.js";
-import { WorktreeCloseConfirmationController } from "../worktree-close-confirmation-controller.svelte.js";
 import { WorktreeSetupController } from "../worktree-setup-controller.svelte.js";
 
 function createConnectionFake(disposeLog: string[]): AgentPanelConnectionController {
@@ -130,7 +129,6 @@ describe("AgentPanelRootState", () => {
 		expect(root.contentScrollReveal).toBeInstanceOf(ContentScrollRevealController);
 		expect(root.checkpointTimeline).toBeInstanceOf(CheckpointTimelineController);
 		expect(root.worktreeSetup).toBeInstanceOf(WorktreeSetupController);
-		expect(root.worktreeCloseConfirm).toBeInstanceOf(WorktreeCloseConfirmationController);
 		expect(root.worktreeController).toBeInstanceOf(AgentPanelWorktreeController);
 		expect(root.viewStateController).toBeInstanceOf(AgentPanelViewStateController);
 		expect(root.scenePipelineController).toBeInstanceOf(AgentPanelScenePipelineController);

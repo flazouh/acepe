@@ -42,6 +42,7 @@ export {
 export { default as AgentInputAutonomousToggle } from "./agent-input-autonomous-toggle.svelte";
 export { default as AgentInputComposerRow } from "./agent-input-composer-row.svelte";
 export { default as AgentInputComposerToolbar } from "./agent-input-composer-toolbar.svelte";
+export { default as AgentInputModelReasoningFusedControls } from "./agent-input-model-reasoning-fused-controls.svelte";
 export { default as AgentInputComposerTrailingControls } from "./agent-input-composer-trailing-controls.svelte";
 export { default as AgentInputConfigOptionSelector } from "./agent-input-config-option-selector.svelte";
 export type { AgentInputConfigOption } from "./agent-input-config-option-types.js";
@@ -78,6 +79,20 @@ export type {
 	AgentInputSlashCommand,
 	AgentInputSlashCommandWorkspaceMarkdownResult,
 } from "./agent-input-slash-command-dropdown-state.js";
+export {
+	flattenSlashPaletteItems,
+	getSlashPaletteVisibleSections,
+	slashPaletteHasContent,
+	SLASH_PALETTE_SECTION_PREVIEW_COUNT,
+} from "./agent-input-slash-palette-state.js";
+export type {
+	SlashPaletteFlatEntry,
+	SlashPaletteItem,
+	SlashPaletteItemKind,
+	SlashPaletteSection,
+	SlashPaletteSectionId,
+	SlashPaletteVisibleSection,
+} from "./agent-input-slash-palette-state.js";
 export { default as AgentInputToolbar } from "./agent-input-toolbar.svelte";
 export type {
 	AgentComposerToolbarVoiceBinding,
@@ -174,6 +189,7 @@ export { default as ReviewWorkspace } from "./review-workspace.svelte";
 export { default as ReviewWorkspaceFileList } from "./review-workspace-file-list.svelte";
 export { default as ReviewWorkspaceHeader } from "./review-workspace-header.svelte";
 export { default as AgentPanelScrollToBottomButton } from "./scroll-to-bottom-button.svelte";
+export { default as AgentPanelTranscriptScrollControls } from "./agent-panel-transcript-scroll-controls.svelte";
 export { default as AgentPanelTodoHeader } from "./todo-header.svelte";
 export { default as TodoNumberIcon } from "./todo-number-icon.svelte";
 export { default as ToolTally } from "./tool-tally.svelte";

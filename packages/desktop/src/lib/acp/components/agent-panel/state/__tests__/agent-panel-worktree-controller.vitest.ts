@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 import type { PanelStore } from "../../../../store/panel-store.svelte.js";
 import type { SessionStore } from "../../../../store/session-store.svelte.js";
 import { AgentPanelWorktreeController } from "../agent-panel-worktree-controller.svelte.js";
-import { WorktreeCloseConfirmationController } from "../worktree-close-confirmation-controller.svelte.js";
 import { WorktreeSetupController } from "../worktree-setup-controller.svelte.js";
 
 describe("AgentPanelWorktreeController", () => {
@@ -12,7 +11,6 @@ describe("AgentPanelWorktreeController", () => {
 		disconnectSession: () => undefined,
 	} as unknown as SessionStore;
 	const worktreeSetup = new WorktreeSetupController();
-	const worktreeCloseConfirm = new WorktreeCloseConfirmationController();
 
 	const make = () =>
 		new AgentPanelWorktreeController({
@@ -31,7 +29,6 @@ describe("AgentPanelWorktreeController", () => {
 			panelStore: stubPanelStore,
 			sessionStore: stubSessionStore,
 			worktreeSetup,
-			worktreeCloseConfirm,
 		});
 
 	it("starts with no active worktree path", () => {
@@ -53,12 +50,5 @@ describe("AgentPanelWorktreeController", () => {
 		expect(controller.preSessionWorktreeFailure).toBe("Worktree creation failed");
 		controller.clearPreSessionWorktreeFailure();
 		expect(controller.preSessionWorktreeFailure).toBeNull();
-	});
-
-	it("dismisses worktree close confirmation on cancel", () => {
-		const controller = make();
-		worktreeCloseConfirm.beginPending();
-		controller.handleWorktreeCloseCancel();
-		expect(worktreeCloseConfirm.confirming).toBe(false);
 	});
 });
