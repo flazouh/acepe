@@ -7,39 +7,30 @@ import {
 } from "./dropdown-menu-typography.js";
 
 describe("buildDropdownMenuItemClassName", () => {
-	it("uses fluid-aligned row typography", () => {
+	it("uses picker-aligned row typography", () => {
 		const className = buildDropdownMenuItemClassName(false);
 		expect(className).toContain(dropdownMenuItemTypographyClass);
-		expect(className).toContain("text-[13px]");
 	});
-
 	it("keeps nested SVG icons muted by default but restores currentColor in interactive states", () => {
 		const className = buildDropdownMenuItemClassName(false);
 
 		expect(className).toContain("[&_svg:not([class*='text-'])]:text-muted-foreground");
 		expect(className).toContain("hover:[&_svg:not([class*='text-'])]:text-current");
 		expect(className).toContain("data-[highlighted]:[&_svg:not([class*='text-'])]:text-current");
-		expect(className).toContain("data-[proximity-active]:[&_svg:not([class*='text-'])]:text-current");
+		expect(className).toContain("aria-selected:[&_svg:not([class*='text-'])]:text-current");
 	});
 
-	it("uses transparent rows with muted text when rendered over sliding highlight layers", () => {
+	it("preserves the highlight-context text behavior for items rendered over the sliding highlight", () => {
 		const className = buildDropdownMenuItemClassName(true);
 
-		expect(className).toContain("bg-transparent text-muted-foreground");
-		expect(className).toContain("data-[proximity-active]:text-foreground");
-		expect(className).not.toContain("hover:bg-accent");
+		expect(className).toContain("bg-transparent text-popover-foreground");
+		expect(className).not.toContain("hover:bg-muted");
 	});
 
-	it("uses rounded-lg menu row geometry", () => {
+	it("uses rounded menu row geometry", () => {
 		const className = buildDropdownMenuItemClassName(true);
 
-		expect(className).toContain("rounded-lg");
-		expect(className).not.toContain("rounded-md");
-	});
-
-	it("applies fluid-style font-weight shift on interactive states", () => {
-		const className = buildDropdownMenuItemClassName(true);
-
-		expect(className).toContain("dropdown-menu-weight-shift");
+		expect(className).toContain("rounded-md");
+		expect(className).not.toContain("rounded-lg");
 	});
 });
