@@ -4,6 +4,7 @@ import {
 	hasAutocompleteTrigger,
 	parseFilePickerTrigger,
 	parseSlashCommandTrigger,
+	replaceActiveSlashTrigger,
 } from "../input-parser.js";
 
 describe("parseFilePickerTrigger", () => {
@@ -168,6 +169,30 @@ describe("parseSlashCommandTrigger", () => {
 				expect(result.value.query).toBe("cmd");
 			}
 		}
+	});
+
+	it("replaceActiveSlashTrigger removes slash query and inserts replacement", () => {
+		const replaced = replaceActiveSlashTrigger({
+			message: "Hello /ce",
+			cursorPos: 9,
+			replacement: "@[command:/ce-work] ",
+		});
+		expect(replaced).toEqual({
+			message: "Hello @[command:/ce-work] ",
+			cursor: 26,
+		});
+	});
+
+	it("replaceActiveSlashTrigger removes slash query without replacement", () => {
+		const replaced = replaceActiveSlashTrigger({
+			message: "Hello /plan",
+			cursorPos: 11,
+			replacement: "",
+		});
+		expect(replaced).toEqual({
+			message: "Hello ",
+			cursor: 6,
+		});
 	});
 
 	it("should return trigger when / is after space", () => {

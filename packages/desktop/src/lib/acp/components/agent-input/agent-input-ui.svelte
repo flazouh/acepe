@@ -4,7 +4,7 @@ import { toast } from "svelte-sonner";
 import { getKeybindingsService, isMac } from "$lib/keybindings/index.js";
 import { getPreconnectionAgentSkillsStore } from "$lib/skills/store/preconnection-agent-skills-store.svelte.js";
 import { getVoiceSettingsStore } from "$lib/stores/voice-settings-store.svelte.js";
-import type { AttachMenuCommandItem } from "@acepe/ui/agent-panel";
+import type { AttachMenuCommandItem, SlashPaletteItem } from "@acepe/ui/agent-panel";
 import {
 	AgentInputActiveModeChip,
 	AgentInputAttachMenu,
@@ -46,10 +46,12 @@ import {
 	normalizeVoiceInputText,
 	parseFilePickerTrigger,
 	parseSlashCommandTrigger,
+	replaceActiveSlashTrigger,
 	PreconnectionCapabilitiesState,
 	PreconnectionRemoteCommandsState,
 	renderInlineComposerMessage,
 	resolveAttachMenuItemInsertText,
+	resolveSlashPaletteItemInsertText,
 	resolveComposerEnterKeyIntent,
 	resolveDefaultModeId,
 	resolveInitialModelIdForNewSession,
@@ -457,6 +459,7 @@ function handleEditorInput(options?: { suppressAutocomplete?: boolean }): void {
 					inputState.slashStartIndex = trigger.startIndex;
 					inputState.slashQuery = trigger.query;
 					inputState.slashPosition = dropdownPosition;
+					composerView.refreshAttachMenuMcpCatalog(true);
 				}
 			} else {
 				inputState.showSlashDropdown = false;
@@ -1041,19 +1044,72 @@ function handleEditorBlur(): void {
 	kb.setContext("inputFocused", false);
 }
 
-function handleCommandSelect(command: AvailableCommand): void {
+function handleSlashPaletteItemSelect(item: SlashPaletteItem): void {
 	if (!editorRef) {
+		inputState.showSlashDropdown = false;
+		inputState.slashQuery = "";
 		return;
 	}
+
 	const cursorPos = getSerializedCursorOffset(editorRef);
-	const before = inputState.message.substring(0, inputState.slashStartIndex);
-	const after = inputState.message.substring(cursorPos);
-	const tokenText = toInlineTokenText(composerView.slashCommandSource.tokenType, `/${command.name}`);
-	inputState.message = `${before}${tokenText} ${after}`;
+
+	if (item.kind === "mode" && item.modeId) {
+		const replaced = replaceActiveSlashTrigger({
+			message: inputState.message,
+			cursorPos,
+			replacement: "",
+		});
+		if (replaced) {
+			inputState.message = replaced.message;
+			syncEditorFromMessage(replaced.cursor);
+		}
+		inputState.showSlashDropdown = false;
+		inputState.slashQuery = "";
+		handleEditorInput({ suppressAutocomplete: true });
+		void handleModeMenuChange(item.modeId);
+		return;
+	}
+
+	if (item.kind === "model" && item.modelId) {
+		const replaced = replaceActiveSlashTrigger({
+			message: inputState.message,
+			cursorPos,
+			replacement: "",
+		});
+		if (replaced) {
+			inputState.message = replaced.message;
+			syncEditorFromMessage(replaced.cursor);
+		}
+		inputState.showSlashDropdown = false;
+		inputState.slashQuery = "";
+		handleEditorInput({ suppressAutocomplete: true });
+		void handleModelChange(item.modelId);
+		return;
+	}
+
+	const insertText = resolveSlashPaletteItemInsertText(item);
+	if (!insertText) {
+		inputState.showSlashDropdown = false;
+		inputState.slashQuery = "";
+		return;
+	}
+
+	const replaced = replaceActiveSlashTrigger({
+		message: inputState.message,
+		cursorPos,
+		replacement: `${insertText} `,
+	});
+	if (!replaced) {
+		inputState.showSlashDropdown = false;
+		inputState.slashQuery = "";
+		return;
+	}
+
+	inputState.message = replaced.message;
 	inputState.showSlashDropdown = false;
 	inputState.slashQuery = "";
-	syncEditorFromMessage(before.length + tokenText.length + 1);
-	handleEditorInput();
+	syncEditorFromMessage(replaced.cursor);
+	handleEditorInput({ suppressAutocomplete: true });
 }
 
 function handleFileSelect(file: { path: string }): void {
@@ -1381,6 +1437,9 @@ $effect(() => {
 		isLoading={composerView.selectorsLoading}
 		panelId={props.panelId}
 		compactSetup
+		embeddedInGroup={composerView.toolbarConfigOptions.some(
+			(option) => option.presentation === "compactReasoning"
+		)}
 	/>
 {/snippet}
 
@@ -1406,9 +1465,14 @@ $effect(() => {
 		<AgentInputDropZone isDragHovering={inputState.isDragHovering} label="Drop image to attach" />
 	{:else}
 		<span class="sr-only" role="status" aria-live="polite">{autonomousStatusMessage}</span>
+		<div class="flex min-w-0 flex-col gap-0.5">
 		{#if showNewThreadOptions && props.newThreadContext}
 			{@const newThread = props.newThreadContext}
-			<div class="mb-1 flex w-full justify-center">
+			<div
+				class="flex w-full {newThread.setupBarAlign === 'start'
+					? 'justify-start'
+					: 'justify-center'}"
+			>
 				<AgentInputNewThreadOptions
 					project={newThread.project}
 					agent={newThread.agent}
@@ -1420,12 +1484,13 @@ $effect(() => {
 					onWorktreeToggle={newThread.onWorktreeToggle}
 					worktreeDefaultOn={newThread.worktreeDefaultOn}
 					onWorktreeDefaultToggle={newThread.onWorktreeDefaultToggle}
+					align={newThread.setupBarAlign ?? "center"}
 				/>
 			</div>
 		{/if}
 		<SharedAgentPanelComposer
 			class="border-t-0 p-0"
-			inputClass="flex-shrink-0 border border-border bg-input/30"
+			inputClass={props.composerInputClass ?? "flex-shrink-0 rounded-lg border border-border bg-input/30"}
 			contentClass={voiceOverlayActive ? "relative p-1" : "p-1"}
 		>
 			{#snippet content()}
@@ -1451,9 +1516,8 @@ $effect(() => {
 					isStreaming={composerView.isStreaming}
 					hasDraftInput={composerView.hasDraftInput}
 					isAgentBusy={composerView.isAgentBusy}
-					effectiveAvailableCommands={composerView.effectiveAvailableCommands}
+					slashPaletteSections={composerView.slashPaletteSections}
 					isSlashDropdownVisible={composerView.isSlashDropdownVisible}
-					slashCommandTokenType={composerView.slashCommandSource.tokenType}
 					filePickerProjectPath={composerView.filePickerProjectPath}
 					onEditorBeforeInput={handleEditorBeforeInput}
 					onEditorInput={() => handleEditorInput()}
@@ -1473,7 +1537,7 @@ $effect(() => {
 						markPreSessionSendStarted();
 						void handlePrimaryButtonClick();
 					}}
-					onCommandSelect={handleCommandSelect}
+					onSlashPaletteItemSelect={handleSlashPaletteItemSelect}
 					loadSlashCommandWorkspaceMarkdown={loadSlashCommandWorkspaceMarkdown}
 					onFileSelect={handleFileSelect}
 					onSlashDropdownClose={() => inputState.handleDropdownClose()}
@@ -1578,5 +1642,6 @@ $effect(() => {
 				</AgentInputComposerBody>
 			{/snippet}
 		</SharedAgentPanelComposer>
+		</div>
 	{/if}
 </div>

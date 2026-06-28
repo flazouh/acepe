@@ -11,6 +11,7 @@ import {
 	buildAttachMenuCommandSections,
 	buildAttachMenuMcpServerGroups,
 	buildAttachMenuModes,
+	buildSlashPaletteSections,
 	ComposerMcpCatalogState,
 	deriveComposerInteractionState,
 	getEffectiveFilePickerProjectPath,
@@ -458,6 +459,30 @@ export class ComposerViewController {
 		this.mcpCatalogState.hasLoaded(this.attachMenuMcpCatalogInput)
 	);
 
+	readonly slashPaletteSections = $derived.by(() =>
+		buildSlashPaletteSections({
+			modes: this.visibleModes,
+			currentModeId: this.effectiveCurrentModeId,
+			availableModels: this.effectiveAvailableModels,
+			modelsDisplay: this.effectiveModelsDisplay,
+			currentModelId: this.effectiveCurrentModelId,
+			agentId: this.capabilitiesAgentId,
+			providerMetadata: this.effectiveCapabilityProviderMetadata,
+			commands: this.effectiveAvailableCommands,
+			preconnectionCommands: this.preconnectionAvailableCommands,
+			mcpCatalog: this.mcpCatalogState.getCatalog(this.attachMenuMcpCatalogInput),
+		})
+	);
+
+	readonly slashPaletteHasContent = $derived.by(() => {
+		for (const section of this.slashPaletteSections) {
+			if (section.items.length > 0) {
+				return true;
+			}
+		}
+		return false;
+	});
+
 	refreshAttachMenuMcpCatalog(force = false): void {
 		if (!this.attachMenuShowMcpSection) {
 			return;
@@ -487,6 +512,7 @@ export class ComposerViewController {
 			isTriggerActive: this.#deps.getInputState().showSlashDropdown,
 			source: this.slashCommandSource,
 			capabilitiesAgentId: this.capabilitiesAgentId,
+			hasPaletteContent: this.slashPaletteHasContent,
 		})
 	);
 

@@ -7,9 +7,10 @@ import {
 	AgentInputSlashCommandDropdown,
 	AgentInputVoiceRecordingOverlay,
 	type AgentInputSlashCommandWorkspaceMarkdownResult,
+	type SlashPaletteItem,
+	type SlashPaletteSection,
 } from "@acepe/ui/agent-panel";
 import type { Snippet } from "svelte";
-import type { AvailableCommand } from "../../../types/available-command.js";
 import type { ComposerInteractionState } from "../../../logic/composer-ui-state.js";
 import FilePreview from "../../file-picker/file-preview.svelte";
 import type { AgentInputState } from "../state/agent-input-state.svelte.js";
@@ -28,9 +29,8 @@ let {
 	isStreaming,
 	hasDraftInput,
 	isAgentBusy,
-	effectiveAvailableCommands,
+	slashPaletteSections,
 	isSlashDropdownVisible,
-	slashCommandTokenType,
 	filePickerProjectPath,
 	onEditorBeforeInput,
 	onEditorInput,
@@ -47,7 +47,7 @@ let {
 	onOverlayClose,
 	onOverlayMouseEnterCancel,
 	onPrimaryButtonClick,
-	onCommandSelect,
+	onSlashPaletteItemSelect,
 	loadSlashCommandWorkspaceMarkdown,
 	onFileSelect,
 	onSlashDropdownClose,
@@ -73,9 +73,8 @@ let {
 	isStreaming: boolean;
 	hasDraftInput: boolean;
 	isAgentBusy: boolean;
-	effectiveAvailableCommands: readonly AvailableCommand[];
+	slashPaletteSections: readonly SlashPaletteSection[];
 	isSlashDropdownVisible: boolean;
-	slashCommandTokenType: "command" | "skill";
 	filePickerProjectPath: string | null;
 	onEditorBeforeInput: (e: InputEvent) => void;
 	onEditorInput: () => void;
@@ -92,9 +91,9 @@ let {
 	onOverlayClose: () => void;
 	onOverlayMouseEnterCancel: () => void;
 	onPrimaryButtonClick: () => void;
-	onCommandSelect: (cmd: AvailableCommand) => void;
+	onSlashPaletteItemSelect: (item: SlashPaletteItem) => void;
 	loadSlashCommandWorkspaceMarkdown?: (input: {
-		readonly command: AvailableCommand;
+		readonly command: { name: string; description: string; input?: { hint: string } | null };
 		readonly tokenType: "command" | "skill";
 	}) => Promise<AgentInputSlashCommandWorkspaceMarkdownResult>;
 	onFileSelect: (file: { path: string }) => void;
@@ -183,19 +182,17 @@ const submitAriaLabel = $derived(
 {/if}
 <AgentInputSlashCommandDropdown
 	bind:this={inputState.slashDropdownRef}
-	commands={effectiveAvailableCommands}
+	sections={slashPaletteSections}
 	isOpen={isSlashDropdownVisible}
 	query={inputState.slashQuery}
 	position={inputState.slashPosition}
-	headerLabel={"Commands"}
-	noCommandsLabel={"No commands available"}
-	noResultsLabel={"No commands found"}
-	startTypingLabel={"Start typing to search commands..."}
+	noContentLabel={"Nothing available"}
+	noResultsLabel={"No matching items"}
+	startTypingLabel={"Start typing to filter"}
 	selectHintLabel={"to select"}
 	closeHintLabel={"to close"}
-	tokenType={slashCommandTokenType}
 	loadWorkspaceMarkdown={loadSlashCommandWorkspaceMarkdown}
-	onSelect={(cmd: AvailableCommand) => onCommandSelect(cmd)}
+	onItemSelect={onSlashPaletteItemSelect}
 	onClose={onSlashDropdownClose}
 />
 <AgentInputFilePickerDropdown
