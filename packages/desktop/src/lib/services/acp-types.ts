@@ -221,7 +221,13 @@ scope?: string; costUsd?: number | null; tokens?: UsageTelemetryTokens; sourceMo
 /**
  * Context window size reported by the agent (e.g. from usage_update `size` field).
  */
-contextWindowSize?: number | null }
+contextWindowSize?: number | null;
+/**
+ * When set, this telemetry belongs to a spawned sub-agent rather than the
+ * top-level session turn. The id is the parent `Task` tool-call id, used to
+ * aggregate per-sub-agent usage downstream. `None` = session-level telemetry.
+ */
+parentToolUseId?: string | null }
 
 /**
  * Token counts for usage telemetry (generic, adapter-agnostic).
