@@ -3,8 +3,7 @@ import { getContext, setContext } from "svelte";
 const DROPDOWN_MENU_HIGHLIGHT_KEY = Symbol("dropdown-menu-highlight");
 
 export type DropdownMenuHighlightContext = {
-	updateHighlight: (element: HTMLElement | null) => void;
-	clearHighlight: () => void;
+	attachItem: (element: HTMLElement) => () => void;
 };
 
 export function setDropdownMenuHighlightContext(

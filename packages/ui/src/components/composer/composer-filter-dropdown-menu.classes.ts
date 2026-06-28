@@ -11,7 +11,7 @@ export const composerFilterDropdownFilterInputClass =
 
 export const composerFilterDropdownListClass = "max-h-72 overflow-y-auto pl-2 pr-1 pt-0 pb-1";
 
-export const composerFilterDropdownItemClass = "cursor-pointer rounded-md px-2 py-1.5";
+export const composerFilterDropdownItemClass = "cursor-pointer rounded-lg px-2 py-2";
 
 export const composerFilterDropdownEmptyStateClass =
 	"px-2.5 py-2 text-center text-sm text-muted-foreground";
