@@ -63,7 +63,7 @@ const sidebar = useSidebar();
 		<div
 			data-slot="sidebar-gap"
 			class={cn(
-				"relative w-(--sidebar-width) bg-transparent transition-[width] duration-300 ease-out",
+				"relative w-(--sidebar-width) bg-transparent",
 				"group-data-[collapsible=offcanvas]:w-0",
 				"group-data-[side=right]:rotate-180",
 				variant === "floating" || variant === "inset"
@@ -74,7 +74,7 @@ const sidebar = useSidebar();
 		<div
 			data-slot="sidebar-container"
 			class={cn(
-				"fixed inset-y-0 z-10 hidden w-(--sidebar-width) transition-[left,right,width,opacity] duration-300 ease-out md:flex",
+				"fixed inset-y-0 z-10 hidden w-(--sidebar-width) md:flex",
 				"group-data-[collapsible=offcanvas]:opacity-0",
 				side === "left"
 					? "start-1 group-data-[collapsible=offcanvas]:start-[calc(var(--sidebar-width)*-1)]"
