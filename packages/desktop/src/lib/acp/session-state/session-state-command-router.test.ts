@@ -67,13 +67,7 @@ function createBufferPush(): ViewportBufferPush {
 	return {
 		sessionId: "session-1",
 		graphRevision: revision,
-		viewportRevision: 1,
 		emissionSeq: 0,
-		bufferStartIndex: 0,
-		bufferEndIndex: 1,
-		layoutRowCount: 1,
-		totalHeightPx: 120,
-		bufferEndOffsetPx: 120,
 		rows: [
 			{
 				rowId: "transcript:assistant-1",
@@ -97,11 +91,6 @@ function createBufferPush(): ViewportBufferPush {
 				},
 			},
 		],
-		offsetsPx: [0],
-		mode: {
-			kind: "followingTail",
-		},
-		scrollTopTarget: null,
 		diagnostics: [],
 	};
 }
@@ -340,19 +329,8 @@ describe("routeSessionStateEnvelope", () => {
 				transcriptRevision: 7,
 				lastEventSeq: 9,
 			},
-			viewportRevision: 1,
 			emissionSeq: 0,
-			bufferStartIndex: 0,
-			bufferEndIndex: 0,
-			layoutRowCount: 0,
-			totalHeightPx: 0,
-			bufferEndOffsetPx: 0,
 			rows: [],
-			offsetsPx: [],
-			mode: {
-				kind: "followingTail",
-			},
-			scrollTopTarget: null,
 			diagnostics: [],
 		};
 		const envelope: SessionStateEnvelope = {

@@ -1,6 +1,6 @@
 <!--
   AgentPanelTranscriptScrollControls - Compact setup-chip scroll jumps for the transcript.
-  Sits above the composer, aligned to the composer's top-right edge.
+  Sits at the top of the pre-composer card stack, aligned to the composer's top-right edge.
 -->
 <script lang="ts">
 	import ArrowDown from "@lucide/svelte/icons/arrow-down";
@@ -67,7 +67,7 @@
 {#if showControls}
 	<div
 		data-testid="transcript-scroll-controls"
-		class={cn("flex shrink-0 px-2 pb-1", centered && "justify-center", className)}
+		class={cn("flex shrink-0 px-2 pt-0.5 pb-0.5", centered && "justify-center", className)}
 	>
 		<div class={cn("flex w-full justify-end", centered && widthClass)}>
 			<ButtonGroup

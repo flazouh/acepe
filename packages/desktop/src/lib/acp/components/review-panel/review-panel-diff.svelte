@@ -50,6 +50,7 @@ const diffData = $derived.by(() =>
 	selectReviewDiffData(fetchedDiffData, embeddedDiffData, {
 		preferFetchedDiff: projectPath !== null,
 		fetchedDiffSettled,
+		file,
 	})
 );
 

@@ -18,6 +18,7 @@ import {
 	isAtBottom,
 	jumpToLatest as jumpToLatestState,
 	onContentChange,
+	openAt as openAtState,
 	onScrollMeasure,
 	onSend as onSendState,
 	shouldReleaseOnUserScroll,
@@ -79,6 +80,8 @@ export type StickToBottomParams = {
 	readonly resolveRowTop?: ResolveRowTop;
 	/** Notified whenever follow/unread state changes (e.g. to drive the unread pill). */
 	readonly onStateChange?: (state: StickState) => void;
+	/** Notified whenever top/bottom edge state may have changed. */
+	readonly onEdgeStateChange?: (state: { readonly atTop: boolean; readonly atBottom: boolean }) => void;
 };
 
 export type StickToBottomController = {
@@ -87,6 +90,10 @@ export type StickToBottomController = {
 	jumpToLatest(): void;
 	/** On send: anchor the sent row near the top but keep following the reply. */
 	onSend(rowId: string, peekPx: number): void;
+	/** Opening history: anchor a row near the top and preserve that reading position. */
+	openAt(rowId: string, peekPx: number): void;
+	/** Move to the first row and release follow, matching the header scroll action. */
+	scrollToTop(): void;
 	/** Content size changed — also fired by the internal ResizeObserver. */
 	notifyContentChanged(): void;
 	destroy(): void;
@@ -109,12 +116,20 @@ export function createStickToBottomController(
 	let prevScrollHeight = scrollEl.scrollHeight;
 	let anchorBaselineTopPx: number | null = null;
 
+	function emitEdgeState(): void {
+		params.onEdgeStateChange?.({
+			atTop: scrollEl.scrollTop <= 0,
+			atBottom: isAtBottom(readScrollMetrics(scrollEl), threshold),
+		});
+	}
+
 	function emit(next: StickState): void {
 		const changed = next.released !== state.released || next.hasUnreadBelow !== state.hasUnreadBelow;
 		state = next;
 		if (changed) {
 			params.onStateChange?.(state);
 		}
+		emitEdgeState();
 	}
 
 	function captureAnchorBaseline(): void {
@@ -179,16 +194,42 @@ export function createStickToBottomController(
 		anchorBaselineTopPx = null;
 	}
 
+	function openAt(rowId: string, peekPx: number): void {
+		const rowTop = params.resolveRowTop?.(rowId) ?? null;
+		if (rowTop === null) {
+			jumpToLatest();
+			return;
+		}
+		const result = openAtState(state, rowId, peekPx);
+		apply(result.action);
+		emit(result.state);
+		captureAnchorBaseline();
+	}
+
+	function scrollToTop(): void {
+		const before = scrollEl.scrollTop;
+		scrollEl.scrollTop = 0;
+		if (scrollEl.scrollTop !== before) {
+			programmatic = true;
+		}
+		prevScrollHeight = scrollEl.scrollHeight;
+		emit({ released: true, hasUnreadBelow: false });
+		captureAnchorBaseline();
+	}
+
 	scrollEl.addEventListener("scroll", handleScroll, { passive: true });
 
 	const hasResizeObserver = typeof ResizeObserver === "function";
 	const observer = hasResizeObserver ? new ResizeObserver(() => notifyContentChanged()) : null;
 	observer?.observe(content);
+	emitEdgeState();
 
 	return {
 		getState: () => state,
 		jumpToLatest,
 		onSend,
+		openAt,
+		scrollToTop,
 		notifyContentChanged,
 		destroy() {
 			scrollEl.removeEventListener("scroll", handleScroll);

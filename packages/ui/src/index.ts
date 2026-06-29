@@ -48,6 +48,10 @@ export type {
 	LintDiagnostic,
 } from "./components/agent-panel/index.js";
 export type {
+	AgentInputBranchListDisplay,
+	AgentInputBranchSelectorVariant,
+} from "./components/agent-panel/agent-input-branch-selector-types.js";
+export type {
 	AgentInputConfigOption,
 	AgentInputModelSelectorGroup,
 	AgentInputModelSelectorItem,
@@ -70,6 +74,7 @@ export {
 export {
 	AgentInputArtefactBadge,
 	AgentInputAutonomousToggle,
+	AgentInputBranchSelector,
 	AgentInputConfigOptionSelector,
 	AgentInputDivider,
 	AgentInputEditor,

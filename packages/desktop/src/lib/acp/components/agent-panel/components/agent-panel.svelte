@@ -1520,7 +1520,7 @@ async function handlePlanSidebarSendMessage(sid: string, message: string): Promi
 				{sessionId}
 				reviewFilesState={reviewFilesState}
 				selectedFileIndex={clampedReviewFileIndex}
-				projectPath={sessionController.sessionProjectPath}
+				projectPath={effectiveProjectPath ?? sessionController.sessionProjectPath}
 				isActive={reviewMode}
 				onClose={() => onExitReviewMode?.()}
 				onFileIndexChange={(index) => onReviewFileIndexChange?.(index)}
@@ -1529,6 +1529,15 @@ async function handlePlanSidebarSendMessage(sid: string, message: string): Promi
 	{/snippet}
 
 	{#snippet preComposer()}
+		{#if viewState.kind === "conversation" && !reviewMode}
+			<SharedAgentPanelTranscriptScrollControls
+				showScrollToTop={!contentScrollReveal.isAtTop}
+				showScrollToBottom={!contentScrollReveal.isAtBottom}
+				onScrollToTop={scrollToTop}
+				onScrollToBottom={scrollToBottom}
+				centered={centeredFullscreenContent}
+			/>
+		{/if}
 		<AgentPanelPreComposerStack
 			{reviewMode}
 			showConversationChrome={viewState.kind === "conversation" ||
@@ -1598,15 +1607,6 @@ async function handlePlanSidebarSendMessage(sid: string, message: string): Promi
 	{#snippet composer()}
 		<div style:display={reviewMode ? "none" : undefined}>
 			{#if viewState.kind === "conversation" || viewState.kind === "ready" || viewState.kind === "error"}
-				{#if viewState.kind === "conversation"}
-					<SharedAgentPanelTranscriptScrollControls
-						showScrollToTop={!contentScrollReveal.isAtTop}
-						showScrollToBottom={!contentScrollReveal.isAtBottom}
-						onScrollToTop={scrollToTop}
-						onScrollToBottom={scrollToBottom}
-						centered={centeredFullscreenContent}
-					/>
-				{/if}
 				<SharedAgentPanelComposerFrame
 					centered={centeredFullscreenContent}
 					widthClass="max-w-[60%]"
@@ -1918,7 +1918,7 @@ async function handlePlanSidebarSendMessage(sid: string, message: string): Promi
 			{sessionId}
 			reviewFilesState={reviewDialog.filesState}
 			selectedFileIndex={reviewDialog.clampedFileIndex}
-			projectPath={sessionController.sessionProjectPath}
+			projectPath={effectiveProjectPath ?? sessionController.sessionProjectPath}
 			isActive={reviewDialog.isOpen}
 			showHeader={false}
 			showCloseButton={false}

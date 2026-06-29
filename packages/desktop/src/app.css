@@ -186,6 +186,11 @@
 	}
 	body {
 		@apply bg-background text-foreground font-sans;
+		/* App default text size: 14px. Elements without an explicit text-* size
+		   inherit this floor (Tailwind's preflight otherwise leaves the 16px
+		   browser default). Components that opt into text-xs/[11px]/etc. are
+		   unaffected. */
+		font-size: 0.875rem;
 		-webkit-font-smoothing: antialiased;
 		-moz-osx-font-smoothing: grayscale;
 	}

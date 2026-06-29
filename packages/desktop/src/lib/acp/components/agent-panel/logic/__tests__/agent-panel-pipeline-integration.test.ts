@@ -150,7 +150,6 @@ function renderTurn(input: {
 
 	const rendered = buildRenderedTranscriptViewportRows({
 		bufferRows: input.bufferRows,
-		offsetsPx: input.bufferRows.map(() => 0),
 		bufferStartIndex: 0,
 		sceneEntries: input.sceneEntries,
 		showLocalPlanningIndicator: sessionState.showPlanningIndicator,

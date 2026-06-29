@@ -397,17 +397,8 @@ describe("reduceCommand", () => {
 		const push: ViewportBufferPush = {
 			sessionId: "session-1",
 			graphRevision: revision,
-			viewportRevision: 1,
 			emissionSeq: 0,
-			bufferStartIndex: 0,
-			bufferEndIndex: 1,
-			layoutRowCount: 1,
-			totalHeightPx: 120,
-			bufferEndOffsetPx: 120,
 			rows: [],
-			offsetsPx: [],
-			mode: { kind: "followingTail" },
-			scrollTopTarget: null,
 			diagnostics: [],
 		};
 
@@ -425,18 +416,9 @@ describe("reduceCommand", () => {
 			sessionId: "session-1",
 			graphRevision: revision,
 			emissionSeq: 1,
-			fromViewportRevision: 1,
-			toViewportRevision: 2,
 			prependedRows: [],
-			prependedOffsetsPx: [],
 			appendedRows: [],
-			appendedOffsetsPx: [],
 			removedRowIds: [],
-			layoutRowCount: 1,
-			totalHeightPx: 120,
-			bufferEndOffsetPx: 120,
-			scrollAnchorCorrectionPx: null,
-			scrollTopTarget: null,
 			diagnostics: [],
 		};
 

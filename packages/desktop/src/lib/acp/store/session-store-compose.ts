@@ -42,7 +42,7 @@ import {
 import type { ISessionStateWriter } from "./services/interfaces/index.js";
 import type { SessionEventHandler } from "./session-event-handler.js";
 import type { SessionStoreCallbacks } from "./session-store.svelte.js";
-import { ViewportProjectionController } from "./viewport-projection-controller.svelte.js";
+import { TranscriptRowsController } from "./transcript-rows-controller.svelte.js";
 import { SessionIdentityResolver } from "./session-identity-resolver.js";
 
 export type SessionStoreParts = {
@@ -61,7 +61,7 @@ export type SessionStoreParts = {
 	readonly composer: ComposerMachineService;
 	readonly connection: SessionConnectionFacade;
 	readonly loading: SessionLoadingFacade;
-	readonly viewport: ViewportProjectionController;
+	readonly viewport: TranscriptRowsController;
 	readonly lifecycleCleanup: SessionLifecycleCleanup;
 	readonly openSnapshotApplier: SessionOpenSnapshotApplier;
 	readonly envelopeApplier: SessionEnvelopeApplier;
@@ -166,16 +166,7 @@ export function composeSessionStoreParts(input: ComposeSessionStorePartsInput): 
 		hasSessionCanonicalProjection: (sessionId) => read.hasSessionCanonicalProjection(sessionId),
 	});
 
-	const connectionRef: { current: SessionConnectionFacade | null } = { current: null };
-
-	const viewport = new ViewportProjectionController({
-		connectSession: (sessionId, options) => {
-			const connection = connectionRef.current;
-			if (connection === null) {
-				throw new Error("SessionConnectionFacade not initialized");
-			}
-			return connection.connectSession(sessionId, options);
-		},
+	const viewport = new TranscriptRowsController({
 		getGraphRevision: (sessionId) => read.getGraphRevision(sessionId),
 		applySessionStateEnvelope: (sessionId, envelope) =>
 			input.applySessionStateEnvelope(sessionId, envelope),
@@ -439,7 +430,6 @@ export function composeSessionStoreParts(input: ComposeSessionStorePartsInput): 
 		messagingOrchestrator,
 		creationCoordinator,
 		listState,
-		viewport,
 		awaitingModelRefresh,
 		prLinkState,
 		read,
@@ -447,7 +437,6 @@ export function composeSessionStoreParts(input: ComposeSessionStorePartsInput): 
 		eventHandler: eventHandlerRef.current,
 		getCallbacks: () => callbacks,
 	});
-	connectionRef.current = connection;
 
 	const loading = new SessionLoadingFacade({
 		repository,

@@ -156,6 +156,23 @@ describe("createStickToBottomController", () => {
 		c.destroy();
 	});
 
+	it("openAt anchors a saved thread row near the top and leaves follow released", () => {
+		const resolveRowTop = (rowId: string) => (rowId === "user-latest" ? 860 : null);
+		const c = controllerFor({ resolveRowTop });
+		c.openAt("user-latest", 72);
+		expect(el.scrollTop).toBe(788);
+		expect(c.getState()).toEqual({ released: true, hasUnreadBelow: false });
+		c.destroy();
+	});
+
+	it("openAt falls back to the live edge when the requested row is not mounted", () => {
+		const c = controllerFor({ resolveRowTop: () => null });
+		c.openAt("missing-row", 72);
+		expect(el.scrollTop).toBe(1000);
+		expect(c.getState()).toEqual({ released: false, hasUnreadBelow: false });
+		c.destroy();
+	});
+
 	it("detaches its scroll listener on destroy", () => {
 		const c = controllerFor();
 		const removeSpy = vi.spyOn(el, "removeEventListener");

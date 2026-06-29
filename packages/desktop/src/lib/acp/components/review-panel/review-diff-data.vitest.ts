@@ -115,4 +115,39 @@ describe("createReviewDiffData", () => {
 			})
 		).toBe(embedded);
 	});
+
+	it("rejects fetched whole-file additions when session stats show deletions", () => {
+		const file = {
+			filePath: "/project/src/example.ts",
+			fileName: "example.ts",
+			totalAdded: 3,
+			totalRemoved: 3,
+			originalContent: null,
+			finalContent: "line-01\nline-02-updated\nline-03\n",
+			editCount: 1,
+		};
+		const fetched = createReviewDiffData(file, null, file.finalContent);
+		const embedded = createReviewDiffData(file, "line-01\nline-02\nline-03\n", file.finalContent);
+
+		expect(fetched?.fileDiffMetadata.hunks.length).toBeGreaterThan(0);
+		expect(embedded?.fileDiffMetadata.hunks.length).toBeGreaterThan(0);
+		expect(selectReviewDiffData(fetched, embedded, { file })).toBe(embedded);
+	});
+
+	it("rejects embedded whole-file additions when original session content exists", () => {
+		const file = {
+			filePath: "/project/src/example.ts",
+			fileName: "example.ts",
+			totalAdded: 1,
+			totalRemoved: 0,
+			originalContent: "before\n",
+			finalContent: "after\n",
+			editCount: 1,
+		};
+		const fetched = createReviewDiffData(file, "before\n", "after\n");
+		const embedded = createReviewDiffData(file, null, file.finalContent);
+
+		expect(selectReviewDiffData(null, embedded, { file })).toBeNull();
+		expect(selectReviewDiffData(fetched, embedded, { file })).toBe(fetched);
+	});
 });

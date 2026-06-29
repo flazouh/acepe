@@ -8,7 +8,7 @@ const DEFAULT_ITERATIONS = 5;
 const DEFAULT_SETTLE_MS = 1_200;
 const DEFAULT_BOTTOM_SETTLE_MS = 800;
 const DEFAULT_CALL_TIMEOUT_MS = 90_000;
-const DEFAULT_MIN_VIEWPORTS = 2;
+const DEFAULT_MIN_VIEWPORTS = 1;
 const MAX_ALLOWED_TOP_GAP_PX = 64;
 const MAX_ALLOWED_BOTTOM_DISTANCE_PX = 512;
 
@@ -169,30 +169,33 @@ function scenarioScript(input: {
   const readViewports = () => Array.from(document.querySelectorAll("[data-testid=rust-transcript-viewport]"))
     .map((el, domIndex) => {
       const viewportRect = el.getBoundingClientRect();
-      const rows = Array.from(el.querySelectorAll("[data-entry-key]"));
+      const scrollEl = el.querySelector("[role=log]") || el;
+      const scrollRect = scrollEl.getBoundingClientRect();
+      const rows = Array.from(el.querySelectorAll("[data-row-id]"));
       const first = rows[0] || null;
       const last = rows[rows.length - 1] || null;
       const firstRect = first ? first.getBoundingClientRect() : null;
       const lastRect = last ? last.getBoundingClientRect() : null;
-      const firstTopDeltaPx = firstRect ? Math.round(firstRect.top - viewportRect.top) : null;
-      const lastBottomDeltaPx = lastRect ? Math.round(lastRect.bottom - viewportRect.top) : null;
+      const firstTopDeltaPx = firstRect ? Math.round(firstRect.top - scrollRect.top) : null;
+      const lastBottomDeltaPx = lastRect ? Math.round(lastRect.bottom - scrollRect.top) : null;
       let visibleRowCount = 0;
       for (const row of rows) {
         const rowRect = row.getBoundingClientRect();
-        if (rowRect.bottom > viewportRect.top && rowRect.top < viewportRect.bottom) {
+        if (rowRect.bottom > scrollRect.top && rowRect.top < scrollRect.bottom) {
           visibleRowCount += 1;
         }
       }
       return {
         el,
+        scrollEl,
         panel: 0,
         domIndex,
         left: Math.round(viewportRect.left),
-        visible: viewportRect.width > 0 && viewportRect.height > 0,
-        scrollTop: Math.round(el.scrollTop),
-        maxTop: Math.round(el.scrollHeight - el.clientHeight),
-        scrollHeight: Math.round(el.scrollHeight),
-        clientHeight: Math.round(el.clientHeight),
+        visible: scrollRect.width > 0 && scrollRect.height > 0,
+        scrollTop: Math.round(scrollEl.scrollTop),
+        maxTop: Math.round(scrollEl.scrollHeight - scrollEl.clientHeight),
+        scrollHeight: Math.round(scrollEl.scrollHeight),
+        clientHeight: Math.round(scrollEl.clientHeight),
         bufferStartIndex: numberData(el, "bufferStartIndex"),
         bufferEndIndex: numberData(el, "bufferEndIndex"),
         bufferLayoutRowCount: numberData(el, "bufferLayoutRowCount"),
@@ -202,9 +205,9 @@ function scenarioScript(input: {
         bufferMode: el.dataset.bufferMode || null,
         rows: rows.length,
         visibleRowCount,
-        firstId: first ? first.getAttribute("data-entry-key") : null,
+        firstId: first ? first.getAttribute("data-row-id") : null,
         firstTopDeltaPx,
-        lastId: last ? last.getAttribute("data-entry-key") : null,
+        lastId: last ? last.getAttribute("data-row-id") : null,
         lastBottomDeltaPx,
         blankTopGapPx: firstTopDeltaPx === null ? 0 : Math.max(0, firstTopDeltaPx),
       };
@@ -213,6 +216,7 @@ function scenarioScript(input: {
     .sort((a, b) => a.left - b.left)
     .map((snapshot, panel) => ({
       el: snapshot.el,
+      scrollEl: snapshot.scrollEl,
       panel,
       domIndex: snapshot.domIndex,
       left: snapshot.left,
@@ -350,16 +354,16 @@ function scenarioScript(input: {
     recordViolations(logicalIteration, "initial", initial);
 
     for (const viewport of readViewports()) {
-      viewport.el.scrollTop = viewport.maxTop;
-      viewport.el.dispatchEvent(new Event("scroll", { bubbles: true }));
+      viewport.scrollEl.scrollTop = viewport.maxTop;
+      viewport.scrollEl.dispatchEvent(new Event("scroll", { bubbles: true }));
     }
     await sleep(bottomSettleMs);
     const bottom = publicSnapshots();
     recordViolations(logicalIteration, "bottom", bottom);
 
     for (const viewport of readViewports()) {
-      viewport.el.scrollTop = 0;
-      viewport.el.dispatchEvent(new Event("scroll", { bubbles: true }));
+      viewport.scrollEl.scrollTop = 0;
+      viewport.scrollEl.dispatchEvent(new Event("scroll", { bubbles: true }));
     }
     const immediate = publicSnapshots();
     recordViolations(logicalIteration, "immediate", immediate);

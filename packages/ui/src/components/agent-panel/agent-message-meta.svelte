@@ -1,5 +1,8 @@
 <script lang="ts">
 	import AgentCopyButton from "./agent-copy-button.svelte";
+	import { ButtonGroup } from "../button-group/index.js";
+	import { FUSED_CONTROL_CHIP_GROUP_CLASS } from "../panel-header/index.js";
+	import { cn } from "../../lib/utils.js";
 
 	interface Props {
 		text: string;
@@ -33,22 +36,31 @@
 
 	const showModel = $derived(isAssistant && model != null && model.length > 0);
 
-	// Match the soft-filled "setup card" look (e.g. the worktree setup card):
-	// a borderless, rounded pill on a subtle `bg-input/30` fill. Tone only the
-	// text/dividers per variant so user vs assistant chips still read distinct.
 	const textToneClass = $derived(isAssistant ? "text-muted-foreground" : "text-muted-foreground/70");
+
+	// Fused control button group — identical UI to the worktree setup chip group:
+	// a `bg-accent/30` rounded shell whose segments are divided by hairline borders.
+	const dividerClass = "border-l border-border/30";
+	const labelSegmentClass =
+		"flex shrink-0 items-center px-1.5 py-1 text-xs leading-none tabular-nums transition-colors";
 </script>
 
-<div class="inline-flex items-center gap-1.5 overflow-hidden rounded-lg bg-input/30 px-2 py-0.5">
+<ButtonGroup class={FUSED_CONTROL_CHIP_GROUP_CLASS}>
 	{#if showModel}
-		<span class="whitespace-nowrap text-[11px] {textToneClass}">{model}</span>
+		<span class={cn(labelSegmentClass, textToneClass)}>{model}</span>
 	{/if}
 	{#if timestampLabel}
-		<span class="text-[11px] tabular-nums {textToneClass}" title={timestampTitle}>
+		<span
+			class={cn(labelSegmentClass, textToneClass, showModel && dividerClass)}
+			title={timestampTitle}
+		>
 			{timestampLabel}
 		</span>
 	{/if}
 	{#if showCopy}
-		<AgentCopyButton {text} class="rounded-md {textToneClass}" />
+		<AgentCopyButton
+			{text}
+			class={cn(textToneClass, (showModel || timestampLabel) && dividerClass)}
+		/>
 	{/if}
-</div>
+</ButtonGroup>

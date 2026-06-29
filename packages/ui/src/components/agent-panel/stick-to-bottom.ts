@@ -134,6 +134,18 @@ export function onSend(_state: StickState, rowId: string, peekPx: number): Stick
 	};
 }
 
+/**
+ * Opening a saved thread is different from sending. It should land the reader
+ * near the latest user turn and preserve that reading position, so follow is
+ * intentionally released until the reader jumps back to the live edge.
+ */
+export function openAt(_state: StickState, rowId: string, peekPx: number): StickTransition {
+	return {
+		state: { released: true, hasUnreadBelow: false },
+		action: { kind: "anchorRowNearTop", rowId, peekPx },
+	};
+}
+
 /** Return to the live edge and re-engage follow, clearing the unread flag. */
 export function jumpToLatest(_state: StickState): StickTransition {
 	return {

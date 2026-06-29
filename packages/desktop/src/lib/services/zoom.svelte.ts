@@ -6,6 +6,7 @@
 
 import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { ResultAsync } from "neverthrow";
+import { toast } from "svelte-sonner";
 import type { UserSettingKey } from "$lib/services/user-settings-types.js";
 import { settings } from "$lib/utils/tauri-client/settings.js";
 
@@ -40,7 +41,15 @@ export class ZoomService {
 	 * Gets the current zoom level as a percentage string.
 	 */
 	get zoomPercentage(): string {
-		return `${Math.round(this.currentZoom * 100)}%`;
+		return ZoomService.formatPercentage(this.currentZoom);
+	}
+
+	private static formatPercentage(level: number): string {
+		return `${Math.round(level * 100)}%`;
+	}
+
+	private showZoomToast(level: number): void {
+		toast.info(`Zoom level · ${ZoomService.formatPercentage(level)}`);
 	}
 
 	/**
@@ -79,7 +88,14 @@ export class ZoomService {
 	 */
 	setZoom(level: number): ResultAsync<void, Error> {
 		const clampedLevel = Math.max(ZOOM_CONFIG.MIN, Math.min(level, ZOOM_CONFIG.MAX));
-		return this.applyZoom(clampedLevel).andThen(() => this.saveZoomLevel(clampedLevel));
+		const previousLevel = this.currentZoom;
+		return this.applyZoom(clampedLevel)
+			.andThen(() => this.saveZoomLevel(clampedLevel))
+			.map(() => {
+				if (clampedLevel !== previousLevel) {
+					this.showZoomToast(clampedLevel);
+				}
+			});
 	}
 
 	/**

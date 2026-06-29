@@ -116,13 +116,7 @@ function createViewportBufferPush(rowCount: number, textSize: number) {
 	return {
 		sessionId: "session-1",
 		graphRevision: revision,
-		viewportRevision: 1,
 		emissionSeq: 0,
-		bufferStartIndex: 0,
-		bufferEndIndex: rowCount,
-		layoutRowCount: rowCount,
-		totalHeightPx: rowCount * 120,
-		bufferEndOffsetPx: rowCount * 120,
 		rows: Array.from({ length: rowCount }, (_, index) => ({
 			rowId: `transcript:assistant-${index}`,
 			sourceEntryId: `assistant-${index}`,
@@ -144,11 +138,6 @@ function createViewportBufferPush(rowCount: number, textSize: number) {
 				],
 			},
 		})),
-		offsetsPx: Array.from({ length: rowCount }, (_, index) => index * 120),
-		mode: {
-			kind: "followingTail" as const,
-		},
-		scrollTopTarget: null,
 		diagnostics: [],
 	};
 }

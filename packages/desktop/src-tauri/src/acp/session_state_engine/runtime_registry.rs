@@ -5,8 +5,8 @@ use crate::acp::projections::{ProjectionRegistry, SessionSnapshot};
 use crate::acp::session_state_engine::anchor_ledger::AnchorLedger;
 use crate::acp::session_state_engine::buffer_emission_tracker::BufferEmissionTracker;
 use crate::acp::session_state_engine::envelope_router::{
-    interaction_id_for_patch, route_live_session_state_envelope, should_emit_connection_complete,
-    tool_call_id_for_operation_patch, BuildPlan, EnvelopeBuilderKind,
+    BuildPlan, EnvelopeBuilderKind, interaction_id_for_patch, route_live_session_state_envelope,
+    should_emit_connection_complete, tool_call_id_for_operation_patch,
 };
 use crate::acp::session_state_engine::frontier::SessionFrontierDecision;
 use crate::acp::session_state_engine::graph::select_active_streaming_tail;
@@ -16,17 +16,16 @@ use crate::acp::session_state_engine::live_envelope_builder::{
     build_live_session_state_plan_envelope, build_live_session_state_telemetry_envelope,
 };
 use crate::acp::session_state_engine::selectors::{
-    select_session_graph_activity, SessionGraphCapabilities, SessionGraphLifecycle,
+    SessionGraphCapabilities, SessionGraphLifecycle, select_session_graph_activity,
 };
-use crate::acp::session_state_engine::viewport_ledger::ViewportLedger;
+use crate::acp::session_state_engine::transcript_rows_ledger::TranscriptRowsLedger;
 use crate::acp::session_state_engine::{
-    build_delta_envelope, session_state_envelope_byte_budget_status, turn_terminal_change_fields,
     CapabilityPreviewState, DeltaEnvelopeParts, DeltaSessionProjectionFields, SessionGraphRevision,
-    SessionStateEnvelope, SessionStateField, SessionStatePayload,
+    SessionStateEnvelope, SessionStateField, SessionStatePayload, build_delta_envelope,
+    session_state_envelope_byte_budget_status, turn_terminal_change_fields,
 };
-use crate::acp::session_update::{sanitize_config_options_for_canonical, SessionUpdate};
+use crate::acp::session_update::{SessionUpdate, sanitize_config_options_for_canonical};
 use crate::acp::transcript_projection::{TranscriptProjectionRegistry, TranscriptSnapshot};
-use crate::acp::transcript_viewport::ScrollIntent;
 use crate::acp::types::CanonicalAgentId;
 use crate::db::repository::SessionMetadataRepository;
 use sea_orm::DbConn;
@@ -54,7 +53,7 @@ impl Default for SessionGraphRuntimeSnapshot {
 pub struct SessionGraphRuntimeRegistry {
     supervisor: Arc<SessionSupervisor>,
     anchors: AnchorLedger,
-    viewports: ViewportLedger,
+    rows: TranscriptRowsLedger,
     emissions: BufferEmissionTracker,
 }
 
@@ -74,18 +73,9 @@ pub enum VisibleTranscriptWindowMiss {
     BudgetExceeded,
 }
 
-#[derive(Debug, Clone)]
-pub struct TranscriptViewportHeightConfirmation {
-    pub row_id: String,
-    pub row_version: String,
-    pub height_px: u32,
-    pub viewport_offset_px: Option<u64>,
-}
-
 pub use crate::acp::session_state_engine::envelope_router::LiveSessionStateEnvelopeRequest;
 pub use crate::acp::session_state_engine::viewport_buffer_producer::{
-    buffer_delta_is_identity_consistent, classify_buffer_transition, compute_buffer_delta,
-    BufferEmission,
+    BufferEmission, compute_rows_delta, decide_buffer_emission,
 };
 
 impl SessionGraphRuntimeRegistry {
@@ -96,12 +86,12 @@ impl SessionGraphRuntimeRegistry {
 
     #[must_use]
     pub fn with_supervisor(supervisor: Arc<SessionSupervisor>) -> Self {
-        let viewports = ViewportLedger::new();
+        let rows = TranscriptRowsLedger::new();
         Self {
             supervisor,
             anchors: AnchorLedger::new(),
-            emissions: BufferEmissionTracker::new(viewports.clone()),
-            viewports,
+            emissions: BufferEmissionTracker::new(rows.clone()),
+            rows,
         }
     }
 
@@ -148,7 +138,8 @@ impl SessionGraphRuntimeRegistry {
     pub fn remove_session(&self, session_id: &str) {
         self.supervisor.remove_session(session_id);
         self.anchors.remove_session(session_id);
-        self.viewports.remove_session(session_id);
+        self.rows.remove_session(session_id);
+        self.emissions.remove_session(session_id);
     }
 
     pub fn restore_session_checkpoint(&self, session_id: String, checkpoint: LifecycleCheckpoint) {
@@ -381,9 +372,6 @@ impl SessionGraphRuntimeRegistry {
             request.revision,
             request.projection_registry,
             request.transcript_projection_registry,
-            None,
-            None,
-            None,
             None,
             false,
         ) {
@@ -840,22 +828,15 @@ impl SessionGraphRuntimeRegistry {
         }
     }
 
-    /// Build a `ViewportBufferPush`: a large buffered slice the WebView resolves
-    /// scroll offsets against locally, refilling only when nearing its bounds.
-    /// `request_generation` echoes the UI's request id so late responses can be
-    /// gated against newer live deltas. `scroll_top_target` carries the
-    /// Rust-decided scroll position (initial open, reveal, follow-tail).
+    /// Build a rows-only `ViewportBufferPush`. `request_generation` echoes the
+    /// UI's request id so late responses can be gated against newer live deltas.
     pub fn build_viewport_buffer_push_envelope_for_session(
         &self,
         session_id: &str,
         revision: SessionGraphRevision,
         projection_registry: &ProjectionRegistry,
         transcript_projection_registry: &TranscriptProjectionRegistry,
-        viewport_height_px: Option<u32>,
-        scroll_intent: Option<ScrollIntent>,
-        height_confirmation: Option<TranscriptViewportHeightConfirmation>,
         request_generation: Option<u64>,
-        emission_seq: u64,
     ) -> Result<SessionStateEnvelope, VisibleTranscriptWindowMiss> {
         let runtime_snapshot = self.snapshot_for_session(session_id);
         self.emissions
@@ -865,41 +846,27 @@ impl SessionGraphRuntimeRegistry {
                 revision,
                 projection_registry,
                 transcript_projection_registry,
-                viewport_height_px,
-                scroll_intent,
-                height_confirmation,
                 request_generation,
-                emission_seq,
             )
     }
 
-    /// Stateful producer entry point for the push-a-working-set protocol. Diffs
-    /// the freshly-materialized buffer slice against what was last emitted for
-    /// this session and emits the cheapest correct payload:
+    /// Stateful producer entry point for the rows protocol. Diffs freshly
+    /// materialized rows against what was last emitted for this session and
+    /// emits the cheapest correct payload:
     ///
-    /// - no prior buffer, or a disjoint jump → `ViewportBufferPush` (all rows)
-    /// - a contiguous slide / streaming tail-append → `ViewportBufferDelta`
-    /// - an identical window → nothing (`Ok(None)`)
+    /// - no prior rows, force-fresh request, or complex edit -> push all rows
+    /// - simple prepend / append / remove -> delta
+    /// - identical rows -> nothing (`Ok(None)`)
     ///
-    /// `emission_seq` is bumped under the `buffer_emissions` lock on every
-    /// emission and is the consumer's sole apply-ordering authority across the
-    /// command-reply and event-stream channels.
-    ///
-    /// B4: an ACCEPTED height confirmation re-measures a row and shifts the
-    /// absolute offsets of every row below it. A delta does not re-send
-    /// surviving rows, so it would leave them at stale offsets. We therefore
-    /// force a `FreshPush` (re-send all offsets) whenever a height confirmation
-    /// was accepted. A rejected confirmation (`height_diag.is_some()`) changed
-    /// nothing and falls through to normal classification.
+    /// `emission_seq` is bumped under the tracker lock on every emission and is
+    /// the consumer's apply-order authority across command replies and live
+    /// event stream envelopes.
     pub fn build_or_advance_viewport_buffer_envelope(
         &self,
         session_id: &str,
         revision: SessionGraphRevision,
         projection_registry: &ProjectionRegistry,
         transcript_projection_registry: &TranscriptProjectionRegistry,
-        viewport_height_px: Option<u32>,
-        scroll_intent: Option<ScrollIntent>,
-        height_confirmation: Option<TranscriptViewportHeightConfirmation>,
         request_generation: Option<u64>,
         force_fresh: bool,
     ) -> Result<Option<SessionStateEnvelope>, VisibleTranscriptWindowMiss> {
@@ -910,9 +877,6 @@ impl SessionGraphRuntimeRegistry {
             revision,
             projection_registry,
             transcript_projection_registry,
-            viewport_height_px,
-            scroll_intent,
-            height_confirmation,
             request_generation,
             force_fresh,
         )
@@ -1061,9 +1025,8 @@ mod tests {
     //! | Chunk timestamp monotonicity | `anchor_ledger` tests | — |
 
     use super::{
-        session_state_envelope_byte_budget_status, CapabilityPreviewState,
-        LiveSessionStateEnvelopeRequest, SessionGraphRuntimeRegistry, SessionStateField,
-        VisibleTranscriptWindowMiss,
+        CapabilityPreviewState, LiveSessionStateEnvelopeRequest, SessionGraphRuntimeRegistry,
+        SessionStateField, session_state_envelope_byte_budget_status,
     };
     use crate::acp::session_state_engine::live_envelope_builder::{
         build_assistant_text_delta_from_components, build_live_session_state_capabilities_envelope,
@@ -1092,11 +1055,11 @@ mod tests {
     use crate::acp::client_session::{default_modes, default_session_model_state};
     use crate::acp::lifecycle::{LifecycleStatus, SessionSupervisor};
     use crate::acp::projections::ProjectionRegistry;
+    use crate::acp::session_state_engine::SessionStatePayload;
     use crate::acp::session_state_engine::selectors::{
         SessionGraphActivity, SessionGraphActivityKind, SessionGraphCapabilities,
         SessionGraphLifecycle,
     };
-    use crate::acp::session_state_engine::SessionStatePayload;
     use crate::acp::session_state_engine::{
         DeltaSessionProjectionFields, SessionGraphRevision, SessionStateEnvelope,
     };
@@ -1111,7 +1074,6 @@ mod tests {
     use crate::acp::transcript_projection::{
         TranscriptDelta, TranscriptDeltaOperation, TranscriptProjectionRegistry, TranscriptSnapshot,
     };
-    use crate::acp::transcript_viewport::ScrollIntent;
     use crate::acp::types::{CanonicalAgentId, ContentBlock};
     use crate::db::repository::SessionMetadataRepository;
     use sea_orm::{Database, DbConn};
@@ -2451,12 +2413,16 @@ mod tests {
                     delta.operation_patches[0].operation_state,
                     crate::acp::projections::OperationState::Blocked
                 );
-                assert!(delta
-                    .changed_fields
-                    .contains(&SessionStateField::Interactions));
-                assert!(delta
-                    .changed_fields
-                    .contains(&SessionStateField::Operations));
+                assert!(
+                    delta
+                        .changed_fields
+                        .contains(&SessionStateField::Interactions)
+                );
+                assert!(
+                    delta
+                        .changed_fields
+                        .contains(&SessionStateField::Operations)
+                );
             }
             other => panic!("expected delta payload, got {:?}", other),
         }
@@ -2539,11 +2505,13 @@ mod tests {
         match &envelope.payload {
             SessionStatePayload::Snapshot { graph } => {
                 assert_eq!(graph.revision, SessionGraphRevision::new(11, 10, 11));
-                assert!(graph
-                    .operations
-                    .iter()
-                    .any(|operation| operation.tool_call_id == "active-tool"
-                        && operation.provider_status == ToolCallStatus::Completed));
+                assert!(
+                    graph
+                        .operations
+                        .iter()
+                        .any(|operation| operation.tool_call_id == "active-tool"
+                            && operation.provider_status == ToolCallStatus::Completed)
+                );
                 assert!(serialized_envelope_len(&envelope) <= 2_000_000);
             }
             other => panic!("expected snapshot repair payload, got {:?}", other),
@@ -2743,8 +2711,8 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn additional_session_state_envelopes_orders_lifecycle_before_buffer_on_connection_complete(
-    ) {
+    async fn additional_session_state_envelopes_orders_lifecycle_before_buffer_on_connection_complete()
+     {
         let db = setup_test_db().await;
         insert_session_metadata(&db, "session-1").await;
         let projection_registry = ProjectionRegistry::new();
@@ -2862,11 +2830,4 @@ mod tests {
             other => panic!("expected capabilities payload, got {:?}", other),
         }
     }
-
-    use super::{buffer_delta_is_identity_consistent, compute_buffer_delta};
-    use crate::acp::transcript_projection::TranscriptEntryRole;
-    use crate::acp::transcript_viewport::{
-        TranscriptViewportRow, TranscriptViewportRowContent, TranscriptViewportRowKind,
-        ViewportBufferSlice, ViewportMode,
-    };
 }

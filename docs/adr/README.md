@@ -26,3 +26,4 @@ What gets better, what gets worse, what we now owe.
 
 - [ADR-0001](0001-neverthrow-not-effect.md) — Keep neverthrow for TS error handling; do not adopt Effect
 - [ADR-0002](0002-composed-sub-stores-for-reactive-decomposition.md) — Decompose god reactive stores into composed sub-stores, not free functions
+- [ADR-0003](0003-dom-authority-transcript-viewport.md) — Use DOM-authority scrolling for the transcript viewport

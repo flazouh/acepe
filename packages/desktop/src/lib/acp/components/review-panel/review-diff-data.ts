@@ -37,9 +37,37 @@ function hasDiffHunks(diffData: ReviewDiffData | null): boolean {
 	return (diffData?.fileDiffMetadata.hunks.length ?? 0) > 0;
 }
 
+function isMisleadingWholeFileAdditionDiff(
+	diffData: ReviewDiffData | null,
+	file: ModifiedFileEntry | undefined
+): boolean {
+	if (!diffData || !file) {
+		return false;
+	}
+
+	if (diffData.oldFile.contents.length > 0) {
+		return false;
+	}
+
+	if (diffData.newFile.contents.length === 0) {
+		return false;
+	}
+
+	if (file.totalRemoved > 0) {
+		return true;
+	}
+
+	if (file.originalContent !== null && file.originalContent.length > 0) {
+		return true;
+	}
+
+	return false;
+}
+
 interface SelectReviewDiffDataOptions {
 	preferFetchedDiff?: boolean;
 	fetchedDiffSettled?: boolean;
+	file?: ModifiedFileEntry;
 }
 
 export function selectReviewDiffData(
@@ -51,13 +79,21 @@ export function selectReviewDiffData(
 		return fetchedDiffData;
 	}
 
-	if (hasDiffHunks(fetchedDiffData)) {
-		return fetchedDiffData;
+	const file = options.file;
+	const usableFetchedDiff = isMisleadingWholeFileAdditionDiff(fetchedDiffData, file)
+		? null
+		: fetchedDiffData;
+	const usableEmbeddedDiff = isMisleadingWholeFileAdditionDiff(embeddedDiffData, file)
+		? null
+		: embeddedDiffData;
+
+	if (hasDiffHunks(usableFetchedDiff)) {
+		return usableFetchedDiff;
 	}
 
-	if (hasDiffHunks(embeddedDiffData)) {
-		return embeddedDiffData;
+	if (hasDiffHunks(usableEmbeddedDiff)) {
+		return usableEmbeddedDiff;
 	}
 
-	return fetchedDiffData ?? embeddedDiffData;
+	return usableFetchedDiff ?? usableEmbeddedDiff;
 }

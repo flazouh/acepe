@@ -8,7 +8,6 @@ import type {
 	AssistantRenderBlockContext,
 } from "@acepe/ui/agent-panel";
 import type { ComponentProps, Snippet } from "svelte";
-import type { TranscriptViewportRow } from "../../../../services/acp-types.js";
 import type { PermissionRequest } from "../../../types/permission.js";
 import type { RenderedTranscriptViewportRow } from "../logic/transcript-viewport-rendered-rows.js";
 import MessageWrapper from "../../messages/message-wrapper.svelte";
@@ -32,7 +31,6 @@ let {
 	onToolFileSelect,
 	isPlanActionAvailable,
 	getAttachedPermission,
-	confirmRowHeight,
 }: {
 	renderedRows: readonly RenderedTranscriptViewportRow[];
 	sessionId?: string | null;
@@ -52,23 +50,11 @@ let {
 		sessionId: string,
 		toolCallId: string
 	) => PermissionRequest | undefined;
-	confirmRowHeight: (node: HTMLDivElement, row: TranscriptViewportRow) => {
-		update: (nextRow: TranscriptViewportRow) => void;
-		destroy: () => void;
-	};
 } = $props();
-
-function ignoreLocalRowHeight(_node: HTMLDivElement, _row: TranscriptViewportRow) {
-	return {
-		update(_nextRow: TranscriptViewportRow) {},
-		destroy() {},
-	};
-}
 </script>
 
 {#each renderedRows as rendered (rendered.row.rowId)}
-	{@const rowHeightAction = rendered.localOnly ? ignoreLocalRowHeight : confirmRowHeight}
-	<div use:rowHeightAction={rendered.row} data-entry-key={rendered.row.rowId}>
+	<div class="transcript-viewport-row" data-entry-key={rendered.row.rowId}>
 		<MessageWrapper
 			entryIndex={rendered.index}
 			entryKey={rendered.row.rowId}
@@ -116,13 +102,21 @@ function ignoreLocalRowHeight(_node: HTMLDivElement, _row: TranscriptViewportRow
 		position: relative;
 		z-index: 1;
 		margin-top: -1px;
+		min-width: 0;
 		max-width: 100%;
 		width: 100%;
 	}
 
 	.tool-call-permission-attachment {
-		flex: 0 0 auto;
+		flex: 1 1 auto;
+		min-width: 0;
 		max-width: 100%;
-		width: fit-content;
+		width: 100%;
+	}
+
+	.transcript-viewport-row {
+		min-width: 0;
+		width: 100%;
+		max-width: 100%;
 	}
 </style>

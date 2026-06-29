@@ -6,10 +6,14 @@
 <script lang="ts">
 	import { Lightning, ShieldCheck } from "phosphor-svelte";
 
-	import { Button } from "../button/index.js";
 	import { Selector } from "../selector/index.js";
 	import type { SelectorTriggerSize } from "../selector/selector-trigger-classes.js";
 	import { resolveSelectorTriggerSize } from "../selector/selector-trigger-classes.js";
+	import {
+		FUSED_CONTROL_COMPOSER_ICON_SIZE_CLASS,
+		FUSED_CONTROL_COMPOSER_STANDALONE_ICON_CHIP_CLASS,
+	} from "../panel-header/index.js";
+	import { cn } from "../../lib/utils.js";
 	import * as Tooltip from "../tooltip/index.js";
 	import AgentInputReasoningEffortTrigger from "./agent-input-reasoning-effort-trigger.svelte";
 	import AgentInputSelectorItemRow from "./agent-input-selector-item-row.svelte";
@@ -84,9 +88,13 @@
 
 {#snippet configOptionIcon()}
 	{#if viewState.iconKind === "fast"}
-		<Lightning class="{viewState.iconClass} size-3.5" weight={viewState.iconWeight} style={viewState.iconStyle} />
+		<Lightning
+			class={cn(FUSED_CONTROL_COMPOSER_ICON_SIZE_CLASS, viewState.iconClass)}
+			weight={viewState.iconWeight}
+			style={viewState.iconStyle}
+		/>
 	{:else}
-		<ShieldCheck class="size-3.5" weight="fill" style="color: {viewState.iconColor}" />
+		<ShieldCheck class={FUSED_CONTROL_COMPOSER_ICON_SIZE_CLASS} weight="fill" style="color: {viewState.iconColor}" />
 	{/if}
 {/snippet}
 
@@ -119,28 +127,23 @@
 	<Tooltip.Root>
 		<Tooltip.Trigger>
 			{#snippet child({ props })}
-				<Button
+				<button
 					{...props}
-					variant="chromeIcon"
-					size="chromeIcon"
+					type="button"
 					data-header-control
 					title={viewState.buttonTitle}
 					aria-label={viewState.buttonTitle}
-					active={viewState.isBooleanEnabled}
 					disabled={disabled}
-					class={fastTriggerClass}
+					class={cn(FUSED_CONTROL_COMPOSER_STANDALONE_ICON_CHIP_CLASS, fastTriggerClass)}
 					aria-pressed={viewState.isBooleanEnabled}
 					onclick={handleBooleanToggle}
 				>
-					{#snippet children()}
-						<Lightning
-							class={viewState.iconClass}
-							size={12}
-							weight={viewState.iconWeight}
-							style={viewState.iconStyle}
-						/>
-					{/snippet}
-				</Button>
+					<Lightning
+						class={cn(FUSED_CONTROL_COMPOSER_ICON_SIZE_CLASS, viewState.iconClass)}
+						weight={viewState.iconWeight}
+						style={viewState.iconStyle}
+					/>
+				</button>
 			{/snippet}
 		</Tooltip.Trigger>
 		{@render configOptionTooltipContent()}

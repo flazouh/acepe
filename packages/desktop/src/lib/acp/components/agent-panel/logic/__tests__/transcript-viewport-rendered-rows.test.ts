@@ -35,7 +35,6 @@ describe("buildRenderedTranscriptViewportRows", () => {
 	it("adds local-only optimistic and planning rows before Rust has viewport rows", () => {
 		const rows = buildRenderedTranscriptViewportRows({
 			bufferRows: [],
-			offsetsPx: [],
 			bufferStartIndex: 0,
 			sceneEntries: [createOptimisticUserEntry("optimistic-user", "First message")],
 			showLocalPlanningIndicator: true,
@@ -55,7 +54,6 @@ describe("buildRenderedTranscriptViewportRows", () => {
 	it("does not duplicate a scene entry already represented by a Rust viewport row", () => {
 		const rows = buildRenderedTranscriptViewportRows({
 			bufferRows: [createViewportUserRow("user-1", "Canonical message")],
-			offsetsPx: [0],
 			bufferStartIndex: 3,
 			sceneEntries: [createOptimisticUserEntry("user-1", "Canonical message")],
 			showLocalPlanningIndicator: false,

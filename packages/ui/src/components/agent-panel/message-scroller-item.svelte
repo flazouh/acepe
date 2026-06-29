@@ -31,6 +31,9 @@
 
 <style>
 	.message-scroller-item {
+		min-width: 0;
+		width: 100%;
+		max-width: 100%;
 		content-visibility: auto;
 		contain-intrinsic-size: auto var(--cv-estimate-px);
 	}

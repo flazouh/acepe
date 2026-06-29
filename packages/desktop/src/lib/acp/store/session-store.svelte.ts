@@ -15,7 +15,7 @@ import type { SessionEventHandler } from "./session-event-handler.js";
 import type { SessionUsageTelemetry } from "./types.js";
 import type { TurnErrorUpdate } from "../types/turn-error.js";
 import type { SessionCold, SessionIdentity } from "./types.js";
-import type { ViewportProjectionController } from "./viewport-projection-controller.svelte.js";
+import type { TranscriptRowsController } from "./transcript-rows-controller.svelte.js";
 import type { SessionReadFacade } from "./session-read-facade.js";
 import type { SessionWriteFacade } from "./session-write-facade.js";
 import type { SessionConnectionManager } from "./services/session-connection-manager.js";
@@ -67,7 +67,7 @@ export class SessionStore implements SessionEventHandler {
 	readonly composer: ComposerMachineService;
 	readonly connection: SessionConnectionFacade;
 	readonly loading: SessionLoadingFacade;
-	readonly viewport: ViewportProjectionController;
+	readonly viewport: TranscriptRowsController;
 
 	readonly #parts: SessionStoreParts;
 

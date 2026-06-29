@@ -15,11 +15,14 @@ export const FUSED_CONTROL_SETUP_CHIP_LABEL_TEXT_CLASS = "text-xs leading-none f
 
 /** Icon footprint for new-thread setup bar chips (project, agent, branch, worktree). */
 export const FUSED_CONTROL_SETUP_CHIP_ICON_SIZE_PX = 14;
-export const FUSED_CONTROL_SETUP_CHIP_ICON_SIZE_CLASS = `size-[${FUSED_CONTROL_SETUP_CHIP_ICON_SIZE_PX}px] shrink-0`;
+export const FUSED_CONTROL_SETUP_CHIP_ICON_SIZE_CLASS = "size-[14px] shrink-0";
 
 /** Icon footprint for composer trailing toolbar chips (model, reasoning, mic). */
 export const FUSED_CONTROL_COMPOSER_ICON_SIZE_PX = 15;
-export const FUSED_CONTROL_COMPOSER_ICON_SIZE_CLASS = `size-[${FUSED_CONTROL_COMPOSER_ICON_SIZE_PX}px] shrink-0`;
+export const FUSED_CONTROL_COMPOSER_ICON_SIZE_CLASS = "size-[15px] shrink-0";
+
+/** Minimum hit target for composer trailing toolbar chips (model, fast mode, mic). */
+export const FUSED_CONTROL_COMPOSER_CHIP_MIN_SIZE_CLASS = "min-h-[23px] min-w-[23px]";
 
 type FusedChipIconSizePx =
 	| typeof FUSED_CONTROL_SETUP_CHIP_ICON_SIZE_PX
@@ -27,8 +30,15 @@ type FusedChipIconSizePx =
 
 const FUSED_CONTROL_GROUPED_CHIP_SEGMENT_CLASS = "!rounded-none !bg-transparent shadow-none";
 
+const FUSED_CHIP_CHILD_SVG_SIZE_CLASS: Record<FusedChipIconSizePx, string> = {
+	[FUSED_CONTROL_SETUP_CHIP_ICON_SIZE_PX]:
+		"[&_svg]:block [&_svg]:size-[14px] [&_svg]:shrink-0",
+	[FUSED_CONTROL_COMPOSER_ICON_SIZE_PX]:
+		"[&_svg]:block [&_svg]:size-[15px] [&_svg]:shrink-0",
+};
+
 function fusedChipSvgSizeClass(iconSizePx: FusedChipIconSizePx): string {
-	return `[&_svg]:block [&_svg]:size-[${iconSizePx}px] [&_svg]:shrink-0`;
+	return FUSED_CHIP_CHILD_SVG_SIZE_CLASS[iconSizePx];
 }
 
 function fusedLabeledChipButtonClass(iconSizePx: FusedChipIconSizePx): string {
@@ -52,17 +62,19 @@ function fusedGroupedLabeledChipButtonClass(iconSizePx: FusedChipIconSizePx): st
 }
 
 /** Icon chip in the composer trailing toolbar (reasoning, mic segment). */
-export const FUSED_CONTROL_COMPOSER_CHIP_BUTTON_CLASS = fusedIconChipButtonClass(
-	FUSED_CONTROL_COMPOSER_ICON_SIZE_PX
+export const FUSED_CONTROL_COMPOSER_CHIP_BUTTON_CLASS = cn(
+	fusedIconChipButtonClass(FUSED_CONTROL_COMPOSER_ICON_SIZE_PX),
+	FUSED_CONTROL_COMPOSER_CHIP_MIN_SIZE_CLASS
 );
 
-/** Standalone composer icon chip (reasoning) — same px/py + icon footprint as mic primary segment. */
+/** Standalone composer icon chip (fast mode, reasoning) — same footprint as mic primary segment. */
 export const FUSED_CONTROL_COMPOSER_STANDALONE_ICON_CHIP_CLASS =
 	FUSED_CONTROL_COMPOSER_CHIP_BUTTON_CLASS;
 
 /** Labeled composer chip (model selector, config options). */
-export const FUSED_CONTROL_COMPOSER_CHIP_LABEL_BUTTON_CLASS = fusedLabeledChipButtonClass(
-	FUSED_CONTROL_COMPOSER_ICON_SIZE_PX
+export const FUSED_CONTROL_COMPOSER_CHIP_LABEL_BUTTON_CLASS = cn(
+	fusedLabeledChipButtonClass(FUSED_CONTROL_COMPOSER_ICON_SIZE_PX),
+	"min-h-[23px]"
 );
 
 /** Labeled setup bar chip (project, agent, branch). */
@@ -93,13 +105,15 @@ export const FUSED_CONTROL_LEADING_SEGMENT_CLASS =
 /** Primary segment inside {@link FUSED_CONTROL_CHIP_GROUP_CLASS}. */
 export const FUSED_CONTROL_PRIMARY_BUTTON_CLASS = cn(
 	"flex shrink-0 items-center justify-center rounded-none rounded-l-md border-0 bg-transparent px-1 py-1 leading-none text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:ring-inset disabled:pointer-events-none disabled:opacity-50",
-	fusedChipSvgSizeClass(FUSED_CONTROL_COMPOSER_ICON_SIZE_PX)
+	fusedChipSvgSizeClass(FUSED_CONTROL_COMPOSER_ICON_SIZE_PX),
+	FUSED_CONTROL_COMPOSER_CHIP_MIN_SIZE_CLASS
 );
 
 /** Middle segment inside a multi-item {@link FUSED_CONTROL_CHIP_GROUP_CLASS}. */
 export const FUSED_CONTROL_GROUPED_MIDDLE_BUTTON_CLASS = cn(
 	"flex shrink-0 items-center justify-center rounded-none border-0 border-l border-border/30 bg-transparent px-1 py-1 leading-none text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:ring-inset disabled:pointer-events-none disabled:opacity-50",
-	fusedChipSvgSizeClass(FUSED_CONTROL_COMPOSER_ICON_SIZE_PX)
+	fusedChipSvgSizeClass(FUSED_CONTROL_COMPOSER_ICON_SIZE_PX),
+	FUSED_CONTROL_COMPOSER_CHIP_MIN_SIZE_CLASS
 );
 
 /** First labeled segment inside a fused composer button group. */

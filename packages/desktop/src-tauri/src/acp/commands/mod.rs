@@ -12,13 +12,13 @@ use crate::acp::streaming_log::log_streaming_event;
 use crate::acp::types::CanonicalAgentId;
 use crate::acp::types::PromptRequest;
 use crate::path_safety::ProjectPathSafetyError;
-use crate::project_access::{validate_project_directory_brokered, ProjectAccessReason};
-use serde_json::{json, Value};
+use crate::project_access::{ProjectAccessReason, validate_project_directory_brokered};
+use serde_json::{Value, json};
 use std::path::PathBuf;
 use std::sync::Arc;
 use tauri::{AppHandle, Manager};
 use tokio::sync::Mutex as TokioMutex;
-use tokio::time::{timeout, Duration};
+use tokio::time::{Duration, timeout};
 
 mod client_ops;
 mod computer_probe;
@@ -70,11 +70,7 @@ pub use session_commands::{
     acp_initialize, acp_new_session, acp_resume_session, acp_set_session_autonomous,
 };
 pub(crate) use session_commands::{emit_lifecycle_event, session_metadata_context_from_cwd};
-pub use transcript_viewport_commands::{
-    acp_confirm_transcript_viewport_height, acp_request_transcript_viewport_buffer,
-    acp_resize_transcript_viewport, acp_reveal_transcript_viewport_row,
-    acp_scroll_transcript_viewport,
-};
+pub use transcript_viewport_commands::acp_request_transcript_viewport_buffer;
 
 type SessionClientMutex = TokioMutex<Box<dyn AgentClient + Send + Sync + 'static>>;
 type SessionClientArc = Arc<SessionClientMutex>;

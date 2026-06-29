@@ -40,6 +40,11 @@ export {
 	composerFilterDropdownSubmenuContentClass,
 } from "./composer-filter-dropdown-menu.classes.js";
 export { default as AgentInputAutonomousToggle } from "./agent-input-autonomous-toggle.svelte";
+export { default as AgentInputBranchSelector } from "./agent-input-branch-selector.svelte";
+export type {
+	AgentInputBranchListDisplay,
+	AgentInputBranchSelectorVariant,
+} from "./agent-input-branch-selector-types.js";
 export { default as AgentInputComposerRow } from "./agent-input-composer-row.svelte";
 export { default as AgentInputComposerToolbar } from "./agent-input-composer-toolbar.svelte";
 export { default as AgentInputModelReasoningFusedControls } from "./agent-input-model-reasoning-fused-controls.svelte";

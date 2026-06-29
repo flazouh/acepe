@@ -4,31 +4,20 @@ import {
 	ProjectHeader,
 	ProjectHeaderOverflowMenu,
 } from "@acepe/ui/app-layout";
-import { Colors } from "@acepe/ui/colors";
-import ChevronUp from "@lucide/svelte/icons/chevron-up";
-import { IconArrowDown } from "@tabler/icons-svelte";
-import { IconArrowUp } from "@tabler/icons-svelte";
 import { IconPlus } from "@tabler/icons-svelte";
-import { listen } from "@tauri-apps/api/event";
-import { ArrowsClockwise } from "phosphor-svelte";
 import { GitBranch } from "phosphor-svelte";
 import { FolderOpen } from "phosphor-svelte";
 import { tick } from "svelte";
 import { SvelteMap, SvelteSet } from "svelte/reactivity";
-import { toast } from "svelte-sonner";
 import type { SessionDisplayItem } from "$lib/acp/types/thread-display-item.js";
 import { Button } from "$lib/components/ui/button/index.js";
-import { Input } from "$lib/components/ui/input/index.js";
 import {
 	ProjectCardSkeleton,
 	SessionListSkeleton,
-	Skeleton,
 } from "$lib/components/ui/skeleton/index.js";
 import * as Tooltip from "@acepe/ui/tooltip";
-import { tauriClient } from "$lib/utils/tauri-client.js";
 import type { AgentInfo } from "../../logic/agent-manager.js";
 import ProjectFileSystemDialog from "../file-explorer-modal/project-file-system-dialog.svelte";
-import BranchPicker from "../branch-picker/branch-picker.svelte";
 import {
 	getSidebarSessions,
 	getNextSessionListVisibleCount,
@@ -36,13 +25,6 @@ import {
 	isSessionListNearBottom,
 	resolveDefaultAgentIdForCreate,
 } from "./session-list-logic.js";
-import {
-	fetchRemote,
-	type GitOverviewData,
-	type GitOverviewState,
-	loadGitOverview as loadGitOverviewImpl,
-	pullRemote,
-} from "./session-list-git-overview.js";
 import {
 	getMovedProjectOrder,
 	getProjectGroupByPath,
@@ -148,7 +130,6 @@ const projectHeaderFocusTargets = new Map<string, HTMLDivElement>();
 let reorderAnnouncement = $state("");
 
 const visibleSessionCounts = new SvelteMap<string, number>();
-const projectHistoryQueries = new SvelteMap<string, string>();
 const sessionListContainers = new Map<string, HTMLDivElement>();
 
 function shouldShowProjectCreateButton(): boolean {
@@ -191,7 +172,6 @@ $effect(() => {
 	for (const projectPath of visibleSessionCounts.keys()) {
 		if (!activeProjectPaths.has(projectPath)) {
 			visibleSessionCounts.delete(projectPath);
-			projectHistoryQueries.delete(projectPath);
 			sessionListContainers.delete(projectPath);
 		}
 	}
@@ -251,28 +231,8 @@ function projectHeaderFocusTarget(
 	};
 }
 
-function getProjectHistoryQuery(projectPath: string): string {
-	return projectHistoryQueries.get(projectPath) ?? "";
-}
-
-function setProjectHistoryQuery(projectPath: string, query: string): void {
-	if (query.length === 0) {
-		projectHistoryQueries.delete(projectPath);
-		return;
-	}
-	projectHistoryQueries.set(projectPath, query);
-}
-
 function getFilteredSidebarSessionsForProject(group: SessionGroup): SessionListItem[] {
-	const sidebarSessions = getSidebarSessions(group.sessions);
-	const query = getProjectHistoryQuery(group.projectPath).trim().toLowerCase();
-	if (query.length === 0) {
-		return sidebarSessions;
-	}
-	return sidebarSessions.filter((session) => {
-		const haystack = `${session.title} ${session.agentId}`.toLowerCase();
-		return haystack.includes(query);
-	});
+	return getSidebarSessions(group.sessions);
 }
 
 function getVisibleSessionsForProject(group: SessionGroup): SessionListItem[] {
@@ -282,10 +242,6 @@ function getVisibleSessionsForProject(group: SessionGroup): SessionListItem[] {
 		visibleSessionCounts.get(group.projectPath)
 	);
 	return sidebarSessions.slice(0, visibleCount);
-}
-
-function handleProjectHistorySearchKeydown(event: KeyboardEvent): void {
-	event.stopPropagation();
 }
 
 function ensureSessionListOverflow(projectPath: string, totalSessions: number): void {
@@ -360,119 +316,6 @@ function sessionListContainer(
 function handleSessionListScroll(projectPath: string, totalSessions: number): void {
 	ensureSessionListOverflow(projectPath, totalSessions);
 }
-
-// ─── Git overview state (per-project) ──────────────────────────────
-const gitDataByProject = new SvelteMap<string, GitOverviewData>();
-const gitLoadedProjects = new SvelteSet<string>();
-const nonGitProjects = new SvelteSet<string>();
-const fetchingProjects = new SvelteSet<string>();
-const pullingProjects = new SvelteSet<string>();
-const gitOverviewRequestVersionByProject = new Map<string, number>();
-let initializingGitProject = $state<string | null>(null);
-const gitOverviewState: GitOverviewState = {
-	gitDataByProject,
-	gitLoadedProjects,
-	nonGitProjects,
-	fetchingProjects,
-	pullingProjects,
-	gitOverviewRequestVersionByProject,
-};
-
-function loadGitOverview(projectPath: string) {
-	loadGitOverviewImpl(gitOverviewState, projectPath);
-}
-
-function handleInitGitRepo(projectPath: string): void {
-	if (initializingGitProject) return;
-	initializingGitProject = projectPath;
-	void tauriClient.git.init(projectPath).match(
-		() => {
-			initializingGitProject = null;
-			nonGitProjects.delete(projectPath);
-			gitLoadedProjects.delete(projectPath);
-			loadGitOverview(projectPath);
-			toast.success("Git repository initialized");
-		},
-		(error) => {
-			const message =
-				error.cause?.message ?? error.message ?? "Failed to initialize git repository";
-			void tauriClient.git.isRepo(projectPath).match(
-				(isRepo) => {
-					initializingGitProject = null;
-					if (isRepo) {
-						nonGitProjects.delete(projectPath);
-						gitLoadedProjects.delete(projectPath);
-						loadGitOverview(projectPath);
-						toast.success("Git repository initialized");
-						return;
-					}
-
-					toast.error(message);
-				},
-				() => {
-					initializingGitProject = null;
-					toast.error(message);
-				}
-			);
-		}
-	);
-}
-
-function handleFetchRemote(event: MouseEvent, projectPath: string) {
-	event.stopPropagation();
-	fetchRemote(gitOverviewState, projectPath);
-}
-
-function handlePullRemote(event: MouseEvent, projectPath: string) {
-	event.stopPropagation();
-	pullRemote(gitOverviewState, projectPath);
-}
-
-// Load git overview for all projects on mount
-$effect(() => {
-	for (const group of sessionGroups) {
-		loadGitOverview(group.projectPath);
-	}
-});
-
-// Watch for external branch changes via .git/HEAD file watcher.
-// Two separate effects: one subscribes to the event stream once (mount),
-// the other dispatches watchHead only for newly-seen project paths.
-// Prior implementation re-ran on every sessionGroups reference change and
-// fired 6 IPC calls per tick (~30 calls in 58s observed in profiling).
-const watchedProjectPaths = new Set<string>();
-
-$effect(() => {
-	let unlisten: (() => void) | null = null;
-	let disposed = false;
-	listen<{ projectPath: string; branch: string | null }>("git:head-changed", (event) => {
-		const pp = event.payload.projectPath;
-		if (gitLoadedProjects.has(pp)) {
-			gitLoadedProjects.delete(pp);
-			loadGitOverview(pp);
-		}
-	}).then((fn) => {
-		if (disposed) fn();
-		else unlisten = fn;
-	});
-
-	return () => {
-		disposed = true;
-		unlisten?.();
-	};
-});
-
-$effect(() => {
-	for (const group of sessionGroups) {
-		const pp = group.projectPath;
-		if (watchedProjectPaths.has(pp) || !gitDataByProject.has(pp)) continue;
-		watchedProjectPaths.add(pp);
-		void tauriClient.git.watchHead(pp).match(
-			() => {},
-			() => {}
-		);
-	}
-});
 
 function handleSessionSelect(item: SessionListItem) {
 	onSelectSession(item);
@@ -590,10 +433,6 @@ async function handleProjectContextMove(projectPath: string, offset: -1 | 1): Pr
 	await focusProjectContextTrigger(projectPath);
 }
 
-function handleBranchSelected(projectPath: string): void {
-	gitLoadedProjects.delete(projectPath);
-	loadGitOverview(projectPath);
-}
 </script>
 
 {#snippet projectOverflowMenu(group, projectIndex)}
@@ -666,6 +505,21 @@ function handleBranchSelected(projectPath: string): void {
 				{`Open file system in ${group.projectName}`}
 			</Tooltip.Content>
 		</Tooltip.Root>
+		{#if onOpenGitPanel}
+			<Tooltip.Root>
+				<Tooltip.Trigger>
+					<button
+						type="button"
+						class={projectHeaderHoverActionButtonClass}
+						onclick={(event) => handleOpenGitPanel(event, group.projectPath)}
+						aria-label={`Source control in ${group.projectName}`}
+					>
+						<GitBranch class="h-3 w-3" weight="fill" />
+					</button>
+				</Tooltip.Trigger>
+				<Tooltip.Content>Source Control</Tooltip.Content>
+			</Tooltip.Root>
+		{/if}
 		{@render projectOverflowMenu(group, projectIndex)}
 	</div>
 {/snippet}
@@ -750,22 +604,6 @@ function handleBranchSelected(projectPath: string): void {
 							{@const filteredSessions = getFilteredSidebarSessionsForProject(group)}
 							{@const visibleSessions = getVisibleSessionsForProject(group)}
 							<div
-								class="shrink-0 px-1 pt-1 pb-1"
-								role="presentation"
-								onclick={(event) => event.stopPropagation()}
-								onkeydown={handleProjectHistorySearchKeydown}
-							>
-								<Input
-									type="search"
-									value={getProjectHistoryQuery(group.projectPath)}
-									placeholder="Search project history..."
-									class="h-5 rounded-md border-border/70 bg-background/70 px-1 py-0 text-[10px] md:text-[10px]"
-									data-sidebar-project-history-search
-									oninput={(event) =>
-										setProjectHistoryQuery(group.projectPath, event.currentTarget.value)}
-								/>
-							</div>
-							<div
 								class="min-h-0 max-h-[22rem] overflow-y-auto overflow-x-hidden pb-0.5"
 								use:sessionListContainer={{ projectPath: group.projectPath, totalSessions: filteredSessions.length }}
 								onscroll={() => handleSessionListScroll(group.projectPath, filteredSessions.length)}
@@ -789,119 +627,6 @@ function handleBranchSelected(projectPath: string): void {
 									/>
 								{/if}
 							</div>
-						{/if}
-					{/snippet}
-					{#snippet footer()}
-						{#if isExpanded}
-					{#if gitDataByProject.has(group.projectPath)}
-						{@const gitData = gitDataByProject.get(group.projectPath)!}
-						{@const isFetching = fetchingProjects.has(group.projectPath)}
-						{@const totalIns = gitData.gitStatus?.reduce((s, f) => s + f.insertions, 0) ?? 0}
-						{@const totalDel = gitData.gitStatus?.reduce((s, f) => s + f.deletions, 0) ?? 0}
-						{@const ahead = gitData.remoteStatus?.ahead ?? 0}
-						{@const behind = gitData.remoteStatus?.behind ?? 0}
-						<div class="shrink-0 flex items-center border-t border-border/30">
-							<BranchPicker
-								projectPath={group.projectPath}
-								currentBranch={gitData.branch}
-								diffStats={totalIns > 0 || totalDel > 0
-									? { insertions: totalIns, deletions: totalDel }
-									: null}
-								isGitRepo={true}
-								class="min-w-0 flex-1"
-								onBranchSelected={() => handleBranchSelected(group.projectPath)}
-							/>
-
-							<!-- Up/down widget: ahead & behind counts + Update (pull) when behind -->
-							<div class="flex items-center shrink-0 text-[11px] font-mono leading-none text-muted-foreground">
-								{#if ahead > 0 || behind > 0}
-									<span class="inline-flex h-7 items-center gap-1.5 px-1.5">
-										{#if ahead > 0}
-											<span
-												class="inline-flex items-center gap-0.5"
-												title="{ahead} commit{ahead > 1 ? 's' : ''} ahead"
-											>
-												<IconArrowUp class="h-2.5 w-2.5 text-success" />
-												{ahead}
-											</span>
-										{/if}
-										{#if behind > 0}
-											<span class="inline-flex items-center gap-1">
-												<span
-													class="inline-flex items-center gap-0.5"
-													title="{behind} commit{behind > 1 ? 's' : ''} behind"
-												>
-													<IconArrowDown class="h-2.5 w-2.5" style="color: {Colors.orange}" />
-													{behind}
-												</span>
-												<Tooltip.Root>
-													<Tooltip.Trigger>
-														<button
-															type="button"
-															class="inline-flex h-5 min-w-5 items-center justify-center rounded bg-background/70 px-1 text-[10px] font-medium text-foreground hover:bg-background disabled:cursor-not-allowed disabled:opacity-40"
-															disabled={pullingProjects.has(group.projectPath)}
-															onclick={(e) => handlePullRemote(e, group.projectPath)}
-														>
-															{pullingProjects.has(group.projectPath) ? "…" : "Update"}
-														</button>
-													</Tooltip.Trigger>
-													<Tooltip.Content>
-														<span>Pull to update branch</span>
-													</Tooltip.Content>
-												</Tooltip.Root>
-											</span>
-										{/if}
-									</span>
-								{/if}
-							</div>
-
-							<!-- Action buttons: Fetch + Source Control -->
-							<div class="flex items-center gap-0.5">
-								<Tooltip.Root>
-									<Tooltip.Trigger>
-										<button
-											class="flex items-center justify-center size-5 rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:cursor-not-allowed disabled:opacity-40"
-											disabled={isFetching}
-											onclick={(e) => handleFetchRemote(e, group.projectPath)}
-										>
-											<ArrowsClockwise
-												class="h-3 w-3 {isFetching ? 'animate-spin' : ''}"
-												weight="bold"
-											/>
-										</button>
-									</Tooltip.Trigger>
-									<Tooltip.Content>
-										<span>{isFetching ? "Fetching…" : "Fetch remote"}</span>
-									</Tooltip.Content>
-								</Tooltip.Root>
-									{#if onOpenGitPanel}
-										<Tooltip.Root>
-											<Tooltip.Trigger>
-												<button
-													class="flex items-center justify-center size-5 rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-													onclick={(e) => handleOpenGitPanel(e, group.projectPath)}
-												>
-													<GitBranch class="h-3 w-3" weight="fill" />
-											</button>
-										</Tooltip.Trigger>
-										<Tooltip.Content>Source Control</Tooltip.Content>
-									</Tooltip.Root>
-								{/if}
-							</div>
-						</div>
-					{:else if nonGitProjects.has(group.projectPath)}
-						<div class="shrink-0 flex items-center border-t border-border/30">
-							<BranchPicker
-								projectPath={group.projectPath}
-								currentBranch={null}
-								diffStats={null}
-								isGitRepo={false}
-								class="min-w-0 flex-1"
-								initGitLoading={initializingGitProject === group.projectPath}
-								onInitGitRepo={() => handleInitGitRepo(group.projectPath)}
-							/>
-						</div>
-						{/if}
 						{/if}
 					{/snippet}
 				</AppSidebarProjectGroup>

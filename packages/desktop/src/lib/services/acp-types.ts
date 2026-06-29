@@ -566,10 +566,6 @@ export type TranscriptViewportRowContent = { kind: "transcript"; role: Transcrip
 
 export type TranscriptViewportRow = { rowId: string; sourceEntryId: string; kind: TranscriptViewportRowKind; version: string; anchorEligible: boolean; activeStreamingTail: ActiveStreamingTailContentKind | null; operationLinks: TranscriptViewportOperationLink[]; interactionLinks: TranscriptViewportInteractionLink[]; content: TranscriptViewportRowContent; durationStartedAtMs?: number | null }
 
-export type ViewportMode = { kind: "followingTail" } | { kind: "detached"; anchorRowId: string; offsetFromAnchorPx: number }
-
-export type ViewportWindow = { offsetPx: number; totalHeightPx: number; visibleStartIndex: number; visibleEndIndex: number; mode: ViewportMode }
-
 export type SessionStateGraph = { requestedSessionId: string; canonicalSessionId: string; isAlias: boolean; agentId: CanonicalAgentId; projectPath: string; worktreePath?: string | null; sourcePath?: string | null; sequenceId?: number | null; revision: SessionGraphRevision; transcriptSnapshot: TranscriptSnapshot; operations: OperationSnapshot[]; interactions: InteractionSnapshot[]; turnState: SessionTurnState; messageCount: number; activeStreamingTail: ActiveStreamingTail | null; activeTurnFailure?: TurnFailureSnapshot | null; lastTerminalTurnId?: string | null; lifecycle: SessionGraphLifecycle; activity: SessionGraphActivity; capabilities: SessionGraphCapabilities }
 
 export type SessionStateSnapshotMaterialization = { graph: SessionStateGraph }
@@ -587,87 +583,27 @@ export type AssistantTextDeltaPayload = { turnId: string; rowId: string; charOff
 export type ViewportBufferDiagnostic = { code: string; rowId: string | null }
 
 /**
- * Full buffered slice of the canonical layout pushed to the WebView. The
- * WebView resolves in-buffer scroll offsets locally (no IPC per frame) and
- * only requests a refill when scrolling near/outside `[buffer_start_index,
- * buffer_end_index)`. `request_generation` echoes the generation of a refill
- * request so the store can reject stale command responses; live (unsolicited)
- * pushes carry `None`.
+ * Full ordered row push for the DOM-authority transcript viewport. Rust owns
+ * canonical order, identity, version, and row content. The WebView owns pixels
+ * and scrollTop, so no height, offset, mode, or scroll target crosses this wire.
+ * `request_generation` echoes the UI's rows request so late responses can be
+ * ignored when needed; live pushes carry `None`.
  */
-export type ViewportBufferPush = { sessionId: string; graphRevision: SessionGraphRevision; viewportRevision: number;
+export type ViewportBufferPush = { sessionId: string; graphRevision: SessionGraphRevision;
 /**
- * Per-session monotonic emission sequence (the total-order authority for
- * the buffer protocol). A push resets the consumer's sequence baseline to
- * this value; subsequent deltas must chain contiguously from it. Because
- * `viewport_revision` does NOT advance on streaming row appends, it cannot
- * sequence the two independent delivery channels (command-reply vs live
- * event stream); `emission_seq` can, turning any out-of-order arrival into
- * a detectable gap (→ fresh push) instead of silent buffer corruption.
+ * Per-session monotonic emission sequence. A push resets the consumer's
+ * sequence baseline to this value; subsequent deltas must chain
+ * contiguously from it.
  */
-emissionSeq: number; bufferStartIndex: number; bufferEndIndex: number;
-/**
- * Total number of rows in the full canonical layout. Lets the WebView tell
- * whether a buffer edge is also the layout extreme (so it must NOT request
- * a refill past it).
- */
-layoutRowCount: number; totalHeightPx: number;
-/**
- * Absolute pixel offset of the bottom of the last buffered row
- * (= `offset_at_index(buffer_end_index)`). Equals `total_height_px` only
- * when the buffer reaches the layout end. Lets the WebView compute the
- * buffered pixel span `[offsets_px[0], buffer_end_offset_px)` without
- * per-row heights.
- */
-bufferEndOffsetPx: number; rows: TranscriptViewportRow[]; offsetsPx: number[]; mode: ViewportMode; requestGeneration?: number | null;
-/**
- * Absolute scrollTop the WebView should adopt when this push repositions the
- * viewport (initial open, reveal, follow-tail). `None` for a pure refill or
- * an accepted-height-confirmation re-push in `Detached` mode, where the
- * user's current scrollTop is authoritative and only a *relative*
- * `scroll_anchor_correction_px` may be applied. Exactly one of
- * `scroll_top_target` (absolute) or `scroll_anchor_correction_px` (relative)
- * is ever set per emission — never both — to avoid double-applying a scroll
- * correction.
- */
-scrollTopTarget?: number | null;
-/**
- * Signed pixel correction the WebView adds to its *live* scrollTop to keep
- * the visible content pinned when canonical geometry above the viewport
- * shifted (a row above the viewport re-measured). Relative — never fights
- * the user's in-flight scroll position. `None` when nothing above the
- * viewport moved or when an absolute `scroll_top_target` is used instead.
- */
-scrollAnchorCorrectionPx?: number | null; diagnostics: ViewportBufferDiagnostic[] }
+emissionSeq: number; rows: TranscriptViewportRow[]; requestGeneration?: number | null; diagnostics: ViewportBufferDiagnostic[] }
 
 /**
- * Incremental buffer mutation. Applies iff `emission_seq` chains contiguously
- * from the consumer's last applied sequence (`emission_seq == current + 1`);
- * an older `emission_seq` is a stale duplicate (dropped), a newer-than-next
- * one is a gap that forces a fresh `ViewportBufferPush`. `emission_seq` — not
- * `from_viewport_revision` — is the apply-ordering authority, because pure
- * streaming appends do not advance `viewport_revision`. The revision fields
- * remain for diagnostics and snapshot newer-wins on pushes. Exactly one of
- * `scroll_top_target` (absolute) or `scroll_anchor_correction_px` (relative)
- * should be set to avoid double-applying a scroll correction.
+ * Incremental ordered-row mutation. Applies iff `emission_seq` chains
+ * contiguously from the consumer's last applied sequence (`emission_seq ==
+ * current + 1`). If a survivor row changes version, Rust sends a fresh push
+ * instead of a delta, so the consumer never needs to patch row content in place.
  */
-export type ViewportBufferDelta = { sessionId: string; graphRevision: SessionGraphRevision;
-/**
- * Per-session monotonic emission sequence; see [`ViewportBufferPush::emission_seq`].
- */
-emissionSeq: number; fromViewportRevision: number; toViewportRevision: number; prependedRows: TranscriptViewportRow[]; prependedOffsetsPx: number[]; appendedRows: TranscriptViewportRow[]; appendedOffsetsPx: number[]; removedRowIds: string[];
-/**
- * Total rows in the canonical layout after this delta. Lets the consumer
- * re-evaluate `needsRefill`'s "has content below" edge as streaming grows
- * the transcript, without a fresh push.
- */
-layoutRowCount: number; totalHeightPx: number;
-/**
- * Absolute pixel bottom of the last buffered row after this delta (top of
- * the row past `buffer_end_index`). Equals `total_height_px` only when the
- * buffer reaches the layout end. Required so the consumer can maintain the
- * bottom-edge refill math without per-row heights.
- */
-bufferEndOffsetPx: number; scrollAnchorCorrectionPx?: number | null; scrollTopTarget?: number | null; diagnostics: ViewportBufferDiagnostic[] }
+export type ViewportBufferDelta = { sessionId: string; graphRevision: SessionGraphRevision; emissionSeq: number; prependedRows: TranscriptViewportRow[]; appendedRows: TranscriptViewportRow[]; removedRowIds: string[]; diagnostics: ViewportBufferDiagnostic[] }
 
 export type TranscriptViewportCommandRevision = { graphRevision: number; transcriptRevision: number; lastEventSeq: number }
 

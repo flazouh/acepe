@@ -31,23 +31,21 @@ pub mod terminal;
 pub mod voice;
 
 use browser_webview::{
-    browser_webview_back, browser_webview_forward, close_browser_webview, get_browser_webview_url,
-    hide_browser_webview, navigate_browser_webview, open_browser_webview, reload_browser_webview,
-    resize_browser_webview, set_browser_webview_zoom, show_browser_webview, BrowserWebviewState,
+    BrowserWebviewState, browser_webview_back, browser_webview_forward, close_browser_webview,
+    get_browser_webview_url, hide_browser_webview, navigate_browser_webview, open_browser_webview,
+    reload_browser_webview, resize_browser_webview, set_browser_webview_zoom, show_browser_webview,
 };
 
 use acp::active_agent::ActiveAgent;
 use acp::commands::{
-    acp_cancel, acp_close_session, acp_confirm_transcript_viewport_height, acp_fork_session,
-    acp_get_composer_mcp_catalog, acp_get_event_bridge_info, acp_get_session_state, acp_initialize,
-    acp_install_agent, acp_list_agents, acp_list_preconnection_capabilities,
-    acp_list_preconnection_commands, acp_new_session, acp_probe_computer_use, acp_read_text_file,
-    acp_register_custom_agent, acp_reply_interaction, acp_request_transcript_viewport_buffer,
-    acp_resize_transcript_viewport, acp_respond_inbound_request, acp_resume_session,
-    acp_reveal_transcript_viewport_row, acp_scroll_transcript_viewport, acp_send_prompt,
-    acp_set_config_option, acp_set_mode, acp_set_model, acp_set_session_autonomous,
-    acp_uninstall_agent, acp_write_text_file, check_github_auth, create_github_issue,
-    create_issue_comment, fetch_commit_diff, fetch_pr_diff, get_github_issue,
+    acp_cancel, acp_close_session, acp_fork_session, acp_get_composer_mcp_catalog,
+    acp_get_event_bridge_info, acp_get_session_state, acp_initialize, acp_install_agent,
+    acp_list_agents, acp_list_preconnection_capabilities, acp_list_preconnection_commands,
+    acp_new_session, acp_probe_computer_use, acp_read_text_file, acp_register_custom_agent,
+    acp_reply_interaction, acp_request_transcript_viewport_buffer, acp_respond_inbound_request,
+    acp_resume_session, acp_send_prompt, acp_set_config_option, acp_set_mode, acp_set_model,
+    acp_set_session_autonomous, acp_uninstall_agent, acp_write_text_file, check_github_auth,
+    create_github_issue, create_issue_comment, fetch_commit_diff, fetch_pr_diff, get_github_issue,
     get_github_repo_context, git_working_file_diff, list_github_issues, list_issue_comments,
     list_pull_requests, search_github_issues, toggle_comment_reaction, toggle_issue_reaction,
 };
@@ -69,15 +67,15 @@ use checkpoint::commands::{
     checkpoint_get_file_snapshots, checkpoint_list, checkpoint_revert, checkpoint_revert_file,
 };
 use commands::window::activate_window;
-use computer_use::{load_persisted_app_window_scopes, ComputerRuntimeRegistry};
+use computer_use::{ComputerRuntimeRegistry, load_persisted_app_window_scopes};
 use cursor_history::commands::{has_cursor_history, is_cursor_installed};
 use db::repository::{AppSettingsRepository, ProjectRepository, SessionMetadataRepository};
 use file_index::{
-    copy_file, create_directory, create_file, delete_path, get_file_diff,
+    FileIndexService, copy_file, create_directory, create_file, delete_path, get_file_diff,
     get_file_explorer_preview, get_file_git_status_summary, get_project_files,
     get_project_git_overview_summary, get_project_git_status, get_project_git_status_summary,
     invalidate_project_files, read_file_content, read_image_as_base64, rename_path,
-    resolve_file_path, revert_file_content, search_project_files_for_explorer, FileIndexService,
+    resolve_file_path, revert_file_content, search_project_files_for_explorer,
 };
 use git::commands::{browse_clone_destination, git_clone, git_collect_ship_context};
 use git::gh_pr::{get_open_pr_for_branch, git_merge_pr, git_pr_checks, git_pr_details};
@@ -87,7 +85,7 @@ use git::operations::{
     git_run_stacked_action, git_stage_all, git_stage_files, git_stash_drop, git_stash_list,
     git_stash_pop, git_stash_save, git_unstage_files,
 };
-use git::watcher::{git_watch_head, GitHeadWatcher};
+use git::watcher::{GitHeadWatcher, git_watch_head};
 use git::worktree::{
     git_checkout_branch, git_current_branch, git_discard_prepared_worktree_session_launch,
     git_has_uncommitted_changes, git_init, git_is_repo, git_list_branches,
@@ -108,6 +106,7 @@ use session_jsonl::commands::{
     get_cache_stats, get_index_status, invalidate_history_cache, reindex_sessions,
     reset_cache_stats,
 };
+use skills::SkillsService;
 use skills::commands::{
     library_import_existing,
     library_is_empty,
@@ -139,7 +138,6 @@ use skills::commands::{
     skills_stop_watching,
     skills_update,
 };
-use skills::SkillsService;
 use sql_studio::commands::{
     sql_studio_delete_connection, sql_studio_execute_query, sql_studio_explore_table,
     sql_studio_get_connection, sql_studio_list_connections, sql_studio_list_schema,
@@ -166,11 +164,11 @@ use tracing::{Event, Subscriber};
 use tracing_subscriber::fmt::format::Writer;
 use tracing_subscriber::fmt::{FmtContext, FormatEvent, FormatFields};
 use tracing_subscriber::registry::LookupSpan;
-use tracing_subscriber::{fmt, layer::SubscriberExt, util::SubscriberInitExt, EnvFilter};
+use tracing_subscriber::{EnvFilter, fmt, layer::SubscriberExt, util::SubscriberInitExt};
 use voice::{
-    voice_cancel_recording, voice_delete_model, voice_download_model, voice_get_model_status,
-    voice_list_languages, voice_list_models, voice_load_model, voice_start_recording,
-    voice_stop_recording, VoiceState,
+    VoiceState, voice_cancel_recording, voice_delete_model, voice_download_model,
+    voice_get_model_status, voice_list_languages, voice_list_models, voice_load_model,
+    voice_start_recording, voice_stop_recording,
 };
 
 struct NoSpanEventFormatter;

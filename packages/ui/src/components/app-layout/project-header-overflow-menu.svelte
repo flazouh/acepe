@@ -4,6 +4,7 @@
 	import * as Popover from "../popover/index.js";
 	import { Button } from "../button/index.js";
 	import { Selector } from "../selector/index.js";
+	import { Switch } from "../switch/index.js";
 	import AgentInputSelectorItemRow from "../agent-panel/agent-input-selector-item-row.svelte";
 	import { PROJECT_COLOR_OPTIONS } from "./project-color-options.js";
 	import ProjectColorSwatch from "./project-color-swatch.svelte";
@@ -121,14 +122,21 @@
 	{#if showSessionsSection}
 		<DropdownMenu.Group>
 			<DropdownMenu.GroupHeading>Sessions</DropdownMenu.GroupHeading>
-			<DropdownMenu.CheckboxItem
-				checked={hideExternalCliSessions}
-				onCheckedChange={(checked) => {
-					onHideExternalCliSessionsChange?.(checked === true);
-				}}
+			<div
+				class="flex items-center justify-between gap-3 px-2 py-1.5"
+				role="presentation"
+				onclick={(event) => event.stopPropagation()}
+				onkeydown={(event) => event.stopPropagation()}
 			>
-				{hideExternalCliSessionsLabel}
-			</DropdownMenu.CheckboxItem>
+				<span class="min-w-0 text-xs text-foreground">{hideExternalCliSessionsLabel}</span>
+				<Switch
+					checked={hideExternalCliSessions}
+					onCheckedChange={(checked) => {
+						onHideExternalCliSessionsChange?.(checked === true);
+					}}
+					aria-label={hideExternalCliSessionsLabel}
+				/>
+			</div>
 		</DropdownMenu.Group>
 	{/if}
 	{#if showSettingsSection}

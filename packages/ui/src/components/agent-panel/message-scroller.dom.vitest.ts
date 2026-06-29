@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import MessageScroller from "./message-scroller.svelte";
 import type { MessageScrollerItem } from "./message-scroller-types.js";
+import type { StickToBottomController } from "./stick-to-bottom-effects.js";
 
 // Resolve the real client build of Svelte for component mounting (precedent:
 // review-workspace.dom.vitest.ts). happy-dom has no layout engine, so this
@@ -32,7 +33,8 @@ const dot = createRawSnippet(() => ({ render: () => "<span>·</span>" }));
 
 type RenderExtra = {
 	onFollowStateChange?: (s: { released: boolean; hasUnreadBelow: boolean }) => void;
-	onReady?: (c: unknown) => void;
+	onEdgeStateChange?: (s: { atTop: boolean; atBottom: boolean }) => void;
+	onReady?: (c: StickToBottomController) => void;
 };
 
 function renderScroller(items: MessageScrollerItem[], extra: RenderExtra = {}) {
@@ -43,6 +45,7 @@ function renderScroller(items: MessageScrollerItem[], extra: RenderExtra = {}) {
 			ariaLabel: "Conversation transcript",
 			jumpToLatestLabel: "Jump to latest",
 			onFollowStateChange: extra.onFollowStateChange,
+			onEdgeStateChange: extra.onEdgeStateChange,
 			onReady: extra.onReady,
 		},
 	});
@@ -109,16 +112,57 @@ describe("MessageScroller", () => {
 		await fireEvent.scroll(viewport);
 
 		expect(container.querySelector(".message-scroller__jump")).not.toBeNull();
+		expect(container.querySelector(".message-scroller__scrollbar")).not.toBeNull();
 		expect(states.at(-1)?.released).toBe(true);
+	});
+
+	it("keeps the jump-to-latest control icon-only with an accessible name", async () => {
+		const items = [item({ key: "r1:v1", rowId: "r1" })];
+		const { container } = renderScroller(items);
+		const viewport = viewportOf(container);
+		stubMetrics(viewport, 2000, 1000);
+		viewport.scrollTop = 200;
+		await fireEvent.scroll(viewport);
+
+		const jump = container.querySelector(".message-scroller__jump");
+		expect(jump?.textContent?.trim()).toBe("");
+		expect(jump?.getAttribute("aria-label")).toBe("Jump to latest");
 	});
 
 	it("exposes the controller via onReady", () => {
 		let ready = false;
 		renderScroller([item({ key: "r1:v1", rowId: "r1" })], {
 			onReady: (c) => {
-				ready = typeof (c as { jumpToLatest?: unknown }).jumpToLatest === "function";
+				ready =
+					typeof c.jumpToLatest === "function" &&
+					typeof c.openAt === "function" &&
+					typeof c.scrollToTop === "function";
 			},
 		});
 		expect(ready).toBe(true);
+	});
+
+	it("reports edge state and lets the host scroll to top", async () => {
+		const edges: Array<{ atTop: boolean; atBottom: boolean }> = [];
+		let controller: StickToBottomController | undefined;
+		const { container } = renderScroller([item({ key: "r1:v1", rowId: "r1" })], {
+			onReady: (c) => {
+				controller = c;
+			},
+			onEdgeStateChange: (s) => edges.push(s),
+		});
+		const viewport = viewportOf(container);
+		stubMetrics(viewport, 2000, 1000);
+		viewport.scrollTop = 400;
+		await fireEvent.scroll(viewport);
+
+		expect(edges.at(-1)).toEqual({ atTop: false, atBottom: false });
+		if (controller === undefined) {
+			throw new Error("MessageScroller did not provide a controller");
+		}
+		controller.scrollToTop();
+
+		expect(viewport.scrollTop).toBe(0);
+		expect(edges.at(-1)).toEqual({ atTop: true, atBottom: false });
 	});
 });

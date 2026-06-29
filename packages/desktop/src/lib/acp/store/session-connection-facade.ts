@@ -15,7 +15,6 @@ import type { SessionCreationCoordinator } from "./session-creation-coordinator.
 import type { SessionListState } from "./session-list-state.svelte.js";
 import type { SessionMessagingOrchestrator } from "./session-messaging-orchestrator.js";
 import type { SessionStoreCallbacks } from "./session-store.svelte.js";
-import type { ViewportProjectionController } from "./viewport-projection-controller.svelte.js";
 import type { PrLinkStateStore } from "./pr-link-state-store.svelte.js";
 import type { SessionConnectionManager } from "./services/session-connection-manager.js";
 import type { CreatedPendingSessionResult } from "./services/session-connection-manager.js";
@@ -31,7 +30,6 @@ export type SessionConnectionFacadeDeps = {
 	readonly messagingOrchestrator: SessionMessagingOrchestrator;
 	readonly creationCoordinator: SessionCreationCoordinator;
 	readonly listState: SessionListState;
-	readonly viewport: ViewportProjectionController;
 	readonly awaitingModelRefresh: AwaitingModelRefreshStore;
 	readonly prLinkState: PrLinkStateStore;
 	readonly read: SessionReadFacade;
@@ -156,7 +154,6 @@ export class SessionConnectionFacade {
 		this.#deps.connectionMgrRef.current.disconnectSession(sessionId);
 		this.#deps.messagingSvc.clearSessionState(sessionId);
 		this.#deps.awaitingModelRefresh.clearAwaitingModelRefreshTimer(sessionId);
-		this.#deps.viewport.clearReattachWatchdog(sessionId);
 	}
 
 	disconnectAllSessions(): void {

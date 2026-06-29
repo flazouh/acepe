@@ -119,7 +119,7 @@ vi.mock("../../../../store/session-store.svelte.js", () => ({
 			getSessionCurrentModeId: () => null,
 		},
 		viewport: {
-			getBufferProjection: () => null,
+			getRowsProjection: () => null,
 		},
 	}),
 }));
@@ -202,7 +202,6 @@ function renderContent(
 	overrides?: {
 		sessionId?: string | null;
 		sceneEntries?: readonly AgentPanelSceneEntryModel[];
-		isWaitingForResponse?: boolean;
 	}
 ) {
 	return render(AgentPanelContent, {
@@ -225,7 +224,6 @@ function renderContent(
 		availableAgents: [],
 		effectiveTheme: "dark",
 		modifiedFilesState: null,
-		isWaitingForResponse: overrides?.isWaitingForResponse,
 	});
 }
 
@@ -249,36 +247,33 @@ describe("AgentPanelContent", () => {
 		expect(view.getByTestId("virtualized-entry-list-stub")).toBeTruthy();
 	});
 
-	it("forwards an explicit waiting-state prop to the conversation list", () => {
-		const view = renderContent(
-			{ kind: "conversation", errorDetails: null },
-			{ isWaitingForResponse: true }
-		);
+	it("passes the error turn state when no canonical session projection is available", () => {
+		const view = renderContent({ kind: "conversation", errorDetails: null });
 
-		expect(view.getByTestId("virtualized-entry-list-stub").getAttribute("data-waiting")).toBe(
-			"true"
+		expect(view.getByTestId("virtualized-entry-list-stub").getAttribute("data-turn-state")).toBe(
+			"error"
 		);
 	});
 
-	it("derives waiting-state from graph-backed awaiting-model activity", () => {
+	it("derives streaming turn state from graph-backed awaiting-model activity", () => {
 		globalThis.__agentPanelContentSessionStoreState.liveProjection =
 			createCanonicalProjection("awaiting_model");
 
 		const view = renderContent({ kind: "conversation", errorDetails: null });
 
-		expect(view.getByTestId("virtualized-entry-list-stub").getAttribute("data-waiting")).toBe(
-			"true"
+		expect(view.getByTestId("virtualized-entry-list-stub").getAttribute("data-turn-state")).toBe(
+			"streaming"
 		);
 	});
 
-	it("does not report waiting-state for graph-backed running operations", () => {
+	it("passes streaming turn state for graph-backed running operations", () => {
 		globalThis.__agentPanelContentSessionStoreState.liveProjection =
 			createCanonicalProjection("running_operation");
 
 		const view = renderContent({ kind: "conversation", errorDetails: null });
 
-		expect(view.getByTestId("virtualized-entry-list-stub").getAttribute("data-waiting")).toBe(
-			"false"
+		expect(view.getByTestId("virtualized-entry-list-stub").getAttribute("data-turn-state")).toBe(
+			"streaming"
 		);
 	});
 
@@ -332,18 +327,17 @@ describe("AgentPanelContent", () => {
 		expect(view.getByTestId("virtualized-entry-list-stub")).toBe(initialList);
 	});
 
-	it("renders SceneContentViewport pre-session with pending entry and isWaitingForResponse=true", () => {
+	it("renders SceneContentViewport pre-session with a pending entry", () => {
 		const view = renderContent(
 			{ kind: "conversation", errorDetails: null },
 			{
 				sessionId: null,
 				sceneEntries: [createUserSceneEntry("user-1", "send this")],
-				isWaitingForResponse: true,
 			}
 		);
 
 		const stub = view.getByTestId("virtualized-entry-list-stub");
 		expect(stub).toBeTruthy();
-		expect(stub.getAttribute("data-waiting")).toBe("true");
+		expect(stub.getAttribute("data-turn-state")).toBe("idle");
 	});
 });

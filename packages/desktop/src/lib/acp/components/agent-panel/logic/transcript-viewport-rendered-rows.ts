@@ -5,7 +5,6 @@ import { resolveTranscriptViewportSceneEntry } from "./transcript-viewport-row-m
 export type RenderedTranscriptViewportRow = {
 	readonly row: TranscriptViewportRow;
 	readonly index: number;
-	readonly offsetPx: number;
 	readonly entry: AgentPanelSceneEntryModel;
 	readonly localOnly: boolean;
 };
@@ -15,7 +14,6 @@ const LOCAL_PLANNING_ROW_ID = "local:planning";
 
 export function buildRenderedTranscriptViewportRows(input: {
 	readonly bufferRows: readonly TranscriptViewportRow[];
-	readonly offsetsPx: readonly number[];
 	readonly bufferStartIndex: number;
 	readonly sceneEntries: readonly AgentPanelSceneEntryModel[];
 	readonly showLocalPlanningIndicator: boolean;
@@ -41,7 +39,6 @@ export function buildRenderedTranscriptViewportRows(input: {
 		renderedRows.push({
 			row,
 			index: input.bufferStartIndex + localIndex,
-			offsetPx: input.offsetsPx[localIndex] ?? 0,
 			entry,
 			localOnly: false,
 		});
@@ -54,7 +51,6 @@ export function buildRenderedTranscriptViewportRows(input: {
 		renderedRows.push({
 			row: createLocalOptimisticUserRow(entry),
 			index: input.bufferStartIndex + renderedRows.length,
-			offsetPx: 0,
 			entry,
 			localOnly: true,
 		});
@@ -65,7 +61,6 @@ export function buildRenderedTranscriptViewportRows(input: {
 		renderedRows.push({
 			row: createLocalPlanningRow(),
 			index: input.bufferStartIndex + renderedRows.length,
-			offsetPx: 0,
 			entry: {
 				id: LOCAL_PLANNING_ROW_ID,
 				type: "thinking",

@@ -759,11 +759,13 @@ async fn provider_thread_snapshot_open_keeps_provider_tool_rows_with_local_journ
             text: "diagnose".to_string(),
         }]
     );
-    assert!(found
-        .operations
-        .iter()
-        .any(|operation| operation.tool_call_id == "toolu_skill"
-            && operation.kind == Some(ToolKind::Skill)));
+    assert!(
+        found
+            .operations
+            .iter()
+            .any(|operation| operation.tool_call_id == "toolu_skill"
+                && operation.kind == Some(ToolKind::Skill))
+    );
 }
 
 #[tokio::test]
@@ -1486,10 +1488,6 @@ async fn provider_owned_alias_open_keys_viewport_authority_to_canonical_id_only(
             &projection_registry,
             &transcript_projection_registry,
             Some(720),
-            None,
-            None,
-            None,
-            0,
         )
         .expect("canonical id should have restored viewport authority");
 
@@ -1509,10 +1507,6 @@ async fn provider_owned_alias_open_keys_viewport_authority_to_canonical_id_only(
             &projection_registry,
             &transcript_projection_registry,
             Some(720),
-            None,
-            None,
-            None,
-            0,
         )
         .expect_err("alias id must not resolve viewport authority");
     assert!(matches!(

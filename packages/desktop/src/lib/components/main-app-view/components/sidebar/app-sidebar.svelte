@@ -1,5 +1,6 @@
 <script lang="ts">
 import { AppSidebarLayout } from "@acepe/ui/app-layout";
+import { MagnifyingGlass, NotePencil } from "phosphor-svelte";
 import { toast } from "svelte-sonner";
 import { copyTextToClipboard } from "$lib/acp/components/agent-panel/logic/clipboard-manager.js";
 import { SessionList } from "$lib/acp/components/index.js";
@@ -450,6 +451,31 @@ const visibleSessions = $derived.by(() => {
 </script>
 
 <AppSidebarLayout>
+	{#snippet topNav()}
+		<nav class="flex flex-col gap-0.5 px-2 pt-2 pb-1">
+			<button
+				type="button"
+				class="flex w-full items-center gap-2.5 rounded-md px-2 py-1.5 text-sm text-foreground transition-colors hover:bg-accent/50"
+				onclick={() => {
+					appState.commandPaletteOpen = true;
+				}}
+			>
+				<NotePencil class="size-4 shrink-0 text-muted-foreground" />
+				<span>New chat</span>
+			</button>
+			<button
+				type="button"
+				class="flex w-full items-center gap-2.5 rounded-md px-2 py-1.5 text-sm text-foreground transition-colors hover:bg-accent/50"
+				onclick={() => {
+					appState.commandPaletteOpen = true;
+				}}
+			>
+				<MagnifyingGlass class="size-4 shrink-0 text-muted-foreground" />
+				<span>Search</span>
+			</button>
+		</nav>
+	{/snippet}
+
 	{#snippet queueSection()}
 		{#if panelStore.viewMode !== "kanban" && attentionQueueStore.enabled}
 			<AppQueueRow {projectManager} state={appState} />
