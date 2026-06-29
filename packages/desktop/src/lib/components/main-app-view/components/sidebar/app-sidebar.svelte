@@ -1,11 +1,12 @@
 <script lang="ts">
 import { AppSidebarLayout } from "@acepe/ui/app-layout";
 import { Button } from "@acepe/ui";
-import { MagnifyingGlass, NotePencil } from "phosphor-svelte";
+import { FolderOpen, FolderPlus, GitBranch, MagnifyingGlass, NotePencil } from "phosphor-svelte";
 import { toast } from "svelte-sonner";
 import { copyTextToClipboard } from "$lib/acp/components/agent-panel/logic/clipboard-manager.js";
 import { SessionList } from "$lib/acp/components/index.js";
 import { buildSessionSummaryFromCold } from "$lib/acp/application/dto/session-summary.js";
+import ProjectFileSystemDialog from "$lib/acp/components/file-explorer-modal/project-file-system-dialog.svelte";
 import ProjectIconPickerDialog from "$lib/acp/components/project-icon-picker-dialog.svelte";
 import type { SessionListItem } from "$lib/acp/components/session-list/session-list-types.js";
 import type { SessionDisplayItem } from "$lib/acp/types/thread-display-item.js";
@@ -37,9 +38,11 @@ const logger = createLogger({
 interface Props {
 	projectManager: ProjectManager;
 	state: MainAppViewState;
+	/** Opens the add-repository dialog (owned by the app shell). */
+	onImportProject?: () => void;
 }
 
-let { projectManager, state: appState }: Props = $props();
+let { projectManager, state: appState, onImportProject }: Props = $props();
 
 const panelStore = getPanelStore();
 const sessionStore = getSessionStore();
@@ -174,6 +177,36 @@ function handleOpenBrowser(projectPath: string) {
 function handleOpenGitPanel(projectPath: string) {
 	panelStore.openGitDialog(projectPath);
 }
+
+// ── Sidebar-header global actions (source control + file system) ──
+// These operate on the "current" project — the focused view/panel project, or
+// the first project — and let the user switch projects via a picker inside each
+// modal.
+let fileSystemProjectPath = $state<string | null>(null);
+
+function getCurrentProjectPath(): string | null {
+	return (
+		panelStore.focusedViewProjectPath ??
+		panelStore.focusedTopLevelPanel?.projectPath ??
+		projectManager.projects[0]?.path ??
+		null
+	);
+}
+
+function handleOpenSourceControl() {
+	const projectPath = getCurrentProjectPath();
+	if (projectPath) {
+		panelStore.openGitDialog(projectPath);
+	}
+}
+
+function handleOpenFileSystem() {
+	fileSystemProjectPath = getCurrentProjectPath();
+}
+
+const fileSystemProject = $derived(
+	fileSystemProjectPath ? (projectManager.getProject(fileSystemProjectPath) ?? null) : null
+);
 
 function handleOpenPr(sessionInfo: SessionListItem) {
 	if (sessionInfo.prNumber == null) return;
@@ -453,26 +486,73 @@ const visibleSessions = $derived.by(() => {
 
 <AppSidebarLayout>
 	{#snippet topNav()}
-		<nav class="flex flex-col gap-0.5 px-2 pt-2 pb-1">
-			<button
-				type="button"
-				class="flex w-full items-center gap-2.5 rounded-md px-2 py-1.5 text-sm text-foreground transition-colors hover:bg-accent/50"
+		<!-- Sidebar header: icon-only actions in the agent-panel header format. -->
+		<div class="flex h-7 shrink-0 items-center gap-0.5 border-b border-border/50 px-1">
+			<Button
+				variant="chromeIcon"
+				size="chromeIcon"
+				data-header-control
+				title="Add repository"
+				aria-label="Add repository"
+				onclick={() => onImportProject?.()}
+			>
+				{#snippet children()}
+					<FolderPlus weight="fill" />
+				{/snippet}
+			</Button>
+			<div class="ml-auto flex items-center gap-0.5">
+			<Button
+				variant="chromeIcon"
+				size="chromeIcon"
+				data-header-control
+				title="New chat"
+				aria-label="New chat"
 				onclick={handleNewThread}
 			>
-				<NotePencil class="size-4 shrink-0 text-muted-foreground" />
-				<span>New chat</span>
-			</button>
-			<button
-				type="button"
-				class="flex w-full items-center gap-2.5 rounded-md px-2 py-1.5 text-sm text-foreground transition-colors hover:bg-accent/50"
+				{#snippet children()}
+					<NotePencil weight="fill" />
+				{/snippet}
+			</Button>
+			<Button
+				variant="chromeIcon"
+				size="chromeIcon"
+				data-header-control
+				title="Search"
+				aria-label="Search"
 				onclick={() => {
 					appState.commandPaletteOpen = true;
 				}}
 			>
-				<MagnifyingGlass class="size-4 shrink-0 text-muted-foreground" />
-				<span>Search</span>
-			</button>
-		</nav>
+				{#snippet children()}
+					<MagnifyingGlass weight="regular" />
+				{/snippet}
+			</Button>
+			<Button
+				variant="chromeIcon"
+				size="chromeIcon"
+				data-header-control
+				title="Source control"
+				aria-label="Source control"
+				onclick={handleOpenSourceControl}
+			>
+				{#snippet children()}
+					<GitBranch weight="regular" />
+				{/snippet}
+			</Button>
+			<Button
+				variant="chromeIcon"
+				size="chromeIcon"
+				data-header-control
+				title="File system"
+				aria-label="File system"
+				onclick={handleOpenFileSystem}
+			>
+				{#snippet children()}
+					<FolderOpen weight="regular" />
+				{/snippet}
+			</Button>
+			</div>
+		</div>
 	{/snippet}
 
 	{#snippet queueSection()}
@@ -528,3 +608,27 @@ const visibleSessions = $derived.by(() => {
 	onBrowse={handleBrowseProjectIcon}
 	onOpenChange={handleIconPickerOpenChange}
 />
+
+{#if fileSystemProject !== null}
+	{@const fsProject = fileSystemProject}
+	{#key fsProject.path}
+	<ProjectFileSystemDialog
+		open={true}
+		projectPath={fsProject.path}
+		projectName={fsProject.name}
+		projectColor={fsProject.color}
+		projectIconSrc={fsProject.iconPath ?? null}
+		recentProjects={projectManager.projects}
+		onProjectChange={(project) => {
+			fileSystemProjectPath = project.path;
+		}}
+		onClose={() => {
+			fileSystemProjectPath = null;
+		}}
+		onOpenFile={(projectPath, filePath) => {
+			handleSelectFile(filePath, projectPath);
+			fileSystemProjectPath = null;
+		}}
+	/>
+	{/key}
+{/if}

@@ -8,7 +8,7 @@
 	import { FileDashed } from "phosphor-svelte";
 	import { FileMinus } from "phosphor-svelte";
 	import { File } from "phosphor-svelte";
-	import { Plus } from "phosphor-svelte";
+	import PlusIcon from "../icons/plus-icon.svelte";
 	import { ArrowCounterClockwise } from "phosphor-svelte";
 
 	import { DiffPill } from "../diff-pill/index.js";
@@ -157,7 +157,7 @@
 					title="Stage file"
 					onclick={() => onStage?.(path)}
 				>
-					<Plus size={12} weight="bold" />
+					<PlusIcon />
 				</button>
 			{/if}
 			{#if onDiscard}

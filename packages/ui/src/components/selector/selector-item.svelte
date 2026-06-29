@@ -1,9 +1,3 @@
-<!--
-  AgentInputSelectorItemRow - Standard selectable row for agent-panel selector dropdowns.
-
-  Used by model, project, agent, and config-option menus for consistent layout:
-  optional leading icon, label, optional trailing actions. Selected state uses bg-accent.
--->
 <script lang="ts">
 	import type { Snippet } from "svelte";
 

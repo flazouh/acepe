@@ -1,7 +1,7 @@
 <script lang="ts">
-import { Selector } from "@acepe/ui";
+import { Selector, PlusIcon } from "@acepe/ui";
 import * as DropdownMenu from "@acepe/ui/dropdown-menu";
-import { Copy, MoreHorizontal, Plus, Save, Trash2 } from "@lucide/svelte/icons";
+import { Copy, MoreHorizontal, Save, Trash2 } from "@lucide/svelte/icons";
 import { Button } from "$lib/components/ui/button/index.js";
 import { Spinner } from "$lib/components/ui/spinner/index.js";
 
@@ -52,7 +52,7 @@ function handleDelete() {
 	<div class="flex items-center gap-1">
 		{#if onCreateSkill}
 			<Button variant="ghost" size="sm" onclick={onCreateSkill}>
-				<Plus class="h-4 w-4 mr-1" />
+				<PlusIcon class="mr-1" />
 				New
 			</Button>
 		{/if}

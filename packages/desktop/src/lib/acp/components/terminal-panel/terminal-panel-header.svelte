@@ -10,7 +10,7 @@ import {
 	HeaderTitleCell,
 	ProjectLetterBadge,
 } from "@acepe/ui";
-import { IconPlus } from "@tabler/icons-svelte";
+import { PlusIcon } from "@acepe/ui";
 import { IconTerminal } from "@tabler/icons-svelte";
 import type { TerminalTab } from "$lib/acp/store/types.js";
 import {
@@ -239,7 +239,7 @@ function handleFullscreenToggle() {
 				onclick={onNewTab}
 			>
 				{#snippet children()}
-					<IconPlus class="h-3.5 w-3.5" />
+					<PlusIcon />
 				{/snippet}
 			</Button>
 		{/if}

@@ -39,7 +39,7 @@ import type {
 import type { PermissionRequest } from "$lib/acp/types/permission.js";
 import type { QuestionRequest } from "$lib/acp/types/question.js";
 import { useTheme } from "$lib/components/theme/context.svelte.js";
-import { Plus } from "phosphor-svelte";
+import { PlusIcon } from "@acepe/ui";
 import { toast } from "svelte-sonner";
 import { replyToPlanApprovalRequest } from "$lib/acp/logic/interaction-reply.js";
 
@@ -767,7 +767,7 @@ function handleRejectPlanApproval(sessionId: string): void {
 						data-testid="kanban-column-add-session-{columnId}"
 						onclick={() => handleKanbanColumnCreate(CanonicalModeId.BUILD)}
 					>
-						<Plus class="size-3" weight="bold" />
+						<PlusIcon />
 					</button>
 				{/if}
 			{/snippet}

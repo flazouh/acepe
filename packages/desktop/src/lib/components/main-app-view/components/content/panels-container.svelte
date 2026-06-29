@@ -404,6 +404,7 @@ const terminalTabsPanelStore = $derived.by(() => ({
 							projectName={group.projectName}
 							projectColor={group.projectColor}
 							projectIconSrc={group.projectIconSrc}
+							label={projectManager.getProjectBadgeLabel(group.projectPath) ?? null}
 						/>
 						{@render nonAgentPanels()}
 					</div>

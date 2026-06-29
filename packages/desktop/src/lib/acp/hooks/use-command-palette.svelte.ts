@@ -1,4 +1,4 @@
-import { IconPlus } from "@tabler/icons-svelte";
+import { PlusIcon } from "@acepe/ui";
 import { okAsync, type ResultAsync } from "neverthrow";
 import { LOGGER_IDS } from "../constants/logger-ids.js";
 import { CommandPaletteManager } from "../logic/command-palette-manager.js";
@@ -55,7 +55,7 @@ export class UseCommandPalette {
 				staticCommands.push({
 					id: "create-thread",
 					label: "Create new thread",
-					icon: IconPlus,
+					icon: PlusIcon,
 				});
 			}
 

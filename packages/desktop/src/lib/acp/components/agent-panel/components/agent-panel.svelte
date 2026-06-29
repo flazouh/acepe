@@ -7,7 +7,7 @@ import {
 	type AgentPanelSceneEntryModel,
 	type AgentToolFileSelectEvent,
 } from "@acepe/ui/agent-panel";
-import { DiffPill, setThinkingPreferences } from "@acepe/ui";
+import { DiffPill, setThinkingPreferences, type PrChecksItem } from "@acepe/ui";
 import { Button } from "@acepe/ui/button";
 import * as ButtonGroup from "@acepe/ui/button-group";
 import {
@@ -760,7 +760,7 @@ function fetchPrDetails(target: {
 	prNumber: number;
 }): void {
 	prCard.resetDetails();
-	void sessionStore
+	void sessionStore.connection
 		.refreshSessionPrState(target.sessionId, target.projectPath, target.prNumber)
 		.match(
 			(details) => {
@@ -1351,6 +1351,19 @@ async function handlePlanSidebarSendMessage(sid: string, message: string): Promi
 		}
 	);
 }
+
+async function handleFixCiCheck(check: PrChecksItem): Promise<void> {
+	if (!sessionId) return;
+	const label = check.workflowName ? `${check.workflowName} › ${check.name}` : check.name;
+	const urlLine = check.detailsUrl ? `\n${check.detailsUrl}` : "";
+	const message = `Fix the failing CI check: "${label}"${urlLine}`;
+	await sessionStore.connection.sendMessage(sessionId, message).match(
+		() => {},
+		(error) => {
+			throw error;
+		}
+	);
+}
 </script>
 
 <AgentPanelShell
@@ -1585,6 +1598,7 @@ async function handlePlanSidebarSendMessage(sid: string, message: string): Promi
 			createPrLabel={prCard.createLabel}
 			onMergePr={(strategy) => void handleMergePr(strategy)}
 			mergePrRunning={prCard.mergeRunning}
+			onFixCiCheck={(check) => void handleFixCiCheck(check)}
 			{availableAgents}
 			effectivePanelAgentId={effectivePanelAgentId}
 			sessionCurrentModelId={sessionController.sessionCurrentModelId}
@@ -1635,7 +1649,7 @@ async function handlePlanSidebarSendMessage(sid: string, message: string): Promi
 									currentBranch={preSessionCurrentBranch}
 									diffStats={preSessionDiffStats}
 									isGitRepo={preSessionIsGitRepo}
-									variant="setupChip"
+									variant="setupBarChip"
 									onBranchSelected={(branch) => {
 										preSessionCurrentBranch = branch;
 										if (worktreeToggleProjectPath) {

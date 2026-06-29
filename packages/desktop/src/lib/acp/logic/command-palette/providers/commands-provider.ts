@@ -8,11 +8,11 @@ import {
 	ArrowsClockwise,
 	Database,
 	GearSix,
-	Plus,
 	Sidebar,
 	Terminal,
 	X,
 } from "phosphor-svelte";
+import { PlusIcon } from "@acepe/ui";
 import type { PaletteCommandDef } from "../../../types/palette-command.js";
 import type { PaletteItem, PaletteItemMetadata } from "../../../types/palette-item.js";
 import { fuzzySearch } from "../fuzzy-search.js";
@@ -85,7 +85,7 @@ export class CommandsProvider implements PaletteProvider {
 				id: "thread.create",
 				label: "Create new thread",
 				description: "Start a new conversation",
-				icon: Plus,
+				icon: PlusIcon,
 				handler: this.config.onCreateThread,
 				keybinding: "Cmd+T",
 				category: "threads",

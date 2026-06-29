@@ -1,6 +1,7 @@
 <script lang="ts">
 import { onDestroy, onMount } from "svelte";
 import { SvelteMap, SvelteSet } from "svelte/reactivity";
+import { computeProjectBadgeLabels } from "@acepe/ui";
 import type { FileGitStatus } from "$lib/services/converted-session-types.js";
 import { tauriClient } from "$lib/utils/tauri-client.js";
 import type { Project } from "../logic/project-manager.svelte.js";
@@ -60,6 +61,10 @@ const cardDataList = $derived<ProjectCardData[]>(
 		getCachedMetadata: getCachedProjectSelectionMetadata,
 		remoteStatusByPath: remoteStatusMap,
 	})
+);
+
+const labelByPath = $derived(
+	computeProjectBadgeLabels(projects.map((project) => ({ key: project.path, name: project.name })))
 );
 
 function setProjectCardData(
@@ -322,6 +327,7 @@ onDestroy(() => {
 				{data}
 				{index}
 				{modifierSymbol}
+				label={labelByPath.get(data.project.path) ?? null}
 				isMissing={missingProjectPaths.has(data.project.path)}
 				onSelect={() => handleProjectSelect(index)}
 			/>

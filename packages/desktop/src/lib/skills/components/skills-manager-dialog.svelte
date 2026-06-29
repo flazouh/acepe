@@ -1,5 +1,5 @@
 <script lang="ts">
-import { Plus } from "@lucide/svelte/icons";
+import { PlusIcon } from "@acepe/ui";
 import { Button } from "$lib/components/ui/button/index.js";
 import DialogFrame from "$lib/components/ui/dialog-frame.svelte";
 
@@ -27,7 +27,7 @@ let skillsPageRef: ReturnType<typeof SkillsPage> | undefined = $state();
 
 	{#snippet topRight()}
 		<Button variant="header" size="header" onclick={() => skillsPageRef?.openCreateDialog()}>
-			<Plus class="h-3.5 w-3.5" />
+			<PlusIcon />
 			New Skill
 		</Button>
 	{/snippet}

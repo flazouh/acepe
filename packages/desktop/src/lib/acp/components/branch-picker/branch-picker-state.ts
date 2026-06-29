@@ -71,6 +71,21 @@ export function getWorktreeBranches(currentBranch: string | null): string[] {
 	return currentBranch ? [currentBranch] : [];
 }
 
+export function shouldCheckoutSelectedBranch(input: {
+	currentBranch: string | null;
+	selectedBranch: string;
+	create: boolean;
+}): boolean {
+	const normalizedSelectedBranch = input.selectedBranch.trim();
+	if (!normalizedSelectedBranch) {
+		return false;
+	}
+	if (input.create) {
+		return true;
+	}
+	return normalizedSelectedBranch !== input.currentBranch?.trim();
+}
+
 export function getBranchListDisplayState(input: {
 	readonly loadingBranches: boolean;
 	readonly branchLoadFailed: boolean;

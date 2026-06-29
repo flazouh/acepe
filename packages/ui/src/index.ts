@@ -83,10 +83,9 @@ export {
 	AgentInputMicButton,
 	AgentInputModeSelector,
 	AgentInputModelFavoriteStar,
-	AgentInputModelRow,
 	AgentInputModelSelector,
 	AgentInputModelTrigger,
-	AgentInputSelectorItemRow,
+	AgentInputAgentSelector,
 	AgentInputSlashCommandDropdown,
 	AgentInputPastedTextOverlay,
 	AgentInputToolbar,
@@ -328,6 +327,9 @@ export {
 	DotmTriangle20Spinner,
 	LoadingIcon,
 	PlanIcon,
+	PlusIcon,
+	PLUS_ACTION_BUTTON_CLASS,
+	PLUS_ICON_CLASS,
 	RevertIcon,
 } from "./components/icons/index.js";
 export { ProviderMark } from "./components/provider-mark/index.js";
@@ -412,7 +414,6 @@ export {
 	CloseAction,
 	EmbeddedPanelHeader,
 	FullscreenAction,
-	FusedOverflowDotsTrigger,
 	FusedPrimaryOverflowGroup,
 	HeaderActionCell,
 	HeaderCell,
@@ -428,23 +429,27 @@ export { DismissableTooltip } from "./components/dismissable-tooltip/index.js";
 export { PillButton } from "./components/pill-button/index.js";
 export { ProjectCard } from "./components/project-card/index.js";
 export { ProjectLetterBadge } from "./components/project-letter-badge/index.js";
+export {
+	computeProjectBadgeLabels,
+	type ProjectBadgeLabelInput,
+} from "./components/project-letter-badge/project-letter-badge-labels.js";
 export { RichTokenText } from "./components/rich-token-text/index.js";
 export { SegmentedProgress } from "./components/segmented-progress/index.js";
-// Selector
-export { ComposerOverflowMenu } from "./components/composer/index.js";
+// Selector kit
 export {
-	ComposerFilterDropdown,
-	ComposerFilterDropdownBody,
-	ComposerFilterDropdownFilterInput,
-	composerFilterDropdownBodyClass,
-	composerFilterDropdownContentClass,
-	composerFilterDropdownEmptyStateClass,
-	composerFilterDropdownFilterRowClass,
-	composerFilterDropdownItemClass,
-	composerFilterDropdownListClass,
-	composerFilterDropdownSubmenuContentClass,
-} from "./components/composer/index.js";
-export { Selector } from "./components/selector/index.js";
+	Selector,
+	SelectorItem,
+	SelectorPanel,
+	SelectorPanelSearchInput,
+	selectorPanelBodyClass,
+	selectorPanelContentClass,
+	selectorPanelEmptyStateClass,
+	selectorPanelFilterInputClass,
+	selectorPanelFilterRowClass,
+	selectorPanelItemClass,
+	selectorPanelListClass,
+	selectorPanelSubmenuContentClass,
+} from "./components/selector/index.js";
 export {
 	SessionPrLinkPickerPanel,
 	filterPullRequestsByQuery,

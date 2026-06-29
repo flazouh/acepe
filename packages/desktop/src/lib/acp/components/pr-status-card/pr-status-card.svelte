@@ -22,6 +22,7 @@ import PrChecksSurface from "../shared/pr-checks-surface.svelte";
 import type { SessionLinkedPr } from "../../application/dto/session-linked-pr";
 import type { PrDetails } from "$lib/utils/tauri-client/git.js";
 import type { ShipCardData } from "../ship-card/ship-card-parser.js";
+import type { PrChecksItem } from "@acepe/ui";
 
 interface Props {
 	sessionId: string | null;
@@ -33,6 +34,7 @@ interface Props {
 	linkedPr: SessionLinkedPr | null;
 	/** Live streaming data from AI generation — shown before the PR is created. */
 	streamingData?: ShipCardData | null;
+	onFixCheck?: (check: PrChecksItem) => void;
 }
 
 let {
@@ -44,6 +46,7 @@ let {
 	fetchError,
 	linkedPr,
 	streamingData = null,
+	onFixCheck,
 }: Props = $props();
 
 let diffModalOpen = $state(false);
@@ -112,6 +115,7 @@ const prCardModel = $derived.by<AgentPanelPrCardModel>(() => {
 			hasResolvedChecks: linkedPr?.hasResolvedChecks ?? false,
 			checksCollapseThreshold: 3,
 			onOpenCheck: handleOpenCheck,
+			onFixCheck,
 			onOpen: handleOpenGitHub,
 		};
 	}

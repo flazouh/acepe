@@ -1,5 +1,5 @@
 <script lang="ts">
-import { ProjectLetterBadge } from "@acepe/ui";
+import { ProjectLetterBadge, computeProjectBadgeLabels } from "@acepe/ui";
 import { IconX } from "@tabler/icons-svelte";
 import { normalizeTitleForDisplay } from "$lib/acp/store/session-title-policy.js";
 import { Button } from "$lib/components/ui/button/index.js";
@@ -31,6 +31,10 @@ interface Props {
 }
 
 let { panels, focusedPanelId, recentProjects, onSelectPanel, onClosePanel }: Props = $props();
+
+const labelByPath = $derived(
+	computeProjectBadgeLabels(recentProjects.map((p) => ({ key: p.path, name: p.name })))
+);
 
 function getProjectForSession(projectPath: string | null): Project | null {
 	if (!projectPath) return null;
@@ -73,6 +77,9 @@ function getProjectInfo(panel: PanelTabInfo): {
 						<!-- Project letter badge -->
 						<ProjectLetterBadge
 							name={projectInfo.name}
+							label={panel.sessionProjectPath
+								? (labelByPath.get(panel.sessionProjectPath) ?? null)
+								: null}
 							color={projectInfo.color}
 							iconSrc={projectInfo.iconSrc}
 						/>

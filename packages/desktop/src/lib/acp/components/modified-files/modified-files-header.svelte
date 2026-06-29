@@ -4,6 +4,7 @@ import {
 	AgentPanelModifiedFilesHeader as SharedAgentPanelModifiedFilesHeader,
 	AgentPanelModifiedFilesTrailingControls as SharedAgentPanelModifiedFilesTrailingControls,
 	DiffPill,
+	Selector,
 	type AgentPanelModifiedFilesTrailingModel,
 } from "@acepe/ui";
 import { Button } from "@acepe/ui/button";
@@ -31,7 +32,7 @@ import { getReviewPreferenceStore } from "../../store/review-preference-store.sv
 import { sessionReviewStateStore } from "../../store/session-review-state-store.svelte.js";
 import { capitalizeName } from "../../utils/string-formatting.js";
 import { getModelDisplayName } from "../model-selector-logic.js";
-import { AgentInputSelectorItemRow } from "@acepe/ui";
+import { SelectorItem } from "@acepe/ui";
 import AgentIcon from "../agent-icon.svelte";
 import type { FileReviewStatus } from "../review-panel/review-session-state.js";
 import { normalizeCustomShipInstructions } from "./logic/build-pr-prompt-preview.js";
@@ -387,24 +388,23 @@ function handlePromptResetClick(): void {
 								<DiffPill insertions={diffTotals.totalAdded} deletions={diffTotals.totalRemoved} variant="plain" />
 							</Button>
 
-							<DropdownMenu.Root>
-								<DropdownMenu.Trigger>
-									{#snippet child({ props })}
-										<Button
-											{...props}
-											variant="headerAction"
-											size="headerAction"
-											class="!px-1"
-											disabled={createPrLoading}
-											aria-label="PR options"
-											title="PR options"
-										>
-											<DotsThreeVertical size={11} weight="bold" class="shrink-0" />
-										</Button>
-									{/snippet}
-								</DropdownMenu.Trigger>
-								<DropdownMenu.Content align="start" sideOffset={6} class="min-w-[200px]">
-									<DropdownMenu.Sub>
+							<Selector
+								embeddedInGroup
+								showChevron={false}
+								triggerSize="headerAction"
+								variant="headerAction"
+								align="start"
+								sideOffset={6}
+								contentClass="min-w-[200px]"
+								triggerAriaLabel="PR options"
+								triggerClass="!px-1"
+								disabled={createPrLoading}
+							>
+								{#snippet renderButton()}
+									<DotsThreeVertical size={11} weight="bold" class="shrink-0" />
+								{/snippet}
+
+								<DropdownMenu.Sub>
 										<DropdownMenu.SubTrigger disabled={availableAgents.length === 0} class="cursor-pointer">
 											<span class="flex-1">Agent</span>
 											<span class="max-w-[100px] truncate text-[10px] text-muted-foreground">
@@ -413,7 +413,7 @@ function handlePromptResetClick(): void {
 										</DropdownMenu.SubTrigger>
 										<DropdownMenu.SubContent class="w-[220px] max-h-[260px]">
 											{#each availableAgents as agent (agent.id)}
-												<AgentInputSelectorItemRow
+												<SelectorItem
 													label={capitalizeName(agent.name)}
 													selected={agent.id === effectiveAgentId}
 													onSelect={() => handleAgentPickerChange(agent.id)}
@@ -427,7 +427,7 @@ function handlePromptResetClick(): void {
 															size={14}
 														/>
 													{/snippet}
-												</AgentInputSelectorItemRow>
+												</SelectorItem>
 											{/each}
 										</DropdownMenu.SubContent>
 									</DropdownMenu.Sub>
@@ -442,7 +442,7 @@ function handlePromptResetClick(): void {
 										<DropdownMenu.SubContent class="w-[240px] max-h-[280px]">
 											{#each reactiveModels as model (model.id)}
 												{@const displayName = getModelDisplayName(model, effectiveAgentId, reactiveModelsDisplay)}
-												<AgentInputSelectorItemRow
+												<SelectorItem
 													label={displayName}
 													selected={model.id === effectiveModelId}
 													onSelect={() => handleModelPickerChange(model.id)}
@@ -475,8 +475,7 @@ function handlePromptResetClick(): void {
 											variant="menu"
 										/>
 									{/if}
-								</DropdownMenu.Content>
-							</DropdownMenu.Root>
+							</Selector>
 						</ButtonGroup.Root>
 
 						<SharedAgentPanelModifiedFilesTrailingControls
@@ -520,22 +519,21 @@ function handlePromptResetClick(): void {
 									{"Merge"}
 								{/if}
 							</Button>
-							<DropdownMenu.Root>
-								<DropdownMenu.Trigger>
-									{#snippet child({ props })}
-										<Button
-											{...props}
-											variant="headerAction"
-											size="headerAction"
-											disabled={merging}
-											aria-label="Merge options"
-										>
-											<CaretDown size={11} weight="bold" class="shrink-0" />
-										</Button>
-									{/snippet}
-								</DropdownMenu.Trigger>
-								<DropdownMenu.Content align="start" class="min-w-[160px]">
-									<DropdownMenu.RadioGroup
+							<Selector
+								embeddedInGroup
+								showChevron={false}
+								triggerSize="headerAction"
+								variant="headerAction"
+								align="start"
+								contentClass="min-w-[160px]"
+								triggerAriaLabel="Merge options"
+								disabled={merging}
+							>
+								{#snippet renderButton()}
+									<CaretDown size={11} weight="bold" class="shrink-0" />
+								{/snippet}
+
+								<DropdownMenu.RadioGroup
 										value={mergeStrategyStore.strategy}
 										onValueChange={handleMergeStrategyChange}
 									>
@@ -545,8 +543,7 @@ function handlePromptResetClick(): void {
 											</DropdownMenu.RadioItem>
 										{/each}
 									</DropdownMenu.RadioGroup>
-								</DropdownMenu.Content>
-							</DropdownMenu.Root>
+							</Selector>
 						</ButtonGroup.Root>
 					{/if}
 				{/if}

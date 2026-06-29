@@ -671,7 +671,7 @@ function handleEmptyStateSessionCreated(sessionId: string) {
 						{currentBranch}
 						{diffStats}
 						{isGitRepo}
-						variant="setupChip"
+						variant="setupBarChip"
 						onBranchSelected={handleBranchSelected}
 						onInitGitRepo={handleInitGitRepo}
 					/>

@@ -3,6 +3,7 @@ import { SvelteDate, SvelteMap } from "svelte/reactivity";
 import type { SessionStore } from "$lib/acp/store/session-store.svelte.js";
 
 import { resolveProjectColor } from "@acepe/ui/colors";
+import { computeProjectBadgeLabels } from "@acepe/ui/project-letter-badge";
 import { ProjectClient } from "./project-client.js";
 
 /**
@@ -67,6 +68,25 @@ export class ProjectManager {
 	readonly projectByPath = $derived.by(
 		() => new SvelteMap(this.projects.map((project) => [project.path, project]))
 	);
+
+	/**
+	 * Disambiguating badge label per project path, computed globally across all
+	 * projects. Projects with distinct first letters get a single letter ("A");
+	 * collisions grow the prefix until unique ("Ac" / "Ap").
+	 */
+	readonly badgeLabelByPath = $derived.by(() =>
+		computeProjectBadgeLabels(
+			this.projects.map((project) => ({ key: project.path, name: project.name }))
+		)
+	);
+
+	/**
+	 * Resolve the disambiguating badge label for a project path. Falls back to
+	 * the project's first letter when the path is unknown (e.g. not yet loaded).
+	 */
+	getProjectBadgeLabel(path: string): string | undefined {
+		return this.badgeLabelByPath.get(path);
+	}
 
 	/**
 	 * Whether projects are currently loading.

@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { IconPlus } from "@tabler/icons-svelte";
+	import PlusIcon from "../icons/plus-icon.svelte";
 	import { ProjectLetterBadge } from "../project-letter-badge/index.js";
 
 	interface ProjectTab {
@@ -68,7 +68,7 @@
 							<span class="transition-opacity duration-150 group-hover/session-count:opacity-0 group-focus-visible/session-count:opacity-0">
 								{project.sessionCount}
 							</span>
-							<IconPlus class="absolute h-2.5 w-2.5 opacity-0 transition-opacity duration-150 group-hover/session-count:opacity-100 group-focus-visible/session-count:opacity-100" />
+							<PlusIcon class="absolute opacity-0 transition-opacity duration-150 group-hover/session-count:opacity-100 group-focus-visible/session-count:opacity-100" />
 						</button>
 					{:else if project.sessionCount != null}
 						<span

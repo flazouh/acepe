@@ -1,8 +1,8 @@
 export type AgentInputBranchSelectorVariant =
 	| "default"
 	| "minimal"
-	| "setupChip"
-	| "setupChipGrouped";
+	| "setupBarChip"
+	| "setupBarChipGrouped";
 
 export type AgentInputBranchListDisplay =
 	| { kind: "loading"; message: string }

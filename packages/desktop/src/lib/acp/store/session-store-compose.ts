@@ -230,8 +230,10 @@ export function composeSessionStoreParts(input: ComposeSessionStorePartsInput): 
 		removeSession: (sessionId) => lifecycleCleanup.removeSession(sessionId),
 		removeOptimisticSession: (sessionId) => repository.removeSession(sessionId),
 		updateSession: (id, updates, options) => listState.updateSession(id, updates, options),
-		replaceSessionOperations: (sessionId, operations) =>
-			operationStore.replaceSessionOperations(sessionId, operations),
+		replaceSessionOperations: (sessionId, operations) => {
+			operationStore.replaceSessionOperations(sessionId, operations);
+			maybeAutoLinkPrFromOperations(sessionId);
+		},
 		replaceTranscriptSnapshot: (sessionId, snapshot, appliedAt) =>
 			entryStore.replaceTranscriptSnapshot(sessionId, snapshot, appliedAt),
 		initializeTransientProjection: (sessionId) =>
@@ -295,6 +297,21 @@ export function composeSessionStoreParts(input: ComposeSessionStorePartsInput): 
 		updateSession: (id, updates, options) => write.updateSession(id, updates, options),
 	});
 
+	// After canonical operations are applied, give PR-link attribution a chance to auto-link
+	// the session from a verified `gh pr create` tool call. Reads canonical operation facts;
+	// the method is idempotent and no-ops once the session has a linked or manually-set PR.
+	const maybeAutoLinkPrFromOperations = (sessionId: string): void => {
+		const projectPath = read.getSessionIdentity(sessionId)?.projectPath;
+		if (projectPath === undefined) {
+			return;
+		}
+		prLinkState.applyAutomaticPrLinkFromToolOperations(
+			sessionId,
+			projectPath,
+			operationStore.getSessionOperations(sessionId)
+		);
+	};
+
 	const stateRefreshControllerRef: { current: SessionStateRefreshController | null } = { current: null };
 	const awaitingModelRefreshRef: { current: AwaitingModelRefreshStore | null } = { current: null };
 
@@ -323,14 +340,18 @@ export function composeSessionStoreParts(input: ComposeSessionStorePartsInput): 
 		updateUsageTelemetry: (sessionId, telemetry) => input.updateUsageTelemetry(sessionId, telemetry),
 		applyViewportBufferPush: (push) => viewport.applyBufferPush(push),
 		applyViewportBufferDelta: (delta) => viewport.applyBufferDelta(delta),
-		replaceSessionOperations: (sessionId, operations) =>
-			operationStore.replaceSessionOperations(sessionId, operations),
+		replaceSessionOperations: (sessionId, operations) => {
+			operationStore.replaceSessionOperations(sessionId, operations);
+			maybeAutoLinkPrFromOperations(sessionId);
+		},
 		replaceTranscriptSnapshot: (sessionId, snapshot, appliedAt) =>
 			entryStore.replaceTranscriptSnapshot(sessionId, snapshot, appliedAt),
 		applyTranscriptDeltaToEntryStore: (sessionId, delta, appliedAt) =>
 			entryStore.applyTranscriptDelta(sessionId, delta, appliedAt),
-		applySessionOperationPatches: (sessionId, patches) =>
-			operationStore.applySessionOperationPatches(sessionId, patches),
+		applySessionOperationPatches: (sessionId, patches) => {
+			operationStore.applySessionOperationPatches(sessionId, patches);
+			maybeAutoLinkPrFromOperations(sessionId);
+		},
 		replaceLiveSessionStateGraph: (graph) => creationCoordinator.replaceLiveSessionStateGraph(graph),
 		applyLiveSessionInteractionPatches: (snapshots) =>
 			creationCoordinator.applyLiveSessionInteractionPatches(snapshots),

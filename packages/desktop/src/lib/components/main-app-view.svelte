@@ -4,7 +4,6 @@ import { getCurrentWindow } from "@tauri-apps/api/window";
 import { relaunch } from "@tauri-apps/plugin-process";
 import { check, type DownloadEvent } from "@tauri-apps/plugin-updater";
 import { okAsync, ResultAsync } from "neverthrow";
-import { FolderPlus } from "phosphor-svelte";
 import { onDestroy, onMount } from "svelte";
 import { toast } from "svelte-sonner";
 import OpenProjectDialog from "$lib/acp/components/add-repository/open-project-dialog.svelte";
@@ -1082,28 +1081,18 @@ onDestroy(() => {
 					viewState.debugPanelOpen = true;
 				}}
 				onDevResetOnboarding={handleDevResetOnboarding}
-			>
-				{#snippet addProjectButton()}
-					<Button
-						variant="chromeIcon"
-						size="chromeIcon"
-						title={"Add repository"}
-						aria-label={"Add repository"}
-						onclick={() => (addProjectDialogOpen = true)}
-					>
-						{#snippet children()}
-							<FolderPlus class="size-3.5" weight="fill" />
-						{/snippet}
-					</Button>
-				{/snippet}
-			</TopBar>
+			></TopBar>
 		</div>
 		{#if !viewState.reviewFullscreenOpen}
 			<div class={resolveWorkspaceFrameClass()}>
 				{#if showSidebar}
 					<div class={resolveWorkspaceSidebarClass(viewState.sidebarOpen)}>
 						<svelte:boundary onerror={(e) => console.error('[boundary:sidebar]', e)}>
-							<AppSidebar {projectManager} state={viewState} />
+							<AppSidebar
+							{projectManager}
+							state={viewState}
+							onImportProject={() => (addProjectDialogOpen = true)}
+						/>
 							{#snippet failed(error, reset)}
 								<div class="flex flex-1 items-center justify-center p-4">
 									<div class="flex flex-col items-center gap-2 text-muted-foreground text-xs">

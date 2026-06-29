@@ -5,7 +5,7 @@
 	import { Button } from "../button/index.js";
 	import { Selector } from "../selector/index.js";
 	import { Switch } from "../switch/index.js";
-	import AgentInputSelectorItemRow from "../agent-panel/agent-input-selector-item-row.svelte";
+	import { SelectorItem } from "../selector/index.js";
 	import { PROJECT_COLOR_OPTIONS } from "./project-color-options.js";
 	import ProjectColorSwatch from "./project-color-swatch.svelte";
 	import { buildProjectHeaderOverflowMenuState } from "./project-menu-state.js";
@@ -98,7 +98,7 @@
 	{#if onMoveUp || onMoveDown}
 		<DropdownMenu.Group>
 			{#if onMoveUp}
-				<AgentInputSelectorItemRow
+				<SelectorItem
 					label="Move Up"
 					disabled={moveUpDisabled}
 					onSelect={() => {
@@ -108,7 +108,7 @@
 				/>
 			{/if}
 			{#if onMoveDown}
-				<AgentInputSelectorItemRow
+				<SelectorItem
 					label="Move Down"
 					disabled={moveDownDisabled}
 					onSelect={() => {
@@ -143,7 +143,7 @@
 		<DropdownMenu.Group>
 			<DropdownMenu.GroupHeading>Settings</DropdownMenu.GroupHeading>
 			{#if onChangeProjectIcon}
-				<AgentInputSelectorItemRow
+				<SelectorItem
 					label="Change icon..."
 					onSelect={() => {
 						onChangeProjectIcon();
@@ -156,7 +156,7 @@
 					<DropdownMenu.SubTrigger>Color</DropdownMenu.SubTrigger>
 					<DropdownMenu.SubContent>
 						{#each colorOptions as option (option.name)}
-							<AgentInputSelectorItemRow
+							<SelectorItem
 								label={option.label}
 								selected={currentColor === option.name || currentColor === option.hex}
 								onSelect={() => handleColorSelect(option.name)}
@@ -164,13 +164,13 @@
 								{#snippet leading()}
 									<ProjectColorSwatch hex={option.hex} />
 								{/snippet}
-							</AgentInputSelectorItemRow>
+							</SelectorItem>
 						{/each}
 					</DropdownMenu.SubContent>
 				</DropdownMenu.Sub>
 			{/if}
 			{#if hasIcon && onResetProjectIcon}
-				<AgentInputSelectorItemRow
+				<SelectorItem
 					label="Reset to letter badge"
 					onSelect={() => {
 						onResetProjectIcon();

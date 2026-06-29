@@ -1,4 +1,5 @@
 import { cn } from "../../lib/utils.js";
+import type { ButtonVariant } from "../button/variants.js";
 import {
 	FUSED_CONTROL_COMPOSER_CHIP_LABEL_BUTTON_CLASS,
 	FUSED_CONTROL_COMPOSER_STANDALONE_ICON_CHIP_CLASS,
@@ -20,22 +21,11 @@ export type SelectorTriggerSize =
 	| "setupBarChipGrouped"
 	| "composerChipLabel"
 	| "composerChipIcon"
-	| "headerAction"
-	/** @deprecated Use {@link setupBarChip} */
-	| "setupChip"
-	/** @deprecated Use {@link composerChipIcon} */
-	| "setupChipIcon";
+	| "headerAction";
 
-/** Normalize legacy trigger size names after the setup-bar/composer split. */
+/** Normalize trigger size names (identity today; kept for call-site stability). */
 export function resolveSelectorTriggerSize(triggerSize: SelectorTriggerSize): SelectorTriggerSize {
-	switch (triggerSize) {
-	case "setupChip":
-		return "setupBarChip";
-	case "setupChipIcon":
-		return "composerChipIcon";
-	default:
-		return triggerSize;
-	}
+	return triggerSize;
 }
 
 export function isFusedComposerChipTriggerSize(triggerSize: SelectorTriggerSize): boolean {
@@ -46,6 +36,33 @@ export function isFusedComposerChipTriggerSize(triggerSize: SelectorTriggerSize)
 		resolved === "setupBarChip" ||
 		resolved === "setupBarChipGrouped"
 	);
+}
+
+/** Button variant for Selector triggers; fused chip surfaces come from {@link getSelectorTriggerClass}. */
+export function getSelectorTriggerButtonVariant(triggerSize: SelectorTriggerSize): ButtonVariant {
+	if (isFusedComposerChipTriggerSize(triggerSize)) {
+		return "chromeIcon";
+	}
+
+	const resolved = resolveSelectorTriggerSize(triggerSize);
+
+	switch (resolved) {
+	case "chromeIcon":
+	case "chromeIconMd":
+	case "icon":
+	case "attach":
+	case "square":
+		return "chromeIcon";
+	case "headerAction":
+		return "headerAction";
+	case "pill":
+	case "minimal":
+	case "footer":
+	case "default":
+		return "ghost";
+	default:
+		return "outline";
+	}
 }
 
 export function getSelectorTriggerSizeClass(triggerSize: SelectorTriggerSize): string {

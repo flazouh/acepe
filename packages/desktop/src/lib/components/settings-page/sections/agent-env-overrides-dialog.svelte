@@ -1,7 +1,7 @@
 <script lang="ts">
 import { IconEye } from "@tabler/icons-svelte";
 import { IconEyeOff } from "@tabler/icons-svelte";
-import { IconPlus } from "@tabler/icons-svelte";
+import { PlusIcon } from "@acepe/ui";
 import { IconTrash } from "@tabler/icons-svelte";
 import { FloppyDisk, SlidersHorizontal } from "phosphor-svelte";
 import { Button, Input } from "@acepe/ui";
@@ -202,7 +202,7 @@ function handleSave(): void {
 
 		<div class="flex justify-end">
 			<DesktopButton variant="header" size="header" onclick={addRow}>
-				<IconPlus class="h-3 w-3" />
+				<PlusIcon />
 				Add variable
 			</DesktopButton>
 		</div>
@@ -237,7 +237,7 @@ function handleSave(): void {
 						</Button>
 					</div>
 					<Button type="button" variant="outline" size="icon" onclick={addRow}>
-						<IconPlus class="h-3.5 w-3.5" />
+						<PlusIcon />
 					</Button>
 					<Button type="button" variant="outline" size="icon" onclick={() => removeRow(row.id)}>
 						<IconTrash class="h-3.5 w-3.5" />

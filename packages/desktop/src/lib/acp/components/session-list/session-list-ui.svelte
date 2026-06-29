@@ -4,9 +4,7 @@ import {
 	ProjectHeader,
 	ProjectHeaderOverflowMenu,
 } from "@acepe/ui/app-layout";
-import { IconPlus } from "@tabler/icons-svelte";
-import { GitBranch } from "phosphor-svelte";
-import { FolderOpen } from "phosphor-svelte";
+import { PLUS_ACTION_BUTTON_CLASS, PlusIcon } from "@acepe/ui";
 import { tick } from "svelte";
 import { SvelteMap, SvelteSet } from "svelte/reactivity";
 import type { SessionDisplayItem } from "$lib/acp/types/thread-display-item.js";
@@ -17,7 +15,6 @@ import {
 } from "$lib/components/ui/skeleton/index.js";
 import * as Tooltip from "@acepe/ui/tooltip";
 import type { AgentInfo } from "../../logic/agent-manager.js";
-import ProjectFileSystemDialog from "../file-explorer-modal/project-file-system-dialog.svelte";
 import {
 	getSidebarSessions,
 	getNextSessionListVisibleCount,
@@ -178,13 +175,6 @@ $effect(() => {
 });
 
 // Rename dialog
-
-let fileExplorerDialogProject = $state<{
-	projectPath: string;
-	projectName: string;
-	projectColor: string | undefined;
-	projectIconSrc: string | null;
-} | null>(null);
 
 function toggleProject(projectPath: string) {
 	if (collapsedProjects.has(projectPath)) {
@@ -358,13 +348,7 @@ function getProjectCreateButtonTooltipLabel(projectName: string): string {
 	return `New session in ${projectName}`;
 }
 
-function handleOpenGitPanel(event: MouseEvent, projectPath: string) {
-	event.stopPropagation();
-	onOpenGitPanel?.(projectPath);
-}
-
-const projectHeaderHoverActionButtonClass =
-	"flex items-center justify-center size-5 rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground";
+const projectHeaderHoverActionButtonClass = PLUS_ACTION_BUTTON_CLASS;
 
 function getShowExternalCliSessions(projectPath: string): boolean {
 	return projectShowExternalCliSessions.get(projectPath) ?? true;
@@ -372,20 +356,6 @@ function getShowExternalCliSessions(projectPath: string): boolean {
 
 function isAcepeOnlyFilterActive(projectPath: string): boolean {
 	return !getShowExternalCliSessions(projectPath);
-}
-
-function handleOpenFileExplorer(event: MouseEvent, group: SessionGroup): void {
-	event.stopPropagation();
-	fileExplorerDialogProject = {
-		projectPath: group.projectPath,
-		projectName: group.projectName,
-		projectColor: group.projectColor,
-		projectIconSrc: group.projectIconSrc,
-	};
-}
-
-function handleCloseFileExplorer(): void {
-	fileExplorerDialogProject = null;
 }
 
 function handleProjectHeaderClick(projectPath: string) {
@@ -482,42 +452,12 @@ async function handleProjectContextMove(projectPath: string, offset: -1 | 1): Pr
 						onclick={(event) => handleProjectCreateButtonClick(event, group.projectPath)}
 						aria-label={getProjectCreateButtonTooltipLabel(group.projectName)}
 					>
-						<IconPlus class="h-3 w-3" />
+						<PlusIcon />
 					</button>
 				</Tooltip.Trigger>
 				<Tooltip.Content>
 					{getProjectCreateButtonTooltipLabel(group.projectName)}
 				</Tooltip.Content>
-			</Tooltip.Root>
-		{/if}
-		<Tooltip.Root>
-			<Tooltip.Trigger>
-				<button
-					type="button"
-					class={projectHeaderHoverActionButtonClass}
-					onclick={(event) => handleOpenFileExplorer(event, group)}
-					aria-label={`Open file system in ${group.projectName}`}
-				>
-					<FolderOpen class="h-3 w-3" weight="fill" />
-				</button>
-			</Tooltip.Trigger>
-			<Tooltip.Content>
-				{`Open file system in ${group.projectName}`}
-			</Tooltip.Content>
-		</Tooltip.Root>
-		{#if onOpenGitPanel}
-			<Tooltip.Root>
-				<Tooltip.Trigger>
-					<button
-						type="button"
-						class={projectHeaderHoverActionButtonClass}
-						onclick={(event) => handleOpenGitPanel(event, group.projectPath)}
-						aria-label={`Source control in ${group.projectName}`}
-					>
-						<GitBranch class="h-3 w-3" weight="fill" />
-					</button>
-				</Tooltip.Trigger>
-				<Tooltip.Content>Source Control</Tooltip.Content>
 			</Tooltip.Root>
 		{/if}
 		{@render projectOverflowMenu(group, projectIndex)}
@@ -645,18 +585,3 @@ async function handleProjectContextMove(projectPath: string, offset: -1 | 1): Pr
 
 	<span class="sr-only" role="status" aria-live="polite">{reorderAnnouncement}</span>
 </div>
-
-{#if fileExplorerDialogProject !== null}
-	<ProjectFileSystemDialog
-		open={true}
-		projectPath={fileExplorerDialogProject.projectPath}
-		projectName={fileExplorerDialogProject.projectName}
-		projectColor={fileExplorerDialogProject.projectColor}
-		projectIconSrc={fileExplorerDialogProject.projectIconSrc}
-		onClose={handleCloseFileExplorer}
-		onOpenFile={(projectPath, filePath) => {
-			onSelectFile?.(filePath, projectPath);
-			handleCloseFileExplorer();
-		}}
-	/>
-{/if}

@@ -16,6 +16,7 @@ import { tauriClient } from "$lib/utils/tauri-client.js";
 import {
 	getBranchListDisplayState,
 	getWorktreeBranches,
+	shouldCheckoutSelectedBranch,
 	shouldLoadBranchList,
 } from "./branch-picker-state.js";
 import CreateBranchDialog from "./create-branch-dialog.svelte";
@@ -29,8 +30,8 @@ interface Props {
 	onBranchSelected?: (branch: string) => void;
 	onInitGitRepo?: () => void;
 	initGitLoading?: boolean;
-	/** "minimal" = pill triggers, no border; "setupChip" = new-thread setup bar chip; "setupChipGrouped" = first segment in setup git button group. */
-	variant?: "default" | "minimal" | "setupChip" | "setupChipGrouped";
+	/** "minimal" = pill triggers, no border; "setupBarChip" = new-thread setup bar chip; "setupBarChipGrouped" = first segment in setup git button group. */
+	variant?: "default" | "minimal" | "setupBarChip" | "setupBarChipGrouped";
 	class?: string;
 }
 
@@ -57,9 +58,9 @@ let createBranchDialogOpen = $state(false);
 
 const setupBarLayoutClass = "w-auto flex-none";
 const initGitButtonClass = $derived(
-	variant === "setupChipGrouped"
+	variant === "setupBarChipGrouped"
 		? cn(FUSED_CONTROL_SETUP_GROUPED_CHIP_LABEL_BUTTON_CLASS, setupBarLayoutClass)
-		: variant === "setupChip"
+		: variant === "setupBarChip"
 			? cn(FUSED_CONTROL_SETUP_CHIP_BUTTON_CLASS, setupBarLayoutClass)
 			: variant === "minimal"
 				? "!border-0 !h-[26px] rounded-md hover:rounded-full transition-[border-radius]"
@@ -114,6 +115,9 @@ $effect(() => {
 
 function handleSwitchBranch(branch: string, create: boolean): void {
 	if (!projectPath || switchingBranch) return;
+	if (!shouldCheckoutSelectedBranch({ currentBranch, selectedBranch: branch, create })) {
+		return;
+	}
 
 	switchingBranch = true;
 	void tauriClient.git.checkoutBranch(projectPath, branch, create).match(
@@ -125,6 +129,9 @@ function handleSwitchBranch(branch: string, create: boolean): void {
 		},
 		(error) => {
 			switchingBranch = false;
+			if (!create) {
+				branchPopoverOpen = true;
+			}
 			const message = error.cause?.message || error.message || "Failed to switch branch";
 			toast.error(message);
 		}
@@ -144,10 +151,10 @@ function openCreateBranchDialog(): void {
 {#if isGitRepo === false}
 	<Button
 		variant="ghost"
-		size={variant === "setupChip" || variant === "setupChipGrouped" ? "setupChip" : "sm"}
+		size={variant === "setupBarChip" || variant === "setupBarChipGrouped" ? "setupChip" : "sm"}
 		class={cn(
 			"gap-1.5",
-			variant === "setupChip" ? "w-auto shrink-0 px-1.5 py-1" : "w-full px-2",
+			variant === "setupBarChip" ? "w-auto shrink-0 px-1.5 py-1" : "w-full px-2",
 			initGitButtonClass
 		)}
 		disabled={!projectPath || !onInitGitRepo || initGitLoading}

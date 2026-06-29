@@ -281,7 +281,7 @@
 			currentBranch={preSessionCurrentBranch}
 			diffStats={null}
 			isGitRepo={preSessionIsGitRepo}
-			variant="setupChip"
+			variant="setupBarChip"
 			onBranchSelected={(branch) => {
 				preSessionCurrentBranch = branch;
 			}}

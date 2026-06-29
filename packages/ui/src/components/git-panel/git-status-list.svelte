@@ -6,7 +6,8 @@
 	import { ArrowCounterClockwise } from "phosphor-svelte";
 	import { CaretRight } from "phosphor-svelte";
 	import { FileMinus } from "phosphor-svelte";
-	import { Plus } from "phosphor-svelte";
+
+	import PlusIcon from "../icons/plus-icon.svelte";
 
 	import { cn } from "../../lib/utils.js";
 	import type { GitStatusFile } from "./types.js";
@@ -133,7 +134,7 @@
 						title="Stage all changes"
 						onclick={onStageAll}
 					>
-						<Plus size={12} weight="bold" />
+						<PlusIcon />
 					</button>
 				{/if}
 			</div>
@@ -155,7 +156,7 @@
 									title="Stage file"
 									onclick={(e) => { e.stopPropagation(); onStage?.(file.path); }}
 								>
-									<Plus size={12} weight="bold" />
+									<PlusIcon />
 								</button>
 							{/if}
 							{#if onDiscard}

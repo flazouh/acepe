@@ -2,6 +2,7 @@
 import { Tree } from "phosphor-svelte";
 import type { MergeStrategy } from "$lib/utils/tauri-client/git.js";
 import type { PrDetails } from "$lib/utils/tauri-client/git.js";
+import type { PrChecksItem } from "@acepe/ui";
 import type { IssueReportDraft } from "$lib/errors/issue-report.js";
 import { resolveIssueActionLabel } from "$lib/errors/issue-report.js";
 import type { AgentInfo } from "../../../logic/agent-manager.js";
@@ -89,6 +90,7 @@ let {
 	createPrLabel,
 	onMergePr,
 	mergePrRunning,
+	onFixCiCheck,
 	availableAgents,
 	effectivePanelAgentId,
 	sessionCurrentModelId,
@@ -155,6 +157,7 @@ let {
 	createPrLabel: string | null;
 	onMergePr: (strategy: MergeStrategy) => void;
 	mergePrRunning: boolean;
+	onFixCiCheck?: (check: PrChecksItem) => void;
 	availableAgents: AgentInfo[];
 	effectivePanelAgentId: string | null;
 	sessionCurrentModelId: string | null;
@@ -257,13 +260,14 @@ function resolveSignInCommand(agentDisplayName: string): string | null {
 							{#key prCardRenderKey}
 								<PrStatusCard
 									{sessionId}
-									projectPath={effectivePathForGit}
+									projectPath={sessionProjectPath ?? effectivePathForGit}
 									prNumber={createdPr}
 									isCreating={createPrRunning}
 									{prDetails}
 									fetchError={prFetchError}
 									{linkedPr}
 									streamingData={streamingShipData}
+									onFixCheck={onFixCiCheck}
 								/>
 							{/key}
 						{/if}

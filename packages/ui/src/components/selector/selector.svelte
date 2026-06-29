@@ -2,14 +2,16 @@
 	import * as DropdownMenu from "../dropdown-menu/index.js";
 	import * as Tooltip from "../tooltip/index.js";
 	import ChevronDown from "@lucide/svelte/icons/chevron-down";
+	import { Gear, DotsThreeVertical } from "phosphor-svelte";
 	import { mergeProps } from "bits-ui";
 	import type { Snippet } from "svelte";
 
 	import { cn } from "../../lib/utils.js";
-	import { Button, type ButtonVariant } from "../button/index.js";
+	import { Button, type ButtonVariant, buttonVariants } from "../button/index.js";
 	import {
 		FUSED_CONTROL_GROUPED_CHIP_LABEL_BUTTON_CLASS,
 		FUSED_CONTROL_OVERFLOW_BUTTON_CLASS,
+		OVERFLOW_DOTS_ICON_CLASS,
 	} from "../panel-header/project-card-action-button-class.js";
 	import { getSelectorTriggerClass, isFusedComposerChipTriggerSize, resolveSelectorTriggerSize, type SelectorTriggerSize } from "./selector-trigger-classes.js";
 
@@ -123,6 +125,16 @@
 		 * Extra classes merged onto dropdown menu content.
 		 */
 		contentClass?: string;
+
+		/**
+		 * When true, applies the trigger button's active visual state (open menu).
+		 */
+		triggerActive?: boolean;
+
+		/**
+		 * Preset overflow trigger glyph. When set, renders instead of renderButton.
+		 */
+		triggerIcon?: "none" | "dots" | "gear";
 	}
 
 	let {
@@ -148,6 +160,8 @@
 		blockingOverlay = false,
 		sideOffset = 4,
 		contentClass: menuContentClass = "",
+		triggerActive = false,
+		triggerIcon = "none",
 	}: Props = $props();
 
 	const resolvedTriggerSize = $derived(resolveSelectorTriggerSize(triggerSize));
@@ -159,6 +173,11 @@
 						? cn(FUSED_CONTROL_OVERFLOW_BUTTON_CLASS, "px-1", triggerClassOverride)
 						: resolvedTriggerSize === "composerChipLabel"
 							? cn(FUSED_CONTROL_GROUPED_CHIP_LABEL_BUTTON_CLASS, triggerClassOverride)
+							: resolvedTriggerSize === "headerAction"
+								? cn(
+										buttonVariants({ variant: "headerAction", size: "headerAction" }),
+										triggerClassOverride
+									)
 							: getSelectorTriggerClass({
 									triggerSize,
 									triggerClass: triggerClassOverride,
@@ -209,12 +228,19 @@
 			bind:this={triggerRef}
 			type="button"
 			data-slot="button"
+			data-header-control={triggerSize === "attach" || triggerSize === "chromeIcon" ? true : undefined}
 			class={cn(triggerClass, className)}
 			disabled={disabled}
 			aria-label={resolvedTriggerAriaLabel}
 			title={tooltipTitle ?? tooltipLabel ?? undefined}
 		>
-			{@render renderButton()}
+			{#if triggerIcon === "dots"}
+				<DotsThreeVertical class={OVERFLOW_DOTS_ICON_CLASS} weight="bold" />
+			{:else if triggerIcon === "gear"}
+				<Gear class={OVERFLOW_DOTS_ICON_CLASS} weight="fill" />
+			{:else}
+				{@render renderButton()}
+			{/if}
 			{#if showChevron}
 				<ChevronDown
 					class="h-3 w-3 shrink-0 text-muted-foreground transition-transform duration-200 {open
@@ -232,9 +258,17 @@
 				size={buttonSize}
 				class={triggerClass}
 				{disabled}
+				active={triggerActive}
 				aria-label={resolvedTriggerAriaLabel}
+				data-header-control={triggerSize === "attach" || triggerSize === "chromeIcon" ? true : undefined}
 			>
-				{@render renderButton()}
+				{#if triggerIcon === "dots"}
+					<DotsThreeVertical class={OVERFLOW_DOTS_ICON_CLASS} weight="bold" />
+				{:else if triggerIcon === "gear"}
+					<Gear class={OVERFLOW_DOTS_ICON_CLASS} weight="fill" />
+				{:else}
+					{@render renderButton()}
+				{/if}
 				{#if showChevron}
 					<ChevronDown
 						class="h-3 w-3 shrink-0 text-muted-foreground transition-transform duration-200 {open

@@ -32,13 +32,6 @@
 </script>
 
 <div class="shrink-0 flex items-center px-1 transition-colors hover:bg-accent/30 {className}">
-	<div class="inline-flex items-center justify-center h-7 w-3.5 mr-1 shrink-0 text-muted-foreground/70">
-		<CaretRight
-			size={11}
-			weight="bold"
-			class="transition-transform duration-150 {expanded ? 'rotate-90' : ''}"
-		/>
-	</div>
 	<div class="inline-flex items-center justify-center h-7 shrink-0">
 		<ProjectLetterBadge
 			name={displayName}
@@ -50,8 +43,17 @@
 	<div
 		class="flex items-center flex-1 min-w-0 h-7 pl-1.5 cursor-pointer transition-colors"
 	>
-		<span class="truncate text-xs font-normal text-foreground transition-colors">
+		<span class="truncate text-sm font-normal text-foreground transition-colors">
 			{displayName}
+		</span>
+		<span
+			class="ml-1 inline-flex shrink-0 items-center text-muted-foreground/60 opacity-0 transition-opacity duration-150 group-hover:opacity-100"
+		>
+			<CaretRight
+				size={11}
+				weight="bold"
+				class="transition-transform duration-150 {expanded ? 'rotate-90' : ''}"
+			/>
 		</span>
 	</div>
 	{#if actions}

@@ -1,13 +1,15 @@
 <script lang="ts">
 import { Button } from "$lib/components/ui/button/index.js";
 import DialogFrame from "$lib/components/ui/dialog-frame.svelte";
+import ProjectSelector from "../project-selector.svelte";
+import type { Project } from "$lib/acp/logic/project-manager.svelte.js";
 import type {
 	FileExplorerPreviewResponse,
 	FileGitStatus,
 	PreviewKind,
 } from "$lib/services/converted-session-types.js";
 import { tauriClient } from "$lib/utils/tauri-client.js";
-import { DiffPill, ProjectLetterBadge } from "@acepe/ui";
+import { DiffPill } from "@acepe/ui";
 import { Colors } from "@acepe/ui/colors";
 import { FolderOpen } from "phosphor-svelte";
 import { onMount } from "svelte";
@@ -23,6 +25,9 @@ interface Props {
 	projectName: string;
 	projectColor?: string;
 	projectIconSrc?: string | null;
+	/** Projects available in the top-left picker (omit to hide the picker). */
+	recentProjects?: readonly Project[];
+	onProjectChange?: (project: Project) => void;
 	onClose: () => void;
 	onOpenFile?: (projectPath: string, filePath: string) => void;
 }
@@ -33,9 +38,15 @@ let {
 	projectName,
 	projectColor = Colors.red,
 	projectIconSrc = null,
+	recentProjects = [],
+	onProjectChange,
 	onClose,
 	onOpenFile,
 }: Props = $props();
+
+const selectedProject = $derived(
+	recentProjects.find((project) => project.path === projectPath) ?? null
+);
 
 let files = $state<FileTreeNode[]>([]);
 let loading = $state(false);
@@ -185,22 +196,24 @@ onMount(() => {
 		}
 	}}
 >
-	<div class="flex h-full min-h-0 w-full overflow-hidden rounded-lg border border-border/60 bg-background shadow-[0_30px_80px_rgba(0,0,0,0.5)]">
-		<div class="flex w-80 shrink-0 flex-col border-r border-border/60 bg-card/80">
-			<div class="flex h-9 shrink-0 items-center gap-2 border-b border-border/60 pr-2.5">
-				<div class="inline-flex h-9 w-9 shrink-0 items-center justify-center border-r border-border/60">
-					<ProjectLetterBadge
-						name={projectName}
-						color={projectColor}
-						iconSrc={projectIconSrc}
-						size={28}
-						fontSize={15}
-						class="!rounded-none"
-					/>
-				</div>
-				<div class="min-w-0 flex-1 truncate text-xs font-medium">{projectName}</div>
+	{#snippet topLeft()}
+		{#if onProjectChange}
+			<ProjectSelector
+				selectedProject={selectedProject}
+				recentProjects={recentProjects}
+				onProjectChange={onProjectChange}
+				showLabel
+			/>
+		{/if}
+	{/snippet}
+	<div class="flex h-full min-h-0 w-full overflow-hidden">
+		<div class="flex w-72 shrink-0 flex-col border-r border-border/50 bg-card/40">
+			<div class="flex h-8 shrink-0 items-center justify-between gap-2 border-b border-border/50 px-2.5">
+				<span class="text-[11px] font-medium uppercase tracking-wide text-muted-foreground/70">
+					Files
+				</span>
 				{#if loading && files.length > 0}
-					<span class="text-[10px] text-muted-foreground">Refreshing</span>
+					<span class="text-[10px] text-muted-foreground">Refreshing…</span>
 				{/if}
 			</div>
 			<div class="min-h-0 flex-1 overflow-auto p-1">

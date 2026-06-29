@@ -20,6 +20,8 @@ export { default as AgentAttachedFilePane } from "./agent-attached-file-pane.sve
 export { default as AgentPanelErrorCard } from "./agent-error-card.svelte";
 export { default as AgentPanelSignInCard } from "./agent-sign-in-card.svelte";
 export { default as AgentInputActiveModeChip } from "./agent-input-active-mode-chip.svelte";
+export { default as AgentInputAgentSelector } from "./agent-input-agent-selector.svelte";
+export type { AgentInputAgentSelectorItem } from "./agent-input-agent-selector-types.js";
 export { default as AgentInputArtefactBadge } from "./agent-input-artefact-badge.svelte";
 export { default as AgentInputAttachMenu } from "./agent-input-attach-menu.svelte";
 export type {
@@ -29,16 +31,15 @@ export type {
 	AttachMenuModeItem,
 } from "./agent-input-attach-menu-state.js";
 export { filterAttachMenuItems } from "./agent-input-attach-menu-state.js";
-export { default as ComposerFilterDropdownFilterInput } from "../composer/composer-filter-dropdown-filter-input.svelte";
 export {
-	composerFilterDropdownBodyClass,
-	composerFilterDropdownContentClass,
-	composerFilterDropdownEmptyStateClass,
-	composerFilterDropdownFilterRowClass,
-	composerFilterDropdownItemClass,
-	composerFilterDropdownListClass,
-	composerFilterDropdownSubmenuContentClass,
-} from "./composer-filter-dropdown-menu.classes.js";
+	selectorPanelBodyClass,
+	selectorPanelContentClass,
+	selectorPanelEmptyStateClass,
+	selectorPanelFilterRowClass,
+	selectorPanelItemClass,
+	selectorPanelListClass,
+	selectorPanelSubmenuContentClass,
+} from "../selector/selector-panel.classes.js";
 export { default as AgentInputAutonomousToggle } from "./agent-input-autonomous-toggle.svelte";
 export { default as AgentInputBranchSelector } from "./agent-input-branch-selector.svelte";
 export type {
@@ -68,7 +69,6 @@ export {
 	type ModeIconKind,
 } from "./agent-input-mode-selector-state.js";
 export { default as AgentInputModelFavoriteStar } from "./agent-input-model-favorite-star.svelte";
-export { default as AgentInputModelRow } from "./agent-input-model-row.svelte";
 export { default as AgentInputModelSelector } from "./agent-input-model-selector.svelte";
 export type {
 	AgentInputModelSelectorGroup,
@@ -78,7 +78,6 @@ export type {
 } from "./agent-input-model-selector-types.js";
 export { default as AgentInputModelTrigger } from "./agent-input-model-trigger.svelte";
 export { default as AgentInputPastedTextOverlay } from "./agent-input-pasted-text-overlay.svelte";
-export { default as AgentInputSelectorItemRow } from "./agent-input-selector-item-row.svelte";
 export { default as AgentInputSlashCommandDropdown } from "./agent-input-slash-command-dropdown.svelte";
 export type {
 	AgentInputSlashCommand,

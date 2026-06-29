@@ -8,7 +8,7 @@
 
 	import { Selector } from "../selector/index.js";
 	import type { SelectorTriggerSize } from "../selector/selector-trigger-classes.js";
-	import { resolveSelectorTriggerSize } from "../selector/selector-trigger-classes.js";
+	import { getSelectorTriggerButtonVariant } from "../selector/selector-trigger-classes.js";
 	import {
 		FUSED_CONTROL_COMPOSER_ICON_SIZE_CLASS,
 		FUSED_CONTROL_COMPOSER_STANDALONE_ICON_CHIP_CLASS,
@@ -16,7 +16,7 @@
 	import { cn } from "../../lib/utils.js";
 	import * as Tooltip from "../tooltip/index.js";
 	import AgentInputReasoningEffortTrigger from "./agent-input-reasoning-effort-trigger.svelte";
-	import AgentInputSelectorItemRow from "./agent-input-selector-item-row.svelte";
+	import { SelectorItem } from "../selector/index.js";
 	import {
 		getConfigOptionFastTriggerClass,
 		getConfigOptionNextBooleanValue,
@@ -48,12 +48,7 @@
 	const resolvedTriggerSize = $derived(
 		getConfigOptionResolvedTriggerSize(configOption, triggerSize)
 	);
-	const selectorVariant = $derived(() => {
-		const resolved = resolveSelectorTriggerSize(resolvedTriggerSize);
-		return resolved === "composerChipLabel" || resolved === "composerChipIcon"
-			? "ghost"
-			: "chromeIcon";
-	});
+	const selectorVariant = $derived(getSelectorTriggerButtonVariant(resolvedTriggerSize));
 	const fastTriggerClass = $derived(
 		getConfigOptionFastTriggerClass({
 			disabled,
@@ -102,7 +97,7 @@
 	<div class="max-h-[250px] overflow-y-auto scrollbar-thin">
 		{#each configOption.options ?? [] as option (String(option.value))}
 			{@const optValue = String(option.value)}
-			<AgentInputSelectorItemRow
+			<SelectorItem
 				label={option.name}
 				selected={optValue === viewState.currentValue}
 				onSelect={() => handleSelect(optValue)}

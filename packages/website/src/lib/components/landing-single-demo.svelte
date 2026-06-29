@@ -24,7 +24,8 @@ import {
 	type AppProjectGroup,
 	type AppTab,
 } from "@acepe/ui/app-layout";
-import { CaretDown, Plus, DotsThreeVertical, Terminal, Browser } from "phosphor-svelte";
+import { CaretDown, DotsThreeVertical, Terminal, Browser } from "phosphor-svelte";
+import { PlusIcon } from "@acepe/ui";
 import { ProjectLetterBadge } from "@acepe/ui";
 import { CloseAction, FullscreenAction, OverflowMenuTriggerAction } from "@acepe/ui/panel-header";
 
@@ -215,7 +216,7 @@ const favoriteModels = $derived(
 														<DotsThreeVertical class="h-3.5 w-3.5" weight="bold" />
 													</button>
 													<button type="button" aria-label="New session" class="flex items-center justify-center size-5 rounded text-muted-foreground">
-														<Plus class="h-3 w-3" weight="bold" />
+														<PlusIcon />
 													</button>
 												</div>
 											</div>

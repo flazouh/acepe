@@ -11,10 +11,12 @@ interface Props {
 	index: number;
 	modifierSymbol?: string;
 	isMissing?: boolean;
+	/** Disambiguating badge label (e.g. "Ac"). Falls back to the first letter. */
+	label?: string | null;
 	onSelect: () => void;
 }
 
-let { data, index, modifierSymbol = "⌘", isMissing = false, onSelect }: Props = $props();
+let { data, index, modifierSymbol = "⌘", isMissing = false, label = null, onSelect }: Props = $props();
 
 const color = $derived(data.project.color ?? "#6B7280");
 const shortcutKey = $derived(index + 1);
@@ -57,6 +59,7 @@ function handleCardClick() {
 			<div class="inline-flex items-center justify-center h-8 w-8 shrink-0">
 				<ProjectLetterBadge
 					name={data.project.name}
+					{label}
 					{color}
 					iconSrc={data.project.iconPath ?? null}
 					size={18}

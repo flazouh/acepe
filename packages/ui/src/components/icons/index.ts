@@ -38,4 +38,6 @@ export {
 } from "./dotmatrix/loaders/index.js";
 export type { DotmatrixLoaderConfig, DotmatrixLoaderRuntime } from "./dotmatrix/loader-types.js";
 export { default as PlanIcon } from "./plan-icon.svelte";
+export { default as PlusIcon } from "./plus-icon.svelte";
+export { PLUS_ACTION_BUTTON_CLASS, PLUS_ICON_CLASS } from "./plus-icon-classes.js";
 export { default as RevertIcon } from "./revert-icon.svelte";

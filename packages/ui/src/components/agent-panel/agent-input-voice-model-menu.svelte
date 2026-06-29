@@ -5,13 +5,11 @@
   Accepts model list and callbacks as props; state machine lives in the desktop.
 -->
 <script lang="ts">
-	import { DotsThreeVertical, DownloadSimple } from "phosphor-svelte";
+	import { DownloadSimple } from "phosphor-svelte";
 
 	import { Button } from "../button/index.js";
-	import { ComposerOverflowMenu } from "../composer/index.js";
-	import * as DropdownMenu from "../dropdown-menu/index.js";
 	import { SegmentedProgressBar } from "../segmented-progress-bar/index.js";
-	import AgentInputSelectorItemRow from "./agent-input-selector-item-row.svelte";
+	import { Selector, SelectorItem } from "../selector/index.js";
 	import {
 		getVoiceModelRows,
 		type AgentInputVoiceModel,
@@ -43,7 +41,7 @@
 		loadingLabel = "Loading voice models...",
 		onSelectModel,
 		onDownloadModel,
-		embeddedInGroup = false,
+		embeddedInGroup = true,
 	}: Props = $props();
 
 	let menuOpen = $state(false);
@@ -57,7 +55,22 @@
 	);
 </script>
 
-{#snippet menuContent()}
+<Selector
+	bind:open={menuOpen}
+	{embeddedInGroup}
+	triggerIcon="dots"
+	showChevron={false}
+	triggerSize={embeddedInGroup ? "composerChipIcon" : "chromeIcon"}
+	variant={embeddedInGroup ? "outline" : "chromeIcon"}
+	triggerAriaLabel={menuLabel}
+	tooltipTitle={menuLabel}
+	side="top"
+	align="end"
+	sideOffset={8}
+	contentClass="w-fit min-w-[11rem] p-1"
+>
+	{#snippet renderButton()}{/snippet}
+
 	{#if modelsLoading}
 		<div class="px-2 py-1 text-xs text-muted-foreground">
 			{loadingLabel}
@@ -65,7 +78,7 @@
 	{:else}
 		{#each modelRows as row (row.model.id)}
 			{#if row.model.isDownloaded}
-				<AgentInputSelectorItemRow
+				<SelectorItem
 					label={row.model.name}
 					selected={row.isSelected}
 					dense={true}
@@ -76,7 +89,7 @@
 							{row.sizeLabel}
 						</span>
 					{/snippet}
-				</AgentInputSelectorItemRow>
+				</SelectorItem>
 			{:else}
 				<div class="flex items-center gap-2 rounded-sm px-2 py-0.5 text-xs select-none">
 					<span class="min-w-0 flex-1 truncate text-xs text-muted-foreground">
@@ -110,38 +123,4 @@
 			{/if}
 		{/each}
 	{/if}
-{/snippet}
-
-{#if embeddedInGroup}
-	<ComposerOverflowMenu
-		bind:open={menuOpen}
-		embeddedInGroup
-		ariaLabel={menuLabel}
-		title={menuLabel}
-		contentClass="w-fit min-w-[11rem] p-1"
-	>
-		{@render menuContent()}
-	</ComposerOverflowMenu>
-{:else}
-	<DropdownMenu.Root bind:open={menuOpen}>
-		<DropdownMenu.Trigger>
-			{#snippet child({ props })}
-				<Button
-					{...props}
-					variant="chromeIcon"
-					size="chromeIcon"
-					data-header-control
-					title={menuLabel}
-					aria-label={menuLabel}
-				>
-					{#snippet children()}
-						<DotsThreeVertical class="h-3 w-3 shrink-0" weight="bold" />
-					{/snippet}
-				</Button>
-			{/snippet}
-		</DropdownMenu.Trigger>
-		<DropdownMenu.Content side="top" align="end" sideOffset={8} class="w-fit min-w-[11rem] p-1">
-			{@render menuContent()}
-		</DropdownMenu.Content>
-	</DropdownMenu.Root>
-{/if}
+</Selector>

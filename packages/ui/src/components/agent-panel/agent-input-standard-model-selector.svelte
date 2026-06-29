@@ -1,13 +1,13 @@
 <script lang="ts">
-	import { Input } from "../input/index.js";
 	import { LoadingIcon } from "../icons/index.js";
 	import { ProviderMark, type ProviderBrand } from "../provider-mark/index.js";
 	import { FUSED_CONTROL_SETUP_CHIP_LABEL_TEXT_CLASS } from "../panel-header/project-card-action-button-class.js";
-	import { Selector } from "../selector/index.js";
+	import { Selector, SelectorItem, SelectorPanel } from "../selector/index.js";
 	import type { SelectorTriggerSize } from "../selector/selector-trigger-classes.js";
+	import { getSelectorTriggerButtonVariant } from "../selector/selector-trigger-classes.js";
 	import * as DropdownMenu from "../dropdown-menu/index.js";
 	import { cn } from "../../lib/utils.js";
-	import AgentInputModelSelectorItemRow from "./agent-input-model-selector-item-row.svelte";
+	import AgentInputModelFavoriteStar from "./agent-input-model-favorite-star.svelte";
 	import type {
 		AgentInputModelSelectorGroup,
 		AgentInputModelSelectorItem,
@@ -64,6 +64,8 @@
 		onSelect,
 		onToggleFavorite,
 	}: Props = $props();
+
+	const selectorVariant = $derived(getSelectorTriggerButtonVariant(triggerSize));
 </script>
 
 <div class={embeddedInGroup ? "contents" : "flex items-center gap-0"}>
@@ -71,7 +73,7 @@
 		{open}
 		disabled={isLoading || totalModelCount === 0}
 		onOpenChange={onOpenChange}
-		variant="ghost"
+		variant={selectorVariant}
 		{triggerSize}
 		{embeddedInGroup}
 		showChevron={false}
@@ -96,26 +98,38 @@
 		{#if totalModelCount === 0}
 			<div class="px-2 py-1 text-xs">{noModelsLabel}</div>
 		{:else}
-			{#if showSearch}
-				<div class="sticky top-0 z-10 bg-popover px-2 py-1">
-					<Input
-						value={searchQuery}
-						oninput={(event) => onSearchChange?.(event.currentTarget.value)}
-						placeholder={searchPlaceholder}
-						class="h-7 text-xs"
-					/>
-				</div>
-			{/if}
-
+			<SelectorPanel
+				{searchQuery}
+				{searchPlaceholder}
+				showSearch={showSearch}
+				onSearchChange={onSearchChange}
+			>
 			{#if showFavorites && !searchQuery}
 				<div class="flex flex-col gap-0.5 bg-popover px-0 pb-0.5">
 					{#each favoriteModels as item (item.id)}
-						<AgentInputModelSelectorItemRow
-							{item}
-							{currentModelId}
-							{onSelect}
-							{onToggleFavorite}
-						/>
+						<SelectorItem
+							label={item.name}
+							selected={item.id === currentModelId}
+							onSelect={() => onSelect(item.id)}
+						>
+							{#snippet leading()}
+								{#if !item.hideProviderMark && item.providerBrand}
+									<ProviderMark
+										brand={item.providerBrand}
+										label={item.providerLabel ?? item.name}
+										class="size-3.5"
+									/>
+								{/if}
+							{/snippet}
+							{#snippet trailing()}
+								{#if onToggleFavorite}
+									<AgentInputModelFavoriteStar
+										isFavorite={Boolean(item.isFavorite)}
+										onToggle={() => onToggleFavorite(item.id)}
+									/>
+								{/if}
+							{/snippet}
+						</SelectorItem>
 					{/each}
 				</div>
 			{/if}
@@ -135,18 +149,36 @@
 						</DropdownMenu.Label>
 					{/if}
 					{#each group.items as item (item.id)}
-						<AgentInputModelSelectorItemRow
-							{item}
-							{currentModelId}
-							{onSelect}
-							{onToggleFavorite}
-						/>
+						<SelectorItem
+							label={item.name}
+							selected={item.id === currentModelId}
+							onSelect={() => onSelect(item.id)}
+						>
+							{#snippet leading()}
+								{#if !item.hideProviderMark && item.providerBrand}
+									<ProviderMark
+										brand={item.providerBrand}
+										label={item.providerLabel ?? item.name}
+										class="size-3.5"
+									/>
+								{/if}
+							{/snippet}
+							{#snippet trailing()}
+								{#if onToggleFavorite}
+									<AgentInputModelFavoriteStar
+										isFavorite={Boolean(item.isFavorite)}
+										onToggle={() => onToggleFavorite(item.id)}
+									/>
+								{/if}
+							{/snippet}
+						</SelectorItem>
 					{/each}
 					{#if showGroups && groupIndex < filteredGroups.length - 1}
 						<DropdownMenu.Separator />
 					{/if}
 				{/each}
 			</div>
+			</SelectorPanel>
 		{/if}
 	</Selector>
 </div>

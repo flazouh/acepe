@@ -5,9 +5,6 @@
 	 * All data-driven via props, no Tauri coupling.
 	 */
 	import type { Snippet } from "svelte";
-	import { ArrowUp } from "phosphor-svelte";
-	import { ArrowDown } from "phosphor-svelte";
-	import { ArrowsClockwise } from "phosphor-svelte";
 	import { GitDiff } from "phosphor-svelte";
 	import { ClockCounterClockwise } from "phosphor-svelte";
 	import { Package } from "phosphor-svelte";
@@ -122,45 +119,10 @@
 </script>
 
 <div class={cn("flex flex-col h-full bg-background", className)}>
-	<!-- Header: branch + remote status + action buttons -->
-	<div class="flex items-center gap-2 px-2 py-1.5 border-b border-border/30 shrink-0">
+	<!-- Header: branch + remote status -->
+	<div class="flex items-center gap-2 px-3 py-1.5 border-b border-border/30 shrink-0">
 		<GitBranchBadge {branch} onclick={onBranchClick} />
 		<GitRemoteStatusBadge status={remoteStatus} />
-
-		<div class="flex-1"></div>
-
-		<div class="flex items-center gap-0.5">
-			{#if onFetch}
-				<button
-					type="button"
-					class="flex items-center justify-center h-6 w-6 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted/50 cursor-pointer transition-colors"
-					title="Fetch"
-					onclick={onFetch}
-				>
-					<ArrowsClockwise size={14} weight="bold" />
-				</button>
-			{/if}
-			{#if onPull}
-				<button
-					type="button"
-					class="flex items-center justify-center h-6 w-6 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted/50 cursor-pointer transition-colors"
-					title="Pull"
-					onclick={onPull}
-				>
-					<ArrowDown size={14} weight="bold" />
-				</button>
-			{/if}
-			{#if onPush}
-				<button
-					type="button"
-					class="flex items-center justify-center h-6 w-6 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted/50 cursor-pointer transition-colors"
-					title="Push"
-					onclick={onPush}
-				>
-					<ArrowUp size={14} weight="bold" />
-				</button>
-			{/if}
-		</div>
 	</div>
 
 	<!-- View tabs -->

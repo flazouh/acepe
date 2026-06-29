@@ -3,16 +3,19 @@
 -->
 <script lang="ts">
 	import type { Snippet } from "svelte";
-	import { CheckCircle, File, Image as ImageIcon, Plus } from "phosphor-svelte";
+	import { CheckCircle, File, Image as ImageIcon } from "phosphor-svelte";
+
+	import PlusIcon from "../icons/plus-icon.svelte";
 
 	import * as DropdownMenu from "../dropdown-menu/index.js";
-	import { Button } from "../button/index.js";
 	import {
-		ComposerFilterDropdown,
-		composerFilterDropdownEmptyStateClass,
-		composerFilterDropdownItemClass,
-		composerFilterDropdownSubmenuContentClass,
-	} from "../composer/index.js";
+		Selector,
+		SelectorPanel,
+		selectorPanelContentClass,
+		selectorPanelEmptyStateClass,
+		selectorPanelItemClass,
+		selectorPanelSubmenuContentClass,
+	} from "../selector/index.js";
 	import AgentInputModeIcon from "./agent-input-mode-icon.svelte";
 	import AgentInputAutonomousToggle from "./agent-input-autonomous-toggle.svelte";
 	import AgentInputSlashCommandRow from "./agent-input-slash-command-row.svelte";
@@ -191,36 +194,35 @@
 </script>
 
 <div class="flex items-end gap-0.5">
-<ComposerFilterDropdown
+<Selector
 	bind:open={menuOpen}
 	onOpenChange={handleOpenChange}
-	bind:searchQuery
-	searchPlaceholder={searchPlaceholder}
-	searchAriaLabel={searchPlaceholder}
+	side="top"
+	align="start"
+	sideOffset={8}
+	{disabled}
+	showChevron={false}
+	triggerSize="attach"
+	variant="chromeIcon"
+	triggerActive={menuOpen}
+	triggerAriaLabel="Add context and tools"
+	contentClass={selectorPanelContentClass}
 >
-	{#snippet trigger({ props })}
-		<Button
-			{...props}
-			variant="chromeIcon"
-			size="chromeIcon"
-			data-header-control
-			{disabled}
-			active={menuOpen}
-			title="Add context and tools"
-			aria-label="Add context and tools"
-		>
-			{#snippet children()}
-				<Plus size={12} weight="bold" />
-			{/snippet}
-		</Button>
+	{#snippet renderButton()}
+		<PlusIcon />
 	{/snippet}
 
+	<SelectorPanel
+		bind:searchQuery
+		searchPlaceholder={searchPlaceholder}
+		searchAriaLabel={searchPlaceholder}
+	>
 	{#if showModes && filteredItems.modes.length > 0}
 		{#each filteredItems.modes as mode (mode.id)}
 			<DropdownMenu.Item
 				disabled={mode.disabled}
 				onSelect={() => handleModeSelect(mode.id)}
-				class={composerFilterDropdownItemClass}
+				class={selectorPanelItemClass}
 			>
 				<AgentInputModeIcon iconKind={mode.iconKind} class="size-3.5 shrink-0" monochrome />
 				<span class="min-w-0 flex-1 truncate text-xs">{mode.label}</span>
@@ -236,11 +238,11 @@
 
 	{#if showContextActions && searchQuery.length === 0}
 		<DropdownMenu.Separator />
-		<DropdownMenu.Item onSelect={handleAddFileContext} class={composerFilterDropdownItemClass}>
+		<DropdownMenu.Item onSelect={handleAddFileContext} class={selectorPanelItemClass}>
 			<File class="size-3.5 shrink-0" />
 			<span class="text-xs">{addFileContextLabel}</span>
 		</DropdownMenu.Item>
-		<DropdownMenu.Item onSelect={handleAttachImage} class={composerFilterDropdownItemClass}>
+		<DropdownMenu.Item onSelect={handleAttachImage} class={selectorPanelItemClass}>
 			<ImageIcon class="size-3.5 shrink-0" />
 			<span class="text-xs">{attachImageLabel}</span>
 		</DropdownMenu.Item>
@@ -258,7 +260,7 @@
 					/>
 				{/each}
 				{#if flattenedSearchItems.length === 0}
-					<div class={composerFilterDropdownEmptyStateClass}>
+					<div class={selectorPanelEmptyStateClass}>
 						No matching skills or MCP tools
 					</div>
 				{/if}
@@ -266,14 +268,14 @@
 		{:else}
 			{#if skillsSection && skillsSection.items.length > 0}
 				<DropdownMenu.Sub>
-					<DropdownMenu.SubTrigger class="{composerFilterDropdownItemClass} text-xs">
+					<DropdownMenu.SubTrigger class="{selectorPanelItemClass} text-xs">
 						<span class="min-w-0 flex-1 truncate">{skillsSection.label}</span>
 						<span class="rounded-full bg-muted px-1.5 py-0.5 text-[10px] tabular-nums text-muted-foreground">
 							{skillsSection.items.length}
 						</span>
 					</DropdownMenu.SubTrigger>
 					<DropdownMenu.SubContent
-						class={composerFilterDropdownSubmenuContentClass}
+						class={selectorPanelSubmenuContentClass}
 						side={attachSubmenuContentProps.side}
 						align={attachSubmenuContentProps.align}
 						sideOffset={attachSubmenuContentProps.sideOffset}
@@ -294,14 +296,14 @@
 
 			{#if commandsSection && commandsSection.items.length > 0}
 				<DropdownMenu.Sub>
-					<DropdownMenu.SubTrigger class="{composerFilterDropdownItemClass} text-xs">
+					<DropdownMenu.SubTrigger class="{selectorPanelItemClass} text-xs">
 						<span class="min-w-0 flex-1 truncate">{commandsSection.label}</span>
 						<span class="rounded-full bg-muted px-1.5 py-0.5 text-[10px] tabular-nums text-muted-foreground">
 							{commandsSection.items.length}
 						</span>
 					</DropdownMenu.SubTrigger>
 					<DropdownMenu.SubContent
-						class={composerFilterDropdownSubmenuContentClass}
+						class={selectorPanelSubmenuContentClass}
 						side={attachSubmenuContentProps.side}
 						align={attachSubmenuContentProps.align}
 						sideOffset={attachSubmenuContentProps.sideOffset}
@@ -322,7 +324,7 @@
 
 			{#if showMcpSubmenu}
 				<DropdownMenu.Sub>
-					<DropdownMenu.SubTrigger class="{composerFilterDropdownItemClass} text-xs">
+					<DropdownMenu.SubTrigger class="{selectorPanelItemClass} text-xs">
 						<span class="min-w-0 flex-1 truncate">{mcpSectionLabel}</span>
 						<span class="rounded-full bg-muted px-1.5 py-0.5 text-[10px] tabular-nums text-muted-foreground">
 							{#if mcpLoading}
@@ -337,7 +339,7 @@
 						</span>
 					</DropdownMenu.SubTrigger>
 					<DropdownMenu.SubContent
-						class={composerFilterDropdownSubmenuContentClass}
+						class={selectorPanelSubmenuContentClass}
 						side={attachSubmenuContentProps.side}
 						align={attachSubmenuContentProps.align}
 						sideOffset={attachSubmenuContentProps.sideOffset}
@@ -345,11 +347,11 @@
 					>
 						<div class="max-h-72 overflow-y-auto">
 							{#if mcpLoading && filteredItems.mcpServerGroups.length === 0}
-								<div class="{composerFilterDropdownEmptyStateClass} text-left">
+								<div class="{selectorPanelEmptyStateClass} text-left">
 									Loading MCP servers…
 								</div>
 							{:else if filteredItems.mcpServerGroups.length === 0}
-								<div class="{composerFilterDropdownEmptyStateClass} text-left">
+								<div class="{selectorPanelEmptyStateClass} text-left">
 									{mcpEmptyLabel}
 								</div>
 							{/if}
@@ -379,7 +381,8 @@
 			{@render checkpointOverflow()}
 		</div>
 	{/if}
-</ComposerFilterDropdown>
+	</SelectorPanel>
+</Selector>
 {#if onAutonomousToggle}
 	<AgentInputAutonomousToggle
 		active={autonomousToggleActive}

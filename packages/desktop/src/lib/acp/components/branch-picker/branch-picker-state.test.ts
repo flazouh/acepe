@@ -9,6 +9,7 @@ import {
 	getNewBranchNameError,
 	getNormalizedBranchName,
 	getWorktreeBranches,
+	shouldCheckoutSelectedBranch,
 	shouldLoadBranchList,
 } from "./branch-picker-state.js";
 
@@ -125,6 +126,23 @@ describe("branch picker state", () => {
 	it("uses only the current branch for worktrees", () => {
 		expect(getWorktreeBranches("feature")).toEqual(["feature"]);
 		expect(getWorktreeBranches(null)).toEqual([]);
+	});
+
+	it("does not checkout the already active branch", () => {
+		expect(
+			shouldCheckoutSelectedBranch({
+				currentBranch: "main",
+				selectedBranch: " main ",
+				create: false,
+			})
+		).toBe(false);
+		expect(
+			shouldCheckoutSelectedBranch({
+				currentBranch: "main",
+				selectedBranch: "feature",
+				create: false,
+			})
+		).toBe(true);
 	});
 
 	it("describes the branch list display state", () => {

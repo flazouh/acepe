@@ -111,7 +111,7 @@
 
 	{#snippet belowHeader()}
 		{#if model.mode === "pr" && hasChecks}
-			<div class="px-3 py-1.5 bg-input/30 rounded-b-md border-x border-b border-border">
+			<div class="px-3 py-1.5 bg-input/30 rounded-b-lg border-x border-b border-border">
 				<PrChecksList
 					checks={model.checks ?? []}
 					isLoading={model.isChecksLoading ?? false}
@@ -119,6 +119,7 @@
 					initiallyExpanded={initiallyExpandedChecks}
 					collapseThreshold={model.checksCollapseThreshold ?? 3}
 					onOpenCheck={model.onOpenCheck}
+					onFixCheck={model.onFixCheck}
 				/>
 			</div>
 		{/if}

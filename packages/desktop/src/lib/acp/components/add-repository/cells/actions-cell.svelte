@@ -1,6 +1,7 @@
 <script lang="ts">
 import { Button } from "@acepe/ui/button";
-import { Plus, Trash } from "phosphor-svelte";
+import { PlusIcon } from "@acepe/ui";
+import { Trash } from "phosphor-svelte";
 
 interface Props {
 	isAdded: boolean;
@@ -35,6 +36,6 @@ let { isAdded, onImport, onUndo }: Props = $props();
 			onImport();
 		}}
 	>
-		<Plus weight="bold" />
+		<PlusIcon />
 	</Button>
 {/if}

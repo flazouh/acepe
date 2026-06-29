@@ -1,30 +1,30 @@
-<!--
-  ComposerFilterDropdownFilterInput - Borderless search row for composer filter dropdowns.
--->
 <script lang="ts">
-	import { composerFilterDropdownFilterInputClass } from "./composer-filter-dropdown-menu.classes.js";
+	import { selectorPanelFilterInputClass } from "./selector-panel.classes.js";
 
 	interface Props {
 		value?: string;
 		placeholder?: string;
 		ariaLabel?: string;
 		inputRef?: HTMLInputElement | null;
+		oninput?: (value: string) => void;
 	}
 
 	let {
-		value = $bindable(""),
+		value = "",
 		placeholder = "",
 		ariaLabel = placeholder,
 		inputRef = $bindable(null),
+		oninput,
 	}: Props = $props();
 </script>
 
 <input
 	type="search"
 	bind:this={inputRef}
-	bind:value
+	{value}
+	oninput={(event) => oninput?.(event.currentTarget.value)}
 	{placeholder}
-	class={composerFilterDropdownFilterInputClass}
+	class={selectorPanelFilterInputClass}
 	aria-label={ariaLabel}
 	autocomplete="off"
 	spellcheck={false}

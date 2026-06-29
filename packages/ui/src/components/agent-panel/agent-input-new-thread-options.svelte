@@ -11,7 +11,7 @@
 	import type { Snippet } from "svelte";
 
 	import { ButtonGroup } from "../button-group/index.js";
-	import { ComposerOverflowMenu } from "../composer/index.js";
+	import { Selector } from "../selector/index.js";
 	import {
 		FUSED_CONTROL_CHIP_GROUP_CLASS,
 		FUSED_CONTROL_OVERFLOW_BUTTON_CLASS,
@@ -138,12 +138,21 @@
 				</Tooltip.Content>
 			</Tooltip.Root>
 
-			<ComposerOverflowMenu
-				ariaLabel={settingsLabel}
+			<Selector
+				embeddedInGroup
 				triggerIcon="dots"
-				contentClass="min-w-[15rem]"
+				showChevron={false}
+				triggerSize="composerChipIcon"
+				variant="outline"
+				triggerAriaLabel={settingsLabel}
 				triggerClass={FUSED_CONTROL_OVERFLOW_BUTTON_CLASS}
+				side="top"
+				align="end"
+				sideOffset={8}
+				contentClass="min-w-[15rem] p-1"
 			>
+				{#snippet renderButton()}{/snippet}
+
 				{#if settingsMenu}
 					{@render settingsMenu()}
 				{/if}
@@ -162,7 +171,7 @@
 						aria-label={worktreeDefaultLabel}
 					/>
 				</div>
-			</ComposerOverflowMenu>
+			</Selector>
 		</ButtonGroup>
 	{/if}
 </div>

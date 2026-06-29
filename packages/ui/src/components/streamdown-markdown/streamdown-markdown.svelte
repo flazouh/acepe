@@ -32,6 +32,7 @@
 		StreamdownMarkdownAnimation,
 		StreamdownMarkdownMode,
 		StreamdownTokenRevealTiming,
+		TogglePrLinkPayload,
 	} from "./types.js";
 	import {
 		createAcepeStreamdownConfig,
@@ -80,6 +81,8 @@
 		readonly animationResetKey: string | undefined;
 		readonly onExternalLinkClick: ((url: string) => void) | undefined;
 		readonly onFilePathClick: ((filePath: string) => void) | undefined;
+		readonly linkedPrNumber: number | null | undefined;
+		readonly onTogglePrLink: ((payload: TogglePrLinkPayload) => void) | undefined;
 	}
 
 	type AnchorProps = ComponentProps<"a"> & ExtraProps;
@@ -152,6 +155,16 @@
 	const GITHUB_PR_SHORTHAND_PATTERN = /\b([a-zA-Z0-9_-]+)\/([a-zA-Z0-9_-]+)#(\d+)\b/gu;
 	const GITHUB_URL_PATTERN =
 		/https?:\/\/github\.com\/([a-zA-Z0-9_-]+)\/([a-zA-Z0-9_-]+)\/(pull|issues?)\/(\d+)/giu;
+	const GITHUB_REF_URL_PATTERN =
+		/^https?:\/\/github\.com\/([a-zA-Z0-9_.-]+)\/([a-zA-Z0-9_.-]+)\/(pull|issues?)\/(\d+)$/u;
+	// Phosphor "bold" weight glyphs (viewBox 0 0 256 256), inlined because the
+	// Streamdown chip is a React tree and cannot mount the Svelte phosphor components.
+	const GITHUB_PR_ICON_PATH =
+		"M108,64A36,36,0,1,0,60,97.94v60.12a36,36,0,1,0,24,0V97.94A36.07,36.07,0,0,0,108,64ZM72,52A12,12,0,1,1,60,64,12,12,0,0,1,72,52Zm0,152a12,12,0,1,1,12-12A12,12,0,0,1,72,204Zm140-45.94V110.63a27.81,27.81,0,0,0-8.2-19.8L173,60h19a12,12,0,0,0,0-24H144a12,12,0,0,0-12,12V96a12,12,0,0,0,24,0V77l30.83,30.83a4,4,0,0,1,1.17,2.83v47.43a36,36,0,1,0,24,0ZM200,204a12,12,0,1,1,12-12A12,12,0,0,1,200,204Z";
+	const LINK_ICON_PATH =
+		"M117.18,188.74a12,12,0,0,1,0,17l-5.12,5.12A58.26,58.26,0,0,1,70.6,228h0A58.62,58.62,0,0,1,29.14,127.92L63.89,93.17a58.64,58.64,0,0,1,98.56,28.11,12,12,0,1,1-23.37,5.44,34.65,34.65,0,0,0-58.22-16.58L46.11,144.89A34.62,34.62,0,0,0,70.57,204h0a34.41,34.41,0,0,0,24.49-10.14l5.11-5.12A12,12,0,0,1,117.18,188.74ZM226.83,45.17a58.65,58.65,0,0,0-82.93,0l-5.11,5.11a12,12,0,0,0,17,17l5.12-5.12a34.63,34.63,0,1,1,49,49L175.1,145.86A34.39,34.39,0,0,1,150.61,156h0a34.63,34.63,0,0,1-33.69-26.72,12,12,0,0,0-23.38,5.44A58.64,58.64,0,0,0,150.56,180h.05a58.28,58.28,0,0,0,41.47-17.17l34.75-34.75a58.62,58.62,0,0,0,0-82.91Z";
+	const LINK_BREAK_ICON_PATH =
+		"M195.8,60.2a28,28,0,0,0-39.51-.09L144.68,72.28a12,12,0,1,1-17.36-16.56L139,43.43l.2-.2a52,52,0,0,1,73.54,73.54l-.2.2-12.29,11.71a12,12,0,0,1-16.56-17.36l12.17-11.61A28,28,0,0,0,195.8,60.2ZM111.32,183.72,99.71,195.89a28,28,0,0,1-39.6-39.6l12.17-11.61a12,12,0,0,0-16.56-17.36L43.43,139l-.2.2a52,52,0,0,0,73.54,73.54l.2-.2,11.71-12.29a12,12,0,1,0-17.36-16.56ZM216,148H192a12,12,0,0,0,0,24h24a12,12,0,0,0,0-24ZM40,108H64a12,12,0,0,0,0-24H40a12,12,0,0,0,0,24Zm120,72a12,12,0,0,0-12,12v24a12,12,0,0,0,24,0V192A12,12,0,0,0,160,180ZM96,76a12,12,0,0,0,12-12V40a12,12,0,0,0-24,0V64A12,12,0,0,0,96,76Z";
 	const ACEPE_REMARK_PLUGINS =
 		Object.values(defaultRemarkPlugins).concat(acepeInlineReferenceRemarkPlugin);
 	let cursorCodeThemesPromise: Promise<CursorCodeThemes> | null = null;
@@ -836,19 +849,62 @@
 		);
 	}
 
+	type GitHubChipRef = {
+		readonly owner: string;
+		readonly repo: string;
+		readonly number: number;
+		readonly isPullRequest: boolean;
+	};
+
+	function parseGitHubChipRef(href: string): GitHubChipRef | null {
+		const match = GITHUB_REF_URL_PATTERN.exec(href);
+		if (match === null) {
+			return null;
+		}
+
+		const [, owner, repo, refType, numberText] = match;
+		const parsedNumber = Number.parseInt(numberText, 10);
+		if (!Number.isInteger(parsedNumber) || parsedNumber <= 0) {
+			return null;
+		}
+
+		return {
+			owner,
+			repo,
+			number: parsedNumber,
+			isPullRequest: refType === "pull",
+		};
+	}
+
+	function createPhosphorPathIcon(pathData: string, sizeClassName: string) {
+		return createElement(
+			"svg",
+			{
+				className: sizeClassName,
+				viewBox: "0 0 256 256",
+				fill: "currentColor",
+				xmlns: "http://www.w3.org/2000/svg",
+				"aria-hidden": true,
+			},
+			createElement("path", { d: pathData })
+		);
+	}
+
 	function createGitHubChipElement(
 		href: string,
-		label: string,
+		fallbackLabel: string,
+		linkedPrNumber: number | null | undefined,
+		onTogglePrLink: ((payload: TogglePrLinkPayload) => void) | undefined,
 		onExternalLinkClick: ((url: string) => void) | undefined
 	) {
-		return createElement(
+		const ref = parseGitHubChipRef(href);
+		const label = ref === null ? fallbackLabel : `${ref.owner}/${ref.repo}#${ref.number}`;
+		const isLinked = ref !== null && linkedPrNumber != null && ref.number === linkedPrNumber;
+
+		const anchor = createElement(
 			"a",
 			{
-				className: buildChipShellClassName({
-					density: "badge",
-					interactive: true,
-					className: "github-badge",
-				}),
+				className: "inline-flex min-w-0 items-center gap-1 text-inherit no-underline",
 				href,
 				rel: "noopener noreferrer",
 				target: "_blank",
@@ -866,16 +922,77 @@
 			createElement(
 				"span",
 				{
+					className: cn(
+						"flex h-3.5 w-3.5 shrink-0 items-center justify-center",
+						isLinked ? "text-success" : "text-muted-foreground"
+					),
+					"aria-hidden": true,
+				},
+				createPhosphorPathIcon(GITHUB_PR_ICON_PATH, "h-3.5 w-3.5")
+			),
+			createElement(
+				"span",
+				{
 					className: "min-w-0 truncate font-mono text-[0.6875rem] leading-none",
 				},
 				label
 			)
 		);
+
+		const showToggle = ref !== null && ref.isPullRequest && onTogglePrLink !== undefined;
+		const toggle = showToggle
+			? createElement(
+					"button",
+					{
+						type: "button",
+						className: cn(
+							"flex h-3.5 w-3.5 shrink-0 cursor-pointer items-center justify-center",
+							"rounded-sm border-0 bg-transparent p-0 transition-colors",
+							isLinked
+								? "text-success hover:text-foreground"
+								: "text-muted-foreground/70 hover:text-foreground"
+						),
+						title: isLinked
+							? `Unlink this chat from #${ref.number}`
+							: `Link this chat to #${ref.number}`,
+						"aria-label": isLinked
+							? "Unlink pull request from chat"
+							: "Link pull request to chat",
+						onClick: (event: ReactMouseEvent<HTMLButtonElement>) => {
+							event.preventDefault();
+							event.stopPropagation();
+							onTogglePrLink?.({
+								owner: ref.owner,
+								repo: ref.repo,
+								prNumber: ref.number,
+								href,
+								isLinked,
+							});
+						},
+					},
+					createPhosphorPathIcon(isLinked ? LINK_BREAK_ICON_PATH : LINK_ICON_PATH, "h-3 w-3")
+				)
+			: null;
+
+		return createElement(
+			"span",
+			{
+				className: buildChipShellClassName({
+					density: "badge",
+					interactive: true,
+					className: "github-badge",
+				}),
+			},
+			anchor,
+			toggle
+		);
 	}
 
 	function createComponents(
 		onExternalLinkClick: ((url: string) => void) | undefined,
-		onFilePathClick: ((filePath: string) => void) | undefined
+		onFilePathClick: ((filePath: string) => void) | undefined,
+		linkedPrNumber: number | null | undefined,
+		onTogglePrLink: ((payload: TogglePrLinkPayload) => void) | undefined
 	): Components {
 		return {
 			code: MarkdownCode,
@@ -892,7 +1009,13 @@
 				}
 
 				if (href !== undefined && childText.length > 0 && isGitHubUrl(href)) {
-					return createGitHubChipElement(href, childText, onExternalLinkClick);
+					return createGitHubChipElement(
+						href,
+						childText,
+						linkedPrNumber,
+						onTogglePrLink,
+						onExternalLinkClick
+					);
 				}
 
 				return createElement(
@@ -951,7 +1074,9 @@
 					remarkPlugins: options.remarkPlugins,
 					components: createComponents(
 						options.onExternalLinkClick,
-						options.onFilePathClick
+						options.onFilePathClick,
+						options.linkedPrNumber,
+						options.onTogglePrLink
 					),
 					className: "streamdown-content",
 				},
@@ -995,6 +1120,10 @@
 		tokenRevealTiming?: StreamdownTokenRevealTiming;
 		onExternalLinkClick?: (url: string) => void;
 		onFilePathClick?: (filePath: string) => void;
+		/** PR number this chat is currently linked to, for chip link/unlink state. */
+		linkedPrNumber?: number | null;
+		/** Emitted when the user clicks the link/unlink control on a PR chip. */
+		onTogglePrLink?: (payload: TogglePrLinkPayload) => void;
 	}
 
 	let {
@@ -1006,6 +1135,8 @@
 		tokenRevealTiming,
 		onExternalLinkClick,
 		onFilePathClick,
+		linkedPrNumber,
+		onTogglePrLink,
 	}: Props = $props();
 
 	const tokenRevealAnimation = $derived(createTokenRevealAnimation(tokenRevealTiming));
@@ -1038,6 +1169,8 @@
 		animationResetKey: createTokenRevealAnimationResetKey(tokenRevealTiming),
 		onExternalLinkClick,
 		onFilePathClick,
+		linkedPrNumber,
+		onTogglePrLink,
 	});
 </script>
 

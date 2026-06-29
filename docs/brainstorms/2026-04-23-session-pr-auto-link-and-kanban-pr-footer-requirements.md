@@ -67,5 +67,18 @@ Acepe already supports linking a pull request to a session and opening the Sourc
 - [Affects R9, R10, R13, R14][Technical] Decide the cleanest projection path for carrying linked PR number, PR state, and PR diff stats into kanban card data without introducing a separate detection path.
 - [Affects R13][Needs research] Decide cache and refresh behavior for PR detail fetching so kanban footer stats stay responsive without redundant requests.
 
+## Addendum (2026-06-29): `gh pr create` tool-call signal
+
+Implementing the in-transcript PR chip surfaced a request to auto-link from the chat itself.
+Rather than reverse R3 (no auto-link from passive mentions/rendered chips), we **extend R2's
+set of verified create/open signals** to include a real `gh pr create` tool call: the command
+proves the create action and the PR URL it prints supplies the concrete PR (validated against
+the current repo per R4). This is additive — R3 still holds; rendered chips never auto-link.
+
+Deviation from R5 for this signal: **first-seen wins** (not latest), per the user's decision —
+once a session has any linked PR, later `gh pr create` calls do not replace it. Manual links
+still lock (R7). See `session-pr-link-attribution.ts` (`resolveAutomaticSessionPrNumberFromToolCall`)
+and `pr-link-state-store.svelte.ts` (`applyAutomaticPrLinkFromToolOperations`).
+
 ## Next Steps
 -> /ce:plan for structured implementation planning

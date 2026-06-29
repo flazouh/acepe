@@ -5,10 +5,11 @@
   When create is enabled, the trigger and + button share a fused button group.
 -->
 <script lang="ts">
-	import { GitBranch, Plus } from "phosphor-svelte";
+	import { GitBranch } from "phosphor-svelte";
 
 	import { ButtonGroup } from "../button-group/index.js";
 	import { DiffPill } from "../diff-pill/index.js";
+	import PlusIcon from "../icons/plus-icon.svelte";
 	import {
 		FUSED_CONTROL_CHIP_GROUP_CLASS,
 		FUSED_CONTROL_OVERFLOW_BUTTON_CLASS,
@@ -19,8 +20,9 @@
 	} from "../panel-header/project-card-action-button-class.js";
 	import { Selector } from "../selector/index.js";
 	import type { SelectorTriggerSize } from "../selector/selector-trigger-classes.js";
+	import { getSelectorTriggerButtonVariant } from "../selector/selector-trigger-classes.js";
 	import { cn } from "../../lib/utils.js";
-	import AgentInputSelectorItemRow from "./agent-input-selector-item-row.svelte";
+	import { SelectorItem } from "../selector/index.js";
 	import type {
 		AgentInputBranchListDisplay,
 		AgentInputBranchSelectorVariant,
@@ -60,7 +62,7 @@
 		class: className = "",
 	}: Props = $props();
 
-	const isSetupChip = $derived(variant === "setupChip" || variant === "setupChipGrouped");
+	const isSetupChip = $derived(variant === "setupBarChip" || variant === "setupBarChipGrouped");
 	const useButtonGroup = $derived(showCreateButton);
 	const embeddedInGroup = $derived(showCreateButton);
 
@@ -71,7 +73,7 @@
 	const triggerSize = $derived<SelectorTriggerSize>(
 		embeddedInGroup
 			? "setupBarChipGrouped"
-			: variant === "setupChip"
+			: variant === "setupBarChip"
 				? "setupBarChip"
 				: variant === "minimal"
 					? "minimal"
@@ -140,7 +142,7 @@
 	{:else if branchListDisplay.kind === "branches"}
 		<div class="flex max-h-72 flex-col gap-0.5 overflow-y-auto px-0 pb-1 scrollbar-thin">
 			{#each branchListDisplay.branches as branch (branch)}
-				<AgentInputSelectorItemRow
+				<SelectorItem
 					label={branch}
 					selected={branch === currentBranch}
 					labelClass="font-mono text-xs"
@@ -153,23 +155,24 @@
 							style="color: {branchIconColor}"
 						/>
 					{/snippet}
-				</AgentInputSelectorItemRow>
+				</SelectorItem>
 			{/each}
 		</div>
 	{/if}
 {/snippet}
 
 {#snippet branchSelector(embedded: boolean)}
+	{@const branchSelectorTriggerSize = embedded ? "setupBarChipGrouped" : triggerSize}
 	<Selector
 		bind:open
 		{disabled}
 		{onOpenChange}
 		align="end"
 		blockingOverlay
-		variant="ghost"
+		variant={getSelectorTriggerButtonVariant(branchSelectorTriggerSize)}
 		showChevron={!isSetupChip}
 		class={selectorShellClass}
-		triggerSize={embedded ? "setupBarChipGrouped" : triggerSize}
+		triggerSize={branchSelectorTriggerSize}
 		triggerClass={branchTriggerClass}
 		embeddedInGroup={embedded}
 		side="top"
@@ -196,7 +199,7 @@
 			disabled={createDisabled}
 			onclick={() => onCreateClick?.()}
 		>
-			<Plus class="size-3 shrink-0" weight="bold" />
+			<PlusIcon />
 		</button>
 	</ButtonGroup>
 {:else}

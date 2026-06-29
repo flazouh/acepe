@@ -560,6 +560,7 @@ export interface AgentPanelPrCardModel {
 	hasResolvedChecks?: boolean;
 	checksCollapseThreshold?: number;
 	onOpenCheck?: (check: PrChecksItem, event: MouseEvent) => void;
+	onFixCheck?: (check: PrChecksItem) => void;
 	isStreaming?: boolean;
 	generatingLabel?: string;
 	creatingLabel?: string;

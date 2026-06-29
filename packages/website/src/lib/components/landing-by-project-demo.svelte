@@ -26,7 +26,8 @@ import {
 } from "@acepe/ui/app-layout";
 import { CloseAction, FullscreenAction, OverflowMenuTriggerAction } from "@acepe/ui/panel-header";
 import { ProjectCard } from "@acepe/ui/project-card";
-import { Browser, CaretDown, DotsThreeVertical, Plus, Terminal } from "phosphor-svelte";
+import { Browser, CaretDown, DotsThreeVertical, Terminal } from "phosphor-svelte";
+import { PlusIcon } from "@acepe/ui";
 import type { AgentPanelSceneModel } from "@acepe/ui";
 
 import LandingDemoFrame from "./landing-demo-frame.svelte";
@@ -656,7 +657,7 @@ const favoriteModels = $derived(modelGroups.flatMap((g) => g.items.filter((i) =>
 														<DotsThreeVertical class="h-3.5 w-3.5" weight="bold" />
 													</button>
 													<button type="button" aria-label="New session" class="flex items-center justify-center size-5 rounded text-muted-foreground">
-														<Plus class="h-3 w-3" weight="bold" />
+														<PlusIcon />
 													</button>
 												</div>
 											</div>

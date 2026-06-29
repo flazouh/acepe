@@ -410,6 +410,7 @@ macro_rules! git_command_entries {
             pr_details: git_pr_details,
             pr_checks: git_pr_checks,
             merge_pr: git_merge_pr,
+            ci_job_details: git_ci_job_details,
             get_open_pr_for_branch: get_open_pr_for_branch,
             watch_head: git_watch_head,
             load_worktree_config: load_worktree_config,
