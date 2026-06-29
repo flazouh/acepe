@@ -43,7 +43,6 @@ function renderScroller(items: MessageScrollerItem[], extra: RenderExtra = {}) {
 			items,
 			renderItem: dot,
 			ariaLabel: "Conversation transcript",
-			jumpToLatestLabel: "Jump to latest",
 			onFollowStateChange: extra.onFollowStateChange,
 			onEdgeStateChange: extra.onEdgeStateChange,
 			onReady: extra.onReady,
@@ -98,35 +97,23 @@ describe("MessageScroller", () => {
 		expect(container.querySelector('[data-row-id="r2"]')?.hasAttribute("data-anchor")).toBe(false);
 	});
 
-	it("hides the jump-to-latest control while following, shows it on user scroll-away", async () => {
+	it("reports released state on user scroll-away without local scroll affordances", async () => {
 		const states: Array<{ released: boolean; hasUnreadBelow: boolean }> = [];
 		const items = [item({ key: "r1:v1", rowId: "r1" })];
 		const { container } = renderScroller(items, {
 			onFollowStateChange: (s) => states.push(s),
 		});
 		expect(container.querySelector(".message-scroller__jump")).toBeNull();
+		expect(container.querySelector(".message-scroller__scrollbar")).toBeNull();
 
 		const viewport = viewportOf(container);
 		stubMetrics(viewport, 2000, 1000);
 		viewport.scrollTop = 200;
 		await fireEvent.scroll(viewport);
 
-		expect(container.querySelector(".message-scroller__jump")).not.toBeNull();
-		expect(container.querySelector(".message-scroller__scrollbar")).not.toBeNull();
+		expect(container.querySelector(".message-scroller__jump")).toBeNull();
+		expect(container.querySelector(".message-scroller__scrollbar")).toBeNull();
 		expect(states.at(-1)?.released).toBe(true);
-	});
-
-	it("keeps the jump-to-latest control icon-only with an accessible name", async () => {
-		const items = [item({ key: "r1:v1", rowId: "r1" })];
-		const { container } = renderScroller(items);
-		const viewport = viewportOf(container);
-		stubMetrics(viewport, 2000, 1000);
-		viewport.scrollTop = 200;
-		await fireEvent.scroll(viewport);
-
-		const jump = container.querySelector(".message-scroller__jump");
-		expect(jump?.textContent?.trim()).toBe("");
-		expect(jump?.getAttribute("aria-label")).toBe("Jump to latest");
 	});
 
 	it("exposes the controller via onReady", () => {

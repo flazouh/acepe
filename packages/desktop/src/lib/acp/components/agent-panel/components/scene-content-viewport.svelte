@@ -286,7 +286,6 @@ export function scrollToTop() {
 		items={scrollerItems}
 		renderItem={renderScrollerItem}
 		ariaLabel="Conversation transcript"
-		jumpToLatestLabel="Jump to latest"
 		onReady={setScrollerController}
 		onEdgeStateChange={handleEdgeStateChange}
 	/>
