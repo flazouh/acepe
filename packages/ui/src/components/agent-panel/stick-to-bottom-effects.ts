@@ -21,7 +21,6 @@ import {
 	openAt as openAtState,
 	onScrollMeasure,
 	onSend as onSendState,
-	shouldReleaseOnUserScroll,
 } from "./stick-to-bottom.js";
 
 /** Read the same-frame scroll geometry the pure controller reasons about. */
@@ -82,7 +81,37 @@ export type StickToBottomParams = {
 	readonly onStateChange?: (state: StickState) => void;
 	/** Notified whenever top/bottom edge state may have changed. */
 	readonly onEdgeStateChange?: (state: { readonly atTop: boolean; readonly atBottom: boolean }) => void;
+	/** Monotonic clock in ms. Injectable for tests; defaults to `performance.now`. */
+	readonly now?: () => number;
 };
+
+/**
+ * After we move `scrollTop` ourselves (pin/anchor), ignore release for this long.
+ * A burst of programmatic writes (placeholder swap, content-visibility
+ * estimate→real, anchor corrections) emits several async `scroll` events; a
+ * single-shot guard only neutralizes the first, so the rest used to be misread
+ * as a user scroll-away and spuriously released follow. A short time-box covers
+ * the whole burst.
+ */
+const PROGRAMMATIC_SUPPRESS_MS = 120;
+
+/**
+ * How long a user-intent event (wheel/touch/key/scrollbar-drag) keeps the
+ * "release is allowed" window open. Re-extended while inertial scrolling is
+ * still moving the view up, so momentum is not cut off mid-fling.
+ */
+const INTENT_DECAY_MS = 150;
+
+const PAGING_KEYS = new Set([
+	"PageUp",
+	"PageDown",
+	" ",
+	"Spacebar",
+	"ArrowUp",
+	"ArrowDown",
+	"Home",
+	"End",
+]);
 
 export type StickToBottomController = {
 	getState(): StickState;
@@ -110,11 +139,22 @@ export function createStickToBottomController(
 ): StickToBottomController {
 	const content = params.content ?? scrollEl;
 	const threshold = params.thresholdPx;
+	const now =
+		params.now ?? (typeof performance !== "undefined" ? () => performance.now() : () => Date.now());
 
 	let state: StickState = initialStickState;
-	let programmatic = false;
+	// Time-boxed guards (see PROGRAMMATIC_SUPPRESS_MS / INTENT_DECAY_MS). Release
+	// follow only when a genuine user interaction is in flight; never on a
+	// layout-driven scroll. `0` = window closed.
+	let suppressReleaseUntil = 0;
+	let interactingUntil = 0;
+	let lastScrollTop = scrollEl.scrollTop;
 	let prevScrollHeight = scrollEl.scrollHeight;
 	let anchorBaselineTopPx: number | null = null;
+
+	function armIntent(): void {
+		interactingUntil = now() + INTENT_DECAY_MS;
+	}
 
 	function emitEdgeState(): void {
 		params.onEdgeStateChange?.({
@@ -136,29 +176,46 @@ export function createStickToBottomController(
 		anchorBaselineTopPx = state.released ? (params.resolveAnchor?.()?.topPx ?? null) : null;
 	}
 
+	function markProgrammatic(): void {
+		suppressReleaseUntil = now() + PROGRAMMATIC_SUPPRESS_MS;
+	}
+
 	function apply(action: ScrollAction): void {
 		const moved = applyScrollAction(scrollEl, action, params.resolveRowTop);
 		if (moved) {
-			programmatic = true;
+			markProgrammatic();
 		}
 		prevScrollHeight = scrollEl.scrollHeight;
+		lastScrollTop = scrollEl.scrollTop;
 	}
 
 	function handleScroll(): void {
 		const metrics = readScrollMetrics(scrollEl);
-		if (programmatic) {
-			// Our own scroll — never a user scroll-away. Still reconcile re-engage.
-			programmatic = false;
+		const atBottom = isAtBottom(metrics, threshold);
+		const t = now();
+		const movedUp = metrics.scrollTop < lastScrollTop;
+		lastScrollTop = metrics.scrollTop;
+
+		// Reaching the live edge always re-engages follow — can't get stuck.
+		if (atBottom) {
 			emit(onScrollMeasure(state, metrics, threshold));
 			captureAnchorBaseline();
 			return;
 		}
-		const atBottom = isAtBottom(metrics, threshold);
-		let next = state;
-		if (shouldReleaseOnUserScroll({ isProgrammatic: false, atBottom })) {
-			next = { released: true, hasUnreadBelow: state.hasUnreadBelow };
+		// Release ONLY when a genuine user interaction is in flight (wheel/touch/
+		// key/scrollbar-drag armed `interactingUntil`) AND we are not inside the
+		// settle window of our own programmatic write. Layout-driven scrolls
+		// (placeholder swap, content-visibility estimate→real, anchor correction)
+		// have no intent event, so they can never strand follow above the edge.
+		const userInteracting = t < interactingUntil;
+		const ourOwnScroll = t < suppressReleaseUntil;
+		if (userInteracting && !ourOwnScroll) {
+			if (movedUp) {
+				// Keep the window alive through inertial/momentum travel.
+				interactingUntil = t + INTENT_DECAY_MS;
+			}
+			emit({ released: true, hasUnreadBelow: state.hasUnreadBelow });
 		}
-		emit(onScrollMeasure(next, metrics, threshold));
 		captureAnchorBaseline();
 	}
 
@@ -210,14 +267,40 @@ export function createStickToBottomController(
 		const before = scrollEl.scrollTop;
 		scrollEl.scrollTop = 0;
 		if (scrollEl.scrollTop !== before) {
-			programmatic = true;
+			markProgrammatic();
 		}
 		prevScrollHeight = scrollEl.scrollHeight;
+		lastScrollTop = scrollEl.scrollTop;
 		emit({ released: true, hasUnreadBelow: false });
 		captureAnchorBaseline();
 	}
 
+	// User-intent listeners: these — not the generic `scroll` event — are what
+	// permits a release. A scrollbar-gutter `pointerdown` (no wheel/touch/key)
+	// is the one drag case intent events would otherwise miss.
+	function handleWheel(): void {
+		armIntent();
+	}
+	function handleTouch(): void {
+		armIntent();
+	}
+	function handleKeydown(event: KeyboardEvent): void {
+		if (PAGING_KEYS.has(event.key)) {
+			armIntent();
+		}
+	}
+	function handlePointerDown(event: PointerEvent): void {
+		if (event.offsetX > scrollEl.clientWidth) {
+			armIntent();
+		}
+	}
+
 	scrollEl.addEventListener("scroll", handleScroll, { passive: true });
+	scrollEl.addEventListener("wheel", handleWheel, { passive: true });
+	scrollEl.addEventListener("touchstart", handleTouch, { passive: true });
+	scrollEl.addEventListener("touchmove", handleTouch, { passive: true });
+	scrollEl.addEventListener("keydown", handleKeydown);
+	scrollEl.addEventListener("pointerdown", handlePointerDown);
 
 	const hasResizeObserver = typeof ResizeObserver === "function";
 	const observer = hasResizeObserver ? new ResizeObserver(() => notifyContentChanged()) : null;
@@ -233,6 +316,11 @@ export function createStickToBottomController(
 		notifyContentChanged,
 		destroy() {
 			scrollEl.removeEventListener("scroll", handleScroll);
+			scrollEl.removeEventListener("wheel", handleWheel);
+			scrollEl.removeEventListener("touchstart", handleTouch);
+			scrollEl.removeEventListener("touchmove", handleTouch);
+			scrollEl.removeEventListener("keydown", handleKeydown);
+			scrollEl.removeEventListener("pointerdown", handlePointerDown);
 			observer?.disconnect();
 		},
 	};

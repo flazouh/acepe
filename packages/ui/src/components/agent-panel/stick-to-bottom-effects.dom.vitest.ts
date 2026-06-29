@@ -79,18 +79,45 @@ describe("createStickToBottomController", () => {
 		});
 	}
 
-	it("releases follow on a user scroll away from the bottom", () => {
+	it("releases follow on a user scroll (wheel) away from the bottom", () => {
 		const c = controllerFor();
+		el.dispatchEvent(new WheelEvent("wheel", { deltaY: -200 })); // user intent
 		el.scrollTop = 200;
 		el.dispatchEvent(new Event("scroll"));
 		expect(c.getState()).toEqual({ released: true, hasUnreadBelow: false });
 		c.destroy();
 	});
 
-	it("re-engages follow when the user scrolls back to the bottom", () => {
+	it("does NOT release on a layout-driven scroll with no user intent (the bug)", () => {
 		const c = controllerFor();
+		// No wheel/touch/key — e.g. content-visibility estimate→real or placeholder
+		// collapse moved scrollTop. Follow must survive.
 		el.scrollTop = 200;
 		el.dispatchEvent(new Event("scroll"));
+		expect(c.getState()).toEqual({ released: false, hasUnreadBelow: false });
+		c.destroy();
+	});
+
+	it("does NOT release during the settle window after our own programmatic pins (burst)", () => {
+		const c = controllerFor();
+		// Simulate a pin burst: content grows repeatedly while following.
+		stubMetrics(el, 2400, 1000);
+		c.notifyContentChanged();
+		stubMetrics(el, 2800, 1000);
+		c.notifyContentChanged();
+		// A trailing layout scroll lands not-at-bottom right after the pins.
+		el.scrollTop = 1200;
+		el.dispatchEvent(new Event("scroll"));
+		expect(c.getState().released).toBe(false);
+		c.destroy();
+	});
+
+	it("re-engages follow when the user scrolls back to the bottom", () => {
+		const c = controllerFor();
+		el.dispatchEvent(new WheelEvent("wheel", { deltaY: -200 }));
+		el.scrollTop = 200;
+		el.dispatchEvent(new Event("scroll"));
+		expect(c.getState().released).toBe(true);
 		el.scrollTop = 990;
 		el.dispatchEvent(new Event("scroll"));
 		expect(c.getState()).toEqual({ released: false, hasUnreadBelow: false });
@@ -121,6 +148,7 @@ describe("createStickToBottomController", () => {
 	it("released + content appended below flags unread without moving the view", () => {
 		const anchor = { rowId: "a", topPx: 600 };
 		const c = controllerFor({ resolveAnchor: () => anchor });
+		el.dispatchEvent(new WheelEvent("wheel", { deltaY: -200 }));
 		el.scrollTop = 500;
 		el.dispatchEvent(new Event("scroll")); // release + capture anchor baseline 600
 		stubMetrics(el, 2200, 1000); // grew 200 below; anchor unmoved
@@ -133,6 +161,7 @@ describe("createStickToBottomController", () => {
 	it("released + rows above re-measure preserves the anchor without flagging unread", () => {
 		const anchor = { rowId: "a", topPx: 600 };
 		const c = controllerFor({ resolveAnchor: () => anchor });
+		el.dispatchEvent(new WheelEvent("wheel", { deltaY: -200 }));
 		el.scrollTop = 500;
 		el.dispatchEvent(new Event("scroll")); // release + baseline 600
 		anchor.topPx = 760; // row above grew → anchor pushed down 160
@@ -146,6 +175,7 @@ describe("createStickToBottomController", () => {
 	it("jumpToLatest re-pins to the bottom and clears unread", () => {
 		const anchor = { rowId: "a", topPx: 600 };
 		const c = controllerFor({ resolveAnchor: () => anchor });
+		el.dispatchEvent(new WheelEvent("wheel", { deltaY: -200 }));
 		el.scrollTop = 200;
 		el.dispatchEvent(new Event("scroll"));
 		stubMetrics(el, 2200, 1000);
