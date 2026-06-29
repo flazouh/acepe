@@ -1,5 +1,6 @@
 <script lang="ts">
 import { AppSidebarLayout } from "@acepe/ui/app-layout";
+import { Button } from "@acepe/ui";
 import { MagnifyingGlass, NotePencil } from "phosphor-svelte";
 import { toast } from "svelte-sonner";
 import { copyTextToClipboard } from "$lib/acp/components/agent-panel/logic/clipboard-manager.js";
@@ -456,9 +457,7 @@ const visibleSessions = $derived.by(() => {
 			<button
 				type="button"
 				class="flex w-full items-center gap-2.5 rounded-md px-2 py-1.5 text-sm text-foreground transition-colors hover:bg-accent/50"
-				onclick={() => {
-					appState.commandPaletteOpen = true;
-				}}
+				onclick={handleNewThread}
 			>
 				<NotePencil class="size-4 shrink-0 text-muted-foreground" />
 				<span>New chat</span>

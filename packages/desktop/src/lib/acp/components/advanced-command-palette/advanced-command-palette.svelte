@@ -99,7 +99,7 @@ const paletteState = $derived(commandPalette.state);
 	closeLabel="Close command palette"
 	size="palette-lg"
 	hideHeader={true}
-	contentClass="overflow-hidden rounded-xl border border-border/40 shadow-2xl"
+	contentClass="mx-auto w-full max-w-[40rem] overflow-hidden rounded-xl border border-border/40 shadow-2xl"
 	{onOpenChange}
 >
 	<div class="flex flex-col">

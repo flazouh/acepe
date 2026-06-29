@@ -73,6 +73,8 @@ import { FileExplorerModal } from "$lib/acp/components/file-explorer-modal/index
 import EmptyStates from "./main-app-view/components/content/empty-states.svelte";
 import PanelsContainer from "./main-app-view/components/content/panels-container.svelte";
 import AppOverlays from "./main-app-view/components/overlays/app-overlays.svelte";
+import NewChatDialog from "./main-app-view/components/new-chat-dialog.svelte";
+import type { KanbanNewSessionRequest } from "./main-app-view/components/content/kanban-new-session-dialog-state.js";
 import SourceControlDialog from "./main-app-view/components/overlays/source-control-dialog.svelte";
 import AppSidebar from "./main-app-view/components/sidebar/app-sidebar.svelte";
 import {
@@ -475,6 +477,9 @@ sessionStore.initializeSessionUpdates().mapErr((error) => {
 
 // Project manager (separate for now, could be merged later)
 const projectManager = new ProjectManager();
+// App-wide new-chat modal: opened from any new-thread entry point via
+// viewState.onNewThreadOverride (registered in onMount once the ref is bound).
+let newChatDialog = $state<{ open: (request?: KanbanNewSessionRequest) => void }>();
 
 // Connect session store to project manager for scan operations on import
 projectManager.setSessionStore(sessionStore);
@@ -531,6 +536,11 @@ const viewState = new MainAppViewState(
 	preconnectionAgentSkillsStore,
 	sessionOpenHydrator
 );
+
+// Route every new-thread entry point (sidebar "New chat", per-project +, ⌘T,
+// kanban columns) to the single app-wide new-chat modal. The closure reads the
+// dialog ref at call time, so it works regardless of mount/HMR ordering.
+viewState.onNewThreadOverride = (request) => newChatDialog?.open(request);
 
 // Add repository dialog (unified import/clone/browse modal)
 const projectClient = new ProjectClient();
@@ -1165,6 +1175,7 @@ onDestroy(() => {
 	</div>
 	<AppOverlays state={viewState} {commandPalette} />
 	<SourceControlDialog {projectManager} />
+	<NewChatDialog bind:this={newChatDialog} {projectManager} />
 
 	<OpenProjectDialog
 		open={addProjectDialogOpen}

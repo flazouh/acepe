@@ -15,6 +15,7 @@
  */
 
 import { okAsync, type ResultAsync } from "neverthrow";
+import type { CanonicalModeId } from "$lib/acp/types/canonical-mode-id.js";
 import { resolveDefaultAgentIdForCreate } from "$lib/acp/components/session-list/session-list-logic.js";
 import type { SessionListItem } from "$lib/acp/components/session-list/session-list-types.js";
 import type { WorktreeDefaultStore } from "$lib/acp/components/worktree/worktree-default-store.svelte.js";
@@ -505,7 +506,11 @@ export class MainAppViewState {
 	 * When set, new-thread requests call this instead of spawning a panel.
 	 */
 	onNewThreadOverride:
-		| ((request?: { readonly projectPath?: string; readonly agentId?: string }) => void)
+		| ((request?: {
+				readonly projectPath?: string;
+				readonly agentId?: string;
+				readonly modeId?: CanonicalModeId;
+		  }) => void)
 		| null = null;
 
 	handleNewThread(): void {

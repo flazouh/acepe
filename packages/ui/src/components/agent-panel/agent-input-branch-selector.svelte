@@ -15,7 +15,7 @@
 		FUSED_CONTROL_SETUP_CHIP_ICON_SIZE_CLASS,
 		FUSED_CONTROL_SETUP_CHIP_ICON_SIZE_PX,
 		FUSED_CONTROL_SETUP_CHIP_LABEL_TEXT_CLASS,
-		OVERFLOW_DOTS_ICON_CLASS,
+		FUSED_CONTROL_SETUP_GROUPED_ICON_TRAILING_BUTTON_CLASS,
 	} from "../panel-header/project-card-action-button-class.js";
 	import { Selector } from "../selector/index.js";
 	import type { SelectorTriggerSize } from "../selector/selector-trigger-classes.js";
@@ -101,6 +101,11 @@
 			useButtonGroup ? className : ""
 		)
 	);
+	const createButtonClass = $derived(
+		isSetupChip
+			? FUSED_CONTROL_SETUP_GROUPED_ICON_TRAILING_BUTTON_CLASS
+			: FUSED_CONTROL_OVERFLOW_BUTTON_CLASS
+	);
 
 </script>
 
@@ -185,13 +190,13 @@
 		<button
 			type="button"
 			data-slot="button"
-			class={FUSED_CONTROL_OVERFLOW_BUTTON_CLASS}
+			class={createButtonClass}
 			aria-label={createAriaLabel}
 			title={createAriaLabel}
 			disabled={createDisabled}
 			onclick={() => onCreateClick?.()}
 		>
-			<Plus class={OVERFLOW_DOTS_ICON_CLASS} weight="bold" />
+			<Plus class="size-3 shrink-0" weight="bold" />
 		</button>
 	</ButtonGroup>
 {:else}

@@ -159,7 +159,10 @@
 						? cn(FUSED_CONTROL_OVERFLOW_BUTTON_CLASS, "px-1", triggerClassOverride)
 						: resolvedTriggerSize === "composerChipLabel"
 							? cn(FUSED_CONTROL_GROUPED_CHIP_LABEL_BUTTON_CLASS, triggerClassOverride)
-							: triggerClassOverride
+							: getSelectorTriggerClass({
+									triggerSize,
+									triggerClass: triggerClassOverride,
+								})
 				)
 			: getSelectorTriggerClass({
 					triggerSize,
