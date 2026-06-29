@@ -136,6 +136,20 @@ describe("createStickToBottomController", () => {
 		c.destroy();
 	});
 
+	it("following + content SHRINK re-pins to the new bottom (no strand)", () => {
+		// A streaming/thinking row collapsing or a content-visibility re-measure can
+		// shrink scrollHeight. While following, the view must re-pin to the new
+		// bottom, never strand above it.
+		const c = controllerFor();
+		stubMetrics(el, 2000, 1000);
+		el.scrollTop = 1000; // at bottom
+		stubMetrics(el, 1400, 1000); // content shrank by 600
+		c.notifyContentChanged();
+		expect(el.scrollTop).toBe(400); // new maxScrollTop
+		expect(c.getState()).toEqual({ released: false, hasUnreadBelow: false });
+		c.destroy();
+	});
+
 	it("following + content growth pins to the new bottom", () => {
 		const c = controllerFor();
 		stubMetrics(el, 2400, 1000);
