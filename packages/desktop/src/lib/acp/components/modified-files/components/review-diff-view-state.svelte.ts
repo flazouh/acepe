@@ -21,7 +21,7 @@ import DiffHunkActionButtons from "./diff-hunk-action-buttons.svelte";
  * Diff view style options.
  */
 export type DiffViewStyle = "split" | "unified";
-export type ReviewDiffDensity = "default" | "compact";
+export type ReviewDiffDensity = "default" | "compact" | "comfortable";
 
 /**
  * Callback for accept/reject hunk actions.
@@ -48,8 +48,27 @@ const compactReviewDiffUnsafeCSS = `
 }
 `;
 
+// Comfortable density: the review modal's diff respects the global Code font
+// size setting (--code-font-size, default 13px; set on :root and inherited
+// through the shadow boundary) instead of a hardcoded size. Also drops the
+// diff's own opaque panel background so the code viewer is flush with the modal
+// surface (the green/red per-line change tints are unaffected).
+const comfortableReviewDiffUnsafeCSS = `
+[data-code] {
+  font-size: var(--code-font-size, 0.8125rem);
+  line-height: 1.5;
+  background-color: transparent !important;
+}
+
+[data-diff], [data-file] {
+  background-color: transparent !important;
+}
+`;
+
 function resolveReviewDiffUnsafeCSS(density: ReviewDiffDensity): string {
-	return density === "compact" ? compactReviewDiffUnsafeCSS : "";
+	if (density === "compact") return compactReviewDiffUnsafeCSS;
+	if (density === "comfortable") return comfortableReviewDiffUnsafeCSS;
+	return "";
 }
 
 /**
@@ -303,6 +322,15 @@ export class ReviewDiffViewState {
 	private activeHunkIndex: number | null = null;
 
 	/**
+	 * Hunks the user has kept (accepted). Keeping is a review-progress marker — it
+	 * does NOT alter the file or the rendered diff, so we leave the diff metadata
+	 * intact (the user keeps seeing the change) and merely suppress the hunk's
+	 * accept/reject annotation. Rejected hunks collapse to context via the diff
+	 * library, so they fall out of the annotation set on their own.
+	 */
+	private acceptedHunkIndices = new Set<number>();
+
+	/**
 	 * Initializes and renders the diff using @pierre/diffs.
 	 *
 	 * @param diffData - The diff data with pre-parsed FileDiffMetadata
@@ -358,10 +386,19 @@ export class ReviewDiffViewState {
 		const totalHunksAtInit = renderableDiffData.fileDiffMetadata.hunks.length;
 		let acceptedCountAtInit = 0;
 		let rejectedCountAtInit = 0;
+		const acceptedHunkIndicesAtInit = new Set<number>();
 
 		for (const action of initialResolvedActions) {
 			const currentMetadata = renderableDiffData.fileDiffMetadata;
 			if (action.hunkIndex < 0 || action.hunkIndex >= currentMetadata.hunks.length) {
+				continue;
+			}
+
+			// Keeping a hunk leaves the diff untouched (the user keeps seeing it) —
+			// only rejecting collapses the hunk and reverts its content.
+			if (action.action === "accept") {
+				acceptedHunkIndicesAtInit.add(action.hunkIndex);
+				acceptedCountAtInit++;
 				continue;
 			}
 
@@ -370,14 +407,11 @@ export class ReviewDiffViewState {
 				action.hunkIndex,
 				action.action
 			);
-			const updatedNewContents =
-				action.action === "reject"
-					? computeRevertedFileContent(
-							renderableDiffData.newFile.contents,
-							currentMetadata,
-							action.hunkIndex
-						)
-					: renderableDiffData.newFile.contents;
+			const updatedNewContents = computeRevertedFileContent(
+				renderableDiffData.newFile.contents,
+				currentMetadata,
+				action.hunkIndex
+			);
 
 			renderableDiffData = ensureRenderableDiffData({
 				oldFile: renderableDiffData.oldFile,
@@ -387,13 +421,10 @@ export class ReviewDiffViewState {
 				fileDiffMetadata: updatedMetadata,
 			});
 
-			if (action.action === "accept") {
-				acceptedCountAtInit++;
-			} else {
-				rejectedCountAtInit++;
-			}
+			rejectedCountAtInit++;
 		}
 
+		this.acceptedHunkIndices = acceptedHunkIndicesAtInit;
 		this.containerElement = container;
 		this.currentDiffData = renderableDiffData;
 		this.totalHunksAtInit = totalHunksAtInit;
@@ -505,6 +536,9 @@ export class ReviewDiffViewState {
 
 		for (let hunkIndex = 0; hunkIndex < compatibleMetadata.hunks.length; hunkIndex++) {
 			const hunk = compatibleMetadata.hunks[hunkIndex];
+
+			// Skip kept hunks: the diff still renders, but no accept/reject buttons.
+			if (this.acceptedHunkIndices.has(hunkIndex)) continue;
 
 			// Skip resolved hunks (context-only after diffAcceptRejectHunk)
 			const hasChanges = hunk.hunkContent.some((c) => c.type === "change");
@@ -734,6 +768,25 @@ export class ReviewDiffViewState {
 
 		const currentDiffData = this.currentDiffData;
 
+		// Keep: mark the hunk reviewed but leave the diff untouched so the user
+		// keeps seeing the change. Only drop its accept/reject buttons.
+		if (action === "accept") {
+			this.acceptedHunkIndices.add(hunkIndex);
+			this.acceptedCount++;
+
+			this.cleanupAnnotationComponents();
+			this.lineAnnotations = this.onHunkAction
+				? this.buildLineAnnotationsFromHunks(currentDiffData.fileDiffMetadata)
+				: [];
+
+			this.fileDiffInstance.render({
+				fileDiff: currentDiffData.fileDiffMetadata,
+				lineAnnotations: this.lineAnnotations,
+			});
+
+			return currentDiffData.fileDiffMetadata;
+		}
+
 		const updatedMetadata = diffAcceptRejectHunk(
 			currentDiffData.fileDiffMetadata,
 			hunkIndex,
@@ -741,20 +794,13 @@ export class ReviewDiffViewState {
 		);
 
 		// Increment counters after the library call succeeds
-		if (action === "accept") {
-			this.acceptedCount++;
-		} else {
-			this.rejectedCount++;
-		}
+		this.rejectedCount++;
 
-		const updatedNewContents =
-			action === "reject"
-				? computeRevertedFileContent(
-						currentDiffData.newFile.contents,
-						currentDiffData.fileDiffMetadata,
-						hunkIndex
-					)
-				: currentDiffData.newFile.contents;
+		const updatedNewContents = computeRevertedFileContent(
+			currentDiffData.newFile.contents,
+			currentDiffData.fileDiffMetadata,
+			hunkIndex
+		);
 
 		const updatedDiffData = ensureRenderableDiffData({
 			oldFile: currentDiffData.oldFile,

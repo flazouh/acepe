@@ -149,7 +149,10 @@ describe("ReviewDiffViewState regression", () => {
 		expect(stats.total).toBe(1);
 		expect(stats.accepted).toBe(1);
 		expect(stats.pending).toBe(0);
-		expect(pierreMockState.lastRenderArgs?.fileDiff.hunks[0].hunkContent).not.toEqual(
+		// A persisted Keep is reflected in the stats (resolved, no pending
+		// annotation) WITHOUT collapsing the rendered diff — the user still sees
+		// the change when revisiting a kept file.
+		expect(pierreMockState.lastRenderArgs?.fileDiff.hunks[0].hunkContent).toEqual(
 			diffData.fileDiffMetadata.hunks[0].hunkContent
 		);
 	});

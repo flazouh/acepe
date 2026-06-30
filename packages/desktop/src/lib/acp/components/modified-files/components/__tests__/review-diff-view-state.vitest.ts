@@ -134,6 +134,24 @@ describe("ReviewDiffViewState", () => {
 		expect(annotations[0].metadata.hunkIndex).toBe(1);
 	}, 20_000);
 
+	it("keeps the diff visible after a hunk is kept (accept does not collapse to context)", async () => {
+		const { state, diffData, lastRenderArgs } = await setupState({ withHunkAction: true });
+		expect(diffData.fileDiffMetadata.hunks.length).toBe(2);
+
+		state.applyHunkAction(0, "accept");
+
+		const rendered = lastRenderArgs();
+		expect(rendered).not.toBeNull();
+		const keptHunk = rendered?.fileDiff.hunks[0];
+		// The kept hunk must still render its change (additions/deletions), not
+		// collapse to context-only — the user keeps seeing the diff after Keep.
+		expect(keptHunk?.hunkContent.some((c) => c.type === "change")).toBe(true);
+
+		// Accept is a review marker, not a revert: contents stay the agent's output.
+		const currentData = Reflect.get(state, "currentDiffData") as ReviewDiffData;
+		expect(currentData.newFile.contents).toBe(diffData.newFile.contents);
+	}, 20_000);
+
 	it("newFile.contents updates after reject to stay in sync with metadata", async () => {
 		const { state, diffData } = await setupState({ withHunkAction: true });
 		const originalNewContents = diffData.newFile.contents;
