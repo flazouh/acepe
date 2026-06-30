@@ -54,9 +54,9 @@
 								{column}
 								{#if sortColumn === column}
 									{#if sortDirection === "asc"}
-										<CaretUp size={8} weight="bold" class="text-primary" />
+										<CaretUp size={12} weight="regular" class="size-3 shrink-0 text-primary" />
 									{:else}
-										<CaretDown size={8} weight="bold" class="text-primary" />
+										<CaretDown size={12} weight="regular" class="size-3 shrink-0 text-primary" />
 									{/if}
 								{/if}
 							</button>

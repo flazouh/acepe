@@ -56,9 +56,9 @@
 		onclick={() => onToggle?.()}
 	>
 		{#if expanded}
-			<CaretDown class="size-3 shrink-0 text-muted-foreground" />
+			<CaretDown size={12} weight="regular" class="size-3 shrink-0 text-muted-foreground" />
 		{:else}
-			<CaretRight class="size-3 shrink-0 text-muted-foreground" />
+			<CaretRight size={12} weight="regular" class="size-3 shrink-0 text-muted-foreground" />
 		{/if}
 		<span class="min-w-0 flex-1 truncate text-[11px] font-medium text-foreground">{name}</span>
 		<span class="rounded-full bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">

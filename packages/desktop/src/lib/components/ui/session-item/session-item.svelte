@@ -8,8 +8,7 @@ import {
 } from "@acepe/ui/project-letter-badge";
 import * as DropdownMenu from "@acepe/ui/dropdown-menu";
 import { IconCheck } from "@tabler/icons-svelte";
-import { IconChevronDown } from "@tabler/icons-svelte";
-import { IconChevronRight } from "@tabler/icons-svelte";
+import { CaretDown, CaretRight } from "phosphor-svelte";
 import { IconDotsVertical } from "@tabler/icons-svelte";
 import { IconX } from "@tabler/icons-svelte";
 import { Archive } from "phosphor-svelte";
@@ -587,9 +586,9 @@ function handleNextQuestion() {
 					aria-label={isExpanded ? "Collapse" : "Expand"}
 				>
 					{#if isExpanded}
-						<IconChevronDown class="h-3.5 w-3.5 text-muted-foreground" />
+						<CaretDown size={12} weight="regular" class="size-3 shrink-0 text-muted-foreground" />
 					{:else}
-						<IconChevronRight class="h-3.5 w-3.5 text-muted-foreground" />
+						<CaretRight size={12} weight="regular" class="size-3 shrink-0 text-muted-foreground" />
 					{/if}
 				</button>
 			{/if}

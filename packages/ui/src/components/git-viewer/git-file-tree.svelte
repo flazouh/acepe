@@ -138,7 +138,7 @@
 						class="flex h-3.5 w-3.5 shrink-0 items-center justify-center transition-transform duration-150"
 						class:rotate-90={isExpanded}
 					>
-						<CaretRight size={10} weight="bold" />
+						<CaretRight size={12} weight="regular"  class="size-3"/>
 					</span>
 					{#if useSvgIcons}
 						<img

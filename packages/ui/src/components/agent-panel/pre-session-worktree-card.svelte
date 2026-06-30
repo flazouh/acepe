@@ -196,7 +196,7 @@
 								onclick={toggleExpanded}
 								aria-expanded={isExpanded}
 							>
-								<CaretRight size={12} weight="bold" class="transition-transform duration-150 {isExpanded ? 'rotate-90' : ''}" />
+								<CaretRight size={12} weight="regular" class="size-3 shrink-0 transition-transform duration-150 {isExpanded ? 'rotate-90' : ''}" />
 							</button>
 						</TooltipTrigger>
 						<TooltipContent>{setupScriptsLabel ?? "Setup scripts"}</TooltipContent>
@@ -251,7 +251,7 @@
 							onclick={toggleExpanded}
 							aria-expanded={isExpanded}
 						>
-							<CaretRight size={12} weight="bold" class="transition-transform duration-150 {isExpanded ? 'rotate-90' : ''}" />
+							<CaretRight size={12} weight="regular" class="size-3 shrink-0 transition-transform duration-150 {isExpanded ? 'rotate-90' : ''}" />
 						</button>
 					</TooltipTrigger>
 					<TooltipContent>{setupScriptsLabel ?? "Setup scripts"}</TooltipContent>

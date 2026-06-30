@@ -78,9 +78,9 @@ function toggleExpanded() {
 				</span>
 				<div class="ml-auto">
 					{#if expandedInternal}
-						<CaretDown size={10} weight="bold" class="text-muted-foreground shrink-0" />
+						<CaretDown size={12} weight="regular" class="size-3 text-muted-foreground shrink-0" />
 					{:else}
-						<CaretRight size={10} weight="bold" class="text-muted-foreground shrink-0" />
+						<CaretRight size={12} weight="regular" class="size-3 text-muted-foreground shrink-0" />
 					{/if}
 				</div>
 			</button>

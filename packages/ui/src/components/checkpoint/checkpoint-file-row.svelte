@@ -90,10 +90,7 @@
 	>
 		<div class="flex items-center gap-1.5 min-w-0 flex-1">
 			{#if allowDiffExpand}
-				<CaretRight
-					class="h-2.5 w-2.5 text-muted-foreground shrink-0 transition-transform duration-150
-						   {isDiffExpanded ? 'rotate-90' : ''}"
-					weight="bold"
+				<CaretRight size={12} weight="regular" class="size-3 text-muted-foreground shrink-0 transition-transform duration-150 {isDiffExpanded ? 'rotate-90' : ''}"
 				/>
 			{/if}
 

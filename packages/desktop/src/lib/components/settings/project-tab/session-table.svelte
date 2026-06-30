@@ -1,10 +1,12 @@
 <script lang="ts">
 import { IconArrowDown } from "@tabler/icons-svelte";
 import { IconArrowUp } from "@tabler/icons-svelte";
-import { IconChevronLeft } from "@tabler/icons-svelte";
-import { IconChevronRight } from "@tabler/icons-svelte";
-import { IconChevronsLeft } from "@tabler/icons-svelte";
-import { IconChevronsRight } from "@tabler/icons-svelte";
+import {
+	CaretDoubleLeft,
+	CaretDoubleRight,
+	CaretLeft,
+	CaretRight,
+} from "phosphor-svelte";
 import { IconSearch } from "@tabler/icons-svelte";
 import { IconSelector } from "@tabler/icons-svelte";
 import { Selector } from "@acepe/ui";
@@ -274,7 +276,7 @@ function formatDate(date: Date): string {
 					disabled={!canGoPrevious}
 					onclick={() => state.goToFirstPage()}
 				>
-					<IconChevronsLeft class="size-3" />
+					<CaretDoubleLeft size={12} weight="regular" class="shrink-0" />
 				</button>
 				<button
 					type="button"
@@ -282,7 +284,7 @@ function formatDate(date: Date): string {
 					disabled={!canGoPrevious}
 					onclick={() => state.goToPreviousPage()}
 				>
-					<IconChevronLeft class="size-3" />
+					<CaretLeft size={12} weight="regular" class="size-3 shrink-0" />
 				</button>
 				<span class="px-1 text-muted-foreground tabular-nums">
 					{state.currentPage + 1}/{totalPages}
@@ -293,7 +295,7 @@ function formatDate(date: Date): string {
 					disabled={!canGoNext}
 					onclick={() => state.goToNextPage(totalPages)}
 				>
-					<IconChevronRight class="size-3" />
+					<CaretRight size={12} weight="regular" class="size-3 shrink-0" />
 				</button>
 				<button
 					type="button"
@@ -301,7 +303,7 @@ function formatDate(date: Date): string {
 					disabled={!canGoNext}
 					onclick={() => state.goToLastPage(totalPages)}
 				>
-					<IconChevronsRight class="size-3" />
+					<CaretDoubleRight size={12} weight="regular" class="shrink-0" />
 				</button>
 			</div>
 		{/if}

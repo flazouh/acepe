@@ -169,11 +169,9 @@
                     title={isExpanded ? "Collapse columns" : "Expand columns"}
                     onclick={(e) => toggleTableExpand(tableKey, e)}
                   >
-                    <CaretRight
-                      size={10}
-                      weight="bold"
+                    <CaretRight size={12} weight="regular"
                       class={cn(
-                        "text-muted-foreground transition-transform duration-150",
+                        "size-3 text-muted-foreground transition-transform duration-150",
                         isExpanded && "rotate-90",
                       )}
                     />

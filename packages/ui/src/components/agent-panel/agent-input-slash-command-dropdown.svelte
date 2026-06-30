@@ -1,6 +1,6 @@
 <script lang="ts">
 	import * as Dialog from "../dialog/index.js";
-	import { StreamdownMarkdown } from "../streamdown-markdown/index.js";
+	import { NativeMarkdown } from "../native-markdown/index.js";
 	import { INLINE_ARTEFACT_PACKAGE_PATH } from "../inline-artefact-badge/inline-artefact-badge.styles.js";
 	import { IconPlug, IconTerminal } from "@tabler/icons-svelte";
 	import AgentInputSlashPaletteRow from "./agent-input-slash-palette-row.svelte";
@@ -329,7 +329,7 @@
 					{workspaceMarkdownError}
 				</div>
 			{/if}
-			<StreamdownMarkdown
+			<NativeMarkdown
 				markdown={workspaceMarkdown}
 				mode="static"
 				class="text-[12px] leading-relaxed"

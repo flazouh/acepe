@@ -125,7 +125,7 @@ function setAgentChecked(agentId: string, checked: boolean): void {
 				{:else}
 					<span class="text-sm font-medium text-foreground">First available</span>
 				{/if}
-				<CaretDown class="ml-1 size-2.5 shrink-0 opacity-40" weight="bold" />
+				<CaretDown size={12} weight="regular" class="size-3 ml-1 shrink-0 opacity-40" />
 			{/snippet}
 
 			<DropdownMenu.Item onclick={() => void agentPreferencesStore.setDefaultAgentId(null)}>

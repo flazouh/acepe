@@ -1,5 +1,5 @@
 <script lang="ts">
-	import ChevronDown from "@lucide/svelte/icons/chevron-down";
+	import { CaretDown } from "phosphor-svelte";
 	import type { Snippet } from "svelte";
 
 	import { LoadingIcon } from "../icons/index.js";
@@ -90,10 +90,7 @@
 					{/each}
 				</div>
 			{/if}
-			<ChevronDown
-				class="size-3.5 text-muted-foreground transition-transform duration-200 {isExpanded
-					? 'rotate-180'
-					: ''}"
+			<CaretDown size={12} weight="regular" class="size-3 shrink-0 text-muted-foreground transition-transform duration-200 {isExpanded ? 'rotate-180' : ''}"
 			/>
 		</div>
 	</div>

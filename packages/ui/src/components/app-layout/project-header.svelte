@@ -49,10 +49,7 @@
 		<span
 			class="ml-1 inline-flex shrink-0 items-center text-muted-foreground/60 opacity-0 transition-opacity duration-150 group-hover:opacity-100"
 		>
-			<CaretRight
-				size={11}
-				weight="bold"
-				class="transition-transform duration-150 {expanded ? 'rotate-90' : ''}"
+			<CaretRight size={12} weight="regular" class="size-3 shrink-0 transition-transform duration-150 {expanded ? 'rotate-90' : ''}"
 			/>
 		</span>
 	</div>

@@ -78,7 +78,7 @@
 						onPrevQuestion();
 					}}
 				>
-					<CaretLeft class="h-3 w-3 text-muted-foreground" />
+					<CaretLeft size={12} weight="regular" class="size-3 shrink-0 text-muted-foreground" />
 				</button>
 				<span class="px-0.5 font-mono text-xs tabular-nums text-muted-foreground">
 					{currentQuestionIndex + 1}/{totalQuestions}
@@ -92,7 +92,7 @@
 						onNextQuestion();
 					}}
 				>
-					<CaretRight class="h-3 w-3 text-muted-foreground" />
+					<CaretRight size={12} weight="regular" class="size-3 shrink-0 text-muted-foreground" />
 				</button>
 			</div>
 			<div class="ml-1 flex shrink-0 gap-0.5">

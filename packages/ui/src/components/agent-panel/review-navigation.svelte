@@ -78,7 +78,7 @@
 				onclick={onReviewNextFile}
 			>
 				{nextFileLabel}
-				<CaretRight class="h-3 w-3" weight="fill" />
+				<CaretRight size={12} weight="regular" class="size-3 shrink-0" />
 			</button>
 		{:else}
 			<button
@@ -118,7 +118,7 @@
 				onclick={onPrevHunk}
 			>
 				{#snippet children()}
-					<CaretUp class="h-3.5 w-3.5" weight="fill" />
+					<CaretUp size={12} weight="regular" class="size-3 shrink-0" />
 				{/snippet}
 			</Button>
 			<span
@@ -137,7 +137,7 @@
 				onclick={onNextHunk}
 			>
 				{#snippet children()}
-					<CaretDown class="h-3.5 w-3.5" weight="fill" />
+					<CaretDown size={12} weight="regular" class="size-3 shrink-0" />
 				{/snippet}
 			</Button>
 		</HeaderActionCell>
@@ -155,7 +155,7 @@
 				onclick={onPrevFile}
 			>
 				{#snippet children()}
-					<CaretLeft class="h-3.5 w-3.5" weight="fill" />
+					<CaretLeft size={12} weight="regular" class="size-3 shrink-0" />
 				{/snippet}
 			</Button>
 			<span
@@ -174,7 +174,7 @@
 				onclick={onNextFile}
 			>
 				{#snippet children()}
-					<CaretRight class="h-3.5 w-3.5" weight="fill" />
+					<CaretRight size={12} weight="regular" class="size-3 shrink-0" />
 				{/snippet}
 			</Button>
 		</HeaderActionCell>

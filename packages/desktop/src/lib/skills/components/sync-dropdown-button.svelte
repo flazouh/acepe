@@ -1,11 +1,7 @@
 <script lang="ts">
 import { Selector } from "@acepe/ui";
 import * as DropdownMenu from "@acepe/ui/dropdown-menu";
-import { ChevronDown, FolderOpen } from "@lucide/svelte/icons";
-import { revealItemInDir } from "@tauri-apps/plugin-opener";
-import { ArrowsClockwise } from "phosphor-svelte";
-import { CheckCircle } from "phosphor-svelte";
-import { Warning as PhosphorWarning } from "phosphor-svelte";
+import { ArrowsClockwise, CaretDown, CheckCircle, FolderOpen, Warning as PhosphorWarning } from "phosphor-svelte";
 import AgentIcon from "$lib/acp/components/agent-icon.svelte";
 import { Spinner } from "$lib/components/ui/spinner/index.js";
 import { Switch } from "$lib/components/ui/switch/index.js";
@@ -93,7 +89,7 @@ const syncStatus = $derived.by(() => {
 		class="border border-border/50 bg-accent/5"
 	>
 		{#snippet renderButton()}
-			<ChevronDown class="h-3.5 w-3.5" />
+			<CaretDown size={12} weight="regular" class="size-3 shrink-0" />
 		{/snippet}
 
 		<DropdownMenu.Label>Sync to agents</DropdownMenu.Label>

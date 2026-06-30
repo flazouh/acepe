@@ -248,7 +248,7 @@ onMount(() => {
 	{#snippet extraLeftActions()}
 		{#if updaterState?.kind === "available"}
 			<div class="flex items-center pl-2">
-			<Button variant="headerProminent" size="headerAction" class="!h-5 !min-h-5" onclick={onUpdateClick}>
+			<Button variant="default" size="2xs" onclick={onUpdateClick}>
 				{#snippet children()}
 					Update
 				{/snippet}
@@ -256,7 +256,7 @@ onMount(() => {
 			</div>
 		{:else if updaterState?.kind === "downloading" || updaterState?.kind === "installing"}
 			<div class="flex items-center pl-2">
-			<Button variant="headerProminent" size="headerAction" class="!h-5 !min-h-5" disabled>
+			<Button variant="default" size="2xs" disabled>
 				{#snippet children()}
 					<div class="flex items-center gap-2">
 						<span>{updateActionText}</span>
@@ -278,7 +278,7 @@ onMount(() => {
 			</div>
 		{:else if updaterState?.kind === "error"}
 			<div class="flex items-center pl-2">
-				<Button variant="headerProminent" size="headerAction" class="!h-5 !min-h-5" onclick={onRetryUpdateClick}>
+				<Button variant="default" size="2xs" onclick={onRetryUpdateClick}>
 					{#snippet children()}
 						Retry
 					{/snippet}

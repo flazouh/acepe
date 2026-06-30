@@ -1,13 +1,11 @@
 @import "@acepe/ui/design-tokens.css";
 @import "tailwindcss";
-@import "streamdown/styles.css";
 @import "@fontsource/jetbrains-mono/400.css";
 @import "@fontsource/jetbrains-mono/400-italic.css";
 @import "@fontsource/jetbrains-mono/500.css";
 @import "@fontsource/jetbrains-mono/700.css";
 @source "./**/*.{html,js,svelte,ts}";
 @source "../../ui/src/**/*.{html,js,svelte,ts}";
-@source "../../../node_modules/streamdown/dist/*.js";
 @source inline("text-success");
 
 @import "tw-animate-css";

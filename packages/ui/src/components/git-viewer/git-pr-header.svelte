@@ -84,10 +84,7 @@
 			onclick={() => { expanded = !expanded; }}
 			title={expanded ? "Collapse details" : "Expand details"}
 		>
-			<CaretDown
-				size={12}
-				weight="bold"
-				class="transition-transform duration-150 {expanded ? 'rotate-180' : ''}"
+			<CaretDown size={12} weight="regular" class="size-3 shrink-0 transition-transform duration-150 {expanded ? 'rotate-180' : ''}"
 			/>
 		</button>
 	</div>

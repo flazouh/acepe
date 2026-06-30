@@ -215,10 +215,7 @@ function expand() {
 						aria-label={isExpanded ? ariaCollapseDiff : ariaExpandDiff}
 						aria-expanded={isExpanded}
 					>
-						<CaretRight
-							size={9}
-							weight="bold"
-							class="text-muted-foreground transition-transform duration-150 {isExpanded ? 'rotate-90' : ''}"
+						<CaretRight size={12} weight="regular" class="size-3 shrink-0 text-muted-foreground transition-transform duration-150 {isExpanded ? 'rotate-90' : ''}"
 						/>
 					</button>
 				{/if}

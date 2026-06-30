@@ -172,8 +172,8 @@ $effect(() => {
 			Cancel
 		</Button>
 		<Button
-			variant="headerProminent"
-			size="header"
+			variant="default"
+			size="xs"
 			class="max-w-none shrink-0"
 			disabled={!canCreateBranch}
 			onclick={handleCreate}

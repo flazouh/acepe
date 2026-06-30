@@ -226,7 +226,7 @@
 					<GitBranch size={14} class="shrink-0 text-muted-foreground" />
 					<span class="truncate font-normal">{branch}</span>
 					{#if onBranchClick}
-						<CaretDown size={11} class="shrink-0 text-muted-foreground/70" />
+						<CaretDown size={12} weight="regular" class="size-3 shrink-0 text-muted-foreground/70" />
 					{/if}
 				</button>
 

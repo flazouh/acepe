@@ -44,11 +44,11 @@ const nodeState = $derived.by(() => {
 					isExpanded = !isExpanded;
 				}}
 			>
-				<span class="structured-chevron" aria-hidden="true">
+				<span class="inline-flex w-4 shrink-0 items-center justify-center text-muted-foreground/80" aria-hidden="true">
 					{#if isExpanded}
-						<CaretDown class="h-3.5 w-3.5" weight="bold" />
+						<CaretDown size={12} weight="regular" class="size-3 shrink-0" />
 					{:else}
-						<CaretRight class="h-3.5 w-3.5" weight="bold" />
+						<CaretRight size={12} weight="regular" class="size-3 shrink-0" />
 					{/if}
 				</span>
 				<span class="structured-type-icon" aria-hidden="true">
@@ -71,7 +71,7 @@ const nodeState = $derived.by(() => {
 			{/if}
 		{:else if nodeState.isContainer}
 			<div class="structured-card-header">
-				<span class="structured-chevron" aria-hidden="true">
+				<span class="inline-flex w-4 shrink-0 items-center justify-center text-muted-foreground/80" aria-hidden="true">
 					{#if nodeState.isArray}
 						<PlanIcon size="md" />
 					{:else}
@@ -83,7 +83,7 @@ const nodeState = $derived.by(() => {
 			</div>
 		{:else}
 			<div class="structured-card-header">
-				<span class="structured-chevron" aria-hidden="true">
+				<span class="inline-flex w-4 shrink-0 items-center justify-center text-muted-foreground/80" aria-hidden="true">
 					{#if typeof nodeState.displayValue === "boolean" && nodeState.displayValue}
 						<CheckCircle class="h-3.5 w-3.5 text-emerald-500" weight="fill" />
 					{:else}
@@ -141,15 +141,6 @@ const nodeState = $derived.by(() => {
 
 	button.structured-card-header:hover {
 		background: color-mix(in srgb, var(--muted) 35%, transparent);
-	}
-
-	.structured-chevron {
-		display: inline-flex;
-		align-items: center;
-		justify-content: center;
-		width: 1rem;
-		color: color-mix(in srgb, var(--muted-foreground) 80%, transparent);
-		flex-shrink: 0;
 	}
 
 	.structured-type-icon {

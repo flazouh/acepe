@@ -87,7 +87,7 @@ const navBtnClass =
 				aria-label={"Previous hunk"}
 				onclick={onPrevHunk}
 			>
-				<CaretUp class="h-3 w-3" weight="fill" />
+				<CaretUp size={12} weight="regular" class="size-3 shrink-0" />
 			</button>
 			<span
 				class="h-6 inline-flex items-center justify-center px-1 text-[10px] tabular-nums text-muted-foreground min-w-[1.5rem]"
@@ -103,7 +103,7 @@ const navBtnClass =
 				aria-label={"Next hunk"}
 				onclick={onNextHunk}
 			>
-				<CaretDown class="h-3 w-3" weight="fill" />
+				<CaretDown size={12} weight="regular" class="size-3 shrink-0" />
 			</button>
 		</div>
 	{/if}
@@ -119,7 +119,7 @@ const navBtnClass =
 				aria-label={"Previous file"}
 				onclick={onPrevFile}
 			>
-				<CaretLeft class="h-3 w-3" weight="fill" />
+				<CaretLeft size={12} weight="regular" class="size-3 shrink-0" />
 			</button>
 			<span
 				class="h-6 inline-flex items-center justify-center px-1 text-[10px] tabular-nums text-muted-foreground min-w-[1.5rem]"
@@ -135,7 +135,7 @@ const navBtnClass =
 				aria-label={"Next file"}
 				onclick={onNextFile}
 			>
-				<CaretRight class="h-3 w-3" weight="fill" />
+				<CaretRight size={12} weight="regular" class="size-3 shrink-0" />
 			</button>
 		</div>
 	{/if}

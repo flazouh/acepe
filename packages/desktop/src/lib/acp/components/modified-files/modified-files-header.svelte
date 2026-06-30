@@ -530,7 +530,7 @@ function handlePromptResetClick(): void {
 								disabled={merging}
 							>
 								{#snippet renderButton()}
-									<CaretDown size={11} weight="bold" class="shrink-0" />
+									<CaretDown size={12} weight="regular" class="size-3 shrink-0" />
 								{/snippet}
 
 								<DropdownMenu.RadioGroup

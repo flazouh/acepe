@@ -7,7 +7,7 @@ import {
 	HeaderTitleCell,
 	ReviewWorkspaceFileList,
 } from "@acepe/ui";
-import { IconChevronLeft } from "@tabler/icons-svelte";
+import { CaretLeft } from "phosphor-svelte";
 import { SvelteMap } from "svelte/reactivity";
 import { Skeleton } from "$lib/components/ui/skeleton/index.js";
 import { createReviewFileRevisionKey } from "../../review/review-file-revision.js";
@@ -311,7 +311,7 @@ function handlePointerUp() {
 				aria-label="Back"
 			>
 				{#snippet children()}
-					<IconChevronLeft class="h-4 w-4" />
+					<CaretLeft size={12} weight="regular" class="size-3 shrink-0" />
 				{/snippet}
 			</Button>
 		</HeaderActionCell>

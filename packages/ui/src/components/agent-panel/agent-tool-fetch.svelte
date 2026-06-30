@@ -84,10 +84,7 @@
 				onclick={() => { isExpanded = !isExpanded; }}
 				class="flex w-full items-center gap-2 border-none bg-transparent px-2.5 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-muted/30 cursor-pointer"
 			>
-				<CaretRight
-					size={10}
-					weight="bold"
-					class="shrink-0 transition-transform duration-150 {isExpanded ? 'rotate-90' : ''}"
+				<CaretRight size={12} weight="regular" class="size-3 shrink-0 transition-transform duration-150 {isExpanded ? 'rotate-90' : ''}"
 				/>
 				<span class="shrink-0 font-medium">{derivedResultLabel}</span>
 				{#if !isExpanded && preview}

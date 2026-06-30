@@ -30,6 +30,6 @@ export function buildDropdownMenuItemClassName(hasHighlightContext: boolean): st
 		"data-[highlighted]:[&_svg:not([class*='text-'])]:text-current",
 		"data-[selected]:[&_svg:not([class*='text-'])]:text-current",
 		"aria-selected:[&_svg:not([class*='text-'])]:text-current",
-		"[&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
+		"[&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-3",
 	].join(" ");
 }

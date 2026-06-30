@@ -1,5 +1,5 @@
 <script lang="ts">
-import ChevronDown from "@lucide/svelte/icons/chevron-down";
+import { CaretDown } from "phosphor-svelte";
 
 interface AnimatedChevronProps {
 	/**
@@ -11,7 +11,7 @@ interface AnimatedChevronProps {
 
 	/**
 	 * Additional CSS classes to apply to the chevron icon.
-	 * @default "h-4 w-4"
+	 * @default ""
 	 */
 	class?: string;
 
@@ -24,11 +24,10 @@ interface AnimatedChevronProps {
 
 let {
 	isOpen = false,
-	class: className = "h-4 w-4",
+	class: className = "",
 	durationClass = "duration-200",
 }: AnimatedChevronProps = $props();
 </script>
 
-<ChevronDown
-	class="{className} transition-transform {durationClass} {isOpen ? 'rotate-180' : ''}"
+<CaretDown size={12} weight="regular" class="size-3 shrink-0 {className} transition-transform {durationClass} {isOpen ? 'rotate-180' : ''}"
 />

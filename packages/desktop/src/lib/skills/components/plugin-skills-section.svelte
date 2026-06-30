@@ -60,11 +60,7 @@ const totalSkillCount = $derived(plugins.reduce((sum, plugin) => sum + plugin.sk
 					<Collapsible.Trigger
 						class="flex w-full cursor-pointer items-center gap-1.5 rounded-lg px-2 py-1.5 text-left hover:bg-accent/40"
 					>
-						<CaretRight
-							class="h-3 w-3 text-muted-foreground transition-transform shrink-0 {expanded
-								? 'rotate-90'
-								: ''}"
-							weight="bold"
+						<CaretRight size={12} weight="regular" class="size-3 text-muted-foreground transition-transform shrink-0 {expanded ? 'rotate-90' : ''}"
 						/>
 						<span class="flex-1 truncate text-[12px] text-foreground">{plugin.name}</span>
 						<span class="shrink-0 text-[11px] text-muted-foreground">{plugin.skillCount}</span>

@@ -35,5 +35,5 @@
 		<img src={agentIconSrc} alt="" class="h-3 w-3 shrink-0" role="presentation" />
 	{/if}
 	<span class="truncate max-w-[180px]">{label}</span>
-	<CaretDown class="h-2.5 w-2.5 text-muted-foreground shrink-0" weight="bold" />
+	<CaretDown size={12} weight="regular" class="size-3 text-muted-foreground shrink-0" />
 </button>

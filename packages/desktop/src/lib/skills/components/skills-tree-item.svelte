@@ -1,5 +1,6 @@
 <script lang="ts">
-import { ChevronDown, ChevronRight, FileText, FolderOpen, Puzzle } from "@lucide/svelte/icons";
+import { FileText, FolderOpen, Puzzle } from "@lucide/svelte/icons";
+import { CaretDown, CaretRight } from "phosphor-svelte";
 import AgentIcon from "$lib/acp/components/agent-icon.svelte";
 import { cn } from "$lib/utils.js";
 import { getSkillsStore } from "../store/skills-store.svelte.js";
@@ -70,9 +71,9 @@ function handleKeyDown(event: KeyboardEvent) {
 	>
 		{#if isExpandable}
 			{#if isExpanded}
-				<ChevronDown class="h-4 w-4 shrink-0 text-muted-foreground" />
+				<CaretDown size={12} weight="regular" class="size-3 shrink-0 text-muted-foreground" />
 			{:else}
-				<ChevronRight class="h-4 w-4 shrink-0 text-muted-foreground" />
+				<CaretRight size={12} weight="regular" class="size-3 shrink-0 text-muted-foreground" />
 			{/if}
 			{#if isPluginsSection}
 				<FolderOpen class="h-4 w-4 shrink-0 text-purple-500" />

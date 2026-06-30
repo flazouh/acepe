@@ -62,7 +62,7 @@
 				onclick={() => onClose?.()}
 				data-testid="review-workspace-close"
 			>
-				<CaretLeft size={9} weight="bold" class="shrink-0" />
+				<CaretLeft size={12} weight="regular" class="size-3 shrink-0" />
 				{closeButtonLabel}
 			</Button>
 		</div>
@@ -86,7 +86,7 @@
 				title="Previous file"
 				data-testid="review-workspace-previous-file"
 			>
-				<CaretLeft size={12} weight="bold" />
+				<CaretLeft size={12} weight="regular"  class="size-3"/>
 			</Button>
 
 			<Button

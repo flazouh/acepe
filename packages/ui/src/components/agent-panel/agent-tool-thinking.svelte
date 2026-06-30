@@ -128,10 +128,7 @@
 					tabindex="-1"
 					aria-hidden="true"
 				>
-					<CaretRight
-						size={10}
-						weight="bold"
-						class="text-muted-foreground transition-transform duration-150 {collapsed ? '' : 'rotate-90'}"
+					<CaretRight size={12} weight="regular" class="size-3 shrink-0 text-muted-foreground transition-transform duration-150 {collapsed ? '' : 'rotate-90'}"
 					/>
 				</button>
 			{/if}
