@@ -1,6 +1,6 @@
 <script lang="ts">
 import { FileText, FolderOpen, Puzzle } from "@lucide/svelte/icons";
-import { CaretDown, CaretRight } from "phosphor-svelte";
+import { RoundedIcon } from "@acepe/ui";
 import AgentIcon from "$lib/acp/components/agent-icon.svelte";
 import { cn } from "$lib/utils.js";
 import { getSkillsStore } from "../store/skills-store.svelte.js";
@@ -71,9 +71,9 @@ function handleKeyDown(event: KeyboardEvent) {
 	>
 		{#if isExpandable}
 			{#if isExpanded}
-				<CaretDown size={12} weight="regular" class="size-3 shrink-0 text-muted-foreground" />
+				<RoundedIcon name="chevron-down" class="size-3 shrink-0 text-muted-foreground" />
 			{:else}
-				<CaretRight size={12} weight="regular" class="size-3 shrink-0 text-muted-foreground" />
+				<RoundedIcon name="chevron-right" class="size-3 shrink-0 text-muted-foreground" />
 			{/if}
 			{#if isPluginsSection}
 				<FolderOpen class="h-4 w-4 shrink-0 text-purple-500" />

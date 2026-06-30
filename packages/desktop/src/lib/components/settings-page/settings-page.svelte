@@ -1,5 +1,5 @@
 <script lang="ts">
-import { CaretLeft } from "phosphor-svelte";
+import { RoundedIcon } from "@acepe/ui";
 import type { ProjectManager } from "$lib/acp/logic/project-manager.svelte.js";
 import AgentsModelsSection from "./sections/agents-models-section.svelte";
 import AppearanceSection from "./sections/appearance-section.svelte";
@@ -56,7 +56,7 @@ function handleSectionChange(section: SettingsSectionId) {
 				aria-label="Back"
 				class="inline-flex h-6 items-center gap-1 rounded-md px-1.5 text-[13px] font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
 			>
-				<CaretLeft class="size-3.5" weight="bold" />
+				<RoundedIcon name="chevron-left" class="size-3.5" />
 				<span>Back</span>
 			</button>
 		{/if}
