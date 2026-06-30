@@ -303,8 +303,8 @@ function handleOpenChange(newOpen: boolean) {
 
 	{#snippet topRight()}
 		<Button
-			variant="chromeIcon"
-			size="chromeIcon"
+			variant="ghost"
+			size="icon-chrome"
 			data-header-control
 			class="rounded-sm"
 			active={activeView === "import"}
@@ -319,8 +319,8 @@ function handleOpenChange(newOpen: boolean) {
 			{/snippet}
 		</Button>
 		<Button
-			variant="chromeIcon"
-			size="chromeIcon"
+			variant="ghost"
+			size="icon-chrome"
 			data-header-control
 			class="rounded-sm"
 			active={activeView === "clone"}
@@ -335,8 +335,8 @@ function handleOpenChange(newOpen: boolean) {
 			{/snippet}
 		</Button>
 		<Button
-			variant="chromeIcon"
-			size="chromeIcon"
+			variant="ghost"
+			size="icon-chrome"
 			data-header-control
 			class="rounded-sm"
 			title="Browse folder"

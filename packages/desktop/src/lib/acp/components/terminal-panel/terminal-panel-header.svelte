@@ -231,8 +231,8 @@ function handleFullscreenToggle() {
 	<HeaderActionCell withDivider={true}>
 		{#if onNewTab}
 			<Button
-				variant="chromeIcon"
-				size="chromeIcon"
+				variant="ghost"
+				size="icon-chrome"
 				data-header-control
 				title={NEW_TAB_LABEL}
 				aria-label={NEW_TAB_LABEL}

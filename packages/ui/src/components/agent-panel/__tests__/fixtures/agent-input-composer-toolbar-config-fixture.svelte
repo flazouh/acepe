@@ -48,6 +48,7 @@
 	voiceModelsLoadingLabel="Loading voice models"
 	onVoiceSelectModel={() => {}}
 	onVoiceDownloadModel={() => {}}
+	onVoiceUninstallModel={() => {}}
 	voiceCloseLabel="Close"
 >
 	{#snippet modelSelector()}

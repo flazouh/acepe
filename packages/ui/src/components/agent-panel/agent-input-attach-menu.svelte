@@ -202,8 +202,7 @@
 	sideOffset={8}
 	{disabled}
 	showChevron={false}
-	triggerSize="attach"
-	variant="chromeIcon"
+	triggerSize="composerChipIcon"
 	triggerActive={menuOpen}
 	triggerAriaLabel="Add context and tools"
 	contentClass={selectorPanelContentClass}

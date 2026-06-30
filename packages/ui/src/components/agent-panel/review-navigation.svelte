@@ -1,8 +1,9 @@
 <script lang="ts">
-	import { CaretDown, CaretLeft, CaretRight, CaretUp, CheckCircle, XCircle } from "phosphor-svelte";
+	import { CheckCircle, XCircle } from "phosphor-svelte";
 
 	import { Colors } from "../../lib/colors.js";
 	import { Button } from "../button/index.js";
+	import { RoundedIcon } from "../icons/index.js";
 	import { HeaderActionCell } from "../panel-header/index.js";
 
 	interface Props {
@@ -78,7 +79,7 @@
 				onclick={onReviewNextFile}
 			>
 				{nextFileLabel}
-				<CaretRight size={12} weight="regular" class="size-3 shrink-0" />
+				<RoundedIcon name="chevron-right" class="size-3 shrink-0" />
 			</button>
 		{:else}
 			<button
@@ -109,8 +110,8 @@
 	{#if hunkTotal > 1}
 		<HeaderActionCell>
 			<Button
-				variant="chromeIcon"
-				size="chromeIcon"
+				variant="ghost"
+				size="icon-chrome"
 				data-header-control
 				disabled={!hasPrevHunk}
 				title={prevHunkLabel}
@@ -118,7 +119,7 @@
 				onclick={onPrevHunk}
 			>
 				{#snippet children()}
-					<CaretUp size={12} weight="regular" class="size-3 shrink-0" />
+					<RoundedIcon name="chevron-up" class="size-3 shrink-0" />
 				{/snippet}
 			</Button>
 			<span
@@ -128,8 +129,8 @@
 				{hunkCurrent}/{hunkTotal}
 			</span>
 			<Button
-				variant="chromeIcon"
-				size="chromeIcon"
+				variant="ghost"
+				size="icon-chrome"
 				data-header-control
 				disabled={!hasNextHunk}
 				title={nextHunkLabel}
@@ -137,7 +138,7 @@
 				onclick={onNextHunk}
 			>
 				{#snippet children()}
-					<CaretDown size={12} weight="regular" class="size-3 shrink-0" />
+					<RoundedIcon name="chevron-down" class="size-3 shrink-0" />
 				{/snippet}
 			</Button>
 		</HeaderActionCell>
@@ -146,8 +147,8 @@
 	{#if fileTotal > 1}
 		<HeaderActionCell>
 			<Button
-				variant="chromeIcon"
-				size="chromeIcon"
+				variant="ghost"
+				size="icon-chrome"
 				data-header-control
 				disabled={!hasPrevPendingFile}
 				title={prevFileLabel}
@@ -155,7 +156,7 @@
 				onclick={onPrevFile}
 			>
 				{#snippet children()}
-					<CaretLeft size={12} weight="regular" class="size-3 shrink-0" />
+					<RoundedIcon name="chevron-left" class="size-3 shrink-0" />
 				{/snippet}
 			</Button>
 			<span
@@ -165,8 +166,8 @@
 				{fileCurrent}/{fileTotal}
 			</span>
 			<Button
-				variant="chromeIcon"
-				size="chromeIcon"
+				variant="ghost"
+				size="icon-chrome"
 				data-header-control
 				disabled={!hasNextPendingFile}
 				title={nextFileLabel}
@@ -174,7 +175,7 @@
 				onclick={onNextFile}
 			>
 				{#snippet children()}
-					<CaretRight size={12} weight="regular" class="size-3 shrink-0" />
+					<RoundedIcon name="chevron-right" class="size-3 shrink-0" />
 				{/snippet}
 			</Button>
 		</HeaderActionCell>

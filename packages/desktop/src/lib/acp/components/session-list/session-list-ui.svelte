@@ -13,7 +13,6 @@ import {
 	ProjectCardSkeleton,
 	SessionListSkeleton,
 } from "$lib/components/ui/skeleton/index.js";
-import * as Tooltip from "@acepe/ui/tooltip";
 import type { AgentInfo } from "../../logic/agent-manager.js";
 import {
 	getSidebarSessions,
@@ -333,11 +332,11 @@ function handleProjectCreateButtonClick(event: MouseEvent, projectPath: string) 
 }
 
 /**
- * Primary tooltip label for the project `+` button. When a saved default agent
+ * Accessible label for the project `+` button. When a saved default agent
  * resolves, advertise that the left-click will spawn that agent directly; otherwise
  * keep the generic "New session in {projectName}" wording.
  */
-function getProjectCreateButtonTooltipLabel(projectName: string): string {
+function getProjectCreateButtonAriaLabel(projectName: string): string {
 	const resolvedDefaultId = resolveDefaultAgentIdForCreateLocal();
 	if (resolvedDefaultId !== undefined) {
 		const agent = availableAgents.find((a) => a.id === resolvedDefaultId);
@@ -444,21 +443,14 @@ async function handleProjectContextMove(projectPath: string, offset: -1 | 1): Pr
 		onkeydown={(e) => e.stopPropagation()}
 	>
 		{#if shouldShowProjectCreateButton()}
-			<Tooltip.Root>
-				<Tooltip.Trigger>
-					<button
-						type="button"
-						class={projectHeaderHoverActionButtonClass}
-						onclick={(event) => handleProjectCreateButtonClick(event, group.projectPath)}
-						aria-label={getProjectCreateButtonTooltipLabel(group.projectName)}
-					>
-						<PlusIcon />
-					</button>
-				</Tooltip.Trigger>
-				<Tooltip.Content>
-					{getProjectCreateButtonTooltipLabel(group.projectName)}
-				</Tooltip.Content>
-			</Tooltip.Root>
+			<button
+				type="button"
+				class={projectHeaderHoverActionButtonClass}
+				onclick={(event) => handleProjectCreateButtonClick(event, group.projectPath)}
+				aria-label={getProjectCreateButtonAriaLabel(group.projectName)}
+			>
+				<PlusIcon />
+			</button>
 		{/if}
 		{@render projectOverflowMenu(group, projectIndex)}
 	</div>
@@ -508,7 +500,7 @@ async function handleProjectContextMove(projectPath: string, offset: -1 | 1): Pr
 						{/snippet}
 						{#snippet children()}
 							<div
-								class="flex-1 min-h-0 max-h-[22rem] overflow-y-auto overflow-x-hidden pb-0.5"
+								class="flex-1 min-h-0 max-h-[22rem] overflow-y-auto overflow-x-hidden pb-0.5 [scrollbar-gutter:stable]"
 							>
 								<SessionListSkeleton sessionCount={3} />
 							</div>
@@ -544,7 +536,7 @@ async function handleProjectContextMove(projectPath: string, offset: -1 | 1): Pr
 							{@const filteredSessions = getFilteredSidebarSessionsForProject(group)}
 							{@const visibleSessions = getVisibleSessionsForProject(group)}
 							<div
-								class="min-h-0 max-h-[22rem] overflow-y-auto overflow-x-hidden pb-0.5"
+								class="min-h-0 max-h-[22rem] overflow-y-auto overflow-x-hidden pb-0.5 [scrollbar-gutter:stable]"
 								use:sessionListContainer={{ projectPath: group.projectPath, totalSessions: filteredSessions.length }}
 								onscroll={() => handleSessionListScroll(group.projectPath, filteredSessions.length)}
 							>

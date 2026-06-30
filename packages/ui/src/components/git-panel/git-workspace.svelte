@@ -422,7 +422,7 @@
 							<div class="absolute bottom-1.5 right-1.5 flex items-center gap-0.5">
 								{#if onGenerate}
 									<Button
-										variant="chromeIcon"
+										variant="ghost"
 										size="icon-xs"
 										onclick={onGenerate}
 										disabled={generating}

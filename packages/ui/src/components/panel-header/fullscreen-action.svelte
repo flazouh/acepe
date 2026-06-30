@@ -24,8 +24,8 @@
 </script>
 
 <Button
-	variant="chromeIcon"
-	size="chromeIcon"
+	variant="ghost"
+	size="icon-chrome"
 	data-header-control
 	onclick={() => onToggle?.()}
 	{title}

@@ -1,12 +1,13 @@
 <script lang="ts">
 	import type { Snippet } from "svelte";
-	import { Robot, Tree, X } from "phosphor-svelte";
+	import { Robot, Tree } from "phosphor-svelte";
 	import AgentToolTask from "../agent-panel/agent-tool-task.svelte";
 	import AgentCompactToolDisplay from "../agent-panel/compact-tool-display.svelte";
 	import { DiffPill } from "../diff-pill/index.js";
 	import { Colors } from "../../lib/colors.js";
 	import { capitalizeLeadingCharacter } from "../../lib/utils.js";
 	import { Button } from "../button/index.js";
+	import { RoundedIcon } from "../icons/index.js";
 	import {
 	EmbeddedPanelHeader,
 	HeaderActionCell,
@@ -161,8 +162,8 @@ function handleKeydown(event: KeyboardEvent): void {
 					<!-- svelte-ignore a11y_no_static_element_interactions -->
 					<div class="flex h-7 items-center justify-center" onclick={(e) => e.stopPropagation()} onkeydown={(e) => e.stopPropagation()}>
 						<Button
-							variant="chromeIcon"
-							size="chromeIcon"
+							variant="ghost"
+							size="icon-chrome"
 							data-header-control
 							onclick={onClose}
 							title="Close"
@@ -170,7 +171,7 @@ function handleKeydown(event: KeyboardEvent): void {
 							class="!h-full border-l border-border/40"
 						>
 							{#snippet children()}
-								<X size={12} weight="bold" />
+								<RoundedIcon name="close" class="size-3" />
 							{/snippet}
 						</Button>
 					</div>

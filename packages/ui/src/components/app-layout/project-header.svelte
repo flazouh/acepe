@@ -4,6 +4,7 @@
 
 	import { TAG_COLORS } from "../../lib/colors.js";
 	import { ProjectLetterBadge } from "../project-letter-badge/index.js";
+	import { SIDEBAR_TREE_ROW_PADDING_X_CLASS } from "./sidebar-tree-row-classes.js";
 
 	interface Props {
 		projectName?: string;
@@ -31,7 +32,7 @@
 	const resolvedIconSrc = $derived(projectIconSrc);
 </script>
 
-<div class="shrink-0 flex items-center px-1 transition-colors hover:bg-accent/30 {className}">
+<div class="shrink-0 flex items-center {SIDEBAR_TREE_ROW_PADDING_X_CLASS} transition-colors hover:bg-accent/30 {className}">
 	<div class="inline-flex items-center justify-center h-7 shrink-0">
 		<ProjectLetterBadge
 			name={displayName}

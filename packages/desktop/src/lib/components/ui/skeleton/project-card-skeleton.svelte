@@ -15,7 +15,7 @@ let { sessionCount = 3, isExpanded = true }: Props = $props();
 
 <div class="flex min-w-0 flex-col overflow-hidden rounded-lg border border-border/50 bg-card/75 opacity-50" data-slot="project-card-skeleton">
 	<!-- Project header skeleton - matches ProjectHeader (name truncates in real UI) -->
-	<div class="flex min-w-0 shrink-0 items-center gap-2 rounded-md bg-background/30 px-2 py-1" aria-hidden="true">
+	<div class="flex min-w-0 shrink-0 items-center gap-2 rounded-md bg-background/30 px-1 py-1" aria-hidden="true">
 		<!-- Letter badge (ProjectLetterBadge default size 20px) -->
 		<Skeleton class="h-4 w-4 shrink-0 rounded" />
 		<!-- Project name (flex-1 so it shrinks in narrow sidebar) -->

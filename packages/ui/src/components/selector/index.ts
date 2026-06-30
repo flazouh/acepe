@@ -13,9 +13,11 @@ export {
 	selectorPanelSubmenuContentClass,
 } from "./selector-panel.classes.js";
 export {
+	getSelectorTriggerButtonPropsForContext,
 	getSelectorTriggerClass,
 	getSelectorTriggerSizeClass,
 	isFusedComposerChipTriggerSize,
 	resolveSelectorTriggerSize,
+	type SelectorTriggerButtonProps,
 	type SelectorTriggerSize,
 } from "./selector-trigger-classes.js";

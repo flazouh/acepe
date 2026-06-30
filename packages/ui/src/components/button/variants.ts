@@ -28,7 +28,10 @@ export const buttonShadcnSizeAppearanceClass = {
 	lg: "h-9 rounded-md px-4 has-[>svg]:px-3",
 	icon: "size-8",
 	"icon-xs": "size-6 rounded-md [&_svg:not([class*='size-'])]:size-3",
+	"icon-2xs": "size-5 gap-0 p-0 has-[>svg]:p-0 [&_svg:not([class*='size-'])]:size-3.5",
+	"icon-chrome": "size-6 gap-0 p-0 has-[>svg]:p-0 [&_svg:not([class*='size-'])]:size-4",
 	"icon-sm": "size-7",
+	"icon-sm-narrow": "h-7 w-6 min-w-0 shrink-0 gap-0 p-0 has-[>svg]:p-0",
 	"icon-lg": "size-9",
 } as const;
 
@@ -56,7 +59,7 @@ export const buttonLegacySizeAppearanceClass = {
 	toolbar: "h-auto gap-1 rounded px-2 py-0.5 text-[0.6875rem] [&_svg:not([class*='size-'])]:size-3",
 	setupChip:
 		"h-auto gap-1 rounded-md border-0 px-0 py-0 text-xs leading-none [&_svg:not([class*='size-'])]:size-[15px]",
-	chromeIcon: "size-5 gap-0 p-0 [&_svg:not([class*='size-'])]:size-3.5",
+	chromeIcon: "size-6 gap-0 p-0 [&_svg:not([class*='size-'])]:size-4",
 	chromeIconMeter:
 		"h-5 min-h-5 w-auto gap-1 rounded-md px-1 py-0 [&_svg:not([class*='size-'])]:size-3.5",
 	chromeIconMd: "size-6 gap-0 p-0 [&_svg:not([class*='size-'])]:size-4",
@@ -89,11 +92,6 @@ export const buttonVariants = tv({
 	},
 	compoundVariants: [
 		{
-			variant: "chromeIcon",
-			active: true,
-			class: "bg-accent text-foreground",
-		},
-		{
 			variant: "ghost",
 			active: true,
 			class: "bg-accent text-foreground",
@@ -121,7 +119,10 @@ export const buttonSizeShowcaseOrder = [
 	"default",
 	"lg",
 	"icon-xs",
+	"icon-2xs",
+	"icon-chrome",
 	"icon-sm",
+	"icon-sm-narrow",
 	"icon",
 	"icon-lg",
 ] as const satisfies readonly ButtonSize[];

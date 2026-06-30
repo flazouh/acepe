@@ -140,8 +140,8 @@
 							<span class="inline-flex items-center gap-0.5 shrink-0">
 								{#if bucket === "failure" && onFixCheck}
 									<Button
-										variant="chromeIcon"
-										size="chromeIcon"
+										variant="ghost"
+										size="icon-2xs"
 										class="rounded-sm"
 										aria-label="Ask agent to fix {check.name}"
 										title="Fix with agent"
@@ -155,8 +155,8 @@
 								{/if}
 								{#if check.detailsUrl}
 									<Button
-										variant="chromeIcon"
-										size="chromeIcon"
+										variant="ghost"
+										size="icon-2xs"
 										class="rounded-sm"
 										aria-label="Open {check.name} on GitHub"
 										title="View on GitHub"

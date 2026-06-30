@@ -8,16 +8,14 @@
 	import { GitBranch } from "phosphor-svelte";
 
 	import { ButtonGroup } from "../button-group/index.js";
+	import { Button } from "../button/index.js";
 	import { DiffPill } from "../diff-pill/index.js";
 	import PlusIcon from "../icons/plus-icon.svelte";
 	import {
-		FUSED_CONTROL_CHIP_GROUP_CLASS,
-		FUSED_CONTROL_OVERFLOW_BUTTON_CLASS,
-		FUSED_CONTROL_SETUP_CHIP_ICON_SIZE_CLASS,
-		FUSED_CONTROL_SETUP_CHIP_ICON_SIZE_PX,
-		FUSED_CONTROL_SETUP_CHIP_LABEL_TEXT_CLASS,
-		FUSED_CONTROL_SETUP_GROUPED_ICON_TRAILING_BUTTON_CLASS,
-	} from "../panel-header/project-card-action-button-class.js";
+		SETUP_CHIP_ICON_CLASS,
+		SETUP_CHIP_ICON_SIZE_PX,
+		SETUP_CHIP_LABEL_TEXT_CLASS,
+	} from "./agent-input-chip-classes.js";
 	import { Selector } from "../selector/index.js";
 	import type { SelectorTriggerSize } from "../selector/selector-trigger-classes.js";
 	import { getSelectorTriggerButtonVariant } from "../selector/selector-trigger-classes.js";
@@ -96,17 +94,7 @@
 	);
 
 	const buttonGroupClass = $derived(
-		cn(
-			FUSED_CONTROL_CHIP_GROUP_CLASS,
-			isSetupChip ? "min-h-[23px] [&_[data-slot=button]]:min-h-[23px]" : "",
-			isSetupChip ? setupBarLayoutClass : "",
-			useButtonGroup ? className : ""
-		)
-	);
-	const createButtonClass = $derived(
-		isSetupChip
-			? FUSED_CONTROL_SETUP_GROUPED_ICON_TRAILING_BUTTON_CLASS
-			: FUSED_CONTROL_OVERFLOW_BUTTON_CLASS
+		cn(isSetupChip ? setupBarLayoutClass : "", useButtonGroup ? className : "")
 	);
 
 </script>
@@ -114,15 +102,15 @@
 {#snippet branchSelectorTrigger()}
 	<GitBranch
 		class={cn(
-			isSetupChip ? FUSED_CONTROL_SETUP_CHIP_ICON_SIZE_CLASS : "size-3 shrink-0",
+			isSetupChip ? SETUP_CHIP_ICON_CLASS : "size-3 shrink-0",
 			isSetupChip ? "text-foreground" : ""
 		)}
-		size={isSetupChip ? FUSED_CONTROL_SETUP_CHIP_ICON_SIZE_PX : undefined}
+		size={isSetupChip ? SETUP_CHIP_ICON_SIZE_PX : undefined}
 		weight="fill"
 		style={isSetupChip ? undefined : `color: ${branchIconColor}`}
 	/>
 	<span
-		class={cn("max-w-[9rem] truncate", FUSED_CONTROL_SETUP_CHIP_LABEL_TEXT_CLASS)}
+		class={cn("max-w-[9rem] truncate", SETUP_CHIP_LABEL_TEXT_CLASS)}
 		title={currentBranch || "branch"}
 	>
 		{currentBranch || "branch"}
@@ -190,17 +178,16 @@
 {#if useButtonGroup}
 	<ButtonGroup class={buttonGroupClass}>
 		{@render branchSelector(true)}
-		<button
-			type="button"
-			data-slot="button"
-			class={createButtonClass}
+		<Button
+			variant="secondary"
+			size="icon-sm-narrow"
 			aria-label={createAriaLabel}
 			title={createAriaLabel}
 			disabled={createDisabled}
 			onclick={() => onCreateClick?.()}
 		>
 			<PlusIcon />
-		</button>
+		</Button>
 	</ButtonGroup>
 {:else}
 	{@render branchSelector(false)}

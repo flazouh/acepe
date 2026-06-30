@@ -59,8 +59,8 @@
 	{#if onSettings}
 		<div class="flex items-center gap-0.5 px-1.5">
 			<Button
-				variant="chromeIcon"
-				size="chromeIcon"
+				variant="ghost"
+				size="icon-chrome"
 				data-header-control
 				title={settingsTitle}
 				aria-label={settingsAriaLabel ?? settingsTitle}
@@ -77,8 +77,8 @@
 		<div class="ml-auto flex items-center gap-0.5 px-1.5">
 			{#if showBrowserToggle}
 				<Button
-					variant="chromeIcon"
-					size="chromeIcon"
+					variant="ghost"
+					size="icon-chrome"
 					data-header-control
 					active={browserActive}
 					title={browserTitle}
@@ -92,8 +92,8 @@
 			{/if}
 			{#if showTerminalToggle}
 				<Button
-					variant="chromeIcon"
-					size="chromeIcon"
+					variant="ghost"
+					size="icon-chrome"
 					data-header-control
 					active={terminalActive}
 					disabled={terminalDisabled}

@@ -50,6 +50,7 @@
 		voiceModelsLoadingLabel,
 		onVoiceSelectModel,
 		onVoiceDownloadModel,
+		onVoiceUninstallModel,
 		voiceCloseLabel,
 	}: {
 		inputReady: boolean;
@@ -95,6 +96,7 @@
 		voiceModelsLoadingLabel: string;
 		onVoiceSelectModel: (modelId: string) => void;
 		onVoiceDownloadModel: (modelId: string) => void;
+		onVoiceUninstallModel: (modelId: string) => void;
 		voiceCloseLabel: string;
 	} = $props();
 </script>
@@ -184,6 +186,7 @@
 			{voiceModelsLoadingLabel}
 			{onVoiceSelectModel}
 			{onVoiceDownloadModel}
+			{onVoiceUninstallModel}
 			{voiceCloseLabel}
 		/>
 	</div>

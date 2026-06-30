@@ -88,7 +88,6 @@
 	side="bottom"
 	variant="ghost"
 	triggerSize="icon"
-	tooltipLabel="Project menu"
 	triggerAriaLabel="Project menu"
 >
 	{#snippet renderButton()}

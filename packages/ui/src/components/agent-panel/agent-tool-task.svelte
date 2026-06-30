@@ -131,8 +131,8 @@
 
 		{#if showDetailTrigger}
 			<Button
-				variant="chromeIcon"
-				size="chromeIcon"
+				variant="ghost"
+				size="icon-chrome"
 				data-header-control
 				aria-label="Open subtask transcript"
 				title="Open subtask transcript"

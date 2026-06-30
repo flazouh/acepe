@@ -58,8 +58,8 @@
 		{#snippet child({ props: triggerProps })}
 			<Button
 				{...triggerProps}
-				variant="chromeIcon"
-				size="chromeIcon"
+				variant="ghost"
+				size="icon-sm"
 				data-header-control
 				title={title}
 				aria-label={ariaLabel}

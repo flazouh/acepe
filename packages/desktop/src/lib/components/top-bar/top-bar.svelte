@@ -290,14 +290,14 @@ onMount(() => {
 		{#snippet layoutControl()}
 			<Selector
 				align="end"
-				variant="chromeIcon"
+				variant="ghost"
 				triggerSize="chromeIcon"
 				showChevron={false}
 				tooltipLabel="Layout"
 				triggerAriaLabel="Layout Settings"
 			>
 				{#snippet renderButton()}
-					<SlidersHorizontal class="size-3.5" weight="fill" />
+					<SlidersHorizontal class="size-4" weight="fill" />
 				{/snippet}
 
 				<DropdownMenu.Group>
@@ -381,13 +381,13 @@ onMount(() => {
 				{#snippet child({ props })}
 					<Button
 						{...props}
-						variant="chromeIcon"
-						size="chromeIcon"
+						variant="ghost"
+						size="icon-chrome"
 						aria-label="Feedback"
 						onclick={() => openUrl("https://github.com/flazouh/acepe/issues")}
 					>
 						{#snippet children()}
-							<Bug weight="fill" class="size-3.5" style="color: #FF5D5A" />
+							<Bug weight="fill" class="size-4" style="color: #FF5D5A" />
 						{/snippet}
 					</Button>
 				{/snippet}
@@ -397,14 +397,14 @@ onMount(() => {
 		{#if import.meta.env.DEV && (onDevShowUpdatePage || onDevShowDesignSystem || onDevShowStreamingReproLab || onDevResetOnboarding)}
 			<Selector
 				align="end"
-				variant="chromeIcon"
+				variant="ghost"
 				triggerSize="chromeIcon"
 				showChevron={false}
 				tooltipLabel="Dev Tools"
 				triggerAriaLabel="Dev Tools"
 			>
 				{#snippet renderButton()}
-					<Wrench class="size-3.5" weight="fill" style="color: #FAD83C" />
+					<Wrench class="size-4" weight="fill" style="color: #FAD83C" />
 				{/snippet}
 
 				<DropdownMenu.Group>
@@ -455,13 +455,13 @@ onMount(() => {
 				{#snippet child({ props })}
 					<Button
 						{...props}
-						variant="chromeIcon"
-						size="chromeIcon"
+						variant="ghost"
+						size="icon-chrome"
 						aria-label="Database Manager"
 						onclick={() => viewState.toggleSqlStudio()}
 					>
 						{#snippet children()}
-							<HardDrives weight="fill" class="size-3.5" />
+							<HardDrives weight="fill" class="size-4" />
 						{/snippet}
 					</Button>
 				{/snippet}

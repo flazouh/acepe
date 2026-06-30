@@ -130,8 +130,8 @@ function handleEditorModeChange(modeId: string) {
 			</div>
 		{/if}
 		<Button
-			variant="chromeIcon"
-			size="chromeIcon"
+			variant="ghost"
+			size="icon-chrome"
 			data-header-control
 			onclick={handleOpenInFinder}
 			title="Open in Finder"

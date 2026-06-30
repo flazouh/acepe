@@ -15,7 +15,7 @@ let { sessionCount = 3 }: Props = $props();
 	data-slot="session-list-skeleton"
 >
 	{#each Array.from({ length: sessionCount }, (_, i) => i) as index (index)}
-		<div class="px-2 py-2 flex flex-col gap-1 min-w-0">
+		<div class="px-1 py-1 flex flex-col gap-1 min-w-0">
 			<!-- Top row: title (flex-1 min-w-0 so it shrinks) -->
 			<div class="flex items-start gap-2 min-w-0">
 				<div class="flex-1 min-w-0 overflow-hidden">

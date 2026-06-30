@@ -6,14 +6,9 @@
 	import ArrowDown from "@lucide/svelte/icons/arrow-down";
 	import ArrowUp from "@lucide/svelte/icons/arrow-up";
 
+	import { Button } from "../button/index.js";
 	import { ButtonGroup } from "../button-group/index.js";
-	import {
-		FUSED_CONTROL_CHIP_GROUP_CLASS,
-		FUSED_CONTROL_SETUP_CHIP_ICON_SIZE_CLASS,
-		FUSED_CONTROL_SETUP_GROUPED_ICON_CHIP_BUTTON_CLASS,
-		FUSED_CONTROL_SETUP_GROUPED_ICON_TRAILING_BUTTON_CLASS,
-		FUSED_CONTROL_SETUP_ICON_CHIP_BUTTON_CLASS,
-	} from "../panel-header/index.js";
+	import { SETUP_CHIP_ICON_CLASS } from "./agent-input-chip-classes.js";
 	import { cn } from "../../lib/utils.js";
 
 	interface Props {
@@ -42,15 +37,8 @@
 
 	const showControls = $derived(showScrollToTop || showScrollToBottom);
 	const showBothControls = $derived(showScrollToTop && showScrollToBottom);
-	const scrollTopButtonClass = $derived(
-		showBothControls
-			? FUSED_CONTROL_SETUP_GROUPED_ICON_CHIP_BUTTON_CLASS
-			: FUSED_CONTROL_SETUP_ICON_CHIP_BUTTON_CLASS
-	);
-	const scrollBottomButtonClass = $derived(
-		showBothControls
-			? FUSED_CONTROL_SETUP_GROUPED_ICON_TRAILING_BUTTON_CLASS
-			: FUSED_CONTROL_SETUP_ICON_CHIP_BUTTON_CLASS
+	const scrollButtonSize = $derived<"icon-sm" | "icon-sm-narrow">(
+		showBothControls ? "icon-sm-narrow" : "icon-sm"
 	);
 
 	function handleScrollToTop(event: MouseEvent): void {
@@ -70,33 +58,26 @@
 		class={cn("flex shrink-0 px-2 pt-0.5 pb-0.5", centered && "justify-center", className)}
 	>
 		<div class={cn("flex w-full justify-end", centered && widthClass)}>
-			<ButtonGroup
-				class={cn(
-					FUSED_CONTROL_CHIP_GROUP_CLASS,
-					"min-h-[23px] [&_[data-slot=button]]:min-h-[23px]"
-				)}
-			>
+			<ButtonGroup>
 				{#if showScrollToTop}
-					<button
-						type="button"
-						data-slot="button"
-						class={scrollTopButtonClass}
+					<Button
+						variant="secondary"
+						size={scrollButtonSize}
 						aria-label={scrollToTopAriaLabel}
 						onclick={handleScrollToTop}
 					>
-						<ArrowUp class={FUSED_CONTROL_SETUP_CHIP_ICON_SIZE_CLASS} aria-hidden="true" />
-					</button>
+						<ArrowUp class={SETUP_CHIP_ICON_CLASS} aria-hidden="true" />
+					</Button>
 				{/if}
 				{#if showScrollToBottom}
-					<button
-						type="button"
-						data-slot="button"
-						class={scrollBottomButtonClass}
+					<Button
+						variant="secondary"
+						size={scrollButtonSize}
 						aria-label={scrollToBottomAriaLabel}
 						onclick={handleScrollToBottom}
 					>
-						<ArrowDown class={FUSED_CONTROL_SETUP_CHIP_ICON_SIZE_CLASS} aria-hidden="true" />
-					</button>
+						<ArrowDown class={SETUP_CHIP_ICON_CLASS} aria-hidden="true" />
+					</Button>
 				{/if}
 			</ButtonGroup>
 		</div>

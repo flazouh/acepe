@@ -1,16 +1,22 @@
 import { describe, expect, test } from "vitest";
 
 import {
+	getSelectorTriggerButtonPropsForContext,
+	getSelectorTriggerButtonSize,
+	getSelectorTriggerButtonSizeForContext,
 	getSelectorTriggerButtonVariant,
 	resolveSelectorTriggerSize,
 } from "./selector-trigger-classes.js";
 
 describe("getSelectorTriggerButtonVariant", () => {
-	test("uses chromeIcon for fused composer and setup chip triggers", () => {
-		expect(getSelectorTriggerButtonVariant("composerChipLabel")).toBe("chromeIcon");
-		expect(getSelectorTriggerButtonVariant("composerChipIcon")).toBe("chromeIcon");
-		expect(getSelectorTriggerButtonVariant("setupBarChip")).toBe("chromeIcon");
-		expect(getSelectorTriggerButtonVariant("setupBarChipGrouped")).toBe("chromeIcon");
+	test("uses secondary for labeled setup and composer chip triggers", () => {
+		expect(getSelectorTriggerButtonVariant("composerChipLabel")).toBe("secondary");
+		expect(getSelectorTriggerButtonVariant("setupBarChip")).toBe("secondary");
+		expect(getSelectorTriggerButtonVariant("setupBarChipGrouped")).toBe("secondary");
+	});
+
+	test("uses ghost for icon-only composer chip triggers", () => {
+		expect(getSelectorTriggerButtonVariant("composerChipIcon")).toBe("ghost");
 	});
 
 	test("uses ghost for transparent pill-style triggers", () => {
@@ -19,13 +25,92 @@ describe("getSelectorTriggerButtonVariant", () => {
 		expect(getSelectorTriggerButtonVariant("footer")).toBe("ghost");
 	});
 
-	test("uses chromeIcon for icon rail triggers", () => {
-		expect(getSelectorTriggerButtonVariant("icon")).toBe("chromeIcon");
-		expect(getSelectorTriggerButtonVariant("chromeIcon")).toBe("chromeIcon");
-		expect(getSelectorTriggerButtonVariant("chromeIconMd")).toBe("chromeIcon");
+	test("uses ghost for icon rail triggers", () => {
+		expect(getSelectorTriggerButtonVariant("icon")).toBe("ghost");
+		expect(getSelectorTriggerButtonVariant("chromeIcon")).toBe("ghost");
+		expect(getSelectorTriggerButtonVariant("chromeIconMd")).toBe("ghost");
+	});
+});
+
+describe("getSelectorTriggerButtonSize icon rails", () => {
+	test("maps chrome icon triggers to icon-chrome", () => {
+		expect(getSelectorTriggerButtonSize("chromeIcon")).toBe("icon-chrome");
+		expect(getSelectorTriggerButtonSize("chromeIconMd")).toBe("icon-chrome");
 	});
 
-	test("resolveSelectorTriggerSize is identity", () => {
+	test("keeps dense icon triggers compact", () => {
+		expect(getSelectorTriggerButtonSize("icon")).toBe("icon-2xs");
+		expect(getSelectorTriggerButtonSize("attach")).toBe("icon-2xs");
+	});
+});
+
+describe("getSelectorTriggerButtonSize", () => {
+	test("maps fused chip triggers to shadcn sizes", () => {
+		expect(getSelectorTriggerButtonSize("setupBarChip")).toBe("sm");
+		expect(getSelectorTriggerButtonSize("setupBarChipGrouped")).toBe("sm");
+		expect(getSelectorTriggerButtonSize("composerChipLabel")).toBe("sm");
+		expect(getSelectorTriggerButtonSize("composerChipIcon")).toBe("icon-sm");
+	});
+});
+
+describe("getSelectorTriggerButtonSizeForContext", () => {
+	test("uses icon-sm-narrow for embedded composerChipIcon", () => {
+		expect(
+			getSelectorTriggerButtonSizeForContext({
+				triggerSize: "composerChipIcon",
+				embeddedInGroup: true,
+			})
+		).toBe("icon-sm-narrow");
+		expect(
+			getSelectorTriggerButtonSizeForContext({
+				triggerSize: "composerChipIcon",
+				embeddedInGroup: false,
+			})
+		).toBe("icon-sm");
+	});
+});
+
+describe("getSelectorTriggerButtonPropsForContext", () => {
+	test("maps embedded composerChipIcon to secondary icon-sm-narrow", () => {
+		expect(
+			getSelectorTriggerButtonPropsForContext({
+				triggerSize: "composerChipIcon",
+				embeddedInGroup: true,
+			})
+		).toEqual({ variant: "secondary", size: "icon-sm-narrow" });
+	});
+
+	test("maps standalone composerChipIcon to ghost icon-sm", () => {
+		expect(
+			getSelectorTriggerButtonPropsForContext({
+				triggerSize: "composerChipIcon",
+				embeddedInGroup: false,
+			})
+		).toEqual({ variant: "ghost", size: "icon-sm" });
+	});
+
+	test("maps setupBarChipGrouped to secondary sm", () => {
+		expect(
+			getSelectorTriggerButtonPropsForContext({
+				triggerSize: "setupBarChipGrouped",
+				embeddedInGroup: true,
+			})
+		).toEqual({ variant: "secondary", size: "sm" });
+	});
+
+	test("uses variant prop for non-fused triggers", () => {
+		expect(
+			getSelectorTriggerButtonPropsForContext({
+				triggerSize: "default",
+				embeddedInGroup: false,
+				variant: "outline",
+			})
+		).toEqual({ variant: "outline", size: "sm" });
+	});
+});
+
+describe("resolveSelectorTriggerSize", () => {
+	test("is identity", () => {
 		expect(resolveSelectorTriggerSize("setupBarChip")).toBe("setupBarChip");
 		expect(resolveSelectorTriggerSize("composerChipIcon")).toBe("composerChipIcon");
 	});

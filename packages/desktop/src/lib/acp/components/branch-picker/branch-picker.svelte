@@ -1,11 +1,9 @@
 <script lang="ts">
 import { AgentInputBranchSelector } from "@acepe/ui";
 import {
-	FUSED_CONTROL_SETUP_CHIP_BUTTON_CLASS,
-	FUSED_CONTROL_SETUP_GROUPED_CHIP_LABEL_BUTTON_CLASS,
-	FUSED_CONTROL_SETUP_CHIP_ICON_SIZE_CLASS,
-	FUSED_CONTROL_SETUP_CHIP_ICON_SIZE_PX,
-	FUSED_CONTROL_SETUP_CHIP_LABEL_TEXT_CLASS,
+	SETUP_CHIP_ICON_CLASS,
+	SETUP_CHIP_ICON_SIZE_PX,
+	SETUP_CHIP_LABEL_TEXT_CLASS,
 } from "@acepe/ui/panel-header";
 import { Colors } from "@acepe/ui/colors";
 import { GitBranch } from "phosphor-svelte";
@@ -57,14 +55,19 @@ let branchLoadFailed = $state(false);
 let createBranchDialogOpen = $state(false);
 
 const setupBarLayoutClass = "w-auto flex-none";
+const isSetupBarVariant = $derived(
+	variant === "setupBarChip" || variant === "setupBarChipGrouped"
+);
 const initGitButtonClass = $derived(
-	variant === "setupBarChipGrouped"
-		? cn(FUSED_CONTROL_SETUP_GROUPED_CHIP_LABEL_BUTTON_CLASS, setupBarLayoutClass)
-		: variant === "setupBarChip"
-			? cn(FUSED_CONTROL_SETUP_CHIP_BUTTON_CLASS, setupBarLayoutClass)
-			: variant === "minimal"
-				? "!border-0 !h-[26px] rounded-md hover:rounded-full transition-[border-radius]"
-				: "h-7"
+	cn(
+		"gap-1.5",
+		isSetupBarVariant ? cn("w-auto shrink-0", setupBarLayoutClass) : "w-full px-2",
+		variant === "minimal"
+			? "!border-0 !h-[26px] rounded-md hover:rounded-full transition-[border-radius]"
+			: !isSetupBarVariant
+				? "h-7"
+				: ""
+	)
 );
 
 const branchListDisplay = $derived(
@@ -150,18 +153,14 @@ function openCreateBranchDialog(): void {
 
 {#if isGitRepo === false}
 	<Button
-		variant="ghost"
-		size={variant === "setupBarChip" || variant === "setupBarChipGrouped" ? "setupChip" : "sm"}
-		class={cn(
-			"gap-1.5",
-			variant === "setupBarChip" ? "w-auto shrink-0 px-1.5 py-1" : "w-full px-2",
-			initGitButtonClass
-		)}
+		variant={isSetupBarVariant ? "secondary" : "ghost"}
+		size="sm"
+		class={initGitButtonClass}
 		disabled={!projectPath || !onInitGitRepo || initGitLoading}
 		onclick={() => onInitGitRepo?.()}
 	>
-		<GitBranch class={FUSED_CONTROL_SETUP_CHIP_ICON_SIZE_CLASS} size={FUSED_CONTROL_SETUP_CHIP_ICON_SIZE_PX} weight="fill" />
-		<span class={FUSED_CONTROL_SETUP_CHIP_LABEL_TEXT_CLASS}>
+		<GitBranch class={SETUP_CHIP_ICON_CLASS} size={SETUP_CHIP_ICON_SIZE_PX} weight="fill" />
+		<span class={SETUP_CHIP_LABEL_TEXT_CLASS}>
 			{initGitLoading ? "Initializing..." : "Initialize Git"}
 		</span>
 	</Button>

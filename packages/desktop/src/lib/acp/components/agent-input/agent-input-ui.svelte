@@ -1624,6 +1624,9 @@ $effect(() => {
 							onVoiceDownloadModel={(modelId) => {
 								void voiceSettingsStore.downloadModel(modelId);
 							}}
+							onVoiceUninstallModel={(modelId) => {
+								void voiceSettingsStore.deleteModel(modelId);
+							}}
 							voiceCloseLabel={"Close"}
 						>
 							{#snippet modelSelector()}

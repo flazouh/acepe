@@ -9,16 +9,13 @@
 	import { Selector } from "../selector/index.js";
 	import type { SelectorTriggerSize } from "../selector/selector-trigger-classes.js";
 	import { getSelectorTriggerButtonVariant } from "../selector/selector-trigger-classes.js";
-	import {
-		FUSED_CONTROL_COMPOSER_ICON_SIZE_CLASS,
-		FUSED_CONTROL_COMPOSER_STANDALONE_ICON_CHIP_CLASS,
-	} from "../panel-header/index.js";
+	import { Button } from "../button/index.js";
+	import { COMPOSER_CHIP_ICON_CLASS } from "./agent-input-chip-classes.js";
 	import { cn } from "../../lib/utils.js";
 	import * as Tooltip from "../tooltip/index.js";
 	import AgentInputReasoningEffortTrigger from "./agent-input-reasoning-effort-trigger.svelte";
 	import { SelectorItem } from "../selector/index.js";
 	import {
-		getConfigOptionFastTriggerClass,
 		getConfigOptionNextBooleanValue,
 		getConfigOptionResolvedTriggerSize,
 		getConfigOptionViewState,
@@ -49,12 +46,6 @@
 		getConfigOptionResolvedTriggerSize(configOption, triggerSize)
 	);
 	const selectorVariant = $derived(getSelectorTriggerButtonVariant(resolvedTriggerSize));
-	const fastTriggerClass = $derived(
-		getConfigOptionFastTriggerClass({
-			disabled,
-			isEnabled: viewState.isBooleanEnabled,
-		})
-	);
 
 	function handleSelect(value: string) {
 		if (
@@ -84,12 +75,12 @@
 {#snippet configOptionIcon()}
 	{#if viewState.iconKind === "fast"}
 		<Lightning
-			class={cn(FUSED_CONTROL_COMPOSER_ICON_SIZE_CLASS, viewState.iconClass)}
+			class={cn(COMPOSER_CHIP_ICON_CLASS, viewState.iconClass)}
 			weight={viewState.iconWeight}
 			style={viewState.iconStyle}
 		/>
 	{:else}
-		<ShieldCheck class={FUSED_CONTROL_COMPOSER_ICON_SIZE_CLASS} weight="fill" style="color: {viewState.iconColor}" />
+		<ShieldCheck class={COMPOSER_CHIP_ICON_CLASS} weight="fill" style="color: {viewState.iconColor}" />
 	{/if}
 {/snippet}
 
@@ -122,23 +113,23 @@
 	<Tooltip.Root>
 		<Tooltip.Trigger>
 			{#snippet child({ props })}
-				<button
+				<Button
 					{...props}
-					type="button"
-					data-header-control
+					variant="ghost"
+					size="icon-sm"
+					active={viewState.isBooleanEnabled}
 					title={viewState.buttonTitle}
 					aria-label={viewState.buttonTitle}
-					disabled={disabled}
-					class={cn(FUSED_CONTROL_COMPOSER_STANDALONE_ICON_CHIP_CLASS, fastTriggerClass)}
+					{disabled}
 					aria-pressed={viewState.isBooleanEnabled}
 					onclick={handleBooleanToggle}
 				>
 					<Lightning
-						class={cn(FUSED_CONTROL_COMPOSER_ICON_SIZE_CLASS, viewState.iconClass)}
+						class={cn(COMPOSER_CHIP_ICON_CLASS, viewState.iconClass)}
 						weight={viewState.iconWeight}
 						style={viewState.iconStyle}
 					/>
-				</button>
+				</Button>
 			{/snippet}
 		</Tooltip.Trigger>
 		{@render configOptionTooltipContent()}

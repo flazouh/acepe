@@ -1,10 +1,8 @@
 <script lang="ts">
-	import { IconArrowRight } from "@tabler/icons-svelte";
-	import { IconArrowLeft } from "@tabler/icons-svelte";
-	import { IconRefresh } from "@tabler/icons-svelte";
 	import { IconExternalLink } from "@tabler/icons-svelte";
 
 	import { Button } from "../button/index.js";
+	import { RoundedIcon } from "../icons/index.js";
 
 	interface Props {
 		onBack?: (() => void) | undefined;
@@ -35,40 +33,40 @@
 
 	{#if showNavigation}
 		<Button
-			variant="chromeIcon"
-			size="chromeIcon"
+			variant="ghost"
+			size="icon-chrome"
 			data-header-control
 			onclick={() => onBack?.()}
 			title={backLabel}
 			aria-label={backLabel}
 		>
-			{#snippet children()}<IconArrowLeft class="h-4 w-4" />{/snippet}
+			{#snippet children()}<RoundedIcon name="chevron-left" class="size-4" />{/snippet}
 		</Button>
 		<Button
-			variant="chromeIcon"
-			size="chromeIcon"
+			variant="ghost"
+			size="icon-chrome"
 			data-header-control
 			onclick={() => onForward?.()}
 			title={forwardLabel}
 			aria-label={forwardLabel}
 		>
-			{#snippet children()}<IconArrowRight class="h-4 w-4" />{/snippet}
+			{#snippet children()}<RoundedIcon name="chevron-right" class="size-4" />{/snippet}
 		</Button>
 		<Button
-			variant="chromeIcon"
-			size="chromeIcon"
+			variant="ghost"
+			size="icon-chrome"
 			data-header-control
 			onclick={() => onReload?.()}
 			title={reloadLabel}
 			aria-label={reloadLabel}
 		>
-			{#snippet children()}<IconRefresh class="h-4 w-4" />{/snippet}
+			{#snippet children()}<RoundedIcon name="refresh" class="size-4" />{/snippet}
 		</Button>
 	{/if}
 	{#if showExternal}
 		<Button
-			variant="chromeIcon"
-			size="chromeIcon"
+			variant="ghost"
+			size="icon-chrome"
 			data-header-control
 			onclick={() => onOpenExternal?.()}
 			title={openExternalLabel}

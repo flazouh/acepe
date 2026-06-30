@@ -11,13 +11,9 @@
 	import type { Snippet } from "svelte";
 
 	import { ButtonGroup } from "../button-group/index.js";
+	import { buttonVariants } from "../button/variants.js";
 	import { Selector } from "../selector/index.js";
-	import {
-		FUSED_CONTROL_CHIP_GROUP_CLASS,
-		FUSED_CONTROL_OVERFLOW_BUTTON_CLASS,
-		FUSED_CONTROL_SETUP_CHIP_LABEL_TEXT_CLASS,
-		FUSED_CONTROL_SETUP_GROUPED_CHIP_LABEL_BUTTON_CLASS,
-	} from "../panel-header/index.js";
+	import { SETUP_CHIP_LABEL_TEXT_CLASS } from "./agent-input-chip-classes.js";
 	import { Switch } from "../switch/index.js";
 	import * as Tooltip from "../tooltip/index.js";
 	import { cn } from "../../lib/utils.js";
@@ -64,14 +60,11 @@
 
 	const rowAlignClass = $derived(align === "start" ? "justify-start" : "mx-auto justify-center");
 
-	const setupChipButtonClass =
-		"[&_button]:flex [&_button]:flex-none [&_button]:items-center [&_button]:gap-1 [&_button]:text-muted-foreground [&_button]:transition-colors [&_button:hover]:bg-accent [&_button:hover]:text-foreground";
-
 	const worktreeTriggerClass = $derived(
 		cn(
-			FUSED_CONTROL_SETUP_GROUPED_CHIP_LABEL_BUTTON_CLASS,
-			"disabled:pointer-events-none disabled:opacity-50",
-			worktreeOn ? "text-[var(--success)]" : "text-muted-foreground"
+			buttonVariants({ variant: "secondary", size: "sm" }),
+			"gap-1 disabled:pointer-events-none disabled:opacity-50",
+			worktreeOn ? "text-[var(--success)]" : ""
 		)
 	);
 
@@ -80,14 +73,14 @@
 			"flex size-3.5 shrink-0 items-center justify-center rounded-[3px] border transition-colors",
 			worktreeOn
 				? "border-[var(--success)] bg-[var(--success)] text-[var(--success-foreground)]"
-				: "border-border/80 bg-transparent"
+				: "border-muted-foreground/30 bg-secondary-foreground/[0.04]"
 		)
 	);
 </script>
 
 <div
 	data-testid="new-thread-options"
-	class="flex max-w-full flex-wrap items-center gap-0.5 text-xs {rowAlignClass} {setupChipButtonClass}"
+	class="flex max-w-full flex-wrap items-center gap-0.5 text-xs {rowAlignClass}"
 >
 	{@render project()}
 	{@render agent()}
@@ -96,12 +89,7 @@
 	{/if}
 
 	{#if showWorktree}
-		<ButtonGroup
-			class={cn(
-				FUSED_CONTROL_CHIP_GROUP_CLASS,
-				"min-h-[23px] [&_[data-slot=button]]:min-h-[23px]"
-			)}
-		>
+		<ButtonGroup>
 			<Tooltip.Root>
 				<Tooltip.Trigger>
 					{#snippet child({ props })}
@@ -123,7 +111,7 @@
 									></span>
 								{/if}
 							</span>
-							<span class={FUSED_CONTROL_SETUP_CHIP_LABEL_TEXT_CLASS}>{worktreeLabel}</span>
+							<span class={SETUP_CHIP_LABEL_TEXT_CLASS}>{worktreeLabel}</span>
 						</button>
 					{/snippet}
 				</Tooltip.Trigger>
@@ -140,12 +128,11 @@
 
 			<Selector
 				embeddedInGroup
+				variant="secondary"
 				triggerIcon="dots"
 				showChevron={false}
 				triggerSize="composerChipIcon"
-				variant="outline"
 				triggerAriaLabel={settingsLabel}
-				triggerClass={FUSED_CONTROL_OVERFLOW_BUTTON_CLASS}
 				side="top"
 				align="end"
 				sideOffset={8}

@@ -1,12 +1,12 @@
 <script lang="ts">
 import * as Dialog from "@acepe/ui/dialog";
-import { X } from "phosphor-svelte";
+import { RoundedIcon } from "@acepe/ui";
 import type { Snippet } from "svelte";
 
-/** Mirrors Button `variant="chromeIcon" size="chromeIcon" class="rounded-sm"` so the
+/** Mirrors Button `variant="ghost" size="icon-chrome" class="rounded-sm"` so the
  * dialog close glyph matches the other top-right chrome-icon controls. */
 const CHROME_ICON_CLOSE_CLASS =
-	"inline-flex size-5 shrink-0 items-center justify-center gap-0 rounded-sm border-0 bg-transparent p-0 text-muted-foreground/60 shadow-none transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:ring-inset [&_svg:not([class*='size-'])]:size-3.5";
+	"inline-flex size-6 shrink-0 items-center justify-center gap-0 rounded-sm border-0 bg-transparent p-0 text-muted-foreground/60 shadow-none transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:ring-inset [&_svg:not([class*='size-'])]:size-4";
 
 interface Props {
 	open?: boolean;
@@ -18,10 +18,11 @@ interface Props {
 	contentClass?: string;
 	contentOverflow?: "auto" | "hidden";
 	closeLabel?: string;
-	/** default = large panel; compact = settings; form/medium/wide = sized forms; panel/debug = tool surfaces; palette* = command palettes; bare = chromeless overlay. */
+	/** default = large panel; compact = settings; fullscreen = edge-to-edge window; form/medium/wide = sized forms; panel/debug = tool surfaces; palette* = command palettes; bare = chromeless overlay. */
 	size?:
 		| "default"
 		| "compact"
+		| "fullscreen"
 		| "form"
 		| "medium"
 		| "wide"
@@ -56,7 +57,9 @@ let {
 }: Props = $props();
 
 const dialogSizeClass = $derived(
-	size === "form"
+	size === "fullscreen"
+		? "h-[100dvh] w-screen max-h-none max-w-none rounded-none border-0 shadow-none"
+		: size === "form"
 		? "h-auto w-full sm:max-w-md max-h-[min(86vh,860px)]"
 		: size === "medium"
 			? "h-auto w-full max-w-lg max-h-[70vh]"
@@ -131,7 +134,7 @@ function handleOpenChange(nextOpen: boolean): void {
 						class={CHROME_ICON_CLOSE_CLASS}
 						data-header-control
 					>
-						<X size={14} />
+						<RoundedIcon name="close" class="size-3.5" />
 					</Dialog.Close>
 				</div>
 			{/if}

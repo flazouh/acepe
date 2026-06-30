@@ -53,8 +53,8 @@ function handleDownloadMarkdown() {
 		{#snippet headerActions()}
 			<CopyButton text={plan.content} variant="embedded" stopPropagation={true} />
 			<Button
-				variant="chromeIcon"
-				size="chromeIcon"
+				variant="ghost"
+				size="icon-chrome"
 				data-header-control
 				title="Download"
 				aria-label="Download"
@@ -65,8 +65,8 @@ function handleDownloadMarkdown() {
 				{/snippet}
 			</Button>
 			<Button
-				variant="chromeIcon"
-				size="chromeIcon"
+				variant="ghost"
+				size="icon-chrome"
 				data-header-control
 				title="Open in fullscreen"
 				aria-label="Open in fullscreen"

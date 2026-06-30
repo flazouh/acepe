@@ -856,6 +856,7 @@ let { bare = false }: Props = $props();
 										voiceModelsLoadingLabel="Loading voice models…"
 										onVoiceSelectModel={() => undefined}
 										onVoiceDownloadModel={() => undefined}
+										onVoiceUninstallModel={() => undefined}
 										voiceCloseLabel="Close"
 									>
 										{#snippet modelSelector()}

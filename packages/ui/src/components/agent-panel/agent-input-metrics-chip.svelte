@@ -30,7 +30,7 @@
 
 	const hasContextUsage = $derived(percent !== null);
 
-	// Ring geometry — matches chromeIcon footprint (20px row, 14px ring).
+	// Ring geometry — intentionally denser than icon-chrome controls.
 	const RING_PX = 14;
 	const STROKE = 1.5;
 	// Inset radius so stroke + round caps fit inside RING_PX without bleeding past the SVG box.

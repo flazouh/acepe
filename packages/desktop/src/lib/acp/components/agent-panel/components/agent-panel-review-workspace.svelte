@@ -22,6 +22,7 @@ interface Props {
 	showHeader?: boolean;
 	showCloseButton?: boolean;
 	compact?: boolean;
+	flat?: boolean;
 	diffDensity?: ReviewDiffDensity;
 	hideBottomWidget?: boolean;
 	onControlsChange?: (controls: ReviewControlsSnapshot | null) => void;
@@ -38,6 +39,7 @@ let {
 	showHeader = true,
 	showCloseButton = true,
 	compact = false,
+	flat = false,
 	diffDensity = "default",
 	hideBottomWidget = false,
 	onControlsChange,
@@ -96,6 +98,7 @@ function handleWorkspaceFileSelect(displayIndex: number): void {
 	{showHeader}
 	{showCloseButton}
 	{compact}
+	{flat}
 >
 	{#snippet content()}
 		<AgentPanelReviewContent

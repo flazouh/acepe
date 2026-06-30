@@ -2,9 +2,9 @@
 	import type { Snippet } from "svelte";
 	import { FolderPlus } from "phosphor-svelte";
 	import { GearSix } from "phosphor-svelte";
-	import { Sidebar } from "phosphor-svelte";
 	import AppSearchButton from "./app-search-button.svelte";
 	import { Button } from "../button/index.js";
+	import { RoundedIcon } from "../icons/index.js";
 
 	interface Props {
 		showTrafficLights?: boolean;
@@ -37,8 +37,8 @@
 		showSearch?: boolean;
 	}
 
-	const ICON = "size-3.5";
-	const chromeIconButton = { variant: "chromeIcon" as const, size: "chromeIcon" as const };
+	const ICON = "size-4";
+	const chromeIconButton = { variant: "ghost" as const, size: "icon-chrome" as const };
 
 	let {
 		showTrafficLights = true,
@@ -87,7 +87,7 @@
 					onclick={onToggleSidebar}
 				>
 					{#snippet children()}
-						<Sidebar class={ICON} weight="fill" />
+						<RoundedIcon name="sidebar" class={ICON} />
 					{/snippet}
 				</Button>
 			{/if}

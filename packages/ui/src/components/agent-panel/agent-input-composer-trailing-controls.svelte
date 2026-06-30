@@ -32,6 +32,7 @@
 		voiceModelsLoadingLabel,
 		onVoiceSelectModel,
 		onVoiceDownloadModel,
+		onVoiceUninstallModel,
 		voiceCloseLabel,
 		toolbarConfigOptions = [],
 		onConfigOptionChange,
@@ -61,6 +62,7 @@
 		voiceModelsLoadingLabel: string;
 		onVoiceSelectModel: (modelId: string) => void;
 		onVoiceDownloadModel: (modelId: string) => void;
+		onVoiceUninstallModel: (modelId: string) => void;
 		voiceCloseLabel: string;
 		toolbarConfigOptions?: readonly AgentInputConfigOption[];
 		onConfigOptionChange?: (configId: string, value: string) => void | Promise<void>;
@@ -136,6 +138,7 @@
 			{voiceModelsLoadingLabel}
 			{onVoiceSelectModel}
 			{onVoiceDownloadModel}
+			{onVoiceUninstallModel}
 			{voiceCloseLabel}
 		/>
 		{#if metricsChip}

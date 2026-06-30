@@ -8,12 +8,13 @@
 
 	import { cn } from "../../lib/utils.js";
 	import { Button, type ButtonVariant, buttonVariants } from "../button/index.js";
+	import { OVERFLOW_DOTS_ICON_CLASS } from "../panel-header/project-card-action-button-class.js";
 	import {
-		FUSED_CONTROL_GROUPED_CHIP_LABEL_BUTTON_CLASS,
-		FUSED_CONTROL_OVERFLOW_BUTTON_CLASS,
-		OVERFLOW_DOTS_ICON_CLASS,
-	} from "../panel-header/project-card-action-button-class.js";
-	import { getSelectorTriggerClass, isFusedComposerChipTriggerSize, resolveSelectorTriggerSize, type SelectorTriggerSize } from "./selector-trigger-classes.js";
+		getSelectorTriggerButtonPropsForContext,
+		getSelectorTriggerClass,
+		resolveSelectorTriggerSize,
+		type SelectorTriggerSize,
+	} from "./selector-trigger-classes.js";
 
 	interface Props {
 		/**
@@ -166,47 +167,39 @@
 
 	const resolvedTriggerSize = $derived(resolveSelectorTriggerSize(triggerSize));
 
+	const triggerButtonProps = $derived(
+		getSelectorTriggerButtonPropsForContext({
+			triggerSize,
+			embeddedInGroup,
+			variant,
+		})
+	);
+
 	const triggerClass = $derived(
-		embeddedInGroup
-			? cn(
-					resolvedTriggerSize === "composerChipIcon"
-						? cn(FUSED_CONTROL_OVERFLOW_BUTTON_CLASS, "px-1", triggerClassOverride)
-						: resolvedTriggerSize === "composerChipLabel"
-							? cn(FUSED_CONTROL_GROUPED_CHIP_LABEL_BUTTON_CLASS, triggerClassOverride)
-							: resolvedTriggerSize === "headerAction"
-								? cn(
-										buttonVariants({ variant: "headerAction", size: "headerAction" }),
-										triggerClassOverride
-									)
-							: getSelectorTriggerClass({
-									triggerSize,
-									triggerClass: triggerClassOverride,
-								})
-				)
-			: getSelectorTriggerClass({
-					triggerSize,
-					triggerClass: triggerClassOverride,
-				})
+		getSelectorTriggerClass({
+			triggerSize,
+			triggerClass: triggerClassOverride,
+		})
 	);
 
 	const resolvedTriggerAriaLabel = $derived(
 		triggerAriaLabel ?? tooltipTitle ?? tooltipLabel
 	);
 
-	const buttonSize = $derived(
-		triggerSize === "chromeIconMd"
-			? "chromeIconMd"
-			: triggerSize === "chromeIcon"
-				? "chromeIcon"
-				: isFusedComposerChipTriggerSize(triggerSize)
-					? "setupChip"
-					: triggerSize === "headerAction"
-						? "headerAction"
-						: triggerSize === "icon" || triggerSize === "attach"
-							? "2xs"
-							: "sm"
+	const triggerButtonClass = $derived(
+		cn(
+			resolvedTriggerSize === "headerAction"
+				? buttonVariants({ variant: "headerAction", size: "headerAction" })
+				: buttonVariants({
+						variant: triggerButtonProps.variant,
+						size: triggerButtonProps.size,
+						active: triggerActive,
+					}),
+			triggerClass,
+			embeddedInGroup ? "!rounded-none" : "",
+			className
+		)
 	);
-
 	const contentClass = $derived(
 		cn(
 			"w-fit max-w-[280px]",
@@ -229,7 +222,7 @@
 			type="button"
 			data-slot="button"
 			data-header-control={triggerSize === "attach" || triggerSize === "chromeIcon" ? true : undefined}
-			class={cn(triggerClass, className)}
+			class={triggerButtonClass}
 			disabled={disabled}
 			aria-label={resolvedTriggerAriaLabel}
 			title={tooltipTitle ?? tooltipLabel ?? undefined}
@@ -242,8 +235,7 @@
 				{@render renderButton()}
 			{/if}
 			{#if showChevron}
-				<CaretDown size={12} weight="regular" class="size-3 shrink-0 text-muted-foreground transition-transform duration-200 {open ? 'rotate-180' : ''}"
-				/>
+				<CaretDown size={12} weight="regular" class="size-3 shrink-0 text-muted-foreground transition-transform duration-200 {open ? 'rotate-180' : ''}" />
 			{/if}
 		</button>
 	{:else}
@@ -251,8 +243,8 @@
 			<Button
 				{...buttonProps}
 				bind:ref={triggerRef}
-				{variant}
-				size={buttonSize}
+				variant={triggerButtonProps.variant}
+				size={triggerButtonProps.size}
 				class={triggerClass}
 				{disabled}
 				active={triggerActive}
@@ -267,8 +259,7 @@
 					{@render renderButton()}
 				{/if}
 				{#if showChevron}
-					<CaretDown size={12} weight="regular" class="size-3 shrink-0 text-muted-foreground transition-transform duration-200 {open ? 'rotate-180' : ''}"
-					/>
+					<CaretDown size={12} weight="regular" class="size-3 shrink-0 text-muted-foreground transition-transform duration-200 {open ? 'rotate-180' : ''}" />
 				{/if}
 			</Button>
 		</div>

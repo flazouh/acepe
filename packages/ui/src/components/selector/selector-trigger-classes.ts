@@ -1,11 +1,5 @@
 import { cn } from "../../lib/utils.js";
-import type { ButtonVariant } from "../button/variants.js";
-import {
-	FUSED_CONTROL_COMPOSER_CHIP_LABEL_BUTTON_CLASS,
-	FUSED_CONTROL_COMPOSER_STANDALONE_ICON_CHIP_CLASS,
-	FUSED_CONTROL_SETUP_CHIP_BUTTON_CLASS,
-	FUSED_CONTROL_SETUP_GROUPED_CHIP_LABEL_BUTTON_CLASS,
-} from "../panel-header/project-card-action-button-class.js";
+import type { ButtonSize, ButtonVariant } from "../button/variants.js";
 
 export type SelectorTriggerSize =
 	| "default"
@@ -38,10 +32,11 @@ export function isFusedComposerChipTriggerSize(triggerSize: SelectorTriggerSize)
 	);
 }
 
-/** Button variant for Selector triggers; fused chip surfaces come from {@link getSelectorTriggerClass}. */
+/** Button variant for Selector triggers. */
 export function getSelectorTriggerButtonVariant(triggerSize: SelectorTriggerSize): ButtonVariant {
 	if (isFusedComposerChipTriggerSize(triggerSize)) {
-		return "chromeIcon";
+		const resolved = resolveSelectorTriggerSize(triggerSize);
+		return resolved === "composerChipIcon" ? "ghost" : "secondary";
 	}
 
 	const resolved = resolveSelectorTriggerSize(triggerSize);
@@ -52,7 +47,7 @@ export function getSelectorTriggerButtonVariant(triggerSize: SelectorTriggerSize
 	case "icon":
 	case "attach":
 	case "square":
-		return "chromeIcon";
+		return "ghost";
 	case "headerAction":
 		return "headerAction";
 	case "pill":
@@ -65,18 +60,80 @@ export function getSelectorTriggerButtonVariant(triggerSize: SelectorTriggerSize
 	}
 }
 
+/** Button size for Selector triggers. */
+export function getSelectorTriggerButtonSize(triggerSize: SelectorTriggerSize): ButtonSize {
+	const resolved = resolveSelectorTriggerSize(triggerSize);
+
+	if (resolved === "composerChipIcon") {
+		return "icon-sm";
+	}
+	if (isFusedComposerChipTriggerSize(resolved)) {
+		return "sm";
+	}
+	if (resolved === "chromeIconMd") {
+		return "icon-chrome";
+	}
+	if (resolved === "chromeIcon") {
+		return "icon-chrome";
+	}
+	if (resolved === "icon" || resolved === "attach" || resolved === "square") {
+		return "icon-2xs";
+	}
+	if (resolved === "headerAction") {
+		return "headerAction";
+	}
+	return "sm";
+}
+
+export interface SelectorTriggerButtonProps {
+	variant: ButtonVariant;
+	size: ButtonSize;
+}
+
+/** Variant + size for Selector triggers, including fused ButtonGroup context. */
+export function getSelectorTriggerButtonPropsForContext(input: {
+	triggerSize: SelectorTriggerSize;
+	embeddedInGroup: boolean;
+	variant?: ButtonVariant;
+}): SelectorTriggerButtonProps {
+	const resolved = resolveSelectorTriggerSize(input.triggerSize);
+
+	if (input.embeddedInGroup && resolved === "composerChipIcon") {
+		return { variant: "secondary", size: "icon-sm-narrow" };
+	}
+
+	if (isFusedComposerChipTriggerSize(resolved)) {
+		return {
+			variant: getSelectorTriggerButtonVariant(resolved),
+			size: getSelectorTriggerButtonSize(resolved),
+		};
+	}
+
+	const fallbackVariant = input.variant ?? getSelectorTriggerButtonVariant(resolved);
+	return {
+		variant: fallbackVariant,
+		size: getSelectorTriggerButtonSize(resolved),
+	};
+}
+
+export function getSelectorTriggerButtonSizeForContext(input: {
+	triggerSize: SelectorTriggerSize;
+	embeddedInGroup: boolean;
+}): ButtonSize {
+	return getSelectorTriggerButtonPropsForContext(input).size;
+}
+
+const CHIP_TRIGGER_CHILD_SVG_CLASS =
+	"[&_svg:not([class*='size-'])]:size-3.5 [&_svg]:shrink-0 [&_img]:size-3.5 [&_img]:shrink-0";
+
 export function getSelectorTriggerSizeClass(triggerSize: SelectorTriggerSize): string {
 	switch (resolveSelectorTriggerSize(triggerSize)) {
 	case "chromeIcon":
-		return "[&_svg]:block";
 	case "chromeIconMd":
-		return "[&_svg]:block";
 	case "icon":
-		return "size-5 min-w-0 shrink-0 rounded-md gap-0 !h-5 !w-5 !p-0 !px-0 !py-0 has-[>svg]:!px-0 text-muted-foreground hover:bg-accent hover:text-foreground [&_svg]:block";
-	case "square":
-		return "h-7 w-7 shrink-0 rounded-none border-0 p-0 gap-0 text-muted-foreground hover:bg-muted/80 hover:text-foreground";
 	case "attach":
-		return "size-5 min-w-0 shrink-0 rounded-md gap-0 !h-5 !w-5 !p-0 !px-0 !py-0 has-[>svg]:!px-0 text-muted-foreground hover:bg-accent hover:text-foreground [&_svg]:block";
+	case "square":
+		return "[&_svg]:block";
 	case "minimal":
 		return "!border-0 !h-[26px] rounded-md gap-1.5 px-2 text-xs";
 	case "pill":
@@ -84,13 +141,11 @@ export function getSelectorTriggerSizeClass(triggerSize: SelectorTriggerSize): s
 	case "footer":
 		return "h-5 min-w-0 shrink-0 gap-1 rounded-md border-0 !px-1 has-[>svg]:!px-1 text-[0.6875rem] font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground [&_svg]:size-3";
 	case "setupBarChip":
-		return FUSED_CONTROL_SETUP_CHIP_BUTTON_CLASS;
 	case "setupBarChipGrouped":
-		return FUSED_CONTROL_SETUP_GROUPED_CHIP_LABEL_BUTTON_CLASS;
 	case "composerChipLabel":
-		return FUSED_CONTROL_COMPOSER_CHIP_LABEL_BUTTON_CLASS;
+		return CHIP_TRIGGER_CHILD_SVG_CLASS;
 	case "composerChipIcon":
-		return FUSED_CONTROL_COMPOSER_STANDALONE_ICON_CHIP_CLASS;
+		return "";
 	case "headerAction":
 		return "";
 	default:

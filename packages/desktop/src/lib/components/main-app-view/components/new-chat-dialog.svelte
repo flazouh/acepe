@@ -308,7 +308,7 @@
 	size="medium"
 	hideHeader={true}
 	bind:contentRef={newSessionDialogRef}
-	contentClass="mx-auto w-full overflow-hidden max-w-[34rem] rounded-2xl !border-0 bg-background p-0 shadow-xl !backdrop-blur-none"
+	contentClass="mx-auto w-full overflow-hidden max-w-[34rem] rounded-lg !border-0 bg-background p-0 shadow-xl !backdrop-blur-none"
 	onOpenChange={handleNewSessionOpenChange}
 	onOpenAutoFocus={(e: Event) => {
 		e.preventDefault();

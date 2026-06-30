@@ -340,6 +340,7 @@ export { GitHubBadge } from "./components/github-badge/index.js";
 export {
 	ArrowRightIcon,
 	BuildIcon,
+	RoundedIcon,
 	DotmSquare18Spinner,
 	DotmTriangle17Spinner,
 	DotmTriangle20Spinner,

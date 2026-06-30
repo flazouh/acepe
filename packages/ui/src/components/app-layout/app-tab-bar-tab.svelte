@@ -1,9 +1,9 @@
 <script lang="ts">
 	import { Tooltip } from 'bits-ui';
-	import { IconAlertTriangle, IconX } from '@tabler/icons-svelte';
+	import { IconAlertTriangle } from '@tabler/icons-svelte';
 	import { HandPalm } from 'phosphor-svelte';
 
-	import { LoadingIcon } from '../icons/index.js';
+	import { RoundedIcon, LoadingIcon } from '../icons/index.js';
 	import { ProjectLetterBadge } from '../project-letter-badge/index.js';
 	import type { AppTab } from './types.js';
 
@@ -133,7 +133,7 @@
 								class="shrink-0 h-5 w-5 p-0 rounded-sm hover:bg-muted flex items-center justify-center"
 								onclick={handleClose}
 							>
-								<IconX class="h-3 w-3" />
+								<RoundedIcon name="close" class="size-3" />
 								<span class="sr-only">Close tab</span>
 							</button>
 						{/if}

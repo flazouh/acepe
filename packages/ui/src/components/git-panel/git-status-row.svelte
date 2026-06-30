@@ -107,7 +107,7 @@
 
 	<span class="flex shrink-0 items-center opacity-0 transition-opacity group-hover/row:opacity-100">
 		<Button
-			variant="chromeIcon"
+			variant="ghost"
 			size="icon-xs"
 			title="Discard changes"
 			aria-label="Discard {file.path}"
@@ -116,7 +116,7 @@
 			{#snippet children()}<ArrowCounterClockwise size={13} />{/snippet}
 		</Button>
 		<Button
-			variant="chromeIcon"
+			variant="ghost"
 			size="icon-xs"
 			title={primaryLabel}
 			aria-label="{primaryLabel} {file.path}"

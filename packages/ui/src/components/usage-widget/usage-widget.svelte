@@ -51,7 +51,7 @@
 
 <div class="relative">
 	<Button
-		variant="chromeIcon"
+		variant="ghost"
 		size="chromeIconMeter"
 		class="font-mono text-[11px]"
 		aria-label={model.copy.triggerLabel}

@@ -1723,8 +1723,8 @@ async function handleFixCiCheck(check: PrChecksItem): Promise<void> {
 							{#snippet checkpointButton()}
 								{#if sessionController.sessionProjectPath && checkpointTimeline.checkpoints.length > 0}
 									<Button
-										variant="chromeIcon"
-										size="chromeIcon"
+										variant="ghost"
+										size="icon-chrome"
 										data-header-control
 										active={checkpointTimeline.isOpen}
 										title="View checkpoints"
@@ -1814,8 +1814,39 @@ async function handleFixCiCheck(check: PrChecksItem): Promise<void> {
 	title="Review changes"
 	closeLabel="Close review"
 	contentOverflow="hidden"
+	contentClass="!bg-background !rounded-lg review-changes-font"
 	onOpenChange={(open) => reviewDialog.setOpen(open)}
 >
+	{#snippet topLeft()}
+		{#if !createdPr}
+			<Button
+				variant="headerAction"
+				size="headerAction"
+				class="shrink-0"
+				disabled={prCard.createRunning || !effectivePathForGit}
+				onclick={() => void handleCreatePr()}
+			>
+				<GitPullRequest size={11} weight="bold" class="shrink-0" />
+				{prCard.createLabel ?? "Open PR"}
+				<DiffPill
+					insertions={reviewDialog.diffStats.insertions}
+					deletions={reviewDialog.diffStats.deletions}
+					variant="plain"
+				/>
+			</Button>
+		{:else}
+			<Button variant="headerAction" size="headerAction" class="shrink-0" disabled>
+				<GitPullRequest size={11} weight="bold" class="shrink-0 text-success" />
+				#{createdPr}
+				<DiffPill
+					insertions={reviewDialog.diffStats.insertions}
+					deletions={reviewDialog.diffStats.deletions}
+					variant="plain"
+				/>
+			</Button>
+		{/if}
+	{/snippet}
+
 	{#snippet topRight()}
 		{@const controls = reviewDialog.controls}
 		{#if controls && controls.fileTotal > 1}
@@ -1876,34 +1907,6 @@ async function handleFixCiCheck(check: PrChecksItem): Promise<void> {
 				</Button>
 			</ButtonGroup.Root>
 		{/if}
-
-		{#if !createdPr}
-			<Button
-				variant="headerAction"
-				size="headerAction"
-				class="shrink-0"
-				disabled={prCard.createRunning || !effectivePathForGit}
-				onclick={() => void handleCreatePr()}
-			>
-				<GitPullRequest size={11} weight="bold" class="shrink-0" />
-				{prCard.createLabel ?? "Open PR"}
-				<DiffPill
-					insertions={reviewDialog.diffStats.insertions}
-					deletions={reviewDialog.diffStats.deletions}
-					variant="plain"
-				/>
-			</Button>
-		{:else}
-			<Button variant="headerAction" size="headerAction" class="shrink-0" disabled>
-				<GitPullRequest size={11} weight="bold" class="shrink-0 text-success" />
-				#{createdPr}
-				<DiffPill
-					insertions={reviewDialog.diffStats.insertions}
-					deletions={reviewDialog.diffStats.deletions}
-					variant="plain"
-				/>
-			</Button>
-		{/if}
 	{/snippet}
 
 	{#if reviewDialog.filesState}
@@ -1916,7 +1919,8 @@ async function handleFixCiCheck(check: PrChecksItem): Promise<void> {
 			showHeader={false}
 			showCloseButton={false}
 			compact={true}
-			diffDensity="compact"
+			flat={true}
+			diffDensity="comfortable"
 			hideBottomWidget={true}
 			onControlsChange={(controls) => reviewDialog.setControls(controls)}
 			onClose={() => reviewDialog.setOpen(false)}
@@ -1933,3 +1937,28 @@ async function handleFixCiCheck(check: PrChecksItem): Promise<void> {
 		projectPath={sessionController.sessionProjectPath ?? undefined}
 	/>
 {/if}
+
+<style>
+	/*
+	 * Review modal — unified base font that RESPECTS the global Interface font
+	 * size setting. The dialog children use a mix of small fixed Tailwind sizes
+	 * on shared atoms (FilePathBadge, DiffPill, headerAction buttons) that we
+	 * must not change globally, so we unify them within the dialog via its marker
+	 * class — but to 0.875rem (the app's base body size, == text-sm), NOT a fixed
+	 * px, so the whole modal scales when the user changes the Interface font size
+	 * (which sets the root font-size). font-size does not inherit past a child
+	 * that sets it, hence !important on the specific utilities (targeting those
+	 * classes, not `*`, leaves explicitly-px-sized icons alone). :global is
+	 * required because Radix portals the dialog to a <body> sibling, outside this
+	 * component's scoped DOM. The diff renders in a shadow DOM and respects the
+	 * global Code font size via the "comfortable" density instead.
+	 */
+	:global(.review-changes-font),
+	:global(.review-changes-font .text-\[0\.6875rem\]),
+	:global(.review-changes-font .text-\[0\.625rem\]),
+	:global(.review-changes-font .text-xs),
+	:global(.review-changes-font .text-sm) {
+		font-size: 0.875rem !important;
+		line-height: 1.4 !important;
+	}
+</style>

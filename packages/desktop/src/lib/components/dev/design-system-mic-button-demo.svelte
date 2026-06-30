@@ -58,6 +58,7 @@
 				selectedModelId="whisper-base"
 				onSelectModel={() => {}}
 				onDownloadModel={() => {}}
+				onUninstallModel={() => {}}
 			/>
 		{/snippet}
 	</FusedPrimaryOverflowGroup>

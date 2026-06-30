@@ -1,7 +1,6 @@
 <script lang="ts">
 	import AgentCopyButton from "./agent-copy-button.svelte";
 	import { ButtonGroup } from "../button-group/index.js";
-	import { FUSED_CONTROL_CHIP_GROUP_CLASS } from "../panel-header/index.js";
 	import { cn } from "../../lib/utils.js";
 
 	interface Props {
@@ -38,14 +37,13 @@
 
 	const textToneClass = $derived(isAssistant ? "text-muted-foreground" : "text-muted-foreground/70");
 
-	// Fused control button group — identical UI to the worktree setup chip group:
-	// a `bg-accent/30` rounded shell whose segments are divided by hairline borders.
+	// Fused chip-style meta row — secondary shell with hairline segment dividers.
 	const dividerClass = "border-l border-border/30";
 	const labelSegmentClass =
 		"flex shrink-0 items-center px-1.5 py-1 text-xs leading-none tabular-nums transition-colors";
 </script>
 
-<ButtonGroup class={FUSED_CONTROL_CHIP_GROUP_CLASS}>
+<ButtonGroup class="overflow-hidden rounded-md bg-secondary">
 	{#if showModel}
 		<span class={cn(labelSegmentClass, textToneClass)}>{model}</span>
 	{/if}

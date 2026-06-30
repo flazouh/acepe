@@ -10,10 +10,10 @@
 	import { Colors } from "../../lib/colors.js";
 	import { Selector, SelectorItem } from "../selector/index.js";
 	import {
-		FUSED_CONTROL_SETUP_CHIP_ICON_SIZE_CLASS,
-		FUSED_CONTROL_SETUP_CHIP_ICON_SIZE_PX,
-		FUSED_CONTROL_SETUP_CHIP_LABEL_TEXT_CLASS,
-	} from "../panel-header/project-card-action-button-class.js";
+		SETUP_CHIP_ICON_CLASS,
+		SETUP_CHIP_ICON_SIZE_PX,
+		SETUP_CHIP_LABEL_TEXT_CLASS,
+	} from "./agent-input-chip-classes.js";
 	import type { ButtonVariant } from "../button/index.js";
 	import { cn } from "../../lib/utils.js";
 	import type {
@@ -86,14 +86,9 @@
 	const displayAgent = $derived(currentAgent ?? availableAgents[0] ?? null);
 
 	const effectiveTriggerSize = $derived(showLabel ? "setupBarChip" : "default");
-	const effectiveTriggerClass = $derived(
-		showLabel ? (isDropdownOpen ? "bg-accent text-foreground" : "") : triggerClass
-	);
 	const effectiveShowChevron = $derived(showLabel ? false : showChevron);
-	const setupChipIconClass = $derived(
-		showLabel ? FUSED_CONTROL_SETUP_CHIP_ICON_SIZE_CLASS : "h-4 w-4 shrink-0"
-	);
-	const setupChipIconSize = $derived(showLabel ? FUSED_CONTROL_SETUP_CHIP_ICON_SIZE_PX : 16);
+	const setupChipIconClass = $derived(showLabel ? SETUP_CHIP_ICON_CLASS : "h-4 w-4 shrink-0");
+	const setupChipIconSize = $derived(showLabel ? SETUP_CHIP_ICON_SIZE_PX : 16);
 </script>
 
 <Selector
@@ -105,7 +100,8 @@
 	showChevron={effectiveShowChevron}
 	{variant}
 	triggerSize={effectiveTriggerSize}
-	triggerClass={effectiveTriggerClass}
+	triggerClass={showLabel ? "" : triggerClass}
+	triggerActive={showLabel && isDropdownOpen}
 	side="top"
 	sideOffset={8}
 >
@@ -121,7 +117,7 @@
 				size: setupChipIconSize,
 			})}
 			{#if showLabel}
-				<span class={cn("whitespace-nowrap", FUSED_CONTROL_SETUP_CHIP_LABEL_TEXT_CLASS)}>
+				<span class={cn("whitespace-nowrap", SETUP_CHIP_LABEL_TEXT_CLASS)}>
 					{capitalizeName(displayAgent.name)}
 				</span>
 			{/if}

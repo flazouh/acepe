@@ -23,16 +23,16 @@ describe("panel header primitives", () => {
 		expect(root?.className).not.toContain("px-3");
 	});
 
-	it("renders chrome icon button with project-card action sizing", () => {
+	it("renders chrome icon button with the shared chrome sizing", () => {
 		const { container } = render(Button, {
-			variant: "chromeIcon",
-			size: "chromeIcon",
+			variant: "ghost",
+			size: "icon-chrome",
 			title: "Action",
 			"aria-label": "Action",
 		});
 		const button = container.querySelector("button");
 		expect(button).not.toBeNull();
-		expect(button?.className).toContain("size-5");
+		expect(button?.className).toContain("size-6");
 		expect(button?.className).toContain("hover:bg-accent");
 		expect(button?.className).not.toContain("hover:bg-accent/50");
 	});

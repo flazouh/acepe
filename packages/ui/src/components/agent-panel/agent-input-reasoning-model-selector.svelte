@@ -5,10 +5,8 @@
 	import { ProviderMark, type ProviderBrand } from "../provider-mark/index.js";
 	import { Selector, SelectorItem } from "../selector/index.js";
 	import { cn } from "../../lib/utils.js";
-	import {
-		FUSED_CONTROL_SETUP_CHIP_LABEL_TEXT_CLASS,
-		FusedPrimaryOverflowGroup,
-	} from "../panel-header/index.js";
+	import { COMPOSER_CHIP_LABEL_TEXT_CLASS } from "./agent-input-chip-classes.js";
+	import { FusedPrimaryOverflowGroup } from "../panel-header/index.js";
 	import { getReasoningVariantIconColor } from "./agent-input-config-option-selector-state.js";
 	import { REASONING_EFFORT_BRAIN_ICON_CLASS } from "./agent-input-reasoning-effort-trigger-props.js";
 	import type { AgentInputModelSelectorReasoningGroup } from "./agent-input-model-selector-types.js";
@@ -88,7 +86,7 @@
 							class="size-3.5"
 						/>
 					{/if}
-					<span class={cn("max-w-24 truncate", FUSED_CONTROL_SETUP_CHIP_LABEL_TEXT_CLASS)}>{primarySelectorLabel}</span>
+					<span class={cn("max-w-24 truncate", COMPOSER_CHIP_LABEL_TEXT_CLASS)}>{primarySelectorLabel}</span>
 				{/if}
 			{/snippet}
 

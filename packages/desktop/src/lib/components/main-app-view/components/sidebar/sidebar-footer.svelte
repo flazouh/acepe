@@ -15,7 +15,7 @@ interface Props {
 
 let { state: appState, projectManager, onOpenGitPanel }: Props = $props();
 
-const chromeIconButton = { variant: "chromeIcon" as const, size: "chromeIcon" as const };
+const chromeIconButton = { variant: "ghost" as const, size: "icon-chrome" as const };
 
 let appVersion = $state<string | null>(null);
 
@@ -44,7 +44,7 @@ const releaseUrl = $derived(
 			onclick={() => openUrl("https://github.com/flazouh/acepe")}
 		>
 			{#snippet children()}
-				<GithubLogo class="size-3.5" weight="fill" />
+				<GithubLogo class="size-4" weight="fill" />
 			{/snippet}
 		</Button>
 		<Button
@@ -54,7 +54,7 @@ const releaseUrl = $derived(
 			onclick={() => openUrl("https://x.com/acepedotdev")}
 		>
 			{#snippet children()}
-				<svg viewBox="0 0 24 24" aria-hidden="true" class="size-3 fill-current">
+				<svg viewBox="0 0 24 24" aria-hidden="true" class="size-4 fill-current">
 					<path
 						d="M18.244 2H21.5l-7.1 8.117L22 22h-5.956l-4.663-6.104L6.04 22H2.78l7.594-8.68L2 2h6.108l4.215 5.56L18.244 2Zm-1.143 18h1.804L5.128 3.895H3.193L17.1 20Z"
 					/>
@@ -68,7 +68,7 @@ const releaseUrl = $derived(
 			onclick={() => openUrl("https://discord.gg/5YhW7T7qhS")}
 		>
 			{#snippet children()}
-				<DiscordLogo class="size-3.5" style="color: #6C75E8" weight="fill" />
+				<DiscordLogo class="size-4" style="color: #6C75E8" weight="fill" />
 			{/snippet}
 		</Button>
 	</div>

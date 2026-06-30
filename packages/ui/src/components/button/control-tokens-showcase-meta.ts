@@ -9,7 +9,7 @@ import {
 
 export const controlTokensShowcaseMeta = {
 	title: "Button variants",
-	description: "shadcn/ui tokens. Default size is default (h-8, 32px — matches ui.shadcn.com).",
+	description: "shadcn/ui tokens. Default size is default (h-8, 32px — matches ui.shadcn.com). Chrome icon controls use ghost+icon-chrome; dense inline row actions stay on icon-2xs.",
 };
 
 export interface ButtonVariantShowcaseEntry {
@@ -39,7 +39,10 @@ export const buttonSizeShowcaseColumnMinWidth: Record<ControlTokenSize, string> 
 	default: "6.75rem",
 	lg: "7.75rem",
 	"icon-xs": "4rem",
+	"icon-2xs": "3.75rem",
+	"icon-chrome": "4.5rem",
 	"icon-sm": "4.5rem",
+	"icon-sm-narrow": "4rem",
 	icon: "4.75rem",
 	"icon-lg": "5.25rem",
 };
@@ -58,7 +61,15 @@ export type ButtonShowcaseDisplay =
 	| { readonly kind: "text"; readonly label: string };
 
 function isIconOnlyButtonSize(size: ButtonSize): boolean {
-	return size === "icon-xs" || size === "icon-sm" || size === "icon" || size === "icon-lg";
+	return (
+		size === "icon-xs" ||
+		size === "icon-2xs" ||
+		size === "icon-chrome" ||
+		size === "icon-sm" ||
+		size === "icon-sm-narrow" ||
+		size === "icon" ||
+		size === "icon-lg"
+	);
 }
 
 export function getButtonShowcaseDisplay(

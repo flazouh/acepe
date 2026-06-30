@@ -14,7 +14,8 @@
 
 	import { LoadingIcon } from "../icons/index.js";
 	import { SegmentedProgressBar } from "../segmented-progress-bar/index.js";
-	import { FUSED_CONTROL_COMPOSER_ICON_SIZE_CLASS, FUSED_CONTROL_PRIMARY_BUTTON_CLASS } from "../panel-header/project-card-action-button-class.js";
+	import { buttonVariants } from "../button/variants.js";
+	import { COMPOSER_CHIP_ICON_CLASS } from "./agent-input-chip-classes.js";
 	import { cn } from "../../lib/utils.js";
 
 	export type AgentInputMicVisualState = "mic" | "spinner" | "stop" | "download_progress";
@@ -48,11 +49,15 @@
 	let isHovered = $state(false);
 	const isRecording = $derived(visualState === "stop");
 	const STOP_RED = "#FF5D5A";
+	const embeddedGroupShellClass = buttonVariants({ variant: "secondary", size: "icon-sm" });
 	const buttonClass = $derived(
 		cn(
 			"group relative flex items-center justify-center focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
 			embeddedInGroup
-				? cn(FUSED_CONTROL_PRIMARY_BUTTON_CLASS, "shadow-none transition-colors duration-200 ease-out")
+				? cn(
+						embeddedGroupShellClass,
+						"rounded-none rounded-l-md shadow-none transition-colors duration-200 ease-out"
+					)
 				: "mic-btn rounded-full transition-all duration-200 ease-out",
 			visualState === "mic" && "mic-idle",
 			visualState === "stop" && "mic-recording",
@@ -99,7 +104,7 @@
 	{:else}
 		<div class="mic-icon-wrap">
 			<Microphone
-				class="{FUSED_CONTROL_COMPOSER_ICON_SIZE_CLASS} transition-all duration-150 ease-out"
+				class="{COMPOSER_CHIP_ICON_CLASS} transition-all duration-150 ease-out"
 				weight={isHovered ? "fill" : "bold"}
 			/>
 		</div>
