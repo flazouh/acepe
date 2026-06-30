@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { CheckCircle, GithubLogo, MinusCircle, Wrench, XCircle } from "phosphor-svelte";
+	import { MinusCircle, Wrench, XCircle } from "phosphor-svelte";
 	import { untrack } from "svelte";
 
 	import type { PrChecksItem } from "./types.js";
@@ -109,7 +109,7 @@
 								{:else if bucket === "neutral"}
 									<MinusCircle size={10} weight="fill" class="text-amber-400" />
 								{:else}
-									<CheckCircle size={10} weight="fill" class="text-emerald-500" />
+									<RoundedIcon name="check-circle" class="size-2.5 text-emerald-500" />
 								{/if}
 							</span>
 							{#if onViewDetails}
@@ -165,7 +165,7 @@
 											onOpenCheck?.(check, event);
 										}}
 									>
-										<GithubLogo size={10} weight="fill" />
+										<RoundedIcon name="github" class="size-2.5" />
 									</Button>
 								{/if}
 							</span>
@@ -206,7 +206,7 @@
 							{:else if segment.kind === "neutral"}
 								<MinusCircle size={11} weight="fill" />
 							{:else}
-								<CheckCircle size={11} weight="fill" />
+								<RoundedIcon name="check-circle" class="size-[11px]" />
 							{/if}
 							{segment.label}
 						</span>

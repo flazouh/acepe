@@ -1,6 +1,5 @@
 <script lang="ts">
 	import { GitPullRequest } from "phosphor-svelte";
-	import { ArrowSquareOut } from "phosphor-svelte";
 	import { GitMerge } from "phosphor-svelte";
 
 	import { DiffPill } from "../diff-pill/index.js";
@@ -74,7 +73,7 @@
 				onclick={onViewOnGitHub}
 				title="View on GitHub"
 			>
-				<ArrowSquareOut size={12} />
+				<RoundedIcon name="external-link" class="size-3" />
 			</button>
 		{/if}
 

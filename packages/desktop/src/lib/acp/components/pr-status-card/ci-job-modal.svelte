@@ -1,7 +1,7 @@
 <script lang="ts">
-import { LoadingIcon } from "@acepe/ui";
+import { LoadingIcon, RoundedIcon } from "@acepe/ui";
 import type { PrChecksItem } from "@acepe/ui";
-import { CheckCircle, GithubLogo, MinusCircle, Wrench, XCircle } from "phosphor-svelte";
+import { MinusCircle, Wrench, XCircle } from "phosphor-svelte";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import DialogFrame from "$lib/components/ui/dialog-frame.svelte";
 import type { CiJobDetails, CiJobStep } from "$lib/utils/tauri-client/git.js";
@@ -79,7 +79,7 @@ function openOnGitHub(): void {
 			class="gap-1.5 text-muted-foreground"
 			onclick={openOnGitHub}
 		>
-			<GithubLogo size={12} weight="fill" />
+			<RoundedIcon name="github" class="size-3" />
 			View on GitHub
 		</Button>
 	{/snippet}
@@ -112,7 +112,7 @@ function openOnGitHub(): void {
 							{:else if bucket === "neutral"}
 								<MinusCircle size={10} weight="fill" class="text-amber-400" />
 							{:else}
-								<CheckCircle size={10} weight="fill" class="text-emerald-500" />
+								<RoundedIcon name="check-circle" class="size-2.5 text-emerald-500" />
 							{/if}
 						</span>
 						<span class="truncate">{step.name}</span>

@@ -1,6 +1,5 @@
 <script lang="ts">
 	import { GitCommit } from "phosphor-svelte";
-	import { ArrowSquareOut } from "phosphor-svelte";
 
 	import { DiffPill } from "../diff-pill/index.js";
 	import { RoundedIcon } from "../icons/index.js";
@@ -78,7 +77,7 @@
 				onclick={onViewOnGitHub}
 				title="View on GitHub"
 			>
-				<ArrowSquareOut size={12} />
+				<RoundedIcon name="external-link" class="size-3" />
 			</button>
 		{/if}
 

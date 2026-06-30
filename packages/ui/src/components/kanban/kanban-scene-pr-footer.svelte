@@ -1,6 +1,4 @@
 <script lang="ts">
-	import { ArrowSquareOut } from "phosphor-svelte";
-
 	import { DiffPill } from "../diff-pill/index.js";
 	import { RoundedIcon } from "../icons/index.js";
 	import { PrChecksList, PrChecksSummary, type PrChecksItem } from "../pr-checks/index.js";
@@ -104,7 +102,7 @@
 			onOpenExternal();
 		}}
 	>
-		<ArrowSquareOut size={12} weight="bold" />
+		<RoundedIcon name="external-link" class="size-3" />
 	</button>
 </div>
 

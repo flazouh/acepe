@@ -1,5 +1,4 @@
 <script lang="ts">
-	import { ArrowSquareOut } from "phosphor-svelte";
 	import { RoundedIcon } from "../icons/index.js";
 	import AgentToolCard from "./agent-tool-card.svelte";
 	import {
@@ -143,10 +142,9 @@
 							<span class="text-sm text-muted-foreground truncate">
 								{link.title}
 							</span>
-							<ArrowSquareOut
-								size={9}
-								weight="regular"
-								class="shrink-0 text-muted-foreground/30 opacity-0 transition-opacity group-hover:opacity-100"
+							<RoundedIcon
+								name="external-link"
+								class="size-[9px] shrink-0 text-muted-foreground/30 opacity-0 transition-opacity group-hover:opacity-100"
 							/>
 						</a>
 					{/each}
@@ -196,10 +194,9 @@
 										<span class="truncate text-sm text-muted-foreground/70">
 											{link.domain}
 										</span>
-										<ArrowSquareOut
-											size={10}
-											weight="regular"
-											class="shrink-0 text-muted-foreground/30 opacity-0 transition-opacity group-hover:opacity-100"
+										<RoundedIcon
+											name="external-link"
+											class="size-2.5 shrink-0 text-muted-foreground/30 opacity-0 transition-opacity group-hover:opacity-100"
 										/>
 									</div>
 									<span class="text-sm text-foreground line-clamp-2 leading-snug">
