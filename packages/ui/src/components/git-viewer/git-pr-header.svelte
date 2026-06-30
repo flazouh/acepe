@@ -1,10 +1,10 @@
 <script lang="ts">
 	import { GitPullRequest } from "phosphor-svelte";
 	import { ArrowSquareOut } from "phosphor-svelte";
-	import { CaretDown } from "phosphor-svelte";
 	import { GitMerge } from "phosphor-svelte";
 
 	import { DiffPill } from "../diff-pill/index.js";
+	import { RoundedIcon } from "../icons/index.js";
 	import { cn } from "../../lib/utils.js";
 	import type { GitPrData } from "./types.js";
 
@@ -84,7 +84,7 @@
 			onclick={() => { expanded = !expanded; }}
 			title={expanded ? "Collapse details" : "Expand details"}
 		>
-			<CaretDown size={12} weight="regular" class="size-3 shrink-0 transition-transform duration-150 {expanded ? 'rotate-180' : ''}"
+			<RoundedIcon name="chevron-down" class="size-3 shrink-0 transition-transform duration-150 {expanded ? 'rotate-180' : ''}"
 			/>
 		</button>
 	</div>

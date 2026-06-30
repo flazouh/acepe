@@ -4,7 +4,6 @@
 	 * Reuses the same tree-building logic as the desktop file list,
 	 * stripped of context menus and Tauri.
 	 */
-	import { CaretRight } from "phosphor-svelte";
 	import { FilePlus } from "phosphor-svelte";
 	import { FileX } from "phosphor-svelte";
 	import { FileDashed } from "phosphor-svelte";
@@ -13,6 +12,7 @@
 	import { SvelteSet } from "svelte/reactivity";
 
 	import { DiffPill } from "../diff-pill/index.js";
+	import { RoundedIcon } from "../icons/index.js";
 	import { getFileIconSrc, getFallbackIconSrc, getSpecialFolderIconSrc, getFolderIconSrc } from "../../lib/file-icon/index.js";
 	import { cn } from "../../lib/utils.js";
 	import type { Snippet } from "svelte";
@@ -138,7 +138,7 @@
 						class="flex h-3.5 w-3.5 shrink-0 items-center justify-center transition-transform duration-150"
 						class:rotate-90={isExpanded}
 					>
-						<CaretRight size={12} weight="regular"  class="size-3"/>
+						<RoundedIcon name="chevron-right" class="size-3" />
 					</span>
 					{#if useSvgIcons}
 						<img

@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { CaretDown, CheckCircle, GithubLogo, MinusCircle, Wrench, XCircle } from "phosphor-svelte";
+	import { CheckCircle, GithubLogo, MinusCircle, Wrench, XCircle } from "phosphor-svelte";
 	import { untrack } from "svelte";
 
 	import type { PrChecksItem } from "./types.js";
@@ -9,7 +9,7 @@
 		formatPrChecksSummaryAriaLabel,
 	} from "./pr-checks-summary-format.js";
 	import { Button } from "../button/index.js";
-	import { LoadingIcon } from "../icons/index.js";
+	import { LoadingIcon, RoundedIcon } from "../icons/index.js";
 
 	interface Props {
 		checks?: readonly PrChecksItem[];
@@ -212,7 +212,7 @@
 						</span>
 					{/each}
 				</div>
-				<CaretDown size={12} weight="regular" class="size-3 shrink-0 text-muted-foreground/50 transition-transform {showDetails ? 'rotate-180' : ''}"
+				<RoundedIcon name="chevron-down" class="size-3 shrink-0 text-muted-foreground/50 transition-transform {showDetails ? 'rotate-180' : ''}"
 				/>
 			</button>
 		{/if}
