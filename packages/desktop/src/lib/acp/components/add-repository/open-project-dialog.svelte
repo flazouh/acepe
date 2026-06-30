@@ -1,6 +1,5 @@
 <script lang="ts">
 import { Button, PillButton, RoundedIcon } from "@acepe/ui";
-import { Link } from "phosphor-svelte";
 import { toast } from "svelte-sonner";
 import { ProjectClient } from "$lib/acp/logic/project-client.js";
 import { Spinner } from "$lib/components/ui/spinner/index.js";
@@ -377,7 +376,7 @@ function handleOpenChange(newOpen: boolean) {
 				<!-- URL field -->
 				<div class="space-y-1.5">
 					<label class="text-[11px] font-medium text-muted-foreground flex items-center gap-1.5">
-						<Link size={12} />
+						<RoundedIcon name="link" class="size-3" />
 						{"Repository URL"}
 					</label>
 					<input

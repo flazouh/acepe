@@ -22,8 +22,6 @@ import {
 import { GitWorkspace } from "@acepe/ui/git-panel";
 import { listen } from "@tauri-apps/api/event";
 import { openUrl } from "@tauri-apps/plugin-opener";
-import { GitBranch } from "phosphor-svelte";
-import { GitPullRequest } from "phosphor-svelte";
 import { Tree } from "phosphor-svelte";
 import { onMount, untrack } from "svelte";
 import { toast } from "svelte-sonner";

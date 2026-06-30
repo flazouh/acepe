@@ -1,14 +1,20 @@
 <script lang="ts">
 import { RoundedIcon } from "@acepe/ui";
-import { CheckCircle } from "phosphor-svelte";
+import type { Component } from "svelte";
 import { Button } from "$lib/components/ui/button/index.js";
 import { cn } from "$lib/utils.js";
+
+type InlineConfirmIconWeight = "thin" | "light" | "regular" | "bold" | "fill" | "duotone";
+type InlineConfirmIcon = Component<{
+	class?: string;
+	weight?: InlineConfirmIconWeight;
+}>;
 
 interface Props {
 	/** Text to show in default state */
 	label: string;
 	/** Icon component to show in default state */
-	icon?: typeof CheckCircle;
+	icon?: InlineConfirmIcon;
 	/** Called when user confirms the action */
 	onConfirm: () => void;
 	/** Whether the action is in progress */
