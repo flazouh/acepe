@@ -1,5 +1,6 @@
 <script lang="ts">
-	import { CheckCircle, XCircle, CaretDown } from "phosphor-svelte";
+	import { CheckCircle, XCircle } from "phosphor-svelte";
+	import { RoundedIcon } from "../icons/index.js";
 	import AgentToolCard from "./agent-tool-card.svelte";
 	import { scrollToEnd } from "./agent-tool-execute-effects.js";
 	import {
@@ -115,7 +116,7 @@
 					class="flex items-center justify-center rounded-lg border-none bg-transparent p-0.5 text-muted-foreground transition-colors hover:bg-accent focus-visible:outline-2 focus-visible:outline-ring focus-visible:outline-offset-2 active:scale-95"
 					aria-label={isExpanded ? ariaCollapseOutput : ariaExpandOutput}
 				>
-					<CaretDown size={12} weight="regular" class="size-3 shrink-0 transition-transform duration-150 {isExpanded ? 'rotate-180' : ''}"
+					<RoundedIcon name="chevron-down" class="size-3 shrink-0 transition-transform duration-150 {isExpanded ? 'rotate-180' : ''}"
 					/>
 				</button>
 			{/if}

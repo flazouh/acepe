@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { CaretRight } from "phosphor-svelte";
+	import { RoundedIcon } from "../icons/index.js";
 
 	import AgentToolCard from "./agent-tool-card.svelte";
 	import ToolHeaderLeading from "./tool-header-leading.svelte";
@@ -108,7 +108,7 @@
 						aria-label={isExpanded ? ariaCollapse : ariaExpand}
 						aria-expanded={isExpanded}
 					>
-						<CaretRight size={12} weight="regular" class="size-3 shrink-0 text-muted-foreground transition-transform duration-150 {isExpanded ? 'rotate-90' : ''}"
+						<RoundedIcon name="chevron-right" class="size-3 shrink-0 text-muted-foreground transition-transform duration-150 {isExpanded ? 'rotate-90' : ''}"
 						/>
 					</button>
 				{/if}
