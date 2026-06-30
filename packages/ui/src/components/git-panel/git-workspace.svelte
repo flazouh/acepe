@@ -47,7 +47,6 @@
 	import {
 		ArrowDown,
 		ArrowUp,
-		CaretDown,
 		GitBranch,
 		GitCommit,
 		GitPullRequest,
@@ -58,6 +57,7 @@
 
 	import { Button } from "../button/index.js";
 	import { ButtonGroup } from "../button-group/index.js";
+	import { RoundedIcon } from "../icons/index.js";
 	import SegmentedToggleGroup from "../panel-header/segmented-toggle-group.svelte";
 	import { cn } from "../../lib/utils.js";
 	import GitStatusRow from "./git-status-row.svelte";
@@ -226,7 +226,7 @@
 					<GitBranch size={14} class="shrink-0 text-muted-foreground" />
 					<span class="truncate font-normal">{branch}</span>
 					{#if onBranchClick}
-						<CaretDown size={12} weight="regular" class="size-3 shrink-0 text-muted-foreground/70" />
+						<RoundedIcon name="chevron-down" class="size-3 shrink-0 text-muted-foreground/70" />
 					{/if}
 				</button>
 

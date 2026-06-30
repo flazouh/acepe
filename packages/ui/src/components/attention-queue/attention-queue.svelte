@@ -3,10 +3,9 @@ import type { Snippet } from "svelte";
 import type { SectionedFeedGroup, SectionedFeedItemData } from "./types.js";
 
 import { BellSimple } from "phosphor-svelte";
-import { CaretDown } from "phosphor-svelte";
-import { CaretRight } from "phosphor-svelte";
 
 import FeedSectionHeader from "./feed-section-header.svelte";
+import { RoundedIcon } from "../icons/index.js";
 import { sectionColor } from "./section-color.js";
 
 interface Props {
@@ -78,9 +77,9 @@ function toggleExpanded() {
 				</span>
 				<div class="ml-auto">
 					{#if expandedInternal}
-						<CaretDown size={12} weight="regular" class="size-3 text-muted-foreground shrink-0" />
+						<RoundedIcon name="chevron-down" class="size-3 text-muted-foreground shrink-0" />
 					{:else}
-						<CaretRight size={12} weight="regular" class="size-3 text-muted-foreground shrink-0" />
+						<RoundedIcon name="chevron-right" class="size-3 text-muted-foreground shrink-0" />
 					{/if}
 				</div>
 			</button>

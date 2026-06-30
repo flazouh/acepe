@@ -3,8 +3,9 @@
    * SqlStudioSidebar — Connections list + schema tree sidebar.
    * Matches the git panel's dense, monospace design language.
    */
-  import { CaretRight, Table as TableIcon, Trash, Key } from "phosphor-svelte";
+  import { Table as TableIcon, Trash, Key } from "phosphor-svelte";
   import PlusIcon from "../icons/plus-icon.svelte";
+  import { RoundedIcon } from "../icons/index.js";
   import { TAG_COLORS } from "../../lib/colors.js";
   import { cn } from "../../lib/utils.js";
   import type { SqlConnection, SqlSchemaInfo } from "./types.js";
@@ -169,7 +170,7 @@
                     title={isExpanded ? "Collapse columns" : "Expand columns"}
                     onclick={(e) => toggleTableExpand(tableKey, e)}
                   >
-                    <CaretRight size={12} weight="regular"
+                    <RoundedIcon name="chevron-right"
                       class={cn(
                         "size-3 text-muted-foreground transition-transform duration-150",
                         isExpanded && "rotate-90",

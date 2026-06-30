@@ -1,8 +1,6 @@
 <script lang="ts">
 	import { IconSquare } from "@tabler/icons-svelte";
 	import { IconHelpCircleFilled } from "@tabler/icons-svelte";
-	import { CaretRight } from "phosphor-svelte";
-	import { CaretLeft } from "phosphor-svelte";
 	import { RoundedIcon } from "../icons/index.js";
 
 	import type {
@@ -78,7 +76,7 @@
 						onPrevQuestion();
 					}}
 				>
-					<CaretLeft size={12} weight="regular" class="size-3 shrink-0 text-muted-foreground" />
+					<RoundedIcon name="chevron-left" class="size-3 shrink-0 text-muted-foreground" />
 				</button>
 				<span class="px-0.5 font-mono text-xs tabular-nums text-muted-foreground">
 					{currentQuestionIndex + 1}/{totalQuestions}
@@ -92,7 +90,7 @@
 						onNextQuestion();
 					}}
 				>
-					<CaretRight size={12} weight="regular" class="size-3 shrink-0 text-muted-foreground" />
+					<RoundedIcon name="chevron-right" class="size-3 shrink-0 text-muted-foreground" />
 				</button>
 			</div>
 			<div class="ml-1 flex shrink-0 gap-0.5">

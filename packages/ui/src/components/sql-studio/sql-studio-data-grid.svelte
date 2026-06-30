@@ -3,9 +3,8 @@
 	 * SqlStudioDataGrid — Compact monospace data table for SQL Studio.
 	 * Matches the git panel's dense, monospace design language.
 	 */
-	import { CaretUp } from "phosphor-svelte";
-	import { CaretDown } from "phosphor-svelte";
 	import { cn } from "../../lib/utils.js";
+	import { RoundedIcon } from "../icons/index.js";
 	import type { SqlSortDirection } from "./types.js";
 
 	interface Props {
@@ -54,9 +53,9 @@
 								{column}
 								{#if sortColumn === column}
 									{#if sortDirection === "asc"}
-										<CaretUp size={12} weight="regular" class="size-3 shrink-0 text-primary" />
+										<RoundedIcon name="chevron-up" class="size-3 shrink-0 text-primary" />
 									{:else}
-										<CaretDown size={12} weight="regular" class="size-3 shrink-0 text-primary" />
+										<RoundedIcon name="chevron-down" class="size-3 shrink-0 text-primary" />
 									{/if}
 								{/if}
 							</button>

@@ -5,8 +5,7 @@
 	 *
 	 * This is a "dumb" component - all data and actions are passed via props.
 	 */
-	import { CaretRight } from 'phosphor-svelte';
-	import { LoadingIcon } from '../icons/index.js';
+	import { LoadingIcon, RoundedIcon } from '../icons/index.js';
 	import { slide } from 'svelte/transition';
 	import { PillButton } from '../pill-button/index.js';
 	import { RevertIcon } from '../icons/index.js';
@@ -90,7 +89,7 @@
 	>
 		<div class="flex items-center gap-1.5 min-w-0 flex-1">
 			{#if allowDiffExpand}
-				<CaretRight size={12} weight="regular" class="size-3 text-muted-foreground shrink-0 transition-transform duration-150 {isDiffExpanded ? 'rotate-90' : ''}"
+				<RoundedIcon name="chevron-right" class="size-3 text-muted-foreground shrink-0 transition-transform duration-150 {isDiffExpanded ? 'rotate-90' : ''}"
 				/>
 			{/if}
 
