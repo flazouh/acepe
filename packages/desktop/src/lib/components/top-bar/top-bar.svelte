@@ -1,6 +1,7 @@
 <script lang="ts">
 import {
 	Button,
+	RoundedIcon,
 	SegmentedToggleGroup,
 	Selector,
 	UsageLimitWidget,
@@ -18,7 +19,6 @@ import { DownloadSimple } from "phosphor-svelte";
 import { HardDrives } from "phosphor-svelte";
 import { Kanban } from "phosphor-svelte";
 import { Palette } from "phosphor-svelte";
-import { SlidersHorizontal } from "phosphor-svelte";
 import { Square } from "phosphor-svelte";
 import { SquaresFour } from "phosphor-svelte";
 import { Wrench } from "phosphor-svelte";
@@ -297,7 +297,7 @@ onMount(() => {
 				triggerAriaLabel="Layout Settings"
 			>
 				{#snippet renderButton()}
-					<SlidersHorizontal class="size-4" weight="fill" />
+					<RoundedIcon name="filter" class="size-4" />
 				{/snippet}
 
 				<DropdownMenu.Group>

@@ -1,7 +1,6 @@
 <script lang="ts">
 import { AppSidebarLayout } from "@acepe/ui/app-layout";
-import { Button } from "@acepe/ui";
-import { FolderOpen, FolderPlus, GitBranch, MagnifyingGlass, NotePencil } from "phosphor-svelte";
+import { Button, RoundedIcon } from "@acepe/ui";
 import { toast } from "svelte-sonner";
 import { copyTextToClipboard } from "$lib/acp/components/agent-panel/logic/clipboard-manager.js";
 import { SessionList } from "$lib/acp/components/index.js";
@@ -497,60 +496,60 @@ const visibleSessions = $derived.by(() => {
 				onclick={() => onImportProject?.()}
 			>
 				{#snippet children()}
-					<FolderPlus weight="fill" />
+					<RoundedIcon name="plus" class="size-4" />
 				{/snippet}
 			</Button>
 			<div class="ml-auto flex items-center gap-0.5">
-			<Button
-				variant="ghost"
-				size="icon-chrome"
-				data-header-control
-				title="New chat"
-				aria-label="New chat"
-				onclick={handleNewThread}
-			>
-				{#snippet children()}
-					<NotePencil weight="fill" />
-				{/snippet}
-			</Button>
-			<Button
-				variant="ghost"
-				size="icon-chrome"
-				data-header-control
-				title="Search"
-				aria-label="Search"
-				onclick={() => {
-					appState.commandPaletteOpen = true;
-				}}
-			>
-				{#snippet children()}
-					<MagnifyingGlass weight="regular" />
-				{/snippet}
-			</Button>
-			<Button
-				variant="ghost"
-				size="icon-chrome"
-				data-header-control
-				title="Source control"
-				aria-label="Source control"
-				onclick={handleOpenSourceControl}
-			>
-				{#snippet children()}
-					<GitBranch weight="regular" />
-				{/snippet}
-			</Button>
-			<Button
-				variant="ghost"
-				size="icon-chrome"
-				data-header-control
-				title="File system"
-				aria-label="File system"
-				onclick={handleOpenFileSystem}
-			>
-				{#snippet children()}
-					<FolderOpen weight="regular" />
-				{/snippet}
-			</Button>
+				<Button
+					variant="ghost"
+					size="icon-chrome"
+					data-header-control
+					title="New chat"
+					aria-label="New chat"
+					onclick={handleNewThread}
+				>
+					{#snippet children()}
+						<RoundedIcon name="new-chat" class="size-4" />
+					{/snippet}
+				</Button>
+				<Button
+					variant="ghost"
+					size="icon-chrome"
+					data-header-control
+					title="Search"
+					aria-label="Search"
+					onclick={() => {
+						appState.commandPaletteOpen = true;
+					}}
+				>
+					{#snippet children()}
+						<RoundedIcon name="search" class="size-4" />
+					{/snippet}
+				</Button>
+				<Button
+					variant="ghost"
+					size="icon-chrome"
+					data-header-control
+					title="Source control"
+					aria-label="Source control"
+					onclick={handleOpenSourceControl}
+				>
+					{#snippet children()}
+						<RoundedIcon name="review" class="size-4" />
+					{/snippet}
+				</Button>
+				<Button
+					variant="ghost"
+					size="icon-chrome"
+					data-header-control
+					title="File system"
+					aria-label="File system"
+					onclick={handleOpenFileSystem}
+				>
+					{#snippet children()}
+						<RoundedIcon name="files" class="size-4" />
+					{/snippet}
+				</Button>
 			</div>
 		</div>
 	{/snippet}

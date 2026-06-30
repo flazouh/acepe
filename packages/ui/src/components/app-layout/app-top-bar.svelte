@@ -1,7 +1,5 @@
 <script lang="ts">
 	import type { Snippet } from "svelte";
-	import { FolderPlus } from "phosphor-svelte";
-	import { GearSix } from "phosphor-svelte";
 	import AppSearchButton from "./app-search-button.svelte";
 	import { Button } from "../button/index.js";
 	import { RoundedIcon } from "../icons/index.js";
@@ -97,7 +95,7 @@
 				{:else}
 					<Button {...chromeIconButton} title="Add project" aria-label="Add Project">
 						{#snippet children()}
-							<FolderPlus class={ICON} weight="fill" />
+							<RoundedIcon name="plus" class={ICON} />
 						{/snippet}
 					</Button>
 				{/if}
@@ -125,7 +123,7 @@
 		{#if showSettings}
 			<Button {...chromeIconButton} title="Settings" aria-label="Settings" onclick={onSettings}>
 				{#snippet children()}
-					<GearSix class={ICON} weight="fill" />
+					<RoundedIcon name="settings" class={ICON} />
 				{/snippet}
 			</Button>
 		{/if}
