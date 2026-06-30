@@ -1,5 +1,4 @@
 <script lang="ts">
-	import { XCircle } from "phosphor-svelte";
 	import {
 		EmbeddedPanelHeader,
 		HeaderActionCell,
@@ -24,7 +23,7 @@
 <EmbeddedPanelHeader class="bg-accent/40">
 	<HeaderTitleCell compactPadding>
 		{#if state === "cancelled"}
-			<XCircle size={14} weight="fill" class="shrink-0 mr-1 text-muted-foreground" />
+			<RoundedIcon name="x-circle" class="size-3.5 shrink-0 mr-1 text-muted-foreground" />
 		{:else if state === "answered"}
 			<RoundedIcon name="question-circle" class="h-3.5 w-3.5 shrink-0 mr-1 text-success" />
 		{:else}

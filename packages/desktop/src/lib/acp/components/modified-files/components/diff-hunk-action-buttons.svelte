@@ -1,7 +1,6 @@
 <script lang="ts">
 import { RoundedIcon } from "@acepe/ui";
 import { Colors } from "@acepe/ui/colors";
-import { XCircle } from "phosphor-svelte";
 interface Props {
 	onUndo: () => void;
 	onKeep: () => void;
@@ -18,7 +17,7 @@ let { onUndo, onKeep }: Props = $props();
 			title={"Undo"}
 			onclick={onUndo}
 		>
-			<XCircle class="h-3 w-3 shrink-0" style="color: {Colors.red};" weight="fill" />
+			<RoundedIcon name="x-circle" class="h-3 w-3 shrink-0" style="color: {Colors.red};" />
 			{"Undo"}
 		</button>
 		<div class="w-px bg-border/50"></div>

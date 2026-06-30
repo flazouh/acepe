@@ -758,6 +758,7 @@ export const roundedIconAliasNames = [
 	"keyboard",
 	"laptop",
 	"lightning",
+	"link",
 	"lock",
 	"log",
 	"macbook",
@@ -771,6 +772,8 @@ export const roundedIconAliasNames = [
 	"pencil",
 	"permissions",
 	"phone",
+	"play",
+	"play-outline",
 	"plus",
 	"pop",
 	"pull-request",
@@ -800,6 +803,8 @@ export const roundedIconAliasNames = [
 	"unselected",
 	"warning",
 	"worktree",
+	"x-circle",
+	"x-circle-filled",
 ] as const;
 
 export type RoundedIconAliasName = (typeof roundedIconAliasNames)[number];
@@ -862,6 +867,7 @@ export const roundedIconAliases: Record<RoundedIconAliasName, RoundedIconCanonic
 	"keyboard": "keyboard-bekoxw7i",
 	"laptop": "laptop-dvgdtu4m",
 	"lightning": "lightning-bolt-com2o9ig",
+	"link": "link-disddasq",
 	"lock": "lock-cqrxeatr",
 	"log": "log-out-dcwl3jef",
 	"macbook": "macbook-cmehvta6",
@@ -875,6 +881,8 @@ export const roundedIconAliases: Record<RoundedIconAliasName, RoundedIconCanonic
 	"pencil": "pencil-dclvkfgw",
 	"permissions": "permissions-mode-visibility-catep6vk",
 	"phone": "phone-dfkyobyn",
+	"play": "play-sm-bgmgx9gj",
+	"play-outline": "play-outline-sajgrat4",
 	"plus": "plus-d3dp-dmx",
 	"pop": "pop-in-mac-d0lta1fm",
 	"pull-request": "pull-request-open-dat8z13d",
@@ -904,6 +912,8 @@ export const roundedIconAliases: Record<RoundedIconAliasName, RoundedIconCanonic
 	"unselected": "unselected-circle-bn-idxy",
 	"warning": "warning-dwu3umfh",
 	"worktree": "worktree-c9u2neou",
+	"x-circle": "x-circle-cfq7iwx",
+	"x-circle-filled": "x-circle-filled-dpbzvfj3",
 };
 
 export type RoundedIconName = RoundedIconCanonicalName | RoundedIconAliasName;

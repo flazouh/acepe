@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { FileCode, XCircle } from "phosphor-svelte";
+	import { FileCode } from "phosphor-svelte";
 	import { RoundedIcon } from "../icons/index.js";
 
 	import { EmbeddedPanelHeader, HeaderActionCell, HeaderTitleCell } from "../panel-header/index.js";
@@ -23,7 +23,7 @@
 		</HeaderTitleCell>
 		<HeaderActionCell withDivider={false}>
 			<button type="button" class="plan-action-btn" onclick={onReject}>
-				<XCircle weight="fill" class="size-3 shrink-0 text-red-500" />
+				<RoundedIcon name="x-circle" class="size-3 shrink-0 text-red-500" />
 				{rejectLabel}
 			</button>
 		</HeaderActionCell>

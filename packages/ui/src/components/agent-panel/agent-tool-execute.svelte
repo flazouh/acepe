@@ -1,5 +1,4 @@
 <script lang="ts">
-	import { CheckCircle, XCircle } from "phosphor-svelte";
 	import { RoundedIcon } from "../icons/index.js";
 	import AgentToolCard from "./agent-tool-card.svelte";
 	import { scrollToEnd } from "./agent-tool-execute-effects.js";
@@ -102,9 +101,9 @@
 			/>
 
 			{#if isSuccess}
-				<CheckCircle weight="fill" size={11} class="text-success" />
+				<RoundedIcon name="check-circle" class="size-[11px] text-success" />
 			{:else if isError}
-				<XCircle weight="fill" size={11} class="text-destructive" />
+				<RoundedIcon name="x-circle" class="size-[11px] text-destructive" />
 			{/if}
 
 			{#if !isPending && hasOutput}
