@@ -1,8 +1,8 @@
 <script lang="ts">
-	import { CaretRight } from "phosphor-svelte";
 	import type { Snippet } from "svelte";
 
 	import { TAG_COLORS } from "../../lib/colors.js";
+	import { RoundedIcon } from "../icons/index.js";
 	import { ProjectLetterBadge } from "../project-letter-badge/index.js";
 	import { SIDEBAR_TREE_ROW_PADDING_X_CLASS } from "./sidebar-tree-row-classes.js";
 
@@ -50,7 +50,7 @@
 		<span
 			class="ml-1 inline-flex shrink-0 items-center text-muted-foreground/60 opacity-0 transition-opacity duration-150 group-hover:opacity-100"
 		>
-			<CaretRight size={12} weight="regular" class="size-3 shrink-0 transition-transform duration-150 {expanded ? 'rotate-90' : ''}"
+			<RoundedIcon name="chevron-right" class="size-3 shrink-0 transition-transform duration-150 {expanded ? 'rotate-90' : ''}"
 			/>
 		</span>
 	</div>

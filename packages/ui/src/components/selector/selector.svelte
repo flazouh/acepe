@@ -1,7 +1,6 @@
 <script lang="ts">
 	import * as DropdownMenu from "../dropdown-menu/index.js";
 	import * as Tooltip from "../tooltip/index.js";
-	import { CaretDown } from "phosphor-svelte";
 	import { mergeProps } from "bits-ui";
 	import type { Snippet } from "svelte";
 
@@ -235,7 +234,7 @@
 				{@render renderButton()}
 			{/if}
 			{#if showChevron}
-				<CaretDown size={12} weight="regular" class="size-3 shrink-0 text-muted-foreground transition-transform duration-200 {open ? 'rotate-180' : ''}" />
+				<RoundedIcon name="chevron-down" class="size-3 shrink-0 text-muted-foreground transition-transform duration-200 {open ? 'rotate-180' : ''}" />
 			{/if}
 		</button>
 	{:else}
@@ -259,7 +258,7 @@
 					{@render renderButton()}
 				{/if}
 				{#if showChevron}
-					<CaretDown size={12} weight="regular" class="size-3 shrink-0 text-muted-foreground transition-transform duration-200 {open ? 'rotate-180' : ''}" />
+					<RoundedIcon name="chevron-down" class="size-3 shrink-0 text-muted-foreground transition-transform duration-200 {open ? 'rotate-180' : ''}" />
 				{/if}
 			</Button>
 		</div>
