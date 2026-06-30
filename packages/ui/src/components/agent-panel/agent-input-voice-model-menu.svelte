@@ -64,6 +64,11 @@
 			downloadingModelId,
 		})
 	);
+
+	/** Prevent bits-ui MenuItem from synthesizing row select on nested button clicks. */
+	function isolateNestedMenuActionPointer(event: Event): void {
+		event.stopPropagation();
+	}
 </script>
 
 <Selector
@@ -124,12 +129,11 @@
 						<div
 							role="group"
 							class="shrink-0"
-							onpointerdown={(event: PointerEvent) => {
-								event.stopPropagation();
-							}}
-							onclick={(event: MouseEvent) => {
-								event.stopPropagation();
-							}}
+							onpointerdown={isolateNestedMenuActionPointer}
+							onpointerup={isolateNestedMenuActionPointer}
+							onmousedown={isolateNestedMenuActionPointer}
+							onmouseup={isolateNestedMenuActionPointer}
+							onclick={isolateNestedMenuActionPointer}
 						>
 							<Button
 								variant="ghost"
@@ -149,12 +153,11 @@
 						<div
 							role="group"
 							class="shrink-0"
-							onpointerdown={(event: PointerEvent) => {
-								event.stopPropagation();
-							}}
-							onclick={(event: MouseEvent) => {
-								event.stopPropagation();
-							}}
+							onpointerdown={isolateNestedMenuActionPointer}
+							onpointerup={isolateNestedMenuActionPointer}
+							onmousedown={isolateNestedMenuActionPointer}
+							onmouseup={isolateNestedMenuActionPointer}
+							onclick={isolateNestedMenuActionPointer}
 						>
 							<Button
 								variant="ghost"
