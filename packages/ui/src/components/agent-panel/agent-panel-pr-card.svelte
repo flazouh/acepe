@@ -1,13 +1,12 @@
 <script lang="ts">
 	import { GitPullRequest, GitMerge } from "phosphor-svelte";
-	import { CaretDown } from "phosphor-svelte";
 
 	import type { AgentPanelPrCardModel } from "./types.js";
 
 	import { Colors } from "../../lib/colors.js";
 	import { DiffPill } from "../diff-pill/index.js";
 	import { GitHubBadge } from "../github-badge/index.js";
-	import { LoadingIcon } from "../icons/index.js";
+	import { LoadingIcon, RoundedIcon } from "../icons/index.js";
 	import { MarkdownDisplay } from "../markdown/index.js";
 	import { PrChecksList } from "../pr-checks/index.js";
 	import AgentPanelPrStatusCard from "./pr-status-card.svelte";
@@ -101,7 +100,7 @@
 			{#if model.mode === "streaming" && model.isStreaming}
 				<LoadingIcon class="shrink-0 animate-spin" size={12} />
 			{/if}
-			<CaretDown size={12} weight="regular" class="size-3 shrink-0 text-muted-foreground/80 transition-transform {isExpanded ? '' : 'rotate-180'}"
+			<RoundedIcon name="chevron-down" class="size-3 shrink-0 text-muted-foreground/80 transition-transform {isExpanded ? '' : 'rotate-180'}"
 			/>
 		{/if}
 	{/snippet}

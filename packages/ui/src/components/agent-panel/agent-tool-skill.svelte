@@ -1,9 +1,9 @@
 <script lang="ts">
-	import { CaretRight, CheckCircle, Package } from "phosphor-svelte";
+	import { CheckCircle, Package } from "phosphor-svelte";
 	import AgentToolCard from "./agent-tool-card.svelte";
 	import ToolLabel from "./tool-label.svelte";
 	import TextShimmer from "../text-shimmer/text-shimmer.svelte";
-	import { LoadingIcon } from "../icons/index.js";
+	import { LoadingIcon, RoundedIcon } from "../icons/index.js";
 	import { Colors } from "../../lib/colors.js";
 	import {
 		getSkillDisplayArgs,
@@ -130,7 +130,7 @@
 						aria-label={isExpanded ? ariaCollapseLabel : ariaExpandLabel}
 						aria-expanded={isExpanded}
 					>
-						<CaretRight size={12} weight="regular" class="size-3 shrink-0 text-muted-foreground transition-transform duration-150 {isExpanded ? 'rotate-90' : ''}"
+						<RoundedIcon name="chevron-right" class="size-3 shrink-0 text-muted-foreground transition-transform duration-150 {isExpanded ? 'rotate-90' : ''}"
 						/>
 					</button>
 				{/if}

@@ -1,7 +1,8 @@
 <script lang="ts">
-	import { ArrowRight, CaretLeft } from "phosphor-svelte";
+	import { ArrowRight } from "phosphor-svelte";
 
 	import { Button } from "../button/index.js";
+	import { RoundedIcon } from "../icons/index.js";
 
 	interface Props {
 		label: string;
@@ -62,7 +63,7 @@
 				onclick={() => onClose?.()}
 				data-testid="review-workspace-close"
 			>
-				<CaretLeft size={12} weight="regular" class="size-3 shrink-0" />
+				<RoundedIcon name="chevron-left" class="size-3 shrink-0" />
 				{closeButtonLabel}
 			</Button>
 		</div>
@@ -86,7 +87,7 @@
 				title="Previous file"
 				data-testid="review-workspace-previous-file"
 			>
-				<CaretLeft size={12} weight="regular"  class="size-3"/>
+				<RoundedIcon name="chevron-left" class="size-3" />
 			</Button>
 
 			<Button

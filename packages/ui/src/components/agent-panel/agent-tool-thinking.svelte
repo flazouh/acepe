@@ -1,6 +1,7 @@
 <script lang="ts">
 	import type { Snippet } from "svelte";
-	import { CaretRight, Brain } from "phosphor-svelte";
+	import { Brain } from "phosphor-svelte";
+	import { RoundedIcon } from "../icons/index.js";
 	import ToolLabel from "./tool-label.svelte";
 	import type { AgentToolStatus } from "./types.js";
 	import { getThinkingPreferences } from "../../lib/thinking-preferences-context.js";
@@ -128,7 +129,7 @@
 					tabindex="-1"
 					aria-hidden="true"
 				>
-					<CaretRight size={12} weight="regular" class="size-3 shrink-0 text-muted-foreground transition-transform duration-150 {collapsed ? '' : 'rotate-90'}"
+					<RoundedIcon name="chevron-right" class="size-3 shrink-0 text-muted-foreground transition-transform duration-150 {collapsed ? '' : 'rotate-90'}"
 					/>
 				</button>
 			{/if}

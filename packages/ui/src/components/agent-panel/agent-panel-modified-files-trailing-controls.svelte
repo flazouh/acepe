@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { Button } from "../button/index.js";
-	import { CaretDown, FileCode } from "phosphor-svelte";
+	import { FileCode } from "phosphor-svelte";
+	import { RoundedIcon } from "../icons/index.js";
 
 	import type { AgentPanelModifiedFilesTrailingModel } from "./types.js";
 
@@ -54,7 +55,7 @@
 		}}
 	>
 		{model.reviewedCount}/{model.totalCount}
-		<CaretDown size={12} weight="regular" class="size-3 shrink-0 transition-transform {isExpanded ? 'rotate-180' : ''}"
+		<RoundedIcon name="chevron-down" class="size-3 shrink-0 transition-transform {isExpanded ? 'rotate-180' : ''}"
 		/>
 	</Button>
 {/if}

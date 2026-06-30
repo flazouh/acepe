@@ -2,7 +2,6 @@
 	import type { Snippet } from "svelte";
 	import {
 		ArrowCounterClockwise,
-		CaretRight,
 		Check,
 		Laptop,
 		Tree,
@@ -10,6 +9,7 @@
 	} from "phosphor-svelte";
 	import { Button } from "../button/index.js";
 	import * as DropdownMenu from "../dropdown-menu/index.js";
+	import { RoundedIcon } from "../icons/index.js";
 	import { Selector } from "../selector/index.js";
 	import { Tooltip, TooltipContent, TooltipTrigger } from "../tooltip/index.js";
 	import { watchPreSessionWorktreeHeaderWidth } from "./pre-session-worktree-card-effects.js";
@@ -196,7 +196,7 @@
 								onclick={toggleExpanded}
 								aria-expanded={isExpanded}
 							>
-								<CaretRight size={12} weight="regular" class="size-3 shrink-0 transition-transform duration-150 {isExpanded ? 'rotate-90' : ''}" />
+								<RoundedIcon name="chevron-right" class="size-3 shrink-0 transition-transform duration-150 {isExpanded ? 'rotate-90' : ''}" />
 							</button>
 						</TooltipTrigger>
 						<TooltipContent>{setupScriptsLabel ?? "Setup scripts"}</TooltipContent>
@@ -251,7 +251,7 @@
 							onclick={toggleExpanded}
 							aria-expanded={isExpanded}
 						>
-							<CaretRight size={12} weight="regular" class="size-3 shrink-0 transition-transform duration-150 {isExpanded ? 'rotate-90' : ''}" />
+							<RoundedIcon name="chevron-right" class="size-3 shrink-0 transition-transform duration-150 {isExpanded ? 'rotate-90' : ''}" />
 						</button>
 					</TooltipTrigger>
 					<TooltipContent>{setupScriptsLabel ?? "Setup scripts"}</TooltipContent>
