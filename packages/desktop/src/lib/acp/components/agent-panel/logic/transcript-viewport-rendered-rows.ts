@@ -11,12 +11,14 @@ export type RenderedTranscriptViewportRow = {
 
 const LOCAL_OPTIMISTIC_ROW_PREFIX = "local:optimistic:";
 const LOCAL_PLANNING_ROW_ID = "local:planning";
+const LOCAL_REVIEW_ROW_ID = "local:review";
 
 export function buildRenderedTranscriptViewportRows(input: {
 	readonly bufferRows: readonly TranscriptViewportRow[];
 	readonly bufferStartIndex: number;
 	readonly sceneEntries: readonly AgentPanelSceneEntryModel[];
 	readonly showLocalPlanningIndicator: boolean;
+	readonly syntheticReviewEntry?: AgentPanelSceneEntryModel | null;
 }): readonly RenderedTranscriptViewportRow[] {
 	const sceneEntryById = buildSceneEntryById(input.sceneEntries);
 	const sceneEntryByToolCallId = buildSceneEntryByToolCallId(input.sceneEntries);
@@ -67,6 +69,19 @@ export function buildRenderedTranscriptViewportRows(input: {
 				durationMs: null,
 				startedAtMs: null,
 			},
+			localOnly: true,
+		});
+	}
+
+	if (
+		input.syntheticReviewEntry !== null &&
+		input.syntheticReviewEntry !== undefined &&
+		!representedSceneEntryIds.has(input.syntheticReviewEntry.id)
+	) {
+		renderedRows.push({
+			row: createLocalReviewRow(),
+			index: input.bufferStartIndex + renderedRows.length,
+			entry: input.syntheticReviewEntry,
 			localOnly: true,
 		});
 	}
@@ -139,6 +154,25 @@ function createLocalPlanningRow(): TranscriptViewportRow {
 		sourceEntryId: LOCAL_PLANNING_ROW_ID,
 		kind: "awaitingPlaceholder",
 		version: `${LOCAL_PLANNING_ROW_ID}:v1`,
+		anchorEligible: true,
+		activeStreamingTail: null,
+		operationLinks: [],
+		interactionLinks: [],
+		content: {
+			kind: "transcript",
+			role: "assistant",
+			segments: [],
+		},
+		durationStartedAtMs: null,
+	};
+}
+
+function createLocalReviewRow(): TranscriptViewportRow {
+	return {
+		rowId: LOCAL_REVIEW_ROW_ID,
+		sourceEntryId: LOCAL_REVIEW_ROW_ID,
+		kind: "tool",
+		version: `${LOCAL_REVIEW_ROW_ID}:v1`,
 		anchorEligible: true,
 		activeStreamingTail: null,
 		operationLinks: [],

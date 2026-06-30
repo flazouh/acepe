@@ -6,6 +6,7 @@ import {
 	type AgentPanelPlanActionEvent,
 	type AgentPanelPlanViewEvent,
 	type AgentPanelQuestionSelectEvent,
+	type AgentPanelReviewActionEvent,
 	type AgentPanelSceneEntryModel,
 	type AgentToolFileSelectEvent,
 	type AssistantRenderBlockContext,
@@ -31,6 +32,7 @@ import ContentBlockRouter from "../../messages/content-block-router.svelte";
 import TranscriptViewportRowRenderer from "./transcript-viewport-row-renderer.svelte";
 import { buildRenderedTranscriptViewportRows } from "../logic/transcript-viewport-rendered-rows.js";
 import type { RenderedTranscriptViewportRow } from "../logic/transcript-viewport-rendered-rows.js";
+import { createSyntheticReviewEntry } from "../logic/synthetic-review-entry.js";
 import { useTheme } from "../../../../components/theme/context.svelte.js";
 
 const EMPTY_SCENE_ENTRIES: readonly AgentPanelSceneEntryModel[] = [];
@@ -55,6 +57,7 @@ type SceneContentViewportProps = {
 	onPlanCancel?: (event: AgentPanelPlanActionEvent) => void;
 	onPlanViewFull?: (event: AgentPanelPlanViewEvent) => void;
 	onToolFileSelect?: (event: AgentToolFileSelectEvent) => void;
+	onReview?: (event: AgentPanelReviewActionEvent) => void;
 	isPlanActionAvailable?: (event: AgentPanelPlanActionEvent) => boolean;
 };
 
@@ -80,6 +83,7 @@ let {
 	onPlanCancel,
 	onPlanViewFull,
 	onToolFileSelect,
+	onReview,
 	isPlanActionAvailable,
 }: SceneContentViewportProps = $props();
 
@@ -121,12 +125,16 @@ let openedAtSessionId = $state<string | null>(null);
 let scrollerController = $state<StickToBottomController | null>(null);
 
 const bufferRows = $derived(rowsProjection?.rows ?? []);
+const syntheticReviewEntry = $derived(
+	createSyntheticReviewEntry({ turnState, modifiedFilesState })
+);
 const renderedRows = $derived.by(() => {
 	return buildRenderedTranscriptViewportRows({
 		bufferRows,
 		bufferStartIndex: 0,
 		sceneEntries: sceneEntries ?? EMPTY_SCENE_ENTRIES,
 		showLocalPlanningIndicator,
+		syntheticReviewEntry,
 	});
 });
 const renderedRowsById = $derived.by(() => {
@@ -275,6 +283,7 @@ export function scrollToTop() {
 				{onPlanCancel}
 				{onPlanViewFull}
 				{onToolFileSelect}
+				{onReview}
 				{isPlanActionAvailable}
 				getAttachedPermission={(targetSessionId, toolCallId) =>
 					permissionStore.getForToolCall(targetSessionId, toolCallId)}

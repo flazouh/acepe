@@ -146,6 +146,7 @@ export { default as AgentToolOther } from "./agent-tool-other.svelte";
 export { default as AgentToolQuestion } from "./agent-tool-question.svelte";
 export { default as AgentToolRead } from "./agent-tool-read.svelte";
 export { default as AgentToolReadLints } from "./agent-tool-read-lints.svelte";
+export { default as AgentPanelToolReview } from "./agent-panel-tool-review.svelte";
 export { default as AgentToolRow } from "./agent-tool-row.svelte";
 export { default as AgentToolSearch } from "./agent-tool-search.svelte";
 export { default as AgentToolSkill } from "./agent-tool-skill.svelte";
@@ -249,6 +250,7 @@ export type {
 	AgentPanelPlanViewEvent,
 	AgentPanelQueuedMessage,
 	AgentPanelQuestionSelectEvent,
+	AgentPanelReviewActionEvent,
 	AgentPanelRecommendedAction,
 	AgentPanelRecoveryPhase,
 	AgentPanelReviewFileTab,
@@ -273,6 +275,7 @@ export type {
 	AgentToolFileSelectEvent,
 	AgentToolKind,
 	AgentToolPresentationState,
+	AgentToolReviewFileEntry,
 	AgentToolStatus,
 	AgentUserContentChunk,
 	AgentUserEntry,

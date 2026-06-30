@@ -4,6 +4,7 @@ import {
 	type AgentPanelPlanActionEvent,
 	type AgentPanelPlanViewEvent,
 	type AgentPanelQuestionSelectEvent,
+	type AgentPanelReviewActionEvent,
 	type AgentPanelSceneEntryModel,
 	type AgentToolFileSelectEvent,
 } from "@acepe/ui/agent-panel";
@@ -682,18 +683,6 @@ const branchLookupPath = $derived(
 );
 const footerWorktreeStatus = $derived(worktreeController.footerWorktreeStatus);
 
-/** Minimal linked-session references for the modified-header PR picker. */
-const projectPrLinkReferences = $derived.by(() => {
-	if (!sessionController.sessionProjectPath) return [];
-	return sessionStore.read.getSessionPrLinkReferencesForProject(sessionController.sessionProjectPath);
-});
-
-/** Project matching the current session, used to render project-letter badges in the PR picker. */
-const projectForPr = $derived.by(() => {
-	if (!sessionController.sessionProjectPath) return null;
-	return allProjects.find((p) => p.path === sessionController.sessionProjectPath) ?? null;
-});
-
 const hasPlan = $derived(planState.plan !== null);
 const preSessionWorktreeFailure = $derived(worktreeController.preSessionWorktreeFailure);
 let agentInputRef = $state<{
@@ -812,8 +801,11 @@ const modifiedFilesState = $derived.by<ModifiedFilesState | null>(() => {
 	return sessionStore.read.getSessionModifiedFilesState(sessionId);
 });
 
-function handleEnterReviewMode(filesState: ModifiedFilesState): void {
-	onEnterReviewMode?.(filesState, resolveInitialReviewWorkspaceIndex(filesState, sessionId));
+function handleReviewAction(_event: AgentPanelReviewActionEvent): void {
+	if (modifiedFilesState === null) {
+		return;
+	}
+	handleOpenReviewDialog(modifiedFilesState, 0);
 }
 
 function openReviewDialogAtInitialFile(filesState: ModifiedFilesState): void {
@@ -1523,6 +1515,7 @@ async function handleFixCiCheck(check: PrChecksItem): Promise<void> {
 						onPlanCancel={handlePlanCancel}
 						onPlanViewFull={handlePlanViewFull}
 						onToolFileSelect={handleToolFileSelect}
+						onReview={handleReviewAction}
 						{isPlanActionAvailable}
 					/>
 				</div>
@@ -1587,22 +1580,8 @@ async function handleFixCiCheck(check: PrChecksItem): Promise<void> {
 			prDetails={prCard.details}
 			prFetchError={prCard.fetchError}
 			linkedPr={sessionController.sessionMetadata?.linkedPr ?? null}
-			prLinkMode={sessionController.sessionMetadata?.prLinkMode ?? "automatic"}
-			{projectPrLinkReferences}
-			{projectForPr}
 			streamingShipData={prCard.streamingShipData}
-			{modifiedFilesState}
-			onEnterReviewMode={handleEnterReviewMode}
-			onOpenReviewDialog={handleOpenReviewDialog}
-			onCreatePr={createdPr ? undefined : (config) => void handleCreatePr(config)}
-			createPrLabel={prCard.createLabel}
-			onMergePr={(strategy) => void handleMergePr(strategy)}
-			mergePrRunning={prCard.mergeRunning}
 			onFixCiCheck={(check) => void handleFixCiCheck(check)}
-			{availableAgents}
-			effectivePanelAgentId={effectivePanelAgentId}
-			sessionCurrentModelId={sessionController.sessionCurrentModelId}
-			{effectiveTheme}
 			{showTodoHeader}
 			{todoState}
 			getTodoMarkdown={getTodoMarkdown}
@@ -1849,7 +1828,7 @@ async function handleFixCiCheck(check: PrChecksItem): Promise<void> {
 					aria-label="Previous file"
 					title="Previous file"
 				>
-					<CaretLeft size={10} weight="bold" />
+					<CaretLeft size={12} weight="regular"  class="size-3"/>
 				</Button>
 				<Button
 					variant="headerAction"
@@ -1868,7 +1847,7 @@ async function handleFixCiCheck(check: PrChecksItem): Promise<void> {
 					aria-label="Next file"
 					title="Next file"
 				>
-					<CaretRight size={10} weight="bold" />
+					<CaretRight size={12} weight="regular"  class="size-3"/>
 				</Button>
 			</ButtonGroup.Root>
 		{/if}

@@ -4,6 +4,7 @@ import type {
 	AgentPanelPlanActionEvent,
 	AgentPanelPlanViewEvent,
 	AgentPanelQuestionSelectEvent,
+	AgentPanelReviewActionEvent,
 	AgentToolFileSelectEvent,
 	AssistantRenderBlockContext,
 } from "@acepe/ui/agent-panel";
@@ -29,6 +30,7 @@ let {
 	onPlanCancel,
 	onPlanViewFull,
 	onToolFileSelect,
+	onReview,
 	isPlanActionAvailable,
 	getAttachedPermission,
 }: {
@@ -45,6 +47,7 @@ let {
 	onPlanCancel?: (event: AgentPanelPlanActionEvent) => void;
 	onPlanViewFull?: (event: AgentPanelPlanViewEvent) => void;
 	onToolFileSelect?: (event: AgentToolFileSelectEvent) => void;
+	onReview?: (event: AgentPanelReviewActionEvent) => void;
 	isPlanActionAvailable?: (event: AgentPanelPlanActionEvent) => boolean;
 	getAttachedPermission: (
 		sessionId: string,
@@ -75,6 +78,7 @@ let {
 				{onPlanCancel}
 				{onPlanViewFull}
 				{onToolFileSelect}
+				{onReview}
 				{isPlanActionAvailable}
 			/>
 			{#if rendered.entry.type === "tool_call" && rendered.entry.toolCallId !== undefined && sessionId !== null}

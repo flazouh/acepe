@@ -17,6 +17,7 @@ let {
 	viewState,
 	sessionId,
 	sceneEntries,
+	rowsProjectionOverride = null,
 	pendingUserRevealRequestKey = null,
 	showLocalPlanningIndicator = false,
 	sessionProjectPath,
@@ -40,6 +41,7 @@ let {
 	onPlanCancel,
 	onPlanViewFull,
 	onToolFileSelect,
+	onReview,
 	isPlanActionAvailable,
 }: AgentPanelContentProps = $props();
 
@@ -99,7 +101,9 @@ const runtime = $derived(
 );
 const turnState = $derived(runtime.turnState);
 const isStreaming = $derived(runtime.isStreaming);
-const rowsProjection = $derived(sessionStore?.viewport.getRowsProjection(sessionId) ?? null);
+const rowsProjection = $derived(
+	rowsProjectionOverride ?? sessionStore?.viewport.getRowsProjection(sessionId) ?? null
+);
 
 // Sync streaming state to bindable prop for parent component
 $effect(() => {
@@ -189,6 +193,7 @@ export function scrollToTop() {
 				{onPlanCancel}
 				{onPlanViewFull}
 				{onToolFileSelect}
+				{onReview}
 				{isPlanActionAvailable}
 				onNearBottomChange={(nearBottom) => (isAtBottom = nearBottom)}
 				onNearTopChange={(nearTop) => (isAtTop = nearTop)}

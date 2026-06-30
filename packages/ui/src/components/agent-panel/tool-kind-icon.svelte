@@ -3,6 +3,7 @@ import type { Component } from "svelte";
 import {
 	AppWindow,
 	File,
+	FileCode,
 	GlobeHemisphereWest,
 	MagnifyingGlass,
 	Package,
@@ -32,6 +33,7 @@ const isPending = $derived(status === "pending" || status === "running");
 const iconByKind: Record<AgentToolKind, Component> = {
 	read: File,
 	read_lints: ListChecks,
+	review: FileCode,
 	edit: PencilSimple,
 	delete: PencilSimple,
 	write: PencilSimple,

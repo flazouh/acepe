@@ -1,22 +1,12 @@
 <script lang="ts">
 import { Tree } from "phosphor-svelte";
-import type { MergeStrategy } from "$lib/utils/tauri-client/git.js";
 import type { PrDetails } from "$lib/utils/tauri-client/git.js";
 import type { PrChecksItem } from "@acepe/ui";
 import type { IssueReportDraft } from "$lib/errors/issue-report.js";
 import { resolveIssueActionLabel } from "$lib/errors/issue-report.js";
-import type { AgentInfo } from "../../../logic/agent-manager.js";
-import type { Project } from "../../../logic/project-manager.svelte.js";
-import type {
-	SessionLinkedPr,
-	SessionPrLinkMode,
-	SessionPrLinkReference,
-} from "../../../application/dto/session-linked-pr";
-import type { ModifiedFilesState } from "../../../types/modified-files-state.js";
+import type { SessionLinkedPr } from "../../../application/dto/session-linked-pr";
 import type { TodoState } from "../../../types/todo.js";
-import type { PrGenerationConfig } from "../../modified-files/types/pr-generation-config.js";
 import PrStatusCard from "../../pr-status-card/pr-status-card.svelte";
-import ModifiedFilesHeader from "../../modified-files/modified-files-header.svelte";
 import {
 	AgentPanelQueueCardStrip as SharedQueueCardStrip,
 	AgentPanelTodoHeader as SharedTodoHeader,
@@ -79,22 +69,8 @@ let {
 	prDetails,
 	prFetchError,
 	linkedPr,
-	prLinkMode,
-	projectPrLinkReferences,
-	projectForPr,
 	streamingShipData,
-	modifiedFilesState,
-	onEnterReviewMode,
-	onOpenReviewDialog,
-	onCreatePr,
-	createPrLabel,
-	onMergePr,
-	mergePrRunning,
 	onFixCiCheck,
-	availableAgents,
-	effectivePanelAgentId,
-	sessionCurrentModelId,
-	effectiveTheme,
 	showTodoHeader,
 	todoState,
 	getTodoMarkdown,
@@ -146,22 +122,8 @@ let {
 	prDetails: PrDetails | null;
 	prFetchError: string | null;
 	linkedPr: SessionLinkedPr | null;
-	prLinkMode: SessionPrLinkMode | null;
-	projectPrLinkReferences: readonly SessionPrLinkReference[];
-	projectForPr: Project | null;
 	streamingShipData: ShipCardData | null;
-	modifiedFilesState: ModifiedFilesState | null;
-	onEnterReviewMode: (s: ModifiedFilesState) => void;
-	onOpenReviewDialog?: (s: ModifiedFilesState, fileIndex: number) => void;
-	onCreatePr: ((config?: PrGenerationConfig) => void) | undefined;
-	createPrLabel: string | null;
-	onMergePr: (strategy: MergeStrategy) => void;
-	mergePrRunning: boolean;
 	onFixCiCheck?: (check: PrChecksItem) => void;
-	availableAgents: AgentInfo[];
-	effectivePanelAgentId: string | null;
-	sessionCurrentModelId: string | null;
-	effectiveTheme: "light" | "dark";
 	showTodoHeader: boolean;
 	todoState: TodoState | null;
 	getTodoMarkdown: () => string;
@@ -270,29 +232,6 @@ function resolveSignInCommand(agentDisplayName: string): string | null {
 									onFixCheck={onFixCiCheck}
 								/>
 							{/key}
-						{/if}
-						{#if modifiedFilesState}
-							<ModifiedFilesHeader
-								{modifiedFilesState}
-								{sessionId}
-								onEnterReviewMode={onEnterReviewMode}
-								onOpenReviewDialog={onOpenReviewDialog}
-								onCreatePr={onCreatePr}
-								createPrLoading={createPrRunning}
-								{createPrLabel}
-								onMerge={createdPr && prDetails && prDetails.state !== "MERGED" ? onMergePr : undefined}
-								merging={mergePrRunning}
-								prState={prDetails ? prDetails.state : null}
-								projectPath={sessionProjectPath}
-								{linkedPr}
-								{prLinkMode}
-								{projectPrLinkReferences}
-								project={projectForPr}
-								{availableAgents}
-								currentAgentId={effectivePanelAgentId}
-								currentModelId={sessionCurrentModelId}
-								{effectiveTheme}
-							/>
 						{/if}
 						{#if showTodoHeader && todoState}
 							<SharedTodoHeader

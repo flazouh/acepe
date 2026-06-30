@@ -3,6 +3,7 @@
 		AgentPanelPlanActionEvent,
 		AgentPanelPlanViewEvent,
 		AgentPanelQuestionSelectEvent,
+		AgentPanelReviewActionEvent,
 		AgentToolFileSelectEvent,
 	} from "./types.js";
 	import {
@@ -16,6 +17,7 @@
 	import AgentPanelToolPlan from "./agent-panel-tool-plan.svelte";
 	import AgentPanelToolQuestion from "./agent-panel-tool-question.svelte";
 	import AgentPanelToolRead from "./agent-panel-tool-read.svelte";
+	import AgentPanelToolReview from "./agent-panel-tool-review.svelte";
 	import AgentPanelToolEdit from "./agent-panel-tool-edit.svelte";
 	import type { ToolDurationTiming } from "./tool-duration.js";
 
@@ -28,6 +30,7 @@
 		onPlanCancel?: (event: AgentPanelPlanActionEvent) => void;
 		onPlanViewFull?: (event: AgentPanelPlanViewEvent) => void;
 		onToolFileSelect?: (event: AgentToolFileSelectEvent) => void;
+		onReview?: (event: AgentPanelReviewActionEvent) => void;
 		isPlanActionAvailable?: (event: AgentPanelPlanActionEvent) => boolean;
 	}
 
@@ -40,6 +43,7 @@
 		onPlanCancel,
 		onPlanViewFull,
 		onToolFileSelect,
+		onReview,
 		isPlanActionAvailable,
 	}: Props = $props();
 
@@ -83,6 +87,13 @@
 		{iconBasePath}
 		{editToolTheme}
 		{durationTiming}
+	/>
+{:else if renderKind === "tool-review"}
+	<AgentPanelToolReview
+		{entry}
+		{durationTiming}
+		{iconBasePath}
+		{onReview}
 	/>
 {:else if renderKind === "tool-plan"}
 	<AgentPanelToolPlan

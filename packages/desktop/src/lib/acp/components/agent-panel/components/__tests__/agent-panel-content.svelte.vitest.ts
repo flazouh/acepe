@@ -1,8 +1,12 @@
 import type { AgentPanelSceneEntryModel } from "@acepe/ui/agent-panel";
 import { cleanup, render } from "@testing-library/svelte";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import type { SessionGraphActivityKind } from "../../../../../services/acp-types.js";
+import type {
+	SessionGraphActivityKind,
+	TranscriptViewportRow,
+} from "../../../../../services/acp-types.js";
 import type { PanelViewState } from "../../../../logic/panel-visibility.js";
+import type { TranscriptRowsState } from "../../../../store/transcript-rows-store.js";
 import type {
 	LiveSessionCanonicalProjection,
 	LiveSessionWorkSource,
@@ -30,6 +34,7 @@ type SessionStoreMockState = {
 		};
 	};
 	liveProjection: LiveSessionCanonicalProjection | null;
+	rowsProjection: TranscriptRowsState | null;
 };
 
 declare global {
@@ -64,6 +69,7 @@ globalThis.__agentPanelContentSessionStoreState = {
 		activity: null,
 	},
 	liveProjection: null,
+	rowsProjection: null,
 };
 
 vi.mock(
@@ -119,7 +125,7 @@ vi.mock("../../../../store/session-store.svelte.js", () => ({
 			getSessionCurrentModeId: () => null,
 		},
 		viewport: {
-			getRowsProjection: () => null,
+			getRowsProjection: () => globalThis.__agentPanelContentSessionStoreState.rowsProjection,
 		},
 	}),
 }));
@@ -197,11 +203,50 @@ function createUserSceneEntry(id: string, text: string): AgentPanelSceneEntryMod
 	return { id, type: "user", text };
 }
 
+function createViewportRow(rowId: string): TranscriptViewportRow {
+	return {
+		rowId,
+		sourceEntryId: rowId,
+		kind: "user",
+		version: `${rowId}:v1`,
+		anchorEligible: true,
+		activeStreamingTail: null,
+		operationLinks: [],
+		interactionLinks: [],
+		content: {
+			kind: "transcript",
+			role: "user",
+			segments: [{ kind: "text", segmentId: `${rowId}:segment:0`, text: rowId }],
+		},
+		durationStartedAtMs: null,
+	};
+}
+
+function createRowsProjection(
+	sessionId: string,
+	rows: readonly TranscriptViewportRow[]
+): TranscriptRowsState {
+	const byId = new Map<string, TranscriptViewportRow>();
+	const order: string[] = [];
+	for (const row of rows) {
+		order.push(row.rowId);
+		byId.set(row.rowId, row);
+	}
+	return {
+		sessionId,
+		emissionSeq: rows.length,
+		order,
+		byId,
+		rows,
+	};
+}
+
 function renderContent(
 	viewState: PanelViewState,
 	overrides?: {
 		sessionId?: string | null;
 		sceneEntries?: readonly AgentPanelSceneEntryModel[];
+		rowsProjectionOverride?: TranscriptRowsState | null;
 	}
 ) {
 	return render(AgentPanelContent, {
@@ -209,6 +254,7 @@ function renderContent(
 		viewState,
 		sessionId: overrides?.sessionId !== undefined ? overrides.sessionId : "session-1",
 		sceneEntries: overrides?.sceneEntries,
+		rowsProjectionOverride: overrides?.rowsProjectionOverride,
 		sessionProjectPath: null,
 		allProjects: [],
 		scrollContainer: null,
@@ -239,6 +285,7 @@ describe("AgentPanelContent", () => {
 			activity: null,
 		};
 		globalThis.__agentPanelContentSessionStoreState.liveProjection = null;
+		globalThis.__agentPanelContentSessionStoreState.rowsProjection = null;
 	});
 
 	it("renders the virtualized conversation list for active sessions", () => {
@@ -339,5 +386,24 @@ describe("AgentPanelContent", () => {
 		const stub = view.getByTestId("virtualized-entry-list-stub");
 		expect(stub).toBeTruthy();
 		expect(stub.getAttribute("data-turn-state")).toBe("idle");
+	});
+
+	it("prefers rowsProjectionOverride over session store rows", () => {
+		globalThis.__agentPanelContentSessionStoreState.rowsProjection = createRowsProjection(
+			"session-1",
+			[createViewportRow("store-row")]
+		);
+
+		const view = renderContent(
+			{ kind: "conversation", errorDetails: null },
+			{
+				rowsProjectionOverride: createRowsProjection("session-1", [
+					createViewportRow("override-row-1"),
+					createViewportRow("override-row-2"),
+				]),
+			}
+		);
+
+		expect(view.getByTestId("virtualized-entry-list-stub").dataset.rowCount).toBe("2");
 	});
 });

@@ -5,6 +5,7 @@
 		AgentPanelPlanActionEvent,
 		AgentPanelPlanViewEvent,
 		AgentPanelQuestionSelectEvent,
+		AgentPanelReviewActionEvent,
 		AgentToolFileSelectEvent,
 		AssistantRenderBlockContext,
 	} from "./types.js";
@@ -33,6 +34,7 @@
 		onPlanCancel?: (event: AgentPanelPlanActionEvent) => void;
 		onPlanViewFull?: (event: AgentPanelPlanViewEvent) => void;
 		onToolFileSelect?: (event: AgentToolFileSelectEvent) => void;
+		onReview?: (event: AgentPanelReviewActionEvent) => void;
 		isPlanActionAvailable?: (event: AgentPanelPlanActionEvent) => boolean;
 	}
 
@@ -49,6 +51,7 @@
 		onPlanCancel,
 		onPlanViewFull,
 		onToolFileSelect,
+		onReview,
 		isPlanActionAvailable,
 	}: Props = $props();
  </script>
@@ -94,6 +97,7 @@
 		{onPlanCancel}
 		{onPlanViewFull}
 		{onToolFileSelect}
+		{onReview}
 		{isPlanActionAvailable}
 	/>
 {/if}
