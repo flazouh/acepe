@@ -1,8 +1,7 @@
 <script lang="ts">
 import { FilePanelHeader as FilePanelHeaderLayout } from "@acepe/ui/file-panel";
-import { Button } from "@acepe/ui";
+import { Button, RoundedIcon } from "@acepe/ui";
 import { CloseAction } from "@acepe/ui/panel-header";
-import { FolderOpen } from "phosphor-svelte";
 import { toast } from "svelte-sonner";
 import { FileIcon } from "$lib/components/ui/file-icon/index.js";
 import { revealInFinder, tauriClient } from "$lib/utils/tauri-client.js";
@@ -138,7 +137,7 @@ function handleEditorModeChange(modeId: string) {
 			aria-label="Open in Finder"
 		>
 			{#snippet children()}
-				<FolderOpen class="h-3.5 w-3.5" weight="fill" />
+				<RoundedIcon name="folder" class="h-3.5 w-3.5" />
 				<span class="sr-only">{"Open in Finder"}</span>
 			{/snippet}
 		</Button>

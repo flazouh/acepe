@@ -5,8 +5,7 @@
 	 *
 	 * This is a "dumb" component - all data and actions are passed via props.
 	 */
-	import { ArrowLeft } from 'phosphor-svelte';
-	import { LoadingIcon } from '../icons/index.js';
+	import { LoadingIcon, RoundedIcon } from '../icons/index.js';
 	import type { Snippet } from 'svelte';
 	import { Button } from '../button/index.js';
 	import CheckpointCard from './checkpoint-card.svelte';
@@ -90,7 +89,7 @@
 				class="h-7 gap-1.5 text-muted-foreground hover:text-foreground"
 				onclick={onBack}
 			>
-				<ArrowLeft class="h-3.5 w-3.5" weight="bold" />
+				<RoundedIcon name="arrow-left" class="h-3.5 w-3.5" />
 				<span class="text-xs">{backLabel}</span>
 			</Button>
 		</div>

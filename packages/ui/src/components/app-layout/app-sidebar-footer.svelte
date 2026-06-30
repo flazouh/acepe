@@ -1,6 +1,7 @@
 <script lang="ts">
-	import { DiscordLogo, GithubLogo } from "phosphor-svelte";
+	import { DiscordLogo } from "phosphor-svelte";
 	import { Button } from "../button/index.js";
+	import { RoundedIcon } from "../icons/index.js";
 
 	interface Props {
 		githubUrl: string;
@@ -31,7 +32,7 @@
 				onclick={() => onLinkClick(githubUrl)}
 			>
 				{#snippet children()}
-					<GithubLogo class="size-4" weight="fill" />
+					<RoundedIcon name="github" class="size-4" />
 				{/snippet}
 			</Button>
 			<Button
@@ -61,7 +62,7 @@
 		{:else}
 			<Button {...chromeIconButton} href={githubUrl} title="GitHub" aria-label="GitHub">
 				{#snippet children()}
-					<GithubLogo class="size-4" weight="fill" />
+					<RoundedIcon name="github" class="size-4" />
 				{/snippet}
 			</Button>
 			<Button {...chromeIconButton} href={xUrl} title="X" aria-label="X">
