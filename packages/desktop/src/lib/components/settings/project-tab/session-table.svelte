@@ -7,9 +7,8 @@ import {
 	CaretLeft,
 	CaretRight,
 } from "phosphor-svelte";
-import { IconSearch } from "@tabler/icons-svelte";
 import { IconSelector } from "@tabler/icons-svelte";
-import { Selector } from "@acepe/ui";
+import { RoundedIcon, Selector } from "@acepe/ui";
 import * as DropdownMenu from "@acepe/ui/dropdown-menu";
 import type { SessionSummary } from "$lib/acp/application/dto/session-summary.js";
 import type { Project } from "$lib/acp/logic/project-manager.svelte.js";
@@ -126,7 +125,8 @@ function formatDate(date: Date): string {
 	<!-- Filters -->
 	<div class="flex shrink-0 items-center gap-2 border-b border-border/30 pb-2">
 		<div class="relative min-w-0 flex-1">
-			<IconSearch
+			<RoundedIcon
+				name="search"
 				class="absolute left-0 top-1/2 size-3 -translate-y-1/2 text-muted-foreground/50"
 			/>
 			<input

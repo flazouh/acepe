@@ -1,5 +1,6 @@
 <script lang="ts">
-	import { IconPlug, IconTerminal } from "@tabler/icons-svelte";
+	import { IconPlug } from "@tabler/icons-svelte";
+	import { RoundedIcon } from "../icons/index.js";
 	import { INLINE_ARTEFACT_PACKAGE_PATH } from "../inline-artefact-badge/inline-artefact-badge.styles.js";
 	import { ProviderMark } from "../provider-mark/index.js";
 	import AgentInputModeIcon from "./agent-input-mode-icon.svelte";
@@ -55,7 +56,7 @@
 		{:else if item.tokenType === "mcp"}
 			<IconPlug class="h-3 w-3" />
 		{:else}
-			<IconTerminal class="h-3 w-3" />
+			<RoundedIcon name="terminal" class="h-3 w-3" />
 		{/if}
 	</div>
 	<div class="min-w-0 flex-1">

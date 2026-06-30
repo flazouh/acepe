@@ -12,7 +12,6 @@ import * as DropdownMenu from "@acepe/ui/dropdown-menu";
 import { AppTopBar } from "@acepe/ui/app-layout";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { openUrl } from "@tauri-apps/plugin-opener";
-import { Bug } from "phosphor-svelte";
 import { Check } from "phosphor-svelte";
 import { Columns } from "phosphor-svelte";
 import { DownloadSimple } from "phosphor-svelte";
@@ -387,7 +386,7 @@ onMount(() => {
 						onclick={() => openUrl("https://github.com/flazouh/acepe/issues")}
 					>
 						{#snippet children()}
-							<Bug weight="fill" class="size-4" style="color: #FF5D5A" />
+							<RoundedIcon name="bug" class="size-4" style="color: #FF5D5A" />
 						{/snippet}
 					</Button>
 				{/snippet}

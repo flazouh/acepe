@@ -1,7 +1,6 @@
 <script lang="ts">
-import { IconRotateClockwise } from "@tabler/icons-svelte";
-import { IconSearch } from "@tabler/icons-svelte";
 import {
+	RoundedIcon,
 	Table,
 	TableBody,
 	TableCell,
@@ -90,13 +89,13 @@ async function handleResetAllToDefaults() {
 			onclick={handleResetAllToDefaults}
 			disabled={isLoading}
 		>
-			<IconRotateClockwise class="size-3" />
+			<RoundedIcon name="refresh" class="size-3" />
 			{"Reset All"}
 		</button>
 	</div>
 
 	<div class="relative shrink-0 border-b border-border/30 pb-2">
-		<IconSearch class="absolute left-0 top-1/2 size-3 -translate-y-1/2 text-muted-foreground/50" />
+		<RoundedIcon name="search" class="absolute left-0 top-1/2 size-3 -translate-y-1/2 text-muted-foreground/50" />
 		<input
 			type="text"
 			placeholder={"Search keybindings..."}

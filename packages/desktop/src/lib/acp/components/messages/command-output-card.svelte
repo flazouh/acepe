@@ -1,8 +1,8 @@
 <script lang="ts">
 import { AgentToolCard } from "@acepe/ui/agent-panel";
+import { RoundedIcon } from "@acepe/ui";
 import { IconAdjustments } from "@tabler/icons-svelte";
 import { IconArrowRight } from "@tabler/icons-svelte";
-import { IconTerminal } from "@tabler/icons-svelte";
 
 import type { CommandOutput } from "../../utils/command-output-parser.js";
 import { buildCommandOutputCardState } from "./command-output-card-state.js";
@@ -31,7 +31,7 @@ const cardState = $derived(buildCommandOutputCardState(output));
 	{:else if output.command}
 		<!-- Header only - command without stdout yet -->
 		<div class="flex items-center gap-2 px-2 py-2 text-xs">
-			<IconTerminal class="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+			<RoundedIcon name="terminal" class="h-3.5 w-3.5 text-muted-foreground shrink-0" />
 			<span class="font-mono text-muted-foreground">{output.command}</span>
 			{#if output.stdout}
 				<span class="text-muted-foreground/70 truncate">
@@ -42,7 +42,7 @@ const cardState = $derived(buildCommandOutputCardState(output));
 	{:else if output.stdout}
 		<!-- Stdout only - generic output display -->
 		<div class="flex items-center gap-2 px-2 py-2 text-xs">
-			<IconTerminal class="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+			<RoundedIcon name="terminal" class="h-3.5 w-3.5 text-muted-foreground shrink-0" />
 			<span class="text-muted-foreground/70 truncate">
 				{cardState.cleanStdout}
 			</span>
@@ -50,7 +50,7 @@ const cardState = $derived(buildCommandOutputCardState(output));
 	{:else}
 		<!-- Fallback - shouldn't happen but handle gracefully -->
 		<div class="flex items-center gap-2 px-2 py-2 text-xs">
-			<IconTerminal class="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+			<RoundedIcon name="terminal" class="h-3.5 w-3.5 text-muted-foreground shrink-0" />
 			<span class="text-muted-foreground/50 italic">Command output</span>
 		</div>
 	{/if}

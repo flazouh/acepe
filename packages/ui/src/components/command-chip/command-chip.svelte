@@ -1,6 +1,7 @@
 <script lang="ts">
-	import { IconAdjustments, IconArrowRight, IconTerminal } from "@tabler/icons-svelte";
+	import { IconAdjustments, IconArrowRight } from "@tabler/icons-svelte";
 	import AgentToolCard from "../agent-panel/agent-tool-card.svelte";
+	import { RoundedIcon } from "../icons/index.js";
 	import type { CommandChipModel } from "./command-chip.types.js";
 
 	interface Props {
@@ -42,7 +43,7 @@
 		</div>
 	{:else if model.command.length > 0}
 		<div class="flex items-center gap-2 px-2 py-2 text-xs">
-			<IconTerminal class="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+			<RoundedIcon name="terminal" class="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
 			<span class="shrink-0 font-mono text-muted-foreground">{commandLabel}</span>
 			{#if stdoutPreview}
 				<span class="truncate text-muted-foreground/70">{stdoutPreview}</span>
@@ -50,12 +51,12 @@
 		</div>
 	{:else if stdoutPreview}
 		<div class="flex items-center gap-2 px-2 py-2 text-xs">
-			<IconTerminal class="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+			<RoundedIcon name="terminal" class="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
 			<span class="truncate text-muted-foreground/70">{stdoutPreview}</span>
 		</div>
 	{:else}
 		<div class="flex items-center gap-2 px-2 py-2 text-xs">
-			<IconTerminal class="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+			<RoundedIcon name="terminal" class="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
 			<span class="text-muted-foreground/50 italic">Command output</span>
 		</div>
 	{/if}

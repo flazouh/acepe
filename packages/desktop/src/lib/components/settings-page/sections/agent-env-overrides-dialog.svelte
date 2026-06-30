@@ -1,10 +1,8 @@
 <script lang="ts">
 import { IconEye } from "@tabler/icons-svelte";
 import { IconEyeOff } from "@tabler/icons-svelte";
-import { PlusIcon } from "@acepe/ui";
-import { IconTrash } from "@tabler/icons-svelte";
 import { FloppyDisk, SlidersHorizontal } from "phosphor-svelte";
-import { Button, Input } from "@acepe/ui";
+import { Button, Input, PlusIcon, RoundedIcon } from "@acepe/ui";
 import { Button as DesktopButton } from "$lib/components/ui/button/index.js";
 import DialogFrame from "$lib/components/ui/dialog-frame.svelte";
 
@@ -240,7 +238,7 @@ function handleSave(): void {
 						<PlusIcon />
 					</Button>
 					<Button type="button" variant="outline" size="icon" onclick={() => removeRow(row.id)}>
-						<IconTrash class="h-3.5 w-3.5" />
+						<RoundedIcon name="trash" class="h-3.5 w-3.5" />
 					</Button>
 				</div>
 			{/each}

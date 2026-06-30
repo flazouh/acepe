@@ -1,7 +1,7 @@
 <script lang="ts">
-	import { IconTerminal } from "@tabler/icons-svelte";
 	import { IconPlug } from "@tabler/icons-svelte";
 	import { BookOpenText } from "phosphor-svelte";
+	import { RoundedIcon } from "../icons/index.js";
 	import { INLINE_ARTEFACT_PACKAGE_PATH } from "../inline-artefact-badge/inline-artefact-badge.styles.js";
 	import {
 		getSlashCommandDisplayName,
@@ -59,7 +59,7 @@
 		{:else if tokenType === "mcp"}
 			<IconPlug class="h-2.5 w-2.5" />
 		{:else}
-			<IconTerminal class="h-2.5 w-2.5" />
+			<RoundedIcon name="terminal" class="h-2.5 w-2.5" />
 		{/if}
 	</div>
 	<div class="min-w-0 flex-1">

@@ -1,6 +1,6 @@
 <script lang="ts">
 import { BrandLockup, BrandShaderBackground, TextShimmer, SegmentedProgressBar } from "@acepe/ui";
-import RefreshCw from "@lucide/svelte/icons/refresh-cw";
+import { RoundedIcon } from "@acepe/ui";
 import { onMount } from "svelte";
 import {
 	isUpdaterInstallInProgress,
@@ -131,7 +131,7 @@ onMount(() => {
 							class="group gap-1.5 h-6 px-2.5 text-[11px]"
 						>
 							{"Retry"}
-							<RefreshCw class="size-3 transition-transform duration-200 group-hover:rotate-180" />
+							<RoundedIcon name="refresh" class="size-3 transition-transform duration-200 group-hover:rotate-180" />
 						</Button>
 					</div>
 				</div>

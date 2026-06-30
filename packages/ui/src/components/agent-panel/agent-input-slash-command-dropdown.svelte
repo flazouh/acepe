@@ -2,8 +2,9 @@
 	import * as Dialog from "../dialog/index.js";
 	import { NativeMarkdown } from "../native-markdown/index.js";
 	import { INLINE_ARTEFACT_PACKAGE_PATH } from "../inline-artefact-badge/inline-artefact-badge.styles.js";
-	import { IconPlug, IconTerminal } from "@tabler/icons-svelte";
+	import { IconPlug } from "@tabler/icons-svelte";
 	import AgentInputSlashPaletteRow from "./agent-input-slash-palette-row.svelte";
+	import { RoundedIcon } from "../icons/index.js";
 	import { getSlashCommandIconColor } from "./agent-input-slash-command-row-state.js";
 	import {
 		getSlashCommandWorkspaceMarkdown,
@@ -311,7 +312,7 @@
 					{:else if workspaceTokenType === "mcp"}
 						<IconPlug class="h-3 w-3" />
 					{:else}
-						<IconTerminal class="h-3 w-3" />
+						<RoundedIcon name="terminal" class="h-3 w-3" />
 					{/if}
 				</span>
 				{workspaceItem ? workspaceItem.label : "Details"}
