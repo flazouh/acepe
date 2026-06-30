@@ -1,5 +1,5 @@
 <script lang="ts">
-import { Check, FolderOpen, GitBranch, Trash, Tree } from "phosphor-svelte";
+import { RoundedIcon } from "@acepe/ui";
 import type { WorktreeListItem } from "../../store/git-modal-state.js";
 import type { WorktreeInfo } from "../../types/worktree-info.js";
 
@@ -32,7 +32,7 @@ let {
 <div class="flex-1 min-h-0 overflow-y-auto px-2.5 py-2">
 	<div class="space-y-1.5">
 		<div class="flex items-center gap-2 rounded-lg border border-border/40 bg-muted/15 px-2.5 py-2">
-			<GitBranch size={12} weight="bold" class="shrink-0 text-muted-foreground" />
+			<RoundedIcon name="branch" class="size-3 shrink-0 text-muted-foreground" />
 			<div class="min-w-0 flex-1">
 				<div class="flex items-center gap-1.5">
 					<span class="text-[11px] font-medium text-foreground">Main repository</span>
@@ -56,7 +56,7 @@ let {
 				title="Reveal in Finder"
 				onclick={() => onRevealPath(projectPath)}
 			>
-				<FolderOpen size={12} weight="bold" />
+				<RoundedIcon name="folder" class="size-3" />
 			</button>
 		</div>
 
@@ -86,7 +86,7 @@ let {
 						title="Delete all worktrees"
 						onclick={() => onDeleteConfirmChange("all")}
 					>
-						<Trash size={10} weight="bold" />
+						<RoundedIcon name="trash" class="size-2.5" />
 					</button>
 				{/if}
 			</div>
@@ -102,7 +102,7 @@ let {
 				<div
 					class={`flex items-center gap-2 rounded-md border px-2.5 py-1.5 ${item.isCurrent ? "border-accent/60 bg-accent/8" : "border-border/40 bg-muted/10 hover:bg-muted/20"} transition-colors`}
 				>
-					<Tree size={12} weight="fill" class="shrink-0 text-success" />
+					<RoundedIcon name="worktree" class="size-3 shrink-0 text-success" />
 					<div class="min-w-0 flex-1">
 						<div class="flex items-center gap-1.5">
 							<span class="text-[11px] font-medium text-foreground font-mono truncate"
@@ -112,7 +112,7 @@ let {
 								<span
 									class="inline-flex items-center gap-0.5 rounded-full bg-accent px-1.5 py-px text-[9px] font-medium text-foreground"
 								>
-									<Check size={8} weight="bold" />
+									<RoundedIcon name="check" class="size-2" />
 									Current
 								</span>
 							{/if}
@@ -150,7 +150,7 @@ let {
 							title="Reveal in Finder"
 							onclick={() => onRevealPath(item.worktree.directory)}
 						>
-							<FolderOpen size={12} weight="bold" />
+							<RoundedIcon name="folder" class="size-3" />
 						</button>
 						<button
 							type="button"
@@ -158,7 +158,7 @@ let {
 							title="Delete worktree"
 							onclick={() => onDeleteConfirmChange(item.worktree.directory)}
 						>
-							<Trash size={12} weight="bold" />
+							<RoundedIcon name="trash" class="size-3" />
 						</button>
 					{/if}
 				</div>
