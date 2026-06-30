@@ -62,7 +62,7 @@ afterEach(() => {
 });
 
 describe("DiffViewerModal", () => {
-	it("uses the embedded modal shell instead of an edge-to-edge fullscreen surface", async () => {
+	it("uses DialogFrame for a centered modal surface instead of edge-to-edge fullscreen", async () => {
 		const { container, getByTestId } = render(DiffViewerModal, {
 			open: true,
 			reference: {
@@ -77,11 +77,8 @@ describe("DiffViewerModal", () => {
 			expect(getByTestId("git-viewer-stub")).not.toBeNull();
 		});
 
-		const overlay = container.querySelector("[aria-label='GitHub diff viewer']");
-		expect(overlay?.className).toContain("bg-black/55");
-
-		const panel = container.querySelector(".embedded-diff-viewer-modal");
-		expect(panel?.className).toContain("rounded-[1.25rem]");
-		expect(panel?.className).toContain("border-border/60");
+		const dialogContent = container.querySelector("[data-slot='dialog-content']");
+		expect(dialogContent).not.toBeNull();
+		expect(dialogContent?.className).toContain("rounded-xl");
 	});
 });
