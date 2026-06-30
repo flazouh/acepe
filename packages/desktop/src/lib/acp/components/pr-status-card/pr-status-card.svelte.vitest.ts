@@ -127,6 +127,9 @@ describe("PrStatusCard", () => {
 		const markdownRoot = container.querySelector(".markdown-content");
 		expect(markdownRoot).not.toBeNull();
 		expect(container.contains(header)).toBe(true);
+		expect(
+			header?.compareDocumentPosition(markdownRoot as Node) & Node.DOCUMENT_POSITION_FOLLOWING
+		).toBeTruthy();
 	});
 
 	it("keeps streamed content collapsed after the user closes the card", async () => {

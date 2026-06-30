@@ -100,6 +100,7 @@ export const TAURI_COMMAND_CLIENT = {
     list_branches: createGeneratedCommand(COMMANDS.git.list_branches),
     load_worktree_config: createGeneratedCommand(COMMANDS.git.load_worktree_config),
     log: createGeneratedCommand(COMMANDS.git.log),
+    ci_job_details: createGeneratedCommand(COMMANDS.git.ci_job_details),
     merge_pr: createGeneratedCommand(COMMANDS.git.merge_pr),
     panel_status: createGeneratedCommand(COMMANDS.git.panel_status),
     pr_checks: createGeneratedCommand(COMMANDS.git.pr_checks),

@@ -820,9 +820,11 @@ pub async fn get_ci_job_details(
     let api_path = format!("/repos/{}/{}/actions/jobs/{}", owner, repo, job_id_str);
     let logs_path = format!("{}/logs", api_path);
 
+    let job_args = ["api", api_path.as_str()];
+    let logs_args = ["api", logs_path.as_str()];
     let (job_res, log_res) = tokio::join!(
-        run_gh_command(project_path, &["api", &api_path]),
-        run_gh_command(project_path, &["api", &logs_path]),
+        run_gh_command(project_path, &job_args),
+        run_gh_command(project_path, &logs_args),
     );
 
     let raw_job: RawCiJob = serde_json::from_str(&job_res?)

@@ -60,7 +60,7 @@ const STATUS_COLOR: Record<string, string> = {
 				onclick={() => handleFileClick(file.path)}
 			>
 				<span class="flex h-3.5 w-3.5 shrink-0 items-center justify-center text-muted-foreground/50 transition-transform" class:rotate-90={isExpanded}>
-					<CaretRight size={10} weight="bold" />
+					<CaretRight size={12} weight="regular"  class="size-3"/>
 				</span>
 				<img
 					src={getFileIconSrc(file.path, "/svgs/icons")}

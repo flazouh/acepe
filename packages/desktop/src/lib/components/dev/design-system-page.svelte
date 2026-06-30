@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { Button } from "@acepe/ui";
-	import { CaretLeft, DownloadSimple, ListChecks, Microphone, Rows, Sparkle } from "phosphor-svelte";
+	import { CaretLeft, DownloadSimple, GitPullRequest, ListChecks, Microphone, Rows, SlidersHorizontal, Sparkle } from "phosphor-svelte";
 
 	import { Badge } from "$lib/components/ui/badge/index.js";
 	import SettingsPageHeader from "$lib/components/settings-page/settings-page-header.svelte";
@@ -8,12 +8,16 @@
 
 	import DesignSystemClaudeSparkSection from "./design-system-claude-spark-section.svelte";
 	import { claudeSparkSectionMeta } from "./design-system-claude-spark-specimens.js";
+	import DesignSystemControlTokensSection from "./design-system-control-tokens-section.svelte";
+	import { controlTokensSectionMeta } from "./design-system-control-tokens-specimens.js";
 	import DesignSystemInstallCardSection from "./design-system-install-card-section.svelte";
 	import { installCardSectionMeta } from "./design-system-install-card-specimens.js";
 	import DesignSystemMicButtonSection from "./design-system-mic-button-section.svelte";
 	import { micButtonSectionMeta } from "./design-system-mic-button-specimens.js";
 	import DesignSystemNewThreadOptionsSection from "./design-system-new-thread-options-section.svelte";
 	import { newThreadOptionsSectionMeta } from "./design-system-new-thread-options-specimens.js";
+	import DesignSystemPrCardSection from "./design-system-pr-card-section.svelte";
+	import { prCardSectionMeta } from "./design-system-pr-card-specimens.js";
 	import DesignSystemTaskToolSection from "./design-system-task-tool-section.svelte";
 	import { taskToolSectionMeta } from "./design-system-task-tool-specimens.js";
 
@@ -24,36 +28,44 @@
 	let { onClose }: Props = $props();
 
 	type DesignSystemSection =
+		| "control-tokens"
 		| "claude-spark"
 		| "install-card"
 		| "mic-button"
 		| "new-thread-options"
+		| "pr-card"
 		| "task-tool";
 
 	const sections: ReadonlyArray<{ id: DesignSystemSection; label: string }> = [
+		{ id: "control-tokens", label: controlTokensSectionMeta.title },
 		{ id: "claude-spark", label: claudeSparkSectionMeta.title },
 		{ id: "install-card", label: installCardSectionMeta.title },
 		{ id: "mic-button", label: micButtonSectionMeta.title },
 		{ id: "new-thread-options", label: newThreadOptionsSectionMeta.title },
+		{ id: "pr-card", label: prCardSectionMeta.title },
 		{ id: "task-tool", label: taskToolSectionMeta.title },
 	];
 
 	const sectionMetaById = {
+		"control-tokens": controlTokensSectionMeta,
 		"claude-spark": claudeSparkSectionMeta,
 		"install-card": installCardSectionMeta,
 		"mic-button": micButtonSectionMeta,
 		"new-thread-options": newThreadOptionsSectionMeta,
+		"pr-card": prCardSectionMeta,
 		"task-tool": taskToolSectionMeta,
 	} as const;
 
-	let activeSection = $state<DesignSystemSection>("claude-spark");
+	let activeSection = $state<DesignSystemSection>("control-tokens");
 
 	const activeSectionMeta = $derived(sectionMetaById[activeSection]);
 
 	function sectionIcon(sectionId: DesignSystemSection) {
+		if (sectionId === "control-tokens") return SlidersHorizontal;
 		if (sectionId === "claude-spark") return Sparkle;
 		if (sectionId === "new-thread-options") return Rows;
 		if (sectionId === "mic-button") return Microphone;
+		if (sectionId === "pr-card") return GitPullRequest;
 		if (sectionId === "task-tool") return ListChecks;
 		return DownloadSimple;
 	}
@@ -95,7 +107,7 @@
 	<div class="flex min-h-0 min-w-0 flex-1 flex-col">
 		<div class="flex shrink-0 items-center justify-between gap-3 border-b border-border/40 px-4 py-2">
 			<Button variant="ghost" size="sm" onclick={onClose} aria-label="Back to app" class="-ml-2 gap-1.5">
-				<CaretLeft size={12} weight="bold" />
+				<CaretLeft size={12} weight="regular"  class="size-3"/>
 				Back to app
 			</Button>
 			<Badge variant="outline" class="font-mono text-[10px] uppercase tracking-wider">
@@ -109,8 +121,10 @@
 		/>
 
 		<main class="min-h-0 flex-1 overflow-auto p-4">
-			<div class="w-full max-w-4xl">
-				{#if activeSection === "claude-spark"}
+			<div class={activeSection === "control-tokens" ? "w-full min-w-0" : "w-full max-w-4xl"}>
+				{#if activeSection === "control-tokens"}
+					<DesignSystemControlTokensSection />
+				{:else if activeSection === "claude-spark"}
 					<DesignSystemClaudeSparkSection />
 				{:else if activeSection === "install-card"}
 					<DesignSystemInstallCardSection />
@@ -118,6 +132,8 @@
 					<DesignSystemMicButtonSection />
 				{:else if activeSection === "new-thread-options"}
 					<DesignSystemNewThreadOptionsSection />
+				{:else if activeSection === "pr-card"}
+					<DesignSystemPrCardSection />
 				{:else if activeSection === "task-tool"}
 					<DesignSystemTaskToolSection />
 				{/if}

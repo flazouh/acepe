@@ -2,7 +2,12 @@
 	import { CaretDown, CheckCircle, GithubLogo, MinusCircle, Wrench, XCircle } from "phosphor-svelte";
 	import { untrack } from "svelte";
 
-	import type { PrChecksItem, PrChecksItemConclusion } from "./types.js";
+	import type { PrChecksItem } from "./types.js";
+	import { bucketOfCheck, countCheckBuckets } from "./pr-checks-buckets.js";
+	import {
+		buildPrChecksSummarySegments,
+		formatPrChecksSummaryAriaLabel,
+	} from "./pr-checks-summary-format.js";
 	import { Button } from "../button/index.js";
 	import { LoadingIcon } from "../icons/index.js";
 
@@ -15,6 +20,7 @@
 		collapseThreshold?: number;
 		onOpenCheck?: (check: PrChecksItem, event: MouseEvent) => void;
 		onFixCheck?: (check: PrChecksItem) => void;
+		onViewDetails?: (check: PrChecksItem) => void;
 	}
 
 	let {
@@ -24,42 +30,15 @@
 		initiallyExpanded = false,
 		onOpenCheck,
 		onFixCheck,
+		onViewDetails,
 	}: Props = $props();
-
-	function isNeutralConclusion(conclusion: PrChecksItemConclusion | null): boolean {
-		return (
-			conclusion === "NEUTRAL" ||
-			conclusion === "CANCELLED" ||
-			conclusion === "SKIPPED" ||
-			conclusion === "STALE" ||
-			conclusion === "UNKNOWN"
-		);
-	}
-
-	function isFailureConclusion(conclusion: PrChecksItemConclusion | null): boolean {
-		return (
-			conclusion === "FAILURE" ||
-			conclusion === "TIMED_OUT" ||
-			conclusion === "ACTION_REQUIRED" ||
-			conclusion === "STARTUP_FAILURE"
-		);
-	}
-
-	type CheckBucket = "failure" | "in_progress" | "neutral" | "success";
-
-	function bucketOf(check: PrChecksItem): CheckBucket {
-		if (check.status !== "COMPLETED") return "in_progress";
-		if (isFailureConclusion(check.conclusion)) return "failure";
-		if (isNeutralConclusion(check.conclusion)) return "neutral";
-		return "success";
-	}
 
 	// Auto-expand when there are failures on first render.
 	let showDetails = $state(
-		untrack(() => initiallyExpanded || checks.some((c) => bucketOf(c) === "failure"))
+		untrack(() => initiallyExpanded || checks.some((c) => bucketOfCheck(c) === "failure"))
 	);
 
-	const bucketWeight: Record<CheckBucket, number> = {
+	const bucketWeight: Record<ReturnType<typeof bucketOfCheck>, number> = {
 		failure: 0,
 		in_progress: 1,
 		neutral: 2,
@@ -69,37 +48,17 @@
 	const sortedChecks = $derived.by(() => {
 		const indexed = checks.map((check, index) => ({ check, index }));
 		indexed.sort((a, b) => {
-			const wa = bucketWeight[bucketOf(a.check)];
-			const wb = bucketWeight[bucketOf(b.check)];
+			const wa = bucketWeight[bucketOfCheck(a.check)];
+			const wb = bucketWeight[bucketOfCheck(b.check)];
 			if (wa !== wb) return wa - wb;
 			return a.index - b.index;
 		});
 		return indexed.map((entry) => entry.check);
 	});
 
-	const counts = $derived.by(() => {
-		let failure = 0;
-		let inProgress = 0;
-		let neutral = 0;
-		let success = 0;
-		for (const check of checks) {
-			switch (bucketOf(check)) {
-				case "failure":
-					failure += 1;
-					break;
-				case "in_progress":
-					inProgress += 1;
-					break;
-				case "neutral":
-					neutral += 1;
-					break;
-				case "success":
-					success += 1;
-					break;
-			}
-		}
-		return { failure, inProgress, neutral, success };
-	});
+	const counts = $derived(countCheckBuckets(checks));
+	const summarySegments = $derived(buildPrChecksSummarySegments(counts));
+	const summaryAriaLabel = $derived(formatPrChecksSummaryAriaLabel(counts, checks.length));
 
 	const isWaitingForCi = $derived(hasResolved && checks.length === 0);
 
@@ -139,7 +98,7 @@
 			{#if showDetails}
 				<div class="flex flex-col mb-0.5">
 					{#each sortedChecks as check (`${check.name}:${check.workflowName ?? ""}:${check.startedAt ?? ""}:${check.detailsUrl ?? ""}`)}
-						{@const bucket = bucketOf(check)}
+						{@const bucket = bucketOfCheck(check)}
 						{@const durationLabel = formatDuration(check.startedAt, check.completedAt)}
 						<div class="flex items-center gap-1.5 py-[2px] min-w-0">
 							<span class="shrink-0">
@@ -153,12 +112,26 @@
 									<CheckCircle size={10} weight="fill" class="text-emerald-500" />
 								{/if}
 							</span>
-							<span
-								class="text-sm text-foreground/80 truncate flex-1 min-w-0"
-								title={check.name}
-							>
-								{check.name}
-							</span>
+							{#if onViewDetails}
+								<button
+									type="button"
+									class="text-sm text-foreground/80 truncate flex-1 min-w-0 text-left hover:underline"
+									title={check.name}
+									onclick={(event) => {
+										event.stopPropagation();
+										onViewDetails(check);
+									}}
+								>
+									{check.name}
+								</button>
+							{:else}
+								<span
+									class="text-sm text-foreground/80 truncate flex-1 min-w-0"
+									title={check.name}
+								>
+									{check.name}
+								</span>
+							{/if}
 							{#if durationLabel}
 								<span class="text-xs text-muted-foreground/55 tabular-nums shrink-0"
 									>{durationLabel}</span
@@ -206,47 +179,40 @@
 				type="button"
 				class="flex w-full items-center gap-1.5 text-[10.5px] leading-none tabular-nums hover:opacity-75 transition-opacity"
 				aria-expanded={showDetails}
+				aria-label={summaryAriaLabel}
 				onclick={(event) => {
 					event.stopPropagation();
 					showDetails = !showDetails;
 				}}
 			>
 				<div class="flex items-center gap-2 min-w-0 flex-1">
-					{#if counts.failure > 0}
-						<span class="inline-flex items-center gap-1 text-destructive font-medium">
-							<XCircle size={11} weight="fill" />
-							{counts.failure}
+					{#each summarySegments as segment, index (segment.kind)}
+						{#if index > 0}
+							<span class="text-muted-foreground/45" aria-hidden="true">·</span>
+						{/if}
+						<span
+							class="inline-flex items-center gap-1 font-medium {segment.kind === 'failure'
+								? 'text-destructive'
+								: segment.kind === 'in_progress'
+									? 'text-muted-foreground'
+									: segment.kind === 'neutral'
+										? 'text-amber-400'
+										: 'text-emerald-500'}"
+						>
+							{#if segment.kind === "failure"}
+								<XCircle size={11} weight="fill" />
+							{:else if segment.kind === "in_progress"}
+								<LoadingIcon class="animate-spin" size={11} />
+							{:else if segment.kind === "neutral"}
+								<MinusCircle size={11} weight="fill" />
+							{:else}
+								<CheckCircle size={11} weight="fill" />
+							{/if}
+							{segment.label}
 						</span>
-					{/if}
-					{#if counts.inProgress > 0}
-						<span class="inline-flex items-center gap-1 text-muted-foreground">
-							<LoadingIcon class="animate-spin" size={11} />
-							{counts.inProgress}
-						</span>
-					{/if}
-					{#if counts.neutral > 0}
-						<span class="inline-flex items-center gap-1 text-amber-400">
-							<MinusCircle size={11} weight="fill" />
-							{counts.neutral}
-						</span>
-					{/if}
-					{#if counts.success > 0}
-						<span class="inline-flex items-center gap-1 text-emerald-500">
-							<CheckCircle size={11} weight="fill" />
-							{counts.success}
-						</span>
-					{/if}
-					<span class="text-muted-foreground/55">
-						· {checks.length}
-						{checks.length === 1 ? "check" : "checks"}
-					</span>
+					{/each}
 				</div>
-				<CaretDown
-					size={9}
-					weight="bold"
-					class="shrink-0 text-muted-foreground/50 transition-transform {showDetails
-						? 'rotate-180'
-						: ''}"
+				<CaretDown size={12} weight="regular" class="size-3 shrink-0 text-muted-foreground/50 transition-transform {showDetails ? 'rotate-180' : ''}"
 				/>
 			</button>
 		{/if}

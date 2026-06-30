@@ -4,7 +4,7 @@
   Matches modified-files-header visual style (bg-accent bar).
   Left: PR icon + #N — clicking opens PR in browser.
   Right: DiffPill + chevron.
-  Click bar: expand/collapse with markdown description + commit list above.
+  Click bar: expand/collapse with markdown description + commit list below.
 
   During AI generation the card auto-opens and streams the PR title and
   description live via the `streamingData` prop.
@@ -18,9 +18,10 @@ import { AgentPanelPrCard as SharedAgentPanelPrCard, type AgentPanelPrCardModel 
 import "@acepe/ui/markdown-prose.css";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import DiffViewerModal from "../diff-viewer/diff-viewer-modal.svelte";
+import CiJobModal from "./ci-job-modal.svelte";
 import PrChecksSurface from "../shared/pr-checks-surface.svelte";
 import type { SessionLinkedPr } from "../../application/dto/session-linked-pr";
-import type { PrDetails } from "$lib/utils/tauri-client/git.js";
+import { git, type CiJobDetails, type PrDetails } from "$lib/utils/tauri-client/git.js";
 import type { ShipCardData } from "../ship-card/ship-card-parser.js";
 import type { PrChecksItem } from "@acepe/ui";
 
@@ -52,6 +53,11 @@ let {
 let diffModalOpen = $state(false);
 let selectedCommitSha = $state<string | null>(null);
 
+let ciModalOpen = $state(false);
+let ciModalCheck = $state<PrChecksItem | null>(null);
+let ciJobDetails = $state<CiJobDetails | null>(null);
+let ciJobLoading = $state(false);
+
 // Auto-expand when streaming data arrives
 const isStreaming = $derived(streamingData?.started && !streamingData.complete);
 const hasStreamingContent = $derived(
@@ -79,6 +85,23 @@ function handleOpenGitHub(e: MouseEvent) {
 function handleCommitClick(sha: string) {
 	selectedCommitSha = sha;
 	diffModalOpen = true;
+}
+
+async function handleViewDetails(check: PrChecksItem): Promise<void> {
+	if (!check.detailsUrl) return;
+	ciModalCheck = check;
+	ciJobDetails = null;
+	ciJobLoading = true;
+	ciModalOpen = true;
+	await git.ciJobDetails(projectPath, check.detailsUrl).match(
+		(details) => {
+			ciJobDetails = details;
+			ciJobLoading = false;
+		},
+		() => {
+			ciJobLoading = false;
+		}
+	);
 }
 
 function handleOpenCheck(
@@ -116,6 +139,7 @@ const prCardModel = $derived.by<AgentPanelPrCardModel>(() => {
 			checksCollapseThreshold: 3,
 			onOpenCheck: handleOpenCheck,
 			onFixCheck,
+			onViewDetails: (check) => void handleViewDetails(check),
 			onOpen: handleOpenGitHub,
 		};
 	}
@@ -172,6 +196,23 @@ const prCardModel = $derived.by<AgentPanelPrCardModel>(() => {
 		onClose={() => {
 			diffModalOpen = false;
 			selectedCommitSha = null;
+		}}
+	/>
+{/if}
+
+{#if ciModalOpen && ciModalCheck}
+	<CiJobModal
+		open={ciModalOpen}
+		check={ciModalCheck}
+		job={ciJobDetails}
+		isLoading={ciJobLoading}
+		{projectPath}
+		onClose={() => {
+			ciModalOpen = false;
+		}}
+		onFix={(check) => {
+			ciModalOpen = false;
+			onFixCheck?.(check);
 		}}
 	/>
 {/if}
