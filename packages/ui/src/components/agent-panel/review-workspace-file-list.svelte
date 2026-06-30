@@ -1,10 +1,11 @@
 <script lang="ts">
-	import { ArrowCounterClockwise, CheckCircle, CircleDashed, XCircle } from "phosphor-svelte";
+	import { ArrowCounterClockwise, CircleDashed } from "phosphor-svelte";
 
 	import type { ReviewWorkspaceFileItem } from "./types.js";
 
 	import { DiffPill } from "../diff-pill/index.js";
 	import { FilePathBadge } from "../file-path-badge/index.js";
+	import { RoundedIcon } from "../icons/index.js";
 
 	interface Props {
 		files: readonly ReviewWorkspaceFileItem[];
@@ -111,11 +112,11 @@
 								aria-label={reviewStatusLabel(row)}
 							>
 								{#if row.reviewStatus === "accepted"}
-									<CheckCircle class="h-3 w-3" weight="fill" />
+									<RoundedIcon name="check-circle" class="h-3 w-3" />
 								{:else if row.reviewStatus === "partial"}
 									<CircleDashed class="h-3 w-3" weight="bold" />
 								{:else if row.reviewStatus === "denied"}
-									<XCircle class="h-3 w-3" weight="fill" />
+									<RoundedIcon name="x-circle" class="h-3 w-3" />
 								{:else}
 									<!-- unreviewed: neutral dot so column width stays consistent -->
 									<span class="block h-3 w-3 rounded-full border border-current opacity-30"></span>

@@ -3,6 +3,7 @@ import * as Popover from "@acepe/ui/popover";
 import * as DropdownMenu from "@acepe/ui/dropdown-menu";
 import {
 	Button,
+	RoundedIcon,
 	SessionPrLinkPickerPanel,
 	type SessionPrLinkPickerProject,
 	type SessionPrLinkPickerPullRequest,
@@ -17,7 +18,6 @@ import type { Project } from "$lib/acp/logic/project-manager.svelte.js";
 import PrStateIcon from "$lib/acp/components/pr-state-icon.svelte";
 import { listPullRequests, getRepoContext } from "$lib/acp/services/github-service.js";
 import { getSessionStore } from "$lib/acp/store/session-store.svelte.js";
-import { LinkSimple } from "phosphor-svelte";
 import { toast } from "svelte-sonner";
 import { Tooltip } from "bits-ui";
 import {
@@ -261,7 +261,7 @@ async function handleTransferPrLink(otherSessionId: string, prNumber: number): P
 			<PrStateIcon state={linkedPr.state} size={11} />
 			#{linkedPr.prNumber}
 		{:else}
-			<LinkSimple size={11} weight="bold" class="shrink-0" />
+			<RoundedIcon name="link" class="size-[11px] shrink-0" />
 		{/if}
 	</Button>
 {/snippet}
@@ -301,7 +301,7 @@ async function handleTransferPrLink(otherSessionId: string, prNumber: number): P
 									<PrStateIcon state={linkedPr.state} size={11} />
 									#{linkedPr.prNumber}
 								{:else}
-									<LinkSimple size={11} weight="bold" class="shrink-0" />
+									<RoundedIcon name="link" class="size-[11px] shrink-0" />
 								{/if}
 							</Button>
 						{/snippet}

@@ -1,6 +1,4 @@
 <script lang="ts">
-	import { CheckCircle, XCircle } from "phosphor-svelte";
-
 	import { Colors } from "../../lib/colors.js";
 	import { Button } from "../button/index.js";
 	import { RoundedIcon } from "../icons/index.js";
@@ -90,7 +88,7 @@
 				onclick={onRejectFile}
 				data-header-control
 			>
-				<XCircle class="h-3 w-3 shrink-0" weight="fill" style="color: {Colors.red}" />
+				<RoundedIcon name="x-circle" class="h-3 w-3 shrink-0" style="color: {Colors.red}" />
 				{undoLabel}
 			</button>
 			<button
@@ -101,7 +99,7 @@
 				onclick={onAcceptFile}
 				data-header-control
 			>
-				<CheckCircle class="h-3 w-3 shrink-0 text-success" weight="fill" />
+				<RoundedIcon name="check-circle" class="h-3 w-3 shrink-0 text-success" />
 				{keepLabel}
 			</button>
 		{/if}

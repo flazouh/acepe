@@ -1,7 +1,7 @@
 <script lang="ts">
 import { LoadingIcon, RoundedIcon } from "@acepe/ui";
 import type { PrChecksItem } from "@acepe/ui";
-import { MinusCircle, Wrench, XCircle } from "phosphor-svelte";
+import { MinusCircle, Wrench } from "phosphor-svelte";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import DialogFrame from "$lib/components/ui/dialog-frame.svelte";
 import type { CiJobDetails, CiJobStep } from "$lib/utils/tauri-client/git.js";
@@ -108,7 +108,7 @@ function openOnGitHub(): void {
 							{#if bucket === "in_progress"}
 								<LoadingIcon class="animate-spin" size={10} />
 							{:else if bucket === "failure"}
-								<XCircle size={10} weight="fill" class="text-destructive" />
+								<RoundedIcon name="x-circle" class="size-2.5 text-destructive" />
 							{:else if bucket === "neutral"}
 								<MinusCircle size={10} weight="fill" class="text-amber-400" />
 							{:else}
