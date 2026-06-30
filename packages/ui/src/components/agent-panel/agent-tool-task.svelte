@@ -1,11 +1,11 @@
 <script lang="ts">
-	import { IconCircleCheckFilled } from "@tabler/icons-svelte";
 	import { ArrowsOutSimple } from "phosphor-svelte";
 	import type { Snippet } from "svelte";
 	import * as Dialog from "../dialog/index.js";
 	import AgentPanelSceneEntry from "../agent-panel-scene/agent-panel-scene-entry.svelte";
 	import { SegmentedProgressBar } from "../segmented-progress-bar/index.js";
 	import { Button } from "../button/index.js";
+	import { RoundedIcon } from "../icons/index.js";
 	import type { AgentToolStatus, AnyAgentEntry } from "./types.js";
 	import AgentToolCard from "./agent-tool-card.svelte";
 	import AgentCompactToolDisplay from "./compact-tool-display.svelte";
@@ -148,9 +148,9 @@
 		{/if}
 
 		{#if shouldShowDoneIcon}
-			<IconCircleCheckFilled
-				size={12}
-				class="shrink-0 text-success"
+			<RoundedIcon
+				name="check-circle-filled"
+				class="size-3 shrink-0 text-success"
 				data-testid="agent-tool-task-success-icon"
 			/>
 		{/if}

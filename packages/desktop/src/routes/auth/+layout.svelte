@@ -1,6 +1,5 @@
 <script lang="ts">
-import { BrandLockup } from "@acepe/ui";
-import { IconArrowLeft } from "@tabler/icons-svelte";
+import { BrandLockup, RoundedIcon } from "@acepe/ui";
 import AnimatedBackground from "$lib/components/animated-background.svelte";
 import { Button } from "$lib/components/ui/button/index.js";
 </script>
@@ -36,7 +35,7 @@ import { Button } from "$lib/components/ui/button/index.js";
 		<div class="relative order-1 flex h-full items-center justify-center p-8 bg-background">
 			<div class="absolute left-4 top-4 z-20 lg:left-6 lg:top-6">
 				<Button href="/" size="icon" variant="ghost">
-					<IconArrowLeft class="size-4" />
+					<RoundedIcon name="arrow-left" class="size-4" />
 					<span class="sr-only">Go back to home</span>
 				</Button>
 			</div>

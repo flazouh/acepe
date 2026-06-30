@@ -1,11 +1,11 @@
 <script lang="ts">
 	import { XCircle } from "phosphor-svelte";
-	import { IconHelpCircleFilled } from "@tabler/icons-svelte";
 	import {
 		EmbeddedPanelHeader,
 		HeaderActionCell,
 		HeaderTitleCell,
 	} from "../panel-header/index.js";
+	import { RoundedIcon } from "../icons/index.js";
 	import AgentToolDurationLabel from "./agent-tool-duration-label.svelte";
 	import type { ToolDurationTiming } from "./tool-duration.js";
 
@@ -26,9 +26,9 @@
 		{#if state === "cancelled"}
 			<XCircle size={14} weight="fill" class="shrink-0 mr-1 text-muted-foreground" />
 		{:else if state === "answered"}
-			<IconHelpCircleFilled class="h-3.5 w-3.5 shrink-0 mr-1 text-success" />
+			<RoundedIcon name="question-circle" class="h-3.5 w-3.5 shrink-0 mr-1 text-success" />
 		{:else}
-			<IconHelpCircleFilled class="h-3.5 w-3.5 shrink-0 mr-1 text-primary" />
+			<RoundedIcon name="question-circle" class="h-3.5 w-3.5 shrink-0 mr-1 text-primary" />
 		{/if}
 		<span class="question-title">{title}</span>
 		{#if badge}

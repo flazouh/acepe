@@ -1,5 +1,5 @@
 <script lang="ts">
-import { IconAlertCircle, IconCircleCheckFilled } from "@tabler/icons-svelte";
+import { RoundedIcon } from "@acepe/ui";
 import * as Tooltip from "@acepe/ui/tooltip";
 import type { SessionStatus } from "../state/index.js";
 import { resolveSessionStatusIndicatorPresentation } from "./session-status-indicator-presentation.js";
@@ -30,7 +30,10 @@ const presentation = $derived(resolveSessionStatusIndicatorPresentation(status, 
 			<Tooltip.Root>
 				<Tooltip.Trigger>
 					<div class="animate-in zoom-in-50 duration-300 text-success">
-						<IconCircleCheckFilled {size} />
+						<RoundedIcon
+							name="check-circle-filled"
+							style={`width: ${size}px; height: ${size}px;`}
+						/>
 					</div>
 				</Tooltip.Trigger>
 				<Tooltip.Content>
@@ -58,7 +61,10 @@ const presentation = $derived(resolveSessionStatusIndicatorPresentation(status, 
 						style="color: {Colors.red};"
 						onclick={() => onRetry?.()}
 					>
-						<IconAlertCircle {size} />
+						<RoundedIcon
+							name="alert"
+							style={`width: ${size}px; height: ${size}px;`}
+						/>
 					</button>
 				</Tooltip.Trigger>
 				<Tooltip.Content>

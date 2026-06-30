@@ -2,7 +2,6 @@
 import { RoundedIcon, Selector } from "@acepe/ui";
 import * as DropdownMenu from "@acepe/ui/dropdown-menu";
 import { IconEye } from "@tabler/icons-svelte";
-import { IconFolder } from "@tabler/icons-svelte";
 interface Props {
 	sessionId: string;
 	projectPath: string;
@@ -35,7 +34,7 @@ const hasActions = $derived(Boolean(onView || onOpenInFinder || onArchive || onU
 		{/if}
 		{#if onOpenInFinder}
 			<DropdownMenu.Item onclick={() => onOpenInFinder(sessionId, projectPath)}>
-				<IconFolder class="h-4 w-4 mr-2" />
+				<RoundedIcon name="folder" class="h-4 w-4 mr-2" />
 				{"Open Thread in Finder"}
 			</DropdownMenu.Item>
 		{/if}

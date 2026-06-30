@@ -1,6 +1,5 @@
 <script lang="ts">
 	import { Tooltip } from 'bits-ui';
-	import { IconAlertTriangle } from '@tabler/icons-svelte';
 	import { HandPalm } from 'phosphor-svelte';
 
 	import { RoundedIcon, LoadingIcon } from '../icons/index.js';
@@ -103,7 +102,7 @@
 						<!-- 3. Status indicator -->
 						{#if tab.status === 'error'}
 							<span class="shrink-0 w-4 h-4 flex items-center justify-center">
-								<IconAlertTriangle class="size-3 text-destructive" />
+								<RoundedIcon name="warning" class="size-3 text-destructive" />
 							</span>
 						{:else if tab.status === 'question'}
 							<span class="shrink-0 w-4 h-4 flex items-center justify-center">
