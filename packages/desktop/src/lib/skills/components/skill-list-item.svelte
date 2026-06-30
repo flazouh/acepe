@@ -1,6 +1,5 @@
 <script lang="ts">
 import { RoundedIcon } from "@acepe/ui";
-import { ArrowsClockwise } from "phosphor-svelte";
 import { Spinner } from "$lib/components/ui/spinner/index.js";
 import * as Tooltip from "@acepe/ui/tooltip";
 
@@ -94,7 +93,7 @@ const syncStatusInfo = $derived.by(() => {
 					{:else if syncStatus === "pending"}
 						<RoundedIcon name="warning" class="h-3 w-3 {syncStatusInfo.classes}" />
 					{:else}
-						<ArrowsClockwise class="h-3 w-3 {syncStatusInfo.classes}" weight="fill" />
+						<RoundedIcon name="refresh" class="h-3 w-3 {syncStatusInfo.classes}" />
 					{/if}
 				</Tooltip.Trigger>
 				<Tooltip.Content side="right" class="text-xs">

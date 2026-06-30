@@ -1,7 +1,6 @@
 <script lang="ts">
 import { RoundedIcon, Selector } from "@acepe/ui";
 import * as DropdownMenu from "@acepe/ui/dropdown-menu";
-import { ArrowsClockwise } from "phosphor-svelte";
 import AgentIcon from "$lib/acp/components/agent-icon.svelte";
 import { Spinner } from "$lib/components/ui/spinner/index.js";
 import { Switch } from "$lib/components/ui/switch/index.js";
@@ -74,7 +73,7 @@ const syncStatus = $derived.by(() => {
 			<RoundedIcon name="warning" class="mr-1 h-3.5 w-3.5 text-yellow-500" />
 			Sync {pendingCount}
 		{:else}
-			<ArrowsClockwise class="mr-1 h-3.5 w-3.5 text-muted-foreground" weight="fill" />
+			<RoundedIcon name="refresh" class="mr-1 h-3.5 w-3.5 text-muted-foreground" />
 			Sync {enabledCount}
 		{/if}
 	</button>
