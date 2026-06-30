@@ -89,6 +89,7 @@ import {
 	resolveWorkspaceFrameClass,
 	resolveWorkspaceSidebarClass,
 } from "./main-app-view/logic/main-app-layout-classes.js";
+import { shouldDisconnectSessionsOnMainAppDestroy } from "./main-app-view/logic/main-app-destroy-policy.js";
 import { MainAppViewState } from "./main-app-view/logic/main-app-view-state.svelte.js";
 import { applyDownloadEventToProgress } from "./main-app-view/logic/update-download-progress.js";
 import {
@@ -118,6 +119,12 @@ import {
 	createLiveInteractionGraphConsumer,
 	createSessionOpenInteractionGraphConsumer,
 } from "./main-app-view/logic/live-interaction-graph-consumer.js";
+
+declare global {
+	interface Window {
+		__acepeOpenStreamingReproLab?: () => boolean;
+	}
+}
 
 function focusOnMount(node: HTMLElement) {
 	node.focus();
@@ -545,6 +552,13 @@ viewState.onNewThreadOverride = (request) => newChatDialog?.open(request);
 const projectClient = new ProjectClient();
 let addProjectDialogOpen = $state(false);
 let startupMaximizeTriggered = false;
+let hmrTeardownActive = false;
+
+if (import.meta.hot) {
+	import.meta.hot.dispose(() => {
+		hmrTeardownActive = true;
+	});
+}
 
 function handleAddProjectOpen(path: string, name: string) {
 	const project = {
@@ -738,6 +752,27 @@ const commandPalette = useAdvancedCommandPalette({
 	},
 });
 
+function openStreamingReproLabForQa(): boolean {
+	viewState.debugPanelOpen = true;
+	return true;
+}
+
+function installStreamingReproQaHook(): void {
+	if (!import.meta.env.DEV) {
+		return;
+	}
+	window.__acepeOpenStreamingReproLab = openStreamingReproLabForQa;
+}
+
+function uninstallStreamingReproQaHook(): void {
+	if (!import.meta.env.DEV) {
+		return;
+	}
+	if (window.__acepeOpenStreamingReproLab === openStreamingReproLabForQa) {
+		delete window.__acepeOpenStreamingReproLab;
+	}
+}
+
 async function checkForAppUpdate(_trigger: UpdateCheckTrigger): Promise<void> {
 	// Never block the app on update checks: check in the background, download
 	// in the background, and surface an "Update" button top-left when ready.
@@ -824,6 +859,7 @@ onMount(async () => {
 		});
 
 	if (import.meta.env.DEV) {
+		installStreamingReproQaHook();
 		updaterState = createAvailableUpdaterState(DEV_UPDATE_VERSION);
 	} else {
 		await checkForAppUpdate("startup");
@@ -1029,7 +1065,9 @@ const showTabBarStrip = $derived(
 onDestroy(() => {
 	// Disconnect all sessions to kill their subprocesses
 	// This prevents orphaned Claude processes when the app closes
-	sessionStore.connection.disconnectAllSessions();
+	if (shouldDisconnectSessionsOnMainAppDestroy({ hmrTeardownActive })) {
+		sessionStore.connection.disconnectAllSessions();
+	}
 	// Cleanup state (handles keybindings uninstall and HMR guard reset)
 	viewState.cleanup();
 	// Cleanup inbound request handler
@@ -1042,6 +1080,7 @@ onDestroy(() => {
 	windowFocusStore.cleanup();
 	// Cleanup voice settings (removes Tauri event listener for download progress)
 	voiceSettingsStore.dispose();
+	uninstallStreamingReproQaHook();
 	if (updatePollTimer) {
 		clearInterval(updatePollTimer);
 	}
