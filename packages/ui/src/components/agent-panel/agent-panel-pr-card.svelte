@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { GitPullRequest, GitMerge } from "phosphor-svelte";
+	import { GitMerge } from "phosphor-svelte";
 
 	import type { AgentPanelPrCardModel } from "./types.js";
 
@@ -64,7 +64,7 @@
 				{#if prState === "merged"}
 					<GitMerge size={13} weight="bold" class="shrink-0" style="color: {headerIconColor}" />
 				{:else}
-					<GitPullRequest size={13} weight="bold" class="shrink-0" style="color: {headerIconColor}" />
+					<RoundedIcon name="pull-request" class="size-[13px] shrink-0" style="color: {headerIconColor}" />
 				{/if}
 				<span class="font-medium tabular-nums text-foreground">#{model.number}</span>
 			</button>
@@ -72,7 +72,7 @@
 				<span class="text-foreground truncate leading-none ml-0.5">{model.title}</span>
 			{/if}
 		{:else if model.mode === "streaming"}
-			<GitPullRequest size={13} weight="bold" class="shrink-0" style="color: var(--success)" />
+			<RoundedIcon name="pull-request" class="size-[13px] shrink-0" style="color: var(--success)" />
 			{#if model.title}
 				<span class="text-foreground truncate leading-none">
 					{model.title}

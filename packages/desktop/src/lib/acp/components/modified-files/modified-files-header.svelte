@@ -13,7 +13,7 @@ import * as ButtonGroup from "@acepe/ui/button-group";
 import * as DropdownMenu from "@acepe/ui/dropdown-menu";
 import DialogFrame from "$lib/components/ui/dialog-frame.svelte";
 import { Textarea } from "$lib/components/ui/textarea/index.js";
-import { GitMerge, GitPullRequest } from "phosphor-svelte";
+import { GitMerge } from "phosphor-svelte";
 import { toast } from "svelte-sonner";
 import { tauriClient } from "$lib/utils/tauri-client.js";
 import { Spinner } from "$lib/components/ui/spinner/index.js";
@@ -378,10 +378,9 @@ function handlePromptResetClick(): void {
 										<Spinner class="shrink-0" size={12} />
 										{createPrLabel ? createPrLabel : "Open PR"}
 									{:else}
-										<GitPullRequest
-											size={11}
-											weight="bold"
-											class="shrink-0 text-muted-foreground transition-colors group-hover/open-pr:text-success"
+										<RoundedIcon
+											name="pull-request"
+											class="size-[11px] shrink-0 text-muted-foreground transition-colors group-hover/open-pr:text-success"
 										/>
 										{"Open PR"}
 									{/if}

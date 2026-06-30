@@ -14,7 +14,6 @@ import * as ButtonGroup from "@acepe/ui/button-group";
 import {
 	CheckCircle,
 	Clock,
-	GitPullRequest,
 	XCircle,
 } from "phosphor-svelte";
 import { onDestroy, onMount, tick } from "svelte";
@@ -1841,7 +1840,7 @@ async function handleFixCiCheck(check: PrChecksItem): Promise<void> {
 				disabled={prCard.createRunning || !effectivePathForGit}
 				onclick={() => void handleCreatePr()}
 			>
-				<GitPullRequest size={11} weight="bold" class="shrink-0" />
+				<RoundedIcon name="pull-request" class="size-[11px] shrink-0" />
 				{prCard.createLabel ?? "Open PR"}
 				<DiffPill
 					insertions={reviewDialog.diffStats.insertions}
@@ -1851,7 +1850,7 @@ async function handleFixCiCheck(check: PrChecksItem): Promise<void> {
 			</Button>
 		{:else}
 			<Button variant="headerAction" size="headerAction" class="shrink-0" disabled>
-				<GitPullRequest size={11} weight="bold" class="shrink-0 text-success" />
+				<RoundedIcon name="pull-request" class="size-[11px] shrink-0 text-success" />
 				#{createdPr}
 				<DiffPill
 					insertions={reviewDialog.diffStats.insertions}

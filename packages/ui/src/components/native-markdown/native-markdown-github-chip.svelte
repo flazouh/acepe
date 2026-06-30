@@ -1,7 +1,8 @@
 <script lang="ts">
-	import { GitPullRequest, Link as LinkIcon, LinkBreak } from "phosphor-svelte";
+	import { Link as LinkIcon, LinkBreak } from "phosphor-svelte";
 
 	import { buildChipShellClassName } from "../chip/index.js";
+	import { RoundedIcon } from "../icons/index.js";
 	import {
 		parseGitHubChipRef,
 		type GitHubChipRef,
@@ -70,7 +71,7 @@
 			: 'text-muted-foreground'}"
 		aria-hidden="true"
 	>
-		<GitPullRequest weight="bold" size={14} />
+		<RoundedIcon name="pull-request" class="size-3.5" />
 	</span>
 	<span class="min-w-0 truncate font-mono text-[0.6875rem] leading-none">
 		{label}
