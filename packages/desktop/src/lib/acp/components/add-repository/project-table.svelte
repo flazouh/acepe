@@ -1,11 +1,11 @@
 <script lang="ts">
-import { FolderSimple } from "phosphor-svelte";
 import {
 	Table,
 	TableBody,
 	TableCell,
 	TableRow,
 	LoadingIcon,
+	RoundedIcon,
 } from "@acepe/ui";
 import { cn } from "$lib/utils.js";
 
@@ -59,7 +59,7 @@ function handleProjectRowKeydown(event: KeyboardEvent, project: ProjectWithSessi
 	</div>
 {:else if projects.length === 0}
 	<div class="flex h-full min-h-0 w-full flex-col items-center justify-center gap-2 px-6 text-center">
-		<FolderSimple weight="light" class="size-8 text-muted-foreground/50" />
+		<RoundedIcon name="folder" class="size-8 text-muted-foreground/50" />
 		<p class="text-xs text-muted-foreground">
 			{"No projects with sessions found"}
 		</p>

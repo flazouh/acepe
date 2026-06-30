@@ -1,11 +1,6 @@
 <script lang="ts">
-import { Button, PillButton } from "@acepe/ui";
-import { DownloadSimple } from "phosphor-svelte";
-import { Folder } from "phosphor-svelte";
-import { FolderOpen } from "phosphor-svelte";
-import { GitBranch } from "phosphor-svelte";
+import { Button, PillButton, RoundedIcon } from "@acepe/ui";
 import { Link } from "phosphor-svelte";
-import { MagnifyingGlass } from "phosphor-svelte";
 import { toast } from "svelte-sonner";
 import { ProjectClient } from "$lib/acp/logic/project-client.js";
 import { Spinner } from "$lib/components/ui/spinner/index.js";
@@ -287,7 +282,7 @@ function handleOpenChange(newOpen: boolean) {
 			<label
 				class="flex h-5 w-52 shrink-0 items-center gap-1.5 rounded-md border border-border bg-muted px-2"
 			>
-				<MagnifyingGlass size={11} class="shrink-0 text-muted-foreground/60" />
+				<RoundedIcon name="search" class="size-[11px] shrink-0 text-muted-foreground/60" />
 				<!-- svelte-ignore a11y_autofocus -->
 				<input
 					type="search"
@@ -315,7 +310,7 @@ function handleOpenChange(newOpen: boolean) {
 			}}
 		>
 			{#snippet children()}
-				<DownloadSimple size={14} />
+				<RoundedIcon name="download" class="size-3.5" />
 			{/snippet}
 		</Button>
 		<Button
@@ -331,7 +326,7 @@ function handleOpenChange(newOpen: boolean) {
 			}}
 		>
 			{#snippet children()}
-				<GitBranch size={14} />
+				<RoundedIcon name="branch" class="size-3.5" />
 			{/snippet}
 		</Button>
 		<Button
@@ -344,7 +339,7 @@ function handleOpenChange(newOpen: boolean) {
 			onclick={() => onBrowseFolder()}
 		>
 			{#snippet children()}
-				<Folder size={14} />
+				<RoundedIcon name="folder" class="size-3.5" />
 			{/snippet}
 		</Button>
 	{/snippet}
@@ -397,7 +392,7 @@ function handleOpenChange(newOpen: boolean) {
 				<!-- Destination field -->
 				<div class="space-y-1.5">
 					<label class="text-[11px] font-medium text-muted-foreground flex items-center gap-1.5">
-						<FolderOpen size={12} />
+						<RoundedIcon name="folder" class="size-3" />
 						{"Destination"}
 					</label>
 					<div class="flex items-center gap-2">
@@ -423,7 +418,7 @@ function handleOpenChange(newOpen: boolean) {
 				<!-- Branch field -->
 				<div class="space-y-1.5">
 					<label class="text-[11px] font-medium text-muted-foreground flex items-center gap-1.5">
-						<GitBranch size={12} />
+						<RoundedIcon name="branch" class="size-3" />
 						{"Branch"}
 					</label>
 					<input
@@ -447,7 +442,7 @@ function handleOpenChange(newOpen: boolean) {
 							<Spinner size={12} />
 							{"Cloning..."}
 						{:else}
-							<DownloadSimple size={14} />
+							<RoundedIcon name="download" class="size-3.5" />
 							{"Clone"}
 						{/if}
 					</PillButton>
