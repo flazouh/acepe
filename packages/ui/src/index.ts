@@ -27,6 +27,7 @@ export type {
 	AgentPanelPrCommitItem,
 	AgentPanelQueuedMessage,
 	AgentPanelQuestionSelectEvent,
+	AgentPanelReviewActionEvent,
 	AgentPanelSceneEntryModel,
 	AgentPanelSceneModel,
 	AgentPanelSceneStatus,
@@ -42,6 +43,7 @@ export type {
 	AgentToolEditDiffEntry,
 	AgentToolEntry,
 	AgentToolKind,
+	AgentToolReviewFileEntry,
 	AgentToolStatus,
 	AgentUserEntry,
 	AnyAgentEntry,
@@ -160,11 +162,22 @@ export {
 	getMicButtonVisualState,
 } from "./components/agent-panel/index.js";
 export type {
+	CheckBucket,
+	CheckBucketCounts,
 	PrChecksItem,
 	PrChecksItemConclusion,
 	PrChecksItemStatus,
+	PrChecksSummarySegment,
+	PrChecksSummarySegmentKind,
 } from "./components/pr-checks/index.js";
-export { PrChecksList, PrChecksSummary } from "./components/pr-checks/index.js";
+export {
+	PrChecksList,
+	PrChecksSummary,
+	bucketOfCheck,
+	buildPrChecksSummarySegments,
+	countCheckBuckets,
+	formatPrChecksSummaryAriaLabel,
+} from "./components/pr-checks/index.js";
 export {
 	AgentPanelScene,
 	AgentPanelSceneConversation,
@@ -197,7 +210,12 @@ export {
 	type ButtonProps,
 	type ButtonSize,
 	type ButtonVariant,
+	type ControlTokenSize,
+	type ControlTokenVariant,
 	buttonVariants,
+	getButtonClass,
+	ControlTokensShowcase,
+	controlTokensShowcaseMeta,
 	type Props as ButtonPropsAlias,
 	Root as ButtonRoot,
 } from "./components/button/index.js";
