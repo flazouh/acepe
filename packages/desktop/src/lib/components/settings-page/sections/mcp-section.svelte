@@ -8,6 +8,7 @@ import { BUILT_IN_MCP_TOOLS } from "./mcp-section.logic.js";
 	<SettingsSection
 		title="Built-in tools"
 		description="Acepe-owned MCP tools that are attached by the app, not by user config files."
+		card={false}
 	>
 		<div
 			class="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] items-center gap-3 border-b border-border/50 py-2 text-[12px] font-medium text-muted-foreground"
@@ -54,6 +55,7 @@ import { BUILT_IN_MCP_TOOLS } from "./mcp-section.logic.js";
 	<SettingsSection
 		title="External servers"
 		description="User-installed MCP server management is still planned."
+		card={false}
 	>
 		<div class="py-3 text-[12px] leading-relaxed text-muted-foreground/70">
 			Install, configure, and toggle external MCP servers across agents from this page in a

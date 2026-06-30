@@ -93,18 +93,20 @@ async function handleResetDatabase() {
 			title={"Danger Zone"}
 			description="Reset local app data and start fresh."
 		/>
-		<SettingRow
-			label={"Reset Database"}
-			description="Deletes the local SQLite database (projects, API keys, preferences, session history). Session files on disk are not affected."
-		>
-			<button
-				type="button"
-				class="shrink-0 rounded-md bg-destructive px-2.5 py-1 text-[12px] font-medium text-destructive-foreground transition-colors hover:bg-destructive/90"
-				onclick={() => (showResetConfirm = true)}
+		<div class="overflow-hidden rounded-xl border border-destructive/30 bg-card">
+			<SettingRow
+				label={"Reset Database"}
+				description="Deletes the local SQLite database (projects, API keys, preferences, session history). Session files on disk are not affected."
 			>
-				{"Reset Database"}
-			</button>
-		</SettingRow>
+				<button
+					type="button"
+					class="shrink-0 rounded-md bg-destructive px-2.5 py-1 text-[12px] font-medium text-destructive-foreground transition-colors hover:bg-destructive/90"
+					onclick={() => (showResetConfirm = true)}
+				>
+					{"Reset Database"}
+				</button>
+			</SettingRow>
+		</div>
 	</div>
 </div>
 

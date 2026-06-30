@@ -23,7 +23,7 @@
 	--popover-foreground: #0d0d0d;
 	--primary: #0d0d0d;
 	--primary-foreground: #ffffff;
-	--secondary: #f3f3f3;
+	--secondary: #e8e8e8;
 	--secondary-foreground: #0d0d0d;
 	--muted: #f3f3f3;
 	--muted-foreground: #666666;
@@ -57,6 +57,10 @@
 	--font-sans: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 	--font-serif: ui-serif, Georgia, serif;
 	--font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+
+	/* Code/diff font size — overridable from Appearance settings (px-based so it
+	   stays independent of the interface scale, which drives the root font-size). */
+	--code-font-size: 13px;
 
 	/* Shadows */
 	--shadow-x: 0px;
@@ -230,6 +234,14 @@
 .scrollbar-none {
 	-ms-overflow-style: none;
 	scrollbar-width: none;
+}
+
+/* Code/diff font size — driven by the Appearance "Code font size" setting.
+   Unlayered, so it reliably wins over Tailwind text-* utilities on the same
+   element. Scoped to syntax-highlighted code and the .app-code-font opt-in. */
+.shiki,
+.app-code-font {
+	font-size: var(--code-font-size);
 }
 
 /* Shiki dual-theme: switch between light/dark token colors */

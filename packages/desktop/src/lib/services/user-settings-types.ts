@@ -152,5 +152,13 @@ export type UserSettingKey =
 /**
  * User's preferred default agent ID for new sessions
  */
-"default_agent_id"
+"default_agent_id" |
+/**
+ * Base interface font size in px (stored as integer string, e.g. "14")
+ */
+"ui_font_size" |
+/**
+ * Code/diff font size in px (stored as integer string, e.g. "13")
+ */
+"code_font_size"
 

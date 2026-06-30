@@ -7,7 +7,6 @@ import {
 	GearFine,
 	GitBranch,
 	Keyboard,
-	Microphone,
 	Palette,
 	Plugs,
 	PuzzlePiece,
@@ -76,13 +75,6 @@ export const SETTINGS_SECTIONS: readonly SettingsSectionDefinition[] = [
 		label: "Chat",
 		description: "Composer and transcript behavior.",
 		icon: ChatCircle,
-		groupId: "agents",
-	},
-	{
-		id: "voice",
-		label: "Voice",
-		description: "Microphone dictation and speech models.",
-		icon: Microphone,
 		groupId: "agents",
 	},
 	{

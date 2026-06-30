@@ -3,7 +3,6 @@ export type SettingsSectionId =
 	| "appearance"
 	| "chat"
 	| "agents"
-	| "voice"
 	| "skills"
 	| "keybindings"
 	| "mcp"
@@ -24,7 +23,6 @@ export function migrateSettingsSectionId(id: string): SettingsSectionId {
 		case "appearance":
 		case "chat":
 		case "agents":
-		case "voice":
 		case "skills":
 		case "keybindings":
 		case "mcp":
@@ -38,8 +36,9 @@ export function migrateSettingsSectionId(id: string): SettingsSectionId {
 		// Legacy ids
 		case "configuration":
 			return "agents";
+		case "voice":
 		case "personalization":
-			return "voice";
+			return "chat";
 		default:
 			return "general";
 	}

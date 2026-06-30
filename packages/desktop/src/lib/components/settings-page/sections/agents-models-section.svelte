@@ -1,7 +1,7 @@
 <script lang="ts">
 import { Selector } from "@acepe/ui";
 import * as DropdownMenu from "@acepe/ui/dropdown-menu";
-import { CaretDown, Check } from "phosphor-svelte";
+import { Check } from "phosphor-svelte";
 import { toast } from "svelte-sonner";
 import { PreconnectionCapabilitiesState } from "$lib/acp/components/agent-input/logic/preconnection-capabilities-state.svelte.js";
 import { createLogger } from "$lib/acp/utils/logger.js";
@@ -117,15 +117,14 @@ function setAgentChecked(agentId: string, checked: boolean): void {
 <div class="w-full space-y-6">
 	<div class="flex items-center justify-between border-b border-border/50 py-3">
 		<span class="text-sm font-medium text-foreground">Default agent</span>
-		<Selector align="end" variant="ghost" triggerSize="minimal" showChevron={false}>
+		<Selector align="end" variant="outline" triggerSize="pill" class="max-w-[220px]">
 			{#snippet renderButton()}
 				{#if defaultAgent}
 					<AgentIcon agentId={defaultAgent.id} class="size-3.5 shrink-0" size={14} />
-					<span class="text-sm font-medium text-foreground">{defaultAgent.name}</span>
+					<span class="truncate text-sm font-medium text-foreground">{defaultAgent.name}</span>
 				{:else}
-					<span class="text-sm font-medium text-foreground">First available</span>
+					<span class="truncate text-sm font-medium text-foreground">First available</span>
 				{/if}
-				<CaretDown size={12} weight="regular" class="size-3 ml-1 shrink-0 opacity-40" />
 			{/snippet}
 
 			<DropdownMenu.Item onclick={() => void agentPreferencesStore.setDefaultAgentId(null)}>

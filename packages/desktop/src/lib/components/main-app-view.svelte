@@ -114,7 +114,6 @@ import { SettingsPage } from "./settings-page/index.js";
 import SqlStudioPage from "./sql-studio/sql-studio-page.svelte";
 import { TopBar } from "./top-bar/index.js";
 import { UpdateAvailablePage } from "./update-available/index.js";
-import DialogFrame from "$lib/components/ui/dialog-frame.svelte";
 import {
 	createLiveInteractionGraphConsumer,
 	createSessionOpenInteractionGraphConsumer,
@@ -214,7 +213,7 @@ sessionStore.connection.setSessionOpenHydrator(sessionOpenHydrator);
 panelStore.setDuplicatePanelDisposalHandler((panelId) => {
 	sessionOpenHydrator.clearAttempt(panelId);
 });
-// Create voice settings store (context for voice-section and agent-input-ui)
+// Create voice settings store (context for agent-input-ui composer voice controls)
 const voiceSettingsStore = createVoiceSettingsStore();
 const preconnectionAgentSkillsStore = createPreconnectionAgentSkillsStore();
 
@@ -1122,7 +1121,21 @@ onDestroy(() => {
 				onDevResetOnboarding={handleDevResetOnboarding}
 			></TopBar>
 		</div>
-		{#if !viewState.reviewFullscreenOpen}
+		{#if viewState.settingsModalOpen}
+			<div class={resolveWorkspaceFrameClass()}>
+				<svelte:boundary onerror={(e) => console.error('[boundary:settings]', e)}>
+					<SettingsPage {projectManager} onBack={() => viewState.closeSettings()} />
+					{#snippet failed(error, reset)}
+						<div class="flex flex-1 items-center justify-center p-4">
+							<div class="flex flex-col items-center gap-2 text-muted-foreground text-xs">
+								<span>{"Settings encountered an error."}</span>
+								<button class="underline hover:text-foreground" onclick={reset}>{"Retry"}</button>
+							</div>
+						</div>
+					{/snippet}
+				</svelte:boundary>
+			</div>
+		{:else if !viewState.reviewFullscreenOpen}
 			<div class={resolveWorkspaceFrameClass()}>
 				{#if showSidebar}
 					<div class={resolveWorkspaceSidebarClass(viewState.sidebarOpen)}>
@@ -1278,23 +1291,6 @@ onDestroy(() => {
 			</div>
 		{/key}
 	{/if}
-
-	<!-- Settings Modal -->
-	<DialogFrame
-		open={viewState.settingsModalOpen}
-		title="Settings"
-		closeLabel="Close settings"
-		contentOverflow="hidden"
-		contentClass="bg-background"
-		size="compact"
-		onOpenChange={(open) => {
-			if (!open) {
-				viewState.closeSettings();
-			}
-		}}
-	>
-		<SettingsPage {projectManager} />
-	</DialogFrame>
 
 	<!-- File Explorer Modal (Cmd+I) -->
 	{#if viewState.fileExplorerVisible && fileExplorerProjectPaths.length > 0}

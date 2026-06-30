@@ -82,6 +82,10 @@ pub enum UserSettingKey {
     AnalyticsOptOut,
     /// User's preferred default agent ID for new sessions
     DefaultAgentId,
+    /// Base interface font size in px (stored as integer string, e.g. "14")
+    UiFontSize,
+    /// Code/diff font size in px (stored as integer string, e.g. "13")
+    CodeFontSize,
 }
 
 impl UserSettingKey {
@@ -129,6 +133,8 @@ impl UserSettingKey {
             UserSettingKey::AttentionQueueEnabled => "attention_queue_enabled",
             UserSettingKey::AnalyticsOptOut => "analytics_opt_out",
             UserSettingKey::DefaultAgentId => "default_agent_id",
+            UserSettingKey::UiFontSize => "ui_font_size",
+            UserSettingKey::CodeFontSize => "code_font_size",
         }
     }
 }
@@ -185,6 +191,8 @@ mod tests {
             "attention_queue_enabled",
             "analytics_opt_out",
             "default_agent_id",
+            "ui_font_size",
+            "code_font_size",
         ];
 
         for key in keys {
