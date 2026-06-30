@@ -1,5 +1,5 @@
 <script lang="ts">
-import { IconBrandGoogle } from "@tabler/icons-svelte";
+import { RoundedIcon } from "@acepe/ui";
 import { Button } from "$lib/components/ui/button/index.js";
 </script>
 
@@ -18,7 +18,7 @@ import { Button } from "$lib/components/ui/button/index.js";
 				console.log("Google Sign In clicked");
 			}}
 		>
-			<IconBrandGoogle class="mr-2 size-5" />
+			<RoundedIcon name="google" class="mr-2 size-5" />
 			Sign in with Google
 		</Button>
 	</div>

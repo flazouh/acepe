@@ -1,6 +1,5 @@
 <script lang="ts">
 	import { IconSquare } from "@tabler/icons-svelte";
-	import { IconHelpCircleFilled } from "@tabler/icons-svelte";
 	import { RoundedIcon } from "../icons/index.js";
 
 	import type {
@@ -60,7 +59,7 @@
 
 <div class="mt-2 flex flex-col overflow-hidden rounded-lg border border-border/60 bg-muted/20 shadow-sm">
 	<div class="flex items-center gap-1.5 border-b border-border/60 bg-muted/40 px-2 py-1.5">
-		<IconHelpCircleFilled class={`size-3.5 shrink-0 ${questionIconClassName}`} />
+		<RoundedIcon name="question-circle" class={`size-3.5 shrink-0 ${questionIconClassName}`} />
 		<div class="min-w-0 flex-1 text-xs leading-tight font-medium text-foreground">
 			{currentQuestion.question}
 		</div>
