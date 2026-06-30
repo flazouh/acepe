@@ -9,9 +9,8 @@ import type {
 	PreviewKind,
 } from "$lib/services/converted-session-types.js";
 import { tauriClient } from "$lib/utils/tauri-client.js";
-import { DiffPill } from "@acepe/ui";
+import { DiffPill, RoundedIcon } from "@acepe/ui";
 import { Colors } from "@acepe/ui/colors";
-import { FolderOpen } from "phosphor-svelte";
 import { onMount } from "svelte";
 import { SvelteSet } from "svelte/reactivity";
 import FileIcon from "../file-list/file-icon.svelte";
@@ -246,12 +245,7 @@ onMount(() => {
 							>
 								{#if node.isDirectory}
 									<span class="flex size-4 shrink-0 items-center justify-center">
-										<FolderOpen
-											class="size-3.5"
-											weight={expandedFolders.has(`${projectPath}:${node.path}`)
-												? "fill"
-												: "regular"}
-										/>
+										<RoundedIcon name="folder" class="size-3.5" />
 									</span>
 								{:else}
 									<FileIcon

@@ -1,7 +1,6 @@
 <script lang="ts">
 import { RoundedIcon } from "@acepe/ui";
 import { Colors } from "@acepe/ui/colors";
-import { CheckCircle } from "phosphor-svelte";
 import { XCircle } from "phosphor-svelte";
 interface Props {
 	hunkCurrent: number;
@@ -68,7 +67,7 @@ const navBtnClass =
 			title={"Accept file"}
 			onclick={onAcceptFile}
 		>
-			<CheckCircle class="h-3 w-3 shrink-0" style="color: {Colors.green};" weight="fill" />
+			<RoundedIcon name="check-circle" class="h-3 w-3 shrink-0" style="color: {Colors.green};" />
 			{"Keep File"}
 		</button>
 	</div>

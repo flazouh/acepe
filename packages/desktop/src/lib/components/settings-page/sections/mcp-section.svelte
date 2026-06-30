@@ -1,5 +1,6 @@
 <script lang="ts">
-import { CheckCircle, Plugs, WarningCircle } from "phosphor-svelte";
+import { RoundedIcon } from "@acepe/ui";
+import { Plugs } from "phosphor-svelte";
 import SettingsSection from "../settings-section.svelte";
 import { BUILT_IN_MCP_TOOLS } from "./mcp-section.logic.js";
 </script>
@@ -38,7 +39,7 @@ import { BUILT_IN_MCP_TOOLS } from "./mcp-section.logic.js";
 					class="flex items-center justify-end gap-1.5 text-[12px] font-medium text-muted-foreground"
 					aria-label="{tool.name} status"
 				>
-					<CheckCircle class="size-3.5 text-emerald-500" weight="regular" />
+					<RoundedIcon name="check-circle" class="size-3.5 text-emerald-500" />
 					<span>{tool.statusLabel}</span>
 				</div>
 			</div>
@@ -46,7 +47,7 @@ import { BUILT_IN_MCP_TOOLS } from "./mcp-section.logic.js";
 			<div
 				class="flex items-start gap-2 border-t border-border/50 py-3 text-[12px] text-muted-foreground/70"
 			>
-				<WarningCircle class="mt-0.5 size-3.5 shrink-0 text-amber-500" weight="regular" />
+				<RoundedIcon name="warning" class="mt-0.5 size-3.5 shrink-0 text-amber-500" />
 				<p class="leading-relaxed">{tool.limitation}</p>
 			</div>
 		{/each}

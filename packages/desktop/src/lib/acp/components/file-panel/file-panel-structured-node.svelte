@@ -1,8 +1,6 @@
 <script lang="ts">
 import { PlanIcon, RoundedIcon } from "@acepe/ui";
-import { CheckCircle } from "phosphor-svelte";
 import { CircleDashed } from "phosphor-svelte";
-import { Folder } from "phosphor-svelte";
 
 import type { StructuredData } from "./format/types.js";
 import { buildStructuredNodeDisplayState } from "./file-panel-structured-node-state.js";
@@ -53,7 +51,7 @@ const nodeState = $derived.by(() => {
 					{#if nodeState.isArray}
 						<PlanIcon size="md" />
 					{:else}
-						<Folder class="h-3.5 w-3.5 text-violet-500" weight="bold" />
+						<RoundedIcon name="folder" class="h-3.5 w-3.5 text-violet-500" />
 					{/if}
 				</span>
 				<span class="structured-key">{nodeState.keyPrefix}</span>
@@ -73,7 +71,7 @@ const nodeState = $derived.by(() => {
 					{#if nodeState.isArray}
 						<PlanIcon size="md" />
 					{:else}
-						<Folder class="h-3.5 w-3.5 text-violet-500" weight="bold" />
+						<RoundedIcon name="folder" class="h-3.5 w-3.5 text-violet-500" />
 					{/if}
 				</span>
 				<span class="structured-key">{nodeState.keyPrefix}</span>
@@ -83,7 +81,7 @@ const nodeState = $derived.by(() => {
 			<div class="structured-card-header">
 				<span class="inline-flex w-4 shrink-0 items-center justify-center text-muted-foreground/80" aria-hidden="true">
 					{#if typeof nodeState.displayValue === "boolean" && nodeState.displayValue}
-						<CheckCircle class="h-3.5 w-3.5 text-emerald-500" weight="fill" />
+						<RoundedIcon name="check-circle" class="h-3.5 w-3.5 text-emerald-500" />
 					{:else}
 						<CircleDashed class="h-3.5 w-3.5 text-muted-foreground" weight="bold" />
 					{/if}

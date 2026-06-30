@@ -1,7 +1,7 @@
 <script lang="ts">
 import { RoundedIcon, Selector } from "@acepe/ui";
 import * as DropdownMenu from "@acepe/ui/dropdown-menu";
-import { ArrowsClockwise, CheckCircle, FolderOpen, Warning as PhosphorWarning } from "phosphor-svelte";
+import { ArrowsClockwise } from "phosphor-svelte";
 import AgentIcon from "$lib/acp/components/agent-icon.svelte";
 import { Spinner } from "$lib/components/ui/spinner/index.js";
 import { Switch } from "$lib/components/ui/switch/index.js";
@@ -68,10 +68,10 @@ const syncStatus = $derived.by(() => {
 			<Spinner class="mr-1" size={14} />
 			Syncing
 		{:else if syncStatus === "synced"}
-			<CheckCircle class="mr-1 h-3.5 w-3.5 text-success" weight="fill" />
+			<RoundedIcon name="check-circle" class="mr-1 h-3.5 w-3.5 text-success" />
 			Synced
 		{:else if syncStatus === "pending"}
-			<PhosphorWarning class="mr-1 h-3.5 w-3.5 text-yellow-500" weight="fill" />
+			<RoundedIcon name="warning" class="mr-1 h-3.5 w-3.5 text-yellow-500" />
 			Sync {pendingCount}
 		{:else}
 			<ArrowsClockwise class="mr-1 h-3.5 w-3.5 text-muted-foreground" weight="fill" />
@@ -107,7 +107,7 @@ const syncStatus = $derived.by(() => {
 					<AgentIcon agentId={agent.id} size={16} class="h-4 w-4" />
 					<span>{agent.name}</span>
 					{#if agent.enabled && (agent.status === "pending" || agent.status === "never")}
-						<PhosphorWarning class="h-3 w-3 text-yellow-500" weight="fill" />
+						<RoundedIcon name="warning" class="h-3 w-3 text-yellow-500" />
 					{/if}
 				</div>
 				<div class="flex items-center gap-2">
@@ -118,7 +118,7 @@ const syncStatus = $derived.by(() => {
 							onclick={(e) => handleOpenFolder(e, agent.id)}
 							title="Open in folder"
 						>
-							<FolderOpen class="h-3.5 w-3.5" />
+							<RoundedIcon name="folder" class="h-3.5 w-3.5" />
 						</button>
 					{/if}
 					<Switch checked={agent.enabled} class="cursor-pointer" />
