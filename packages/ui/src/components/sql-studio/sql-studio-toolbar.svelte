@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { HardDrives } from "phosphor-svelte";
-	import { Play } from "phosphor-svelte";
 	import { cn } from "../../lib/utils.js";
+	import { RoundedIcon } from "../icons/index.js";
 
 	interface Props {
 		selectedTableLabel: string | null;
@@ -82,7 +82,7 @@
 				onclick={onRunQuery}
 				disabled={!hasConnection || isExecutingQuery}
 			>
-				<Play size={10} weight="fill" />
+				<RoundedIcon name="play" class="size-2.5" />
 				{isExecutingQuery ? "Running..." : "Run"}
 			</button>
 		{/if}

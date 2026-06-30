@@ -1,7 +1,8 @@
 <script lang="ts">
 import { FilePathBadge } from "@acepe/ui/file-path-badge";
 import { Button } from "@acepe/ui/button";
-import { CheckCircle, ShieldCheck, ShieldWarning, XCircle } from "phosphor-svelte";
+import { RoundedIcon } from "@acepe/ui";
+import { ShieldCheck, ShieldWarning } from "phosphor-svelte";
 import { getPermissionStore } from "../../store/permission-store.svelte.js";
 import type { PermissionRequest } from "../../types/permission.js";
 import { COLOR_NAMES, Colors } from "@acepe/ui/colors";
@@ -79,7 +80,7 @@ const buttonClass = "justify-center shrink-0";
 	{#if selectedReply === null}
 		<div class="flex items-center justify-end gap-1" class:w-full={!inline && !compact}>
 			<Button variant="toolbar" size="toolbar" class={buttonClass} onclick={handleReject}>
-				<XCircle weight="fill" class="size-3 shrink-0" style="color: {rejectIconColor}" />
+				<RoundedIcon name="x-circle" class="size-3 shrink-0" style="color: {rejectIconColor}" />
 				<span>{"Deny"}</span>
 			</Button>
 
@@ -91,7 +92,7 @@ const buttonClass = "justify-center shrink-0";
 			{/if}
 
 			<Button variant="toolbar" size="toolbar" class={buttonClass} onclick={handleAllowOnce}>
-				<CheckCircle weight="fill" class="size-3 shrink-0" style="color: {allowIconColor}" />
+				<RoundedIcon name="check-circle" class="size-3 shrink-0" style="color: {allowIconColor}" />
 				<span>{"Allow"}</span>
 			</Button>
 		</div>

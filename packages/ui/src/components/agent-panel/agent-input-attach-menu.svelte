@@ -3,9 +3,10 @@
 -->
 <script lang="ts">
 	import type { Snippet } from "svelte";
-	import { CheckCircle, File, Image as ImageIcon } from "phosphor-svelte";
+	import { File, Image as ImageIcon } from "phosphor-svelte";
 
 	import PlusIcon from "../icons/plus-icon.svelte";
+	import { RoundedIcon } from "../icons/index.js";
 
 	import * as DropdownMenu from "../dropdown-menu/index.js";
 	import {
@@ -225,11 +226,11 @@
 			>
 				<AgentInputModeIcon iconKind={mode.iconKind} class="size-3.5 shrink-0" monochrome />
 				<span class="min-w-0 flex-1 truncate text-xs">{mode.label}</span>
-				<CheckCircle
+				<RoundedIcon
+					name="check-circle"
 					class={mode.selected
 						? "size-3.5 shrink-0 text-foreground"
 						: "size-3.5 shrink-0 text-transparent"}
-					weight="fill"
 				/>
 			</DropdownMenu.Item>
 		{/each}

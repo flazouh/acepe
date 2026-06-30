@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { MinusCircle, Wrench, XCircle } from "phosphor-svelte";
+	import { MinusCircle, Wrench } from "phosphor-svelte";
 	import { untrack } from "svelte";
 
 	import type { PrChecksItem } from "./types.js";
@@ -105,7 +105,7 @@
 								{#if bucket === "in_progress"}
 									<LoadingIcon class="animate-spin text-muted-foreground" size={10} />
 								{:else if bucket === "failure"}
-									<XCircle size={10} weight="fill" class="text-destructive" />
+									<RoundedIcon name="x-circle" class="size-2.5 text-destructive" />
 								{:else if bucket === "neutral"}
 									<MinusCircle size={10} weight="fill" class="text-amber-400" />
 								{:else}
@@ -200,7 +200,7 @@
 										: 'text-emerald-500'}"
 						>
 							{#if segment.kind === "failure"}
-								<XCircle size={11} weight="fill" />
+								<RoundedIcon name="x-circle" class="size-[11px]" />
 							{:else if segment.kind === "in_progress"}
 								<LoadingIcon class="animate-spin" size={11} />
 							{:else if segment.kind === "neutral"}

@@ -8,10 +8,9 @@
 	import { NumberCircleSeven } from "phosphor-svelte";
 	import { NumberCircleEight } from "phosphor-svelte";
 	import { NumberCircleNine } from "phosphor-svelte";
-	import { CheckCircle } from "phosphor-svelte";
 	import { CircleNotch } from "phosphor-svelte";
-	import { XCircle } from "phosphor-svelte";
 	import { Circle } from "phosphor-svelte";
+	import { RoundedIcon } from "../icons/index.js";
 
 	import type { AgentTodoStatus } from "./types.js";
 
@@ -44,9 +43,9 @@
 </script>
 
 {#if status === "completed"}
-	<CheckCircle {size} weight="fill" class="text-success {className}" />
+	<RoundedIcon name="check-circle" class="text-success {className}" style="width: {size}px; height: {size}px;" />
 {:else if status === "cancelled"}
-	<XCircle {size} weight="fill" class="text-muted-foreground {className}" />
+	<RoundedIcon name="x-circle" class="text-muted-foreground {className}" style="width: {size}px; height: {size}px;" />
 {:else if status === "in_progress" && isLive}
 	<CircleNotch {size} class="animate-spin text-foreground {className}" />
 {:else}

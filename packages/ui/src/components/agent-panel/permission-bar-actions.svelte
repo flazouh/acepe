@@ -1,7 +1,8 @@
 <script lang="ts">
-	import { CheckCircle, ShieldCheck, XCircle } from "phosphor-svelte";
+	import { ShieldCheck } from "phosphor-svelte";
 
 	import { Button } from "../button/index.js";
+	import { RoundedIcon } from "../icons/index.js";
 	import { COLOR_NAMES, Colors } from "../../lib/colors.js";
 
 	interface Props {
@@ -49,7 +50,7 @@
 {#if selectedReply === null}
 	<div class={wrapperClass}>
 		<Button variant="toolbar" size="toolbar" class={buttonClass} onclick={onDeny}>
-			<XCircle weight="fill" class="size-3 shrink-0" style="color: {denyIconColor}" />
+			<RoundedIcon name="x-circle" class="size-3 shrink-0" style="color: {denyIconColor}" />
 			<span>{denyLabel}</span>
 		</Button>
 
@@ -61,7 +62,7 @@
 		{/if}
 
 		<Button variant="toolbar" size="toolbar" class={buttonClass} onclick={onAllow}>
-			<CheckCircle weight="fill" class="size-3 shrink-0" style="color: {allowIconColor}" />
+			<RoundedIcon name="check-circle" class="size-3 shrink-0" style="color: {allowIconColor}" />
 			<span>{allowLabel}</span>
 		</Button>
 	</div>

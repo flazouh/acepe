@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { Link as LinkIcon, LinkBreak } from "phosphor-svelte";
+	import { LinkBreak } from "phosphor-svelte";
 
 	import { buildChipShellClassName } from "../chip/index.js";
 	import { RoundedIcon } from "../icons/index.js";
@@ -102,7 +102,7 @@
 			{#if isLinked}
 				<LinkBreak size={12} />
 			{:else}
-				<LinkIcon size={12} />
+				<RoundedIcon name="link" class="size-3" />
 			{/if}
 		</button>
 	</span>
