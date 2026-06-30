@@ -2,7 +2,6 @@
 	import type { Snippet } from "svelte";
 	import {
 		ArrowCounterClockwise,
-		Check,
 		Laptop,
 		Tree,
 		WarningCircle,
@@ -158,10 +157,9 @@
 						11
 					)}
 					<span class="min-w-0 flex-1 truncate text-foreground">{option.label}</span>
-					<Check
-						size={10}
-						weight="bold"
-						class={selected ? "shrink-0 text-foreground" : "shrink-0 text-transparent"}
+					<RoundedIcon
+						name="check"
+						class={selected ? "size-2.5 shrink-0 text-foreground" : "size-2.5 shrink-0 text-transparent"}
 					/>
 				</div>
 			</DropdownMenu.Item>

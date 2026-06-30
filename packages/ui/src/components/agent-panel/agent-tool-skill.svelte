@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { CheckCircle, Package } from "phosphor-svelte";
+	import { Package } from "phosphor-svelte";
 	import AgentToolCard from "./agent-tool-card.svelte";
 	import ToolLabel from "./tool-label.svelte";
 	import TextShimmer from "../text-shimmer/text-shimmer.svelte";
@@ -117,7 +117,7 @@
 					{#if viewState.isPending}
 						<ToolLabel {status}>{runningStatusLabel}</ToolLabel>
 					{:else if viewState.isSuccess}
-						<CheckCircle weight="fill" size={11} class="text-success" aria-label="Successful" />
+						<RoundedIcon name="check-circle" class="size-[11px] text-success" aria-label="Successful" />
 					{/if}
 				</div>
 

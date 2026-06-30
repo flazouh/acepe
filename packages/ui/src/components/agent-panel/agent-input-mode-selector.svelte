@@ -4,9 +4,8 @@
   State and registry stay in desktop. Component accepts the current state and callbacks.
 -->
 <script lang="ts">
-	import { CheckCircle } from "phosphor-svelte";
-
 	import * as DropdownMenu from "../dropdown-menu/index.js";
+	import { RoundedIcon } from "../icons/index.js";
 	import { Selector } from "../selector/index.js";
 	import {
 		getModeDropdownOptions,
@@ -76,11 +75,11 @@
 						<span class="text-[11px] leading-[1.25] text-muted-foreground">{option.description}</span>
 					{/if}
 				</div>
-				<CheckCircle
+				<RoundedIcon
+					name="check-circle"
 					class={selected
 						? "mt-0.5 size-3.5 shrink-0 self-start text-foreground"
 						: "mt-0.5 size-3.5 shrink-0 self-start text-transparent"}
-					weight="fill"
 				/>
 			</div>
 		</DropdownMenu.Item>

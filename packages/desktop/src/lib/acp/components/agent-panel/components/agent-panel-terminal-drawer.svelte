@@ -8,8 +8,7 @@
 <script lang="ts">
 import { AgentPanelTerminalDrawer as SharedAgentPanelTerminalDrawer } from "@acepe/ui/agent-panel";
 import { ResultAsync } from "neverthrow";
-import { PlusIcon } from "@acepe/ui";
-import { X } from "phosphor-svelte";
+import { PlusIcon, RoundedIcon } from "@acepe/ui";
 import { onMount } from "svelte";
 import type { EmbeddedTerminalTab } from "$lib/acp/store/embedded-terminal-store.svelte.js";
 import { EmbeddedTerminalStore } from "$lib/acp/store/embedded-terminal-store.svelte.js";
@@ -166,7 +165,7 @@ function handleResizePointerUp(): void {
 						handleCloseTab(tab.id);
 					}}
 				>
-					<X size={12} weight="bold" />
+					<RoundedIcon name="close" class="size-3" />
 				</button>
 			</div>
 		{/each}
