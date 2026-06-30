@@ -1,7 +1,6 @@
 <script lang="ts">
-	import { WarningCircle } from "phosphor-svelte";
 	import { Button } from "../button/index.js";
-	import { LoadingIcon } from "../icons/index.js";
+	import { LoadingIcon, RoundedIcon } from "../icons/index.js";
 
 	interface Props {
 		title: string;
@@ -53,7 +52,7 @@
 
 	<div class="flex w-full min-w-0 items-center gap-3 pl-1 pr-3 py-1">
 		<div class="flex min-w-0 flex-1 items-center gap-1.5 text-[0.6875rem]">
-			<WarningCircle size={13} weight="fill" class="shrink-0 text-destructive" />
+			<RoundedIcon name="warning" class="size-[13px] shrink-0 text-destructive" />
 			<span class="shrink-0 font-medium text-foreground">{title}</span>
 			{#if hasSummary}
 				<span class="truncate text-muted-foreground">{summary}</span>

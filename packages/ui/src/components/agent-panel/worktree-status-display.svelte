@@ -1,5 +1,4 @@
 <script lang="ts">
-	import { Tree } from "phosphor-svelte";
 	import { RoundedIcon } from "../icons/index.js";
 
 	interface Props {
@@ -13,7 +12,7 @@
 
 <div class="flex items-center gap-1.5 px-3 py-1">
 	{#if mode === "worktree"}
-		<Tree size={12} weight="fill" class="shrink-0 text-success" />
+		<RoundedIcon name="worktree" class="size-3 shrink-0 text-success" />
 	{:else}
 		<RoundedIcon name="folder" class="size-3 shrink-0 text-muted-foreground" />
 	{/if}

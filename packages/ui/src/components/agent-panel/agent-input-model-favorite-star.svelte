@@ -4,8 +4,7 @@
   Extracted from packages/desktop/src/lib/acp/components/model-selector.favorite-star.svelte.
 -->
 <script lang="ts">
-	import { Star } from "phosphor-svelte";
-
+	import { RoundedIcon } from "../icons/index.js";
 	import { cn } from "../../lib/utils.js";
 	import { Colors } from "../../lib/colors.js";
 
@@ -32,9 +31,9 @@
 	style={isFavorite ? `color: ${starColor}` : undefined}
 >
 	{#if isFavorite}
-		<Star class="size-3.5" weight="fill" />
+		<RoundedIcon name="star" class="size-3.5" />
 	{:else}
-		<Star class="size-3.5 group-hover/star:hidden" weight="regular" />
-		<Star class="size-3.5 hidden group-hover/star:block" weight="fill" color={starColor} />
+		<RoundedIcon name="star" class="size-3.5 group-hover/star:hidden" />
+		<RoundedIcon name="star" class="size-3.5 hidden group-hover/star:block" style={`color: ${starColor}`} />
 	{/if}
 </button>

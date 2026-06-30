@@ -3,7 +3,6 @@
 -->
 <script lang="ts">
 	import type { Snippet } from "svelte";
-	import { Stop } from "phosphor-svelte";
 
 	import { Button } from "../button/index.js";
 	import { RoundedIcon } from "../icons/index.js";
@@ -117,7 +116,7 @@
 					disabled={submitDisabled}
 					class="h-7 w-7 cursor-pointer shrink-0 rounded-lg bg-foreground text-background hover:bg-foreground/85"
 				>
-					<Stop weight="fill" class="h-3.5 w-3.5" />
+					<RoundedIcon name="stop" class="h-3.5 w-3.5" />
 					<span class="sr-only">{submitAriaLabel}</span>
 				</Button>
 			{:else}

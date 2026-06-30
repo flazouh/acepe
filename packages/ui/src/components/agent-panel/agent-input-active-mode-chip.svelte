@@ -3,9 +3,8 @@
   Matches inline skill chip styling in the composer editor.
 -->
 <script lang="ts">
-	import { X } from "phosphor-svelte";
-
 	import { ChipShell } from "../chip/index.js";
+	import { RoundedIcon } from "../icons/index.js";
 	import AgentInputModeIcon from "./agent-input-mode-icon.svelte";
 	import type { ModeIconKind } from "./agent-input-mode-selector-state.js";
 
@@ -68,7 +67,7 @@
 			aria-label={`Clear ${label} mode`}
 			onclick={handleDismiss}
 		>
-			<X class="h-3 w-3" weight="bold" />
+			<RoundedIcon name="close" class="h-3 w-3" />
 		</button>
 	{/if}
 </ChipShell>

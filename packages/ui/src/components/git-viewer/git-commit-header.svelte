@@ -2,10 +2,9 @@
 	import { GitCommit } from "phosphor-svelte";
 	import { ArrowSquareOut } from "phosphor-svelte";
 	import { CaretDown } from "phosphor-svelte";
-	import { Copy } from "phosphor-svelte";
-	import { Check } from "phosphor-svelte";
 
 	import { DiffPill } from "../diff-pill/index.js";
+	import { RoundedIcon } from "../icons/index.js";
 	import { cn } from "../../lib/utils.js";
 	import type { GitCommitData } from "./types.js";
 
@@ -59,9 +58,9 @@
 		>
 			{commit.shortSha}
 			{#if copied}
-				<Check size={10} weight="bold" />
+				<RoundedIcon name="check" class="size-2.5" />
 			{:else}
-				<Copy size={10} />
+				<RoundedIcon name="copy" class="size-2.5" />
 			{/if}
 		</button>
 

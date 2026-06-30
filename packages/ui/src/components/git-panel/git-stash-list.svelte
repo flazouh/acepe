@@ -4,9 +4,9 @@
 	 */
 	import { Package } from "phosphor-svelte";
 	import { ArrowCounterClockwise } from "phosphor-svelte";
-	import { Trash } from "phosphor-svelte";
 
 	import { cn } from "../../lib/utils.js";
+	import { RoundedIcon } from "../icons/index.js";
 	import type { GitStashEntry } from "./types.js";
 
 	interface Props {
@@ -62,7 +62,7 @@
 							title="Drop stash"
 							onclick={() => onDrop?.(entry.index)}
 						>
-							<Trash size={12} weight="bold" />
+							<RoundedIcon name="trash" class="size-3" />
 						</button>
 					{/if}
 				</div>

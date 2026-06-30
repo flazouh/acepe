@@ -1,6 +1,6 @@
 <script lang="ts">
-	import { MagnifyingGlass } from "phosphor-svelte";
 	import { cn } from "../../lib/utils.js";
+	import { RoundedIcon } from "../icons/index.js";
 	import * as DropdownMenu from "../dropdown-menu/index.js";
 	import { Selector } from "../selector/index.js";
 	import type { SqlFilterOperator } from "./types.js";
@@ -65,7 +65,7 @@
 		className
 	)}
 >
-	<MagnifyingGlass size={10} weight="bold" class="shrink-0 text-muted-foreground" />
+	<RoundedIcon name="search" class="size-2.5 shrink-0 text-muted-foreground" />
 
 	<Selector
 		align="start"

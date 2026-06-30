@@ -4,9 +4,10 @@
   Accepts a normalized config option shape; desktop derives AgentInputConfigOption from session state.
 -->
 <script lang="ts">
-	import { Lightning, ShieldCheck } from "phosphor-svelte";
+	import { ShieldCheck } from "phosphor-svelte";
 
 	import { Selector } from "../selector/index.js";
+	import { RoundedIcon } from "../icons/index.js";
 	import type { SelectorTriggerSize } from "../selector/selector-trigger-classes.js";
 	import { getSelectorTriggerButtonVariant } from "../selector/selector-trigger-classes.js";
 	import { Button } from "../button/index.js";
@@ -74,9 +75,9 @@
 
 {#snippet configOptionIcon()}
 	{#if viewState.iconKind === "fast"}
-		<Lightning
+		<RoundedIcon
+			name="lightning"
 			class={cn(COMPOSER_CHIP_ICON_CLASS, viewState.iconClass)}
-			weight={viewState.iconWeight}
 			style={viewState.iconStyle}
 		/>
 	{:else}
@@ -124,9 +125,9 @@
 					aria-pressed={viewState.isBooleanEnabled}
 					onclick={handleBooleanToggle}
 				>
-					<Lightning
+					<RoundedIcon
+						name="lightning"
 						class={cn(COMPOSER_CHIP_ICON_CLASS, viewState.iconClass)}
-						weight={viewState.iconWeight}
 						style={viewState.iconStyle}
 					/>
 				</Button>

@@ -5,9 +5,8 @@
   Accepts model list and callbacks as props; state machine lives in the desktop.
 -->
 <script lang="ts">
-	import { DownloadSimple, Trash } from "phosphor-svelte";
-
 	import { Button } from "../button/index.js";
+	import { RoundedIcon } from "../icons/index.js";
 	import * as DropdownMenu from "../dropdown-menu/index.js";
 	import {
 		dropdownMenuItemTypographyClass,
@@ -145,7 +144,7 @@
 									onUninstallModel(row.model.id);
 								}}
 							>
-								<Trash weight="bold" />
+								<RoundedIcon name="trash" class="size-3" />
 							</Button>
 						</div>
 					{:else}
@@ -169,7 +168,7 @@
 									onDownloadModel(row.model.id);
 								}}
 							>
-								<DownloadSimple weight="bold" />
+								<RoundedIcon name="download" class="size-3" />
 							</Button>
 						</div>
 					{/if}
