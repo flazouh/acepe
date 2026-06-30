@@ -1,8 +1,8 @@
 <script lang="ts">
 	import { openUrl } from "@tauri-apps/plugin-opener";
 	import type { TokenRevealCss } from "@acepe/ui/agent-panel";
-	import { StreamdownMarkdown } from "@acepe/ui/streamdown-markdown";
-	import type { TogglePrLinkPayload } from "@acepe/ui/streamdown-markdown";
+	import { NativeMarkdown } from "@acepe/ui/native-markdown";
+	import type { TogglePrLinkPayload } from "@acepe/ui/native-markdown";
 
 	import { useSessionContext } from "../../hooks/use-session-context.js";
 	import { getPanelStore } from "../../store/index.js";
@@ -38,8 +38,8 @@
 	}: Props = $props();
 
 	const projectPath = $derived(propProjectPath);
-	const streamdownMode = $derived(isStreaming ? "streaming" : "static");
-	const streamdownAnimation = $derived(
+	const nativeMarkdownMode = $derived(isStreaming ? "streaming" : "static");
+	const nativeMarkdownAnimation = $derived(
 		streamingAnimationMode === "smooth" ? undefined : false
 	);
 
@@ -98,11 +98,11 @@
 	}
 </script>
 
-<StreamdownMarkdown
+<NativeMarkdown
 	markdown={text}
-	mode={streamdownMode}
+	mode={nativeMarkdownMode}
 	parseIncompleteMarkdown={isStreaming}
-	animated={streamdownAnimation}
+	animated={nativeMarkdownAnimation}
 	tokenRevealTiming={tokenRevealCss}
 	class="text-sm text-foreground"
 	onExternalLinkClick={openExternalLink}

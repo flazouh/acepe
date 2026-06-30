@@ -2,7 +2,7 @@
 import { countWordsInMarkdown } from "@acepe/ui/markdown";
 import { onDestroy } from "svelte";
 import type { PanelViewState } from "$lib/acp/logic/panel-visibility.js";
-import type { SessionTurnState } from "$lib/services/acp-types.js";
+import type { SessionTurnState, TranscriptEntry, TranscriptViewportRow } from "$lib/services/acp-types.js";
 import { materializeAgentPanelSceneFromGraph } from "$lib/acp/session-state/agent-panel-graph-materializer.js";
 import AgentPanelContent from "$lib/acp/components/agent-panel/components/agent-panel-content.svelte";
 import { Button } from "$lib/components/ui/button/index.js";
@@ -108,6 +108,24 @@ const reproSceneEntries = $derived(
 	})
 );
 const activeGraph = $derived(activePhaseInput.graph);
+const rowsProjectionOverride = $derived.by(() => {
+	const rows = activeGraph.transcriptSnapshot.entries.map((entry) =>
+		createStreamingReproViewportRow(entry)
+	);
+	const byId = new Map<string, TranscriptViewportRow>();
+	const order: string[] = [];
+	for (const row of rows) {
+		order.push(row.rowId);
+		byId.set(row.rowId, row);
+	}
+	return {
+		sessionId: DEFAULT_SESSION_ID,
+		emissionSeq: activeGraph.revision.transcriptRevision,
+		order,
+		byId,
+		rows,
+	};
+});
 const projectedSceneEntries = $derived.by(() => {
 	controllerRevision;
 	phaseElapsedMs;
@@ -124,6 +142,39 @@ const turnState = $derived<SessionTurnState>(activeGraph?.turnState ?? "Complete
 const isWaitingForFirstAssistantText = $derived(
 	activeGraph?.activity.kind === "awaiting_model" && activeGraph.activeStreamingTail === null
 );
+
+function entryTextLength(entry: TranscriptEntry): number {
+	let length = 0;
+	for (const segment of entry.segments) {
+		if (segment.kind === "text") {
+			length += segment.text.length;
+		}
+	}
+	return length;
+}
+
+function createStreamingReproViewportRow(entry: TranscriptEntry): TranscriptViewportRow {
+	const activeTail =
+		activeGraph.activeStreamingTail?.rowId === entry.entryId
+			? activeGraph.activeStreamingTail.contentKind
+			: null;
+	return {
+		rowId: entry.entryId,
+		sourceEntryId: entry.entryId,
+		kind: entry.role === "user" ? "user" : "assistantText",
+		version: `${entry.entryId}:repro:${String(activeGraph.revision.transcriptRevision)}:${String(entryTextLength(entry))}`,
+		anchorEligible: true,
+		activeStreamingTail: activeTail,
+		operationLinks: [],
+		interactionLinks: [],
+		content: {
+			kind: "transcript",
+			role: entry.role,
+			segments: entry.segments,
+		},
+		durationStartedAtMs: null,
+	};
+}
 
 function nextPhase(): void {
 	if (controller.phaseIndex >= controller.activePreset.phases.length - 1) {
@@ -175,6 +226,7 @@ onDestroy(() => {
 			viewState={DEFAULT_VIEW_STATE}
 			sessionId={DEFAULT_SESSION_ID}
 			sceneEntries={projectedSceneEntries}
+			{rowsProjectionOverride}
 			sessionProjectPath={activeGraph?.projectPath ?? null}
 			allProjects={[]}
 			isAtBottom={true}

@@ -73,7 +73,6 @@
 		"neverthrow": "^8.2.0",
 		"phosphor-svelte": "^3.1.0",
 		"posthog-js": "^1.386.8",
-		"streamdown": "2.5.0",
 		"tailwind-merge": "^3.4.0",
 		"tauri-pty": "^0.2.1",
 		"tinykeys": "^3.0.0",

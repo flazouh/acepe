@@ -90,7 +90,7 @@ describe("StreamingReproLab", () => {
 
 		expect(controller.activePhase.id).toBe("assistant-part-1");
 		expect(view.getByText(/First words arrive/)).toBeTruthy();
-		expect(view.getByTestId("virtualized-entry-list-stub").dataset.waiting).toBe("false");
+		expect(view.getByTestId("virtualized-entry-list-stub").dataset.rowCount).toBe("2");
 		expect(view.getByTestId("virtualized-entry-list-stub-assistant").textContent).toContain(
 			"Umbrellas"
 		);

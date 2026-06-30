@@ -4,6 +4,10 @@ import {
 	applyStreamingReproTokenReveal,
 	buildStreamingReproTokenRevealCss,
 } from "../streaming-repro-token-reveal";
+import {
+	TOKEN_REVEAL_FADE_MS,
+	TOKEN_REVEAL_STEP_MS,
+} from "../../messages/token-reveal-motion";
 
 const PRESET: StreamingReproPreset = {
 	id: "test",
@@ -40,6 +44,12 @@ const PRESET: StreamingReproPreset = {
 	],
 };
 
+const PREVIOUS_VISIBLE_WORD_COUNT = 2;
+
+function expectedBaselineMs(phaseElapsedMs: number): number {
+	return -(PREVIOUS_VISIBLE_WORD_COUNT * TOKEN_REVEAL_STEP_MS + phaseElapsedMs);
+}
+
 describe("buildStreamingReproTokenRevealCss", () => {
 	it("anchors the next phase to the previous visible word count", () => {
 		expect(
@@ -52,9 +62,9 @@ describe("buildStreamingReproTokenRevealCss", () => {
 		).toEqual({
 			revealCount: 2,
 			revealedCharCount: "one two three four".length,
-			baselineMs: -16,
-			tokStepMs: 0,
-			tokFadeDurMs: 630,
+			baselineMs: expectedBaselineMs(16),
+			tokStepMs: TOKEN_REVEAL_STEP_MS,
+			tokFadeDurMs: TOKEN_REVEAL_FADE_MS,
 			mode: "smooth",
 		});
 	});
@@ -83,8 +93,8 @@ describe("buildStreamingReproTokenRevealCss", () => {
 			})
 		).toMatchObject({
 			revealCount: 2,
-			tokStepMs: 0,
-			tokFadeDurMs: 630,
+			tokStepMs: TOKEN_REVEAL_STEP_MS,
+			tokFadeDurMs: TOKEN_REVEAL_FADE_MS,
 			mode: "smooth",
 		});
 	});
@@ -128,7 +138,7 @@ describe("applyStreamingReproTokenReveal", () => {
 			tokenRevealCss: {
 				revealCount: 2,
 				revealedCharCount: "one two three four".length,
-				baselineMs: -16,
+				baselineMs: expectedBaselineMs(16),
 			},
 		});
 	});

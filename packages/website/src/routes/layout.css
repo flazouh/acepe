@@ -1,6 +1,5 @@
 @import "@acepe/ui/design-tokens.css";
 @import "tailwindcss";
-@import "streamdown/styles.css";
 @import "tw-animate-css";
 
 @custom-variant dark (&:is([data-theme="dark"] *));
@@ -23,7 +22,6 @@
 
 @source "../**/*.{html,js,svelte,ts}";
 @source "../../../ui/src/**/*.{html,js,svelte,ts}";
-@source "../../../../node_modules/streamdown/dist/*.js";
 @source inline("text-success");
 
 :root {

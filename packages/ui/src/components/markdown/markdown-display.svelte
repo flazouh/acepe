@@ -1,5 +1,5 @@
 <script lang="ts">
-	import StreamdownMarkdown from "../streamdown-markdown/streamdown-markdown.svelte";
+	import NativeMarkdown from "../native-markdown/native-markdown.svelte";
 
 	interface Props {
 		content: string;
@@ -9,12 +9,9 @@
 		textSize?: string;
 		/** Padding class applied to the rendered markdown wrapper. Defaults to "p-6". */
 		contentPaddingClass?: string;
-		/** Preserved for API compatibility; Streamdown handles render failures internally. */
+		/** Preserved for API compatibility. */
 		errorMessage?: (error: string) => string;
-		/**
-		 * Preserved for API compatibility while Streamdown owns markdown presentation.
-		 * File icon rendering will move through Streamdown-specific enrichment seams.
-		 */
+		/** Preserved for API compatibility. */
 		iconBasePath?: string;
 	}
 
@@ -34,7 +31,7 @@
 		? 'markdown-display-scrollable h-full w-full'
 		: ''} {className}"
 >
-	<StreamdownMarkdown
+	<NativeMarkdown
 		markdown={content}
 		class="min-w-0 max-w-full {contentPaddingClass} {textSize} leading-relaxed text-foreground"
 	/>

@@ -650,7 +650,7 @@ const favoriteModels = $derived(modelGroups.flatMap((g) => g.items.filter((i) =>
 													</button>
 												</div>
 												<button type="button" aria-label="Collapse project" class="flex items-center justify-center size-5 shrink-0 rounded text-muted-foreground">
-													<CaretDown class="h-3 w-3" weight="bold" />
+													<CaretDown size={12} weight="regular" class="size-3 shrink-0" />
 												</button>
 												<div class="flex items-center gap-0.5">
 													<button type="button" aria-label="Project menu" class="flex items-center justify-center size-5 min-w-0 shrink-0 rounded text-muted-foreground">

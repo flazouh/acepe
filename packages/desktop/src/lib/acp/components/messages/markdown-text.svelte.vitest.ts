@@ -51,7 +51,7 @@ afterEach(() => {
 });
 
 describe("MarkdownText", () => {
-	it("renders settled markdown through Streamdown", async () => {
+	it("renders settled markdown through native markdown", async () => {
 		const { container } = render(MarkdownText, {
 			text: "# Title\n\n- one",
 			isStreaming: false,
@@ -148,9 +148,9 @@ describe("MarkdownText", () => {
 			projectPath: "/repo",
 		});
 
-		await waitFor(() => {
-			expect(container.querySelector(".file-path-badge")?.textContent).toBe("app.ts");
-		});
+	await waitFor(() => {
+		expect(container.querySelector(".file-path-badge")?.textContent?.trim()).toBe("app.ts");
+	});
 
 		const chip = container.querySelector(".file-path-badge");
 		chip?.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
@@ -166,9 +166,9 @@ describe("MarkdownText", () => {
 			text: "Open `src/app.ts`",
 		});
 
-		await waitFor(() => {
-			expect(container.querySelector(".file-path-badge")?.textContent).toBe("app.ts");
-		});
+	await waitFor(() => {
+		expect(container.querySelector(".file-path-badge")?.textContent?.trim()).toBe("app.ts");
+	});
 
 		container
 			.querySelector(".file-path-badge")
@@ -183,9 +183,9 @@ describe("MarkdownText", () => {
 			projectPath: "/repo",
 		});
 
-		await waitFor(() => {
-			expect(container.querySelector(".file-path-badge")?.textContent).toBe("app.css");
-		});
+	await waitFor(() => {
+		expect(container.querySelector(".file-path-badge")?.textContent?.trim()).toBe("app.css");
+	});
 
 		const chip = container.querySelector(".file-path-badge");
 		expect(chip?.className).toContain("rounded-sm");
@@ -202,9 +202,11 @@ describe("MarkdownText", () => {
 			isStreaming: false,
 		});
 
-		await waitFor(() => {
-			expect(container.querySelector(".github-badge")?.textContent).toBe("flazouh/acepe#184");
-		});
+	await waitFor(() => {
+		expect(container.querySelector(".github-badge")?.textContent?.trim()).toBe(
+			"flazouh/acepe#184"
+		);
+	});
 
 		container
 			.querySelector(".github-badge")

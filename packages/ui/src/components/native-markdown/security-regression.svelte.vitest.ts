@@ -1,7 +1,7 @@
 import { cleanup, render, waitFor } from "@testing-library/svelte";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import StreamdownMarkdown from "./streamdown-markdown.svelte";
+import NativeMarkdown from "./native-markdown.svelte";
 
 vi.mock("svelte", async () => {
 	const { createRequire } = await import("node:module");
@@ -19,9 +19,9 @@ afterEach(() => {
 	cleanup();
 });
 
-describe("StreamdownMarkdown security regression coverage", () => {
+describe("NativeMarkdown security regression coverage", () => {
 	it("removes script-capable raw HTML from model-authored markdown", async () => {
-		const { container } = render(StreamdownMarkdown, {
+		const { container } = render(NativeMarkdown, {
 			markdown:
 				'<script>alert("x")</script><img src="x" onerror="alert(1)"><iframe src="https://example.com"></iframe>',
 		});
@@ -34,7 +34,7 @@ describe("StreamdownMarkdown security regression coverage", () => {
 	});
 
 	it("removes unsafe href protocols from rendered links", async () => {
-		const { container } = render(StreamdownMarkdown, {
+		const { container } = render(NativeMarkdown, {
 			markdown:
 				"[bad](javascript:alert(1)) [data](data:text/html,x) [file](file:///etc/passwd) [ok](https://example.com)",
 		});
