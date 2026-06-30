@@ -1,9 +1,9 @@
 <script lang="ts">
 	import { IconSquare } from "@tabler/icons-svelte";
-	import { IconCheck } from "@tabler/icons-svelte";
 	import { IconHelpCircleFilled } from "@tabler/icons-svelte";
 	import { CaretRight } from "phosphor-svelte";
 	import { CaretLeft } from "phosphor-svelte";
+	import { RoundedIcon } from "../icons/index.js";
 
 	import type {
 		ActivityEntryQuestion,
@@ -121,7 +121,7 @@
 					{#if currentQuestion.multiSelect}
 						{#if option.selected}
 							<div class="flex size-3 shrink-0 items-center justify-center rounded-sm border border-transparent bg-primary text-primary-foreground">
-								<IconCheck class="size-2.5" />
+								<RoundedIcon name="check" class="size-2.5" />
 							</div>
 						{:else}
 							<div class="size-3 shrink-0 rounded-sm border border-border/80 bg-background/50"></div>
@@ -129,7 +129,7 @@
 					{:else}
 						{#if option.selected}
 							<div class="flex size-3 shrink-0 items-center justify-center rounded-sm border border-transparent bg-primary text-primary-foreground">
-								<IconCheck class="size-2.5" />
+								<RoundedIcon name="check" class="size-2.5" />
 							</div>
 						{:else}
 							<IconSquare class="size-3 shrink-0 text-muted-foreground/60" />

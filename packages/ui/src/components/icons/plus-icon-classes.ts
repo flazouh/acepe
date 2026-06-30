@@ -1,4 +1,4 @@
-/** 12px Tabler plus glyph — matches sidebar project header create control. */
+/** 12px rounded plus glyph — matches sidebar project header create control. */
 export const PLUS_ICON_CLASS = "!size-3 shrink-0";
 
 /** Icon button shell for standalone plus actions (project header, fused trailing add, etc.). */

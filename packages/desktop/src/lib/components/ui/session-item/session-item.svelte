@@ -1,16 +1,13 @@
 <script lang="ts">
 import type { ActivityEntryQuestion } from "@acepe/ui";
-import { ActivityEntry, PrChecksSummary, ProjectLetterBadge, Selector } from "@acepe/ui";
+import { ActivityEntry, PrChecksSummary, ProjectLetterBadge, RoundedIcon, Selector } from "@acepe/ui";
 import {
 	SESSION_PROJECT_BADGE_CLASS,
 	SESSION_PROJECT_BADGE_SIZE,
 	shouldShowSessionProjectBadge,
 } from "@acepe/ui/project-letter-badge";
 import * as DropdownMenu from "@acepe/ui/dropdown-menu";
-import { IconCheck } from "@tabler/icons-svelte";
 import { CaretDown, CaretRight } from "phosphor-svelte";
-import { IconDotsVertical } from "@tabler/icons-svelte";
-import { IconX } from "@tabler/icons-svelte";
 import { Archive } from "phosphor-svelte";
 import { Tree } from "phosphor-svelte";
 import { COLOR_NAMES, Colors } from "@acepe/ui/colors";
@@ -662,7 +659,7 @@ function handleNextQuestion() {
 										aria-label="Confirm archive session"
 										title="Confirm archive"
 									>
-										<IconCheck class="h-3.5 w-3.5" stroke={2} aria-hidden="true" />
+										<RoundedIcon name="check" class="h-3.5 w-3.5" />
 									</button>
 									<button
 										type="button"
@@ -671,7 +668,7 @@ function handleNextQuestion() {
 										aria-label="Cancel archive session"
 										title="Cancel"
 									>
-										<IconX class="h-3.5 w-3.5" stroke={2} aria-hidden="true" />
+										<RoundedIcon name="close" class="h-3.5 w-3.5" />
 									</button>
 								</div>
 							{:else}
@@ -702,7 +699,7 @@ function handleNextQuestion() {
 								triggerAriaLabel="Session actions"
 							>
 								{#snippet renderButton()}
-									<IconDotsVertical class="h-3.5 w-3.5" aria-hidden="true" />
+									<RoundedIcon name="more" class="h-3.5 w-3.5" />
 								{/snippet}
 
 								<DropdownMenu.Item class="cursor-pointer">

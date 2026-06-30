@@ -1,8 +1,8 @@
 <script lang="ts">
-	import { DotsThreeVertical } from "phosphor-svelte";
 	import * as DropdownMenu from "../dropdown-menu/index.js";
 	import * as Popover from "../popover/index.js";
 	import { Button } from "../button/index.js";
+	import { RoundedIcon } from "../icons/index.js";
 	import { Selector } from "../selector/index.js";
 	import { Switch } from "../switch/index.js";
 	import { SelectorItem } from "../selector/index.js";
@@ -91,7 +91,7 @@
 	triggerAriaLabel="Project menu"
 >
 	{#snippet renderButton()}
-		<DotsThreeVertical weight="bold" />
+		<RoundedIcon name="more" class="size-3" />
 	{/snippet}
 
 	{#if onMoveUp || onMoveDown}

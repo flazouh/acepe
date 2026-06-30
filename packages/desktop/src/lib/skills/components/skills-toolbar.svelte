@@ -1,7 +1,7 @@
 <script lang="ts">
-import { Selector, PlusIcon } from "@acepe/ui";
+import { RoundedIcon, Selector, PlusIcon } from "@acepe/ui";
 import * as DropdownMenu from "@acepe/ui/dropdown-menu";
-import { Copy, MoreHorizontal, Save, Trash2 } from "@lucide/svelte/icons";
+import { Save } from "@lucide/svelte/icons";
 import { Button } from "$lib/components/ui/button/index.js";
 import { Spinner } from "$lib/components/ui/spinner/index.js";
 
@@ -74,13 +74,13 @@ function handleDelete() {
 
 			<Selector align="end" triggerSize="icon" showChevron={false} variant="ghost">
 				{#snippet renderButton()}
-					<MoreHorizontal class="h-4 w-4" />
+					<RoundedIcon name="more" class="h-4 w-4" />
 				{/snippet}
 
 				{#if otherAgents.length > 0}
 					<DropdownMenu.Sub>
 						<DropdownMenu.SubTrigger>
-							<Copy class="h-4 w-4 mr-2" />
+							<RoundedIcon name="copy" class="h-4 w-4 mr-2" />
 							Copy to
 						</DropdownMenu.SubTrigger>
 						<DropdownMenu.SubContent>
@@ -94,7 +94,7 @@ function handleDelete() {
 					<DropdownMenu.Separator />
 				{/if}
 				<DropdownMenu.Item onclick={handleDelete} class="text-destructive">
-					<Trash2 class="h-4 w-4 mr-2" />
+					<RoundedIcon name="trash" class="h-4 w-4 mr-2" />
 					Delete
 				</DropdownMenu.Item>
 			</Selector>

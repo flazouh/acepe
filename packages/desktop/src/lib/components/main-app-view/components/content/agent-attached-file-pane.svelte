@@ -1,8 +1,7 @@
 <script lang="ts">
 import { untrack } from "svelte";
 import { AgentAttachedFilePane as SharedAgentAttachedFilePane } from "@acepe/ui/agent-panel";
-import { FilePathBadge } from "@acepe/ui";
-import { IconX } from "@tabler/icons-svelte";
+import { FilePathBadge, RoundedIcon } from "@acepe/ui";
 import { FilePanel } from "$lib/acp/components/file-panel/index.js";
 import { scheduleLazyPanelMetadataWork } from "$lib/acp/components/file-panel/file-panel-defer.js";
 import { toFilePanelGitStatus } from "$lib/acp/components/file-panel/file-panel-git-status.js";
@@ -211,7 +210,7 @@ function getGitDiffStats(filePanel: FilePanelType): { added: number; removed: nu
 						onclick={() => panelStore.closeFilePanel(filePanel.id)}
 						title="Close tab"
 					>
-						<IconX class="h-3 w-3" />
+						<RoundedIcon name="close" class="h-3 w-3" />
 					</button>
 				</div>
 			{/each}

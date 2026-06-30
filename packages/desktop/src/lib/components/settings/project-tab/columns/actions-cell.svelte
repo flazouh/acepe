@@ -1,7 +1,6 @@
 <script lang="ts">
-import { Selector } from "@acepe/ui";
+import { RoundedIcon, Selector } from "@acepe/ui";
 import * as DropdownMenu from "@acepe/ui/dropdown-menu";
-import { IconDotsVertical } from "@tabler/icons-svelte";
 import { IconEye } from "@tabler/icons-svelte";
 import { IconFolder } from "@tabler/icons-svelte";
 interface Props {
@@ -24,7 +23,7 @@ const hasActions = $derived(Boolean(onView || onOpenInFinder || onArchive || onU
 {#if hasActions}
 	<Selector align="end" triggerSize="square" showChevron={false} variant="ghost" triggerAriaLabel="Actions">
 		{#snippet renderButton()}
-			<IconDotsVertical class="h-4 w-4" />
+			<RoundedIcon name="more" class="h-4 w-4" />
 			<span class="sr-only">Actions</span>
 		{/snippet}
 

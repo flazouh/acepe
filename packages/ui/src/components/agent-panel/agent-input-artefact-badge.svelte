@@ -5,7 +5,7 @@
   Purely presentational — accepts display data and a remove callback.
 -->
 <script lang="ts">
-	import X from "@lucide/svelte/icons/x";
+	import { RoundedIcon } from "../icons/index.js";
 
 	interface Props {
 		displayName: string;
@@ -44,6 +44,6 @@
 		class="ml-0.5 cursor-pointer rounded-md p-0.5 transition-colors hover:bg-destructive/20 hover:text-destructive"
 		aria-label={removeLabel}
 	>
-		<X class="h-3 w-3" />
+		<RoundedIcon name="close" class="h-3 w-3" />
 	</button>
 </span>

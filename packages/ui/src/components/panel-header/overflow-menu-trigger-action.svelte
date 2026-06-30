@@ -1,7 +1,6 @@
 <script lang="ts">
-	import { IconDotsVertical } from "@tabler/icons-svelte";
-
 	import { Button } from "../button/index.js";
+	import { RoundedIcon } from "../icons/index.js";
 	import { OVERFLOW_DOTS_ICON_CLASS } from "./project-card-action-button-class.js";
 
 	interface Props {
@@ -23,6 +22,6 @@
 	{onclick}
 >
 	{#snippet children()}
-		<IconDotsVertical class={OVERFLOW_DOTS_ICON_CLASS} />
+		<RoundedIcon name="more" class={OVERFLOW_DOTS_ICON_CLASS} />
 	{/snippet}
 </Button>

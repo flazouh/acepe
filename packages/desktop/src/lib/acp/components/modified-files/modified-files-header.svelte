@@ -4,6 +4,7 @@ import {
 	AgentPanelModifiedFilesHeader as SharedAgentPanelModifiedFilesHeader,
 	AgentPanelModifiedFilesTrailingControls as SharedAgentPanelModifiedFilesTrailingControls,
 	DiffPill,
+	RoundedIcon,
 	Selector,
 	type AgentPanelModifiedFilesTrailingModel,
 } from "@acepe/ui";
@@ -12,7 +13,7 @@ import * as ButtonGroup from "@acepe/ui/button-group";
 import * as DropdownMenu from "@acepe/ui/dropdown-menu";
 import DialogFrame from "$lib/components/ui/dialog-frame.svelte";
 import { Textarea } from "$lib/components/ui/textarea/index.js";
-import { GitMerge, GitPullRequest, DotsThreeVertical, CaretDown } from "phosphor-svelte";
+import { GitMerge, GitPullRequest, CaretDown } from "phosphor-svelte";
 import { toast } from "svelte-sonner";
 import { tauriClient } from "$lib/utils/tauri-client.js";
 import { Spinner } from "$lib/components/ui/spinner/index.js";
@@ -401,7 +402,7 @@ function handlePromptResetClick(): void {
 								disabled={createPrLoading}
 							>
 								{#snippet renderButton()}
-									<DotsThreeVertical size={11} weight="bold" class="shrink-0" />
+									<RoundedIcon name="more" class="size-[11px] shrink-0" />
 								{/snippet}
 
 								<DropdownMenu.Sub>

@@ -1,6 +1,5 @@
 <script lang="ts">
-import { FilePathBadge } from "@acepe/ui";
-import { IconX } from "@tabler/icons-svelte";
+import { FilePathBadge, RoundedIcon } from "@acepe/ui";
 import type { FilePanel as FilePanelType } from "$lib/acp/store/file-panel-type.js";
 import FilePanel from "./file-panel.svelte";
 import { buildFilePanelTabsViewState } from "./file-panel-tabs-state.js";
@@ -58,7 +57,7 @@ const viewState = $derived(buildFilePanelTabsViewState({ filePanels, activeFileP
 							onclick={() => onCloseFilePanel(tab.id)}
 							title="Close tab"
 						>
-							<IconX class="h-3 w-3" />
+							<RoundedIcon name="close" class="h-3 w-3" />
 						</button>
 					</div>
 				{/each}

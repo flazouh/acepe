@@ -3,9 +3,8 @@ import {
 	AgentPanelHeader as AgentPanelHeaderLayout,
 	AgentPanelStatusIcon,
 } from "@acepe/ui/agent-panel";
-import { Selector } from "@acepe/ui";
+import { RoundedIcon, Selector } from "@acepe/ui";
 import * as DropdownMenu from "@acepe/ui/dropdown-menu";
-import { IconDotsVertical } from "@tabler/icons-svelte";
 import { CloseAction } from "@acepe/ui/panel-header";
 import { toast } from "svelte-sonner";
 import AttachmentChip from "../../shared/attachment-chip.svelte";
@@ -150,7 +149,7 @@ function handleCopySessionId(): void {
 				variant="ghost"
 			>
 				{#snippet renderButton()}
-					<IconDotsVertical class="size-2.5" />
+					<RoundedIcon name="more" class="size-2.5" />
 				{/snippet}
 
 				<DropdownMenu.Item onSelect={handleCopySessionId} class="cursor-pointer">

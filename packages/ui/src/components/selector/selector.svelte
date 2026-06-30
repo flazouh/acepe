@@ -2,12 +2,12 @@
 	import * as DropdownMenu from "../dropdown-menu/index.js";
 	import * as Tooltip from "../tooltip/index.js";
 	import { CaretDown } from "phosphor-svelte";
-	import { Gear, DotsThreeVertical } from "phosphor-svelte";
 	import { mergeProps } from "bits-ui";
 	import type { Snippet } from "svelte";
 
 	import { cn } from "../../lib/utils.js";
 	import { Button, type ButtonVariant, buttonVariants } from "../button/index.js";
+	import { RoundedIcon } from "../icons/index.js";
 	import { OVERFLOW_DOTS_ICON_CLASS } from "../panel-header/project-card-action-button-class.js";
 	import {
 		getSelectorTriggerButtonPropsForContext,
@@ -228,9 +228,9 @@
 			title={tooltipTitle ?? tooltipLabel ?? undefined}
 		>
 			{#if triggerIcon === "dots"}
-				<DotsThreeVertical class={OVERFLOW_DOTS_ICON_CLASS} weight="bold" />
+				<RoundedIcon name="more" class={OVERFLOW_DOTS_ICON_CLASS} />
 			{:else if triggerIcon === "gear"}
-				<Gear class={OVERFLOW_DOTS_ICON_CLASS} weight="fill" />
+				<RoundedIcon name="settings" class={OVERFLOW_DOTS_ICON_CLASS} />
 			{:else}
 				{@render renderButton()}
 			{/if}
@@ -252,9 +252,9 @@
 				data-header-control={triggerSize === "attach" || triggerSize === "chromeIcon" ? true : undefined}
 			>
 				{#if triggerIcon === "dots"}
-					<DotsThreeVertical class={OVERFLOW_DOTS_ICON_CLASS} weight="bold" />
+					<RoundedIcon name="more" class={OVERFLOW_DOTS_ICON_CLASS} />
 				{:else if triggerIcon === "gear"}
-					<Gear class={OVERFLOW_DOTS_ICON_CLASS} weight="fill" />
+					<RoundedIcon name="settings" class={OVERFLOW_DOTS_ICON_CLASS} />
 				{:else}
 					{@render renderButton()}
 				{/if}

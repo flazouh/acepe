@@ -1,5 +1,4 @@
 <script lang="ts">
-import { IconDotsVertical } from "@tabler/icons-svelte";
 import {
 	Button,
 	CloseAction,
@@ -9,6 +8,7 @@ import {
 	HeaderCell,
 	HeaderTitleCell,
 	ProjectLetterBadge,
+	RoundedIcon,
 } from "@acepe/ui";
 import { PlusIcon } from "@acepe/ui";
 import { IconTerminal } from "@tabler/icons-svelte";
@@ -180,7 +180,7 @@ function handleFullscreenToggle() {
 									toggleTabMenu(tab.id);
 								}}
 							>
-								<IconDotsVertical class="h-3 w-3" />
+								<RoundedIcon name="more" class="h-3 w-3" />
 							</button>
 							{#if openMenuTabId === tab.id}
 								<div class="absolute right-1 top-6 z-20 min-w-[160px] rounded-lg border border-border bg-background p-1 shadow-md">

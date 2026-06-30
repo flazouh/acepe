@@ -1,8 +1,6 @@
 <script lang="ts">
-	import { IconCheck } from "@tabler/icons-svelte";
-	import { Copy } from "phosphor-svelte";
-
 	import { Button } from "../button/index.js";
+	import { RoundedIcon } from "../icons/index.js";
 
 	interface Props {
 		text: string;
@@ -27,6 +25,7 @@
 
 	const tooltip = $derived(copied ? copiedTitle : title);
 	const iconSize = $derived(size === "header" ? 12 : 13);
+	const iconStyle = $derived(`width: ${iconSize}px; height: ${iconSize}px;`);
 
 	function clearCopiedSoon(): void {
 		setTimeout(() => {
@@ -61,9 +60,9 @@
 	>
 		{#snippet children()}
 			{#if copied}
-				<IconCheck size={iconSize} stroke={2} />
+				<RoundedIcon name="check" class="shrink-0" style={iconStyle} />
 			{:else}
-				<Copy size={iconSize} weight="fill" />
+				<RoundedIcon name="copy" class="shrink-0" style={iconStyle} />
 			{/if}
 		{/snippet}
 	</Button>
@@ -75,9 +74,9 @@
 		onclick={handleCopy}
 	>
 		{#if copied}
-			<IconCheck size={iconSize} stroke={2} />
+			<RoundedIcon name="check" class="shrink-0" style={iconStyle} />
 		{:else}
-			<Copy size={iconSize} weight="fill" />
+			<RoundedIcon name="copy" class="shrink-0" style={iconStyle} />
 		{/if}
 	</button>
 {/if}

@@ -1,6 +1,4 @@
 <script lang="ts">
-	import { IconExternalLink } from "@tabler/icons-svelte";
-
 	import { Button } from "../button/index.js";
 	import { RoundedIcon } from "../icons/index.js";
 
@@ -72,6 +70,6 @@
 			title={openExternalLabel}
 			aria-label={openExternalLabel}
 		>
-			{#snippet children()}<IconExternalLink class="h-4 w-4" />{/snippet}
+			{#snippet children()}<RoundedIcon name="external-link" class="h-4 w-4" />{/snippet}
 		</Button>
 	{/if}

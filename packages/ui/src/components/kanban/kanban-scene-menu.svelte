@@ -1,7 +1,6 @@
 <script lang="ts">
-	import { IconDotsVertical } from "@tabler/icons-svelte";
-
 	import * as DropdownMenu from "../dropdown-menu/index.js";
+	import { RoundedIcon } from "../icons/index.js";
 	import { Selector } from "../selector/index.js";
 
 	import type { KanbanSceneMenuAction } from "./kanban-scene-types.js";
@@ -24,7 +23,7 @@
 	class="shrink-0"
 >
 	{#snippet renderButton()}
-		<IconDotsVertical class="h-2.5 w-2.5" aria-hidden="true" />
+		<RoundedIcon name="more" class="h-2.5 w-2.5" />
 	{/snippet}
 
 	{#each menuActions as action (action.id)}
