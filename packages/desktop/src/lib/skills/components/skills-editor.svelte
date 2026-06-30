@@ -1,5 +1,6 @@
 <script lang="ts">
-import { Copy, FileText, Lock, Puzzle } from "@lucide/svelte/icons";
+import { RoundedIcon } from "@acepe/ui";
+import { FileText, Puzzle } from "@lucide/svelte/icons";
 import { AGENT_IDS } from "$lib/acp/types/agent-id.js";
 import { Button } from "$lib/components/ui/button/index.js";
 import { CodeMirrorEditor } from "$lib/components/ui/codemirror-editor/index.js";
@@ -43,11 +44,11 @@ function handleCopyToClaudeCode() {
 			<div class="flex items-center gap-2 text-sm">
 				<Puzzle class="h-4 w-4 text-purple-500" />
 				<span class="text-purple-600 dark:text-purple-400 font-medium">Plugin Skill</span>
-				<Lock class="h-3 w-3 text-muted-foreground" />
+				<RoundedIcon name="lock" class="h-3 w-3 text-muted-foreground" />
 				<span class="text-muted-foreground text-xs">Read-only</span>
 			</div>
 			<Button variant="outline" size="sm" onclick={handleCopyToClaudeCode} class="h-7 text-xs">
-				<Copy class="h-3 w-3 mr-1" />
+				<RoundedIcon name="copy" class="h-3 w-3 mr-1" />
 				Copy to Claude Code
 			</Button>
 		</div>

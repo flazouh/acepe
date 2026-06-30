@@ -3,11 +3,9 @@
   Sits at the top of the pre-composer card stack, aligned to the composer's top-right edge.
 -->
 <script lang="ts">
-	import ArrowDown from "@lucide/svelte/icons/arrow-down";
-	import ArrowUp from "@lucide/svelte/icons/arrow-up";
-
 	import { Button } from "../button/index.js";
 	import { ButtonGroup } from "../button-group/index.js";
+	import { RoundedIcon } from "../icons/index.js";
 	import { SETUP_CHIP_ICON_CLASS } from "./agent-input-chip-classes.js";
 	import { cn } from "../../lib/utils.js";
 
@@ -66,7 +64,7 @@
 						aria-label={scrollToTopAriaLabel}
 						onclick={handleScrollToTop}
 					>
-						<ArrowUp class={SETUP_CHIP_ICON_CLASS} aria-hidden="true" />
+						<RoundedIcon name="arrow-up" class={SETUP_CHIP_ICON_CLASS} />
 					</Button>
 				{/if}
 				{#if showScrollToBottom}
@@ -76,7 +74,7 @@
 						aria-label={scrollToBottomAriaLabel}
 						onclick={handleScrollToBottom}
 					>
-						<ArrowDown class={SETUP_CHIP_ICON_CLASS} aria-hidden="true" />
+						<RoundedIcon name="arrow-up" class={cn(SETUP_CHIP_ICON_CLASS, "rotate-180")} />
 					</Button>
 				{/if}
 			</ButtonGroup>

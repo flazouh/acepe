@@ -1,9 +1,8 @@
 <script lang="ts">
 import { okAsync } from "neverthrow";
-import { Copy } from "phosphor-svelte";
+import { RoundedIcon } from "@acepe/ui";
 import { FileText } from "phosphor-svelte";
 import { PuzzlePiece } from "phosphor-svelte";
-import { Trash } from "phosphor-svelte";
 import { onMount } from "svelte";
 import AgentIcon from "$lib/acp/components/agent-icon.svelte";
 import DialogFrame from "$lib/components/ui/dialog-frame.svelte";
@@ -188,12 +187,12 @@ function getSyncStatusForSkill(
 			<div class="flex shrink-0 items-center gap-1">
 				{#if isViewingPluginSkill && store.selectedPluginSkill}
 					<Button variant="header" size="header" onclick={handleCopyToLibrary}>
-						<Copy class="h-3.5 w-3.5" weight="bold" />
+						<RoundedIcon name="copy" class="h-3.5 w-3.5" />
 						Copy to Library
 					</Button>
 				{:else if store.selectedSkill}
 					<Button variant="header" size="header" onclick={openDeleteDialog} title="Delete Skill">
-						<Trash class="h-3.5 w-3.5" weight="fill" />
+						<RoundedIcon name="trash" class="h-3.5 w-3.5" />
 					</Button>
 					<SyncDropdownButton />
 				{/if}

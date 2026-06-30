@@ -2,9 +2,10 @@
 	/**
 	 * GitBranchBadge — current branch as a clean, borderless picker control.
 	 */
-	import { CaretDown, GitBranch } from "phosphor-svelte";
+	import { CaretDown } from "phosphor-svelte";
 
 	import { cn } from "../../lib/utils.js";
+	import { RoundedIcon } from "../icons/index.js";
 
 	interface Props {
 		branch: string;
@@ -24,7 +25,7 @@
 	)}
 	{onclick}
 >
-	<GitBranch size={13} weight="bold" class="shrink-0 text-muted-foreground" />
+	<RoundedIcon name="branch" class="size-[13px] shrink-0 text-muted-foreground" />
 	<span class="max-w-[200px] truncate font-mono">{branch}</span>
 	{#if onclick}
 		<CaretDown size={12} weight="regular" class="size-3 shrink-0 text-muted-foreground/50" />

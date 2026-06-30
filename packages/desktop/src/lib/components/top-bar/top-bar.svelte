@@ -12,9 +12,7 @@ import * as DropdownMenu from "@acepe/ui/dropdown-menu";
 import { AppTopBar } from "@acepe/ui/app-layout";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { openUrl } from "@tauri-apps/plugin-opener";
-import { Check } from "phosphor-svelte";
 import { Columns } from "phosphor-svelte";
-import { DownloadSimple } from "phosphor-svelte";
 import { HardDrives } from "phosphor-svelte";
 import { Kanban } from "phosphor-svelte";
 import { Palette } from "phosphor-svelte";
@@ -308,11 +306,11 @@ onMount(() => {
 								class="cursor-pointer"
 							>
 								<div class="flex w-full items-start gap-2">
-									<Check
+									<RoundedIcon
+										name="check"
 										class={selected
 											? "mt-0.5 size-3 shrink-0 text-foreground"
 											: "mt-0.5 size-3 shrink-0 text-transparent"}
-										weight="bold"
 									/>
 									{#if family.value === "kanban"}
 										<Kanban class="mt-0.5 size-3 shrink-0" weight="fill" style="color: {family.color}" />
@@ -339,11 +337,11 @@ onMount(() => {
 									class="cursor-pointer"
 								>
 									<div class="flex w-full items-start gap-2">
-										<Check
+										<RoundedIcon
+											name="check"
 											class={selected
 												? "mt-0.5 size-3 shrink-0 text-foreground"
 												: "mt-0.5 size-3 shrink-0 text-transparent"}
-											weight="bold"
 										/>
 										{#if mode.value === "single"}
 											<Square class="mt-0.5 size-3 shrink-0" weight="fill" style="color: {mode.color}" />
@@ -415,7 +413,7 @@ onMount(() => {
 								class="cursor-pointer rounded-none px-2 py-1 text-[11px]"
 								onclick={onDevShowUpdatePage}
 							>
-								<DownloadSimple class="size-4" weight="fill" />
+								<RoundedIcon name="download" class="size-4" />
 								<span>Update Page</span>
 							</DropdownMenu.Item>
 						{/if}
