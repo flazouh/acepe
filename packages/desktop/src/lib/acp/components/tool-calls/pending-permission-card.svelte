@@ -1,5 +1,5 @@
 <script lang="ts">
-import { Terminal } from "phosphor-svelte";
+import { RoundedIcon } from "@acepe/ui";
 
 import type { PermissionRequest } from "../../types/permission.js";
 import PermissionActionBar from "./permission-action-bar.svelte";
@@ -23,7 +23,7 @@ const toolName = $derived(permission.permission);
 	<div class="border rounded-md border-border bg-muted/30 min-w-0">
 		<!-- Header -->
 		<div class="flex items-center gap-2 px-3 py-2">
-			<Terminal weight="duotone" class="size-4 text-muted-foreground shrink-0" />
+			<RoundedIcon name="terminal" class="size-4 text-muted-foreground shrink-0" />
 			<span class="text-sm font-medium text-muted-foreground truncate">{toolName}</span>
 		</div>
 

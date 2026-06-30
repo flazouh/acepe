@@ -1,8 +1,7 @@
 <script lang="ts">
-import { Button } from "@acepe/ui";
+import { Button, RoundedIcon } from "@acepe/ui";
 import { PlanSidebarLayout } from "@acepe/ui/plan-sidebar";
 import { ArrowsOut } from "phosphor-svelte";
-import { DownloadSimple } from "phosphor-svelte";
 import { toast } from "svelte-sonner";
 import { ScrollArea } from "$lib/components/ui/scroll-area/index.js";
 import type { SessionPlanResponse } from "$lib/services/converted-session-types.js";
@@ -61,7 +60,7 @@ function handleDownloadMarkdown() {
 				onclick={handleDownloadMarkdown}
 			>
 				{#snippet children()}
-					<DownloadSimple size={14} weight="bold" />
+				<RoundedIcon name="download" class="size-3.5" />
 				{/snippet}
 			</Button>
 			<Button

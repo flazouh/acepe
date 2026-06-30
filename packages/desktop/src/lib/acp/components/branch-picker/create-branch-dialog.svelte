@@ -1,7 +1,6 @@
 <script lang="ts">
-import { Button, Selector } from "@acepe/ui";
+import { Button, RoundedIcon, Selector } from "@acepe/ui";
 import * as DropdownMenu from "@acepe/ui/dropdown-menu";
-import { Check, GitBranch } from "phosphor-svelte";
 import DialogFrame from "$lib/components/ui/dialog-frame.svelte";
 import {
 	canCreateBranch as getCanCreateBranch,
@@ -93,7 +92,7 @@ $effect(() => {
 	onOpenChange={handleOpenChange}
 >
 	{#snippet topLeft()}
-		<GitBranch size={14} weight="bold" class="shrink-0 text-primary" />
+		<RoundedIcon name="branch" class="size-3.5 shrink-0 text-primary" />
 		<span class="truncate text-[11px] font-semibold text-foreground select-none">
 			Create and checkout branch
 		</span>
@@ -141,7 +140,7 @@ $effect(() => {
 							/>
 							<span class="flex-1">{prefix.label}</span>
 							{#if selectedPrefix === prefix}
-								<Check class="size-4 shrink-0 text-foreground" />
+								<RoundedIcon name="check" class="size-4 shrink-0 text-foreground" />
 							{/if}
 						</DropdownMenu.Item>
 					{/each}
