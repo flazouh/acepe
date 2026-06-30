@@ -308,7 +308,6 @@ function isManualScript(path: string): boolean {
 
 function isGeneratedOrVendor(path: string): boolean {
 	return path.includes("/src-tauri/gen/") ||
-		path.includes("/src-tauri/cc-sdk-local/") ||
 		path.includes("/src-tauri/vendor/") ||
 		path.includes("/node_modules/") ||
 		path.includes("/target/");
