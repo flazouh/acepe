@@ -3,9 +3,6 @@
 	 * GitStatusList — Staged and unstaged file sections with collapsible headers.
 	 * Uses GitFileTree for tree-organized file display within each section.
 	 */
-	import { ArrowCounterClockwise } from "phosphor-svelte";
-	import { FileMinus } from "phosphor-svelte";
-
 	import PlusIcon from "../icons/plus-icon.svelte";
 	import { RoundedIcon } from "../icons/index.js";
 
@@ -99,7 +96,7 @@
 								title="Unstage file"
 								onclick={(e) => { e.stopPropagation(); onUnstage?.(file.path); }}
 							>
-								<FileMinus size={12} weight="bold" />
+								<RoundedIcon name="minus" class="size-3" />
 							</button>
 						</div>
 					{/snippet}
@@ -166,7 +163,7 @@
 									title="Discard changes"
 									onclick={(e) => { e.stopPropagation(); onDiscard?.(file.path); }}
 								>
-									<ArrowCounterClockwise size={12} weight="bold" />
+									<RoundedIcon name="undo" class="size-3" />
 								</button>
 							{/if}
 						</div>

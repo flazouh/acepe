@@ -6,10 +6,9 @@
 	import { FilePlus } from "phosphor-svelte";
 	import { FileX } from "phosphor-svelte";
 	import { FileDashed } from "phosphor-svelte";
-	import { FileMinus } from "phosphor-svelte";
 	import { File } from "phosphor-svelte";
 	import PlusIcon from "../icons/plus-icon.svelte";
-	import { ArrowCounterClockwise } from "phosphor-svelte";
+	import { RoundedIcon } from "../icons/index.js";
 
 	import { DiffPill } from "../diff-pill/index.js";
 	import { getFileIconSrc, getFallbackIconSrc } from "../../lib/file-icon/index.js";
@@ -167,7 +166,7 @@
 					title="Discard changes"
 					onclick={() => onDiscard?.(path)}
 				>
-					<ArrowCounterClockwise size={12} weight="bold" />
+					<RoundedIcon name="undo" class="size-3" />
 				</button>
 			{/if}
 		{:else}
@@ -178,7 +177,7 @@
 					title="Unstage file"
 					onclick={() => onUnstage?.(path)}
 				>
-					<FileMinus size={12} weight="bold" />
+					<RoundedIcon name="minus" class="size-3" />
 				</button>
 			{/if}
 		{/if}

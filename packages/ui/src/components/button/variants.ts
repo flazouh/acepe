@@ -93,6 +93,12 @@ export const buttonVariants = tv({
 	compoundVariants: [
 		{
 			variant: "ghost",
+			size: "icon-chrome",
+			active: false,
+			class: "text-muted-foreground hover:text-foreground focus-visible:text-foreground",
+		},
+		{
+			variant: "ghost",
 			active: true,
 			class: "bg-accent text-foreground",
 		},

@@ -3,7 +3,6 @@
 	 * GitStashList — List of stash entries with pop/drop actions.
 	 */
 	import { Package } from "phosphor-svelte";
-	import { ArrowCounterClockwise } from "phosphor-svelte";
 
 	import { cn } from "../../lib/utils.js";
 	import { RoundedIcon } from "../icons/index.js";
@@ -52,7 +51,7 @@
 							title="Pop stash"
 							onclick={() => onPop?.(entry.index)}
 						>
-							<ArrowCounterClockwise size={12} weight="bold" />
+							<RoundedIcon name="undo" class="size-3" />
 						</button>
 					{/if}
 					{#if onDrop}

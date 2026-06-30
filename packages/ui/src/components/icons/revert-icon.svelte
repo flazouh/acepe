@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { ArrowCounterClockwise } from "phosphor-svelte";
+	import RoundedIcon from "./rounded-icon.svelte";
 
 	interface Props {
 		size?: "xs" | "sm" | "md" | "lg";
@@ -16,4 +16,4 @@
 	};
 </script>
 
-<ArrowCounterClockwise class={sizeClasses[size]} {className} weight="bold" />
+<RoundedIcon name="undo" class={`${sizeClasses[size]} ${className ?? ""}`} />

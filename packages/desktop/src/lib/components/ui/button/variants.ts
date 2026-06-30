@@ -33,6 +33,13 @@ export const buttonVariants = tv({
 		variant: "default",
 		size: "default",
 	},
+	compoundVariants: [
+		{
+			variant: "ghost",
+			size: "icon-chrome",
+			class: "text-muted-foreground hover:text-foreground focus-visible:text-foreground",
+		},
+	],
 });
 
 export type ButtonVariant = VariantProps<typeof buttonVariants>["variant"];
