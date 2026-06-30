@@ -4,8 +4,6 @@ import { IconArrowUp } from "@tabler/icons-svelte";
 import {
 	CaretDoubleLeft,
 	CaretDoubleRight,
-	CaretLeft,
-	CaretRight,
 } from "phosphor-svelte";
 import { IconSelector } from "@tabler/icons-svelte";
 import { RoundedIcon, Selector } from "@acepe/ui";
@@ -284,7 +282,7 @@ function formatDate(date: Date): string {
 					disabled={!canGoPrevious}
 					onclick={() => state.goToPreviousPage()}
 				>
-					<CaretLeft size={12} weight="regular" class="size-3 shrink-0" />
+					<RoundedIcon name="chevron-left" class="size-3 shrink-0" />
 				</button>
 				<span class="px-1 text-muted-foreground tabular-nums">
 					{state.currentPage + 1}/{totalPages}
@@ -295,7 +293,7 @@ function formatDate(date: Date): string {
 					disabled={!canGoNext}
 					onclick={() => state.goToNextPage(totalPages)}
 				>
-					<CaretRight size={12} weight="regular" class="size-3 shrink-0" />
+					<RoundedIcon name="chevron-right" class="size-3 shrink-0" />
 				</button>
 				<button
 					type="button"

@@ -1,7 +1,5 @@
 <script lang="ts">
-import { PlanIcon } from "@acepe/ui";
-import { CaretDown } from "phosphor-svelte";
-import { CaretRight } from "phosphor-svelte";
+import { PlanIcon, RoundedIcon } from "@acepe/ui";
 import { CheckCircle } from "phosphor-svelte";
 import { CircleDashed } from "phosphor-svelte";
 import { Folder } from "phosphor-svelte";
@@ -46,9 +44,9 @@ const nodeState = $derived.by(() => {
 			>
 				<span class="inline-flex w-4 shrink-0 items-center justify-center text-muted-foreground/80" aria-hidden="true">
 					{#if isExpanded}
-						<CaretDown size={12} weight="regular" class="size-3 shrink-0" />
+						<RoundedIcon name="chevron-down" class="size-3 shrink-0" />
 					{:else}
-						<CaretRight size={12} weight="regular" class="size-3 shrink-0" />
+						<RoundedIcon name="chevron-right" class="size-3 shrink-0" />
 					{/if}
 				</span>
 				<span class="structured-type-icon" aria-hidden="true">

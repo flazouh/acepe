@@ -8,12 +8,10 @@ import {
 	type AgentPanelSceneEntryModel,
 	type AgentToolFileSelectEvent,
 } from "@acepe/ui/agent-panel";
-import { DiffPill, setThinkingPreferences, type PrChecksItem } from "@acepe/ui";
+import { DiffPill, RoundedIcon, setThinkingPreferences, type PrChecksItem } from "@acepe/ui";
 import { Button } from "@acepe/ui/button";
 import * as ButtonGroup from "@acepe/ui/button-group";
 import {
-	CaretLeft,
-	CaretRight,
 	CheckCircle,
 	Clock,
 	GitPullRequest,
@@ -1876,7 +1874,7 @@ async function handleFixCiCheck(check: PrChecksItem): Promise<void> {
 					aria-label="Previous file"
 					title="Previous file"
 				>
-					<CaretLeft size={12} weight="regular"  class="size-3"/>
+					<RoundedIcon name="chevron-left" class="size-3" />
 				</Button>
 				<Button
 					variant="headerAction"
@@ -1895,7 +1893,7 @@ async function handleFixCiCheck(check: PrChecksItem): Promise<void> {
 					aria-label="Next file"
 					title="Next file"
 				>
-					<CaretRight size={12} weight="regular"  class="size-3"/>
+					<RoundedIcon name="chevron-right" class="size-3" />
 				</Button>
 			</ButtonGroup.Root>
 		{/if}

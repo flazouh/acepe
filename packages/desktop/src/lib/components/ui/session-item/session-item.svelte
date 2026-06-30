@@ -7,7 +7,6 @@ import {
 	shouldShowSessionProjectBadge,
 } from "@acepe/ui/project-letter-badge";
 import * as DropdownMenu from "@acepe/ui/dropdown-menu";
-import { CaretDown, CaretRight } from "phosphor-svelte";
 import { Archive } from "phosphor-svelte";
 import { Tree } from "phosphor-svelte";
 import { COLOR_NAMES, Colors } from "@acepe/ui/colors";
@@ -583,9 +582,9 @@ function handleNextQuestion() {
 					aria-label={isExpanded ? "Collapse" : "Expand"}
 				>
 					{#if isExpanded}
-						<CaretDown size={12} weight="regular" class="size-3 shrink-0 text-muted-foreground" />
+						<RoundedIcon name="chevron-down" class="size-3 shrink-0 text-muted-foreground" />
 					{:else}
-						<CaretRight size={12} weight="regular" class="size-3 shrink-0 text-muted-foreground" />
+						<RoundedIcon name="chevron-right" class="size-3 shrink-0 text-muted-foreground" />
 					{/if}
 				</button>
 			{/if}

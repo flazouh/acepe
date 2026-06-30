@@ -13,7 +13,7 @@ import * as ButtonGroup from "@acepe/ui/button-group";
 import * as DropdownMenu from "@acepe/ui/dropdown-menu";
 import DialogFrame from "$lib/components/ui/dialog-frame.svelte";
 import { Textarea } from "$lib/components/ui/textarea/index.js";
-import { GitMerge, GitPullRequest, CaretDown } from "phosphor-svelte";
+import { GitMerge, GitPullRequest } from "phosphor-svelte";
 import { toast } from "svelte-sonner";
 import { tauriClient } from "$lib/utils/tauri-client.js";
 import { Spinner } from "$lib/components/ui/spinner/index.js";
@@ -531,7 +531,7 @@ function handlePromptResetClick(): void {
 								disabled={merging}
 							>
 								{#snippet renderButton()}
-									<CaretDown size={12} weight="regular" class="size-3 shrink-0" />
+									<RoundedIcon name="chevron-down" class="size-3 shrink-0" />
 								{/snippet}
 
 								<DropdownMenu.RadioGroup

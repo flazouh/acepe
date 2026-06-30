@@ -1,6 +1,6 @@
 <script lang="ts">
-	import { Button } from "@acepe/ui";
-	import { CaretLeft, DownloadSimple, GitPullRequest, ListChecks, Microphone, Rows, SlidersHorizontal, Sparkle } from "phosphor-svelte";
+	import { Button, RoundedIcon } from "@acepe/ui";
+	import { DownloadSimple, GitPullRequest, ListChecks, Microphone, Rows, SlidersHorizontal, Sparkle } from "phosphor-svelte";
 
 	import { Badge } from "$lib/components/ui/badge/index.js";
 	import SettingsPageHeader from "$lib/components/settings-page/settings-page-header.svelte";
@@ -107,7 +107,7 @@
 	<div class="flex min-h-0 min-w-0 flex-1 flex-col">
 		<div class="flex shrink-0 items-center justify-between gap-3 border-b border-border/40 px-4 py-2">
 			<Button variant="ghost" size="sm" onclick={onClose} aria-label="Back to app" class="-ml-2 gap-1.5">
-				<CaretLeft size={12} weight="regular"  class="size-3"/>
+				<RoundedIcon name="chevron-left" class="size-3" />
 				Back to app
 			</Button>
 			<Badge variant="outline" class="font-mono text-[10px] uppercase tracking-wider">

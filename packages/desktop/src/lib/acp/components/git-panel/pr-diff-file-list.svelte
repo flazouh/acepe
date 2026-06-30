@@ -1,6 +1,5 @@
 <script lang="ts">
-import { DiffPill, getFileIconSrc, getFallbackIconSrc } from "@acepe/ui";
-import { CaretRight } from "phosphor-svelte";
+import { DiffPill, getFileIconSrc, getFallbackIconSrc, RoundedIcon } from "@acepe/ui";
 
 import type { FileDiff as FileDiffType } from "../../types/github-integration.js";
 import PierreDiffView from "../diff-viewer/pierre-diff-view.svelte";
@@ -60,7 +59,7 @@ const STATUS_COLOR: Record<string, string> = {
 				onclick={() => handleFileClick(file.path)}
 			>
 				<span class="flex h-3.5 w-3.5 shrink-0 items-center justify-center text-muted-foreground/50 transition-transform" class:rotate-90={isExpanded}>
-					<CaretRight size={12} weight="regular"  class="size-3"/>
+					<RoundedIcon name="chevron-right" class="size-3" />
 				</span>
 				<img
 					src={getFileIconSrc(file.path, "/svgs/icons")}

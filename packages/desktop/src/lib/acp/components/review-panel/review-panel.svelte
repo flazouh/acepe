@@ -6,8 +6,8 @@ import {
 	HeaderActionCell,
 	HeaderTitleCell,
 	ReviewWorkspaceFileList,
+	RoundedIcon,
 } from "@acepe/ui";
-import { CaretLeft } from "phosphor-svelte";
 import { SvelteMap } from "svelte/reactivity";
 import { Skeleton } from "$lib/components/ui/skeleton/index.js";
 import { createReviewFileRevisionKey } from "../../review/review-file-revision.js";
@@ -311,7 +311,7 @@ function handlePointerUp() {
 				aria-label="Back"
 			>
 				{#snippet children()}
-					<CaretLeft size={12} weight="regular" class="size-3 shrink-0" />
+					<RoundedIcon name="chevron-left" class="size-3 shrink-0" />
 				{/snippet}
 			</Button>
 		</HeaderActionCell>
