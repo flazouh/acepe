@@ -5,6 +5,7 @@ import {
 	clickWebview,
 	inspectDom,
 	navigateWebview,
+	openStreamingReproLab,
 	probePanelResize,
 	probePanelResizeStream,
 	probeComputerUse,
@@ -223,7 +224,7 @@ export async function runCli(
 			command: "help",
 			status: "ok",
 			summary: [
-				"usage: bun run qa [doctor|focus-app|observe|screenshot|navigate|inspect|click|computer-probe|resize-probe|resize-stream-probe|thinking-toggle-probe|first-send-probe|send|watch|reset-onboarding] [--app=9223] [--format=json]",
+				"usage: bun run qa [doctor|focus-app|observe|screenshot|navigate|inspect|click|computer-probe|resize-probe|resize-stream-probe|thinking-toggle-probe|first-send-probe|streaming-repro-lab|send|watch|reset-onboarding] [--app=9223] [--format=json]",
 				"doctor checks the real dev Tauri target before QA.",
 				"focus-app brings the Acepe desktop app to the macOS foreground.",
 				"observe returns compact app facts before screenshots.",
@@ -236,6 +237,7 @@ export async function runCli(
 				"resize-stream-probe streams pointer moves over --timeout ms and reports continuous-drag lag.",
 				"thinking-toggle-probe clicks the first thinking block and samples open/closed state over 500ms.",
 				"first-send-probe types into the first composer, clicks send, and samples optimistic/planning visibility.",
+				"streaming-repro-lab opens the dev Streaming Repro Lab and samples native token reveal DOM.",
 				"send types --text into the composer and submits (use --no-submit to type only).",
 				"watch polls for --text and reports whether it is actually VISIBLE (not just in the DOM), with --timeout ms.",
 				"reset-onboarding opens Dev Tools, resets onboarding, and returns onboarding facts.",
@@ -926,6 +928,48 @@ export async function runCli(
 		return emitVerifiedUiResult(options, result);
 	}
 
+	if (options.command === "streaming-repro-lab") {
+		const lab = await openStreamingReproLab({
+			appIdentifier: options.appIdentifier,
+			delayMs: Number.isFinite(options.delayMs) ? options.delayMs : 300,
+			skipDriver: options.skipDriver,
+		});
+		if (lab.isErr()) {
+			const result = buildResult({
+				command: "streaming-repro-lab",
+				status: "fail",
+				summary: ["Unable to open the Streaming Repro Lab."],
+				error: dependencyError(
+					lab.error.code,
+					lab.error.message,
+					"Run acepe-qa doctor; ensure the dev app contains the streaming repro QA hook."
+				),
+			});
+			process.stdout.write(formatCommandResult(result, options.format));
+			return statusExitCode(result.status);
+		}
+		const artifact = await writeJsonArtifact("streaming-repro-lab", lab.value);
+		const artifactPath = artifact.isOk() ? artifact.value : undefined;
+		const result = buildResult({
+			command: "streaming-repro-lab",
+			status: lab.value.hookAvailable && lab.value.opened && lab.value.labPresent ? "ok" : "warn",
+			summary: [
+				`hook: ${lab.value.hookAvailable ? "available" : "missing"}`,
+				`opened: ${lab.value.opened ? "yes" : "no"}`,
+				`lab: ${lab.value.labPresent ? "present" : "missing"}`,
+				`phase: ${lab.value.phaseLabel ?? "none"}`,
+				`token reveal mode: ${lab.value.tokenRevealMode ?? "none"}`,
+				`animated token spans: ${lab.value.tokenRevealAnimatedCount.toString()}`,
+			],
+			artifactPath,
+			artifactKind: artifactPath === undefined ? undefined : "streaming-repro-lab",
+			error: artifact.isErr()
+				? dependencyError(artifact.error.code, artifact.error.message, "Check /tmp permissions.")
+				: undefined,
+		});
+		return emitVerifiedUiResult(options, result);
+	}
+
 	if (options.command === "reset-onboarding") {
 		const reset = await resetOnboarding({
 			appIdentifier: options.appIdentifier,
@@ -1090,7 +1134,7 @@ export async function runCli(
 		error: dependencyError(
 			"unknown_command",
 			options.command,
-			"Use doctor, observe, screenshot, navigate, inspect, click, thinking-toggle-probe, send, watch, or reset-onboarding."
+			"Use doctor, observe, screenshot, navigate, inspect, click, thinking-toggle-probe, streaming-repro-lab, send, watch, or reset-onboarding."
 		),
 	});
 	process.stdout.write(formatCommandResult(result, options.format));

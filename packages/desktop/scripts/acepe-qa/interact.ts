@@ -10,6 +10,7 @@ import type {
 	ResizeStreamProbeResult,
 	ResetOnboardingResult,
 	SendComposerResult,
+	StreamingReproLabResult,
 	ThinkingToggleProbeResult,
 	WatchResult,
 } from "./schemas";
@@ -25,6 +26,7 @@ import {
 	resizeStreamProbeResultSchema,
 	resetOnboardingResultSchema,
 	sendComposerResultSchema,
+	streamingReproLabResultSchema,
 	thinkingToggleProbeResultSchema,
 	watchResultSchema,
 } from "./schemas";
@@ -937,6 +939,47 @@ export function resetOnboarding(
 				appIdentifier: options.appIdentifier,
 				script,
 				schema: resetOnboardingResultSchema,
+				callTimeoutMs: 20_000,
+			},
+			runner
+		);
+	});
+}
+
+export function openStreamingReproLab(
+	options: DriverOptions & {
+		readonly delayMs: number;
+	}
+): ResultAsync<StreamingReproLabResult, TauriMcpFailure> {
+	const runner = options.runner ?? runCommand;
+	return driverReady(options).andThen(() => {
+		const script = `
+(async () => {
+  const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+  const open = window.__acepeOpenStreamingReproLab;
+  const hookAvailable = typeof open === "function";
+  const opened = hookAvailable ? open() === true : false;
+  await sleep(${options.delayMs.toString()});
+  const lab = document.querySelector('[data-testid="streaming-repro-lab"]');
+  const phaseLabel = lab
+    ? (Array.from(lab.querySelectorAll("div")).map((node) => (node.textContent || "").trim().replace(/\\s+/g, " ")).find((text) => text.includes("Step ")) || null)
+    : null;
+  const tokenRevealNode = document.querySelector("[data-token-reveal-mode]");
+  return {
+    hookAvailable,
+    opened,
+    labPresent: Boolean(lab),
+    phaseLabel,
+    tokenRevealAnimatedCount: document.querySelectorAll('[data-sd-animate="true"], [data-acepe-token-reveal-tail="true"]').length,
+    tokenRevealMode: tokenRevealNode ? tokenRevealNode.getAttribute("data-token-reveal-mode") : null,
+  };
+})()
+`;
+		return executeWebviewJson(
+			{
+				appIdentifier: options.appIdentifier,
+				script,
+				schema: streamingReproLabResultSchema,
 				callTimeoutMs: 20_000,
 			},
 			runner

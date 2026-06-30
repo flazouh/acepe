@@ -162,6 +162,15 @@ export const resetOnboardingResultSchema = z.object({
 	),
 });
 
+export const streamingReproLabResultSchema = z.object({
+	hookAvailable: z.boolean(),
+	opened: z.boolean(),
+	labPresent: z.boolean(),
+	phaseLabel: z.string().nullable(),
+	tokenRevealAnimatedCount: z.number(),
+	tokenRevealMode: z.string().nullable(),
+});
+
 export const sendComposerResultSchema = z.object({
 	composerFound: z.boolean(),
 	textApplied: z.string(),
@@ -349,3 +358,4 @@ export type DomInspectionResult = z.infer<typeof domInspectionResultSchema>;
 export type ClickResult = z.infer<typeof clickResultSchema>;
 export type ThinkingToggleProbeResult = z.infer<typeof thinkingToggleProbeResultSchema>;
 export type ResetOnboardingResult = z.infer<typeof resetOnboardingResultSchema>;
+export type StreamingReproLabResult = z.infer<typeof streamingReproLabResultSchema>;

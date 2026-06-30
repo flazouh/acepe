@@ -1,6 +1,13 @@
 import { describe, expect, it } from "bun:test";
 import { okAsync } from "neverthrow";
-import { clickWebview, inspectDom, navigateWebview, probeComputerUse, resetOnboarding } from "../interact";
+import {
+	clickWebview,
+	inspectDom,
+	navigateWebview,
+	openStreamingReproLab,
+	probeComputerUse,
+	resetOnboarding,
+} from "../interact";
 import type { CommandRunner } from "../tauri-mcp";
 
 function wrapped(text: string): string {
@@ -295,5 +302,42 @@ describe("acepe-qa interaction helpers", () => {
 				animationName: "onboarding-preview-stream-reveal",
 			},
 		]);
+	});
+
+	it("opens the streaming repro lab through the dev QA hook", async () => {
+		const runner: CommandRunner = (command) => {
+			const joined = command.join(" ");
+			if (joined.includes("driver-session")) {
+				return okAsync({
+					code: 0,
+					stdout: "",
+					stderr: "",
+				});
+			}
+			return okAsync({
+				code: 0,
+				stdout: wrapped(
+					JSON.stringify({
+						hookAvailable: true,
+						opened: true,
+						labPresent: true,
+						phaseLabel: "Core streaming · Step 1 of 4",
+						tokenRevealAnimatedCount: 2,
+						tokenRevealMode: "smooth",
+					})
+				),
+				stderr: "",
+			});
+		};
+
+		const result = await openStreamingReproLab({
+			appIdentifier: "9223",
+			delayMs: 300,
+			runner,
+		});
+
+		expect(result.isOk()).toBe(true);
+		expect(result._unsafeUnwrap().labPresent).toBe(true);
+		expect(result._unsafeUnwrap().tokenRevealAnimatedCount).toBe(2);
 	});
 });
