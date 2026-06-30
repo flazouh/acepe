@@ -1,5 +1,6 @@
 <script lang="ts">
-	import { CheckCircle, FileCode, XCircle } from "phosphor-svelte";
+	import { FileCode, XCircle } from "phosphor-svelte";
+	import { RoundedIcon } from "../icons/index.js";
 
 	import { EmbeddedPanelHeader, HeaderActionCell, HeaderTitleCell } from "../panel-header/index.js";
 
@@ -28,7 +29,7 @@
 		</HeaderActionCell>
 		<HeaderActionCell>
 			<button type="button" class="plan-action-btn" onclick={onApprove}>
-				<CheckCircle weight="fill" class="size-3 shrink-0" />
+				<RoundedIcon name="check-circle" class="size-3 shrink-0" />
 				{approveLabel}
 			</button>
 		</HeaderActionCell>

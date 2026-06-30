@@ -6,9 +6,9 @@ import { getPanelStore, getSessionStore } from "$lib/acp/store/index.js";
 import { resolveCurrentWorktree } from "$lib/acp/store/git-modal-state.js";
 import type { WorktreeInfo } from "$lib/acp/types/worktree-info.js";
 import DialogFrame from "$lib/components/ui/dialog-frame.svelte";
-import { Selector } from "@acepe/ui";
+import { RoundedIcon, Selector } from "@acepe/ui";
 import * as DropdownMenu from "@acepe/ui/dropdown-menu";
-import { Check, Tree } from "phosphor-svelte";
+import { Tree } from "phosphor-svelte";
 
 interface Props {
 	projectManager: ProjectManager;
@@ -109,10 +109,11 @@ function switchWorktree(directory: string): void {
 											ext
 										</span>
 									{/if}
-									<Check
-										size={11}
-										weight="bold"
-										class={isCurrent ? "shrink-0 text-foreground" : "shrink-0 text-transparent"}
+									<RoundedIcon
+										name="check"
+										class={isCurrent
+											? "size-[11px] shrink-0 text-foreground"
+											: "size-[11px] shrink-0 text-transparent"}
 									/>
 								</div>
 							</DropdownMenu.Item>

@@ -1,9 +1,8 @@
 <script lang="ts">
-	import { CheckCircle, Pulse } from "phosphor-svelte";
+	import { Pulse } from "phosphor-svelte";
 	import { Eye } from "phosphor-svelte";
 	import { FileCode } from "phosphor-svelte";
-	import { Keyboard } from "phosphor-svelte";
-	import { Warning } from "phosphor-svelte";
+	import { RoundedIcon } from "../icons/index.js";
 	import type { Snippet } from "svelte";
 	import type { SectionedFeedSectionId } from "./types.js";
 
@@ -22,7 +21,7 @@ let { sectionId, label, count, color, needsReviewIcon = "eye", actions }: Props 
 <div class="flex h-7 items-center justify-between px-2">
 	<span class="inline-flex items-center gap-1.5 text-[10px] font-semibold tracking-wide text-muted-foreground/70">
 		{#if sectionId === "answer_needed"}
-			<Keyboard class="size-3 shrink-0" weight="fill" style="color: {color}" />
+			<RoundedIcon name="keyboard" class="size-3 shrink-0" style="color: {color}" />
 		{:else if sectionId === "working"}
 			<Pulse class="size-3 shrink-0" weight="fill" style="color: {color}" />
 		{:else if sectionId === "planning"}
@@ -34,9 +33,9 @@ let { sectionId, label, count, color, needsReviewIcon = "eye", actions }: Props 
 				<Eye class="size-3 shrink-0" weight="fill" style="color: {color}" />
 			{/if}
 		{:else if sectionId === "idle"}
-			<CheckCircle class="size-3 shrink-0" weight="fill" style="color: {color}" />
+			<RoundedIcon name="check-circle" class="size-3 shrink-0" style="color: {color}" />
 		{:else if sectionId === "error"}
-			<Warning class="size-3 shrink-0" weight="fill" style="color: {color}" />
+			<RoundedIcon name="warning" class="size-3 shrink-0" style="color: {color}" />
 		{/if}
 		{label}
 	</span>

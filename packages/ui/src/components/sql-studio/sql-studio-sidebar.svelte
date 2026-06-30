@@ -3,7 +3,7 @@
    * SqlStudioSidebar — Connections list + schema tree sidebar.
    * Matches the git panel's dense, monospace design language.
    */
-  import { Table as TableIcon, Trash, Key } from "phosphor-svelte";
+  import { Table as TableIcon, Key } from "phosphor-svelte";
   import PlusIcon from "../icons/plus-icon.svelte";
   import { RoundedIcon } from "../icons/index.js";
   import { TAG_COLORS } from "../../lib/colors.js";
@@ -124,7 +124,7 @@
                 onConnectionDelete(connection.id);
               }}
             >
-              <Trash size={12} weight="bold" class="text-destructive" />
+              <RoundedIcon name="trash" class="size-3 text-destructive" />
             </button>
           </div>
         {/each}

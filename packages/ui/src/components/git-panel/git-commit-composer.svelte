@@ -3,9 +3,9 @@
 	 * GitCommitComposer — dedicated commit composer using the agent input surface pattern.
 	 */
 	import type { Snippet } from "svelte";
-	import { ArrowUp } from "phosphor-svelte";
 	import { Sparkle } from "phosphor-svelte";
 	import { cn } from "../../lib/utils.js";
+	import { RoundedIcon } from "../icons/index.js";
 	import { InputContainer } from "../input-container/index.js";
 
 	interface Props {
@@ -62,7 +62,7 @@
 					disabled={!canCommit || submitDisabled}
 					onclick={handleSubmit}
 				>
-					<ArrowUp class="mx-auto h-3.5 w-3.5" />
+					<RoundedIcon name="arrow-up" class="mx-auto h-3.5 w-3.5" />
 				</button>
 			</div>
 			<div class="relative flex-1 min-w-0 pr-12">
