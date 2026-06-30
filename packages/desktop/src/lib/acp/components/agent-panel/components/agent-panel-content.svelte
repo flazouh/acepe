@@ -32,6 +32,7 @@ let {
 	onCancelConnection,
 	agentIconSrc = "",
 	showWorkingSpark = false,
+	planningPlaceholderPresentation = null,
 	isFullscreen = false,
 	availableAgents = [],
 	effectiveTheme = "dark",
@@ -183,6 +184,7 @@ export function scrollToTop() {
 				{sessionId}
 				{pendingUserRevealRequestKey}
 				{showLocalPlanningIndicator}
+				{planningPlaceholderPresentation}
 				{turnState}
 				projectPath={sessionProjectPath ?? undefined}
 				{showWorkingSpark}

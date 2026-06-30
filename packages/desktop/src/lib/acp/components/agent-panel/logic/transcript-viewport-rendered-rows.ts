@@ -9,6 +9,12 @@ export type RenderedTranscriptViewportRow = {
 	readonly localOnly: boolean;
 };
 
+export interface PlanningPlaceholderPresentation {
+	readonly label: string;
+	readonly agentIconSrc: string | null;
+	readonly showWorkingSpark: boolean;
+}
+
 const LOCAL_OPTIMISTIC_ROW_PREFIX = "local:optimistic:";
 const LOCAL_PLANNING_ROW_ID = "local:planning";
 const LOCAL_REVIEW_ROW_ID = "local:review";
@@ -18,6 +24,7 @@ export function buildRenderedTranscriptViewportRows(input: {
 	readonly bufferStartIndex: number;
 	readonly sceneEntries: readonly AgentPanelSceneEntryModel[];
 	readonly showLocalPlanningIndicator: boolean;
+	readonly planningPlaceholderPresentation?: PlanningPlaceholderPresentation | null;
 	readonly syntheticReviewEntry?: AgentPanelSceneEntryModel | null;
 }): readonly RenderedTranscriptViewportRow[] {
 	const sceneEntryById = buildSceneEntryById(input.sceneEntries);
@@ -63,12 +70,7 @@ export function buildRenderedTranscriptViewportRows(input: {
 		renderedRows.push({
 			row: createLocalPlanningRow(),
 			index: input.bufferStartIndex + renderedRows.length,
-			entry: {
-				id: LOCAL_PLANNING_ROW_ID,
-				type: "thinking",
-				durationMs: null,
-				startedAtMs: null,
-			},
+			entry: createLocalPlanningEntry(input.planningPlaceholderPresentation ?? null),
 			localOnly: true,
 		});
 	}
@@ -87,6 +89,20 @@ export function buildRenderedTranscriptViewportRows(input: {
 	}
 
 	return renderedRows;
+}
+
+function createLocalPlanningEntry(
+	presentation: PlanningPlaceholderPresentation | null
+): AgentPanelSceneEntryModel {
+	return {
+		id: LOCAL_PLANNING_ROW_ID,
+		type: "thinking",
+		durationMs: null,
+		startedAtMs: null,
+		label: presentation?.label ?? null,
+		agentIconSrc: presentation?.agentIconSrc ?? null,
+		showWorkingSpark: presentation?.showWorkingSpark ?? false,
+	};
 }
 
 function buildSceneEntryById(

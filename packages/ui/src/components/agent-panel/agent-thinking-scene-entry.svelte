@@ -8,6 +8,7 @@
 		durationMs?: number | null;
 		startedAtMs?: number | null;
 		label?: string | null;
+		agentIconSrc?: string | null;
 		showWorkingSpark?: boolean;
 	}
 
@@ -15,6 +16,7 @@
 		durationMs = null,
 		startedAtMs = null,
 		label = null,
+		agentIconSrc = null,
 		showWorkingSpark = false,
 	}: Props = $props();
 	let nowMs = $state(Date.now());
@@ -56,6 +58,7 @@
 <PlanningPlaceholderRow
 	timing={durationTiming}
 	label={displayLabel}
+	{agentIconSrc}
 	{showWorkingSpark}
 	class="py-1 pr-1.5"
 />

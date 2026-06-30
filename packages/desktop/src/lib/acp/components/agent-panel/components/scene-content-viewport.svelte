@@ -47,6 +47,11 @@ type SceneContentViewportProps = {
 	sessionId: string | null;
 	pendingUserRevealRequestKey?: string | null;
 	showLocalPlanningIndicator?: boolean;
+	planningPlaceholderPresentation?: {
+		readonly label: string;
+		readonly agentIconSrc: string | null;
+		readonly showWorkingSpark: boolean;
+	} | null;
 	showWorkingSpark?: boolean;
 	isFullscreen?: boolean;
 	modifiedFilesState?: ModifiedFilesState | null;
@@ -73,6 +78,7 @@ let {
 	sessionId,
 	pendingUserRevealRequestKey = null,
 	showLocalPlanningIndicator = false,
+	planningPlaceholderPresentation = null,
 	showWorkingSpark = false,
 	isFullscreen = false,
 	modifiedFilesState = null,
@@ -134,6 +140,7 @@ const renderedRows = $derived.by(() => {
 		bufferStartIndex: 0,
 		sceneEntries: sceneEntries ?? EMPTY_SCENE_ENTRIES,
 		showLocalPlanningIndicator,
+		planningPlaceholderPresentation,
 		syntheticReviewEntry,
 	});
 });

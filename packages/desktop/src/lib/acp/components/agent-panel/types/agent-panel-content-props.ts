@@ -39,6 +39,11 @@ export interface AgentPanelContentProps {
 	readonly agentIconSrc?: string;
 	/** When true, the transcript's planning placeholder shows the Claude working spark. */
 	readonly showWorkingSpark?: boolean;
+	readonly planningPlaceholderPresentation?: {
+		readonly label: string;
+		readonly agentIconSrc: string | null;
+		readonly showWorkingSpark: boolean;
+	} | null;
 	readonly isFullscreen?: boolean;
 	readonly availableAgents?: AgentInfo[];
 	readonly effectiveTheme?: "light" | "dark";

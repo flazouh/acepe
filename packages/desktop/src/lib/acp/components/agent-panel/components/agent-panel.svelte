@@ -66,6 +66,8 @@ import {
 	copyTextToClipboard,
 	matchesWorktreeSetupContext,
 	resolveEffectiveProjectPath,
+	resolvePlanningPlaceholderPresentation,
+	shouldShowNewThreadSetupContext,
 	shouldShowClaudeWorkingSpark,
 } from "../logic";
 import { DEFAULT_BROWSER_HOME_URL } from "../../../constants/browser-defaults.js";
@@ -453,6 +455,13 @@ const showInlineErrorCard = $derived(
 const worktreePending = $derived(worktreeController.worktreePending);
 const pendingWorktreeSetup = $derived(sessionController.panelHotState ? sessionController.panelHotState.pendingWorktreeSetup : null);
 const showPreSessionWorktreeCard = $derived(worktreeController.showPreSessionWorktreeCard);
+const showNewThreadSetupContext = $derived(
+	shouldShowNewThreadSetupContext({
+		hasSession,
+		hasImmediatePendingSendIntent: sessionController.hasImmediatePendingSendIntent,
+		hasMessages: sessionController.hasMessages,
+	})
+);
 
 $effect(() => {
 	if (!import.meta.env.DEV) return;
@@ -650,6 +659,13 @@ const effectivePanelProviderBrand = $derived.by(() => {
 	});
 });
 const agentIconSrc = $derived(getProviderBrandIcon(effectivePanelProviderBrand, effectiveTheme));
+const planningPlaceholderPresentation = $derived(
+	resolvePlanningPlaceholderPresentation({
+		agentName,
+		agentIconSrc,
+		showWorkingSpark,
+	})
+);
 const graphMaterializedScene = $derived(scenePipelineController.graphMaterializedScene);
 const graphSceneEntries = $derived(scenePipelineController.graphSceneEntries);
 const tokenRevealSceneEntries = $derived(scenePipelineController.tokenRevealSceneEntries);
@@ -1506,6 +1522,7 @@ async function handleFixCiCheck(check: PrChecksItem): Promise<void> {
 						onCancelConnection={handleCancelConnection}
 						agentIconSrc={agentIconSrc ?? undefined}
 						{showWorkingSpark}
+						{planningPlaceholderPresentation}
 						{isFullscreen}
 						{availableAgents}
 						{effectiveTheme}
@@ -1687,7 +1704,7 @@ async function handleFixCiCheck(check: PrChecksItem): Promise<void> {
 							{availableAgents}
 							{onAgentChange}
 							newThreadContext={
-								!hasSession
+								showNewThreadSetupContext
 									? {
 										project: newThreadProjectControl,
 										agent: newThreadAgentControl,

@@ -218,6 +218,8 @@ export interface AgentThinkingEntry {
 	durationMs?: number | null;
 	startedAtMs?: number | null;
 	label?: string | null;
+	agentIconSrc?: string | null;
+	showWorkingSpark?: boolean;
 }
 
 export interface AgentMissingEntry {
