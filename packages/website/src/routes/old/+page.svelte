@@ -1,5 +1,13 @@
 <script lang="ts">
-import { ArrowRightIcon, BrandLockup, PillButton } from "@acepe/ui";
+import {
+	ArrowRightIcon,
+	BrandLockup,
+	LayoutModeIcon,
+	PillButton,
+	RoundedIcon,
+	StorageIcon,
+} from "@acepe/ui";
+import type { RoundedIconName } from "@acepe/ui/icons";
 import { CheckpointTimeline } from "@acepe/ui/checkpoint";
 import { PlanCard } from "@acepe/ui/plan-card";
 import { AgentSelectionGrid } from "@acepe/ui/agent-panel";
@@ -14,32 +22,26 @@ import FeatureShowcase from "$lib/components/feature-showcase.svelte";
 import HeroShaderStage from "$lib/components/hero-shader-stage.svelte";
 import LazyFeatureMount from "$lib/components/lazy-feature-mount.svelte";
 import DevShaderSwitcher from "$lib/components/dev-shader-switcher.svelte";
-import {
-	Stack,
-	ArrowsOutSimple,
-	GitBranch,
-	HardDrives,
-	Queue,
-	Command,
-	ClockCounterClockwise,
-	Lightning,
-	Check,
-	MagnifyingGlass,
-	GithubLogo,
-	Kanban,
-	GitPullRequest,
-	Globe,
-	Terminal,
-	Microphone,
-	ShieldCheck,
-	Plug,
-} from "phosphor-svelte";
-
 let { data } = $props();
 
 // === Mock data for real component showcases ===
 
 const theme = "dark" as const;
+
+type LayoutIconMode = "columns" | "grid" | "kanban" | "single";
+type FeatureIcon =
+	| { kind: "rounded"; name: RoundedIconName }
+	| { kind: "layout"; mode: LayoutIconMode }
+	| { kind: "storage" };
+
+interface Feature {
+	id: string;
+	icon: FeatureIcon;
+	label: string;
+	tag: string;
+	description: string;
+	usecases: string[];
+}
 
 const mockGridAgents: AgentGridItem[] = $derived([
 	{
@@ -148,10 +150,10 @@ const mockSessions: AppSessionItemType[] = [
 	},
 ];
 
-const features = [
+const features: Feature[] = [
 	{
 		id: "multi-agent",
-		icon: Stack,
+		icon: { kind: "rounded", name: "team" },
 		label: "Multi-Agent Support",
 		tag: "core",
 		description:
@@ -164,7 +166,7 @@ const features = [
 	},
 	{
 		id: "parallel",
-		icon: ArrowsOutSimple,
+		icon: { kind: "rounded", name: "expand" },
 		label: "Parallel Sessions & Focus",
 		tag: "workflow",
 		description:
@@ -177,7 +179,7 @@ const features = [
 	},
 	{
 		id: "queue",
-		icon: Queue,
+		icon: { kind: "rounded", name: "bell" },
 		label: "Attention Queue",
 		tag: "triage",
 		description:
@@ -190,7 +192,7 @@ const features = [
 	},
 	{
 		id: "kanban",
-		icon: Kanban,
+		icon: { kind: "layout", mode: "kanban" },
 		label: "Kanban Board",
 		tag: "view",
 		description:
@@ -203,7 +205,7 @@ const features = [
 	},
 	{
 		id: "review",
-		icon: Check,
+		icon: { kind: "rounded", name: "check" },
 		label: "Review Workspace",
 		tag: "verify",
 		description:
@@ -216,7 +218,7 @@ const features = [
 	},
 	{
 		id: "plan-mode",
-		icon: Lightning,
+		icon: { kind: "rounded", name: "lightning" },
 		label: "Plan Mode",
 		tag: "planning",
 		description:
@@ -229,7 +231,7 @@ const features = [
 	},
 	{
 		id: "checkpoints",
-		icon: GitBranch,
+		icon: { kind: "rounded", name: "arrow-counter-clockwise" },
 		label: "Checkpoints",
 		tag: "safety",
 		description:
@@ -242,7 +244,7 @@ const features = [
 	},
 	{
 		id: "git",
-		icon: GitBranch,
+		icon: { kind: "rounded", name: "branch" },
 		label: "Git Panel",
 		tag: "git",
 		description:
@@ -255,7 +257,7 @@ const features = [
 	},
 	{
 		id: "pr",
-		icon: GitPullRequest,
+		icon: { kind: "rounded", name: "pull-request" },
 		label: "PR Workflow",
 		tag: "ship",
 		description:
@@ -268,7 +270,7 @@ const features = [
 	},
 	{
 		id: "sessions",
-		icon: ClockCounterClockwise,
+		icon: { kind: "rounded", name: "history" },
 		label: "Session Management",
 		tag: "history",
 		description:
@@ -281,7 +283,7 @@ const features = [
 	},
 	{
 		id: "keyboard",
-		icon: Command,
+		icon: { kind: "rounded", name: "keyboard" },
 		label: "Keyboard-First",
 		tag: "input",
 		description:
@@ -294,7 +296,7 @@ const features = [
 	},
 	{
 		id: "browser",
-		icon: Globe,
+		icon: { kind: "rounded", name: "browser" },
 		label: "Embedded Browser",
 		tag: "verify",
 		description:
@@ -307,7 +309,7 @@ const features = [
 	},
 	{
 		id: "terminal",
-		icon: Terminal,
+		icon: { kind: "rounded", name: "terminal" },
 		label: "Terminal Drawer",
 		tag: "tools",
 		description:
@@ -320,7 +322,7 @@ const features = [
 	},
 	{
 		id: "permissions",
-		icon: ShieldCheck,
+		icon: { kind: "rounded", name: "permissions" },
 		label: "Permissions & Autonomy",
 		tag: "control",
 		description:
@@ -333,7 +335,7 @@ const features = [
 	},
 	{
 		id: "skills",
-		icon: Plug,
+		icon: { kind: "rounded", name: "skills" },
 		label: "Skills & MCP",
 		tag: "extend",
 		description:
@@ -346,7 +348,7 @@ const features = [
 	},
 	{
 		id: "sql-studio",
-		icon: HardDrives,
+		icon: { kind: "storage" },
 		label: "SQL Studio",
 		tag: "data",
 		description:
@@ -359,7 +361,7 @@ const features = [
 	},
 	{
 		id: "voice",
-		icon: Microphone,
+		icon: { kind: "rounded", name: "microphone" },
 		label: "Voice Input",
 		tag: "input",
 		description:
@@ -523,7 +525,6 @@ const homepageKeywords = [
 
 <div class="flex flex-col gap-16 md:gap-24">
 {#each features as feature, i}
-{@const Icon = feature.icon}
 {@const isBig = feature.id === "kanban" || feature.id === "git" || feature.id === "sql-studio" || feature.id === "review"}
 <div
 class="grid grid-cols-1 items-center gap-10 md:grid-cols-2 md:gap-16"
@@ -604,7 +605,7 @@ class:md:[direction:rtl]={i % 2 === 1}
 <div class="overflow-hidden rounded-lg border border-border/50 bg-card shadow-2xl backdrop-blur" style="width: 303px;">
 <div class="border-b border-border/50 px-3 py-2">
 <div class="flex h-7 items-center gap-2 rounded-md border border-border/40 bg-background px-2.5 font-mono text-[11px] text-muted-foreground/70">
-<MagnifyingGlass size={11} />
+<RoundedIcon name="search" class="size-[11px]" />
 <span>search sessions…</span>
 </div>
 </div>
@@ -618,7 +619,7 @@ class:md:[direction:rtl]={i % 2 === 1}
 <div class="overflow-hidden rounded-lg border border-border/50 bg-card shadow-2xl backdrop-blur">
 <div class="border-b border-border/50 px-3 py-2.5">
 <div class="flex items-center gap-2 font-mono text-[11px] text-muted-foreground">
-<Command size={11} class="text-primary" />
+<RoundedIcon name="keyboard" class="size-[11px] text-primary" />
 <span class="text-foreground">switch agent</span>
 </div>
 </div>
@@ -694,7 +695,7 @@ class:md:[direction:rtl]={i % 2 === 1}
 {:else if feature.id === "pr"}
 <div class="overflow-hidden rounded-lg border border-border/50 bg-card shadow-2xl">
 <div class="border-b border-border/50 bg-success/10 px-3 py-2 flex items-center gap-2">
-<GitPullRequest size={14} class="text-success" />
+<RoundedIcon name="pull-request" class="size-3.5 text-success" />
 <span class="font-mono text-[11px] font-medium text-success">Merged · #342</span>
 </div>
 <div class="p-3 space-y-2">
@@ -755,7 +756,7 @@ class:md:[direction:rtl]={i % 2 === 1}
 {:else if feature.id === "terminal"}
 <div class="overflow-hidden rounded-lg border border-border/50 bg-[#0a0a0a] shadow-2xl" style="width: 253px;">
 <div class="flex items-center gap-2 border-b border-border/50 bg-muted/20 px-3 py-1.5">
-<Terminal size={11} class="text-muted-foreground" />
+<RoundedIcon name="terminal" class="size-[11px] text-muted-foreground" />
 <span class="font-mono text-[10px] text-muted-foreground">Terminal 1 · zsh</span>
 </div>
 <div class="p-3 font-mono text-[10px] leading-relaxed">
@@ -770,7 +771,7 @@ class:md:[direction:rtl]={i % 2 === 1}
 {:else if feature.id === "voice"}
 <div class="voice-card relative flex w-full flex-col items-center gap-4 overflow-hidden rounded-lg border border-border/50 bg-card p-6 shadow-2xl">
 <div class="relative flex h-14 w-14 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-[0_0_24px_rgba(247,126,44,0.45)]">
-<Microphone size={26} weight="fill" />
+<RoundedIcon name="microphone" class="size-[26px]" />
 </div>
 <div class="flex items-center gap-2 font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
 <span class="inline-block h-1.5 w-1.5 animate-pulse rounded-full bg-destructive"></span>
@@ -789,7 +790,7 @@ class:md:[direction:rtl]={i % 2 === 1}
 {:else if feature.id === "permissions"}
 <div class="overflow-hidden rounded-lg border border-border/50 bg-card shadow-2xl" style="width: 192px;">
 <div class="border-b border-border/50 px-3 py-2 flex items-center gap-2">
-<ShieldCheck size={12} class="text-success" />
+<RoundedIcon name="permissions" class="size-3 text-success" />
 <span class="font-mono text-[11px] font-medium">Session permissions</span>
 </div>
 <div class="p-2 space-y-1">
@@ -810,7 +811,7 @@ class:md:[direction:rtl]={i % 2 === 1}
 {:else if feature.id === "skills"}
 <div class="w-full overflow-hidden rounded-lg border border-border/50 bg-card shadow-2xl">
 <div class="flex items-center gap-2 border-b border-border/50 px-3.5 py-2.5">
-<Plug size={13} class="text-primary" />
+<RoundedIcon name="skills" class="size-[13px] text-primary" />
 <span class="font-mono text-[11px] font-medium tracking-wide">Skills & MCP</span>
 <span class="ml-auto font-mono text-[10px] text-muted-foreground">5 active</span>
 </div>
@@ -842,7 +843,13 @@ class:md:[direction:rtl]={i % 2 === 1}
 <!-- Text -->
 <div class="flex flex-col gap-4 [direction:ltr]">
 <div class="flex items-center gap-2 font-mono text-[10px] font-medium uppercase tracking-[0.22em] text-muted-foreground">
-<Icon size={14} class="text-primary/80" />
+{#if feature.icon.kind === "storage"}
+<StorageIcon class="size-3.5 text-primary/80" />
+{:else if feature.icon.kind === "layout"}
+<LayoutModeIcon mode={feature.icon.mode} class="size-3.5 text-primary/80" />
+{:else}
+<RoundedIcon name={feature.icon.name} class="size-3.5 text-primary/80" />
+{/if}
 <span>{feature.tag}</span>
 </div>
 <h3 class="text-balance text-3xl font-semibold tracking-[-0.02em] md:text-[40px] md:leading-[1.1]">
@@ -956,7 +963,7 @@ class:md:[direction:rtl]={i % 2 === 1}
 								rel="noopener noreferrer"
 								class="inline-flex items-center gap-1.5 text-[13px] text-muted-foreground transition-colors hover:text-foreground"
 							>
-								<GithubLogo size={14} weight="fill" />
+								<RoundedIcon name="github" class="size-3.5" />
 								GitHub
 							</a>
 						</li>

@@ -1,6 +1,5 @@
 <script lang="ts">
-import { GitBranch, ChatCircle, Lightning } from "phosphor-svelte";
-import type { ProviderBrand } from "@acepe/ui";
+import { RoundedIcon, type ProviderBrand } from "@acepe/ui";
 
 import LandingDemoFrame from "./landing-demo-frame.svelte";
 import { websiteThemeStore } from "$lib/theme/theme.js";
@@ -338,17 +337,17 @@ let { bare = false }: Props = $props();
 										</div>
 										{#if card.accent === "question"}
 											<span class="card-chip chip-question">
-												<ChatCircle class="size-4" weight="fill" />
+												<RoundedIcon name="chat" class="size-4" />
 												Answer
 											</span>
 										{:else if card.accent === "review"}
 											<span class="card-chip chip-review">
-												<GitBranch class="size-4" weight="fill" />
+												<RoundedIcon name="branch" class="size-4" />
 												PR
 											</span>
 										{:else if card.accent === "streaming"}
 											<span class="card-chip chip-streaming">
-												<Lightning class="size-4" weight="fill" />
+												<RoundedIcon name="lightning" class="size-4" />
 												Live
 											</span>
 										{:else if card.accent === "done"}

@@ -16,6 +16,8 @@ import {
 	ProjectLetterBadge,
 	TextShimmer,
 	SegmentedProgress,
+	MoreVerticalIcon,
+	RoundedIcon,
 } from "@acepe/ui";
 import { AgentPanelStatusIcon } from "@acepe/ui/agent-panel";
 import {
@@ -26,7 +28,6 @@ import {
 } from "@acepe/ui/app-layout";
 import { CloseAction, FullscreenAction, OverflowMenuTriggerAction } from "@acepe/ui/panel-header";
 import { ProjectCard } from "@acepe/ui/project-card";
-import { Browser, CaretDown, DotsThreeVertical, Terminal } from "phosphor-svelte";
 import { PlusIcon } from "@acepe/ui";
 import type { AgentPanelSceneModel } from "@acepe/ui";
 
@@ -643,18 +644,18 @@ const favoriteModels = $derived(modelGroups.flatMap((g) => g.items.filter((i) =>
 												</button>
 												<div class="flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100">
 													<button type="button" aria-label="Open terminal" class="flex items-center justify-center size-5 rounded text-muted-foreground">
-														<Terminal class="h-3 w-3" weight="fill" />
+														<RoundedIcon name="terminal" class="h-3 w-3" />
 													</button>
 													<button type="button" aria-label="Open browser" class="flex items-center justify-center size-5 rounded text-muted-foreground">
-														<Browser class="h-3 w-3" weight="fill" />
+														<RoundedIcon name="browser" class="h-3 w-3" />
 													</button>
 												</div>
 												<button type="button" aria-label="Collapse project" class="flex items-center justify-center size-5 shrink-0 rounded text-muted-foreground">
-													<CaretDown size={12} weight="regular" class="size-3 shrink-0" />
+													<RoundedIcon name="chevron-down" class="size-3 shrink-0" />
 												</button>
 												<div class="flex items-center gap-0.5">
 													<button type="button" aria-label="Project menu" class="flex items-center justify-center size-5 min-w-0 shrink-0 rounded text-muted-foreground">
-														<DotsThreeVertical class="h-3.5 w-3.5" weight="bold" />
+														<MoreVerticalIcon class="h-3.5 w-3.5" />
 													</button>
 													<button type="button" aria-label="New session" class="flex items-center justify-center size-5 rounded text-muted-foreground">
 														<PlusIcon />

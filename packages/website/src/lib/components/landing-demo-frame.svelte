@@ -1,5 +1,5 @@
 <script lang="ts">
-import { Bug, HardDrives, SlidersHorizontal } from "phosphor-svelte";
+import { RoundedIcon, StorageIcon } from "@acepe/ui";
 import type { Snippet } from "svelte";
 
 import { AppTopBar } from "@acepe/ui/app-layout";
@@ -42,7 +42,7 @@ let { children, interactive = false, bare = false }: Props = $props();
 							aria-label="Layout Settings"
 							type="button"
 						>
-							<SlidersHorizontal class="size-4" weight="fill" />
+							<RoundedIcon name="sliders" class="size-4" />
 						</button>
 						<button
 							class="flex items-center justify-center size-6 rounded text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
@@ -50,7 +50,7 @@ let { children, interactive = false, bare = false }: Props = $props();
 							aria-label="Feedback"
 							type="button"
 						>
-							<Bug class="size-4" weight="fill" style="color: #FF5D5A" />
+							<RoundedIcon name="bug" class="size-4" style="color: #FF5D5A" />
 						</button>
 						<button
 							class="flex items-center justify-center size-6 rounded text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
@@ -58,7 +58,7 @@ let { children, interactive = false, bare = false }: Props = $props();
 							aria-label="Database Manager"
 							type="button"
 						>
-							<HardDrives class="size-4" weight="fill" />
+							<StorageIcon class="size-4" />
 						</button>
 					{/snippet}
 				</AppTopBar>
