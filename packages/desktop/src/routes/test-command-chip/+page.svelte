@@ -1,10 +1,14 @@
 <script lang="ts">
 import {
+	AgentInputAttachMenu,
+	AgentInputSlashCommandDropdown,
+	type AttachMenuCommandSection,
 	AgentToolSearch,
 	AgentToolSkill,
 	AgentCompactToolDisplay,
 	CommandChip,
 	ReviewWorkspaceHeader,
+	type SlashPaletteSection,
 	type CommandChipModel,
 } from "@acepe/ui/agent-panel";
 import { GitWorkspace, type GitRemoteStatus } from "@acepe/ui/git-panel";
@@ -74,6 +78,45 @@ const sessionTableSessions: SessionSummary[] = Array.from(
 		};
 	}
 );
+
+const skillCommandItem = {
+	id: "fixture-skill-diagnose",
+	label: "diagnose",
+	description: "Diagnose hard bugs.",
+	tokenType: "skill",
+	insertText: "/diagnose",
+} as const;
+
+const attachMenuCommandSections: AttachMenuCommandSection[] = [
+	{
+		id: "skills",
+		label: "Skills",
+		items: [skillCommandItem],
+	},
+];
+
+const slashPaletteSections: SlashPaletteSection[] = [
+	{
+		id: "skills",
+		label: "Skills",
+		items: [
+			{
+				id: skillCommandItem.id,
+				kind: "skill",
+				label: skillCommandItem.label,
+				description: skillCommandItem.description,
+				tokenType: skillCommandItem.tokenType,
+				commandName: skillCommandItem.label,
+				insertText: skillCommandItem.insertText,
+			},
+		],
+	},
+];
+
+const slashPalettePosition = {
+	top: 310,
+	left: 620,
+};
 </script>
 
 <div class="h-screen w-screen space-y-4 overflow-auto bg-background p-4">
@@ -93,6 +136,22 @@ const sessionTableSessions: SessionSummary[] = Array.from(
 				subtitle: "Investigating failure",
 				status: "done",
 			}}
+		/>
+	</div>
+	<div class="w-[520px] space-y-2" data-testid="slash-command-skill-fixture">
+		<AgentInputAttachMenu
+			showModes={false}
+			showContextActions={false}
+			commandSections={attachMenuCommandSections}
+			onCommandItemSelect={() => {}}
+		/>
+		<AgentInputSlashCommandDropdown
+			sections={slashPaletteSections}
+			isOpen={true}
+			query=""
+			position={slashPalettePosition}
+			onItemSelect={() => {}}
+			onClose={() => {}}
 		/>
 	</div>
 	<div class="h-[360px] w-[760px] border border-border/40 p-2" data-testid="session-table-fixture">

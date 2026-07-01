@@ -1,6 +1,5 @@
 <script lang="ts">
 	import { RoundedIcon } from "../icons/index.js";
-	import { INLINE_ARTEFACT_PACKAGE_PATH } from "../inline-artefact-badge/inline-artefact-badge.styles.js";
 	import { ProviderMark } from "../provider-mark/index.js";
 	import AgentInputModeIcon from "./agent-input-mode-icon.svelte";
 	import { getSlashCommandIconColor } from "./agent-input-slash-command-row-state.js";
@@ -32,14 +31,17 @@
 <!-- svelte-ignore a11y_click_events_have_key_events -->
 <!-- svelte-ignore a11y_no_static_element_interactions -->
 <div
-	class="mx-1 flex cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 {selected
+	class="group mx-1 flex cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 {selected
 		? 'bg-accent text-accent-foreground'
 		: 'hover:bg-accent/50'}"
 	title={item.description ?? item.label}
 	onclick={() => onSelect?.()}
 	onmouseenter={() => onHover?.()}
 >
-	<div class="flex h-4 w-4 shrink-0 items-center justify-center" style="color: {iconColor};">
+	<div
+		class="flex h-4 w-4 shrink-0 items-center justify-center text-muted-foreground/60 transition-colors group-hover:text-[var(--slash-command-icon-color)] group-focus-within:text-[var(--slash-command-icon-color)]"
+		style="--slash-command-icon-color: {iconColor};"
+	>
 		{#if item.kind === "mode" && item.modeIconKind}
 			<AgentInputModeIcon iconKind={item.modeIconKind} class="size-3.5" monochrome />
 		{:else if item.kind === "model" && item.providerBrand}
@@ -49,9 +51,7 @@
 				class="size-3.5"
 			/>
 		{:else if item.tokenType === "skill"}
-			<svg viewBox="0 0 256 256" fill="currentColor" class="h-3 w-3" aria-hidden="true">
-				<path d={INLINE_ARTEFACT_PACKAGE_PATH} />
-			</svg>
+			<RoundedIcon name="skills" class="h-3 w-3" data-testid="slash-command-skill-icon" />
 		{:else if item.tokenType === "mcp"}
 			<RoundedIcon name="mcp" class="h-3 w-3" />
 		{:else}
