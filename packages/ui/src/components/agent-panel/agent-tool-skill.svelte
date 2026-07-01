@@ -1,5 +1,4 @@
 <script lang="ts">
-	import { Package } from "phosphor-svelte";
 	import AgentToolCard from "./agent-tool-card.svelte";
 	import ToolLabel from "./tool-label.svelte";
 	import TextShimmer from "../text-shimmer/text-shimmer.svelte";
@@ -89,10 +88,9 @@
 					<LoadingIcon class="shrink-0" size={12} aria-label="Loading" />
 					<TextShimmer class="shrink-0 text-xs">{displayName}</TextShimmer>
 				{:else}
-					<Package
-						weight="fill"
-						size={12}
-						class="shrink-0"
+					<RoundedIcon
+						name="skills"
+						class="size-3 shrink-0"
 						data-testid="agent-tool-skill-icon"
 						style="color: {Colors.purple}"
 					/>

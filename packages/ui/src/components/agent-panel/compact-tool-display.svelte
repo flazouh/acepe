@@ -1,6 +1,6 @@
 <script lang="ts">
-	import { Package } from "phosphor-svelte";
 	import { FilePathBadge } from "../file-path-badge/index.js";
+	import { RoundedIcon } from "../icons/index.js";
 	import { Colors } from "../../lib/colors.js";
 	import ToolLabel from "./tool-label.svelte";
 	import type { AgentToolKind, AgentToolStatus } from "./types.js";
@@ -26,12 +26,10 @@
 
 <div class={`flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground ${className}`.trim()}>
 	{#if isSkill}
-		<Package
-			weight="fill"
-			size={12}
-			class="shrink-0"
+		<RoundedIcon
+			name="skills"
+			class="size-3 shrink-0"
 			style="color: {Colors.purple}"
-			aria-hidden="true"
 		/>
 	{/if}
 

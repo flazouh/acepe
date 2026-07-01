@@ -1,6 +1,8 @@
 <script lang="ts">
 import {
 	AgentToolSearch,
+	AgentToolSkill,
+	AgentCompactToolDisplay,
 	CommandChip,
 	ReviewWorkspaceHeader,
 	type CommandChipModel,
@@ -80,6 +82,18 @@ const sessionTableSessions: SessionSummary[] = Array.from(
 	</div>
 	<div class="w-[320px]" data-testid="project-card-fixture">
 		<ProjectCard data={projectCardData} index={0} onSelect={() => {}} />
+	</div>
+	<div class="w-[520px] space-y-2" data-testid="agent-tool-skill-fixture">
+		<AgentToolSkill skillName="diagnose" description="Diagnose hard bugs." status="done" />
+		<AgentCompactToolDisplay
+			tool={{
+				id: "compact-skill",
+				kind: "skill",
+				title: "/diagnose",
+				subtitle: "Investigating failure",
+				status: "done",
+			}}
+		/>
 	</div>
 	<div class="h-[360px] w-[760px] border border-border/40 p-2" data-testid="session-table-fixture">
 		<SessionTable sessions={sessionTableSessions} projects={sessionTableProjects} loading={false} />
