@@ -56,7 +56,7 @@
 				onclick={() => onLinkClick(discordUrl)}
 			>
 				{#snippet children()}
-					<DiscordLogo class="size-4" style="color: #6C75E8" weight="fill" />
+					<DiscordLogo class="size-4" weight="fill" />
 				{/snippet}
 			</Button>
 		{:else}
@@ -76,7 +76,7 @@
 			</Button>
 			<Button {...chromeIconButton} href={discordUrl} title="Discord" aria-label="Discord">
 				{#snippet children()}
-					<DiscordLogo class="size-4" style="color: #6C75E8" weight="fill" />
+					<DiscordLogo class="size-4" weight="fill" />
 				{/snippet}
 			</Button>
 		{/if}

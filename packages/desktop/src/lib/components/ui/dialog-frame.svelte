@@ -6,7 +6,7 @@ import type { Snippet } from "svelte";
 /** Mirrors Button `variant="ghost" size="icon-chrome" class="rounded-sm"` so the
  * dialog close glyph matches the other top-right chrome-icon controls. */
 const CHROME_ICON_CLOSE_CLASS =
-	"inline-flex size-6 shrink-0 items-center justify-center gap-0 rounded-sm border-0 bg-transparent p-0 text-muted-foreground shadow-none transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:ring-inset [&_svg:not([class*='size-'])]:size-4";
+	"inline-flex size-6 shrink-0 items-center justify-center gap-0 rounded-sm border-0 bg-transparent p-0 text-muted-foreground/55 shadow-none transition-colors hover:bg-accent hover:text-foreground focus-visible:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:ring-inset [&_svg]:text-muted-foreground/55 [&_svg]:transition-colors hover:[&_svg]:text-foreground focus-visible:[&_svg]:text-foreground [&_svg:not([class*='size-'])]:size-4";
 
 interface Props {
 	open?: boolean;

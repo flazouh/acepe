@@ -68,7 +68,7 @@ const releaseUrl = $derived(
 			onclick={() => openUrl("https://discord.gg/5YhW7T7qhS")}
 		>
 			{#snippet children()}
-				<DiscordLogo class="size-4" style="color: #6C75E8" weight="fill" />
+				<DiscordLogo class="size-4" weight="fill" />
 			{/snippet}
 		</Button>
 	</div>
