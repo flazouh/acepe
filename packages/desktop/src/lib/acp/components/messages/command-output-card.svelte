@@ -1,7 +1,6 @@
 <script lang="ts">
 import { AgentToolCard } from "@acepe/ui/agent-panel";
 import { RoundedIcon } from "@acepe/ui";
-import { IconArrowRight } from "@tabler/icons-svelte";
 
 import type { CommandOutput } from "../../utils/command-output-parser.js";
 import { buildCommandOutputCardState } from "./command-output-card-state.js";
@@ -17,7 +16,7 @@ const cardState = $derived(buildCommandOutputCardState(output));
 		<div class="flex items-center gap-2 px-2 py-2 text-xs">
 			<RoundedIcon name="sliders" class="h-3.5 w-3.5 text-muted-foreground shrink-0" />
 			<span class="text-muted-foreground">Model</span>
-			<IconArrowRight class="h-3 w-3 text-muted-foreground/50 shrink-0" />
+			<RoundedIcon name="arrow-left" class="h-3 w-3 rotate-180 text-muted-foreground/50 shrink-0" />
 			<span class="px-1.5 py-0.5 rounded bg-primary/10 text-primary font-medium">
 				{cardState.displayModel.name}
 			</span>

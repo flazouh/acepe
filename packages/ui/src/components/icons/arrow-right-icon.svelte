@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { IconArrowRight } from "@tabler/icons-svelte";
+	import RoundedIcon from "./rounded-icon.svelte";
 
 	interface Props {
 		size?: "sm" | "md" | "lg";
@@ -13,6 +13,9 @@
 		md: 14,
 		lg: 18,
 	};
+
+	const iconStyle = $derived(`width: ${sizeMap[size]}px; height: ${sizeMap[size]}px;`);
+	const iconClass = $derived(`rotate-180 ${className ?? ""}`);
 </script>
 
-<IconArrowRight size={sizeMap[size]} {className} />
+<RoundedIcon name="arrow-left" class={iconClass} style={iconStyle} />

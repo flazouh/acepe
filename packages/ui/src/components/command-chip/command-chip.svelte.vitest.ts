@@ -20,7 +20,7 @@ afterEach(() => {
 });
 
 describe("CommandChip rounded icons", () => {
-	it("renders model commands with the rounded sliders icon", () => {
+	it("renders model commands with rounded sliders and arrow icons", () => {
 		const { container, getByText } = render(CommandChip, {
 			props: {
 				model: {
@@ -36,7 +36,9 @@ describe("CommandChip rounded icons", () => {
 
 		expect(getByText("Model")).toBeTruthy();
 		expect(getByText("Opus")).toBeTruthy();
-		expect(container.querySelector('svg[viewBox="0 0 20 20"]')).not.toBeNull();
-		expect(container.querySelector("svg")?.getAttribute("class")).toContain("h-3.5");
+		const icons = Array.from(container.querySelectorAll('svg[viewBox="0 0 20 20"]'));
+		expect(icons).toHaveLength(2);
+		expect(icons[0]?.getAttribute("class")).toContain("h-3.5");
+		expect(icons[1]?.getAttribute("class")).toContain("rotate-180");
 	});
 });

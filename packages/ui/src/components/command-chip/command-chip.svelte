@@ -1,5 +1,4 @@
 <script lang="ts">
-	import { IconArrowRight } from "@tabler/icons-svelte";
 	import AgentToolCard from "../agent-panel/agent-tool-card.svelte";
 	import { RoundedIcon } from "../icons/index.js";
 	import type { CommandChipModel } from "./command-chip.types.js";
@@ -31,7 +30,7 @@
 		<div class="flex items-center gap-2 px-2 py-2 text-xs">
 			<RoundedIcon name="sliders" class="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
 			<span class="text-muted-foreground">Model</span>
-			<IconArrowRight class="h-3 w-3 shrink-0 text-muted-foreground/50" />
+			<RoundedIcon name="arrow-left" class="h-3 w-3 shrink-0 rotate-180 text-muted-foreground/50" />
 			<span class="rounded bg-primary/10 px-1.5 py-0.5 font-medium text-primary">
 				{model.displayModelName}
 			</span>
