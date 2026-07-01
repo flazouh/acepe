@@ -1,6 +1,4 @@
 <script lang="ts">
-	import { ArrowRight } from "phosphor-svelte";
-
 	import { Button } from "../button/index.js";
 	import { RoundedIcon } from "../icons/index.js";
 
@@ -98,7 +96,7 @@
 				data-testid="review-workspace-next-file"
 			>
 				{primaryButtonLabel}
-				<ArrowRight size={12} weight="bold" />
+				<RoundedIcon name="arrow-left" class="size-3 rotate-180" />
 			</Button>
 		</div>
 	{/if}

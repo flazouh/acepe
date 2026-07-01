@@ -1,5 +1,4 @@
 <script lang="ts">
-	import { ArrowRight } from "phosphor-svelte";
 	import { RoundedIcon } from "../icons/index.js";
 	import ToolHeaderLeading from "./tool-header-leading.svelte";
 	import AgentToolDurationLabel from "./agent-tool-duration-label.svelte";
@@ -129,7 +128,10 @@
 			<div class="flex min-w-0 flex-1 items-center gap-1.5 overflow-hidden text-sm text-muted-foreground">
 				<ToolHeaderLeading kind="search" {status}>{headerLabel}</ToolHeaderLeading>
 				{#if resultText}
-					<ArrowRight size={10} weight="bold" class="shrink-0 text-muted-foreground" />
+					<RoundedIcon
+						name="arrow-left"
+						class="size-2.5 shrink-0 rotate-180 text-muted-foreground"
+					/>
 					<span class="text-xs text-muted-foreground">{resultText}</span>
 				{/if}
 			</div>

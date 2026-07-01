@@ -1,5 +1,10 @@
 <script lang="ts">
-import { CommandChip, type CommandChipModel } from "@acepe/ui/agent-panel";
+import {
+	AgentToolSearch,
+	CommandChip,
+	ReviewWorkspaceHeader,
+	type CommandChipModel,
+} from "@acepe/ui/agent-panel";
 import { GitWorkspace, type GitRemoteStatus } from "@acepe/ui/git-panel";
 import ProjectCard from "$lib/acp/components/project-card.svelte";
 import type { ProjectCardData } from "$lib/acp/components/project-card-data.js";
@@ -69,6 +74,23 @@ const gitRemoteStatus: GitRemoteStatus = {
 			onCommitPush={() => {}}
 			onCommitPushPr={() => {}}
 			generating={false}
+		/>
+	</div>
+	<div class="w-[520px] border border-border/40 p-2" data-testid="review-header-fixture">
+		<ReviewWorkspaceHeader
+			label="Review"
+			fileCount={3}
+			selectedFileIndex={1}
+			onPreviousFile={() => {}}
+			onNextFile={() => {}}
+			onClose={() => {}}
+		/>
+	</div>
+	<div class="w-[520px]" data-testid="agent-tool-search-fixture">
+		<AgentToolSearch
+			query="RoundedIcon"
+			files={["packages/ui/src/components/icons/rounded-icon.svelte"]}
+			resultCount={3}
 		/>
 	</div>
 </div>
