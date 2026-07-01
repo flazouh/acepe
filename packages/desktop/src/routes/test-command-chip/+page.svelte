@@ -6,6 +6,7 @@ import {
 	AgentToolSearch,
 	AgentToolSkill,
 	AgentPanelPreSessionWorktreeCard,
+	AgentPanelPermissionBarIcon,
 	AgentCompactToolDisplay,
 	CommandChip,
 	ReviewWorkspaceHeader,
@@ -13,6 +14,7 @@ import {
 	type CommandChipModel,
 } from "@acepe/ui/agent-panel";
 import { GitWorkspace, type GitRemoteStatus } from "@acepe/ui/git-panel";
+import AddRepositoryActionsCell from "$lib/acp/components/add-repository/cells/actions-cell.svelte";
 import ProjectCard from "$lib/acp/components/project-card.svelte";
 import type { ProjectCardData } from "$lib/acp/components/project-card-data.js";
 import type { SessionSummary } from "$lib/acp/application/dto/session-summary.js";
@@ -122,6 +124,8 @@ const slashPalettePosition = {
 };
 
 const activeSettingsSection: SettingsSectionId = "general";
+
+const permissionIconKinds = ["edit", "execute", "search", "delete"] as const;
 </script>
 
 <div class="h-screen w-screen space-y-4 overflow-auto bg-background p-4">
@@ -130,6 +134,13 @@ const activeSettingsSection: SettingsSectionId = "general";
 	</div>
 	<div class="w-[320px]" data-testid="project-card-fixture">
 		<ProjectCard data={projectCardData} index={0} onSelect={() => {}} />
+	</div>
+	<div
+		class="flex w-[160px] items-center justify-end gap-2 border border-border/40 p-2"
+		data-testid="add-repository-actions-fixture"
+	>
+		<AddRepositoryActionsCell isAdded={false} onImport={() => {}} onUndo={() => {}} />
+		<AddRepositoryActionsCell isAdded={true} onImport={() => {}} onUndo={() => {}} />
 	</div>
 	<div class="w-[520px] space-y-2" data-testid="agent-tool-skill-fixture">
 		<AgentToolSkill skillName="diagnose" description="Diagnose hard bugs." status="done" />
@@ -204,6 +215,16 @@ const activeSettingsSection: SettingsSectionId = "general";
 			onNo={() => {}}
 			onDismiss={() => {}}
 		/>
+	</div>
+	<div
+		class="flex w-[240px] items-center gap-3 border border-border/40 p-2"
+		data-testid="permission-bar-icon-fixture"
+	>
+		{#each permissionIconKinds as kind (kind)}
+			<span class="inline-flex size-6 items-center justify-center rounded-md bg-input/40">
+				<AgentPanelPermissionBarIcon {kind} size={14} color="var(--muted-foreground)" />
+			</span>
+		{/each}
 	</div>
 	<div class="w-[520px] border border-border/40 p-2" data-testid="review-header-fixture">
 		<ReviewWorkspaceHeader

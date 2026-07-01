@@ -1,6 +1,6 @@
 <script lang="ts">
 import { Button } from "@acepe/ui/button";
-import { PlusIcon, RoundedIcon } from "@acepe/ui";
+import { RoundedIcon } from "@acepe/ui";
 
 interface Props {
 	isAdded: boolean;
@@ -13,21 +13,21 @@ let { isAdded, onImport, onUndo }: Props = $props();
 
 {#if isAdded}
 	<Button
-		variant="secondary"
-		size="icon-xs"
-		class="rounded-md"
+		variant="ghost"
+		size="icon-chrome"
+		class="rounded-md hover:bg-destructive/10 hover:text-destructive hover:[&_svg]:text-destructive"
 		aria-label="Remove project"
 		onclick={(event: MouseEvent) => {
 			event.stopPropagation();
 			onUndo();
 		}}
 	>
-		<RoundedIcon name="trash" class="size-3.5 text-destructive" />
+		<RoundedIcon name="trash" class="size-3.5" data-testid="remove-project-icon" />
 	</Button>
 {:else}
 	<Button
-		variant="default"
-		size="icon-xs"
+		variant="ghost"
+		size="icon-chrome"
 		class="rounded-md"
 		aria-label="Import project"
 		onclick={(event: MouseEvent) => {
@@ -35,6 +35,6 @@ let { isAdded, onImport, onUndo }: Props = $props();
 			onImport();
 		}}
 	>
-		<PlusIcon />
+		<RoundedIcon name="add" class="size-3.5" data-testid="import-project-icon" />
 	</Button>
 {/if}

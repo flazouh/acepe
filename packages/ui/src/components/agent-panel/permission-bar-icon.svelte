@@ -4,12 +4,9 @@
 		ArrowsLeftRight,
 		File,
 		GlobeHemisphereWest,
-		MagnifyingGlass,
-		PencilSimple,
 		ShieldWarning,
-		Terminal,
-		Trash,
 	} from "phosphor-svelte";
+	import { RoundedIcon } from "../icons/index.js";
 
 	interface Props {
 		kind: string;
@@ -21,17 +18,37 @@
 </script>
 
 {#if kind === "edit"}
-	<PencilSimple weight="fill" {size} class="shrink-0" style="color: {color}" />
+	<RoundedIcon
+		name="edit"
+		class="shrink-0"
+		style="width: {size}px; height: {size}px; color: {color};"
+		data-testid="permission-bar-edit-icon"
+	/>
 {:else if kind === "read" || kind === "read_lints"}
 	<File weight="fill" {size} class="shrink-0" style="color: {color}" />
 {:else if kind === "execute"}
-	<Terminal weight="fill" {size} class="shrink-0" style="color: {color}" />
+	<RoundedIcon
+		name="terminal"
+		class="shrink-0"
+		style="width: {size}px; height: {size}px; color: {color};"
+		data-testid="permission-bar-execute-icon"
+	/>
 {:else if kind === "search"}
-	<MagnifyingGlass weight="fill" {size} class="shrink-0" style="color: {color}" />
+	<RoundedIcon
+		name="search"
+		class="shrink-0"
+		style="width: {size}px; height: {size}px; color: {color};"
+		data-testid="permission-bar-search-icon"
+	/>
 {:else if kind === "fetch" || kind === "web_search"}
 	<GlobeHemisphereWest weight="fill" {size} class="shrink-0" style="color: {color}" />
 {:else if kind === "delete"}
-	<Trash weight="fill" {size} class="shrink-0" style="color: {color}" />
+	<RoundedIcon
+		name="trash"
+		class="shrink-0"
+		style="width: {size}px; height: {size}px; color: {color};"
+		data-testid="permission-bar-delete-icon"
+	/>
 {:else if kind === "move"}
 	<ArrowsLeftRight weight="fill" {size} class="shrink-0" style="color: {color}" />
 {:else if kind === "browser"}
