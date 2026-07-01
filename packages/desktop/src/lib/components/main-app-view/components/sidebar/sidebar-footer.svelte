@@ -1,7 +1,7 @@
 <script lang="ts">
-import { Button } from "@acepe/ui";
+import { Button, RoundedIcon } from "@acepe/ui";
 import { openUrl } from "@tauri-apps/plugin-opener";
-import { DiscordLogo, GithubLogo } from "phosphor-svelte";
+import { DiscordLogo } from "phosphor-svelte";
 import { onMount } from "svelte";
 import type { ProjectManager } from "$lib/acp/logic/project-manager.svelte.js";
 
@@ -44,7 +44,7 @@ const releaseUrl = $derived(
 			onclick={() => openUrl("https://github.com/flazouh/acepe")}
 		>
 			{#snippet children()}
-				<GithubLogo class="size-4" weight="fill" />
+				<RoundedIcon name="github" class="size-4" />
 			{/snippet}
 		</Button>
 		<Button
