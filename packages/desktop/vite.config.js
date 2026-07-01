@@ -92,7 +92,6 @@ export default defineConfig({
 
 	// Keep workspace UI source out of the dep pre-bundle cache.
 	optimizeDeps: {
-		include: ["@tabler/icons-svelte", "phosphor-svelte"],
 		exclude: ["@acepe/ui"],
 	},
 
