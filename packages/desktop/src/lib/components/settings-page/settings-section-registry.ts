@@ -1,17 +1,11 @@
 import type { Component } from "svelte";
+import type { RoundedIconName } from "@acepe/ui/icons";
 import {
-	Archive,
 	ChartLine,
 	ChatCircle,
-	FolderSimple,
 	GearFine,
-	GitBranch,
-	Keyboard,
 	Palette,
-	Plugs,
-	PuzzlePiece,
 	Robot,
-	Tree,
 } from "phosphor-svelte";
 
 import type { SettingsSectionId } from "./settings-types.js";
@@ -27,7 +21,8 @@ export interface SettingsSectionDefinition {
 	readonly id: SettingsSectionId;
 	readonly label: string;
 	readonly description: string;
-	readonly icon: Component;
+	readonly icon?: Component;
+	readonly roundedIcon?: RoundedIconName;
 	readonly groupId: SettingsNavGroupId;
 	readonly fullWidth?: boolean;
 }
@@ -58,7 +53,7 @@ export const SETTINGS_SECTIONS: readonly SettingsSectionDefinition[] = [
 		id: "keybindings",
 		label: "Keybindings",
 		description: "Customize keyboard shortcuts across the app.",
-		icon: Keyboard,
+		roundedIcon: "keyboard",
 		groupId: "general",
 		fullWidth: true,
 	},
@@ -81,7 +76,7 @@ export const SETTINGS_SECTIONS: readonly SettingsSectionDefinition[] = [
 		id: "skills",
 		label: "Skills",
 		description: "Create and manage reusable local skills.",
-		icon: PuzzlePiece,
+		roundedIcon: "skills",
 		groupId: "agents",
 		fullWidth: true,
 	},
@@ -89,14 +84,14 @@ export const SETTINGS_SECTIONS: readonly SettingsSectionDefinition[] = [
 		id: "mcp",
 		label: "MCP servers",
 		description: "Model Context Protocol servers extend agents with external tools.",
-		icon: Plugs,
+		roundedIcon: "mcp",
 		groupId: "agents",
 	},
 	{
 		id: "project",
 		label: "Projects",
 		description: "Manage project-scoped settings.",
-		icon: FolderSimple,
+		roundedIcon: "folder",
 		groupId: "workspace",
 		fullWidth: true,
 	},
@@ -104,28 +99,28 @@ export const SETTINGS_SECTIONS: readonly SettingsSectionDefinition[] = [
 		id: "worktrees",
 		label: "Worktrees",
 		description: "Default behavior for worktree-aware sessions.",
-		icon: Tree,
+		roundedIcon: "worktree",
 		groupId: "workspace",
 	},
 	{
 		id: "environments",
 		label: "Environments",
 		description: "Environment files and per-agent overrides.",
-		icon: FolderSimple,
+		roundedIcon: "folder",
 		groupId: "workspace",
 	},
 	{
 		id: "git",
 		label: "Git",
 		description: "Git-related preferences and review behavior.",
-		icon: GitBranch,
+		roundedIcon: "branch",
 		groupId: "workspace",
 	},
 	{
 		id: "archived",
 		label: "Archived sessions",
 		description: "Sessions hidden from the sidebar. Unarchive to restore them.",
-		icon: Archive,
+		roundedIcon: "archive",
 		groupId: "data",
 		fullWidth: true,
 	},

@@ -1,4 +1,5 @@
 <script lang="ts">
+import { RoundedIcon } from "@acepe/ui/icons";
 import { cn } from "$lib/utils.js";
 
 import {
@@ -47,13 +48,23 @@ function sectionsForGroup(groupId: SettingsNavGroupId) {
 								: "text-muted-foreground hover:bg-accent/50 hover:text-foreground"
 						)}
 					>
-						<Icon
-							weight="fill"
-							class={cn(
-								"size-3.5 shrink-0 transition-colors",
-								isActive ? "text-foreground" : "text-muted-foreground"
-							)}
-						/>
+						{#if section.roundedIcon}
+							<RoundedIcon
+								name={section.roundedIcon}
+								class={cn(
+									"size-3.5 shrink-0 transition-colors",
+									isActive ? "text-foreground" : "text-muted-foreground"
+								)}
+							/>
+						{:else if Icon}
+							<Icon
+								weight="fill"
+								class={cn(
+									"size-3.5 shrink-0 transition-colors",
+									isActive ? "text-foreground" : "text-muted-foreground"
+								)}
+							/>
+						{/if}
 						<span class="truncate">{section.label}</span>
 					</button>
 				{/each}
