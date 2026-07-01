@@ -1,6 +1,5 @@
 <script lang="ts">
 import { RoundedIcon } from "@acepe/ui";
-import { PuzzlePiece } from "phosphor-svelte";
 import { SvelteSet } from "svelte/reactivity";
 import * as Collapsible from "$lib/components/ui/collapsible/index.js";
 
@@ -44,7 +43,7 @@ const totalSkillCount = $derived(plugins.reduce((sum, plugin) => sum + plugin.sk
 	<div class="mb-2 border-b border-border/30 pb-2">
 		<!-- Section header -->
 		<div class="flex items-center gap-1.5 px-2 py-1 text-[11px] text-muted-foreground">
-			<PuzzlePiece class="h-3.5 w-3.5 text-muted-foreground" weight="fill" />
+			<RoundedIcon name="skills" class="h-3.5 w-3.5 text-muted-foreground" />
 			<span class="font-medium">Plugin Skills</span>
 			<span class="text-[11px]">({totalSkillCount})</span>
 		</div>

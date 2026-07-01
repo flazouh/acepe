@@ -95,7 +95,7 @@ export const buttonVariants = tv({
 			variant: "ghost",
 			size: "icon-chrome",
 			active: false,
-			class: "text-muted-foreground hover:text-foreground focus-visible:text-foreground",
+			class: "text-muted-foreground/55 hover:text-foreground focus-visible:text-foreground",
 		},
 		{
 			variant: "ghost",

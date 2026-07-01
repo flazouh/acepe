@@ -2,7 +2,6 @@
 import { okAsync } from "neverthrow";
 import { RoundedIcon } from "@acepe/ui";
 import { FileText } from "phosphor-svelte";
-import { PuzzlePiece } from "phosphor-svelte";
 import { onMount } from "svelte";
 import AgentIcon from "$lib/acp/components/agent-icon.svelte";
 import DialogFrame from "$lib/components/ui/dialog-frame.svelte";
@@ -168,7 +167,7 @@ function getSyncStatusForSkill(
 		<div class="flex h-7 shrink-0 items-center gap-2 border-b border-border/40 px-2">
 			<div class="flex min-w-0 flex-1 items-center gap-1.5">
 				{#if isViewingPluginSkill && store.selectedPluginSkill}
-					<PuzzlePiece class="h-3.5 w-3.5 shrink-0 text-muted-foreground" weight="fill" />
+					<RoundedIcon name="skills" class="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
 					<span class="truncate text-[11px] font-medium text-foreground">
 						{store.selectedPluginSkill.name}
 					</span>

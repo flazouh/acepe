@@ -491,16 +491,12 @@ const visibleSessions = $derived.by(() => {
 				variant="ghost"
 				size="icon-chrome"
 				data-header-control
-				class="group"
 				title="Add repository"
 				aria-label="Add repository"
 				onclick={() => onImportProject?.()}
 			>
 				{#snippet children()}
-					<RoundedIcon
-						name="add"
-						class="size-4 text-muted-foreground transition-colors group-hover:text-foreground group-focus-visible:text-foreground"
-					/>
+					<RoundedIcon name="add" class="size-4" />
 				{/snippet}
 			</Button>
 			<div class="ml-auto flex items-center gap-0.5">
