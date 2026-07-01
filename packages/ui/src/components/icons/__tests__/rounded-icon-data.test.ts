@@ -7,4 +7,8 @@ describe("rounded-icon-data", () => {
 		expect(resolveRoundedIconName("shield-warning")).toBe("shield-exclamation-kf9myntx");
 		expect(resolveRoundedIconName("shield-code")).toBe("shield-code-bqug9ybu");
 	});
+
+	it("resolves semantic app window alias to the Codex rounded app-window asset", () => {
+		expect(resolveRoundedIconName("app-window")).toBe("app-window-b6aaamvg");
+	});
 });

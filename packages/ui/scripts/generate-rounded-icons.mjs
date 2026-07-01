@@ -54,6 +54,7 @@ const customEntries = {
 };
 
 const preferredAliases = {
+	"app-window": "app-window-b6aaamvg",
 	sidebar: "app-shell-bnrwydfu--03",
 	plus: "plus-d3dp-dmx",
 	settings: "settings-cog-mjpuk5w",

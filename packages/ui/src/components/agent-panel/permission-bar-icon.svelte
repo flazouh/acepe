@@ -1,6 +1,5 @@
 <script lang="ts">
 	import {
-		AppWindow,
 		ArrowsLeftRight,
 		File,
 		GlobeHemisphereWest,
@@ -51,7 +50,12 @@
 {:else if kind === "move"}
 	<ArrowsLeftRight weight="fill" {size} class="shrink-0" style="color: {color}" />
 {:else if kind === "browser"}
-	<AppWindow weight="fill" {size} class="shrink-0" style="color: {color}" />
+	<RoundedIcon
+		name="app-window"
+		class="shrink-0"
+		style="width: {size}px; height: {size}px; color: {color};"
+		data-testid="permission-bar-browser-icon"
+	/>
 {:else}
 	<RoundedIcon
 		name="shield-warning"
