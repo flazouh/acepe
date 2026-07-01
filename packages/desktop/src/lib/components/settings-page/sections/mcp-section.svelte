@@ -1,6 +1,5 @@
 <script lang="ts">
 import { RoundedIcon } from "@acepe/ui";
-import { Plugs } from "phosphor-svelte";
 import SettingsSection from "../settings-section.svelte";
 import { BUILT_IN_MCP_TOOLS } from "./mcp-section.logic.js";
 </script>
@@ -22,7 +21,7 @@ import { BUILT_IN_MCP_TOOLS } from "./mcp-section.logic.js";
 		{#each BUILT_IN_MCP_TOOLS as tool (tool.id)}
 			<div class="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] items-center gap-3 py-3">
 				<div class="flex min-w-0 items-center gap-2">
-					<Plugs class="size-3.5 shrink-0 text-muted-foreground" weight="regular" />
+					<RoundedIcon name="mcp" class="size-3.5 shrink-0 text-muted-foreground" />
 					<div class="min-w-0">
 						<div class="truncate text-[12px] font-medium text-foreground">{tool.name}</div>
 						<div class="mt-0.5 text-[12px] leading-relaxed text-muted-foreground/60">

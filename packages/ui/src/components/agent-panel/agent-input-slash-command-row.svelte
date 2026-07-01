@@ -1,5 +1,4 @@
 <script lang="ts">
-	import { IconPlug } from "@tabler/icons-svelte";
 	import { BookOpenText } from "phosphor-svelte";
 	import { RoundedIcon } from "../icons/index.js";
 	import { INLINE_ARTEFACT_PACKAGE_PATH } from "../inline-artefact-badge/inline-artefact-badge.styles.js";
@@ -57,7 +56,7 @@
 				<path d={INLINE_ARTEFACT_PACKAGE_PATH} />
 			</svg>
 		{:else if tokenType === "mcp"}
-			<IconPlug class="h-2.5 w-2.5" />
+			<RoundedIcon name="mcp" class="h-2.5 w-2.5" />
 		{:else}
 			<RoundedIcon name="terminal" class="h-2.5 w-2.5" />
 		{/if}
