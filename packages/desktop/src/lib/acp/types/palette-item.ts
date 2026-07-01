@@ -1,4 +1,5 @@
 import type { Component, ComponentType } from "svelte";
+import type { RoundedIconName } from "@acepe/ui/icons";
 
 /**
  * Metadata for palette items, varies by mode.
@@ -32,7 +33,9 @@ export interface PaletteItem {
 	readonly description?: string;
 	/** Icon component */
 	// biome-ignore lint/suspicious/noExplicitAny: Svelte Component generic requires any
-	readonly icon: ComponentType | Component<any>;
+	readonly icon?: ComponentType | Component<any>;
+	/** Rounded icon name from the extracted app icon set. */
+	readonly roundedIcon?: RoundedIconName;
 	/** Additional metadata */
 	readonly metadata: PaletteItemMetadata;
 	/** Search score (higher = better match) */

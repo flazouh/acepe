@@ -4,15 +4,7 @@
  */
 
 import { okAsync, ResultAsync } from "neverthrow";
-import {
-	ArrowsClockwise,
-	Database,
-	GearSix,
-	Sidebar,
-	Terminal,
-	X,
-} from "phosphor-svelte";
-import { PlusIcon } from "@acepe/ui";
+import { Database } from "phosphor-svelte";
 import type { PaletteCommandDef } from "../../../types/palette-command.js";
 import type { PaletteItem, PaletteItemMetadata } from "../../../types/palette-item.js";
 import { fuzzySearch } from "../fuzzy-search.js";
@@ -33,6 +25,7 @@ function commandToPaletteItem(cmd: PaletteCommandDef): PaletteItem {
 		label: cmd.label,
 		description: cmd.description,
 		icon: cmd.icon,
+		roundedIcon: cmd.roundedIcon,
 		metadata,
 	};
 }
@@ -85,7 +78,7 @@ export class CommandsProvider implements PaletteProvider {
 				id: "thread.create",
 				label: "Create new thread",
 				description: "Start a new conversation",
-				icon: PlusIcon,
+				roundedIcon: "new-chat",
 				handler: this.config.onCreateThread,
 				keybinding: "Cmd+T",
 				category: "threads",
@@ -94,7 +87,7 @@ export class CommandsProvider implements PaletteProvider {
 				id: "settings.open",
 				label: "Open settings",
 				description: "Configure application preferences",
-				icon: GearSix,
+				roundedIcon: "settings",
 				handler: this.config.onOpenSettings,
 				keybinding: "Cmd+,",
 				category: "navigation",
@@ -111,7 +104,7 @@ export class CommandsProvider implements PaletteProvider {
 				id: "sidebar.toggle",
 				label: "Toggle sidebar",
 				description: "Show or hide the sidebar",
-				icon: Sidebar,
+				roundedIcon: "sidebar",
 				handler: this.config.onToggleSidebar,
 				keybinding: "Cmd+B",
 				category: "view",
@@ -123,7 +116,7 @@ export class CommandsProvider implements PaletteProvider {
 				id: "thread.close",
 				label: "Close current thread",
 				description: "Close the active conversation",
-				icon: X,
+				roundedIcon: "close",
 				handler: this.config.onCloseThread,
 				keybinding: "Cmd+W",
 				category: "threads",
@@ -135,7 +128,7 @@ export class CommandsProvider implements PaletteProvider {
 				id: "sync.refresh",
 				label: "Refresh sync",
 				description: "Resynchronize data",
-				icon: ArrowsClockwise,
+				roundedIcon: "refresh",
 				handler: this.config.onRefreshSync,
 				category: "sync",
 			});
@@ -146,7 +139,7 @@ export class CommandsProvider implements PaletteProvider {
 				id: "debug.toggle",
 				label: "Toggle debug panel",
 				description: "Show developer debug information",
-				icon: Terminal,
+				roundedIcon: "terminal",
 				handler: this.config.onToggleDebug,
 				devOnly: true,
 				category: "dev",
@@ -176,8 +169,14 @@ export class CommandsProvider implements PaletteProvider {
 		// Map back to palette items
 		return results.map(({ item, score }) => {
 			const cmd = this.commandsById.get(item.id)!;
+			const paletteItem = commandToPaletteItem(cmd);
 			return {
-				...commandToPaletteItem(cmd),
+				id: paletteItem.id,
+				label: paletteItem.label,
+				description: paletteItem.description,
+				icon: paletteItem.icon,
+				roundedIcon: paletteItem.roundedIcon,
+				metadata: paletteItem.metadata,
 				score,
 			};
 		});

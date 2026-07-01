@@ -16,8 +16,10 @@ import {
 import { GitWorkspace, type GitRemoteStatus } from "@acepe/ui/git-panel";
 import { PlanIcon } from "@acepe/ui/icons";
 import AddRepositoryActionsCell from "$lib/acp/components/add-repository/cells/actions-cell.svelte";
+import PaletteItem from "$lib/acp/components/advanced-command-palette/palette-item.svelte";
 import ProjectCard from "$lib/acp/components/project-card.svelte";
 import type { ProjectCardData } from "$lib/acp/components/project-card-data.js";
+import type { PaletteItem as CommandPaletteItem } from "$lib/acp/types/palette-item.js";
 import type { SessionSummary } from "$lib/acp/application/dto/session-summary.js";
 import type { Project } from "$lib/acp/logic/project-manager.svelte.js";
 import SettingsSidebar from "$lib/components/settings-page/settings-sidebar.svelte";
@@ -135,6 +137,59 @@ const permissionIconKinds = [
 	"browser",
 	"unknown",
 ] as const;
+
+const commandPaletteItems: CommandPaletteItem[] = [
+	{
+		id: "thread.create",
+		label: "Create new thread",
+		description: "Start a new conversation",
+		roundedIcon: "new-chat",
+		metadata: {
+			keybinding: "Cmd+T",
+		},
+	},
+	{
+		id: "settings.open",
+		label: "Open settings",
+		description: "Configure application preferences",
+		roundedIcon: "settings",
+		metadata: {
+			keybinding: "Cmd+,",
+		},
+	},
+	{
+		id: "sidebar.toggle",
+		label: "Toggle sidebar",
+		description: "Show or hide the sidebar",
+		roundedIcon: "sidebar",
+		metadata: {
+			keybinding: "Cmd+B",
+		},
+	},
+	{
+		id: "thread.close",
+		label: "Close current thread",
+		description: "Close the active conversation",
+		roundedIcon: "close",
+		metadata: {
+			keybinding: "Cmd+W",
+		},
+	},
+	{
+		id: "sync.refresh",
+		label: "Refresh sync",
+		description: "Resynchronize data",
+		roundedIcon: "refresh",
+		metadata: {},
+	},
+	{
+		id: "debug.toggle",
+		label: "Toggle debug panel",
+		description: "Show developer debug information",
+		roundedIcon: "terminal",
+		metadata: {},
+	},
+];
 </script>
 
 <div class="h-screen w-screen space-y-4 overflow-auto bg-background p-4">
@@ -241,6 +296,17 @@ const permissionIconKinds = [
 			<span class="inline-flex size-6 items-center justify-center rounded-md bg-input/40">
 				<AgentPanelPermissionBarIcon {kind} size={14} color="var(--muted-foreground)" />
 			</span>
+		{/each}
+	</div>
+	<div class="w-[420px] border border-border/40 p-2" data-testid="command-palette-icon-fixture">
+		{#each commandPaletteItems as item, index (item.id)}
+			<PaletteItem
+				{item}
+				isSelected={index === 0}
+				isLast={index === commandPaletteItems.length - 1}
+				onclick={() => {}}
+				onmouseenter={() => {}}
+			/>
 		{/each}
 	</div>
 	<div class="w-[520px] border border-border/40 p-2" data-testid="review-header-fixture">
