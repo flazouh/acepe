@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { Button, RoundedIcon } from "@acepe/ui";
-	import { Microphone, Rows, SlidersHorizontal, Sparkle } from "phosphor-svelte";
+	import { Microphone, Rows, Sparkle } from "phosphor-svelte";
 
 	import { Badge } from "$lib/components/ui/badge/index.js";
 	import SettingsPageHeader from "$lib/components/settings-page/settings-page-header.svelte";
@@ -60,7 +60,8 @@
 
 	const activeSectionMeta = $derived(sectionMetaById[activeSection]);
 
-	function roundedSectionIcon(sectionId: DesignSystemSection): "download" | "pull-request" | "tasks" | null {
+	function roundedSectionIcon(sectionId: DesignSystemSection): "download" | "pull-request" | "sliders" | "tasks" | null {
+		if (sectionId === "control-tokens") return "sliders";
 		if (sectionId === "install-card") return "download";
 		if (sectionId === "pr-card") return "pull-request";
 		if (sectionId === "task-tool") return "tasks";
@@ -68,7 +69,6 @@
 	}
 
 	function sectionIcon(sectionId: DesignSystemSection) {
-		if (sectionId === "control-tokens") return SlidersHorizontal;
 		if (sectionId === "claude-spark") return Sparkle;
 		if (sectionId === "new-thread-options") return Rows;
 		if (sectionId === "mic-button") return Microphone;

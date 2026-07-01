@@ -1,7 +1,7 @@
 <script lang="ts">
 import { IconEye } from "@tabler/icons-svelte";
 import { IconEyeOff } from "@tabler/icons-svelte";
-import { FloppyDisk, SlidersHorizontal } from "phosphor-svelte";
+import { FloppyDisk } from "phosphor-svelte";
 import { Button, Input, PlusIcon, RoundedIcon } from "@acepe/ui";
 import { Button as DesktopButton } from "$lib/components/ui/button/index.js";
 import DialogFrame from "$lib/components/ui/dialog-frame.svelte";
@@ -168,7 +168,7 @@ function handleSave(): void {
 	data-header-control
 	onclick={() => handleOpenChange(true)}
 >
-	<SlidersHorizontal class="size-3.5 shrink-0" weight="fill" />
+	<RoundedIcon name="sliders" class="size-3.5 shrink-0" />
 	Environment
 	{#if Object.keys(value).length > 0}
 		<span class="rounded-full bg-muted px-1.5 py-0.5 text-[11px] text-foreground/70">

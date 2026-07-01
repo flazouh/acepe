@@ -63,6 +63,7 @@ const preferredAliases = {
 	browser: "globe-oc2o98t5",
 	terminal: "terminal-bhtf7d-4",
 	filter: "app-main-b9iamgew--08",
+	sliders: "use-is-dictation-supported-cfnkis4k--04",
 	code: "code-dj-8g3vy",
 	more: "three-dots-c-3fbqw8",
 	link: "link-disddasq",
