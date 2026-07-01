@@ -45,8 +45,6 @@
 <script lang="ts">
 	import type { Snippet } from "svelte";
 	import {
-		ArrowDown,
-		ArrowUp,
 		GitBranch,
 		GitCommit,
 		GitPullRequest,
@@ -237,12 +235,12 @@
 					>
 						{#if remoteStatus.ahead > 0}
 							<span class="flex items-center gap-0.5">
-								<ArrowUp size={12} weight="bold" />{remoteStatus.ahead}
+								<RoundedIcon name="arrow-up" class="size-3" />{remoteStatus.ahead}
 							</span>
 						{/if}
 						{#if remoteStatus.behind > 0}
 							<span class="flex items-center gap-0.5">
-								<ArrowDown size={12} weight="bold" />{remoteStatus.behind}
+								<RoundedIcon name="arrow-up" class="size-3 rotate-180" />{remoteStatus.behind}
 							</span>
 						{/if}
 					</div>
