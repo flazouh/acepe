@@ -1,7 +1,6 @@
 <script lang="ts">
 import { RoundedIcon, Selector } from "@acepe/ui";
 import * as DropdownMenu from "@acepe/ui/dropdown-menu";
-import { Moon } from "phosphor-svelte";
 
 import { useTheme } from "./context.svelte.js";
 
@@ -22,7 +21,7 @@ const themeState = useTheme();
 		{#if themeState.effectiveTheme === "light"}
 			<RoundedIcon name="sun" class="size-4" />
 		{:else}
-			<Moon weight="fill" class="size-4" />
+			<RoundedIcon name="moon" class="size-4" />
 		{/if}
 	{/snippet}
 

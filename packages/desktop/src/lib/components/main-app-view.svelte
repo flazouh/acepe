@@ -1098,17 +1098,6 @@ onDestroy(() => {
 		<div class="shrink-0 overflow-hidden">
 			<TopBar
 				{viewState}
-				updaterState={updaterState}
-				onUpdateClick={() => {
-					if (getUpdaterPrimaryAction(import.meta.env.DEV, availableUpdate !== null) === "simulate") {
-						startDevUpdateSimulation();
-						return;
-					}
-					void installAvailableUpdate();
-				}}
-				onRetryUpdateClick={() => {
-					void checkForAppUpdate("polling");
-				}}
 				onDevShowUpdatePage={() => {
 					startDevUpdateSimulation();
 				}}
@@ -1144,6 +1133,19 @@ onDestroy(() => {
 							{projectManager}
 							state={viewState}
 							onImportProject={() => (addProjectDialogOpen = true)}
+							updaterState={updaterState}
+							onUpdateClick={() => {
+								if (
+									getUpdaterPrimaryAction(import.meta.env.DEV, availableUpdate !== null) === "simulate"
+								) {
+									startDevUpdateSimulation();
+									return;
+								}
+								void installAvailableUpdate();
+							}}
+							onRetryUpdateClick={() => {
+								void checkForAppUpdate("polling");
+							}}
 						/>
 							{#snippet failed(error, reset)}
 								<div class="flex flex-1 items-center justify-center p-4">

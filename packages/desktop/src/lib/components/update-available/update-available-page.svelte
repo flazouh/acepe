@@ -1,11 +1,12 @@
 <script lang="ts">
-import { BrandLockup, BrandShaderBackground, TextShimmer, SegmentedProgressBar } from "@acepe/ui";
+import { BrandLockup, BrandSurface, IrisCard, TextShimmer, SegmentedProgressBar } from "@acepe/ui";
 import { RoundedIcon } from "@acepe/ui";
 import { onMount } from "svelte";
 import {
 	isUpdaterInstallInProgress,
 	type UpdaterBannerState,
 } from "$lib/components/main-app-view/logic/updater-state.js";
+import { BrandThemeToggle } from "$lib/components/theme/index.js";
 import { Button } from "$lib/components/ui/button/index.js";
 import { Spinner } from "$lib/components/ui/spinner/index.js";
 const UPDATE_PROGRESS_SEGMENT_COUNT = 96;
@@ -48,17 +49,17 @@ onMount(() => {
 });
 </script>
 
-<!-- Shader background layer -->
-<BrandShaderBackground />
+<!-- Shared brand surface shell (same shell as onboarding). -->
+<BrandSurface variant="luminar">
+	{#snippet topRight()}
+		<BrandThemeToggle />
+	{/snippet}
 
-<!-- Content layer -->
-<div
-	class="relative z-10 mx-auto flex h-full w-full max-w-sm flex-col items-center justify-center px-5 py-4"
->
-	<!-- Card -->
-	<div class="update-card flex w-full flex-col overflow-hidden rounded-lg bg-background">
-		<!-- Header -->
-		<div class="flex flex-col gap-2 p-4 pb-3">
+	<!-- Card: iris grain surface (relative z-10 to sit above the surface tint) -->
+	<div class="update-card relative z-10 w-full max-w-sm overflow-hidden rounded-2xl">
+		<IrisCard>
+			<!-- Header -->
+			<div class="flex flex-col gap-2 p-4 pb-3">
 			<!-- Logo + version -->
 			<div class="flex items-center justify-between">
 				<BrandLockup
@@ -136,9 +137,10 @@ onMount(() => {
 					</div>
 				</div>
 			{/if}
-		</div>
+			</div>
+		</IrisCard>
 	</div>
-</div>
+</BrandSurface>
 
 <style>
 	.update-card {

@@ -1,29 +1,24 @@
 <script lang="ts">
 import {
 	Button,
+	LayoutModeIcon,
+	PaletteIcon,
 	RoundedIcon,
 	SegmentedToggleGroup,
 	Selector,
+	StorageIcon,
 	UsageLimitWidget,
-	SegmentedProgressBar,
+	WrenchIcon,
 } from "@acepe/ui";
 import { COLOR_NAMES, Colors } from "@acepe/ui/colors";
 import * as DropdownMenu from "@acepe/ui/dropdown-menu";
 import { AppTopBar } from "@acepe/ui/app-layout";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { openUrl } from "@tauri-apps/plugin-opener";
-import { Columns } from "phosphor-svelte";
-import { HardDrives } from "phosphor-svelte";
-import { Kanban } from "phosphor-svelte";
-import { Palette } from "phosphor-svelte";
-import { Square } from "phosphor-svelte";
-import { SquaresFour } from "phosphor-svelte";
-import { Wrench } from "phosphor-svelte";
 import { onMount, type Snippet } from "svelte";
 import { getPanelStore, getSessionStore } from "$lib/acp/store/index.js";
 import type { ViewMode } from "$lib/acp/store/types.js";
 import type { MainAppViewState } from "$lib/components/main-app-view/logic/main-app-view-state.svelte.js";
-import type { UpdaterBannerState } from "$lib/components/main-app-view/logic/updater-state.js";
 import { useTheme, type Theme } from "$lib/components/theme/index.js";
 import * as Tooltip from "@acepe/ui/tooltip";
 import {
@@ -40,9 +35,6 @@ interface Props {
 	viewState: MainAppViewState;
 	/** Optional snippet for add project/repository button (e.g. dropdown). Rendered in top bar left after decorations. */
 	addProjectButton?: Snippet;
-	updaterState?: UpdaterBannerState;
-	onUpdateClick?: () => void;
-	onRetryUpdateClick?: () => void;
 	onDevShowUpdatePage?: () => void;
 	onDevShowDesignSystem?: () => void;
 	onDevShowStreamingReproLab?: () => void;
@@ -53,9 +45,6 @@ interface Props {
 let {
 	viewState,
 	addProjectButton,
-	updaterState,
-	onUpdateClick,
-	onRetryUpdateClick,
 	onDevShowUpdatePage,
 	onDevShowDesignSystem,
 	onDevShowStreamingReproLab,
@@ -66,24 +55,11 @@ let {
 const panelStore = getPanelStore();
 const sessionStore = getSessionStore();
 const themeState = useTheme();
-const UPDATE_BUTTON_SEGMENT_COUNT = 16;
 const USAGE_REFRESH_INTERVAL_MS = 60_000;
 const USAGE_EVENT_REFRESH_DEBOUNCE_MS = 250;
 const PROVIDER_ACCOUNT_USAGE_UPDATED_EVENT = "provider-account-usage://updated";
 let providerUsageAccounts = $state.raw<ReadonlyArray<UsageProviderAccount>>(
 	buildProviderUsageCheckingAccounts()
-);
-
-const updateDownloadPercent = $derived(
-	updaterState?.kind === "installing"
-		? 100
-		: updaterState?.kind === "downloading" && updaterState.totalBytes && updaterState.totalBytes > 0
-			? Math.min(Math.round((updaterState.downloadedBytes / updaterState.totalBytes) * 100), 100)
-			: 0
-);
-
-const updateActionText = $derived(
-	updaterState?.kind === "installing" ? "Installing update..." : "Updating"
 );
 
 type LayoutFamily = "standard" | "kanban";
@@ -192,7 +168,7 @@ function refreshProviderUsageAccounts(): void {
 onMount(() => {
 	let disposed = false;
 	let quotaUpdateUnlisten: UnlistenFn | null = null;
-	let quotaUpdateRefreshTimeout: ReturnType<typeof window.setTimeout> | null = null;
+	let quotaUpdateRefreshTimeout: number | null = null;
 
 	function scheduleProviderUsageRefresh(): void {
 		if (quotaUpdateRefreshTimeout !== null) {
@@ -242,47 +218,6 @@ onMount(() => {
 	showSearch={false}
 	showRightSectionLeadingBorder={panelStore.viewMode !== "kanban"}
 >
-	{#snippet extraLeftActions()}
-		{#if updaterState?.kind === "available"}
-			<div class="flex items-center pl-2">
-			<Button variant="default" size="2xs" onclick={onUpdateClick}>
-				{#snippet children()}
-					Update
-				{/snippet}
-			</Button>
-			</div>
-		{:else if updaterState?.kind === "downloading" || updaterState?.kind === "installing"}
-			<div class="flex items-center pl-2">
-			<Button variant="default" size="2xs" disabled>
-				{#snippet children()}
-					<div class="flex items-center gap-2">
-						<span>{updateActionText}</span>
-						<div class="w-[52px]">
-							<SegmentedProgressBar
-								ariaLabel={updaterState?.kind === "installing"
-									? "Installing update..."
-									: "Downloading update"}
-								label=""
-								percent={updateDownloadPercent}
-								segmentCount={UPDATE_BUTTON_SEGMENT_COUNT}
-								showPercent={false}
-								variant="downloadCompact"
-							/>
-						</div>
-					</div>
-					{/snippet}
-				</Button>
-			</div>
-		{:else if updaterState?.kind === "error"}
-			<div class="flex items-center pl-2">
-				<Button variant="default" size="2xs" onclick={onRetryUpdateClick}>
-					{#snippet children()}
-						Retry
-					{/snippet}
-				</Button>
-			</div>
-		{/if}
-	{/snippet}
 	{#snippet extraRightActions()}
 		{#snippet layoutControl()}
 			<Selector
@@ -313,9 +248,19 @@ onMount(() => {
 											: "mt-0.5 size-3 shrink-0 text-transparent"}
 									/>
 									{#if family.value === "kanban"}
-										<Kanban class="mt-0.5 size-3 shrink-0" weight="fill" style="color: {family.color}" />
+										<LayoutModeIcon
+											mode="kanban"
+											color={family.color}
+											class="mt-0.5 size-3"
+											data-testid="top-bar-kanban-layout-icon"
+										/>
 									{:else}
-										<SquaresFour class="mt-0.5 size-3 shrink-0" weight="fill" style="color: {family.color}" />
+										<LayoutModeIcon
+											mode="grid"
+											color={family.color}
+											class="mt-0.5 size-3"
+											data-testid="top-bar-standard-layout-icon"
+										/>
 									{/if}
 									<div class="flex min-w-0 flex-1 flex-col">
 										<span class="text-[12px] font-medium">{family.label}</span>
@@ -344,11 +289,25 @@ onMount(() => {
 												: "mt-0.5 size-3 shrink-0 text-transparent"}
 										/>
 										{#if mode.value === "single"}
-											<Square class="mt-0.5 size-3 shrink-0" weight="fill" style="color: {mode.color}" />
+											<span
+												class="mt-0.5 size-3 shrink-0 rounded-sm"
+												style:background-color={mode.color}
+												data-testid="layout-single-mode-swatch"
+											></span>
 										{:else if mode.value === "project"}
-											<Columns class="mt-0.5 size-3 shrink-0" weight="fill" style="color: {mode.color}" />
+											<LayoutModeIcon
+												mode="columns"
+												color={mode.color}
+												class="mt-0.5 size-3"
+												data-testid="top-bar-project-layout-icon"
+											/>
 										{:else}
-											<SquaresFour class="mt-0.5 size-3 shrink-0" weight="fill" style="color: {mode.color}" />
+											<LayoutModeIcon
+												mode="grid"
+												color={mode.color}
+												class="mt-0.5 size-3"
+												data-testid="top-bar-multi-layout-icon"
+											/>
 										{/if}
 										<div class="flex min-w-0 flex-1 flex-col">
 											<span class="text-[12px] font-medium">{mode.label}</span>
@@ -401,7 +360,7 @@ onMount(() => {
 				triggerAriaLabel="Dev Tools"
 			>
 				{#snippet renderButton()}
-					<Wrench class="size-4" weight="fill" style="color: #FAD83C" />
+					<WrenchIcon class="size-4" weight="fill" style="color: #FAD83C" />
 				{/snippet}
 
 				<DropdownMenu.Group>
@@ -422,7 +381,7 @@ onMount(() => {
 								class="cursor-pointer rounded-none px-2 py-1 text-[11px]"
 								onclick={onDevShowDesignSystem}
 							>
-								<Palette class="size-4" weight="fill" />
+								<PaletteIcon class="size-4" weight="fill" />
 								<span>Design System</span>
 							</DropdownMenu.Item>
 						{/if}
@@ -431,7 +390,7 @@ onMount(() => {
 								class="cursor-pointer rounded-none px-2 py-1 text-[11px]"
 								onclick={onDevShowStreamingReproLab}
 							>
-								<Wrench class="size-4" weight="fill" />
+								<WrenchIcon class="size-4" weight="fill" />
 								<span>Streaming Repro Lab</span>
 							</DropdownMenu.Item>
 						{/if}
@@ -440,7 +399,7 @@ onMount(() => {
 								class="cursor-pointer rounded-none px-2 py-1 text-[11px]"
 								onclick={onDevResetOnboarding}
 							>
-								<Wrench class="size-4" weight="fill" />
+								<WrenchIcon class="size-4" weight="fill" />
 								<span>Reset Onboarding</span>
 							</DropdownMenu.Item>
 						{/if}
@@ -458,7 +417,7 @@ onMount(() => {
 						onclick={() => viewState.toggleSqlStudio()}
 					>
 						{#snippet children()}
-							<HardDrives weight="fill" class="size-4" />
+							<StorageIcon weight="fill" class="size-4" />
 						{/snippet}
 					</Button>
 				{/snippet}

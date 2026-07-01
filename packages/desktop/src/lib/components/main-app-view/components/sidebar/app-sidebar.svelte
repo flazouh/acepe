@@ -24,6 +24,7 @@ import { useTheme } from "$lib/components/theme/index.js";
 import { getAttentionQueueStore } from "$lib/stores/attention-queue-store.svelte.js";
 
 import type { MainAppViewState } from "../../logic/main-app-view-state.svelte.js";
+import type { UpdaterBannerState } from "../../logic/updater-state.js";
 import { ensureProjectHeaderAgentSelected, getProjectHeaderAgents } from "./app-sidebar-agents.js";
 
 import AppQueueRow from "../app-queue-row.svelte";
@@ -39,9 +40,22 @@ interface Props {
 	state: MainAppViewState;
 	/** Opens the add-repository dialog (owned by the app shell). */
 	onImportProject?: () => void;
+	/** Current app-updater stage, surfaced as a card in the sidebar footer. */
+	updaterState?: UpdaterBannerState;
+	/** Starts the download/install flow when the update card is clicked. */
+	onUpdateClick?: () => void;
+	/** Retries the update check after a failure. */
+	onRetryUpdateClick?: () => void;
 }
 
-let { projectManager, state: appState, onImportProject }: Props = $props();
+let {
+	projectManager,
+	state: appState,
+	onImportProject,
+	updaterState,
+	onUpdateClick,
+	onRetryUpdateClick,
+}: Props = $props();
 
 const panelStore = getPanelStore();
 const sessionStore = getSessionStore();
@@ -102,16 +116,16 @@ function handleToggleShowExternalCliSessions(
 	projectPath: string,
 	showExternalCliSessions: boolean
 ) {
-	projectManager.updateProjectShowExternalCliSessions(projectPath, showExternalCliSessions).mapErr(
-		(error) => {
+	projectManager
+		.updateProjectShowExternalCliSessions(projectPath, showExternalCliSessions)
+		.mapErr((error) => {
 			toast.error(`Failed to update session visibility: ${error.message}`);
 			logger.error("[ProjectVisibility] Failed to update external CLI visibility", {
 				projectPath,
 				showExternalCliSessions,
 				error,
 			});
-		}
-	);
+		});
 }
 
 function handleChangeProjectIcon(projectPath: string) {
@@ -595,7 +609,14 @@ const visibleSessions = $derived.by(() => {
 	{/snippet}
 
 	{#snippet footer()}
-		<SidebarFooter {projectManager} state={appState} onOpenGitPanel={handleOpenGitPanel} />
+		<SidebarFooter
+			{projectManager}
+			state={appState}
+			onOpenGitPanel={handleOpenGitPanel}
+			{updaterState}
+			{onUpdateClick}
+			{onRetryUpdateClick}
+		/>
 	{/snippet}
 </AppSidebarLayout>
 
