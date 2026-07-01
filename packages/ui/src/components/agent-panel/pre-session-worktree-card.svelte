@@ -3,7 +3,6 @@
 	import {
 		ArrowCounterClockwise,
 		Laptop,
-		Tree,
 		WarningCircle,
 	} from "phosphor-svelte";
 	import { Button } from "../button/index.js";
@@ -111,7 +110,12 @@
 
 {#snippet modeIcon(mode: WorktreeLaunchMode, className = "", size = triggerIconSize)}
 	{#if mode === "worktree"}
-		<Tree {size} weight="fill" class="shrink-0 {className}" />
+		<RoundedIcon
+			name="worktree"
+			class="shrink-0 {className}"
+			style="width: {size}px; height: {size}px;"
+			data-testid="pre-session-worktree-mode-icon"
+		/>
 	{:else}
 		<Laptop {size} weight="regular" class="shrink-0 {className}" />
 	{/if}

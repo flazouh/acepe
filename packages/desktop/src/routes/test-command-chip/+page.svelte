@@ -5,6 +5,7 @@ import {
 	type AttachMenuCommandSection,
 	AgentToolSearch,
 	AgentToolSkill,
+	AgentPanelPreSessionWorktreeCard,
 	AgentCompactToolDisplay,
 	CommandChip,
 	ReviewWorkspaceHeader,
@@ -194,6 +195,14 @@ const activeSettingsSection: SettingsSectionId = "general";
 		<SettingsSidebar
 			activeSection={activeSettingsSection}
 			onSectionChange={() => {}}
+		/>
+	</div>
+	<div class="w-[360px] border border-border/40 p-2" data-testid="pre-session-worktree-fixture">
+		<AgentPanelPreSessionWorktreeCard
+			pendingWorktreeEnabled={true}
+			onYes={() => {}}
+			onNo={() => {}}
+			onDismiss={() => {}}
 		/>
 	</div>
 	<div class="w-[520px] border border-border/40 p-2" data-testid="review-header-fixture">
