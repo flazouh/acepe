@@ -57,6 +57,8 @@ const preferredAliases = {
 	sidebar: "app-shell-bnrwydfu--03",
 	plus: "plus-d3dp-dmx",
 	settings: "settings-cog-mjpuk5w",
+	"shield-code": "shield-code-bqug9ybu",
+	"shield-warning": "shield-exclamation-kf9myntx",
 	files: "folders-dyfgzyqz",
 	folder: "folder-bpwd3kcz",
 	plan: "plan-dhny1pkx",

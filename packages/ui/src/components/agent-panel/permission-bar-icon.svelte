@@ -4,7 +4,6 @@
 		ArrowsLeftRight,
 		File,
 		GlobeHemisphereWest,
-		ShieldWarning,
 	} from "phosphor-svelte";
 	import { RoundedIcon } from "../icons/index.js";
 
@@ -54,5 +53,10 @@
 {:else if kind === "browser"}
 	<AppWindow weight="fill" {size} class="shrink-0" style="color: {color}" />
 {:else}
-	<ShieldWarning weight="fill" size={size - 1} class="shrink-0" style="color: {color}" />
+	<RoundedIcon
+		name="shield-warning"
+		class="shrink-0"
+		style="width: {size - 1}px; height: {size - 1}px; color: {color};"
+		data-testid="permission-bar-shield-warning-icon"
+	/>
 {/if}

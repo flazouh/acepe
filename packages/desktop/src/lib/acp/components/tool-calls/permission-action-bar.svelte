@@ -2,7 +2,7 @@
 import { FilePathBadge } from "@acepe/ui/file-path-badge";
 import { Button } from "@acepe/ui/button";
 import { RoundedIcon } from "@acepe/ui";
-import { ShieldCheck, ShieldWarning } from "phosphor-svelte";
+import { ShieldCheck } from "phosphor-svelte";
 import { getPermissionStore } from "../../store/permission-store.svelte.js";
 import type { PermissionRequest } from "../../types/permission.js";
 import { COLOR_NAMES, Colors } from "@acepe/ui/colors";
@@ -61,7 +61,7 @@ const buttonClass = "justify-center shrink-0";
 <div class="flex min-w-0 flex-col gap-1" class:w-full={!inline}>
 	{#snippet permissionSummary()}
 		<div class="flex min-w-0 items-center gap-1.5 text-[10px] text-muted-foreground">
-			<ShieldWarning weight="fill" class="size-3 shrink-0" style="color: {purpleColor}" />
+			<RoundedIcon name="shield-warning" class="size-3 shrink-0" style="color: {purpleColor}" />
 			<span class="shrink-0 font-medium text-muted-foreground">{compactDisplay.label}</span>
 			{#if compactDisplay.filePath}
 				<div class="min-w-0 flex-1">
