@@ -16,6 +16,8 @@ import ProjectCard from "$lib/acp/components/project-card.svelte";
 import type { ProjectCardData } from "$lib/acp/components/project-card-data.js";
 import type { SessionSummary } from "$lib/acp/application/dto/session-summary.js";
 import type { Project } from "$lib/acp/logic/project-manager.svelte.js";
+import SettingsSidebar from "$lib/components/settings-page/settings-sidebar.svelte";
+import type { SettingsSectionId } from "$lib/components/settings-page/settings-types.js";
 import SessionTable from "$lib/components/settings/project-tab/session-table.svelte";
 
 const modelCommandChip: CommandChipModel = {
@@ -117,6 +119,8 @@ const slashPalettePosition = {
 	top: 310,
 	left: 620,
 };
+
+const activeSettingsSection: SettingsSectionId = "general";
 </script>
 
 <div class="h-screen w-screen space-y-4 overflow-auto bg-background p-4">
@@ -184,6 +188,12 @@ const slashPalettePosition = {
 			onCommitPush={() => {}}
 			onCommitPushPr={() => {}}
 			generating={false}
+		/>
+	</div>
+	<div class="w-[240px] border border-border/40 p-2" data-testid="settings-sidebar-fixture">
+		<SettingsSidebar
+			activeSection={activeSettingsSection}
+			onSectionChange={() => {}}
 		/>
 	</div>
 	<div class="w-[520px] border border-border/40 p-2" data-testid="review-header-fixture">

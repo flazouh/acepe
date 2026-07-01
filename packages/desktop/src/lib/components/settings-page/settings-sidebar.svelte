@@ -51,6 +51,7 @@ function sectionsForGroup(groupId: SettingsNavGroupId) {
 						{#if section.roundedIcon}
 							<RoundedIcon
 								name={section.roundedIcon}
+								data-testid={`settings-section-${section.id}-icon`}
 								class={cn(
 									"size-3.5 shrink-0 transition-colors",
 									isActive ? "text-foreground" : "text-muted-foreground"

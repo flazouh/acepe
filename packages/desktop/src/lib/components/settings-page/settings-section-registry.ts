@@ -2,8 +2,6 @@ import type { Component } from "svelte";
 import type { RoundedIconName } from "@acepe/ui/icons";
 import {
 	ChartLine,
-	ChatCircle,
-	GearFine,
 	Palette,
 	Robot,
 } from "phosphor-svelte";
@@ -39,7 +37,7 @@ export const SETTINGS_SECTIONS: readonly SettingsSectionDefinition[] = [
 		id: "general",
 		label: "General",
 		description: "Notifications, telemetry, and app-wide behavior.",
-		icon: GearFine,
+		roundedIcon: "settings",
 		groupId: "general",
 	},
 	{
@@ -69,7 +67,7 @@ export const SETTINGS_SECTIONS: readonly SettingsSectionDefinition[] = [
 		id: "chat",
 		label: "Chat",
 		description: "Composer and transcript behavior.",
-		icon: ChatCircle,
+		roundedIcon: "chat",
 		groupId: "agents",
 	},
 	{
