@@ -1,7 +1,6 @@
 <script lang="ts">
 	import { DropdownMenu as DropdownMenuPrimitive } from "bits-ui";
 	import { type WithoutChild, cn } from "../../lib/utils";
-	import CircleIcon from "@lucide/svelte/icons/circle";
 	import { dropdownMenuItemRadiusClass } from "./dropdown-menu-item.classes.js";
 	import { dropdownMenuItemTypographyClass } from "./dropdown-menu-typography.js";
 	import { getDropdownMenuHighlightContext } from "./dropdown-menu-highlight-context";
@@ -56,7 +55,7 @@
 	{#snippet children({ checked })}
 		<span class="pointer-events-none absolute start-2 flex size-3.5 items-center justify-center">
 			{#if checked}
-				<CircleIcon class="size-2 fill-current" />
+				<span class="size-2 rounded-full bg-current"></span>
 			{/if}
 		</span>
 		{@render childrenProp?.({ checked })}

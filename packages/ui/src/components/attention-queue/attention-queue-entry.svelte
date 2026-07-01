@@ -1,5 +1,4 @@
 <script lang="ts">
-import { IconSquare } from "@tabler/icons-svelte";
 import type { Snippet } from "svelte";
 
 import AgentCompactToolDisplay from "../agent-panel/compact-tool-display.svelte";

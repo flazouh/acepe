@@ -17,7 +17,7 @@ export {
 
 /** Matches session-list project card hover action buttons. */
 export const PROJECT_CARD_ACTION_BUTTON_CLASS =
-	"flex size-5 shrink-0 items-center justify-center rounded-md border-0 p-0 leading-none text-muted-foreground transition-colors hover:bg-accent hover:text-foreground [&_svg]:block [&_svg]:shrink-0";
+	"flex size-5 shrink-0 items-center justify-center rounded-md border-0 p-0 leading-none text-muted-foreground/35 transition-colors hover:bg-accent hover:text-foreground focus-visible:text-foreground [&_svg]:block [&_svg]:shrink-0 [&_svg]:text-muted-foreground/35 [&_svg]:transition-colors hover:[&_svg]:text-foreground focus-visible:[&_svg]:text-foreground";
 
 /** Shared three-dot overflow glyph size (voice model menu, setup chips, panel headers). */
 export const OVERFLOW_DOTS_ICON_CLASS = "size-[14px] shrink-0";

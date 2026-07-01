@@ -1,6 +1,5 @@
 <script lang="ts">
 	import { Button } from "../button/index.js";
-	import { FileCode } from "phosphor-svelte";
 	import { RoundedIcon } from "../icons/index.js";
 
 	import type { AgentPanelModifiedFilesTrailingModel } from "./types.js";
@@ -38,7 +37,7 @@
 			disabled={reviewDisabled}
 			onclick={() => model.onReview?.()}
 		>
-			<FileCode size={11} weight="fill" class="shrink-0" />
+			<RoundedIcon name="code" class="size-[11px] shrink-0" data-testid="modified-files-review-code-icon" />
 			{model.reviewLabel}
 		</Button>
 	</div>

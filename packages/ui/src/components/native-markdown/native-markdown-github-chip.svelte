@@ -1,6 +1,4 @@
 <script lang="ts">
-	import { LinkBreak } from "phosphor-svelte";
-
 	import { buildChipShellClassName } from "../chip/index.js";
 	import { RoundedIcon } from "../icons/index.js";
 	import {
@@ -78,6 +76,17 @@
 	</span>
 {/snippet}
 
+{#snippet unlinkIcon()}
+	<span
+		class="relative inline-flex size-3 items-center justify-center"
+		data-testid="github-chip-unlink-rounded-icon"
+		aria-hidden="true"
+	>
+		<RoundedIcon name="link" class="size-3" />
+		<span class="absolute h-px w-3.5 rotate-45 rounded-full bg-current ring-[1px] ring-background"></span>
+	</span>
+{/snippet}
+
 {#if showToggle}
 	<span class={chipClassName}>
 		<a
@@ -100,7 +109,7 @@
 			onclick={handleToggleClick}
 		>
 			{#if isLinked}
-				<LinkBreak size={12} />
+				{@render unlinkIcon()}
 			{:else}
 				<RoundedIcon name="link" class="size-3" />
 			{/if}

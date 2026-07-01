@@ -9,7 +9,6 @@
 	 * - <span>   otherwise
 	 */
 	import type { Snippet } from 'svelte';
-	import { GitCommit } from 'phosphor-svelte';
 
 	import { ChipShell } from '../chip/index.js';
 	import { DiffPill } from '../diff-pill/index.js';
@@ -66,7 +65,11 @@
 		aria-hidden="true"
 	>
 		{#if ref.type === 'commit'}
-			<GitCommit weight="bold" size={14} />
+			<RoundedIcon
+				name="git"
+				class="size-3.5"
+				data-testid="github-badge-commit-rounded-icon"
+			/>
 		{:else if prState === 'merged'}
 			<RoundedIcon name="pull-request-merged" class="size-3.5" />
 		{:else if prState === 'closed'}

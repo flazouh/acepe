@@ -1,5 +1,4 @@
 <script lang="ts">
-	import { IconSquare } from "@tabler/icons-svelte";
 	import { RoundedIcon } from "../icons/index.js";
 
 	import type {
@@ -129,7 +128,10 @@
 								<RoundedIcon name="check" class="size-2.5" />
 							</div>
 						{:else}
-							<IconSquare class="size-3 shrink-0 text-muted-foreground/60" />
+							<div
+								class="size-3 shrink-0 rounded-sm border border-border/80 bg-background/50"
+								data-testid="attention-question-unselected-square"
+							></div>
 						{/if}
 					{/if}
 					<span>{option.label}</span>

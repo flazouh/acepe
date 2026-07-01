@@ -1,5 +1,4 @@
 <script lang="ts">
-	import { Square } from "phosphor-svelte";
 	import { RoundedIcon } from "../icons/index.js";
 	import type { AgentQuestionOption } from "./types.js";
 	import { getQuestionOptionClasses } from "./agent-tool-question-state.js";
@@ -41,7 +40,10 @@
 			{#if selected}
 				<RoundedIcon name="check" class="size-3.5 text-foreground shrink-0 mt-0.5" />
 			{:else}
-				<Square size={14} class="text-muted-foreground/70 shrink-0 mt-0.5" />
+				<span
+					class="mt-0.5 size-3.5 shrink-0 rounded-sm border border-muted-foreground/70"
+					data-testid="question-option-unselected-square"
+				></span>
 			{/if}
 		{:else if selected}
 			<RoundedIcon name="check" class="size-3.5 text-foreground shrink-0 mt-0.5" />

@@ -1,6 +1,4 @@
 <script lang="ts">
-	import { CircleDashed } from "phosphor-svelte";
-
 	import type { ReviewWorkspaceFileItem } from "./types.js";
 
 	import { DiffPill } from "../diff-pill/index.js";
@@ -114,7 +112,7 @@
 								{#if row.reviewStatus === "accepted"}
 									<RoundedIcon name="check-circle" class="h-3 w-3" />
 								{:else if row.reviewStatus === "partial"}
-									<CircleDashed class="h-3 w-3" weight="bold" />
+									<RoundedIcon name="circle-dashed" class="h-3 w-3" />
 								{:else if row.reviewStatus === "denied"}
 									<RoundedIcon name="x-circle" class="h-3 w-3" />
 								{:else}

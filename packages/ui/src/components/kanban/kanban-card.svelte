@@ -1,13 +1,12 @@
 <script lang="ts">
 	import type { Snippet } from "svelte";
-	import { Robot } from "phosphor-svelte";
 	import AgentToolTask from "../agent-panel/agent-tool-task.svelte";
 	import AgentCompactToolDisplay from "../agent-panel/compact-tool-display.svelte";
 	import { DiffPill } from "../diff-pill/index.js";
 	import { Colors } from "../../lib/colors.js";
 	import { capitalizeLeadingCharacter } from "../../lib/utils.js";
 	import { Button } from "../button/index.js";
-	import { RoundedIcon } from "../icons/index.js";
+	import { RobotIcon, RoundedIcon } from "../icons/index.js";
 	import {
 	EmbeddedPanelHeader,
 	HeaderActionCell,
@@ -134,7 +133,7 @@ function handleKeydown(event: KeyboardEvent): void {
 							aria-label="Auto mode"
 							title="Auto mode"
 						>
-							<Robot size={12} weight="fill" style="color: {Colors.purple}" class="shrink-0" />
+							<RobotIcon size={12} weight="fill" style="color: {Colors.purple}" class="shrink-0" />
 						</div>
 					{/if}
 				</div>

@@ -4,8 +4,6 @@
   Accepts a normalized config option shape; desktop derives AgentInputConfigOption from session state.
 -->
 <script lang="ts">
-	import { ShieldCheck } from "phosphor-svelte";
-
 	import { Selector } from "../selector/index.js";
 	import { RoundedIcon } from "../icons/index.js";
 	import type { SelectorTriggerSize } from "../selector/selector-trigger-classes.js";
@@ -81,7 +79,7 @@
 			style={viewState.iconStyle}
 		/>
 	{:else}
-		<ShieldCheck class={COMPOSER_CHIP_ICON_CLASS} weight="fill" style="color: {viewState.iconColor}" />
+		<RoundedIcon name="shield-check" class={COMPOSER_CHIP_ICON_CLASS} style="color: {viewState.iconColor}" />
 	{/if}
 {/snippet}
 

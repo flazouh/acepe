@@ -3,9 +3,9 @@
   Used by config-option composer controls. Model-variant picker uses FusedPrimaryOverflowGroup directly.
 -->
 <script lang="ts">
-	import { Brain } from "phosphor-svelte";
 	import type { Snippet } from "svelte";
 
+	import { RoundedIcon } from "../icons/index.js";
 	import { Selector } from "../selector/index.js";
 	import {
 		REASONING_EFFORT_BRAIN_ICON_CLASS,
@@ -64,11 +64,11 @@
 	{tooltipSide}
 >
 	{#snippet renderButton()}
-		<Brain
+		<RoundedIcon
+			name="brain"
 			class={REASONING_EFFORT_BRAIN_ICON_CLASS}
-			weight="fill"
-			aria-hidden="true"
 			style={iconStyle}
+			data-testid="reasoning-effort-brain-icon"
 		/>
 	{/snippet}
 

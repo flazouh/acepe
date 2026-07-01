@@ -1,10 +1,5 @@
 <script lang="ts">
 	import type { Snippet } from "svelte";
-	import {
-		ArrowCounterClockwise,
-		Laptop,
-		WarningCircle,
-	} from "phosphor-svelte";
 	import { Button } from "../button/index.js";
 	import * as DropdownMenu from "../dropdown-menu/index.js";
 	import { RoundedIcon } from "../icons/index.js";
@@ -117,7 +112,12 @@
 			data-testid="pre-session-worktree-mode-icon"
 		/>
 	{:else}
-		<Laptop {size} weight="regular" class="shrink-0 {className}" />
+		<RoundedIcon
+			name="laptop"
+			class="shrink-0 {className}"
+			style="width: {size}px; height: {size}px;"
+			data-testid="pre-session-worktree-mode-icon"
+		/>
 	{/if}
 {/snippet}
 
@@ -185,7 +185,7 @@
 			class:w-fit={!showExpanded}
 			class:w-full={showExpanded}
 		>
-			<WarningCircle size={13} weight="fill" class="shrink-0 text-destructive" />
+			<RoundedIcon name="warning" class="size-[13px] shrink-0 text-destructive" />
 			<span class="shrink-0 text-[0.6875rem] font-medium text-foreground">Worktree failed</span>
 			<span class="min-w-0 truncate text-[0.6875rem] text-muted-foreground">{failureMessage}</span>
 			<div class="ml-auto flex shrink-0 items-center gap-1.5" onclick={(e: MouseEvent) => e.stopPropagation()} role="none">
@@ -206,7 +206,11 @@
 				{/if}
 				{#if onRetry}
 					<Button variant="headerAction" size="headerAction" onclick={onRetry}>
-						<ArrowCounterClockwise size={12} class="shrink-0" />
+						<RoundedIcon
+							name="arrow-counter-clockwise"
+							class="size-3 shrink-0"
+							data-testid="pre-session-worktree-retry-icon"
+						/>
 						{retryLabel}
 					</Button>
 				{/if}

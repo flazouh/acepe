@@ -1,6 +1,5 @@
 <script lang="ts">
 	import { Tooltip } from 'bits-ui';
-	import { HandPalm } from 'phosphor-svelte';
 
 	import { RoundedIcon, LoadingIcon } from '../icons/index.js';
 	import { ProjectLetterBadge } from '../project-letter-badge/index.js';
@@ -106,7 +105,7 @@
 							</span>
 						{:else if tab.status === 'question'}
 							<span class="shrink-0 w-4 h-4 flex items-center justify-center">
-								<HandPalm class="size-3 text-primary" weight="fill" />
+								<RoundedIcon name="hand" class="size-3 text-primary" data-testid="app-tab-question-icon" />
 							</span>
 						{:else if tab.status === 'done'}
 							<span class="h-2 w-2 rounded-full shrink-0 bg-success"></span>

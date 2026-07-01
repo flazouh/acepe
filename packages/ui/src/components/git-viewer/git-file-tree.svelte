@@ -4,14 +4,10 @@
 	 * Reuses the same tree-building logic as the desktop file list,
 	 * stripped of context menus and Tauri.
 	 */
-	import { FilePlus } from "phosphor-svelte";
-	import { FileX } from "phosphor-svelte";
-	import { FileDashed } from "phosphor-svelte";
-	import { File } from "phosphor-svelte";
 	import { SvelteSet } from "svelte/reactivity";
 
 	import { DiffPill } from "../diff-pill/index.js";
-	import { RoundedIcon } from "../icons/index.js";
+	import { FileStatusIcon, RoundedIcon, type FileStatusIconKind } from "../icons/index.js";
 	import { getFileIconSrc, getFallbackIconSrc, getSpecialFolderIconSrc, getFolderIconSrc } from "../../lib/file-icon/index.js";
 	import { cn } from "../../lib/utils.js";
 	import type { Snippet } from "svelte";
@@ -96,12 +92,14 @@
 		}
 	}
 
-	function getStatusIcon(status: GitViewerFile["status"] | undefined) {
+	function getStatusIconKind(status: GitViewerFile["status"] | undefined): FileStatusIconKind | null {
 		switch (status) {
-			case "added": return FilePlus;
-			case "deleted": return FileX;
-			case "renamed": return FileDashed;
-			default: return File;
+			case "added":
+			case "deleted":
+			case "renamed":
+				return status;
+			default:
+				return null;
 		}
 	}
 
@@ -154,7 +152,7 @@
 				</button>
 			{:else}
 				<!-- File row -->
-				{@const StatusIcon = getStatusIcon(diff?.status)}
+				{@const statusIconKind = getStatusIconKind(diff?.status)}
 				<button
 					type="button"
 					class={cn(
@@ -184,7 +182,18 @@
 						/>
 					{:else}
 						<span class="shrink-0 {getStatusColor(diff?.status)}">
-							<StatusIcon size={14} weight="bold" />
+							{#if statusIconKind}
+								<FileStatusIcon
+									status={statusIconKind}
+									data-testid={`git-file-tree-${statusIconKind}-rounded-icon`}
+								/>
+							{:else}
+								<RoundedIcon
+									name="file-text"
+									class="size-3.5"
+									data-testid="git-file-tree-file-rounded-icon"
+								/>
+							{/if}
 						</span>
 					{/if}
 					<span class="min-w-0 flex-1 truncate font-mono text-[0.6875rem] leading-none">

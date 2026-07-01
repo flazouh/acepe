@@ -149,7 +149,7 @@
 			</HeaderTitleCell>
 			<HeaderActionCell>
 				{#snippet children()}
-					<CloseAction onClose={onClose} />
+					<CloseAction onClose={onClose} size="icon-2xs" />
 				{/snippet}
 			</HeaderActionCell>
 		{:else}
@@ -287,9 +287,13 @@
 							</div>
 						{/if}
 						{#if onToggleFullscreen}
-							<FullscreenAction isFullscreen={isFullscreen} onToggle={onToggleFullscreen} />
+							<FullscreenAction
+								isFullscreen={isFullscreen}
+								onToggle={onToggleFullscreen}
+								size="icon-2xs"
+							/>
 						{/if}
-						<CloseAction onClose={onClose} />
+						<CloseAction onClose={onClose} size="icon-2xs" />
 					{/if}
 				{/snippet}
 			</HeaderActionCell>

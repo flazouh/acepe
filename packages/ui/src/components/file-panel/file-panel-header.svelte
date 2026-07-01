@@ -1,10 +1,6 @@
 <script lang="ts">
 	import type { Snippet } from "svelte";
 
-	import { IconListTree } from "@tabler/icons-svelte";
-	import { IconTable } from "@tabler/icons-svelte";
-	import { IconEye } from "@tabler/icons-svelte";
-	import { BookOpenText } from "phosphor-svelte";
 	import { ProjectLetterBadge } from "../project-letter-badge/index.js";
 	import { DiffPill } from "../diff-pill/index.js";
 	import { RoundedIcon } from "../icons/index.js";
@@ -73,15 +69,40 @@
 	const showEditorModeToggle = $derived(
 		hasContent && editorModes.length > 1 && typeof onEditorModeChange === "function"
 	);
-
-	function getDisplayModeIcon(modeId: string) {
-		if (modeId === "rendered") return IconEye;
-		if (modeId === "structured") return IconListTree;
-		if (modeId === "table") return IconTable;
-		return null;
-	}
-
 </script>
+
+{#snippet structuredDisplayIcon()}
+	<span
+		class="inline-flex h-4 w-4 flex-col justify-center gap-[2px]"
+		data-testid="file-panel-structured-display-icon"
+		aria-hidden="true"
+	>
+		<span class="flex items-center gap-[2px]">
+			<span class="size-1 rounded-full bg-current"></span>
+			<span class="h-px w-2.5 rounded-full bg-current"></span>
+		</span>
+		<span class="ml-1.5 flex items-center gap-[2px]">
+			<span class="size-1 rounded-full bg-current"></span>
+			<span class="h-px w-2 rounded-full bg-current"></span>
+		</span>
+		<span class="ml-1.5 flex items-center gap-[2px]">
+			<span class="size-1 rounded-full bg-current"></span>
+			<span class="h-px w-2 rounded-full bg-current"></span>
+		</span>
+	</span>
+{/snippet}
+
+{#snippet tableDisplayIcon()}
+	<span
+		class="grid h-4 w-4 grid-cols-3 grid-rows-3 gap-px"
+		data-testid="file-panel-table-display-icon"
+		aria-hidden="true"
+	>
+		{#each Array.from({ length: 9 }) as _, index (index)}
+			<span class="rounded-[1px] border border-current"></span>
+		{/each}
+	</span>
+{/snippet}
 
 <EmbeddedPanelHeader>
 	{#if !compact}
@@ -125,7 +146,6 @@
 		<HeaderActionCell withDivider={true}>
 			{#snippet children()}
 				{#each displayModes as item (item.id)}
-					{@const ModeIcon = getDisplayModeIcon(item.id)}
 					<button
 						type="button"
 						onclick={() => onDisplayModeChange?.(item.id)}
@@ -135,8 +155,12 @@
 							: 'text-muted-foreground hover:text-foreground hover:bg-accent/40'}"
 						data-header-control
 					>
-						{#if ModeIcon}
-							<ModeIcon class="h-4 w-4" />
+						{#if item.id === "rendered"}
+							<RoundedIcon name="eye" class="h-4 w-4" />
+						{:else if item.id === "structured"}
+							{@render structuredDisplayIcon()}
+						{:else if item.id === "table"}
+							{@render tableDisplayIcon()}
 						{:else}
 							<RoundedIcon name="code" class="h-4 w-4" />
 						{/if}
@@ -163,7 +187,7 @@
 						{#if item.id === "write"}
 							<RoundedIcon name="pencil" class="h-4 w-4" />
 						{:else}
-							<BookOpenText class="h-4 w-4" weight="fill" />
+							<RoundedIcon name="notebook" class="h-4 w-4" />
 						{/if}
 						<span>{item.label}</span>
 					</button>

@@ -1,5 +1,4 @@
 <script lang="ts">
-	import { FileCode } from "phosphor-svelte";
 	import { RoundedIcon } from "../icons/index.js";
 
 	import { EmbeddedPanelHeader, HeaderActionCell, HeaderTitleCell } from "../panel-header/index.js";
@@ -18,7 +17,7 @@
 <div class="flex flex-col overflow-hidden rounded-lg border border-border/50 bg-accent/20">
 	<EmbeddedPanelHeader class="bg-accent/30">
 		<HeaderTitleCell compactPadding>
-			<FileCode class="mr-1 size-3 shrink-0" weight="fill" />
+			<RoundedIcon name="code" class="mr-1 size-3 shrink-0" data-testid="kanban-plan-approval-code-icon" />
 			<span class="truncate text-[10px] font-mono leading-none text-muted-foreground select-none">{prompt}</span>
 		</HeaderTitleCell>
 		<HeaderActionCell withDivider={false}>

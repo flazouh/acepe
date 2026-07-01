@@ -1,7 +1,5 @@
 <script lang="ts">
-	import { Brain } from "phosphor-svelte";
-
-	import { LoadingIcon } from "../icons/index.js";
+	import { LoadingIcon, RoundedIcon } from "../icons/index.js";
 	import { ProviderMark, type ProviderBrand } from "../provider-mark/index.js";
 	import { Selector, SelectorItem } from "../selector/index.js";
 	import { cn } from "../../lib/utils.js";
@@ -130,11 +128,11 @@
 			triggerAriaLabel={reasoningEffortTooltipLabel}
 		>
 			{#snippet renderButton()}
-				<Brain
+				<RoundedIcon
+					name="brain"
 					class={REASONING_EFFORT_BRAIN_ICON_CLASS}
-					weight="fill"
-					aria-hidden="true"
 					style={reasoningIconStyle}
+					data-testid="reasoning-model-brain-icon"
 				/>
 			{/snippet}
 

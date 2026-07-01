@@ -1,5 +1,4 @@
 <script lang="ts">
-	import { MinusCircle, Wrench } from "phosphor-svelte";
 	import { untrack } from "svelte";
 
 	import type { PrChecksItem } from "./types.js";
@@ -9,7 +8,7 @@
 		formatPrChecksSummaryAriaLabel,
 	} from "./pr-checks-summary-format.js";
 	import { Button } from "../button/index.js";
-	import { LoadingIcon, RoundedIcon } from "../icons/index.js";
+	import { LoadingIcon, RoundedIcon, WrenchIcon } from "../icons/index.js";
 
 	interface Props {
 		checks?: readonly PrChecksItem[];
@@ -81,6 +80,15 @@
 	}
 </script>
 
+{#snippet neutralIcon(sizeClass: string)}
+	<span
+		class={`inline-flex ${sizeClass} items-center justify-center rounded-full border border-current`}
+		data-testid="pr-check-neutral-icon"
+	>
+		<span class="h-px w-1/2 rounded-full bg-current"></span>
+	</span>
+{/snippet}
+
 {#if isLoading || isWaitingForCi || checks.length > 0}
 	<div class="flex flex-col gap-0.5">
 		{#if isWaitingForCi}
@@ -107,7 +115,7 @@
 								{:else if bucket === "failure"}
 									<RoundedIcon name="x-circle" class="size-2.5 text-destructive" />
 								{:else if bucket === "neutral"}
-									<MinusCircle size={10} weight="fill" class="text-amber-400" />
+									<span class="text-amber-400">{@render neutralIcon("size-2.5")}</span>
 								{:else}
 									<RoundedIcon name="check-circle" class="size-2.5 text-emerald-500" />
 								{/if}
@@ -150,7 +158,7 @@
 											onFixCheck(check);
 										}}
 									>
-										<Wrench size={10} weight="fill" />
+										<WrenchIcon size={10} weight="fill" />
 									</Button>
 								{/if}
 								{#if check.detailsUrl}
@@ -204,7 +212,7 @@
 							{:else if segment.kind === "in_progress"}
 								<LoadingIcon class="animate-spin" size={11} />
 							{:else if segment.kind === "neutral"}
-								<MinusCircle size={11} weight="fill" />
+								{@render neutralIcon("size-[11px]")}
 							{:else}
 								<RoundedIcon name="check-circle" class="size-[11px]" />
 							{/if}

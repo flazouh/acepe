@@ -1,7 +1,6 @@
 <script lang="ts">
-	import { DiscordLogo } from "phosphor-svelte";
 	import { Button } from "../button/index.js";
-	import { RoundedIcon } from "../icons/index.js";
+	import { DiscordIcon, RoundedIcon, XLogoIcon } from "../icons/index.js";
 
 	interface Props {
 		githubUrl: string;
@@ -42,11 +41,7 @@
 				onclick={() => onLinkClick(xUrl)}
 			>
 				{#snippet children()}
-					<svg viewBox="0 0 24 24" aria-hidden="true" class="size-4 fill-current">
-						<path
-							d="M18.244 2H21.5l-7.1 8.117L22 22h-5.956l-4.663-6.104L6.04 22H2.78l7.594-8.68L2 2h6.108l4.215 5.56L18.244 2Zm-1.143 18h1.804L5.128 3.895H3.193L17.1 20Z"
-						/>
-					</svg>
+					<XLogoIcon class="size-4" />
 				{/snippet}
 			</Button>
 			<Button
@@ -56,7 +51,7 @@
 				onclick={() => onLinkClick(discordUrl)}
 			>
 				{#snippet children()}
-					<DiscordLogo class="size-4" weight="fill" />
+					<DiscordIcon class="size-4" weight="fill" />
 				{/snippet}
 			</Button>
 		{:else}
@@ -67,16 +62,12 @@
 			</Button>
 			<Button {...chromeIconButton} href={xUrl} title="X" aria-label="X">
 				{#snippet children()}
-					<svg viewBox="0 0 24 24" aria-hidden="true" class="size-4 fill-current">
-						<path
-							d="M18.244 2H21.5l-7.1 8.117L22 22h-5.956l-4.663-6.104L6.04 22H2.78l7.594-8.68L2 2h6.108l4.215 5.56L18.244 2Zm-1.143 18h1.804L5.128 3.895H3.193L17.1 20Z"
-						/>
-					</svg>
+					<XLogoIcon class="size-4" />
 				{/snippet}
 			</Button>
 			<Button {...chromeIconButton} href={discordUrl} title="Discord" aria-label="Discord">
 				{#snippet children()}
-					<DiscordLogo class="size-4" weight="fill" />
+					<DiscordIcon class="size-4" weight="fill" />
 				{/snippet}
 			</Button>
 		{/if}

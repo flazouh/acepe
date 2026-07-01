@@ -1,6 +1,4 @@
 <script lang="ts">
-	import { ShieldCheck } from "phosphor-svelte";
-
 	import { Button } from "../button/index.js";
 	import { RoundedIcon } from "../icons/index.js";
 	import { COLOR_NAMES, Colors } from "../../lib/colors.js";
@@ -56,7 +54,7 @@
 
 		{#if showAlwaysAllow && onAlwaysAllow}
 			<Button variant="toolbar" size="toolbar" class={buttonClass} onclick={onAlwaysAllow}>
-				<ShieldCheck weight="fill" class="size-3 shrink-0" style="color: {alwaysIconColor}" />
+				<RoundedIcon name="shield-check" class="size-3 shrink-0" style="color: {alwaysIconColor}" />
 				<span>{alwaysAllowLabel}</span>
 			</Button>
 		{/if}

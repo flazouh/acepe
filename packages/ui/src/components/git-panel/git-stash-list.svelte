@@ -2,8 +2,6 @@
 	/**
 	 * GitStashList — List of stash entries with pop/drop actions.
 	 */
-	import { Package } from "phosphor-svelte";
-
 	import { cn } from "../../lib/utils.js";
 	import { RoundedIcon } from "../icons/index.js";
 	import type { GitStashEntry } from "./types.js";
@@ -28,7 +26,11 @@
 			<div
 				class="group flex items-center gap-2 px-2 py-1.5 hover:bg-muted/40 transition-colors"
 			>
-				<Package size={14} weight="bold" class="text-muted-foreground shrink-0" />
+				<RoundedIcon
+					name="archive"
+					class="size-3.5 shrink-0 text-muted-foreground"
+					data-testid="git-stash-archive-icon"
+				/>
 
 				<div class="min-w-0 flex-1">
 					<div class="truncate font-mono text-[0.6875rem] text-foreground">

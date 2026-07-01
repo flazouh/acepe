@@ -1,5 +1,4 @@
 <script lang="ts">
-	import { BookOpenText } from "phosphor-svelte";
 	import { RoundedIcon } from "../icons/index.js";
 	import {
 		getSlashCommandDisplayName,
@@ -91,7 +90,7 @@
 				onPreview?.();
 			}}
 		>
-			<BookOpenText weight="fill" class="h-3 w-3" />
+			<RoundedIcon name="notebook" class="h-3 w-3" />
 		</button>
 	{/if}
 </div>

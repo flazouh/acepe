@@ -95,12 +95,8 @@
 			? "flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden"
 			: "flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-lg border border-border bg-input/30"
 	);
-	// Diff body gutter: flush mode pads the code so line numbers clear the divider.
-	const codeBodyClass = $derived(
-		flat
-			? "flex h-0 min-h-0 flex-1 flex-col overflow-hidden px-3 pt-2"
-			: "flex h-0 min-h-0 flex-1 flex-col overflow-hidden"
-	);
+	// Diff body fills flush — no padding around the code viewer.
+	const codeBodyClass = "flex h-0 min-h-0 flex-1 flex-col overflow-hidden";
 
 	function handlePreviousFile(): void {
 		if (selectedFileIndex === null || selectedFileIndex <= 0) {

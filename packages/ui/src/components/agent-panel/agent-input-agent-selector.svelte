@@ -5,7 +5,6 @@
 -->
 <script lang="ts">
 	import type { Snippet } from "svelte";
-	import { Heart } from "phosphor-svelte";
 
 	import { Colors } from "../../lib/colors.js";
 	import { Selector, SelectorItem } from "../selector/index.js";
@@ -20,6 +19,7 @@
 		AgentInputAgentSelectorIconParams,
 		AgentInputAgentSelectorItem,
 	} from "./agent-input-agent-selector-types.js";
+	import DefaultAgentHeartIcon from "./default-agent-heart-icon.svelte";
 
 	export type { AgentInputAgentSelectorItem } from "./agent-input-agent-selector-types.js";
 
@@ -161,9 +161,9 @@
 								: `Set ${agent.name} as default agent`}
 						>
 							{#if agent.id === defaultAgentId}
-								<Heart size={14} weight="fill" color={Colors.red} />
+								<DefaultAgentHeartIcon filled={true} />
 							{:else}
-								<Heart size={14} weight="regular" />
+								<DefaultAgentHeartIcon />
 							{/if}
 						</button>
 					{/if}

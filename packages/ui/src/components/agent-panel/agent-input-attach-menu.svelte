@@ -3,7 +3,6 @@
 -->
 <script lang="ts">
 	import type { Snippet } from "svelte";
-	import { File } from "phosphor-svelte";
 
 	import PlusIcon from "../icons/plus-icon.svelte";
 	import { RoundedIcon } from "../icons/index.js";
@@ -239,7 +238,11 @@
 	{#if showContextActions && searchQuery.length === 0}
 		<DropdownMenu.Separator />
 		<DropdownMenu.Item onSelect={handleAddFileContext} class={selectorPanelItemClass}>
-			<File class="size-3.5 shrink-0" />
+			<RoundedIcon
+				name="file-text"
+				class="size-3.5 shrink-0"
+				data-testid="attach-menu-add-file-context-icon"
+			/>
 			<span class="text-xs">{addFileContextLabel}</span>
 		</DropdownMenu.Item>
 		<DropdownMenu.Item onSelect={handleAttachImage} class={selectorPanelItemClass}>

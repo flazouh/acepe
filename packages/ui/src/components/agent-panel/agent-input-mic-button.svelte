@@ -10,9 +10,7 @@
   - recording: red filled circle with stop square, pulsing glow
 -->
 <script lang="ts">
-	import { Microphone } from "phosphor-svelte";
-
-	import { LoadingIcon } from "../icons/index.js";
+	import { LoadingIcon, RoundedIcon } from "../icons/index.js";
 	import { SegmentedProgressBar } from "../segmented-progress-bar/index.js";
 	import { buttonVariants } from "../button/variants.js";
 	import { COMPOSER_CHIP_ICON_CLASS } from "./agent-input-chip-classes.js";
@@ -46,7 +44,6 @@
 		onkeydown,
 	}: Props = $props();
 
-	let isHovered = $state(false);
 	const isRecording = $derived(visualState === "stop");
 	const STOP_RED = "#FF5D5A";
 	const embeddedGroupShellClass = buttonVariants({ variant: "secondary", size: "icon-sm" });
@@ -76,8 +73,6 @@
 	aria-pressed={isRecording}
 	{disabled}
 	{title}
-	onmouseenter={() => (isHovered = true)}
-	onmouseleave={() => (isHovered = false)}
 	{onpointerdown}
 	{onpointerup}
 	{onpointercancel}
@@ -103,9 +98,10 @@
 		</div>
 	{:else}
 		<div class="mic-icon-wrap">
-			<Microphone
+			<RoundedIcon
+				name="microphone"
 				class="{COMPOSER_CHIP_ICON_CLASS} transition-all duration-150 ease-out"
-				weight={isHovered ? "fill" : "bold"}
+				data-testid="agent-input-mic-icon"
 			/>
 		</div>
 	{/if}

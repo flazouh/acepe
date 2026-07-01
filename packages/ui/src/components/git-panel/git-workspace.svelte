@@ -44,15 +44,10 @@
 -->
 <script lang="ts">
 	import type { Snippet } from "svelte";
-	import {
-		GitCommit,
-		ListChecks,
-		Sparkle,
-	} from "phosphor-svelte";
 
 	import { Button } from "../button/index.js";
 	import { ButtonGroup } from "../button-group/index.js";
-	import { RoundedIcon } from "../icons/index.js";
+	import { RoundedIcon, type RoundedIconName } from "../icons/index.js";
 	import SegmentedToggleGroup from "../panel-header/segmented-toggle-group.svelte";
 	import { cn } from "../../lib/utils.js";
 	import GitStatusRow from "./git-status-row.svelte";
@@ -159,18 +154,17 @@
 		readonly {
 			id: GitSection;
 			label: string;
-			icon?: typeof GitCommit;
-			roundedIcon?: "pull-request" | "worktree";
+			roundedIcon: RoundedIconName;
 			count?: number;
 		}[]
 	>([
 		{
 			id: "changes",
 			label: "Changes",
-			icon: ListChecks,
+			roundedIcon: "tasks",
 			count: stagedFiles.length + unstagedFiles.length,
 		},
-		{ id: "commits", label: "Commits", icon: GitCommit, count: commitsCount },
+		{ id: "commits", label: "Commits", roundedIcon: "git", count: commitsCount },
 		{ id: "prs", label: "Pull Requests", roundedIcon: "pull-request", count: prCount },
 		{ id: "worktrees", label: "Worktrees", roundedIcon: "worktree", count: worktreeCount },
 	]);
@@ -202,15 +196,11 @@
 			{#snippet itemContent(item)}
 				{@const section = sections.find((candidate) => candidate.id === item.id)}
 				{#if section}
-					{#if section.roundedIcon}
-						<RoundedIcon
-							name={section.roundedIcon}
-							class="size-3.5 shrink-0"
-							data-testid={`git-workspace-${section.id}-icon`}
-						/>
-					{:else if section.icon}
-						<section.icon size={14} weight="bold" class="shrink-0" />
-					{/if}
+					<RoundedIcon
+						name={section.roundedIcon}
+						class="size-3.5 shrink-0"
+						data-testid={`git-workspace-${section.id}-icon`}
+					/>
 				{/if}
 				<span>{item.label}</span>
 				{#if section?.count != null && section.count > 0}
@@ -443,7 +433,7 @@
 										aria-label="Generate commit message"
 									>
 										{#snippet children()}
-											<Sparkle size={14} weight={generating ? "fill" : "regular"} />
+											<RoundedIcon name="sparkle" class="size-3.5" />
 										{/snippet}
 									</Button>
 								{/if}

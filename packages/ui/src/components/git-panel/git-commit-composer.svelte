@@ -3,7 +3,6 @@
 	 * GitCommitComposer — dedicated commit composer using the agent input surface pattern.
 	 */
 	import type { Snippet } from "svelte";
-	import { Sparkle } from "phosphor-svelte";
 	import { cn } from "../../lib/utils.js";
 	import { RoundedIcon } from "../icons/index.js";
 	import { InputContainer } from "../input-container/index.js";
@@ -94,12 +93,9 @@
 					onclick={onGenerate}
 				>
 					{#if generating}
-						<svg class="h-3.5 w-3.5 animate-spin" viewBox="0 0 256 256" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
-							<path d="M128,24A104,104,0,1,0,232,128,104.11,104.11,0,0,0,128,24Zm0,176A72,72,0,1,1,200,128,72.08,72.08,0,0,1,128,200Z" opacity="0.2"/>
-							<path d="M128,24A104,104,0,1,0,232,128,104.11,104.11,0,0,0,128,24Zm0,16a88.1,88.1,0,0,1,88,88,8,8,0,0,1-16,0,72,72,0,0,0-72-72,8,8,0,0,1,0-16Z"/>
-						</svg>
+						<RoundedIcon name="spinner" class="h-3.5 w-3.5 animate-spin" />
 					{:else}
-						<Sparkle class="h-3.5 w-3.5" weight="fill" />
+						<RoundedIcon name="sparkle" class="h-3.5 w-3.5" />
 					{/if}
 				</button>
 			{/if}

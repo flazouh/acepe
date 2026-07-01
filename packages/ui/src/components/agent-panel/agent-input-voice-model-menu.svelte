@@ -100,79 +100,93 @@
 				}}
 				class="group/item transition-colors py-1 {row.isSelected ? 'bg-accent' : ''}"
 			>
-				<div class="flex w-full min-w-0 items-center gap-2">
-					<div class="flex min-w-0 flex-1 flex-col gap-0.5">
-						<span
-							class="truncate {dropdownMenuItemTypographyClass} {row.model.isDownloaded
-								? ''
-								: 'text-muted-foreground'}"
-						>
-							{row.model.name}
-						</span>
-						<span class="{dropdownMenuSectionTypographyClass} text-muted-foreground">
-							{row.sizeLabel}
-						</span>
-					</div>
-
-					{#if row.isDownloading}
+				{#if row.isDownloading}
+					<div class="flex w-full min-w-0 flex-col gap-1.5">
+						<div class="flex min-w-0 flex-col gap-0.5">
+							<span
+								class="truncate {dropdownMenuItemTypographyClass} text-muted-foreground"
+							>
+								{row.model.name}
+							</span>
+							<span class="{dropdownMenuSectionTypographyClass} text-muted-foreground">
+								{row.sizeLabel}
+							</span>
+						</div>
 						<SegmentedProgressBar
 							ariaLabel={`Downloading ${row.model.name}`}
 							label=""
 							percent={downloadPercent}
 							segmentCount={12}
 							showPercent={true}
-							variant="downloadCompact"
+							variant="downloadFillWidth"
 						/>
-					{:else if row.model.isDownloaded}
-						<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
-						<div
-							role="group"
-							class="shrink-0"
-							onpointerdown={isolateNestedMenuActionPointer}
-							onpointerup={isolateNestedMenuActionPointer}
-							onmousedown={isolateNestedMenuActionPointer}
-							onmouseup={isolateNestedMenuActionPointer}
-							onclick={isolateNestedMenuActionPointer}
-						>
-							<Button
-								variant="ghost"
-								size="icon-2xs"
-								aria-label={uninstallLabel}
-								onclick={(event: MouseEvent) => {
-									event.preventDefault();
-									event.stopPropagation();
-									onUninstallModel(row.model.id);
-								}}
+					</div>
+				{:else}
+					<div class="flex w-full min-w-0 items-center gap-2">
+						<div class="flex min-w-0 flex-1 flex-col gap-0.5">
+							<span
+								class="truncate {dropdownMenuItemTypographyClass} {row.model.isDownloaded
+									? ''
+									: 'text-muted-foreground'}"
 							>
-								<RoundedIcon name="trash" class="size-3" />
-							</Button>
+								{row.model.name}
+							</span>
+							<span class="{dropdownMenuSectionTypographyClass} text-muted-foreground">
+								{row.sizeLabel}
+							</span>
 						</div>
-					{:else}
-						<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
-						<div
-							role="group"
-							class="shrink-0"
-							onpointerdown={isolateNestedMenuActionPointer}
-							onpointerup={isolateNestedMenuActionPointer}
-							onmousedown={isolateNestedMenuActionPointer}
-							onmouseup={isolateNestedMenuActionPointer}
-							onclick={isolateNestedMenuActionPointer}
-						>
-							<Button
-								variant="ghost"
-								size="icon-2xs"
-								aria-label={downloadLabel}
-								onclick={(event: MouseEvent) => {
-									event.preventDefault();
-									event.stopPropagation();
-									onDownloadModel(row.model.id);
-								}}
+
+						{#if row.model.isDownloaded}
+							<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+							<div
+								role="group"
+								class="shrink-0"
+								onpointerdown={isolateNestedMenuActionPointer}
+								onpointerup={isolateNestedMenuActionPointer}
+								onmousedown={isolateNestedMenuActionPointer}
+								onmouseup={isolateNestedMenuActionPointer}
+								onclick={isolateNestedMenuActionPointer}
 							>
-								<RoundedIcon name="download" class="size-3" />
-							</Button>
-						</div>
-					{/if}
-				</div>
+								<Button
+									variant="ghost"
+									size="icon-2xs"
+									aria-label={uninstallLabel}
+									onclick={(event: MouseEvent) => {
+										event.preventDefault();
+										event.stopPropagation();
+										onUninstallModel(row.model.id);
+									}}
+								>
+									<RoundedIcon name="trash" class="size-3" />
+								</Button>
+							</div>
+						{:else}
+							<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+							<div
+								role="group"
+								class="shrink-0"
+								onpointerdown={isolateNestedMenuActionPointer}
+								onpointerup={isolateNestedMenuActionPointer}
+								onmousedown={isolateNestedMenuActionPointer}
+								onmouseup={isolateNestedMenuActionPointer}
+								onclick={isolateNestedMenuActionPointer}
+							>
+								<Button
+									variant="ghost"
+									size="icon-2xs"
+									aria-label={downloadLabel}
+									onclick={(event: MouseEvent) => {
+										event.preventDefault();
+										event.stopPropagation();
+										onDownloadModel(row.model.id);
+									}}
+								>
+									<RoundedIcon name="download" class="size-3" />
+								</Button>
+							</div>
+						{/if}
+					</div>
+				{/if}
 			</DropdownMenu.Item>
 		{/each}
 	{/if}

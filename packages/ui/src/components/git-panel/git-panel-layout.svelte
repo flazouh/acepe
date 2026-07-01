@@ -5,8 +5,6 @@
 	 * All data-driven via props, no Tauri coupling.
 	 */
 	import type { Snippet } from "svelte";
-	import { GitDiff } from "phosphor-svelte";
-	import { Package } from "phosphor-svelte";
 
 	import { cn } from "../../lib/utils.js";
 	import type { GitStatusFile, GitStashEntry, GitLogEntry, GitLogEntryFile, GitRemoteStatus } from "./types.js";
@@ -114,12 +112,11 @@
 	const views: {
 		value: ViewTab;
 		label: string;
-		icon?: typeof GitDiff;
-		roundedIcon?: "history";
+		roundedIcon: "git-diff" | "history" | "archive";
 	}[] = [
-		{ value: "status", label: "Status", icon: GitDiff },
+		{ value: "status", label: "Status", roundedIcon: "git-diff" },
 		{ value: "history", label: "History", roundedIcon: "history" },
-		{ value: "stash", label: "Stash", icon: Package },
+		{ value: "stash", label: "Stash", roundedIcon: "archive" },
 	];
 </script>
 
@@ -140,11 +137,7 @@
 			{#snippet itemContent(item)}
 				{@const view = views.find((candidate) => candidate.value === item.id)}
 				{#if view}
-					{#if view.roundedIcon}
-						<RoundedIcon name={view.roundedIcon} class="size-3" />
-					{:else if view.icon}
-						<view.icon size={12} weight="bold" />
-					{/if}
+					<RoundedIcon name={view.roundedIcon} class="size-3" data-testid={`git-panel-${view.value}-rounded-icon`} />
 				{/if}
 				{item.label}
 				{#if item.id === "stash" && stashEntries.length > 0}

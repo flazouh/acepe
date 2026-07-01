@@ -1,6 +1,4 @@
 <script lang="ts">
-	import { CircleDashed } from "phosphor-svelte";
-
 	import { FilePathBadge } from "../file-path-badge/index.js";
 	import { RoundedIcon } from "../icons/index.js";
 	import type { AgentPanelFileReviewStatus } from "./types.js";
@@ -57,7 +55,7 @@
 				{:else if tab.status === "denied"}
 					<RoundedIcon name="x-circle" class="h-3.5 w-3.5 shrink-0 text-destructive" />
 				{:else}
-					<CircleDashed class="h-3.5 w-3.5 shrink-0 text-primary" weight="bold" />
+					<RoundedIcon name="circle-dashed" class="h-3.5 w-3.5 shrink-0 text-primary" />
 				{/if}
 				<span class="review-tab-chip contents">
 					<FilePathBadge

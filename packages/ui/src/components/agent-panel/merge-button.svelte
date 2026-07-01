@@ -59,9 +59,7 @@
 				aria-label="Merge options"
 				onclick={(e) => { e.stopPropagation(); dropdownOpen = !dropdownOpen; }}
 			>
-				<svg class="size-2.5 text-muted-foreground" viewBox="0 0 10 10" fill="none">
-					<path d="M2 3.5L5 6.5L8 3.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
-				</svg>
+				<RoundedIcon name="chevron-down" class="size-2.5 text-muted-foreground" />
 			</button>
 			{#if dropdownOpen}
 				<div class="absolute top-full left-0 mt-1 z-50 min-w-[150px] rounded-lg border border-border bg-popover p-1 shadow-md">

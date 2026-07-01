@@ -1,6 +1,5 @@
 <script lang="ts">
 	import type { Snippet } from "svelte";
-	import { Brain } from "phosphor-svelte";
 	import { RoundedIcon } from "../icons/index.js";
 	import ToolLabel from "./tool-label.svelte";
 	import type { AgentToolStatus } from "./types.js";
@@ -110,7 +109,7 @@
 								onclick={(e) => { e.stopPropagation(); preferenceState.onToggleDefaultExpand?.(); }}
 								aria-label={preferenceState.defaultExpandLabel}
 							>
-								<Brain size={11} weight={preferenceState.defaultExpandIconWeight} />
+								<RoundedIcon name="brain" class="size-[11px]" data-testid="thinking-default-expand-brain-icon" />
 							</button>
 						{/snippet}
 					</TooltipTrigger>

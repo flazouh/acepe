@@ -3,7 +3,6 @@
    * SqlStudioSidebar — Connections list + schema tree sidebar.
    * Matches the git panel's dense, monospace design language.
    */
-  import { Table as TableIcon, Key } from "phosphor-svelte";
   import PlusIcon from "../icons/plus-icon.svelte";
   import { RoundedIcon } from "../icons/index.js";
   import { TAG_COLORS } from "../../lib/colors.js";
@@ -45,8 +44,8 @@
   function toggleTableExpand(tableKey: string, e: Event): void {
     e.stopPropagation();
     expandedTables = expandedTables.has(tableKey)
-      ? new Set([...expandedTables].filter((k) => k !== tableKey))
-      : new Set([...expandedTables, tableKey]);
+      ? new Set(Array.from(expandedTables).filter((k) => k !== tableKey))
+      : new Set(Array.from(expandedTables).concat(tableKey));
   }
 </script>
 
@@ -168,6 +167,7 @@
                     type="button"
                     class="shrink-0 p-0.5 rounded hover:bg-muted/50 transition-colors"
                     title={isExpanded ? "Collapse columns" : "Expand columns"}
+                    data-testid="sql-studio-table-expand-button"
                     onclick={(e) => toggleTableExpand(tableKey, e)}
                   >
                     <RoundedIcon name="chevron-right"
@@ -177,11 +177,11 @@
                       )}
                     />
                   </button>
-                  <TableIcon
-                    size={12}
-                    weight="bold"
-                    class="shrink-0 text-primary"
-                  />
+                  <span
+                    class="sql-table-icon shrink-0 text-primary"
+                    data-testid="sql-studio-table-icon"
+                    aria-hidden="true"
+                  ></span>
                   <span class="font-mono text-[0.6875rem] truncate flex-1"
                     >{tableNode.name}</span
                   >
@@ -198,11 +198,11 @@
                           )}
                         >
                           {#if column.isPrimaryKey}
-                            <Key
-                              size={8}
-                              weight="bold"
-                              class="inline mr-0.5 -mt-0.5"
-                            />
+                            <span
+                              class="sql-key-icon"
+                              data-testid="sql-studio-primary-key-icon"
+                              aria-hidden="true"
+                            ></span>
                           {/if}
                           {column.name}
                         </span>
@@ -224,3 +224,57 @@
 
   </div>
 </div>
+
+<style>
+  .sql-table-icon {
+    position: relative;
+    display: inline-block;
+    width: 12px;
+    height: 12px;
+    box-sizing: border-box;
+    border: 1.4px solid currentColor;
+    border-radius: 2px;
+    background:
+      linear-gradient(currentColor, currentColor) 0 4px / 100% 1.2px no-repeat,
+      linear-gradient(currentColor, currentColor) 0 7px / 100% 1.2px no-repeat,
+      linear-gradient(currentColor, currentColor) 4px 0 / 1.2px 100% no-repeat,
+      linear-gradient(currentColor, currentColor) 8px 0 / 1.2px 100% no-repeat;
+  }
+
+  .sql-key-icon {
+    position: relative;
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    margin-right: 2px;
+    margin-top: -2px;
+    vertical-align: middle;
+    box-sizing: border-box;
+    border: 1.3px solid currentColor;
+    border-radius: 999px;
+    overflow: visible;
+  }
+
+  .sql-key-icon::before {
+    content: "";
+    position: absolute;
+    left: 5px;
+    top: 3px;
+    width: 4px;
+    height: 1.3px;
+    border-radius: 999px;
+    background: currentColor;
+  }
+
+  .sql-key-icon::after {
+    content: "";
+    position: absolute;
+    left: 7.5px;
+    top: 3px;
+    width: 1.3px;
+    height: 3px;
+    border-radius: 999px;
+    background: currentColor;
+    box-shadow: 2px 0 0 currentColor;
+  }
+</style>
