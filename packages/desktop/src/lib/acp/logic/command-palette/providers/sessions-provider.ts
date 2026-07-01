@@ -4,7 +4,6 @@
  */
 
 import { okAsync, type ResultAsync } from "neverthrow";
-import { ChatCircle } from "phosphor-svelte";
 import type { SessionPaletteReference } from "../../../store/session-cold-index.js";
 import type { SessionStore } from "../../../store/session-store.svelte.js";
 import { normalizeTitleForDisplay } from "../../../store/session-title-policy.js";
@@ -52,7 +51,7 @@ function sessionToPaletteItem(
 		id: session.id,
 		label: normalizeTitleForDisplay(session.title ?? "") || "Untitled conversation",
 		description: projectName,
-		icon: ChatCircle,
+		roundedIcon: "chat",
 		metadata,
 	};
 }
@@ -124,6 +123,7 @@ export class SessionsProvider implements PaletteProvider {
 				label: paletteItem.label,
 				description: paletteItem.description,
 				icon: paletteItem.icon,
+				roundedIcon: paletteItem.roundedIcon,
 				metadata: paletteItem.metadata,
 				score,
 			};
@@ -186,7 +186,7 @@ export class SessionsProvider implements PaletteProvider {
 			id: stored.id,
 			label: stored.label,
 			description: stored.description,
-			icon: ChatCircle,
+			roundedIcon: "chat",
 			metadata: {},
 		};
 	}

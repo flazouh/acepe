@@ -4,7 +4,6 @@
  */
 
 import { okAsync, ResultAsync as RA, type ResultAsync } from "neverthrow";
-import { File } from "phosphor-svelte";
 import { fileIndex } from "$lib/utils/tauri-client/file-index.js";
 
 import type { IndexedFile, ProjectIndex } from "../../../../services/converted-session-types.js";
@@ -183,7 +182,7 @@ export class FilesProvider implements PaletteProvider {
 			id: project ? `${project.path}:${file.path}` : file.path,
 			label: filename,
 			description: file.path,
-			icon: File,
+			roundedIcon: "file-text",
 			metadata,
 			score,
 		};
@@ -249,7 +248,7 @@ export class FilesProvider implements PaletteProvider {
 			id: stored.id,
 			label: stored.label,
 			description: stored.description,
-			icon: File,
+			roundedIcon: "file-text",
 			metadata: {
 				projectPath: project?.path,
 				projectName: project?.name,

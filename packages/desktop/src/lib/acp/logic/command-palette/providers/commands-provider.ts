@@ -3,8 +3,8 @@
  * Provides access to application commands/actions.
  */
 
+import { DatabaseIcon } from "@acepe/ui";
 import { okAsync, ResultAsync } from "neverthrow";
-import { Database } from "phosphor-svelte";
 import type { PaletteCommandDef } from "../../../types/palette-command.js";
 import type { PaletteItem, PaletteItemMetadata } from "../../../types/palette-item.js";
 import { fuzzySearch } from "../fuzzy-search.js";
@@ -96,7 +96,7 @@ export class CommandsProvider implements PaletteProvider {
 				id: "sql-studio.open",
 				label: "Open SQL Studio",
 				description: "Run SQL queries and inspect database tables",
-				icon: Database,
+				icon: DatabaseIcon,
 				handler: this.config.onOpenSqlStudio,
 				category: "navigation",
 			},
