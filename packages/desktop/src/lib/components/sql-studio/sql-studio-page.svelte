@@ -7,9 +7,8 @@
 
 import type { SqlConnection, SqlFilterOperator, SqlSchemaInfo } from "@acepe/ui/sql-studio";
 import { SqlStudioLayout } from "@acepe/ui/sql-studio";
-import { Selector } from "@acepe/ui";
+import { DatabaseIcon, RoundedIcon, Selector } from "@acepe/ui";
 import * as DropdownMenu from "@acepe/ui/dropdown-menu";
-import { Database, FolderOpen } from "phosphor-svelte";
 import { onMount } from "svelte";
 import { toast } from "svelte-sonner";
 import { getWorkspaceStore } from "$lib/acp/store/workspace-store.svelte.js";
@@ -474,7 +473,7 @@ function saveCellEdit(rowIndex: number, columnName: string, value: string): void
 	onOpenChange={(open) => (createDialogOpen = open)}
 >
 	{#snippet topLeft()}
-		<Database size={14} weight="bold" class="shrink-0 text-primary" />
+		<DatabaseIcon size={14} weight="bold" class="shrink-0 text-primary" />
 		<span class="truncate text-[11px] font-semibold text-foreground select-none leading-none">
 			New Connection
 		</span>
@@ -554,7 +553,7 @@ function saveCellEdit(rowIndex: number, columnName: string, value: string): void
 						class="h-7 w-full rounded-lg border border-border/40 bg-muted/30 px-2 text-[0.6875rem] text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-primary/40"
 					/>
 					<Button variant="header" size="header" onclick={browseSqliteFile}>
-						<FolderOpen weight="regular" size={13} class="text-primary" />
+						<RoundedIcon name="folder" class="size-[13px] text-primary" />
 						Browse
 					</Button>
 				</div>

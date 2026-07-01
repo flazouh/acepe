@@ -1,10 +1,6 @@
 import type { Component } from "svelte";
+import { PaletteIcon, RobotIcon } from "@acepe/ui";
 import type { RoundedIconName } from "@acepe/ui/icons";
-import {
-	ChartLine,
-	Palette,
-	Robot,
-} from "phosphor-svelte";
 
 import type { SettingsSectionId } from "./settings-types.js";
 
@@ -44,7 +40,7 @@ export const SETTINGS_SECTIONS: readonly SettingsSectionDefinition[] = [
 		id: "appearance",
 		label: "Appearance",
 		description: "Choose how Acepe looks.",
-		icon: Palette,
+		icon: PaletteIcon,
 		groupId: "general",
 	},
 	{
@@ -59,7 +55,7 @@ export const SETTINGS_SECTIONS: readonly SettingsSectionDefinition[] = [
 		id: "agents",
 		label: "Agents & models",
 		description: "Choose which agents are enabled and set defaults.",
-		icon: Robot,
+		icon: RobotIcon,
 		groupId: "agents",
 		fullWidth: true,
 	},
@@ -126,7 +122,7 @@ export const SETTINGS_SECTIONS: readonly SettingsSectionDefinition[] = [
 		id: "usage",
 		label: "Usage",
 		description: "Token and session usage insights.",
-		icon: ChartLine,
+		roundedIcon: "chart-line",
 		groupId: "data",
 	},
 ];

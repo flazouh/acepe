@@ -1,7 +1,6 @@
 <script lang="ts">
 import { RoundedIcon, Selector } from "@acepe/ui";
 import * as DropdownMenu from "@acepe/ui/dropdown-menu";
-import { IconEye } from "@tabler/icons-svelte";
 interface Props {
 	sessionId: string;
 	projectPath: string;
@@ -28,7 +27,7 @@ const hasActions = $derived(Boolean(onView || onOpenInFinder || onArchive || onU
 
 		{#if onView}
 			<DropdownMenu.Item onclick={() => onView(sessionId)}>
-				<IconEye class="h-4 w-4 mr-2" />
+				<RoundedIcon name="eye" class="h-4 w-4 mr-2" />
 				{"Open"}
 			</DropdownMenu.Item>
 		{/if}

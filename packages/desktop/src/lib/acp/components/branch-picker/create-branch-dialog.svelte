@@ -8,7 +8,7 @@ import {
 	getNewBranchNameError,
 	getNormalizedBranchName,
 } from "./branch-picker-state.js";
-import { BRANCH_PREFIXES, DEFAULT_BRANCH_PREFIX } from "./branch-prefix-options.js";
+import { BRANCH_PREFIXES, DEFAULT_BRANCH_PREFIX, type BranchPrefix } from "./branch-prefix-options.js";
 
 interface Props {
 	open?: boolean;
@@ -84,6 +84,23 @@ $effect(() => {
 });
 </script>
 
+{#snippet prefixIcon(prefix: BranchPrefix, dataTestid?: string)}
+	{#if prefix.roundedIcon}
+		<RoundedIcon
+			name={prefix.roundedIcon}
+			class="h-3.5 w-3.5 shrink-0"
+			style="color: {prefix.color}"
+			data-testid={dataTestid}
+		/>
+	{:else if prefix.icon}
+		<prefix.icon
+			class="h-3.5 w-3.5 shrink-0"
+			weight="fill"
+			style="color: {prefix.color}"
+		/>
+	{/if}
+{/snippet}
+
 <DialogFrame
 	{open}
 	title="Create and checkout branch"
@@ -117,11 +134,7 @@ $effect(() => {
 					triggerAriaLabel="Branch prefix"
 				>
 					{#snippet renderButton()}
-						<selectedPrefix.icon
-							class="h-3.5 w-3.5 shrink-0"
-							weight="fill"
-							style="color: {selectedPrefix.color}"
-						/>
+						{@render prefixIcon(selectedPrefix, "branch-prefix-selected-icon")}
 						<span class="font-mono">{selectedPrefix.value || "\u2014"}</span>
 					{/snippet}
 
@@ -133,11 +146,7 @@ $effect(() => {
 								queueMicrotask(() => newBranchInputRef?.focus());
 							}}
 						>
-							<prefix.icon
-								class="h-3.5 w-3.5 shrink-0"
-								weight="fill"
-								style="color: {prefix.color}"
-							/>
+							{@render prefixIcon(prefix, `branch-prefix-${prefix.label}-icon`)}
 							<span class="flex-1">{prefix.label}</span>
 							{#if selectedPrefix === prefix}
 								<RoundedIcon name="check" class="size-4 shrink-0 text-foreground" />

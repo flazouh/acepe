@@ -1,5 +1,4 @@
 <script lang="ts">
-import { FileText, FolderOpen, Puzzle } from "@lucide/svelte/icons";
 import { RoundedIcon } from "@acepe/ui";
 import AgentIcon from "$lib/acp/components/agent-icon.svelte";
 import { cn } from "$lib/utils.js";
@@ -76,18 +75,18 @@ function handleKeyDown(event: KeyboardEvent) {
 				<RoundedIcon name="chevron-right" class="size-3 shrink-0 text-muted-foreground" />
 			{/if}
 			{#if isPluginsSection}
-				<FolderOpen class="h-4 w-4 shrink-0 text-purple-500" />
+				<RoundedIcon name="folder" class="h-4 w-4 shrink-0 text-purple-500" />
 			{:else if isPlugin}
-				<Puzzle class="h-4 w-4 shrink-0 text-purple-500" />
+				<RoundedIcon name="skills" class="h-4 w-4 shrink-0 text-purple-500" />
 			{:else}
 				<AgentIcon agentId={node.agentId} class="shrink-0" size={16} />
 			{/if}
 		{:else}
 			<span class="w-4"></span>
 			{#if isPluginSkill}
-				<FileText class="h-4 w-4 shrink-0 text-purple-400" />
+				<RoundedIcon name="file-text" class="h-4 w-4 shrink-0 text-purple-400" />
 			{:else}
-				<FileText class="h-4 w-4 shrink-0 text-muted-foreground" />
+				<RoundedIcon name="file-text" class="h-4 w-4 shrink-0 text-muted-foreground" />
 			{/if}
 		{/if}
 		<span class="truncate">{node.label}</span>

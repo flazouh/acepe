@@ -1,5 +1,4 @@
 <script lang="ts">
-import { IconSelector } from "@tabler/icons-svelte";
 import { RoundedIcon, Selector } from "@acepe/ui";
 import * as DropdownMenu from "@acepe/ui/dropdown-menu";
 import type { SessionSummary } from "$lib/acp/application/dto/session-summary.js";
@@ -195,7 +194,14 @@ function formatDate(date: Date): string {
 							<RoundedIcon name="arrow-up" class="size-2.5 rotate-180" />
 						{/if}
 					{:else}
-						<IconSelector class="size-2.5 opacity-30" />
+						<span
+							class="inline-flex size-2.5 flex-col items-center justify-center opacity-30"
+							data-testid="session-table-unsorted-sort-icon"
+							aria-hidden="true"
+						>
+							<RoundedIcon name="chevron-up" class="size-2" />
+							<RoundedIcon name="chevron-down" class="-mt-1 size-2" />
+						</span>
 					{/if}
 				</button>
 			{/each}

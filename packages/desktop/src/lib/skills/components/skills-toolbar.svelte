@@ -1,7 +1,6 @@
 <script lang="ts">
-import { RoundedIcon, Selector, PlusIcon } from "@acepe/ui";
+import { RoundedIcon, Selector, PlusIcon, SaveIcon } from "@acepe/ui";
 import * as DropdownMenu from "@acepe/ui/dropdown-menu";
-import { Save } from "@lucide/svelte/icons";
 import { Button } from "$lib/components/ui/button/index.js";
 import { Spinner } from "$lib/components/ui/spinner/index.js";
 
@@ -67,7 +66,7 @@ function handleDelete() {
 				{#if store.isSaving}
 					<Spinner class="mr-1" size={16} />
 				{:else}
-					<Save class="h-4 w-4 mr-1" />
+					<SaveIcon class="h-4 w-4 mr-1" />
 				{/if}
 				Save
 			</Button>

@@ -7,7 +7,7 @@ import { Input } from "$lib/components/ui/input/index.js";
 import { Label } from "$lib/components/ui/label/index.js";
 import { Switch } from "$lib/components/ui/switch/index.js";
 import { Textarea } from "$lib/components/ui/textarea/index.js";
-import { Sparkle } from "phosphor-svelte";
+import { RoundedIcon } from "@acepe/ui/icons";
 
 import { getLibraryStore } from "../store/library-store.svelte.js";
 
@@ -117,7 +117,7 @@ function handleClose() {
 	{onOpenChange}
 >
 	{#snippet topLeft()}
-		<Sparkle size={14} weight="bold" class="shrink-0 text-primary" />
+		<RoundedIcon name="sparkle" class="size-3.5 shrink-0 text-primary" />
 		<span class="truncate text-[11px] font-semibold text-foreground select-none">Create New Skill</span>
 	{/snippet}
 

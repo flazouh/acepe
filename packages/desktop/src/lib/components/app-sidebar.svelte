@@ -41,8 +41,6 @@ const data = {
 	import * as Collapsible from "$lib/components/ui/collapsible/index.js";
 	import { RoundedIcon } from "@acepe/ui";
 	import * as Sidebar from "$lib/components/ui/sidebar/index.js";
-	import FolderIcon from "@lucide/svelte/icons/folder";
-	import FileIcon from "@lucide/svelte/icons/file";
 
 	let { ref = $bindable(null), ...restProps }: ComponentProps<typeof Sidebar.Root> = $props();
 </script>
@@ -56,7 +54,7 @@ const data = {
 					{#each data.changes as item, index (index)}
 						<Sidebar.MenuItem>
 							<Sidebar.MenuButton>
-								<FileIcon />
+								<RoundedIcon name="file-text" />
 								{item.file}
 							</Sidebar.MenuButton>
 							<Sidebar.MenuBadge>{item.state}</Sidebar.MenuBadge>
@@ -86,7 +84,7 @@ const data = {
 			isActive={name === "button.svelte"}
 			class="data-[active=true]:bg-transparent"
 		>
-			<FileIcon />
+			<RoundedIcon name="file-text" />
 			{name}
 		</Sidebar.MenuButton>
 	{:else}
@@ -99,7 +97,7 @@ const data = {
 					{#snippet child({ props })}
 						<Sidebar.MenuButton {...props}>
 							<RoundedIcon name="chevron-right" class="size-3 shrink-0 transition-transform" />
-							<FolderIcon />
+							<RoundedIcon name="folder" />
 							{name}
 						</Sidebar.MenuButton>
 					{/snippet}

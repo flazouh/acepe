@@ -2,7 +2,6 @@
 import { FilePathBadge } from "@acepe/ui/file-path-badge";
 import { Button } from "@acepe/ui/button";
 import { RoundedIcon } from "@acepe/ui";
-import { ShieldCheck } from "phosphor-svelte";
 import { getPermissionStore } from "../../store/permission-store.svelte.js";
 import type { PermissionRequest } from "../../types/permission.js";
 import { COLOR_NAMES, Colors } from "@acepe/ui/colors";
@@ -86,7 +85,7 @@ const buttonClass = "justify-center shrink-0";
 
 			{#if hasAlwaysOption}
 				<Button variant="toolbar" size="toolbar" class={buttonClass} onclick={handleAlwaysAllow}>
-					<ShieldCheck weight="fill" class="size-3 shrink-0" style="color: {alwaysIconColor}" />
+					<RoundedIcon name="shield-check" class="size-3 shrink-0" style="color: {alwaysIconColor}" />
 					<span>{"Always"}</span>
 				</Button>
 			{/if}

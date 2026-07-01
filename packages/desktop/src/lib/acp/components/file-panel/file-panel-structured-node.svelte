@@ -1,6 +1,5 @@
 <script lang="ts">
 import { PlanIcon, RoundedIcon } from "@acepe/ui";
-import { CircleDashed } from "phosphor-svelte";
 
 import type { StructuredData } from "./format/types.js";
 import { buildStructuredNodeDisplayState } from "./file-panel-structured-node-state.js";
@@ -83,7 +82,7 @@ const nodeState = $derived.by(() => {
 					{#if typeof nodeState.displayValue === "boolean" && nodeState.displayValue}
 						<RoundedIcon name="check-circle" class="h-3.5 w-3.5 text-emerald-500" />
 					{:else}
-						<CircleDashed class="h-3.5 w-3.5 text-muted-foreground" weight="bold" />
+						<RoundedIcon name="circle-dashed" class="h-3.5 w-3.5 text-muted-foreground" />
 					{/if}
 				</span>
 				<span class="structured-key">{nodeState.keyPrefix}</span>

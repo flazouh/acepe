@@ -15,26 +15,34 @@ let { isAdded, onImport, onUndo }: Props = $props();
 	<Button
 		variant="ghost"
 		size="icon-chrome"
-		class="rounded-md text-muted-foreground/35 hover:bg-destructive/10 hover:text-destructive focus-visible:text-destructive [&_svg]:text-muted-foreground/35 hover:[&_svg]:text-destructive focus-visible:[&_svg]:text-destructive"
+		class="rounded-md hover:bg-destructive/10 hover:text-destructive focus-visible:text-destructive hover:[&_svg]:text-destructive focus-visible:[&_svg]:text-destructive"
 		aria-label="Remove project"
 		onclick={(event: MouseEvent) => {
 			event.stopPropagation();
 			onUndo();
 		}}
 	>
-		<RoundedIcon name="trash" class="size-3.5" data-testid="remove-project-icon" />
+		<RoundedIcon
+			name="trash"
+			class="size-3.5"
+			data-testid="remove-project-icon"
+		/>
 	</Button>
 {:else}
 	<Button
 		variant="ghost"
 		size="icon-chrome"
-		class="rounded-md text-muted-foreground/35 hover:text-foreground focus-visible:text-foreground [&_svg]:text-muted-foreground/35 hover:[&_svg]:text-foreground focus-visible:[&_svg]:text-foreground"
+		class="rounded-md"
 		aria-label="Import project"
 		onclick={(event: MouseEvent) => {
 			event.stopPropagation();
 			onImport();
 		}}
 	>
-		<RoundedIcon name="add" class="size-3.5" data-testid="import-project-icon" />
+		<RoundedIcon
+			name="add"
+			class="size-3.5"
+			data-testid="import-project-icon"
+		/>
 	</Button>
 {/if}

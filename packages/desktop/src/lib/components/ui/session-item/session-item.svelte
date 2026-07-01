@@ -660,7 +660,7 @@ function handleNextQuestion() {
 									</button>
 									<button
 										type="button"
-										class="shrink-0 h-5 w-5 flex items-center justify-center rounded hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring text-muted-foreground hover:text-foreground"
+										class="shrink-0 h-5 w-5 flex items-center justify-center rounded text-muted-foreground/35 transition-colors hover:bg-accent hover:text-foreground focus-visible:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring [&_svg]:text-muted-foreground/35 [&_svg]:transition-colors hover:[&_svg]:text-foreground focus-visible:[&_svg]:text-foreground"
 										onclick={handleCancelArchive}
 										aria-label="Cancel archive session"
 										title="Cancel"
@@ -671,15 +671,12 @@ function handleNextQuestion() {
 							{:else}
 								<button
 									type="button"
-									class="shrink-0 h-5 w-5 flex items-center justify-center rounded hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring hover:[&_svg]:text-foreground"
+									class="shrink-0 h-5 w-5 flex items-center justify-center rounded text-muted-foreground/35 transition-colors hover:bg-accent hover:text-foreground focus-visible:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring [&_svg]:text-muted-foreground/35 [&_svg]:transition-colors hover:[&_svg]:text-foreground focus-visible:[&_svg]:text-foreground"
 									onclick={handleArchiveClick}
 									aria-label="Archive session"
 									title="Archive"
 								>
-									<RoundedIcon
-										name="archive"
-										class="h-3.5 w-3.5 text-muted-foreground transition-colors"
-									/>
+									<RoundedIcon name="archive" class="h-3.5 w-3.5" />
 								</button>
 							{/if}
 						{/if}

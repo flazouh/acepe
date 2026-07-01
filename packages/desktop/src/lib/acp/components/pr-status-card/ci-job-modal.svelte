@@ -1,7 +1,6 @@
 <script lang="ts">
-import { LoadingIcon, RoundedIcon } from "@acepe/ui";
+import { LoadingIcon, RoundedIcon, WrenchIcon } from "@acepe/ui";
 import type { PrChecksItem } from "@acepe/ui";
-import { MinusCircle, Wrench } from "phosphor-svelte";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import DialogFrame from "$lib/components/ui/dialog-frame.svelte";
 import type { CiJobDetails, CiJobStep } from "$lib/utils/tauri-client/git.js";
@@ -46,6 +45,15 @@ function openOnGitHub(): void {
 }
 </script>
 
+{#snippet neutralStepIcon()}
+	<span
+		class="inline-flex size-2.5 items-center justify-center rounded-full border border-current"
+		data-testid="ci-job-neutral-step-icon"
+	>
+		<span class="h-px w-1/2 rounded-full bg-current"></span>
+	</span>
+{/snippet}
+
 <DialogFrame
 	{open}
 	title={check.name}
@@ -70,7 +78,7 @@ function openOnGitHub(): void {
 			class="mr-auto gap-1.5"
 			onclick={() => onFix(check)}
 		>
-			<Wrench size={12} weight="fill" />
+			<WrenchIcon size={12} weight="fill" />
 			Fix with agent
 		</Button>
 		<Button
@@ -110,7 +118,7 @@ function openOnGitHub(): void {
 							{:else if bucket === "failure"}
 								<RoundedIcon name="x-circle" class="size-2.5 text-destructive" />
 							{:else if bucket === "neutral"}
-								<MinusCircle size={10} weight="fill" class="text-amber-400" />
+								<span class="text-amber-400">{@render neutralStepIcon()}</span>
 							{:else}
 								<RoundedIcon name="check-circle" class="size-2.5 text-emerald-500" />
 							{/if}

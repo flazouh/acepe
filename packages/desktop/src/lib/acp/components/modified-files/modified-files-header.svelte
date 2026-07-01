@@ -28,7 +28,6 @@ import PrStateIcon from "../pr-state-icon.svelte";
 import type { Model } from "../../application/dto/model.js";
 import type { AgentInfo } from "../../logic/agent-manager.js";
 import * as agentModelPrefs from "../../store/agent-model-preferences-store.svelte.js";
-import { getReviewPreferenceStore } from "../../store/review-preference-store.svelte.js";
 import { sessionReviewStateStore } from "../../store/session-review-state-store.svelte.js";
 import { capitalizeName } from "../../utils/string-formatting.js";
 import { getModelDisplayName } from "../model-selector-logic.js";
@@ -62,8 +61,6 @@ interface Props {
 	modifiedFilesState: ModifiedFilesState | null;
 	/** Session identity used for per-session review progress persistence */
 	sessionId?: string | null;
-	/** Called when Review button is clicked - enters panel review mode */
-	onEnterReviewMode?: (modifiedFilesState: ModifiedFilesState, fileIndex: number) => void;
 	/** Called when Review should open without changing the parent panel layout */
 	onOpenReviewDialog?: (modifiedFilesState: ModifiedFilesState, fileIndex: number) => void;
 	/** Optional: when provided, shows expand icon to open full-screen review overlay */
@@ -103,7 +100,6 @@ interface Props {
 let {
 	modifiedFilesState,
 	sessionId = null,
-	onEnterReviewMode,
 	onOpenReviewDialog,
 	onOpenFullscreenReview,
 	onCreatePr,
@@ -122,9 +118,6 @@ let {
 	currentModelId = null,
 	effectiveTheme = "dark",
 }: Props = $props();
-
-// Get review preference store at component initialization (not in handlers)
-const reviewPreferenceStore = getReviewPreferenceStore();
 
 let hasPromptDraft = $state(false);
 let promptDraft = $state("");
@@ -229,12 +222,7 @@ function handleReviewButtonClick(fileIndex: number): void {
 		onOpenReviewDialog(modifiedFilesState, fileIndex);
 		return;
 	}
-	const preferFullscreen = reviewPreferenceStore.preferFullscreen;
-	if (preferFullscreen && onOpenFullscreenReview) {
-		onOpenFullscreenReview(modifiedFilesState, fileIndex);
-	} else {
-		onEnterReviewMode?.(modifiedFilesState, fileIndex);
-	}
+	onOpenFullscreenReview?.(modifiedFilesState, fileIndex);
 }
 
 function handleCreatePrClick(): void {
