@@ -8,6 +8,9 @@ import {
 import { GitWorkspace, type GitRemoteStatus } from "@acepe/ui/git-panel";
 import ProjectCard from "$lib/acp/components/project-card.svelte";
 import type { ProjectCardData } from "$lib/acp/components/project-card-data.js";
+import type { SessionSummary } from "$lib/acp/application/dto/session-summary.js";
+import type { Project } from "$lib/acp/logic/project-manager.svelte.js";
+import SessionTable from "$lib/components/settings/project-tab/session-table.svelte";
 
 const modelCommandChip: CommandChipModel = {
 	command: "/model",
@@ -38,6 +41,37 @@ const gitRemoteStatus: GitRemoteStatus = {
 	remote: "origin",
 	trackingBranch: "origin/main",
 };
+
+const sessionTableProjects: Project[] = [
+	{
+		path: "/Users/alex/Documents/acepe",
+		name: "Acepe",
+		lastOpened: new Date("2026-07-01T00:00:00.000Z"),
+		createdAt: new Date("2026-07-01T00:00:00.000Z"),
+		color: "#6B7CFF",
+	},
+];
+
+const sessionTableSessions: SessionSummary[] = Array.from(
+	{ length: 24 },
+	(_, index): SessionSummary => {
+		const ordinal = index + 1;
+		return {
+			id: `fixture-session-${ordinal}`,
+			projectPath: "/Users/alex/Documents/acepe",
+			agentId: "codex",
+			worktreePath: null,
+			title: `Pagination fixture ${ordinal}`,
+			status: "ready",
+			entryCount: ordinal,
+			isConnected: true,
+			isStreaming: false,
+			createdAt: new Date("2026-07-01T00:00:00.000Z"),
+			updatedAt: new Date(Date.UTC(2026, 6, 1, 0, ordinal, 0)),
+			parentId: null,
+		};
+	}
+);
 </script>
 
 <div class="h-screen w-screen space-y-4 overflow-auto bg-background p-4">
@@ -46,6 +80,9 @@ const gitRemoteStatus: GitRemoteStatus = {
 	</div>
 	<div class="w-[320px]" data-testid="project-card-fixture">
 		<ProjectCard data={projectCardData} index={0} onSelect={() => {}} />
+	</div>
+	<div class="h-[360px] w-[760px] border border-border/40 p-2" data-testid="session-table-fixture">
+		<SessionTable sessions={sessionTableSessions} projects={sessionTableProjects} loading={false} />
 	</div>
 	<div class="h-[320px] w-[760px] border border-border/40" data-testid="git-workspace-fixture">
 		<GitWorkspace

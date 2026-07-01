@@ -1,8 +1,4 @@
 <script lang="ts">
-import {
-	CaretDoubleLeft,
-	CaretDoubleRight,
-} from "phosphor-svelte";
 import { IconSelector } from "@tabler/icons-svelte";
 import { RoundedIcon, Selector } from "@acepe/ui";
 import * as DropdownMenu from "@acepe/ui/dropdown-menu";
@@ -270,9 +266,11 @@ function formatDate(date: Date): string {
 					type="button"
 					class="size-5 flex items-center justify-center rounded-md text-muted-foreground hover:text-foreground hover:bg-accent disabled:opacity-30 transition-all"
 					disabled={!canGoPrevious}
+					aria-label="First page"
+					title="First page"
 					onclick={() => state.goToFirstPage()}
 				>
-					<CaretDoubleLeft size={12} weight="regular" class="shrink-0" />
+					<RoundedIcon name="dist-dmzwhx2o--10-previous" class="size-3 shrink-0" />
 				</button>
 				<button
 					type="button"
@@ -297,9 +295,11 @@ function formatDate(date: Date): string {
 					type="button"
 					class="size-5 flex items-center justify-center rounded-md text-muted-foreground hover:text-foreground hover:bg-accent disabled:opacity-30 transition-all"
 					disabled={!canGoNext}
+					aria-label="Last page"
+					title="Last page"
 					onclick={() => state.goToLastPage(totalPages)}
 				>
-					<CaretDoubleRight size={12} weight="regular" class="shrink-0" />
+					<RoundedIcon name="dist-dmzwhx2o--10-next" class="size-3 shrink-0" />
 				</button>
 			</div>
 		{/if}
