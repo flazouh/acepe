@@ -13,7 +13,6 @@ import * as ButtonGroup from "@acepe/ui/button-group";
 import * as DropdownMenu from "@acepe/ui/dropdown-menu";
 import DialogFrame from "$lib/components/ui/dialog-frame.svelte";
 import { Textarea } from "$lib/components/ui/textarea/index.js";
-import { GitMerge } from "phosphor-svelte";
 import { toast } from "svelte-sonner";
 import { tauriClient } from "$lib/utils/tauri-client.js";
 import { Spinner } from "$lib/components/ui/spinner/index.js";
@@ -515,7 +514,7 @@ function handlePromptResetClick(): void {
 									<Spinner size={11} />
 									{"Merge"}
 								{:else}
-									<GitMerge size={11} weight="fill" />
+									<RoundedIcon name="pull-request-merged" class="size-[11px]" />
 									{"Merge"}
 								{/if}
 							</Button>

@@ -9,7 +9,7 @@
 	 * - <span>   otherwise
 	 */
 	import type { Snippet } from 'svelte';
-	import { GitCommit, GitMerge } from 'phosphor-svelte';
+	import { GitCommit } from 'phosphor-svelte';
 
 	import { ChipShell } from '../chip/index.js';
 	import { DiffPill } from '../diff-pill/index.js';
@@ -68,7 +68,9 @@
 		{#if ref.type === 'commit'}
 			<GitCommit weight="bold" size={14} />
 		{:else if prState === 'merged'}
-			<GitMerge weight="bold" size={14} />
+			<RoundedIcon name="pull-request-merged" class="size-3.5" />
+		{:else if prState === 'closed'}
+			<RoundedIcon name="pull-request-closed" class="size-3.5" />
 		{:else}
 			<RoundedIcon name="pull-request" class="size-3.5" />
 		{/if}

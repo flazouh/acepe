@@ -1,12 +1,10 @@
 <script lang="ts">
-	import { GitMerge } from "phosphor-svelte";
-
 	import type { AgentPanelPrCardModel } from "./types.js";
 
 	import { Colors } from "../../lib/colors.js";
 	import { DiffPill } from "../diff-pill/index.js";
 	import { GitHubBadge } from "../github-badge/index.js";
-	import { LoadingIcon, RoundedIcon } from "../icons/index.js";
+	import { LoadingIcon, RoundedIcon, type RoundedIconName } from "../icons/index.js";
 	import { MarkdownDisplay } from "../markdown/index.js";
 	import { PrChecksList } from "../pr-checks/index.js";
 	import AgentPanelPrStatusCard from "./pr-status-card.svelte";
@@ -48,6 +46,13 @@
 				? "var(--destructive)"
 				: "var(--success)"
 	);
+	const headerIconName = $derived<RoundedIconName>(
+		prState === "merged"
+			? "pull-request-merged"
+			: prState === "closed"
+				? "pull-request-closed"
+				: "pull-request"
+	);
 </script>
 
 <AgentPanelPrStatusCard {visible} {fetchError} {initiallyExpanded} {hasExpandedContent} hasBelowHeader={hasChecks}>
@@ -61,11 +66,11 @@
 					model.onOpen?.(event);
 				}}
 			>
-				{#if prState === "merged"}
-					<GitMerge size={13} weight="bold" class="shrink-0" style="color: {headerIconColor}" />
-				{:else}
-					<RoundedIcon name="pull-request" class="size-[13px] shrink-0" style="color: {headerIconColor}" />
-				{/if}
+				<RoundedIcon
+					name={headerIconName}
+					class="size-[13px] shrink-0"
+					style="color: {headerIconColor}"
+				/>
 				<span class="font-medium tabular-nums text-foreground">#{model.number}</span>
 			</button>
 			{#if model.title}

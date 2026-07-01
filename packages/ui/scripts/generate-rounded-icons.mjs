@@ -83,6 +83,8 @@ const preferredAliases = {
 	"check-circle-filled": "check-circle-filled-bp7jivp",
 	"question-circle": "question-mark-circle-bun0omof",
 	"pull-request": "pull-request-open-dat8z13d",
+	"pull-request-closed": "pull-request-status-bdnvgysd--03",
+	"pull-request-merged": "pull-request-status-bdnvgysd--06",
 };
 
 function readAttribute(attributes, name) {
