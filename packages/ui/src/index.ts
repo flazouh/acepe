@@ -340,16 +340,29 @@ export { GitHubBadge } from "./components/github-badge/index.js";
 export {
 	ArrowRightIcon,
 	BuildIcon,
+	DatabaseIcon,
+	DiscordIcon,
+	GoogleLogoIcon,
+	LayoutModeIcon,
 	RoundedIcon,
 	DotmSquare18Spinner,
 	DotmTriangle17Spinner,
 	DotmTriangle20Spinner,
 	LoadingIcon,
+	MenuIcon,
+	MoreVerticalIcon,
+	PaletteIcon,
 	PlanIcon,
 	PlusIcon,
 	PLUS_ACTION_BUTTON_CLASS,
 	PLUS_ICON_CLASS,
+	RecycleIcon,
 	RevertIcon,
+	RobotIcon,
+	SaveIcon,
+	StorageIcon,
+	WrenchIcon,
+	XLogoIcon,
 } from "./components/icons/index.js";
 export { ProviderMark } from "./components/provider-mark/index.js";
 export type { ProviderBrand } from "./components/provider-mark/index.js";
@@ -444,6 +457,8 @@ export {
 export { PlanSidebarLayout } from "./components/plan-sidebar/index.js";
 export { BrandLockup } from "./components/brand-lockup/index.js";
 export { BrandShaderBackground } from "./components/brand-shader-background/index.js";
+export { BrandSurface } from "./components/brand-surface/index.js";
+export { IrisCard } from "./components/iris-card/index.js";
 export { DismissableTooltip } from "./components/dismissable-tooltip/index.js";
 export { PillButton } from "./components/pill-button/index.js";
 export { ProjectCard } from "./components/project-card/index.js";
