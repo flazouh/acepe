@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { ArrowCounterClockwise, CircleDashed } from "phosphor-svelte";
+	import { CircleDashed } from "phosphor-svelte";
 
 	import type { AgentPanelModifiedFileItem } from "./types.js";
 
@@ -89,7 +89,7 @@
 			title="Discard changes"
 			onclick={() => file.onRevert?.()}
 		>
-			<ArrowCounterClockwise size={12} weight="bold" />
+			<RoundedIcon name="undo" class="size-3" />
 		</button>
 	{/if}
 </div>

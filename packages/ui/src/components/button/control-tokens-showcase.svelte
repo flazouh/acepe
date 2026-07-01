@@ -1,7 +1,6 @@
 <script lang="ts">
-	import { GearSix } from "phosphor-svelte";
-
 	import Button from "./button.svelte";
+	import { RoundedIcon } from "../icons/index.js";
 	import {
 		buttonSizeShowcaseColumnMinWidth,
 		buttonSizeShowcaseOrder,
@@ -64,7 +63,7 @@
 										<Button variant={entry.variant} {size}>
 											{#snippet children()}
 												{#if display.kind === "icon"}
-													<GearSix class="size-3.5" weight="fill" />
+													<RoundedIcon name="settings" class="size-3.5" />
 												{:else}
 													<span class="truncate">{display.label}</span>
 												{/if}

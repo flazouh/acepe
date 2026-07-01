@@ -3,7 +3,7 @@
 -->
 <script lang="ts">
 	import type { Snippet } from "svelte";
-	import { File, Image as ImageIcon } from "phosphor-svelte";
+	import { File } from "phosphor-svelte";
 
 	import PlusIcon from "../icons/plus-icon.svelte";
 	import { RoundedIcon } from "../icons/index.js";
@@ -243,7 +243,7 @@
 			<span class="text-xs">{addFileContextLabel}</span>
 		</DropdownMenu.Item>
 		<DropdownMenu.Item onSelect={handleAttachImage} class={selectorPanelItemClass}>
-			<ImageIcon class="size-3.5 shrink-0" />
+			<RoundedIcon name="image" class="size-3.5 shrink-0" />
 			<span class="text-xs">{attachImageLabel}</span>
 		</DropdownMenu.Item>
 	{/if}

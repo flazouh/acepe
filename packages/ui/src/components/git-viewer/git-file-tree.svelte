@@ -8,7 +8,6 @@
 	import { FileX } from "phosphor-svelte";
 	import { FileDashed } from "phosphor-svelte";
 	import { File } from "phosphor-svelte";
-	import { FolderSimple } from "phosphor-svelte";
 	import { SvelteSet } from "svelte/reactivity";
 
 	import { DiffPill } from "../diff-pill/index.js";
@@ -149,7 +148,7 @@
 							onerror={handleFolderIconError}
 						/>
 					{:else}
-						<FolderSimple size={14} weight={isExpanded ? "fill" : "regular"} class="shrink-0 text-muted-foreground" />
+						<RoundedIcon name="folder" class="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
 					{/if}
 					<span class="truncate text-[0.6875rem] font-medium">{node.name}</span>
 				</button>

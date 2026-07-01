@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { ArrowCounterClockwise, CircleDashed } from "phosphor-svelte";
+	import { CircleDashed } from "phosphor-svelte";
 
 	import type { ReviewWorkspaceFileItem } from "./types.js";
 
@@ -144,7 +144,7 @@
 								title="Discard changes"
 								onclick={() => onFileRevert(index)}
 							>
-								<ArrowCounterClockwise size={12} weight="bold" />
+								<RoundedIcon name="undo" class="size-3" />
 							</button>
 						{/if}
 					</div>

@@ -7,7 +7,6 @@ import {
 	shouldShowSessionProjectBadge,
 } from "@acepe/ui/project-letter-badge";
 import * as DropdownMenu from "@acepe/ui/dropdown-menu";
-import { Archive } from "phosphor-svelte";
 import { Tree } from "phosphor-svelte";
 import { COLOR_NAMES, Colors } from "@acepe/ui/colors";
 import { tick } from "svelte";
@@ -678,11 +677,9 @@ function handleNextQuestion() {
 									aria-label="Archive session"
 									title="Archive"
 								>
-									<Archive
+									<RoundedIcon
+										name="archive"
 										class="h-3.5 w-3.5 text-muted-foreground transition-colors"
-										weight="fill"
-										color="currentColor"
-										aria-hidden="true"
 									/>
 								</button>
 							{/if}

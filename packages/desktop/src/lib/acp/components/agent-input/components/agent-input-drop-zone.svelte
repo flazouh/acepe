@@ -1,5 +1,5 @@
 <script lang="ts">
-import { ImageSquare } from "phosphor-svelte";
+import { RoundedIcon } from "@acepe/ui";
 
 let { isDragHovering, label }: { isDragHovering: boolean; label: string } = $props();
 </script>
@@ -15,11 +15,11 @@ let { isDragHovering, label }: { isDragHovering: boolean; label: string } = $pro
 					? 'bg-foreground/10'
 					: 'bg-muted'}"
 			>
-				<ImageSquare
+				<RoundedIcon
+					name="image"
 					class="h-5 w-5 transition-colors duration-150 {isDragHovering
 						? 'text-foreground'
 						: 'text-muted-foreground'}"
-					weight="duotone"
 				/>
 			</div>
 			<span
