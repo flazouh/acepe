@@ -14,6 +14,7 @@ import {
 	type CommandChipModel,
 } from "@acepe/ui/agent-panel";
 import { GitWorkspace, type GitRemoteStatus } from "@acepe/ui/git-panel";
+import { PlanIcon } from "@acepe/ui/icons";
 import AddRepositoryActionsCell from "$lib/acp/components/add-repository/cells/actions-cell.svelte";
 import ProjectCard from "$lib/acp/components/project-card.svelte";
 import type { ProjectCardData } from "$lib/acp/components/project-card-data.js";
@@ -141,6 +142,14 @@ const permissionIconKinds = ["edit", "execute", "search", "delete"] as const;
 	>
 		<AddRepositoryActionsCell isAdded={false} onImport={() => {}} onUndo={() => {}} />
 		<AddRepositoryActionsCell isAdded={true} onImport={() => {}} onUndo={() => {}} />
+	</div>
+	<div
+		class="flex w-[160px] items-center gap-3 border border-border/40 p-2"
+		data-testid="plan-icon-fixture"
+	>
+		<PlanIcon size="sm" data-testid="plan-icon-sm" />
+		<PlanIcon size="md" data-testid="plan-icon-md" />
+		<PlanIcon size="lg" data-testid="plan-icon-lg" />
 	</div>
 	<div class="w-[520px] space-y-2" data-testid="agent-tool-skill-fixture">
 		<AgentToolSkill skillName="diagnose" description="Diagnose hard bugs." status="done" />
