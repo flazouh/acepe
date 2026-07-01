@@ -7,7 +7,6 @@ import {
 	shouldShowSessionProjectBadge,
 } from "@acepe/ui/project-letter-badge";
 import * as DropdownMenu from "@acepe/ui/dropdown-menu";
-import { Tree } from "phosphor-svelte";
 import { COLOR_NAMES, Colors } from "@acepe/ui/colors";
 import { tick } from "svelte";
 import { buildQueueItemQuestionUiState } from "$lib/acp/components/queue/queue-item-question-ui-state.js";
@@ -611,13 +610,13 @@ function handleNextQuestion() {
 						/>
 					{/if}
 					{#if session.worktreePath}
-						<Tree
-							size={12}
-							weight="fill"
-							class="shrink-0 m-0.5 {worktreeDeleted ? 'text-destructive' : 'text-success'}"
-							color="currentColor"
+						<span
+							role="img"
 							aria-label={worktreeDeleted ? "Worktree deleted" : "Worktree session"}
-						/>
+							class="inline-flex shrink-0 m-0.5 {worktreeDeleted ? 'text-destructive' : 'text-success'}"
+						>
+							<RoundedIcon name="worktree" class="size-3" />
+						</span>
 					{/if}
 					{#if session.prNumber != null}
 						<button

@@ -1,6 +1,6 @@
 <script lang="ts">
 	import type { Snippet } from "svelte";
-	import { Robot, Tree } from "phosphor-svelte";
+	import { Robot } from "phosphor-svelte";
 	import AgentToolTask from "../agent-panel/agent-tool-task.svelte";
 	import AgentCompactToolDisplay from "../agent-panel/compact-tool-display.svelte";
 	import { DiffPill } from "../diff-pill/index.js";
@@ -122,11 +122,9 @@ function handleKeydown(event: KeyboardEvent): void {
 							aria-label={card.worktreeDeleted ? "Worktree deleted" : "Worktree session"}
 							title={card.worktreeDeleted ? "Worktree deleted" : "Worktree session"}
 						>
-							<Tree
-								size={12}
-								weight="fill"
-								class={card.worktreeDeleted ? "text-destructive" : "text-success"}
-								color="currentColor"
+							<RoundedIcon
+								name="worktree"
+								class={card.worktreeDeleted ? "size-3 text-destructive" : "size-3 text-success"}
 							/>
 						</div>
 					{/if}

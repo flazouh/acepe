@@ -22,7 +22,6 @@ import {
 import { GitWorkspace } from "@acepe/ui/git-panel";
 import { listen } from "@tauri-apps/api/event";
 import { openUrl } from "@tauri-apps/plugin-opener";
-import { Tree } from "phosphor-svelte";
 import { onMount, untrack } from "svelte";
 import { toast } from "svelte-sonner";
 import type { CommitDiff } from "$lib/acp/types/github-integration.js";
@@ -839,7 +838,7 @@ async function handleOpenPr(prNumber: number) {
 					<span
 						class="inline-flex min-w-0 items-center gap-1 rounded-full border border-border/700 px-2 py-0.5 text-[10px] font-medium text-muted-foreground"
 					>
-						<Tree size={10} weight="fill" class="shrink-0 text-success" />
+						<RoundedIcon name="worktree" class="size-2.5 shrink-0 text-success" />
 						<span class="truncate font-mono">{currentWorktree.name}</span>
 						{#if currentWorktree.origin === "external"}
 							<span class="text-[9px] uppercase tracking-wide text-muted-foreground/60">ext</span>
