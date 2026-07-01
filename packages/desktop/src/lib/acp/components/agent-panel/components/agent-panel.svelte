@@ -11,11 +11,6 @@ import {
 import { DiffPill, RoundedIcon, setThinkingPreferences, type PrChecksItem } from "@acepe/ui";
 import { Button } from "@acepe/ui/button";
 import * as ButtonGroup from "@acepe/ui/button-group";
-import {
-	CheckCircle,
-	Clock,
-	XCircle,
-} from "phosphor-svelte";
 import { onDestroy, onMount, tick } from "svelte";
 import { toast } from "svelte-sonner";
 import type { TurnState } from "../../../store/types.js";
@@ -144,12 +139,6 @@ let {
 	isFocused = false,
 	hideProjectBadge = false,
 	onFocus,
-	reviewMode = false,
-	reviewFilesState = null,
-	reviewFileIndex = 0,
-	onEnterReviewMode,
-	onExitReviewMode,
-	onReviewFileIndexChange,
 	hasAttachedFilePane = false,
 	onCreateIssueReport,
 }: AgentPanelProps = $props();
@@ -174,7 +163,6 @@ const rootState = new AgentPanelRootState({
 	getPanelWidth: () => width,
 	getHasAttachedFilePane: () => hasAttachedFilePane,
 	getIsFullscreen: () => isFullscreen,
-	getReviewMode: () => reviewMode,
 	getHasPlan: () => planState.plan !== null,
 	getAgentName: () => agentName,
 	getViewStateInput: (state) => ({
@@ -782,13 +770,6 @@ const hasAttachedPane = $derived(layoutController.hasAttachedPane);
 const centeredFullscreenContent = $derived(layoutController.centeredFullscreenContent);
 const agentContentColumnStyle = $derived(layoutController.agentContentColumnStyle);
 
-// Clamp reviewFileIndex to valid bounds so a stale index never leaves review mode empty.
-const clampedReviewFileIndex = $derived.by(() => {
-	const fileCount = reviewFilesState?.fileCount ?? 0;
-	if (fileCount === 0) return 0;
-	return Math.min(reviewFileIndex, fileCount - 1);
-});
-
 const effectiveWidth = $derived(layoutController.effectiveWidth);
 const widthStyle = $derived(layoutController.widthStyle);
 
@@ -838,26 +819,6 @@ function handleOpenReviewDialog(filesState: ModifiedFilesState, _fileIndex: numb
 
 // Track panelId changes for tab switching detection
 let lastPanelId = $state<string | undefined>(undefined);
-
-// Restore review mode when session loads (deferred from workspace restore)
-$effect(() => {
-	if (
-		!panelId ||
-		!sessionId ||
-		sessionController.visibleEntryCount === null ||
-		sessionController.visibleEntryCount === 0 ||
-		reviewMode
-	) {
-		return;
-	}
-
-	const pendingFileIndex = panelStore.consumePendingReviewRestore(panelId);
-	if (pendingFileIndex === null) return;
-
-	if (!modifiedFilesState) return;
-
-	onEnterReviewMode?.(modifiedFilesState, pendingFileIndex);
-});
 
 // ✅ Effects for side effects - handle tab switching
 $effect(() => {
@@ -1464,7 +1425,7 @@ async function handleFixCiCheck(check: PrChecksItem): Promise<void> {
 	{/snippet}
 
 	{#snippet topBar()}
-		<div style:display={reviewMode ? "none" : undefined}>
+		<div>
 			{#if hasPlan && planState.plan && panelId && !showPlanSidebar}
 				<SharedPlanHeader
 					title={planState.plan.title}
@@ -1487,7 +1448,7 @@ async function handleFixCiCheck(check: PrChecksItem): Promise<void> {
 	{/snippet}
 
 	{#snippet body()}
-		<div class="flex h-full min-h-0 flex-col" style:display={reviewMode ? "none" : undefined}>
+		<div class="flex h-full min-h-0 flex-col">
 			{#if checkpointTimeline.isOpen && sessionController.sessionProjectPath && sessionId}
 				<CheckpointTimeline
 					{sessionId}
@@ -1535,21 +1496,10 @@ async function handleFixCiCheck(check: PrChecksItem): Promise<void> {
 				</div>
 			{/if}
 		</div>
-		{#if reviewMode && reviewFilesState}
-			<AgentPanelReviewWorkspace
-				{sessionId}
-				reviewFilesState={reviewFilesState}
-				selectedFileIndex={clampedReviewFileIndex}
-				projectPath={effectiveProjectPath ?? sessionController.sessionProjectPath}
-				isActive={reviewMode}
-				onClose={() => onExitReviewMode?.()}
-				onFileIndexChange={(index) => onReviewFileIndexChange?.(index)}
-			/>
-		{/if}
 	{/snippet}
 
 	{#snippet preComposer()}
-		{#if viewState.kind === "conversation" && !reviewMode}
+		{#if viewState.kind === "conversation"}
 			<SharedAgentPanelTranscriptScrollControls
 				showScrollToTop={!contentScrollReveal.isAtTop}
 				showScrollToBottom={!contentScrollReveal.isAtBottom}
@@ -1559,7 +1509,6 @@ async function handleFixCiCheck(check: PrChecksItem): Promise<void> {
 			/>
 		{/if}
 		<AgentPanelPreComposerStack
-			{reviewMode}
 			showConversationChrome={viewState.kind === "conversation" ||
 				viewState.kind === "ready" ||
 				viewState.kind === "error"}
@@ -1612,7 +1561,7 @@ async function handleFixCiCheck(check: PrChecksItem): Promise<void> {
 	{/snippet}
 
 	{#snippet composer()}
-		<div style:display={reviewMode ? "none" : undefined}>
+		<div>
 			{#if viewState.kind === "conversation" || viewState.kind === "ready" || viewState.kind === "error"}
 				<SharedAgentPanelComposerFrame
 					centered={centeredFullscreenContent}
@@ -1746,7 +1695,7 @@ async function handleFixCiCheck(check: PrChecksItem): Promise<void> {
 										onclick={() => checkpointTimeline.toggle()}
 									>
 										{#snippet children()}
-											<Clock class="h-3.5 w-3.5" weight="fill" />
+											<RoundedIcon name="clock" class="size-3.5" />
 										{/snippet}
 									</Button>
 								{/if}
@@ -1759,7 +1708,7 @@ async function handleFixCiCheck(check: PrChecksItem): Promise<void> {
 	{/snippet}
 
 	{#snippet bottomDrawer()}
-		<div style:display={reviewMode ? "none" : undefined}>
+		<div>
 			{#if
 				(viewState.kind === "conversation" || viewState.kind === "ready" || viewState.kind === "error") &&
 				isTerminalDrawerOpen &&
@@ -1828,7 +1777,7 @@ async function handleFixCiCheck(check: PrChecksItem): Promise<void> {
 	title="Review changes"
 	closeLabel="Close review"
 	contentOverflow="hidden"
-	contentClass="!bg-background !rounded-lg review-changes-font"
+	contentClass="!bg-background !rounded-lg"
 	onOpenChange={(open) => reviewDialog.setOpen(open)}
 >
 	{#snippet topLeft()}
@@ -1906,7 +1855,7 @@ async function handleFixCiCheck(check: PrChecksItem): Promise<void> {
 					onclick={controls.onRejectFile}
 					title="Reject file"
 				>
-					<XCircle size={11} weight="fill" style="color: {Colors.red};" />
+					<RoundedIcon name="x-circle" class="shrink-0" style="width: 11px; height: 11px; color: {Colors.red};" />
 					Undo
 				</Button>
 				<Button
@@ -1916,7 +1865,7 @@ async function handleFixCiCheck(check: PrChecksItem): Promise<void> {
 					onclick={controls.onAcceptFile}
 					title="Keep file"
 				>
-					<CheckCircle size={11} weight="fill" class="text-success" />
+					<RoundedIcon name="check-circle" class="shrink-0 text-success" style="width: 11px; height: 11px;" />
 					Keep
 				</Button>
 			</ButtonGroup.Root>
@@ -1934,7 +1883,7 @@ async function handleFixCiCheck(check: PrChecksItem): Promise<void> {
 			showCloseButton={false}
 			compact={true}
 			flat={true}
-			diffDensity="comfortable"
+			diffDensity="default"
 			hideBottomWidget={true}
 			onControlsChange={(controls) => reviewDialog.setControls(controls)}
 			onClose={() => reviewDialog.setOpen(false)}
@@ -1951,28 +1900,3 @@ async function handleFixCiCheck(check: PrChecksItem): Promise<void> {
 		projectPath={sessionController.sessionProjectPath ?? undefined}
 	/>
 {/if}
-
-<style>
-	/*
-	 * Review modal — unified base font that RESPECTS the global Interface font
-	 * size setting. The dialog children use a mix of small fixed Tailwind sizes
-	 * on shared atoms (FilePathBadge, DiffPill, headerAction buttons) that we
-	 * must not change globally, so we unify them within the dialog via its marker
-	 * class — but to 0.875rem (the app's base body size, == text-sm), NOT a fixed
-	 * px, so the whole modal scales when the user changes the Interface font size
-	 * (which sets the root font-size). font-size does not inherit past a child
-	 * that sets it, hence !important on the specific utilities (targeting those
-	 * classes, not `*`, leaves explicitly-px-sized icons alone). :global is
-	 * required because Radix portals the dialog to a <body> sibling, outside this
-	 * component's scoped DOM. The diff renders in a shadow DOM and respects the
-	 * global Code font size via the "comfortable" density instead.
-	 */
-	:global(.review-changes-font),
-	:global(.review-changes-font .text-\[0\.6875rem\]),
-	:global(.review-changes-font .text-\[0\.625rem\]),
-	:global(.review-changes-font .text-xs),
-	:global(.review-changes-font .text-sm) {
-		font-size: 0.875rem !important;
-		line-height: 1.4 !important;
-	}
-</style>

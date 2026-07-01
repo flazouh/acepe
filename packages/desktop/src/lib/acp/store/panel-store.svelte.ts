@@ -727,11 +727,6 @@ export class PanelStore {
 			scrollTop: getPanelScrollTop?.(panel.id) ?? 0,
 			planSidebarExpanded: hotState.planSidebarExpanded,
 			messageDraft: hotState.messageDraft || undefined,
-			reviewMode: hotState.reviewMode ? true : undefined,
-			reviewFileIndex:
-				hotState.reviewMode && hotState.reviewFileIndex !== undefined
-					? hotState.reviewFileIndex
-					: undefined,
 			embeddedTerminalDrawerOpen: hotState.embeddedTerminalDrawerOpen ? true : undefined,
 			selectedEmbeddedTerminalTabId:
 				this.embeddedTerminals.getSelectedTabId(panel.id) || undefined,
@@ -1279,57 +1274,6 @@ export class PanelStore {
 	// ============================================
 	// SESSION CREATION STATE
 	// ============================================
-
-	// ============================================
-	// REVIEW MODE MANAGEMENT
-	// ============================================
-
-	/**
-	 * Enter review mode for a panel.
-	 * Shows the diff review UI instead of the conversation.
-	 *
-	 * If the panel already has review state with the same files,
-	 * reuse it so that hunk accept/reject decisions are preserved.
-	 */
-	enterReviewMode(
-		panelId: string,
-		modifiedFilesState: ModifiedFilesState,
-		initialFileIndex: number = 0
-	): void {
-		this.hotStateStore.enterReviewMode(panelId, modifiedFilesState, initialFileIndex);
-	}
-
-	exitReviewMode(panelId: string): void {
-		this.hotStateStore.exitReviewMode(panelId);
-	}
-
-	clearReviewState(panelId: string): void {
-		this.hotStateStore.clearReviewState(panelId);
-	}
-
-	setReviewFileIndex(panelId: string, fileIndex: number): void {
-		this.hotStateStore.setReviewFileIndex(panelId, fileIndex);
-	}
-
-	isPanelInReviewMode(panelId: string): boolean {
-		return this.hotStateStore.isPanelInReviewMode(panelId);
-	}
-
-	/**
-	 * Set pending review restore for a panel (used during workspace restore).
-	 * Will be applied when the session loads and has entries.
-	 */
-	setPendingReviewRestore(panelId: string, reviewFileIndex: number): void {
-		this.reviewState.setPendingReviewRestore(panelId, reviewFileIndex);
-	}
-
-	/**
-	 * Consume pending review restore for a panel.
-	 * Returns the reviewFileIndex if there was a pending restore, null otherwise.
-	 */
-	consumePendingReviewRestore(panelId: string): number | null {
-		return this.reviewState.consumePendingReviewRestore(panelId);
-	}
 
 	// ============================================
 	// PLAN SIDEBAR MANAGEMENT

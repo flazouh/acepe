@@ -1,7 +1,6 @@
 import type { IssueReportDraft } from "$lib/errors/issue-report.js";
 import type { AgentInfo } from "../../../logic/agent-manager.js";
 import type { Project } from "../../../logic/project-manager.svelte";
-import type { ModifiedFilesState } from "../../../types/modified-files-state.js";
 
 /**
  * Props for the AgentPanel component.
@@ -126,39 +125,6 @@ export interface AgentPanelProps {
 	 * Callback when the panel is focused.
 	 */
 	readonly onFocus?: () => void;
-
-	/**
-	 * Whether the panel is in review mode.
-	 */
-	readonly reviewMode?: boolean;
-
-	/**
-	 * Modified files state for review mode.
-	 */
-	readonly reviewFilesState?: ModifiedFilesState | null;
-
-	/**
-	 * Selected file index in review mode.
-	 */
-	readonly reviewFileIndex?: number;
-
-	/**
-	 * Callback to enter review mode.
-	 */
-	readonly onEnterReviewMode?: (
-		modifiedFilesState: ModifiedFilesState,
-		initialFileIndex: number
-	) => void;
-
-	/**
-	 * Callback to exit review mode.
-	 */
-	readonly onExitReviewMode?: () => void;
-
-	/**
-	 * Callback to change the selected file in review mode.
-	 */
-	readonly onReviewFileIndexChange?: (fileIndex: number) => void;
 
 	/**
 	 * Callback when the user wants to create or open an issue from an error surface.

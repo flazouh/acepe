@@ -92,7 +92,6 @@ function createState(options?: {
 	const panelStore = {
 		fullscreenPanelId: null,
 		toggleFullscreen: vi.fn(),
-		isPanelInReviewMode: vi.fn(() => false),
 		setPanelAgent: vi.fn(),
 		spawnPanel: vi.fn(() => createAgentPanel("/repo")),
 		focusedTopLevelPanel,
@@ -122,7 +121,7 @@ function createState(options?: {
 		),
 		getFirstTopLevelPanel: vi.fn(() => agentPanel),
 		getPanel: vi.fn((panelId: string) =>
-			panelId === "panel-1" ? { id: "panel-1", reviewMode: false } : undefined
+			panelId === "panel-1" ? { id: "panel-1" } : undefined
 		),
 		panels: [agentPanel],
 	} as Partial<PanelStore>;

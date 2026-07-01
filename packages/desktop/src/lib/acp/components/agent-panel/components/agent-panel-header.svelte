@@ -221,7 +221,7 @@ function handleCopySessionId(): void {
 					{/if}
 				{/if}
 			</Selector>
-			<CloseAction {onClose} title={"Close"} />
+			<CloseAction {onClose} title={"Close"} size="icon-2xs" />
 			</div>
 		{/snippet}
 

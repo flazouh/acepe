@@ -19,9 +19,6 @@ export interface KanbanThreadDialogPanelSnapshot {
 	readonly width: number;
 	readonly pendingProjectSelection: boolean;
 	readonly selectedAgentId: string | null;
-	readonly reviewMode: boolean;
-	readonly reviewFilesState: PanelHotState["reviewFilesState"];
-	readonly reviewFileIndex: number;
 	readonly isWaitingForSession: boolean;
 	readonly project: Project | null;
 }
@@ -41,9 +38,6 @@ export function buildKanbanThreadDialogPanelSnapshot(
 		width: panel.width > 0 ? panel.width : 100,
 		pendingProjectSelection: panel.pendingProjectSelection,
 		selectedAgentId: resolveKanbanThreadDialogConfiguredAgentId(panel, input.sessionIdentity),
-		reviewMode: input.hotState?.reviewMode ?? false,
-		reviewFilesState: input.hotState?.reviewFilesState ?? null,
-		reviewFileIndex: input.hotState?.reviewFileIndex ?? 0,
 		isWaitingForSession: panel.sessionId !== null && input.sessionIdentity === undefined,
 		project:
 			sessionProjectPath === null
@@ -93,9 +87,6 @@ const EMPTY_KANBAN_THREAD_DIALOG_PANEL_SNAPSHOT: KanbanThreadDialogPanelSnapshot
 	width: 100,
 	pendingProjectSelection: false,
 	selectedAgentId: null,
-	reviewMode: false,
-	reviewFilesState: null,
-	reviewFileIndex: 0,
 	isWaitingForSession: false,
 	project: null,
 };

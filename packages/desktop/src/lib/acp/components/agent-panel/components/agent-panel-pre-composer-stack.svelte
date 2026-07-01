@@ -35,7 +35,6 @@ type QueueStripMessage = {
 type ErrorInfo = { title: string; summary?: string | null; details?: string | null };
 
 let {
-	reviewMode,
 	showConversationChrome,
 	worktreeDeleted,
 	centeredFullscreenContent,
@@ -83,7 +82,6 @@ let {
 	signInRequirement,
 	onDismissSignIn,
 }: {
-	reviewMode: boolean;
 	showConversationChrome: boolean;
 	worktreeDeleted: boolean;
 	centeredFullscreenContent: boolean;
@@ -147,8 +145,7 @@ function resolveSignInCommand(agentDisplayName: string): string | null {
 }
 </script>
 
-<div style:display={reviewMode ? "none" : undefined}>
-	{#if showConversationChrome}
+{#if showConversationChrome}
 		{#if worktreeDeleted}
 			<div class="{centeredFullscreenContent ? 'flex justify-center' : ''} px-5 mb-2">
 				<div class="flex justify-center {centeredFullscreenContent ? 'w-full max-w-4xl' : ''}">
@@ -268,5 +265,4 @@ function resolveSignInCommand(agentDisplayName: string): string | null {
 				</div>
 			</div>
 		</div>
-	{/if}
-</div>
+{/if}

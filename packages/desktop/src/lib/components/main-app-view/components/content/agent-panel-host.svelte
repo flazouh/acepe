@@ -102,9 +102,6 @@ const project = $derived(hostModel?.project ?? null);
 const selectedAgentId = $derived(hostModel?.selectedAgentId ?? null);
 const isWaitingForSession = $derived(hostModel?.isWaitingForSession ?? false);
 const hasAttachedFilePane = $derived(panel ? panelStore.hasAttachedFilePanels(panel.id) : false);
-const reviewMode = $derived(hostModel?.reviewMode ?? false);
-const reviewFilesState = $derived(hostModel?.reviewFilesState ?? null);
-const reviewFileIndex = $derived(hostModel?.reviewFileIndex ?? 0);
 
 function handleAgentChange(agentId: string): void {
 	state.handlePanelAgentChange(panelId, agentId);
@@ -144,21 +141,6 @@ function handleFocus(): void {
 	state.handleFocusPanel(panelId);
 }
 
-function handleEnterReviewMode(
-	modifiedFilesState: import("$lib/acp/types/modified-files-state.js").ModifiedFilesState,
-	initialFileIndex: number
-): void {
-	panelStore.enterReviewMode(panelId, modifiedFilesState, initialFileIndex);
-}
-
-function handleExitReviewMode(): void {
-	panelStore.exitReviewMode(panelId);
-}
-
-function handleReviewFileIndexChange(index: number): void {
-	panelStore.setReviewFileIndex(panelId, index);
-}
-
 function handleCreateIssueReport(
 	draft: Parameters<MainAppViewState["openUserReportsWithDraft"]>[0]
 ): void {
@@ -191,12 +173,6 @@ function handleCreateIssueReport(
 			onToggleFullscreen={handleToggleFullscreen}
 			onFocus={handleFocus}
 			{hideProjectBadge}
-			{reviewMode}
-			{reviewFilesState}
-			{reviewFileIndex}
-			onEnterReviewMode={handleEnterReviewMode}
-			onExitReviewMode={handleExitReviewMode}
-			onReviewFileIndexChange={handleReviewFileIndexChange}
 			onCreateIssueReport={handleCreateIssueReport}
 			{hasAttachedFilePane}
 		/>

@@ -22,7 +22,6 @@ describe("AgentPanelLayoutController", () => {
 			getPanelWidth: () => overrides?.width ?? 800,
 			getHasAttachedFilePane: () => overrides?.hasAttachedPane ?? false,
 			getIsFullscreen: () => false,
-			getReviewMode: () => false,
 			getHasPlan: () => true,
 			panelStore,
 		});

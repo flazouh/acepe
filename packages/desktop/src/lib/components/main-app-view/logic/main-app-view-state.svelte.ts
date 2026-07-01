@@ -177,27 +177,6 @@ export class MainAppViewState {
 		return this.panelStore.viewMode === "single";
 	}
 
-	private getSingleModePanelId(): string | null {
-		const focusedPanelId = this.panelStore.focusedPanelId;
-		if (focusedPanelId && this.panelStore.getTopLevelPanel(focusedPanelId)) {
-			return focusedPanelId;
-		}
-
-		const firstTopLevelPanel = this.panelStore.getFirstTopLevelPanel();
-		return firstTopLevelPanel ? firstTopLevelPanel.id : null;
-	}
-
-	/**
-	 * Whether the single-session fullscreen layout is active but NOT due to review mode.
-	 * Used to determine sidebar visibility - sidebar stays visible during review mode.
-	 */
-	get isFullscreenWithoutReview(): boolean {
-		if (!this.isFullscreen) return false;
-		const singleModePanelId = this.getSingleModePanelId();
-		if (!singleModePanelId) return false;
-		return !this.panelStore.isPanelInReviewMode(singleModePanelId);
-	}
-
 	/**
 	 * Gets the session store.
 	 */

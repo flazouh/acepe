@@ -76,7 +76,6 @@ describe("AgentPanelRootState", () => {
 			getPanelWidth: () => 720,
 			getHasAttachedFilePane: () => false,
 			getIsFullscreen: () => false,
-			getReviewMode: () => false,
 			getHasPlan: () => false,
 			getAgentName: () => null,
 			getViewStateInput: () => ({

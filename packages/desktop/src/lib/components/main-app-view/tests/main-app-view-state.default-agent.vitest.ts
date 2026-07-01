@@ -61,7 +61,6 @@ function createState(options: {
 	const panelStore = {
 		fullscreenPanelId: null,
 		toggleFullscreen: vi.fn(),
-		isPanelInReviewMode: vi.fn(() => false),
 		setPanelAgent: vi.fn(),
 		spawnPanel: vi.fn(() => createAgentPanel("/repo")),
 		focusedTopLevelPanel: null,
