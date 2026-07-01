@@ -1,6 +1,4 @@
 <script lang="ts">
-import { IconArrowDown } from "@tabler/icons-svelte";
-import { IconArrowUp } from "@tabler/icons-svelte";
 import {
 	CaretDoubleLeft,
 	CaretDoubleRight,
@@ -196,9 +194,9 @@ function formatDate(date: Date): string {
 					{col.label}
 					{#if state.sortColumn === col.id}
 						{#if state.sortDirection === "asc"}
-							<IconArrowUp class="size-2.5" />
+							<RoundedIcon name="arrow-up" class="size-2.5" />
 						{:else}
-							<IconArrowDown class="size-2.5" />
+							<RoundedIcon name="arrow-up" class="size-2.5 rotate-180" />
 						{/if}
 					{:else}
 						<IconSelector class="size-2.5 opacity-30" />
