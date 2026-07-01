@@ -45,12 +45,9 @@
 <script lang="ts">
 	import type { Snippet } from "svelte";
 	import {
-		GitBranch,
 		GitCommit,
-		GitPullRequest,
 		ListChecks,
 		Sparkle,
-		Tree,
 	} from "phosphor-svelte";
 
 	import { Button } from "../button/index.js";
@@ -159,7 +156,13 @@
 	}: Props = $props();
 
 	const sections = $derived<
-		readonly { id: GitSection; label: string; icon: typeof GitCommit; count?: number }[]
+		readonly {
+			id: GitSection;
+			label: string;
+			icon?: typeof GitCommit;
+			roundedIcon?: "pull-request" | "worktree";
+			count?: number;
+		}[]
 	>([
 		{
 			id: "changes",
@@ -168,8 +171,8 @@
 			count: stagedFiles.length + unstagedFiles.length,
 		},
 		{ id: "commits", label: "Commits", icon: GitCommit, count: commitsCount },
-		{ id: "prs", label: "Pull Requests", icon: GitPullRequest, count: prCount },
-		{ id: "worktrees", label: "Worktrees", icon: Tree, count: worktreeCount },
+		{ id: "prs", label: "Pull Requests", roundedIcon: "pull-request", count: prCount },
+		{ id: "worktrees", label: "Worktrees", roundedIcon: "worktree", count: worktreeCount },
 	]);
 
 	const views: readonly { id: ChangesView; label: string }[] = [
@@ -199,7 +202,15 @@
 			{#snippet itemContent(item)}
 				{@const section = sections.find((candidate) => candidate.id === item.id)}
 				{#if section}
-					<section.icon size={14} weight="bold" class="shrink-0" />
+					{#if section.roundedIcon}
+						<RoundedIcon
+							name={section.roundedIcon}
+							class="size-3.5 shrink-0"
+							data-testid={`git-workspace-${section.id}-icon`}
+						/>
+					{:else if section.icon}
+						<section.icon size={14} weight="bold" class="shrink-0" />
+					{/if}
 				{/if}
 				<span>{item.label}</span>
 				{#if section?.count != null && section.count > 0}
@@ -221,7 +232,11 @@
 					title="Switch branch"
 					class="flex min-w-0 items-center gap-1.5 !bg-transparent px-2 py-1 text-sm leading-none text-foreground transition-colors hover:bg-accent/60 disabled:pointer-events-none"
 				>
-					<GitBranch size={14} class="shrink-0 text-muted-foreground" />
+					<RoundedIcon
+						name="branch"
+						class="size-3.5 shrink-0 text-muted-foreground"
+						data-testid="git-workspace-branch-icon"
+					/>
 					<span class="truncate font-normal">{branch}</span>
 					{#if onBranchClick}
 						<RoundedIcon name="chevron-down" class="size-3 shrink-0 text-muted-foreground/70" />
