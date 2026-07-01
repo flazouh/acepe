@@ -22,6 +22,7 @@ export { default as AgentPanelSignInCard } from "./agent-sign-in-card.svelte";
 export { default as AgentInputActiveModeChip } from "./agent-input-active-mode-chip.svelte";
 export { default as AgentInputAgentSelector } from "./agent-input-agent-selector.svelte";
 export type { AgentInputAgentSelectorItem } from "./agent-input-agent-selector-types.js";
+export { default as DefaultAgentHeartIcon } from "./default-agent-heart-icon.svelte";
 export { default as AgentInputArtefactBadge } from "./agent-input-artefact-badge.svelte";
 export { default as AgentInputAttachMenu } from "./agent-input-attach-menu.svelte";
 export type {

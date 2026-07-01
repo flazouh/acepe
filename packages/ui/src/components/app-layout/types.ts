@@ -1,6 +1,9 @@
 export type AppTabStatus = "idle" | "running" | "done" | "error" | "unseen" | "question";
 export type AppTabMode = string | null;
 
+/** Updater stage that drives the sidebar update card's appearance. */
+export type SidebarUpdateKind = "available" | "downloading" | "installing" | "error";
+
 export interface AppTab {
   id: string;
   title: string;
