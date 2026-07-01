@@ -381,48 +381,73 @@ export function executeWebviewJson<T>(
 	runner: CommandRunner = runCommand
 ): ResultAsync<T, TauriMcpFailure> {
 	const callTimeoutMs = input.callTimeoutMs ?? 15_000;
-	return runTauriMcp(
-		[
-			"webview-execute-js",
-			"--app-identifier",
-			input.appIdentifier,
-			"--json",
-			"--call-timeout",
-			callTimeoutMs.toString(),
-			"--script",
-			input.script,
-		],
-		runner
-	).andThen((execution) => {
-		if (execution.code !== 0) {
-			return err({
-				code: "tauri_mcp_failed",
-				message: execution.stderr.trim() || execution.stdout.trim() || "Tauri MCP command failed.",
-			});
+
+	const execute = (): ResultAsync<T, TauriMcpFailure> =>
+		runTauriMcp(
+			[
+				"webview-execute-js",
+				"--app-identifier",
+				input.appIdentifier,
+				"--json",
+				"--call-timeout",
+				callTimeoutMs.toString(),
+				"--script",
+				input.script,
+			],
+			runner
+		).andThen((execution) => {
+			if (execution.code !== 0) {
+				return err({
+					code: "tauri_mcp_failed",
+					message: execution.stderr.trim() || execution.stdout.trim() || "Tauri MCP command failed.",
+				});
+			}
+			return unwrapTauriText(execution.stdout)
+				.andThen((text) => {
+					const jsonText = jsonObjectPrefix(text);
+					if (jsonText === null) {
+						return err({
+							code: "tauri_payload_not_json",
+							message: `Tauri MCP did not return a JSON payload. Raw: ${text.slice(0, 500)}`,
+							raw: text.slice(0, 1_000),
+						});
+					}
+					return parseJsonText(jsonText);
+				})
+				.andThen((json) => {
+					const parsed = input.schema.safeParse(json);
+					if (!parsed.success) {
+						return err({
+							code: "tauri_payload_schema_failed",
+							message: parsed.error.message,
+						});
+					}
+					return ok(parsed.data);
+				});
+		});
+
+	return execute().orElse((failure) => {
+		if (!isNoActiveDriverSessionFailure(failure)) {
+			return err(failure);
 		}
-		return unwrapTauriText(execution.stdout)
-			.andThen((text) => {
-				const jsonText = jsonObjectPrefix(text);
-				if (jsonText === null) {
-					return err({
-						code: "tauri_payload_not_json",
-						message: `Tauri MCP did not return a JSON payload. Raw: ${text.slice(0, 500)}`,
-						raw: text.slice(0, 1_000),
-					});
-				}
-				return parseJsonText(jsonText);
-			})
-			.andThen((json) => {
-				const parsed = input.schema.safeParse(json);
-				if (!parsed.success) {
-					return err({
-						code: "tauri_payload_schema_failed",
-						message: parsed.error.message,
-					});
-				}
-				return ok(parsed.data);
-			});
+		return startDriverSession(input.appIdentifier, runner).andThen((session) => {
+			if (session.code !== 0) {
+				return err({
+					code: "driver_session_failed",
+					message:
+						session.stderr.trim() || session.stdout.trim() || "Unable to start Tauri driver session.",
+				});
+			}
+			return execute();
+		});
 	});
+}
+
+function isNoActiveDriverSessionFailure(failure: TauriMcpFailure): boolean {
+	return (
+		failure.message.includes("No active session") ||
+		failure.raw?.includes("No active session") === true
+	);
 }
 
 export function startDriverSession(
