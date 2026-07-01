@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { Button, RoundedIcon } from "@acepe/ui";
-	import { DownloadSimple, GitPullRequest, ListChecks, Microphone, Rows, SlidersHorizontal, Sparkle } from "phosphor-svelte";
+	import { Microphone, Rows, SlidersHorizontal, Sparkle } from "phosphor-svelte";
 
 	import { Badge } from "$lib/components/ui/badge/index.js";
 	import SettingsPageHeader from "$lib/components/settings-page/settings-page-header.svelte";
@@ -60,14 +60,19 @@
 
 	const activeSectionMeta = $derived(sectionMetaById[activeSection]);
 
+	function roundedSectionIcon(sectionId: DesignSystemSection): "download" | "pull-request" | "tasks" | null {
+		if (sectionId === "install-card") return "download";
+		if (sectionId === "pr-card") return "pull-request";
+		if (sectionId === "task-tool") return "tasks";
+		return null;
+	}
+
 	function sectionIcon(sectionId: DesignSystemSection) {
 		if (sectionId === "control-tokens") return SlidersHorizontal;
 		if (sectionId === "claude-spark") return Sparkle;
 		if (sectionId === "new-thread-options") return Rows;
 		if (sectionId === "mic-button") return Microphone;
-		if (sectionId === "pr-card") return GitPullRequest;
-		if (sectionId === "task-tool") return ListChecks;
-		return DownloadSimple;
+		return null;
 	}
 </script>
 
@@ -84,6 +89,7 @@
 		<div class="flex flex-col gap-0.5 pb-1">
 			{#each sections as section (section.id)}
 				{@const isActive = activeSection === section.id}
+				{@const RoundedSectionIcon = roundedSectionIcon(section.id)}
 				{@const SectionIcon = sectionIcon(section.id)}
 				<button
 					type="button"
@@ -97,7 +103,11 @@
 						isActive ? "bg-accent text-foreground" : "text-muted-foreground"
 					)}
 				>
-					<SectionIcon weight="fill" class="size-3.5 shrink-0" />
+					{#if RoundedSectionIcon}
+						<RoundedIcon name={RoundedSectionIcon} class="size-3.5 shrink-0" />
+					{:else if SectionIcon}
+						<SectionIcon weight="fill" class="size-3.5 shrink-0" />
+					{/if}
 					<span class="truncate">{section.label}</span>
 				</button>
 			{/each}

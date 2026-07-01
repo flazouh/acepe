@@ -5,10 +5,10 @@
 	import { IconTable } from "@tabler/icons-svelte";
 	import { IconCode } from "@tabler/icons-svelte";
 	import { IconEye } from "@tabler/icons-svelte";
-	import { PencilSimple } from "phosphor-svelte";
 	import { BookOpenText } from "phosphor-svelte";
 	import { ProjectLetterBadge } from "../project-letter-badge/index.js";
 	import { DiffPill } from "../diff-pill/index.js";
+	import { RoundedIcon } from "../icons/index.js";
 	import {
 		CloseAction,
 		EmbeddedPanelHeader,
@@ -82,10 +82,6 @@
 		return IconCode;
 	}
 
-	function getEditorModeIcon(modeId: string) {
-		if (modeId === "write") return PencilSimple;
-		return BookOpenText;
-	}
 </script>
 
 <EmbeddedPanelHeader>
@@ -152,7 +148,6 @@
 		<HeaderActionCell withDivider={true}>
 			{#snippet children()}
 				{#each editorModes as item (item.id)}
-					{@const ModeIcon = getEditorModeIcon(item.id)}
 					<button
 						type="button"
 						onclick={() => onEditorModeChange?.(item.id)}
@@ -162,7 +157,11 @@
 							: 'text-muted-foreground hover:text-foreground hover:bg-accent/40'}"
 						data-header-control
 					>
-						<ModeIcon class="h-4 w-4" weight="fill" />
+						{#if item.id === "write"}
+							<RoundedIcon name="pencil" class="h-4 w-4" />
+						{:else}
+							<BookOpenText class="h-4 w-4" weight="fill" />
+						{/if}
 						<span>{item.label}</span>
 					</button>
 				{/each}

@@ -6,7 +6,6 @@
 	 */
 	import type { Snippet } from "svelte";
 	import { GitDiff } from "phosphor-svelte";
-	import { ClockCounterClockwise } from "phosphor-svelte";
 	import { Package } from "phosphor-svelte";
 
 	import { cn } from "../../lib/utils.js";
@@ -19,6 +18,7 @@
 	import GitStashList from "./git-stash-list.svelte";
 	import GitLogList from "./git-log-list.svelte";
 	import { SegmentedToggleGroup } from "../panel-header/index.js";
+	import { RoundedIcon } from "../icons/index.js";
 
 	type ViewTab = "status" | "history" | "stash";
 
@@ -111,9 +111,14 @@
 		class: className,
 	}: Props = $props();
 
-	const views: { value: ViewTab; label: string; icon: typeof GitDiff }[] = [
+	const views: {
+		value: ViewTab;
+		label: string;
+		icon?: typeof GitDiff;
+		roundedIcon?: "history";
+	}[] = [
 		{ value: "status", label: "Status", icon: GitDiff },
-		{ value: "history", label: "History", icon: ClockCounterClockwise },
+		{ value: "history", label: "History", roundedIcon: "history" },
 		{ value: "stash", label: "Stash", icon: Package },
 	];
 </script>
@@ -135,7 +140,11 @@
 			{#snippet itemContent(item)}
 				{@const view = views.find((candidate) => candidate.value === item.id)}
 				{#if view}
-					<view.icon size={12} weight="bold" />
+					{#if view.roundedIcon}
+						<RoundedIcon name={view.roundedIcon} class="size-3" />
+					{:else if view.icon}
+						<view.icon size={12} weight="bold" />
+					{/if}
 				{/if}
 				{item.label}
 				{#if item.id === "stash" && stashEntries.length > 0}
