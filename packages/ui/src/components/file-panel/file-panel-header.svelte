@@ -3,7 +3,6 @@
 
 	import { IconListTree } from "@tabler/icons-svelte";
 	import { IconTable } from "@tabler/icons-svelte";
-	import { IconCode } from "@tabler/icons-svelte";
 	import { IconEye } from "@tabler/icons-svelte";
 	import { BookOpenText } from "phosphor-svelte";
 	import { ProjectLetterBadge } from "../project-letter-badge/index.js";
@@ -79,7 +78,7 @@
 		if (modeId === "rendered") return IconEye;
 		if (modeId === "structured") return IconListTree;
 		if (modeId === "table") return IconTable;
-		return IconCode;
+		return null;
 	}
 
 </script>
@@ -136,7 +135,11 @@
 							: 'text-muted-foreground hover:text-foreground hover:bg-accent/40'}"
 						data-header-control
 					>
-						<ModeIcon class="h-4 w-4" />
+						{#if ModeIcon}
+							<ModeIcon class="h-4 w-4" />
+						{:else}
+							<RoundedIcon name="code" class="h-4 w-4" />
+						{/if}
 						<span>{item.label}</span>
 					</button>
 				{/each}
