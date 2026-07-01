@@ -1,7 +1,6 @@
 <script lang="ts">
 import { Button, RoundedIcon } from "@acepe/ui";
 import { PlanSidebarLayout } from "@acepe/ui/plan-sidebar";
-import { ArrowsOut } from "phosphor-svelte";
 import { toast } from "svelte-sonner";
 import { ScrollArea } from "$lib/components/ui/scroll-area/index.js";
 import type { SessionPlanResponse } from "$lib/services/converted-session-types.js";
@@ -72,7 +71,7 @@ function handleDownloadMarkdown() {
 				onclick={onOpenFullscreen}
 			>
 				{#snippet children()}
-					<ArrowsOut size={14} weight="bold" />
+					<RoundedIcon name="expand" class="size-3.5" />
 				{/snippet}
 			</Button>
 		{/snippet}

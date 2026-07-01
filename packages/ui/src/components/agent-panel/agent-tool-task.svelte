@@ -1,5 +1,4 @@
 <script lang="ts">
-	import { ArrowsOutSimple } from "phosphor-svelte";
 	import type { Snippet } from "svelte";
 	import * as Dialog from "../dialog/index.js";
 	import AgentPanelSceneEntry from "../agent-panel-scene/agent-panel-scene-entry.svelte";
@@ -142,7 +141,7 @@
 				}}
 			>
 				{#snippet children()}
-					<ArrowsOutSimple size={12} weight="bold" />
+					<RoundedIcon name="expand" class="size-3" />
 				{/snippet}
 			</Button>
 		{/if}

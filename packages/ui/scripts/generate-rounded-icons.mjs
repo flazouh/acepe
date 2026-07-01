@@ -77,6 +77,8 @@ const preferredAliases = {
 	"arrow-up": "arrow-up-coa6jjxn",
 	"arrow-top-right": "arrow-top-right-c3w7bbw4",
 	"arrow-up-right": "arrow-up-right-lg-brqfkomv",
+	expand: "expand-ciw-vcu3--01",
+	collapse: "expand-ciw-vcu3--02",
 	play: "play-sm-bgmgx9gj",
 	"play-outline": "play-outline-sajgrat4",
 	"check-circle": "check-circle-b-kjslxa",

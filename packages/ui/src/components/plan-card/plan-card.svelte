@@ -16,7 +16,6 @@
   } from "../panel-header/index.js";
   import { Button } from "../button/index.js";
   import { PlanIcon, BuildIcon, LoadingIcon, RoundedIcon } from "../icons/index.js";
-  import { ArrowsOut } from "phosphor-svelte";
 
   interface Props {
     content: string;
@@ -76,7 +75,7 @@
           title="Open full plan"
           aria-label="Open full plan"
         >
-          <ArrowsOut weight="bold" class="size-3.5 shrink-0" />
+          <RoundedIcon name="expand" class="size-3.5 shrink-0" />
         </button>
       </HeaderActionCell>
     {/if}
