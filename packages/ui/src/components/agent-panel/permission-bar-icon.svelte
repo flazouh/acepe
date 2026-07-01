@@ -2,7 +2,6 @@
 	import {
 		ArrowsLeftRight,
 		File,
-		GlobeHemisphereWest,
 	} from "phosphor-svelte";
 	import { RoundedIcon } from "../icons/index.js";
 
@@ -39,7 +38,12 @@
 		data-testid="permission-bar-search-icon"
 	/>
 {:else if kind === "fetch" || kind === "web_search"}
-	<GlobeHemisphereWest weight="fill" {size} class="shrink-0" style="color: {color}" />
+	<RoundedIcon
+		name="globe"
+		class="shrink-0"
+		style="width: {size}px; height: {size}px; color: {color};"
+		data-testid="permission-bar-fetch-icon"
+	/>
 {:else if kind === "delete"}
 	<RoundedIcon
 		name="trash"

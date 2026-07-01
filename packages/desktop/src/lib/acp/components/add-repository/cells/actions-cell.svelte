@@ -15,7 +15,7 @@ let { isAdded, onImport, onUndo }: Props = $props();
 	<Button
 		variant="ghost"
 		size="icon-chrome"
-		class="rounded-md hover:bg-destructive/10 hover:text-destructive hover:[&_svg]:text-destructive"
+		class="rounded-md text-muted-foreground/35 hover:bg-destructive/10 hover:text-destructive focus-visible:text-destructive [&_svg]:text-muted-foreground/35 hover:[&_svg]:text-destructive focus-visible:[&_svg]:text-destructive"
 		aria-label="Remove project"
 		onclick={(event: MouseEvent) => {
 			event.stopPropagation();
@@ -28,7 +28,7 @@ let { isAdded, onImport, onUndo }: Props = $props();
 	<Button
 		variant="ghost"
 		size="icon-chrome"
-		class="rounded-md"
+		class="rounded-md text-muted-foreground/35 hover:text-foreground focus-visible:text-foreground [&_svg]:text-muted-foreground/35 hover:[&_svg]:text-foreground focus-visible:[&_svg]:text-foreground"
 		aria-label="Import project"
 		onclick={(event: MouseEvent) => {
 			event.stopPropagation();

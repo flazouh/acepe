@@ -446,7 +446,7 @@ export async function runCli(
 			first === undefined ? "attrs: none" : `attrs: ${formatAttributes(first.attributes)}`,
 			first === undefined
 				? "computed: none"
-				: `computed: display=${first.computedStyle.display} gap=${first.computedStyle.gap} rowGap=${first.computedStyle.rowGap} columnGap=${first.computedStyle.columnGap}`,
+				: `computed: display=${first.computedStyle.display} color=${first.computedStyle.color} bg=${first.computedStyle.backgroundColor} gap=${first.computedStyle.gap} rowGap=${first.computedStyle.rowGap} columnGap=${first.computedStyle.columnGap}`,
 			first === undefined
 				? "padding: none"
 				: `padding: top=${first.computedStyle.paddingTop} right=${first.computedStyle.paddingRight} bottom=${first.computedStyle.paddingBottom} left=${first.computedStyle.paddingLeft}`,

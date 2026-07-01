@@ -11,4 +11,8 @@ describe("rounded-icon-data", () => {
 	it("resolves semantic app window alias to the Codex rounded app-window asset", () => {
 		expect(resolveRoundedIconName("app-window")).toBe("app-window-b6aaamvg");
 	});
+
+	it("resolves semantic globe alias to the Codex rounded globe asset", () => {
+		expect(resolveRoundedIconName("globe")).toBe("globe-oc2o98t5");
+	});
 });

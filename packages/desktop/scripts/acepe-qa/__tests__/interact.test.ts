@@ -53,6 +53,8 @@ describe("acepe-qa interaction helpers", () => {
 								focused: false,
 								computedStyle: {
 									display: "block",
+									color: "rgb(113, 113, 122)",
+									backgroundColor: "rgba(0, 0, 0, 0)",
 									gap: "normal",
 									rowGap: "normal",
 									columnGap: "normal",
@@ -125,6 +127,8 @@ describe("acepe-qa interaction helpers", () => {
 							focused: false,
 							computedStyle: {
 								display: "flow-root",
+								color: "rgb(113, 113, 122)",
+								backgroundColor: "rgba(0, 0, 0, 0)",
 								gap: "normal",
 								rowGap: "normal",
 								columnGap: "normal",

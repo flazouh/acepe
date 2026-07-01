@@ -100,6 +100,8 @@ const qaSummary = (node, index) => ({
   focused: document.activeElement === node,
   computedStyle: {
     display: getComputedStyle(node).display,
+    color: getComputedStyle(node).color,
+    backgroundColor: getComputedStyle(node).backgroundColor,
     gap: getComputedStyle(node).gap,
     rowGap: getComputedStyle(node).rowGap,
     columnGap: getComputedStyle(node).columnGap,

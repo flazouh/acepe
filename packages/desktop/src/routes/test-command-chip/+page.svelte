@@ -126,7 +126,15 @@ const slashPalettePosition = {
 
 const activeSettingsSection: SettingsSectionId = "general";
 
-const permissionIconKinds = ["edit", "execute", "search", "delete", "browser", "unknown"] as const;
+const permissionIconKinds = [
+	"edit",
+	"execute",
+	"search",
+	"fetch",
+	"delete",
+	"browser",
+	"unknown",
+] as const;
 </script>
 
 <div class="h-screen w-screen space-y-4 overflow-auto bg-background p-4">

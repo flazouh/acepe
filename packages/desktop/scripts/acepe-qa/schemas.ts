@@ -108,6 +108,8 @@ export const domElementSummarySchema = z.object({
 	focused: z.boolean(),
 	computedStyle: z.object({
 		display: z.string(),
+		color: z.string(),
+		backgroundColor: z.string(),
 		gap: z.string(),
 		rowGap: z.string(),
 		columnGap: z.string(),
