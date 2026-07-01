@@ -2,7 +2,7 @@ import { describe, expect, test } from "vitest";
 
 import { buttonVariants } from "./variants.js";
 
-describe("buttonVariants", () => {
+describe("desktop buttonVariants", () => {
 	test.each(["icon-chrome", "icon-2xs"] as const)(
 		"mutes inactive %s ghost buttons until hover or focus",
 		(size) => {

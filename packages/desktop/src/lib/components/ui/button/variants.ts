@@ -38,7 +38,13 @@ export const buttonVariants = tv({
 			variant: "ghost",
 			size: "icon-chrome",
 			class:
-				"text-muted-foreground/35 hover:text-foreground focus-visible:text-foreground [&_svg]:text-muted-foreground/35 [&_svg]:transition-colors hover:[&_svg]:text-foreground focus-visible:[&_svg]:text-foreground",
+				"text-muted-foreground/35 hover:text-foreground focus-visible:text-foreground [&_svg]:text-muted-foreground/35 [&_svg]:transition-colors [&_svg_*]:text-muted-foreground/35 [&_svg_*]:transition-colors hover:[&_svg]:text-foreground hover:[&_svg_*]:text-foreground focus-visible:[&_svg]:text-foreground focus-visible:[&_svg_*]:text-foreground",
+		},
+		{
+			variant: "ghost",
+			size: "icon-2xs",
+			class:
+				"text-muted-foreground/35 hover:text-foreground focus-visible:text-foreground [&_svg]:text-muted-foreground/35 [&_svg]:transition-colors [&_svg_*]:text-muted-foreground/35 [&_svg_*]:transition-colors hover:[&_svg]:text-foreground hover:[&_svg_*]:text-foreground focus-visible:[&_svg]:text-foreground focus-visible:[&_svg_*]:text-foreground",
 		},
 	],
 });
