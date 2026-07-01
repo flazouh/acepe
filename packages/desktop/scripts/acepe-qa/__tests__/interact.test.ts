@@ -6,6 +6,7 @@ import {
 	navigateWebview,
 	openStreamingReproLab,
 	probeComputerUse,
+	reloadWebview,
 	resetOnboarding,
 } from "../interact";
 import type { CommandRunner } from "../tauri-mcp";
@@ -46,6 +47,7 @@ describe("acepe-qa interaction helpers", () => {
 								text: "Claude Planning",
 								value: null,
 								src: null,
+								attributes: {},
 								classes: "onboarding-preview-panel",
 								visible: true,
 								focused: false,
@@ -117,6 +119,7 @@ describe("acepe-qa interaction helpers", () => {
 							text: "Reset Onboarding",
 							value: null,
 							src: null,
+							attributes: {},
 							classes: "",
 							visible: true,
 							focused: false,
@@ -198,6 +201,39 @@ describe("acepe-qa interaction helpers", () => {
 		expect(result.isOk()).toBe(true);
 		expect(result._unsafeUnwrap().path).toBe("/test-thinking-block");
 		expect(sawScrollReset).toBe(true);
+	});
+
+	it("reloads the current WebView route", async () => {
+		const runner: CommandRunner = (command) => {
+			const joined = command.join(" ");
+			if (joined.includes("driver-session")) {
+				return okAsync({
+					code: 0,
+					stdout: "",
+					stderr: "",
+				});
+			}
+			expect(joined).toContain("window.location.reload()");
+			return okAsync({
+				code: 0,
+				stdout: wrapped(
+					JSON.stringify({
+						from: "http://localhost:1420/settings",
+						to: "http://localhost:1420/settings",
+						path: "/settings",
+					})
+				),
+				stderr: "",
+			});
+		};
+
+		const result = await reloadWebview({
+			appIdentifier: "9223",
+			runner,
+		});
+
+		expect(result.isOk()).toBe(true);
+		expect(result._unsafeUnwrap().path).toBe("/settings");
 	});
 
 	it("focuses the Tauri window before probing native computer use", async () => {

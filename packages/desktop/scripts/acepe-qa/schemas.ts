@@ -102,6 +102,7 @@ export const domElementSummarySchema = z.object({
 	text: z.string(),
 	value: z.string().nullable(),
 	src: z.string().nullable(),
+	attributes: z.record(z.string(), z.string()),
 	classes: z.string(),
 	visible: z.boolean(),
 	focused: z.boolean(),

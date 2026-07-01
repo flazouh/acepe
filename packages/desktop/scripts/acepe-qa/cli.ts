@@ -12,6 +12,7 @@ import {
 	probeFirstSendTimeline,
 	probeThinkingToggle,
 	readPlanningDebug,
+	reloadWebview,
 	resetOnboarding,
 	sendComposer,
 	watchForVisibleText,
@@ -65,6 +66,15 @@ function valueArg(args: readonly string[], name: string, fallback: string): stri
 
 function hasArg(args: readonly string[], name: string): boolean {
 	return args.includes(name);
+}
+
+function formatAttributes(attributes: Readonly<Record<string, string>>): string {
+	const names = ["viewBox", "aria-label", "role", "data-testid", "data-header-control"];
+	const parts = names.flatMap((name) => {
+		const value = attributes[name];
+		return value === undefined ? [] : [`${name}=${JSON.stringify(value)}`];
+	});
+	return parts.length === 0 ? "none" : parts.join(" ");
 }
 
 function parseOptions(args: readonly string[], checkoutRoot: string): CliOptions {
@@ -224,12 +234,13 @@ export async function runCli(
 			command: "help",
 			status: "ok",
 			summary: [
-				"usage: bun run qa [doctor|focus-app|observe|screenshot|navigate|inspect|click|computer-probe|resize-probe|resize-stream-probe|thinking-toggle-probe|first-send-probe|streaming-repro-lab|send|watch|reset-onboarding] [--app=9223] [--format=json]",
+				"usage: bun run qa [doctor|focus-app|observe|screenshot|navigate|reload|inspect|click|computer-probe|resize-probe|resize-stream-probe|thinking-toggle-probe|first-send-probe|streaming-repro-lab|send|watch|reset-onboarding] [--app=9223] [--format=json]",
 				"doctor checks the real dev Tauri target before QA.",
 				"focus-app brings the Acepe desktop app to the macOS foreground.",
 				"observe returns compact app facts before screenshots.",
 				"screenshot captures the current WebView.",
 				"navigate opens an app route with --path=/some-route.",
+				"reload refreshes the current WebView route.",
 				"inspect returns compact DOM facts for --selector.",
 				"click clicks by --selector or --text.",
 				"computer-probe invokes the real app's acepe_computer.act MCP path; add --action and --target-label to act.",
@@ -432,6 +443,7 @@ export async function runCli(
 				? "value: none"
 				: `value: ${first.value === null ? "none" : JSON.stringify(first.value)} focused=${first.focused ? "yes" : "no"}`,
 			first?.src === undefined || first.src === null ? "src: none" : `src: ${first.src}`,
+			first === undefined ? "attrs: none" : `attrs: ${formatAttributes(first.attributes)}`,
 			first === undefined
 				? "computed: none"
 				: `computed: display=${first.computedStyle.display} gap=${first.computedStyle.gap} rowGap=${first.computedStyle.rowGap} columnGap=${first.computedStyle.columnGap}`,
@@ -808,6 +820,43 @@ export async function runCli(
 			],
 			artifactPath,
 			artifactKind: artifactPath === undefined ? undefined : "navigate",
+			error: artifact.isErr()
+				? dependencyError(artifact.error.code, artifact.error.message, "Check /tmp permissions.")
+				: undefined,
+		});
+		return emitVerifiedUiResult(options, result);
+	}
+
+	if (options.command === "reload") {
+		const reload = await reloadWebview({
+			appIdentifier: options.appIdentifier,
+			skipDriver: options.skipDriver,
+		});
+		if (reload.isErr()) {
+			const result = buildResult({
+				command: "reload",
+				status: "fail",
+				summary: ["Unable to reload the Acepe WebView."],
+				error: dependencyError(
+					reload.error.code,
+					reload.error.message,
+					"Run acepe-qa doctor, then retry reload."
+				),
+			});
+			process.stdout.write(formatCommandResult(result, options.format));
+			return statusExitCode(result.status);
+		}
+		const artifact = await writeJsonArtifact("reload", reload.value);
+		const artifactPath = artifact.isOk() ? artifact.value : undefined;
+		const result = buildResult({
+			command: "reload",
+			status: "ok",
+			summary: [
+				`from: ${reload.value.from}`,
+				`path: ${reload.value.path}`,
+			],
+			artifactPath,
+			artifactKind: artifactPath === undefined ? undefined : "reload",
 			error: artifact.isErr()
 				? dependencyError(artifact.error.code, artifact.error.message, "Check /tmp permissions.")
 				: undefined,

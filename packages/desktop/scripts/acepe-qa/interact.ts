@@ -89,6 +89,12 @@ const qaSummary = (node, index) => ({
   text: qaText(node).slice(0, 300),
   value: "value" in node ? String(node.value) : null,
   src: node instanceof HTMLImageElement ? node.getAttribute("src") : null,
+  attributes: Array.from(node.attributes)
+    .filter((attribute) => attribute.name !== "class" && attribute.name !== "style")
+    .reduce((attributes, attribute) => {
+      attributes[attribute.name] = attribute.value;
+      return attributes;
+    }, {}),
   classes: typeof node.className === "string" ? node.className : "",
   visible: getComputedStyle(node).display !== "none" && getComputedStyle(node).visibility !== "hidden",
   focused: document.activeElement === node,
@@ -372,6 +378,34 @@ export function navigateWebview(
     from,
     to: window.location.href,
     path: url.pathname + url.search + url.hash,
+  };
+})()
+`;
+		return executeWebviewJson(
+			{
+				appIdentifier: options.appIdentifier,
+				script,
+				schema: navigateResultSchema,
+			},
+			runner
+		);
+	});
+}
+
+export function reloadWebview(
+	options: DriverOptions
+): ResultAsync<NavigateResult, TauriMcpFailure> {
+	const runner = options.runner ?? runCommand;
+	return driverReady(options).andThen(() => {
+		const script = `
+(() => {
+  const from = window.location.href;
+  const path = window.location.pathname + window.location.search + window.location.hash;
+  setTimeout(() => window.location.reload(), 0);
+  return {
+    from,
+    to: from,
+    path,
   };
 })()
 `;
