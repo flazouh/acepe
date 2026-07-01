@@ -22,7 +22,7 @@
 	style={style}
 	data-testid={dataTestid}
 >
-	<RoundedIcon name="plan-dhny1pkx" class="block size-full max-h-full max-w-full text-current" />
+	<RoundedIcon name="plan" class="block size-full max-h-full max-w-full text-current" />
 </span>
 
 <style>

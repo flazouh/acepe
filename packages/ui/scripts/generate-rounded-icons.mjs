@@ -59,6 +59,7 @@ const preferredAliases = {
 	settings: "settings-cog-mjpuk5w",
 	files: "folders-dyfgzyqz",
 	folder: "folder-bpwd3kcz",
+	plan: "plan-dhny1pkx",
 	review: "review-header-toolbar-adr062sp--01",
 	browser: "globe-oc2o98t5",
 	terminal: "terminal-bhtf7d-4",
