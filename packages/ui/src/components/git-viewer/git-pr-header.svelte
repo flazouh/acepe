@@ -1,6 +1,4 @@
 <script lang="ts">
-	import { GitMerge } from "phosphor-svelte";
-
 	import { DiffPill } from "../diff-pill/index.js";
 	import { RoundedIcon } from "../icons/index.js";
 	import { cn } from "../../lib/utils.js";
@@ -46,7 +44,7 @@
 	<div class="flex items-center gap-2 px-3 py-2">
 		<span class="shrink-0 {iconColor}">
 			{#if pr.state === "merged"}
-				<GitMerge weight="bold" size={16} />
+				<RoundedIcon name="pull-request-merged" class="size-4" />
 			{:else}
 				<RoundedIcon name="pull-request" class="size-4" />
 			{/if}
