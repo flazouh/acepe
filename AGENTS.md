@@ -176,7 +176,9 @@ Acepe uses the Compounding Engineering workflow as its engineering operating sys
 
 - ALWAYS invoke the `acepe-dev-app-qa` skill before inspecting the Acepe desktop dev app, current dev app, Tauri WebView, session display, agent panel, or any UI-visible Acepe change.
 - **After every change that could affect what the user sees** — desktop Svelte/TS/CSS, `@acepe/ui`, or Rust on session/transcript/display paths — run **DOM verification through the repo QA CLI** before calling the work done. Unit tests and `bun run check` are not sufficient on their own.
-- **Required QA CLI pass** (from `packages/desktop`): `bun run qa doctor` → open or observe the affected screen (`bun run qa observe`) → **`bun run qa inspect --selector=<selector>`** on the element or region that proves the change → `bun run qa screenshot` when the change is visual or layout-related. Use `bun run qa click`, `send`, or `watch` when the fix is interaction-driven.
+- **Required QA CLI baseline** (from `packages/desktop`): `bun run qa doctor` → open or observe the affected screen (`bun run qa observe`) → **`bun run qa inspect --selector=<selector>`** on the element or region that proves the change → `bun run qa screenshot` when the change is visual or layout-related.
+- **QA evidence must match the bug.** Static DOM inspection is enough only for static visual/style changes. Interaction bugs must run the interaction through `bun run qa click`, `send`, `watch`, or a dedicated QA command, then inspect the resulting DOM/app state. Timing, scroll, streaming, animation, and layout-transition bugs must run a probe that samples the transition after the code change; a static `inspect` or screenshot is not enough.
+- If a plan names a QA probe, that probe is mandatory completion evidence. If the needed app/session state is unavailable, report behavioral QA as blocked and say exactly what static evidence was collected; do not rename static DOM inspection as a pass for the behavior.
 - Prefer the repo QA wrapper before raw Tauri MCP. Other commands: `bun run qa reset-onboarding`, `bun run qa click --selector=<selector>`, `bun run qa send --text=<message>`, `bun run qa watch --text=<text>`.
 - If a QA or app interaction is not extremely smooth, improve the system before repeating the friction: add a wrapper command, helper, hook, skill instruction, or documented primitive so the next pass is easier.
 - Any UI-visible code change must be verified **after** the code change, not before. The QA wrapper records `.codex/state/ui-qa-evidence.json`; Codex Stop hooks should block completion when UI files changed after the latest evidence.
@@ -198,3 +200,38 @@ Acepe uses the Compounding Engineering workflow as its engineering operating sys
 - [Rust/Tauri Development](.agent-guides/rust-tauri.md)
 - [Neverthrow Error Handling](.agent-guides/neverthrow.md)
 - [Code Quality](.agent-guides/code-quality.md)
+
+## Agent skills
+
+### Issue tracker
+
+Issues and PRDs are tracked as GitHub issues on `flazouh/acepe` via the `gh` CLI. See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+Canonical triage label vocabulary: `needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`. See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Single-context layout: read `CONTEXT.md` for Acepe domain language and `docs/adr/` for decisions before working in an area. Both can be extended by `grill-with-docs`. See `docs/agents/domain.md`.
+
+### Skill routing
+
+- Use `grill-me` / `grill-with-docs` before CE when the request, domain language, or success criteria need sharpening.
+- Use `to-prd`, `to-issues`, and `triage` for GitHub issue-backed work.
+- Use `tdd` for the failing-test-first loop required by this repo.
+- Use `implement` only when the Acepe CE workflow says execution may begin, or when the task is truly trivial.
+- Use `code-review`, `codebase-design`, and `improve-codebase-architecture` for review and design pressure-testing.
+
+<!-- BEGIN fable-codex-orchestration -->
+## Local Model Routing
+
+Follow the global Codex collaboration rules in `/Users/alex/.codex/AGENTS.md` and `/Users/alex/AGENTS.md`.
+
+- Fable 5 / Claude Code leads: plan, delegate, synthesize.
+- Opus `deep-reasoner` handles hard reasoning.
+- Sonnet `fast-worker` handles mechanical work.
+- Codex acts as a peer senior engineer and fast implementer, especially for well-scoped execution, computer use, UI/UX verification, and fresh-perspective checks.
+
+Local project rules in this file still win. Keep existing CE, TDD, QA, and verification requirements.
+<!-- END fable-codex-orchestration -->
