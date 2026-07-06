@@ -502,7 +502,7 @@ function createDiagnosticsMenuSection(): HeaderMenuSection | null {
 						</DropdownMenu.Sub>
 					{/each}
 				</Selector>
-				<CloseAction {onClose} title={"Close"} size="icon-2xs" />
+				<CloseAction {onClose} title={"Close"} size="icon" />
 			</div>
 		{/snippet}
 

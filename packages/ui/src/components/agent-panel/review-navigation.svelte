@@ -109,7 +109,7 @@
 		<HeaderActionCell>
 			<Button
 				variant="ghost"
-				size="icon-2xs"
+				size="icon"
 				data-header-control
 				disabled={!hasPrevHunk}
 				title={prevHunkLabel}
@@ -128,7 +128,7 @@
 			</span>
 			<Button
 				variant="ghost"
-				size="icon-2xs"
+				size="icon"
 				data-header-control
 				disabled={!hasNextHunk}
 				title={nextHunkLabel}
@@ -146,7 +146,7 @@
 		<HeaderActionCell>
 			<Button
 				variant="ghost"
-				size="icon-2xs"
+				size="icon"
 				data-header-control
 				disabled={!hasPrevPendingFile}
 				title={prevFileLabel}
@@ -165,7 +165,7 @@
 			</span>
 			<Button
 				variant="ghost"
-				size="icon-2xs"
+				size="icon"
 				data-header-control
 				disabled={!hasNextPendingFile}
 				title={nextFileLabel}

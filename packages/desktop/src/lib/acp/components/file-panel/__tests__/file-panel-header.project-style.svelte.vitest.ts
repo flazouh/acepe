@@ -48,7 +48,7 @@ describe("FilePanelHeader project-header style", () => {
 
 		const close = container.querySelector(`button[title='${"Close"}']`);
 		expect(close).not.toBeNull();
-		expect(close?.getAttribute("data-size")).toBe("icon-2xs");
+		expect(close?.getAttribute("data-size")).toBe("icon");
 		if (close) {
 			await fireEvent.click(close);
 		}

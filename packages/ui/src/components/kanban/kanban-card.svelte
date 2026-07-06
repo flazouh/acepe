@@ -160,7 +160,7 @@ function handleKeydown(event: KeyboardEvent): void {
 					<div class="flex h-7 items-center justify-center" onclick={(e) => e.stopPropagation()} onkeydown={(e) => e.stopPropagation()}>
 						<Button
 							variant="ghost"
-							size="icon-2xs"
+							size="icon"
 							data-header-control
 							onclick={onClose}
 							title="Close"

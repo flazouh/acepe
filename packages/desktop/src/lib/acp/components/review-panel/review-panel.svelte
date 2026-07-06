@@ -148,7 +148,7 @@ function handlePointerUp() {
 		<HeaderActionCell withDivider={false}>
 			<Button
 				variant="ghost"
-				size="icon-2xs"
+				size="icon"
 				data-header-control
 				onclick={onClose}
 				title="Back"

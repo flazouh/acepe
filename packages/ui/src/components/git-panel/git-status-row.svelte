@@ -107,7 +107,7 @@
 	<span class="flex shrink-0 items-center opacity-0 transition-opacity group-hover/row:opacity-100">
 		<Button
 			variant="ghost"
-			size="icon-2xs"
+			size="icon"
 			title="Discard changes"
 			aria-label="Discard {file.path}"
 			onclick={() => onDiscard(file.path)}
@@ -116,7 +116,7 @@
 		</Button>
 		<Button
 			variant="ghost"
-			size="icon-2xs"
+			size="icon"
 			title={primaryLabel}
 			aria-label="{primaryLabel} {file.path}"
 			onclick={() => onPrimary(file.path)}

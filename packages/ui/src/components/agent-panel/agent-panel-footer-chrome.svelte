@@ -58,7 +58,7 @@
 		<div class="flex items-center gap-0.5 px-1.5">
 			<Button
 				variant="ghost"
-				size="icon-2xs"
+				size="icon"
 				data-header-control
 				title={settingsTitle}
 				aria-label={settingsAriaLabel ?? settingsTitle}
@@ -76,7 +76,7 @@
 			{#if showBrowserToggle}
 				<Button
 					variant="ghost"
-					size="icon-2xs"
+					size="icon"
 					data-header-control
 					active={browserActive}
 					title={browserTitle}
@@ -91,7 +91,7 @@
 			{#if showTerminalToggle}
 				<Button
 					variant="ghost"
-					size="icon-2xs"
+					size="icon"
 					data-header-control
 					active={terminalActive}
 					disabled={terminalDisabled}

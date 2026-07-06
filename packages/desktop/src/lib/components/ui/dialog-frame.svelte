@@ -59,7 +59,7 @@ let {
 	contentClass = "",
 	contentOverflow = "auto",
 	closeLabel = "Close dialog",
-	headerIconSize = "icon-2xs",
+	headerIconSize = "icon",
 	showTitle = true,
 	size = "default",
 	portalDisabled = false,

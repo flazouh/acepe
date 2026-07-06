@@ -1917,7 +1917,7 @@ async function handleFixCiCheck(check: PrChecksItem): Promise<void> {
 								{#if sessionController.sessionProjectPath && checkpointTimeline.checkpoints.length > 0}
 									<Button
 										variant="ghost"
-										size="icon-2xs"
+										size="icon"
 										data-header-control
 										active={checkpointTimeline.isOpen}
 										title="View checkpoints"

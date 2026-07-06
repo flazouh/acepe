@@ -7,7 +7,7 @@
 		/** Tooltip when idle / after copy. */
 		title?: string;
 		copiedTitle?: string;
-		/** `header` matches embedded panel header icon buttons (`icon-2xs`). */
+		/** `header` matches embedded panel header icon buttons (`icon`). */
 		size?: "message" | "header";
 		/** Extra classes appended to the button (tone, rounding, border, …). */
 		class?: string;
@@ -51,7 +51,7 @@
 {#if size === "header"}
 	<Button
 		variant="ghost"
-		size="icon-2xs"
+		size="icon"
 		data-header-control
 		title={tooltip}
 		aria-label={tooltip}

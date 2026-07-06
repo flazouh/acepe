@@ -39,7 +39,7 @@ interface Props {
 
 const chromeIconButton = {
 	variant: "ghost" as const,
-	size: "icon-2xs" as const,
+	size: "icon" as const,
 };
 
 let {

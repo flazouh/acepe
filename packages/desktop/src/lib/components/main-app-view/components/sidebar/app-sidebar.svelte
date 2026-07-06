@@ -531,7 +531,7 @@ const visibleSessions = $derived.by(() => {
 		<div class="flex h-7 shrink-0 items-center gap-0.5 border-b border-border/50 px-1">
 			<Button
 				variant="ghost"
-				size="icon-2xs"
+				size="icon"
 				data-header-control
 				title="Add repository"
 				aria-label="Add repository"
@@ -544,7 +544,7 @@ const visibleSessions = $derived.by(() => {
 			<div class="ml-auto flex items-center gap-0.5">
 				<Button
 					variant="ghost"
-					size="icon-2xs"
+					size="icon"
 					data-header-control
 					title="New chat"
 					aria-label="New chat"
@@ -556,7 +556,7 @@ const visibleSessions = $derived.by(() => {
 				</Button>
 				<Button
 					variant="ghost"
-					size="icon-2xs"
+					size="icon"
 					data-header-control
 					title="Search"
 					aria-label="Search"
@@ -570,7 +570,7 @@ const visibleSessions = $derived.by(() => {
 				</Button>
 				<Button
 					variant="ghost"
-					size="icon-2xs"
+					size="icon"
 					data-header-control
 					title="Source control"
 					aria-label="Source control"
@@ -582,7 +582,7 @@ const visibleSessions = $derived.by(() => {
 				</Button>
 				<Button
 					variant="ghost"
-					size="icon-2xs"
+					size="icon"
 					data-header-control
 					title="File system"
 					aria-label="File system"

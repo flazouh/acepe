@@ -442,7 +442,7 @@ async function handleProjectContextMove(projectPath: string, offset: -1 | 1): Pr
 		{#if shouldShowProjectCreateButton()}
 			<Button
 				variant="ghost"
-				size="icon-2xs"
+				size="icon"
 				onclick={(event) => handleProjectCreateButtonClick(event, group.projectPath)}
 				aria-label={getProjectCreateButtonAriaLabel(group.projectName)}
 			>

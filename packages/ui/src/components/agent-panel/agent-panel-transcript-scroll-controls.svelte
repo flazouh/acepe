@@ -63,7 +63,7 @@
 				{#if showScrollToTop}
 					<Button
 						variant="secondary"
-						size="icon-2xs"
+						size="icon"
 						aria-label={scrollToTopAriaLabel}
 						onclick={handleScrollToTop}
 					>
@@ -73,7 +73,7 @@
 				{#if showScrollToBottom}
 					<Button
 						variant="secondary"
-						size="icon-2xs"
+						size="icon"
 						aria-label={effectiveScrollToBottomAriaLabel}
 						data-unread-below={hasUnreadBelow ? "true" : undefined}
 						class="relative"

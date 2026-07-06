@@ -131,7 +131,7 @@
 		{#if showDetailTrigger}
 			<Button
 				variant="ghost"
-				size="icon-2xs"
+				size="icon"
 				data-header-control
 				aria-label="Open subtask transcript"
 				title="Open subtask transcript"

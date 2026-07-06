@@ -298,7 +298,7 @@ function handleOpenChange(newOpen: boolean) {
 	{#snippet topRight()}
 		<Button
 			variant="ghost"
-			size="icon-2xs"
+			size="icon"
 			data-header-control
 			active={activeView === "import"}
 			title="Import from history"
@@ -313,7 +313,7 @@ function handleOpenChange(newOpen: boolean) {
 		</Button>
 		<Button
 			variant="ghost"
-			size="icon-2xs"
+			size="icon"
 			data-header-control
 			active={activeView === "clone"}
 			title="Clone repository"
@@ -328,7 +328,7 @@ function handleOpenChange(newOpen: boolean) {
 		</Button>
 		<Button
 			variant="ghost"
-			size="icon-2xs"
+			size="icon"
 			data-header-control
 			title="Browse folder"
 			aria-label="Browse folder"

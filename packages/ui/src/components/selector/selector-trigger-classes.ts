@@ -72,13 +72,13 @@ export function getSelectorTriggerButtonSize(triggerSize: SelectorTriggerSize): 
 		return "sm";
 	}
 	if (resolved === "chromeIconMd") {
-		return "icon-2xs";
+		return "icon";
 	}
 	if (resolved === "chromeIcon") {
-		return "icon-2xs";
+		return "icon";
 	}
 	if (resolved === "icon" || resolved === "attach" || resolved === "square") {
-		return "icon-2xs";
+		return "icon";
 	}
 	if (resolved === "headerAction") {
 		return "xs";

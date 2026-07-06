@@ -231,7 +231,7 @@ function handleFullscreenToggle() {
 		{#if onNewTab}
 			<Button
 				variant="ghost"
-				size="icon-2xs"
+				size="icon"
 				data-header-control
 				title={NEW_TAB_LABEL}
 				aria-label={NEW_TAB_LABEL}

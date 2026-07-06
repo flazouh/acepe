@@ -1,7 +1,7 @@
 import { cn } from "../../lib/utils.js";
 import { buttonVariants, type ButtonSize, type ButtonVariant } from "./variants.js";
 
-export type HeaderIconCloseSize = Extract<ButtonSize, "icon-2xs">;
+export type HeaderIconCloseSize = Extract<ButtonSize, "icon">;
 
 export function getButtonClass(input: {
 	variant?: ButtonVariant;
@@ -21,7 +21,7 @@ export function getButtonClass(input: {
 
 /** Dialog close control matching ghost header icon buttons. */
 export function getDialogHeaderIconCloseClass(
-	size: HeaderIconCloseSize = "icon-2xs"
+	size: HeaderIconCloseSize = "icon"
 ): string {
 	return cn(
 		buttonVariants({ variant: "ghost", size, active: false }),

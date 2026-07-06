@@ -643,29 +643,29 @@ const favoriteModels = $derived(modelGroups.flatMap((g) => g.items.filter((i) =>
 													</div>
 												</button>
 												<div class="flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100">
-													<Button variant="ghost" size="icon-2xs" aria-label="Open terminal">
+													<Button variant="ghost" size="icon" aria-label="Open terminal">
 														{#snippet children()}
 															<RoundedIcon name="terminal" />
 														{/snippet}
 													</Button>
-													<Button variant="ghost" size="icon-2xs" aria-label="Open browser">
+													<Button variant="ghost" size="icon" aria-label="Open browser">
 														{#snippet children()}
 															<RoundedIcon name="browser" />
 														{/snippet}
 													</Button>
 												</div>
-												<Button variant="ghost" size="icon-2xs" aria-label="Collapse project" class="shrink-0">
+												<Button variant="ghost" size="icon" aria-label="Collapse project" class="shrink-0">
 													{#snippet children()}
 														<RoundedIcon name="chevron-down" class="shrink-0" />
 													{/snippet}
 												</Button>
 												<div class="flex items-center gap-0.5">
-													<Button variant="ghost" size="icon-2xs" aria-label="Project menu" class="min-w-0 shrink-0">
+													<Button variant="ghost" size="icon" aria-label="Project menu" class="min-w-0 shrink-0">
 														{#snippet children()}
 															<RoundedIcon name="more" />
 														{/snippet}
 													</Button>
-													<Button variant="ghost" size="icon-2xs" aria-label="New session">
+													<Button variant="ghost" size="icon" aria-label="New session">
 														{#snippet children()}
 															<PlusIcon />
 														{/snippet}

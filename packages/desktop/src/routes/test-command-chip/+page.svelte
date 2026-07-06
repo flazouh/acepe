@@ -494,17 +494,17 @@ const commandPaletteItems: CommandPaletteItem[] = [
 	>
 		<Button
 			variant="ghost"
-			size="icon-2xs"
+			size="icon"
 			aria-label="Chrome icon fixture"
-			data-testid="button-icon-2xs-muted"
+			data-testid="button-icon-muted"
 		>
 			<RoundedIcon name="more" />
 		</Button>
 		<Button
 			variant="ghost"
-			size="icon-2xs"
+			size="icon"
 			aria-label="Compact icon fixture"
-			data-testid="button-icon-2xs-muted"
+			data-testid="button-icon-muted"
 		>
 			<RoundedIcon name="close" />
 		</Button>
@@ -1014,7 +1014,7 @@ const commandPaletteItems: CommandPaletteItem[] = [
 			{#snippet headerActions()}
 				<Button
 					variant="ghost"
-					size="icon-2xs"
+					size="icon"
 					active
 					aria-label="Split diff"
 					title="Split diff"

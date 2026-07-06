@@ -33,8 +33,8 @@ export const buttonShadcnSizeAppearanceClass = {
 	xs: "h-6 gap-1 rounded-md px-2 text-xs has-[>svg]:px-1.5 [&_svg]:size-3 [&_img]:size-3",
 	sm: `h-7 gap-1 rounded-md px-2.5 text-xs leading-none font-normal has-[>svg]:px-2 ${BUTTON_CHIP_CHILD_ICON_SELECTOR}`,
 	lg: "h-9 rounded-md px-4 has-[>svg]:px-3 [&_svg]:size-4 [&_img]:size-4",
-	icon: "size-8 gap-0 p-0 has-[>svg]:p-0 [&_svg]:size-4",
-	"icon-2xs": "size-6 gap-0 p-0 has-[>svg]:p-0 [&_svg]:!size-4 [&_img]:!size-4",
+	icon: "size-6 gap-0 p-0 has-[>svg]:p-0 [&_svg]:!size-4 [&_img]:!size-4",
+	"icon-md": "size-8 gap-0 p-0 has-[>svg]:p-0 [&_svg]:size-4",
 	"icon-sm": `size-7 gap-0 p-0 has-[>svg]:p-0 ${BUTTON_CHIP_CHILD_ICON_SELECTOR}`,
 	"icon-sm-narrow": `h-7 w-6 min-w-0 shrink-0 gap-0 p-0 has-[>svg]:p-0 ${BUTTON_CHIP_CHILD_ICON_SELECTOR}`,
 	"icon-lg": "size-9 gap-0 p-0 has-[>svg]:p-0 [&_svg]:size-4",
@@ -66,7 +66,7 @@ export const buttonVariants = tv({
 	compoundVariants: [
 		{
 			variant: "ghost",
-			size: "icon-2xs",
+			size: "icon",
 			active: false,
 			class:
 				"text-muted-foreground/35 hover:text-foreground focus-visible:text-foreground [&_svg]:text-muted-foreground/35 [&_svg]:transition-colors [&_svg_*]:text-muted-foreground/35 [&_svg_*]:transition-colors hover:[&_svg]:text-foreground hover:[&_svg_*]:text-foreground focus-visible:[&_svg]:text-foreground focus-visible:[&_svg_*]:text-foreground",
@@ -98,10 +98,10 @@ export const buttonSizeShowcaseOrder = [
 	"sm",
 	"default",
 	"lg",
-	"icon-2xs",
+	"icon",
 	"icon-sm",
 	"icon-sm-narrow",
-	"icon",
+	"icon-md",
 	"icon-lg",
 ] as const satisfies readonly ButtonSize[];
 

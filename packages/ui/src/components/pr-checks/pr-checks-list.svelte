@@ -149,7 +149,7 @@
 								{#if bucket === "failure" && onFixCheck}
 									<Button
 										variant="ghost"
-										size="icon-2xs"
+										size="icon"
 										class="rounded-sm"
 										aria-label="Ask agent to fix {check.name}"
 										title="Fix with agent"
@@ -164,7 +164,7 @@
 								{#if check.detailsUrl}
 									<Button
 										variant="ghost"
-										size="icon-2xs"
+										size="icon"
 										class="rounded-sm"
 										aria-label="Open {check.name} on GitHub"
 										title="View on GitHub"

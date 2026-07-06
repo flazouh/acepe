@@ -338,7 +338,7 @@ onMount(() => {
 					<Button
 						{...props}
 						variant="ghost"
-						size="icon-2xs"
+						size="icon"
 						aria-label="Feedback"
 						onclick={() => openUrl("https://github.com/flazouh/acepe/issues")}
 					>
@@ -412,7 +412,7 @@ onMount(() => {
 					<Button
 						{...props}
 						variant="ghost"
-						size="icon-2xs"
+						size="icon"
 						aria-label="Database Manager"
 						onclick={() => viewState.toggleSqlStudio()}
 					>

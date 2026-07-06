@@ -21,7 +21,7 @@ const sidebar = useSidebar();
 	data-sidebar="trigger"
 	data-slot="sidebar-trigger"
 	variant="ghost"
-	size="icon-2xs"
+	size="icon"
 	class={className}
 	type="button"
 	onclick={(e) => {

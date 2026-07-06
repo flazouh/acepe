@@ -20,8 +20,8 @@ export const buttonVariants = tv({
 			xs: "h-6 gap-1 rounded-md px-2 text-xs has-[>svg]:px-1.5 [&_svg]:size-3 [&_img]:size-3",
 			sm: "h-7 gap-1 rounded-md px-2.5 text-xs leading-none font-normal has-[>svg]:px-2 [&_svg]:size-3.5 [&_svg]:shrink-0 [&_img]:size-3.5 [&_img]:shrink-0",
 			lg: "h-9 rounded-md px-4 has-[>svg]:px-3 [&_svg]:size-4 [&_img]:size-4",
-			icon: "size-8 gap-0 p-0 has-[>svg]:p-0 [&_svg]:size-4",
-			"icon-2xs": "size-6 gap-0 p-0 has-[>svg]:p-0 [&_svg]:!size-4 [&_img]:!size-4",
+			icon: "size-6 gap-0 p-0 has-[>svg]:p-0 [&_svg]:!size-4 [&_img]:!size-4",
+			"icon-md": "size-8 gap-0 p-0 has-[>svg]:p-0 [&_svg]:size-4",
 			"icon-sm":
 				"size-7 gap-0 p-0 has-[>svg]:p-0 [&_svg]:size-3.5 [&_svg]:shrink-0 [&_img]:size-3.5 [&_img]:shrink-0",
 			"icon-sm-narrow":
@@ -36,7 +36,7 @@ export const buttonVariants = tv({
 	compoundVariants: [
 		{
 			variant: "ghost",
-			size: "icon-2xs",
+			size: "icon",
 			class:
 				"text-muted-foreground/35 hover:text-foreground focus-visible:text-foreground [&_svg]:text-muted-foreground/35 [&_svg]:transition-colors [&_svg_*]:text-muted-foreground/35 [&_svg_*]:transition-colors hover:[&_svg]:text-foreground hover:[&_svg_*]:text-foreground focus-visible:[&_svg]:text-foreground focus-visible:[&_svg_*]:text-foreground",
 		},

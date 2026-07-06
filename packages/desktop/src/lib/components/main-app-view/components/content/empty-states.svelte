@@ -742,7 +742,7 @@ function handleEmptyStateSessionCreated(sessionId: string) {
 					<div class="flex justify-end">
 						<Button
 							variant="ghost"
-							size="icon-2xs"
+							size="icon"
 							title="Browse in Finder"
 							aria-label="Browse in Finder"
 							onclick={handleBrowseProject}

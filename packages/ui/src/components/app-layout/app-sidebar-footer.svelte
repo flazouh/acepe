@@ -14,7 +14,7 @@
 
 	let { githubUrl, xUrl, discordUrl, version, onLinkClick }: Props = $props();
 
-	const chromeIconButton = { variant: "ghost" as const, size: "icon-2xs" as const };
+	const chromeIconButton = { variant: "ghost" as const, size: "icon" as const };
 
 	const releaseUrl = $derived(
 		version ? `https://github.com/flazouh/acepe/releases/tag/v${version}` : null

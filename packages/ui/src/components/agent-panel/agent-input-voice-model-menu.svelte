@@ -149,7 +149,7 @@
 							>
 								<Button
 									variant="ghost"
-									size="icon-2xs"
+									size="icon"
 									aria-label={uninstallLabel}
 									onclick={(event: MouseEvent) => {
 										event.preventDefault();
@@ -173,7 +173,7 @@
 							>
 								<Button
 									variant="ghost"
-									size="icon-2xs"
+									size="icon"
 									aria-label={downloadLabel}
 									onclick={(event: MouseEvent) => {
 										event.preventDefault();

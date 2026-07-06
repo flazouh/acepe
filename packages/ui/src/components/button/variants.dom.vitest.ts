@@ -3,8 +3,8 @@ import { describe, expect, test } from "vitest";
 import { buttonVariants } from "./variants.js";
 
 describe("buttonVariants", () => {
-	test("mutes inactive icon-2xs ghost buttons until hover or focus", () => {
-		const className = buttonVariants({ variant: "ghost", size: "icon-2xs" });
+	test("mutes inactive icon ghost buttons until hover or focus", () => {
+		const className = buttonVariants({ variant: "ghost", size: "icon" });
 
 		expect(className).toContain("size-6");
 		expect(className).toContain("[&_svg]:!size-4");

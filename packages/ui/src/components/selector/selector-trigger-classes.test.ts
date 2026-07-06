@@ -37,14 +37,14 @@ describe("getSelectorTriggerButtonVariant", () => {
 });
 
 describe("getSelectorTriggerButtonSize icon rails", () => {
-	test("maps chrome icon triggers to icon-2xs", () => {
-		expect(getSelectorTriggerButtonSize("chromeIcon")).toBe("icon-2xs");
-		expect(getSelectorTriggerButtonSize("chromeIconMd")).toBe("icon-2xs");
+	test("maps chrome icon triggers to icon", () => {
+		expect(getSelectorTriggerButtonSize("chromeIcon")).toBe("icon");
+		expect(getSelectorTriggerButtonSize("chromeIconMd")).toBe("icon");
 	});
 
 	test("keeps dense icon triggers compact", () => {
-		expect(getSelectorTriggerButtonSize("icon")).toBe("icon-2xs");
-		expect(getSelectorTriggerButtonSize("attach")).toBe("icon-2xs");
+		expect(getSelectorTriggerButtonSize("icon")).toBe("icon");
+		expect(getSelectorTriggerButtonSize("attach")).toBe("icon");
 	});
 
 	test("maps header action triggers to xs", () => {

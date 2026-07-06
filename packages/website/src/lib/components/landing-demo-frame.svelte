@@ -36,17 +36,17 @@ let { children, interactive = false, bare = false }: Props = $props();
 					showSearch={false}
 				>
 					{#snippet extraRightActions()}
-						<Button variant="ghost" size="icon-2xs" title="Layout" aria-label="Layout Settings">
+						<Button variant="ghost" size="icon" title="Layout" aria-label="Layout Settings">
 							{#snippet children()}
 								<RoundedIcon name="sliders" />
 							{/snippet}
 						</Button>
-						<Button variant="ghost" size="icon-2xs" title="Feedback" aria-label="Feedback">
+						<Button variant="ghost" size="icon" title="Feedback" aria-label="Feedback">
 							{#snippet children()}
 								<RoundedIcon name="bug" style="color: #FF5D5A" />
 							{/snippet}
 						</Button>
-						<Button variant="ghost" size="icon-2xs" title="Database Manager" aria-label="Database Manager">
+						<Button variant="ghost" size="icon" title="Database Manager" aria-label="Database Manager">
 							{#snippet children()}
 								<StorageIcon />
 							{/snippet}

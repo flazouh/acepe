@@ -26,7 +26,7 @@ let {
 	onRetryUpdateClick,
 }: Props = $props();
 
-const chromeIconButton = { variant: "ghost" as const, size: "icon-2xs" as const };
+const chromeIconButton = { variant: "ghost" as const, size: "icon" as const };
 
 const updateCardKind = $derived<SidebarUpdateKind | null>(
 	updaterState?.kind === "available" ||

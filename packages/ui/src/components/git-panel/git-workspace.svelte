@@ -426,7 +426,7 @@
 								{#if onGenerate}
 									<Button
 										variant="ghost"
-										size="icon-2xs"
+										size="icon"
 										onclick={onGenerate}
 										disabled={generating}
 										title="Generate commit message"

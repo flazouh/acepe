@@ -17,7 +17,7 @@
 		onToggle,
 		titleEnter = "Fullscreen",
 		titleExit = "Exit fullscreen",
-		size = "icon-2xs",
+		size = "icon",
 		class: className = "",
 	}: Props = $props();
 
