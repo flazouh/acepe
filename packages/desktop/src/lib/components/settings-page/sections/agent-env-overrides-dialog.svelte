@@ -193,12 +193,6 @@ function handleSave(): void {
 	contentClass="w-[min(80vw,28.75rem)]"
 	onOpenChange={handleOpenChange}
 >
-	{#snippet topLeft()}
-		<span class="truncate text-[11px] font-semibold text-foreground select-none">
-			{agentName} environment
-		</span>
-	{/snippet}
-
 	<div class="space-y-3 px-3 py-3">
 		<p class="text-[12px] text-muted-foreground">
 			Stored locally on this machine. Values saved here override the same variable from the shell when
@@ -206,7 +200,7 @@ function handleSave(): void {
 		</p>
 
 		<div class="flex justify-end">
-			<Button variant="header" size="header" onclick={addRow}>
+			<Button variant="outline" size="sm" onclick={addRow}>
 				<PlusIcon />
 				Add variable
 			</Button>
@@ -262,7 +256,7 @@ function handleSave(): void {
 	</div>
 
 	{#snippet footer()}
-		<Button variant="invert" size="header" onclick={handleSave}>
+		<Button variant="default" size="sm" onclick={handleSave}>
 			<SaveIcon class="size-3" data-testid="env-overrides-save-icon" />
 			Save
 		</Button>

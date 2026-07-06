@@ -10,10 +10,6 @@
 	import { DiffPill } from "../diff-pill/index.js";
 	import { RoundedIcon } from "../icons/index.js";
 	import PlusIcon from "../icons/plus-icon.svelte";
-	import {
-		SETUP_CHIP_ICON_CLASS,
-		SETUP_CHIP_LABEL_TEXT_CLASS,
-	} from "./agent-input-chip-classes.js";
 	import { Selector } from "../selector/index.js";
 	import type { SelectorTriggerSize } from "../selector/selector-trigger-classes.js";
 	import { getSelectorTriggerButtonVariant } from "../selector/selector-trigger-classes.js";
@@ -100,14 +96,11 @@
 {#snippet branchSelectorTrigger()}
 	<RoundedIcon
 		name="branch"
-		class={cn(
-			isSetupChip ? SETUP_CHIP_ICON_CLASS : "size-3 shrink-0",
-			isSetupChip ? "text-foreground" : ""
-		)}
+		class={cn(isSetupChip ? "text-foreground" : "size-3 shrink-0")}
 		style={isSetupChip ? undefined : `color: ${branchIconColor}`}
 	/>
 	<span
-		class={cn("max-w-[9rem] truncate", SETUP_CHIP_LABEL_TEXT_CLASS)}
+		class="max-w-[9rem] truncate"
 		title={currentBranch || "branch"}
 	>
 		{currentBranch || "branch"}

@@ -1,17 +1,8 @@
-import {
-	type DiffLineAnnotation,
-	type FileContents,
-	type FileDiffMetadata,
-	parseDiffFromFile,
-} from "@pierre/diffs";
+import { type FileContents, type FileDiffMetadata, parseDiffFromFile } from "@pierre/diffs";
 import { describe, expect, it, vi } from "vitest";
 
 vi.mock("$lib/acp/utils/worker-pool-singleton.js", () => ({
 	getWorkerPool: (): undefined => undefined,
-}));
-
-vi.mock("../diff-hunk-action-buttons.svelte", () => ({
-	default: class MockDiffHunkActionButtons {},
 }));
 
 type ReviewDiffData = {
@@ -22,7 +13,6 @@ type ReviewDiffData = {
 
 type RenderArgs = {
 	fileDiff: FileDiffMetadata;
-	lineAnnotations?: DiffLineAnnotation<{ hunkIndex: number }>[];
 };
 
 function createMultiHunkDiffData(): ReviewDiffData {
@@ -81,7 +71,7 @@ function createMultiHunkDiffData(): ReviewDiffData {
 	};
 }
 
-async function setupState(opts?: { withHunkAction?: boolean }) {
+async function setupState() {
 	const { ReviewDiffViewState } = await import("../review-diff-view-state.svelte.js");
 	const state = new ReviewDiffViewState();
 	const diffData = createMultiHunkDiffData();
@@ -97,133 +87,37 @@ async function setupState(opts?: { withHunkAction?: boolean }) {
 	Reflect.set(state, "containerElement", document.createElement("div"));
 	Reflect.set(state, "fileDiffInstance", fakeFileDiffInstance);
 
-	if (opts?.withHunkAction) {
-		// Wire a no-op onHunkAction so buildLineAnnotationsFromHunks runs
-		Reflect.set(state, "onHunkAction", () => {});
-	}
-
 	return { state, diffData, lastRenderArgs: () => lastRenderArgs };
 }
 
-describe("ReviewDiffViewState", () => {
-	it("keeps accepted-hunk metadata structured-cloneable for worker postMessage", async () => {
+describe("ReviewDiffViewState (read-only renderer)", () => {
+	it("re-renders the given metadata on updateDiff without mutating it", async () => {
 		const { state, diffData, lastRenderArgs } = await setupState();
 
 		expect(diffData.fileDiffMetadata.hunks.length).toBeGreaterThanOrEqual(2);
 
-		const nextDiff = state.applyHunkAction(1, "accept");
-
-		expect(nextDiff).not.toBeNull();
-		expect(lastRenderArgs()).not.toBeNull();
-		expect(() => structuredClone(lastRenderArgs()?.fileDiff)).not.toThrow();
-	}, 20_000);
-
-	it("resolved hunk produces no annotation after accept", async () => {
-		const { state, diffData } = await setupState({ withHunkAction: true });
-		const hunkCount = diffData.fileDiffMetadata.hunks.length;
-		expect(hunkCount).toBe(2);
-
-		// Accept hunk 0 — it becomes context-only
-		state.applyHunkAction(0, "accept");
-
-		// Only hunk 1 should have an annotation now
-		const annotations = Reflect.get(state, "lineAnnotations") as DiffLineAnnotation<{
-			hunkIndex: number;
-		}>[];
-		expect(annotations).toHaveLength(1);
-		expect(annotations[0].metadata.hunkIndex).toBe(1);
-	}, 20_000);
-
-	it("keeps the diff visible after a hunk is kept (accept does not collapse to context)", async () => {
-		const { state, diffData, lastRenderArgs } = await setupState({ withHunkAction: true });
-		expect(diffData.fileDiffMetadata.hunks.length).toBe(2);
-
-		state.applyHunkAction(0, "accept");
+		state.updateDiff(diffData);
 
 		const rendered = lastRenderArgs();
 		expect(rendered).not.toBeNull();
-		const keptHunk = rendered?.fileDiff.hunks[0];
-		// The kept hunk must still render its change (additions/deletions), not
-		// collapse to context-only — the user keeps seeing the diff after Keep.
-		expect(keptHunk?.hunkContent.some((c) => c.type === "change")).toBe(true);
-
-		// Accept is a review marker, not a revert: contents stay the agent's output.
-		const currentData = Reflect.get(state, "currentDiffData") as ReviewDiffData;
-		expect(currentData.newFile.contents).toBe(diffData.newFile.contents);
+		// The diff must still render its change lines (green/red), never collapse.
+		expect(rendered?.fileDiff.hunks.some((hunk) =>
+			hunk.hunkContent.some((content) => content.type === "change")
+		)).toBe(true);
 	}, 20_000);
 
-	it("newFile.contents updates after reject to stay in sync with metadata", async () => {
-		const { state, diffData } = await setupState({ withHunkAction: true });
-		const originalNewContents = diffData.newFile.contents;
+	it("keeps rendered metadata structured-cloneable for worker postMessage", async () => {
+		const { state, diffData, lastRenderArgs } = await setupState();
 
-		// Reject hunk 0 — newFile.contents should change
-		state.applyHunkAction(0, "reject");
+		state.updateDiff(diffData);
 
-		const currentData = Reflect.get(state, "currentDiffData") as ReviewDiffData;
-		expect(currentData.newFile.contents).not.toBe(originalNewContents);
-
-		expect(currentData.fileDiffMetadata.additionLines).toBeDefined();
-		expect(currentData.newFile.contents).toBe(currentData.fileDiffMetadata.additionLines.join(""));
+		expect(() => structuredClone(lastRenderArgs()?.fileDiff)).not.toThrow();
 	}, 20_000);
 
-	it("sequential rejects produce correct content (all changes reverted)", async () => {
-		const { state, diffData } = await setupState({ withHunkAction: true });
-		const originalOldContents = diffData.oldFile.contents;
-
-		// Reject both hunks — file should revert to the old content
-		state.applyHunkAction(0, "reject");
-		state.applyHunkAction(1, "reject");
-
-		const currentData = Reflect.get(state, "currentDiffData") as ReviewDiffData;
-		expect(currentData.newFile.contents).toBe(originalOldContents);
-	}, 20_000);
-
-	it("returns null and does not increment counters when not initialized", async () => {
+	it("no-ops updateDiff when not initialized", async () => {
 		const { ReviewDiffViewState } = await import("../review-diff-view-state.svelte.js");
 		const state = new ReviewDiffViewState();
 
-		// No currentDiffData, fileDiffInstance, or containerElement set
-		const result = state.applyHunkAction(0, "accept");
-		expect(result).toBeNull();
-
-		const stats = state.getHunkStats();
-		expect(stats.accepted).toBe(0);
-		expect(stats.rejected).toBe(0);
-	}, 20_000);
-
-	it("accepts every pending hunk when accepting the whole file", async () => {
-		const { state } = await setupState();
-		const acceptedHunks: number[] = [];
-
-		Reflect.set(
-			state,
-			"onHunkAction",
-			(hunkIndex: number, action: "accept" | "reject", _oldContent: string) => {
-				if (action === "accept") {
-					acceptedHunks.push(hunkIndex);
-				}
-				state.applyHunkAction(hunkIndex, action);
-			}
-		);
-		Reflect.set(state, "totalHunksAtInit", 2);
-		Reflect.set(state, "lineAnnotations", [
-			{ metadata: { hunkIndex: 0 } },
-			{ metadata: { hunkIndex: 1 } },
-		]);
-
-		const result = state.acceptAllPendingHunks();
-
-		expect(result).toEqual([
-			{ hunkIndex: 0, oldContent: "line-02\n" },
-			{ hunkIndex: 1, oldContent: "line-15\n" },
-		]);
-		expect(acceptedHunks).toEqual([0, 1]);
-		expect(state.getPendingHunkIndices()).toEqual([]);
-		expect(state.getHunkStats()).toEqual({
-			total: 2,
-			pending: 0,
-			accepted: 2,
-			rejected: 0,
-		});
+		expect(() => state.updateDiff(createMultiHunkDiffData())).not.toThrow();
 	}, 20_000);
 });

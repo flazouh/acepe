@@ -1,7 +1,9 @@
+use crate::acp::parsers::acp_fields::normalize_tool_call_id;
 use crate::acp::parsers::AgentType;
 use crate::acp::transcript_projection::{CanonicalTranscriptEvent, CanonicalTranscriptEventKind};
 use crate::cc_sdk::AssistantMessageError;
 use crate::session_jsonl::types::{ContentBlock, FullSession, OrderedMessage};
+use std::collections::HashSet;
 
 pub(crate) fn materialize_canonical_transcript_events(
     session: &FullSession,
@@ -37,11 +39,32 @@ pub(crate) fn materialize_canonical_transcript_events(
         }
     }
 
+    let mut events = dedupe_canonical_tool_events(events);
+
     for (index, event) in events.iter_mut().enumerate() {
         event.transcript_seq = index as u64;
     }
 
     events
+}
+
+fn dedupe_canonical_tool_events(
+    events: Vec<CanonicalTranscriptEvent>,
+) -> Vec<CanonicalTranscriptEvent> {
+    let mut seen_tool_call_ids = HashSet::new();
+
+    events
+        .into_iter()
+        .filter(|event| match &event.kind {
+            CanonicalTranscriptEventKind::ToolUse { tool_call_id, .. } => {
+                seen_tool_call_ids.insert(normalize_tool_call_id(tool_call_id))
+            }
+            CanonicalTranscriptEventKind::UserText { .. }
+            | CanonicalTranscriptEventKind::AssistantText { .. }
+            | CanonicalTranscriptEventKind::AssistantThought { .. }
+            | CanonicalTranscriptEventKind::AssistantError { .. } => true,
+        })
+        .collect()
 }
 
 fn push_user_events(
@@ -115,8 +138,13 @@ fn push_assistant_message_events(
                     kind: CanonicalTranscriptEventKind::AssistantText { text: text.clone() },
                 });
             }
-            ContentBlock::Thinking { thinking, .. } => {
-                if thinking.trim().is_empty() {
+            ContentBlock::Thinking {
+                thinking,
+                redacted_provider_data,
+                ..
+            } => {
+                let is_redacted_thought = redacted_provider_data.is_some();
+                if thinking.trim().is_empty() && !is_redacted_thought {
                     continue;
                 }
                 let display_id = active_display_id.clone().unwrap_or_else(|| {
@@ -135,6 +163,7 @@ fn push_assistant_message_events(
                     model: message.model.clone(),
                     kind: CanonicalTranscriptEventKind::AssistantThought {
                         text: thinking.clone(),
+                        redacted_provider_data: redacted_provider_data.clone(),
                     },
                 });
             }
@@ -208,7 +237,7 @@ fn convert_last_assistant_text_to_error(
 
     let text = match &event.kind {
         CanonicalTranscriptEventKind::AssistantText { text }
-        | CanonicalTranscriptEventKind::AssistantThought { text } => text.clone(),
+        | CanonicalTranscriptEventKind::AssistantThought { text, .. } => text.clone(),
         CanonicalTranscriptEventKind::UserText { .. }
         | CanonicalTranscriptEventKind::AssistantError { .. }
         | CanonicalTranscriptEventKind::ToolUse { .. } => return,
@@ -274,7 +303,11 @@ fn canonical_assistant_fragment_order(messages: &[OrderedMessage]) -> Vec<&Order
 fn block_is_visible_assistant_text(block: &ContentBlock) -> bool {
     match block {
         ContentBlock::Text { text } => !text.trim().is_empty(),
-        ContentBlock::Thinking { thinking, .. } => !thinking.trim().is_empty(),
+        ContentBlock::Thinking {
+            thinking,
+            redacted_provider_data,
+            ..
+        } => !thinking.trim().is_empty() || redacted_provider_data.is_some(),
         ContentBlock::CodeAttachment { .. } => true,
         ContentBlock::ToolUse { .. } | ContentBlock::ToolResult { .. } => false,
     }
@@ -338,8 +371,13 @@ fn count_assistant_text_segments(blocks: &[ContentBlock]) -> usize {
                     has_pending_chunks = true;
                 }
             }
-            ContentBlock::Thinking { thinking, .. } => {
-                if !thinking.trim().is_empty() {
+            ContentBlock::Thinking {
+                thinking,
+                redacted_provider_data,
+                ..
+            } => {
+                let is_redacted_thought = redacted_provider_data.is_some();
+                if !thinking.trim().is_empty() || is_redacted_thought {
                     has_pending_chunks = true;
                 }
             }
@@ -367,6 +405,7 @@ fn count_assistant_text_segments(blocks: &[ContentBlock]) -> usize {
 mod tests {
     use super::{materialize_canonical_transcript_events, CanonicalTranscriptEventKind};
     use crate::acp::parsers::AgentType;
+    use crate::acp::transcript_projection::{TranscriptSegment, TranscriptSnapshot};
     use crate::session_jsonl::types::{ContentBlock, FullSession, OrderedMessage, SessionStats};
     use serde_json::json;
 
@@ -440,6 +479,86 @@ mod tests {
         assert_eq!(kinds, vec!["tool", "assistant"]);
         assert_eq!(events[0].transcript_seq, 0);
         assert_eq!(events[1].transcript_seq, 1);
+    }
+
+    #[test]
+    fn canonical_events_dedupe_duplicate_tool_use_ids_before_projection() {
+        let session = session_with_messages(vec![
+            assistant_message(
+                "a-tool-original",
+                "req-1",
+                vec![ContentBlock::ToolUse {
+                    id: "provider-tool-1".to_string(),
+                    name: "Read".to_string(),
+                    input: json!({ "path": "/tmp/file" }),
+                }],
+            ),
+            assistant_message(
+                "a-tool-replay",
+                "req-1",
+                vec![ContentBlock::ToolUse {
+                    id: "provider-tool-1".to_string(),
+                    name: "Read".to_string(),
+                    input: json!({ "path": "/tmp/file" }),
+                }],
+            ),
+        ]);
+
+        let events = materialize_canonical_transcript_events(&session, AgentType::Cursor);
+        let tool_events = events
+            .iter()
+            .filter(|event| {
+                matches!(
+                    event.kind,
+                    CanonicalTranscriptEventKind::ToolUse {
+                        ref tool_call_id,
+                        ..
+                    } if tool_call_id == "provider-tool-1"
+                )
+            })
+            .count();
+
+        assert_eq!(tool_events, 1);
+    }
+
+    #[test]
+    fn canonical_events_preserve_redacted_thought_payload_and_project_display_marker() {
+        let session = session_with_messages(vec![assistant_message(
+            "a-redacted",
+            "req-1",
+            vec![
+                ContentBlock::Thinking {
+                    thinking: String::new(),
+                    signature: None,
+                    redacted_provider_data: Some("opaque-provider-payload".to_string()),
+                },
+                ContentBlock::Text {
+                    text: "Visible answer".to_string(),
+                },
+            ],
+        )]);
+
+        let events = materialize_canonical_transcript_events(&session, AgentType::Cursor);
+
+        match &events[0].kind {
+            CanonicalTranscriptEventKind::AssistantThought {
+                text,
+                redacted_provider_data,
+            } => {
+                assert_eq!(text, "");
+                assert_eq!(
+                    redacted_provider_data.as_deref(),
+                    Some("opaque-provider-payload")
+                );
+            }
+            other => panic!("expected first event to be redacted thought, got {other:?}"),
+        }
+
+        let snapshot = TranscriptSnapshot::from_canonical_events(1, &events);
+        match &snapshot.entries[0].segments[0] {
+            TranscriptSegment::Thought { text, .. } => assert_eq!(text, "[REDACTED]"),
+            other => panic!("expected projected thought marker, got {other:?}"),
+        }
     }
 
     #[test]

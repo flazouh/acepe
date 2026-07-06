@@ -29,7 +29,7 @@
 		diffContent?: Snippet<[{ file: GitViewerFile; viewMode: "inline" | "side-by-side" }]>;
 		/** Optional slot for the empty state when no file is selected. */
 		emptyState?: Snippet;
-		/** Base path for file-type SVG icons (e.g. "/svgs/icons"). Falls back to Phosphor icons if omitted. */
+		/** Base path for file-type SVG icons (e.g. "/svgs/icons"). Falls back to local file icons if omitted. */
 		iconBasePath?: string;
 		class?: string;
 	}

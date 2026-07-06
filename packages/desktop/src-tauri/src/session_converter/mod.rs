@@ -376,6 +376,7 @@ mod tests {
             ContentBlock::Thinking {
                 thinking: "Need to inspect files first.".to_string(),
                 signature: None,
+                redacted_provider_data: None,
             },
             ContentBlock::ToolUse {
                 id: "tool-1".to_string(),
@@ -423,6 +424,7 @@ mod tests {
             ContentBlock::Thinking {
                 thinking: "Let me think about this...".to_string(),
                 signature: None,
+                redacted_provider_data: None,
             },
         );
 

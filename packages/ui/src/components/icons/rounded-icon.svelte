@@ -20,7 +20,7 @@
 
 	let {
 		name,
-		class: className = "size-4",
+		class: className = "shrink-0",
 		style,
 		role,
 		"aria-label": ariaLabel,

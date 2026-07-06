@@ -31,6 +31,7 @@ import {
 	buildProviderUsageErrorAccounts,
 	loadProviderAccountUsageAccounts,
 } from "./provider-account-usage-source.js";
+import { createProviderUsageRefreshScheduler } from "./provider-usage-refresh-scheduler.js";
 interface Props {
 	viewState: MainAppViewState;
 	/** Optional snippet for add project/repository button (e.g. dropdown). Rendered in top bar left after decorations. */
@@ -57,6 +58,8 @@ const sessionStore = getSessionStore();
 const themeState = useTheme();
 const USAGE_REFRESH_INTERVAL_MS = 60_000;
 const USAGE_EVENT_REFRESH_DEBOUNCE_MS = 250;
+const USAGE_STARTUP_READY_POLL_MS = 50;
+const USAGE_INITIAL_REFRESH_DELAY_MS = 250;
 const PROVIDER_ACCOUNT_USAGE_UPDATED_EVENT = "provider-account-usage://updated";
 let providerUsageAccounts = $state.raw<ReadonlyArray<UsageProviderAccount>>(
 	buildProviderUsageCheckingAccounts()
@@ -168,23 +171,22 @@ function refreshProviderUsageAccounts(): void {
 onMount(() => {
 	let disposed = false;
 	let quotaUpdateUnlisten: UnlistenFn | null = null;
-	let quotaUpdateRefreshTimeout: number | null = null;
+	const providerUsageScheduler = createProviderUsageRefreshScheduler({
+		isStartupReady: () => viewState.initializationComplete,
+		refresh: refreshProviderUsageAccounts,
+		setTimeout: (callback, delayMs) => window.setTimeout(callback, delayMs),
+		clearTimeout: (id) => window.clearTimeout(id),
+		setInterval: (callback, delayMs) => window.setInterval(callback, delayMs),
+		clearInterval: (id) => window.clearInterval(id),
+		startupPollMs: USAGE_STARTUP_READY_POLL_MS,
+		initialDelayMs: USAGE_INITIAL_REFRESH_DELAY_MS,
+		eventDebounceMs: USAGE_EVENT_REFRESH_DEBOUNCE_MS,
+		refreshIntervalMs: USAGE_REFRESH_INTERVAL_MS,
+	});
 
-	function scheduleProviderUsageRefresh(): void {
-		if (quotaUpdateRefreshTimeout !== null) {
-			window.clearTimeout(quotaUpdateRefreshTimeout);
-		}
-
-		quotaUpdateRefreshTimeout = window.setTimeout(() => {
-			quotaUpdateRefreshTimeout = null;
-			refreshProviderUsageAccounts();
-		}, USAGE_EVENT_REFRESH_DEBOUNCE_MS);
-	}
-
-	refreshProviderUsageAccounts();
-	const intervalId = window.setInterval(refreshProviderUsageAccounts, USAGE_REFRESH_INTERVAL_MS);
+	providerUsageScheduler.start();
 	void listen(PROVIDER_ACCOUNT_USAGE_UPDATED_EVENT, () => {
-		scheduleProviderUsageRefresh();
+		providerUsageScheduler.notifyUsageUpdated();
 	}).then((unlisten) => {
 		if (disposed) {
 			void unlisten();
@@ -195,10 +197,7 @@ onMount(() => {
 
 	return () => {
 		disposed = true;
-		window.clearInterval(intervalId);
-		if (quotaUpdateRefreshTimeout !== null) {
-			window.clearTimeout(quotaUpdateRefreshTimeout);
-		}
+		providerUsageScheduler.dispose();
 		if (quotaUpdateUnlisten !== null) {
 			quotaUpdateUnlisten();
 		}
@@ -210,6 +209,7 @@ onMount(() => {
 	windowDraggable
 	showTrafficLights={false}
 	{showSidebarToggle}
+	sidebarOpen={viewState.sidebarOpen}
 	showAddProject={!!addProjectButton}
 	{addProjectButton}
 	onToggleSidebar={() => viewState.setSidebarOpen(!viewState.sidebarOpen)}
@@ -229,7 +229,7 @@ onMount(() => {
 				triggerAriaLabel="Layout Settings"
 			>
 				{#snippet renderButton()}
-					<RoundedIcon name="filter" class="size-4" />
+					<RoundedIcon name="filter" />
 				{/snippet}
 
 				<DropdownMenu.Group>
@@ -338,12 +338,12 @@ onMount(() => {
 					<Button
 						{...props}
 						variant="ghost"
-						size="icon-chrome"
+						size="icon-2xs"
 						aria-label="Feedback"
 						onclick={() => openUrl("https://github.com/flazouh/acepe/issues")}
 					>
 						{#snippet children()}
-							<RoundedIcon name="bug" class="size-4" style="color: #FF5D5A" />
+							<RoundedIcon name="bug" style="color: #FF5D5A" />
 						{/snippet}
 					</Button>
 				{/snippet}
@@ -360,7 +360,7 @@ onMount(() => {
 				triggerAriaLabel="Dev Tools"
 			>
 				{#snippet renderButton()}
-					<WrenchIcon class="size-4" weight="fill" style="color: #FAD83C" />
+					<WrenchIcon weight="fill" style="color: #FAD83C" />
 				{/snippet}
 
 				<DropdownMenu.Group>
@@ -412,12 +412,12 @@ onMount(() => {
 					<Button
 						{...props}
 						variant="ghost"
-						size="icon-chrome"
+						size="icon-2xs"
 						aria-label="Database Manager"
 						onclick={() => viewState.toggleSqlStudio()}
 					>
 						{#snippet children()}
-							<StorageIcon weight="fill" class="size-4" />
+							<StorageIcon weight="fill" />
 						{/snippet}
 					</Button>
 				{/snippet}

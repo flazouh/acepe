@@ -32,8 +32,8 @@
 		onclick={(event: MouseEvent) => event.stopPropagation()}
 	>
 		<Button
-			variant="headerAction"
-			size="headerAction"
+			variant="secondary"
+			size="xs"
 			disabled={reviewDisabled}
 			onclick={() => model.onReview?.()}
 		>
@@ -45,8 +45,8 @@
 
 {#if showToggle}
 	<Button
-		variant="headerAction"
-		size="headerAction"
+		variant="secondary"
+		size="xs"
 		class="tabular-nums"
 		onclick={(event: MouseEvent) => {
 			event.stopPropagation();

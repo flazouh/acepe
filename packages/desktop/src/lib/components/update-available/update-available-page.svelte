@@ -55,47 +55,53 @@ onMount(() => {
 		<BrandThemeToggle />
 	{/snippet}
 
-	<!-- Card: iris grain surface (relative z-10 to sit above the surface tint) -->
-	<div class="update-card relative z-10 w-full max-w-sm overflow-hidden rounded-2xl">
-		<IrisCard>
-			<!-- Header -->
-			<div class="flex flex-col gap-2 p-4 pb-3">
-			<!-- Logo + version -->
-			<div class="flex items-center justify-between">
+	<IrisCard class="update-card relative z-10 w-full max-w-sm rounded-xl">
+		<div class="flex flex-col gap-3 p-4">
+			<div class="flex items-center justify-between gap-3">
 				<BrandLockup
 					class="gap-2.5"
 					markClass="h-7 w-7"
-					wordmarkClass="text-[15px] text-foreground"
+					wordmarkClass="text-[15px] font-medium tracking-tight text-foreground"
 				/>
 				{#if updaterState.kind === "available" || updaterState.kind === "downloading" || updaterState.kind === "installing"}
-					<span class="rounded-full bg-muted/40 px-2 py-0.5 font-mono text-[10px] text-muted-foreground/50">
+					<span
+						class="rounded-full bg-white/45 px-2 py-0.5 font-mono text-[10px] text-muted-foreground ring-1 ring-white/60"
+					>
 						v{updaterState.version}
 					</span>
 				{/if}
 			</div>
 
-			<!-- State content -->
 			{#if updaterState.kind === "checking"}
-				<div class="flex flex-col gap-1.5">
-					<p class="text-[13px] font-medium text-foreground">{"Checking for updates"}</p>
+				<div class="flex flex-col gap-2">
+					<p class="text-[13px] font-semibold tracking-tight text-foreground">Checking for updates</p>
 					<div class="flex items-center gap-2">
-						<Spinner class="text-muted-foreground/40" size={12} />
-						<span class="text-[11px] text-muted-foreground/50">{"Looking for the latest version..."}</span>
+						<Spinner class="text-muted-foreground/50" size={12} />
+						<span class="text-[11px] text-muted-foreground/70">Looking for the latest version…</span>
 					</div>
 				</div>
-			{:else if updaterState.kind === "downloading" || updaterState.kind === "installing"}
+			{:else if updaterState.kind === "available"}
 				<div class="flex flex-col gap-2">
-					<div class="flex items-baseline justify-between">
-						<TextShimmer class="text-[13px] font-medium text-foreground">
-							{isInstalling ? "Installing update..." : "Downloading update"}
+					<p class="text-[13px] font-semibold tracking-tight text-foreground">New version ready</p>
+					<p class="text-[11px] leading-relaxed text-muted-foreground/70">
+						Download and install v{updaterState.version} to get the latest improvements.
+					</p>
+				</div>
+			{:else if updaterState.kind === "downloading" || updaterState.kind === "installing"}
+				<div class="flex flex-col gap-2.5">
+					<div class="flex items-baseline justify-between gap-3">
+						<TextShimmer class="text-[13px] font-semibold tracking-tight text-foreground">
+							{isInstalling ? "Installing update…" : "Downloading update…"}
 						</TextShimmer>
 						{#if downloadPercent !== null}
-							<span class="text-[11px] tabular-nums text-muted-foreground/50">{downloadPercent}%</span>
+							<span class="font-mono text-[11px] tabular-nums text-muted-foreground/70">
+								{downloadPercent}%
+							</span>
 						{/if}
 					</div>
 
 					<SegmentedProgressBar
-						ariaLabel={isInstalling ? "Installing update..." : "Downloading update"}
+						ariaLabel={isInstalling ? "Installing update" : "Downloading update"}
 						label=""
 						percent={downloadPercent !== null ? downloadPercent : 0}
 						segmentCount={UPDATE_PROGRESS_SEGMENT_COUNT}
@@ -104,24 +110,24 @@ onMount(() => {
 					/>
 
 					{#if updaterState.kind === "downloading"}
-						<div class="flex items-center justify-between text-[11px] text-muted-foreground/40">
+						<div class="flex items-center justify-between text-[11px] text-muted-foreground/55">
 							<span class="tabular-nums">
 								{formatBytes(updaterState.downloadedBytes)}{#if updaterState.totalBytes} / {formatBytes(updaterState.totalBytes)}{/if}
 							</span>
 							{#if isInstalling}
-								<span>{"Installing update..."}</span>
+								<span>Installing update…</span>
 							{/if}
 						</div>
 					{:else}
-						<div class="flex items-center justify-end text-[11px] text-muted-foreground/40">
-							<span>{"Installing update..."}</span>
+						<div class="flex items-center justify-end text-[11px] text-muted-foreground/55">
+							<span>Installing update…</span>
 						</div>
 					{/if}
 				</div>
 			{:else if updaterState.kind === "error"}
-				<div class="flex flex-col gap-1.5">
-					<p class="text-[13px] font-medium text-foreground">{"Update failed"}</p>
-					<p class="text-[11px] leading-relaxed text-muted-foreground/50">
+				<div class="flex flex-col gap-2">
+					<p class="text-[13px] font-semibold tracking-tight text-foreground">Update failed</p>
+					<p class="text-[11px] leading-relaxed text-muted-foreground/70">
 						{updaterState.message}
 					</p>
 					<div>
@@ -129,21 +135,20 @@ onMount(() => {
 							variant="default"
 							size="sm"
 							onclick={onRetry}
-							class="group gap-1.5 h-6 px-2.5 text-[11px]"
+							class="group gap-1.5 h-7 px-3 text-[11px]"
 						>
-							{"Retry"}
+							Retry
 							<RoundedIcon name="refresh" class="size-3 transition-transform duration-200 group-hover:rotate-180" />
 						</Button>
 					</div>
 				</div>
 			{/if}
-			</div>
-		</IrisCard>
-	</div>
+		</div>
+	</IrisCard>
 </BrandSurface>
 
 <style>
-	.update-card {
+	:global(.update-card) {
 		box-shadow:
 			0 0 0 1px rgba(0, 0, 0, 0.08),
 			0 20px 60px rgba(0, 0, 0, 0.35);

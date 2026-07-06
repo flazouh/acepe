@@ -57,9 +57,11 @@ describe("AgentPanelSessionController", () => {
 	describe("Cluster A — identity / metadata", () => {
 		const identity = { projectPath: "/p", agentId: "claude-code", worktreePath: "/wt" };
 		const sessionStore = {
-			getSessionIdentity: (_id: string) => identity,
-			getSessionMetadata: (_id: string) => ({ title: "My session" }),
-			getSessionCurrentModelId: (_id: string) => "opus",
+			read: {
+				getSessionIdentity: (_id: string) => identity,
+				getSessionMetadata: (_id: string) => ({ title: "My session" }),
+				getSessionCurrentModelId: (_id: string) => "opus",
+			},
 		} as unknown as SessionStore;
 
 		const makeWithStore = (sessionId: string | null, panelId?: string) =>
@@ -103,20 +105,26 @@ describe("AgentPanelSessionController", () => {
 	});
 
 	describe("Cluster B — entry presence / status", () => {
-		const makeWithEntries = (entryCount: number) => {
+		const makeWithEntries = (entryCount: number, messageCount = entryCount) => {
 			const entries = Array.from({ length: entryCount }, (_, i) => ({
 				entryId: `e${i}`,
 				role: "user",
 			}));
 			const sessionStore = {
-				getSessionPendingSendIntent: () => null,
-				getSessionTranscriptEntries: () => entries,
-				getSessionLifecyclePresentation: () => null,
-				getSessionAgentPanelCanonicalSource: () => null,
-				getSessionAgentPanelSessionSource: () => ({ kind: "uninitialized" }),
-				getSessionIdentity: () => null,
-				getSessionMetadata: () => null,
-				getSessionCurrentModelId: () => null,
+				read: {
+					getSessionPendingSendIntent: () => null,
+					getSessionTranscriptEntries: () => entries,
+					getSessionMessageCount: () => messageCount,
+					getSessionIdentity: () => null,
+					getSessionMetadata: () => null,
+					getSessionCurrentModelId: () => null,
+					getActiveStreamingTailRowId: () => null,
+				},
+				presentation: {
+					getSessionLifecyclePresentation: () => null,
+					getSessionAgentPanelCanonicalSource: () => null,
+					getSessionAgentPanelSessionSource: () => ({ kind: "no_session" }),
+				},
 			} as unknown as SessionStore;
 			const panelStore = { getHotState: () => null } as unknown as PanelStore;
 			return new AgentPanelSessionController({
@@ -137,6 +145,13 @@ describe("AgentPanelSessionController", () => {
 			expect(c.hasMessages).toBe(true);
 		});
 
+		it("reports hasMessages true when compacted transcript entries keep canonical message count", () => {
+			const c = makeWithEntries(0, 5349);
+			expect(c.visibleEntryCount).toBe(5349);
+			expect(c.knownVisibleEntryCount).toBe(5349);
+			expect(c.hasMessages).toBe(true);
+		});
+
 		it("reports hasMessages false when there are no entries", () => {
 			const c = makeWithEntries(0);
 			expect(c.hasMessages).toBe(false);
@@ -146,14 +161,23 @@ describe("AgentPanelSessionController", () => {
 	describe("Cluster C — error / connection (Decision 7 stillFailed)", () => {
 		const makeWithConnection = (connectionState: PanelConnectionState | null) => {
 			const sessionStore = {
-				getSessionConnectionError: () => null,
-				getSessionLifecycleFailureReason: () => null,
-				getSessionActiveTurnFailure: () => null,
-				getSessionAgentPanelSessionSource: () => ({ kind: "uninitialized" }),
-				getSessionPendingSendIntent: () => null,
-				getSessionTranscriptEntries: () => [],
-				getSessionLifecyclePresentation: () => null,
-				getSessionAgentPanelCanonicalSource: () => null,
+				read: {
+					getSessionConnectionError: () => null,
+					getSessionLifecycleFailureReason: () => null,
+					getSessionActiveTurnFailure: () => null,
+					getSessionPendingSendIntent: () => null,
+					getSessionTranscriptEntries: () => [],
+					getSessionMessageCount: () => 0,
+					getActiveStreamingTailRowId: () => null,
+					getSessionIdentity: () => null,
+					getSessionMetadata: () => null,
+					getSessionCurrentModelId: () => null,
+				},
+				presentation: {
+					getSessionAgentPanelSessionSource: () => ({ kind: "no_session" }),
+					getSessionLifecyclePresentation: () => null,
+					getSessionAgentPanelCanonicalSource: () => null,
+				},
 			} as unknown as SessionStore;
 			const panelStore = { getHotState: () => null } as unknown as PanelStore;
 			return new AgentPanelSessionController({

@@ -4,20 +4,28 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import DiffViewerModal from "./diff-viewer-modal.svelte";
 
-vi.mock(
-	"svelte",
-	async () =>
-		// @ts-expect-error Test-only client runtime override for Vitest component mounting
-		import("../../../../../../node_modules/svelte/src/index-client.js")
-);
+vi.mock("svelte", async () => {
+	const { createRequire } = await import("node:module");
+	const { dirname, join } = await import("node:path");
+	const require = createRequire(import.meta.url);
+	const svelteClientPath = join(
+		dirname(require.resolve("svelte/package.json")),
+		"src/index-client.js"
+	);
+
+	return import(/* @vite-ignore */ svelteClientPath);
+});
 
 vi.mock("@acepe/ui", async () => {
 	const GitViewer = (await import("./test-git-viewer.svelte")).default;
 	const LoadingIcon = (await import("./test-loading-icon.svelte")).default;
+	const RoundedIcon = (await import("./test-rounded-icon.svelte")).default;
 
 	return {
 		GitViewer,
+		getDialogHeaderIconCloseClass: () => "dialog-close-stub",
 		LoadingIcon,
+		RoundedIcon,
 	};
 });
 
@@ -63,7 +71,7 @@ afterEach(() => {
 
 describe("DiffViewerModal", () => {
 	it("uses DialogFrame for a centered modal surface instead of edge-to-edge fullscreen", async () => {
-		const { container, getByTestId } = render(DiffViewerModal, {
+		const { getByTestId } = render(DiffViewerModal, {
 			open: true,
 			reference: {
 				type: "commit",
@@ -77,8 +85,17 @@ describe("DiffViewerModal", () => {
 			expect(getByTestId("git-viewer-stub")).not.toBeNull();
 		});
 
-		const dialogContent = container.querySelector("[data-slot='dialog-content']");
+		const dialogContent = document.querySelector("[data-slot='dialog-content']");
 		expect(dialogContent).not.toBeNull();
 		expect(dialogContent?.className).toContain("rounded-xl");
+
+		const frameHeader = document.querySelector("[data-dialog-frame-header]");
+		const frameTitle = document.querySelector("[data-dialog-frame-title]");
+		const closeButton = document.querySelector("button[aria-label='Close diff viewer']");
+
+		expect(frameHeader).not.toBeNull();
+		expect(frameTitle?.textContent?.trim()).toBe("GitHub diff viewer");
+		expect(closeButton).not.toBeNull();
+		expect(frameHeader?.contains(closeButton)).toBe(true);
 	});
 });

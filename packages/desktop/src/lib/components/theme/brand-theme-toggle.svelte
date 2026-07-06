@@ -35,9 +35,9 @@ const themeState = useTheme();
 >
 	{#snippet renderButton()}
 		{#if themeState.theme === "light"}
-			<RoundedIcon name="sun" class="size-4" style="color: #F8F5EE" />
+			<RoundedIcon name="sun" style="color: #F8F5EE" />
 		{:else if themeState.theme === "dark"}
-			<RoundedIcon name="moon" class="size-4" style="color: #F8F5EE" />
+			<RoundedIcon name="moon" style="color: #F8F5EE" />
 		{:else}
 			{@render systemThemeIcon()}
 		{/if}

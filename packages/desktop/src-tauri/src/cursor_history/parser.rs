@@ -1042,6 +1042,7 @@ fn parse_message_content(text: &str, role: &str, stats: &mut SessionStats) -> Ve
                 blocks.push(ContentBlock::Thinking {
                     thinking: thinking.to_string(),
                     signature: None,
+                    redacted_provider_data: None,
                 });
             }
             search_start = think_end + "</think>".len();

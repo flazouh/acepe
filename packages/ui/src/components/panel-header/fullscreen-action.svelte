@@ -17,7 +17,7 @@
 		onToggle,
 		titleEnter = "Fullscreen",
 		titleExit = "Exit fullscreen",
-		size = "icon-chrome",
+		size = "icon-2xs",
 		class: className = "",
 	}: Props = $props();
 
@@ -34,6 +34,6 @@
 	class={className}
 >
 	{#snippet children()}
-		<RoundedIcon name={isFullscreen ? "collapse" : "expand"} class="size-3" />
+		<RoundedIcon name={isFullscreen ? "collapse" : "expand"} />
 	{/snippet}
 </Button>

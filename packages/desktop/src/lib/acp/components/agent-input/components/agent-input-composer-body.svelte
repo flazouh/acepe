@@ -180,36 +180,40 @@ const submitAriaLabel = $derived(
 		<Skeleton class="h-8 w-8 rounded-full shrink-0" />
 	</div>
 {/if}
-<AgentInputSlashCommandDropdown
-	bind:this={inputState.slashDropdownRef}
-	sections={slashPaletteSections}
-	isOpen={isSlashDropdownVisible}
-	query={inputState.slashQuery}
-	position={inputState.slashPosition}
-	noContentLabel={"Nothing available"}
-	noResultsLabel={"No matching items"}
-	startTypingLabel={"Start typing to filter"}
-	selectHintLabel={"to select"}
-	closeHintLabel={"to close"}
-	loadWorkspaceMarkdown={loadSlashCommandWorkspaceMarkdown}
-	onItemSelect={onSlashPaletteItemSelect}
-	onClose={onSlashDropdownClose}
-/>
-<AgentInputFilePickerDropdown
-	bind:this={inputState.fileDropdownRef}
-	files={inputState.availableFiles}
-	isOpen={inputState.showFileDropdown}
-	isLoading={inputState.filesLoading}
-	query={inputState.fileQuery}
-	position={inputState.filePosition}
-	headerLabel={"Add file context"}
-	noResultsLabel={"No matching files"}
-	selectHintLabel={"to select"}
-	closeHintLabel={"to close"}
-	onSelect={(file) => onFileSelect(file)}
-	onClose={onFileDropdownClose}
->
-	{#snippet preview(file)}
-		<FilePreview file={file} projectPath={filePickerProjectPath ? filePickerProjectPath : ""} />
-	{/snippet}
-</AgentInputFilePickerDropdown>
+	{#if isSlashDropdownVisible}
+		<AgentInputSlashCommandDropdown
+			bind:this={inputState.slashDropdownRef}
+			sections={slashPaletteSections}
+			isOpen={true}
+			query={inputState.slashQuery}
+			position={inputState.slashPosition}
+			noContentLabel={"Nothing available"}
+			noResultsLabel={"No matching items"}
+			startTypingLabel={"Start typing to filter"}
+			selectHintLabel={"to select"}
+			closeHintLabel={"to close"}
+			loadWorkspaceMarkdown={loadSlashCommandWorkspaceMarkdown}
+			onItemSelect={onSlashPaletteItemSelect}
+			onClose={onSlashDropdownClose}
+		/>
+	{/if}
+	{#if inputState.showFileDropdown}
+		<AgentInputFilePickerDropdown
+			bind:this={inputState.fileDropdownRef}
+			files={inputState.availableFiles}
+			isOpen={true}
+			isLoading={inputState.filesLoading}
+			query={inputState.fileQuery}
+			position={inputState.filePosition}
+			headerLabel={"Add file context"}
+			noResultsLabel={"No matching files"}
+			selectHintLabel={"to select"}
+			closeHintLabel={"to close"}
+			onSelect={(file) => onFileSelect(file)}
+			onClose={onFileDropdownClose}
+		>
+			{#snippet preview(file)}
+				<FilePreview file={file} projectPath={filePickerProjectPath ? filePickerProjectPath : ""} />
+			{/snippet}
+		</AgentInputFilePickerDropdown>
+	{/if}

@@ -1,11 +1,11 @@
 <script lang="ts">
+import { FolderSimple } from "phosphor-svelte";
 import {
 	Table,
 	TableBody,
 	TableCell,
 	TableRow,
 	LoadingIcon,
-	RoundedIcon,
 } from "@acepe/ui";
 import { cn } from "$lib/utils.js";
 
@@ -53,13 +53,13 @@ function handleProjectRowKeydown(event: KeyboardEvent, project: ProjectWithSessi
 </script>
 
 {#if loading}
-	<div class="flex h-full min-h-0 w-full items-center justify-center gap-2 text-muted-foreground">
+	<div class="flex min-h-[10rem] w-full items-center justify-center gap-2 text-muted-foreground">
 		<LoadingIcon class="shrink-0" size={16} aria-label="Scanning for projects" />
 		<span class="text-xs">{"Scanning for projects..."}</span>
 	</div>
 {:else if projects.length === 0}
-	<div class="flex h-full min-h-0 w-full flex-col items-center justify-center gap-2 px-6 text-center">
-		<RoundedIcon name="folder" class="size-8 text-muted-foreground/50" />
+	<div class="flex min-h-[10rem] w-full flex-col items-center justify-center gap-2 px-6 text-center">
+		<FolderSimple weight="light" class="size-8 text-muted-foreground/50" />
 		<p class="text-xs text-muted-foreground">
 			{"No projects with sessions found"}
 		</p>
@@ -68,12 +68,12 @@ function handleProjectRowKeydown(event: KeyboardEvent, project: ProjectWithSessi
 		</p>
 	</div>
 {:else}
-	<Table class="acepe-table-wrapper-fill h-full min-h-0 w-full" style="table-layout: fixed; width: 100%;">
+	<Table class="acepe-table-wrapper-fill project-table-tiled-actions w-full" style="table-layout: fixed; width: 100%;">
 		<colgroup>
 			<col style="width: 20%;" />
-			<col style="width: 52%;" />
-			<col style="width: 16%;" />
-			<col style="width: 12%;" />
+			<col style="width: 50%;" />
+			<col style="width: 25%;" />
+			<col style="width: 5%;" />
 		</colgroup>
 		<TableBody>
 				{#each projects as project (project.path)}
@@ -97,20 +97,46 @@ function handleProjectRowKeydown(event: KeyboardEvent, project: ProjectWithSessi
 							{displayPath(project.path)}
 						</span>
 					</TableCell>
-					<TableCell class="whitespace-nowrap">
+					<TableCell class="overflow-hidden whitespace-nowrap">
 							<AgentCountsCell
 								agentCounts={getDisplayCounts(Array.from(project.agentCounts.entries()))}
 							/>
 						</TableCell>
-						<TableCell class="whitespace-nowrap text-right">
-							<ActionsCell
-								{isAdded}
-								onImport={() => onImport(project.path, project.name)}
-								onUndo={() => onUndo(project.path, project.name)}
-							/>
+						<TableCell class="whitespace-nowrap">
+							<div class="flex justify-center">
+								<ActionsCell
+									{isAdded}
+									onImport={() => onImport(project.path, project.name)}
+									onUndo={() => onUndo(project.path, project.name)}
+								/>
+							</div>
 						</TableCell>
 					</TableRow>
 				{/each}
 			</TableBody>
 		</Table>
 {/if}
+
+<style>
+	/*
+	 * The base table treats any `td:has(button)` as a fill-less action cell.
+	 * Here the add/remove action reads as a proper column, so re-apply the same
+	 * data-tile fill as the other cells, with equal padding on all sides and the
+	 * icon vertically centered (base cells are `vertical-align: top`). Scoped to
+	 * this table via the extra `.project-table-tiled-actions` class so other
+	 * tables keep the no-fill default; the two-class selector out-specifies the
+	 * base `:has(button)` rule.
+	 */
+	:global(.acepe-table-wrapper.project-table-tiled-actions td:has(button)) {
+		background: color-mix(in srgb, var(--foreground) 5%, transparent);
+		padding: 0.25rem;
+		vertical-align: middle;
+	}
+	/*
+	 * Rows don't highlight on hover in this table — hold every tile at its rest
+	 * fill so the add button's own hover background is the only hover feedback.
+	 */
+	:global(.acepe-table-wrapper.project-table-tiled-actions tbody tr:hover td) {
+		background: color-mix(in srgb, var(--foreground) 5%, transparent);
+	}
+</style>

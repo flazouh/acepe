@@ -1,6 +1,7 @@
 import { describe, expect, it } from "bun:test";
 
 import {
+	AgentPreferencesStore,
 	deriveAgentPreferencesInitializationState,
 	filterItemsBySelectedAgentIds,
 	getAgentEnvOverridesForAgent,
@@ -9,6 +10,7 @@ import {
 	upsertCustomAgentConfigs,
 	validateAndNormalizeSelectedAgentIds,
 } from "../agent-preferences-store.svelte.js";
+import type { Agent } from "../types.js";
 
 interface SessionLike {
 	readonly id: string;
@@ -127,6 +129,49 @@ describe("filterItemsBySelectedAgentIds", () => {
 	it("hard-filters items to selected agents once initialized", () => {
 		const result = filterItemsBySelectedAgentIds(sessions, ["cursor"], true);
 		expect(result).toEqual([{ id: "s2", agentId: "cursor" }]);
+	});
+});
+
+describe("AgentPreferencesStore.primeStartupDefaults", () => {
+	it("fills selected agents cheaply without marking persisted preferences initialized", () => {
+		const store = new AgentPreferencesStore();
+		const agents: Agent[] = [
+			{
+				id: "claude-code",
+				name: "Claude Code",
+				icon: "claude",
+			},
+			{
+				id: "cursor",
+				name: "Cursor",
+				icon: "cursor",
+			},
+		];
+
+		store.primeStartupDefaults(agents, 2);
+
+		expect(store.onboardingCompleted).toBe(true);
+		expect(store.selectedAgentIds).toEqual(["claude-code", "cursor"]);
+		expect(store.initialized).toBe(false);
+	});
+
+	it("does not overwrite initialized persisted preferences", () => {
+		const store = new AgentPreferencesStore();
+		store.initialized = true;
+		store.selectedAgentIds = ["cursor"];
+
+		store.primeStartupDefaults(
+			[
+				{
+					id: "claude-code",
+					name: "Claude Code",
+					icon: "claude",
+				},
+			],
+			1
+		);
+
+		expect(store.selectedAgentIds).toEqual(["cursor"]);
 	});
 });
 

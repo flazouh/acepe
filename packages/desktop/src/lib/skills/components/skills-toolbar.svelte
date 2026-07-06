@@ -73,7 +73,7 @@ function handleDelete() {
 
 			<Selector align="end" triggerSize="icon" showChevron={false} variant="ghost">
 				{#snippet renderButton()}
-					<RoundedIcon name="more" class="h-4 w-4" />
+					<RoundedIcon name="more" />
 				{/snippet}
 
 				{#if otherAgents.length > 0}

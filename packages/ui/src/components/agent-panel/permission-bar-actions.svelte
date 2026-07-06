@@ -47,19 +47,19 @@
 
 {#if selectedReply === null}
 	<div class={wrapperClass}>
-		<Button variant="toolbar" size="toolbar" class={buttonClass} onclick={onDeny}>
+		<Button variant="outline" size="xs" class={buttonClass} onclick={onDeny}>
 			<RoundedIcon name="x-circle" class="size-3 shrink-0" style="color: {denyIconColor}" />
 			<span>{denyLabel}</span>
 		</Button>
 
 		{#if showAlwaysAllow && onAlwaysAllow}
-			<Button variant="toolbar" size="toolbar" class={buttonClass} onclick={onAlwaysAllow}>
+			<Button variant="outline" size="xs" class={buttonClass} onclick={onAlwaysAllow}>
 				<RoundedIcon name="shield-check" class="size-3 shrink-0" style="color: {alwaysIconColor}" />
 				<span>{alwaysAllowLabel}</span>
 			</Button>
 		{/if}
 
-		<Button variant="toolbar" size="toolbar" class={buttonClass} onclick={onAllow}>
+		<Button variant="outline" size="xs" class={buttonClass} onclick={onAllow}>
 			<RoundedIcon name="check-circle" class="size-3 shrink-0" style="color: {allowIconColor}" />
 			<span>{allowLabel}</span>
 		</Button>

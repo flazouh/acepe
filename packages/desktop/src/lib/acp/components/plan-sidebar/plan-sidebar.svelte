@@ -52,26 +52,26 @@ function handleDownloadMarkdown() {
 			<CopyButton text={plan.content} variant="embedded" stopPropagation={true} />
 			<Button
 				variant="ghost"
-				size="icon-chrome"
+				size="icon-2xs"
 				data-header-control
 				title="Download"
 				aria-label="Download"
 				onclick={handleDownloadMarkdown}
 			>
 				{#snippet children()}
-				<RoundedIcon name="download" class="size-3.5" />
+				<RoundedIcon name="download" />
 				{/snippet}
 			</Button>
 			<Button
 				variant="ghost"
-				size="icon-chrome"
+				size="icon-2xs"
 				data-header-control
 				title="Open in fullscreen"
 				aria-label="Open in fullscreen"
 				onclick={onOpenFullscreen}
 			>
 				{#snippet children()}
-					<RoundedIcon name="expand" class="size-3.5" />
+					<RoundedIcon name="expand" />
 				{/snippet}
 			</Button>
 		{/snippet}

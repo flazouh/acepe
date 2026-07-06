@@ -1,9 +1,11 @@
 import { describe, expect, it } from "bun:test";
 
 import type { SessionEntry } from "../../../../application/dto/session-entry.js";
+import {
+	aggregateFileEdits,
+	aggregateFileEditsFromToolCalls,
+} from "../../../../logic/aggregate-file-edits.js";
 import { createLongSessionFixture } from "../../../../testing/long-session-fixture.js";
-
-import { aggregateFileEdits, aggregateFileEditsFromToolCalls } from "../../../../logic/aggregate-file-edits.js";
 
 function createEditEntry(
 	id: string,
@@ -251,6 +253,10 @@ describe("aggregateFileEdits", () => {
 			expect(result.files[0].editCount).toBe(2);
 			expect(result.files[0].originalContent).toBe("first-old");
 			expect(result.files[0].finalContent).toBe("second-new");
+			expect(result.files[0].edits).toEqual([
+				{ oldString: "first-old", newString: "first-new", content: null },
+				{ oldString: "second-old", newString: "second-new", content: null },
+			]);
 		});
 
 		it("should accumulate line stats across edits", () => {

@@ -10,7 +10,6 @@ export { default as RoundedIcon } from "./rounded-icon.svelte";
 export type { RoundedIconName } from "./rounded-icon-data.generated.js";
 export { default as LoadingIcon } from "./loading-icon.svelte";
 export { default as MenuIcon } from "./menu-icon.svelte";
-export { default as MoreVerticalIcon } from "./more-vertical-icon.svelte";
 export { default as PaletteIcon } from "./palette-icon.svelte";
 export { default as DotmTriangle17Spinner } from "./dotm-triangle-17-spinner.svelte";
 export { default as DotmTriangle20Spinner } from "./dotm-triangle-20-spinner.svelte";
@@ -50,7 +49,6 @@ export {
 export type { DotmatrixLoaderConfig, DotmatrixLoaderRuntime } from "./dotmatrix/loader-types.js";
 export { default as PlanIcon } from "./plan-icon.svelte";
 export { default as PlusIcon } from "./plus-icon.svelte";
-export { PLUS_ACTION_BUTTON_CLASS, PLUS_ICON_CLASS } from "./plus-icon-classes.js";
 export { default as RecycleIcon } from "./recycle-icon.svelte";
 export { default as RevertIcon } from "./revert-icon.svelte";
 export { default as RobotIcon } from "./robot-icon.svelte";

@@ -16,24 +16,21 @@
 		tabs: readonly ReviewTab[];
 		selectedIndex: number;
 		onSelectTab: (index: number) => void;
-		acceptedTooltip?: string;
-		partialTooltip?: string;
-		deniedTooltip?: string;
+		reviewedTooltip?: string;
+		unreviewedTooltip?: string;
 	}
 
 	let {
 		tabs,
 		selectedIndex,
 		onSelectTab,
-		acceptedTooltip = "All changes accepted",
-		partialTooltip = "Partially reviewed",
-		deniedTooltip = "Changes rejected",
+		reviewedTooltip = "Reviewed",
+		unreviewedTooltip = "Not reviewed",
 	}: Props = $props();
 
 	function getStatusTooltip(status: AgentPanelFileReviewStatus): string {
-		if (status === "accepted") return acceptedTooltip;
-		if (status === "denied") return deniedTooltip;
-		return partialTooltip;
+		if (status === "reviewed") return reviewedTooltip;
+		return unreviewedTooltip;
 	}
 </script>
 
@@ -50,12 +47,10 @@
 			onclick={() => onSelectTab(index)}
 		>
 			<span class="flex items-center gap-1.5 min-w-0" title={getStatusTooltip(tab.status)}>
-				{#if tab.status === "accepted"}
+				{#if tab.status === "reviewed"}
 					<RoundedIcon name="check-circle" class="h-3.5 w-3.5 shrink-0 text-success" />
-				{:else if tab.status === "denied"}
-					<RoundedIcon name="x-circle" class="h-3.5 w-3.5 shrink-0 text-destructive" />
 				{:else}
-					<RoundedIcon name="circle-dashed" class="h-3.5 w-3.5 shrink-0 text-primary" />
+					<span class="block h-3.5 w-3.5 shrink-0 rounded-full border border-current opacity-30 text-muted-foreground"></span>
 				{/if}
 				<span class="review-tab-chip contents">
 					<FilePathBadge

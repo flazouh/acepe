@@ -14,44 +14,31 @@ const BASE_FILE = {
 };
 
 describe("getReviewStatusByFilePath", () => {
-	it("returns persisted status when revision key matches", () => {
+	it("returns reviewed status when revision key matches", () => {
 		const revisionKey = createReviewFileRevisionKey(BASE_FILE);
 		const state: SessionReviewState = {
-			version: 1,
+			version: 2,
 			filesByRevisionKey: {
 				[revisionKey]: {
 					filePath: BASE_FILE.filePath,
-					status: "accepted",
-					acceptedHunks: 2,
-					rejectedHunks: 0,
-					pendingHunks: 0,
-					totalHunks: 2,
-					resolvedActions: [
-						{ hunkIndex: 0, action: "accept" },
-						{ hunkIndex: 1, action: "accept" },
-					],
+					reviewed: true,
 				},
 			},
 		};
 
 		const statusByPath = getReviewStatusByFilePath([BASE_FILE], state);
 
-		expect(statusByPath.get(BASE_FILE.filePath)).toBe("accepted");
+		expect(statusByPath.get(BASE_FILE.filePath)).toBe("reviewed");
 	});
 
 	it("does not reuse status when file content changed later", () => {
 		const oldRevisionKey = createReviewFileRevisionKey(BASE_FILE);
 		const state: SessionReviewState = {
-			version: 1,
+			version: 2,
 			filesByRevisionKey: {
 				[oldRevisionKey]: {
 					filePath: BASE_FILE.filePath,
-					status: "accepted",
-					acceptedHunks: 2,
-					rejectedHunks: 0,
-					pendingHunks: 0,
-					totalHunks: 2,
-					resolvedActions: [],
+					reviewed: true,
 				},
 			},
 		};

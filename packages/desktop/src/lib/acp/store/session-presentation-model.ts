@@ -122,7 +122,7 @@ export class SessionPresentationModel {
 
 		return deriveLiveSessionLifecyclePresentation({
 			source: liveSessionWorkSourceFromCanonicalProjection(sessionId, projection),
-			hasEntries: graph === null ? null : graph.transcriptSnapshot.entries.length > 0,
+			hasEntries: graph === null ? null : graph.messageCount > 0,
 			hasLocalPendingSendIntent: transientProjection.pendingSendIntent !== null,
 		});
 	}

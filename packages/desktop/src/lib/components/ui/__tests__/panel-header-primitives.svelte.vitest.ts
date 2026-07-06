@@ -26,7 +26,7 @@ describe("panel header primitives", () => {
 	it("renders chrome icon button with the shared chrome sizing", () => {
 		const { container } = render(Button, {
 			variant: "ghost",
-			size: "icon-chrome",
+			size: "icon-2xs",
 			title: "Action",
 			"aria-label": "Action",
 		});

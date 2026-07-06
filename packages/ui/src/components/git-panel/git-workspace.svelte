@@ -426,14 +426,14 @@
 								{#if onGenerate}
 									<Button
 										variant="ghost"
-										size="icon-xs"
+										size="icon-2xs"
 										onclick={onGenerate}
 										disabled={generating}
 										title="Generate commit message"
 										aria-label="Generate commit message"
 									>
 										{#snippet children()}
-											<RoundedIcon name="sparkle" class="size-3.5" />
+											<RoundedIcon name="sparkle" />
 										{/snippet}
 									</Button>
 								{/if}

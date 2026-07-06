@@ -76,6 +76,56 @@ fn rejects_cursor_extension_without_active_session_id() {
 }
 
 #[test]
+fn normalizes_cursor_update_todos_to_todo_tool_call_and_update() {
+    let event = normalize_cursor_extension(
+        CURSOR_UPDATE_TODOS,
+        &json!({
+            "toolCallId": "tool-todos-1",
+            "merge": false,
+            "todos": [{
+                "id": "1",
+                "content": "Find the root cause",
+                "status": "completed"
+            }]
+        }),
+        None,
+        Some("session-1"),
+    )
+    .expect("event should normalize");
+
+    assert_eq!(event.updates.len(), 2);
+    match &event.updates[0] {
+        SessionUpdate::ToolCall {
+            tool_call,
+            session_id,
+        } => {
+            assert_eq!(session_id.as_deref(), Some("session-1"));
+            assert_eq!(tool_call.id, "tool-todos-1");
+            assert_eq!(tool_call.name, "TodoWrite");
+            assert_eq!(tool_call.kind, Some(ToolKind::Todo));
+            assert!(tool_call.normalized_todos.is_some());
+        }
+        other => panic!("unexpected first update: {other:?}"),
+    }
+
+    match &event.updates[1] {
+        SessionUpdate::ToolCallUpdate { update, session_id } => {
+            assert_eq!(session_id.as_deref(), Some("session-1"));
+            assert_eq!(update.tool_call_id, "tool-todos-1");
+            assert_eq!(
+                update
+                    .normalized_todos
+                    .as_ref()
+                    .expect("todo update should carry normalized todos")[0]
+                    .content,
+                "Find the root cause"
+            );
+        }
+        other => panic!("unexpected second update: {other:?}"),
+    }
+}
+
+#[test]
 fn normalizes_cursor_create_plan_to_plan_and_question_updates() {
     let event = normalize_cursor_extension(
         CURSOR_CREATE_PLAN,

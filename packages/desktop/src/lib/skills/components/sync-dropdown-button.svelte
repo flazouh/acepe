@@ -88,7 +88,7 @@ const syncStatus = $derived.by(() => {
 		class="border border-border/50 bg-accent/5"
 	>
 		{#snippet renderButton()}
-			<RoundedIcon name="chevron-down" class="size-3 shrink-0" />
+			<RoundedIcon name="chevron-down" class="shrink-0" />
 		{/snippet}
 
 		<DropdownMenu.Label>Sync to agents</DropdownMenu.Label>

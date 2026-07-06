@@ -1,6 +1,6 @@
 import type { EditEntry } from "../../services/converted-session-types.js";
 import type { SessionEntry } from "../application/dto/session-entry.js";
-import type { ModifiedFileEntry } from "../types/modified-file-entry.js";
+import type { ModifiedFileEditSnippet, ModifiedFileEntry } from "../types/modified-file-entry.js";
 import type { ModifiedFilesState } from "../types/modified-files-state.js";
 import type { ToolCall } from "../types/tool-call.js";
 import { calculateDiffStats, getFileName } from "../utils/file-utils.js";
@@ -101,6 +101,7 @@ type FileAccumulator = {
 	totalRemoved: number;
 	originalContent: string | null;
 	finalContent: string | null;
+	edits: ModifiedFileEditSnippet[];
 	editCount: number;
 };
 
@@ -136,6 +137,11 @@ export function aggregateFileEditsFromToolCalls(
 
 				const oldStringValue = edit.oldString ?? null;
 				const newStringValue = edit.newString ?? edit.content ?? null;
+				const editSnippet: ModifiedFileEditSnippet = {
+					oldString: oldStringValue,
+					newString: edit.newString ?? null,
+					content: edit.content ?? null,
+				};
 
 				const diffStats = calculateDiffStats(edit);
 				const linesAdded = diffStats?.added ?? 0;
@@ -147,6 +153,7 @@ export function aggregateFileEditsFromToolCalls(
 					existing.totalAdded += linesAdded;
 					existing.totalRemoved += linesRemoved;
 					existing.finalContent = newStringValue;
+					existing.edits.push(editSnippet);
 					existing.editCount += 1;
 				} else {
 					fileMap.set(filePath, {
@@ -156,6 +163,7 @@ export function aggregateFileEditsFromToolCalls(
 						totalRemoved: linesRemoved,
 						originalContent: oldStringValue,
 						finalContent: newStringValue,
+						edits: [editSnippet],
 						editCount: 1,
 					});
 				}
@@ -183,6 +191,7 @@ export function aggregateFileEditsFromToolCalls(
 			totalRemoved: acc.totalRemoved,
 			originalContent: acc.originalContent,
 			finalContent: acc.finalContent,
+			edits: acc.edits,
 			editCount: acc.editCount,
 		};
 		files.push(entry);

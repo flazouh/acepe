@@ -2,7 +2,7 @@
 import { onMount } from "svelte";
 import { SvelteSet } from "svelte/reactivity";
 import { ProjectLetterBadge, Selector, SelectorItem, computeProjectBadgeLabels } from "@acepe/ui";
-import { SETUP_CHIP_ICON_CLASS, SETUP_CHIP_ICON_SIZE_PX, SETUP_CHIP_LABEL_TEXT_CLASS } from "@acepe/ui/panel-header";
+import { BUTTON_CHIP_ICON_SIZE_PX } from "@acepe/ui/button";
 import * as DropdownMenu from "@acepe/ui/dropdown-menu";
 import { useTheme } from "$lib/components/theme/context.svelte.js";
 import { Skeleton } from "$lib/components/ui/skeleton/index.js";
@@ -117,7 +117,7 @@ function handleOpenChange(open: boolean) {
 >
 	{#snippet renderButton()}
 		{#if isLoading}
-			<Skeleton class="{SETUP_CHIP_ICON_CLASS} rounded-md" />
+			<Skeleton class="size-3.5 shrink-0 rounded-md" />
 		{:else}
 			{@const color = selectedProject ? getProjectColor(selectedProject) : TAG_COLORS[0]}
 			{#if selectedProject}
@@ -126,15 +126,15 @@ function handleOpenChange(open: boolean) {
 					label={effectiveLabelByPath.get(selectedProject.path) ?? null}
 					{color}
 					iconSrc={selectedProject.iconPath ?? null}
-					size={SETUP_CHIP_ICON_SIZE_PX}
+					size={BUTTON_CHIP_ICON_SIZE_PX}
 				/>
 				{#if showLabel}
-					<span class={cn("whitespace-nowrap", SETUP_CHIP_LABEL_TEXT_CLASS)}>{selectedProject.name}</span>
+					<span class="whitespace-nowrap">{selectedProject.name}</span>
 				{/if}
 			{:else}
-				<div class="{SETUP_CHIP_ICON_CLASS} rounded-md" style="background-color: {color};"></div>
+				<div class="size-3.5 shrink-0 rounded-md" style="background-color: {color};"></div>
 				{#if showLabel}
-					<span class={cn("whitespace-nowrap text-muted-foreground", SETUP_CHIP_LABEL_TEXT_CLASS)}>{placeholder}</span>
+					<span class="whitespace-nowrap text-muted-foreground">{placeholder}</span>
 				{/if}
 			{/if}
 		{/if}

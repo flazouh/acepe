@@ -66,19 +66,19 @@
 				onclick={(event: MouseEvent) => event.stopPropagation()}
 			>
 				{#if onDismiss}
-					<Button variant="headerAction" size="headerAction" onclick={onDismiss}>
+					<Button variant="secondary" size="xs" onclick={onDismiss}>
 						{dismissLabel}
 					</Button>
 				{/if}
 				{#if onIssueAction}
-					<Button variant="headerAction" size="headerAction" onclick={onIssueAction}>
+					<Button variant="secondary" size="xs" onclick={onIssueAction}>
 						{issueActionLabel}
 					</Button>
 				{/if}
 				{#if onRetry}
 					<Button
-						variant="headerAction"
-						size="headerAction"
+						variant="secondary"
+						size="xs"
 						disabled={isRetrying}
 						aria-busy={isRetrying ? "true" : undefined}
 						onclick={onRetry}

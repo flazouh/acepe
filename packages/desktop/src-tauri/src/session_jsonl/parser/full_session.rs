@@ -90,6 +90,7 @@ fn parse_content_blocks(content: &serde_json::Value) -> Vec<ContentBlock> {
                         blocks.push(ContentBlock::Thinking {
                             thinking: thinking.to_string(),
                             signature,
+                            redacted_provider_data: None,
                         });
                     }
                 }

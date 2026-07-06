@@ -30,7 +30,7 @@
 
 	const hasContextUsage = $derived(percent !== null);
 
-	// Ring geometry — intentionally denser than icon-chrome controls.
+	// Ring geometry — intentionally denser than icon-2xs controls.
 	const RING_PX = 14;
 	const STROKE = 1.5;
 	// Inset radius so stroke + round caps fit inside RING_PX without bleeding past the SVG box.

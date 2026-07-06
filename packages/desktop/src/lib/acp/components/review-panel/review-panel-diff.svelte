@@ -3,35 +3,36 @@ import { onDestroy, tick, untrack } from "svelte";
 import { useTheme } from "$lib/components/theme/context.svelte.js";
 import { fileContentCache } from "../../services/file-content-cache.svelte.js";
 import {
+	DEFAULT_REVIEW_DIFF_OPTIONS,
+	type DiffViewStyle,
 	type ReviewDiffData,
 	type ReviewDiffDensity,
+	type ReviewDiffOptions,
 	ReviewDiffViewState,
-	type ResolvedReviewHunkAction,
 } from "../modified-files/components/review-diff-view-state.svelte.js";
 import type { ModifiedFileEntry } from "../../types/modified-file-entry.js";
-import { createReviewDiffData, selectReviewDiffData } from "./review-diff-data.js";
+import {
+	createReviewDiffData,
+	createReviewDiffDataFromBaseAndEdits,
+	selectReviewDiffData,
+} from "./review-diff-data.js";
 
 interface Props {
 	file: ModifiedFileEntry;
 	projectPath?: string | null;
 	isActive?: boolean;
-	onHunkAccept?: (hunkIndex: number) => void;
-	onHunkReject?: (hunkIndex: number, oldContent: string) => void;
-	/** Called when diff is ready so parent can wire bottom widget controls. */
-	onDiffStateReady?: (state: ReviewDiffViewState) => void;
 	density?: ReviewDiffDensity;
-	initialResolvedActions?: ReadonlyArray<ResolvedReviewHunkAction>;
+	diffStyle?: DiffViewStyle;
+	diffOptions?: ReviewDiffOptions;
 }
 
 let {
 	file,
 	projectPath = null,
-	isActive = true,
-	onHunkAccept,
-	onHunkReject,
-	onDiffStateReady,
+	isActive: _isActive = true,
 	density = "default",
-	initialResolvedActions = [],
+	diffStyle = "unified",
+	diffOptions = DEFAULT_REVIEW_DIFF_OPTIONS,
 }: Props = $props();
 
 let containerRef: HTMLDivElement | null = $state(null);
@@ -46,30 +47,18 @@ const embeddedDiffData = $derived.by(() =>
 	createReviewDiffData(file, file.originalContent, file.finalContent)
 );
 
+const reconstructedDiffData = $derived.by(() =>
+	createReviewDiffDataFromBaseAndEdits(file, fetchedDiffData?.newFile.contents ?? null)
+);
+
 const diffData = $derived.by(() =>
 	selectReviewDiffData(fetchedDiffData, embeddedDiffData, {
 		preferFetchedDiff: projectPath !== null,
 		fetchedDiffSettled,
 		file,
+		reconstructedDiffData,
 	})
 );
-
-function handleHunkAction(
-	hunkIndex: number,
-	action: "accept" | "reject",
-	hunkOldContent: string
-): void {
-	// Apply the action to the diff view — bail if state isn't ready
-	const result = diffViewState.applyHunkAction(hunkIndex, action);
-	if (!result) return;
-
-	if (action === "accept") {
-		onHunkAccept?.(hunkIndex);
-	} else {
-		// Pass the specific hunk's old content for per-hunk revert
-		onHunkReject?.(hunkIndex, hunkOldContent);
-	}
-}
 
 function waitForContainerLayout(container: HTMLElement): Promise<void> {
 	if (container.clientWidth > 0 && container.clientHeight > 0) {
@@ -94,25 +83,18 @@ function waitForContainerLayout(container: HTMLElement): Promise<void> {
 	});
 }
 
-async function renderDiff(container: HTMLDivElement): Promise<void> {
+async function renderDiff(
+	container: HTMLDivElement,
+	style: DiffViewStyle,
+	options: ReviewDiffOptions
+): Promise<void> {
 	if (!diffData) return;
 
 	await tick();
 	await waitForContainerLayout(container);
 
 	diffViewState.themeType = effectiveTheme;
-	await diffViewState
-		.initializeDiff(
-			diffData,
-			container,
-			undefined, // onStyleChange
-			handleHunkAction,
-			density,
-			initialResolvedActions
-		)
-		.then(() => {
-			onDiffStateReady?.(diffViewState);
-		});
+	await diffViewState.initializeDiff(diffData, container, density, style, options);
 }
 
 $effect(() => {
@@ -153,10 +135,12 @@ $effect(() => {
 	const container = containerRef;
 	const currentFile = file;
 	const diff = diffData;
+	const currentDiffStyle = diffStyle;
+	const currentDiffOptions = diffOptions;
 
 	if (container && currentFile && diff) {
 		untrack(() => {
-			void renderDiff(container);
+			void renderDiff(container, currentDiffStyle, currentDiffOptions);
 		});
 	}
 });
@@ -169,23 +153,10 @@ $effect(() => {
 	});
 });
 
-function handleKeydown(event: KeyboardEvent): void {
-	if (!isActive) return;
-	if (event.key === "y" && event.metaKey) {
-		event.preventDefault();
-		diffViewState.acceptFirstPendingHunk();
-	} else if (event.key === "n" && event.metaKey) {
-		event.preventDefault();
-		diffViewState.rejectFirstPendingHunk();
-	}
-}
-
 onDestroy(() => {
 	diffViewState.cleanup();
 });
 </script>
-
-<svelte:window onkeydown={handleKeydown} />
 
 <div class="flex h-full min-h-0 flex-1 flex-col overflow-auto">
 	<div bind:this={containerRef} class="min-h-[200px]"></div>

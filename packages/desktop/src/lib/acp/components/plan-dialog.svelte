@@ -44,27 +44,22 @@ function downloadAsMarkdown() {
 	contentOverflow="hidden"
 	{onOpenChange}
 >
-	{#snippet topLeft()}
+	{#snippet titleLeading()}
 		<PlanIcon size="md" class="shrink-0" />
-		<span
-			class="truncate text-[11px] font-semibold font-mono text-foreground select-none leading-none"
-		>
-			{plan.title}
-		</span>
 	{/snippet}
 
 	{#snippet topRight()}
 		<CopyButton text={plan.content} variant="embedded" stopPropagation={true} />
 		<Button
 			variant="ghost"
-			size="icon-chrome"
+			size="icon-2xs"
 			data-header-control
 			title="Download"
 			aria-label="Download"
 			onclick={downloadAsMarkdown}
 		>
 			{#snippet children()}
-				<RoundedIcon name="download" class="size-3.5" />
+				<RoundedIcon name="download" />
 			{/snippet}
 		</Button>
 	{/snippet}

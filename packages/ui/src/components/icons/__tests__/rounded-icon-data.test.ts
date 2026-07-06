@@ -8,8 +8,12 @@ import {
 
 describe("rounded-icon-data", () => {
 	it("resolves semantic shield aliases to RoundedIcon shield assets", () => {
-		expect(resolveRoundedIconName("shield-warning")).toBe("shield-exclamation-kf9myntx");
-		expect(resolveRoundedIconName("shield-check")).toBe("hooks-settings-dasiwpyv");
+		expect(resolveRoundedIconName("shield-warning")).toBe(
+			"shield-exclamation-kf9myntx",
+		);
+		expect(resolveRoundedIconName("shield-check")).toBe(
+			"hooks-settings-dasiwpyv",
+		);
 		expect(resolveRoundedIconName("shield-code")).toBe("shield-code-bqug9ybu");
 	});
 
@@ -23,29 +27,52 @@ describe("rounded-icon-data", () => {
 
 	it("names Google Drive explicitly instead of exposing it as generic Google", () => {
 		expect(roundedIconAliasNames).not.toContain("google");
-		expect(resolveRoundedIconName("google-drive")).toBe("google-drive-cc-egn92");
+		expect(resolveRoundedIconName("google-drive")).toBe(
+			"google-drive-cc-egn92",
+		);
 	});
 
 	it("resolves semantic file text alias to the RoundedIcon file-text asset", () => {
-		expect(resolveRoundedIconName("file-text")).toBe("get-file-icon-emolzufn--07");
+		expect(resolveRoundedIconName("file-text")).toBe(
+			"get-file-icon-emolzufn--07",
+		);
 	});
 
 	it("resolves semantic git diff alias to the RoundedIcon diff asset", () => {
-		expect(resolveRoundedIconName("git-diff")).toBe("diff-unified-bj8g3qql--01");
+		expect(resolveRoundedIconName("git-diff")).toBe(
+			"diff-unified-bj8g3qql--01",
+		);
+		expect(resolveRoundedIconName("git-diff-unified")).toBe(
+			"diff-unified-bj8g3qql--02",
+		);
 	});
 
 	it("resolves exact UI utility aliases to RoundedIcon assets", () => {
 		expect(resolveRoundedIconName("bell")).toBe("automations-page-5wt3epnk");
-		expect(resolveRoundedIconName("brain")).toBe("reasoning-minimal-lzpeywud--08");
-		expect(resolveRoundedIconName("chart-line")).toBe("pricing-plan-page-bojp7gtn--31");
-		expect(resolveRoundedIconName("circle-dashed")).toBe("pull-request-status-bdnvgysd--01");
-		expect(resolveRoundedIconName("microphone")).toBe("use-is-dictation-supported-cfnkis4k--06");
-		expect(resolveRoundedIconName("moon")).toBe("gpu-tearing-debug-settings-b8w-l8wh");
-		expect(resolveRoundedIconName("sparkle")).toBe("profile-dropdown-d8zfwx8a--02");
+		expect(resolveRoundedIconName("brain")).toBe(
+			"reasoning-minimal-lzpeywud--08",
+		);
+		expect(resolveRoundedIconName("chart-line")).toBe(
+			"pricing-plan-page-bojp7gtn--31",
+		);
+		expect(resolveRoundedIconName("circle-dashed")).toBe(
+			"pull-request-status-bdnvgysd--01",
+		);
+		expect(resolveRoundedIconName("microphone")).toBe(
+			"use-is-dictation-supported-cfnkis4k--06",
+		);
+		expect(resolveRoundedIconName("moon")).toBe(
+			"gpu-tearing-debug-settings-b8w-l8wh",
+		);
+		expect(resolveRoundedIconName("sparkle")).toBe(
+			"profile-dropdown-d8zfwx8a--02",
+		);
 	});
 
 	it("resolves semantic eye alias to the RoundedIcon eye asset", () => {
-		expect(resolveRoundedIconName("eye")).toBe("review-header-toolbar-adr062sp--02");
+		expect(resolveRoundedIconName("eye")).toBe(
+			"review-header-toolbar-adr062sp--02",
+		);
 	});
 
 	it("resolves semantic laptop alias to the RoundedIcon laptop asset", () => {
@@ -56,17 +83,38 @@ describe("rounded-icon-data", () => {
 		expect(resolveRoundedIconName("arrow-right")).toBe("app-main-b9iamgew--01");
 	});
 
+	it("resolves sidebar state aliases to the matching RoundedIcon assets", () => {
+		expect(resolveRoundedIconName("sidebar-open")).toBe(
+			"app-shell-bnrwydfu--02",
+		);
+		expect(resolveRoundedIconName("sidebar-closed")).toBe(
+			"app-shell-bnrwydfu--03",
+		);
+	});
+
 	it("resolves semantic paper plane alias to the RoundedIcon filled paper plane asset", () => {
-		expect(resolveRoundedIconName("paper-plane")).toBe("thread-side-panel-tabs-qmoazjz--02");
+		expect(resolveRoundedIconName("paper-plane")).toBe(
+			"thread-side-panel-tabs-qmoazjz--02",
+		);
 		expect(resolveRoundedIconName("send")).toBe("send-to-cloud-d84lbipu");
 	});
 
 	it("resolves semantic counter-clockwise arrow alias to the RoundedIcon asset", () => {
-		expect(resolveRoundedIconName("arrow-counter-clockwise")).toBe("arrow-rotate-ccw-b3tr4czg");
+		expect(resolveRoundedIconName("arrow-counter-clockwise")).toBe(
+			"arrow-rotate-ccw-b3tr4czg",
+		);
 	});
 
 	it("includes the RoundedIcon hand icon for question status", () => {
 		expect(resolveRoundedIconName("hand")).toBe("hand");
 		expect(roundedIconData.hand.viewBox).toBe("0 0 20 20");
+	});
+
+	it("includes exact diff settings icons", () => {
+		expect(roundedIconData["diff-bars"].viewBox).toBe("0 0 16 16");
+		expect(roundedIconData["diff-classic"].viewBox).toBe("0 0 16 16");
+		expect(roundedIconData["diff-backgrounds"].viewBox).toBe("0 0 16 16");
+		expect(roundedIconData["diff-wrapping"].viewBox).toBe("0 0 16 16");
+		expect(roundedIconData["diff-line-numbers"].viewBox).toBe("0 0 16 16");
 	});
 });

@@ -91,7 +91,6 @@ function handleSave(): void {
 	{onOpenChange}
 >
 	{#snippet topLeft()}
-		<span class="truncate text-[11px] font-semibold text-foreground select-none">Edit cell</span>
 		{#if cell}
 			<span class="truncate text-[11px] text-muted-foreground">
 				{cell.columnName}
@@ -124,6 +123,6 @@ function handleSave(): void {
 	</div>
 
 	{#snippet footer()}
-		<Button variant="invert" size="header" onclick={handleSave} disabled={readOnly}>Save</Button>
+		<Button variant="default" size="sm" onclick={handleSave} disabled={readOnly}>Save</Button>
 	{/snippet}
 </DialogFrame>

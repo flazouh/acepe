@@ -1,7 +1,6 @@
 <script lang="ts">
 	import { LoadingIcon } from "../icons/index.js";
 	import { ProviderMark, type ProviderBrand } from "../provider-mark/index.js";
-	import { COMPOSER_CHIP_LABEL_TEXT_CLASS } from "./agent-input-chip-classes.js";
 	import { Selector, SelectorItem, SelectorPanel } from "../selector/index.js";
 	import type { SelectorTriggerSize } from "../selector/selector-trigger-classes.js";
 	import { getSelectorTriggerButtonVariant } from "../selector/selector-trigger-classes.js";
@@ -91,7 +90,7 @@
 						class="size-3.5"
 					/>
 				{/if}
-				<span class={cn("truncate", COMPOSER_CHIP_LABEL_TEXT_CLASS)}>{triggerLabel}</span>
+				<span class="truncate">{triggerLabel}</span>
 			{/if}
 		{/snippet}
 

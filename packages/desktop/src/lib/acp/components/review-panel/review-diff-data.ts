@@ -3,6 +3,84 @@ import { type FileContents, parseDiffFromFile } from "@pierre/diffs";
 import type { ModifiedFileEntry } from "../../types/modified-file-entry.js";
 import type { ReviewDiffData } from "../modified-files/components/review-diff-view-state.svelte.js";
 
+function replaceFirstOccurrence(
+	content: string,
+	search: string,
+	replacement: string
+): string | null {
+	const index = content.indexOf(search);
+	if (index < 0) {
+		return null;
+	}
+
+	return content.slice(0, index) + replacement + content.slice(index + search.length);
+}
+
+function applyEditSnippetsForward(baseContent: string, file: ModifiedFileEntry): string | null {
+	const edits = file.edits ?? [];
+	if (edits.length === 0) {
+		return null;
+	}
+
+	let nextContent = baseContent;
+	let changed = false;
+
+	for (const edit of edits) {
+		if (edit.content !== null) {
+			if (nextContent !== edit.content) {
+				changed = true;
+			}
+			nextContent = edit.content;
+			continue;
+		}
+
+		if (edit.oldString === null || edit.newString === null) {
+			return null;
+		}
+
+		const replacedContent = replaceFirstOccurrence(nextContent, edit.oldString, edit.newString);
+		if (replacedContent === null) {
+			return null;
+		}
+
+		if (replacedContent !== nextContent) {
+			changed = true;
+		}
+		nextContent = replacedContent;
+	}
+
+	return changed ? nextContent : null;
+}
+
+function applyEditSnippetsBackward(baseContent: string, file: ModifiedFileEntry): string | null {
+	const edits = file.edits ?? [];
+	if (edits.length === 0) {
+		return null;
+	}
+
+	let previousContent = baseContent;
+	let changed = false;
+
+	for (let index = edits.length - 1; index >= 0; index -= 1) {
+		const edit = edits[index];
+		if (!edit || edit.oldString === null || edit.newString === null) {
+			return null;
+		}
+
+		const replacedContent = replaceFirstOccurrence(previousContent, edit.newString, edit.oldString);
+		if (replacedContent === null) {
+			return null;
+		}
+
+		if (replacedContent !== previousContent) {
+			changed = true;
+		}
+		previousContent = replacedContent;
+	}
+
+	return changed ? previousContent : null;
+}
+
 export function createReviewDiffData(
 	file: ModifiedFileEntry,
 	oldContent: string | null,
@@ -31,6 +109,27 @@ export function createReviewDiffData(
 		newFile,
 		fileDiffMetadata: parseDiffFromFile(oldFile, newFile),
 	};
+}
+
+export function createReviewDiffDataFromBaseAndEdits(
+	file: ModifiedFileEntry,
+	baseContent: string | null
+): ReviewDiffData | null {
+	if (baseContent === null) {
+		return null;
+	}
+
+	const forwardContent = applyEditSnippetsForward(baseContent, file);
+	if (forwardContent !== null) {
+		return createReviewDiffData(file, baseContent, forwardContent);
+	}
+
+	const backwardContent = applyEditSnippetsBackward(baseContent, file);
+	if (backwardContent !== null) {
+		return createReviewDiffData(file, backwardContent, baseContent);
+	}
+
+	return null;
 }
 
 function hasDiffHunks(diffData: ReviewDiffData | null): boolean {
@@ -68,6 +167,7 @@ interface SelectReviewDiffDataOptions {
 	preferFetchedDiff?: boolean;
 	fetchedDiffSettled?: boolean;
 	file?: ModifiedFileEntry;
+	reconstructedDiffData?: ReviewDiffData | null;
 }
 
 export function selectReviewDiffData(
@@ -89,6 +189,10 @@ export function selectReviewDiffData(
 
 	if (hasDiffHunks(usableFetchedDiff)) {
 		return usableFetchedDiff;
+	}
+
+	if (hasDiffHunks(options.reconstructedDiffData ?? null)) {
+		return options.reconstructedDiffData ?? null;
 	}
 
 	if (hasDiffHunks(usableEmbeddedDiff)) {

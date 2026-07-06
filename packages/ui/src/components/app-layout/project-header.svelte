@@ -4,7 +4,7 @@
 	import { TAG_COLORS } from "../../lib/colors.js";
 	import { RoundedIcon } from "../icons/index.js";
 	import { ProjectLetterBadge } from "../project-letter-badge/index.js";
-	import { SIDEBAR_TREE_ROW_PADDING_X_CLASS } from "./sidebar-tree-row-classes.js";
+	import { SIDEBAR_PROJECT_HEADER_PADDING_X_CLASS } from "./sidebar-tree-row-classes.js";
 
 	interface Props {
 		projectName?: string;
@@ -32,7 +32,7 @@
 	const resolvedIconSrc = $derived(projectIconSrc);
 </script>
 
-<div class="shrink-0 flex items-center {SIDEBAR_TREE_ROW_PADDING_X_CLASS} transition-colors hover:bg-accent/30 {className}">
+<div class="shrink-0 flex items-center {SIDEBAR_PROJECT_HEADER_PADDING_X_CLASS} transition-colors hover:bg-accent/30 {className}">
 	<div class="inline-flex items-center justify-center h-7 shrink-0">
 		<ProjectLetterBadge
 			name={displayName}
@@ -44,7 +44,7 @@
 	<div
 		class="flex items-center flex-1 min-w-0 h-7 pl-1.5 cursor-pointer transition-colors"
 	>
-		<span class="truncate text-sm font-normal text-foreground transition-colors">
+		<span class="truncate font-normal text-foreground transition-colors">
 			{displayName}
 		</span>
 		<span

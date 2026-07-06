@@ -273,6 +273,8 @@ pub enum ContentBlock {
         thinking: String,
         #[serde(skip_serializing_if = "Option::is_none")]
         signature: Option<String>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        redacted_provider_data: Option<String>,
     },
     #[serde(rename = "tool_use")]
     ToolUse {

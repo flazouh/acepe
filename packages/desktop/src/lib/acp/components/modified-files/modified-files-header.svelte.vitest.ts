@@ -202,8 +202,8 @@ describe("ModifiedFilesHeader", () => {
 		globalThis.modifiedFilesHeaderMockState = {
 			sessionLoaded: true,
 			reviewStatuses: new Map<string, FileReviewStatus | undefined>([
-				[acceptedFile.filePath, "accepted"],
-				[deniedFile.filePath, "denied"],
+				[acceptedFile.filePath, "reviewed"],
+				[deniedFile.filePath, "reviewed"],
 			]),
 			keepAllApplied: false,
 		};
@@ -252,8 +252,8 @@ describe("ModifiedFilesHeader", () => {
 		globalThis.modifiedFilesHeaderMockState = {
 			sessionLoaded: true,
 			reviewStatuses: new Map<string, FileReviewStatus | undefined>([
-				[partialFile.filePath, "partial"],
-				[acceptedFile.filePath, "accepted"],
+				[partialFile.filePath, "unreviewed"],
+				[acceptedFile.filePath, "reviewed"],
 			]),
 			keepAllApplied: false,
 		};

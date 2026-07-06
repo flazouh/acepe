@@ -109,7 +109,7 @@
 		<HeaderActionCell>
 			<Button
 				variant="ghost"
-				size="icon-chrome"
+				size="icon-2xs"
 				data-header-control
 				disabled={!hasPrevHunk}
 				title={prevHunkLabel}
@@ -117,7 +117,7 @@
 				onclick={onPrevHunk}
 			>
 				{#snippet children()}
-					<RoundedIcon name="chevron-up" class="size-3 shrink-0" />
+					<RoundedIcon name="chevron-up" class="shrink-0" />
 				{/snippet}
 			</Button>
 			<span
@@ -128,7 +128,7 @@
 			</span>
 			<Button
 				variant="ghost"
-				size="icon-chrome"
+				size="icon-2xs"
 				data-header-control
 				disabled={!hasNextHunk}
 				title={nextHunkLabel}
@@ -136,7 +136,7 @@
 				onclick={onNextHunk}
 			>
 				{#snippet children()}
-					<RoundedIcon name="chevron-down" class="size-3 shrink-0" />
+					<RoundedIcon name="chevron-down" class="shrink-0" />
 				{/snippet}
 			</Button>
 		</HeaderActionCell>
@@ -146,7 +146,7 @@
 		<HeaderActionCell>
 			<Button
 				variant="ghost"
-				size="icon-chrome"
+				size="icon-2xs"
 				data-header-control
 				disabled={!hasPrevPendingFile}
 				title={prevFileLabel}
@@ -154,7 +154,7 @@
 				onclick={onPrevFile}
 			>
 				{#snippet children()}
-					<RoundedIcon name="chevron-left" class="size-3 shrink-0" />
+					<RoundedIcon name="chevron-left" class="shrink-0" />
 				{/snippet}
 			</Button>
 			<span
@@ -165,7 +165,7 @@
 			</span>
 			<Button
 				variant="ghost"
-				size="icon-chrome"
+				size="icon-2xs"
 				data-header-control
 				disabled={!hasNextPendingFile}
 				title={nextFileLabel}
@@ -173,7 +173,7 @@
 				onclick={onNextFile}
 			>
 				{#snippet children()}
-					<RoundedIcon name="chevron-right" class="size-3 shrink-0" />
+					<RoundedIcon name="chevron-right" class="shrink-0" />
 				{/snippet}
 			</Button>
 		</HeaderActionCell>

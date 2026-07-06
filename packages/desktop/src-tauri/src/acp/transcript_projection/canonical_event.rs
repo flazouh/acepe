@@ -25,6 +25,7 @@ pub(crate) enum CanonicalTranscriptEventKind {
     },
     AssistantThought {
         text: String,
+        redacted_provider_data: Option<String>,
     },
     AssistantError {
         text: String,

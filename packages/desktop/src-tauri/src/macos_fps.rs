@@ -9,7 +9,6 @@
 /// safe, but fine for direct distribution via Tauri.
 ///
 /// See: <https://github.com/nicbarker/clay/issues/290>
-/// See: <https://github.com/nicbarker/clay/issues/290>
 pub fn enable_high_refresh_rate(webview_ptr: *mut std::ffi::c_void) {
     use objc2::rc::Retained;
     use objc2::runtime::{AnyClass, AnyObject, Bool, Sel};
@@ -61,22 +60,40 @@ pub fn enable_high_refresh_rate(webview_ptr: *mut std::ffi::c_void) {
         }
         let prefs_class = &*prefs_class;
 
-        // Newer WebKit builds expose feature lists as class methods, not instance methods.
-        let features = if prefs_class.responds_to(sel!(_features)) {
+        // Newer WebKit builds expose feature lists as class methods. In the
+        // Objective-C runtime, class methods live on the metaclass.
+        let prefs_metaclass = prefs_class.metaclass();
+        let (feature_source, features): (&str, Option<Retained<AnyObject>>) = if prefs_metaclass
+            .responds_to(sel!(_features))
+        {
             let features: Option<Retained<AnyObject>> = msg_send![prefs_class, _features];
-            features
-        } else if prefs_class.responds_to(sel!(_experimentalFeatures)) {
+            ("+[WKPreferences _features]", features)
+        } else if prefs_metaclass.responds_to(sel!(_experimentalFeatures)) {
             let features: Option<Retained<AnyObject>> =
                 msg_send![prefs_class, _experimentalFeatures];
-            features
+            ("+[WKPreferences _experimentalFeatures]", features)
+        } else if prefs_metaclass.responds_to(sel!(_internalDebugFeatures)) {
+            let features: Option<Retained<AnyObject>> =
+                msg_send![prefs_class, _internalDebugFeatures];
+            ("+[WKPreferences _internalDebugFeatures]", features)
+        } else if responds_to_selector(&prefs, sel!(_features)) {
+            let features: Option<Retained<AnyObject>> = msg_send![&*prefs, _features];
+            ("-[WKPreferences _features]", features)
+        } else if responds_to_selector(&prefs, sel!(_experimentalFeatures)) {
+            let features: Option<Retained<AnyObject>> = msg_send![&*prefs, _experimentalFeatures];
+            ("-[WKPreferences _experimentalFeatures]", features)
+        } else if responds_to_selector(&prefs, sel!(_internalDebugFeatures)) {
+            let features: Option<Retained<AnyObject>> = msg_send![&*prefs, _internalDebugFeatures];
+            ("-[WKPreferences _internalDebugFeatures]", features)
         } else {
-            tracing::warn!(
-                "120fps: WKPreferences class does not expose _features or _experimentalFeatures"
-            );
+            tracing::warn!("120fps: WKPreferences exposes no known feature-list selectors");
             return;
         };
         let Some(features) = features else {
-            tracing::warn!("120fps: WKPreferences feature list returned nil");
+            tracing::warn!(
+                feature_source,
+                "120fps: WKPreferences feature list returned nil"
+            );
             return;
         };
         if !responds_to_selector(&features, sel!(count))
@@ -88,7 +105,11 @@ pub fn enable_high_refresh_rate(webview_ptr: *mut std::ffi::c_void) {
 
         let count: usize = msg_send![&*features, count];
 
-        tracing::debug!("120fps: scanning {} WebKit feature flags", count);
+        tracing::debug!(
+            feature_source,
+            count,
+            "120fps: scanning WebKit feature flags"
+        );
 
         for i in 0..count {
             let feature: Option<Retained<AnyObject>> = msg_send![&*features, objectAtIndex: i];
@@ -116,7 +137,8 @@ pub fn enable_high_refresh_rate(webview_ptr: *mut std::ffi::c_void) {
             if key_str == "PreferPageRenderingUpdatesNear60FPSEnabled" {
                 let _: () = msg_send![&*prefs, _setEnabled: Bool::NO, forFeature: &*feature];
                 tracing::info!(
-                    "Disabled PreferPageRenderingUpdatesNear60FPSEnabled — \
+                    feature_source,
+                    "120fps: disabled PreferPageRenderingUpdatesNear60FPSEnabled; \
                      requestAnimationFrame can now run at native refresh rate"
                 );
                 return;
@@ -124,6 +146,7 @@ pub fn enable_high_refresh_rate(webview_ptr: *mut std::ffi::c_void) {
         }
 
         tracing::warn!(
+            feature_source,
             "120fps: PreferPageRenderingUpdatesNear60FPSEnabled not found in {} WebKit feature flags \
              (private API may have changed or macOS version doesn't need this fix)",
             count

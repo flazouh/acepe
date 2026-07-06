@@ -1,16 +1,58 @@
-import type { ResultAsync } from "neverthrow";
+import { okAsync, type ResultAsync } from "neverthrow";
 
 import type { AppError } from "../../acp/errors/app-error.js";
 import type { AgentInfo } from "../../acp/store/api.js";
 import type { ResumeSessionResult } from "../../acp/store/types.js";
 import type { InteractionReplyRequest } from "../../acp/types/interaction-reply-request.js";
-import type { ResolvedCapabilities, SessionStateEnvelope, ComposerMcpCatalog } from "../../services/acp-types.js";
+import type {
+	ComposerMcpCatalog,
+	ResolvedCapabilities,
+	SessionGraphCapabilities,
+	SessionGraphLifecycle,
+	SessionStateEnvelope,
+} from "../../services/acp-types.js";
 import { TAURI_COMMAND_CLIENT } from "../../services/tauri-command-client.js";
 import { ACP_PREFIX } from "./commands.js";
 import { invokeAsync } from "./invoke.js";
 import type { CustomAgentConfig } from "./types.js";
 
 const acpCommands = TAURI_COMMAND_CLIENT.acp;
+
+interface EventBridgeInfo {
+	readonly eventsUrl: string;
+}
+
+interface SessionConnectionReadiness {
+	readonly graphRevision: number;
+	readonly lifecycle: SessionGraphLifecycle;
+	readonly capabilities: SessionGraphCapabilities;
+}
+
+let cachedEventBridgeInfo: EventBridgeInfo | null = null;
+let pendingEventBridgeInfo: ResultAsync<EventBridgeInfo, AppError> | null = null;
+
+function getCachedEventBridgeInfo(): ResultAsync<EventBridgeInfo, AppError> {
+	if (cachedEventBridgeInfo !== null) {
+		return okAsync(cachedEventBridgeInfo);
+	}
+	if (pendingEventBridgeInfo !== null) {
+		return pendingEventBridgeInfo;
+	}
+
+	pendingEventBridgeInfo = acpCommands.get_event_bridge_info
+		.invoke<EventBridgeInfo>()
+		.map((info) => {
+			cachedEventBridgeInfo = info;
+			pendingEventBridgeInfo = null;
+			return info;
+		})
+		.mapErr((error) => {
+			pendingEventBridgeInfo = null;
+			return error;
+		});
+
+	return pendingEventBridgeInfo;
+}
 
 export const acp = {
 	initialize: (): ResultAsync<unknown, AppError> => {
@@ -164,12 +206,20 @@ export const acp = {
 		return acpCommands.register_custom_agent.invoke<void>({ config });
 	},
 
-	getEventBridgeInfo: (): ResultAsync<{ eventsUrl: string }, AppError> => {
-		return acpCommands.get_event_bridge_info.invoke<{ eventsUrl: string }>();
+	getEventBridgeInfo: (): ResultAsync<EventBridgeInfo, AppError> => {
+		return getCachedEventBridgeInfo();
 	},
 
 	getSessionState: (sessionId: string): ResultAsync<SessionStateEnvelope, AppError> => {
 		return acpCommands.get_session_state.invoke<SessionStateEnvelope>({ sessionId });
+	},
+
+	getSessionConnectionReadiness: (
+		sessionId: string
+	): ResultAsync<SessionConnectionReadiness, AppError> => {
+		return acpCommands.get_session_connection_readiness.invoke<SessionConnectionReadiness>({
+			sessionId,
+		});
 	},
 
 	rpcCall(method: string, params: Record<string, unknown>): ResultAsync<unknown, AppError> {

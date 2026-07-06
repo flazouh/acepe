@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import {
 	DEFAULT_AT_BOTTOM_THRESHOLD_PX,
 	anchorCorrectionPx,
+	computeSendAnchorSpacerPx,
 	initialStickState,
 	isAtBottom,
 	jumpToLatest,
@@ -120,10 +121,35 @@ describe("onContentChange", () => {
 });
 
 describe("onSend (anchor near top, keep following)", () => {
-	test("anchors the sent row near the top but keeps follow engaged", () => {
+	test("pins to the spacer-backed bottom and keeps follow engaged", () => {
 		const { state, action } = onSend({ released: true, hasUnreadBelow: true }, "row-42", 64);
 		expect(state).toEqual({ released: false, hasUnreadBelow: false });
-		expect(action).toEqual({ kind: "anchorRowNearTop", rowId: "row-42", peekPx: 64 });
+		expect(action).toEqual({ kind: "toBottom" });
+	});
+});
+
+describe("computeSendAnchorSpacerPx", () => {
+	test("adds enough bottom spacer to make max-scroll place the sent row near the top", () => {
+		const spacerPx = computeSendAnchorSpacerPx({
+			viewportHeightPx: 1000,
+			contentHeightWithoutSpacerPx: 2100,
+			rowTopPx: 1600,
+			peekPx: 72,
+		});
+
+		expect(spacerPx).toBe(428);
+		expect(2100 + spacerPx - 1000).toBe(1600 - 72);
+	});
+
+	test("clamps to zero when enough content already exists below the sent row", () => {
+		expect(
+			computeSendAnchorSpacerPx({
+				viewportHeightPx: 1000,
+				contentHeightWithoutSpacerPx: 2600,
+				rowTopPx: 1200,
+				peekPx: 72,
+			})
+		).toBe(0);
 	});
 });
 

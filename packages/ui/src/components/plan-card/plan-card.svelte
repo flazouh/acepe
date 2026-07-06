@@ -99,8 +99,8 @@
       {#if onCancel}
         <Button
           type="button"
-          variant="headerAction"
-          size="headerAction"
+          variant="secondary"
+          size="xs"
           onclick={onCancel}
           disabled={actionsDisabled || isBuilding}
         >
@@ -112,8 +112,8 @@
       {#if onBuild}
         <Button
           type="button"
-          variant="headerAction"
-          size="headerAction"
+          variant="secondary"
+          size="xs"
           onclick={onBuild}
           disabled={actionsDisabled || isBuilding}
         >

@@ -1,127 +1,39 @@
+import { describe, expect, it, mock } from "bun:test";
 import { okAsync } from "neverthrow";
-import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { InteractionReplyRequest } from "../../acp/types/interaction-reply-request.js";
-import { CMD } from "./commands.js";
-
-const mockInvokeAsync = vi.fn((_cmd: string, _args?: Record<string, unknown>) =>
-	okAsync(undefined)
+const getEventBridgeInfoInvoke = mock(() =>
+	okAsync({
+		eventsUrl: "http://127.0.0.1:1234/events",
+	})
 );
 
-vi.mock("./invoke.js", () => ({
-	invokeAsync: (cmd: string, args?: Record<string, unknown>) => mockInvokeAsync(cmd, args),
+mock.module("../../services/tauri-command-client.js", () => ({
+	TAURI_COMMAND_CLIENT: {
+		acp: {
+			get_event_bridge_info: {
+				invoke: getEventBridgeInfoInvoke,
+			},
+		},
+	},
 }));
 
-import { acp } from "./acp.js";
+const { acp } = await import("./acp.js");
 
-describe("tauri ACP client", () => {
-	beforeEach(() => {
-		vi.clearAllMocks();
-	});
+describe("acp tauri client", () => {
+	it("shares the event bridge info command across concurrent and later callers", async () => {
+		const first = acp.getEventBridgeInfo();
+		const second = acp.getEventBridgeInfo();
 
-	it("wraps canonical permission replies in the request argument and Rust wire format expected by Tauri", async () => {
-		const request: InteractionReplyRequest = {
-			sessionId: "session-1",
-			interactionId: "permission-1",
-			replyHandler: {
-				kind: "json-rpc",
-				requestId: 42,
-			},
-			payload: {
-				kind: "permission",
-				reply: "once",
-				optionId: "allow",
-			},
-		};
+		const firstInfo = await first;
+		const secondInfo = await second;
+		const thirdInfo = await acp.getEventBridgeInfo();
 
-		await acp.replyInteraction(request);
-
-		expect(mockInvokeAsync).toHaveBeenCalledWith(CMD.acp.reply_interaction, {
-			request: {
-				sessionId: "session-1",
-				interactionId: "permission-1",
-				replyHandler: {
-					kind: "json_rpc",
-					requestId: "42",
-				},
-				payload: {
-					kind: "permission",
-					reply: "once",
-					option_id: "allow",
-				},
-			},
-		});
-	});
-
-	it("serializes canonical question replies with snake_case payload fields", async () => {
-		const request: InteractionReplyRequest = {
-			sessionId: "session-2",
-			interactionId: "question-1",
-			replyHandler: {
-				kind: "http",
-				requestId: "question-1",
-			},
-			payload: {
-				kind: "question",
-				answers: [{ questionIndex: 0, answers: ["yes"] }],
-				answerMap: {
-					confirm: "yes",
-				},
-			},
-		};
-
-		await acp.replyInteraction(request);
-
-		expect(mockInvokeAsync).toHaveBeenCalledWith(CMD.acp.reply_interaction, {
-			request: {
-				sessionId: "session-2",
-				interactionId: "question-1",
-				replyHandler: {
-					kind: "http",
-					requestId: "question-1",
-				},
-				payload: {
-					kind: "question",
-					answers: [{ questionIndex: 0, answers: ["yes"] }],
-					answer_map: {
-						confirm: "yes",
-					},
-				},
-			},
-		});
-	});
-
-	it("serializes local computer permission replies", async () => {
-		const request: InteractionReplyRequest = {
-			sessionId: "session-3",
-			interactionId: "computer-permission-1",
-			replyHandler: {
-				kind: "http",
-				requestId: "computer-permission-1",
-			},
-			payload: {
-				kind: "computer_permission",
-				accepted: true,
-				scope: "always",
-			},
-		};
-
-		await acp.replyInteraction(request);
-
-		expect(mockInvokeAsync).toHaveBeenCalledWith(CMD.acp.reply_interaction, {
-			request: {
-				sessionId: "session-3",
-				interactionId: "computer-permission-1",
-				replyHandler: {
-					kind: "http",
-					requestId: "computer-permission-1",
-				},
-				payload: {
-					kind: "computer_permission",
-					accepted: true,
-					scope: "always",
-				},
-			},
-		});
+		expect(firstInfo.isOk()).toBe(true);
+		expect(secondInfo.isOk()).toBe(true);
+		expect(thirdInfo.isOk()).toBe(true);
+		expect(firstInfo._unsafeUnwrap().eventsUrl).toBe("http://127.0.0.1:1234/events");
+		expect(secondInfo._unsafeUnwrap().eventsUrl).toBe("http://127.0.0.1:1234/events");
+		expect(thirdInfo._unsafeUnwrap().eventsUrl).toBe("http://127.0.0.1:1234/events");
+		expect(getEventBridgeInfoInvoke).toHaveBeenCalledTimes(1);
 	});
 });

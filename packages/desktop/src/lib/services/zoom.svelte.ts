@@ -5,7 +5,7 @@
  */
 
 import { getCurrentWebview } from "@tauri-apps/api/webview";
-import { ResultAsync } from "neverthrow";
+import { okAsync, ResultAsync } from "neverthrow";
 import { toast } from "svelte-sonner";
 import type { UserSettingKey } from "$lib/services/user-settings-types.js";
 import { settings } from "$lib/utils/tauri-client/settings.js";
@@ -23,6 +23,32 @@ const ZOOM_CONFIG = {
 };
 
 const ZOOM_LEVEL_KEY: UserSettingKey = "zoom_level";
+const ZOOM_LEVEL_CACHE_KEY = "acepe.zoom_level.hot_cache";
+const ZOOM_EQUALITY_EPSILON = 0.001;
+const ZOOM_RECONCILE_IDLE_DELAY_MS = 2_000;
+const ZOOM_RECONCILE_IDLE_TIMEOUT_MS = 5_000;
+
+function scheduleZoomReconciliation(callback: () => void): void {
+	if (typeof window !== "undefined") {
+		window.setTimeout(() => {
+			const schedulingWindow = window as Window & {
+				requestIdleCallback?: (
+					callback: IdleRequestCallback,
+					options?: IdleRequestOptions
+				) => number;
+			};
+			if (typeof schedulingWindow.requestIdleCallback === "function") {
+				schedulingWindow.requestIdleCallback(callback, {
+					timeout: ZOOM_RECONCILE_IDLE_TIMEOUT_MS,
+				});
+				return;
+			}
+			window.setTimeout(callback, 0);
+		}, ZOOM_RECONCILE_IDLE_DELAY_MS);
+		return;
+	}
+	setTimeout(callback, ZOOM_RECONCILE_IDLE_DELAY_MS);
+}
 
 /**
  * Zoom Service - Singleton for managing webview zoom.
@@ -57,7 +83,14 @@ export class ZoomService {
 	 * Should be called during app startup.
 	 */
 	initialize(): ResultAsync<void, Error> {
-		return this.loadZoomLevel().andThen((level) => this.applyZoom(level));
+		const cachedLevel = this.loadCachedZoomLevel();
+		if (cachedLevel !== null) {
+			return this.applyZoomIfChanged(cachedLevel).map(() => {
+				this.reconcilePersistedZoomInBackground();
+			});
+		}
+
+		return this.loadZoomLevel().andThen((level) => this.applyZoomIfChanged(level));
 	}
 
 	/**
@@ -112,6 +145,14 @@ export class ZoomService {
 		);
 	}
 
+	private applyZoomIfChanged(level: number): ResultAsync<void, Error> {
+		if (Math.abs(level - this.currentZoom) <= ZOOM_EQUALITY_EPSILON) {
+			this.currentZoom = level;
+			return okAsync(undefined);
+		}
+		return this.applyZoom(level);
+	}
+
 	/**
 	 * Loads the zoom level from the database.
 	 */
@@ -122,24 +163,65 @@ export class ZoomService {
 				return new Error(`Failed to load zoom level: ${String(error)}`);
 			})
 			.map((value) => {
+				let level = ZOOM_CONFIG.DEFAULT;
 				if (value === null) {
-					return ZOOM_CONFIG.DEFAULT;
+					this.saveCachedZoomLevel(level);
+					return level;
 				}
 				const parsed = parseFloat(value);
-				if (Number.isNaN(parsed)) {
-					return ZOOM_CONFIG.DEFAULT;
+				if (!Number.isNaN(parsed)) {
+					level = Math.max(ZOOM_CONFIG.MIN, Math.min(parsed, ZOOM_CONFIG.MAX));
 				}
-				return Math.max(ZOOM_CONFIG.MIN, Math.min(parsed, ZOOM_CONFIG.MAX));
+				this.saveCachedZoomLevel(level);
+				return level;
 			});
+	}
+
+	private loadCachedZoomLevel(): number | null {
+		if (typeof localStorage === "undefined") {
+			return null;
+		}
+
+		const value = localStorage.getItem(ZOOM_LEVEL_CACHE_KEY);
+		if (value === null) {
+			return null;
+		}
+
+		const parsed = parseFloat(value);
+		if (Number.isNaN(parsed)) {
+			return null;
+		}
+		return Math.max(ZOOM_CONFIG.MIN, Math.min(parsed, ZOOM_CONFIG.MAX));
+	}
+
+	private saveCachedZoomLevel(level: number): void {
+		if (typeof localStorage === "undefined") {
+			return;
+		}
+
+		localStorage.setItem(ZOOM_LEVEL_CACHE_KEY, level.toString());
+	}
+
+	private reconcilePersistedZoomInBackground(): void {
+		scheduleZoomReconciliation(() => {
+			void this.loadZoomLevel()
+				.andThen((level) => this.applyZoomIfChanged(level))
+				.mapErr(() => undefined);
+		});
 	}
 
 	/**
 	 * Saves the zoom level to the database.
 	 */
 	private saveZoomLevel(level: number): ResultAsync<void, Error> {
-		return settings.setRaw(ZOOM_LEVEL_KEY, level.toString()).mapErr((error) => {
-			return new Error(`Failed to save zoom level: ${String(error)}`);
-		});
+		return settings
+			.setRaw(ZOOM_LEVEL_KEY, level.toString())
+			.map(() => {
+				this.saveCachedZoomLevel(level);
+			})
+			.mapErr((error) => {
+				return new Error(`Failed to save zoom level: ${String(error)}`);
+			});
 	}
 }
 

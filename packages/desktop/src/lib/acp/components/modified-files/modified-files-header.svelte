@@ -354,8 +354,8 @@ function handlePromptResetClick(): void {
 							aria-label="Open pull request"
 						>
 							<Button
-								variant="headerAction"
-								size="headerAction"
+								variant="secondary"
+								size="xs"
 								class="group/open-pr"
 								disabled={createPrLoading}
 								onclick={handleCreatePrClick}
@@ -379,7 +379,7 @@ function handlePromptResetClick(): void {
 								embeddedInGroup
 								showChevron={false}
 								triggerSize="headerAction"
-								variant="headerAction"
+								variant="secondary"
 								align="start"
 								sideOffset={6}
 								contentClass="min-w-[200px]"
@@ -485,7 +485,7 @@ function handlePromptResetClick(): void {
 				{#if !onCreatePr && onMerge}
 					{#if prState === "MERGED"}
 						<div onclick={(e: MouseEvent) => e.stopPropagation()} role="none">
-							<Button variant="headerAction" size="headerAction" disabled>
+							<Button variant="secondary" size="xs" disabled>
 								<PrStateIcon state="MERGED" size={11} />
 								{"Merged"}
 							</Button>
@@ -493,8 +493,8 @@ function handlePromptResetClick(): void {
 					{:else}
 						<ButtonGroup.Root class="shrink-0 text-[0.6875rem]" aria-label="Merge pull request">
 							<Button
-								variant="headerAction"
-								size="headerAction"
+								variant="secondary"
+								size="xs"
 								disabled={merging}
 								onclick={() => onMerge(mergeStrategyStore.strategy)}
 							>
@@ -510,7 +510,7 @@ function handlePromptResetClick(): void {
 								embeddedInGroup
 								showChevron={false}
 								triggerSize="headerAction"
-								variant="headerAction"
+								variant="secondary"
 								align="start"
 								contentClass="min-w-[160px]"
 								triggerAriaLabel="Merge options"
@@ -558,10 +558,6 @@ function handlePromptResetClick(): void {
 		size="medium"
 		contentClass="max-w-lg"
 	>
-		{#snippet topLeft()}
-			<span class="truncate text-[11px] font-semibold text-foreground select-none">PR prompt</span>
-		{/snippet}
-
 		<div class="grid gap-2 px-3 py-3">
 			<p class="text-[12px] text-muted-foreground">
 				Customize the instructions Acepe uses before it adds branch, changed-file, diff, and XML
@@ -581,16 +577,16 @@ function handlePromptResetClick(): void {
 
 		{#snippet footer()}
 			<Button
-				variant="header"
-				size="header"
+				variant="outline"
+				size="sm"
 				disabled={!promptEditorState.canReset}
 				onclick={handlePromptResetClick}
 			>
 				Reset
 			</Button>
 			<Button
-				variant="invert"
-				size="header"
+				variant="default"
+				size="sm"
 				disabled={!promptEditorState.canSave}
 				onclick={handlePromptSaveClick}
 			>

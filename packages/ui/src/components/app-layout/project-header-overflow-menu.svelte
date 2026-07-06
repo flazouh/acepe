@@ -91,7 +91,7 @@
 	triggerAriaLabel="Project menu"
 >
 	{#snippet renderButton()}
-		<RoundedIcon name="more" class="size-3" />
+		<RoundedIcon name="more" />
 	{/snippet}
 
 	{#if onMoveUp || onMoveDown}

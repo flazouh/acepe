@@ -63,7 +63,7 @@
 										<Button variant={entry.variant} {size}>
 											{#snippet children()}
 												{#if display.kind === "icon"}
-													<RoundedIcon name="settings" class="size-3.5" />
+													<RoundedIcon name="settings" />
 												{:else}
 													<span class="truncate">{display.label}</span>
 												{/if}

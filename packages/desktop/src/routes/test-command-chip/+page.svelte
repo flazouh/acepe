@@ -274,7 +274,7 @@ const partialReviewFile: AgentPanelModifiedFileItem = {
 	id: "partial-review-file",
 	filePath: "packages/ui/src/components/agent-panel/review-tab-strip.svelte",
 	fileName: "review-tab-strip.svelte",
-	reviewStatus: "partial",
+	reviewStatus: "unreviewed",
 	additions: 8,
 	deletions: 2,
 	onSelect: () => {},
@@ -494,11 +494,11 @@ const commandPaletteItems: CommandPaletteItem[] = [
 	>
 		<Button
 			variant="ghost"
-			size="icon-chrome"
+			size="icon-2xs"
 			aria-label="Chrome icon fixture"
-			data-testid="button-icon-chrome-muted"
+			data-testid="button-icon-2xs-muted"
 		>
-			<RoundedIcon name="more" class="size-4" />
+			<RoundedIcon name="more" />
 		</Button>
 		<Button
 			variant="ghost"
@@ -506,7 +506,7 @@ const commandPaletteItems: CommandPaletteItem[] = [
 			aria-label="Compact icon fixture"
 			data-testid="button-icon-2xs-muted"
 		>
-			<RoundedIcon name="close" class="size-3" />
+			<RoundedIcon name="close" />
 		</Button>
 	</div>
 	<div class="flex w-[220px] items-center gap-2 border border-border/40 bg-foreground/80 p-2" data-testid="brand-theme-toggle-fixture">
@@ -1010,7 +1010,20 @@ const commandPaletteItems: CommandPaletteItem[] = [
 			onPreviousFile={() => {}}
 			onNextFile={() => {}}
 			onClose={() => {}}
-		/>
+		>
+			{#snippet headerActions()}
+				<Button
+					variant="ghost"
+					size="icon-2xs"
+					active
+					aria-label="Split diff"
+					title="Split diff"
+					data-testid="review-header-diff-style-split"
+				>
+					<RoundedIcon name="git-diff" />
+				</Button>
+			{/snippet}
+		</ReviewWorkspaceHeader>
 	</div>
 	<div class="w-[520px]" data-testid="agent-tool-search-fixture">
 		<AgentToolSearch

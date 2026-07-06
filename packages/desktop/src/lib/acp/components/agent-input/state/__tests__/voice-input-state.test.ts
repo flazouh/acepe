@@ -292,6 +292,21 @@ describe("VoiceInputState", () => {
 		await Promise.resolve();
 	});
 
+	it("does not throw when Tauri listener cleanup reports an already removed listener", async () => {
+		const staleUnlisten = vi.fn(() => {
+			throw new Error("undefined is not an object (evaluating 'listeners[eventId].handlerId')");
+		});
+		listenMock.mockResolvedValue(staleUnlisten);
+
+		const state = new VoiceInputState({ sessionId: "session-stale-listener" });
+		await state.registerListeners();
+
+		expect(() => state.dispose()).not.toThrow();
+		await flushAsync();
+
+		expect(staleUnlisten).toHaveBeenCalledTimes(5);
+	});
+
 	it("ignores late stopRecording failures after transcription already completed", async () => {
 		const pendingStop = createPendingResult<void>();
 		stopRecordingMock.mockReturnValue(

@@ -9,11 +9,6 @@
 	import type { SelectorTriggerSize } from "../selector/selector-trigger-classes.js";
 	import { getSelectorTriggerButtonVariant } from "../selector/selector-trigger-classes.js";
 	import { Button } from "../button/index.js";
-	import { COMPOSER_CHIP_ICON_CLASS } from "./agent-input-chip-classes.js";
-	import { cn } from "../../lib/utils.js";
-	import * as Tooltip from "../tooltip/index.js";
-	import AgentInputReasoningEffortTrigger from "./agent-input-reasoning-effort-trigger.svelte";
-	import { SelectorItem } from "../selector/index.js";
 	import {
 		getConfigOptionNextBooleanValue,
 		getConfigOptionResolvedTriggerSize,
@@ -21,6 +16,9 @@
 		shouldEmitConfigOptionValueChange,
 	} from "./agent-input-config-option-selector-state.js";
 	import type { AgentInputConfigOption } from "./agent-input-config-option-types.js";
+	import * as Tooltip from "../tooltip/index.js";
+	import AgentInputReasoningEffortTrigger from "./agent-input-reasoning-effort-trigger.svelte";
+	import { SelectorItem } from "../selector/index.js";
 
 	export type { AgentInputConfigOption };
 
@@ -75,11 +73,11 @@
 	{#if viewState.iconKind === "fast"}
 		<RoundedIcon
 			name="lightning"
-			class={cn(COMPOSER_CHIP_ICON_CLASS, viewState.iconClass)}
+			class={viewState.iconClass}
 			style={viewState.iconStyle}
 		/>
 	{:else}
-		<RoundedIcon name="shield-check" class={COMPOSER_CHIP_ICON_CLASS} style="color: {viewState.iconColor}" />
+		<RoundedIcon name="shield-check" style="color: {viewState.iconColor}" />
 	{/if}
 {/snippet}
 
@@ -125,7 +123,7 @@
 				>
 					<RoundedIcon
 						name="lightning"
-						class={cn(COMPOSER_CHIP_ICON_CLASS, viewState.iconClass)}
+						class={viewState.iconClass}
 						style={viewState.iconStyle}
 					/>
 				</Button>

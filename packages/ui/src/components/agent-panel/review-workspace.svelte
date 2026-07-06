@@ -12,6 +12,7 @@
 		files: readonly ReviewWorkspaceFileItem[];
 		selectedFileIndex?: number | null;
 		content?: Snippet;
+		headerActions?: Snippet;
 		onClose?: () => void;
 		onFileSelect?: (index: number) => void;
 		onFileRevert?: (index: number) => void;
@@ -34,6 +35,7 @@
 		files,
 		selectedFileIndex = null,
 		content,
+		headerActions,
 		onClose,
 		onFileSelect,
 		onFileRevert,
@@ -145,6 +147,7 @@
 						fileCount={files.length}
 						{selectedFileIndex}
 						{showCloseButton}
+						{headerActions}
 						{onClose}
 						onPreviousFile={handlePreviousFile}
 						onNextFile={handleNextFile}

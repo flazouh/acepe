@@ -29,7 +29,7 @@ export type CommandRunner = (command: readonly string[]) => ResultAsync<CommandE
 
 const tauriTextWrapperSchema = z.object({
 	content: z.array(z.object({ text: z.string().optional() })).optional(),
-	text: z.string().optional(),
+	text: z.string().nullable().optional(),
 });
 
 const tauriScreenshotWrapperSchema = z.object({
@@ -234,7 +234,7 @@ function commandFromDaemon(args: readonly string[]): ResultAsync<CommandExecutio
 		return ensureDaemon()
 			.andThen(() =>
 				daemonRequest(
-					{ kind: "webview-execute-js", appIdentifier, script },
+					{ kind: "webview-execute-js", appIdentifier, script, callTimeoutMs },
 					{ timeoutMs: requestTimeoutMs }
 				)
 			)
@@ -297,6 +297,9 @@ export function runTauriMcp(
 	args: readonly string[],
 	runner: CommandRunner = runCommand
 ): ResultAsync<CommandExecution, TauriMcpFailure> {
+	if (args[0] === "driver-session" && args[1] === "start") {
+		return runTauriMcpCli(args, runner);
+	}
 	if (runner !== runCommand) {
 		return runTauriMcpCli(args, runner);
 	}

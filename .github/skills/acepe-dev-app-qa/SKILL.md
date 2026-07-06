@@ -71,8 +71,20 @@ Minimum pass from `packages/desktop`:
    change; cite the returned DOM facts in your summary
 4. `bun run qa screenshot` when the change is visual or layout-related
 
-Use `click`, `send`, or `watch` when verifying interactions. Record evidence via
-the wrapper (`.codex/state/ui-qa-evidence.json`).
+The QA action must prove the behavior that changed:
+
+- Static visual/style changes may pass with inspect + screenshot.
+- Interaction bugs must run the interaction through `click`, `send`, `watch`, or
+  a dedicated QA command, then inspect the resulting DOM/app state.
+- Timing, scroll, streaming, animation, and layout-transition bugs must run a
+  probe that samples the transition after the code change. A static `inspect` or
+  screenshot is not enough.
+- If a plan names a QA probe, that probe is mandatory completion evidence.
+- If the needed app/session state is unavailable, report behavioral QA as
+  blocked and say what static evidence was collected. Do not call static DOM
+  inspection a pass for the behavior.
+
+Record evidence via the wrapper (`.codex/state/ui-qa-evidence.json`).
 
 Do not open or inspect `/Applications/Acepe.app` for dev QA.
 
@@ -197,6 +209,14 @@ Minimum useful QA pass (required after UI-affecting changes):
    choose a selector that proves the change landed; include key facts in your
    report.
 4. `bun run qa screenshot` for final visual evidence when the change is visual.
+
+Evidence must match the bug. For interaction-driven bugs, run `click`, `send`,
+`watch`, or a dedicated scenario probe and report which user action was
+performed, what changed in the DOM/app state, and where the artifact is. For
+timing, scroll, streaming, animation, or layout-transition bugs, a static DOM
+snapshot is not sufficient; run a transition-sampling probe after the code
+change. If that probe is blocked by app/session state, report it as blocked
+instead of downgrading to static DOM evidence.
 
 This wrapper-backed path is the best evidence because Acepe is a Tauri app. A
 browser at `localhost:1420` does not include the real Tauri WebView runtime or

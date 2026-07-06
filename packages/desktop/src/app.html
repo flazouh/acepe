@@ -37,13 +37,28 @@
 
 		<!-- Suppress benign ResizeObserver loop error -->
 		<script>
+			window.__acepeRuntimeErrors = window.__acepeRuntimeErrors || [];
+			window.addEventListener("unhandledrejection", function (event) {
+				window.__acepeRuntimeErrors.push({
+					type: "unhandledrejection",
+					message: event.reason?.message || String(event.reason)
+				});
+			});
 			const resizeObserverErr = window.onerror;
-			window.onerror = function (message) {
+			window.onerror = function (message, source, lineno, colno, error) {
 				if (message.includes?.("ResizeObserver loop")) {
 					return true;
 				}
+				window.__acepeRuntimeErrors.push({
+					type: "error",
+					message: String(message),
+					source: source || null,
+					line: lineno || null,
+					column: colno || null,
+					stack: error?.stack || null
+				});
 				// biome-ignore lint/complexity/noArguments: forwarding arguments to original error handler
-			return resizeObserverErr?.apply?.(this, arguments);
+				return resizeObserverErr?.apply?.(this, arguments);
 			};
 		</script>
 

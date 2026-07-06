@@ -18,6 +18,7 @@ import {
 	normalizeAgentPanelBoundaryError,
 } from "./logic/agent-panel-host-boundary-error.js";
 import { buildAgentPanelHostModel } from "./logic/agent-panel-host-model.js";
+import { recordPanelOpenPerformanceMark } from "$lib/acp/components/agent-panel/logic/panel-open-performance-mark.js";
 
 interface Props {
 	panelId: string;
@@ -44,6 +45,9 @@ let {
 	onFocusPanel,
 	onToggleFullscreenPanel,
 }: Props = $props();
+
+// svelte-ignore state_referenced_locally -- constructor timing should use this instance's initial panel id.
+recordPanelOpenPerformanceMark(panelId, "agent-panel-host:props");
 
 const panelStore = getPanelStore();
 const sessionStore = getSessionStore();
@@ -149,8 +153,14 @@ function handleCreateIssueReport(
 
 </script>
 
-{#if panel}
-	<svelte:boundary onerror={(error) => logAgentPanelBoundaryError(panelId, error)}>
+<div
+	class="contents"
+	data-testid="agent-panel-host"
+	data-qa-agent-panel-id={panelId}
+	data-qa-agent-panel-session-id={panel?.sessionId ?? ""}
+>
+	{#if panel}
+		<svelte:boundary onerror={(error) => logAgentPanelBoundaryError(panelId, error)}>
 		<AgentPanel
 			{panelId}
 			sessionId={panel.sessionId}
@@ -211,5 +221,6 @@ function handleCreateIssueReport(
 				</div>
 			</div>
 		{/snippet}
-	</svelte:boundary>
-{/if}
+		</svelte:boundary>
+	{/if}
+</div>

@@ -131,7 +131,7 @@
 		{#if showDetailTrigger}
 			<Button
 				variant="ghost"
-				size="icon-chrome"
+				size="icon-2xs"
 				data-header-control
 				aria-label="Open subtask transcript"
 				title="Open subtask transcript"
@@ -141,7 +141,7 @@
 				}}
 			>
 				{#snippet children()}
-					<RoundedIcon name="expand" class="size-3" />
+					<RoundedIcon name="expand" />
 				{/snippet}
 			</Button>
 		{/if}

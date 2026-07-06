@@ -198,7 +198,7 @@ const showTaskWidget = $derived(visibleTaskWidgetSummary !== null);
 			{/if}
 		</div>
 	{:else}
-		<div class="flex items-center gap-1.5">
+		<div class="flex min-h-5 items-center gap-1.5">
 			{#if projectBadge}
 				{@render projectBadge()}
 			{/if}

@@ -31,14 +31,14 @@
 	<HeaderActionCell withDivider={false}>
 		<Button
 			variant="ghost"
-			size="icon-chrome"
+			size="icon-2xs"
 			data-header-control
 			title={toggleLabel}
 			aria-label={toggleLabel}
 			onclick={onToggleSidebar}
 		>
 			{#snippet children()}
-				<RoundedIcon name={isExpanded ? "collapse" : "expand"} class="size-3.5" />
+				<RoundedIcon name={isExpanded ? "collapse" : "expand"} />
 			{/snippet}
 		</Button>
 	</HeaderActionCell>

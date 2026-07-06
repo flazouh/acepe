@@ -197,17 +197,27 @@ export { default as ReviewWorkspaceHeader } from "./review-workspace-header.svel
 export { default as MessageScroller } from "./message-scroller.svelte";
 export {
 	DEFAULT_ROW_ESTIMATE_PX,
+	createArrayMessageScrollerItemSource,
 	rowEstimatePx,
 	type MessageScrollerItem,
+	type MessageScrollerItemSource,
+	type MessageScrollerRangeState,
 	type MessageScrollerRowKind,
 } from "./message-scroller-types.js";
+export type {
+	AgentPanelPerformanceRecorder,
+	AgentPanelPerformanceSample,
+} from "./agent-panel-performance-profile.js";
+export {
+	measureAgentPanelPerformance,
+	recordAgentPanelPerformanceSample,
+} from "./agent-panel-performance-profile.js";
 export {
 	createStickToBottomController,
 	stickToBottom,
 	type StickToBottomController,
 	type StickToBottomParams,
 } from "./stick-to-bottom-effects.js";
-export { default as AgentPanelScrollToBottomButton } from "./scroll-to-bottom-button.svelte";
 export { default as AgentPanelTranscriptScrollControls } from "./agent-panel-transcript-scroll-controls.svelte";
 export { default as AgentPanelTodoHeader } from "./todo-header.svelte";
 export { default as TodoNumberIcon } from "./todo-number-icon.svelte";
@@ -280,6 +290,7 @@ export type {
 	AgentToolStatus,
 	AgentUserContentChunk,
 	AgentUserEntry,
+	AgentUserFileSelectEvent,
 	AgentWebSearchLink,
 	AnyAgentEntry,
 	LintDiagnostic,

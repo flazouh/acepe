@@ -1,7 +1,6 @@
 <script lang="ts">
 	import { Button } from "../button/index.js";
 	import { RoundedIcon } from "../icons/index.js";
-	import { OVERFLOW_DOTS_ICON_CLASS } from "./project-card-action-button-class.js";
 
 	interface Props {
 		title?: string;
@@ -14,7 +13,7 @@
 
 <Button
 	variant="ghost"
-	size="icon-chrome"
+	size="icon-2xs"
 	data-header-control
 	{title}
 	aria-label={title}
@@ -22,6 +21,6 @@
 	{onclick}
 >
 	{#snippet children()}
-		<RoundedIcon name="more" class={OVERFLOW_DOTS_ICON_CLASS} />
+		<RoundedIcon name="more" />
 	{/snippet}
 </Button>

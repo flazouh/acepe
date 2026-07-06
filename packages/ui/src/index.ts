@@ -129,7 +129,6 @@ export {
 	AgentPanelReviewCard,
 	AgentPanelReviewNavigation,
 	AgentPanelReviewTabStrip,
-	AgentPanelScrollToBottomButton,
 	AgentPanelTranscriptScrollControls,
 	MessageScroller,
 	AgentPanelShell,
@@ -214,6 +213,8 @@ export {
 	type ControlTokenVariant,
 	buttonVariants,
 	getButtonClass,
+	getDialogHeaderIconCloseClass,
+	type HeaderIconCloseSize,
 	ControlTokensShowcase,
 	controlTokensShowcaseMeta,
 	type Props as ButtonPropsAlias,
@@ -300,6 +301,14 @@ export {
 	Trigger as DrawerTriggerRaw,
 } from "./components/drawer/index.js";
 export { FilePathBadge } from "./components/file-path-badge/index.js";
+export {
+	PierreFileTree,
+	type PierreFileTreeActionItem,
+	type PierreFileTreeProps,
+	type PierreFileTreeRowAction,
+	type PierreFileTreeRowActionProvider,
+	type PierreFileTreeRowDecorationProvider,
+} from "./components/pierre-tree/index.js";
 export type {
 	GitIndexStatus,
 	GitLogEntry,
@@ -320,16 +329,12 @@ export {
 	GitStatusList,
 } from "./components/git-panel/index.js";
 export type {
-	FileTreeNode,
 	GitCommitData,
 	GitPrData,
 	GitViewerFile,
 } from "./components/git-viewer/index.js";
 // Git viewer components
 export {
-	buildFileTree,
-	compactSingleChildDirs,
-	flattenFileTree,
 	GitCommitHeader,
 	GitDiffViewToggle,
 	GitFileTree,
@@ -350,12 +355,9 @@ export {
 	DotmTriangle20Spinner,
 	LoadingIcon,
 	MenuIcon,
-	MoreVerticalIcon,
 	PaletteIcon,
 	PlanIcon,
 	PlusIcon,
-	PLUS_ACTION_BUTTON_CLASS,
-	PLUS_ICON_CLASS,
 	RecycleIcon,
 	RevertIcon,
 	RobotIcon,

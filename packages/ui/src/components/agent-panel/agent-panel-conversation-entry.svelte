@@ -6,9 +6,11 @@
 		AgentPanelPlanViewEvent,
 		AgentPanelQuestionSelectEvent,
 		AgentPanelReviewActionEvent,
+		AgentUserFileSelectEvent,
 		AgentToolFileSelectEvent,
 		AssistantRenderBlockContext,
 	} from "./types.js";
+	import type { InlineArtefactTokenType } from "../../lib/inline-artefact/index.js";
 	import type { StreamingAnimationMode } from "../../lib/assistant-message/types.js";
 	import { isToolCallEntry } from "./agent-panel-conversation-entry-model.js";
 
@@ -34,6 +36,7 @@
 		onPlanCancel?: (event: AgentPanelPlanActionEvent) => void;
 		onPlanViewFull?: (event: AgentPanelPlanViewEvent) => void;
 		onToolFileSelect?: (event: AgentToolFileSelectEvent) => void;
+		onUserFileSelect?: (event: AgentUserFileSelectEvent) => void;
 		onReview?: (event: AgentPanelReviewActionEvent) => void;
 		isPlanActionAvailable?: (event: AgentPanelPlanActionEvent) => boolean;
 	}
@@ -51,13 +54,30 @@
 		onPlanCancel,
 		onPlanViewFull,
 		onToolFileSelect,
+		onUserFileSelect,
 		onReview,
 		isPlanActionAvailable,
 	}: Props = $props();
+
+	function handleUserTokenClick(tokenType: InlineArtefactTokenType, value: string): void {
+		if (tokenType !== "file" && tokenType !== "image") {
+			return;
+		}
+
+		onUserFileSelect?.({
+			tokenType,
+			value,
+		});
+	}
  </script>
 
 {#if entry.type === "user"}
-	<AgentUserMessage text={entry.text} chunks={entry.chunks} timestampMs={entry.timestampMs} />
+	<AgentUserMessage
+		text={entry.text}
+		chunks={entry.chunks}
+		timestampMs={entry.timestampMs}
+		onTokenClick={onUserFileSelect === undefined ? undefined : handleUserTokenClick}
+	/>
 {:else if entry.type === "assistant"}
 		<AgentAssistantMessage
 			messageId={entry.id}

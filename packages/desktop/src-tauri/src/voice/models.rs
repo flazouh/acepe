@@ -574,7 +574,8 @@ mod tests {
             .expect("model GET should succeed after HuggingFace redirects");
 
         assert!(
-            response.status().is_success() || response.status() == reqwest::StatusCode::PARTIAL_CONTENT,
+            response.status().is_success()
+                || response.status() == reqwest::StatusCode::PARTIAL_CONTENT,
             "expected 200/206 after redirect, got {}",
             response.status()
         );

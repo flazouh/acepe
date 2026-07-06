@@ -60,8 +60,8 @@
 			<div class="flex items-center gap-1">
 				{#each visibleActions as action (action.id)}
 					<Button
-						variant={action.destructive ? "destructive" : "headerAction"}
-						size="headerAction"
+						variant={action.destructive ? "destructive" : "secondary"}
+						size="xs"
 						disabled={actionDisabled(action)}
 						title={action.description ?? undefined}
 						onclick={() => runAction(action)}

@@ -1,12 +1,10 @@
 use std::sync::Arc;
 
-use crate::acp::projections::{
-    is_terminal_operation_state, ProjectionRegistry, SessionProjectionSnapshot, SessionSnapshot,
+use crate::acp::projections::ProjectionRegistry;
+use crate::acp::session_open_snapshot::{
+    session_projection_snapshot_from_open_found, SessionOpenResult,
 };
-use crate::acp::session_open_snapshot::SessionOpenResult;
-use crate::acp::transcript_projection::{
-    assistant_boundary_entry_count_from_transcript_entries, TranscriptProjectionRegistry,
-};
+use crate::acp::transcript_projection::TranscriptProjectionRegistry;
 use tauri::{AppHandle, Manager};
 
 pub fn restore_session_open_authority<R: tauri::Runtime>(
@@ -28,33 +26,8 @@ pub fn restore_session_open_authority<R: tauri::Runtime>(
     }
 
     if let Some(projection_registry) = app.try_state::<Arc<ProjectionRegistry>>() {
-        let session = SessionSnapshot {
-            session_id: canonical_session_id.clone(),
-            agent_id: Some(found.agent_id.clone()),
-            last_event_seq: found.last_event_seq,
-            turn_state: found.turn_state.clone(),
-            message_count: found.message_count,
-            active_tool_call_ids: Vec::new(),
-            completed_tool_call_ids: found
-                .operations
-                .iter()
-                .filter(|operation| is_terminal_operation_state(&operation.operation_state))
-                .map(|operation| operation.tool_call_id.clone())
-                .collect(),
-            active_turn_failure: found.active_turn_failure.clone(),
-            last_terminal_turn_id: found.last_terminal_turn_id.clone(),
-            assistant_boundary_entry_count: assistant_boundary_entry_count_from_transcript_entries(
-                &found.transcript_snapshot.entries,
-            ),
-            transcript_entry_count: found.transcript_snapshot.entries.len(),
-        };
         projection_registry
             .inner()
-            .restore_session_projection(SessionProjectionSnapshot {
-                session: Some(session),
-                operations: found.operations.clone(),
-                interactions: found.interactions.clone(),
-                runtime: None,
-            });
+            .restore_session_projection(session_projection_snapshot_from_open_found(found));
     }
 }

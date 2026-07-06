@@ -22,6 +22,7 @@ import { getSessionArchiveStore } from "$lib/acp/store/session-archive-store.sve
 import { createLogger } from "$lib/acp/utils/logger.js";
 import { useTheme } from "$lib/components/theme/index.js";
 import { getAttentionQueueStore } from "$lib/stores/attention-queue-store.svelte.js";
+import { tauriClient } from "$lib/utils/tauri-client/index.js";
 
 import type { MainAppViewState } from "../../logic/main-app-view-state.svelte.js";
 import type { UpdaterBannerState } from "../../logic/updater-state.js";
@@ -29,6 +30,7 @@ import { ensureProjectHeaderAgentSelected, getProjectHeaderAgents } from "./app-
 
 import AppQueueRow from "../app-queue-row.svelte";
 import SidebarFooter from "./sidebar-footer.svelte";
+import { buildSessionTranscriptFileDialogTarget } from "./session-transcript-file-dialog.js";
 
 const logger = createLogger({
 	id: LOGGER_IDS.MAIN_PAGE,
@@ -229,6 +231,32 @@ function handleOpenPr(sessionInfo: SessionListItem) {
 	});
 }
 
+function openTranscriptFileDialog(fullPath: string): void {
+	const target = buildSessionTranscriptFileDialogTarget(fullPath);
+	if (target === null) {
+		toast.error("Failed to open transcript in Acepe: invalid transcript path");
+		return;
+	}
+
+	panelStore.openProjectFileSystemDialog(target.projectPath, target.filePath, {
+		projectName: target.projectName,
+		title: "Session transcript",
+	});
+}
+
+async function handleOpenTranscriptInAcepe(session: SessionDisplayItem) {
+	const sourcePath = session.sourcePath?.trim();
+	if (sourcePath) {
+		openTranscriptFileDialog(sourcePath);
+		return;
+	}
+
+	await tauriClient.shell.getSessionFilePath(session.id, session.projectPath).match(
+		(path) => openTranscriptFileDialog(path),
+		(error) => toast.error(`Failed to open transcript in Acepe: ${error.message}`)
+	);
+}
+
 function handleRenameSession(sessionInfo: SessionListItem, title: string) {
 	void sessionStore.write.renameSession(sessionInfo.id, title).match(
 		() => undefined,
@@ -244,33 +272,33 @@ function handleRenameSession(sessionInfo: SessionListItem, title: string) {
 	);
 }
 
-function handleExportMarkdown(sessionId: string) {
+function handleCopyTranscriptMarkdown(sessionId: string) {
 	sessionStore.read.getSessionMarkdownExportContent(sessionId).match(
 		(markdown) => {
 			void copyTextToClipboard(markdown).match(
 				() => toast.success("Copied to clipboard"),
 				(err) => {
-					toast.error(`Failed to export: ${err.message}`);
-					logger.error("[ExportMarkdown] Failed", { sessionId, error: err });
+					toast.error(`Failed to copy transcript: ${err.message}`);
+					logger.error("[CopyTranscriptMarkdown] Failed", { sessionId, error: err });
 				}
 			);
 		},
-		(error) => toast.error(error.message)
+		(error) => toast.error(`Failed to copy transcript: ${error.message}`)
 	);
 }
 
-function handleExportJson(sessionId: string) {
+function handleCopyTranscriptJson(sessionId: string) {
 	sessionStore.read.getSessionJsonExportContent(sessionId).match(
 		(content) => {
 			void copyTextToClipboard(content).match(
 				() => toast.success("Copied to clipboard"),
 				(err) => {
-					toast.error(`Failed to export: ${err.message}`);
-					logger.error("[ExportJson] Failed", { sessionId, error: err });
+					toast.error(`Failed to copy transcript: ${err.message}`);
+					logger.error("[CopyTranscriptJson] Failed", { sessionId, error: err });
 				}
 			);
 		},
-		(error) => toast.error(`Failed to export: ${error.message}`)
+		(error) => toast.error(`Failed to copy transcript: ${error.message}`)
 	);
 }
 
@@ -503,32 +531,32 @@ const visibleSessions = $derived.by(() => {
 		<div class="flex h-7 shrink-0 items-center gap-0.5 border-b border-border/50 px-1">
 			<Button
 				variant="ghost"
-				size="icon-chrome"
+				size="icon-2xs"
 				data-header-control
 				title="Add repository"
 				aria-label="Add repository"
 				onclick={() => onImportProject?.()}
 			>
 				{#snippet children()}
-					<RoundedIcon name="add" class="size-4" />
+					<RoundedIcon name="add" />
 				{/snippet}
 			</Button>
 			<div class="ml-auto flex items-center gap-0.5">
 				<Button
 					variant="ghost"
-					size="icon-chrome"
+					size="icon-2xs"
 					data-header-control
 					title="New chat"
 					aria-label="New chat"
 					onclick={handleNewThread}
 				>
 					{#snippet children()}
-						<RoundedIcon name="new-chat" class="size-4" />
+						<RoundedIcon name="new-chat" />
 					{/snippet}
 				</Button>
 				<Button
 					variant="ghost"
-					size="icon-chrome"
+					size="icon-2xs"
 					data-header-control
 					title="Search"
 					aria-label="Search"
@@ -537,31 +565,31 @@ const visibleSessions = $derived.by(() => {
 					}}
 				>
 					{#snippet children()}
-						<RoundedIcon name="search" class="size-4" />
+						<RoundedIcon name="search" />
 					{/snippet}
 				</Button>
 				<Button
 					variant="ghost"
-					size="icon-chrome"
+					size="icon-2xs"
 					data-header-control
 					title="Source control"
 					aria-label="Source control"
 					onclick={handleOpenSourceControl}
 				>
 					{#snippet children()}
-						<RoundedIcon name="review" class="size-4" />
+						<RoundedIcon name="review" />
 					{/snippet}
 				</Button>
 				<Button
 					variant="ghost"
-					size="icon-chrome"
+					size="icon-2xs"
 					data-header-control
 					title="File system"
 					aria-label="File system"
 					onclick={handleOpenFileSystem}
 				>
 					{#snippet children()}
-						<RoundedIcon name="files" class="size-4" />
+						<RoundedIcon name="files" />
 					{/snippet}
 				</Button>
 			</div>
@@ -601,8 +629,9 @@ const visibleSessions = $derived.by(() => {
 			onOpenPr={handleOpenPr}
 			onArchiveSession={handleArchiveSession}
 			onRenameSession={handleRenameSession}
-			onExportMarkdown={handleExportMarkdown}
-			onExportJson={handleExportJson}
+			onCopyTranscriptMarkdown={handleCopyTranscriptMarkdown}
+			onCopyTranscriptJson={handleCopyTranscriptJson}
+			onOpenTranscriptInAcepe={handleOpenTranscriptInAcepe}
 			onReorderProjects={handleReorderProjects}
 			onToggleShowExternalCliSessions={handleToggleShowExternalCliSessions}
 		/>

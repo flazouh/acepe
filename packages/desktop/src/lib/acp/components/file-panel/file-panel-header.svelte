@@ -130,14 +130,14 @@ function handleEditorModeChange(modeId: string) {
 		{/if}
 		<Button
 			variant="ghost"
-			size="icon-chrome"
+			size="icon-2xs"
 			data-header-control
 			onclick={handleOpenInFinder}
 			title="Open in Finder"
 			aria-label="Open in Finder"
 		>
 			{#snippet children()}
-				<RoundedIcon name="folder" class="h-3.5 w-3.5" />
+				<RoundedIcon name="folder" />
 				<span class="sr-only">{"Open in Finder"}</span>
 			{/snippet}
 		</Button>

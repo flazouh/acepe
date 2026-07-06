@@ -8,6 +8,7 @@ describe("ContentScrollRevealController", () => {
 		expect(c.isAtBottom).toBe(true);
 		expect(c.isAtTop).toBe(true);
 		expect(c.isStreaming).toBe(false);
+		expect(c.hasUnreadBelow).toBe(false);
 		expect(c.settleRevision).toBe(0);
 		expect(c.userRevealRequestVersion).toBe(0);
 	});
@@ -17,9 +18,11 @@ describe("ContentScrollRevealController", () => {
 		c.isAtBottom = false;
 		c.isAtTop = false;
 		c.isStreaming = true;
+		c.hasUnreadBelow = true;
 		expect(c.isAtBottom).toBe(false);
 		expect(c.isAtTop).toBe(false);
 		expect(c.isStreaming).toBe(true);
+		expect(c.hasUnreadBelow).toBe(true);
 	});
 
 	it("setSettleRevision updates the revision", () => {

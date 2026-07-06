@@ -205,7 +205,7 @@
 					</Tooltip>
 				{/if}
 				{#if onRetry}
-					<Button variant="headerAction" size="headerAction" onclick={onRetry}>
+					<Button variant="secondary" size="xs" onclick={onRetry}>
 						<RoundedIcon
 							name="arrow-counter-clockwise"
 							class="size-3 shrink-0"
@@ -214,7 +214,7 @@
 						{retryLabel}
 					</Button>
 				{/if}
-				<Button variant="headerAction" size="headerAction" onclick={onDismiss}>
+				<Button variant="secondary" size="xs" onclick={onDismiss}>
 					{dismissLabel}
 				</Button>
 			</div>

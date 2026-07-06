@@ -9,6 +9,8 @@ import { okAsync, type ResultAsync } from "neverthrow";
 import type {
 	ProviderMetadataProjection,
 	SessionOpenResult,
+	SessionGraphCapabilities,
+	SessionGraphLifecycle,
 	SessionStateEnvelope,
 } from "../../services/acp-types.js";
 import type { HistoryEntry, StartupSessionsResponse } from "../../services/claude-history-types";
@@ -167,6 +169,18 @@ export function fetchCanonicalSessionStateEnvelope(
 	return tauriClient.acp.getSessionState(sessionId);
 }
 
+export interface SessionConnectionReadiness {
+	readonly graphRevision: number;
+	readonly lifecycle: SessionGraphLifecycle;
+	readonly capabilities: SessionGraphCapabilities;
+}
+
+export function fetchSessionConnectionReadiness(
+	sessionId: string
+): ResultAsync<SessionConnectionReadiness, AppError> {
+	return tauriClient.acp.getSessionConnectionReadiness(sessionId);
+}
+
 // ============================================
 // HISTORY API
 // ============================================
@@ -286,6 +300,7 @@ export const api = {
 	stopStreaming,
 	closeSession,
 	fetchCanonicalSessionStateEnvelope,
+	fetchSessionConnectionReadiness,
 	replyInteraction,
 	respondInboundRequest,
 

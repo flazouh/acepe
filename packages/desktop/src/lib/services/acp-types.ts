@@ -473,6 +473,14 @@ export type SessionOpenErrorReason = "parseFailure" | "providerUnavailable" | "p
  */
 export type SessionOpenError = { requestedSessionId: string; message: string; reason: SessionOpenErrorReason; retryable: boolean }
 
+export type SessionOpenPath = "hot_ledger" | "legacy_rebuild" | "compat_snapshot"
+
+export type SessionOpenResultTiming = { source: string; openPath?: SessionOpenPath; ledgerProbeStatus: string; contextMs: number; providerLoadMs: number; ledgerTailReadMs?: number; ledgerJournalCutoffMs: number; ledgerPageReadMs: number; ledgerHeaderDecodeMs: number; ledgerRowsDecodeMs: number; ledgerResultBuildMs: number; runtimeLookupMs: number; assembleMs: number; restoreAuthorityMs: number; compactMs: number; localJournalFallbackMs: number; totalMs: number; transcriptEntryCount: number; operationCount: number }
+
+export type SessionOpenTranscriptRowPage = { projectionVersion: string; startRowIndex: number; totalRowCount: number; rowPayloadBytes: number; transcriptRevision: number; graphRevision: number; lastEventSeq: number; rows: TranscriptViewportRow[] }
+
+export type TranscriptRowPageResult = ({ status: "current" } & SessionOpenTranscriptRowPage) | { status: "missing" } | { status: "stale"; projectionVersion: string; totalRowCount: number; transcriptRevision: number; graphRevision: number; lastEventSeq: number }
+
 /**
  * Full payload for a `found` outcome.
  */
@@ -509,7 +517,7 @@ graphRevision: number;
  * reservation until the token is claimed (Unit 3) or expires after 30 s
  * of inactivity.
  */
-openToken: string; agentId: CanonicalAgentId; projectPath: string; worktreePath: string | null; sourcePath: string | null; sequenceId?: number | null; transcriptSnapshot: TranscriptSnapshot; sessionTitle: string; operations: OperationSnapshot[]; interactions: InteractionSnapshot[]; turnState: SessionTurnState; messageCount: number; activity: SessionGraphActivity; activeStreamingTail: ActiveStreamingTail | null; lifecycle: SessionGraphLifecycle; capabilities: SessionGraphCapabilities; activeTurnFailure?: TurnFailureSnapshot | null; lastTerminalTurnId?: string | null }
+openToken: string; agentId: CanonicalAgentId; projectPath: string; worktreePath: string | null; sourcePath: string | null; sequenceId?: number | null; transcriptSnapshot: TranscriptSnapshot; sessionTitle: string; operations: OperationSnapshot[]; interactions: InteractionSnapshot[]; turnState: SessionTurnState; messageCount: number; activity: SessionGraphActivity; activeStreamingTail: ActiveStreamingTail | null; lifecycle: SessionGraphLifecycle; capabilities: SessionGraphCapabilities; openPath?: SessionOpenPath; initialTranscriptRowPage?: SessionOpenTranscriptRowPage | null; initialViewportEnvelope?: SessionStateEnvelope | null; openResultTiming?: SessionOpenResultTiming | null; activeTurnFailure?: TurnFailureSnapshot | null; lastTerminalTurnId?: string | null }
 
 /**
  * Payload for the `missing` outcome — no persisted content was found for the
@@ -558,7 +566,9 @@ export type ActiveStreamingTail = { rowId: string; contentKind: ActiveStreamingT
 
 export type TranscriptViewportRowKind = "user" | "assistantText" | "assistantThought" | "tool" | "awaitingPlaceholder"
 
-export type TranscriptViewportOperationLink = { operationId: string; toolCallId: string; name: string; state: OperationState }
+export type TranscriptViewportOperationDisplayFacts = { operationId: string; toolCallId: string; name: string; title: string; state: OperationState; kind: ToolKind | null; commandSummary?: string | null; targetPathSummary?: string | null; resultSummary?: string | null; errorSummary?: string | null; interactionIds: string[]; parentToolCallId?: string | null; childToolCallIds: string[] }
+
+export type TranscriptViewportOperationLink = { operationId: string; toolCallId: string; name: string; state: OperationState; displayFacts?: TranscriptViewportOperationDisplayFacts | null; operation?: OperationSnapshot | null }
 
 export type TranscriptViewportInteractionLink = { interactionId: string; kind: InteractionKind; state: InteractionState; operationId: string | null }
 
@@ -638,4 +648,3 @@ export type ProviderMetadataProjection = {
 export type FrontendProviderProjection = ProviderMetadataProjection;
 
 export type ModelsForDisplayWithProvider = ModelsForDisplay;
-

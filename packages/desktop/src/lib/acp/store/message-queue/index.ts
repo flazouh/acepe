@@ -1,8 +1,10 @@
 export {
 	createMessageQueueStore,
+	createSessionMessageQueueStore,
 	getMessageQueueStore,
 	type MessageQueueStore,
 	type MessageSender,
+	type SessionMessageQueueHost,
 	serializeWithAttachments,
 } from "./message-queue-store.svelte.js";
 

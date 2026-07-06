@@ -13,25 +13,11 @@
 	let { file, isSelected = false }: Props = $props();
 
 	const reviewIndicator = $derived.by(() => {
-		if (file.reviewStatus === "accepted") {
+		if (file.reviewStatus === "reviewed") {
 			return {
 				label: "Reviewed",
-				icon: "accepted" as const,
+				icon: "reviewed" as const,
 				iconClassName: "text-success",
-			};
-		}
-		if (file.reviewStatus === "partial") {
-			return {
-				label: "Partial",
-				icon: "partial" as const,
-				iconClassName: "text-primary",
-			};
-		}
-		if (file.reviewStatus === "denied") {
-			return {
-				label: "Undone",
-				icon: "denied" as const,
-				iconClassName: "text-destructive",
 			};
 		}
 		return {
@@ -54,12 +40,8 @@
 	>
 		<!-- Status icon left of the file chip -->
 		<span class="shrink-0 {reviewIndicator.iconClassName}" aria-label={reviewIndicator.label}>
-			{#if reviewIndicator.icon === "accepted"}
+			{#if reviewIndicator.icon === "reviewed"}
 				<RoundedIcon name="check-circle" class="h-3 w-3" />
-			{:else if reviewIndicator.icon === "partial"}
-				<RoundedIcon name="circle-dashed" class="h-3 w-3" data-testid="partial-review-circle-dashed-icon" />
-			{:else if reviewIndicator.icon === "denied"}
-				<RoundedIcon name="x-circle" class="h-3 w-3" />
 			{:else}
 				<!-- unreviewed: neutral dot placeholder so column width stays consistent -->
 				<span class="block h-3 w-3 rounded-full border border-current opacity-30"></span>

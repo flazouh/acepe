@@ -243,4 +243,16 @@ describe("agent-panel rendered-row pipeline — planning placeholder", () => {
 		expect(planningEntry.agentIconSrc).toBe("/svgs/agents/codex/codex-icon.svg");
 		expect(planningEntry.showWorkingSpark).toBe(false);
 	});
+
+	it("does NOT show 'Planning next moves' after the canonical turn fails", () => {
+		const result = renderTurn({
+			activityKind: "awaiting_model",
+			turnState: "Failed",
+			sceneEntries: [userEntry("user-1", "run this failing command")],
+			bufferRows: [userRow("user-1", "run this failing command")],
+		});
+
+		expect(result.showPlanningIndicator).toBe(false);
+		expect(result.planningRows).toHaveLength(0);
+	});
 });

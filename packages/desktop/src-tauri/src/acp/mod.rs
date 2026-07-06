@@ -53,6 +53,7 @@ pub mod session_state_engine;
 pub mod session_thread_snapshot;
 pub mod session_update;
 pub mod session_update_parser;
+pub(crate) mod session_wire_compaction;
 pub mod streaming_accumulator;
 pub mod streaming_log;
 pub mod task_reconciler;

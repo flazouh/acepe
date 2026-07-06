@@ -19,6 +19,8 @@
 	import { prCardSectionMeta } from "./design-system-pr-card-specimens.js";
 	import DesignSystemTaskToolSection from "./design-system-task-tool-section.svelte";
 	import { taskToolSectionMeta } from "./design-system-task-tool-specimens.js";
+	import DesignSystemUpdateCardSection from "./design-system-update-card-section.svelte";
+	import { updateCardSectionMeta } from "./design-system-update-card-specimens.js";
 
 	interface Props {
 		onClose: () => void;
@@ -33,7 +35,8 @@
 		| "mic-button"
 		| "new-thread-options"
 		| "pr-card"
-		| "task-tool";
+		| "task-tool"
+		| "update-card";
 
 	const sections: ReadonlyArray<{ id: DesignSystemSection; label: string }> = [
 		{ id: "control-tokens", label: controlTokensSectionMeta.title },
@@ -43,6 +46,7 @@
 		{ id: "new-thread-options", label: newThreadOptionsSectionMeta.title },
 		{ id: "pr-card", label: prCardSectionMeta.title },
 		{ id: "task-tool", label: taskToolSectionMeta.title },
+		{ id: "update-card", label: updateCardSectionMeta.title },
 	];
 
 	const sectionMetaById = {
@@ -53,6 +57,7 @@
 		"new-thread-options": newThreadOptionsSectionMeta,
 		"pr-card": prCardSectionMeta,
 		"task-tool": taskToolSectionMeta,
+		"update-card": updateCardSectionMeta,
 	} as const;
 
 	let activeSection = $state<DesignSystemSection>("control-tokens");
@@ -67,6 +72,7 @@
 		if (sectionId === "new-thread-options") return "new-chat";
 		if (sectionId === "pr-card") return "pull-request";
 		if (sectionId === "task-tool") return "tasks";
+		if (sectionId === "update-card") return "download";
 		return null;
 	}
 </script>
@@ -138,6 +144,8 @@
 					<DesignSystemPrCardSection />
 				{:else if activeSection === "task-tool"}
 					<DesignSystemTaskToolSection />
+				{:else if activeSection === "update-card"}
+					<DesignSystemUpdateCardSection />
 				{/if}
 			</div>
 		</main>

@@ -21,7 +21,7 @@ const sidebar = useSidebar();
 	data-sidebar="trigger"
 	data-slot="sidebar-trigger"
 	variant="ghost"
-	size="icon-chrome"
+	size="icon-2xs"
 	class={className}
 	type="button"
 	onclick={(e) => {
@@ -30,6 +30,6 @@ const sidebar = useSidebar();
 	}}
 	{...restProps}
 >
-	<RoundedIcon name="sidebar" class="size-4" />
+	<RoundedIcon name="sidebar" />
 	<span class="sr-only">Toggle Sidebar</span>
 </Button>

@@ -1,14 +1,24 @@
 import type {
+	AgentToolKind,
 	AgentPanelSceneEntryModel,
 	AgentToolStatus,
 } from "@acepe/ui/agent-panel";
 import type {
+	JsonValue,
+	OperationSnapshot,
 	OperationState,
 	TranscriptSegment,
+	TranscriptViewportOperationDisplayFacts,
+	TranscriptViewportOperationLink,
 	TranscriptViewportRow,
 } from "../../../../services/acp-types.js";
+import { formatOtherToolName } from "../../../registry/index.js";
 import { buildUserRowSceneModel } from "../../../logic/user-row-scene-model.js";
 import { transcriptSegmentPrimaryText } from "../../../session-state/transcript-text.js";
+
+export type TranscriptViewportOperationSceneEntryResolver = (
+	row: TranscriptViewportRow
+) => AgentPanelSceneEntryModel | null;
 
 export function segmentText(segments: readonly TranscriptSegment[]): string {
 	let text = "";
@@ -84,14 +94,349 @@ function withViewportPlanningTiming(
 	return entry;
 }
 
+export function resolveTranscriptViewportSceneEntryCandidate(
+	row: TranscriptViewportRow,
+	entry: AgentPanelSceneEntryModel | undefined
+): AgentPanelSceneEntryModel | null {
+	if (entry === undefined) {
+		return null;
+	}
+	if (entry.id === row.sourceEntryId) {
+		return withViewportPlanningTiming(entry, row);
+	}
+	const linkedToolCallId = row.operationLinks[0]?.toolCallId;
+	if (
+		linkedToolCallId !== undefined &&
+		entry.type === "tool_call" &&
+		entry.toolCallId === linkedToolCallId
+	) {
+		return entry;
+	}
+	return null;
+}
+
+function fallbackToolDegradedReason(
+	operation: TranscriptViewportOperationLink | undefined
+): string {
+	if (operation === undefined) {
+		return "Viewport row has no linked operation.";
+	}
+	return "Viewport row has no canonical tool scene entry.";
+}
+
+function cleanDisplayText(value: string | null | undefined): string | null {
+	const text = value?.trim();
+	return text === undefined || text.length === 0 ? null : text;
+}
+
+function jsonValueTextSummary(value: JsonValue | null | undefined): string | null {
+	if (value === null || value === undefined) {
+		return null;
+	}
+	if (typeof value === "string") {
+		return cleanDisplayText(value);
+	}
+	if (typeof value === "number" || typeof value === "boolean") {
+		return String(value);
+	}
+	if (!Array.isArray(value)) {
+		const summary = objectValueSummary(value);
+		if (summary !== null) {
+			return summary;
+		}
+	}
+	return cleanDisplayText(JSON.stringify(value));
+}
+
+function objectValueSummary(value: { readonly [key: string]: JsonValue }): string | null {
+	const summary = jsonValueTextSummary(value.summary);
+	if (summary !== null) {
+		return summary;
+	}
+	const message = jsonValueTextSummary(value.message);
+	if (message !== null) {
+		return message;
+	}
+	const output = jsonValueTextSummary(value.output);
+	if (output !== null) {
+		return output;
+	}
+	return jsonValueTextSummary(value.error);
+}
+
+function commandSummaryFromOperation(operation: OperationSnapshot): string | null {
+	const command = cleanDisplayText(operation.command);
+	if (command !== null) {
+		return command;
+	}
+
+	const args = operation.arguments;
+	if (args.kind === "execute") return cleanDisplayText(args.command);
+	if (args.kind === "shellInput") return cleanDisplayText(args.input);
+	if (args.kind === "search") return cleanDisplayText(args.query);
+	if (args.kind === "glob") return cleanDisplayText(args.pattern);
+	if (args.kind === "fetch") return cleanDisplayText(args.url);
+	if (args.kind === "webSearch") return cleanDisplayText(args.query);
+	if (args.kind === "think") {
+		return (
+			cleanDisplayText(args.description) ??
+			cleanDisplayText(args.prompt) ??
+			cleanDisplayText(args.skill)
+		);
+	}
+	if (args.kind === "taskOutput") return cleanDisplayText(args.task_id);
+	if (args.kind === "planMode") {
+		return cleanDisplayText(args.title) ?? cleanDisplayText(args.plan_file_path);
+	}
+	if (args.kind === "toolSearch") return cleanDisplayText(args.query);
+	if (args.kind === "browser") {
+		return (
+			cleanDisplayText(args.action) ??
+			cleanDisplayText(args.selector) ??
+			cleanDisplayText(args.script)
+		);
+	}
+	if (args.kind === "computer") {
+		return cleanDisplayText(args.verb) ?? cleanDisplayText(args.text) ?? cleanDisplayText(args.key);
+	}
+	if (args.kind === "sql") return cleanDisplayText(args.query);
+	if (args.kind === "unclassified") {
+		return cleanDisplayText(args.title) ?? cleanDisplayText(args.arguments_preview);
+	}
+	if (args.kind === "other") return cleanDisplayText(args.intent);
+	return null;
+}
+
+function targetPathSummaryFromOperation(operation: OperationSnapshot): string | null {
+	for (const location of operation.locations ?? []) {
+		const path = cleanDisplayText(location.path);
+		if (path !== null) {
+			return path;
+		}
+	}
+
+	const args = operation.arguments;
+	if (args.kind === "read") return cleanDisplayText(args.file_path);
+	if (args.kind === "search") return cleanDisplayText(args.file_path);
+	if (args.kind === "delete") {
+		return cleanDisplayText(args.file_path) ?? cleanDisplayText(args.file_paths?.[0]);
+	}
+	if (args.kind === "edit") {
+		for (const edit of args.edits) {
+			const filePath = cleanDisplayText(edit.filePath);
+			if (filePath !== null) {
+				return filePath;
+			}
+		}
+		return null;
+	}
+	if (args.kind === "move") return cleanDisplayText(args.from) ?? cleanDisplayText(args.to);
+	if (args.kind === "glob") return cleanDisplayText(args.path);
+	if (args.kind === "planMode") return cleanDisplayText(args.plan_file_path);
+	return null;
+}
+
+function displayFactsFromEmbeddedOperation(
+	row: TranscriptViewportRow,
+	link: TranscriptViewportOperationLink
+): TranscriptViewportOperationDisplayFacts | null {
+	const operation = link.operation ?? null;
+	if (operation === null) {
+		return null;
+	}
+	if (operation.id !== link.operationId || operation.tool_call_id !== link.toolCallId) {
+		return null;
+	}
+	if (
+		operation.source_link.kind !== "transcript_linked" ||
+		operation.source_link.entry_id !== row.sourceEntryId
+	) {
+		return null;
+	}
+
+	const title = cleanDisplayText(operation.title) ?? cleanDisplayText(operation.name);
+	if (title === null) {
+		return null;
+	}
+	const resultSummary = jsonValueTextSummary(operation.result);
+	const errorSummary =
+		operation.operation_state === "failed"
+			? (resultSummary ?? cleanDisplayText(operation.degradation_reason?.detail))
+			: null;
+	const interactionIds: string[] = [];
+	for (const interactionLink of row.interactionLinks) {
+		if (interactionLink.operationId === operation.id) {
+			interactionIds.push(interactionLink.interactionId);
+		}
+	}
+
+	return {
+		operationId: operation.id,
+		toolCallId: operation.tool_call_id,
+		name: operation.name,
+		title,
+		state: operation.operation_state,
+		kind: operation.kind,
+		commandSummary: commandSummaryFromOperation(operation),
+		targetPathSummary: targetPathSummaryFromOperation(operation),
+		resultSummary,
+		errorSummary,
+		interactionIds,
+		parentToolCallId: operation.parent_tool_call_id,
+		childToolCallIds: operation.child_tool_call_ids.slice(),
+	};
+}
+
+function mapViewportToolKind(kind: TranscriptViewportOperationDisplayFacts["kind"]): AgentToolKind {
+	if (kind === null) {
+		return "other";
+	}
+	if (kind === "shell_input") {
+		return "execute";
+	}
+	if (kind === "glob" || kind === "tool_search") {
+		return "search";
+	}
+	if (
+		kind === "read" ||
+		kind === "read_lints" ||
+		kind === "edit" ||
+		kind === "delete" ||
+		kind === "execute" ||
+		kind === "search" ||
+		kind === "fetch" ||
+		kind === "web_search" ||
+		kind === "think" ||
+		kind === "skill" ||
+		kind === "task" ||
+		kind === "task_output" ||
+		kind === "enter_plan_mode" ||
+		kind === "exit_plan_mode" ||
+		kind === "create_plan" ||
+		kind === "browser" ||
+		kind === "sql" ||
+		kind === "unclassified" ||
+		kind === "other"
+	) {
+		return kind;
+	}
+	return "other";
+}
+
+function defaultViewportToolTitle(kind: AgentToolKind): string {
+	if (kind === "execute") return "Run";
+	if (kind === "read") return "Read";
+	if (kind === "read_lints") return "Read lints";
+	if (kind === "edit") return "Edit";
+	if (kind === "review") return "Review";
+	if (kind === "delete") return "Delete";
+	if (kind === "write") return "Write";
+	if (kind === "search") return "Search";
+	if (kind === "fetch") return "Fetch";
+	if (kind === "web_search") return "Web search";
+	if (kind === "think") return "Thinking";
+	if (kind === "skill") return "Skill";
+	if (kind === "task") return "Task";
+	if (kind === "task_output") return "Task output";
+	if (kind === "enter_plan_mode") return "Enter plan mode";
+	if (kind === "exit_plan_mode") return "Plan ready";
+	if (kind === "create_plan") return "Create plan";
+	if (kind === "browser") return "Browser";
+	if (kind === "sql") return "SQL";
+	return "Tool";
+}
+
+function titleFromDisplayFacts(
+	facts: TranscriptViewportOperationDisplayFacts,
+	kind: AgentToolKind
+): string {
+	if (kind !== "other" && kind !== "unclassified") {
+		return defaultViewportToolTitle(kind);
+	}
+	const rawTitle = cleanDisplayText(facts.title) ?? cleanDisplayText(facts.name);
+	return rawTitle === null ? defaultViewportToolTitle(kind) : formatOtherToolName(rawTitle);
+}
+
+function subtitleFromDisplayFacts(
+	facts: TranscriptViewportOperationDisplayFacts,
+	kind: AgentToolKind
+): string | undefined {
+	if (kind === "execute") {
+		return undefined;
+	}
+	return (
+		cleanDisplayText(facts.targetPathSummary) ??
+		cleanDisplayText(facts.commandSummary) ??
+		cleanDisplayText(facts.errorSummary) ??
+		cleanDisplayText(facts.resultSummary) ??
+		undefined
+	);
+}
+
+function resolveViewportOperationDisplayFactsEntry(
+	row: TranscriptViewportRow
+): AgentPanelSceneEntryModel | null {
+	if (row.kind !== "tool") {
+		return null;
+	}
+	const operation = row.operationLinks[0];
+	const facts =
+		operation === undefined
+			? null
+			: (operation.displayFacts ?? displayFactsFromEmbeddedOperation(row, operation));
+	if (facts === null) {
+		return null;
+	}
+
+	const kind = mapViewportToolKind(facts.kind);
+	const status = toolStatusFromOperationState(facts.state);
+	const command = kind === "execute" ? cleanDisplayText(facts.commandSummary) : null;
+	const resultSummary = cleanDisplayText(facts.resultSummary);
+	const errorSummary = cleanDisplayText(facts.errorSummary);
+	const targetPath = cleanDisplayText(facts.targetPathSummary);
+	const query =
+		kind === "search" || kind === "web_search" ? cleanDisplayText(facts.commandSummary) : null;
+	const fetchUrl = kind === "fetch" ? cleanDisplayText(facts.commandSummary) : null;
+	const presentationState = facts.state === "degraded" ? "degraded_operation" : "resolved";
+
+	return {
+		id: row.sourceEntryId,
+		type: "tool_call",
+		toolCallId: facts.toolCallId,
+		operationId: facts.operationId,
+		kind,
+		title: titleFromDisplayFacts(facts, kind),
+		subtitle: subtitleFromDisplayFacts(facts, kind),
+		detailsText:
+			kind === "other" || kind === "unclassified" || kind === "browser" || kind === "sql"
+				? (errorSummary ?? resultSummary)
+				: null,
+		filePath: targetPath ?? undefined,
+		status,
+		command,
+		stdout: kind === "execute" && status === "done" ? resultSummary : null,
+		stderr: kind === "execute" && status === "error" ? (errorSummary ?? resultSummary) : null,
+		query,
+		url: fetchUrl,
+		resultText: errorSummary ?? resultSummary,
+		presentationState,
+		degradedReason:
+			presentationState === "degraded_operation" ? "Canonical operation is degraded." : null,
+	};
+}
+
 export function resolveTranscriptViewportSceneEntry(
 	row: TranscriptViewportRow,
 	sceneEntryById: ReadonlyMap<string, AgentPanelSceneEntryModel>,
-	sceneEntryByToolCallId: ReadonlyMap<string, AgentPanelSceneEntryModel> = new Map()
+	sceneEntryByToolCallId: ReadonlyMap<string, AgentPanelSceneEntryModel> = new Map(),
+	resolveOperationSceneEntry: TranscriptViewportOperationSceneEntryResolver | null = null
 ): AgentPanelSceneEntryModel {
-	const canonicalEntry = sceneEntryById.get(row.sourceEntryId);
-	if (canonicalEntry !== undefined) {
-		return withViewportPlanningTiming(canonicalEntry, row);
+	const canonicalEntry = resolveTranscriptViewportSceneEntryCandidate(
+		row,
+		sceneEntryById.get(row.sourceEntryId)
+	);
+	if (canonicalEntry !== null) {
+		return canonicalEntry;
 	}
 
 	const linkedToolCallId = row.operationLinks[0]?.toolCallId;
@@ -100,6 +445,16 @@ export function resolveTranscriptViewportSceneEntry(
 		if (canonicalToolEntry !== undefined) {
 			return canonicalToolEntry;
 		}
+	}
+
+	const operationEntry = resolveOperationSceneEntry?.(row) ?? null;
+	if (operationEntry !== null) {
+		return operationEntry;
+	}
+
+	const displayFactsEntry = resolveViewportOperationDisplayFactsEntry(row);
+	if (displayFactsEntry !== null) {
+		return displayFactsEntry;
 	}
 
 	if (row.kind === "awaitingPlaceholder") {
@@ -158,10 +513,10 @@ export function resolveTranscriptViewportSceneEntry(
 		toolCallId: operation?.toolCallId,
 		operationId: operation?.operationId,
 		kind: "other",
-		title: operation?.name ?? "Tool",
+		title: "Tool",
 		status: operation === undefined ? "degraded" : toolStatusFromOperationState(operation.state),
-		presentationState: operation === undefined ? "degraded_operation" : "resolved",
-		degradedReason: operation === undefined ? "Viewport row has no linked operation." : null,
-		resultText: row.content.kind === "transcript" ? segmentText(row.content.segments) : null,
+		presentationState: "degraded_operation",
+		degradedReason: fallbackToolDegradedReason(operation),
+		resultText: null,
 	};
 }

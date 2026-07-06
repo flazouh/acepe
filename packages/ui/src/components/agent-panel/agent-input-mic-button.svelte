@@ -13,7 +13,6 @@
 	import { LoadingIcon, RoundedIcon } from "../icons/index.js";
 	import { SegmentedProgressBar } from "../segmented-progress-bar/index.js";
 	import { buttonVariants } from "../button/variants.js";
-	import { COMPOSER_CHIP_ICON_CLASS } from "./agent-input-chip-classes.js";
 	import { cn } from "../../lib/utils.js";
 
 	export type AgentInputMicVisualState = "mic" | "spinner" | "stop" | "download_progress";
@@ -100,7 +99,7 @@
 		<div class="mic-icon-wrap">
 			<RoundedIcon
 				name="microphone"
-				class="{COMPOSER_CHIP_ICON_CLASS} transition-all duration-150 ease-out"
+				class="transition-all duration-150 ease-out"
 				data-testid="agent-input-mic-icon"
 			/>
 		</div>

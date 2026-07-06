@@ -59,6 +59,7 @@ describe("VoiceSettingsStore", () => {
 					size_bytes: 487614201,
 					is_english_only: true,
 					is_downloaded: true,
+					is_loaded: false,
 					download_url: "https://example.test/small.en.bin",
 				},
 				{
@@ -67,6 +68,7 @@ describe("VoiceSettingsStore", () => {
 					size_bytes: 487601967,
 					is_english_only: false,
 					is_downloaded: false,
+					is_loaded: false,
 					download_url: "https://example.test/small.bin",
 				},
 			])
@@ -80,7 +82,7 @@ describe("VoiceSettingsStore", () => {
 		);
 	});
 
-	it("loads persisted voice preferences and available models", async () => {
+	it("loads persisted voice preferences and normalizes multilingual language to auto", async () => {
 		getSettingMock
 			.mockReturnValueOnce(okAsync(false))
 			.mockReturnValueOnce(okAsync("small"))
@@ -91,9 +93,22 @@ describe("VoiceSettingsStore", () => {
 
 		expect(store.enabled).toBe(false);
 		expect(store.selectedModelId).toBe("small");
-		expect(store.language).toBe("fr");
+		expect(store.language).toBe("auto");
 		expect(store.models).toHaveLength(2);
 		expect(store.languages).toHaveLength(3);
+		expect(setSettingMock).toHaveBeenCalledWith("voice_language", "auto");
+	});
+
+	it("does not preload the selected downloaded model during initialization", async () => {
+		getSettingMock
+			.mockReturnValueOnce(okAsync(true))
+			.mockReturnValueOnce(okAsync("small.en"))
+			.mockReturnValueOnce(okAsync("auto"));
+
+		const store = new VoiceSettingsStore();
+		await store.initialize();
+
+		expect(loadModelMock).not.toHaveBeenCalled();
 	});
 
 	it("falls back to defaults when no settings are stored", async () => {
@@ -107,7 +122,7 @@ describe("VoiceSettingsStore", () => {
 		expect(store.language).toBe("auto");
 	});
 
-	it("persists updates and reloads a downloaded model when selected", async () => {
+	it("persists updates, normalizes language, and reloads a downloaded model when selected", async () => {
 		getSettingMock.mockReturnValue(okAsync(null));
 
 		const store = new VoiceSettingsStore();
@@ -118,7 +133,7 @@ describe("VoiceSettingsStore", () => {
 		await store.setSelectedModelId("small.en");
 
 		expect(setSettingMock).toHaveBeenCalledWith("voice_enabled", false);
-		expect(setSettingMock).toHaveBeenCalledWith("voice_language", "es");
+		expect(setSettingMock).toHaveBeenCalledWith("voice_language", "auto");
 		expect(setSettingMock).toHaveBeenCalledWith("voice_model", "small.en");
 		expect(loadModelMock).toHaveBeenCalledWith("small.en");
 	});

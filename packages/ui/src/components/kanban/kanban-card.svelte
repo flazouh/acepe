@@ -160,7 +160,7 @@ function handleKeydown(event: KeyboardEvent): void {
 					<div class="flex h-7 items-center justify-center" onclick={(e) => e.stopPropagation()} onkeydown={(e) => e.stopPropagation()}>
 						<Button
 							variant="ghost"
-							size="icon-chrome"
+							size="icon-2xs"
 							data-header-control
 							onclick={onClose}
 							title="Close"
@@ -168,7 +168,7 @@ function handleKeydown(event: KeyboardEvent): void {
 							class="!h-full border-l border-border/40"
 						>
 							{#snippet children()}
-								<RoundedIcon name="close" class="size-3" />
+								<RoundedIcon name="close" />
 							{/snippet}
 						</Button>
 					</div>

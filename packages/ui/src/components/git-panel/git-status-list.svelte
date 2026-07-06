@@ -10,6 +10,9 @@
 	import type { GitStatusFile } from "./types.js";
 	import GitFileTree from "../git-viewer/git-file-tree.svelte";
 	import type { GitViewerFile } from "../git-viewer/types.js";
+	import type { PierreFileTreeRowAction } from "../pierre-tree/index.js";
+
+	const EMPTY_ACTIONS: readonly PierreFileTreeRowAction[] = [];
 
 	interface Props {
 		stagedFiles: GitStatusFile[];
@@ -59,6 +62,46 @@
 			deletions: f.deletions,
 		}))
 	);
+
+	function stagedRowActions(file: GitViewerFile): readonly PierreFileTreeRowAction[] {
+		if (!onUnstage) {
+			return EMPTY_ACTIONS;
+		}
+
+		return [
+			{
+				id: "unstage",
+				label: "Unstage file",
+				iconText: "-",
+				onSelect: () => onUnstage(file.path),
+			},
+		];
+	}
+
+	function unstagedRowActions(file: GitViewerFile): readonly PierreFileTreeRowAction[] {
+		const actions: PierreFileTreeRowAction[] = [];
+
+		if (onStage) {
+			actions.push({
+				id: "stage",
+				label: "Stage file",
+				iconText: "+",
+				onSelect: () => onStage(file.path),
+			});
+		}
+
+		if (onDiscard) {
+			actions.push({
+				id: "discard",
+				label: "Discard changes",
+				iconText: "!",
+				destructive: true,
+				onSelect: () => onDiscard(file.path),
+			});
+		}
+
+		return actions;
+	}
 </script>
 
 <div class={cn("flex flex-col overflow-y-auto", className)}>
@@ -86,21 +129,9 @@
 					{selectedFile}
 					onSelect={(file) => onFileSelect?.(file, true)}
 					{iconBasePath}
+					rowActions={stagedRowActions}
 					class="overflow-visible bg-transparent"
-				>
-					{#snippet rowActions({ file })}
-						<div class="flex shrink-0 items-center opacity-0 transition-opacity group-hover:opacity-100">
-							<button
-								type="button"
-								class="flex h-5 w-5 cursor-pointer items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-warning/10 hover:text-warning"
-								title="Unstage file"
-								onclick={(e) => { e.stopPropagation(); onUnstage?.(file.path); }}
-							>
-								<RoundedIcon name="minus" class="size-3" />
-							</button>
-						</div>
-					{/snippet}
-				</GitFileTree>
+				/>
 			{/if}
 		</div>
 	{/if}
@@ -142,33 +173,9 @@
 					{selectedFile}
 					onSelect={(file) => onFileSelect?.(file, false)}
 					{iconBasePath}
+					rowActions={unstagedRowActions}
 					class="overflow-visible bg-transparent"
-				>
-					{#snippet rowActions({ file })}
-						<div class="flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100">
-							{#if onStage}
-								<button
-									type="button"
-									class="flex h-5 w-5 cursor-pointer items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-success/10 hover:text-success"
-									title="Stage file"
-									onclick={(e) => { e.stopPropagation(); onStage?.(file.path); }}
-								>
-									<PlusIcon />
-								</button>
-							{/if}
-							{#if onDiscard}
-								<button
-									type="button"
-									class="flex h-5 w-5 cursor-pointer items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
-									title="Discard changes"
-									onclick={(e) => { e.stopPropagation(); onDiscard?.(file.path); }}
-								>
-									<RoundedIcon name="undo" class="size-3" />
-								</button>
-							{/if}
-						</div>
-					{/snippet}
-				</GitFileTree>
+				/>
 			{/if}
 		</div>
 	{/if}

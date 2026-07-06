@@ -10,6 +10,19 @@ import type { ProjectInfo, ProjectSessionCounts, SessionLoadTiming } from "./typ
 
 const historyCommands = TAURI_COMMAND_CLIENT.history;
 
+export interface TranscriptRowLedgerBackfillResult {
+	readonly requestedLimit: number;
+	readonly candidateCount: number;
+	readonly checkedCount: number;
+	readonly rebuiltCount: number;
+	readonly rebuiltFromProviderCount: number;
+	readonly skippedCurrentCount: number;
+	readonly skippedNoJournalCount: number;
+	readonly skippedMissingFactsCount: number;
+	readonly failedCount: number;
+	readonly failedSessionIds: string[];
+}
+
 export const history = {
 	auditSessionLoadTiming: (
 		sessionId: string,
@@ -41,6 +54,14 @@ export const history = {
 
 	getStartupSessions: (sessionIds: string[]): ResultAsync<StartupSessionsResponse, AppError> => {
 		return historyCommands.get_startup_sessions.invoke<StartupSessionsResponse>({ sessionIds });
+	},
+
+	warmRecentTranscriptRowLedgers: (
+		limit?: number
+	): ResultAsync<TranscriptRowLedgerBackfillResult, AppError> => {
+		return historyCommands.warm_recent_transcript_row_ledgers.invoke<TranscriptRowLedgerBackfillResult>({
+			limit: limit ?? null,
+		});
 	},
 
 	getUnifiedPlan: (

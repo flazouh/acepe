@@ -26,7 +26,7 @@ let {
 	onRetryUpdateClick,
 }: Props = $props();
 
-const chromeIconButton = { variant: "ghost" as const, size: "icon-chrome" as const };
+const chromeIconButton = { variant: "ghost" as const, size: "icon-2xs" as const };
 
 const updateCardKind = $derived<SidebarUpdateKind | null>(
 	updaterState?.kind === "available" ||
@@ -99,7 +99,7 @@ const releaseUrl = $derived(
 			onclick={() => openUrl("https://github.com/flazouh/acepe")}
 		>
 			{#snippet children()}
-				<RoundedIcon name="github" class="size-4" />
+				<RoundedIcon name="github" />
 			{/snippet}
 		</Button>
 		<Button
@@ -109,7 +109,7 @@ const releaseUrl = $derived(
 			onclick={() => openUrl("https://x.com/acepedotdev")}
 		>
 			{#snippet children()}
-				<XLogoIcon class="size-4" />
+				<XLogoIcon />
 			{/snippet}
 		</Button>
 		<Button
@@ -119,7 +119,7 @@ const releaseUrl = $derived(
 			onclick={() => openUrl("https://discord.gg/5YhW7T7qhS")}
 		>
 			{#snippet children()}
-				<DiscordIcon class="size-4" weight="fill" />
+				<DiscordIcon weight="fill" />
 			{/snippet}
 		</Button>
 	</div>

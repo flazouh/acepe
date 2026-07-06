@@ -21,12 +21,8 @@ let skillsPageRef: ReturnType<typeof SkillsPage> | undefined = $state();
 	size="panel"
 	contentOverflow="hidden"
 >
-	{#snippet topLeft()}
-		<span class="truncate text-[11px] font-semibold text-foreground select-none">Skills Manager</span>
-	{/snippet}
-
 	{#snippet topRight()}
-		<Button variant="header" size="header" onclick={() => skillsPageRef?.openCreateDialog()}>
+		<Button variant="outline" size="sm" onclick={() => skillsPageRef?.openCreateDialog()}>
 			<PlusIcon />
 			New Skill
 		</Button>

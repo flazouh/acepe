@@ -4,15 +4,12 @@ import {
 	ProjectHeader,
 	ProjectHeaderOverflowMenu,
 } from "@acepe/ui/app-layout";
-import { PLUS_ACTION_BUTTON_CLASS, PlusIcon } from "@acepe/ui";
+import { PlusIcon } from "@acepe/ui";
 import { tick } from "svelte";
 import { SvelteMap, SvelteSet } from "svelte/reactivity";
 import type { SessionDisplayItem } from "$lib/acp/types/thread-display-item.js";
 import { Button } from "$lib/components/ui/button/index.js";
-import {
-	ProjectCardSkeleton,
-	SessionListSkeleton,
-} from "$lib/components/ui/skeleton/index.js";
+import { ProjectCardSkeleton, SessionListSkeleton } from "$lib/components/ui/skeleton/index.js";
 import type { AgentInfo } from "../../logic/agent-manager.js";
 import {
 	getSidebarSessions,
@@ -69,10 +66,12 @@ interface Props {
 	onArchiveSession?: (session: SessionDisplayItem) => void | Promise<void>;
 	/** Called when user renames a session from the sidebar */
 	onRenameSession?: (session: SessionListItem, title: string) => void | Promise<void>;
-	/** Called when user exports session as markdown */
-	onExportMarkdown?: (sessionId: string) => void | Promise<void>;
-	/** Called when user exports session as JSON */
-	onExportJson?: (sessionId: string) => void | Promise<void>;
+	/** Called when user copies session transcript as Markdown */
+	onCopyTranscriptMarkdown?: (sessionId: string) => void | Promise<void>;
+	/** Called when user copies session transcript as JSON */
+	onCopyTranscriptJson?: (sessionId: string) => void | Promise<void>;
+	/** Called when user opens the raw transcript in Acepe */
+	onOpenTranscriptInAcepe?: (session: SessionDisplayItem) => void | Promise<void>;
 	/** Called when project order changes from the sidebar move actions */
 	onReorderProjects?: (orderedPaths: string[]) => void;
 	/** Per-project visibility for discovered external CLI sessions */
@@ -108,8 +107,9 @@ let {
 	onOpenPr,
 	onArchiveSession,
 	onRenameSession,
-	onExportMarkdown,
-	onExportJson,
+	onCopyTranscriptMarkdown,
+	onCopyTranscriptJson,
+	onOpenTranscriptInAcepe,
 	onReorderProjects,
 	projectShowExternalCliSessions = new Map(),
 	onToggleShowExternalCliSessions,
@@ -347,8 +347,6 @@ function getProjectCreateButtonAriaLabel(projectName: string): string {
 	return `New session in ${projectName}`;
 }
 
-const projectHeaderHoverActionButtonClass = PLUS_ACTION_BUTTON_CLASS;
-
 function getShowExternalCliSessions(projectPath: string): boolean {
 	return projectShowExternalCliSessions.get(projectPath) ?? true;
 }
@@ -401,7 +399,6 @@ async function handleProjectContextMove(projectPath: string, offset: -1 | 1): Pr
 	applyProjectOrder(projectPath, orderedPaths);
 	await focusProjectContextTrigger(projectPath);
 }
-
 </script>
 
 {#snippet projectOverflowMenu(group, projectIndex)}
@@ -443,14 +440,16 @@ async function handleProjectContextMove(projectPath: string, offset: -1 | 1): Pr
 		onkeydown={(e) => e.stopPropagation()}
 	>
 		{#if shouldShowProjectCreateButton()}
-			<button
-				type="button"
-				class={projectHeaderHoverActionButtonClass}
+			<Button
+				variant="ghost"
+				size="icon-2xs"
 				onclick={(event) => handleProjectCreateButtonClick(event, group.projectPath)}
 				aria-label={getProjectCreateButtonAriaLabel(group.projectName)}
 			>
-				<PlusIcon />
-			</button>
+				{#snippet children()}
+					<PlusIcon />
+				{/snippet}
+			</Button>
 		{/if}
 		{@render projectOverflowMenu(group, projectIndex)}
 	</div>
@@ -554,8 +553,9 @@ async function handleProjectContextMove(projectPath: string, offset: -1 | 1): Pr
 										{onOpenPr}
 										onArchive={onArchiveSession}
 										{onRenameSession}
-										{onExportMarkdown}
-										{onExportJson}
+										{onCopyTranscriptMarkdown}
+										{onCopyTranscriptJson}
+										{onOpenTranscriptInAcepe}
 									/>
 								{/if}
 							</div>

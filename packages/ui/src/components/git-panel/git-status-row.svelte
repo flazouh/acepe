@@ -107,22 +107,22 @@
 	<span class="flex shrink-0 items-center opacity-0 transition-opacity group-hover/row:opacity-100">
 		<Button
 			variant="ghost"
-			size="icon-xs"
+			size="icon-2xs"
 			title="Discard changes"
 			aria-label="Discard {file.path}"
 			onclick={() => onDiscard(file.path)}
 		>
-			{#snippet children()}<RoundedIcon name="undo" class="size-[13px]" />{/snippet}
+			{#snippet children()}<RoundedIcon name="undo" />{/snippet}
 		</Button>
 		<Button
 			variant="ghost"
-			size="icon-xs"
+			size="icon-2xs"
 			title={primaryLabel}
 			aria-label="{primaryLabel} {file.path}"
 			onclick={() => onPrimary(file.path)}
 		>
 			{#snippet children()}
-				{#if kind === "staged"}<RoundedIcon name="minus" class="size-[13px]" />{:else}<PlusIcon />{/if}
+				{#if kind === "staged"}<RoundedIcon name="minus" />{:else}<PlusIcon />{/if}
 			{/snippet}
 		</Button>
 	</span>

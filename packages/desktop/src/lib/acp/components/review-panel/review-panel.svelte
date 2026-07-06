@@ -8,29 +8,21 @@ import {
 	ReviewWorkspaceFileList,
 	RoundedIcon,
 } from "@acepe/ui";
-import { SvelteMap } from "svelte/reactivity";
+import { SvelteSet } from "svelte/reactivity";
+import { toast } from "svelte-sonner";
 import { Skeleton } from "$lib/components/ui/skeleton/index.js";
+import { tauriClient } from "$lib/utils/tauri-client.js";
 import { createReviewFileRevisionKey } from "../../review/review-file-revision.js";
-import { fileContentCache } from "../../services/file-content-cache.svelte.js";
-import type { ReviewDiffViewState } from "../modified-files/components/review-diff-view-state.svelte.js";
 import type { ModifiedFilesState } from "../../types/modified-files-state.js";
 import ReviewBottomWidget from "./review-bottom-widget.svelte";
 import ReviewPanelDiff from "./review-panel-diff.svelte";
-import type {
-	FileReviewCounters,
-	FileReviewStatus,
-	PerFileReviewState,
-} from "./review-session-state.js";
 import {
-	computeFileReviewStatus,
+	type FileReviewStatus,
 	nextSequentialFileIndex,
+	nextUnreviewedFileIndex,
 	prevSequentialFileIndex,
-	shouldAutoAdvanceAfterFileResolution,
 } from "./review-session-state.js";
-import {
-	buildReviewWorkspaceFileItems,
-	getReviewBottomHunkStats,
-} from "./review-panel-state.js";
+import { buildReviewWorkspaceFileItems } from "./review-panel-state.js";
 
 interface Props {
 	panelId: string;
@@ -60,29 +52,20 @@ let {
 let isDragging = $state(false);
 let startX = $state(0);
 
-// Diff state ref for bottom widget controls
-let diffViewStateRef = $state<ReviewDiffViewState | null>(null);
+// Per-file reviewed set (UI session state, not persisted).
+const reviewedKeys = new SvelteSet<string>();
 
-// Per-file review status (UI session state, not persisted)
-let fileStatuses = new SvelteMap<string, PerFileReviewState>();
-type ResolvedHunkAction = {
-	readonly hunkIndex: number;
-	readonly action: "accept" | "reject";
-};
-let resolvedActionsByFile = new SvelteMap<string, ReadonlyArray<ResolvedHunkAction>>();
-
-// Current file
 const selectedFile = $derived(modifiedFilesState.files[selectedFileIndex]);
 const files = $derived(modifiedFilesState.files);
 
-const reviewFileItems = $derived.by(() => buildReviewWorkspaceFileItems(files, fileStatuses));
+const reviewFileItems = $derived.by(() => buildReviewWorkspaceFileItems(files, reviewedKeys));
 
 const nextFileIdx = $derived(nextSequentialFileIndex(selectedFileIndex, files.length));
 const prevFileIdx = $derived(prevSequentialFileIndex(selectedFileIndex));
 
-// Bottom widget state from diff when available
-const hunkStats = $derived.by(() => {
-	return getReviewBottomHunkStats(diffViewStateRef);
+const selectedFileIsReviewed = $derived.by(() => {
+	if (!selectedFile) return false;
+	return reviewedKeys.has(createReviewFileRevisionKey(selectedFile));
 });
 
 const fileCurrent = $derived(selectedFileIndex + 1);
@@ -94,136 +77,26 @@ const widthStyle = $derived(
 		: `min-width: ${width}px; width: ${width}px; max-width: ${width}px;`
 );
 
-function updateFileStatus(
-	fileKey: string,
-	updater: (prev: PerFileReviewState | undefined) => PerFileReviewState
-): PerFileReviewState {
-	const prev = fileStatuses.get(fileKey);
-	const next = updater(prev);
-	fileStatuses.set(fileKey, next);
-	return next;
-}
-
-function recordResolvedAction(
-	fileKey: string,
-	hunkIndex: number,
-	action: "accept" | "reject"
-): void {
-	const existing = resolvedActionsByFile.get(fileKey) ?? [];
-	resolvedActionsByFile.set(fileKey, [...existing, { hunkIndex, action }]);
-}
-
-function maybeAutoAdvanceAfterResolve(counters: FileReviewCounters): void {
-	if (!shouldAutoAdvanceAfterFileResolution(counters)) return;
-	const nextFileIndex = nextSequentialFileIndex(selectedFileIndex, files.length);
-	if (nextFileIndex !== null) {
-		onSelectFile(nextFileIndex);
-	}
-}
-
-function handleHunkAccept(hunkIndex: number): void {
-	// Accept: change confirmed (already on disk), just visual
+function handleToggleReviewed(): void {
 	if (!selectedFile) return;
+
 	const fileKey = createReviewFileRevisionKey(selectedFile);
-	recordResolvedAction(fileKey, hunkIndex, "accept");
-	const nextState = updateFileStatus(fileKey, (prev) => {
-		const stats = diffViewStateRef?.getHunkStats() ?? {
-			total: prev?.totalHunks ?? 0,
-			pending: (prev?.pendingHunks ?? 1) - 1,
-			accepted: (prev?.acceptedHunks ?? 0) + 1,
-			rejected: prev?.rejectedHunks ?? 0,
-		};
-		const counters: FileReviewCounters = {
-			acceptedHunks: stats.accepted,
-			rejectedHunks: stats.rejected,
-			pendingHunks: stats.pending,
-			totalHunks: stats.total,
-		};
-		return {
-			filePath: selectedFile.filePath,
-			...counters,
-			status: computeFileReviewStatus(counters, false),
-		};
-	});
-	const isLastFile = nextSequentialFileIndex(selectedFileIndex, files.length) === null;
-	// Use live stats in case updater saw stale ref; close when last hunk of last file is accepted
-	const pendingAfterAccept = diffViewStateRef?.getHunkStats().pending ?? nextState.pendingHunks;
-	if (pendingAfterAccept === 0 && isLastFile) {
-		onClose();
-		return;
+	const becameReviewed = !reviewedKeys.has(fileKey);
+	if (becameReviewed) {
+		reviewedKeys.add(fileKey);
+	} else {
+		reviewedKeys.delete(fileKey);
 	}
-	maybeAutoAdvanceAfterResolve(nextState);
-}
 
-function handleHunkReject(hunkIndex: number, oldContent: string): void {
-	if (!selectedFile) return;
+	if (!becameReviewed) return;
 
-	fileContentCache.revertFileContent(selectedFile.filePath, projectPath, oldContent).match(
-		() => {
-			const fileKey = createReviewFileRevisionKey(selectedFile);
-			recordResolvedAction(fileKey, hunkIndex, "reject");
-			const nextState = updateFileStatus(fileKey, (prev) => {
-				const stats = diffViewStateRef?.getHunkStats() ?? {
-					total: prev?.totalHunks ?? 0,
-					pending: (prev?.pendingHunks ?? 1) - 1,
-					accepted: prev?.acceptedHunks ?? 0,
-					rejected: (prev?.rejectedHunks ?? 0) + 1,
-				};
-				const counters: FileReviewCounters = {
-					acceptedHunks: stats.accepted,
-					rejectedHunks: stats.rejected,
-					pendingHunks: stats.pending,
-					totalHunks: stats.total,
-				};
-				return {
-					filePath: selectedFile.filePath,
-					...counters,
-					status: computeFileReviewStatus(counters, false),
-				};
-			});
-			maybeAutoAdvanceAfterResolve(nextState);
-		},
-		(err) => {
-			console.error(`Failed to revert hunk ${hunkIndex}:`, err.message);
-		}
+	const fileStatuses: FileReviewStatus[] = files.map((file) =>
+		reviewedKeys.has(createReviewFileRevisionKey(file)) ? "reviewed" : "unreviewed"
 	);
-}
-
-function handleDiffStateReady(state: ReviewDiffViewState): void {
-	diffViewStateRef = state;
-	// Sync initial status for this file
-	if (selectedFile) {
-		const fileKey = createReviewFileRevisionKey(selectedFile);
-		const existingActions = resolvedActionsByFile.get(fileKey) ?? [];
-		const initialStats = state.getHunkStats();
-		if (initialStats.accepted === 0 && initialStats.rejected === 0) {
-			for (const action of existingActions) {
-				state.applyHunkAction(action.hunkIndex, action.action);
-			}
-		}
-		const stats = state.getHunkStats();
-		const counters: FileReviewCounters = {
-			acceptedHunks: stats.accepted,
-			rejectedHunks: stats.rejected,
-			pendingHunks: stats.pending,
-			totalHunks: stats.total,
-		};
-		updateFileStatus(fileKey, () => ({
-			filePath: selectedFile.filePath,
-			...counters,
-			status: computeFileReviewStatus(counters, false),
-		}));
+	const nextIndex = nextUnreviewedFileIndex(selectedFileIndex, fileStatuses);
+	if (nextIndex !== null) {
+		onSelectFile(nextIndex);
 	}
-}
-
-function handleAcceptFile(): void {
-	if (!diffViewStateRef || !selectedFile || !hunkStats.hasPending) return;
-	diffViewStateRef.acceptAllPendingHunks();
-}
-
-function handleRejectFile(): void {
-	if (!diffViewStateRef || !selectedFile || !hunkStats.hasPending) return;
-	diffViewStateRef.rejectActiveHunk();
 }
 
 function handlePrevFile(): void {
@@ -238,40 +111,11 @@ function handleNextFile(): void {
 	}
 }
 
-function handlePrevHunk(): void {
-	diffViewStateRef?.focusPrevPendingHunk();
-}
-
-function handleNextHunk(): void {
-	diffViewStateRef?.focusNextPendingHunk();
-}
-
-function _handleScrollTop(): void {
-	diffViewStateRef?.scrollToTop();
-}
-
-function _handleScrollBottom(): void {
-	diffViewStateRef?.scrollToBottom();
-}
-
-// Clear diff ref when switching files (ReviewPanelDiff will call onDiffStateReady for new file)
-$effect(() => {
-	const fp = selectedFile?.filePath;
-	if (!fp) {
-		diffViewStateRef = null;
-	}
-});
-
 $effect(() => {
 	const validKeys = new Set(files.map((file) => createReviewFileRevisionKey(file)));
-	for (const key of Array.from(fileStatuses.keys())) {
+	for (const key of Array.from(reviewedKeys)) {
 		if (!validKeys.has(key)) {
-			fileStatuses.delete(key);
-		}
-	}
-	for (const key of Array.from(resolvedActionsByFile.keys())) {
-		if (!validKeys.has(key)) {
-			resolvedActionsByFile.delete(key);
+			reviewedKeys.delete(key);
 		}
 	}
 });
@@ -304,14 +148,14 @@ function handlePointerUp() {
 		<HeaderActionCell withDivider={false}>
 			<Button
 				variant="ghost"
-				size="icon-chrome"
+				size="icon-2xs"
 				data-header-control
 				onclick={onClose}
 				title="Back"
 				aria-label="Back"
 			>
 				{#snippet children()}
-					<RoundedIcon name="chevron-left" class="size-3 shrink-0" />
+					<RoundedIcon name="chevron-left" class="shrink-0" />
 				{/snippet}
 			</Button>
 		</HeaderActionCell>
@@ -337,6 +181,14 @@ function handlePointerUp() {
 				selectedIndex={selectedFileIndex}
 				emptyStateLabel="No files"
 				onFileSelect={onSelectFile}
+				onFileRevert={(index) => {
+					const file = files[index];
+					if (!file) return;
+					tauriClient.git.discardChanges(projectPath, [file.filePath]).match(
+						() => toast.success(`Discarded changes in ${file.fileName ?? file.filePath.split("/").pop()}`),
+						(err) => toast.error(`Failed to discard: ${err.message}`)
+					);
+				}}
 			/>
 		</div>
 
@@ -344,13 +196,7 @@ function handlePointerUp() {
 		<div class="relative flex-1 min-w-0 overflow-auto">
 			{#if selectedFile}
 				{#key selectedFile.filePath}
-					<ReviewPanelDiff
-						file={selectedFile}
-						{projectPath}
-						onHunkAccept={handleHunkAccept}
-						onHunkReject={handleHunkReject}
-						onDiffStateReady={handleDiffStateReady}
-					/>
+					<ReviewPanelDiff file={selectedFile} {projectPath} />
 				{/key}
 			{:else}
 				<div class="flex flex-col gap-2 p-4">
@@ -363,21 +209,14 @@ function handlePointerUp() {
 			<!-- Floating review toolbar — positioned over the diff pane -->
 			{#if selectedFile}
 				<ReviewBottomWidget
-					hunkCurrent={hunkStats.hunkCurrent}
-					hunkTotal={hunkStats.hunkTotal}
 					{fileCurrent}
 					{fileTotal}
-					hasPrevHunk={hunkStats.hasPrev}
-					hasNextHunk={hunkStats.hasNext}
-					hasPrevPendingFile={prevFileIdx !== null}
-					hasNextPendingFile={nextFileIdx !== null}
-					hasPendingHunks={hunkStats.hasPending}
-					onPrevHunk={handlePrevHunk}
-					onNextHunk={handleNextHunk}
+					isReviewed={selectedFileIsReviewed}
+					hasPrevFile={prevFileIdx !== null}
+					hasNextFile={nextFileIdx !== null}
+					onToggleReviewed={handleToggleReviewed}
 					onPrevFile={handlePrevFile}
 					onNextFile={handleNextFile}
-					onAcceptFile={handleAcceptFile}
-					onRejectFile={handleRejectFile}
 				/>
 			{/if}
 		</div>

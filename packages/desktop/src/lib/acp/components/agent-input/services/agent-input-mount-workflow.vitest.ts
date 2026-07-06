@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { resolvePanelDraftOnMount } from "./agent-input-mount-workflow.js";
+import {
+	resolvePanelDraftOnMount,
+	shouldDeferInitialComposerMountWork,
+} from "./agent-input-mount-workflow.js";
 
 describe("resolvePanelDraftOnMount", () => {
 	it("returns none when there is no panel id", () => {
@@ -54,5 +57,34 @@ describe("resolvePanelDraftOnMount", () => {
 				hasPendingUserEntry: true,
 			})
 		).toEqual({ kind: "none" });
+	});
+});
+
+describe("shouldDeferInitialComposerMountWork", () => {
+	it("defers restored conversation composer work when rows are already visible", () => {
+		expect(
+			shouldDeferInitialComposerMountWork({
+				sessionId: "session-1",
+				viewKind: "conversation",
+				visibleEntryCount: 4,
+			})
+		).toBe(true);
+	});
+
+	it("does not defer new or empty panels", () => {
+		expect(
+			shouldDeferInitialComposerMountWork({
+				sessionId: null,
+				viewKind: "ready",
+				visibleEntryCount: 0,
+			})
+		).toBe(false);
+		expect(
+			shouldDeferInitialComposerMountWork({
+				sessionId: "session-1",
+				viewKind: "conversation",
+				visibleEntryCount: 0,
+			})
+		).toBe(false);
 	});
 });

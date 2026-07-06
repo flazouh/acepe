@@ -216,4 +216,10 @@ export interface AgentInputProps {
 	 * Optional class override for the composer input shell (InputContainer).
 	 */
 	readonly composerInputClass?: string;
+
+	/**
+	 * Moves non-critical mount work one paint later so restored transcripts can
+	 * show their first rows before composer housekeeping runs.
+	 */
+	readonly deferInitialComposerMountWork?: boolean;
 }

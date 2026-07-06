@@ -6,11 +6,13 @@ import {
 	type AgentPanelQuestionSelectEvent,
 	type AgentPanelReviewActionEvent,
 	type AgentPanelSceneEntryModel,
+	type AgentUserFileSelectEvent,
 	type AgentToolFileSelectEvent,
 } from "@acepe/ui/agent-panel";
 import { DiffPill, RoundedIcon, setThinkingPreferences, type PrChecksItem } from "@acepe/ui";
 import { Button } from "@acepe/ui/button";
 import * as ButtonGroup from "@acepe/ui/button-group";
+import * as DropdownMenu from "@acepe/ui/dropdown-menu";
 import { onDestroy, onMount, tick } from "svelte";
 import { toast } from "svelte-sonner";
 import type { TurnState } from "../../../store/types.js";
@@ -38,7 +40,11 @@ import AgentInput from "../../agent-input/agent-input-ui.svelte";
 import AgentSelector from "../../agent-selector.svelte";
 import BranchPicker from "../../branch-picker/branch-picker.svelte";
 import ProjectSelector from "../../project-selector.svelte";
-import { createEmptyStateBranchMetadataLoader } from "../../../../components/main-app-view/components/content/logic/empty-state-branch-metadata-loader.js";
+import {
+	createDelayedBranchMetadataScheduler,
+	createEmptyStateBranchMetadataLoader,
+	type EmptyStateBranchMetadataRefreshOptions,
+} from "../../../../components/main-app-view/components/content/logic/empty-state-branch-metadata-loader.js";
 import { tauriClient } from "$lib/utils/tauri-client.js";
 import type { Attachment } from "../../agent-input/types/attachment.js";
 import { CheckpointTimeline } from "../../checkpoint/index.js";
@@ -71,30 +77,33 @@ import {
 	BROWSER_SIDEBAR_COLUMN_WIDTH,
 	PLAN_SIDEBAR_COLUMN_WIDTH,
 } from "../state/agent-panel-layout-controller.svelte.js";
+import { shouldShowAgentPanelProjectSelection } from "../logic/project-selection-visibility.js";
 import { AgentPanelRootState } from "../state/agent-panel-root-state.svelte.js";
 import { shouldAutoScrollOnPanelActivation } from "../logic/should-auto-scroll-on-panel-activation.js";
 import { isInteractiveClickTarget } from "../logic/panel-focus-guard.js";
 import { deriveAgentPanelHeaderDisplayTitle } from "../logic/agent-panel-header-title.js";
 import { resolveAgentPanelHeaderSequenceId } from "../logic/agent-panel-header-sequence-id.js";
 import { resolveAgentPanelProviderBrand } from "../logic/agent-panel-provider-brand.js";
+import { derivePendingUserRevealRequestKey } from "../logic/pending-user-reveal-request-key.js";
 import { resolveWorktreeToggleProjectPath } from "../logic/worktree-toggle-project-path.js";
 import { getWorktreeDefaultStore } from "$lib/acp/components/worktree/worktree-default-store.svelte.js";
 import { buildTodoMarkdown } from "./agent-panel-pure-helpers.js";
 import type { AgentPanelProps } from "../types";
 import { revealInFinder } from "$lib/utils/tauri-client/opener.js";
+import type { OpenProjectFileSystemDialogOptions } from "../../../store/project-file-system-dialog-state.js";
+import { resolveProjectFileReference } from "../../messages/logic/file-chip-diff-enhancer.js";
 import AgentPanelContent from "./agent-panel-content.svelte";
 import AgentPanelHeader from "./agent-panel-header.svelte";
 import AgentPanelResizeEdge from "./agent-panel-resize-edge.svelte";
 import AgentPanelReviewWorkspace from "./agent-panel-review-workspace.svelte";
 import type { ReviewControlsSnapshot } from "./agent-panel-review-content-types.js";
 import DialogFrame from "$lib/components/ui/dialog-frame.svelte";
+import { AlertDialog } from "bits-ui";
 import AgentPanelTerminalDrawer from "./agent-panel-terminal-drawer.svelte";
 import AgentPanelPreComposerStack from "./agent-panel-pre-composer-stack.svelte";
 import { PlanSidebar } from "../../plan-sidebar/index.js";
 import { BrowserPanel as BrowserPanelComponent } from "../../browser-panel/index.js";
-import {
-	AgentPanelTrailingPaneLayout,
-} from "@acepe/ui/agent-panel";
+import { AgentPanelTrailingPaneLayout } from "@acepe/ui/agent-panel";
 import { buildAgentErrorIssueDraft } from "../logic/issue-report-draft.js";
 import { resolveInitialReviewWorkspaceIndex } from "./review-workspace-model.js";
 import {
@@ -112,6 +121,8 @@ import {
 	scheduleCheckpointReloadAfterRevert,
 	subscribeGitWorktreeSetupChannel,
 } from "../services/index.js";
+import { recordPanelOpenPerformanceMark } from "../logic/panel-open-performance-mark.js";
+import { shouldDeferInitialComposerMountWork } from "../../agent-input/services/index.js";
 
 // Canonical-to-presentation turn state mapping is provided by the shared logic module
 // (mapCanonicalTurnStateToPresentationStatus) imported above.
@@ -143,10 +154,23 @@ let {
 	onCreateIssueReport,
 }: AgentPanelProps = $props();
 
+// svelte-ignore state_referenced_locally -- constructor timing should use this instance's initial panel id.
+recordPanelOpenPerformanceMark(panelId, "agent-panel:props");
+
 const logger = createLogger({ id: "agent-panel-render-trace", name: "AgentPanelRenderTrace" });
 let lastPanelTraceSignature = $state<string | null>(null);
 let prefersReducedMotion = $state(false);
 
+function isAgentPanelRenderTraceEnabled(): boolean {
+	return (
+		import.meta.env.DEV &&
+		typeof localStorage !== "undefined" &&
+		localStorage.getItem("acepe.agentPanelRenderTrace") === "true"
+	);
+}
+
+// svelte-ignore state_referenced_locally -- constructor timing should use this instance's initial panel id.
+recordPanelOpenPerformanceMark(panelId, "agent-panel:root-state-start");
 const rootState = new AgentPanelRootState({
 	stores: {
 		sessionStore: getSessionStore(),
@@ -209,6 +233,8 @@ const rootState = new AgentPanelRootState({
 		logger.info("[worktree-flow] handleWorktreeCreated: early return (no projectPath)");
 	},
 });
+// svelte-ignore state_referenced_locally -- constructor timing should use this instance's initial panel id.
+recordPanelOpenPerformanceMark(panelId, "agent-panel:root-state-end");
 
 const sessionStore = rootState.sessionStore;
 const panelStore = rootState.panelStore;
@@ -232,6 +258,31 @@ const viewStateController = rootState.viewStateController;
 const scenePipelineController = rootState.scenePipelineController;
 const prCard = rootState.prCard;
 const reviewDialog = rootState.reviewDialog;
+
+// Filename pending revert confirmation in the review modal (null = closed).
+let reviewRevertConfirmFileName = $state<string | null>(null);
+
+function keepReviewDiffSettingsMenuOpen(event: Event): void {
+	event.preventDefault();
+}
+
+function handleReviewDiffStyleChange(value: string): void {
+	if (value === "unified" || value === "split") {
+		reviewDialog.setDiffStyle(value);
+	}
+}
+
+function handleReviewDiffIndicatorStyleChange(value: string): void {
+	if (value === "bars" || value === "classic" || value === "none") {
+		reviewDialog.setDiffIndicatorStyle(value);
+	}
+}
+
+function handleReviewDiffLineChangeStyleChange(value: string): void {
+	if (value === "none" || value === "word" || value === "character") {
+		reviewDialog.setDiffLineChangeStyle(value);
+	}
+}
 
 setThinkingPreferences({
 	get defaultExpanded() {
@@ -285,7 +336,11 @@ let inlinePlanDialogPlan = $state<{ title: string; content: string; summary: nul
 // Pass granular identity data instead of full session object
 const planState = usePlanLoader(() =>
 	sessionId && sessionController.sessionProjectPath && sessionController.sessionAgentId
-		? { id: sessionId, projectPath: sessionController.sessionProjectPath, agentId: sessionController.sessionAgentId }
+		? {
+				id: sessionId,
+				projectPath: sessionController.sessionProjectPath,
+				agentId: sessionController.sessionAgentId,
+			}
 		: null
 );
 
@@ -304,6 +359,7 @@ let preSessionDiffStats = $state<{ insertions: number; deletions: number } | nul
 let preSessionIsGitRepo = $state<boolean | null>(null);
 const preSessionBranchMetadataLoader = createEmptyStateBranchMetadataLoader({
 	gitClient: tauriClient.git,
+	scheduler: createDelayedBranchMetadataScheduler(),
 	writer: {
 		reset() {
 			preSessionCurrentBranch = null;
@@ -322,6 +378,58 @@ const preSessionBranchMetadataLoader = createEmptyStateBranchMetadataLoader({
 	},
 });
 let branchRequestVersion = 0;
+
+function refreshPreSessionBranchMetadata(
+	targetProjectPath: string,
+	options?: EmptyStateBranchMetadataRefreshOptions
+): void {
+	preSessionBranchMetadataLoader.refresh(targetProjectPath, options);
+}
+
+function scheduleAfterPanelPaint(callback: () => void): () => void {
+	let cancelled = false;
+	let firstFrame: number | null = null;
+	let secondFrame: number | null = null;
+	let timer: ReturnType<typeof setTimeout> | null = null;
+	const run = () => {
+		if (cancelled) {
+			return;
+		}
+		callback();
+	};
+	const scheduleTimer = () => {
+		if (cancelled) {
+			return;
+		}
+		timer = setTimeout(run, 0);
+	};
+	if (typeof requestAnimationFrame !== "function") {
+		timer = setTimeout(run, 0);
+	} else {
+		firstFrame = requestAnimationFrame(() => {
+			firstFrame = null;
+			if (cancelled) {
+				return;
+			}
+			secondFrame = requestAnimationFrame(() => {
+				secondFrame = null;
+				scheduleTimer();
+			});
+		});
+	}
+	return () => {
+		cancelled = true;
+		if (firstFrame !== null) {
+			cancelAnimationFrame(firstFrame);
+		}
+		if (secondFrame !== null) {
+			cancelAnimationFrame(secondFrame);
+		}
+		if (timer !== null) {
+			clearTimeout(timer);
+		}
+	};
+}
 
 function scrollToTop() {
 	contentRef?.scrollToTop();
@@ -350,14 +458,20 @@ function scrollToBottomOnTabSwitch() {
 
 // Effective panel ID (use prop or generate one)
 const pendingUserRevealRequestKey = $derived(
-	contentScrollReveal.userRevealRequestVersion === 0
-		? null
-		: `${sessionController.effectivePanelId}:${contentScrollReveal.userRevealRequestVersion}:${sessionController.optimisticUserEntryForGraph?.id ?? "pending"}`
+	derivePendingUserRevealRequestKey({
+		panelId: sessionController.effectivePanelId,
+		userRevealRequestVersion: contentScrollReveal.userRevealRequestVersion,
+	})
 );
 
 // Derived UI conditions based on projectCount + panel/session state
 const showProjectSelection = $derived(
-	projectCount !== null && projectCount > 1 && (pendingProjectSelection || project === null)
+	shouldShowAgentPanelProjectSelection({
+		sessionId,
+		projectCount,
+		pendingProjectSelection,
+		projectKnown: project !== null,
+	})
 );
 const worktreeToggleProjectPath = $derived(
 	resolveWorktreeToggleProjectPath({
@@ -406,11 +520,11 @@ const effectivePanelAgentId = $derived(selectedAgentId ?? sessionController.sess
 // Claude is the only agent with a bespoke working spark; the transcript's planning
 // placeholder swaps it in for the label while streaming (gated on canonical agentId).
 const showWorkingSpark = $derived(
-		shouldShowClaudeWorkingSpark({
-			sessionAgentId: sessionController.sessionAgentId,
-			selectedAgentId,
-		})
-	);
+	shouldShowClaudeWorkingSpark({
+		sessionAgentId: sessionController.sessionAgentId,
+		selectedAgentId,
+	})
+);
 const agentName = $derived.by(() => {
 	if (!effectivePanelAgentId) {
 		return null;
@@ -423,7 +537,8 @@ const agentName = $derived.by(() => {
 // source + unit-tested); the connection $state + retry/cancel/dismiss handlers
 // stay here (tangled with agentInputRef). Thin reactive aliases; ref-inline U5.
 const errorDismissed = $derived(
-	sessionController.errorDismissalKey !== null && connection.dismissedErrorKey === sessionController.errorDismissalKey
+	sessionController.errorDismissalKey !== null &&
+		connection.dismissedErrorKey === sessionController.errorDismissalKey
 );
 
 const viewState = $derived(viewStateController.viewState);
@@ -438,7 +553,9 @@ const showInlineErrorCard = $derived(
 	sessionController.errorInfo.showError && !errorDismissed && viewState.kind !== "error"
 );
 const worktreePending = $derived(worktreeController.worktreePending);
-const pendingWorktreeSetup = $derived(sessionController.panelHotState ? sessionController.panelHotState.pendingWorktreeSetup : null);
+const pendingWorktreeSetup = $derived(
+	sessionController.panelHotState ? sessionController.panelHotState.pendingWorktreeSetup : null
+);
 const showPreSessionWorktreeCard = $derived(worktreeController.showPreSessionWorktreeCard);
 const showNewThreadSetupContext = $derived(
 	shouldShowNewThreadSetupContext({
@@ -449,7 +566,7 @@ const showNewThreadSetupContext = $derived(
 );
 
 $effect(() => {
-	if (!import.meta.env.DEV) return;
+	if (!isAgentPanelRenderTraceEnabled()) return;
 	logger.info("[first-send-trace] panel render gate", {
 		panelId: sessionController.effectivePanelId,
 		sessionId: sessionId ?? null,
@@ -462,7 +579,7 @@ $effect(() => {
 });
 
 $effect(() => {
-	if (!import.meta.env.DEV) return;
+	if (!isAgentPanelRenderTraceEnabled()) return;
 	const signature = JSON.stringify({
 		panelId,
 		sessionId,
@@ -477,7 +594,7 @@ $effect(() => {
 });
 
 $effect(() => {
-	if (!import.meta.env.DEV) return;
+	if (!isAgentPanelRenderTraceEnabled()) return;
 	logger.info("[worktree-flow] viewState changed", {
 		kind: viewState.kind,
 		showProjectSelection,
@@ -489,7 +606,7 @@ $effect(() => {
 });
 
 $effect(() => {
-	if (!import.meta.env.DEV) return;
+	if (!isAgentPanelRenderTraceEnabled()) return;
 	logger.info("[worktree-flow] worktree path chain", {
 		activeWorktreePath,
 		worktreeToggleProjectPath,
@@ -679,6 +796,20 @@ const isConnecting = $derived(
 const inputRenderKey = $derived(
 	`${panelId ?? "no-panel"}:${sessionController.panelHotState?.composerRestoreVersion ?? 0}`
 );
+const deferInitialComposerMountWork = $derived(
+	shouldDeferInitialComposerMountWork({
+		sessionId,
+		viewKind: viewState.kind,
+		visibleEntryCount: sessionController.knownVisibleEntryCount,
+	})
+);
+let deferredComposerMountKey = $state<string | null>(null);
+const renderDeferredOpenChrome = $derived(
+	!deferInitialComposerMountWork || deferredComposerMountKey === inputRenderKey
+);
+const renderComposerInput = $derived(
+	renderDeferredOpenChrome
+);
 const branchLookupPath = $derived(
 	(worktreeDeleted ? null : effectiveActiveWorktreePath) ?? effectiveProjectPath ?? null
 );
@@ -735,7 +866,7 @@ const prFetchTarget = $derived.by(() => {
 	};
 });
 
-void mergeStrategyStore.initialize();
+mergeStrategyStore.scheduleInitialize();
 
 /**
  * Fetch PR details from GitHub. Called imperatively:
@@ -841,12 +972,33 @@ $effect(() => {
 });
 
 $effect(() => {
+	const key = inputRenderKey;
+	if (!deferInitialComposerMountWork) {
+		if (deferredComposerMountKey !== key) {
+			deferredComposerMountKey = key;
+		}
+		return;
+	}
+	if (deferredComposerMountKey === key) {
+		return;
+	}
+	recordPanelOpenPerformanceMark(panelId, "agent-panel:composer-mount-deferred");
+	return scheduleAfterPanelPaint(() => {
+		if (deferredComposerMountKey === key) {
+			return;
+		}
+		deferredComposerMountKey = key;
+		recordPanelOpenPerformanceMark(panelId, "agent-panel:composer-mount-ready");
+	});
+});
+
+$effect(() => {
 	const preSessionPath = !hasSession ? worktreeToggleProjectPath : null;
 	if (preSessionPath === null) {
 		preSessionBranchMetadataLoader.reset();
 		return;
 	}
-	preSessionBranchMetadataLoader.refresh(preSessionPath);
+	refreshPreSessionBranchMetadata(preSessionPath);
 });
 
 $effect(() => {
@@ -869,18 +1021,23 @@ $effect(() => {
 
 	_panelBranch = null;
 
-	void fetchPanelGitBranch(decision.path).match(
-		(branch) => {
-			if (currentVersion === branchRequestVersion) {
-				_panelBranch = branch;
-			}
-		},
-		() => {
-			if (currentVersion === branchRequestVersion) {
-				_panelBranch = null;
-			}
+	return scheduleAfterPanelPaint(() => {
+		if (currentVersion !== branchRequestVersion) {
+			return;
 		}
-	);
+		void fetchPanelGitBranch(decision.path).match(
+			(branch) => {
+				if (currentVersion === branchRequestVersion) {
+					_panelBranch = branch;
+				}
+			},
+			() => {
+				if (currentVersion === branchRequestVersion) {
+					_panelBranch = null;
+				}
+			}
+		);
+	});
 });
 
 // Check if the session's worktree still exists on disk.
@@ -951,7 +1108,8 @@ function handleSessionCreated(sessionIdParam: string) {
 	onSessionCreated?.(sessionIdParam);
 }
 
-const handleWorktreeCreated = (info: WorktreeInfo | string) => worktreeController.handleWorktreeCreated(info);
+const handleWorktreeCreated = (info: WorktreeInfo | string) =>
+	worktreeController.handleWorktreeCreated(info);
 const handlePreparedWorktreeLaunch = (
 	launch: import("$lib/acp/types/worktree-info.js").PreparedWorktreeLaunch
 ) => worktreeController.handlePreparedWorktreeLaunch(launch);
@@ -959,7 +1117,8 @@ const handlePreSessionWorktreeFailure = (message: string) =>
 	worktreeController.handlePreSessionWorktreeFailure(message);
 const handleRetryWorktree = () => worktreeController.handleRetryWorktree(agentInputRef?.retrySend);
 const handleStartInProjectRoot = () => worktreeController.handleStartInProjectRoot();
-const handleWorktreeRenamed = (info: WorktreeInfo) => worktreeController.handleWorktreeRenamed(info);
+const handleWorktreeRenamed = (info: WorktreeInfo) =>
+	worktreeController.handleWorktreeRenamed(info);
 
 async function handleCreatePr(config?: PrGenerationConfig) {
 	const path = effectivePathForGit;
@@ -980,7 +1139,11 @@ async function handleCreatePr(config?: PrGenerationConfig) {
 		onStreamUpdate: (data) => prCard.applyStreamUpdate(data),
 		deps: {
 			applyAutomaticSessionPrLink: async (id, projectPath, pr) => {
-				const result = await sessionStore.connection.applyAutomaticPrLinkFromShipWorkflow(id, projectPath, pr);
+				const result = await sessionStore.connection.applyAutomaticPrLinkFromShipWorkflow(
+					id,
+					projectPath,
+					pr
+				);
 				return result.match(
 					(prNumber) => prNumber,
 					() => null
@@ -1082,7 +1245,8 @@ function handleRetryConnection() {
 	// message in the same session instead of recreating the session.
 	// Recreating throws away the bound session and the user sees no change.
 	const isTurnFailure =
-		sessionId !== null && (sessionController.activeTurnError !== null || sessionController.sessionTurnState === "error");
+		sessionId !== null &&
+		(sessionController.activeTurnError !== null || sessionController.sessionTurnState === "error");
 	if (isTurnFailure && agentInputRef) {
 		agentInputRef.retrySend();
 		return;
@@ -1148,8 +1312,12 @@ function handleCopyInlineErrorReference() {
 
 function createInlineErrorIssueDraft() {
 	const details =
-		sessionController.errorInfo.details ?? connection.error?.message ?? sessionController.sessionConnectionError ?? "Unknown error";
-	const summary = sessionController.errorInfo.summary ?? details.split("\n")[0]?.slice(0, 120) ?? "Agent error";
+		sessionController.errorInfo.details ??
+		connection.error?.message ??
+		sessionController.sessionConnectionError ??
+		"Unknown error";
+	const summary =
+		sessionController.errorInfo.summary ?? details.split("\n")[0]?.slice(0, 120) ?? "Agent error";
 	return buildAgentErrorIssueDraft({
 		agentId: effectivePanelAgentId ?? "unknown",
 		sessionId,
@@ -1238,6 +1406,20 @@ const queueStripDisplayMessages = $derived.by(() => {
 	}));
 });
 
+const hasPreComposerStackContent = $derived(
+	worktreeDeleted ||
+		showInlineErrorCard ||
+		(preSessionWorktreeFailure !== null && worktreeToggleProjectPath !== null) ||
+		worktreeSetup.state?.isVisible === true ||
+		agentInstallState !== null ||
+		sessionId !== null ||
+		(effectivePathForGit !== null &&
+			(createdPr !== null || prCard.createRunning || prCard.streamingShipData !== null)) ||
+		(showTodoHeader && todoState !== null) ||
+		queueStripDisplayMessages.length > 0 ||
+		sessionController.signInRequirement !== null
+);
+
 const handlePreSessionWorktreeYes = () => worktreeController.handlePreSessionWorktreeYes();
 const handlePreSessionWorktreeNo = () => worktreeController.handlePreSessionWorktreeNo();
 const handlePreSessionWorktreeDismiss = () => worktreeController.handlePreSessionWorktreeDismiss();
@@ -1294,6 +1476,23 @@ const {
 	panelStore,
 });
 
+function handleUserFileSelect(event: AgentUserFileSelectEvent): void {
+	const targetProjectPath = effectiveProjectPath ?? sessionController.sessionProjectPath;
+	if (targetProjectPath === null || targetProjectPath === undefined) {
+		return;
+	}
+
+	const fileReference = resolveProjectFileReference(event.value, targetProjectPath);
+	const dialogOptions: OpenProjectFileSystemDialogOptions = {};
+	if (fileReference.targetLine !== undefined) {
+		dialogOptions.targetLine = fileReference.targetLine;
+	}
+	if (fileReference.targetColumn !== undefined) {
+		dialogOptions.targetColumn = fileReference.targetColumn;
+	}
+	panelStore.openProjectFileSystemDialog(targetProjectPath, fileReference.filePath, dialogOptions);
+}
+
 function handlePlanViewFull(event: AgentPanelPlanViewEvent): void {
 	inlinePlanDialogPlan = {
 		title: event.title,
@@ -1342,76 +1541,88 @@ async function handleFixCiCheck(check: PrChecksItem): Promise<void> {
 	onkeydown={handlePanelKeyDown}
 >
 	{#snippet header()}
-		<AgentPanelHeader
-			{pendingProjectSelection}
-			{isConnecting}
-			isRetryingConnection={connection.isRetrying}
-			{sessionId}
-			sessionTitle={sessionController.sessionTitle}
-			sessionAgentId={sessionController.sessionAgentId}
-			currentAgentId={effectivePanelAgentId}
-			{availableAgents}
-			{agentIconSrc}
-			{agentName}
-			{isFullscreen}
-			isStreaming={sessionController.sessionIsStreaming}
-			{hideProjectBadge}
-			{sequenceId}
-			sessionStatus={sessionController.panelSessionStatus}
-			projectPath={sessionController.sessionProjectPath}
-			projectName={displayProjectName}
-			{projectColor}
-			{projectIconSrc}
-			linkedPr={sessionController.sessionMetadata?.linkedPr ?? null}
-			prLinkMode={sessionController.sessionMetadata?.prLinkMode ?? "automatic"}
-			onClose={onClose}
-			{onToggleFullscreen}
-			onRetryConnection={handleRetryConnection}
-			onScrollToTop={scrollToTop}
-			firstMessageAttachments={sessionController.firstMessageAttachments}
-			onCopyContent={handleCopyContent}
-			onOpenInFinder={handleOpenInFinder}
-			onCopyStreamingLogPath={handleCopyStreamingLogPath}
-			onExportRawStreaming={handleExportRawStreaming}
-			{displayTitle}
-			{entriesCount}
-			insertions={sessionDiffStats.insertions}
-			deletions={sessionDiffStats.deletions}
-			createdAt={sessionCreatedAt}
-			updatedAt={sessionUpdatedAt}
-			onOpenRawFile={sessionId && sessionController.sessionProjectPath ? handleOpenRawFile : undefined}
-			onOpenInAcepe={sessionId && sessionController.sessionProjectPath ? handleOpenInAcepe : undefined}
-			onExportMarkdown={sessionId ? handleExportMarkdown : undefined}
-			onExportJson={sessionId ? handleExportJson : undefined}
-			{onAgentChange}
-			browserActive={showBrowserSidebar}
-			browserTitle="Toggle browser"
-			browserAriaLabel="Toggle browser"
-			onToggleBrowser={
-				panelId
-					? () => {
-							panelStore.toggleBrowserSidebar(panelId);
-						}
-					: undefined
-			}
-			terminalActive={isTerminalDrawerOpen}
-			terminalDisabled={effectivePathForGit === null}
-			terminalTitle={
-				effectivePathForGit !== null ? "Toggle terminal" : "No project selected"
-			}
-			terminalAriaLabel="Toggle terminal"
-			onToggleTerminal={
-				panelId && effectivePathForGit
-					? () => {
-							panelStore.toggleEmbeddedTerminalDrawer(panelId, effectivePathForGit);
-						}
-					: undefined
-			}
-			activeWorktreePath={footerWorktreeStatus ? effectiveActiveWorktreePath : null}
-			activeWorktreeLabel={footerWorktreeStatus?.primaryLabel ?? null}
-			onOpenWorktree={footerWorktreeStatus ? handleOpenWorktree : undefined}
-		/>
-	{/snippet}
+		{@const _headerSnippetMark = recordPanelOpenPerformanceMark(panelId, "agent-panel:header-snippet")}
+		{#if renderDeferredOpenChrome}
+			<AgentPanelHeader
+				{pendingProjectSelection}
+				{isConnecting}
+				isRetryingConnection={connection.isRetrying}
+				{sessionId}
+				sessionTitle={sessionController.sessionTitle}
+				sessionAgentId={sessionController.sessionAgentId}
+				currentAgentId={effectivePanelAgentId}
+				{availableAgents}
+				{agentIconSrc}
+				{agentName}
+				{isFullscreen}
+				isStreaming={sessionController.sessionIsStreaming}
+				{hideProjectBadge}
+				{sequenceId}
+				sessionStatus={sessionController.panelSessionStatus}
+				projectPath={sessionController.sessionProjectPath}
+				projectName={displayProjectName}
+				{projectColor}
+				{projectIconSrc}
+				linkedPr={sessionController.sessionMetadata?.linkedPr ?? null}
+				prLinkMode={sessionController.sessionMetadata?.prLinkMode ?? "automatic"}
+				onClose={onClose}
+				{onToggleFullscreen}
+				onRetryConnection={handleRetryConnection}
+				onScrollToTop={scrollToTop}
+				firstMessageAttachments={sessionController.firstMessageAttachments}
+				onCopyContent={handleCopyContent}
+				onOpenInFinder={handleOpenInFinder}
+				onCopyStreamingLogPath={handleCopyStreamingLogPath}
+				onExportRawStreaming={handleExportRawStreaming}
+				{displayTitle}
+				{entriesCount}
+				insertions={sessionDiffStats.insertions}
+				deletions={sessionDiffStats.deletions}
+				createdAt={sessionCreatedAt}
+				updatedAt={sessionUpdatedAt}
+				onOpenRawFile={sessionId && sessionController.sessionProjectPath ? handleOpenRawFile : undefined}
+				onOpenInAcepe={sessionId && sessionController.sessionProjectPath ? handleOpenInAcepe : undefined}
+				onExportMarkdown={sessionId ? handleExportMarkdown : undefined}
+				onExportJson={sessionId ? handleExportJson : undefined}
+				{onAgentChange}
+				browserActive={showBrowserSidebar}
+				browserTitle="Toggle browser"
+				browserAriaLabel="Toggle browser"
+				onToggleBrowser={
+					panelId
+						? () => {
+								panelStore.toggleBrowserSidebar(panelId);
+							}
+						: undefined
+				}
+				terminalActive={isTerminalDrawerOpen}
+				terminalDisabled={effectivePathForGit === null}
+				terminalTitle={
+					effectivePathForGit !== null ? "Toggle terminal" : "No project selected"
+				}
+				terminalAriaLabel="Toggle terminal"
+				onToggleTerminal={
+					panelId && effectivePathForGit
+						? () => {
+								panelStore.toggleEmbeddedTerminalDrawer(panelId, effectivePathForGit);
+							}
+						: undefined
+				}
+					activeWorktreePath={footerWorktreeStatus ? effectiveActiveWorktreePath : null}
+					activeWorktreeLabel={footerWorktreeStatus?.primaryLabel ?? null}
+					onOpenWorktree={footerWorktreeStatus ? handleOpenWorktree : undefined}
+				/>
+		{:else}
+			<div
+				class="flex h-10 shrink-0 items-center gap-2 border-b border-border/50 px-3"
+				data-testid="agent-panel-header-deferred-placeholder"
+				aria-hidden="true"
+			>
+				<div class="h-4 w-40 rounded bg-muted/25"></div>
+				<div class="ml-auto h-6 w-24 rounded bg-muted/15"></div>
+			</div>
+		{/if}
+		{/snippet}
 
 	{#snippet leadingPane()}
 		{#if panelId && hasAttachedFilePane}
@@ -1448,6 +1659,7 @@ async function handleFixCiCheck(check: PrChecksItem): Promise<void> {
 	{/snippet}
 
 	{#snippet body()}
+		{@const _contentSnippetMark = recordPanelOpenPerformanceMark(panelId, "agent-panel:content-snippet")}
 		<div class="flex h-full min-h-0 flex-col">
 			{#if checkpointTimeline.isOpen && sessionController.sessionProjectPath && sessionId}
 				<CheckpointTimeline
@@ -1466,11 +1678,13 @@ async function handleFixCiCheck(check: PrChecksItem): Promise<void> {
 						bind:scrollViewport={contentScrollViewport}
 						bind:isAtBottom={contentScrollReveal.isAtBottom}
 						bind:isAtTop={contentScrollReveal.isAtTop}
+						bind:hasUnreadBelow={contentScrollReveal.hasUnreadBelow}
 						bind:isStreaming={contentScrollReveal.isStreaming}
 						panelId={sessionController.effectivePanelId}
 						{viewState}
 						{sessionId}
 						sceneEntries={tokenRevealSceneEntries}
+						canonicalSource={sessionController.agentPanelCanonicalSource}
 						{pendingUserRevealRequestKey}
 						showLocalPlanningIndicator={sessionController.showPlanningIndicator}
 						sessionProjectPath={effectiveProjectPath ?? sessionController.sessionProjectPath}
@@ -1490,6 +1704,7 @@ async function handleFixCiCheck(check: PrChecksItem): Promise<void> {
 						onPlanCancel={handlePlanCancel}
 						onPlanViewFull={handlePlanViewFull}
 						onToolFileSelect={handleToolFileSelect}
+						onUserFileSelect={handleUserFileSelect}
 						onReview={handleReviewAction}
 						{isPlanActionAvailable}
 					/>
@@ -1499,124 +1714,138 @@ async function handleFixCiCheck(check: PrChecksItem): Promise<void> {
 	{/snippet}
 
 	{#snippet preComposer()}
+		{@const _preComposerSnippetMark = recordPanelOpenPerformanceMark(panelId, "agent-panel:pre-composer-snippet")}
 		{#if viewState.kind === "conversation"}
 			<SharedAgentPanelTranscriptScrollControls
 				showScrollToTop={!contentScrollReveal.isAtTop}
 				showScrollToBottom={!contentScrollReveal.isAtBottom}
+				hasUnreadBelow={contentScrollReveal.hasUnreadBelow}
 				onScrollToTop={scrollToTop}
 				onScrollToBottom={scrollToBottom}
 				centered={centeredFullscreenContent}
+				widthClass="max-w-[60%]"
 			/>
-		{/if}
-		<AgentPanelPreComposerStack
-			showConversationChrome={viewState.kind === "conversation" ||
-				viewState.kind === "ready" ||
-				viewState.kind === "error"}
-			{worktreeDeleted}
-			{centeredFullscreenContent}
-			{showInlineErrorCard}
-			errorInfo={sessionController.errorInfo}
-			inlineErrorReferenceId={sessionController.inlineErrorReferenceId}
-			inlineErrorReferenceSearchable={sessionController.inlineErrorReferenceSearchable}
-			onRetryConnection={handleRetryConnection}
-			isRetryingConnection={connection.isRetrying}
-			onDismissError={handleDismissError}
-			onCopyInlineErrorReference={handleCopyInlineErrorReference}
-			inlineErrorIssueDraft=			{inlineErrorIssueDraft}
-			onIssueFromInlineError={handleIssueFromInlineError}
-			{preSessionWorktreeFailure}
-			worktreeToggleProjectPath={worktreeToggleProjectPath}
-			onPreSessionWorktreeDismiss={handlePreSessionWorktreeDismiss}
-			onPreSessionWorktreeYes={handlePreSessionWorktreeYes}
-			onPreSessionWorktreeNo={handlePreSessionWorktreeNo}
-			onRetryWorktree={handleRetryWorktree}
-			worktreePending={worktreePending}
-			worktreeSetupState={worktreeSetup.state}
-			{agentInstallState}
-			{sessionId}
-			effectiveProjectPath={effectiveProjectPath ?? null}
-			sessionProjectPath={sessionController.sessionProjectPath ?? null}
-			{effectivePathForGit}
-			{createdPr}
-			createPrRunning={prCard.createRunning}
-			prCardRenderKey={prCard.renderKey}
-			prDetails={prCard.details}
-			prFetchError={prCard.fetchError}
-			linkedPr={sessionController.sessionMetadata?.linkedPr ?? null}
-			streamingShipData={prCard.streamingShipData}
-			onFixCiCheck={(check) => void handleFixCiCheck(check)}
-			{showTodoHeader}
-			{todoState}
-			getTodoMarkdown={getTodoMarkdown}
-			queueStripMessages={queueStripDisplayMessages}
-			{queueIsPaused}
-			onQueueCancel={handleQueueStripCancel}
-			onQueueRemoveAttachment={handleQueueStripRemoveAttachment}
-			onQueueClear={handleQueueStripClear}
-			onQueueResume={queueIsPaused && sessionId ? () => messageQueueStore.resume(sessionId) : undefined}
-			onQueueSendNow={handleQueueStripSendNow}
-			signInRequirement={sessionController.signInRequirement}
-			onDismissSignIn={handleDismissSignIn}
-		/>
-	{/snippet}
+			{/if}
+			{#if hasPreComposerStackContent}
+				<AgentPanelPreComposerStack
+					showConversationChrome={viewState.kind === "conversation" ||
+						viewState.kind === "ready" ||
+						viewState.kind === "error"}
+					{worktreeDeleted}
+					{centeredFullscreenContent}
+					{showInlineErrorCard}
+					errorInfo={sessionController.errorInfo}
+					inlineErrorReferenceId={sessionController.inlineErrorReferenceId}
+					inlineErrorReferenceSearchable={sessionController.inlineErrorReferenceSearchable}
+					onRetryConnection={handleRetryConnection}
+					isRetryingConnection={connection.isRetrying}
+					onDismissError={handleDismissError}
+					onCopyInlineErrorReference={handleCopyInlineErrorReference}
+					inlineErrorIssueDraft={inlineErrorIssueDraft}
+					onIssueFromInlineError={handleIssueFromInlineError}
+					{preSessionWorktreeFailure}
+					worktreeToggleProjectPath={worktreeToggleProjectPath}
+					onPreSessionWorktreeDismiss={handlePreSessionWorktreeDismiss}
+					onPreSessionWorktreeYes={handlePreSessionWorktreeYes}
+					onPreSessionWorktreeNo={handlePreSessionWorktreeNo}
+					onRetryWorktree={handleRetryWorktree}
+					worktreePending={worktreePending}
+					worktreeSetupState={worktreeSetup.state}
+					{agentInstallState}
+					{sessionId}
+					effectiveProjectPath={effectiveProjectPath ?? null}
+					sessionProjectPath={sessionController.sessionProjectPath ?? null}
+					{effectivePathForGit}
+					{createdPr}
+					createPrRunning={prCard.createRunning}
+					prCardRenderKey={prCard.renderKey}
+					prDetails={prCard.details}
+					prFetchError={prCard.fetchError}
+					linkedPr={sessionController.sessionMetadata?.linkedPr ?? null}
+					streamingShipData={prCard.streamingShipData}
+					onFixCiCheck={(check) => void handleFixCiCheck(check)}
+					{showTodoHeader}
+					{todoState}
+					getTodoMarkdown={getTodoMarkdown}
+					queueStripMessages={queueStripDisplayMessages}
+					{queueIsPaused}
+					onQueueCancel={handleQueueStripCancel}
+					onQueueRemoveAttachment={handleQueueStripRemoveAttachment}
+					onQueueClear={handleQueueStripClear}
+					onQueueResume={queueIsPaused && sessionId ? () => messageQueueStore.resume(sessionId) : undefined}
+					onQueueSendNow={handleQueueStripSendNow}
+					signInRequirement={sessionController.signInRequirement}
+					onDismissSignIn={handleDismissSignIn}
+				/>
+			{/if}
+		{/snippet}
 
 	{#snippet composer()}
+		{@const _composerSnippetMark = recordPanelOpenPerformanceMark(panelId, "agent-panel:composer-snippet")}
 		<div>
 			{#if viewState.kind === "conversation" || viewState.kind === "ready" || viewState.kind === "error"}
 				<SharedAgentPanelComposerFrame
 					centered={centeredFullscreenContent}
 					widthClass="max-w-[60%]"
 				>
-					{#key inputRenderKey}
-						{#snippet newThreadProjectControl()}
-							<ProjectSelector
-								selectedProject={preSessionSelectedProject}
-								recentProjects={allProjects}
-								onProjectChange={handleComposerProjectSelected}
-								showLabel
-							/>
-						{/snippet}
-						{#snippet newThreadAgentControl()}
-							<AgentSelector
-								{availableAgents}
-								currentAgentId={effectivePanelAgentId}
-								{onAgentChange}
-								showLabel
-							/>
-						{/snippet}
-						{#snippet newThreadBranchControl()}
-							{#if worktreeToggleProjectPath}
-								<BranchPicker
-									projectPath={worktreeToggleProjectPath}
-									currentBranch={preSessionCurrentBranch}
-									diffStats={preSessionDiffStats}
-									isGitRepo={preSessionIsGitRepo}
-									variant="setupBarChip"
-									onBranchSelected={(branch) => {
-										preSessionCurrentBranch = branch;
-										if (worktreeToggleProjectPath) {
-											preSessionBranchMetadataLoader.refresh(worktreeToggleProjectPath);
-										}
-									}}
-									onInitGitRepo={() => {
-										if (!worktreeToggleProjectPath) {
-											return;
-										}
-										void tauriClient.git.init(worktreeToggleProjectPath).match(
-											() => {
-												preSessionBranchMetadataLoader.refresh(worktreeToggleProjectPath);
-											},
-											(error) => {
-												const message =
-													error.cause?.message ?? error.message ?? "Failed to initialize git";
-												toast.error(message);
-											}
-										);
-									}}
+					{#if renderComposerInput}
+						{#key inputRenderKey}
+							{#snippet newThreadProjectControl()}
+								<ProjectSelector
+									selectedProject={preSessionSelectedProject}
+									recentProjects={allProjects}
+									onProjectChange={handleComposerProjectSelected}
+									showLabel
 								/>
+							{/snippet}
+							{#snippet newThreadAgentControl()}
+								<AgentSelector
+									{availableAgents}
+									currentAgentId={effectivePanelAgentId}
+									{onAgentChange}
+									showLabel
+								/>
+							{/snippet}
+								{#snippet newThreadBranchControl()}
+									{#if worktreeToggleProjectPath}
+									<BranchPicker
+										projectPath={worktreeToggleProjectPath}
+										currentBranch={preSessionCurrentBranch}
+										diffStats={preSessionDiffStats}
+										isGitRepo={preSessionIsGitRepo}
+										variant="setupBarChip"
+										onBranchSelected={(branch) => {
+											preSessionCurrentBranch = branch;
+											if (worktreeToggleProjectPath) {
+												refreshPreSessionBranchMetadata(worktreeToggleProjectPath, {
+													loadDetails: true,
+												});
+											}
+										}}
+										onInitGitRepo={() => {
+											if (!worktreeToggleProjectPath) {
+												return;
+											}
+											void tauriClient.git.init(worktreeToggleProjectPath).match(
+												() => {
+													refreshPreSessionBranchMetadata(worktreeToggleProjectPath, {
+														loadDetails: true,
+													});
+												},
+												(error) => {
+													const message =
+														error.cause?.message ?? error.message ?? "Failed to initialize git";
+													toast.error(message);
+												}
+											);
+										}}
+									/>
+									{/if}
+								{/snippet}
+							{#if true}
+								{@const _agentInputBeforeMark = recordPanelOpenPerformanceMark(panelId, "agent-panel:agent-input-before")}
 							{/if}
-						{/snippet}
-						<AgentInput
+							<AgentInput
 							bind:this={agentInputRef}
 							sessionId={sessionId ?? undefined}
 							sessionIsConnected={sessionController.sessionIsConnected}
@@ -1673,6 +1902,7 @@ async function handleFixCiCheck(check: PrChecksItem): Promise<void> {
 									: null
 							}
 							pendingProjectSelection={pendingProjectSelection && !isWaitingForSession}
+							{deferInitialComposerMountWork}
 							onSessionCreated={handleSessionCreated}
 							onWillSend={prepareForNextUserReveal}
 							onToolbarWidthChange={(w) => {
@@ -1687,7 +1917,7 @@ async function handleFixCiCheck(check: PrChecksItem): Promise<void> {
 								{#if sessionController.sessionProjectPath && checkpointTimeline.checkpoints.length > 0}
 									<Button
 										variant="ghost"
-										size="icon-chrome"
+										size="icon-2xs"
 										data-header-control
 										active={checkpointTimeline.isOpen}
 										title="View checkpoints"
@@ -1695,13 +1925,25 @@ async function handleFixCiCheck(check: PrChecksItem): Promise<void> {
 										onclick={() => checkpointTimeline.toggle()}
 									>
 										{#snippet children()}
-											<RoundedIcon name="clock" class="size-3.5" />
+											<RoundedIcon name="clock" />
 										{/snippet}
 									</Button>
 								{/if}
-							{/snippet}
-						</AgentInput>
-					{/key}
+								{/snippet}
+							</AgentInput>
+							{#if true}
+								{@const _agentInputAfterMark = recordPanelOpenPerformanceMark(panelId, "agent-panel:agent-input-after")}
+							{/if}
+						{/key}
+					{:else}
+						<div
+							class="shrink-0 border-t border-border/50 p-3"
+							data-testid="agent-input-deferred-placeholder"
+							aria-hidden="true"
+						>
+							<div class="min-h-[67px] rounded-lg border border-border bg-input/30"></div>
+						</div>
+					{/if}
 				</SharedAgentPanelComposerFrame>
 			{/if}
 		</div>
@@ -1772,125 +2014,340 @@ async function handleFixCiCheck(check: PrChecksItem): Promise<void> {
 	{/snippet}
 </AgentPanelShell>
 
-<DialogFrame
-	open={reviewDialog.isOpen}
-	title="Review changes"
-	closeLabel="Close review"
-	contentOverflow="hidden"
-	contentClass="!bg-background !rounded-lg"
-	onOpenChange={(open) => reviewDialog.setOpen(open)}
->
-	{#snippet topLeft()}
-		{#if !createdPr}
-			<Button
-				variant="headerAction"
-				size="headerAction"
-				class="shrink-0"
-				disabled={prCard.createRunning || !effectivePathForGit}
-				onclick={() => void handleCreatePr()}
+{#if reviewDialog.isOpen}
+	<DialogFrame
+		open={reviewDialog.isOpen}
+		title="Review changes"
+		closeLabel="Close review"
+		contentOverflow="hidden"
+		contentClass="!bg-background !rounded-lg"
+		onOpenChange={(open) => reviewDialog.setOpen(open)}
+	>
+		{#snippet topLeft()}
+			{#if !createdPr}
+				<Button
+					variant="secondary"
+					size="xs"
+					class="shrink-0"
+					disabled={prCard.createRunning || !effectivePathForGit}
+					onclick={() => void handleCreatePr()}
+				>
+					<RoundedIcon name="pull-request" class="size-[11px] shrink-0" />
+					{prCard.createLabel ?? "Open PR"}
+					<DiffPill
+						insertions={reviewDialog.diffStats.insertions}
+						deletions={reviewDialog.diffStats.deletions}
+						variant="plain"
+					/>
+				</Button>
+			{:else}
+				<Button variant="secondary" size="xs" class="shrink-0" disabled>
+					<RoundedIcon name="pull-request" class="size-[11px] shrink-0 text-success" />
+					#{createdPr}
+					<DiffPill
+						insertions={reviewDialog.diffStats.insertions}
+						deletions={reviewDialog.diffStats.deletions}
+						variant="plain"
+					/>
+				</Button>
+			{/if}
+		{/snippet}
+
+		{#snippet topRight()}
+			{@const controls = reviewDialog.controls}
+			{@const diffOptions = reviewDialog.diffOptions}
+			<div
+				class="flex max-w-[min(520px,calc(100vw-12rem))] flex-wrap items-center justify-end gap-1.5"
+				data-testid="review-dialog-header-actions"
 			>
-				<RoundedIcon name="pull-request" class="size-[11px] shrink-0" />
-				{prCard.createLabel ?? "Open PR"}
-				<DiffPill
-					insertions={reviewDialog.diffStats.insertions}
-					deletions={reviewDialog.diffStats.deletions}
-					variant="plain"
-				/>
-			</Button>
-		{:else}
-			<Button variant="headerAction" size="headerAction" class="shrink-0" disabled>
-				<RoundedIcon name="pull-request" class="size-[11px] shrink-0 text-success" />
-				#{createdPr}
-				<DiffPill
-					insertions={reviewDialog.diffStats.insertions}
-					deletions={reviewDialog.diffStats.deletions}
-					variant="plain"
-				/>
-			</Button>
-		{/if}
-	{/snippet}
+				<DropdownMenu.Root>
+					<DropdownMenu.Trigger>
+						{#snippet child({ props })}
+							<Button
+								{...props}
+								variant="secondary"
+								size="xs"
+								class="shrink-0"
+								aria-label="Diff settings"
+								title="Diff settings"
+								data-testid="review-dialog-diff-settings-trigger"
+							>
+								<RoundedIcon name="settings" class="size-[13px] shrink-0" />
+								Diff
+							</Button>
+						{/snippet}
+					</DropdownMenu.Trigger>
+					<DropdownMenu.Content
+						align="end"
+						sideOffset={6}
+						class="w-64"
+						data-testid="review-dialog-diff-settings-menu"
+					>
+						<DropdownMenu.Group>
+							<DropdownMenu.GroupHeading>Layout</DropdownMenu.GroupHeading>
+							<DropdownMenu.RadioGroup
+								value={reviewDialog.diffStyle}
+								onValueChange={handleReviewDiffStyleChange}
+							>
+								<DropdownMenu.RadioItem
+									value="unified"
+									onSelect={keepReviewDiffSettingsMenuOpen}
+									data-testid="review-dialog-diff-style-unified"
+								>
+									<RoundedIcon name="git-diff-unified" class="size-3" />
+									Unified
+								</DropdownMenu.RadioItem>
+								<DropdownMenu.RadioItem
+									value="split"
+									onSelect={keepReviewDiffSettingsMenuOpen}
+									data-testid="review-dialog-diff-style-split"
+								>
+									<RoundedIcon name="git-diff" class="size-3" />
+									Split
+								</DropdownMenu.RadioItem>
+							</DropdownMenu.RadioGroup>
+						</DropdownMenu.Group>
 
-	{#snippet topRight()}
-		{@const controls = reviewDialog.controls}
-		{#if controls && controls.fileTotal > 1}
-			<ButtonGroup.Root class="shrink-0" aria-label="File navigation">
-				<Button
-					variant="headerAction"
-					size="headerAction"
-					disabled={!controls.hasPrevPendingFile}
-					onclick={controls.onPrevFile}
-					aria-label="Previous file"
-					title="Previous file"
-				>
-					<RoundedIcon name="chevron-left" class="size-3" />
-				</Button>
-				<Button
-					variant="headerAction"
-					size="headerAction"
-					class="tabular-nums pointer-events-none"
-					disabled
-					aria-label="File {controls.fileCurrent} of {controls.fileTotal}"
-				>
-					{controls.fileCurrent}/{controls.fileTotal}
-				</Button>
-				<Button
-					variant="headerAction"
-					size="headerAction"
-					disabled={!controls.hasNextPendingFile}
-					onclick={controls.onNextFile}
-					aria-label="Next file"
-					title="Next file"
-				>
-					<RoundedIcon name="chevron-right" class="size-3" />
-				</Button>
-			</ButtonGroup.Root>
-		{/if}
+						<DropdownMenu.Separator />
 
-		{#if controls}
-			<ButtonGroup.Root class="shrink-0" aria-label="Review actions">
-				<Button
-					variant="headerAction"
-					size="headerAction"
-					disabled={!controls.hasPendingHunks}
-					onclick={controls.onRejectFile}
-					title="Reject file"
-				>
-					<RoundedIcon name="x-circle" class="shrink-0" style="width: 11px; height: 11px; color: {Colors.red};" />
-					Undo
-				</Button>
-				<Button
-					variant="headerAction"
-					size="headerAction"
-					disabled={!controls.hasPendingHunks}
-					onclick={controls.onAcceptFile}
-					title="Keep file"
-				>
-					<RoundedIcon name="check-circle" class="shrink-0 text-success" style="width: 11px; height: 11px;" />
-					Keep
-				</Button>
-			</ButtonGroup.Root>
-		{/if}
-	{/snippet}
+						<DropdownMenu.Group>
+							<DropdownMenu.GroupHeading>Indicators</DropdownMenu.GroupHeading>
+							<DropdownMenu.RadioGroup
+								value={diffOptions.indicatorStyle}
+								onValueChange={handleReviewDiffIndicatorStyleChange}
+							>
+								<DropdownMenu.RadioItem
+									value="bars"
+									onSelect={keepReviewDiffSettingsMenuOpen}
+									data-testid="review-dialog-diff-indicators-bars"
+								>
+									<RoundedIcon name="diff-bars" class="size-3" />
+									Bars
+								</DropdownMenu.RadioItem>
+								<DropdownMenu.RadioItem
+									value="classic"
+									onSelect={keepReviewDiffSettingsMenuOpen}
+									data-testid="review-dialog-diff-indicators-classic"
+								>
+									<RoundedIcon name="diff-classic" class="size-3" />
+									Classic
+								</DropdownMenu.RadioItem>
+								<DropdownMenu.RadioItem
+									value="none"
+									onSelect={keepReviewDiffSettingsMenuOpen}
+									data-testid="review-dialog-diff-indicators-none"
+								>
+									<RoundedIcon name="minus" class="size-3" />
+									None
+								</DropdownMenu.RadioItem>
+							</DropdownMenu.RadioGroup>
+						</DropdownMenu.Group>
 
-	{#if reviewDialog.filesState}
-		<AgentPanelReviewWorkspace
-			{sessionId}
-			reviewFilesState={reviewDialog.filesState}
-			selectedFileIndex={reviewDialog.clampedFileIndex}
-			projectPath={effectiveProjectPath ?? sessionController.sessionProjectPath}
-			isActive={reviewDialog.isOpen}
-			showHeader={false}
-			showCloseButton={false}
-			compact={true}
-			flat={true}
-			diffDensity="default"
-			hideBottomWidget={true}
-			onControlsChange={(controls) => reviewDialog.setControls(controls)}
-			onClose={() => reviewDialog.setOpen(false)}
-			onFileIndexChange={(index) => reviewDialog.setFileIndex(index)}
-		/>
-	{/if}
-</DialogFrame>
+						<DropdownMenu.Separator />
+
+						<DropdownMenu.Group>
+							<DropdownMenu.GroupHeading>Inline Changes</DropdownMenu.GroupHeading>
+							<DropdownMenu.RadioGroup
+								value={diffOptions.lineChangeStyle}
+								onValueChange={handleReviewDiffLineChangeStyleChange}
+							>
+								<DropdownMenu.RadioItem
+									value="none"
+									onSelect={keepReviewDiffSettingsMenuOpen}
+									data-testid="review-dialog-line-change-none"
+								>
+									<RoundedIcon name="minus" class="size-3" />
+									None
+								</DropdownMenu.RadioItem>
+								<DropdownMenu.RadioItem
+									value="word"
+									onSelect={keepReviewDiffSettingsMenuOpen}
+									data-testid="review-dialog-line-change-word"
+								>
+									<RoundedIcon name="format" class="size-3" />
+									Word
+								</DropdownMenu.RadioItem>
+								<DropdownMenu.RadioItem
+									value="character"
+									onSelect={keepReviewDiffSettingsMenuOpen}
+									data-testid="review-dialog-line-change-character"
+								>
+									<RoundedIcon name="code" class="size-3" />
+									Character
+								</DropdownMenu.RadioItem>
+							</DropdownMenu.RadioGroup>
+						</DropdownMenu.Group>
+
+						<DropdownMenu.Separator />
+
+						<DropdownMenu.Group>
+							<DropdownMenu.GroupHeading>Display</DropdownMenu.GroupHeading>
+							<DropdownMenu.CheckboxItem
+								checked={diffOptions.showBackgrounds}
+								onCheckedChange={(checked) =>
+									reviewDialog.setDiffShowBackgrounds(checked === true)}
+								onSelect={keepReviewDiffSettingsMenuOpen}
+								data-testid="review-dialog-toggle-backgrounds"
+							>
+								<RoundedIcon name="diff-backgrounds" class="size-3" />
+								Backgrounds
+							</DropdownMenu.CheckboxItem>
+							<DropdownMenu.CheckboxItem
+								checked={diffOptions.wrapLines}
+								onCheckedChange={(checked) => reviewDialog.setDiffWrapLines(checked === true)}
+								onSelect={keepReviewDiffSettingsMenuOpen}
+								data-testid="review-dialog-toggle-wrapping"
+							>
+								<RoundedIcon name="diff-wrapping" class="size-3" />
+								Wrapping
+							</DropdownMenu.CheckboxItem>
+							<DropdownMenu.CheckboxItem
+								checked={diffOptions.showLineNumbers}
+								onCheckedChange={(checked) =>
+									reviewDialog.setDiffShowLineNumbers(checked === true)}
+								onSelect={keepReviewDiffSettingsMenuOpen}
+								data-testid="review-dialog-toggle-line-numbers"
+							>
+								<RoundedIcon name="diff-line-numbers" class="size-3" />
+								Line Numbers
+							</DropdownMenu.CheckboxItem>
+						</DropdownMenu.Group>
+					</DropdownMenu.Content>
+				</DropdownMenu.Root>
+
+				{#if controls && controls.fileTotal > 1}
+					<ButtonGroup.Root class="shrink-0" aria-label="File navigation">
+						<Button
+							variant="secondary"
+							size="xs"
+							disabled={!controls.hasPrevFile}
+							onclick={controls.onPrevFile}
+							aria-label="Previous file"
+							title="Previous file"
+						>
+							<RoundedIcon name="chevron-left" class="size-3" />
+						</Button>
+						<Button
+							variant="secondary"
+							size="xs"
+							class="tabular-nums pointer-events-none"
+							disabled
+							aria-label="File {controls.fileCurrent} of {controls.fileTotal}"
+						>
+							{controls.fileCurrent}/{controls.fileTotal}
+						</Button>
+						<Button
+							variant="secondary"
+							size="xs"
+							disabled={!controls.hasNextFile}
+							onclick={controls.onNextFile}
+							aria-label="Next file"
+							title="Next file"
+						>
+							<RoundedIcon name="chevron-right" class="size-3" />
+						</Button>
+					</ButtonGroup.Root>
+				{/if}
+
+				{#if controls}
+					<Button
+						variant="secondary"
+						size="xs"
+						class="shrink-0"
+						onclick={controls.onToggleReviewed}
+						title={controls.isReviewed ? "Mark file as not reviewed" : "Mark file reviewed"}
+					>
+						{#if controls.isReviewed}
+							<RoundedIcon name="check-circle" class="shrink-0 text-success" style="width: 11px; height: 11px;" />
+							Reviewed
+						{:else}
+							<span class="block size-[11px] shrink-0 rounded-full border border-current opacity-50"></span>
+							Mark reviewed
+						{/if}
+					</Button>
+					<Button
+						variant="secondary"
+						size="xs"
+						class="shrink-0"
+						onclick={() => {
+							reviewRevertConfirmFileName =
+								reviewDialog.filesState?.files[reviewDialog.clampedFileIndex]?.fileName ?? "this file";
+						}}
+						title="Revert file"
+					>
+						<RoundedIcon name="undo" class="shrink-0" style="width: 11px; height: 11px; color: {Colors.red};" />
+						Revert
+					</Button>
+				{/if}
+			</div>
+		{/snippet}
+
+		{#if reviewDialog.filesState}
+			<AgentPanelReviewWorkspace
+				{sessionId}
+				reviewFilesState={reviewDialog.filesState}
+				selectedFileIndex={reviewDialog.clampedFileIndex}
+				projectPath={effectiveProjectPath ?? sessionController.sessionProjectPath}
+				isActive={reviewDialog.isOpen}
+				showHeader={false}
+				showCloseButton={false}
+				compact={true}
+				flat={true}
+				diffDensity="default"
+				diffStyle={reviewDialog.diffStyle}
+				diffOptions={reviewDialog.diffOptions}
+				hideBottomWidget={true}
+				onControlsChange={(controls) => reviewDialog.setControls(controls)}
+				onClose={() => reviewDialog.setOpen(false)}
+				onFileIndexChange={(index) => reviewDialog.setFileIndex(index)}
+			/>
+		{/if}
+	</DialogFrame>
+{/if}
+
+{#if reviewRevertConfirmFileName !== null}
+	<AlertDialog.Root
+		open={true}
+		onOpenChange={(open) => {
+			if (!open) {
+				reviewRevertConfirmFileName = null;
+			}
+		}}
+	>
+		<AlertDialog.Portal>
+			<AlertDialog.Overlay
+				class="fixed inset-0 z-[calc(var(--overlay-z,50)+20)] bg-black/55 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0"
+			/>
+			<AlertDialog.Content
+				class="fixed left-1/2 top-1/2 z-[calc(var(--overlay-z,50)+21)] w-[calc(100%-2rem)] max-w-sm -translate-x-1/2 -translate-y-1/2 rounded-lg border border-border bg-background p-4 shadow-lg data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0"
+			>
+				<AlertDialog.Title class="text-sm font-medium text-foreground">
+					Revert file?
+				</AlertDialog.Title>
+				<AlertDialog.Description class="mt-1.5 text-sm leading-snug text-muted-foreground">
+					This discards the agent's changes to {reviewRevertConfirmFileName} in your working tree.
+					This cannot be undone.
+				</AlertDialog.Description>
+				<div class="mt-4 flex items-center justify-end gap-2">
+					<AlertDialog.Cancel
+						class="inline-flex h-8 items-center justify-center rounded-md border border-border bg-transparent px-3 text-sm font-medium text-foreground transition-colors hover:bg-muted"
+					>
+						Cancel
+					</AlertDialog.Cancel>
+					<AlertDialog.Action
+						class="inline-flex h-8 items-center justify-center rounded-md bg-destructive px-3 text-sm font-medium text-destructive-foreground transition-colors hover:bg-destructive/90"
+						onclick={() => {
+							reviewDialog.controls?.onRevertFile();
+							reviewRevertConfirmFileName = null;
+						}}
+					>
+						Revert
+					</AlertDialog.Action>
+				</div>
+			</AlertDialog.Content>
+		</AlertDialog.Portal>
+	</AlertDialog.Root>
+{/if}
 
 {#if inlinePlanDialogPlan}
 	<PlanDialog

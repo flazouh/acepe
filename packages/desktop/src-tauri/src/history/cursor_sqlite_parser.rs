@@ -451,7 +451,14 @@ fn narrative_message_signature(message: &OrderedMessage) -> Option<String> {
     for block in &message.content_blocks {
         match block {
             ContentBlock::Text { text } => fragments.push(text.trim().to_string()),
-            ContentBlock::Thinking { thinking, .. } => fragments.push(thinking.trim().to_string()),
+            ContentBlock::Thinking {
+                thinking,
+                redacted_provider_data,
+                ..
+            } => fragments.push(thinking_signature_fragment(
+                thinking,
+                redacted_provider_data.as_deref(),
+            )),
             _ => return None,
         }
     }
@@ -472,7 +479,14 @@ fn narrative_message_signature(message: &OrderedMessage) -> Option<String> {
 fn content_block_signature(block: &ContentBlock) -> String {
     match block {
         ContentBlock::Text { text } => format!("text:{text}"),
-        ContentBlock::Thinking { thinking, .. } => format!("thinking:{thinking}"),
+        ContentBlock::Thinking {
+            thinking,
+            redacted_provider_data,
+            ..
+        } => format!(
+            "thinking:{}",
+            thinking_signature_fragment(thinking, redacted_provider_data.as_deref())
+        ),
         ContentBlock::ToolUse { id, name, input } => {
             format!("tool_use:{id}:{name}:{}", input)
         }
@@ -489,6 +503,26 @@ fn content_block_signature(block: &ContentBlock) -> String {
             lines.clone().unwrap_or_default()
         ),
     }
+}
+
+fn thinking_signature_fragment(thinking: &str, redacted_provider_data: Option<&str>) -> String {
+    match redacted_provider_data {
+        Some(data) => format!("{}\nredacted-data:{}", thinking.trim(), data),
+        _ => thinking.trim().to_string(),
+    }
+}
+
+fn extract_redacted_reasoning_data(item: &JsonValue) -> Option<String> {
+    let Some(data) = item.get("data") else {
+        return Some(String::new());
+    };
+    if let Some(text) = data.as_str() {
+        return Some(text.to_string());
+    }
+    if data.is_null() {
+        return Some(String::new());
+    }
+    serde_json::to_string(data).ok()
 }
 
 /// Convert Cursor message to OrderedMessage
@@ -624,6 +658,7 @@ fn parse_cursor_content(content: &JsonValue) -> Result<Vec<ContentBlock>> {
                 blocks.push(ContentBlock::Thinking {
                     thinking,
                     signature: None,
+                    redacted_provider_data: None,
                 });
             }
         }
@@ -647,6 +682,7 @@ fn parse_cursor_content(content: &JsonValue) -> Result<Vec<ContentBlock>> {
                                     blocks.push(ContentBlock::Thinking {
                                         thinking,
                                         signature: None,
+                                        redacted_provider_data: None,
                                     });
                                 }
                             }
@@ -667,8 +703,16 @@ fn parse_cursor_content(content: &JsonValue) -> Result<Vec<ContentBlock>> {
                             blocks.push(ContentBlock::Thinking {
                                 thinking: sanitized,
                                 signature: None,
+                                redacted_provider_data: None,
                             });
                         }
+                    }
+                    "redacted-reasoning" => {
+                        blocks.push(ContentBlock::Thinking {
+                            thinking: String::new(),
+                            signature: None,
+                            redacted_provider_data: extract_redacted_reasoning_data(item),
+                        });
                     }
                     "thinking" => {
                         // Cursor uses <think> tags in text content
@@ -679,6 +723,7 @@ fn parse_cursor_content(content: &JsonValue) -> Result<Vec<ContentBlock>> {
                                     blocks.push(ContentBlock::Thinking {
                                         thinking,
                                         signature: None,
+                                        redacted_provider_data: None,
                                     });
                                 }
                             } else {
@@ -1165,6 +1210,42 @@ mod tests {
             // user_query inner text is preserved (unwrapped)
             ContentBlock::Text { text } => assert_eq!(text, "Hi again.\nretry"),
             _ => panic!("Expected text block"),
+        }
+    }
+
+    #[test]
+    fn test_parse_cursor_content_preserves_redacted_reasoning_payload() {
+        let content = json!([
+            {
+                "type": "redacted-reasoning",
+                "data": "opaque-provider-payload"
+            },
+            {
+                "type": "text",
+                "text": "Visible answer"
+            }
+        ]);
+
+        let blocks = parse_cursor_content(&content).expect("content should parse");
+
+        assert_eq!(blocks.len(), 2);
+        match &blocks[0] {
+            ContentBlock::Thinking {
+                thinking,
+                redacted_provider_data,
+                ..
+            } => {
+                assert_eq!(thinking, "");
+                assert_eq!(
+                    redacted_provider_data.as_deref(),
+                    Some("opaque-provider-payload")
+                );
+            }
+            other => panic!("expected redacted thinking marker, got {other:?}"),
+        }
+        match &blocks[1] {
+            ContentBlock::Text { text } => assert_eq!(text, "Visible answer"),
+            other => panic!("expected visible text block, got {other:?}"),
         }
     }
 

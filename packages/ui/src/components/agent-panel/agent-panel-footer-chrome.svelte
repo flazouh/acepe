@@ -58,14 +58,14 @@
 		<div class="flex items-center gap-0.5 px-1.5">
 			<Button
 				variant="ghost"
-				size="icon-chrome"
+				size="icon-2xs"
 				data-header-control
 				title={settingsTitle}
 				aria-label={settingsAriaLabel ?? settingsTitle}
 				onclick={onSettings}
 			>
 				{#snippet children()}
-					<RoundedIcon name="settings" class="h-3 w-3" />
+					<RoundedIcon name="settings" />
 				{/snippet}
 			</Button>
 		</div>
@@ -76,7 +76,7 @@
 			{#if showBrowserToggle}
 				<Button
 					variant="ghost"
-					size="icon-chrome"
+					size="icon-2xs"
 					data-header-control
 					active={browserActive}
 					title={browserTitle}
@@ -84,14 +84,14 @@
 					onclick={onToggleBrowser}
 				>
 					{#snippet children()}
-						<RoundedIcon name="browser" class="h-3 w-3" />
+						<RoundedIcon name="browser" />
 					{/snippet}
 				</Button>
 			{/if}
 			{#if showTerminalToggle}
 				<Button
 					variant="ghost"
-					size="icon-chrome"
+					size="icon-2xs"
 					data-header-control
 					active={terminalActive}
 					disabled={terminalDisabled}
@@ -100,7 +100,7 @@
 					onclick={onToggleTerminal}
 				>
 					{#snippet children()}
-						<RoundedIcon name="terminal" class="h-3 w-3" />
+						<RoundedIcon name="terminal" />
 					{/snippet}
 				</Button>
 			{/if}

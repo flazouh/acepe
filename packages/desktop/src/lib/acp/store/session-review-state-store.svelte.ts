@@ -2,7 +2,6 @@ import { errAsync, okAsync, ResultAsync } from "neverthrow";
 import { SvelteMap, SvelteSet } from "svelte/reactivity";
 import { z } from "zod";
 import { tauriClient } from "../../utils/tauri-client.js";
-import type { FileReviewStatus } from "../components/review-panel/review-session-state.js";
 import { createLogger } from "../utils/logger.js";
 
 const logger = createLogger({
@@ -10,33 +9,22 @@ const logger = createLogger({
 	name: "SessionReviewStateStore",
 });
 
-const resolvedHunkActionSchema = z.object({
-	hunkIndex: z.number().int().min(0),
-	action: z.enum(["accept", "reject"]),
-});
-
 const persistedFileReviewProgressSchema = z.object({
 	filePath: z.string().min(1),
-	status: z.enum(["accepted", "partial", "denied"]),
-	acceptedHunks: z.number().int().min(0),
-	rejectedHunks: z.number().int().min(0),
-	pendingHunks: z.number().int().min(0),
-	totalHunks: z.number().int().min(0),
-	resolvedActions: z.array(resolvedHunkActionSchema),
+	reviewed: z.boolean(),
 });
 
 const sessionReviewStateSchema = z.object({
-	version: z.literal(1),
+	version: z.literal(2),
 	filesByRevisionKey: z.record(z.string(), persistedFileReviewProgressSchema),
 });
 
-export type PersistedResolvedHunkAction = z.infer<typeof resolvedHunkActionSchema>;
 export type PersistedFileReviewProgress = z.infer<typeof persistedFileReviewProgressSchema>;
 export type SessionReviewState = z.infer<typeof sessionReviewStateSchema>;
 
 function createEmptyReviewState(): SessionReviewState {
 	return {
-		version: 1,
+		version: 2,
 		filesByRevisionKey: {},
 	};
 }
@@ -59,6 +47,8 @@ function decodeState(raw: string | null): ResultAsync<SessionReviewState | null,
 		if (validation.success) {
 			return okAsync(validation.data);
 		}
+		// Older per-hunk schema versions are no longer supported; drop them so
+		// the review modal starts from a clean per-file reviewed state.
 		return errAsync(new Error(`Invalid review state: ${validation.error.message}`));
 	});
 }
@@ -130,11 +120,10 @@ export class SessionReviewStateStore {
 	): void {
 		const currentState = this.getState(sessionId) ?? createEmptyReviewState();
 		const nextState: SessionReviewState = {
-			...currentState,
-			filesByRevisionKey: {
-				...currentState.filesByRevisionKey,
+			version: 2,
+			filesByRevisionKey: Object.assign({}, currentState.filesByRevisionKey, {
 				[revisionKey]: progress,
-			},
+			}),
 		};
 
 		if (statesEqual(currentState, nextState)) return;
@@ -151,7 +140,7 @@ export class SessionReviewStateStore {
 		);
 		const nextFilesByRevisionKey = Object.fromEntries(nextEntries);
 		const nextState: SessionReviewState = {
-			...currentState,
+			version: 2,
 			filesByRevisionKey: nextFilesByRevisionKey,
 		};
 
@@ -197,20 +186,10 @@ export const sessionReviewStateStore = new SessionReviewStateStore();
 
 export function toPersistedFileReviewProgress(input: {
 	filePath: string;
-	status: FileReviewStatus;
-	acceptedHunks: number;
-	rejectedHunks: number;
-	pendingHunks: number;
-	totalHunks: number;
-	resolvedActions: ReadonlyArray<PersistedResolvedHunkAction>;
+	reviewed: boolean;
 }): PersistedFileReviewProgress {
 	return {
 		filePath: input.filePath,
-		status: input.status,
-		acceptedHunks: input.acceptedHunks,
-		rejectedHunks: input.rejectedHunks,
-		pendingHunks: input.pendingHunks,
-		totalHunks: input.totalHunks,
-		resolvedActions: [...input.resolvedActions],
+		reviewed: input.reviewed,
 	};
 }

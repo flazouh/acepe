@@ -173,7 +173,7 @@
 											onOpenCheck?.(check, event);
 										}}
 									>
-										<RoundedIcon name="github" class="size-2.5" />
+										<RoundedIcon name="github" />
 									</Button>
 								{/if}
 							</span>

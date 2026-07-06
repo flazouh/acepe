@@ -44,8 +44,8 @@
 		<div class="flex flex-wrap justify-end gap-1">
 			{#each strip.actions as action (action.id)}
 				<Button
-					variant="headerAction"
-					size="headerAction"
+					variant="secondary"
+					size="xs"
 					disabled={actionDisabled(action)}
 					onclick={() => runAction(action)}
 				>

@@ -30,6 +30,16 @@ export function shouldShowEmptyStateProjectChooser(projectCount: number): boolea
 	return projectCount === 0;
 }
 
+export function shouldKeepEmptyStateProjectChooserOpen(input: {
+	projectCount: number;
+	projectImportFlowActive: boolean;
+}): boolean {
+	return (
+		input.projectCount === 0 &&
+		(input.projectImportFlowActive || shouldShowEmptyStateProjectChooser(input.projectCount))
+	);
+}
+
 export function canShowEmptyStateInput(input: {
 	projectCount: number;
 	availableAgentCount: number;

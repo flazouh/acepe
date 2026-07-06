@@ -1,5 +1,39 @@
 use super::super::*;
 use super::*;
+use crate::acp::session_state_engine::selectors::SessionGraphLifecycle;
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionConnectionReadiness {
+    pub graph_revision: i64,
+    pub lifecycle: SessionGraphLifecycle,
+    pub capabilities: SessionGraphCapabilities,
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn acp_get_session_connection_readiness(
+    app: AppHandle,
+    session_id: String,
+) -> CommandResult<SessionConnectionReadiness> {
+    expected_acp_command_result(
+        "acp_get_session_connection_readiness",
+        async {
+            let runtime_snapshot = runtime_snapshot_for_refresh(
+                app.try_state::<Arc<SessionGraphRuntimeRegistry>>()
+                    .map(|registry| registry.inner().as_ref()),
+                &session_id,
+            );
+
+            Ok(SessionConnectionReadiness {
+                graph_revision: runtime_snapshot.graph_revision,
+                lifecycle: runtime_snapshot.lifecycle,
+                capabilities: runtime_snapshot.capabilities,
+            })
+        }
+        .await,
+    )
+}
 
 #[tauri::command]
 #[specta::specta]
@@ -155,11 +189,15 @@ pub async fn acp_get_session_state(
             active_streaming_tail,
             lifecycle,
             capabilities,
+            open_path: crate::acp::session_open_snapshot::SessionOpenPath::CompatSnapshot,
+            initial_transcript_row_page: None,
+            initial_viewport_envelope: None,
+            open_result_timing: None,
             active_turn_failure,
             last_terminal_turn_id,
         };
 
-        Ok(build_snapshot_envelope(&found))
+        Ok(build_budgeted_snapshot_envelope(&found))
     }
     .await)
 }

@@ -250,7 +250,7 @@ async function handleTransferPrLink(otherSessionId: string, prNumber: number): P
 	<Button
 		bind:ref={headerIconRef}
 		variant="outline"
-		size="headerAction"
+		size="xs"
 		type="button"
 		class={triggerClass}
 		title={headerPrLinkLabel}
@@ -290,8 +290,8 @@ async function handleTransferPrLink(otherSessionId: string, prNumber: number): P
 							<Button
 								{...props}
 								bind:ref={headerIconRef}
-								variant="headerAction"
-								size="headerAction"
+								variant="secondary"
+								size="xs"
 								type="button"
 								class={triggerClass}
 								onclick={handleTogglePicker}

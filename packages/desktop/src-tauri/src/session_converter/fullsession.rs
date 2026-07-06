@@ -428,12 +428,18 @@ fn project_assistant_event_group(
                     },
                 });
             }
-            CanonicalTranscriptEventKind::AssistantThought { text } => {
+            CanonicalTranscriptEventKind::AssistantThought {
+                text,
+                redacted_provider_data,
+            } => {
                 chunks.push(StoredAssistantChunk {
                     chunk_type: "thought".to_string(),
                     block: StoredContentBlock {
                         block_type: "text".to_string(),
-                        text: Some(text.clone()),
+                        text: Some(thought_text_for_storage(
+                            text,
+                            redacted_provider_data.as_deref(),
+                        )),
                     },
                 });
             }
@@ -458,6 +464,13 @@ fn project_assistant_event_group(
         },
         index,
     )
+}
+
+fn thought_text_for_storage(text: &str, redacted_provider_data: Option<&str>) -> String {
+    match redacted_provider_data {
+        Some(_) if text.trim().is_empty() => "[REDACTED]".to_string(),
+        _ => text.to_string(),
+    }
 }
 
 fn project_assistant_error_event(

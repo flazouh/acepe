@@ -19,9 +19,9 @@ const themeState = useTheme();
 >
 	{#snippet renderButton()}
 		{#if themeState.effectiveTheme === "light"}
-			<RoundedIcon name="sun" class="size-4" />
+			<RoundedIcon name="sun" />
 		{:else}
-			<RoundedIcon name="moon" class="size-4" />
+			<RoundedIcon name="moon" />
 		{/if}
 	{/snippet}
 

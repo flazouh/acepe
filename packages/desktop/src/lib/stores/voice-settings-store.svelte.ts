@@ -76,7 +76,6 @@ export class VoiceSettingsStore {
 			this.registerListeners(),
 		]);
 		await this.normalizePersistedLanguage();
-		await this.preloadSelectedModel();
 		this.initialized = true;
 	}
 

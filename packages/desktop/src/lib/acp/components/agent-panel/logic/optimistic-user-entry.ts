@@ -51,14 +51,22 @@ export function resolveOptimisticUserEntryForGraph(input: {
 
 export function resolveVisibleEntryCount(input: {
 	readonly canonicalEntryCount: number | null;
+	readonly canonicalMessageCount: number | null;
 	readonly optimisticUserEntry: SessionEntry | null;
 }): number | null {
 	if (input.canonicalEntryCount === null) {
+		if (input.canonicalMessageCount !== null && input.canonicalMessageCount > 0) {
+			return input.canonicalMessageCount;
+		}
 		return input.optimisticUserEntry === null ? null : 1;
 	}
 
 	if (input.canonicalEntryCount > 0) {
 		return input.canonicalEntryCount;
+	}
+
+	if (input.canonicalMessageCount !== null && input.canonicalMessageCount > 0) {
+		return input.canonicalMessageCount;
 	}
 
 	return input.optimisticUserEntry === null ? 0 : 1;

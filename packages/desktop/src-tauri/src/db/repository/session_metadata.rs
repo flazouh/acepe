@@ -1382,6 +1382,43 @@ impl SessionMetadataRepository {
             .collect())
     }
 
+    /// Get a bounded set of recent sessions that have a persisted transcript source.
+    ///
+    /// This is used by idle performance work. It must stay bounded so startup never
+    /// turns into an unbounded history scan.
+    pub async fn get_recent_persisted_sessions(
+        db: &DbConn,
+        limit: u64,
+    ) -> Result<Vec<SessionMetadataRow>> {
+        if limit == 0 {
+            return Ok(Vec::new());
+        }
+
+        let models = SessionMetadata::find()
+            .filter(session_metadata::Column::FileMtime.gt(0))
+            .filter(session_metadata::Column::FileSize.gt(0))
+            .order_by_desc(session_metadata::Column::Timestamp)
+            .limit(limit)
+            .all(db)
+            .await?;
+
+        let session_ids: Vec<String> = models.iter().map(|model| model.id.clone()).collect();
+        let state_map = Self::load_state_map(db, &session_ids).await?;
+
+        Ok(models
+            .into_iter()
+            .filter(|model| {
+                state_map
+                    .get(&model.id)
+                    .map(|state| {
+                        AcepeSessionRelationship::from_str(&state.relationship).is_visible()
+                    })
+                    .unwrap_or(true)
+            })
+            .map(|model| compose_session_metadata_row(model.clone(), state_map.get(&model.id)))
+            .collect())
+    }
+
     /// Get all sessions ordered by timestamp DESC.
     pub async fn get_all(db: &DbConn) -> Result<Vec<SessionMetadataRow>> {
         tracing::debug!("Loading all session metadata");

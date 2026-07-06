@@ -21,6 +21,7 @@ import type { SessionStore } from "../store/session-store.svelte.js";
 import type { PaletteItem } from "../types/palette-item.js";
 import type { PaletteMode } from "../types/palette-mode.js";
 import { createLogger } from "../utils/logger.js";
+import { scheduleDeferredIdleWork } from "$lib/utils/deferred-work.js";
 
 const logger = createLogger({ id: "advanced-command-palette", name: "AdvancedCommandPalette" });
 
@@ -103,11 +104,12 @@ export class UseAdvancedCommandPalette {
 			["files", this._filesProvider],
 		]);
 
-		// Load recent items from storage
-		this.recentStore.load().match(
-			() => logger.debug("Recent items loaded"),
-			(error) => logger.warn("Failed to load recent items:", error)
-		);
+		scheduleDeferredIdleWork(() => {
+			this.recentStore.load().match(
+				() => logger.debug("Recent items loaded"),
+				(error) => logger.warn("Failed to load recent items:", error)
+			);
+		});
 	}
 
 	/**

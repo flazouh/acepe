@@ -1,18 +1,50 @@
 import type { ContentBlock } from "../../schemas/content-block.schema.js";
 import { validateContentBlock } from "../../utils/content-block-validator.js";
-import { getBlockRenderer } from "./acp-block-types/registry.js";
-import type { AcpBlockRenderConfigUnion } from "./acp-block-types/types.js";
+
+export type FileSrcConverter = (path: string) => string;
+
+type TextBlockRenderData = {
+	type: "text";
+	text: string;
+};
+
+type ImageBlockRenderData = {
+	type: "image";
+	data: string;
+	mimeType: string;
+	uri?: string;
+};
+
+type AudioBlockRenderData = {
+	type: "audio";
+	data: string;
+	mimeType: string;
+};
+
+type ResourceBlockRenderData = {
+	type: "resource";
+	resource: Extract<ContentBlock, { type: "resource" }>["resource"];
+};
+
+type ResourceLinkBlockRenderData = {
+	type: "resource_link";
+	uri: string;
+	name: string;
+	title?: string;
+	description?: string;
+};
+
+export type ContentBlockRenderData =
+	| TextBlockRenderData
+	| ImageBlockRenderData
+	| AudioBlockRenderData
+	| ResourceBlockRenderData
+	| ResourceLinkBlockRenderData;
 
 export type ContentBlockRouteState =
 	| {
 			type: "render";
-			block: ContentBlock;
-			renderer: AcpBlockRenderConfigUnion;
-			props: Record<string, unknown>;
-	  }
-	| {
-			type: "unknown";
-			blockType: ContentBlock["type"];
+			block: ContentBlockRenderData;
 	  }
 	| {
 			type: "invalid";
@@ -21,7 +53,7 @@ export type ContentBlockRouteState =
 
 export function resolveContentBlockRouteState(
 	block: unknown,
-	findRenderer: (type: ContentBlock["type"]) => AcpBlockRenderConfigUnion | undefined = getBlockRenderer
+	convertFileSrc: FileSrcConverter
 ): ContentBlockRouteState {
 	const validationResult = validateContentBlock(block);
 
@@ -33,26 +65,104 @@ export function resolveContentBlockRouteState(
 	}
 
 	const validatedBlock = validationResult.value;
-	const renderer = findRenderer(validatedBlock.type);
 
-	if (!renderer) {
+	return {
+		type: "render",
+		block: buildContentBlockRenderData(validatedBlock, convertFileSrc),
+	};
+}
+
+function buildContentBlockRenderData(
+	block: ContentBlock,
+	convertFileSrc: FileSrcConverter
+): ContentBlockRenderData {
+	switch (block.type) {
+		case "text":
+			return {
+				type: "text",
+				text: block.text,
+			};
+		case "image":
+			return buildImageBlockRenderData(block, convertFileSrc);
+		case "audio":
+			return {
+				type: "audio",
+				data: block.data,
+				mimeType: block.mimeType,
+			};
+		case "resource":
+			return {
+				type: "resource",
+				resource: block.resource,
+			};
+		case "resource_link":
+			return buildResourceLinkBlockRenderData(block);
+	}
+
+	return assertNeverContentBlock(block);
+}
+
+function buildImageBlockRenderData(
+	block: Extract<ContentBlock, { type: "image" }>,
+	convertFileSrc: FileSrcConverter
+): ImageBlockRenderData {
+	const normalizedUri = normalizeImageUri(block.uri, convertFileSrc);
+	if (normalizedUri === undefined) {
 		return {
-			type: "unknown",
-			blockType: validatedBlock.type,
+			type: "image",
+			data: block.data,
+			mimeType: block.mimeType,
 		};
 	}
 
 	return {
-		type: "render",
-		block: validatedBlock,
-		renderer,
-		props: getContentBlockRendererProps(renderer, validatedBlock),
+		type: "image",
+		data: block.data,
+		mimeType: block.mimeType,
+		uri: normalizedUri,
 	};
 }
 
-function getContentBlockRendererProps(
-	renderer: AcpBlockRenderConfigUnion,
-	block: ContentBlock
-): Record<string, unknown> {
-	return (renderer as { getProps: (b: ContentBlock) => Record<string, unknown> }).getProps(block);
+function buildResourceLinkBlockRenderData(
+	block: Extract<ContentBlock, { type: "resource_link" }>
+): ResourceLinkBlockRenderData {
+	const renderData: ResourceLinkBlockRenderData = {
+		type: "resource_link",
+		uri: block.uri,
+		name: block.name,
+	};
+
+	if (block.title !== undefined) {
+		renderData.title = block.title;
+	}
+
+	if (block.description !== undefined) {
+		renderData.description = block.description;
+	}
+
+	return renderData;
+}
+
+function normalizeImageUri(
+	uri: string | null | undefined,
+	convertFileSrc: FileSrcConverter
+): string | undefined {
+	if (!uri) {
+		return undefined;
+	}
+
+	if (
+		uri.startsWith("http://") ||
+		uri.startsWith("https://") ||
+		uri.startsWith("data:") ||
+		uri.startsWith("asset:")
+	) {
+		return uri;
+	}
+
+	return convertFileSrc(uri);
+}
+
+function assertNeverContentBlock(_block: never): never {
+	throw new Error("Unsupported content block type");
 }

@@ -29,6 +29,7 @@ import { ConnectionError } from "../../../errors/app-error.js";
 import type { MessageSender } from "../message-queue-store.svelte.js";
 import {
 	createMessageQueueStore,
+	createSessionMessageQueueStore,
 	serializeWithAttachments,
 } from "../message-queue-store.svelte.js";
 
@@ -341,5 +342,22 @@ describe("MessageQueueStore", () => {
 			const store = createMessageQueueStore(sender);
 			expect(store.getQueue("unknown")).toEqual([]);
 		});
+	});
+});
+
+describe("createSessionMessageQueueStore", () => {
+	it("uses the session connection sender when draining queued messages", () => {
+		const sender = createMockSender();
+		const sessionStore = {
+			connection: sender,
+		};
+		const store = createSessionMessageQueueStore(sessionStore);
+
+		store.enqueue("s1", "QA ping", []);
+		store.drainNext("s1");
+
+		expect(sender.calls).toHaveLength(1);
+		expect(sender.calls[0].sessionId).toBe("s1");
+		expect(sender.calls[0].content).toBe("QA ping");
 	});
 });

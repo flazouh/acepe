@@ -184,12 +184,12 @@ function getSyncStatusForSkill(
 			</div>
 			<div class="flex shrink-0 items-center gap-1">
 				{#if isViewingPluginSkill && store.selectedPluginSkill}
-					<Button variant="header" size="header" onclick={handleCopyToLibrary}>
+					<Button variant="outline" size="sm" onclick={handleCopyToLibrary}>
 						<RoundedIcon name="copy" class="h-3.5 w-3.5" />
 						Copy to Library
 					</Button>
 				{:else if store.selectedSkill}
-					<Button variant="header" size="header" onclick={openDeleteDialog} title="Delete Skill">
+					<Button variant="outline" size="sm" onclick={openDeleteDialog} title="Delete Skill">
 						<RoundedIcon name="trash" class="h-3.5 w-3.5" />
 					</Button>
 					<SyncDropdownButton />
@@ -238,10 +238,6 @@ function getSyncStatusForSkill(
 	size="medium"
 	onOpenChange={(open) => (deleteDialogOpen = open)}
 >
-	{#snippet topLeft()}
-		<span class="truncate text-[11px] font-semibold text-foreground select-none">Delete Skill</span>
-	{/snippet}
-
 	<div class="space-y-4 px-3 py-3">
 		<p class="text-[12px] text-muted-foreground">
 			Are you sure you want to delete "{store.selectedSkill?.skill.name}"? This action cannot be undone.
@@ -277,10 +273,10 @@ function getSyncStatusForSkill(
 	</div>
 
 	{#snippet footer()}
-		<Button variant="header" size="header" disabled={isDeleting} onclick={() => (deleteDialogOpen = false)}>
+		<Button variant="outline" size="sm" disabled={isDeleting} onclick={() => (deleteDialogOpen = false)}>
 			Cancel
 		</Button>
-		<Button variant="destructive" size="header" disabled={isDeleting} onclick={handleDeleteSkill}>
+		<Button variant="destructive" size="sm" disabled={isDeleting} onclick={handleDeleteSkill}>
 			{isDeleting ? "Deleting..." : "Delete"}
 		</Button>
 	{/snippet}

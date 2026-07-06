@@ -54,7 +54,7 @@ const data = {
 					{#each data.changes as item, index (index)}
 						<Sidebar.MenuItem>
 							<Sidebar.MenuButton>
-								<RoundedIcon name="file-text" />
+								<RoundedIcon name="file-text" class="size-4 shrink-0" />
 								{item.file}
 							</Sidebar.MenuButton>
 							<Sidebar.MenuBadge>{item.state}</Sidebar.MenuBadge>
@@ -84,7 +84,7 @@ const data = {
 			isActive={name === "button.svelte"}
 			class="data-[active=true]:bg-transparent"
 		>
-			<RoundedIcon name="file-text" />
+			<RoundedIcon name="file-text" class="size-4 shrink-0" />
 			{name}
 		</Sidebar.MenuButton>
 	{:else}
@@ -97,7 +97,7 @@ const data = {
 					{#snippet child({ props })}
 						<Sidebar.MenuButton {...props}>
 							<RoundedIcon name="chevron-right" class="size-3 shrink-0 transition-transform" />
-							<RoundedIcon name="folder" />
+							<RoundedIcon name="folder" class="size-4 shrink-0" />
 							{name}
 						</Sidebar.MenuButton>
 					{/snippet}

@@ -157,7 +157,7 @@
 										onUninstallModel(row.model.id);
 									}}
 								>
-									<RoundedIcon name="trash" class="size-3" />
+									<RoundedIcon name="trash" />
 								</Button>
 							</div>
 						{:else}
@@ -181,7 +181,7 @@
 										onDownloadModel(row.model.id);
 									}}
 								>
-									<RoundedIcon name="download" class="size-3" />
+									<RoundedIcon name="download" />
 								</Button>
 							</div>
 						{/if}

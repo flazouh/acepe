@@ -4,6 +4,7 @@ import { SoundEffect } from "$lib/acp/types/sounds.js";
 import { playSound } from "$lib/acp/utils/sound.js";
 import { tauriClient } from "../../../../utils/tauri-client.js";
 import type { AppError } from "../../../errors/app-error.js";
+import { createLogger } from "../../../utils/logger.js";
 import type {
 	AmplitudePayload,
 	RecordingErrorPayload,
@@ -18,6 +19,7 @@ import { WaveformState } from "./waveform-state.svelte.js";
 
 const ERROR_RESET_DELAY_MS = 8000;
 const TRANSCRIBING_WATCHDOG_MS = 30_000;
+const logger = createLogger({ id: "voice-input-state", name: "VoiceInputState" });
 
 function log(_msg: string, _data?: Record<string, unknown>): void {}
 
@@ -209,7 +211,7 @@ export class VoiceInputState {
 		log("dispose()", { phase: this.phase, isDisposed: this.isDisposed });
 		this.isDisposed = true;
 		for (const unlisten of this.unlisteners) {
-			unlisten();
+			this.runUnlisten(unlisten);
 		}
 		this.unlisteners.length = 0;
 		this.clearPressTimer();
@@ -225,6 +227,19 @@ export class VoiceInputState {
 			log("dispose: cancelling in-flight recording");
 			tauriClient.voice.cancelRecording(this.sessionId);
 		}
+	}
+
+	private runUnlisten(unlisten: UnlistenFn): void {
+		void Promise.resolve()
+			.then(() => unlisten())
+			.catch((rawError) => {
+				const error = rawError instanceof Error ? rawError : new Error(String(rawError));
+				if (error.message.includes("listeners[eventId].handlerId")) {
+					logger.debug("Voice listener already removed during teardown", { error });
+					return;
+				}
+				logger.warn("Failed to unregister voice listener", { error });
+			});
 	}
 
 	// ── Press-and-hold interaction ───────────────────────────────────────────────

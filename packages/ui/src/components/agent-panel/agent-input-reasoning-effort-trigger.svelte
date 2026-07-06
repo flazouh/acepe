@@ -8,7 +8,6 @@
 	import { RoundedIcon } from "../icons/index.js";
 	import { Selector } from "../selector/index.js";
 	import {
-		REASONING_EFFORT_BRAIN_ICON_CLASS,
 		REASONING_EFFORT_SELECTOR_SIDE_OFFSET,
 		REASONING_EFFORT_SELECTOR_TRIGGER_SIZE,
 		REASONING_EFFORT_SELECTOR_VARIANT,
@@ -66,7 +65,6 @@
 	{#snippet renderButton()}
 		<RoundedIcon
 			name="brain"
-			class={REASONING_EFFORT_BRAIN_ICON_CLASS}
 			style={iconStyle}
 			data-testid="reasoning-effort-brain-icon"
 		/>

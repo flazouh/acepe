@@ -53,7 +53,7 @@
 				role="none"
 				onclick={(event: MouseEvent) => event.stopPropagation()}
 			>
-				<Button variant="headerAction" size="headerAction" onclick={onDismiss}>
+				<Button variant="secondary" size="xs" onclick={onDismiss}>
 					{dismissLabel}
 				</Button>
 			</div>

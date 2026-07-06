@@ -116,9 +116,8 @@ function handleClose() {
 	size="form"
 	{onOpenChange}
 >
-	{#snippet topLeft()}
+	{#snippet titleLeading()}
 		<RoundedIcon name="sparkle" class="size-3.5 shrink-0 text-primary" />
-		<span class="truncate text-[11px] font-semibold text-foreground select-none">Create New Skill</span>
 	{/snippet}
 
 	<div class="grid gap-4 px-3 py-3">
@@ -151,7 +150,7 @@ function handleClose() {
 				<div class="flex items-center justify-between">
 					<Label>Sync to agents (optional)</Label>
 					{#if agents.length > 1}
-						<Button variant="header" size="header" onclick={toggleAllAgents}>
+						<Button variant="outline" size="sm" onclick={toggleAllAgents}>
 							{selectedAgents.size === agents.length ? "Deselect All" : "Select All"}
 						</Button>
 					{/if}
@@ -182,8 +181,8 @@ function handleClose() {
 	</div>
 
 	{#snippet footer()}
-		<Button variant="header" size="header" onclick={handleClose}>Cancel</Button>
-		<Button variant="invert" size="header" disabled={!isValid || isCreating} onclick={handleCreate}>
+		<Button variant="outline" size="sm" onclick={handleClose}>Cancel</Button>
+		<Button variant="default" size="sm" disabled={!isValid || isCreating} onclick={handleCreate}>
 			{isCreating ? "Creating..." : "Create Skill"}
 		</Button>
 	{/snippet}

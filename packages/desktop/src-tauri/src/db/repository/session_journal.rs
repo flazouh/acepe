@@ -168,6 +168,20 @@ impl SessionJournalEventRepository {
             .flatten();
         Ok(max_seq)
     }
+
+    pub async fn max_row_affecting_event_seq(db: &DbConn, session_id: &str) -> Result<Option<i64>> {
+        let max_seq = crate::db::entities::session_journal_event::Entity::find()
+            .select_only()
+            .column(session_journal_event::Column::EventSeq)
+            .filter(session_journal_event::Column::SessionId.eq(session_id))
+            .filter(session_journal_event::Column::EventKind.ne("materialization_barrier"))
+            .order_by_desc(session_journal_event::Column::EventSeq)
+            .limit(1)
+            .into_tuple::<i64>()
+            .one(db)
+            .await?;
+        Ok(max_seq)
+    }
 }
 
 // ============================================================================

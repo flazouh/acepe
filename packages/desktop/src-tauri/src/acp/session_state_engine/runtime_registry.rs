@@ -5,8 +5,8 @@ use crate::acp::projections::{ProjectionRegistry, SessionSnapshot};
 use crate::acp::session_state_engine::anchor_ledger::AnchorLedger;
 use crate::acp::session_state_engine::buffer_emission_tracker::BufferEmissionTracker;
 use crate::acp::session_state_engine::envelope_router::{
-    BuildPlan, EnvelopeBuilderKind, interaction_id_for_patch, route_live_session_state_envelope,
-    should_emit_connection_complete, tool_call_id_for_operation_patch,
+    interaction_id_for_patch, route_live_session_state_envelope, should_emit_connection_complete,
+    tool_call_id_for_operation_patch, BuildPlan, EnvelopeBuilderKind,
 };
 use crate::acp::session_state_engine::frontier::SessionFrontierDecision;
 use crate::acp::session_state_engine::graph::select_active_streaming_tail;
@@ -16,18 +16,21 @@ use crate::acp::session_state_engine::live_envelope_builder::{
     build_live_session_state_plan_envelope, build_live_session_state_telemetry_envelope,
 };
 use crate::acp::session_state_engine::selectors::{
-    SessionGraphCapabilities, SessionGraphLifecycle, select_session_graph_activity,
+    select_session_graph_activity, SessionGraphCapabilities, SessionGraphLifecycle,
 };
-use crate::acp::session_state_engine::transcript_rows_ledger::TranscriptRowsLedger;
+use crate::acp::session_state_engine::transcript_rows_ledger::{
+    TranscriptRowsLedger, TranscriptRowsLedgerWriteHint,
+};
 use crate::acp::session_state_engine::{
-    CapabilityPreviewState, DeltaEnvelopeParts, DeltaSessionProjectionFields, SessionGraphRevision,
-    SessionStateEnvelope, SessionStateField, SessionStatePayload, build_delta_envelope,
-    session_state_envelope_byte_budget_status, turn_terminal_change_fields,
+    build_delta_envelope, compact_oversized_snapshot_envelope,
+    session_state_envelope_byte_budget_status, turn_terminal_change_fields, CapabilityPreviewState,
+    DeltaEnvelopeParts, DeltaSessionProjectionFields, SessionGraphRevision, SessionStateEnvelope,
+    SessionStateField, SessionStatePayload,
 };
-use crate::acp::session_update::{SessionUpdate, sanitize_config_options_for_canonical};
+use crate::acp::session_update::{sanitize_config_options_for_canonical, SessionUpdate};
 use crate::acp::transcript_projection::{TranscriptProjectionRegistry, TranscriptSnapshot};
 use crate::acp::types::CanonicalAgentId;
-use crate::db::repository::SessionMetadataRepository;
+use crate::db::repository::{SessionMetadataRepository, SessionTranscriptRowLedgerRepository};
 use sea_orm::DbConn;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
@@ -75,8 +78,14 @@ pub enum VisibleTranscriptWindowMiss {
 
 pub use crate::acp::session_state_engine::envelope_router::LiveSessionStateEnvelopeRequest;
 pub use crate::acp::session_state_engine::viewport_buffer_producer::{
-    BufferEmission, compute_rows_delta, decide_buffer_emission,
+    compute_rows_delta, decide_buffer_emission, BufferEmission,
 };
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum SnapshotTranscriptBody {
+    Preserve,
+    Compact,
+}
 
 impl SessionGraphRuntimeRegistry {
     #[must_use]
@@ -662,12 +671,13 @@ impl SessionGraphRuntimeRegistry {
         );
 
         let snapshot = self
-            .build_snapshot_envelope(
+            .build_snapshot_envelope_with_transcript_body(
                 request.db,
                 request.session_id,
                 request.revision,
                 request.projection_registry,
                 request.transcript_projection_registry,
+                SnapshotTranscriptBody::Compact,
             )
             .await?;
 
@@ -694,6 +704,26 @@ impl SessionGraphRuntimeRegistry {
         revision: SessionGraphRevision,
         projection_registry: &ProjectionRegistry,
         transcript_projection_registry: &TranscriptProjectionRegistry,
+    ) -> Option<SessionStateEnvelope> {
+        self.build_snapshot_envelope_with_transcript_body(
+            db,
+            session_id,
+            revision,
+            projection_registry,
+            transcript_projection_registry,
+            SnapshotTranscriptBody::Preserve,
+        )
+        .await
+    }
+
+    async fn build_snapshot_envelope_with_transcript_body(
+        &self,
+        db: &DbConn,
+        session_id: &str,
+        revision: SessionGraphRevision,
+        projection_registry: &ProjectionRegistry,
+        transcript_projection_registry: &TranscriptProjectionRegistry,
+        transcript_body: SnapshotTranscriptBody,
     ) -> Option<SessionStateEnvelope> {
         let metadata = match SessionMetadataRepository::get_by_id(db, session_id)
             .await
@@ -733,12 +763,12 @@ impl SessionGraphRuntimeRegistry {
         let agent_id = metadata
             .agent_id_enum()
             .unwrap_or(CanonicalAgentId::parse(&metadata.agent_id));
-        let transcript_snapshot = transcript_projection_registry
-            .snapshot_for_session(session_id)
-            .unwrap_or_else(|| crate::acp::transcript_projection::TranscriptSnapshot {
-                revision: revision.transcript_revision,
-                entries: Vec::new(),
-            });
+        let transcript_snapshot = transcript_snapshot_for_session_with_body(
+            transcript_projection_registry,
+            session_id,
+            revision,
+            transcript_body,
+        );
         let projection_snapshot = projection_registry.session_projection(session_id);
         let session_snapshot = projection_snapshot.session.unwrap_or_else(|| {
             SessionSnapshot::new(session_id.to_string(), Some(agent_id.clone()))
@@ -757,7 +787,7 @@ impl SessionGraphRuntimeRegistry {
             &transcript_snapshot,
         );
 
-        Some(SessionStateEnvelope {
+        Some(compact_oversized_snapshot_envelope(SessionStateEnvelope {
             session_id: session_id.to_string(),
             graph_revision: revision.graph_revision,
             last_event_seq: revision.last_event_seq,
@@ -787,7 +817,7 @@ impl SessionGraphRuntimeRegistry {
                     capabilities: runtime_snapshot.capabilities,
                 }),
             },
-        })
+        }))
     }
 
     fn delta_projection_for_session(
@@ -850,6 +880,24 @@ impl SessionGraphRuntimeRegistry {
             )
     }
 
+    pub fn build_initial_viewport_buffer_envelope_for_session(
+        &self,
+        session_id: &str,
+        revision: SessionGraphRevision,
+        projection_registry: &ProjectionRegistry,
+        transcript_projection_registry: &TranscriptProjectionRegistry,
+    ) -> Result<SessionStateEnvelope, VisibleTranscriptWindowMiss> {
+        let runtime_snapshot = self.snapshot_for_session(session_id);
+        self.emissions
+            .build_initial_viewport_buffer_envelope_for_session(
+                runtime_snapshot,
+                session_id,
+                revision,
+                projection_registry,
+                transcript_projection_registry,
+            )
+    }
+
     /// Stateful producer entry point for the rows protocol. Diffs freshly
     /// materialized rows against what was last emitted for this session and
     /// emits the cheapest correct payload:
@@ -881,6 +929,160 @@ impl SessionGraphRuntimeRegistry {
             force_fresh,
         )
     }
+
+    pub(crate) async fn persist_current_transcript_row_ledger(
+        &self,
+        db: &DbConn,
+        session_id: &str,
+        revision: SessionGraphRevision,
+        projection_registry: &ProjectionRegistry,
+        transcript_projection_registry: &TranscriptProjectionRegistry,
+        write_hint: TranscriptRowsLedgerWriteHint,
+    ) -> anyhow::Result<()> {
+        let runtime_snapshot = self.snapshot_for_session(session_id);
+        let Some(materialized) = self.rows.materialize_persisted_rows(
+            runtime_snapshot,
+            session_id,
+            revision,
+            projection_registry,
+            transcript_projection_registry,
+            &write_hint,
+        )?
+        else {
+            return Ok(());
+        };
+        let metadata = SessionMetadataRepository::get_by_id(db, session_id)
+            .await?
+            .ok_or_else(|| anyhow::anyhow!("session metadata missing for {session_id}"))?;
+        let agent_id = metadata
+            .agent_id_enum()
+            .unwrap_or_else(|| crate::acp::types::CanonicalAgentId::parse(&metadata.agent_id));
+        let open_header =
+            crate::acp::transcript_viewport::ledger::SessionTranscriptRowLedgerOpenHeader {
+                agent_id,
+                project_path: metadata.project_path.clone(),
+                worktree_path: metadata.worktree_path.clone(),
+                source_path: None,
+                sequence_id: metadata.sequence_id,
+                session_title: crate::acp::session_open_snapshot::resolve_canonical_session_title(
+                    Some(&metadata),
+                    session_id,
+                    None,
+                ),
+                turn_state: materialized.session.turn_state.clone(),
+                message_count: materialized.session.message_count,
+                activity: materialized.activity.clone(),
+                active_streaming_tail: materialized.active_streaming_tail.clone(),
+                lifecycle: materialized.lifecycle.clone(),
+                capabilities: materialized.capabilities.clone(),
+                active_turn_failure: materialized.session.active_turn_failure.clone(),
+                last_terminal_turn_id: materialized.session.last_terminal_turn_id.clone(),
+            };
+        let open_header_json = serde_json::to_string(&open_header)?;
+
+        let replace_result = if materialized.replace_all {
+            SessionTranscriptRowLedgerRepository::replace_current(
+                db,
+                session_id,
+                materialized.projection_version,
+                materialized.effective_revision.transcript_revision,
+                materialized.effective_revision.graph_revision,
+                materialized.effective_revision.last_event_seq,
+                Some(open_header_json),
+                materialized.rows,
+            )
+            .await
+        } else {
+            let suffix_applied = SessionTranscriptRowLedgerRepository::replace_current_suffix(
+                db,
+                session_id,
+                materialized.projection_version,
+                materialized.effective_revision.transcript_revision,
+                materialized.effective_revision.graph_revision,
+                materialized.effective_revision.last_event_seq,
+                Some(open_header_json.clone()),
+                materialized.total_row_count,
+                materialized.start_row_index,
+                materialized.rows,
+            )
+            .await?;
+            if suffix_applied {
+                Ok(())
+            } else {
+                let runtime_snapshot = self.snapshot_for_session(session_id);
+                let Some(full_materialized) = self.rows.materialize_persisted_rows(
+                    runtime_snapshot,
+                    session_id,
+                    revision,
+                    projection_registry,
+                    transcript_projection_registry,
+                    &TranscriptRowsLedgerWriteHint::full_replace(),
+                )?
+                else {
+                    return Ok(());
+                };
+                SessionTranscriptRowLedgerRepository::replace_current(
+                    db,
+                    session_id,
+                    full_materialized.projection_version,
+                    full_materialized.effective_revision.transcript_revision,
+                    full_materialized.effective_revision.graph_revision,
+                    full_materialized.effective_revision.last_event_seq,
+                    Some(open_header_json),
+                    full_materialized.rows,
+                )
+                .await
+            }
+        };
+
+        if let Err(error) = replace_result {
+            tracing::error!(
+                error = %error,
+                session_id,
+                "Failed to persist transcript row ledger; marking ledger rebuild-needed"
+            );
+            if let Err(mark_error) = SessionTranscriptRowLedgerRepository::mark_rebuild_needed(
+                db,
+                session_id,
+                crate::acp::transcript_viewport::ledger::TRANSCRIPT_ROW_LEDGER_PROJECTION_VERSION,
+                revision.transcript_revision,
+                revision.graph_revision,
+                revision.last_event_seq,
+            )
+            .await
+            {
+                tracing::error!(
+                    error = %mark_error,
+                    session_id,
+                    "Failed to mark transcript row ledger rebuild-needed"
+                );
+            }
+            return Err(error);
+        }
+
+        Ok(())
+    }
+}
+
+fn transcript_snapshot_for_session_with_body(
+    transcript_projection_registry: &TranscriptProjectionRegistry,
+    session_id: &str,
+    revision: SessionGraphRevision,
+    transcript_body: SnapshotTranscriptBody,
+) -> TranscriptSnapshot {
+    let snapshot = match transcript_body {
+        SnapshotTranscriptBody::Preserve => {
+            transcript_projection_registry.snapshot_for_session(session_id)
+        }
+        SnapshotTranscriptBody::Compact => {
+            transcript_projection_registry.compact_snapshot_for_session(session_id)
+        }
+    };
+
+    snapshot.unwrap_or_else(|| TranscriptSnapshot {
+        revision: revision.transcript_revision,
+        entries: Vec::new(),
+    })
 }
 
 impl SessionGraphRuntimeSnapshot {
@@ -1025,8 +1227,8 @@ mod tests {
     //! | Chunk timestamp monotonicity | `anchor_ledger` tests | — |
 
     use super::{
-        CapabilityPreviewState, LiveSessionStateEnvelopeRequest, SessionGraphRuntimeRegistry,
-        SessionStateField, session_state_envelope_byte_budget_status,
+        session_state_envelope_byte_budget_status, CapabilityPreviewState,
+        LiveSessionStateEnvelopeRequest, SessionGraphRuntimeRegistry, SessionStateField,
     };
     use crate::acp::session_state_engine::live_envelope_builder::{
         build_assistant_text_delta_from_components, build_live_session_state_capabilities_envelope,
@@ -1055,11 +1257,11 @@ mod tests {
     use crate::acp::client_session::{default_modes, default_session_model_state};
     use crate::acp::lifecycle::{LifecycleStatus, SessionSupervisor};
     use crate::acp::projections::ProjectionRegistry;
-    use crate::acp::session_state_engine::SessionStatePayload;
     use crate::acp::session_state_engine::selectors::{
         SessionGraphActivity, SessionGraphActivityKind, SessionGraphCapabilities,
         SessionGraphLifecycle,
     };
+    use crate::acp::session_state_engine::SessionStatePayload;
     use crate::acp::session_state_engine::{
         DeltaSessionProjectionFields, SessionGraphRevision, SessionStateEnvelope,
     };
@@ -2413,16 +2615,12 @@ mod tests {
                     delta.operation_patches[0].operation_state,
                     crate::acp::projections::OperationState::Blocked
                 );
-                assert!(
-                    delta
-                        .changed_fields
-                        .contains(&SessionStateField::Interactions)
-                );
-                assert!(
-                    delta
-                        .changed_fields
-                        .contains(&SessionStateField::Operations)
-                );
+                assert!(delta
+                    .changed_fields
+                    .contains(&SessionStateField::Interactions));
+                assert!(delta
+                    .changed_fields
+                    .contains(&SessionStateField::Operations));
             }
             other => panic!("expected delta payload, got {:?}", other),
         }
@@ -2505,14 +2703,68 @@ mod tests {
         match &envelope.payload {
             SessionStatePayload::Snapshot { graph } => {
                 assert_eq!(graph.revision, SessionGraphRevision::new(11, 10, 11));
-                assert!(
-                    graph
-                        .operations
-                        .iter()
-                        .any(|operation| operation.tool_call_id == "active-tool"
-                            && operation.provider_status == ToolCallStatus::Completed)
-                );
+                assert!(graph
+                    .operations
+                    .iter()
+                    .any(|operation| operation.tool_call_id == "active-tool"
+                        && operation.provider_status == ToolCallStatus::Completed));
                 assert!(serialized_envelope_len(&envelope) <= 2_000_000);
+            }
+            other => panic!("expected snapshot repair payload, got {:?}", other),
+        }
+    }
+
+    #[tokio::test]
+    async fn oversized_hot_tool_delta_repair_uses_compact_transcript_snapshot() {
+        let db = setup_test_db().await;
+        insert_session_metadata(&db, "session-1").await;
+        let projection_registry = ProjectionRegistry::new();
+        let transcript_projection_registry = TranscriptProjectionRegistry::new();
+        let runtime_registry = SessionGraphRuntimeRegistry::new();
+        let active_tool = create_active_tool_call_update();
+        let oversized_completion = create_oversized_active_tool_completion_update();
+
+        projection_registry.register_session("session-1".to_string(), CanonicalAgentId::Cursor);
+        projection_registry.apply_session_update("session-1", &active_tool);
+        projection_registry.apply_session_update("session-1", &oversized_completion);
+        transcript_projection_registry.restore_session_snapshot(
+            "session-1".to_string(),
+            TranscriptSnapshot {
+                revision: 10,
+                entries: vec![crate::acp::transcript_projection::TranscriptEntry {
+                    entry_id: "assistant-1".to_string(),
+                    role: crate::acp::transcript_projection::TranscriptEntryRole::Assistant,
+                    segments: vec![crate::acp::transcript_projection::TranscriptSegment::Text {
+                        segment_id: "assistant-1:text:0".to_string(),
+                        text: "visible transcript body".to_string(),
+                    }],
+                    attempt_id: None,
+                    timestamp_ms: None,
+                }],
+            },
+        );
+
+        let envelope = runtime_registry
+            .build_live_session_state_envelope(LiveSessionStateEnvelopeRequest {
+                db: &db,
+                session_id: "session-1",
+                update: &oversized_completion,
+                previous_revision: SessionGraphRevision::new(10, 10, 10),
+                revision: SessionGraphRevision::new(11, 10, 11),
+                projection_registry: &projection_registry,
+                transcript_projection_registry: &transcript_projection_registry,
+                transcript_delta: None,
+            })
+            .await
+            .expect("snapshot repair envelope");
+
+        match envelope.payload {
+            SessionStatePayload::Snapshot { graph } => {
+                assert_eq!(graph.transcript_snapshot.revision, 10);
+                assert!(
+                    graph.transcript_snapshot.entries.is_empty(),
+                    "snapshot repair should rely on viewport rows, not resend transcript body"
+                );
             }
             other => panic!("expected snapshot repair payload, got {:?}", other),
         }
@@ -2711,8 +2963,8 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn additional_session_state_envelopes_orders_lifecycle_before_buffer_on_connection_complete()
-     {
+    async fn additional_session_state_envelopes_orders_lifecycle_before_buffer_on_connection_complete(
+    ) {
         let db = setup_test_db().await;
         insert_session_metadata(&db, "session-1").await;
         let projection_registry = ProjectionRegistry::new();

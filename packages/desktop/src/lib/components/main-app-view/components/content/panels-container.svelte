@@ -40,6 +40,14 @@ const pcLogger = createLogger({ id: "panels-container-perf", name: "PanelsContai
 type AgentProjectRef = PanelsContainerAgentProjectRef;
 const projectGroupStabilizer = createPanelsContainerProjectGroupStabilizer();
 
+function isPanelsContainerTraceEnabled(): boolean {
+	return (
+		import.meta.env.DEV &&
+		typeof localStorage !== "undefined" &&
+		localStorage.getItem("acepe.agentPanelRenderTrace") === "true"
+	);
+}
+
 interface Props {
 	projectManager: ProjectManager;
 	state: MainAppViewState;
@@ -54,6 +62,9 @@ const agentStore = getAgentStore();
 const agentPreferencesStore = getAgentPreferencesStore();
 
 onMount(() => {
+	if (!isPanelsContainerTraceEnabled()) {
+		return;
+	}
 	pcLogger.info("[PERF] PanelsContainer: mounted", {
 		panelCount: panelStore.panels.length,
 		t_ms: Math.round(performance.now()),

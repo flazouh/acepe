@@ -45,6 +45,10 @@ import {
 import { PanelHotStateStore } from "./panel-hot-state.svelte.js";
 import { PanelReviewState } from "./panel-review-state.svelte.js";
 import { PanelTerminalState } from "./panel-terminal-state.svelte.js";
+import type {
+	OpenProjectFileSystemDialogOptions,
+	ProjectFileSystemDialogState,
+} from "./project-file-system-dialog-state.js";
 import type { GitPanel, GitPanelInitialTarget } from "./git-panel-type.js";
 import type { ReviewPanel } from "./review-panel-type.js";
 import type { SessionStore } from "./session-store.svelte.js";
@@ -73,8 +77,28 @@ const PANEL_STORE_KEY = Symbol("panel-store");
 let currentPanelStore: PanelStore | null = null;
 const logger = createLogger({ id: "panel-store", name: "PanelStore" });
 
+export interface PanelClosePerformanceTrace {
+	readonly panelId: string;
+	readonly kind: WorkspacePanelKind;
+	readonly captureStateMs: number;
+	readonly suppressionMs: number;
+	readonly clearOpeningSessionMs: number;
+	readonly removePanelMs: number;
+	readonly hotStateCleanupMs: number;
+	readonly fileOwnershipCleanupMs: number;
+	readonly embeddedTerminalCleanupMs: number;
+	readonly worktreeCleanupMs: number;
+	readonly focusStateApplyMs: number;
+	readonly persistMs: number;
+	readonly totalMs: number;
+}
+
 function isPersistableWorkspacePanel(panel: WorkspacePanel): boolean {
 	return panel.kind !== "agent" || panel.autoCreated !== true;
+}
+
+function roundPanelClosePerformanceMs(value: number): number {
+	return Math.round(value * 100) / 100;
 }
 
 export interface PanelWorkspacePersistenceSnapshotOptions {
@@ -106,6 +130,7 @@ export class PanelStore {
 	// View mode: "single" (one session), "project" (one project), "multi" (all projects)
 	viewMode = $state<ViewMode>("multi");
 	focusedViewProjectPath = $state<string | null>(null);
+	projectFileSystemDialog = $state<ProjectFileSystemDialogState | null>(null);
 
 	private topLevelWorkspacePanelList = $state<WorkspacePanel[]>([]);
 	private topLevelNonAgentPanelProjectRefList = $state<TopLevelPanelProjectRef[]>([]);
@@ -116,6 +141,7 @@ export class PanelStore {
 	private readonly gitState: PanelGitState;
 	private readonly browserState: PanelBrowserState;
 	private readonly hotStateStore: PanelHotStateStore;
+	private lastClosePerformanceTrace: PanelClosePerformanceTrace | null = null;
 
 	private isTopLevelFullscreenTarget(panelId: string | null): boolean {
 		if (panelId === null) return false;
@@ -1055,9 +1081,14 @@ export class PanelStore {
 	 * - Focus/fullscreen state
 	 */
 	closePanel(panelId: string): void {
+		const closeStartedAtMs = performance.now();
 		const panel = this.findTopLevelWorkspacePanel(panelId);
 		if (!panel) return;
+		const captureStateStartedAtMs = performance.now();
 		const closeState = this.captureTopLevelPanelCloseState(panelId);
+		const captureStateMs = roundPanelClosePerformanceMs(
+			performance.now() - captureStateStartedAtMs
+		);
 
 		if (panel.kind === "file") {
 			this.closeFilePanel(panelId);
@@ -1084,32 +1115,81 @@ export class PanelStore {
 			return;
 		}
 
+		const suppressionStartedAtMs = performance.now();
 		if (panel.kind === "agent" && panel.autoCreated === true && panel.sessionId) {
 			this.hotStateStore.recordAutoSessionSuppressionOnClose(panel.sessionId, panel.autoCreated);
 		}
+		const suppressionMs = roundPanelClosePerformanceMs(performance.now() - suppressionStartedAtMs);
 
+		const clearOpeningSessionStartedAtMs = performance.now();
 		if (panel.kind === "agent" && panel.sessionId) {
 			this.agentState.clearOpeningSessionId(panel.sessionId);
 		}
+		const clearOpeningSessionMs = roundPanelClosePerformanceMs(
+			performance.now() - clearOpeningSessionStartedAtMs
+		);
 
+		const removePanelStartedAtMs = performance.now();
 		const removedAgentPanel = this.agentState.removeAgentPanel(panelId);
+		const removePanelMs = roundPanelClosePerformanceMs(performance.now() - removePanelStartedAtMs);
 		if (removedAgentPanel === null) return;
 
 		// Clean up hot state to prevent memory leaks
+		const hotStateCleanupStartedAtMs = performance.now();
 		this.hotStateStore.deleteHotState(panelId);
+		const hotStateCleanupMs = roundPanelClosePerformanceMs(
+			performance.now() - hotStateCleanupStartedAtMs
+		);
 
+		const fileOwnershipCleanupStartedAtMs = performance.now();
 		this.fileState.onOwnerPanelClosed(panelId);
+		const fileOwnershipCleanupMs = roundPanelClosePerformanceMs(
+			performance.now() - fileOwnershipCleanupStartedAtMs
+		);
 
 		// Clean up embedded terminal state (belt-and-suspenders with component onDestroy)
+		const embeddedTerminalCleanupStartedAtMs = performance.now();
 		this.embeddedTerminals.cleanup(panelId);
+		const embeddedTerminalCleanupMs = roundPanelClosePerformanceMs(
+			performance.now() - embeddedTerminalCleanupStartedAtMs
+		);
 
 		// Clean up worktree localStorage for this panel
+		const worktreeCleanupStartedAtMs = performance.now();
 		clearWorktreeEnabled(panelId);
+		const worktreeCleanupMs = roundPanelClosePerformanceMs(
+			performance.now() - worktreeCleanupStartedAtMs
+		);
 
+		const focusStateApplyStartedAtMs = performance.now();
 		this.applyTopLevelPanelCloseState(closeState);
+		const focusStateApplyMs = roundPanelClosePerformanceMs(
+			performance.now() - focusStateApplyStartedAtMs
+		);
 
+		const persistStartedAtMs = performance.now();
 		this.onPersist();
+		const persistMs = roundPanelClosePerformanceMs(performance.now() - persistStartedAtMs);
+		this.lastClosePerformanceTrace = {
+			panelId,
+			kind: panel.kind,
+			captureStateMs,
+			suppressionMs,
+			clearOpeningSessionMs,
+			removePanelMs,
+			hotStateCleanupMs,
+			fileOwnershipCleanupMs,
+			embeddedTerminalCleanupMs,
+			worktreeCleanupMs,
+			focusStateApplyMs,
+			persistMs,
+			totalMs: roundPanelClosePerformanceMs(performance.now() - closeStartedAtMs),
+		};
 		logger.debug("Closed panel", { panelId });
+	}
+
+	getLastClosePerformanceTrace(): PanelClosePerformanceTrace | null {
+		return this.lastClosePerformanceTrace;
 	}
 
 	/**
@@ -1393,6 +1473,40 @@ export class PanelStore {
 
 	clearSignInRequirement(panelId: string): void {
 		this.hotStateStore.clearSignInRequirement(panelId);
+	}
+
+	// ============================================
+	// PROJECT FILE SYSTEM DIALOG
+	// ============================================
+
+	openProjectFileSystemDialog(
+		projectPath: string,
+		filePath: string,
+		options: OpenProjectFileSystemDialogOptions = {}
+	): ProjectFileSystemDialogState {
+		const dialog = {
+			id: crypto.randomUUID(),
+			projectPath,
+			filePath,
+			projectName: options.projectName ?? null,
+			projectColor: options.projectColor ?? null,
+			projectIconSrc: options.projectIconSrc ?? null,
+			title: options.title ?? null,
+			targetLine: options.targetLine ?? null,
+			targetColumn: options.targetColumn ?? null,
+		};
+		this.projectFileSystemDialog = dialog;
+		logger.debug("Opened project file system dialog", { projectPath, filePath });
+		return dialog;
+	}
+
+	closeProjectFileSystemDialog(): void {
+		if (this.projectFileSystemDialog === null) {
+			return;
+		}
+		const dialogId = this.projectFileSystemDialog.id;
+		this.projectFileSystemDialog = null;
+		logger.debug("Closed project file system dialog", { dialogId });
 	}
 
 	// ============================================

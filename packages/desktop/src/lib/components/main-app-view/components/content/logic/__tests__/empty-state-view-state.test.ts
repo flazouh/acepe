@@ -6,6 +6,7 @@ import {
 	getEmptyStateProjectPath,
 	isEmptyStateWorktreeEffectivelyPending,
 	resolveEmptyStateProject,
+	shouldKeepEmptyStateProjectChooserOpen,
 	shouldShowEmptyStateProjectChooser,
 	shouldShowEmptyStateProjectPicker,
 } from "../empty-state-view-state.js";
@@ -54,6 +55,21 @@ describe("empty-state view state", () => {
 		expect(shouldShowEmptyStateProjectChooser(0)).toBe(true);
 		expect(shouldShowEmptyStateProjectChooser(1)).toBe(false);
 		expect(shouldShowEmptyStateProjectChooser(2)).toBe(false);
+	});
+
+	it("closes the project chooser when projects arrive after import mode starts", () => {
+		expect(
+			shouldKeepEmptyStateProjectChooserOpen({
+				projectCount: 0,
+				projectImportFlowActive: true,
+			})
+		).toBe(true);
+		expect(
+			shouldKeepEmptyStateProjectChooserOpen({
+				projectCount: 1,
+				projectImportFlowActive: true,
+			})
+		).toBe(false);
 	});
 
 	it("shows input only when a project and agent exist", () => {

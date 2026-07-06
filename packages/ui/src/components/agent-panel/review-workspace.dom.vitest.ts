@@ -44,6 +44,12 @@ function createContentSnippet(label: string) {
 	}));
 }
 
+function createHeaderActionsSnippet() {
+	return createRawSnippet(() => ({
+		render: () => `<button type="button" data-testid="review-workspace-diff-style">Split</button>`,
+	}));
+}
+
 describe("ReviewWorkspace file navigation", () => {
 	beforeEach(() => {
 		Object.defineProperty(window.HTMLElement.prototype, "scrollIntoView", {
@@ -170,6 +176,24 @@ describe("ReviewWorkspace file navigation", () => {
 
 		expect(screen.queryByTestId("review-workspace-title")).toBeNull();
 		expect(screen.queryByText("Review changes")).toBeNull();
+	});
+
+	it("renders optional header actions next to file navigation", async () => {
+		render(ReviewWorkspace, {
+			files: createFiles(),
+			selectedFileIndex: 0,
+			headerLabel: "Review changes",
+			emptyStateLabel: "Nothing to review",
+			content: createContentSnippet("Pierre diff"),
+			headerActions: createHeaderActionsSnippet(),
+			showCloseButton: false,
+			onFileSelect: vi.fn(),
+		});
+
+		const actions = screen.getByTestId("review-workspace-header-actions");
+
+		expect(actions.contains(screen.getByTestId("review-workspace-diff-style"))).toBe(true);
+		expect(screen.getByTestId("review-workspace-file-position").textContent).toBe("1/2");
 	});
 
 	it("keeps only the code diff as the visible right-side card", async () => {

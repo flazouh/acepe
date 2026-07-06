@@ -7,6 +7,7 @@ use chrono::Utc;
 use sea_orm::{
     sea_query::OnConflict, ActiveModelTrait, ColumnTrait, DbConn, EntityTrait, QueryFilter, Set,
 };
+use std::collections::HashMap;
 use uuid::Uuid;
 
 // ============================================================================
@@ -235,6 +236,27 @@ impl AppSettingsRepository {
         }
 
         Ok(model.map(|m| m.value))
+    }
+
+    /// Get many settings in one database query.
+    pub async fn get_many(db: &DbConn, keys: &[String]) -> Result<HashMap<String, String>> {
+        tracing::debug!(count = %keys.len(), "Loading app settings batch");
+
+        if keys.is_empty() {
+            return Ok(HashMap::new());
+        }
+
+        let models = AppSetting::find()
+            .filter(crate::db::entities::app_setting::Column::Key.is_in(keys.iter().cloned()))
+            .all(db)
+            .await?;
+        let mut values = HashMap::new();
+        for model in models {
+            values.insert(model.key, model.value);
+        }
+
+        tracing::debug!(count = %values.len(), "Loaded app settings batch");
+        Ok(values)
     }
 
     /// Set a setting value (upsert).

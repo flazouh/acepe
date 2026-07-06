@@ -133,7 +133,10 @@ impl TranscriptEntry {
                     timestamp_ms: parse_timestamp_to_millis(&event.timestamp),
                 })
             }
-            CanonicalTranscriptEventKind::AssistantThought { text } => {
+            CanonicalTranscriptEventKind::AssistantThought {
+                text,
+                redacted_provider_data,
+            } => {
                 let entry_id = derive_entry_id_for_snapshot_role(
                     turn_key,
                     &TranscriptEntryRole::Assistant,
@@ -144,7 +147,7 @@ impl TranscriptEntry {
                     role: TranscriptEntryRole::Assistant,
                     segments: vec![TranscriptSegment::Thought {
                         segment_id: format!("{turn_key}:event:{}", event.transcript_seq),
-                        text: text.clone(),
+                        text: thought_text_for_display(text, redacted_provider_data.as_deref()),
                     }],
                     attempt_id: None,
                     timestamp_ms: parse_timestamp_to_millis(&event.timestamp),
@@ -237,6 +240,13 @@ impl TranscriptEntry {
             }
             StoredEntry::Error { .. } => None,
         }
+    }
+}
+
+fn thought_text_for_display(text: &str, redacted_provider_data: Option<&str>) -> String {
+    match redacted_provider_data {
+        Some(_) if text.trim().is_empty() => "[REDACTED]".to_string(),
+        _ => text.to_string(),
     }
 }
 

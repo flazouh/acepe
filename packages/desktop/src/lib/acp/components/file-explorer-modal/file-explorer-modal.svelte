@@ -222,7 +222,7 @@ function handleSelect(row: FileExplorerRow) {
 				autocomplete="off"
 				autocapitalize="off"
 				spellcheck={false}
-				class="flex-1 bg-transparent border-none outline-none text-[12px] placeholder:text-muted-foreground"
+				class="flex-1 bg-transparent border-none outline-none placeholder:text-muted-foreground"
 				value={explorerState.query}
 				oninput={handleInput}
 				onkeydown={handleKeyDown}

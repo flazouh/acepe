@@ -16,14 +16,51 @@ import {
 } from "./serializable-command-error.schema.js";
 
 // DEBUG: Track all in-flight Tauri IPC calls
-const pendingInvokes = new Map<string, { cmd: string; start: number; args?: string }>();
+type PendingInvokeInfo = {
+	readonly cmd: string;
+	readonly start: number;
+	readonly argsSummary: string | null;
+	readonly args?: string;
+};
+
+const pendingInvokes = new Map<string, PendingInvokeInfo>();
 type InvokeRuntime = <T>(cmd: string, args?: Parameters<typeof invoke>[1]) => Promise<T>;
 let invokeCounter = 0;
 const debugInvoke =
 	typeof import.meta.env !== "undefined" && import.meta.env?.VITE_DEBUG_INVOKE === "true";
+const MAX_COMPLETED_INVOKE_TIMINGS = 300;
 
 type InvokeErrorValue = Error | string | number | boolean | object | null | undefined;
 export type InvokeArgs = Parameters<typeof invoke>[1];
+export type TauriInvokeTimingStatus = "ok" | "error";
+
+export interface TauriInvokeTimingRecord {
+	readonly id: string;
+	readonly command: string;
+	readonly argsSummary: string | null;
+	readonly startedAtMs: number;
+	readonly completedAtMs: number;
+	readonly durationMs: number;
+	readonly status: TauriInvokeTimingStatus;
+}
+
+export interface TauriPendingInvokeRecord {
+	readonly id: string;
+	readonly command: string;
+	readonly argsSummary: string | null;
+	readonly startedAtMs: number;
+	readonly elapsedMs: number;
+}
+
+declare global {
+	interface Window {
+		__ACEPE_GET_INVOKE_TIMINGS__?: () => TauriInvokeTimingRecord[];
+		__PENDING_INVOKES?: typeof pendingInvokes;
+		__DUMP_INVOKES?: () => void;
+	}
+}
+
+const completedInvokeTimings: TauriInvokeTimingRecord[] = [];
 
 export interface GeneratedCommand<TName extends string> {
 	readonly name: TName;
@@ -37,6 +74,101 @@ interface InvokeOptions {
 const DEFAULT_INVOKE_OPTIONS: InvokeOptions = {
 	reportFailure: true,
 };
+
+function nowMs(): number {
+	return typeof performance === "undefined" ? Date.now() : performance.now();
+}
+
+function roundMs(value: number): number {
+	return Math.round(value * 100) / 100;
+}
+
+function copyInvokeTimingRecord(record: TauriInvokeTimingRecord): TauriInvokeTimingRecord {
+	return {
+		id: record.id,
+		command: record.command,
+		argsSummary: record.argsSummary,
+		startedAtMs: record.startedAtMs,
+		completedAtMs: record.completedAtMs,
+		durationMs: record.durationMs,
+		status: record.status,
+	};
+}
+
+function summarizeInvokeArgs(command: string, args?: InvokeArgs): string | null {
+	if (
+		command !== "get_user_settings" ||
+		args === undefined ||
+		args === null ||
+		typeof args !== "object" ||
+		Array.isArray(args)
+	) {
+		return null;
+	}
+
+	const settingsArgs = args as { readonly keys?: readonly string[] };
+	if (!Array.isArray(settingsArgs.keys)) {
+		return null;
+	}
+
+	const keys: string[] = [];
+	for (const key of settingsArgs.keys) {
+		if (typeof key === "string") {
+			keys.push(key);
+		}
+	}
+	return keys.length === 0 ? null : keys.join(",");
+}
+
+function recordCompletedInvokeTiming(
+	id: string,
+	command: string,
+	argsSummary: string | null,
+	startedAtMs: number,
+	status: TauriInvokeTimingStatus
+): TauriInvokeTimingRecord {
+	const completedAtMs = nowMs();
+	const record: TauriInvokeTimingRecord = {
+		id,
+		command,
+		argsSummary,
+		startedAtMs: roundMs(startedAtMs),
+		completedAtMs: roundMs(completedAtMs),
+		durationMs: roundMs(completedAtMs - startedAtMs),
+		status,
+	};
+	completedInvokeTimings.push(record);
+	if (completedInvokeTimings.length > MAX_COMPLETED_INVOKE_TIMINGS) {
+		completedInvokeTimings.splice(
+			0,
+			completedInvokeTimings.length - MAX_COMPLETED_INVOKE_TIMINGS
+		);
+	}
+	return record;
+}
+
+export function getTauriInvokeTimings(): TauriInvokeTimingRecord[] {
+	return completedInvokeTimings.map(copyInvokeTimingRecord);
+}
+
+export function getPendingTauriInvokes(): TauriPendingInvokeRecord[] {
+	const now = nowMs();
+	const records: TauriPendingInvokeRecord[] = [];
+	for (const [id, info] of pendingInvokes) {
+		records.push({
+			id,
+			command: info.cmd,
+			argsSummary: info.argsSummary,
+			startedAtMs: roundMs(info.start),
+			elapsedMs: roundMs(now - info.start),
+		});
+	}
+	return records;
+}
+
+export function resetTauriInvokeTimingsForTesting(): void {
+	completedInvokeTimings.length = 0;
+}
 
 export class TauriCommandError extends AgentError {
 	readonly classification: CommandErrorClassification;
@@ -127,14 +259,18 @@ function reportCommandFailure(
 
 // Expose for console debugging
 if (typeof window !== "undefined" && debugInvoke) {
-	(window as unknown as Record<string, unknown>).__PENDING_INVOKES = pendingInvokes;
-	(window as unknown as Record<string, unknown>).__DUMP_INVOKES = () => {
-		const now = Date.now();
+	window.__PENDING_INVOKES = pendingInvokes;
+	window.__DUMP_INVOKES = () => {
+		const now = nowMs();
 		for (const [id, info] of pendingInvokes) {
 			console.warn(`[INVOKE] #${id} ${info.cmd} — pending ${now - info.start}ms`, info.args);
 		}
 		console.warn(`[INVOKE] Total pending: ${pendingInvokes.size}`);
 	};
+}
+
+if (typeof window !== "undefined" && typeof import.meta.env !== "undefined" && import.meta.env.DEV) {
+	window.__ACEPE_GET_INVOKE_TIMINGS__ = getTauriInvokeTimings;
 }
 
 function invokeAsyncWithRuntime<T>(
@@ -144,24 +280,42 @@ function invokeAsyncWithRuntime<T>(
 	options: InvokeOptions = DEFAULT_INVOKE_OPTIONS
 ): ResultAsync<T, AppError> {
 	const invokeId = `invoke-${++invokeCounter}`;
-	const start = Date.now();
+	const start = nowMs();
 	const argsStr = debugInvoke && args ? JSON.stringify(args).slice(0, 200) : undefined;
+	const argsSummary = summarizeInvokeArgs(cmd, args);
 
-	pendingInvokes.set(invokeId, { cmd, start, args: argsStr });
+	pendingInvokes.set(invokeId, { cmd, start, argsSummary, args: argsStr });
 	if (debugInvoke) console.debug(`[INVOKE] #${invokeId} START ${cmd}`, argsStr ?? "");
 
 	return ResultAsync.fromPromise(
-		runtime<T>(cmd, args).finally(() => {
-			const elapsed = Date.now() - start;
-			pendingInvokes.delete(invokeId);
-			if (elapsed > 1000) {
-				console.warn(`[INVOKE] #${invokeId} DONE ${cmd} took ${elapsed}ms`);
-			} else if (debugInvoke) {
-				console.debug(`[INVOKE] #${invokeId} DONE ${cmd} ${elapsed}ms`);
+		runtime<T>(cmd, args).then(
+			(value) => {
+				const record = recordCompletedInvokeTiming(invokeId, cmd, argsSummary, start, "ok");
+				pendingInvokes.delete(invokeId);
+				if (record.durationMs > 1000) {
+					console.warn(`[INVOKE] #${invokeId} DONE ${cmd} took ${record.durationMs}ms`);
+				} else if (debugInvoke) {
+					console.debug(`[INVOKE] #${invokeId} DONE ${cmd} ${record.durationMs}ms`);
+				}
+				return value;
+			},
+			(error: InvokeErrorValue) => {
+				const record = recordCompletedInvokeTiming(
+					invokeId,
+					cmd,
+					argsSummary,
+					start,
+					"error"
+				);
+				pendingInvokes.delete(invokeId);
+				if (debugInvoke) {
+					console.debug(`[INVOKE] #${invokeId} FAILED ${cmd} ${record.durationMs}ms`);
+				}
+				throw error;
 			}
-		}),
+		),
 		(error) => {
-			const elapsed = Date.now() - start;
+			const elapsed = roundMs(nowMs() - start);
 			pendingInvokes.delete(invokeId);
 			console.error(`[INVOKE] #${invokeId} FAIL ${cmd} after ${elapsed}ms`, error);
 

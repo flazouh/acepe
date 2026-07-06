@@ -7,7 +7,7 @@
 		/** Tooltip when idle / after copy. */
 		title?: string;
 		copiedTitle?: string;
-		/** `header` matches embedded panel header icon buttons (`size-5`). */
+		/** `header` matches embedded panel header icon buttons (`icon-2xs`). */
 		size?: "message" | "header";
 		/** Extra classes appended to the button (tone, rounding, border, …). */
 		class?: string;
@@ -24,8 +24,8 @@
 	let copied = $state(false);
 
 	const tooltip = $derived(copied ? copiedTitle : title);
-	const iconSize = $derived(size === "header" ? 12 : 13);
-	const iconStyle = $derived(`width: ${iconSize}px; height: ${iconSize}px;`);
+	const iconSize = $derived(size === "header" ? null : 13);
+	const iconStyle = $derived(iconSize === null ? undefined : `width: ${iconSize}px; height: ${iconSize}px;`);
 
 	function clearCopiedSoon(): void {
 		setTimeout(() => {
@@ -51,7 +51,7 @@
 {#if size === "header"}
 	<Button
 		variant="ghost"
-		size="icon-chrome"
+		size="icon-2xs"
 		data-header-control
 		title={tooltip}
 		aria-label={tooltip}
@@ -60,9 +60,9 @@
 	>
 		{#snippet children()}
 			{#if copied}
-				<RoundedIcon name="check" class="shrink-0" style={iconStyle} />
+				<RoundedIcon name="check" />
 			{:else}
-				<RoundedIcon name="copy" class="shrink-0" style={iconStyle} />
+				<RoundedIcon name="copy" />
 			{/if}
 		{/snippet}
 	</Button>

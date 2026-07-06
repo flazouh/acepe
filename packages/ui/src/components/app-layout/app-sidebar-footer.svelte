@@ -14,7 +14,7 @@
 
 	let { githubUrl, xUrl, discordUrl, version, onLinkClick }: Props = $props();
 
-	const chromeIconButton = { variant: "ghost" as const, size: "icon-chrome" as const };
+	const chromeIconButton = { variant: "ghost" as const, size: "icon-2xs" as const };
 
 	const releaseUrl = $derived(
 		version ? `https://github.com/flazouh/acepe/releases/tag/v${version}` : null
@@ -31,7 +31,7 @@
 				onclick={() => onLinkClick(githubUrl)}
 			>
 				{#snippet children()}
-					<RoundedIcon name="github" class="size-4" />
+					<RoundedIcon name="github" />
 				{/snippet}
 			</Button>
 			<Button
@@ -41,7 +41,7 @@
 				onclick={() => onLinkClick(xUrl)}
 			>
 				{#snippet children()}
-					<XLogoIcon class="size-4" />
+					<XLogoIcon />
 				{/snippet}
 			</Button>
 			<Button
@@ -51,23 +51,23 @@
 				onclick={() => onLinkClick(discordUrl)}
 			>
 				{#snippet children()}
-					<DiscordIcon class="size-4" weight="fill" />
+					<DiscordIcon weight="fill" />
 				{/snippet}
 			</Button>
 		{:else}
 			<Button {...chromeIconButton} href={githubUrl} title="GitHub" aria-label="GitHub">
 				{#snippet children()}
-					<RoundedIcon name="github" class="size-4" />
+					<RoundedIcon name="github" />
 				{/snippet}
 			</Button>
 			<Button {...chromeIconButton} href={xUrl} title="X" aria-label="X">
 				{#snippet children()}
-					<XLogoIcon class="size-4" />
+					<XLogoIcon />
 				{/snippet}
 			</Button>
 			<Button {...chromeIconButton} href={discordUrl} title="Discord" aria-label="Discord">
 				{#snippet children()}
-					<DiscordIcon class="size-4" weight="fill" />
+					<DiscordIcon weight="fill" />
 				{/snippet}
 			</Button>
 		{/if}

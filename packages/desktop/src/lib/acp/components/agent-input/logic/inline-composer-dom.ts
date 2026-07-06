@@ -126,7 +126,7 @@ function createSvgIcon(path: string, className: string, stroke = "currentColor")
 	return svg;
 }
 
-function createPhosphorPathIcon(path: string, className: string): SVGElement {
+function createInlineArtefactPathIcon(path: string, className: string): SVGElement {
 	const ns = "http://www.w3.org/2000/svg";
 	const svg = document.createElementNS(ns, "svg");
 	svg.setAttribute("viewBox", "0 0 256 256");
@@ -156,13 +156,13 @@ function createTokenIcon(tokenType: InlineArtefactTokenType, iconSource: string)
 		.join(" ");
 
 	if (tokenType === "command" || tokenType === "skill") {
-		const icon = createPhosphorPathIcon(INLINE_ARTEFACT_PACKAGE_PATH, iconClassName);
+		const icon = createInlineArtefactPathIcon(INLINE_ARTEFACT_PACKAGE_PATH, iconClassName);
 		icon.style.color =
 			tokenType === "skill" ? Colors[COLOR_NAMES.PURPLE] : Colors[COLOR_NAMES.AMBER];
 		return icon;
 	}
 	if (tokenType === "text" || tokenType === "text_ref") {
-		return createPhosphorPathIcon(INLINE_ARTEFACT_CLIPBOARD_PATH, iconClassName);
+		return createInlineArtefactPathIcon(INLINE_ARTEFACT_CLIPBOARD_PATH, iconClassName);
 	}
 	return createFileTypeIcon(iconSource, "h-3.5 w-3.5 shrink-0");
 }

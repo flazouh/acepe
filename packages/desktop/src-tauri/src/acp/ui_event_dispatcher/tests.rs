@@ -7,9 +7,15 @@ use crate::acp::session_update::{
     SessionUpdate, ToolArguments, ToolCallData, ToolCallStatus, ToolKind,
 };
 use crate::acp::transcript_projection::{TranscriptDelta, TranscriptEntryRole};
+use crate::acp::transcript_viewport::ledger::{
+    SessionTranscriptRowLedgerOpenHeader, SessionTranscriptRowLedgerRead,
+    TRANSCRIPT_ROW_LEDGER_PROJECTION_VERSION,
+};
 use crate::acp::types::CanonicalAgentId;
 use crate::acp::types::ContentBlock;
-use crate::db::repository::{SessionJournalEventRepository, SessionMetadataRepository};
+use crate::db::repository::{
+    SessionJournalEventRepository, SessionMetadataRepository, SessionTranscriptRowLedgerRepository,
+};
 use sea_orm::{Database, DbConn};
 use sea_orm_migration::MigratorTrait;
 use serde_json::json;
@@ -549,6 +555,75 @@ async fn persist_dispatch_event_emits_assistant_text_delta_envelope_for_streamin
     assert_eq!(delta.delta_text, "hello");
     assert_eq!(delta.produced_at_monotonic_ms, 5);
     assert_eq!(delta.revision, 1);
+}
+
+#[tokio::test]
+async fn persist_dispatch_event_writes_current_transcript_row_ledger() {
+    let db = setup_test_db().await;
+    SessionMetadataRepository::ensure_exists(
+        &db,
+        "session-1",
+        "/test/project",
+        "claude-code",
+        None,
+    )
+    .await
+    .expect("session metadata");
+    let event = AcpUiEvent::session_update(chunk_update("session-1", "hello ledger"));
+    let projection_registry = ProjectionRegistry::new();
+    let transcript_projection_registry = TranscriptProjectionRegistry::new();
+    let runtime_graph_registry = SessionGraphRuntimeRegistry::new();
+    seed_lifecycle(&runtime_graph_registry, "session-1");
+
+    let effects = persist_dispatch_event(
+        Some(&db),
+        &event,
+        &projection_registry,
+        &runtime_graph_registry,
+        &transcript_projection_registry,
+    )
+    .await;
+
+    assert!(
+        effects.session_state_envelope.is_some(),
+        "canonical update should still emit session state"
+    );
+    let ledger_page = SessionTranscriptRowLedgerRepository::read_tail_page(
+        &db,
+        "session-1",
+        TRANSCRIPT_ROW_LEDGER_PROJECTION_VERSION,
+        128,
+    )
+    .await
+    .expect("ledger page should load");
+    let SessionTranscriptRowLedgerRead::Current { metadata, rows } = ledger_page else {
+        panic!("expected current row ledger page");
+    };
+    assert_eq!(
+        metadata.projection_version,
+        TRANSCRIPT_ROW_LEDGER_PROJECTION_VERSION
+    );
+    assert_eq!(metadata.row_count, 1);
+    assert_eq!(metadata.last_event_seq, 1);
+    let header_json = metadata
+        .open_header_json
+        .as_deref()
+        .expect("ledger should store an open header");
+    let header: SessionTranscriptRowLedgerOpenHeader =
+        serde_json::from_str(header_json).expect("open header should deserialize");
+    assert_eq!(header.agent_id, CanonicalAgentId::ClaudeCode);
+    assert_eq!(header.project_path, "/test/project");
+    assert_eq!(header.message_count, 1);
+    assert_eq!(rows.len(), 1);
+    assert_eq!(rows[0].row_index, 0);
+    assert_eq!(
+        rows[0].row_id,
+        "transcript:acepe::entry::session-start::assistant::."
+    );
+    assert!(
+        rows[0].row_json.contains("hello ledger"),
+        "persisted row payload should contain canonical transcript content"
+    );
 }
 
 #[tokio::test]

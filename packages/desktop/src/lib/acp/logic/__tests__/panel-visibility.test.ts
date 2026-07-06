@@ -104,13 +104,29 @@ describe("derivePanelViewState", () => {
 		}
 	});
 
-	it("should return error when lifecycle connection failed without canonical details", () => {
+	it("should return ready while failed lifecycle content is still loading", () => {
 		const result = derivePanelViewState(
 			makeInput({
 				entriesCount: 0,
 				lifecyclePresentation: makeLifecyclePresentation({
 					connectionPhase: "failed",
 					contentPhase: "loading",
+					showConversation: false,
+					showReadyPlaceholder: false,
+				}),
+			})
+		);
+
+		expect(result.kind).toBe("ready");
+	});
+
+	it("should return error when lifecycle connection failed after content load resolves empty", () => {
+		const result = derivePanelViewState(
+			makeInput({
+				entriesCount: 0,
+				lifecyclePresentation: makeLifecyclePresentation({
+					connectionPhase: "failed",
+					contentPhase: "empty",
 					showConversation: false,
 					showReadyPlaceholder: false,
 				}),

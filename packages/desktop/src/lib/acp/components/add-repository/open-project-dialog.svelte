@@ -298,9 +298,8 @@ function handleOpenChange(newOpen: boolean) {
 	{#snippet topRight()}
 		<Button
 			variant="ghost"
-			size="icon-chrome"
+			size="icon-2xs"
 			data-header-control
-			class="rounded-sm"
 			active={activeView === "import"}
 			title="Import from history"
 			aria-label="Import from history"
@@ -309,14 +308,13 @@ function handleOpenChange(newOpen: boolean) {
 			}}
 		>
 			{#snippet children()}
-				<RoundedIcon name="download" class="size-3.5" />
+				<RoundedIcon name="download" />
 			{/snippet}
 		</Button>
 		<Button
 			variant="ghost"
-			size="icon-chrome"
+			size="icon-2xs"
 			data-header-control
-			class="rounded-sm"
 			active={activeView === "clone"}
 			title="Clone repository"
 			aria-label="Clone repository"
@@ -325,20 +323,19 @@ function handleOpenChange(newOpen: boolean) {
 			}}
 		>
 			{#snippet children()}
-				<RoundedIcon name="branch" class="size-3.5" />
+				<RoundedIcon name="branch" />
 			{/snippet}
 		</Button>
 		<Button
 			variant="ghost"
-			size="icon-chrome"
+			size="icon-2xs"
 			data-header-control
-			class="rounded-sm"
 			title="Browse folder"
 			aria-label="Browse folder"
 			onclick={() => onBrowseFolder()}
 		>
 			{#snippet children()}
-				<RoundedIcon name="folder" class="size-3.5" />
+				<RoundedIcon name="folder" />
 			{/snippet}
 		</Button>
 	{/snippet}

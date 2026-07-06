@@ -229,3 +229,15 @@ Single-context layout — `CONTEXT.md` (domain glossary) + `docs/adr/` (decision
 
 <!-- test line: added 2026-06-18 -->
 
+<!-- BEGIN fable-codex-orchestration -->
+## Local Model Routing
+
+Follow the global Fable/Opus/Sonnet/Codex routing in `/Users/alex/.claude/CLAUDE.md`.
+
+- Fable 5 leads: plan, delegate, synthesize.
+- `deep-reasoner` (Opus) handles hard architecture, debugging, algorithms, and high-stakes trade-offs.
+- `fast-worker` (Sonnet) handles mechanical edits, tests, formatting, and repetitive work.
+- Codex is a peer senior engineer for fresh perspective, strong implementation, computer use, UI/UX verification, and efficient well-scoped execution.
+
+Local project rules in this file still win. Do not weaken CE, TDD, QA, or verification requirements.
+<!-- END fable-codex-orchestration -->

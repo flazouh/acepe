@@ -11,10 +11,15 @@ mod session_metadata_tests {
     };
     use crate::acp::session_journal::{decode_serialized_events, rebuild_session_projection};
     use crate::acp::session_update::{PermissionData, QuestionData, SessionUpdate};
+    use crate::acp::transcript_viewport::ledger::{
+        SerializedTranscriptRowLedgerRow, SessionTranscriptRowLedgerRead,
+        SessionTranscriptRowLedgerStatus,
+    };
     use crate::db::entities::prelude::AcepeSessionState;
     use crate::db::repository::{
         AppSettingsRepository, CreationAttemptRepositoryError, CreationAttemptStatus,
         ProjectRepository, SessionJournalEventRepository, SessionMetadataRepository,
+        SessionTranscriptRowLedgerRepository,
     };
     use sea_orm::{ConnectionTrait, Database, DbConn, EntityTrait, Statement};
     use sea_orm_migration::MigratorTrait;
@@ -45,6 +50,37 @@ mod session_metadata_tests {
             SessionCompatibilityInput::default(),
         )
         .expect("replay context")
+    }
+
+    async fn ensure_test_session(db: &DbConn, session_id: &str) {
+        SessionMetadataRepository::ensure_exists(db, session_id, "/test/repo", "claude-code", None)
+            .await
+            .expect("ensure test session");
+    }
+
+    fn serialized_ledger_row(
+        session_id: &str,
+        row_index: i64,
+        row_id: &str,
+        row_kind: &str,
+    ) -> SerializedTranscriptRowLedgerRow {
+        SerializedTranscriptRowLedgerRow {
+            session_id: session_id.to_string(),
+            row_index,
+            row_id: row_id.to_string(),
+            source_entry_id: Some(format!("entry-{row_index}")),
+            row_kind: row_kind.to_string(),
+            row_version: format!("v-{row_index}"),
+            transcript_revision: 7,
+            graph_revision: 11,
+            projection_version: "projection-v1".to_string(),
+            row_json: json!({
+                "id": row_id,
+                "kind": row_kind,
+                "operationDisplayFacts": row_kind == "operation"
+            })
+            .to_string(),
+        }
     }
 
     #[tokio::test]
@@ -126,6 +162,82 @@ mod session_metadata_tests {
         assert_eq!(projects.len(), 1);
         assert_eq!(projects[0].name, "MyAPIService");
         assert_eq!(projects[0].sort_order, 0);
+    }
+
+    #[tokio::test]
+    async fn project_repository_get_all_paths_returns_sidebar_order() {
+        let db = setup_test_db().await;
+
+        ProjectRepository::create_or_update(
+            &db,
+            "/Users/test/Alpha".to_string(),
+            "Alpha".to_string(),
+            Some("cyan".to_string()),
+        )
+        .await
+        .expect("create alpha project");
+        ProjectRepository::create_or_update(
+            &db,
+            "/Users/test/Beta".to_string(),
+            "Beta".to_string(),
+            Some("purple".to_string()),
+        )
+        .await
+        .expect("create beta project");
+
+        let paths = ProjectRepository::get_all_paths(&db)
+            .await
+            .expect("load project paths");
+
+        assert_eq!(
+            paths,
+            vec![
+                "/Users/test/Beta".to_string(),
+                "/Users/test/Alpha".to_string()
+            ]
+        );
+    }
+
+    #[tokio::test]
+    async fn project_repository_get_all_skips_project_config_file_reads() {
+        let db = setup_test_db().await;
+        let temp = tempdir().expect("temp dir");
+        let project_dir = temp.path().join("ConfigProject");
+        std::fs::create_dir(&project_dir).expect("create project dir");
+        std::fs::write(
+            project_dir.join(".acepe.json"),
+            r#"{"version":1,"externalCliSessions":{"show":false}}"#,
+        )
+        .expect("write project config");
+        let project_path = project_dir.to_string_lossy().to_string();
+
+        ProjectRepository::create_or_update(
+            &db,
+            project_path.clone(),
+            "ConfigProject".to_string(),
+            Some("cyan".to_string()),
+        )
+        .await
+        .expect("create project");
+
+        let explicit_project = ProjectRepository::get_by_path(&db, &project_path)
+            .await
+            .expect("load explicit project")
+            .expect("project exists");
+        assert!(
+            !explicit_project.show_external_cli_sessions,
+            "explicit project lookup should still read .acepe.json"
+        );
+
+        let listed_projects = ProjectRepository::get_all(&db)
+            .await
+            .expect("load listed projects");
+        assert_eq!(listed_projects.len(), 1);
+        assert_eq!(listed_projects[0].path, project_path);
+        assert!(
+            listed_projects[0].show_external_cli_sessions,
+            "hot project listing should use the default without reading .acepe.json"
+        );
     }
 
     #[tokio::test]
@@ -527,6 +639,385 @@ mod session_metadata_tests {
 
         assert_eq!(max_a, Some(2), "session A should have max_seq=2");
         assert_eq!(max_b, Some(5), "session B should have max_seq=5");
+    }
+
+    #[tokio::test]
+    async fn max_row_affecting_event_seq_skips_trailing_materialization_barriers() {
+        let db = setup_test_db().await;
+        let session_id = "row-affecting-cutoff-session";
+        ensure_test_session(&db, session_id).await;
+        let update = crate::acp::session_update::SessionUpdate::TurnComplete {
+            session_id: Some(session_id.to_string()),
+            turn_id: Some("turn-1".to_string()),
+        };
+
+        SessionJournalEventRepository::append_session_update(&db, session_id, &update)
+            .await
+            .expect("append row-affecting update");
+        for _ in 0..3 {
+            SessionJournalEventRepository::append_materialization_barrier(&db, session_id)
+                .await
+                .expect("append trailing barrier");
+        }
+
+        let max_seq = SessionJournalEventRepository::max_row_affecting_event_seq(&db, session_id)
+            .await
+            .expect("query should succeed");
+
+        assert_eq!(
+            max_seq,
+            Some(1),
+            "trailing materialization barriers should not make the row ledger look stale"
+        );
+    }
+
+    #[tokio::test]
+    async fn max_row_affecting_event_seq_returns_none_for_barrier_only_session() {
+        let db = setup_test_db().await;
+        let session_id = "barrier-only-cutoff-session";
+        ensure_test_session(&db, session_id).await;
+
+        SessionJournalEventRepository::append_materialization_barrier(&db, session_id)
+            .await
+            .expect("append first barrier");
+        SessionJournalEventRepository::append_materialization_barrier(&db, session_id)
+            .await
+            .expect("append second barrier");
+
+        let max_seq = SessionJournalEventRepository::max_row_affecting_event_seq(&db, session_id)
+            .await
+            .expect("query should succeed");
+
+        assert_eq!(max_seq, None);
+    }
+
+    #[tokio::test]
+    async fn transcript_row_ledger_writes_and_reads_tail_page() {
+        let db = setup_test_db().await;
+        let session_id = "ledger-tail-session";
+        ensure_test_session(&db, session_id).await;
+
+        SessionTranscriptRowLedgerRepository::replace_current(
+            &db,
+            session_id,
+            "projection-v1",
+            7,
+            11,
+            13,
+            None,
+            vec![
+                serialized_ledger_row(session_id, 0, "row-0", "user"),
+                serialized_ledger_row(session_id, 1, "row-1", "assistant"),
+                serialized_ledger_row(session_id, 2, "row-2", "operation"),
+            ],
+        )
+        .await
+        .expect("ledger write should succeed");
+
+        let page = SessionTranscriptRowLedgerRepository::read_tail_page(
+            &db,
+            session_id,
+            "projection-v1",
+            2,
+        )
+        .await
+        .expect("tail page read should succeed");
+
+        let SessionTranscriptRowLedgerRead::Current { metadata, rows } = page else {
+            panic!("expected current ledger page");
+        };
+        assert_eq!(metadata.session_id, session_id);
+        assert_eq!(metadata.row_count, 3);
+        assert_eq!(metadata.transcript_revision, 7);
+        assert_eq!(metadata.graph_revision, 11);
+        assert_eq!(metadata.last_event_seq, 13);
+        assert_eq!(metadata.open_header_json, None);
+        assert_eq!(metadata.projection_version, "projection-v1");
+        assert_eq!(
+            rows.iter()
+                .map(|row| row.row_id.as_str())
+                .collect::<Vec<_>>(),
+            vec!["row-1", "row-2"]
+        );
+        assert_eq!(
+            rows.iter().map(|row| row.row_index).collect::<Vec<_>>(),
+            vec![1, 2]
+        );
+    }
+
+    #[tokio::test]
+    async fn transcript_row_ledger_missing_session_is_not_empty_truth() {
+        let db = setup_test_db().await;
+
+        let page = SessionTranscriptRowLedgerRepository::read_tail_page(
+            &db,
+            "missing-ledger-session",
+            "projection-v1",
+            128,
+        )
+        .await
+        .expect("missing ledger lookup should not fail");
+
+        assert_eq!(page, SessionTranscriptRowLedgerRead::Missing);
+    }
+
+    #[tokio::test]
+    async fn transcript_row_ledger_reads_middle_range_in_row_order() {
+        let db = setup_test_db().await;
+        let session_id = "ledger-range-session";
+        ensure_test_session(&db, session_id).await;
+
+        SessionTranscriptRowLedgerRepository::replace_current(
+            &db,
+            session_id,
+            "projection-v1",
+            7,
+            11,
+            13,
+            None,
+            vec![
+                serialized_ledger_row(session_id, 0, "row-0", "user"),
+                serialized_ledger_row(session_id, 1, "row-1", "assistant"),
+                serialized_ledger_row(session_id, 2, "row-2", "assistant"),
+                serialized_ledger_row(session_id, 3, "row-3", "operation"),
+            ],
+        )
+        .await
+        .expect("ledger write should succeed");
+
+        let page = SessionTranscriptRowLedgerRepository::read_range_page(
+            &db,
+            session_id,
+            "projection-v1",
+            1,
+            2,
+        )
+        .await
+        .expect("range page read should succeed");
+
+        let SessionTranscriptRowLedgerRead::Current { rows, .. } = page else {
+            panic!("expected current ledger page");
+        };
+        assert_eq!(
+            rows.iter()
+                .map(|row| row.row_id.as_str())
+                .collect::<Vec<_>>(),
+            vec!["row-1", "row-2"]
+        );
+        assert_eq!(
+            rows.iter().map(|row| row.row_index).collect::<Vec<_>>(),
+            vec![1, 2]
+        );
+    }
+
+    #[tokio::test]
+    async fn transcript_row_ledger_stale_projection_does_not_return_rows() {
+        let db = setup_test_db().await;
+        let session_id = "ledger-stale-session";
+        ensure_test_session(&db, session_id).await;
+
+        SessionTranscriptRowLedgerRepository::replace_current(
+            &db,
+            session_id,
+            "projection-v1",
+            7,
+            11,
+            13,
+            None,
+            vec![serialized_ledger_row(session_id, 0, "row-0", "assistant")],
+        )
+        .await
+        .expect("ledger write should succeed");
+
+        let page = SessionTranscriptRowLedgerRepository::read_tail_page(
+            &db,
+            session_id,
+            "projection-v2",
+            128,
+        )
+        .await
+        .expect("stale ledger lookup should not fail");
+
+        let SessionTranscriptRowLedgerRead::Stale { metadata } = page else {
+            panic!("expected stale ledger metadata");
+        };
+        assert_eq!(metadata.session_id, session_id);
+        assert_eq!(metadata.projection_version, "projection-v1");
+        assert_eq!(metadata.row_count, 1);
+    }
+
+    #[tokio::test]
+    async fn transcript_row_ledger_rejects_rows_from_another_session() {
+        let db = setup_test_db().await;
+        let session_id = "ledger-validation-session";
+        ensure_test_session(&db, session_id).await;
+
+        let result = SessionTranscriptRowLedgerRepository::replace_current(
+            &db,
+            session_id,
+            "projection-v1",
+            7,
+            11,
+            13,
+            None,
+            vec![serialized_ledger_row(
+                "other-session",
+                0,
+                "row-0",
+                "assistant",
+            )],
+        )
+        .await;
+
+        assert!(
+            result.is_err(),
+            "ledger write should reject rows from another session"
+        );
+        let page = SessionTranscriptRowLedgerRepository::read_tail_page(
+            &db,
+            session_id,
+            "projection-v1",
+            128,
+        )
+        .await
+        .expect("failed write must not leave partial metadata");
+        assert_eq!(page, SessionTranscriptRowLedgerRead::Missing);
+    }
+
+    #[tokio::test]
+    async fn transcript_row_ledger_rebuild_needed_is_not_current_truth() {
+        let db = setup_test_db().await;
+        let session_id = "ledger-rebuild-needed-session";
+        ensure_test_session(&db, session_id).await;
+
+        SessionTranscriptRowLedgerRepository::replace_current(
+            &db,
+            session_id,
+            "projection-v1",
+            7,
+            11,
+            13,
+            None,
+            vec![serialized_ledger_row(session_id, 0, "row-0", "assistant")],
+        )
+        .await
+        .expect("ledger write should succeed");
+
+        SessionTranscriptRowLedgerRepository::mark_rebuild_needed(
+            &db,
+            session_id,
+            "projection-v1",
+            8,
+            12,
+            14,
+        )
+        .await
+        .expect("mark rebuild needed should succeed");
+
+        let page = SessionTranscriptRowLedgerRepository::read_tail_page(
+            &db,
+            session_id,
+            "projection-v1",
+            128,
+        )
+        .await
+        .expect("rebuild-needed lookup should not fail");
+
+        let SessionTranscriptRowLedgerRead::Stale { metadata } = page else {
+            panic!("expected rebuild-needed metadata to read as stale");
+        };
+        assert_eq!(metadata.session_id, session_id);
+        assert_eq!(
+            metadata.rebuild_status,
+            SessionTranscriptRowLedgerStatus::RebuildNeeded
+        );
+        assert_eq!(metadata.transcript_revision, 8);
+        assert_eq!(metadata.graph_revision, 12);
+        assert_eq!(metadata.last_event_seq, 14);
+    }
+
+    #[tokio::test]
+    async fn transcript_row_ledger_replaces_only_changed_suffix() {
+        let db = setup_test_db().await;
+        let session_id = "ledger-suffix-session";
+        ensure_test_session(&db, session_id).await;
+
+        SessionTranscriptRowLedgerRepository::replace_current(
+            &db,
+            session_id,
+            "projection-v1",
+            7,
+            11,
+            13,
+            None,
+            vec![
+                serialized_ledger_row(session_id, 0, "row-0", "user"),
+                serialized_ledger_row(session_id, 1, "row-1", "assistant"),
+                serialized_ledger_row(session_id, 2, "row-2", "assistant"),
+            ],
+        )
+        .await
+        .expect("initial ledger write should succeed");
+
+        let mut changed_row = serialized_ledger_row(session_id, 1, "row-1", "assistant");
+        changed_row.row_version = "v-1-updated".to_string();
+        changed_row.transcript_revision = 8;
+        changed_row.graph_revision = 12;
+        changed_row.row_json = json!({
+            "id": "row-1",
+            "kind": "assistant",
+            "updated": true
+        })
+        .to_string();
+        let mut unchanged_suffix_row = serialized_ledger_row(session_id, 2, "row-2", "assistant");
+        unchanged_suffix_row.transcript_revision = 8;
+        unchanged_suffix_row.graph_revision = 12;
+
+        let suffix_applied = SessionTranscriptRowLedgerRepository::replace_current_suffix(
+            &db,
+            session_id,
+            "projection-v1",
+            8,
+            12,
+            14,
+            None,
+            3,
+            1,
+            vec![changed_row, unchanged_suffix_row],
+        )
+        .await
+        .expect("suffix ledger write should succeed");
+
+        assert!(
+            suffix_applied,
+            "current ledger should accept suffix replace"
+        );
+        let page = SessionTranscriptRowLedgerRepository::read_range_page(
+            &db,
+            session_id,
+            "projection-v1",
+            0,
+            3,
+        )
+        .await
+        .expect("range page should read");
+        let SessionTranscriptRowLedgerRead::Current { metadata, rows } = page else {
+            panic!("expected current ledger page");
+        };
+        assert_eq!(metadata.row_count, 3);
+        assert_eq!(metadata.transcript_revision, 8);
+        assert_eq!(metadata.graph_revision, 12);
+        assert_eq!(metadata.last_event_seq, 14);
+        assert_eq!(
+            rows.iter()
+                .map(|row| (row.row_index, row.row_id.as_str(), row.row_version.as_str()))
+                .collect::<Vec<_>>(),
+            vec![
+                (0, "row-0", "v-0"),
+                (1, "row-1", "v-1-updated"),
+                (2, "row-2", "v-2")
+            ]
+        );
     }
 
     #[tokio::test]

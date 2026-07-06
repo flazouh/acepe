@@ -22,14 +22,8 @@
 	}: Props = $props();
 
 	function reviewStatusLabel(file: ReviewWorkspaceFileItem): string {
-		if (file.reviewStatus === "accepted") {
+		if (file.reviewStatus === "reviewed") {
 			return "Reviewed";
-		}
-		if (file.reviewStatus === "partial") {
-			return "Partial";
-		}
-		if (file.reviewStatus === "denied") {
-			return "Undone";
 		}
 
 		return "Not reviewed";
@@ -100,23 +94,15 @@
 						>
 							<!-- Status icon — left of the file name -->
 							<span
-								class="shrink-0 {row.reviewStatus === 'accepted'
+								class="shrink-0 {row.reviewStatus === 'reviewed'
 									? 'text-success'
-									: row.reviewStatus === 'partial'
-										? 'text-primary'
-										: row.reviewStatus === 'denied'
-											? 'text-destructive'
-											: 'text-muted-foreground'}"
+									: 'text-muted-foreground'}"
 								aria-label={reviewStatusLabel(row)}
 							>
-								{#if row.reviewStatus === "accepted"}
+								{#if row.reviewStatus === "reviewed"}
 									<RoundedIcon name="check-circle" class="h-3 w-3" />
-								{:else if row.reviewStatus === "partial"}
-									<RoundedIcon name="circle-dashed" class="h-3 w-3" />
-								{:else if row.reviewStatus === "denied"}
-									<RoundedIcon name="x-circle" class="h-3 w-3" />
 								{:else}
-									<!-- unreviewed: neutral dot so column width stays consistent -->
+									<!-- unreviewed: neutral hollow dot so column width stays consistent -->
 									<span class="block h-3 w-3 rounded-full border border-current opacity-30"></span>
 								{/if}
 							</span>

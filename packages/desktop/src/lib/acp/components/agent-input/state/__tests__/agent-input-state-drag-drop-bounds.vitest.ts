@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { PanelStore } from "../../../../store/panel-store.svelte.js";
 import type { SessionStore } from "../../../../store/session-store.svelte.js";
 
@@ -46,8 +46,40 @@ async function flushAsync(times = 10): Promise<void> {
 
 describe("AgentInputState drag-drop hover bounds", () => {
 	beforeEach(() => {
+		vi.useFakeTimers();
 		listenMock.mockReset();
 		zoomLevel = 0.8;
+	});
+
+	afterEach(() => {
+		vi.useRealTimers();
+	});
+
+	async function startDeferredDragDropListeners(): Promise<void> {
+		vi.advanceTimersByTime(100);
+		await flushAsync();
+	}
+
+	it("defers native drag-drop listener setup off the initial composer mount", async () => {
+		listenMock.mockImplementation(() => Promise.resolve(() => {}));
+		const state = new AgentInputState({} as SessionStore, {} as PanelStore);
+
+		state.initialize();
+
+		expect(listenMock).not.toHaveBeenCalled();
+		await startDeferredDragDropListeners();
+		expect(listenMock).toHaveBeenCalled();
+	});
+
+	it("cancels deferred native drag-drop setup when destroyed before the delay", async () => {
+		listenMock.mockImplementation(() => Promise.resolve(() => {}));
+		const state = new AgentInputState({} as SessionStore, {} as PanelStore);
+
+		state.initialize();
+		state.destroy();
+		await startDeferredDragDropListeners();
+
+		expect(listenMock).not.toHaveBeenCalled();
 	});
 
 	it("does not highlight the composer for native drag positions outside its zoomed bounds", async () => {
@@ -78,7 +110,7 @@ describe("AgentInputState drag-drop hover bounds", () => {
 		} as HTMLElement;
 
 		state.initialize();
-		await flushAsync();
+		await startDeferredDragDropListeners();
 
 		const registeredDragOverHandler = requireDragOverHandler(dragOverHandler);
 		registeredDragOverHandler({
@@ -121,7 +153,7 @@ describe("AgentInputState drag-drop hover bounds", () => {
 		} as HTMLElement;
 
 		state.initialize();
-		await flushAsync();
+		await startDeferredDragDropListeners();
 
 		const registeredDragOverHandler = requireDragOverHandler(dragOverHandler);
 		registeredDragOverHandler({

@@ -36,12 +36,6 @@ function handleSelect(imagePath: string) {
 	contentOverflow="hidden"
 	{onOpenChange}
 >
-	{#snippet topLeft()}
-		<span class="truncate text-[11px] font-semibold text-foreground select-none">
-			Choose Project Icon
-		</span>
-	{/snippet}
-
 	<div class="flex min-h-0 flex-1 flex-col px-3 py-2">
 		<p class="pb-2 text-[12px] text-muted-foreground">
 			Select an image from your project or browse for a custom one.
@@ -87,7 +81,7 @@ function handleSelect(imagePath: string) {
 	</div>
 
 	{#snippet footer()}
-		<Button variant="header" size="header" onclick={onBrowse}>Browse files…</Button>
-		<Button variant="header" size="header" onclick={() => onOpenChange(false)}>Cancel</Button>
+		<Button variant="outline" size="sm" onclick={onBrowse}>Browse files…</Button>
+		<Button variant="outline" size="sm" onclick={() => onOpenChange(false)}>Cancel</Button>
 	{/snippet}
 </DialogFrame>

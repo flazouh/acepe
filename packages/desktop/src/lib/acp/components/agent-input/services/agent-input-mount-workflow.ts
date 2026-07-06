@@ -35,3 +35,16 @@ export function resolvePanelDraftOnMount(args: {
 	}
 	return { kind: "none" };
 }
+
+export function shouldDeferInitialComposerMountWork(args: {
+	readonly sessionId: string | null | undefined;
+	readonly viewKind: string;
+	readonly visibleEntryCount: number | null | undefined;
+}): boolean {
+	return (
+		args.sessionId !== null &&
+		args.sessionId !== undefined &&
+		args.viewKind === "conversation" &&
+		(args.visibleEntryCount ?? 0) > 0
+	);
+}

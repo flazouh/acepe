@@ -7,7 +7,6 @@
 	import { cn } from "../../lib/utils.js";
 	import { Button, type ButtonVariant, buttonVariants } from "../button/index.js";
 	import { RoundedIcon } from "../icons/index.js";
-	import { OVERFLOW_DOTS_ICON_CLASS } from "../panel-header/project-card-action-button-class.js";
 	import {
 		getSelectorTriggerButtonPropsForContext,
 		getSelectorTriggerClass,
@@ -187,13 +186,11 @@
 
 	const triggerButtonClass = $derived(
 		cn(
-			resolvedTriggerSize === "headerAction"
-				? buttonVariants({ variant: "headerAction", size: "headerAction" })
-				: buttonVariants({
-						variant: triggerButtonProps.variant,
-						size: triggerButtonProps.size,
-						active: triggerActive,
-					}),
+			buttonVariants({
+				variant: triggerButtonProps.variant,
+				size: triggerButtonProps.size,
+				active: triggerActive,
+			}),
 			triggerClass,
 			embeddedInGroup ? "!rounded-none" : "",
 			className
@@ -227,9 +224,9 @@
 			title={tooltipTitle ?? tooltipLabel ?? undefined}
 		>
 			{#if triggerIcon === "dots"}
-				<RoundedIcon name="more" class={OVERFLOW_DOTS_ICON_CLASS} />
+				<RoundedIcon name="more" />
 			{:else if triggerIcon === "gear"}
-				<RoundedIcon name="settings" class={OVERFLOW_DOTS_ICON_CLASS} />
+				<RoundedIcon name="settings" />
 			{:else}
 				{@render renderButton()}
 			{/if}
@@ -251,9 +248,9 @@
 				data-header-control={triggerSize === "attach" || triggerSize === "chromeIcon" ? true : undefined}
 			>
 				{#if triggerIcon === "dots"}
-					<RoundedIcon name="more" class={OVERFLOW_DOTS_ICON_CLASS} />
+					<RoundedIcon name="more" />
 				{:else if triggerIcon === "gear"}
-					<RoundedIcon name="settings" class={OVERFLOW_DOTS_ICON_CLASS} />
+					<RoundedIcon name="settings" />
 				{:else}
 					{@render renderButton()}
 				{/if}

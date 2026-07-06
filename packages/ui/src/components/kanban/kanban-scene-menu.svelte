@@ -23,7 +23,7 @@
 	class="shrink-0"
 >
 	{#snippet renderButton()}
-		<RoundedIcon name="more" class="h-2.5 w-2.5" />
+		<RoundedIcon name="more" />
 	{/snippet}
 
 	{#each menuActions as action (action.id)}

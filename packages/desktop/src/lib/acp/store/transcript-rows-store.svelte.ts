@@ -5,14 +5,20 @@
  * viewport component (Unit 4) renders from. No `$effect`.
  */
 
-import type { ViewportBufferDelta, ViewportBufferPush } from "../../services/acp-types.js";
+import type {
+	SessionOpenTranscriptRowPage,
+	ViewportBufferDelta,
+	ViewportBufferPush,
+} from "../../services/acp-types.js";
 import {
 	EMPTY_TRANSCRIPT_ROWS_STATE,
 	type RowsApplyStatus,
 	type TranscriptRowsState,
 	applyRowsDelta,
+	applyRowsPage,
 	applyRowsPush,
 	rowsDeltaFromBuffer,
+	rowsPageFromInitialPage,
 	rowsPushFromBuffer,
 } from "./transcript-rows-store.js";
 
@@ -36,6 +42,12 @@ export class TranscriptRowsStore {
 
 	applyDelta(delta: ViewportBufferDelta): RowsApplyStatus {
 		const result = applyRowsDelta(this.#state, rowsDeltaFromBuffer(delta));
+		this.#state = result.state;
+		return result.status;
+	}
+
+	applyPage(sessionId: string, page: SessionOpenTranscriptRowPage): RowsApplyStatus {
+		const result = applyRowsPage(this.#state, rowsPageFromInitialPage(sessionId, page));
 		this.#state = result.state;
 		return result.status;
 	}

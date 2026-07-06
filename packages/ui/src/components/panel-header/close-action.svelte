@@ -13,7 +13,7 @@
 	let {
 		onClose,
 		title = "Close",
-		size = "icon-chrome",
+		size = "icon-2xs",
 		class: className = "",
 	}: Props = $props();
 </script>
@@ -28,6 +28,6 @@
 	class={className}
 >
 	{#snippet children()}
-		<RoundedIcon name="close" class="size-3" />
+		<RoundedIcon name="close" />
 	{/snippet}
 </Button>

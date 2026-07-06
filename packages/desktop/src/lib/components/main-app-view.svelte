@@ -4,7 +4,7 @@ import { getCurrentWindow } from "@tauri-apps/api/window";
 import { relaunch } from "@tauri-apps/plugin-process";
 import { check, type DownloadEvent } from "@tauri-apps/plugin-updater";
 import { okAsync, ResultAsync } from "neverthrow";
-import { onDestroy, onMount } from "svelte";
+import { onDestroy, onMount, tick } from "svelte";
 import { toast } from "svelte-sonner";
 import OpenProjectDialog from "$lib/acp/components/add-repository/open-project-dialog.svelte";
 import DiffViewerModal from "$lib/acp/components/diff-viewer/diff-viewer-modal.svelte";
@@ -15,7 +15,10 @@ import { LOGGER_IDS } from "$lib/acp/constants/logger-ids.js";
 import { useAdvancedCommandPalette } from "$lib/acp/hooks/use-advanced-command-palette.svelte.js";
 import { InboundRequestHandler } from "$lib/acp/logic/inbound-request-handler.js";
 import { ProjectClient } from "$lib/acp/logic/project-client.js";
-import { ProjectManager } from "$lib/acp/logic/project-manager.svelte.js";
+import {
+	ProjectManager,
+	type ProjectLoadPerformanceTrace,
+} from "$lib/acp/logic/project-manager.svelte.js";
 import { setSelectorRegistryContext } from "$lib/acp/logic/selector-registry.svelte.js";
 import {
 	agentModelPreferencesStore,
@@ -24,7 +27,7 @@ import {
 	createChatPreferencesStore,
 	createConnectionStore,
 	createInteractionStore,
-	createMessageQueueStore,
+	createSessionMessageQueueStore,
 	createPanelStore,
 	createPermissionStore,
 	createPlanPreferenceStore,
@@ -41,6 +44,9 @@ import {
 	getConnectionStore,
 	gitHubDiffViewerStore,
 } from "$lib/acp/store/index.js";
+import type { PanelClosePerformanceTrace } from "$lib/acp/store/panel-store.svelte.js";
+import type { OpenFilePanelOptions } from "$lib/acp/store/file-panel-ownership.js";
+import type { ProjectFileSystemDialogState } from "$lib/acp/store/project-file-system-dialog-state.js";
 import { createQuestionSelectionStore } from "$lib/acp/store/question-selection-store.svelte.js";
 import { DEFAULT_PANEL_WIDTH } from "$lib/acp/store/types.js";
 import type { PlanApprovalInteraction } from "$lib/acp/types/interaction.js";
@@ -66,9 +72,15 @@ import { createNotificationPreferencesStore } from "$lib/stores/notification-pre
 import { createVoiceSettingsStore } from "$lib/stores/voice-settings-store.svelte.js";
 import { createWindowFocusStore } from "$lib/stores/window-focus-store.svelte.js";
 import { tauriClient } from "$lib/utils/tauri-client.js";
+import {
+	getPendingTauriInvokes,
+	getTauriInvokeTimings,
+	type TauriInvokeTimingRecord,
+} from "$lib/utils/tauri-client/invoke.js";
 import { playSound, preloadSound } from "$lib/acp/utils/sound.js";
 import { SoundEffect } from "$lib/acp/types/sounds.js";
 import { FileExplorerModal } from "$lib/acp/components/file-explorer-modal/index.js";
+import ProjectFileSystemDialog from "$lib/acp/components/file-explorer-modal/project-file-system-dialog.svelte";
 import EmptyStates from "./main-app-view/components/content/empty-states.svelte";
 import PanelsContainer from "./main-app-view/components/content/panels-container.svelte";
 import AppOverlays from "./main-app-view/components/overlays/app-overlays.svelte";
@@ -86,11 +98,20 @@ import {
 	buildFileExplorerProjectPaths,
 } from "./main-app-view/logic/file-explorer-context.js";
 import {
+	runSessionOpenContentProbe,
+	type SessionOpenContentProbeOptions,
+	type SessionOpenContentProbeResult,
+} from "./main-app-view/logic/session-open-content-probe.js";
+import {
 	resolveWorkspaceFrameClass,
 	resolveWorkspaceSidebarClass,
 } from "./main-app-view/logic/main-app-layout-classes.js";
 import { shouldDisconnectSessionsOnMainAppDestroy } from "./main-app-view/logic/main-app-destroy-policy.js";
 import { MainAppViewState } from "./main-app-view/logic/main-app-view-state.svelte.js";
+import {
+	type StartupPerformanceTraceEntry,
+	writeSplashSeenHotCache,
+} from "./main-app-view/logic/managers/initialization-manager.js";
 import { applyDownloadEventToProgress } from "./main-app-view/logic/update-download-progress.js";
 import {
 	applyUpdaterDownloadEvent,
@@ -122,8 +143,143 @@ import {
 declare global {
 	interface Window {
 		__acepeOpenStreamingReproLab?: () => boolean;
+		__acepeHappyPathProbe?: (
+			options?: MainAppHappyPathProbeOptions
+		) => Promise<MainAppHappyPathProbeResult>;
+		__acepeSessionOpenContentProbe?: (
+			options: SessionOpenContentProbeOptions
+		) => Promise<SessionOpenContentProbeResult>;
+		__acepeCleanupHappyPathProbePanels?: (
+			options?: MainAppHappyPathProbeCleanupOptions
+		) => MainAppHappyPathProbeCleanupResult;
+		__acepeRuntimeErrors?: AcepeRuntimeErrorRecord[];
 	}
 }
+
+const HAPPY_PATH_PROBE_PANEL_ID_PREFIX = "qa-happy-path-probe-";
+
+type MainAppHappyPathProbeOptions = {
+	readonly timeoutMs?: number;
+};
+
+type MainAppHappyPathProbeCleanupOptions = {
+	readonly closeSessionlessCandidates?: boolean;
+};
+
+type MainAppHappyPathProbeCleanupResult = {
+	readonly closedPanelIds: readonly string[];
+	readonly remainingPanelCount: number;
+	readonly remainingDomPanelCount: number;
+};
+
+type AcepeRuntimeErrorRecord = {
+	readonly type?: string;
+	readonly message?: string;
+	readonly source?: string | null;
+	readonly line?: number | null;
+	readonly column?: number | null;
+	readonly stack?: string | null;
+};
+
+type MainAppHappyPathNavigationTiming = {
+	readonly type: string | null;
+	readonly startTimeMs: number | null;
+	readonly domInteractiveMs: number | null;
+	readonly domContentLoadedMs: number | null;
+	readonly loadEventEndMs: number | null;
+	readonly durationMs: number | null;
+};
+
+type MainAppHappyPathAppTiming = {
+	readonly mountStartedAtMs: number | null;
+	readonly shellReadyAtMs: number | null;
+	readonly shellReadyDurationMs: number | null;
+	readonly shellReady: boolean;
+	readonly shellReadyWaitMs: number | null;
+	readonly initializationCompleteAtMs: number | null;
+	readonly initializationDurationMs: number | null;
+	readonly initializationComplete: boolean;
+	readonly initializationWaitMs: number | null;
+	readonly projectReady: boolean;
+	readonly projectReadyWaitMs: number | null;
+	readonly projectCountAtPanelCreate: number;
+	readonly startupTrace: readonly StartupPerformanceTraceEntry[];
+	readonly projectLoadTrace: ProjectLoadPerformanceTrace | null;
+	readonly tauriInvokeTimings: readonly TauriInvokeTimingRecord[];
+	readonly panelCountBefore: number;
+	readonly panelCountAfter: number;
+	readonly domPanelCountBefore: number;
+	readonly domPanelCountAfter: number;
+};
+
+type MainAppHappyPathTimingEnvironment = {
+	readonly visibilityState: string;
+	readonly documentHasFocus: boolean | null;
+	readonly requestAnimationFrameAvailable: boolean;
+	readonly frameWaitCount: number;
+	readonly frameFallbackCount: number;
+	readonly likelyThrottled: boolean;
+	readonly label: string;
+};
+
+type MainAppHappyPathProbeFrameStats = {
+	frameWaitCount: number;
+	frameFallbackCount: number;
+};
+
+type MainAppHappyPathPanelOpenMarkSummary = {
+	readonly panelFirstMarkMs: number | null;
+	readonly panelLastMarkMs: number | null;
+	readonly panelMarkedWorkMs: number | null;
+	readonly panelPreMarkDelayMs: number | null;
+	readonly panelDomReadyAfterLastMarkMs: number | null;
+	readonly composerReadyAfterLastMarkMs: number | null;
+};
+
+type MainAppHappyPathOpenCloseTiming = {
+	readonly panelId: string;
+	readonly projectPath: string | null;
+	readonly panelOpenMarks: Readonly<Record<string, number>>;
+	readonly panelFirstMarkMs: number | null;
+	readonly panelLastMarkMs: number | null;
+	readonly panelMarkedWorkMs: number | null;
+	readonly panelPreMarkDelayMs: number | null;
+	readonly panelDomReadyAfterLastMarkMs: number | null;
+	readonly composerReadyAfterLastMarkMs: number | null;
+	readonly panelCreateMs: number;
+	readonly panelDomPresentAfterCreate: boolean;
+	readonly panelDomMutationMs: number | null;
+	readonly panelDomAfterDomFlushMs: number | null;
+	readonly panelDomAfterFirstFrameMs: number | null;
+	readonly panelDomReadyMs: number | null;
+	readonly composerMutationMs: number | null;
+	readonly composerReadyMs: number | null;
+	readonly composerReadyAfterCreateMs: number | null;
+	readonly panelDomNodeCount: number;
+	readonly panelRowNodeCount: number;
+	readonly panelDropdownContentNodeCount: number;
+	readonly resizeObserverConstructCount: number | null;
+	readonly resizeObserverObserveCount: number | null;
+	readonly resizeObserverCallbackCount: number | null;
+	readonly closeCallReturnMs: number;
+	readonly closeMicrotaskMs: number;
+	readonly closeDomGoneAfterMicrotask: boolean;
+	readonly closeFirstFrameMs: number | null;
+	readonly closeDomGoneAfterFirstFrame: boolean;
+	readonly closeDomGoneMs: number | null;
+	readonly closeTrace: PanelClosePerformanceTrace | null;
+	readonly totalMs: number;
+};
+
+type MainAppHappyPathProbeResult = {
+	readonly hookAvailable: boolean;
+	readonly route: string;
+	readonly runtimeErrors: readonly string[];
+	readonly timingEnvironment: MainAppHappyPathTimingEnvironment;
+	readonly navigation: MainAppHappyPathNavigationTiming;
+	readonly app: MainAppHappyPathAppTiming;
+	readonly openClose: MainAppHappyPathOpenCloseTiming;
+};
 
 function focusOnMount(node: HTMLElement) {
 	node.focus();
@@ -147,12 +303,591 @@ const logger = createLogger({
 	name: "Main Page",
 });
 
+let mainAppMountStartedAtMs: number | null = null;
+let mainAppInitializationCompleteAtMs: number | null = null;
+let mainAppInvokeTimingBaselineIndex = 0;
+const happyPathProbePanelIds = new Set<string>();
+const NON_CRITICAL_STARTUP_WORK_DELAY_MS = 5_000;
+const NON_CRITICAL_STARTUP_WORK_TIMEOUT_MS = 5_000;
+
+function roundPerfMs(value: number): number {
+	return Math.round(value * 100) / 100;
+}
+
+function scheduleNonCriticalStartupWork(callback: () => void): void {
+	window.setTimeout(() => {
+		const schedulingWindow = window as Window & {
+			requestIdleCallback?: (callback: IdleRequestCallback, options?: IdleRequestOptions) => number;
+		};
+		if (typeof schedulingWindow.requestIdleCallback === "function") {
+			schedulingWindow.requestIdleCallback(callback, {
+				timeout: NON_CRITICAL_STARTUP_WORK_TIMEOUT_MS,
+			});
+			return;
+		}
+		window.setTimeout(callback, 0);
+	}, NON_CRITICAL_STARTUP_WORK_DELAY_MS);
+}
+
+function readMainAppNavigationTiming(): MainAppHappyPathNavigationTiming {
+	const entries = performance.getEntriesByType("navigation");
+	const firstEntry = entries[0];
+	if (
+		firstEntry !== undefined &&
+		typeof PerformanceNavigationTiming !== "undefined" &&
+		firstEntry instanceof PerformanceNavigationTiming
+	) {
+		return {
+			type: firstEntry.type,
+			startTimeMs: roundPerfMs(firstEntry.startTime),
+			domInteractiveMs: roundPerfMs(firstEntry.domInteractive),
+			domContentLoadedMs: roundPerfMs(firstEntry.domContentLoadedEventEnd),
+			loadEventEndMs: roundPerfMs(firstEntry.loadEventEnd),
+			durationMs: roundPerfMs(firstEntry.duration),
+		};
+	}
+
+	return {
+		type: null,
+		startTimeMs: null,
+		domInteractiveMs: null,
+		domContentLoadedMs: null,
+		loadEventEndMs: null,
+		durationMs: null,
+	};
+}
+
+function readRuntimeErrorMessages(): readonly string[] {
+	const records = window.__acepeRuntimeErrors;
+	if (!Array.isArray(records)) {
+		return [];
+	}
+	return records
+		.map((record) => record.message ?? record.type ?? "Unknown runtime error")
+		.slice(-10);
+}
+
+function readCurrentMountTauriInvokeTimings(): readonly TauriInvokeTimingRecord[] {
+	return getTauriInvokeTimings().slice(mainAppInvokeTimingBaselineIndex);
+}
+
+function waitForProbeFrame(frameStats?: MainAppHappyPathProbeFrameStats): Promise<void> {
+	if (frameStats) {
+		frameStats.frameWaitCount += 1;
+	}
+	return new Promise((resolve) => {
+		let settled = false;
+		const fallbackTimeout = setTimeout(() => {
+			if (settled) {
+				return;
+			}
+			settled = true;
+			if (frameStats) {
+				frameStats.frameFallbackCount += 1;
+			}
+			resolve();
+		}, 16);
+		const finish = () => {
+			if (settled) {
+				return;
+			}
+			settled = true;
+			clearTimeout(fallbackTimeout);
+			resolve();
+		};
+		if (typeof requestAnimationFrame === "function") {
+			requestAnimationFrame(finish);
+			return;
+		}
+		finish();
+	});
+}
+
+async function waitForProbeDomFlush(): Promise<void> {
+	await tick();
+	await Promise.resolve();
+}
+
+async function waitForHappyPathCondition(
+	predicate: () => boolean,
+	timeoutMs: number,
+	frameStats?: MainAppHappyPathProbeFrameStats
+): Promise<number | null> {
+	const startedAtMs = performance.now();
+	return waitForHappyPathConditionSince(predicate, timeoutMs, startedAtMs, frameStats);
+}
+
+async function waitForHappyPathConditionSince(
+	predicate: () => boolean,
+	timeoutMs: number,
+	startedAtMs: number,
+	frameStats?: MainAppHappyPathProbeFrameStats
+): Promise<number | null> {
+	while (performance.now() - startedAtMs < timeoutMs) {
+		if (predicate()) {
+			return roundPerfMs(performance.now() - startedAtMs);
+		}
+		await waitForProbeDomFlush();
+		if (predicate()) {
+			return roundPerfMs(performance.now() - startedAtMs);
+		}
+		await waitForProbeFrame(frameStats);
+	}
+	return null;
+}
+
+function formatHappyPathFocusLabel(documentHasFocus: boolean | null): string {
+	if (documentHasFocus === null) {
+		return "unknown";
+	}
+	return documentHasFocus ? "yes" : "no";
+}
+
+function readHappyPathTimingEnvironment(
+	frameStats: MainAppHappyPathProbeFrameStats
+): MainAppHappyPathTimingEnvironment {
+	const visibilityState =
+		typeof document !== "undefined" && typeof document.visibilityState === "string"
+			? document.visibilityState
+			: "unknown";
+	const documentHasFocus =
+		typeof document !== "undefined" && typeof document.hasFocus === "function"
+			? document.hasFocus()
+			: null;
+	const requestAnimationFrameAvailable = typeof requestAnimationFrame === "function";
+	const likelyThrottled =
+		visibilityState !== "visible" ||
+		documentHasFocus !== true ||
+		frameStats.frameFallbackCount > 0 ||
+		!requestAnimationFrameAvailable;
+	return {
+		visibilityState,
+		documentHasFocus,
+		requestAnimationFrameAvailable,
+		frameWaitCount: frameStats.frameWaitCount,
+		frameFallbackCount: frameStats.frameFallbackCount,
+		likelyThrottled,
+		label: `${visibilityState} focus=${formatHappyPathFocusLabel(documentHasFocus)} raf=${requestAnimationFrameAvailable ? "yes" : "no"} frameWaits=${frameStats.frameWaitCount.toString()} fallbacks=${frameStats.frameFallbackCount.toString()} throttled=${likelyThrottled ? "yes" : "no"}`,
+	};
+}
+
+function summarizePanelOpenMarks(
+	panelOpenMarks: Readonly<Record<string, number>>,
+	panelDomReadyMs: number | null,
+	composerReadyAfterCreateMs: number | null
+): MainAppHappyPathPanelOpenMarkSummary {
+	let panelFirstMarkMs: number | null = null;
+	let panelLastMarkMs: number | null = null;
+	for (const markMs of Object.values(panelOpenMarks)) {
+		if (!Number.isFinite(markMs)) {
+			continue;
+		}
+		if (panelFirstMarkMs === null || markMs < panelFirstMarkMs) {
+			panelFirstMarkMs = markMs;
+		}
+		if (panelLastMarkMs === null || markMs > panelLastMarkMs) {
+			panelLastMarkMs = markMs;
+		}
+	}
+	const panelMarkedWorkMs =
+		panelFirstMarkMs === null || panelLastMarkMs === null
+			? null
+			: roundPerfMs(panelLastMarkMs - panelFirstMarkMs);
+	const panelDomReadyAfterLastMarkMs =
+		panelLastMarkMs === null || panelDomReadyMs === null
+			? null
+			: roundPerfMs(panelDomReadyMs - panelLastMarkMs);
+	const composerReadyAfterLastMarkMs =
+		panelLastMarkMs === null || composerReadyAfterCreateMs === null
+			? null
+			: roundPerfMs(composerReadyAfterCreateMs - panelLastMarkMs);
+	return {
+		panelFirstMarkMs,
+		panelLastMarkMs,
+		panelMarkedWorkMs,
+		panelPreMarkDelayMs: panelFirstMarkMs,
+		panelDomReadyAfterLastMarkMs,
+		composerReadyAfterLastMarkMs,
+	};
+}
+
+function visibleElementExists(selector: string): boolean {
+	const node = document.querySelector<HTMLElement>(selector);
+	if (node === null) {
+		return false;
+	}
+	const style = getComputedStyle(node);
+	const rect = node.getBoundingClientRect();
+	return (
+		style.display !== "none" &&
+		style.visibility !== "hidden" &&
+		Number(style.opacity) > 0 &&
+		rect.width > 0 &&
+		rect.height > 0
+	);
+}
+
+function elementExists(selector: string): boolean {
+	return document.querySelector(selector) !== null;
+}
+
+function resolveHappyPathProbeProject() {
+	const focusedProjectPath = panelStore.focusedTopLevelPanel?.projectPath ?? null;
+	if (focusedProjectPath !== null) {
+		const focusedProject = projectManager.getProject(focusedProjectPath);
+		if (focusedProject !== undefined) {
+			return focusedProject;
+		}
+	}
+	return projectManager.projects[0] ?? null;
+}
+
+function createHappyPathProbePanel(
+	id = `${HAPPY_PATH_PROBE_PANEL_ID_PREFIX}${crypto.randomUUID()}`
+) {
+	const targetProject = resolveHappyPathProbeProject();
+	if (targetProject !== null) {
+		const panel = panelStore.spawnPanel({
+			id,
+			requireProjectSelection: false,
+			projectPath: targetProject.path,
+			pendingWorktreeEnabled: false,
+		});
+		happyPathProbePanelIds.add(panel.id);
+		return panel;
+	}
+	const panel = panelStore.spawnPanel({
+		id,
+		requireProjectSelection: true,
+		pendingWorktreeEnabled: false,
+	});
+	happyPathProbePanelIds.add(panel.id);
+	return panel;
+}
+
+function isSessionlessHappyPathProbeCandidate(panel: {
+	readonly id: string;
+	readonly sessionId: string | null;
+	readonly agentId: string | null;
+	readonly sourcePath: string | null;
+	readonly worktreePath: string | null;
+	readonly ownerPanelId: string | null;
+	readonly kind: string;
+}): boolean {
+	return (
+		panel.kind === "agent" &&
+		panel.ownerPanelId === null &&
+		panel.sessionId === null &&
+		panel.agentId === null &&
+		panel.sourcePath === null &&
+		panel.worktreePath === null
+	);
+}
+
+function cleanupHappyPathProbePanels(
+	options: MainAppHappyPathProbeCleanupOptions = {}
+): MainAppHappyPathProbeCleanupResult {
+	const closeSessionlessCandidates = options.closeSessionlessCandidates === true;
+	const targetPanelIds: string[] = [];
+	for (const panel of panelStore.panels) {
+		const shouldCloseKnownProbe =
+			happyPathProbePanelIds.has(panel.id) || panel.id.startsWith(HAPPY_PATH_PROBE_PANEL_ID_PREFIX);
+		const shouldCloseCandidate =
+			closeSessionlessCandidates && isSessionlessHappyPathProbeCandidate(panel);
+		if (!shouldCloseKnownProbe && !shouldCloseCandidate) {
+			continue;
+		}
+		targetPanelIds.push(panel.id);
+	}
+
+	for (const panelId of targetPanelIds) {
+		viewState.handleClosePanel(panelId);
+		happyPathProbePanelIds.delete(panelId);
+	}
+
+	return {
+		closedPanelIds: targetPanelIds,
+		remainingPanelCount: panelStore.panels.length,
+		remainingDomPanelCount: document.querySelectorAll("[data-testid='agent-panel-host']").length,
+	};
+}
+
+async function runHappyPathProbe(
+	options: MainAppHappyPathProbeOptions = {}
+): Promise<MainAppHappyPathProbeResult> {
+	cleanupHappyPathProbePanels();
+	const frameStats: MainAppHappyPathProbeFrameStats = {
+		frameWaitCount: 0,
+		frameFallbackCount: 0,
+	};
+	const shellReadyWaitMs = await waitForHappyPathCondition(
+		() => viewState.shellReady,
+		options.timeoutMs ?? 20_000,
+		frameStats
+	);
+	const initializationWaitMs = await waitForHappyPathCondition(
+		() => viewState.initializationComplete,
+		options.timeoutMs ?? 20_000,
+		frameStats
+	);
+	const projectReadyWaitMs =
+		projectManager.projects.length > 0
+			? 0
+			: await waitForHappyPathCondition(
+					() => projectManager.projects.length > 0,
+					Math.min(options.timeoutMs ?? 20_000, 2_000),
+					frameStats
+				);
+	const projectReady = projectManager.projects.length > 0;
+	const projectCountAtPanelCreate = projectManager.projects.length;
+	const totalStartedAtMs = performance.now();
+	const panelCountBefore = panelStore.panels.length;
+	const domPanelCountBefore = document.querySelectorAll("[data-testid='agent-panel-host']").length;
+	const panelCreateStartedAtMs = performance.now();
+	const probePanelId = `${HAPPY_PATH_PROBE_PANEL_ID_PREFIX}${crypto.randomUUID()}`;
+	const panelSelector = `[data-qa-agent-panel-id="${CSS.escape(probePanelId)}"]`;
+	const composerSelector = `${panelSelector} [contenteditable=true], ${panelSelector} textarea`;
+	const panelOpenMarks: Record<string, number> = {};
+	const previousPanelOpenMarkRecorder = window.__acepeRecordPanelOpenPerformanceMark;
+	window.__acepeRecordPanelOpenPerformanceMark = (targetPanelId, name, timestampMs) => {
+		if (targetPanelId === probePanelId) {
+			panelOpenMarks[name] = roundPerfMs(timestampMs - panelCreateStartedAtMs);
+		}
+		previousPanelOpenMarkRecorder?.(targetPanelId, name, timestampMs);
+	};
+	let panelDomMutationMs: number | null = null;
+	let composerMutationMs: number | null = null;
+	const recordPanelOpenMutation = (): void => {
+		if (panelDomMutationMs === null && elementExists(panelSelector)) {
+			panelDomMutationMs = roundPerfMs(performance.now() - panelCreateStartedAtMs);
+		}
+		if (composerMutationMs === null && visibleElementExists(composerSelector)) {
+			composerMutationMs = roundPerfMs(performance.now() - panelCreateStartedAtMs);
+		}
+	};
+	let panelOpenObserver: MutationObserver | null = null;
+	if (typeof MutationObserver === "function") {
+		panelOpenObserver = new MutationObserver(() => {
+			recordPanelOpenMutation();
+			if (panelDomMutationMs !== null && composerMutationMs !== null) {
+				panelOpenObserver?.disconnect();
+			}
+		});
+	}
+	panelOpenObserver?.observe(document.body, { childList: true, subtree: true });
+	const panel = createHappyPathProbePanel(probePanelId);
+	panelStore.focusPanel(panel.id);
+	const panelCreateMs = roundPerfMs(performance.now() - panelCreateStartedAtMs);
+	recordPanelOpenMutation();
+	const panelDomPresentAfterCreate = elementExists(panelSelector);
+	let panelDomAfterDomFlushMs: number | null = null;
+	let panelDomAfterFirstFrameMs: number | null = null;
+
+	if (!panelDomPresentAfterCreate) {
+		await waitForProbeDomFlush();
+		if (elementExists(panelSelector)) {
+			panelDomAfterDomFlushMs = roundPerfMs(performance.now() - panelCreateStartedAtMs);
+		}
+	}
+
+	if (!panelDomPresentAfterCreate && panelDomAfterDomFlushMs === null) {
+		await waitForProbeFrame(frameStats);
+		if (elementExists(panelSelector)) {
+			panelDomAfterFirstFrameMs = roundPerfMs(performance.now() - panelCreateStartedAtMs);
+		}
+	}
+
+	const panelDomReadyMs =
+		panelDomPresentAfterCreate ||
+		panelDomAfterDomFlushMs !== null ||
+		panelDomAfterFirstFrameMs !== null
+			? roundPerfMs(performance.now() - panelCreateStartedAtMs)
+			: await waitForHappyPathConditionSince(
+					() => elementExists(panelSelector),
+					2_000,
+					panelCreateStartedAtMs,
+					frameStats
+				);
+	const composerReadyMs = await waitForHappyPathCondition(
+		() => visibleElementExists(composerSelector),
+		2_000,
+		frameStats
+	);
+	const composerReadyAfterCreateMs =
+		composerReadyMs === null ? null : roundPerfMs(performance.now() - panelCreateStartedAtMs);
+	const panelOpenMarkSummary = summarizePanelOpenMarks(
+		panelOpenMarks,
+		panelDomReadyMs,
+		composerReadyAfterCreateMs
+	);
+	recordPanelOpenMutation();
+	panelOpenObserver?.disconnect();
+	if (previousPanelOpenMarkRecorder === undefined) {
+		delete window.__acepeRecordPanelOpenPerformanceMark;
+	} else {
+		window.__acepeRecordPanelOpenPerformanceMark = previousPanelOpenMarkRecorder;
+	}
+	const panelNode = document.querySelector(panelSelector);
+	const panelDomNodeCount = panelNode === null ? 0 : panelNode.querySelectorAll("*").length + 1;
+	const panelRowNodeCount =
+		panelNode === null ? 0 : panelNode.querySelectorAll("[data-row-id]").length;
+	const panelDropdownContentNodeCount = document.querySelectorAll(
+		"[data-slot='dropdown-menu-content']"
+	).length;
+	const resizeObserverConstructCount = null;
+	const resizeObserverObserveCount = null;
+	const resizeObserverCallbackCount = null;
+
+	const closeCallStartedAtMs = performance.now();
+	viewState.handleClosePanel(panel.id);
+	const closeCallReturnMs = roundPerfMs(performance.now() - closeCallStartedAtMs);
+	const closeTrace = panelStore.getLastClosePerformanceTrace();
+	happyPathProbePanelIds.delete(panel.id);
+	await Promise.resolve();
+	const closeMicrotaskMs = roundPerfMs(performance.now() - closeCallStartedAtMs);
+	const closeDomGoneAfterMicrotask = document.querySelector(panelSelector) === null;
+	let closeFirstFrameMs: number | null = null;
+	let closeDomGoneAfterFirstFrame = closeDomGoneAfterMicrotask;
+	let closeDomGoneMs: number | null = closeDomGoneAfterMicrotask ? closeMicrotaskMs : null;
+	if (!closeDomGoneAfterMicrotask) {
+		await waitForProbeFrame(frameStats);
+		closeFirstFrameMs = roundPerfMs(performance.now() - closeCallStartedAtMs);
+		closeDomGoneAfterFirstFrame = document.querySelector(panelSelector) === null;
+		closeDomGoneMs = closeDomGoneAfterFirstFrame
+			? closeFirstFrameMs
+			: await waitForHappyPathConditionSince(
+					() => document.querySelector(panelSelector) === null,
+					2_000,
+					closeCallStartedAtMs,
+					frameStats
+				);
+	}
+
+	const startupTrace = viewState.getStartupPerformanceTrace();
+	const shellReadyTrace = startupTrace.find((entry) => entry.name === "shellReady") ?? null;
+	const initializeTrace = startupTrace.find((entry) => entry.name === "initialize") ?? null;
+	const shellReadyAtMs =
+		shellReadyTrace?.completedAtMs === undefined ? null : shellReadyTrace.completedAtMs;
+	const initializationCompleteAtMs =
+		mainAppInitializationCompleteAtMs ??
+		(initializeTrace?.completedAtMs === undefined ? null : initializeTrace.completedAtMs);
+	const initializationDurationMs =
+		mainAppMountStartedAtMs !== null && mainAppInitializationCompleteAtMs !== null
+			? roundPerfMs(mainAppInitializationCompleteAtMs - mainAppMountStartedAtMs)
+			: (initializeTrace?.durationMs ?? null);
+
+	return {
+		hookAvailable: true,
+		route: window.location.pathname,
+		runtimeErrors: readRuntimeErrorMessages(),
+		timingEnvironment: readHappyPathTimingEnvironment(frameStats),
+		navigation: readMainAppNavigationTiming(),
+		app: {
+			mountStartedAtMs:
+				mainAppMountStartedAtMs === null ? null : roundPerfMs(mainAppMountStartedAtMs),
+			shellReadyAtMs: shellReadyAtMs === null ? null : roundPerfMs(shellReadyAtMs),
+			shellReadyDurationMs: shellReadyTrace?.durationMs ?? null,
+			shellReady: viewState.shellReady,
+			shellReadyWaitMs,
+			initializationCompleteAtMs:
+				initializationCompleteAtMs === null ? null : roundPerfMs(initializationCompleteAtMs),
+			initializationDurationMs,
+			initializationComplete: viewState.initializationComplete,
+			initializationWaitMs,
+			projectReady,
+			projectReadyWaitMs,
+			projectCountAtPanelCreate,
+			startupTrace,
+			projectLoadTrace: projectManager.getLastLoadPerformanceTrace(),
+			tauriInvokeTimings: readCurrentMountTauriInvokeTimings(),
+			panelCountBefore,
+			panelCountAfter: panelStore.panels.length,
+			domPanelCountBefore,
+			domPanelCountAfter: document.querySelectorAll("[data-testid='agent-panel-host']").length,
+		},
+		openClose: {
+			panelId: panel.id,
+			projectPath: panel.projectPath ?? null,
+			panelOpenMarks,
+			panelFirstMarkMs: panelOpenMarkSummary.panelFirstMarkMs,
+			panelLastMarkMs: panelOpenMarkSummary.panelLastMarkMs,
+			panelMarkedWorkMs: panelOpenMarkSummary.panelMarkedWorkMs,
+			panelPreMarkDelayMs: panelOpenMarkSummary.panelPreMarkDelayMs,
+			panelDomReadyAfterLastMarkMs: panelOpenMarkSummary.panelDomReadyAfterLastMarkMs,
+			composerReadyAfterLastMarkMs: panelOpenMarkSummary.composerReadyAfterLastMarkMs,
+			panelCreateMs,
+			panelDomPresentAfterCreate,
+			panelDomMutationMs,
+			panelDomAfterDomFlushMs,
+			panelDomAfterFirstFrameMs,
+			panelDomReadyMs,
+			composerMutationMs,
+			composerReadyMs,
+			composerReadyAfterCreateMs,
+			panelDomNodeCount,
+			panelRowNodeCount,
+			panelDropdownContentNodeCount,
+			resizeObserverConstructCount,
+			resizeObserverObserveCount,
+			resizeObserverCallbackCount,
+			closeCallReturnMs,
+			closeMicrotaskMs,
+			closeDomGoneAfterMicrotask,
+			closeFirstFrameMs,
+			closeDomGoneAfterFirstFrame,
+			closeDomGoneMs,
+			closeTrace: closeTrace?.panelId === panel.id ? closeTrace : null,
+			totalMs: roundPerfMs(performance.now() - totalStartedAtMs),
+		},
+	};
+}
+
+function runSessionOpenContentProbeForQa(
+	options: SessionOpenContentProbeOptions
+): Promise<SessionOpenContentProbeResult> {
+	return runSessionOpenContentProbe(
+		{
+			document,
+			hostWindow: window,
+			performance,
+			viewState,
+			panelStore,
+			sessionStore,
+			readRuntimeErrors: readRuntimeErrorMessages,
+			readTauriInvokeTimings: getTauriInvokeTimings,
+			readPendingTauriInvokes: getPendingTauriInvokes,
+		},
+		options
+	);
+}
+
+const QA_HOOKS_ENABLED =
+	import.meta.env.DEV || import.meta.env.VITE_ENABLE_QA_HOOKS === "1";
+
+function installHappyPathProbeQaHook(): void {
+	if (!QA_HOOKS_ENABLED) {
+		return;
+	}
+	window.__acepeHappyPathProbe = runHappyPathProbe;
+	window.__acepeSessionOpenContentProbe = runSessionOpenContentProbeForQa;
+	window.__acepeCleanupHappyPathProbePanels = cleanupHappyPathProbePanels;
+}
+
+function uninstallHappyPathProbeQaHook(): void {
+	if (window.__acepeHappyPathProbe === runHappyPathProbe) {
+		delete window.__acepeHappyPathProbe;
+	}
+	if (window.__acepeSessionOpenContentProbe === runSessionOpenContentProbeForQa) {
+		delete window.__acepeSessionOpenContentProbe;
+	}
+	if (window.__acepeCleanupHappyPathProbePanels === cleanupHappyPathProbePanels) {
+		delete window.__acepeCleanupHappyPathProbePanels;
+	}
+}
+
 // Create selector registry context BEFORE app state so components can use it
 // This enables focused panel dispatch for model/mode keybindings
 const selectorRegistry = setSelectorRegistryContext();
-
-// Load agent model preferences from SQLite (module-level store)
-agentModelPreferencesStore.loadPersistedState();
 
 // Create stores in dependency order (Context Composition pattern)
 const agentStore = createAgentStore();
@@ -166,7 +901,7 @@ createQuestionSelectionStore();
 // QueueStore is accessed via getQueueStore() context, no direct reference needed
 createQueueStore();
 // MessageQueueStore for per-session message stacking
-const messageQueueStore = createMessageQueueStore(sessionStore);
+const messageQueueStore = createSessionMessageQueueStore(sessionStore);
 const planStore = createPlanStore();
 sessionStore.onSessionRemoved((id) => {
 	planStore.clear(id);
@@ -190,7 +925,6 @@ const notificationPrefsStore = createNotificationPreferencesStore();
 const analyticsPrefsStore = createAnalyticsPreferencesStore();
 const attentionQueueStore = createAttentionQueueStore();
 const dismissedTipsStore = createDismissedTipsStore();
-void dismissedTipsStore.initialize();
 
 // Create workspace store first (for persist callback)
 let workspaceStore: ReturnType<typeof createWorkspaceStore>;
@@ -215,7 +949,7 @@ panelStore.setDuplicatePanelDisposalHandler((panelId) => {
 });
 // Create voice settings store (context for agent-input-ui composer voice controls)
 const voiceSettingsStore = createVoiceSettingsStore();
-const preconnectionAgentSkillsStore = createPreconnectionAgentSkillsStore();
+createPreconnectionAgentSkillsStore();
 
 // Passive panel focus alone does not acknowledge completion.
 panelStore.onPanelFocused = null;
@@ -474,12 +1208,6 @@ sessionStore.setCallbacks({
 	},
 });
 
-// Initialize session updates subscription
-sessionStore.initializeSessionUpdates().mapErr((error) => {
-	logger.error("Failed to initialize session updates", { error });
-	viewState.initializationError = error instanceof Error ? error : new Error(String(error));
-});
-
 // Project manager (separate for now, could be merged later)
 const projectManager = new ProjectManager();
 // App-wide new-chat modal: opened from any new-thread entry point via
@@ -520,6 +1248,27 @@ tabBarStore.setProjectSortOrderLookup(projectSortOrderLookup);
 // Inbound request handler for JSON-RPC requests from ACP subprocess (e.g., requestPermission)
 const inboundRequestHandler = new InboundRequestHandler();
 
+function startLegacyInboundRequestHandler(): void {
+	logger.info("main-app-view: Starting legacy InboundRequestHandler");
+	void inboundRequestHandler
+		.start((permission) => {
+			logger.error("Legacy inbound permission request ignored; expected canonical graph patch", {
+				permissionId: permission.id,
+				sessionId: permission.sessionId,
+				jsonRpcRequestId: permission.jsonRpcRequestId,
+			});
+		})
+		.match(
+			() => {
+				logger.info("main-app-view: Legacy InboundRequestHandler started successfully");
+			},
+			(error) => {
+				logger.error("[Startup] Failed to start legacy InboundRequestHandler:", error);
+				viewState.initializationError = error;
+			}
+		);
+}
+
 // Initialize keybindings service
 const kb = getKeybindingsService();
 
@@ -538,7 +1287,6 @@ const viewState = new MainAppViewState(
 	kb,
 	selectorRegistry,
 	worktreeDefaultStore,
-	preconnectionAgentSkillsStore,
 	sessionOpenHydrator
 );
 
@@ -636,7 +1384,7 @@ let devUpdateStepTimer = $state<ReturnType<typeof setInterval> | null>(null);
 
 type UpdateCheckTrigger = "startup" | "polling";
 
-const DEV_UPDATE_VERSION = "0.0.0-dev";
+const DEV_UPDATE_VERSION = "2026.4.4";
 const DEV_UPDATE_TOTAL_BYTES = 48 * 1024 * 1024;
 const DEV_UPDATE_STEP_BYTES = 3 * 1024 * 1024;
 const DEV_UPDATE_START_DELAY_MS = 700;
@@ -751,6 +1499,65 @@ const commandPalette = useAdvancedCommandPalette({
 	},
 });
 
+function getProjectDialogPathLabel(projectPath: string): string {
+	const segments = projectPath.split("/").filter((segment) => segment.length > 0);
+	const lastSegment = segments[segments.length - 1];
+	return lastSegment ?? projectPath;
+}
+
+function getProjectDialogName(dialog: ProjectFileSystemDialogState): string {
+	const project = projectManager.getProject(dialog.projectPath);
+	return dialog.projectName ?? project?.name ?? getProjectDialogPathLabel(dialog.projectPath);
+}
+
+function getProjectDialogColor(dialog: ProjectFileSystemDialogState): string | undefined {
+	const project = projectManager.getProject(dialog.projectPath);
+	return dialog.projectColor ?? project?.color;
+}
+
+function getProjectDialogIconSrc(dialog: ProjectFileSystemDialogState): string | null {
+	const project = projectManager.getProject(dialog.projectPath);
+	return dialog.projectIconSrc ?? project?.iconPath ?? null;
+}
+
+function buildProjectDialogOpenFileOptions(
+	dialog: ProjectFileSystemDialogState | null,
+	projectPath: string,
+	filePath: string
+): OpenFilePanelOptions | undefined {
+	if (
+		dialog === null ||
+		dialog.projectPath !== projectPath ||
+		dialog.filePath !== filePath ||
+		(dialog.targetLine === null && dialog.targetColumn === null)
+	) {
+		return undefined;
+	}
+
+	const options: OpenFilePanelOptions = {};
+	if (dialog.targetLine !== null) {
+		options.targetLine = dialog.targetLine;
+	}
+	if (dialog.targetColumn !== null) {
+		options.targetColumn = dialog.targetColumn;
+	}
+	return options;
+}
+
+function handleProjectFileSystemDialogOpenFile(projectPath: string, filePath: string): void {
+	const options = buildProjectDialogOpenFileOptions(
+		panelStore.projectFileSystemDialog,
+		projectPath,
+		filePath
+	);
+	if (options === undefined) {
+		panelStore.openFilePanel(filePath, projectPath);
+	} else {
+		panelStore.openFilePanel(filePath, projectPath, options);
+	}
+	panelStore.closeProjectFileSystemDialog();
+}
+
 function openStreamingReproLabForQa(): boolean {
 	viewState.debugPanelOpen = true;
 	return true;
@@ -842,15 +1649,14 @@ async function installAvailableUpdate(): Promise<void> {
 
 // Initialize on mount
 onMount(async () => {
-	playSound(SoundEffect.AppStart);
+	mainAppMountStartedAtMs = performance.now();
+	mainAppInvokeTimingBaselineIndex = getTauriInvokeTimings().length;
+	installHappyPathProbeQaHook();
 
-	// Preload latency-critical voice sounds so spacebar-triggered
-	// recording feedback is instant (Web Audio API buffer cache).
-	preloadSound(SoundEffect.DictationStart);
-	preloadSound(SoundEffect.DictationStop);
-	preloadSound(SoundEffect.Notification);
-	preloadSound(SoundEffect.Paste);
-	const splashResolution = viewState.resolveSplashScreen();
+	// Initialize the app state (handles all initialization logic including background scan)
+	const initResult = await viewState.initialize();
+	mainAppInitializationCompleteAtMs = performance.now();
+
 	void import("@tauri-apps/api/app")
 		.then((mod) => mod.getVersion())
 		.then((version) => {
@@ -861,7 +1667,7 @@ onMount(async () => {
 		installStreamingReproQaHook();
 		updaterState = createAvailableUpdaterState(DEV_UPDATE_VERSION);
 	} else {
-		await checkForAppUpdate("startup");
+		void checkForAppUpdate("startup");
 		updatePollTimer = setInterval(
 			() => {
 				if (
@@ -877,47 +1683,45 @@ onMount(async () => {
 			10 * 60 * 1000
 		);
 	}
-
-	await splashResolution;
 	attemptStartupMaximize();
 
-	logger.info("main-app-view onMount: Starting InboundRequestHandler");
-	// Initialize inbound request handler for legacy ACP permission fallback events.
-	const handlerResult = await inboundRequestHandler.start((permission) => {
-		logger.error("Legacy inbound permission request ignored; expected canonical graph patch", {
-			permissionId: permission.id,
-			sessionId: permission.sessionId,
-			jsonRpcRequestId: permission.jsonRpcRequestId,
-		});
-	});
-	if (handlerResult.isErr()) {
-		logger.error("[Startup] Failed to start inbound request handler:", handlerResult.error);
-		viewState.initializationError = handlerResult.error;
-	} else {
-		logger.info("main-app-view onMount: InboundRequestHandler started successfully");
-	}
-
-	// Initialize the app state (handles all initialization logic including background scan)
-	const initResult = await viewState.initialize();
-
-	// Initialize review preference (load persisted setting)
-	await chatPreferencesStore.initialize();
-	reviewPreferenceStore.initialize();
-	planPreferenceStore.initialize();
-
-	// Initialize notification popup stores
+	// Initialize notification popup focus tracking. Persisted preferences below
+	// have safe defaults and are loaded after the shell is measurable.
 	windowFocusStore.initialize();
-	notificationPrefsStore.initialize();
-	void analyticsPrefsStore.initialize();
-	void attentionQueueStore.initialize();
-
-	// Initialize voice settings (loads persisted prefs + model list from backend)
-	void voiceSettingsStore.initialize();
 
 	if (initResult.isErr()) {
 		logger.error("[Startup] Initialization failed:", initResult.error);
 		viewState.initializationError = initResult.error;
 	}
+	window.setTimeout(() => {
+		playSound(SoundEffect.AppStart);
+		preloadSound(SoundEffect.DictationStart);
+		preloadSound(SoundEffect.DictationStop);
+		preloadSound(SoundEffect.Notification);
+		preloadSound(SoundEffect.Paste);
+	}, 0);
+	scheduleNonCriticalStartupWork(() => {
+		void chatPreferencesStore.initialize();
+		void reviewPreferenceStore.initialize();
+		void planPreferenceStore.initialize();
+		void notificationPrefsStore.initialize();
+		void analyticsPrefsStore.initialize();
+		void attentionQueueStore.initialize();
+		void voiceSettingsStore.initialize();
+		void dismissedTipsStore.initialize();
+		void worktreeDefaultStore.load().mapErr((error) => {
+			logger.error("Failed to load worktree default preference", { error });
+		});
+	});
+	scheduleNonCriticalStartupWork(() => {
+		void agentModelPreferencesStore.loadPersistedState().match(
+			() => undefined,
+			(error) => {
+				logger.warn("Failed to load agent model preferences after startup", { error });
+			}
+		);
+	});
+	scheduleNonCriticalStartupWork(startLegacyInboundRequestHandler);
 
 	// Register global keyboard handler for CMD+F
 	window.addEventListener("keydown", handleGlobalKeydown);
@@ -950,19 +1754,13 @@ $effect(() => {
 	);
 });
 
-// Load worktree default store once so panels/empty-states/settings and handleNewThreadForProject see current value
-$effect(() => {
-	void worktreeDefaultStore.load().mapErr((error) => {
-		logger.error("Failed to load worktree default preference", { error });
-	});
-});
-
 function handleSessionCreated(sessionId: string) {
 	panelStore.openSession(sessionId, DEFAULT_PANEL_WIDTH);
 }
 
 // Handle onboarding completion (splash → agents → projects → done)
 function handleOnboardingDismiss() {
+	writeSplashSeenHotCache(true);
 	tauriClient.settings.setRaw("has_seen_splash", "true").mapErr((error) => {
 		logger.error("Failed to save onboarding completion", { error });
 	});
@@ -1055,13 +1853,12 @@ const showSidebar = $derived(
 
 /** Tab bar above main/panel column (only shown in session fullscreen when there is something to switch) */
 const showTabBarStrip = $derived(
-	!viewState.reviewFullscreenOpen &&
-		viewState.isFullscreen &&
-		tabBarStore.tabs.length > 1
+	!viewState.reviewFullscreenOpen && viewState.isFullscreen && tabBarStore.tabs.length > 1
 );
 
 // Cleanup on destroy
 onDestroy(() => {
+	uninstallHappyPathProbeQaHook();
 	// Disconnect all sessions to kill their subprocesses
 	// This prevents orphaned Claude processes when the app closes
 	if (shouldDisconnectSessionsOnMainAppDestroy({ hmrTeardownActive })) {
@@ -1092,6 +1889,7 @@ onDestroy(() => {
 		class="flex flex-col h-full min-h-0 p-0.5 gap-0.5 overflow-hidden"
 		role="application"
 		aria-label={"Application"}
+		data-acepe-shell-ready={viewState.shellReady ? "true" : "false"}
 		oncontextmenu={handleContextMenu}
 	>
 		<!-- Top bar -->
@@ -1200,7 +1998,7 @@ onDestroy(() => {
 									}}
 								/>
 							</div>
-						{:else if viewState.initializationComplete}
+						{:else if viewState.initializationComplete && !viewState.workspaceRestorationPending}
 							<EmptyStates {projectManager} onSessionCreated={handleSessionCreated} />
 						{/if}
 						{#snippet failed(error, reset)}
@@ -1291,6 +2089,25 @@ onDestroy(() => {
 					onFileIndexChange={(index) => viewState.setReviewFullscreenFileIndex(index)}
 				/>
 			</div>
+		{/key}
+	{/if}
+
+	{#if panelStore.projectFileSystemDialog !== null}
+		{@const dialogTarget = panelStore.projectFileSystemDialog}
+		{#key dialogTarget.id}
+			<ProjectFileSystemDialog
+				open={true}
+				projectPath={dialogTarget.projectPath}
+				projectName={getProjectDialogName(dialogTarget)}
+				projectColor={getProjectDialogColor(dialogTarget)}
+				projectIconSrc={getProjectDialogIconSrc(dialogTarget)}
+				title={dialogTarget.title}
+				initialFilePath={dialogTarget.filePath}
+				onClose={() => {
+					panelStore.closeProjectFileSystemDialog();
+				}}
+				onOpenFile={handleProjectFileSystemDialogOpenFile}
+			/>
 		{/key}
 	{/if}
 

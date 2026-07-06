@@ -7,10 +7,16 @@ import type { PanelStore } from "$lib/acp/store/panel-store.svelte.js";
 import type { SessionOpenHydrator } from "$lib/acp/store/services/session-open-hydrator.js";
 import type { SessionStore } from "$lib/acp/store/session-store.svelte.js";
 import { DEFAULT_PANEL_WIDTH } from "$lib/acp/store/types.js";
+import type { SessionOpenResult } from "$lib/services/acp-types.js";
 import { SessionSelectionError } from "../errors/main-app-view-error.js";
 import type { MainAppViewState } from "../logic/main-app-view-state.svelte.js";
 
 const openPersistedSessionMock = mock(() => {});
+const getSessionOpenResultMock = mock(() =>
+	errAsync<SessionOpenResult, ConnectionError>(
+		new ConnectionError("get_session_open_result", new Error("prepare skipped"))
+	)
+);
 
 mock.module("../logic/open-persisted-session.js", () => ({
 	openPersistedSession: openPersistedSessionMock,
@@ -32,6 +38,12 @@ describe("SessionHandler", () => {
 
 	beforeEach(() => {
 		openPersistedSessionMock.mockReset();
+		getSessionOpenResultMock.mockReset();
+		getSessionOpenResultMock.mockImplementation(() =>
+			errAsync<SessionOpenResult, ConnectionError>(
+				new ConnectionError("get_session_open_result", new Error("prepare skipped"))
+			)
+		);
 		mockState = {} as MainAppViewState;
 
 		// Create mock sessions array - accessible to tests for setup
@@ -39,10 +51,42 @@ describe("SessionHandler", () => {
 
 		mockSessionStore = {
 			read: {
-				hasSession: mock((id: string) => mockSessionsArray.some((s: { id: string }) => s.id === id)),
+				hasSession: mock((id: string) =>
+					mockSessionsArray.some((s: { id: string }) => s.id === id)
+				),
 				getSessionDetail: mock(() => null),
-				getSession: mock((id: string) => mockSessionsArray.find((s: { id: string }) => s.id === id)),
-				getSessionById: mock((id: string) => mockSessionsArray.find((s: { id: string }) => s.id === id)),
+				getSession: mock((id: string) =>
+					mockSessionsArray.find((s: { id: string }) => s.id === id)
+				),
+				getSessionById: mock((id: string) =>
+					mockSessionsArray.find((s: { id: string }) => s.id === id)
+				),
+				getSessionIdentity: mock((id: string) => {
+					const session = mockSessionsArray.find((s: { id: string }) => s.id === id);
+					if (!session) {
+						return undefined;
+					}
+					return {
+						id: session.id,
+						projectPath: session.projectPath ?? "/test",
+						agentId: session.agentId ?? "agent-1",
+						worktreePath: session.worktreePath ?? null,
+					};
+				}),
+				getSessionMetadata: mock((id: string) => {
+					const session = mockSessionsArray.find((s: { id: string }) => s.id === id);
+					if (!session) {
+						return undefined;
+					}
+					return {
+						title: session.title ?? null,
+						createdAt: session.createdAt ?? new Date(),
+						updatedAt: session.updatedAt ?? new Date(),
+						sourcePath: session.sourcePath,
+						sessionLifecycleState: session.sessionLifecycleState ?? "persisted",
+						parentId: session.parentId ?? null,
+					};
+				}),
 				getSessionCanSend: mock(() => true),
 				getSessionLifecycleStatus: mock(() => "ready"),
 			},
@@ -58,7 +102,10 @@ describe("SessionHandler", () => {
 			connection: {
 				connectSession: mock(() => okAsync({} as Record<string, never>)),
 				createSession: mock(() =>
-					okAsync({ kind: "ready", session: { id: "acp-session-id" } } as import("$lib/acp/store/session-store.svelte.js").SessionCreationResult)
+					okAsync({
+						kind: "ready",
+						session: { id: "acp-session-id" },
+					} as import("$lib/acp/store/session-store.svelte.js").SessionCreationResult)
 				),
 			},
 			write: {
@@ -118,7 +165,8 @@ describe("SessionHandler", () => {
 			mockState,
 			mockSessionStore,
 			mockPanelStore,
-			mockSessionOpenHydrator
+			mockSessionOpenHydrator,
+			getSessionOpenResultMock
 		);
 	});
 
@@ -187,8 +235,40 @@ describe("SessionHandler", () => {
 				sessionId: "session-1",
 				sessionStore: mockSessionStore,
 				sessionOpenHydrator: mockSessionOpenHydrator,
+				isPanelCurrent: expect.any(Function),
 				timeoutMs: 30_000,
 				source: "session-handler",
+			});
+		});
+
+		it("should pass a prepared open result for unopened persisted sessions", async () => {
+			const preparedOpenResult = createPreparedFoundResult("session-1");
+			getSessionOpenResultMock.mockImplementation(() => okAsync(preparedOpenResult));
+			mockSessionsArray.push({
+				id: "session-1",
+				projectPath: "/test",
+				agentId: "claude-code",
+				sourcePath: "/tmp/session-1.store.db",
+			} as any);
+
+			const result = await handler.selectSession("session-1");
+
+			expect(result.isOk()).toBe(true);
+			expect(getSessionOpenResultMock).toHaveBeenCalledWith(
+				"session-1",
+				"/test",
+				"claude-code",
+				"/tmp/session-1.store.db"
+			);
+			expect(openPersistedSessionMock).toHaveBeenCalledWith({
+				panelId: "panel-1",
+				sessionId: "session-1",
+				sessionStore: mockSessionStore,
+				sessionOpenHydrator: mockSessionOpenHydrator,
+				isPanelCurrent: expect.any(Function),
+				timeoutMs: 30_000,
+				source: "session-handler",
+				preparedOpenResult,
 			});
 		});
 
@@ -255,6 +335,7 @@ describe("SessionHandler", () => {
 				sessionId: "session-1",
 				sessionStore: mockSessionStore,
 				sessionOpenHydrator: mockSessionOpenHydrator,
+				isPanelCurrent: expect.any(Function),
 				timeoutMs: 30_000,
 				source: "session-handler",
 			});
@@ -310,6 +391,7 @@ describe("SessionHandler", () => {
 				sessionId: "session-1",
 				sessionStore: mockSessionStore,
 				sessionOpenHydrator: mockSessionOpenHydrator,
+				isPanelCurrent: expect.any(Function),
 				timeoutMs: 30_000,
 				source: "session-handler",
 			});
@@ -428,3 +510,51 @@ describe("SessionHandler", () => {
 		});
 	});
 });
+
+function createPreparedFoundResult(sessionId: string): SessionOpenResult {
+	return {
+		outcome: "found",
+		requestedSessionId: sessionId,
+		canonicalSessionId: sessionId,
+		isAlias: false,
+		openToken: "open-token-1",
+		agentId: "claude-code",
+		projectPath: "/test",
+		worktreePath: null,
+		sourcePath: "/tmp/session-1.store.db",
+		lastEventSeq: 1,
+		graphRevision: 1,
+		transcriptSnapshot: {
+			revision: 1,
+			entries: [],
+		},
+		messageCount: 0,
+		sessionTitle: "Session 1",
+		operations: [],
+		interactions: [],
+		turnState: "Idle",
+		activity: {
+			kind: "idle",
+			activeOperationCount: 0,
+			activeSubagentCount: 0,
+			dominantOperationId: null,
+			blockingInteractionId: null,
+		},
+		activeStreamingTail: null,
+		lifecycle: {
+			status: "ready",
+			actionability: {
+				canSend: true,
+				canResume: false,
+				canRetry: false,
+				canArchive: false,
+				canConfigure: true,
+				recommendedAction: "send",
+				recoveryPhase: "none",
+				compactStatus: "ready",
+			},
+		},
+		capabilities: {},
+		sequenceId: null,
+	};
+}

@@ -10,7 +10,7 @@ use crate::acp::reconciler::session_tool::{
 use crate::acp::session_update::normalize::derive_normalized_questions_and_todos;
 
 /// Tool kind for routing to appropriate UI components.
-#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, Type)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Type)]
 #[serde(rename_all = "snake_case")]
 pub enum ToolKind {
     Read,

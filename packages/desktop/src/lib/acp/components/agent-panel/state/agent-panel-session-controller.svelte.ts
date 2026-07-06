@@ -254,6 +254,10 @@ export class AgentPanelSessionController {
 		return resolveVisibleEntryCount({
 			canonicalEntryCount:
 				id === null || id === undefined ? 0 : (this.canonicalTranscriptEntries?.length ?? null),
+			canonicalMessageCount:
+				id === null || id === undefined
+					? 0
+					: this.#deps.sessionStore.read.getSessionMessageCount(id),
 			optimisticUserEntry: this.optimisticUserEntryForGraph,
 		});
 	});

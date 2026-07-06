@@ -1,9 +1,5 @@
 <script lang="ts">
 import { AgentInputBranchSelector, RoundedIcon } from "@acepe/ui";
-import {
-	SETUP_CHIP_ICON_CLASS,
-	SETUP_CHIP_LABEL_TEXT_CLASS,
-} from "@acepe/ui/panel-header";
 import { Colors } from "@acepe/ui/colors";
 import { toast } from "svelte-sonner";
 import { Button } from "$lib/components/ui/button/index.js";
@@ -157,8 +153,8 @@ function openCreateBranchDialog(): void {
 		disabled={!projectPath || !onInitGitRepo || initGitLoading}
 		onclick={() => onInitGitRepo?.()}
 	>
-		<RoundedIcon name="branch" class={SETUP_CHIP_ICON_CLASS} />
-		<span class={SETUP_CHIP_LABEL_TEXT_CLASS}>
+		<RoundedIcon name="branch" />
+		<span>
 			{initGitLoading ? "Initializing..." : "Initialize Git"}
 		</span>
 	</Button>

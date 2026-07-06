@@ -1,6 +1,5 @@
 <script lang="ts">
 	import { cn } from "../../lib/utils.js";
-	import { PLUS_ICON_CLASS } from "./plus-icon-classes.js";
 	import RoundedIcon from "./rounded-icon.svelte";
 
 	interface Props {
@@ -10,4 +9,4 @@
 	let { class: className = "" }: Props = $props();
 </script>
 
-<RoundedIcon name="plus" class={cn(className, PLUS_ICON_CLASS)} />
+<RoundedIcon name="plus" class={cn("shrink-0", className)} />

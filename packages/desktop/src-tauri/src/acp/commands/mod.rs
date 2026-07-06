@@ -12,13 +12,13 @@ use crate::acp::streaming_log::log_streaming_event;
 use crate::acp::types::CanonicalAgentId;
 use crate::acp::types::PromptRequest;
 use crate::path_safety::ProjectPathSafetyError;
-use crate::project_access::{ProjectAccessReason, validate_project_directory_brokered};
-use serde_json::{Value, json};
+use crate::project_access::{validate_project_directory_brokered, ProjectAccessReason};
+use serde_json::{json, Value};
 use std::path::PathBuf;
 use std::sync::Arc;
 use tauri::{AppHandle, Manager};
 use tokio::sync::Mutex as TokioMutex;
-use tokio::time::{Duration, timeout};
+use tokio::time::{timeout, Duration};
 
 mod client_ops;
 mod computer_probe;
@@ -34,6 +34,7 @@ mod preconnection_capabilities;
 mod preconnection_commands;
 mod registry_commands;
 mod session_commands;
+mod transcript_row_page_commands;
 pub(crate) mod transcript_viewport_commands;
 
 #[cfg(test)]
@@ -66,10 +67,12 @@ pub use registry_commands::{acp_list_agents, acp_register_custom_agent};
 #[cfg(test)]
 pub(crate) use session_commands::persist_session_metadata_for_cwd;
 pub use session_commands::{
-    acp_close_session, acp_fork_session, acp_get_event_bridge_info, acp_get_session_state,
-    acp_initialize, acp_new_session, acp_resume_session, acp_set_session_autonomous,
+    acp_close_session, acp_fork_session, acp_get_event_bridge_info,
+    acp_get_session_connection_readiness, acp_get_session_state, acp_initialize, acp_new_session,
+    acp_resume_session, acp_set_session_autonomous,
 };
 pub(crate) use session_commands::{emit_lifecycle_event, session_metadata_context_from_cwd};
+pub use transcript_row_page_commands::acp_read_transcript_row_page;
 pub use transcript_viewport_commands::acp_request_transcript_viewport_buffer;
 
 type SessionClientMutex = TokioMutex<Box<dyn AgentClient + Send + Sync + 'static>>;

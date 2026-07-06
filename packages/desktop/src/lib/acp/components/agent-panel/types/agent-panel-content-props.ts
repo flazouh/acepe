@@ -4,6 +4,7 @@ import type {
 	AgentPanelQuestionSelectEvent,
 	AgentPanelReviewActionEvent,
 	AgentPanelSceneEntryModel,
+	AgentUserFileSelectEvent,
 	AgentToolFileSelectEvent,
 } from "@acepe/ui/agent-panel";
 import type { AgentInfo } from "../../../logic/agent-manager.js";
@@ -11,6 +12,7 @@ import type { PanelViewState } from "../../../logic/panel-visibility";
 import type { Project } from "../../../logic/project-manager.svelte";
 import type { ModifiedFilesState } from "../../../types/modified-files-state.js";
 import type { TranscriptRowsState } from "../../../store/transcript-rows-store.js";
+import type { AgentPanelCanonicalSource } from "../../../session-state/agent-panel-canonical-source.js";
 
 /**
  * Props for the AgentPanelContent component.
@@ -23,6 +25,7 @@ export interface AgentPanelContentProps {
 	readonly viewState: PanelViewState;
 	readonly sessionId: string | null;
 	readonly sceneEntries?: readonly AgentPanelSceneEntryModel[];
+	readonly canonicalSource?: AgentPanelCanonicalSource | null;
 	readonly rowsProjectionOverride?: TranscriptRowsState | null;
 	readonly pendingUserRevealRequestKey?: string | null;
 	readonly showLocalPlanningIndicator?: boolean;
@@ -32,6 +35,7 @@ export interface AgentPanelContentProps {
 	scrollViewport?: HTMLElement | null;
 	isAtBottom?: boolean;
 	isAtTop?: boolean;
+	hasUnreadBelow?: boolean;
 	isStreaming?: boolean;
 	readonly onProjectSelected?: (project: Project) => void;
 	readonly onRetryConnection?: () => void;
@@ -53,6 +57,7 @@ export interface AgentPanelContentProps {
 	readonly onPlanCancel?: (event: AgentPanelPlanActionEvent) => void;
 	readonly onPlanViewFull?: (event: AgentPanelPlanViewEvent) => void;
 	readonly onToolFileSelect?: (event: AgentToolFileSelectEvent) => void;
+	readonly onUserFileSelect?: (event: AgentUserFileSelectEvent) => void;
 	readonly onReview?: (event: AgentPanelReviewActionEvent) => void;
 	readonly isPlanActionAvailable?: (event: AgentPanelPlanActionEvent) => boolean;
 }

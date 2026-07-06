@@ -28,30 +28,17 @@ const betaFile: ModifiedFileEntry = {
 	editCount: 1,
 };
 
-function createProgress(
-	filePath: string,
-	status: PersistedFileReviewProgress["status"]
-): PersistedFileReviewProgress {
+function createProgress(filePath: string, reviewed: boolean): PersistedFileReviewProgress {
 	return {
 		filePath,
-		status,
-		acceptedHunks: status === "accepted" ? 1 : 0,
-		rejectedHunks: status === "denied" ? 1 : 0,
-		pendingHunks: status === "partial" ? 1 : 0,
-		totalHunks: 1,
-		resolvedActions:
-			status === "accepted"
-				? [{ hunkIndex: 0, action: "accept" }]
-				: status === "denied"
-					? [{ hunkIndex: 0, action: "reject" }]
-					: [],
+		reviewed,
 	};
 }
 
 function createState(
 	entries: ReadonlyArray<{
 		file: ModifiedFileEntry;
-		status: PersistedFileReviewProgress["status"];
+		reviewed: boolean;
 	}>
 ): SessionReviewState {
 	const filesByRevisionKey: Record<string, PersistedFileReviewProgress> = {};
@@ -59,62 +46,37 @@ function createState(
 	for (const entry of entries) {
 		filesByRevisionKey[createReviewFileRevisionKey(entry.file)] = createProgress(
 			entry.file.filePath,
-			entry.status
+			entry.reviewed
 		);
 	}
 
 	return {
-		version: 1,
+		version: 2,
 		filesByRevisionKey,
 	};
 }
 
 describe("review progress", () => {
-	it("maps persisted statuses to the current file revisions", () => {
+	it("maps persisted reviewed flags to the current file revisions", () => {
 		const state = createState([
-			{ file: alphaFile, status: "accepted" },
-			{ file: betaFile, status: "partial" },
+			{ file: alphaFile, reviewed: true },
+			{ file: betaFile, reviewed: false },
 		]);
 
 		const statusByFilePath = getReviewStatusByFilePath([alphaFile, betaFile], state);
 
-		expect(statusByFilePath.get(alphaFile.filePath)).toBe("accepted");
-		expect(statusByFilePath.get(betaFile.filePath)).toBe("partial");
+		expect(statusByFilePath.get(alphaFile.filePath)).toBe("reviewed");
+		expect(statusByFilePath.get(betaFile.filePath)).toBe("unreviewed");
 	});
 
-	it("treats fully resolved rejected progress as denied instead of still reviewable partial", () => {
-		const revisionKey = createReviewFileRevisionKey(betaFile);
-		const state: SessionReviewState = {
-			version: 1,
-			filesByRevisionKey: {
-				[revisionKey]: {
-					filePath: betaFile.filePath,
-					status: "partial",
-					acceptedHunks: 1,
-					rejectedHunks: 1,
-					pendingHunks: 0,
-					totalHunks: 2,
-					resolvedActions: [
-						{ hunkIndex: 0, action: "accept" },
-						{ hunkIndex: 1, action: "reject" },
-					],
-				},
-			},
-		};
-
-		const statusByFilePath = getReviewStatusByFilePath([betaFile], state);
-
-		expect(statusByFilePath.get(betaFile.filePath)).toBe("denied");
-	});
-
-	it("reports keep-all as applied only when every current file revision is accepted", () => {
+	it("reports keep-all as applied only when every current file revision is reviewed", () => {
 		const appliedState = createState([
-			{ file: alphaFile, status: "accepted" },
-			{ file: betaFile, status: "accepted" },
+			{ file: alphaFile, reviewed: true },
+			{ file: betaFile, reviewed: true },
 		]);
 		const partialState = createState([
-			{ file: alphaFile, status: "accepted" },
-			{ file: betaFile, status: "partial" },
+			{ file: alphaFile, reviewed: true },
+			{ file: betaFile, reviewed: false },
 		]);
 
 		expect(hasKeepAllBeenApplied([alphaFile, betaFile], appliedState)).toBe(true);

@@ -1,23 +1,32 @@
 <script lang="ts">
 import * as Dialog from "@acepe/ui/dialog";
-import { RoundedIcon } from "@acepe/ui";
+import {
+	getDialogHeaderIconCloseClass,
+	RoundedIcon,
+	type HeaderIconCloseSize,
+} from "@acepe/ui";
 import type { Snippet } from "svelte";
 
-/** Mirrors Button `variant="ghost" size="icon-chrome" class="rounded-sm"` so the
- * dialog close glyph matches the other top-right chrome-icon controls. */
-const CHROME_ICON_CLOSE_CLASS =
-	"inline-flex size-6 shrink-0 items-center justify-center gap-0 rounded-sm border-0 bg-transparent p-0 text-muted-foreground/35 shadow-none transition-colors hover:bg-accent hover:text-foreground focus-visible:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:ring-inset [&_svg]:text-muted-foreground/35 [&_svg]:transition-colors hover:[&_svg]:text-foreground focus-visible:[&_svg]:text-foreground [&_svg:not([class*='size-'])]:size-4";
+type DialogFrameCloseControl = Snippet<[]>;
+
+interface DialogFrameContentContext {
+	closeControl: DialogFrameCloseControl;
+}
 
 interface Props {
 	open?: boolean;
 	title: string;
-	children: Snippet;
+	children?: Snippet;
+	frameContent?: Snippet<[DialogFrameContentContext]>;
+	titleLeading?: Snippet;
 	topLeft?: Snippet;
 	topRight?: Snippet;
 	footer?: Snippet;
 	contentClass?: string;
 	contentOverflow?: "auto" | "hidden";
 	closeLabel?: string;
+	headerIconSize?: HeaderIconCloseSize;
+	showTitle?: boolean;
 	/** default = large panel; compact = settings; fullscreen = edge-to-edge window; form/medium/wide = sized forms; panel/debug = tool surfaces; palette* = command palettes; bare = chromeless overlay. */
 	size?:
 		| "default"
@@ -42,12 +51,16 @@ let {
 	open = $bindable(false),
 	title,
 	children,
+	frameContent,
+	titleLeading,
 	topLeft,
 	topRight,
 	footer,
 	contentClass = "",
 	contentOverflow = "auto",
 	closeLabel = "Close dialog",
+	headerIconSize = "icon-2xs",
+	showTitle = true,
 	size = "default",
 	portalDisabled = false,
 	hideHeader = false,
@@ -91,6 +104,8 @@ const isAutoHeight = $derived(
 
 const shellClass = $derived(isAutoHeight ? "flex flex-col" : "flex h-full min-h-0 flex-col");
 
+const rendersVisibleTitle = $derived(!hideHeader && showTitle);
+
 const bodyClass = $derived(
 	size === "palette" || size === "palette-lg"
 		? "overflow-hidden p-0"
@@ -107,6 +122,16 @@ function handleOpenChange(nextOpen: boolean): void {
 }
 </script>
 
+{#snippet closeControl()}
+	<Dialog.Close
+		aria-label={closeLabel}
+		class={getDialogHeaderIconCloseClass(headerIconSize)}
+		data-header-control
+	>
+		<RoundedIcon name="close" />
+	</Dialog.Close>
+{/snippet}
+
 <Dialog.Root {open} onOpenChange={handleOpenChange}>
 	<Dialog.Content
 		bind:ref={contentRef}
@@ -115,11 +140,27 @@ function handleOpenChange(nextOpen: boolean): void {
 		portalProps={portalDisabled ? { disabled: true } : undefined}
 		onOpenAutoFocus={onOpenAutoFocus}
 	>
-		<Dialog.Title class="sr-only">{title}</Dialog.Title>
+		{#if !rendersVisibleTitle}
+			<Dialog.Title class="sr-only">{title}</Dialog.Title>
+		{/if}
 		<div class={shellClass}>
 			{#if !hideHeader}
-				<div class="flex min-h-6 shrink-0 items-center gap-2 px-1 pt-1">
+				<div
+					class="flex min-h-8 shrink-0 items-center gap-2 px-2 py-1"
+					data-dialog-frame-header
+				>
 					<div class="flex min-w-0 flex-1 items-center gap-1.5">
+						{#if titleLeading}
+							{@render titleLeading()}
+						{/if}
+						{#if showTitle}
+							<Dialog.Title
+								class="min-w-0 truncate text-[11px] font-semibold leading-none text-foreground select-none"
+								data-dialog-frame-title
+							>
+								{title}
+							</Dialog.Title>
+						{/if}
 						{#if topLeft}
 							{@render topLeft()}
 						{/if}
@@ -129,18 +170,16 @@ function handleOpenChange(nextOpen: boolean): void {
 							{@render topRight()}
 						</div>
 					{/if}
-					<Dialog.Close
-						aria-label={closeLabel}
-						class={CHROME_ICON_CLOSE_CLASS}
-						data-header-control
-					>
-						<RoundedIcon name="close" class="size-3.5" />
-					</Dialog.Close>
+					{@render closeControl()}
 				</div>
 			{/if}
-			<div class={bodyClass}>
-				{@render children()}
-			</div>
+			{#if frameContent}
+				{@render frameContent({ closeControl })}
+			{:else if children}
+				<div class={bodyClass}>
+					{@render children()}
+				</div>
+			{/if}
 			{#if footer}
 				<div
 					class="flex shrink-0 items-center justify-end gap-1.5 border-t border-border/30 px-2 py-1.5"

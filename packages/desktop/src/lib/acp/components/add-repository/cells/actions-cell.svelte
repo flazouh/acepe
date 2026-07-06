@@ -14,7 +14,7 @@ let { isAdded, onImport, onUndo }: Props = $props();
 {#if isAdded}
 	<Button
 		variant="ghost"
-		size="icon-chrome"
+		size="icon-2xs"
 		class="rounded-md hover:bg-destructive/10 hover:text-destructive focus-visible:text-destructive hover:[&_svg]:text-destructive focus-visible:[&_svg]:text-destructive"
 		aria-label="Remove project"
 		onclick={(event: MouseEvent) => {
@@ -31,7 +31,7 @@ let { isAdded, onImport, onUndo }: Props = $props();
 {:else}
 	<Button
 		variant="ghost"
-		size="icon-chrome"
+		size="icon-2xs"
 		class="rounded-md"
 		aria-label="Import project"
 		onclick={(event: MouseEvent) => {

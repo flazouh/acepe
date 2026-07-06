@@ -18,7 +18,9 @@ use crate::acp::session_open_snapshot::{
 };
 use crate::acp::session_policy::SessionPolicyRegistry;
 use crate::acp::session_registry::{redact_session_id, SessionRegistry};
-use crate::acp::session_state_engine::bridge::build_snapshot_envelope;
+use crate::acp::session_state_engine::bridge::{
+    build_budgeted_snapshot_envelope, build_snapshot_envelope,
+};
 use crate::acp::session_state_engine::envelope::{
     session_state_envelope_byte_budget_status, SessionStateEnvelope,
 };
@@ -78,9 +80,9 @@ use open_result::{build_new_session_open_result, capabilities_from_new_session_r
 use open_token::claim_open_token_reservation;
 pub use resume::acp_resume_session;
 pub(crate) use resume::resume_session_with_app_handle_and_worker;
-pub use state::acp_get_session_state;
 #[cfg(test)]
 use state::load_transcript_snapshot_for_state_lookup;
+pub use state::{acp_get_session_connection_readiness, acp_get_session_state};
 use state::{
     load_session_projection_lookup, load_transcript_snapshot_for_state_lookup_with_app,
     projection_has_graph_state,

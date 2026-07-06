@@ -66,6 +66,10 @@ export function derivePanelViewState(input: PanelViewStateInput): PanelViewState
 	}
 
 	// 2. Blocking error — only when no entries to show
+	if (hasSession && lifecyclePresentation?.contentPhase === "loading" && entriesCount === 0) {
+		return { kind: "ready" };
+	}
+
 	if (errorInfo.showError && entriesCount === 0) {
 		return { kind: "error", details: errorInfo.details ?? "Unable to connect to the agent." };
 	}

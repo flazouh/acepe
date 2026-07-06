@@ -12,9 +12,9 @@ import {
 	AgentInputModelSelector,
 	AgentInputMetricsChip,
 	AgentInputMicButton,
+	Button,
 	AgentPanelStatusIcon,
 	type AgentPanelSceneModel,
-	MoreVerticalIcon,
 	RoundedIcon,
 } from "@acepe/ui";
 import {
@@ -202,23 +202,33 @@ const favoriteModels = $derived(
 													<span class="truncate text-[10px] font-semibold tracking-wide text-muted-foreground/70">{group.name}</span>
 												</div>
 												<div class="flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100">
-													<button type="button" aria-label="Open terminal" class="flex items-center justify-center size-5 rounded text-muted-foreground">
-														<RoundedIcon name="terminal" class="h-3 w-3" />
-													</button>
-													<button type="button" aria-label="Open browser" class="flex items-center justify-center size-5 rounded text-muted-foreground">
-														<RoundedIcon name="browser" class="h-3 w-3" />
-													</button>
+													<Button variant="ghost" size="icon-2xs" aria-label="Open terminal">
+														{#snippet children()}
+															<RoundedIcon name="terminal" />
+														{/snippet}
+													</Button>
+													<Button variant="ghost" size="icon-2xs" aria-label="Open browser">
+														{#snippet children()}
+															<RoundedIcon name="browser" />
+														{/snippet}
+													</Button>
 												</div>
-												<button type="button" aria-label="Collapse project" class="flex items-center justify-center size-5 shrink-0 rounded text-muted-foreground">
-													<RoundedIcon name="chevron-down" class="size-3 shrink-0" />
-												</button>
+												<Button variant="ghost" size="icon-2xs" aria-label="Collapse project" class="shrink-0">
+													{#snippet children()}
+														<RoundedIcon name="chevron-down" class="shrink-0" />
+													{/snippet}
+												</Button>
 												<div class="flex items-center gap-0.5">
-													<button type="button" aria-label="Project menu" class="flex items-center justify-center size-5 min-w-0 shrink-0 rounded text-muted-foreground">
-														<MoreVerticalIcon class="h-3.5 w-3.5" />
-													</button>
-													<button type="button" aria-label="New session" class="flex items-center justify-center size-5 rounded text-muted-foreground">
-														<PlusIcon />
-													</button>
+													<Button variant="ghost" size="icon-2xs" aria-label="Project menu" class="min-w-0 shrink-0">
+														{#snippet children()}
+															<RoundedIcon name="more" />
+														{/snippet}
+													</Button>
+													<Button variant="ghost" size="icon-2xs" aria-label="New session">
+														{#snippet children()}
+															<PlusIcon />
+														{/snippet}
+													</Button>
 												</div>
 											</div>
 										{/snippet}

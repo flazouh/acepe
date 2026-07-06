@@ -108,11 +108,8 @@ $effect(() => {
 	size="form"
 	onOpenChange={handleOpenChange}
 >
-	{#snippet topLeft()}
+	{#snippet titleLeading()}
 		<RoundedIcon name="branch" class="size-3.5 shrink-0 text-primary" />
-		<span class="truncate text-[11px] font-semibold text-foreground select-none">
-			Create and checkout branch
-		</span>
 	{/snippet}
 
 	<div class="grid gap-2.5 px-3 py-3">
@@ -176,7 +173,7 @@ $effect(() => {
 	</div>
 
 	{#snippet footer()}
-		<Button variant="header" size="header" disabled={switchingBranch} onclick={handleClose}>
+		<Button variant="outline" size="sm" disabled={switchingBranch} onclick={handleClose}>
 			Cancel
 		</Button>
 		<Button

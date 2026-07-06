@@ -159,6 +159,7 @@ describe("resolveVisibleEntryCount", () => {
 	it("counts optimistic entry while canonical entry count is unknown", () => {
 		const count = resolveVisibleEntryCount({
 			canonicalEntryCount: null,
+			canonicalMessageCount: null,
 			optimisticUserEntry: createUserEntry("pending-user", "Hello Claude"),
 		});
 
@@ -168,6 +169,7 @@ describe("resolveVisibleEntryCount", () => {
 	it("counts the optimistic user entry while canonical entries are empty", () => {
 		const count = resolveVisibleEntryCount({
 			canonicalEntryCount: 0,
+			canonicalMessageCount: 0,
 			optimisticUserEntry: createUserEntry("pending-user", "Hello Claude"),
 		});
 
@@ -177,15 +179,27 @@ describe("resolveVisibleEntryCount", () => {
 	it("uses canonical entry count once canonical entries exist", () => {
 		const count = resolveVisibleEntryCount({
 			canonicalEntryCount: 2,
+			canonicalMessageCount: 2,
 			optimisticUserEntry: createUserEntry("pending-user", "Hello Claude"),
 		});
 
 		expect(count).toBe(2);
 	});
 
+	it("uses canonical message count when the transcript body was compacted away", () => {
+		const count = resolveVisibleEntryCount({
+			canonicalEntryCount: 0,
+			canonicalMessageCount: 5349,
+			optimisticUserEntry: null,
+		});
+
+		expect(count).toBe(5349);
+	});
+
 	it("returns zero when there are no canonical or optimistic entries", () => {
 		const count = resolveVisibleEntryCount({
 			canonicalEntryCount: 0,
+			canonicalMessageCount: 0,
 			optimisticUserEntry: null,
 		});
 

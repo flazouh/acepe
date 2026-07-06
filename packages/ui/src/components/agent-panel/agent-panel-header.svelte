@@ -275,8 +275,8 @@
 							<div class="flex items-center gap-1 px-1">
 								{#each visibleActionButtons as action (action.id)}
 									<Button
-										variant={action.destructive ? "destructive" : "headerAction"}
-										size="headerAction"
+										variant={action.destructive ? "destructive" : "secondary"}
+										size="xs"
 										disabled={isHeaderActionDisabled(action)}
 										title={action.description ?? undefined}
 										onclick={() => runAction(action)}

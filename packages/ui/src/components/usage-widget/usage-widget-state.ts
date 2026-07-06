@@ -52,6 +52,79 @@ export function getToneRailClass(tone: UsageMetricTone): string {
 	return "bg-transparent";
 }
 
+const VERTICAL_METER_GOOD_FILL_CLASS = "bg-success";
+
+export function getVerticalMeterFillClass(slotIndex: number, tone: UsageMetricTone): string {
+	void slotIndex;
+
+	if (tone === "danger") {
+		return "bg-[#ff3b30] dark:bg-[#ff453a]";
+	}
+
+	if (tone === "watch") {
+		return "bg-[#ff9500] dark:bg-[#ff9f0a]";
+	}
+
+	return VERTICAL_METER_GOOD_FILL_CLASS;
+}
+
+export function getVerticalMeterMetricLabel(metricLabel: string): string {
+	const normalizedLabel = normalizeVerticalMeterLabelInput(metricLabel);
+	const lowerLabel = normalizedLabel.toLowerCase();
+
+	if (lowerLabel.includes("5h") || lowerLabel.includes("five-hour") || lowerLabel.includes("five hour")) {
+		return "5H";
+	}
+
+	if (lowerLabel.includes("week")) {
+		return "WK";
+	}
+
+	if (lowerLabel.includes("session")) {
+		return "SSN";
+	}
+
+	const words = normalizedLabel.split(/\s+/).filter((word) => word.length > 0);
+	if (words.length >= 2) {
+		let abbreviation = "";
+		for (const word of words) {
+			if (abbreviation.length >= 3) {
+				break;
+			}
+
+			const firstCharacter = word.charAt(0);
+			if (firstCharacter.length > 0) {
+				abbreviation = `${abbreviation}${firstCharacter}`;
+			}
+		}
+
+		if (abbreviation.length >= 2) {
+			return abbreviation.slice(0, 3).toUpperCase();
+		}
+	}
+
+	const compactLabel = normalizedLabel.replace(/[^a-zA-Z0-9]/g, "");
+	if (compactLabel.length >= 2) {
+		return compactLabel.slice(0, 3).toUpperCase();
+	}
+
+	return normalizedLabel.slice(0, 3).toUpperCase();
+}
+
+function normalizeVerticalMeterLabelInput(label: string): string {
+	return label.trim();
+}
+
+/** @deprecated Use getVerticalMeterMetricLabel instead. */
+export function getVerticalMeterLabel(initials: string, metricLabel: string): string {
+	const trimmedInitials = initials.trim();
+	if (trimmedInitials.length >= 2) {
+		return trimmedInitials.slice(0, 3);
+	}
+
+	return getVerticalMeterMetricLabel(metricLabel);
+}
+
 export function getProviderHealth(provider: UsageProvider): UsageMetricTone {
 	if (provider.state === "error" || provider.state === "disconnected") {
 		return "danger";

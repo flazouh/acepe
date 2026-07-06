@@ -35,8 +35,8 @@
 	onclick={(event: MouseEvent) => event.stopPropagation()}
 >
 	<Button
-		variant="headerAction"
-		size="headerAction"
+		variant="secondary"
+		size="xs"
 		class="group/open-pr"
 		disabled={loading || disabled}
 		{onclick}
