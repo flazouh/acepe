@@ -1,7 +1,7 @@
 {
 	"name": "acepe",
 	"private": true,
-	"license": "FSL-1.1-ALv2",
+	"license": "MIT",
 	"repository": {
 		"type": "git",
 		"url": "https://github.com/flazouh/acepe.git"
