@@ -1,6 +1,7 @@
 {
   "name": "@acepe/ui",
   "version": "0.0.1",
+  "license": "MIT",
   "type": "module",
   "svelte": "./src/index.ts",
   "exports": {
