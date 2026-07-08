@@ -196,6 +196,17 @@ describe("resolveVisibleEntryCount", () => {
 		expect(count).toBe(5349);
 	});
 
+	it("uses cached canonical viewport rows while the full transcript count is not materialized yet", () => {
+		const count = resolveVisibleEntryCount({
+			canonicalEntryCount: null,
+			canonicalMessageCount: null,
+			canonicalViewportRowCount: 16,
+			optimisticUserEntry: null,
+		});
+
+		expect(count).toBe(16);
+	});
+
 	it("returns zero when there are no canonical or optimistic entries", () => {
 		const count = resolveVisibleEntryCount({
 			canonicalEntryCount: 0,

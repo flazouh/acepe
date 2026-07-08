@@ -77,12 +77,13 @@ const MAX_QA_PROFILE_SAMPLES = 20_000;
 
 type AgentPanelPerformanceCaptureWindow = Window & {
 	__acepeAgentPanelPerformanceSamples?: AgentPanelPerformanceSample[];
+	__acepeAgentPanelPerformanceCaptureEnabled?: boolean;
 	__acepeEnableAgentPanelPerformanceCapture?: () => void;
 	__acepeDisableAgentPanelPerformanceCapture?: () => void;
 	__acepeReadAgentPanelPerformanceCapture?: () => readonly AgentPanelPerformanceSample[];
 };
 
-let profileCaptureEnabled = $state(false);
+let profileCaptureEnabled = $state(isAgentPanelPerformanceCaptureEnabled());
 const profileRecorder: AgentPanelPerformanceRecorder | undefined = $derived(
 	profileCaptureEnabled ? recordAgentPanelPerformanceSampleForQa : undefined
 );
@@ -100,6 +101,10 @@ function performanceCaptureWindow(): AgentPanelPerformanceCaptureWindow | null {
 		return null;
 	}
 	return window as AgentPanelPerformanceCaptureWindow;
+}
+
+function isAgentPanelPerformanceCaptureEnabled(): boolean {
+	return performanceCaptureWindow()?.__acepeAgentPanelPerformanceCaptureEnabled === true;
 }
 
 function resetAgentPanelPerformanceSamples(): void {
@@ -120,10 +125,18 @@ function readAgentPanelPerformanceSamples(): readonly AgentPanelPerformanceSampl
 
 function enableAgentPanelPerformanceCapture(): void {
 	resetAgentPanelPerformanceSamples();
+	const targetWindow = performanceCaptureWindow();
+	if (targetWindow !== null) {
+		targetWindow.__acepeAgentPanelPerformanceCaptureEnabled = true;
+	}
 	profileCaptureEnabled = true;
 }
 
 function disableAgentPanelPerformanceCapture(): void {
+	const targetWindow = performanceCaptureWindow();
+	if (targetWindow !== null) {
+		targetWindow.__acepeAgentPanelPerformanceCaptureEnabled = false;
+	}
 	profileCaptureEnabled = false;
 }
 
@@ -261,8 +274,7 @@ const hasRenderableTranscriptRows = $derived(
 );
 const shouldRenderTranscriptViewport = $derived(
 	viewState.kind === "conversation" ||
-		hasRenderableTranscriptRows ||
-		(viewState.kind === "ready" && sessionId !== null)
+		hasRenderableTranscriptRows
 );
 
 function recordSceneBoundaryMark(

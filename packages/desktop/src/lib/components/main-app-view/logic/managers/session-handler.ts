@@ -8,12 +8,10 @@
 import { errAsync, okAsync, type ResultAsync } from "neverthrow";
 import type { SessionListItem } from "$lib/acp/components/session-list/session-list-types.js";
 import type { Project } from "$lib/acp/logic/project-manager.svelte.js";
-import { api } from "$lib/acp/store/api.js";
 import type { PanelStore } from "$lib/acp/store/panel-store.svelte.js";
 import type { SessionOpenHydrator } from "$lib/acp/store/services/session-open-hydrator.js";
 import type { SessionStore } from "$lib/acp/store/session-store.svelte.js";
 import { DEFAULT_PANEL_WIDTH } from "$lib/acp/store/types.js";
-import type { SessionOpenResult } from "$lib/services/acp-types.js";
 import {
 	type MainAppViewError,
 	SessionCreationError,
@@ -24,6 +22,18 @@ import type { MainAppViewState } from "../main-app-view-state.svelte.js";
 import { openPersistedSession } from "../open-persisted-session.js";
 
 const SESSION_OPEN_TIMEOUT_MS = 30_000;
+
+type PersistedSessionOpenScheduler = (callback: () => void) => void;
+
+function schedulePersistedSessionOpenAfterPaint(callback: () => void): void {
+	if (typeof requestAnimationFrame === "function") {
+		requestAnimationFrame(() => {
+			setTimeout(callback, 0);
+		});
+		return;
+	}
+	setTimeout(callback, 0);
+}
 
 /**
  * Handles session operations.
@@ -44,7 +54,7 @@ export class SessionHandler {
 			SessionOpenHydrator,
 			"beginAttempt" | "clearAttempt" | "hydrateFound" | "isCurrentAttempt"
 		>,
-		private readonly getSessionOpenResult = api.getSessionOpenResult
+		private readonly schedulePersistedSessionOpen: PersistedSessionOpenScheduler = schedulePersistedSessionOpenAfterPaint
 	) {}
 
 	/**
@@ -84,11 +94,11 @@ export class SessionHandler {
 				)
 				.andThen((loadedSession) => {
 					finalSessionId = loadedSession.id;
-					return this.preloadAndOpenSession(finalSessionId);
+					return this.openPanelAndStartSessionOpen(finalSessionId);
 				});
 		} else if (sessionExists) {
 			finalSessionId = sessionId;
-			return this.preloadAndOpenSession(finalSessionId);
+			return this.openPanelAndStartSessionOpen(finalSessionId);
 		} else {
 			return errAsync(
 				new SessionSelectionError(sessionId, "Session not found and no sessionInfo provided")
@@ -96,18 +106,13 @@ export class SessionHandler {
 		}
 	}
 
-	/**
-	 * Preloads session details and opens the session.
-	 *
-	 * For unopened persisted sessions, fetches the canonical tail page first so
-	 * the first panel render can include transcript rows.
-	 *
-	 * @param sessionId - The session ID
-	 * @returns ResultAsync indicating success or error
-	 */
 	private shouldResumePersistedSession(sessionId: string): boolean {
 		if (this.sessionStore.read.getSessionCanSend(sessionId) === true) {
 			return false;
+		}
+
+		if (this.sessionStore.read.getSessionLifecycle(sessionId)?.actionability.canResume === true) {
+			return true;
 		}
 
 		const lifecycleStatus = this.sessionStore.read.getSessionLifecycleStatus(sessionId);
@@ -118,47 +123,13 @@ export class SessionHandler {
 		);
 	}
 
-	private preloadAndOpenSession(sessionId: string): ResultAsync<void, MainAppViewError> {
-		const wasAlreadyOpen = this.panelStore.isSessionOpen(sessionId);
-		if (wasAlreadyOpen) {
-			return this.openPanelAndStartSessionOpen(sessionId, undefined);
-		}
-
-		const sessionIdentity = this.sessionStore.read.getSessionIdentity(sessionId);
-		const sessionMetadata = this.sessionStore.read.getSessionMetadata(sessionId);
-		if (!sessionIdentity || !sessionMetadata) {
-			return this.openPanelAndStartSessionOpen(sessionId, undefined);
-		}
-
-		const providerHistoryBacked =
-			sessionMetadata.sessionLifecycleState !== "created" || Boolean(sessionMetadata.sourcePath);
-		if (!providerHistoryBacked) {
-			return this.openPanelAndStartSessionOpen(sessionId, undefined);
-		}
-
-		return this.getSessionOpenResult(
-			sessionId,
-			sessionIdentity.projectPath,
-			sessionIdentity.agentId,
-			sessionMetadata.sourcePath
-		)
-			.andThen((preparedOpenResult) =>
-				this.openPanelAndStartSessionOpen(sessionId, preparedOpenResult)
-			)
-			.orElse(() => this.openPanelAndStartSessionOpen(sessionId, undefined));
-	}
-
-	private openPanelAndStartSessionOpen(
-		sessionId: string,
-		preparedOpenResult: SessionOpenResult | undefined
-	): ResultAsync<void, MainAppViewError> {
-		// Opening with a prepared result lets the first panel render receive rows.
+	private openPanelAndStartSessionOpen(sessionId: string): ResultAsync<void, MainAppViewError> {
 		const wasAlreadyOpen = this.panelStore.isSessionOpen(sessionId);
 		const openedPanel = this.panelStore.openSession(sessionId, DEFAULT_PANEL_WIDTH);
 		const panelId = openedPanel?.id ?? this.panelStore.getPanelBySessionId(sessionId)?.id;
 
 		if (panelId && (!wasAlreadyOpen || this.shouldResumePersistedSession(sessionId))) {
-			if (preparedOpenResult === undefined) {
+			this.schedulePersistedSessionOpen(() => {
 				openPersistedSession({
 					panelId,
 					sessionId,
@@ -169,19 +140,6 @@ export class SessionHandler {
 					timeoutMs: SESSION_OPEN_TIMEOUT_MS,
 					source: "session-handler",
 				});
-				return okAsync(undefined);
-			}
-
-			openPersistedSession({
-				panelId,
-				sessionId,
-				sessionStore: this.sessionStore,
-				sessionOpenHydrator: this.sessionOpenHydrator,
-				isPanelCurrent: (targetPanelId, targetSessionId) =>
-					this.panelStore.getPanel(targetPanelId)?.sessionId === targetSessionId,
-				timeoutMs: SESSION_OPEN_TIMEOUT_MS,
-				source: "session-handler",
-				preparedOpenResult,
 			});
 		}
 

@@ -19,4 +19,10 @@ describe("acepe-qa cli options", () => {
 		expect(options.settleMs).toBe(24);
 		expect(options.delayMs).toBe(24);
 	});
+
+	it("parses selector index for multi-panel scroller probes", () => {
+		const options = parseOptions(["agent-panel-row-scan", "--selector-index=3"], "/repo");
+
+		expect(options.selectorIndex).toBe(3);
+	});
 });

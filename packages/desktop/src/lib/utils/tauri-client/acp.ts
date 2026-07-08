@@ -127,6 +127,10 @@ export const acp = {
 		});
 	},
 
+	unarchiveSession: (sessionId: string): ResultAsync<void, AppError> => {
+		return acpCommands.unarchive_session.invoke<void>({ sessionId });
+	},
+
 	forkSession: (
 		sessionId: string,
 		cwd: string,

@@ -1,75 +1,78 @@
 <script lang="ts">
-	import type { Snippet } from "svelte";
-	import type {
-		AgentPanelConversationEntry,
-		AgentPanelPlanActionEvent,
-		AgentPanelPlanViewEvent,
-		AgentPanelQuestionSelectEvent,
-		AgentPanelReviewActionEvent,
-		AgentUserFileSelectEvent,
-		AgentToolFileSelectEvent,
-		AssistantRenderBlockContext,
-	} from "./types.js";
-	import type { InlineArtefactTokenType } from "../../lib/inline-artefact/index.js";
-	import type { StreamingAnimationMode } from "../../lib/assistant-message/types.js";
-	import { isToolCallEntry } from "./agent-panel-conversation-entry-model.js";
+import type { Snippet } from "svelte";
+import type {
+	AgentPanelConversationEntry,
+	AgentPanelPlanActionEvent,
+	AgentPanelPlanViewEvent,
+	AgentPanelQuestionSelectEvent,
+	AgentPanelReviewActionEvent,
+	AgentUserFileSelectEvent,
+	AgentToolFileSelectEvent,
+	AssistantRenderBlockContext,
+} from "./types.js";
+import type { InlineArtefactTokenType } from "../../lib/inline-artefact/index.js";
+import type { StreamingAnimationMode } from "../../lib/assistant-message/types.js";
+import { isToolCallEntry } from "./agent-panel-conversation-entry-model.js";
 
-	import AgentAssistantMessage from "./agent-assistant-message.svelte";
-	import AgentPanelToolEntry from "./agent-panel-tool-entry.svelte";
-	import AgentThinkingSceneEntry from "./agent-thinking-scene-entry.svelte";
-	import AgentUserMessage from "./agent-user-message.svelte";
-	import AgentMissingSceneEntry from "./agent-missing-scene-entry.svelte";
-	import type { EditToolTheme } from "./agent-tool-edit-theme.js";
-	export type { EditToolTheme } from "./agent-tool-edit-theme.js";
+import AgentAssistantMessage from "./agent-assistant-message.svelte";
+import AgentPanelToolEntry from "./agent-panel-tool-entry.svelte";
+import AgentThinkingSceneEntry from "./agent-thinking-scene-entry.svelte";
+import AgentUserMessage from "./agent-user-message.svelte";
+import AgentMissingSceneEntry from "./agent-missing-scene-entry.svelte";
+import type { EditToolTheme } from "./agent-tool-edit-theme.js";
+export type { EditToolTheme } from "./agent-tool-edit-theme.js";
 
-	interface Props {
-		entry: AgentPanelConversationEntry;
-		iconBasePath?: string;
-		editToolTheme?: EditToolTheme;
-		projectPath?: string;
-		streamingAnimationMode?: StreamingAnimationMode;
-		/** When true, streaming placeholders show the Claude working spark instead of the label. */
-		showWorkingSpark?: boolean;
-		renderAssistantBlock?: Snippet<[AssistantRenderBlockContext]>;
-		onQuestionSelect?: (event: AgentPanelQuestionSelectEvent) => void;
-		onPlanBuild?: (event: AgentPanelPlanActionEvent) => void;
-		onPlanCancel?: (event: AgentPanelPlanActionEvent) => void;
-		onPlanViewFull?: (event: AgentPanelPlanViewEvent) => void;
-		onToolFileSelect?: (event: AgentToolFileSelectEvent) => void;
-		onUserFileSelect?: (event: AgentUserFileSelectEvent) => void;
-		onReview?: (event: AgentPanelReviewActionEvent) => void;
-		isPlanActionAvailable?: (event: AgentPanelPlanActionEvent) => boolean;
+interface Props {
+	entry: AgentPanelConversationEntry;
+	iconBasePath?: string;
+	editToolTheme?: EditToolTheme;
+	projectPath?: string;
+	streamingAnimationMode?: StreamingAnimationMode;
+	/** When true, streaming placeholders show the Claude working spark instead of the label. */
+	showWorkingSpark?: boolean;
+	renderAssistantBlock?: Snippet<[AssistantRenderBlockContext]>;
+	onQuestionSelect?: (event: AgentPanelQuestionSelectEvent) => void;
+	onPlanBuild?: (event: AgentPanelPlanActionEvent) => void;
+	onPlanCancel?: (event: AgentPanelPlanActionEvent) => void;
+	onPlanViewFull?: (event: AgentPanelPlanViewEvent) => void;
+	onToolFileSelect?: (event: AgentToolFileSelectEvent) => void;
+	onUserFileSelect?: (event: AgentUserFileSelectEvent) => void;
+	onReview?: (event: AgentPanelReviewActionEvent) => void;
+	isPlanActionAvailable?: (event: AgentPanelPlanActionEvent) => boolean;
+}
+
+let {
+	entry,
+	iconBasePath = "",
+	editToolTheme,
+	projectPath,
+	streamingAnimationMode = "smooth",
+	showWorkingSpark = false,
+	renderAssistantBlock,
+	onQuestionSelect,
+	onPlanBuild,
+	onPlanCancel,
+	onPlanViewFull,
+	onToolFileSelect,
+	onUserFileSelect,
+	onReview,
+	isPlanActionAvailable,
+}: Props = $props();
+
+function handleUserTokenClick(
+	tokenType: InlineArtefactTokenType,
+	value: string,
+): void {
+	if (tokenType !== "file" && tokenType !== "image") {
+		return;
 	}
 
-	let {
-		entry,
-		iconBasePath = "",
-		editToolTheme,
-		projectPath,
-		streamingAnimationMode = "smooth",
-		showWorkingSpark = false,
-		renderAssistantBlock,
-		onQuestionSelect,
-		onPlanBuild,
-		onPlanCancel,
-		onPlanViewFull,
-		onToolFileSelect,
-		onUserFileSelect,
-		onReview,
-		isPlanActionAvailable,
-	}: Props = $props();
-
-	function handleUserTokenClick(tokenType: InlineArtefactTokenType, value: string): void {
-		if (tokenType !== "file" && tokenType !== "image") {
-			return;
-		}
-
-		onUserFileSelect?.({
-			tokenType,
-			value,
-		});
-	}
- </script>
+	onUserFileSelect?.({
+		tokenType,
+		value,
+	});
+}
+</script>
 
 {#if entry.type === "user"}
 	<AgentUserMessage

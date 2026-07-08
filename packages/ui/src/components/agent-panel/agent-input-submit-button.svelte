@@ -21,11 +21,11 @@ const showStop = $derived(intent === "stop" || intent === "steer");
 	onclick={onSubmit}
 	{disabled}
 	aria-label={ariaLabel}
-	class="inline-flex h-7 w-7 cursor-pointer shrink-0 items-center justify-center gap-0 whitespace-nowrap rounded-lg bg-foreground p-0 text-sm font-medium text-background transition-all outline-none hover:bg-foreground/85 focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0"
+	class="inline-flex h-8 w-8 cursor-pointer shrink-0 items-center justify-center gap-0 whitespace-nowrap rounded-lg bg-foreground p-0 text-sm font-medium text-background transition-all outline-none hover:bg-foreground/85 focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0"
 >
 	{#if showStop}
 		<svg
-			class="h-3.5 w-3.5 shrink-0"
+			class="h-4 w-4 shrink-0"
 			aria-hidden="true"
 			viewBox="0 0 20 20"
 			xmlns="http://www.w3.org/2000/svg"
@@ -37,7 +37,7 @@ const showStop = $derived(intent === "stop" || intent === "steer");
 		</svg>
 	{:else}
 		<svg
-			class="h-3.5 w-3.5 shrink-0"
+			class="h-4 w-4 shrink-0"
 			aria-hidden="true"
 			viewBox="0 0 20 20"
 			xmlns="http://www.w3.org/2000/svg"

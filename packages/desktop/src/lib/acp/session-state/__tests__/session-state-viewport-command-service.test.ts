@@ -20,7 +20,7 @@ describe("transcriptRowPageResultFromWire", () => {
 	it("normalizes snake_case row page command fields to app camelCase", () => {
 		const result = transcriptRowPageResultFromWire({
 			status: "current",
-			projection_version: "transcript_viewport_row:v1",
+			projection_version: "transcript_viewport_row:v5",
 			start_row_index: 256,
 			total_row_count: 512,
 			row_payload_bytes: 42,
@@ -32,7 +32,7 @@ describe("transcriptRowPageResultFromWire", () => {
 
 		expect(result).toEqual({
 			status: "current",
-			projectionVersion: "transcript_viewport_row:v1",
+			projectionVersion: "transcript_viewport_row:v5",
 			startRowIndex: 256,
 			totalRowCount: 512,
 			rowPayloadBytes: 42,

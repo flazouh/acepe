@@ -145,6 +145,7 @@ const projectTabs = $derived(
 	buildPanelsContainerProjectTabs({
 		projects: viewModeState.focusedModeAllProjects ?? [],
 		groups: allGroups,
+		getProjectBadgeLabel: (projectPath) => projectManager.getProjectBadgeLabel(projectPath),
 	})
 );
 const showProjectTabBar = $derived(
@@ -263,6 +264,7 @@ const terminalTabsPanelStore = $derived.by(() => ({
 					projectPath={filePanel.projectPath}
 					projectName={project ? project.name : "Unknown"}
 					projectColor={project?.color}
+					projectBadgeLabel={projectManager.getProjectBadgeLabel(filePanel.projectPath) ?? null}
 					projectIconSrc={project?.iconPath ?? null}
 					width={filePanel.width}
 					isFullscreenEmbedded={true}
@@ -292,6 +294,7 @@ const terminalTabsPanelStore = $derived.by(() => ({
 					projectPath={terminalGroup.projectPath}
 					projectName={project ? project.name : "Unknown"}
 					projectColor={project ? project.color : "#4AD0FF"}
+					projectBadgeLabel={projectManager.getProjectBadgeLabel(terminalGroup.projectPath) ?? null}
 					projectIconSrc={project?.iconPath ?? null}
 					panelStore={terminalTabsPanelStore}
 				/>
@@ -331,6 +334,7 @@ const terminalTabsPanelStore = $derived.by(() => ({
 							activeFilePanelId={panelStore.getActiveTopLevelFilePanelId(group.projectPath)}
 							projectName={project ? project.name : "Unknown"}
 							projectColor={project?.color}
+							projectBadgeLabel={projectManager.getProjectBadgeLabel(group.projectPath) ?? null}
 							projectIconSrc={project?.iconPath ?? null}
 							onSelectFilePanel={(panelId) => panelStore.setActiveTopLevelFilePanel(group.projectPath, panelId)}
 							onCloseFilePanel={(panelId) => panelStore.closeFilePanel(panelId)}
@@ -361,6 +365,7 @@ const terminalTabsPanelStore = $derived.by(() => ({
 								projectPath={group.projectPath}
 								projectName={group.projectName}
 								projectColor={group.projectColor}
+								projectBadgeLabel={projectManager.getProjectBadgeLabel(group.projectPath) ?? null}
 								projectIconSrc={projectManager.getProject(group.projectPath)?.iconPath ?? null}
 								panelStore={terminalTabsPanelStore}
 							/>

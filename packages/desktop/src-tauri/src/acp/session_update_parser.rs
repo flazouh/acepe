@@ -217,6 +217,7 @@ pub fn session_update_to_domain_event(
             chunk,
             message_id,
             part_id,
+            parent_tool_use_id,
             ..
         } => {
             let text = extract_chunk_text(chunk);
@@ -225,6 +226,7 @@ pub fn session_update_to_domain_event(
                 Some(SessionDomainEventPayload::AssistantMessageSegmentAppended {
                     message_id: message_id.clone(),
                     part_id: part_id.clone(),
+                    parent_tool_use_id: parent_tool_use_id.clone(),
                     text,
                 }),
             ))
@@ -233,6 +235,7 @@ pub fn session_update_to_domain_event(
             chunk,
             message_id,
             part_id,
+            parent_tool_use_id,
             ..
         } => {
             let text = extract_chunk_text(chunk);
@@ -241,6 +244,7 @@ pub fn session_update_to_domain_event(
                 Some(SessionDomainEventPayload::AssistantThoughtSegmentAppended {
                     message_id: message_id.clone(),
                     part_id: part_id.clone(),
+                    parent_tool_use_id: parent_tool_use_id.clone(),
                     text,
                 }),
             ))
@@ -384,6 +388,7 @@ mod tests {
             },
             part_id: None,
             message_id: None,
+            parent_tool_use_id: None,
             session_id: Some("session-1".to_string()),
             produced_at_monotonic_ms: None,
         };
@@ -414,6 +419,7 @@ mod tests {
             },
             part_id: None,
             message_id: None,
+            parent_tool_use_id: None,
             session_id: Some("session-1".to_string()),
         };
 

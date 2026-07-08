@@ -18,7 +18,8 @@ mock.module("../../services/tauri-command-client.js", () => ({
 	},
 }));
 
-const { workspace } = await import("./workspace.js");
+const workspaceModulePath = "./workspace.js?hot-cache-test" as string;
+const { workspace } = (await import(workspaceModulePath)) as typeof import("./workspace.js");
 
 const originalLocalStorageDescriptor = Object.getOwnPropertyDescriptor(globalThis, "localStorage");
 let localStorageValues: Map<string, string>;

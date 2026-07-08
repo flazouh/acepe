@@ -1,3 +1,5 @@
+import { computeProjectBadgeLabels } from "@acepe/ui/project-letter-badge";
+
 import type { SessionEntry } from "../../application/dto/session-entry.js";
 import type { SessionSummary } from "../../application/dto/session-summary.js";
 import type { Project } from "../../logic/project-manager.svelte.js";
@@ -33,11 +35,16 @@ import { truncateText } from "../../utils/tool-state-utils.js";
  * Used when session data is still loading but project data from DB is available.
  */
 export function createLoadingSessionGroups(projects: readonly Project[]): SessionGroup[] {
+	const projectBadgeLabelByPath = computeProjectBadgeLabels(
+		projects.map((project) => ({ key: project.path, name: project.name }))
+	);
+
 	return projects
 		.toSorted((a, b) => compareProjectOrder(a.sortOrder, a.createdAt, b.sortOrder, b.createdAt))
 		.map((project) => ({
 			projectPath: project.path,
 			projectName: project.name,
+			projectBadgeLabel: projectBadgeLabelByPath.get(project.path) ?? null,
 			projectColor: project.color,
 			projectIconSrc: project.iconPath ?? null,
 			sessions: [],
@@ -339,6 +346,7 @@ export function createSessionGroups(
 	allProjects?: readonly Project[]
 ): SessionGroup[] {
 	const groupMap = new Map<string, SessionGroup>();
+	const projectBadgeLabelByPath = getSessionGroupBadgeLabelMap(items, allProjects);
 
 	// Seed groups from all known projects so empty ones still appear
 	if (allProjects) {
@@ -346,6 +354,7 @@ export function createSessionGroups(
 			groupMap.set(project.path, {
 				projectPath: project.path,
 				projectName: project.name,
+				projectBadgeLabel: projectBadgeLabelByPath.get(project.path) ?? null,
 				projectColor: project.color,
 				projectIconSrc: project.iconPath ?? null,
 				sessions: [],
@@ -359,6 +368,7 @@ export function createSessionGroups(
 			group = {
 				projectPath: item.projectPath,
 				projectName: item.projectName,
+				projectBadgeLabel: projectBadgeLabelByPath.get(item.projectPath) ?? null,
 				projectColor: item.projectColor,
 				projectIconSrc: item.projectIconSrc ?? null,
 				sessions: [],
@@ -376,6 +386,28 @@ export function createSessionGroups(
 		const bSortOrder = projectSortOrderMap?.get(b.projectPath);
 		return compareProjectOrder(aSortOrder, aCreatedAt, bSortOrder, bCreatedAt);
 	});
+}
+
+function getSessionGroupBadgeLabelMap(
+	items: readonly SessionListItem[],
+	allProjects: readonly Project[] | undefined
+): Map<string, string> {
+	if (allProjects !== undefined) {
+		return computeProjectBadgeLabels(
+			allProjects.map((project) => ({ key: project.path, name: project.name }))
+		);
+	}
+
+	const projectNameByPath = new Map<string, string>();
+	for (const item of items) {
+		if (!projectNameByPath.has(item.projectPath)) {
+			projectNameByPath.set(item.projectPath, item.projectName);
+		}
+	}
+
+	return computeProjectBadgeLabels(
+		Array.from(projectNameByPath.entries()).map(([key, name]) => ({ key, name }))
+	);
 }
 
 function compareProjectOrder(

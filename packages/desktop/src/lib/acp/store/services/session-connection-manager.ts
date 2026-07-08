@@ -57,8 +57,11 @@ const logger = createLogger({ id: "session-connection-manager", name: "SessionCo
  * The authoritative timeout lives in Rust (45s). This watchdog fires only
  * if the Rust task panics or the SSE bridge drops the lifecycle event.
  */
-const WATCHDOG_TIMEOUT_MS = 90_000;
-const READINESS_RECONCILE_TIMEOUT_MS = 45_000;
+export const SESSION_CONNECTION_WATCHDOG_TIMEOUT_MS = 90_000;
+export const SESSION_CONNECTION_READINESS_RECONCILE_TIMEOUT_MS =
+	SESSION_CONNECTION_WATCHDOG_TIMEOUT_MS;
+const WATCHDOG_TIMEOUT_MS = SESSION_CONNECTION_WATCHDOG_TIMEOUT_MS;
+const READINESS_RECONCILE_TIMEOUT_MS = SESSION_CONNECTION_READINESS_RECONCILE_TIMEOUT_MS;
 const READINESS_RECONCILE_INTERVAL_MS = 500;
 
 /** Global attempt counter for stale-event detection. */

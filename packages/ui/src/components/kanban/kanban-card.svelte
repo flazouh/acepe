@@ -101,6 +101,7 @@ function handleKeydown(event: KeyboardEvent): void {
 			<HeaderCell withDivider={false} class="px-1">
 				<ProjectLetterBadge
 					name={card.projectName}
+					label={card.projectBadgeLabel ?? null}
 					color={card.projectColor}
 					iconSrc={card.projectIconSrc}
 					size={14}

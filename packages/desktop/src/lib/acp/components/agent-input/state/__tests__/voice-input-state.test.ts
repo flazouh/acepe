@@ -161,7 +161,74 @@ describe("VoiceInputState", () => {
 				SoundDown: "sound-down",
 			},
 		}));
-		mock.module("runed", () => ({}));
+		mock.module("runed", () => ({
+			Context: class TestContext {
+				private value: object | null = null;
+
+				constructor(_name: string) {}
+
+				exists(): boolean {
+					return this.value !== null;
+				}
+
+				set(value: object): object {
+					this.value = value;
+					return value;
+				}
+
+				get(): object | null {
+					return this.value;
+				}
+
+				getOr(fallback: object): object {
+					return this.value ?? fallback;
+				}
+			},
+			ElementSize: class TestElementSize {
+				readonly width = 0;
+				readonly height = 0;
+
+				constructor(_node?: object | (() => object | null), _options?: object) {}
+			},
+			PersistedState: class TestPersistedState<TValue> {
+				current: TValue | undefined;
+
+				constructor(_key: string, initialValue?: TValue) {
+					this.current = initialValue;
+				}
+			},
+			Previous: class TestPrevious<TValue> {
+				current: TValue | undefined;
+
+				constructor(getValue: () => TValue) {
+					this.current = getValue();
+				}
+			},
+			AnimationFrames: class TestAnimationFrames {
+				readonly current = false;
+
+				start(): void {}
+
+				stop(): void {}
+			},
+			Debounced: class TestDebounced<TValue> {
+				current: TValue | undefined;
+
+				constructor(value?: TValue) {
+					this.current = value;
+				}
+			},
+			IsMounted: class TestIsMounted {
+				readonly current = true;
+			},
+			onClickOutside: () => () => {},
+			useDebounce: (callback: () => void) => callback,
+			useEventListener: () => () => {},
+			useResizeObserver: () => () => {},
+			watch: Object.assign(mock(() => () => {}), {
+				pre: mock(() => () => {}),
+			}),
+		}));
 		mock.module("$lib/acp/utils/sound.js", () => ({
 			playSound: playSoundMock,
 		}));

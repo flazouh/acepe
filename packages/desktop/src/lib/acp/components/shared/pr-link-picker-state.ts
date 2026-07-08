@@ -10,7 +10,7 @@ export {
 	shouldLoadOpenPullRequests,
 	shouldShowPrSearchInput,
 	type PrPickerListState,
-} from "@acepe/ui";
+} from "@acepe/ui/session-pr-link";
 export type {
 	SessionPrLinkPickerLinkedPr,
 	SessionPrLinkPickerMode,
@@ -19,4 +19,4 @@ export type {
 	SessionPrLinkPickerPullRequest,
 	SessionPrLinkPickerReference,
 	SessionPrLinkPickerRepoContext,
-} from "@acepe/ui";
+} from "@acepe/ui/session-pr-link";

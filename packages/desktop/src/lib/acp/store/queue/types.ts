@@ -30,6 +30,8 @@ export interface QueueItem {
 	readonly projectPath: string;
 	/** Project name (extracted from path) */
 	readonly projectName: string;
+	/** Disambiguating badge label for projects with similar names */
+	readonly projectBadgeLabel: string | null;
 	/** Project color for badge */
 	readonly projectColor: string;
 	/** Project icon source for badge */

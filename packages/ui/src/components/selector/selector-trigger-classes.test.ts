@@ -27,6 +27,7 @@ describe("getSelectorTriggerButtonVariant", () => {
 
 	test("uses ghost for icon rail triggers", () => {
 		expect(getSelectorTriggerButtonVariant("icon")).toBe("ghost");
+		expect(getSelectorTriggerButtonVariant("iconSm")).toBe("ghost");
 		expect(getSelectorTriggerButtonVariant("chromeIcon")).toBe("ghost");
 		expect(getSelectorTriggerButtonVariant("chromeIconMd")).toBe("ghost");
 	});
@@ -44,6 +45,7 @@ describe("getSelectorTriggerButtonSize icon rails", () => {
 
 	test("keeps dense icon triggers compact", () => {
 		expect(getSelectorTriggerButtonSize("icon")).toBe("icon");
+		expect(getSelectorTriggerButtonSize("iconSm")).toBe("icon-sm");
 		expect(getSelectorTriggerButtonSize("attach")).toBe("icon");
 	});
 

@@ -32,7 +32,7 @@ use crate::acp::projections::{
 };
 use crate::acp::session_open_snapshot::{
     SessionOpenError, SessionOpenErrorReason, SessionOpenFound, SessionOpenMissing,
-    SessionOpenResult,
+    SessionOpenPath, SessionOpenResult, SessionOpenResultTiming, SessionOpenTranscriptRowPage,
 };
 use crate::acp::session_state_engine::protocol::{
     AssistantTextDeltaPayload, ViewportBufferDelta, ViewportBufferDiagnostic, ViewportBufferPush,
@@ -59,8 +59,9 @@ use crate::acp::transcript_projection::{
     TranscriptSegment, TranscriptSnapshot,
 };
 use crate::acp::transcript_viewport::{
-    TranscriptViewportInteractionLink, TranscriptViewportOperationLink, TranscriptViewportRow,
-    TranscriptViewportRowContent, TranscriptViewportRowKind,
+    TranscriptViewportInteractionLink, TranscriptViewportOperationDisplayFacts,
+    TranscriptViewportOperationLink, TranscriptViewportRow, TranscriptViewportRowContent,
+    TranscriptViewportRowKind,
 };
 use crate::acp::types::{CanonicalAgentId, ContentBlock, EmbeddedResource};
 use crate::checkpoint::types::FileDiffContent;
@@ -118,6 +119,18 @@ export type ProviderMetadataProjection = {
 export type FrontendProviderProjection = ProviderMetadataProjection;
 
 export type ModelsForDisplayWithProvider = ModelsForDisplay;
+
+export type TranscriptRowPageResult =
+	({ status: "current" } & SessionOpenTranscriptRowPage)
+	| { status: "missing" }
+	| {
+			status: "stale";
+			projectionVersion: string;
+			totalRowCount: number;
+			transcriptRevision: number;
+			graphRevision: number;
+			lastEventSeq: number;
+	  };
 "#;
 
 /// Creates a specta configuration that allows BigInt for i64 types
@@ -449,6 +462,9 @@ pub fn export_all_types() {
     export_acp_type!(SessionProjectionSnapshot);
     export_acp_type!(SessionOpenErrorReason);
     export_acp_type!(SessionOpenError);
+    export_acp_type!(SessionOpenPath);
+    export_acp_type!(SessionOpenTranscriptRowPage);
+    export_acp_type!(SessionOpenResultTiming);
     export_acp_type!(SessionOpenFound);
     export_acp_type!(SessionOpenMissing);
     export_acp_type!(SessionOpenResult);
@@ -464,6 +480,7 @@ pub fn export_all_types() {
     export_acp_type!(ActiveStreamingTailContentKind);
     export_acp_type!(ActiveStreamingTail);
     export_acp_type!(TranscriptViewportRowKind);
+    export_acp_type!(TranscriptViewportOperationDisplayFacts);
     export_acp_type!(TranscriptViewportOperationLink);
     export_acp_type!(TranscriptViewportInteractionLink);
     export_acp_type!(TranscriptViewportRowContent);
@@ -505,8 +522,7 @@ pub fn export_all_types() {
         );
     }
 
-    acp_types.push_str(ACP_TYPES_COMPAT_HELPERS);
-    acp_types.push('\n');
+    acp_types.push_str(ACP_TYPES_COMPAT_HELPERS.trim_start());
 
     let acp_path = Path::new(manifest_dir).join(ACP_TYPES_PATH);
     fs::write(&acp_path, trim_generated_trailing_whitespace(&acp_types))

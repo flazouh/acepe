@@ -337,8 +337,12 @@ impl SessionTranscriptProjection {
                 chunk,
                 message_id,
                 part_id,
+                parent_tool_use_id,
                 ..
             } => {
+                if parent_tool_use_id.is_some() {
+                    return None;
+                }
                 let text = text_from_block(&chunk.content)?;
                 let entry_id = self.assistant_entry_id_for_chunk(message_id, part_id, event_seq);
                 let segment = TranscriptSegment::Text {
@@ -372,8 +376,12 @@ impl SessionTranscriptProjection {
                 chunk,
                 message_id,
                 part_id,
+                parent_tool_use_id,
                 ..
             } => {
+                if parent_tool_use_id.is_some() {
+                    return None;
+                }
                 let text = text_from_block(&chunk.content)?;
                 let entry_id = self.assistant_entry_id_for_chunk(message_id, part_id, event_seq);
                 let segment = TranscriptSegment::Thought {
@@ -587,6 +595,7 @@ mod tests {
                     },
                     part_id: Some("part-1".to_string()),
                     message_id: Some("assistant-1".to_string()),
+                    parent_tool_use_id: None,
                     session_id: Some("session-1".to_string()),
                     produced_at_monotonic_ms: None,
                 },
@@ -604,6 +613,7 @@ mod tests {
                     },
                     part_id: Some("part-1".to_string()),
                     message_id: Some("assistant-1".to_string()),
+                    parent_tool_use_id: None,
                     session_id: Some("session-1".to_string()),
                     produced_at_monotonic_ms: None,
                 },
@@ -623,6 +633,91 @@ mod tests {
     }
 
     #[test]
+    fn subagent_text_chunk_does_not_append_to_parent_assistant_row() {
+        let registry = TranscriptProjectionRegistry::new();
+        registry
+            .apply_session_update_idle(
+                1,
+                &SessionUpdate::AgentMessageChunk {
+                    chunk: ContentChunk {
+                        content: ContentBlock::Text {
+                            text: "Parent text.".to_string(),
+                        },
+                        aggregation_hint: None,
+                    },
+                    part_id: None,
+                    message_id: Some("parent-message".to_string()),
+                    parent_tool_use_id: None,
+                    session_id: Some("session-1".to_string()),
+                    produced_at_monotonic_ms: None,
+                },
+            )
+            .expect("parent assistant delta");
+        registry
+            .apply_session_update_idle(
+                2,
+                &SessionUpdate::ToolCall {
+                    tool_call: ToolCallData {
+                        id: "toolu_task_parent".to_string(),
+                        name: "Task".to_string(),
+                        arguments: ToolArguments::Other {
+                            raw: serde_json::json!({
+                                "description": "Find new chat modal project trigger"
+                            }),
+                            intent: None,
+                        },
+                        diagnostic_input: None,
+                        status: ToolCallStatus::Completed,
+                        result: None,
+                        kind: Some(ToolKind::Task),
+                        title: Some("Find new chat modal project trigger".to_string()),
+                        locations: None,
+                        skill_meta: None,
+                        normalized_questions: None,
+                        normalized_todos: None,
+                        normalized_todo_update: None,
+                        parent_tool_use_id: None,
+                        task_children: None,
+                        question_answer: None,
+                        awaiting_plan_approval: false,
+                        plan_approval_request_id: None,
+                    },
+                    session_id: Some("session-1".to_string()),
+                },
+            )
+            .expect("task tool delta");
+
+        let subagent_delta = registry.apply_session_update_idle(
+            3,
+            &SessionUpdate::AgentMessageChunk {
+                chunk: ContentChunk {
+                    content: ContentBlock::Text {
+                        text: "Subagent report that must not leak.".to_string(),
+                    },
+                    aggregation_hint: None,
+                },
+                part_id: None,
+                message_id: Some("subagent-message".to_string()),
+                session_id: Some("session-1".to_string()),
+                produced_at_monotonic_ms: None,
+                parent_tool_use_id: Some("toolu_task_parent".to_string()),
+            },
+        );
+
+        assert_eq!(subagent_delta, None);
+        let snapshot = registry
+            .snapshot_for_session("session-1")
+            .expect("runtime snapshot");
+        assert_eq!(snapshot.entries.len(), 2);
+        assert_eq!(snapshot.entries[0].role, TranscriptEntryRole::Assistant);
+        assert_eq!(snapshot.entries[1].role, TranscriptEntryRole::Tool);
+        match &snapshot.entries[0].segments[0] {
+            TranscriptSegment::Text { text, .. } => assert_eq!(text, "Parent text."),
+            other => panic!("expected parent text segment, got {other:?}"),
+        }
+    }
+
+    #[test]
     fn thought_chunk_projects_as_canonical_thought_segment() {
         let registry = TranscriptProjectionRegistry::new();
         let delta = registry
@@ -637,6 +732,7 @@ mod tests {
                     },
                     part_id: Some("thinking-part-1".to_string()),
                     message_id: Some("assistant-1".to_string()),
+                    parent_tool_use_id: None,
                     session_id: Some("session-1".to_string()),
                 },
             )
@@ -682,6 +778,7 @@ mod tests {
                     },
                     part_id: Some("part-1".to_string()),
                     message_id: Some("assistant-1".to_string()),
+                    parent_tool_use_id: None,
                     session_id: Some("session-1".to_string()),
                     produced_at_monotonic_ms: None,
                 },
@@ -790,6 +887,7 @@ mod tests {
                     },
                     part_id: None,
                     message_id: None,
+                    parent_tool_use_id: None,
                     session_id: Some("session-1".to_string()),
                     produced_at_monotonic_ms: None,
                 },
@@ -807,6 +905,7 @@ mod tests {
                     },
                     part_id: None,
                     message_id: None,
+                    parent_tool_use_id: None,
                     session_id: Some("session-1".to_string()),
                     produced_at_monotonic_ms: None,
                 },
@@ -852,6 +951,7 @@ mod tests {
                     },
                     part_id: Some("part-1".to_string()),
                     message_id: Some("assistant-1".to_string()),
+                    parent_tool_use_id: None,
                     session_id: Some("session-1".to_string()),
                     produced_at_monotonic_ms: None,
                 },
@@ -885,6 +985,7 @@ mod tests {
                     },
                     part_id: Some("part-2".to_string()),
                     message_id: Some("assistant-1".to_string()),
+                    parent_tool_use_id: None,
                     session_id: Some("session-1".to_string()),
                     produced_at_monotonic_ms: None,
                 },
@@ -946,6 +1047,7 @@ mod tests {
                     },
                     part_id: Some("part-1".to_string()),
                     message_id: Some("msg-same".to_string()),
+                    parent_tool_use_id: None,
                     session_id: Some("session-1".to_string()),
                     produced_at_monotonic_ms: None,
                 },
@@ -994,6 +1096,7 @@ mod tests {
                     },
                     part_id: Some("part-2".to_string()),
                     message_id: Some("msg-same".to_string()),
+                    parent_tool_use_id: None,
                     session_id: Some("session-1".to_string()),
                     produced_at_monotonic_ms: None,
                 },
@@ -1113,6 +1216,7 @@ mod tests {
                     },
                     part_id: Some("part-1".to_string()),
                     message_id: Some("assistant-1".to_string()),
+                    parent_tool_use_id: None,
                     session_id: Some("session-1".to_string()),
                     produced_at_monotonic_ms: None,
                 },
@@ -1139,6 +1243,7 @@ mod tests {
                     },
                     part_id: Some("part-1".to_string()),
                     message_id: Some("msg-same".to_string()),
+                    parent_tool_use_id: None,
                     session_id: Some("session-1".to_string()),
                     produced_at_monotonic_ms: None,
                 },
@@ -1175,6 +1280,7 @@ mod tests {
                     },
                     part_id: Some("part-2".to_string()),
                     message_id: Some("msg-same".to_string()),
+                    parent_tool_use_id: None,
                     session_id: Some("session-1".to_string()),
                     produced_at_monotonic_ms: None,
                 },
@@ -1459,6 +1565,7 @@ mod tests {
                     },
                     part_id: None,
                     message_id: Some("assistant-1".to_string()),
+                    parent_tool_use_id: None,
                     session_id: Some("session-1".to_string()),
                     produced_at_monotonic_ms: None,
                 },
@@ -1665,6 +1772,7 @@ mod tests {
                 },
                 part_id: Some("part-1".to_string()),
                 message_id: Some("assistant-1".to_string()),
+                parent_tool_use_id: None,
                 session_id: Some("session-1".to_string()),
             },
         );
@@ -1702,6 +1810,7 @@ mod tests {
                 },
                 part_id: None,
                 message_id: Some("assistant-1".to_string()),
+                parent_tool_use_id: None,
                 session_id: Some("session-1".to_string()),
                 produced_at_monotonic_ms: None,
             },

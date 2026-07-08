@@ -90,9 +90,11 @@ export function summarizeFrameRateProbe(
 			: timingValid
 				? probe.estimatedFps.toFixed(2)
 				: `invalid (${probe.estimatedFps.toFixed(2)} hidden/throttled sample)`;
+	const selectorIndex = probe.selectorIndex ?? 0;
+	const selectorMatchCount = probe.selectorMatchCount ?? 0;
 	return [
 		`route: ${probe.route ?? "unknown"}`,
-		`selector: ${probe.selector ?? "none"} matched=${probe.selectorMatched ? "yes" : "no"} scrolled=${probe.scrolled ? "yes" : "no"}`,
+		`selector: ${probe.selector ?? "none"} index=${selectorIndex.toString()}/${selectorMatchCount.toString()} matched=${probe.selectorMatched ? "yes" : "no"} scrolled=${probe.scrolled ? "yes" : "no"}`,
 		options.scrollStepPx === null
 			? "scroll step: full range"
 			: `scroll step: ${options.scrollStepPx.toLocaleString()}px/frame`,
@@ -100,6 +102,7 @@ export function summarizeFrameRateProbe(
 		probe.rowChurnSamples.length === 0
 			? "row churn: not collected (add --with-row-churn)"
 			: `row churn: maxDom=${probe.maxDomRowCount === null ? "unavailable" : probe.maxDomRowCount.toLocaleString()} maxMounted=${probe.maxMountedRowCount === null ? "unavailable" : probe.maxMountedRowCount.toLocaleString()} maxUnmounted=${probe.maxUnmountedRowCount === null ? "unavailable" : probe.maxUnmountedRowCount.toLocaleString()}`,
+		`visual changes: ${(probe.visualChangeCount ?? 0).toLocaleString()}`,
 		summarizeAgentPanelProfile(probe),
 		summarizeSlowestFrame(probe),
 		`estimated fps: ${fpsLabel}`,

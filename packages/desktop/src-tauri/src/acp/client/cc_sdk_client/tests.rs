@@ -36,6 +36,7 @@ fn claude_history_tool_result_backfill_preserves_stdout_stderr_payload() {
             request_id: None,
             is_meta: false,
             source_tool_use_id: None,
+            parent_tool_use_id: None,
             tool_use_result: Some(serde_json::json!({
                 "stdout": "./README.md",
                 "stderr": "",
@@ -3263,6 +3264,7 @@ async fn suppresses_stale_agent_chunks_while_stream_only_question_is_pending() {
             },
             part_id: None,
             message_id: None,
+            parent_tool_use_id: None,
             session_id: Some("session-ask".to_string()),
             produced_at_monotonic_ms: None,
         },

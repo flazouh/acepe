@@ -17,6 +17,7 @@ export interface ThreadBoardSource {
 	readonly autonomousEnabled: boolean | null;
 	readonly projectPath: string;
 	readonly projectName: string;
+	readonly projectBadgeLabel: string | null;
 	readonly projectColor: string;
 	readonly projectIconSrc: string | null;
 	readonly title: string | null;
@@ -47,6 +48,7 @@ export interface ThreadBoardItem {
 	readonly autonomousEnabled: boolean | null;
 	readonly projectPath: string;
 	readonly projectName: string;
+	readonly projectBadgeLabel: string | null;
 	readonly projectColor: string;
 	readonly projectIconSrc: string | null;
 	readonly title: string | null;

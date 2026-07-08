@@ -70,7 +70,7 @@ export function derivePanelViewState(input: PanelViewStateInput): PanelViewState
 		return { kind: "ready" };
 	}
 
-	if (errorInfo.showError && entriesCount === 0) {
+	if (errorInfo.showError && errorInfo.recoveryAction === null && entriesCount === 0) {
 		return { kind: "error", details: errorInfo.details ?? "Unable to connect to the agent." };
 	}
 

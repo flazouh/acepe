@@ -126,6 +126,8 @@ export const agentPanelPerformancePhaseSummarySchema = z.object({
 export const frameRateProbeResultSchema = z.object({
 	route: z.string().nullable(),
 	selector: z.string().nullable(),
+	selectorIndex: z.number().optional().default(0),
+	selectorMatchCount: z.number().optional().default(0),
 	selectorMatched: z.boolean(),
 	scrolled: z.boolean(),
 	sampleCount: z.number(),
@@ -150,8 +152,44 @@ export const frameRateProbeResultSchema = z.object({
 			lastRowIndex: z.number().nullable(),
 			mountedRowCount: z.number(),
 			unmountedRowCount: z.number(),
+			mountedRows: z
+				.array(
+					z.object({
+						rowId: z.string(),
+						rowIndex: z.number(),
+						text: z.string(),
+						visualSignature: z.string().nullable().optional().default(null),
+					})
+				)
+				.optional()
+				.default([]),
+			unmountedRows: z
+				.array(
+					z.object({
+						rowId: z.string(),
+						rowIndex: z.number(),
+						text: z.string(),
+						visualSignature: z.string().nullable().optional().default(null),
+					})
+				)
+				.optional()
+				.default([]),
 		})
 	),
+	visualChangeCount: z.number().optional().default(0),
+	visualChanges: z
+		.array(
+			z.object({
+				frameIndex: z.number(),
+				rowId: z.string(),
+				rowIndex: z.number(),
+				previousSignature: z.string(),
+				nextSignature: z.string(),
+				text: z.string(),
+			})
+		)
+		.optional()
+		.default([]),
 	maxMountedRowCount: z.number().nullable(),
 	maxUnmountedRowCount: z.number().nullable(),
 	maxDomRowCount: z.number().nullable(),
@@ -165,11 +203,19 @@ export const agentPanelRowScanRowSchema = z.object({
 	rowIndex: z.number().nullable(),
 	text: z.string(),
 	heightPx: z.number(),
+	entryType: z.string().nullable().optional().default(null),
+	toolKind: z.string().nullable().optional().default(null),
+	toolStatus: z.string().nullable().optional().default(null),
+	toolTitle: z.string().nullable().optional().default(null),
+	toolPresentationState: z.string().nullable().optional().default(null),
+	missingEntry: z.boolean().optional().default(false),
 });
 
 export const agentPanelRowScanResultSchema = z.object({
 	route: z.string().nullable(),
 	selector: z.string(),
+	selectorIndex: z.number().optional().default(0),
+	selectorMatchCount: z.number().optional().default(0),
 	selectorMatched: z.boolean(),
 	scrollTopPx: z.number().nullable(),
 	scrollHeightPx: z.number().nullable(),
@@ -179,10 +225,16 @@ export const agentPanelRowScanResultSchema = z.object({
 	emptyRowCount: z.number(),
 	exactGenericToolRowCount: z.number(),
 	prefixGenericToolRowCount: z.number(),
+	rawProviderToolRowCount: z.number().optional().default(0),
+	missingEntryRowCount: z.number().optional().default(0),
+	degradedToolRowCount: z.number().optional().default(0),
 	firstRowIndex: z.number().nullable(),
 	lastRowIndex: z.number().nullable(),
 	rows: z.array(agentPanelRowScanRowSchema),
 	genericToolRows: z.array(agentPanelRowScanRowSchema),
+	rawProviderToolRows: z.array(agentPanelRowScanRowSchema).optional().default([]),
+	missingEntryRows: z.array(agentPanelRowScanRowSchema).optional().default([]),
+	degradedToolRows: z.array(agentPanelRowScanRowSchema).optional().default([]),
 });
 
 export const agentPanelScrollPageProbeSampleSchema = z.object({
@@ -198,17 +250,11 @@ export const agentPanelScrollPageProbeSampleSchema = z.object({
 	bufferLastAction: z.string().nullable(),
 	bufferLastStatus: z.string().nullable(),
 	bufferLastReason: z.string().nullable(),
-	stickReleased: z.string().nullable().optional().default(null),
-	stickUnreadBelow: z.string().nullable().optional().default(null),
-	stickLastPhase: z.string().nullable().optional().default(null),
-	stickLastAction: z.string().nullable().optional().default(null),
-	stickInteracting: z.string().nullable().optional().default(null),
-	stickScrollTop: z.number().nullable().optional().default(null),
-	stickMaxScrollTop: z.number().nullable().optional().default(null),
 	rowCount: z.number(),
 	emptyRowCount: z.number(),
 	exactGenericToolRowCount: z.number(),
 	prefixGenericToolRowCount: z.number(),
+	rawProviderToolRowCount: z.number().optional().default(0),
 	firstRowId: z.string().nullable(),
 	lastRowId: z.string().nullable(),
 	firstRowText: z.string().nullable(),
@@ -218,6 +264,7 @@ export const agentPanelScrollPageProbeSampleSchema = z.object({
 export const agentPanelScrollPageProbeTimingSampleSchema = z.object({
 	stepIndex: z.number(),
 	frameDeltaMs: z.number(),
+	scrollToFrameMs: z.number().optional().default(0),
 	beforeScrollTopPx: z.number(),
 	targetScrollTopPx: z.number(),
 	afterScrollTopPx: z.number(),
@@ -232,13 +279,6 @@ export const agentPanelScrollPageProbeTimingSampleSchema = z.object({
 	bufferLastAction: z.string().nullable(),
 	bufferLastStatus: z.string().nullable(),
 	bufferLastReason: z.string().nullable(),
-	stickReleased: z.string().nullable().optional().default(null),
-	stickUnreadBelow: z.string().nullable().optional().default(null),
-	stickLastPhase: z.string().nullable().optional().default(null),
-	stickLastAction: z.string().nullable().optional().default(null),
-	stickInteracting: z.string().nullable().optional().default(null),
-	stickScrollTop: z.number().nullable().optional().default(null),
-	stickMaxScrollTop: z.number().nullable().optional().default(null),
 	rowCount: z.number(),
 	firstRowId: z.string().nullable(),
 	lastRowId: z.string().nullable(),
@@ -247,6 +287,8 @@ export const agentPanelScrollPageProbeTimingSampleSchema = z.object({
 export const agentPanelScrollPageProbeResultSchema = z.object({
 	route: z.string().nullable(),
 	selector: z.string(),
+	selectorIndex: z.number().optional().default(0),
+	selectorMatchCount: z.number().optional().default(0),
 	selectorMatched: z.boolean(),
 	scrollStepPx: z.number(),
 	settleMs: z.number(),
@@ -268,6 +310,7 @@ export const agentPanelScrollPageProbeResultSchema = z.object({
 	maxEmptyRowCount: z.number(),
 	maxExactGenericToolRowCount: z.number(),
 	maxPrefixGenericToolRowCount: z.number(),
+	maxRawProviderToolRowCount: z.number().optional().default(0),
 	frameDeltasMs: z.array(z.number()).optional().default([]),
 	averageFrameDeltaMs: z.number().nullable().optional().default(null),
 	minFrameDeltaMs: z.number().nullable().optional().default(null),
@@ -1041,6 +1084,7 @@ export const sessionOpenContentProbeResultSchema = z.object({
 	openEvents: z.array(openPersistedSessionDiagnosticEventSchema).optional().default([]),
 	hydrationTimings: z.array(sessionOpenHydrationTimingRecordSchema).optional().default([]),
 	panelOpenMarks: z.record(z.string(), z.number()).optional().default({}),
+	agentPanelPerformanceSamples: z.array(agentPanelPerformanceSampleSchema).optional().default([]),
 });
 
 export const sessionOpenContentProbeRunStatusSchema = z.object({

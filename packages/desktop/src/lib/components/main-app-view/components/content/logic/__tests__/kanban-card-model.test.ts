@@ -37,6 +37,7 @@ function makeThreadBoardItem(overrides: Partial<ThreadBoardItem> = {}): ThreadBo
 		autonomousEnabled: false,
 		projectPath: "/repo",
 		projectName: "acepe",
+		projectBadgeLabel: "Ac",
 		projectColor: "#9858FF",
 		projectIconSrc: null,
 		title: "Build file badge",
@@ -127,6 +128,7 @@ describe("kanban-card-model", () => {
 		expect(card.id).toBe("session-1");
 		expect(card.agentIconSrc).toBe("/icons/codex.svg");
 		expect(card.isAutoMode).toBe(true);
+		expect(card.projectBadgeLabel).toBe("Ac");
 		expect(card.hasUnseenCompletion).toBe(false);
 		expect(card.isWorktreeSession).toBe(true);
 		expect(card.diffInsertions).toBe(3);

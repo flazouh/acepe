@@ -40,11 +40,34 @@ export function shouldDeferInitialComposerMountWork(args: {
 	readonly sessionId: string | null | undefined;
 	readonly viewKind: string;
 	readonly visibleEntryCount: number | null | undefined;
+	readonly sessionCanSubmit?: boolean | null | undefined;
 }): boolean {
+	if (args.sessionId === null || args.sessionId === undefined) {
+		return false;
+	}
+	if (args.viewKind === "ready" && args.sessionCanSubmit === false) {
+		return true;
+	}
 	return (
-		args.sessionId !== null &&
-		args.sessionId !== undefined &&
 		args.viewKind === "conversation" &&
 		(args.visibleEntryCount ?? 0) > 0
 	);
+}
+
+export function shouldWaitForInitialTranscriptRowsBeforeComposer(args: {
+	readonly sessionId: string | null | undefined;
+	readonly deferInitialComposerMountWork: boolean;
+	readonly visibleEntryCount: number | null | undefined;
+	readonly renderedRowCount: number | null | undefined;
+}): boolean {
+	if (!args.deferInitialComposerMountWork) {
+		return false;
+	}
+	if (args.sessionId === null || args.sessionId === undefined) {
+		return false;
+	}
+	if ((args.visibleEntryCount ?? 0) <= 0) {
+		return false;
+	}
+	return (args.renderedRowCount ?? 0) <= 0;
 }

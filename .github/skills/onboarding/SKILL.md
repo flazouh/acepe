@@ -400,7 +400,7 @@ Based on selection:
   TITLE="Onboarding: <project name from inventory>"
   RESPONSE=$(curl -s -X POST https://www.proofeditor.ai/share/markdown \
     -H "Content-Type: application/json" \
-    -d "$(jq -n --arg title "$TITLE" --arg markdown "$CONTENT" --arg by "ai:compound" '{title: $title, markdown: $markdown, by: $by}')")
+    -d "$(jq -n --arg title "$TITLE" --arg markdown "$CONTENT" --arg by "ai:agent-workflows" '{title: $title, markdown: $markdown, by: $by}')")
   PROOF_URL=$(echo "$RESPONSE" | jq -r '.tokenUrl')
   ```
   Display `View & collaborate in Proof: <PROOF_URL>` if successful, then return to the options

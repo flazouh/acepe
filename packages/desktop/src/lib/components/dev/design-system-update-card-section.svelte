@@ -5,7 +5,7 @@ import { Badge } from "$lib/components/ui/badge/index.js";
 import SettingRow from "$lib/components/settings-page/setting-row.svelte";
 import SettingsSection from "$lib/components/settings-page/settings-section.svelte";
 
-	import {
+import {
 	featuredUpdateCardVariant,
 	updateCardStateSpecimens,
 	updateCardVariantSpecimens,
@@ -27,8 +27,8 @@ function stateDescription(specimen: UpdateCardStateSpecimen): string {
 
 <div class="w-full">
 	<SettingsSection
-		title="Gradient variants"
-		description="Ten grain-gradient presets — shape, palette, and silhouette."
+		title="Minimal card"
+		description="Quiet sidebar notice with normal theme colors."
 	>
 		{#snippet headerActions()}
 			<Badge variant="secondary" class="font-mono text-[10px]">

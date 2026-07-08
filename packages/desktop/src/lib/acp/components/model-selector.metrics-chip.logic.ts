@@ -72,10 +72,11 @@ export function createContextUsageSegments(
 
 export function hasVisibleModelSelectorMetrics(
 	usageTelemetry: SessionUsageTelemetry | null,
-	contextWindowOnlyMetrics: boolean
+	contextWindowOnlyMetrics: boolean,
+	hasUsageMetricsPresentation = contextWindowOnlyMetrics
 ): boolean {
 	if (usageTelemetry === null) {
-		return false;
+		return hasUsageMetricsPresentation;
 	}
 
 	if (contextWindowOnlyMetrics) {

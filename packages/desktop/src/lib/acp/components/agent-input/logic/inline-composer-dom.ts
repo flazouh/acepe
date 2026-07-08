@@ -1,10 +1,10 @@
+import { buildChipShellClassName } from "@acepe/ui/chip";
 import {
-	buildChipShellClassName,
 	buildInlineArtefactIconClassName,
 	buildInlineArtefactLabelClassName,
 	INLINE_ARTEFACT_CLIPBOARD_PATH,
 	INLINE_ARTEFACT_PACKAGE_PATH,
-} from "@acepe/ui";
+} from "@acepe/ui/inline-artefact-badge";
 import { COLOR_NAMES, Colors } from "@acepe/ui/colors";
 import { getFallbackIconSrc, getFileIconSrc } from "$lib/components/ui/file-icon/extension-map.js";
 

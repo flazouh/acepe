@@ -125,6 +125,7 @@ fn normalize_cursor_thought_chunk(update: SessionUpdate) -> SessionUpdate {
             chunk,
             part_id,
             message_id,
+            parent_tool_use_id,
             session_id,
             produced_at_monotonic_ms: _,
         } => match &chunk.content {
@@ -138,6 +139,7 @@ fn normalize_cursor_thought_chunk(update: SessionUpdate) -> SessionUpdate {
                     },
                     part_id,
                     message_id,
+                    parent_tool_use_id,
                     session_id,
                 }
             }
@@ -145,6 +147,7 @@ fn normalize_cursor_thought_chunk(update: SessionUpdate) -> SessionUpdate {
                 chunk,
                 part_id,
                 message_id,
+                parent_tool_use_id,
                 session_id,
                 produced_at_monotonic_ms: None,
             },
@@ -639,6 +642,7 @@ mod tests {
                 request_id: None,
                 is_meta: false,
                 source_tool_use_id: None,
+                parent_tool_use_id: None,
                 tool_use_result: None,
                 source_tool_assistant_uuid: None,
             }],
@@ -923,6 +927,7 @@ mod tests {
             },
             part_id: Some("part-1".to_string()),
             message_id: Some("msg-1".to_string()),
+            parent_tool_use_id: None,
             session_id: Some("session-1".to_string()),
             produced_at_monotonic_ms: None,
         };
@@ -934,6 +939,7 @@ mod tests {
                 chunk,
                 part_id,
                 message_id,
+                parent_tool_use_id,
                 session_id,
             } => {
                 match chunk.content {
@@ -944,6 +950,7 @@ mod tests {
                 }
                 assert_eq!(part_id.as_deref(), Some("part-1"));
                 assert_eq!(message_id.as_deref(), Some("msg-1"));
+                assert_eq!(parent_tool_use_id, None);
                 assert_eq!(session_id.as_deref(), Some("session-1"));
             }
             other => panic!("expected AgentThoughtChunk, got {other:?}"),

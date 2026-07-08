@@ -442,7 +442,7 @@ async function handleProjectContextMove(projectPath: string, offset: -1 | 1): Pr
 		{#if shouldShowProjectCreateButton()}
 			<Button
 				variant="ghost"
-				size="icon"
+				size="icon-sm"
 				onclick={(event) => handleProjectCreateButtonClick(event, group.projectPath)}
 				aria-label={getProjectCreateButtonAriaLabel(group.projectName)}
 			>
@@ -473,6 +473,7 @@ async function handleProjectContextMove(projectPath: string, offset: -1 | 1): Pr
 		<ProjectHeader
 			projectColor={group.projectColor}
 			projectName={group.projectName}
+			projectBadgeLabel={group.projectBadgeLabel}
 			projectIconSrc={group.projectIconSrc}
 			expanded={isExpanded}
 			class="group min-w-0 flex-1 cursor-pointer transition-colors"

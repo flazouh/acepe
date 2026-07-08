@@ -1,5 +1,4 @@
 <script lang="ts">
-import { onMount } from "svelte";
 import AgentInput from "$lib/acp/components/agent-input/agent-input-ui.svelte";
 import AgentErrorCard from "$lib/acp/components/agent-panel/components/agent-error-card.svelte";
 import { copyTextToClipboard } from "$lib/acp/components/agent-panel/logic/clipboard-manager.js";
@@ -66,8 +65,9 @@ import {
 	getEmptyStateProjectPath,
 	isEmptyStateWorktreeEffectivelyPending,
 	resolveEmptyStateProject,
-	shouldKeepEmptyStateProjectChooserOpen,
+	shouldLoadDiscoveredProjectsForEmptyState,
 	shouldShowEmptyStateProjectPicker,
+	shouldShowEmptyStateProjectChooser,
 } from "./logic/empty-state-view-state.js";
 
 interface Props {
@@ -99,7 +99,6 @@ let projectImportError = $state<EmptyStateProjectImportErrorState | null>(null);
 let discoveredProjectsLoading = $state(false);
 let discoveredProjectsLoaded = $state(false);
 let discoveredProjects = $state<ProjectWithSessions[]>([]);
-let projectImportFlowActive = $state(false);
 let pendingProjectImports = $state<ProjectWithSessions[]>([]);
 const branchMetadataLoader = createEmptyStateBranchMetadataLoader({
 	gitClient: tauriClient.git,
@@ -127,6 +126,7 @@ const availableAgents = $derived(
 	getSpawnableSessionAgents(agentStore.agents, agentPreferencesStore.selectedAgentIds)
 );
 const projects = $derived(projectManager.projects);
+const projectCount = $derived(projectManager.projectCount);
 const pendingProjectImportPaths = $derived(
 	new Set(pendingProjectImports.map((project) => project.path))
 );
@@ -152,16 +152,11 @@ const projectPath = $derived(getEmptyStateProjectPath(effectiveProject));
 const projectName = $derived(getEmptyStateProjectName(effectiveProject));
 
 const showProjectPicker = $derived(shouldShowEmptyStateProjectPicker(projects.length));
-const showProjectChooser = $derived(
-	shouldKeepEmptyStateProjectChooserOpen({
-		projectCount: projects.length,
-		projectImportFlowActive,
-	})
-);
+const showProjectChooser = $derived(shouldShowEmptyStateProjectChooser(projectCount));
 const canShowInput = $derived(
 	!showProjectChooser &&
 		canShowEmptyStateInput({
-			projectCount: projects.length,
+			projectCount,
 			availableAgentCount: availableAgents.length,
 		})
 );
@@ -216,9 +211,9 @@ $effect(() => {
 	refreshBranchPickerMetadata(currentProjectPath);
 });
 
-onMount(() => {
-	if (projects.length === 0) {
-		projectImportFlowActive = true;
+$effect(() => {
+	const currentProjectCount = projectCount;
+	if (shouldLoadDiscoveredProjectsForEmptyState(currentProjectCount)) {
 		void loadDiscoveredProjectsForEmptyState();
 	}
 });
@@ -286,9 +281,6 @@ function handleBrowseProject() {
 		(project) => {
 			if (project !== null) {
 				projectImportError = null;
-				if (projectImportFlowActive || projects.length === 0) {
-					projectImportFlowActive = true;
-				}
 			}
 		},
 		(error) => {
@@ -335,8 +327,6 @@ function stageProjectImport(project: ProjectWithSessions): void {
 			...discoveredProjects,
 		];
 	}
-
-	projectImportFlowActive = true;
 
 	void tauriClient.history.countSessionsForProject(project.path).match(
 		() => undefined,
@@ -461,7 +451,6 @@ async function continueWithPendingProjectImports(): Promise<void> {
 
 	pendingProjectImports = [];
 	projectImportError = null;
-	projectImportFlowActive = false;
 	void projectManager.loadProjects();
 }
 

@@ -87,6 +87,8 @@ interface Props {
 	projectPrLinkReferences?: readonly SessionPrLinkReference[];
 	/** Project metadata used for linked-session badges */
 	project?: Project | null;
+	/** Disambiguating badge label for the project */
+	projectBadgeLabel?: string | null;
 	/** Available agents for PR generation selection */
 	availableAgents?: AgentInfo[];
 	/** Current/default agent ID for PR generation */
@@ -113,6 +115,7 @@ let {
 	prLinkMode = "automatic",
 	projectPrLinkReferences = [],
 	project = null,
+	projectBadgeLabel = null,
 	availableAgents = [],
 	currentAgentId = null,
 	currentModelId = null,
@@ -459,6 +462,7 @@ function handlePromptResetClick(): void {
 											prLinkMode={prLinkMode ?? "automatic"}
 											{projectPrLinkReferences}
 											{project}
+											{projectBadgeLabel}
 											variant="menu"
 										/>
 									{/if}

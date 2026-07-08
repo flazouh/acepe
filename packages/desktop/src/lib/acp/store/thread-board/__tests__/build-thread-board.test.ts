@@ -94,6 +94,8 @@ function makeSource(overrides: Partial<ThreadBoardSource> = {}): ThreadBoardSour
 			overrides.autonomousEnabled !== undefined ? overrides.autonomousEnabled : false,
 		projectPath: overrides.projectPath !== undefined ? overrides.projectPath : "/test/project",
 		projectName: overrides.projectName !== undefined ? overrides.projectName : "project",
+		projectBadgeLabel:
+			overrides.projectBadgeLabel !== undefined ? overrides.projectBadgeLabel : "P",
 		projectColor: overrides.projectColor !== undefined ? overrides.projectColor : "#ffffff",
 		projectIconSrc: overrides.projectIconSrc !== undefined ? overrides.projectIconSrc : null,
 		title: overrides.title !== undefined ? overrides.title : "Thread",
@@ -218,6 +220,7 @@ describe("buildThreadBoard", () => {
 
 		expect(items).toHaveLength(1);
 		expect(items[0]?.autonomousEnabled).toBeNull();
+		expect(items[0]?.projectBadgeLabel).toBe("P");
 	});
 
 	it("emits stable groups in board order", () => {

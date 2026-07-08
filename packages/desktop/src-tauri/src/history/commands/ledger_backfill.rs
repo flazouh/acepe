@@ -120,6 +120,48 @@ async fn warm_recent_transcript_row_ledgers_internal(
             }
         };
 
+        let mut provider_error: Option<String> = None;
+        if let Some(app) = app {
+            match load_provider_owned_session_snapshot(app.clone(), &replay_context).await {
+                Ok(Some(snapshot)) => {
+                    match rebuild_and_replace_current_transcript_row_ledger_from_provider_snapshot(
+                        db,
+                        &replay_context,
+                        &lifecycle,
+                        &capabilities,
+                        &snapshot,
+                    )
+                    .await
+                    {
+                        Ok(Some(_)) => {
+                            result.rebuilt_count = result.rebuilt_count.saturating_add(1);
+                            result.rebuilt_from_provider_count =
+                                result.rebuilt_from_provider_count.saturating_add(1);
+                            continue;
+                        }
+                        Ok(None) => {}
+                        Err(error) => {
+                            tracing::warn!(
+                                session_id = %candidate.id,
+                                error = %error,
+                                "Idle transcript row ledger provider backfill failed; falling back to local journal"
+                            );
+                            provider_error = Some(error.to_string());
+                        }
+                    }
+                }
+                Ok(None) => {}
+                Err(error) => {
+                    tracing::warn!(
+                        session_id = %candidate.id,
+                        error = ?error,
+                        "Idle transcript row ledger provider history load failed; falling back to local journal"
+                    );
+                    provider_error = Some(format!("{error:?}"));
+                }
+            }
+        }
+
         match rebuild_and_replace_current_transcript_row_ledger_from_journal(
             db,
             &replay_context,
@@ -132,55 +174,17 @@ async fn warm_recent_transcript_row_ledgers_internal(
                 result.rebuilt_count = result.rebuilt_count.saturating_add(1);
             }
             Ok(None) => {
-                let Some(app) = app else {
+                if let Some(error) = provider_error {
+                    tracing::warn!(
+                        session_id = %candidate.id,
+                        error = %error,
+                        "Idle transcript row ledger backfill had no usable provider or journal source"
+                    );
+                    result.failed_count = result.failed_count.saturating_add(1);
+                    result.failed_session_ids.push(candidate.id);
+                } else {
                     result.skipped_no_journal_count =
                         result.skipped_no_journal_count.saturating_add(1);
-                    continue;
-                };
-                match load_provider_owned_session_snapshot(app.clone(), &replay_context).await {
-                    Ok(Some(snapshot)) => {
-                        match rebuild_and_replace_current_transcript_row_ledger_from_provider_snapshot(
-                            db,
-                            &replay_context,
-                            &lifecycle,
-                            &capabilities,
-                            &snapshot,
-                        )
-                        .await
-                        {
-                            Ok(Some(_)) => {
-                                result.rebuilt_count = result.rebuilt_count.saturating_add(1);
-                                result.rebuilt_from_provider_count =
-                                    result.rebuilt_from_provider_count.saturating_add(1);
-                            }
-                            Ok(None) => {
-                                result.skipped_no_journal_count =
-                                    result.skipped_no_journal_count.saturating_add(1);
-                            }
-                            Err(error) => {
-                                tracing::warn!(
-                                    session_id = %candidate.id,
-                                    error = %error,
-                                    "Idle transcript row ledger provider backfill failed"
-                                );
-                                result.failed_count = result.failed_count.saturating_add(1);
-                                result.failed_session_ids.push(candidate.id);
-                            }
-                        }
-                    }
-                    Ok(None) => {
-                        result.skipped_no_journal_count =
-                            result.skipped_no_journal_count.saturating_add(1);
-                    }
-                    Err(error) => {
-                        tracing::warn!(
-                            session_id = %candidate.id,
-                            error = ?error,
-                            "Idle transcript row ledger provider history load failed"
-                        );
-                        result.failed_count = result.failed_count.saturating_add(1);
-                        result.failed_session_ids.push(candidate.id);
-                    }
                 }
             }
             Err(error) => {

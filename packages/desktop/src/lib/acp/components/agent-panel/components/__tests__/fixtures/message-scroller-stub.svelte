@@ -73,9 +73,44 @@ const renderedItems = $derived.by(() => {
 				afterPx: 22000,
 				totalPx: 32000,
 				isVirtualized: true,
+				scrollActive: false,
 			})}
 	>
 		near loaded start
+	</button>
+	<button
+		type="button"
+		data-testid="message-scroller-stub-near-loaded-start-scrolling"
+		onclick={() =>
+			onVisibleRangeChange?.({
+				startIndex: 12,
+				endIndex: 32,
+				itemCount: 256,
+				beforePx: 1200,
+				afterPx: 22000,
+				totalPx: 32000,
+				isVirtualized: true,
+				scrollActive: true,
+			})}
+	>
+		near loaded start while scrolling
+	</button>
+	<button
+		type="button"
+		data-testid="message-scroller-stub-scroll-settled"
+		onclick={() =>
+			onVisibleRangeChange?.({
+				startIndex: 12,
+				endIndex: 32,
+				itemCount: 256,
+				beforePx: 1200,
+				afterPx: 22000,
+				totalPx: 32000,
+				isVirtualized: true,
+				scrollActive: false,
+			})}
+	>
+		scroll settled
 	</button>
 	{#each renderedItems as item (item.key)}
 		<div data-testid="message-scroller-stub-row" data-row-id={item.rowId}>

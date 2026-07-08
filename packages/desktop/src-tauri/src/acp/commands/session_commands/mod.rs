@@ -52,6 +52,7 @@ mod open_token;
 mod resume;
 mod state;
 mod state_lookup;
+mod unarchive;
 
 #[cfg(test)]
 mod tests;
@@ -91,3 +92,4 @@ use state_lookup::{
     projection_snapshot_with_runtime, resolve_state_lookup_authority, runtime_snapshot_for_refresh,
     warn_unresolved_tool_rows_in_state_lookup,
 };
+pub use unarchive::acp_unarchive_session;

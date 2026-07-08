@@ -6,7 +6,7 @@
  * check:svelte baseline captured 2026-06-12: 31 errors, 1 warning in 12 files.
  * bun run check: green (tsgo fast config).
  */
-import { describe, expect, it } from "bun:test";
+import { describe, expect, it, mock } from "bun:test";
 import type { PanelStore } from "../../../store/panel-store.svelte.js";
 import type { SessionStore } from "../../../store/session-store.svelte.js";
 import type { ChatPreferencesStore } from "../../../store/chat-preferences-store.svelte.js";
@@ -18,6 +18,15 @@ import { AgentPanelViewStateController } from "../state/agent-panel-view-state-c
 import { AgentPanelScenePipelineController } from "../state/agent-panel-scene-pipeline-controller.svelte.js";
 import { WorktreeSetupController } from "../state/worktree-setup-controller.svelte.js";
 import { AgentPanelWorktreeController } from "../state/agent-panel-worktree-controller.svelte.js";
+
+mock.module("svelte-sonner", () => ({
+	toast: {
+		error: mock(() => {}),
+		info: mock(() => {}),
+		success: mock(() => {}),
+		warning: mock(() => {}),
+	},
+}));
 
 type AgentPanelWiringFixture = {
 	sessionController: AgentPanelSessionController;
@@ -51,6 +60,7 @@ function createAgentPanelWiringFixture(): AgentPanelWiringFixture {
 			getSessionActiveTurnFailure: () => null,
 			getSessionPendingSendIntent: () => null,
 			getSessionTranscriptEntries: () => [],
+			getSessionMessageCount: () => 0,
 			getSessionIdentity: () => ({
 				projectPath: "/repo",
 				agentId: "claude-code",
@@ -74,6 +84,12 @@ function createAgentPanelWiringFixture(): AgentPanelWiringFixture {
 		},
 		connection: {
 			disconnectSession: () => undefined,
+		},
+		viewport: {
+			getRowsProjection: (sessionId: string) => ({
+				sessionId,
+				rows: [],
+			}),
 		},
 	} as unknown as SessionStore;
 

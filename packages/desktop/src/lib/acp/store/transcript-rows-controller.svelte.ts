@@ -91,8 +91,13 @@ export class TranscriptRowsController {
 			previousState !== null &&
 			previousState.rows.length > 0 &&
 			previousState.loadedStartRowIndex !== null;
-		if (isRequestGeneratedPush && push.rows.length === 0 && hasLoadedLedgerWindow) {
+		if (push.rows.length === 0 && hasLoadedLedgerWindow) {
 			const previousDiagnostic = this.#diagnosticsBySession.get(push.sessionId) ?? null;
+			const reason = isRequestGeneratedPush
+				? `empty-request-push-after-ledger-page:${
+						this.#freshRowsRequestReasonBySession.get(push.sessionId) ?? "unknown"
+					}:${previousDiagnostic?.reason ?? "none"}`
+				: `empty-live-push-after-ledger-page:${previousDiagnostic?.reason ?? "none"}`;
 			this.recordDiagnostic(push.sessionId, {
 				action: "apply-push",
 				status: "ignored",
@@ -100,11 +105,11 @@ export class TranscriptRowsController {
 				previousRowCount,
 				emissionSeq: push.emissionSeq,
 				requestGeneration: push.requestGeneration ?? null,
-				reason: `empty-request-push-after-ledger-page:${
-					this.#freshRowsRequestReasonBySession.get(push.sessionId) ?? "unknown"
-				}:${previousDiagnostic?.reason ?? "none"}`,
+				reason,
 			});
-			this.#freshRowsRequestInFlight.delete(push.sessionId);
+			if (isRequestGeneratedPush) {
+				this.#freshRowsRequestInFlight.delete(push.sessionId);
+			}
 			this.bumpProjectionRevision();
 			return;
 		}

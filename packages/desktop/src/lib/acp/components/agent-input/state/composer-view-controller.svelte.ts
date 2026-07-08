@@ -67,6 +67,7 @@ export class ComposerViewController {
 	provisionalModeId = $state<string | null>(null);
 	provisionalModelId = $state<string | null>(null);
 	provisionalConfigOptions = $state<Record<string, string>>({});
+	submittedProvisionalConfigOptions: Record<string, string> = {};
 	isApplyingProvisionalToolbarSelections = $state(false);
 
 	#previousComposerBindSessionId = $state<string | null>(null);
@@ -649,10 +650,46 @@ export class ComposerViewController {
 		}
 		next[configId] = value;
 		this.provisionalConfigOptions = next;
+
+		const nextSubmitted: Record<string, string> = {};
+		for (const [key, existingValue] of Object.entries(this.submittedProvisionalConfigOptions)) {
+			if (key !== configId) {
+				nextSubmitted[key] = existingValue;
+			}
+		}
+		this.submittedProvisionalConfigOptions = nextSubmitted;
+	}
+
+	markProvisionalConfigOptionSubmitted(configId: string, value: string): void {
+		const next: Record<string, string> = {};
+		for (const [key, existingValue] of Object.entries(this.submittedProvisionalConfigOptions)) {
+			next[key] = existingValue;
+		}
+		next[configId] = value;
+		this.submittedProvisionalConfigOptions = next;
+	}
+
+	clearProvisionalConfigOption(configId: string): void {
+		const next: Record<string, string> = {};
+		for (const [key, existingValue] of Object.entries(this.provisionalConfigOptions)) {
+			if (key !== configId) {
+				next[key] = existingValue;
+			}
+		}
+		this.provisionalConfigOptions = next;
+
+		const nextSubmitted: Record<string, string> = {};
+		for (const [key, existingValue] of Object.entries(this.submittedProvisionalConfigOptions)) {
+			if (key !== configId) {
+				nextSubmitted[key] = existingValue;
+			}
+		}
+		this.submittedProvisionalConfigOptions = nextSubmitted;
 	}
 
 	clearProvisionalConfigOptions(): void {
 		this.provisionalConfigOptions = {};
+		this.submittedProvisionalConfigOptions = {};
 	}
 
 	syncPendingToolbarSelections(): void {
@@ -679,10 +716,13 @@ export class ComposerViewController {
 
 		const liveModeId = this.sessionCurrentModeId;
 		const liveModelId = this.sessionCurrentModelId;
+		const liveConfigOptions = this.#deps.sessionStore.read.getSessionConfigOptions(sessionId);
 		const configEntriesToApply = listProvisionalConfigEntriesToApply({
 			provisionalValues: this.provisionalConfigOptions,
-			liveConfigOptions: this.#deps.sessionStore.read.getSessionConfigOptions(sessionId),
-		});
+			liveConfigOptions,
+		}).filter(
+			(entry) => this.submittedProvisionalConfigOptions[entry.configId] !== entry.value
+		);
 
 		if (
 			!resolution.modeIdToApply &&

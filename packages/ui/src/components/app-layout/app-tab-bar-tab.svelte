@@ -76,6 +76,7 @@
 						{#if !hideProjectBadge && tab.projectName && tab.projectColor}
 							<ProjectLetterBadge
 								name={tab.projectName}
+								label={tab.projectBadgeLabel ?? null}
 								color={tab.projectColor}
 								iconSrc={tab.projectIconSrc}
 								sequenceId={tab.sequenceId}

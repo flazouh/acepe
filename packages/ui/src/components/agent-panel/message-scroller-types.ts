@@ -40,6 +40,8 @@ export type MessageScrollerRangeState = {
 	readonly afterPx: number;
 	readonly totalPx: number;
 	readonly isVirtualized: boolean;
+	/** True while wheel/touch/programmatic scroll is still settling. */
+	readonly scrollActive: boolean;
 };
 
 export function createArrayMessageScrollerItemSource(

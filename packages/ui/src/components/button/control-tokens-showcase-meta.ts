@@ -10,7 +10,7 @@ import {
 export const controlTokensShowcaseMeta = {
 	title: "Button variants",
 	description:
-		"shadcn/ui tokens. Default size is default (h-8, 32px — matches ui.shadcn.com). Icon controls use icon (24x24, 16px icon); old larger icon buttons use icon-md. Chip row actions use icon-sm / icon-sm-narrow. Child SVG/img sizing is owned by the Button size token — RoundedIcon defaults to shrink-0 only.",
+		"shadcn/ui tokens. Default size is default (h-8, 32px — matches ui.shadcn.com). Icon controls use the normal scale: icon-sm (20x20), icon (24x24), icon-md (28x28), icon-lg (32x32). Child SVG/img sizing is owned by the Button size token — RoundedIcon defaults to shrink-0 only.",
 };
 
 export interface ButtonVariantShowcaseEntry {
@@ -39,11 +39,11 @@ export const buttonSizeShowcaseColumnMinWidth: Record<ControlTokenSize, string> 
 	sm: "6.25rem",
 	default: "6.75rem",
 	lg: "7.75rem",
+	"icon-sm": "4rem",
 	icon: "4rem",
-	"icon-sm": "4.5rem",
 	"icon-sm-narrow": "4rem",
-	"icon-md": "4.75rem",
-	"icon-lg": "5.25rem",
+	"icon-md": "4.5rem",
+	"icon-lg": "4.75rem",
 };
 
 const variantSampleLabel: Record<ControlTokenVariant, string> = {

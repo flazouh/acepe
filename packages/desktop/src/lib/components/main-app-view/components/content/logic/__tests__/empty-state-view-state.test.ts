@@ -6,7 +6,7 @@ import {
 	getEmptyStateProjectPath,
 	isEmptyStateWorktreeEffectivelyPending,
 	resolveEmptyStateProject,
-	shouldKeepEmptyStateProjectChooserOpen,
+	shouldLoadDiscoveredProjectsForEmptyState,
 	shouldShowEmptyStateProjectChooser,
 	shouldShowEmptyStateProjectPicker,
 } from "../empty-state-view-state.js";
@@ -52,24 +52,16 @@ describe("empty-state view state", () => {
 	});
 
 	it("shows the project chooser only when no projects exist", () => {
+		expect(shouldShowEmptyStateProjectChooser(null)).toBe(false);
 		expect(shouldShowEmptyStateProjectChooser(0)).toBe(true);
 		expect(shouldShowEmptyStateProjectChooser(1)).toBe(false);
 		expect(shouldShowEmptyStateProjectChooser(2)).toBe(false);
 	});
 
-	it("closes the project chooser when projects arrive after import mode starts", () => {
-		expect(
-			shouldKeepEmptyStateProjectChooserOpen({
-				projectCount: 0,
-				projectImportFlowActive: true,
-			})
-		).toBe(true);
-		expect(
-			shouldKeepEmptyStateProjectChooserOpen({
-				projectCount: 1,
-				projectImportFlowActive: true,
-			})
-		).toBe(false);
+	it("loads discovered projects only after project count is known to be empty", () => {
+		expect(shouldLoadDiscoveredProjectsForEmptyState(null)).toBe(false);
+		expect(shouldLoadDiscoveredProjectsForEmptyState(0)).toBe(true);
+		expect(shouldLoadDiscoveredProjectsForEmptyState(1)).toBe(false);
 	});
 
 	it("shows input only when a project and agent exist", () => {
@@ -79,6 +71,12 @@ describe("empty-state view state", () => {
 				availableAgentCount: 1,
 			})
 		).toBe(true);
+		expect(
+			canShowEmptyStateInput({
+				projectCount: null,
+				availableAgentCount: 1,
+			})
+		).toBe(false);
 		expect(
 			canShowEmptyStateInput({
 				projectCount: 0,

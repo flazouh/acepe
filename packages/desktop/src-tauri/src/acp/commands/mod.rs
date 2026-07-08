@@ -69,7 +69,7 @@ pub(crate) use session_commands::persist_session_metadata_for_cwd;
 pub use session_commands::{
     acp_close_session, acp_fork_session, acp_get_event_bridge_info,
     acp_get_session_connection_readiness, acp_get_session_state, acp_initialize, acp_new_session,
-    acp_resume_session, acp_set_session_autonomous,
+    acp_resume_session, acp_set_session_autonomous, acp_unarchive_session,
 };
 pub(crate) use session_commands::{emit_lifecycle_event, session_metadata_context_from_cwd};
 pub use transcript_row_page_commands::acp_read_transcript_row_page;

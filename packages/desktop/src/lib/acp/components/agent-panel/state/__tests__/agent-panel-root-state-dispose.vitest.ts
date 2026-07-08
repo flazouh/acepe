@@ -80,13 +80,13 @@ function createRootStateDeps(
 			hasEffectiveProjectPath: false,
 			errorInfo: {
 				showError: false,
-				variant: "inline",
 				title: "",
 				summary: null,
 				details: null,
 				referenceId: null,
 				referenceSearchable: false,
 				failureReason: null,
+				recoveryAction: null,
 			},
 		}),
 		getGraphMaterializerInput: () => ({

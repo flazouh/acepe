@@ -9,6 +9,8 @@ export interface PaletteItemMetadata {
 	projectPath?: string;
 	/** Project name for display */
 	projectName?: string;
+	/** Disambiguating badge label for the project */
+	projectBadgeLabel?: string | null;
 	/** Project color for badge */
 	projectColor?: string;
 	/** Project icon source for badge */

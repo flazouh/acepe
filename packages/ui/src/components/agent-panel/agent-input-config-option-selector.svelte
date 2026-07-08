@@ -112,11 +112,11 @@
 			{#snippet child({ props })}
 				<Button
 					{...props}
-					variant="ghost"
-					size="icon-sm"
-					active={viewState.isBooleanEnabled}
+					variant="secondary"
+					size="icon-md"
 					title={viewState.buttonTitle}
 					aria-label={viewState.buttonTitle}
+					data-testid="agent-input-fast-mode-button"
 					{disabled}
 					aria-pressed={viewState.isBooleanEnabled}
 					onclick={handleBooleanToggle}

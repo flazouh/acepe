@@ -70,6 +70,14 @@ describe("hasVisibleModelSelectorMetrics", () => {
 		expect(hasVisibleModelSelectorMetrics(null, false)).toBe(false);
 	});
 
+	it("keeps claude code metrics visible before first telemetry", () => {
+		expect(hasVisibleModelSelectorMetrics(null, true)).toBe(true);
+	});
+
+	it("keeps declared usage metrics visible before first telemetry", () => {
+		expect(hasVisibleModelSelectorMetrics(null, false, true)).toBe(true);
+	});
+
 	it("keeps claude code metrics visible when telemetry exists", () => {
 		expect(
 			hasVisibleModelSelectorMetrics(

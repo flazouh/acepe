@@ -153,8 +153,8 @@ Offer these two options. Use the document type from Phase 1 to set the "Review c
 
 1. **Refine again** -- Address the findings above, then re-review
 2. **Review complete** -- description based on document type:
-   - requirements document: "Create technical plan with ce:plan"
-   - plan document: "Implement with ce:work"
+   - requirements document: "Create technical plan"
+   - plan document: "Implement the reviewed plan"
 
 After 2 refinement passes, recommend completion -- diminishing returns are likely. But if the user wants to continue, allow it.
 
@@ -166,7 +166,7 @@ Return "Review complete" as the terminal signal for callers.
 - Do not add new sections or requirements the user didn't discuss
 - Do not over-engineer or add complexity
 - Do not create separate review files or add metadata sections
-- Do not modify caller skills (ce-brainstorm, ce-plan, or external plugin skills that invoke document-review)
+- Do not modify caller skills or external plugin skills that invoke document-review.
 
 ## Iteration Guidance
 

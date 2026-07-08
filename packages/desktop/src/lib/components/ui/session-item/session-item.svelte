@@ -2,6 +2,7 @@
 import type { ActivityEntryQuestion } from "@acepe/ui";
 import {
 	ActivityEntry,
+	LoadingIcon,
 	PrChecksSummary,
 	ProjectLetterBadge,
 	RoundedIcon,
@@ -27,7 +28,6 @@ import {
 	extractPermissionFilePath,
 } from "$lib/acp/components/tool-calls/permission-display.js";
 import AgentIcon from "$lib/acp/components/agent-icon.svelte";
-import { ClaudeWorkingSpark } from "@acepe/ui/agent-panel";
 import {
 	AGENT_ICON_BASE_CLASS,
 	UNKNOWN_TIME_TEXT,
@@ -53,7 +53,6 @@ import { makeWorkspaceRelative } from "$lib/acp/utils/path-utils.js";
 import { revealInFinder, tauriClient } from "$lib/utils/tauri-client/index.js";
 import type { SessionDisplayItem as BaseSessionDisplayItem } from "$lib/acp/types/thread-display-item.js";
 import PrChecksSurface from "$lib/acp/components/shared/pr-checks-surface.svelte";
-import { shouldShowClaudeWorkingSpark } from "./claude-working-spark-visibility.js";
 
 const logger = createLogger({ id: "session-item", name: "Session Item" });
 
@@ -441,19 +440,9 @@ const statusText = $derived.by(() => {
 		return sessionConnectionError ?? "Connection error";
 	}
 
-	if (previewActivityKind === "thinking") {
-		return "Planning next moves";
-	}
-
-	if (liveSessionState.attention.hasUnseenCompletion) {
-		return "Ready for review";
-	}
-
 	return null;
 });
-const showStatusShimmer = $derived(
-	previewActivityKind === "thinking" && !pendingQuestion && !pendingPlanApproval
-);
+const showStatusShimmer = $derived(false);
 const uiCurrentQuestion = $derived<ActivityEntryQuestion | null>(
 	currentQuestion
 		? {
@@ -493,12 +482,20 @@ const projectedIsStreaming = $derived(
 		? false
 		: (activityProjection?.isStreaming ?? previewActivityKind === "streaming")
 );
-const showClaudeWorkingSpark = $derived(
-	shouldShowClaudeWorkingSpark({
-		agentId: session.agentId,
-		projectedIsStreaming,
-		activityIsStreaming: session.activity?.isStreaming,
-	})
+const showSessionWorkingIndicator = $derived(
+	!pendingQuestion &&
+		!pendingPermission &&
+		!pendingPlanApproval &&
+		!sessionWorkProjection.hasError &&
+		(projectedIsStreaming || previewActivityKind === "thinking" || session.activity?.isStreaming === true)
+);
+const showSessionFinishedIndicator = $derived(
+	!showSessionWorkingIndicator &&
+		!pendingQuestion &&
+		!pendingPermission &&
+		!pendingPlanApproval &&
+		!sessionWorkProjection.hasError &&
+		sessionWorkProjection.needsReview
 );
 const activityEntryLatestToolDisplay = $derived(
 	suppressPlanApprovalToolPreview ? null : (activityProjection?.latestToolEntry ?? null)
@@ -690,15 +687,30 @@ function handleNextQuestion() {
 
 			<div class="flex-1 min-w-0">
 				{#snippet agentBadge()}
-					{#if showClaudeWorkingSpark}
-						<ClaudeWorkingSpark class="{agentIconBaseClass} m-0.5" size={12} />
-					{:else}
-						<AgentIcon
-							agentId={session.agentId ?? "historical-session"}
-							class="{agentIconBaseClass} shrink-0 m-0.5"
-							size={12}
-						/>
+					{#if showSessionWorkingIndicator}
+						<span
+							class="inline-flex h-4 w-4 shrink-0 items-center justify-center text-foreground"
+							aria-label="Working"
+							title="Working"
+							data-testid="session-item-working-indicator"
+						>
+							<LoadingIcon class="shrink-0" size={12} />
+						</span>
+					{:else if showSessionFinishedIndicator}
+						<span
+							class="inline-flex h-4 w-4 shrink-0 items-center justify-center text-success"
+							aria-label="Ready for review"
+							title="Ready for review"
+							data-testid="session-item-finished-indicator"
+						>
+							<RoundedIcon name="check-circle-filled" class="size-3 shrink-0" />
+						</span>
 					{/if}
+					<AgentIcon
+						agentId={session.agentId ?? "historical-session"}
+						class="{agentIconBaseClass} shrink-0 m-0.5"
+						size={12}
+					/>
 					{#if shouldShowSessionProjectBadge(session)}
 						<ProjectLetterBadge
 							name={session.projectName}

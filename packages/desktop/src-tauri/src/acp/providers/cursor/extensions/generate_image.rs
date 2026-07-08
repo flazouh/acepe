@@ -41,6 +41,7 @@ pub(crate) fn normalize(
                 },
                 part_id: None,
                 message_id: None,
+                parent_tool_use_id: None,
                 session_id: Some(session_id.clone()),
                 produced_at_monotonic_ms: None,
             },

@@ -61,6 +61,7 @@ type CliOptions = {
 	readonly format: OutputFormat;
 	readonly level: "summary" | "focused" | "raw";
 	readonly selector: string;
+	readonly selectorIndex: number;
 	readonly hostSelector: string;
 	readonly afterSelector: string;
 	readonly text: string;
@@ -166,6 +167,28 @@ function formatPanelOpenMarks(marks: Readonly<Record<string, number>>): string {
 		return "unavailable";
 	}
 	return entries.map(([name, value]) => `${name}=${formatOptionalMs(value)}`).join(", ");
+}
+
+function formatAgentPanelPerformanceTopList(
+	samples: readonly SessionOpenContentProbeResult["agentPanelPerformanceSamples"][number][],
+	limit: number
+): string {
+	const topSamples = samples
+		.filter((sample) => Number.isFinite(sample.durationMs) && sample.durationMs > 0)
+		.toSorted((left, right) => right.durationMs - left.durationMs)
+		.slice(0, limit);
+	if (topSamples.length === 0) {
+		return "unavailable";
+	}
+	return topSamples
+		.map((sample) =>
+			[
+				`${sample.phase}=${formatOptionalMs(sample.durationMs)}`,
+				`items=${sample.itemCount === null ? "unknown" : sample.itemCount.toString()}`,
+				`nodes=${sample.nodeCount === null ? "unknown" : sample.nodeCount.toString()}`,
+			].join("/")
+		)
+		.join(", ");
 }
 
 function formatTraceName(name: string): string {
@@ -420,6 +443,7 @@ export function parseOptions(args: readonly string[], checkoutRoot: string): Cli
 			format: "text",
 			level: "summary",
 			selector: "",
+			selectorIndex: 0,
 			hostSelector: "",
 			afterSelector: "",
 			text: "",
@@ -465,6 +489,7 @@ export function parseOptions(args: readonly string[], checkoutRoot: string): Cli
 		format,
 		level,
 		selector: valueArg(args, "--selector", ""),
+		selectorIndex: Math.max(0, numberArg(args, "--selector-index") ?? 0),
 		hostSelector: valueArg(args, "--host-selector", ""),
 		afterSelector: valueArg(args, "--after-selector", ""),
 		text: valueArg(args, "--text", ""),
@@ -631,13 +656,13 @@ function focusAcepeApp(
 		"  end if",
 		"  if targetProcess is missing value or (count of windows of targetProcess) is 0 then",
 		"    repeat with candidate in every process",
-			"      set candidateName to name of candidate as text",
+		"      set candidateName to name of candidate as text",
 		'      if candidateName is "Acepe Dev QA" and (count of windows of candidate) > 0 then',
 		"        set targetProcess to candidate",
 		'        set targetReason to "dev name with window"',
 		"        exit repeat",
 		"      end if",
-			"    end repeat",
+		"    end repeat",
 		"  end if",
 		'  if targetProcess is missing value then error "Acepe dev process not found"',
 		"  try",
@@ -754,8 +779,8 @@ export async function runCli(
 				"doctor checks the real dev Tauri target before QA.",
 				"focus-app brings the Acepe desktop app to the macOS foreground.",
 				"frame-rate-probe samples requestAnimationFrame cadence; add --selector to scroll an element while sampling, --scroll-step-px for fixed per-frame scroll speed, --with-row-churn for row mount diagnostics, and --with-profile for agent-panel render phase samples.",
-				"agent-panel-row-scan scans the active transcript scroller for rows, scroll range, blank rows, and generic Tool labels.",
-				"agent-panel-scroll-page-probe scrolls upward through the active transcript scroller and checks page traversal, frame timing, blank rows, and generic Tool labels; tune with --settle-ms.",
+				"agent-panel-row-scan scans the active transcript scroller for rows, scroll range, blank rows, and generic Tool labels; use --selector-index when multiple panels match.",
+				"agent-panel-scroll-page-probe scrolls upward through the active transcript scroller and checks page traversal, frame timing, blank rows, and generic Tool labels; tune with --settle-ms and --selector-index.",
 				"ledger-backfill-probe invokes warm_recent_transcript_row_ledgers inside the dev WebView and reports bounded rebuild counters.",
 				"observe returns compact app facts before screenshots.",
 				"screenshot captures the current WebView.",
@@ -808,11 +833,11 @@ export async function runCli(
 		const summary = [
 			`dev processes: ${doctor.value.devProcessCount.toString()}`,
 			`production processes: ${doctor.value.productionProcessCount.toString()}`,
-				`bridge ${doctor.value.bridge.available ? "ok" : "missing"} on ${doctor.value.bridge.port}`,
-				`webview ${doctor.value.webview.responsive ? "responsive" : "not responsive"}`,
-				`binary: ${doctor.value.binaryFreshness.status}`,
-				`frontend: ${doctor.value.frontendFreshness.status}`,
-			].concat(doctor.value.findings);
+			`bridge ${doctor.value.bridge.available ? "ok" : "missing"} on ${doctor.value.bridge.port}`,
+			`webview ${doctor.value.webview.responsive ? "responsive" : "not responsive"}`,
+			`binary: ${doctor.value.binaryFreshness.status}`,
+			`frontend: ${doctor.value.frontendFreshness.status}`,
+		].concat(doctor.value.findings);
 		const result = buildResult({
 			command: "doctor",
 			status: doctor.value.status,
@@ -832,9 +857,7 @@ export async function runCli(
 			checkoutRoot: options.checkoutRoot,
 			appIdentifier: options.appIdentifier,
 		});
-		const focusAppIdentifier = doctor.isOk()
-			? doctor.value.appIdentifier
-			: options.appIdentifier;
+		const focusAppIdentifier = doctor.isOk() ? doctor.value.appIdentifier : options.appIdentifier;
 		const devProcesses = doctor.isOk() ? doctor.value.devProcesses : [];
 		const targetSummary =
 			doctor.isOk() && focusAppIdentifier !== options.appIdentifier
@@ -864,29 +887,33 @@ export async function runCli(
 					const result = buildResult({
 						command: "focus-app",
 						status: focused ? "ok" : "warn",
-						summary: targetSummary.concat([
-							"initial webview focus was not foreground.",
-							`accessibility fallback: ${focus.message}`,
-						]).concat(focusAppSummary(retryWebviewFocus.value)),
+						summary: targetSummary
+							.concat([
+								"initial webview focus was not foreground.",
+								`accessibility fallback: ${focus.message}`,
+							])
+							.concat(focusAppSummary(retryWebviewFocus.value)),
 					});
 					return emitVerifiedUiResult(options, result);
 				}
 				const result = buildResult({
 					command: "focus-app",
 					status: "warn",
-					summary: targetSummary.concat(focusAppSummary(webviewFocus.value)).concat(
-						`accessibility fallback: ${focus.message}`,
-						`retry webview focus failed: ${retryWebviewFocus.error.message}`
-					),
+					summary: targetSummary
+						.concat(focusAppSummary(webviewFocus.value))
+						.concat(
+							`accessibility fallback: ${focus.message}`,
+							`retry webview focus failed: ${retryWebviewFocus.error.message}`
+						),
 				});
 				return emitVerifiedUiResult(options, result);
 			}
 			const result = buildResult({
 				command: "focus-app",
 				status: "warn",
-				summary: targetSummary.concat(focusAppSummary(webviewFocus.value)).concat(
-					`accessibility fallback: ${focus.message}`
-				),
+				summary: targetSummary
+					.concat(focusAppSummary(webviewFocus.value))
+					.concat(`accessibility fallback: ${focus.message}`),
 			});
 			return emitVerifiedUiResult(options, result);
 		}
@@ -915,12 +942,13 @@ export async function runCli(
 		const probe = await probeFrameRate({
 			appIdentifier: options.appIdentifier,
 			sampleCount,
-				selector: options.selector,
-				collectRowChurn: options.withRowChurn,
-				collectAgentPanelProfile: options.withProfile,
-				scrollStepPx: options.scrollStepPx,
-				skipDriver: options.skipDriver,
-			});
+			selector: options.selector,
+			selectorIndex: options.selectorIndex,
+			collectRowChurn: options.withRowChurn,
+			collectAgentPanelProfile: options.withProfile,
+			scrollStepPx: options.scrollStepPx,
+			skipDriver: options.skipDriver,
+		});
 		if (probe.isErr()) {
 			const result = buildResult({
 				command: "frame-rate-probe",
@@ -960,6 +988,7 @@ export async function runCli(
 		const scan = await scanAgentPanelRows({
 			appIdentifier: options.appIdentifier,
 			selector,
+			selectorIndex: options.selectorIndex,
 			limit: Number.isFinite(options.limit) ? options.limit : 10,
 			skipDriver: options.skipDriver,
 		});
@@ -981,7 +1010,11 @@ export async function runCli(
 		const artifactPath = artifact.isOk() ? artifact.value : undefined;
 		const rowSamples = scan.value.rows.slice(0, 5).map((row) => {
 			const rowIndex = row.rowIndex === null ? "unknown" : row.rowIndex.toString();
-			return `row ${row.index.toString()} idx=${rowIndex} h=${row.heightPx.toFixed(0)} "${row.text.slice(0, 80)}"`;
+			const visual =
+				row.entryType === "tool_call"
+					? `${row.entryType}/${row.toolKind ?? "unknown"}/${row.toolPresentationState ?? "none"}`
+					: (row.entryType ?? "unknown");
+			return `row ${row.index.toString()} idx=${rowIndex} h=${row.heightPx.toFixed(0)} ${visual} "${row.text.slice(0, 80)}"`;
 		});
 		const result = buildResult({
 			command: "agent-panel-row-scan",
@@ -989,15 +1022,20 @@ export async function runCli(
 				scan.value.selectorMatched &&
 				scan.value.rowCount > 0 &&
 				scan.value.exactGenericToolRowCount === 0 &&
+				scan.value.prefixGenericToolRowCount === 0 &&
+				scan.value.rawProviderToolRowCount === 0 &&
+				scan.value.missingEntryRowCount === 0 &&
+				scan.value.degradedToolRowCount === 0 &&
 				scan.value.emptyRowCount === 0
 					? "ok"
 					: "warn",
 			summary: [
 				`route: ${scan.value.route ?? "unknown"}`,
-				`selector: ${scan.value.selector} matched=${scan.value.selectorMatched ? "yes" : "no"}`,
+				`selector: ${scan.value.selector} index=${scan.value.selectorIndex.toString()}/${scan.value.selectorMatchCount.toString()} matched=${scan.value.selectorMatched ? "yes" : "no"}`,
 				`rows: count=${scan.value.rowCount.toString()} first=${scan.value.firstRowIndex === null ? "unknown" : scan.value.firstRowIndex.toString()} last=${scan.value.lastRowIndex === null ? "unknown" : scan.value.lastRowIndex.toString()} empty=${scan.value.emptyRowCount.toString()}`,
 				`scroll: top=${scan.value.scrollTopPx === null ? "unavailable" : scan.value.scrollTopPx.toFixed(0)} client=${scan.value.clientHeightPx === null ? "unavailable" : scan.value.clientHeightPx.toFixed(0)} height=${scan.value.scrollHeightPx === null ? "unavailable" : scan.value.scrollHeightPx.toFixed(0)} max=${scan.value.maxScrollTopPx === null ? "unavailable" : scan.value.maxScrollTopPx.toFixed(0)}`,
-				`generic Tool rows: exact=${scan.value.exactGenericToolRowCount.toString()} prefix=${scan.value.prefixGenericToolRowCount.toString()}`,
+				`tool label leaks: genericExact=${scan.value.exactGenericToolRowCount.toString()} genericPrefix=${scan.value.prefixGenericToolRowCount.toString()} rawProvider=${scan.value.rawProviderToolRowCount.toString()}`,
+				`visual state leaks: missing=${scan.value.missingEntryRowCount.toString()} degraded=${scan.value.degradedToolRowCount.toString()}`,
 			].concat(rowSamples),
 			artifactPath,
 			artifactKind: artifactPath === undefined ? undefined : "agent-panel-row-scan",
@@ -1016,6 +1054,7 @@ export async function runCli(
 		const probe = await probeAgentPanelScrollPages({
 			appIdentifier: options.appIdentifier,
 			selector,
+			selectorIndex: options.selectorIndex,
 			sampleCount: Number.isFinite(options.limit) ? options.limit : 8,
 			scrollStepPx: options.scrollStepPx,
 			settleMs: Number.isFinite(options.settleMs) ? options.settleMs : 300,
@@ -1038,7 +1077,7 @@ export async function runCli(
 		const artifact = await writeJsonArtifact("agent-panel-scroll-page-probe", probe.value);
 		const artifactPath = artifact.isOk() ? artifact.value : undefined;
 		const sampleSummary = probe.value.samples.slice(0, 4).map((sample) => {
-			return `sample ${sample.stepIndex.toString()} top=${sample.scrollTopPx.toFixed(0)} rows=${sample.rowCount.toString()} buffer=${sample.bufferStartIndex === null ? "unknown" : sample.bufferStartIndex.toString()}-${sample.bufferEndIndex === null ? "unknown" : sample.bufferEndIndex.toString()} reason=${sample.bufferLastReason ?? "unknown"} stick=${sample.stickReleased ?? "unknown"}/${sample.stickLastAction ?? "unknown"}/${sample.stickLastPhase ?? "unknown"} first=${sample.firstRowId ?? "none"} last=${sample.lastRowId ?? "none"}`;
+			return `sample ${sample.stepIndex.toString()} top=${sample.scrollTopPx.toFixed(0)} rows=${sample.rowCount.toString()} buffer=${sample.bufferStartIndex === null ? "unknown" : sample.bufferStartIndex.toString()}-${sample.bufferEndIndex === null ? "unknown" : sample.bufferEndIndex.toString()} reason=${sample.bufferLastReason ?? "unknown"} first=${sample.firstRowId ?? "none"} last=${sample.lastRowId ?? "none"}`;
 		});
 		const result = buildResult({
 			command: "agent-panel-scroll-page-probe",
@@ -1049,17 +1088,19 @@ export async function runCli(
 				!probe.value.likelyThrottled &&
 				probe.value.blankViewportSampleCount === 0 &&
 				probe.value.maxEmptyRowCount === 0 &&
-				probe.value.maxExactGenericToolRowCount === 0
+				probe.value.maxExactGenericToolRowCount === 0 &&
+				probe.value.maxPrefixGenericToolRowCount === 0 &&
+				probe.value.maxRawProviderToolRowCount === 0
 					? "ok"
 					: "warn",
 			summary: [
 				`route: ${probe.value.route ?? "unknown"}`,
-				`selector: ${probe.value.selector} matched=${probe.value.selectorMatched ? "yes" : "no"}`,
+				`selector: ${probe.value.selector} index=${probe.value.selectorIndex.toString()}/${probe.value.selectorMatchCount.toString()} matched=${probe.value.selectorMatched ? "yes" : "no"}`,
 				`scroll: step=${probe.value.scrollStepPx.toFixed(0)} settle=${probe.value.settleMs.toString()}ms initialTop=${probe.value.initialScrollTopPx === null ? "unavailable" : probe.value.initialScrollTopPx.toFixed(0)} finalTop=${probe.value.finalScrollTopPx === null ? "unavailable" : probe.value.finalScrollTopPx.toFixed(0)} reachedTop=${probe.value.reachedTop ? "yes" : "no"} moved=${probe.value.moved ? "yes" : "no"}`,
 				`frame timing: samples=${probe.value.frameDeltasMs.length.toString()} missed120=${probe.value.missed120FrameCount.toString()} missed60=${probe.value.missed60FrameCount.toString()} avg=${formatOptionalMs(probe.value.averageFrameDeltaMs)} max=${formatOptionalMs(probe.value.maxFrameDeltaMs)} fps=${probe.value.estimatedFps === null ? "unavailable" : probe.value.estimatedFps.toFixed(2)} throttled=${probe.value.likelyThrottled ? "yes" : "no"}`,
 				`scroll correction: maxHeightDelta=${probe.value.maxScrollHeightDeltaPx.toFixed(0)}px maxTopCorrection=${probe.value.maxScrollTopCorrectionPx.toFixed(0)}px`,
 				`page traversal: loadedMoreRows=${probe.value.loadedMoreRows ? "yes" : "no"} distinctRows=${probe.value.distinctRowIdCount.toString()} distinctFirstRows=${probe.value.distinctFirstRowIdCount.toString()} maxSampleRows=${probe.value.maxSampleRowCount.toString()}`,
-				`blank/generic: zeroRowSamples=${probe.value.zeroRowSampleCount.toString()} blankViewportSamples=${probe.value.blankViewportSampleCount.toString()} maxEmpty=${probe.value.maxEmptyRowCount.toString()} genericExact=${probe.value.maxExactGenericToolRowCount.toString()} genericPrefix=${probe.value.maxPrefixGenericToolRowCount.toString()}`,
+				`blank/tool-leaks: zeroRowSamples=${probe.value.zeroRowSampleCount.toString()} blankViewportSamples=${probe.value.blankViewportSampleCount.toString()} maxEmpty=${probe.value.maxEmptyRowCount.toString()} genericExact=${probe.value.maxExactGenericToolRowCount.toString()} genericPrefix=${probe.value.maxPrefixGenericToolRowCount.toString()} rawProvider=${probe.value.maxRawProviderToolRowCount.toString()}`,
 				`scroll height: initial=${probe.value.initialScrollHeightPx === null ? "unavailable" : probe.value.initialScrollHeightPx.toFixed(0)} final=${probe.value.finalScrollHeightPx === null ? "unavailable" : probe.value.finalScrollHeightPx.toFixed(0)} client=${probe.value.clientHeightPx === null ? "unavailable" : probe.value.clientHeightPx.toFixed(0)} max=${probe.value.maxScrollTopPx === null ? "unavailable" : probe.value.maxScrollTopPx.toFixed(0)}`,
 			].concat(sampleSummary),
 			artifactPath,
@@ -1920,6 +1961,7 @@ export async function runCli(
 				`open events: count=${probe.value.openEvents.length.toString()} tail=${formatSessionOpenEvents(probe.value.openEvents, 8)}`,
 				`hydration timings: count=${probe.value.hydrationTimings.length.toString()} top=${formatHydrationTimingTopList(probe.value.hydrationTimings, 3)}`,
 				`panel open marks: ${formatPanelOpenMarks(probe.value.panelOpenMarks)}`,
+				`frontend profile: samples=${probe.value.agentPanelPerformanceSamples.length.toString()} top=${formatAgentPanelPerformanceTopList(probe.value.agentPanelPerformanceSamples, 6)}`,
 				probeSummary.backendLine,
 				probeSummary.targetLine,
 			].concat(probe.value.errorMessage === null ? [] : [`error: ${probe.value.errorMessage}`]),

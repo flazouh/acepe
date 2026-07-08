@@ -361,44 +361,52 @@ pub(super) async fn async_resume_session_work(
     )
     .await?;
 
-    let replay_context: crate::acp::session_descriptor::SessionReplayContext =
-        resume_descriptor.clone().into();
-    let restored_thread_snapshot =
-        crate::acp::session_restore::load_provider_owned_session_snapshot(
-            app.clone(),
-            &replay_context,
-        )
-        .await
-        .map_err(SerializableAcpError::from)?;
-    let materialized_restored_snapshot = if let Some(snapshot) = restored_thread_snapshot.as_ref() {
-        let last_event_seq = SessionJournalEventRepository::max_event_seq(db.inner(), session_id)
+    // An open token means get_session_open_result already restored the snapshot and
+    // reserved the event frontier. Resume should only attach live transport here.
+    if open_token_claim.is_none() {
+        let replay_context: crate::acp::session_descriptor::SessionReplayContext =
+            resume_descriptor.clone().into();
+        let restored_thread_snapshot =
+            crate::acp::session_restore::load_provider_owned_session_snapshot(
+                app.clone(),
+                &replay_context,
+            )
             .await
-            .map_err(|error| SerializableAcpError::InvalidState {
-                message: format!(
+            .map_err(SerializableAcpError::from)?;
+        let materialized_restored_snapshot =
+            if let Some(snapshot) = restored_thread_snapshot.as_ref() {
+                let last_event_seq =
+                    SessionJournalEventRepository::max_event_seq(db.inner(), session_id)
+                        .await
+                        .map_err(|error| SerializableAcpError::InvalidState {
+                            message: format!(
                     "Failed to determine journal cutoff for resumed session {session_id}: {error}"
                 ),
-            })?
-            .unwrap_or(0);
-        Some(materialize_provider_owned_thread_snapshot(
-            session_id,
-            Some(replay_context.agent_id.clone()),
-            last_event_seq,
-            snapshot,
-        ))
-    } else {
-        None
-    };
-    let transcript_snapshot = if let Some(materialized) = materialized_restored_snapshot.as_ref() {
-        materialized.transcript_snapshot.clone()
-    } else {
-        load_transcript_snapshot_for_resume_with_app(Some(app), db.inner(), session_id).await?
-    };
-    transcript_projection_registry
-        .restore_session_snapshot(session_id.to_string(), transcript_snapshot);
+                        })?
+                        .unwrap_or(0);
+                Some(materialize_provider_owned_thread_snapshot(
+                    session_id,
+                    Some(replay_context.agent_id.clone()),
+                    last_event_seq,
+                    snapshot,
+                ))
+            } else {
+                None
+            };
+        let transcript_snapshot = if let Some(materialized) =
+            materialized_restored_snapshot.as_ref()
+        {
+            materialized.transcript_snapshot.clone()
+        } else {
+            load_transcript_snapshot_for_resume_with_app(Some(app), db.inner(), session_id).await?
+        };
+        transcript_projection_registry
+            .restore_session_snapshot(session_id.to_string(), transcript_snapshot);
 
-    if let Some(materialized) = materialized_restored_snapshot {
-        let projection = materialized.projection;
-        projection_registry.restore_session_projection(projection);
+        if let Some(materialized) = materialized_restored_snapshot {
+            let projection = materialized.projection;
+            projection_registry.restore_session_projection(projection);
+        }
     }
     projection_registry.register_session(session_id.to_string(), agent_id_enum.clone());
 

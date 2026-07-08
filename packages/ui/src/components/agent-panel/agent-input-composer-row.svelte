@@ -101,7 +101,7 @@ let {
 				{@render leading()}
 			{/if}
 		</div>
-		<div class="flex items-end gap-2 shrink-0">
+		<div class="flex items-end gap-0.5 shrink-0">
 			{#if trailing}
 				{@render trailing()}
 			{/if}

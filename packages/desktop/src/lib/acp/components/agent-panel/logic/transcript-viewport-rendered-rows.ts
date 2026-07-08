@@ -30,6 +30,15 @@ export type RenderableTranscriptViewportRowSource = MessageScrollerItemSource & 
 	getLastUserRowId(): string | null;
 };
 
+type RenderableTranscriptViewportRowMetadata = {
+	readonly key: string;
+	readonly rowId: string;
+	readonly estimatePx: number;
+	readonly isActiveTail: boolean;
+	readonly anchorEligible: boolean;
+	readonly kind: TranscriptViewportRow["kind"];
+};
+
 export interface PlanningPlaceholderPresentation {
 	readonly label: string;
 	readonly agentIconSrc: string | null;
@@ -40,6 +49,7 @@ const LOCAL_OPTIMISTIC_ROW_PREFIX = "local:optimistic:";
 const PLANNING_ROW_ID = "awaiting:planning";
 const PLANNING_ROW_VERSION = "00000000000000000000000000000000";
 const LOCAL_REVIEW_ROW_ID = "local:review";
+const MAX_TRAILING_LOCAL_OPTIMISTIC_ROWS = 1;
 
 export function buildRenderableTranscriptViewportRows(input: {
 	readonly bufferRows: readonly TranscriptViewportRow[];
@@ -50,7 +60,6 @@ export function buildRenderableTranscriptViewportRows(input: {
 }): readonly RenderableTranscriptViewportRow[] {
 	const renderableRows: RenderableTranscriptViewportRow[] = [];
 	let representedSceneEntryIds: Set<string> | null = null;
-	let hasCanonicalUserRow = false;
 	const getRepresentedSceneEntryIds = (): Set<string> => {
 		if (representedSceneEntryIds === null) {
 			representedSceneEntryIds = buildRepresentedSceneEntryIds(renderableRows);
@@ -62,9 +71,6 @@ export function buildRenderableTranscriptViewportRows(input: {
 		const row = input.bufferRows[localIndex];
 		if (row === undefined) {
 			continue;
-		}
-		if (row.kind === "user") {
-			hasCanonicalUserRow = true;
 		}
 		renderableRows.push(
 			createRenderableTranscriptViewportRow({
@@ -81,7 +87,7 @@ export function buildRenderableTranscriptViewportRows(input: {
 			renderableRows,
 			bufferStartIndex: input.bufferStartIndex,
 			representedSceneEntryIds: getRepresentedSceneEntryIds(),
-			scanMode: hasCanonicalUserRow ? "trailing" : "full",
+			scanMode: input.bufferRows.length > 0 ? "trailing" : "full",
 		});
 	}
 
@@ -122,6 +128,8 @@ export function createRenderableTranscriptViewportRowSource(input: {
 	const localRows = buildLocalRenderableTranscriptViewportRows(input);
 	const baseLength = input.bufferRows.length;
 	const totalLength = baseLength + localRows.length;
+	const baseMetadataByIndex: Array<RenderableTranscriptViewportRowMetadata | null | undefined> =
+		new Array(baseLength);
 
 	function getBaseRow(index: number): TranscriptViewportRow | undefined {
 		return input.bufferRows[index];
@@ -129,6 +137,33 @@ export function createRenderableTranscriptViewportRowSource(input: {
 
 	function getLocalRow(index: number): RenderableTranscriptViewportRow | undefined {
 		return localRows[index - baseLength];
+	}
+
+	function getBaseMetadata(
+		index: number
+	): RenderableTranscriptViewportRowMetadata | null {
+		if (index < 0 || index >= baseLength) {
+			return null;
+		}
+		const cached = baseMetadataByIndex[index];
+		if (cached !== undefined) {
+			return cached;
+		}
+		const row = getBaseRow(index);
+		if (row === undefined) {
+			baseMetadataByIndex[index] = null;
+			return null;
+		}
+		const metadata: RenderableTranscriptViewportRowMetadata = {
+			key: renderKey(row),
+			rowId: row.rowId,
+			estimatePx: rowEstimatePx(row.kind),
+			isActiveTail: row.activeStreamingTail !== null,
+			anchorEligible: row.anchorEligible,
+			kind: row.kind,
+		};
+		baseMetadataByIndex[index] = metadata;
+		return metadata;
 	}
 
 	function getRenderable(index: number): RenderableTranscriptViewportRow | undefined {
@@ -167,28 +202,40 @@ export function createRenderableTranscriptViewportRowSource(input: {
 			return items;
 		},
 		getKey(index: number): string | null {
-			const row = index >= baseLength ? getLocalRow(index)?.row : getBaseRow(index);
-			return row === undefined ? null : renderKey(row);
+			if (index >= baseLength) {
+				return getLocalRow(index)?.key ?? null;
+			}
+			return getBaseMetadata(index)?.key ?? null;
 		},
 		getRowId(index: number): string | null {
-			const row = index >= baseLength ? getLocalRow(index)?.row : getBaseRow(index);
-			return row?.rowId ?? null;
+			if (index >= baseLength) {
+				return getLocalRow(index)?.rowId ?? null;
+			}
+			return getBaseMetadata(index)?.rowId ?? null;
 		},
 		getEstimatePx(index: number): number {
-			const row = index >= baseLength ? getLocalRow(index)?.row : getBaseRow(index);
-			return rowEstimatePx(row?.kind ?? "assistantText");
+			if (index >= baseLength) {
+				const row = getLocalRow(index)?.row;
+				return rowEstimatePx(row?.kind ?? "assistantText");
+			}
+			return getBaseMetadata(index)?.estimatePx ?? rowEstimatePx("assistantText");
 		},
 		isActiveTail(index: number): boolean {
-			const row = index >= baseLength ? getLocalRow(index)?.row : getBaseRow(index);
-			return row?.activeStreamingTail !== null && row?.activeStreamingTail !== undefined;
+			if (index >= baseLength) {
+				const row = getLocalRow(index)?.row;
+				return row?.activeStreamingTail !== null && row?.activeStreamingTail !== undefined;
+			}
+			return getBaseMetadata(index)?.isActiveTail ?? false;
 		},
 		isAnchorEligible(index: number): boolean {
-			const row = index >= baseLength ? getLocalRow(index)?.row : getBaseRow(index);
-			return row?.anchorEligible ?? false;
+			if (index >= baseLength) {
+				return getLocalRow(index)?.anchorEligible ?? false;
+			}
+			return getBaseMetadata(index)?.anchorEligible ?? false;
 		},
 		findIndexByRowId(rowId: string): number | null {
-			for (let index = 0; index < input.bufferRows.length; index += 1) {
-				if (input.bufferRows[index]?.rowId === rowId) {
+			for (let index = 0; index < baseLength; index += 1) {
+				if (getBaseMetadata(index)?.rowId === rowId) {
 					return index;
 				}
 			}
@@ -207,10 +254,10 @@ export function createRenderableTranscriptViewportRowSource(input: {
 					return row.rowId;
 				}
 			}
-			for (let index = input.bufferRows.length - 1; index >= 0; index -= 1) {
-				const row = input.bufferRows[index];
-				if (row?.kind === "user") {
-					return row.rowId;
+			for (let index = baseLength - 1; index >= 0; index -= 1) {
+				const metadata = getBaseMetadata(index);
+				if (metadata?.kind === "user") {
+					return metadata.rowId;
 				}
 			}
 			return null;
@@ -240,7 +287,7 @@ function buildLocalRenderableTranscriptViewportRows(input: {
 			renderableRows: localRows,
 			bufferStartIndex: input.bufferStartIndex + input.bufferRows.length,
 			representedSceneEntryIds: getRepresentedSceneEntryIds(),
-			scanMode: hasCanonicalUserRow(input.bufferRows) ? "trailing" : "full",
+			scanMode: input.bufferRows.length > 0 ? "trailing" : "full",
 		});
 	}
 
@@ -409,15 +456,6 @@ function buildRepresentedSceneEntryIdsForBuffer(
 	return representedSceneEntryIds;
 }
 
-function hasCanonicalUserRow(rows: readonly TranscriptViewportRow[]): boolean {
-	for (const row of rows) {
-		if (row.kind === "user") {
-			return true;
-		}
-	}
-	return false;
-}
-
 function hasPlanningRowInRows(
 	bufferRows: readonly TranscriptViewportRow[],
 	localRows: readonly RenderableTranscriptViewportRow[]
@@ -460,6 +498,9 @@ function appendTrailingLocalOptimisticRows(input: {
 }): void {
 	const trailingEntries: Extract<AgentPanelSceneEntryModel, { type: "user" }>[] = [];
 	for (let index = input.sceneEntries.length - 1; index >= 0; index -= 1) {
+		if (trailingEntries.length >= MAX_TRAILING_LOCAL_OPTIMISTIC_ROWS) {
+			break;
+		}
 		const entry = input.sceneEntries[index];
 		if (!isLocalOptimisticUserEntry(entry)) {
 			break;

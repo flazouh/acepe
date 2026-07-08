@@ -12,7 +12,7 @@ import { type ActionRegistry, createActionRegistry } from "./actions/registry.js
 import { DEFAULT_KEYBINDINGS } from "./bindings/defaults.js";
 import { createKeybindingRegistry, type KeybindingRegistry } from "./bindings/registry.svelte.js";
 import { type ContextManager, createContextManager } from "./context/manager.svelte.js";
-import type { Action, Keybinding, KeybindingConflict } from "./types.js";
+import type { Action, ContextValue, Keybinding, KeybindingConflict } from "./types.js";
 import { KeybindingError } from "./types.js";
 import { formatKeyString, formatKeyStringToArray } from "./utils/formatter.js";
 
@@ -226,6 +226,24 @@ export class KeybindingsService {
 	 */
 	setContextMany(entries: Record<string, boolean | string | number>): void {
 		this.context.setMany(entries);
+	}
+
+	/**
+	 * Register multiple computed context providers.
+	 */
+	registerContexts(providers: Record<string, () => ContextValue>): () => void {
+		const registeredKeys = Object.keys(providers);
+		for (const key of registeredKeys) {
+			const provider = providers[key];
+			if (provider) {
+				this.context.registerProvider(key, provider);
+			}
+		}
+		return () => {
+			for (const key of registeredKeys) {
+				this.context.unregisterProvider(key);
+			}
+		};
 	}
 
 	/**

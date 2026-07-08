@@ -52,6 +52,7 @@ fn chunk_update(session_id: &str, text: &str) -> SessionUpdate {
         },
         part_id: None,
         message_id: None,
+        parent_tool_use_id: None,
         session_id: Some(session_id.to_string()),
         produced_at_monotonic_ms: None,
     }
@@ -67,6 +68,7 @@ fn chunk_update_with_timestamp(session_id: &str, text: &str, timestamp_ms: u64) 
         },
         part_id: None,
         message_id: None,
+        parent_tool_use_id: None,
         session_id: Some(session_id.to_string()),
         produced_at_monotonic_ms: Some(timestamp_ms),
     }
@@ -469,6 +471,7 @@ async fn persist_dispatch_event_builds_snapshot_envelope_from_journal_event_seq(
         },
         part_id: Some("part-1".to_string()),
         message_id: Some("assistant-1".to_string()),
+        parent_tool_use_id: None,
         session_id: Some("session-1".to_string()),
         produced_at_monotonic_ms: None,
     });
@@ -1101,6 +1104,7 @@ async fn same_session_write_lock_serializes_concurrent_chunk_persistence() {
         },
         part_id: Some("part-1".to_string()),
         message_id: Some("assistant-1".to_string()),
+        parent_tool_use_id: None,
         session_id: Some("session-1".to_string()),
         produced_at_monotonic_ms: None,
     });
@@ -1369,6 +1373,7 @@ async fn drain_skips_raw_streaming_chunk_when_canonical_state_is_available() {
             },
             part_id: Some("part-1".to_string()),
             message_id: Some("assistant-1".to_string()),
+            parent_tool_use_id: None,
             session_id: Some("session-1".to_string()),
             produced_at_monotonic_ms: None,
         },
@@ -1384,6 +1389,7 @@ async fn drain_skips_raw_streaming_chunk_when_canonical_state_is_available() {
             },
             part_id: Some("part-1".to_string()),
             message_id: Some("assistant-1".to_string()),
+            parent_tool_use_id: None,
             session_id: Some("session-1".to_string()),
             produced_at_monotonic_ms: None,
         },
@@ -1455,6 +1461,7 @@ async fn drain_emits_canonical_append_segments_for_same_message_id_chunks() {
             },
             part_id: Some("assistant-1".to_string()),
             message_id: Some("assistant-1".to_string()),
+            parent_tool_use_id: None,
             session_id: Some("session-1".to_string()),
             produced_at_monotonic_ms: None,
         };
@@ -1738,6 +1745,7 @@ fn dispatcher_updates_projection_snapshot_for_session_updates() {
             },
             part_id: None,
             message_id: Some("msg-1".to_string()),
+            parent_tool_use_id: None,
             session_id: Some("session-1".to_string()),
             produced_at_monotonic_ms: None,
         },

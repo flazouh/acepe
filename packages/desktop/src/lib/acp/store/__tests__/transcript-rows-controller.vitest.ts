@@ -53,7 +53,7 @@ function page(
 	pageRevision: SessionGraphRevision
 ): SessionOpenTranscriptRowPage {
 	return {
-		projectionVersion: "transcript_viewport_row:v1",
+		projectionVersion: "transcript_viewport_row:v5",
 		startRowIndex,
 		totalRowCount: 512,
 		rowPayloadBytes: 1,
@@ -90,7 +90,7 @@ describe("TranscriptRowsController older-row paging", () => {
 		const liveGraphRevision = revision(99, 88, 77);
 		const olderPageResult: TranscriptRowPageResult = {
 			status: "current",
-			projectionVersion: "transcript_viewport_row:v1",
+			projectionVersion: "transcript_viewport_row:v5",
 			startRowIndex: 0,
 			totalRowCount: 512,
 			rowPayloadBytes: 1,
@@ -184,6 +184,39 @@ describe("TranscriptRowsController older-row paging", () => {
 			previousRowCount: 1,
 			requestGeneration: 3,
 			reason: "empty-request-push-after-ledger-page:unknown:initial",
+		});
+	});
+
+	it("does not let an empty live reconnect push erase a loaded ledger page", () => {
+		const pageRevision = revision(11, 7, 13);
+		const liveGraphRevision = revision(99, 88, 77);
+		const controller = new TranscriptRowsController({
+			getGraphRevision: () => liveGraphRevision,
+			applySessionStateEnvelope: (_sessionId: string, _envelope: SessionStateEnvelope) =>
+				undefined,
+		});
+		const emptyLivePush: ViewportBufferPush = {
+			sessionId: "session-1",
+			graphRevision: liveGraphRevision,
+			emissionSeq: 6,
+			rows: [],
+			requestGeneration: null,
+			diagnostics: [],
+		};
+
+		controller.applyInitialRowPage("session-1", page(256, [row("tail-row")], pageRevision));
+		controller.applyBufferPush(emptyLivePush);
+
+		expect(controller.getRowsProjection("session-1")?.rows.map((value) => value.rowId)).toEqual([
+			"tail-row",
+		]);
+		expect(controller.getRowsDiagnostics("session-1")).toMatchObject({
+			action: "apply-push",
+			status: "ignored",
+			rowCount: 0,
+			previousRowCount: 1,
+			requestGeneration: null,
+			reason: "empty-live-push-after-ledger-page:initial",
 		});
 	});
 });

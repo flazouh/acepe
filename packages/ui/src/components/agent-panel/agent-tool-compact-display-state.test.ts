@@ -84,6 +84,46 @@ describe("agent tool compact display state", () => {
 		});
 	});
 
+	it("does not show raw execute provider names as command subtitles", () => {
+		const entry: AgentToolEntry = {
+			id: "tool-execute",
+			type: "tool_call",
+			kind: "execute",
+			title: "Tool",
+			command: "exec_command",
+			status: "done",
+		};
+
+		expect(mapAgentToolEntryToCompactDisplay(entry)).toEqual({
+			id: "tool-execute",
+			kind: "execute",
+			title: "Executed",
+			subtitle: undefined,
+			filePath: undefined,
+			status: "done",
+		});
+	});
+
+	it("does not show namespaced raw execute provider names as command subtitles", () => {
+		const entry: AgentToolEntry = {
+			id: "tool-execute",
+			type: "tool_call",
+			kind: "execute",
+			title: "Tool",
+			command: "functions.exec_command",
+			status: "done",
+		};
+
+		expect(mapAgentToolEntryToCompactDisplay(entry)).toEqual({
+			id: "tool-execute",
+			kind: "execute",
+			title: "Executed",
+			subtitle: undefined,
+			filePath: undefined,
+			status: "done",
+		});
+	});
+
 	it("maps edit tools to a running label and resolves file path from diffs", () => {
 		const entry: AgentToolEntry = {
 			id: "tool-edit",

@@ -266,7 +266,7 @@ function createRowsProjection(
 
 function createInitialRowPage(rows: readonly TranscriptViewportRow[]): SessionOpenTranscriptRowPage {
 	return {
-		projectionVersion: "transcript_viewport_row:v1",
+		projectionVersion: "transcript_viewport_row:v5",
 		startRowIndex: 0,
 		totalRowCount: rows.length,
 		rowPayloadBytes: 1,
@@ -383,7 +383,7 @@ describe("AgentPanelContent", () => {
 
 		const view = renderContent({ kind: "ready" });
 
-		expect(view.getByTestId("virtualized-entry-list-stub").dataset.rowCount).toBe("0");
+		expect(view.queryByTestId("virtualized-entry-list-stub")).toBeNull();
 
 		viewportController.applyInitialRowPage(
 			"session-1",

@@ -67,8 +67,9 @@ describe("PrStatusCard", () => {
 
 		const header = container.querySelector("div[role='button'][tabindex='0']");
 		expect(header).not.toBeNull();
+		const headerElement = header as HTMLElement;
 
-		await fireEvent.click(header as HTMLElement);
+		await fireEvent.click(headerElement);
 
 		await waitFor(() => {
 			const markdownRoot = container.querySelector(".markdown-content");
@@ -102,17 +103,18 @@ describe("PrStatusCard", () => {
 
 		const header = container.querySelector("div[role='button'][tabindex='0']");
 		expect(header).not.toBeNull();
+		const headerElement = header as HTMLElement;
 
-		await fireEvent.click(header as HTMLElement);
+		await fireEvent.click(headerElement);
 
 		await waitFor(() => {
 			expect(container.querySelector(".markdown-content")).not.toBeNull();
 		});
 		const markdownRoot = container.querySelector(".markdown-content");
 		expect(markdownRoot).not.toBeNull();
-		expect(container.contains(header)).toBe(true);
+		expect(container.contains(headerElement)).toBe(true);
 		expect(
-			header?.compareDocumentPosition(markdownRoot as Node) & Node.DOCUMENT_POSITION_FOLLOWING
+			headerElement.compareDocumentPosition(markdownRoot as Node) & Node.DOCUMENT_POSITION_FOLLOWING
 		).toBeTruthy();
 	});
 

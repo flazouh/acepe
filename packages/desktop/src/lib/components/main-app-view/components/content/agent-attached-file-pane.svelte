@@ -2,6 +2,7 @@
 import { untrack } from "svelte";
 import { AgentAttachedFilePane as SharedAgentAttachedFilePane } from "@acepe/ui/agent-panel";
 import { FilePathBadge, RoundedIcon } from "@acepe/ui";
+import { computeProjectBadgeLabels } from "@acepe/ui/project-letter-badge";
 import { FilePanel } from "$lib/acp/components/file-panel/index.js";
 import { scheduleLazyPanelMetadataWork } from "$lib/acp/components/file-panel/file-panel-defer.js";
 import { toFilePanelGitStatus } from "$lib/acp/components/file-panel/file-panel-git-status.js";
@@ -82,6 +83,11 @@ const projectsByPath = $derived.by(() => {
 
 const activeFileProject = $derived(
 	activeFilePanel === null ? undefined : projectsByPath.get(activeFilePanel.projectPath)
+);
+const badgeLabelByPath = $derived(
+	computeProjectBadgeLabels(
+		projects.map((project) => ({ key: project.path, name: project.name }))
+	)
 );
 const activeFilePanelGitStatus = $derived.by(() =>
 	activeFilePanel === null
@@ -223,6 +229,7 @@ function getGitDiffStats(filePanel: FilePanelType): { added: number; removed: nu
 				projectPath={activeFilePanel.projectPath}
 				projectName={activeFileProject?.name ?? "Unknown"}
 				projectColor={activeFileProject?.color}
+				projectBadgeLabel={badgeLabelByPath.get(activeFilePanel.projectPath) ?? null}
 				projectIconSrc={activeFileProject?.iconPath ?? null}
 				width={activeFilePanel.width}
 				initialGitStatus={activeFilePanelGitStatus}

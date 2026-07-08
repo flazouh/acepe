@@ -159,6 +159,7 @@ mod tests {
             },
             part_id: Some("msg-1".to_string()),
             message_id: Some("msg-1".to_string()),
+            parent_tool_use_id: None,
             session_id: Some(session_id.to_string()),
             produced_at_monotonic_ms: None,
         })
@@ -200,6 +201,7 @@ mod tests {
             },
             part_id: Some("reason-1".to_string()),
             message_id: Some("reason-1".to_string()),
+            parent_tool_use_id: None,
             session_id: Some(session_id.to_string()),
         })
         .expect("opening wrapper should stream plan");
@@ -243,6 +245,7 @@ mod tests {
             },
             part_id: Some("msg-plain".to_string()),
             message_id: Some("msg-plain".to_string()),
+            parent_tool_use_id: None,
             session_id: Some(session_id.to_string()),
             produced_at_monotonic_ms: None,
         });
@@ -257,6 +260,7 @@ mod tests {
             },
             part_id: Some("msg-malformed".to_string()),
             message_id: Some("msg-malformed".to_string()),
+            parent_tool_use_id: None,
             session_id: Some(session_id.to_string()),
             produced_at_monotonic_ms: None,
         });

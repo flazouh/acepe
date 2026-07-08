@@ -193,6 +193,76 @@ async fn current_row_ledger_open_returns_hot_tail_page_without_full_snapshot_bod
 }
 
 #[tokio::test]
+async fn hot_ledger_open_uses_runtime_lifecycle_without_rewriting_row_page_revision() {
+    let db = setup_db().await;
+    let hub = make_hub();
+    let session_id = "hot-ledger-runtime-ready";
+    seed_session_metadata(&db, session_id, "codex").await;
+    append_frontier_barrier(&db, session_id).await;
+    let header = hot_ledger_header(CanonicalAgentId::Codex, "Runtime ready session");
+    let rows = serialize_viewport_rows_for_ledger(
+        session_id,
+        70,
+        70,
+        TRANSCRIPT_ROW_LEDGER_PROJECTION_VERSION,
+        &[assistant_text_row("entry-1", "cached row")],
+    )
+    .expect("ledger rows should serialize");
+    SessionTranscriptRowLedgerRepository::replace_current(
+        &db,
+        session_id,
+        TRANSCRIPT_ROW_LEDGER_PROJECTION_VERSION,
+        70,
+        70,
+        70,
+        Some(serde_json::to_string(&header).expect("header should serialize")),
+        rows,
+    )
+    .await
+    .expect("ledger write should succeed");
+    let runtime_registry = SessionGraphRuntimeRegistry::new();
+    runtime_registry.restore_session_state(
+        session_id.to_string(),
+        8,
+        SessionGraphLifecycle::ready(),
+        SessionGraphCapabilities {
+            models: None,
+            modes: None,
+            available_commands: None,
+            config_options: None,
+            autonomous_enabled: Some(true),
+        },
+    );
+    let replay_context = replay_context_for_session(session_id, CanonicalAgentId::Codex);
+
+    let result =
+        session_open_result_from_current_row_ledger(&db, &hub, &replay_context, session_id, 128)
+            .await
+            .expect("hot ledger lookup should succeed")
+            .expect("current ledger should open hot");
+    let result = apply_runtime_authority_to_session_open_result(result, Some(&runtime_registry));
+    let SessionOpenResult::Found(found) = result else {
+        panic!("expected found hot ledger open");
+    };
+
+    assert_eq!(found.graph_revision, 70);
+    assert_eq!(
+        found.lifecycle.status,
+        crate::acp::lifecycle::LifecycleStatus::Ready
+    );
+    assert!(found.lifecycle.actionability.can_send);
+    assert_eq!(found.capabilities.autonomous_enabled, Some(true));
+    assert_eq!(
+        found
+            .initial_transcript_row_page
+            .as_ref()
+            .expect("hot open should include row page")
+            .graph_revision,
+        70
+    );
+}
+
+#[tokio::test]
 async fn current_row_ledger_open_claim_frontier_matches_ledger_revision() {
     let db = setup_db().await;
     let hub = make_hub();
@@ -355,6 +425,7 @@ async fn current_row_ledger_hot_open_still_misses_after_projection_update() {
             },
             part_id: Some("assistant-part-2".to_string()),
             message_id: Some("assistant-2".to_string()),
+            parent_tool_use_id: None,
             session_id: Some(session_id.to_string()),
             produced_at_monotonic_ms: None,
         },
@@ -387,6 +458,105 @@ async fn current_row_ledger_hot_open_stays_bounded_for_1k_ledger() {
 #[tokio::test]
 async fn current_row_ledger_hot_open_stays_bounded_for_large_ledger() {
     assert_large_hot_ledger_open_is_bounded("large-hot-ledger-session", 10_000).await;
+}
+
+#[tokio::test]
+async fn current_row_ledger_initial_page_policy_trims_heavy_tail_payload() {
+    let db = setup_db().await;
+    let hub = make_hub();
+    let session_id = "heavy-hot-ledger-session";
+    let row_count = 32usize;
+    let max_rows = 16u64;
+    let expected_initial_rows = 10usize;
+    let heavy_text = "heavy row payload ".repeat(160);
+    seed_session_metadata(&db, session_id, "codex").await;
+    append_frontier_barrier(&db, session_id).await;
+    let mut header = hot_ledger_header(CanonicalAgentId::Codex, "Heavy hot ledger session");
+    header.message_count = row_count as u64;
+    let mut viewport_rows = Vec::with_capacity(row_count);
+    for index in 0..row_count {
+        let entry_id = format!("entry-{index}");
+        viewport_rows.push(assistant_text_row(
+            &entry_id,
+            &format!("{index}: {heavy_text}"),
+        ));
+    }
+    let rows = serialize_viewport_rows_for_ledger(
+        session_id,
+        row_count as i64,
+        row_count as i64,
+        TRANSCRIPT_ROW_LEDGER_PROJECTION_VERSION,
+        &viewport_rows,
+    )
+    .expect("heavy ledger rows should serialize");
+    let tail_start = row_count - max_rows as usize;
+    let expected_tail_start = row_count - expected_initial_rows;
+    let expected_payload_bytes = rows[expected_tail_start..]
+        .iter()
+        .map(|row| row.row_json.len() as u64)
+        .sum::<u64>();
+    let payload_budget_bytes = expected_payload_bytes;
+    SessionTranscriptRowLedgerRepository::replace_current(
+        &db,
+        session_id,
+        TRANSCRIPT_ROW_LEDGER_PROJECTION_VERSION,
+        row_count as i64,
+        row_count as i64,
+        row_count as i64,
+        Some(serde_json::to_string(&header).expect("header should serialize")),
+        rows.clone(),
+    )
+    .await
+    .expect("heavy ledger write should succeed");
+    let replay_context = replay_context_for_session(session_id, CanonicalAgentId::Codex);
+
+    let result = session_open_result_from_current_row_ledger_with_initial_page_policy(
+        &db,
+        &hub,
+        &replay_context,
+        session_id,
+        CurrentRowLedgerInitialPagePolicy::byte_bounded(max_rows, 8, payload_budget_bytes),
+    )
+    .await
+    .expect("hot ledger lookup should succeed");
+    let CurrentRowLedgerOpenLookup::Found { result, .. } = result else {
+        panic!("expected found hot ledger open");
+    };
+    let SessionOpenResult::Found(found) = result else {
+        panic!("expected found hot ledger open result");
+    };
+    let page = found
+        .initial_transcript_row_page
+        .as_ref()
+        .expect("hot open should include bounded row page");
+    let envelope = found
+        .initial_viewport_envelope
+        .as_ref()
+        .expect("hot open should include bounded viewport push");
+    let SessionStatePayload::ViewportBufferPush { push } = &envelope.payload else {
+        panic!("expected viewport push payload");
+    };
+
+    assert_eq!(page.total_row_count, row_count as i64);
+    assert_eq!(page.start_row_index, expected_tail_start as i64);
+    assert_eq!(page.row_payload_bytes, expected_payload_bytes);
+    assert_eq!(page.rows.len(), expected_initial_rows);
+    assert_eq!(
+        page.rows[0].source_entry_id,
+        format!("entry-{expected_tail_start}")
+    );
+    assert_eq!(push.rows.len(), expected_initial_rows);
+    assert_eq!(
+        push.rows[0].source_entry_id,
+        format!("entry-{expected_tail_start}")
+    );
+    assert!(
+        rows[tail_start..]
+            .iter()
+            .map(|row| row.row_json.len() as u64)
+            .sum::<u64>()
+            > page.row_payload_bytes
+    );
 }
 
 #[tokio::test]
@@ -508,6 +678,7 @@ async fn journal_rebuild_upgrades_stale_ledger_and_next_open_is_hot() {
             },
             part_id: Some("assistant-part-1".to_string()),
             message_id: Some("assistant-1".to_string()),
+            parent_tool_use_id: None,
             session_id: Some(session_id.to_string()),
             produced_at_monotonic_ms: None,
         },
@@ -1094,6 +1265,7 @@ async fn new_session_open_result_rebuilds_completed_local_journal_transcript() {
             },
             part_id: None,
             message_id: Some("assistant-1".to_string()),
+            parent_tool_use_id: None,
             session_id: Some(session_id.to_string()),
             produced_at_monotonic_ms: None,
         },
@@ -1120,6 +1292,7 @@ async fn new_session_open_result_rebuilds_completed_local_journal_transcript() {
             },
             part_id: None,
             message_id: Some("assistant-2".to_string()),
+            parent_tool_use_id: None,
             session_id: Some(session_id.to_string()),
             produced_at_monotonic_ms: None,
         },
@@ -1197,9 +1370,9 @@ async fn provider_thread_snapshot_open_does_not_require_local_snapshot_tables() 
     assert_eq!(found.transcript_snapshot, expected_transcript);
     assert_eq!(
         found.lifecycle.status,
-        crate::acp::lifecycle::LifecycleStatus::Detached
+        crate::acp::lifecycle::LifecycleStatus::Reconnecting
     );
-    assert!(found.lifecycle.actionability.can_resume);
+    assert!(!found.lifecycle.actionability.can_resume);
     assert!(found.capabilities.available_commands.is_none());
     assert_eq!(found.operations.len(), 1);
     let operation = &found.operations[0];
@@ -1243,6 +1416,7 @@ async fn provider_thread_snapshot_open_prefers_completed_local_journal_transcrip
             },
             part_id: None,
             message_id: Some("assistant-1".to_string()),
+            parent_tool_use_id: None,
             session_id: Some(session_id.to_string()),
             produced_at_monotonic_ms: None,
         },
@@ -1269,6 +1443,7 @@ async fn provider_thread_snapshot_open_prefers_completed_local_journal_transcrip
             },
             part_id: None,
             message_id: Some("assistant-2".to_string()),
+            parent_tool_use_id: None,
             session_id: Some(session_id.to_string()),
             produced_at_monotonic_ms: None,
         },
@@ -1351,6 +1526,7 @@ async fn provider_thread_snapshot_open_keeps_provider_tool_rows_with_local_journ
             },
             part_id: None,
             message_id: Some("assistant-1".to_string()),
+            parent_tool_use_id: None,
             session_id: Some(session_id.to_string()),
             produced_at_monotonic_ms: None,
         },
@@ -1487,6 +1663,7 @@ async fn provider_thread_snapshot_open_includes_new_user_message_after_last_comp
             },
             part_id: None,
             message_id: Some("assistant-1".to_string()),
+            parent_tool_use_id: None,
             session_id: Some(session_id.to_string()),
             produced_at_monotonic_ms: None,
         },
@@ -1636,9 +1813,9 @@ async fn provider_owned_open_pipeline_restores_each_builtin_agent_to_canonical_s
         );
         assert_eq!(
             found.lifecycle.status,
-            crate::acp::lifecycle::LifecycleStatus::Detached
+            crate::acp::lifecycle::LifecycleStatus::Reconnecting
         );
-        assert!(found.lifecycle.actionability.can_resume);
+        assert!(!found.lifecycle.actionability.can_resume);
         assert!(!found.lifecycle.actionability.can_send);
 
         let token = Uuid::parse_str(&found.open_token).expect("open token must be a UUID");
@@ -1652,7 +1829,7 @@ async fn provider_owned_open_pipeline_restores_each_builtin_agent_to_canonical_s
         assert_eq!(runtime_snapshot.graph_revision, found.graph_revision);
         assert_eq!(
             runtime_snapshot.lifecycle.status,
-            crate::acp::lifecycle::LifecycleStatus::Detached
+            crate::acp::lifecycle::LifecycleStatus::Reconnecting
         );
     }
 }
@@ -1813,12 +1990,9 @@ async fn provider_thread_snapshot_open_restores_runtime_lifecycle_for_attach() {
     assert_eq!(runtime_snapshot.graph_revision, found.graph_revision);
     assert_eq!(
         runtime_snapshot.lifecycle.status,
-        crate::acp::lifecycle::LifecycleStatus::Detached
+        crate::acp::lifecycle::LifecycleStatus::Reconnecting
     );
-    assert_eq!(
-        runtime_snapshot.lifecycle.detached_reason,
-        Some(crate::acp::lifecycle::DetachedReason::RestoredRequiresAttach)
-    );
+    assert_eq!(runtime_snapshot.lifecycle.detached_reason, None);
 }
 
 #[tokio::test]

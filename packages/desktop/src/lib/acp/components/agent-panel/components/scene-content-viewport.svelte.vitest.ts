@@ -27,7 +27,15 @@ vi.mock("@acepe/ui/agent-panel", async () => ({
 		_sample: object,
 		run: () => Value
 	): Value => run(),
-	rowEstimatePx: () => 48,
+	rowEstimatePx: (kind: string) => {
+		if (kind === "user") {
+			return 20;
+		}
+		if (kind === "tool") {
+			return 100;
+		}
+		return 48;
+	},
 }));
 
 vi.mock("../../../store/session-store.svelte.js", () => ({
@@ -105,11 +113,14 @@ function createRowsProjection(
 	};
 }
 
-function createViewportRow(rowId: string): TranscriptViewportRow {
+function createViewportRow(
+	rowId: string,
+	kind: TranscriptViewportRow["kind"] = "assistantText"
+): TranscriptViewportRow {
 	return {
 		rowId,
 		sourceEntryId: rowId,
-		kind: "assistantText",
+		kind,
 		version: `${rowId}:v1`,
 		anchorEligible: true,
 		activeStreamingTail: null,
@@ -222,7 +233,33 @@ describe("SceneContentViewport row bootstrap", () => {
 		expect(scroller.dataset.virtualLeadingSpacePx).toBe("144");
 	});
 
+	it("estimates unloaded history from trailing loaded rows when older rows are prepended", async () => {
+		const rows: TranscriptViewportRow[] = [];
+		for (let index = 0; index < 256; index += 1) {
+			rows.push(createViewportRow(`old-${index}`, "user"));
+		}
+		for (let index = 0; index < 256; index += 1) {
+			rows.push(createViewportRow(`tail-${index}`, "tool"));
+		}
+		const rendered = renderViewport({
+			sessionId: "session-1",
+			rowsProjection: createRowsProjection("session-1", {
+				loadedStartRowIndex: 10,
+				loadedEndRowIndex: 522,
+				totalRowCount: 532,
+				rows,
+			}),
+			skipRowsBootstrap: false,
+		});
+
+		await tick();
+
+		const scroller = rendered.getByTestId("message-scroller-stub");
+		expect(scroller.dataset.virtualLeadingSpacePx).toBe("1000");
+	});
+
 	it("defers the first older-row request until after first paint", async () => {
+		vi.useFakeTimers();
 		const animationFrames = installAnimationFrameQueue();
 		const rendered = renderViewport({
 			sessionId: "session-1",
@@ -239,6 +276,13 @@ describe("SceneContentViewport row bootstrap", () => {
 		expect(mocks.requestOlderRows).not.toHaveBeenCalled();
 
 		animationFrames.flushFrame();
+		expect(mocks.requestOlderRows).not.toHaveBeenCalled();
+
+		await vi.advanceTimersByTimeAsync(79);
+		expect(mocks.requestOlderRows).not.toHaveBeenCalled();
+
+		await vi.advanceTimersByTimeAsync(1);
+		await tick();
 		expect(mocks.requestOlderRows).toHaveBeenCalledWith("session-1");
 	});
 
@@ -266,6 +310,7 @@ describe("SceneContentViewport row bootstrap", () => {
 	});
 
 	it("prefetches older rows near the loaded start after first paint", async () => {
+		vi.useFakeTimers();
 		const animationFrames = installAnimationFrameQueue();
 		const rendered = renderViewport({
 			sessionId: "session-1",
@@ -286,6 +331,48 @@ describe("SceneContentViewport row bootstrap", () => {
 		expect(mocks.requestOlderRows).not.toHaveBeenCalled();
 
 		animationFrames.flushFrame();
+		expect(mocks.requestOlderRows).not.toHaveBeenCalled();
+
+		await vi.advanceTimersByTimeAsync(80);
+		await tick();
+		expect(mocks.requestOlderRows).toHaveBeenCalledWith("session-1");
+	});
+
+	it("waits for scroll settle before prefetching older rows", async () => {
+		vi.useFakeTimers();
+		const animationFrames = installAnimationFrameQueue();
+		const rendered = renderViewport({
+			sessionId: "session-1",
+			rowsProjection: createRowsProjection("session-1", {
+				loadedStartRowIndex: 256,
+				loadedEndRowIndex: 512,
+				totalRowCount: 512,
+			}),
+			skipRowsBootstrap: false,
+		});
+
+		await fireEvent.click(
+			rendered.getByTestId("message-scroller-stub-near-loaded-start-scrolling")
+		);
+		await tick();
+
+		animationFrames.flushFrame();
+		animationFrames.flushFrame();
+		expect(mocks.requestOlderRows).not.toHaveBeenCalled();
+
+		await fireEvent.click(rendered.getByTestId("message-scroller-stub-scroll-settled"));
+		await tick();
+
+		expect(mocks.requestOlderRows).not.toHaveBeenCalled();
+
+		animationFrames.flushFrame();
+		expect(mocks.requestOlderRows).not.toHaveBeenCalled();
+
+		animationFrames.flushFrame();
+		expect(mocks.requestOlderRows).not.toHaveBeenCalled();
+
+		await vi.advanceTimersByTimeAsync(80);
+		await tick();
 		expect(mocks.requestOlderRows).toHaveBeenCalledWith("session-1");
 	});
 });

@@ -22,6 +22,7 @@
 		filePath: string;
 		projectName: string;
 		projectColor: string;
+		projectBadgeLabel?: string | null;
 		projectIconSrc?: string | null;
 		compact?: boolean;
 		hideProjectBadge?: boolean;
@@ -45,6 +46,7 @@
 		filePath,
 		projectName,
 		projectColor,
+		projectBadgeLabel = null,
 		projectIconSrc = null,
 		compact = false,
 		hideProjectBadge = false,
@@ -112,6 +114,7 @@
 					<div class="inline-flex items-center justify-center h-7 w-7 shrink-0">
 						<ProjectLetterBadge
 							name={projectName}
+							label={projectBadgeLabel}
 							color={projectColor}
 							iconSrc={projectIconSrc}
 							size={28}

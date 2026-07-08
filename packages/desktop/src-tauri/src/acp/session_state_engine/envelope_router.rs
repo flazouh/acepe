@@ -392,6 +392,7 @@ mod tests {
             },
             part_id: None,
             message_id: Some("assistant-1".to_string()),
+            parent_tool_use_id: None,
             session_id: Some("session-1".to_string()),
             produced_at_monotonic_ms: Some(5),
         };
@@ -419,6 +420,7 @@ mod tests {
             },
             part_id: None,
             message_id: Some("assistant-1".to_string()),
+            parent_tool_use_id: None,
             session_id: Some("session-1".to_string()),
             produced_at_monotonic_ms: Some(5),
         };

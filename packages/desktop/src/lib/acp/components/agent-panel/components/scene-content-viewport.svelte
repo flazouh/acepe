@@ -51,7 +51,8 @@ const EMPTY_SCENE_ENTRIES: readonly AgentPanelSceneEntryModel[] = [];
 const SEND_REVEAL_PEEK_PX = 72;
 const OLDER_ROWS_PREFETCH_ROW_THRESHOLD = 48;
 const OLDER_ROWS_PREFETCH_BEFORE_PX = 4_800;
-const OLDER_ROWS_PAINT_GATE_FALLBACK_MS = 80;
+const OLDER_ROWS_INITIAL_PAINT_SETTLE_MS = 80;
+const OLDER_ROWS_PAINT_GATE_FALLBACK_MS = 200;
 const UNLOADED_ROW_ESTIMATE_SAMPLE_LIMIT = 256;
 const FALLBACK_UNLOADED_ROW_ESTIMATE_PX = rowEstimatePx("tool");
 
@@ -166,6 +167,8 @@ let olderRowsGateSessionId: string | null = null;
 let olderRowsGateOpen = false;
 let olderRowsGateScheduledSessionId: string | null = null;
 let pendingOlderRowsSessionId: string | null = null;
+let pendingOlderRowsAfterScrollSessionId: string | null = null;
+let scrollerScrollActive = false;
 
 const bufferRows = $derived(rowsProjection?.rows ?? []);
 const syntheticReviewEntry = $derived(
@@ -197,10 +200,11 @@ const virtualLeadingSpacePx = $derived.by(() => {
 		UNLOADED_ROW_ESTIMATE_SAMPLE_LIMIT,
 		renderableRowSource.length
 	);
+	const sampleStartIndex = Math.max(0, renderableRowSource.length - sampleCount);
 	let estimateTotalPx = 0;
 	let measuredEstimateCount = 0;
-	for (let index = 0; index < sampleCount; index += 1) {
-		const estimatePx = renderableRowSource.getEstimatePx(index);
+	for (let offset = 0; offset < sampleCount; offset += 1) {
+		const estimatePx = renderableRowSource.getEstimatePx(sampleStartIndex + offset);
 		if (Number.isFinite(estimatePx) && estimatePx > 0) {
 			estimateTotalPx += estimatePx;
 			measuredEstimateCount += 1;
@@ -267,9 +271,10 @@ function setScrollerController(controller: StickToBottomController): void {
 	scrollerController = controller;
 }
 
-function afterAnimationFrame(callback: () => void): void {
+function afterInitialPaintSettle(callback: () => void): void {
 	let didRun = false;
 	let fallbackTimerId: ReturnType<typeof setTimeout> | null = null;
+	let settleTimerId: ReturnType<typeof setTimeout> | null = null;
 	const runOnce = () => {
 		if (didRun) {
 			return;
@@ -279,16 +284,28 @@ function afterAnimationFrame(callback: () => void): void {
 			clearTimeout(fallbackTimerId);
 			fallbackTimerId = null;
 		}
+		if (settleTimerId !== null) {
+			clearTimeout(settleTimerId);
+			settleTimerId = null;
+		}
 		callback();
+	};
+	const scheduleSettleTimer = () => {
+		if (didRun || settleTimerId !== null) {
+			return;
+		}
+		settleTimerId = setTimeout(runOnce, OLDER_ROWS_INITIAL_PAINT_SETTLE_MS);
 	};
 
 	if (typeof requestAnimationFrame !== "function") {
-		fallbackTimerId = setTimeout(runOnce, 16);
+		settleTimerId = setTimeout(runOnce, OLDER_ROWS_INITIAL_PAINT_SETTLE_MS);
 		return;
 	}
 
 	fallbackTimerId = setTimeout(runOnce, OLDER_ROWS_PAINT_GATE_FALLBACK_MS);
-	requestAnimationFrame(runOnce);
+	requestAnimationFrame(() => {
+		requestAnimationFrame(scheduleSettleTimer);
+	});
 }
 
 function scheduleOlderRowsGateOpen(targetSessionId: string): void {
@@ -296,22 +313,20 @@ function scheduleOlderRowsGateOpen(targetSessionId: string): void {
 		return;
 	}
 	olderRowsGateScheduledSessionId = targetSessionId;
-	afterAnimationFrame(() => {
-		afterAnimationFrame(() => {
-			if (olderRowsGateSessionId !== targetSessionId || sessionId !== targetSessionId) {
-				if (olderRowsGateScheduledSessionId === targetSessionId) {
-					olderRowsGateScheduledSessionId = null;
-				}
-				return;
+	afterInitialPaintSettle(() => {
+		if (olderRowsGateSessionId !== targetSessionId || sessionId !== targetSessionId) {
+			if (olderRowsGateScheduledSessionId === targetSessionId) {
+				olderRowsGateScheduledSessionId = null;
 			}
-			olderRowsGateOpen = true;
-			olderRowsGateScheduledSessionId = null;
-			if (pendingOlderRowsSessionId !== targetSessionId) {
-				return;
-			}
-			pendingOlderRowsSessionId = null;
-			sessionStore.viewport.requestOlderRows(targetSessionId);
-		});
+			return;
+		}
+		olderRowsGateOpen = true;
+		olderRowsGateScheduledSessionId = null;
+		if (pendingOlderRowsSessionId !== targetSessionId) {
+			return;
+		}
+		pendingOlderRowsSessionId = null;
+		sessionStore.viewport.requestOlderRows(targetSessionId);
 	});
 }
 
@@ -330,19 +345,55 @@ function requestOlderRowsAfterFirstPaint(targetSessionId: string): void {
 	sessionStore.viewport.requestOlderRows(targetSessionId);
 }
 
+function requestOlderRowsWhenScrollSettled(
+	targetSessionId: string,
+	scrollActive: boolean
+): void {
+	if (scrollActive) {
+		pendingOlderRowsAfterScrollSessionId = targetSessionId;
+		return;
+	}
+	requestOlderRowsAfterFirstPaint(targetSessionId);
+}
+
+function flushPendingOlderRowsAfterScroll(state: MessageScrollerRangeState): void {
+	const targetSessionId = pendingOlderRowsAfterScrollSessionId;
+	if (
+		targetSessionId === null ||
+		state.scrollActive ||
+		sessionId !== targetSessionId
+	) {
+		return;
+	}
+	pendingOlderRowsAfterScrollSessionId = null;
+	requestOlderRowsAfterFirstPaint(targetSessionId);
+}
+
 function handleEdgeStateChange(state: {
 	readonly atTop: boolean;
 	readonly atBottom: boolean;
 }): void {
 	if (state.atTop && sessionId !== null) {
-		requestOlderRowsAfterFirstPaint(sessionId);
+		requestOlderRowsWhenScrollSettled(sessionId, scrollerScrollActive);
 	}
 	onNearTopChange?.(state.atTop);
 	onNearBottomChange?.(state.atBottom);
 }
 
 function handleVisibleRangeChange(state: MessageScrollerRangeState): void {
-	if (sessionId === null || state.itemCount === 0) {
+	scrollerScrollActive = state.scrollActive;
+	if (sessionId === null) {
+		pendingOlderRowsAfterScrollSessionId = null;
+		return;
+	}
+	if (
+		pendingOlderRowsAfterScrollSessionId !== null &&
+		pendingOlderRowsAfterScrollSessionId !== sessionId
+	) {
+		pendingOlderRowsAfterScrollSessionId = null;
+	}
+	flushPendingOlderRowsAfterScroll(state);
+	if (state.itemCount === 0) {
 		return;
 	}
 	const loadedStartRowIndex = rowsProjection?.loadedStartRowIndex ?? null;
@@ -355,7 +406,7 @@ function handleVisibleRangeChange(state: MessageScrollerRangeState): void {
 	if (!nearLoadedStart) {
 		return;
 	}
-	requestOlderRowsAfterFirstPaint(sessionId);
+	requestOlderRowsWhenScrollSettled(sessionId, state.scrollActive);
 }
 
 function getAttachedPermission(targetSessionId: string, toolCallId: string) {
@@ -500,21 +551,21 @@ export function scrollToTop() {
 		/>
 	{/snippet}
 
-		{#if true}
-			{@const _messageScrollerBefore = recordPanelOpenPerformanceMark(panelId, "scene-content:message-scroller-before")}
-		{/if}
-		<MessageScroller
-			itemSource={renderableRowSource}
-			{virtualLeadingSpacePx}
-			renderItem={renderScrollerItem}
-			ariaLabel="Conversation transcript"
-			onReady={setScrollerController}
-			onEdgeStateChange={handleEdgeStateChange}
-			onVisibleRangeChange={handleVisibleRangeChange}
-			{onFollowStateChange}
-			{profileRecorder}
-		/>
-		{#if true}
-			{@const _messageScrollerAfter = recordPanelOpenPerformanceMark(panelId, "scene-content:message-scroller-after")}
-		{/if}
-	</div>
+	{#if true}
+		{@const _messageScrollerBefore = recordPanelOpenPerformanceMark(panelId, "scene-content:message-scroller-before")}
+	{/if}
+	<MessageScroller
+		itemSource={renderableRowSource}
+		{virtualLeadingSpacePx}
+		renderItem={renderScrollerItem}
+		ariaLabel="Conversation transcript"
+		onReady={setScrollerController}
+		onEdgeStateChange={handleEdgeStateChange}
+		onVisibleRangeChange={handleVisibleRangeChange}
+		{onFollowStateChange}
+		{profileRecorder}
+	/>
+	{#if true}
+		{@const _messageScrollerAfter = recordPanelOpenPerformanceMark(panelId, "scene-content:message-scroller-after")}
+	{/if}
+</div>

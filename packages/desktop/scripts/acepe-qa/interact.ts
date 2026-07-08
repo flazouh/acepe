@@ -230,6 +230,7 @@ export function focusDevApp(options: DriverOptions): ResultAsync<FocusAppResult,
 function frameRateProbeScript(options: {
 	readonly sampleCount: number;
 	readonly selector: string;
+	readonly selectorIndex: number;
 	readonly collectRowChurn: boolean;
 	readonly collectAgentPanelProfile: boolean;
 	readonly scrollStepPx: number | null;
@@ -238,11 +239,15 @@ function frameRateProbeScript(options: {
 	(async () => {
 	  const sampleCount = ${options.sampleCount.toString()};
 	  const selector = ${escapedJson(options.selector)};
+	  const selectorIndex = ${Math.max(0, Math.floor(options.selectorIndex)).toString()};
 	  const collectRowChurn = ${options.collectRowChurn ? "true" : "false"};
 	  const collectAgentPanelProfile = ${options.collectAgentPanelProfile ? "true" : "false"};
 	  const scrollStepPx = ${options.scrollStepPx === null ? "null" : options.scrollStepPx.toString()};
 	  const frameDeltasMs = [];
 	  const rowChurnSamples = [];
+	  const visualSignatureByRowId = new Map();
+	  let visualChangeCount = 0;
+	  const visualChanges = [];
   let rafWaitCount = 0;
   let timeoutWaitCount = 0;
   const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -313,9 +318,12 @@ function frameRateProbeScript(options: {
 	  }
 	
 	  let selectorMatched = false;
+	  let selectorMatchCount = 0;
 	  let scrolled = false;
 	  const getScrollTarget = () => {
-	    const target = selector.length > 0 ? document.querySelector(selector) : null;
+	    const selectorMatches = selector.length > 0 ? Array.from(document.querySelectorAll(selector)) : [];
+	    selectorMatchCount = selectorMatches.length;
+	    const target = selectorMatches[selectorIndex] ?? null;
 	    if (!(target instanceof HTMLElement)) {
 	      return null;
 	    }
@@ -335,6 +343,7 @@ function frameRateProbeScript(options: {
 	    const target = getScrollTarget();
 	    if (target === null) {
 	      return {
+	        rows: [],
 	        ids: [],
 	        domRowCount: 0,
         firstRowIndex: null,
@@ -342,6 +351,7 @@ function frameRateProbeScript(options: {
       };
     }
     const rowNodes = Array.from(target.querySelectorAll("[data-row-id][data-row-index]"));
+    const rows = [];
     const ids = [];
     let firstRowIndex = null;
     let lastRowIndex = null;
@@ -355,26 +365,42 @@ function frameRateProbeScript(options: {
       if (rowId === null || !Number.isFinite(rowIndex)) {
         continue;
       }
+      const text = String(node.textContent || "").trim().replace(/\\s+/g, " ");
+      const entryNode = node.querySelector("[data-entry-type]");
+      const entryType = entryNode instanceof HTMLElement ? entryNode.getAttribute("data-entry-type") : null;
+      const toolKind = entryNode instanceof HTMLElement ? entryNode.getAttribute("data-tool-kind") : null;
+      const toolStatus = entryNode instanceof HTMLElement ? entryNode.getAttribute("data-tool-status") : null;
+      const toolTitle = entryNode instanceof HTMLElement ? entryNode.getAttribute("data-tool-title") : null;
+      const toolPresentationState =
+        entryNode instanceof HTMLElement ? entryNode.getAttribute("data-tool-presentation-state") : null;
+      const visualSignature = [
+        entryType || "unknown",
+        toolKind || "none",
+        toolStatus || "none",
+        toolPresentationState || "none",
+        toolTitle || "none",
+      ].join("/");
+      rows.push({
+        rowId,
+        rowIndex,
+        text: text.length > 120 ? text.slice(0, 120) : text,
+        visualSignature,
+      });
       ids.push(rowId);
       firstRowIndex = firstRowIndex === null ? rowIndex : Math.min(firstRowIndex, rowIndex);
       lastRowIndex = lastRowIndex === null ? rowIndex : Math.max(lastRowIndex, rowIndex);
     }
     return {
+      rows,
       ids,
       domRowCount: ids.length,
       firstRowIndex,
       lastRowIndex,
     };
   };
-	  const countChangedRows = (left, right) => {
-    const rightIds = new Set(right);
-    let changed = 0;
-    for (const id of left) {
-      if (!rightIds.has(id)) {
-        changed += 1;
-      }
-    }
-	    return changed;
+	  const changedRows = (left, right) => {
+    const rightIds = new Set(right.map((row) => row.rowId));
+    return left.filter((row) => !rightIds.has(row.rowId));
 	  };
 	  const readAgentPanelProfileSamples = () => {
 	    const reader = window.__acepeReadAgentPanelPerformanceCapture;
@@ -437,15 +463,21 @@ function frameRateProbeScript(options: {
 	    summaries.sort((left, right) => right.totalDurationMs - left.totalDurationMs);
 	    return summaries;
 	  };
-  		  let previousFrame = await waitForNextFrame();
+	  let previousFrame = await waitForNextFrame();
   let previousRows = collectRowChurn
     ? readMountedRows()
     : {
+        rows: [],
         ids: [],
         domRowCount: 0,
         firstRowIndex: null,
         lastRowIndex: null,
       };
+  if (collectRowChurn) {
+    for (const row of previousRows.rows) {
+      visualSignatureByRowId.set(row.rowId, row.visualSignature);
+    }
+  }
 	  for (let index = 0; index < effectiveSampleCount; index += 1) {
 	    const target = getScrollTarget();
 	    if (target !== null) {
@@ -469,6 +501,7 @@ function frameRateProbeScript(options: {
     const currentRows = collectRowChurn
       ? readMountedRows()
       : {
+          rows: [],
           ids: [],
           domRowCount: 0,
           firstRowIndex: null,
@@ -476,14 +509,38 @@ function frameRateProbeScript(options: {
         };
     frameDeltasMs.push(currentFrame.timeMs - previousFrame.timeMs);
     if (collectRowChurn) {
+      for (const row of currentRows.rows) {
+        const previousSignature = visualSignatureByRowId.get(row.rowId);
+        if (
+          typeof previousSignature === "string" &&
+          previousSignature !== row.visualSignature
+        ) {
+          visualChangeCount += 1;
+          if (visualChanges.length < 24) {
+            visualChanges.push({
+              frameIndex: index,
+              rowId: row.rowId,
+              rowIndex: row.rowIndex,
+              previousSignature,
+              nextSignature: row.visualSignature,
+              text: row.text,
+            });
+          }
+        }
+        visualSignatureByRowId.set(row.rowId, row.visualSignature);
+      }
+      const mountedRows = changedRows(currentRows.rows, previousRows.rows);
+      const unmountedRows = changedRows(previousRows.rows, currentRows.rows);
       rowChurnSamples.push({
 	        frameIndex: index,
 	        scrollTopPx: getScrollTarget()?.scrollTop ?? 0,
         domRowCount: currentRows.domRowCount,
         firstRowIndex: currentRows.firstRowIndex,
         lastRowIndex: currentRows.lastRowIndex,
-        mountedRowCount: countChangedRows(currentRows.ids, previousRows.ids),
-        unmountedRowCount: countChangedRows(previousRows.ids, currentRows.ids),
+        mountedRowCount: mountedRows.length,
+        unmountedRowCount: unmountedRows.length,
+        mountedRows: mountedRows.slice(0, 12),
+        unmountedRows: unmountedRows.slice(0, 12),
       });
     }
     previousFrame = currentFrame;
@@ -535,6 +592,8 @@ function frameRateProbeScript(options: {
 	  return {
     route: typeof window !== "undefined" ? window.location.pathname : null,
     selector: selector.length > 0 ? selector : null,
+    selectorIndex,
+    selectorMatchCount,
     selectorMatched,
     scrolled,
     sampleCount: frameDeltasMs.length,
@@ -551,6 +610,8 @@ function frameRateProbeScript(options: {
     timeoutWaitCount,
     likelyThrottled,
 	    rowChurnSamples,
+	    visualChangeCount,
+	    visualChanges,
 	    maxMountedRowCount,
 	    maxUnmountedRowCount,
 	    maxDomRowCount,
@@ -565,10 +626,11 @@ export function probeFrameRate(
 	options: DriverOptions & {
 		readonly sampleCount: number;
 		readonly selector: string;
-			readonly collectRowChurn?: boolean;
-			readonly collectAgentPanelProfile?: boolean;
-			readonly scrollStepPx?: number | null;
-		}
+		readonly selectorIndex?: number;
+		readonly collectRowChurn?: boolean;
+		readonly collectAgentPanelProfile?: boolean;
+		readonly scrollStepPx?: number | null;
+	}
 ): ResultAsync<FrameRateProbeResult, TauriMcpFailure> {
 	const callTimeoutMs = Math.max(8_000, options.sampleCount * 80);
 	return driverReady(options).andThen(() =>
@@ -577,10 +639,11 @@ export function probeFrameRate(
 				appIdentifier: options.appIdentifier,
 				script: frameRateProbeScript({
 					sampleCount: Math.max(1, Math.floor(options.sampleCount)),
-						selector: options.selector,
-						collectRowChurn: options.collectRowChurn === true,
-						collectAgentPanelProfile: options.collectAgentPanelProfile === true,
-						scrollStepPx:
+					selector: options.selector,
+					selectorIndex: options.selectorIndex ?? 0,
+					collectRowChurn: options.collectRowChurn === true,
+					collectAgentPanelProfile: options.collectAgentPanelProfile === true,
+					scrollStepPx:
 						options.scrollStepPx !== undefined &&
 						options.scrollStepPx !== null &&
 						Number.isFinite(options.scrollStepPx) &&
@@ -599,6 +662,7 @@ export function probeFrameRate(
 export function scanAgentPanelRows(
 	options: DriverOptions & {
 		readonly selector: string;
+		readonly selectorIndex: number;
 		readonly limit: number;
 	}
 ): ResultAsync<AgentPanelRowScanResult, TauriMcpFailure> {
@@ -607,30 +671,73 @@ export function scanAgentPanelRows(
 		const script = `
 (() => {
   const selector = ${escapedJson(options.selector)};
+  const selectorIndex = ${Math.max(0, Math.floor(options.selectorIndex)).toString()};
   const limit = ${Math.max(1, Math.floor(options.limit)).toString()};
-  const target = document.querySelector(selector);
+  const selectorMatches = Array.from(document.querySelectorAll(selector));
+  const target = selectorMatches[selectorIndex] ?? null;
   const selectorMatched = target instanceof HTMLElement;
-  const rows = [];
-  const genericToolRows = [];
-  let firstRowIndex = null;
-  let lastRowIndex = null;
-  let emptyRowCount = 0;
-  let exactGenericToolRowCount = 0;
-  let prefixGenericToolRowCount = 0;
-  const normalizeText = (value) => String(value || "").trim().replace(/\\s+/g, " ");
-  const rowNodes = selectorMatched ? Array.from(target.querySelectorAll("[data-row-id]")) : [];
+	  const rows = [];
+	  const genericToolRows = [];
+	  const rawProviderToolRows = [];
+	  const missingEntryRows = [];
+	  const degradedToolRows = [];
+	  let firstRowIndex = null;
+	  let lastRowIndex = null;
+	  let emptyRowCount = 0;
+	  let exactGenericToolRowCount = 0;
+	  let prefixGenericToolRowCount = 0;
+	  let rawProviderToolRowCount = 0;
+	  let missingEntryRowCount = 0;
+	  let degradedToolRowCount = 0;
+	  const normalizeText = (value) => String(value || "").trim().replace(/\\s+/g, " ");
+	  const normalizeToolLeakText = (value) =>
+	    normalizeText(value).toLowerCase().replace(/[.\\s-]+/g, "_").replace(/_+/g, "_");
+	  const rawProviderToolNames = [
+	    "exec_command",
+	    "functions_exec_command",
+	    "run_command",
+	    "run_terminal_cmd",
+	    "shell_command",
+	    "write_stdin",
+	  ];
+	  const hasRawProviderToolLabel = (value) => {
+	    const text = normalizeToolLeakText(value);
+	    return rawProviderToolNames.some(
+	      (name) =>
+	        text === name ||
+	        text.startsWith(name + "_") ||
+	        text === "tool_" + name ||
+	        text.startsWith("tool_" + name + "_")
+	    );
+	  };
+	  const rowNodes = selectorMatched ? Array.from(target.querySelectorAll("[data-row-id]")) : [];
   const summarizeRow = (node, index) => {
     const rowIndexText = node.getAttribute("data-row-index");
     const rowIndex = rowIndexText === null ? null : Number(rowIndexText);
     const normalizedRowIndex = Number.isFinite(rowIndex) ? rowIndex : null;
     const text = normalizeText(node.textContent);
     const rect = node.getBoundingClientRect();
+    const entryNode = node.querySelector("[data-entry-type]");
+    const entryType = entryNode instanceof HTMLElement ? entryNode.getAttribute("data-entry-type") : null;
+    const toolKind = entryNode instanceof HTMLElement ? entryNode.getAttribute("data-tool-kind") : null;
+    const toolStatus = entryNode instanceof HTMLElement ? entryNode.getAttribute("data-tool-status") : null;
+    const toolTitle = entryNode instanceof HTMLElement ? entryNode.getAttribute("data-tool-title") : null;
+    const toolPresentationState =
+      entryNode instanceof HTMLElement ? entryNode.getAttribute("data-tool-presentation-state") : null;
+    const missingEntry =
+      entryNode instanceof HTMLElement && entryNode.hasAttribute("data-missing-entry");
     return {
       index,
       rowId: node.getAttribute("data-row-id"),
       rowIndex: normalizedRowIndex,
       text,
       heightPx: rect.height,
+      entryType,
+      toolKind,
+      toolStatus,
+      toolTitle,
+      toolPresentationState,
+      missingEntry,
     };
   };
   rowNodes.forEach((node, index) => {
@@ -650,19 +757,40 @@ export function scanAgentPanelRows(
     if (exactGeneric) {
       exactGenericToolRowCount += 1;
     }
-    if (prefixGeneric) {
-      prefixGenericToolRowCount += 1;
-    }
-    if (rows.length < limit) {
-      rows.push(row);
-    }
-    if (prefixGeneric && genericToolRows.length < limit) {
-      genericToolRows.push(row);
-    }
-  });
+	    if (prefixGeneric) {
+	      prefixGenericToolRowCount += 1;
+	    }
+	    const rawProviderToolLabel = hasRawProviderToolLabel(row.text);
+	    if (rawProviderToolLabel) {
+	      rawProviderToolRowCount += 1;
+	    }
+	    if (row.missingEntry) {
+	      missingEntryRowCount += 1;
+	    }
+	    if (row.toolPresentationState === "degraded_operation") {
+	      degradedToolRowCount += 1;
+	    }
+	    if (rows.length < limit) {
+	      rows.push(row);
+	    }
+	    if (prefixGeneric && genericToolRows.length < limit) {
+	      genericToolRows.push(row);
+	    }
+	    if (rawProviderToolLabel && rawProviderToolRows.length < limit) {
+	      rawProviderToolRows.push(row);
+	    }
+	    if (row.missingEntry && missingEntryRows.length < limit) {
+	      missingEntryRows.push(row);
+	    }
+	    if (row.toolPresentationState === "degraded_operation" && degradedToolRows.length < limit) {
+	      degradedToolRows.push(row);
+	    }
+	  });
   return {
     route: typeof window !== "undefined" ? window.location.pathname : null,
     selector,
+    selectorIndex,
+    selectorMatchCount: selectorMatches.length,
     selectorMatched,
     scrollTopPx: selectorMatched ? target.scrollTop : null,
     scrollHeightPx: selectorMatched ? target.scrollHeight : null,
@@ -670,13 +798,19 @@ export function scanAgentPanelRows(
     maxScrollTopPx: selectorMatched ? Math.max(0, target.scrollHeight - target.clientHeight) : null,
     rowCount: rowNodes.length,
     emptyRowCount,
-    exactGenericToolRowCount,
-    prefixGenericToolRowCount,
-    firstRowIndex,
-    lastRowIndex,
-    rows,
-    genericToolRows,
-  };
+	    exactGenericToolRowCount,
+	    prefixGenericToolRowCount,
+	    rawProviderToolRowCount,
+	    missingEntryRowCount,
+	    degradedToolRowCount,
+	    firstRowIndex,
+	    lastRowIndex,
+	    rows,
+	    genericToolRows,
+	    rawProviderToolRows,
+	    missingEntryRows,
+	    degradedToolRows,
+	  };
 })()
 `;
 		return executeWebviewJson(
@@ -693,6 +827,7 @@ export function scanAgentPanelRows(
 export function probeAgentPanelScrollPages(
 	options: DriverOptions & {
 		readonly selector: string;
+		readonly selectorIndex: number;
 		readonly sampleCount: number;
 		readonly scrollStepPx: number | null;
 		readonly settleMs: number;
@@ -711,12 +846,33 @@ export function probeAgentPanelScrollPages(
 		const script = `
 (async () => {
   const selector = ${escapedJson(options.selector)};
+  const selectorIndex = ${Math.max(0, Math.floor(options.selectorIndex)).toString()};
   const requestedSampleCount = ${sampleCount.toString()};
   const requestedSettleMs = ${settleMs.toString()};
-  const requestedScrollStepPx = ${scrollStepPx === null ? "null" : scrollStepPx.toString()};
-  const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-  const normalizeText = (value) => String(value || "").trim().replace(/\\s+/g, " ");
-  const focusProbeWindow = async () => {
+	  const requestedScrollStepPx = ${scrollStepPx === null ? "null" : scrollStepPx.toString()};
+	  const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+	  const normalizeText = (value) => String(value || "").trim().replace(/\\s+/g, " ");
+	  const normalizeToolLeakText = (value) =>
+	    normalizeText(value).toLowerCase().replace(/[.\\s-]+/g, "_").replace(/_+/g, "_");
+	  const rawProviderToolNames = [
+	    "exec_command",
+	    "functions_exec_command",
+	    "run_command",
+	    "run_terminal_cmd",
+	    "shell_command",
+	    "write_stdin",
+	  ];
+	  const hasRawProviderToolLabel = (value) => {
+	    const text = normalizeToolLeakText(value);
+	    return rawProviderToolNames.some(
+	      (name) =>
+	        text === name ||
+	        text.startsWith(name + "_") ||
+	        text === "tool_" + name ||
+	        text.startsWith("tool_" + name + "_")
+	    );
+	  };
+	  const focusProbeWindow = async () => {
     const tauriWindow = window.__TAURI__ && window.__TAURI__.window;
     const currentWindow =
       tauriWindow &&
@@ -763,7 +919,8 @@ export function probeAgentPanelScrollPages(
     finishWithTimeout();
   });
   await focusProbeWindow();
-  const target = document.querySelector(selector);
+  const selectorMatches = Array.from(document.querySelectorAll(selector));
+  const target = selectorMatches[selectorIndex] ?? null;
   const selectorMatched = target instanceof HTMLElement;
   const samples = [];
   const timingSamples = [];
@@ -774,8 +931,9 @@ export function probeAgentPanelScrollPages(
   let zeroRowSampleCount = 0;
   let blankViewportSampleCount = 0;
   let maxEmptyRowCount = 0;
-  let maxExactGenericToolRowCount = 0;
-  let maxPrefixGenericToolRowCount = 0;
+	  let maxExactGenericToolRowCount = 0;
+	  let maxPrefixGenericToolRowCount = 0;
+	  let maxRawProviderToolRowCount = 0;
   const numberAttr = (node, name) => {
     if (!(node instanceof HTMLElement)) {
       return null;
@@ -817,28 +975,6 @@ export function probeAgentPanelScrollPages(
       bufferLastReason: textAttr(host, "data-buffer-last-reason"),
     };
   };
-  const readStickState = () => {
-    if (!selectorMatched) {
-      return {
-        stickReleased: null,
-        stickUnreadBelow: null,
-        stickLastPhase: null,
-        stickLastAction: null,
-        stickInteracting: null,
-        stickScrollTop: null,
-        stickMaxScrollTop: null,
-      };
-    }
-    return {
-      stickReleased: textAttr(target, "data-stick-released"),
-      stickUnreadBelow: textAttr(target, "data-stick-unread-below"),
-      stickLastPhase: textAttr(target, "data-stick-last-phase"),
-      stickLastAction: textAttr(target, "data-stick-last-action"),
-      stickInteracting: textAttr(target, "data-stick-interacting"),
-      stickScrollTop: numberAttr(target, "data-stick-scroll-top"),
-      stickMaxScrollTop: numberAttr(target, "data-stick-max-scroll-top"),
-    };
-  };
   const dispatchWheelIntent = (deltaY) => {
     if (!selectorMatched) {
       return;
@@ -865,30 +1001,24 @@ export function probeAgentPanelScrollPages(
         bufferLastAction: null,
         bufferLastStatus: null,
         bufferLastReason: null,
-        stickReleased: null,
-        stickUnreadBelow: null,
-        stickLastPhase: null,
-        stickLastAction: null,
-        stickInteracting: null,
-        stickScrollTop: null,
-        stickMaxScrollTop: null,
         rowCount: 0,
         emptyRowCount: 0,
-        exactGenericToolRowCount: 0,
-        prefixGenericToolRowCount: 0,
-        firstRowId: null,
+	        exactGenericToolRowCount: 0,
+	        prefixGenericToolRowCount: 0,
+	        rawProviderToolRowCount: 0,
+	        firstRowId: null,
         lastRowId: null,
         firstRowText: null,
         lastRowText: null,
       };
     }
     const bufferState = readBufferState();
-    const stickState = readStickState();
     const rowNodes = Array.from(target.querySelectorAll("[data-row-id]"))
       .filter((node) => node instanceof HTMLElement);
     let emptyRowCount = 0;
-    let exactGenericToolRowCount = 0;
-    let prefixGenericToolRowCount = 0;
+	    let exactGenericToolRowCount = 0;
+	    let prefixGenericToolRowCount = 0;
+	    let rawProviderToolRowCount = 0;
     let firstRowId = null;
     let lastRowId = null;
     let firstRowText = null;
@@ -918,10 +1048,13 @@ export function probeAgentPanelScrollPages(
       if (exactGeneric) {
         exactGenericToolRowCount += 1;
       }
-      if (prefixGeneric) {
-        prefixGenericToolRowCount += 1;
-      }
-    });
+	      if (prefixGeneric) {
+	        prefixGenericToolRowCount += 1;
+	      }
+	      if (hasRawProviderToolLabel(text)) {
+	        rawProviderToolRowCount += 1;
+	      }
+	    });
     const rowCount = rowNodes.length;
     const maxScrollTopPx = Math.max(0, target.scrollHeight - target.clientHeight);
     maxSampleRowCount = Math.max(maxSampleRowCount, rowCount);
@@ -932,9 +1065,10 @@ export function probeAgentPanelScrollPages(
       }
     }
     maxEmptyRowCount = Math.max(maxEmptyRowCount, emptyRowCount);
-    maxExactGenericToolRowCount = Math.max(maxExactGenericToolRowCount, exactGenericToolRowCount);
-    maxPrefixGenericToolRowCount = Math.max(maxPrefixGenericToolRowCount, prefixGenericToolRowCount);
-    return {
+	    maxExactGenericToolRowCount = Math.max(maxExactGenericToolRowCount, exactGenericToolRowCount);
+	    maxPrefixGenericToolRowCount = Math.max(maxPrefixGenericToolRowCount, prefixGenericToolRowCount);
+	    maxRawProviderToolRowCount = Math.max(maxRawProviderToolRowCount, rawProviderToolRowCount);
+	    return {
       stepIndex,
       scrollTopPx: target.scrollTop,
       scrollHeightPx: target.scrollHeight,
@@ -947,18 +1081,12 @@ export function probeAgentPanelScrollPages(
       bufferLastAction: bufferState.bufferLastAction,
       bufferLastStatus: bufferState.bufferLastStatus,
       bufferLastReason: bufferState.bufferLastReason,
-      stickReleased: stickState.stickReleased,
-      stickUnreadBelow: stickState.stickUnreadBelow,
-      stickLastPhase: stickState.stickLastPhase,
-      stickLastAction: stickState.stickLastAction,
-      stickInteracting: stickState.stickInteracting,
-      stickScrollTop: stickState.stickScrollTop,
-      stickMaxScrollTop: stickState.stickMaxScrollTop,
       rowCount,
       emptyRowCount,
-      exactGenericToolRowCount,
-      prefixGenericToolRowCount,
-      firstRowId,
+	      exactGenericToolRowCount,
+	      prefixGenericToolRowCount,
+	      rawProviderToolRowCount,
+	      firstRowId,
       lastRowId,
       firstRowText,
       lastRowText,
@@ -984,7 +1112,6 @@ export function probeAgentPanelScrollPages(
       ? requestedScrollStepPx ?? Math.max(120, Math.floor(target.clientHeight * 0.85))
       : requestedScrollStepPx ?? 0;
 
-  let previousFrame = await waitForNextFrame();
   for (let stepIndex = 0; stepIndex < requestedSampleCount; stepIndex += 1) {
     samples.push(sample(stepIndex));
     if (!selectorMatched) {
@@ -996,13 +1123,15 @@ export function probeAgentPanelScrollPages(
     const beforeScrollTopPx = target.scrollTop;
     const beforeScrollHeightPx = target.scrollHeight;
     const nextScrollTop = Math.max(0, target.scrollTop - effectiveStepPx);
+    const previousFrame = await waitForNextFrame();
+    const scrollStartedAtMs = performance.now();
     dispatchWheelIntent(nextScrollTop - beforeScrollTopPx);
     target.scrollTop = nextScrollTop;
     target.dispatchEvent(new Event("scroll"));
     const currentFrame = await waitForNextFrame();
     const frameDeltaMs = currentFrame.timeMs - previousFrame.timeMs;
+    const scrollToFrameMs = Math.max(0, currentFrame.timeMs - scrollStartedAtMs);
     frameDeltasMs.push(frameDeltaMs);
-    previousFrame = currentFrame;
     await sleep(requestedSettleMs);
     const afterSample = sample(stepIndex);
     const scrollHeightDeltaPx = target.scrollHeight - beforeScrollHeightPx;
@@ -1010,6 +1139,7 @@ export function probeAgentPanelScrollPages(
     timingSamples.push({
       stepIndex,
       frameDeltaMs,
+      scrollToFrameMs,
       beforeScrollTopPx,
       targetScrollTopPx: nextScrollTop,
       afterScrollTopPx: target.scrollTop,
@@ -1024,13 +1154,6 @@ export function probeAgentPanelScrollPages(
       bufferLastAction: afterSample.bufferLastAction,
       bufferLastStatus: afterSample.bufferLastStatus,
       bufferLastReason: afterSample.bufferLastReason,
-      stickReleased: afterSample.stickReleased,
-      stickUnreadBelow: afterSample.stickUnreadBelow,
-      stickLastPhase: afterSample.stickLastPhase,
-      stickLastAction: afterSample.stickLastAction,
-      stickInteracting: afterSample.stickInteracting,
-      stickScrollTop: afterSample.stickScrollTop,
-      stickMaxScrollTop: afterSample.stickMaxScrollTop,
       rowCount: afterSample.rowCount,
       firstRowId: afterSample.firstRowId,
       lastRowId: afterSample.lastRowId,
@@ -1083,6 +1206,8 @@ export function probeAgentPanelScrollPages(
   return {
     route: typeof window !== "undefined" ? window.location.pathname : null,
     selector,
+    selectorIndex,
+    selectorMatchCount: selectorMatches.length,
     selectorMatched,
     scrollStepPx: effectiveStepPx,
     settleMs: requestedSettleMs,
@@ -1102,8 +1227,9 @@ export function probeAgentPanelScrollPages(
     zeroRowSampleCount,
     blankViewportSampleCount,
     maxEmptyRowCount,
-    maxExactGenericToolRowCount,
-    maxPrefixGenericToolRowCount,
+	    maxExactGenericToolRowCount,
+	    maxPrefixGenericToolRowCount,
+	    maxRawProviderToolRowCount,
     frameDeltasMs,
     averageFrameDeltaMs,
     minFrameDeltaMs,
@@ -1518,6 +1644,7 @@ function sessionOpenContentUnavailableResultScript(sessionIdExpression: string):
 		      openEvents: [],
 		      hydrationTimings: [],
 		      panelOpenMarks: {},
+		      agentPanelPerformanceSamples: [],
 		    }`;
 }
 
@@ -1644,6 +1771,7 @@ function startSessionOpenContentProbeRun(input: {
 		        openEvents: [],
 		        hydrationTimings: [],
 		        panelOpenMarks: {},
+		        agentPanelPerformanceSamples: [],
 		      },
 		    };
   });

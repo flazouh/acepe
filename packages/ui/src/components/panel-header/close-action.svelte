@@ -13,7 +13,7 @@
 	let {
 		onClose,
 		title = "Close",
-		size = "icon",
+		size = "icon-sm",
 		class: className = "",
 	}: Props = $props();
 </script>

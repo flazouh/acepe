@@ -8,27 +8,16 @@ import {
 } from "./sidebar-update-card-variants.js";
 
 describe("sidebar-update-card-variants", () => {
-	it("defines ten gradient variants", () => {
-		expect(SIDEBAR_UPDATE_CARD_VARIANTS).toHaveLength(10);
-		expect(SIDEBAR_UPDATE_CARD_VARIANTS.map((entry) => entry.id)).toEqual([
-			"luminar-blob",
-			"luminar-wave",
-			"luminar-corners",
-			"luminar-ripple",
-			"luminar-dots",
-			"acepe-warm",
-			"luminar-vivid",
-			"luminar-soft",
-			"luminar-rose",
-			"luminar-pill",
-		]);
+	it("defines the minimal variant", () => {
+		expect(SIDEBAR_UPDATE_CARD_VARIANTS).toHaveLength(1);
+		expect(SIDEBAR_UPDATE_CARD_VARIANTS.map((entry) => entry.id)).toEqual(["minimal"]);
 	});
 
-	it("defaults to luminar-wave", () => {
-		expect(DEFAULT_SIDEBAR_UPDATE_CARD_VARIANT).toBe("luminar-wave");
+	it("defaults to minimal", () => {
+		expect(DEFAULT_SIDEBAR_UPDATE_CARD_VARIANT).toBe("minimal");
 	});
 
-	it("uses gradient card copy for available state", () => {
+	it("uses update card copy for available state", () => {
 		expect(
 			getSidebarUpdateCardCopy({
 				kind: "available",
@@ -42,7 +31,21 @@ describe("sidebar-update-card-variants", () => {
 		});
 	});
 
-	it("uses dark surface tokens for acepe-warm", () => {
-		expect(getSidebarUpdateCardVariantDefinition("acepe-warm").surfaceTokens).toBe("dark");
+	it("uses indeterminate copy for installing", () => {
+		expect(
+			getSidebarUpdateCardCopy({
+				kind: "installing",
+				version: "2026.4.4",
+				percent: 100,
+			}).title,
+		).toBe("Installing update");
+	});
+
+	it("uses minimal surface tokens", () => {
+		expect(getSidebarUpdateCardVariantDefinition("minimal").surfaceTokens).toBe("minimal");
+	});
+
+	it("falls back to the default for unknown visual variant ids", () => {
+		expect(getSidebarUpdateCardVariantDefinition("luminar-wave").id).toBe("minimal");
 	});
 });

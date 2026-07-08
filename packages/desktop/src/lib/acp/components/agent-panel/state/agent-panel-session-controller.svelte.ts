@@ -251,6 +251,10 @@ export class AgentPanelSessionController {
 
 	readonly visibleEntryCount = $derived.by(() => {
 		const id = this.#deps.getSessionId();
+		const rowsProjection =
+			id === null || id === undefined
+				? null
+				: this.#deps.sessionStore.viewport.getRowsProjection(id);
 		return resolveVisibleEntryCount({
 			canonicalEntryCount:
 				id === null || id === undefined ? 0 : (this.canonicalTranscriptEntries?.length ?? null),
@@ -258,6 +262,8 @@ export class AgentPanelSessionController {
 				id === null || id === undefined
 					? 0
 					: this.#deps.sessionStore.read.getSessionMessageCount(id),
+			canonicalViewportRowCount:
+				rowsProjection?.sessionId === id ? rowsProjection.rows.length : null,
 			optimisticUserEntry: this.optimisticUserEntryForGraph,
 		});
 	});

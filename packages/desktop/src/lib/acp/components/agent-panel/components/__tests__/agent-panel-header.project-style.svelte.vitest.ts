@@ -61,7 +61,8 @@ describe("AgentPanelHeader project-header style", () => {
 		expect(container.querySelector(`button[title='${"Fullscreen"}']`)).toBeNull();
 		expect(close).not.toBeNull();
 		expect(header?.className).toContain("bg-card/50");
-		expect(close?.className).toContain("size-6");
+		expect(close?.className).toContain("size-5");
+		expect(screen.getByLabelText("More actions").className).toContain("size-5");
 
 		await fireEvent.click(screen.getByLabelText("More actions"));
 		const displayMenu = screen.getByRole("menuitem", { name: "Display" });

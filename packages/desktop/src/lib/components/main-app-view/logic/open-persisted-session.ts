@@ -8,6 +8,7 @@ import type { SessionOpenResult, SessionOpenResultTiming } from "$lib/services/a
 
 const logger = createLogger({ id: "open-persisted-session", name: "OpenPersistedSession" });
 const inflightPanelIds = new Set<string>();
+const RECONNECT_PAINT_FRAME_TIMEOUT_MS = 50;
 
 export type OpenPersistedSessionDiagnosticStage =
 	| "started"
@@ -140,7 +141,20 @@ function waitForAnimationFrame(): Promise<void> {
 		return Promise.resolve();
 	}
 	return new Promise((resolve) => {
-		requestAnimationFrame(() => resolve());
+		let settled = false;
+		let timeoutId: ReturnType<typeof setTimeout> | null = null;
+		const finish = () => {
+			if (settled) {
+				return;
+			}
+			settled = true;
+			if (timeoutId !== null) {
+				clearTimeout(timeoutId);
+			}
+			resolve();
+		};
+		timeoutId = setTimeout(finish, RECONNECT_PAINT_FRAME_TIMEOUT_MS);
+		requestAnimationFrame(finish);
 	});
 }
 

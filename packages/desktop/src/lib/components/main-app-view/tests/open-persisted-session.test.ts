@@ -390,9 +390,11 @@ describe("openPersistedSession", () => {
 				createFoundResult("session-1", {
 					openResultTiming: {
 						source: "provider-owned-snapshot",
+						openPath: "legacy_rebuild",
 						ledgerProbeStatus: "missing",
 						contextMs: 2,
 						providerLoadMs: 120,
+						ledgerTailReadMs: 0,
 						ledgerJournalCutoffMs: 0,
 						ledgerPageReadMs: 0,
 						ledgerHeaderDecodeMs: 0,
@@ -408,7 +410,7 @@ describe("openPersistedSession", () => {
 						operationCount: 406,
 					},
 					initialTranscriptRowPage: {
-						projectionVersion: "transcript_viewport_row:v1",
+						projectionVersion: "transcript_viewport_row:v5",
 						startRowIndex: 5221,
 						totalRowCount: 5349,
 						rowPayloadBytes: 4096,
@@ -467,12 +469,14 @@ describe("openPersistedSession", () => {
 		expect(foundEvent?.initialRowPageTotalRowCount).toBe(5349);
 		expect(foundEvent?.initialRowPageStartRowIndex).toBe(5221);
 		expect(foundEvent?.initialRowPagePayloadBytes).toBe(4096);
-		expect(foundEvent?.openResultTiming).toEqual({
-			source: "provider-owned-snapshot",
-			ledgerProbeStatus: "missing",
-			contextMs: 2,
-			providerLoadMs: 120,
-			ledgerJournalCutoffMs: 0,
+			expect(foundEvent?.openResultTiming).toEqual({
+				source: "provider-owned-snapshot",
+				openPath: "legacy_rebuild",
+				ledgerProbeStatus: "missing",
+				contextMs: 2,
+				providerLoadMs: 120,
+				ledgerTailReadMs: 0,
+				ledgerJournalCutoffMs: 0,
 			ledgerPageReadMs: 0,
 			ledgerHeaderDecodeMs: 0,
 			ledgerRowsDecodeMs: 0,
@@ -621,6 +625,70 @@ describe("openPersistedSession", () => {
 		expect(sessionStore.connection.connectSession).toHaveBeenCalledWith("session-1", {
 			openToken: "open-token-1",
 		});
+	});
+
+	it("reconnects when requestAnimationFrame does not fire after hydration", async () => {
+		const previousAnimationFrame = globalThis.requestAnimationFrame;
+		const hadTauriInternals = Object.prototype.hasOwnProperty.call(
+			globalThis,
+			"__TAURI_INTERNALS__"
+		);
+		const previousTauriInternals = hadTauriInternals
+			? Object.getOwnPropertyDescriptor(globalThis, "__TAURI_INTERNALS__")
+			: undefined;
+		const hadDocument = Object.prototype.hasOwnProperty.call(globalThis, "document");
+		const previousDocument = hadDocument
+			? Object.getOwnPropertyDescriptor(globalThis, "document")
+			: undefined;
+		Object.defineProperty(globalThis, "__TAURI_INTERNALS__", {
+			value: {},
+			configurable: true,
+		});
+		Object.defineProperty(globalThis, "document", {
+			value: {},
+			configurable: true,
+		});
+		Object.defineProperty(globalThis, "requestAnimationFrame", {
+			value: mock(() => 1) as typeof requestAnimationFrame,
+			configurable: true,
+		});
+
+		try {
+			openPersistedSession({
+				panelId: "panel-1",
+				sessionId: "session-1",
+				sessionStore,
+				sessionOpenHydrator,
+				getSessionOpenResult: getSessionOpenResultMock,
+				timeoutMs: 10_000,
+				source: "session-handler",
+			});
+
+			await new Promise((resolve) => setTimeout(resolve, 130));
+
+			expect(sessionStore.connection.connectSession).toHaveBeenCalledWith("session-1", {
+				openToken: "open-token-1",
+			});
+		} finally {
+			if (previousAnimationFrame === undefined) {
+				Reflect.deleteProperty(globalThis, "requestAnimationFrame");
+			} else {
+				Object.defineProperty(globalThis, "requestAnimationFrame", {
+					value: previousAnimationFrame,
+					configurable: true,
+				});
+			}
+			if (previousTauriInternals === undefined) {
+				Reflect.deleteProperty(globalThis, "__TAURI_INTERNALS__");
+			} else {
+				Object.defineProperty(globalThis, "__TAURI_INTERNALS__", previousTauriInternals);
+			}
+			if (previousDocument === undefined) {
+				Reflect.deleteProperty(globalThis, "document");
+			} else {
+				Object.defineProperty(globalThis, "document", previousDocument);
+			}
+		}
 	});
 
 	it("reconnects hydrated sessions even when the snapshot was already current", async () => {
@@ -1161,6 +1229,7 @@ function createFoundResult(
 		},
 		capabilities: {},
 		...overrides,
+		openPath: overrides?.openPath ?? "legacy_rebuild",
 		sequenceId: overrides?.sequenceId ?? null,
 	};
 }

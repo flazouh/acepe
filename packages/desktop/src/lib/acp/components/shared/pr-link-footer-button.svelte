@@ -37,6 +37,7 @@ interface Props {
 	prLinkMode?: SessionPrLinkMode | null;
 	projectPrLinkReferences?: readonly SessionPrLinkReference[];
 	project?: Project | null;
+	projectBadgeLabel?: string | null;
 	variant?: "footer" | "menu" | "header-icon";
 	triggerClass?: string;
 	inButtonGroup?: boolean;
@@ -49,6 +50,7 @@ let {
 	prLinkMode = "automatic",
 	projectPrLinkReferences = [],
 	project = null,
+	projectBadgeLabel = null,
 	variant = "footer",
 	triggerClass = "",
 	inButtonGroup = false,
@@ -107,6 +109,7 @@ function mapProjectForPicker(value: Project | null): SessionPrLinkPickerProject 
 	}
 	return {
 		name: value.name,
+		badgeLabel: projectBadgeLabel,
 		color: value.color,
 		iconPath: value.iconPath ?? null,
 	};

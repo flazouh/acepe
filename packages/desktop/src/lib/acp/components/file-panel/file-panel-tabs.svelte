@@ -9,6 +9,7 @@ interface Props {
 	activeFilePanelId: string | null;
 	projectName: string;
 	projectColor: string | undefined;
+	projectBadgeLabel?: string | null;
 	projectIconSrc?: string | null;
 	onSelectFilePanel: (panelId: string) => void;
 	onCloseFilePanel: (panelId: string) => void;
@@ -20,6 +21,7 @@ let {
 	activeFilePanelId,
 	projectName,
 	projectColor,
+	projectBadgeLabel = null,
 	projectIconSrc = null,
 	onSelectFilePanel,
 	onCloseFilePanel,
@@ -70,6 +72,7 @@ const viewState = $derived(buildFilePanelTabsViewState({ filePanels, activeFileP
 				projectPath={activeFilePanel.projectPath}
 				{projectName}
 				{projectColor}
+				{projectBadgeLabel}
 				{projectIconSrc}
 				width={activeFilePanel.width}
 				hideProjectBadge={true}

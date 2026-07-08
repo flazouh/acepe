@@ -177,6 +177,10 @@
       "svelte": "./src/components/selector/index.ts",
       "default": "./src/components/selector/index.ts"
     },
+    "./session-pr-link": {
+      "svelte": "./src/components/session-pr-link/index.ts",
+      "default": "./src/components/session-pr-link/index.ts"
+    },
     "./script-editor": {
       "svelte": "./src/components/script-editor/index.ts",
       "default": "./src/components/script-editor/index.ts"

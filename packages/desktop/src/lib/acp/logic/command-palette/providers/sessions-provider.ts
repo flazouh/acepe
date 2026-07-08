@@ -36,12 +36,14 @@ export interface SessionsProviderConfig {
 function sessionToPaletteItem(
 	session: SessionPaletteReference,
 	projectName: string,
+	projectBadgeLabel?: string | null,
 	projectColor?: string,
 	projectIconSrc?: string | null
 ): PaletteItem {
 	const metadata: PaletteItemMetadata = {
 		projectPath: session.projectPath,
 		projectName,
+		projectBadgeLabel,
 		projectColor,
 		projectIconSrc,
 		agentId: session.agentId,
@@ -73,6 +75,7 @@ export class SessionsProvider implements PaletteProvider {
 	 */
 	private getProjectInfo(projectPath: string): {
 		name: string;
+		badgeLabel: string | null;
 		color?: string;
 		iconSrc: string | null;
 	} {
@@ -80,13 +83,14 @@ export class SessionsProvider implements PaletteProvider {
 		if (project) {
 			return {
 				name: project.name,
+				badgeLabel: this.config.projectManager.getProjectBadgeLabel(project.path) ?? null,
 				color: project.color,
 				iconSrc: project.iconPath ?? null,
 			};
 		}
 		// Fallback: extract name from path
 		const parts = projectPath.split("/");
-		return { name: parts[parts.length - 1] || projectPath, iconSrc: null };
+		return { name: parts[parts.length - 1] || projectPath, badgeLabel: null, iconSrc: null };
 	}
 
 	/**
@@ -115,6 +119,7 @@ export class SessionsProvider implements PaletteProvider {
 			const paletteItem = sessionToPaletteItem(
 				item._session,
 				item._projectInfo.name,
+				item._projectInfo.badgeLabel,
 				item._projectInfo.color,
 				item._projectInfo.iconSrc
 			);
@@ -175,6 +180,7 @@ export class SessionsProvider implements PaletteProvider {
 			return sessionToPaletteItem(
 				session,
 				projectInfo.name,
+				projectInfo.badgeLabel,
 				projectInfo.color,
 				projectInfo.iconSrc
 			);

@@ -123,7 +123,6 @@ import {
 	createDownloadingUpdaterState,
 	createInstallingUpdaterState,
 	getUpdaterPrimaryAction,
-	shouldShowBlockingUpdaterOverlay,
 	type UpdaterBannerState,
 } from "./main-app-view/logic/updater-state.js";
 import {
@@ -134,7 +133,6 @@ import { ReviewFullscreenPage } from "./review-fullscreen/index.js";
 import { SettingsPage } from "./settings-page/index.js";
 import SqlStudioPage from "./sql-studio/sql-studio-page.svelte";
 import { TopBar } from "./top-bar/index.js";
-import { UpdateAvailablePage } from "./update-available/index.js";
 import {
 	createLiveInteractionGraphConsumer,
 	createSessionOpenInteractionGraphConsumer,
@@ -1365,7 +1363,7 @@ function maximizeWindow(): void {
 }
 
 function attemptStartupMaximize(): void {
-	if (!canMaximizeFromStartupGate(viewState.showSplash, updaterState)) {
+	if (!canMaximizeFromStartupGate(viewState.showSplash)) {
 		return;
 	}
 
@@ -1376,7 +1374,6 @@ function attemptStartupMaximize(): void {
 // Start with null - will be set to "checking" when update check runs (only in production)
 let appVersion = $state<string | null>(null);
 let updaterState = $state<UpdaterBannerState>(createIdleUpdaterState());
-let blockAppForUpdate = $state(false);
 let availableUpdate = $state<Awaited<ReturnType<typeof check>> | null>(null);
 let updatePollTimer = $state<ReturnType<typeof setInterval> | null>(null);
 let devUpdateStartTimer = $state<ReturnType<typeof setTimeout> | null>(null);
@@ -1403,7 +1400,6 @@ function clearDevUpdateSimulation(): void {
 
 function startDevUpdateSimulation(): void {
 	clearDevUpdateSimulation();
-	blockAppForUpdate = true;
 	updaterState = createCheckingUpdaterState();
 
 	devUpdateStartTimer = setTimeout(() => {
@@ -1582,7 +1578,6 @@ function uninstallStreamingReproQaHook(): void {
 async function checkForAppUpdate(_trigger: UpdateCheckTrigger): Promise<void> {
 	// Never block the app on update checks: check in the background, download
 	// in the background, and surface an "Update" button top-left when ready.
-	blockAppForUpdate = false;
 	updaterState = createCheckingUpdaterState();
 	const result = await ResultAsync.fromPromise(check(), (e) => e as Error).match(
 		(update) => update,
@@ -1613,7 +1608,6 @@ async function predownloadAvailableUpdate(): Promise<void> {
 		return;
 	}
 
-	blockAppForUpdate = false;
 	updaterState = createDownloadingUpdaterState(availableUpdate.version);
 	await predownloadUpdate(availableUpdate, (event: DownloadEvent) => {
 		updaterState = applyUpdaterDownloadEvent(updaterState, event);
@@ -1635,7 +1629,6 @@ async function installAvailableUpdate(): Promise<void> {
 		return;
 	}
 
-	blockAppForUpdate = false;
 	updaterState = createInstallingUpdaterState(availableUpdate.version);
 	await installDownloadedUpdate(availableUpdate, relaunch).match(
 		() => undefined,
@@ -1673,7 +1666,6 @@ onMount(async () => {
 				if (
 					updaterState.kind === "downloading" ||
 					updaterState.kind === "installing" ||
-					blockAppForUpdate ||
 					availableUpdate !== null
 				) {
 					return;
@@ -1896,7 +1888,7 @@ onDestroy(() => {
 		<div class="shrink-0 overflow-hidden">
 			<TopBar
 				{viewState}
-				onDevShowUpdatePage={() => {
+				onDevSimulateUpdate={() => {
 					startDevUpdateSimulation();
 				}}
 				onDevShowDesignSystem={() => {
@@ -1966,6 +1958,7 @@ onDestroy(() => {
 						<div class="shrink-0 overflow-hidden">
 							<TabBar
 								tabs={tabBarStore.sortedTabs}
+								badgeLabelByPath={projectManager.badgeLabelByPath}
 								activeContrast={panelStore.viewMode === "single" ? "strong" : "normal"}
 								onSelectTab={(panelId) => {
 									panelStore.focusAndSwitchToPanel(panelId);
@@ -2137,39 +2130,6 @@ onDestroy(() => {
 					projectManager.addProjectOptimistic(path, name);
 				}}
 				onDismiss={handleOnboardingDismiss}
-			/>
-		</div>
-	{/if}
-
-	<!-- Blocking startup update overlay (startup and dev simulation only) -->
-	{#if blockAppForUpdate && shouldShowBlockingUpdaterOverlay(updaterState)}
-		<div
-			class="fixed inset-0 z-[var(--app-elevated-z)]"
-			role="dialog"
-			aria-modal="true"
-			aria-label={updaterState.kind === "checking"
-				? "Checking for updates"
-				: updaterState.kind === "installing"
-					? "Installing update..."
-				: updaterState.kind === "error"
-					? "Update failed"
-					: "Downloading update"}
-		>
-			<UpdateAvailablePage
-				updaterState={updaterState}
-				onRetry={() => {
-					if (import.meta.env.DEV) {
-						startDevUpdateSimulation();
-						return;
-					}
-					void checkForAppUpdate("startup");
-				}}
-				onDismiss={import.meta.env.DEV ? () => {
-					clearDevUpdateSimulation();
-					blockAppForUpdate = false;
-					updaterState = createAvailableUpdaterState(DEV_UPDATE_VERSION);
-					attemptStartupMaximize();
-				} : undefined}
 			/>
 		</div>
 	{/if}

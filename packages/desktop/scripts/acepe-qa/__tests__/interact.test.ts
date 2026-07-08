@@ -434,22 +434,22 @@ describe("acepe-qa interaction helpers", () => {
 						averageFrameDeltaMs: 8,
 						minFrameDeltaMs: 8,
 						maxFrameDeltaMs: 8,
-							estimatedFps: 125,
-							jankFrameCount: 0,
-							visibilityState: "visible",
-							documentHasFocus: true,
-							requestAnimationFrameAvailable: true,
-							rafWaitCount: 3,
-							timeoutWaitCount: 0,
-							likelyThrottled: false,
-							rowChurnSamples: [],
-							maxMountedRowCount: null,
-							maxUnmountedRowCount: null,
-							maxDomRowCount: null,
-							agentPanelProfileSamples: [],
-							agentPanelProfilePhaseSummaries: [],
-						})
-					),
+						estimatedFps: 125,
+						jankFrameCount: 0,
+						visibilityState: "visible",
+						documentHasFocus: true,
+						requestAnimationFrameAvailable: true,
+						rafWaitCount: 3,
+						timeoutWaitCount: 0,
+						likelyThrottled: false,
+						rowChurnSamples: [],
+						maxMountedRowCount: null,
+						maxUnmountedRowCount: null,
+						maxDomRowCount: null,
+						agentPanelProfileSamples: [],
+						agentPanelProfilePhaseSummaries: [],
+					})
+				),
 				stderr: "",
 			});
 		};
@@ -513,16 +513,16 @@ describe("acepe-qa interaction helpers", () => {
 								firstRowIndex: 1,
 								lastRowIndex: 12,
 								mountedRowCount: 2,
-									unmountedRowCount: 1,
-								},
-							],
-							maxMountedRowCount: 2,
-							maxUnmountedRowCount: 1,
-							maxDomRowCount: 12,
-							agentPanelProfileSamples: [],
-							agentPanelProfilePhaseSummaries: [],
-						})
-					),
+								unmountedRowCount: 1,
+							},
+						],
+						maxMountedRowCount: 2,
+						maxUnmountedRowCount: 1,
+						maxDomRowCount: 12,
+						agentPanelProfileSamples: [],
+						agentPanelProfilePhaseSummaries: [],
+					})
+				),
 				stderr: "",
 			});
 		};
@@ -536,10 +536,10 @@ describe("acepe-qa interaction helpers", () => {
 			runner,
 		});
 
-			expect(result.isOk()).toBe(true);
-			expect(sawDiagnosticProbe).toBe(true);
-			expect(result._unsafeUnwrap().maxMountedRowCount).toBe(2);
-		});
+		expect(result.isOk()).toBe(true);
+		expect(sawDiagnosticProbe).toBe(true);
+		expect(result._unsafeUnwrap().maxMountedRowCount).toBe(2);
+	});
 
 	it("enables agent panel profile collection for diagnostic frame rate probes", async () => {
 		let sawProfileProbe = false;
@@ -620,7 +620,7 @@ describe("acepe-qa interaction helpers", () => {
 		expect(result.isOk()).toBe(true);
 		expect(sawProfileProbe).toBe(true);
 		expect(evaluatedScript.indexOf("__acepeEnableAgentPanelPerformanceCapture")).toBeLessThan(
-			evaluatedScript.indexOf("document.querySelector(selector)")
+			evaluatedScript.indexOf("document.querySelectorAll(selector)")
 		);
 		expect(result._unsafeUnwrap().agentPanelProfileSamples).toHaveLength(1);
 	});
@@ -652,6 +652,7 @@ describe("acepe-qa interaction helpers", () => {
 						emptyRowCount: 0,
 						exactGenericToolRowCount: 0,
 						prefixGenericToolRowCount: 0,
+						rawProviderToolRowCount: 0,
 						firstRowIndex: 42,
 						lastRowIndex: 43,
 						rows: [
@@ -664,6 +665,7 @@ describe("acepe-qa interaction helpers", () => {
 							},
 						],
 						genericToolRows: [],
+						rawProviderToolRows: [],
 					})
 				),
 				stderr: "",
@@ -673,15 +675,20 @@ describe("acepe-qa interaction helpers", () => {
 		const result = await scanAgentPanelRows({
 			appIdentifier: "9223",
 			selector: '[data-testid="agent-panel-host"] .message-scroller__viewport',
+			selectorIndex: 2,
 			limit: 10,
 			runner,
 		});
 
 		expect(result.isOk()).toBe(true);
 		expect(result._unsafeUnwrap().exactGenericToolRowCount).toBe(0);
+		expect(result._unsafeUnwrap().rawProviderToolRowCount).toBe(0);
 		expect(result._unsafeUnwrap().rowCount).toBe(2);
 		expect(evaluatedScript).toContain("[data-row-id]");
+		expect(evaluatedScript).toContain("document.querySelectorAll(selector)");
+		expect(evaluatedScript).toContain("selectorIndex = 2");
 		expect(evaluatedScript).toContain("exactGenericToolRowCount");
+		expect(evaluatedScript).toContain("rawProviderToolRowCount");
 	});
 
 	it("probes active agent panel scroll paging for blanks and row traversal", async () => {
@@ -723,6 +730,7 @@ describe("acepe-qa interaction helpers", () => {
 						maxEmptyRowCount: 0,
 						maxExactGenericToolRowCount: 0,
 						maxPrefixGenericToolRowCount: 0,
+						maxRawProviderToolRowCount: 0,
 						samples: [
 							{
 								stepIndex: 0,
@@ -741,6 +749,7 @@ describe("acepe-qa interaction helpers", () => {
 								emptyRowCount: 0,
 								exactGenericToolRowCount: 0,
 								prefixGenericToolRowCount: 0,
+								rawProviderToolRowCount: 0,
 								firstRowId: "row-tail-1",
 								lastRowId: "row-tail-12",
 								firstRowText: "Executed bun test",
@@ -763,6 +772,7 @@ describe("acepe-qa interaction helpers", () => {
 								emptyRowCount: 0,
 								exactGenericToolRowCount: 0,
 								prefixGenericToolRowCount: 0,
+								rawProviderToolRowCount: 0,
 								firstRowId: "row-older-1",
 								lastRowId: "row-older-12",
 								firstRowText: "Older row",
@@ -778,6 +788,7 @@ describe("acepe-qa interaction helpers", () => {
 		const result = await probeAgentPanelScrollPages({
 			appIdentifier: "9223",
 			selector: '[data-testid="agent-panel-host"] .message-scroller__viewport',
+			selectorIndex: 2,
 			sampleCount: 6,
 			scrollStepPx: 600,
 			settleMs: 250,
@@ -787,20 +798,22 @@ describe("acepe-qa interaction helpers", () => {
 		expect(result.isOk()).toBe(true);
 		expect(result._unsafeUnwrap().loadedMoreRows).toBe(true);
 		expect(result._unsafeUnwrap().blankViewportSampleCount).toBe(0);
+		expect(result._unsafeUnwrap().maxRawProviderToolRowCount).toBe(0);
 		expect(result._unsafeUnwrap().samples[0]?.bufferStartIndex).toBe(6800);
 		expect(result._unsafeUnwrap().frameDeltasMs).toEqual([]);
 		expect(result._unsafeUnwrap().averageFrameDeltaMs).toBeNull();
 		expect(result._unsafeUnwrap().missed120FrameCount).toBe(0);
 		expect(evaluatedScript).toContain("target.scrollTop = Math.max");
+		expect(evaluatedScript).toContain("document.querySelectorAll(selector)");
+		expect(evaluatedScript).toContain("selectorIndex = 2");
 		expect(evaluatedScript).toContain("distinctRowIds");
 		expect(evaluatedScript).toContain("loadedMoreRows");
 		expect(evaluatedScript).toContain("waitForNextFrame");
 		expect(evaluatedScript).toContain("scrollTopCorrectionPx");
 		expect(evaluatedScript).toContain("data-buffer-start-index");
 		expect(evaluatedScript).toContain("bufferLastReason");
-		expect(evaluatedScript).toContain("data-stick-released");
-		expect(evaluatedScript).toContain("stickLastAction");
 		expect(evaluatedScript).toContain("frameDeltasMs");
+		expect(evaluatedScript).toContain("rawProviderToolRowCount");
 		expect(evaluatedScript).toContain("dispatchWheelIntent");
 		expect(evaluatedScript).toContain('target.dispatchEvent(new Event("scroll"))');
 	});
@@ -1212,6 +1225,7 @@ describe("acepe-qa interaction helpers", () => {
 							],
 							hydrationTimings: [],
 							panelOpenMarks: {},
+							agentPanelPerformanceSamples: [],
 						},
 					})
 				),

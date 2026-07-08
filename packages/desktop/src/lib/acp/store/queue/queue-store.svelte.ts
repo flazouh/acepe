@@ -21,6 +21,7 @@ import type { QuestionRequest } from "../../types/question.js";
 import type { QueueItem } from "./types.js";
 import type {
 	ProjectColorLookup,
+	ProjectBadgeLabelLookup,
 	ProjectIconSrcLookup,
 	QueueSectionGroup,
 	QueueSessionSnapshot,
@@ -81,6 +82,7 @@ export function createQueueStore(): QueueStore {
 	// Internal state
 	let items = $state<QueueItem[]>([]);
 	let getProjectIconSrc: ProjectIconSrcLookup | null = null;
+	let getProjectBadgeLabel: ProjectBadgeLabelLookup | null = null;
 
 	// Derived: filtered to only active sessions
 	const activeItems = $derived.by(() => {
@@ -138,6 +140,10 @@ export function createQueueStore(): QueueStore {
 			getProjectIconSrc = lookup;
 		},
 
+		setProjectBadgeLabelLookup(lookup: ProjectBadgeLabelLookup): void {
+			getProjectBadgeLabel = lookup;
+		},
+
 		/**
 		 * Update the queue from sessions and panel mappings.
 		 */
@@ -166,7 +172,8 @@ export function createQueueStore(): QueueStore {
 					input.pendingPermission,
 					getProjectColor,
 					getProjectIconSrc ?? undefined,
-					input.pendingComputerPermission ?? null
+					input.pendingComputerPermission ?? null,
+					getProjectBadgeLabel ?? undefined
 				);
 			});
 		},
@@ -200,6 +207,7 @@ export interface QueueStore {
 	readonly topItem: QueueItem | null;
 	readonly sections: readonly QueueSectionGroup[];
 	setProjectIconSrcLookup(lookup: ProjectIconSrcLookup): void;
+	setProjectBadgeLabelLookup(lookup: ProjectBadgeLabelLookup): void;
 	updateFromSessions(
 		inputs: readonly QueueUpdateInput[],
 		sessionToPanelMap: ReadonlyMap<string, string>,

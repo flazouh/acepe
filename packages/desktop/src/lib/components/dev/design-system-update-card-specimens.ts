@@ -7,7 +7,7 @@ import {
 export const updateCardSectionMeta = {
 	title: "Sidebar update card",
 	description:
-		"Gradient-only variants for the sidebar update notice. Each specimen renders live at sidebar width (~272px).",
+		"Minimal update notice for the sidebar. Each specimen renders live at sidebar width (~272px).",
 };
 
 export interface UpdateCardStateSpecimen {
@@ -56,4 +56,4 @@ export const updateCardStateSpecimens: readonly UpdateCardStateSpecimen[] = [
 	},
 ];
 
-export const featuredUpdateCardVariant: SidebarUpdateCardVariant = "luminar-wave";
+export const featuredUpdateCardVariant: SidebarUpdateCardVariant = "minimal";

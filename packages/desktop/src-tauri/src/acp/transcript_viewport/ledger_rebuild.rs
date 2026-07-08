@@ -2,7 +2,7 @@ use crate::acp::projections::SessionSnapshot;
 use crate::acp::session_descriptor::SessionReplayContext;
 use crate::acp::session_journal::{
     decode_serialized_events, rebuild_local_transcript_snapshot, rebuild_session_projection,
-    SessionJournalEvent,
+    repair_legacy_parent_tool_use_ids_from_streaming_log, SessionJournalEvent,
 };
 use crate::acp::session_materialization::materialize_provider_owned_thread_snapshot;
 use crate::acp::session_open_snapshot::{
@@ -102,6 +102,9 @@ pub(crate) fn rebuild_transcript_row_ledger_from_journal(
         return Ok(None);
     };
 
+    let repaired_events =
+        repair_legacy_parent_tool_use_ids_from_streaming_log(replay_context, events);
+    let events = repaired_events.as_slice();
     let projection = rebuild_session_projection(replay_context, events);
     let session = projection.session.clone().unwrap_or_else(|| {
         SessionSnapshot::new(
@@ -387,6 +390,7 @@ mod tests {
     use crate::acp::session_update::{
         ContentChunk, SessionUpdate, ToolArguments, ToolCallData, ToolCallStatus, ToolKind,
     };
+    use crate::acp::streaming_log::{clear_session_log, log_emitted_event, log_streaming_event};
     use crate::acp::transcript_viewport::ledger::{
         serialize_viewport_rows_for_ledger, TRANSCRIPT_ROW_LEDGER_PROJECTION_VERSION,
     };
@@ -414,6 +418,7 @@ mod tests {
                     chunk: text_chunk("world"),
                     part_id: Some("assistant-part-1".to_string()),
                     message_id: Some("assistant-1".to_string()),
+                    parent_tool_use_id: None,
                     session_id: Some("local-session".to_string()),
                     produced_at_monotonic_ms: None,
                 },
@@ -456,6 +461,111 @@ mod tests {
         );
         assert_eq!(rebuilt.revision.last_event_seq, 3);
         assert_eq!(rebuilt.rows, expected_rows);
+    }
+
+    #[test]
+    fn transcript_row_ledger_rebuild_repairs_legacy_subagent_chunks_from_streaming_log() {
+        let mut replay_context = replay_context();
+        replay_context.local_session_id =
+            format!("legacy-subagent-repair-{}", uuid::Uuid::new_v4());
+        let _ = clear_session_log(&replay_context.local_session_id);
+        log_streaming_event(
+            &replay_context.local_session_id,
+            &json!({
+                "type": "assistant",
+                "message": {
+                    "parent_tool_use_id": "toolu_task_parent",
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": "child report"
+                        }
+                    ]
+                }
+            }),
+        );
+        log_emitted_event(
+            &replay_context.local_session_id,
+            &json!({
+                "type": "agentMessageChunk",
+                "session_id": replay_context.local_session_id,
+                "chunk": {
+                    "content": {
+                        "type": "text",
+                        "text": "child report"
+                    }
+                }
+            }),
+        );
+        let events = vec![
+            event_from_update_for_session(
+                &replay_context.local_session_id,
+                1,
+                SessionUpdate::UserMessageChunk {
+                    chunk: text_chunk("hello"),
+                    session_id: Some(replay_context.local_session_id.clone()),
+                    attempt_id: Some("attempt-1".to_string()),
+                },
+            ),
+            event_from_update_for_session(
+                &replay_context.local_session_id,
+                2,
+                SessionUpdate::AgentMessageChunk {
+                    chunk: text_chunk("main before"),
+                    part_id: None,
+                    message_id: None,
+                    parent_tool_use_id: None,
+                    session_id: Some(replay_context.local_session_id.clone()),
+                    produced_at_monotonic_ms: None,
+                },
+            ),
+            event_from_update_for_session(
+                &replay_context.local_session_id,
+                3,
+                SessionUpdate::AgentMessageChunk {
+                    chunk: text_chunk("child report"),
+                    part_id: None,
+                    message_id: None,
+                    parent_tool_use_id: None,
+                    session_id: Some(replay_context.local_session_id.clone()),
+                    produced_at_monotonic_ms: None,
+                },
+            ),
+            event_from_update_for_session(
+                &replay_context.local_session_id,
+                4,
+                SessionUpdate::AgentMessageChunk {
+                    chunk: text_chunk(" main after"),
+                    part_id: None,
+                    message_id: None,
+                    parent_tool_use_id: None,
+                    session_id: Some(replay_context.local_session_id.clone()),
+                    produced_at_monotonic_ms: None,
+                },
+            ),
+            event_from_update_for_session(
+                &replay_context.local_session_id,
+                5,
+                SessionUpdate::TurnComplete {
+                    session_id: Some(replay_context.local_session_id.clone()),
+                    turn_id: Some("turn-1".to_string()),
+                },
+            ),
+        ];
+
+        let rebuilt = rebuild_transcript_row_ledger_from_journal(&replay_context, &events)
+            .expect("journal rebuild should succeed")
+            .expect("session events should rebuild a ledger");
+        let combined_rows = rebuilt
+            .rows
+            .iter()
+            .map(|row| row.row_json.as_str())
+            .collect::<String>();
+
+        assert!(combined_rows.contains("main before"));
+        assert!(combined_rows.contains("main after"));
+        assert!(!combined_rows.contains("child report"));
+        let _ = clear_session_log(&replay_context.local_session_id);
     }
 
     #[test]
@@ -583,8 +693,16 @@ mod tests {
     }
 
     fn event_from_update(event_seq: i64, update: SessionUpdate) -> SessionJournalEvent {
+        event_from_update_for_session("local-session", event_seq, update)
+    }
+
+    fn event_from_update_for_session(
+        session_id: &str,
+        event_seq: i64,
+        update: SessionUpdate,
+    ) -> SessionJournalEvent {
         SessionJournalEvent::new(
-            "local-session",
+            session_id,
             event_seq,
             SessionJournalEventPayload::ProjectionUpdate {
                 update: Box::new(

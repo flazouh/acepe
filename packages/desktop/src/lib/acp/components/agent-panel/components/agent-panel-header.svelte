@@ -465,7 +465,7 @@ function createDiagnosticsMenuSection(): HeaderMenuSection | null {
 				/>
 				<Selector
 					align="end"
-					triggerSize="icon"
+					triggerSize="iconSm"
 					showChevron={false}
 					tooltipLabel="More actions"
 					variant="ghost"
@@ -502,7 +502,7 @@ function createDiagnosticsMenuSection(): HeaderMenuSection | null {
 						</DropdownMenu.Sub>
 					{/each}
 				</Selector>
-				<CloseAction {onClose} title={"Close"} size="icon" />
+				<CloseAction {onClose} title={"Close"} size="icon-sm" />
 			</div>
 		{/snippet}
 

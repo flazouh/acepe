@@ -105,10 +105,17 @@ describe("AgentPanelSessionController", () => {
 	});
 
 	describe("Cluster B — entry presence / status", () => {
-		const makeWithEntries = (entryCount: number, messageCount = entryCount) => {
+		const makeWithEntries = (
+			entryCount: number,
+			messageCount = entryCount,
+			viewportRowCount = 0
+		) => {
 			const entries = Array.from({ length: entryCount }, (_, i) => ({
 				entryId: `e${i}`,
 				role: "user",
+			}));
+			const viewportRows = Array.from({ length: viewportRowCount }, (_, i) => ({
+				rowId: `row-${i}`,
 			}));
 			const sessionStore = {
 				read: {
@@ -124,6 +131,12 @@ describe("AgentPanelSessionController", () => {
 					getSessionLifecyclePresentation: () => null,
 					getSessionAgentPanelCanonicalSource: () => null,
 					getSessionAgentPanelSessionSource: () => ({ kind: "no_session" }),
+				},
+				viewport: {
+					getRowsProjection: () => ({
+						sessionId: "s1",
+						rows: viewportRows,
+					}),
 				},
 			} as unknown as SessionStore;
 			const panelStore = { getHotState: () => null } as unknown as PanelStore;
@@ -149,6 +162,13 @@ describe("AgentPanelSessionController", () => {
 			const c = makeWithEntries(0, 5349);
 			expect(c.visibleEntryCount).toBe(5349);
 			expect(c.knownVisibleEntryCount).toBe(5349);
+			expect(c.hasMessages).toBe(true);
+		});
+
+		it("reports hasMessages true when cached viewport rows exist before transcript materialization", () => {
+			const c = makeWithEntries(0, 0, 16);
+			expect(c.visibleEntryCount).toBe(16);
+			expect(c.knownVisibleEntryCount).toBe(16);
 			expect(c.hasMessages).toBe(true);
 		});
 

@@ -1,4 +1,4 @@
-<script lang="ts" generics="TGroup extends { projectName: string; projectColor: string }">
+<script lang="ts" generics="TGroup extends { projectName: string; projectColor: string; projectBadgeLabel?: string | null }">
 	import type { Snippet } from "svelte";
 
 	import { ProjectCard } from "../project-card/index.js";
@@ -15,6 +15,7 @@
 	{#each groups as group (group.projectName)}
 		<ProjectCard
 			projectName={group.projectName}
+			projectBadgeLabel={group.projectBadgeLabel ?? null}
 			projectColor={group.projectColor}
 			variant="corner"
 		>

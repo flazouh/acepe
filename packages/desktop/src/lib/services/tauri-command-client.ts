@@ -30,6 +30,7 @@ export const TAURI_COMMAND_CLIENT = {
     set_mode: createGeneratedCommand(COMMANDS.acp.set_mode),
     set_model: createGeneratedCommand(COMMANDS.acp.set_model),
     set_session_autonomous: createGeneratedCommand(COMMANDS.acp.set_session_autonomous),
+    unarchive_session: createGeneratedCommand(COMMANDS.acp.unarchive_session),
     uninstall_agent: createGeneratedCommand(COMMANDS.acp.uninstall_agent),
   },
   browser_webview: {

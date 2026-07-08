@@ -242,7 +242,13 @@ export function applyRowsPage(
 	}
 
 	const pageRevision = revisionFromPage(page);
-	if (state.revision !== null && !sameRevision(state.revision, pageRevision)) {
+	const canSeedEmptyStateFromInitialPage =
+		state.rows.length === 0 && page.rows.length > 0 && state.sessionId === page.sessionId;
+	if (
+		state.revision !== null &&
+		!sameRevision(state.revision, pageRevision) &&
+		!canSeedEmptyStateFromInitialPage
+	) {
 		return { state, status: "stale" };
 	}
 

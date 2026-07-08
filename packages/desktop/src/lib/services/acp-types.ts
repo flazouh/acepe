@@ -349,7 +349,7 @@ export type SessionDomainEventKind = "session_identity_resolved" | "session_conn
  * can switch on `event.kind` for quick discrimination and access the typed
  * payload via `event.payload` when richer data is required.
  */
-export type SessionDomainEventPayload = { kind: "session_identity_resolved"; resolved_provider_session_id: string } | { kind: "session_connected" } | { kind: "session_disconnected" } | { kind: "session_config_changed" } | { kind: "turn_started"; turn_id: string } | { kind: "turn_completed"; turn_id: string | null } | { kind: "turn_failed"; turn_id: string | null; error_message: string } | { kind: "turn_cancelled"; turn_id: string | null } | { kind: "user_message_segment_appended"; message_id: string | null; part_id: string | null; text: string } | { kind: "assistant_message_segment_appended"; message_id: string | null; part_id: string | null; text: string } | { kind: "assistant_thought_segment_appended"; message_id: string | null; part_id: string | null; text: string } | { kind: "operation_upserted"; operation_id: string; tool_call_id: string; tool_name: string; tool_kind: ToolKind; status: ToolCallStatus; parent_operation_id: string | null } | { kind: "operation_child_linked"; parent_operation_id: string; child_operation_id: string } | { kind: "operation_status_updated"; operation_id: string; tool_call_id: string; status: ToolCallStatus } | { kind: "operation_completed"; operation_id: string; tool_call_id: string; status: ToolCallStatus } | { kind: "interaction_upserted"; interaction_id: string; interaction_kind: InteractionKind } | { kind: "interaction_resolved"; interaction_id: string } | { kind: "interaction_cancelled"; interaction_id: string } | { kind: "usage_telemetry_updated"; data: UsageTelemetryData } | { kind: "todo_state_updated"; update: TodoUpdate }
+export type SessionDomainEventPayload = { kind: "session_identity_resolved"; resolved_provider_session_id: string } | { kind: "session_connected" } | { kind: "session_disconnected" } | { kind: "session_config_changed" } | { kind: "turn_started"; turn_id: string } | { kind: "turn_completed"; turn_id: string | null } | { kind: "turn_failed"; turn_id: string | null; error_message: string } | { kind: "turn_cancelled"; turn_id: string | null } | { kind: "user_message_segment_appended"; message_id: string | null; part_id: string | null; text: string } | { kind: "assistant_message_segment_appended"; message_id: string | null; part_id: string | null; parent_tool_use_id: string | null; text: string } | { kind: "assistant_thought_segment_appended"; message_id: string | null; part_id: string | null; parent_tool_use_id: string | null; text: string } | { kind: "operation_upserted"; operation_id: string; tool_call_id: string; tool_name: string; tool_kind: ToolKind; status: ToolCallStatus; parent_operation_id: string | null } | { kind: "operation_child_linked"; parent_operation_id: string; child_operation_id: string } | { kind: "operation_status_updated"; operation_id: string; tool_call_id: string; status: ToolCallStatus } | { kind: "operation_completed"; operation_id: string; tool_call_id: string; status: ToolCallStatus } | { kind: "interaction_upserted"; interaction_id: string; interaction_kind: InteractionKind } | { kind: "interaction_resolved"; interaction_id: string } | { kind: "interaction_cancelled"; interaction_id: string } | { kind: "usage_telemetry_updated"; data: UsageTelemetryData } | { kind: "todo_state_updated"; update: TodoUpdate }
 
 /**
  * Canonical domain event envelope.
@@ -449,7 +449,7 @@ export type DetachedReason = "restoredRequiresAttach" | "reconnectExhausted" | "
  */
 "awaitingAuthentication"
 
-export type FailureReason = "deterministicRestoreFault" | "activationFailed" | "resumeFailed" | "sessionGoneUpstream" | "providerSessionMismatch" | "corruptedPersistedState" | "explicitErrorHandlingRequired" | "legacyIrrecoverable"
+export type FailureReason = "deterministicRestoreFault" | "activationFailed" | "resumeFailed" | "sessionGoneUpstream" | "sessionArchivedUpstream" | "providerSessionMismatch" | "corruptedPersistedState" | "explicitErrorHandlingRequired" | "legacyIrrecoverable"
 
 export type LifecycleState = { status: LifecycleStatus; detachedReason?: DetachedReason | null; failureReason?: FailureReason | null; errorMessage?: string | null }
 
@@ -475,11 +475,12 @@ export type SessionOpenError = { requestedSessionId: string; message: string; re
 
 export type SessionOpenPath = "hot_ledger" | "legacy_rebuild" | "compat_snapshot"
 
-export type SessionOpenResultTiming = { source: string; openPath?: SessionOpenPath; ledgerProbeStatus: string; contextMs: number; providerLoadMs: number; ledgerTailReadMs?: number; ledgerJournalCutoffMs: number; ledgerPageReadMs: number; ledgerHeaderDecodeMs: number; ledgerRowsDecodeMs: number; ledgerResultBuildMs: number; runtimeLookupMs: number; assembleMs: number; restoreAuthorityMs: number; compactMs: number; localJournalFallbackMs: number; totalMs: number; transcriptEntryCount: number; operationCount: number }
-
 export type SessionOpenTranscriptRowPage = { projectionVersion: string; startRowIndex: number; totalRowCount: number; rowPayloadBytes: number; transcriptRevision: number; graphRevision: number; lastEventSeq: number; rows: TranscriptViewportRow[] }
 
-export type TranscriptRowPageResult = ({ status: "current" } & SessionOpenTranscriptRowPage) | { status: "missing" } | { status: "stale"; projectionVersion: string; totalRowCount: number; transcriptRevision: number; graphRevision: number; lastEventSeq: number }
+/**
+ * Diagnostic-only timing for the restored-session open path.
+ */
+export type SessionOpenResultTiming = { source: string; openPath: SessionOpenPath; ledgerProbeStatus: string; contextMs: number; providerLoadMs: number; ledgerTailReadMs: number; ledgerJournalCutoffMs: number; ledgerPageReadMs: number; ledgerHeaderDecodeMs: number; ledgerRowsDecodeMs: number; ledgerResultBuildMs: number; runtimeLookupMs: number; assembleMs: number; restoreAuthorityMs: number; compactMs: number; localJournalFallbackMs: number; totalMs: number; transcriptEntryCount: number; operationCount: number }
 
 /**
  * Full payload for a `found` outcome.
@@ -517,7 +518,7 @@ graphRevision: number;
  * reservation until the token is claimed (Unit 3) or expires after 30 s
  * of inactivity.
  */
-openToken: string; agentId: CanonicalAgentId; projectPath: string; worktreePath: string | null; sourcePath: string | null; sequenceId?: number | null; transcriptSnapshot: TranscriptSnapshot; sessionTitle: string; operations: OperationSnapshot[]; interactions: InteractionSnapshot[]; turnState: SessionTurnState; messageCount: number; activity: SessionGraphActivity; activeStreamingTail: ActiveStreamingTail | null; lifecycle: SessionGraphLifecycle; capabilities: SessionGraphCapabilities; openPath?: SessionOpenPath; initialTranscriptRowPage?: SessionOpenTranscriptRowPage | null; initialViewportEnvelope?: SessionStateEnvelope | null; openResultTiming?: SessionOpenResultTiming | null; activeTurnFailure?: TurnFailureSnapshot | null; lastTerminalTurnId?: string | null }
+openToken: string; agentId: CanonicalAgentId; projectPath: string; worktreePath: string | null; sourcePath: string | null; sequenceId?: number | null; transcriptSnapshot: TranscriptSnapshot; sessionTitle: string; operations: OperationSnapshot[]; interactions: InteractionSnapshot[]; turnState: SessionTurnState; messageCount: number; activity: SessionGraphActivity; activeStreamingTail: ActiveStreamingTail | null; lifecycle: SessionGraphLifecycle; capabilities: SessionGraphCapabilities; openPath: SessionOpenPath; initialTranscriptRowPage?: SessionOpenTranscriptRowPage | null; initialViewportEnvelope?: SessionStateEnvelope | null; openResultTiming?: SessionOpenResultTiming | null; activeTurnFailure?: TurnFailureSnapshot | null; lastTerminalTurnId?: string | null }
 
 /**
  * Payload for the `missing` outcome — no persisted content was found for the
@@ -621,7 +622,6 @@ export type SessionStatePayload = { kind: "snapshot"; graph: SessionStateGraph }
 
 export type SessionStateEnvelope = { sessionId: string; graphRevision: number; lastEventSeq: number; payload: SessionStatePayload }
 
-
 export type ProviderBrand = "claude-code" | "copilot" | "cursor" | "opencode" | "codex" | "custom";
 
 export type ProviderVariantGroup = "plain" | "reasoningEffort";
@@ -648,3 +648,15 @@ export type ProviderMetadataProjection = {
 export type FrontendProviderProjection = ProviderMetadataProjection;
 
 export type ModelsForDisplayWithProvider = ModelsForDisplay;
+
+export type TranscriptRowPageResult =
+	({ status: "current" } & SessionOpenTranscriptRowPage)
+	| { status: "missing" }
+	| {
+			status: "stale";
+			projectionVersion: string;
+			totalRowCount: number;
+			transcriptRevision: number;
+			graphRevision: number;
+			lastEventSeq: number;
+	  };

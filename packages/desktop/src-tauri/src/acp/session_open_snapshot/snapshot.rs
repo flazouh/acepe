@@ -20,8 +20,9 @@ use crate::acp::transcript_projection::{
     TranscriptProjectionRegistry, TranscriptSegment, TranscriptSnapshot,
 };
 use crate::acp::transcript_viewport::ledger::{
-    SessionTranscriptRowLedgerOpenHeader, SessionTranscriptRowLedgerRead,
-    SessionTranscriptRowLedgerStatus, TRANSCRIPT_ROW_LEDGER_PROJECTION_VERSION,
+    SerializedTranscriptRowLedgerRow, SessionTranscriptRowLedgerOpenHeader,
+    SessionTranscriptRowLedgerRead, SessionTranscriptRowLedgerStatus,
+    TRANSCRIPT_ROW_LEDGER_PROJECTION_VERSION,
 };
 use crate::acp::transcript_viewport::TranscriptViewportRow;
 use crate::db::repository::{
@@ -58,6 +59,110 @@ pub(crate) const SESSION_OPEN_TRANSCRIPT_COMPACTION_ENTRY_THRESHOLD: usize = 1_0
 
 fn elapsed_ms(start: Instant) -> u128 {
     start.elapsed().as_millis()
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct CurrentRowLedgerInitialPagePolicy {
+    pub max_rows: u64,
+    pub min_rows: usize,
+    pub max_row_payload_bytes: Option<u64>,
+}
+
+impl CurrentRowLedgerInitialPagePolicy {
+    pub fn rows_only(max_rows: u64) -> Self {
+        Self {
+            max_rows,
+            min_rows: max_rows as usize,
+            max_row_payload_bytes: None,
+        }
+    }
+
+    pub fn byte_bounded(max_rows: u64, min_rows: usize, max_row_payload_bytes: u64) -> Self {
+        Self {
+            max_rows,
+            min_rows,
+            max_row_payload_bytes: Some(max_row_payload_bytes),
+        }
+    }
+}
+
+fn trim_initial_ledger_rows_for_policy(
+    rows: Vec<SerializedTranscriptRowLedgerRow>,
+    policy: CurrentRowLedgerInitialPagePolicy,
+) -> Vec<SerializedTranscriptRowLedgerRow> {
+    let Some(max_row_payload_bytes) = policy.max_row_payload_bytes else {
+        return rows;
+    };
+    if rows.is_empty() {
+        return rows;
+    }
+
+    let min_rows = policy.min_rows.max(1).min(rows.len());
+    let mut payload_bytes = rows
+        .iter()
+        .map(|row| row.row_json.len() as u64)
+        .sum::<u64>();
+    let mut first_kept_index = 0usize;
+
+    while first_kept_index + min_rows < rows.len() && payload_bytes > max_row_payload_bytes {
+        payload_bytes = payload_bytes.saturating_sub(rows[first_kept_index].row_json.len() as u64);
+        first_kept_index += 1;
+    }
+
+    if first_kept_index == 0 {
+        return rows;
+    }
+
+    rows.into_iter().skip(first_kept_index).collect()
+}
+
+pub fn apply_runtime_authority_to_session_open_result(
+    mut result: SessionOpenResult,
+    runtime_registry: Option<&SessionGraphRuntimeRegistry>,
+) -> SessionOpenResult {
+    let Some(runtime_registry) = runtime_registry else {
+        return result;
+    };
+    let SessionOpenResult::Found(found) = &mut result else {
+        return result;
+    };
+    let Some(runtime_snapshot) =
+        runtime_registry.current_snapshot_for_session(&found.canonical_session_id)
+    else {
+        return result;
+    };
+    found.graph_revision = found.graph_revision.max(runtime_snapshot.graph_revision);
+    found.lifecycle = runtime_snapshot.lifecycle;
+    found.capabilities = runtime_snapshot.capabilities;
+    found.activity = select_session_graph_activity(
+        &found.lifecycle,
+        &found.turn_state,
+        &found.operations,
+        &found.interactions,
+        found.active_turn_failure.as_ref(),
+    );
+
+    if found.initial_transcript_row_page.is_none() {
+        update_initial_viewport_envelope_graph_revision(
+            &mut found.initial_viewport_envelope,
+            found.graph_revision,
+        );
+    }
+
+    result
+}
+
+fn update_initial_viewport_envelope_graph_revision(
+    envelope: &mut Option<SessionStateEnvelope>,
+    graph_revision: i64,
+) {
+    let Some(envelope) = envelope else {
+        return;
+    };
+    envelope.graph_revision = graph_revision;
+    if let SessionStatePayload::ViewportBufferPush { push } = &mut envelope.payload {
+        push.graph_revision.graph_revision = graph_revision;
+    }
 }
 
 pub(crate) fn session_projection_snapshot_from_open_found(
@@ -395,6 +500,23 @@ pub async fn session_open_result_from_current_row_ledger_with_status(
     requested_session_id: &str,
     limit: u64,
 ) -> Result<CurrentRowLedgerOpenLookup, String> {
+    session_open_result_from_current_row_ledger_with_initial_page_policy(
+        db,
+        hub,
+        replay_context,
+        requested_session_id,
+        CurrentRowLedgerInitialPagePolicy::rows_only(limit),
+    )
+    .await
+}
+
+pub async fn session_open_result_from_current_row_ledger_with_initial_page_policy(
+    db: &DbConn,
+    hub: &Arc<AcpEventHubState>,
+    replay_context: &SessionReplayContext,
+    requested_session_id: &str,
+    policy: CurrentRowLedgerInitialPagePolicy,
+) -> Result<CurrentRowLedgerOpenLookup, String> {
     let total_started_at = Instant::now();
     let canonical_session_id = &replay_context.local_session_id;
     let open_token = Uuid::new_v4();
@@ -421,7 +543,7 @@ pub async fn session_open_result_from_current_row_ledger_with_status(
         db,
         canonical_session_id,
         TRANSCRIPT_ROW_LEDGER_PROJECTION_VERSION,
-        limit,
+        policy.max_rows,
     )
     .await
     {
@@ -504,6 +626,7 @@ pub async fn session_open_result_from_current_row_ledger_with_status(
             }
         };
     let header_decode_ms = elapsed_ms(header_decode_started_at);
+    let rows = trim_initial_ledger_rows_for_policy(rows, policy);
     let start_row_index = rows.first().map(|row| row.row_index).unwrap_or(0);
     let row_payload_bytes = rows
         .iter()
@@ -848,7 +971,7 @@ pub async fn session_open_result_from_provider_owned_snapshot(
     // Viewport authority is keyed only by the canonical session id; the frontend
     // re-keys to the canonical id at open time, so no alias duplication is needed.
     if let Some(runtime_registry) = runtime_registry {
-        runtime_registry.restore_session_state(
+        runtime_registry.restore_open_session_state(
             canonical_session_id.clone(),
             graph_revision,
             lifecycle.clone(),
@@ -1043,10 +1166,16 @@ async fn load_completed_local_journal_transcript(
         )
             })?;
 
+    let repaired_events =
+        crate::acp::session_journal::repair_legacy_parent_tool_use_ids_from_streaming_log(
+            replay_context,
+            &journal_events,
+        );
+
     Ok(
         crate::acp::session_journal::rebuild_completed_local_transcript_snapshot(
             replay_context,
-            &journal_events,
+            &repaired_events,
         ),
     )
 }
@@ -1072,10 +1201,16 @@ async fn load_local_journal_transcript(
         )
             })?;
 
+    let repaired_events =
+        crate::acp::session_journal::repair_legacy_parent_tool_use_ids_from_streaming_log(
+            replay_context,
+            &journal_events,
+        );
+
     Ok(
         crate::acp::session_journal::rebuild_local_transcript_snapshot(
             replay_context,
-            &journal_events,
+            &repaired_events,
         ),
     )
 }

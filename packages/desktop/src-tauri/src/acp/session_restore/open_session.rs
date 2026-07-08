@@ -4,10 +4,12 @@ use std::time::Instant;
 use crate::acp::event_hub::AcpEventHubState;
 use crate::acp::projections::ProjectionRegistry;
 use crate::acp::session_open_snapshot::{
-    compact_oversized_session_open_result, session_open_result_from_completed_local_journal,
-    session_open_result_from_current_row_ledger_with_status,
-    session_open_result_from_provider_owned_snapshot, CurrentRowLedgerOpenLookup, SessionOpenError,
-    SessionOpenMissing, SessionOpenPath, SessionOpenResult, SessionOpenResultTiming,
+    apply_runtime_authority_to_session_open_result, compact_oversized_session_open_result,
+    session_open_result_from_completed_local_journal,
+    session_open_result_from_current_row_ledger_with_initial_page_policy,
+    session_open_result_from_provider_owned_snapshot, CurrentRowLedgerInitialPagePolicy,
+    CurrentRowLedgerOpenLookup, SessionOpenError, SessionOpenMissing, SessionOpenPath,
+    SessionOpenResult, SessionOpenResultTiming,
 };
 use crate::acp::session_state_engine::runtime_registry::SessionGraphRuntimeRegistry;
 use crate::acp::session_state_engine::transcript_rows_ledger::TranscriptRowsLedgerWriteHint;
@@ -24,7 +26,9 @@ fn elapsed_ms(start: Instant) -> u128 {
     start.elapsed().as_millis()
 }
 
-const HOT_LEDGER_INITIAL_ROW_LIMIT: u64 = 16;
+const HOT_LEDGER_INITIAL_MAX_ROWS: u64 = 16;
+const HOT_LEDGER_INITIAL_MIN_ROWS: usize = 8;
+const HOT_LEDGER_INITIAL_PAYLOAD_BYTE_LIMIT: u64 = 24 * 1024;
 
 fn session_open_result_counts(result: &SessionOpenResult) -> (usize, usize) {
     match result {
@@ -143,120 +147,145 @@ pub async fn get_session_open_result_domain(
     .await;
     let context_ms = elapsed_ms(context_started_at);
     let replay_context = context.replay_context();
+    let runtime_lookup_started_at = Instant::now();
+    let runtime_registry = app
+        .try_state::<Arc<crate::acp::session_state_engine::runtime_registry::SessionGraphRuntimeRegistry>>()
+        .map(|state| state.inner().clone());
+    let runtime_lookup_ms = elapsed_ms(runtime_lookup_started_at);
     let ledger_tail_started_at = Instant::now();
-    let ledger_probe_status = match session_open_result_from_current_row_ledger_with_status(
-        db.inner(),
-        &hub,
-        &replay_context,
-        &session_id,
-        HOT_LEDGER_INITIAL_ROW_LIMIT,
-    )
-    .await
-    {
-        Ok(CurrentRowLedgerOpenLookup::Found { result, timing }) => {
-            let ledger_tail_read_ms = elapsed_ms(ledger_tail_started_at);
-            let restore_started_at = Instant::now();
-            restore_session_open_authority(&app, &result);
-            let restore_ms = elapsed_ms(restore_started_at);
-            let total_ms = elapsed_ms(total_started_at);
-            let result = attach_open_result_timing(
-                result,
-                SessionOpenResultTiming {
-                    source: "transcript-row-ledger".to_string(),
-                    open_path: SessionOpenPath::HotLedger,
-                    ledger_probe_status: "current".to_string(),
-                    context_ms,
-                    provider_load_ms: 0,
-                    ledger_tail_read_ms,
-                    ledger_journal_cutoff_ms: timing.journal_cutoff_ms,
-                    ledger_page_read_ms: timing.page_read_ms,
-                    ledger_header_decode_ms: timing.header_decode_ms,
-                    ledger_rows_decode_ms: timing.rows_decode_ms,
-                    ledger_result_build_ms: timing.result_build_ms,
-                    runtime_lookup_ms: 0,
-                    assemble_ms: 0,
-                    restore_authority_ms: restore_ms,
-                    compact_ms: 0,
-                    local_journal_fallback_ms: 0,
-                    total_ms,
-                    transcript_entry_count: 0,
-                    operation_count: 0,
-                },
-            );
-            return Ok(result);
-        }
-        Ok(CurrentRowLedgerOpenLookup::Miss(miss)) => miss.timing_label().to_string(),
-        Err(message) => {
-            return Ok(SessionOpenResult::Error(SessionOpenError::internal(
-                &session_id,
-                message,
-            )));
-        }
-    };
-    let provider_load_started_at = Instant::now();
-    let thread_content =
-        match load_provider_owned_session_snapshot(app_clone, &replay_context).await {
-            Ok(snapshot) => snapshot,
-            Err(error) => {
-                let fallback_lifecycle =
-                    crate::acp::session_state_engine::selectors::SessionGraphLifecycle::detached(
-                        crate::acp::lifecycle::DetachedReason::RestoredRequiresAttach,
-                    );
-                let fallback_capabilities =
-                    crate::acp::session_state_engine::selectors::SessionGraphCapabilities::empty();
-                match session_open_result_from_completed_local_journal(
-                    db.inner(),
-                    &hub,
-                    &replay_context,
+    let ledger_probe_status =
+        match session_open_result_from_current_row_ledger_with_initial_page_policy(
+            db.inner(),
+            &hub,
+            &replay_context,
+            &session_id,
+            CurrentRowLedgerInitialPagePolicy::byte_bounded(
+                HOT_LEDGER_INITIAL_MAX_ROWS,
+                HOT_LEDGER_INITIAL_MIN_ROWS,
+                HOT_LEDGER_INITIAL_PAYLOAD_BYTE_LIMIT,
+            ),
+        )
+        .await
+        {
+            Ok(CurrentRowLedgerOpenLookup::Found { result, timing }) => {
+                let ledger_tail_read_ms = elapsed_ms(ledger_tail_started_at);
+                let result = apply_runtime_authority_to_session_open_result(
+                    result,
+                    runtime_registry.as_deref(),
+                );
+                let restore_started_at = Instant::now();
+                restore_session_open_authority(&app, &result);
+                let restore_ms = elapsed_ms(restore_started_at);
+                let total_ms = elapsed_ms(total_started_at);
+                let result = attach_open_result_timing(
+                    result,
+                    SessionOpenResultTiming {
+                        source: "transcript-row-ledger".to_string(),
+                        open_path: SessionOpenPath::HotLedger,
+                        ledger_probe_status: "current".to_string(),
+                        context_ms,
+                        provider_load_ms: 0,
+                        ledger_tail_read_ms,
+                        ledger_journal_cutoff_ms: timing.journal_cutoff_ms,
+                        ledger_page_read_ms: timing.page_read_ms,
+                        ledger_header_decode_ms: timing.header_decode_ms,
+                        ledger_rows_decode_ms: timing.rows_decode_ms,
+                        ledger_result_build_ms: timing.result_build_ms,
+                        runtime_lookup_ms,
+                        assemble_ms: 0,
+                        restore_authority_ms: restore_ms,
+                        compact_ms: 0,
+                        local_journal_fallback_ms: 0,
+                        total_ms,
+                        transcript_entry_count: 0,
+                        operation_count: 0,
+                    },
+                );
+                return Ok(result);
+            }
+            Ok(CurrentRowLedgerOpenLookup::Miss(miss)) => miss.timing_label().to_string(),
+            Err(message) => {
+                return Ok(SessionOpenResult::Error(SessionOpenError::internal(
                     &session_id,
-                    fallback_lifecycle.clone(),
-                    fallback_capabilities.clone(),
-                )
-                .await
-                {
-                    Ok(Some(result)) => {
-                        restore_session_open_authority(&app, &result);
-                        persist_local_journal_row_ledger_if_possible(
-                            db.inner(),
-                            &replay_context,
-                            &fallback_lifecycle,
-                            &fallback_capabilities,
-                        )
-                        .await;
-                        return Ok(compact_oversized_session_open_result(result));
-                    }
-                    Ok(None) => {}
-                    Err(message) => {
-                        return Ok(SessionOpenResult::Error(SessionOpenError::internal(
-                            &session_id,
-                            message,
-                        )));
-                    }
-                }
-
-                let open_error = session_open_error_from_provider_load(&session_id, error);
-                // GOD: emit a Failed lifecycle envelope so canonical readers see the
-                // failure through the canonical channel — no client-side synthesis.
-                let update = crate::acp::session_update::SessionUpdate::ConnectionFailed {
-                    session_id: session_id.clone(),
-                    attempt_id: 0,
-                    error: open_error.message.clone(),
-                    // Provider snapshot load failure — not the same path as
-                    // `session/load` rejection. Treat as transient/transport
-                    // by default; classifier could be invoked here in future
-                    // if `ProviderHistoryLoadError` gains richer cases.
-                    failure_reason: crate::acp::lifecycle::FailureReason::ResumeFailed,
-                };
-                crate::acp::commands::emit_lifecycle_event(
-                    &app,
-                    &Some(hub.clone()),
-                    update,
-                    &session_id,
-                )
-                .await;
-                return Ok(SessionOpenResult::Error(open_error));
+                    message,
+                )));
             }
         };
+    let provider_load_started_at = Instant::now();
+    let thread_content = match load_provider_owned_session_snapshot(app_clone, &replay_context)
+        .await
+    {
+        Ok(snapshot) => snapshot,
+        Err(error) => {
+            let fallback_lifecycle =
+                crate::acp::session_state_engine::selectors::SessionGraphLifecycle::detached(
+                    crate::acp::lifecycle::DetachedReason::RestoredRequiresAttach,
+                );
+            let fallback_capabilities =
+                crate::acp::session_state_engine::selectors::SessionGraphCapabilities::empty();
+            match session_open_result_from_completed_local_journal(
+                db.inner(),
+                &hub,
+                &replay_context,
+                &session_id,
+                fallback_lifecycle.clone(),
+                fallback_capabilities.clone(),
+            )
+            .await
+            {
+                Ok(Some(result)) => {
+                    let result = apply_runtime_authority_to_session_open_result(
+                        result,
+                        runtime_registry.as_deref(),
+                    );
+                    restore_session_open_authority(&app, &result);
+                    let (ledger_lifecycle, ledger_capabilities) = match &result {
+                        SessionOpenResult::Found(found) => (&found.lifecycle, &found.capabilities),
+                        SessionOpenResult::Missing(_) | SessionOpenResult::Error(_) => {
+                            (&fallback_lifecycle, &fallback_capabilities)
+                        }
+                    };
+                    persist_local_journal_row_ledger_if_possible(
+                        db.inner(),
+                        &replay_context,
+                        ledger_lifecycle,
+                        ledger_capabilities,
+                    )
+                    .await;
+                    return Ok(compact_oversized_session_open_result(result));
+                }
+                Ok(None) => {}
+                Err(message) => {
+                    return Ok(SessionOpenResult::Error(SessionOpenError::internal(
+                        &session_id,
+                        message,
+                    )));
+                }
+            }
+
+            let open_error = session_open_error_from_provider_load(&session_id, error);
+            // GOD: emit a Failed lifecycle envelope so canonical readers see the
+            // failure through the canonical channel — no client-side synthesis.
+            let update = crate::acp::session_update::SessionUpdate::ConnectionFailed {
+                session_id: session_id.clone(),
+                attempt_id: 0,
+                error: open_error.message.clone(),
+                // Provider snapshot load failure — not the same path as
+                // `session/load` rejection. Treat as transient/transport
+                // by default; classifier could be invoked here in future
+                // if `ProviderHistoryLoadError` gains richer cases.
+                failure_reason: crate::acp::lifecycle::FailureReason::ResumeFailed,
+            };
+            crate::acp::commands::emit_lifecycle_event(
+                &app,
+                &Some(hub.clone()),
+                update,
+                &session_id,
+            )
+            .await;
+            return Ok(SessionOpenResult::Error(open_error));
+        }
+    };
     let provider_load_ms = elapsed_ms(provider_load_started_at);
 
     let Some(thread_content) = thread_content else {
@@ -277,12 +306,22 @@ pub async fn get_session_open_result_domain(
         .await
         {
             Ok(Some(result)) => {
+                let result = apply_runtime_authority_to_session_open_result(
+                    result,
+                    runtime_registry.as_deref(),
+                );
                 restore_session_open_authority(&app, &result);
+                let (ledger_lifecycle, ledger_capabilities) = match &result {
+                    SessionOpenResult::Found(found) => (&found.lifecycle, &found.capabilities),
+                    SessionOpenResult::Missing(_) | SessionOpenResult::Error(_) => {
+                        (&fallback_lifecycle, &fallback_capabilities)
+                    }
+                };
                 persist_local_journal_row_ledger_if_possible(
                     db.inner(),
                     &replay_context,
-                    &fallback_lifecycle,
-                    &fallback_capabilities,
+                    ledger_lifecycle,
+                    ledger_capabilities,
                 )
                 .await;
                 return Ok(compact_oversized_session_open_result(result));
@@ -314,12 +353,6 @@ pub async fn get_session_open_result_domain(
         }));
     };
 
-    let runtime_lookup_started_at = Instant::now();
-    let runtime_registry = app
-        .try_state::<Arc<crate::acp::session_state_engine::runtime_registry::SessionGraphRuntimeRegistry>>()
-        .map(|state| state.inner().clone());
-    let runtime_lookup_ms = elapsed_ms(runtime_lookup_started_at);
-
     let assemble_started_at = Instant::now();
     let result = session_open_result_from_provider_owned_snapshot(
         db.inner(),
@@ -330,6 +363,8 @@ pub async fn get_session_open_result_domain(
         &thread_content,
     )
     .await;
+    let result =
+        apply_runtime_authority_to_session_open_result(result, runtime_registry.as_deref());
     let result = set_open_path(result, SessionOpenPath::LegacyRebuild);
     let assemble_ms = elapsed_ms(assemble_started_at);
     let restore_started_at = Instant::now();

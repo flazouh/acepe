@@ -59,7 +59,7 @@ function page(
 ) {
 	return {
 		sessionId,
-		projectionVersion: "transcript_viewport_row:v1",
+		projectionVersion: "transcript_viewport_row:v5",
 		startRowIndex,
 		totalRowCount: 4,
 		transcriptRevision: revision.transcriptRevision,
@@ -132,6 +132,38 @@ describe("applyRowsPush", () => {
 		expect(state.order).toEqual([]);
 	});
 
+	test("an initial row page can recover an empty pushed state from a different revision", () => {
+		const emptyLiveState = applyRowsPush(EMPTY_TRANSCRIPT_ROWS_STATE, {
+			sessionId: "s",
+			emissionSeq: 2,
+			graphRevision: {
+				graphRevision: 99,
+				transcriptRevision: 88,
+				lastEventSeq: 77,
+			},
+			rows: [],
+		}).state;
+
+		const { state, status } = applyRowsPage(
+			emptyLiveState,
+			page("s", 2, [row("tail-row", "v1")], {
+				graphRevision: 11,
+				transcriptRevision: 7,
+				lastEventSeq: 13,
+			})
+		);
+
+		expect(status).toBe("applied");
+		expect(state.rows.map((value) => value.rowId)).toEqual(["tail-row"]);
+		expect(state.loadedStartRowIndex).toBe(2);
+		expect(state.loadedEndRowIndex).toBe(3);
+		expect(state.revision).toEqual({
+			graphRevision: 11,
+			transcriptRevision: 7,
+			lastEventSeq: 13,
+		});
+	});
+
 	test("a same-revision push with the same rows keeps loaded row-page metadata", () => {
 		const pushed = applyRowsPush(
 			EMPTY_TRANSCRIPT_ROWS_STATE,
@@ -148,7 +180,7 @@ describe("applyRowsPush", () => {
 		expect(state.loadedStartRowIndex).toBe(2);
 		expect(state.loadedEndRowIndex).toBe(4);
 		expect(state.totalRowCount).toBe(4);
-		expect(state.projectionVersion).toBe("transcript_viewport_row:v1");
+		expect(state.projectionVersion).toBe("transcript_viewport_row:v5");
 	});
 
 	test("a later push with the same row ids keeps the row-page revision for paging", () => {

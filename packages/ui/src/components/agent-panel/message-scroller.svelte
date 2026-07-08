@@ -28,12 +28,14 @@ import {
 const DEFAULT_VIEWPORT_HEIGHT_PX = 800;
 const MEASURE_WRITE_THRESHOLD_PX = 0.5;
 const SCROLL_MEASURE_DEFER_MS = 140;
+const SOURCE_CHANGE_ANCHOR_BOTTOM_THRESHOLD_PX = 24;
 const VIRTUAL_LEAD_OVERSCAN_VIEWPORTS = 1.25;
 const MIN_VIRTUAL_LEAD_OVERSCAN_PX = 1_000;
 const MAX_VIRTUAL_LEAD_OVERSCAN_PX = 2_400;
 const VIRTUAL_TRAIL_OVERSCAN_VIEWPORTS = 0.25;
-const MIN_VIRTUAL_TRAIL_OVERSCAN_PX = 240;
-const MAX_VIRTUAL_TRAIL_OVERSCAN_PX = 700;
+const MIN_VIRTUAL_TRAIL_OVERSCAN_PX = 600;
+const MAX_VIRTUAL_TRAIL_OVERSCAN_PX = 900;
+const VIRTUAL_WINDOW_SCROLL_BUCKET_PX = 900;
 const VIRTUALIZATION_ROW_THRESHOLD = 200;
 const MAX_MEASURED_HEIGHT_ENTRIES = 2_000;
 const EMPTY_ITEMS: readonly Item[] = [];
@@ -90,6 +92,12 @@ let measuredHeightFlushTimer: ReturnType<typeof setTimeout> | null = null;
 let viewportScrollActive = $state(false);
 let viewportScrollSettleTimer: ReturnType<typeof setTimeout> | null = null;
 let lastVisibleRangeSignature: string | null = null;
+let lastSourceAnchorSignature: string | null = null;
+let pendingSourceChangeAnchor = $state<{
+	readonly rowId: string;
+	readonly viewportOffsetPx: number;
+	readonly signature: string;
+} | null>(null);
 const measuredHeightsByIndex = new Map<number, MessageScrollerMeasuredHeight>();
 const pendingMeasuredHeightsByIndex = new Map<
 	number,
@@ -115,6 +123,15 @@ const virtualizationThreshold = $derived(
 );
 const virtualScrollTopPx = $derived(
 	isVirtualized ? Math.max(0, scrollTopPx - safeVirtualLeadingSpacePx) : scrollTopPx,
+);
+const virtualWindowScrollTopPx = $derived(
+	isVirtualized
+		? Math.max(
+				0,
+				Math.round(virtualScrollTopPx / VIRTUAL_WINDOW_SCROLL_BUCKET_PX) *
+					VIRTUAL_WINDOW_SCROLL_BUCKET_PX,
+			)
+		: virtualScrollTopPx,
 );
 const profiledItemSource = $derived.by(() => {
 	recordAgentPanelPerformanceSample(profileRecorder, {
@@ -175,7 +192,7 @@ const virtualWindow = $derived.by(() => {
 			createMessageScrollerVirtualWindowFromSourceLayout({
 				itemSource: profiledItemSource,
 				layout: virtualLayout,
-				scrollTopPx: virtualScrollTopPx,
+				scrollTopPx: virtualWindowScrollTopPx,
 				viewportHeightPx,
 				overscanPx: virtualLeadOverscanPx,
 				overscanBeforePx: virtualOverscanBeforePx,
@@ -199,6 +216,7 @@ function visibleRangeState(): MessageScrollerRangeState {
 		afterPx: virtualWindow.afterPx,
 		totalPx: virtualWindow.totalPx,
 		isVirtualized,
+		scrollActive: viewportScrollActive,
 	};
 }
 
@@ -212,13 +230,102 @@ function visibleRangeSignature(state: MessageScrollerRangeState): string {
 		Math.round(state.totalPx),
 		Math.round(safeVirtualLeadingSpacePx),
 		state.isVirtualized ? "v" : "flow",
+		state.scrollActive ? "scrolling" : "settled",
 	].join(":");
+}
+
+function sourceAnchorSignature(): string {
+	return [
+		itemCount,
+		Math.round(safeVirtualLeadingSpacePx),
+	].join(":");
+}
+
+function shouldPreserveSourceChangeAnchor(viewport: HTMLElement): boolean {
+	if (!isVirtualized) {
+		return false;
+	}
+	const distanceFromBottom =
+		viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight;
+	return distanceFromBottom > SOURCE_CHANGE_ANCHOR_BOTTOM_THRESHOLD_PX;
+}
+
+function readMountedSourceChangeAnchor(): {
+	readonly rowId: string;
+	readonly viewportOffsetPx: number;
+} | null {
+	const viewport = contentEl?.parentElement;
+	if (!contentEl || !(viewport instanceof HTMLElement)) {
+		return null;
+	}
+	if (!shouldPreserveSourceChangeAnchor(viewport)) {
+		return null;
+	}
+	const viewportRect = viewport.getBoundingClientRect();
+	const candidates = contentEl.querySelectorAll<HTMLElement>(
+		"[data-anchor][data-row-id]",
+	);
+	for (const el of candidates) {
+		const rect = el.getBoundingClientRect();
+		const intersectsViewport =
+			rect.bottom > viewportRect.top && rect.top < viewportRect.bottom;
+		if (!intersectsViewport) {
+			continue;
+		}
+		const rowId = el.getAttribute("data-row-id");
+		if (rowId === null) {
+			continue;
+		}
+		const topPx = viewport.scrollTop + rect.top - viewportRect.top;
+		return {
+			rowId,
+			viewportOffsetPx: topPx - viewport.scrollTop,
+		};
+	}
+	return null;
+}
+
+function applyPendingSourceChangeAnchor(input: {
+	readonly rowId: string;
+	readonly viewportOffsetPx: number;
+	readonly signature: string;
+	readonly clearWhenDone: boolean;
+}): void {
+	if (
+		pendingSourceChangeAnchor === null ||
+		pendingSourceChangeAnchor.signature !== input.signature ||
+		input.signature !== sourceAnchorSignature()
+	) {
+		return;
+	}
+	const viewport = contentEl?.parentElement;
+	if (!(viewport instanceof HTMLElement)) {
+		pendingSourceChangeAnchor = null;
+		return;
+	}
+	const rowTopPx = resolveRowTop(input.rowId);
+	if (rowTopPx === null) {
+		pendingSourceChangeAnchor = null;
+		return;
+	}
+	const nextScrollTopPx = Math.max(0, rowTopPx - input.viewportOffsetPx);
+	if (Math.abs(viewport.scrollTop - nextScrollTopPx) > MEASURE_WRITE_THRESHOLD_PX) {
+		viewport.scrollTop = nextScrollTopPx;
+		readViewportGeometry(viewport);
+	}
+	if (input.clearWhenDone) {
+		pendingSourceChangeAnchor = null;
+	}
 }
 
 function readViewportGeometry(
 	node: HTMLElement,
-	options: { readonly trackScrollDirection: boolean } = {
+	options: {
+		readonly trackScrollDirection: boolean;
+		readonly updateViewportHeight: boolean;
+	} = {
 		trackScrollDirection: false,
+		updateViewportHeight: true,
 	},
 ): void {
 	const nextScrollTopPx = node.scrollTop;
@@ -230,15 +337,18 @@ function readViewportGeometry(
 		}
 	}
 	scrollTopPx = nextScrollTopPx;
-	viewportHeightPx =
-		node.clientHeight > 0 && Number.isFinite(node.clientHeight)
-			? node.clientHeight
-			: DEFAULT_VIEWPORT_HEIGHT_PX;
+	if (options.updateViewportHeight) {
+		viewportHeightPx =
+			node.clientHeight > 0 && Number.isFinite(node.clientHeight)
+				? node.clientHeight
+				: DEFAULT_VIEWPORT_HEIGHT_PX;
+	}
 }
 
 function handleViewportScroll(event: Event): void {
 	readViewportGeometry(event.currentTarget as HTMLElement, {
 		trackScrollDirection: true,
+		updateViewportHeight: false,
 	});
 	deferMeasuredHeightWritesUntilScrollSettles();
 }
@@ -251,6 +361,62 @@ $effect(() => {
 	}
 	lastVisibleRangeSignature = signature;
 	onVisibleRangeChange?.(state);
+});
+
+$effect.pre(() => {
+	const signature = sourceAnchorSignature();
+	if (signature === lastSourceAnchorSignature) {
+		return;
+	}
+	if (lastSourceAnchorSignature === null) {
+		lastSourceAnchorSignature = signature;
+		pendingSourceChangeAnchor = null;
+		return;
+	}
+	const anchor = readMountedSourceChangeAnchor();
+	pendingSourceChangeAnchor =
+		anchor === null
+			? null
+			: {
+					rowId: anchor.rowId,
+					viewportOffsetPx: anchor.viewportOffsetPx,
+					signature,
+				};
+	lastSourceAnchorSignature = signature;
+});
+
+$effect(() => {
+	const anchor = pendingSourceChangeAnchor;
+	if (anchor === null) {
+		return;
+	}
+	queueMicrotask(() => {
+		applyPendingSourceChangeAnchor({
+			rowId: anchor.rowId,
+			viewportOffsetPx: anchor.viewportOffsetPx,
+			signature: anchor.signature,
+			clearWhenDone: false,
+		});
+	});
+	if (typeof requestAnimationFrame === "function") {
+		requestAnimationFrame(() => {
+			applyPendingSourceChangeAnchor({
+				rowId: anchor.rowId,
+				viewportOffsetPx: anchor.viewportOffsetPx,
+				signature: anchor.signature,
+				clearWhenDone: true,
+			});
+		});
+		return;
+	}
+	setTimeout(() => {
+		applyPendingSourceChangeAnchor({
+			rowId: anchor.rowId,
+			viewportOffsetPx: anchor.viewportOffsetPx,
+			signature: anchor.signature,
+			clearWhenDone: true,
+		});
+	}, 0);
 });
 
 function recordItemSize(
@@ -468,7 +634,11 @@ function setBottomSpacerPx(heightPx: number): void {
 	);
 }
 
-function attachController(node: HTMLElement) {
+function attachController(node: HTMLElement): { destroy(): void } {
+	const firstChild = node.firstElementChild;
+	const contentNode =
+		contentEl ??
+		(firstChild instanceof HTMLElement ? firstChild : undefined);
 	readViewportGeometry(node);
 	viewportResizeObserver?.disconnect();
 	viewportResizeObserver =
@@ -477,13 +647,18 @@ function attachController(node: HTMLElement) {
 			: null;
 	viewportResizeObserver?.observe(node);
 	controller = createStickToBottomController(node, {
-		content: contentEl,
+		content: contentNode,
+		readScrollMetrics: () => ({
+			scrollTop: node.scrollTop,
+			scrollHeight: virtualizedContentHeightPx ?? node.scrollHeight,
+			clientHeight: viewportHeightPx,
+		}),
 		resolveAnchor,
 		resolveRowTop,
 		getBottomSpacerPx: () => bottomSpacerPx,
 		setBottomSpacerPx,
-		profileRecorder,
-		coalesceScrollHandling: isVirtualized,
+		getProfileRecorder: () => profileRecorder,
+		shouldCoalesceScrollHandling: () => isVirtualized,
 		shouldNotifyContentResize: () => itemCount <= VIRTUALIZATION_ROW_THRESHOLD,
 		onStateChange: (state) => {
 			onFollowStateChange?.(state);
@@ -499,13 +674,15 @@ function attachController(node: HTMLElement) {
 		nodeCount: contentEl?.querySelectorAll("[data-row-id]").length ?? null,
 	});
 	onReady?.(controller);
-	return () => {
-		clearViewportScrollSettleTimer();
-		clearMeasuredHeightFlush();
-		viewportResizeObserver?.disconnect();
-		viewportResizeObserver = null;
-		controller?.destroy();
-		controller = undefined;
+	return {
+		destroy() {
+			clearViewportScrollSettleTimer();
+			clearMeasuredHeightFlush();
+			viewportResizeObserver?.disconnect();
+			viewportResizeObserver = null;
+			controller?.destroy();
+			controller = undefined;
+		},
 	};
 }
 </script>
@@ -524,7 +701,7 @@ function attachController(node: HTMLElement) {
 		aria-live="polite"
 		aria-label={ariaLabel}
 		onscroll={handleViewportScroll}
-		{@attach attachController}
+		use:attachController
 	>
 		<div
 			class={["message-scroller__content", isVirtualized && "is-virtualized"]}
@@ -541,7 +718,7 @@ function attachController(node: HTMLElement) {
 					!isVirtualized || !viewportScrollActive || item.isActiveTail}
 				<div
 					class={["message-scroller__row-shell", isVirtualized && "is-virtualized"]}
-					style:transform={isVirtualized ? `translate3d(0, ${Math.round(rowTopPx)}px, 0)` : undefined}
+					style:transform={isVirtualized ? `translateY(${Math.round(rowTopPx)}px)` : undefined}
 					data-virtual-row={isVirtualized ? "" : undefined}
 				>
 					<MessageScrollerItem
@@ -594,6 +771,7 @@ function attachController(node: HTMLElement) {
 		scrollbar-width: thin;
 		scrollbar-color: color-mix(in srgb, var(--muted-foreground) 60%, transparent)
 			color-mix(in srgb, var(--border) 12%, transparent);
+		overflow-anchor: none;
 		outline: none;
 	}
 
@@ -603,6 +781,7 @@ function attachController(node: HTMLElement) {
 		min-width: 0;
 		width: 100%;
 		max-width: 100%;
+		overflow-anchor: none;
 	}
 
 	.message-scroller__content.is-virtualized {
@@ -615,6 +794,7 @@ function attachController(node: HTMLElement) {
 		min-width: 0;
 		width: 100%;
 		max-width: 100%;
+		overflow-anchor: none;
 	}
 
 	.message-scroller__row-shell.is-virtualized {

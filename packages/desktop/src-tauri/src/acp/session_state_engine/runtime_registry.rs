@@ -1,6 +1,6 @@
 use crate::acp::client_session::SessionModes;
 use crate::acp::lifecycle::SessionSupervisor;
-use crate::acp::lifecycle::{FailureReason, LifecycleCheckpoint, LifecycleState};
+use crate::acp::lifecycle::{FailureReason, LifecycleCheckpoint, LifecycleState, LifecycleStatus};
 use crate::acp::projections::{ProjectionRegistry, SessionSnapshot};
 use crate::acp::session_state_engine::anchor_ledger::AnchorLedger;
 use crate::acp::session_state_engine::buffer_emission_tracker::BufferEmissionTracker;
@@ -123,6 +123,16 @@ impl SessionGraphRuntimeRegistry {
             .unwrap_or_default()
     }
 
+    #[must_use]
+    pub fn current_snapshot_for_session(
+        &self,
+        session_id: &str,
+    ) -> Option<SessionGraphRuntimeSnapshot> {
+        self.supervisor
+            .snapshot_for_session(session_id)
+            .map(|checkpoint| SessionGraphRuntimeSnapshot::from_checkpoint(&checkpoint))
+    }
+
     pub fn restore_session_state(
         &self,
         session_id: String,
@@ -142,6 +152,34 @@ impl SessionGraphRuntimeRegistry {
         {
             let _ = self.supervisor.seed_checkpoint(session_id, checkpoint);
         }
+    }
+
+    pub fn restore_open_session_state(
+        &self,
+        session_id: String,
+        graph_revision: i64,
+        lifecycle: SessionGraphLifecycle,
+        capabilities: SessionGraphCapabilities,
+    ) -> bool {
+        let mut snapshot = SessionGraphRuntimeSnapshot {
+            graph_revision,
+            lifecycle,
+            capabilities,
+        };
+
+        if let Some(current_checkpoint) = self.supervisor.snapshot_for_session(&session_id) {
+            let current = SessionGraphRuntimeSnapshot::from_checkpoint(&current_checkpoint);
+            if !should_replace_runtime_checkpoint_from_open(current.lifecycle.status) {
+                return false;
+            }
+            snapshot.graph_revision = snapshot.graph_revision.max(current.graph_revision);
+            return self
+                .supervisor
+                .replace_checkpoint(session_id, snapshot.into_checkpoint());
+        }
+
+        self.supervisor
+            .seed_checkpoint(session_id, snapshot.into_checkpoint())
     }
 
     pub fn remove_session(&self, session_id: &str) {
@@ -1085,6 +1123,10 @@ fn transcript_snapshot_for_session_with_body(
     })
 }
 
+fn should_replace_runtime_checkpoint_from_open(status: LifecycleStatus) -> bool {
+    matches!(status, LifecycleStatus::Detached)
+}
+
 impl SessionGraphRuntimeSnapshot {
     pub(crate) fn apply_update_with_graph_seed(
         &mut self,
@@ -1467,15 +1509,9 @@ mod tests {
             },
             part_id: None,
             message_id: message_id.map(str::to_string),
+            parent_tool_use_id: None,
             session_id: Some(session_id.to_string()),
             produced_at_monotonic_ms: Some(produced_at_monotonic_ms),
-        }
-    }
-
-    fn create_turn_complete_update_for_session(session_id: &str, turn_id: &str) -> SessionUpdate {
-        SessionUpdate::TurnComplete {
-            session_id: Some(session_id.to_string()),
-            turn_id: Some(turn_id.to_string()),
         }
     }
 

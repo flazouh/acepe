@@ -57,10 +57,11 @@ const effectiveDensity = $derived(density ?? controlsDensity);
 const effectiveInitialExpansion = $derived(
 	initialExpansion ?? controlsExpansion,
 );
+const initialExpandedPathsKey = $derived(initialExpandedPaths?.join("\n") ?? "");
 const canControlDensity = $derived(density === undefined);
 const canControlExpansion = $derived(initialExpansion === undefined);
 const treeRenderKey = $derived(
-	`${effectiveInitialExpansion}:${controlsExpansionRevision}:${effectiveDensity}`,
+	`${effectiveInitialExpansion}:${controlsExpansionRevision}:${effectiveDensity}:${initialExpandedPathsKey}`,
 );
 
 function updateControlsExpansion(

@@ -32,6 +32,7 @@
 			<div class="inline-flex items-center justify-center h-7 w-7 shrink-0">
 				<ProjectLetterBadge
 					name={group.name}
+					label={group.badgeLabel ?? null}
 					color={group.color ?? "#6B7280"}
 					iconSrc={group.iconSrc ?? null}
 					size={16}

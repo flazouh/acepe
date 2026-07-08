@@ -17,6 +17,8 @@
 	import { newThreadOptionsSectionMeta } from "./design-system-new-thread-options-specimens.js";
 	import DesignSystemPrCardSection from "./design-system-pr-card-section.svelte";
 	import { prCardSectionMeta } from "./design-system-pr-card-specimens.js";
+	import DesignSystemReviewWorkspaceSection from "./design-system-review-workspace-section.svelte";
+	import { reviewWorkspaceSectionMeta } from "./design-system-review-workspace-specimens.js";
 	import DesignSystemTaskToolSection from "./design-system-task-tool-section.svelte";
 	import { taskToolSectionMeta } from "./design-system-task-tool-specimens.js";
 	import DesignSystemUpdateCardSection from "./design-system-update-card-section.svelte";
@@ -35,6 +37,7 @@
 		| "mic-button"
 		| "new-thread-options"
 		| "pr-card"
+		| "review-workspace"
 		| "task-tool"
 		| "update-card";
 
@@ -45,6 +48,7 @@
 		{ id: "mic-button", label: micButtonSectionMeta.title },
 		{ id: "new-thread-options", label: newThreadOptionsSectionMeta.title },
 		{ id: "pr-card", label: prCardSectionMeta.title },
+		{ id: "review-workspace", label: reviewWorkspaceSectionMeta.title },
 		{ id: "task-tool", label: taskToolSectionMeta.title },
 		{ id: "update-card", label: updateCardSectionMeta.title },
 	];
@@ -56,6 +60,7 @@
 		"mic-button": micButtonSectionMeta,
 		"new-thread-options": newThreadOptionsSectionMeta,
 		"pr-card": prCardSectionMeta,
+		"review-workspace": reviewWorkspaceSectionMeta,
 		"task-tool": taskToolSectionMeta,
 		"update-card": updateCardSectionMeta,
 	} as const;
@@ -71,13 +76,22 @@
 		if (sectionId === "mic-button") return "microphone";
 		if (sectionId === "new-thread-options") return "new-chat";
 		if (sectionId === "pr-card") return "pull-request";
+		if (sectionId === "review-workspace") return "review";
 		if (sectionId === "task-tool") return "tasks";
 		if (sectionId === "update-card") return "download";
 		return null;
 	}
+
+	const sectionShellClass = $derived(
+		activeSection === "control-tokens"
+			? "w-full min-w-0"
+			: activeSection === "review-workspace"
+				? "w-full max-w-5xl"
+				: "w-full max-w-4xl",
+	);
 </script>
 
-<div class="relative flex h-full min-h-0 w-full overflow-hidden">
+<div class="relative flex h-full min-h-0 w-full overflow-hidden" data-testid="design-system-page">
 	<nav
 		class="flex w-[208px] shrink-0 flex-col overflow-y-auto border-r border-border/40 px-2 py-2"
 		aria-label="Design system sections"
@@ -129,7 +143,7 @@
 		/>
 
 		<main class="min-h-0 flex-1 overflow-auto p-4">
-			<div class={activeSection === "control-tokens" ? "w-full min-w-0" : "w-full max-w-4xl"}>
+			<div class={sectionShellClass}>
 				{#if activeSection === "control-tokens"}
 					<DesignSystemControlTokensSection />
 				{:else if activeSection === "claude-spark"}
@@ -142,6 +156,8 @@
 					<DesignSystemNewThreadOptionsSection />
 				{:else if activeSection === "pr-card"}
 					<DesignSystemPrCardSection />
+				{:else if activeSection === "review-workspace"}
+					<DesignSystemReviewWorkspaceSection />
 				{:else if activeSection === "task-tool"}
 					<DesignSystemTaskToolSection />
 				{:else if activeSection === "update-card"}

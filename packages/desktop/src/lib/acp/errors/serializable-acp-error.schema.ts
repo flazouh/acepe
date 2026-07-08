@@ -87,6 +87,7 @@ const FailureReasonSchema = z.enum([
 	"activationFailed",
 	"resumeFailed",
 	"sessionGoneUpstream",
+	"sessionArchivedUpstream",
 	"providerSessionMismatch",
 	"corruptedPersistedState",
 	"explicitErrorHandlingRequired",

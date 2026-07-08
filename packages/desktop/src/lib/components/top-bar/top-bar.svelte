@@ -36,7 +36,7 @@ interface Props {
 	viewState: MainAppViewState;
 	/** Optional snippet for add project/repository button (e.g. dropdown). Rendered in top bar left after decorations. */
 	addProjectButton?: Snippet;
-	onDevShowUpdatePage?: () => void;
+	onDevSimulateUpdate?: () => void;
 	onDevShowDesignSystem?: () => void;
 	onDevShowStreamingReproLab?: () => void;
 	onDevResetOnboarding?: () => void;
@@ -46,7 +46,7 @@ interface Props {
 let {
 	viewState,
 	addProjectButton,
-	onDevShowUpdatePage,
+	onDevSimulateUpdate,
 	onDevShowDesignSystem,
 	onDevShowStreamingReproLab,
 	onDevResetOnboarding,
@@ -350,7 +350,7 @@ onMount(() => {
 			</Tooltip.Trigger>
 			<Tooltip.Content>Feedback</Tooltip.Content>
 		</Tooltip.Root>
-		{#if import.meta.env.DEV && (onDevShowUpdatePage || onDevShowDesignSystem || onDevShowStreamingReproLab || onDevResetOnboarding)}
+		{#if import.meta.env.DEV && (onDevSimulateUpdate || onDevShowDesignSystem || onDevShowStreamingReproLab || onDevResetOnboarding)}
 			<Selector
 				align="end"
 				variant="ghost"
@@ -367,13 +367,13 @@ onMount(() => {
 						<DropdownMenu.GroupHeading
 							class="px-2 py-1 text-[11px] font-semibold text-muted-foreground border-b border-border/20"
 						>Dev Overlays</DropdownMenu.GroupHeading>
-						{#if onDevShowUpdatePage}
+						{#if onDevSimulateUpdate}
 							<DropdownMenu.Item
 								class="cursor-pointer rounded-none px-2 py-1 text-[11px]"
-								onclick={onDevShowUpdatePage}
+								onclick={onDevSimulateUpdate}
 							>
 								<RoundedIcon name="download" class="size-4" />
-								<span>Update Page</span>
+								<span>Simulate Update</span>
 							</DropdownMenu.Item>
 						{/if}
 						{#if onDevShowDesignSystem}

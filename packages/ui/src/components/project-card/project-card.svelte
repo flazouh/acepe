@@ -1,7 +1,10 @@
 <script lang="ts">
 	import type { Snippet } from "svelte";
 
-	import { ProjectLetterBadge } from "../project-letter-badge/index.js";
+	import {
+		computeProjectBadgeLabels,
+		ProjectLetterBadge,
+	} from "../project-letter-badge/index.js";
 
 	interface Props {
 		/** Project name for the badge */
@@ -10,6 +13,8 @@
 		projectColor: string;
 		/** Optional project icon source */
 		projectIconSrc?: string | null;
+		/** Disambiguating badge label (e.g. "Ac"). Falls back to the first letter. */
+		projectBadgeLabel?: string | null;
 		/**
 		 * Badge placement variant:
 		 * - "inline": Badge inside the card on the left (tab bar groups)
@@ -23,7 +28,13 @@
 		/** Card content */
 		children: Snippet;
 		/** All projects for focused view — renders multiple badges in the left column */
-		allProjects?: Array<{ name: string; color: string; path: string; iconSrc?: string | null }>;
+		allProjects?: Array<{
+			name: string;
+			color: string;
+			path: string;
+			iconSrc?: string | null;
+			badgeLabel?: string | null;
+		}>;
 		/** The active project path (determines which badge is full opacity) */
 		activeProjectPath?: string | null;
 		/** Callback when a project badge is clicked */
@@ -34,6 +45,7 @@
 		projectName,
 		projectColor,
 		projectIconSrc = null,
+		projectBadgeLabel = null,
 		variant = "inline",
 		badgeSize,
 		class: className = "",
@@ -45,6 +57,11 @@
 
 	const resolvedBadgeSize = $derived(badgeSize ?? (variant === "corner" ? 20 : 16));
 	const isFocusedMode = $derived(allProjects != null && allProjects.length > 1);
+	const focusedBadgeLabelByPath = $derived(
+		computeProjectBadgeLabels(
+			(allProjects ?? []).map((project) => ({ key: project.path, name: project.name }))
+		)
+	);
 </script>
 
 {#if variant === "corner"}
@@ -63,6 +80,7 @@
 					>
 						<ProjectLetterBadge
 							name={project.name}
+							label={project.badgeLabel ?? focusedBadgeLabelByPath.get(project.path) ?? null}
 							color={project.color}
 							iconSrc={project.iconSrc ?? null}
 							size={resolvedBadgeSize}
@@ -75,6 +93,7 @@
 			<div class="shrink-0 self-start m-1">
 				<ProjectLetterBadge
 					name={projectName}
+					label={projectBadgeLabel}
 					color={projectColor}
 					iconSrc={projectIconSrc}
 					size={resolvedBadgeSize}
@@ -93,6 +112,7 @@
 		<div class="shrink-0 flex items-center justify-center px-1.5">
 			<ProjectLetterBadge
 				name={projectName}
+				label={projectBadgeLabel}
 				color={projectColor}
 				iconSrc={projectIconSrc}
 				size={resolvedBadgeSize}

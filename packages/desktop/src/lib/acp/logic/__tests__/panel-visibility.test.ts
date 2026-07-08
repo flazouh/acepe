@@ -30,6 +30,7 @@ const NO_ERROR: PanelErrorInfo = {
 	referenceId: null,
 	referenceSearchable: false,
 	failureReason: null,
+	recoveryAction: null,
 };
 const HAS_ERROR: PanelErrorInfo = {
 	showError: true,
@@ -39,6 +40,7 @@ const HAS_ERROR: PanelErrorInfo = {
 	referenceId: null,
 	referenceSearchable: false,
 	failureReason: null,
+	recoveryAction: null,
 };
 
 function makeInput(overrides: Partial<Parameters<typeof derivePanelViewState>[0]> = {}) {
@@ -93,6 +95,7 @@ describe("derivePanelViewState", () => {
 					referenceId: null,
 					referenceSearchable: false,
 					failureReason: null,
+					recoveryAction: null,
 				},
 				entriesCount: 0,
 			})
@@ -102,6 +105,26 @@ describe("derivePanelViewState", () => {
 			expect(result.details).toBeTypeOf("string");
 			expect(result.details.length).toBeGreaterThan(0);
 		}
+	});
+
+	it("should keep archived-session recovery in ready chrome when there are no entries", () => {
+		const result = derivePanelViewState(
+			makeInput({
+				errorInfo: {
+					showError: true,
+					title: "Session archived",
+					summary: null,
+					details: null,
+					referenceId: null,
+					referenceSearchable: false,
+					failureReason: "sessionArchivedUpstream",
+					recoveryAction: "unarchive",
+				},
+				entriesCount: 0,
+			})
+		);
+
+		expect(result.kind).toBe("ready");
 	});
 
 	it("should return ready while failed lifecycle content is still loading", () => {

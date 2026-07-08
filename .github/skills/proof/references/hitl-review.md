@@ -1,6 +1,6 @@
 # HITL Review Mode
 
-Human-in-the-loop iteration loop for a markdown document shared via Proof. Invoked either by an upstream skill (`ce-brainstorm`, `ce-ideate`, `ce-plan`) handing off a draft it produced, or directly by the user asking to iterate on an existing markdown file they already have on disk ("share this to proof and iterate", "HITL this doc with me"). Mechanics are identical in both cases: upload the local doc, let the user annotate in Proof's web UI, ingest feedback as in-thread replies and tracked edits, and sync the final doc back to disk.
+Human-in-the-loop iteration loop for a markdown document shared via Proof. Invoked either by an upstream skill (planning or ideation workflows) handing off a draft it produced, or directly by the user asking to iterate on an existing markdown file they already have on disk ("share this to proof and iterate", "HITL this doc with me"). Mechanics are identical in both cases: upload the local doc, let the user annotate in Proof's web UI, ingest feedback as in-thread replies and tracked edits, and sync the final doc back to disk.
 
 This mode assumes a local markdown file exists. There is no "from scratch" entry — if the user wants a fresh doc, create one with the normal proof create workflow first, then invoke HITL.
 
@@ -14,9 +14,9 @@ Inputs:
 
 - **Source file path** (required): absolute or repo-relative path to the local markdown file. When an upstream caller invokes this mode, it passes the path explicitly. When the user invokes directly ("share that doc to proof and let's iterate"), derive the path from conversation context — the file the user just referenced, created, or edited. If ambiguous, ask the user which file.
 - **Doc title** (required): display title for the Proof doc. Upstream callers pass this explicitly; on direct-user invocation, default to the file's H1 heading, falling back to the filename (minus extension) if no H1 exists.
-- **Recommended next step** (optional, caller-specific): short string the caller wants echoed in the final terminal output (e.g., "Recommended next: `/ce:plan`"). Not used on direct-user invocation — the terminal report simply summarizes the iteration and asks what's next.
+- **Recommended next step** (optional, caller-specific): short string the caller wants echoed in the final terminal output (e.g., "Recommended next: `refactor-plan`"). Not used on direct-user invocation — the terminal report simply summarizes the iteration and asks what's next.
 
-Agent identity is fixed, not a parameter: every API call uses agent ID `ai:compound-engineering` and display name `Compound Engineering`. Callers do not override this.
+Agent identity is fixed, not a parameter: every API call uses agent ID `ai:agent-workflows` and display name `Agent Workflows`. Callers do not override this.
 
 Return shape (used by upstream callers to resume their handoff; also shown to the user in the terminal when invoked directly):
 
@@ -33,7 +33,7 @@ Return shape (used by upstream callers to resume their handoff; also shown to th
 
 1. Read the local markdown file into memory. Remember this content as `uploadedMarkdown` — Phase 5 compares against it to detect whether anything changed during the session.
 2. `POST https://www.proofeditor.ai/share/markdown` with `{title, markdown}` → capture `slug`, `accessToken`, `tokenUrl`
-3. `POST /api/agent/{slug}/presence` with `X-Agent-Id: ai:compound-engineering`, `x-share-token: <token>`, body `{"name":"Compound Engineering","status":"reading","summary":"Uploaded doc for review"}`
+3. `POST /api/agent/{slug}/presence` with `X-Agent-Id: ai:agent-workflows`, `x-share-token: <token>`, body `{"name":"Agent Workflows","status":"reading","summary":"Uploaded doc for review"}`
 4. Display prominently in the terminal:
 
    ```
@@ -108,7 +108,7 @@ The user is collaborating in the doc, not waiting on approval. Every mutation wo
 **Default: `suggestion.add` with `status: "accepted"`** for content changes anchored on a quote (reword, rename, clarify, correct, add a sentence inline). One call creates a tracked suggestion mark *and* commits the change. The user sees committed text (no pending approval needed), and the mark persists as audit trail with per-edit attribution and a one-click reject-to-revert. This is the right primitive for HITL auto-applied edits — it gives the user a reversible trail without asking them to re-review anything.
 
 ```json
-{"type":"suggestion.add","kind":"replace","quote":"<anchor>","content":"<new>","by":"ai:compound-engineering","status":"accepted","baseToken":"<token>"}
+{"type":"suggestion.add","kind":"replace","quote":"<anchor>","content":"<new>","by":"ai:agent-workflows","status":"accepted","baseToken":"<token>"}
 ```
 
 Use `kind: "insert" | "delete" | "replace"` as appropriate; all three support `status: "accepted"`.
@@ -126,8 +126,8 @@ curl -s "https://www.proofeditor.ai/api/agent/{slug}/snapshot" -H "x-share-token
 # Apply
 curl -X POST "https://www.proofeditor.ai/api/agent/{slug}/edit/v2" \
   -H "Content-Type: application/json" -H "x-share-token: <token>" \
-  -H "X-Agent-Id: ai:compound-engineering" -H "Idempotency-Key: <uuid>" \
-  -d '{"by":"ai:compound-engineering","baseToken":"<token>","operations":[...]}'
+  -H "X-Agent-Id: ai:agent-workflows" -H "Idempotency-Key: <uuid>" \
+  -d '{"by":"ai:agent-workflows","baseToken":"<token>","operations":[...]}'
 ```
 
 Supported `op` kinds: `replace_block`, `insert_before`, `insert_after`, `delete_block`, `replace_range` (`fromRef`+`toRef`), `find_replace_in_block` (`occurrence: "first"|"all"`).
@@ -152,9 +152,9 @@ Block `ref` values drift across revisions — always re-fetch `/snapshot` for fr
 
 - Top-level field is `type` on `/ops`; `operations[].op` on `/edit/v2`. Do not mix.
 - Include `baseToken` from `/state.mutationBase.token` (or `/snapshot.mutationBase.token` for `/edit/v2`). On `STALE_BASE` or `BASE_TOKEN_REQUIRED`, re-read and retry once.
-- Set `by: "ai:compound-engineering"` and header `X-Agent-Id: ai:compound-engineering`.
+- Set `by: "ai:agent-workflows"` and header `X-Agent-Id: ai:agent-workflows`.
 - Include an `Idempotency-Key` header (fresh UUID per logical write) so retries stay safe.
-- Reply: `{"type":"comment.reply","markId":"<id>","by":"ai:compound-engineering","text":"..."}`. Resolve: `{"type":"comment.resolve","markId":"<id>","by":"ai:compound-engineering"}`. Reopen if needed: `{"type":"comment.unresolve", ...}`.
+- Reply: `{"type":"comment.reply","markId":"<id>","by":"ai:agent-workflows","text":"..."}`. Resolve: `{"type":"comment.resolve","markId":"<id>","by":"ai:agent-workflows"}`. Reopen if needed: `{"type":"comment.unresolve", ...}`.
 
 **When the loop breaks.** If a mutation keeps failing after a fresh read and one retry, or two reads disagree about state, call `POST https://www.proofeditor.ai/api/bridge/report_bug` with the request ID, slug, and raw response body before falling back. Don't silently skip — that loses the audit trail the user is relying on.
 
@@ -186,7 +186,7 @@ Ask the user with the platform's blocking question tool (`AskUserQuestion` in Cl
 
 **Question:** "Proof review pass done. What's next?"
 
-Offer options that cover these intents — use concrete user-facing labels, not agent-internal jargon (no "end-sync", "ingest pass", etc.). Only include the options that fit the current state. Keep labels imperative and third-person (no "I'll" / "I'm" — it is ambiguous in a tool-mediated menu whether the speaker is the user or the agent) and keep the `[short label] — [description]` shape consistent across every option. A "still working, come back later" option is not offered: the blocking question already waits, so that option would be a no-op wrapper (per the Interactive Question Tool Design rules in `plugins/compound-engineering/AGENTS.md`).
+Offer options that cover these intents — use concrete user-facing labels, not agent-internal jargon (no "end-sync", "ingest pass", etc.). Only include the options that fit the current state. Keep labels imperative and third-person (no "I'll" / "I'm" — it is ambiguous in a tool-mediated menu whether the speaker is the user or the agent) and keep the `[short label] — [description]` shape consistent across every option. A "still working, come back later" option is not offered: the blocking question already waits, so that option would be a no-op wrapper (per the Interactive Question Tool Design rules in `agent workflow rules`).
 
 - **Discuss** → `Discuss — walk through the open threads in terminal`
   Talk through open threads in the terminal; the agent echoes decisions back to Proof threads. Only useful when escalations are open.
@@ -280,7 +280,7 @@ Do **not** delete the Proof doc. It remains the durable review record; the calle
 ```bash
 SLUG=<slug>
 TOKEN=<accessToken>
-AGENT_ID=ai:compound-engineering
+AGENT_ID=ai:agent-workflows
 
 mutate() {
   local PAYLOAD="$1"  # jq template without baseToken
@@ -307,7 +307,7 @@ When extracting fields from API responses with jq's `//` alternative operator, p
 ### Identity
 
 All ops must include:
-- `by: "ai:compound-engineering"` in the request body
-- `X-Agent-Id: ai:compound-engineering` in headers (required for presence; recommended for ops for consistent attribution)
+- `by: "ai:agent-workflows"` in the request body
+- `X-Agent-Id: ai:agent-workflows` in headers (required for presence; recommended for ops for consistent attribution)
 
-Display name `Compound Engineering` is bound via `POST /presence` with `{"name":"Compound Engineering", ...}`. Set this once after upload; it carries across subsequent ops.
+Display name `Agent Workflows` is bound via `POST /presence` with `{"name":"Agent Workflows", ...}`. Set this once after upload; it carries across subsequent ops.

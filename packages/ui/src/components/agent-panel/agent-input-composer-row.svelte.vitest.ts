@@ -41,6 +41,33 @@ describe("AgentInputComposerRow", () => {
 		expect(button.querySelector("svg")?.getAttribute("aria-hidden")).toBe("true");
 	});
 
+	it("keeps the submit button aligned with the bottom-right control rhythm", () => {
+		render(AgentInputComposerRow, {
+			props: {
+				placeholder: "Ask the agent",
+				submitAriaLabel: "Send message",
+			},
+		});
+
+		const button = screen.getByRole("button", { name: "Send message" });
+		const cluster = button.parentElement;
+		const glyph = button.querySelector("svg");
+		const glyphClass = glyph?.getAttribute("class");
+
+		expect(button.className).toContain("h-8");
+		expect(button.className).toContain("w-8");
+		expect(button.className).not.toContain("h-7");
+		expect(button.className).not.toContain("w-7");
+		expect(button.className).toContain("rounded-lg");
+		expect(button.className).not.toContain("rounded-md");
+		expect(glyphClass).toContain("h-4");
+		expect(glyphClass).toContain("w-4");
+		expect(glyphClass).not.toContain("h-3.5");
+		expect(glyphClass).not.toContain("w-3.5");
+		expect(cluster?.className).toContain("gap-0.5");
+		expect(cluster?.className).not.toContain("gap-2");
+	});
+
 	it("uses the provided submit handler and disabled state", () => {
 		const onSubmit = vi.fn();
 		render(AgentInputComposerRow, {

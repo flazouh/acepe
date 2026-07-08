@@ -124,6 +124,7 @@ function probeWithTiming(input: {
 		],
 		hydrationTimings: [],
 		panelOpenMarks: {},
+		agentPanelPerformanceSamples: [],
 	};
 }
 
@@ -257,6 +258,7 @@ describe("summarizeSessionOpenContentProbe", () => {
 			openEvents: probe.openEvents,
 			hydrationTimings: probe.hydrationTimings,
 			panelOpenMarks: probe.panelOpenMarks,
+			agentPanelPerformanceSamples: [],
 		});
 
 		expect(summary.status).toBe("warn");

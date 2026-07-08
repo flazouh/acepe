@@ -86,6 +86,20 @@ function manyItems(count: number): MessageScrollerItem[] {
 	return rows;
 }
 
+function domRect(input: { readonly top: number; readonly bottom: number }): DOMRect {
+	return {
+		x: 0,
+		y: input.top,
+		width: 100,
+		height: input.bottom - input.top,
+		top: input.top,
+		right: 100,
+		bottom: input.bottom,
+		left: 0,
+		toJSON: () => ({}),
+	} as DOMRect;
+}
+
 function stubMetrics(
 	el: HTMLElement,
 	scrollHeight: number,
@@ -330,6 +344,28 @@ describe("MessageScroller", () => {
 		expect(ready).toBe(true);
 	});
 
+	it("keeps one controller instance across source rerenders", async () => {
+		let readyCount = 0;
+		let firstController: StickToBottomController | undefined;
+		const view = renderScroller(manyItems(300), {
+			onReady: (c) => {
+				readyCount += 1;
+				if (firstController === undefined) {
+					firstController = c;
+				}
+			},
+		});
+
+		await view.rerender({
+			items: manyItems(500),
+			renderItem: dot,
+			ariaLabel: "Conversation transcript",
+		});
+
+		expect(readyCount).toBe(1);
+		expect(firstController).toBeDefined();
+	});
+
 	it("reports edge state and lets the host scroll to top", async () => {
 		const edges: Array<{ atTop: boolean; atBottom: boolean }> = [];
 		let controller: StickToBottomController | undefined;
@@ -377,7 +413,7 @@ describe("MessageScroller", () => {
 		).toBe("0");
 		expect(content?.classList.contains("is-virtualized")).toBe(true);
 		expect(content?.style.height).toBe("100000px");
-		expect(firstShell?.style.transform).toBe("translate3d(0, 0px, 0)");
+		expect(firstShell?.style.transform).toBe("translateY(0px)");
 		expect(container.querySelector('[data-virtual-spacer="after"]')).toBeNull();
 	});
 
@@ -392,7 +428,7 @@ describe("MessageScroller", () => {
 		expect(content?.classList.contains("is-virtualized")).toBe(true);
 		expect(content?.style.height).toBe("26000px");
 		expect(rowShellTransform(container, "row-0")).toBe(
-			"translate3d(0, 25000px, 0)",
+			"translateY(25000px)",
 		);
 		expect(container.querySelector(".message-scroller__row-placeholder")).toBeNull();
 		expect(container.querySelector('[data-virtual-spacer="before"]')).toBeNull();
@@ -417,6 +453,53 @@ describe("MessageScroller", () => {
 		expect(content?.style.height).toBe("120000px");
 	});
 
+	it("keeps the same anchor row in place when older rows are prepended", async () => {
+		const initialItems = manyItems(1_000);
+		const olderItems: MessageScrollerItem[] = [];
+		for (let index = 0; index < 200; index += 1) {
+			olderItems.push(
+				item({
+					key: `older-${index}:v1`,
+					rowId: `older-${index}`,
+					estimatePx: 100,
+				}),
+			);
+		}
+		const view = renderScroller(initialItems, {
+			virtualLeadingSpacePx: 20_000,
+		});
+		const viewport = viewportOf(view.container);
+		stubMetrics(viewport, 120_000, 800);
+		viewport.scrollTop = 49_900;
+		viewport.dispatchEvent(new Event("scroll"));
+		await tick();
+
+		const rectSpy = vi
+			.spyOn(HTMLElement.prototype, "getBoundingClientRect")
+			.mockImplementation(function (this: HTMLElement): DOMRect {
+				if (this.classList.contains("message-scroller__viewport")) {
+					return domRect({ top: 0, bottom: 800 });
+				}
+				if (this.getAttribute("data-row-id") === "row-300") {
+					return domRect({ top: 100, bottom: 200 });
+				}
+				return domRect({ top: 900, bottom: 1_000 });
+			});
+
+		const rerendered = view.rerender({
+			items: olderItems.concat(initialItems),
+			renderItem: dot,
+			ariaLabel: "Conversation transcript",
+			virtualLeadingSpacePx: 0,
+		});
+		viewport.scrollTop = 70_000;
+		await rerendered;
+		await tick();
+
+		expect(rectSpy).toHaveBeenCalled();
+		expect(viewport.scrollTop).toBe(49_900);
+	});
+
 	it("updates the virtual window when the viewport scrolls", async () => {
 		const { container } = renderScroller(manyItems(1_000));
 		const viewport = viewportOf(container);
@@ -437,7 +520,7 @@ describe("MessageScroller", () => {
 		expect(firstIndex).toBeGreaterThanOrEqual(470);
 		expect(firstIndex).toBeLessThanOrEqual(500);
 		expect(firstShell?.style.transform).toBe(
-			`translate3d(0, ${firstIndex * 100}px, 0)`,
+			`translateY(${firstIndex * 100}px)`,
 		);
 		expect(container.querySelector('[data-virtual-spacer="before"]')).toBeNull();
 		expect(container.querySelector(".message-scroller__row-placeholder")).toBeNull();
@@ -510,7 +593,7 @@ describe("MessageScroller", () => {
 
 		controller.openAt("row-3", 0);
 
-		expect(viewport.scrollTop).toBe(20_300);
+		expect(viewport.scrollTop).toBe(20_200);
 	});
 
 	it("uses ResizeObserver row heights without synchronous row rect reads", async () => {
@@ -555,12 +638,12 @@ describe("MessageScroller", () => {
 		const { container } = renderScroller(manyItems(1_000));
 		const row = rowElement(container, "row-0");
 
-		expect(rowShellTransform(container, "row-1")).toBe("translate3d(0, 100px, 0)");
+		expect(rowShellTransform(container, "row-1")).toBe("translateY(100px)");
 		FakeResizeObserver.emitHeightFor(row, 144);
 		await flushQueuedFrame();
 
 		expect(cssEstimatePx(rowElement(container, "row-0"))).toBe("144px");
-		expect(rowShellTransform(container, "row-1")).toBe("translate3d(0, 144px, 0)");
+		expect(rowShellTransform(container, "row-1")).toBe("translateY(144px)");
 	});
 
 	it("pauses measured row height observation while the viewport is scrolling", async () => {

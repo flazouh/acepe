@@ -34,7 +34,7 @@ function createViewportEnvelope(sessionId = "canonical-session"): SessionStateEn
 
 function createInitialRowPage(): SessionOpenTranscriptRowPage {
 	return {
-		projectionVersion: "transcript_viewport_row:v1",
+		projectionVersion: "transcript_viewport_row:v5",
 		startRowIndex: 42,
 		totalRowCount: 43,
 		rowPayloadBytes: 512,
@@ -70,6 +70,7 @@ function createFoundResult(overrides?: Partial<SessionOpenFound>): SessionOpenFo
 		requestedSessionId,
 		canonicalSessionId,
 		isAlias,
+		openPath: overrides?.openPath ?? "legacy_rebuild",
 		lastEventSeq,
 		graphRevision,
 		openToken,
@@ -117,6 +118,7 @@ function createFoundResultWithoutLifecycle(): Omit<SessionOpenFound, "lifecycle"
 		requestedSessionId: found.requestedSessionId,
 		canonicalSessionId: found.canonicalSessionId,
 		isAlias: found.isAlias,
+		openPath: found.openPath,
 		lastEventSeq: found.lastEventSeq,
 		graphRevision: found.graphRevision,
 		openToken: found.openToken,

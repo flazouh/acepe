@@ -51,6 +51,7 @@ const listPreconnectionCapabilitiesMock = mock(() =>
 
 mock.module("../logic/open-persisted-session.js", () => ({
 	openPersistedSession: openPersistedSessionMock,
+	setOpenPersistedSessionDiagnosticRecorder: mock(() => () => {}),
 }));
 
 mock.module("$lib/services/zoom.svelte.js", () => ({
@@ -96,15 +97,67 @@ mock.module("runed", () => ({
 
 		constructor(_name: string) {}
 
-		set(value: object): void {
+		exists(): boolean {
+			return this.value !== null;
+		}
+
+		set(value: object): object {
 			this.value = value;
+			return value;
 		}
 
 		get(): object | null {
 			return this.value;
 		}
+
+		getOr(fallback: object): object {
+			return this.value ?? fallback;
+		}
 	},
-	watch: mock(() => () => {}),
+	ElementSize: class TestElementSize {
+		readonly width = 0;
+		readonly height = 0;
+
+		constructor(_node?: object | (() => object | null), _options?: object) {}
+	},
+	PersistedState: class TestPersistedState<TValue> {
+		current: TValue | undefined;
+
+		constructor(_key: string, initialValue?: TValue) {
+			this.current = initialValue;
+		}
+	},
+	Previous: class TestPrevious<TValue> {
+		current: TValue | undefined;
+
+		constructor(getValue: () => TValue) {
+			this.current = getValue();
+		}
+	},
+	AnimationFrames: class TestAnimationFrames {
+		readonly current = false;
+
+		start(): void {}
+
+		stop(): void {}
+	},
+	Debounced: class TestDebounced<TValue> {
+		current: TValue | undefined;
+
+		constructor(value?: TValue) {
+			this.current = value;
+		}
+	},
+	IsMounted: class TestIsMounted {
+		readonly current = true;
+	},
+	onClickOutside: () => () => {},
+	useDebounce: (callback: () => void) => callback,
+	useEventListener: () => () => {},
+	useResizeObserver: () => () => {},
+	watch: Object.assign(mock(() => () => {}), {
+		pre: mock(() => () => {}),
+	}),
 }));
 
 import type { MainAppViewState } from "../logic/main-app-view-state.svelte.js";
@@ -829,7 +882,7 @@ describe("InitializationManager", () => {
 			expect(mockWorkspaceStore.restore).toHaveBeenCalled();
 		});
 
-		it("scans startup session history for loaded project paths", async () => {
+		it("defers startup session history scans for loaded project paths", async () => {
 			mockProjectManager.projects = [
 				{
 					path: "/project1",
@@ -846,10 +899,14 @@ describe("InitializationManager", () => {
 			await runImmediateTimers();
 
 			expect(mockSessionStore.loading.loadSessions).not.toHaveBeenCalled();
+			expect(mockSessionStore.loading.scanSessions).not.toHaveBeenCalled();
+
+			await runPostStartupTasks();
+
 			expect(mockSessionStore.loading.scanSessions).toHaveBeenCalledWith(["/project1"]);
 		});
 
-		it("hydrates restored panels after startup while scanning the sidebar metadata", async () => {
+		it("hydrates restored panels before scanning the sidebar metadata", async () => {
 			mockProjectManager.projects = [
 				{
 					path: "/project1",
@@ -920,7 +977,7 @@ describe("InitializationManager", () => {
 				"/project1",
 				"/project2",
 			]);
-			expect(callOrder).toEqual(["scan:/project1,/project2", "startup"]);
+			expect(callOrder).toEqual(["startup", "scan:/project1,/project2"]);
 		});
 
 		it("hydrates restored panels even when zoom metadata fails after startup", async () => {

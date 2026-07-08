@@ -1,6 +1,77 @@
 import { cleanup, fireEvent, render, waitFor } from "@testing-library/svelte";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { SessionDisplayItem } from "$lib/acp/types/thread-display-item.js";
+
+type SessionItemPresentationFixture = {
+	connectionError: string | null;
+	currentModeId: string | null;
+	currentStreamingToolCall: null;
+	currentToolKind: null;
+	lastTodoToolCall: null;
+	lastToolCall: null;
+	lastToolKind: null;
+	liveSessionState: {
+		attention: {
+			hasUnseenCompletion: boolean;
+		};
+	};
+	pendingComputerPermission: null;
+	pendingPermission: null;
+	pendingPlanApproval: { source: string } | null;
+	pendingQuestion: null;
+	previewActivityKind: string;
+	sessionWorkProjection: {
+		compactActivityKind: string;
+		hasError: boolean;
+		needsReview: boolean;
+	};
+};
+
+const presentationFixture = vi.hoisted(() => ({
+	current: {
+		connectionError: null,
+		currentModeId: null,
+		currentStreamingToolCall: null,
+		currentToolKind: null,
+		lastTodoToolCall: null,
+		lastToolCall: null,
+		lastToolKind: null,
+		liveSessionState: {
+			attention: {
+				hasUnseenCompletion: false,
+			},
+		},
+		pendingComputerPermission: null,
+		pendingPermission: null,
+		pendingPlanApproval: null,
+		pendingQuestion: null,
+		previewActivityKind: "idle",
+		sessionWorkProjection: {
+			compactActivityKind: "idle",
+			hasError: false,
+			needsReview: false,
+		},
+	} as SessionItemPresentationFixture,
+}));
+
+function resetPresentationFixture(): void {
+	presentationFixture.current.connectionError = null;
+	presentationFixture.current.currentModeId = null;
+	presentationFixture.current.currentStreamingToolCall = null;
+	presentationFixture.current.currentToolKind = null;
+	presentationFixture.current.lastTodoToolCall = null;
+	presentationFixture.current.lastToolCall = null;
+	presentationFixture.current.lastToolKind = null;
+	presentationFixture.current.liveSessionState.attention.hasUnseenCompletion = false;
+	presentationFixture.current.pendingComputerPermission = null;
+	presentationFixture.current.pendingPermission = null;
+	presentationFixture.current.pendingPlanApproval = null;
+	presentationFixture.current.pendingQuestion = null;
+	presentationFixture.current.previewActivityKind = "idle";
+	presentationFixture.current.sessionWorkProjection.compactActivityKind = "idle";
+	presentationFixture.current.sessionWorkProjection.hasError = false;
+	presentationFixture.current.sessionWorkProjection.needsReview = false;
+}
 
 vi.mock("svelte", async () => {
 	const { createRequire } = await import("node:module");
@@ -70,29 +141,7 @@ vi.mock("$lib/acp/store/index.js", () => ({
 vi.mock("$lib/acp/store/session-store.svelte.js", () => ({
 	getSessionStore: () => ({
 		presentation: {
-			getSessionListItemPresentation: () => ({
-				connectionError: null,
-				currentModeId: null,
-				currentStreamingToolCall: null,
-				currentToolKind: null,
-				lastTodoToolCall: null,
-				lastToolCall: null,
-				lastToolKind: null,
-				liveSessionState: {
-					attention: {
-						hasUnseenCompletion: false,
-					},
-				},
-				pendingComputerPermission: null,
-				pendingPermission: null,
-				pendingPlanApproval: null,
-				pendingQuestion: null,
-				previewActivityKind: "idle",
-				sessionWorkProjection: {
-					compactActivityKind: "idle",
-					hasError: false,
-				},
-			}),
+			getSessionListItemPresentation: () => presentationFixture.current,
 		},
 	}),
 }));
@@ -125,6 +174,10 @@ afterEach(() => {
 	cleanup();
 });
 
+beforeEach(() => {
+	resetPresentationFixture();
+});
+
 describe("SessionItem", () => {
 	it("wires the View Transcript File menu action to the Acepe file dialog callback", async () => {
 		const session = createSession();
@@ -146,5 +199,35 @@ describe("SessionItem", () => {
 		await waitFor(() => {
 			expect(openedSessionId).toBe(session.id);
 		});
+	});
+
+	it("shows a working indicator instead of a planning status row", () => {
+		presentationFixture.current.previewActivityKind = "thinking";
+		presentationFixture.current.sessionWorkProjection.compactActivityKind = "thinking";
+
+		const view = render(SessionItem, {
+			thread: createSession(),
+			selected: true,
+			onSelect: () => undefined,
+		});
+
+		expect(view.queryByText("Planning next moves")).toBeNull();
+		expect(view.getByTestId("session-item-working-indicator")).toBeTruthy();
+		expect(view.queryByTestId("session-item-finished-indicator")).toBeNull();
+	});
+
+	it("shows a finished indicator instead of a ready for review status row", () => {
+		presentationFixture.current.liveSessionState.attention.hasUnseenCompletion = true;
+		presentationFixture.current.sessionWorkProjection.needsReview = true;
+
+		const view = render(SessionItem, {
+			thread: createSession(),
+			selected: true,
+			onSelect: () => undefined,
+		});
+
+		expect(view.queryByText("Ready for review")).toBeNull();
+		expect(view.getByTestId("session-item-finished-indicator")).toBeTruthy();
+		expect(view.queryByTestId("session-item-working-indicator")).toBeNull();
 	});
 });

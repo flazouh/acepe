@@ -52,14 +52,20 @@ let {
 	onUserFileSelect?: (event: AgentUserFileSelectEvent) => void;
 	onReview?: (event: AgentPanelReviewActionEvent) => void;
 	isPlanActionAvailable?: (event: AgentPanelPlanActionEvent) => boolean;
-	getAttachedPermission: (
-		sessionId: string,
-		toolCallId: string
-	) => PermissionRequest | undefined;
+	getAttachedPermission: (sessionId: string, toolCallId: string) => PermissionRequest | undefined;
 } = $props();
 </script>
 
-<div class="transcript-viewport-row" data-entry-key={rendered.row.rowId}>
+<div
+	class="transcript-viewport-row"
+	data-entry-key={rendered.row.rowId}
+	data-entry-type={rendered.entry.type}
+	data-tool-kind={rendered.entry.type === "tool_call" ? rendered.entry.kind : undefined}
+	data-tool-status={rendered.entry.type === "tool_call" ? rendered.entry.status : undefined}
+	data-tool-title={rendered.entry.type === "tool_call" ? rendered.entry.title : undefined}
+	data-tool-presentation-state={rendered.entry.type === "tool_call" ? rendered.entry.presentationState : undefined}
+	data-missing-entry={rendered.entry.type === "missing" ? "" : undefined}
+>
 	<MessageWrapper
 		entryIndex={rendered.index}
 		entryKey={rendered.row.rowId}

@@ -1173,6 +1173,15 @@ describe("SessionConnectionManager.connectSession", () => {
 		expect(connectionManager.setConnecting).toHaveBeenLastCalledWith(sessionId, false);
 	});
 
+	it("keeps the readiness fallback deadline aligned with the connection watchdog", async () => {
+		const modulePath = "./session-connection-manager.js?timeout-invariant" as string;
+		const module = (await import(modulePath)) as typeof import("./session-connection-manager.js");
+
+		expect(module.SESSION_CONNECTION_READINESS_RECONCILE_TIMEOUT_MS).toBe(
+			module.SESSION_CONNECTION_WATCHDOG_TIMEOUT_MS
+		);
+	});
+
 	it("passes the session open token through reconnect", async () => {
 		getSessionModelForMode.mockReturnValue(undefined);
 

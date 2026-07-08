@@ -969,7 +969,7 @@ mod tests {
             .expect("emitted viewport row should carry compact operation display facts");
 
         assert_eq!(embedded.command.as_deref(), Some("bun test"));
-        assert_eq!(display_facts.title, "exec_command");
+        assert_eq!(display_facts.title, "Run");
         assert_eq!(display_facts.command_summary.as_deref(), Some("bun test"));
         assert_eq!(
             embedded.arguments,
@@ -1040,7 +1040,7 @@ mod tests {
         assert_eq!(row_json["operationLinks"][0]["operationId"], "operation-1");
         assert_eq!(
             row_json["operationLinks"][0]["displayFacts"]["title"],
-            "exec_command"
+            "Run"
         );
         assert_eq!(
             row_json["operationLinks"][0]["displayFacts"]["commandSummary"],

@@ -118,6 +118,9 @@ fn push_assistant_message_events(
     for (block_index, block) in message.content_blocks.iter().enumerate() {
         match block {
             ContentBlock::Text { text } => {
+                if message.parent_tool_use_id.is_some() {
+                    continue;
+                }
                 if text.trim().is_empty() {
                     continue;
                 }
@@ -143,6 +146,9 @@ fn push_assistant_message_events(
                 redacted_provider_data,
                 ..
             } => {
+                if message.parent_tool_use_id.is_some() {
+                    continue;
+                }
                 let is_redacted_thought = redacted_provider_data.is_some();
                 if thinking.trim().is_empty() && !is_redacted_thought {
                     continue;
@@ -172,6 +178,9 @@ fn push_assistant_message_events(
                 lines,
                 content,
             } => {
+                if message.parent_tool_use_id.is_some() {
+                    continue;
+                }
                 let header = match lines {
                     Some(line_range) => format!("File: {} (lines {})", path, line_range),
                     None => format!("File: {}", path),
@@ -438,6 +447,7 @@ mod tests {
             request_id: Some(request_id.to_string()),
             is_meta: false,
             source_tool_use_id: None,
+            parent_tool_use_id: None,
             tool_use_result: None,
             source_tool_assistant_uuid: None,
         }
@@ -579,6 +589,7 @@ mod tests {
                 request_id: Some("req-1".to_string()),
                 is_meta: false,
                 source_tool_use_id: None,
+                parent_tool_use_id: None,
                 tool_use_result: None,
                 source_tool_assistant_uuid: None,
             },
@@ -599,6 +610,7 @@ mod tests {
                 request_id: Some("req-1".to_string()),
                 is_meta: false,
                 source_tool_use_id: None,
+                parent_tool_use_id: None,
                 tool_use_result: None,
                 source_tool_assistant_uuid: None,
             },
@@ -617,6 +629,7 @@ mod tests {
                 request_id: Some("req-1".to_string()),
                 is_meta: false,
                 source_tool_use_id: None,
+                parent_tool_use_id: None,
                 tool_use_result: None,
                 source_tool_assistant_uuid: None,
             },
@@ -640,5 +653,94 @@ mod tests {
         assert_eq!(events[0].transcript_seq, 0);
         assert_eq!(events[1].transcript_seq, 1);
         assert_eq!(events[2].transcript_seq, 2);
+    }
+
+    #[test]
+    fn canonical_events_exclude_subagent_assistant_text_from_top_level_transcript() {
+        let session = session_with_messages(vec![
+            OrderedMessage {
+                uuid: "parent-text".to_string(),
+                parent_uuid: None,
+                role: "assistant".to_string(),
+                provider_message_id: Some("msg-parent".to_string()),
+                timestamp: "2026-07-07T00:00:01Z".to_string(),
+                content_blocks: vec![ContentBlock::Text {
+                    text: "This confirms the exact wiring.".to_string(),
+                }],
+                model: None,
+                usage: None,
+                error: None,
+                request_id: Some("req-1".to_string()),
+                is_meta: false,
+                source_tool_use_id: None,
+                parent_tool_use_id: None,
+                tool_use_result: None,
+                source_tool_assistant_uuid: None,
+            },
+            OrderedMessage {
+                uuid: "task-tool".to_string(),
+                parent_uuid: None,
+                role: "assistant".to_string(),
+                provider_message_id: Some("msg-parent".to_string()),
+                timestamp: "2026-07-07T00:00:02Z".to_string(),
+                content_blocks: vec![ContentBlock::ToolUse {
+                    id: "toolu_task_parent".to_string(),
+                    name: "Task".to_string(),
+                    input: json!({
+                        "description": "Find new chat modal project trigger",
+                        "subagent_type": "general-purpose"
+                    }),
+                }],
+                model: None,
+                usage: None,
+                error: None,
+                request_id: Some("req-1".to_string()),
+                is_meta: false,
+                source_tool_use_id: None,
+                parent_tool_use_id: None,
+                tool_use_result: None,
+                source_tool_assistant_uuid: None,
+            },
+            OrderedMessage {
+                uuid: "subagent-report".to_string(),
+                parent_uuid: None,
+                role: "assistant".to_string(),
+                provider_message_id: Some("msg-subagent".to_string()),
+                timestamp: "2026-07-07T00:00:03Z".to_string(),
+                content_blocks: vec![ContentBlock::Text {
+                    text: "Now I have everything needed for the report.".to_string(),
+                }],
+                model: None,
+                usage: None,
+                error: None,
+                request_id: Some("req-1".to_string()),
+                is_meta: false,
+                source_tool_use_id: None,
+                parent_tool_use_id: Some("toolu_task_parent".to_string()),
+                tool_use_result: None,
+                source_tool_assistant_uuid: None,
+            },
+        ]);
+
+        let events = materialize_canonical_transcript_events(&session, AgentType::ClaudeCode);
+        let visible_text: Vec<&str> = events
+            .iter()
+            .filter_map(|event| match &event.kind {
+                CanonicalTranscriptEventKind::AssistantText { text } => Some(text.as_str()),
+                _ => None,
+            })
+            .collect();
+        let tool_ids: Vec<&str> = events
+            .iter()
+            .filter_map(|event| match &event.kind {
+                CanonicalTranscriptEventKind::ToolUse { tool_call_id, .. } => {
+                    Some(tool_call_id.as_str())
+                }
+                _ => None,
+            })
+            .collect();
+
+        assert_eq!(visible_text, vec!["This confirms the exact wiring."]);
+        assert_eq!(tool_ids, vec!["toolu_task_parent"]);
     }
 }

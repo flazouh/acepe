@@ -13,9 +13,12 @@ use crate::acp::session_update::{
 use crate::acp::transcript_projection::{
     TranscriptDeltaOperation, TranscriptProjectionRegistry, TranscriptSegment, TranscriptSnapshot,
 };
+use crate::acp::types::ContentBlock;
 use crate::db::repository::SerializedSessionJournalEventRow;
 use chrono::Utc;
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
+use std::collections::{HashMap, VecDeque};
 use uuid::Uuid;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -30,6 +33,8 @@ pub enum ProjectionJournalUpdate {
         chunk: ContentChunk,
         part_id: Option<String>,
         message_id: Option<String>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        parent_tool_use_id: Option<String>,
         session_id: Option<String>,
         #[serde(default, skip_serializing_if = "Option::is_none")]
         produced_at_monotonic_ms: Option<u64>,
@@ -38,6 +43,8 @@ pub enum ProjectionJournalUpdate {
         chunk: ContentChunk,
         part_id: Option<String>,
         message_id: Option<String>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        parent_tool_use_id: Option<String>,
         session_id: Option<String>,
     },
     PermissionRequest {
@@ -76,12 +83,14 @@ impl ProjectionJournalUpdate {
                 chunk,
                 part_id,
                 message_id,
+                parent_tool_use_id,
                 session_id,
                 produced_at_monotonic_ms,
             } => Some(Self::AgentMessageChunk {
                 chunk: chunk.clone(),
                 part_id: part_id.clone(),
                 message_id: message_id.clone(),
+                parent_tool_use_id: parent_tool_use_id.clone(),
                 session_id: session_id.clone(),
                 produced_at_monotonic_ms: *produced_at_monotonic_ms,
             }),
@@ -89,11 +98,13 @@ impl ProjectionJournalUpdate {
                 chunk,
                 part_id,
                 message_id,
+                parent_tool_use_id,
                 session_id,
             } => Some(Self::AgentThoughtChunk {
                 chunk: chunk.clone(),
                 part_id: part_id.clone(),
                 message_id: message_id.clone(),
+                parent_tool_use_id: parent_tool_use_id.clone(),
                 session_id: session_id.clone(),
             }),
             SessionUpdate::PermissionRequest {
@@ -140,12 +151,14 @@ impl ProjectionJournalUpdate {
                 chunk,
                 part_id,
                 message_id,
+                parent_tool_use_id,
                 session_id,
                 produced_at_monotonic_ms,
             } => SessionUpdate::AgentMessageChunk {
                 chunk,
                 part_id,
                 message_id,
+                parent_tool_use_id,
                 session_id,
                 produced_at_monotonic_ms,
             },
@@ -153,11 +166,13 @@ impl ProjectionJournalUpdate {
                 chunk,
                 part_id,
                 message_id,
+                parent_tool_use_id,
                 session_id,
             } => SessionUpdate::AgentThoughtChunk {
                 chunk,
                 part_id,
                 message_id,
+                parent_tool_use_id,
                 session_id,
             },
             Self::PermissionRequest {
@@ -327,6 +342,172 @@ pub fn rebuild_completed_local_transcript_snapshot(
         .max()?;
 
     rebuild_local_transcript_snapshot_until(replay_context, events, Some(last_complete_seq))
+}
+
+#[must_use]
+pub(crate) fn repair_legacy_parent_tool_use_ids_from_streaming_log(
+    replay_context: &SessionReplayContext,
+    events: &[SessionJournalEvent],
+) -> Vec<SessionJournalEvent> {
+    let mut repairs =
+        collect_parent_linked_outbound_text_from_streaming_log(&replay_context.local_session_id);
+    if repairs.is_empty() {
+        return events.to_vec();
+    }
+
+    events
+        .iter()
+        .map(|event| {
+            let mut repaired = event.clone();
+            if repaired.session_id != replay_context.local_session_id {
+                return repaired;
+            }
+            let SessionJournalEventPayload::ProjectionUpdate { update } = &mut repaired.payload
+            else {
+                return repaired;
+            };
+            let ProjectionJournalUpdate::AgentMessageChunk {
+                chunk,
+                parent_tool_use_id,
+                ..
+            } = update.as_mut()
+            else {
+                return repaired;
+            };
+            if parent_tool_use_id.is_some() {
+                return repaired;
+            }
+            let Some(text) = content_chunk_text(chunk) else {
+                return repaired;
+            };
+            let Some(parent_ids) = repairs.get_mut(text) else {
+                return repaired;
+            };
+            if let Some(parent_id) = parent_ids.pop_front() {
+                *parent_tool_use_id = Some(parent_id);
+            }
+            if parent_ids.is_empty() {
+                repairs.remove(text);
+            }
+            repaired
+        })
+        .collect()
+}
+
+fn content_chunk_text(chunk: &ContentChunk) -> Option<&str> {
+    match &chunk.content {
+        ContentBlock::Text { text } if !text.is_empty() => Some(text.as_str()),
+        _ => None,
+    }
+}
+
+fn collect_parent_linked_outbound_text_from_streaming_log(
+    session_id: &str,
+) -> HashMap<String, VecDeque<String>> {
+    let Some(log_path) = crate::acp::streaming_log::get_log_file_path(session_id) else {
+        return HashMap::new();
+    };
+    let Ok(content) = std::fs::read_to_string(&log_path) else {
+        tracing::warn!(
+            session_id = %session_id,
+            path = %log_path.display(),
+            "Failed to read streaming log for legacy subagent lineage repair"
+        );
+        return HashMap::new();
+    };
+
+    let mut pending_parent_texts: VecDeque<(String, String)> = VecDeque::new();
+    let mut repairs: HashMap<String, VecDeque<String>> = HashMap::new();
+    for line in content
+        .lines()
+        .map(str::trim)
+        .filter(|line| !line.is_empty())
+    {
+        let Ok(entry) = serde_json::from_str::<Value>(line) else {
+            continue;
+        };
+        let direction = entry
+            .get("direction")
+            .and_then(Value::as_str)
+            .unwrap_or_default();
+        let Some(data) = entry.get("data") else {
+            continue;
+        };
+
+        if direction == "in" {
+            for (text, parent_id) in parent_linked_assistant_texts(data) {
+                pending_parent_texts.push_back((text, parent_id));
+            }
+            continue;
+        }
+
+        if direction != "out" {
+            continue;
+        }
+        let Some(outbound_text) = outbound_agent_message_text(data) else {
+            continue;
+        };
+        let Some(match_index) = pending_parent_texts
+            .iter()
+            .position(|(text, _)| text == outbound_text)
+        else {
+            continue;
+        };
+        let Some((text, parent_id)) = pending_parent_texts.remove(match_index) else {
+            continue;
+        };
+        repairs.entry(text).or_default().push_back(parent_id);
+    }
+
+    repairs
+}
+
+fn parent_linked_assistant_texts(data: &Value) -> Vec<(String, String)> {
+    if data.get("type").and_then(Value::as_str) != Some("assistant") {
+        return Vec::new();
+    }
+    let Some(message) = data.get("message") else {
+        return Vec::new();
+    };
+    let Some(parent_id) = message
+        .get("parent_tool_use_id")
+        .and_then(Value::as_str)
+        .filter(|value| !value.is_empty())
+    else {
+        return Vec::new();
+    };
+
+    let Some(content) = message.get("content") else {
+        return Vec::new();
+    };
+    if let Some(text) = content.as_str().filter(|value| !value.is_empty()) {
+        return vec![(text.to_string(), parent_id.to_string())];
+    }
+
+    let Some(blocks) = content.as_array() else {
+        return Vec::new();
+    };
+    blocks
+        .iter()
+        .filter_map(|block| {
+            block
+                .get("text")
+                .and_then(Value::as_str)
+                .filter(|value| !value.is_empty())
+                .map(|text| (text.to_string(), parent_id.to_string()))
+        })
+        .collect()
+}
+
+fn outbound_agent_message_text(data: &Value) -> Option<&str> {
+    if data.get("type").and_then(Value::as_str) != Some("agentMessageChunk") {
+        return None;
+    }
+    data.get("chunk")?
+        .get("content")?
+        .get("text")
+        .and_then(Value::as_str)
+        .filter(|value| !value.is_empty())
 }
 
 fn rebuild_local_transcript_snapshot_until(
@@ -668,6 +849,7 @@ mod tests {
                     },
                     part_id: Some("thinking-part-1".to_string()),
                     message_id: Some("assistant-1".to_string()),
+                    parent_tool_use_id: None,
                     session_id: Some("local-session".to_string()),
                 },
             ),
@@ -715,6 +897,7 @@ mod tests {
                     },
                     part_id: Some("assistant-part-1".to_string()),
                     message_id: Some("assistant-1".to_string()),
+                    parent_tool_use_id: None,
                     session_id: Some("local-session".to_string()),
                     produced_at_monotonic_ms: None,
                 },
@@ -730,6 +913,7 @@ mod tests {
                     },
                     part_id: Some("assistant-part-1".to_string()),
                     message_id: Some("assistant-1".to_string()),
+                    parent_tool_use_id: None,
                     session_id: Some("local-session".to_string()),
                     produced_at_monotonic_ms: None,
                 },
@@ -875,6 +1059,7 @@ mod tests {
                     },
                     part_id: None,
                     message_id: Some("assistant-1".to_string()),
+                    parent_tool_use_id: None,
                     session_id: Some("local-session".to_string()),
                     produced_at_monotonic_ms: None,
                 },

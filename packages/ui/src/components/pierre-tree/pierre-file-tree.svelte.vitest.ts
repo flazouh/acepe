@@ -24,6 +24,7 @@ interface MockFileTreeApi {
 	gitStatus: readonly GitStatusEntry[] | undefined;
 	icons: FileTreeOptions["icons"];
 	initialExpansion: FileTreeOptions["initialExpansion"];
+	initialExpandedPaths: FileTreeOptions["initialExpandedPaths"];
 	density: FileTreeOptions["density"];
 	search: FileTreeOptions["search"];
 	fileTreeSearchMode: FileTreeOptions["fileTreeSearchMode"];
@@ -119,6 +120,7 @@ vi.mock("@pierre/trees", () => {
 		gitStatus: readonly GitStatusEntry[] | undefined;
 		icons: FileTreeOptions["icons"];
 		initialExpansion: FileTreeOptions["initialExpansion"];
+		initialExpandedPaths: FileTreeOptions["initialExpandedPaths"];
 		density: FileTreeOptions["density"];
 		search: FileTreeOptions["search"];
 		fileTreeSearchMode: FileTreeOptions["fileTreeSearchMode"];
@@ -142,6 +144,7 @@ vi.mock("@pierre/trees", () => {
 			this.gitStatus = options.gitStatus;
 			this.icons = options.icons;
 			this.initialExpansion = options.initialExpansion;
+			this.initialExpandedPaths = options.initialExpandedPaths;
 			this.density = options.density;
 			this.search = options.search;
 			this.fileTreeSearchMode = options.fileTreeSearchMode;
@@ -481,6 +484,35 @@ describe("PierreFileTree", () => {
 		});
 		expect(first.cleaned).toBe(true);
 		expect(mockState.trees[1]?.density).toBe("relaxed");
+	});
+
+	it("remounts when initial expanded paths change", async () => {
+		const view = render(PierreFileTree, {
+			props: {
+				paths: ["src/a.ts"],
+				initialExpandedPaths: ["src/"],
+			},
+		});
+
+		await waitFor(() => {
+			expect(mockState.trees).toHaveLength(1);
+		});
+
+		const first = firstTree();
+
+		await view.rerender({
+			paths: ["src/a.ts"],
+			initialExpandedPaths: ["src/", "src/app/"],
+		});
+
+		await waitFor(() => {
+			expect(mockState.trees).toHaveLength(2);
+		});
+		expect(first.cleaned).toBe(true);
+		expect(mockState.trees[1]?.initialExpandedPaths).toEqual([
+			"src/",
+			"src/app/",
+		]);
 	});
 
 	it("syncs controlled selection after rerender without notifying selection changes", async () => {

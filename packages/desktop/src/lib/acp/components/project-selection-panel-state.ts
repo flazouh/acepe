@@ -11,6 +11,86 @@ export interface ProjectSelectionRemoteStatus {
 	readonly behind: number;
 }
 
+export type ProjectSelectionMetadataScheduler = (callback: () => void) => () => void;
+export type ProjectSelectionDelayScheduler = (
+	callback: () => void,
+	delayMs: number
+) => () => void;
+export type ProjectSelectionIdleScheduler = (
+	callback: () => void,
+	timeoutMs: number
+) => () => void;
+
+const PROJECT_SELECTION_METADATA_DELAY_MS = 5_000;
+const PROJECT_SELECTION_METADATA_IDLE_TIMEOUT_MS = 5_000;
+
+function scheduleProjectSelectionDelay(callback: () => void, delayMs: number): () => void {
+	const timer = setTimeout(callback, delayMs);
+	return () => {
+		clearTimeout(timer);
+	};
+}
+
+function scheduleProjectSelectionIdle(callback: () => void, timeoutMs: number): () => void {
+	if (typeof window !== "undefined") {
+		const schedulingWindow = window as Window & {
+			requestIdleCallback?: (
+				callback: IdleRequestCallback,
+				options?: IdleRequestOptions
+			) => number;
+			cancelIdleCallback?: (handle: number) => void;
+		};
+		if (typeof schedulingWindow.requestIdleCallback === "function") {
+			const idleCallbackId = schedulingWindow.requestIdleCallback(callback, {
+				timeout: timeoutMs,
+			});
+			return () => {
+				schedulingWindow.cancelIdleCallback?.(idleCallbackId);
+			};
+		}
+	}
+
+	const timer = setTimeout(callback, 0);
+	return () => {
+		clearTimeout(timer);
+	};
+}
+
+export function createProjectSelectionMetadataScheduler(options: {
+	readonly delayMs?: number;
+	readonly idleTimeoutMs?: number;
+	readonly scheduleDelay?: ProjectSelectionDelayScheduler;
+	readonly scheduleIdle?: ProjectSelectionIdleScheduler;
+} = {}): ProjectSelectionMetadataScheduler {
+	const delayMs = options.delayMs ?? PROJECT_SELECTION_METADATA_DELAY_MS;
+	const idleTimeoutMs = options.idleTimeoutMs ?? PROJECT_SELECTION_METADATA_IDLE_TIMEOUT_MS;
+	const scheduleDelay = options.scheduleDelay ?? scheduleProjectSelectionDelay;
+	const scheduleIdle = options.scheduleIdle ?? scheduleProjectSelectionIdle;
+
+	return (callback) => {
+		let cancelled = false;
+		let cancelIdle: (() => void) | null = null;
+		const cancelDelay = scheduleDelay(() => {
+			if (cancelled) {
+				return;
+			}
+			cancelIdle = scheduleIdle(() => {
+				if (!cancelled) {
+					callback();
+				}
+			}, idleTimeoutMs);
+		}, delayMs);
+
+		return () => {
+			cancelled = true;
+			cancelDelay();
+			if (cancelIdle !== null) {
+				cancelIdle();
+			}
+		};
+	};
+}
+
 export function getProjectSelectionModifierSymbol(platform: string | null | undefined): string {
 	return platform?.includes("Mac") ? "⌘" : "Ctrl";
 }

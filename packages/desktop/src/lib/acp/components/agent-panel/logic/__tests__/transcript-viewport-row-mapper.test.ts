@@ -287,4 +287,56 @@ describe("transcript-viewport-row-mapper", () => {
 		expect(entry.title).not.toBe("Tool");
 		expect(entry.command).not.toBe("exec_command");
 	});
+
+	it("does not render a partial tool component when operation display facts are missing", () => {
+		const row = toolRowWithText({
+			text: "exec_command",
+			operationLinks: [
+				{
+					operationId: "operation-1",
+					toolCallId: "call-1",
+					name: "exec_command",
+					state: "completed",
+					displayFacts: null,
+					operation: null,
+				},
+			],
+		});
+
+		const entry = resolveTranscriptViewportSceneEntry(row, new Map());
+
+		expect(entry).toMatchObject({
+			id: "assistant-1",
+			type: "missing",
+			title: "Unavailable transcript row",
+			message: "This tool row is missing canonical operation display facts.",
+			diagnosticLabel: "row=transcript:assistant-1:tool:call-1",
+		});
+	});
+
+	it("does not render a partial tool component for namespaced raw execute links with missing facts", () => {
+		const row = toolRowWithText({
+			text: "functions.exec_command",
+			operationLinks: [
+				{
+					operationId: "operation-1",
+					toolCallId: "call-1",
+					name: "functions.exec_command",
+					state: "completed",
+					displayFacts: null,
+					operation: null,
+				},
+			],
+		});
+
+		const entry = resolveTranscriptViewportSceneEntry(row, new Map());
+
+		expect(entry).toMatchObject({
+			id: "assistant-1",
+			type: "missing",
+			title: "Unavailable transcript row",
+			message: "This tool row is missing canonical operation display facts.",
+			diagnosticLabel: "row=transcript:assistant-1:tool:call-1",
+		});
+	});
 });

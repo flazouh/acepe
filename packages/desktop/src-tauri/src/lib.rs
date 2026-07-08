@@ -45,10 +45,11 @@ use acp::commands::{
     acp_read_transcript_row_page, acp_register_custom_agent, acp_reply_interaction,
     acp_request_transcript_viewport_buffer, acp_respond_inbound_request, acp_resume_session,
     acp_send_prompt, acp_set_config_option, acp_set_mode, acp_set_model,
-    acp_set_session_autonomous, acp_uninstall_agent, acp_write_text_file, check_github_auth,
-    create_github_issue, create_issue_comment, fetch_commit_diff, fetch_pr_diff, get_github_issue,
-    get_github_repo_context, git_working_file_diff, list_github_issues, list_issue_comments,
-    list_pull_requests, search_github_issues, toggle_comment_reaction, toggle_issue_reaction,
+    acp_set_session_autonomous, acp_unarchive_session, acp_uninstall_agent, acp_write_text_file,
+    check_github_auth, create_github_issue, create_issue_comment, fetch_commit_diff, fetch_pr_diff,
+    get_github_issue, get_github_repo_context, git_working_file_diff, list_github_issues,
+    list_issue_comments, list_pull_requests, search_github_issues, toggle_comment_reaction,
+    toggle_issue_reaction,
 };
 use acp::event_bridge_server::start_event_bridge_server;
 use acp::event_hub::AcpEventHubState;
@@ -440,6 +441,34 @@ fn spawn_startup_project_maintenance(db_conn: DbConn) {
         }
 
         crate::project_access::log_startup_summary("startup-background-project-maintenance");
+    });
+}
+
+fn spawn_startup_transcript_row_ledger_backfill(app_handle: tauri::AppHandle) {
+    tauri::async_runtime::spawn(async move {
+        tokio::time::sleep(std::time::Duration::from_secs(3)).await;
+        match warm_recent_transcript_row_ledgers(app_handle, None).await {
+            Ok(result) => {
+                tracing::info!(
+                    requested_limit = result.requested_limit,
+                    candidates = result.candidate_count,
+                    checked = result.checked_count,
+                    rebuilt = result.rebuilt_count,
+                    rebuilt_from_provider = result.rebuilt_from_provider_count,
+                    skipped_current = result.skipped_current_count,
+                    skipped_no_journal = result.skipped_no_journal_count,
+                    skipped_missing_facts = result.skipped_missing_facts_count,
+                    failed = result.failed_count,
+                    "Startup transcript row ledger backfill completed"
+                );
+            }
+            Err(error) => {
+                tracing::warn!(
+                    error = ?error,
+                    "Startup transcript row ledger backfill failed"
+                );
+            }
+        }
     });
 }
 
@@ -883,6 +912,7 @@ pub fn run() {
             // Manage database connection
             app.manage(db_conn.clone());
             spawn_startup_project_maintenance(db_conn.clone());
+            spawn_startup_transcript_row_ledger_backfill(app.handle().clone());
 
             // Initialize Sentry error reporting after DB is available
             // so we can respect the persisted analytics opt-out preference.

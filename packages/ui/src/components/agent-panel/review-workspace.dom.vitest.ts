@@ -23,7 +23,7 @@ function createFiles(): ReviewWorkspaceFileItem[] {
 			id: "file-1",
 			filePath: "src/lib/alpha.ts",
 			fileName: "alpha.ts",
-			reviewStatus: "accepted",
+			reviewStatus: "reviewed",
 			additions: 12,
 			deletions: 2,
 		},
@@ -269,7 +269,7 @@ describe("ReviewWorkspace file navigation", () => {
 		}
 
 		expect(fileListScroll.className).toContain("min-h-0");
-		expect(fileListScroll.className).toContain("overflow-y-auto");
+		expect(fileListScroll.className).toContain("overflow-hidden");
 		expect(codeSurface.className).toContain("p-");
 		expect(codeSurface.className).not.toContain("bg-input/30");
 		expect(codeCard.className).toContain("bg-input/30");

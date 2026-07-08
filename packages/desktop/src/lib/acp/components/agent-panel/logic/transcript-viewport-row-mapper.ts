@@ -115,15 +115,6 @@ export function resolveTranscriptViewportSceneEntryCandidate(
 	return null;
 }
 
-function fallbackToolDegradedReason(
-	operation: TranscriptViewportOperationLink | undefined
-): string {
-	if (operation === undefined) {
-		return "Viewport row has no linked operation.";
-	}
-	return "Viewport row has no canonical tool scene entry.";
-}
-
 function cleanDisplayText(value: string | null | undefined): string | null {
 	const text = value?.trim();
 	return text === undefined || text.length === 0 ? null : text;
@@ -506,17 +497,11 @@ export function resolveTranscriptViewportSceneEntry(
 		};
 	}
 
-	const operation = row.operationLinks[0];
 	return {
 		id: row.sourceEntryId,
-		type: "tool_call",
-		toolCallId: operation?.toolCallId,
-		operationId: operation?.operationId,
-		kind: "other",
-		title: "Tool",
-		status: operation === undefined ? "degraded" : toolStatusFromOperationState(operation.state),
-		presentationState: "degraded_operation",
-		degradedReason: fallbackToolDegradedReason(operation),
-		resultText: null,
+		type: "missing",
+		title: "Unavailable transcript row",
+		message: "This tool row is missing canonical operation display facts.",
+		diagnosticLabel: `row=${row.rowId}`,
 	};
 }

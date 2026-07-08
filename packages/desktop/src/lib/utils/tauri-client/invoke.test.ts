@@ -82,7 +82,7 @@ describe("invokeAsync", () => {
 			error,
 			expect.objectContaining({
 				commandName: "save_user_setting",
-				invokeId: "invoke-2",
+				invokeId: expect.stringMatching(/^invoke-\d+$/),
 				elapsedMs: expect.any(Number),
 				referenceId: "corr-123",
 				referenceSearchable: true,

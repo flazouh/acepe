@@ -33,6 +33,8 @@ describe("SessionsProvider", () => {
 								iconPath: null,
 							}
 						: undefined,
+				getProjectBadgeLabel: (projectPath: string) =>
+					projectPath === session.projectPath ? "Ac" : undefined,
 			} as never,
 			onOpenSession: noop,
 		});
@@ -41,5 +43,6 @@ describe("SessionsProvider", () => {
 
 		expect(item?.roundedIcon).toBe("chat");
 		expect(item?.icon).toBeUndefined();
+		expect(item?.metadata.projectBadgeLabel).toBe("Ac");
 	});
 });

@@ -1,5 +1,5 @@
 import { Colors } from "@acepe/ui/colors";
-import { RecycleIcon, WrenchIcon } from "@acepe/ui";
+import { RecycleIcon, WrenchIcon } from "@acepe/ui/icons";
 import type { RoundedIconName } from "@acepe/ui/icons";
 import type { Component } from "svelte";
 

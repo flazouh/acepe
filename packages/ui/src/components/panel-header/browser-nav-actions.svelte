@@ -32,7 +32,7 @@
 	{#if showNavigation}
 		<Button
 			variant="ghost"
-			size="icon"
+			size="icon-sm"
 			data-header-control
 			onclick={() => onBack?.()}
 			title={backLabel}
@@ -42,7 +42,7 @@
 		</Button>
 		<Button
 			variant="ghost"
-			size="icon"
+			size="icon-sm"
 			data-header-control
 			onclick={() => onForward?.()}
 			title={forwardLabel}
@@ -52,7 +52,7 @@
 		</Button>
 		<Button
 			variant="ghost"
-			size="icon"
+			size="icon-sm"
 			data-header-control
 			onclick={() => onReload?.()}
 			title={reloadLabel}
@@ -64,7 +64,7 @@
 	{#if showExternal}
 		<Button
 			variant="ghost"
-			size="icon"
+			size="icon-sm"
 			data-header-control
 			onclick={() => onOpenExternal?.()}
 			title={openExternalLabel}

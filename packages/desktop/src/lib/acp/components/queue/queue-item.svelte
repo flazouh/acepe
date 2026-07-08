@@ -484,6 +484,7 @@ function handleNextQuestion() {
 {#snippet projectBadge()}
 	<ProjectLetterBadge
 		name={item.projectName}
+		label={item.projectBadgeLabel}
 		color={item.projectColor}
 		iconSrc={item.projectIconSrc}
 		size={16}

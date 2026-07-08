@@ -122,7 +122,10 @@ import {
 	subscribeGitWorktreeSetupChannel,
 } from "../services/index.js";
 import { recordPanelOpenPerformanceMark } from "../logic/panel-open-performance-mark.js";
-import { shouldDeferInitialComposerMountWork } from "../../agent-input/services/index.js";
+import {
+	shouldDeferInitialComposerMountWork,
+	shouldWaitForInitialTranscriptRowsBeforeComposer,
+} from "../../agent-input/services/index.js";
 
 // Canonical-to-presentation turn state mapping is provided by the shared logic module
 // (mapCanonicalTurnStateToPresentationStatus) imported above.
@@ -160,6 +163,7 @@ recordPanelOpenPerformanceMark(panelId, "agent-panel:props");
 const logger = createLogger({ id: "agent-panel-render-trace", name: "AgentPanelRenderTrace" });
 let lastPanelTraceSignature = $state<string | null>(null);
 let prefersReducedMotion = $state(false);
+const DEFERRED_COMPOSER_FALLBACK_MS = 250;
 
 function isAgentPanelRenderTraceEnabled(): boolean {
 	return (
@@ -261,6 +265,7 @@ const reviewDialog = rootState.reviewDialog;
 
 // Filename pending revert confirmation in the review modal (null = closed).
 let reviewRevertConfirmFileName = $state<string | null>(null);
+let isUnarchivingSession = $state(false);
 
 function keepReviewDiffSettingsMenuOpen(event: Event): void {
 	event.preventDefault();
@@ -391,9 +396,18 @@ function scheduleAfterPanelPaint(callback: () => void): () => void {
 	let firstFrame: number | null = null;
 	let secondFrame: number | null = null;
 	let timer: ReturnType<typeof setTimeout> | null = null;
+	let fallbackTimer: ReturnType<typeof setTimeout> | null = null;
 	const run = () => {
 		if (cancelled) {
 			return;
+		}
+		if (fallbackTimer !== null) {
+			clearTimeout(fallbackTimer);
+			fallbackTimer = null;
+		}
+		if (timer !== null) {
+			clearTimeout(timer);
+			timer = null;
 		}
 		callback();
 	};
@@ -406,6 +420,7 @@ function scheduleAfterPanelPaint(callback: () => void): () => void {
 	if (typeof requestAnimationFrame !== "function") {
 		timer = setTimeout(run, 0);
 	} else {
+		fallbackTimer = setTimeout(run, DEFERRED_COMPOSER_FALLBACK_MS);
 		firstFrame = requestAnimationFrame(() => {
 			firstFrame = null;
 			if (cancelled) {
@@ -427,6 +442,9 @@ function scheduleAfterPanelPaint(callback: () => void): () => void {
 		}
 		if (timer !== null) {
 			clearTimeout(timer);
+		}
+		if (fallbackTimer !== null) {
+			clearTimeout(fallbackTimer);
 		}
 	};
 }
@@ -801,9 +819,30 @@ const deferInitialComposerMountWork = $derived(
 		sessionId,
 		viewKind: viewState.kind,
 		visibleEntryCount: sessionController.knownVisibleEntryCount,
+		sessionCanSubmit: sessionController.sessionCanSubmit,
+	})
+);
+const renderedTranscriptRowCountForComposer = $derived.by(() => {
+	if (sessionId === null) {
+		return 0;
+	}
+	const rowsProjection = sessionStore.viewport.getRowsProjection(sessionId);
+	if (rowsProjection?.sessionId !== sessionId) {
+		return 0;
+	}
+	return rowsProjection.rows.length;
+});
+const waitForInitialTranscriptRowsBeforeComposer = $derived(
+	shouldWaitForInitialTranscriptRowsBeforeComposer({
+		sessionId,
+		deferInitialComposerMountWork,
+		visibleEntryCount: sessionController.knownVisibleEntryCount,
+		renderedRowCount: renderedTranscriptRowCountForComposer,
 	})
 );
 let deferredComposerMountKey = $state<string | null>(null);
+let deferredComposerFallbackReadyKey = $state<string | null>(null);
+let recordedDeferredComposerMountKey = $state<string | null>(null);
 const renderDeferredOpenChrome = $derived(
 	!deferInitialComposerMountWork || deferredComposerMountKey === inputRenderKey
 );
@@ -982,7 +1021,24 @@ $effect(() => {
 	if (deferredComposerMountKey === key) {
 		return;
 	}
-	recordPanelOpenPerformanceMark(panelId, "agent-panel:composer-mount-deferred");
+	if (recordedDeferredComposerMountKey !== key) {
+		recordedDeferredComposerMountKey = key;
+		recordPanelOpenPerformanceMark(panelId, "agent-panel:composer-mount-deferred");
+	}
+	if (
+		waitForInitialTranscriptRowsBeforeComposer &&
+		deferredComposerFallbackReadyKey !== key
+	) {
+		const timeoutId = window.setTimeout(() => {
+			if (deferredComposerFallbackReadyKey === key || deferredComposerMountKey === key) {
+				return;
+			}
+			deferredComposerFallbackReadyKey = key;
+		}, DEFERRED_COMPOSER_FALLBACK_MS);
+		return () => {
+			window.clearTimeout(timeoutId);
+		};
+	}
 	return scheduleAfterPanelPaint(() => {
 		if (deferredComposerMountKey === key) {
 			return;
@@ -1273,6 +1329,30 @@ function handleRetryConnection() {
 			agentId: effectivePanelAgentId,
 		},
 	});
+}
+
+function handleUnarchiveSession() {
+	if (sessionId === null) {
+		toast.error("No session selected to unarchive.");
+		return;
+	}
+	if (isUnarchivingSession) {
+		return;
+	}
+
+	isUnarchivingSession = true;
+	void tauriClient.acp.unarchiveSession(sessionId).match(
+		() => {
+			isUnarchivingSession = false;
+			toast.success("Session unarchived");
+			connection.clearDismissedError();
+			handleRetryConnection();
+		},
+		(error) => {
+			isUnarchivingSession = false;
+			toast.error(`Failed to unarchive session: ${error.message}`);
+		}
+	);
 }
 
 function handleCancelConnection() {
@@ -1739,6 +1819,8 @@ async function handleFixCiCheck(check: PrChecksItem): Promise<void> {
 					inlineErrorReferenceSearchable={sessionController.inlineErrorReferenceSearchable}
 					onRetryConnection={handleRetryConnection}
 					isRetryingConnection={connection.isRetrying}
+					onUnarchiveSession={handleUnarchiveSession}
+					{isUnarchivingSession}
 					onDismissError={handleDismissError}
 					onCopyInlineErrorReference={handleCopyInlineErrorReference}
 					inlineErrorIssueDraft={inlineErrorIssueDraft}

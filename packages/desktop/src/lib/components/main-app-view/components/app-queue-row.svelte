@@ -87,6 +87,10 @@ function getProjectIconSrc(projectPath: string): string | null {
 	return project?.iconPath ?? null;
 }
 
+function getProjectBadgeLabel(projectPath: string): string | null {
+	return projectManager.getProjectBadgeLabel(projectPath) ?? null;
+}
+
 $effect(() => {
 	if (!appState.initializationComplete) return;
 
@@ -107,6 +111,7 @@ $effect(() => {
 	);
 
 	queueStore.setProjectIconSrcLookup(getProjectIconSrc);
+	queueStore.setProjectBadgeLabelLookup(getProjectBadgeLabel);
 	queueStore.updateFromSessions(
 		resolveQueueUpdateInputs(queueInputs),
 		sessionToPanelMap,

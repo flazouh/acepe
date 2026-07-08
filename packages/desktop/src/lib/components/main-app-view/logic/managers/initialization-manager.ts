@@ -20,7 +20,8 @@
  *   └── restoreWorkspace() [scheduled after app init resolves]
  *
  * Phase 4 (metadata after init):
- *   ├── loadProjectsAfterStartup() [refresh projects and session history]
+ *   ├── loadProjectsAfterStartup() [refresh project chrome]
+ *   ├── scanStartupSessionHistory() [deferred behind restored panel hydration]
  *   └── initializeZoomAfterStartup()
  *
  * Phase 5 (Sequential - restored sessions):
@@ -541,9 +542,12 @@ export class InitializationManager {
 		void this.traceStartupResult(
 			"background:loadProjects",
 			this.loadProjectsAfterStartup()
-				.andThen(() => this.scanStartupSessionHistory())
+				.map(() => {
+					this.scheduleStartupSessionHistoryScan();
+					return undefined;
+				})
 				.orElse((error) => {
-					logger.warn("Failed to load project or session metadata after init", { error });
+					logger.warn("Failed to load project metadata after init", { error });
 					return okAsync(undefined);
 				})
 		).match(
@@ -561,6 +565,21 @@ export class InitializationManager {
 			() => undefined,
 			() => undefined
 		);
+	}
+
+	private scheduleStartupSessionHistoryScan(): void {
+		this.schedulePostStartupWork(() => {
+			void this.traceStartupResult(
+				"background:scanStartupSessionHistory",
+				this.scanStartupSessionHistory().orElse((error) => {
+					logger.warn("Failed to scan startup session history after init", { error });
+					return okAsync(undefined);
+				})
+			).match(
+				() => undefined,
+				() => undefined
+			);
+		});
 	}
 
 	private loadProjectsAfterStartup(): ResultAsync<void, MainAppViewError> {

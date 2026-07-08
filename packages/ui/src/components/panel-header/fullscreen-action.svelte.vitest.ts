@@ -27,9 +27,11 @@ describe("FullscreenAction rounded icons", () => {
 			},
 		});
 
-		expect(getByLabelText("Fullscreen")).toBeTruthy();
+		const button = getByLabelText("Fullscreen");
+		expect(button).toBeTruthy();
+		expect(button.className).toContain("size-5");
 		expect(container.querySelector('svg[viewBox="0 0 20 20"]')).not.toBeNull();
-		expect(container.querySelector("svg")?.getAttribute("class")).toContain("size-3");
+		expect(container.querySelector("svg")?.getAttribute("class")).toContain("shrink-0");
 	});
 
 	it("renders the exit fullscreen action with the rounded collapse icon", () => {
@@ -39,8 +41,10 @@ describe("FullscreenAction rounded icons", () => {
 			},
 		});
 
-		expect(getByLabelText("Exit fullscreen")).toBeTruthy();
+		const button = getByLabelText("Exit fullscreen");
+		expect(button).toBeTruthy();
+		expect(button.className).toContain("size-5");
 		expect(container.querySelector('svg[viewBox="0 0 20 20"]')).not.toBeNull();
-		expect(container.querySelector("svg")?.getAttribute("class")).toContain("size-3");
+		expect(container.querySelector("svg")?.getAttribute("class")).toContain("shrink-0");
 	});
 });

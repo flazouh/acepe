@@ -144,6 +144,9 @@ pub struct Message {
     /// ID of the tool use this meta message is associated with (for skill content)
     #[serde(rename = "sourceToolUseID", skip_serializing_if = "Option::is_none")]
     pub source_tool_use_id: Option<String>,
+    /// Parent Task tool-call id for sidechain/subagent messages.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub parent_tool_use_id: Option<String>,
 }
 
 /// Token usage statistics from API response
@@ -192,6 +195,9 @@ pub struct OrderedMessage {
     /// ID of the tool use this meta message is associated with (for skill content)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub source_tool_use_id: Option<String>,
+    /// Parent Task tool-call id for sidechain/subagent messages.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub parent_tool_use_id: Option<String>,
     /// Tool use result data (for user messages that are tool results)
     /// Contains questions and answers for AskUserQuestion tool
     #[serde(skip_serializing_if = "Option::is_none")]

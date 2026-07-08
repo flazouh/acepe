@@ -109,5 +109,6 @@ function measureItem(node: HTMLElement) {
 		width: 100%;
 		max-width: 100%;
 		contain: layout style paint;
+		overflow-anchor: none;
 	}
 </style>

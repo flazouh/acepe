@@ -926,13 +926,15 @@ async function handleModelChange(modelId: string) {
 }
 
 async function handleConfigOptionChange(configId: string, value: string) {
+	composerView.setProvisionalConfigOption(configId, value);
+
 	if (!props.sessionId) {
-		composerView.setProvisionalConfigOption(configId, value);
 		return;
 	}
 
+	composerView.markProvisionalConfigOptionSubmitted(configId, value);
 	const sessionId = props.sessionId;
-	await sessionStore.composer.runConfigOperation(
+	const ok = await sessionStore.composer.runConfigOperation(
 		sessionId,
 		{
 			provisionalModeId: composerView.effectiveCurrentModeId,
@@ -944,6 +946,11 @@ async function handleConfigOptionChange(configId: string, value: string) {
 			return result.isOk();
 		}
 	);
+
+	if (!ok) {
+		composerView.clearProvisionalConfigOption(configId);
+		toast.error("Failed to update setting.");
+	}
 }
 
 function cycleModeOnTab(event: KeyboardEvent): boolean {
@@ -1822,12 +1829,11 @@ $effect(() => {
 										{@render newThreadModelControl()}
 									{/snippet}
 									{#snippet metricsChip()}
-										{#if props.sessionId}
-											<ModelSelectorMetricsChip
-												sessionId={props.sessionId}
-												agentId={composerView.capabilitiesAgentId}
-											/>
-										{/if}
+										<ModelSelectorMetricsChip
+											sessionId={props.sessionId ?? null}
+											agentId={composerView.capabilitiesAgentId}
+											modelsDisplay={composerView.effectiveModelsDisplay}
+										/>
 									{/snippet}
 								</AgentInputComposerTrailingControls>
 							{/if}

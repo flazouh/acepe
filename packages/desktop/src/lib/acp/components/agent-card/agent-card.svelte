@@ -1,5 +1,5 @@
 <script lang="ts">
-import { RoundedIcon } from "@acepe/ui";
+import { RoundedIcon } from "@acepe/ui/icons";
 import { cn } from "../../../utils.js";
 
 import type { AgentCardProps } from "./agent-card-props.js";

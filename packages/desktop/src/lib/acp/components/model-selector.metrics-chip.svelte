@@ -1,6 +1,8 @@
 <script lang="ts">
 import { AgentInputMetricsChip } from "@acepe/ui";
 import { getSessionStore } from "$lib/acp/store/index.js";
+import * as agentModelPrefs from "$lib/acp/store/agent-model-preferences-store.svelte.js";
+import type { ModelsForDisplay } from "$lib/services/acp-provider-metadata.js";
 import * as Tooltip from "@acepe/ui/tooltip";
 
 import {
@@ -9,18 +11,32 @@ import {
 	getContextUsagePercent,
 	hasVisibleModelSelectorMetrics,
 } from "./model-selector.metrics-chip.logic.js";
-import { isContextWindowOnlyMetrics } from "./model-selector-logic.js";
+import {
+	getUsageMetricsPresentation,
+	isContextWindowOnlyMetrics,
+} from "./model-selector-logic.js";
 
 interface Props {
-	sessionId: string | null;
+	sessionId?: string | null;
 	agentId?: string | null;
+	modelsDisplay?: ModelsForDisplay | null;
 	compact?: boolean;
 	hideLabel?: boolean;
 }
 
-let { sessionId, agentId: _agentId = null, compact = false, hideLabel = true }: Props = $props();
+let {
+	sessionId = null,
+	agentId = null,
+	modelsDisplay: fallbackModelsDisplay = null,
+	compact = false,
+	hideLabel = true,
+}: Props = $props();
 
 const sessionStore = getSessionStore();
+
+const cachedModelsDisplay = $derived(
+	agentId ? agentModelPrefs.getCachedModelsDisplay(agentId) : null
+);
 
 const usageTelemetry = $derived.by(() => {
 	if (!sessionId) return null;
@@ -28,24 +44,39 @@ const usageTelemetry = $derived.by(() => {
 });
 
 const modelsDisplay = $derived.by(() => {
-	if (!sessionId) return null;
-	return sessionStore.read.getSessionModelsDisplay(sessionId);
+	if (sessionId) {
+		return (
+			sessionStore.read.getSessionModelsDisplay(sessionId) ??
+			fallbackModelsDisplay ??
+			cachedModelsDisplay
+		);
+	}
+	return fallbackModelsDisplay ?? cachedModelsDisplay;
 });
 
 const contextWindow = $derived(usageTelemetry?.contextBudget?.maxTokens ?? null);
+const usageMetricsPresentation = $derived(getUsageMetricsPresentation(modelsDisplay));
 const contextOnlyMetrics = $derived(isContextWindowOnlyMetrics(modelsDisplay));
 
-const showChip = $derived(hasVisibleModelSelectorMetrics(usageTelemetry, contextOnlyMetrics));
+const showChip = $derived(
+	hasVisibleModelSelectorMetrics(
+		usageTelemetry,
+		contextOnlyMetrics,
+		usageMetricsPresentation !== null
+	)
+);
 const showSpend = $derived(usageTelemetry != null && usageTelemetry.sessionSpendUsd > 0);
 const spendText = $derived(
 	usageTelemetry != null ? `$${usageTelemetry.sessionSpendUsd.toFixed(2)}` : ""
 );
 const total = $derived(usageTelemetry?.latestTokensTotal ?? null);
-const percent = $derived(getContextUsagePercent(total, contextWindow));
-const hasContextUsage = $derived(percent !== null);
-const percentValue = $derived(percent !== null ? percent : 0);
+const measuredPercent = $derived(getContextUsagePercent(total, contextWindow));
+const hasMeasuredContextUsage = $derived(measuredPercent !== null);
+const chipPercent = $derived(measuredPercent ?? (usageMetricsPresentation !== null ? 0 : null));
+const hasContextMeter = $derived(chipPercent !== null);
+const percentValue = $derived(chipPercent !== null ? chipPercent : 0);
 const remaining = $derived(
-	hasContextUsage && contextWindow != null && total != null
+	hasMeasuredContextUsage && contextWindow != null && total != null
 		? Math.max(0, contextWindow - total)
 		: null
 );
@@ -72,7 +103,9 @@ const chipLabel = $derived.by(() => {
 });
 
 const tooltipLines = $derived.by(() => {
-	if (!usageTelemetry) return [];
+	if (!usageTelemetry) {
+		return usageMetricsPresentation !== null ? ["No context usage yet"] : [];
+	}
 	const lines: string[] = [];
 	if (!contextOnlyMetrics) {
 		lines.push(`Session spend: $${usageTelemetry.sessionSpendUsd.toFixed(4)}`);
@@ -80,7 +113,7 @@ const tooltipLines = $derived.by(() => {
 	if (usageTelemetry.latestStepCostUsd != null) {
 		lines.push(`Latest step: $${usageTelemetry.latestStepCostUsd.toFixed(4)}`);
 	}
-	if (hasContextUsage && contextWindow != null && total != null) {
+	if (hasMeasuredContextUsage && contextWindow != null && total != null) {
 		lines.push(`Used: ${total.toLocaleString()} / ${contextWindow.toLocaleString()}`);
 		if (remaining != null) {
 			lines.push(`Remaining: ${remaining.toLocaleString()}`);
@@ -98,7 +131,7 @@ const tooltipLines = $derived.by(() => {
 		{compact}
 		{hideLabel}
 		label={chipLabel}
-		percent={hasContextUsage ? percent : null}
+		percent={chipPercent}
 		ariaLabel={statusLabel}
 	/>
 {/snippet}
@@ -113,7 +146,7 @@ const tooltipLines = $derived.by(() => {
 			</Tooltip.Trigger>
 			<Tooltip.Content>
 				<div class="flex flex-col gap-0.5 text-xs">
-					{#if hasContextUsage}
+					{#if hasContextMeter}
 						<span class="font-medium text-foreground">Context window</span>
 					{/if}
 					{#each tooltipLines as line, i (i)}

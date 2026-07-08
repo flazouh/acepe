@@ -35,6 +35,7 @@ pub enum FailureReason {
     ActivationFailed,
     ResumeFailed,
     SessionGoneUpstream,
+    SessionArchivedUpstream,
     ProviderSessionMismatch,
     CorruptedPersistedState,
     ExplicitErrorHandlingRequired,

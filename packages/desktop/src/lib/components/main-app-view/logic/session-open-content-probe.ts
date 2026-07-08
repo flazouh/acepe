@@ -15,6 +15,7 @@ import type {
 	TauriInvokeTimingRecord,
 	TauriPendingInvokeRecord,
 } from "$lib/utils/tauri-client/invoke.js";
+import type { AgentPanelPerformanceSample } from "@acepe/ui/agent-panel";
 
 export type SessionOpenContentProbeOptions = {
 	readonly sessionId: string;
@@ -63,6 +64,7 @@ export type SessionOpenContentProbeResult = {
 	readonly openEvents: readonly OpenPersistedSessionDiagnosticEvent[];
 	readonly hydrationTimings: readonly SessionOpenHydrationTimingRecord[];
 	readonly panelOpenMarks: Readonly<Record<string, number>>;
+	readonly agentPanelPerformanceSamples: readonly AgentPanelPerformanceSample[];
 };
 
 export type SessionOpenContentProbeDeps = {
@@ -80,6 +82,10 @@ export type SessionOpenContentProbeDeps = {
 type SelectSessionOutcome =
 	| { readonly ok: true; readonly message: null }
 	| { readonly ok: false; readonly message: string };
+
+type SelectSessionProbeState = {
+	outcome: SelectSessionOutcome | null;
+};
 
 const DEFAULT_TIMEOUT_MS = 20_000;
 
@@ -226,23 +232,6 @@ async function waitForConditionUntil(
 	return null;
 }
 
-async function waitForPanelId(
-	deps: SessionOpenContentProbeDeps,
-	sessionId: string,
-	timeoutMs: number,
-	startedAtMs: number
-): Promise<string | null> {
-	while (deps.performance.now() - startedAtMs < timeoutMs) {
-		const panelId = deps.panelStore.getPanelBySessionId(sessionId)?.id ?? null;
-		if (panelId !== null) {
-			return panelId;
-		}
-		await waitForDomFlush();
-		await waitForProbeFrame(deps.hostWindow);
-	}
-	return null;
-}
-
 function registerPlaceholderIfNeeded(
 	deps: SessionOpenContentProbeDeps,
 	options: SessionOpenContentProbeOptions,
@@ -309,6 +298,14 @@ type PanelOpenMarkWindow = Window & {
 	__acepeRecordPanelOpenPerformanceMark?: PanelOpenMarkRecorder;
 };
 
+type AgentPanelPerformanceCaptureWindow = Window & {
+	__acepeAgentPanelPerformanceSamples?: AgentPanelPerformanceSample[];
+	__acepeAgentPanelPerformanceCaptureEnabled?: boolean;
+	__acepeEnableAgentPanelPerformanceCapture?: () => void;
+	__acepeDisableAgentPanelPerformanceCapture?: () => void;
+	__acepeReadAgentPanelPerformanceCapture?: () => readonly AgentPanelPerformanceSample[];
+};
+
 function installPanelOpenMarkRecorder(input: {
 	readonly hostWindow: Window;
 	readonly startedAtMs: number;
@@ -338,6 +335,33 @@ function installPanelOpenMarkRecorder(input: {
 			markWindow.__acepeRecordPanelOpenPerformanceMark = previousRecorder;
 		},
 	};
+}
+
+function installAgentPanelPerformanceCapture(hostWindow: Window): { readonly restore: () => void } {
+	const targetWindow = hostWindow as AgentPanelPerformanceCaptureWindow;
+	targetWindow.__acepeAgentPanelPerformanceSamples = [];
+	targetWindow.__acepeAgentPanelPerformanceCaptureEnabled = true;
+	targetWindow.__acepeEnableAgentPanelPerformanceCapture?.();
+	return {
+		restore: () => {
+			if (targetWindow.__acepeDisableAgentPanelPerformanceCapture !== undefined) {
+				targetWindow.__acepeDisableAgentPanelPerformanceCapture();
+				return;
+			}
+			targetWindow.__acepeAgentPanelPerformanceCaptureEnabled = false;
+		},
+	};
+}
+
+function readAgentPanelPerformanceSamples(
+	hostWindow: Window
+): readonly AgentPanelPerformanceSample[] {
+	const targetWindow = hostWindow as AgentPanelPerformanceCaptureWindow;
+	return (
+		targetWindow.__acepeReadAgentPanelPerformanceCapture?.() ??
+		targetWindow.__acepeAgentPanelPerformanceSamples?.slice() ??
+		[]
+	);
 }
 
 function buildResult(input: {
@@ -416,6 +440,7 @@ function buildResult(input: {
 		openEvents: input.openEvents,
 		hydrationTimings: input.hydrationTimings,
 		panelOpenMarks: input.panelOpenMarks,
+		agentPanelPerformanceSamples: readAgentPanelPerformanceSamples(input.deps.hostWindow),
 	};
 }
 
@@ -443,6 +468,7 @@ export async function runSessionOpenContentProbe(
 		hostWindow: deps.hostWindow,
 		startedAtMs,
 	});
+	const agentPanelPerformanceCapture = installAgentPanelPerformanceCapture(deps.hostWindow);
 	const restoreOpenDiagnostics = setOpenPersistedSessionDiagnosticRecorder((event) => {
 		openEvents.push(event);
 	});
@@ -453,17 +479,41 @@ export async function runSessionOpenContentProbe(
 		restoreOpenDiagnostics();
 		restoreHydrationTimings();
 		panelOpenMarks.restore();
+		agentPanelPerformanceCapture.restore();
 	};
 
 	const selectStartedAtMs = deps.performance.now();
-	const selectOutcome: SelectSessionOutcome = await deps.viewState
+	let selectCallMs: number | null = null;
+	const selectState: SelectSessionProbeState = { outcome: null };
+	const selectPromise = deps.viewState
 		.handleSelectSession(options.sessionId)
 		.match(
-			() => ({ ok: true, message: null }),
-			(error: MainAppViewError) => ({ ok: false, message: error.message })
-		);
-	const selectCallMs = roundPerfMs(deps.performance.now() - selectStartedAtMs);
-	if (!selectOutcome.ok) {
+			(): SelectSessionOutcome => ({ ok: true, message: null }),
+			(error: MainAppViewError): SelectSessionOutcome => ({
+				ok: false,
+				message: error.message,
+			})
+		)
+		.then((outcome) => {
+			selectCallMs = roundPerfMs(deps.performance.now() - selectStartedAtMs);
+			selectState.outcome = outcome;
+			return outcome;
+		});
+
+	let panelId: string | null = null;
+	while (deps.performance.now() < deadlineMs) {
+		panelId = deps.panelStore.getPanelBySessionId(options.sessionId)?.id ?? null;
+		if (panelId !== null) {
+			break;
+		}
+		if (selectState.outcome?.ok === false) {
+			break;
+		}
+		await waitForDomFlush();
+		await waitForProbeFrame(deps.hostWindow);
+	}
+
+	if (selectState.outcome?.ok === false) {
 		restoreRecorders();
 		return buildResult({
 			deps,
@@ -483,15 +533,15 @@ export async function runSessionOpenContentProbe(
 			rowCountAtFirstPaint: 0,
 			finalRowCount: 0,
 			timedOut: false,
-			errorMessage: selectOutcome.message,
+			errorMessage: selectState.outcome.message,
 			openEvents,
 			hydrationTimings,
 			panelOpenMarks: {},
 		});
 	}
 
-	const panelId = await waitForPanelId(deps, options.sessionId, timeoutMs, startedAtMs);
 	if (panelId === null) {
+		const finalSelectOutcome = await selectPromise;
 		restoreRecorders();
 		return buildResult({
 			deps,
@@ -510,8 +560,10 @@ export async function runSessionOpenContentProbe(
 			firstRowPaintMs: null,
 			rowCountAtFirstPaint: 0,
 			finalRowCount: 0,
-			timedOut: true,
-			errorMessage: "Panel did not open before timeout.",
+			timedOut: finalSelectOutcome.ok,
+			errorMessage: finalSelectOutcome.ok
+				? "Panel did not open before timeout."
+				: finalSelectOutcome.message,
 			openEvents,
 			hydrationTimings,
 			panelOpenMarks: {},

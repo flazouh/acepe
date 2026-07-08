@@ -23,7 +23,7 @@ The caller receives findings with their original classifications intact and deci
 
 Callers invoke headless mode by including `mode:headless` in the skill arguments, e.g.:
 ```
-Skill("compound-engineering:document-review", "mode:headless docs/plans/my-plan.md")
+Skill("document-review", "mode:headless docs/plans/my-plan.md")
 ```
 
 
@@ -35,7 +35,7 @@ If `mode:headless` is not present, the skill runs in its default interactive mod
 
 **If no document is specified (interactive mode):** Ask which document to review, or find the most recent in `docs/brainstorms/` or `docs/plans/` using a file-search/glob tool (e.g., Glob in Claude Code).
 
-**If no document is specified (headless mode):** Output "Review failed: headless mode requires a document path. Re-invoke with: Skill(\"compound-engineering:document-review\", \"mode:headless <path>\")" without dispatching agents.
+**If no document is specified (headless mode):** Output "Review failed: headless mode requires a document path. Re-invoke with: Skill(\"document-review\", \"mode:headless <path>\")" without dispatching agents.
 
 ### Classify Document Type
 
@@ -103,15 +103,15 @@ Reviewing with:
 ### Build Agent List
 
 Always include:
-- `compound-engineering:document-review:coherence-reviewer`
-- `compound-engineering:document-review:feasibility-reviewer`
+- `document-review:coherence-reviewer`
+- `document-review:feasibility-reviewer`
 
 Add activated conditional personas:
-- `compound-engineering:document-review:product-lens-reviewer`
-- `compound-engineering:document-review:design-lens-reviewer`
-- `compound-engineering:document-review:security-lens-reviewer`
-- `compound-engineering:document-review:scope-guardian-reviewer`
-- `compound-engineering:document-review:adversarial-document-reviewer`
+- `document-review:product-lens-reviewer`
+- `document-review:design-lens-reviewer`
+- `document-review:security-lens-reviewer`
+- `document-review:scope-guardian-reviewer`
+- `document-review:adversarial-document-reviewer`
 
 ### Dispatch
 

@@ -3,7 +3,7 @@
  * Provides access to application commands/actions.
  */
 
-import { DatabaseIcon } from "@acepe/ui";
+import { DatabaseIcon } from "@acepe/ui/icons";
 import { okAsync, ResultAsync } from "neverthrow";
 import type { PaletteCommandDef } from "../../../types/palette-command.js";
 import type { PaletteItem, PaletteItemMetadata } from "../../../types/palette-item.js";

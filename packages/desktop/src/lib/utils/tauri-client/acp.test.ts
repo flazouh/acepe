@@ -17,7 +17,8 @@ mock.module("../../services/tauri-command-client.js", () => ({
 	},
 }));
 
-const { acp } = await import("./acp.js");
+const acpModulePath = "./acp.js?event-bridge-info-cache-test" as string;
+const { acp } = (await import(acpModulePath)) as typeof import("./acp.js");
 
 describe("acp tauri client", () => {
 	it("shares the event bridge info command across concurrent and later callers", async () => {

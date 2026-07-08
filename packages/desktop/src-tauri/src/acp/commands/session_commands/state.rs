@@ -257,10 +257,15 @@ pub(super) async fn load_transcript_snapshot_for_state_lookup_with_app(
 				"Failed to decode local transcript journal for state lookup {canonical_session_id}: {error}"
 			),
         })?;
+        let repaired_events =
+            crate::acp::session_journal::repair_legacy_parent_tool_use_ids_from_streaming_log(
+                replay_context,
+                &journal_events,
+            );
         if let Some(transcript_snapshot) =
             crate::acp::session_journal::rebuild_local_transcript_snapshot(
                 replay_context,
-                &journal_events,
+                &repaired_events,
             )
         {
             return Ok(transcript_snapshot);

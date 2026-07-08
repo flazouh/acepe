@@ -195,6 +195,10 @@ function mustRecreateTree(
 		previousProps.flattenEmptyDirectories !==
 			nextProps.flattenEmptyDirectories ||
 		previousProps.initialExpansion !== nextProps.initialExpansion ||
+		!sameStringArray(
+			previousProps.initialExpandedPaths,
+			nextProps.initialExpandedPaths,
+		) ||
 		previousProps.density !== nextProps.density ||
 		previousProps.itemHeight !== nextProps.itemHeight ||
 		previousProps.overscan !== nextProps.overscan ||

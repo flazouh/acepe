@@ -5,6 +5,7 @@ import type { ButtonSize, ButtonVariant } from "../button/variants.js";
 export type SelectorTriggerSize =
 	| "default"
 	| "icon"
+	| "iconSm"
 	| "chromeIcon"
 	| "chromeIconMd"
 	| "square"
@@ -46,6 +47,7 @@ export function getSelectorTriggerButtonVariant(triggerSize: SelectorTriggerSize
 	case "chromeIcon":
 	case "chromeIconMd":
 	case "icon":
+	case "iconSm":
 	case "attach":
 	case "square":
 		return "ghost";
@@ -66,6 +68,9 @@ export function getSelectorTriggerButtonSize(triggerSize: SelectorTriggerSize): 
 	const resolved = resolveSelectorTriggerSize(triggerSize);
 
 	if (resolved === "composerChipIcon") {
+		return "icon-sm";
+	}
+	if (resolved === "iconSm") {
 		return "icon-sm";
 	}
 	if (isFusedComposerChipTriggerSize(resolved)) {
@@ -131,6 +136,7 @@ export function getSelectorTriggerSizeClass(triggerSize: SelectorTriggerSize): s
 	case "chromeIcon":
 	case "chromeIconMd":
 	case "icon":
+	case "iconSm":
 	case "attach":
 	case "square":
 		return "[&_svg]:block";

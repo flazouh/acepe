@@ -358,7 +358,7 @@
 						onWorktreeDefaultToggle: (on) => {
 							void worktreeDefaultStore.set(on);
 						},
-						setupBarAlign: "center",
+						setupBarAlign: "start",
 					}}
 				/>
 			{/key}

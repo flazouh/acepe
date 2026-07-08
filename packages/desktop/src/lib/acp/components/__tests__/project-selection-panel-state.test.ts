@@ -3,6 +3,7 @@ import type { Project } from "../../logic/project-manager.svelte.js";
 
 import {
 	buildProjectSelectionCardDataList,
+	createProjectSelectionMetadataScheduler,
 	getProjectSelectionModifierSymbol,
 	getProjectSelectionPathsKey,
 	getProjectSelectionShortcutIndex,
@@ -136,6 +137,73 @@ describe("project selection panel state", () => {
 				hasRetryableMetadata: true,
 			})
 		).toBe(true);
+	});
+
+	it("schedules project metadata after delay and idle time", () => {
+		const delayedCallbacks: Array<() => void> = [];
+		const idleCallbacks: Array<() => void> = [];
+		let runCount = 0;
+		const schedule = createProjectSelectionMetadataScheduler({
+			delayMs: 120,
+			idleTimeoutMs: 80,
+			scheduleDelay(callback, delayMs) {
+				expect(delayMs).toBe(120);
+				delayedCallbacks.push(callback);
+				return () => undefined;
+			},
+			scheduleIdle(callback, timeoutMs) {
+				expect(timeoutMs).toBe(80);
+				idleCallbacks.push(callback);
+				return () => undefined;
+			},
+		});
+
+		schedule(() => {
+			runCount += 1;
+		});
+
+		expect(runCount).toBe(0);
+		expect(idleCallbacks).toHaveLength(0);
+
+		delayedCallbacks[0]?.();
+		expect(runCount).toBe(0);
+		expect(idleCallbacks).toHaveLength(1);
+
+		idleCallbacks[0]?.();
+		expect(runCount).toBe(1);
+	});
+
+	it("cancels scheduled project metadata before it reaches git work", () => {
+		const delayedCallbacks: Array<() => void> = [];
+		const idleCallbacks: Array<() => void> = [];
+		let delayCancelled = 0;
+		let idleCancelled = 0;
+		let runCount = 0;
+		const schedule = createProjectSelectionMetadataScheduler({
+			scheduleDelay(callback) {
+				delayedCallbacks.push(callback);
+				return () => {
+					delayCancelled += 1;
+				};
+			},
+			scheduleIdle(callback) {
+				idleCallbacks.push(callback);
+				return () => {
+					idleCancelled += 1;
+				};
+			},
+		});
+
+		const cancel = schedule(() => {
+			runCount += 1;
+		});
+		cancel();
+		delayedCallbacks[0]?.();
+		idleCallbacks[0]?.();
+
+		expect(delayCancelled).toBe(1);
+		expect(idleCancelled).toBe(0);
+		expect(runCount).toBe(0);
 	});
 
 	it("builds project card data from live, cached, and remote metadata", () => {

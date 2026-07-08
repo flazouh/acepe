@@ -8,7 +8,7 @@ use crate::acp::types::CanonicalAgentId;
 use anyhow::{anyhow, Result};
 use serde::{Deserialize, Serialize};
 
-pub const TRANSCRIPT_ROW_LEDGER_PROJECTION_VERSION: &str = "transcript_viewport_row:v1";
+pub const TRANSCRIPT_ROW_LEDGER_PROJECTION_VERSION: &str = "transcript_viewport_row:v5";
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SerializedTranscriptRowLedgerRow {
@@ -336,7 +336,7 @@ mod tests {
                     operation_id: "operation-1".to_string(),
                     tool_call_id: "tool-1".to_string(),
                     name: "exec_command".to_string(),
-                    title: "exec_command".to_string(),
+                    title: "Run".to_string(),
                     state: OperationState::Running,
                     kind: Some(ToolKind::Execute),
                     command_summary: Some("bun test".to_string()),
@@ -368,7 +368,7 @@ mod tests {
 
         assert_eq!(
             row_json["operationLinks"][0]["displayFacts"]["title"],
-            "exec_command"
+            "Run"
         );
         assert_eq!(
             row_json["operationLinks"][0]["displayFacts"]["commandSummary"],

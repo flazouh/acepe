@@ -31,6 +31,8 @@ struct RawMessage {
     /// ID of the tool use this meta message is associated with (for skill content)
     #[serde(rename = "sourceToolUseID")]
     source_tool_use_id: Option<String>,
+    /// Parent Task tool-call id for sidechain/subagent messages.
+    parent_tool_use_id: Option<String>,
     /// Tool use result data - contains questions and answers for AskUserQuestion tool
     #[serde(rename = "toolUseResult")]
     tool_use_result: Option<serde_json::Value>,
@@ -47,6 +49,7 @@ struct RawMessageContent {
     model: Option<String>,
     usage: Option<RawUsage>,
     error: Option<crate::cc_sdk::AssistantMessageError>,
+    parent_tool_use_id: Option<String>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -155,14 +158,19 @@ fn resolve_uuid_alias(uuid: String, aliases: &HashMap<String, String>) -> String
 
 /// Build a narrow merge hint for compatible assistant text/thinking fragments.
 /// Provider message ids are metadata, not display identity or ordering authority.
-fn assistant_merge_key(message_id: Option<&str>, request_id: Option<&str>) -> Option<String> {
+fn assistant_merge_key(
+    message_id: Option<&str>,
+    request_id: Option<&str>,
+    parent_tool_use_id: Option<&str>,
+) -> Option<String> {
+    let lineage = parent_tool_use_id.unwrap_or("top-level");
     if let Some(id) = message_id.filter(|id| !id.is_empty()) {
-        return Some(format!("message:{id}"));
+        return Some(format!("parent:{lineage}:message:{id}"));
     }
 
     request_id
         .filter(|id| !id.is_empty())
-        .map(|id| format!("request:{id}"))
+        .map(|id| format!("parent:{lineage}:request:{id}"))
 }
 
 fn assistant_blocks_are_mergeable_fragments(blocks: &[ContentBlock]) -> bool {
@@ -384,9 +392,17 @@ async fn parse_full_session_from_path_with_path(
             .source_tool_assistant_uuid
             .clone()
             .map(|uuid| resolve_uuid_alias(uuid, &uuid_aliases));
+        let parent_tool_use_id = raw
+            .parent_tool_use_id
+            .clone()
+            .or_else(|| msg_content.parent_tool_use_id.clone());
         let content_blocks = parse_content_blocks(&msg_content.content);
         let merge_key = if msg_content.role == "assistant" {
-            assistant_merge_key(msg_content.id.as_deref(), raw.request_id.as_deref())
+            assistant_merge_key(
+                msg_content.id.as_deref(),
+                raw.request_id.as_deref(),
+                parent_tool_use_id.as_deref(),
+            )
         } else {
             None
         };
@@ -420,6 +436,9 @@ async fn parse_full_session_from_path_with_path(
 
                         if raw.source_tool_use_id.is_some() {
                             existing.source_tool_use_id = raw.source_tool_use_id.clone();
+                        }
+                        if parent_tool_use_id.is_some() {
+                            existing.parent_tool_use_id = parent_tool_use_id.clone();
                         }
                         if raw.tool_use_result.is_some() {
                             existing.tool_use_result = raw.tool_use_result.clone();
@@ -458,6 +477,7 @@ async fn parse_full_session_from_path_with_path(
             request_id: raw.request_id,
             is_meta: raw.is_meta.unwrap_or(false),
             source_tool_use_id: raw.source_tool_use_id,
+            parent_tool_use_id,
             tool_use_result: raw.tool_use_result,
             source_tool_assistant_uuid: resolved_source_tool_assistant_uuid,
         });

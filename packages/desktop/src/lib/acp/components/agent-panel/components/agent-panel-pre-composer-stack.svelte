@@ -8,6 +8,7 @@ import type { TodoState } from "../../../types/todo.js";
 import PrStatusCard from "../../pr-status-card/pr-status-card.svelte";
 import {
 	AgentPanelQueueCardStrip as SharedQueueCardStrip,
+	AgentPanelRecoveryCard as SharedRecoveryCard,
 	AgentPanelTodoHeader as SharedTodoHeader,
 	AgentPanelSignInCard as SharedSignInCard,
 } from "@acepe/ui/agent-panel";
@@ -32,7 +33,12 @@ type QueueStripMessage = {
 	}>;
 };
 
-type ErrorInfo = { title: string; summary?: string | null; details?: string | null };
+type ErrorInfo = {
+	title: string;
+	summary?: string | null;
+	details?: string | null;
+	recoveryAction?: "unarchive" | null;
+};
 
 let {
 	showConversationChrome,
@@ -44,6 +50,8 @@ let {
 	inlineErrorReferenceSearchable,
 	onRetryConnection,
 	isRetryingConnection = false,
+	onUnarchiveSession,
+	isUnarchivingSession = false,
 	onDismissError,
 	onCopyInlineErrorReference,
 	inlineErrorIssueDraft,
@@ -91,6 +99,8 @@ let {
 	inlineErrorReferenceSearchable: boolean;
 	onRetryConnection: () => void;
 	isRetryingConnection?: boolean;
+	onUnarchiveSession: () => void;
+	isUnarchivingSession?: boolean;
 	onDismissError: () => void;
 	onCopyInlineErrorReference: () => void;
 	inlineErrorIssueDraft: IssueReportDraft | null;
@@ -171,18 +181,30 @@ function resolveSignInCommand(agentDisplayName: string): string | null {
 							/>
 						{/if}
 						{#if showInlineErrorCard}
-							<AgentErrorCard
-								title={errorInfo.title}
-								summary={errorInfo.summary ?? "Failed to connect to agent"}
-								details={errorInfo.details ?? "Unknown error"}
-								isRetrying={isRetryingConnection}
-								onRetry={onRetryConnection}
-								onDismiss={onDismissError}
-								issueActionLabel={inlineErrorIssueDraft
-									? resolveIssueActionLabel(inlineErrorIssueDraft)
-									: "Create issue"}
-								onIssueAction={inlineErrorIssueDraft ? onIssueFromInlineError : undefined}
-							/>
+							{#if errorInfo.recoveryAction === "unarchive"}
+								<SharedRecoveryCard
+									title={errorInfo.title}
+									actionLabel="Unarchive"
+									actionIconName="undo"
+									workingLabel="Unarchiving..."
+									isWorking={isUnarchivingSession}
+									onAction={onUnarchiveSession}
+									onDismiss={onDismissError}
+								/>
+							{:else}
+								<AgentErrorCard
+									title={errorInfo.title}
+									summary={errorInfo.summary ?? "Failed to connect to agent"}
+									details={errorInfo.details ?? "Unknown error"}
+									isRetrying={isRetryingConnection}
+									onRetry={onRetryConnection}
+									onDismiss={onDismissError}
+									issueActionLabel={inlineErrorIssueDraft
+										? resolveIssueActionLabel(inlineErrorIssueDraft)
+										: "Create issue"}
+									onIssueAction={inlineErrorIssueDraft ? onIssueFromInlineError : undefined}
+								/>
+							{/if}
 						{/if}
 						{#if preSessionWorktreeFailure && worktreeToggleProjectPath}
 							<PreSessionWorktreeCard

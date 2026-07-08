@@ -47,8 +47,8 @@ export type ResolveAnchor = () => {
 } | null;
 type EdgeState = { readonly atTop: boolean; readonly atBottom: boolean };
 
-function maxScrollTop(el: HTMLElement): number {
-	return Math.max(0, el.scrollHeight - el.clientHeight);
+function maxScrollTopFromMetrics(metrics: ScrollMetrics): number {
+	return Math.max(0, metrics.scrollHeight - metrics.clientHeight);
 }
 
 /**
@@ -60,13 +60,14 @@ export function applyScrollAction(
 	el: HTMLElement,
 	action: ScrollAction,
 	resolveRowTop?: ResolveRowTop,
+	metrics: ScrollMetrics = readScrollMetrics(el),
 ): boolean {
 	const before = el.scrollTop;
 	switch (action.kind) {
 		case "none":
 			return false;
 		case "toBottom":
-			el.scrollTop = maxScrollTop(el);
+			el.scrollTop = maxScrollTopFromMetrics(metrics);
 			return el.scrollTop !== before;
 		case "preserveAnchor":
 			el.scrollTop = Math.max(0, before + action.deltaPx);
@@ -77,7 +78,7 @@ export function applyScrollAction(
 				return false;
 			}
 			el.scrollTop = Math.min(
-				maxScrollTop(el),
+				maxScrollTopFromMetrics(metrics),
 				Math.max(0, rowTop - action.peekPx),
 			);
 			return el.scrollTop !== before;
@@ -89,6 +90,12 @@ export type StickToBottomParams = {
 	/** Element whose size changes signal a content change. Defaults to `scrollEl`. */
 	readonly content?: HTMLElement;
 	readonly thresholdPx?: number;
+	/**
+	 * Optional cheap metrics source for virtualized lists. This lets the hot
+	 * scroll path use the virtual layout model instead of live scrollHeight /
+	 * clientHeight reads that can force browser layout.
+	 */
+	readonly readScrollMetrics?: () => ScrollMetrics;
 	/** Topmost tracked row while released — drives anchor-preserving correction. */
 	readonly resolveAnchor?: ResolveAnchor;
 	/** Row content-top resolver for the on-send anchor-near-top action. */
@@ -105,12 +112,16 @@ export type StickToBottomParams = {
 	}) => void;
 	/** Optional dev/test profiler sink. It must not drive product state. */
 	readonly profileRecorder?: AgentPanelPerformanceRecorder;
+	/** Optional live profiler lookup for controllers that outlive prop changes. */
+	readonly getProfileRecorder?: () => AgentPanelPerformanceRecorder | undefined;
 	/** Whether raw content resize should call `notifyContentChanged`. Defaults to true. */
 	readonly observeContentResize?: boolean;
 	/** Optional gate for resize callbacks, useful when scrolling changes mounted content. */
 	readonly shouldNotifyContentResize?: () => boolean;
 	/** Coalesce scroll bookkeeping to one frame for virtualized, large-list scrolling. */
 	readonly coalesceScrollHandling?: boolean;
+	/** Optional live coalescing lookup for controllers that outlive source changes. */
+	readonly shouldCoalesceScrollHandling?: () => boolean;
 	/** Monotonic clock in ms. Injectable for tests; defaults to `performance.now`. */
 	readonly now?: () => number;
 };
@@ -131,6 +142,7 @@ const PROGRAMMATIC_SUPPRESS_MS = 120;
  * still moving the view up, so momentum is not cut off mid-fling.
  */
 const INTENT_DECAY_MS = 150;
+const UPWARD_INTENT_DECAY_MS = 700;
 const SPACER_WRITE_THRESHOLD_PX = 0.5;
 const COALESCED_SCROLL_TIMEOUT_MS = 50;
 
@@ -185,20 +197,26 @@ export function createStickToBottomController(
 	// layout-driven scroll. `0` = window closed.
 	let suppressReleaseUntil = 0;
 	let interactingUntil = 0;
+	let upwardInteractingUntil = 0;
 	let lastScrollTop = scrollEl.scrollTop;
-	let prevContentHeightWithoutSendSpacer =
-		scrollEl.scrollHeight - readBottomSpacerPx();
+	let prevContentHeightWithoutSendSpacer = contentHeightWithoutSendSpacer();
 	let anchorBaselineTopPx: number | null = null;
 	let sendAnchor: { readonly rowId: string; readonly peekPx: number } | null =
 		null;
 	let lastEmittedEdgeState: EdgeState | null = null;
 	let pendingScrollFrame: number | null = null;
 	let pendingScrollTimeout: ReturnType<typeof setTimeout> | null = null;
-	let lastDebugPhase = "init";
-	let lastDebugAction: ScrollAction["kind"] = "none";
+
+	function readCurrentScrollMetrics(): ScrollMetrics {
+		return params.readScrollMetrics?.() ?? readScrollMetrics(scrollEl);
+	}
+
+	function currentProfileRecorder(): AgentPanelPerformanceRecorder | undefined {
+		return params.getProfileRecorder?.() ?? params.profileRecorder;
+	}
 
 	function recordPhase(phase: string, startedAtMs: number): void {
-		recordAgentPanelPerformanceSample(params.profileRecorder, {
+		recordAgentPanelPerformanceSample(currentProfileRecorder(), {
 			phase,
 			durationMs: now() - startedAtMs,
 		});
@@ -206,6 +224,12 @@ export function createStickToBottomController(
 
 	function armIntent(): void {
 		interactingUntil = now() + INTENT_DECAY_MS;
+	}
+
+	function armUpwardIntent(): void {
+		const t = now();
+		interactingUntil = t + INTENT_DECAY_MS;
+		upwardInteractingUntil = t + UPWARD_INTENT_DECAY_MS;
 	}
 
 	function edgeStateFromMetrics(metrics: ScrollMetrics): EdgeState {
@@ -216,7 +240,7 @@ export function createStickToBottomController(
 	}
 
 	function emitEdgeState(metrics?: ScrollMetrics): void {
-		const next = edgeStateFromMetrics(metrics ?? readScrollMetrics(scrollEl));
+		const next = edgeStateFromMetrics(metrics ?? readCurrentScrollMetrics());
 		if (
 			lastEmittedEdgeState !== null &&
 			lastEmittedEdgeState.atTop === next.atTop &&
@@ -233,32 +257,21 @@ export function createStickToBottomController(
 			next.released !== state.released ||
 			next.hasUnreadBelow !== state.hasUnreadBelow;
 		state = next;
-		syncDebugAttrs(metrics);
 		if (changed) {
 			params.onStateChange?.(state);
 		}
 		emitEdgeState(metrics);
 	}
 
-	function syncDebugAttrs(metrics?: ScrollMetrics): void {
-		const currentMetrics = metrics ?? readScrollMetrics(scrollEl);
-		scrollEl.dataset.stickReleased = state.released ? "true" : "false";
-		scrollEl.dataset.stickUnreadBelow = state.hasUnreadBelow ? "true" : "false";
-		scrollEl.dataset.stickLastPhase = lastDebugPhase;
-		scrollEl.dataset.stickLastAction = lastDebugAction;
-		scrollEl.dataset.stickScrollTop = Math.round(currentMetrics.scrollTop).toString();
-		scrollEl.dataset.stickMaxScrollTop = Math.round(
-			Math.max(0, currentMetrics.scrollHeight - currentMetrics.clientHeight),
-		).toString();
-		scrollEl.dataset.stickInteracting = now() < interactingUntil ? "true" : "false";
-	}
-
 	function readBottomSpacerPx(): number {
 		return params.getBottomSpacerPx?.() ?? 0;
 	}
 
-	function contentHeightWithoutSendSpacer(): number {
-		return Math.max(0, scrollEl.scrollHeight - readBottomSpacerPx());
+	function contentHeightWithoutSendSpacer(metrics?: ScrollMetrics): number {
+		return Math.max(
+			0,
+			(metrics ?? readCurrentScrollMetrics()).scrollHeight - readBottomSpacerPx(),
+		);
 	}
 
 	function setBottomSpacerPx(heightPx: number): void {
@@ -272,6 +285,7 @@ export function createStickToBottomController(
 	}
 
 	function refreshSendSpacer(): void {
+		const metrics = readCurrentScrollMetrics();
 		if (sendAnchor === null) {
 			setBottomSpacerPx(0);
 			return;
@@ -283,8 +297,8 @@ export function createStickToBottomController(
 		}
 		setBottomSpacerPx(
 			computeSendAnchorSpacerPx({
-				viewportHeightPx: scrollEl.clientHeight,
-				contentHeightWithoutSpacerPx: contentHeightWithoutSendSpacer(),
+				viewportHeightPx: metrics.clientHeight,
+				contentHeightWithoutSpacerPx: contentHeightWithoutSendSpacer(metrics),
 				rowTopPx,
 				peekPx: sendAnchor.peekPx,
 			}),
@@ -303,38 +317,44 @@ export function createStickToBottomController(
 
 	function apply(action: ScrollAction): void {
 		const startedAtMs = now();
-		lastDebugPhase = "apply";
-		lastDebugAction = action.kind;
-		const moved = applyScrollAction(scrollEl, action, params.resolveRowTop);
+		const metrics = readCurrentScrollMetrics();
+		const moved = applyScrollAction(
+			scrollEl,
+			action,
+			params.resolveRowTop,
+			metrics,
+		);
 		if (moved) {
 			markProgrammatic();
 		}
-		prevContentHeightWithoutSendSpacer = contentHeightWithoutSendSpacer();
+		prevContentHeightWithoutSendSpacer = contentHeightWithoutSendSpacer(metrics);
 		lastScrollTop = scrollEl.scrollTop;
-		syncDebugAttrs();
 		recordPhase(`stick-to-bottom.apply.${action.kind}`, startedAtMs);
 	}
 
 	function releaseForUserIntent(): void {
-		const metrics = readScrollMetrics(scrollEl);
-		lastDebugPhase = "release-intent";
-		lastDebugAction = "none";
+		const metrics = readCurrentScrollMetrics();
 		emit({ released: true, hasUnreadBelow: state.hasUnreadBelow }, metrics);
 		captureAnchorBaseline();
 	}
 
 	function handleScroll(): void {
 		const startedAtMs = now();
-		const metrics = readScrollMetrics(scrollEl);
+		const metrics = readCurrentScrollMetrics();
 		const atBottom = isAtBottom(metrics, threshold);
 		const t = now();
 		const movedUp = metrics.scrollTop < lastScrollTop;
 		lastScrollTop = metrics.scrollTop;
+		const hasUpwardIntent = t < upwardInteractingUntil;
 
 		// Reaching the live edge always re-engages follow — can't get stuck.
 		if (atBottom) {
-			lastDebugPhase = "scroll-bottom";
-			lastDebugAction = "none";
+			if (hasUpwardIntent && state.released) {
+				emitEdgeState(metrics);
+				captureAnchorBaseline();
+				recordPhase("stick-to-bottom.handle-scroll", startedAtMs);
+				return;
+			}
 			emit(onScrollMeasure(state, metrics, threshold), metrics);
 			captureAnchorBaseline();
 			recordPhase("stick-to-bottom.handle-scroll", startedAtMs);
@@ -351,15 +371,13 @@ export function createStickToBottomController(
 			if (movedUp) {
 				// Keep the window alive through inertial/momentum travel.
 				interactingUntil = t + INTENT_DECAY_MS;
+				if (t < upwardInteractingUntil) {
+					upwardInteractingUntil = t + UPWARD_INTENT_DECAY_MS;
+				}
 			}
-			lastDebugPhase = "scroll-release";
-			lastDebugAction = "none";
 			emit({ released: true, hasUnreadBelow: state.hasUnreadBelow }, metrics);
 		} else {
-			lastDebugPhase = "scroll-edge";
-			lastDebugAction = "none";
 			emitEdgeState(metrics);
-			syncDebugAttrs(metrics);
 			captureAnchorBaseline();
 			recordPhase("stick-to-bottom.handle-scroll", startedAtMs);
 			return;
@@ -384,8 +402,15 @@ export function createStickToBottomController(
 		handleScroll();
 	}
 
+	function shouldCoalesceScrollHandling(): boolean {
+		return (
+			params.coalesceScrollHandling === true ||
+			(params.shouldCoalesceScrollHandling?.() ?? false)
+		);
+	}
+
 	function scheduleHandleScroll(): void {
-		if (params.coalesceScrollHandling !== true) {
+		if (!shouldCoalesceScrollHandling()) {
 			handleScroll();
 			return;
 		}
@@ -404,19 +429,21 @@ export function createStickToBottomController(
 	function notifyContentChanged(): void {
 		const startedAtMs = now();
 		refreshSendSpacer();
-		const metrics = readScrollMetrics(scrollEl);
-		if (
+		const metrics = readCurrentScrollMetrics();
+		const hasUpwardIntent = now() < upwardInteractingUntil;
+		if (!state.released && hasUpwardIntent) {
+			emit({ released: true, hasUnreadBelow: state.hasUnreadBelow }, metrics);
+			captureAnchorBaseline();
+		} else if (
 			!state.released &&
 			!isAtBottom(metrics, threshold) &&
 			now() < interactingUntil
 		) {
-			lastDebugPhase = "content-release-intent";
-			lastDebugAction = "none";
 			emit({ released: true, hasUnreadBelow: state.hasUnreadBelow }, metrics);
 			captureAnchorBaseline();
 		}
 		const totalGrowthPx =
-			contentHeightWithoutSendSpacer() - prevContentHeightWithoutSendSpacer;
+			contentHeightWithoutSendSpacer(metrics) - prevContentHeightWithoutSendSpacer;
 		const anchorNowTop = state.released
 			? (params.resolveAnchor?.()?.topPx ?? null)
 			: null;
@@ -434,7 +461,7 @@ export function createStickToBottomController(
 		if (anchorNowTop !== null) {
 			anchorBaselineTopPx = anchorNowTop;
 		}
-		prevContentHeightWithoutSendSpacer = contentHeightWithoutSendSpacer();
+		prevContentHeightWithoutSendSpacer = contentHeightWithoutSendSpacer(metrics);
 		recordPhase("stick-to-bottom.notify-content-changed", startedAtMs);
 	}
 
@@ -495,24 +522,30 @@ export function createStickToBottomController(
 	// permits a release. A scrollbar-gutter `pointerdown` (no wheel/touch/key)
 	// is the one drag case intent events would otherwise miss.
 	function handleWheel(event: WheelEvent): void {
-		armIntent();
 		if (event.deltaY < 0) {
+			armUpwardIntent();
 			releaseForUserIntent();
+			return;
 		}
+		upwardInteractingUntil = 0;
+		armIntent();
 	}
 	function handleTouch(): void {
 		armIntent();
 	}
 	function handleKeydown(event: KeyboardEvent): void {
 		if (PAGING_KEYS.has(event.key)) {
-			armIntent();
 			if (
 				event.key === "PageUp" ||
 				event.key === "ArrowUp" ||
 				event.key === "Home"
 			) {
+				armUpwardIntent();
 				releaseForUserIntent();
+				return;
 			}
+			upwardInteractingUntil = 0;
+			armIntent();
 		}
 	}
 	function handlePointerDown(event: PointerEvent): void {
@@ -540,7 +573,6 @@ export function createStickToBottomController(
 			: null;
 	observer?.observe(content);
 	emitEdgeState();
-	syncDebugAttrs();
 
 	return {
 		getState: () => state,

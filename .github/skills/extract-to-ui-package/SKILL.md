@@ -151,7 +151,7 @@ Example dry-run: [`references/dry-run-session-list-project-card.md`](references/
 |-----------|-------------|
 | Session/transcript/tool display | `god-architecture-check` |
 | UI-visible change | `acepe-dev-app-qa` |
-| Large multi-file extraction | `refactor-plan` or `/ce:plan` first |
+| Large multi-file extraction | `refactor-plan` or `refactor-plan` first |
 | Svelte rune/effect questions | `svelte-core-bestpractices`, `.agent-guides/svelte.md` |
 
 ## v1 enforcement scope

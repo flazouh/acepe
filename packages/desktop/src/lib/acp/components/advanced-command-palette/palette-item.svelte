@@ -80,6 +80,7 @@ const labelSegments = $derived.by(() => {
 	{#if isSessionItem && item.metadata.projectName && item.metadata.projectColor}
 		<ProjectLetterBadge
 			name={item.metadata.projectName}
+			label={item.metadata.projectBadgeLabel ?? null}
 			color={item.metadata.projectColor}
 			iconSrc={item.metadata.projectIconSrc}
 			size={18}
