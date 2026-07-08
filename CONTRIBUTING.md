@@ -71,4 +71,4 @@ packages/
 
 ## License
 
-By contributing, you agree that your contributions will be licensed under the [FSL-1.1-ALv2](LICENSE) (Functional Source License, converting to Apache 2.0 after two years).
+By contributing, you agree that your contributions will be licensed under the [MIT License](LICENSE).

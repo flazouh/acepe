@@ -33,7 +33,7 @@
 		"storage:prune": "bash scripts/prune-storage.sh",
 		"audit:session-timing": "bun run scripts/audit-session-timing.ts"
 	},
-	"license": "FSL-1.1-ALv2",
+	"license": "MIT",
 	"repository": {
 		"type": "git",
 		"url": "https://github.com/flazouh/acepe.git",

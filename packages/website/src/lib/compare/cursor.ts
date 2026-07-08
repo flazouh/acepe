@@ -95,7 +95,7 @@ export const cursorComparison: ComparisonData = {
 		{
 			category: "Pricing",
 			feature: "License",
-			acepe: "FSL-1.1-ALv2 (source-available, Apache 2.0 after 2 years)",
+			acepe: "MIT open-source license",
 			competitor: "Proprietary, closed-source",
 		},
 		{

@@ -24,7 +24,7 @@ Use Acepe to orchestrate agents, review their work, manage git flows, and ship p
 <br/>
 
 [![CI](https://github.com/flazouh/acepe/actions/workflows/ci.yml/badge.svg)](https://github.com/flazouh/acepe/actions)
-[![License](https://img.shields.io/badge/License-FSL--1.1--ALv2-blue.svg)](LICENSE)
+[![License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Rust](https://img.shields.io/badge/Rust-2021-orange?logo=rust&logoColor=white)](https://www.rust-lang.org/)
 [![Tauri](https://img.shields.io/badge/Tauri-2.0-24C8D8?logo=tauri&logoColor=white)](https://tauri.app/)
 
@@ -144,7 +144,7 @@ If you're looking for something to work on, check issues tagged [`good first iss
 
 ## License
 
-[FSL-1.1-ALv2](https://fsl.software) — source-available today, Apache 2.0 after two years. See [LICENSE](LICENSE) for details.
+[MIT](LICENSE) — free to use, copy, modify, distribute, and sell, as long as the copyright and license notice stay with the software.
 
 ## Acknowledgments
 
