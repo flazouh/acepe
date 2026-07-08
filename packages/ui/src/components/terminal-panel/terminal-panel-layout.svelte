@@ -1,7 +1,7 @@
 <script lang="ts">
 	import type { Snippet } from "svelte";
 
-	import { IconTerminal } from "@tabler/icons-svelte";
+	import { RoundedIcon } from "../icons/index.js";
 	import { ProjectLetterBadge } from "../project-letter-badge/index.js";
 	import {
 		CloseAction,
@@ -14,6 +14,7 @@
 	interface Props {
 		projectName: string;
 		projectColor: string;
+		projectBadgeLabel?: string | null;
 		projectIconSrc?: string | null;
 		shell: string | null;
 		hideProjectBadge?: boolean;
@@ -27,6 +28,7 @@
 	let {
 		projectName,
 		projectColor,
+		projectBadgeLabel = null,
 		projectIconSrc = null,
 		shell,
 		hideProjectBadge = false,
@@ -50,6 +52,7 @@
 					<div class="inline-flex items-center justify-center h-7 w-7 shrink-0">
 						<ProjectLetterBadge
 							name={projectName}
+							label={projectBadgeLabel}
 							color={projectColor}
 							iconSrc={projectIconSrc}
 							size={28}
@@ -64,7 +67,7 @@
 		<HeaderTitleCell>
 			{#snippet children()}
 				<div class="flex items-center gap-1.5 min-w-0">
-					<IconTerminal class="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+					<RoundedIcon name="terminal" class="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
 					<span class="text-[11px] font-medium truncate">Terminal</span>
 					{#if shellName}
 						<span class="text-[11px] text-muted-foreground truncate">({shellName})</span>

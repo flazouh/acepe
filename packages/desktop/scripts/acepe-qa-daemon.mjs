@@ -39,16 +39,109 @@ function findPackageRoot(packageName) {
 const packageRoot = findPackageRoot("@hypothesi/tauri-mcp-server");
 const sessionManager = await import(pathToFileURL(join(packageRoot, "dist", "driver", "session-manager.js")).href);
 const webviewExecutor = await import(pathToFileURL(join(packageRoot, "dist", "driver", "webview-executor.js")).href);
+let webviewRunCounter = 0;
+
+function withTimeout(promise, timeoutMs, label) {
+	return Promise.race([
+		promise,
+		new Promise((_, reject) => {
+			setTimeout(() => {
+				reject(new Error(`${label} timed out after ${timeoutMs}ms.`));
+			}, timeoutMs);
+		}),
+	]);
+}
+
+function sleep(ms) {
+	return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function contextResultText(result) {
+	return typeof result.result === "string" ? result.result : JSON.stringify(result.result);
+}
+
+function contextResultJson(result) {
+	return JSON.parse(contextResultText(result));
+}
 
 async function ensureSession(appIdentifier) {
 	const port = Number.parseInt(String(appIdentifier), 10);
-	const startResult = await sessionManager.manageDriverSession(
-		"start",
-		undefined,
-		Number.isFinite(port) ? port : undefined,
-		undefined
+	const startResult = await withTimeout(
+		sessionManager.manageDriverSession(
+			"start",
+			undefined,
+			Number.isFinite(port) ? port : undefined,
+			undefined
+		),
+		12000,
+		"Tauri MCP driver session"
 	);
 	return startResult;
+}
+
+async function executeWebviewScript(appIdentifier, script, timeoutMs) {
+	webviewRunCounter += 1;
+	const runId = `acepe-qa-${Date.now()}-${webviewRunCounter}`;
+	const kickoffScript = `
+(() => {
+  const runId = ${JSON.stringify(runId)};
+  const expression = ${JSON.stringify(script)};
+  const results = window.__acepeQaAsyncResults || {};
+  window.__acepeQaAsyncResults = results;
+  results[runId] = { status: "pending", value: null, message: null };
+  Promise.resolve()
+    .then(() => Function("return (" + expression + ")")())
+    .then((value) => {
+      results[runId] = { status: "done", value, message: null };
+    }, (error) => {
+      const message = error && typeof error.message === "string" ? error.message : String(error);
+      results[runId] = { status: "error", value: null, message };
+    });
+  return { status: "started", runId };
+})()
+`;
+	contextResultJson(
+		await webviewExecutor.executeInWebviewWithContext(
+			kickoffScript,
+			undefined,
+			appIdentifier
+		)
+	);
+	const startedAt = Date.now();
+	while (Date.now() - startedAt < timeoutMs) {
+		await sleep(50);
+		const status = contextResultJson(
+			await webviewExecutor.executeInWebviewWithContext(
+				`
+(() => {
+  const runId = ${JSON.stringify(runId)};
+  const results = window.__acepeQaAsyncResults || {};
+  return results[runId] || { status: "missing", value: null, message: "QA async result missing." };
+})()
+`,
+				undefined,
+				appIdentifier
+			)
+		);
+		if (status.status === "done") {
+			webviewExecutor.executeInWebviewWithContext(
+				`
+(() => {
+  const results = window.__acepeQaAsyncResults || {};
+  delete results[${JSON.stringify(runId)}];
+  return true;
+})()
+`,
+				undefined,
+				appIdentifier
+			).catch(() => undefined);
+			return status.value;
+		}
+		if (status.status === "error" || status.status === "missing") {
+			throw new Error(status.message || "Tauri MCP WebView JS execution failed.");
+		}
+	}
+	throw new Error(`Tauri MCP WebView JS execution timed out after ${timeoutMs}ms.`);
 }
 
 async function handleRequest(request) {
@@ -62,6 +155,22 @@ async function handleRequest(request) {
 	}
 
 	if (request.kind === "webview-execute-js") {
+		await ensureSession(request.appIdentifier);
+		const timeoutMs = Number.isFinite(request.callTimeoutMs) ? request.callTimeoutMs : 15000;
+		const result = await withTimeout(
+			executeWebviewScript(request.appIdentifier, request.script, timeoutMs),
+			timeoutMs + 2000,
+			"Tauri MCP WebView JS execution"
+		);
+		const resultText =
+			typeof result === "string" ? result : JSON.stringify(result);
+		return {
+			ok: true,
+			text: `${resultText}\n\n[Executed in window: main]`,
+		};
+	}
+
+	if (request.kind === "webview-execute-js-sync") {
 		await ensureSession(request.appIdentifier);
 		const result = await webviewExecutor.executeInWebviewWithContext(
 			request.script,

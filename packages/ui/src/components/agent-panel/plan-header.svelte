@@ -1,7 +1,5 @@
 <script lang="ts">
-	import { ArrowsInSimple, ArrowsOutSimple } from "phosphor-svelte";
-
-	import { PlanIcon } from "../icons/index.js";
+	import { PlanIcon, RoundedIcon } from "../icons/index.js";
 	import { Button } from "../button/index.js";
 	import {
 		EmbeddedPanelHeader,
@@ -32,19 +30,15 @@
 
 	<HeaderActionCell withDivider={false}>
 		<Button
-			variant="chromeIcon"
-			size="chromeIcon"
+			variant="ghost"
+			size="icon"
 			data-header-control
 			title={toggleLabel}
 			aria-label={toggleLabel}
 			onclick={onToggleSidebar}
 		>
 			{#snippet children()}
-				{#if isExpanded}
-					<ArrowsInSimple size={14} weight="bold" />
-				{:else}
-					<ArrowsOutSimple size={14} weight="bold" />
-				{/if}
+				<RoundedIcon name={isExpanded ? "collapse" : "expand"} />
 			{/snippet}
 		</Button>
 	</HeaderActionCell>

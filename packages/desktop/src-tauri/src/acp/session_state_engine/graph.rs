@@ -112,6 +112,29 @@ pub fn select_active_streaming_tail(
     })
 }
 
+pub(crate) fn select_active_streaming_tail_for_known_last_entry(
+    turn_state: &SessionTurnState,
+    activity: &SessionGraphActivity,
+    entry: &TranscriptEntry,
+) -> Option<ActiveStreamingTail> {
+    if !matches!(turn_state, SessionTurnState::Running) {
+        return None;
+    }
+
+    if activity.kind != SessionGraphActivityKind::AwaitingModel {
+        return None;
+    }
+
+    if entry.role != TranscriptEntryRole::Assistant {
+        return None;
+    }
+
+    Some(ActiveStreamingTail {
+        row_id: entry.entry_id.clone(),
+        content_kind: assistant_tail_content_kind(entry),
+    })
+}
+
 pub fn select_awaiting_placeholder(
     turn_state: &SessionTurnState,
     activity: &SessionGraphActivity,

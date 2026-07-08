@@ -41,7 +41,7 @@ export function countReviewedFiles(
 
 	return modifiedFilesState.files.reduce((count, file) => {
 		const status = reviewStatusByFilePath.get(file.filePath);
-		return status === "accepted" || status === "denied" ? count + 1 : count;
+		return status === "reviewed" ? count + 1 : count;
 	}, 0);
 }
 
@@ -69,8 +69,8 @@ export function canKeepAllFiles(input: KeepAllStateInput): boolean {
 export function mapReviewStatusForHeader(
 	status: FileReviewStatus | undefined
 ): AgentPanelFileReviewStatus {
-	if (status === "accepted" || status === "partial" || status === "denied") {
-		return status;
+	if (status === "reviewed") {
+		return "reviewed";
 	}
 
 	return "unreviewed";

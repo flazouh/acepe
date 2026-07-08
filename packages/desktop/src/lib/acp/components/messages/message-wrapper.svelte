@@ -77,12 +77,12 @@ const revealTargetAction: Action<HTMLDivElement, RevealTargetActionParams> = (no
 		observeRevealResize,
 		onRevealResize,
 	}}
-	class="py-1.5 px-3 {isFullscreen ? 'flex justify-center' : ''}"
+	class="py-1.5 px-3 min-w-0 max-w-full {isFullscreen ? 'flex justify-center' : ''}"
 	data-entry-index={entryIndex}
 	data-entry-key={entryKey}
 	data-message-id={messageId}
 >
-	<div class={isFullscreen ? "w-full max-w-4xl" : ""}>
+	<div class={isFullscreen ? "w-full max-w-4xl min-w-0" : "min-w-0 max-w-full"}>
 		{@render children()}
 	</div>
 </div>

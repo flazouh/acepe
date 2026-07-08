@@ -53,27 +53,38 @@ function createModifiedFilesState(): ModifiedFilesState {
 }
 
 function createStore(sessionId = "session-parity"): PanelStoreInstance {
+	const getSessionIdentity = vi.fn((id: string) =>
+		id === sessionId
+			? {
+					id: sessionId,
+					projectPath: "/tmp/project",
+					agentId: "claude-code",
+				}
+			: undefined
+	);
+	const getSessionMetadata = vi.fn((id: string) =>
+		id === sessionId
+			? {
+					title: "Parity session",
+					createdAt: new Date("2026-01-01T00:00:00.000Z"),
+					updatedAt: new Date("2026-01-01T00:00:00.000Z"),
+					parentId: null,
+				}
+			: undefined
+	);
 	const sessionStore = {
 		getSessionCold: vi.fn(() => null),
-		getSessionIdentity: vi.fn((id: string) =>
-			id === sessionId
-				? {
-						id: sessionId,
-						projectPath: "/tmp/project",
-						agentId: "claude-code",
-					}
-				: undefined
-		),
-		getSessionMetadata: vi.fn((id: string) =>
-			id === sessionId
-				? {
-						title: "Parity session",
-						createdAt: new Date("2026-01-01T00:00:00.000Z"),
-						updatedAt: new Date("2026-01-01T00:00:00.000Z"),
-						parentId: null,
-					}
-				: undefined
-		),
+		getSessionIdentity,
+		getSessionMetadata,
+		getPendingCreationSession: vi.fn(() => undefined),
+		connection: {
+			hasPendingCreationSession: vi.fn(() => false),
+		},
+		read: {
+			getSessionIdentity,
+			getSessionMetadata,
+			resolveCanonicalSessionId: vi.fn((id: string) => id),
+		},
 	} as unknown as SessionStore;
 	const agentStore = {
 		getDefaultAgentId: vi.fn(() => "claude-code"),
@@ -302,6 +313,40 @@ describe("PanelStore persistence parity", () => {
 
 		const after = capturePublicSnapshot(restored);
 		expect(after).toEqual(before);
+	});
+
+	it("keeps the project file system dialog out of persisted workspace state", () => {
+		const source = createStore();
+		buildRepresentativeWorkspace(source);
+		source.openProjectFileSystemDialog("/tmp/project", "src/dialog-only.ts", {
+			projectName: "Project",
+			title: "Preview file",
+			targetLine: 12,
+		});
+
+		const before = capturePublicSnapshot(source);
+		const persistablePanels = source.getPersistableWorkspacePanels();
+		const terminalGroups = collectTerminalGroups(source);
+		const terminalTabs = collectTerminalTabs(source, terminalGroups);
+		const activeAttachedFileByOwner = source.getActiveFilePanelIdByOwnerPanelIdRecord();
+		const activeTopLevelFileByProject = before.activeTopLevelFileByProject;
+		const hotStateByPanel = before.hotStateByPanel;
+
+		const restored = createStore();
+		restorePersistedState(
+			restored,
+			source,
+			persistablePanels,
+			terminalGroups,
+			terminalTabs,
+			activeAttachedFileByOwner,
+			activeTopLevelFileByProject,
+			hotStateByPanel
+		);
+
+		expect(source.projectFileSystemDialog?.filePath).toBe("src/dialog-only.ts");
+		expect(restored.projectFileSystemDialog).toBeNull();
+		expect(capturePublicSnapshot(restored)).toEqual(before);
 	});
 
 	it("keeps session and panel indexes consistent through open, focus, and close", () => {

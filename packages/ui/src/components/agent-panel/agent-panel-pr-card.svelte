@@ -1,13 +1,10 @@
 <script lang="ts">
-	import { GitPullRequest, GitMerge } from "phosphor-svelte";
-	import { CaretDown } from "phosphor-svelte";
-
 	import type { AgentPanelPrCardModel } from "./types.js";
 
 	import { Colors } from "../../lib/colors.js";
 	import { DiffPill } from "../diff-pill/index.js";
 	import { GitHubBadge } from "../github-badge/index.js";
-	import { LoadingIcon } from "../icons/index.js";
+	import { LoadingIcon, RoundedIcon, type RoundedIconName } from "../icons/index.js";
 	import { MarkdownDisplay } from "../markdown/index.js";
 	import { PrChecksList } from "../pr-checks/index.js";
 	import AgentPanelPrStatusCard from "./pr-status-card.svelte";
@@ -49,6 +46,13 @@
 				? "var(--destructive)"
 				: "var(--success)"
 	);
+	const headerIconName = $derived<RoundedIconName>(
+		prState === "merged"
+			? "pull-request-merged"
+			: prState === "closed"
+				? "pull-request-closed"
+				: "pull-request"
+	);
 </script>
 
 <AgentPanelPrStatusCard {visible} {fetchError} {initiallyExpanded} {hasExpandedContent} hasBelowHeader={hasChecks}>
@@ -62,18 +66,18 @@
 					model.onOpen?.(event);
 				}}
 			>
-				{#if prState === "merged"}
-					<GitMerge size={13} weight="bold" class="shrink-0" style="color: {headerIconColor}" />
-				{:else}
-					<GitPullRequest size={13} weight="bold" class="shrink-0" style="color: {headerIconColor}" />
-				{/if}
+				<RoundedIcon
+					name={headerIconName}
+					class="size-[13px] shrink-0"
+					style="color: {headerIconColor}"
+				/>
 				<span class="font-medium tabular-nums text-foreground">#{model.number}</span>
 			</button>
 			{#if model.title}
 				<span class="text-foreground truncate leading-none ml-0.5">{model.title}</span>
 			{/if}
 		{:else if model.mode === "streaming"}
-			<GitPullRequest size={13} weight="bold" class="shrink-0" style="color: var(--success)" />
+			<RoundedIcon name="pull-request" class="size-[13px] shrink-0" style="color: var(--success)" />
 			{#if model.title}
 				<span class="text-foreground truncate leading-none">
 					{model.title}
@@ -101,17 +105,14 @@
 			{#if model.mode === "streaming" && model.isStreaming}
 				<LoadingIcon class="shrink-0 animate-spin" size={12} />
 			{/if}
-			<CaretDown
-				size={12}
-				weight="bold"
-				class="shrink-0 text-muted-foreground/80 transition-transform {isExpanded ? '' : 'rotate-180'}"
+			<RoundedIcon name="chevron-down" class="size-3 shrink-0 text-muted-foreground/80 transition-transform {isExpanded ? '' : 'rotate-180'}"
 			/>
 		{/if}
 	{/snippet}
 
 	{#snippet belowHeader()}
 		{#if model.mode === "pr" && hasChecks}
-			<div class="px-3 py-1.5 bg-input/30 rounded-b-md border-x border-b border-border">
+			<div class="px-3 py-1.5 bg-input/30 rounded-b-lg border-x border-b border-border">
 				<PrChecksList
 					checks={model.checks ?? []}
 					isLoading={model.isChecksLoading ?? false}
@@ -119,6 +120,8 @@
 					initiallyExpanded={initiallyExpandedChecks}
 					collapseThreshold={model.checksCollapseThreshold ?? 3}
 					onOpenCheck={model.onOpenCheck}
+					onFixCheck={model.onFixCheck}
+					onViewDetails={model.onViewDetails}
 				/>
 			</div>
 		{/if}

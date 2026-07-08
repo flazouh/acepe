@@ -207,6 +207,7 @@ fn path_c_live_streaming_golden_entry_ids() {
                 },
                 part_id: None,
                 message_id: None,
+                parent_tool_use_id: None,
                 session_id: Some("session-1".to_string()),
                 produced_at_monotonic_ms: None,
             },

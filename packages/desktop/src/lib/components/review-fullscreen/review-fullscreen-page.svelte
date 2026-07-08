@@ -1,5 +1,5 @@
 <script lang="ts">
-import { IconX } from "@tabler/icons-svelte";
+import { RoundedIcon } from "@acepe/ui";
 import AgentPanelReviewContent from "$lib/acp/components/agent-panel/components/agent-panel-review-content.svelte";
 import { getSessionStore } from "$lib/acp/store/session-store.svelte.js";
 import { Button } from "$lib/components/ui/button/index.js";
@@ -15,7 +15,7 @@ let { sessionId, fileIndex, onClose, onFileIndexChange }: Props = $props();
 const sessionStore = getSessionStore();
 const identity = $derived(sessionStore.read.getSessionIdentity(sessionId));
 const modifiedFilesState = $derived(sessionStore.read.getSessionModifiedFilesState(sessionId));
-const projectPath = $derived(identity?.projectPath ?? null);
+const projectPath = $derived(identity?.worktreePath ?? identity?.projectPath ?? null);
 
 const hasModifications = $derived((modifiedFilesState?.fileCount ?? 0) > 0);
 const isValidIndex = $derived(
@@ -39,7 +39,7 @@ function handleFileIndexChange(index: number): void {
 	>
 		<h1 class="text-lg font-medium">{"Review Changes"}</h1>
 		<Button variant="ghost" size="icon" onclick={onClose} aria-label={"Close"}>
-			<IconX class="h-5 w-5" />
+			<RoundedIcon name="close" class="h-5 w-5" />
 		</Button>
 	</div>
 

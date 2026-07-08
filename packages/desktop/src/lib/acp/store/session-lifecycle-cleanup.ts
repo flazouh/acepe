@@ -9,14 +9,14 @@ import type { SessionMessagingService } from "./services/session-messaging-servi
 import type { SessionRepository } from "./services/session-repository.js";
 import type { SessionProjectionCore } from "./session-projection-core.svelte.js";
 import type { SessionTransientProjectionStore } from "./session-transient-projection-store.svelte.js";
-import type { ViewportProjectionController } from "./viewport-projection-controller.svelte.js";
+import type { TranscriptRowsController } from "./transcript-rows-controller.svelte.js";
 import type { SessionIdentityResolver } from "./session-identity-resolver.js";
 
 export type SessionLifecycleCleanupDeps = {
 	readonly repository: SessionRepository;
 	readonly transientProjectionStore: SessionTransientProjectionStore;
 	readonly projectionCore: SessionProjectionCore;
-	readonly viewport: ViewportProjectionController;
+	readonly viewport: TranscriptRowsController;
 	readonly messagingSvc: SessionMessagingService;
 	readonly composerMachineService: ComposerMachineService;
 	readonly entryStore: SessionEntryStore;

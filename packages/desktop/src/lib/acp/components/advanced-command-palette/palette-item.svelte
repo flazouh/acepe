@@ -1,4 +1,5 @@
 <script lang="ts">
+import { RoundedIcon } from "@acepe/ui";
 import { ProjectLetterBadge } from "@acepe/ui/project-letter-badge";
 import { FileIcon } from "$lib/components/ui/file-icon/index.js";
 import * as Kbd from "$lib/components/ui/kbd/index.js";
@@ -79,6 +80,7 @@ const labelSegments = $derived.by(() => {
 	{#if isSessionItem && item.metadata.projectName && item.metadata.projectColor}
 		<ProjectLetterBadge
 			name={item.metadata.projectName}
+			label={item.metadata.projectBadgeLabel ?? null}
 			color={item.metadata.projectColor}
 			iconSrc={item.metadata.projectIconSrc}
 			size={18}
@@ -87,7 +89,15 @@ const labelSegments = $derived.by(() => {
 		<FileIcon extension={item.metadata.extension} class="size-3.5 shrink-0" />
 	{:else if isSessionItem && item.metadata.agentId}
 		<AgentIcon agentId={item.metadata.agentId} size={14} class="shrink-0" />
-	{:else}
+	{:else if item.roundedIcon}
+		<RoundedIcon
+			name={item.roundedIcon}
+			class="size-3.5 shrink-0 transition-colors duration-100 {isSelected
+				? 'text-primary'
+				: 'text-muted-foreground group-hover:text-foreground'}"
+			data-testid={`command-palette-${item.id}-rounded-icon`}
+		/>
+	{:else if Icon}
 		<Icon
 			class="size-3.5 shrink-0 transition-colors duration-100 {isSelected
 				? 'text-primary'

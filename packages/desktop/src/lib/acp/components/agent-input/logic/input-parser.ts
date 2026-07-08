@@ -162,3 +162,25 @@ export function parseSlashCommandTrigger(
 
 	return ok(result);
 }
+
+export function replaceActiveSlashTrigger(input: {
+	message: string;
+	cursorPos: number;
+	replacement: string;
+}): { message: string; cursor: number } | null {
+	const triggerResult = parseSlashCommandTrigger(input.message, input.cursorPos);
+	if (!triggerResult.isOk() || triggerResult.value === null) {
+		return null;
+	}
+
+	const start = triggerResult.value.startIndex;
+	const before = input.message.substring(0, start);
+	const after = input.message.substring(input.cursorPos);
+	const message =
+		input.replacement.length > 0
+			? `${before}${input.replacement}${after}`
+			: `${before}${after}`;
+	const cursor = before.length + input.replacement.length;
+
+	return { message, cursor };
+}

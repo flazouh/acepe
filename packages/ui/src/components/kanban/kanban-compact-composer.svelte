@@ -1,6 +1,6 @@
 <script lang="ts">
-	import { SlidersHorizontal } from "phosphor-svelte";
 	import type { Snippet } from "svelte";
+	import { RoundedIcon } from "../icons/index.js";
 
 	interface Props {
 		/** Current mode id used to pick the icon (e.g. "code", "plan", "build"). */
@@ -114,11 +114,11 @@
 				aria-label={modeToggleLabel}
 				onclick={handleModeToggle}
 			>
-				<SlidersHorizontal class="size-3.5" />
+				<RoundedIcon name="sliders" class="size-3.5" />
 			</button>
 		{:else}
 			<span class="flex shrink-0 items-center justify-center">
-				<SlidersHorizontal class="size-3.5 text-muted-foreground" />
+				<RoundedIcon name="sliders" class="size-3.5 text-muted-foreground" />
 			</span>
 		{/if}
 

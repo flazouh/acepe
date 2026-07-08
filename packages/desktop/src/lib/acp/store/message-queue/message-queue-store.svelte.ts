@@ -55,6 +55,10 @@ export interface MessageSender {
 	): ResultAsync<void, AppError>;
 }
 
+export interface SessionMessageQueueHost {
+	readonly connection: MessageSender;
+}
+
 export interface MessageQueueStore {
 	readonly queues: SvelteMap<string, QueuedMessage[]>;
 	readonly pausedIds: SvelteSet<string>;
@@ -328,6 +332,10 @@ export function createMessageQueueStore(sender: MessageSender): MessageQueueStor
 
 	setContext(MESSAGE_QUEUE_KEY, store);
 	return store;
+}
+
+export function createSessionMessageQueueStore(host: SessionMessageQueueHost): MessageQueueStore {
+	return createMessageQueueStore(host.connection);
 }
 
 /**

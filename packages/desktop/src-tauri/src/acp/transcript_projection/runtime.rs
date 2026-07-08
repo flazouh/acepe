@@ -19,6 +19,19 @@ pub struct TranscriptProjectionRegistry {
     sessions: Arc<DashMap<String, SessionTranscriptProjection>>,
 }
 
+#[derive(Debug, Clone)]
+pub(crate) struct TranscriptEntryProjectionSlice {
+    pub(crate) revision: i64,
+    pub(crate) total_entry_count: usize,
+    pub(crate) entries: Vec<IndexedTranscriptEntry>,
+}
+
+#[derive(Debug, Clone)]
+pub(crate) struct IndexedTranscriptEntry {
+    pub(crate) index: usize,
+    pub(crate) entry: TranscriptEntry,
+}
+
 impl TranscriptProjectionRegistry {
     #[must_use]
     pub fn new() -> Self {
@@ -41,6 +54,35 @@ impl TranscriptProjectionRegistry {
     #[must_use]
     pub fn snapshot_for_session(&self, session_id: &str) -> Option<TranscriptSnapshot> {
         self.sessions.get(session_id).map(|entry| entry.snapshot())
+    }
+
+    #[must_use]
+    pub fn compact_snapshot_for_session(&self, session_id: &str) -> Option<TranscriptSnapshot> {
+        self.sessions
+            .get(session_id)
+            .map(|entry| entry.compact_snapshot())
+    }
+
+    #[must_use]
+    pub(crate) fn entry_slice_for_session(
+        &self,
+        session_id: &str,
+        entry_ids: &[String],
+    ) -> Option<TranscriptEntryProjectionSlice> {
+        self.sessions
+            .get(session_id)
+            .map(|entry| entry.entry_slice(entry_ids))
+    }
+
+    #[must_use]
+    pub(crate) fn entry_suffix_for_session(
+        &self,
+        session_id: &str,
+        start_index: usize,
+    ) -> Option<TranscriptEntryProjectionSlice> {
+        self.sessions
+            .get(session_id)
+            .map(|entry| entry.entry_suffix(start_index))
     }
 
     #[must_use]
@@ -128,6 +170,57 @@ impl SessionTranscriptProjection {
         TranscriptSnapshot {
             revision: self.revision,
             entries: self.entries.clone(),
+        }
+    }
+
+    fn compact_snapshot(&self) -> TranscriptSnapshot {
+        TranscriptSnapshot {
+            revision: self.revision,
+            entries: Vec::new(),
+        }
+    }
+
+    fn entry_slice(&self, entry_ids: &[String]) -> TranscriptEntryProjectionSlice {
+        let mut entries = Vec::new();
+        for entry_id in entry_ids {
+            let Some(index) = self.entry_indexes.get(entry_id).copied() else {
+                continue;
+            };
+            if entries
+                .iter()
+                .any(|entry: &IndexedTranscriptEntry| entry.index == index)
+            {
+                continue;
+            }
+            entries.push(IndexedTranscriptEntry {
+                index,
+                entry: self.entries[index].clone(),
+            });
+        }
+        entries.sort_by_key(|entry| entry.index);
+
+        TranscriptEntryProjectionSlice {
+            revision: self.revision,
+            total_entry_count: self.entries.len(),
+            entries,
+        }
+    }
+
+    fn entry_suffix(&self, start_index: usize) -> TranscriptEntryProjectionSlice {
+        let start_index = start_index.min(self.entries.len());
+        let entries = self.entries[start_index..]
+            .iter()
+            .enumerate()
+            .map(|(offset, entry)| IndexedTranscriptEntry {
+                index: start_index.saturating_add(offset),
+                entry: entry.clone(),
+            })
+            .collect();
+
+        TranscriptEntryProjectionSlice {
+            revision: self.revision,
+            total_entry_count: self.entries.len(),
+            entries,
         }
     }
 
@@ -244,8 +337,12 @@ impl SessionTranscriptProjection {
                 chunk,
                 message_id,
                 part_id,
+                parent_tool_use_id,
                 ..
             } => {
+                if parent_tool_use_id.is_some() {
+                    return None;
+                }
                 let text = text_from_block(&chunk.content)?;
                 let entry_id = self.assistant_entry_id_for_chunk(message_id, part_id, event_seq);
                 let segment = TranscriptSegment::Text {
@@ -279,8 +376,12 @@ impl SessionTranscriptProjection {
                 chunk,
                 message_id,
                 part_id,
+                parent_tool_use_id,
                 ..
             } => {
+                if parent_tool_use_id.is_some() {
+                    return None;
+                }
                 let text = text_from_block(&chunk.content)?;
                 let entry_id = self.assistant_entry_id_for_chunk(message_id, part_id, event_seq);
                 let segment = TranscriptSegment::Thought {
@@ -466,6 +567,19 @@ mod tests {
     use crate::acp::transcript_projection::TranscriptDeltaOperation;
     use crate::acp::types::ContentBlock;
 
+    fn transcript_entry(entry_id: &str, role: TranscriptEntryRole, text: &str) -> TranscriptEntry {
+        TranscriptEntry {
+            entry_id: entry_id.to_string(),
+            role,
+            segments: vec![TranscriptSegment::Text {
+                segment_id: format!("{entry_id}:text:0"),
+                text: text.to_string(),
+            }],
+            attempt_id: None,
+            timestamp_ms: None,
+        }
+    }
+
     #[test]
     fn assistant_lineage_starts_with_entry_then_appends_segments() {
         let registry = TranscriptProjectionRegistry::new();
@@ -481,6 +595,7 @@ mod tests {
                     },
                     part_id: Some("part-1".to_string()),
                     message_id: Some("assistant-1".to_string()),
+                    parent_tool_use_id: None,
                     session_id: Some("session-1".to_string()),
                     produced_at_monotonic_ms: None,
                 },
@@ -498,6 +613,7 @@ mod tests {
                     },
                     part_id: Some("part-1".to_string()),
                     message_id: Some("assistant-1".to_string()),
+                    parent_tool_use_id: None,
                     session_id: Some("session-1".to_string()),
                     produced_at_monotonic_ms: None,
                 },
@@ -517,6 +633,91 @@ mod tests {
     }
 
     #[test]
+    fn subagent_text_chunk_does_not_append_to_parent_assistant_row() {
+        let registry = TranscriptProjectionRegistry::new();
+        registry
+            .apply_session_update_idle(
+                1,
+                &SessionUpdate::AgentMessageChunk {
+                    chunk: ContentChunk {
+                        content: ContentBlock::Text {
+                            text: "Parent text.".to_string(),
+                        },
+                        aggregation_hint: None,
+                    },
+                    part_id: None,
+                    message_id: Some("parent-message".to_string()),
+                    parent_tool_use_id: None,
+                    session_id: Some("session-1".to_string()),
+                    produced_at_monotonic_ms: None,
+                },
+            )
+            .expect("parent assistant delta");
+        registry
+            .apply_session_update_idle(
+                2,
+                &SessionUpdate::ToolCall {
+                    tool_call: ToolCallData {
+                        id: "toolu_task_parent".to_string(),
+                        name: "Task".to_string(),
+                        arguments: ToolArguments::Other {
+                            raw: serde_json::json!({
+                                "description": "Find new chat modal project trigger"
+                            }),
+                            intent: None,
+                        },
+                        diagnostic_input: None,
+                        status: ToolCallStatus::Completed,
+                        result: None,
+                        kind: Some(ToolKind::Task),
+                        title: Some("Find new chat modal project trigger".to_string()),
+                        locations: None,
+                        skill_meta: None,
+                        normalized_questions: None,
+                        normalized_todos: None,
+                        normalized_todo_update: None,
+                        parent_tool_use_id: None,
+                        task_children: None,
+                        question_answer: None,
+                        awaiting_plan_approval: false,
+                        plan_approval_request_id: None,
+                    },
+                    session_id: Some("session-1".to_string()),
+                },
+            )
+            .expect("task tool delta");
+
+        let subagent_delta = registry.apply_session_update_idle(
+            3,
+            &SessionUpdate::AgentMessageChunk {
+                chunk: ContentChunk {
+                    content: ContentBlock::Text {
+                        text: "Subagent report that must not leak.".to_string(),
+                    },
+                    aggregation_hint: None,
+                },
+                part_id: None,
+                message_id: Some("subagent-message".to_string()),
+                session_id: Some("session-1".to_string()),
+                produced_at_monotonic_ms: None,
+                parent_tool_use_id: Some("toolu_task_parent".to_string()),
+            },
+        );
+
+        assert_eq!(subagent_delta, None);
+        let snapshot = registry
+            .snapshot_for_session("session-1")
+            .expect("runtime snapshot");
+        assert_eq!(snapshot.entries.len(), 2);
+        assert_eq!(snapshot.entries[0].role, TranscriptEntryRole::Assistant);
+        assert_eq!(snapshot.entries[1].role, TranscriptEntryRole::Tool);
+        match &snapshot.entries[0].segments[0] {
+            TranscriptSegment::Text { text, .. } => assert_eq!(text, "Parent text."),
+            other => panic!("expected parent text segment, got {other:?}"),
+        }
+    }
+
+    #[test]
     fn thought_chunk_projects_as_canonical_thought_segment() {
         let registry = TranscriptProjectionRegistry::new();
         let delta = registry
@@ -531,6 +732,7 @@ mod tests {
                     },
                     part_id: Some("thinking-part-1".to_string()),
                     message_id: Some("assistant-1".to_string()),
+                    parent_tool_use_id: None,
                     session_id: Some("session-1".to_string()),
                 },
             )
@@ -576,6 +778,7 @@ mod tests {
                     },
                     part_id: Some("part-1".to_string()),
                     message_id: Some("assistant-1".to_string()),
+                    parent_tool_use_id: None,
                     session_id: Some("session-1".to_string()),
                     produced_at_monotonic_ms: None,
                 },
@@ -595,6 +798,62 @@ mod tests {
             snapshot.entries[1].entry_id,
             "acepe::entry::session-start::assistant::."
         );
+    }
+
+    #[test]
+    fn entry_slice_for_session_returns_requested_entry_indexes() {
+        let registry = TranscriptProjectionRegistry::new();
+        registry.restore_session_snapshot(
+            "session-1".to_string(),
+            TranscriptSnapshot {
+                revision: 9,
+                entries: vec![
+                    transcript_entry("entry-0", TranscriptEntryRole::User, "first"),
+                    transcript_entry("entry-1", TranscriptEntryRole::Assistant, "second"),
+                    transcript_entry("entry-2", TranscriptEntryRole::Assistant, "third"),
+                ],
+            },
+        );
+
+        let requested_entry_ids = vec!["entry-2".to_string()];
+        let slice = registry
+            .entry_slice_for_session("session-1", &requested_entry_ids)
+            .expect("entry slice should exist");
+
+        assert_eq!(slice.revision, 9);
+        assert_eq!(slice.total_entry_count, 3);
+        assert_eq!(slice.entries.len(), 1);
+        assert_eq!(slice.entries[0].index, 2);
+        assert_eq!(slice.entries[0].entry.entry_id, "entry-2");
+    }
+
+    #[test]
+    fn entry_suffix_for_session_returns_entries_from_start_index() {
+        let registry = TranscriptProjectionRegistry::new();
+        registry.restore_session_snapshot(
+            "session-1".to_string(),
+            TranscriptSnapshot {
+                revision: 11,
+                entries: vec![
+                    transcript_entry("entry-0", TranscriptEntryRole::User, "first"),
+                    transcript_entry("entry-1", TranscriptEntryRole::Assistant, "second"),
+                    transcript_entry("entry-2", TranscriptEntryRole::Tool, "third"),
+                    transcript_entry("entry-3", TranscriptEntryRole::Assistant, "fourth"),
+                ],
+            },
+        );
+
+        let suffix = registry
+            .entry_suffix_for_session("session-1", 1)
+            .expect("entry suffix should exist");
+
+        assert_eq!(suffix.revision, 11);
+        assert_eq!(suffix.total_entry_count, 4);
+        assert_eq!(suffix.entries.len(), 3);
+        assert_eq!(suffix.entries[0].index, 1);
+        assert_eq!(suffix.entries[0].entry.entry_id, "entry-1");
+        assert_eq!(suffix.entries[2].index, 3);
+        assert_eq!(suffix.entries[2].entry.entry_id, "entry-3");
     }
 
     #[test]
@@ -628,6 +887,7 @@ mod tests {
                     },
                     part_id: None,
                     message_id: None,
+                    parent_tool_use_id: None,
                     session_id: Some("session-1".to_string()),
                     produced_at_monotonic_ms: None,
                 },
@@ -645,6 +905,7 @@ mod tests {
                     },
                     part_id: None,
                     message_id: None,
+                    parent_tool_use_id: None,
                     session_id: Some("session-1".to_string()),
                     produced_at_monotonic_ms: None,
                 },
@@ -690,6 +951,7 @@ mod tests {
                     },
                     part_id: Some("part-1".to_string()),
                     message_id: Some("assistant-1".to_string()),
+                    parent_tool_use_id: None,
                     session_id: Some("session-1".to_string()),
                     produced_at_monotonic_ms: None,
                 },
@@ -723,6 +985,7 @@ mod tests {
                     },
                     part_id: Some("part-2".to_string()),
                     message_id: Some("assistant-1".to_string()),
+                    parent_tool_use_id: None,
                     session_id: Some("session-1".to_string()),
                     produced_at_monotonic_ms: None,
                 },
@@ -784,6 +1047,7 @@ mod tests {
                     },
                     part_id: Some("part-1".to_string()),
                     message_id: Some("msg-same".to_string()),
+                    parent_tool_use_id: None,
                     session_id: Some("session-1".to_string()),
                     produced_at_monotonic_ms: None,
                 },
@@ -832,6 +1096,7 @@ mod tests {
                     },
                     part_id: Some("part-2".to_string()),
                     message_id: Some("msg-same".to_string()),
+                    parent_tool_use_id: None,
                     session_id: Some("session-1".to_string()),
                     produced_at_monotonic_ms: None,
                 },
@@ -951,6 +1216,7 @@ mod tests {
                     },
                     part_id: Some("part-1".to_string()),
                     message_id: Some("assistant-1".to_string()),
+                    parent_tool_use_id: None,
                     session_id: Some("session-1".to_string()),
                     produced_at_monotonic_ms: None,
                 },
@@ -977,6 +1243,7 @@ mod tests {
                     },
                     part_id: Some("part-1".to_string()),
                     message_id: Some("msg-same".to_string()),
+                    parent_tool_use_id: None,
                     session_id: Some("session-1".to_string()),
                     produced_at_monotonic_ms: None,
                 },
@@ -1013,6 +1280,7 @@ mod tests {
                     },
                     part_id: Some("part-2".to_string()),
                     message_id: Some("msg-same".to_string()),
+                    parent_tool_use_id: None,
                     session_id: Some("session-1".to_string()),
                     produced_at_monotonic_ms: None,
                 },
@@ -1228,6 +1496,7 @@ mod tests {
                         source_model_id: None,
                         timestamp_ms: None,
                         context_window_size: None,
+                        parent_tool_use_id: None,
                     },
                 },
             );
@@ -1296,6 +1565,7 @@ mod tests {
                     },
                     part_id: None,
                     message_id: Some("assistant-1".to_string()),
+                    parent_tool_use_id: None,
                     session_id: Some("session-1".to_string()),
                     produced_at_monotonic_ms: None,
                 },
@@ -1502,6 +1772,7 @@ mod tests {
                 },
                 part_id: Some("part-1".to_string()),
                 message_id: Some("assistant-1".to_string()),
+                parent_tool_use_id: None,
                 session_id: Some("session-1".to_string()),
             },
         );
@@ -1539,6 +1810,7 @@ mod tests {
                 },
                 part_id: None,
                 message_id: Some("assistant-1".to_string()),
+                parent_tool_use_id: None,
                 session_id: Some("session-1".to_string()),
                 produced_at_monotonic_ms: None,
             },

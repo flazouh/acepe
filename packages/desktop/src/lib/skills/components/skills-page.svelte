@@ -1,9 +1,6 @@
 <script lang="ts">
 import { okAsync } from "neverthrow";
-import { Copy } from "phosphor-svelte";
-import { FileText } from "phosphor-svelte";
-import { PuzzlePiece } from "phosphor-svelte";
-import { Trash } from "phosphor-svelte";
+import { RoundedIcon } from "@acepe/ui";
 import { onMount } from "svelte";
 import AgentIcon from "$lib/acp/components/agent-icon.svelte";
 import DialogFrame from "$lib/components/ui/dialog-frame.svelte";
@@ -129,7 +126,7 @@ function getSyncStatusForSkill(
 				<div class="p-2 text-[12px] text-muted-foreground">Loading skills...</div>
 			{:else if store.skills.length === 0}
 				<div class="flex h-full flex-col items-center justify-center gap-3 p-4 text-center">
-					<FileText class="h-8 w-8 text-muted-foreground opacity-50" />
+					<RoundedIcon name="file-text" class="h-8 w-8 text-muted-foreground opacity-50" />
 					<p class="text-[12px] text-muted-foreground">No skills yet</p>
 					<Button variant="outline" size="sm" onclick={openCreateDialog}>Create First Skill</Button>
 				</div>
@@ -169,7 +166,7 @@ function getSyncStatusForSkill(
 		<div class="flex h-7 shrink-0 items-center gap-2 border-b border-border/40 px-2">
 			<div class="flex min-w-0 flex-1 items-center gap-1.5">
 				{#if isViewingPluginSkill && store.selectedPluginSkill}
-					<PuzzlePiece class="h-3.5 w-3.5 shrink-0 text-muted-foreground" weight="fill" />
+					<RoundedIcon name="skills" class="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
 					<span class="truncate text-[11px] font-medium text-foreground">
 						{store.selectedPluginSkill.name}
 					</span>
@@ -187,13 +184,13 @@ function getSyncStatusForSkill(
 			</div>
 			<div class="flex shrink-0 items-center gap-1">
 				{#if isViewingPluginSkill && store.selectedPluginSkill}
-					<Button variant="header" size="header" onclick={handleCopyToLibrary}>
-						<Copy class="h-3.5 w-3.5" weight="bold" />
+					<Button variant="outline" size="sm" onclick={handleCopyToLibrary}>
+						<RoundedIcon name="copy" class="h-3.5 w-3.5" />
 						Copy to Library
 					</Button>
 				{:else if store.selectedSkill}
-					<Button variant="header" size="header" onclick={openDeleteDialog} title="Delete Skill">
-						<Trash class="h-3.5 w-3.5" weight="fill" />
+					<Button variant="outline" size="sm" onclick={openDeleteDialog} title="Delete Skill">
+						<RoundedIcon name="trash" class="h-3.5 w-3.5" />
 					</Button>
 					<SyncDropdownButton />
 				{/if}
@@ -223,7 +220,7 @@ function getSyncStatusForSkill(
 			<div
 				class="flex-1 flex flex-col items-center justify-center gap-3 text-muted-foreground min-h-0 bg-background"
 			>
-				<FileText class="h-12 w-12 opacity-50" />
+				<RoundedIcon name="file-text" class="h-12 w-12 opacity-50" />
 				<p class="text-[12px]">Select a skill to view or edit</p>
 			</div>
 		{/if}
@@ -241,10 +238,6 @@ function getSyncStatusForSkill(
 	size="medium"
 	onOpenChange={(open) => (deleteDialogOpen = open)}
 >
-	{#snippet topLeft()}
-		<span class="truncate text-[11px] font-semibold text-foreground select-none">Delete Skill</span>
-	{/snippet}
-
 	<div class="space-y-4 px-3 py-3">
 		<p class="text-[12px] text-muted-foreground">
 			Are you sure you want to delete "{store.selectedSkill?.skill.name}"? This action cannot be undone.
@@ -280,10 +273,10 @@ function getSyncStatusForSkill(
 	</div>
 
 	{#snippet footer()}
-		<Button variant="header" size="header" disabled={isDeleting} onclick={() => (deleteDialogOpen = false)}>
+		<Button variant="outline" size="sm" disabled={isDeleting} onclick={() => (deleteDialogOpen = false)}>
 			Cancel
 		</Button>
-		<Button variant="destructive" size="header" disabled={isDeleting} onclick={handleDeleteSkill}>
+		<Button variant="destructive" size="sm" disabled={isDeleting} onclick={handleDeleteSkill}>
 			{isDeleting ? "Deleting..." : "Delete"}
 		</Button>
 	{/snippet}

@@ -1,9 +1,11 @@
 <script lang="ts">
 import { AppSidebarLayout } from "@acepe/ui/app-layout";
+import { Button, RoundedIcon } from "@acepe/ui";
 import { toast } from "svelte-sonner";
 import { copyTextToClipboard } from "$lib/acp/components/agent-panel/logic/clipboard-manager.js";
 import { SessionList } from "$lib/acp/components/index.js";
 import { buildSessionSummaryFromCold } from "$lib/acp/application/dto/session-summary.js";
+import ProjectFileSystemDialog from "$lib/acp/components/file-explorer-modal/project-file-system-dialog.svelte";
 import ProjectIconPickerDialog from "$lib/acp/components/project-icon-picker-dialog.svelte";
 import type { SessionListItem } from "$lib/acp/components/session-list/session-list-types.js";
 import type { SessionDisplayItem } from "$lib/acp/types/thread-display-item.js";
@@ -20,12 +22,15 @@ import { getSessionArchiveStore } from "$lib/acp/store/session-archive-store.sve
 import { createLogger } from "$lib/acp/utils/logger.js";
 import { useTheme } from "$lib/components/theme/index.js";
 import { getAttentionQueueStore } from "$lib/stores/attention-queue-store.svelte.js";
+import { tauriClient } from "$lib/utils/tauri-client/index.js";
 
 import type { MainAppViewState } from "../../logic/main-app-view-state.svelte.js";
+import type { UpdaterBannerState } from "../../logic/updater-state.js";
 import { ensureProjectHeaderAgentSelected, getProjectHeaderAgents } from "./app-sidebar-agents.js";
 
 import AppQueueRow from "../app-queue-row.svelte";
 import SidebarFooter from "./sidebar-footer.svelte";
+import { buildSessionTranscriptFileDialogTarget } from "./session-transcript-file-dialog.js";
 
 const logger = createLogger({
 	id: LOGGER_IDS.MAIN_PAGE,
@@ -35,9 +40,24 @@ const logger = createLogger({
 interface Props {
 	projectManager: ProjectManager;
 	state: MainAppViewState;
+	/** Opens the add-repository dialog (owned by the app shell). */
+	onImportProject?: () => void;
+	/** Current app-updater stage, surfaced as a card in the sidebar footer. */
+	updaterState?: UpdaterBannerState;
+	/** Starts the download/install flow when the update card is clicked. */
+	onUpdateClick?: () => void;
+	/** Retries the update check after a failure. */
+	onRetryUpdateClick?: () => void;
 }
 
-let { projectManager, state: appState }: Props = $props();
+let {
+	projectManager,
+	state: appState,
+	onImportProject,
+	updaterState,
+	onUpdateClick,
+	onRetryUpdateClick,
+}: Props = $props();
 
 const panelStore = getPanelStore();
 const sessionStore = getSessionStore();
@@ -98,16 +118,16 @@ function handleToggleShowExternalCliSessions(
 	projectPath: string,
 	showExternalCliSessions: boolean
 ) {
-	projectManager.updateProjectShowExternalCliSessions(projectPath, showExternalCliSessions).mapErr(
-		(error) => {
+	projectManager
+		.updateProjectShowExternalCliSessions(projectPath, showExternalCliSessions)
+		.mapErr((error) => {
 			toast.error(`Failed to update session visibility: ${error.message}`);
 			logger.error("[ProjectVisibility] Failed to update external CLI visibility", {
 				projectPath,
 				showExternalCliSessions,
 				error,
 			});
-		}
-	);
+		});
 }
 
 function handleChangeProjectIcon(projectPath: string) {
@@ -173,12 +193,68 @@ function handleOpenGitPanel(projectPath: string) {
 	panelStore.openGitDialog(projectPath);
 }
 
+// ── Sidebar-header global actions (source control + file system) ──
+// These operate on the "current" project — the focused view/panel project, or
+// the first project — and let the user switch projects via a picker inside each
+// modal.
+let fileSystemProjectPath = $state<string | null>(null);
+
+function getCurrentProjectPath(): string | null {
+	return (
+		panelStore.focusedViewProjectPath ??
+		panelStore.focusedTopLevelPanel?.projectPath ??
+		projectManager.projects[0]?.path ??
+		null
+	);
+}
+
+function handleOpenSourceControl() {
+	const projectPath = getCurrentProjectPath();
+	if (projectPath) {
+		panelStore.openGitDialog(projectPath);
+	}
+}
+
+function handleOpenFileSystem() {
+	fileSystemProjectPath = getCurrentProjectPath();
+}
+
+const fileSystemProject = $derived(
+	fileSystemProjectPath ? (projectManager.getProject(fileSystemProjectPath) ?? null) : null
+);
+
 function handleOpenPr(sessionInfo: SessionListItem) {
 	if (sessionInfo.prNumber == null) return;
 	panelStore.openGitDialog(sessionInfo.projectPath, undefined, {
 		section: "prs",
 		prNumber: sessionInfo.prNumber,
 	});
+}
+
+function openTranscriptFileDialog(fullPath: string): void {
+	const target = buildSessionTranscriptFileDialogTarget(fullPath);
+	if (target === null) {
+		toast.error("Failed to open transcript in Acepe: invalid transcript path");
+		return;
+	}
+
+	panelStore.openProjectFileSystemDialog(target.projectPath, target.filePath, {
+		projectName: target.projectName,
+		title: "Session transcript",
+	});
+}
+
+async function handleOpenTranscriptInAcepe(session: SessionDisplayItem) {
+	const sourcePath = session.sourcePath?.trim();
+	if (sourcePath) {
+		openTranscriptFileDialog(sourcePath);
+		return;
+	}
+
+	await tauriClient.shell.getSessionFilePath(session.id, session.projectPath).match(
+		(path) => openTranscriptFileDialog(path),
+		(error) => toast.error(`Failed to open transcript in Acepe: ${error.message}`)
+	);
 }
 
 function handleRenameSession(sessionInfo: SessionListItem, title: string) {
@@ -196,33 +272,33 @@ function handleRenameSession(sessionInfo: SessionListItem, title: string) {
 	);
 }
 
-function handleExportMarkdown(sessionId: string) {
+function handleCopyTranscriptMarkdown(sessionId: string) {
 	sessionStore.read.getSessionMarkdownExportContent(sessionId).match(
 		(markdown) => {
 			void copyTextToClipboard(markdown).match(
 				() => toast.success("Copied to clipboard"),
 				(err) => {
-					toast.error(`Failed to export: ${err.message}`);
-					logger.error("[ExportMarkdown] Failed", { sessionId, error: err });
+					toast.error(`Failed to copy transcript: ${err.message}`);
+					logger.error("[CopyTranscriptMarkdown] Failed", { sessionId, error: err });
 				}
 			);
 		},
-		(error) => toast.error(error.message)
+		(error) => toast.error(`Failed to copy transcript: ${error.message}`)
 	);
 }
 
-function handleExportJson(sessionId: string) {
+function handleCopyTranscriptJson(sessionId: string) {
 	sessionStore.read.getSessionJsonExportContent(sessionId).match(
 		(content) => {
 			void copyTextToClipboard(content).match(
 				() => toast.success("Copied to clipboard"),
 				(err) => {
-					toast.error(`Failed to export: ${err.message}`);
-					logger.error("[ExportJson] Failed", { sessionId, error: err });
+					toast.error(`Failed to copy transcript: ${err.message}`);
+					logger.error("[CopyTranscriptJson] Failed", { sessionId, error: err });
 				}
 			);
 		},
-		(error) => toast.error(`Failed to export: ${error.message}`)
+		(error) => toast.error(`Failed to copy transcript: ${error.message}`)
 	);
 }
 
@@ -450,6 +526,76 @@ const visibleSessions = $derived.by(() => {
 </script>
 
 <AppSidebarLayout>
+	{#snippet topNav()}
+		<!-- Sidebar header: icon-only actions in the agent-panel header format. -->
+		<div class="flex h-7 shrink-0 items-center gap-0.5 border-b border-border/50 px-1">
+			<Button
+				variant="ghost"
+				size="icon-sm"
+				data-header-control
+				title="Add repository"
+				aria-label="Add repository"
+				onclick={() => onImportProject?.()}
+			>
+				{#snippet children()}
+					<RoundedIcon name="add" />
+				{/snippet}
+			</Button>
+			<div class="ml-auto flex items-center gap-0.5">
+				<Button
+					variant="ghost"
+					size="icon-sm"
+					data-header-control
+					title="New chat"
+					aria-label="New chat"
+					onclick={handleNewThread}
+				>
+					{#snippet children()}
+						<RoundedIcon name="new-chat" />
+					{/snippet}
+				</Button>
+				<Button
+					variant="ghost"
+					size="icon-sm"
+					data-header-control
+					title="Search"
+					aria-label="Search"
+					onclick={() => {
+						appState.commandPaletteOpen = true;
+					}}
+				>
+					{#snippet children()}
+						<RoundedIcon name="search" />
+					{/snippet}
+				</Button>
+				<Button
+					variant="ghost"
+					size="icon-sm"
+					data-header-control
+					title="Source control"
+					aria-label="Source control"
+					onclick={handleOpenSourceControl}
+				>
+					{#snippet children()}
+						<RoundedIcon name="git" />
+					{/snippet}
+				</Button>
+				<Button
+					variant="ghost"
+					size="icon-sm"
+					data-header-control
+					title="File system"
+					aria-label="File system"
+					onclick={handleOpenFileSystem}
+				>
+					{#snippet children()}
+						<RoundedIcon name="files" />
+					{/snippet}
+				</Button>
+			</div>
+		</div>
+	{/snippet}
+
 	{#snippet queueSection()}
 		{#if panelStore.viewMode !== "kanban" && attentionQueueStore.enabled}
 			<AppQueueRow {projectManager} state={appState} />
@@ -483,15 +629,23 @@ const visibleSessions = $derived.by(() => {
 			onOpenPr={handleOpenPr}
 			onArchiveSession={handleArchiveSession}
 			onRenameSession={handleRenameSession}
-			onExportMarkdown={handleExportMarkdown}
-			onExportJson={handleExportJson}
+			onCopyTranscriptMarkdown={handleCopyTranscriptMarkdown}
+			onCopyTranscriptJson={handleCopyTranscriptJson}
+			onOpenTranscriptInAcepe={handleOpenTranscriptInAcepe}
 			onReorderProjects={handleReorderProjects}
 			onToggleShowExternalCliSessions={handleToggleShowExternalCliSessions}
 		/>
 	{/snippet}
 
 	{#snippet footer()}
-		<SidebarFooter {projectManager} state={appState} onOpenGitPanel={handleOpenGitPanel} />
+		<SidebarFooter
+			{projectManager}
+			state={appState}
+			onOpenGitPanel={handleOpenGitPanel}
+			{updaterState}
+			{onUpdateClick}
+			{onRetryUpdateClick}
+		/>
 	{/snippet}
 </AppSidebarLayout>
 
@@ -503,3 +657,27 @@ const visibleSessions = $derived.by(() => {
 	onBrowse={handleBrowseProjectIcon}
 	onOpenChange={handleIconPickerOpenChange}
 />
+
+{#if fileSystemProject !== null}
+	{@const fsProject = fileSystemProject}
+	{#key fsProject.path}
+	<ProjectFileSystemDialog
+		open={true}
+		projectPath={fsProject.path}
+		projectName={fsProject.name}
+		projectColor={fsProject.color}
+		projectIconSrc={fsProject.iconPath ?? null}
+		recentProjects={projectManager.projects}
+		onProjectChange={(project) => {
+			fileSystemProjectPath = project.path;
+		}}
+		onClose={() => {
+			fileSystemProjectPath = null;
+		}}
+		onOpenFile={(projectPath, filePath) => {
+			handleSelectFile(filePath, projectPath);
+			fileSystemProjectPath = null;
+		}}
+	/>
+	{/key}
+{/if}

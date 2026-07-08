@@ -91,6 +91,14 @@ export function resolveToolTitle(
 	}
 
 	if (
+		kind !== "other" &&
+		kind !== "unclassified" &&
+		rawTitle.localeCompare(toolCall.name, undefined, { sensitivity: "accent" }) === 0
+	) {
+		return semanticTitle;
+	}
+
+	if (
 		(kind === "delete" &&
 			rawTitle.localeCompare("apply_patch", undefined, { sensitivity: "accent" }) === 0) ||
 		kind === "skill"

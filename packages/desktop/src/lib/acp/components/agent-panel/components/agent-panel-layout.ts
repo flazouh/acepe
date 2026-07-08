@@ -5,7 +5,6 @@ interface AgentPanelWidthStyleInput {
 
 interface AgentPanelEffectiveWidthInput {
 	baseWidth: number;
-	reviewMode: boolean;
 	showPlanSidebar: boolean;
 	hasPlan: boolean;
 	planSidebarColumnWidth: number;
@@ -25,7 +24,7 @@ interface CenteredFullscreenContentInput {
 }
 
 export function resolveAgentPanelEffectiveWidth(input: AgentPanelEffectiveWidthInput): number {
-	let width = input.reviewMode ? input.baseWidth * 2 : input.baseWidth;
+	let width = input.baseWidth;
 
 	if (input.showPlanSidebar && input.hasPlan) {
 		width += input.planSidebarColumnWidth;

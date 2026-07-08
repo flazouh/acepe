@@ -52,20 +52,8 @@ export function isUpdaterInstallInProgress(state: UpdaterBannerState): boolean {
 	return state.kind === "installing";
 }
 
-export function shouldShowBlockingUpdaterOverlay(state: UpdaterBannerState): boolean {
-	return (
-		state.kind === "checking" ||
-		state.kind === "downloading" ||
-		state.kind === "installing" ||
-		state.kind === "error"
-	);
-}
-
-export function canMaximizeFromStartupGate(
-	showSplash: boolean | null,
-	state: UpdaterBannerState
-): boolean {
-	return showSplash === false && !shouldShowBlockingUpdaterOverlay(state);
+export function canMaximizeFromStartupGate(showSplash: boolean | null): boolean {
+	return showSplash === false;
 }
 
 export function applyUpdaterDownloadEvent(

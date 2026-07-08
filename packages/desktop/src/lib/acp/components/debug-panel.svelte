@@ -16,10 +16,6 @@ let { open = $bindable(false) }: Props = $props();
 	size="debug"
 	contentOverflow="hidden"
 >
-	{#snippet topLeft()}
-		<span class="truncate text-[11px] font-semibold text-foreground select-none">Debug Panel</span>
-	{/snippet}
-
 	{#if import.meta.env.DEV}
 		<div class="min-h-0 flex-1 overflow-hidden px-3 pb-3 pt-3">
 			<StreamingReproLab />

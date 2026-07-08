@@ -90,9 +90,9 @@
       "svelte": "./src/components/markdown/index.ts",
       "default": "./src/components/markdown/index.ts"
     },
-    "./streamdown-markdown": {
-      "svelte": "./src/components/streamdown-markdown/index.ts",
-      "default": "./src/components/streamdown-markdown/index.ts"
+    "./native-markdown": {
+      "svelte": "./src/components/native-markdown/index.ts",
+      "default": "./src/components/native-markdown/index.ts"
     },
     "./markdown-prose.css": {
       "svelte": "./src/components/markdown/markdown-prose.css",
@@ -105,6 +105,10 @@
     "./file-icon": {
       "svelte": "./src/lib/file-icon/index.ts",
       "default": "./src/lib/file-icon/index.ts"
+    },
+    "./pierre-tree": {
+      "svelte": "./src/components/pierre-tree/index.ts",
+      "default": "./src/components/pierre-tree/index.ts"
     },
     "./git-viewer": {
       "svelte": "./src/components/git-viewer/index.ts",
@@ -173,6 +177,10 @@
       "svelte": "./src/components/selector/index.ts",
       "default": "./src/components/selector/index.ts"
     },
+    "./session-pr-link": {
+      "svelte": "./src/components/session-pr-link/index.ts",
+      "default": "./src/components/session-pr-link/index.ts"
+    },
     "./script-editor": {
       "svelte": "./src/components/script-editor/index.ts",
       "default": "./src/components/script-editor/index.ts"
@@ -212,9 +220,9 @@
   },
   "scripts": {
     "check": "bunx tsc --noEmit -p tsconfig.json",
-    "test": "bun ../../scripts/forbid-ui-package-imports.ts src && bun ../../scripts/forbid-structural-tests.ts src && bun test $(find src -type f -name '*.test.ts') && bun run test:dom",
+    "test": "bun ../../scripts/forbid-ui-package-imports.ts src && bun ../../scripts/forbid-dropdown-menu-root.ts && bun ../../scripts/forbid-structural-tests.ts src && bun test $(find src -type f -name '*.test.ts') && bun run test:dom",
     "test:dom": "vitest run --config vitest.config.ts",
-    "test:run": "bun ../../scripts/forbid-ui-package-imports.ts src && bun ../../scripts/forbid-structural-tests.ts src && bun test $(find src -type f -name '*.test.ts') && bun run test:dom"
+    "test:run": "bun ../../scripts/forbid-ui-package-imports.ts src && bun ../../scripts/forbid-dropdown-menu-root.ts && bun ../../scripts/forbid-structural-tests.ts src && bun test $(find src -type f -name '*.test.ts') && bun run test:dom"
   },
   "peerDependencies": {
     "bits-ui": "^2.16.3",
@@ -222,20 +230,16 @@
     "tailwindcss": "^4.0.0"
   },
   "dependencies": {
-    "@lucide/svelte": "^0.562.0",
     "@paper-design/shaders": "^0.0.68",
     "@pierre/diffs": "1.1.3",
-    "@tabler/icons-svelte": "^3.36.0",
+    "@pierre/trees": "1.0.0-beta.5",
     "@tanstack/svelte-query": "^5.0.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "lru-cache": "^11.2.4",
+    "marked": "17.0.6",
     "neverthrow": "^8.2.0",
-    "phosphor-svelte": "^3.1.0",
-    "react": "19.2.6",
-    "react-dom": "19.2.6",
     "shiki": "^3.22.0",
-    "streamdown": "2.5.0",
     "tailwind-merge": "^3.4.0",
     "tailwind-variants": "^3.2.2",
     "vaul-svelte": "^1.0.0-next.7"
@@ -245,8 +249,6 @@
     "@sveltejs/vite-plugin-svelte": "^7.1.2",
     "@testing-library/svelte": "^5.3.1",
     "@types/node": "^24",
-    "@types/react": "19.2.14",
-    "@types/react-dom": "^19.2.3",
     "bun-types": "^1.3.5",
     "happy-dom": "^20.10.3",
     "svelte": "^5.56.3",

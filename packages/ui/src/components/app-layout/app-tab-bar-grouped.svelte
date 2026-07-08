@@ -6,6 +6,7 @@
 	interface Props {
 		groups: {
 			projectName: string;
+			projectBadgeLabel?: string | null;
 			projectColor: string;
 			projectIconSrc?: string | null;
 			tabs: readonly TTab[];
@@ -20,6 +21,7 @@
 	{#each groups as group (group.projectName)}
 		<ProjectCard
 			projectName={group.projectName}
+			projectBadgeLabel={group.projectBadgeLabel ?? null}
 			projectColor={group.projectColor}
 			projectIconSrc={group.projectIconSrc}
 			variant="inline"

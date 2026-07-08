@@ -10,15 +10,7 @@ function normalizeReviewStatus(
 		return undefined;
 	}
 
-	if (progress.pendingHunks > 0) {
-		return "partial";
-	}
-
-	if (progress.rejectedHunks > 0 || progress.status === "denied") {
-		return "denied";
-	}
-
-	return "accepted";
+	return progress.reviewed ? "reviewed" : "unreviewed";
 }
 
 /**
@@ -51,7 +43,7 @@ export function hasKeepAllBeenApplied(
 	const statusByFilePath = getReviewStatusByFilePath(files, state);
 
 	for (const file of files) {
-		if (statusByFilePath.get(file.filePath) !== "accepted") {
+		if (statusByFilePath.get(file.filePath) !== "reviewed") {
 			return false;
 		}
 	}

@@ -3,8 +3,7 @@
   All copy is supplied by the host app.
 -->
 <script lang="ts">
-	import { Trash } from "phosphor-svelte";
-
+	import { RoundedIcon } from "../icons/index.js";
 	import * as Popover from "../popover/index.js";
 
 	let {
@@ -59,7 +58,7 @@
 				onclick={onConfirmRemoveAndClose}
 				disabled={confirmDisabled}
 			>
-				<Trash class="size-3" weight="fill" />
+				<RoundedIcon name="trash" class="size-3" />
 				{confirmLabel}
 			</button>
 		</div>

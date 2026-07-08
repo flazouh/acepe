@@ -1,21 +1,30 @@
 <script lang="ts">
 import { Button } from "$lib/components/ui/button/index.js";
 import DialogFrame from "$lib/components/ui/dialog-frame.svelte";
+import ProjectSelector from "../project-selector.svelte";
+import type { Project } from "$lib/acp/logic/project-manager.svelte.js";
 import type {
 	FileExplorerPreviewResponse,
-	FileGitStatus,
 	PreviewKind,
 } from "$lib/services/converted-session-types.js";
 import { tauriClient } from "$lib/utils/tauri-client.js";
-import { DiffPill, ProjectLetterBadge } from "@acepe/ui";
+import { PierreFileTree } from "@acepe/ui";
 import { Colors } from "@acepe/ui/colors";
-import { FolderOpen } from "phosphor-svelte";
 import { onMount } from "svelte";
-import { SvelteSet } from "svelte/reactivity";
-import FileIcon from "../file-list/file-icon.svelte";
-import { createFileTree, flattenFileTree } from "../file-list/file-list-logic.js";
-import type { FileTreeNode } from "../file-list/file-list-types.js";
 import FileExplorerPreviewPane from "./file-explorer-preview-pane.svelte";
+import { createProjectFileSystemTreeModel } from "./project-file-system-tree-model.js";
+
+const FILE_DIALOG_TREE_UNSAFE_CSS = `
+	button[data-type='item'] {
+		font-size: 12px;
+		line-height: 18px;
+		min-height: 24px;
+	}
+
+	button[data-type='item'][data-item-selected] {
+		border-left: 2px solid hsl(var(--primary));
+	}
+`;
 
 interface Props {
 	open: boolean;
@@ -23,6 +32,11 @@ interface Props {
 	projectName: string;
 	projectColor?: string;
 	projectIconSrc?: string | null;
+	title?: string | null;
+	initialFilePath?: string | null;
+	/** Projects available in the top-left picker (omit to hide the picker). */
+	recentProjects?: readonly Project[];
+	onProjectChange?: (project: Project) => void;
 	onClose: () => void;
 	onOpenFile?: (projectPath: string, filePath: string) => void;
 }
@@ -33,19 +47,25 @@ let {
 	projectName,
 	projectColor = Colors.red,
 	projectIconSrc = null,
+	title = null,
+	initialFilePath = null,
+	recentProjects = [],
+	onProjectChange,
 	onClose,
 	onOpenFile,
 }: Props = $props();
 
-let files = $state<FileTreeNode[]>([]);
+const selectedProject = $derived(
+	recentProjects.find((project) => project.path === projectPath) ?? null
+);
+
+let treeModel = $state(createProjectFileSystemTreeModel([]));
 let loading = $state(false);
 let error = $state<string | null>(null);
-let selectedFilePath = $state<string | null>(null);
+let selectedFilePathOverride = $state<string | null>(null);
+const selectedFilePath = $derived(selectedFilePathOverride ?? initialFilePath);
 let preview = $state<FileExplorerPreviewResponse | null>(null);
 let previewRequestSeq = 0;
-const expandedFolders = new SvelteSet<string>();
-
-const flattenedFiles = $derived(flattenFileTree(files, expandedFolders, projectPath));
 function getPreviewFallbackFileName(filePath: string): string {
 	const segments = filePath.split("/");
 	const fileName = segments[segments.length - 1];
@@ -62,28 +82,6 @@ function fallbackPreview(filePath: string, reason: string): FileExplorerPreviewR
 		git_status: null,
 		preview_kind: "unsupported" satisfies PreviewKind,
 	};
-}
-
-function findFirstFile(nodes: FileTreeNode[]): FileTreeNode | null {
-	for (const node of nodes) {
-		if (!node.isDirectory) {
-			return node;
-		}
-		const child = findFirstFile(node.children);
-		if (child !== null) {
-			return child;
-		}
-	}
-	return null;
-}
-
-function expandParents(filePath: string): void {
-	const segments = filePath.split("/");
-	const parents: string[] = [];
-	for (let index = 0; index < segments.length - 1; index += 1) {
-		parents.push(segments[index]);
-		expandedFolders.add(`${projectPath}:${parents.join("/")}`);
-	}
 }
 
 function handleOpenSelectedFile(): void {
@@ -105,12 +103,11 @@ function loadProjectFiles(refresh: boolean): void {
 
 	void load.match(
 		(result) => {
-			const nextFiles = createFileTree(result.files);
-			files = nextFiles;
+			const nextTreeModel = createProjectFileSystemTreeModel(result.files);
+			treeModel = nextTreeModel;
 			loading = false;
-			const nextSelected = selectedFilePath ?? findFirstFile(nextFiles)?.path ?? null;
+			const nextSelected = selectedFilePath ?? nextTreeModel.firstFilePath;
 			if (nextSelected !== null) {
-				expandParents(nextSelected);
 				selectFile(nextSelected);
 			}
 		},
@@ -121,17 +118,19 @@ function loadProjectFiles(refresh: boolean): void {
 	);
 }
 
-function toggleFolder(folderPath: string): void {
-	const key = `${projectPath}:${folderPath}`;
-	if (expandedFolders.has(key)) {
-		expandedFolders.delete(key);
+function handleTreeSelectionChange(selectedPaths: readonly string[]): void {
+	const selectedPath = selectedPaths[selectedPaths.length - 1];
+	if (!selectedPath) {
 		return;
 	}
-	expandedFolders.add(key);
+
+	if (treeModel.filesByPath.has(selectedPath)) {
+		selectFile(selectedPath);
+	}
 }
 
 function selectFile(filePath: string): void {
-	selectedFilePath = filePath;
+	selectedFilePathOverride = filePath;
 	preview = null;
 	const seq = previewRequestSeq + 1;
 	previewRequestSeq = seq;
@@ -147,29 +146,6 @@ function selectFile(filePath: string): void {
 	);
 }
 
-function getNodeGitStatus(node: FileTreeNode): FileGitStatus | null {
-	const status = node.gitStatus;
-	if (!status) return null;
-	return {
-		path: node.path,
-		status: status.status,
-		insertions: status.insertions,
-		deletions: status.deletions,
-	};
-}
-
-function getNodeColor(node: FileTreeNode): string | null {
-	if (node.isDirectory) {
-		return node.hasModifiedDescendants ? "#E2BF8D" : null;
-	}
-	const status = node.gitStatus?.status;
-	if (status === "M") return "#E2BF8D";
-	if (status === "A" || status === "?") return "var(--success)";
-	if (status === "D") return "#FF5D5A";
-	if (status === "R") return "#E2BF8D";
-	return null;
-}
-
 onMount(() => {
 	loadProjectFiles(true);
 });
@@ -177,116 +153,83 @@ onMount(() => {
 
 <DialogFrame
 	{open}
-	title={`File system for ${projectName}`}
+	title={title ?? `File system for ${projectName}`}
 	closeLabel="Close file system"
+	hideHeader={true}
 	onOpenChange={(nextOpen) => {
 		if (!nextOpen) {
 			onClose();
 		}
 	}}
 >
-	<div class="flex h-full min-h-0 w-full overflow-hidden rounded-lg border border-border/60 bg-background shadow-[0_30px_80px_rgba(0,0,0,0.5)]">
-		<div class="flex w-80 shrink-0 flex-col border-r border-border/60 bg-card/80">
-			<div class="flex h-9 shrink-0 items-center gap-2 border-b border-border/60 pr-2.5">
-				<div class="inline-flex h-9 w-9 shrink-0 items-center justify-center border-r border-border/60">
-					<ProjectLetterBadge
-						name={projectName}
-						color={projectColor}
-						iconSrc={projectIconSrc}
-						size={28}
-						fontSize={15}
-						class="!rounded-none"
-					/>
-				</div>
-				<div class="min-w-0 flex-1 truncate text-xs font-medium">{projectName}</div>
-				{#if loading && files.length > 0}
-					<span class="text-[10px] text-muted-foreground">Refreshing</span>
-				{/if}
-			</div>
-			<div class="min-h-0 flex-1 overflow-auto p-1">
-				{#if loading && files.length === 0}
-					<div class="px-2 py-2 text-xs text-muted-foreground">Loading files...</div>
-				{:else if error !== null}
-					<div class="px-2 py-2 text-xs text-destructive">{error}</div>
-				{:else if flattenedFiles.length === 0}
-					<div class="px-2 py-2 text-xs text-muted-foreground">No files found</div>
-				{:else}
-					<div class="flex flex-col gap-0.5">
-						{#each flattenedFiles as { node } (`${projectPath}:${node.path}`)}
-							{@const nodeGitStatus = getNodeGitStatus(node)}
-							<button
-								type="button"
-								class="group flex w-full items-center gap-1 rounded px-1.5 py-1 text-left text-xs transition-colors hover:bg-muted/40 {selectedFilePath === node.path
-									? 'bg-accent text-foreground'
-									: 'text-muted-foreground'}"
-								style="padding-left: {node.depth * 12 + 8}px"
-								aria-expanded={node.isDirectory
-									? expandedFolders.has(`${projectPath}:${node.path}`)
-									: undefined}
-								onclick={() => {
-									if (node.isDirectory) {
-										toggleFolder(node.path);
-									} else {
-										selectFile(node.path);
-									}
-								}}
-							>
-								{#if node.isDirectory}
-									<span class="flex size-4 shrink-0 items-center justify-center">
-										<FolderOpen
-											class="size-3.5"
-											weight={expandedFolders.has(`${projectPath}:${node.path}`)
-												? "fill"
-												: "regular"}
-										/>
-									</span>
-								{:else}
-									<FileIcon
-										extension={node.extension}
-										isDirectory={false}
-										isExpanded={false}
-										class="size-4 shrink-0"
-									/>
-								{/if}
-								<span class="min-w-0 flex-1 truncate" style:color={getNodeColor(node)}>
-									{node.name}
-								</span>
-								{#if nodeGitStatus && (nodeGitStatus.insertions > 0 || nodeGitStatus.deletions > 0)}
-									<DiffPill
-										insertions={nodeGitStatus.insertions}
-										deletions={nodeGitStatus.deletions}
-										variant="plain"
-										class="shrink-0"
-									/>
-								{/if}
-							</button>
-						{/each}
+	{#snippet frameContent({ closeControl })}
+		<div class="flex h-full min-h-0 w-full overflow-hidden">
+			<div class="flex w-72 shrink-0 flex-col border-r border-border/50 bg-card/40">
+				<div class="flex h-9 shrink-0 items-center gap-2 border-b border-border/50 px-2.5">
+					{#if onProjectChange}
+						<ProjectSelector
+							selectedProject={selectedProject}
+							recentProjects={recentProjects}
+							onProjectChange={onProjectChange}
+						/>
+					{/if}
+					<div class="min-w-0 flex-1">
+						<span class="text-[11px] font-medium uppercase tracking-wide text-muted-foreground/70">
+							Files
+						</span>
 					</div>
-				{/if}
-			</div>
-		</div>
-		<div class="flex min-w-0 flex-1 flex-col">
-			<div class="flex h-9 shrink-0 items-center gap-2 border-b border-border/60 px-3">
-				<div class="min-w-0 flex-1 truncate text-xs text-muted-foreground">
-					{selectedFilePath ?? "Select a file"}
+					{#if loading && treeModel.paths.length > 0}
+						<span class="shrink-0 text-[10px] text-muted-foreground">Refreshing…</span>
+					{/if}
 				</div>
-				{#if selectedFilePath !== null && onOpenFile}
-					<Button
-						type="button"
-						variant="outline"
-						size="sm"
-						class="h-6 px-2 text-[11px]"
-						onclick={handleOpenSelectedFile}
-					>
-						Open
-					</Button>
+				<div class="min-h-0 flex-1 overflow-auto p-1">
+					{#if loading && treeModel.paths.length === 0}
+						<div class="px-2 py-2 text-xs text-muted-foreground">Loading files...</div>
+					{:else if error !== null}
+						<div class="px-2 py-2 text-xs text-destructive">{error}</div>
+					{:else if treeModel.paths.length === 0}
+						<div class="px-2 py-2 text-xs text-muted-foreground">No files found</div>
+					{:else}
+						<PierreFileTree
+							paths={treeModel.paths}
+							gitStatus={treeModel.gitStatus}
+							selectedPath={selectedFilePath}
+							revealPath={selectedFilePath}
+							onSelectionChange={handleTreeSelectionChange}
+							rowDecoration={(item) => treeModel.decorationsByPath.get(item.path) ?? null}
+							flattenEmptyDirectories={true}
+							unsafeCSS={FILE_DIALOG_TREE_UNSAFE_CSS}
+							class="h-full bg-transparent"
+							testId="project-file-system-tree"
+							ariaLabel="Project files"
+						/>
+					{/if}
+				</div>
+			</div>
+			<div class="flex min-w-0 flex-1 flex-col">
+				<div class="flex h-9 shrink-0 items-center gap-2 border-b border-border/60 px-3">
+					<div class="min-w-0 flex-1 truncate text-xs text-muted-foreground">
+						{selectedFilePath ?? "Select a file"}
+					</div>
+					{#if selectedFilePath !== null && onOpenFile}
+						<Button
+							type="button"
+							variant="outline"
+							size="sm"
+							class="h-6 px-2 text-[11px]"
+							onclick={handleOpenSelectedFile}
+						>
+							Open
+						</Button>
+					{/if}
+					{@render closeControl()}
+				</div>
+				{#if preview === null && selectedFilePath !== null}
+					<div class="flex-1 bg-background"></div>
+				{:else}
+					<FileExplorerPreviewPane {preview} preferPlainText />
 				{/if}
 			</div>
-			{#if preview === null && selectedFilePath !== null}
-				<div class="flex-1 bg-background"></div>
-			{:else}
-				<FileExplorerPreviewPane {preview} preferPlainText />
-			{/if}
 		</div>
-	</div>
+	{/snippet}
 </DialogFrame>

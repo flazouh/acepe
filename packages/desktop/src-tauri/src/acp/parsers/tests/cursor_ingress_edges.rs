@@ -64,6 +64,7 @@ fn full_session_with_tool_use(raw_tool_id: &str) -> FullSession {
             request_id: None,
             is_meta: false,
             source_tool_use_id: None,
+            parent_tool_use_id: None,
             tool_use_result: None,
             source_tool_assistant_uuid: None,
         }],

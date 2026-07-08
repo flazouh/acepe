@@ -1,6 +1,7 @@
 <script lang="ts">
 import { onDestroy, onMount } from "svelte";
 import { SvelteMap, SvelteSet } from "svelte/reactivity";
+import { computeProjectBadgeLabels } from "@acepe/ui";
 import type { FileGitStatus } from "$lib/services/converted-session-types.js";
 import { tauriClient } from "$lib/utils/tauri-client.js";
 import type { Project } from "../logic/project-manager.svelte.js";
@@ -9,6 +10,7 @@ import type { ProjectCardData } from "./project-card-data.js";
 import { getVisibleProjectSelectionProjects } from "./project-selection-visibility.js";
 import {
 	buildProjectSelectionCardDataList,
+	createProjectSelectionMetadataScheduler,
 	getProjectSelectionModifierSymbol,
 	getProjectSelectionPathsKey,
 	getProjectSelectionShortcutIndex,
@@ -52,6 +54,8 @@ const displayProjects = $derived.by(() => {
 });
 let lastProjectsKey = "";
 let lastDisplayProjectsKey = "";
+const scheduleProjectSelectionMetadata = createProjectSelectionMetadataScheduler();
+let cancelScheduledProjectSelectionMetadataSync: (() => void) | null = null;
 
 const cardDataList = $derived<ProjectCardData[]>(
 	buildProjectSelectionCardDataList({
@@ -60,6 +64,10 @@ const cardDataList = $derived<ProjectCardData[]>(
 		getCachedMetadata: getCachedProjectSelectionMetadata,
 		remoteStatusByPath: remoteStatusMap,
 	})
+);
+
+const labelByPath = $derived(
+	computeProjectBadgeLabels(projects.map((project) => ({ key: project.path, name: project.name })))
 );
 
 function setProjectCardData(
@@ -305,11 +313,16 @@ function handleProjectSelect(index: number) {
 
 onMount(() => {
 	window.addEventListener("keydown", handleKeyDown);
-	syncProjectSelectionState();
+	cancelScheduledProjectSelectionMetadataSync =
+		scheduleProjectSelectionMetadata(syncProjectSelectionState);
 });
 
 onDestroy(() => {
 	window.removeEventListener("keydown", handleKeyDown);
+	if (cancelScheduledProjectSelectionMetadataSync !== null) {
+		cancelScheduledProjectSelectionMetadataSync();
+		cancelScheduledProjectSelectionMetadataSync = null;
+	}
 });
 </script>
 
@@ -322,6 +335,7 @@ onDestroy(() => {
 				{data}
 				{index}
 				{modifierSymbol}
+				label={labelByPath.get(data.project.path) ?? null}
 				isMissing={missingProjectPaths.has(data.project.path)}
 				onSelect={() => handleProjectSelect(index)}
 			/>

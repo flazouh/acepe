@@ -56,6 +56,7 @@ pub(crate) fn normalize_message_id(
             chunk,
             part_id,
             message_id,
+            parent_tool_use_id,
             session_id,
             produced_at_monotonic_ms: _,
         } => {
@@ -64,6 +65,7 @@ pub(crate) fn normalize_message_id(
                 chunk,
                 part_id,
                 message_id: resolved_message_id,
+                parent_tool_use_id,
                 session_id,
                 produced_at_monotonic_ms: None,
             }
@@ -72,6 +74,7 @@ pub(crate) fn normalize_message_id(
             chunk,
             part_id,
             message_id,
+            parent_tool_use_id,
             session_id,
         } => {
             let resolved_message_id = resolve_message_id(tracker, session_id.as_ref(), message_id);
@@ -79,6 +82,7 @@ pub(crate) fn normalize_message_id(
                 chunk,
                 part_id,
                 message_id: resolved_message_id,
+                parent_tool_use_id,
                 session_id,
             }
         }
@@ -134,6 +138,7 @@ mod tests {
             },
             part_id: None,
             message_id: None,
+            parent_tool_use_id: None,
             session_id: Some(session_id.to_string()),
         }
     }
@@ -148,6 +153,7 @@ mod tests {
             },
             part_id: None,
             message_id: None,
+            parent_tool_use_id: None,
             session_id: Some(session_id.to_string()),
             produced_at_monotonic_ms: None,
         }
@@ -163,6 +169,7 @@ mod tests {
             },
             part_id: None,
             message_id: None,
+            parent_tool_use_id: None,
             session_id: Some(session_id.to_string()),
             produced_at_monotonic_ms: None,
         }

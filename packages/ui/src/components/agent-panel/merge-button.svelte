@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { GitMerge } from "phosphor-svelte";
+	import { RoundedIcon } from "../icons/index.js";
 
 	interface MergeOption {
 		id: string;
@@ -31,7 +31,7 @@
 	<div
 		class="flex items-center gap-1 rounded-lg border border-border/50 bg-muted px-2 py-0.5 text-[0.6875rem] font-medium text-muted-foreground opacity-60 shrink-0"
 	>
-		<GitMerge size={11} weight="fill" class="text-[#8250df]" />
+		<RoundedIcon name="pull-request-merged" class="size-[11px] text-[#8250df]" />
 		{mergedLabel}
 	</div>
 {:else if onMerge}
@@ -47,7 +47,7 @@
 			class="px-2 py-0.5 text-[0.6875rem] font-medium text-foreground/80 hover:text-foreground hover:bg-muted/80 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
 		>
 			<span class="flex items-center gap-1">
-				<GitMerge size={11} weight="fill" />
+				<RoundedIcon name="pull-request-merged" class="size-[11px]" />
 				{label}
 			</span>
 		</button>
@@ -59,9 +59,7 @@
 				aria-label="Merge options"
 				onclick={(e) => { e.stopPropagation(); dropdownOpen = !dropdownOpen; }}
 			>
-				<svg class="size-2.5 text-muted-foreground" viewBox="0 0 10 10" fill="none">
-					<path d="M2 3.5L5 6.5L8 3.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
-				</svg>
+				<RoundedIcon name="chevron-down" class="size-2.5 text-muted-foreground" />
 			</button>
 			{#if dropdownOpen}
 				<div class="absolute top-full left-0 mt-1 z-50 min-w-[150px] rounded-lg border border-border bg-popover p-1 shadow-md">

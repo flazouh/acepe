@@ -1,11 +1,5 @@
 <script lang="ts">
-import { IconEye } from "@tabler/icons-svelte";
-import { IconEyeOff } from "@tabler/icons-svelte";
-import { IconPlus } from "@tabler/icons-svelte";
-import { IconTrash } from "@tabler/icons-svelte";
-import { FloppyDisk, SlidersHorizontal } from "phosphor-svelte";
-import { Button, Input } from "@acepe/ui";
-import { Button as DesktopButton } from "$lib/components/ui/button/index.js";
+import { Button, Input, PlusIcon, RoundedIcon, SaveIcon } from "@acepe/ui";
 import DialogFrame from "$lib/components/ui/dialog-frame.svelte";
 
 interface EnvRow {
@@ -164,13 +158,24 @@ function handleSave(): void {
 }
 </script>
 
+{#snippet eyeOffIcon()}
+	<span
+		class="relative inline-flex h-3.5 w-3.5 shrink-0 items-center justify-center"
+		data-testid="env-eye-off-css-icon"
+		aria-hidden="true"
+	>
+		<RoundedIcon name="eye" class="size-full" />
+		<span class="absolute h-[1px] w-[15px] rotate-45 rounded-full bg-current"></span>
+	</span>
+{/snippet}
+
 <button
 	type="button"
 	class="flex h-7 items-center gap-1.5 px-2 text-[12px] text-muted-foreground transition-colors hover:bg-accent/50 hover:text-foreground"
 	data-header-control
 	onclick={() => handleOpenChange(true)}
 >
-	<SlidersHorizontal class="size-3.5 shrink-0" weight="fill" />
+	<RoundedIcon name="sliders" class="size-3.5 shrink-0" />
 	Environment
 	{#if Object.keys(value).length > 0}
 		<span class="rounded-full bg-muted px-1.5 py-0.5 text-[11px] text-foreground/70">
@@ -188,12 +193,6 @@ function handleSave(): void {
 	contentClass="w-[min(80vw,28.75rem)]"
 	onOpenChange={handleOpenChange}
 >
-	{#snippet topLeft()}
-		<span class="truncate text-[11px] font-semibold text-foreground select-none">
-			{agentName} environment
-		</span>
-	{/snippet}
-
 	<div class="space-y-3 px-3 py-3">
 		<p class="text-[12px] text-muted-foreground">
 			Stored locally on this machine. Values saved here override the same variable from the shell when
@@ -201,10 +200,10 @@ function handleSave(): void {
 		</p>
 
 		<div class="flex justify-end">
-			<DesktopButton variant="header" size="header" onclick={addRow}>
-				<IconPlus class="h-3 w-3" />
+			<Button variant="outline" size="sm" onclick={addRow}>
+				<PlusIcon />
 				Add variable
-			</DesktopButton>
+			</Button>
 		</div>
 
 		<div class="max-h-[192px] space-y-2 overflow-y-auto">
@@ -227,20 +226,21 @@ function handleSave(): void {
 							variant="ghost"
 							size="icon"
 							class="absolute right-1 top-1/2 h-6 w-6 -translate-y-1/2"
+							data-testid="env-row-value-reveal-toggle"
 							onclick={() => toggleReveal(row.id)}
 						>
 							{#if row.revealed}
-								<IconEyeOff class="h-3.5 w-3.5" />
+								{@render eyeOffIcon()}
 							{:else}
-								<IconEye class="h-3.5 w-3.5" />
+								<RoundedIcon name="eye" class="h-3.5 w-3.5" />
 							{/if}
 						</Button>
 					</div>
 					<Button type="button" variant="outline" size="icon" onclick={addRow}>
-						<IconPlus class="h-3.5 w-3.5" />
+						<PlusIcon />
 					</Button>
 					<Button type="button" variant="outline" size="icon" onclick={() => removeRow(row.id)}>
-						<IconTrash class="h-3.5 w-3.5" />
+						<RoundedIcon name="trash" class="h-3.5 w-3.5" />
 					</Button>
 				</div>
 			{/each}
@@ -256,9 +256,9 @@ function handleSave(): void {
 	</div>
 
 	{#snippet footer()}
-		<DesktopButton variant="invert" size="header" onclick={handleSave}>
-			<FloppyDisk class="size-3" weight="fill" />
+		<Button variant="default" size="sm" onclick={handleSave}>
+			<SaveIcon class="size-3" data-testid="env-overrides-save-icon" />
 			Save
-		</DesktopButton>
+		</Button>
 	{/snippet}
 </DialogFrame>

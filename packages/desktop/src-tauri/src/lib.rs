@@ -38,18 +38,18 @@ use browser_webview::{
 
 use acp::active_agent::ActiveAgent;
 use acp::commands::{
-    acp_cancel, acp_close_session, acp_confirm_transcript_viewport_height, acp_fork_session,
-    acp_get_composer_mcp_catalog, acp_get_event_bridge_info, acp_get_session_state, acp_initialize,
-    acp_install_agent, acp_list_agents, acp_list_preconnection_capabilities,
+    acp_cancel, acp_close_session, acp_fork_session, acp_get_composer_mcp_catalog,
+    acp_get_event_bridge_info, acp_get_session_connection_readiness, acp_get_session_state,
+    acp_initialize, acp_install_agent, acp_list_agents, acp_list_preconnection_capabilities,
     acp_list_preconnection_commands, acp_new_session, acp_probe_computer_use, acp_read_text_file,
-    acp_register_custom_agent, acp_reply_interaction, acp_request_transcript_viewport_buffer,
-    acp_resize_transcript_viewport, acp_respond_inbound_request, acp_resume_session,
-    acp_reveal_transcript_viewport_row, acp_scroll_transcript_viewport, acp_send_prompt,
-    acp_set_config_option, acp_set_mode, acp_set_model, acp_set_session_autonomous,
-    acp_uninstall_agent, acp_write_text_file, check_github_auth, create_github_issue,
-    create_issue_comment, fetch_commit_diff, fetch_pr_diff, get_github_issue,
-    get_github_repo_context, git_working_file_diff, list_github_issues, list_issue_comments,
-    list_pull_requests, search_github_issues, toggle_comment_reaction, toggle_issue_reaction,
+    acp_read_transcript_row_page, acp_register_custom_agent, acp_reply_interaction,
+    acp_request_transcript_viewport_buffer, acp_respond_inbound_request, acp_resume_session,
+    acp_send_prompt, acp_set_config_option, acp_set_mode, acp_set_model,
+    acp_set_session_autonomous, acp_unarchive_session, acp_uninstall_agent, acp_write_text_file,
+    check_github_auth, create_github_issue, create_issue_comment, fetch_commit_diff, fetch_pr_diff,
+    get_github_issue, get_github_repo_context, git_working_file_diff, list_github_issues,
+    list_issue_comments, list_pull_requests, search_github_issues, toggle_comment_reaction,
+    toggle_issue_reaction,
 };
 use acp::event_bridge_server::start_event_bridge_server;
 use acp::event_hub::AcpEventHubState;
@@ -80,7 +80,9 @@ use file_index::{
     resolve_file_path, revert_file_content, search_project_files_for_explorer, FileIndexService,
 };
 use git::commands::{browse_clone_destination, git_clone, git_collect_ship_context};
-use git::gh_pr::{get_open_pr_for_branch, git_merge_pr, git_pr_checks, git_pr_details};
+use git::gh_pr::{
+    get_open_pr_for_branch, git_ci_job_details, git_merge_pr, git_pr_checks, git_pr_details,
+};
 use git::operations::{
     git_commit, git_create_branch, git_delete_branch, git_diff_stats, git_discard_changes,
     git_fetch, git_log, git_panel_status, git_pull, git_push, git_remote_status,
@@ -99,11 +101,13 @@ use history::commands::{
     audit_session_load_timing, count_sessions_for_project, discover_all_projects_with_sessions,
     get_session_open_result, get_startup_sessions, get_unified_plan, list_all_project_paths,
     scan_project_sessions, set_session_pr_number, set_session_title, set_session_worktree_path,
+    warm_recent_transcript_row_ledgers,
 };
 use history::indexer::IndexerActor;
 use opencode_history::commands::{get_opencode_history, get_opencode_sessions_for_project};
 use provider_account_usage::get_provider_account_usage;
 use pty::commands::get_default_shell;
+use sea_orm::DbConn;
 use session_jsonl::commands::{
     get_cache_stats, get_index_status, invalidate_history_cache, reindex_sessions,
     reset_cache_stats,
@@ -152,11 +156,11 @@ use storage::commands::{
     delete_session_review_state, get_custom_keybindings, get_missing_project_paths,
     get_project_acepe_config, get_project_count, get_projects, get_recent_projects,
     get_session_file_path, get_session_review_state, get_streaming_log_path,
-    get_thread_list_settings, get_user_setting, import_project, list_project_images,
-    open_in_finder, open_streaming_log, remove_project, request_destructive_confirmation_token,
-    reset_database, save_api_key, save_custom_keybindings, save_project_acepe_config,
-    save_session_review_state, save_thread_list_settings, save_user_setting, update_project_color,
-    update_project_icon, update_project_order,
+    get_thread_list_settings, get_user_setting, get_user_settings, import_project,
+    list_project_images, open_in_finder, open_streaming_log, remove_project,
+    request_destructive_confirmation_token, reset_database, save_api_key, save_custom_keybindings,
+    save_project_acepe_config, save_session_review_state, save_thread_list_settings,
+    save_user_setting, update_project_color, update_project_icon, update_project_order,
 };
 use tauri::Manager;
 use terminal::commands::{
@@ -384,6 +388,88 @@ fn kill_orphaned_acp_processes(agents_dir: &std::path::Path) {
                 .status();
         }
     }
+}
+
+fn spawn_startup_project_maintenance(db_conn: DbConn) {
+    tauri::async_runtime::spawn(async move {
+        tokio::time::sleep(std::time::Duration::from_millis(250)).await;
+        let project_paths = match ProjectRepository::get_all_paths(&db_conn).await {
+            Ok(paths) => paths,
+            Err(error) => {
+                tracing::warn!(
+                    error = %error,
+                    "Failed to load project paths for startup maintenance"
+                );
+                return;
+            }
+        };
+
+        #[cfg(target_os = "macos")]
+        {
+            let paths: Vec<std::path::PathBuf> =
+                project_paths.iter().map(std::path::PathBuf::from).collect();
+            crate::project_access::pre_warm_protected_parents_for_projects(
+                &paths,
+                "app-startup-background-prewarm",
+            );
+        }
+
+        for project_path in project_paths {
+            let path = std::path::Path::new(&project_path);
+            let is_legacy_unsafe = matches!(
+                crate::path_safety::classify_legacy_unsafe_project_root_lexical(path),
+                Some(crate::path_safety::ProjectPathSafetyError::RootDirectory)
+                    | Some(crate::path_safety::ProjectPathSafetyError::HomeDirectory)
+            );
+
+            if !is_legacy_unsafe {
+                continue;
+            }
+
+            if let Err(error) = ProjectRepository::delete(&db_conn, &project_path).await {
+                tracing::warn!(
+                    project_path = %project_path,
+                    error = %error,
+                    "Failed to remove legacy unsafe project path"
+                );
+            } else {
+                tracing::warn!(
+                    project_path = %project_path,
+                    "Removed legacy unsafe project path to prevent macOS TCC prompt spam"
+                );
+            }
+        }
+
+        crate::project_access::log_startup_summary("startup-background-project-maintenance");
+    });
+}
+
+fn spawn_startup_transcript_row_ledger_backfill(app_handle: tauri::AppHandle) {
+    tauri::async_runtime::spawn(async move {
+        tokio::time::sleep(std::time::Duration::from_secs(3)).await;
+        match warm_recent_transcript_row_ledgers(app_handle, None).await {
+            Ok(result) => {
+                tracing::info!(
+                    requested_limit = result.requested_limit,
+                    candidates = result.candidate_count,
+                    checked = result.checked_count,
+                    rebuilt = result.rebuilt_count,
+                    rebuilt_from_provider = result.rebuilt_from_provider_count,
+                    skipped_current = result.skipped_current_count,
+                    skipped_no_journal = result.skipped_no_journal_count,
+                    skipped_missing_facts = result.skipped_missing_facts_count,
+                    failed = result.failed_count,
+                    "Startup transcript row ledger backfill completed"
+                );
+            }
+            Err(error) => {
+                tracing::warn!(
+                    error = ?error,
+                    "Startup transcript row ledger backfill failed"
+                );
+            }
+        }
+    });
 }
 
 /// Returns the path to the log file
@@ -823,57 +909,10 @@ pub fn run() {
                 }
             });
 
-            // Fetch all projects once (reused by TCC pre-warm and legacy cleanup).
-            let all_projects = tauri::async_runtime::block_on(async {
-                ProjectRepository::get_all(&db_conn).await.unwrap_or_default()
-            });
-
-            // Pre-warm macOS TCC grants before any filesystem operations.
-            // Probes protected parent dirs (~/Documents, ~/Desktop, ~/Downloads)
-            // so the user sees at most one "Allow" dialog per directory.
-            #[cfg(target_os = "macos")]
-            {
-                let paths: Vec<std::path::PathBuf> = all_projects
-                    .iter()
-                    .map(|p| std::path::PathBuf::from(&p.path))
-                    .collect();
-                crate::project_access::pre_warm_protected_parents_for_projects(
-                    &paths,
-                    "app-startup-prewarm",
-                );
-            }
-
-            // Remove legacy unsafe project roots (home/root) before any UI loads projects.
-            tauri::async_runtime::block_on(async {
-                for project in &all_projects {
-                    let path = std::path::Path::new(&project.path);
-                    let is_legacy_unsafe = matches!(
-                        crate::path_safety::classify_legacy_unsafe_project_root_lexical(path),
-                        Some(crate::path_safety::ProjectPathSafetyError::RootDirectory)
-                            | Some(crate::path_safety::ProjectPathSafetyError::HomeDirectory)
-                    );
-
-                    if !is_legacy_unsafe {
-                        continue;
-                    }
-
-                    if let Err(error) = ProjectRepository::delete(&db_conn, &project.path).await {
-                        tracing::warn!(
-                            project_path = %project.path,
-                            error = %error,
-                            "Failed to remove legacy unsafe project path"
-                        );
-                    } else {
-                        tracing::warn!(
-                            project_path = %project.path,
-                            "Removed legacy unsafe project path to prevent macOS TCC prompt spam"
-                        );
-                    }
-                }
-            });
-
             // Manage database connection
             app.manage(db_conn.clone());
+            spawn_startup_project_maintenance(db_conn.clone());
+            spawn_startup_transcript_row_ledger_backfill(app.handle().clone());
 
             // Initialize Sentry error reporting after DB is available
             // so we can respect the persisted analytics opt-out preference.
@@ -889,7 +928,7 @@ pub fn run() {
                 analytics::init(option_env!("CARGO_PKG_VERSION"), analytics_opted_out);
             }
 
-            crate::project_access::log_startup_summary("app-setup-after-db-and-prewarm");
+            crate::project_access::log_startup_summary("app-setup-after-db");
 
             // Initialize session indexer (Actor pattern)
             let db_arc = Arc::new(db_conn.clone());
@@ -904,15 +943,15 @@ pub fn run() {
                 tokio::time::sleep(std::time::Duration::from_millis(100)).await;
 
                 // Get project paths from database, dropping unsafe legacy roots on macOS.
-                let project_paths = match ProjectRepository::get_all(&db_for_init).await {
-                    Ok(projects) => {
+                let project_paths = match ProjectRepository::get_all_paths(&db_for_init).await {
+                    Ok(paths) => {
                         let mut valid_paths = Vec::new();
 
-                        for project in projects {
-                            let trimmed = project.path.trim();
+                        for project_path in paths {
+                            let trimmed = project_path.trim();
                             if trimmed.is_empty() {
                                 tracing::debug!(
-                                    project_path = %project.path,
+                                    project_path = %project_path,
                                     "Skipping empty project path during startup indexing"
                                 );
                                 continue;

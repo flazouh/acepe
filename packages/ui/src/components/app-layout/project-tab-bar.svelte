@@ -1,12 +1,16 @@
 <script lang="ts">
-	import { IconPlus } from "@tabler/icons-svelte";
-	import { ProjectLetterBadge } from "../project-letter-badge/index.js";
+	import PlusIcon from "../icons/plus-icon.svelte";
+	import {
+		computeProjectBadgeLabels,
+		ProjectLetterBadge,
+	} from "../project-letter-badge/index.js";
 
 	interface ProjectTab {
 		readonly path: string;
 		readonly name: string;
 		readonly color: string;
 		readonly iconSrc?: string | null;
+		readonly badgeLabel?: string | null;
 		readonly sessionCount?: number;
 	}
 
@@ -19,6 +23,11 @@
 	}
 
 	let { projects, activeProjectPath, onSelectProject, onCreateSession }: Props = $props();
+	const labelByPath = $derived(
+		computeProjectBadgeLabels(
+			projects.map((project) => ({ key: project.path, name: project.name }))
+		)
+	);
 </script>
 
 {#if projects.length > 0}
@@ -47,6 +56,7 @@
 					>
 						<ProjectLetterBadge
 							name={project.name}
+							label={project.badgeLabel ?? labelByPath.get(project.path) ?? null}
 							color={project.color}
 							iconSrc={project.iconSrc ?? null}
 							size={14}
@@ -68,7 +78,7 @@
 							<span class="transition-opacity duration-150 group-hover/session-count:opacity-0 group-focus-visible/session-count:opacity-0">
 								{project.sessionCount}
 							</span>
-							<IconPlus class="absolute h-2.5 w-2.5 opacity-0 transition-opacity duration-150 group-hover/session-count:opacity-100 group-focus-visible/session-count:opacity-100" />
+							<PlusIcon class="absolute opacity-0 transition-opacity duration-150 group-hover/session-count:opacity-100 group-focus-visible/session-count:opacity-100" />
 						</button>
 					{:else if project.sessionCount != null}
 						<span

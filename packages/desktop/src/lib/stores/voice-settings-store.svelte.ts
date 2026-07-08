@@ -76,7 +76,6 @@ export class VoiceSettingsStore {
 			this.registerListeners(),
 		]);
 		await this.normalizePersistedLanguage();
-		await this.preloadSelectedModel();
 		this.initialized = true;
 	}
 
@@ -189,6 +188,7 @@ export class VoiceSettingsStore {
 				error: result.error,
 				modelId,
 			});
+			toast.error(result.error.message);
 			if (this.downloadProgressModelId === modelId) {
 				this.downloadProgressModelId = null;
 				this.downloadPercent = 0;

@@ -93,18 +93,20 @@ async function handleResetDatabase() {
 			title={"Danger Zone"}
 			description="Reset local app data and start fresh."
 		/>
-		<SettingRow
-			label={"Reset Database"}
-			description="Deletes the local SQLite database (projects, API keys, preferences, session history). Session files on disk are not affected."
-		>
-			<button
-				type="button"
-				class="shrink-0 rounded-md bg-destructive px-2.5 py-1 text-[12px] font-medium text-destructive-foreground transition-colors hover:bg-destructive/90"
-				onclick={() => (showResetConfirm = true)}
+		<div class="overflow-hidden rounded-xl border border-destructive/30 bg-card">
+			<SettingRow
+				label={"Reset Database"}
+				description="Deletes the local SQLite database (projects, API keys, preferences, session history). Session files on disk are not affected."
 			>
-				{"Reset Database"}
-			</button>
-		</SettingRow>
+				<button
+					type="button"
+					class="shrink-0 rounded-md bg-destructive px-2.5 py-1 text-[12px] font-medium text-destructive-foreground transition-colors hover:bg-destructive/90"
+					onclick={() => (showResetConfirm = true)}
+				>
+					{"Reset Database"}
+				</button>
+			</SettingRow>
+		</div>
 	</div>
 </div>
 
@@ -116,10 +118,6 @@ async function handleResetDatabase() {
 	size="form"
 	onOpenChange={(open) => (showResetConfirm = open)}
 >
-	{#snippet topLeft()}
-		<span class="truncate text-[11px] font-semibold text-foreground select-none">Reset Database?</span>
-	{/snippet}
-
 	<div class="px-3 py-3">
 		<p class="text-[12px] text-muted-foreground">
 			This will permanently delete the local SQLite database containing all your projects, API keys,
@@ -129,8 +127,8 @@ async function handleResetDatabase() {
 	</div>
 
 	{#snippet footer()}
-		<Button variant="header" size="header" onclick={() => (showResetConfirm = false)}>Cancel</Button>
-		<Button variant="destructive" size="header" onclick={handleResetDatabase}>
+		<Button variant="outline" size="sm" onclick={() => (showResetConfirm = false)}>Cancel</Button>
+		<Button variant="destructive" size="sm" onclick={handleResetDatabase}>
 			Reset Database
 		</Button>
 	{/snippet}

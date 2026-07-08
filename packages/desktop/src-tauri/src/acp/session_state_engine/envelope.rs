@@ -85,16 +85,13 @@ impl SessionStatePayloadKind {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::acp::session_state_engine::protocol::{
-        CapabilityPreviewState, ViewportBufferDiagnostic, ViewportBufferPush,
-    };
+    use crate::acp::session_state_engine::protocol::{CapabilityPreviewState, ViewportBufferPush};
     use crate::acp::session_state_engine::revision::SessionGraphRevision;
     use crate::acp::session_state_engine::selectors::SessionGraphCapabilities;
     use crate::acp::session_update::AvailableCommand;
     use crate::acp::transcript_projection::{TranscriptEntryRole, TranscriptSegment};
     use crate::acp::transcript_viewport::{
         TranscriptViewportRow, TranscriptViewportRowContent, TranscriptViewportRowKind,
-        ViewportMode,
     };
 
     fn revision() -> SessionGraphRevision {
@@ -120,7 +117,6 @@ mod tests {
     }
 
     fn buffer_push_envelope(rows: Vec<TranscriptViewportRow>) -> SessionStateEnvelope {
-        let row_count = rows.len();
         SessionStateEnvelope {
             session_id: "session-1".to_string(),
             graph_revision: 1,
@@ -129,19 +125,9 @@ mod tests {
                 push: ViewportBufferPush {
                     session_id: "session-1".to_string(),
                     graph_revision: revision(),
-                    viewport_revision: 1,
                     emission_seq: 0,
-                    buffer_start_index: 0,
-                    buffer_end_index: row_count,
-                    layout_row_count: row_count,
-                    total_height_px: 10_000,
-                    buffer_end_offset_px: 10_000,
                     rows,
-                    offsets_px: Vec::new(),
-                    mode: ViewportMode::FollowingTail,
                     request_generation: None,
-                    scroll_top_target: None,
-                    scroll_anchor_correction_px: None,
                     diagnostics: Vec::new(),
                 },
             },

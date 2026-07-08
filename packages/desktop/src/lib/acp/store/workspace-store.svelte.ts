@@ -847,21 +847,6 @@ export class WorkspaceStore {
 				? restoredPanels[state.fullscreenPanelIndex].id
 				: null;
 
-		// Restore panel review mode (deferred until session loads)
-		const panelReviewRestores: Array<{ id: string; reviewFileIndex: number }> = [];
-		for (let i = 0; i < persistedPanels.length; i++) {
-			const p = persistedPanels[i];
-			if (p.reviewMode && p.sessionId) {
-				panelReviewRestores.push({
-					id: restoredPanels[i].id,
-					reviewFileIndex: p.reviewFileIndex ?? 0,
-				});
-			}
-		}
-		for (const { id, reviewFileIndex } of panelReviewRestores) {
-			this.panelStore.setPendingReviewRestore(id, reviewFileIndex);
-		}
-
 		if (state.terminalPanelGroups && state.terminalTabs) {
 			this.panelStore.restoreTerminalPanelState(
 				hydratePersistedTerminalPanelGroups(state.terminalPanelGroups),

@@ -69,11 +69,11 @@ Read the current PR description to drive the compare-and-confirm step later:
 gh pr view --json body --jq '.body'
 ```
 
-**Generate the updated title and body** — load the `ce-pr-description` skill with the PR URL from DU-2 (e.g., `https://github.com/owner/repo/pull/123`). The URL preserves repo/PR identity even when invoked from a worktree or subdirectory where the current repo is ambiguous. If the user provided a focus (e.g., "include the benchmarking results"), append it as free-text steering after the URL. The skill returns a `{title, body_file}` block (body in an OS temp file) without applying or prompting.
+**Generate the updated title and body** — load the `PR description drafting` skill with the PR URL from DU-2 (e.g., `https://github.com/owner/repo/pull/123`). The URL preserves repo/PR identity even when invoked from a worktree or subdirectory where the current repo is ambiguous. If the user provided a focus (e.g., "include the benchmarking results"), append it as free-text steering after the URL. The skill returns a `{title, body_file}` block (body in an OS temp file) without applying or prompting.
 
-If `ce-pr-description` returns a "not open" or other graceful-exit message instead of a `{title, body_file}` pair, report that message and stop.
+If `PR description drafting` returns a "not open" or other graceful-exit message instead of a `{title, body_file}` pair, report that message and stop.
 
-**Evidence decision:** `ce-pr-description` preserves any existing `## Demo` or `## Screenshots` block from the current body by default. If the user's focus asks to refresh or remove evidence, pass that intent as steering text — the skill will honor it. If no evidence block exists and one would benefit the reader, invoke `ce-demo-reel` separately to capture, then re-invoke `ce-pr-description` with updated steering that references the captured evidence.
+**Evidence decision:** `PR description drafting` preserves any existing `## Demo` or `## Screenshots` block from the current body by default. If the user's focus asks to refresh or remove evidence, pass that intent as steering text — the skill will honor it. If no evidence block exists and one would benefit the reader, invoke `feature-video` separately to capture, then re-invoke `PR description drafting` with updated steering that references the captured evidence.
 
 **Compare and confirm** — briefly explain what the new description covers differently from the old one. This helps the user decide whether to apply; the description itself does not narrate these differences. Summarize from the body already in context (from the bash call that wrote `body_file`); do not `cat` the temp file, which would re-emit the body.
 
@@ -82,7 +82,7 @@ If `ce-pr-description` returns a "not open" or other graceful-exit message inste
 
 **If confirmed, perform these two actions in order.** They are separate steps with a hand-off boundary between them — do not stop after action 1.
 
-1. `ce-pr-description` has already returned its `=== TITLE ===` / `=== BODY_FILE ===` block and stopped; it does not apply on its own.
+1. `PR description drafting` has already returned its `=== TITLE ===` / `=== BODY_FILE ===` block and stopped; it does not apply on its own.
 2. Apply the returned title and body file yourself. This is this skill's responsibility, not the delegated skill's. Substitute `<TITLE>` and `<BODY_FILE>` verbatim from the return block; if `<TITLE>` contains `"`, `` ` ``, `$`, or `\`, escape them or switch to single quotes:
 
    ```bash
@@ -137,7 +137,7 @@ Priority order for commit messages and PR titles:
 
 Use the current branch and existing PR check from context. If the branch is empty, report detached HEAD and stop.
 
-If the PR check returned `state: OPEN`, note the URL -- this is the existing-PR flow. Continue to Step 4 and 5 (commit any pending work and push), then go to Step 7 to ask whether to rewrite the description. Only run Step 6 (which generates a new description via `ce-pr-description`) if the user confirms the rewrite; Step 7's existing-PR sub-path consumes the `{title, body_file}` that Step 6 produces. Otherwise (no open PR), continue through Steps 6, 7, and 8 in order.
+If the PR check returned `state: OPEN`, note the URL -- this is the existing-PR flow. Continue to Step 4 and 5 (commit any pending work and push), then go to Step 7 to ask whether to rewrite the description. Only run Step 6 (which generates a new description via `PR description drafting`) if the user confirms the rewrite; Step 7's existing-PR sub-path consumes the `{title, body_file}` that Step 6 produces. Otherwise (no open PR), continue through Steps 6, 7, and 8 in order.
 
 ### Step 4: Branch, stage, and commit
 
@@ -194,32 +194,32 @@ Use this branch diff (not the working-tree diff) for the evidence decision. If t
 
 **Evidence decision (before delegation).** If the branch diff changes observable behavior (UI, CLI output, API behavior with runnable code, generated artifacts, workflow output) and evidence is not otherwise blocked (unavailable credentials, paid services, deploy-only infrastructure, hardware), ask: "This PR has observable behavior. Capture evidence for the PR description?"
 
-- **Capture now** -- load the `ce-demo-reel` skill with a target description inferred from the branch diff. ce-demo-reel returns `Tier`, `Description`, and `URL`. Note the captured evidence so it can be passed as free-text steering to `ce-pr-description` (e.g., "include the captured demo: <URL> as a `## Demo` section") or spliced into the returned body before apply. If capture returns `Tier: skipped` or `URL: "none"`, proceed with no evidence.
-- **Use existing evidence** -- ask for the URL or markdown embed, then pass it as free-text steering to `ce-pr-description` or splice in before apply.
+- **Capture now** -- load the `feature-video` skill with a target description inferred from the branch diff. feature-video returns `Tier`, `Description`, and `URL`. Note the captured evidence so it can be passed as free-text steering to `PR description drafting` (e.g., "include the captured demo: <URL> as a `## Demo` section") or spliced into the returned body before apply. If capture returns `Tier: skipped` or `URL: "none"`, proceed with no evidence.
+- **Use existing evidence** -- ask for the URL or markdown embed, then pass it as free-text steering to `PR description drafting` or splice in before apply.
 - **Skip** -- proceed with no evidence section.
 
 When evidence is not possible (docs-only, markdown-only, changelog-only, release metadata, CI/config-only, test-only, or pure internal refactors), skip without asking.
 
-**Delegate title and body generation to `ce-pr-description`.** Load the `ce-pr-description` skill:
+**Delegate title and body generation to `PR description drafting`.** Load the `PR description drafting` skill:
 
-- **For a new PR** (no existing PR found in Step 3): invoke with `base:<base-remote>/<base-branch>` using the already-resolved base from earlier in this step, so `ce-pr-description` describes the correct commit range even when the branch targets a non-default base (e.g., `develop`, `release/*`). Append any captured-evidence context or user focus as free-text steering (e.g., "include the captured demo: <URL> as a `## Demo` section").
+- **For a new PR** (no existing PR found in Step 3): invoke with `base:<base-remote>/<base-branch>` using the already-resolved base from earlier in this step, so `PR description drafting` describes the correct commit range even when the branch targets a non-default base (e.g., `develop`, `release/*`). Append any captured-evidence context or user focus as free-text steering (e.g., "include the captured demo: <URL> as a `## Demo` section").
 - **For an existing PR** (found in Step 3): invoke with the full PR URL from the Step 3 context (e.g., `https://github.com/owner/repo/pull/123`). The URL preserves repo/PR identity even when invoked from a worktree or subdirectory; the skill reads the PR's own `baseRefName` so no `base:` override is needed. Append any focus steering as free text after the URL.
 
-`ce-pr-description` returns a `{title, body_file}` block (body in an OS temp file). It applies the value-first writing principles, commit classification, sizing, narrative framing, writing voice, visual communication, numbering rules, and the Compound Engineering badge footer internally. Use the returned values verbatim in Step 7; do not layer manual edits onto them unless a focused adjustment is required (e.g., splicing an evidence block captured in this step that was not passed as steering text — in that case, edit the body file directly before applying).
+`PR description drafting` returns a `{title, body_file}` block (body in an OS temp file). It applies the value-first writing principles, commit classification, sizing, narrative framing, writing voice, visual communication, numbering rules, and the Agent Workflows badge footer internally. Use the returned values verbatim in Step 7; do not layer manual edits onto them unless a focused adjustment is required (e.g., splicing an evidence block captured in this step that was not passed as steering text — in that case, edit the body file directly before applying).
 
-If `ce-pr-description` returns a graceful-exit message instead of `{title, body_file}` (e.g., closed PR, no commits to describe, base ref unresolved), report the message and stop — do not create or edit the PR.
+If `PR description drafting` returns a graceful-exit message instead of `{title, body_file}` (e.g., closed PR, no commits to describe, base ref unresolved), report the message and stop — do not create or edit the PR.
 
 ### Step 7: Create or update the PR
 
 #### New PR (no existing PR from Step 3)
 
-Using the `=== TITLE ===` / `=== BODY_FILE ===` block returned by `ce-pr-description`, substitute `<TITLE>` and `<BODY_FILE>` verbatim. If `<TITLE>` contains `"`, `` ` ``, `$`, or `\`, escape them or switch to single quotes:
+Using the `=== TITLE ===` / `=== BODY_FILE ===` block returned by `PR description drafting`, substitute `<TITLE>` and `<BODY_FILE>` verbatim. If `<TITLE>` contains `"`, `` ` ``, `$`, or `\`, escape them or switch to single quotes:
 
 ```bash
 gh pr create --title "<TITLE>" --body "$(cat "<BODY_FILE>")"
 ```
 
-Keep the title under 72 characters; `ce-pr-description` already emits a conventional-commit title in that range.
+Keep the title under 72 characters; `PR description drafting` already emits a conventional-commit title in that range.
 
 #### Existing PR (found in Step 3)
 
@@ -227,7 +227,7 @@ The new commits are already on the PR from Step 5. Report the PR URL, then ask w
 
 - If **no** -- skip Step 6 entirely and finish. Do not run delegation or evidence capture when the user declined the rewrite.
 - If **yes**, perform these two actions in order. They are separate steps with a hand-off boundary between them -- do not stop after action 1.
-  1. Run Step 6 to generate via `ce-pr-description` (passing the existing PR URL as `pr:`). `ce-pr-description` explicitly does not apply on its own; it returns its `=== TITLE ===` / `=== BODY_FILE ===` block and stops.
+  1. Run Step 6 to generate via `PR description drafting` (passing the existing PR URL as `pr:`). `PR description drafting` explicitly does not apply on its own; it returns its `=== TITLE ===` / `=== BODY_FILE ===` block and stops.
   2. Apply the returned title and body file yourself. This is this skill's responsibility, not the delegated skill's. Substitute `<TITLE>` and `<BODY_FILE>` verbatim from the return block; if `<TITLE>` contains `"`, `` ` ``, `$`, or `\`, escape them or switch to single quotes:
 
      ```bash

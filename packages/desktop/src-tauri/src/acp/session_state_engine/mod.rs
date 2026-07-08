@@ -14,11 +14,12 @@ pub mod selectors;
 pub mod session_state_field;
 pub mod snapshot_builder;
 pub mod timing;
+pub mod transcript_rows_ledger;
 pub mod viewport_buffer_producer;
-pub mod viewport_ledger;
 
 pub use bridge::{
-    build_delta_envelope, build_snapshot_envelope, DeltaEnvelopeParts, DeltaSessionProjectionFields,
+    build_budgeted_snapshot_envelope, build_delta_envelope, build_snapshot_envelope,
+    compact_oversized_snapshot_envelope, DeltaEnvelopeParts, DeltaSessionProjectionFields,
 };
 pub use envelope::{
     session_state_envelope_byte_budget_status, SessionStateEnvelope,

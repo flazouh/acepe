@@ -189,11 +189,18 @@ impl ModelManager {
             "cdn-lfs-eu-1.huggingface.co",
             "cas-bridge.xethub.hf.co",
         ];
+        const ALLOWED_HOST_SUFFIXES: &[&str] = &[
+            // HuggingFace Xet/CDN redirects (e.g. us.aws.cdn.hf.co).
+            ".cdn.hf.co",
+        ];
 
         url.scheme() == "https"
-            && url
-                .host_str()
-                .is_some_and(|host| ALLOWED_HOSTS.contains(&host))
+            && url.host_str().is_some_and(|host| {
+                ALLOWED_HOSTS.contains(&host)
+                    || ALLOWED_HOST_SUFFIXES
+                        .iter()
+                        .any(|suffix| host.ends_with(suffix))
+            })
     }
 
     pub fn get_model_info(&self, model_id: &str) -> anyhow::Result<ModelInfo> {
@@ -523,12 +530,55 @@ mod tests {
         let allowed_redirect =
             reqwest::Url::parse("https://cdn-lfs.huggingface.co/repos/abc/ggml-small.en.bin")
                 .expect("allowed redirect URL should parse");
+        let allowed_xet_redirect = reqwest::Url::parse(
+            "https://us.aws.cdn.hf.co/xet-bridge-us/641ab5d15d107c5c5f346372/ggml-tiny.bin",
+        )
+        .expect("allowed xet redirect URL should parse");
         let rejected = reqwest::Url::parse("https://example.com/ggml-small.en.bin")
             .expect("rejected URL should parse");
 
         assert!(ModelManager::validate_url(&allowed));
         assert!(ModelManager::validate_url(&allowed_redirect));
+        assert!(ModelManager::validate_url(&allowed_xet_redirect));
         assert!(!ModelManager::validate_url(&rejected));
+    }
+
+    #[tokio::test]
+    async fn model_catalog_url_follows_xet_redirect() {
+        let request_url = reqwest::Url::parse(
+            "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-tiny.en.bin",
+        )
+        .expect("catalog URL should parse");
+
+        let client = reqwest::Client::builder()
+            .timeout(std::time::Duration::from_secs(30))
+            .redirect(reqwest::redirect::Policy::custom(|attempt| {
+                if ModelManager::validate_url(attempt.url()) {
+                    attempt.follow()
+                } else {
+                    let url = attempt.url().clone();
+                    attempt.error(std::io::Error::new(
+                        std::io::ErrorKind::PermissionDenied,
+                        format!("Blocked redirect to disallowed host: {url}"),
+                    ))
+                }
+            }))
+            .build()
+            .expect("HTTP client should build");
+
+        let response = client
+            .get(request_url)
+            .header(reqwest::header::RANGE, "bytes=0-0")
+            .send()
+            .await
+            .expect("model GET should succeed after HuggingFace redirects");
+
+        assert!(
+            response.status().is_success()
+                || response.status() == reqwest::StatusCode::PARTIAL_CONTENT,
+            "expected 200/206 after redirect, got {}",
+            response.status()
+        );
     }
 
     #[test]

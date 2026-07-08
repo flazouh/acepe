@@ -3,10 +3,29 @@
    * SqlStudioSidebar — Connections list + schema tree sidebar.
    * Matches the git panel's dense, monospace design language.
    */
-  import { CaretRight, Table as TableIcon, Trash, Plus, Key } from "phosphor-svelte";
+  import PlusIcon from "../icons/plus-icon.svelte";
+  import { RoundedIcon } from "../icons/index.js";
+  import { PierreFileTree } from "../pierre-tree/index.js";
   import { TAG_COLORS } from "../../lib/colors.js";
   import { cn } from "../../lib/utils.js";
   import type { SqlConnection, SqlSchemaInfo } from "./types.js";
+  import { createSqlStudioTreeModel } from "./sql-studio-tree-model.js";
+
+  const TREE_SEARCH_CHROME_HEIGHT_PX = 36;
+  const COMPACT_TREE_ROW_HEIGHT_PX = 24;
+
+  const SQL_TREE_UNSAFE_CSS = `
+    button[data-type='item'] {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      font-size: 11px;
+      line-height: 16px;
+      min-height: 21px;
+    }
+
+    button[data-type='item'][data-item-selected] {
+      border-left: 2px solid hsl(var(--primary));
+    }
+  `;
 
   interface Props {
     connections: SqlConnection[];
@@ -34,17 +53,33 @@
     class: className,
   }: Props = $props();
 
-  let expandedTables = $state<Set<string>>(new Set());
+  const sqlTreeModel = $derived(
+    createSqlStudioTreeModel(schema, selectedSchemaName, selectedTableName)
+  );
+  const sqlTreeHeightPx = $derived(
+    Math.min(
+      360,
+      Math.max(
+        96,
+        TREE_SEARCH_CHROME_HEIGHT_PX + sqlTreeModel.paths.length * COMPACT_TREE_ROW_HEIGHT_PX
+      )
+    )
+  );
 
   function connectionColor(index: number): string {
     return TAG_COLORS[index % TAG_COLORS.length] ?? TAG_COLORS[0];
   }
 
-  function toggleTableExpand(tableKey: string, e: Event): void {
-    e.stopPropagation();
-    expandedTables = expandedTables.has(tableKey)
-      ? new Set([...expandedTables].filter((k) => k !== tableKey))
-      : new Set([...expandedTables, tableKey]);
+  function handleSchemaTreeSelection(selectedPaths: readonly string[]): void {
+    const selectedPath = selectedPaths[selectedPaths.length - 1];
+    if (!selectedPath) {
+      return;
+    }
+
+    const table = sqlTreeModel.tablesByPath.get(selectedPath);
+    if (table) {
+      onTableSelect(table.schemaName, table.tableName);
+    }
   }
 </script>
 
@@ -69,7 +104,7 @@
           title="Add connection"
           onclick={onConnectionCreate}
         >
-          <Plus size={12} weight="bold" />
+          <PlusIcon />
         </button>
       </div>
 
@@ -122,7 +157,7 @@
                 onConnectionDelete(connection.id);
               }}
             >
-              <Trash size={12} weight="bold" class="text-destructive" />
+              <RoundedIcon name="trash" class="size-3 text-destructive" />
             </button>
           </div>
         {/each}
@@ -137,90 +172,76 @@
         >
           Tables
         </span>
-        {#each schema as schemaNode (schemaNode.name)}
-          <div class="space-y-0.5">
-            <span
-              class="text-[0.5625rem] font-semibold text-muted-foreground px-2 font-mono"
-            >
-              {schemaNode.name}
-            </span>
-            {#each schemaNode.tables as tableNode (tableNode.name)}
-              {@const tableKey = `${schemaNode.name}.${tableNode.name}`}
-              {@const isExpanded = expandedTables.has(tableKey)}
-              {@const isTableSelected =
-                selectedSchemaName === schemaNode.name &&
-                selectedTableName === tableNode.name}
-              <div class="space-y-0.5">
-                <!-- svelte-ignore a11y_no_static_element_interactions -->
-                <div
-                  class={cn(
-                    "w-full flex items-center gap-1.5 px-2 py-0.5 rounded-md text-left transition-colors cursor-pointer",
-                    isTableSelected ? "bg-muted/60" : "hover:bg-muted/40",
-                  )}
-                  onclick={() => onTableSelect(schemaNode.name, tableNode.name)}
-                  onkeydown={(e) =>
-                    e.key === "Enter" &&
-                    onTableSelect(schemaNode.name, tableNode.name)}
-                >
-                  <button
-                    type="button"
-                    class="shrink-0 p-0.5 rounded hover:bg-muted/50 transition-colors"
-                    title={isExpanded ? "Collapse columns" : "Expand columns"}
-                    onclick={(e) => toggleTableExpand(tableKey, e)}
-                  >
-                    <CaretRight
-                      size={10}
-                      weight="bold"
-                      class={cn(
-                        "text-muted-foreground transition-transform duration-150",
-                        isExpanded && "rotate-90",
-                      )}
-                    />
-                  </button>
-                  <TableIcon
-                    size={12}
-                    weight="bold"
-                    class="shrink-0 text-primary"
-                  />
-                  <span class="font-mono text-[0.6875rem] truncate flex-1"
-                    >{tableNode.name}</span
-                  >
-                </div>
-
-                {#if isExpanded}
-                  <div class="ml-5 rounded-md bg-muted/10 p-1.5 space-y-0.5">
-                    {#each tableNode.columns as column (column.name)}
-                      <div class="flex items-center justify-between gap-2 px-1">
-                        <span
-                          class={cn(
-                            "font-mono text-[0.625rem] truncate",
-                            column.isPrimaryKey && "text-primary",
-                          )}
-                        >
-                          {#if column.isPrimaryKey}
-                            <Key
-                              size={8}
-                              weight="bold"
-                              class="inline mr-0.5 -mt-0.5"
-                            />
-                          {/if}
-                          {column.name}
-                        </span>
-                        <span
-                          class="font-mono text-[0.5625rem] uppercase text-muted-foreground shrink-0"
-                        >
-                          {column.dataType}
-                        </span>
-                      </div>
-                    {/each}
-                  </div>
-                {/if}
-              </div>
-            {/each}
-          </div>
-        {/each}
+        <div style:height={`${sqlTreeHeightPx}px`}>
+          <PierreFileTree
+            paths={sqlTreeModel.paths}
+            selectedPath={sqlTreeModel.selectedPath}
+            revealPath={sqlTreeModel.selectedPath}
+            onSelectionChange={handleSchemaTreeSelection}
+            rowDecoration={(item) => sqlTreeModel.decorationsByPath.get(item.path) ?? null}
+            flattenEmptyDirectories={false}
+            unsafeCSS={SQL_TREE_UNSAFE_CSS}
+            class="h-full bg-transparent"
+            testId="sql-studio-schema-tree"
+            ariaLabel="SQL schema tree"
+          />
+        </div>
       </div>
     {/if}
 
   </div>
 </div>
+
+<style>
+  .sql-table-icon {
+    position: relative;
+    display: inline-block;
+    width: 12px;
+    height: 12px;
+    box-sizing: border-box;
+    border: 1.4px solid currentColor;
+    border-radius: 2px;
+    background:
+      linear-gradient(currentColor, currentColor) 0 4px / 100% 1.2px no-repeat,
+      linear-gradient(currentColor, currentColor) 0 7px / 100% 1.2px no-repeat,
+      linear-gradient(currentColor, currentColor) 4px 0 / 1.2px 100% no-repeat,
+      linear-gradient(currentColor, currentColor) 8px 0 / 1.2px 100% no-repeat;
+  }
+
+  .sql-key-icon {
+    position: relative;
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    margin-right: 2px;
+    margin-top: -2px;
+    vertical-align: middle;
+    box-sizing: border-box;
+    border: 1.3px solid currentColor;
+    border-radius: 999px;
+    overflow: visible;
+  }
+
+  .sql-key-icon::before {
+    content: "";
+    position: absolute;
+    left: 5px;
+    top: 3px;
+    width: 4px;
+    height: 1.3px;
+    border-radius: 999px;
+    background: currentColor;
+  }
+
+  .sql-key-icon::after {
+    content: "";
+    position: absolute;
+    left: 7.5px;
+    top: 3px;
+    width: 1.3px;
+    height: 3px;
+    border-radius: 999px;
+    background: currentColor;
+    box-shadow: 2px 0 0 currentColor;
+  }
+</style>

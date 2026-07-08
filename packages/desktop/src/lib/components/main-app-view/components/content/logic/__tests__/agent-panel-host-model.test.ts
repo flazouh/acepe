@@ -116,22 +116,17 @@ describe("agent panel host model", () => {
 		).toBeNull();
 	});
 
-	it("builds review and waiting state from explicit inputs", () => {
+	it("builds waiting state from explicit inputs", () => {
 		const model = buildAgentPanelHostModel({
 			panel: createPanel({ sessionId: "session-1" }),
 			sessionIdentity: undefined,
 			projects: [createProject()],
 			availableAgents: [{ id: "claude-code" }],
-			hotState: createHotState({
-				reviewMode: true,
-				reviewFileIndex: 2,
-			}),
+			hotState: createHotState(),
 		});
 
 		expect(model.project?.path).toBe("/repo");
 		expect(model.selectedAgentId).toBe("claude-code");
 		expect(model.isWaitingForSession).toBe(true);
-		expect(model.reviewMode).toBe(true);
-		expect(model.reviewFileIndex).toBe(2);
 	});
 });

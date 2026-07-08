@@ -4,7 +4,6 @@ import type { SessionStatus } from "../application/dto/session-status.js";
 import type { ToolCall } from "../types/tool-call.js";
 
 import { getTodoStateManager } from "../logic/todo-state-manager.svelte.js";
-import AnimatedChevron from "./animated-chevron.svelte";
 import CopyButton from "./messages/copy-button.svelte";
 
 interface Props {

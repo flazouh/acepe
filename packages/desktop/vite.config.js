@@ -5,6 +5,8 @@ import { sveltekit } from "@sveltejs/kit/vite";
 import tailwindcss from "@tailwindcss/vite";
 import { defineConfig } from "vitest/config";
 
+import { buildAcepeUiResolveAliases } from "./scripts/vite-acepe-ui-aliases.js";
+
 const host = process.env.TAURI_DEV_HOST;
 const viteConfigDir = path.dirname(fileURLToPath(import.meta.url));
 const uiPackageRoot = path.resolve(viteConfigDir, "../ui");
@@ -13,15 +15,23 @@ const uiPackageSrc = path.resolve(uiPackageRoot, "src");
 /**
  * Keep @acepe/ui editable with real Svelte HMR during dev.
  *
- * `@acepe/ui` is a workspace package symlinked into node_modules, but with
- * `resolve.preserveSymlinks: false` (below) its modules resolve to their real
- * source under packages/ui/src — which lives OUTSIDE this app's Vite root, so
- * Vite doesn't watch it by default. We add that directory to the watcher; from
- * there Vite's native HMR pipeline + the Svelte plugin take over.
+ * `@acepe/ui` is a workspace package symlinked into node_modules. The watcher
+ * below plus export-driven resolve.alias entries (see buildAcepeUiResolveAliases)
+ * give every public import a single canonical module identity under
+ * packages/ui/src. Without aliases, the same file can appear as both
+ * `/@fs/.../packages/ui/src/...` and `/node_modules/@acepe/ui/src/...` in the
+ * module graph; HMR then broadcasts duplicate updates and the WebView may keep
+ * stale bindings. `resolve.preserveSymlinks: false` alone does not dedupe those
+ * graph entries.
+ *
+ * The watcher covers packages/ui/src, which lives OUTSIDE this app's Vite root.
+ * Export-driven resolve.alias entries (see buildAcepeUiResolveAliases) plus a
+ * node_modules/@acepe/ui → packages/ui root alias give every import one canonical
+ * module URL (typically /@fs/.../packages/ui/src/...). From there Vite's native
+ * HMR pipeline + the Svelte plugin take over.
  *
  * IMPORTANT: do not manually invalidate the module graph or send `full-reload`
- * for routine content edits. Because preserveSymlinks keeps module-graph paths
- * aligned with the watcher, native HMR already emits in-place component updates
+ * for routine content edits. Native HMR already emits in-place component updates
  * for these files. A previous version looked the file up via
  * `getModulesByFile()` and, on a miss (any module not currently in the client
  * graph — helper .ts files, unmounted components, or the window before first
@@ -29,9 +39,15 @@ const uiPackageSrc = path.resolve(uiPackageRoot, "src");
  * racing native HMR, is exactly what turned every UI-package edit into a full
  * page reload. Leaving content changes to Vite fixes that.
  *
- * Only structural changes — a UI source file being added or removed, which can
- * shift the package's export surface and isn't a safe in-place HMR boundary —
- * fall back to a (rare) full reload.
+ * Adding a new UI source file does NOT need a reload: a brand-new file isn't in
+ * the module graph until something imports it, and the edit that adds that
+ * import HMR-updates the importer, which loads the new module on demand. So we
+ * let `add` flow through native HMR — this is what makes creating `@acepe/ui`
+ * components (very common during UI work) hot-update instead of full-reloading.
+ *
+ * Deleting a file (`unlink`) is the one case we still fall back to a (rare) full
+ * reload: a removed module can leave dangling references in the graph that HMR
+ * can't reconcile in place.
  *
  * @returns {import("vite").Plugin}
  */
@@ -41,9 +57,9 @@ function acepeUiPackageDev() {
 		configureServer(server) {
 			server.watcher.add(uiPackageSrc);
 
-			// Vite's watcher uses ignoreInitial, so these only fire for files
-			// genuinely created/deleted after startup — not the initial scan.
-			const fullReloadOnStructuralChange = (file) => {
+			// Vite's watcher uses ignoreInitial, so this only fires for files
+			// genuinely deleted after startup — not the initial scan.
+			const fullReloadOnDelete = (file) => {
 				const normalizedFile = path.normalize(file);
 				if (!normalizedFile.startsWith(uiPackageSrc)) {
 					return;
@@ -51,8 +67,7 @@ function acepeUiPackageDev() {
 				server.ws.send({ type: "full-reload" });
 			};
 
-			server.watcher.on("add", fullReloadOnStructuralChange);
-			server.watcher.on("unlink", fullReloadOnStructuralChange);
+			server.watcher.on("unlink", fullReloadOnDelete);
 		},
 	};
 }
@@ -80,14 +95,16 @@ export default defineConfig({
 	plugins: [acepeUiPackageDev(), sveltekit(), tailwindcss()],
 
 	resolve: {
-		// Resolve @acepe/ui through real paths so file watchers and HMR line up.
+		// Canonical @acepe/ui module identity for watcher + HMR alignment.
 		preserveSymlinks: false,
 		dedupe: ["@acepe/ui"],
+		alias: buildAcepeUiResolveAliases(uiPackageRoot, {
+			desktopPackageRoot: viteConfigDir,
+		}),
 	},
 
 	// Keep workspace UI source out of the dep pre-bundle cache.
 	optimizeDeps: {
-		include: ["@tabler/icons-svelte", "phosphor-svelte"],
 		exclude: ["@acepe/ui"],
 	},
 

@@ -1,14 +1,14 @@
 <script lang="ts">
-	import { ArrowsIn } from "phosphor-svelte";
-	import { ArrowsOut } from "phosphor-svelte";
-
 	import { Button } from "../button/index.js";
+	import type { ButtonSize } from "../button/variants.js";
+	import { RoundedIcon } from "../icons/index.js";
 
 	interface Props {
 		isFullscreen: boolean;
 		onToggle?: (() => void) | undefined;
 		titleEnter?: string;
 		titleExit?: string;
+		size?: ButtonSize;
 		class?: string;
 	}
 
@@ -17,6 +17,7 @@
 		onToggle,
 		titleEnter = "Fullscreen",
 		titleExit = "Exit fullscreen",
+		size = "icon-sm",
 		class: className = "",
 	}: Props = $props();
 
@@ -24,8 +25,8 @@
 </script>
 
 <Button
-	variant="chromeIcon"
-	size="chromeIcon"
+	variant="ghost"
+	{size}
 	data-header-control
 	onclick={() => onToggle?.()}
 	{title}
@@ -33,10 +34,6 @@
 	class={className}
 >
 	{#snippet children()}
-		{#if isFullscreen}
-			<ArrowsIn size={12} weight="fill" />
-		{:else}
-			<ArrowsOut size={12} weight="fill" />
-		{/if}
+		<RoundedIcon name={isFullscreen ? "collapse" : "expand"} />
 	{/snippet}
 </Button>

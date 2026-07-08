@@ -85,10 +85,11 @@ describe("session-state protocol graph contract", () => {
 		};
 
 		const graph = graphFromSessionOpenFound({
-			requestedSessionId: "requested-1",
-			canonicalSessionId: "canonical-1",
-			isAlias: false,
-			lastEventSeq: 11,
+				requestedSessionId: "requested-1",
+				canonicalSessionId: "canonical-1",
+				isAlias: false,
+				openPath: "legacy_rebuild",
+				lastEventSeq: 11,
 			graphRevision: 9,
 			openToken: "open-token-1",
 			agentId: "cursor" satisfies CanonicalAgentId,
@@ -134,10 +135,11 @@ describe("session-state protocol graph contract", () => {
 			autonomousEnabled: false,
 		};
 		const materialization = materializeSnapshotFromOpenFound({
-			requestedSessionId: "requested-1",
-			canonicalSessionId: "canonical-1",
-			isAlias: false,
-			lastEventSeq: 11,
+				requestedSessionId: "requested-1",
+				canonicalSessionId: "canonical-1",
+				isAlias: false,
+				openPath: "legacy_rebuild",
+				lastEventSeq: 11,
 			graphRevision: 9,
 			openToken: "open-token-1",
 			agentId: "cursor" satisfies CanonicalAgentId,
@@ -207,10 +209,11 @@ describe("session-state protocol graph contract", () => {
 			autonomousEnabled: false,
 		};
 		const found: SessionOpenFound = {
-			requestedSessionId: "requested-1",
-			canonicalSessionId: "canonical-1",
-			isAlias: false,
-			lastEventSeq: 11,
+				requestedSessionId: "requested-1",
+				canonicalSessionId: "canonical-1",
+				isAlias: false,
+				openPath: "legacy_rebuild",
+				lastEventSeq: 11,
 			graphRevision: 9,
 			openToken: "open-token-1",
 			agentId: "cursor" satisfies CanonicalAgentId,
@@ -243,10 +246,11 @@ describe("session-state protocol graph contract", () => {
 
 	it("uses canonical running activity from open snapshots", () => {
 		const graph = graphFromSessionOpenFound({
-			requestedSessionId: "requested-1",
-			canonicalSessionId: "canonical-1",
-			isAlias: false,
-			lastEventSeq: 11,
+				requestedSessionId: "requested-1",
+				canonicalSessionId: "canonical-1",
+				isAlias: false,
+				openPath: "legacy_rebuild",
+				lastEventSeq: 11,
 			graphRevision: 9,
 			openToken: "open-token-1",
 			agentId: "cursor" satisfies CanonicalAgentId,

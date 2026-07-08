@@ -10,12 +10,14 @@ export interface PanelsContainerProjectTab {
 	readonly color: string;
 	readonly path: string;
 	readonly iconSrc: string | null;
+	readonly badgeLabel: string | null;
 	readonly sessionCount: number;
 }
 
 export function buildPanelsContainerProjectTabs(input: {
 	readonly projects: NonNullable<ViewModeState["focusedModeAllProjects"]>;
 	readonly groups: readonly PanelsContainerProjectTabGroup[];
+	readonly getProjectBadgeLabel?: (projectPath: string) => string | null | undefined;
 }): PanelsContainerProjectTab[] {
 	return input.projects.map((project) => {
 		const group = input.groups.find((candidate) => candidate.projectPath === project.path);
@@ -24,6 +26,7 @@ export function buildPanelsContainerProjectTabs(input: {
 			color: project.color,
 			path: project.path,
 			iconSrc: project.iconSrc,
+			badgeLabel: input.getProjectBadgeLabel?.(project.path) ?? null,
 			sessionCount: group ? group.agentPanels.length : 0,
 		};
 	});

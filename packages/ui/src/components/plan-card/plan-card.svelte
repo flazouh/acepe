@@ -15,9 +15,7 @@
     HeaderTitleCell,
   } from "../panel-header/index.js";
   import { Button } from "../button/index.js";
-  import { PlanIcon, BuildIcon, LoadingIcon } from "../icons/index.js";
-  import { XCircle } from "phosphor-svelte";
-  import { ArrowsOut } from "phosphor-svelte";
+  import { PlanIcon, BuildIcon, LoadingIcon, RoundedIcon } from "../icons/index.js";
 
   interface Props {
     content: string;
@@ -77,7 +75,7 @@
           title="Open full plan"
           aria-label="Open full plan"
         >
-          <ArrowsOut weight="bold" class="size-3.5 shrink-0" />
+          <RoundedIcon name="expand" class="size-3.5 shrink-0" />
         </button>
       </HeaderActionCell>
     {/if}
@@ -101,12 +99,12 @@
       {#if onCancel}
         <Button
           type="button"
-          variant="headerAction"
-          size="headerAction"
+          variant="secondary"
+          size="xs"
           onclick={onCancel}
           disabled={actionsDisabled || isBuilding}
         >
-          <XCircle weight="fill" class="size-3 shrink-0" />
+          <RoundedIcon name="x-circle" class="size-3 shrink-0" />
           Cancel
         </Button>
       {/if}
@@ -114,8 +112,8 @@
       {#if onBuild}
         <Button
           type="button"
-          variant="headerAction"
-          size="headerAction"
+          variant="secondary"
+          size="xs"
           onclick={onBuild}
           disabled={actionsDisabled || isBuilding}
         >

@@ -50,7 +50,7 @@
 		variant?: FilePathBadgeVariant;
 		/** When false, renders filename only without a file-type icon */
 		showIcon?: boolean;
-		onSelect?: () => void;
+		onSelect?: (event: MouseEvent) => void;
 		class?: string;
 	}
 

@@ -15,6 +15,7 @@ import {
 	getSkillDisplayName,
 	getSkillViewState,
 } from "./agent-tool-skill-state.js";
+import { isRawExecuteToolName } from "./agent-tool-raw-name-state.js";
 import { getWebSearchHeaderLabel } from "./agent-tool-web-search-state.js";
 
 export interface AgentToolCompactDisplay {
@@ -221,6 +222,9 @@ function getCompactToolTitle(entry: AgentToolEntry): string {
 
 function getCompactToolSubtitle(entry: AgentToolEntry, filePath?: string): string | undefined {
 	if (entry.command) {
+		if (entry.kind === "execute" && isRawExecuteToolName(entry.command)) {
+			return undefined;
+		}
 		const commandFilePath = extractExecuteCommandFilePath(entry.command);
 		if (commandFilePath) {
 			return undefined;

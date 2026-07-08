@@ -1,6 +1,5 @@
 <script lang="ts">
-	import Folder from "@lucide/svelte/icons/folder-open";
-	import { Tree } from "phosphor-svelte";
+	import { RoundedIcon } from "../icons/index.js";
 
 	interface Props {
 		mode: "worktree" | "project-root";
@@ -13,9 +12,9 @@
 
 <div class="flex items-center gap-1.5 px-3 py-1">
 	{#if mode === "worktree"}
-		<Tree size={12} weight="fill" class="shrink-0 text-success" />
+		<RoundedIcon name="worktree" class="size-3 shrink-0 text-success" />
 	{:else}
-		<Folder class="size-3 shrink-0 text-muted-foreground" />
+		<RoundedIcon name="folder" class="size-3 shrink-0 text-muted-foreground" />
 	{/if}
 	<span class="truncate text-sm font-medium text-foreground">{primaryLabel}</span>
 	{#if secondaryLabel}

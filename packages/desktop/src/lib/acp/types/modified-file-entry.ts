@@ -1,3 +1,9 @@
+export type ModifiedFileEditSnippet = {
+	readonly oldString: string | null;
+	readonly newString: string | null;
+	readonly content: string | null;
+};
+
 /**
  * Aggregated data for a single modified file across all edits in a session.
  */
@@ -14,6 +20,8 @@ export type ModifiedFileEntry = {
 	readonly originalContent: string | null;
 	/** Final content after last edit (null if unknown) */
 	readonly finalContent: string | null;
+	/** Ordered edit snippets used to reconstruct historical review diffs */
+	readonly edits?: ReadonlyArray<ModifiedFileEditSnippet>;
 	/** Number of edit operations */
 	readonly editCount: number;
 };

@@ -32,7 +32,7 @@ Check whether `agent-browser` is installed:
 command -v agent-browser >/dev/null 2>&1 && echo "Installed" || echo "NOT INSTALLED"
 ```
 
-If not installed, inform the user: "`agent-browser` is not installed. Run `/ce-setup` to install required dependencies." Then stop — this skill cannot function without agent-browser.
+If not installed, inform the user: "`agent-browser` is not installed. Run `agent-browser setup` to install required dependencies." Then stop — this skill cannot function without agent-browser.
 
 ## Workflow
 
@@ -44,7 +44,7 @@ Before starting, verify `agent-browser` is available:
 command -v agent-browser >/dev/null 2>&1 && echo "Ready" || echo "NOT INSTALLED"
 ```
 
-If not installed, inform the user: "`agent-browser` is not installed. Run `/ce-setup` to install required dependencies." Then stop.
+If not installed, inform the user: "`agent-browser` is not installed. Run `agent-browser setup` to install required dependencies." Then stop.
 
 ### 2. Ask Browser Mode
 

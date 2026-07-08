@@ -42,7 +42,7 @@ import {
 import type { ISessionStateWriter } from "./services/interfaces/index.js";
 import type { SessionEventHandler } from "./session-event-handler.js";
 import type { SessionStoreCallbacks } from "./session-store.svelte.js";
-import { ViewportProjectionController } from "./viewport-projection-controller.svelte.js";
+import { TranscriptRowsController } from "./transcript-rows-controller.svelte.js";
 import { SessionIdentityResolver } from "./session-identity-resolver.js";
 
 export type SessionStoreParts = {
@@ -61,7 +61,7 @@ export type SessionStoreParts = {
 	readonly composer: ComposerMachineService;
 	readonly connection: SessionConnectionFacade;
 	readonly loading: SessionLoadingFacade;
-	readonly viewport: ViewportProjectionController;
+	readonly viewport: TranscriptRowsController;
 	readonly lifecycleCleanup: SessionLifecycleCleanup;
 	readonly openSnapshotApplier: SessionOpenSnapshotApplier;
 	readonly envelopeApplier: SessionEnvelopeApplier;
@@ -166,16 +166,7 @@ export function composeSessionStoreParts(input: ComposeSessionStorePartsInput): 
 		hasSessionCanonicalProjection: (sessionId) => read.hasSessionCanonicalProjection(sessionId),
 	});
 
-	const connectionRef: { current: SessionConnectionFacade | null } = { current: null };
-
-	const viewport = new ViewportProjectionController({
-		connectSession: (sessionId, options) => {
-			const connection = connectionRef.current;
-			if (connection === null) {
-				throw new Error("SessionConnectionFacade not initialized");
-			}
-			return connection.connectSession(sessionId, options);
-		},
+	const viewport = new TranscriptRowsController({
 		getGraphRevision: (sessionId) => read.getGraphRevision(sessionId),
 		applySessionStateEnvelope: (sessionId, envelope) =>
 			input.applySessionStateEnvelope(sessionId, envelope),
@@ -239,8 +230,10 @@ export function composeSessionStoreParts(input: ComposeSessionStorePartsInput): 
 		removeSession: (sessionId) => lifecycleCleanup.removeSession(sessionId),
 		removeOptimisticSession: (sessionId) => repository.removeSession(sessionId),
 		updateSession: (id, updates, options) => listState.updateSession(id, updates, options),
-		replaceSessionOperations: (sessionId, operations) =>
-			operationStore.replaceSessionOperations(sessionId, operations),
+		replaceSessionOperations: (sessionId, operations) => {
+			operationStore.replaceSessionOperations(sessionId, operations);
+			maybeAutoLinkPrFromOperations(sessionId);
+		},
 		replaceTranscriptSnapshot: (sessionId, snapshot, appliedAt) =>
 			entryStore.replaceTranscriptSnapshot(sessionId, snapshot, appliedAt),
 		initializeTransientProjection: (sessionId) =>
@@ -304,6 +297,21 @@ export function composeSessionStoreParts(input: ComposeSessionStorePartsInput): 
 		updateSession: (id, updates, options) => write.updateSession(id, updates, options),
 	});
 
+	// After canonical operations are applied, give PR-link attribution a chance to auto-link
+	// the session from a verified `gh pr create` tool call. Reads canonical operation facts;
+	// the method is idempotent and no-ops once the session has a linked or manually-set PR.
+	const maybeAutoLinkPrFromOperations = (sessionId: string): void => {
+		const projectPath = read.getSessionIdentity(sessionId)?.projectPath;
+		if (projectPath === undefined) {
+			return;
+		}
+		prLinkState.applyAutomaticPrLinkFromToolOperations(
+			sessionId,
+			projectPath,
+			operationStore.getSessionOperations(sessionId)
+		);
+	};
+
 	const stateRefreshControllerRef: { current: SessionStateRefreshController | null } = { current: null };
 	const awaitingModelRefreshRef: { current: AwaitingModelRefreshStore | null } = { current: null };
 
@@ -332,14 +340,18 @@ export function composeSessionStoreParts(input: ComposeSessionStorePartsInput): 
 		updateUsageTelemetry: (sessionId, telemetry) => input.updateUsageTelemetry(sessionId, telemetry),
 		applyViewportBufferPush: (push) => viewport.applyBufferPush(push),
 		applyViewportBufferDelta: (delta) => viewport.applyBufferDelta(delta),
-		replaceSessionOperations: (sessionId, operations) =>
-			operationStore.replaceSessionOperations(sessionId, operations),
+		replaceSessionOperations: (sessionId, operations) => {
+			operationStore.replaceSessionOperations(sessionId, operations);
+			maybeAutoLinkPrFromOperations(sessionId);
+		},
 		replaceTranscriptSnapshot: (sessionId, snapshot, appliedAt) =>
 			entryStore.replaceTranscriptSnapshot(sessionId, snapshot, appliedAt),
 		applyTranscriptDeltaToEntryStore: (sessionId, delta, appliedAt) =>
 			entryStore.applyTranscriptDelta(sessionId, delta, appliedAt),
-		applySessionOperationPatches: (sessionId, patches) =>
-			operationStore.applySessionOperationPatches(sessionId, patches),
+		applySessionOperationPatches: (sessionId, patches) => {
+			operationStore.applySessionOperationPatches(sessionId, patches);
+			maybeAutoLinkPrFromOperations(sessionId);
+		},
 		replaceLiveSessionStateGraph: (graph) => creationCoordinator.replaceLiveSessionStateGraph(graph),
 		applyLiveSessionInteractionPatches: (snapshots) =>
 			creationCoordinator.applyLiveSessionInteractionPatches(snapshots),
@@ -439,7 +451,6 @@ export function composeSessionStoreParts(input: ComposeSessionStorePartsInput): 
 		messagingOrchestrator,
 		creationCoordinator,
 		listState,
-		viewport,
 		awaitingModelRefresh,
 		prLinkState,
 		read,
@@ -447,7 +458,6 @@ export function composeSessionStoreParts(input: ComposeSessionStorePartsInput): 
 		eventHandler: eventHandlerRef.current,
 		getCallbacks: () => callbacks,
 	});
-	connectionRef.current = connection;
 
 	const loading = new SessionLoadingFacade({
 		repository,

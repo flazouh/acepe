@@ -1,7 +1,5 @@
 <script lang="ts">
-	import { CaretRight } from "phosphor-svelte";
-	import { CaretDown } from "phosphor-svelte";
-	import { ArrowRight } from "phosphor-svelte";
+	import { RoundedIcon } from "../icons/index.js";
 	import ToolHeaderLeading from "./tool-header-leading.svelte";
 	import AgentToolDurationLabel from "./agent-tool-duration-label.svelte";
 	import type { ToolDurationTiming } from "./tool-duration.js";
@@ -130,7 +128,10 @@
 			<div class="flex min-w-0 flex-1 items-center gap-1.5 overflow-hidden text-sm text-muted-foreground">
 				<ToolHeaderLeading kind="search" {status}>{headerLabel}</ToolHeaderLeading>
 				{#if resultText}
-					<ArrowRight size={10} weight="bold" class="shrink-0 text-muted-foreground" />
+					<RoundedIcon
+						name="arrow-left"
+						class="size-2.5 shrink-0 rotate-180 text-muted-foreground"
+					/>
 					<span class="text-xs text-muted-foreground">{resultText}</span>
 				{/if}
 			</div>
@@ -140,10 +141,7 @@
 					class="font-sans text-xs"
 				/>
 				{#if hasExpandableContent}
-					<CaretRight
-						size={9}
-						weight="bold"
-						class="shrink-0 text-muted-foreground transition-transform duration-150 {isExpanded ? 'rotate-90' : ''}"
+					<RoundedIcon name="chevron-right" class="size-3 shrink-0 text-muted-foreground transition-transform duration-150 {isExpanded ? 'rotate-90' : ''}"
 					/>
 				{/if}
 			</div>
@@ -210,11 +208,11 @@
 						class="flex items-center gap-1.5 rounded px-2 py-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground border-none bg-transparent cursor-pointer"
 					>
 						{#if !showAll}
-							<CaretDown size={10} weight="bold" />
-							<span>{showMoreLabel(hiddenResultCount)}</span>
-						{:else}
-							<CaretRight size={10} weight="bold" class="rotate-270" />
-							<span>{showLessLabel}</span>
+								<RoundedIcon name="chevron-down" class="size-3" />
+								<span>{showMoreLabel(hiddenResultCount)}</span>
+							{:else}
+								<RoundedIcon name="chevron-up" class="size-3 shrink-0" />
+								<span>{showLessLabel}</span>
 						{/if}
 					</button>
 				</div>

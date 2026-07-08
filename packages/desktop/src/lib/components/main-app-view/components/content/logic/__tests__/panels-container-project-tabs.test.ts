@@ -23,6 +23,7 @@ describe("panels container project tabs", () => {
 				color: "#111111",
 				path: "/app",
 				iconSrc: null,
+				badgeLabel: null,
 				sessionCount: 2,
 			},
 			{
@@ -30,8 +31,29 @@ describe("panels container project tabs", () => {
 				color: "#222222",
 				path: "/api",
 				iconSrc: "/api.svg",
+				badgeLabel: null,
 				sessionCount: 0,
 			},
+		]);
+	});
+
+	it("uses the project badge label lookup when provided", () => {
+		const tabs = buildPanelsContainerProjectTabs({
+			projects: [
+				{ name: "Acepe", color: "#111111", path: "/acepe", iconSrc: null },
+				{ name: "Articles", color: "#222222", path: "/articles", iconSrc: null },
+			],
+			groups: [],
+			getProjectBadgeLabel: (projectPath) => {
+				if (projectPath === "/acepe") return "Ac";
+				if (projectPath === "/articles") return "Ar";
+				return null;
+			},
+		});
+
+		expect(tabs.map((tab) => [tab.path, tab.badgeLabel])).toEqual([
+			["/acepe", "Ac"],
+			["/articles", "Ar"],
 		]);
 	});
 

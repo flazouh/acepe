@@ -1,15 +1,16 @@
-pub mod layout;
+pub mod ledger;
+pub mod ledger_rebuild;
 pub mod projection;
 pub mod row;
-pub mod viewport;
 
-pub use layout::{HeightConfirmationOutcome, LayoutIndex, RowLayout};
+pub use ledger::{
+    SerializedTranscriptRowLedgerRow, SessionTranscriptRowLedgerMetadata,
+    SessionTranscriptRowLedgerRead, SessionTranscriptRowLedgerStatus,
+};
+pub(crate) use projection::project_transcript_viewport_entry_rows;
 pub use projection::project_transcript_viewport_rows;
 pub use row::{
-    TranscriptViewportInteractionLink, TranscriptViewportOperationLink, TranscriptViewportRow,
-    TranscriptViewportRowContent, TranscriptViewportRowKind,
-};
-pub use viewport::{
-    ScrollIntent, TranscriptViewport, ViewportBufferSlice, ViewportMode, ViewportTransition,
-    ViewportWindow, DEFAULT_BUFFER_OVERSCAN_ROWS,
+    TranscriptViewportInteractionLink, TranscriptViewportOperationDisplayFacts,
+    TranscriptViewportOperationLink, TranscriptViewportRow, TranscriptViewportRowContent,
+    TranscriptViewportRowKind,
 };

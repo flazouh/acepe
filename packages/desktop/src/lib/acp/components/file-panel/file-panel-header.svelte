@@ -1,8 +1,7 @@
 <script lang="ts">
 import { FilePanelHeader as FilePanelHeaderLayout } from "@acepe/ui/file-panel";
-import { Button } from "@acepe/ui";
+import { Button, RoundedIcon } from "@acepe/ui";
 import { CloseAction } from "@acepe/ui/panel-header";
-import { FolderOpen } from "phosphor-svelte";
 import { toast } from "svelte-sonner";
 import { FileIcon } from "$lib/components/ui/file-icon/index.js";
 import { revealInFinder, tauriClient } from "$lib/utils/tauri-client.js";
@@ -21,6 +20,7 @@ interface Props {
 	projectPath: string;
 	projectName: string;
 	projectColor: string | undefined;
+	projectBadgeLabel?: string | null;
 	projectIconSrc?: string | null;
 	content: string | null;
 	gitStatus: { status: string; insertions: number; deletions: number } | null;
@@ -41,6 +41,7 @@ let {
 	projectPath,
 	projectName,
 	projectColor,
+	projectBadgeLabel = null,
 	projectIconSrc = null,
 	content,
 	gitStatus,
@@ -83,6 +84,7 @@ function handleEditorModeChange(modeId: string) {
 	{fileName}
 	{filePath}
 	{projectName}
+	{projectBadgeLabel}
 	projectColor={effectiveColor}
 	{projectIconSrc}
 	{compact}
@@ -130,15 +132,15 @@ function handleEditorModeChange(modeId: string) {
 			</div>
 		{/if}
 		<Button
-			variant="chromeIcon"
-			size="chromeIcon"
+			variant="ghost"
+			size="icon"
 			data-header-control
 			onclick={handleOpenInFinder}
 			title="Open in Finder"
 			aria-label="Open in Finder"
 		>
 			{#snippet children()}
-				<FolderOpen class="h-3.5 w-3.5" weight="fill" />
+				<RoundedIcon name="folder" />
 				<span class="sr-only">{"Open in Finder"}</span>
 			{/snippet}
 		</Button>

@@ -1,18 +1,20 @@
 <script lang="ts">
-import { Kanban, Columns, Square, SquaresFour } from "phosphor-svelte";
+import { LayoutModeIcon } from "@acepe/ui";
+
+type FeatureIconMode = "columns" | "grid" | "kanban" | "single";
 
 interface Feature {
 	id: string;
 	label: string;
-	icon: typeof Kanban;
+	iconMode: FeatureIconMode;
 	color: string;
 }
 
 const features: Feature[] = [
-	{ id: "agent", label: "Side by Side", icon: SquaresFour, color: "#99FFE4" },
-	{ id: "by-project", label: "By Project", icon: Columns, color: "#FF8D20" },
-	{ id: "single", label: "Single Agent", icon: Square, color: "#9858FF" },
-	{ id: "kanban", label: "Kanban", icon: Kanban, color: "#FF78F7" },
+	{ id: "agent", label: "Side by Side", iconMode: "grid", color: "#99FFE4" },
+	{ id: "by-project", label: "By Project", iconMode: "columns", color: "#FF8D20" },
+	{ id: "single", label: "Single Agent", iconMode: "single", color: "#9858FF" },
+	{ id: "kanban", label: "Kanban", iconMode: "kanban", color: "#FF78F7" },
 ];
 
 let activeFeature = $state("agent");
@@ -30,7 +32,11 @@ let activeFeature = $state("agent");
 					: 'text-muted-foreground hover:text-foreground hover:bg-muted/50'}"
 				onclick={() => (activeFeature = feature.id)}
 			>
-				<feature.icon class="size-4" weight="fill" style="color: {isActive ? 'currentColor' : feature.color}" />
+				<LayoutModeIcon
+					mode={feature.iconMode}
+					class="size-4"
+					color={isActive ? "currentColor" : feature.color}
+				/>
 				{feature.label}
 			</button>
 		{/each}

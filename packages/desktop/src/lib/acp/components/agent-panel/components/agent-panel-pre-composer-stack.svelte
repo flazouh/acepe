@@ -1,23 +1,14 @@
 <script lang="ts">
-import { Tree } from "phosphor-svelte";
-import type { MergeStrategy } from "$lib/utils/tauri-client/git.js";
 import type { PrDetails } from "$lib/utils/tauri-client/git.js";
+import { RoundedIcon, type PrChecksItem } from "@acepe/ui";
 import type { IssueReportDraft } from "$lib/errors/issue-report.js";
 import { resolveIssueActionLabel } from "$lib/errors/issue-report.js";
-import type { AgentInfo } from "../../../logic/agent-manager.js";
-import type { Project } from "../../../logic/project-manager.svelte.js";
-import type {
-	SessionLinkedPr,
-	SessionPrLinkMode,
-	SessionPrLinkReference,
-} from "../../../application/dto/session-linked-pr";
-import type { ModifiedFilesState } from "../../../types/modified-files-state.js";
+import type { SessionLinkedPr } from "../../../application/dto/session-linked-pr";
 import type { TodoState } from "../../../types/todo.js";
-import type { PrGenerationConfig } from "../../modified-files/types/pr-generation-config.js";
 import PrStatusCard from "../../pr-status-card/pr-status-card.svelte";
-import ModifiedFilesHeader from "../../modified-files/modified-files-header.svelte";
 import {
 	AgentPanelQueueCardStrip as SharedQueueCardStrip,
+	AgentPanelRecoveryCard as SharedRecoveryCard,
 	AgentPanelTodoHeader as SharedTodoHeader,
 	AgentPanelSignInCard as SharedSignInCard,
 } from "@acepe/ui/agent-panel";
@@ -42,10 +33,14 @@ type QueueStripMessage = {
 	}>;
 };
 
-type ErrorInfo = { title: string; summary?: string | null; details?: string | null };
+type ErrorInfo = {
+	title: string;
+	summary?: string | null;
+	details?: string | null;
+	recoveryAction?: "unarchive" | null;
+};
 
 let {
-	reviewMode,
 	showConversationChrome,
 	worktreeDeleted,
 	centeredFullscreenContent,
@@ -55,6 +50,8 @@ let {
 	inlineErrorReferenceSearchable,
 	onRetryConnection,
 	isRetryingConnection = false,
+	onUnarchiveSession,
+	isUnarchivingSession = false,
 	onDismissError,
 	onCopyInlineErrorReference,
 	inlineErrorIssueDraft,
@@ -78,21 +75,8 @@ let {
 	prDetails,
 	prFetchError,
 	linkedPr,
-	prLinkMode,
-	projectPrLinkReferences,
-	projectForPr,
 	streamingShipData,
-	modifiedFilesState,
-	onEnterReviewMode,
-	onOpenReviewDialog,
-	onCreatePr,
-	createPrLabel,
-	onMergePr,
-	mergePrRunning,
-	availableAgents,
-	effectivePanelAgentId,
-	sessionCurrentModelId,
-	effectiveTheme,
+	onFixCiCheck,
 	showTodoHeader,
 	todoState,
 	getTodoMarkdown,
@@ -106,7 +90,6 @@ let {
 	signInRequirement,
 	onDismissSignIn,
 }: {
-	reviewMode: boolean;
 	showConversationChrome: boolean;
 	worktreeDeleted: boolean;
 	centeredFullscreenContent: boolean;
@@ -116,6 +99,8 @@ let {
 	inlineErrorReferenceSearchable: boolean;
 	onRetryConnection: () => void;
 	isRetryingConnection?: boolean;
+	onUnarchiveSession: () => void;
+	isUnarchivingSession?: boolean;
 	onDismissError: () => void;
 	onCopyInlineErrorReference: () => void;
 	inlineErrorIssueDraft: IssueReportDraft | null;
@@ -144,21 +129,8 @@ let {
 	prDetails: PrDetails | null;
 	prFetchError: string | null;
 	linkedPr: SessionLinkedPr | null;
-	prLinkMode: SessionPrLinkMode | null;
-	projectPrLinkReferences: readonly SessionPrLinkReference[];
-	projectForPr: Project | null;
 	streamingShipData: ShipCardData | null;
-	modifiedFilesState: ModifiedFilesState | null;
-	onEnterReviewMode: (s: ModifiedFilesState) => void;
-	onOpenReviewDialog?: (s: ModifiedFilesState, fileIndex: number) => void;
-	onCreatePr: ((config?: PrGenerationConfig) => void) | undefined;
-	createPrLabel: string | null;
-	onMergePr: (strategy: MergeStrategy) => void;
-	mergePrRunning: boolean;
-	availableAgents: AgentInfo[];
-	effectivePanelAgentId: string | null;
-	sessionCurrentModelId: string | null;
-	effectiveTheme: "light" | "dark";
+	onFixCiCheck?: (check: PrChecksItem) => void;
 	showTodoHeader: boolean;
 	todoState: TodoState | null;
 	getTodoMarkdown: () => string;
@@ -183,13 +155,12 @@ function resolveSignInCommand(agentDisplayName: string): string | null {
 }
 </script>
 
-<div style:display={reviewMode ? "none" : undefined}>
-	{#if showConversationChrome}
+{#if showConversationChrome}
 		{#if worktreeDeleted}
 			<div class="{centeredFullscreenContent ? 'flex justify-center' : ''} px-5 mb-2">
 				<div class="flex justify-center {centeredFullscreenContent ? 'w-full max-w-4xl' : ''}">
 					<div class="inline-flex items-center gap-2 px-3 py-1 rounded-lg bg-accent">
-						<Tree class="size-3 shrink-0 text-destructive" weight="fill" />
+						<RoundedIcon name="worktree" class="size-3 shrink-0 text-destructive" />
 						<span class="text-[0.6875rem] text-muted-foreground">
 							{"The worktree associated with this session has been deleted."}
 						</span>
@@ -210,18 +181,30 @@ function resolveSignInCommand(agentDisplayName: string): string | null {
 							/>
 						{/if}
 						{#if showInlineErrorCard}
-							<AgentErrorCard
-								title={errorInfo.title}
-								summary={errorInfo.summary ?? "Failed to connect to agent"}
-								details={errorInfo.details ?? "Unknown error"}
-								isRetrying={isRetryingConnection}
-								onRetry={onRetryConnection}
-								onDismiss={onDismissError}
-								issueActionLabel={inlineErrorIssueDraft
-									? resolveIssueActionLabel(inlineErrorIssueDraft)
-									: "Create issue"}
-								onIssueAction={inlineErrorIssueDraft ? onIssueFromInlineError : undefined}
-							/>
+							{#if errorInfo.recoveryAction === "unarchive"}
+								<SharedRecoveryCard
+									title={errorInfo.title}
+									actionLabel="Unarchive"
+									actionIconName="undo"
+									workingLabel="Unarchiving..."
+									isWorking={isUnarchivingSession}
+									onAction={onUnarchiveSession}
+									onDismiss={onDismissError}
+								/>
+							{:else}
+								<AgentErrorCard
+									title={errorInfo.title}
+									summary={errorInfo.summary ?? "Failed to connect to agent"}
+									details={errorInfo.details ?? "Unknown error"}
+									isRetrying={isRetryingConnection}
+									onRetry={onRetryConnection}
+									onDismiss={onDismissError}
+									issueActionLabel={inlineErrorIssueDraft
+										? resolveIssueActionLabel(inlineErrorIssueDraft)
+										: "Create issue"}
+									onIssueAction={inlineErrorIssueDraft ? onIssueFromInlineError : undefined}
+								/>
+							{/if}
 						{/if}
 						{#if preSessionWorktreeFailure && worktreeToggleProjectPath}
 							<PreSessionWorktreeCard
@@ -257,38 +240,16 @@ function resolveSignInCommand(agentDisplayName: string): string | null {
 							{#key prCardRenderKey}
 								<PrStatusCard
 									{sessionId}
-									projectPath={effectivePathForGit}
+									projectPath={sessionProjectPath ?? effectivePathForGit}
 									prNumber={createdPr}
 									isCreating={createPrRunning}
 									{prDetails}
 									fetchError={prFetchError}
 									{linkedPr}
 									streamingData={streamingShipData}
+									onFixCheck={onFixCiCheck}
 								/>
 							{/key}
-						{/if}
-						{#if modifiedFilesState}
-							<ModifiedFilesHeader
-								{modifiedFilesState}
-								{sessionId}
-								onEnterReviewMode={onEnterReviewMode}
-								onOpenReviewDialog={onOpenReviewDialog}
-								onCreatePr={onCreatePr}
-								createPrLoading={createPrRunning}
-								{createPrLabel}
-								onMerge={createdPr && prDetails && prDetails.state !== "MERGED" ? onMergePr : undefined}
-								merging={mergePrRunning}
-								prState={prDetails ? prDetails.state : null}
-								projectPath={sessionProjectPath}
-								{linkedPr}
-								{prLinkMode}
-								{projectPrLinkReferences}
-								project={projectForPr}
-								{availableAgents}
-								currentAgentId={effectivePanelAgentId}
-								currentModelId={sessionCurrentModelId}
-								{effectiveTheme}
-							/>
 						{/if}
 						{#if showTodoHeader && todoState}
 							<SharedTodoHeader
@@ -326,5 +287,4 @@ function resolveSignInCommand(agentDisplayName: string): string | null {
 				</div>
 			</div>
 		</div>
-	{/if}
-</div>
+{/if}

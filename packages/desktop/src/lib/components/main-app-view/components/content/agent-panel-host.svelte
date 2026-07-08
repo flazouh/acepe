@@ -18,6 +18,7 @@ import {
 	normalizeAgentPanelBoundaryError,
 } from "./logic/agent-panel-host-boundary-error.js";
 import { buildAgentPanelHostModel } from "./logic/agent-panel-host-model.js";
+import { recordPanelOpenPerformanceMark } from "$lib/acp/components/agent-panel/logic/panel-open-performance-mark.js";
 
 interface Props {
 	panelId: string;
@@ -44,6 +45,9 @@ let {
 	onFocusPanel,
 	onToggleFullscreenPanel,
 }: Props = $props();
+
+// svelte-ignore state_referenced_locally -- constructor timing should use this instance's initial panel id.
+recordPanelOpenPerformanceMark(panelId, "agent-panel-host:props");
 
 const panelStore = getPanelStore();
 const sessionStore = getSessionStore();
@@ -102,9 +106,6 @@ const project = $derived(hostModel?.project ?? null);
 const selectedAgentId = $derived(hostModel?.selectedAgentId ?? null);
 const isWaitingForSession = $derived(hostModel?.isWaitingForSession ?? false);
 const hasAttachedFilePane = $derived(panel ? panelStore.hasAttachedFilePanels(panel.id) : false);
-const reviewMode = $derived(hostModel?.reviewMode ?? false);
-const reviewFilesState = $derived(hostModel?.reviewFilesState ?? null);
-const reviewFileIndex = $derived(hostModel?.reviewFileIndex ?? 0);
 
 function handleAgentChange(agentId: string): void {
 	state.handlePanelAgentChange(panelId, agentId);
@@ -144,21 +145,6 @@ function handleFocus(): void {
 	state.handleFocusPanel(panelId);
 }
 
-function handleEnterReviewMode(
-	modifiedFilesState: import("$lib/acp/types/modified-files-state.js").ModifiedFilesState,
-	initialFileIndex: number
-): void {
-	panelStore.enterReviewMode(panelId, modifiedFilesState, initialFileIndex);
-}
-
-function handleExitReviewMode(): void {
-	panelStore.exitReviewMode(panelId);
-}
-
-function handleReviewFileIndexChange(index: number): void {
-	panelStore.setReviewFileIndex(panelId, index);
-}
-
 function handleCreateIssueReport(
 	draft: Parameters<MainAppViewState["openUserReportsWithDraft"]>[0]
 ): void {
@@ -167,8 +153,14 @@ function handleCreateIssueReport(
 
 </script>
 
-{#if panel}
-	<svelte:boundary onerror={(error) => logAgentPanelBoundaryError(panelId, error)}>
+<div
+	class="contents"
+	data-testid="agent-panel-host"
+	data-qa-agent-panel-id={panelId}
+	data-qa-agent-panel-session-id={panel?.sessionId ?? ""}
+>
+	{#if panel}
+		<svelte:boundary onerror={(error) => logAgentPanelBoundaryError(panelId, error)}>
 		<AgentPanel
 			{panelId}
 			sessionId={panel.sessionId}
@@ -191,12 +183,6 @@ function handleCreateIssueReport(
 			onToggleFullscreen={handleToggleFullscreen}
 			onFocus={handleFocus}
 			{hideProjectBadge}
-			{reviewMode}
-			{reviewFilesState}
-			{reviewFileIndex}
-			onEnterReviewMode={handleEnterReviewMode}
-			onExitReviewMode={handleExitReviewMode}
-			onReviewFileIndexChange={handleReviewFileIndexChange}
 			onCreateIssueReport={handleCreateIssueReport}
 			{hasAttachedFilePane}
 		/>
@@ -235,5 +221,6 @@ function handleCreateIssueReport(
 				</div>
 			</div>
 		{/snippet}
-	</svelte:boundary>
-{/if}
+		</svelte:boundary>
+	{/if}
+</div>

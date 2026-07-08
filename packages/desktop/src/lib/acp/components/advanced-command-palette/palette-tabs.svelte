@@ -1,7 +1,5 @@
 <script lang="ts">
-import { ChatCircle } from "phosphor-svelte";
-import { File } from "phosphor-svelte";
-import { Terminal } from "phosphor-svelte";
+import { RoundedIcon } from "@acepe/ui";
 
 import type { PaletteMode } from "../../types/palette-mode.js";
 
@@ -17,9 +15,9 @@ interface Props {
 let { mode, modes, onModeChange }: Props = $props();
 
 const MODE_ICONS = {
-	commands: Terminal,
-	sessions: ChatCircle,
-	files: File,
+	commands: "terminal",
+	sessions: "chat",
+	files: "files",
 } as const;
 </script>
 
@@ -35,7 +33,7 @@ const MODE_ICONS = {
 			onclick={() => onModeChange(m)}
 		>
 			<span class="flex items-center gap-1.5">
-				<ModeIcon class="size-3.5 transition-colors" weight={isActive ? "fill" : "regular"} />
+				<RoundedIcon name={ModeIcon} class="size-3.5 transition-colors" />
 				<span>{label}</span>
 				<span class="text-[9px] opacity-40 font-normal ml-0.5">⌘{index + 1}</span>
 			</span>

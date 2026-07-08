@@ -140,11 +140,11 @@ function formatAgeUntil(resetAtMs: number, nowMs: number): string {
 }
 
 function toneFromPercentUsed(percentUsed: number): UsageMetricTone {
-	if (percentUsed >= 90) {
+	if (percentUsed >= 85) {
 		return "danger";
 	}
 
-	if (percentUsed >= 75) {
+	if (percentUsed >= 60) {
 		return "watch";
 	}
 

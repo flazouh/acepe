@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { CaretRight } from "phosphor-svelte";
+	import { RoundedIcon } from "../icons/index.js";
 	import AgentToolCard from "./agent-tool-card.svelte";
 	import {
 		getFetchResultLabel,
@@ -84,10 +84,7 @@
 				onclick={() => { isExpanded = !isExpanded; }}
 				class="flex w-full items-center gap-2 border-none bg-transparent px-2.5 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-muted/30 cursor-pointer"
 			>
-				<CaretRight
-					size={10}
-					weight="bold"
-					class="shrink-0 transition-transform duration-150 {isExpanded ? 'rotate-90' : ''}"
+				<RoundedIcon name="chevron-right" class="size-3 shrink-0 transition-transform duration-150 {isExpanded ? 'rotate-90' : ''}"
 				/>
 				<span class="shrink-0 font-medium">{derivedResultLabel}</span>
 				{#if !isExpanded && preview}

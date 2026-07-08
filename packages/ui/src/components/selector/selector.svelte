@@ -1,13 +1,18 @@
 <script lang="ts">
 	import * as DropdownMenu from "../dropdown-menu/index.js";
 	import * as Tooltip from "../tooltip/index.js";
-	import ChevronDown from "@lucide/svelte/icons/chevron-down";
 	import { mergeProps } from "bits-ui";
 	import type { Snippet } from "svelte";
 
 	import { cn } from "../../lib/utils.js";
-	import { Button, type ButtonVariant } from "../button/index.js";
-	import { getSelectorTriggerClass, type SelectorTriggerSize } from "./selector-trigger-classes.js";
+	import { Button, type ButtonVariant, buttonVariants } from "../button/index.js";
+	import { RoundedIcon } from "../icons/index.js";
+	import {
+		getSelectorTriggerButtonPropsForContext,
+		getSelectorTriggerClass,
+		resolveSelectorTriggerSize,
+		type SelectorTriggerSize,
+	} from "./selector-trigger-classes.js";
 
 	interface Props {
 		/**
@@ -101,6 +106,11 @@
 		triggerClass?: string;
 
 		/**
+		 * When true, marks the trigger for fused button-group segment styling.
+		 */
+		embeddedInGroup?: boolean;
+
+		/**
 		 * Raise dropdown content above blocking overlays (branch picker, etc.).
 		 */
 		blockingOverlay?: boolean;
@@ -114,6 +124,16 @@
 		 * Extra classes merged onto dropdown menu content.
 		 */
 		contentClass?: string;
+
+		/**
+		 * When true, applies the trigger button's active visual state (open menu).
+		 */
+		triggerActive?: boolean;
+
+		/**
+		 * Preset overflow trigger glyph. When set, renders instead of renderButton.
+		 */
+		triggerIcon?: "none" | "dots" | "gear";
 	}
 
 	let {
@@ -135,10 +155,23 @@
 		triggerRef = $bindable(null),
 		triggerSize = "default",
 		triggerClass: triggerClassOverride = "",
+		embeddedInGroup = false,
 		blockingOverlay = false,
 		sideOffset = 4,
 		contentClass: menuContentClass = "",
+		triggerActive = false,
+		triggerIcon = "none",
 	}: Props = $props();
+
+	const resolvedTriggerSize = $derived(resolveSelectorTriggerSize(triggerSize));
+
+	const triggerButtonProps = $derived(
+		getSelectorTriggerButtonPropsForContext({
+			triggerSize,
+			embeddedInGroup,
+			variant,
+		})
+	);
 
 	const triggerClass = $derived(
 		getSelectorTriggerClass({
@@ -147,20 +180,22 @@
 		})
 	);
 
-	const buttonSize = $derived(
-		triggerSize === "chromeIconMd"
-			? "chromeIconMd"
-			: triggerSize === "chromeIcon"
-				? "chromeIcon"
-				: triggerSize === "setupChipIcon" || triggerSize === "setupChip"
-					? "setupChip"
-					: triggerSize === "headerAction"
-						? "headerAction"
-						: triggerSize === "icon" || triggerSize === "attach"
-							? "2xs"
-							: "sm"
+	const resolvedTriggerAriaLabel = $derived(
+		triggerAriaLabel ?? tooltipTitle ?? tooltipLabel
 	);
 
+	const triggerButtonClass = $derived(
+		cn(
+			buttonVariants({
+				variant: triggerButtonProps.variant,
+				size: triggerButtonProps.size,
+				active: triggerActive,
+			}),
+			triggerClass,
+			embeddedInGroup ? "!rounded-none" : "",
+			className
+		)
+	);
 	const contentClass = $derived(
 		cn(
 			"w-fit max-w-[280px]",
@@ -175,61 +210,75 @@
 	}
 </script>
 
+{#snippet selectorTriggerButton(buttonProps: Record<string, unknown>)}
+	{#if embeddedInGroup}
+		<button
+			{...buttonProps}
+			bind:this={triggerRef}
+			type="button"
+			data-slot="button"
+			data-header-control={triggerSize === "attach" || triggerSize === "chromeIcon" ? true : undefined}
+			class={triggerButtonClass}
+			disabled={disabled}
+			aria-label={resolvedTriggerAriaLabel}
+			title={tooltipTitle ?? tooltipLabel ?? undefined}
+		>
+			{#if triggerIcon === "dots"}
+				<RoundedIcon name="more" />
+			{:else if triggerIcon === "gear"}
+				<RoundedIcon name="settings" />
+			{:else}
+				{@render renderButton()}
+			{/if}
+			{#if showChevron}
+				<RoundedIcon name="chevron-down" class="size-3 shrink-0 text-muted-foreground transition-transform duration-200 {open ? 'rotate-180' : ''}" />
+			{/if}
+		</button>
+	{:else}
+		<div role="group" class={cn("flex w-fit items-stretch", className)}>
+			<Button
+				{...buttonProps}
+				bind:ref={triggerRef}
+				variant={triggerButtonProps.variant}
+				size={triggerButtonProps.size}
+				class={triggerClass}
+				{disabled}
+				active={triggerActive}
+				aria-label={resolvedTriggerAriaLabel}
+				data-header-control={triggerSize === "attach" || triggerSize === "chromeIcon" ? true : undefined}
+			>
+				{#if triggerIcon === "dots"}
+					<RoundedIcon name="more" />
+				{:else if triggerIcon === "gear"}
+					<RoundedIcon name="settings" />
+				{:else}
+					{@render renderButton()}
+				{/if}
+				{#if showChevron}
+					<RoundedIcon name="chevron-down" class="size-3 shrink-0 text-muted-foreground transition-transform duration-200 {open ? 'rotate-180' : ''}" />
+				{/if}
+			</Button>
+		</div>
+	{/if}
+{/snippet}
+
 {#snippet selectorTrigger()}
 	<DropdownMenu.Trigger>
 		{#snippet child({ props })}
-			<div role="group" class={cn("flex w-fit items-stretch", className)}>
-				<Button
-					{...props}
-					bind:ref={triggerRef}
-					{variant}
-					size={buttonSize}
-					class={triggerClass}
-					{disabled}
-					aria-label={triggerAriaLabel}
-				>
-					{@render renderButton()}
-					{#if showChevron}
-						<ChevronDown
-							class="h-3 w-3 shrink-0 text-muted-foreground transition-transform duration-200 {open
-								? 'rotate-180'
-								: ''}"
-						/>
-					{/if}
-				</Button>
-			</div>
+			{@render selectorTriggerButton(props)}
 		{/snippet}
 	</DropdownMenu.Trigger>
 {/snippet}
 
-<DropdownMenu.Root bind:open {onOpenChange}>
-	{#if tooltipLabel || tooltipDescription}
+<DropdownMenu.Root bind:open {onOpenChange} class={embeddedInGroup ? "contents" : undefined}>
+	{#if (tooltipLabel || tooltipDescription) && !embeddedInGroup}
 		<Tooltip.Root>
 			<Tooltip.Trigger>
 				{#snippet child({ props: tooltipProps })}
 					<DropdownMenu.Trigger>
 						{#snippet child({ props: dropdownProps })}
 							{@const props = mergeProps(tooltipProps, dropdownProps)}
-							<div role="group" class={cn("flex w-fit items-stretch", className)}>
-								<Button
-									{...props}
-									bind:ref={triggerRef}
-									{variant}
-									size={buttonSize}
-									class={triggerClass}
-									{disabled}
-									aria-label={triggerAriaLabel ?? tooltipTitle ?? tooltipLabel}
-								>
-									{@render renderButton()}
-									{#if showChevron}
-										<ChevronDown
-											class="h-3 w-3 shrink-0 text-muted-foreground transition-transform duration-200 {open
-												? 'rotate-180'
-												: ''}"
-										/>
-									{/if}
-								</Button>
-							</div>
+							{@render selectorTriggerButton(props)}
 						{/snippet}
 					</DropdownMenu.Trigger>
 				{/snippet}

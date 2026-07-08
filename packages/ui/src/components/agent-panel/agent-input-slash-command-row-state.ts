@@ -15,6 +15,9 @@ export function getSlashCommandDisplayName(
 	commandName: string,
 	tokenType: AgentInputSlashCommandTokenType
 ): string {
+	if (tokenType === "skill") {
+		return commandName.startsWith("/") ? commandName.slice(1) : commandName;
+	}
 	if (tokenType === "mcp" && commandName.startsWith("mcp:")) {
 		return commandName;
 	}

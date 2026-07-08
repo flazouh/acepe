@@ -5,7 +5,7 @@
 		setDropdownMenuHighlightContext,
 		type DropdownMenuHighlightContext,
 	} from "./dropdown-menu-highlight-context.js";
-	import { dropdownMenuItemRadiusClass } from "./dropdown-menu-item.classes.js";
+	import { dropdownMenuItemListGapClass, dropdownMenuItemRadiusClass } from "./dropdown-menu-item.classes.js";
 
 	interface Props {
 		children: Snippet;
@@ -66,7 +66,7 @@
 	setDropdownMenuHighlightContext(highlightContext);
 </script>
 
-<div class="relative flex flex-col gap-1" bind:this={containerRef}>
+<div class="relative flex flex-col {dropdownMenuItemListGapClass}" bind:this={containerRef}>
 	<div
 		bind:this={highlightRef}
 		class="pointer-events-none absolute {dropdownMenuItemRadiusClass} bg-accent opacity-0 transition-[top,left,width,height,opacity] duration-75 ease-out"

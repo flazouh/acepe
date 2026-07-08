@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, mock } from "bun:test";
-import { errAsync, okAsync } from "neverthrow";
+import { errAsync, okAsync, ResultAsync } from "neverthrow";
 import type { SessionCold } from "$lib/acp/application/dto/session-cold.js";
 import { AgentError } from "$lib/acp/errors/app-error.js";
 import type { ProjectManager } from "$lib/acp/logic/project-manager.svelte.js";
@@ -10,9 +10,24 @@ import type { SessionOpenHydrator } from "$lib/acp/store/services/session-open-h
 import type { SessionStore } from "$lib/acp/store/session-store.svelte.js";
 import type { WorkspaceStore } from "$lib/acp/store/workspace-store.svelte.js";
 import type { KeybindingsService } from "$lib/keybindings/service.svelte.js";
-import type { PreconnectionAgentSkillsStore } from "$lib/skills/store/preconnection-agent-skills-store.svelte.js";
+import { KeybindingError } from "$lib/keybindings/types.js";
 
 const openPersistedSessionMock = mock(() => {});
+const zoomInitializeMock = mock((): ResultAsync<void, AgentError> => okAsync(undefined));
+const warmRecentTranscriptRowLedgersMock = mock(() =>
+	okAsync({
+		requestedLimit: 8,
+		candidateCount: 0,
+		checkedCount: 0,
+		rebuiltCount: 0,
+		rebuiltFromProviderCount: 0,
+		skippedCurrentCount: 0,
+		skippedNoJournalCount: 0,
+		skippedMissingFactsCount: 0,
+		failedCount: 0,
+		failedSessionIds: [],
+	})
+);
 const listPreconnectionCapabilitiesMock = mock(() =>
 	okAsync({
 		status: "resolved",
@@ -36,11 +51,12 @@ const listPreconnectionCapabilitiesMock = mock(() =>
 
 mock.module("../logic/open-persisted-session.js", () => ({
 	openPersistedSession: openPersistedSessionMock,
+	setOpenPersistedSessionDiagnosticRecorder: mock(() => () => {}),
 }));
 
 mock.module("$lib/services/zoom.svelte.js", () => ({
 	getZoomService: () => ({
-		initialize: () => okAsync(undefined),
+		initialize: zoomInitializeMock,
 		zoomIn: () => okAsync(undefined),
 		zoomOut: () => okAsync(undefined),
 		resetZoom: () => okAsync(undefined),
@@ -48,6 +64,12 @@ mock.module("$lib/services/zoom.svelte.js", () => ({
 		zoomPercentage: "100%",
 	}),
 	resetZoomService: () => {},
+}));
+
+mock.module("$lib/utils/tauri-client/history.js", () => ({
+	history: {
+		warmRecentTranscriptRowLedgers: warmRecentTranscriptRowLedgersMock,
+	},
 }));
 
 mock.module("$lib/utils/tauri-client.js", () => ({
@@ -60,8 +82,88 @@ mock.module("$lib/utils/tauri-client.js", () => ({
 	},
 }));
 
+mock.module("svelte-sonner", () => ({
+	toast: {
+		error: mock(() => {}),
+		info: mock(() => {}),
+		success: mock(() => {}),
+		warning: mock(() => {}),
+	},
+}));
+
+mock.module("runed", () => ({
+	Context: class TestContext {
+		private value: object | null = null;
+
+		constructor(_name: string) {}
+
+		exists(): boolean {
+			return this.value !== null;
+		}
+
+		set(value: object): object {
+			this.value = value;
+			return value;
+		}
+
+		get(): object | null {
+			return this.value;
+		}
+
+		getOr(fallback: object): object {
+			return this.value ?? fallback;
+		}
+	},
+	ElementSize: class TestElementSize {
+		readonly width = 0;
+		readonly height = 0;
+
+		constructor(_node?: object | (() => object | null), _options?: object) {}
+	},
+	PersistedState: class TestPersistedState<TValue> {
+		current: TValue | undefined;
+
+		constructor(_key: string, initialValue?: TValue) {
+			this.current = initialValue;
+		}
+	},
+	Previous: class TestPrevious<TValue> {
+		current: TValue | undefined;
+
+		constructor(getValue: () => TValue) {
+			this.current = getValue();
+		}
+	},
+	AnimationFrames: class TestAnimationFrames {
+		readonly current = false;
+
+		start(): void {}
+
+		stop(): void {}
+	},
+	Debounced: class TestDebounced<TValue> {
+		current: TValue | undefined;
+
+		constructor(value?: TValue) {
+			this.current = value;
+		}
+	},
+	IsMounted: class TestIsMounted {
+		readonly current = true;
+	},
+	onClickOutside: () => () => {},
+	useDebounce: (callback: () => void) => callback,
+	useEventListener: () => () => {},
+	useResizeObserver: () => () => {},
+	watch: Object.assign(mock(() => () => {}), {
+		pre: mock(() => () => {}),
+	}),
+}));
+
 import type { MainAppViewState } from "../logic/main-app-view-state.svelte.js";
-import { InitializationManager } from "../logic/managers/initialization-manager.js";
+type InitializationManagerConstructor = typeof import("../logic/managers/initialization-manager.js").InitializationManager;
+type InitializationManagerInstance = InstanceType<InitializationManagerConstructor>;
+let InitializationManager: InitializationManagerConstructor;
 
 type TestPanel = {
 	id: string;
@@ -99,16 +201,109 @@ describe("InitializationManager", () => {
 	let mockProjectManager: ProjectManager;
 	let mockAgentPreferencesStore: AgentPreferencesStore;
 	let mockKeybindingsService: KeybindingsService;
-	let mockPreconnectionAgentSkillsStore: PreconnectionAgentSkillsStore;
 	let mockSessionOpenHydrator: Pick<
 		SessionOpenHydrator,
 		"beginAttempt" | "clearAttempt" | "hydrateFound" | "isCurrentAttempt"
 	>;
-	let manager: InitializationManager;
+	let manager: InitializationManagerInstance;
+	let postStartupTasks: Array<() => void>;
+	let restoredPanelPreloadTasks: Array<() => void>;
+	let deferredPreferenceTasks: Array<() => void>;
+	let schedulePostStartupWork: (callback: () => void) => void;
+	let scheduleRestoredPanelPreloadWork: (callback: () => void) => void;
+	let scheduleDeferredPreferenceWork: (callback: () => void) => void;
 
-	beforeEach(() => {
-		openPersistedSessionMock.mockReset();
-		listPreconnectionCapabilitiesMock.mockReset();
+	async function runPostStartupTasks(): Promise<void> {
+		await runImmediateTimers();
+		for (let round = 0; round < 5 && postStartupTasks.length > 0; round += 1) {
+			const tasks = postStartupTasks;
+			postStartupTasks = [];
+			for (const task of tasks) {
+				task();
+			}
+			await runImmediateTimers();
+		}
+	}
+
+	async function runDeferredPreferenceTasks(): Promise<void> {
+		await runImmediateTimers();
+		for (let round = 0; round < 5 && deferredPreferenceTasks.length > 0; round += 1) {
+			const tasks = deferredPreferenceTasks;
+			deferredPreferenceTasks = [];
+			for (const task of tasks) {
+				task();
+			}
+			await runImmediateTimers();
+		}
+	}
+
+	async function runRestoredPanelPreloadTasks(): Promise<void> {
+		await runImmediateTimers();
+		for (let round = 0; round < 5 && restoredPanelPreloadTasks.length > 0; round += 1) {
+			const tasks = restoredPanelPreloadTasks;
+			restoredPanelPreloadTasks = [];
+			for (const task of tasks) {
+				task();
+			}
+			await runImmediateTimers();
+		}
+	}
+
+	async function runImmediateTimers(): Promise<void> {
+		await new Promise<void>((resolve) => {
+			setTimeout(resolve, 0);
+		});
+		for (let i = 0; i < 12; i += 1) {
+			await Promise.resolve();
+		}
+		await new Promise<void>((resolve) => {
+			setTimeout(resolve, 0);
+		});
+		for (let i = 0; i < 12; i += 1) {
+			await Promise.resolve();
+		}
+	}
+
+	function createManagerWithSplitPreloadScheduler(): InitializationManagerInstance {
+		return new InitializationManager(
+			mockState,
+			mockSessionStore,
+			mockAgentStore,
+			mockPanelStore,
+			mockWorkspaceStore,
+			mockProjectManager,
+			mockAgentPreferencesStore,
+			mockKeybindingsService,
+			mockSessionOpenHydrator,
+			schedulePostStartupWork,
+			scheduleRestoredPanelPreloadWork,
+			scheduleDeferredPreferenceWork
+		);
+	}
+
+	beforeEach(async () => {
+		if (InitializationManager === undefined) {
+			({ InitializationManager } = await import("../logic/managers/initialization-manager.js"));
+		}
+			openPersistedSessionMock.mockReset();
+			zoomInitializeMock.mockReset();
+			zoomInitializeMock.mockImplementation(() => okAsync(undefined));
+			warmRecentTranscriptRowLedgersMock.mockReset();
+			warmRecentTranscriptRowLedgersMock.mockImplementation(() =>
+				okAsync({
+					requestedLimit: 8,
+					candidateCount: 0,
+					checkedCount: 0,
+					rebuiltCount: 0,
+					rebuiltFromProviderCount: 0,
+					skippedCurrentCount: 0,
+					skippedNoJournalCount: 0,
+					skippedMissingFactsCount: 0,
+					failedCount: 0,
+					failedSessionIds: [],
+				})
+			);
+			listPreconnectionCapabilitiesMock.mockReset();
 		listPreconnectionCapabilitiesMock.mockReturnValue(
 			okAsync({
 				status: "resolved",
@@ -134,14 +329,15 @@ describe("InitializationManager", () => {
 			removeEventListener: mock(() => {}),
 		} as unknown as Window & typeof globalThis;
 
-		mockState = {
-			debugPanelOpen: false,
-			settingsModalOpen: false,
-			commandPaletteOpen: false,
-			initializationInProgress: false,
-			initializationComplete: false,
-			initializationError: null,
-		} as unknown as MainAppViewState;
+			mockState = {
+				debugPanelOpen: false,
+				settingsModalOpen: false,
+				commandPaletteOpen: false,
+				initializationInProgress: false,
+				initializationComplete: false,
+				workspaceRestorationPending: false,
+				initializationError: null,
+			} as unknown as MainAppViewState;
 
 		mockSessionStore = {
 			initializeSessionUpdates: mock(() => okAsync(undefined)),
@@ -222,6 +418,9 @@ describe("InitializationManager", () => {
 
 		mockPanelStore = {
 			panels: [],
+			getPanel: mock((panelId: string) =>
+				mockPanelStore.panels.find((panel) => panel.id === panelId)
+			),
 			updatePanelSession: mock(() => {}),
 			closePanelBySessionId: mock(() => {}),
 			clearPanels: mock(() => {}),
@@ -244,10 +443,12 @@ describe("InitializationManager", () => {
 			recentProjects: [],
 			projects: [],
 			projectCount: 0,
+			projectStorageFresh: true,
 			loadProjects: mock(() => okAsync(undefined)),
 		} as unknown as ProjectManager;
 
 		mockAgentPreferencesStore = {
+			primeStartupDefaults: mock(() => {}),
 			initialize: mock(() => okAsync(undefined)),
 		} as unknown as AgentPreferencesStore;
 
@@ -259,12 +460,6 @@ describe("InitializationManager", () => {
 			reinstall: mock(() => {}),
 			uninstall: mock(() => {}),
 		} as unknown as KeybindingsService;
-
-		mockPreconnectionAgentSkillsStore = {
-			initialize: mock(() => okAsync(undefined)),
-			ensureLoaded: mock(() => okAsync(undefined)),
-			refresh: mock(() => okAsync(undefined)),
-		} as unknown as PreconnectionAgentSkillsStore;
 
 		mockSessionOpenHydrator = {
 			beginAttempt: mock(() => "request-1"),
@@ -278,6 +473,18 @@ describe("InitializationManager", () => {
 			),
 			isCurrentAttempt: mock(() => true),
 		};
+		postStartupTasks = [];
+		restoredPanelPreloadTasks = [];
+		deferredPreferenceTasks = [];
+		schedulePostStartupWork = mock((callback: () => void) => {
+			postStartupTasks.push(callback);
+		});
+		scheduleRestoredPanelPreloadWork = mock((callback: () => void) => {
+			restoredPanelPreloadTasks.push(callback);
+		});
+		scheduleDeferredPreferenceWork = mock((callback: () => void) => {
+			deferredPreferenceTasks.push(callback);
+		});
 
 		manager = new InitializationManager(
 			mockState,
@@ -288,8 +495,10 @@ describe("InitializationManager", () => {
 			mockProjectManager,
 			mockAgentPreferencesStore,
 			mockKeybindingsService,
-			mockPreconnectionAgentSkillsStore,
-			mockSessionOpenHydrator
+			mockSessionOpenHydrator,
+			schedulePostStartupWork,
+			schedulePostStartupWork,
+			scheduleDeferredPreferenceWork
 		);
 	});
 
@@ -327,29 +536,61 @@ describe("InitializationManager", () => {
 
 		it("should initialize session updates", async () => {
 			await manager.initialize();
+			expect(mockSessionStore.initializeSessionUpdates).not.toHaveBeenCalled();
+
+			await runPostStartupTasks();
+
 			expect(mockSessionStore.initializeSessionUpdates).toHaveBeenCalled();
 		});
 
-		it("should load keybindings, agents, projects, and preconnection skills in parallel", async () => {
+		it("warms recent transcript row ledgers only after restored panel preload work", async () => {
+			manager = createManagerWithSplitPreloadScheduler();
+
 			await manager.initialize();
-			expect(mockKeybindingsService.loadUserKeybindings).toHaveBeenCalled();
-			expect(mockAgentStore.loadAvailableAgents).toHaveBeenCalled();
-			expect(mockProjectManager.loadProjects).toHaveBeenCalled();
-			expect(mockPreconnectionAgentSkillsStore.initialize).toHaveBeenCalled();
+			expect(warmRecentTranscriptRowLedgersMock).not.toHaveBeenCalled();
+
+			await runPostStartupTasks();
+			expect(warmRecentTranscriptRowLedgersMock).not.toHaveBeenCalled();
+
+			await runRestoredPanelPreloadTasks();
+
+			expect(warmRecentTranscriptRowLedgersMock).toHaveBeenCalledWith(8);
 		});
 
-		it("warms startup-global preconnection capabilities for eligible agents", async () => {
-			mockAgentStore.loadAvailableAgents = mock(() =>
-				okAsync([
-					{
-						id: "codex",
-						name: "Codex",
-						provider_metadata: {
-							preconnectionCapabilityMode: "startupGlobal",
-						},
-					},
-				])
-			) as unknown as AgentStore["loadAvailableAgents"];
+		it("skips transcript row ledger warmup while a session panel is open", async () => {
+			manager = createManagerWithSplitPreloadScheduler();
+			mockPanelStore.panels = [
+				{
+					id: "panel-1",
+					kind: "agent",
+					ownerPanelId: null,
+					sessionId: "session-1",
+					width: 600,
+					pendingProjectSelection: false,
+					selectedAgentId: "claude-code",
+					projectPath: "/project1",
+					agentId: "claude-code",
+					sessionTitle: "Session 1",
+				},
+			];
+
+			await manager.initialize();
+			await runPostStartupTasks();
+			await runRestoredPanelPreloadTasks();
+
+			expect(warmRecentTranscriptRowLedgersMock).not.toHaveBeenCalled();
+		});
+
+		it("does not wait for session updates before completing startup", async () => {
+			const sessionUpdatesResolver: { current: (() => void) | null } = { current: null };
+			mockSessionStore.initializeSessionUpdates = mock(() =>
+				ResultAsync.fromPromise(
+					new Promise<void>((resolve) => {
+						sessionUpdatesResolver.current = resolve;
+					}),
+					() => new AgentError("initializeSessionUpdates", new Error("Failed"))
+				)
+			) as SessionStore["initializeSessionUpdates"];
 
 			manager = new InitializationManager(
 				mockState,
@@ -360,24 +601,62 @@ describe("InitializationManager", () => {
 				mockProjectManager,
 				mockAgentPreferencesStore,
 				mockKeybindingsService,
-				mockPreconnectionAgentSkillsStore,
-				mockSessionOpenHydrator
+				mockSessionOpenHydrator,
+				schedulePostStartupWork,
+				schedulePostStartupWork,
+				scheduleDeferredPreferenceWork
 			);
 
-			await manager.initialize();
+			const resultOrTimeout = await Promise.race([
+				manager.initialize(),
+				new Promise<"timeout">((resolve) => {
+					setTimeout(() => resolve("timeout"), 50);
+				}),
+			]);
 
-			expect(listPreconnectionCapabilitiesMock).toHaveBeenCalledWith("", "codex");
+			expect(resultOrTimeout).not.toBe("timeout");
+			if (resultOrTimeout !== "timeout") {
+				expect(resultOrTimeout.isOk()).toBe(true);
+			}
+			expect(mockSessionStore.initializeSessionUpdates).not.toHaveBeenCalled();
+			expect(mockState.initializationComplete).toBe(true);
+
+			await runPostStartupTasks();
+
+			expect(mockSessionStore.initializeSessionUpdates).toHaveBeenCalled();
+			if (sessionUpdatesResolver.current === null) {
+				throw new Error("session updates promise was not created");
+			}
+			sessionUpdatesResolver.current();
 		});
 
-		it("should initialize agent preferences after loading metadata", async () => {
+		it("loads projects immediately and agents after delayed startup work", async () => {
 			await manager.initialize();
-			expect(mockAgentPreferencesStore.initialize).toHaveBeenCalled();
+			expect(mockProjectManager.loadProjects).not.toHaveBeenCalled();
+			expect(mockAgentStore.loadAvailableAgents).not.toHaveBeenCalled();
+			expect(mockKeybindingsService.loadUserKeybindings).not.toHaveBeenCalled();
+
+			await runImmediateTimers();
+
+			expect(mockProjectManager.loadProjects).toHaveBeenCalled();
+			expect(mockAgentStore.loadAvailableAgents).not.toHaveBeenCalled();
+			expect(mockKeybindingsService.loadUserKeybindings).toHaveBeenCalled();
+
+			await runPostStartupTasks();
+
+			expect(mockAgentStore.loadAvailableAgents).toHaveBeenCalled();
 		});
 
-		it("continues startup when preconnection skills warming fails", async () => {
-			mockPreconnectionAgentSkillsStore.initialize = mock(() =>
-				errAsync(new AgentError("skills_list_agent_skills", new Error("Failed")))
-			) as PreconnectionAgentSkillsStore["initialize"];
+		it("does not wait for user keybindings before completing startup", async () => {
+			const userKeybindingsResolver: { current: (() => void) | null } = { current: null };
+			mockKeybindingsService.loadUserKeybindings = mock(() =>
+				ResultAsync.fromPromise(
+					new Promise<void>((resolve) => {
+						userKeybindingsResolver.current = resolve;
+					}),
+					() => new KeybindingError("INSTALL_FAILED", "Failed")
+				)
+			) as KeybindingsService["loadUserKeybindings"];
 
 			manager = new InitializationManager(
 				mockState,
@@ -388,22 +667,222 @@ describe("InitializationManager", () => {
 				mockProjectManager,
 				mockAgentPreferencesStore,
 				mockKeybindingsService,
-				mockPreconnectionAgentSkillsStore,
-				mockSessionOpenHydrator
+				mockSessionOpenHydrator,
+				schedulePostStartupWork,
+				schedulePostStartupWork,
+				scheduleDeferredPreferenceWork
+			);
+
+			const resultOrTimeout = await Promise.race([
+				manager.initialize(),
+				new Promise<"timeout">((resolve) => {
+					setTimeout(() => resolve("timeout"), 50);
+				}),
+			]);
+
+			expect(resultOrTimeout).not.toBe("timeout");
+			if (resultOrTimeout !== "timeout") {
+				expect(resultOrTimeout.isOk()).toBe(true);
+			}
+			expect(mockState.initializationComplete).toBe(true);
+			expect(mockKeybindingsService.loadUserKeybindings).not.toHaveBeenCalled();
+
+			await runImmediateTimers();
+
+			expect(mockKeybindingsService.loadUserKeybindings).toHaveBeenCalled();
+			if (userKeybindingsResolver.current === null) {
+				throw new Error("user keybindings promise was not created");
+			}
+			userKeybindingsResolver.current();
+		});
+
+		it("completes startup before workspace restore finishes", async () => {
+			mockWorkspaceStore.load = mock(() =>
+				ResultAsync.fromPromise(
+					new Promise<never>(() => {}),
+					() => new AgentError("workspace", new Error("Timed out"))
+				)
+			) as WorkspaceStore["load"];
+			mockState.shellReady = false;
+
+			manager = new InitializationManager(
+				mockState,
+				mockSessionStore,
+				mockAgentStore,
+				mockPanelStore,
+				mockWorkspaceStore,
+				mockProjectManager,
+				mockAgentPreferencesStore,
+				mockKeybindingsService,
+				mockSessionOpenHydrator,
+				schedulePostStartupWork,
+				schedulePostStartupWork,
+				scheduleDeferredPreferenceWork
+			);
+
+			const resultOrTimeout = await Promise.race([
+				manager.initialize(),
+				new Promise<"timeout">((resolve) => {
+					setTimeout(() => resolve("timeout"), 50);
+				}),
+			]);
+
+			expect(resultOrTimeout).not.toBe("timeout");
+			if (resultOrTimeout !== "timeout") {
+				expect(resultOrTimeout.isOk()).toBe(true);
+			}
+			expect(mockSessionStore.initializeSessionUpdates).not.toHaveBeenCalled();
+			expect(mockWorkspaceStore.load).not.toHaveBeenCalled();
+			expect(mockWorkspaceStore.restore).not.toHaveBeenCalled();
+			expect(mockState.shellReady).toBe(true);
+			expect(mockState.initializationComplete).toBe(true);
+			expect(mockState.workspaceRestorationPending).toBe(true);
+
+			await runImmediateTimers();
+
+			expect(mockWorkspaceStore.load).toHaveBeenCalled();
+			expect(mockWorkspaceStore.restore).not.toHaveBeenCalled();
+		});
+
+		it("completes initialization while agents are still loading after startup", async () => {
+			mockAgentStore.loadAvailableAgents = mock(() =>
+				ResultAsync.fromPromise(
+					new Promise<never>(() => {}),
+					() => new AgentError("loadAgents", new Error("Timed out"))
+				)
+			) as AgentStore["loadAvailableAgents"];
+			mockState.shellReady = false;
+
+			manager = new InitializationManager(
+				mockState,
+				mockSessionStore,
+				mockAgentStore,
+				mockPanelStore,
+				mockWorkspaceStore,
+				mockProjectManager,
+				mockAgentPreferencesStore,
+				mockKeybindingsService,
+				mockSessionOpenHydrator,
+				schedulePostStartupWork,
+				schedulePostStartupWork,
+				scheduleDeferredPreferenceWork
+			);
+
+			const resultOrTimeout = await Promise.race([
+				manager.initialize(),
+				new Promise<"timeout">((resolve) => {
+					setTimeout(() => resolve("timeout"), 50);
+				}),
+			]);
+
+			expect(resultOrTimeout).not.toBe("timeout");
+			if (resultOrTimeout !== "timeout") {
+				expect(resultOrTimeout.isOk()).toBe(true);
+			}
+			expect(mockSessionStore.initializeSessionUpdates).not.toHaveBeenCalled();
+			expect(mockWorkspaceStore.restore).not.toHaveBeenCalled();
+			expect(mockState.shellReady).toBe(true);
+			expect(mockState.initializationComplete).toBe(true);
+
+			await runImmediateTimers();
+
+			expect(mockWorkspaceStore.restore).toHaveBeenCalled();
+
+			await runPostStartupTasks();
+
+			expect(mockSessionStore.initializeSessionUpdates).toHaveBeenCalled();
+			expect(mockAgentStore.loadAvailableAgents).toHaveBeenCalled();
+		});
+
+		it("primes agent preferences after loading metadata", async () => {
+			await manager.initialize();
+			expect(mockAgentPreferencesStore.primeStartupDefaults).not.toHaveBeenCalled();
+
+			await runImmediateTimers();
+
+			expect(mockAgentPreferencesStore.primeStartupDefaults).not.toHaveBeenCalled();
+
+			await runPostStartupTasks();
+
+			expect(mockAgentPreferencesStore.primeStartupDefaults).toHaveBeenCalledWith(
+				mockAgentStore.agents,
+				mockProjectManager.projectCount
+			);
+		});
+
+		it("loads persisted agent preferences after the deferred preference lane runs", async () => {
+			await manager.initialize();
+			expect(mockAgentPreferencesStore.initialize).not.toHaveBeenCalled();
+
+			await runImmediateTimers();
+			await runPostStartupTasks();
+			expect(mockAgentPreferencesStore.initialize).not.toHaveBeenCalled();
+
+			await runDeferredPreferenceTasks();
+
+			expect(mockAgentPreferencesStore.initialize).toHaveBeenCalledWith(
+				mockAgentStore.agents,
+				mockProjectManager.projectCount
+			);
+		});
+
+		it("does not wait for persisted agent preferences before completing startup", async () => {
+			const agentPreferencesResolver: { current: (() => void) | null } = { current: null };
+			mockAgentPreferencesStore.initialize = mock(() =>
+				ResultAsync.fromPromise(
+					new Promise<void>((resolve) => {
+						agentPreferencesResolver.current = resolve;
+					}),
+					() => new AgentError("agent_preferences", new Error("Failed"))
+				)
+			) as AgentPreferencesStore["initialize"];
+
+			manager = new InitializationManager(
+				mockState,
+				mockSessionStore,
+				mockAgentStore,
+				mockPanelStore,
+				mockWorkspaceStore,
+				mockProjectManager,
+				mockAgentPreferencesStore,
+				mockKeybindingsService,
+				mockSessionOpenHydrator,
+				schedulePostStartupWork,
+				schedulePostStartupWork,
+				scheduleDeferredPreferenceWork
 			);
 
 			const result = await manager.initialize();
 
 			expect(result.isOk()).toBe(true);
 			expect(mockState.initializationComplete).toBe(true);
+			expect(mockWorkspaceStore.load).not.toHaveBeenCalled();
+			expect(mockAgentPreferencesStore.initialize).not.toHaveBeenCalled();
+
+			await runImmediateTimers();
+			expect(mockWorkspaceStore.load).toHaveBeenCalled();
+			await runPostStartupTasks();
+			expect(mockAgentPreferencesStore.initialize).not.toHaveBeenCalled();
+
+			await runDeferredPreferenceTasks();
+
+			expect(mockAgentPreferencesStore.initialize).toHaveBeenCalled();
+			if (agentPreferencesResolver.current === null) {
+				throw new Error("agent preferences promise was not created");
+			}
+			agentPreferencesResolver.current();
 		});
 
 		it("should restore workspace state", async () => {
 			await manager.initialize();
+			expect(mockWorkspaceStore.restore).not.toHaveBeenCalled();
+
+			await runImmediateTimers();
+
 			expect(mockWorkspaceStore.restore).toHaveBeenCalled();
 		});
 
-		it("should load sessions for project paths", async () => {
+		it("defers startup session history scans for loaded project paths", async () => {
 			mockProjectManager.projects = [
 				{
 					path: "/project1",
@@ -413,10 +892,21 @@ describe("InitializationManager", () => {
 				},
 			];
 			await manager.initialize();
-			expect(mockSessionStore.loading.loadSessions).toHaveBeenCalledWith(["/project1"]);
+
+			expect(mockSessionStore.loading.loadSessions).not.toHaveBeenCalled();
+			expect(mockSessionStore.loading.scanSessions).not.toHaveBeenCalled();
+
+			await runImmediateTimers();
+
+			expect(mockSessionStore.loading.loadSessions).not.toHaveBeenCalled();
+			expect(mockSessionStore.loading.scanSessions).not.toHaveBeenCalled();
+
+			await runPostStartupTasks();
+
+			expect(mockSessionStore.loading.scanSessions).toHaveBeenCalledWith(["/project1"]);
 		});
 
-		it("hydrates restored panels before running the background sidebar scan", async () => {
+		it("hydrates restored panels before scanning the sidebar metadata", async () => {
 			mockProjectManager.projects = [
 				{
 					path: "/project1",
@@ -466,14 +956,77 @@ describe("InitializationManager", () => {
 			await Promise.resolve();
 			await Promise.resolve();
 
-			expect(mockSessionStore.loading.loadStartupSessions).toHaveBeenCalledWith(["session-1"]);
+			expect(mockSessionStore.loading.loadStartupSessions).not.toHaveBeenCalled();
 			expect(mockSessionStore.loading.loadSessions).not.toHaveBeenCalled();
-			expect(callOrder).toEqual(["startup", "scan:/project1,/project2"]);
+			expect(callOrder).toEqual([]);
+			expect(openPersistedSessionMock).not.toHaveBeenCalled();
+
+			await runPostStartupTasks();
+
+			expect(mockSessionStore.loading.loadStartupSessions).toHaveBeenCalledWith(["session-1"]);
 			expect(openPersistedSessionMock).toHaveBeenCalledWith({
 				panelId: "panel-1",
 				sessionId: "session-1",
 				sessionStore: mockSessionStore,
 				sessionOpenHydrator: mockSessionOpenHydrator,
+				isPanelCurrent: expect.any(Function),
+				timeoutMs: 30_000,
+				source: "initialization-manager",
+			});
+			expect(mockSessionStore.loading.scanSessions).toHaveBeenCalledWith([
+				"/project1",
+				"/project2",
+			]);
+			expect(callOrder).toEqual(["startup", "scan:/project1,/project2"]);
+		});
+
+		it("hydrates restored panels even when zoom metadata fails after startup", async () => {
+			zoomInitializeMock.mockImplementation(() =>
+				errAsync(new AgentError("initializeZoom", new Error("Failed")))
+			);
+			mockProjectManager.projects = [
+				{
+					path: "/project1",
+					name: "Project 1",
+					createdAt: new Date(),
+					color: "blue",
+				},
+			];
+			mockWorkspaceStore.restore = mock(() => ["session-1"]) as WorkspaceStore["restore"];
+			mockPanelStore.panels = [
+				{
+					id: "panel-1",
+					kind: "agent",
+					ownerPanelId: null,
+					sessionId: "session-1",
+					width: 600,
+					pendingProjectSelection: false,
+					selectedAgentId: "claude-code",
+					projectPath: "/project1",
+					agentId: "claude-code",
+					sessionTitle: "Session 1",
+				},
+			];
+
+			const restoredSession = buildSession("session-1", "claude-code", "/project1", "Session 1");
+			mockSessionStore.loading.loadStartupSessions = mock(() =>
+				okAsync({ missing: [], aliasRemaps: {} })
+			);
+			mockSessionStore.read.getSessionCold = mock((sessionId: string) =>
+				sessionId === "session-1" ? restoredSession : undefined
+			);
+
+			await manager.initialize();
+			await runPostStartupTasks();
+
+			expect(zoomInitializeMock).toHaveBeenCalled();
+			expect(mockSessionStore.loading.loadStartupSessions).toHaveBeenCalledWith(["session-1"]);
+			expect(openPersistedSessionMock).toHaveBeenCalledWith({
+				panelId: "panel-1",
+				sessionId: "session-1",
+				sessionStore: mockSessionStore,
+				sessionOpenHydrator: mockSessionOpenHydrator,
+				isPanelCurrent: expect.any(Function),
 				timeoutMs: 30_000,
 				source: "initialization-manager",
 			});
@@ -530,8 +1083,16 @@ describe("InitializationManager", () => {
 			});
 			await manager.initialize();
 
-			expect(mockSessionStore.loading.loadStartupSessions).toHaveBeenCalledWith(["missing-session"]);
+			expect(mockSessionStore.loading.loadStartupSessions).not.toHaveBeenCalled();
 			expect(mockSessionStore.loading.loadSessions).not.toHaveBeenCalled();
+			expect(mockPanelStore.updatePanelSession).not.toHaveBeenCalledWith("panel-1", null);
+			expect(openPersistedSessionMock).not.toHaveBeenCalled();
+
+			await runPostStartupTasks();
+
+			expect(mockSessionStore.loading.loadStartupSessions).toHaveBeenCalledWith([
+				"missing-session",
+			]);
 			expect(mockPanelStore.updatePanelSession).toHaveBeenCalledWith("panel-1", null);
 			expect(openPersistedSessionMock).not.toHaveBeenCalled();
 		});
@@ -665,13 +1226,19 @@ describe("InitializationManager", () => {
 			await manager.initialize();
 			await Promise.resolve();
 
-			expect(mockSessionStore.loading.loadStartupSessions).toHaveBeenCalledWith(["session-1"]);
+			expect(mockSessionStore.loading.loadStartupSessions).not.toHaveBeenCalled();
 			expect(mockSessionStore.loading.loadSessions).not.toHaveBeenCalled();
+			expect(openPersistedSessionMock).not.toHaveBeenCalled();
+
+			await runPostStartupTasks();
+
+			expect(mockSessionStore.loading.loadStartupSessions).toHaveBeenCalledWith(["session-1"]);
 			expect(openPersistedSessionMock).toHaveBeenCalledWith({
 				panelId: "panel-1",
 				sessionId: "session-1",
 				sessionStore: mockSessionStore,
 				sessionOpenHydrator: mockSessionOpenHydrator,
+				isPanelCurrent: expect.any(Function),
 				timeoutMs: 30_000,
 				source: "initialization-manager",
 			});
@@ -722,13 +1289,19 @@ describe("InitializationManager", () => {
 			await manager.initialize();
 			await Promise.resolve();
 
-			expect(mockSessionStore.loading.loadStartupSessions).toHaveBeenCalledWith(["session-1"]);
+			expect(mockSessionStore.loading.loadStartupSessions).not.toHaveBeenCalled();
 			expect(mockSessionStore.loading.loadSessions).not.toHaveBeenCalled();
+			expect(openPersistedSessionMock).not.toHaveBeenCalled();
+
+			await runPostStartupTasks();
+
+			expect(mockSessionStore.loading.loadStartupSessions).toHaveBeenCalledWith(["session-1"]);
 			expect(openPersistedSessionMock).toHaveBeenCalledWith({
 				panelId: "panel-1",
 				sessionId: "session-1",
 				sessionStore: mockSessionStore,
 				sessionOpenHydrator: mockSessionOpenHydrator,
+				isPanelCurrent: expect.any(Function),
 				timeoutMs: 30_000,
 				source: "initialization-manager",
 			});
@@ -768,6 +1341,11 @@ describe("InitializationManager", () => {
 			await manager.initialize();
 			await Promise.resolve();
 
+			expect(mockSessionStore.loading.registerSessionPlaceholder).not.toHaveBeenCalled();
+			expect(openPersistedSessionMock).not.toHaveBeenCalled();
+
+			await runPostStartupTasks();
+
 			expect(mockSessionStore.loading.registerSessionPlaceholder).toHaveBeenCalledWith(
 				"session-1",
 				"/project1",
@@ -783,6 +1361,7 @@ describe("InitializationManager", () => {
 				sessionId: "session-1",
 				sessionStore: mockSessionStore,
 				sessionOpenHydrator: mockSessionOpenHydrator,
+				isPanelCurrent: expect.any(Function),
 				timeoutMs: 30_000,
 				source: "initialization-manager",
 			});
@@ -833,11 +1412,16 @@ describe("InitializationManager", () => {
 			await manager.initialize();
 			await Promise.resolve();
 
+			expect(openPersistedSessionMock).not.toHaveBeenCalled();
+
+			await runPostStartupTasks();
+
 			expect(openPersistedSessionMock).toHaveBeenCalledWith({
 				panelId: "panel-1",
 				sessionId: "session-1",
 				sessionStore: mockSessionStore,
 				sessionOpenHydrator: mockSessionOpenHydrator,
+				isPanelCurrent: expect.any(Function),
 				timeoutMs: 30_000,
 				source: "initialization-manager",
 			});
@@ -933,14 +1517,20 @@ describe("InitializationManager", () => {
 			await manager.initialize();
 			await Promise.resolve();
 
-			expect(mockSessionStore.loading.loadStartupSessions).toHaveBeenCalledWith(["session-1"]);
+			expect(mockSessionStore.loading.loadStartupSessions).not.toHaveBeenCalled();
 			expect(mockSessionStore.loading.loadSessions).not.toHaveBeenCalled();
 			expect(mockPanelStore.updatePanelSession).not.toHaveBeenCalledWith("panel-1", null);
+			expect(openPersistedSessionMock).not.toHaveBeenCalled();
+
+			await runPostStartupTasks();
+
+			expect(mockSessionStore.loading.loadStartupSessions).toHaveBeenCalledWith(["session-1"]);
 			expect(openPersistedSessionMock).toHaveBeenCalledWith({
 				panelId: "panel-1",
 				sessionId: "session-1",
 				sessionStore: mockSessionStore,
 				sessionOpenHydrator: mockSessionOpenHydrator,
+				isPanelCurrent: expect.any(Function),
 				timeoutMs: 30_000,
 				source: "initialization-manager",
 			});
@@ -1018,6 +1608,11 @@ describe("InitializationManager", () => {
 			await manager.initialize();
 			await Promise.resolve();
 
+			expect(mockPanelStore.updatePanelSession).not.toHaveBeenCalled();
+			expect(openPersistedSessionMock).not.toHaveBeenCalled();
+
+			await runPostStartupTasks();
+
 			// Panel should be remapped from alias to canonical ID
 			expect(mockPanelStore.updatePanelSession).toHaveBeenCalledWith("panel-1", "acepe-uuid");
 			// Panel should NOT be cleared as orphaned
@@ -1027,12 +1622,43 @@ describe("InitializationManager", () => {
 				sessionId: "acepe-uuid",
 				sessionStore: mockSessionStore,
 				sessionOpenHydrator: mockSessionOpenHydrator,
+				isPanelCurrent: expect.any(Function),
 				timeoutMs: 30_000,
 				source: "initialization-manager",
 			});
 		});
 
-		it("should handle initialization errors", async () => {
+		it("continues initialization when background workspace restore fails", async () => {
+			mockWorkspaceStore.load = mock(() =>
+				errAsync(new AgentError("workspace", new Error("Failed")))
+			) as WorkspaceStore["load"];
+
+			manager = new InitializationManager(
+				mockState,
+				mockSessionStore,
+				mockAgentStore,
+				mockPanelStore,
+				mockWorkspaceStore,
+				mockProjectManager,
+				mockAgentPreferencesStore,
+				mockKeybindingsService,
+				mockSessionOpenHydrator,
+				schedulePostStartupWork,
+				schedulePostStartupWork,
+				scheduleDeferredPreferenceWork
+			);
+
+			const result = await manager.initialize();
+			expect(result.isOk()).toBe(true);
+			expect(mockState.initializationComplete).toBe(true);
+
+			await runImmediateTimers();
+
+			expect(mockState.initializationError).toBeInstanceOf(Error);
+			expect(mockState.workspaceRestorationPending).toBe(false);
+		});
+
+		it("continues initialization when background agent metadata fails", async () => {
 			mockAgentStore.loadAvailableAgents = mock(() =>
 				errAsync(new AgentError("loadAgents", new Error("Failed")))
 			) as AgentStore["loadAvailableAgents"];
@@ -1046,13 +1672,20 @@ describe("InitializationManager", () => {
 				mockProjectManager,
 				mockAgentPreferencesStore,
 				mockKeybindingsService,
-				mockPreconnectionAgentSkillsStore,
-				mockSessionOpenHydrator
+				mockSessionOpenHydrator,
+				schedulePostStartupWork,
+				schedulePostStartupWork,
+				scheduleDeferredPreferenceWork
 			);
 
 			const result = await manager.initialize();
-			expect(result.isErr()).toBe(true);
-			expect(mockState.initializationComplete).toBe(false);
+			expect(result.isOk()).toBe(true);
+			expect(mockState.initializationComplete).toBe(true);
+
+			await runPostStartupTasks();
+
+			expect(mockAgentStore.loadAvailableAgents).toHaveBeenCalled();
+			expect(mockAgentPreferencesStore.primeStartupDefaults).not.toHaveBeenCalled();
 		});
 
 		it("skips startup session auto-creation when provider metadata requires explicit user action", async () => {
@@ -1083,6 +1716,9 @@ describe("InitializationManager", () => {
 					},
 				},
 			] as unknown as AgentStore["agents"];
+			mockAgentStore.loadAvailableAgents = mock(() =>
+				okAsync(mockAgentStore.agents)
+			) as AgentStore["loadAvailableAgents"];
 			mockPanelStore.panels = [
 				{
 					id: "panel-1",
@@ -1099,12 +1735,13 @@ describe("InitializationManager", () => {
 			];
 
 			await manager.initialize();
+			await runPostStartupTasks();
 
 			expect(mockSessionStore.connection.createSession).not.toHaveBeenCalled();
 			expect(mockPanelStore.updatePanelSession).not.toHaveBeenCalled();
 		});
 
-		it("should keep startup session auto-creation for non-opencode panels", async () => {
+		it("does not auto-create startup sessions before agent metadata is loaded", async () => {
 			mockProjectManager.projects = [
 				{
 					path: "/project1",
@@ -1113,6 +1750,12 @@ describe("InitializationManager", () => {
 					color: "blue",
 				},
 			];
+			mockAgentStore.loadAvailableAgents = mock(() =>
+				ResultAsync.fromPromise(
+					new Promise<never>(() => {}),
+					() => new AgentError("loadAgents", new Error("Timed out"))
+				)
+			) as AgentStore["loadAvailableAgents"];
 			mockPanelStore.panels = [
 				{
 					id: "panel-1",
@@ -1130,11 +1773,123 @@ describe("InitializationManager", () => {
 
 			await manager.initialize();
 
+			expect(mockSessionStore.connection.createSession).not.toHaveBeenCalled();
+			expect(mockPanelStore.updatePanelSession).not.toHaveBeenCalled();
+
+			await runPostStartupTasks();
+
+			expect(mockSessionStore.connection.createSession).not.toHaveBeenCalled();
+			expect(mockPanelStore.updatePanelSession).not.toHaveBeenCalled();
+		});
+
+		it("should keep startup session auto-creation after agent metadata loads", async () => {
+			mockProjectManager.projects = [
+				{
+					path: "/project1",
+					name: "Project 1",
+					createdAt: new Date(),
+					color: "blue",
+				},
+			];
+			mockAgentStore.agents = [
+				{
+					id: "claude-code",
+					name: "Claude Code",
+					icon: "claude-code",
+					providerMetadata: {
+						providerBrand: "claude",
+						displayName: "Claude Code",
+						displayOrder: 1,
+						supportsModelDefaults: true,
+						variantGroup: "plain",
+						defaultAlias: undefined,
+						reasoningEffortSupport: false,
+						preconnectionSlashMode: "startupGlobal",
+						preconnectionCapabilityMode: "startupGlobal",
+					},
+				},
+			] as unknown as AgentStore["agents"];
+			mockAgentStore.loadAvailableAgents = mock(() =>
+				okAsync(mockAgentStore.agents)
+			) as AgentStore["loadAvailableAgents"];
+			mockPanelStore.panels = [
+				{
+					id: "panel-1",
+					kind: "agent",
+					ownerPanelId: null,
+					sessionId: null,
+					width: 600,
+					pendingProjectSelection: false,
+					selectedAgentId: "claude-code",
+					projectPath: null,
+					agentId: null,
+					sessionTitle: null,
+				},
+			];
+
+			await manager.initialize();
+			expect(mockSessionStore.connection.createSession).not.toHaveBeenCalled();
+
+			await runPostStartupTasks();
+
 			expect(mockSessionStore.connection.createSession).toHaveBeenCalledWith({
 				agentId: "claude-code",
 				projectPath: "/project1",
 			});
 			expect(mockPanelStore.updatePanelSession).toHaveBeenCalledWith("panel-1", "session-1");
+		});
+
+		it("does not auto-create startup sessions from cached project data", async () => {
+			mockProjectManager.projectStorageFresh = false;
+			mockProjectManager.projects = [
+				{
+					path: "/cached-project",
+					name: "Cached Project",
+					createdAt: new Date(),
+					color: "blue",
+				},
+			];
+			mockAgentStore.agents = [
+				{
+					id: "claude-code",
+					name: "Claude Code",
+					icon: "claude-code",
+					providerMetadata: {
+						providerBrand: "claude",
+						displayName: "Claude Code",
+						displayOrder: 1,
+						supportsModelDefaults: true,
+						variantGroup: "plain",
+						defaultAlias: undefined,
+						reasoningEffortSupport: false,
+						preconnectionSlashMode: "startupGlobal",
+						preconnectionCapabilityMode: "startupGlobal",
+					},
+				},
+			] as unknown as AgentStore["agents"];
+			mockAgentStore.loadAvailableAgents = mock(() =>
+				okAsync(mockAgentStore.agents)
+			) as AgentStore["loadAvailableAgents"];
+			mockPanelStore.panels = [
+				{
+					id: "panel-1",
+					kind: "agent",
+					ownerPanelId: null,
+					sessionId: null,
+					width: 600,
+					pendingProjectSelection: false,
+					selectedAgentId: "claude-code",
+					projectPath: null,
+					agentId: null,
+					sessionTitle: null,
+				},
+			];
+
+			await manager.initialize();
+			await runPostStartupTasks();
+
+			expect(mockSessionStore.connection.createSession).not.toHaveBeenCalled();
+			expect(mockPanelStore.updatePanelSession).not.toHaveBeenCalled();
 		});
 
 		it("should not initialize if already in progress", async () => {

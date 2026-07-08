@@ -1,12 +1,11 @@
 /**
  * SessionCold array + index helpers for the session store's session-list cold
- * data: lazy prepended/patched session arrays, by-id and by-project index
- * builders + incremental patches, and array removals. Pure list transforms — no
+ * data: prepended/patched session arrays, by-id and by-project index builders
+ * + incremental patches, and array removals. Pure list transforms — no
  * projection state. GOD-safe.
  */
 import type { SessionCold, SessionMutableColdUpdates } from "./types.js";
 import { SvelteMap } from "svelte/reactivity";
-import { toArrayIndex } from "./array-index-utils.js";
 import { sessionColdFromSlices } from "../application/dto/session-cold.js";
 
 export type SessionLiveSyncReference = {
@@ -25,57 +24,12 @@ export function createPrependedSessionColdArray(
 	session: SessionCold,
 	base: readonly SessionCold[]
 ): SessionCold[] {
-	const target = new Array<SessionCold>(base.length + 1);
-	return new Proxy(target, {
-		get(targetArray, property, receiver) {
-			if (property === Symbol.iterator) {
-				return function* () {
-					for (let index = 0; index < targetArray.length; index += 1) {
-						yield selectPrependedSessionCold(session, base, index);
-					}
-				};
-			}
-			if (typeof property === "string") {
-				const index = toArrayIndex(property);
-				if (index !== null) {
-					return selectPrependedSessionCold(session, base, index);
-				}
-				if (property === "slice") {
-					return (start?: number, end?: number) =>
-						Array.prototype.slice.call(receiver, start, end);
-				}
-			}
-			const value = Reflect.get(targetArray, property, receiver);
-			return typeof value === "function" ? value.bind(receiver) : value;
-		},
-		has(targetArray, property) {
-			const index = typeof property === "string" ? toArrayIndex(property) : null;
-			if (index !== null) {
-				return index >= 0 && index < targetArray.length;
-			}
-			return property in targetArray;
-		},
-		getOwnPropertyDescriptor(targetArray, property) {
-			const index = typeof property === "string" ? toArrayIndex(property) : null;
-			if (index !== null && index >= 0 && index < targetArray.length) {
-				return {
-					configurable: true,
-					enumerable: true,
-					value: selectPrependedSessionCold(session, base, index),
-					writable: false,
-				};
-			}
-			return Reflect.getOwnPropertyDescriptor(targetArray, property);
-		},
-	});
-}
-
-function selectPrependedSessionCold(
-	session: SessionCold,
-	base: readonly SessionCold[],
-	index: number
-): SessionCold | undefined {
-	return index === 0 ? session : base[index - 1];
+	const nextSessions: SessionCold[] = [];
+	nextSessions.push(session);
+	for (const existingSession of base) {
+		nextSessions.push(existingSession);
+	}
+	return nextSessions;
 }
 
 export function createPatchedSessionColdArray(
@@ -83,49 +37,18 @@ export function createPatchedSessionColdArray(
 	patchedIndex: number,
 	session: SessionCold
 ): SessionCold[] {
-	const target = new Array<SessionCold>(base.length);
-	return new Proxy(target, {
-		get(targetArray, property, receiver) {
-			if (property === Symbol.iterator) {
-				return function* () {
-					for (let index = 0; index < targetArray.length; index += 1) {
-						yield index === patchedIndex ? session : base[index];
-					}
-				};
-			}
-			if (typeof property === "string") {
-				const index = toArrayIndex(property);
-				if (index !== null) {
-					return index === patchedIndex ? session : base[index];
-				}
-				if (property === "slice") {
-					return (start?: number, end?: number) =>
-						Array.prototype.slice.call(receiver, start, end);
-				}
-			}
-			const value = Reflect.get(targetArray, property, receiver);
-			return typeof value === "function" ? value.bind(receiver) : value;
-		},
-		has(targetArray, property) {
-			const index = typeof property === "string" ? toArrayIndex(property) : null;
-			if (index !== null) {
-				return index >= 0 && index < targetArray.length;
-			}
-			return property in targetArray;
-		},
-		getOwnPropertyDescriptor(targetArray, property) {
-			const index = typeof property === "string" ? toArrayIndex(property) : null;
-			if (index !== null && index >= 0 && index < targetArray.length) {
-				return {
-					configurable: true,
-					enumerable: true,
-					value: index === patchedIndex ? session : base[index],
-					writable: false,
-				};
-			}
-			return Reflect.getOwnPropertyDescriptor(targetArray, property);
-		},
-	});
+	const nextSessions: SessionCold[] = [];
+	for (let index = 0; index < base.length; index += 1) {
+		if (index === patchedIndex) {
+			nextSessions.push(session);
+			continue;
+		}
+		const existingSession = base[index];
+		if (existingSession !== undefined) {
+			nextSessions.push(existingSession);
+		}
+	}
+	return nextSessions;
 }
 
 export function findSessionColdIndexById(sessions: readonly SessionCold[], sessionId: string): number {
@@ -312,49 +235,12 @@ export function createPrependedReferenceArray<TReference>(
 	reference: TReference,
 	base: readonly TReference[]
 ): TReference[] {
-	const target = new Array<TReference>(base.length + 1);
-	return new Proxy(target, {
-		get(targetArray, property, receiver) {
-			if (property === Symbol.iterator) {
-				return function* () {
-					for (let index = 0; index < targetArray.length; index += 1) {
-						yield index === 0 ? reference : base[index - 1];
-					}
-				};
-			}
-			if (typeof property === "string") {
-				const index = toArrayIndex(property);
-				if (index !== null) {
-					return index === 0 ? reference : base[index - 1];
-				}
-				if (property === "slice") {
-					return (start?: number, end?: number) =>
-						Array.prototype.slice.call(receiver, start, end);
-				}
-			}
-			const value = Reflect.get(targetArray, property, receiver);
-			return typeof value === "function" ? value.bind(receiver) : value;
-		},
-		has(targetArray, property) {
-			const index = typeof property === "string" ? toArrayIndex(property) : null;
-			if (index !== null) {
-				return index >= 0 && index < targetArray.length;
-			}
-			return property in targetArray;
-		},
-		getOwnPropertyDescriptor(targetArray, property) {
-			const index = typeof property === "string" ? toArrayIndex(property) : null;
-			if (index !== null && index >= 0 && index < targetArray.length) {
-				return {
-					configurable: true,
-					enumerable: true,
-					value: index === 0 ? reference : base[index - 1],
-					writable: false,
-				};
-			}
-			return Reflect.getOwnPropertyDescriptor(targetArray, property);
-		},
-	});
+	const nextReferences: TReference[] = [];
+	nextReferences.push(reference);
+	for (const existingReference of base) {
+		nextReferences.push(existingReference);
+	}
+	return nextReferences;
 }
 
 export function createPatchedReferenceArray<TReference extends { readonly id: string }>(
@@ -365,49 +251,18 @@ export function createPatchedReferenceArray<TReference extends { readonly id: st
 	if (patchedIndex === -1) {
 		return createPrependedReferenceArray(reference, base);
 	}
-	const target = new Array<TReference>(base.length);
-	return new Proxy(target, {
-		get(targetArray, property, receiver) {
-			if (property === Symbol.iterator) {
-				return function* () {
-					for (let index = 0; index < targetArray.length; index += 1) {
-						yield index === patchedIndex ? reference : base[index];
-					}
-				};
-			}
-			if (typeof property === "string") {
-				const index = toArrayIndex(property);
-				if (index !== null) {
-					return index === patchedIndex ? reference : base[index];
-				}
-				if (property === "slice") {
-					return (start?: number, end?: number) =>
-						Array.prototype.slice.call(receiver, start, end);
-				}
-			}
-			const value = Reflect.get(targetArray, property, receiver);
-			return typeof value === "function" ? value.bind(receiver) : value;
-		},
-		has(targetArray, property) {
-			const index = typeof property === "string" ? toArrayIndex(property) : null;
-			if (index !== null) {
-				return index >= 0 && index < targetArray.length;
-			}
-			return property in targetArray;
-		},
-		getOwnPropertyDescriptor(targetArray, property) {
-			const index = typeof property === "string" ? toArrayIndex(property) : null;
-			if (index !== null && index >= 0 && index < targetArray.length) {
-				return {
-					configurable: true,
-					enumerable: true,
-					value: index === patchedIndex ? reference : base[index],
-					writable: false,
-				};
-			}
-			return Reflect.getOwnPropertyDescriptor(targetArray, property);
-		},
-	});
+	const nextReferences: TReference[] = [];
+	for (let index = 0; index < base.length; index += 1) {
+		if (index === patchedIndex) {
+			nextReferences.push(reference);
+			continue;
+		}
+		const existingReference = base[index];
+		if (existingReference !== undefined) {
+			nextReferences.push(existingReference);
+		}
+	}
+	return nextReferences;
 }
 
 export function findReferenceIndexById<TReference extends { readonly id: string }>(

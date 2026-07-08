@@ -15,6 +15,7 @@
  */
 
 import { okAsync, type ResultAsync } from "neverthrow";
+import type { CanonicalModeId } from "$lib/acp/types/canonical-mode-id.js";
 import { resolveDefaultAgentIdForCreate } from "$lib/acp/components/session-list/session-list-logic.js";
 import type { SessionListItem } from "$lib/acp/components/session-list/session-list-types.js";
 import type { WorktreeDefaultStore } from "$lib/acp/components/worktree/worktree-default-store.svelte.js";
@@ -36,11 +37,13 @@ import type { WorkspaceStore } from "$lib/acp/store/workspace-store.svelte.js";
 import { createLogger } from "$lib/acp/utils/logger.js";
 import { type IssueReportDraft, openIssueReportDraft } from "$lib/errors/issue-report.js";
 import type { KeybindingsService } from "$lib/keybindings/service.svelte.js";
-import type { PreconnectionAgentSkillsStore } from "$lib/skills/store/preconnection-agent-skills-store.svelte.js";
 import { getSqlStudioStore } from "$lib/sql-studio/index.js";
 import type { MainAppViewError } from "../errors/main-app-view-error.js";
 import type { CreateSessionOptions } from "../types/create-session-options.js";
-import { InitializationManager } from "./managers/initialization-manager.js";
+import {
+	InitializationManager,
+	type StartupPerformanceTraceEntry,
+} from "./managers/initialization-manager.js";
 import { KeybindingManager } from "./managers/keybinding-manager.js";
 import { PanelHandler } from "./managers/panel-handler.js";
 import { ProjectHandler } from "./managers/project-handler.js";
@@ -155,6 +158,16 @@ export class MainAppViewState {
 	initializationComplete = $state(false);
 
 	/**
+	 * Whether persisted workspace chrome is still being restored.
+	 */
+	workspaceRestorationPending = $state(false);
+
+	/**
+	 * Whether the app shell can be shown before all startup data is ready.
+	 */
+	shellReady = $state(false);
+
+	/**
 	 * Initialization error, if any occurred during startup.
 	 */
 	initializationError = $state<Error | null>(null);
@@ -174,27 +187,6 @@ export class MainAppViewState {
 	 */
 	get isFullscreen(): boolean {
 		return this.panelStore.viewMode === "single";
-	}
-
-	private getSingleModePanelId(): string | null {
-		const focusedPanelId = this.panelStore.focusedPanelId;
-		if (focusedPanelId && this.panelStore.getTopLevelPanel(focusedPanelId)) {
-			return focusedPanelId;
-		}
-
-		const firstTopLevelPanel = this.panelStore.getFirstTopLevelPanel();
-		return firstTopLevelPanel ? firstTopLevelPanel.id : null;
-	}
-
-	/**
-	 * Whether the single-session fullscreen layout is active but NOT due to review mode.
-	 * Used to determine sidebar visibility - sidebar stays visible during review mode.
-	 */
-	get isFullscreenWithoutReview(): boolean {
-		if (!this.isFullscreen) return false;
-		const singleModePanelId = this.getSingleModePanelId();
-		if (!singleModePanelId) return false;
-		return !this.panelStore.isPanelInReviewMode(singleModePanelId);
 	}
 
 	/**
@@ -270,7 +262,6 @@ export class MainAppViewState {
 	 * @param keybindingsService - The keybindings service
 	 * @param selectorRegistry - The selector registry
 	 * @param worktreeDefaultStore - Single source for "use worktrees by default" (reactive)
-	 * @param preconnectionAgentSkillsStore - Startup-loaded agent skills for pre-connect slash commands
 	 */
 	constructor(
 		private readonly sessionStore: SessionStore,
@@ -283,7 +274,6 @@ export class MainAppViewState {
 		private readonly keybindingsService: KeybindingsService,
 		private readonly selectorRegistry: SelectorRegistry,
 		private readonly worktreeDefaultStore: WorktreeDefaultStore,
-		private readonly preconnectionAgentSkillsStore: PreconnectionAgentSkillsStore,
 		private readonly sessionOpenHydrator: Pick<
 			SessionOpenHydrator,
 			"beginAttempt" | "clearAttempt" | "hydrateFound" | "isCurrentAttempt"
@@ -299,7 +289,6 @@ export class MainAppViewState {
 			this.projectManager,
 			this.agentPreferencesStore,
 			this.keybindingsService,
-			this.preconnectionAgentSkillsStore,
 			this.sessionOpenHydrator
 		);
 		this.sessionHandler = new SessionHandler(
@@ -444,6 +433,10 @@ export class MainAppViewState {
 		return this.initializationManager.resolveSplashScreen();
 	}
 
+	getStartupPerformanceTrace(): StartupPerformanceTraceEntry[] {
+		return this.initializationManager.getStartupPerformanceTrace();
+	}
+
 	/**
 	 * Cleans up resources.
 	 */
@@ -505,7 +498,11 @@ export class MainAppViewState {
 	 * When set, new-thread requests call this instead of spawning a panel.
 	 */
 	onNewThreadOverride:
-		| ((request?: { readonly projectPath?: string; readonly agentId?: string }) => void)
+		| ((request?: {
+				readonly projectPath?: string;
+				readonly agentId?: string;
+				readonly modeId?: CanonicalModeId;
+		  }) => void)
 		| null = null;
 
 	handleNewThread(): void {

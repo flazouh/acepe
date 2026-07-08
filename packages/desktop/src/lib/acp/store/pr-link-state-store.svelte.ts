@@ -25,7 +25,19 @@ import type {
 } from "./types.js";
 import type { SessionMutableColdUpdates } from "./types.js";
 import { buildPartialSessionLinkedPr } from "../application/dto/session-linked-pr.js";
-import { resolveAutomaticSessionPrNumberFromShipWorkflow } from "./services/session-pr-link-attribution.js";
+import {
+	extractPrCandidateFromGhCreateToolCall,
+	resolveAutomaticSessionPrNumberFromShipWorkflow,
+	resolveAutomaticSessionPrNumberFromToolCall,
+} from "./services/session-pr-link-attribution.js";
+import type { Operation } from "../types/operation.js";
+
+function operationResultToText(result: Operation["result"]): string | null {
+	if (result == null) {
+		return null;
+	}
+	return typeof result === "string" ? result : JSON.stringify(result);
+}
 
 const logger = createLogger({ id: "pr-link-state-store", name: "PrLinkStateStore" });
 
@@ -196,6 +208,68 @@ export class PrLinkStateStore {
 
 			const sessionMetadata = this.#deps.getSessionMetadata(sessionId);
 			if (!sessionMetadata || sessionMetadata.prLinkMode === "manual") {
+				return okAsync<number | null, never>(null);
+			}
+
+			return this.updateSessionPrLink(sessionId, projectPath, prNumber, "automatic")
+				.map(() => prNumber)
+				.orElse(() => okAsync<number | null, never>(null));
+		});
+	}
+
+	/**
+	 * Auto-links the session to the first PR created via a `gh pr create` tool call (origin
+	 * R1/R2). Honors the manual lock (R7) and first-seen-wins: skips entirely once the session
+	 * already has a linked PR or a manual link decision. Reads canonical operation facts only.
+	 */
+	applyAutomaticPrLinkFromToolOperations(
+		sessionId: string,
+		projectPath: string,
+		operations: readonly Operation[]
+	): void {
+		const sessionMetadata = this.#deps.getSessionMetadata(sessionId);
+		if (
+			!sessionMetadata ||
+			sessionMetadata.prLinkMode === "manual" ||
+			sessionMetadata.prNumber != null
+		) {
+			return;
+		}
+
+		let candidateCommand: string | null = null;
+		let candidateResultText: string | null = null;
+		for (const operation of operations) {
+			const resultText = operationResultToText(operation.result);
+			if (extractPrCandidateFromGhCreateToolCall(operation.command, resultText) !== null) {
+				candidateCommand = operation.command;
+				candidateResultText = resultText;
+				break;
+			}
+		}
+
+		if (candidateCommand === null) {
+			return;
+		}
+
+		const nextSequence = (this.prLinkUpdateSequence.get(sessionId) ?? 0) + 1;
+		this.prLinkUpdateSequence.set(sessionId, nextSequence);
+
+		void resolveAutomaticSessionPrNumberFromToolCall(
+			projectPath,
+			candidateCommand,
+			candidateResultText
+		).andThen((prNumber) => {
+			if (prNumber == null || this.prLinkUpdateSequence.get(sessionId) !== nextSequence) {
+				return okAsync<number | null, never>(null);
+			}
+
+			// Re-check the guard: a manual link may have landed during the async repo lookup.
+			const latestMetadata = this.#deps.getSessionMetadata(sessionId);
+			if (
+				!latestMetadata ||
+				latestMetadata.prLinkMode === "manual" ||
+				latestMetadata.prNumber != null
+			) {
 				return okAsync<number | null, never>(null);
 			}
 

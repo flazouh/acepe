@@ -1,7 +1,8 @@
 <script lang="ts">
 import { onMount } from "svelte";
 import { SvelteSet } from "svelte/reactivity";
-import { ProjectLetterBadge, Selector, AgentInputSelectorItemRow } from "@acepe/ui";
+import { ProjectLetterBadge, Selector, SelectorItem, computeProjectBadgeLabels } from "@acepe/ui";
+import { BUTTON_CHIP_ICON_SIZE_PX } from "@acepe/ui/button";
 import * as DropdownMenu from "@acepe/ui/dropdown-menu";
 import { useTheme } from "$lib/components/theme/context.svelte.js";
 import { Skeleton } from "$lib/components/ui/skeleton/index.js";
@@ -12,6 +13,7 @@ import { getProviderBrandIcon } from "../constants/thread-list-constants.js";
 import type { Project } from "../logic/project-manager.svelte.js";
 import { AGENT_IDS } from "../types/agent-id.js";
 import { getProjectColor, TAG_COLORS } from "@acepe/ui/colors";
+import { cn } from "$lib/utils.js";
 import { createLogger } from "../utils/logger.js";
 
 interface ProjectSelectorProps {
@@ -27,6 +29,12 @@ interface ProjectSelectorProps {
 	placeholder?: string;
 	/** When true, the trigger shows the project name next to its badge. */
 	showLabel?: boolean;
+	/**
+	 * Global path → disambiguating badge label map. When omitted, labels are
+	 * computed from the projects this selector renders so colliding first
+	 * letters still disambiguate ("Ac" / "Ap").
+	 */
+	labelByPath?: ReadonlyMap<string, string> | null;
 }
 
 let {
@@ -41,7 +49,15 @@ let {
 	ontoggle,
 	placeholder = "Select project...",
 	showLabel = false,
+	labelByPath = null,
 }: ProjectSelectorProps = $props();
+
+const effectiveLabelByPath = $derived(
+	labelByPath ??
+		computeProjectBadgeLabels(
+			recentProjects.map((project) => ({ key: project.path, name: project.name }))
+		)
+);
 
 let selectorRef: { toggle: () => void } | undefined = $state();
 let isOpen = $state(false);
@@ -92,10 +108,9 @@ function handleOpenChange(open: boolean) {
 	bind:open={isOpen}
 	disabled={isLoading || (recentProjects.length === 0 && !hasProjectActions)}
 	onOpenChange={handleOpenChange}
-	variant="ghost"
 	showChevron={false}
-	triggerSize={showLabel ? "setupChip" : "icon"}
-	triggerClass={isOpen ? "bg-accent text-foreground" : ""}
+	triggerSize={showLabel ? "setupBarChip" : "icon"}
+	triggerActive={isOpen}
 	triggerAriaLabel={selectedProject?.name ?? placeholder}
 	side="top"
 	sideOffset={8}
@@ -108,17 +123,18 @@ function handleOpenChange(open: boolean) {
 			{#if selectedProject}
 				<ProjectLetterBadge
 					name={selectedProject.name}
+					label={effectiveLabelByPath.get(selectedProject.path) ?? null}
 					{color}
 					iconSrc={selectedProject.iconPath ?? null}
-					size={14}
+					size={BUTTON_CHIP_ICON_SIZE_PX}
 				/>
 				{#if showLabel}
-					<span class="whitespace-nowrap text-xs">{selectedProject.name}</span>
+					<span class="whitespace-nowrap">{selectedProject.name}</span>
 				{/if}
 			{:else}
 				<div class="size-3.5 shrink-0 rounded-md" style="background-color: {color};"></div>
 				{#if showLabel}
-					<span class="whitespace-nowrap text-xs text-muted-foreground">{placeholder}</span>
+					<span class="whitespace-nowrap text-muted-foreground">{placeholder}</span>
 				{/if}
 			{/if}
 		{/if}
@@ -132,7 +148,7 @@ function handleOpenChange(open: boolean) {
 			{@const isSelected = project.path === selectedProject?.path}
 			{@const isMissing = effectiveMissingPaths.has(project.path)}
 			{#if isMissing}
-				<AgentInputSelectorItemRow
+				<SelectorItem
 					label={project.name}
 					disabled={true}
 					labelClass="line-through"
@@ -140,6 +156,7 @@ function handleOpenChange(open: boolean) {
 					{#snippet leading()}
 						<ProjectLetterBadge
 							name={project.name}
+							label={effectiveLabelByPath.get(project.path) ?? null}
 							{color}
 							iconSrc={project.iconPath ?? null}
 							size={14}
@@ -148,9 +165,9 @@ function handleOpenChange(open: boolean) {
 					{#snippet trailing()}
 						<span class="shrink-0 text-[10px] text-destructive/70">Missing</span>
 					{/snippet}
-				</AgentInputSelectorItemRow>
+				</SelectorItem>
 			{:else}
-				<AgentInputSelectorItemRow
+				<SelectorItem
 					label={project.name}
 					selected={isSelected}
 					onSelect={() => handleProjectSelect(project)}
@@ -158,12 +175,13 @@ function handleOpenChange(open: boolean) {
 					{#snippet leading()}
 						<ProjectLetterBadge
 							name={project.name}
+							label={effectiveLabelByPath.get(project.path) ?? null}
 							{color}
 							iconSrc={project.iconPath ?? null}
 							size={14}
 						/>
 					{/snippet}
-				</AgentInputSelectorItemRow>
+				</SelectorItem>
 			{/if}
 		{/each}
 	{/if}

@@ -1,10 +1,12 @@
 <script lang="ts">
 	import { openUrl } from "@tauri-apps/plugin-opener";
 	import type { TokenRevealCss } from "@acepe/ui/agent-panel";
-	import { StreamdownMarkdown } from "@acepe/ui/streamdown-markdown";
+	import { NativeMarkdown } from "@acepe/ui/native-markdown";
+	import type { TogglePrLinkPayload } from "@acepe/ui/native-markdown";
 
 	import { useSessionContext } from "../../hooks/use-session-context.js";
-	import { getPanelStore } from "../../store/index.js";
+	import { getPanelStore, type OpenProjectFileSystemDialogOptions } from "../../store/index.js";
+	import { getSessionStore } from "../../store/session-store.svelte.js";
 	import { createLogger } from "../../utils/logger.js";
 	import {
 		DEFAULT_STREAMING_ANIMATION_MODE,
@@ -23,8 +25,8 @@
 
 	const logger = createLogger({ id: "markdown-text", name: "Markdown Text" });
 	const sessionContext = useSessionContext();
-	const ownerPanelId = $derived(sessionContext?.panelId);
 	const panelStore = getPanelStore();
+	const sessionStore = getSessionStore();
 
 	let {
 		text,
@@ -35,10 +37,44 @@
 	}: Props = $props();
 
 	const projectPath = $derived(propProjectPath);
-	const streamdownMode = $derived(isStreaming ? "streaming" : "static");
-	const streamdownAnimation = $derived(
+	const nativeMarkdownMode = $derived(isStreaming ? "streaming" : "static");
+	const nativeMarkdownAnimation = $derived(
 		streamingAnimationMode === "smooth" ? undefined : false
 	);
+
+	const sessionId = $derived(sessionContext?.sessionId);
+	const linkProjectPath = $derived(sessionContext?.projectPath ?? propProjectPath);
+	const linkedPrNumber = $derived(
+		sessionId !== undefined ? (sessionStore.getSessionCold(sessionId)?.prNumber ?? null) : null
+	);
+	// Only expose the chip link/unlink control when we have a session + project to write to.
+	const togglePrLink = $derived(
+		sessionId !== undefined && linkProjectPath !== undefined
+			? (payload: TogglePrLinkPayload) => handleTogglePrLink(sessionId, linkProjectPath, payload)
+			: undefined
+	);
+
+	function handleTogglePrLink(
+		targetSessionId: string,
+		targetProjectPath: string,
+		payload: TogglePrLinkPayload
+	) {
+		// Chip link/unlink is always a manual decision (mode "manual"), so it locks the
+		// link and is never overridden by automatic create/open signals. Unlinking pins
+		// "no PR" rather than re-enabling automatic linking.
+		const nextPrNumber = payload.isLinked ? null : payload.prNumber;
+		void sessionStore.connection
+			.updateSessionPrLink(targetSessionId, targetProjectPath, nextPrNumber, "manual")
+			.mapErr((error) => {
+				logger.warn("Failed to toggle PR link from markdown chip", {
+					sessionId: targetSessionId,
+					prNumber: payload.prNumber,
+					isLinked: payload.isLinked,
+					error,
+				});
+				return error;
+			});
+	}
 
 	function openExternalLink(url: string) {
 		void openUrl(url);
@@ -51,23 +87,26 @@
 		}
 
 		const fileReference = resolveProjectFileReference(filePath, projectPath);
-		panelStore.openFilePanel(fileReference.filePath, projectPath, {
-			ownerPanelId,
-			...(fileReference.targetLine !== undefined ? { targetLine: fileReference.targetLine } : {}),
-			...(fileReference.targetColumn !== undefined
-				? { targetColumn: fileReference.targetColumn }
-				: {}),
-		});
+		const dialogOptions: OpenProjectFileSystemDialogOptions = {};
+		if (fileReference.targetLine !== undefined) {
+			dialogOptions.targetLine = fileReference.targetLine;
+		}
+		if (fileReference.targetColumn !== undefined) {
+			dialogOptions.targetColumn = fileReference.targetColumn;
+		}
+		panelStore.openProjectFileSystemDialog(projectPath, fileReference.filePath, dialogOptions);
 	}
 </script>
 
-<StreamdownMarkdown
+<NativeMarkdown
 	markdown={text}
-	mode={streamdownMode}
+	mode={nativeMarkdownMode}
 	parseIncompleteMarkdown={isStreaming}
-	animated={streamdownAnimation}
+	animated={nativeMarkdownAnimation}
 	tokenRevealTiming={tokenRevealCss}
 	class="text-sm text-foreground"
 	onExternalLinkClick={openExternalLink}
 	onFilePathClick={openFilePath}
+	{linkedPrNumber}
+	onTogglePrLink={togglePrLink}
 />

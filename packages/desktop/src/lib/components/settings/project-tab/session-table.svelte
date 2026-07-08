@@ -1,13 +1,5 @@
 <script lang="ts">
-import { IconArrowDown } from "@tabler/icons-svelte";
-import { IconArrowUp } from "@tabler/icons-svelte";
-import { IconChevronLeft } from "@tabler/icons-svelte";
-import { IconChevronRight } from "@tabler/icons-svelte";
-import { IconChevronsLeft } from "@tabler/icons-svelte";
-import { IconChevronsRight } from "@tabler/icons-svelte";
-import { IconSearch } from "@tabler/icons-svelte";
-import { IconSelector } from "@tabler/icons-svelte";
-import { Selector } from "@acepe/ui";
+import { RoundedIcon, Selector } from "@acepe/ui";
 import * as DropdownMenu from "@acepe/ui/dropdown-menu";
 import type { SessionSummary } from "$lib/acp/application/dto/session-summary.js";
 import type { Project } from "$lib/acp/logic/project-manager.svelte.js";
@@ -124,7 +116,8 @@ function formatDate(date: Date): string {
 	<!-- Filters -->
 	<div class="flex shrink-0 items-center gap-2 border-b border-border/30 pb-2">
 		<div class="relative min-w-0 flex-1">
-			<IconSearch
+			<RoundedIcon
+				name="search"
 				class="absolute left-0 top-1/2 size-3 -translate-y-1/2 text-muted-foreground/50"
 			/>
 			<input
@@ -196,12 +189,19 @@ function formatDate(date: Date): string {
 					{col.label}
 					{#if state.sortColumn === col.id}
 						{#if state.sortDirection === "asc"}
-							<IconArrowUp class="size-2.5" />
+							<RoundedIcon name="arrow-up" class="size-2.5" />
 						{:else}
-							<IconArrowDown class="size-2.5" />
+							<RoundedIcon name="arrow-up" class="size-2.5 rotate-180" />
 						{/if}
 					{:else}
-						<IconSelector class="size-2.5 opacity-30" />
+						<span
+							class="inline-flex size-2.5 flex-col items-center justify-center opacity-30"
+							data-testid="session-table-unsorted-sort-icon"
+							aria-hidden="true"
+						>
+							<RoundedIcon name="chevron-up" class="size-2" />
+							<RoundedIcon name="chevron-down" class="-mt-1 size-2" />
+						</span>
 					{/if}
 				</button>
 			{/each}
@@ -272,9 +272,11 @@ function formatDate(date: Date): string {
 					type="button"
 					class="size-5 flex items-center justify-center rounded-md text-muted-foreground hover:text-foreground hover:bg-accent disabled:opacity-30 transition-all"
 					disabled={!canGoPrevious}
+					aria-label="First page"
+					title="First page"
 					onclick={() => state.goToFirstPage()}
 				>
-					<IconChevronsLeft class="size-3" />
+					<RoundedIcon name="dist-dmzwhx2o--10-previous" class="size-3 shrink-0" />
 				</button>
 				<button
 					type="button"
@@ -282,7 +284,7 @@ function formatDate(date: Date): string {
 					disabled={!canGoPrevious}
 					onclick={() => state.goToPreviousPage()}
 				>
-					<IconChevronLeft class="size-3" />
+					<RoundedIcon name="chevron-left" class="size-3 shrink-0" />
 				</button>
 				<span class="px-1 text-muted-foreground tabular-nums">
 					{state.currentPage + 1}/{totalPages}
@@ -293,15 +295,17 @@ function formatDate(date: Date): string {
 					disabled={!canGoNext}
 					onclick={() => state.goToNextPage(totalPages)}
 				>
-					<IconChevronRight class="size-3" />
+					<RoundedIcon name="chevron-right" class="size-3 shrink-0" />
 				</button>
 				<button
 					type="button"
 					class="size-5 flex items-center justify-center rounded-md text-muted-foreground hover:text-foreground hover:bg-accent disabled:opacity-30 transition-all"
 					disabled={!canGoNext}
+					aria-label="Last page"
+					title="Last page"
 					onclick={() => state.goToLastPage(totalPages)}
 				>
-					<IconChevronsRight class="size-3" />
+					<RoundedIcon name="dist-dmzwhx2o--10-next" class="size-3 shrink-0" />
 				</button>
 			</div>
 		{/if}

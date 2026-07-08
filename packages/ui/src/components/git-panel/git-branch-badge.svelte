@@ -1,10 +1,9 @@
 <script lang="ts">
 	/**
-	 * GitBranchBadge — Branch name badge with git branch icon.
+	 * GitBranchBadge — current branch as a clean, borderless picker control.
 	 */
-	import { GitBranch } from "phosphor-svelte";
-
 	import { cn } from "../../lib/utils.js";
+	import { RoundedIcon } from "../icons/index.js";
 
 	interface Props {
 		branch: string;
@@ -18,13 +17,15 @@
 <button
 	type="button"
 	class={cn(
-		"inline-flex items-center gap-1.5 rounded-sm border border-border/50 px-2 py-1 text-[0.75rem] font-medium",
-		"bg-muted/50 text-foreground hover:bg-muted/80 transition-colors",
-		onclick ? "cursor-pointer" : "cursor-default",
+		"inline-flex items-center gap-1.5 rounded-md px-1.5 py-1 text-sm font-medium text-foreground transition-colors",
+		onclick ? "cursor-pointer hover:bg-accent/50" : "cursor-default",
 		className,
 	)}
 	{onclick}
 >
-	<GitBranch size={14} weight="bold" class="text-muted-foreground shrink-0" />
-	<span class="truncate max-w-[160px] font-mono">{branch}</span>
+	<RoundedIcon name="branch" class="size-[13px] shrink-0 text-muted-foreground" />
+	<span class="max-w-[200px] truncate font-mono">{branch}</span>
+	{#if onclick}
+		<RoundedIcon name="chevron-down" class="size-3 shrink-0 text-muted-foreground/50" />
+	{/if}
 </button>

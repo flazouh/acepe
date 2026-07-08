@@ -27,7 +27,7 @@ Conduct a comprehensive review of the codebase against agent-native architecture
 First, invoke the agent-native-architecture skill to understand all principles:
 
 ```
-/compound-engineering:agent-native-architecture
+agent-native-architecture
 ```
 
 Select option 7 (action parity) to load the full reference material.

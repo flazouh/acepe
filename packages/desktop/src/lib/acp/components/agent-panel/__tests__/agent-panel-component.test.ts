@@ -6,7 +6,7 @@
  * check:svelte baseline captured 2026-06-12: 31 errors, 1 warning in 12 files.
  * bun run check: green (tsgo fast config).
  */
-import { describe, expect, it } from "bun:test";
+import { describe, expect, it, mock } from "bun:test";
 import type { PanelStore } from "../../../store/panel-store.svelte.js";
 import type { SessionStore } from "../../../store/session-store.svelte.js";
 import type { ChatPreferencesStore } from "../../../store/chat-preferences-store.svelte.js";
@@ -17,8 +17,16 @@ import { ContentScrollRevealController } from "../state/content-scroll-reveal-co
 import { AgentPanelViewStateController } from "../state/agent-panel-view-state-controller.svelte.js";
 import { AgentPanelScenePipelineController } from "../state/agent-panel-scene-pipeline-controller.svelte.js";
 import { WorktreeSetupController } from "../state/worktree-setup-controller.svelte.js";
-import { WorktreeCloseConfirmationController } from "../state/worktree-close-confirmation-controller.svelte.js";
 import { AgentPanelWorktreeController } from "../state/agent-panel-worktree-controller.svelte.js";
+
+mock.module("svelte-sonner", () => ({
+	toast: {
+		error: mock(() => {}),
+		info: mock(() => {}),
+		success: mock(() => {}),
+		warning: mock(() => {}),
+	},
+}));
 
 type AgentPanelWiringFixture = {
 	sessionController: AgentPanelSessionController;
@@ -27,7 +35,6 @@ type AgentPanelWiringFixture = {
 	viewStateController: AgentPanelViewStateController;
 	scenePipelineController: AgentPanelScenePipelineController;
 	worktreeSetup: WorktreeSetupController;
-	worktreeCloseConfirm: WorktreeCloseConfirmationController;
 	worktreeController: AgentPanelWorktreeController;
 	holder: {
 		sessionId: string | null;
@@ -53,6 +60,7 @@ function createAgentPanelWiringFixture(): AgentPanelWiringFixture {
 			getSessionActiveTurnFailure: () => null,
 			getSessionPendingSendIntent: () => null,
 			getSessionTranscriptEntries: () => [],
+			getSessionMessageCount: () => 0,
 			getSessionIdentity: () => ({
 				projectPath: "/repo",
 				agentId: "claude-code",
@@ -76,6 +84,12 @@ function createAgentPanelWiringFixture(): AgentPanelWiringFixture {
 		},
 		connection: {
 			disconnectSession: () => undefined,
+		},
+		viewport: {
+			getRowsProjection: (sessionId: string) => ({
+				sessionId,
+				rows: [],
+			}),
 		},
 	} as unknown as SessionStore;
 
@@ -178,7 +192,6 @@ function createAgentPanelWiringFixture(): AgentPanelWiringFixture {
 	});
 
 	const worktreeSetup = new WorktreeSetupController();
-	const worktreeCloseConfirm = new WorktreeCloseConfirmationController();
 	const worktreeController = new AgentPanelWorktreeController({
 		getSessionId: () => holder.sessionId,
 		getPanelId: () => holder.panelId,
@@ -195,8 +208,6 @@ function createAgentPanelWiringFixture(): AgentPanelWiringFixture {
 		panelStore: stubPanelStore,
 		sessionStore: stubSessionStore,
 		worktreeSetup,
-		worktreeCloseConfirm,
-		onClose: () => undefined,
 		logWorktreeCreated: () => undefined,
 		logWorktreeCreatedEarlyReturn: () => undefined,
 	});
@@ -208,7 +219,6 @@ function createAgentPanelWiringFixture(): AgentPanelWiringFixture {
 		viewStateController,
 		scenePipelineController,
 		worktreeSetup,
-		worktreeCloseConfirm,
 		worktreeController,
 		holder,
 		pushConnectionSnapshot,
@@ -294,22 +304,7 @@ describe("AgentPanel component wiring characterization (plan 013 U1)", () => {
 		});
 	});
 
-	describe("worktree setup ↔ close-confirmation trio", () => {
-		it("sequences beginPending → resolve → cancel through the worktree controller", () => {
-			const fixture = createAgentPanelWiringFixture();
-			fixture.worktreeCloseConfirm.beginPending();
-			expect(fixture.worktreeCloseConfirm.confirming).toBe(true);
-			expect(fixture.worktreeCloseConfirm.dirtyCheckPending).toBe(true);
-
-			fixture.worktreeCloseConfirm.resolve(true);
-			expect(fixture.worktreeCloseConfirm.hasDirtyChanges).toBe(true);
-			expect(fixture.worktreeCloseConfirm.dirtyCheckPending).toBe(false);
-
-			fixture.worktreeController.handleWorktreeCloseCancel();
-			expect(fixture.worktreeCloseConfirm.confirming).toBe(false);
-			expect(fixture.worktreeCloseConfirm.hasDirtyChanges).toBe(false);
-		});
-
+	describe("worktree setup", () => {
 		it("starts worktree setup creation when pending setup enters creating-worktree phase", () => {
 			const fixture = createAgentPanelWiringFixture();
 			fixture.worktreeSetup.startCreation({

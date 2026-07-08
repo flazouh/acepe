@@ -1,9 +1,7 @@
 <script lang="ts">
 	import { Tooltip } from 'bits-ui';
-	import { IconAlertTriangle, IconX } from '@tabler/icons-svelte';
-	import { HandPalm } from 'phosphor-svelte';
 
-	import { LoadingIcon } from '../icons/index.js';
+	import { RoundedIcon, LoadingIcon } from '../icons/index.js';
 	import { ProjectLetterBadge } from '../project-letter-badge/index.js';
 	import type { AppTab } from './types.js';
 
@@ -78,6 +76,7 @@
 						{#if !hideProjectBadge && tab.projectName && tab.projectColor}
 							<ProjectLetterBadge
 								name={tab.projectName}
+								label={tab.projectBadgeLabel ?? null}
 								color={tab.projectColor}
 								iconSrc={tab.projectIconSrc}
 								sequenceId={tab.sequenceId}
@@ -103,11 +102,11 @@
 						<!-- 3. Status indicator -->
 						{#if tab.status === 'error'}
 							<span class="shrink-0 w-4 h-4 flex items-center justify-center">
-								<IconAlertTriangle class="size-3 text-destructive" />
+								<RoundedIcon name="warning" class="size-3 text-destructive" />
 							</span>
 						{:else if tab.status === 'question'}
 							<span class="shrink-0 w-4 h-4 flex items-center justify-center">
-								<HandPalm class="size-3 text-primary" weight="fill" />
+								<RoundedIcon name="hand" class="size-3 text-primary" data-testid="app-tab-question-icon" />
 							</span>
 						{:else if tab.status === 'done'}
 							<span class="h-2 w-2 rounded-full shrink-0 bg-success"></span>
@@ -133,7 +132,7 @@
 								class="shrink-0 h-5 w-5 p-0 rounded-sm hover:bg-muted flex items-center justify-center"
 								onclick={handleClose}
 							>
-								<IconX class="h-3 w-3" />
+								<RoundedIcon name="close" class="size-3" />
 								<span class="sr-only">Close tab</span>
 							</button>
 						{/if}

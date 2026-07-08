@@ -1,7 +1,6 @@
 <script lang="ts">
+import { RoundedIcon, type RoundedIconName } from "@acepe/ui";
 import { Colors } from "@acepe/ui/colors";
-import { GitMerge } from "phosphor-svelte";
-import { GitPullRequest } from "phosphor-svelte";
 import type { PrState } from "$lib/utils/tauri-client/git.js";
 
 interface Props {
@@ -21,10 +20,13 @@ const iconColor = $derived.by(() => {
 			return "var(--destructive)";
 	}
 });
+
+const iconName = $derived<RoundedIconName>(
+	state === "MERGED" ? "pull-request-merged" : state === "CLOSED" ? "pull-request-closed" : "pull-request"
+);
 </script>
 
-{#if state === "MERGED"}
-	<GitMerge {size} weight="fill" style="color: {iconColor}" />
-{:else}
-	<GitPullRequest {size} weight="fill" style="color: {iconColor}" />
-{/if}
+<RoundedIcon
+	name={iconName}
+	style="width: {size}px; height: {size}px; color: {iconColor}"
+/>

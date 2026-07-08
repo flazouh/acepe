@@ -1,5 +1,5 @@
 <script lang="ts">
-import { IconSend } from "@tabler/icons-svelte";
+import { RoundedIcon } from "@acepe/ui";
 import { Button } from "$lib/components/ui/button/index.js";
 import { Spinner } from "$lib/components/ui/spinner/index.js";
 import { Textarea } from "$lib/components/ui/textarea/index.js";
@@ -66,7 +66,7 @@ function handleKeyDown(event: KeyboardEvent) {
 		{#if isLoading}
 			<Spinner size={20} />
 		{:else}
-			<IconSend class="h-5 w-5" />
+			<RoundedIcon name="send" class="h-5 w-5" />
 		{/if}
 	</Button>
 </div>

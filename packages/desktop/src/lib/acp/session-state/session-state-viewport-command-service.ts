@@ -1,6 +1,8 @@
 import type {
 	SessionGraphRevision,
 	SessionStateEnvelope,
+	TranscriptRowPageResult,
+	TranscriptViewportRow,
 	TranscriptViewportCommandRevision,
 } from "../../services/acp-types.js";
 import { invokeAsync } from "../../utils/tauri-client/invoke.js";
@@ -15,6 +17,28 @@ export type TranscriptViewportCommandEnvelopeResult = ReturnType<
 	typeof invokeAsync<SessionStateEnvelope | null>
 >;
 
+type TranscriptRowPageWireResult =
+	| ({
+			readonly status: "current";
+			readonly projection_version: string;
+			readonly start_row_index: number;
+			readonly total_row_count: number;
+			readonly row_payload_bytes: number;
+			readonly transcript_revision: number;
+			readonly graph_revision: number;
+			readonly last_event_seq: number;
+			readonly rows: TranscriptViewportRow[];
+	  })
+	| { readonly status: "missing" }
+	| {
+			readonly status: "stale";
+			readonly projection_version: string;
+			readonly total_row_count: number;
+			readonly transcript_revision: number;
+			readonly graph_revision: number;
+			readonly last_event_seq: number;
+	  };
+
 function commandRevisionFrom(
 	revision: SessionGraphRevision | ViewportCommandRevisionInput
 ): TranscriptViewportCommandRevision {
@@ -22,6 +46,35 @@ function commandRevisionFrom(
 		graphRevision: revision.graphRevision,
 		transcriptRevision: revision.transcriptRevision,
 		lastEventSeq: revision.lastEventSeq,
+	};
+}
+
+export function transcriptRowPageResultFromWire(
+	result: TranscriptRowPageWireResult
+): TranscriptRowPageResult {
+	if (result.status === "missing") {
+		return { status: "missing" };
+	}
+	if (result.status === "stale") {
+		return {
+			status: "stale",
+			projectionVersion: result.projection_version,
+			totalRowCount: result.total_row_count,
+			transcriptRevision: result.transcript_revision,
+			graphRevision: result.graph_revision,
+			lastEventSeq: result.last_event_seq,
+		};
+	}
+	return {
+		status: "current",
+		projectionVersion: result.projection_version,
+		startRowIndex: result.start_row_index,
+		totalRowCount: result.total_row_count,
+		rowPayloadBytes: result.row_payload_bytes,
+		transcriptRevision: result.transcript_revision,
+		graphRevision: result.graph_revision,
+		lastEventSeq: result.last_event_seq,
+		rows: result.rows,
 	};
 }
 
@@ -37,72 +90,16 @@ export function requestTranscriptViewportBuffer(input: {
 	});
 }
 
-export function scrollTranscriptViewport(input: {
+export function readTranscriptRowPage(input: {
 	readonly sessionId: string;
-	readonly revision: SessionGraphRevision | ViewportCommandRevisionInput;
-	readonly viewportHeightPx: number;
-	readonly offsetPx: number;
-	readonly requestGeneration?: number | null;
-	readonly forceFresh?: boolean | null;
-}): TranscriptViewportCommandEnvelopeResult {
-	return invokeAsync<SessionStateEnvelope | null>("acp_scroll_transcript_viewport", {
+	readonly startRowIndex: number;
+	readonly limit: number;
+	readonly expectedRevision: SessionGraphRevision | ViewportCommandRevisionInput;
+}): ReturnType<typeof invokeAsync<TranscriptRowPageResult>> {
+	return invokeAsync<TranscriptRowPageWireResult>("acp_read_transcript_row_page", {
 		sessionId: input.sessionId,
-		revision: commandRevisionFrom(input.revision),
-		viewportHeightPx: input.viewportHeightPx,
-		offsetPx: input.offsetPx,
-		requestGeneration: input.requestGeneration ?? null,
-		forceFresh: input.forceFresh ?? null,
-	});
-}
-
-export function revealTranscriptViewportRow(input: {
-	readonly sessionId: string;
-	readonly revision: SessionGraphRevision | ViewportCommandRevisionInput;
-	readonly viewportHeightPx: number;
-	readonly rowId: string | null;
-	readonly requestGeneration?: number | null;
-}): TranscriptViewportCommandEnvelopeResult {
-	return invokeAsync<SessionStateEnvelope | null>("acp_reveal_transcript_viewport_row", {
-		sessionId: input.sessionId,
-		revision: commandRevisionFrom(input.revision),
-		viewportHeightPx: input.viewportHeightPx,
-		rowId: input.rowId,
-		requestGeneration: input.requestGeneration ?? null,
-	});
-}
-
-export function resizeTranscriptViewport(input: {
-	readonly sessionId: string;
-	readonly revision: SessionGraphRevision | ViewportCommandRevisionInput;
-	readonly viewportHeightPx: number;
-	readonly requestGeneration?: number | null;
-}): TranscriptViewportCommandEnvelopeResult {
-	return invokeAsync<SessionStateEnvelope | null>("acp_resize_transcript_viewport", {
-		sessionId: input.sessionId,
-		revision: commandRevisionFrom(input.revision),
-		viewportHeightPx: input.viewportHeightPx,
-		requestGeneration: input.requestGeneration ?? null,
-	});
-}
-
-export function confirmTranscriptViewportHeight(input: {
-	readonly sessionId: string;
-	readonly revision: SessionGraphRevision | ViewportCommandRevisionInput;
-	readonly viewportHeightPx: number;
-	readonly rowId: string;
-	readonly rowVersion: string;
-	readonly heightPx: number;
-	readonly viewportOffsetPx: number | null;
-	readonly requestGeneration?: number | null;
-}): TranscriptViewportCommandEnvelopeResult {
-	return invokeAsync<SessionStateEnvelope | null>("acp_confirm_transcript_viewport_height", {
-		sessionId: input.sessionId,
-		revision: commandRevisionFrom(input.revision),
-		viewportHeightPx: input.viewportHeightPx,
-		rowId: input.rowId,
-		rowVersion: input.rowVersion,
-		heightPx: input.heightPx,
-		viewportOffsetPx: input.viewportOffsetPx,
-		requestGeneration: input.requestGeneration ?? null,
-	});
+		startRowIndex: input.startRowIndex,
+		limit: input.limit,
+		expectedRevision: commandRevisionFrom(input.expectedRevision),
+	}).map(transcriptRowPageResultFromWire);
 }

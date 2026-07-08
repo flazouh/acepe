@@ -7,6 +7,7 @@ import {
 	createPlanViewEvent,
 	createQuestionOtherSubmitEvent,
 	createReadLintsPresentation,
+	createReviewActionEvent,
 	createToolFileSelectEvent,
 	getQuestionOtherText,
 	resolveConversationRenderKind,
@@ -85,6 +86,22 @@ describe("agent panel conversation entry model", () => {
 		expect(resolveConversationRenderKind(toolEntry({ kind: "create_plan" }))).toBe(
 			"tool-plan"
 		);
+		expect(
+			resolveConversationRenderKind(
+				toolEntry({
+					kind: "review",
+					reviewFiles: [
+						{
+							id: "src/lib/alpha.ts",
+							filePath: "src/lib/alpha.ts",
+							fileName: "alpha.ts",
+							additions: 12,
+							deletions: 2,
+						},
+					],
+				})
+			)
+		).toBe("tool-review");
 	});
 
 	it("falls back to error result before the generic tool row", () => {
@@ -167,6 +184,19 @@ describe("agent panel conversation entry model", () => {
 			interactionId: "interaction-1",
 			title: "Local plan",
 			content: "# Plan",
+		});
+	});
+
+	it("builds review action events", () => {
+		const entry = toolEntry({
+			toolCallId: "synthetic-review",
+			interactionId: "interaction-1",
+		});
+
+		expect(createReviewActionEvent(entry)).toEqual({
+			entryId: "entry-1",
+			toolCallId: "synthetic-review",
+			interactionId: "interaction-1",
 		});
 	});
 

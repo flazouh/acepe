@@ -1,21 +1,34 @@
 use super::*;
 use crate::acp::event_hub::AcpEventHubState;
-use crate::acp::projections::{InteractionState, OperationSourceLink, SessionTurnState};
+use crate::acp::projections::{
+    InteractionState, OperationSnapshot, OperationSourceLink, OperationState, SessionTurnState,
+};
 use crate::acp::session_descriptor::{SessionDescriptorCompatibility, SessionReplayContext};
 use crate::acp::session_state_engine::runtime_registry::SessionGraphRuntimeRegistry;
 use crate::acp::session_state_engine::selectors::{
-    SessionGraphCapabilities, SessionGraphLifecycle,
+    SessionGraphActivity, SessionGraphCapabilities, SessionGraphLifecycle,
 };
+use crate::acp::session_state_engine::SessionStatePayload;
 use crate::acp::session_thread_snapshot::{ProviderOwnedSessionSnapshot, SessionThreadSnapshot};
 use crate::acp::session_update::{
     AvailableCommand, ToolArguments, ToolCallData, ToolCallStatus, ToolKind, TurnErrorKind,
     TurnErrorSource,
 };
 use crate::acp::transcript_projection::{
-    TranscriptEntryRole, TranscriptSegment, TranscriptSnapshot,
+    TranscriptEntry, TranscriptEntryRole, TranscriptSegment, TranscriptSnapshot,
+};
+use crate::acp::transcript_viewport::ledger::{
+    serialize_viewport_rows_for_ledger, SessionTranscriptRowLedgerOpenHeader,
+    SessionTranscriptRowLedgerRead, SessionTranscriptRowLedgerStatus,
+    TRANSCRIPT_ROW_LEDGER_PROJECTION_VERSION,
+};
+use crate::acp::transcript_viewport::{
+    TranscriptViewportRow, TranscriptViewportRowContent, TranscriptViewportRowKind,
 };
 use crate::acp::types::CanonicalAgentId;
-use crate::db::repository::{SessionJournalEventRepository, SessionMetadataRepository};
+use crate::db::repository::{
+    SessionJournalEventRepository, SessionMetadataRepository, SessionTranscriptRowLedgerRepository,
+};
 use crate::session_jsonl::types::{
     StoredAssistantChunk, StoredAssistantMessage, StoredContentBlock, StoredEntry,
     StoredErrorMessage, StoredUserMessage,
@@ -67,6 +80,795 @@ async fn append_frontier_barrier(db: &DbConn, session_id: &str) {
         .expect("append barrier event");
 }
 
+#[tokio::test]
+async fn current_row_ledger_open_returns_hot_tail_page_without_full_snapshot_body() {
+    let db = setup_db().await;
+    let hub = make_hub();
+    let session_id = "hot-ledger-session";
+    seed_session_metadata(&db, session_id, "codex").await;
+    append_frontier_barrier(&db, session_id).await;
+    let header = SessionTranscriptRowLedgerOpenHeader {
+        agent_id: CanonicalAgentId::Codex,
+        project_path: "/test/project".to_string(),
+        worktree_path: None,
+        source_path: None,
+        sequence_id: None,
+        session_title: "Hot ledger session".to_string(),
+        turn_state: SessionTurnState::Completed,
+        message_count: 1,
+        activity: SessionGraphActivity::idle(),
+        active_streaming_tail: None,
+        lifecycle: SessionGraphLifecycle::detached(
+            crate::acp::lifecycle::DetachedReason::RestoredRequiresAttach,
+        ),
+        capabilities: SessionGraphCapabilities::empty(),
+        active_turn_failure: None,
+        last_terminal_turn_id: None,
+    };
+    let row = TranscriptViewportRow {
+        row_id: "transcript:entry-1".to_string(),
+        source_entry_id: "entry-1".to_string(),
+        kind: TranscriptViewportRowKind::AssistantText,
+        version: "row-version-1".to_string(),
+        anchor_eligible: true,
+        active_streaming_tail: None,
+        operation_links: Vec::new(),
+        interaction_links: Vec::new(),
+        content: TranscriptViewportRowContent::Transcript {
+            role: TranscriptEntryRole::Assistant,
+            segments: vec![TranscriptSegment::Text {
+                segment_id: "entry-1:text:0".to_string(),
+                text: "hello from the hot row ledger".to_string(),
+            }],
+        },
+        duration_started_at_ms: None,
+    };
+    let rows = serialize_viewport_rows_for_ledger(
+        session_id,
+        7,
+        1,
+        TRANSCRIPT_ROW_LEDGER_PROJECTION_VERSION,
+        &[row],
+    )
+    .expect("ledger rows should serialize");
+    let expected_row_payload_bytes = rows
+        .iter()
+        .map(|row| row.row_json.len() as u64)
+        .sum::<u64>();
+    SessionTranscriptRowLedgerRepository::replace_current(
+        &db,
+        session_id,
+        TRANSCRIPT_ROW_LEDGER_PROJECTION_VERSION,
+        7,
+        1,
+        1,
+        Some(serde_json::to_string(&header).expect("header should serialize")),
+        rows,
+    )
+    .await
+    .expect("ledger write should succeed");
+    let replay_context = replay_context_for_session(session_id, CanonicalAgentId::Codex);
+
+    let result =
+        session_open_result_from_current_row_ledger(&db, &hub, &replay_context, session_id, 128)
+            .await
+            .expect("hot ledger lookup should succeed")
+            .expect("current ledger should open hot");
+    let SessionOpenResult::Found(found) = result else {
+        panic!("expected found hot ledger open");
+    };
+
+    assert_eq!(found.open_path, SessionOpenPath::HotLedger);
+    assert_eq!(found.transcript_snapshot.revision, 7);
+    assert!(found.transcript_snapshot.entries.is_empty());
+    assert!(found.operations.is_empty());
+    assert_eq!(
+        found
+            .initial_transcript_row_page
+            .as_ref()
+            .expect("hot open should include row page")
+            .rows
+            .len(),
+        1
+    );
+    assert_eq!(
+        found
+            .initial_transcript_row_page
+            .as_ref()
+            .expect("hot open should include row page")
+            .row_payload_bytes,
+        expected_row_payload_bytes
+    );
+    let envelope = found
+        .initial_viewport_envelope
+        .as_ref()
+        .expect("hot open should include viewport push");
+    let SessionStatePayload::ViewportBufferPush { push } = &envelope.payload else {
+        panic!("expected viewport push payload");
+    };
+    assert_eq!(push.rows.len(), 1);
+    assert_eq!(push.rows[0].row_id, "transcript:entry-1");
+    let token = Uuid::parse_str(&found.open_token).expect("open token should be a uuid");
+    assert!(hub.claim_reservation(token).is_some());
+}
+
+#[tokio::test]
+async fn hot_ledger_open_uses_runtime_lifecycle_without_rewriting_row_page_revision() {
+    let db = setup_db().await;
+    let hub = make_hub();
+    let session_id = "hot-ledger-runtime-ready";
+    seed_session_metadata(&db, session_id, "codex").await;
+    append_frontier_barrier(&db, session_id).await;
+    let header = hot_ledger_header(CanonicalAgentId::Codex, "Runtime ready session");
+    let rows = serialize_viewport_rows_for_ledger(
+        session_id,
+        70,
+        70,
+        TRANSCRIPT_ROW_LEDGER_PROJECTION_VERSION,
+        &[assistant_text_row("entry-1", "cached row")],
+    )
+    .expect("ledger rows should serialize");
+    SessionTranscriptRowLedgerRepository::replace_current(
+        &db,
+        session_id,
+        TRANSCRIPT_ROW_LEDGER_PROJECTION_VERSION,
+        70,
+        70,
+        70,
+        Some(serde_json::to_string(&header).expect("header should serialize")),
+        rows,
+    )
+    .await
+    .expect("ledger write should succeed");
+    let runtime_registry = SessionGraphRuntimeRegistry::new();
+    runtime_registry.restore_session_state(
+        session_id.to_string(),
+        8,
+        SessionGraphLifecycle::ready(),
+        SessionGraphCapabilities {
+            models: None,
+            modes: None,
+            available_commands: None,
+            config_options: None,
+            autonomous_enabled: Some(true),
+        },
+    );
+    let replay_context = replay_context_for_session(session_id, CanonicalAgentId::Codex);
+
+    let result =
+        session_open_result_from_current_row_ledger(&db, &hub, &replay_context, session_id, 128)
+            .await
+            .expect("hot ledger lookup should succeed")
+            .expect("current ledger should open hot");
+    let result = apply_runtime_authority_to_session_open_result(result, Some(&runtime_registry));
+    let SessionOpenResult::Found(found) = result else {
+        panic!("expected found hot ledger open");
+    };
+
+    assert_eq!(found.graph_revision, 70);
+    assert_eq!(
+        found.lifecycle.status,
+        crate::acp::lifecycle::LifecycleStatus::Ready
+    );
+    assert!(found.lifecycle.actionability.can_send);
+    assert_eq!(found.capabilities.autonomous_enabled, Some(true));
+    assert_eq!(
+        found
+            .initial_transcript_row_page
+            .as_ref()
+            .expect("hot open should include row page")
+            .graph_revision,
+        70
+    );
+}
+
+#[tokio::test]
+async fn current_row_ledger_open_claim_frontier_matches_ledger_revision() {
+    let db = setup_db().await;
+    let hub = make_hub();
+    let session_id = "hot-ledger-open-frontier";
+    seed_session_metadata(&db, session_id, "codex").await;
+    append_frontier_barrier(&db, session_id).await;
+    let header = hot_ledger_header(CanonicalAgentId::Codex, "Hot ledger frontier");
+    let rows = serialize_viewport_rows_for_ledger(
+        session_id,
+        7,
+        7,
+        TRANSCRIPT_ROW_LEDGER_PROJECTION_VERSION,
+        &[assistant_text_row("entry-1", "frontier row")],
+    )
+    .expect("ledger rows should serialize");
+    SessionTranscriptRowLedgerRepository::replace_current(
+        &db,
+        session_id,
+        TRANSCRIPT_ROW_LEDGER_PROJECTION_VERSION,
+        7,
+        7,
+        7,
+        Some(serde_json::to_string(&header).expect("header should serialize")),
+        rows,
+    )
+    .await
+    .expect("ledger write should succeed");
+    let replay_context = replay_context_for_session(session_id, CanonicalAgentId::Codex);
+
+    let result =
+        session_open_result_from_current_row_ledger(&db, &hub, &replay_context, session_id, 128)
+            .await
+            .expect("hot ledger lookup should succeed")
+            .expect("current ledger should open hot");
+    let SessionOpenResult::Found(found) = result else {
+        panic!("expected found hot ledger open");
+    };
+    let token = Uuid::parse_str(&found.open_token).expect("open token should be a uuid");
+    hub.publish(
+        "acp-session-state",
+        Some(session_id.to_string()),
+        json!({"lastEventSeq": 8}),
+        "normal",
+        false,
+    );
+    let claim = hub
+        .claim_reservation_for_session(token, session_id)
+        .expect("reservation should be claimable for the hot-open session");
+
+    assert_eq!(found.last_event_seq, 7);
+    assert_eq!(claim.last_event_seq, 7);
+    assert_eq!(claim.buffered_events.len(), 1);
+}
+
+#[tokio::test]
+async fn current_row_ledger_hot_open_allows_barriers_after_row_cutoff() {
+    let db = setup_db().await;
+    let hub = make_hub();
+    let session_id = "hot-ledger-barrier-tail";
+    seed_session_metadata(&db, session_id, "codex").await;
+    append_frontier_barrier(&db, session_id).await;
+    let header = hot_ledger_header(CanonicalAgentId::Codex, "Barrier tail hot ledger");
+    let rows = serialize_viewport_rows_for_ledger(
+        session_id,
+        7,
+        1,
+        TRANSCRIPT_ROW_LEDGER_PROJECTION_VERSION,
+        &[assistant_text_row(
+            "entry-1",
+            "visible row is still current",
+        )],
+    )
+    .expect("ledger rows should serialize");
+    SessionTranscriptRowLedgerRepository::replace_current(
+        &db,
+        session_id,
+        TRANSCRIPT_ROW_LEDGER_PROJECTION_VERSION,
+        7,
+        1,
+        1,
+        Some(serde_json::to_string(&header).expect("header should serialize")),
+        rows,
+    )
+    .await
+    .expect("ledger write should succeed");
+    append_frontier_barrier(&db, session_id).await;
+    append_frontier_barrier(&db, session_id).await;
+    let replay_context = replay_context_for_session(session_id, CanonicalAgentId::Codex);
+
+    let result = session_open_result_from_current_row_ledger_with_status(
+        &db,
+        &hub,
+        &replay_context,
+        session_id,
+        128,
+    )
+    .await
+    .expect("hot ledger lookup should succeed");
+    let CurrentRowLedgerOpenLookup::Found {
+        result: SessionOpenResult::Found(found),
+        ..
+    } = result
+    else {
+        panic!("barrier-only journal tail should not force legacy rebuild");
+    };
+
+    assert_eq!(found.open_path, SessionOpenPath::HotLedger);
+    assert_eq!(found.last_event_seq, 1);
+    assert_eq!(
+        found
+            .initial_transcript_row_page
+            .as_ref()
+            .expect("hot open should include row page")
+            .rows
+            .len(),
+        1
+    );
+}
+
+#[tokio::test]
+async fn current_row_ledger_hot_open_still_misses_after_projection_update() {
+    let db = setup_db().await;
+    let hub = make_hub();
+    let session_id = "hot-ledger-projection-tail";
+    seed_session_metadata(&db, session_id, "codex").await;
+    append_frontier_barrier(&db, session_id).await;
+    let header = hot_ledger_header(CanonicalAgentId::Codex, "Projection tail hot ledger");
+    let rows = serialize_viewport_rows_for_ledger(
+        session_id,
+        7,
+        1,
+        TRANSCRIPT_ROW_LEDGER_PROJECTION_VERSION,
+        &[assistant_text_row(
+            "entry-1",
+            "this row is stale after update",
+        )],
+    )
+    .expect("ledger rows should serialize");
+    SessionTranscriptRowLedgerRepository::replace_current(
+        &db,
+        session_id,
+        TRANSCRIPT_ROW_LEDGER_PROJECTION_VERSION,
+        7,
+        1,
+        1,
+        Some(serde_json::to_string(&header).expect("header should serialize")),
+        rows,
+    )
+    .await
+    .expect("ledger write should succeed");
+    SessionJournalEventRepository::append_session_update(
+        &db,
+        session_id,
+        &crate::acp::session_update::SessionUpdate::AgentMessageChunk {
+            chunk: crate::acp::session_update::ContentChunk {
+                content: crate::acp::types::ContentBlock::Text {
+                    text: "new row after ledger".to_string(),
+                },
+                aggregation_hint: None,
+            },
+            part_id: Some("assistant-part-2".to_string()),
+            message_id: Some("assistant-2".to_string()),
+            parent_tool_use_id: None,
+            session_id: Some(session_id.to_string()),
+            produced_at_monotonic_ms: None,
+        },
+    )
+    .await
+    .expect("append projection update");
+    let replay_context = replay_context_for_session(session_id, CanonicalAgentId::Codex);
+
+    let result = session_open_result_from_current_row_ledger_with_status(
+        &db,
+        &hub,
+        &replay_context,
+        session_id,
+        128,
+    )
+    .await
+    .expect("hot ledger lookup should succeed");
+    let CurrentRowLedgerOpenLookup::Miss(miss) = result else {
+        panic!("projection update after ledger must force rebuild");
+    };
+
+    assert_eq!(miss, CurrentRowLedgerOpenMiss::BehindJournal);
+}
+
+#[tokio::test]
+async fn current_row_ledger_hot_open_stays_bounded_for_1k_ledger() {
+    assert_large_hot_ledger_open_is_bounded("one-k-hot-ledger-session", 1_000).await;
+}
+
+#[tokio::test]
+async fn current_row_ledger_hot_open_stays_bounded_for_large_ledger() {
+    assert_large_hot_ledger_open_is_bounded("large-hot-ledger-session", 10_000).await;
+}
+
+#[tokio::test]
+async fn current_row_ledger_initial_page_policy_trims_heavy_tail_payload() {
+    let db = setup_db().await;
+    let hub = make_hub();
+    let session_id = "heavy-hot-ledger-session";
+    let row_count = 32usize;
+    let max_rows = 16u64;
+    let expected_initial_rows = 10usize;
+    let heavy_text = "heavy row payload ".repeat(160);
+    seed_session_metadata(&db, session_id, "codex").await;
+    append_frontier_barrier(&db, session_id).await;
+    let mut header = hot_ledger_header(CanonicalAgentId::Codex, "Heavy hot ledger session");
+    header.message_count = row_count as u64;
+    let mut viewport_rows = Vec::with_capacity(row_count);
+    for index in 0..row_count {
+        let entry_id = format!("entry-{index}");
+        viewport_rows.push(assistant_text_row(
+            &entry_id,
+            &format!("{index}: {heavy_text}"),
+        ));
+    }
+    let rows = serialize_viewport_rows_for_ledger(
+        session_id,
+        row_count as i64,
+        row_count as i64,
+        TRANSCRIPT_ROW_LEDGER_PROJECTION_VERSION,
+        &viewport_rows,
+    )
+    .expect("heavy ledger rows should serialize");
+    let tail_start = row_count - max_rows as usize;
+    let expected_tail_start = row_count - expected_initial_rows;
+    let expected_payload_bytes = rows[expected_tail_start..]
+        .iter()
+        .map(|row| row.row_json.len() as u64)
+        .sum::<u64>();
+    let payload_budget_bytes = expected_payload_bytes;
+    SessionTranscriptRowLedgerRepository::replace_current(
+        &db,
+        session_id,
+        TRANSCRIPT_ROW_LEDGER_PROJECTION_VERSION,
+        row_count as i64,
+        row_count as i64,
+        row_count as i64,
+        Some(serde_json::to_string(&header).expect("header should serialize")),
+        rows.clone(),
+    )
+    .await
+    .expect("heavy ledger write should succeed");
+    let replay_context = replay_context_for_session(session_id, CanonicalAgentId::Codex);
+
+    let result = session_open_result_from_current_row_ledger_with_initial_page_policy(
+        &db,
+        &hub,
+        &replay_context,
+        session_id,
+        CurrentRowLedgerInitialPagePolicy::byte_bounded(max_rows, 8, payload_budget_bytes),
+    )
+    .await
+    .expect("hot ledger lookup should succeed");
+    let CurrentRowLedgerOpenLookup::Found { result, .. } = result else {
+        panic!("expected found hot ledger open");
+    };
+    let SessionOpenResult::Found(found) = result else {
+        panic!("expected found hot ledger open result");
+    };
+    let page = found
+        .initial_transcript_row_page
+        .as_ref()
+        .expect("hot open should include bounded row page");
+    let envelope = found
+        .initial_viewport_envelope
+        .as_ref()
+        .expect("hot open should include bounded viewport push");
+    let SessionStatePayload::ViewportBufferPush { push } = &envelope.payload else {
+        panic!("expected viewport push payload");
+    };
+
+    assert_eq!(page.total_row_count, row_count as i64);
+    assert_eq!(page.start_row_index, expected_tail_start as i64);
+    assert_eq!(page.row_payload_bytes, expected_payload_bytes);
+    assert_eq!(page.rows.len(), expected_initial_rows);
+    assert_eq!(
+        page.rows[0].source_entry_id,
+        format!("entry-{expected_tail_start}")
+    );
+    assert_eq!(push.rows.len(), expected_initial_rows);
+    assert_eq!(
+        push.rows[0].source_entry_id,
+        format!("entry-{expected_tail_start}")
+    );
+    assert!(
+        rows[tail_start..]
+            .iter()
+            .map(|row| row.row_json.len() as u64)
+            .sum::<u64>()
+            > page.row_payload_bytes
+    );
+}
+
+#[tokio::test]
+#[ignore = "synthetic 100k row ledger flatness probe; run explicitly for performance validation"]
+async fn current_row_ledger_hot_open_stays_bounded_for_100k_ledger() {
+    assert_large_hot_ledger_open_is_bounded("hundred-k-hot-ledger-session", 100_000).await;
+}
+
+async fn assert_large_hot_ledger_open_is_bounded(session_id: &str, row_count: usize) {
+    let db = setup_db().await;
+    let hub = make_hub();
+    let tail_limit = 128u64;
+    seed_session_metadata(&db, session_id, "codex").await;
+    append_frontier_barrier(&db, session_id).await;
+    let mut header = hot_ledger_header(CanonicalAgentId::Codex, "Large hot ledger session");
+    header.message_count = row_count as u64;
+    let mut viewport_rows = Vec::with_capacity(row_count);
+    for index in 0..row_count {
+        let entry_id = format!("entry-{index}");
+        viewport_rows.push(assistant_text_row(&entry_id, "large ledger row"));
+    }
+    let rows = serialize_viewport_rows_for_ledger(
+        session_id,
+        row_count as i64,
+        row_count as i64,
+        TRANSCRIPT_ROW_LEDGER_PROJECTION_VERSION,
+        &viewport_rows,
+    )
+    .expect("large ledger rows should serialize");
+    let expected_tail_payload_bytes = rows[row_count - tail_limit as usize..]
+        .iter()
+        .map(|row| row.row_json.len() as u64)
+        .sum::<u64>();
+    SessionTranscriptRowLedgerRepository::replace_current(
+        &db,
+        session_id,
+        TRANSCRIPT_ROW_LEDGER_PROJECTION_VERSION,
+        row_count as i64,
+        row_count as i64,
+        row_count as i64,
+        Some(serde_json::to_string(&header).expect("header should serialize")),
+        rows,
+    )
+    .await
+    .expect("large ledger write should succeed");
+    let replay_context = replay_context_for_session(session_id, CanonicalAgentId::Codex);
+
+    let result = session_open_result_from_current_row_ledger(
+        &db,
+        &hub,
+        &replay_context,
+        session_id,
+        tail_limit,
+    )
+    .await
+    .expect("large hot ledger lookup should succeed")
+    .expect("current large ledger should open hot");
+    let SessionOpenResult::Found(found) = result else {
+        panic!("expected found hot ledger open");
+    };
+    let page = found
+        .initial_transcript_row_page
+        .as_ref()
+        .expect("hot open should include bounded row page");
+    let envelope = found
+        .initial_viewport_envelope
+        .as_ref()
+        .expect("hot open should include bounded viewport push");
+    let SessionStatePayload::ViewportBufferPush { push } = &envelope.payload else {
+        panic!("expected viewport push payload");
+    };
+
+    assert_eq!(found.open_path, SessionOpenPath::HotLedger);
+    assert!(found.transcript_snapshot.entries.is_empty());
+    assert!(found.operations.is_empty());
+    assert_eq!(page.total_row_count, row_count as i64);
+    assert_eq!(page.start_row_index, row_count as i64 - tail_limit as i64);
+    assert_eq!(page.row_payload_bytes, expected_tail_payload_bytes);
+    assert!(
+        page.row_payload_bytes < 100_000,
+        "tail payload must stay page-sized, got {} bytes",
+        page.row_payload_bytes
+    );
+    assert_eq!(page.rows.len(), tail_limit as usize);
+    assert_eq!(
+        page.rows[0].source_entry_id,
+        format!("entry-{}", row_count - tail_limit as usize)
+    );
+    assert_eq!(push.rows.len(), tail_limit as usize);
+    assert_eq!(
+        push.rows[0].source_entry_id,
+        format!("entry-{}", row_count - tail_limit as usize)
+    );
+}
+
+#[tokio::test]
+async fn journal_rebuild_upgrades_stale_ledger_and_next_open_is_hot() {
+    let db = setup_db().await;
+    let hub = make_hub();
+    let session_id = "journal-rebuilt-hot-open";
+    seed_session_metadata(&db, session_id, "copilot").await;
+    let journal_updates = vec![
+        crate::acp::session_update::SessionUpdate::UserMessageChunk {
+            chunk: crate::acp::session_update::ContentChunk {
+                content: crate::acp::types::ContentBlock::Text {
+                    text: "hello ledger".to_string(),
+                },
+                aggregation_hint: None,
+            },
+            session_id: Some(session_id.to_string()),
+            attempt_id: Some("attempt-1".to_string()),
+        },
+        crate::acp::session_update::SessionUpdate::AgentMessageChunk {
+            chunk: crate::acp::session_update::ContentChunk {
+                content: crate::acp::types::ContentBlock::Text {
+                    text: "hello from rebuild".to_string(),
+                },
+                aggregation_hint: None,
+            },
+            part_id: Some("assistant-part-1".to_string()),
+            message_id: Some("assistant-1".to_string()),
+            parent_tool_use_id: None,
+            session_id: Some(session_id.to_string()),
+            produced_at_monotonic_ms: None,
+        },
+        crate::acp::session_update::SessionUpdate::TurnComplete {
+            session_id: Some(session_id.to_string()),
+            turn_id: Some("turn-1".to_string()),
+        },
+    ];
+    for update in journal_updates {
+        SessionJournalEventRepository::append_session_update(&db, session_id, &update)
+            .await
+            .expect("append journal update");
+    }
+    SessionTranscriptRowLedgerRepository::mark_rebuild_needed(
+        &db,
+        session_id,
+        "transcript_viewport_row:old",
+        0,
+        0,
+        0,
+    )
+    .await
+    .expect("mark stale ledger");
+    let replay_context = replay_context_for_session(session_id, CanonicalAgentId::Copilot);
+
+    let detailed_before_rebuild = session_open_result_from_current_row_ledger_with_status(
+        &db,
+        &hub,
+        &replay_context,
+        session_id,
+        128,
+    )
+    .await
+    .expect("stale ledger status read should not fail");
+    let CurrentRowLedgerOpenLookup::Miss(miss) = detailed_before_rebuild else {
+        panic!("stale ledger must not satisfy the detailed hot-open path");
+    };
+    assert_eq!(miss, CurrentRowLedgerOpenMiss::RebuildNeeded);
+
+    let before_rebuild =
+        session_open_result_from_current_row_ledger(&db, &hub, &replay_context, session_id, 128)
+            .await
+            .expect("stale ledger read should not fail");
+    assert!(
+        before_rebuild.is_none(),
+        "stale ledger must not satisfy the hot-open path"
+    );
+
+    let lifecycle = SessionGraphLifecycle::detached(
+        crate::acp::lifecycle::DetachedReason::RestoredRequiresAttach,
+    );
+    let capabilities = SessionGraphCapabilities::empty();
+    let rebuilt_revision =
+        crate::acp::transcript_viewport::ledger_rebuild::rebuild_and_replace_current_transcript_row_ledger_from_journal(
+            &db,
+            &replay_context,
+            &lifecycle,
+            &capabilities,
+        )
+        .await
+        .expect("journal ledger rebuild should succeed")
+        .expect("journal events should rebuild a ledger");
+    assert_eq!(rebuilt_revision.last_event_seq, 3);
+
+    let ledger_page = SessionTranscriptRowLedgerRepository::read_tail_page(
+        &db,
+        session_id,
+        TRANSCRIPT_ROW_LEDGER_PROJECTION_VERSION,
+        128,
+    )
+    .await
+    .expect("rebuilt ledger page should read");
+    let SessionTranscriptRowLedgerRead::Current { metadata, rows } = ledger_page else {
+        panic!("rebuilt ledger should be current");
+    };
+    assert_eq!(
+        metadata.projection_version,
+        TRANSCRIPT_ROW_LEDGER_PROJECTION_VERSION
+    );
+    assert_eq!(metadata.last_event_seq, 3);
+    assert_eq!(metadata.row_count, 2);
+    assert_eq!(rows.len(), 2);
+
+    let result =
+        session_open_result_from_current_row_ledger(&db, &hub, &replay_context, session_id, 128)
+            .await
+            .expect("rebuilt ledger hot lookup should succeed")
+            .expect("rebuilt current ledger should open hot");
+    let SessionOpenResult::Found(found) = result else {
+        panic!("expected found hot ledger open");
+    };
+    assert_eq!(found.open_path, SessionOpenPath::HotLedger);
+    assert_eq!(found.last_event_seq, 3);
+    assert_eq!(found.session_title, "hello ledger");
+    assert!(found.transcript_snapshot.entries.is_empty());
+    assert_eq!(
+        found
+            .initial_transcript_row_page
+            .as_ref()
+            .expect("hot open should include row page")
+            .rows
+            .len(),
+        2
+    );
+}
+
+#[tokio::test]
+async fn corrupt_current_row_ledger_row_is_marked_rebuild_needed() {
+    let db = setup_db().await;
+    let hub = make_hub();
+    let session_id = "corrupt-row-ledger-session";
+    seed_session_metadata(&db, session_id, "codex").await;
+    append_frontier_barrier(&db, session_id).await;
+    let header = hot_ledger_header(CanonicalAgentId::Codex, "Corrupt row ledger session");
+    let mut rows = serialize_viewport_rows_for_ledger(
+        session_id,
+        7,
+        1,
+        TRANSCRIPT_ROW_LEDGER_PROJECTION_VERSION,
+        &[assistant_text_row("entry-1", "valid before corruption")],
+    )
+    .expect("ledger rows should serialize");
+    rows[0].row_json = "{not valid json".to_string();
+    SessionTranscriptRowLedgerRepository::replace_current(
+        &db,
+        session_id,
+        TRANSCRIPT_ROW_LEDGER_PROJECTION_VERSION,
+        7,
+        1,
+        1,
+        Some(serde_json::to_string(&header).expect("header should serialize")),
+        rows,
+    )
+    .await
+    .expect("corrupt row payload can exist in persisted storage");
+    let replay_context = replay_context_for_session(session_id, CanonicalAgentId::Codex);
+
+    let result =
+        session_open_result_from_current_row_ledger(&db, &hub, &replay_context, session_id, 128)
+            .await
+            .expect("corrupt ledger should route to rebuild, not hard-fail open");
+
+    assert!(
+        result.is_none(),
+        "corrupt row payload must not satisfy hot open"
+    );
+    assert_rebuild_needed(&db, session_id).await;
+}
+
+#[tokio::test]
+async fn corrupt_current_row_ledger_header_is_marked_rebuild_needed() {
+    let db = setup_db().await;
+    let hub = make_hub();
+    let session_id = "corrupt-header-ledger-session";
+    seed_session_metadata(&db, session_id, "codex").await;
+    append_frontier_barrier(&db, session_id).await;
+    let rows = serialize_viewport_rows_for_ledger(
+        session_id,
+        7,
+        1,
+        TRANSCRIPT_ROW_LEDGER_PROJECTION_VERSION,
+        &[assistant_text_row("entry-1", "valid row")],
+    )
+    .expect("ledger rows should serialize");
+    SessionTranscriptRowLedgerRepository::replace_current(
+        &db,
+        session_id,
+        TRANSCRIPT_ROW_LEDGER_PROJECTION_VERSION,
+        7,
+        1,
+        1,
+        Some("{not valid header".to_string()),
+        rows,
+    )
+    .await
+    .expect("corrupt header payload can exist in persisted storage");
+    let replay_context = replay_context_for_session(session_id, CanonicalAgentId::Codex);
+
+    let result =
+        session_open_result_from_current_row_ledger(&db, &hub, &replay_context, session_id, 128)
+            .await
+            .expect("corrupt ledger header should route to rebuild, not hard-fail open");
+
+    assert!(
+        result.is_none(),
+        "corrupt header payload must not satisfy hot open"
+    );
+    assert_rebuild_needed(&db, session_id).await;
+}
+
 fn replay_context_for_session(
     session_id: &str,
     agent_id: CanonicalAgentId,
@@ -83,6 +885,69 @@ fn replay_context_for_session(
         source_path: None,
         compatibility: SessionDescriptorCompatibility::Canonical,
     }
+}
+
+fn hot_ledger_header(
+    agent_id: CanonicalAgentId,
+    session_title: &str,
+) -> SessionTranscriptRowLedgerOpenHeader {
+    SessionTranscriptRowLedgerOpenHeader {
+        agent_id,
+        project_path: "/test/project".to_string(),
+        worktree_path: None,
+        source_path: None,
+        sequence_id: None,
+        session_title: session_title.to_string(),
+        turn_state: SessionTurnState::Completed,
+        message_count: 1,
+        activity: SessionGraphActivity::idle(),
+        active_streaming_tail: None,
+        lifecycle: SessionGraphLifecycle::detached(
+            crate::acp::lifecycle::DetachedReason::RestoredRequiresAttach,
+        ),
+        capabilities: SessionGraphCapabilities::empty(),
+        active_turn_failure: None,
+        last_terminal_turn_id: None,
+    }
+}
+
+fn assistant_text_row(entry_id: &str, text: &str) -> TranscriptViewportRow {
+    TranscriptViewportRow {
+        row_id: format!("transcript:{entry_id}"),
+        source_entry_id: entry_id.to_string(),
+        kind: TranscriptViewportRowKind::AssistantText,
+        version: format!("{entry_id}:version"),
+        anchor_eligible: true,
+        active_streaming_tail: None,
+        operation_links: Vec::new(),
+        interaction_links: Vec::new(),
+        content: TranscriptViewportRowContent::Transcript {
+            role: TranscriptEntryRole::Assistant,
+            segments: vec![TranscriptSegment::Text {
+                segment_id: format!("{entry_id}:text:0"),
+                text: text.to_string(),
+            }],
+        },
+        duration_started_at_ms: None,
+    }
+}
+
+async fn assert_rebuild_needed(db: &DbConn, session_id: &str) {
+    let ledger_page = SessionTranscriptRowLedgerRepository::read_tail_page(
+        db,
+        session_id,
+        TRANSCRIPT_ROW_LEDGER_PROJECTION_VERSION,
+        128,
+    )
+    .await
+    .expect("rebuild-needed metadata should read");
+    let SessionTranscriptRowLedgerRead::Stale { metadata } = ledger_page else {
+        panic!("expected ledger to be marked rebuild-needed");
+    };
+    assert_eq!(
+        metadata.rebuild_status,
+        SessionTranscriptRowLedgerStatus::RebuildNeeded
+    );
 }
 
 fn provider_owned_agents_with_history_replay() -> Vec<CanonicalAgentId> {
@@ -400,6 +1265,7 @@ async fn new_session_open_result_rebuilds_completed_local_journal_transcript() {
             },
             part_id: None,
             message_id: Some("assistant-1".to_string()),
+            parent_tool_use_id: None,
             session_id: Some(session_id.to_string()),
             produced_at_monotonic_ms: None,
         },
@@ -426,6 +1292,7 @@ async fn new_session_open_result_rebuilds_completed_local_journal_transcript() {
             },
             part_id: None,
             message_id: Some("assistant-2".to_string()),
+            parent_tool_use_id: None,
             session_id: Some(session_id.to_string()),
             produced_at_monotonic_ms: None,
         },
@@ -503,9 +1370,9 @@ async fn provider_thread_snapshot_open_does_not_require_local_snapshot_tables() 
     assert_eq!(found.transcript_snapshot, expected_transcript);
     assert_eq!(
         found.lifecycle.status,
-        crate::acp::lifecycle::LifecycleStatus::Detached
+        crate::acp::lifecycle::LifecycleStatus::Reconnecting
     );
-    assert!(found.lifecycle.actionability.can_resume);
+    assert!(!found.lifecycle.actionability.can_resume);
     assert!(found.capabilities.available_commands.is_none());
     assert_eq!(found.operations.len(), 1);
     let operation = &found.operations[0];
@@ -549,6 +1416,7 @@ async fn provider_thread_snapshot_open_prefers_completed_local_journal_transcrip
             },
             part_id: None,
             message_id: Some("assistant-1".to_string()),
+            parent_tool_use_id: None,
             session_id: Some(session_id.to_string()),
             produced_at_monotonic_ms: None,
         },
@@ -575,6 +1443,7 @@ async fn provider_thread_snapshot_open_prefers_completed_local_journal_transcrip
             },
             part_id: None,
             message_id: Some("assistant-2".to_string()),
+            parent_tool_use_id: None,
             session_id: Some(session_id.to_string()),
             produced_at_monotonic_ms: None,
         },
@@ -657,6 +1526,7 @@ async fn provider_thread_snapshot_open_keeps_provider_tool_rows_with_local_journ
             },
             part_id: None,
             message_id: Some("assistant-1".to_string()),
+            parent_tool_use_id: None,
             session_id: Some(session_id.to_string()),
             produced_at_monotonic_ms: None,
         },
@@ -793,6 +1663,7 @@ async fn provider_thread_snapshot_open_includes_new_user_message_after_last_comp
             },
             part_id: None,
             message_id: Some("assistant-1".to_string()),
+            parent_tool_use_id: None,
             session_id: Some(session_id.to_string()),
             produced_at_monotonic_ms: None,
         },
@@ -942,9 +1813,9 @@ async fn provider_owned_open_pipeline_restores_each_builtin_agent_to_canonical_s
         );
         assert_eq!(
             found.lifecycle.status,
-            crate::acp::lifecycle::LifecycleStatus::Detached
+            crate::acp::lifecycle::LifecycleStatus::Reconnecting
         );
-        assert!(found.lifecycle.actionability.can_resume);
+        assert!(!found.lifecycle.actionability.can_resume);
         assert!(!found.lifecycle.actionability.can_send);
 
         let token = Uuid::parse_str(&found.open_token).expect("open token must be a UUID");
@@ -958,7 +1829,7 @@ async fn provider_owned_open_pipeline_restores_each_builtin_agent_to_canonical_s
         assert_eq!(runtime_snapshot.graph_revision, found.graph_revision);
         assert_eq!(
             runtime_snapshot.lifecycle.status,
-            crate::acp::lifecycle::LifecycleStatus::Detached
+            crate::acp::lifecycle::LifecycleStatus::Reconnecting
         );
     }
 }
@@ -1119,12 +1990,9 @@ async fn provider_thread_snapshot_open_restores_runtime_lifecycle_for_attach() {
     assert_eq!(runtime_snapshot.graph_revision, found.graph_revision);
     assert_eq!(
         runtime_snapshot.lifecycle.status,
-        crate::acp::lifecycle::LifecycleStatus::Detached
+        crate::acp::lifecycle::LifecycleStatus::Reconnecting
     );
-    assert_eq!(
-        runtime_snapshot.lifecycle.detached_reason,
-        Some(crate::acp::lifecycle::DetachedReason::RestoredRequiresAttach)
-    );
+    assert_eq!(runtime_snapshot.lifecycle.detached_reason, None);
 }
 
 #[tokio::test]
@@ -1409,6 +2277,539 @@ async fn provider_thread_snapshot_open_marks_alias_request_without_rewriting_can
     assert_eq!(found.canonical_session_id, canonical_session_id);
 }
 
+fn completed_operation_with_payload(session_id: &str, index: usize) -> OperationSnapshot {
+    OperationSnapshot {
+        id: format!("op-{index}"),
+        session_id: session_id.to_string(),
+        tool_call_id: format!("tool-{index}"),
+        name: "Read".to_string(),
+        kind: Some(ToolKind::Read),
+        provider_status: ToolCallStatus::Completed,
+        title: Some("Historical read".to_string()),
+        arguments: ToolArguments::Other {
+            raw: json!({
+                "payload": "x".repeat(3_000)
+            }),
+            intent: None,
+        },
+        progressive_arguments: None,
+        result: Some(json!({
+            "content": "x".repeat(3_000)
+        })),
+        computer_payload: None,
+        command: Some("x".repeat(1_024)),
+        normalized_todos: None,
+        parent_tool_call_id: None,
+        parent_operation_id: None,
+        child_tool_call_ids: Vec::new(),
+        child_operation_ids: Vec::new(),
+        operation_provenance_key: None,
+        operation_state: OperationState::Completed,
+        locations: None,
+        skill_meta: None,
+        normalized_questions: None,
+        question_answer: None,
+        awaiting_plan_approval: false,
+        plan_approval_request_id: None,
+        started_at_ms: None,
+        completed_at_ms: None,
+        source_link: OperationSourceLink::Synthetic {
+            reason: "test".to_string(),
+        },
+        degradation_reason: None,
+    }
+}
+
+fn running_operation(session_id: &str) -> OperationSnapshot {
+    let mut operation = completed_operation_with_payload(session_id, 10_000);
+    operation.id = "op-running".to_string();
+    operation.tool_call_id = "tool-running".to_string();
+    operation.provider_status = ToolCallStatus::InProgress;
+    operation.operation_state = OperationState::Running;
+    operation
+}
+
+fn compact_completed_execute_operation(session_id: &str, index: usize) -> OperationSnapshot {
+    OperationSnapshot {
+        id: format!("op-display-{index}"),
+        session_id: session_id.to_string(),
+        tool_call_id: format!("tool-display-{index}"),
+        name: "exec_command".to_string(),
+        kind: Some(ToolKind::Execute),
+        provider_status: ToolCallStatus::Completed,
+        title: Some("exec_command".to_string()),
+        arguments: ToolArguments::Execute {
+            command: Some(format!("echo {index}")),
+        },
+        progressive_arguments: None,
+        result: Some(json!(format!("ok {index}"))),
+        computer_payload: None,
+        command: Some(format!("echo {index}")),
+        normalized_todos: None,
+        parent_tool_call_id: None,
+        parent_operation_id: None,
+        child_tool_call_ids: Vec::new(),
+        child_operation_ids: Vec::new(),
+        operation_provenance_key: Some(format!("tool-display-{index}")),
+        operation_state: OperationState::Completed,
+        locations: None,
+        skill_meta: None,
+        normalized_questions: None,
+        question_answer: None,
+        awaiting_plan_approval: false,
+        plan_approval_request_id: None,
+        started_at_ms: None,
+        completed_at_ms: None,
+        source_link: OperationSourceLink::transcript_linked(format!(
+            "acepe::entry::assistant-boundary:{index}::tool::tool-display-{index}"
+        )),
+        degradation_reason: None,
+    }
+}
+
+fn viewport_envelope_for_operation(
+    session_id: &str,
+    operation: &OperationSnapshot,
+) -> crate::acp::session_state_engine::SessionStateEnvelope {
+    crate::acp::session_state_engine::SessionStateEnvelope {
+        session_id: session_id.to_string(),
+        graph_revision: 12,
+        last_event_seq: 12,
+        payload: crate::acp::session_state_engine::SessionStatePayload::ViewportBufferPush {
+            push: crate::acp::session_state_engine::ViewportBufferPush {
+                session_id: session_id.to_string(),
+                graph_revision: crate::acp::session_state_engine::SessionGraphRevision::new(
+                    12, 11, 12,
+                ),
+                emission_seq: 1,
+                rows: vec![crate::acp::transcript_viewport::TranscriptViewportRow {
+                    row_id: format!("transcript:{}", operation.tool_call_id),
+                    source_entry_id: operation.tool_call_id.clone(),
+                    kind: crate::acp::transcript_viewport::TranscriptViewportRowKind::Tool,
+                    version: "visible-op-version".to_string(),
+                    anchor_eligible: true,
+                    active_streaming_tail: None,
+                    operation_links: vec![
+                        crate::acp::transcript_viewport::TranscriptViewportOperationLink {
+                            operation_id: operation.id.clone(),
+                            tool_call_id: operation.tool_call_id.clone(),
+                            name: operation.name.clone(),
+                            state: operation.operation_state.clone(),
+                            display_facts: None,
+                            operation: None,
+                        },
+                    ],
+                    interaction_links: Vec::new(),
+                    content:
+                        crate::acp::transcript_viewport::TranscriptViewportRowContent::Transcript {
+                            role: TranscriptEntryRole::Tool,
+                            segments: Vec::new(),
+                        },
+                    duration_started_at_ms: None,
+                }],
+                request_generation: None,
+                diagnostics: Vec::new(),
+            },
+        },
+    }
+}
+
+#[test]
+fn oversized_open_result_compacts_transcript_body_for_ipc() {
+    let result = SessionOpenResult::Found(Box::new(SessionOpenFound {
+        requested_session_id: "requested-oversized".to_string(),
+        canonical_session_id: "canonical-oversized".to_string(),
+        is_alias: false,
+        last_event_seq: 12,
+        graph_revision: 12,
+        open_token: "open-token-oversized".to_string(),
+        agent_id: CanonicalAgentId::ClaudeCode,
+        project_path: "/test/project".to_string(),
+        worktree_path: None,
+        source_path: None,
+        sequence_id: None,
+        transcript_snapshot: TranscriptSnapshot {
+            revision: 11,
+            entries: vec![crate::acp::transcript_projection::TranscriptEntry {
+                entry_id: "assistant-large".to_string(),
+                role: TranscriptEntryRole::Assistant,
+                segments: vec![TranscriptSegment::Text {
+                    segment_id: "assistant-large:text".to_string(),
+                    text: "x".repeat(2_100_000),
+                }],
+                attempt_id: None,
+                timestamp_ms: None,
+            }],
+        },
+        session_title: "Large restored session".to_string(),
+        operations: vec![OperationSnapshot {
+            id: "op-large".to_string(),
+            session_id: "canonical-oversized".to_string(),
+            tool_call_id: "tool-large".to_string(),
+            name: "Read".to_string(),
+            kind: Some(ToolKind::Read),
+            provider_status: ToolCallStatus::Completed,
+            title: Some("Large read".to_string()),
+            arguments: ToolArguments::Other {
+                raw: json!({
+                    "payload": "x".repeat(2_100_000)
+                }),
+                intent: None,
+            },
+            progressive_arguments: Some(ToolArguments::Other {
+                raw: json!({
+                    "payload": "x".repeat(2_100_000)
+                }),
+                intent: None,
+            }),
+            result: Some(json!({
+                "content": "x".repeat(2_100_000)
+            })),
+            computer_payload: None,
+            command: Some("x".repeat(2_100_000)),
+            normalized_todos: None,
+            parent_tool_call_id: None,
+            parent_operation_id: None,
+            child_tool_call_ids: Vec::new(),
+            child_operation_ids: Vec::new(),
+            operation_provenance_key: None,
+            operation_state: OperationState::Completed,
+            locations: None,
+            skill_meta: None,
+            normalized_questions: None,
+            question_answer: None,
+            awaiting_plan_approval: false,
+            plan_approval_request_id: None,
+            started_at_ms: None,
+            completed_at_ms: None,
+            source_link: OperationSourceLink::Synthetic {
+                reason: "test".to_string(),
+            },
+            degradation_reason: None,
+        }],
+        interactions: Vec::new(),
+        turn_state: SessionTurnState::Idle,
+        message_count: 1,
+        activity: crate::acp::session_state_engine::SessionGraphActivity::idle(),
+        active_streaming_tail: None,
+        lifecycle: SessionGraphLifecycle::detached(
+            crate::acp::lifecycle::DetachedReason::RestoredRequiresAttach,
+        ),
+        capabilities: SessionGraphCapabilities::empty(),
+        open_path: crate::acp::session_open_snapshot::SessionOpenPath::CompatSnapshot,
+        initial_transcript_row_page: None,
+        initial_viewport_envelope: None,
+        open_result_timing: None,
+        active_turn_failure: None,
+        last_terminal_turn_id: None,
+    }));
+
+    let compacted = compact_oversized_session_open_result(result);
+    let byte_len = serde_json::to_vec(&compacted)
+        .expect("compacted open result should serialize")
+        .len();
+
+    let SessionOpenResult::Found(found) = compacted else {
+        panic!("expected compacted found result");
+    };
+    assert!(found.transcript_snapshot.entries.is_empty());
+    assert_eq!(found.transcript_snapshot.revision, 11);
+    assert_eq!(found.message_count, 1);
+    assert_eq!(found.session_title, "Large restored session");
+    assert_eq!(found.operations.len(), 1);
+    assert!(
+        serde_json::to_vec(&found.operations[0])
+            .expect("operation serializes")
+            .len()
+            < 32_000
+    );
+    assert!(
+        byte_len <= crate::acp::session_state_engine::SessionStatePayloadKind::Snapshot.max_bytes()
+    );
+}
+
+#[test]
+fn oversized_open_result_keeps_compact_completed_operations_when_they_fit() {
+    let session_id = "canonical-compact-display-ops";
+    let operation_count = super::snapshot::SESSION_OPEN_TRANSCRIPT_COMPACTION_ENTRY_THRESHOLD + 100;
+    let operations: Vec<OperationSnapshot> = (0..operation_count)
+        .map(|index| compact_completed_execute_operation(session_id, index))
+        .collect();
+    let entries: Vec<TranscriptEntry> = (0..operation_count)
+        .map(|index| TranscriptEntry {
+            entry_id: format!(
+                "acepe::entry::assistant-boundary:{index}::tool::tool-display-{index}"
+            ),
+            role: TranscriptEntryRole::Tool,
+            segments: Vec::new(),
+            attempt_id: None,
+            timestamp_ms: None,
+        })
+        .collect();
+    let result = SessionOpenResult::Found(Box::new(SessionOpenFound {
+        requested_session_id: "requested-compact-display-ops".to_string(),
+        canonical_session_id: session_id.to_string(),
+        is_alias: false,
+        last_event_seq: 12,
+        graph_revision: 12,
+        open_token: "open-token-compact-display-ops".to_string(),
+        agent_id: CanonicalAgentId::Codex,
+        project_path: "/test/project".to_string(),
+        worktree_path: None,
+        source_path: None,
+        sequence_id: None,
+        transcript_snapshot: TranscriptSnapshot {
+            revision: 11,
+            entries,
+        },
+        session_title: "Many compact operation restored session".to_string(),
+        operations,
+        interactions: Vec::new(),
+        turn_state: SessionTurnState::Idle,
+        message_count: operation_count as u64,
+        activity: crate::acp::session_state_engine::SessionGraphActivity::idle(),
+        active_streaming_tail: None,
+        lifecycle: SessionGraphLifecycle::detached(
+            crate::acp::lifecycle::DetachedReason::RestoredRequiresAttach,
+        ),
+        capabilities: SessionGraphCapabilities::empty(),
+        open_path: crate::acp::session_open_snapshot::SessionOpenPath::CompatSnapshot,
+        initial_transcript_row_page: None,
+        initial_viewport_envelope: None,
+        open_result_timing: None,
+        active_turn_failure: None,
+        last_terminal_turn_id: None,
+    }));
+
+    let compacted = compact_oversized_session_open_result(result);
+    let byte_len = serde_json::to_vec(&compacted)
+        .expect("compacted open result should serialize")
+        .len();
+
+    let SessionOpenResult::Found(found) = compacted else {
+        panic!("expected compacted found result");
+    };
+    assert!(found.transcript_snapshot.entries.is_empty());
+    assert_eq!(found.operations.len(), operation_count);
+    assert!(found.operations.iter().any(|operation| {
+        operation.tool_call_id == "tool-display-42"
+            && operation.command.as_deref() == Some("echo 42")
+            && matches!(
+                operation.source_link,
+                OperationSourceLink::TranscriptLinked { .. }
+            )
+    }));
+    assert!(
+        byte_len <= crate::acp::session_state_engine::SessionStatePayloadKind::Snapshot.max_bytes()
+    );
+}
+
+#[test]
+fn oversized_open_result_drops_historical_operations_when_still_over_budget() {
+    let session_id = "canonical-many-ops";
+    let mut operations: Vec<OperationSnapshot> = (0..4_000)
+        .map(|index| completed_operation_with_payload(session_id, index))
+        .collect();
+    operations.push(running_operation(session_id));
+    let result = SessionOpenResult::Found(Box::new(SessionOpenFound {
+        requested_session_id: "requested-many-ops".to_string(),
+        canonical_session_id: session_id.to_string(),
+        is_alias: false,
+        last_event_seq: 12,
+        graph_revision: 12,
+        open_token: "open-token-many-ops".to_string(),
+        agent_id: CanonicalAgentId::ClaudeCode,
+        project_path: "/test/project".to_string(),
+        worktree_path: None,
+        source_path: None,
+        sequence_id: None,
+        transcript_snapshot: TranscriptSnapshot {
+            revision: 11,
+            entries: vec![TranscriptEntry {
+                entry_id: "assistant-large".to_string(),
+                role: TranscriptEntryRole::Assistant,
+                segments: vec![TranscriptSegment::Text {
+                    segment_id: "assistant-large:text".to_string(),
+                    text: "x".repeat(2_100_000),
+                }],
+                attempt_id: None,
+                timestamp_ms: None,
+            }],
+        },
+        session_title: "Many operation restored session".to_string(),
+        operations,
+        interactions: Vec::new(),
+        turn_state: SessionTurnState::Idle,
+        message_count: 1,
+        activity: crate::acp::session_state_engine::SessionGraphActivity::idle(),
+        active_streaming_tail: None,
+        lifecycle: SessionGraphLifecycle::detached(
+            crate::acp::lifecycle::DetachedReason::RestoredRequiresAttach,
+        ),
+        capabilities: SessionGraphCapabilities::empty(),
+        open_path: crate::acp::session_open_snapshot::SessionOpenPath::CompatSnapshot,
+        initial_transcript_row_page: None,
+        initial_viewport_envelope: None,
+        open_result_timing: None,
+        active_turn_failure: None,
+        last_terminal_turn_id: None,
+    }));
+
+    let compacted = compact_oversized_session_open_result(result);
+    let byte_len = serde_json::to_vec(&compacted)
+        .expect("compacted open result should serialize")
+        .len();
+
+    let SessionOpenResult::Found(found) = compacted else {
+        panic!("expected compacted found result");
+    };
+    assert!(found.transcript_snapshot.entries.is_empty());
+    assert_eq!(found.operations.len(), 1);
+    assert_eq!(found.operations[0].id, "op-running");
+    assert!(
+        byte_len <= crate::acp::session_state_engine::SessionStatePayloadKind::Snapshot.max_bytes()
+    );
+}
+
+#[test]
+fn oversized_open_result_keeps_initial_viewport_operations_before_actionable_fallback() {
+    let session_id = "canonical-many-ops-visible-tool";
+    let visible_operation = completed_operation_with_payload(session_id, 42);
+    let mut operations: Vec<OperationSnapshot> = (0..4_000)
+        .map(|index| completed_operation_with_payload(session_id, index))
+        .collect();
+    operations.push(running_operation(session_id));
+    let result = SessionOpenResult::Found(Box::new(SessionOpenFound {
+        requested_session_id: "requested-many-ops-visible-tool".to_string(),
+        canonical_session_id: session_id.to_string(),
+        is_alias: false,
+        last_event_seq: 12,
+        graph_revision: 12,
+        open_token: "open-token-many-ops-visible-tool".to_string(),
+        agent_id: CanonicalAgentId::Codex,
+        project_path: "/test/project".to_string(),
+        worktree_path: None,
+        source_path: None,
+        sequence_id: None,
+        transcript_snapshot: TranscriptSnapshot {
+            revision: 11,
+            entries: vec![TranscriptEntry {
+                entry_id: "assistant-large".to_string(),
+                role: TranscriptEntryRole::Assistant,
+                segments: vec![TranscriptSegment::Text {
+                    segment_id: "assistant-large:text".to_string(),
+                    text: "x".repeat(2_100_000),
+                }],
+                attempt_id: None,
+                timestamp_ms: None,
+            }],
+        },
+        session_title: "Many operation restored session with visible tool".to_string(),
+        operations,
+        interactions: Vec::new(),
+        turn_state: SessionTurnState::Idle,
+        message_count: 1,
+        activity: crate::acp::session_state_engine::SessionGraphActivity::idle(),
+        active_streaming_tail: None,
+        lifecycle: SessionGraphLifecycle::detached(
+            crate::acp::lifecycle::DetachedReason::RestoredRequiresAttach,
+        ),
+        capabilities: SessionGraphCapabilities::empty(),
+        open_path: crate::acp::session_open_snapshot::SessionOpenPath::CompatSnapshot,
+        initial_transcript_row_page: None,
+        initial_viewport_envelope: Some(viewport_envelope_for_operation(
+            session_id,
+            &visible_operation,
+        )),
+        open_result_timing: None,
+        active_turn_failure: None,
+        last_terminal_turn_id: None,
+    }));
+
+    let compacted = compact_oversized_session_open_result(result);
+    let byte_len = serde_json::to_vec(&compacted)
+        .expect("compacted open result should serialize")
+        .len();
+
+    let SessionOpenResult::Found(found) = compacted else {
+        panic!("expected compacted found result");
+    };
+    assert!(found.transcript_snapshot.entries.is_empty());
+    assert!(found
+        .operations
+        .iter()
+        .any(|operation| operation.id == "op-42" && operation.command.is_some()));
+    assert!(found
+        .operations
+        .iter()
+        .any(|operation| operation.id == "op-running"));
+    assert!(
+        byte_len <= crate::acp::session_state_engine::SessionStatePayloadKind::Snapshot.max_bytes()
+    );
+}
+
+#[test]
+fn large_entry_count_open_result_compacts_transcript_body_before_full_byte_count() {
+    let entry_count = super::snapshot::SESSION_OPEN_TRANSCRIPT_COMPACTION_ENTRY_THRESHOLD + 1;
+    let entries = (0..entry_count)
+        .map(|index| TranscriptEntry {
+            entry_id: format!("assistant-{index}"),
+            role: TranscriptEntryRole::Assistant,
+            segments: vec![TranscriptSegment::Text {
+                segment_id: format!("assistant-{index}:text"),
+                text: "small row".to_string(),
+            }],
+            attempt_id: None,
+            timestamp_ms: None,
+        })
+        .collect();
+
+    let result = SessionOpenResult::Found(Box::new(SessionOpenFound {
+        requested_session_id: "requested-many-entries".to_string(),
+        canonical_session_id: "canonical-many-entries".to_string(),
+        is_alias: false,
+        last_event_seq: 12,
+        graph_revision: 12,
+        open_token: "open-token-many-entries".to_string(),
+        agent_id: CanonicalAgentId::ClaudeCode,
+        project_path: "/test/project".to_string(),
+        worktree_path: None,
+        source_path: None,
+        sequence_id: None,
+        transcript_snapshot: TranscriptSnapshot {
+            revision: 11,
+            entries,
+        },
+        session_title: "Many row restored session".to_string(),
+        operations: Vec::new(),
+        interactions: Vec::new(),
+        turn_state: SessionTurnState::Idle,
+        message_count: entry_count as u64,
+        activity: crate::acp::session_state_engine::SessionGraphActivity::idle(),
+        active_streaming_tail: None,
+        lifecycle: SessionGraphLifecycle::detached(
+            crate::acp::lifecycle::DetachedReason::RestoredRequiresAttach,
+        ),
+        capabilities: SessionGraphCapabilities::empty(),
+        open_path: crate::acp::session_open_snapshot::SessionOpenPath::CompatSnapshot,
+        initial_transcript_row_page: None,
+        initial_viewport_envelope: None,
+        open_result_timing: None,
+        active_turn_failure: None,
+        last_terminal_turn_id: None,
+    }));
+
+    let compacted = compact_oversized_session_open_result(result);
+
+    let SessionOpenResult::Found(found) = compacted else {
+        panic!("expected compacted found result");
+    };
+    assert!(found.transcript_snapshot.entries.is_empty());
+    assert_eq!(found.transcript_snapshot.revision, 11);
+    assert_eq!(found.message_count, entry_count as u64);
+    assert_eq!(found.session_title, "Many row restored session");
+}
+
 #[tokio::test]
 async fn provider_owned_alias_open_keys_viewport_authority_to_canonical_id_only() {
     let db = setup_db().await;
@@ -1442,6 +2843,21 @@ async fn provider_owned_alias_open_keys_viewport_authority_to_canonical_id_only(
         panic!("expected Found, got {result:?}");
     };
     assert!(found.is_alias);
+    let initial_viewport_envelope = found
+        .initial_viewport_envelope
+        .as_ref()
+        .expect("provider-owned open should include the initial viewport buffer");
+    assert_eq!(
+        initial_viewport_envelope.session_id,
+        found.canonical_session_id
+    );
+    match &initial_viewport_envelope.payload {
+        crate::acp::session_state_engine::SessionStatePayload::ViewportBufferPush { push } => {
+            assert_eq!(push.session_id, canonical_session_id);
+            assert!(!push.rows.is_empty());
+        }
+        other => panic!("expected initial viewport buffer push, got {other:?}"),
+    }
 
     // Mirror restore_session_open_authority: canonical-keyed transcript +
     // projection registries are the sole viewport authority.
@@ -1479,27 +2895,20 @@ async fn provider_owned_alias_open_keys_viewport_authority_to_canonical_id_only(
         found.last_event_seq,
     );
 
-    let envelope = runtime_registry
-        .build_viewport_buffer_push_envelope_for_session(
+    let repeated_envelope = runtime_registry
+        .build_or_advance_viewport_buffer_envelope(
             &found.canonical_session_id,
             revision,
             &projection_registry,
             &transcript_projection_registry,
             Some(720),
-            None,
-            None,
-            None,
-            0,
+            false,
         )
         .expect("canonical id should have restored viewport authority");
-
-    match envelope.payload {
-        crate::acp::session_state_engine::SessionStatePayload::ViewportBufferPush { push } => {
-            assert_eq!(push.session_id, canonical_session_id);
-            assert!(!push.rows.is_empty());
-        }
-        other => panic!("expected viewport buffer push, got {other:?}"),
-    }
+    assert!(
+        repeated_envelope.is_none(),
+        "initial viewport envelope should seed the row tracker"
+    );
 
     // The alias id has no viewport authority and must miss as SessionNotAttached.
     let alias_miss = runtime_registry
@@ -1509,10 +2918,6 @@ async fn provider_owned_alias_open_keys_viewport_authority_to_canonical_id_only(
             &projection_registry,
             &transcript_projection_registry,
             Some(720),
-            None,
-            None,
-            None,
-            0,
         )
         .expect_err("alias id must not resolve viewport authority");
     assert!(matches!(

@@ -21,6 +21,7 @@ use sea_orm::DbConn;
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Manager};
 
+pub(crate) mod ledger_backfill;
 pub(crate) mod plans;
 pub(crate) mod projects;
 pub(crate) mod scanning;
@@ -31,6 +32,7 @@ pub use crate::acp::session_restore::{
     audit_session_load_timing_cli, RestoredToolLinkAudit, SessionLoadTiming, TimingStage,
     UnresolvedToolRowAudit,
 };
+pub use ledger_backfill::warm_recent_transcript_row_ledgers;
 pub use plans::get_unified_plan;
 pub use projects::{count_sessions_for_project, list_all_project_paths};
 pub use scanning::{

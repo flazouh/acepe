@@ -86,21 +86,12 @@ describe("review-workspace-model", () => {
 		const rows = buildReviewWorkspaceFiles(
 			createReviewFilesState(),
 			new Map([
-				["src/lib/alpha.ts", "accepted"],
-				["src/lib/beta.ts", "partial"],
+				["src/lib/alpha.ts", "reviewed"],
+				["src/lib/beta.ts", "reviewed"],
 			])
 		);
 
 		expect(rows).toEqual([
-			{
-				id: "src/lib/beta.ts",
-				filePath: "src/lib/beta.ts",
-				fileName: "beta.ts",
-				sourceIndex: 1,
-				reviewStatus: "partial",
-				additions: 3,
-				deletions: 1,
-			},
 			{
 				id: "src/lib/gamma.ts",
 				filePath: "src/lib/gamma.ts",
@@ -124,20 +115,29 @@ describe("review-workspace-model", () => {
 				filePath: "src/lib/alpha.ts",
 				fileName: "alpha.ts",
 				sourceIndex: 0,
-				reviewStatus: "accepted",
+				reviewStatus: "reviewed",
 				additions: 12,
 				deletions: 2,
+			},
+			{
+				id: "src/lib/beta.ts",
+				filePath: "src/lib/beta.ts",
+				fileName: "beta.ts",
+				sourceIndex: 1,
+				reviewStatus: "reviewed",
+				additions: 3,
+				deletions: 1,
 			},
 		]);
 	});
 
-	it("orders partial, unreviewed, denied, then accepted files", () => {
+	it("orders unreviewed files before reviewed files, stable by source index", () => {
 		const rows = buildReviewWorkspaceFiles(
 			createReviewFilesState(),
 			new Map([
-				["src/lib/alpha.ts", "accepted"],
-				["src/lib/beta.ts", "denied"],
-				["src/lib/gamma.ts", "partial"],
+				["src/lib/alpha.ts", "reviewed"],
+				["src/lib/beta.ts", "reviewed"],
+				["src/lib/gamma.ts", "unreviewed"],
 				["src/lib/delta.ts", undefined],
 			])
 		);
@@ -145,21 +145,21 @@ describe("review-workspace-model", () => {
 		expect(rows.map((row) => row.fileName)).toEqual([
 			"gamma.ts",
 			"delta.ts",
-			"beta.ts",
 			"alpha.ts",
+			"beta.ts",
 		]);
-		expect(rows.map((row) => row.sourceIndex)).toEqual([2, 3, 1, 0]);
+		expect(rows.map((row) => row.sourceIndex)).toEqual([2, 3, 0, 1]);
 	});
 
-	it("defaults review entry selection to the first unresolved file from persisted review state", () => {
+	it("defaults review entry selection to the first unreviewed file from persisted review state", () => {
 		isLoaded.mockReturnValue(true);
 		getState.mockReturnValue({});
 		getReviewStatusByFilePath.mockReturnValue(
 			new Map([
-				["src/lib/alpha.ts", "accepted"],
+				["src/lib/alpha.ts", "reviewed"],
 				["src/lib/beta.ts", undefined],
-				["src/lib/gamma.ts", "accepted"],
-				["src/lib/delta.ts", "accepted"],
+				["src/lib/gamma.ts", "reviewed"],
+				["src/lib/delta.ts", "reviewed"],
 			])
 		);
 

@@ -1,7 +1,7 @@
 <script lang="ts">
-	import ChevronRightIcon from "@lucide/svelte/icons/chevron-right";
 	import { DropdownMenu as DropdownMenuPrimitive } from "bits-ui";
 	import { cn } from "../../lib/utils";
+	import { RoundedIcon } from "../icons/index.js";
 	import { dropdownMenuItemRadiusClass } from "./dropdown-menu-item.classes.js";
 	import { dropdownMenuItemTypographyClass } from "./dropdown-menu-typography.js";
 	import { getDropdownMenuHighlightContext } from "./dropdown-menu-highlight-context";
@@ -54,10 +54,10 @@
 		"data-[disabled]:pointer-events-none data-[disabled]:opacity-50",
 		"data-[inset]:ps-8",
 		"[&_svg:not([class*='text-'])]:text-muted-foreground",
-		"[&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
+		"[&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-3",
 		className
 	)}
 >
 	{@render children?.()}
-	<ChevronRightIcon class="ms-auto size-4" />
+	<RoundedIcon name="chevron-right" class="size-3 shrink-0 ms-auto text-muted-foreground" />
 </DropdownMenuPrimitive.SubTrigger>

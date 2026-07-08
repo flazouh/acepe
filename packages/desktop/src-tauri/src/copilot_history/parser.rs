@@ -304,6 +304,7 @@ pub(crate) fn convert_events_to_updates(
                                 chunk: text_chunk(reasoning_content),
                                 part_id: None,
                                 message_id: data.message_id.clone(),
+                                parent_tool_use_id: None,
                                 session_id: Some(session_id.to_string()),
                             },
                         ));
@@ -317,6 +318,7 @@ pub(crate) fn convert_events_to_updates(
                             chunk: text_chunk(data.content),
                             part_id: None,
                             message_id: data.message_id.clone(),
+                            parent_tool_use_id: None,
                             session_id: Some(session_id.to_string()),
                             produced_at_monotonic_ms: None,
                         },
@@ -357,6 +359,7 @@ pub(crate) fn convert_events_to_updates(
                         chunk: text_chunk(data.content),
                         part_id: None,
                         message_id: data.message_id,
+                        parent_tool_use_id: None,
                         session_id: Some(session_id.to_string()),
                     },
                 ));
@@ -371,6 +374,7 @@ pub(crate) fn convert_events_to_updates(
                         chunk: text_chunk(format!("Error: {}", data.message)),
                         part_id: None,
                         message_id: None,
+                        parent_tool_use_id: None,
                         session_id: Some(session_id.to_string()),
                         produced_at_monotonic_ms: None,
                     },

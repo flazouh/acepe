@@ -1,12 +1,12 @@
 <script lang="ts">
 	import type { Snippet } from "svelte";
-	import { Robot, Tree, X } from "phosphor-svelte";
 	import AgentToolTask from "../agent-panel/agent-tool-task.svelte";
 	import AgentCompactToolDisplay from "../agent-panel/compact-tool-display.svelte";
 	import { DiffPill } from "../diff-pill/index.js";
 	import { Colors } from "../../lib/colors.js";
 	import { capitalizeLeadingCharacter } from "../../lib/utils.js";
 	import { Button } from "../button/index.js";
+	import { RobotIcon, RoundedIcon } from "../icons/index.js";
 	import {
 	EmbeddedPanelHeader,
 	HeaderActionCell,
@@ -101,6 +101,7 @@ function handleKeydown(event: KeyboardEvent): void {
 			<HeaderCell withDivider={false} class="px-1">
 				<ProjectLetterBadge
 					name={card.projectName}
+					label={card.projectBadgeLabel ?? null}
 					color={card.projectColor}
 					iconSrc={card.projectIconSrc}
 					size={14}
@@ -121,11 +122,9 @@ function handleKeydown(event: KeyboardEvent): void {
 							aria-label={card.worktreeDeleted ? "Worktree deleted" : "Worktree session"}
 							title={card.worktreeDeleted ? "Worktree deleted" : "Worktree session"}
 						>
-							<Tree
-								size={12}
-								weight="fill"
-								class={card.worktreeDeleted ? "text-destructive" : "text-success"}
-								color="currentColor"
+							<RoundedIcon
+								name="worktree"
+								class={card.worktreeDeleted ? "size-3 text-destructive" : "size-3 text-success"}
 							/>
 						</div>
 					{/if}
@@ -135,7 +134,7 @@ function handleKeydown(event: KeyboardEvent): void {
 							aria-label="Auto mode"
 							title="Auto mode"
 						>
-							<Robot size={12} weight="fill" style="color: {Colors.purple}" class="shrink-0" />
+							<RobotIcon size={12} weight="fill" style="color: {Colors.purple}" class="shrink-0" />
 						</div>
 					{/if}
 				</div>
@@ -161,8 +160,8 @@ function handleKeydown(event: KeyboardEvent): void {
 					<!-- svelte-ignore a11y_no_static_element_interactions -->
 					<div class="flex h-7 items-center justify-center" onclick={(e) => e.stopPropagation()} onkeydown={(e) => e.stopPropagation()}>
 						<Button
-							variant="chromeIcon"
-							size="chromeIcon"
+							variant="ghost"
+							size="icon"
 							data-header-control
 							onclick={onClose}
 							title="Close"
@@ -170,7 +169,7 @@ function handleKeydown(event: KeyboardEvent): void {
 							class="!h-full border-l border-border/40"
 						>
 							{#snippet children()}
-								<X size={12} weight="bold" />
+								<RoundedIcon name="close" />
 							{/snippet}
 						</Button>
 					</div>

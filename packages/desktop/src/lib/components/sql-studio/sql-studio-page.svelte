@@ -7,9 +7,8 @@
 
 import type { SqlConnection, SqlFilterOperator, SqlSchemaInfo } from "@acepe/ui/sql-studio";
 import { SqlStudioLayout } from "@acepe/ui/sql-studio";
-import { Selector } from "@acepe/ui";
+import { DatabaseIcon, RoundedIcon, Selector } from "@acepe/ui";
 import * as DropdownMenu from "@acepe/ui/dropdown-menu";
-import { Database, FolderOpen } from "phosphor-svelte";
 import { onMount } from "svelte";
 import { toast } from "svelte-sonner";
 import { getWorkspaceStore } from "$lib/acp/store/workspace-store.svelte.js";
@@ -473,11 +472,8 @@ function saveCellEdit(rowIndex: number, columnName: string, value: string): void
 	portalDisabled={true}
 	onOpenChange={(open) => (createDialogOpen = open)}
 >
-	{#snippet topLeft()}
-		<Database size={14} weight="bold" class="shrink-0 text-primary" />
-		<span class="truncate text-[11px] font-semibold text-foreground select-none leading-none">
-			New Connection
-		</span>
+	{#snippet titleLeading()}
+		<DatabaseIcon size={14} weight="bold" class="shrink-0 text-primary" />
 	{/snippet}
 
 	<div class="grid gap-2.5 px-3 py-3">
@@ -494,7 +490,7 @@ function saveCellEdit(rowIndex: number, columnName: string, value: string): void
 					placeholder="postgresql://user:pass@localhost:5432/app"
 					class="h-7 w-full rounded-lg border border-border/40 bg-muted/30 px-2 text-[0.6875rem] text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-primary/40"
 				/>
-				<Button variant="header" size="header" onclick={applyConnectionString}>Apply</Button>
+				<Button variant="outline" size="sm" onclick={applyConnectionString}>Apply</Button>
 			</div>
 			{#if connectionStringError}
 				<p class="text-[0.625rem] text-destructive">{connectionStringError}</p>
@@ -553,8 +549,8 @@ function saveCellEdit(rowIndex: number, columnName: string, value: string): void
 						placeholder="/path/to/db.sqlite"
 						class="h-7 w-full rounded-lg border border-border/40 bg-muted/30 px-2 text-[0.6875rem] text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-primary/40"
 					/>
-					<Button variant="header" size="header" onclick={browseSqliteFile}>
-						<FolderOpen weight="regular" size={13} class="text-primary" />
+					<Button variant="outline" size="sm" onclick={browseSqliteFile}>
+						<RoundedIcon name="folder" class="size-[13px] text-primary" />
 						Browse
 					</Button>
 				</div>
@@ -645,18 +641,18 @@ function saveCellEdit(rowIndex: number, columnName: string, value: string): void
 	</div>
 
 	{#snippet footer()}
-		<Button variant="header" size="header" onclick={() => (createDialogOpen = false)}>Cancel</Button>
+		<Button variant="outline" size="sm" onclick={() => (createDialogOpen = false)}>Cancel</Button>
 		<Button
-			variant="header"
-			size="header"
+			variant="outline"
+			size="sm"
 			onclick={testCurrentConnection}
 			disabled={!canSaveConnection || store.isSavingConnection || testingConnection}
 		>
 			{testingConnection ? "Testing..." : "Test"}
 		</Button>
 		<Button
-			variant="invert"
-			size="header"
+			variant="default"
+			size="sm"
 			onclick={saveConnection}
 			disabled={!canSaveConnection || store.isSavingConnection}
 		>
@@ -674,12 +670,6 @@ function saveCellEdit(rowIndex: number, columnName: string, value: string): void
 	portalDisabled={true}
 	onOpenChange={(open) => (deleteConfirmOpen = open)}
 >
-	{#snippet topLeft()}
-		<span class="truncate text-[11px] font-semibold text-foreground select-none">
-			Delete connection
-		</span>
-	{/snippet}
-
 	<div class="px-3 py-3">
 		<p class="text-[12px] text-muted-foreground">
 			This will permanently remove this connection. This action cannot be undone.
@@ -687,10 +677,10 @@ function saveCellEdit(rowIndex: number, columnName: string, value: string): void
 	</div>
 
 	{#snippet footer()}
-		<Button variant="header" size="header" onclick={() => (deleteConfirmOpen = false)}>Cancel</Button>
+		<Button variant="outline" size="sm" onclick={() => (deleteConfirmOpen = false)}>Cancel</Button>
 		<Button
 			variant="destructive"
-			size="header"
+			size="sm"
 			onclick={() => {
 				if (deleteTargetId) {
 					store.deleteConnectionById(deleteTargetId).mapErr(() => {});

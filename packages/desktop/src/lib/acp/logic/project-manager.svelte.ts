@@ -3,6 +3,7 @@ import { SvelteDate, SvelteMap } from "svelte/reactivity";
 import type { SessionStore } from "$lib/acp/store/session-store.svelte.js";
 
 import { resolveProjectColor } from "@acepe/ui/colors";
+import { computeProjectBadgeLabels } from "@acepe/ui/project-letter-badge";
 import { ProjectClient } from "./project-client.js";
 
 /**
@@ -17,6 +18,14 @@ export interface Project {
 	sortOrder?: number;
 	iconPath?: string | null;
 	showExternalCliSessions?: boolean;
+}
+
+export interface ProjectLoadPerformanceTrace {
+	readonly totalMs: number;
+	readonly getProjectCountMs: number;
+	readonly getProjectsMs: number;
+	readonly assignStateMs: number;
+	readonly projectCount: number;
 }
 
 /**
@@ -39,6 +48,65 @@ export function isUnexpectedProjectError(error: ProjectError): boolean {
 	return error.code === "STORAGE_ERROR";
 }
 
+function roundProjectLoadPerformanceMs(value: number): number {
+	return Math.round(value * 100) / 100;
+}
+
+const PROJECT_STORAGE_REFRESH_IDLE_DELAY_MS = 5_000;
+const PROJECT_STORAGE_REFRESH_IDLE_TIMEOUT_MS = 5_000;
+
+function scheduleProjectStorageRefresh(callback: () => void): void {
+	if (typeof window !== "undefined") {
+		window.setTimeout(() => {
+			const schedulingWindow = window as Window & {
+				requestIdleCallback?: (
+					callback: IdleRequestCallback,
+					options?: IdleRequestOptions
+				) => number;
+			};
+			if (typeof schedulingWindow.requestIdleCallback === "function") {
+				schedulingWindow.requestIdleCallback(callback, {
+					timeout: PROJECT_STORAGE_REFRESH_IDLE_TIMEOUT_MS,
+				});
+				return;
+			}
+			window.setTimeout(callback, 0);
+		}, PROJECT_STORAGE_REFRESH_IDLE_DELAY_MS);
+		return;
+	}
+	setTimeout(callback, PROJECT_STORAGE_REFRESH_IDLE_DELAY_MS);
+}
+
+type ProjectClientPort = Pick<
+	ProjectClient,
+	| "getProjects"
+	| "getCachedProjects"
+	| "writeCachedProjects"
+	| "browseProject"
+	| "importProject"
+	| "addProject"
+	| "updateProjectColor"
+	| "updateProjectIcon"
+	| "listProjectImages"
+	| "updateProjectShowExternalCliSessions"
+	| "browseProjectIcon"
+	| "backfillProjectIcons"
+	| "updateProjectOrder"
+	| "removeProject"
+>;
+
+interface ProjectLoadTraceTiming {
+	readonly totalStartedAtMs: number;
+	readonly getProjectsMs: number;
+	readonly getProjectCountMs: number;
+	readonly recordTrace: boolean;
+}
+
+interface ProjectStorageLoadOptions {
+	readonly showLoading: boolean;
+	readonly recordTrace: boolean;
+}
+
 /**
  * Manages project state and storage.
  *
@@ -50,8 +118,9 @@ export function isUnexpectedProjectError(error: ProjectError): boolean {
  * agents (Claude Code, Cursor, OpenCode, etc.).
  */
 export class ProjectManager {
-	private readonly client: ProjectClient;
+	private readonly client: ProjectClientPort;
 	private sessionStore: SessionStore | null = null;
+	private lastLoadPerformanceTrace: ProjectLoadPerformanceTrace | null = null;
 
 	/**
 	 * Total count of projects in the database.
@@ -64,9 +133,33 @@ export class ProjectManager {
 	 */
 	projects = $state<Project[]>([]);
 
+	/**
+	 * Cached projects may render UI, but storage-backed data is required for startup side effects.
+	 */
+	projectStorageFresh = $state(false);
+
 	readonly projectByPath = $derived.by(
 		() => new SvelteMap(this.projects.map((project) => [project.path, project]))
 	);
+
+	/**
+	 * Disambiguating badge label per project path, computed globally across all
+	 * projects. Projects with distinct first letters get a single letter ("A");
+	 * collisions grow the prefix until unique ("Ac" / "Ap").
+	 */
+	readonly badgeLabelByPath = $derived.by(() =>
+		computeProjectBadgeLabels(
+			this.projects.map((project) => ({ key: project.path, name: project.name }))
+		)
+	);
+
+	/**
+	 * Resolve the disambiguating badge label for a project path. Falls back to
+	 * the project's first letter when the path is unknown (e.g. not yet loaded).
+	 */
+	getProjectBadgeLabel(path: string): string | undefined {
+		return this.badgeLabelByPath.get(path);
+	}
 
 	/**
 	 * Whether projects are currently loading.
@@ -78,11 +171,84 @@ export class ProjectManager {
 	 */
 	error = $state<ProjectError | null>(null);
 
-	constructor() {
-		this.client = new ProjectClient();
+	constructor(client: ProjectClientPort = new ProjectClient()) {
+		this.client = client;
 		// Note: loadProjects() should be called explicitly after construction
 		// Do NOT call it here as it modifies $state during initialization
 		// which can cause infinite loops in Svelte 5
+	}
+
+	private assignLoadedProjects(projects: Project[], timing: ProjectLoadTraceTiming): void {
+		const assignStateStartedAtMs = performance.now();
+		this.projectCount = projects.length;
+		this.projects = projects;
+		this.client.writeCachedProjects(projects);
+		const assignStateMs = performance.now() - assignStateStartedAtMs;
+		if (timing.recordTrace) {
+			this.lastLoadPerformanceTrace = {
+				totalMs: roundProjectLoadPerformanceMs(performance.now() - timing.totalStartedAtMs),
+				getProjectCountMs: roundProjectLoadPerformanceMs(timing.getProjectCountMs),
+				getProjectsMs: roundProjectLoadPerformanceMs(timing.getProjectsMs),
+				assignStateMs: roundProjectLoadPerformanceMs(assignStateMs),
+				projectCount: projects.length,
+			};
+		}
+	}
+
+	private loadProjectsFromStorage(
+		options: ProjectStorageLoadOptions
+	): ResultAsync<void, ProjectError> {
+		if (options.showLoading) {
+			this.isLoading = true;
+			this.error = null;
+		}
+
+		const totalStartedAtMs = performance.now();
+		const projectsStartedAtMs = performance.now();
+
+		return this.client
+			.getProjects()
+			.map((projects) => ({
+				projects,
+				durationMs: performance.now() - projectsStartedAtMs,
+			}))
+			.map((projectsResult) => {
+				this.assignLoadedProjects(projectsResult.projects, {
+					totalStartedAtMs,
+					getProjectCountMs: 0,
+					getProjectsMs: projectsResult.durationMs,
+					recordTrace: options.recordTrace,
+				});
+				this.projectStorageFresh = true;
+				if (options.showLoading) {
+					this.isLoading = false;
+				}
+			})
+			.mapErr((error) => {
+				if (options.showLoading) {
+					this.error = error;
+					this.isLoading = false;
+				}
+				return error;
+			});
+	}
+
+	private refreshProjectsFromStorageInBackground(): void {
+		scheduleProjectStorageRefresh(() => {
+			void this.loadProjectsFromStorage({
+				showLoading: false,
+				recordTrace: false,
+			}).match(
+				() => undefined,
+				(error) => {
+					console.warn("Project refresh failed:", error);
+				}
+			);
+		});
+	}
+
+	private writeCurrentProjectsToCache(): void {
+		this.client.writeCachedProjects(this.projects);
 	}
 
 	getProject(path: string): Project | undefined {
@@ -101,26 +267,36 @@ export class ProjectManager {
 
 	/**
 	 * Load projects from database.
-	 * Fetches both the project count and all projects.
+	 * Uses the hot cache first, then refreshes from storage after first paint.
 	 *
 	 * @returns ResultAsync containing void on success
 	 */
 	loadProjects(): ResultAsync<void, ProjectError> {
-		this.isLoading = true;
 		this.error = null;
+		const totalStartedAtMs = performance.now();
 
-		// Fetch both count and all projects in parallel
-		return ResultAsync.combine([this.client.getProjectCount(), this.client.getProjects()])
-			.map(([count, allProjects]) => {
-				this.projectCount = count;
-				this.projects = allProjects;
-				this.isLoading = false;
-			})
-			.mapErr((error) => {
-				this.error = error;
-				this.isLoading = false;
-				return error;
+		const cachedProjects = this.client.getCachedProjects();
+		if (cachedProjects !== null) {
+			this.isLoading = false;
+			this.projectStorageFresh = false;
+			this.assignLoadedProjects(cachedProjects, {
+				totalStartedAtMs,
+				getProjectCountMs: 0,
+				getProjectsMs: 0,
+				recordTrace: true,
 			});
+			this.refreshProjectsFromStorageInBackground();
+			return okAsync(undefined);
+		}
+
+		return this.loadProjectsFromStorage({
+			showLoading: true,
+			recordTrace: true,
+		});
+	}
+
+	getLastLoadPerformanceTrace(): ProjectLoadPerformanceTrace | null {
+		return this.lastLoadPerformanceTrace;
 	}
 
 	/**
@@ -152,6 +328,7 @@ export class ProjectManager {
 						color: existingProject.color,
 						sortOrder: existingProject.sortOrder !== undefined ? existingProject.sortOrder + 1 : 1,
 						iconPath: existingProject.iconPath ?? null,
+						showExternalCliSessions: existingProject.showExternalCliSessions,
 					}));
 					this.projects = [importedProject, ...shiftedProjects];
 					// Update count only for new projects
@@ -161,6 +338,8 @@ export class ProjectManager {
 				} else {
 					this.projects = this.projects.map((p, i) => (i === existingIndex ? importedProject : p));
 				}
+				this.writeCurrentProjectsToCache();
+				this.projectStorageFresh = true;
 
 				// Trigger session scan for the imported project (fire and forget)
 				if (this.sessionStore) {
@@ -183,7 +362,10 @@ export class ProjectManager {
 	addProject(project: Project): ResultAsync<void, ProjectError> {
 		return this.client.addProject(project).andThen(() => {
 			// Reload projects to get updated list
-			return this.loadProjects();
+			return this.loadProjectsFromStorage({
+				showLoading: true,
+				recordTrace: true,
+			});
 		});
 	}
 
@@ -223,11 +405,14 @@ export class ProjectManager {
 			color: existingProject.color,
 			sortOrder: existingProject.sortOrder !== undefined ? existingProject.sortOrder + 1 : 1,
 			iconPath: existingProject.iconPath ?? null,
+			showExternalCliSessions: existingProject.showExternalCliSessions,
 		}));
 		this.projects = [optimisticProject, ...shiftedProjects];
 
 		// Update count
 		this.projectCount = (this.projectCount ?? 0) + 1;
+		this.projectStorageFresh = false;
+		this.writeCurrentProjectsToCache();
 	}
 
 	/**
@@ -243,6 +428,8 @@ export class ProjectManager {
 			const existingIndex = this.projects.findIndex((p) => p.path === path);
 			if (existingIndex >= 0) {
 				this.projects = this.projects.map((p, i) => (i === existingIndex ? updatedProject : p));
+				this.projectStorageFresh = true;
+				this.writeCurrentProjectsToCache();
 			}
 		});
 	}
@@ -254,6 +441,8 @@ export class ProjectManager {
 				this.projects = this.projects.map((project, index) =>
 					index === existingIndex ? updatedProject : project
 				);
+				this.projectStorageFresh = true;
+				this.writeCurrentProjectsToCache();
 			}
 		});
 	}
@@ -285,6 +474,8 @@ export class ProjectManager {
 								}
 							: project
 					);
+					this.projectStorageFresh = true;
+					this.writeCurrentProjectsToCache();
 				}
 			})
 			.andThen(() => {
@@ -328,7 +519,10 @@ export class ProjectManager {
 				if (updatedCount === 0) {
 					return okAsync(undefined);
 				}
-				return this.loadProjects();
+				return this.loadProjectsFromStorage({
+					showLoading: true,
+					recordTrace: true,
+				});
 			})
 			.match(
 				() => undefined,
@@ -341,6 +535,9 @@ export class ProjectManager {
 	updateProjectOrder(orderedPaths: string[]): ResultAsync<void, ProjectError> {
 		return this.client.updateProjectOrder(orderedPaths).map((updatedProjects) => {
 			this.projects = updatedProjects;
+			this.projectCount = updatedProjects.length;
+			this.projectStorageFresh = true;
+			this.writeCurrentProjectsToCache();
 		});
 	}
 
@@ -353,7 +550,10 @@ export class ProjectManager {
 	removeProject(path: string): ResultAsync<void, ProjectError> {
 		return this.client.removeProject(path).andThen(() => {
 			// Reload projects to get updated list
-			return this.loadProjects();
+			return this.loadProjectsFromStorage({
+				showLoading: true,
+				recordTrace: true,
+			});
 		});
 	}
 
@@ -373,6 +573,8 @@ export class ProjectManager {
 		return result.andThen(() => {
 			this.projects = [];
 			this.projectCount = 0;
+			this.projectStorageFresh = true;
+			this.writeCurrentProjectsToCache();
 			return okAsync(undefined);
 		});
 	}

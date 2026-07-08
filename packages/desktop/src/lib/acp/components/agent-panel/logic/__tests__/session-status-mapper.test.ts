@@ -130,6 +130,23 @@ describe("mapCanonicalSessionToPanelStatus", () => {
 		);
 	});
 
+	it("maps failed turn state to error presentation even if activity is stale awaiting-model", () => {
+		expect(
+			mapCanonicalSessionToPanelStatus({
+				lifecycle: lifecycle("ready"),
+				activity: {
+					kind: "awaiting_model",
+					activeOperationCount: 0,
+					activeSubagentCount: 0,
+					dominantOperationId: null,
+					blockingInteractionId: null,
+				},
+				turnState: "Failed",
+				hasEntries: true,
+			})
+		).toBe("error");
+	});
+
 	it("maps archived lifecycle to idle read-only presentation", () => {
 		expect(mapCanonicalSessionToPanelStatus({ lifecycle: lifecycle("archived") })).toBe("idle");
 	});
@@ -321,6 +338,62 @@ describe("deriveCanonicalAgentPanelSessionState", () => {
 			showPlanningIndicator: true,
 			canSubmit: false,
 			showStop: true,
+		});
+	});
+
+	it("does not show planning when the canonical lifecycle has failed", () => {
+		const state = deriveCanonicalAgentPanelSessionState({
+			source: {
+				kind: "canonical",
+				lifecycle: lifecycle("failed", false, true, false),
+				activity: {
+					kind: "awaiting_model",
+					activeOperationCount: 0,
+					activeSubagentCount: 0,
+					dominantOperationId: null,
+					blockingInteractionId: null,
+				},
+				turnState: "Running",
+			},
+			hasEntries: true,
+			hasLocalPendingSendIntent: true,
+			hasOptimisticPendingEntry: true,
+		});
+
+		expect(state).toEqual({
+			sessionStatus: "error",
+			isConnected: false,
+			isStreaming: false,
+			showPlanningIndicator: false,
+			canSubmit: false,
+			showStop: false,
+		});
+	});
+
+	it("does not show planning when the canonical turn has failed", () => {
+		const state = deriveCanonicalAgentPanelSessionState({
+			source: {
+				kind: "canonical",
+				lifecycle: lifecycle("ready", false, false, true),
+				activity: {
+					kind: "awaiting_model",
+					activeOperationCount: 0,
+					activeSubagentCount: 0,
+					dominantOperationId: null,
+					blockingInteractionId: null,
+				},
+				turnState: "Failed",
+			},
+			hasEntries: true,
+		});
+
+		expect(state).toEqual({
+			sessionStatus: "error",
+			isConnected: true,
+			isStreaming: false,
+			showPlanningIndicator: false,
+			canSubmit: true,
+			showStop: false,
 		});
 	});
 });

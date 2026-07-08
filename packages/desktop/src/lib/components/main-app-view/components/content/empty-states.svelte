@@ -1,5 +1,4 @@
 <script lang="ts">
-import { onMount } from "svelte";
 import AgentInput from "$lib/acp/components/agent-input/agent-input-ui.svelte";
 import AgentErrorCard from "$lib/acp/components/agent-panel/components/agent-error-card.svelte";
 import { copyTextToClipboard } from "$lib/acp/components/agent-panel/logic/clipboard-manager.js";
@@ -9,6 +8,7 @@ import ProjectSelector from "$lib/acp/components/project-selector.svelte";
 import ProjectTable from "$lib/acp/components/add-repository/project-table.svelte";
 import { getWorktreeDefaultStore } from "$lib/acp/components/worktree/worktree-default-store.svelte.js";
 import { Button } from "$lib/components/ui/button/index.js";
+import { RoundedIcon } from "@acepe/ui";
 import { getErrorCauseDetails } from "$lib/acp/errors/error-cause-details.js";
 import { loadWorktreeEnabled } from "$lib/acp/components/worktree/worktree-storage.js";
 import type { ProjectWithSessions } from "$lib/acp/components/add-repository/open-project-dialog-props.js";
@@ -54,23 +54,26 @@ import {
 	buildProjectImportIssueDraft,
 	type EmptyStateProjectImportErrorState,
 } from "./logic/empty-state-project-import-model.js";
-import { createEmptyStateBranchMetadataLoader } from "./logic/empty-state-branch-metadata-loader.js";
+import {
+	createDelayedBranchMetadataScheduler,
+	createEmptyStateBranchMetadataLoader,
+	type EmptyStateBranchMetadataRefreshOptions,
+} from "./logic/empty-state-branch-metadata-loader.js";
 import {
 	canShowEmptyStateInput,
 	getEmptyStateProjectName,
 	getEmptyStateProjectPath,
 	isEmptyStateWorktreeEffectivelyPending,
 	resolveEmptyStateProject,
-	shouldShowEmptyStateProjectChooser,
+	shouldLoadDiscoveredProjectsForEmptyState,
 	shouldShowEmptyStateProjectPicker,
+	shouldShowEmptyStateProjectChooser,
 } from "./logic/empty-state-view-state.js";
 
 interface Props {
 	projectManager: ProjectManager;
 	onSessionCreated: (id: string) => void;
 }
-
-const INITIAL_DISCOVERED_PROJECT_COUNT = 5;
 
 const { projectManager, onSessionCreated }: Props = $props();
 
@@ -96,11 +99,10 @@ let projectImportError = $state<EmptyStateProjectImportErrorState | null>(null);
 let discoveredProjectsLoading = $state(false);
 let discoveredProjectsLoaded = $state(false);
 let discoveredProjects = $state<ProjectWithSessions[]>([]);
-let showAllDiscoveredProjects = $state(false);
-let projectImportFlowActive = $state(false);
 let pendingProjectImports = $state<ProjectWithSessions[]>([]);
 const branchMetadataLoader = createEmptyStateBranchMetadataLoader({
 	gitClient: tauriClient.git,
+	scheduler: createDelayedBranchMetadataScheduler(),
 	writer: {
 		reset() {
 			currentBranch = null;
@@ -124,18 +126,11 @@ const availableAgents = $derived(
 	getSpawnableSessionAgents(agentStore.agents, agentPreferencesStore.selectedAgentIds)
 );
 const projects = $derived(projectManager.projects);
+const projectCount = $derived(projectManager.projectCount);
 const pendingProjectImportPaths = $derived(
 	new Set(pendingProjectImports.map((project) => project.path))
 );
 const pendingProjectImportCount = $derived(pendingProjectImportPaths.size);
-const visibleDiscoveredProjects = $derived(
-	showAllDiscoveredProjects
-		? discoveredProjects
-		: discoveredProjects.slice(0, INITIAL_DISCOVERED_PROJECT_COUNT)
-);
-const hiddenDiscoveredProjectCount = $derived(
-	Math.max(discoveredProjects.length - visibleDiscoveredProjects.length, 0)
-);
 const availableAgentIds = $derived(availableAgents.map((agent) => agent.id));
 
 // Resolve effective agent: explicit selection → user default → first available
@@ -157,13 +152,11 @@ const projectPath = $derived(getEmptyStateProjectPath(effectiveProject));
 const projectName = $derived(getEmptyStateProjectName(effectiveProject));
 
 const showProjectPicker = $derived(shouldShowEmptyStateProjectPicker(projects.length));
-const showProjectChooser = $derived(
-	projectImportFlowActive || shouldShowEmptyStateProjectChooser(projects.length)
-);
+const showProjectChooser = $derived(shouldShowEmptyStateProjectChooser(projectCount));
 const canShowInput = $derived(
 	!showProjectChooser &&
 		canShowEmptyStateInput({
-			projectCount: projects.length,
+			projectCount,
 			availableAgentCount: availableAgents.length,
 		})
 );
@@ -184,8 +177,11 @@ function resetBranchPickerMetadata() {
 	branchMetadataLoader.reset();
 }
 
-function refreshBranchPickerMetadata(targetProjectPath: string) {
-	branchMetadataLoader.refresh(targetProjectPath);
+function refreshBranchPickerMetadata(
+	targetProjectPath: string,
+	options?: EmptyStateBranchMetadataRefreshOptions
+) {
+	branchMetadataLoader.refresh(targetProjectPath, options);
 }
 
 $effect(() => {
@@ -215,9 +211,9 @@ $effect(() => {
 	refreshBranchPickerMetadata(currentProjectPath);
 });
 
-onMount(() => {
-	if (projects.length === 0) {
-		projectImportFlowActive = true;
+$effect(() => {
+	const currentProjectCount = projectCount;
+	if (shouldLoadDiscoveredProjectsForEmptyState(currentProjectCount)) {
 		void loadDiscoveredProjectsForEmptyState();
 	}
 });
@@ -285,9 +281,6 @@ function handleBrowseProject() {
 		(project) => {
 			if (project !== null) {
 				projectImportError = null;
-				if (projectImportFlowActive || projects.length === 0) {
-					projectImportFlowActive = true;
-				}
 			}
 		},
 		(error) => {
@@ -334,8 +327,6 @@ function stageProjectImport(project: ProjectWithSessions): void {
 			...discoveredProjects,
 		];
 	}
-
-	projectImportFlowActive = true;
 
 	void tauriClient.history.countSessionsForProject(project.path).match(
 		() => undefined,
@@ -460,7 +451,6 @@ async function continueWithPendingProjectImports(): Promise<void> {
 
 	pendingProjectImports = [];
 	projectImportError = null;
-	projectImportFlowActive = false;
 	void projectManager.loadProjects();
 }
 
@@ -502,7 +492,7 @@ function handleBranchSelected(branch: string) {
 	if (!projectPath) {
 		return;
 	}
-	refreshBranchPickerMetadata(projectPath);
+	refreshBranchPickerMetadata(projectPath, { loadDetails: true });
 }
 
 function handleInitGitRepo() {
@@ -512,7 +502,7 @@ function handleInitGitRepo() {
 
 	void tauriClient.git.init(projectPath).match(
 		() => {
-			refreshBranchPickerMetadata(projectPath);
+			refreshBranchPickerMetadata(projectPath, { loadDetails: true });
 		},
 		(error) => {
 			const message = error.cause?.message ?? error.message ?? "Failed to initialize git";
@@ -620,7 +610,7 @@ function handleEmptyStateSessionCreated(sessionId: string) {
 	<div class="flex w-full max-w-[40rem] flex-col px-6">
 	{#if canShowInput}
 		<!-- Agent Input -->
-		<div class="w-full">
+		<div class="w-full [&_[contenteditable=true]]:min-h-[4.5rem]">
 			{#if projectImportError}
 				<div class="mb-3">
 					<AgentErrorCard
@@ -671,7 +661,7 @@ function handleEmptyStateSessionCreated(sessionId: string) {
 						{currentBranch}
 						{diffStats}
 						{isGitRepo}
-						variant="setupChip"
+						variant="setupBarChip"
 						onBranchSelected={handleBranchSelected}
 						onInitGitRepo={handleInitGitRepo}
 					/>
@@ -679,6 +669,7 @@ function handleEmptyStateSessionCreated(sessionId: string) {
 			{/snippet}
 			<AgentInput
 				panelId={EMPTY_STATE_PANEL_ID}
+				composerInputClass="flex-shrink-0 rounded-lg bg-input/30 shadow-md"
 				projectPath={projectPath ?? undefined}
 				projectName={projectName ?? undefined}
 				selectedAgentId={effectiveAgentId}
@@ -702,6 +693,7 @@ function handleEmptyStateSessionCreated(sessionId: string) {
 					project: newThreadProjectControl,
 					agent: newThreadAgentControl,
 					branch: newThreadBranchControl,
+					setupBarAlign: "start",
 					showWorktree: projectPath !== null,
 					worktreeOn: effectiveWorktreePending,
 					worktreeDisabled: false,
@@ -737,31 +729,24 @@ function handleEmptyStateSessionCreated(sessionId: string) {
 			{#if showProjectChooser}
 				<div class="flex w-full max-w-[42rem] flex-col gap-3">
 					<div class="flex justify-end">
-						<Button variant="default" size="xs" onclick={handleBrowseProject}>
-							{"Browse in Finder"}
+						<Button
+							variant="ghost"
+							size="icon"
+							title="Browse in Finder"
+							aria-label="Browse in Finder"
+							onclick={handleBrowseProject}
+						>
+							<RoundedIcon name="folder" class="size-4" />
 						</Button>
 					</div>
-					<div class="flex h-[min(21rem,42vh)] min-h-0 flex-col overflow-hidden pr-1">
+					<div class="flex max-h-[min(21rem,42vh)] min-h-0 flex-col overflow-y-auto pr-1">
 						<ProjectTable
-							projects={visibleDiscoveredProjects}
+							projects={discoveredProjects}
 							loading={discoveredProjectsLoading}
 							addedPaths={pendingProjectImportPaths}
 							onImport={handleDiscoveredProjectImport}
 							onUndo={handleDiscoveredProjectRemove}
 						/>
-						{#if hiddenDiscoveredProjectCount > 0}
-							<div class="flex justify-center pt-1">
-								<Button
-									variant="ghost"
-									size="sm"
-									onclick={() => {
-										showAllDiscoveredProjects = true;
-									}}
-								>
-									{`See more (${hiddenDiscoveredProjectCount})`}
-								</Button>
-							</div>
-						{/if}
 					</div>
 					{#if pendingProjectImportCount > 0}
 						<div class="flex items-center justify-between border-t border-border/40 pt-2">

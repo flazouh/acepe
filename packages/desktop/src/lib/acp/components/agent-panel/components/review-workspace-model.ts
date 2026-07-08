@@ -10,25 +10,20 @@ import { getReviewStatusByFilePath } from "../../modified-files/logic/review-pro
 import type { FileReviewStatus } from "../../review-panel/review-session-state.js";
 
 function mapReviewStatus(status: FileReviewStatus | undefined): AgentPanelFileReviewStatus {
-	if (status === "accepted" || status === "partial" || status === "denied") {
-		return status;
+	if (status === "reviewed") {
+		return "reviewed";
 	}
 
 	return "unreviewed";
 }
 
 function getReviewStatusOrder(status: AgentPanelFileReviewStatus | undefined): number {
-	if (status === "partial") {
+	// Unreviewed files sort first so review focus lands on remaining work.
+	if (status === "unreviewed" || status === undefined) {
 		return 0;
 	}
-	if (status === "unreviewed" || status === undefined) {
-		return 1;
-	}
-	if (status === "denied") {
-		return 2;
-	}
 
-	return 3;
+	return 1;
 }
 
 export function buildReviewWorkspaceFiles(

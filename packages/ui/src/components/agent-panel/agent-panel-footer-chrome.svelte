@@ -1,10 +1,8 @@
 <script lang="ts">
 	import type { Snippet } from "svelte";
 
-	import { Browser } from "phosphor-svelte";
-	import { Gear } from "phosphor-svelte";
-	import { Terminal } from "phosphor-svelte";
 	import { Button } from "../button/index.js";
+	import { RoundedIcon } from "../icons/index.js";
 
 	interface Props {
 		children?: Snippet;
@@ -59,15 +57,15 @@
 	{#if onSettings}
 		<div class="flex items-center gap-0.5 px-1.5">
 			<Button
-				variant="chromeIcon"
-				size="chromeIcon"
+				variant="ghost"
+				size="icon"
 				data-header-control
 				title={settingsTitle}
 				aria-label={settingsAriaLabel ?? settingsTitle}
 				onclick={onSettings}
 			>
 				{#snippet children()}
-					<Gear class="h-3 w-3" weight="fill" />
+					<RoundedIcon name="settings" />
 				{/snippet}
 			</Button>
 		</div>
@@ -77,8 +75,8 @@
 		<div class="ml-auto flex items-center gap-0.5 px-1.5">
 			{#if showBrowserToggle}
 				<Button
-					variant="chromeIcon"
-					size="chromeIcon"
+					variant="ghost"
+					size="icon"
 					data-header-control
 					active={browserActive}
 					title={browserTitle}
@@ -86,14 +84,14 @@
 					onclick={onToggleBrowser}
 				>
 					{#snippet children()}
-						<Browser class="h-3 w-3" weight={browserActive ? "fill" : "regular"} />
+						<RoundedIcon name="browser" />
 					{/snippet}
 				</Button>
 			{/if}
 			{#if showTerminalToggle}
 				<Button
-					variant="chromeIcon"
-					size="chromeIcon"
+					variant="ghost"
+					size="icon"
 					data-header-control
 					active={terminalActive}
 					disabled={terminalDisabled}
@@ -102,7 +100,7 @@
 					onclick={onToggleTerminal}
 				>
 					{#snippet children()}
-						<Terminal class="h-3 w-3" weight="fill" />
+						<RoundedIcon name="terminal" />
 					{/snippet}
 				</Button>
 			{/if}

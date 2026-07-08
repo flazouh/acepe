@@ -4,6 +4,7 @@ import type {
 	AgentPanelPlanActionEvent,
 	AgentPanelPlanViewEvent,
 	AgentPanelQuestionSelectEvent,
+	AgentPanelReviewActionEvent,
 	AgentToolEditDiffEntry,
 	AgentToolFileSelectEvent,
 	AgentToolStatus,
@@ -37,6 +38,7 @@ export type AgentConversationRenderKind =
 	| "tool-read-lints"
 	| "tool-read"
 	| "tool-edit"
+	| "tool-review"
 	| "tool-execute"
 	| "tool-search"
 	| "tool-fetch"
@@ -74,6 +76,9 @@ export function resolveConversationRenderKind(
 	}
 	if (entry.kind === "edit") {
 		return "tool-edit";
+	}
+	if (entry.kind === "review" || entry.reviewFiles !== undefined) {
+		return "tool-review";
 	}
 	if (entry.kind === "execute") {
 		return "tool-execute";
@@ -149,6 +154,14 @@ export function createPlanViewEvent(toolEntry: AgentToolEntry): AgentPanelPlanVi
 		interactionId: toolEntry.interactionId,
 		title: toolEntry.planTitle ?? toolEntry.title,
 		content: toolEntry.planContent ?? "",
+	};
+}
+
+export function createReviewActionEvent(toolEntry: AgentToolEntry): AgentPanelReviewActionEvent {
+	return {
+		entryId: toolEntry.id,
+		toolCallId: toolEntry.toolCallId,
+		interactionId: toolEntry.interactionId,
 	};
 }
 

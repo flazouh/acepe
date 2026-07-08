@@ -2,11 +2,9 @@
 import {
 	GitViewer,
 	LoadingIcon,
+	RoundedIcon,
 } from "@acepe/ui";
-import { ArrowsClockwise } from "phosphor-svelte";
-import { WarningCircle } from "phosphor-svelte";
-import { X } from "phosphor-svelte";
-import EmbeddedModalShell from "$lib/components/ui/embedded-modal-shell.svelte";
+import DialogFrame from "$lib/components/ui/dialog-frame.svelte";
 import { fetchCommitDiff, fetchPrDiff } from "../../services/github-service.js";
 import type { CommitDiff, GitHubError, PrDiff } from "../../types/github-integration.js";
 import { buildDiffViewerData } from "./diff-viewer-modal-state.js";
@@ -101,81 +99,72 @@ function findRawFileDiff(path: string) {
 }
 </script>
 
-{#if open}
-	<EmbeddedModalShell
-		{open}
-		ariaLabel="GitHub diff viewer"
-		panelClass="embedded-diff-viewer-modal"
-		onClose={handleClose}
-	>
-		<div class="flex min-h-0 flex-1 flex-col bg-background/95">
-			<div class="flex items-center justify-end shrink-0 border-b border-border/30 px-3 py-2">
+<DialogFrame
+	{open}
+	title="GitHub diff viewer"
+	closeLabel="Close diff viewer"
+	contentOverflow="hidden"
+	onOpenChange={(nextOpen) => {
+		if (!nextOpen) {
+			handleClose();
+		}
+	}}
+>
+	<div class="flex min-h-0 flex-1 flex-col">
+		{#if loading}
+			<div class="flex flex-1 flex-col items-center justify-center gap-3">
+				<LoadingIcon size={24} />
+				<p class="text-sm text-muted-foreground">Loading diff...</p>
+			</div>
+		{:else if error}
+			<div class="flex flex-1 flex-col items-center justify-center gap-3 px-8 text-center">
+				<RoundedIcon name="warning" class="h-6 w-6 text-destructive" />
+				<div class="flex flex-col gap-1">
+					<h3 class="text-sm font-semibold text-foreground">Error loading diff</h3>
+					<p class="text-xs text-muted-foreground">{error.message}</p>
+					{#if error.type === "gh_not_authenticated"}
+						<p class="text-xs text-muted-foreground/70">
+							Try running: <code class="rounded bg-muted px-1.5 py-0.5 font-mono text-xs"
+								>gh auth login</code
+							>
+						</p>
+					{:else if error.type === "git_not_found"}
+						<p class="text-xs text-muted-foreground/70">Git is not installed or not in PATH</p>
+					{:else if error.type === "gh_not_found"}
+						<p class="text-xs text-muted-foreground/70">GitHub CLI is not installed</p>
+					{/if}
+				</div>
 				<button
 					type="button"
-					class="flex h-7 w-7 cursor-pointer items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-					onclick={handleClose}
-					title="Close (ESC)"
-					aria-label="Close"
+					class="flex items-center gap-1.5 h-5 px-2.5 text-[11px] font-medium bg-primary text-primary-foreground hover:bg-primary/90 transition-colors rounded-sm"
+					onclick={loadDiff}
 				>
-					<X size={16} weight="bold" />
+					<RoundedIcon name="refresh" class="h-3 w-3" />
+					Retry
 				</button>
 			</div>
-
-			{#if loading}
-				<div class="flex flex-1 flex-col items-center justify-center gap-3">
-					<LoadingIcon size={24} />
-					<p class="text-sm text-muted-foreground">Loading diff...</p>
-				</div>
-			{:else if error}
-				<div class="flex flex-1 flex-col items-center justify-center gap-3 px-8 text-center">
-					<WarningCircle class="h-6 w-6 text-destructive" weight="fill" />
-					<div class="flex flex-col gap-1">
-						<h3 class="text-sm font-semibold text-foreground">Error loading diff</h3>
-						<p class="text-xs text-muted-foreground">{error.message}</p>
-						{#if error.type === "gh_not_authenticated"}
-							<p class="text-xs text-muted-foreground/70">
-								Try running: <code class="rounded bg-muted px-1.5 py-0.5 font-mono text-xs"
-									>gh auth login</code
-								>
-							</p>
-						{:else if error.type === "git_not_found"}
-							<p class="text-xs text-muted-foreground/70">Git is not installed or not in PATH</p>
-						{:else if error.type === "gh_not_found"}
-							<p class="text-xs text-muted-foreground/70">GitHub CLI is not installed</p>
-						{/if}
-					</div>
-					<button
-						type="button"
-						class="flex items-center gap-1.5 h-5 px-2.5 text-[11px] font-medium bg-primary text-primary-foreground hover:bg-primary/90 transition-colors rounded-sm"
-						onclick={loadDiff}
-					>
-						<ArrowsClockwise class="h-3 w-3" weight="fill" />
-						Retry
-					</button>
-				</div>
-			{:else if viewerData}
-				<GitViewer
-					data={viewerData}
-					{selectedFile}
-					{viewMode}
-					iconBasePath="/svgs/icons"
-					onSelectFile={(path) => {
-						selectedFile = path;
-					}}
-					onChangeViewMode={(mode) => {
-						viewMode = mode;
-					}}
-					onViewOnGitHub={handleViewOnGitHub}
-					class="flex-1 min-h-0"
-				>
-					{#snippet diffContent({ file, viewMode: mode })}
-						{@const rawDiff = findRawFileDiff(file.path)}
-						{#if rawDiff}
-							<PierreDiffView diff={rawDiff} viewMode={mode} />
-						{/if}
-					{/snippet}
-				</GitViewer>
-			{/if}
-		</div>
-	</EmbeddedModalShell>
-{/if}
+		{:else if viewerData}
+			<GitViewer
+				data={viewerData}
+				{selectedFile}
+				{viewMode}
+				iconBasePath="/svgs/icons"
+				onSelectFile={(path) => {
+					selectedFile = path;
+				}}
+				onChangeViewMode={(mode) => {
+					viewMode = mode;
+				}}
+				onViewOnGitHub={handleViewOnGitHub}
+				class="flex-1 min-h-0"
+			>
+				{#snippet diffContent({ file, viewMode: mode })}
+					{@const rawDiff = findRawFileDiff(file.path)}
+					{#if rawDiff}
+						<PierreDiffView diff={rawDiff} viewMode={mode} />
+					{/if}
+				{/snippet}
+			</GitViewer>
+		{/if}
+	</div>
+</DialogFrame>

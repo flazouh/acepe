@@ -106,6 +106,7 @@ function computeSessionDiffStats(session: QueueSessionSnapshot): {
  */
 export type ProjectColorLookup = (projectPath: string) => string | null;
 export type ProjectIconSrcLookup = (projectPath: string) => string | null;
+export type ProjectBadgeLabelLookup = (projectPath: string) => string | null;
 
 export interface QueueSessionStateInput {
 	readonly isStreaming: boolean;
@@ -193,12 +194,14 @@ export function buildQueueItem(
 	pendingPermission: PermissionRequest | null,
 	getProjectColor?: ProjectColorLookup,
 	getProjectIconSrc?: ProjectIconSrcLookup,
-	pendingComputerPermission: ComputerPermissionInteraction | null = null
+	pendingComputerPermission: ComputerPermissionInteraction | null = null,
+	getProjectBadgeLabel?: ProjectBadgeLabelLookup
 ): QueueItem {
 	const pendingText = pendingQuestionText ?? null;
 	const projectColor =
 		getProjectColor?.(session.projectPath) ?? generateFallbackProjectColor(session.projectPath);
 	const projectIconSrc = getProjectIconSrc?.(session.projectPath) ?? null;
+	const projectBadgeLabel = getProjectBadgeLabel?.(session.projectPath) ?? null;
 
 	const diffStats = computeSessionDiffStats(session);
 	const todoProgress = extractTodoProgressFromToolCall(session.lastTodoToolCall);
@@ -209,6 +212,7 @@ export function buildQueueItem(
 		agentId: session.agentId,
 		projectPath: session.projectPath,
 		projectName: extractProjectName(session.projectPath),
+		projectBadgeLabel,
 		projectColor,
 		projectIconSrc,
 		title: session.title,

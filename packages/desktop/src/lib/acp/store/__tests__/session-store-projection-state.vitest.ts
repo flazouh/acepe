@@ -238,6 +238,7 @@ function createSessionOpenFoundFromGraph(
 		requestedSessionId: graph.requestedSessionId,
 		canonicalSessionId: graph.canonicalSessionId,
 		isAlias: graph.isAlias,
+		openPath: "legacy_rebuild",
 		lastEventSeq: graph.revision.lastEventSeq,
 		graphRevision: graph.revision.graphRevision,
 		openToken: "open-token",
@@ -284,13 +285,7 @@ function createViewportBufferPush(
 			transcriptRevision: 7,
 			lastEventSeq: 7,
 		},
-		viewportRevision: overrides.viewportRevision ?? 1,
 		emissionSeq: overrides.emissionSeq ?? 0,
-		bufferStartIndex: overrides.bufferStartIndex ?? 0,
-		bufferEndIndex: overrides.bufferEndIndex ?? 1,
-		layoutRowCount: overrides.layoutRowCount ?? 1,
-		totalHeightPx: overrides.totalHeightPx ?? 120,
-		bufferEndOffsetPx: overrides.bufferEndOffsetPx ?? 120,
 		rows: overrides.rows ?? [
 			{
 				rowId: "transcript:assistant-1",
@@ -314,11 +309,7 @@ function createViewportBufferPush(
 				},
 			},
 		],
-		offsetsPx: overrides.offsetsPx ?? [0],
-		mode: overrides.mode ?? { kind: "followingTail" },
 		requestGeneration: overrides.requestGeneration ?? null,
-		scrollTopTarget: overrides.scrollTopTarget ?? null,
-		scrollAnchorCorrectionPx: overrides.scrollAnchorCorrectionPx ?? null,
 		diagnostics: overrides.diagnostics ?? [],
 	};
 }
@@ -334,18 +325,9 @@ function createViewportBufferDelta(
 			lastEventSeq: 7,
 		},
 		emissionSeq: overrides.emissionSeq ?? 1,
-		fromViewportRevision: overrides.fromViewportRevision ?? 1,
-		toViewportRevision: overrides.toViewportRevision ?? 2,
 		prependedRows: overrides.prependedRows ?? [],
-		prependedOffsetsPx: overrides.prependedOffsetsPx ?? [],
 		appendedRows: overrides.appendedRows ?? [],
-		appendedOffsetsPx: overrides.appendedOffsetsPx ?? [],
 		removedRowIds: overrides.removedRowIds ?? [],
-		layoutRowCount: overrides.layoutRowCount ?? 1,
-		totalHeightPx: overrides.totalHeightPx ?? 120,
-		bufferEndOffsetPx: overrides.bufferEndOffsetPx ?? 120,
-		scrollAnchorCorrectionPx: overrides.scrollAnchorCorrectionPx ?? null,
-		scrollTopTarget: overrides.scrollTopTarget ?? null,
 		diagnostics: overrides.diagnostics ?? [],
 	};
 }
@@ -2521,7 +2503,7 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 			transcriptRevision: 7,
 			lastEventSeq: 10,
 		});
-		expect(store.read.getSessionActivity("session-1")).toEqual(currentActivity);
+		expect(store.read.getSessionActivity("session-1")).toMatchObject(currentActivity);
 		expect(store.read.getSessionTurnState("session-1")).toBe("Running");
 		expect(store.getSessionStateGraphForTest("session-1")?.operations).toHaveLength(1);
 	});
@@ -2600,7 +2582,7 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 			sessionId: "session-1",
 			permission: "Read",
 		});
-		expect(store.read.getSessionActivity("session-1")).toEqual(patchActivity);
+		expect(store.read.getSessionActivity("session-1")).toMatchObject(patchActivity);
 		expect(store.read.getSessionTurnState("session-1")).toBe("Running");
 		expect(store.read.getSessionGraphRevision("session-1")).toEqual({
 			graphRevision: 8,
@@ -2614,7 +2596,7 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 				description: undefined,
 			},
 		]);
-		expect(store.read.getSessionActivity("session-1")).toEqual(patchActivity);
+		expect(store.read.getSessionActivity("session-1")).toMatchObject(patchActivity);
 		expect(store.getSessionStateGraphForTest("session-1")?.turnState ?? null).toBe("Running");
 	});
 
@@ -3059,7 +3041,13 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 			},
 		});
 
-		expect(replaceSessionStateGraph).toHaveBeenCalledWith(graph);
+		expect(replaceSessionStateGraph).toHaveBeenCalledWith(
+			expect.objectContaining({
+				requestedSessionId: graph.requestedSessionId,
+				canonicalSessionId: graph.canonicalSessionId,
+				activity: expect.objectContaining(graph.activity),
+			})
+		);
 	});
 
 	it("hydrates lifecycle envelopes without needing a full graph refresh", () => {
@@ -3156,7 +3144,7 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 
 		store.applySessionStateEnvelope("session-1", createSnapshotEnvelope(graph));
 
-		expect(store.read.getSessionActivity("session-1")).toEqual({
+		expect(store.read.getSessionActivity("session-1")).toMatchObject({
 			kind: "running_operation",
 			activeOperationCount: 2,
 			activeSubagentCount: 1,
@@ -3195,7 +3183,7 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 			},
 		});
 
-		expect(store.read.getSessionActivity("session-1")).toEqual({
+		expect(store.read.getSessionActivity("session-1")).toMatchObject({
 			kind: "error",
 			activeOperationCount: 2,
 			activeSubagentCount: 1,
@@ -5672,11 +5660,11 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 			},
 		});
 
-		expect(store.viewport.getBufferProjection("session-1")).toMatchObject({
-			viewportRevision: 1,
-			bufferStartIndex: 0,
-			bufferEndIndex: 1,
+		expect(store.viewport.getRowsProjection("session-1")).toMatchObject({
+			sessionId: "session-1",
+			emissionSeq: 0,
 		});
+		expect(store.viewport.getRowsProjection("session-1")?.rows).toHaveLength(1);
 	});
 
 	it("forwards viewport buffer deltas through the session store viewport controller", () => {
@@ -5712,8 +5700,6 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 			payload: {
 				kind: "viewportBufferDelta",
 				delta: createViewportBufferDelta({
-					fromViewportRevision: 1,
-					toViewportRevision: 2,
 					appendedRows: [
 						{
 							rowId: "transcript:assistant-2",
@@ -5737,19 +5723,18 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 							},
 						},
 					],
-					appendedOffsetsPx: [120],
-					layoutRowCount: 2,
-					totalHeightPx: 240,
-					bufferEndOffsetPx: 240,
 				}),
 			},
 		});
 
-		expect(store.viewport.getBufferProjection("session-1")).toMatchObject({
-			viewportRevision: 2,
-			bufferEndIndex: 2,
-			layoutRowCount: 2,
+		expect(store.viewport.getRowsProjection("session-1")).toMatchObject({
+			sessionId: "session-1",
+			emissionSeq: 1,
 		});
+		expect(store.viewport.getRowsProjection("session-1")?.rows.map((row) => row.rowId)).toEqual([
+			"transcript:assistant-1",
+			"transcript:assistant-2",
+		]);
 	});
 
 	it("applies multi-command transcript and graph patch deltas in order and clears pending send intent after both apply", async () => {

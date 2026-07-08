@@ -1,16 +1,5 @@
 <script lang="ts">
-import type { Component } from "svelte";
-import {
-	AppWindow,
-	File,
-	GlobeHemisphereWest,
-	MagnifyingGlass,
-	Package,
-	PencilSimple,
-	Terminal,
-	ListChecks,
-} from "phosphor-svelte";
-import { LoadingIcon } from "../icons/index.js";
+import { LoadingIcon, RoundedIcon, type RoundedIconName } from "../icons/index.js";
 import { Colors } from "../../lib/colors.js";
 import type { AgentToolKind, AgentToolStatus } from "./types.js";
 
@@ -29,34 +18,40 @@ let {
 }: Props = $props();
 const isPending = $derived(status === "pending" || status === "running");
 
-const iconByKind: Record<AgentToolKind, Component> = {
-	read: File,
-	read_lints: ListChecks,
-	edit: PencilSimple,
-	delete: PencilSimple,
-	write: PencilSimple,
-	execute: Terminal,
-	search: MagnifyingGlass,
-	fetch: GlobeHemisphereWest,
-	web_search: GlobeHemisphereWest,
-	think: Package,
-	skill: Package,
-	task: Package,
-	task_output: Package,
-	enter_plan_mode: ListChecks,
-	exit_plan_mode: ListChecks,
-	create_plan: PencilSimple,
-	browser: AppWindow,
-	sql: AppWindow,
-	unclassified: Package,
-	other: Package,
+const roundedIconByKind: Record<AgentToolKind, RoundedIconName> = {
+	read: "file-text",
+	read_lints: "tasks",
+	review: "code",
+	edit: "edit",
+	delete: "trash",
+	write: "edit",
+	execute: "terminal",
+	search: "search",
+	fetch: "globe",
+	web_search: "globe",
+	think: "brain",
+	skill: "skills",
+	task: "tasks",
+	task_output: "tasks",
+	enter_plan_mode: "tasks",
+	exit_plan_mode: "tasks",
+	create_plan: "edit",
+	browser: "app-window",
+	sql: "app-window",
+	unclassified: "question",
+	other: "question",
 };
 
-const Icon = $derived(iconByKind[kind] ?? Package);
+const roundedIcon = $derived(roundedIconByKind[kind]);
 </script>
 
 {#if isPending}
 	<LoadingIcon class={className} {size} aria-label="Loading" />
-{:else}
-	<Icon weight="fill" {size} class={className} style="color: {Colors.purple}" />
+{:else if roundedIcon}
+	<RoundedIcon
+		name={roundedIcon}
+		class={className}
+		style="width: {size}px; height: {size}px; color: {Colors.purple}"
+		data-testid={kind === "review" ? "tool-kind-review-code-icon" : undefined}
+	/>
 {/if}

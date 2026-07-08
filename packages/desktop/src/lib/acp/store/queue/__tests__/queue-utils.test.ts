@@ -327,6 +327,27 @@ describe("buildQueueItem", () => {
 
 		expect(item.sequenceId).toBe(7);
 	});
+
+	it("uses the project badge label lookup when provided", () => {
+		const item = buildQueueItem(
+			createSession({ projectPath: "/workspace/acepe" }),
+			null,
+			DEFAULT_URGENCY,
+			false,
+			false,
+			false,
+			null,
+			null,
+			null,
+			null,
+			undefined,
+			undefined,
+			null,
+			(projectPath) => (projectPath === "/workspace/acepe" ? "Ac" : null)
+		);
+
+		expect(item.projectBadgeLabel).toBe("Ac");
+	});
 });
 
 describe("buildQueueSessionSnapshot", () => {

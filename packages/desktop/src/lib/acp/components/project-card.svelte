@@ -1,8 +1,5 @@
 <script lang="ts">
-import { DiffPill, ProjectLetterBadge } from "@acepe/ui";
-import { ArrowDown } from "phosphor-svelte";
-import { ArrowUp } from "phosphor-svelte";
-import { GitBranch } from "phosphor-svelte";
+import { DiffPill, ProjectLetterBadge, RoundedIcon } from "@acepe/ui";
 import { Kbd, KbdGroup } from "$lib/components/ui/kbd/index.js";
 import type { ProjectCardData } from "./project-card-data.js";
 
@@ -11,10 +8,12 @@ interface Props {
 	index: number;
 	modifierSymbol?: string;
 	isMissing?: boolean;
+	/** Disambiguating badge label (e.g. "Ac"). Falls back to the first letter. */
+	label?: string | null;
 	onSelect: () => void;
 }
 
-let { data, index, modifierSymbol = "⌘", isMissing = false, onSelect }: Props = $props();
+let { data, index, modifierSymbol = "⌘", isMissing = false, label = null, onSelect }: Props = $props();
 
 const color = $derived(data.project.color ?? "#6B7280");
 const shortcutKey = $derived(index + 1);
@@ -57,6 +56,7 @@ function handleCardClick() {
 			<div class="inline-flex items-center justify-center h-8 w-8 shrink-0">
 				<ProjectLetterBadge
 					name={data.project.name}
+					{label}
 					{color}
 					iconSrc={data.project.iconPath ?? null}
 					size={18}
@@ -81,7 +81,7 @@ function handleCardClick() {
 			<div class="flex items-center h-6 px-2.5 gap-2 border-t border-border/30">
 				{#if data.branch}
 					<div class="flex items-center gap-0.5 min-w-0">
-						<GitBranch class="size-2.5 shrink-0 text-muted-foreground/40" weight="fill" />
+						<RoundedIcon name="branch" class="size-2.5 shrink-0 text-muted-foreground/40" />
 						<span class="text-[10px] font-mono text-muted-foreground/50 truncate">
 							{data.branch}
 						</span>
@@ -90,13 +90,13 @@ function handleCardClick() {
 
 				{#if data.ahead && data.ahead > 0}
 					<div class="flex items-center gap-0.5 shrink-0" title="{data.ahead} ahead of remote">
-						<ArrowUp class="size-2 text-success" weight="bold" />
+						<RoundedIcon name="arrow-up" class="size-2 text-success" />
 						<span class="text-[10px] font-mono text-success">{data.ahead}</span>
 					</div>
 				{/if}
 				{#if data.behind && data.behind > 0}
 					<div class="flex items-center gap-0.5 shrink-0" title="{data.behind} behind remote">
-						<ArrowDown class="size-2 text-warning" weight="bold" />
+						<RoundedIcon name="arrow-up" class="size-2 rotate-180 text-warning" />
 						<span class="text-[10px] font-mono text-warning">{data.behind}</span>
 					</div>
 				{/if}

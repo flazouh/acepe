@@ -1,8 +1,6 @@
 <script lang="ts">
-import { Button } from "@acepe/ui";
+import { Button, RoundedIcon } from "@acepe/ui";
 import { PlanSidebarLayout } from "@acepe/ui/plan-sidebar";
-import { ArrowsOut } from "phosphor-svelte";
-import { DownloadSimple } from "phosphor-svelte";
 import { toast } from "svelte-sonner";
 import { ScrollArea } from "$lib/components/ui/scroll-area/index.js";
 import type { SessionPlanResponse } from "$lib/services/converted-session-types.js";
@@ -53,27 +51,27 @@ function handleDownloadMarkdown() {
 		{#snippet headerActions()}
 			<CopyButton text={plan.content} variant="embedded" stopPropagation={true} />
 			<Button
-				variant="chromeIcon"
-				size="chromeIcon"
+				variant="ghost"
+				size="icon"
 				data-header-control
 				title="Download"
 				aria-label="Download"
 				onclick={handleDownloadMarkdown}
 			>
 				{#snippet children()}
-					<DownloadSimple size={14} weight="bold" />
+				<RoundedIcon name="download" />
 				{/snippet}
 			</Button>
 			<Button
-				variant="chromeIcon"
-				size="chromeIcon"
+				variant="ghost"
+				size="icon"
 				data-header-control
 				title="Open in fullscreen"
 				aria-label="Open in fullscreen"
 				onclick={onOpenFullscreen}
 			>
 				{#snippet children()}
-					<ArrowsOut size={14} weight="bold" />
+					<RoundedIcon name="expand" />
 				{/snippet}
 			</Button>
 		{/snippet}

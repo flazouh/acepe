@@ -1,6 +1,6 @@
 <script lang="ts">
-	import { HardDrives } from "phosphor-svelte";
 	import { cn } from "../../lib/utils.js";
+	import { StorageIcon } from "../icons/index.js";
 	import type { SqlDbEngine } from "./types.js";
 
 	interface Props {
@@ -22,7 +22,7 @@
 	)}
 	onclick={onclick}
 >
-	<HardDrives size={14} weight="bold" class="shrink-0 text-muted-foreground" />
+	<StorageIcon size={14} weight="bold" class="shrink-0 text-muted-foreground" />
 	<span class="font-mono text-[0.75rem] font-medium truncate max-w-[160px]">{name}</span>
 	<span class="text-[0.5625rem] uppercase text-muted-foreground font-mono shrink-0">{engine}</span>
 </button>

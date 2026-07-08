@@ -1270,7 +1270,11 @@ async fn test_most_recent_session() {
                                         "content_length": content.len(),
                                     }));
                                 }
-                                ContentBlock::Thinking { thinking, signature } => {
+                                ContentBlock::Thinking {
+                                    thinking,
+                                    signature,
+                                    ..
+                                } => {
                                     content_blocks.push(json!({
                                         "type": "thinking",
                                         "thinking": thinking,
@@ -1343,7 +1347,11 @@ async fn test_most_recent_session() {
                                         "content_length": content.len(),
                                     }));
                                 }
-                                ContentBlock::Thinking { thinking, signature } => {
+                                ContentBlock::Thinking {
+                                    thinking,
+                                    signature,
+                                    ..
+                                } => {
                                     content_blocks.push(json!({
                                         "type": "thinking",
                                         "thinking": thinking,

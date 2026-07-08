@@ -18,8 +18,12 @@ export {
 } from "./claude-working-spark-frames.js";
 export { default as AgentAttachedFilePane } from "./agent-attached-file-pane.svelte";
 export { default as AgentPanelErrorCard } from "./agent-error-card.svelte";
+export { default as AgentPanelRecoveryCard } from "./agent-panel-recovery-card.svelte";
 export { default as AgentPanelSignInCard } from "./agent-sign-in-card.svelte";
 export { default as AgentInputActiveModeChip } from "./agent-input-active-mode-chip.svelte";
+export { default as AgentInputAgentSelector } from "./agent-input-agent-selector.svelte";
+export type { AgentInputAgentSelectorItem } from "./agent-input-agent-selector-types.js";
+export { default as DefaultAgentHeartIcon } from "./default-agent-heart-icon.svelte";
 export { default as AgentInputArtefactBadge } from "./agent-input-artefact-badge.svelte";
 export { default as AgentInputAttachMenu } from "./agent-input-attach-menu.svelte";
 export type {
@@ -29,19 +33,24 @@ export type {
 	AttachMenuModeItem,
 } from "./agent-input-attach-menu-state.js";
 export { filterAttachMenuItems } from "./agent-input-attach-menu-state.js";
-export { default as ComposerFilterDropdownFilterInput } from "../composer/composer-filter-dropdown-filter-input.svelte";
 export {
-	composerFilterDropdownBodyClass,
-	composerFilterDropdownContentClass,
-	composerFilterDropdownEmptyStateClass,
-	composerFilterDropdownFilterRowClass,
-	composerFilterDropdownItemClass,
-	composerFilterDropdownListClass,
-	composerFilterDropdownSubmenuContentClass,
-} from "./composer-filter-dropdown-menu.classes.js";
+	selectorPanelBodyClass,
+	selectorPanelContentClass,
+	selectorPanelEmptyStateClass,
+	selectorPanelFilterRowClass,
+	selectorPanelItemClass,
+	selectorPanelListClass,
+	selectorPanelSubmenuContentClass,
+} from "../selector/selector-panel.classes.js";
 export { default as AgentInputAutonomousToggle } from "./agent-input-autonomous-toggle.svelte";
+export { default as AgentInputBranchSelector } from "./agent-input-branch-selector.svelte";
+export type {
+	AgentInputBranchListDisplay,
+	AgentInputBranchSelectorVariant,
+} from "./agent-input-branch-selector-types.js";
 export { default as AgentInputComposerRow } from "./agent-input-composer-row.svelte";
 export { default as AgentInputComposerToolbar } from "./agent-input-composer-toolbar.svelte";
+export { default as AgentInputModelReasoningFusedControls } from "./agent-input-model-reasoning-fused-controls.svelte";
 export { default as AgentInputComposerTrailingControls } from "./agent-input-composer-trailing-controls.svelte";
 export { default as AgentInputConfigOptionSelector } from "./agent-input-config-option-selector.svelte";
 export type { AgentInputConfigOption } from "./agent-input-config-option-types.js";
@@ -62,7 +71,6 @@ export {
 	type ModeIconKind,
 } from "./agent-input-mode-selector-state.js";
 export { default as AgentInputModelFavoriteStar } from "./agent-input-model-favorite-star.svelte";
-export { default as AgentInputModelRow } from "./agent-input-model-row.svelte";
 export { default as AgentInputModelSelector } from "./agent-input-model-selector.svelte";
 export type {
 	AgentInputModelSelectorGroup,
@@ -72,12 +80,25 @@ export type {
 } from "./agent-input-model-selector-types.js";
 export { default as AgentInputModelTrigger } from "./agent-input-model-trigger.svelte";
 export { default as AgentInputPastedTextOverlay } from "./agent-input-pasted-text-overlay.svelte";
-export { default as AgentInputSelectorItemRow } from "./agent-input-selector-item-row.svelte";
 export { default as AgentInputSlashCommandDropdown } from "./agent-input-slash-command-dropdown.svelte";
 export type {
 	AgentInputSlashCommand,
 	AgentInputSlashCommandWorkspaceMarkdownResult,
 } from "./agent-input-slash-command-dropdown-state.js";
+export {
+	flattenSlashPaletteItems,
+	getSlashPaletteVisibleSections,
+	slashPaletteHasContent,
+	SLASH_PALETTE_SECTION_PREVIEW_COUNT,
+} from "./agent-input-slash-palette-state.js";
+export type {
+	SlashPaletteFlatEntry,
+	SlashPaletteItem,
+	SlashPaletteItemKind,
+	SlashPaletteSection,
+	SlashPaletteSectionId,
+	SlashPaletteVisibleSection,
+} from "./agent-input-slash-palette-state.js";
 export { default as AgentInputToolbar } from "./agent-input-toolbar.svelte";
 export type {
 	AgentComposerToolbarVoiceBinding,
@@ -127,6 +148,7 @@ export { default as AgentToolOther } from "./agent-tool-other.svelte";
 export { default as AgentToolQuestion } from "./agent-tool-question.svelte";
 export { default as AgentToolRead } from "./agent-tool-read.svelte";
 export { default as AgentToolReadLints } from "./agent-tool-read-lints.svelte";
+export { default as AgentPanelToolReview } from "./agent-panel-tool-review.svelte";
 export { default as AgentToolRow } from "./agent-tool-row.svelte";
 export { default as AgentToolSearch } from "./agent-tool-search.svelte";
 export { default as AgentToolSkill } from "./agent-tool-skill.svelte";
@@ -134,6 +156,7 @@ export { default as AgentToolTask } from "./agent-tool-task.svelte";
 export { default as AgentToolThinking } from "./agent-tool-thinking.svelte";
 export { default as AgentThinkingDurationHeader } from "./agent-thinking-duration-header.svelte";
 export { default as AgentToolDurationLabel } from "./agent-tool-duration-label.svelte";
+export { isRawExecuteToolName, normalizedRawToolName } from "./agent-tool-raw-name-state.js";
 export { default as PlanningPlaceholderRow } from "./planning-placeholder-row.svelte";
 export type { ToolDurationTiming } from "./tool-duration.js";
 export { default as ThinkingDotMatrix } from "./thinking-dot-matrix.svelte";
@@ -173,7 +196,31 @@ export { default as AgentPanelReviewTabStrip } from "./review-tab-strip.svelte";
 export { default as ReviewWorkspace } from "./review-workspace.svelte";
 export { default as ReviewWorkspaceFileList } from "./review-workspace-file-list.svelte";
 export { default as ReviewWorkspaceHeader } from "./review-workspace-header.svelte";
-export { default as AgentPanelScrollToBottomButton } from "./scroll-to-bottom-button.svelte";
+export { default as MessageScroller } from "./message-scroller.svelte";
+export {
+	DEFAULT_ROW_ESTIMATE_PX,
+	createArrayMessageScrollerItemSource,
+	rowEstimatePx,
+	type MessageScrollerItem,
+	type MessageScrollerItemSource,
+	type MessageScrollerRangeState,
+	type MessageScrollerRowKind,
+} from "./message-scroller-types.js";
+export type {
+	AgentPanelPerformanceRecorder,
+	AgentPanelPerformanceSample,
+} from "./agent-panel-performance-profile.js";
+export {
+	measureAgentPanelPerformance,
+	recordAgentPanelPerformanceSample,
+} from "./agent-panel-performance-profile.js";
+export {
+	createStickToBottomController,
+	stickToBottom,
+	type StickToBottomController,
+	type StickToBottomParams,
+} from "./stick-to-bottom-effects.js";
+export { default as AgentPanelTranscriptScrollControls } from "./agent-panel-transcript-scroll-controls.svelte";
 export { default as AgentPanelTodoHeader } from "./todo-header.svelte";
 export { default as TodoNumberIcon } from "./todo-number-icon.svelte";
 export { default as ToolTally } from "./tool-tally.svelte";
@@ -216,6 +263,7 @@ export type {
 	AgentPanelPlanViewEvent,
 	AgentPanelQueuedMessage,
 	AgentPanelQuestionSelectEvent,
+	AgentPanelReviewActionEvent,
 	AgentPanelRecommendedAction,
 	AgentPanelRecoveryPhase,
 	AgentPanelReviewFileTab,
@@ -240,9 +288,11 @@ export type {
 	AgentToolFileSelectEvent,
 	AgentToolKind,
 	AgentToolPresentationState,
+	AgentToolReviewFileEntry,
 	AgentToolStatus,
 	AgentUserContentChunk,
 	AgentUserEntry,
+	AgentUserFileSelectEvent,
 	AgentWebSearchLink,
 	AnyAgentEntry,
 	LintDiagnostic,

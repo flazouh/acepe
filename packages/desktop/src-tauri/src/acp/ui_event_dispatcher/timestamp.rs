@@ -9,12 +9,14 @@ pub(super) fn stamp_agent_message_chunk_timestamp(
             chunk,
             part_id,
             message_id,
+            parent_tool_use_id,
             session_id: Some(session_id),
             produced_at_monotonic_ms: None,
         } => SessionUpdate::AgentMessageChunk {
             chunk,
             part_id,
             message_id,
+            parent_tool_use_id,
             session_id: Some(session_id.clone()),
             produced_at_monotonic_ms: Some(
                 runtime_graph_registry.record_chunk_timestamp(&session_id),

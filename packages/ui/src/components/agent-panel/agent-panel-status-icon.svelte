@@ -1,8 +1,7 @@
 <script lang="ts">
-	import { IconAlertCircle, IconCircleCheckFilled } from "@tabler/icons-svelte";
 	import { Tooltip } from "bits-ui";
 
-	import { LoadingIcon } from "../icons/index.js";
+	import { LoadingIcon, RoundedIcon } from "../icons/index.js";
 	import { Colors } from "../../lib/colors.js";
 
 	import { resolveAgentPanelStatusIconPresentation } from "./agent-panel-status-icon-state.js";
@@ -79,7 +78,10 @@
 								? 'text-muted-foreground'
 								: 'text-success'}"
 						>
-							<IconCircleCheckFilled {size} />
+							<RoundedIcon
+								name="check-circle-filled"
+								style={`width: ${size}px; height: ${size}px;`}
+							/>
 						</div>
 					</Tooltip.Trigger>
 					<Tooltip.Portal>
@@ -113,7 +115,10 @@
 							aria-label={errorLabel}
 							onclick={() => onRetry?.()}
 						>
-							<IconAlertCircle {size} />
+							<RoundedIcon
+								name="alert"
+								style={`width: ${size}px; height: ${size}px;`}
+							/>
 						</button>
 					</Tooltip.Trigger>
 					<Tooltip.Portal>

@@ -1,8 +1,9 @@
 <script lang="ts">
-import { Selector } from "@acepe/ui";
+import { RoundedIcon, Selector } from "@acepe/ui";
 import * as DropdownMenu from "@acepe/ui/dropdown-menu";
 import { LoadingIcon } from "@acepe/ui";
 import { ThemeToggle } from "$lib/components/theme/index.js";
+import { fontSizeSettingsStore } from "$lib/stores/font-size-settings-store.svelte.js";
 import { loadingIndicatorSettingsStore } from "$lib/stores/loading-indicator-settings-store.svelte.js";
 import SettingRow from "../setting-row.svelte";
 import SettingsSection from "../settings-section.svelte";
@@ -26,7 +27,41 @@ function handleVariantChange(value: string): void {
 function handleColorChange(value: string): void {
 	void loadingIndicatorSettingsStore.setColor(value);
 }
+
+const uiBounds = fontSizeSettingsStore.uiBounds;
+const codeBounds = fontSizeSettingsStore.codeBounds;
 </script>
+
+{#snippet fontStepper(
+	value: number,
+	min: number,
+	max: number,
+	step: number,
+	onChange: (next: number) => void,
+	label: string
+)}
+	<div class="flex items-center gap-0.5 rounded-md border border-border/60 bg-card p-0.5">
+		<button
+			type="button"
+			aria-label={`Decrease ${label}`}
+			disabled={value <= min}
+			onclick={() => onChange(value - step)}
+			class="inline-flex size-6 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:pointer-events-none disabled:opacity-40"
+		>
+			<RoundedIcon name="minus" class="size-3" />
+		</button>
+		<span class="w-9 text-center text-[13px] font-medium tabular-nums text-foreground">{value}</span>
+		<button
+			type="button"
+			aria-label={`Increase ${label}`}
+			disabled={value >= max}
+			onclick={() => onChange(value + step)}
+			class="inline-flex size-6 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:pointer-events-none disabled:opacity-40"
+		>
+			<RoundedIcon name="plus" class="size-3" />
+		</button>
+	</div>
+{/snippet}
 
 <div class="w-full">
 	<SettingsSection>
@@ -43,6 +78,7 @@ function handleColorChange(value: string): void {
 			<Selector
 				align="start"
 				variant="outline"
+				triggerSize="pill"
 				class="w-[240px]"
 				contentClass="max-h-[min(24rem,70vh)] overflow-y-auto"
 			>
@@ -75,7 +111,7 @@ function handleColorChange(value: string): void {
 			label={"Loading indicator color"}
 			description="Pick a Tailwind color for the animation."
 		>
-			<Selector align="start" variant="outline" class="w-[220px]">
+			<Selector align="start" variant="outline" triggerSize="pill" class="w-[220px]">
 				{#snippet renderButton()}
 					<span class="flex items-center gap-1.5 min-w-0 flex-1">
 						<span
@@ -105,6 +141,38 @@ function handleColorChange(value: string): void {
 					{/each}
 				</DropdownMenu.RadioGroup>
 			</Selector>
+		</SettingRow>
+	</SettingsSection>
+
+	<SettingsSection
+		title="Typography"
+		description="Adjust how large text appears across the app."
+	>
+		<SettingRow
+			label={"Interface font size"}
+			description="Base font size for the app. Scales menus, panels, and chat text."
+		>
+			{@render fontStepper(
+				fontSizeSettingsStore.uiFontSize,
+				uiBounds.MIN,
+				uiBounds.MAX,
+				uiBounds.STEP,
+				(next) => void fontSizeSettingsStore.setUiFontSize(next),
+				"interface font size"
+			)}
+		</SettingRow>
+		<SettingRow
+			label={"Code font size"}
+			description="Font size for code blocks and diffs."
+		>
+			{@render fontStepper(
+				fontSizeSettingsStore.codeFontSize,
+				codeBounds.MIN,
+				codeBounds.MAX,
+				codeBounds.STEP,
+				(next) => void fontSizeSettingsStore.setCodeFontSize(next),
+				"code font size"
+			)}
 		</SettingRow>
 	</SettingsSection>
 </div>

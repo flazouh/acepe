@@ -9,7 +9,7 @@ use crate::acp::session_state_engine::selectors::{
 use crate::acp::session_state_engine::session_state_field::SessionStateField;
 use crate::acp::session_update::{PlanData, UsageTelemetryData};
 use crate::acp::transcript_projection::TranscriptDeltaOperation;
-use crate::acp::transcript_viewport::{TranscriptViewportRow, ViewportMode};
+use crate::acp::transcript_viewport::TranscriptViewportRow;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, specta::Type, PartialEq, Eq)]
@@ -109,101 +109,39 @@ pub struct ViewportBufferDiagnostic {
     pub row_id: Option<String>,
 }
 
-/// Full buffered slice of the canonical layout pushed to the WebView. The
-/// WebView resolves in-buffer scroll offsets locally (no IPC per frame) and
-/// only requests a refill when scrolling near/outside `[buffer_start_index,
-/// buffer_end_index)`. `request_generation` echoes the generation of a refill
-/// request so the store can reject stale command responses; live (unsolicited)
-/// pushes carry `None`.
+/// Full ordered row push for the DOM-authority transcript viewport. Rust owns
+/// canonical order, identity, version, and row content. The WebView owns pixels
+/// and scrollTop, so no height, offset, mode, or scroll target crosses this wire.
+/// `request_generation` echoes the UI's rows request so late responses can be
+/// ignored when needed; live pushes carry `None`.
 #[derive(Debug, Clone, Serialize, Deserialize, specta::Type, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct ViewportBufferPush {
     pub session_id: String,
     pub graph_revision: SessionGraphRevision,
-    pub viewport_revision: i64,
-    /// Per-session monotonic emission sequence (the total-order authority for
-    /// the buffer protocol). A push resets the consumer's sequence baseline to
-    /// this value; subsequent deltas must chain contiguously from it. Because
-    /// `viewport_revision` does NOT advance on streaming row appends, it cannot
-    /// sequence the two independent delivery channels (command-reply vs live
-    /// event stream); `emission_seq` can, turning any out-of-order arrival into
-    /// a detectable gap (→ fresh push) instead of silent buffer corruption.
+    /// Per-session monotonic emission sequence. A push resets the consumer's
+    /// sequence baseline to this value; subsequent deltas must chain
+    /// contiguously from it.
     pub emission_seq: u64,
-    pub buffer_start_index: usize,
-    pub buffer_end_index: usize,
-    /// Total number of rows in the full canonical layout. Lets the WebView tell
-    /// whether a buffer edge is also the layout extreme (so it must NOT request
-    /// a refill past it).
-    pub layout_row_count: usize,
-    pub total_height_px: u64,
-    /// Absolute pixel offset of the bottom of the last buffered row
-    /// (= `offset_at_index(buffer_end_index)`). Equals `total_height_px` only
-    /// when the buffer reaches the layout end. Lets the WebView compute the
-    /// buffered pixel span `[offsets_px[0], buffer_end_offset_px)` without
-    /// per-row heights.
-    pub buffer_end_offset_px: u64,
     pub rows: Vec<TranscriptViewportRow>,
-    pub offsets_px: Vec<u64>,
-    pub mode: ViewportMode,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub request_generation: Option<u64>,
-    /// Absolute scrollTop the WebView should adopt when this push repositions the
-    /// viewport (initial open, reveal, follow-tail). `None` for a pure refill or
-    /// an accepted-height-confirmation re-push in `Detached` mode, where the
-    /// user's current scrollTop is authoritative and only a *relative*
-    /// `scroll_anchor_correction_px` may be applied. Exactly one of
-    /// `scroll_top_target` (absolute) or `scroll_anchor_correction_px` (relative)
-    /// is ever set per emission — never both — to avoid double-applying a scroll
-    /// correction.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub scroll_top_target: Option<u64>,
-    /// Signed pixel correction the WebView adds to its *live* scrollTop to keep
-    /// the visible content pinned when canonical geometry above the viewport
-    /// shifted (a row above the viewport re-measured). Relative — never fights
-    /// the user's in-flight scroll position. `None` when nothing above the
-    /// viewport moved or when an absolute `scroll_top_target` is used instead.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub scroll_anchor_correction_px: Option<i64>,
     pub diagnostics: Vec<ViewportBufferDiagnostic>,
 }
 
-/// Incremental buffer mutation. Applies iff `emission_seq` chains contiguously
-/// from the consumer's last applied sequence (`emission_seq == current + 1`);
-/// an older `emission_seq` is a stale duplicate (dropped), a newer-than-next
-/// one is a gap that forces a fresh `ViewportBufferPush`. `emission_seq` — not
-/// `from_viewport_revision` — is the apply-ordering authority, because pure
-/// streaming appends do not advance `viewport_revision`. The revision fields
-/// remain for diagnostics and snapshot newer-wins on pushes. Exactly one of
-/// `scroll_top_target` (absolute) or `scroll_anchor_correction_px` (relative)
-/// should be set to avoid double-applying a scroll correction.
+/// Incremental ordered-row mutation. Applies iff `emission_seq` chains
+/// contiguously from the consumer's last applied sequence (`emission_seq ==
+/// current + 1`). If a survivor row changes version, Rust sends a fresh push
+/// instead of a delta, so the consumer never needs to patch row content in place.
 #[derive(Debug, Clone, Serialize, Deserialize, specta::Type, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct ViewportBufferDelta {
     pub session_id: String,
     pub graph_revision: SessionGraphRevision,
-    /// Per-session monotonic emission sequence; see [`ViewportBufferPush::emission_seq`].
     pub emission_seq: u64,
-    pub from_viewport_revision: i64,
-    pub to_viewport_revision: i64,
     pub prepended_rows: Vec<TranscriptViewportRow>,
-    pub prepended_offsets_px: Vec<u64>,
     pub appended_rows: Vec<TranscriptViewportRow>,
-    pub appended_offsets_px: Vec<u64>,
     pub removed_row_ids: Vec<String>,
-    /// Total rows in the canonical layout after this delta. Lets the consumer
-    /// re-evaluate `needsRefill`'s "has content below" edge as streaming grows
-    /// the transcript, without a fresh push.
-    pub layout_row_count: usize,
-    pub total_height_px: u64,
-    /// Absolute pixel bottom of the last buffered row after this delta (top of
-    /// the row past `buffer_end_index`). Equals `total_height_px` only when the
-    /// buffer reaches the layout end. Required so the consumer can maintain the
-    /// bottom-edge refill math without per-row heights.
-    pub buffer_end_offset_px: u64,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub scroll_anchor_correction_px: Option<i64>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub scroll_top_target: Option<u64>,
     pub diagnostics: Vec<ViewportBufferDiagnostic>,
 }
 
@@ -214,7 +152,7 @@ mod tests {
         ViewportBufferPush,
     };
     use crate::acp::session_state_engine::revision::SessionGraphRevision;
-    use crate::acp::transcript_viewport::{TranscriptViewportRow, ViewportMode};
+    use crate::acp::transcript_viewport::TranscriptViewportRow;
 
     #[test]
     fn assistant_text_delta_round_trip_preserves_all_fields() {
@@ -294,19 +232,9 @@ mod tests {
             push: ViewportBufferPush {
                 session_id: "session-1".to_string(),
                 graph_revision: SessionGraphRevision::new(3, 2, 9),
-                viewport_revision: 4,
                 emission_seq: 7,
-                buffer_start_index: 1,
-                buffer_end_index: 2,
-                layout_row_count: 12,
-                total_height_px: 240,
-                buffer_end_offset_px: 220,
                 rows: Vec::<TranscriptViewportRow>::new(),
-                offsets_px: Vec::new(),
-                mode: ViewportMode::FollowingTail,
                 request_generation: None,
-                scroll_top_target: Some(120),
-                scroll_anchor_correction_px: None,
                 diagnostics: vec![ViewportBufferDiagnostic {
                     code: "empty_window".to_string(),
                     row_id: None,
@@ -318,24 +246,22 @@ mod tests {
         assert!(json.contains("\"kind\":\"viewportBufferPush\""));
         assert!(json.contains("\"sessionId\":\"session-1\""));
         assert!(json.contains("\"graphRevision\""));
-        assert!(json.contains("\"viewportRevision\":4"));
         assert!(json.contains("\"emissionSeq\":7"));
-        assert!(json.contains("\"bufferStartIndex\":1"));
-        assert!(json.contains("\"bufferEndIndex\":2"));
-        assert!(json.contains("\"layoutRowCount\":12"));
-        assert!(json.contains("\"totalHeightPx\":240"));
-        assert!(json.contains("\"bufferEndOffsetPx\":220"));
-        assert!(json.contains("\"scrollTopTarget\":120"));
-        assert!(json.contains("\"offsetsPx\":[]"));
+        assert!(!json.contains("viewportRevision"));
+        assert!(!json.contains("bufferStartIndex"));
+        assert!(!json.contains("bufferEndIndex"));
+        assert!(!json.contains("layoutRowCount"));
+        assert!(!json.contains("totalHeightPx"));
+        assert!(!json.contains("bufferEndOffsetPx"));
+        assert!(!json.contains("scrollTopTarget"));
+        assert!(!json.contains("offsetsPx"));
 
         let restored: SessionStatePayload = serde_json::from_str(&json).expect("deserialize");
         match restored {
             SessionStatePayload::ViewportBufferPush { push } => {
                 assert_eq!(push.session_id, "session-1");
                 assert_eq!(push.graph_revision, SessionGraphRevision::new(3, 2, 9));
-                assert_eq!(push.viewport_revision, 4);
                 assert_eq!(push.emission_seq, 7);
-                assert_eq!(push.total_height_px, 240);
                 assert_eq!(push.rows.len(), 0);
             }
             other => panic!("unexpected variant: {other:?}"),

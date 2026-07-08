@@ -11,6 +11,7 @@ import {
 	buildAttachMenuCommandSections,
 	buildAttachMenuMcpServerGroups,
 	buildAttachMenuModes,
+	buildSlashPaletteSections,
 	ComposerMcpCatalogState,
 	deriveComposerInteractionState,
 	getEffectiveFilePickerProjectPath,
@@ -66,6 +67,7 @@ export class ComposerViewController {
 	provisionalModeId = $state<string | null>(null);
 	provisionalModelId = $state<string | null>(null);
 	provisionalConfigOptions = $state<Record<string, string>>({});
+	submittedProvisionalConfigOptions: Record<string, string> = {};
 	isApplyingProvisionalToolbarSelections = $state(false);
 
 	#previousComposerBindSessionId = $state<string | null>(null);
@@ -458,6 +460,30 @@ export class ComposerViewController {
 		this.mcpCatalogState.hasLoaded(this.attachMenuMcpCatalogInput)
 	);
 
+	readonly slashPaletteSections = $derived.by(() =>
+		buildSlashPaletteSections({
+			modes: this.visibleModes,
+			currentModeId: this.effectiveCurrentModeId,
+			availableModels: this.effectiveAvailableModels,
+			modelsDisplay: this.effectiveModelsDisplay,
+			currentModelId: this.effectiveCurrentModelId,
+			agentId: this.capabilitiesAgentId,
+			providerMetadata: this.effectiveCapabilityProviderMetadata,
+			commands: this.effectiveAvailableCommands,
+			preconnectionCommands: this.preconnectionAvailableCommands,
+			mcpCatalog: this.mcpCatalogState.getCatalog(this.attachMenuMcpCatalogInput),
+		})
+	);
+
+	readonly slashPaletteHasContent = $derived.by(() => {
+		for (const section of this.slashPaletteSections) {
+			if (section.items.length > 0) {
+				return true;
+			}
+		}
+		return false;
+	});
+
 	refreshAttachMenuMcpCatalog(force = false): void {
 		if (!this.attachMenuShowMcpSection) {
 			return;
@@ -487,6 +513,7 @@ export class ComposerViewController {
 			isTriggerActive: this.#deps.getInputState().showSlashDropdown,
 			source: this.slashCommandSource,
 			capabilitiesAgentId: this.capabilitiesAgentId,
+			hasPaletteContent: this.slashPaletteHasContent,
 		})
 	);
 
@@ -623,10 +650,46 @@ export class ComposerViewController {
 		}
 		next[configId] = value;
 		this.provisionalConfigOptions = next;
+
+		const nextSubmitted: Record<string, string> = {};
+		for (const [key, existingValue] of Object.entries(this.submittedProvisionalConfigOptions)) {
+			if (key !== configId) {
+				nextSubmitted[key] = existingValue;
+			}
+		}
+		this.submittedProvisionalConfigOptions = nextSubmitted;
+	}
+
+	markProvisionalConfigOptionSubmitted(configId: string, value: string): void {
+		const next: Record<string, string> = {};
+		for (const [key, existingValue] of Object.entries(this.submittedProvisionalConfigOptions)) {
+			next[key] = existingValue;
+		}
+		next[configId] = value;
+		this.submittedProvisionalConfigOptions = next;
+	}
+
+	clearProvisionalConfigOption(configId: string): void {
+		const next: Record<string, string> = {};
+		for (const [key, existingValue] of Object.entries(this.provisionalConfigOptions)) {
+			if (key !== configId) {
+				next[key] = existingValue;
+			}
+		}
+		this.provisionalConfigOptions = next;
+
+		const nextSubmitted: Record<string, string> = {};
+		for (const [key, existingValue] of Object.entries(this.submittedProvisionalConfigOptions)) {
+			if (key !== configId) {
+				nextSubmitted[key] = existingValue;
+			}
+		}
+		this.submittedProvisionalConfigOptions = nextSubmitted;
 	}
 
 	clearProvisionalConfigOptions(): void {
 		this.provisionalConfigOptions = {};
+		this.submittedProvisionalConfigOptions = {};
 	}
 
 	syncPendingToolbarSelections(): void {
@@ -653,10 +716,13 @@ export class ComposerViewController {
 
 		const liveModeId = this.sessionCurrentModeId;
 		const liveModelId = this.sessionCurrentModelId;
+		const liveConfigOptions = this.#deps.sessionStore.read.getSessionConfigOptions(sessionId);
 		const configEntriesToApply = listProvisionalConfigEntriesToApply({
 			provisionalValues: this.provisionalConfigOptions,
-			liveConfigOptions: this.#deps.sessionStore.read.getSessionConfigOptions(sessionId),
-		});
+			liveConfigOptions,
+		}).filter(
+			(entry) => this.submittedProvisionalConfigOptions[entry.configId] !== entry.value
+		);
 
 		if (
 			!resolution.modeIdToApply &&

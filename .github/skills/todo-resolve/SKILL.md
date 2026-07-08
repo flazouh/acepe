@@ -12,7 +12,7 @@ Only `ready` todos are resolved. `pending` todos are skipped — they haven't be
 
 ### 1. Analyze
 
-Scan `.context/compound-engineering/todos/*.md` and legacy `todos/*.md`. Partition by status:
+Scan `.context/agent-workflows/todos/*.md` and legacy `todos/*.md`. Partition by status:
 
 - **`ready`** (status field or `-ready-` in filename): resolve these.
 - **`pending`**: skip. Report them at the end.
@@ -20,7 +20,7 @@ Scan `.context/compound-engineering/todos/*.md` and legacy `todos/*.md`. Partiti
 
 If a specific todo ID or pattern was passed as an argument, filter to matching todos only (still must be `ready`).
 
-Residual actionable work from `ce:review mode:autofix` after its `safe_auto` pass will already be `ready`.
+Residual actionable work from `code-review autofix pass` after its `safe_auto` pass will already be `ready`.
 
 Skip any todo that recommends deleting, removing, or gitignoring files in `docs/brainstorms/`, `docs/plans/`, or `docs/solutions/` — these are intentional pipeline artifacts.
 
@@ -30,11 +30,11 @@ Create a task list grouped by type (e.g., `TaskCreate` in Claude Code, `update_p
 
 ### 3. Implement (PARALLEL)
 
-Spawn a `compound-engineering:workflow:pr-comment-resolver` agent per item. Prefer parallel; fall back to sequential respecting dependency order.
+Spawn a `general-purpose` agent per item. Prefer parallel; fall back to sequential respecting dependency order.
 
 **Batching:** 1-4 items: direct parallel returns. 5+ items: batches of 4, each returning only a short status summary (todo handled, files changed, tests run/skipped, blockers).
 
-For large sets, use a scratch directory at `.context/compound-engineering/todo-resolve/<run-id>/` for per-resolver artifacts. Return only completion summaries to parent.
+For large sets, use a scratch directory at `.context/agent-workflows/todo-resolve/<run-id>/` for per-resolver artifacts. Return only completion summaries to parent.
 
 ### 4. Commit & Resolve
 
@@ -42,15 +42,15 @@ Commit changes, mark todos resolved, push to remote.
 
 GATE: STOP. Verify todos resolved and changes committed before proceeding.
 
-### 5. Compound on Lessons Learned
+### 5. Capture Lessons Learned
 
-Load the `ce:compound` skill to document what was learned. Todo resolutions often surface patterns and architectural insights worth capturing.
+Document any reusable lesson that surfaced during the todo resolution. Todo resolutions often expose patterns and architectural insights worth capturing.
 
-GATE: STOP. Verify the compound skill produced a solution document in `docs/solutions/`. If none (user declined or no learnings), continue.
+GATE: STOP. Verify a solution document exists in `docs/solutions/` if there were durable lessons. If none (user declined or no learnings), continue.
 
 ### 6. Clean Up
 
-Delete completed/resolved todo files from both paths. If a scratch directory was created at `.context/compound-engineering/todo-resolve/<run-id>/`, delete it (unless user asked to inspect).
+Delete completed/resolved todo files from both paths. If a scratch directory was created at `.context/agent-workflows/todo-resolve/<run-id>/`, delete it (unless user asked to inspect).
 
 ```
 Todos resolved: [count]

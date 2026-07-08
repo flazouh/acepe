@@ -20,9 +20,17 @@ interface Props {
 	onCloseTab: (panelId: string) => void;
 	/** Stronger focused tab treatment for single-panel/fullscreen layouts. */
 	activeContrast?: "normal" | "strong";
+	/** Global disambiguating badge labels keyed by project path. */
+	badgeLabelByPath?: ReadonlyMap<string, string>;
 }
 
-let { tabs, onSelectTab, onCloseTab, activeContrast = "normal" }: Props = $props();
+let {
+	tabs,
+	onSelectTab,
+	onCloseTab,
+	activeContrast = "normal",
+	badgeLabelByPath,
+}: Props = $props();
 
 const themeState = useTheme();
 const agentStore = getAgentStore();
@@ -46,6 +54,7 @@ function tabToAppTab(tab: TabBarTab): AppTab {
 		id: tab.panelId,
 		title: tab.title ?? "New Thread",
 		projectName: tab.projectName ?? undefined,
+		projectBadgeLabel: tab.projectPath ? (badgeLabelByPath?.get(tab.projectPath) ?? null) : null,
 		projectColor: tab.projectColor ?? undefined,
 		projectIconSrc: tab.projectIconSrc,
 		sequenceId: tab.sequenceId,

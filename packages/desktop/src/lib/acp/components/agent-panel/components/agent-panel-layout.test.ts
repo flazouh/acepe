@@ -8,32 +8,30 @@ import {
 } from "./agent-panel-layout.js";
 
 describe("agent panel layout", () => {
-	it("doubles the base width when review mode opens", () => {
+	it("uses the base width when no sidebars are open", () => {
 		expect(
 			resolveAgentPanelEffectiveWidth({
 				baseWidth: 900,
-				reviewMode: true,
 				showPlanSidebar: false,
 				hasPlan: false,
 				planSidebarColumnWidth: 450,
 				showBrowserSidebar: false,
 				browserSidebarColumnWidth: 500,
 			})
-		).toBe(1800);
+		).toBe(900);
 	});
 
-	it("adds sidebar widths on top of the review-mode expansion", () => {
+	it("adds sidebar widths on top of the base width", () => {
 		expect(
 			resolveAgentPanelEffectiveWidth({
 				baseWidth: 900,
-				reviewMode: true,
 				showPlanSidebar: true,
 				hasPlan: true,
 				planSidebarColumnWidth: 450,
 				showBrowserSidebar: true,
 				browserSidebarColumnWidth: 500,
 			})
-		).toBe(2750);
+		).toBe(1850);
 	});
 
 	it("allows fullscreen panels to shrink inside split layouts", () => {

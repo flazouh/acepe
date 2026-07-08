@@ -140,12 +140,6 @@ export type { StoreComposerState } from "../logic/composer-ui-state.js";
  * Follows SessionTransientProjection pattern.
  */
 export interface PanelHotState {
-	/** True when the panel is in review mode (showing diff review UI) */
-	readonly reviewMode: boolean;
-	/** Modified files state for review mode */
-	readonly reviewFilesState: ModifiedFilesState | null;
-	/** Initial file index for review mode */
-	readonly reviewFileIndex: number;
 	/** True when the plan sidebar is expanded for this panel */
 	readonly planSidebarExpanded: boolean;
 	/** Draft message text in the input field */
@@ -186,9 +180,6 @@ export interface PanelHotState {
  * Default hot state for new panels.
  */
 export const DEFAULT_PANEL_HOT_STATE: PanelHotState = {
-	reviewMode: false,
-	reviewFilesState: null,
-	reviewFileIndex: 0,
 	planSidebarExpanded: false,
 	browserSidebarExpanded: false,
 	browserSidebarUrl: null,
@@ -343,8 +334,6 @@ export interface PersistedAgentWorkspacePanelState extends PersistedWorkspacePan
 	readonly scrollTop?: number;
 	readonly planSidebarExpanded?: boolean;
 	readonly messageDraft?: string;
-	readonly reviewMode?: boolean;
-	readonly reviewFileIndex?: number;
 	readonly embeddedTerminalDrawerOpen?: boolean;
 	readonly selectedEmbeddedTerminalTabId?: string;
 	readonly sequenceId?: number;
@@ -581,10 +570,6 @@ export interface PersistedPanelState {
 	readonly messageDraft?: string;
 	/** Session title for instant display before IPC load completes */
 	readonly sessionTitle?: string;
-	/** Whether the panel was in review mode (restored when session loads) */
-	readonly reviewMode?: boolean;
-	/** Selected file index in review mode */
-	readonly reviewFileIndex?: number;
 	/** Whether the embedded terminal drawer is open (added in version 9) */
 	readonly embeddedTerminalDrawerOpen?: boolean;
 	/** Selected embedded terminal tab ID (added in version 9) */

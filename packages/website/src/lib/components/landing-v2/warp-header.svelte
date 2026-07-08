@@ -1,8 +1,7 @@
 <script lang="ts">
 import { page } from "$app/stores";
+import { RoundedIcon } from "@acepe/ui";
 import AcepeMark from "./acepe-mark.svelte";
-import { X } from "@lucide/svelte";
-import { GithubLogo, Star } from "phosphor-svelte";
 
 interface Props {
 	announcement?: string;
@@ -41,7 +40,7 @@ const navLinkClass =
 				class="absolute right-3 flex h-6 w-6 items-center justify-center text-[#f8f5ee]/40 transition-colors hover:text-[#f8f5ee]"
 				aria-label="Dismiss announcement"
 			>
-				<X class="h-3.5 w-3.5" />
+				<RoundedIcon name="close" class="h-3.5 w-3.5" />
 			</button>
 		</div>
 	{/if}
@@ -68,9 +67,9 @@ const navLinkClass =
 					class="hidden items-center gap-1.5 text-[14px] text-[#f8f5ee]/70 transition-colors hover:text-[#f8f5ee] sm:flex"
 					aria-label="GitHub"
 				>
-					<GithubLogo class="h-4 w-4" weight="fill" />
+					<RoundedIcon name="github" class="h-4 w-4" />
 					{#if githubStars}
-						<Star class="h-3 w-3 text-amber-400" weight="fill" />
+						<RoundedIcon name="star" class="h-3 w-3 text-amber-400" />
 						<span class="font-mono text-[13px]">{formatStars(githubStars)}</span>
 					{/if}
 				</a>

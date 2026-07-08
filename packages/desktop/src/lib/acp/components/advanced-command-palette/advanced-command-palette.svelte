@@ -1,5 +1,5 @@
 <script lang="ts">
-import { MagnifyingGlass } from "phosphor-svelte";
+import { RoundedIcon } from "@acepe/ui";
 import * as Kbd from "$lib/components/ui/kbd/index.js";
 import DialogFrame from "$lib/components/ui/dialog-frame.svelte";
 import { TIMING } from "../../constants/timing.js";
@@ -99,12 +99,12 @@ const paletteState = $derived(commandPalette.state);
 	closeLabel="Close command palette"
 	size="palette-lg"
 	hideHeader={true}
-	contentClass="overflow-hidden rounded-xl border border-border/40 shadow-2xl"
+	contentClass="mx-auto w-full max-w-[40rem] overflow-hidden rounded-xl border border-border/40 shadow-2xl"
 	{onOpenChange}
 >
 	<div class="flex flex-col">
 		<div class="flex items-center gap-2 border-b border-border/30 px-3 py-2">
-			<MagnifyingGlass class="size-3.5 shrink-0 text-muted-foreground/50" weight="bold" />
+			<RoundedIcon name="search" class="size-3.5 shrink-0 text-muted-foreground/50" />
 			<input
 				bind:this={inputRef}
 				type="text"
@@ -112,7 +112,7 @@ const paletteState = $derived(commandPalette.state);
 				autocomplete="off"
 				autocapitalize="off"
 				spellcheck={false}
-				class="flex-1 border-none bg-transparent text-[13px] outline-none placeholder:text-muted-foreground/40"
+				class="flex-1 border-none bg-transparent outline-none placeholder:text-muted-foreground/40"
 				value={paletteState.query}
 				oninput={handleInput}
 				onkeydown={handleKeyDown}

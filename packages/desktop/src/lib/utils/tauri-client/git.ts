@@ -233,6 +233,10 @@ export const git = {
 		return gitCommands.get_open_pr_for_branch.invoke<OpenPrInfo | null>({ projectPath });
 	},
 
+	ciJobDetails: (projectPath: string, detailsUrl: string): ResultAsync<CiJobDetails, AppError> => {
+		return gitCommands.ci_job_details.invoke<CiJobDetails>({ projectPath, detailsUrl });
+	},
+
 	// ─── Git HEAD Watcher ──────────────────────────────────────────────
 
 	watchHead: (projectPath: string): ResultAsync<void, AppError> => {
@@ -391,6 +395,22 @@ export interface PrDetails {
 	additions: number;
 	deletions: number;
 	commits: PrCommit[];
+}
+
+export interface CiJobStep {
+	number: number;
+	name: string;
+	status: string;
+	conclusion: string | null;
+	log: string;
+}
+
+export interface CiJobDetails {
+	id: number;
+	name: string;
+	status: string;
+	conclusion: string | null;
+	steps: CiJobStep[];
 }
 
 /** Context returned by git_collect_ship_context for AI generation. */

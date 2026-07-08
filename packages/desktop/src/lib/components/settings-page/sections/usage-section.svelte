@@ -1,5 +1,4 @@
 <script lang="ts">
-import { ChartLine } from "phosphor-svelte";
 import SettingsComingSoon from "../settings-coming-soon.svelte";
 import SettingsSection from "../settings-section.svelte";
 </script>
@@ -7,7 +6,7 @@ import SettingsSection from "../settings-section.svelte";
 <div class="w-full">
 	<SettingsSection>
 		<SettingsComingSoon
-			icon={ChartLine}
+			roundedIcon="chart-line"
 			headline="Usage & cost insights"
 			description="Per-agent token usage, session counts, and estimated costs across providers will appear here."
 		/>

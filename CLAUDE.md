@@ -35,98 +35,87 @@ cargo clippy       # Rust lint (in src-tauri/)
 
 `docs/solutions/` stores documented solutions to past problems (bugs, best practices, workflow patterns), organized by category with YAML frontmatter (`module`, `tags`, `problem_type`). Relevant when implementing or debugging in documented areas.
 
-## CE Workflow
+## Agent Workflow
 
-Acepe uses the Compounding Engineering workflow as its engineering operating system. This is the **single source of truth** — `CLAUDE.md` defers here.
+Acepe uses the Matt Pocock skills workflow with strict planning, TDD, review, and QA gates for non-trivial work. This is the single source of truth for agents working in this repo; keep `CLAUDE.md` and `AGENTS.md` aligned.
 
 ### Flow Diagram
 
-```
-                        ┌─────────────────────────────────────┐
-                        │         Task arrives                │
-                        └──────────────┬──────────────────────┘
-                                       │
-                              ┌────────▼────────┐
-                              │  Trivial task?   │──── yes ──── Direct execution
-                              └────────┬────────┘
-                                       │ no
-                              ┌────────▼────────┐
-                              │  Requirements    │
-                              │  already clear?  │──── no ───── /ce:brainstorm
-                              └────────┬────────┘          docs/brainstorms/
-                                       │ yes
-                              ┌────────▼────────┐
-                              │  Reviewed plan   │
-                              │  already exists? │──── no ──┐
-                              └────────┬────────┘          │
-                                       │ yes               │
-                                       │           ┌───────▼───────┐
-                                       │           │  /ce:plan     │
-                                       │           │  docs/plans/  │
-                                       │           └───────┬───────┘
-                                       │                   │
-                                       │           ┌───────▼────────────┐
-                                       │           │  /document-review  │◄──── MANDATORY GATE
-                                       │           └───────┬────────────┘
-                                       │                   │
-                                       │         ┌─────────▼─────────┐
-                                       │         │ Unresolved scope? │── yes ── loop to brainstorm
-                                       │         └─────────┬─────────┘
-                                       │                   │ no
-                              ┌────────▼───────────────────▼──┐
-                              │  Bug / behavior change /      │
-                              │  non-trivial refactor?        │── yes ── TDD: failing test first
-                              └────────┬──────────────────────┘
-                                       │
-                              ┌────────▼────────┐
-                              │    /ce:work     │
-                              └────────┬────────┘
-                                       │
-                              ┌────────▼────────┐
-                              │   /ce:review    │  (non-trivial work)
-                              └────────┬────────┘
-                                       │
-                              ┌────────▼────────┐
-                              │  /ce:compound   │  (meaningful learning)
-                              └─────────────────┘
+```text
+Task arrives
+  |
+  v
+Trivial, obvious, safe?
+  | yes -> direct execution + focused verification
+  no
+  |
+  v
+Problem, scope, or success criteria unclear?
+  | yes -> grill-me / grill-with-docs -> docs/brainstorms/
+  no
+  |
+  v
+Need durable spec or tracked work?
+  | yes -> to-prd / to-issues / triage
+  no or done
+  |
+  v
+Risky or non-trivial?
+  | yes -> plan in docs/plans/ -> document-review -> resolve findings
+  no or done
+  |
+  v
+Bug, behavior change, or non-trivial refactor?
+  | yes -> TDD: failing or characterization test first
+  no or done
+  |
+  v
+implement
+  |
+  v
+code-review for non-trivial work
+  |
+  v
+Record durable learning in docs/solutions/ when useful
 ```
 
 ### Entry-Point Decision Table
 
 | Situation | Start at |
 |-----------|----------|
-| Scope, success criteria, or problem framing unclear | `/ce:brainstorm` |
-| Requirements exist, no plan yet | `/ce:plan` |
-| Reviewed plan exists, matches request | `/ce:work` |
-| Bug fix or behavior change | TDD (failing test) then `/ce:work` |
-| Non-trivial refactor | `/ce:plan` (refactors are not exempt) |
+| Scope, success criteria, or problem framing unclear | `grill-me` or `grill-with-docs` |
+| Requirements exist, no plan yet | Plan in `docs/plans/`, then `document-review` |
+| Reviewed plan exists, matches request | `implement` |
+| Bug fix or behavior change | TDD failing test, then `implement` |
+| Non-trivial refactor | Plan in `docs/plans/`, then `document-review` |
 | Trivial, obvious, no durable plan needed | Direct execution |
 
 ### Phase Intent
 
 | Phase | Purpose |
 |-------|---------|
-| `/ce:brainstorm` | Define **what** to build. Produces a requirements-quality artifact. |
-| `/ce:plan` | Define **how** to build it. Decision-complete plan with files, tests, constraints. |
-| `/document-review` | Quality gate before code. Catches contradictions, scope drift, weak assumptions. |
-| TDD | First executable proof. Failing or characterization test that `/ce:work` turns green. |
-| `/ce:work` | Execute the reviewed plan. Code and verification, not inventing behavior. |
-| `/ce:review` | Stress-test code changes before shipping. |
-| `/ce:compound` | Turn execution-time learning into durable team leverage. |
-| `/ce:compound-refresh` | Update learnings when a new fix makes older ones stale. |
+| `grill-me` / `grill-with-docs` | Define what to build when the request is unclear. |
+| `to-prd` / `to-issues` / `triage` | Turn product thinking into durable specs or tracked work. |
+| Plan in `docs/plans/` | Define how to build it with files, tests, constraints, and verification. |
+| `document-review` | Quality gate before code. Catches contradictions, scope drift, and weak assumptions. |
+| TDD | First executable proof. Failing or characterization test that implementation turns green. |
+| `implement` | Execute the clear request or reviewed plan. Code and verify; do not invent behavior. |
+| `code-review` | Stress-test non-trivial code changes before shipping. |
+| `docs/solutions/` | Store meaningful bugs, fixes, and non-obvious implementation learnings. |
 
 ### Hard Rules
 
-1. **No skipping the review gate.** `/ce:plan` → `/document-review` → `/ce:work`. Never plan → implement directly.
-2. **A plan is not “done” when `/ce:plan` finishes.** It is done after `/document-review` runs and findings are resolved.
-3. **Implementation is not “done” when `/ce:work` finishes.** Non-trivial work requires `/ce:review` → resolve findings → `/ce:compound`.
-4. **Tests before implementation.** For bugs, behavior changes, and non-trivial refactors: write the failing test first via TDD, then `/ce:work`.
-5. **Unresolved scope decisions go back to brainstorm.** If `/document-review` surfaces product ambiguity, loop to `/ce:brainstorm`. Do not bury ambiguity in code.
-6. **Headless review for automation.** When reviewing non-interactively: `/document-review mode:headless docs/plans/<plan>.md`.
-7. **Implementation plan requests must use `/ce:plan` first.** When asked to create an implementation plan for Acepe, always use the `ce-plan` skill first. Session `plan.md` may mirror or summarize the CE plan, but it must not replace the `/ce:plan` workflow, even when the request explicitly asks for a session plan file or uses `[[PLAN]]`.
-8. **Acepe `/ce:plan` uses Deep plan posture.** For Acepe software work, treat `/ce:plan` as a request for a **Deep** plan by default. This is plan-depth guidance, not an automatic trigger for the separate "deepen an existing plan" fast path unless the user explicitly asks to deepen an existing plan, for example with `/ce:plan deepen` or `/ce:plan deepen docs/plans/<plan>.md`.
-9. **Prefer skill entry points** over direct subagent invocation. Skills own orchestration, agent selection, and review posture.
-10. **If a skill is unavailable**, follow the same phase manually. Never skip a phase because the skill isn't loaded.
+1. **No skipping the review gate when a plan is needed.** Plan -> `document-review` -> `implement`. Never plan -> implement directly.
+2. **A plan is done after review, not after drafting.** It is done after `document-review` runs and findings are resolved.
+3. **Implementation is done after verification and review.** Non-trivial work requires `code-review`, resolved findings, and real verification.
+4. **Tests before implementation.** For bugs, behavior changes, and non-trivial refactors: write the failing or characterization test first via TDD, then implement.
+5. **Unresolved scope decisions go back to requirements.** If `document-review` finds product ambiguity, loop to `grill-me` or `grill-with-docs`. Do not bury ambiguity in code.
+6. **Headless review for automation.** When reviewing non-interactively: `document-review mode:headless docs/plans/<plan>.md`.
+7. **Implementation plan requests must create or reuse a real plan first.** Session `plan.md` may mirror or summarize the plan, but it must not replace `docs/plans/` when a durable plan is needed.
+8. **Acepe plans use Deep plan posture.** For Acepe software work, make plans decision-complete by default: files, tests, constraints, rollout, and verification.
+9. **Do not normalize partial implementation as an acceptable endpoint.** Continue until the planned slice is actually wired end-to-end and verified. Do not frame "still in progress" as a valid completion state when the requested implementation has not yet been delivered.
+10. **Prefer skill entry points** over direct subagent invocation. Skills own orchestration, agent selection, and review posture.
+11. **If a skill is unavailable**, follow the same phase manually. Never skip a phase because the skill isn't loaded.
 
 ### TDD Protocol
 
@@ -239,5 +228,5 @@ Follow the global Fable/Opus/Sonnet/Codex routing in `/Users/alex/.claude/CLAUDE
 - `fast-worker` (Sonnet) handles mechanical edits, tests, formatting, and repetitive work.
 - Codex is a peer senior engineer for fresh perspective, strong implementation, computer use, UI/UX verification, and efficient well-scoped execution.
 
-Local project rules in this file still win. Do not weaken CE, TDD, QA, or verification requirements.
+Local project rules in this file still win. Do not weaken TDD, QA, or verification requirements.
 <!-- END fable-codex-orchestration -->

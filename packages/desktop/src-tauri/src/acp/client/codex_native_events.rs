@@ -79,6 +79,7 @@ fn translate_text_delta(
             chunk: text_chunk(delta),
             part_id: item_id.clone(),
             message_id: item_id,
+            parent_tool_use_id: None,
             session_id: Some(session_id.to_string()),
         }
     } else {
@@ -86,6 +87,7 @@ fn translate_text_delta(
             chunk: text_chunk(delta),
             part_id: item_id.clone(),
             message_id: item_id,
+            parent_tool_use_id: None,
             session_id: Some(session_id.to_string()),
             produced_at_monotonic_ms: None,
         }
@@ -654,6 +656,7 @@ mod tests {
                 chunk,
                 part_id,
                 message_id,
+                parent_tool_use_id,
                 session_id,
                 produced_at_monotonic_ms: _,
             } => {
@@ -663,6 +666,7 @@ mod tests {
                 }
                 assert_eq!(part_id.as_deref(), Some("msg-1"));
                 assert_eq!(message_id.as_deref(), Some("msg-1"));
+                assert_eq!(parent_tool_use_id, &None);
                 assert_eq!(session_id.as_deref(), Some("session-1"));
             }
             other => panic!("unexpected update: {other:?}"),

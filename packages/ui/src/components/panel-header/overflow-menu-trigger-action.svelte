@@ -1,8 +1,6 @@
 <script lang="ts">
-	import { IconDotsVertical } from "@tabler/icons-svelte";
-
 	import { Button } from "../button/index.js";
-	import { OVERFLOW_DOTS_ICON_CLASS } from "./project-card-action-button-class.js";
+	import { RoundedIcon } from "../icons/index.js";
 
 	interface Props {
 		title?: string;
@@ -14,8 +12,8 @@
 </script>
 
 <Button
-	variant="chromeIcon"
-	size="chromeIcon"
+	variant="ghost"
+	size="icon-sm"
 	data-header-control
 	{title}
 	aria-label={title}
@@ -23,6 +21,6 @@
 	{onclick}
 >
 	{#snippet children()}
-		<IconDotsVertical class={OVERFLOW_DOTS_ICON_CLASS} />
+		<RoundedIcon name="more" />
 	{/snippet}
 </Button>

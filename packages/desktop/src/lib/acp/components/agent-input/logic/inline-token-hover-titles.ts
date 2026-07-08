@@ -12,7 +12,7 @@ export function applyInlineTokenHoverTitles(editor: HTMLElement): void {
 		}
 
 		if (tokenType === "skill") {
-			node.setAttribute("title", tokenValue.startsWith("/") ? tokenValue : `/${tokenValue}`);
+			node.removeAttribute("title");
 			continue;
 		}
 

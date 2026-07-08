@@ -1,9 +1,10 @@
 <script lang="ts">
-	import { LoadingIcon } from "../icons/index.js";
+	import { LoadingIcon, RoundedIcon } from "../icons/index.js";
 	import { ProviderMark, type ProviderBrand } from "../provider-mark/index.js";
-	import { Selector } from "../selector/index.js";
-	import AgentInputModelRow from "./agent-input-model-row.svelte";
-	import AgentInputReasoningEffortTrigger from "./agent-input-reasoning-effort-trigger.svelte";
+	import { Selector, SelectorItem } from "../selector/index.js";
+	import { cn } from "../../lib/utils.js";
+	import { FusedPrimaryOverflowGroup } from "../panel-header/index.js";
+	import { getReasoningVariantIconColor } from "./agent-input-config-option-selector-state.js";
 	import type { AgentInputModelSelectorReasoningGroup } from "./agent-input-model-selector-types.js";
 
 	interface Props {
@@ -45,70 +46,101 @@
 		onVariantOpenChange,
 		onSelect,
 	}: Props = $props();
+
+	const reasoningDisabled = $derived(isLoading || !selectedReasoningGroup);
+	const reasoningIconStyle = $derived(
+		`color: ${getReasoningVariantIconColor({
+			variants: selectedReasoningGroup?.variants ?? [],
+			selectedVariantId: selectedReasoningVariantId,
+		})}`
+	);
 </script>
 
-<div class="flex items-end overflow-hidden rounded-md bg-muted">
-	<Selector
-		open={primaryOpen}
-		disabled={isLoading}
-		onOpenChange={onPrimaryOpenChange}
-		variant="ghost"
-		side="top"
-		sideOffset={8}
-	>
-		{#snippet renderButton()}
-			{#if isLoading}
-				<LoadingIcon class="text-muted-foreground" size={14} aria-label={loadingLabel} />
-			{:else}
-				{#if !hideTriggerProviderMark && primaryTriggerProviderBrand}
-					<ProviderMark
-						brand={primaryTriggerProviderBrand}
-						label={primaryTriggerProviderLabel ?? primarySelectorLabel}
-						class="size-3.5"
-					/>
+<div class="model-reasoning-controls flex shrink-0 items-end">
+	{#snippet modelPrimary()}
+		<Selector
+			open={primaryOpen}
+			onOpenChange={onPrimaryOpenChange}
+			embeddedInGroup
+			disabled={isLoading}
+			showChevron={false}
+			triggerSize="composerChipLabel"
+			side="top"
+			align="start"
+			sideOffset={8}
+			contentClass="w-fit max-w-[280px]"
+			triggerAriaLabel={primarySelectorLabel}
+		>
+			{#snippet renderButton()}
+				{#if isLoading}
+					<LoadingIcon class="text-muted-foreground" size={14} aria-label={loadingLabel} />
+				{:else}
+					{#if !hideTriggerProviderMark && primaryTriggerProviderBrand}
+						<ProviderMark
+							brand={primaryTriggerProviderBrand}
+							label={primaryTriggerProviderLabel ?? primarySelectorLabel}
+							class="size-3.5"
+						/>
+					{/if}
+					<span class="max-w-24 truncate">{primarySelectorLabel}</span>
 				{/if}
-				<span class="truncate text-xs">{primarySelectorLabel}</span>
-			{/if}
-		{/snippet}
+			{/snippet}
 
-		<div class="flex flex-col gap-0.5 max-h-[250px] overflow-y-auto scrollbar-thin scrollbar-thumb-muted scrollbar-track-transparent">
-			{#each reasoningGroups as group (group.baseModelId)}
-				<AgentInputModelRow
-					modelId={group.baseModelId}
-					modelName={group.baseModelName}
-					currentModelId={selectedReasoningBaseId}
-					onSelect={() =>
-						onSelect(group.preferredVariantId ?? group.variants[0]?.id ?? group.baseModelId)}
-				>
-					{#snippet leading()}
-						{#if group.providerBrand}
-							<ProviderMark
-								brand={group.providerBrand}
-								label={group.providerLabel ?? group.baseModelName}
-								class="size-3.5"
-							/>
-						{/if}
-					{/snippet}
-				</AgentInputModelRow>
-			{/each}
-		</div>
-	</Selector>
-	<div class="h-full w-px bg-border/50"></div>
-	<AgentInputReasoningEffortTrigger
-		open={variantOpen}
-		disabled={isLoading || !selectedReasoningGroup}
-		onOpenChange={onVariantOpenChange}
-		triggerAriaLabel={reasoningEffortTooltipLabel}
-		side="top"
-	>
-		{#snippet children()}
+			<div
+				class="flex max-h-[250px] flex-col gap-0.5 overflow-y-auto scrollbar-thin scrollbar-thumb-muted scrollbar-track-transparent"
+			>
+				{#each reasoningGroups as group (group.baseModelId)}
+					<SelectorItem
+						label={group.baseModelName}
+						selected={group.baseModelId === selectedReasoningBaseId}
+						onSelect={() =>
+							onSelect(group.preferredVariantId ?? group.variants[0]?.id ?? group.baseModelId)}
+					>
+						{#snippet leading()}
+							{#if group.providerBrand}
+								<ProviderMark
+									brand={group.providerBrand}
+									label={group.providerLabel ?? group.baseModelName}
+									class="size-3.5"
+								/>
+							{/if}
+						{/snippet}
+					</SelectorItem>
+				{/each}
+			</div>
+		</Selector>
+	{/snippet}
+
+	{#snippet reasoningOverflow()}
+		<Selector
+			open={variantOpen}
+			onOpenChange={onVariantOpenChange}
+			embeddedInGroup
+			disabled={reasoningDisabled}
+			showChevron={false}
+			triggerSize="composerChipIcon"
+			side="top"
+			align="start"
+			sideOffset={8}
+			contentClass="w-fit max-w-[280px]"
+			triggerAriaLabel={reasoningEffortTooltipLabel}
+		>
+			{#snippet renderButton()}
+				<RoundedIcon
+					name="brain"
+					style={reasoningIconStyle}
+					data-testid="reasoning-model-brain-icon"
+				/>
+			{/snippet}
+
 			{#if selectedReasoningGroup}
-				<div class="flex flex-col gap-0.5 max-h-[250px] overflow-y-auto px-0 scrollbar-thin scrollbar-thumb-muted scrollbar-track-transparent">
+				<div
+					class="flex max-h-[250px] flex-col gap-0.5 overflow-y-auto px-0 scrollbar-thin scrollbar-thumb-muted scrollbar-track-transparent"
+				>
 					{#each selectedReasoningGroup.variants as variant (variant.id)}
-						<AgentInputModelRow
-							modelId={variant.id}
-							modelName={variant.name}
-							currentModelId={selectedReasoningVariantId}
+						<SelectorItem
+							label={variant.name}
+							selected={variant.id === selectedReasoningVariantId}
 							onSelect={() => onSelect(variant.id)}
 						/>
 					{/each}
@@ -116,6 +148,12 @@
 			{:else}
 				<div class="px-2 py-1 text-xs">{noReasoningLevelsLabel}</div>
 			{/if}
-		{/snippet}
-	</AgentInputReasoningEffortTrigger>
+		</Selector>
+	{/snippet}
+
+	<FusedPrimaryOverflowGroup
+		class="min-h-[23px] [&_[data-slot=button]]:min-h-[23px]"
+		primary={modelPrimary}
+		overflow={reasoningOverflow}
+	/>
 </div>

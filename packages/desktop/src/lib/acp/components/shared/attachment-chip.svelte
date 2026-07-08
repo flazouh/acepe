@@ -1,5 +1,5 @@
 <script lang="ts">
-import X from "@lucide/svelte/icons/x";
+import { RoundedIcon } from "@acepe/ui";
 import FileIcon from "$lib/components/ui/file-icon/file-icon.svelte";
 
 import type { ParsedAttachment } from "../../utils/attachment-token-parser.js";
@@ -35,7 +35,7 @@ const hoverTitle = $derived(title ?? attachment.path ?? undefined);
 			class="ml-0.5 p-0.5 rounded hover:bg-destructive/20 hover:text-destructive cursor-pointer transition-colors"
 			aria-label="Remove attachment"
 		>
-			<X class="h-3 w-3" />
+			<RoundedIcon name="close" class="h-3 w-3" />
 		</button>
 	{/if}
 </span>

@@ -4,6 +4,11 @@
 	interface Props {
 		/** The project name to extract the first letter from */
 		name: string;
+		/**
+		 * Explicit badge label. When provided (e.g. a disambiguating prefix like
+		 * "Ac"), it overrides the first-letter derived from {@link name}.
+		 */
+		label?: string | null;
 		/** The color for the letter */
 		color: string;
 		/** Optional project icon source. When provided, renders the image instead of the letter badge. */
@@ -22,6 +27,7 @@
 
 	let {
 		name,
+		label = null,
 		color,
 		iconSrc = null,
 		size = 20,
@@ -34,7 +40,10 @@
 	let hasError = $state(false);
 	let errorSrc = $state<string | null>(null);
 
-	const letter = $derived(name.charAt(0).toUpperCase());
+	const letter = $derived(
+		label != null && label.length > 0 ? label : name.charAt(0).toUpperCase()
+	);
+	const isMultiChar = $derived(letter.length > 1);
 	const hasSequenceId = $derived(sequenceId != null);
 	const displayColor = $derived(color === Colors.green ? "var(--success)" : color);
 	const iconAlt = $derived(name.length > 0 ? `${name} icon` : "Project icon");
@@ -95,7 +104,7 @@
 				class="relative flex shrink-0 items-center justify-center overflow-hidden"
 				style="
 					background-color: {badgeBg};
-					width: {size}px;
+					{isMultiChar ? `min-width: ${size}px; padding: 0 ${size * 0.2}px;` : `width: ${size}px;`}
 					height: {size}px;
 					border-radius: {hasSequenceId ? `${radius}px 0 0 ${radius}px` : `${radius}px`};
 				"

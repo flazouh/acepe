@@ -1,11 +1,12 @@
 <script lang="ts">
-	import { Sparkle } from "phosphor-svelte";
 	import type { Snippet } from "svelte";
+	import { RoundedIcon } from "../icons/index.js";
 
 interface Props {
 		appVersion?: string | null;
 		whatsNewLabel?: string;
 		onOpenChangelog?: () => void;
+		topNav?: Snippet;
 		queueSection?: Snippet;
 		sessionList: Snippet;
 		footer?: Snippet;
@@ -15,6 +16,7 @@ interface Props {
 		appVersion = null,
 		whatsNewLabel = "What's New",
 		onOpenChangelog,
+		topNav,
 		queueSection,
 		sessionList,
 		footer,
@@ -22,8 +24,15 @@ interface Props {
 </script>
 
 <aside
-	class="shrink-0 flex w-[280px] flex-col h-full overflow-hidden gap-0"
+	class="shrink-0 flex w-[280px] flex-col h-full overflow-hidden gap-0 rounded-lg border border-border/50 bg-card/75"
 >
+	<!-- Top nav (New chat / Search) -->
+	{#if topNav}
+		<div class="shrink-0">
+			{@render topNav()}
+		</div>
+	{/if}
+
 	<!-- Queue Section -->
 	{#if queueSection}
 		<div class="shrink-0">
@@ -50,7 +59,7 @@ interface Props {
 					class="text-[10px] text-muted-foreground/50 hover:text-muted-foreground flex items-center gap-1 transition-colors"
 					title={whatsNewLabel}
 				>
-					<Sparkle weight="fill" class="size-3" />
+					<RoundedIcon name="sparkle" class="size-3" />
 					{whatsNewLabel}
 				</button>
 			{/if}

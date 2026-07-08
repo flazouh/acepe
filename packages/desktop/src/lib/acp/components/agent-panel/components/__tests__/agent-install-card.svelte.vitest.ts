@@ -12,10 +12,6 @@ vi.mock("@acepe/ui", async () => ({
 	LoadingIcon: (await import("./fixtures/user-message-stub.svelte")).default,
 }));
 
-vi.mock("@lucide/svelte/icons/chevron-down", async () => ({
-	default: (await import("./fixtures/user-message-stub.svelte")).default,
-}));
-
 vi.mock("$lib/components/theme/context.svelte.js", () => ({
 	useTheme: () => ({ effectiveTheme: "dark" }),
 }));

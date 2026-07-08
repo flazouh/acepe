@@ -5,3 +5,7 @@ export {
 	shouldShowSessionProjectBadge,
 	type SessionProjectBadgeIdentity,
 } from "./project-letter-badge-session.js";
+export {
+	computeProjectBadgeLabels,
+	type ProjectBadgeLabelInput,
+} from "./project-letter-badge-labels.js";

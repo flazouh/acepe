@@ -1,6 +1,5 @@
 <script lang="ts">
-import { ProjectLetterBadge } from "@acepe/ui";
-import { IconX } from "@tabler/icons-svelte";
+import { ProjectLetterBadge, RoundedIcon, computeProjectBadgeLabels } from "@acepe/ui";
 import { normalizeTitleForDisplay } from "$lib/acp/store/session-title-policy.js";
 import { Button } from "$lib/components/ui/button/index.js";
 import * as Tooltip from "@acepe/ui/tooltip";
@@ -31,6 +30,10 @@ interface Props {
 }
 
 let { panels, focusedPanelId, recentProjects, onSelectPanel, onClosePanel }: Props = $props();
+
+const labelByPath = $derived(
+	computeProjectBadgeLabels(recentProjects.map((p) => ({ key: p.path, name: p.name })))
+);
 
 function getProjectForSession(projectPath: string | null): Project | null {
 	if (!projectPath) return null;
@@ -73,6 +76,9 @@ function getProjectInfo(panel: PanelTabInfo): {
 						<!-- Project letter badge -->
 						<ProjectLetterBadge
 							name={projectInfo.name}
+							label={panel.sessionProjectPath
+								? (labelByPath.get(panel.sessionProjectPath) ?? null)
+								: null}
 							color={projectInfo.color}
 							iconSrc={projectInfo.iconSrc}
 						/>
@@ -94,7 +100,7 @@ function getProjectInfo(panel: PanelTabInfo): {
 								onClosePanel(panel.id);
 							}}
 						>
-							<IconX class="h-3 w-3" />
+							<RoundedIcon name="close" class="h-3 w-3" />
 							<span class="sr-only">{"Close"}</span>
 						</button>
 					</Button>

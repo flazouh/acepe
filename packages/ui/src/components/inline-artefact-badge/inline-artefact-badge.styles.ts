@@ -21,7 +21,7 @@ export function buildInlineArtefactIconClassName(tokenType: InlineArtefactTokenT
 export function buildInlineArtefactLabelClassName(tokenType: InlineArtefactTokenType): string {
 	const isSlashItem = tokenType === "command" || tokenType === "skill";
 	const maxWidthClass = isSlashItem ? "max-w-[180px]" : "max-w-[120px]";
-	const fontClass = isSlashItem ? "font-mono" : "";
+	const fontClass = tokenType === "command" ? "font-mono" : "";
 
 	return `${maxWidthClass} truncate ${fontClass} text-foreground leading-none`.trim();
 }

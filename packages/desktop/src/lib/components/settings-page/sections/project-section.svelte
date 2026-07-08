@@ -46,6 +46,7 @@ const activeProject = $derived(
 				>
 					<ProjectLetterBadge
 						name={project.name}
+						label={projectManager.getProjectBadgeLabel(project.path) ?? null}
 						color={project.color}
 						iconSrc={project.iconPath}
 						size={20}

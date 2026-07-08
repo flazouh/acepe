@@ -5,10 +5,14 @@
 	import ReviewWorkspaceHeader from "./review-workspace-header.svelte";
 	import type { ReviewWorkspaceFileItem } from "./types.js";
 
+	import { DiffPill } from "../diff-pill/index.js";
+	import { FilePathBadge } from "../file-path-badge/index.js";
+
 	interface Props {
 		files: readonly ReviewWorkspaceFileItem[];
 		selectedFileIndex?: number | null;
 		content?: Snippet;
+		headerActions?: Snippet;
 		onClose?: () => void;
 		onFileSelect?: (index: number) => void;
 		onFileRevert?: (index: number) => void;
@@ -18,12 +22,20 @@
 		showHeader?: boolean;
 		showCloseButton?: boolean;
 		compact?: boolean;
+		/**
+		 * Flat surface: drop the boxed `bg-input/30` pane cards in favour of the
+		 * Source Control modal's flush, hairline-divider treatment. The host dialog
+		 * already owns the surface, so the panes fill it transparently and are
+		 * separated by a single `border-r` rather than floating as rounded cards.
+		 */
+		flat?: boolean;
 	}
 
 	let {
 		files,
 		selectedFileIndex = null,
 		content,
+		headerActions,
 		onClose,
 		onFileSelect,
 		onFileRevert,
@@ -33,39 +45,60 @@
 		showHeader = true,
 		showCloseButton = true,
 		compact = false,
+		flat = false,
 	}: Props = $props();
 
 	const showEmptyState = $derived(files.length === 0 || !content);
+	const selectedFileItem = $derived(
+		typeof selectedFileIndex === "number" && selectedFileIndex >= 0
+			? (files[selectedFileIndex] ?? null)
+			: null
+	);
+	// Flush (Source Control) mode replaces the boxed pane cards with a per-file
+	// header band over the diff and a gutter on the diff body, so the code is not
+	// jammed against the divider. Only when the host hides the workspace header.
+	const showFlatFileHeader = $derived(flat && !showHeader && !showEmptyState && selectedFileItem !== null);
+	const filesPaneWidth = $derived(compact ? "w-[220px]" : "w-[280px]");
 	const rootClass = $derived(
-		compact
-			? "flex h-full min-h-0 flex-1 w-full min-w-0 flex-col gap-1 overflow-hidden"
-			: "flex h-full min-h-0 flex-1 w-full min-w-0 flex-col gap-2 overflow-hidden"
+		flat
+			? "flex h-full min-h-0 flex-1 w-full min-w-0 flex-col overflow-hidden"
+			: compact
+				? "flex h-full min-h-0 flex-1 w-full min-w-0 flex-col gap-1 overflow-hidden"
+				: "flex h-full min-h-0 flex-1 w-full min-w-0 flex-col gap-2 overflow-hidden"
 	);
 	const bodyClass = $derived(
-		compact
-			? "flex min-h-0 min-w-0 flex-1 gap-1 overflow-hidden"
-			: "flex min-h-0 min-w-0 flex-1 gap-2 overflow-hidden"
+		flat
+			? "flex min-h-0 min-w-0 flex-1 overflow-hidden"
+			: compact
+				? "flex min-h-0 min-w-0 flex-1 gap-1 overflow-hidden"
+				: "flex min-h-0 min-w-0 flex-1 gap-2 overflow-hidden"
 	);
 	const filesPaneClass = $derived(
-		compact
-			? "flex min-h-0 w-[220px] shrink-0 flex-col overflow-hidden rounded-lg border border-border bg-input/30"
-			: "flex min-h-0 w-[280px] shrink-0 flex-col overflow-hidden rounded-lg border border-border bg-input/30"
+		flat
+			? `flex min-h-0 ${filesPaneWidth} shrink-0 flex-col overflow-hidden border-r border-border/30`
+			: `flex min-h-0 ${filesPaneWidth} shrink-0 flex-col overflow-hidden rounded-lg border border-border bg-input/30`
 	);
 	const contentPaneClass = $derived(
-		compact
-			? "flex min-h-0 min-w-0 flex-1 flex-col gap-1 overflow-hidden"
-			: "flex min-h-0 min-w-0 flex-1 flex-col gap-2 overflow-hidden"
+		flat
+			? "flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden"
+			: compact
+				? "flex min-h-0 min-w-0 flex-1 flex-col gap-1 overflow-hidden"
+				: "flex min-h-0 min-w-0 flex-1 flex-col gap-2 overflow-hidden"
 	);
 	const contentCardClass = $derived(
-		compact
-			? `flex min-h-0 min-w-0 flex-1 flex-col gap-1 overflow-hidden ${showHeader ? "p-1" : ""}`
-			: `flex min-h-0 min-w-0 flex-1 flex-col gap-2 overflow-hidden ${showHeader ? "p-2" : ""}`
+		flat
+			? `flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden ${showHeader ? "p-2" : ""}`
+			: compact
+				? `flex min-h-0 min-w-0 flex-1 flex-col gap-1 overflow-hidden ${showHeader ? "p-1" : ""}`
+				: `flex min-h-0 min-w-0 flex-1 flex-col gap-2 overflow-hidden ${showHeader ? "p-2" : ""}`
 	);
 	const codeCardClass = $derived(
-		compact
-			? "flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-lg border border-border bg-input/30"
+		flat
+			? "flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden"
 			: "flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-lg border border-border bg-input/30"
 	);
+	// Diff body fills flush — no padding around the code viewer.
+	const codeBodyClass = "flex h-0 min-h-0 flex-1 flex-col overflow-hidden";
 
 	function handlePreviousFile(): void {
 		if (selectedFileIndex === null || selectedFileIndex <= 0) {
@@ -114,6 +147,7 @@
 						fileCount={files.length}
 						{selectedFileIndex}
 						{showCloseButton}
+						{headerActions}
 						{onClose}
 						onPreviousFile={handlePreviousFile}
 						onNextFile={handleNextFile}
@@ -129,8 +163,28 @@
 					</div>
 				{:else if content}
 					<div class={codeCardClass} data-testid="review-workspace-code-card">
+						{#if showFlatFileHeader && selectedFileItem}
+							<div
+								class="flex shrink-0 items-center gap-2 border-b border-border/40 px-3 py-2"
+								data-testid="review-workspace-flat-file-header"
+							>
+								<FilePathBadge
+									filePath={selectedFileItem.filePath}
+									fileName={selectedFileItem.fileName ?? undefined}
+									interactive={false}
+									class="!bg-transparent !border-transparent !px-0 min-w-0"
+								/>
+								{#if selectedFileItem.additions > 0 || selectedFileItem.deletions > 0}
+									<DiffPill
+										insertions={selectedFileItem.additions}
+										deletions={selectedFileItem.deletions}
+										variant="plain"
+									/>
+								{/if}
+							</div>
+						{/if}
 						<div
-							class="flex h-0 min-h-0 flex-1 flex-col overflow-hidden"
+							class={codeBodyClass}
 							data-testid="review-workspace-code-scroll-shell"
 						>
 							{@render content()}

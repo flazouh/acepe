@@ -42,9 +42,14 @@ export function shouldShowSlashCommandDropdown(input: {
 	isTriggerActive: boolean;
 	source: SlashCommandSource;
 	capabilitiesAgentId: string | null;
+	hasPaletteContent?: boolean;
 }): boolean {
 	if (!input.isTriggerActive) {
 		return false;
+	}
+
+	if (input.hasPaletteContent === true) {
+		return input.capabilitiesAgentId !== null;
 	}
 
 	return input.source.source !== "none";

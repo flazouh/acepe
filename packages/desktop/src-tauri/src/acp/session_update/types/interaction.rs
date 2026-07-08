@@ -226,6 +226,11 @@ pub struct UsageTelemetryData {
     /// Context window size reported by the agent (e.g. from usage_update `size` field).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub context_window_size: Option<u64>,
+    /// When set, this telemetry belongs to a spawned sub-agent rather than the
+    /// top-level session turn. The id is the parent `Task` tool-call id, used to
+    /// aggregate per-sub-agent usage downstream. `None` = session-level telemetry.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub parent_tool_use_id: Option<String>,
 }
 
 fn default_telemetry_scope() -> String {

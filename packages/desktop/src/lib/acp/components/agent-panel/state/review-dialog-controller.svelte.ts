@@ -10,6 +10,13 @@
  * it depends on a store + sessionId; it delegates state mutation here via open().
  */
 import type { ModifiedFilesState } from "../../../types/modified-files-state.js";
+import {
+	DEFAULT_REVIEW_DIFF_OPTIONS,
+	type DiffViewStyle,
+	type ReviewDiffIndicatorStyle,
+	type ReviewDiffLineChangeStyle,
+	type ReviewDiffOptions,
+} from "../../modified-files/components/review-diff-view-state.svelte.js";
 import type { ReviewControlsSnapshot } from "../components/agent-panel-review-content-types.js";
 
 export interface ReviewDialogDiffStats {
@@ -22,6 +29,8 @@ export class ReviewDialogController {
 	#filesState = $state<ModifiedFilesState | null>(null);
 	#fileIndex = $state(0);
 	#controls = $state<ReviewControlsSnapshot | null>(null);
+	#diffStyle = $state<DiffViewStyle>("unified");
+	#diffOptions = $state<ReviewDiffOptions>(DEFAULT_REVIEW_DIFF_OPTIONS);
 
 	get isOpen(): boolean {
 		return this.#open;
@@ -33,6 +42,14 @@ export class ReviewDialogController {
 
 	get controls(): ReviewControlsSnapshot | null {
 		return this.#controls;
+	}
+
+	get diffStyle(): DiffViewStyle {
+		return this.#diffStyle;
+	}
+
+	get diffOptions(): ReviewDiffOptions {
+		return this.#diffOptions;
 	}
 
 	/** Selected file index, clamped to the current file list. */
@@ -61,6 +78,60 @@ export class ReviewDialogController {
 
 	setControls(controls: ReviewControlsSnapshot | null): void {
 		this.#controls = controls;
+	}
+
+	setDiffStyle(diffStyle: DiffViewStyle): void {
+		this.#diffStyle = diffStyle;
+	}
+
+	setDiffIndicatorStyle(indicatorStyle: ReviewDiffIndicatorStyle): void {
+		this.#diffOptions = {
+			indicatorStyle,
+			lineChangeStyle: this.#diffOptions.lineChangeStyle,
+			showBackgrounds: this.#diffOptions.showBackgrounds,
+			wrapLines: this.#diffOptions.wrapLines,
+			showLineNumbers: this.#diffOptions.showLineNumbers,
+		};
+	}
+
+	setDiffLineChangeStyle(lineChangeStyle: ReviewDiffLineChangeStyle): void {
+		this.#diffOptions = {
+			indicatorStyle: this.#diffOptions.indicatorStyle,
+			lineChangeStyle,
+			showBackgrounds: this.#diffOptions.showBackgrounds,
+			wrapLines: this.#diffOptions.wrapLines,
+			showLineNumbers: this.#diffOptions.showLineNumbers,
+		};
+	}
+
+	setDiffShowBackgrounds(showBackgrounds: boolean): void {
+		this.#diffOptions = {
+			indicatorStyle: this.#diffOptions.indicatorStyle,
+			lineChangeStyle: this.#diffOptions.lineChangeStyle,
+			showBackgrounds,
+			wrapLines: this.#diffOptions.wrapLines,
+			showLineNumbers: this.#diffOptions.showLineNumbers,
+		};
+	}
+
+	setDiffWrapLines(wrapLines: boolean): void {
+		this.#diffOptions = {
+			indicatorStyle: this.#diffOptions.indicatorStyle,
+			lineChangeStyle: this.#diffOptions.lineChangeStyle,
+			showBackgrounds: this.#diffOptions.showBackgrounds,
+			wrapLines,
+			showLineNumbers: this.#diffOptions.showLineNumbers,
+		};
+	}
+
+	setDiffShowLineNumbers(showLineNumbers: boolean): void {
+		this.#diffOptions = {
+			indicatorStyle: this.#diffOptions.indicatorStyle,
+			lineChangeStyle: this.#diffOptions.lineChangeStyle,
+			showBackgrounds: this.#diffOptions.showBackgrounds,
+			wrapLines: this.#diffOptions.wrapLines,
+			showLineNumbers,
+		};
 	}
 
 	setFileIndex(index: number): void {

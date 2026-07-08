@@ -36,6 +36,7 @@ export type AgentToolKind =
 	| "read"
 	| "read_lints"
 	| "edit"
+	| "review"
 	| "delete"
 	| "write"
 	| "execute"
@@ -113,6 +114,15 @@ export interface AgentToolEditDiffEntry {
 	newString?: string | null;
 }
 
+export interface AgentToolReviewFileEntry {
+	id: string;
+	filePath: string;
+	fileName?: string | null;
+	reviewStatus?: AgentPanelFileReviewStatus;
+	additions: number;
+	deletions: number;
+}
+
 export interface AgentSearchMatch {
 	filePath: string;
 	fileName: string;
@@ -125,6 +135,17 @@ export interface AgentToolFileSelectEvent {
 	entryId: string;
 	toolCallId?: string;
 	filePath: string;
+}
+
+export interface AgentUserFileSelectEvent {
+	tokenType: "file" | "image";
+	value: string;
+}
+
+export interface AgentPanelReviewActionEvent {
+	entryId: string;
+	toolCallId?: string;
+	interactionId?: string;
 }
 
 export type AgentSourceHighlighter = (
@@ -145,6 +166,8 @@ export interface AgentToolEntry {
 	scriptText?: string | null;
 	/** Populated for `kind === "edit"` from session tool arguments (drives {@link AgentToolEdit}). */
 	editDiffs?: readonly AgentToolEditDiffEntry[];
+	/** Populated for the local review affordance shown after a turn finishes. */
+	reviewFiles?: readonly AgentToolReviewFileEntry[];
 	/** Absolute or relative file path — used to render a FilePathBadge */
 	filePath?: string;
 	sourceExcerpt?: string | null;
@@ -200,6 +223,8 @@ export interface AgentThinkingEntry {
 	durationMs?: number | null;
 	startedAtMs?: number | null;
 	label?: string | null;
+	agentIconSrc?: string | null;
+	showWorkingSpark?: boolean;
 }
 
 export interface AgentMissingEntry {
@@ -560,17 +585,15 @@ export interface AgentPanelPrCardModel {
 	hasResolvedChecks?: boolean;
 	checksCollapseThreshold?: number;
 	onOpenCheck?: (check: PrChecksItem, event: MouseEvent) => void;
+	onFixCheck?: (check: PrChecksItem) => void;
+	onViewDetails?: (check: PrChecksItem) => void;
 	isStreaming?: boolean;
 	generatingLabel?: string;
 	creatingLabel?: string;
 	onOpen?: (event: MouseEvent) => void;
 }
 
-export type AgentPanelFileReviewStatus =
-	| "accepted"
-	| "partial"
-	| "denied"
-	| "unreviewed";
+export type AgentPanelFileReviewStatus = "reviewed" | "unreviewed";
 
 export interface AgentPanelModifiedFileItem {
 	id: string;
@@ -595,7 +618,7 @@ export function getReviewWorkspaceDefaultIndex(
 
 	for (let index = 0; index < files.length; index += 1) {
 		const reviewStatus = files[index].reviewStatus ?? "unreviewed";
-		if (reviewStatus === "partial" || reviewStatus === "unreviewed") {
+		if (reviewStatus === "unreviewed") {
 			return index;
 		}
 	}

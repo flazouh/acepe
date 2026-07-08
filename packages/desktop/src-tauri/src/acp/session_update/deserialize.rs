@@ -106,10 +106,17 @@ where
                 .get("partId")
                 .and_then(|v| v.as_str())
                 .map(|s| s.to_string());
+            let parent_tool_use_id = raw
+                .data
+                .get("parent_tool_use_id")
+                .or_else(|| raw.data.get("parentToolUseId"))
+                .and_then(|v| v.as_str())
+                .map(|s| s.to_string());
             Ok(SessionUpdate::AgentMessageChunk {
                 chunk,
                 part_id,
                 message_id,
+                parent_tool_use_id,
                 session_id,
                 produced_at_monotonic_ms: None,
             })
@@ -126,10 +133,17 @@ where
                 .get("partId")
                 .and_then(|v| v.as_str())
                 .map(|s| s.to_string());
+            let parent_tool_use_id = raw
+                .data
+                .get("parent_tool_use_id")
+                .or_else(|| raw.data.get("parentToolUseId"))
+                .and_then(|v| v.as_str())
+                .map(|s| s.to_string());
             Ok(SessionUpdate::AgentThoughtChunk {
                 chunk,
                 part_id,
                 message_id,
+                parent_tool_use_id,
                 session_id,
             })
         }

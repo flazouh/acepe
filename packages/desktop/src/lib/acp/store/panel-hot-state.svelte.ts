@@ -6,8 +6,6 @@
  * The parent `PanelStore` holds one instance and delegates its hot-state reads/writes here.
  */
 import { SvelteMap } from "svelte/reactivity";
-import type { ModifiedFilesState } from "../types/modified-files-state.js";
-import { areReviewFileSnapshotsEqual } from "../review/review-file-revision.js";
 import { createLogger } from "../utils/logger.js";
 import type { PanelHotState, SessionEntry } from "./types.js";
 import { DEFAULT_PANEL_HOT_STATE } from "./types.js";
@@ -66,70 +64,6 @@ export class PanelHotStateStore {
 		}
 		this.suppressedAutoSessionSignals.delete(sessionId);
 		return false;
-	}
-
-	enterReviewMode(
-		panelId: string,
-		modifiedFilesState: ModifiedFilesState,
-		initialFileIndex: number = 0
-	): void {
-		const existing = this.getHotState(panelId).reviewFilesState;
-		const canReuse = existing !== null && this.reviewFilesMatch(existing, modifiedFilesState);
-
-		if (canReuse) {
-			this.updateHotState(panelId, {
-				reviewMode: true,
-				reviewFileIndex: initialFileIndex,
-			});
-		} else {
-			this.updateHotState(panelId, {
-				reviewMode: true,
-				reviewFilesState: modifiedFilesState,
-				reviewFileIndex: initialFileIndex,
-			});
-		}
-
-		this.deps.onPersist();
-		logger.debug("Entered review mode", {
-			panelId,
-			fileCount: modifiedFilesState.fileCount,
-			reusedState: canReuse,
-		});
-	}
-
-	private reviewFilesMatch(a: ModifiedFilesState, b: ModifiedFilesState): boolean {
-		if (a.fileCount !== b.fileCount) return false;
-		for (let i = 0; i < a.files.length; i++) {
-			if (!areReviewFileSnapshotsEqual(a.files[i], b.files[i])) return false;
-		}
-		return true;
-	}
-
-	exitReviewMode(panelId: string): void {
-		this.updateHotState(panelId, {
-			reviewMode: false,
-		});
-		this.deps.onPersist();
-		logger.debug("Exited review mode", { panelId });
-	}
-
-	clearReviewState(panelId: string): void {
-		this.updateHotState(panelId, {
-			reviewMode: false,
-			reviewFilesState: null,
-			reviewFileIndex: 0,
-		});
-		this.deps.onPersist();
-		logger.debug("Cleared review state", { panelId });
-	}
-
-	setReviewFileIndex(panelId: string, fileIndex: number): void {
-		this.updateHotState(panelId, { reviewFileIndex: fileIndex });
-		this.deps.onPersist();
-	}
-
-	isPanelInReviewMode(panelId: string): boolean {
-		return this.getHotState(panelId).reviewMode;
 	}
 
 	setPlanSidebarExpanded(panelId: string, expanded: boolean): void {

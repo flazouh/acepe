@@ -48,6 +48,8 @@ interface ModelSelectorProps {
 	ontoggle?: (isOpen: boolean) => void;
 	/** Compact chip sizing for the new-thread setup row. */
 	compactSetup?: boolean;
+	/** Primary segment styling inside a fused model + reasoning button group. */
+	embeddedInGroup?: boolean;
 }
 
 let {
@@ -60,6 +62,7 @@ let {
 	panelId,
 	ontoggle,
 	compactSetup = false,
+	embeddedInGroup = false,
 }: ModelSelectorProps = $props();
 
 const panelStore = getPanelStore();
@@ -265,7 +268,8 @@ async function handleSharedModelChange(modelId: string): Promise<void> {
 	currentModelId={currentModelId}
 	{isLoading}
 	{ontoggle}
-	triggerSize={compactSetup ? "setupChip" : "pill"}
+	triggerSize={compactSetup ? "composerChipLabel" : "pill"}
+	{embeddedInGroup}
 	{modelGroups}
 	{favoriteModels}
 	hideTriggerProviderMark={isDefaultChoiceModelId(currentModelId)}

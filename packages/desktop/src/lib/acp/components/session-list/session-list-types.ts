@@ -91,6 +91,7 @@ export interface SessionListItem {
 export interface SessionGroup {
 	projectPath: string;
 	projectName: string;
+	projectBadgeLabel: string | null;
 	projectColor: string | undefined;
 	projectIconSrc: string | null;
 	sessions: SessionListItem[];

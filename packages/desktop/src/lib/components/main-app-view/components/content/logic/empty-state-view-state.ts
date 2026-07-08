@@ -26,15 +26,19 @@ export function shouldShowEmptyStateProjectPicker(projectCount: number): boolean
 	return projectCount > 1;
 }
 
-export function shouldShowEmptyStateProjectChooser(projectCount: number): boolean {
+export function shouldShowEmptyStateProjectChooser(projectCount: number | null): boolean {
+	return projectCount === 0;
+}
+
+export function shouldLoadDiscoveredProjectsForEmptyState(projectCount: number | null): boolean {
 	return projectCount === 0;
 }
 
 export function canShowEmptyStateInput(input: {
-	projectCount: number;
+	projectCount: number | null;
 	availableAgentCount: number;
 }): boolean {
-	return input.projectCount > 0 && input.availableAgentCount > 0;
+	return input.projectCount !== null && input.projectCount > 0 && input.availableAgentCount > 0;
 }
 
 export function isEmptyStateWorktreeEffectivelyPending(input: {

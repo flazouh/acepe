@@ -18,6 +18,7 @@ const NO_ERROR: PanelErrorInfo = {
 	referenceId: null,
 	referenceSearchable: false,
 	failureReason: null,
+	recoveryAction: null,
 };
 
 describe("AgentPanelViewStateController", () => {

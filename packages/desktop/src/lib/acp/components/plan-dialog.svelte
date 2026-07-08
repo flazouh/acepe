@@ -1,7 +1,6 @@
 <script lang="ts">
 import { PlanIcon } from "@acepe/ui/icons";
-import { Button } from "@acepe/ui";
-import { DownloadSimple } from "phosphor-svelte";
+import { Button, RoundedIcon } from "@acepe/ui";
 import { toastSuccess } from "$lib/components/ui/sonner/toast-bridge.js";
 import DialogFrame from "$lib/components/ui/dialog-frame.svelte";
 import type { SessionPlanResponse } from "../../services/claude-history.js";
@@ -45,27 +44,22 @@ function downloadAsMarkdown() {
 	contentOverflow="hidden"
 	{onOpenChange}
 >
-	{#snippet topLeft()}
+	{#snippet titleLeading()}
 		<PlanIcon size="md" class="shrink-0" />
-		<span
-			class="truncate text-[11px] font-semibold font-mono text-foreground select-none leading-none"
-		>
-			{plan.title}
-		</span>
 	{/snippet}
 
 	{#snippet topRight()}
 		<CopyButton text={plan.content} variant="embedded" stopPropagation={true} />
 		<Button
-			variant="chromeIcon"
-			size="chromeIcon"
+			variant="ghost"
+			size="icon"
 			data-header-control
 			title="Download"
 			aria-label="Download"
 			onclick={downloadAsMarkdown}
 		>
 			{#snippet children()}
-				<DownloadSimple size={14} weight="bold" />
+				<RoundedIcon name="download" />
 			{/snippet}
 		</Button>
 	{/snippet}

@@ -4,7 +4,6 @@
  */
 
 import { okAsync, type ResultAsync } from "neverthrow";
-import { ChatCircle } from "phosphor-svelte";
 import type { SessionPaletteReference } from "../../../store/session-cold-index.js";
 import type { SessionStore } from "../../../store/session-store.svelte.js";
 import { normalizeTitleForDisplay } from "../../../store/session-title-policy.js";
@@ -37,12 +36,14 @@ export interface SessionsProviderConfig {
 function sessionToPaletteItem(
 	session: SessionPaletteReference,
 	projectName: string,
+	projectBadgeLabel?: string | null,
 	projectColor?: string,
 	projectIconSrc?: string | null
 ): PaletteItem {
 	const metadata: PaletteItemMetadata = {
 		projectPath: session.projectPath,
 		projectName,
+		projectBadgeLabel,
 		projectColor,
 		projectIconSrc,
 		agentId: session.agentId,
@@ -52,7 +53,7 @@ function sessionToPaletteItem(
 		id: session.id,
 		label: normalizeTitleForDisplay(session.title ?? "") || "Untitled conversation",
 		description: projectName,
-		icon: ChatCircle,
+		roundedIcon: "chat",
 		metadata,
 	};
 }
@@ -74,6 +75,7 @@ export class SessionsProvider implements PaletteProvider {
 	 */
 	private getProjectInfo(projectPath: string): {
 		name: string;
+		badgeLabel: string | null;
 		color?: string;
 		iconSrc: string | null;
 	} {
@@ -81,13 +83,14 @@ export class SessionsProvider implements PaletteProvider {
 		if (project) {
 			return {
 				name: project.name,
+				badgeLabel: this.config.projectManager.getProjectBadgeLabel(project.path) ?? null,
 				color: project.color,
 				iconSrc: project.iconPath ?? null,
 			};
 		}
 		// Fallback: extract name from path
 		const parts = projectPath.split("/");
-		return { name: parts[parts.length - 1] || projectPath, iconSrc: null };
+		return { name: parts[parts.length - 1] || projectPath, badgeLabel: null, iconSrc: null };
 	}
 
 	/**
@@ -116,6 +119,7 @@ export class SessionsProvider implements PaletteProvider {
 			const paletteItem = sessionToPaletteItem(
 				item._session,
 				item._projectInfo.name,
+				item._projectInfo.badgeLabel,
 				item._projectInfo.color,
 				item._projectInfo.iconSrc
 			);
@@ -124,6 +128,7 @@ export class SessionsProvider implements PaletteProvider {
 				label: paletteItem.label,
 				description: paletteItem.description,
 				icon: paletteItem.icon,
+				roundedIcon: paletteItem.roundedIcon,
 				metadata: paletteItem.metadata,
 				score,
 			};
@@ -175,6 +180,7 @@ export class SessionsProvider implements PaletteProvider {
 			return sessionToPaletteItem(
 				session,
 				projectInfo.name,
+				projectInfo.badgeLabel,
 				projectInfo.color,
 				projectInfo.iconSrc
 			);
@@ -186,7 +192,7 @@ export class SessionsProvider implements PaletteProvider {
 			id: stored.id,
 			label: stored.label,
 			description: stored.description,
-			icon: ChatCircle,
+			roundedIcon: "chat",
 			metadata: {},
 		};
 	}

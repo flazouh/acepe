@@ -44,10 +44,11 @@ describe("FilePanelHeader project-header style", () => {
 		const structuredToggleButton = structuredToggle.closest("button");
 		expect(structuredToggleButton).not.toBeNull();
 		expect(structuredToggleButton?.className).toContain("h-7");
+		expect(container.querySelector('button svg[viewBox="0 0 21 21"]')).not.toBeNull();
 
 		const close = container.querySelector(`button[title='${"Close"}']`);
 		expect(close).not.toBeNull();
-		expect(close?.className).toContain("size-5");
+		expect(close?.getAttribute("data-size")).toBe("icon");
 		if (close) {
 			await fireEvent.click(close);
 		}

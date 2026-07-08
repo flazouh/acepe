@@ -1,5 +1,5 @@
 <script lang="ts">
-import { ProjectLetterBadge } from "@acepe/ui/project-letter-badge";
+import { ProjectLetterBadge, computeProjectBadgeLabels } from "@acepe/ui/project-letter-badge";
 import type { FileExplorerRow } from "$lib/services/converted-session-types.js";
 import type { FileExplorerProjectInfo } from "$lib/components/main-app-view/logic/file-explorer-context.js";
 import type { FileExplorerModalState } from "./file-explorer-modal-state.svelte.js";
@@ -12,6 +12,12 @@ interface Props {
 }
 
 const { state, projectInfoByPath, onSelect }: Props = $props();
+
+const labelByPath = $derived(
+	computeProjectBadgeLabels(
+		Object.entries(projectInfoByPath).map(([path, info]) => ({ key: path, name: info.name }))
+	)
+);
 
 type GroupedRows = {
 	projectPath: string;
@@ -94,6 +100,7 @@ function handleSelect(row: FileExplorerRow) {
 				<div class="sticky top-0 z-[1] flex items-center gap-1.5 bg-background/95 px-2 py-1.5 backdrop-blur-sm">
 					<ProjectLetterBadge
 						name={group.projectInfo.name}
+						label={labelByPath.get(group.projectPath) ?? null}
 						color={group.projectInfo.color}
 						iconSrc={group.projectInfo.iconSrc}
 						size={14}

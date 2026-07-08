@@ -29,9 +29,6 @@ interface Props {
 }
 
 export type KanbanThreadDialogMode = "inspect" | "close-panel";
-export type KanbanThreadDialogHandle = {
-	requestClosePanelConfirmation(): void;
-};
 
 let {
 	panelId,
@@ -49,8 +46,6 @@ const sessionStore = getSessionStore();
 const agentStore = getAgentStore();
 const agentPreferencesStore = getAgentPreferencesStore();
 const themeState = useTheme();
-const bypassWorktreeCloseConfirmation = $derived(mode === "inspect");
-let agentPanelRef = $state<KanbanThreadDialogHandle | null>(null);
 
 const availableAgents = $derived.by(() =>
 	getSpawnableSessionAgents(agentStore.agents, agentPreferencesStore.selectedAgentIds).map(
@@ -110,7 +105,7 @@ function handleDialogOpenAutoFocus(): void {
 	}
 
 	requestAnimationFrame(() => {
-		agentPanelRef?.requestClosePanelConfirmation();
+		handlePanelClose();
 	});
 }
 </script>
@@ -128,7 +123,6 @@ function handleDialogOpenAutoFocus(): void {
 >
 	{#if isPanelOpen}
 		<AgentPanel
-				bind:this={agentPanelRef}
 				panelId={panelSnapshot.panelId}
 				sessionId={panelSnapshot.sessionId}
 				width={panelSnapshot.width}
@@ -143,7 +137,6 @@ function handleDialogOpenAutoFocus(): void {
 				effectiveTheme={themeState.effectiveTheme}
 				isFullscreen={false}
 				isFocused={panelStore.focusedPanelId === panelSnapshot.panelId}
-				bypassWorktreeCloseConfirmation={bypassWorktreeCloseConfirmation}
 				onClose={() => {
 					handlePanelClose();
 				}}
@@ -166,13 +159,6 @@ function handleDialogOpenAutoFocus(): void {
 						? onFocusPanel(panelSnapshot.panelId)
 						: mainAppState.handleFocusPanel(panelSnapshot.panelId)}
 				hideProjectBadge={false}
-				reviewMode={panelSnapshot.reviewMode}
-				reviewFilesState={panelSnapshot.reviewFilesState}
-				reviewFileIndex={panelSnapshot.reviewFileIndex}
-				onEnterReviewMode={(modifiedFilesState, initialFileIndex) =>
-					panelStore.enterReviewMode(panelSnapshot.panelId, modifiedFilesState, initialFileIndex)}
-				onExitReviewMode={() => panelStore.exitReviewMode(panelSnapshot.panelId)}
-				onReviewFileIndexChange={(index) => panelStore.setReviewFileIndex(panelSnapshot.panelId, index)}
 				onCreateIssueReport={(draft) => mainAppState.openUserReportsWithDraft(draft)}
 				hasAttachedFilePane={panelStore.hasAttachedFilePanels(panelSnapshot.panelId)}
 		/>

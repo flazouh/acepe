@@ -8,6 +8,7 @@
 	interface Props {
 		timing?: ToolDurationTiming | null;
 		label?: string | null;
+		agentIconSrc?: string | null;
 		size?: "xs" | "sm";
 		/** When true, the Claude working spark replaces the planning label (the timer stays). */
 		showWorkingSpark?: boolean;
@@ -17,6 +18,7 @@
 	let {
 		timing = null,
 		label = null,
+		agentIconSrc = null,
 		size = "sm",
 		showWorkingSpark = false,
 		class: className = "",
@@ -45,7 +47,15 @@
 			{/if}
 		</span>
 	{:else}
-		<span class="inline-flex min-w-0 items-baseline gap-1 {sizeClass}">
+		<span class="inline-flex min-w-0 items-center gap-1.5 {sizeClass}">
+			{#if agentIconSrc !== null}
+				<img
+					src={agentIconSrc}
+					alt=""
+					role="presentation"
+					class="size-4 shrink-0 rounded-[4px]"
+				/>
+			{/if}
 			<TextShimmer class="shrink-0 {sizeClass}">
 				{shimmerLabel}
 			</TextShimmer>

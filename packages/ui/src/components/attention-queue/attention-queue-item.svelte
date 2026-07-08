@@ -1,6 +1,8 @@
 <script lang="ts">
 	import type { Snippet } from "svelte";
 
+	import { SIDEBAR_TREE_ROW_PADDING_CLASS } from "../app-layout/sidebar-tree-row-classes.js";
+
 	interface Props {
 		selected?: boolean;
 		onSelect?: () => void;
@@ -15,7 +17,13 @@
 
 	let { selected = false, onSelect, children, slidingHighlight = false, compactPadding = false, collapsed = false }: Props = $props();
 
-	const paddingClass = $derived(collapsed ? "px-0 py-0.5" : compactPadding ? "px-1 py-1" : "px-2 py-1.5");
+	const paddingClass = $derived(
+		collapsed
+			? "px-0 py-0.5"
+			: compactPadding
+				? SIDEBAR_TREE_ROW_PADDING_CLASS
+				: "px-2 py-1.5"
+	);
 	const roundingClass = $derived(slidingHighlight ? "rounded-md" : "rounded");
 	const baseClass = $derived(
 		`flex flex-col ${collapsed ? "items-center" : ""} justify-center w-full text-left gap-1 ${paddingClass} ${roundingClass} transition-[background-color] duration-75 ease-out`

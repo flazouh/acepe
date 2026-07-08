@@ -42,7 +42,7 @@ export function mapGraphStatus(graph: AgentPanelCanonicalSource): AgentPanelSess
 	if (graph.turnState === "Completed") {
 		return "done";
 	}
-	return graph.transcriptSnapshot.entries.length > 0 ? "idle" : "connected";
+	return graph.messageCount > 0 ? "idle" : "connected";
 }
 
 export function materializeLifecycle(graph: AgentPanelCanonicalSource): AgentPanelLifecycleModel {

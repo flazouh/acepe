@@ -1,3 +1,4 @@
+export { default as GitWorkspace } from "./git-workspace.svelte";
 export { default as GitPanelLayout } from "./git-panel-layout.svelte";
 export { default as GitStatusList } from "./git-status-list.svelte";
 export { default as GitStatusFileRow } from "./git-status-file-row.svelte";

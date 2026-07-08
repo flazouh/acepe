@@ -20,7 +20,7 @@
 
 <div
 	class={cn(
-		"flex flex-col overflow-hidden rounded-lg border border-border/50 bg-card/75 opacity-50 transition-opacity duration-150 hover:opacity-100 focus-within:opacity-100",
+		"flex flex-col overflow-hidden",
 		className
 	)}
 	{style}
@@ -32,6 +32,7 @@
 			<div class="inline-flex items-center justify-center h-7 w-7 shrink-0">
 				<ProjectLetterBadge
 					name={group.name}
+					label={group.badgeLabel ?? null}
 					color={group.color ?? "#6B7280"}
 					iconSrc={group.iconSrc ?? null}
 					size={16}

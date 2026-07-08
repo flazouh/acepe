@@ -4,8 +4,9 @@ use crate::acp::transcript_projection::{
     TranscriptEntry, TranscriptEntryRole, TranscriptSegment, TranscriptSnapshot,
 };
 use crate::acp::transcript_viewport::row::{
-    TranscriptViewportInteractionLink, TranscriptViewportOperationLink, TranscriptViewportRow,
-    TranscriptViewportRowContent, TranscriptViewportRowKind,
+    TranscriptViewportInteractionLink, TranscriptViewportOperationDisplayFacts,
+    TranscriptViewportOperationLink, TranscriptViewportRow, TranscriptViewportRowContent,
+    TranscriptViewportRowKind,
 };
 use sha2::{Digest, Sha256};
 use std::collections::BTreeMap;
@@ -22,22 +23,13 @@ pub fn project_transcript_viewport_rows(
     awaiting_placeholder: bool,
     awaiting_duration_started_at_ms: Option<u64>,
 ) -> Vec<TranscriptViewportRow> {
-    let operation_links_by_entry = operation_links_by_entry_id(operations);
-    let interaction_links_by_operation = interaction_links_by_operation_id(interactions);
-
-    let mut rows: Vec<TranscriptViewportRow> = transcript_snapshot
-        .entries
-        .iter()
-        .filter_map(|entry| {
-            project_entry(
-                entry,
-                &operation_links_by_entry,
-                &interaction_links_by_operation,
-                active_streaming_tail,
-                awaiting_duration_started_at_ms,
-            )
-        })
-        .collect();
+    let mut rows = project_transcript_viewport_entry_rows(
+        &transcript_snapshot.entries,
+        operations,
+        interactions,
+        active_streaming_tail,
+        awaiting_duration_started_at_ms,
+    );
 
     if awaiting_placeholder {
         rows.push(TranscriptViewportRow {
@@ -60,6 +52,31 @@ pub fn project_transcript_viewport_rows(
     rows
 }
 
+#[must_use]
+pub(crate) fn project_transcript_viewport_entry_rows(
+    entries: &[TranscriptEntry],
+    operations: &[OperationSnapshot],
+    interactions: &[InteractionSnapshot],
+    active_streaming_tail: Option<&ActiveStreamingTail>,
+    awaiting_duration_started_at_ms: Option<u64>,
+) -> Vec<TranscriptViewportRow> {
+    let operation_links_by_entry = operation_links_by_entry_id(operations);
+    let interaction_links_by_operation = interaction_links_by_operation_id(interactions);
+
+    entries
+        .iter()
+        .filter_map(|entry| {
+            project_entry(
+                entry,
+                &operation_links_by_entry,
+                &interaction_links_by_operation,
+                active_streaming_tail,
+                awaiting_duration_started_at_ms,
+            )
+        })
+        .collect()
+}
+
 fn project_entry(
     entry: &TranscriptEntry,
     operation_links_by_entry: &BTreeMap<String, Vec<TranscriptViewportOperationLink>>,
@@ -72,13 +89,17 @@ fn project_entry(
         return None;
     }
 
-    let operation_links = operation_links_by_entry
+    let mut operation_links = operation_links_by_entry
         .get(entry_id)
         .cloned()
         .unwrap_or_default();
     let interaction_links = interaction_links_for_operations(
         operation_links.as_slice(),
         interaction_links_by_operation,
+    );
+    attach_interaction_ids_to_operation_display_facts(
+        operation_links.as_mut_slice(),
+        interaction_links.as_slice(),
     );
     let kind = row_kind(entry);
     let active_streaming_tail =
@@ -162,6 +183,11 @@ fn operation_links_by_entry_id(
                 tool_call_id: operation.tool_call_id.clone(),
                 name: operation.name.clone(),
                 state: operation.operation_state.clone(),
+                display_facts: TranscriptViewportOperationDisplayFacts::from_operation(
+                    operation,
+                    Vec::new(),
+                ),
+                operation: None,
             });
     }
 
@@ -214,6 +240,27 @@ fn interaction_links_for_operations(
     interaction_links
 }
 
+fn attach_interaction_ids_to_operation_display_facts(
+    operation_links: &mut [TranscriptViewportOperationLink],
+    interaction_links: &[TranscriptViewportInteractionLink],
+) {
+    for operation_link in operation_links {
+        let Some(display_facts) = operation_link.display_facts.as_mut() else {
+            continue;
+        };
+        display_facts.interaction_ids = interaction_links
+            .iter()
+            .filter(|interaction_link| {
+                interaction_link
+                    .operation_id
+                    .as_ref()
+                    .is_some_and(|operation_id| operation_id == &operation_link.operation_id)
+            })
+            .map(|interaction_link| interaction_link.interaction_id.clone())
+            .collect();
+    }
+}
+
 fn row_version(
     entry_id: &str,
     kind: &TranscriptViewportRowKind,
@@ -234,6 +281,35 @@ fn row_version(
         hasher.update(operation_link.tool_call_id.as_bytes());
         hasher.update(operation_link.name.as_bytes());
         hasher.update(format!("{:?}", operation_link.state).as_bytes());
+        if let Some(display_facts) = &operation_link.display_facts {
+            hasher.update(display_facts.operation_id.as_bytes());
+            hasher.update(display_facts.tool_call_id.as_bytes());
+            hasher.update(display_facts.name.as_bytes());
+            hasher.update(display_facts.title.as_bytes());
+            hasher.update(format!("{:?}", display_facts.state).as_bytes());
+            hasher.update(format!("{:?}", display_facts.kind).as_bytes());
+            if let Some(command_summary) = &display_facts.command_summary {
+                hasher.update(command_summary.as_bytes());
+            }
+            if let Some(target_path_summary) = &display_facts.target_path_summary {
+                hasher.update(target_path_summary.as_bytes());
+            }
+            if let Some(result_summary) = &display_facts.result_summary {
+                hasher.update(result_summary.as_bytes());
+            }
+            if let Some(error_summary) = &display_facts.error_summary {
+                hasher.update(error_summary.as_bytes());
+            }
+            for interaction_id in &display_facts.interaction_ids {
+                hasher.update(interaction_id.as_bytes());
+            }
+            if let Some(parent_tool_call_id) = &display_facts.parent_tool_call_id {
+                hasher.update(parent_tool_call_id.as_bytes());
+            }
+            for child_tool_call_id in &display_facts.child_tool_call_ids {
+                hasher.update(child_tool_call_id.as_bytes());
+            }
+        }
     }
 
     for interaction_link in interaction_links {

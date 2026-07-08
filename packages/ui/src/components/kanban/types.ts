@@ -46,6 +46,7 @@ export interface KanbanCardData {
 	readonly agentLabel: string;
 	readonly isAutoMode: boolean;
 	readonly projectName: string;
+	readonly projectBadgeLabel?: string | null;
 	readonly projectColor: string;
 	readonly projectIconSrc?: string | null;
 	readonly activityText: string | null;

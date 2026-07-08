@@ -1,5 +1,5 @@
 <script lang="ts">
-import { ArrowLeft } from "phosphor-svelte";
+import { RoundedIcon } from "@acepe/ui";
 import { SvelteMap, SvelteSet } from "svelte/reactivity";
 import { toast } from "svelte-sonner";
 import { Button } from "$lib/components/ui/button/index.js";
@@ -139,7 +139,7 @@ function isExpanded(checkpointId: string): boolean {
 				class="h-7 gap-1.5 text-muted-foreground hover:text-foreground"
 				onclick={onClose}
 			>
-				<ArrowLeft class="h-3.5 w-3.5" weight="bold" />
+				<RoundedIcon name="arrow-left" class="h-3.5 w-3.5" />
 				<span class="text-xs">{"Back"}</span>
 			</Button>
 		</div>

@@ -6,11 +6,10 @@
   Uses the Lightning icon so Robot stays reserved for "agent" across the app.
 -->
 <script lang="ts">
-	import { ShieldCheck } from "phosphor-svelte";
-
 	import { Colors } from "../../lib/colors.js";
 	import { cn } from "../../lib/utils.js";
 	import { Button } from "../button/index.js";
+	import { RoundedIcon } from "../icons/index.js";
 	import { Tooltip, TooltipContent, TooltipTrigger } from "../tooltip/index.js";
 
 	interface Props {
@@ -58,8 +57,8 @@
 		{#snippet child({ props: triggerProps })}
 			<Button
 				{...triggerProps}
-				variant="chromeIcon"
-				size="chromeIcon"
+				variant="ghost"
+				size="icon-sm"
 				data-header-control
 				title={title}
 				aria-label={ariaLabel}
@@ -71,7 +70,7 @@
 				onclick={handleClick}
 			>
 				{#snippet children()}
-					<ShieldCheck class={iconClass} size={12} weight={active ? "fill" : "bold"} />
+					<RoundedIcon name="shield-check" class={cn("size-3", iconClass)} />
 				{/snippet}
 			</Button>
 		{/snippet}

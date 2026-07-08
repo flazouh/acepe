@@ -5,7 +5,9 @@ use crate::acp::session_state_engine::graph::ActiveStreamingTail;
 use crate::acp::session_state_engine::selectors::{
     SessionGraphActivity, SessionGraphCapabilities, SessionGraphLifecycle,
 };
+use crate::acp::session_state_engine::SessionStateEnvelope;
 use crate::acp::transcript_projection::TranscriptSnapshot;
+use crate::acp::transcript_viewport::TranscriptViewportRow;
 use crate::acp::types::CanonicalAgentId;
 use serde::{Deserialize, Serialize};
 
@@ -62,6 +64,52 @@ pub struct SessionOpenError {
     pub message: String,
     pub reason: SessionOpenErrorReason,
     pub retryable: bool,
+}
+
+/// Diagnostic-only timing for the restored-session open path.
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionOpenResultTiming {
+    pub source: String,
+    pub open_path: SessionOpenPath,
+    pub ledger_probe_status: String,
+    pub context_ms: u128,
+    pub provider_load_ms: u128,
+    pub ledger_tail_read_ms: u128,
+    pub ledger_journal_cutoff_ms: u128,
+    pub ledger_page_read_ms: u128,
+    pub ledger_header_decode_ms: u128,
+    pub ledger_rows_decode_ms: u128,
+    pub ledger_result_build_ms: u128,
+    pub runtime_lookup_ms: u128,
+    pub assemble_ms: u128,
+    pub restore_authority_ms: u128,
+    pub compact_ms: u128,
+    pub local_journal_fallback_ms: u128,
+    pub total_ms: u128,
+    pub transcript_entry_count: usize,
+    pub operation_count: usize,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, specta::Type, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum SessionOpenPath {
+    HotLedger,
+    LegacyRebuild,
+    CompatSnapshot,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionOpenTranscriptRowPage {
+    pub projection_version: String,
+    pub start_row_index: i64,
+    pub total_row_count: i64,
+    pub row_payload_bytes: u64,
+    pub transcript_revision: i64,
+    pub graph_revision: i64,
+    pub last_event_seq: i64,
+    pub rows: Vec<TranscriptViewportRow>,
 }
 
 impl SessionOpenError {
@@ -199,6 +247,13 @@ pub struct SessionOpenFound {
     // --- Canonical lifecycle/actionability authority ---
     pub lifecycle: SessionGraphLifecycle,
     pub capabilities: SessionGraphCapabilities,
+    pub open_path: SessionOpenPath,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub initial_transcript_row_page: Option<SessionOpenTranscriptRowPage>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub initial_viewport_envelope: Option<SessionStateEnvelope>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub open_result_timing: Option<SessionOpenResultTiming>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub active_turn_failure: Option<TurnFailureSnapshot>,
     #[serde(skip_serializing_if = "Option::is_none")]

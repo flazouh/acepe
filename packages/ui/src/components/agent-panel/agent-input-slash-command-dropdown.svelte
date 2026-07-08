@@ -1,66 +1,75 @@
 <script lang="ts">
-	import { IconTerminal } from "@tabler/icons-svelte";
-	import { IconPlug } from "@tabler/icons-svelte";
 	import * as Dialog from "../dialog/index.js";
-	import { StreamdownMarkdown } from "../streamdown-markdown/index.js";
-	import { INLINE_ARTEFACT_PACKAGE_PATH } from "../inline-artefact-badge/inline-artefact-badge.styles.js";
-	import AgentInputSlashCommandRow from "./agent-input-slash-command-row.svelte";
+	import { NativeMarkdown } from "../native-markdown/index.js";
+	import AgentInputSlashPaletteRow from "./agent-input-slash-palette-row.svelte";
+	import { RoundedIcon } from "../icons/index.js";
 	import { getSlashCommandIconColor } from "./agent-input-slash-command-row-state.js";
 	import {
-		getEffectiveSlashCommandIndex,
-		getFilteredSlashCommands,
-		getNextSlashCommandIndex,
-		getSlashCommandEmptyState,
 		getSlashCommandWorkspaceMarkdown,
 		type AgentInputSlashCommand,
 		type AgentInputSlashCommandTokenType,
 		type AgentInputSlashCommandWorkspaceMarkdownResult,
 	} from "./agent-input-slash-command-dropdown-state.js";
+	import {
+		flattenSlashPaletteItems,
+		getEffectiveSlashPaletteIndex,
+		getNextSlashPaletteIndex,
+		getSlashPaletteEmptyState,
+		getSlashPaletteVisibleSections,
+		type SlashPaletteItem,
+		type SlashPaletteSection,
+		type SlashPaletteSectionId,
+	} from "./agent-input-slash-palette-state.js";
+
 	export type {
 		AgentInputSlashCommand,
 		AgentInputSlashCommandWorkspaceMarkdownResult,
 	} from "./agent-input-slash-command-dropdown-state.js";
+	export type {
+		SlashPaletteItem,
+		SlashPaletteSection,
+		SlashPaletteSectionId,
+	} from "./agent-input-slash-palette-state.js";
 
 	interface Props {
-		commands: ReadonlyArray<AgentInputSlashCommand>;
+		sections: readonly SlashPaletteSection[];
 		isOpen: boolean;
 		query: string;
 		position: { top: number; left: number };
-		headerLabel?: string;
-		noCommandsLabel?: string;
+		noContentLabel?: string;
 		noResultsLabel?: string;
 		startTypingLabel?: string;
 		selectHintLabel?: string;
 		closeHintLabel?: string;
-		tokenType?: AgentInputSlashCommandTokenType;
+		showMoreLabel?: (hiddenCount: number) => string;
 		loadWorkspaceMarkdown?: (input: {
 			readonly command: AgentInputSlashCommand;
 			readonly tokenType: AgentInputSlashCommandTokenType;
 		}) => Promise<AgentInputSlashCommandWorkspaceMarkdownResult>;
-		onSelect: (command: AgentInputSlashCommand) => void;
+		onItemSelect: (item: SlashPaletteItem) => void;
 		onClose: () => void;
 	}
 
 	let {
-		commands,
+		sections,
 		isOpen,
 		query,
 		position,
-		headerLabel = "Commands",
-		noCommandsLabel = "No commands available",
-		noResultsLabel = "No matching commands",
-		startTypingLabel = "Start typing to filter commands",
+		noContentLabel = "Nothing available",
+		noResultsLabel = "No matching items",
+		startTypingLabel = "Start typing to filter",
 		selectHintLabel = "Select",
 		closeHintLabel = "Close",
-		tokenType = "command",
+		showMoreLabel = (hiddenCount: number) => `Show ${hiddenCount} more`,
 		loadWorkspaceMarkdown,
-		onSelect,
+		onItemSelect,
 		onClose,
 	}: Props = $props();
 
 	let selectedIndex = $state(0);
 	let itemRefs = $state<Record<number, HTMLDivElement>>({});
-	let workspaceCommand = $state<AgentInputSlashCommand | null>(null);
+	let expandedSectionIds = $state<Set<SlashPaletteSectionId>>(new Set());
+	let workspaceItem = $state<SlashPaletteItem | null>(null);
 	let workspaceOpen = $state(false);
 	let loadedWorkspaceMarkdown = $state<string | null>(null);
 	let workspaceMarkdownLoading = $state(false);
@@ -68,7 +77,6 @@
 
 	function portalToBody(node: HTMLElement): { destroy: () => void } {
 		document.body.appendChild(node);
-
 		return {
 			destroy(): void {
 				node.remove();
@@ -76,28 +84,49 @@
 		};
 	}
 
-	const filteredCommands = $derived(getFilteredSlashCommands(commands, query));
+	const visibleSections = $derived(
+		getSlashPaletteVisibleSections({
+			sections,
+			query,
+			expandedSectionIds,
+		})
+	);
+	const flatEntries = $derived(flattenSlashPaletteItems(visibleSections));
+	const flatIndexByItemId = $derived.by(() => {
+		const map = new Map<string, number>();
+		for (const entry of flatEntries) {
+			map.set(`${entry.sectionId}:${entry.item.id}`, entry.flatIndex);
+		}
+		return map;
+	});
 	const effectiveSelectedIndex = $derived(
-		getEffectiveSlashCommandIndex({
+		getEffectiveSlashPaletteIndex({
 			selectedIndex,
-			commandCount: filteredCommands.length,
+			itemCount: flatEntries.length,
 		})
 	);
 	const emptyState = $derived(
-		getSlashCommandEmptyState({
-			commandCount: commands.length,
-			filteredCount: filteredCommands.length,
+		getSlashPaletteEmptyState({
+			sectionCount: sections.length,
+			visibleItemCount: flatEntries.length,
 			query,
 		})
 	);
-	const displayHeaderLabel = $derived(
-		headerLabel === "Commands" && tokenType === "skill" ? "Skills" : headerLabel
+	const workspaceCommand = $derived(
+		workspaceItem && workspaceItem.commandName
+			? {
+					name: workspaceItem.commandName,
+					description: workspaceItem.description ?? "",
+					input: null,
+				}
+			: null
 	);
+	const workspaceTokenType = $derived(workspaceItem?.tokenType ?? "command");
 	const fallbackWorkspaceMarkdown = $derived(
 		workspaceCommand
 			? getSlashCommandWorkspaceMarkdown({
 					command: workspaceCommand,
-					tokenType,
+					tokenType: workspaceTokenType,
 				})
 			: ""
 	);
@@ -106,13 +135,19 @@
 			? `${fallbackWorkspaceMarkdown}\n\n---\n\n## Skill content\n\n${loadedWorkspaceMarkdown}`
 			: fallbackWorkspaceMarkdown
 	);
-	const iconColor = $derived(getSlashCommandIconColor(tokenType));
+	const iconColor = $derived(getSlashCommandIconColor(workspaceTokenType));
 
 	function scrollSelectedIntoView(): void {
 		const item = itemRefs[effectiveSelectedIndex];
 		if (item) {
 			item.scrollIntoView({ block: "nearest", behavior: "instant" });
 		}
+	}
+
+	function expandSection(sectionId: SlashPaletteSectionId): void {
+		const next = new Set(expandedSectionIds);
+		next.add(sectionId);
+		expandedSectionIds = next;
 	}
 
 	export function handleKeyDown(event: KeyboardEvent): boolean {
@@ -122,9 +157,9 @@
 
 		if (event.key === "ArrowDown") {
 			event.preventDefault();
-			selectedIndex = getNextSlashCommandIndex({
+			selectedIndex = getNextSlashPaletteIndex({
 				currentIndex: effectiveSelectedIndex,
-				commandCount: filteredCommands.length,
+				itemCount: flatEntries.length,
 				direction: "down",
 			});
 			setTimeout(scrollSelectedIntoView, 0);
@@ -133,9 +168,9 @@
 
 		if (event.key === "ArrowUp") {
 			event.preventDefault();
-			selectedIndex = getNextSlashCommandIndex({
+			selectedIndex = getNextSlashPaletteIndex({
 				currentIndex: effectiveSelectedIndex,
-				commandCount: filteredCommands.length,
+				itemCount: flatEntries.length,
 				direction: "up",
 			});
 			setTimeout(scrollSelectedIntoView, 0);
@@ -143,9 +178,10 @@
 		}
 
 		if (event.key === "Enter" || event.key === "Tab") {
-			if (filteredCommands.length > 0) {
+			const selectedEntry = flatEntries[effectiveSelectedIndex];
+			if (selectedEntry) {
 				event.preventDefault();
-				onSelect(filteredCommands[effectiveSelectedIndex]);
+				onItemSelect(selectedEntry.item);
 				return true;
 			}
 			return false;
@@ -160,19 +196,24 @@
 		return false;
 	}
 
-	function openWorkspaceModal(command: AgentInputSlashCommand): void {
-		workspaceCommand = command;
+	function openWorkspaceModal(item: SlashPaletteItem): void {
+		workspaceItem = item;
 		loadedWorkspaceMarkdown = null;
 		workspaceMarkdownError = null;
 		workspaceOpen = true;
-		if (!loadWorkspaceMarkdown || tokenType !== "skill") {
+		if (!loadWorkspaceMarkdown || item.tokenType !== "skill" || !item.commandName) {
 			return;
 		}
 
+		const command = {
+			name: item.commandName,
+			description: item.description ?? "",
+			input: null,
+		};
 		workspaceMarkdownLoading = true;
-		loadWorkspaceMarkdown({ command, tokenType }).then(
+		loadWorkspaceMarkdown({ command, tokenType: "skill" }).then(
 			(result) => {
-				if (workspaceCommand?.name !== command.name) {
+				if (workspaceItem?.id !== item.id) {
 					return;
 				}
 				workspaceMarkdownLoading = false;
@@ -184,7 +225,7 @@
 				workspaceMarkdownError = result.message;
 			},
 			() => {
-				if (workspaceCommand?.name !== command.name) {
+				if (workspaceItem?.id !== item.id) {
 					return;
 				}
 				workspaceMarkdownLoading = false;
@@ -198,36 +239,42 @@
 	<!-- svelte-ignore a11y_no_static_element_interactions -->
 	<div
 		use:portalToBody
-		class="fixed z-[var(--overlay-z)] w-72 overflow-hidden rounded-lg border bg-popover/98 shadow-xl backdrop-blur"
+		class="fixed z-[var(--overlay-z)] w-80 overflow-hidden rounded-lg border bg-popover/98 shadow-xl backdrop-blur"
 		style="top: {position.top}px; left: {position.left}px; transform: translateY(-100%); margin-top: -6px;"
 		onmousedown={(event) => event.preventDefault()}
 	>
-		{#if filteredCommands.length > 0}
-			<div class="flex items-center justify-between border-b border-border/60 bg-muted/20 px-2.5 py-1 shrink-0">
-				<div class="flex min-w-0 items-center gap-1.5">
-					<span class="text-[11px] font-medium text-muted-foreground">{displayHeaderLabel}</span>
-				</div>
-				<span class="rounded-full bg-muted px-1.5 py-0.5 text-[10px] tabular-nums text-muted-foreground">
-					{filteredCommands.length}
-				</span>
-			</div>
-
-			<div class="flex max-h-56 flex-col overflow-y-auto py-1">
-				{#each filteredCommands as command, index (`${command.name}-${index}`)}
-					{@const isSelected = index === effectiveSelectedIndex}
-					<div bind:this={itemRefs[index]}>
-						<AgentInputSlashCommandRow
-							{command}
-							{tokenType}
-							selected={isSelected}
-							showPreviewButton={tokenType === "skill"}
-							onSelect={() => onSelect(command)}
-							onPreview={() => openWorkspaceModal(command)}
-							onHover={() => {
-								selectedIndex = index;
-							}}
-						/>
+		{#if flatEntries.length > 0}
+			<div class="flex max-h-72 flex-col overflow-y-auto pb-1">
+				{#each visibleSections as section, sectionIndex (section.id)}
+					<div class="px-2 pb-0.5 {sectionIndex === 0 ? 'pt-1' : 'pt-2'}">
+						<span class="text-[11px] font-medium text-muted-foreground">{section.label}</span>
 					</div>
+					{#each section.items as item (item.id)}
+						{@const flatIndex =
+							flatIndexByItemId.get(`${section.id}:${item.id}`) ?? 0}
+						{@const isSelected = flatIndex === effectiveSelectedIndex}
+						<div bind:this={itemRefs[flatIndex]}>
+							<AgentInputSlashPaletteRow
+								{item}
+								selected={isSelected}
+								showPreviewButton={item.kind === "skill"}
+								onSelect={() => onItemSelect(item)}
+								onPreview={() => openWorkspaceModal(item)}
+								onHover={() => {
+									selectedIndex = flatIndex;
+								}}
+							/>
+						</div>
+					{/each}
+					{#if section.hiddenCount > 0}
+						<button
+							type="button"
+							class="mx-1 block w-[calc(100%-0.5rem)] rounded-md px-2 py-1.5 text-left text-[11px] text-muted-foreground transition hover:bg-accent/50 hover:text-foreground"
+							onclick={() => expandSection(section.id)}
+						>
+							{showMoreLabel(section.hiddenCount)}
+						</button>
+					{/if}
 				{/each}
 			</div>
 
@@ -237,14 +284,11 @@
 				<kbd class="ml-1 rounded-lg border bg-muted px-1 py-0.5 text-[10px] font-medium leading-none">Esc</kbd>
 				<span class="text-[10px] text-muted-foreground">{closeHintLabel}</span>
 			</div>
-		{:else if emptyState === "no-commands"}
-			<div class="px-3 py-3 text-center text-[12px] text-muted-foreground">{noCommandsLabel}</div>
+		{:else if emptyState === "no-content"}
+			<div class="px-3 py-3 text-center text-[12px] text-muted-foreground">{noContentLabel}</div>
 		{:else if emptyState === "no-results"}
 			<div class="px-3 py-3 text-center text-[12px] text-muted-foreground">{noResultsLabel}</div>
 		{:else}
-			<div class="flex items-center justify-between border-b border-border/60 bg-muted/20 px-2.5 py-1 shrink-0">
-				<span class="text-[11px] font-medium text-muted-foreground">{displayHeaderLabel}</span>
-			</div>
 			<div class="px-3 py-3 text-center text-[12px] text-muted-foreground">{startTypingLabel}</div>
 		{/if}
 	</div>
@@ -259,17 +303,15 @@
 		<div class="border-b border-border/60 px-4 py-3">
 			<Dialog.Title class="flex items-center gap-2 text-sm">
 				<span class="flex h-5 w-5 items-center justify-center rounded-md" style="color: {iconColor};">
-					{#if tokenType === "skill"}
-						<svg viewBox="0 0 256 256" fill="currentColor" class="h-3 w-3" aria-hidden="true">
-							<path d={INLINE_ARTEFACT_PACKAGE_PATH} />
-						</svg>
-					{:else if tokenType === "mcp"}
-						<IconPlug class="h-3 w-3" />
+					{#if workspaceTokenType === "skill"}
+						<RoundedIcon name="skills" class="h-3 w-3" data-testid="slash-command-skill-icon" />
+					{:else if workspaceTokenType === "mcp"}
+						<RoundedIcon name="mcp" class="h-3 w-3" />
 					{:else}
-						<IconTerminal class="h-3 w-3" />
+						<RoundedIcon name="terminal" class="h-3 w-3" />
 					{/if}
 				</span>
-				{workspaceCommand ? `/${workspaceCommand.name}` : "Details"}
+				{workspaceItem ? workspaceItem.label : "Details"}
 			</Dialog.Title>
 			<Dialog.Description class="mt-1">
 				Readable workspace preview with markdown and highlighted code blocks.
@@ -284,7 +326,7 @@
 					{workspaceMarkdownError}
 				</div>
 			{/if}
-			<StreamdownMarkdown
+			<NativeMarkdown
 				markdown={workspaceMarkdown}
 				mode="static"
 				class="text-[12px] leading-relaxed"

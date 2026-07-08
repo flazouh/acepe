@@ -461,7 +461,7 @@ export class PanelAgentState {
 			this.releaseOpeningSessionIds(sessionId, canonicalSessionId);
 		});
 
-		logger.info("[PERF] openSession: panel added to store", {
+		logger.debug("[PERF] openSession: panel added to store", {
 			sessionId,
 			canonicalSessionId,
 			panelId: panel.id,

@@ -3,13 +3,8 @@
 	 * GitStatusFileRow — Single file row in the git status list.
 	 * Shows status icon, filename, DiffPill, and hover action buttons.
 	 */
-	import { FilePlus } from "phosphor-svelte";
-	import { FileX } from "phosphor-svelte";
-	import { FileDashed } from "phosphor-svelte";
-	import { FileMinus } from "phosphor-svelte";
-	import { File } from "phosphor-svelte";
-	import { Plus } from "phosphor-svelte";
-	import { ArrowCounterClockwise } from "phosphor-svelte";
+	import PlusIcon from "../icons/plus-icon.svelte";
+	import { FileStatusIcon, RoundedIcon, type FileStatusIconKind } from "../icons/index.js";
 
 	import { DiffPill } from "../diff-pill/index.js";
 	import { getFileIconSrc, getFallbackIconSrc } from "../../lib/file-icon/index.js";
@@ -61,18 +56,15 @@
 		return parts.length > 1 ? parts.slice(0, -1).join("/") + "/" : "";
 	});
 
-	function getStatusIcon(s: GitIndexStatus | GitWorktreeStatus) {
+	function getStatusIconKind(s: GitIndexStatus | GitWorktreeStatus): FileStatusIconKind | null {
 		switch (s) {
 			case "added":
-				return FilePlus;
 			case "deleted":
-				return FileX;
 			case "renamed":
-				return FileDashed;
 			case "untracked":
-				return FilePlus;
+				return s;
 			default:
-				return File;
+				return null;
 		}
 	}
 
@@ -107,7 +99,7 @@
 		}
 	}
 
-	const StatusIcon = $derived(getStatusIcon(status));
+	const statusIconKind = $derived(getStatusIconKind(status));
 	const statusColor = $derived(getStatusColor(status));
 	const statusChar = $derived(getStatusChar(status));
 </script>
@@ -135,7 +127,18 @@
 		/>
 	{:else}
 		<span class="shrink-0 {statusColor}">
-			<StatusIcon size={14} weight="bold" />
+			{#if statusIconKind}
+				<FileStatusIcon
+					status={statusIconKind}
+					data-testid={`git-status-file-${statusIconKind}-rounded-icon`}
+				/>
+			{:else}
+				<RoundedIcon
+					name="file-text"
+					class="size-3.5"
+					data-testid="git-status-file-rounded-icon"
+				/>
+			{/if}
 		</span>
 	{/if}
 
@@ -157,7 +160,7 @@
 					title="Stage file"
 					onclick={() => onStage?.(path)}
 				>
-					<Plus size={12} weight="bold" />
+					<PlusIcon />
 				</button>
 			{/if}
 			{#if onDiscard}
@@ -167,7 +170,7 @@
 					title="Discard changes"
 					onclick={() => onDiscard?.(path)}
 				>
-					<ArrowCounterClockwise size={12} weight="bold" />
+					<RoundedIcon name="undo" class="size-3" />
 				</button>
 			{/if}
 		{:else}
@@ -178,7 +181,7 @@
 					title="Unstage file"
 					onclick={() => onUnstage?.(path)}
 				>
-					<FileMinus size={12} weight="bold" />
+					<RoundedIcon name="minus" class="size-3" />
 				</button>
 			{/if}
 		{/if}

@@ -3,6 +3,7 @@ import * as Popover from "@acepe/ui/popover";
 import * as DropdownMenu from "@acepe/ui/dropdown-menu";
 import {
 	Button,
+	RoundedIcon,
 	SessionPrLinkPickerPanel,
 	type SessionPrLinkPickerProject,
 	type SessionPrLinkPickerPullRequest,
@@ -17,7 +18,6 @@ import type { Project } from "$lib/acp/logic/project-manager.svelte.js";
 import PrStateIcon from "$lib/acp/components/pr-state-icon.svelte";
 import { listPullRequests, getRepoContext } from "$lib/acp/services/github-service.js";
 import { getSessionStore } from "$lib/acp/store/session-store.svelte.js";
-import { LinkSimple } from "phosphor-svelte";
 import { toast } from "svelte-sonner";
 import { Tooltip } from "bits-ui";
 import {
@@ -37,6 +37,7 @@ interface Props {
 	prLinkMode?: SessionPrLinkMode | null;
 	projectPrLinkReferences?: readonly SessionPrLinkReference[];
 	project?: Project | null;
+	projectBadgeLabel?: string | null;
 	variant?: "footer" | "menu" | "header-icon";
 	triggerClass?: string;
 	inButtonGroup?: boolean;
@@ -49,6 +50,7 @@ let {
 	prLinkMode = "automatic",
 	projectPrLinkReferences = [],
 	project = null,
+	projectBadgeLabel = null,
 	variant = "footer",
 	triggerClass = "",
 	inButtonGroup = false,
@@ -107,6 +109,7 @@ function mapProjectForPicker(value: Project | null): SessionPrLinkPickerProject 
 	}
 	return {
 		name: value.name,
+		badgeLabel: projectBadgeLabel,
 		color: value.color,
 		iconPath: value.iconPath ?? null,
 	};
@@ -250,7 +253,7 @@ async function handleTransferPrLink(otherSessionId: string, prNumber: number): P
 	<Button
 		bind:ref={headerIconRef}
 		variant="outline"
-		size="headerAction"
+		size="xs"
 		type="button"
 		class={triggerClass}
 		title={headerPrLinkLabel}
@@ -261,7 +264,7 @@ async function handleTransferPrLink(otherSessionId: string, prNumber: number): P
 			<PrStateIcon state={linkedPr.state} size={11} />
 			#{linkedPr.prNumber}
 		{:else}
-			<LinkSimple size={11} weight="bold" class="shrink-0" />
+			<RoundedIcon name="link" class="size-[11px] shrink-0" />
 		{/if}
 	</Button>
 {/snippet}
@@ -290,8 +293,8 @@ async function handleTransferPrLink(otherSessionId: string, prNumber: number): P
 							<Button
 								{...props}
 								bind:ref={headerIconRef}
-								variant="headerAction"
-								size="headerAction"
+								variant="secondary"
+								size="xs"
 								type="button"
 								class={triggerClass}
 								onclick={handleTogglePicker}
@@ -301,7 +304,7 @@ async function handleTransferPrLink(otherSessionId: string, prNumber: number): P
 									<PrStateIcon state={linkedPr.state} size={11} />
 									#{linkedPr.prNumber}
 								{:else}
-									<LinkSimple size={11} weight="bold" class="shrink-0" />
+									<RoundedIcon name="link" class="size-[11px] shrink-0" />
 								{/if}
 							</Button>
 						{/snippet}

@@ -69,6 +69,7 @@ function createSessionOpenFound(overrides: Partial<SessionOpenFound> = {}): Sess
 		requestedSessionId: overrides.requestedSessionId ?? "session-1",
 		canonicalSessionId: overrides.canonicalSessionId ?? "session-1",
 		isAlias: overrides.isAlias ?? false,
+		openPath: overrides.openPath ?? "legacy_rebuild",
 		lastEventSeq: overrides.lastEventSeq ?? 0,
 		graphRevision: overrides.graphRevision ?? overrides.lastEventSeq ?? 0,
 		openToken: overrides.openToken ?? "open-token",

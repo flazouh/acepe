@@ -1,7 +1,5 @@
 <script lang="ts">
-	import { ArrowSquareOut } from "phosphor-svelte";
-	import { CaretDown } from "phosphor-svelte";
-	import { CaretRight } from "phosphor-svelte";
+	import { RoundedIcon } from "../icons/index.js";
 	import AgentToolCard from "./agent-tool-card.svelte";
 	import {
 		getDisplayedWebSearchLinks,
@@ -116,10 +114,7 @@
 					class="flex h-5 w-5 shrink-0 cursor-pointer items-center justify-center rounded-lg border-0 bg-transparent p-0 transition-colors hover:bg-muted"
 					aria-label={isCollapsed ? ariaExpandResults : ariaCollapseResults}
 				>
-					<CaretRight
-						size={10}
-						weight="bold"
-						class="text-muted-foreground transition-transform duration-150 {isCollapsed ? '' : 'rotate-90'}"
+					<RoundedIcon name="chevron-right" class="size-3 shrink-0 text-muted-foreground transition-transform duration-150 {isCollapsed ? '' : 'rotate-90'}"
 					/>
 				</button>
 			{/if}
@@ -147,10 +142,9 @@
 							<span class="text-sm text-muted-foreground truncate">
 								{link.title}
 							</span>
-							<ArrowSquareOut
-								size={9}
-								weight="regular"
-								class="shrink-0 text-muted-foreground/30 opacity-0 transition-opacity group-hover:opacity-100"
+							<RoundedIcon
+								name="external-link"
+								class="size-[9px] shrink-0 text-muted-foreground/30 opacity-0 transition-opacity group-hover:opacity-100"
 							/>
 						</a>
 					{/each}
@@ -200,10 +194,9 @@
 										<span class="truncate text-sm text-muted-foreground/70">
 											{link.domain}
 										</span>
-										<ArrowSquareOut
-											size={10}
-											weight="regular"
-											class="shrink-0 text-muted-foreground/30 opacity-0 transition-opacity group-hover:opacity-100"
+										<RoundedIcon
+											name="external-link"
+											class="size-2.5 shrink-0 text-muted-foreground/30 opacity-0 transition-opacity group-hover:opacity-100"
 										/>
 									</div>
 									<span class="text-sm text-foreground line-clamp-2 leading-snug">
@@ -221,10 +214,10 @@
 									class="flex items-center gap-1.5 rounded px-2 py-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground border-none bg-transparent cursor-pointer"
 								>
 									{#if !showAll}
-										<CaretDown size={10} weight="bold" />
+										<RoundedIcon name="chevron-down" class="size-3" />
 										<span>{showMoreExpandedLabel(hiddenLinkCount)}</span>
 									{:else}
-										<CaretRight size={10} weight="bold" class="rotate-270" />
+										<RoundedIcon name="chevron-up" class="size-3 shrink-0" />
 										<span>{showLessExpandedLabel}</span>
 									{/if}
 								</button>

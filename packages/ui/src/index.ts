@@ -27,6 +27,7 @@ export type {
 	AgentPanelPrCommitItem,
 	AgentPanelQueuedMessage,
 	AgentPanelQuestionSelectEvent,
+	AgentPanelReviewActionEvent,
 	AgentPanelSceneEntryModel,
 	AgentPanelSceneModel,
 	AgentPanelSceneStatus,
@@ -42,11 +43,16 @@ export type {
 	AgentToolEditDiffEntry,
 	AgentToolEntry,
 	AgentToolKind,
+	AgentToolReviewFileEntry,
 	AgentToolStatus,
 	AgentUserEntry,
 	AnyAgentEntry,
 	LintDiagnostic,
 } from "./components/agent-panel/index.js";
+export type {
+	AgentInputBranchListDisplay,
+	AgentInputBranchSelectorVariant,
+} from "./components/agent-panel/agent-input-branch-selector-types.js";
 export type {
 	AgentInputConfigOption,
 	AgentInputModelSelectorGroup,
@@ -70,6 +76,7 @@ export {
 export {
 	AgentInputArtefactBadge,
 	AgentInputAutonomousToggle,
+	AgentInputBranchSelector,
 	AgentInputConfigOptionSelector,
 	AgentInputDivider,
 	AgentInputEditor,
@@ -78,10 +85,9 @@ export {
 	AgentInputMicButton,
 	AgentInputModeSelector,
 	AgentInputModelFavoriteStar,
-	AgentInputModelRow,
 	AgentInputModelSelector,
 	AgentInputModelTrigger,
-	AgentInputSelectorItemRow,
+	AgentInputAgentSelector,
 	AgentInputSlashCommandDropdown,
 	AgentInputPastedTextOverlay,
 	AgentInputToolbar,
@@ -123,7 +129,8 @@ export {
 	AgentPanelReviewCard,
 	AgentPanelReviewNavigation,
 	AgentPanelReviewTabStrip,
-	AgentPanelScrollToBottomButton,
+	AgentPanelTranscriptScrollControls,
+	MessageScroller,
 	AgentPanelShell,
 	AgentPanelStatusStrip,
 	AgentPanelStatePanel,
@@ -154,11 +161,22 @@ export {
 	getMicButtonVisualState,
 } from "./components/agent-panel/index.js";
 export type {
+	CheckBucket,
+	CheckBucketCounts,
 	PrChecksItem,
 	PrChecksItemConclusion,
 	PrChecksItemStatus,
+	PrChecksSummarySegment,
+	PrChecksSummarySegmentKind,
 } from "./components/pr-checks/index.js";
-export { PrChecksList, PrChecksSummary } from "./components/pr-checks/index.js";
+export {
+	PrChecksList,
+	PrChecksSummary,
+	bucketOfCheck,
+	buildPrChecksSummarySegments,
+	countCheckBuckets,
+	formatPrChecksSummaryAriaLabel,
+} from "./components/pr-checks/index.js";
 export {
 	AgentPanelScene,
 	AgentPanelSceneConversation,
@@ -191,7 +209,14 @@ export {
 	type ButtonProps,
 	type ButtonSize,
 	type ButtonVariant,
+	type ControlTokenSize,
+	type ControlTokenVariant,
 	buttonVariants,
+	getButtonClass,
+	getDialogHeaderIconCloseClass,
+	type HeaderIconCloseSize,
+	ControlTokensShowcase,
+	controlTokensShowcaseMeta,
 	type Props as ButtonPropsAlias,
 	Root as ButtonRoot,
 } from "./components/button/index.js";
@@ -276,6 +301,14 @@ export {
 	Trigger as DrawerTriggerRaw,
 } from "./components/drawer/index.js";
 export { FilePathBadge } from "./components/file-path-badge/index.js";
+export {
+	PierreFileTree,
+	type PierreFileTreeActionItem,
+	type PierreFileTreeProps,
+	type PierreFileTreeRowAction,
+	type PierreFileTreeRowActionProvider,
+	type PierreFileTreeRowDecorationProvider,
+} from "./components/pierre-tree/index.js";
 export type {
 	GitIndexStatus,
 	GitLogEntry,
@@ -296,16 +329,12 @@ export {
 	GitStatusList,
 } from "./components/git-panel/index.js";
 export type {
-	FileTreeNode,
 	GitCommitData,
 	GitPrData,
 	GitViewerFile,
 } from "./components/git-viewer/index.js";
 // Git viewer components
 export {
-	buildFileTree,
-	compactSingleChildDirs,
-	flattenFileTree,
 	GitCommitHeader,
 	GitDiffViewToggle,
 	GitFileTree,
@@ -316,12 +345,26 @@ export { GitHubBadge } from "./components/github-badge/index.js";
 export {
 	ArrowRightIcon,
 	BuildIcon,
+	DatabaseIcon,
+	DiscordIcon,
+	GoogleLogoIcon,
+	LayoutModeIcon,
+	RoundedIcon,
 	DotmSquare18Spinner,
 	DotmTriangle17Spinner,
 	DotmTriangle20Spinner,
 	LoadingIcon,
+	MenuIcon,
+	PaletteIcon,
 	PlanIcon,
+	PlusIcon,
+	RecycleIcon,
 	RevertIcon,
+	RobotIcon,
+	SaveIcon,
+	StorageIcon,
+	WrenchIcon,
+	XLogoIcon,
 } from "./components/icons/index.js";
 export { ProviderMark } from "./components/provider-mark/index.js";
 export type { ProviderBrand } from "./components/provider-mark/index.js";
@@ -405,7 +448,6 @@ export {
 	CloseAction,
 	EmbeddedPanelHeader,
 	FullscreenAction,
-	FusedOverflowDotsTrigger,
 	FusedPrimaryOverflowGroup,
 	HeaderActionCell,
 	HeaderCell,
@@ -417,27 +459,33 @@ export {
 export { PlanSidebarLayout } from "./components/plan-sidebar/index.js";
 export { BrandLockup } from "./components/brand-lockup/index.js";
 export { BrandShaderBackground } from "./components/brand-shader-background/index.js";
+export { BrandSurface } from "./components/brand-surface/index.js";
+export { IrisCard } from "./components/iris-card/index.js";
 export { DismissableTooltip } from "./components/dismissable-tooltip/index.js";
 export { PillButton } from "./components/pill-button/index.js";
 export { ProjectCard } from "./components/project-card/index.js";
 export { ProjectLetterBadge } from "./components/project-letter-badge/index.js";
+export {
+	computeProjectBadgeLabels,
+	type ProjectBadgeLabelInput,
+} from "./components/project-letter-badge/project-letter-badge-labels.js";
 export { RichTokenText } from "./components/rich-token-text/index.js";
 export { SegmentedProgress } from "./components/segmented-progress/index.js";
-// Selector
-export { ComposerOverflowMenu } from "./components/composer/index.js";
+// Selector kit
 export {
-	ComposerFilterDropdown,
-	ComposerFilterDropdownBody,
-	ComposerFilterDropdownFilterInput,
-	composerFilterDropdownBodyClass,
-	composerFilterDropdownContentClass,
-	composerFilterDropdownEmptyStateClass,
-	composerFilterDropdownFilterRowClass,
-	composerFilterDropdownItemClass,
-	composerFilterDropdownListClass,
-	composerFilterDropdownSubmenuContentClass,
-} from "./components/composer/index.js";
-export { Selector } from "./components/selector/index.js";
+	Selector,
+	SelectorItem,
+	SelectorPanel,
+	SelectorPanelSearchInput,
+	selectorPanelBodyClass,
+	selectorPanelContentClass,
+	selectorPanelEmptyStateClass,
+	selectorPanelFilterInputClass,
+	selectorPanelFilterRowClass,
+	selectorPanelItemClass,
+	selectorPanelListClass,
+	selectorPanelSubmenuContentClass,
+} from "./components/selector/index.js";
 export {
 	SessionPrLinkPickerPanel,
 	filterPullRequestsByQuery,

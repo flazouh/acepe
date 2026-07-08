@@ -1,11 +1,13 @@
 <script lang="ts">
-	import { DotsThreeVertical } from "phosphor-svelte";
 	import * as DropdownMenu from "../dropdown-menu/index.js";
 	import * as Popover from "../popover/index.js";
 	import { Button } from "../button/index.js";
+	import { RoundedIcon } from "../icons/index.js";
 	import { Selector } from "../selector/index.js";
-	import AgentInputSelectorItemRow from "../agent-panel/agent-input-selector-item-row.svelte";
+	import { Switch } from "../switch/index.js";
+	import { SelectorItem } from "../selector/index.js";
 	import { PROJECT_COLOR_OPTIONS } from "./project-color-options.js";
+	import ProjectColorSwatch from "./project-color-swatch.svelte";
 	import { buildProjectHeaderOverflowMenuState } from "./project-menu-state.js";
 
 	interface Props {
@@ -85,18 +87,17 @@
 	align="end"
 	side="bottom"
 	variant="ghost"
-	triggerSize="icon"
-	tooltipLabel="Project menu"
+	triggerSize="iconSm"
 	triggerAriaLabel="Project menu"
 >
 	{#snippet renderButton()}
-		<DotsThreeVertical weight="bold" />
+		<RoundedIcon name="more" />
 	{/snippet}
 
 	{#if onMoveUp || onMoveDown}
 		<DropdownMenu.Group>
 			{#if onMoveUp}
-				<AgentInputSelectorItemRow
+				<SelectorItem
 					label="Move Up"
 					disabled={moveUpDisabled}
 					onSelect={() => {
@@ -106,7 +107,7 @@
 				/>
 			{/if}
 			{#if onMoveDown}
-				<AgentInputSelectorItemRow
+				<SelectorItem
 					label="Move Down"
 					disabled={moveDownDisabled}
 					onSelect={() => {
@@ -120,21 +121,28 @@
 	{#if showSessionsSection}
 		<DropdownMenu.Group>
 			<DropdownMenu.GroupHeading>Sessions</DropdownMenu.GroupHeading>
-			<DropdownMenu.CheckboxItem
-				checked={hideExternalCliSessions}
-				onCheckedChange={(checked) => {
-					onHideExternalCliSessionsChange?.(checked === true);
-				}}
+			<div
+				class="flex items-center justify-between gap-3 px-2 py-1.5"
+				role="presentation"
+				onclick={(event) => event.stopPropagation()}
+				onkeydown={(event) => event.stopPropagation()}
 			>
-				{hideExternalCliSessionsLabel}
-			</DropdownMenu.CheckboxItem>
+				<span class="min-w-0 text-xs text-foreground">{hideExternalCliSessionsLabel}</span>
+				<Switch
+					checked={hideExternalCliSessions}
+					onCheckedChange={(checked) => {
+						onHideExternalCliSessionsChange?.(checked === true);
+					}}
+					aria-label={hideExternalCliSessionsLabel}
+				/>
+			</div>
 		</DropdownMenu.Group>
 	{/if}
 	{#if showSettingsSection}
 		<DropdownMenu.Group>
 			<DropdownMenu.GroupHeading>Settings</DropdownMenu.GroupHeading>
 			{#if onChangeProjectIcon}
-				<AgentInputSelectorItemRow
+				<SelectorItem
 					label="Change icon..."
 					onSelect={() => {
 						onChangeProjectIcon();
@@ -147,17 +155,21 @@
 					<DropdownMenu.SubTrigger>Color</DropdownMenu.SubTrigger>
 					<DropdownMenu.SubContent>
 						{#each colorOptions as option (option.name)}
-							<AgentInputSelectorItemRow
+							<SelectorItem
 								label={option.label}
 								selected={currentColor === option.name || currentColor === option.hex}
 								onSelect={() => handleColorSelect(option.name)}
-							/>
+							>
+								{#snippet leading()}
+									<ProjectColorSwatch hex={option.hex} />
+								{/snippet}
+							</SelectorItem>
 						{/each}
 					</DropdownMenu.SubContent>
 				</DropdownMenu.Sub>
 			{/if}
 			{#if hasIcon && onResetProjectIcon}
-				<AgentInputSelectorItemRow
+				<SelectorItem
 					label="Reset to letter badge"
 					onSelect={() => {
 						onResetProjectIcon();

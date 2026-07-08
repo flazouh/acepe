@@ -4,22 +4,21 @@
   Accepts a normalized config option shape; desktop derives AgentInputConfigOption from session state.
 -->
 <script lang="ts">
-	import { Lightning, ShieldCheck } from "phosphor-svelte";
-
-	import { Button } from "../button/index.js";
 	import { Selector } from "../selector/index.js";
+	import { RoundedIcon } from "../icons/index.js";
 	import type { SelectorTriggerSize } from "../selector/selector-trigger-classes.js";
-	import * as Tooltip from "../tooltip/index.js";
-	import AgentInputReasoningEffortTrigger from "./agent-input-reasoning-effort-trigger.svelte";
-	import AgentInputSelectorItemRow from "./agent-input-selector-item-row.svelte";
+	import { getSelectorTriggerButtonVariant } from "../selector/selector-trigger-classes.js";
+	import { Button } from "../button/index.js";
 	import {
-		getConfigOptionFastTriggerClass,
 		getConfigOptionNextBooleanValue,
 		getConfigOptionResolvedTriggerSize,
 		getConfigOptionViewState,
 		shouldEmitConfigOptionValueChange,
 	} from "./agent-input-config-option-selector-state.js";
 	import type { AgentInputConfigOption } from "./agent-input-config-option-types.js";
+	import * as Tooltip from "../tooltip/index.js";
+	import AgentInputReasoningEffortTrigger from "./agent-input-reasoning-effort-trigger.svelte";
+	import { SelectorItem } from "../selector/index.js";
 
 	export type { AgentInputConfigOption };
 
@@ -27,13 +26,15 @@
 		configOption: AgentInputConfigOption;
 		disabled?: boolean;
 		triggerSize?: SelectorTriggerSize;
+		embeddedInGroup?: boolean;
 		onValueChange: (configId: string, value: string) => void;
 	}
 
 	let {
 		configOption,
 		disabled = false,
-		triggerSize = "setupChip",
+		triggerSize = "composerChipLabel",
+		embeddedInGroup = false,
 		onValueChange,
 	}: Props = $props();
 
@@ -41,17 +42,7 @@
 	const resolvedTriggerSize = $derived(
 		getConfigOptionResolvedTriggerSize(configOption, triggerSize)
 	);
-	const selectorVariant = $derived(
-		resolvedTriggerSize === "setupChip" || resolvedTriggerSize === "setupChipIcon"
-			? "ghost"
-			: "chromeIcon"
-	);
-	const fastTriggerClass = $derived(
-		getConfigOptionFastTriggerClass({
-			disabled,
-			isEnabled: viewState.isBooleanEnabled,
-		})
-	);
+	const selectorVariant = $derived(getSelectorTriggerButtonVariant(resolvedTriggerSize));
 
 	function handleSelect(value: string) {
 		if (
@@ -80,9 +71,13 @@
 
 {#snippet configOptionIcon()}
 	{#if viewState.iconKind === "fast"}
-		<Lightning class="{viewState.iconClass} size-3.5" weight={viewState.iconWeight} style={viewState.iconStyle} />
+		<RoundedIcon
+			name="lightning"
+			class={viewState.iconClass}
+			style={viewState.iconStyle}
+		/>
 	{:else}
-		<ShieldCheck class="size-3.5" weight="fill" style="color: {viewState.iconColor}" />
+		<RoundedIcon name="shield-check" style="color: {viewState.iconColor}" />
 	{/if}
 {/snippet}
 
@@ -90,7 +85,7 @@
 	<div class="max-h-[250px] overflow-y-auto scrollbar-thin">
 		{#each configOption.options ?? [] as option (String(option.value))}
 			{@const optValue = String(option.value)}
-			<AgentInputSelectorItemRow
+			<SelectorItem
 				label={option.name}
 				selected={optValue === viewState.currentValue}
 				onSelect={() => handleSelect(optValue)}
@@ -117,25 +112,20 @@
 			{#snippet child({ props })}
 				<Button
 					{...props}
-					variant="chromeIcon"
-					size="chromeIcon"
-					data-header-control
+					variant="secondary"
+					size="icon-md"
 					title={viewState.buttonTitle}
 					aria-label={viewState.buttonTitle}
-					active={viewState.isBooleanEnabled}
-					disabled={disabled}
-					class={fastTriggerClass}
+					data-testid="agent-input-fast-mode-button"
+					{disabled}
 					aria-pressed={viewState.isBooleanEnabled}
 					onclick={handleBooleanToggle}
 				>
-					{#snippet children()}
-						<Lightning
-							class={viewState.iconClass}
-							size={12}
-							weight={viewState.iconWeight}
-							style={viewState.iconStyle}
-						/>
-					{/snippet}
+					<RoundedIcon
+						name="lightning"
+						class={viewState.iconClass}
+						style={viewState.iconStyle}
+					/>
 				</Button>
 			{/snippet}
 		</Tooltip.Trigger>
@@ -144,6 +134,8 @@
 {:else if viewState.iconKind === "reasoning"}
 	<AgentInputReasoningEffortTrigger
 		{disabled}
+		{embeddedInGroup}
+		iconStyle={viewState.iconStyle}
 		triggerAriaLabel={viewState.buttonTitle}
 		tooltipTitle={viewState.tooltipTitle}
 		tooltipDescription={viewState.tooltipDescription}

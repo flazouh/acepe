@@ -1,13 +1,12 @@
 <script lang="ts">
-	import { Screwdriver } from "phosphor-svelte";
-
 	interface Props {
 		size?: "sm" | "md" | "lg";
 		class?: string;
 		style?: string;
+		"data-testid"?: string;
 	}
 
-	let { size = "md", class: className, style }: Props = $props();
+	let { size = "md", class: className, style, "data-testid": testId }: Props = $props();
 
 	const sizeClasses = {
 		sm: "size-3",
@@ -19,8 +18,14 @@
 <span
 	class="build-icon-root inline-flex shrink-0 items-center justify-center {sizeClasses[size]} {className ? className : ''}"
 	style={style}
+	data-testid={testId}
+	aria-hidden="true"
 >
-	<Screwdriver class="block size-full max-h-full max-w-full text-current" weight="fill" />
+	<span class="build-icon-tool">
+		<span class="build-icon-tip"></span>
+		<span class="build-icon-shaft"></span>
+		<span class="build-icon-handle"></span>
+	</span>
 </span>
 
 <style>
@@ -33,12 +38,42 @@
 		color: currentColor;
 	}
 
-	/*
-	 * Phosphor sets fill on the SVG root; `currentColor` must match this wrapper’s `color`.
-	 * Keeping `color` + optional `style` on the span (not the SVG) avoids cases where the mint
-	 * `--build-icon` token was ignored in dark theme.
-	 */
-	.build-icon-root :global(svg) {
-		fill: currentColor;
+	.build-icon-tool {
+		position: relative;
+		display: block;
+		width: 100%;
+		height: 100%;
+		transform: rotate(-45deg);
+	}
+
+	.build-icon-tip,
+	.build-icon-shaft,
+	.build-icon-handle {
+		position: absolute;
+		left: 50%;
+		background: currentColor;
+		transform: translateX(-50%);
+	}
+
+	.build-icon-tip {
+		top: 3%;
+		width: 32%;
+		height: 16%;
+		border-radius: 1px 1px 2px 2px;
+		clip-path: polygon(24% 0, 76% 0, 100% 100%, 0 100%);
+	}
+
+	.build-icon-shaft {
+		top: 18%;
+		width: 18%;
+		height: 44%;
+		border-radius: 999px;
+	}
+
+	.build-icon-handle {
+		top: 56%;
+		width: 42%;
+		height: 36%;
+		border-radius: 2px 2px 4px 4px;
 	}
 </style>

@@ -7,9 +7,10 @@ import {
 	AgentInputSlashCommandDropdown,
 	AgentInputVoiceRecordingOverlay,
 	type AgentInputSlashCommandWorkspaceMarkdownResult,
+	type SlashPaletteItem,
+	type SlashPaletteSection,
 } from "@acepe/ui/agent-panel";
 import type { Snippet } from "svelte";
-import type { AvailableCommand } from "../../../types/available-command.js";
 import type { ComposerInteractionState } from "../../../logic/composer-ui-state.js";
 import FilePreview from "../../file-picker/file-preview.svelte";
 import type { AgentInputState } from "../state/agent-input-state.svelte.js";
@@ -28,9 +29,8 @@ let {
 	isStreaming,
 	hasDraftInput,
 	isAgentBusy,
-	effectiveAvailableCommands,
+	slashPaletteSections,
 	isSlashDropdownVisible,
-	slashCommandTokenType,
 	filePickerProjectPath,
 	onEditorBeforeInput,
 	onEditorInput,
@@ -47,7 +47,7 @@ let {
 	onOverlayClose,
 	onOverlayMouseEnterCancel,
 	onPrimaryButtonClick,
-	onCommandSelect,
+	onSlashPaletteItemSelect,
 	loadSlashCommandWorkspaceMarkdown,
 	onFileSelect,
 	onSlashDropdownClose,
@@ -73,9 +73,8 @@ let {
 	isStreaming: boolean;
 	hasDraftInput: boolean;
 	isAgentBusy: boolean;
-	effectiveAvailableCommands: readonly AvailableCommand[];
+	slashPaletteSections: readonly SlashPaletteSection[];
 	isSlashDropdownVisible: boolean;
-	slashCommandTokenType: "command" | "skill";
 	filePickerProjectPath: string | null;
 	onEditorBeforeInput: (e: InputEvent) => void;
 	onEditorInput: () => void;
@@ -92,9 +91,9 @@ let {
 	onOverlayClose: () => void;
 	onOverlayMouseEnterCancel: () => void;
 	onPrimaryButtonClick: () => void;
-	onCommandSelect: (cmd: AvailableCommand) => void;
+	onSlashPaletteItemSelect: (item: SlashPaletteItem) => void;
 	loadSlashCommandWorkspaceMarkdown?: (input: {
-		readonly command: AvailableCommand;
+		readonly command: { name: string; description: string; input?: { hint: string } | null };
 		readonly tokenType: "command" | "skill";
 	}) => Promise<AgentInputSlashCommandWorkspaceMarkdownResult>;
 	onFileSelect: (file: { path: string }) => void;
@@ -181,38 +180,40 @@ const submitAriaLabel = $derived(
 		<Skeleton class="h-8 w-8 rounded-full shrink-0" />
 	</div>
 {/if}
-<AgentInputSlashCommandDropdown
-	bind:this={inputState.slashDropdownRef}
-	commands={effectiveAvailableCommands}
-	isOpen={isSlashDropdownVisible}
-	query={inputState.slashQuery}
-	position={inputState.slashPosition}
-	headerLabel={"Commands"}
-	noCommandsLabel={"No commands available"}
-	noResultsLabel={"No commands found"}
-	startTypingLabel={"Start typing to search commands..."}
-	selectHintLabel={"to select"}
-	closeHintLabel={"to close"}
-	tokenType={slashCommandTokenType}
-	loadWorkspaceMarkdown={loadSlashCommandWorkspaceMarkdown}
-	onSelect={(cmd: AvailableCommand) => onCommandSelect(cmd)}
-	onClose={onSlashDropdownClose}
-/>
-<AgentInputFilePickerDropdown
-	bind:this={inputState.fileDropdownRef}
-	files={inputState.availableFiles}
-	isOpen={inputState.showFileDropdown}
-	isLoading={inputState.filesLoading}
-	query={inputState.fileQuery}
-	position={inputState.filePosition}
-	headerLabel={"Add file context"}
-	noResultsLabel={"No matching files"}
-	selectHintLabel={"to select"}
-	closeHintLabel={"to close"}
-	onSelect={(file) => onFileSelect(file)}
-	onClose={onFileDropdownClose}
->
-	{#snippet preview(file)}
-		<FilePreview file={file} projectPath={filePickerProjectPath ? filePickerProjectPath : ""} />
-	{/snippet}
-</AgentInputFilePickerDropdown>
+	{#if isSlashDropdownVisible}
+		<AgentInputSlashCommandDropdown
+			bind:this={inputState.slashDropdownRef}
+			sections={slashPaletteSections}
+			isOpen={true}
+			query={inputState.slashQuery}
+			position={inputState.slashPosition}
+			noContentLabel={"Nothing available"}
+			noResultsLabel={"No matching items"}
+			startTypingLabel={"Start typing to filter"}
+			selectHintLabel={"to select"}
+			closeHintLabel={"to close"}
+			loadWorkspaceMarkdown={loadSlashCommandWorkspaceMarkdown}
+			onItemSelect={onSlashPaletteItemSelect}
+			onClose={onSlashDropdownClose}
+		/>
+	{/if}
+	{#if inputState.showFileDropdown}
+		<AgentInputFilePickerDropdown
+			bind:this={inputState.fileDropdownRef}
+			files={inputState.availableFiles}
+			isOpen={true}
+			isLoading={inputState.filesLoading}
+			query={inputState.fileQuery}
+			position={inputState.filePosition}
+			headerLabel={"Add file context"}
+			noResultsLabel={"No matching files"}
+			selectHintLabel={"to select"}
+			closeHintLabel={"to close"}
+			onSelect={(file) => onFileSelect(file)}
+			onClose={onFileDropdownClose}
+		>
+			{#snippet preview(file)}
+				<FilePreview file={file} projectPath={filePickerProjectPath ? filePickerProjectPath : ""} />
+			{/snippet}
+		</AgentInputFilePickerDropdown>
+	{/if}

@@ -1,8 +1,5 @@
 <script lang="ts">
-	import { IconTerminal } from "@tabler/icons-svelte";
-	import { IconPlug } from "@tabler/icons-svelte";
-	import { BookOpenText } from "phosphor-svelte";
-	import { INLINE_ARTEFACT_PACKAGE_PATH } from "../inline-artefact-badge/inline-artefact-badge.styles.js";
+	import { RoundedIcon } from "../icons/index.js";
 	import {
 		getSlashCommandDisplayName,
 		getSlashCommandIconColor,
@@ -41,7 +38,7 @@
 <!-- svelte-ignore a11y_click_events_have_key_events -->
 <!-- svelte-ignore a11y_no_static_element_interactions -->
 <div
-	class="mx-1.5 flex cursor-pointer items-start gap-2 rounded-md px-2 py-1.5 {selected
+	class="group mx-1.5 flex cursor-pointer items-start gap-2 rounded-md px-2 py-1.5 {selected
 		? 'bg-accent text-accent-foreground'
 		: 'hover:bg-accent/50'}"
 	title={command.description}
@@ -49,33 +46,37 @@
 	onmouseenter={() => onHover?.()}
 >
 	<div
-		class="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-[5px]"
-		style="color: {iconColor};"
+		class="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-[5px] text-muted-foreground/60 transition-colors group-hover:text-[var(--slash-command-icon-color)] group-focus-within:text-[var(--slash-command-icon-color)]"
+		style="--slash-command-icon-color: {iconColor};"
 	>
 		{#if tokenType === "skill"}
-			<svg viewBox="0 0 256 256" fill="currentColor" class="h-2.5 w-2.5" aria-hidden="true">
-				<path d={INLINE_ARTEFACT_PACKAGE_PATH} />
-			</svg>
+			<RoundedIcon name="skills" class="h-2.5 w-2.5" data-testid="slash-command-skill-icon" />
 		{:else if tokenType === "mcp"}
-			<IconPlug class="h-2.5 w-2.5" />
+			<RoundedIcon name="mcp" class="h-2.5 w-2.5" />
 		{:else}
-			<IconTerminal class="h-2.5 w-2.5" />
+			<RoundedIcon name="terminal" class="h-2.5 w-2.5" />
 		{/if}
 	</div>
 	<div class="min-w-0 flex-1">
 		<div class="flex min-w-0 items-baseline gap-1.5">
-			<span class="min-w-0 truncate font-mono text-[12px] font-medium leading-4">
+			<span
+				class="min-w-0 truncate text-[12px] font-medium leading-4 {tokenType === 'skill'
+					? ''
+					: 'font-mono'}"
+			>
 				{displayName}
 			</span>
 		</div>
-		{#if command.description.trim().length > 0}
+		{#if tokenType !== "skill" && command.description.trim().length > 0}
 			<div class="truncate text-[11px] leading-4 text-muted-foreground">
 				{command.description}
 			</div>
 		{/if}
-		<div class="truncate text-[10px] leading-3 text-muted-foreground/70">
-			{metaLabel}
-		</div>
+		{#if tokenType !== "skill"}
+			<div class="truncate text-[10px] leading-3 text-muted-foreground/70">
+				{metaLabel}
+			</div>
+		{/if}
 	</div>
 	{#if showPreviewButton}
 		<button
@@ -89,7 +90,7 @@
 				onPreview?.();
 			}}
 		>
-			<BookOpenText weight="fill" class="h-3 w-3" />
+			<RoundedIcon name="notebook" class="h-3 w-3" />
 		</button>
 	{/if}
 </div>

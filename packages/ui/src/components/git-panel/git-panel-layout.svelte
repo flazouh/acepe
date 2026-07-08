@@ -5,12 +5,6 @@
 	 * All data-driven via props, no Tauri coupling.
 	 */
 	import type { Snippet } from "svelte";
-	import { ArrowUp } from "phosphor-svelte";
-	import { ArrowDown } from "phosphor-svelte";
-	import { ArrowsClockwise } from "phosphor-svelte";
-	import { GitDiff } from "phosphor-svelte";
-	import { ClockCounterClockwise } from "phosphor-svelte";
-	import { Package } from "phosphor-svelte";
 
 	import { cn } from "../../lib/utils.js";
 	import type { GitStatusFile, GitStashEntry, GitLogEntry, GitLogEntryFile, GitRemoteStatus } from "./types.js";
@@ -22,6 +16,7 @@
 	import GitStashList from "./git-stash-list.svelte";
 	import GitLogList from "./git-log-list.svelte";
 	import { SegmentedToggleGroup } from "../panel-header/index.js";
+	import { RoundedIcon } from "../icons/index.js";
 
 	type ViewTab = "status" | "history" | "stash";
 
@@ -73,7 +68,7 @@
 		/** Currently selected file path (for highlighting) */
 		selectedFile?: string;
 
-		/** Base path for file-type SVG icons (e.g. "/svgs/icons"). Falls back to Phosphor icons if omitted. */
+		/** Base path for file-type SVG icons (e.g. "/svgs/icons"). Falls back to local file icons if omitted. */
 		iconBasePath?: string;
 		class?: string;
 	}
@@ -114,53 +109,22 @@
 		class: className,
 	}: Props = $props();
 
-	const views: { value: ViewTab; label: string; icon: typeof GitDiff }[] = [
-		{ value: "status", label: "Status", icon: GitDiff },
-		{ value: "history", label: "History", icon: ClockCounterClockwise },
-		{ value: "stash", label: "Stash", icon: Package },
+	const views: {
+		value: ViewTab;
+		label: string;
+		roundedIcon: "git-diff" | "history" | "archive";
+	}[] = [
+		{ value: "status", label: "Status", roundedIcon: "git-diff" },
+		{ value: "history", label: "History", roundedIcon: "history" },
+		{ value: "stash", label: "Stash", roundedIcon: "archive" },
 	];
 </script>
 
 <div class={cn("flex flex-col h-full bg-background", className)}>
-	<!-- Header: branch + remote status + action buttons -->
-	<div class="flex items-center gap-2 px-2 py-1.5 border-b border-border/30 shrink-0">
+	<!-- Header: branch + remote status -->
+	<div class="flex items-center gap-2 px-3 py-1.5 border-b border-border/30 shrink-0">
 		<GitBranchBadge {branch} onclick={onBranchClick} />
 		<GitRemoteStatusBadge status={remoteStatus} />
-
-		<div class="flex-1"></div>
-
-		<div class="flex items-center gap-0.5">
-			{#if onFetch}
-				<button
-					type="button"
-					class="flex items-center justify-center h-6 w-6 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted/50 cursor-pointer transition-colors"
-					title="Fetch"
-					onclick={onFetch}
-				>
-					<ArrowsClockwise size={14} weight="bold" />
-				</button>
-			{/if}
-			{#if onPull}
-				<button
-					type="button"
-					class="flex items-center justify-center h-6 w-6 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted/50 cursor-pointer transition-colors"
-					title="Pull"
-					onclick={onPull}
-				>
-					<ArrowDown size={14} weight="bold" />
-				</button>
-			{/if}
-			{#if onPush}
-				<button
-					type="button"
-					class="flex items-center justify-center h-6 w-6 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted/50 cursor-pointer transition-colors"
-					title="Push"
-					onclick={onPush}
-				>
-					<ArrowUp size={14} weight="bold" />
-				</button>
-			{/if}
-		</div>
 	</div>
 
 	<!-- View tabs -->
@@ -173,7 +137,7 @@
 			{#snippet itemContent(item)}
 				{@const view = views.find((candidate) => candidate.value === item.id)}
 				{#if view}
-					<view.icon size={12} weight="bold" />
+					<RoundedIcon name={view.roundedIcon} class="size-3" data-testid={`git-panel-${view.value}-rounded-icon`} />
 				{/if}
 				{item.label}
 				{#if item.id === "stash" && stashEntries.length > 0}

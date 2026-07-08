@@ -1,13 +1,8 @@
 <script lang="ts">
-import { Colors } from "@acepe/ui/colors";
-import { Selector, AgentInputSelectorItemRow } from "@acepe/ui";
-import type { ButtonVariant } from "@acepe/ui";
-import * as DropdownMenu from "@acepe/ui/dropdown-menu";
+import { AgentInputAgentSelector } from "@acepe/ui";
 import { Skeleton } from "$lib/components/ui/skeleton/index.js";
-import { Heart } from "phosphor-svelte";
 import { getAgentPreferencesStore } from "../store/index.js";
 import { capitalizeName } from "../utils/index.js";
-import { createLogger } from "../utils/logger.js";
 import AgentIcon from "./agent-icon.svelte";
 import type { ProviderMetadataProjection } from "$lib/services/acp-types.js";
 
@@ -23,9 +18,8 @@ interface AgentSelectorProps {
 	ontoggle?: (isOpen: boolean) => void;
 	class?: string;
 	showChevron?: boolean;
-	variant?: ButtonVariant;
+	variant?: import("@acepe/ui").ButtonVariant;
 	triggerClass?: string;
-	/** When true, the trigger shows the agent name next to its icon. */
 	showLabel?: boolean;
 }
 
@@ -43,134 +37,53 @@ let {
 }: AgentSelectorProps = $props();
 
 let selectorRef: { toggle: () => void } | undefined = $state();
-let isDropdownOpen = $state(false);
-
-const logger = createLogger({
-	id: "agent-selector" as const,
-	name: "Agent Selector",
-});
 
 const agentPreferencesStore = getAgentPreferencesStore();
 const defaultAgentId = $derived(agentPreferencesStore.defaultAgentId);
 
-function handleAgentSelect(agentId: string) {
-	logger.debug("handleAgentSelect() called", {
-		agentId,
-		currentAgentId,
-		isDifferent: agentId !== currentAgentId,
-	});
-
-	if (agentId !== currentAgentId) {
-		logger.info("Changing agent", { from: currentAgentId, to: agentId });
-		onAgentChange(agentId);
-	}
-	isDropdownOpen = false;
-}
+const agentItems = $derived(
+	availableAgents.map((agent) => ({
+		id: agent.id,
+		name: agent.name,
+		providerBrand: agent.provider_metadata?.providerBrand ?? null,
+		providerLabel: agent.provider_metadata?.displayName ?? agent.name,
+	}))
+);
 
 export function toggle() {
 	selectorRef?.toggle();
 }
-
-function handleOpenChange(open: boolean) {
-	isDropdownOpen = open;
-	ontoggle?.(open);
-}
-
-const currentAgent = $derived(
-	currentAgentId ? (availableAgents.find((a) => a.id === currentAgentId) ?? null) : null
-);
-const displayAgent = $derived(currentAgent ?? availableAgents[0] ?? null);
-
-// In the new-thread setup card (showLabel) every picker shares the same compact chip size;
-// elsewhere the agent selector keeps its default styling.
-const effectiveTriggerSize = $derived(showLabel ? "setupChip" : "default");
-const effectiveTriggerClass = $derived(
-	showLabel ? (isDropdownOpen ? "bg-accent text-foreground" : "") : triggerClass
-);
-const effectiveShowChevron = $derived(showLabel ? false : showChevron);
 </script>
 
-<Selector
+<AgentInputAgentSelector
 	bind:this={selectorRef}
-	bind:open={isDropdownOpen}
-	disabled={isLoading || availableAgents.length === 0}
-	onOpenChange={handleOpenChange}
+	availableAgents={agentItems}
+	{currentAgentId}
+	defaultAgentId={defaultAgentId}
+	{onAgentChange}
+	onDefaultAgentToggle={(agentId) => {
+		void agentPreferencesStore.setDefaultAgentId(agentId);
+	}}
+	{isLoading}
+	onOpenChange={ontoggle}
 	class={className}
-	showChevron={effectiveShowChevron}
+	{showChevron}
 	{variant}
-	triggerSize={effectiveTriggerSize}
-	triggerClass={effectiveTriggerClass}
-	side="top"
-	sideOffset={8}
+	{triggerClass}
+	{showLabel}
+	{capitalizeName}
 >
-	{#snippet renderButton()}
-		{#if isLoading}
-			<Skeleton class="h-4 w-4 shrink-0 rounded" />
-			<Skeleton class="h-3 w-20" />
-		{:else if displayAgent}
-			<AgentIcon
-				agentId={displayAgent.id}
-				providerBrand={displayAgent.provider_metadata?.providerBrand ?? null}
-				providerLabel={displayAgent.provider_metadata?.displayName ?? displayAgent.name}
-				class="h-4 w-4 shrink-0"
-				size={16}
-			/>
-			{#if showLabel}
-				<span class="whitespace-nowrap text-xs">{capitalizeName(displayAgent.name)}</span>
-			{/if}
-		{/if}
+	{#snippet renderAgentIcon({ agentId, providerBrand, providerLabel, class: iconClass, size })}
+		<AgentIcon
+			{agentId}
+			{providerBrand}
+			{providerLabel}
+			class={iconClass}
+			{size}
+		/>
 	{/snippet}
-
-	{#if availableAgents.length === 0}
-		<div class="px-2 py-1.5 text-sm text-muted-foreground">
-			{"No agents available"}
-		</div>
-	{:else}
-		{#each availableAgents as agent (agent.id)}
-			{@const isSelected = agent.id === currentAgentId}
-			<AgentInputSelectorItemRow
-				label={capitalizeName(agent.name)}
-				selected={isSelected}
-				onSelect={() => handleAgentSelect(agent.id)}
-			>
-				{#snippet leading()}
-					<AgentIcon
-						agentId={agent.id}
-						providerBrand={agent.provider_metadata?.providerBrand ?? null}
-						providerLabel={agent.provider_metadata?.displayName ?? agent.name}
-						class="h-3.5 w-3.5 shrink-0"
-						size={14}
-					/>
-				{/snippet}
-				{#snippet trailing()}
-					<button
-						type="button"
-						class="default-agent-toggle shrink-0 {agent.id === defaultAgentId ? '' : 'opacity-0 group-hover/item:opacity-100 focus-visible:opacity-100 text-muted-foreground'} transition-opacity"
-						style={`--default-agent-color: ${Colors.red};${agent.id === defaultAgentId ? `color: ${Colors.red};` : ""}`}
-						onclick={(event: MouseEvent) => {
-							event.stopPropagation();
-							event.preventDefault();
-							void agentPreferencesStore.setDefaultAgentId(agent.id === defaultAgentId ? null : agent.id);
-						}}
-						aria-label={agent.id === defaultAgentId
-							? `Unset ${agent.name} as default agent`
-							: `Set ${agent.name} as default agent`}
-					>
-						{#if agent.id === defaultAgentId}
-							<Heart size={14} weight="fill" color={Colors.red} />
-						{:else}
-							<Heart size={14} weight="regular" />
-						{/if}
-					</button>
-				{/snippet}
-			</AgentInputSelectorItemRow>
-		{/each}
-	{/if}
-</Selector>
-
-<style>
-	.default-agent-toggle:hover,
-	.default-agent-toggle:focus-visible {
-		color: var(--default-agent-color);
-	}
-</style>
+	{#snippet renderLoadingTrigger()}
+		<Skeleton class="size-3.5 shrink-0 rounded" />
+		<Skeleton class="h-3 w-20" />
+	{/snippet}
+</AgentInputAgentSelector>

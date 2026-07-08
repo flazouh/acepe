@@ -1,5 +1,5 @@
 <script lang="ts">
-import { CheckCircle, Plugs, WarningCircle } from "phosphor-svelte";
+import { RoundedIcon } from "@acepe/ui";
 import SettingsSection from "../settings-section.svelte";
 import { BUILT_IN_MCP_TOOLS } from "./mcp-section.logic.js";
 </script>
@@ -8,6 +8,7 @@ import { BUILT_IN_MCP_TOOLS } from "./mcp-section.logic.js";
 	<SettingsSection
 		title="Built-in tools"
 		description="Acepe-owned MCP tools that are attached by the app, not by user config files."
+		card={false}
 	>
 		<div
 			class="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] items-center gap-3 border-b border-border/50 py-2 text-[12px] font-medium text-muted-foreground"
@@ -20,7 +21,7 @@ import { BUILT_IN_MCP_TOOLS } from "./mcp-section.logic.js";
 		{#each BUILT_IN_MCP_TOOLS as tool (tool.id)}
 			<div class="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] items-center gap-3 py-3">
 				<div class="flex min-w-0 items-center gap-2">
-					<Plugs class="size-3.5 shrink-0 text-muted-foreground" weight="regular" />
+					<RoundedIcon name="mcp" class="size-3.5 shrink-0 text-muted-foreground" />
 					<div class="min-w-0">
 						<div class="truncate text-[12px] font-medium text-foreground">{tool.name}</div>
 						<div class="mt-0.5 text-[12px] leading-relaxed text-muted-foreground/60">
@@ -37,7 +38,7 @@ import { BUILT_IN_MCP_TOOLS } from "./mcp-section.logic.js";
 					class="flex items-center justify-end gap-1.5 text-[12px] font-medium text-muted-foreground"
 					aria-label="{tool.name} status"
 				>
-					<CheckCircle class="size-3.5 text-emerald-500" weight="regular" />
+					<RoundedIcon name="check-circle" class="size-3.5 text-emerald-500" />
 					<span>{tool.statusLabel}</span>
 				</div>
 			</div>
@@ -45,7 +46,7 @@ import { BUILT_IN_MCP_TOOLS } from "./mcp-section.logic.js";
 			<div
 				class="flex items-start gap-2 border-t border-border/50 py-3 text-[12px] text-muted-foreground/70"
 			>
-				<WarningCircle class="mt-0.5 size-3.5 shrink-0 text-amber-500" weight="regular" />
+				<RoundedIcon name="warning" class="mt-0.5 size-3.5 shrink-0 text-amber-500" />
 				<p class="leading-relaxed">{tool.limitation}</p>
 			</div>
 		{/each}
@@ -54,6 +55,7 @@ import { BUILT_IN_MCP_TOOLS } from "./mcp-section.logic.js";
 	<SettingsSection
 		title="External servers"
 		description="User-installed MCP server management is still planned."
+		card={false}
 	>
 		<div class="py-3 text-[12px] leading-relaxed text-muted-foreground/70">
 			Install, configure, and toggle external MCP servers across agents from this page in a

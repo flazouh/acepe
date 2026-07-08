@@ -27,7 +27,6 @@ import type { SessionStore } from "$lib/acp/store/session-store.svelte.js";
 import type { AgentWorkspacePanel } from "$lib/acp/store/types.js";
 import type { WorkspaceStore } from "$lib/acp/store/workspace-store.svelte.js";
 import type { KeybindingsService } from "$lib/keybindings/service.svelte.js";
-import type { PreconnectionAgentSkillsStore } from "$lib/skills/store/preconnection-agent-skills-store.svelte.js";
 import { MainAppViewState } from "../logic/main-app-view-state.svelte.js";
 
 function createAgentPanel(projectPath: string | null): AgentWorkspacePanel {
@@ -61,7 +60,6 @@ function createState(options: {
 	const panelStore = {
 		fullscreenPanelId: null,
 		toggleFullscreen: vi.fn(),
-		isPanelInReviewMode: vi.fn(() => false),
 		setPanelAgent: vi.fn(),
 		spawnPanel: vi.fn(() => createAgentPanel("/repo")),
 		focusedTopLevelPanel: null,
@@ -107,12 +105,6 @@ function createState(options: {
 		toggleFocused: vi.fn(),
 		cycleFocused: vi.fn(),
 	} as Partial<SelectorRegistry>;
-	const preconnectionAgentSkillsStore = {
-		initialize: vi.fn(),
-		ensureLoaded: vi.fn(),
-		refresh: vi.fn(),
-	} as Partial<PreconnectionAgentSkillsStore>;
-
 	const sessionOpenHydrator = {
 		beginAttempt: vi.fn(() => "request-1"),
 		clearAttempt: vi.fn(),
@@ -134,7 +126,6 @@ function createState(options: {
 		keybindingsService as KeybindingsService,
 		selectorRegistry as SelectorRegistry,
 		{} as WorktreeDefaultStore,
-		preconnectionAgentSkillsStore as PreconnectionAgentSkillsStore,
 		sessionOpenHydrator
 	);
 

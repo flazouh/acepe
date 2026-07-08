@@ -23,6 +23,7 @@ function toThreadBoardItem(source: ThreadBoardSource, status: ThreadBoardStatus)
 		autonomousEnabled: source.autonomousEnabled,
 		projectPath: source.projectPath,
 		projectName: source.projectName,
+		projectBadgeLabel: source.projectBadgeLabel,
 		projectColor: source.projectColor,
 		projectIconSrc: source.projectIconSrc,
 		title: source.title,

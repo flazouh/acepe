@@ -131,6 +131,11 @@ function renderTurn(input: {
 	turnState: SessionTurnState;
 	sceneEntries: readonly AgentPanelSceneEntryModel[];
 	bufferRows: readonly TranscriptViewportRow[];
+	planningPlaceholderPresentation?: {
+		readonly label: string;
+		readonly agentIconSrc: string | null;
+		readonly showWorkingSpark: boolean;
+	} | null;
 }) {
 	// Canonical fact: the model is producing output when any row has an active
 	// streaming tail (message text OR reasoning).
@@ -150,10 +155,10 @@ function renderTurn(input: {
 
 	const rendered = buildRenderedTranscriptViewportRows({
 		bufferRows: input.bufferRows,
-		offsetsPx: input.bufferRows.map(() => 0),
 		bufferStartIndex: 0,
 		sceneEntries: input.sceneEntries,
 		showLocalPlanningIndicator: sessionState.showPlanningIndicator,
+		planningPlaceholderPresentation: input.planningPlaceholderPresentation ?? null,
 	});
 
 	const planningRows = rendered.filter(
@@ -212,16 +217,42 @@ describe("agent-panel rendered-row pipeline — planning placeholder", () => {
 		expect(result.planningRows).toHaveLength(0);
 	});
 
-	it("DOES show 'Planning next moves' while awaiting the model with no output yet", () => {
-		// Only a user row, model awaiting, nothing streamed: the placeholder is correct here.
+	it("shows a branded connecting row while awaiting the model with no output yet", () => {
+		// Only a user row, model awaiting, nothing streamed: the local placeholder
+		// tells the user which agent is still connecting.
 		const result = renderTurn({
 			activityKind: "awaiting_model",
 			turnState: "Running",
 			sceneEntries: [userEntry("user-1", "why is the sky blue")],
 			bufferRows: [userRow("user-1", "why is the sky blue")],
+			planningPlaceholderPresentation: {
+				label: "Connecting to Codex Agent",
+				agentIconSrc: "/svgs/agents/codex/codex-icon.svg",
+				showWorkingSpark: false,
+			},
 		});
 
 		expect(result.showPlanningIndicator).toBe(true);
 		expect(result.planningRows.length).toBeGreaterThan(0);
+		const planningEntry = result.planningRows[0]?.entry;
+		expect(planningEntry?.type).toBe("thinking");
+		if (planningEntry?.type !== "thinking") {
+			return;
+		}
+		expect(planningEntry.label).toBe("Connecting to Codex Agent");
+		expect(planningEntry.agentIconSrc).toBe("/svgs/agents/codex/codex-icon.svg");
+		expect(planningEntry.showWorkingSpark).toBe(false);
+	});
+
+	it("does NOT show 'Planning next moves' after the canonical turn fails", () => {
+		const result = renderTurn({
+			activityKind: "awaiting_model",
+			turnState: "Failed",
+			sceneEntries: [userEntry("user-1", "run this failing command")],
+			bufferRows: [userRow("user-1", "run this failing command")],
+		});
+
+		expect(result.showPlanningIndicator).toBe(false);
+		expect(result.planningRows).toHaveLength(0);
 	});
 });

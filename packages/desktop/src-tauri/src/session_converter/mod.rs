@@ -220,6 +220,7 @@ mod tests {
                     request_id: None,
                     is_meta: false,
                     source_tool_use_id: None,
+                    parent_tool_use_id: None,
                     tool_use_result: None,
                     source_tool_assistant_uuid: None,
                 },
@@ -238,6 +239,7 @@ mod tests {
                     request_id: None,
                     is_meta: false,
                     source_tool_use_id: None,
+                    parent_tool_use_id: None,
                     tool_use_result: None,
                     source_tool_assistant_uuid: None,
                 },
@@ -376,6 +378,7 @@ mod tests {
             ContentBlock::Thinking {
                 thinking: "Need to inspect files first.".to_string(),
                 signature: None,
+                redacted_provider_data: None,
             },
             ContentBlock::ToolUse {
                 id: "tool-1".to_string(),
@@ -423,6 +426,7 @@ mod tests {
             ContentBlock::Thinking {
                 thinking: "Let me think about this...".to_string(),
                 signature: None,
+                redacted_provider_data: None,
             },
         );
 
@@ -466,6 +470,7 @@ mod tests {
             request_id: None,
             is_meta: true,
             source_tool_use_id: None,
+            parent_tool_use_id: None,
             tool_use_result: None,
             source_tool_assistant_uuid: None,
         });
@@ -500,6 +505,7 @@ mod tests {
                 request_id: None,
                 is_meta: false,
                 source_tool_use_id: None,
+                parent_tool_use_id: None,
                 tool_use_result: None,
                 source_tool_assistant_uuid: None,
             },
@@ -536,6 +542,7 @@ mod tests {
                 request_id: None,
                 is_meta: false,
                 source_tool_use_id: None,
+                parent_tool_use_id: None,
                 tool_use_result: None,
                 source_tool_assistant_uuid: None,
             },
@@ -557,6 +564,7 @@ mod tests {
                 request_id: None,
                 is_meta: false,
                 source_tool_use_id: None,
+                parent_tool_use_id: None,
                 tool_use_result: None,
                 source_tool_assistant_uuid: None,
             },
@@ -974,6 +982,7 @@ More content here."#;
             request_id: None,
             is_meta: true,
             source_tool_use_id: Some("skill-tool-1".to_string()),
+            parent_tool_use_id: None,
             tool_use_result: None,
             source_tool_assistant_uuid: None,
         });

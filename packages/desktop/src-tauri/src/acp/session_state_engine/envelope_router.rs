@@ -392,6 +392,7 @@ mod tests {
             },
             part_id: None,
             message_id: Some("assistant-1".to_string()),
+            parent_tool_use_id: None,
             session_id: Some("session-1".to_string()),
             produced_at_monotonic_ms: Some(5),
         };
@@ -419,6 +420,7 @@ mod tests {
             },
             part_id: None,
             message_id: Some("assistant-1".to_string()),
+            parent_tool_use_id: None,
             session_id: Some("session-1".to_string()),
             produced_at_monotonic_ms: Some(5),
         };
@@ -527,6 +529,7 @@ mod tests {
                 source_model_id: None,
                 timestamp_ms: None,
                 context_window_size: None,
+                parent_tool_use_id: None,
             },
         };
         let ctx = RoutingTestContext::new().await;

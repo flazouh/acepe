@@ -1,5 +1,4 @@
 <script lang="ts">
-import { GitBranch } from "phosphor-svelte";
 import SettingsComingSoon from "../settings-coming-soon.svelte";
 import SettingsSection from "../settings-section.svelte";
 </script>
@@ -7,7 +6,7 @@ import SettingsSection from "../settings-section.svelte";
 <div class="w-full">
 	<SettingsSection>
 		<SettingsComingSoon
-			icon={GitBranch}
+			roundedIcon="branch"
 			headline="Git preferences"
 			description="Branch-naming conventions, diff viewer defaults, and git-adjacent worktree flags will live here."
 		/>

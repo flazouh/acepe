@@ -15,6 +15,7 @@ vi.mock("svelte", async () => {
 
 const openUrlMock = vi.fn();
 const openFilePanelMock = vi.fn();
+const openProjectFileSystemDialogMock = vi.fn();
 const sessionContextState = vi.hoisted((): {
 	current: null | { projectPath: string; turnState: "idle" };
 } => ({
@@ -32,6 +33,7 @@ vi.mock("../../hooks/use-session-context.js", () => ({
 vi.mock("../../store/index.js", () => ({
 	getPanelStore: () => ({
 		openFilePanel: openFilePanelMock,
+		openProjectFileSystemDialog: openProjectFileSystemDialogMock,
 	}),
 }));
 
@@ -47,11 +49,12 @@ afterEach(() => {
 	cleanup();
 	openUrlMock.mockReset();
 	openFilePanelMock.mockReset();
+	openProjectFileSystemDialogMock.mockReset();
 	sessionContextState.current = null;
 });
 
 describe("MarkdownText", () => {
-	it("renders settled markdown through Streamdown", async () => {
+	it("renders settled markdown through native markdown", async () => {
 		const { container } = render(MarkdownText, {
 			text: "# Title\n\n- one",
 			isStreaming: false,
@@ -142,22 +145,42 @@ describe("MarkdownText", () => {
 		expect(openUrlMock).toHaveBeenCalledWith("https://acepe.dev/");
 	});
 
-	it("opens inline file chips in the project file panel", async () => {
+	it("opens inline file chips in the project file system dialog", async () => {
 		const { container } = render(MarkdownText, {
 			text: "Open `src/app.ts`",
 			projectPath: "/repo",
 		});
 
 		await waitFor(() => {
-			expect(container.querySelector(".file-path-badge")?.textContent).toBe("app.ts");
+			expect(container.querySelector(".file-path-badge")?.textContent?.trim()).toBe("app.ts");
 		});
 
 		const chip = container.querySelector(".file-path-badge");
 		chip?.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
 
-		expect(openFilePanelMock).toHaveBeenCalledWith("src/app.ts", "/repo", {
-			ownerPanelId: undefined,
+		expect(openProjectFileSystemDialogMock).toHaveBeenCalledWith("/repo", "src/app.ts", {});
+		expect(openFilePanelMock).not.toHaveBeenCalled();
+	});
+
+	it("keeps file chip line targets when opening the project file system dialog", async () => {
+		const { container } = render(MarkdownText, {
+			text: "Open [app](src/app.ts:12:4)",
+			projectPath: "/repo",
 		});
+
+		await waitFor(() => {
+			expect(container.querySelector(".file-path-badge")?.textContent?.trim()).toBe("app.ts:12:4");
+		});
+
+		container
+			.querySelector(".file-path-badge")
+			?.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
+
+		expect(openProjectFileSystemDialogMock).toHaveBeenCalledWith("/repo", "src/app.ts", {
+			targetLine: 12,
+			targetColumn: 4,
+		});
+		expect(openFilePanelMock).not.toHaveBeenCalled();
 	});
 
 	it("does not read project path from session context for file chips", async () => {
@@ -166,34 +189,37 @@ describe("MarkdownText", () => {
 			text: "Open `src/app.ts`",
 		});
 
-		await waitFor(() => {
-			expect(container.querySelector(".file-path-badge")?.textContent).toBe("app.ts");
-		});
+	await waitFor(() => {
+		expect(container.querySelector(".file-path-badge")?.textContent?.trim()).toBe("app.ts");
+	});
 
 		container
 			.querySelector(".file-path-badge")
 			?.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
 
-		expect(openFilePanelMock).not.toHaveBeenCalled();
+		expect(openProjectFileSystemDialogMock).not.toHaveBeenCalled();
 	});
 
-	it("opens plain text file chips in the project file panel", async () => {
+	it("opens plain text file chips in the project file system dialog", async () => {
 		const { container } = render(MarkdownText, {
 			text: "Open packages/desktop/src/app.css",
 			projectPath: "/repo",
 		});
 
-		await waitFor(() => {
-			expect(container.querySelector(".file-path-badge")?.textContent).toBe("app.css");
-		});
+	await waitFor(() => {
+		expect(container.querySelector(".file-path-badge")?.textContent?.trim()).toBe("app.css");
+	});
 
 		const chip = container.querySelector(".file-path-badge");
 		expect(chip?.className).toContain("rounded-sm");
 		chip?.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
 
-		expect(openFilePanelMock).toHaveBeenCalledWith("packages/desktop/src/app.css", "/repo", {
-			ownerPanelId: undefined,
-		});
+		expect(openProjectFileSystemDialogMock).toHaveBeenCalledWith(
+			"/repo",
+			"packages/desktop/src/app.css",
+			{}
+		);
+		expect(openFilePanelMock).not.toHaveBeenCalled();
 	});
 
 	it("opens GitHub shorthand chips through the Tauri opener", async () => {
@@ -202,9 +228,11 @@ describe("MarkdownText", () => {
 			isStreaming: false,
 		});
 
-		await waitFor(() => {
-			expect(container.querySelector(".github-badge")?.textContent).toBe("flazouh/acepe#184");
-		});
+	await waitFor(() => {
+		expect(container.querySelector(".github-badge")?.textContent?.trim()).toBe(
+			"flazouh/acepe#184"
+		);
+	});
 
 		container
 			.querySelector(".github-badge")

@@ -9,6 +9,7 @@
 export class ContentScrollRevealController {
 	#isAtBottom = $state(true);
 	#isAtTop = $state(true);
+	#hasUnreadBelow = $state(false);
 	#isStreaming = $state(false);
 	#settleRevision = $state(0);
 	#userRevealRequestVersion = $state(0);
@@ -27,6 +28,13 @@ export class ContentScrollRevealController {
 	}
 	set isAtTop(value: boolean) {
 		this.#isAtTop = value;
+	}
+
+	get hasUnreadBelow(): boolean {
+		return this.#hasUnreadBelow;
+	}
+	set hasUnreadBelow(value: boolean) {
+		this.#hasUnreadBelow = value;
 	}
 
 	get isStreaming(): boolean {

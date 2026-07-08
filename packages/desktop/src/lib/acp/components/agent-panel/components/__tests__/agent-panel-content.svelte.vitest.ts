@@ -1,12 +1,22 @@
-import type { AgentPanelSceneEntryModel } from "@acepe/ui/agent-panel";
+import type {
+	AgentPanelPerformanceSample,
+	AgentPanelSceneEntryModel,
+} from "@acepe/ui/agent-panel";
 import { cleanup, render } from "@testing-library/svelte";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import type { SessionGraphActivityKind } from "../../../../../services/acp-types.js";
+import type {
+	SessionOpenTranscriptRowPage,
+	SessionGraphActivityKind,
+	TranscriptViewportRow,
+} from "../../../../../services/acp-types.js";
+import { TranscriptRowsController } from "../../../../store/transcript-rows-controller.svelte.js";
 import type { PanelViewState } from "../../../../logic/panel-visibility.js";
+import type { TranscriptRowsState } from "../../../../store/transcript-rows-store.js";
 import type {
 	LiveSessionCanonicalProjection,
 	LiveSessionWorkSource,
 } from "../../../../store/live-session-work.js";
+import { tick } from "svelte";
 
 type SessionStoreMockState = {
 	hotState: {
@@ -30,6 +40,15 @@ type SessionStoreMockState = {
 		};
 	};
 	liveProjection: LiveSessionCanonicalProjection | null;
+	rowsProjection: TranscriptRowsState | null;
+	viewportController: TranscriptRowsController | null;
+};
+
+type AgentPanelPerformanceCaptureWindow = Window & {
+	__acepeAgentPanelPerformanceSamples?: AgentPanelPerformanceSample[];
+	__acepeEnableAgentPanelPerformanceCapture?: () => void;
+	__acepeDisableAgentPanelPerformanceCapture?: () => void;
+	__acepeReadAgentPanelPerformanceCapture?: () => readonly AgentPanelPerformanceSample[];
 };
 
 declare global {
@@ -64,6 +83,8 @@ globalThis.__agentPanelContentSessionStoreState = {
 		activity: null,
 	},
 	liveProjection: null,
+	rowsProjection: null,
+	viewportController: null,
 };
 
 vi.mock(
@@ -119,7 +140,10 @@ vi.mock("../../../../store/session-store.svelte.js", () => ({
 			getSessionCurrentModeId: () => null,
 		},
 		viewport: {
-			getBufferProjection: () => null,
+			getRowsProjection: (sessionId: string | null) =>
+				globalThis.__agentPanelContentSessionStoreState.viewportController?.getRowsProjection(
+					sessionId
+				) ?? globalThis.__agentPanelContentSessionStoreState.rowsProjection,
 		},
 	}),
 }));
@@ -197,12 +221,68 @@ function createUserSceneEntry(id: string, text: string): AgentPanelSceneEntryMod
 	return { id, type: "user", text };
 }
 
+function createViewportRow(rowId: string): TranscriptViewportRow {
+	return {
+		rowId,
+		sourceEntryId: rowId,
+		kind: "user",
+		version: `${rowId}:v1`,
+		anchorEligible: true,
+		activeStreamingTail: null,
+		operationLinks: [],
+		interactionLinks: [],
+		content: {
+			kind: "transcript",
+			role: "user",
+			segments: [{ kind: "text", segmentId: `${rowId}:segment:0`, text: rowId }],
+		},
+		durationStartedAtMs: null,
+	};
+}
+
+function createRowsProjection(
+	sessionId: string,
+	rows: readonly TranscriptViewportRow[]
+): TranscriptRowsState {
+	const byId = new Map<string, TranscriptViewportRow>();
+	const order: string[] = [];
+	for (const row of rows) {
+		order.push(row.rowId);
+		byId.set(row.rowId, row);
+	}
+	return {
+		sessionId,
+		emissionSeq: rows.length,
+		revision: null,
+		projectionVersion: null,
+		totalRowCount: null,
+		loadedStartRowIndex: null,
+		loadedEndRowIndex: null,
+		order,
+		byId,
+		rows,
+	};
+}
+
+function createInitialRowPage(rows: readonly TranscriptViewportRow[]): SessionOpenTranscriptRowPage {
+	return {
+		projectionVersion: "transcript_viewport_row:v5",
+		startRowIndex: 0,
+		totalRowCount: rows.length,
+		rowPayloadBytes: 1,
+		transcriptRevision: 1,
+		graphRevision: 1,
+		lastEventSeq: 1,
+		rows: rows.map((row) => row),
+	};
+}
+
 function renderContent(
 	viewState: PanelViewState,
 	overrides?: {
 		sessionId?: string | null;
 		sceneEntries?: readonly AgentPanelSceneEntryModel[];
-		isWaitingForResponse?: boolean;
+		rowsProjectionOverride?: TranscriptRowsState | null;
 	}
 ) {
 	return render(AgentPanelContent, {
@@ -210,6 +290,7 @@ function renderContent(
 		viewState,
 		sessionId: overrides?.sessionId !== undefined ? overrides.sessionId : "session-1",
 		sceneEntries: overrides?.sceneEntries,
+		rowsProjectionOverride: overrides?.rowsProjectionOverride,
 		sessionProjectPath: null,
 		allProjects: [],
 		scrollContainer: null,
@@ -225,8 +306,11 @@ function renderContent(
 		availableAgents: [],
 		effectiveTheme: "dark",
 		modifiedFilesState: null,
-		isWaitingForResponse: overrides?.isWaitingForResponse,
 	});
+}
+
+function performanceCaptureWindow(): AgentPanelPerformanceCaptureWindow {
+	return window as AgentPanelPerformanceCaptureWindow;
 }
 
 describe("AgentPanelContent", () => {
@@ -241,6 +325,8 @@ describe("AgentPanelContent", () => {
 			activity: null,
 		};
 		globalThis.__agentPanelContentSessionStoreState.liveProjection = null;
+		globalThis.__agentPanelContentSessionStoreState.rowsProjection = null;
+		globalThis.__agentPanelContentSessionStoreState.viewportController = null;
 	});
 
 	it("renders the virtualized conversation list for active sessions", () => {
@@ -249,36 +335,92 @@ describe("AgentPanelContent", () => {
 		expect(view.getByTestId("virtualized-entry-list-stub")).toBeTruthy();
 	});
 
-	it("forwards an explicit waiting-state prop to the conversation list", () => {
-		const view = renderContent(
-			{ kind: "conversation", errorDetails: null },
-			{ isWaitingForResponse: true }
-		);
+	it("passes a profile recorder only while the QA performance hook is enabled", async () => {
+		const view = renderContent({ kind: "conversation", errorDetails: null });
+		const captureWindow = performanceCaptureWindow();
 
-		expect(view.getByTestId("virtualized-entry-list-stub").getAttribute("data-waiting")).toBe(
-			"true"
+		expect(view.getByTestId("virtualized-entry-list-stub").dataset.profileRecorder).toBe(
+			"absent"
+		);
+		expect(typeof captureWindow.__acepeEnableAgentPanelPerformanceCapture).toBe("function");
+		expect(typeof captureWindow.__acepeDisableAgentPanelPerformanceCapture).toBe("function");
+		expect(typeof captureWindow.__acepeReadAgentPanelPerformanceCapture).toBe("function");
+
+		captureWindow.__acepeEnableAgentPanelPerformanceCapture?.();
+		await tick();
+
+		expect(view.getByTestId("virtualized-entry-list-stub").dataset.profileRecorder).toBe(
+			"present"
+		);
+		expect(captureWindow.__acepeReadAgentPanelPerformanceCapture?.()).toEqual([]);
+
+		captureWindow.__acepeDisableAgentPanelPerformanceCapture?.();
+		await tick();
+
+		expect(view.getByTestId("virtualized-entry-list-stub").dataset.profileRecorder).toBe(
+			"absent"
 		);
 	});
 
-	it("derives waiting-state from graph-backed awaiting-model activity", () => {
+	it("renders the transcript when canonical rows arrive before view state catches up", () => {
+		globalThis.__agentPanelContentSessionStoreState.rowsProjection = createRowsProjection(
+			"session-1",
+			[createViewportRow("row-1")]
+		);
+
+		const view = renderContent({ kind: "ready" });
+
+		expect(view.getByTestId("virtualized-entry-list-stub")).toBeTruthy();
+		expect(view.getByTestId("virtualized-entry-list-stub").dataset.rowCount).toBe("1");
+	});
+
+	it("renders the transcript when the viewport controller receives rows after mount", async () => {
+		const viewportController = new TranscriptRowsController({
+			getGraphRevision: () => undefined,
+			applySessionStateEnvelope: () => undefined,
+		});
+		globalThis.__agentPanelContentSessionStoreState.viewportController = viewportController;
+
+		const view = renderContent({ kind: "ready" });
+
+		expect(view.queryByTestId("virtualized-entry-list-stub")).toBeNull();
+
+		viewportController.applyInitialRowPage(
+			"session-1",
+			createInitialRowPage([createViewportRow("row-after-mount")])
+		);
+		await tick();
+
+		expect(view.getByTestId("virtualized-entry-list-stub").dataset.rowCount).toBe("1");
+	});
+
+	it("passes the error turn state when no canonical session projection is available", () => {
+		const view = renderContent({ kind: "conversation", errorDetails: null });
+
+		expect(view.getByTestId("virtualized-entry-list-stub").getAttribute("data-turn-state")).toBe(
+			"error"
+		);
+	});
+
+	it("derives streaming turn state from graph-backed awaiting-model activity", () => {
 		globalThis.__agentPanelContentSessionStoreState.liveProjection =
 			createCanonicalProjection("awaiting_model");
 
 		const view = renderContent({ kind: "conversation", errorDetails: null });
 
-		expect(view.getByTestId("virtualized-entry-list-stub").getAttribute("data-waiting")).toBe(
-			"true"
+		expect(view.getByTestId("virtualized-entry-list-stub").getAttribute("data-turn-state")).toBe(
+			"streaming"
 		);
 	});
 
-	it("does not report waiting-state for graph-backed running operations", () => {
+	it("passes streaming turn state for graph-backed running operations", () => {
 		globalThis.__agentPanelContentSessionStoreState.liveProjection =
 			createCanonicalProjection("running_operation");
 
 		const view = renderContent({ kind: "conversation", errorDetails: null });
 
-		expect(view.getByTestId("virtualized-entry-list-stub").getAttribute("data-waiting")).toBe(
-			"false"
+		expect(view.getByTestId("virtualized-entry-list-stub").getAttribute("data-turn-state")).toBe(
+			"streaming"
 		);
 	});
 
@@ -332,18 +474,39 @@ describe("AgentPanelContent", () => {
 		expect(view.getByTestId("virtualized-entry-list-stub")).toBe(initialList);
 	});
 
-	it("renders SceneContentViewport pre-session with pending entry and isWaitingForResponse=true", () => {
+	it("renders SceneContentViewport pre-session with a pending entry", () => {
 		const view = renderContent(
 			{ kind: "conversation", errorDetails: null },
 			{
 				sessionId: null,
 				sceneEntries: [createUserSceneEntry("user-1", "send this")],
-				isWaitingForResponse: true,
 			}
 		);
 
 		const stub = view.getByTestId("virtualized-entry-list-stub");
 		expect(stub).toBeTruthy();
-		expect(stub.getAttribute("data-waiting")).toBe("true");
+		expect(stub.getAttribute("data-turn-state")).toBe("idle");
+	});
+
+	it("prefers rowsProjectionOverride over session store rows", () => {
+		globalThis.__agentPanelContentSessionStoreState.rowsProjection = createRowsProjection(
+			"session-1",
+			[createViewportRow("store-row")]
+		);
+
+		const view = renderContent(
+			{ kind: "conversation", errorDetails: null },
+			{
+				rowsProjectionOverride: createRowsProjection("session-1", [
+					createViewportRow("override-row-1"),
+					createViewportRow("override-row-2"),
+				]),
+			}
+		);
+
+		expect(view.getByTestId("virtualized-entry-list-stub").dataset.rowCount).toBe("2");
+		expect(view.getByTestId("virtualized-entry-list-stub").dataset.skipRowsBootstrap).toBe(
+			"true"
+		);
 	});
 });

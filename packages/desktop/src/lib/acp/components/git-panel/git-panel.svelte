@@ -16,15 +16,12 @@ import {
 	HeaderTitleCell,
 	MarkdownDisplay,
 	ProjectLetterBadge,
+	RoundedIcon,
 	getMicButtonVisualState,
 } from "@acepe/ui";
-import { GitPanelLayout, type GitLogEntryFile as UILogEntryFile } from "@acepe/ui/git-panel";
+import { GitWorkspace } from "@acepe/ui/git-panel";
 import { listen } from "@tauri-apps/api/event";
 import { openUrl } from "@tauri-apps/plugin-opener";
-import { GitBranch } from "phosphor-svelte";
-import { GitPullRequest } from "phosphor-svelte";
-import { Tree } from "phosphor-svelte";
-import { X } from "phosphor-svelte";
 import { onMount, untrack } from "svelte";
 import { toast } from "svelte-sonner";
 import type { CommitDiff } from "$lib/acp/types/github-integration.js";
@@ -91,6 +88,7 @@ interface Props {
 	projectPath: string;
 	projectName: string;
 	projectColor: string | undefined;
+	projectBadgeLabel?: string | null;
 	projectIconSrc?: string | null;
 	width: number;
 	initialTarget?: GitPanelInitialTarget;
@@ -102,6 +100,8 @@ interface Props {
 	onResize: (panelId: string, delta: number) => void;
 	/** Callback to send a generation prompt to the active ACP session */
 	onRequestGeneration?: (prompt: string) => void;
+	/** Reports the project's worktrees up to the host (for the header worktree picker). */
+	onWorktreesLoaded?: (worktrees: WorktreeInfo[]) => void;
 }
 
 let {
@@ -109,6 +109,7 @@ let {
 	projectPath,
 	projectName,
 	projectColor,
+	projectBadgeLabel = null,
 	projectIconSrc = null,
 	width,
 	initialTarget,
@@ -119,6 +120,7 @@ let {
 	onClose,
 	onResize,
 	onRequestGeneration,
+	onWorktreesLoaded,
 }: Props = $props();
 
 const initialTargetSnapshot = untrack(() => initialTarget);
@@ -174,8 +176,8 @@ const widthStyle = $derived(
 );
 const surfaceClass = $derived(
 	isFullscreenEmbedded
-		? "rounded border-border bg-input/30"
-		: "rounded-lg border-border/60 bg-background shadow-[0_12px_32px_rgba(0,0,0,0.14)]"
+		? "bg-transparent"
+		: "rounded-lg border border-border/60 bg-background shadow-[0_12px_32px_rgba(0,0,0,0.14)]"
 );
 const currentWorktree = $derived(resolveCurrentWorktree(projectPath, worktrees));
 const worktreeItems = $derived(buildWorktreeListItems(projectPath, worktrees));
@@ -203,6 +205,57 @@ const canCommitPush = $derived(
 	})
 );
 const canCommitPushPr = $derived(computeCanCommitPushPr({ canCommitPush, remoteStatus }));
+const canCommit = $derived(commitMessage.trim().length > 0 && stagedFiles.length > 0);
+
+// Unified selection key for the GitWorkspace diff pane: a commit sha in history,
+// otherwise the working-changes file path.
+const workspaceSelectedFile = $derived(
+	activeView === "history" ? (selectedCommitDiff?.sha ?? "") : selectedChangesFile
+);
+
+function handleSectionChange(section: SourceControlSection): void {
+	if (section === "commits") {
+		openCommitsSection();
+		return;
+	}
+	if (section === "prs") {
+		openPrsSection();
+		return;
+	}
+	activeSection = section;
+}
+
+/** GitWorkspace passes only a path; map it back to the staged/unstaged file + status. */
+function handleWorkspaceFileSelect(path: string): void {
+	if (activeView === "history") {
+		return;
+	}
+	const unstaged = unstagedFiles.find((file) => file.path === path);
+	if (unstaged) {
+		void handleFileSelect(
+			{
+				path: unstaged.path,
+				status: (unstaged.worktreeStatus ?? "modified") as FileDiffType["status"],
+				additions: unstaged.additions,
+				deletions: unstaged.deletions,
+			},
+			false
+		);
+		return;
+	}
+	const staged = stagedFiles.find((file) => file.path === path);
+	if (staged) {
+		void handleFileSelect(
+			{
+				path: staged.path,
+				status: (staged.indexStatus ?? "modified") as FileDiffType["status"],
+				additions: staged.additions,
+				deletions: staged.deletions,
+			},
+			true
+		);
+	}
+}
 const commitMicDisabled = $derived.by(() => {
 	if (voiceState === null) {
 		return true;
@@ -272,7 +325,10 @@ async function refresh() {
 	statusResult.map((f) => (files = f));
 	branchResult.map((b) => (branch = b));
 	remoteResult.map((r) => (remoteStatus = r));
-	worktreeResult.map((items) => (worktrees = items));
+	worktreeResult.map((items) => {
+		worktrees = items;
+		onWorktreesLoaded?.(items);
+	});
 	selectedChangesFile = "";
 	selectedChangesDiff = null;
 	selectedChangesLoading = false;
@@ -755,16 +811,20 @@ async function handleOpenPr(prNumber: number) {
 </script>
 
 <div
-	class={`relative flex h-full min-h-0 shrink-0 grow-0 flex-col overflow-hidden border ${surfaceClass} ${isDragging ? "select-none" : ""}`}
+	class={`relative flex h-full min-h-0 shrink-0 grow-0 flex-col overflow-hidden ${surfaceClass} ${isDragging ? "select-none" : ""}`}
 	style={widthStyle}
 >
-	<!-- Panel Header (project chrome) -->
+	<!-- Panel Header (project chrome). Skipped when embedded with nothing to show:
+	     the host dialog supplies the project picker + close, and the branch badge
+	     below already conveys branch context. -->
+	{#if !hideProjectBadge || !hideHeaderClose || currentWorktree}
 	<EmbeddedPanelHeader>
 		{#if !hideProjectBadge}
 			<HeaderCell>
 				<div class="inline-flex items-center justify-center h-7 w-7 shrink-0">
 					<ProjectLetterBadge
 						name={projectName}
+						label={projectBadgeLabel}
 						color={effectiveColor}
 						iconSrc={projectIconSrc}
 						size={28}
@@ -779,9 +839,9 @@ async function handleOpenPr(prNumber: number) {
 			<div class="flex items-center gap-1.5 min-w-0">
 				{#if currentWorktree}
 					<span
-						class="inline-flex min-w-0 items-center gap-1 rounded-full border border-border/70 bg-muted/50 px-2 py-0.5 text-[10px] font-medium text-muted-foreground"
+						class="inline-flex min-w-0 items-center gap-1 rounded-full border border-border/700 px-2 py-0.5 text-[10px] font-medium text-muted-foreground"
 					>
-						<Tree size={10} weight="fill" class="shrink-0 text-success" />
+						<RoundedIcon name="worktree" class="size-2.5 shrink-0 text-success" />
 						<span class="truncate font-mono">{currentWorktree.name}</span>
 						{#if currentWorktree.origin === "external"}
 							<span class="text-[9px] uppercase tracking-wide text-muted-foreground/60">ext</span>
@@ -797,65 +857,9 @@ async function handleOpenPr(prNumber: number) {
 			</HeaderActionCell>
 		{/if}
 	</EmbeddedPanelHeader>
+	{/if}
 
-	<div class="flex items-center gap-1 border-b border-border px-1 py-1 shrink-0">
-		<button
-			type="button"
-			class={`inline-flex items-center gap-1 rounded-md px-2 py-1 text-[11px] font-medium transition-colors ${activeSection === "changes" ? "bg-accent text-foreground" : "text-muted-foreground hover:bg-muted/50 hover:text-foreground"}`}
-			onclick={() => (activeSection = "changes")}
-		>
-			<GitBranch size={12} weight="bold" />
-			<span>Changes</span>
-		</button>
-		<button
-			type="button"
-			class={`inline-flex items-center gap-1 rounded-md px-2 py-1 text-[11px] font-medium transition-colors ${activeSection === "worktrees" ? "bg-accent text-foreground" : "text-muted-foreground hover:bg-muted/50 hover:text-foreground"}`}
-			onclick={() => (activeSection = "worktrees")}
-		>
-			<Tree size={12} weight="fill" class="text-success" />
-			<span>Worktrees</span>
-			{#if worktreeItems.length > 0}
-				<span class="text-[10px] text-muted-foreground">({worktreeItems.length})</span>
-			{/if}
-		</button>
-		<button
-			type="button"
-			class={`inline-flex items-center gap-1 rounded-md px-2 py-1 text-[11px] font-medium transition-colors ${activeSection === "commits" ? "bg-accent text-foreground" : "text-muted-foreground hover:bg-muted/50 hover:text-foreground"}`}
-			onclick={openCommitsSection}
-		>
-			<GitBranch size={12} weight="bold" class="text-success" />
-			<span>Commits</span>
-		</button>
-		<button
-			type="button"
-			class={`inline-flex items-center gap-1 rounded-md px-2 py-1 text-[11px] font-medium transition-colors ${activeSection === "prs" ? "bg-accent text-foreground" : "text-muted-foreground hover:bg-muted/50 hover:text-foreground"}`}
-			onclick={openPrsSection}
-		>
-			<GitPullRequest size={12} weight="bold" style="color: var(--success)" />
-			<span>PRs</span>
-			{#if prList.length > 0}
-				<span class="text-[10px] text-muted-foreground">({prList.length})</span>
-			{/if}
-		</button>
-	</div>
-
-	<!-- Pierre Diff snippet for inline commit file diffs -->
-	{#snippet renderFileDiff({ file }: { file: UILogEntryFile })}
-		{#if file.patch}
-			<PierreDiffView
-				diff={{
-					path: file.path,
-					status: file.status as FileDiffType["status"],
-					additions: file.additions,
-					deletions: file.deletions,
-					patch: file.patch,
-				}}
-				viewMode="inline"
-			/>
-		{/if}
-	{/snippet}
-
-	{#snippet commitMicButton()}
+	{#snippet commitMic()}
 		{#if voiceState}
 			{@const currentVoiceState = voiceState}
 			{@const micTitle = resolveVoiceMicTooltip(currentVoiceState.phase, voiceMicTooltipLabels)}
@@ -888,115 +892,102 @@ async function handleOpenPr(prNumber: number) {
 		{/if}
 	{/snippet}
 
-	{#snippet commitComposerActions()}
-		<button
-			type="button"
-			class="inline-flex items-center gap-1 rounded-full border border-border/50 bg-background px-2.5 py-1 text-[11px] font-medium text-muted-foreground transition-colors hover:border-border hover:bg-accent/20 hover:text-foreground disabled:pointer-events-none disabled:opacity-50"
-			disabled={!canCommitPush}
-			onclick={() => void handleCommitPush()}
-		>
-			Commit & push
-		</button>
-		<button
-			type="button"
-			class="inline-flex items-center gap-1 rounded-full border border-border/50 bg-background px-2.5 py-1 text-[11px] font-medium text-muted-foreground transition-colors hover:border-border hover:bg-accent/20 hover:text-foreground disabled:pointer-events-none disabled:opacity-50"
-			disabled={!canCommitPushPr}
-			onclick={() => void handleCommitPushPr()}
-		>
-			Commit, push & create PR
-		</button>
-	{/snippet}
-
-	{#if activeSection === "changes"}
-		<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
-		<div
-			class="flex min-h-0 flex-1 overflow-hidden"
-			role="group"
-			aria-label="Git changes"
-			onkeydown={handleChangesKeyDown}
-		>
-			<GitPanelLayout
-				branch={branch ?? ""}
-				{stagedFiles}
-				{unstagedFiles}
-				remoteStatus={uiRemoteStatus}
-				{commitMessage}
-				stashEntries={uiStashEntries}
-				logEntries={uiLogEntries}
-				{activeView}
-				iconBasePath="/svgs/icons"
-				onStage={handleStage}
-				onUnstage={handleUnstage}
-				onStageAll={handleStageAll}
-				onDiscard={handleDiscard}
-				onCommitMessageChange={(msg) => (commitMessage = msg)}
-				onCommit={handleCommit}
-				onGenerate={onRequestGeneration ? handleGenerate : undefined}
-				commitActions={commitComposerActions}
-				commitMicButton={commitMicButton}
-				{generating}
-				onPush={handlePush}
-				onPull={handlePull}
-				onFetch={handleFetch}
-				onViewChange={handleViewChange}
-				onStashPop={handleStashPop}
-				onStashDrop={handleStashDrop}
-				onLogExpand={handleLogExpand}
-				onFileSelect={handleFileSelect}
-				selectedFile={selectedChangesFile}
-				{expandedCommitFiles}
-				logFileDiffContent={renderFileDiff}
-				class="min-h-0 min-w-0 flex-1"
-			/>
-
-			{#if selectedChangesDiff}
-				<div class="flex min-h-0 w-[min(44%,480px)] min-w-[320px] flex-col border-l border-border/30 bg-background">
-					<div class="flex items-center gap-2 border-b border-border/20 px-2.5 py-1.5">
-						<FilePathBadge
-							filePath={selectedChangesDiff.path}
-							iconBasePath="/svgs/icons"
-							linesAdded={selectedChangesDiff.additions}
-							linesRemoved={selectedChangesDiff.deletions}
-							interactive={false}
-							size="sm"
-							class="!border-transparent !bg-transparent !px-0 !py-0 text-foreground"
-						/>
-						<div class="flex-1"></div>
-						<button
-							type="button"
-							class="inline-flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted/50 hover:text-foreground"
-							title="Close preview"
-							onclick={closeSelectedChangesPreview}
-						>
-							<X size={14} weight="bold" />
-						</button>
-					</div>
-					<div class="min-h-0 flex-1 overflow-y-auto">
-						{#if selectedChangesLoading}
-							<div class="px-3 py-4 text-sm text-muted-foreground">
-								Loading diff...
-							</div>
-						{:else if selectedChangesDiff.patch}
-							<PierreDiffView
-								diff={{
-									path: selectedChangesDiff.path,
-									status: selectedChangesDiff.status as FileDiffType["status"],
-									additions: selectedChangesDiff.additions,
-									deletions: selectedChangesDiff.deletions,
-									patch: selectedChangesDiff.patch,
-								}}
-								viewMode="inline"
-							/>
-						{:else}
-							<div class="px-3 py-4 text-sm text-muted-foreground">
-								No textual diff is available for this file.
-							</div>
+	<!-- Diff pane for the Changes section: working-file diff (status) or the
+	     selected commit's diff (history). Rendered by GitWorkspace's right pane. -->
+	{#snippet selectedDiff()}
+		{#if activeView === "history"}
+			{#if selectedCommitDiff}
+				<div class="space-y-2 px-3 py-2">
+					<div class="border-b border-border/40 px-2.5 py-2">
+						<div class="flex items-center gap-1.5">
+							<span class="rounded-md bg-accent/30 px-1.5 py-px font-mono text-[10px] text-foreground"
+								>{selectedCommitDiff.shortSha}</span
+							>
+							<span class="truncate font-mono text-[10px] text-muted-foreground/50"
+								>{selectedCommitDiff.sha}</span
+							>
+						</div>
+						<h3 class="mt-1.5 text-xs font-semibold leading-snug text-foreground">
+							{selectedCommitDiff.message}
+						</h3>
+						{#if selectedCommitDiff.messageBody}
+							<p class="mt-1 whitespace-pre-wrap text-[11px] leading-relaxed text-muted-foreground">
+								{selectedCommitDiff.messageBody}
+							</p>
 						{/if}
+						<div class="mt-1.5 flex flex-wrap gap-3 text-[10px] text-muted-foreground">
+							<span>{selectedCommitDiff.author}</span>
+							<span>{selectedCommitDiff.authorEmail}</span>
+							<span>{selectedCommitDiff.date}</span>
+						</div>
+					</div>
+					<div class="space-y-1.5">
+						{#each selectedCommitDiff.files as file (file.path)}
+							<div class="border-b border-border/30">
+								<div class="flex items-center justify-between border-b border-border/30 px-2.5 py-1.5">
+									<FilePathBadge
+										filePath={file.path}
+										linesAdded={file.additions}
+										linesRemoved={file.deletions}
+										interactive={false}
+										size="sm"
+									/>
+								</div>
+								{#if file.patch}
+									<PierreDiffView diff={file} viewMode="inline" />
+								{/if}
+							</div>
+						{/each}
 					</div>
 				</div>
 			{/if}
-		</div>
-	{:else if activeSection === "worktrees"}
+		{:else if selectedChangesDiff}
+			<div class="flex h-full min-h-0 flex-col">
+				<div class="flex items-center gap-2 border-b border-border/20 px-2.5 py-1.5">
+					<FilePathBadge
+						filePath={selectedChangesDiff.path}
+						iconBasePath="/svgs/icons"
+						linesAdded={selectedChangesDiff.additions}
+						linesRemoved={selectedChangesDiff.deletions}
+						interactive={false}
+						size="sm"
+						class="!border-transparent !bg-transparent !px-0 !py-0 text-foreground"
+					/>
+					<div class="flex-1"></div>
+					<button
+						type="button"
+						class="inline-flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted/50 hover:text-foreground"
+						title="Close preview"
+						onclick={closeSelectedChangesPreview}
+					>
+						<RoundedIcon name="close" class="size-3.5" />
+					</button>
+				</div>
+				<div class="min-h-0 flex-1 overflow-y-auto">
+					{#if selectedChangesLoading}
+						<div class="px-3 py-4 text-sm text-muted-foreground">Loading diff...</div>
+					{:else if selectedChangesDiff.patch}
+						<PierreDiffView
+							diff={{
+								path: selectedChangesDiff.path,
+								status: selectedChangesDiff.status as FileDiffType["status"],
+								additions: selectedChangesDiff.additions,
+								deletions: selectedChangesDiff.deletions,
+								patch: selectedChangesDiff.patch,
+							}}
+							viewMode="inline"
+						/>
+					{:else}
+						<div class="px-3 py-4 text-sm text-muted-foreground">
+							No textual diff is available for this file.
+						</div>
+					{/if}
+				</div>
+			</div>
+		{/if}
+	{/snippet}
+
+	{#snippet worktreesContent()}
 		<GitPanelWorktreesSection
 			{currentWorktree}
 			{branch}
@@ -1008,9 +999,11 @@ async function handleOpenPr(prNumber: number) {
 			onDeleteWorktree={(directory) => void handleDeleteWorktree(directory)}
 			onDeleteAllWorktrees={() => void handleDeleteAllWorktrees()}
 		/>
-	{:else if activeSection === "commits"}
+	{/snippet}
+
+	{#snippet commitsContent()}
 		<div class="flex flex-1 min-h-0 overflow-hidden">
-			<div class="flex w-[16rem] shrink-0 flex-col border-r border-border/30 bg-muted/5">
+			<div class="flex w-[16rem] shrink-0 flex-col border-r border-border/30">
 				<div class="border-b border-border/30 px-2.5 py-2">
 					<div class="flex items-center gap-2">
 						<input
@@ -1054,9 +1047,12 @@ async function handleOpenPr(prNumber: number) {
 								<span class="truncate text-[11px] text-foreground leading-tight"
 									>{entry.message}</span
 								>
-								<div class="flex items-center gap-1.5 mt-0.5">
-									<span class="font-mono text-[10px] text-muted-foreground">{entry.shortSha}</span>
-									<span class="text-[10px] text-muted-foreground/50">{entry.author}</span>
+								<div class="mt-1 flex items-center gap-1.5">
+									<span
+										class="rounded bg-accent/40 px-1.5 py-px font-mono text-[10px] leading-none text-muted-foreground"
+										>{entry.shortSha}</span
+									>
+									<span class="truncate text-[10px] text-muted-foreground/60">{entry.author}</span>
 								</div>
 							</button>
 						{/each}
@@ -1067,7 +1063,7 @@ async function handleOpenPr(prNumber: number) {
 			<div class="min-w-0 flex-1 overflow-y-auto px-3 py-2">
 				{#if selectedCommitDiff}
 					<div class="space-y-2">
-						<div class="rounded-lg border border-border/40 bg-muted/10 px-2.5 py-2">
+						<div class="border-b border-border/40 px-2.5 py-2">
 							<div class="flex items-center gap-1.5">
 								<span
 									class="rounded-md bg-accent/30 px-1.5 py-px font-mono text-[10px] text-foreground"
@@ -1096,9 +1092,9 @@ async function handleOpenPr(prNumber: number) {
 
 						<div class="space-y-1.5">
 							{#each selectedCommitDiff.files as file (file.path)}
-								<div class="overflow-hidden rounded-lg border border-border/40">
+								<div class="border-b border-border/30">
 									<div
-										class="flex items-center justify-between border-b border-border/30 px-2.5 py-1.5 bg-muted/5"
+										class="flex items-center justify-between border-b border-border/30 px-2.5 py-1.5"
 									>
 										<FilePathBadge
 											filePath={file.path}
@@ -1124,10 +1120,12 @@ async function handleOpenPr(prNumber: number) {
 				{/if}
 			</div>
 		</div>
-	{:else if activeSection === "prs"}
+	{/snippet}
+
+	{#snippet prsContent()}
 		<div class="flex flex-1 min-h-0 overflow-hidden">
 			<!-- PR sidebar -->
-			<div class="flex w-[16rem] shrink-0 flex-col border-r border-border/30 bg-muted/5">
+			<div class="flex w-[16rem] shrink-0 flex-col border-r border-border/30">
 				<div class="flex items-center gap-px border-b border-border/30 px-2 py-1.5">
 					{#each ["open", "closed", "all"] as filter (filter)}
 						{@const f = filter as "open" | "closed" | "all"}
@@ -1178,8 +1176,11 @@ async function handleOpenPr(prNumber: number) {
 									<span class="flex h-4 w-4 shrink-0 items-center justify-center">
 										<PrStateIcon state={prState} size={13} />
 									</span>
-									<span class="font-mono text-[11px] text-muted-foreground shrink-0">#{pr.number}</span>
-									<span class="truncate text-[11px] text-foreground leading-tight">{pr.title}</span>
+									<span
+										class="shrink-0 rounded bg-accent/40 px-1.5 py-px font-mono text-[10px] leading-none text-muted-foreground"
+										>#{pr.number}</span
+									>
+									<span class="truncate text-[11px] leading-tight text-foreground">{pr.title}</span>
 								</button>
 							{/each}
 						</div>
@@ -1191,7 +1192,7 @@ async function handleOpenPr(prNumber: number) {
 			<div class="min-w-0 flex-1 overflow-y-auto px-3 py-2">
 				{#if selectedPrLoading}
 					<div class="space-y-2 animate-in fade-in duration-150">
-						<div class="rounded-lg border border-border/40 bg-muted/10 px-2.5 py-2">
+						<div class="border-b border-border/40 px-2.5 py-2">
 							<div class="flex items-center gap-1.5">
 								<span class="inline-block h-2 w-2 shrink-0 animate-pulse rounded-full bg-muted-foreground/20"></span>
 								<span class="inline-block h-3.5 w-10 animate-pulse rounded bg-muted-foreground/15"></span>
@@ -1256,7 +1257,47 @@ async function handleOpenPr(prNumber: number) {
 				{/if}
 			</div>
 		</div>
-	{/if}
+	{/snippet}
+
+	<GitWorkspace
+		branch={branch ?? ""}
+		remoteStatus={uiRemoteStatus}
+		{activeSection}
+		onSectionChange={handleSectionChange}
+		prCount={prList.length}
+		worktreeCount={worktreeItems.length}
+		{activeView}
+		onViewChange={handleViewChange}
+		{stagedFiles}
+		{unstagedFiles}
+		selectedFile={workspaceSelectedFile}
+		onFileSelect={handleWorkspaceFileSelect}
+		onStage={(path) => void handleStage(path)}
+		onUnstage={(path) => void handleUnstage(path)}
+		onStageAll={() => void handleStageAll()}
+		onDiscard={(path) => void handleDiscard(path)}
+		logEntries={uiLogEntries}
+		onLogSelect={(sha) => void handleOpenCommit(sha)}
+		stashEntries={uiStashEntries}
+		onStashPop={handleStashPop}
+		onStashDrop={handleStashDrop}
+		{commitMessage}
+		onCommitMessageChange={(message) => (commitMessage = message)}
+		onCommit={() => void handleCommit(commitMessage)}
+		{canCommit}
+		{canCommitPush}
+		{canCommitPushPr}
+		onCommitPush={() => void handleCommitPush()}
+		onCommitPushPr={() => void handleCommitPushPr()}
+		onGenerate={onRequestGeneration ? handleGenerate : undefined}
+		{generating}
+		{selectedDiff}
+		{commitMic}
+		{commitsContent}
+		{prsContent}
+		{worktreesContent}
+		class="min-h-0 flex-1"
+	/>
 
 	{#if !isFullscreenEmbedded}
 		<!-- Resize Edge -->

@@ -53,13 +53,10 @@ function createPanelStoreStub() {
 		setActiveFilePanelMap: mock(() => {}),
 		setPlanSidebarExpanded: mock(() => {}),
 		setMessageDraft: mock(() => {}),
-		setPendingReviewRestore: mock(() => {}),
 		setEmbeddedTerminalDrawerOpen: mock(() => {}),
 		getHotState: mock(() => ({
 			planSidebarExpanded: true,
 			messageDraft: "",
-			reviewMode: false,
-			reviewFileIndex: 0,
 			embeddedTerminalDrawerOpen: false,
 		})),
 		restoreWorkspacePanels: mock((workspacePanels: WorkspacePanel[]) => {

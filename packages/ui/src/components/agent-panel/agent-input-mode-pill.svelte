@@ -3,7 +3,7 @@
   Sits inline next to the submit button in the composer editor row.
 -->
 <script lang="ts">
-	import { SlidersHorizontal } from "phosphor-svelte";
+	import { RoundedIcon } from "../icons/index.js";
 
 	interface Mode {
 		readonly id: string;
@@ -48,7 +48,7 @@
 				{disabled ? 'cursor-default opacity-50' : 'cursor-pointer'}"
 			onclick={() => { if (!disabled) onModeChange(mode.id); }}
 		>
-			<SlidersHorizontal class="size-3.5 shrink-0" />
+			<RoundedIcon name="sliders" class="size-3.5 shrink-0" />
 			{modeLabel(mode)}
 		</button>
 	{/each}

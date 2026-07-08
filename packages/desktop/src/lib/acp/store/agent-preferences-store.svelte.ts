@@ -212,8 +212,35 @@ export class AgentPreferencesStore {
 	agentEnvOverrides = $state<AgentEnvOverrides>({});
 	initialized = $state(false);
 
+	private localMutationRevision = 0;
+
+	private markLocalMutation(): void {
+		this.localMutationRevision += 1;
+	}
+
+	primeStartupDefaults(agents: readonly Agent[], projectCount: number | null): void {
+		if (this.initialized) {
+			return;
+		}
+
+		const availableAgentIds = agents.map((agent) => agent.id);
+		const initState = deriveAgentPreferencesInitializationState({
+			persistedOnboardingCompleted: null,
+			persistedSelectedAgentIds: null,
+			projectCount,
+			availableAgentIds,
+		});
+
+		this.onboardingCompleted = initState.onboardingCompleted;
+		this.selectedAgentIds = initState.selectedAgentIds;
+		if (this.defaultAgentId && !initState.selectedAgentIds.includes(this.defaultAgentId)) {
+			this.defaultAgentId = null;
+		}
+	}
+
 	initialize(agents: readonly Agent[], projectCount: number | null): ResultAsync<void, Error> {
 		const availableAgentIds = agents.map((agent) => agent.id);
+		const initializationMutationRevision = this.localMutationRevision;
 
 		return ResultAsync.combine([
 			tauriClient.settings.get<boolean>(HAS_COMPLETED_ONBOARDING_KEY),
@@ -230,6 +257,11 @@ export class AgentPreferencesStore {
 					persistedAgentEnvOverrides,
 					persistedDefaultAgentId,
 				]) => {
+					if (initializationMutationRevision !== this.localMutationRevision) {
+						this.initialized = true;
+						return okAsync(undefined);
+					}
+
 					const initState = deriveAgentPreferencesInitializationState({
 						persistedOnboardingCompleted,
 						persistedSelectedAgentIds,
@@ -276,6 +308,7 @@ export class AgentPreferencesStore {
 		}
 
 		const normalized = validation.value;
+		this.markLocalMutation();
 		this.selectedAgentIds = normalized;
 
 		// Clear default agent if it was removed from the selected list
@@ -298,6 +331,7 @@ export class AgentPreferencesStore {
 			return okAsync(undefined);
 		}
 
+		this.markLocalMutation();
 		this.defaultAgentId = agentId;
 		return tauriClient.settings
 			.set(DEFAULT_AGENT_ID_KEY, agentId)
@@ -306,6 +340,7 @@ export class AgentPreferencesStore {
 
 	completeOnboarding(agentIds: readonly string[]): ResultAsync<void, Error> {
 		return this.setSelectedAgentIds(agentIds).andThen(() => {
+			this.markLocalMutation();
 			this.onboardingCompleted = true;
 			return tauriClient.settings
 				.set(HAS_COMPLETED_ONBOARDING_KEY, true)
@@ -314,6 +349,7 @@ export class AgentPreferencesStore {
 	}
 
 	resetOnboardingForDev(): ResultAsync<void, Error> {
+		this.markLocalMutation();
 		this.onboardingCompleted = false;
 		return tauriClient.settings
 			.set(HAS_COMPLETED_ONBOARDING_KEY, false)
@@ -323,6 +359,7 @@ export class AgentPreferencesStore {
 	addCustomAgentConfig(config: CustomAgentConfig): ResultAsync<void, Error> {
 		const updatedConfigs = upsertCustomAgentConfigs(this.customAgentConfigs, config);
 
+		this.markLocalMutation();
 		this.customAgentConfigs = updatedConfigs;
 		return tauriClient.settings
 			.set(CUSTOM_AGENT_CONFIGS_KEY, updatedConfigs)
@@ -339,6 +376,7 @@ export class AgentPreferencesStore {
 	): ResultAsync<void, Error> {
 		const updatedOverrides = upsertAgentEnvOverrides(this.agentEnvOverrides, agentId, env);
 
+		this.markLocalMutation();
 		this.agentEnvOverrides = updatedOverrides;
 		return tauriClient.settings
 			.set(AGENT_ENV_OVERRIDES_KEY, updatedOverrides)

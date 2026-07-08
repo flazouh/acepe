@@ -714,6 +714,170 @@ pub async fn get_open_pr_for_branch(project_path: String) -> CommandResult<Optio
     )
 }
 
+// ─── CI Job Details ───────────────────────────────────────────────────────────
+
+/// A single step within a CI job run, with its parsed log lines.
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct CiJobStep {
+    pub number: u32,
+    pub name: String,
+    pub status: String,
+    pub conclusion: Option<String>,
+    pub log: String,
+}
+
+/// Details for a CI job run, including per-step logs.
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct CiJobDetails {
+    pub id: u64,
+    pub name: String,
+    pub status: String,
+    pub conclusion: Option<String>,
+    pub steps: Vec<CiJobStep>,
+}
+
+#[derive(Debug, Deserialize)]
+struct RawCiJobStep {
+    number: u32,
+    name: String,
+    status: String,
+    conclusion: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+struct RawCiJob {
+    id: u64,
+    name: String,
+    status: String,
+    conclusion: Option<String>,
+    steps: Vec<RawCiJobStep>,
+}
+
+/// Parse owner, repo, and job_id from a GitHub job URL.
+/// Expected: https://github.com/{owner}/{repo}/actions/runs/{run_id}/job/{job_id}
+fn parse_github_job_url(url: &str) -> Result<(String, String, u64), String> {
+    let path = url
+        .strip_prefix("https://github.com/")
+        .ok_or_else(|| format!("Not a GitHub URL: {}", url))?;
+    let parts: Vec<&str> = path.splitn(8, '/').collect();
+    if parts.len() < 7 || parts[5] != "job" {
+        return Err(format!("Unexpected GitHub job URL format: {}", url));
+    }
+    let job_id: u64 = parts[6]
+        .parse()
+        .map_err(|_| format!("Non-numeric job id in URL: {}", url))?;
+    Ok((parts[0].to_string(), parts[1].to_string(), job_id))
+}
+
+/// Parse raw log text into a map from step name → trimmed log content.
+/// Lines are prefixed with an RFC3339 timestamp; those are stripped.
+/// Step boundaries are `##[group]{step_name}` markers.
+fn parse_step_logs(
+    log_text: &str,
+    step_names: &[String],
+) -> std::collections::HashMap<String, String> {
+    let mut result: std::collections::HashMap<String, String> = std::collections::HashMap::new();
+    let mut current_step: Option<String> = None;
+    let mut current_lines: Vec<String> = Vec::new();
+
+    for raw_line in log_text.lines() {
+        // Strip timestamp prefix ("2026-06-26T11:31:28.2369080Z content" → "content")
+        let content = raw_line.splitn(2, ' ').nth(1).unwrap_or(raw_line);
+
+        if let Some(group_name) = content.strip_prefix("##[group]") {
+            if step_names.iter().any(|s| s.as_str() == group_name) {
+                if let Some(prev) = current_step.take() {
+                    result.insert(prev, current_lines.join("\n"));
+                    current_lines.clear();
+                }
+                current_step = Some(group_name.to_string());
+            } else if current_step.is_some() {
+                // Sub-group inside a step: emit as a line so the label is visible
+                current_lines.push(format!("▶ {}", group_name));
+            }
+        } else if content == "##[endgroup]" {
+            // Discard — cleaner output without the noise
+        } else if current_step.is_some() {
+            current_lines.push(content.to_string());
+        }
+    }
+
+    if let Some(step) = current_step {
+        result.insert(step, current_lines.join("\n"));
+    }
+
+    result
+}
+
+pub async fn get_ci_job_details(
+    project_path: &Path,
+    details_url: &str,
+) -> Result<CiJobDetails, String> {
+    let (owner, repo, job_id) = parse_github_job_url(details_url)?;
+    let job_id_str = job_id.to_string();
+    let api_path = format!("/repos/{}/{}/actions/jobs/{}", owner, repo, job_id_str);
+    let logs_path = format!("{}/logs", api_path);
+
+    let job_args = ["api", api_path.as_str()];
+    let logs_args = ["api", logs_path.as_str()];
+    let (job_res, log_res) = tokio::join!(
+        run_gh_command(project_path, &job_args),
+        run_gh_command(project_path, &logs_args),
+    );
+
+    let raw_job: RawCiJob = serde_json::from_str(&job_res?)
+        .map_err(|e| format!("Failed to parse CI job JSON: {}", e))?;
+
+    let step_names: Vec<String> = raw_job.steps.iter().map(|s| s.name.clone()).collect();
+    let log_map = log_res
+        .map(|text| parse_step_logs(&text, &step_names))
+        .unwrap_or_default();
+
+    let steps = raw_job
+        .steps
+        .into_iter()
+        .map(|s| {
+            let log = log_map.get(&s.name).cloned().unwrap_or_default();
+            CiJobStep {
+                number: s.number,
+                name: s.name,
+                status: s.status,
+                conclusion: s.conclusion,
+                log,
+            }
+        })
+        .collect();
+
+    Ok(CiJobDetails {
+        id: raw_job.id,
+        name: raw_job.name,
+        status: raw_job.status,
+        conclusion: raw_job.conclusion,
+        steps,
+    })
+}
+
+/// Tauri command: fetch CI job details with per-step logs.
+#[tauri::command]
+#[specta::specta]
+pub async fn git_ci_job_details(
+    project_path: String,
+    details_url: String,
+) -> CommandResult<CiJobDetails> {
+    unexpected_command_result(
+        "git_ci_job_details",
+        "Failed to fetch CI job details",
+        async {
+            let path = crate::path_safety::validate_project_directory_from_str(&project_path)
+                .map_err(|e| e.message_for(Path::new(project_path.trim())))?;
+            get_ci_job_details(&path, &details_url).await
+        }
+        .await,
+    )
+}
+
 #[cfg(test)]
 mod tests {
     #[cfg(unix)]

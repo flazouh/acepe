@@ -1,5 +1,5 @@
 <script lang="ts">
-import { ChevronDown } from "@lucide/svelte/icons";
+import { RoundedIcon } from "@acepe/ui";
 import { Button } from "$lib/components/ui/button/index.js";
 import * as Tooltip from "@acepe/ui/tooltip";
 
@@ -70,7 +70,7 @@ function handleKeydown(e: KeyboardEvent) {
 							{/if}
 						</span>
 						{#if optionView.isSelected}
-							<ChevronDown class="h-4 w-4 ml-2 flex-shrink-0" />
+							<RoundedIcon name="chevron-down" class="size-3 shrink-0 ml-2" />
 						{/if}
 					</Button>
 				</Tooltip.Trigger>

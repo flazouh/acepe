@@ -47,13 +47,20 @@ export {
 // Message queue store (per-session message stacking)
 export {
 	createMessageQueueStore,
+	createSessionMessageQueueStore,
 	getMessageQueueStore,
 	type MessageQueueStore,
+	type MessageSender,
 	type QueuedMessage,
+	type SessionMessageQueueHost,
 	serializeWithAttachments,
 } from "./message-queue/index.js";
 export { OperationStore } from "./operation-store.svelte.js";
 export { createPanelStore, getPanelStore, PanelStore } from "./panel-store.svelte.js";
+export type {
+	OpenProjectFileSystemDialogOptions,
+	ProjectFileSystemDialogState,
+} from "./project-file-system-dialog-state.js";
 export {
 	createPermissionStore,
 	getPermissionStore,

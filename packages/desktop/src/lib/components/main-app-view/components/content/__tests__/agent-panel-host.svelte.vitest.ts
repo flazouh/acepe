@@ -24,14 +24,15 @@ const hoisted = vi.hoisted(() => ({
 		getActiveFilePanelId: vi.fn(() => null),
 		getActiveAttachedFilePanel: vi.fn(() => null),
 		updatePanelSession: vi.fn(),
-		enterReviewMode: vi.fn(),
-		exitReviewMode: vi.fn(),
-		setReviewFileIndex: vi.fn(),
 		setActiveAttachedFilePanel: vi.fn(),
 		closeFilePanel: vi.fn(),
 		resizeFilePanel: vi.fn(),
 	},
 	sessionStore: {
+		read: {
+			getSessionIdentity: vi.fn(() => undefined),
+			getSessionMetadata: vi.fn(() => undefined),
+		},
 		getSessionCold: vi.fn(() => null),
 	},
 	themeState: { effectiveTheme: "dark" },
@@ -170,6 +171,9 @@ describe("AgentPanelHost", () => {
 		};
 
 		const view = render(AgentPanelHost, props);
+		expect(view.getByTestId("agent-panel-host").getAttribute("data-qa-agent-panel-id")).toBe(
+			"panel-1"
+		);
 		expect(hoisted.panelStore.getActiveFilePanelId).not.toHaveBeenCalled();
 		expect(hoisted.panelStore.getActiveAttachedFilePanel).not.toHaveBeenCalled();
 

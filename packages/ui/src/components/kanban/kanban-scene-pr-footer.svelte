@@ -1,7 +1,6 @@
 <script lang="ts">
-	import { ArrowSquareOut, GitPullRequest } from "phosphor-svelte";
-
 	import { DiffPill } from "../diff-pill/index.js";
+	import { RoundedIcon } from "../icons/index.js";
 	import { PrChecksList, PrChecksSummary, type PrChecksItem } from "../pr-checks/index.js";
 
 	let {
@@ -48,7 +47,7 @@
 			onclick={onOpen}
 		>
 			<div class="mt-0.5 shrink-0 text-muted-foreground">
-				<GitPullRequest size={13} weight="bold" />
+				<RoundedIcon name="pull-request" class="size-[13px]" />
 			</div>
 			<div class="min-w-0 flex-1">
 				<div class="flex items-center gap-1 text-[10px] text-muted-foreground">
@@ -103,7 +102,7 @@
 			onOpenExternal();
 		}}
 	>
-		<ArrowSquareOut size={12} weight="bold" />
+		<RoundedIcon name="external-link" class="size-3" />
 	</button>
 </div>
 

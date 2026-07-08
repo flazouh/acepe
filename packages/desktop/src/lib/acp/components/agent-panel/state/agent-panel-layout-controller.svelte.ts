@@ -21,7 +21,6 @@ export interface AgentPanelLayoutControllerDeps {
 	getPanelWidth: () => number | undefined;
 	getHasAttachedFilePane: () => boolean;
 	getIsFullscreen: () => boolean;
-	getReviewMode: () => boolean;
 	getHasPlan: () => boolean;
 	panelStore: PanelStore;
 }
@@ -108,7 +107,6 @@ export class AgentPanelLayoutController {
 	readonly effectiveWidth = $derived.by(() =>
 		resolveAgentPanelEffectiveWidth({
 			baseWidth: this.baseWidth,
-			reviewMode: this.#deps.getReviewMode(),
 			showPlanSidebar: this.showPlanSidebar,
 			hasPlan: this.#deps.getHasPlan(),
 			planSidebarColumnWidth: PLAN_SIDEBAR_COLUMN_WIDTH,

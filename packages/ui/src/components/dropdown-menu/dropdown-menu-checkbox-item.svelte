@@ -3,8 +3,7 @@
 
 	import { DropdownMenu as DropdownMenuPrimitive } from "bits-ui";
 	import { type WithoutChildrenOrChild, cn } from "../../lib/utils";
-	import CheckIcon from "@lucide/svelte/icons/check";
-	import MinusIcon from "@lucide/svelte/icons/minus";
+	import { RoundedIcon } from "../icons/index.js";
 	import { dropdownMenuItemRadiusClass } from "./dropdown-menu-item.classes.js";
 	import { dropdownMenuItemTypographyClass } from "./dropdown-menu-typography.js";
 	import { getDropdownMenuHighlightContext } from "./dropdown-menu-highlight-context";
@@ -58,16 +57,16 @@
 		"outline-hidden select-none",
 		// States & svg
 		"data-[disabled]:pointer-events-none data-[disabled]:opacity-50",
-		"[&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
+		"[&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-3",
 		className
 	)}
 >
 	{#snippet children({ checked, indeterminate })}
 		<span class="pointer-events-none absolute start-2 flex size-3.5 items-center justify-center">
 			{#if indeterminate}
-				<MinusIcon class="size-4" />
+				<RoundedIcon name="minus" class="size-4" />
 			{:else}
-				<CheckIcon class={cn("size-4", !checked && "text-transparent")} />
+				<RoundedIcon name="check" class={cn("size-4", !checked && "text-transparent")} />
 			{/if}
 		</span>
 		{@render childrenProp?.()}

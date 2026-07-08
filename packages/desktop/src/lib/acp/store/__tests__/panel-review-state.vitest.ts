@@ -44,14 +44,6 @@ function createReviewState(
 }
 
 describe("PanelReviewState", () => {
-	it("consumes pending review restore once without PanelStore", () => {
-		const { state } = createReviewState();
-
-		state.setPendingReviewRestore("panel-1", 3);
-		expect(state.consumePendingReviewRestore("panel-1")).toBe(3);
-		expect(state.consumePendingReviewRestore("panel-1")).toBeNull();
-	});
-
 	it("opens one review panel per project path", () => {
 		const focus = vi.fn();
 		const { state } = createReviewState({

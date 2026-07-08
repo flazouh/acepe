@@ -1,20 +1,26 @@
 <script lang="ts">
-	import { X } from "phosphor-svelte";
-
 	import { Button } from "../button/index.js";
+	import type { ButtonSize } from "../button/variants.js";
+	import { RoundedIcon } from "../icons/index.js";
 
 	interface Props {
 		onClose?: (() => void) | undefined;
 		title?: string;
+		size?: ButtonSize;
 		class?: string;
 	}
 
-	let { onClose, title = "Close", class: className = "" }: Props = $props();
+	let {
+		onClose,
+		title = "Close",
+		size = "icon-sm",
+		class: className = "",
+	}: Props = $props();
 </script>
 
 <Button
-	variant="chromeIcon"
-	size="chromeIcon"
+	variant="ghost"
+	{size}
 	data-header-control
 	onclick={() => onClose?.()}
 	{title}
@@ -22,6 +28,6 @@
 	class={className}
 >
 	{#snippet children()}
-		<X size={12} weight="bold" />
+		<RoundedIcon name="close" />
 	{/snippet}
 </Button>

@@ -34,6 +34,8 @@ export interface NewThreadContextBinding {
 	readonly worktreeDefaultOn: boolean;
 	/** Persists the global "use worktrees by default" preference. */
 	readonly onWorktreeDefaultToggle: (on: boolean) => void;
+	/** Setup chip row alignment. Empty state uses `start`; agent panel keeps default `center`. */
+	readonly setupBarAlign?: "start" | "center";
 }
 
 /**
@@ -209,4 +211,15 @@ export interface AgentInputProps {
 	 * Sets the provisional mode before the session connects.
 	 */
 	readonly initialModeId?: string | null;
+
+	/**
+	 * Optional class override for the composer input shell (InputContainer).
+	 */
+	readonly composerInputClass?: string;
+
+	/**
+	 * Moves non-critical mount work one paint later so restored transcripts can
+	 * show their first rows before composer housekeeping runs.
+	 */
+	readonly deferInitialComposerMountWork?: boolean;
 }

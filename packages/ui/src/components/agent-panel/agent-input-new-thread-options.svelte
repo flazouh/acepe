@@ -11,11 +11,8 @@
 	import type { Snippet } from "svelte";
 
 	import { ButtonGroup } from "../button-group/index.js";
-	import { ComposerOverflowMenu } from "../composer/index.js";
-	import {
-		FUSED_CONTROL_CHIP_GROUP_CLASS,
-		FUSED_CONTROL_OVERFLOW_BUTTON_CLASS,
-	} from "../panel-header/index.js";
+	import { buttonVariants } from "../button/variants.js";
+	import { Selector } from "../selector/index.js";
 	import { Switch } from "../switch/index.js";
 	import * as Tooltip from "../tooltip/index.js";
 	import { cn } from "../../lib/utils.js";
@@ -40,6 +37,7 @@
 		/** Whether new sessions default to using a worktree (persisted preference). */
 		worktreeDefaultOn?: boolean;
 		onWorktreeDefaultToggle?: (on: boolean) => void;
+		align?: "start" | "center";
 	}
 
 	let {
@@ -56,20 +54,16 @@
 		onWorktreeToggle,
 		worktreeDefaultOn = false,
 		onWorktreeDefaultToggle,
+		align = "center",
 	}: Props = $props();
 
-	const setupChipButtonClass =
-		"[&_button]:flex [&_button]:flex-none [&_button]:items-center [&_button]:gap-1 [&_button]:text-muted-foreground [&_button]:transition-colors [&_button:hover]:bg-accent [&_button:hover]:text-foreground";
-
-	/** Primary grouped segment without [&_svg]:size-[15px] — worktree uses a tiny checkbox mark. */
-	const worktreeGroupPrimaryButtonClass =
-		"flex shrink-0 items-center justify-center rounded-none rounded-l-md border-0 bg-transparent px-1.5 py-1 leading-none transition-colors hover:!bg-transparent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:ring-inset disabled:pointer-events-none disabled:opacity-50";
+	const rowAlignClass = $derived(align === "start" ? "justify-start" : "mx-auto justify-center");
 
 	const worktreeTriggerClass = $derived(
 		cn(
-			worktreeGroupPrimaryButtonClass,
-			"gap-1.5",
-			worktreeOn ? "text-[var(--success)]" : "text-muted-foreground"
+			buttonVariants({ variant: "secondary", size: "sm" }),
+			"gap-1 disabled:pointer-events-none disabled:opacity-50",
+			worktreeOn ? "text-[var(--success)]" : ""
 		)
 	);
 
@@ -78,14 +72,14 @@
 			"flex size-3.5 shrink-0 items-center justify-center rounded-[3px] border transition-colors",
 			worktreeOn
 				? "border-[var(--success)] bg-[var(--success)] text-[var(--success-foreground)]"
-				: "border-border/80 bg-transparent"
+				: "border-muted-foreground/30 bg-secondary-foreground/[0.04]"
 		)
 	);
 </script>
 
 <div
 	data-testid="new-thread-options"
-	class="mx-auto flex max-w-full flex-wrap items-center justify-center gap-2 text-xs {setupChipButtonClass}"
+	class="flex max-w-full flex-wrap items-center gap-0.5 text-xs {rowAlignClass}"
 >
 	{@render project()}
 	{@render agent()}
@@ -94,7 +88,7 @@
 	{/if}
 
 	{#if showWorktree}
-		<ButtonGroup class={FUSED_CONTROL_CHIP_GROUP_CLASS}>
+		<ButtonGroup>
 			<Tooltip.Root>
 				<Tooltip.Trigger>
 					{#snippet child({ props })}
@@ -116,7 +110,7 @@
 									></span>
 								{/if}
 							</span>
-							<span class="text-xs leading-none">{worktreeLabel}</span>
+							<span>{worktreeLabel}</span>
 						</button>
 					{/snippet}
 				</Tooltip.Trigger>
@@ -131,12 +125,20 @@
 				</Tooltip.Content>
 			</Tooltip.Root>
 
-			<ComposerOverflowMenu
-				ariaLabel={settingsLabel}
+			<Selector
+				embeddedInGroup
+				variant="secondary"
 				triggerIcon="dots"
-				contentClass="min-w-[15rem]"
-				triggerClass={FUSED_CONTROL_OVERFLOW_BUTTON_CLASS}
+				showChevron={false}
+				triggerSize="composerChipIcon"
+				triggerAriaLabel={settingsLabel}
+				side="top"
+				align="end"
+				sideOffset={8}
+				contentClass="min-w-[15rem] p-1"
 			>
+				{#snippet renderButton()}{/snippet}
+
 				{#if settingsMenu}
 					{@render settingsMenu()}
 				{/if}
@@ -155,7 +157,7 @@
 						aria-label={worktreeDefaultLabel}
 					/>
 				</div>
-			</ComposerOverflowMenu>
+			</Selector>
 		</ButtonGroup>
 	{/if}
 </div>

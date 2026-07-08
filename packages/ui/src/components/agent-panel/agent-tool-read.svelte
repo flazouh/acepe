@@ -1,7 +1,7 @@
 <script lang="ts">
-	import { CaretDown } from "phosphor-svelte";
 	import { untrack } from "svelte";
 	import { FilePathBadge } from "../file-path-badge/index.js";
+	import { RoundedIcon } from "../icons/index.js";
 	import AgentToolCard from "./agent-tool-card.svelte";
 	import {
 		readPersistedReadExpanded,
@@ -144,10 +144,7 @@
 				aria-label={isExpanded ? ariaCollapseSource : ariaExpandSource}
 				aria-expanded={isExpanded}
 			>
-				<CaretDown
-					weight="fill"
-					size={9}
-					class="transition-transform duration-150 {isExpanded ? '' : '-rotate-90'}"
+				<RoundedIcon name="chevron-down" class="size-3 shrink-0 transition-transform duration-150 {isExpanded ? '' : '-rotate-90'}"
 				/>
 			</button>
 		{/if}

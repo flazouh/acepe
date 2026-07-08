@@ -99,6 +99,7 @@ function deriveDisplay(step: LifecycleStep): DisplayDerivation {
 		: 0;
 	const visibleEntryCount = resolveVisibleEntryCount({
 		canonicalEntryCount,
+		canonicalMessageCount: canonicalEntryCount,
 		optimisticUserEntry,
 	});
 

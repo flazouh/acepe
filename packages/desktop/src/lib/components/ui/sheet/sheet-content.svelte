@@ -24,9 +24,9 @@ export type Side = VariantProps<typeof sheetVariants>["side"];
 	import type { ComponentProps } from "svelte";
 	import type { Snippet } from "svelte";
 
+	import { RoundedIcon } from "@acepe/ui";
 	import { type WithoutChildrenOrChild, cn } from "$lib/utils.js";
 	import { Dialog as SheetPrimitive } from "bits-ui";
-	import XIcon from "@lucide/svelte/icons/x";
 
 	import SheetOverlay from "./sheet-overlay.svelte";
 	import SheetPortal from "./sheet-portal.svelte";
@@ -57,7 +57,7 @@ export type Side = VariantProps<typeof sheetVariants>["side"];
 		<SheetPrimitive.Close
 			class="ring-offset-background focus-visible:ring-ring absolute end-4 top-4 rounded-xs opacity-70 transition-opacity hover:opacity-100 focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-hidden disabled:pointer-events-none"
 		>
-			<XIcon class="size-4" />
+			<RoundedIcon name="close" class="size-4" />
 			<span class="sr-only">Close</span>
 		</SheetPrimitive.Close>
 	</SheetPrimitive.Content>

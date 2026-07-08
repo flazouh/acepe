@@ -14,6 +14,10 @@ export {
 	resolveDefaultModeId,
 	shouldShowActiveModeChip,
 } from "./logic/attach-menu-items.js";
+export {
+	buildSlashPaletteSections,
+	resolveSlashPaletteItemInsertText,
+} from "./logic/build-slash-palette-sections.js";
 export { ComposerMcpCatalogState } from "./logic/composer-mcp-catalog-state.svelte.js";
 export {
 	resolveCapabilityContextProviderMetadata,
@@ -47,6 +51,7 @@ export {
 	hasAutocompleteTrigger,
 	parseFilePickerTrigger,
 	parseSlashCommandTrigger,
+	replaceActiveSlashTrigger,
 } from "./logic/input-parser.js";
 export { resolveModeMenuAction, resolveSelectedModeMenuOptionId } from "./logic/mode-menu-state.js";
 export { createPendingUserEntry } from "./logic/pending-user-entry.js";

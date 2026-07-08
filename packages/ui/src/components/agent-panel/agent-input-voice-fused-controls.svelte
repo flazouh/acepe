@@ -32,6 +32,7 @@
 		voiceModelsLoadingLabel,
 		onVoiceSelectModel,
 		onVoiceDownloadModel,
+		onVoiceUninstallModel,
 		voiceCloseLabel,
 	}: {
 		voiceState: AgentComposerToolbarVoiceBinding | null;
@@ -53,6 +54,7 @@
 		voiceModelsLoadingLabel: string;
 		onVoiceSelectModel: (modelId: string) => void;
 		onVoiceDownloadModel: (modelId: string) => void;
+		onVoiceUninstallModel: (modelId: string) => void;
 		voiceCloseLabel: string;
 	} = $props();
 
@@ -73,7 +75,7 @@
 			{voiceCloseLabel}
 		</button>
 	{/if}
-	<div class="voice-controls flex items-end">
+	<div class="voice-controls flex shrink-0 items-end">
 		{#snippet recordingLeading()}
 			<AgentInputVoiceRecordingLeading
 				meterLevels={currentVoiceState.meterLevels}
@@ -107,6 +109,7 @@
 				loadingLabel={voiceModelsLoadingLabel}
 				onSelectModel={onVoiceSelectModel}
 				onDownloadModel={onVoiceDownloadModel}
+				onUninstallModel={onVoiceUninstallModel}
 			/>
 		{/snippet}
 		<FusedPrimaryOverflowGroup

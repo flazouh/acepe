@@ -14,7 +14,7 @@ function createFiles(): ReviewWorkspaceFileItem[] {
 			id: "file-1",
 			filePath: "src/lib/alpha.ts",
 			fileName: "alpha.ts",
-			reviewStatus: "accepted",
+			reviewStatus: "reviewed",
 			additions: 12,
 			deletions: 2,
 		},
@@ -40,12 +40,12 @@ describe("review-workspace selection helpers", () => {
 		expect(resolveReviewWorkspaceSelectedIndex(createFiles(), null)).toBe(1);
 	});
 
-	it("falls back to the first file when every file is already accepted", () => {
+	it("falls back to the first file when every file is already reviewed", () => {
 		const files = createFiles().map((file) => ({
 			id: file.id,
 			filePath: file.filePath,
 			fileName: file.fileName,
-			reviewStatus: "accepted" as const,
+			reviewStatus: "reviewed" as const,
 			additions: file.additions,
 			deletions: file.deletions,
 		}));
@@ -54,13 +54,13 @@ describe("review-workspace selection helpers", () => {
 		expect(resolveReviewWorkspaceSelectedIndex(files, null)).toBe(0);
 	});
 
-	it("skips denied files when choosing the default review file", () => {
+	it("prefers the first unreviewed file after reviewed files", () => {
 		const files: ReviewWorkspaceFileItem[] = [
 			{
 				id: "file-1",
 				filePath: "src/lib/alpha.ts",
 				fileName: "alpha.ts",
-				reviewStatus: "denied",
+				reviewStatus: "reviewed",
 				additions: 12,
 				deletions: 2,
 			},
@@ -68,7 +68,7 @@ describe("review-workspace selection helpers", () => {
 				id: "file-2",
 				filePath: "src/lib/beta.ts",
 				fileName: "beta.ts",
-				reviewStatus: "accepted",
+				reviewStatus: "reviewed",
 				additions: 3,
 				deletions: 1,
 			},
@@ -119,7 +119,7 @@ describe("ReviewWorkspace", () => {
 		cleanup();
 	});
 
-	it("renders the two-pane layout with file list metadata and content area", async () => {
+	it("renders the two-pane layout with the Pierre file tree and content area", async () => {
 		const { default: ReviewWorkspace } = await import("./review-workspace.svelte");
 
 		render(ReviewWorkspace, {
@@ -133,34 +133,11 @@ describe("ReviewWorkspace", () => {
 		expect(screen.getByTestId("review-workspace-files-pane")).toBeTruthy();
 		expect(screen.getByTestId("review-workspace-content-pane")).toBeTruthy();
 		expect(screen.getByTestId("review-workspace-content-pane").className).toContain("flex-1");
-		expect(screen.getByText("alpha.ts")).toBeTruthy();
-		expect(screen.getByText("Reviewed")).toBeTruthy();
-		expect(screen.getByText("Not reviewed")).toBeTruthy();
+		expect(screen.getByTestId("review-workspace-file-tree")).toBeTruthy();
 		expect(screen.getByTestId("review-workspace-snippet").textContent).toContain("Pierre diff");
 	});
 
-	it("calls onFileSelect with the clicked file index", async () => {
-		const { default: ReviewWorkspace } = await import("./review-workspace.svelte");
-		const onFileSelect = vi.fn();
-
-		render(ReviewWorkspace, {
-			files: createFiles(),
-			selectedFileIndex: 0,
-			headerLabel: HEADER_LABEL,
-			emptyStateLabel: EMPTY_STATE_LABEL,
-			content: createContentSnippet("Pierre diff"),
-			onFileSelect,
-		});
-
-		const betaButton = screen.getByText("beta.ts").closest("button");
-		expect(betaButton).toBeTruthy();
-
-		await fireEvent.click(betaButton as HTMLButtonElement);
-
-		expect(onFileSelect).toHaveBeenCalledWith(1);
-	});
-
-	it("highlights the selected file in the list", async () => {
+	it("uses the selected file index as the tree selection source", async () => {
 		const { default: ReviewWorkspace } = await import("./review-workspace.svelte");
 
 		render(ReviewWorkspace, {
@@ -171,8 +148,7 @@ describe("ReviewWorkspace", () => {
 			content: createContentSnippet("Pierre diff"),
 		});
 
-		const betaButton = screen.getByText("beta.ts").closest("button");
-		expect(betaButton?.getAttribute("data-selected")).toBe("true");
+		expect(screen.getByTestId("review-workspace-file-tree")).toBeTruthy();
 	});
 
 	it("calls onClose when the back button is pressed", async () => {

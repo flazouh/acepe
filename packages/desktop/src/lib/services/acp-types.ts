@@ -221,7 +221,13 @@ scope?: string; costUsd?: number | null; tokens?: UsageTelemetryTokens; sourceMo
 /**
  * Context window size reported by the agent (e.g. from usage_update `size` field).
  */
-contextWindowSize?: number | null }
+contextWindowSize?: number | null;
+/**
+ * When set, this telemetry belongs to a spawned sub-agent rather than the
+ * top-level session turn. The id is the parent `Task` tool-call id, used to
+ * aggregate per-sub-agent usage downstream. `None` = session-level telemetry.
+ */
+parentToolUseId?: string | null }
 
 /**
  * Token counts for usage telemetry (generic, adapter-agnostic).
@@ -343,7 +349,7 @@ export type SessionDomainEventKind = "session_identity_resolved" | "session_conn
  * can switch on `event.kind` for quick discrimination and access the typed
  * payload via `event.payload` when richer data is required.
  */
-export type SessionDomainEventPayload = { kind: "session_identity_resolved"; resolved_provider_session_id: string } | { kind: "session_connected" } | { kind: "session_disconnected" } | { kind: "session_config_changed" } | { kind: "turn_started"; turn_id: string } | { kind: "turn_completed"; turn_id: string | null } | { kind: "turn_failed"; turn_id: string | null; error_message: string } | { kind: "turn_cancelled"; turn_id: string | null } | { kind: "user_message_segment_appended"; message_id: string | null; part_id: string | null; text: string } | { kind: "assistant_message_segment_appended"; message_id: string | null; part_id: string | null; text: string } | { kind: "assistant_thought_segment_appended"; message_id: string | null; part_id: string | null; text: string } | { kind: "operation_upserted"; operation_id: string; tool_call_id: string; tool_name: string; tool_kind: ToolKind; status: ToolCallStatus; parent_operation_id: string | null } | { kind: "operation_child_linked"; parent_operation_id: string; child_operation_id: string } | { kind: "operation_status_updated"; operation_id: string; tool_call_id: string; status: ToolCallStatus } | { kind: "operation_completed"; operation_id: string; tool_call_id: string; status: ToolCallStatus } | { kind: "interaction_upserted"; interaction_id: string; interaction_kind: InteractionKind } | { kind: "interaction_resolved"; interaction_id: string } | { kind: "interaction_cancelled"; interaction_id: string } | { kind: "usage_telemetry_updated"; data: UsageTelemetryData } | { kind: "todo_state_updated"; update: TodoUpdate }
+export type SessionDomainEventPayload = { kind: "session_identity_resolved"; resolved_provider_session_id: string } | { kind: "session_connected" } | { kind: "session_disconnected" } | { kind: "session_config_changed" } | { kind: "turn_started"; turn_id: string } | { kind: "turn_completed"; turn_id: string | null } | { kind: "turn_failed"; turn_id: string | null; error_message: string } | { kind: "turn_cancelled"; turn_id: string | null } | { kind: "user_message_segment_appended"; message_id: string | null; part_id: string | null; text: string } | { kind: "assistant_message_segment_appended"; message_id: string | null; part_id: string | null; parent_tool_use_id: string | null; text: string } | { kind: "assistant_thought_segment_appended"; message_id: string | null; part_id: string | null; parent_tool_use_id: string | null; text: string } | { kind: "operation_upserted"; operation_id: string; tool_call_id: string; tool_name: string; tool_kind: ToolKind; status: ToolCallStatus; parent_operation_id: string | null } | { kind: "operation_child_linked"; parent_operation_id: string; child_operation_id: string } | { kind: "operation_status_updated"; operation_id: string; tool_call_id: string; status: ToolCallStatus } | { kind: "operation_completed"; operation_id: string; tool_call_id: string; status: ToolCallStatus } | { kind: "interaction_upserted"; interaction_id: string; interaction_kind: InteractionKind } | { kind: "interaction_resolved"; interaction_id: string } | { kind: "interaction_cancelled"; interaction_id: string } | { kind: "usage_telemetry_updated"; data: UsageTelemetryData } | { kind: "todo_state_updated"; update: TodoUpdate }
 
 /**
  * Canonical domain event envelope.
@@ -443,7 +449,7 @@ export type DetachedReason = "restoredRequiresAttach" | "reconnectExhausted" | "
  */
 "awaitingAuthentication"
 
-export type FailureReason = "deterministicRestoreFault" | "activationFailed" | "resumeFailed" | "sessionGoneUpstream" | "providerSessionMismatch" | "corruptedPersistedState" | "explicitErrorHandlingRequired" | "legacyIrrecoverable"
+export type FailureReason = "deterministicRestoreFault" | "activationFailed" | "resumeFailed" | "sessionGoneUpstream" | "sessionArchivedUpstream" | "providerSessionMismatch" | "corruptedPersistedState" | "explicitErrorHandlingRequired" | "legacyIrrecoverable"
 
 export type LifecycleState = { status: LifecycleStatus; detachedReason?: DetachedReason | null; failureReason?: FailureReason | null; errorMessage?: string | null }
 
@@ -466,6 +472,15 @@ export type SessionOpenErrorReason = "parseFailure" | "providerUnavailable" | "p
  * be loaded or proven consistent.
  */
 export type SessionOpenError = { requestedSessionId: string; message: string; reason: SessionOpenErrorReason; retryable: boolean }
+
+export type SessionOpenPath = "hot_ledger" | "legacy_rebuild" | "compat_snapshot"
+
+export type SessionOpenTranscriptRowPage = { projectionVersion: string; startRowIndex: number; totalRowCount: number; rowPayloadBytes: number; transcriptRevision: number; graphRevision: number; lastEventSeq: number; rows: TranscriptViewportRow[] }
+
+/**
+ * Diagnostic-only timing for the restored-session open path.
+ */
+export type SessionOpenResultTiming = { source: string; openPath: SessionOpenPath; ledgerProbeStatus: string; contextMs: number; providerLoadMs: number; ledgerTailReadMs: number; ledgerJournalCutoffMs: number; ledgerPageReadMs: number; ledgerHeaderDecodeMs: number; ledgerRowsDecodeMs: number; ledgerResultBuildMs: number; runtimeLookupMs: number; assembleMs: number; restoreAuthorityMs: number; compactMs: number; localJournalFallbackMs: number; totalMs: number; transcriptEntryCount: number; operationCount: number }
 
 /**
  * Full payload for a `found` outcome.
@@ -503,7 +518,7 @@ graphRevision: number;
  * reservation until the token is claimed (Unit 3) or expires after 30 s
  * of inactivity.
  */
-openToken: string; agentId: CanonicalAgentId; projectPath: string; worktreePath: string | null; sourcePath: string | null; sequenceId?: number | null; transcriptSnapshot: TranscriptSnapshot; sessionTitle: string; operations: OperationSnapshot[]; interactions: InteractionSnapshot[]; turnState: SessionTurnState; messageCount: number; activity: SessionGraphActivity; activeStreamingTail: ActiveStreamingTail | null; lifecycle: SessionGraphLifecycle; capabilities: SessionGraphCapabilities; activeTurnFailure?: TurnFailureSnapshot | null; lastTerminalTurnId?: string | null }
+openToken: string; agentId: CanonicalAgentId; projectPath: string; worktreePath: string | null; sourcePath: string | null; sequenceId?: number | null; transcriptSnapshot: TranscriptSnapshot; sessionTitle: string; operations: OperationSnapshot[]; interactions: InteractionSnapshot[]; turnState: SessionTurnState; messageCount: number; activity: SessionGraphActivity; activeStreamingTail: ActiveStreamingTail | null; lifecycle: SessionGraphLifecycle; capabilities: SessionGraphCapabilities; openPath: SessionOpenPath; initialTranscriptRowPage?: SessionOpenTranscriptRowPage | null; initialViewportEnvelope?: SessionStateEnvelope | null; openResultTiming?: SessionOpenResultTiming | null; activeTurnFailure?: TurnFailureSnapshot | null; lastTerminalTurnId?: string | null }
 
 /**
  * Payload for the `missing` outcome — no persisted content was found for the
@@ -552,17 +567,15 @@ export type ActiveStreamingTail = { rowId: string; contentKind: ActiveStreamingT
 
 export type TranscriptViewportRowKind = "user" | "assistantText" | "assistantThought" | "tool" | "awaitingPlaceholder"
 
-export type TranscriptViewportOperationLink = { operationId: string; toolCallId: string; name: string; state: OperationState }
+export type TranscriptViewportOperationDisplayFacts = { operationId: string; toolCallId: string; name: string; title: string; state: OperationState; kind: ToolKind | null; commandSummary?: string | null; targetPathSummary?: string | null; resultSummary?: string | null; errorSummary?: string | null; interactionIds: string[]; parentToolCallId?: string | null; childToolCallIds: string[] }
+
+export type TranscriptViewportOperationLink = { operationId: string; toolCallId: string; name: string; state: OperationState; displayFacts?: TranscriptViewportOperationDisplayFacts | null; operation?: OperationSnapshot | null }
 
 export type TranscriptViewportInteractionLink = { interactionId: string; kind: InteractionKind; state: InteractionState; operationId: string | null }
 
 export type TranscriptViewportRowContent = { kind: "transcript"; role: TranscriptEntryRole; segments: TranscriptSegment[] }
 
 export type TranscriptViewportRow = { rowId: string; sourceEntryId: string; kind: TranscriptViewportRowKind; version: string; anchorEligible: boolean; activeStreamingTail: ActiveStreamingTailContentKind | null; operationLinks: TranscriptViewportOperationLink[]; interactionLinks: TranscriptViewportInteractionLink[]; content: TranscriptViewportRowContent; durationStartedAtMs?: number | null }
-
-export type ViewportMode = { kind: "followingTail" } | { kind: "detached"; anchorRowId: string; offsetFromAnchorPx: number }
-
-export type ViewportWindow = { offsetPx: number; totalHeightPx: number; visibleStartIndex: number; visibleEndIndex: number; mode: ViewportMode }
 
 export type SessionStateGraph = { requestedSessionId: string; canonicalSessionId: string; isAlias: boolean; agentId: CanonicalAgentId; projectPath: string; worktreePath?: string | null; sourcePath?: string | null; sequenceId?: number | null; revision: SessionGraphRevision; transcriptSnapshot: TranscriptSnapshot; operations: OperationSnapshot[]; interactions: InteractionSnapshot[]; turnState: SessionTurnState; messageCount: number; activeStreamingTail: ActiveStreamingTail | null; activeTurnFailure?: TurnFailureSnapshot | null; lastTerminalTurnId?: string | null; lifecycle: SessionGraphLifecycle; activity: SessionGraphActivity; capabilities: SessionGraphCapabilities }
 
@@ -581,94 +594,33 @@ export type AssistantTextDeltaPayload = { turnId: string; rowId: string; charOff
 export type ViewportBufferDiagnostic = { code: string; rowId: string | null }
 
 /**
- * Full buffered slice of the canonical layout pushed to the WebView. The
- * WebView resolves in-buffer scroll offsets locally (no IPC per frame) and
- * only requests a refill when scrolling near/outside `[buffer_start_index,
- * buffer_end_index)`. `request_generation` echoes the generation of a refill
- * request so the store can reject stale command responses; live (unsolicited)
- * pushes carry `None`.
+ * Full ordered row push for the DOM-authority transcript viewport. Rust owns
+ * canonical order, identity, version, and row content. The WebView owns pixels
+ * and scrollTop, so no height, offset, mode, or scroll target crosses this wire.
+ * `request_generation` echoes the UI's rows request so late responses can be
+ * ignored when needed; live pushes carry `None`.
  */
-export type ViewportBufferPush = { sessionId: string; graphRevision: SessionGraphRevision; viewportRevision: number;
+export type ViewportBufferPush = { sessionId: string; graphRevision: SessionGraphRevision;
 /**
- * Per-session monotonic emission sequence (the total-order authority for
- * the buffer protocol). A push resets the consumer's sequence baseline to
- * this value; subsequent deltas must chain contiguously from it. Because
- * `viewport_revision` does NOT advance on streaming row appends, it cannot
- * sequence the two independent delivery channels (command-reply vs live
- * event stream); `emission_seq` can, turning any out-of-order arrival into
- * a detectable gap (→ fresh push) instead of silent buffer corruption.
+ * Per-session monotonic emission sequence. A push resets the consumer's
+ * sequence baseline to this value; subsequent deltas must chain
+ * contiguously from it.
  */
-emissionSeq: number; bufferStartIndex: number; bufferEndIndex: number;
-/**
- * Total number of rows in the full canonical layout. Lets the WebView tell
- * whether a buffer edge is also the layout extreme (so it must NOT request
- * a refill past it).
- */
-layoutRowCount: number; totalHeightPx: number;
-/**
- * Absolute pixel offset of the bottom of the last buffered row
- * (= `offset_at_index(buffer_end_index)`). Equals `total_height_px` only
- * when the buffer reaches the layout end. Lets the WebView compute the
- * buffered pixel span `[offsets_px[0], buffer_end_offset_px)` without
- * per-row heights.
- */
-bufferEndOffsetPx: number; rows: TranscriptViewportRow[]; offsetsPx: number[]; mode: ViewportMode; requestGeneration?: number | null;
-/**
- * Absolute scrollTop the WebView should adopt when this push repositions the
- * viewport (initial open, reveal, follow-tail). `None` for a pure refill or
- * an accepted-height-confirmation re-push in `Detached` mode, where the
- * user's current scrollTop is authoritative and only a *relative*
- * `scroll_anchor_correction_px` may be applied. Exactly one of
- * `scroll_top_target` (absolute) or `scroll_anchor_correction_px` (relative)
- * is ever set per emission — never both — to avoid double-applying a scroll
- * correction.
- */
-scrollTopTarget?: number | null;
-/**
- * Signed pixel correction the WebView adds to its *live* scrollTop to keep
- * the visible content pinned when canonical geometry above the viewport
- * shifted (a row above the viewport re-measured). Relative — never fights
- * the user's in-flight scroll position. `None` when nothing above the
- * viewport moved or when an absolute `scroll_top_target` is used instead.
- */
-scrollAnchorCorrectionPx?: number | null; diagnostics: ViewportBufferDiagnostic[] }
+emissionSeq: number; rows: TranscriptViewportRow[]; requestGeneration?: number | null; diagnostics: ViewportBufferDiagnostic[] }
 
 /**
- * Incremental buffer mutation. Applies iff `emission_seq` chains contiguously
- * from the consumer's last applied sequence (`emission_seq == current + 1`);
- * an older `emission_seq` is a stale duplicate (dropped), a newer-than-next
- * one is a gap that forces a fresh `ViewportBufferPush`. `emission_seq` — not
- * `from_viewport_revision` — is the apply-ordering authority, because pure
- * streaming appends do not advance `viewport_revision`. The revision fields
- * remain for diagnostics and snapshot newer-wins on pushes. Exactly one of
- * `scroll_top_target` (absolute) or `scroll_anchor_correction_px` (relative)
- * should be set to avoid double-applying a scroll correction.
+ * Incremental ordered-row mutation. Applies iff `emission_seq` chains
+ * contiguously from the consumer's last applied sequence (`emission_seq ==
+ * current + 1`). If a survivor row changes version, Rust sends a fresh push
+ * instead of a delta, so the consumer never needs to patch row content in place.
  */
-export type ViewportBufferDelta = { sessionId: string; graphRevision: SessionGraphRevision;
-/**
- * Per-session monotonic emission sequence; see [`ViewportBufferPush::emission_seq`].
- */
-emissionSeq: number; fromViewportRevision: number; toViewportRevision: number; prependedRows: TranscriptViewportRow[]; prependedOffsetsPx: number[]; appendedRows: TranscriptViewportRow[]; appendedOffsetsPx: number[]; removedRowIds: string[];
-/**
- * Total rows in the canonical layout after this delta. Lets the consumer
- * re-evaluate `needsRefill`'s "has content below" edge as streaming grows
- * the transcript, without a fresh push.
- */
-layoutRowCount: number; totalHeightPx: number;
-/**
- * Absolute pixel bottom of the last buffered row after this delta (top of
- * the row past `buffer_end_index`). Equals `total_height_px` only when the
- * buffer reaches the layout end. Required so the consumer can maintain the
- * bottom-edge refill math without per-row heights.
- */
-bufferEndOffsetPx: number; scrollAnchorCorrectionPx?: number | null; scrollTopTarget?: number | null; diagnostics: ViewportBufferDiagnostic[] }
+export type ViewportBufferDelta = { sessionId: string; graphRevision: SessionGraphRevision; emissionSeq: number; prependedRows: TranscriptViewportRow[]; appendedRows: TranscriptViewportRow[]; removedRowIds: string[]; diagnostics: ViewportBufferDiagnostic[] }
 
 export type TranscriptViewportCommandRevision = { graphRevision: number; transcriptRevision: number; lastEventSeq: number }
 
 export type SessionStatePayload = { kind: "snapshot"; graph: SessionStateGraph } | { kind: "delta"; delta: SessionStateDelta } | { kind: "lifecycle"; lifecycle: SessionGraphLifecycle; revision: SessionGraphRevision } | { kind: "capabilities"; capabilities: SessionGraphCapabilities; revision: SessionGraphRevision; pending_mutation_id?: string | null; preview_state: CapabilityPreviewState } | { kind: "telemetry"; telemetry: UsageTelemetryData; revision: SessionGraphRevision } | { kind: "plan"; plan: PlanData; revision: SessionGraphRevision } | { kind: "assistantTextDelta"; delta: AssistantTextDeltaPayload } | { kind: "viewportBufferPush"; push: ViewportBufferPush } | { kind: "viewportBufferDelta"; delta: ViewportBufferDelta }
 
 export type SessionStateEnvelope = { sessionId: string; graphRevision: number; lastEventSeq: number; payload: SessionStatePayload }
-
 
 export type ProviderBrand = "claude-code" | "copilot" | "cursor" | "opencode" | "codex" | "custom";
 
@@ -697,3 +649,14 @@ export type FrontendProviderProjection = ProviderMetadataProjection;
 
 export type ModelsForDisplayWithProvider = ModelsForDisplay;
 
+export type TranscriptRowPageResult =
+	({ status: "current" } & SessionOpenTranscriptRowPage)
+	| { status: "missing" }
+	| {
+			status: "stale";
+			projectionVersion: string;
+			totalRowCount: number;
+			transcriptRevision: number;
+			graphRevision: number;
+			lastEventSeq: number;
+	  };

@@ -3,7 +3,7 @@ use crate::commands::observability::{
     capture_unexpected_command_error, unexpected_command_result, CommandResult,
 };
 use crate::db::repository::{AppSettingsRepository, SettingsRepository};
-use crate::storage::types::{CustomKeybindings, UserSettingKey};
+use crate::storage::types::{CustomKeybindings, UserSettingKey, UserSettingValue};
 use tauri::AppHandle;
 
 use super::shared::get_db;
@@ -199,4 +199,37 @@ pub async fn get_user_setting(
     }
 
     Ok(value)
+}
+
+/// Load multiple user settings from persistent storage in one IPC call.
+#[tauri::command]
+#[specta::specta]
+pub async fn get_user_settings(
+    app: AppHandle,
+    keys: Vec<UserSettingKey>,
+) -> CommandResult<Vec<UserSettingValue>> {
+    tracing::debug!(count = %keys.len(), "Loading user settings batch");
+
+    let db = get_db(&app);
+    let storage_keys: Vec<String> = keys.iter().map(|key| key.as_str().to_string()).collect();
+
+    let values = AppSettingsRepository::get_many(&db, &storage_keys)
+        .await
+        .map_err(|e| {
+            tracing::error!(error = e.root_cause(), "Failed to load user settings batch");
+            capture_unexpected_command_error(
+                "get_user_settings",
+                "Failed to load user settings",
+                format!("count={}; error={e}", storage_keys.len()),
+            )
+        })?;
+
+    let mut response = Vec::with_capacity(keys.len());
+    for key in keys {
+        let value = values.get(key.as_str()).cloned();
+        response.push(UserSettingValue { key, value });
+    }
+
+    tracing::debug!(count = %response.len(), "Returning user settings batch");
+    Ok(response)
 }

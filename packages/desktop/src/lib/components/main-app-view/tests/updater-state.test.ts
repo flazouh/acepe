@@ -10,7 +10,6 @@ import {
 	getUpdaterPrimaryAction,
 	getUpdaterStatusLabel,
 	isUpdaterInstallInProgress,
-	shouldShowBlockingUpdaterOverlay,
 } from "../logic/updater-state.js";
 
 describe("updater-state", () => {
@@ -36,18 +35,17 @@ describe("updater-state", () => {
 		expect(getUpdaterStatusLabel(progressed)).toBe("Downloading 25%");
 	});
 
-	it("keeps startup update blocking active through install", () => {
+	it("keeps install progress available for the sidebar card", () => {
 		const installing = createInstallingUpdaterState("1.2.3");
 
 		expect(installing.kind).toBe("installing");
 		expect(getUpdaterActionLabel(installing)).toBe("Updating 1.2.3");
 		expect(getUpdaterStatusLabel(installing)).toBe("Installing update...");
-		expect(shouldShowBlockingUpdaterOverlay(installing)).toBe(true);
 	});
 
-	it("shows the blocking startup updater overlay while checking and downloading", () => {
-		expect(shouldShowBlockingUpdaterOverlay(createCheckingUpdaterState())).toBe(true);
-		expect(shouldShowBlockingUpdaterOverlay(createDownloadingUpdaterState("1.2.3"))).toBe(true);
+	it("keeps check and download status as non-blocking card state", () => {
+		expect(getUpdaterStatusLabel(createCheckingUpdaterState())).toBe("Checking update...");
+		expect(getUpdaterActionLabel(createDownloadingUpdaterState("1.2.3"))).toBe("Updating 1.2.3");
 	});
 
 	it("does not treat a completed download as installing before install starts", () => {

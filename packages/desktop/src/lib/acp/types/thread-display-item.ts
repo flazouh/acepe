@@ -1,5 +1,5 @@
-import type { SessionSummary } from "../application/dto/session-summary.js";
 import type { SessionLinkedPr, SessionPrLinkMode } from "../application/dto/session-linked-pr.js";
+import type { SessionSummary } from "../application/dto/session-summary.js";
 import type { SessionActivityInfo } from "../components/session-list/session-list-types.js";
 
 import { ProjectManager } from "../logic/project-manager.svelte.js";
@@ -33,6 +33,10 @@ export type SessionDisplayItem = {
 	 * Path to the project folder this session is associated with.
 	 */
 	projectPath: string;
+	/**
+	 * Raw transcript file path when known.
+	 */
+	sourcePath?: string;
 
 	/**
 	 * Display name of the project (derived from path).

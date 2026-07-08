@@ -1,132 +1,21 @@
 /**
- * Shared review session state for both review panel and agent panel review content.
- * Tracks per-file review progress as UI-session state (not persisted).
+ * Shared review session state helpers for the agent-panel review modal.
+ * Tracks per-file review progress as a simple reviewed/unreviewed status.
  */
 
-export type FileReviewStatus = "accepted" | "partial" | "denied";
-
-export type FileReviewCounters = {
-	readonly acceptedHunks: number;
-	readonly rejectedHunks: number;
-	readonly pendingHunks: number;
-	readonly totalHunks: number;
-};
-
-export type PerFileReviewState = FileReviewCounters & {
-	readonly status: FileReviewStatus;
-	readonly filePath: string;
-};
+export type FileReviewStatus = "reviewed" | "unreviewed";
 
 /**
- * Computes FileReviewStatus from per-file counters.
- * - accepted: all hunks accepted, none rejected, not denied
- * - denied: used only when Reject file was clicked (handled at call site)
- * - partial: has pending hunks or mixed accepted/rejected
+ * Returns the next file whose status is not "reviewed", scanning forward from
+ * the current index. Undefined entries are treated as unreviewed. Returns null
+ * when every later file is already reviewed.
  */
-export function computeFileReviewStatus(
-	counters: FileReviewCounters,
-	isDenied: boolean
-): FileReviewStatus {
-	if (isDenied) return "denied";
-	if (counters.pendingHunks === 0 && counters.rejectedHunks === 0) return "accepted";
-	return "partial";
-}
-
-/**
- * Whether the file still has pending hunks to review.
- */
-export function isPendingFile(state: PerFileReviewState): boolean {
-	return state.pendingHunks > 0 && state.status !== "denied";
-}
-
-/**
- * Index of the next file with pending hunks, or null if none.
- * @param currentIndex - Current selected file index
- * @param fileStates - Per-file review states in file order
- */
-export function nextPendingFileIndex(
-	currentIndex: number,
-	fileStates: ReadonlyArray<PerFileReviewState | undefined>
-): number | null {
-	for (let i = currentIndex + 1; i < fileStates.length; i++) {
-		const state = fileStates[i];
-		if (state && isPendingFile(state)) return i;
-	}
-	return null;
-}
-
-/**
- * Index of the previous file with pending hunks, or null if none.
- */
-export function prevPendingFileIndex(
-	currentIndex: number,
-	fileStates: ReadonlyArray<PerFileReviewState | undefined>
-): number | null {
-	for (let i = currentIndex - 1; i >= 0; i--) {
-		const state = fileStates[i];
-		if (state && isPendingFile(state)) return i;
-	}
-	return null;
-}
-
-/**
- * Returns the next file that still needs review, scanning forward first and
- * wrapping to earlier files. Undefined entries are files whose diff has not
- * been opened in this review session yet, so they are still reviewable.
- */
-export function findNextReviewableFileIndex(
-	currentIndex: number,
-	fileStates: ReadonlyArray<PerFileReviewState | undefined>
-): number | null {
-	function isReviewable(index: number): boolean {
-		const state = fileStates[index];
-		return state === undefined || isPendingFile(state);
-	}
-
-	for (let index = currentIndex + 1; index < fileStates.length; index += 1) {
-		if (isReviewable(index)) {
-			return index;
-		}
-	}
-
-	for (let index = 0; index < currentIndex; index += 1) {
-		if (isReviewable(index)) {
-			return index;
-		}
-	}
-
-	return null;
-}
-
-/**
- * Whether to show the "Review next file" CTA.
- * Shown when current file was just accepted and there is a next pending file.
- */
-export function shouldShowReviewNextFileCta(
-	currentFileAccepted: boolean,
-	hasNextPendingFile: boolean
-): boolean {
-	return currentFileAccepted && hasNextPendingFile;
-}
-
-/**
- * Whether a file has just been fully resolved (no pending hunks left).
- * Used to auto-advance review focus to the next file.
- */
-export function shouldAutoAdvanceAfterFileResolution(counters: FileReviewCounters): boolean {
-	return counters.totalHunks > 0 && counters.pendingHunks === 0;
-}
-
-/**
- * Returns the next file whose review status is not accepted.
- * Undefined entries are treated as unreviewed.
- */
-export function nextUnacceptedFileIndex(
+export function nextUnreviewedFileIndex(
 	currentIndex: number,
 	fileStatuses: ReadonlyArray<FileReviewStatus | undefined>
 ): number | null {
 	for (let i = currentIndex + 1; i < fileStatuses.length; i += 1) {
-		if (fileStatuses[i] !== "accepted") {
+		if (fileStatuses[i] !== "reviewed") {
 			return i;
 		}
 	}

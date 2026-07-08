@@ -9,10 +9,10 @@
 	 * - <span>   otherwise
 	 */
 	import type { Snippet } from 'svelte';
-	import { GitCommit, GitMerge, GitPullRequest } from 'phosphor-svelte';
 
 	import { ChipShell } from '../chip/index.js';
 	import { DiffPill } from '../diff-pill/index.js';
+	import { RoundedIcon } from '../icons/index.js';
 	import { Colors } from '../../lib/colors.js';
 	import { getGitHubLabel, type GitHubReference } from '../../lib/markdown/github-badge.js';
 
@@ -65,11 +65,17 @@
 		aria-hidden="true"
 	>
 		{#if ref.type === 'commit'}
-			<GitCommit weight="bold" size={14} />
+			<RoundedIcon
+				name="git"
+				class="size-3.5"
+				data-testid="github-badge-commit-rounded-icon"
+			/>
 		{:else if prState === 'merged'}
-			<GitMerge weight="bold" size={14} />
+			<RoundedIcon name="pull-request-merged" class="size-3.5" />
+		{:else if prState === 'closed'}
+			<RoundedIcon name="pull-request-closed" class="size-3.5" />
 		{:else}
-			<GitPullRequest weight="bold" size={14} />
+			<RoundedIcon name="pull-request" class="size-3.5" />
 		{/if}
 	</span>
 	<span class="min-w-0 truncate font-mono text-[0.6875rem] leading-none">{label}</span>

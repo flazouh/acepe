@@ -1,7 +1,6 @@
 <script lang="ts">
-	import { CheckCircle, CircleDashed, XCircle } from "phosphor-svelte";
-
 	import { FilePathBadge } from "../file-path-badge/index.js";
+	import { RoundedIcon } from "../icons/index.js";
 	import type { AgentPanelFileReviewStatus } from "./types.js";
 
 	interface ReviewTab {
@@ -17,24 +16,21 @@
 		tabs: readonly ReviewTab[];
 		selectedIndex: number;
 		onSelectTab: (index: number) => void;
-		acceptedTooltip?: string;
-		partialTooltip?: string;
-		deniedTooltip?: string;
+		reviewedTooltip?: string;
+		unreviewedTooltip?: string;
 	}
 
 	let {
 		tabs,
 		selectedIndex,
 		onSelectTab,
-		acceptedTooltip = "All changes accepted",
-		partialTooltip = "Partially reviewed",
-		deniedTooltip = "Changes rejected",
+		reviewedTooltip = "Reviewed",
+		unreviewedTooltip = "Not reviewed",
 	}: Props = $props();
 
 	function getStatusTooltip(status: AgentPanelFileReviewStatus): string {
-		if (status === "accepted") return acceptedTooltip;
-		if (status === "denied") return deniedTooltip;
-		return partialTooltip;
+		if (status === "reviewed") return reviewedTooltip;
+		return unreviewedTooltip;
 	}
 </script>
 
@@ -51,12 +47,10 @@
 			onclick={() => onSelectTab(index)}
 		>
 			<span class="flex items-center gap-1.5 min-w-0" title={getStatusTooltip(tab.status)}>
-				{#if tab.status === "accepted"}
-					<CheckCircle class="h-3.5 w-3.5 shrink-0 text-success" weight="fill" />
-				{:else if tab.status === "denied"}
-					<XCircle class="h-3.5 w-3.5 shrink-0 text-destructive" weight="fill" />
+				{#if tab.status === "reviewed"}
+					<RoundedIcon name="check-circle" class="h-3.5 w-3.5 shrink-0 text-success" />
 				{:else}
-					<CircleDashed class="h-3.5 w-3.5 shrink-0 text-primary" weight="bold" />
+					<span class="block h-3.5 w-3.5 shrink-0 rounded-full border border-current opacity-30 text-muted-foreground"></span>
 				{/if}
 				<span class="review-tab-chip contents">
 					<FilePathBadge

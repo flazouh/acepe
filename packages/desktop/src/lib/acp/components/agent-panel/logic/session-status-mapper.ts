@@ -122,6 +122,10 @@ export function mapCanonicalSessionToPanelStatus(
 		return "error";
 	}
 
+	if (input.turnState === "Failed") {
+		return "error";
+	}
+
 	if (input.lifecycle.status === "detached" || input.lifecycle.status === "archived") {
 		return "idle";
 	}
@@ -222,11 +226,14 @@ export function deriveCanonicalAgentPanelSessionState(
 
 	const effectiveActivity = input.source.activity;
 	const effectiveTurnState = input.source.turnState;
-	const isBusy = isCanonicalBusy(effectiveActivity, effectiveTurnState);
+	const hasCanonicalError =
+		input.source.lifecycle.status === "failed" || effectiveTurnState === "Failed";
+	const isBusy = hasCanonicalError ? false : isCanonicalBusy(effectiveActivity, effectiveTurnState);
 	const showPlanningIndicator =
-		input.hasOptimisticPendingEntry === true ||
-		input.hasLocalPendingSendIntent === true ||
-		(effectiveActivity?.kind === "awaiting_model" && input.hasActiveStreamingTail !== true);
+		!hasCanonicalError &&
+		(input.hasOptimisticPendingEntry === true ||
+			input.hasLocalPendingSendIntent === true ||
+			(effectiveActivity?.kind === "awaiting_model" && input.hasActiveStreamingTail !== true));
 	const baseStatus = mapCanonicalSessionToPanelStatus({
 		lifecycle: input.source.lifecycle,
 		activity: effectiveActivity,

@@ -22,6 +22,32 @@ import type { ContextValue, KeybindingError } from "../types.js";
  */
 export class ContextManager {
 	private contexts = new SvelteMap<string, ContextValue>();
+	/**
+	 * Computed context providers (pull model). When a key has a provider,
+	 * its value is derived on demand by invoking the getter at evaluation
+	 * time, rather than being imperatively pushed via {@link set}. Reading a
+	 * provider inside a reactive scope tracks whatever reactive state the
+	 * getter reads, so consumers stay up to date without bridging $effect.
+	 */
+	private providers = new SvelteMap<string, () => ContextValue>();
+
+	/**
+	 * Register a computed context provider for a key (pull model).
+	 *
+	 * The getter is invoked lazily wherever the context value is needed
+	 * (e.g. while evaluating a "when" expression). A registered provider
+	 * takes precedence over any imperatively-set value for the same key.
+	 */
+	registerProvider(key: string, getter: () => ContextValue): void {
+		this.providers.set(key, getter);
+	}
+
+	/**
+	 * Remove a computed context provider previously registered for a key.
+	 */
+	unregisterProvider(key: string): void {
+		this.providers.delete(key);
+	}
 
 	/**
 	 * Set a context value.
@@ -43,6 +69,10 @@ export class ContextManager {
 	 * Get a context value.
 	 */
 	get(key: string): ContextValue | undefined {
+		const provider = this.providers.get(key);
+		if (provider) {
+			return provider();
+		}
 		return this.contexts.get(key);
 	}
 
@@ -50,7 +80,7 @@ export class ContextManager {
 	 * Check if a context key exists.
 	 */
 	has(key: string): boolean {
-		return this.contexts.has(key);
+		return this.providers.has(key) || this.contexts.has(key);
 	}
 
 	/**

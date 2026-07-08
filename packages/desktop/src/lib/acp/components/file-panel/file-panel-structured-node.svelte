@@ -1,10 +1,5 @@
 <script lang="ts">
-import { PlanIcon } from "@acepe/ui";
-import { CaretDown } from "phosphor-svelte";
-import { CaretRight } from "phosphor-svelte";
-import { CheckCircle } from "phosphor-svelte";
-import { CircleDashed } from "phosphor-svelte";
-import { Folder } from "phosphor-svelte";
+import { PlanIcon, RoundedIcon } from "@acepe/ui";
 
 import type { StructuredData } from "./format/types.js";
 import { buildStructuredNodeDisplayState } from "./file-panel-structured-node-state.js";
@@ -44,18 +39,18 @@ const nodeState = $derived.by(() => {
 					isExpanded = !isExpanded;
 				}}
 			>
-				<span class="structured-chevron" aria-hidden="true">
+				<span class="inline-flex w-4 shrink-0 items-center justify-center text-muted-foreground/80" aria-hidden="true">
 					{#if isExpanded}
-						<CaretDown class="h-3.5 w-3.5" weight="bold" />
+						<RoundedIcon name="chevron-down" class="size-3 shrink-0" />
 					{:else}
-						<CaretRight class="h-3.5 w-3.5" weight="bold" />
+						<RoundedIcon name="chevron-right" class="size-3 shrink-0" />
 					{/if}
 				</span>
 				<span class="structured-type-icon" aria-hidden="true">
 					{#if nodeState.isArray}
 						<PlanIcon size="md" />
 					{:else}
-						<Folder class="h-3.5 w-3.5 text-violet-500" weight="bold" />
+						<RoundedIcon name="folder" class="h-3.5 w-3.5 text-violet-500" />
 					{/if}
 				</span>
 				<span class="structured-key">{nodeState.keyPrefix}</span>
@@ -71,11 +66,11 @@ const nodeState = $derived.by(() => {
 			{/if}
 		{:else if nodeState.isContainer}
 			<div class="structured-card-header">
-				<span class="structured-chevron" aria-hidden="true">
+				<span class="inline-flex w-4 shrink-0 items-center justify-center text-muted-foreground/80" aria-hidden="true">
 					{#if nodeState.isArray}
 						<PlanIcon size="md" />
 					{:else}
-						<Folder class="h-3.5 w-3.5 text-violet-500" weight="bold" />
+						<RoundedIcon name="folder" class="h-3.5 w-3.5 text-violet-500" />
 					{/if}
 				</span>
 				<span class="structured-key">{nodeState.keyPrefix}</span>
@@ -83,11 +78,11 @@ const nodeState = $derived.by(() => {
 			</div>
 		{:else}
 			<div class="structured-card-header">
-				<span class="structured-chevron" aria-hidden="true">
+				<span class="inline-flex w-4 shrink-0 items-center justify-center text-muted-foreground/80" aria-hidden="true">
 					{#if typeof nodeState.displayValue === "boolean" && nodeState.displayValue}
-						<CheckCircle class="h-3.5 w-3.5 text-emerald-500" weight="fill" />
+						<RoundedIcon name="check-circle" class="h-3.5 w-3.5 text-emerald-500" />
 					{:else}
-						<CircleDashed class="h-3.5 w-3.5 text-muted-foreground" weight="bold" />
+						<RoundedIcon name="circle-dashed" class="h-3.5 w-3.5 text-muted-foreground" />
 					{/if}
 				</span>
 				<span class="structured-key">{nodeState.keyPrefix}</span>
@@ -141,15 +136,6 @@ const nodeState = $derived.by(() => {
 
 	button.structured-card-header:hover {
 		background: color-mix(in srgb, var(--muted) 35%, transparent);
-	}
-
-	.structured-chevron {
-		display: inline-flex;
-		align-items: center;
-		justify-content: center;
-		width: 1rem;
-		color: color-mix(in srgb, var(--muted-foreground) 80%, transparent);
-		flex-shrink: 0;
 	}
 
 	.structured-type-icon {

@@ -12,8 +12,10 @@ import {
 	AgentInputModelSelector,
 	AgentInputMetricsChip,
 	AgentInputMicButton,
+	Button,
 	AgentPanelStatusIcon,
 	type AgentPanelSceneModel,
+	RoundedIcon,
 } from "@acepe/ui";
 import {
 	AppMainLayout,
@@ -24,7 +26,7 @@ import {
 	type AppProjectGroup,
 	type AppTab,
 } from "@acepe/ui/app-layout";
-import { CaretDown, Plus, DotsThreeVertical, Terminal, Browser } from "phosphor-svelte";
+import { PlusIcon } from "@acepe/ui";
 import { ProjectLetterBadge } from "@acepe/ui";
 import { CloseAction, FullscreenAction, OverflowMenuTriggerAction } from "@acepe/ui/panel-header";
 
@@ -200,23 +202,33 @@ const favoriteModels = $derived(
 													<span class="truncate text-[10px] font-semibold tracking-wide text-muted-foreground/70">{group.name}</span>
 												</div>
 												<div class="flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100">
-													<button type="button" aria-label="Open terminal" class="flex items-center justify-center size-5 rounded text-muted-foreground">
-														<Terminal class="h-3 w-3" weight="fill" />
-													</button>
-													<button type="button" aria-label="Open browser" class="flex items-center justify-center size-5 rounded text-muted-foreground">
-														<Browser class="h-3 w-3" weight="fill" />
-													</button>
+													<Button variant="ghost" size="icon" aria-label="Open terminal">
+														{#snippet children()}
+															<RoundedIcon name="terminal" />
+														{/snippet}
+													</Button>
+													<Button variant="ghost" size="icon" aria-label="Open browser">
+														{#snippet children()}
+															<RoundedIcon name="browser" />
+														{/snippet}
+													</Button>
 												</div>
-												<button type="button" aria-label="Collapse project" class="flex items-center justify-center size-5 shrink-0 rounded text-muted-foreground">
-													<CaretDown class="h-3 w-3" weight="bold" />
-												</button>
+												<Button variant="ghost" size="icon" aria-label="Collapse project" class="shrink-0">
+													{#snippet children()}
+														<RoundedIcon name="chevron-down" class="shrink-0" />
+													{/snippet}
+												</Button>
 												<div class="flex items-center gap-0.5">
-													<button type="button" aria-label="Project menu" class="flex items-center justify-center size-5 min-w-0 shrink-0 rounded text-muted-foreground">
-														<DotsThreeVertical class="h-3.5 w-3.5" weight="bold" />
-													</button>
-													<button type="button" aria-label="New session" class="flex items-center justify-center size-5 rounded text-muted-foreground">
-														<Plus class="h-3 w-3" weight="bold" />
-													</button>
+													<Button variant="ghost" size="icon" aria-label="Project menu" class="min-w-0 shrink-0">
+														{#snippet children()}
+															<RoundedIcon name="more" />
+														{/snippet}
+													</Button>
+													<Button variant="ghost" size="icon" aria-label="New session">
+														{#snippet children()}
+															<PlusIcon />
+														{/snippet}
+													</Button>
 												</div>
 											</div>
 										{/snippet}
@@ -262,7 +274,7 @@ const favoriteModels = $derived(
 									<AgentPanelComposerFrame>
 										<AgentPanelComposer
 											class="border-t-0 p-0"
-											inputClass="flex-shrink-0 border border-border bg-input/30"
+											inputClass="flex-shrink-0 rounded-lg border border-border bg-input/30"
 											contentClass="p-4 py-4"
 										>
 											{#snippet content()}

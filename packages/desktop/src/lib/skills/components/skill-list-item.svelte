@@ -1,9 +1,5 @@
 <script lang="ts">
-import type { IconWeight } from "$lib/types/phosphor-icon-types.js";
-
-import { ArrowsClockwise } from "phosphor-svelte";
-import { CheckCircle } from "phosphor-svelte";
-import { Warning as PhosphorWarning } from "phosphor-svelte";
+import { RoundedIcon } from "@acepe/ui";
 import { Spinner } from "$lib/components/ui/spinner/index.js";
 import * as Tooltip from "@acepe/ui/tooltip";
 
@@ -33,31 +29,23 @@ const syncStatusInfo = $derived.by(() => {
 	switch (syncStatus) {
 		case "syncing":
 			return {
-				icon: null,
 				tooltip: "Syncing...",
 				classes: "text-muted-foreground",
-				weight: "bold" as IconWeight,
 			};
 		case "synced":
 			return {
-				icon: CheckCircle,
 				tooltip: lastSyncTime,
 				classes: "text-success",
-				weight: "fill" as IconWeight,
 			};
 		case "pending":
 			return {
-				icon: PhosphorWarning,
 				tooltip: `Pending on ${pendingCount} agent${pendingCount !== 1 ? "s" : ""}`,
 				classes: "text-yellow-500",
-				weight: "fill" as IconWeight,
 			};
 		default:
 			return {
-				icon: ArrowsClockwise,
 				tooltip: "Not yet synced",
 				classes: "text-muted-foreground",
-				weight: "fill" as IconWeight,
 			};
 	}
 });
@@ -100,11 +88,12 @@ const syncStatusInfo = $derived.by(() => {
 				>
 					{#if syncStatus === "syncing"}
 						<Spinner class="shrink-0 {syncStatusInfo.classes}" size={12} />
-					{:else if syncStatusInfo.icon}
-						<syncStatusInfo.icon
-							class="h-3 w-3 {syncStatusInfo.classes}"
-							weight={syncStatusInfo.weight}
-						/>
+					{:else if syncStatus === "synced"}
+						<RoundedIcon name="check-circle" class="h-3 w-3 {syncStatusInfo.classes}" />
+					{:else if syncStatus === "pending"}
+						<RoundedIcon name="warning" class="h-3 w-3 {syncStatusInfo.classes}" />
+					{:else}
+						<RoundedIcon name="refresh" class="h-3 w-3 {syncStatusInfo.classes}" />
 					{/if}
 				</Tooltip.Trigger>
 				<Tooltip.Content side="right" class="text-xs">

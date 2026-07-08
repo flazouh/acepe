@@ -43,7 +43,7 @@ describe("check-rust-owned-transcript-viewport", () => {
 		});
 
 		expect(result.status).toBe(1);
-		expect(result.stderr).toContain("Rust-owned");
+		expect(result.stderr).toContain("rows-only");
 		expect(result.stderr).toContain("transcript-viewport-controller.ts");
 	});
 
@@ -60,5 +60,21 @@ describe("check-rust-owned-transcript-viewport", () => {
 
 		expect(result.status).toBe(1);
 		expect(result.stderr).toContain("forbidden viewport authority import");
+	});
+
+	it("rejects old pixel viewport wire fields in ACP source", () => {
+		const root = createPackageWithAgentPanelSource(
+			"logic/current.ts",
+			"export const bad = { totalHeightPx: 120, offsetsPx: [0] };\n"
+		);
+
+		const result = spawnSync(process.execPath, [scriptPath], {
+			cwd: root,
+			encoding: "utf8",
+		});
+
+		expect(result.status).toBe(1);
+		expect(result.stderr).toContain("old pixel viewport wire");
+		expect(result.stderr).toContain("current.ts");
 	});
 });

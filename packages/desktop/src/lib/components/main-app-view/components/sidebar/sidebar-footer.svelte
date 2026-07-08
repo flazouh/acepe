@@ -1,9 +1,10 @@
 <script lang="ts">
-import { Button } from "@acepe/ui";
+import { Button, DiscordIcon, RoundedIcon, XLogoIcon } from "@acepe/ui";
+import { SidebarUpdateCard, type SidebarUpdateKind } from "@acepe/ui/app-layout";
 import { openUrl } from "@tauri-apps/plugin-opener";
-import { DiscordLogo, GithubLogo } from "phosphor-svelte";
 import { onMount } from "svelte";
 import type { ProjectManager } from "$lib/acp/logic/project-manager.svelte.js";
+import type { UpdaterBannerState } from "../../logic/updater-state.js";
 
 import type { MainAppViewState } from "../../logic/main-app-view-state.svelte.js";
 
@@ -11,11 +12,54 @@ interface Props {
 	state: MainAppViewState;
 	projectManager: ProjectManager;
 	onOpenGitPanel?: (projectPath: string) => void;
+	updaterState?: UpdaterBannerState;
+	onUpdateClick?: () => void;
+	onRetryUpdateClick?: () => void;
 }
 
-let { state: appState, projectManager, onOpenGitPanel }: Props = $props();
+let {
+	state: appState,
+	projectManager,
+	onOpenGitPanel,
+	updaterState,
+	onUpdateClick,
+	onRetryUpdateClick,
+}: Props = $props();
 
-const chromeIconButton = { variant: "chromeIcon" as const, size: "chromeIcon" as const };
+const chromeIconButton = { variant: "ghost" as const, size: "icon" as const };
+
+const updateCardKind = $derived<SidebarUpdateKind | null>(
+	updaterState?.kind === "available" ||
+		updaterState?.kind === "downloading" ||
+		updaterState?.kind === "installing" ||
+		updaterState?.kind === "error"
+		? updaterState.kind
+		: null
+);
+
+const updateCardVersion = $derived(
+	updaterState?.kind === "available" ||
+		updaterState?.kind === "downloading" ||
+		updaterState?.kind === "installing"
+		? updaterState.version
+		: null
+);
+
+const updateCardPercent = $derived(
+	updaterState?.kind === "installing"
+		? 100
+		: updaterState?.kind === "downloading" && updaterState.totalBytes && updaterState.totalBytes > 0
+			? Math.min(Math.round((updaterState.downloadedBytes / updaterState.totalBytes) * 100), 100)
+			: 0
+);
+
+function handleUpdateCardClick() {
+	if (updaterState?.kind === "error") {
+		onRetryUpdateClick?.();
+		return;
+	}
+	onUpdateClick?.();
+}
 
 let appVersion = $state<string | null>(null);
 
@@ -35,7 +79,18 @@ const releaseUrl = $derived(
 );
 </script>
 
-<div class="shrink-0 px-2 py-1.5 flex items-center gap-0.5">
+<div class="shrink-0 flex flex-col">
+{#if updateCardKind !== null}
+	<div class="px-2 pt-1.5">
+		<SidebarUpdateCard
+			kind={updateCardKind}
+			version={updateCardVersion}
+			percent={updateCardPercent}
+			onclick={handleUpdateCardClick}
+		/>
+	</div>
+{/if}
+<div class="px-2 py-1.5 flex items-center gap-0.5">
 	<div class="flex items-center gap-0.5">
 		<Button
 			{...chromeIconButton}
@@ -44,7 +99,7 @@ const releaseUrl = $derived(
 			onclick={() => openUrl("https://github.com/flazouh/acepe")}
 		>
 			{#snippet children()}
-				<GithubLogo class="size-3.5" weight="fill" />
+				<RoundedIcon name="github" />
 			{/snippet}
 		</Button>
 		<Button
@@ -54,11 +109,7 @@ const releaseUrl = $derived(
 			onclick={() => openUrl("https://x.com/acepedotdev")}
 		>
 			{#snippet children()}
-				<svg viewBox="0 0 24 24" aria-hidden="true" class="size-3 fill-current">
-					<path
-						d="M18.244 2H21.5l-7.1 8.117L22 22h-5.956l-4.663-6.104L6.04 22H2.78l7.594-8.68L2 2h6.108l4.215 5.56L18.244 2Zm-1.143 18h1.804L5.128 3.895H3.193L17.1 20Z"
-					/>
-				</svg>
+				<XLogoIcon />
 			{/snippet}
 		</Button>
 		<Button
@@ -68,7 +119,7 @@ const releaseUrl = $derived(
 			onclick={() => openUrl("https://discord.gg/5YhW7T7qhS")}
 		>
 			{#snippet children()}
-				<DiscordLogo class="size-3.5" style="color: #6C75E8" weight="fill" />
+				<DiscordIcon weight="fill" />
 			{/snippet}
 		</Button>
 	</div>
@@ -84,4 +135,5 @@ const releaseUrl = $derived(
 			{/snippet}
 		</Button>
 	{/if}
+</div>
 </div>

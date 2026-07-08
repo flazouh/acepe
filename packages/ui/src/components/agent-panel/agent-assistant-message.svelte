@@ -172,7 +172,7 @@ const visibleMessageGroups = $derived.by(() => {
 	});
 });
 
-const activeTokenRevealCss = $derived(isStreaming ? tokenRevealCss : undefined);
+const activeTokenRevealCss = $derived(tokenRevealCss);
 
 let thinkingContainerRef = $state<HTMLDivElement | undefined>();
 let thinkingContentRef = $state<HTMLDivElement | undefined>();
@@ -358,20 +358,20 @@ line-height: var(--thinking-line-height);
 .thinking-content :global(.markdown-content ol),
 .thinking-content :global(.markdown-content pre),
 .thinking-content :global(.markdown-content blockquote),
-.thinking-content :global(.markdown-content [data-streamdown="code-block"]),
-.thinking-content :global(.markdown-content [data-streamdown="unordered-list"]),
-.thinking-content :global(.markdown-content [data-streamdown="ordered-list"]),
-.thinking-content :global(.markdown-content .streamdown-content > :not(:last-child)) {
+.thinking-content :global(.markdown-content [data-native-markdown="code-block"]),
+.thinking-content :global(.markdown-content [data-native-markdown="unordered-list"]),
+.thinking-content :global(.markdown-content [data-native-markdown="ordered-list"]),
+.thinking-content :global(.markdown-content .native-markdown-content > :not(:last-child)) {
 	margin-block-start: 0 !important;
 	margin-block-end: 0.125rem !important;
 }
 
-.thinking-content :global(.markdown-content .streamdown-content > * + *) {
+.thinking-content :global(.markdown-content .native-markdown-content > * + *) {
 	margin-block-start: 0 !important;
 }
 
 .thinking-content :global(.markdown-content li),
-.thinking-content :global(.markdown-content [data-streamdown="list-item"]) {
+.thinking-content :global(.markdown-content [data-native-markdown="list-item"]) {
 	margin-block-end: 0.0625rem !important;
 }
 </style>

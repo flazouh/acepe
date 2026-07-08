@@ -21,7 +21,13 @@ scope?: string; costUsd?: number | null; tokens?: UsageTelemetryTokens; sourceMo
 /**
  * Context window size reported by the agent (e.g. from usage_update `size` field).
  */
-contextWindowSize?: number | null }
+contextWindowSize?: number | null;
+/**
+ * When set, this telemetry belongs to a spawned sub-agent rather than the
+ * top-level session turn. The id is the parent `Task` tool-call id, used to
+ * aggregate per-sub-agent usage downstream. `None` = session-level telemetry.
+ */
+parentToolUseId?: string | null }
 
 /**
  * Session update types from ACP protocol.
@@ -32,7 +38,7 @@ contextWindowSize?: number | null }
  * Uses internally tagged representation with `type` field for clean TypeScript discrimination.
  * Example: `{ "type": "toolCall", "tool_call": {...}, "session_id": "..." }`
  */
-export type SessionUpdate = { type: "userMessageChunk"; chunk: ContentChunk; sessionId?: string | null; attemptId?: string | null } | { type: "agentMessageChunk"; chunk: ContentChunk; part_id?: string | null; message_id?: string | null; session_id?: string | null; produced_at_monotonic_ms?: number | null } | { type: "agentThoughtChunk"; chunk: ContentChunk; part_id?: string | null; message_id?: string | null; session_id?: string | null } | { type: "toolCall"; tool_call: ToolCallData; session_id?: string | null } | { type: "toolCallUpdate"; update: ToolCallUpdateData; session_id?: string | null } | { type: "plan"; plan: PlanData; session_id?: string | null } | { type: "availableCommandsUpdate"; update: AvailableCommandsData; session_id?: string | null } | { type: "currentModeUpdate"; update: CurrentModeData; session_id?: string | null } | { type: "configOptionUpdate"; update: ConfigOptionUpdateData; session_id?: string | null } | { type: "permissionRequest"; permission: PermissionData; session_id?: string | null } | { type: "questionRequest"; question: QuestionData; session_id?: string | null } |
+export type SessionUpdate = { type: "userMessageChunk"; chunk: ContentChunk; sessionId?: string | null; attemptId?: string | null } | { type: "agentMessageChunk"; chunk: ContentChunk; part_id?: string | null; message_id?: string | null; parent_tool_use_id?: string | null; session_id?: string | null; produced_at_monotonic_ms?: number | null } | { type: "agentThoughtChunk"; chunk: ContentChunk; part_id?: string | null; message_id?: string | null; parent_tool_use_id?: string | null; session_id?: string | null } | { type: "toolCall"; tool_call: ToolCallData; session_id?: string | null } | { type: "toolCallUpdate"; update: ToolCallUpdateData; session_id?: string | null } | { type: "plan"; plan: PlanData; session_id?: string | null } | { type: "availableCommandsUpdate"; update: AvailableCommandsData; session_id?: string | null } | { type: "currentModeUpdate"; update: CurrentModeData; session_id?: string | null } | { type: "configOptionUpdate"; update: ConfigOptionUpdateData; session_id?: string | null } | { type: "permissionRequest"; permission: PermissionData; session_id?: string | null } | { type: "questionRequest"; question: QuestionData; session_id?: string | null } |
 /**
  * Indicates that the current turn/prompt has completed.
  * This is emitted when the JSON-RPC response for a prompt request is received.
