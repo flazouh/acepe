@@ -218,9 +218,7 @@ pub async fn get_session_open_result_domain(
         Ok(snapshot) => snapshot,
         Err(error) => {
             let fallback_lifecycle =
-                crate::acp::session_state_engine::selectors::SessionGraphLifecycle::detached(
-                    crate::acp::lifecycle::DetachedReason::RestoredRequiresAttach,
-                );
+                crate::acp::session_state_engine::selectors::SessionGraphLifecycle::reconnecting();
             let fallback_capabilities =
                 crate::acp::session_state_engine::selectors::SessionGraphCapabilities::empty();
             match session_open_result_from_completed_local_journal(
@@ -290,9 +288,7 @@ pub async fn get_session_open_result_domain(
 
     let Some(thread_content) = thread_content else {
         let fallback_lifecycle =
-            crate::acp::session_state_engine::selectors::SessionGraphLifecycle::detached(
-                crate::acp::lifecycle::DetachedReason::RestoredRequiresAttach,
-            );
+            crate::acp::session_state_engine::selectors::SessionGraphLifecycle::reconnecting();
         let fallback_capabilities =
             crate::acp::session_state_engine::selectors::SessionGraphCapabilities::empty();
         match session_open_result_from_completed_local_journal(
@@ -508,9 +504,7 @@ mod tests {
             message_count: 0,
             activity: SessionGraphActivity::idle(),
             active_streaming_tail: None,
-            lifecycle: SessionGraphLifecycle::detached(
-                crate::acp::lifecycle::DetachedReason::RestoredRequiresAttach,
-            ),
+            lifecycle: SessionGraphLifecycle::reconnecting(),
             capabilities: SessionGraphCapabilities::empty(),
             open_path: SessionOpenPath::CompatSnapshot,
             initial_transcript_row_page: None,

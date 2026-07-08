@@ -963,9 +963,7 @@ pub async fn session_open_result_from_provider_owned_snapshot(
         &operations,
     );
 
-    let lifecycle = SessionGraphLifecycle::detached(
-        crate::acp::lifecycle::DetachedReason::RestoredRequiresAttach,
-    );
+    let lifecycle = SessionGraphLifecycle::reconnecting();
     let capabilities = SessionGraphCapabilities::empty();
 
     // Viewport authority is keyed only by the canonical session id; the frontend

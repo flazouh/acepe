@@ -6,74 +6,77 @@ const CODEX_UNARCHIVE_TIMEOUT: Duration = Duration::from_secs(15);
 #[tauri::command]
 #[specta::specta]
 pub async fn acp_unarchive_session(app: AppHandle, session_id: String) -> CommandResult<()> {
-    expected_acp_command_result("acp_unarchive_session", async {
-        let db = app.state::<DbConn>();
-        let metadata = SessionMetadataRepository::get_by_id(db.inner(), &session_id)
-            .await
-            .map_err(|error| SerializableAcpError::InvalidState {
-                message: format!("Failed to load session metadata for unarchive: {error}"),
-            })?;
-
-        let Some(metadata) = metadata else {
-            return Err(SerializableAcpError::SessionNotFound { session_id });
-        };
-
-        let agent_id =
-            metadata
-                .agent_id_enum()
-                .ok_or_else(|| SerializableAcpError::InvalidState {
-                    message: format!(
-                        "Session {} is missing the agent id needed to unarchive",
-                        metadata.history_session_id()
-                    ),
+    expected_acp_command_result(
+        "acp_unarchive_session",
+        async {
+            let db = app.state::<DbConn>();
+            let metadata = SessionMetadataRepository::get_by_id(db.inner(), &session_id)
+                .await
+                .map_err(|error| SerializableAcpError::InvalidState {
+                    message: format!("Failed to load session metadata for unarchive: {error}"),
                 })?;
-        if agent_id != CanonicalAgentId::Codex {
-            return Err(SerializableAcpError::InvalidState {
-                message: format!(
+
+            let Some(metadata) = metadata else {
+                return Err(SerializableAcpError::SessionNotFound { session_id });
+            };
+
+            let agent_id =
+                metadata
+                    .agent_id_enum()
+                    .ok_or_else(|| SerializableAcpError::InvalidState {
+                        message: format!(
+                            "Session {} is missing the agent id needed to unarchive",
+                            metadata.history_session_id()
+                        ),
+                    })?;
+            if agent_id != CanonicalAgentId::Codex {
+                return Err(SerializableAcpError::InvalidState {
+                    message: format!(
                     "Only Codex sessions can be unarchived through this recovery action; found {}",
                     agent_id.as_str()
                 ),
-            });
-        }
+                });
+            }
 
-        let thread_id = metadata.history_session_id().to_string();
-        validate_codex_thread_id(&thread_id)?;
+            let thread_id = metadata.history_session_id().to_string();
+            validate_codex_thread_id(&thread_id)?;
 
-        let binary = crate::acp::agent_installer::get_cached_binary(&CanonicalAgentId::Codex)
-            .ok_or_else(|| SerializableAcpError::InvalidState {
+            let binary = crate::acp::agent_installer::get_cached_binary(&CanonicalAgentId::Codex)
+                .ok_or_else(|| SerializableAcpError::InvalidState {
                 message: "Codex managed binary is not installed.".to_string(),
             })?;
 
-        let output = timeout(
-            CODEX_UNARCHIVE_TIMEOUT,
-            Command::new(&binary)
-                .arg("unarchive")
-                .arg(&thread_id)
-                .output(),
-        )
-        .await
-        .map_err(|_| SerializableAcpError::InvalidState {
-            message: format!(
-                "Codex unarchive timed out after {}s",
-                CODEX_UNARCHIVE_TIMEOUT.as_secs()
-            ),
-        })?
-        .map_err(|error| SerializableAcpError::InvalidState {
-            message: format!("Failed to run Codex unarchive: {error}"),
-        })?;
-
-        if !output.status.success() {
-            return Err(SerializableAcpError::InvalidState {
+            let output = timeout(
+                CODEX_UNARCHIVE_TIMEOUT,
+                Command::new(&binary)
+                    .arg("unarchive")
+                    .arg(&thread_id)
+                    .output(),
+            )
+            .await
+            .map_err(|_| SerializableAcpError::InvalidState {
                 message: format!(
-                    "Codex unarchive failed: {}",
-                    summarize_codex_unarchive_output(&output.stdout, &output.stderr)
+                    "Codex unarchive timed out after {}s",
+                    CODEX_UNARCHIVE_TIMEOUT.as_secs()
                 ),
-            });
-        }
+            })?
+            .map_err(|error| SerializableAcpError::InvalidState {
+                message: format!("Failed to run Codex unarchive: {error}"),
+            })?;
 
-        Ok(())
-    }
-    .await)
+            if !output.status.success() {
+                return Err(SerializableAcpError::InvalidState {
+                    message: format!(
+                        "Codex unarchive failed: {}",
+                        summarize_codex_unarchive_output(&output.stdout, &output.stderr)
+                    ),
+                });
+            }
+
+            Ok(())
+        }
+        .await,
+    )
 }
 
 fn validate_codex_thread_id(thread_id: &str) -> Result<(), SerializableAcpError> {

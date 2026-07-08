@@ -46,7 +46,7 @@ pub fn restore_session_open_authority<R: tauri::Runtime>(
 mod tests {
     use std::sync::Arc;
 
-    use crate::acp::lifecycle::{DetachedReason, LifecycleStatus};
+    use crate::acp::lifecycle::LifecycleStatus;
     use crate::acp::projections::SessionTurnState;
     use crate::acp::session_open_snapshot::{SessionOpenFound, SessionOpenPath, SessionOpenResult};
     use crate::acp::session_state_engine::runtime_registry::SessionGraphRuntimeRegistry;
@@ -76,11 +76,8 @@ mod tests {
 
         let snapshot = runtime_registry.snapshot_for_session("session-1");
         assert_eq!(snapshot.graph_revision, 42);
-        assert_eq!(snapshot.lifecycle.status, LifecycleStatus::Detached);
-        assert_eq!(
-            snapshot.lifecycle.detached_reason,
-            Some(DetachedReason::RestoredRequiresAttach)
-        );
+        assert_eq!(snapshot.lifecycle.status, LifecycleStatus::Reconnecting);
+        assert_eq!(snapshot.lifecycle.detached_reason, None);
     }
 
     #[test]
@@ -133,7 +130,7 @@ mod tests {
             message_count: 1,
             activity: SessionGraphActivity::idle(),
             active_streaming_tail: None,
-            lifecycle: SessionGraphLifecycle::detached(DetachedReason::RestoredRequiresAttach),
+            lifecycle: SessionGraphLifecycle::reconnecting(),
             capabilities: SessionGraphCapabilities::empty(),
             open_path: SessionOpenPath::HotLedger,
             initial_transcript_row_page: None,
