@@ -232,6 +232,12 @@ export interface AgentSessionActivityMetadataItem {
 	value: string;
 }
 
+export interface AgentSessionActivityContextUsage {
+	preCompactionTokens: number | null;
+	postCompactionTokens: number | null;
+	contextWindowSize: number | null;
+}
+
 export interface AgentSessionActivityEntry {
 	id: string;
 	type: "session_activity";
@@ -239,6 +245,7 @@ export interface AgentSessionActivityEntry {
 	title: string;
 	status: "preparing" | "completed" | "usage_reset" | "failed";
 	subtitle?: string | null;
+	contextUsage?: AgentSessionActivityContextUsage | null;
 	metadata?: readonly AgentSessionActivityMetadataItem[];
 }
 

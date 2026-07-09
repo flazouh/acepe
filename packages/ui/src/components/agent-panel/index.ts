@@ -279,6 +279,7 @@ export type {
 	AgentPanelTerminalTab,
 	AgentQuestion,
 	AgentQuestionOption,
+	AgentSessionActivityContextUsage,
 	AgentSessionActivityEntry,
 	AgentSessionActivityMetadataItem,
 	AgentSessionStatus,

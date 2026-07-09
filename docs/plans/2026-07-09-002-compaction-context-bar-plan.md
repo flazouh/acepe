@@ -14,7 +14,7 @@ Make compaction activity easier to understand at a glance by showing how much co
 ## UI
 
 - Completed events with before and after values render one compact horizontal context track.
-- The track has three segments: remaining context, reclaimed context, and unused context.
+- The track layers a muted Before fill under a success-colored After fill, leaving unused context visible.
 - Labels show Before and After counts with percentages when the context window is known.
 - Preparing renders an honest indeterminate meter with `aria-busy`; it does not claim numeric progress.
 - The indeterminate treatment becomes static when reduced motion is requested.

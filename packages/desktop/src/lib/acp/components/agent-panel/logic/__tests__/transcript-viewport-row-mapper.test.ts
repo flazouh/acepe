@@ -238,11 +238,13 @@ describe("transcript-viewport-row-mapper", () => {
 			title: "Compaction done",
 			status: "completed",
 			subtitle: "138,000 tokens freed",
+			contextUsage: {
+				preCompactionTokens: 180000,
+				postCompactionTokens: 42000,
+				contextWindowSize: 200000,
+			},
 			metadata: [
 				{ label: "Trigger", value: "Auto" },
-				{ label: "Before", value: "180,000" },
-				{ label: "After", value: "42,000" },
-				{ label: "Window", value: "200,000" },
 				{ label: "Duration", value: "918 ms" },
 				{ label: "Precomputed", value: "Yes" },
 				{ label: "Preserved", value: "2" },

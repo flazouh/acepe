@@ -39,11 +39,13 @@ export const compactionActivitySpecimens: readonly CompactionActivitySpecimen[] 
 			title: "Compaction done",
 			status: "completed",
 			subtitle: "138,000 tokens freed",
+			contextUsage: {
+				preCompactionTokens: 182_000,
+				postCompactionTokens: 44_000,
+				contextWindowSize: 200_000,
+			},
 			metadata: [
 				{ label: "Trigger", value: "Auto" },
-				{ label: "Before", value: "182,000" },
-				{ label: "After", value: "44,000" },
-				{ label: "Window", value: "200,000" },
 				{ label: "Duration", value: "1.8s" },
 				{ label: "Precomputed", value: "Yes" },
 				{ label: "Preserved", value: "12 messages" },

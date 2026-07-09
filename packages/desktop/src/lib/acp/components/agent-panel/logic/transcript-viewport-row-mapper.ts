@@ -208,25 +208,57 @@ function subtitleForCompactionEvent(event: SessionCompactionEvent): string | nul
 	return null;
 }
 
+function validCompactionTokenCount(value: number | null | undefined): value is number {
+	return value !== null && value !== undefined && Number.isFinite(value) && value >= 0;
+}
+
+function hasComparableCompactionUsage(event: SessionCompactionEvent): boolean {
+	return (
+		validCompactionTokenCount(event.preCompactionTokens) &&
+		validCompactionTokenCount(event.postCompactionTokens)
+	);
+}
+
+function contextUsageForCompactionEvent(event: SessionCompactionEvent): {
+	readonly preCompactionTokens: number | null;
+	readonly postCompactionTokens: number | null;
+	readonly contextWindowSize: number | null;
+} | null {
+	const hasAnyUsageValue =
+		event.preCompactionTokens !== null ||
+		event.postCompactionTokens !== null ||
+		event.contextWindowSize !== null;
+	if (!hasAnyUsageValue) {
+		return null;
+	}
+	return {
+		preCompactionTokens: event.preCompactionTokens ?? null,
+		postCompactionTokens: event.postCompactionTokens ?? null,
+		contextWindowSize: event.contextWindowSize ?? null,
+	};
+}
+
 function compactionMetadata(
 	event: SessionCompactionEvent
 ): { readonly label: string; readonly value: string }[] {
 	const metadata: { readonly label: string; readonly value: string }[] = [];
 	metadata.push({ label: "Trigger", value: triggerLabel(event.trigger) });
 
-	const preTokens = formatTokenCount(event.preCompactionTokens);
-	if (preTokens !== null) {
-		metadata.push({ label: "Before", value: preTokens });
-	}
+	if (!hasComparableCompactionUsage(event)) {
+		const preTokens = formatTokenCount(event.preCompactionTokens);
+		if (preTokens !== null) {
+			metadata.push({ label: "Before", value: preTokens });
+		}
 
-	const postTokens = formatTokenCount(event.postCompactionTokens);
-	if (postTokens !== null) {
-		metadata.push({ label: "After", value: postTokens });
-	}
+		const postTokens = formatTokenCount(event.postCompactionTokens);
+		if (postTokens !== null) {
+			metadata.push({ label: "After", value: postTokens });
+		}
 
-	const windowSize = formatTokenCount(event.contextWindowSize);
-	if (windowSize !== null) {
-		metadata.push({ label: "Window", value: windowSize });
+		const windowSize = formatTokenCount(event.contextWindowSize);
+		if (windowSize !== null) {
+			metadata.push({ label: "Window", value: windowSize });
+		}
 	}
 
 	const duration = formatDurationMs(event.durationMs);
@@ -561,6 +593,7 @@ export function resolveTranscriptViewportSceneEntry(
 			title: titleForCompactionEvent(row.content.event),
 			status: row.content.event.status,
 			subtitle: subtitleForCompactionEvent(row.content.event),
+			contextUsage: contextUsageForCompactionEvent(row.content.event),
 			metadata: compactionMetadata(row.content.event),
 		};
 	}
