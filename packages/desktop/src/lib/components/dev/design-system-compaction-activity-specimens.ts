@@ -1,4 +1,4 @@
-import type { AgentSessionActivityEntry } from "@acepe/ui/agent-panel";
+import type { AgentSessionActivityEntry } from "@acepe/ui/agent-panel/types";
 
 export interface CompactionActivitySpecimen {
 	readonly id: string;
@@ -10,75 +10,87 @@ export interface CompactionActivitySpecimen {
 export const compactionActivitySectionMeta = {
 	title: "Compaction activity",
 	description:
-		"Session activity shown when an agent compacts its context. Specimens cover preparation, completion, context reset, and failure states.",
+		"Session-level compaction rendered as a seam in the transcript: a hairline rule with a centered cluster. Completed shows before/after context pressure with miniature fuel gauges; preparing shimmers without fake progress.",
 };
 
 export const compactionActivitySpecimens: readonly CompactionActivitySpecimen[] = [
 	{
 		id: "preparing",
 		label: "Preparing",
-		caption: "Compaction has started and token totals are not available yet.",
+		caption: "Indeterminate shimmer, aria-busy, no numbers",
 		entry: {
-			id: "compaction-preparing",
+			id: "specimen-compaction-preparing",
 			type: "session_activity",
 			activityKind: "compaction",
-			title: "Compacting conversation",
+			title: "Compacting context",
 			status: "preparing",
-			subtitle: "Preparing a compact context summary",
-			metadata: [{ label: "Trigger", value: "Auto" }],
 		},
 	},
 	{
 		id: "completed",
 		label: "Completed",
-		caption: "Full provider metadata is available after compaction finishes.",
+		caption: "Before/after gauges, compact counts, quiet detail line",
 		entry: {
-			id: "compaction-completed",
+			id: "specimen-compaction-completed",
 			type: "session_activity",
 			activityKind: "compaction",
-			title: "Compaction done",
+			title: "Context compacted",
 			status: "completed",
-			subtitle: "138,000 tokens freed",
+			subtitle: "123,610 tokens freed",
 			contextUsage: {
-				preCompactionTokens: 182_000,
-				postCompactionTokens: 44_000,
+				preCompactionTokens: 142_010,
+				postCompactionTokens: 18_400,
 				contextWindowSize: 200_000,
 			},
 			metadata: [
 				{ label: "Trigger", value: "Auto" },
-				{ label: "Duration", value: "1.8s" },
+				{ label: "Duration", value: "1.2 s" },
+				{ label: "Preserved", value: "12" },
+			],
+		},
+	},
+	{
+		id: "completed-minimal",
+		label: "Completed · no usage",
+		caption: "Falls back to title + metadata when counts are not comparable",
+		entry: {
+			id: "specimen-compaction-completed-minimal",
+			type: "session_activity",
+			activityKind: "compaction",
+			title: "Context compacted",
+			status: "completed",
+			metadata: [
+				{ label: "Trigger", value: "Manual" },
 				{ label: "Precomputed", value: "Yes" },
-				{ label: "Preserved", value: "12 messages" },
-				{ label: "Dropped total", value: "276,000" },
 			],
 		},
 	},
 	{
 		id: "usage-reset",
 		label: "Usage reset",
-		caption: "Fallback event when the provider only reports that its context meter reset.",
+		caption: "Meter reset without a summarization pass",
 		entry: {
-			id: "compaction-usage-reset",
+			id: "specimen-compaction-usage-reset",
 			type: "session_activity",
 			activityKind: "compaction",
-			title: "Context compacted",
+			title: "Context usage reset",
 			status: "usage_reset",
 			subtitle: "Context meter reset",
-			metadata: [{ label: "Trigger", value: "Unknown" }],
+			metadata: [{ label: "Trigger", value: "Auto" }],
 		},
 	},
 	{
 		id: "failed",
 		label: "Failed",
-		caption: "The session remains usable, but compaction did not complete.",
+		caption: "Destructive icon, transcript stays quiet",
 		entry: {
-			id: "compaction-failed",
+			id: "specimen-compaction-failed",
 			type: "session_activity",
 			activityKind: "compaction",
 			title: "Compaction failed",
 			status: "failed",
-			subtitle: "The provider could not compact this conversation",
-			metadata: [{ label: "Trigger", value: "Manual" }],
+			subtitle: "Provider rejected the summarization request",
+			metadata: [{ label: "Trigger", value: "Auto" }],
 		},
 	},
 ];

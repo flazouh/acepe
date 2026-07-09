@@ -88,7 +88,7 @@ let {
 				contenteditable="true"
 				autocapitalize="off"
 				spellcheck={false}
-				class="min-h-6 max-h-[400px] overflow-y-auto whitespace-pre-wrap break-words pl-1 pt-1 text-sm leading-snug text-foreground outline-none"
+				class="min-h-7 max-h-[400px] overflow-y-auto whitespace-pre-wrap break-words pl-1 pt-1 text-sm leading-snug text-foreground outline-none"
 				{onbeforeinput}
 				{oninput}
 				{onkeydown}

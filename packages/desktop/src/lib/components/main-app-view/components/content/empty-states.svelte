@@ -669,7 +669,7 @@ function handleEmptyStateSessionCreated(sessionId: string) {
 			{/snippet}
 			<AgentInput
 				panelId={EMPTY_STATE_PANEL_ID}
-				composerInputClass="flex-shrink-0 rounded-lg bg-input/30 shadow-md"
+				composerInputClass="flex-shrink-0 rounded-xl bg-input/30 shadow-sm"
 				projectPath={projectPath ?? undefined}
 				projectName={projectName ?? undefined}
 				selectedAgentId={effectiveAgentId}

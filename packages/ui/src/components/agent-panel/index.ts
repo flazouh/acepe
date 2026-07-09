@@ -20,6 +20,7 @@ export { default as AgentAttachedFilePane } from "./agent-attached-file-pane.sve
 export { default as AgentPanelErrorCard } from "./agent-error-card.svelte";
 export { default as AgentPanelRecoveryCard } from "./agent-panel-recovery-card.svelte";
 export { default as AgentPanelSignInCard } from "./agent-sign-in-card.svelte";
+export { default as AgentSessionActivityEntryView } from "./agent-session-activity-entry.svelte";
 export { default as AgentInputActiveModeChip } from "./agent-input-active-mode-chip.svelte";
 export { default as AgentInputAgentSelector } from "./agent-input-agent-selector.svelte";
 export type { AgentInputAgentSelectorItem } from "./agent-input-agent-selector-types.js";

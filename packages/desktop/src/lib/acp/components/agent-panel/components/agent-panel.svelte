@@ -2023,7 +2023,7 @@ async function handleFixCiCheck(check: PrChecksItem): Promise<void> {
 							data-testid="agent-input-deferred-placeholder"
 							aria-hidden="true"
 						>
-							<div class="min-h-[67px] rounded-lg border border-border bg-input/30"></div>
+							<div class="min-h-[71px] rounded-xl bg-input/30 shadow-sm"></div>
 						</div>
 					{/if}
 				</SharedAgentPanelComposerFrame>

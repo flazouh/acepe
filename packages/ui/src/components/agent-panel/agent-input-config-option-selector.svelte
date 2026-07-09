@@ -83,30 +83,28 @@
 {/snippet}
 
 {#snippet configOptionDropdownRows()}
-	<div class="max-h-[250px] overflow-y-auto scrollbar-thin">
-		{#each configOption.options ?? [] as option (String(option.value))}
-			{@const optValue = String(option.value)}
-			<SelectorItem
-				label={option.name}
-				selected={optValue === viewState.currentValue}
-				onSelect={() => handleSelect(optValue)}
-			>
-				{#snippet leading()}
-					{#if viewState.iconKind === "reasoning"}
-						<RoundedIcon
-							name="brain"
-							class="size-3.5 shrink-0"
-							style={`color: ${getReasoningEffortOptionIconColor({
-								configOption,
-								optionValue: optValue,
-							})}`}
-							data-testid="reasoning-effort-option-icon"
-						/>
-					{/if}
-				{/snippet}
-			</SelectorItem>
-		{/each}
-	</div>
+	{#each configOption.options ?? [] as option (String(option.value))}
+		{@const optValue = String(option.value)}
+		<SelectorItem
+			label={option.name}
+			selected={optValue === viewState.currentValue}
+			onSelect={() => handleSelect(optValue)}
+		>
+			{#snippet leading()}
+				{#if viewState.iconKind === "reasoning"}
+					<RoundedIcon
+						name="brain"
+						class="size-3.5 shrink-0"
+						style={`color: ${getReasoningEffortOptionIconColor({
+							configOption,
+							optionValue: optValue,
+						})}`}
+						data-testid="reasoning-effort-option-icon"
+					/>
+				{/if}
+			{/snippet}
+		</SelectorItem>
+	{/each}
 {/snippet}
 
 {#snippet configOptionTooltipContent()}

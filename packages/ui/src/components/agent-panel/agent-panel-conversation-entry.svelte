@@ -107,7 +107,13 @@ function handleUserTokenClick(
 		showWorkingSpark={entry.showWorkingSpark ?? showWorkingSpark}
 	/>
 {:else if entry.type === "session_activity"}
-	<AgentSessionActivityEntry {entry} />
+	<AgentSessionActivityEntry
+		title={entry.title}
+		status={entry.status}
+		subtitle={entry.subtitle}
+		contextUsage={entry.contextUsage}
+		metadata={entry.metadata}
+	/>
 {:else if entry.type === "missing"}
 	<AgentMissingSceneEntry
 		title={entry.title}

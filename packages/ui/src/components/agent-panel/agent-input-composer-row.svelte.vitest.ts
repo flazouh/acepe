@@ -81,6 +81,19 @@ describe("AgentInputComposerRow", () => {
 		).toBeTruthy();
 	});
 
+	it("gives the editor a slightly taller resting height", () => {
+		render(AgentInputComposerRow, {
+			props: {
+				placeholder: "Ask the agent",
+				submitAriaLabel: "Send message",
+			},
+		});
+
+		const editor = screen.getByRole("textbox");
+		expect(editor.className).toContain("min-h-7");
+		expect(editor.className).not.toContain("min-h-6");
+	});
+
 	it("uses the provided submit handler and disabled state", () => {
 		const onSubmit = vi.fn();
 		render(AgentInputComposerRow, {

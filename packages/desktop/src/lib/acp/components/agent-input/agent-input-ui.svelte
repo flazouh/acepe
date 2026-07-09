@@ -1689,7 +1689,7 @@ $effect(() => {
 		{/if}
 		<SharedAgentPanelComposer
 			class="border-t-0 p-0"
-			inputClass={props.composerInputClass ?? "flex-shrink-0 rounded-lg border border-border bg-input/30"}
+			inputClass={props.composerInputClass ?? "flex-shrink-0 rounded-xl bg-input/30 shadow-sm"}
 			contentClass={voiceOverlayActive ? "relative p-1" : "p-1"}
 		>
 			{#snippet content()}

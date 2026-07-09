@@ -75,7 +75,15 @@
 	<div bind:this={scrollContainer} class="flex-1 min-h-0 overflow-y-auto bg-accent/20">
 		{#each entries as entry (entry.id)}
 			<div class="py-1.5 px-3">
-				{#if entry.type === "user"}
+				{#if entry.type === "session_activity"}
+					<AgentSessionActivityEntry
+						title={entry.title}
+						status={entry.status}
+						subtitle={entry.subtitle}
+						contextUsage={entry.contextUsage}
+						metadata={entry.metadata}
+					/>
+				{:else if entry.type === "user"}
 					<AgentUserMessage text={entry.text} chunks={entry.chunks} timestampMs={entry.timestampMs} />
 				{:else if entry.type === "assistant"}
 					<AgentAssistantMessage
@@ -186,8 +194,6 @@
 							{entry.label ?? "Planning next moves"}
 						</ToolLabel>
 					</div>
-				{:else if entry.type === "session_activity"}
-					<AgentSessionActivityEntry {entry} />
 				{/if}
 			</div>
 		{/each}

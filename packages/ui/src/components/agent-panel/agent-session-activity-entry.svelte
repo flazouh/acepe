@@ -1,137 +1,110 @@
+<!--
+  AgentSessionActivityEntry - Session-level activity (compaction) rendered as a
+  quiet seam in the transcript: a hairline rule carrying a small centered
+  cluster. Everything above the seam was condensed, so the divider IS the
+  message. Before/after context pressure reuses the composer fuel-gauge idiom
+  at miniature scale; preparing shimmers indeterminately (never a percentage).
+-->
 <script lang="ts">
-	import AgentToolCard from "./agent-tool-card.svelte";
-	import { buildCompactionContextUsageViewModel } from "./compaction-context-usage.js";
-	import type { AgentSessionActivityEntry } from "./types.js";
+	import RoundedIcon from "../icons/rounded-icon.svelte";
+	import TextShimmer from "../text-shimmer/text-shimmer.svelte";
+	import {
+		formatCompactTokens,
+		gaugeFillHeightPx,
+		resolveComparableUsage,
+		resolveSessionActivityGauge,
+		sessionActivityAriaLabel,
+		sessionActivityDetailParts,
+	} from "./agent-session-activity-entry-state.js";
+	import type {
+		AgentSessionActivityContextUsage,
+		AgentSessionActivityEntry,
+		AgentSessionActivityMetadataItem,
+	} from "./types.js";
 
 	interface Props {
-		entry: AgentSessionActivityEntry;
+		title: string;
+		status: AgentSessionActivityEntry["status"];
+		subtitle?: string | null;
+		contextUsage?: AgentSessionActivityContextUsage | null;
+		metadata?: readonly AgentSessionActivityMetadataItem[];
 	}
 
-	let { entry }: Props = $props();
+	let { title, status, subtitle = null, contextUsage = null, metadata = undefined }: Props = $props();
 
-	const statusLabel = $derived(
-		entry.status === "preparing"
-			? "Preparing"
-			: entry.status === "usage_reset"
-				? "Reset"
-				: entry.status === "failed"
-					? "Failed"
-					: "Done"
+	// Gauge geometry: 14px track with a 1px inset on each edge -> 10px usable fill.
+	const GAUGE_TRACK_PX = 14;
+	const GAUGE_INNER_PX = GAUGE_TRACK_PX - 4;
+
+	const isPreparing = $derived(status === "preparing");
+	const comparableUsage = $derived(isPreparing ? null : resolveComparableUsage(contextUsage));
+	const gauge = $derived(isPreparing ? null : resolveSessionActivityGauge(contextUsage));
+	const detailParts = $derived(
+		isPreparing ? [] : sessionActivityDetailParts(subtitle, metadata)
 	);
-	const contextUsage = $derived(
-		entry.contextUsage === null || entry.contextUsage === undefined
-			? null
-			: buildCompactionContextUsageViewModel(entry.contextUsage)
-	);
-	const contextComparisonLabel = $derived(
-		contextUsage === null
-			? ""
-			: `Context ${contextUsage.afterTokens <= contextUsage.beforeTokens ? "reduced" : "changed"} from ${contextUsage.beforeTokens.toLocaleString("en-US")} to ${contextUsage.afterTokens.toLocaleString("en-US")} tokens`
+	const ariaLabel = $derived(
+		sessionActivityAriaLabel({ title, status, subtitle: isPreparing ? null : subtitle, contextUsage, metadata })
 	);
 </script>
 
-<AgentToolCard>
-	<div
-		class="px-2.5 py-2 text-sm text-muted-foreground"
-		role="status"
-		aria-label={entry.title}
-		data-session-activity-kind={entry.activityKind}
-		data-session-activity-status={entry.status}
+{#snippet gaugeTrack(percent: number, fillClass: string)}
+	<span
+		class="relative w-[5px] overflow-hidden rounded-[2px] border border-foreground/25 p-px"
+		style:height={`${GAUGE_TRACK_PX}px`}
 	>
-		<div class="flex items-center gap-2">
-			<div class="font-medium text-foreground/80">{entry.title}</div>
-			<div class="rounded border border-border/70 px-1.5 py-0.5 text-xs text-muted-foreground">
-				{statusLabel}
-			</div>
-		</div>
-		{#if entry.subtitle}
-			<div class="mt-0.5">{entry.subtitle}</div>
-		{/if}
-		{#if contextUsage !== null}
-			<div
-				class="mt-2.5"
-				role="img"
-				aria-label={contextComparisonLabel}
-				data-compaction-context-comparison
-			>
-				<div class="mb-1.5 grid grid-cols-2 gap-3 text-[11px] leading-none tabular-nums">
-					<div class="flex min-w-0 items-center">
-						<span class="mr-1 size-1.5 shrink-0 rounded-full bg-foreground/30"></span>
-						<span class="text-muted-foreground/65">Before</span>
-						<span class="ml-1 font-medium text-foreground/85">
-							{contextUsage.beforeTokens.toLocaleString("en-US")}
-						</span>
-						{#if contextUsage.hasKnownWindow}
-							<span class="ml-1 text-muted-foreground/55">{contextUsage.beforePercent}%</span>
-						{/if}
-					</div>
-					<div class="flex min-w-0 items-center justify-end text-right">
-						<span class="mr-1 size-1.5 shrink-0 rounded-full bg-success/70"></span>
-						<span class="text-muted-foreground/65">After</span>
-						<span class="ml-1 font-medium text-foreground/85">
-							{contextUsage.afterTokens.toLocaleString("en-US")}
-						</span>
-						{#if contextUsage.hasKnownWindow}
-							<span class="ml-1 text-muted-foreground/55">{contextUsage.afterPercent}%</span>
-						{/if}
-					</div>
-				</div>
-				<div class="relative h-2 overflow-hidden rounded-[3px] bg-foreground/[0.06] shadow-[inset_0_0_0_1px_rgb(255_255_255/0.04)]">
-					<div
-						class="absolute inset-y-0 left-0 bg-foreground/25"
-						style:width={`${contextUsage.beforePercent}%`}
-						data-compaction-context-segment="before"
-					></div>
-					<div
-						class="absolute inset-y-0 left-0 bg-success/70"
-						style:width={`${contextUsage.afterPercent}%`}
-						data-compaction-context-segment="after"
-					></div>
-				</div>
-			</div>
-		{:else if entry.status === "preparing"}
-			<div
-				class="mt-2.5"
-				role="progressbar"
-				aria-label="Compaction in progress"
-				aria-busy="true"
-				data-compaction-context-preparing
-			>
-				<div class="h-1.5 overflow-hidden rounded-[3px] bg-foreground/[0.06]">
-					<div class="compaction-indeterminate h-full w-1/3 rounded-[3px] bg-foreground/30"></div>
-				</div>
-			</div>
-		{/if}
-		{#if entry.metadata !== undefined && entry.metadata.length > 0}
-			<div class="mt-2 flex flex-wrap gap-1.5">
-				{#each entry.metadata as item (`${item.label}:${item.value}`)}
-					<div class="rounded border border-border/60 px-1.5 py-0.5 text-xs">
-						<span class="text-muted-foreground/70">{item.label}</span>
-						<span class="ml-1 text-foreground/75">{item.value}</span>
-					</div>
-				{/each}
-			</div>
-		{/if}
+		<span
+			class="absolute bottom-px left-px right-px rounded-[1px] {fillClass}"
+			style:height={`${gaugeFillHeightPx(percent, GAUGE_INNER_PX)}px`}
+		></span>
+	</span>
+{/snippet}
+
+<div
+	class="agent-session-activity-entry flex min-w-0 flex-col gap-1 py-1.5"
+	role="status"
+	aria-busy={isPreparing ? "true" : undefined}
+	aria-label={ariaLabel}
+	data-status={status}
+	data-testid="agent-session-activity-entry"
+>
+	<div class="flex min-w-0 items-center gap-3">
+		<span class="h-px min-w-3 flex-1 bg-border/60" aria-hidden="true"></span>
+		<span class="flex min-w-0 shrink items-center gap-2 text-xs text-muted-foreground">
+			{#if isPreparing}
+				<TextShimmer class="truncate text-xs">{title}</TextShimmer>
+			{:else}
+				{#if status === "failed"}
+					<RoundedIcon name="warning" class="size-3.5 shrink-0 text-destructive" />
+				{:else if status === "usage_reset"}
+					<RoundedIcon name="refresh" class="size-3.5 shrink-0 text-muted-foreground/70" />
+				{:else if gauge !== null}
+					<span
+						class="flex shrink-0 items-end gap-[3px]"
+						aria-hidden="true"
+						data-testid="compaction-gauge"
+					>
+						{@render gaugeTrack(gauge.beforePercent, gauge.beforeFillClass)}
+						{@render gaugeTrack(gauge.afterPercent, gauge.afterFillClass)}
+					</span>
+				{/if}
+				<span class="truncate font-medium text-foreground/75" {title}>{title}</span>
+				{#if comparableUsage !== null}
+					<span class="shrink-0 font-mono text-[11px] leading-none text-muted-foreground">
+						<span>{formatCompactTokens(comparableUsage.before)}</span>
+						<span class="text-muted-foreground/50">→</span>
+						<span class="text-foreground/70">{formatCompactTokens(comparableUsage.after)}</span>
+					</span>
+				{/if}
+			{/if}
+		</span>
+		<span class="h-px min-w-3 flex-1 bg-border/60" aria-hidden="true"></span>
 	</div>
-</AgentToolCard>
-
-<style>
-	.compaction-indeterminate {
-		animation: compaction-slide 1.4s cubic-bezier(0.4, 0, 0.2, 1) infinite;
-	}
-
-	@keyframes compaction-slide {
-		from {
-			transform: translateX(-100%);
-		}
-		to {
-			transform: translateX(300%);
-		}
-	}
-
-	@media (prefers-reduced-motion: reduce) {
-		.compaction-indeterminate {
-			animation: none;
-		}
-	}
-</style>
+	{#if detailParts.length > 0}
+		<div class="px-6 text-center text-[11px] leading-4 text-muted-foreground/70">
+			{#each detailParts as part, index}
+				{#if index > 0}<span class="text-muted-foreground/40">{" · "}</span>{/if}
+				<span class="whitespace-nowrap">{part}</span>
+			{/each}
+		</div>
+	{/if}
+</div>
