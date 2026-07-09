@@ -220,6 +220,21 @@ export interface AgentThinkingEntry {
 	label?: string | null;
 }
 
+export interface AgentSessionActivityMetadataItem {
+	label: string;
+	value: string;
+}
+
+export interface AgentSessionActivityEntry {
+	id: string;
+	type: "session_activity";
+	activityKind: "compaction";
+	title: string;
+	status: "preparing" | "completed" | "usage_reset" | "failed";
+	subtitle?: string | null;
+	metadata?: readonly AgentSessionActivityMetadataItem[];
+}
+
 export interface AgentMissingEntry {
 	id: string;
 	type: "missing";
@@ -233,6 +248,7 @@ export type AnyAgentEntry =
 	| AgentAssistantEntry
 	| AgentToolEntry
 	| AgentThinkingEntry
+	| AgentSessionActivityEntry
 	| AgentMissingEntry;
 
 /** Web search link for display */

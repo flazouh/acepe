@@ -8,9 +8,10 @@ use std::collections::{HashMap, VecDeque};
 use super::{get_parser, AgentType};
 use crate::acp::session_update::{
     build_tool_call_from_raw, build_tool_call_update_from_raw, ContentChunk, QuestionData,
-    RawToolCallInput, RawToolCallUpdateInput, SessionUpdate, ToolArguments, ToolCallData,
-    ToolCallStatus, ToolCallUpdateData, ToolKind, ToolReference, TurnErrorData, TurnErrorInfo,
-    TurnErrorKind, TurnErrorSource, UsageTelemetryData, UsageTelemetryTokens,
+    RawToolCallInput, RawToolCallUpdateInput, SessionCompactionEvent, SessionCompactionStatus,
+    SessionCompactionTrigger, SessionUpdate, ToolArguments, ToolCallData, ToolCallStatus,
+    ToolCallUpdateData, ToolKind, ToolReference, TurnErrorData, TurnErrorInfo, TurnErrorKind,
+    TurnErrorSource, UsageTelemetryData, UsageTelemetryTokens,
 };
 use crate::acp::types::ContentBlock;
 use crate::cc_sdk::{self as cc_sdk, Message};
@@ -717,10 +718,6 @@ fn translate_system_message(
     data: &serde_json::Value,
     session_id: Option<String>,
 ) -> Vec<SessionUpdate> {
-    if subtype != "usage_update" {
-        return vec![];
-    }
-
     let sid = match data
         .get("sessionId")
         .or_else(|| data.get("session_id"))
@@ -732,6 +729,17 @@ fn translate_system_message(
             None => return vec![],
         },
     };
+
+    if subtype == "compact_boundary" {
+        return vec![SessionUpdate::CompactionEvent {
+            event: build_completed_compaction_event(data, sid.clone()),
+            session_id: Some(sid),
+        }];
+    }
+
+    if subtype != "usage_update" {
+        return vec![];
+    }
 
     let context_window_size = data.get("size").and_then(|v| v.as_u64());
 
@@ -770,9 +778,10 @@ fn translate_system_message(
         .and_then(|v| v.as_str())
         .map(|v| v.to_string());
 
+    let telemetry_event_id = event_id.clone();
     let telemetry = UsageTelemetryData {
-        session_id: sid,
-        event_id,
+        session_id: sid.clone(),
+        event_id: telemetry_event_id,
         scope: data
             .get("scope")
             .and_then(|v| v.as_str())
@@ -800,7 +809,246 @@ fn translate_system_message(
         parent_tool_use_id: None,
     };
 
-    vec![SessionUpdate::UsageTelemetryUpdate { data: telemetry }]
+    let mut updates = vec![SessionUpdate::UsageTelemetryUpdate { data: telemetry }];
+    if compaction_reset {
+        updates.push(SessionUpdate::CompactionEvent {
+            event: build_usage_reset_compaction_event(
+                data,
+                sid.clone(),
+                event_id,
+                context_window_size,
+            ),
+            session_id: Some(sid),
+        });
+    }
+
+    updates
+}
+
+fn build_usage_reset_compaction_event(
+    data: &serde_json::Value,
+    sid: String,
+    event_id: Option<String>,
+    context_window_size: Option<u64>,
+) -> SessionCompactionEvent {
+    let timestamp_ms = timestamp_ms_from_value(data);
+    SessionCompactionEvent {
+        event_id: event_id
+            .unwrap_or_else(|| fallback_compaction_event_id(&sid, "usage-reset", data)),
+        session_id: sid,
+        status: SessionCompactionStatus::UsageReset,
+        trigger: SessionCompactionTrigger::Unknown,
+        pre_compaction_tokens: None,
+        post_compaction_tokens: Some(0),
+        dropped_tokens: None,
+        context_window_size,
+        duration_ms: None,
+        precomputed: None,
+        preserved_message_count: None,
+        cumulative_dropped_tokens: None,
+        timestamp_ms,
+        summary: Some("Compaction done".to_string()),
+        provider_metadata: serde_json::json!({
+            "subtype": "usage_update",
+            "data": data,
+        }),
+    }
+}
+
+fn build_completed_compaction_event(
+    data: &serde_json::Value,
+    sid: String,
+) -> SessionCompactionEvent {
+    let metadata = compaction_metadata_value(data);
+    let data_sources = [metadata, data];
+    let pre_compaction_tokens = u64_from_any_key_in_values(
+        &data_sources,
+        &[
+            "preCompactionTokens",
+            "pre_compaction_tokens",
+            "beforeTokens",
+            "before_tokens",
+            "preTokens",
+            "pre_tokens",
+        ],
+    );
+    let post_compaction_tokens = u64_from_any_key_in_values(
+        &data_sources,
+        &[
+            "postCompactionTokens",
+            "post_compaction_tokens",
+            "afterTokens",
+            "after_tokens",
+            "postTokens",
+            "post_tokens",
+        ],
+    );
+    let dropped_tokens = u64_from_any_key_in_values(
+        &data_sources,
+        &[
+            "droppedTokens",
+            "dropped_tokens",
+            "removedTokens",
+            "removed_tokens",
+        ],
+    )
+    .or_else(|| {
+        pre_compaction_tokens.and_then(|pre_tokens| {
+            post_compaction_tokens.and_then(|post_tokens| pre_tokens.checked_sub(post_tokens))
+        })
+    });
+    let timestamp_ms = timestamp_ms_from_values(&data_sources);
+
+    SessionCompactionEvent {
+        event_id: string_from_any_key_in_values(&data_sources, &["eventId", "event_id", "uuid"])
+            .unwrap_or_else(|| fallback_compaction_event_id(&sid, "compact-boundary", data)),
+        session_id: sid,
+        status: SessionCompactionStatus::Completed,
+        trigger: compaction_trigger_from_values(&data_sources),
+        pre_compaction_tokens,
+        post_compaction_tokens,
+        dropped_tokens,
+        context_window_size: u64_from_any_key_in_values(
+            &data_sources,
+            &[
+                "size",
+                "contextWindowSize",
+                "context_window_size",
+                "contextWindow",
+            ],
+        ),
+        duration_ms: u64_from_any_key_in_values(&data_sources, &["durationMs", "duration_ms"]),
+        precomputed: bool_from_any_key_in_values(&data_sources, &["precomputed"]),
+        preserved_message_count: preserved_message_count_from_metadata(metadata).or_else(|| {
+            u64_from_any_key_in_values(
+                &data_sources,
+                &[
+                    "preservedMessageCount",
+                    "preserved_message_count",
+                    "preservedMessagesCount",
+                    "preserved_messages_count",
+                ],
+            )
+        }),
+        cumulative_dropped_tokens: u64_from_any_key_in_values(
+            &data_sources,
+            &["cumulativeDroppedTokens", "cumulative_dropped_tokens"],
+        ),
+        timestamp_ms,
+        summary: Some("Compaction done".to_string()),
+        provider_metadata: serde_json::json!({
+            "subtype": "compact_boundary",
+            "data": data,
+        }),
+    }
+}
+
+fn compaction_metadata_value(data: &serde_json::Value) -> &serde_json::Value {
+    data.get("compactMetadata")
+        .or_else(|| data.get("compact_metadata"))
+        .filter(|value| value.is_object())
+        .unwrap_or(data)
+}
+
+fn string_from_any_key(data: &serde_json::Value, keys: &[&str]) -> Option<String> {
+    keys.iter()
+        .find_map(|key| data.get(*key).and_then(|value| value.as_str()))
+        .map(str::to_string)
+}
+
+fn string_from_any_key_in_values(values: &[&serde_json::Value], keys: &[&str]) -> Option<String> {
+    values
+        .iter()
+        .find_map(|value| string_from_any_key(value, keys))
+}
+
+fn u64_from_any_key(data: &serde_json::Value, keys: &[&str]) -> Option<u64> {
+    keys.iter()
+        .find_map(|key| data.get(*key).and_then(|value| value.as_u64()))
+}
+
+fn u64_from_any_key_in_values(values: &[&serde_json::Value], keys: &[&str]) -> Option<u64> {
+    values
+        .iter()
+        .find_map(|value| u64_from_any_key(value, keys))
+}
+
+fn bool_from_any_key(data: &serde_json::Value, keys: &[&str]) -> Option<bool> {
+    keys.iter()
+        .find_map(|key| data.get(*key).and_then(|value| value.as_bool()))
+}
+
+fn bool_from_any_key_in_values(values: &[&serde_json::Value], keys: &[&str]) -> Option<bool> {
+    values
+        .iter()
+        .find_map(|value| bool_from_any_key(value, keys))
+}
+
+fn preserved_message_count_from_metadata(metadata: &serde_json::Value) -> Option<u64> {
+    metadata
+        .get("preservedMessages")
+        .or_else(|| metadata.get("preserved_messages"))
+        .and_then(|value| value.get("uuids").or_else(|| value.get("allUuids")))
+        .and_then(|value| value.as_array())
+        .map(|values| values.len() as u64)
+}
+
+fn timestamp_ms_from_value(data: &serde_json::Value) -> Option<i64> {
+    data.get("timestampMs")
+        .or_else(|| data.get("timestamp_ms"))
+        .or_else(|| data.get("timestamp"))
+        .and_then(timestamp_ms_from_json_value)
+}
+
+fn timestamp_ms_from_values(values: &[&serde_json::Value]) -> Option<i64> {
+    values
+        .iter()
+        .find_map(|value| timestamp_ms_from_value(value))
+}
+
+fn timestamp_ms_from_json_value(value: &serde_json::Value) -> Option<i64> {
+    value
+        .as_i64()
+        .or_else(|| value.as_str().and_then(timestamp_ms_from_rfc3339))
+}
+
+fn timestamp_ms_from_rfc3339(value: &str) -> Option<i64> {
+    chrono::DateTime::parse_from_rfc3339(value)
+        .ok()
+        .map(|timestamp| timestamp.timestamp_millis())
+}
+
+fn compaction_trigger_from_values(values: &[&serde_json::Value]) -> SessionCompactionTrigger {
+    match string_from_any_key_in_values(values, &["trigger"]).as_deref() {
+        Some("auto") | Some("automatic") => SessionCompactionTrigger::Auto,
+        Some("manual") | Some("user") => SessionCompactionTrigger::Manual,
+        _ => SessionCompactionTrigger::Unknown,
+    }
+}
+
+fn fallback_compaction_event_id(sid: &str, subtype: &str, data: &serde_json::Value) -> String {
+    let timestamp = timestamp_ms_from_value(data)
+        .map(|value| value.to_string())
+        .unwrap_or_else(|| "no-timestamp".to_string());
+    let metadata = compaction_metadata_value(data);
+    let data_sources = [metadata, data];
+    let pre_tokens = u64_from_any_key_in_values(
+        &data_sources,
+        &["preCompactionTokens", "pre_compaction_tokens", "preTokens"],
+    )
+    .map(|value| value.to_string())
+    .unwrap_or_else(|| "no-pre".to_string());
+    let post_tokens = u64_from_any_key_in_values(
+        &data_sources,
+        &[
+            "postCompactionTokens",
+            "post_compaction_tokens",
+            "postTokens",
+        ],
+    )
+    .map(|value| value.to_string())
+    .unwrap_or_else(|| "no-post".to_string());
+    format!("compaction:{sid}:{subtype}:{timestamp}:{pre_tokens}:{post_tokens}")
 }
 
 // ---------------------------------------------------------------------------
@@ -944,8 +1192,8 @@ mod tests {
     use crate::acp::agent_context::with_agent;
     use crate::acp::parsers::AgentType;
     use crate::acp::session_update::{
-        build_tool_call_update_from_raw, RawToolCallUpdateInput, SessionUpdate, ToolArguments,
-        ToolCallStatus, ToolKind,
+        build_tool_call_update_from_raw, RawToolCallUpdateInput, SessionCompactionStatus,
+        SessionCompactionTrigger, SessionUpdate, ToolArguments, ToolCallStatus, ToolKind,
     };
     use crate::acp::types::ContentBlock;
     use crate::cc_sdk::{
@@ -1215,12 +1463,67 @@ mod tests {
             CcSdkTurnStreamState::default(),
         );
 
-        assert_eq!(updates.len(), 1);
+        assert_eq!(updates.len(), 2);
         if let SessionUpdate::UsageTelemetryUpdate { data } = &updates[0] {
             assert_eq!(data.tokens.total, Some(0));
             assert_eq!(data.context_window_size, Some(200000));
         } else {
             panic!("Expected UsageTelemetryUpdate");
+        }
+        if let SessionUpdate::CompactionEvent { event, .. } = &updates[1] {
+            assert_eq!(event.session_id, "ses-abc");
+            assert_eq!(event.status, SessionCompactionStatus::UsageReset);
+            assert_eq!(event.trigger, SessionCompactionTrigger::Unknown);
+            assert_eq!(event.post_compaction_tokens, Some(0));
+            assert_eq!(event.context_window_size, Some(200000));
+        } else {
+            panic!("Expected CompactionEvent");
+        }
+    }
+
+    #[test]
+    fn emits_compaction_event_for_compact_boundary_system_message() {
+        let updates = translate_cc_sdk_message_with_turn_state(
+            AgentType::ClaudeCode,
+            Message::System {
+                subtype: "compact_boundary".to_string(),
+                data: serde_json::json!({
+                    "sessionId": "ses-abc",
+                    "uuid": "compact-1",
+                    "timestamp": "2026-02-03T04:05:06.007Z",
+                    "compactMetadata": {
+                        "trigger": "auto",
+                        "preTokens": 180000,
+                        "postTokens": 42000,
+                        "durationMs": 918,
+                        "precomputed": true,
+                        "cumulativeDroppedTokens": 300000,
+                        "preservedMessages": {
+                            "uuids": ["message-1", "message-2"]
+                        }
+                    },
+                }),
+            },
+            None,
+            CcSdkTurnStreamState::default(),
+        );
+
+        assert_eq!(updates.len(), 1);
+        if let SessionUpdate::CompactionEvent { event, .. } = &updates[0] {
+            assert_eq!(event.event_id, "compact-1");
+            assert_eq!(event.session_id, "ses-abc");
+            assert_eq!(event.status, SessionCompactionStatus::Completed);
+            assert_eq!(event.trigger, SessionCompactionTrigger::Auto);
+            assert_eq!(event.pre_compaction_tokens, Some(180000));
+            assert_eq!(event.post_compaction_tokens, Some(42000));
+            assert_eq!(event.dropped_tokens, Some(138000));
+            assert_eq!(event.duration_ms, Some(918));
+            assert_eq!(event.precomputed, Some(true));
+            assert_eq!(event.preserved_message_count, Some(2));
+            assert_eq!(event.cumulative_dropped_tokens, Some(300000));
+            assert_eq!(event.timestamp_ms, Some(1770091506007_i64));
+        } else {
+            panic!("Expected CompactionEvent");
         }
     }
 

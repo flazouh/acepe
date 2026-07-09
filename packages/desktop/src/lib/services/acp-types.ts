@@ -234,6 +234,12 @@ parentToolUseId?: string | null }
  */
 export type UsageTelemetryTokens = { total?: number | null; input?: number | null; output?: number | null; cacheRead?: number | null; cacheWrite?: number | null; reasoning?: number | null }
 
+export type SessionCompactionStatus = "preparing" | "completed" | "usage_reset" | "failed"
+
+export type SessionCompactionTrigger = "auto" | "manual" | "unknown"
+
+export type SessionCompactionEvent = { eventId: string; sessionId: string; status: SessionCompactionStatus; trigger: SessionCompactionTrigger; preCompactionTokens?: number | null; postCompactionTokens?: number | null; droppedTokens?: number | null; contextWindowSize?: number | null; durationMs?: number | null; precomputed?: boolean | null; preservedMessageCount?: number | null; cumulativeDroppedTokens?: number | null; timestampMs?: number | null; summary?: string | null; providerMetadata: JsonValue }
+
 /**
  * Plan step status.
  */
@@ -320,9 +326,9 @@ export type TodoUpdateOperation = "replace" | "upsert" | "set_status" | "set_sta
  */
 export type TodoUpdate = { operation: TodoUpdateOperation; items?: TodoItem[] | null; fromStatuses?: TodoStatus[] | null; toStatus?: TodoStatus | null }
 
-export type TranscriptEntryRole = "user" | "assistant" | "tool"
+export type TranscriptEntryRole = "user" | "assistant" | "tool" | "sessionActivity"
 
-export type TranscriptSegment = { kind: "text"; segmentId: string; text: string } | { kind: "thought"; segmentId: string; text: string } | { kind: "localCommand"; segmentId: string; command: string; message: string; args: string; stdout: string; modelDisplayName?: string | null; modelDescription?: string | null }
+export type TranscriptSegment = { kind: "text"; segmentId: string; text: string } | { kind: "thought"; segmentId: string; text: string } | { kind: "localCommand"; segmentId: string; command: string; message: string; args: string; stdout: string; modelDisplayName?: string | null; modelDescription?: string | null } | { kind: "compaction"; segmentId: string; event: SessionCompactionEvent }
 
 export type TranscriptEntry = { entryId: string; role: TranscriptEntryRole; segments: TranscriptSegment[]; attemptId?: string | null; timestampMs?: number | null }
 
@@ -556,13 +562,13 @@ export type ActiveStreamingTailContentKind = "thought" | "message"
 
 export type ActiveStreamingTail = { rowId: string; contentKind: ActiveStreamingTailContentKind }
 
-export type TranscriptViewportRowKind = "user" | "assistantText" | "assistantThought" | "tool" | "awaitingPlaceholder"
+export type TranscriptViewportRowKind = "user" | "assistantText" | "assistantThought" | "tool" | "sessionActivity" | "awaitingPlaceholder"
 
 export type TranscriptViewportOperationLink = { operationId: string; toolCallId: string; name: string; state: OperationState }
 
 export type TranscriptViewportInteractionLink = { interactionId: string; kind: InteractionKind; state: InteractionState; operationId: string | null }
 
-export type TranscriptViewportRowContent = { kind: "transcript"; role: TranscriptEntryRole; segments: TranscriptSegment[] }
+export type TranscriptViewportRowContent = { kind: "transcript"; role: TranscriptEntryRole; segments: TranscriptSegment[] } | { kind: "compaction"; event: SessionCompactionEvent }
 
 export type TranscriptViewportRow = { rowId: string; sourceEntryId: string; kind: TranscriptViewportRowKind; version: string; anchorEligible: boolean; activeStreamingTail: ActiveStreamingTailContentKind | null; operationLinks: TranscriptViewportOperationLink[]; interactionLinks: TranscriptViewportInteractionLink[]; content: TranscriptViewportRowContent; durationStartedAtMs?: number | null }
 

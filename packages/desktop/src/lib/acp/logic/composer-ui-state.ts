@@ -5,7 +5,7 @@
 
 import type { SnapshotFrom } from "xstate";
 import type { composerMachine } from "./composer-machine.js";
-import type { DefaultSubmitAction } from "./submit-intent.js";
+import type { BusyEnterBehavior, DefaultSubmitAction } from "./submit-intent.js";
 import {
 	isPrimaryButtonDisabled,
 	resolveDefaultSubmitAction,
@@ -141,7 +141,9 @@ export function resolveComposerEnterKeyIntent(
 		| "hasBlockingComposerConfig"
 		| "isComposerDispatching"
 		| "isSubmitDisabled"
-	>,
+	> & {
+		readonly busyEnterBehavior?: BusyEnterBehavior;
+	},
 	key: Pick<KeyboardEvent, "shiftKey" | "metaKey" | "ctrlKey">
 ): SubmitIntent {
 	return resolveEnterKeyIntent({
@@ -153,5 +155,6 @@ export function resolveComposerEnterKeyIntent(
 		hasBlockingComposerConfig: policy.hasBlockingComposerConfig,
 		isComposerDispatching: policy.isComposerDispatching,
 		isSubmitDisabled: policy.isSubmitDisabled,
+		busyEnterBehavior: policy.busyEnterBehavior,
 	});
 }

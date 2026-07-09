@@ -1,5 +1,6 @@
 export type SubmitIntent = "none" | "send" | "steer" | "cancel";
 export type DefaultSubmitAction = "none" | "send" | "queue" | "steer";
+export type BusyEnterBehavior = "queue" | "steer";
 
 interface EnterKeyIntentInput {
 	hasDraftInput: boolean;
@@ -13,6 +14,8 @@ interface EnterKeyIntentInput {
 	isComposerDispatching?: boolean;
 	/** Canonical runtime/host submit disabled (session cannot submit). */
 	isSubmitDisabled?: boolean;
+	/** Plain Enter behavior while an agent turn is already running. */
+	busyEnterBehavior?: BusyEnterBehavior;
 }
 
 interface PrimaryButtonIntentInput {
@@ -56,6 +59,10 @@ export function resolveEnterKeyIntent(input: EnterKeyIntentInput): SubmitIntent 
 
 	if (input.shiftKey) {
 		return input.isAgentBusy ? "steer" : "none";
+	}
+
+	if (input.isAgentBusy && input.busyEnterBehavior === "steer") {
+		return "steer";
 	}
 
 	if (input.isSubmitDisabled && !input.isAgentBusy) {

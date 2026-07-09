@@ -4,7 +4,11 @@ import { toast } from "svelte-sonner";
 import { getKeybindingsService, isMac } from "$lib/keybindings/index.js";
 import { getPreconnectionAgentSkillsStore } from "$lib/skills/store/preconnection-agent-skills-store.svelte.js";
 import { getVoiceSettingsStore } from "$lib/stores/voice-settings-store.svelte.js";
-import type { AttachMenuCommandItem, SlashPaletteItem } from "@acepe/ui/agent-panel";
+import type {
+	AgentInputEnterBehavior,
+	AttachMenuCommandItem,
+	SlashPaletteItem,
+} from "@acepe/ui/agent-panel";
 import {
 	AgentInputActiveModeChip,
 	AgentInputAttachMenu,
@@ -96,6 +100,7 @@ const preconnectionRemoteCommandsState = new PreconnectionRemoteCommandsState();
 const effectiveVoiceSessionId = $derived(props.voiceSessionId ?? props.sessionId ?? null);
 
 let isShiftPressed = $state(false);
+let enterBehavior = $state<AgentInputEnterBehavior>("queue");
 let inputState!: AgentInputState;
 
 const composerView = new ComposerViewController({
@@ -884,6 +889,7 @@ function handleEditorKeyDown(event: KeyboardEvent): void {
 			hasBlockingComposerConfig: composerView.storeComposerState?.isBlocked ?? false,
 			isComposerDispatching: composerView.storeComposerState?.isDispatching ?? false,
 			isSubmitDisabled: composerView.isSubmitDisabled,
+			busyEnterBehavior: enterBehavior,
 		},
 		event
 	);
@@ -1548,6 +1554,15 @@ $effect(() => {
 					primarySrQueue={"Queue"}
 					primarySrSend={"Send message"}
 					primarySrInterrupt={"Interrupt"}
+					{enterBehavior}
+					enterBehaviorMenuLabel={"Enter behavior"}
+					enterQueueLabel={"Queue"}
+					enterQueueDescription={"Runs after the agent finishes its current turn."}
+					enterSteerLabel={"Steer"}
+					enterSteerDescription={"Interrupts now and redirects the agent immediately."}
+					onEnterBehaviorChange={(behavior) => {
+						enterBehavior = behavior;
+					}}
 				>
 					{#snippet leadingControls()}
 						<AgentInputAttachMenu

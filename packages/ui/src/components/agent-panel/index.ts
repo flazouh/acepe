@@ -47,6 +47,7 @@ export type {
 	AgentInputBranchSelectorVariant,
 } from "./agent-input-branch-selector-types.js";
 export { default as AgentInputComposerRow } from "./agent-input-composer-row.svelte";
+export type { AgentInputEnterBehavior } from "./agent-input-enter-behavior.js";
 export { default as AgentInputComposerToolbar } from "./agent-input-composer-toolbar.svelte";
 export { default as AgentInputModelReasoningFusedControls } from "./agent-input-model-reasoning-fused-controls.svelte";
 export { default as AgentInputComposerTrailingControls } from "./agent-input-composer-trailing-controls.svelte";
@@ -265,6 +266,8 @@ export type {
 	AgentPanelTerminalTab,
 	AgentQuestion,
 	AgentQuestionOption,
+	AgentSessionActivityEntry,
+	AgentSessionActivityMetadataItem,
 	AgentSessionStatus,
 	AgentMissingEntry,
 	AgentThinkingEntry,

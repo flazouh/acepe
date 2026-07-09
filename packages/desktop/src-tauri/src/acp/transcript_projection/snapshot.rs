@@ -1,5 +1,5 @@
 use crate::acp::parsers::acp_fields::normalize_tool_call_id;
-use crate::acp::session_update::{ToolCallData, ToolKind};
+use crate::acp::session_update::{SessionCompactionEvent, ToolCallData, ToolKind};
 use crate::acp::transcript_projection::canonical_event::{
     CanonicalTranscriptEvent, CanonicalTranscriptEventKind,
 };
@@ -274,6 +274,7 @@ pub enum TranscriptEntryRole {
     User,
     Assistant,
     Tool,
+    SessionActivity,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, specta::Type, PartialEq, Eq)]
@@ -294,6 +295,11 @@ pub enum TranscriptSegment {
         model_display_name: Option<String>,
         #[serde(skip_serializing_if = "Option::is_none")]
         model_description: Option<String>,
+    },
+    #[serde(rename_all = "camelCase")]
+    Compaction {
+        segment_id: String,
+        event: SessionCompactionEvent,
     },
 }
 
@@ -320,6 +326,9 @@ impl TranscriptSegment {
     pub fn primary_text(&self) -> &str {
         match self {
             TranscriptSegment::Text { text, .. } | TranscriptSegment::Thought { text, .. } => text,
+            TranscriptSegment::Compaction { event, .. } => {
+                event.summary.as_deref().unwrap_or("Compaction done")
+            }
             TranscriptSegment::LocalCommand {
                 stdout,
                 command,
@@ -342,6 +351,7 @@ impl TranscriptSegment {
             TranscriptSegment::Text { text, .. } | TranscriptSegment::Thought { text, .. } => {
                 !text.is_empty()
             }
+            TranscriptSegment::Compaction { .. } => true,
             TranscriptSegment::LocalCommand {
                 command,
                 message,

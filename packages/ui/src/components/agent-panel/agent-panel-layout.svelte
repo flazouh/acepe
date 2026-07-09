@@ -17,6 +17,7 @@
 	import AgentToolSkill from "./agent-tool-skill.svelte";
 	import AgentToolTodo from "./agent-tool-todo.svelte";
 	import AgentToolWebSearch from "./agent-tool-web-search.svelte";
+	import AgentSessionActivityEntry from "./agent-session-activity-entry.svelte";
 	import ToolLabel from "./tool-label.svelte";
 
 	interface Props {
@@ -185,6 +186,8 @@
 							{entry.label ?? "Planning next moves"}
 						</ToolLabel>
 					</div>
+				{:else if entry.type === "session_activity"}
+					<AgentSessionActivityEntry {entry} />
 				{/if}
 			</div>
 		{/each}

@@ -161,7 +161,9 @@ pub(super) async fn should_suppress_update_while_awaiting_stream_only_question(
     }
 
     match update {
-        SessionUpdate::QuestionRequest { .. } | SessionUpdate::UsageTelemetryUpdate { .. } => false,
+        SessionUpdate::QuestionRequest { .. }
+        | SessionUpdate::UsageTelemetryUpdate { .. }
+        | SessionUpdate::CompactionEvent { .. } => false,
         SessionUpdate::ToolCall { tool_call, .. } => !pending_question_ids.contains(&tool_call.id),
         SessionUpdate::ToolCallUpdate { update, .. } => {
             !pending_question_ids.contains(&update.tool_call_id)

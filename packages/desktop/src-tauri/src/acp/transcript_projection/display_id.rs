@@ -11,6 +11,7 @@ pub enum DisplayElementRole {
     User,
     Assistant,
     Tool,
+    SessionActivity,
 }
 
 impl DisplayElementRole {
@@ -19,6 +20,7 @@ impl DisplayElementRole {
             Self::User => "user",
             Self::Assistant => "assistant",
             Self::Tool => "tool",
+            Self::SessionActivity => "session-activity",
         }
     }
 }
@@ -43,7 +45,9 @@ pub fn derive_entry_id(input: &DisplayIdInput) -> String {
             .filter(|id| !id.trim().is_empty())
             .map(normalize_tool_call_id)
             .unwrap_or_else(|| ".".to_string()),
-        DisplayElementRole::User | DisplayElementRole::Assistant => ".".to_string(),
+        DisplayElementRole::User
+        | DisplayElementRole::Assistant
+        | DisplayElementRole::SessionActivity => ".".to_string(),
     };
     format!(
         "acepe::entry::{}::{}::{}",
@@ -59,6 +63,17 @@ pub fn derive_tool_entry_id(turn_key: &str, tool_call_id: &str) -> String {
         role: DisplayElementRole::Tool,
         tool_call_id: Some(tool_call_id.to_string()),
     })
+}
+
+#[must_use]
+pub fn derive_session_activity_entry_id(turn_key: &str, activity_id: &str) -> String {
+    let normalized_activity_id = normalize_tool_call_id(activity_id);
+    format!(
+        "acepe::entry::{}::{}::{}",
+        turn_key,
+        DisplayElementRole::SessionActivity.slug(),
+        normalized_activity_id
+    )
 }
 
 /// Historical-shaped entry point — identical output to [`derive_entry_id_from_live_facts`].
@@ -120,6 +135,7 @@ pub fn derive_entry_id_for_snapshot_role(
         TranscriptEntryRole::User => DisplayElementRole::User,
         TranscriptEntryRole::Assistant => DisplayElementRole::Assistant,
         TranscriptEntryRole::Tool => DisplayElementRole::Tool,
+        TranscriptEntryRole::SessionActivity => DisplayElementRole::SessionActivity,
     };
     derive_entry_id(&DisplayIdInput {
         turn_key: turn_key.to_string(),

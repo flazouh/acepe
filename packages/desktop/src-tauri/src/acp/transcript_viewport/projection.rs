@@ -83,10 +83,7 @@ fn project_entry(
     let kind = row_kind(entry);
     let active_streaming_tail =
         active_streaming_tail.and_then(|tail| active_tail_kind_for_entry(tail, entry_id));
-    let content = TranscriptViewportRowContent::Transcript {
-        role: entry.role.clone(),
-        segments: entry.segments.clone(),
-    };
+    let content = row_content(entry);
     let version = row_version(
         entry_id,
         &kind,
@@ -131,6 +128,7 @@ fn row_kind(entry: &TranscriptEntry) -> TranscriptViewportRowKind {
     match entry.role {
         TranscriptEntryRole::User => TranscriptViewportRowKind::User,
         TranscriptEntryRole::Tool => TranscriptViewportRowKind::Tool,
+        TranscriptEntryRole::SessionActivity => TranscriptViewportRowKind::SessionActivity,
         TranscriptEntryRole::Assistant => {
             if entry
                 .segments
@@ -142,6 +140,22 @@ fn row_kind(entry: &TranscriptEntry) -> TranscriptViewportRowKind {
 
             TranscriptViewportRowKind::AssistantText
         }
+    }
+}
+
+fn row_content(entry: &TranscriptEntry) -> TranscriptViewportRowContent {
+    if entry.role == TranscriptEntryRole::SessionActivity {
+        if let Some(event) = entry.segments.iter().find_map(|segment| match segment {
+            TranscriptSegment::Compaction { event, .. } => Some(event.clone()),
+            _ => None,
+        }) {
+            return TranscriptViewportRowContent::Compaction { event };
+        }
+    }
+
+    TranscriptViewportRowContent::Transcript {
+        role: entry.role.clone(),
+        segments: entry.segments.clone(),
     }
 }
 
@@ -245,46 +259,95 @@ fn row_version(
         }
     }
 
-    let TranscriptViewportRowContent::Transcript { role, segments } = content;
-    hasher.update(format!("{role:?}").as_bytes());
-    for segment in segments {
-        match segment {
-            TranscriptSegment::Text { segment_id, text } => {
-                hasher.update(b"text");
-                hasher.update(segment_id.as_bytes());
-                hasher.update(text.as_bytes());
+    match content {
+        TranscriptViewportRowContent::Transcript { role, segments } => {
+            hasher.update(format!("{role:?}").as_bytes());
+            for segment in segments {
+                hash_segment(&mut hasher, segment);
             }
-            TranscriptSegment::Thought { segment_id, text } => {
-                hasher.update(b"thought");
-                hasher.update(segment_id.as_bytes());
-                hasher.update(text.as_bytes());
+        }
+        TranscriptViewportRowContent::Compaction { event } => {
+            hasher.update(b"compaction");
+            hasher.update(event.event_id.as_bytes());
+            hasher.update(event.session_id.as_bytes());
+            hasher.update(format!("{:?}", event.status).as_bytes());
+            hasher.update(format!("{:?}", event.trigger).as_bytes());
+            if let Some(tokens) = event.pre_compaction_tokens {
+                hasher.update(tokens.to_string().as_bytes());
             }
-            TranscriptSegment::LocalCommand {
-                segment_id,
-                command,
-                message,
-                args,
-                stdout,
-                model_display_name,
-                model_description,
-            } => {
-                hasher.update(b"localCommand");
-                hasher.update(segment_id.as_bytes());
-                hasher.update(command.as_bytes());
-                hasher.update(message.as_bytes());
-                hasher.update(args.as_bytes());
-                hasher.update(stdout.as_bytes());
-                if let Some(name) = model_display_name {
-                    hasher.update(name.as_bytes());
-                }
-                if let Some(description) = model_description {
-                    hasher.update(description.as_bytes());
-                }
+            if let Some(tokens) = event.post_compaction_tokens {
+                hasher.update(tokens.to_string().as_bytes());
+            }
+            if let Some(tokens) = event.dropped_tokens {
+                hasher.update(tokens.to_string().as_bytes());
+            }
+            if let Some(size) = event.context_window_size {
+                hasher.update(size.to_string().as_bytes());
+            }
+            if let Some(duration_ms) = event.duration_ms {
+                hasher.update(duration_ms.to_string().as_bytes());
+            }
+            if let Some(precomputed) = event.precomputed {
+                hasher.update(precomputed.to_string().as_bytes());
+            }
+            if let Some(count) = event.preserved_message_count {
+                hasher.update(count.to_string().as_bytes());
+            }
+            if let Some(tokens) = event.cumulative_dropped_tokens {
+                hasher.update(tokens.to_string().as_bytes());
+            }
+            if let Some(timestamp_ms) = event.timestamp_ms {
+                hasher.update(timestamp_ms.to_string().as_bytes());
+            }
+            if let Some(summary) = &event.summary {
+                hasher.update(summary.as_bytes());
             }
         }
     }
 
     hex::encode(&hasher.finalize()[..16])
+}
+
+fn hash_segment(hasher: &mut Sha256, segment: &TranscriptSegment) {
+    match segment {
+        TranscriptSegment::Text { segment_id, text } => {
+            hasher.update(b"text");
+            hasher.update(segment_id.as_bytes());
+            hasher.update(text.as_bytes());
+        }
+        TranscriptSegment::Thought { segment_id, text } => {
+            hasher.update(b"thought");
+            hasher.update(segment_id.as_bytes());
+            hasher.update(text.as_bytes());
+        }
+        TranscriptSegment::LocalCommand {
+            segment_id,
+            command,
+            message,
+            args,
+            stdout,
+            model_display_name,
+            model_description,
+        } => {
+            hasher.update(b"localCommand");
+            hasher.update(segment_id.as_bytes());
+            hasher.update(command.as_bytes());
+            hasher.update(message.as_bytes());
+            hasher.update(args.as_bytes());
+            hasher.update(stdout.as_bytes());
+            if let Some(name) = model_display_name {
+                hasher.update(name.as_bytes());
+            }
+            if let Some(description) = model_description {
+                hasher.update(description.as_bytes());
+            }
+        }
+        TranscriptSegment::Compaction { segment_id, event } => {
+            hasher.update(b"compactionSegment");
+            hasher.update(segment_id.as_bytes());
+            hasher.update(event.event_id.as_bytes());
+        }
+    }
 }
 
 #[cfg(test)]
@@ -297,7 +360,10 @@ mod tests {
     use crate::acp::session_state_engine::graph::{
         ActiveStreamingTail, ActiveStreamingTailContentKind,
     };
-    use crate::acp::session_update::{PermissionData, ToolArguments, ToolCallStatus};
+    use crate::acp::session_update::{
+        PermissionData, SessionCompactionEvent, SessionCompactionStatus, SessionCompactionTrigger,
+        ToolArguments, ToolCallStatus,
+    };
     use crate::acp::transcript_projection::{
         TranscriptEntry, TranscriptEntryRole, TranscriptSegment, TranscriptSnapshot,
     };
@@ -456,6 +522,51 @@ mod tests {
     }
 
     #[test]
+    fn projects_compaction_entries_into_session_activity_rows() {
+        let event = SessionCompactionEvent {
+            event_id: "compact-1".to_string(),
+            session_id: "session-1".to_string(),
+            status: SessionCompactionStatus::Completed,
+            trigger: SessionCompactionTrigger::Auto,
+            pre_compaction_tokens: Some(180000),
+            post_compaction_tokens: Some(42000),
+            dropped_tokens: Some(138000),
+            context_window_size: Some(200000),
+            duration_ms: Some(918),
+            precomputed: Some(true),
+            preserved_message_count: Some(2),
+            cumulative_dropped_tokens: Some(138000),
+            timestamp_ms: Some(1770000000000_i64),
+            summary: Some("Compaction done".to_string()),
+            provider_metadata: serde_json::json!({ "subtype": "compact_boundary" }),
+        };
+        let rows = project_transcript_viewport_rows(
+            &snapshot(vec![TranscriptEntry {
+                entry_id: "compact-entry-1".to_string(),
+                role: TranscriptEntryRole::SessionActivity,
+                segments: vec![TranscriptSegment::Compaction {
+                    segment_id: "compact-entry-1:compaction".to_string(),
+                    event: event.clone(),
+                }],
+                attempt_id: None,
+                timestamp_ms: Some(1770000000000_i64),
+            }]),
+            &[],
+            &[],
+            None,
+            false,
+            None,
+        );
+
+        assert_eq!(rows.len(), 1);
+        assert_eq!(rows[0].kind, TranscriptViewportRowKind::SessionActivity);
+        let TranscriptViewportRowContent::Compaction { event: row_event } = &rows[0].content else {
+            panic!("expected compaction row content");
+        };
+        assert_eq!(row_event, &event);
+    }
+
+    #[test]
     fn provider_reused_assistant_ids_do_not_merge_or_reorder_rows() {
         let rows = project_transcript_viewport_rows(
             &snapshot(vec![
@@ -546,7 +657,9 @@ mod tests {
             None,
         );
 
-        let TranscriptViewportRowContent::Transcript { role, segments } = &rows[0].content;
+        let TranscriptViewportRowContent::Transcript { role, segments } = &rows[0].content else {
+            panic!("expected transcript row content");
+        };
         assert_eq!(role, &TranscriptEntryRole::Assistant);
         assert_eq!(
             segments,
@@ -732,7 +845,10 @@ mod tests {
         );
 
         let placeholder = &rows[0];
-        let TranscriptViewportRowContent::Transcript { role, segments } = &placeholder.content;
+        let TranscriptViewportRowContent::Transcript { role, segments } = &placeholder.content
+        else {
+            panic!("expected transcript row content");
+        };
         assert_eq!(role, &TranscriptEntryRole::Assistant);
         assert!(segments.is_empty());
     }

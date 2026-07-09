@@ -20,6 +20,19 @@ describe("submit intent", () => {
 		).toBe("send");
 	});
 
+	it("steers on plain Enter while agent is busy when configured", () => {
+		expect(
+			resolveEnterKeyIntent({
+				hasDraftInput: true,
+				isAgentBusy: true,
+				shiftKey: false,
+				metaKey: false,
+				ctrlKey: false,
+				busyEnterBehavior: "steer",
+			})
+		).toBe("steer");
+	});
+
 	it("queues on Enter while agent is busy even when direct submit is disabled", () => {
 		expect(
 			resolveEnterKeyIntent({

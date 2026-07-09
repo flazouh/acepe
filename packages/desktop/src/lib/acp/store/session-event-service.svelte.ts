@@ -566,6 +566,16 @@ export class SessionEventService {
 				break;
 			}
 
+			case "compactionEvent": {
+				logger.debug("compactionEvent received on raw lane", {
+					sessionId,
+					updateSessionId: update.event.sessionId,
+					status: update.event.status,
+					trigger: update.event.trigger,
+				});
+				break;
+			}
+
 			case "sessionDetached": {
 				logger.info("sessionDetached received on raw lane", {
 					sessionId,

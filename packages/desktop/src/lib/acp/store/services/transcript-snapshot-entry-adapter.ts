@@ -105,7 +105,7 @@ export function convertTranscriptEntryToSessionEntry(
 			block: ContentBlock;
 		}> = [];
 		for (const segment of entry.segments) {
-			if (segment.kind === "localCommand") {
+			if (segment.kind === "localCommand" || segment.kind === "compaction") {
 				continue;
 			}
 			chunks.push({
@@ -140,7 +140,7 @@ export function appendTranscriptSegmentToSessionEntry(
 	segment: TranscriptSegment
 ): SessionEntry | null {
 	if (entry.type === "assistant") {
-		if (segment.kind === "localCommand") {
+		if (segment.kind === "localCommand" || segment.kind === "compaction") {
 			return null;
 		}
 		const nextChunks = entry.message.chunks.concat([

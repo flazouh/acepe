@@ -493,8 +493,6 @@ impl AgentClient for CodexNativeClient {
     async fn new_session(&mut self, cwd: String) -> AcpResult<NewSessionResponse> {
         self.execution_profile = CodexExecutionProfile::Standard;
         let session_id = self.open_thread(None, &cwd, None).await?;
-        self.session_id = Some(session_id.clone());
-        *self.active_session_id.lock().await = Some(session_id.clone());
         persist_provider_thread_id(
             self.app_handle.as_ref(),
             self.db.as_ref(),
@@ -504,6 +502,8 @@ impl AgentClient for CodexNativeClient {
             &session_id,
         )
         .await?;
+        self.session_id = Some(session_id.clone());
+        *self.active_session_id.lock().await = Some(session_id.clone());
         Ok(self.build_new_session_response(session_id).await)
     }
 
@@ -1324,8 +1324,33 @@ async fn persist_thread_id_alias(
         return Ok(());
     };
 
-    bind_provider_session_id_persisted(app_handle, db.as_ref(), &session_id, provider_thread_id)
-        .await
+    match bind_provider_session_id_persisted(
+        app_handle,
+        db.as_ref(),
+        &session_id,
+        provider_thread_id,
+    )
+    .await
+    {
+        Ok(()) => Ok(()),
+        Err(error) if is_missing_session_metadata_binding_error(&error) => {
+            tracing::warn!(
+                session_id = %session_id,
+                provider_thread_id = %provider_thread_id,
+                error = %error,
+                "Ignoring duplicate Codex thread/started identity notification before metadata was ready"
+            );
+            Ok(())
+        }
+        Err(error) => Err(error),
+    }
+}
+
+fn is_missing_session_metadata_binding_error(error: &AcpError) -> bool {
+    matches!(
+        error,
+        AcpError::InvalidState(message) if message.contains("Session metadata not found:")
+    )
 }
 
 async fn provider_thread_id_for_app_session(
@@ -1508,7 +1533,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn thread_started_alias_persistence_errors_when_metadata_row_is_missing() {
+    async fn thread_started_alias_persistence_is_nonfatal_when_metadata_row_is_missing() {
         let db = setup_test_db().await;
         let active_session_id = StdArc::new(Mutex::new(Some("missing-codex-session".to_string())));
         let message = json!({
@@ -1520,16 +1545,9 @@ mod tests {
             }
         });
 
-        let error = persist_thread_id_alias(None, &Some(db), &active_session_id, &message)
+        persist_thread_id_alias(None, &Some(db), &active_session_id, &message)
             .await
-            .expect_err("missing metadata must fail provider identity binding");
-
-        assert!(
-            error
-                .to_string()
-                .contains("failed to persist provider session binding"),
-            "unexpected error: {error}"
-        );
+            .expect("duplicate thread/started notification must not stop the reader");
     }
 
     #[tokio::test]

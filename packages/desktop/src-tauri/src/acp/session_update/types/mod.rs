@@ -1,3 +1,4 @@
+mod compaction;
 mod config;
 mod content;
 mod interaction;
@@ -5,6 +6,7 @@ mod plan;
 mod session_update;
 mod tool_calls;
 
+pub use compaction::*;
 pub use config::*;
 pub use content::*;
 pub use interaction::*;

@@ -29,6 +29,12 @@ contextWindowSize?: number | null;
  */
 parentToolUseId?: string | null }
 
+export type SessionCompactionStatus = "preparing" | "completed" | "usage_reset" | "failed"
+
+export type SessionCompactionTrigger = "auto" | "manual" | "unknown"
+
+export type SessionCompactionEvent = { eventId: string; sessionId: string; status: SessionCompactionStatus; trigger: SessionCompactionTrigger; preCompactionTokens?: number | null; postCompactionTokens?: number | null; droppedTokens?: number | null; contextWindowSize?: number | null; durationMs?: number | null; precomputed?: boolean | null; preservedMessageCount?: number | null; cumulativeDroppedTokens?: number | null; timestampMs?: number | null; summary?: string | null; providerMetadata: JsonValue }
+
 /**
  * Session update types from ACP protocol.
  *
@@ -59,6 +65,10 @@ export type SessionUpdate = { type: "userMessageChunk"; chunk: ContentChunk; ses
  * Emitted by adapters (e.g. OpenCode step-finish) for spend and context UI.
  */
 { type: "usageTelemetryUpdate"; data: UsageTelemetryData } |
+/**
+ * Canonical session activity for provider-side context compaction.
+ */
+{ type: "compactionEvent"; event: SessionCompactionEvent; session_id?: string | null } |
 /**
  * Emitted by the async resume task when session connection completes successfully.
  * Carries session capabilities so the frontend can update canonical projection.

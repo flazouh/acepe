@@ -10,6 +10,9 @@ export function transcriptSegmentPrimaryText(segment: TranscriptSegment): string
 	if (segment.kind === "text" || segment.kind === "thought") {
 		return segment.text;
 	}
+	if (segment.kind === "compaction") {
+		return segment.event.summary ?? "";
+	}
 	if (segment.stdout.length > 0) {
 		return segment.stdout;
 	}
@@ -64,7 +67,7 @@ export function buildAssistantMessageFromTranscriptEntry(entry: TranscriptEntry)
 		};
 	}> = [];
 	for (const segment of entry.segments) {
-		if (segment.kind === "localCommand") {
+		if (segment.kind === "localCommand" || segment.kind === "compaction") {
 			continue;
 		}
 		chunks.push({

@@ -43,6 +43,15 @@ describe("agent panel conversation entry model", () => {
 		expect(resolveConversationRenderKind({ id: "thinking-1", type: "thinking" })).toBe(
 			"thinking"
 		);
+		expect(
+			resolveConversationRenderKind({
+				id: "activity-1",
+				type: "session_activity",
+				activityKind: "compaction",
+				title: "Compaction done",
+				status: "completed",
+			})
+		).toBe("session_activity");
 		expect(resolveConversationRenderKind({ id: "missing-1", type: "missing" })).toBe(
 			"missing"
 		);

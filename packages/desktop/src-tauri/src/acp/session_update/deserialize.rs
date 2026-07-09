@@ -6,7 +6,7 @@ use super::tool_calls::{
 };
 use super::types::{
     AvailableCommandsData, ConfigOptionUpdateData, CurrentModeData, PermissionData, PlanData,
-    PlanStep, QuestionData, SessionUpdate, ToolCallData, TurnErrorData,
+    PlanStep, QuestionData, SessionCompactionEvent, SessionUpdate, ToolCallData, TurnErrorData,
 };
 use super::usage::parse_usage_telemetry_data_with_agent;
 use crate::acp::agent_context::{current_agent, with_agent};
@@ -313,6 +313,18 @@ where
             )?;
             Ok(SessionUpdate::UsageTelemetryUpdate { data })
         }
+        "compactionEvent" => {
+            let event_value = raw
+                .data
+                .get("event")
+                .cloned()
+                .unwrap_or_else(|| raw.data.clone());
+            let event =
+                serde_json::from_value::<SessionCompactionEvent>(event_value).map_err(|error| {
+                    serde::de::Error::custom(format!("Invalid compaction event: {}", error))
+                })?;
+            Ok(SessionUpdate::CompactionEvent { event, session_id })
+        }
         _ => Err(serde::de::Error::custom(format!(
             "Unknown session update type: {}",
             update_type
@@ -377,6 +389,9 @@ where
     let parser = get_parser(agent);
 
     if let Some(type_str) = type_field {
+        if matches!(type_str.as_str(), "compactionEvent" | "compaction_event") {
+            return Ok("compactionEvent".to_string());
+        }
         if matches!(type_str.as_str(), "turnComplete" | "turn_complete") {
             return Ok("turnComplete".to_string());
         }
@@ -389,6 +404,9 @@ where
     }
 
     if let Some(update_str) = session_update_field {
+        if matches!(update_str.as_str(), "compactionEvent" | "compaction_event") {
+            return Ok("compactionEvent".to_string());
+        }
         if matches!(update_str.as_str(), "turnComplete" | "turn_complete") {
             return Ok("turnComplete".to_string());
         }

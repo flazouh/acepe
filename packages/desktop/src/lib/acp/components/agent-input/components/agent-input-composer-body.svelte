@@ -6,6 +6,7 @@ import {
 	AgentInputPastedTextOverlay,
 	AgentInputSlashCommandDropdown,
 	AgentInputVoiceRecordingOverlay,
+	type AgentInputEnterBehavior,
 	type AgentInputSlashCommandWorkspaceMarkdownResult,
 	type SlashPaletteItem,
 	type SlashPaletteSection,
@@ -58,6 +59,13 @@ let {
 	primarySrQueue,
 	primarySrSend,
 	primarySrInterrupt,
+	enterBehavior,
+	enterBehaviorMenuLabel,
+	enterQueueLabel,
+	enterQueueDescription,
+	enterSteerLabel,
+	enterSteerDescription,
+	onEnterBehaviorChange,
 	leadingControls,
 	trailingControls,
 }: {
@@ -105,6 +113,13 @@ let {
 	primarySrQueue: string;
 	primarySrSend: string;
 	primarySrInterrupt: string;
+	enterBehavior: AgentInputEnterBehavior;
+	enterBehaviorMenuLabel: string;
+	enterQueueLabel: string;
+	enterQueueDescription: string;
+	enterSteerLabel: string;
+	enterSteerDescription: string;
+	onEnterBehaviorChange: (behavior: AgentInputEnterBehavior) => void;
 	leadingControls?: Snippet;
 	trailingControls?: Snippet;
 } = $props();
@@ -136,6 +151,13 @@ const submitAriaLabel = $derived(
 		submitDisabled={composerInteraction.primaryButtonDisabled}
 		submitAriaLabel={submitAriaLabel}
 		onSubmit={onPrimaryButtonClick}
+		{enterBehavior}
+		{enterBehaviorMenuLabel}
+		{enterQueueLabel}
+		{enterQueueDescription}
+		{enterSteerLabel}
+		{enterSteerDescription}
+		{onEnterBehaviorChange}
 		onbeforeinput={onEditorBeforeInput}
 		oninput={() => onEditorInput()}
 		onkeydown={onEditorKeyDown}

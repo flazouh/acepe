@@ -49,7 +49,8 @@ use crate::acp::session_update::{
     ConfigOptionPresentation, ConfigOptionUpdateData, ConfigOptionValue, ContentChunk,
     CurrentModeData, EditEntry, InteractionReplyHandler, InteractionReplyHandlerKind,
     PermissionData, PlanConfidence, PlanData, PlanSource, PlanStep, PlanStepStatus, QuestionData,
-    QuestionItem, QuestionOption, SessionUpdate, SkillMeta, TodoItem, TodoStatus, TodoUpdate,
+    QuestionItem, QuestionOption, SessionCompactionEvent, SessionCompactionStatus,
+    SessionCompactionTrigger, SessionUpdate, SkillMeta, TodoItem, TodoStatus, TodoUpdate,
     TodoUpdateOperation, ToolArguments, ToolCallData, ToolCallLocation, ToolCallStatus,
     ToolCallUpdateData, ToolKind, ToolReference, ToolSourceContext, ToolSourceRange, TurnErrorData,
     TurnErrorInfo, TurnErrorKind, TurnErrorSource, UsageTelemetryData, UsageTelemetryTokens,
@@ -230,6 +231,9 @@ pub fn export_all_types() {
     // Session update types (UsageTelemetry* before SessionUpdate which references them)
     export_session_update_type!(UsageTelemetryTokens);
     export_session_update_type!(UsageTelemetryData);
+    export_session_update_type!(SessionCompactionStatus);
+    export_session_update_type!(SessionCompactionTrigger);
+    export_session_update_type!(SessionCompactionEvent);
     export_session_update_type!(SessionUpdate);
     export_session_update_type!(ChunkAggregationHint);
     export_session_update_type!(ContentChunk);
@@ -398,6 +402,9 @@ pub fn export_all_types() {
     export_acp_type!(QuestionData);
     export_acp_type!(UsageTelemetryData);
     export_acp_type!(UsageTelemetryTokens);
+    export_acp_type!(SessionCompactionStatus);
+    export_acp_type!(SessionCompactionTrigger);
+    export_acp_type!(SessionCompactionEvent);
     export_acp_type!(PlanStepStatus);
     export_acp_type!(PlanStep);
     export_acp_type!(PlanSource);

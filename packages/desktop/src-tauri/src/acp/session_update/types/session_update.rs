@@ -6,8 +6,8 @@ use crate::acp::lifecycle::{DetachedReason, FailureReason};
 
 use super::{
     AvailableCommand, AvailableCommandsData, ConfigOptionData, ConfigOptionUpdateData,
-    ContentChunk, CurrentModeData, PermissionData, PlanData, QuestionData, ToolCallData,
-    ToolCallUpdateData, TurnErrorData, UsageTelemetryData,
+    ContentChunk, CurrentModeData, PermissionData, PlanData, QuestionData, SessionCompactionEvent,
+    ToolCallData, ToolCallUpdateData, TurnErrorData, UsageTelemetryData,
 };
 
 /// Session update types from ACP protocol.
@@ -134,6 +134,13 @@ pub enum SessionUpdate {
     /// Emitted by adapters (e.g. OpenCode step-finish) for spend and context UI.
     UsageTelemetryUpdate { data: UsageTelemetryData },
 
+    /// Canonical session activity for provider-side context compaction.
+    CompactionEvent {
+        event: SessionCompactionEvent,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        session_id: Option<String>,
+    },
+
     /// Emitted by the async resume task when session connection completes successfully.
     /// Carries session capabilities so the frontend can update canonical projection.
     ConnectionComplete {
@@ -194,6 +201,9 @@ impl SessionUpdate {
             SessionUpdate::TurnError { session_id, .. } => session_id.as_deref(),
             SessionUpdate::TurnCancelled { session_id, .. } => session_id.as_deref(),
             SessionUpdate::UsageTelemetryUpdate { data, .. } => Some(data.session_id.as_str()),
+            SessionUpdate::CompactionEvent {
+                session_id, event, ..
+            } => session_id.as_deref().or(Some(event.session_id.as_str())),
             SessionUpdate::ConnectionComplete { session_id, .. } => Some(session_id.as_str()),
             SessionUpdate::ConnectionFailed { session_id, .. } => Some(session_id.as_str()),
             SessionUpdate::SessionDetached { session_id, .. } => Some(session_id.as_str()),

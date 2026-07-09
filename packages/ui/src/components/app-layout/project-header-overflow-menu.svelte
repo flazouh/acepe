@@ -1,14 +1,59 @@
 <script lang="ts">
-	import { DotsThreeVertical } from "phosphor-svelte";
 	import * as DropdownMenu from "../dropdown-menu/index.js";
 	import * as Popover from "../popover/index.js";
 	import { Button } from "../button/index.js";
-	import { Selector } from "../selector/index.js";
+	import { RoundedIcon, type RoundedIconName } from "../icons/index.js";
+	import { Selector, SelectorItem } from "../selector/index.js";
 	import { Switch } from "../switch/index.js";
-	import { SelectorItem } from "../selector/index.js";
+	import { dropdownMenuItemRadiusClass } from "../dropdown-menu/dropdown-menu-item.classes.js";
+	import { dropdownMenuItemTypographyClass } from "../dropdown-menu/dropdown-menu-typography.js";
 	import { PROJECT_COLOR_OPTIONS } from "./project-color-options.js";
 	import ProjectColorSwatch from "./project-color-swatch.svelte";
 	import { buildProjectHeaderOverflowMenuState } from "./project-menu-state.js";
+
+	type ProjectMenuContentWidth = "min-w-[170px]" | "min-w-[190px]" | "min-w-[220px]";
+
+	type ProjectMenuActionEntry = {
+		readonly kind: "action";
+		readonly id: string;
+		readonly label: string;
+		readonly icon: RoundedIconName;
+		readonly iconClass?: string;
+		readonly disabled?: boolean;
+		readonly destructive?: boolean;
+		readonly onSelect: () => void;
+	};
+
+	type ProjectMenuToggleEntry = {
+		readonly kind: "toggle";
+		readonly id: string;
+		readonly label: string;
+		readonly icon: RoundedIconName;
+		readonly checked: boolean;
+		readonly onToggle: (checked: boolean) => void;
+	};
+
+	type ProjectMenuColorEntry = {
+		readonly kind: "color-submenu";
+		readonly id: string;
+		readonly label: string;
+		readonly icon: RoundedIconName;
+	};
+
+	type ProjectMenuEntry = ProjectMenuActionEntry | ProjectMenuToggleEntry | ProjectMenuColorEntry;
+
+	type ProjectMenuGroup = {
+		readonly id: string;
+		readonly entries: readonly ProjectMenuEntry[];
+	};
+
+	type ProjectMenuSection = {
+		readonly id: string;
+		readonly label: string;
+		readonly icon: RoundedIconName;
+		readonly contentWidthClass: ProjectMenuContentWidth;
+		readonly groups: readonly ProjectMenuGroup[];
+	};
 
 	interface Props {
 		projectName: string;
@@ -51,6 +96,7 @@
 
 	function handleColorSelect(colorName: string) {
 		onColorChange?.(colorName);
+		closeMenu();
 	}
 
 	const menuState = $derived(
@@ -67,8 +113,184 @@
 	const hasIcon = $derived(menuState.hasIcon);
 	const hasResetProjectIcon = $derived(menuState.hasResetProjectIcon);
 	const showColorPicker = $derived(menuState.showColorPicker);
-	const showSettingsSection = $derived(menuState.showSettingsSection);
-	const showSessionsSection = $derived(Boolean(onHideExternalCliSessionsChange));
+
+	const menuSections = $derived.by(() => {
+		const sections: ProjectMenuSection[] = [];
+		const organizeSection = createOrganizeMenuSection();
+		const sessionsSection = createSessionsMenuSection();
+		const appearanceSection = createAppearanceMenuSection();
+		const dangerSection = createDangerMenuSection();
+
+		if (organizeSection !== null) {
+			sections.push(organizeSection);
+		}
+		if (sessionsSection !== null) {
+			sections.push(sessionsSection);
+		}
+		if (appearanceSection !== null) {
+			sections.push(appearanceSection);
+		}
+		if (dangerSection !== null) {
+			sections.push(dangerSection);
+		}
+
+		return sections;
+	});
+
+	function createMenuGroup(id: string, entries: readonly ProjectMenuEntry[]): ProjectMenuGroup {
+		return {
+			id,
+			entries,
+		};
+	}
+
+	function createMenuSection(
+		id: string,
+		label: string,
+		icon: RoundedIconName,
+		contentWidthClass: ProjectMenuContentWidth,
+		groups: readonly ProjectMenuGroup[]
+	): ProjectMenuSection | null {
+		const visibleGroups: ProjectMenuGroup[] = [];
+
+		for (const group of groups) {
+			if (group.entries.length > 0) {
+				visibleGroups.push(group);
+			}
+		}
+
+		if (visibleGroups.length === 0) {
+			return null;
+		}
+
+		return {
+			id,
+			label,
+			icon,
+			contentWidthClass,
+			groups: visibleGroups,
+		};
+	}
+
+	function createOrganizeMenuSection(): ProjectMenuSection | null {
+		const entries: ProjectMenuEntry[] = [];
+
+		if (onMoveUp) {
+			entries.push({
+				kind: "action",
+				id: "move-up",
+				label: "Move Up",
+				icon: "arrow-up",
+				disabled: moveUpDisabled,
+				onSelect: () => {
+					onMoveUp?.();
+					closeMenu();
+				},
+			});
+		}
+
+		if (onMoveDown) {
+			entries.push({
+				kind: "action",
+				id: "move-down",
+				label: "Move Down",
+				icon: "arrow-up",
+				iconClass: "shrink-0 rotate-180",
+				disabled: moveDownDisabled,
+				onSelect: () => {
+					onMoveDown?.();
+					closeMenu();
+				},
+			});
+		}
+
+		return createMenuSection("order", "Order", "drag", "min-w-[170px]", [
+			createMenuGroup("order", entries),
+		]);
+	}
+
+	function createSessionsMenuSection(): ProjectMenuSection | null {
+		if (!onHideExternalCliSessionsChange) {
+			return null;
+		}
+
+		return createMenuSection("visibility", "Visibility", "eye", "min-w-[220px]", [
+			createMenuGroup("visibility", [
+				{
+					kind: "toggle",
+					id: "hide-external-cli-sessions",
+					label: hideExternalCliSessionsLabel,
+					icon: "terminal",
+					checked: hideExternalCliSessions,
+					onToggle: (checked) => {
+						onHideExternalCliSessionsChange?.(checked);
+					},
+				},
+			]),
+		]);
+	}
+
+	function createAppearanceMenuSection(): ProjectMenuSection | null {
+		const entries: ProjectMenuEntry[] = [];
+
+		if (onChangeProjectIcon) {
+			entries.push({
+				kind: "action",
+				id: "change-project-icon",
+				label: "Icon...",
+				icon: "image",
+				onSelect: () => {
+					onChangeProjectIcon?.();
+					closeMenu();
+				},
+			});
+		}
+
+		if (showColorPicker) {
+			entries.push({
+				kind: "color-submenu",
+				id: "project-color",
+				label: "Color",
+				icon: "sliders",
+			});
+		}
+
+		if (hasIcon && onResetProjectIcon) {
+			entries.push({
+				kind: "action",
+				id: "reset-project-icon",
+				label: "Reset to letter badge",
+				icon: "avatar",
+				onSelect: () => {
+					onResetProjectIcon?.();
+					closeMenu();
+				},
+			});
+		}
+
+		return createMenuSection("appearance", "Appearance", "image", "min-w-[190px]", [
+			createMenuGroup("project-identity", entries),
+		]);
+	}
+
+	function createDangerMenuSection(): ProjectMenuSection | null {
+		if (!onRemoveProject) {
+			return null;
+		}
+
+		return createMenuSection("project", "Project", "folder", "min-w-[190px]", [
+			createMenuGroup("destructive", [
+				{
+					kind: "action",
+					id: "remove-project",
+					label: "Remove Project",
+					icon: "trash",
+					destructive: true,
+					onSelect: handleRemoveClick,
+				},
+			]),
+		]);
+	}
 
 	function handleRemoveClick() {
 		menuOpen = false;
@@ -78,7 +300,75 @@
 	function closeMenu() {
 		menuOpen = false;
 	}
+
+	function handleToggleRowClick(event: MouseEvent, entry: ProjectMenuToggleEntry) {
+		event.stopPropagation();
+
+		const target = event.target;
+		if (target instanceof HTMLElement && target.closest("[data-slot='switch']")) {
+			return;
+		}
+
+		entry.onToggle(!entry.checked);
+	}
 </script>
+
+{#snippet menuItemContent(icon: RoundedIconName, label: string, iconClass = "shrink-0", labelClass = "")}
+	<RoundedIcon name={icon} class={iconClass} />
+	<span class="min-w-0 flex-1 truncate {labelClass}">{label}</span>
+{/snippet}
+
+{#snippet menuEntry(entry: ProjectMenuEntry)}
+	{#if entry.kind === "action"}
+		<DropdownMenu.Item
+			variant={entry.destructive ? "destructive" : "default"}
+			disabled={entry.disabled}
+			onSelect={entry.onSelect}
+		>
+			{@render menuItemContent(
+				entry.icon,
+				entry.label,
+				entry.iconClass ?? "shrink-0"
+			)}
+		</DropdownMenu.Item>
+	{:else if entry.kind === "toggle"}
+		<div
+			class="relative z-10 flex cursor-default select-none items-center gap-2 {dropdownMenuItemRadiusClass} px-2 py-1 {dropdownMenuItemTypographyClass} outline-hidden transition-colors duration-75 ease-out hover:bg-accent hover:text-accent-foreground"
+			role="presentation"
+			onclick={(event) => handleToggleRowClick(event, entry)}
+			onkeydown={(event) => event.stopPropagation()}
+		>
+			<RoundedIcon name={entry.icon} class="shrink-0 text-muted-foreground" />
+			<span class="min-w-0 flex-1 truncate">{entry.label}</span>
+			<Switch
+				checked={entry.checked}
+				onCheckedChange={(checked) => {
+					entry.onToggle(checked === true);
+				}}
+				aria-label={entry.label}
+			/>
+		</div>
+	{:else if entry.kind === "color-submenu"}
+		<DropdownMenu.Sub>
+			<DropdownMenu.SubTrigger>
+				{@render menuItemContent(entry.icon, entry.label)}
+			</DropdownMenu.SubTrigger>
+			<DropdownMenu.SubContent class="min-w-[150px]">
+				{#each colorOptions as option (option.name)}
+					<SelectorItem
+						label={option.label}
+						selected={currentColor === option.name || currentColor === option.hex}
+						onSelect={() => handleColorSelect(option.name)}
+					>
+						{#snippet leading()}
+							<ProjectColorSwatch hex={option.hex} />
+						{/snippet}
+					</SelectorItem>
+				{/each}
+			</DropdownMenu.SubContent>
+		</DropdownMenu.Sub>
+	{/if}
+{/snippet}
 
 <Selector
 	bind:open={menuOpen}
@@ -87,103 +377,35 @@
 	align="end"
 	side="bottom"
 	variant="ghost"
-	triggerSize="icon"
+	triggerSize="iconSm"
 	triggerAriaLabel="Project menu"
+	contentClass="min-w-[152px]"
 >
 	{#snippet renderButton()}
-		<DotsThreeVertical weight="bold" />
+		<RoundedIcon name="more" />
 	{/snippet}
 
-	{#if onMoveUp || onMoveDown}
-		<DropdownMenu.Group>
-			{#if onMoveUp}
-				<SelectorItem
-					label="Move Up"
-					disabled={moveUpDisabled}
-					onSelect={() => {
-						onMoveUp?.();
-						closeMenu();
-					}}
-				/>
-			{/if}
-			{#if onMoveDown}
-				<SelectorItem
-					label="Move Down"
-					disabled={moveDownDisabled}
-					onSelect={() => {
-						onMoveDown?.();
-						closeMenu();
-					}}
-				/>
-			{/if}
-		</DropdownMenu.Group>
-	{/if}
-	{#if showSessionsSection}
-		<DropdownMenu.Group>
-			<DropdownMenu.GroupHeading>Sessions</DropdownMenu.GroupHeading>
-			<div
-				class="flex items-center justify-between gap-3 px-2 py-1.5"
-				role="presentation"
-				onclick={(event) => event.stopPropagation()}
-				onkeydown={(event) => event.stopPropagation()}
-			>
-				<span class="min-w-0 text-xs text-foreground">{hideExternalCliSessionsLabel}</span>
-				<Switch
-					checked={hideExternalCliSessions}
-					onCheckedChange={(checked) => {
-						onHideExternalCliSessionsChange?.(checked === true);
-					}}
-					aria-label={hideExternalCliSessionsLabel}
-				/>
-			</div>
-		</DropdownMenu.Group>
-	{/if}
-	{#if showSettingsSection}
-		<DropdownMenu.Group>
-			<DropdownMenu.GroupHeading>Settings</DropdownMenu.GroupHeading>
-			{#if onChangeProjectIcon}
-				<SelectorItem
-					label="Change icon..."
-					onSelect={() => {
-						onChangeProjectIcon();
-						closeMenu();
-					}}
-				/>
-			{/if}
-			{#if onColorChange && !hasIcon}
-				<DropdownMenu.Sub>
-					<DropdownMenu.SubTrigger>Color</DropdownMenu.SubTrigger>
-					<DropdownMenu.SubContent>
-						{#each colorOptions as option (option.name)}
-							<SelectorItem
-								label={option.label}
-								selected={currentColor === option.name || currentColor === option.hex}
-								onSelect={() => handleColorSelect(option.name)}
-							>
-								{#snippet leading()}
-									<ProjectColorSwatch hex={option.hex} />
-								{/snippet}
-							</SelectorItem>
-						{/each}
-					</DropdownMenu.SubContent>
-				</DropdownMenu.Sub>
-			{/if}
-			{#if hasIcon && onResetProjectIcon}
-				<SelectorItem
-					label="Reset to letter badge"
-					onSelect={() => {
-						onResetProjectIcon();
-						closeMenu();
-					}}
-				/>
-			{/if}
-			{#if onRemoveProject}
-				<DropdownMenu.Item variant="destructive" onSelect={handleRemoveClick}>
-					Remove Project
-				</DropdownMenu.Item>
-			{/if}
-		</DropdownMenu.Group>
-	{/if}
+	{#each menuSections as section, sectionIndex (section.id)}
+		{#if sectionIndex > 0}
+			<DropdownMenu.Separator />
+		{/if}
+		<DropdownMenu.Sub>
+			<DropdownMenu.SubTrigger>
+				{@render menuItemContent(section.icon, section.label)}
+			</DropdownMenu.SubTrigger>
+			<DropdownMenu.SubContent class={section.contentWidthClass}>
+				{#each section.groups as group, groupIndex (group.id)}
+					{#if groupIndex > 0}
+						<DropdownMenu.Separator />
+					{/if}
+
+					{#each group.entries as entry (entry.id)}
+						{@render menuEntry(entry)}
+					{/each}
+				{/each}
+			</DropdownMenu.SubContent>
+		</DropdownMenu.Sub>
+	{/each}
 </Selector>
 
 <Popover.Root bind:open={showRemoveConfirm}>

@@ -3,12 +3,13 @@ use crate::acp::session_update::{
     ChunkAggregationHint, ContentChunk, PermissionData, QuestionData, QuestionItem, QuestionOption,
     SessionUpdate, ToolArguments, ToolCallData, ToolCallStatus, ToolCallUpdateData, ToolKind,
     ToolReference, TurnErrorData, TurnErrorInfo, TurnErrorKind, TurnErrorSource,
+    UsageTelemetryData, UsageTelemetryTokens,
 };
 use crate::acp::tool_call_presentation::{synthesize_locations, synthesize_title};
 use crate::acp::types::ContentBlock;
 #[cfg(test)]
 use serde_json::json;
-use serde_json::Value;
+use serde_json::{Map, Value};
 
 const COMMAND_APPROVAL_METHOD: &str = "item/commandExecution/requestApproval";
 const FILE_READ_APPROVAL_METHOD: &str = "item/fileRead/requestApproval";
@@ -21,6 +22,8 @@ const TURN_COMPLETED_METHOD: &str = "turn/completed";
 const ERROR_METHOD: &str = "error";
 const ITEM_STARTED_METHOD: &str = "item/started";
 const ITEM_COMPLETED_METHOD: &str = "item/completed";
+const TOKEN_USAGE_UPDATED_METHOD: &str = "thread/tokenUsage/updated";
+const ACCOUNT_RATE_LIMITS_UPDATED_METHOD: &str = "account/rateLimits/updated";
 
 pub fn translate_codex_native_server_message(
     session_id: &str,
@@ -49,6 +52,8 @@ pub fn translate_codex_native_server_message(
         ERROR_METHOD => translate_error_notification(session_id, params),
         ITEM_STARTED_METHOD => translate_item_started(session_id, params),
         ITEM_COMPLETED_METHOD => translate_item_completed(session_id, params),
+        TOKEN_USAGE_UPDATED_METHOD => translate_token_usage_update(session_id, params),
+        ACCOUNT_RATE_LIMITS_UPDATED_METHOD => Vec::new(),
         _ => {
             tracing::debug!(
                 method = %method,
@@ -233,6 +238,115 @@ fn translate_turn_completed(
     })
 }
 
+fn translate_token_usage_update(
+    session_id: &str,
+    params: Option<&Map<String, Value>>,
+) -> Vec<SessionUpdate> {
+    let Some(params) = params else {
+        return Vec::new();
+    };
+
+    let Some(token_usage) = params
+        .get("tokenUsage")
+        .or_else(|| params.get("token_usage"))
+    else {
+        return Vec::new();
+    };
+
+    let Some(token_usage_object) = token_usage.as_object() else {
+        return Vec::new();
+    };
+
+    let source_object = token_usage_object
+        .get("info")
+        .and_then(Value::as_object)
+        .unwrap_or(token_usage_object);
+
+    let usage_object = select_token_counts_object(source_object)
+        .or_else(|| select_token_counts_object(token_usage_object));
+    let context_window_size = get_context_window_size(token_usage_object)
+        .or_else(|| get_context_window_size(source_object));
+
+    let Some(usage_object) = usage_object else {
+        if context_window_size.is_none() {
+            return Vec::new();
+        }
+
+        return vec![SessionUpdate::UsageTelemetryUpdate {
+            data: UsageTelemetryData {
+                session_id: session_id.to_string(),
+                event_id: Some(build_token_usage_event_id(
+                    params,
+                    &UsageTelemetryTokens::default(),
+                    context_window_size,
+                )),
+                scope: "turn".to_string(),
+                cost_usd: None,
+                tokens: UsageTelemetryTokens::default(),
+                source_model_id: None,
+                timestamp_ms: None,
+                context_window_size,
+                parent_tool_use_id: None,
+            },
+        }];
+    };
+
+    let tokens = UsageTelemetryTokens {
+        total: get_u64_from_any_key(usage_object, &["totalTokens", "total_tokens"]),
+        input: get_u64_from_any_key(usage_object, &["inputTokens", "input_tokens"]),
+        output: get_u64_from_any_key(usage_object, &["outputTokens", "output_tokens"]),
+        cache_read: get_u64_from_any_key(
+            usage_object,
+            &[
+                "cachedInputTokens",
+                "cached_input_tokens",
+                "cacheReadInputTokens",
+                "cache_read_input_tokens",
+            ],
+        ),
+        cache_write: get_u64_from_any_key(
+            usage_object,
+            &[
+                "cacheCreationInputTokens",
+                "cache_creation_input_tokens",
+                "cacheWriteInputTokens",
+                "cache_write_input_tokens",
+            ],
+        ),
+        reasoning: get_u64_from_any_key(
+            usage_object,
+            &[
+                "reasoningOutputTokens",
+                "reasoning_output_tokens",
+                "reasoningTokens",
+                "reasoning_tokens",
+            ],
+        ),
+    };
+
+    if is_empty_token_usage(&tokens) && context_window_size.is_none() {
+        return Vec::new();
+    }
+
+    vec![SessionUpdate::UsageTelemetryUpdate {
+        data: UsageTelemetryData {
+            session_id: session_id.to_string(),
+            event_id: Some(build_token_usage_event_id(
+                params,
+                &tokens,
+                context_window_size,
+            )),
+            scope: "turn".to_string(),
+            cost_usd: None,
+            tokens,
+            source_model_id: get_source_model_id(params, token_usage_object, source_object),
+            timestamp_ms: None,
+            context_window_size,
+            parent_tool_use_id: None,
+        },
+    }]
+}
+
 fn extract_codex_turn_id(params: Option<&serde_json::Map<String, Value>>) -> Option<String> {
     let params = params?;
 
@@ -244,6 +358,133 @@ fn extract_codex_turn_id(params: Option<&serde_json::Map<String, Value>>) -> Opt
                 .and_then(|turn| get_non_empty_string(turn.get("id")))
         })
         .map(ToOwned::to_owned)
+}
+
+fn select_token_counts_object(object: &Map<String, Value>) -> Option<&Map<String, Value>> {
+    if has_token_count_fields(object) {
+        return Some(object);
+    }
+
+    for (camel_key, snake_key) in [
+        ("last", "last"),
+        ("total", "total"),
+        ("lastTokenUsage", "last_token_usage"),
+        ("totalTokenUsage", "total_token_usage"),
+        ("tokenUsage", "token_usage"),
+    ] {
+        let Some(candidate) = object
+            .get(camel_key)
+            .or_else(|| object.get(snake_key))
+            .and_then(Value::as_object)
+        else {
+            continue;
+        };
+
+        if has_token_count_fields(candidate) {
+            return Some(candidate);
+        }
+    }
+
+    None
+}
+
+fn has_token_count_fields(object: &Map<String, Value>) -> bool {
+    get_u64_from_any_key(
+        object,
+        &[
+            "totalTokens",
+            "total_tokens",
+            "inputTokens",
+            "input_tokens",
+            "outputTokens",
+            "output_tokens",
+            "cachedInputTokens",
+            "cached_input_tokens",
+            "reasoningOutputTokens",
+            "reasoning_output_tokens",
+        ],
+    )
+    .is_some()
+}
+
+fn get_context_window_size(object: &Map<String, Value>) -> Option<u64> {
+    get_u64_from_any_key(
+        object,
+        &[
+            "modelContextWindow",
+            "model_context_window",
+            "contextWindowSize",
+            "context_window_size",
+            "contextWindow",
+            "context_window",
+            "size",
+        ],
+    )
+}
+
+fn get_source_model_id(
+    params: &Map<String, Value>,
+    token_usage_object: &Map<String, Value>,
+    source_object: &Map<String, Value>,
+) -> Option<String> {
+    for object in [params, token_usage_object, source_object] {
+        for key in ["modelId", "model_id", "model"] {
+            if let Some(model_id) = get_non_empty_string(object.get(key)) {
+                return Some(model_id.to_string());
+            }
+        }
+    }
+
+    None
+}
+
+fn get_u64_from_any_key(object: &Map<String, Value>, keys: &[&str]) -> Option<u64> {
+    keys.iter().find_map(|key| {
+        object.get(*key).and_then(|value| {
+            value
+                .as_u64()
+                .or_else(|| value.as_i64().and_then(|number| u64::try_from(number).ok()))
+        })
+    })
+}
+
+fn is_empty_token_usage(tokens: &UsageTelemetryTokens) -> bool {
+    tokens.total.is_none()
+        && tokens.input.is_none()
+        && tokens.output.is_none()
+        && tokens.cache_read.is_none()
+        && tokens.cache_write.is_none()
+        && tokens.reasoning.is_none()
+}
+
+fn build_token_usage_event_id(
+    params: &Map<String, Value>,
+    tokens: &UsageTelemetryTokens,
+    context_window_size: Option<u64>,
+) -> String {
+    let thread_id = get_non_empty_string(params.get("threadId"))
+        .or_else(|| get_non_empty_string(params.get("thread_id")))
+        .unwrap_or("thread");
+    let turn_id = get_non_empty_string(params.get("turnId"))
+        .or_else(|| get_non_empty_string(params.get("turn_id")))
+        .unwrap_or("turn");
+
+    format!(
+        "codex-token-usage:{thread_id}:{turn_id}:total={}:input={}:output={}:cache-read={}:cache-write={}:reasoning={}:context={}",
+        format_optional_u64(tokens.total),
+        format_optional_u64(tokens.input),
+        format_optional_u64(tokens.output),
+        format_optional_u64(tokens.cache_read),
+        format_optional_u64(tokens.cache_write),
+        format_optional_u64(tokens.reasoning),
+        format_optional_u64(context_window_size)
+    )
+}
+
+fn format_optional_u64(value: Option<u64>) -> String {
+    value
+        .map(|number| number.to_string())
+        .unwrap_or_else(|| "none".to_string())
 }
 
 fn translate_error_notification(
@@ -998,6 +1239,162 @@ mod tests {
                 "jsonrpc": "2.0",
                 "method": "item/someFutureEvent/delta",
                 "params": { "data": "test" }
+            }),
+        );
+
+        assert!(updates.is_empty());
+    }
+
+    #[test]
+    fn translates_thread_token_usage_updates_into_usage_telemetry() {
+        let updates = translate_codex_native_server_message(
+            "session-1",
+            &json!({
+                "jsonrpc": "2.0",
+                "method": "thread/tokenUsage/updated",
+                "params": {
+                    "threadId": "thread-1",
+                    "turnId": "turn-1",
+                    "tokenUsage": {
+                        "lastTokenUsage": {
+                            "inputTokens": 1200,
+                            "cachedInputTokens": 300,
+                            "outputTokens": 80,
+                            "reasoningOutputTokens": 20,
+                            "totalTokens": 1300
+                        },
+                        "modelContextWindow": 258400
+                    }
+                }
+            }),
+        );
+
+        assert_eq!(updates.len(), 1);
+        match &updates[0] {
+            SessionUpdate::UsageTelemetryUpdate { data } => {
+                assert_eq!(data.session_id, "session-1");
+                assert_eq!(data.scope, "turn");
+                assert_eq!(data.tokens.total, Some(1300));
+                assert_eq!(data.tokens.input, Some(1200));
+                assert_eq!(data.tokens.output, Some(80));
+                assert_eq!(data.tokens.cache_read, Some(300));
+                assert_eq!(data.tokens.cache_write, None);
+                assert_eq!(data.tokens.reasoning, Some(20));
+                assert_eq!(data.context_window_size, Some(258400));
+                assert_eq!(data.source_model_id, None);
+                assert_eq!(data.parent_tool_use_id, None);
+                assert!(data
+                    .event_id
+                    .as_deref()
+                    .is_some_and(|event_id| event_id.contains("turn-1")));
+            }
+            other => panic!("expected UsageTelemetryUpdate, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn translates_snake_case_thread_token_usage_updates_into_usage_telemetry() {
+        let updates = translate_codex_native_server_message(
+            "session-1",
+            &json!({
+                "jsonrpc": "2.0",
+                "method": "thread/tokenUsage/updated",
+                "params": {
+                    "thread_id": "thread-1",
+                    "turn_id": "turn-1",
+                    "token_usage": {
+                        "last_token_usage": {
+                            "input_tokens": 10,
+                            "cached_input_tokens": 4,
+                            "output_tokens": 3,
+                            "reasoning_output_tokens": 2,
+                            "total_tokens": 13
+                        },
+                        "model_context_window": 200000
+                    }
+                }
+            }),
+        );
+
+        assert_eq!(updates.len(), 1);
+        match &updates[0] {
+            SessionUpdate::UsageTelemetryUpdate { data } => {
+                assert_eq!(data.tokens.total, Some(13));
+                assert_eq!(data.tokens.cache_read, Some(4));
+                assert_eq!(data.tokens.reasoning, Some(2));
+                assert_eq!(data.context_window_size, Some(200000));
+                assert!(data
+                    .event_id
+                    .as_deref()
+                    .is_some_and(|event_id| event_id.contains("turn-1")));
+            }
+            other => panic!("expected UsageTelemetryUpdate, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn translates_app_server_v2_thread_token_usage_updates_into_usage_telemetry() {
+        let updates = translate_codex_native_server_message(
+            "session-1",
+            &json!({
+                "jsonrpc": "2.0",
+                "method": "thread/tokenUsage/updated",
+                "params": {
+                    "threadId": "thread-1",
+                    "turnId": "turn-1",
+                    "tokenUsage": {
+                        "total": {
+                            "inputTokens": 9000,
+                            "cachedInputTokens": 7000,
+                            "outputTokens": 100,
+                            "reasoningOutputTokens": 30,
+                            "totalTokens": 9130
+                        },
+                        "last": {
+                            "inputTokens": 2100,
+                            "cachedInputTokens": 1600,
+                            "outputTokens": 70,
+                            "reasoningOutputTokens": 20,
+                            "totalTokens": 2170
+                        },
+                        "modelContextWindow": 258400
+                    }
+                }
+            }),
+        );
+
+        assert_eq!(updates.len(), 1);
+        match &updates[0] {
+            SessionUpdate::UsageTelemetryUpdate { data } => {
+                assert_eq!(data.tokens.total, Some(2170));
+                assert_eq!(data.tokens.input, Some(2100));
+                assert_eq!(data.tokens.cache_read, Some(1600));
+                assert_eq!(data.tokens.output, Some(70));
+                assert_eq!(data.tokens.reasoning, Some(20));
+                assert_eq!(data.context_window_size, Some(258400));
+                assert!(data
+                    .event_id
+                    .as_deref()
+                    .is_some_and(|event_id| event_id.contains("total=2170")));
+            }
+            other => panic!("expected UsageTelemetryUpdate, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn ignores_account_rate_limit_updates_as_known_codex_notifications() {
+        let updates = translate_codex_native_server_message(
+            "session-1",
+            &json!({
+                "jsonrpc": "2.0",
+                "method": "account/rateLimits/updated",
+                "params": {
+                    "rateLimits": {
+                        "primary": { "usedPercent": 36, "windowDurationMins": 300 },
+                        "secondary": { "usedPercent": 38, "windowDurationMins": 10080 },
+                        "planType": "pro"
+                    }
+                }
             }),
         );
 

@@ -26,6 +26,7 @@ export const DEFAULT_ROW_ESTIMATE_PX = {
 	assistantText: 150,
 	assistantThought: 120,
 	tool: 96,
+	sessionActivity: 76,
 	awaitingPlaceholder: 48,
 } as const;
 

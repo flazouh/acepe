@@ -32,6 +32,7 @@ export type AgentConversationRenderKind =
 	| "user"
 	| "assistant"
 	| "thinking"
+	| "session_activity"
 	| "missing"
 	| "tool-todo"
 	| "tool-question"
