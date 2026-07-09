@@ -1,4 +1,7 @@
-import type { AgentPanelSceneEntryModel } from "@acepe/ui/agent-panel";
+import type {
+	AgentPanelPerformanceSample,
+	AgentPanelSceneEntryModel,
+} from "@acepe/ui/agent-panel";
 import { cleanup, render } from "@testing-library/svelte";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type {
@@ -11,6 +14,7 @@ import type {
 	LiveSessionCanonicalProjection,
 	LiveSessionWorkSource,
 } from "../../../../store/live-session-work.js";
+import { tick } from "svelte";
 
 type SessionStoreMockState = {
 	hotState: {
@@ -271,6 +275,10 @@ function renderContent(
 		effectiveTheme: "dark",
 		modifiedFilesState: null,
 	});
+}
+
+function performanceCaptureWindow(): AgentPanelPerformanceCaptureWindow {
+	return window as AgentPanelPerformanceCaptureWindow;
 }
 
 describe("AgentPanelContent", () => {

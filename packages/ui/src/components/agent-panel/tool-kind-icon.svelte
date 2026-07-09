@@ -54,11 +54,16 @@ const iconByKind: Record<AgentToolKind, Component> = {
 	other: Package,
 };
 
-const Icon = $derived(iconByKind[kind] ?? Package);
+const roundedIcon = $derived(roundedIconByKind[kind]);
 </script>
 
 {#if isPending}
 	<LoadingIcon class={className} {size} aria-label="Loading" />
-{:else}
-	<Icon weight="fill" {size} class={className} style="color: {Colors.purple}" />
+{:else if roundedIcon}
+	<RoundedIcon
+		name={roundedIcon}
+		class={className}
+		style="width: {size}px; height: {size}px; color: {Colors.purple}"
+		data-testid={kind === "review" ? "tool-kind-review-code-icon" : undefined}
+	/>
 {/if}

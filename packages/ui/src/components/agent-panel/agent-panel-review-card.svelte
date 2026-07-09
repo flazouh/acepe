@@ -45,8 +45,8 @@
 		<div class="flex flex-wrap justify-end gap-1">
 			{#each card.actions as action (action.id)}
 				<Button
-					variant={action.destructive ? "destructive" : "headerAction"}
-					size="headerAction"
+					variant={action.destructive ? "destructive" : "secondary"}
+					size="xs"
 					disabled={actionDisabled(action)}
 					onclick={() => runAction(action)}
 				>

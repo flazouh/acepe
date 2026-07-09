@@ -71,6 +71,10 @@ mod tests {
             active_streaming_tail: None,
             lifecycle: SessionGraphLifecycle::ready(),
             capabilities: SessionGraphCapabilities::empty(),
+            open_path: crate::acp::session_open_snapshot::SessionOpenPath::CompatSnapshot,
+            initial_transcript_row_page: None,
+            initial_viewport_envelope: None,
+            open_result_timing: None,
             active_turn_failure: None,
             last_terminal_turn_id: None,
         };

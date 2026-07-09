@@ -1,118 +1,85 @@
 <script lang="ts">
 	/**
 	 * GitFileTree — Dumb, generic file tree with diff stats.
-	 * Reuses the same tree-building logic as the desktop file list,
-	 * stripped of context menus and Tauri.
 	 */
-	import { CaretRight } from "phosphor-svelte";
-	import { FilePlus } from "phosphor-svelte";
-	import { FileX } from "phosphor-svelte";
-	import { FileDashed } from "phosphor-svelte";
-	import { File } from "phosphor-svelte";
-	import { FolderSimple } from "phosphor-svelte";
-	import { SvelteSet } from "svelte/reactivity";
-
-	import { DiffPill } from "../diff-pill/index.js";
-	import { getFileIconSrc, getFallbackIconSrc, getSpecialFolderIconSrc, getFolderIconSrc } from "../../lib/file-icon/index.js";
 	import { cn } from "../../lib/utils.js";
-	import type { Snippet } from "svelte";
+	import { PierreFileTree } from "../pierre-tree/index.js";
+	import type {
+		PierreFileTreeActionItem,
+		PierreFileTreeRowAction,
+	} from "../pierre-tree/index.js";
 
 	import type { GitViewerFile } from "./types.js";
-	import { buildFileTree, flattenFileTree, compactSingleChildDirs } from "./file-tree-logic.js";
-	import type { FileTreeNode } from "./file-tree-logic.js";
+	import {
+		createGitFileTreeDiffDecoration,
+		createGitFileTreeModel,
+	} from "./git-file-tree-model.js";
+
+	const EMPTY_ACTIONS: readonly PierreFileTreeRowAction[] = [];
+	const TREE_SEARCH_CHROME_HEIGHT_PX = 36;
+	const COMPACT_TREE_ROW_HEIGHT_PX = 24;
+	const GIT_TREE_UNSAFE_CSS = `
+		button[data-type='item'] {
+			font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+			font-size: 11px;
+			line-height: 16px;
+			min-height: 20px;
+		}
+
+		button[data-type='item'][data-item-selected] {
+			border-left: 2px solid hsl(var(--primary));
+		}
+	`;
 
 	interface Props {
 		files: GitViewerFile[];
 		selectedFile: string;
 		onSelect: (file: GitViewerFile) => void;
 		iconBasePath?: string;
-		/** Optional per-file action buttons rendered after the diff pill on hover. */
-		rowActions?: Snippet<[{ file: GitViewerFile }]>;
+		/** Optional per-file actions rendered through Pierre's action menu lane. */
+		rowActions?: (file: GitViewerFile) => readonly PierreFileTreeRowAction[];
 		class?: string;
 	}
 
 	let { files, selectedFile, onSelect, iconBasePath, rowActions, class: className }: Props = $props();
 
-	const useSvgIcons = $derived(Boolean(iconBasePath));
-	const fallbackIconSrc = $derived(useSvgIcons ? getFallbackIconSrc(iconBasePath!) : "");
-	const fallbackFolderSrc = $derived(useSvgIcons ? getFolderIconSrc(false, iconBasePath!) : "");
-
-	function handleIconError(e: Event) {
-		const img = e.target as HTMLImageElement;
-		if (img) {
-			img.onerror = null;
-			img.src = fallbackIconSrc;
-		}
-	}
-
-	function handleFolderIconError(e: Event) {
-		const img = e.target as HTMLImageElement;
-		if (img) {
-			img.onerror = null;
-			img.src = fallbackFolderSrc;
-		}
-	}
-
-	// Build a lookup for diff info by path
-	const diffByPath = $derived(
-		new Map(files.map((f) => [f.path, f]))
+	const treeModel = $derived(createGitFileTreeModel(files));
+	const treeHeightPx = $derived(
+		Math.min(
+			420,
+			Math.max(
+				72,
+				TREE_SEARCH_CHROME_HEIGHT_PX + treeModel.paths.length * COMPACT_TREE_ROW_HEIGHT_PX
+			)
+		)
+	);
+	const icons = $derived(
+		iconBasePath ? ({ set: "complete", colored: true } as const) : undefined
 	);
 
-	// Build and compact the tree
-	const tree = $derived.by(() => {
-		const paths = files.map((f) => f.path);
-		const raw = buildFileTree(paths);
-		return compactSingleChildDirs(raw);
-	});
-
-	// Expansion state — auto-expand all directories by default
-	let expandedFolders = $state(new SvelteSet<string>());
-	let lastFileCount = $state(0);
-
-	$effect(() => {
-		// Re-initialize when files change
-		if (files.length > 0 && files.length !== lastFileCount) {
-			const allDirs = new SvelteSet<string>();
-			function collectDirs(nodes: FileTreeNode[]): void {
-				for (const node of nodes) {
-					if (node.isDirectory) {
-						allDirs.add(node.path);
-						collectDirs(node.children);
-					}
-				}
-			}
-			collectDirs(tree);
-			expandedFolders = allDirs;
-			lastFileCount = files.length;
+	function handleSelectionChange(selectedPaths: readonly string[]): void {
+		const selectedPath = selectedPaths[selectedPaths.length - 1];
+		if (!selectedPath) {
+			return;
 		}
-	});
 
-	const flatNodes = $derived(flattenFileTree(tree, expandedFolders));
-
-	function toggleFolder(path: string): void {
-		if (expandedFolders.has(path)) {
-			expandedFolders.delete(path);
-		} else {
-			expandedFolders.add(path);
+		const file = treeModel.filesByPath.get(selectedPath);
+		if (file) {
+			onSelect(file);
 		}
 	}
 
-	function getStatusIcon(status: GitViewerFile["status"] | undefined) {
-		switch (status) {
-			case "added": return FilePlus;
-			case "deleted": return FileX;
-			case "renamed": return FileDashed;
-			default: return File;
+	function resolveRowActions(item: PierreFileTreeActionItem): readonly PierreFileTreeRowAction[] {
+		if (!rowActions || item.kind !== "file") {
+			return EMPTY_ACTIONS;
 		}
-	}
 
-	function getStatusColor(status: GitViewerFile["status"] | undefined): string {
-		switch (status) {
-			case "added": return "text-success";
-			case "deleted": return "text-destructive";
-			case "renamed": return "text-warning";
-			default: return "text-muted-foreground";
+		const file = treeModel.filesByPath.get(item.path);
+		if (!file) {
+			return EMPTY_ACTIONS;
 		}
+
+		return rowActions(file);
 	}
 </script>
 

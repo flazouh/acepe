@@ -26,6 +26,7 @@ import {
 } from "../../store/index.js";
 import type { AvailableCommand } from "../../types/available-command.js";
 import { createLogger } from "../../utils/logger.js";
+import { recordPanelOpenPerformanceMark } from "../agent-panel/logic/panel-open-performance-mark.js";
 import { resolvePanelDraftOnMount } from "./services/index.js";
 import AgentInputComposerBody from "./components/agent-input-composer-body.svelte";
 import AgentInputDropZone from "./components/agent-input-drop-zone.svelte";
@@ -84,8 +85,19 @@ import type { AgentInputProps } from "./types/agent-input-props.js";
 
 // Keep props as reactive object instead of destructuring
 const props: AgentInputProps = $props();
+if (props.panelId) {
+	recordPanelOpenPerformanceMark(props.panelId, "agent-input:props");
+}
 const logger = createLogger({ id: "agent-input-send-trace", name: "AgentInputSendTrace" });
 const kb = getKeybindingsService();
+
+function isAgentInputTraceEnabled(): boolean {
+	return (
+		import.meta.env.DEV &&
+		typeof localStorage !== "undefined" &&
+		localStorage.getItem("acepe.agentPanelRenderTrace") === "true"
+	);
+}
 
 const sessionStore = getSessionStore();
 const panelStore = getPanelStore();
@@ -116,7 +128,14 @@ const composerView = new ComposerViewController({
 	logger,
 });
 
-inputState = new AgentInputState(sessionStore, panelStore, () => composerView.filePickerProjectPath);
+inputState = new AgentInputState(
+	sessionStore,
+	panelStore,
+	() => composerView.filePickerProjectPath
+);
+if (props.panelId) {
+	recordPanelOpenPerformanceMark(props.panelId, "agent-input:state-end");
+}
 
 const voiceSessionController = new VoiceSessionController({
 	getEffectiveVoiceSessionId: () => effectiveVoiceSessionId,
@@ -152,6 +171,11 @@ const voiceReady = $derived(voiceSessionController.ready);
  * toolbar in all states.
  */
 let preSessionSendStarted = $state(false);
+let secondaryComposerChromeReady = $state(false);
+let secondaryComposerChromeFrameId: number | null = null;
+let secondaryComposerChromeFallbackTimer: ReturnType<typeof setTimeout> | null = null;
+let composerWidthObserver: ResizeObserver | null = null;
+type CancelScheduledComposerWork = () => void;
 const showNewThreadOptions = $derived(
 	!composerView.hasSession && !preSessionSendStarted && props.newThreadContext != null
 );
@@ -161,6 +185,69 @@ function markPreSessionSendStarted(): void {
 	if (!composerView.hasSession && !composerView.isSubmitDisabled) {
 		preSessionSendStarted = true;
 	}
+}
+
+function revealSecondaryComposerChrome(): void {
+	if (secondaryComposerChromeReady) {
+		return;
+	}
+	secondaryComposerChromeReady = true;
+	if (secondaryComposerChromeFrameId !== null) {
+		cancelAnimationFrame(secondaryComposerChromeFrameId);
+		secondaryComposerChromeFrameId = null;
+	}
+	if (secondaryComposerChromeFallbackTimer !== null) {
+		clearTimeout(secondaryComposerChromeFallbackTimer);
+		secondaryComposerChromeFallbackTimer = null;
+	}
+	queueMicrotask(() => {
+		startComposerWidthObserver();
+		reportComposerRowWidth();
+	});
+}
+
+function scheduleSecondaryComposerChrome(): void {
+	secondaryComposerChromeFallbackTimer = setTimeout(revealSecondaryComposerChrome, 50);
+	if (typeof requestAnimationFrame === "function") {
+		secondaryComposerChromeFrameId = requestAnimationFrame(revealSecondaryComposerChrome);
+	}
+}
+
+function scheduleAfterFirstComposerPaint(callback: () => void): CancelScheduledComposerWork {
+	let cancelled = false;
+	let frameId: number | null = null;
+	let timer: ReturnType<typeof setTimeout> | null = null;
+	const run = (): void => {
+		if (cancelled) {
+			return;
+		}
+		callback();
+	};
+	const scheduleTimer = (): void => {
+		if (cancelled) {
+			return;
+		}
+		timer = setTimeout(run, 0);
+	};
+
+	if (typeof requestAnimationFrame !== "function") {
+		timer = setTimeout(run, 0);
+	} else {
+		frameId = requestAnimationFrame(() => {
+			frameId = null;
+			scheduleTimer();
+		});
+	}
+
+	return () => {
+		cancelled = true;
+		if (frameId !== null) {
+			cancelAnimationFrame(frameId);
+		}
+		if (timer !== null) {
+			clearTimeout(timer);
+		}
+	};
 }
 /** Cursor offset captured before voice overlay hides the editor. */
 let voiceCursorSnapshot: number | null = null;
@@ -223,22 +310,14 @@ $effect(() => {
 });
 
 $effect(() => {
+	if (!secondaryComposerChromeReady) {
+		return;
+	}
 	composerView.syncPreconnectionCapabilities();
 });
 
 $effect(() => {
 	composerView.syncPendingToolbarSelections();
-});
-
-$effect(() => {
-	const catalogInput = composerView.attachMenuMcpCatalogInput;
-	if (!composerView.attachMenuShowMcpSection) {
-		return;
-	}
-	composerView.refreshAttachMenuMcpCatalog();
-	void catalogInput.agentId;
-	void catalogInput.projectPath;
-	void catalogInput.sessionId;
 });
 
 // Track previous message for draft change detection
@@ -259,6 +338,15 @@ let overlayAnchorRect: DOMRect | null = $state(null);
 
 function syncEditorFromMessage(nextCursor: number | null = null): void {
 	if (!editorRef) {
+		return;
+	}
+
+	const editorAlreadyEmpty = editorRef.childNodes.length === 0;
+	const shouldSetCursor = nextCursor !== null && nextCursor > 0;
+	if (inputState.message.length === 0 && editorAlreadyEmpty && !shouldSetCursor) {
+		if (props.panelId) {
+			recordPanelOpenPerformanceMark(props.panelId, "agent-input:sync-empty-skip");
+		}
 		return;
 	}
 
@@ -330,6 +418,9 @@ const {
 	handleSteer,
 	handlePrimaryButtonClick,
 } = agentInputController;
+if (props.panelId) {
+	recordPanelOpenPerformanceMark(props.panelId, "agent-input:controller-end");
+}
 
 export function retrySend(): void {
 	agentInputController.retrySend();
@@ -416,12 +507,14 @@ function handleEditorInput(options?: { suppressAutocomplete?: boolean }): void {
 		} else {
 			inputState.showFileDropdown = false;
 			inputState.fileQuery = "";
-			const hasConnectedSession = composerView.sessionLifecyclePresentation?.connectionPhase === "connected";
+			const hasConnectedSession =
+				composerView.sessionLifecyclePresentation?.connectionPhase === "connected";
 
 			if (
 				composerView.capabilitiesAgentId &&
 				!hasConnectedSession &&
-				composerView.effectiveCapabilityProviderMetadata?.preconnectionSlashMode === "startupGlobal" &&
+				composerView.effectiveCapabilityProviderMetadata?.preconnectionSlashMode ===
+					"startupGlobal" &&
 				!preconnectionAgentSkillsStore.loaded &&
 				!preconnectionAgentSkillsStore.loading
 			) {
@@ -441,7 +534,8 @@ function handleEditorInput(options?: { suppressAutocomplete?: boolean }): void {
 					hasConnectedSession,
 					projectPath: composerView.filePickerProjectPath,
 					preconnectionSlashMode:
-						composerView.effectiveCapabilityProviderMetadata?.preconnectionSlashMode ?? "unsupported",
+						composerView.effectiveCapabilityProviderMetadata?.preconnectionSlashMode ??
+						"unsupported",
 				})
 				.mapErr((error) => {
 					logger.error("Failed to warm remote preconnection commands", {
@@ -450,7 +544,7 @@ function handleEditorInput(options?: { suppressAutocomplete?: boolean }): void {
 						error: error.message,
 					});
 					return undefined;
-			});
+				});
 
 			const slashTriggerResult = parseSlashCommandTrigger(inputState.message, cursorPos);
 			if (slashTriggerResult.isOk() && slashTriggerResult.value) {
@@ -486,15 +580,16 @@ $effect(() => {
 });
 
 onMount(() => {
-	const container = inputState.containerRef;
-	let composerWidthObserver: ResizeObserver | null = null;
-	if (container && props.onToolbarWidthChange) {
-		composerWidthObserver = new ResizeObserver(() => {
-			reportComposerRowWidth();
-		});
-		composerWidthObserver.observe(container);
-		reportComposerRowWidth();
+	if (props.panelId) {
+		recordPanelOpenPerformanceMark(props.panelId, "agent-input:on-mount-start");
 	}
+	let cancelSecondaryComposerChrome: CancelScheduledComposerWork | null = null;
+	if (props.deferInitialComposerMountWork === true) {
+		cancelSecondaryComposerChrome = scheduleAfterFirstComposerPaint(revealSecondaryComposerChrome);
+	} else {
+		scheduleSecondaryComposerChrome();
+	}
+	const container = inputState.containerRef;
 	const handleWindowKeyDown = (event: KeyboardEvent) => {
 		if (event.key === "Shift") {
 			isShiftPressed = true;
@@ -526,70 +621,138 @@ onMount(() => {
 			voiceState.onKeyboardHoldEnd();
 		}
 	};
-	window.addEventListener("keydown", handleWindowKeyDown);
-	window.addEventListener("keyup", handleWindowKeyUp);
-	container?.addEventListener("keydown", handleInputContainerKeyDown);
-
-	inputState.initialize();
-	// Restore initial draft from PanelStore if panelId is provided
+	let inputGlobalListenersAttached = false;
+	let inputGlobalListenerTimer: ReturnType<typeof setTimeout> | null = setTimeout(() => {
+		inputGlobalListenerTimer = null;
+		inputGlobalListenersAttached = true;
+		window.addEventListener("keydown", handleWindowKeyDown);
+		window.addEventListener("keyup", handleWindowKeyUp);
+		container?.addEventListener("keydown", handleInputContainerKeyDown);
+	}, 100);
 	if (props.panelId) {
-		const pendingComposerRestore = panelStore.consumePendingComposerRestore(props.panelId);
-		const draft = panelStore.getMessageDraft(props.panelId);
-		const hasPendingUserEntry = composerView.panelHotState?.pendingUserEntry !== null;
-		logger.info("[first-send-trace] agent input mount", {
-			panelId: props.panelId,
-			sessionId: props.sessionId ?? null,
-			draftLength: draft.length,
-			hasPendingComposerRestore: pendingComposerRestore !== null,
-			hasPendingUserEntry,
-			hasPendingWorktreeSetup: composerView.panelHotState?.pendingWorktreeSetup !== null,
-			messageLengthBeforeRestore: inputState.message.length,
-		});
-		const resolution = resolvePanelDraftOnMount({
-			panelId: props.panelId,
-			sessionId: props.sessionId,
-			pendingComposerRestore,
-			storedDraft: draft,
-			hasPendingUserEntry,
-		});
-		if (resolution.kind === "pending_snapshot") {
-			applyComposerRestoreSnapshot(resolution.snapshot);
-			logger.info("[first-send-trace] restored pending composer snapshot on mount", {
+		recordPanelOpenPerformanceMark(props.panelId, "agent-input:on-mount-listeners-scheduled");
+	}
+
+	const runInitialComposerMountWork = (): void => {
+		if (props.panelId) {
+			recordPanelOpenPerformanceMark(props.panelId, "agent-input:on-mount-work-run");
+		}
+		inputState.initialize();
+		if (props.panelId) {
+			recordPanelOpenPerformanceMark(props.panelId, "agent-input:on-mount-initialize-end");
+		}
+		// Restore initial draft from PanelStore if panelId is provided.
+		if (props.panelId) {
+			const pendingComposerRestore = panelStore.consumePendingComposerRestore(props.panelId);
+			const draft = panelStore.getMessageDraft(props.panelId);
+			const hasPendingUserEntry = composerView.panelHotState?.pendingUserEntry !== null;
+			const shouldPreserveTypedInput =
+				props.deferInitialComposerMountWork === true && inputState.message.length > 0;
+			if (isAgentInputTraceEnabled()) {
+				logger.info("[first-send-trace] agent input mount", {
+					panelId: props.panelId,
+					sessionId: props.sessionId ?? null,
+					draftLength: draft.length,
+					hasPendingComposerRestore: pendingComposerRestore !== null,
+					hasPendingUserEntry,
+					hasPendingWorktreeSetup: composerView.panelHotState?.pendingWorktreeSetup !== null,
+					messageLengthBeforeRestore: inputState.message.length,
+				});
+			}
+			const resolution = resolvePanelDraftOnMount({
 				panelId: props.panelId,
-				sessionId: props.sessionId ?? null,
-				draftLength: resolution.snapshot.draft.length,
-			});
-		} else if (resolution.kind === "initial_draft") {
-			inputState.message = resolution.draft;
-			lastDraftValue = resolution.draft;
-			logger.info("[first-send-trace] restored initial draft on mount", {
-				panelId: props.panelId,
-				sessionId: props.sessionId ?? null,
-				draftLength: resolution.draft.length,
-			});
-		} else {
-			logger.info("[first-send-trace] skipped draft restore on mount", {
-				panelId: props.panelId,
-				sessionId: props.sessionId ?? null,
-				draftLength: draft.length,
+				sessionId: props.sessionId,
+				pendingComposerRestore,
+				storedDraft: draft,
 				hasPendingUserEntry,
 			});
+			if (resolution.kind === "pending_snapshot" && !shouldPreserveTypedInput) {
+				applyComposerRestoreSnapshot(resolution.snapshot);
+				if (isAgentInputTraceEnabled()) {
+					logger.info("[first-send-trace] restored pending composer snapshot on mount", {
+						panelId: props.panelId,
+						sessionId: props.sessionId ?? null,
+						draftLength: resolution.snapshot.draft.length,
+					});
+				}
+			} else if (resolution.kind === "initial_draft" && !shouldPreserveTypedInput) {
+				inputState.message = resolution.draft;
+				lastDraftValue = resolution.draft;
+				if (isAgentInputTraceEnabled()) {
+					logger.info("[first-send-trace] restored initial draft on mount", {
+						panelId: props.panelId,
+						sessionId: props.sessionId ?? null,
+						draftLength: resolution.draft.length,
+					});
+				}
+			} else {
+				if (isAgentInputTraceEnabled()) {
+					logger.info("[first-send-trace] skipped draft restore on mount", {
+						panelId: props.panelId,
+						sessionId: props.sessionId ?? null,
+						draftLength: draft.length,
+						hasPendingUserEntry,
+						preservedTypedInput: shouldPreserveTypedInput,
+					});
+				}
+			}
 		}
+		if (props.panelId) {
+			recordPanelOpenPerformanceMark(props.panelId, "agent-input:on-mount-draft-end");
+			recordPanelOpenPerformanceMark(props.panelId, "agent-input:on-mount-editor-sync-start");
+		}
+		syncEditorFromMessage(inputState.message.length);
+		if (props.panelId) {
+			recordPanelOpenPerformanceMark(props.panelId, "agent-input:on-mount-editor-synced");
+		}
+		if (props.panelId) {
+			recordPanelOpenPerformanceMark(props.panelId, "agent-input:on-mount-width-deferred");
+		}
+		if (isAgentInputTraceEnabled()) {
+			logger.info("[first-send-trace] synced editor after mount", {
+				panelId: props.panelId ?? null,
+				sessionId: props.sessionId ?? null,
+				messageLength: inputState.message.length,
+				domLength: editorRef ? serializeInlineComposerMessage(editorRef).length : null,
+			});
+		}
+		if (props.panelId) {
+			recordPanelOpenPerformanceMark(props.panelId, "agent-input:on-mount-end");
+		}
+	};
+
+	let cancelInitialComposerMountWork: CancelScheduledComposerWork | null = null;
+	if (props.deferInitialComposerMountWork === true) {
+		if (props.panelId) {
+			recordPanelOpenPerformanceMark(props.panelId, "agent-input:on-mount-work-deferred");
+		}
+		cancelInitialComposerMountWork = scheduleAfterFirstComposerPaint(runInitialComposerMountWork);
+	} else {
+		runInitialComposerMountWork();
 	}
-	syncEditorFromMessage(inputState.message.length);
-	reportComposerRowWidth();
-	logger.info("[first-send-trace] synced editor after mount", {
-		panelId: props.panelId ?? null,
-		sessionId: props.sessionId ?? null,
-		messageLength: inputState.message.length,
-		domLength: editorRef ? serializeInlineComposerMessage(editorRef).length : null,
-	});
 
 	return () => {
+		cancelInitialComposerMountWork?.();
+		cancelSecondaryComposerChrome?.();
+		if (secondaryComposerChromeFrameId !== null) {
+			cancelAnimationFrame(secondaryComposerChromeFrameId);
+			secondaryComposerChromeFrameId = null;
+		}
+		if (secondaryComposerChromeFallbackTimer !== null) {
+			clearTimeout(secondaryComposerChromeFallbackTimer);
+			secondaryComposerChromeFallbackTimer = null;
+		}
 		composerWidthObserver?.disconnect();
-		window.removeEventListener("keydown", handleWindowKeyDown);
-		window.removeEventListener("keyup", handleWindowKeyUp);
-		container?.removeEventListener("keydown", handleInputContainerKeyDown);
+		composerWidthObserver = null;
+		if (inputGlobalListenerTimer !== null) {
+			clearTimeout(inputGlobalListenerTimer);
+			inputGlobalListenerTimer = null;
+		}
+		if (inputGlobalListenersAttached) {
+			window.removeEventListener("keydown", handleWindowKeyDown);
+			window.removeEventListener("keyup", handleWindowKeyUp);
+			container?.removeEventListener("keydown", handleInputContainerKeyDown);
+		}
 	};
 });
 
@@ -597,13 +760,15 @@ onMount(() => {
 onDestroy(() => {
 	voiceSessionController.dispose();
 	kb.setContext("inputFocused", false);
-	logger.info("[first-send-trace] agent input destroy", {
-		panelId: props.panelId ?? null,
-		sessionId: props.sessionId ?? null,
-		messageLength: inputState.message.length,
-		hasPendingUserEntry: composerView.panelHotState?.pendingUserEntry !== null,
-		draftDebouncePending: draftDebounceTimer !== null,
-	});
+	if (isAgentInputTraceEnabled()) {
+		logger.info("[first-send-trace] agent input destroy", {
+			panelId: props.panelId ?? null,
+			sessionId: props.sessionId ?? null,
+			messageLength: inputState.message.length,
+			hasPendingUserEntry: composerView.panelHotState?.pendingUserEntry !== null,
+			draftDebouncePending: draftDebounceTimer !== null,
+		});
+	}
 	if (props.panelId && inputState.message) {
 		if (draftDebounceTimer) {
 			clearTimeout(draftDebounceTimer);
@@ -693,7 +858,7 @@ async function handleModeMenuChange(optionId: string): Promise<void> {
 
 	if (!props.sessionId) {
 		if (resolution.modeIdToApply) {
-		composerView.provisionalModeId = resolution.modeIdToApply;
+			composerView.provisionalModeId = resolution.modeIdToApply;
 		}
 
 		if (resolution.autonomousEnabledToApply !== null) {
@@ -716,7 +881,10 @@ async function handleModeMenuChange(optionId: string): Promise<void> {
 		},
 		async () => {
 			if (resolution.modeIdToApply) {
-				const modeResult = await sessionStore.connection.setMode(sessionId, resolution.modeIdToApply);
+				const modeResult = await sessionStore.connection.setMode(
+					sessionId,
+					resolution.modeIdToApply
+				);
 				if (modeResult.isErr()) {
 					toast.error("Failed to switch mode.");
 					return false;
@@ -763,13 +931,15 @@ async function handleModelChange(modelId: string) {
 }
 
 async function handleConfigOptionChange(configId: string, value: string) {
+	composerView.setProvisionalConfigOption(configId, value);
+
 	if (!props.sessionId) {
-		composerView.setProvisionalConfigOption(configId, value);
 		return;
 	}
 
+	composerView.markProvisionalConfigOptionSubmitted(configId, value);
 	const sessionId = props.sessionId;
-	await sessionStore.composer.runConfigOperation(
+	const ok = await sessionStore.composer.runConfigOperation(
 		sessionId,
 		{
 			provisionalModeId: composerView.effectiveCurrentModeId,
@@ -781,6 +951,11 @@ async function handleConfigOptionChange(configId: string, value: string) {
 			return result.isOk();
 		}
 	);
+
+	if (!ok) {
+		composerView.clearProvisionalConfigOption(configId);
+		toast.error("Failed to update setting.");
+	}
 }
 
 function cycleModeOnTab(event: KeyboardEvent): boolean {
@@ -789,9 +964,13 @@ function cycleModeOnTab(event: KeyboardEvent): boolean {
 	}
 
 	event.preventDefault();
-	const currentIndex = composerView.visibleModes.findIndex((m) => m.id === composerView.effectiveCurrentModeId);
+	const currentIndex = composerView.visibleModes.findIndex(
+		(m) => m.id === composerView.effectiveCurrentModeId
+	);
 	const nextIndex =
-		currentIndex === -1 ? 1 % composerView.visibleModes.length : (currentIndex + 1) % composerView.visibleModes.length;
+		currentIndex === -1
+			? 1 % composerView.visibleModes.length
+			: (currentIndex + 1) % composerView.visibleModes.length;
 	const nextMode = composerView.visibleModes[nextIndex];
 	if (nextMode && nextMode.id !== composerView.effectiveCurrentModeId) {
 		handleModeChange(nextMode.id);
@@ -812,9 +991,13 @@ function cycleModeOnShortcut(event: KeyboardEvent): boolean {
 
 	event.preventDefault();
 	event.stopPropagation();
-	const currentIndex = composerView.visibleModes.findIndex((m) => m.id === composerView.effectiveCurrentModeId);
+	const currentIndex = composerView.visibleModes.findIndex(
+		(m) => m.id === composerView.effectiveCurrentModeId
+	);
 	const nextIndex =
-		currentIndex === -1 ? 1 % composerView.visibleModes.length : (currentIndex + 1) % composerView.visibleModes.length;
+		currentIndex === -1
+			? 1 % composerView.visibleModes.length
+			: (currentIndex + 1) % composerView.visibleModes.length;
 	const nextMode = composerView.visibleModes[nextIndex];
 	if (nextMode && nextMode.id !== composerView.effectiveCurrentModeId) {
 		handleModeChange(nextMode.id);
@@ -1226,6 +1409,16 @@ function reportComposerRowWidth(): void {
 	props.onToolbarWidthChange?.(inputState.containerRef.getBoundingClientRect().width);
 }
 
+function startComposerWidthObserver(): void {
+	if (composerWidthObserver !== null || !inputState.containerRef || !props.onToolbarWidthChange) {
+		return;
+	}
+	composerWidthObserver = new ResizeObserver(() => {
+		reportComposerRowWidth();
+	});
+	composerWidthObserver.observe(inputState.containerRef);
+}
+
 let overlayCloseTimer: ReturnType<typeof setTimeout> | null = null;
 
 function closeOverlay(): void {
@@ -1564,59 +1757,28 @@ $effect(() => {
 						enterBehavior = behavior;
 					}}
 				>
-					{#snippet leadingControls()}
-						<AgentInputAttachMenu
-							disabled={composerView.selectorsDisabledByComposer}
-							modes={composerView.attachMenuModes}
-							commandSections={composerView.attachMenuCommandSections}
-							mcpServerGroups={composerView.attachMenuMcpServerGroups}
-							mcpLoading={composerView.attachMenuMcpCatalogLoading}
-							showMcpSection={composerView.attachMenuShowMcpSection}
-							mcpCatalogLoaded={composerView.attachMenuMcpCatalogLoaded}
-							showModes={composerView.visibleModes.length > 0}
-							autonomousToggleActive={composerView.autonomousToggleActive}
-							autonomousDisabled={composerView.autonomousDisabled}
-							autonomousBusy={composerView.autonomousToggleBusy}
-							onAutonomousToggle={() => { void handleAutonomousToggle(); }}
-							onModeChange={(modeId) => { void handleModeMenuChange(modeId); }}
-							onAddFileContext={handleAddFileContextFromAttachMenu}
-							onAttachImage={handleAttachImageFromMenu}
-							onCommandItemSelect={handleAttachMenuItemSelect}
-							onOpenChange={handleAttachMenuOpenChange}
-							checkpointOverflow={
-								props.showCheckpointInAttachMenu ? props.checkpointButton : undefined
-							}
-						/>
-						{#if composerView.showActiveModeChip}
-							<AgentInputActiveModeChip
-								label={composerView.selectedModeOption.label}
-								iconKind={composerView.selectedModeOption.iconKind}
-								disabled={composerView.selectorsDisabledByComposer}
-								onDismiss={handleActiveModeDismiss}
-							/>
-						{/if}
-					{/snippet}
-					{#snippet trailingControls()}
-						<AgentInputComposerTrailingControls
-							inputReady={composerView.inputReady}
-							agentProjectPicker={showNewThreadOptions ? undefined : props.agentProjectPicker}
-							toolbarConfigOptions={composerView.toolbarConfigOptions}
-							onConfigOptionChange={(configId, value) => {
-								void handleConfigOptionChange(configId, value);
-							}}
-							selectorsLoading={composerView.selectorsLoading}
-							selectorsDisabledByComposer={composerView.selectorsDisabledByComposer}
-							voiceState={voiceToolbarBinding}
-							{voiceEnabled}
-							composerIsDispatching={composerView.storeComposerState?.isDispatching ?? false}
-							getMicButtonTitle={(_voice) =>
-								voiceState ? resolveVoiceMicTooltip(voiceState.phase, voiceMicTooltipLabels) : ""}
-							onVoiceMicKeyDown={(event, _binding) => {
-								if (voiceReady && voiceState) {
-									if (voiceState.phase === "idle") {
-										voiceCursorSnapshot = editorRef
-											? getSerializedCursorOffset(editorRef)
-											: inputState.message.length;
+						{#snippet leadingControls()}
+							{#if secondaryComposerChromeReady}
+								<AgentInputAttachMenu
+									disabled={composerView.selectorsDisabledByComposer}
+									modes={composerView.attachMenuModes}
+									commandSections={composerView.attachMenuCommandSections}
+									mcpServerGroups={composerView.attachMenuMcpServerGroups}
+									mcpLoading={composerView.attachMenuMcpCatalogLoading}
+									showMcpSection={composerView.attachMenuShowMcpSection}
+									mcpCatalogLoaded={composerView.attachMenuMcpCatalogLoaded}
+									showModes={composerView.visibleModes.length > 0}
+									autonomousToggleActive={composerView.autonomousToggleActive}
+									autonomousDisabled={composerView.autonomousDisabled}
+									autonomousBusy={composerView.autonomousToggleBusy}
+									onAutonomousToggle={() => { void handleAutonomousToggle(); }}
+									onModeChange={(modeId) => { void handleModeMenuChange(modeId); }}
+									onAddFileContext={handleAddFileContextFromAttachMenu}
+									onAttachImage={handleAttachImageFromMenu}
+									onCommandItemSelect={handleAttachMenuItemSelect}
+									onOpenChange={handleAttachMenuOpenChange}
+									checkpointOverflow={
+										props.showCheckpointInAttachMenu ? props.checkpointButton : undefined
 									}
 									handleVoiceMicKeyDownFromModule(event, voiceState);
 								}
@@ -1654,9 +1816,70 @@ $effect(() => {
 										agentId={composerView.capabilitiesAgentId}
 									/>
 								{/if}
-							{/snippet}
-						</AgentInputComposerTrailingControls>
-					{/snippet}
+							{/if}
+						{/snippet}
+						{#snippet trailingControls()}
+							{#if secondaryComposerChromeReady}
+								<AgentInputComposerTrailingControls
+									inputReady={composerView.inputReady}
+									agentProjectPicker={showNewThreadOptions ? undefined : props.agentProjectPicker}
+									toolbarConfigOptions={composerView.toolbarConfigOptions}
+									onConfigOptionChange={(configId, value) => {
+										void handleConfigOptionChange(configId, value);
+									}}
+									selectorsLoading={composerView.selectorsLoading}
+									selectorsDisabledByComposer={composerView.selectorsDisabledByComposer}
+									voiceState={voiceToolbarBinding}
+									{voiceEnabled}
+									composerIsDispatching={composerView.storeComposerState?.isDispatching ?? false}
+									getMicButtonTitle={(_voice) =>
+										voiceState ? resolveVoiceMicTooltip(voiceState.phase, voiceMicTooltipLabels) : ""}
+									onVoiceMicKeyDown={(event, _binding) => {
+										if (voiceReady && voiceState) {
+											if (voiceState.phase === "idle") {
+												voiceCursorSnapshot = editorRef
+													? getSerializedCursorOffset(editorRef)
+													: inputState.message.length;
+											}
+											handleVoiceMicKeyDownFromModule(event, voiceState);
+										}
+									}}
+									voiceModels={voiceSettingsStore.models.map((model) => ({
+										id: model.id,
+										name: model.name,
+										sizeBytes: model.size_bytes,
+										isDownloaded: model.is_downloaded,
+									}))}
+									voiceSelectedModelId={voiceSettingsStore.selectedModelId}
+									voiceModelsLoading={voiceSettingsStore.modelsLoading}
+									voiceDownloadingModelId={voiceSettingsStore.downloadProgressModelId}
+									voiceDownloadPercent={voiceSettingsStore.downloadPercent}
+									voiceMenuLabel={"Voice model"}
+									voiceModelsLoadingLabel={"Loading voice models…"}
+									onVoiceSelectModel={(modelId) => {
+										void voiceSettingsStore.setSelectedModelId(modelId);
+									}}
+									onVoiceDownloadModel={(modelId) => {
+										void voiceSettingsStore.downloadModel(modelId);
+									}}
+									onVoiceUninstallModel={(modelId) => {
+										void voiceSettingsStore.deleteModel(modelId);
+									}}
+									voiceCloseLabel={"Close"}
+								>
+									{#snippet modelSelector()}
+										{@render newThreadModelControl()}
+									{/snippet}
+									{#snippet metricsChip()}
+										<ModelSelectorMetricsChip
+											sessionId={props.sessionId ?? null}
+											agentId={composerView.capabilitiesAgentId}
+											modelsDisplay={composerView.effectiveModelsDisplay}
+										/>
+									{/snippet}
+								</AgentInputComposerTrailingControls>
+							{/if}
+						{/snippet}
 				</AgentInputComposerBody>
 			{/snippet}
 		</SharedAgentPanelComposer>

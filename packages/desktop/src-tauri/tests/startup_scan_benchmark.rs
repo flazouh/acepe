@@ -656,15 +656,21 @@ async fn sqlite_index_scan() {
     // Measure index query
     let mut durations = Vec::new();
     let mut entry_count = 0;
+    let external_hidden_paths = std::collections::HashSet::new();
 
     for i in 0..10 {
         let t = Instant::now();
-        let result = SessionMetadataRepository::get_for_projects(&db, &project_paths).await;
+        let result = SessionMetadataRepository::get_for_projects(
+            &db,
+            &project_paths,
+            &external_hidden_paths,
+        )
+        .await;
         let elapsed = ms(t.elapsed());
         durations.push(elapsed);
 
         if let Ok(entries) = &result {
-            entry_count = entries.len();
+            entry_count = entries.entries.len();
         }
 
         if i == 0 {
@@ -704,13 +710,19 @@ async fn startup_simulation() {
     }
 
     use acepe_lib::db::repository::SessionMetadataRepository;
+    let external_hidden_paths = std::collections::HashSet::new();
 
     // Step 1: Try SQLite index (fast path)
     let t_idx = Instant::now();
-    let index_result = SessionMetadataRepository::get_for_projects(&db, &project_paths).await;
+    let index_result =
+        SessionMetadataRepository::get_for_projects(&db, &project_paths, &external_hidden_paths)
+            .await;
     let idx_ms = ms(t_idx.elapsed());
-    let index_count = index_result.as_ref().map(|v| v.len()).unwrap_or(0);
-    let index_populated = index_result.ok().filter(|v| !v.is_empty()).is_some();
+    let index_count = index_result.as_ref().map(|v| v.entries.len()).unwrap_or(0);
+    let index_populated = index_result
+        .ok()
+        .filter(|v| !v.entries.is_empty())
+        .is_some();
 
     println!("\nStep 1: SQLite index query");
     println!(

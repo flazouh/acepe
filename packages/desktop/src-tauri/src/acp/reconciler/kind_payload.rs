@@ -53,13 +53,7 @@ pub fn infer_kind_from_payload_for_agent(
                 return Some(ToolKind::Delete);
             }
             // Execute / terminal
-            if t == "exec_command"
-                || t == "execcommand"
-                || t == "write_stdin"
-                || t == "writestdin"
-                || t == "terminal"
-                || t == "run terminal cmd"
-            {
+            if is_execute_tool_title(&t) {
                 return Some(ToolKind::Execute);
             }
             // Search (codebase)
@@ -115,6 +109,62 @@ pub fn infer_kind_from_payload_for_agent(
         "unclassified" => Some(ToolKind::Unclassified),
         _ => None,
     }
+}
+
+fn is_execute_tool_title(value: &str) -> bool {
+    let normalized = normalize_tool_title(value);
+    if is_execute_tool_title_token(normalized.as_str()) {
+        return true;
+    }
+
+    if let Some(stripped) = normalized.strip_prefix("functions_") {
+        return is_execute_tool_title_token(stripped);
+    }
+
+    if let Some(stripped) = normalized.strip_prefix("codex_") {
+        return is_execute_tool_title_token(stripped);
+    }
+
+    false
+}
+
+fn is_execute_tool_title_token(value: &str) -> bool {
+    matches!(
+        value,
+        "exec_command"
+            | "execcommand"
+            | "write_stdin"
+            | "writestdin"
+            | "shell"
+            | "shell_command"
+            | "shellcommand"
+            | "terminal"
+            | "run_command"
+            | "runcommand"
+            | "run_terminal_cmd"
+            | "runterminalcmd"
+    )
+}
+
+fn normalize_tool_title(value: &str) -> String {
+    let mut normalized = String::new();
+    let mut previous_was_separator = false;
+
+    for character in value.trim().to_lowercase().chars() {
+        if character.is_ascii_alphanumeric() {
+            normalized.push(character);
+            previous_was_separator = false;
+        } else if !previous_was_separator && !normalized.is_empty() {
+            normalized.push('_');
+            previous_was_separator = true;
+        }
+    }
+
+    if normalized.ends_with('_') {
+        normalized.pop();
+    }
+
+    normalized
 }
 
 /// Canonical display name for a `ToolKind`.
@@ -359,6 +409,14 @@ mod tests {
         );
         assert_eq!(
             infer_kind_from_payload("id", Some("write_stdin"), None),
+            Some(ToolKind::Execute)
+        );
+        assert_eq!(
+            infer_kind_from_payload("id", Some("functions.exec_command"), Some("other")),
+            Some(ToolKind::Execute)
+        );
+        assert_eq!(
+            infer_kind_from_payload("id", Some("functions.write_stdin"), None),
             Some(ToolKind::Execute)
         );
         assert_eq!(

@@ -23,12 +23,15 @@ import { getSessionArchiveStore } from "$lib/acp/store/session-archive-store.sve
 import { createLogger } from "$lib/acp/utils/logger.js";
 import { useTheme } from "$lib/components/theme/index.js";
 import { getAttentionQueueStore } from "$lib/stores/attention-queue-store.svelte.js";
+import { tauriClient } from "$lib/utils/tauri-client/index.js";
 
 import type { MainAppViewState } from "../../logic/main-app-view-state.svelte.js";
+import type { UpdaterBannerState } from "../../logic/updater-state.js";
 import { ensureProjectHeaderAgentSelected, getProjectHeaderAgents } from "./app-sidebar-agents.js";
 
 import AppQueueRow from "../app-queue-row.svelte";
 import SidebarFooter from "./sidebar-footer.svelte";
+import { buildSessionTranscriptFileDialogTarget } from "./session-transcript-file-dialog.js";
 
 const logger = createLogger({
 	id: LOGGER_IDS.MAIN_PAGE,
@@ -103,16 +106,16 @@ function handleToggleShowExternalCliSessions(
 	projectPath: string,
 	showExternalCliSessions: boolean
 ) {
-	projectManager.updateProjectShowExternalCliSessions(projectPath, showExternalCliSessions).mapErr(
-		(error) => {
+	projectManager
+		.updateProjectShowExternalCliSessions(projectPath, showExternalCliSessions)
+		.mapErr((error) => {
 			toast.error(`Failed to update session visibility: ${error.message}`);
 			logger.error("[ProjectVisibility] Failed to update external CLI visibility", {
 				projectPath,
 				showExternalCliSessions,
 				error,
 			});
-		}
-	);
+		});
 }
 
 function handleChangeProjectIcon(projectPath: string) {
@@ -216,6 +219,32 @@ function handleOpenPr(sessionInfo: SessionListItem) {
 	});
 }
 
+function openTranscriptFileDialog(fullPath: string): void {
+	const target = buildSessionTranscriptFileDialogTarget(fullPath);
+	if (target === null) {
+		toast.error("Failed to open transcript in Acepe: invalid transcript path");
+		return;
+	}
+
+	panelStore.openProjectFileSystemDialog(target.projectPath, target.filePath, {
+		projectName: target.projectName,
+		title: "Session transcript",
+	});
+}
+
+async function handleOpenTranscriptInAcepe(session: SessionDisplayItem) {
+	const sourcePath = session.sourcePath?.trim();
+	if (sourcePath) {
+		openTranscriptFileDialog(sourcePath);
+		return;
+	}
+
+	await tauriClient.shell.getSessionFilePath(session.id, session.projectPath).match(
+		(path) => openTranscriptFileDialog(path),
+		(error) => toast.error(`Failed to open transcript in Acepe: ${error.message}`)
+	);
+}
+
 function handleRenameSession(sessionInfo: SessionListItem, title: string) {
 	void sessionStore.write.renameSession(sessionInfo.id, title).match(
 		() => undefined,
@@ -231,33 +260,33 @@ function handleRenameSession(sessionInfo: SessionListItem, title: string) {
 	);
 }
 
-function handleExportMarkdown(sessionId: string) {
+function handleCopyTranscriptMarkdown(sessionId: string) {
 	sessionStore.read.getSessionMarkdownExportContent(sessionId).match(
 		(markdown) => {
 			void copyTextToClipboard(markdown).match(
 				() => toast.success("Copied to clipboard"),
 				(err) => {
-					toast.error(`Failed to export: ${err.message}`);
-					logger.error("[ExportMarkdown] Failed", { sessionId, error: err });
+					toast.error(`Failed to copy transcript: ${err.message}`);
+					logger.error("[CopyTranscriptMarkdown] Failed", { sessionId, error: err });
 				}
 			);
 		},
-		(error) => toast.error(error.message)
+		(error) => toast.error(`Failed to copy transcript: ${error.message}`)
 	);
 }
 
-function handleExportJson(sessionId: string) {
+function handleCopyTranscriptJson(sessionId: string) {
 	sessionStore.read.getSessionJsonExportContent(sessionId).match(
 		(content) => {
 			void copyTextToClipboard(content).match(
 				() => toast.success("Copied to clipboard"),
 				(err) => {
-					toast.error(`Failed to export: ${err.message}`);
-					logger.error("[ExportJson] Failed", { sessionId, error: err });
+					toast.error(`Failed to copy transcript: ${err.message}`);
+					logger.error("[CopyTranscriptJson] Failed", { sessionId, error: err });
 				}
 			);
 		},
-		(error) => toast.error(`Failed to export: ${error.message}`)
+		(error) => toast.error(`Failed to copy transcript: ${error.message}`)
 	);
 }
 
@@ -588,15 +617,23 @@ const visibleSessions = $derived.by(() => {
 			onOpenPr={handleOpenPr}
 			onArchiveSession={handleArchiveSession}
 			onRenameSession={handleRenameSession}
-			onExportMarkdown={handleExportMarkdown}
-			onExportJson={handleExportJson}
+			onCopyTranscriptMarkdown={handleCopyTranscriptMarkdown}
+			onCopyTranscriptJson={handleCopyTranscriptJson}
+			onOpenTranscriptInAcepe={handleOpenTranscriptInAcepe}
 			onReorderProjects={handleReorderProjects}
 			onToggleShowExternalCliSessions={handleToggleShowExternalCliSessions}
 		/>
 	{/snippet}
 
 	{#snippet footer()}
-		<SidebarFooter {projectManager} state={appState} onOpenGitPanel={handleOpenGitPanel} />
+		<SidebarFooter
+			{projectManager}
+			state={appState}
+			onOpenGitPanel={handleOpenGitPanel}
+			{updaterState}
+			{onUpdateClick}
+			{onRetryUpdateClick}
+		/>
 	{/snippet}
 </AppSidebarLayout>
 

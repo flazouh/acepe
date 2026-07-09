@@ -7,13 +7,20 @@
 
 /** Snapshot of the review-content control state surfaced to the host shell. */
 export interface ReviewControlsSnapshot {
-	hasPendingHunks: boolean;
-	hasPrevPendingFile: boolean;
-	hasNextPendingFile: boolean;
 	fileCurrent: number;
 	fileTotal: number;
+	/** Whether the CURRENT file is marked reviewed. */
+	isReviewed: boolean;
+	/**
+	 * Toggle the current file's reviewed status. When it BECOMES reviewed, the
+	 * review content auto-advances to the next unreviewed file if one exists;
+	 * otherwise it stays on the current file (never closes the modal).
+	 */
+	onToggleReviewed: () => void;
+	/** Revert the current file's working-tree changes. The caller shows the confirm. */
+	onRevertFile: () => void;
+	hasPrevFile: boolean;
+	hasNextFile: boolean;
 	onPrevFile: () => void;
 	onNextFile: () => void;
-	onAcceptFile: () => void;
-	onRejectFile: () => void;
 }

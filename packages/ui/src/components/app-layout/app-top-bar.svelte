@@ -6,58 +6,65 @@
 	import { Button } from "../button/index.js";
 	import { RoundedIcon } from "../icons/index.js";
 
-	interface Props {
-		showTrafficLights?: boolean;
-		/** When true, adds data-tauri-drag-region for desktop window dragging */
-		windowDraggable?: boolean;
-		/** Label shown in the search button */
-		searchLabel?: string;
-		onToggleSidebar?: () => void;
-		onSearch?: () => void;
-		onSettings?: () => void;
-		/** Override the add-project button (e.g. desktop wraps in a dropdown) */
-		addProjectButton?: Snippet;
-		/** Extra actions rendered after sidebar/add-project on the left */
-		extraLeftActions?: Snippet;
-		/** Extra actions rendered before settings (e.g. discord, theme toggle) */
-		extraRightActions?: Snippet;
-		/** Override the avatar area (e.g. AvatarPlaceholder in desktop) */
-		avatar?: Snippet;
-		/** Toggle avatar/account button visibility */
-		showAvatar?: boolean;
-		/** Toggle settings button visibility in the right section */
-		showSettings?: boolean;
-		/** Toggle sidebar button visibility in the left section */
-		showSidebarToggle?: boolean;
-		/** Toggle add project button visibility in the left section */
-		showAddProject?: boolean;
-		/** Toggle the leading border on the right action rail */
-		showRightSectionLeadingBorder?: boolean;
-		/** Toggle the center search/command palette button */
-		showSearch?: boolean;
-	}
+interface Props {
+	showTrafficLights?: boolean;
+	/** When true, adds data-tauri-drag-region for desktop window dragging */
+	windowDraggable?: boolean;
+	/** Label shown in the search button */
+	searchLabel?: string;
+	onToggleSidebar?: () => void;
+	onSearch?: () => void;
+	onSettings?: () => void;
+	/** Override the add-project button (e.g. desktop wraps in a dropdown) */
+	addProjectButton?: Snippet;
+	/** Extra actions rendered after sidebar/add-project on the left */
+	extraLeftActions?: Snippet;
+	/** Extra actions rendered before settings (e.g. discord, theme toggle) */
+	extraRightActions?: Snippet;
+	/** Override the avatar area (e.g. AvatarPlaceholder in desktop) */
+	avatar?: Snippet;
+	/** Toggle avatar/account button visibility */
+	showAvatar?: boolean;
+	/** Toggle settings button visibility in the right section */
+	showSettings?: boolean;
+	/** Toggle sidebar button visibility in the left section */
+	showSidebarToggle?: boolean;
+	/** Whether the workspace sidebar is currently open */
+	sidebarOpen?: boolean;
+	/** Toggle add project button visibility in the left section */
+	showAddProject?: boolean;
+	/** Toggle the leading border on the right action rail */
+	showRightSectionLeadingBorder?: boolean;
+	/** Toggle the center search/command palette button */
+	showSearch?: boolean;
+}
 
 	const ICON = "size-4";
 	const chromeIconButton = { variant: "ghost" as const, size: "icon-chrome" as const };
 
-	let {
-		showTrafficLights = true,
-		windowDraggable = false,
-		searchLabel,
-		onToggleSidebar,
-		onSearch,
-		onSettings,
-		addProjectButton,
-		extraLeftActions,
-		extraRightActions,
-		avatar,
-		showAvatar = true,
-		showSettings = true,
-		showSidebarToggle = true,
-		showAddProject = true,
-		showRightSectionLeadingBorder = true,
-		showSearch = true,
-	}: Props = $props();
+let {
+	showTrafficLights = true,
+	windowDraggable = false,
+	searchLabel,
+	onToggleSidebar,
+	onSearch,
+	onSettings,
+	addProjectButton,
+	extraLeftActions,
+	extraRightActions,
+	avatar,
+	showAvatar = true,
+	showSettings = true,
+	showSidebarToggle = true,
+	showAddProject = true,
+	showRightSectionLeadingBorder = true,
+	showSearch = true,
+	sidebarOpen = true,
+}: Props = $props();
+
+const sidebarIconName = $derived<RoundedIconName>(
+	sidebarOpen ? "sidebar-open" : "sidebar-closed",
+);
 </script>
 
 <!-- svelte-ignore a11y_no_static_element_interactions -->
@@ -97,7 +104,7 @@
 				{:else}
 					<Button {...chromeIconButton} title="Add project" aria-label="Add Project">
 						{#snippet children()}
-							<FolderPlus class={ICON} weight="fill" />
+							<RoundedIcon name="plus" />
 						{/snippet}
 					</Button>
 				{/if}
@@ -125,7 +132,7 @@
 		{#if showSettings}
 			<Button {...chromeIconButton} title="Settings" aria-label="Settings" onclick={onSettings}>
 				{#snippet children()}
-					<GearSix class={ICON} weight="fill" />
+					<RoundedIcon name="settings" />
 				{/snippet}
 			</Button>
 		{/if}

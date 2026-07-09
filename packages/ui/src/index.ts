@@ -300,6 +300,14 @@ export {
 	Trigger as DrawerTriggerRaw,
 } from "./components/drawer/index.js";
 export { FilePathBadge } from "./components/file-path-badge/index.js";
+export {
+	PierreFileTree,
+	type PierreFileTreeActionItem,
+	type PierreFileTreeProps,
+	type PierreFileTreeRowAction,
+	type PierreFileTreeRowActionProvider,
+	type PierreFileTreeRowDecorationProvider,
+} from "./components/pierre-tree/index.js";
 export type {
 	GitIndexStatus,
 	GitLogEntry,
@@ -320,16 +328,12 @@ export {
 	GitStatusList,
 } from "./components/git-panel/index.js";
 export type {
-	FileTreeNode,
 	GitCommitData,
 	GitPrData,
 	GitViewerFile,
 } from "./components/git-viewer/index.js";
 // Git viewer components
 export {
-	buildFileTree,
-	compactSingleChildDirs,
-	flattenFileTree,
 	GitCommitHeader,
 	GitDiffViewToggle,
 	GitFileTree,
@@ -345,11 +349,18 @@ export {
 	DotmTriangle17Spinner,
 	DotmTriangle20Spinner,
 	LoadingIcon,
+	MenuIcon,
+	PaletteIcon,
 	PlanIcon,
 	PlusIcon,
 	PLUS_ACTION_BUTTON_CLASS,
 	PLUS_ICON_CLASS,
 	RevertIcon,
+	RobotIcon,
+	SaveIcon,
+	StorageIcon,
+	WrenchIcon,
+	XLogoIcon,
 } from "./components/icons/index.js";
 export { ProviderMark } from "./components/provider-mark/index.js";
 export type { ProviderBrand } from "./components/provider-mark/index.js";
@@ -444,6 +455,8 @@ export {
 export { PlanSidebarLayout } from "./components/plan-sidebar/index.js";
 export { BrandLockup } from "./components/brand-lockup/index.js";
 export { BrandShaderBackground } from "./components/brand-shader-background/index.js";
+export { BrandSurface } from "./components/brand-surface/index.js";
+export { IrisCard } from "./components/iris-card/index.js";
 export { DismissableTooltip } from "./components/dismissable-tooltip/index.js";
 export { PillButton } from "./components/pill-button/index.js";
 export { ProjectCard } from "./components/project-card/index.js";

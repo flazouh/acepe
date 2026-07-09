@@ -197,6 +197,7 @@ function createSessionOpenFoundFromGraph(graph: SessionStateGraph): SessionOpenF
 		requestedSessionId: graph.requestedSessionId,
 		canonicalSessionId: graph.canonicalSessionId,
 		isAlias: graph.isAlias,
+		openPath: "legacy_rebuild",
 		lastEventSeq: graph.revision.lastEventSeq,
 		graphRevision: graph.revision.graphRevision,
 		openToken: "open-token",

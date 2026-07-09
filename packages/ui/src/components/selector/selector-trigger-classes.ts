@@ -4,6 +4,7 @@ import type { ButtonSize, ButtonVariant } from "../button/variants.js";
 export type SelectorTriggerSize =
 	| "default"
 	| "icon"
+	| "iconSm"
 	| "chromeIcon"
 	| "chromeIconMd"
 	| "square"

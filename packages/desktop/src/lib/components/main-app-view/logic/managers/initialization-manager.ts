@@ -7,45 +7,43 @@
  * ## Initialization Flow (Optimized for Speed)
  *
  * ```
- * Phase 1 (Parallel):
- *   ├── initializeKeybindings()
- *   ├── initializeSessionUpdates()
- *   └── loadBasicMetadata() [keybindings, agents, projects, preconnection skills in parallel]
+ * Phase 1:
+ *   └── initializeKeybindings()
  *
- * Phase 2 (Sequential - needs projects):
- *   └── restoreWorkspace()
+ * Phase 2 (shell ready):
+ *   └── mark shell ready once keybindings are attached
  *
- * Phase 3 (Sequential - restored sessions):
- *   ├── loadStartupSessions() [load only restored session metadata by id]
- *   ├── validateRestoredSessions() [clear orphaned restored session ids]
- *   ├── earlyPreloadPanelSessions() [preload restored panels after validation]
- *   └── triggerBackgroundScan() [refresh sidebar sessions without blocking panel hydration]
+ * Phase 2.5 (app init complete):
+ *   └── mark init complete once the keyboard shell is ready
  *
- * Phase 3 fallback (Sequential - no restored sessions):
- *   └── loadSessionHistory() [full blocking sidebar load]
+ * Phase 3 (workspace chrome):
+ *   └── restoreWorkspace() [scheduled after app init resolves]
  *
- * Phase 4 (Fire & Forget):
- *   └── createSessionsForAgentOnlyPanels()
+ * Phase 4 (metadata after init):
+ *   ├── loadProjectsAfterStartup() [refresh project chrome]
+ *   ├── scanStartupSessionHistory() [deferred behind restored panel hydration]
+ *   └── initializeZoomAfterStartup()
+ *
+ * Phase 5 (Sequential - restored sessions):
+ *   └── scheduleRestoredPanelHydration() [load restored session metadata after first-interaction time]
+ *
+	 * Phase 6 (Fire & Forget):
+ *   ├── initializeSessionUpdatesInBackground()
+ *   ├── loadUserKeybindingsAfterStartup()
+ *   ├── loadAvailableAgentsAfterStartup()
+ *   ├── createSessionsForAgentOnlyPanels() [after agent metadata arrives]
+ *   ├── persisted preference loads are scheduled after agent metadata arrives
+ *   └── warmRecentTranscriptRowLedgersAfterStartup() [deferred behind restored panel preload]
  * ```
  *
  * ## Session Loading Strategy
  *
- * Restored panels only open after session history is loaded and validated, so
- * startup never attempts to resume created session ids that have no persisted
- * history on disk.
- *
- * earlyPreloadPanelSessions clears panel session references on load failure and
- * reconnects restored sessions after backend-owned session open. validateRestoredSessions
- * handles remaining edge cases.
+ * Restored panel shells come from workspace state immediately. Backend-owned
+ * metadata validation runs before reconnect, but after the app shell is usable.
+ * validateRestoredSessions handles missing/deleted session edge cases.
  */
 
-import {
-	errAsync,
-	ResultAsync as NeverthrowResultAsync,
-	okAsync,
-	type ResultAsync,
-} from "neverthrow";
-import { PreconnectionCapabilitiesState } from "$lib/acp/components/agent-input/logic/preconnection-capabilities-state.svelte.js";
+import { errAsync, okAsync, type ResultAsync } from "neverthrow";
 import type { AppError } from "$lib/acp/errors/app-error.js";
 import type { ProjectManager } from "$lib/acp/logic/project-manager.svelte.js";
 import type { AgentPreferencesStore } from "$lib/acp/store/agent-preferences-store.svelte.js";
@@ -53,12 +51,13 @@ import type { AgentStore } from "$lib/acp/store/agent-store.svelte.js";
 import type { PanelStore } from "$lib/acp/store/panel-store.svelte.js";
 import type { SessionOpenHydrator } from "$lib/acp/store/services/session-open-hydrator.js";
 import type { SessionStore } from "$lib/acp/store/session-store.svelte.js";
+import type { Agent } from "$lib/acp/store/types.js";
 import type { WorkspaceStore } from "$lib/acp/store/workspace-store.svelte.js";
 import { createLogger } from "$lib/acp/utils/logger.js";
 import type { KeybindingsService } from "$lib/keybindings/service.svelte.js";
 import type { UserSettingKey } from "$lib/services/user-settings-types.js";
 import { getZoomService } from "$lib/services/zoom.svelte.js";
-import type { PreconnectionAgentSkillsStore } from "$lib/skills/store/preconnection-agent-skills-store.svelte.js";
+import { history } from "$lib/utils/tauri-client/history.js";
 import { settings } from "$lib/utils/tauri-client/settings.js";
 import type { MainAppViewState } from "../main-app-view-state.svelte.js";
 import { openPersistedSession } from "../open-persisted-session.js";
@@ -68,9 +67,105 @@ const logger = createLogger({
 	name: "InitializationManager",
 });
 const HAS_SEEN_SPLASH_KEY: UserSettingKey = "has_seen_splash";
+const HAS_SEEN_SPLASH_HOT_CACHE_KEY = "acepe.has_seen_splash.hot_cache";
 const SESSION_OPEN_TIMEOUT_MS = 30_000;
+const POST_STARTUP_IDLE_WORK_DELAY_MS = 5_000;
+const POST_STARTUP_IDLE_WORK_TIMEOUT_MS = 5_000;
+const RESTORED_PANEL_PRELOAD_IDLE_WORK_DELAY_MS = 30_000;
+const RESTORED_PANEL_PRELOAD_IDLE_WORK_TIMEOUT_MS = 10_000;
+const PERSISTED_AGENT_PREFERENCES_IDLE_WORK_DELAY_MS = 30_000;
+const PERSISTED_AGENT_PREFERENCES_IDLE_WORK_TIMEOUT_MS = 10_000;
+const TRANSCRIPT_ROW_LEDGER_BACKFILL_LIMIT = 8;
 
 import { InitializationError, type MainAppViewError } from "../../errors/main-app-view-error.js";
+
+export type StartupPerformanceTraceStatus = "pending" | "ok" | "error";
+export type PostStartupWorkScheduler = (callback: () => void) => void;
+
+export interface StartupPerformanceTraceEntry {
+	readonly name: string;
+	readonly startedAtMs: number;
+	readonly completedAtMs: number | null;
+	readonly durationMs: number | null;
+	readonly status: StartupPerformanceTraceStatus;
+	readonly errorMessage: string | null;
+}
+
+interface MutableStartupPerformanceTraceEntry {
+	name: string;
+	startedAtMs: number;
+	completedAtMs: number | null;
+	durationMs: number | null;
+	status: StartupPerformanceTraceStatus;
+	errorMessage: string | null;
+}
+
+function scheduleTimeout(callback: () => void, delayMs: number): void {
+	const timer =
+		typeof window !== "undefined" && typeof window.setTimeout === "function"
+			? window.setTimeout(callback, delayMs)
+			: setTimeout(callback, delayMs);
+	if (typeof timer === "object" && timer !== null && "unref" in timer) {
+		const maybeUnref = (timer as { unref?: () => void }).unref;
+		if (typeof maybeUnref === "function") {
+			maybeUnref.call(timer);
+		}
+	}
+}
+
+function scheduleIdleWorkAfterDelay(
+	callback: () => void,
+	delayMs: number,
+	timeoutMs: number
+): void {
+	if (typeof window !== "undefined") {
+		scheduleTimeout(() => {
+			const schedulingWindow = window as Window & {
+				requestIdleCallback?: (
+					callback: IdleRequestCallback,
+					options?: IdleRequestOptions
+				) => number;
+			};
+			if (typeof schedulingWindow.requestIdleCallback === "function") {
+				schedulingWindow.requestIdleCallback(callback, {
+					timeout: timeoutMs,
+				});
+				return;
+			}
+			scheduleTimeout(callback, 0);
+		}, delayMs);
+		return;
+	}
+	scheduleTimeout(callback, delayMs);
+}
+
+function schedulePostStartupIdleWork(callback: () => void): void {
+	scheduleIdleWorkAfterDelay(
+		callback,
+		POST_STARTUP_IDLE_WORK_DELAY_MS,
+		POST_STARTUP_IDLE_WORK_TIMEOUT_MS
+	);
+}
+
+function scheduleRestoredPanelPreloadIdleWork(callback: () => void): void {
+	scheduleIdleWorkAfterDelay(
+		callback,
+		RESTORED_PANEL_PRELOAD_IDLE_WORK_DELAY_MS,
+		RESTORED_PANEL_PRELOAD_IDLE_WORK_TIMEOUT_MS
+	);
+}
+
+function schedulePersistedAgentPreferencesIdleWork(callback: () => void): void {
+	scheduleIdleWorkAfterDelay(
+		callback,
+		PERSISTED_AGENT_PREFERENCES_IDLE_WORK_DELAY_MS,
+		PERSISTED_AGENT_PREFERENCES_IDLE_WORK_TIMEOUT_MS
+	);
+}
+
+function scheduleImmediatePostStartupWork(callback: () => void): void {
+	setTimeout(callback, 0);
+}
 
 type TauriWindow = Window & {
 	__TAURI_INTERNALS__?: {
@@ -78,15 +173,40 @@ type TauriWindow = Window & {
 	};
 };
 
-type ProjectManagerLike = Pick<ProjectManager, "loadProjects" | "projectCount" | "projects"> & {
+type ProjectManagerLike = Pick<
+	ProjectManager,
+	"loadProjects" | "projectCount" | "projects" | "projectStorageFresh"
+> & {
 	triggerProjectIconBackfill?: () => void;
 };
+
+function readSplashSeenHotCache(): boolean | null {
+	if (typeof localStorage === "undefined") {
+		return null;
+	}
+	const cached = localStorage.getItem(HAS_SEEN_SPLASH_HOT_CACHE_KEY);
+	if (cached === "true") {
+		return true;
+	}
+	if (cached === "false") {
+		return false;
+	}
+	return null;
+}
+
+export function writeSplashSeenHotCache(seen: boolean): void {
+	if (typeof localStorage === "undefined") {
+		return;
+	}
+	localStorage.setItem(HAS_SEEN_SPLASH_HOT_CACHE_KEY, seen ? "true" : "false");
+}
 
 /**
  * Handles app initialization.
  */
 export class InitializationManager {
 	private splashResolutionPromise: Promise<void> | null = null;
+	private readonly startupTraceEntries: MutableStartupPerformanceTraceEntry[] = [];
 
 	/**
 	 * Creates a new initialization manager.
@@ -99,7 +219,6 @@ export class InitializationManager {
 	 * @param projectManager - The project manager
 	 * @param agentPreferencesStore - The agent preferences store
 	 * @param keybindingsService - The keybindings service
-	 * @param preconnectionAgentSkillsStore - Startup-loaded agent skills for pre-connect slash commands
 	 */
 	constructor(
 		private readonly state: MainAppViewState,
@@ -110,12 +229,75 @@ export class InitializationManager {
 		private readonly projectManager: ProjectManagerLike,
 		private readonly agentPreferencesStore: AgentPreferencesStore,
 		private readonly keybindingsService: KeybindingsService,
-		private readonly preconnectionAgentSkillsStore: PreconnectionAgentSkillsStore,
 		private readonly sessionOpenHydrator: Pick<
 			SessionOpenHydrator,
 			"beginAttempt" | "clearAttempt" | "hydrateFound" | "isCurrentAttempt"
-		>
+		>,
+		private readonly schedulePostStartupWork: PostStartupWorkScheduler = schedulePostStartupIdleWork,
+		private readonly scheduleRestoredPanelPreloadWork: PostStartupWorkScheduler = scheduleRestoredPanelPreloadIdleWork,
+		private readonly schedulePersistedAgentPreferencesWork: PostStartupWorkScheduler = schedulePersistedAgentPreferencesIdleWork
 	) {}
+
+	private beginStartupTrace(name: string): number {
+		const index = this.startupTraceEntries.length;
+		this.startupTraceEntries.push({
+			name,
+			startedAtMs: Math.round(performance.now() * 100) / 100,
+			completedAtMs: null,
+			durationMs: null,
+			status: "pending",
+			errorMessage: null,
+		});
+		return index;
+	}
+
+	private finishStartupTrace(
+		index: number,
+		status: Exclude<StartupPerformanceTraceStatus, "pending">,
+		errorMessage: string | null
+	): void {
+		const entry = this.startupTraceEntries[index];
+		if (entry === undefined) {
+			return;
+		}
+		const completedAtMs = Math.round(performance.now() * 100) / 100;
+		entry.completedAtMs = completedAtMs;
+		entry.durationMs = Math.round((completedAtMs - entry.startedAtMs) * 100) / 100;
+		entry.status = status;
+		entry.errorMessage = errorMessage;
+	}
+
+	private finishStartupTraceIfPending(
+		index: number,
+		status: Exclude<StartupPerformanceTraceStatus, "pending">,
+		errorMessage: string | null
+	): void {
+		const entry = this.startupTraceEntries[index];
+		if (entry === undefined || entry.completedAtMs !== null) {
+			return;
+		}
+		this.finishStartupTrace(index, status, errorMessage);
+	}
+
+	private describeStartupTraceError<E>(error: E): string {
+		return String(error);
+	}
+
+	private traceStartupResult<T, E>(
+		name: string,
+		result: ResultAsync<T, E>
+	): ResultAsync<T, E> {
+		const index = this.beginStartupTrace(name);
+		return result
+			.map((value) => {
+				this.finishStartupTrace(index, "ok", null);
+				return value;
+			})
+			.mapErr((error) => {
+				this.finishStartupTrace(index, "error", this.describeStartupTraceError(error));
+				return error;
+			});
+	}
 
 	/**
 	 * Initializes the app.
@@ -132,38 +314,100 @@ export class InitializationManager {
 		}
 
 		this.state.initializationInProgress = true;
+		this.state.shellReady = false;
+		this.state.workspaceRestorationPending = true;
+		const initializeTraceIndex = this.beginStartupTrace("initialize");
+		const shellReadyTraceIndex = this.beginStartupTrace("shellReady");
 
 		// Phase 0.5: Check if splash screen should be shown (async but fast)
 		// This runs BEFORE anything else so splash shows immediately if needed
 		void this.resolveSplashScreen();
 
-		// Phase 1: Initialize core systems in parallel
-		// - Keybindings (synchronous but wrapped)
-		// - Session update subscription (sets up event listener)
-		// - Basic metadata (agents, projects, user keybindings - already parallel internally)
+		// Phase 1: Initialize the critical keyboard shell path.
 		return (
-			NeverthrowResultAsync.combine([
-				this.initializeKeybindings(),
-				this.initializeSessionUpdates(),
-				this.loadBasicMetadata(),
-			])
-				.map(() => undefined)
-				.andThen(() => this.initializeAgentPreferences())
-				// Phase 2: Restore workspace (needs projects from Phase 1)
-				.andThen(() => this.restoreWorkspace())
-				.andThen((restoredSessionIds) => this.hydrateStartupPanels(restoredSessionIds))
-				// Phase 4: Create sessions for panels with agent but no session (fire and forget)
-				.andThen(() => this.createSessionsForAgentOnlyPanels())
+			this.traceStartupResult("initializeKeybindings", this.initializeKeybindings())
 				.map(() => {
-					this.state.initializationComplete = true;
-					this.state.initializationInProgress = false;
+					this.state.shellReady = true;
+					this.finishStartupTraceIfPending(shellReadyTraceIndex, "ok", null);
+					this.completeInitialization(initializeTraceIndex);
+					scheduleImmediatePostStartupWork(() => {
+						this.restoreWorkspaceAfterInitialization();
+					});
 					return undefined;
 				})
 				.mapErr((error) => {
 					this.state.initializationInProgress = false;
+					this.state.workspaceRestorationPending = false;
+					this.finishStartupTraceIfPending(
+						shellReadyTraceIndex,
+						"error",
+						this.describeStartupTraceError(error)
+					);
+					this.finishStartupTrace(
+						initializeTraceIndex,
+						"error",
+						this.describeStartupTraceError(error)
+					);
 					return error;
 				})
 		);
+	}
+
+	private completeInitialization(initializeTraceIndex: number): void {
+		this.state.initializationComplete = true;
+		this.state.initializationInProgress = false;
+		this.finishStartupTrace(initializeTraceIndex, "ok", null);
+		this.schedulePostStartupWork(() => {
+			this.initializeSessionUpdatesInBackground();
+		});
+		scheduleImmediatePostStartupWork(() => {
+			this.loadUserKeybindingsAfterStartup();
+		});
+		this.schedulePostStartupWork(() => {
+			this.loadAvailableAgentsAfterStartup();
+		});
+		this.scheduleRestoredPanelPreloadWork(() => {
+			this.warmRecentTranscriptRowLedgersAfterStartup();
+		});
+	}
+
+	private restoreWorkspaceAfterInitialization(): void {
+		void this.traceStartupResult(
+			"background:restoreWorkspace",
+			this.restoreWorkspace()
+				.map((restoredSessionIds) => {
+					scheduleImmediatePostStartupWork(() => {
+						this.loadBasicMetadataAfterStartup(restoredSessionIds);
+					});
+					return undefined;
+				})
+				.orElse((error) => {
+					logger.warn("Failed to restore workspace after init", { error });
+					this.state.initializationError = error;
+					scheduleImmediatePostStartupWork(() => {
+						this.loadBasicMetadataAfterStartup([]);
+					});
+					return okAsync(undefined);
+				})
+		).match(
+			() => {
+				this.state.workspaceRestorationPending = false;
+			},
+			() => {
+				this.state.workspaceRestorationPending = false;
+			}
+		);
+	}
+
+	getStartupPerformanceTrace(): StartupPerformanceTraceEntry[] {
+		return this.startupTraceEntries.map((entry) => ({
+			name: entry.name,
+			startedAtMs: entry.startedAtMs,
+			completedAtMs: entry.completedAtMs,
+			durationMs: entry.durationMs,
+			status: entry.status,
+			errorMessage: entry.errorMessage,
+		}));
 	}
 
 	/**
@@ -174,9 +418,42 @@ export class InitializationManager {
 			return this.splashResolutionPromise;
 		}
 
+		const traceIndex = this.beginStartupTrace("resolveSplashScreen");
+
 		if (!this.hasTauriInvoke()) {
 			this.state.showSplash = false;
+			this.finishStartupTrace(traceIndex, "ok", null);
 			this.splashResolutionPromise = Promise.resolve();
+			return this.splashResolutionPromise;
+		}
+
+		const cachedSeen = readSplashSeenHotCache();
+		if (cachedSeen !== null) {
+			this.state.showSplash = !cachedSeen;
+			this.finishStartupTrace(traceIndex, "ok", null);
+			this.splashResolutionPromise = Promise.resolve();
+			this.schedulePostStartupWork(() => {
+				void this.traceStartupResult(
+					"background:reconcileSplashSeenHotCache",
+					settings
+						.getRaw(HAS_SEEN_SPLASH_KEY)
+						.map((value) => {
+							const persistedSeen = value === "true";
+							writeSplashSeenHotCache(persistedSeen);
+							if (this.state.showSplash !== !persistedSeen) {
+								this.state.showSplash = !persistedSeen;
+							}
+							return undefined;
+						})
+						.orElse((error) => {
+							logger.warn("Failed to reconcile splash screen hot cache", { error });
+							return okAsync(undefined);
+						})
+				).match(
+					() => undefined,
+					() => undefined
+				);
+			});
 			return this.splashResolutionPromise;
 		}
 
@@ -188,12 +465,16 @@ export class InitializationManager {
 			)
 			.then((value) => {
 				// Show splash if value is not "true"
-				this.state.showSplash = value !== "true";
+				const seen = value === "true";
+				this.state.showSplash = !seen;
+				writeSplashSeenHotCache(seen);
+				this.finishStartupTrace(traceIndex, "ok", null);
 			})
-			.catch((error) => {
+			.catch((error: Error) => {
 				logger.warn("Failed to check splash screen setting", { error });
 				// On error, show splash to be safe
 				this.state.showSplash = true;
+				this.finishStartupTrace(traceIndex, "error", this.describeStartupTraceError(error));
 			});
 
 		return this.splashResolutionPromise;
@@ -234,81 +515,237 @@ export class InitializationManager {
 						"initializeSessionUpdates",
 						error instanceof Error ? error : new Error(String(error))
 					)
+				);
+	}
+
+	private initializeSessionUpdatesInBackground(): void {
+		void this.traceStartupResult(
+			"background:initializeSessionUpdates",
+			this.initializeSessionUpdates()
+		)
+			.orElse((error) => {
+				logger.warn("Failed to initialize session updates after startup", { error });
+				this.state.initializationError = error;
+				return okAsync(undefined);
+			})
+			.match(
+				() => undefined,
+				() => undefined
 			);
 	}
 
-	/**
-	 * Loads basic metadata in parallel.
-	 *
-	 * @returns ResultAsync indicating success or error
-	 */
-	private loadBasicMetadata(): ResultAsync<void, MainAppViewError> {
-		const preconnectionCapabilitiesState = new PreconnectionCapabilitiesState();
-		const loadAgentsAndWarmPreconnectionCommands = this.agentStore
-			.loadAvailableAgents()
-			.mapErr(
-				(error) =>
-					new InitializationError("loadAvailableAgents", error instanceof Error ? error : undefined)
-			)
-			.andThen((agents) =>
-				this.preconnectionAgentSkillsStore
-					.initialize(agents)
-					.orElse((error) => {
-						logger.warn("Failed to warm preconnection agent skills; continuing startup", {
-							error,
-						});
-						return okAsync(undefined);
-					})
-					.andThen(() =>
-						preconnectionCapabilitiesState.initializeStartupGlobal(agents).orElse((error) => {
-							logger.warn("Failed to warm startup-global preconnection capabilities", {
-								error,
-							});
-							return okAsync(undefined);
-						})
-					)
-			);
+	private loadBasicMetadataAfterStartup(restoredSessionIds: string[]): void {
+		if (restoredSessionIds.length > 0) {
+			this.scheduleRestoredPanelHydration(restoredSessionIds);
+		}
 
-		return NeverthrowResultAsync.combine([
-			this.keybindingsService
-				.loadUserKeybindings()
+		void this.traceStartupResult(
+			"background:loadProjects",
+			this.loadProjectsAfterStartup()
 				.map(() => {
-					this.keybindingsService.reinstall();
+					this.scheduleStartupSessionHistoryScan();
+					return undefined;
+				})
+				.orElse((error) => {
+					logger.warn("Failed to load project metadata after init", { error });
+					return okAsync(undefined);
+				})
+		).match(
+			() => undefined,
+			() => undefined
+		);
+
+		void this.traceStartupResult(
+			"background:initializeZoom",
+			this.initializeZoomAfterStartup().orElse((error) => {
+				logger.warn("Failed to initialize zoom after init", { error });
+				return okAsync(undefined);
+			})
+		).match(
+			() => undefined,
+			() => undefined
+		);
+	}
+
+	private scheduleStartupSessionHistoryScan(): void {
+		this.schedulePostStartupWork(() => {
+			void this.traceStartupResult(
+				"background:scanStartupSessionHistory",
+				this.scanStartupSessionHistory().orElse((error) => {
+					logger.warn("Failed to scan startup session history after init", { error });
+					return okAsync(undefined);
+				})
+			).match(
+				() => undefined,
+				() => undefined
+			);
+		});
+	}
+
+	private loadProjectsAfterStartup(): ResultAsync<void, MainAppViewError> {
+		return this.traceStartupResult(
+			"loadProjects",
+			this.projectManager
+				.loadProjects()
+				.map(() => {
+					this.schedulePostStartupWork(() => {
+						this.projectManager.triggerProjectIconBackfill?.();
+					});
 					return undefined;
 				})
 				.mapErr(
 					(error) =>
 						new InitializationError(
-							"loadUserKeybindings",
+							"loadProjects",
 							error instanceof Error ? error : undefined
 						)
-				),
-			loadAgentsAndWarmPreconnectionCommands,
-			this.projectManager
-				.loadProjects()
-				.map(() => {
-					this.projectManager.triggerProjectIconBackfill?.();
-					return undefined;
-				})
-				.mapErr(
-					(error) =>
-						new InitializationError("loadProjects", error instanceof Error ? error : undefined)
-				),
+				)
+		);
+	}
+
+	private initializeZoomAfterStartup(): ResultAsync<void, MainAppViewError> {
+		return this.traceStartupResult(
+			"initializeZoom",
 			getZoomService()
 				.initialize()
 				.mapErr(
 					(error) =>
-						new InitializationError("initializeZoom", error instanceof Error ? error : undefined)
-				),
-		]).map(() => undefined);
+						new InitializationError(
+							"initializeZoom",
+							error instanceof Error ? error : undefined
+						)
+				)
+		);
+	}
+
+	private scanStartupSessionHistory(): ResultAsync<void, MainAppViewError> {
+		const projectPaths = this.getKnownProjectPaths();
+		if (projectPaths.length === 0) {
+			return okAsync(undefined);
+		}
+
+		return this.sessionStore.loading.scanSessions(projectPaths).mapErr(
+			(error) =>
+				new InitializationError(
+					"scanStartupSessionHistory",
+					error instanceof Error ? error : new Error(String(error))
+				)
+		);
+	}
+
+	private getKnownProjectPaths(): string[] {
+		return this.projectManager.projects.map((project) => project.path);
+	}
+
+	private loadAvailableAgentsAfterStartup(): void {
+		void this.traceStartupResult(
+			"background:loadAvailableAgents",
+			this.agentStore
+				.loadAvailableAgents()
+				.mapErr(
+					(error) =>
+						new InitializationError("loadAvailableAgents", error instanceof Error ? error : undefined)
+				)
+				.andThen((agents) => {
+					this.primeAgentPreferences(agents);
+					this.schedulePersistedAgentPreferencesWork(() => {
+						this.initializeAgentPreferencesAfterStartup(agents);
+					});
+					return this.traceStartupResult(
+						"background:createSessionsForAgentOnlyPanels",
+						this.createSessionsForAgentOnlyPanels()
+					);
+				})
+				.orElse((error) => {
+					logger.warn("Failed to load available agents after startup", { error });
+					return okAsync(undefined);
+				})
+		).match(
+			() => undefined,
+			() => undefined
+		);
+	}
+
+	private warmRecentTranscriptRowLedgersAfterStartup(): void {
+		if (this.hasOpenSessionPanel()) {
+			logger.debug("Skipping transcript row ledger warmup while session panels are open");
+			return;
+		}
+
+		void this.traceStartupResult(
+			"background:warmRecentTranscriptRowLedgers",
+			history
+				.warmRecentTranscriptRowLedgers(TRANSCRIPT_ROW_LEDGER_BACKFILL_LIMIT)
+				.map((result) => {
+					logger.debug("Warmed recent transcript row ledgers after startup", {
+						requestedLimit: result.requestedLimit,
+						candidateCount: result.candidateCount,
+						checkedCount: result.checkedCount,
+						rebuiltCount: result.rebuiltCount,
+						rebuiltFromProviderCount: result.rebuiltFromProviderCount,
+						skippedCurrentCount: result.skippedCurrentCount,
+						skippedNoJournalCount: result.skippedNoJournalCount,
+						skippedMissingFactsCount: result.skippedMissingFactsCount,
+						failedCount: result.failedCount,
+					});
+					return undefined;
+				})
+				.orElse((error) => {
+					logger.warn("Failed to warm recent transcript row ledgers after startup", { error });
+					return okAsync(undefined);
+				})
+		).match(
+			() => undefined,
+			() => undefined
+		);
+	}
+
+	private hasOpenSessionPanel(): boolean {
+		for (const panel of this.panelStore.panels) {
+			if (panel.sessionId !== null) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	private loadUserKeybindings(): ResultAsync<void, MainAppViewError> {
+		return this.keybindingsService
+			.loadUserKeybindings()
+			.map(() => {
+				this.keybindingsService.reinstall();
+				return undefined;
+			})
+			.mapErr(
+				(error) =>
+					new InitializationError(
+						"loadUserKeybindings",
+						error instanceof Error ? error : undefined
+					)
+			);
+	}
+
+	private loadUserKeybindingsAfterStartup(): void {
+		void this.traceStartupResult(
+			"background:loadUserKeybindings",
+			this.loadUserKeybindings().orElse((error) => {
+				logger.warn("Failed to load user keybindings after startup", { error });
+				return okAsync(undefined);
+			})
+		).match(
+			() => undefined,
+			() => undefined
+		);
 	}
 
 	/**
 	 * Initializes agent preference state (onboarding + selected agents).
 	 */
-	private initializeAgentPreferences(): ResultAsync<void, MainAppViewError> {
+	private initializeAgentPreferences(
+		agents: readonly Agent[] = this.agentStore.agents
+	): ResultAsync<void, MainAppViewError> {
 		return this.agentPreferencesStore
-			.initialize(this.agentStore.agents, this.projectManager.projectCount)
+			.initialize(agents, this.projectManager.projectCount)
 			.mapErr(
 				(error) =>
 					new InitializationError(
@@ -318,18 +755,43 @@ export class InitializationManager {
 			);
 	}
 
+	private primeAgentPreferences(agents: readonly Agent[] = this.agentStore.agents): void {
+		this.agentPreferencesStore.primeStartupDefaults(
+			agents,
+			this.projectManager.projectCount
+		);
+	}
+
+	private initializeAgentPreferencesAfterStartup(
+		agents: readonly Agent[] = this.agentStore.agents
+	): void {
+		void this.traceStartupResult(
+			"background:initializeAgentPreferences",
+			this.initializeAgentPreferences(agents).orElse((error) => {
+				logger.warn("Failed to load persisted agent preferences after startup", { error });
+				return okAsync(undefined);
+			})
+		).match(
+			() => undefined,
+			() => undefined
+		);
+	}
+
 	/**
 	 * Restores workspace state.
 	 *
 	 * @returns ResultAsync indicating success or error
 	 */
 	private restoreWorkspace(): ResultAsync<string[], MainAppViewError> {
+		const loadTraceIndex = this.beginStartupTrace("loadWorkspaceState");
 		return this.workspaceStore
 			.load()
 			.map((workspace) => {
+				this.finishStartupTraceIfPending(loadTraceIndex, "ok", null);
 				// Always restore — panels gracefully handle missing projects/sessions.
 				// This allows onboarding to import projects without clearing workspace.
-				return this.workspaceStore.restore(
+				const restoreTraceIndex = this.beginStartupTrace("applyWorkspaceState");
+				const restoredSessionIds = this.workspaceStore.restore(
 					workspace ?? {
 						version: 6,
 						panels: [],
@@ -340,28 +802,27 @@ export class InitializationManager {
 						savedAt: new Date().toISOString(),
 					}
 				);
+				this.finishStartupTraceIfPending(restoreTraceIndex, "ok", null);
+				return restoredSessionIds;
 			})
 			.mapErr(
-				(error) =>
-					new InitializationError(
+				(error) => {
+					this.finishStartupTraceIfPending(
+						loadTraceIndex,
+						"error",
+						this.describeStartupTraceError(error)
+					);
+					return new InitializationError(
 						"restoreWorkspace",
 						error instanceof Error ? error : new Error(String(error))
-					)
+					);
+				}
 			);
 	}
 
-	/**
-	 * Prioritize restored panel hydration on startup.
-	 *
-	 * When panels were open on the previous run, load only those session records first,
-	 * validate them, hydrate panel content, and refresh the broader sidebar session list in
-	 * the background. If no panels were restored, keep the existing full blocking history load.
-	 */
-	private hydrateStartupPanels(restoredSessionIds: string[]): ResultAsync<void, MainAppViewError> {
-		if (restoredSessionIds.length === 0) {
-			return this.loadSessionHistory(this.getKnownProjectPaths());
-		}
-
+	private loadAndValidateRestoredPanelSessions(
+		restoredSessionIds: string[]
+	): ResultAsync<void, MainAppViewError> {
 		return this.sessionStore.loading
 			.loadStartupSessions(restoredSessionIds)
 			.map((result) => result.aliasRemaps)
@@ -376,45 +837,27 @@ export class InitializationManager {
 				this.healStartupPanelSessionIds(aliasRemaps);
 				return this.validateRestoredSessions();
 			})
-			.map(() => {
-				this.earlyPreloadPanelSessions();
-				this.triggerBackgroundScan(this.getKnownProjectPaths());
-				return undefined;
-			});
+			.map(() => undefined);
 	}
 
-	/**
-	 * Loads session history for sidebar.
-	 *
-	 * @returns ResultAsync indicating success or error
-	 */
-	private loadSessionHistory(projectPaths: string[]): ResultAsync<void, MainAppViewError> {
-		return this.sessionStore.loading
-			.loadSessions(projectPaths)
-			.map(() => undefined)
-			.mapErr(
-				(error) =>
-					new InitializationError(
-						"loadSessions",
-						error instanceof Error ? error : new Error(String(error))
-					)
+	private scheduleRestoredPanelHydration(restoredSessionIds: string[]): void {
+		this.schedulePostStartupWork(() => {
+			void this.traceStartupResult(
+				"background:hydrateStartupPanels",
+				this.loadAndValidateRestoredPanelSessions(restoredSessionIds)
+					.map(() => {
+						this.scheduleRestoredPanelPreload();
+						return undefined;
+					})
+					.orElse((error) => {
+						logger.warn("Failed to hydrate restored panel sessions after startup", { error });
+						return okAsync(undefined);
+					})
+			).match(
+				() => undefined,
+				() => undefined
 			);
-	}
-
-	private getKnownProjectPaths(): string[] {
-		const paths = new Set<string>();
-
-		for (const project of this.projectManager.projects) {
-			paths.add(project.path);
-		}
-
-		for (const panel of this.panelStore.panels) {
-			if (panel.projectPath) {
-				paths.add(panel.projectPath);
-			}
-		}
-
-		return Array.from(paths);
+		});
 	}
 
 	/**
@@ -510,29 +953,16 @@ export class InitializationManager {
 	}
 
 	/**
-	 * Trigger background scan for all projects in workspace.
-	 * This ensures session list is fresh on startup.
-	 *
-	 * @returns ResultAsync indicating success or error
-	 */
-	private triggerBackgroundScan(projectPaths: string[]): void {
-		if (projectPaths.length === 0) {
-			return;
-		}
-
-		// Start scan in background - don't block initialization
-		this.sessionStore.loading.scanSessions(projectPaths).mapErr((error) => {
-			console.warn("Background session scan failed:", error);
-		});
-	}
-
-	/**
 	 * Creates sessions for panels that have an agent selected but no session.
 	 * This ensures models/modes are loaded for restored panels with a selected agent.
 	 *
 	 * @returns ResultAsync indicating success or error
 	 */
 	private createSessionsForAgentOnlyPanels(): ResultAsync<void, MainAppViewError> {
+		if (this.projectManager.projectStorageFresh === false) {
+			return okAsync(undefined);
+		}
+
 		const projects = this.projectManager.projects;
 
 		// Only auto-create sessions if there's exactly one project
@@ -560,6 +990,10 @@ export class InitializationManager {
 					projectPath: project.path,
 				})
 				.map((createdSession) => {
+					const currentPanel = this.panelStore.getPanel(panel.id);
+					if (currentPanel === undefined || currentPanel.sessionId) {
+						return;
+					}
 					const sessionId =
 						createdSession.kind === "pending"
 							? createdSession.sessionId
@@ -575,14 +1009,16 @@ export class InitializationManager {
 	}
 
 	private canCreateImplicitSessionForAgent(agentId: string): boolean {
-		return (
-			this.agentStore.getProviderMetadata(agentId)?.implicitSessionCreationMode !==
-			"explicitUserAction"
-		);
+		const providerMetadata = this.agentStore.getProviderMetadata(agentId);
+		if (providerMetadata === null || providerMetadata === undefined) {
+			return false;
+		}
+
+		return providerMetadata.implicitSessionCreationMode !== "explicitUserAction";
 	}
 
 	/**
-	 * Pre-loads restored panel session content in parallel with the sidebar scan,
+	 * Pre-loads restored panel session content after the app shell is usable,
 	 * then reconnects the restored session so startup behavior matches manual open.
 	 *
 	 * When a panel's session is not yet in the local store (registry-only recovery),
@@ -614,10 +1050,20 @@ export class InitializationManager {
 				sessionId: panel.sessionId,
 				sessionStore: this.sessionStore,
 				sessionOpenHydrator: this.sessionOpenHydrator,
+				isPanelCurrent: (targetPanelId, targetSessionId) =>
+					this.panelStore.getPanel(targetPanelId)?.sessionId === targetSessionId,
 				timeoutMs: SESSION_OPEN_TIMEOUT_MS,
 				source: "initialization-manager",
 			});
+			}
 		}
+
+	private scheduleRestoredPanelPreload(): void {
+		this.scheduleRestoredPanelPreloadWork(() => {
+			const traceIndex = this.beginStartupTrace("background:preloadRestoredPanelSessions");
+			this.earlyPreloadPanelSessions();
+			this.finishStartupTraceIfPending(traceIndex, "ok", null);
+		});
 	}
 
 	/**
@@ -627,6 +1073,7 @@ export class InitializationManager {
 		this.keybindingsService.uninstall();
 		this.state.initializationInProgress = false;
 		this.state.initializationComplete = false;
+		this.state.shellReady = false;
 		this.splashResolutionPromise = null;
 	}
 

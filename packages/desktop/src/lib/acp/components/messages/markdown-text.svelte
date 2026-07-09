@@ -25,7 +25,6 @@
 
 	const logger = createLogger({ id: "markdown-text", name: "Markdown Text" });
 	const sessionContext = useSessionContext();
-	const ownerPanelId = $derived(sessionContext?.panelId);
 	const panelStore = getPanelStore();
 	const sessionStore = getSessionStore();
 
@@ -88,13 +87,14 @@
 		}
 
 		const fileReference = resolveProjectFileReference(filePath, projectPath);
-		panelStore.openFilePanel(fileReference.filePath, projectPath, {
-			ownerPanelId,
-			...(fileReference.targetLine !== undefined ? { targetLine: fileReference.targetLine } : {}),
-			...(fileReference.targetColumn !== undefined
-				? { targetColumn: fileReference.targetColumn }
-				: {}),
-		});
+		const dialogOptions: OpenProjectFileSystemDialogOptions = {};
+		if (fileReference.targetLine !== undefined) {
+			dialogOptions.targetLine = fileReference.targetLine;
+		}
+		if (fileReference.targetColumn !== undefined) {
+			dialogOptions.targetColumn = fileReference.targetColumn;
+		}
+		panelStore.openProjectFileSystemDialog(projectPath, fileReference.filePath, dialogOptions);
 	}
 </script>
 

@@ -11,4 +11,9 @@ export {
 	type QueueUpdateInput,
 } from "./queue-store.svelte.js";
 export type { QueueItem } from "./types.js";
-export { buildQueueItem, calculateSessionUrgency, type ProjectColorLookup } from "./utils.js";
+export {
+	buildQueueItem,
+	calculateSessionUrgency,
+	type ProjectBadgeLabelLookup,
+	type ProjectColorLookup,
+} from "./utils.js";

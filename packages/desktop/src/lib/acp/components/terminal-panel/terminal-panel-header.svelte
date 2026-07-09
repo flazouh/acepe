@@ -1,5 +1,4 @@
 <script lang="ts">
-import { IconDotsVertical } from "@tabler/icons-svelte";
 import {
 	Button,
 	CloseAction,
@@ -9,6 +8,7 @@ import {
 	HeaderCell,
 	HeaderTitleCell,
 	ProjectLetterBadge,
+	RoundedIcon,
 } from "@acepe/ui";
 import { PlusIcon } from "@acepe/ui";
 import { IconTerminal } from "@tabler/icons-svelte";
@@ -28,6 +28,7 @@ import {
 interface Props {
 	projectName: string;
 	projectColor: string | undefined;
+	projectBadgeLabel?: string | null;
 	projectIconSrc?: string | null;
 	shell: string | null;
 	hideProjectBadge?: boolean;
@@ -49,6 +50,7 @@ interface Props {
 let {
 	projectName,
 	projectColor,
+	projectBadgeLabel = null,
 	projectIconSrc = null,
 	shell,
 	hideProjectBadge = false,
@@ -137,6 +139,7 @@ function handleFullscreenToggle() {
 			<div class="inline-flex items-center justify-center h-7 w-7 shrink-0">
 				<ProjectLetterBadge
 					name={projectName}
+					label={projectBadgeLabel}
 					color={effectiveColor}
 					iconSrc={projectIconSrc}
 					size={28}
@@ -180,7 +183,7 @@ function handleFullscreenToggle() {
 									toggleTabMenu(tab.id);
 								}}
 							>
-								<IconDotsVertical class="h-3 w-3" />
+								<RoundedIcon name="more" class="h-3 w-3" />
 							</button>
 							{#if openMenuTabId === tab.id}
 								<div class="absolute right-1 top-6 z-20 min-w-[160px] rounded-lg border border-border bg-background p-1 shadow-md">
@@ -219,7 +222,7 @@ function handleFullscreenToggle() {
 	{:else}
 		<HeaderTitleCell>
 			<div class="flex items-center gap-1.5 min-w-0">
-				<IconTerminal class="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+				<RoundedIcon name="terminal" class="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
 				<span class="text-[11px] font-medium truncate">{TERMINAL_TITLE}</span>
 				{#if shellName}
 					<span class="text-[11px] text-muted-foreground truncate">({shellName})</span>

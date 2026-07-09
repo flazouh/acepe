@@ -9,6 +9,7 @@ import type { TodoState } from "../../../types/todo.js";
 import PrStatusCard from "../../pr-status-card/pr-status-card.svelte";
 import {
 	AgentPanelQueueCardStrip as SharedQueueCardStrip,
+	AgentPanelRecoveryCard as SharedRecoveryCard,
 	AgentPanelTodoHeader as SharedTodoHeader,
 	AgentPanelSignInCard as SharedSignInCard,
 } from "@acepe/ui/agent-panel";
@@ -33,10 +34,14 @@ type QueueStripMessage = {
 	}>;
 };
 
-type ErrorInfo = { title: string; summary?: string | null; details?: string | null };
+type ErrorInfo = {
+	title: string;
+	summary?: string | null;
+	details?: string | null;
+	recoveryAction?: "unarchive" | null;
+};
 
 let {
-	reviewMode,
 	showConversationChrome,
 	worktreeDeleted,
 	centeredFullscreenContent,
@@ -46,6 +51,8 @@ let {
 	inlineErrorReferenceSearchable,
 	onRetryConnection,
 	isRetryingConnection = false,
+	onUnarchiveSession,
+	isUnarchivingSession = false,
 	onDismissError,
 	onCopyInlineErrorReference,
 	inlineErrorIssueDraft,
@@ -84,7 +91,6 @@ let {
 	signInRequirement,
 	onDismissSignIn,
 }: {
-	reviewMode: boolean;
 	showConversationChrome: boolean;
 	worktreeDeleted: boolean;
 	centeredFullscreenContent: boolean;
@@ -94,6 +100,8 @@ let {
 	inlineErrorReferenceSearchable: boolean;
 	onRetryConnection: () => void;
 	isRetryingConnection?: boolean;
+	onUnarchiveSession: () => void;
+	isUnarchivingSession?: boolean;
 	onDismissError: () => void;
 	onCopyInlineErrorReference: () => void;
 	inlineErrorIssueDraft: IssueReportDraft | null;
@@ -148,13 +156,12 @@ function resolveSignInCommand(agentDisplayName: string): string | null {
 }
 </script>
 
-<div style:display={reviewMode ? "none" : undefined}>
-	{#if showConversationChrome}
+{#if showConversationChrome}
 		{#if worktreeDeleted}
 			<div class="{centeredFullscreenContent ? 'flex justify-center' : ''} px-5 mb-2">
 				<div class="flex justify-center {centeredFullscreenContent ? 'w-full max-w-4xl' : ''}">
 					<div class="inline-flex items-center gap-2 px-3 py-1 rounded-lg bg-accent">
-						<Tree class="size-3 shrink-0 text-destructive" weight="fill" />
+						<RoundedIcon name="worktree" class="size-3 shrink-0 text-destructive" />
 						<span class="text-[0.6875rem] text-muted-foreground">
 							{"The worktree associated with this session has been deleted."}
 						</span>
@@ -175,18 +182,30 @@ function resolveSignInCommand(agentDisplayName: string): string | null {
 							/>
 						{/if}
 						{#if showInlineErrorCard}
-							<AgentErrorCard
-								title={errorInfo.title}
-								summary={errorInfo.summary ?? "Failed to connect to agent"}
-								details={errorInfo.details ?? "Unknown error"}
-								isRetrying={isRetryingConnection}
-								onRetry={onRetryConnection}
-								onDismiss={onDismissError}
-								issueActionLabel={inlineErrorIssueDraft
-									? resolveIssueActionLabel(inlineErrorIssueDraft)
-									: "Create issue"}
-								onIssueAction={inlineErrorIssueDraft ? onIssueFromInlineError : undefined}
-							/>
+							{#if errorInfo.recoveryAction === "unarchive"}
+								<SharedRecoveryCard
+									title={errorInfo.title}
+									actionLabel="Unarchive"
+									actionIconName="undo"
+									workingLabel="Unarchiving..."
+									isWorking={isUnarchivingSession}
+									onAction={onUnarchiveSession}
+									onDismiss={onDismissError}
+								/>
+							{:else}
+								<AgentErrorCard
+									title={errorInfo.title}
+									summary={errorInfo.summary ?? "Failed to connect to agent"}
+									details={errorInfo.details ?? "Unknown error"}
+									isRetrying={isRetryingConnection}
+									onRetry={onRetryConnection}
+									onDismiss={onDismissError}
+									issueActionLabel={inlineErrorIssueDraft
+										? resolveIssueActionLabel(inlineErrorIssueDraft)
+										: "Create issue"}
+									onIssueAction={inlineErrorIssueDraft ? onIssueFromInlineError : undefined}
+								/>
+							{/if}
 						{/if}
 						{#if preSessionWorktreeFailure && worktreeToggleProjectPath}
 							<PreSessionWorktreeCard
@@ -269,5 +288,4 @@ function resolveSignInCommand(agentDisplayName: string): string | null {
 				</div>
 			</div>
 		</div>
-	{/if}
-</div>
+{/if}

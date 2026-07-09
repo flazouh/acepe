@@ -23,6 +23,18 @@ import { openPersistedSession } from "../open-persisted-session.js";
 
 const SESSION_OPEN_TIMEOUT_MS = 30_000;
 
+type PersistedSessionOpenScheduler = (callback: () => void) => void;
+
+function schedulePersistedSessionOpenAfterPaint(callback: () => void): void {
+	if (typeof requestAnimationFrame === "function") {
+		requestAnimationFrame(() => {
+			setTimeout(callback, 0);
+		});
+		return;
+	}
+	setTimeout(callback, 0);
+}
+
 /**
  * Handles session operations.
  */
@@ -41,7 +53,8 @@ export class SessionHandler {
 		private readonly sessionOpenHydrator: Pick<
 			SessionOpenHydrator,
 			"beginAttempt" | "clearAttempt" | "hydrateFound" | "isCurrentAttempt"
-		>
+		>,
+		private readonly schedulePersistedSessionOpen: PersistedSessionOpenScheduler = schedulePersistedSessionOpenAfterPaint
 	) {}
 
 	/**
@@ -81,11 +94,11 @@ export class SessionHandler {
 				)
 				.andThen((loadedSession) => {
 					finalSessionId = loadedSession.id;
-					return this.preloadAndOpenSession(finalSessionId);
+					return this.openPanelAndStartSessionOpen(finalSessionId);
 				});
 		} else if (sessionExists) {
 			finalSessionId = sessionId;
-			return this.preloadAndOpenSession(finalSessionId);
+			return this.openPanelAndStartSessionOpen(finalSessionId);
 		} else {
 			return errAsync(
 				new SessionSelectionError(sessionId, "Session not found and no sessionInfo provided")
@@ -93,18 +106,13 @@ export class SessionHandler {
 		}
 	}
 
-	/**
-	 * Preloads session details and opens the session.
-	 *
-	 * Opens the panel immediately for zero-latency UI response, then loads
-	 * session content asynchronously in the background.
-	 *
-	 * @param sessionId - The session ID
-	 * @returns ResultAsync indicating success or error
-	 */
 	private shouldResumePersistedSession(sessionId: string): boolean {
 		if (this.sessionStore.read.getSessionCanSend(sessionId) === true) {
 			return false;
+		}
+
+		if (this.sessionStore.read.getSessionLifecycle(sessionId)?.actionability.canResume === true) {
+			return true;
 		}
 
 		const lifecycleStatus = this.sessionStore.read.getSessionLifecycleStatus(sessionId);
@@ -115,20 +123,23 @@ export class SessionHandler {
 		);
 	}
 
-	private preloadAndOpenSession(sessionId: string): ResultAsync<void, MainAppViewError> {
-		// Open panel IMMEDIATELY for zero-latency response
+	private openPanelAndStartSessionOpen(sessionId: string): ResultAsync<void, MainAppViewError> {
 		const wasAlreadyOpen = this.panelStore.isSessionOpen(sessionId);
 		const openedPanel = this.panelStore.openSession(sessionId, DEFAULT_PANEL_WIDTH);
 		const panelId = openedPanel?.id ?? this.panelStore.getPanelBySessionId(sessionId)?.id;
 
 		if (panelId && (!wasAlreadyOpen || this.shouldResumePersistedSession(sessionId))) {
-			openPersistedSession({
-				panelId,
-				sessionId,
-				sessionStore: this.sessionStore,
-				sessionOpenHydrator: this.sessionOpenHydrator,
-				timeoutMs: SESSION_OPEN_TIMEOUT_MS,
-				source: "session-handler",
+			this.schedulePersistedSessionOpen(() => {
+				openPersistedSession({
+					panelId,
+					sessionId,
+					sessionStore: this.sessionStore,
+					sessionOpenHydrator: this.sessionOpenHydrator,
+					isPanelCurrent: (targetPanelId, targetSessionId) =>
+						this.panelStore.getPanel(targetPanelId)?.sessionId === targetSessionId,
+					timeoutMs: SESSION_OPEN_TIMEOUT_MS,
+					source: "session-handler",
+				});
 			});
 		}
 

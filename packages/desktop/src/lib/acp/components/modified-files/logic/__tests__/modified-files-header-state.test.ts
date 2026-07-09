@@ -49,17 +49,17 @@ describe("modified files header state", () => {
 		});
 	});
 
-	it("counts only accepted and denied files as reviewed", () => {
+	it("counts only reviewed files as reviewed", () => {
 		const state = makeModifiedFilesState([
-			makeFile("src/accepted.ts", 1, 0),
-			makeFile("src/denied.ts", 1, 0),
-			makeFile("src/partial.ts", 1, 0),
-			makeFile("src/unreviewed.ts", 1, 0),
+			makeFile("src/reviewed-a.ts", 1, 0),
+			makeFile("src/reviewed-b.ts", 1, 0),
+			makeFile("src/unreviewed-a.ts", 1, 0),
+			makeFile("src/unreviewed-b.ts", 1, 0),
 		]);
 		const statuses = new Map<string, FileReviewStatus | undefined>([
-			["src/accepted.ts", "accepted"],
-			["src/denied.ts", "denied"],
-			["src/partial.ts", "partial"],
+			["src/reviewed-a.ts", "reviewed"],
+			["src/reviewed-b.ts", "reviewed"],
+			["src/unreviewed-a.ts", "unreviewed"],
 		]);
 
 		expect(countReviewedFiles(state, statuses)).toBe(2);
@@ -107,10 +107,9 @@ describe("modified files header state", () => {
 		).toBe(false);
 	});
 
-	it("maps unknown review status to the header unreviewed state", () => {
-		expect(mapReviewStatusForHeader("accepted")).toBe("accepted");
-		expect(mapReviewStatusForHeader("partial")).toBe("partial");
-		expect(mapReviewStatusForHeader("denied")).toBe("denied");
+	it("maps review status to the header reviewed/unreviewed state", () => {
+		expect(mapReviewStatusForHeader("reviewed")).toBe("reviewed");
+		expect(mapReviewStatusForHeader("unreviewed")).toBe("unreviewed");
 		expect(mapReviewStatusForHeader(undefined)).toBe("unreviewed");
 	});
 

@@ -12,7 +12,6 @@ import * as ButtonGroup from "@acepe/ui/button-group";
 import * as DropdownMenu from "@acepe/ui/dropdown-menu";
 import DialogFrame from "$lib/components/ui/dialog-frame.svelte";
 import { Textarea } from "$lib/components/ui/textarea/index.js";
-import { GitMerge, GitPullRequest, DotsThreeVertical, CaretDown } from "phosphor-svelte";
 import { toast } from "svelte-sonner";
 import { tauriClient } from "$lib/utils/tauri-client.js";
 import { Spinner } from "$lib/components/ui/spinner/index.js";
@@ -28,7 +27,6 @@ import PrStateIcon from "../pr-state-icon.svelte";
 import type { Model } from "../../application/dto/model.js";
 import type { AgentInfo } from "../../logic/agent-manager.js";
 import * as agentModelPrefs from "../../store/agent-model-preferences-store.svelte.js";
-import { getReviewPreferenceStore } from "../../store/review-preference-store.svelte.js";
 import { sessionReviewStateStore } from "../../store/session-review-state-store.svelte.js";
 import { capitalizeName } from "../../utils/string-formatting.js";
 import { getModelDisplayName } from "../model-selector-logic.js";
@@ -62,8 +60,6 @@ interface Props {
 	modifiedFilesState: ModifiedFilesState | null;
 	/** Session identity used for per-session review progress persistence */
 	sessionId?: string | null;
-	/** Called when Review button is clicked - enters panel review mode */
-	onEnterReviewMode?: (modifiedFilesState: ModifiedFilesState, fileIndex: number) => void;
 	/** Called when Review should open without changing the parent panel layout */
 	onOpenReviewDialog?: (modifiedFilesState: ModifiedFilesState, fileIndex: number) => void;
 	/** Optional: when provided, shows expand icon to open full-screen review overlay */
@@ -90,6 +86,8 @@ interface Props {
 	projectPrLinkReferences?: readonly SessionPrLinkReference[];
 	/** Project metadata used for linked-session badges */
 	project?: Project | null;
+	/** Disambiguating badge label for the project */
+	projectBadgeLabel?: string | null;
 	/** Available agents for PR generation selection */
 	availableAgents?: AgentInfo[];
 	/** Current/default agent ID for PR generation */
@@ -103,7 +101,6 @@ interface Props {
 let {
 	modifiedFilesState,
 	sessionId = null,
-	onEnterReviewMode,
 	onOpenReviewDialog,
 	onOpenFullscreenReview,
 	onCreatePr,
@@ -117,14 +114,12 @@ let {
 	prLinkMode = "automatic",
 	projectPrLinkReferences = [],
 	project = null,
+	projectBadgeLabel = null,
 	availableAgents = [],
 	currentAgentId = null,
 	currentModelId = null,
 	effectiveTheme = "dark",
 }: Props = $props();
-
-// Get review preference store at component initialization (not in handlers)
-const reviewPreferenceStore = getReviewPreferenceStore();
 
 let hasPromptDraft = $state(false);
 let promptDraft = $state("");
@@ -229,12 +224,7 @@ function handleReviewButtonClick(fileIndex: number): void {
 		onOpenReviewDialog(modifiedFilesState, fileIndex);
 		return;
 	}
-	const preferFullscreen = reviewPreferenceStore.preferFullscreen;
-	if (preferFullscreen && onOpenFullscreenReview) {
-		onOpenFullscreenReview(modifiedFilesState, fileIndex);
-	} else {
-		onEnterReviewMode?.(modifiedFilesState, fileIndex);
-	}
+	onOpenFullscreenReview?.(modifiedFilesState, fileIndex);
 }
 
 function handleCreatePrClick(): void {
@@ -366,8 +356,8 @@ function handlePromptResetClick(): void {
 							aria-label="Open pull request"
 						>
 							<Button
-								variant="headerAction"
-								size="headerAction"
+								variant="secondary"
+								size="xs"
 								class="group/open-pr"
 								disabled={createPrLoading}
 								onclick={handleCreatePrClick}
@@ -377,10 +367,9 @@ function handlePromptResetClick(): void {
 										<Spinner class="shrink-0" size={12} />
 										{createPrLabel ? createPrLabel : "Open PR"}
 									{:else}
-										<GitPullRequest
-											size={11}
-											weight="bold"
-											class="shrink-0 text-muted-foreground transition-colors group-hover/open-pr:text-success"
+										<RoundedIcon
+											name="pull-request"
+											class="size-[11px] shrink-0 text-muted-foreground transition-colors group-hover/open-pr:text-success"
 										/>
 										{"Open PR"}
 									{/if}
@@ -472,6 +461,7 @@ function handlePromptResetClick(): void {
 											prLinkMode={prLinkMode ?? "automatic"}
 											{projectPrLinkReferences}
 											{project}
+											{projectBadgeLabel}
 											variant="menu"
 										/>
 									{/if}
@@ -498,7 +488,7 @@ function handlePromptResetClick(): void {
 				{#if !onCreatePr && onMerge}
 					{#if prState === "MERGED"}
 						<div onclick={(e: MouseEvent) => e.stopPropagation()} role="none">
-							<Button variant="headerAction" size="headerAction" disabled>
+							<Button variant="secondary" size="xs" disabled>
 								<PrStateIcon state="MERGED" size={11} />
 								{"Merged"}
 							</Button>
@@ -506,8 +496,8 @@ function handlePromptResetClick(): void {
 					{:else}
 						<ButtonGroup.Root class="shrink-0 text-[0.6875rem]" aria-label="Merge pull request">
 							<Button
-								variant="headerAction"
-								size="headerAction"
+								variant="secondary"
+								size="xs"
 								disabled={merging}
 								onclick={() => onMerge(mergeStrategyStore.strategy)}
 							>
@@ -515,7 +505,7 @@ function handlePromptResetClick(): void {
 									<Spinner size={11} />
 									{"Merge"}
 								{:else}
-									<GitMerge size={11} weight="fill" />
+									<RoundedIcon name="pull-request-merged" class="size-[11px]" />
 									{"Merge"}
 								{/if}
 							</Button>
@@ -571,10 +561,6 @@ function handlePromptResetClick(): void {
 		size="medium"
 		contentClass="max-w-lg"
 	>
-		{#snippet topLeft()}
-			<span class="truncate text-[11px] font-semibold text-foreground select-none">PR prompt</span>
-		{/snippet}
-
 		<div class="grid gap-2 px-3 py-3">
 			<p class="text-[12px] text-muted-foreground">
 				Customize the instructions Acepe uses before it adds branch, changed-file, diff, and XML
@@ -594,16 +580,16 @@ function handlePromptResetClick(): void {
 
 		{#snippet footer()}
 			<Button
-				variant="header"
-				size="header"
+				variant="outline"
+				size="sm"
 				disabled={!promptEditorState.canReset}
 				onclick={handlePromptResetClick}
 			>
 				Reset
 			</Button>
 			<Button
-				variant="invert"
-				size="header"
+				variant="default"
+				size="sm"
 				disabled={!promptEditorState.canSave}
 				onclick={handlePromptSaveClick}
 			>

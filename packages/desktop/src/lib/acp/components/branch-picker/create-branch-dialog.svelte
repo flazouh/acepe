@@ -1,7 +1,6 @@
 <script lang="ts">
-import { Button, Selector } from "@acepe/ui";
+import { Button, RoundedIcon, Selector } from "@acepe/ui";
 import * as DropdownMenu from "@acepe/ui/dropdown-menu";
-import { Check, GitBranch } from "phosphor-svelte";
 import DialogFrame from "$lib/components/ui/dialog-frame.svelte";
 import {
 	canCreateBranch as getCanCreateBranch,
@@ -9,7 +8,7 @@ import {
 	getNewBranchNameError,
 	getNormalizedBranchName,
 } from "./branch-picker-state.js";
-import { BRANCH_PREFIXES, DEFAULT_BRANCH_PREFIX } from "./branch-prefix-options.js";
+import { BRANCH_PREFIXES, DEFAULT_BRANCH_PREFIX, type BranchPrefix } from "./branch-prefix-options.js";
 
 interface Props {
 	open?: boolean;
@@ -85,6 +84,23 @@ $effect(() => {
 });
 </script>
 
+{#snippet prefixIcon(prefix: BranchPrefix, dataTestid?: string)}
+	{#if prefix.roundedIcon}
+		<RoundedIcon
+			name={prefix.roundedIcon}
+			class="h-3.5 w-3.5 shrink-0"
+			style="color: {prefix.color}"
+			data-testid={dataTestid}
+		/>
+	{:else if prefix.icon}
+		<prefix.icon
+			class="h-3.5 w-3.5 shrink-0"
+			weight="fill"
+			style="color: {prefix.color}"
+		/>
+	{/if}
+{/snippet}
+
 <DialogFrame
 	{open}
 	title="Create and checkout branch"
@@ -92,11 +108,8 @@ $effect(() => {
 	size="form"
 	onOpenChange={handleOpenChange}
 >
-	{#snippet topLeft()}
-		<GitBranch size={14} weight="bold" class="shrink-0 text-primary" />
-		<span class="truncate text-[11px] font-semibold text-foreground select-none">
-			Create and checkout branch
-		</span>
+	{#snippet titleLeading()}
+		<RoundedIcon name="branch" class="size-3.5 shrink-0 text-primary" />
 	{/snippet}
 
 	<div class="grid gap-2.5 px-3 py-3">
@@ -118,11 +131,7 @@ $effect(() => {
 					triggerAriaLabel="Branch prefix"
 				>
 					{#snippet renderButton()}
-						<selectedPrefix.icon
-							class="h-3.5 w-3.5 shrink-0"
-							weight="fill"
-							style="color: {selectedPrefix.color}"
-						/>
+						{@render prefixIcon(selectedPrefix, "branch-prefix-selected-icon")}
 						<span class="font-mono">{selectedPrefix.value || "\u2014"}</span>
 					{/snippet}
 
@@ -134,14 +143,10 @@ $effect(() => {
 								queueMicrotask(() => newBranchInputRef?.focus());
 							}}
 						>
-							<prefix.icon
-								class="h-3.5 w-3.5 shrink-0"
-								weight="fill"
-								style="color: {prefix.color}"
-							/>
+							{@render prefixIcon(prefix, `branch-prefix-${prefix.label}-icon`)}
 							<span class="flex-1">{prefix.label}</span>
 							{#if selectedPrefix === prefix}
-								<Check class="size-4 shrink-0 text-foreground" />
+								<RoundedIcon name="check" class="size-4 shrink-0 text-foreground" />
 							{/if}
 						</DropdownMenu.Item>
 					{/each}
@@ -168,7 +173,7 @@ $effect(() => {
 	</div>
 
 	{#snippet footer()}
-		<Button variant="header" size="header" disabled={switchingBranch} onclick={handleClose}>
+		<Button variant="outline" size="sm" disabled={switchingBranch} onclick={handleClose}>
 			Cancel
 		</Button>
 		<Button

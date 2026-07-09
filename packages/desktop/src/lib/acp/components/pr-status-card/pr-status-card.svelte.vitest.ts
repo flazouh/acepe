@@ -29,22 +29,6 @@ vi.mock("@acepe/ui", async (importOriginal) => {
 	};
 });
 
-vi.mock("phosphor-svelte/lib/GitMerge", async () => {
-	const Stub = (await import("./test-component-stub.svelte")).default;
-
-	return {
-		default: Stub,
-	};
-});
-
-vi.mock("phosphor-svelte/lib/GitPullRequest", async () => {
-	const Stub = (await import("./test-component-stub.svelte")).default;
-
-	return {
-		default: Stub,
-	};
-});
-
 vi.mock("../diff-viewer/diff-viewer-modal.svelte", async () => {
 	const Stub = (await import("./test-component-stub.svelte")).default;
 
@@ -83,8 +67,9 @@ describe("PrStatusCard", () => {
 
 		const header = container.querySelector("div[role='button'][tabindex='0']");
 		expect(header).not.toBeNull();
+		const headerElement = header as HTMLElement;
 
-		await fireEvent.click(header as HTMLElement);
+		await fireEvent.click(headerElement);
 
 		await waitFor(() => {
 			const markdownRoot = container.querySelector(".markdown-content");
@@ -118,8 +103,9 @@ describe("PrStatusCard", () => {
 
 		const header = container.querySelector("div[role='button'][tabindex='0']");
 		expect(header).not.toBeNull();
+		const headerElement = header as HTMLElement;
 
-		await fireEvent.click(header as HTMLElement);
+		await fireEvent.click(headerElement);
 
 		await waitFor(() => {
 			expect(container.querySelector(".markdown-content")).not.toBeNull();

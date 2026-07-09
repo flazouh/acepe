@@ -103,6 +103,25 @@ describe("derivePanelErrorInfo", () => {
 		expect(result.failureReason).toBe("sessionGoneUpstream");
 	});
 
+	it("turns upstream archived sessions into an unarchive recovery action", () => {
+		const result = derivePanelErrorInfo({
+			panelConnectionState: PanelConnectionState.CONNECTING,
+			panelConnectionError: null,
+			sessionConnectionError:
+				'thread/resume failed: {"code":-32600,"message":"session 019f2019 is archived. Run `codex unarchive 019f2019` to unarchive it first."}',
+			activeTurnError: null,
+			sessionFailureReason: "sessionArchivedUpstream",
+			agentDisplayName: "Codex Agent",
+		});
+
+		expect(result.showError).toBe(true);
+		expect(result.title).toBe("Session archived");
+		expect(result.summary).toBeNull();
+		expect(result.details).toBeNull();
+		expect(result.failureReason).toBe("sessionArchivedUpstream");
+		expect(result.recoveryAction).toBe("unarchive");
+	});
+
 	it("shows raw resume error when the failure reason has no curated copy (resumeFailed)", () => {
 		// Authentication errors on the resume path now surface as
 		// Detached(AwaitingAuthentication) and are rendered via signInRequirement,

@@ -18,7 +18,6 @@ import type {
 } from "../../../services/acp-provider-metadata.js";
 import type {
 	SessionModelState as AcpSessionModelState,
-	SessionStateEnvelope,
 	SessionOpenResult,
 } from "../../../services/acp-types.js";
 import { TauriCommandError } from "../../../utils/tauri-client/invoke.js";
@@ -36,7 +35,7 @@ import { createLogger } from "../../utils/logger.js";
 import { extractProjectName } from "../../utils/path-utils.js";
 import { generateFallbackProjectColor } from "../../utils/project-utils.js";
 import * as preferencesStore from "../agent-model-preferences-store.svelte.js";
-import { api } from "../api.js";
+import { api, type SessionConnectionReadiness } from "../api.js";
 import type { SessionEventHandler } from "../session-event-handler.js";
 import type {
 	ConnectionCompleteData,
@@ -58,9 +57,12 @@ const logger = createLogger({ id: "session-connection-manager", name: "SessionCo
  * The authoritative timeout lives in Rust (45s). This watchdog fires only
  * if the Rust task panics or the SSE bridge drops the lifecycle event.
  */
-const WATCHDOG_TIMEOUT_MS = 90_000;
-const SNAPSHOT_RECONCILE_TIMEOUT_MS = 45_000;
-const SNAPSHOT_RECONCILE_INTERVAL_MS = 500;
+export const SESSION_CONNECTION_WATCHDOG_TIMEOUT_MS = 90_000;
+export const SESSION_CONNECTION_READINESS_RECONCILE_TIMEOUT_MS =
+	SESSION_CONNECTION_WATCHDOG_TIMEOUT_MS;
+const WATCHDOG_TIMEOUT_MS = SESSION_CONNECTION_WATCHDOG_TIMEOUT_MS;
+const READINESS_RECONCILE_TIMEOUT_MS = SESSION_CONNECTION_READINESS_RECONCILE_TIMEOUT_MS;
+const READINESS_RECONCILE_INTERVAL_MS = 500;
 
 /** Global attempt counter for stale-event detection. */
 let nextAttemptId = 1;
@@ -130,17 +132,14 @@ function delay(ms: number): Promise<void> {
 	});
 }
 
-function readyConnectionDataFromEnvelope(envelope: SessionStateEnvelope): ConnectionCompleteData | null {
-	if (envelope.payload.kind !== "snapshot") {
+function readyConnectionDataFromReadiness(
+	readiness: SessionConnectionReadiness
+): ConnectionCompleteData | null {
+	if (readiness.lifecycle.status !== "ready") {
 		return null;
 	}
 
-	const graph = envelope.payload.graph;
-	if (graph.lifecycle.status !== "ready") {
-		return null;
-	}
-
-	const capabilities = graph.capabilities;
+	const capabilities = readiness.capabilities;
 	if (!capabilities.models || !capabilities.modes) {
 		return null;
 	}
@@ -154,48 +153,51 @@ function readyConnectionDataFromEnvelope(envelope: SessionStateEnvelope): Connec
 	};
 }
 
-async function reconcileReadySnapshot(
+async function reconcileReadyConnection(
 	sessionId: string,
 	eventHandler: SessionEventHandler,
 	isCancelled: () => boolean
 ): Promise<ConnectionCompleteData> {
-	const deadlineMs = Date.now() + SNAPSHOT_RECONCILE_TIMEOUT_MS;
-	await delay(SNAPSHOT_RECONCILE_INTERVAL_MS);
+	const deadlineMs = Date.now() + READINESS_RECONCILE_TIMEOUT_MS;
+	await delay(READINESS_RECONCILE_INTERVAL_MS);
 
 	while (Date.now() <= deadlineMs && !isCancelled()) {
-		const materialized = await api.fetchCanonicalSessionStateEnvelope(sessionId).match(
-			(envelope) => {
-				const data = readyConnectionDataFromEnvelope(envelope);
-				if (data === null) {
-					return null;
-				}
-				eventHandler.applySessionStateEnvelope(sessionId, envelope);
-				return data;
-			},
+		const materialized = await api.fetchSessionConnectionReadiness(sessionId).match(
+			(readiness) => readyConnectionDataFromReadiness(readiness),
 			() => null
 		);
 
 		if (materialized !== null) {
-			return materialized;
+			const applied = await api.fetchCanonicalSessionStateEnvelope(sessionId).match(
+				(envelope) => {
+					eventHandler.applySessionStateEnvelope(sessionId, envelope);
+					return true;
+				},
+				() => false
+			);
+
+			if (applied) {
+				return materialized;
+			}
 		}
 
-		await delay(SNAPSHOT_RECONCILE_INTERVAL_MS);
+		await delay(READINESS_RECONCILE_INTERVAL_MS);
 	}
 
 	if (isCancelled()) {
-		throw new Error("Canonical snapshot reconciliation was cancelled.");
+		throw new Error("Canonical readiness reconciliation was cancelled.");
 	}
 
-	throw new Error("Canonical session-state snapshot did not become ready after reconnect.");
+	throw new Error("Canonical session connection did not become ready after reconnect.");
 }
 
-function createReadySnapshotReconciler(
+function createReadyConnectionReconciler(
 	sessionId: string,
 	eventHandler: SessionEventHandler
 ): { promise: Promise<ConnectionCompleteData>; cancel: () => void } {
 	let cancelled = false;
 	return {
-		promise: reconcileReadySnapshot(sessionId, eventHandler, () => cancelled),
+		promise: reconcileReadyConnection(sessionId, eventHandler, () => cancelled),
 		cancel: () => {
 			cancelled = true;
 		},
@@ -746,15 +748,15 @@ export class SessionConnectionManager {
 		const awaitConnectionMaterialization = () =>
 			ResultAsync.fromPromise(
 				(() => {
-					const snapshotReconciler = createReadySnapshotReconciler(sessionId, eventHandler);
-					const snapshotOutcome: Promise<ConnectionMaterializationOutcome> =
-						snapshotReconciler.promise.then(
+					const readinessReconciler = createReadyConnectionReconciler(sessionId, eventHandler);
+					const readinessOutcome: Promise<ConnectionMaterializationOutcome> =
+						readinessReconciler.promise.then(
 							(data) => ({ kind: "ok", data }),
 							(error) => ({ kind: "error", error: error as AppError })
 						);
-					return Promise.race([lifecycleOutcome, snapshotOutcome])
+					return Promise.race([lifecycleOutcome, readinessOutcome])
 						.finally(() => {
-							snapshotReconciler.cancel();
+							readinessReconciler.cancel();
 						})
 						.then((outcome) => {
 							if (outcome.kind === "error") {

@@ -5,8 +5,7 @@
 	 *
 	 * This is a "dumb" component - all data and actions are passed via props.
 	 */
-	import { CaretRight } from 'phosphor-svelte';
-	import { LoadingIcon } from '../icons/index.js';
+	import { LoadingIcon, RoundedIcon } from '../icons/index.js';
 	import { slide } from 'svelte/transition';
 	import type { Snippet } from 'svelte';
 	import { PillButton } from '../pill-button/index.js';

@@ -128,6 +128,7 @@ function switchWorktree(directory: string): void {
 					projectPath={activeGitDialog.projectPath}
 					{projectName}
 					projectColor={project?.color}
+					projectBadgeLabel={projectManager.getProjectBadgeLabel(activeGitDialog.projectPath) ?? null}
 					projectIconSrc={project?.iconPath ?? null}
 					width={activeGitDialog.width}
 					initialTarget={activeGitDialog.initialTarget}

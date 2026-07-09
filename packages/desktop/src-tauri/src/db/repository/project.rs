@@ -46,7 +46,29 @@ impl ProjectRepository {
             .unwrap_or_else(|| stored_name.to_string())
     }
 
-    fn row_from_model(model: crate::db::entities::project::Model) -> ProjectRow {
+    fn default_show_external_cli_sessions() -> bool {
+        acepe_config::AcepeConfig::default()
+            .external_cli_sessions
+            .show
+    }
+
+    fn row_from_model_without_config(model: crate::db::entities::project::Model) -> ProjectRow {
+        let name = Self::display_name(&model.path, &model.name);
+
+        ProjectRow {
+            id: model.id,
+            path: model.path,
+            name,
+            last_opened: model.last_opened.to_rfc3339(),
+            created_at: model.created_at.to_rfc3339(),
+            color: model.color,
+            sort_order: model.sort_order,
+            icon_path: model.icon_path,
+            show_external_cli_sessions: Self::default_show_external_cli_sessions(),
+        }
+    }
+
+    fn row_from_model_with_config(model: crate::db::entities::project::Model) -> ProjectRow {
         let name = Self::display_name(&model.path, &model.name);
         let show_external_cli_sessions = Self::load_project_config(&model.path)
             .external_cli_sessions
@@ -63,6 +85,10 @@ impl ProjectRepository {
             icon_path: model.icon_path,
             show_external_cli_sessions,
         }
+    }
+
+    fn row_from_model(model: crate::db::entities::project::Model) -> ProjectRow {
+        Self::row_from_model_with_config(model)
     }
 
     /// Create or update a project.
@@ -216,7 +242,31 @@ impl ProjectRepository {
             "Loaded projects"
         );
 
-        Ok(models.into_iter().map(Self::row_from_model).collect())
+        Ok(models
+            .into_iter()
+            .map(Self::row_from_model_without_config)
+            .collect())
+    }
+
+    /// Get all project paths without reading per-project config files.
+    pub async fn get_all_paths(db: &DbConn) -> Result<Vec<String>> {
+        tracing::debug!("Loading project paths");
+
+        let paths = Project::find()
+            .select_only()
+            .column(crate::db::entities::project::Column::Path)
+            .order_by_asc(crate::db::entities::project::Column::SortOrder)
+            .order_by_desc(crate::db::entities::project::Column::CreatedAt)
+            .into_tuple::<String>()
+            .all(db)
+            .await?;
+
+        tracing::debug!(
+            count = %paths.len(),
+            "Loaded project paths"
+        );
+
+        Ok(paths)
     }
 
     /// Get recent projects (limit to N, ordered by last_opened).
@@ -238,7 +288,10 @@ impl ProjectRepository {
             "Loaded recent projects"
         );
 
-        Ok(models.into_iter().map(Self::row_from_model).collect())
+        Ok(models
+            .into_iter()
+            .map(Self::row_from_model_without_config)
+            .collect())
     }
 
     pub async fn get_external_hidden_paths(

@@ -67,7 +67,11 @@ pub(crate) fn classify_resume_error(
             // have already mapped these to `SessionNotFound`, but if a
             // future code path emits the raw form, we still classify
             // correctly.
-            if is_resource_not_found_session(message)
+            if *agent_id == CanonicalAgentId::Codex && is_codex_archived_session(message) {
+                ClassifiedResumeFailure {
+                    failure_reason: FailureReason::SessionArchivedUpstream,
+                }
+            } else if is_resource_not_found_session(message)
                 || is_session_not_found_invalid_params(message)
             {
                 ClassifiedResumeFailure {
@@ -97,6 +101,14 @@ pub(crate) fn classify_resume_error(
 fn is_session_not_found_invalid_params(message: &str) -> bool {
     let lower = message.to_lowercase();
     lower.contains("\"code\":-32602") && lower.contains("session") && lower.contains("not found")
+}
+
+fn is_codex_archived_session(message: &str) -> bool {
+    let lower = message.to_lowercase();
+    lower.contains("thread/resume")
+        && lower.contains("session")
+        && lower.contains("is archived")
+        && lower.contains("codex unarchive")
 }
 
 fn is_resource_not_found_session(message: &str) -> bool {
@@ -168,6 +180,18 @@ mod tests {
             &error,
             &CanonicalAgentId::Cursor,
             FailureReason::SessionGoneUpstream,
+        );
+    }
+
+    #[test]
+    fn codex_archived_session_classifies_as_archived_upstream() {
+        let error = SerializableAcpError::JsonRpcError {
+            message: "thread/resume failed: {\"code\":-32600,\"message\":\"session 019f2019-f365-77f1-b885-2f2cd999ced9 is archived. Run `codex unarchive 019f2019-f365-77f1-b885-2f2cd999ced9` to unarchive it first.\"}".to_string(),
+        };
+        assert_classified(
+            &error,
+            &CanonicalAgentId::Codex,
+            FailureReason::SessionArchivedUpstream,
         );
     }
 

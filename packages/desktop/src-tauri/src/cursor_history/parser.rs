@@ -1017,7 +1017,8 @@ fn parse_transcript_message(
         request_id: None,
         is_meta: false,
         source_tool_use_id: None, // Cursor doesn't support skill meta messages
-        tool_use_result: None,    // Cursor doesn't have tool_use_result
+        parent_tool_use_id: None,
+        tool_use_result: None,            // Cursor doesn't have tool_use_result
         source_tool_assistant_uuid: None, // Cursor doesn't have source_tool_assistant_uuid
     }
 }
@@ -1042,6 +1043,7 @@ fn parse_message_content(text: &str, role: &str, stats: &mut SessionStats) -> Ve
                 blocks.push(ContentBlock::Thinking {
                     thinking: thinking.to_string(),
                     signature: None,
+                    redacted_provider_data: None,
                 });
             }
             search_start = think_end + "</think>".len();

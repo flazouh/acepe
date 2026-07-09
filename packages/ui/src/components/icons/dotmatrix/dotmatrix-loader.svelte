@@ -71,7 +71,6 @@
 		class={sharedProps.class}
 		style={sharedProps.style}
 		size={sharedProps.size}
-		dotSize={effectiveDotSize}
 		color={sharedProps.color}
 		role={sharedProps.role}
 		aria-label={sharedProps.ariaLabel}

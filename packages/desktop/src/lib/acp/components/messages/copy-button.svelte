@@ -1,7 +1,6 @@
 <script lang="ts">
-import { IconCheck } from "@tabler/icons-svelte";
+import { RoundedIcon } from "@acepe/ui";
 import { ResultAsync } from "neverthrow";
-import { Copy } from "phosphor-svelte";
 import { toastError, toastSuccess } from "$lib/components/ui/sonner/toast-bridge.js";
 import {
 	buildCopyButtonDisplayState,
@@ -66,6 +65,7 @@ const buttonState = $derived(
 		titleOverride,
 	})
 );
+const iconStyle = $derived(`width: ${size}px; height: ${size}px;`);
 
 async function handleClick(event?: MouseEvent) {
 	if (stopPropagation) {
@@ -118,9 +118,9 @@ async function handleClick(event?: MouseEvent) {
 >
 	{#if !hideIcon}
 		{#if buttonState.copied}
-			<IconCheck {size} stroke={2} />
+			<RoundedIcon name="check" class="shrink-0" style={iconStyle} />
 		{:else}
-			<Copy {size} weight="fill" />
+			<RoundedIcon name="copy" class="shrink-0" style={iconStyle} />
 		{/if}
 	{/if}
 	{#if buttonState.showLabel && label}

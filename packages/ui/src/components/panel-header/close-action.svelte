@@ -5,10 +5,16 @@
 	interface Props {
 		onClose?: (() => void) | undefined;
 		title?: string;
+		size?: ButtonSize;
 		class?: string;
 	}
 
-	let { onClose, title = "Close", class: className = "" }: Props = $props();
+	let {
+		onClose,
+		title = "Close",
+		size = "icon-sm",
+		class: className = "",
+	}: Props = $props();
 </script>
 
 <Button

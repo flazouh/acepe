@@ -69,6 +69,10 @@ export class ContextManager {
 	 * Get a context value.
 	 */
 	get(key: string): ContextValue | undefined {
+		const provider = this.providers.get(key);
+		if (provider) {
+			return provider();
+		}
 		return this.contexts.get(key);
 	}
 
@@ -76,7 +80,7 @@ export class ContextManager {
 	 * Check if a context key exists.
 	 */
 	has(key: string): boolean {
-		return this.contexts.has(key);
+		return this.providers.has(key) || this.contexts.has(key);
 	}
 
 	/**

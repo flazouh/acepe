@@ -142,7 +142,7 @@ describe("ModifiedFilesHeader", () => {
 		expect(screen.getByText("example.ts")).toBeTruthy();
 	});
 
-	it("routes Review clicks to the dialog opener instead of panel review mode when provided", async () => {
+	it("routes Review clicks to the dialog opener when provided", async () => {
 		const file = {
 			filePath: "src/example.ts",
 			fileName: "example.ts",
@@ -159,18 +159,15 @@ describe("ModifiedFilesHeader", () => {
 			totalEditCount: 1,
 		};
 		const openReviewDialog = vi.fn();
-		const enterReviewMode = vi.fn();
 
 		render(ModifiedFilesHeader, {
 			modifiedFilesState,
 			onOpenReviewDialog: openReviewDialog,
-			onEnterReviewMode: enterReviewMode,
 		});
 
 		await fireEvent.click(screen.getByRole("button", { name: /review/i }));
 
 		expect(openReviewDialog).toHaveBeenCalledWith(modifiedFilesState, 0);
-		expect(enterReviewMode).not.toHaveBeenCalled();
 	});
 
 	it("marks the header reviewed when every file has a final review status but keep all was not applied", () => {
@@ -205,8 +202,8 @@ describe("ModifiedFilesHeader", () => {
 		globalThis.modifiedFilesHeaderMockState = {
 			sessionLoaded: true,
 			reviewStatuses: new Map<string, FileReviewStatus | undefined>([
-				[acceptedFile.filePath, "accepted"],
-				[deniedFile.filePath, "denied"],
+				[acceptedFile.filePath, "reviewed"],
+				[deniedFile.filePath, "reviewed"],
 			]),
 			keepAllApplied: false,
 		};
@@ -255,8 +252,8 @@ describe("ModifiedFilesHeader", () => {
 		globalThis.modifiedFilesHeaderMockState = {
 			sessionLoaded: true,
 			reviewStatuses: new Map<string, FileReviewStatus | undefined>([
-				[partialFile.filePath, "partial"],
-				[acceptedFile.filePath, "accepted"],
+				[partialFile.filePath, "unreviewed"],
+				[acceptedFile.filePath, "reviewed"],
 			]),
 			keepAllApplied: false,
 		};

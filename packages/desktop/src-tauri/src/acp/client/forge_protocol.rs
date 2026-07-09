@@ -78,6 +78,7 @@ fn translate_text_delta(
             chunk,
             part_id: message_id.clone(),
             message_id,
+            parent_tool_use_id: None,
             session_id: Some(session_id.to_string()),
         }
     } else {
@@ -85,6 +86,7 @@ fn translate_text_delta(
             chunk,
             part_id: message_id.clone(),
             message_id,
+            parent_tool_use_id: None,
             session_id: Some(session_id.to_string()),
             produced_at_monotonic_ms: None,
         }

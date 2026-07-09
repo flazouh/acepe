@@ -1,6 +1,13 @@
 <script lang="ts">
 import type { ActivityEntryQuestion } from "@acepe/ui";
-import { ActivityEntry, PrChecksSummary, ProjectLetterBadge, Selector } from "@acepe/ui";
+import {
+	ActivityEntry,
+	LoadingIcon,
+	PrChecksSummary,
+	ProjectLetterBadge,
+	RoundedIcon,
+	Selector,
+} from "@acepe/ui";
 import {
 	SESSION_PROJECT_BADGE_CLASS,
 	SESSION_PROJECT_BADGE_SIZE,
@@ -14,18 +21,19 @@ import { IconX } from "@tabler/icons-svelte";
 import { Archive } from "phosphor-svelte";
 import { Tree } from "phosphor-svelte";
 import { COLOR_NAMES, Colors } from "@acepe/ui/colors";
+import { openUrl } from "@tauri-apps/plugin-opener";
+import { ResultAsync } from "neverthrow";
 import { tick } from "svelte";
 import { buildQueueItemQuestionUiState } from "$lib/acp/components/queue/queue-item-question-ui-state.js";
 import PrStateIcon from "$lib/acp/components/pr-state-icon.svelte";
 import { toast } from "svelte-sonner";
-import CopyButton from "$lib/acp/components/messages/copy-button.svelte";
+import { copyTextToClipboard } from "$lib/acp/components/agent-panel/logic/clipboard-manager.js";
 import { getSessionListHighlightContext } from "$lib/acp/components/session-list/session-list-highlight-context.js";
 import {
 	extractPermissionCommand,
 	extractPermissionFilePath,
 } from "$lib/acp/components/tool-calls/permission-display.js";
 import AgentIcon from "$lib/acp/components/agent-icon.svelte";
-import { ClaudeWorkingSpark } from "@acepe/ui/agent-panel";
 import {
 	AGENT_ICON_BASE_CLASS,
 	UNKNOWN_TIME_TEXT,
@@ -48,10 +56,9 @@ import {
 } from "$lib/acp/components/activity-entry/activity-entry-projection.js";
 import { Input } from "$lib/components/ui/input/index.js";
 import { makeWorkspaceRelative } from "$lib/acp/utils/path-utils.js";
-import { tauriClient } from "$lib/utils/tauri-client/index.js";
+import { revealInFinder, tauriClient } from "$lib/utils/tauri-client/index.js";
 import type { SessionDisplayItem as BaseSessionDisplayItem } from "$lib/acp/types/thread-display-item.js";
 import PrChecksSurface from "$lib/acp/components/shared/pr-checks-surface.svelte";
-import { shouldShowClaudeWorkingSpark } from "./claude-working-spark-visibility.js";
 
 const logger = createLogger({ id: "session-item", name: "Session Item" });
 
@@ -72,8 +79,9 @@ interface Props {
 	onToggleExpand?: () => void;
 	onArchive?: (session: SessionDisplayItem) => void | Promise<void>;
 	onRename?: (title: string) => void | Promise<void>;
-	onExportMarkdown?: (sessionId: string) => void | Promise<void>;
-	onExportJson?: (sessionId: string) => void | Promise<void>;
+	onCopyTranscriptMarkdown?: (sessionId: string) => void | Promise<void>;
+	onCopyTranscriptJson?: (sessionId: string) => void | Promise<void>;
+	onOpenTranscriptInAcepe?: (session: SessionDisplayItem) => void | Promise<void>;
 	onOpenPr?: () => void;
 }
 
@@ -88,8 +96,9 @@ let {
 	onToggleExpand,
 	onArchive,
 	onRename,
-	onExportMarkdown,
-	onExportJson,
+	onCopyTranscriptMarkdown,
+	onCopyTranscriptJson,
+	onOpenTranscriptInAcepe,
 	onOpenPr,
 }: Props = $props();
 
@@ -158,12 +167,62 @@ function handleConfirmArchive(event: MouseEvent) {
 	void handleArchive();
 }
 
-async function handleExportMarkdown() {
-	await onExportMarkdown?.(session.id);
+async function handleCopyText(text: string, description: string) {
+	await copyTextToClipboard(text).match(
+		() => toast.success("Copied to clipboard"),
+		(err) => toast.error(`Failed to copy ${description}: ${err.message}`)
+	);
 }
 
-async function handleExportJson() {
-	await onExportJson?.(session.id);
+async function handleCopyTitle() {
+	await handleCopyText(displayTitle, "title");
+}
+
+async function handleCopySessionId() {
+	await handleCopyText(session.id, "session ID");
+}
+
+async function handleCopyTranscriptMarkdown() {
+	await onCopyTranscriptMarkdown?.(session.id);
+}
+
+async function handleCopyTranscriptJson() {
+	await onCopyTranscriptJson?.(session.id);
+}
+
+async function handleOpenTranscriptInAcepe() {
+	await onOpenTranscriptInAcepe?.(session);
+}
+
+async function handleRevealRawTranscriptFile() {
+	const sourcePath = session.sourcePath?.trim();
+	if (sourcePath) {
+		await revealInFinder(sourcePath).match(
+			() => undefined,
+			(err) => toast.error(`Failed to reveal transcript: ${err.message}`)
+		);
+		return;
+	}
+
+	await tauriClient.shell
+		.getSessionFilePath(session.id, session.projectPath)
+		.andThen((path) => revealInFinder(path))
+		.match(
+			() => undefined,
+			(err) => toast.error(`Failed to reveal transcript: ${err.message}`)
+		);
+}
+
+async function handleRevealWorktreeFolder() {
+	const worktreePath = session.worktreePath?.trim();
+	if (!worktreePath) {
+		return;
+	}
+
+	await revealInFinder(worktreePath).match(
+		() => undefined,
+		(err) => toast.error(`Failed to reveal worktree: ${err.message}`)
+	);
 }
 
 async function handleOpenStreamingLog() {
@@ -173,9 +232,39 @@ async function handleOpenStreamingLog() {
 	);
 }
 
+async function handleOpenPullRequest() {
+	const prUrl = session.linkedPr?.url?.trim();
+	if (prUrl) {
+		await ResultAsync.fromPromise(
+			openUrl(prUrl),
+			(error) => new Error(error instanceof Error ? error.message : String(error))
+		).match(
+			() => undefined,
+			(err) => toast.error(`Failed to open pull request: ${err.message}`)
+		);
+		return;
+	}
+
+	onOpenPr?.();
+}
+
 function handleOpenPr(event: MouseEvent) {
 	event.stopPropagation();
 	onOpenPr?.();
+}
+
+function handleRowFocusIn(event: FocusEvent) {
+	isRowHovered = true;
+	highlightCtx?.updateHighlight(event.currentTarget as HTMLElement);
+}
+
+function handleRowFocusOut(event: FocusEvent) {
+	const nextTarget = event.relatedTarget;
+	if (nextTarget instanceof Node && rowElement?.contains(nextTarget)) {
+		return;
+	}
+	isRowHovered = false;
+	highlightCtx?.clearHighlight();
 }
 
 function openRenameEditor() {
@@ -357,19 +446,9 @@ const statusText = $derived.by(() => {
 		return sessionConnectionError ?? "Connection error";
 	}
 
-	if (previewActivityKind === "thinking") {
-		return "Planning next moves";
-	}
-
-	if (liveSessionState.attention.hasUnseenCompletion) {
-		return "Ready for review";
-	}
-
 	return null;
 });
-const showStatusShimmer = $derived(
-	previewActivityKind === "thinking" && !pendingQuestion && !pendingPlanApproval
-);
+const showStatusShimmer = $derived(false);
 const uiCurrentQuestion = $derived<ActivityEntryQuestion | null>(
 	currentQuestion
 		? {
@@ -409,12 +488,20 @@ const projectedIsStreaming = $derived(
 		? false
 		: (activityProjection?.isStreaming ?? previewActivityKind === "streaming")
 );
-const showClaudeWorkingSpark = $derived(
-	shouldShowClaudeWorkingSpark({
-		agentId: session.agentId,
-		projectedIsStreaming,
-		activityIsStreaming: session.activity?.isStreaming,
-	})
+const showSessionWorkingIndicator = $derived(
+	!pendingQuestion &&
+		!pendingPermission &&
+		!pendingPlanApproval &&
+		!sessionWorkProjection.hasError &&
+		(projectedIsStreaming || previewActivityKind === "thinking" || session.activity?.isStreaming === true)
+);
+const showSessionFinishedIndicator = $derived(
+	!showSessionWorkingIndicator &&
+		!pendingQuestion &&
+		!pendingPermission &&
+		!pendingPlanApproval &&
+		!sessionWorkProjection.hasError &&
+		sessionWorkProjection.needsReview
 );
 const activityEntryLatestToolDisplay = $derived(
 	suppressPlanApprovalToolPreview ? null : (activityProjection?.latestToolEntry ?? null)
@@ -441,7 +528,16 @@ let isRenaming = $state(false);
 let renameDraft = $state("");
 let renameInputRef = $state<HTMLInputElement | null>(null);
 let rowElement: HTMLDivElement | null = null;
-const actionsVisible = $derived(isRowHovered || isActionsMenuOpen);
+const hasCopyTranscriptActions = $derived(
+	onCopyTranscriptMarkdown !== undefined || onCopyTranscriptJson !== undefined
+);
+const canRevealWorktreeFolder = $derived(Boolean(session.worktreePath?.trim()) && !worktreeDeleted);
+const canOpenPullRequest = $derived(
+	typeof session.prNumber === "number" &&
+		((session.linkedPr?.url !== undefined && session.linkedPr.url !== null) ||
+			onOpenPr !== undefined)
+);
+const actionsVisible = $derived(isRowHovered || isActionsMenuOpen || selected || isOpen);
 const _actionsVisibilityClass = $derived(
 	actionsVisible ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none"
 );
@@ -577,6 +673,8 @@ function handleNextQuestion() {
 		isRowHovered = false;
 		highlightCtx?.clearHighlight();
 	}}
+	onfocusin={handleRowFocusIn}
+	onfocusout={handleRowFocusOut}
 >
 			{#if hasChildren}
 				<button
@@ -595,15 +693,30 @@ function handleNextQuestion() {
 
 			<div class="flex-1 min-w-0">
 				{#snippet agentBadge()}
-					{#if showClaudeWorkingSpark}
-						<ClaudeWorkingSpark class="{agentIconBaseClass} m-0.5" size={12} />
-					{:else}
-						<AgentIcon
-							agentId={session.agentId ?? "historical-session"}
-							class="{agentIconBaseClass} shrink-0 m-0.5"
-							size={12}
-						/>
+					{#if showSessionWorkingIndicator}
+						<span
+							class="inline-flex h-4 w-4 shrink-0 items-center justify-center text-foreground"
+							aria-label="Working"
+							title="Working"
+							data-testid="session-item-working-indicator"
+						>
+							<LoadingIcon class="shrink-0" size={12} />
+						</span>
+					{:else if showSessionFinishedIndicator}
+						<span
+							class="inline-flex h-4 w-4 shrink-0 items-center justify-center text-success"
+							aria-label="Ready for review"
+							title="Ready for review"
+							data-testid="session-item-finished-indicator"
+						>
+							<RoundedIcon name="check-circle-filled" class="size-3 shrink-0" />
+						</span>
 					{/if}
+					<AgentIcon
+						agentId={session.agentId ?? "historical-session"}
+						class="{agentIconBaseClass} shrink-0 m-0.5"
+						size={12}
+					/>
 					{#if shouldShowSessionProjectBadge(session)}
 						<ProjectLetterBadge
 							name={session.projectName}
@@ -616,13 +729,13 @@ function handleNextQuestion() {
 						/>
 					{/if}
 					{#if session.worktreePath}
-						<Tree
-							size={12}
-							weight="fill"
-							class="shrink-0 m-0.5 {worktreeDeleted ? 'text-destructive' : 'text-success'}"
-							color="currentColor"
+						<span
+							role="img"
 							aria-label={worktreeDeleted ? "Worktree deleted" : "Worktree session"}
-						/>
+							class="inline-flex shrink-0 m-0.5 {worktreeDeleted ? 'text-destructive' : 'text-success'}"
+						>
+							<RoundedIcon name="worktree" class="size-3" />
+						</span>
 					{/if}
 					{#if session.prNumber != null}
 						<button
@@ -662,32 +775,27 @@ function handleNextQuestion() {
 										aria-label="Confirm archive session"
 										title="Confirm archive"
 									>
-										<IconCheck class="h-3.5 w-3.5" stroke={2} aria-hidden="true" />
+										<RoundedIcon name="check" class="h-3.5 w-3.5" />
 									</button>
 									<button
 										type="button"
-										class="shrink-0 h-5 w-5 flex items-center justify-center rounded hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring text-muted-foreground hover:text-foreground"
+										class="shrink-0 h-5 w-5 flex items-center justify-center rounded text-muted-foreground/35 transition-colors hover:bg-accent hover:text-foreground focus-visible:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring [&_svg]:text-muted-foreground/35 [&_svg]:transition-colors hover:[&_svg]:text-foreground focus-visible:[&_svg]:text-foreground"
 										onclick={handleCancelArchive}
 										aria-label="Cancel archive session"
 										title="Cancel"
 									>
-										<IconX class="h-3.5 w-3.5" stroke={2} aria-hidden="true" />
+										<RoundedIcon name="close" class="h-3.5 w-3.5" />
 									</button>
 								</div>
 							{:else}
 								<button
 									type="button"
-									class="shrink-0 h-5 w-5 flex items-center justify-center rounded hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring hover:[&_svg]:text-foreground"
+									class="shrink-0 h-5 w-5 flex items-center justify-center rounded text-muted-foreground/35 transition-colors hover:bg-accent hover:text-foreground focus-visible:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring [&_svg]:text-muted-foreground/35 [&_svg]:transition-colors hover:[&_svg]:text-foreground focus-visible:[&_svg]:text-foreground"
 									onclick={handleArchiveClick}
 									aria-label="Archive session"
 									title="Archive"
 								>
-									<Archive
-										class="h-3.5 w-3.5 text-muted-foreground transition-colors"
-										weight="fill"
-										color="currentColor"
-										aria-hidden="true"
-									/>
+									<RoundedIcon name="archive" class="h-3.5 w-3.5" />
 								</button>
 							{/if}
 						{/if}
@@ -697,53 +805,149 @@ function handleNextQuestion() {
 								align="end"
 								variant="ghost"
 								triggerSize="icon"
+								triggerClass="size-5 [&_svg]:!size-3.5"
 								showChevron={false}
 								tooltipLabel="Session actions"
 								triggerAriaLabel="Session actions"
 							>
 								{#snippet renderButton()}
-									<IconDotsVertical class="h-3.5 w-3.5" aria-hidden="true" />
+									<RoundedIcon name="more" />
 								{/snippet}
 
-								<DropdownMenu.Item class="cursor-pointer">
-									<CopyButton
-										text={session.id}
-										variant="menu"
-										label={"Copy session ID"}
-										hideIcon
-										size={16}
-									/>
-								</DropdownMenu.Item>
 								{#if onRename}
-									<DropdownMenu.Item onSelect={openRenameEditor} class="cursor-pointer">
-										{"Rename"}
+									<DropdownMenu.Item
+										onSelect={openRenameEditor}
+										class="cursor-pointer"
+										data-testid="session-action-rename"
+									>
+										<RoundedIcon name="edit" class="size-3.5 shrink-0" />
+										<span class="min-w-0 flex-1 truncate">{"Rename..."}</span>
+									</DropdownMenu.Item>
+									<DropdownMenu.Separator />
+								{/if}
+								<DropdownMenu.Sub>
+									<DropdownMenu.SubTrigger
+										class="cursor-pointer"
+										data-testid="session-action-copy"
+									>
+										<RoundedIcon name="copy" class="size-3.5 shrink-0" />
+										<span class="min-w-0 flex-1 truncate">{"Copy"}</span>
+									</DropdownMenu.SubTrigger>
+									<DropdownMenu.SubContent class="min-w-[210px]">
+										<DropdownMenu.Item
+											onSelect={handleCopyTitle}
+											class="cursor-pointer"
+											data-testid="session-action-copy-title"
+										>
+											<RoundedIcon name="file-text" class="size-3.5 shrink-0" />
+											<span class="min-w-0 flex-1 truncate">{"Title"}</span>
+										</DropdownMenu.Item>
+										<DropdownMenu.Item
+											onSelect={handleCopySessionId}
+											class="cursor-pointer"
+											data-testid="session-action-copy-id"
+										>
+											<RoundedIcon name="code" class="size-3.5 shrink-0" />
+											<span class="min-w-0 flex-1 truncate">{"Session ID"}</span>
+										</DropdownMenu.Item>
+										{#if hasCopyTranscriptActions}
+											<DropdownMenu.Separator />
+											{#if onCopyTranscriptMarkdown}
+												<DropdownMenu.Item
+													onSelect={handleCopyTranscriptMarkdown}
+													class="cursor-pointer"
+													data-testid="session-action-copy-markdown"
+												>
+													<RoundedIcon name="file-text" class="size-3.5 shrink-0" />
+													<span class="min-w-0 flex-1 truncate">{"Transcript as Markdown"}</span>
+												</DropdownMenu.Item>
+											{/if}
+											{#if onCopyTranscriptJson}
+												<DropdownMenu.Item
+													onSelect={handleCopyTranscriptJson}
+													class="cursor-pointer"
+													data-testid="session-action-copy-json"
+												>
+													<RoundedIcon name="code" class="size-3.5 shrink-0" />
+													<span class="min-w-0 flex-1 truncate">{"Transcript as JSON"}</span>
+												</DropdownMenu.Item>
+											{/if}
+										{/if}
+									</DropdownMenu.SubContent>
+								</DropdownMenu.Sub>
+								{#if onOpenTranscriptInAcepe}
+									<DropdownMenu.Item
+										onSelect={handleOpenTranscriptInAcepe}
+										class="cursor-pointer"
+										data-testid="session-action-open-in-acepe"
+									>
+										<RoundedIcon name="app-window" class="size-3.5 shrink-0" />
+										<span class="min-w-0 flex-1 truncate">{"View Transcript File"}</span>
 									</DropdownMenu.Item>
 								{/if}
-								{#if onExportMarkdown || onExportJson}
+								<DropdownMenu.Sub>
+									<DropdownMenu.SubTrigger
+										class="cursor-pointer"
+										data-testid="session-action-reveal"
+									>
+										<RoundedIcon name="folder" class="size-3.5 shrink-0" />
+										<span class="min-w-0 flex-1 truncate">{"Reveal in Finder"}</span>
+									</DropdownMenu.SubTrigger>
+									<DropdownMenu.SubContent class="min-w-[190px]">
+										<DropdownMenu.Item
+											onSelect={handleRevealRawTranscriptFile}
+											class="cursor-pointer"
+											data-testid="session-action-reveal-transcript"
+										>
+											<RoundedIcon name="document" class="size-3.5 shrink-0" />
+											<span class="min-w-0 flex-1 truncate">{"Raw Transcript File"}</span>
+										</DropdownMenu.Item>
+										{#if canRevealWorktreeFolder}
+											<DropdownMenu.Item
+												onSelect={handleRevealWorktreeFolder}
+												class="cursor-pointer"
+												data-testid="session-action-reveal-worktree"
+											>
+												<RoundedIcon name="worktree" class="size-3.5 shrink-0" />
+												<span class="min-w-0 flex-1 truncate">{"Worktree Folder"}</span>
+											</DropdownMenu.Item>
+										{/if}
+									</DropdownMenu.SubContent>
+								</DropdownMenu.Sub>
+								{#if canOpenPullRequest}
 									<DropdownMenu.Separator />
-									<DropdownMenu.Sub>
-										<DropdownMenu.SubTrigger class="cursor-pointer">
-											{"Export"}
-										</DropdownMenu.SubTrigger>
-										<DropdownMenu.SubContent class="min-w-[160px]">
-											{#if onExportMarkdown}
-												<DropdownMenu.Item onSelect={handleExportMarkdown} class="cursor-pointer">
-													{"Export as Markdown"}
-												</DropdownMenu.Item>
-											{/if}
-											{#if onExportJson}
-												<DropdownMenu.Item onSelect={handleExportJson} class="cursor-pointer">
-													{"Export as JSON"}
-												</DropdownMenu.Item>
-											{/if}
-										</DropdownMenu.SubContent>
-									</DropdownMenu.Sub>
+									<DropdownMenu.Item
+										onSelect={handleOpenPullRequest}
+										class="cursor-pointer"
+										data-testid="session-action-open-pr"
+									>
+										<RoundedIcon name="pull-request" class="size-3.5 shrink-0" />
+										<span class="min-w-0 flex-1 truncate">
+											{`Open Pull Request #${session.prNumber}`}
+										</span>
+									</DropdownMenu.Item>
 								{/if}
 								{#if isDev}
 									<DropdownMenu.Separator />
-									<DropdownMenu.Item onSelect={handleOpenStreamingLog} class="cursor-pointer">
-										{"Open Streaming Log"}
-									</DropdownMenu.Item>
+									<DropdownMenu.Sub>
+										<DropdownMenu.SubTrigger
+											class="cursor-pointer"
+											data-testid="session-action-developer"
+										>
+											<RoundedIcon name="terminal" class="size-3.5 shrink-0" />
+											<span class="min-w-0 flex-1 truncate">{"Developer"}</span>
+										</DropdownMenu.SubTrigger>
+										<DropdownMenu.SubContent class="min-w-[180px]">
+											<DropdownMenu.Item
+												onSelect={handleOpenStreamingLog}
+												class="cursor-pointer"
+												data-testid="session-action-open-streaming-log"
+											>
+												<RoundedIcon name="terminal" class="size-3.5 shrink-0" />
+												<span class="min-w-0 flex-1 truncate">{"Open Streaming Log"}</span>
+											</DropdownMenu.Item>
+										</DropdownMenu.SubContent>
+									</DropdownMenu.Sub>
 								{/if}
 							</Selector>
 						</div>
@@ -756,14 +960,14 @@ function handleNextQuestion() {
 							bind:ref={renameInputRef}
 							bind:value={renameDraft}
 							type="text"
-							class="h-6 border-0 bg-transparent px-0 !text-xs font-medium shadow-none focus-visible:ring-0 md:!text-xs"
+							class="h-6 border-0 bg-transparent px-0 font-medium shadow-none focus-visible:ring-0"
 							onkeydown={handleRenameKeydown}
 							onblur={submitRename}
 							onclick={(event: MouseEvent) => event.stopPropagation()}
 							aria-label="Rename session"
 						/>
 					{:else}
-						<div class="text-xs font-medium truncate">
+						<div class="font-medium truncate">
 							{displayTitle}
 						</div>
 					{/if}

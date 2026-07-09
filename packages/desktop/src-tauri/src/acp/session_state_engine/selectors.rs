@@ -354,9 +354,8 @@ pub fn select_session_graph_activity(
 #[cfg(test)]
 mod tests {
     use super::{
-        merge_session_graph_activity_timing, select_session_graph_activity, SessionGraphActivity,
-        SessionGraphActivityKind, SessionGraphCapabilities, SessionGraphLifecycle,
-        SessionRecommendedAction,
+        select_session_graph_activity, SessionGraphActivity, SessionGraphActivityKind,
+        SessionGraphCapabilities, SessionGraphLifecycle, SessionRecommendedAction,
     };
     use crate::acp::lifecycle::{DetachedReason, FailureReason, LifecycleStatus};
     use crate::acp::projections::{

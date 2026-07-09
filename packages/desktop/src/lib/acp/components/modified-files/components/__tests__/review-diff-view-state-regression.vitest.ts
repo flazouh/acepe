@@ -1,16 +1,28 @@
 import { type FileContents, type FileDiffMetadata, parseDiffFromFile } from "@pierre/diffs";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 type RenderArgs = {
 	fileDiff: FileDiffMetadata;
 };
 
 const pierreMockState = vi.hoisted(() => {
+	type CapturedFileDiffOptions = {
+		readonly diffStyle?: "split" | "unified";
+		readonly diffIndicators?: "classic" | "bars" | "none";
+		readonly lineDiffType?: "word-alt" | "word" | "char" | "none";
+		readonly disableBackground?: boolean;
+		readonly overflow?: "scroll" | "wrap";
+		readonly disableLineNumbers?: boolean;
+		readonly expandUnchanged?: boolean;
+		readonly expansionLineCount?: number;
+	};
+
 	class MockFileDiff {
 		options: object;
 
 		constructor(options: object) {
 			this.options = options;
+			pierreMockState.lastConstructedOptions = options as CapturedFileDiffOptions;
 		}
 
 		render(args: RenderArgs): void {
@@ -21,33 +33,32 @@ const pierreMockState = vi.hoisted(() => {
 
 		setOptions(options: object): void {
 			this.options = options;
+			pierreMockState.lastSetOptions = options as CapturedFileDiffOptions;
 		}
 
 		setThemeType(_themeType: "dark" | "light"): void {}
 
-		rerender(): void {}
+		rerender(): void {
+			pierreMockState.rerenderCount += 1;
+		}
 	}
 
 	return {
 		lastRenderArgs: null as RenderArgs | null,
+		lastBuildDiffStyle: null as "split" | "unified" | null,
+		lastBuildOverflow: null as "scroll" | "wrap" | null,
+		lastBuildDisableLineNumbers: null as boolean | null,
+		lastConstructedOptions: null as CapturedFileDiffOptions | null,
+		lastSetOptions: null as CapturedFileDiffOptions | null,
+		rerenderCount: 0,
 		MockFileDiff,
 	};
 });
 
 vi.mock("@pierre/diffs", async () => {
 	const actual = await vi.importActual<typeof import("@pierre/diffs")>("@pierre/diffs");
-	const diffAcceptRejectHunk: typeof actual.diffAcceptRejectHunk = (diff, hunkIndex, action) => {
-		const result = actual.diffAcceptRejectHunk(diff, hunkIndex, action);
-		const corruptedResult = Object.assign({}, result);
-		Reflect.deleteProperty(corruptedResult, "newLines");
-		Reflect.deleteProperty(corruptedResult, "additionLines");
-		Reflect.deleteProperty(corruptedResult, "deletionLines");
-		return corruptedResult;
-	};
-
 	return Object.assign({}, actual, {
 		FileDiff: pierreMockState.MockFileDiff,
-		diffAcceptRejectHunk,
 	});
 });
 
@@ -56,12 +67,19 @@ vi.mock("$lib/acp/utils/worker-pool-singleton.js", () => ({
 }));
 
 vi.mock("$lib/acp/utils/pierre-rendering.js", () => ({
-	buildPierreDiffOptions: (): object => ({}),
+	buildPierreDiffOptions: (
+		_themeType: "dark" | "light",
+		diffStyle: "split" | "unified",
+		overflow: "scroll" | "wrap",
+		disableLineNumbers: boolean,
+		_extraUnsafeCSS?: string
+	): object => {
+		pierreMockState.lastBuildDiffStyle = diffStyle;
+		pierreMockState.lastBuildOverflow = overflow;
+		pierreMockState.lastBuildDisableLineNumbers = disableLineNumbers;
+		return { diffStyle, overflow, disableLineNumbers };
+	},
 	ensurePierreThemeRegistered: (): Promise<void> => Promise.resolve(),
-}));
-
-vi.mock("../diff-hunk-action-buttons.svelte", () => ({
-	default: class MockDiffHunkActionButtons {},
 }));
 
 type ReviewDiffData = {
@@ -89,23 +107,17 @@ function createSingleHunkDiffData(): ReviewDiffData {
 	};
 }
 
-async function setupState() {
-	const { ReviewDiffViewState } = await import("../review-diff-view-state.svelte.js");
-	const state = new ReviewDiffViewState();
-	const diffData = createSingleHunkDiffData();
-
-	const fakeFileDiffInstance = {
-		render(_args: RenderArgs): void {},
-	};
-
-	Reflect.set(state, "currentDiffData", diffData);
-	Reflect.set(state, "containerElement", document.createElement("div"));
-	Reflect.set(state, "fileDiffInstance", fakeFileDiffInstance);
-
-	return { state, diffData };
-}
-
 describe("ReviewDiffViewState regression", () => {
+	beforeEach(() => {
+		pierreMockState.lastRenderArgs = null;
+		pierreMockState.lastBuildDiffStyle = null;
+		pierreMockState.lastBuildOverflow = null;
+		pierreMockState.lastBuildDisableLineNumbers = null;
+		pierreMockState.lastConstructedOptions = null;
+		pierreMockState.lastSetOptions = null;
+		pierreMockState.rerenderCount = 0;
+	});
+
 	it("rebuilds render metadata when incoming line arrays are missing", async () => {
 		const { ReviewDiffViewState } = await import("../review-diff-view-state.svelte.js");
 		const state = new ReviewDiffViewState();
@@ -131,19 +143,12 @@ describe("ReviewDiffViewState regression", () => {
 		expect(pierreMockState.lastRenderArgs?.fileDiff.deletionLines).toBeDefined();
 	});
 
-	it("applies resolved hunks before the first render", async () => {
+	it("renders the change lines (green/red) without collapsing to context", async () => {
 		const { ReviewDiffViewState } = await import("../review-diff-view-state.svelte.js");
 		const state = new ReviewDiffViewState();
 		const diffData = createSingleHunkDiffData();
 
-		await state.initializeDiff(
-			diffData,
-			document.createElement("div"),
-			undefined,
-			() => {},
-			"default",
-			[{ hunkIndex: 0, action: "accept" }]
-		);
+		await state.initializeDiff(diffData, document.createElement("div"));
 
 		const stats = state.getHunkStats();
 		expect(stats.total).toBe(1);
@@ -155,84 +160,83 @@ describe("ReviewDiffViewState regression", () => {
 		expect(pierreMockState.lastRenderArgs?.fileDiff.hunks[0].hunkContent).toEqual(
 			diffData.fileDiffMetadata.hunks[0].hunkContent
 		);
+		expect(
+			pierreMockState.lastRenderArgs?.fileDiff.hunks.some((hunk) =>
+				hunk.hunkContent.some((content) => content.type === "change")
+			)
+		).toBe(true);
 	});
 
-	it("keeps accepted contents when resolved metadata omits newLines", async () => {
-		const { state, diffData } = await setupState();
-		const originalNewContents = diffData.newFile.contents;
-
-		expect(() => {
-			state.applyHunkAction(0, "accept");
-		}).not.toThrow();
-
-		const currentData = Reflect.get(state, "currentDiffData") as ReviewDiffData;
-		expect(currentData.newFile.contents).toBe(originalNewContents);
-		expect(currentData.fileDiffMetadata.additionLines).toBeDefined();
-		expect(currentData.fileDiffMetadata.deletionLines).toBeDefined();
-	});
-
-	it("extracts old content from legacy numeric hunk payloads", async () => {
+	it("uses the requested diff style when initializing the renderer", async () => {
 		const { ReviewDiffViewState } = await import("../review-diff-view-state.svelte.js");
 		const state = new ReviewDiffViewState();
+		const diffData = createSingleHunkDiffData();
 
-		const legacyMetadata = {
-			name: "example.ts",
-			prevName: undefined,
-			type: "change",
-			hunks: [
-				{
-					collapsedBefore: 0,
-					splitLineStart: 1,
-					splitLineCount: 1,
-					unifiedLineStart: 1,
-					unifiedLineCount: 1,
-					additionCount: 1,
-					additionStart: 2,
-					additionLines: 1,
-					deletionCount: 1,
-					deletionStart: 2,
-					deletionLines: 1,
-					hunkContent: [
-						{
-							type: "change",
-							deletions: 1,
-							additions: 1,
-							deletionLineIndex: 1,
-							additionLineIndex: 1,
-							noEOFCRDeletions: false,
-							noEOFCRAdditions: false,
-						},
-					],
-					hunkContext: undefined,
-					hunkSpecs: undefined,
-				},
-			],
-			splitLineCount: 0,
-			unifiedLineCount: 0,
-			deletionLines: ["line-01\n", "line-02\n", "line-03"],
-			additionLines: ["line-01\n", "line-02-modified\n", "line-03"],
-		};
+		await state.initializeDiff(diffData, document.createElement("div"), "default", "split");
 
-		Reflect.set(state, "currentDiffData", {
-			oldFile: {
-				name: "example.ts",
-				contents: "line-01\nline-02\nline-03",
-				cacheKey: "legacy-old",
-			},
-			newFile: {
-				name: "example.ts",
-				contents: "line-01\nline-02-modified\nline-03",
-				cacheKey: "legacy-new",
-			},
-			fileDiffMetadata: legacyMetadata,
+		expect(state.diffStyle).toBe("split");
+		expect(pierreMockState.lastBuildDiffStyle).toBe("split");
+	});
+
+	it("configures hunk expansion to reveal the entire hidden file region", async () => {
+		const { ReviewDiffViewState } = await import("../review-diff-view-state.svelte.js");
+		const state = new ReviewDiffViewState();
+		const diffData = createSingleHunkDiffData();
+
+		await state.initializeDiff(diffData, document.createElement("div"));
+
+		expect(pierreMockState.lastConstructedOptions?.expandUnchanged).toBe(true);
+		expect(pierreMockState.lastConstructedOptions?.expansionLineCount).toBe(
+			Number.MAX_SAFE_INTEGER
+		);
+	});
+
+	it("maps review diff styling controls to Pierre options", async () => {
+		const { ReviewDiffViewState } = await import("../review-diff-view-state.svelte.js");
+		const state = new ReviewDiffViewState();
+		const diffData = createSingleHunkDiffData();
+
+		await state.initializeDiff(diffData, document.createElement("div"), "default", "split", {
+			indicatorStyle: "classic",
+			lineChangeStyle: "character",
+			showBackgrounds: false,
+			wrapLines: false,
+			showLineNumbers: false,
 		});
 
-		const extracted = Reflect.apply(
-			Reflect.get(state, "extractHunkOldContent") as (hunkIndex: number) => string,
-			state,
-			[0]
-		);
+		expect(pierreMockState.lastBuildOverflow).toBe("scroll");
+		expect(pierreMockState.lastBuildDisableLineNumbers).toBe(true);
+		expect(pierreMockState.lastConstructedOptions).toMatchObject({
+			diffStyle: "split",
+			diffIndicators: "classic",
+			lineDiffType: "char",
+			disableBackground: true,
+			overflow: "scroll",
+			disableLineNumbers: true,
+		});
+	});
 
-		expect(extracted).toBe("line-02\n");
+	it("rerenders when review diff styling options change after initialization", async () => {
+		const { ReviewDiffViewState } = await import("../review-diff-view-state.svelte.js");
+		const state = new ReviewDiffViewState();
+		const diffData = createSingleHunkDiffData();
+
+		await state.initializeDiff(diffData, document.createElement("div"));
+		state.setDiffOptions({
+			indicatorStyle: "none",
+			lineChangeStyle: "none",
+			showBackgrounds: false,
+			wrapLines: false,
+			showLineNumbers: false,
+		});
+
+		expect(pierreMockState.rerenderCount).toBe(1);
+		expect(pierreMockState.lastSetOptions).toMatchObject({
+			diffIndicators: "none",
+			lineDiffType: "none",
+			disableBackground: true,
+			overflow: "scroll",
+			disableLineNumbers: true,
+		});
 	});
 });

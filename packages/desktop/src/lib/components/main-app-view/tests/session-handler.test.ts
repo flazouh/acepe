@@ -7,6 +7,7 @@ import type { PanelStore } from "$lib/acp/store/panel-store.svelte.js";
 import type { SessionOpenHydrator } from "$lib/acp/store/services/session-open-hydrator.js";
 import type { SessionStore } from "$lib/acp/store/session-store.svelte.js";
 import { DEFAULT_PANEL_WIDTH } from "$lib/acp/store/types.js";
+import type { SessionGraphLifecycle } from "$lib/services/acp-types.js";
 import { SessionSelectionError } from "../errors/main-app-view-error.js";
 import type { MainAppViewState } from "../logic/main-app-view-state.svelte.js";
 
@@ -39,12 +40,45 @@ describe("SessionHandler", () => {
 
 		mockSessionStore = {
 			read: {
-				hasSession: mock((id: string) => mockSessionsArray.some((s: { id: string }) => s.id === id)),
+				hasSession: mock((id: string) =>
+					mockSessionsArray.some((s: { id: string }) => s.id === id)
+				),
 				getSessionDetail: mock(() => null),
-				getSession: mock((id: string) => mockSessionsArray.find((s: { id: string }) => s.id === id)),
-				getSessionById: mock((id: string) => mockSessionsArray.find((s: { id: string }) => s.id === id)),
+				getSession: mock((id: string) =>
+					mockSessionsArray.find((s: { id: string }) => s.id === id)
+				),
+				getSessionById: mock((id: string) =>
+					mockSessionsArray.find((s: { id: string }) => s.id === id)
+				),
+				getSessionIdentity: mock((id: string) => {
+					const session = mockSessionsArray.find((s: { id: string }) => s.id === id);
+					if (!session) {
+						return undefined;
+					}
+					return {
+						id: session.id,
+						projectPath: session.projectPath ?? "/test",
+						agentId: session.agentId ?? "agent-1",
+						worktreePath: session.worktreePath ?? null,
+					};
+				}),
+				getSessionMetadata: mock((id: string) => {
+					const session = mockSessionsArray.find((s: { id: string }) => s.id === id);
+					if (!session) {
+						return undefined;
+					}
+					return {
+						title: session.title ?? null,
+						createdAt: session.createdAt ?? new Date(),
+						updatedAt: session.updatedAt ?? new Date(),
+						sourcePath: session.sourcePath,
+						sessionLifecycleState: session.sessionLifecycleState ?? "persisted",
+						parentId: session.parentId ?? null,
+					};
+				}),
 				getSessionCanSend: mock(() => true),
 				getSessionLifecycleStatus: mock(() => "ready"),
+				getSessionLifecycle: mock(() => createLifecycle("ready", false)),
 			},
 			loading: {
 				loadHistoricalSession: mock((sessionId: string) => {
@@ -58,7 +92,10 @@ describe("SessionHandler", () => {
 			connection: {
 				connectSession: mock(() => okAsync({} as Record<string, never>)),
 				createSession: mock(() =>
-					okAsync({ kind: "ready", session: { id: "acp-session-id" } } as import("$lib/acp/store/session-store.svelte.js").SessionCreationResult)
+					okAsync({
+						kind: "ready",
+						session: { id: "acp-session-id" },
+					} as import("$lib/acp/store/session-store.svelte.js").SessionCreationResult)
 				),
 			},
 			write: {
@@ -118,7 +155,10 @@ describe("SessionHandler", () => {
 			mockState,
 			mockSessionStore,
 			mockPanelStore,
-			mockSessionOpenHydrator
+			mockSessionOpenHydrator,
+			(callback) => {
+				callback();
+			}
 		);
 	});
 
@@ -187,6 +227,68 @@ describe("SessionHandler", () => {
 				sessionId: "session-1",
 				sessionStore: mockSessionStore,
 				sessionOpenHydrator: mockSessionOpenHydrator,
+				isPanelCurrent: expect.any(Function),
+				timeoutMs: 30_000,
+				source: "session-handler",
+			});
+		});
+
+		it("should open persisted sessions immediately without waiting for a prepared result", async () => {
+			mockSessionsArray.push({
+				id: "session-1",
+				projectPath: "/test",
+				agentId: "claude-code",
+				sourcePath: "/tmp/session-1.store.db",
+			} as any);
+
+			const result = await handler.selectSession("session-1");
+
+			expect(result.isOk()).toBe(true);
+			expect(mockPanelStore.openSession).toHaveBeenCalledWith("session-1", DEFAULT_PANEL_WIDTH);
+			expect(openPersistedSessionMock).toHaveBeenCalledWith({
+				panelId: "panel-1",
+				sessionId: "session-1",
+				sessionStore: mockSessionStore,
+				sessionOpenHydrator: mockSessionOpenHydrator,
+				isPanelCurrent: expect.any(Function),
+				timeoutMs: 30_000,
+				source: "session-handler",
+			});
+		});
+
+		it("opens the panel before running the persisted-session refresh", async () => {
+			const scheduledCallbacks: Array<() => void> = [];
+			const delayedHandler = new SessionHandler(
+				mockState,
+				mockSessionStore,
+				mockPanelStore,
+				mockSessionOpenHydrator,
+				(callback) => {
+					scheduledCallbacks.push(callback);
+				}
+			);
+			mockSessionsArray.push({
+				id: "session-1",
+				projectPath: "/test",
+				agentId: "claude-code",
+				sourcePath: "/tmp/session-1.store.db",
+			} as any);
+
+			const result = await delayedHandler.selectSession("session-1");
+
+			expect(result.isOk()).toBe(true);
+			expect(mockPanelStore.openSession).toHaveBeenCalledWith("session-1", DEFAULT_PANEL_WIDTH);
+			expect(openPersistedSessionMock).not.toHaveBeenCalled();
+			expect(scheduledCallbacks).toHaveLength(1);
+
+			scheduledCallbacks[0]?.();
+
+			expect(openPersistedSessionMock).toHaveBeenCalledWith({
+				panelId: "panel-1",
+				sessionId: "session-1",
+				sessionStore: mockSessionStore,
+				sessionOpenHydrator: mockSessionOpenHydrator,
+				isPanelCurrent: expect.any(Function),
 				timeoutMs: 30_000,
 				source: "session-handler",
 			});
@@ -255,9 +357,80 @@ describe("SessionHandler", () => {
 				sessionId: "session-1",
 				sessionStore: mockSessionStore,
 				sessionOpenHydrator: mockSessionOpenHydrator,
+				isPanelCurrent: expect.any(Function),
 				timeoutMs: 30_000,
 				source: "session-handler",
 			});
+		});
+
+		it("should resume open when the already-open session is detached", async () => {
+			const existingPanel = {
+				id: "existing-panel",
+				kind: "agent" as const,
+				ownerPanelId: null,
+				sessionId: "session-1",
+				width: 450,
+				pendingProjectSelection: false,
+				selectedAgentId: "agent-1",
+				projectPath: null,
+				agentId: null,
+				sessionTitle: null,
+			};
+			mockPanelStore.isSessionOpen = mock(() => true);
+			mockPanelStore.openSession = mock(() => existingPanel);
+			mockPanelStore.getPanelBySessionId = mock(() => existingPanel);
+			mockSessionStore.read.getSessionCanSend = mock(() => false);
+			mockSessionStore.read.getSessionLifecycleStatus = mock(() => "detached" as const);
+			mockSessionStore.read.getSessionLifecycle = mock(() => createLifecycle("detached", true));
+			mockSessionsArray.push({
+				id: "session-1",
+				projectPath: "/test",
+				agentId: "claude-code",
+			} as any);
+
+			const result = await handler.selectSession("session-1");
+
+			expect(result.isOk()).toBe(true);
+			expect(openPersistedSessionMock).toHaveBeenCalledWith({
+				panelId: "existing-panel",
+				sessionId: "session-1",
+				sessionStore: mockSessionStore,
+				sessionOpenHydrator: mockSessionOpenHydrator,
+				isPanelCurrent: expect.any(Function),
+				timeoutMs: 30_000,
+				source: "session-handler",
+			});
+		});
+
+		it("should not resume open when canonical lifecycle says the detached session cannot resume", async () => {
+			const existingPanel = {
+				id: "existing-panel",
+				kind: "agent" as const,
+				ownerPanelId: null,
+				sessionId: "session-1",
+				width: 450,
+				pendingProjectSelection: false,
+				selectedAgentId: "agent-1",
+				projectPath: null,
+				agentId: null,
+				sessionTitle: null,
+			};
+			mockPanelStore.isSessionOpen = mock(() => true);
+			mockPanelStore.openSession = mock(() => existingPanel);
+			mockPanelStore.getPanelBySessionId = mock(() => existingPanel);
+			mockSessionStore.read.getSessionCanSend = mock(() => false);
+			mockSessionStore.read.getSessionLifecycleStatus = mock(() => "detached" as const);
+			mockSessionStore.read.getSessionLifecycle = mock(() => createLifecycle("detached", false));
+			mockSessionsArray.push({
+				id: "session-1",
+				projectPath: "/test",
+				agentId: "claude-code",
+			} as any);
+
+			const result = await handler.selectSession("session-1");
+
+			expect(result.isOk()).toBe(true);
+			expect(openPersistedSessionMock).not.toHaveBeenCalled();
 		});
 
 		it("should not directly connect during selectSession", async () => {
@@ -310,6 +483,7 @@ describe("SessionHandler", () => {
 				sessionId: "session-1",
 				sessionStore: mockSessionStore,
 				sessionOpenHydrator: mockSessionOpenHydrator,
+				isPanelCurrent: expect.any(Function),
 				timeoutMs: 30_000,
 				source: "session-handler",
 			});
@@ -428,3 +602,43 @@ describe("SessionHandler", () => {
 		});
 	});
 });
+
+function createLifecycle(
+	status: SessionGraphLifecycle["status"],
+	canResume: boolean
+): SessionGraphLifecycle {
+	return {
+		status,
+		actionability: {
+			canSend: status === "ready",
+			canResume,
+			canRetry: false,
+			canArchive: status !== "archived",
+			canConfigure: status === "ready",
+			recommendedAction: canResume ? "resume" : status === "ready" ? "send" : "wait",
+			recoveryPhase: recoveryPhaseForStatus(status),
+			compactStatus: status,
+		},
+	};
+}
+
+function recoveryPhaseForStatus(
+	status: SessionGraphLifecycle["status"]
+): SessionGraphLifecycle["actionability"]["recoveryPhase"] {
+	if (status === "activating") {
+		return "activating";
+	}
+	if (status === "reconnecting") {
+		return "reconnecting";
+	}
+	if (status === "detached") {
+		return "detached";
+	}
+	if (status === "failed") {
+		return "failed";
+	}
+	if (status === "archived") {
+		return "archived";
+	}
+	return "none";
+}

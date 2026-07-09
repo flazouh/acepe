@@ -20,9 +20,14 @@ import type { TranscriptRowsState } from "../../../store/transcript-rows-store.j
 import type { TurnState } from "../../../store/types.js";
 import type { ModifiedFilesState } from "../../../types/modified-files-state.js";
 import { getChatPreferencesStore } from "../../../store/chat-preferences-store.svelte.js";
-import { getPermissionStore } from "../../../store/permission-store.svelte.js";
+import {
+	getPermissionStore,
+	type PermissionStore,
+} from "../../../store/permission-store.svelte.js";
 import { getSessionStore } from "../../../store/session-store.svelte.js";
 import { DEFAULT_STREAMING_ANIMATION_MODE } from "../../../types/streaming-animation-mode.js";
+import type { AgentPanelCanonicalSource } from "../../../session-state/agent-panel-canonical-source.js";
+import { createViewportOperationSceneEntryResolver } from "../../../session-state/viewport-operation-scene-entry-resolver.js";
 import { getWorkerPool } from "../../../utils/worker-pool-singleton.js";
 import {
 	pierreDiffsUnsafeCSS,
@@ -45,13 +50,23 @@ type SceneContentViewportProps = {
 	turnState: TurnState;
 	projectPath: string | undefined;
 	sessionId: string | null;
+	skipRowsBootstrap?: boolean;
 	pendingUserRevealRequestKey?: string | null;
 	showLocalPlanningIndicator?: boolean;
+	planningPlaceholderPresentation?: {
+		readonly label: string;
+		readonly agentIconSrc: string | null;
+		readonly showWorkingSpark: boolean;
+	} | null;
 	showWorkingSpark?: boolean;
 	isFullscreen?: boolean;
 	modifiedFilesState?: ModifiedFilesState | null;
 	onNearBottomChange?: (isNearBottom: boolean) => void;
 	onNearTopChange?: (isNearTop: boolean) => void;
+	onFollowStateChange?: (state: {
+		readonly released: boolean;
+		readonly hasUnreadBelow: boolean;
+	}) => void;
 	onQuestionSelect?: (event: AgentPanelQuestionSelectEvent) => void;
 	onPlanBuild?: (event: AgentPanelPlanActionEvent) => void;
 	onPlanCancel?: (event: AgentPanelPlanActionEvent) => void;
@@ -59,9 +74,10 @@ type SceneContentViewportProps = {
 	onToolFileSelect?: (event: AgentToolFileSelectEvent) => void;
 	onReview?: (event: AgentPanelReviewActionEvent) => void;
 	isPlanActionAvailable?: (event: AgentPanelPlanActionEvent) => boolean;
+	profileRecorder?: AgentPanelPerformanceRecorder;
 };
 
-const permissionStore = getPermissionStore();
+const permissionStore: PermissionStore | undefined = getPermissionStore();
 const sessionStore = getSessionStore();
 
 let {
@@ -71,13 +87,17 @@ let {
 	turnState,
 	projectPath,
 	sessionId,
+	canonicalSource = null,
+	skipRowsBootstrap = false,
 	pendingUserRevealRequestKey = null,
 	showLocalPlanningIndicator = false,
+	planningPlaceholderPresentation = null,
 	showWorkingSpark = false,
 	isFullscreen = false,
 	modifiedFilesState = null,
 	onNearBottomChange,
 	onNearTopChange,
+	onFollowStateChange,
 	onQuestionSelect,
 	onPlanBuild,
 	onPlanCancel,
@@ -85,6 +105,7 @@ let {
 	onToolFileSelect,
 	onReview,
 	isPlanActionAvailable,
+	profileRecorder,
 }: SceneContentViewportProps = $props();
 
 const chatPrefs = getChatPreferencesStore();
@@ -92,6 +113,7 @@ const themeState = useTheme();
 const streamingAnimationMode = $derived(
 	chatPrefs?.streamingAnimationMode ?? DEFAULT_STREAMING_ANIMATION_MODE
 );
+const rowsDiagnostics = $derived(sessionStore.viewport.getRowsDiagnostics(sessionId));
 const editToolTheme = $derived({
 	theme: themeState.effectiveTheme,
 	themeNames: { dark: "Cursor Dark", light: "pierre-light" },
@@ -164,7 +186,207 @@ function latestVisibleUserRowId(): string | null {
 			return row.rowId;
 		}
 	}
-	return null;
+	const rowEstimate =
+		measuredEstimateCount > 0
+			? estimateTotalPx / measuredEstimateCount
+			: FALLBACK_UNLOADED_ROW_ESTIMATE_PX;
+	return loadedStartRowIndex * rowEstimate;
+});
+const resolveRenderedRow = $derived.by(() => {
+	const currentSceneEntries = sceneEntries ?? EMPTY_SCENE_ENTRIES;
+	return measureAgentPanelPerformance(
+		profileRecorder,
+		{
+			phase: "scene-content.build-rendered-row-resolver",
+			itemCount: currentSceneEntries.length,
+		},
+		() =>
+			createRenderedTranscriptViewportRowResolver({
+				sceneEntries: currentSceneEntries,
+				planningPlaceholderPresentation,
+				syntheticReviewEntry,
+				resolveOperationSceneEntry,
+			})
+	);
+});
+function getScrollerItemRenderable(item: MessageScrollerItem): RenderableTranscriptViewportRow {
+	return item as RenderableTranscriptViewportRow;
+}
+
+function buildScrollerContentSignature(): string {
+	const itemCount = renderableRowSource.length;
+	const firstKey = renderableRowSource.getKey(0) ?? "";
+	const lastKey = renderableRowSource.getKey(itemCount - 1) ?? "";
+	const emissionSeq = rowsProjection?.emissionSeq ?? "none";
+	return `${itemCount}:${emissionSeq}:${firstKey}:${lastKey}`;
+}
+
+function latestVisibleUserRowId(): string | null {
+	return renderableRowSource.getLastUserRowId();
+}
+
+function revealLatestUserAsSendIntent(): void {
+	const rowId = latestVisibleUserRowId();
+	if (rowId === null) {
+		scrollerController?.jumpToLatest();
+		return;
+	}
+	scrollerController?.onSend(rowId, SEND_REVEAL_PEEK_PX);
+}
+
+function openAtLatestUserTurn(): void {
+	const rowId = latestVisibleUserRowId();
+	if (rowId === null) {
+		scrollerController?.jumpToLatest();
+		return;
+	}
+	scrollerController?.openAt(rowId, SEND_REVEAL_PEEK_PX);
+}
+
+function setScrollerController(controller: StickToBottomController): void {
+	scrollerController = controller;
+}
+
+function afterInitialPaintSettle(callback: () => void): void {
+	let didRun = false;
+	let fallbackTimerId: ReturnType<typeof setTimeout> | null = null;
+	let settleTimerId: ReturnType<typeof setTimeout> | null = null;
+	const runOnce = () => {
+		if (didRun) {
+			return;
+		}
+		didRun = true;
+		if (fallbackTimerId !== null) {
+			clearTimeout(fallbackTimerId);
+			fallbackTimerId = null;
+		}
+		if (settleTimerId !== null) {
+			clearTimeout(settleTimerId);
+			settleTimerId = null;
+		}
+		callback();
+	};
+	const scheduleSettleTimer = () => {
+		if (didRun || settleTimerId !== null) {
+			return;
+		}
+		settleTimerId = setTimeout(runOnce, OLDER_ROWS_INITIAL_PAINT_SETTLE_MS);
+	};
+
+	if (typeof requestAnimationFrame !== "function") {
+		settleTimerId = setTimeout(runOnce, OLDER_ROWS_INITIAL_PAINT_SETTLE_MS);
+		return;
+	}
+
+	fallbackTimerId = setTimeout(runOnce, OLDER_ROWS_PAINT_GATE_FALLBACK_MS);
+	requestAnimationFrame(() => {
+		requestAnimationFrame(scheduleSettleTimer);
+	});
+}
+
+function scheduleOlderRowsGateOpen(targetSessionId: string): void {
+	if (olderRowsGateScheduledSessionId === targetSessionId) {
+		return;
+	}
+	olderRowsGateScheduledSessionId = targetSessionId;
+	afterInitialPaintSettle(() => {
+		if (olderRowsGateSessionId !== targetSessionId || sessionId !== targetSessionId) {
+			if (olderRowsGateScheduledSessionId === targetSessionId) {
+				olderRowsGateScheduledSessionId = null;
+			}
+			return;
+		}
+		olderRowsGateOpen = true;
+		olderRowsGateScheduledSessionId = null;
+		if (pendingOlderRowsSessionId !== targetSessionId) {
+			return;
+		}
+		pendingOlderRowsSessionId = null;
+		sessionStore.viewport.requestOlderRows(targetSessionId);
+	});
+}
+
+function requestOlderRowsAfterFirstPaint(targetSessionId: string): void {
+	if (olderRowsGateSessionId !== targetSessionId) {
+		olderRowsGateSessionId = targetSessionId;
+		olderRowsGateOpen = false;
+		olderRowsGateScheduledSessionId = null;
+		pendingOlderRowsSessionId = null;
+	}
+	if (!olderRowsGateOpen) {
+		pendingOlderRowsSessionId = targetSessionId;
+		scheduleOlderRowsGateOpen(targetSessionId);
+		return;
+	}
+	sessionStore.viewport.requestOlderRows(targetSessionId);
+}
+
+function requestOlderRowsWhenScrollSettled(
+	targetSessionId: string,
+	scrollActive: boolean
+): void {
+	if (scrollActive) {
+		pendingOlderRowsAfterScrollSessionId = targetSessionId;
+		return;
+	}
+	requestOlderRowsAfterFirstPaint(targetSessionId);
+}
+
+function flushPendingOlderRowsAfterScroll(state: MessageScrollerRangeState): void {
+	const targetSessionId = pendingOlderRowsAfterScrollSessionId;
+	if (
+		targetSessionId === null ||
+		state.scrollActive ||
+		sessionId !== targetSessionId
+	) {
+		return;
+	}
+	pendingOlderRowsAfterScrollSessionId = null;
+	requestOlderRowsAfterFirstPaint(targetSessionId);
+}
+
+function handleEdgeStateChange(state: {
+	readonly atTop: boolean;
+	readonly atBottom: boolean;
+}): void {
+	if (state.atTop && sessionId !== null) {
+		requestOlderRowsWhenScrollSettled(sessionId, scrollerScrollActive);
+	}
+	onNearTopChange?.(state.atTop);
+	onNearBottomChange?.(state.atBottom);
+}
+
+function handleVisibleRangeChange(state: MessageScrollerRangeState): void {
+	scrollerScrollActive = state.scrollActive;
+	if (sessionId === null) {
+		pendingOlderRowsAfterScrollSessionId = null;
+		return;
+	}
+	if (
+		pendingOlderRowsAfterScrollSessionId !== null &&
+		pendingOlderRowsAfterScrollSessionId !== sessionId
+	) {
+		pendingOlderRowsAfterScrollSessionId = null;
+	}
+	flushPendingOlderRowsAfterScroll(state);
+	if (state.itemCount === 0) {
+		return;
+	}
+	const loadedStartRowIndex = rowsProjection?.loadedStartRowIndex ?? null;
+	if (loadedStartRowIndex === null || loadedStartRowIndex <= 0) {
+		return;
+	}
+	const nearLoadedStart =
+		state.startIndex <= OLDER_ROWS_PREFETCH_ROW_THRESHOLD ||
+		state.beforePx <= OLDER_ROWS_PREFETCH_BEFORE_PX;
+	if (!nearLoadedStart) {
+		return;
+	}
+	requestOlderRowsWhenScrollSettled(sessionId, state.scrollActive);
+}
+
+function getAttachedPermission(targetSessionId: string, toolCallId: string) {
+	return permissionStore?.getForToolCall(targetSessionId, toolCallId);
 }
 
 function revealLatestUserAsSendIntent(): void {
@@ -197,7 +419,17 @@ function handleEdgeStateChange(state: { readonly atTop: boolean; readonly atBott
 // Bootstrap the ordered rows once per session. Rust owns row order and identity;
 // this component owns only DOM scroll behavior.
 $effect(() => {
-	if (sessionId === null || sessionId === bootstrappedSessionId) {
+	if (recordedPropsMarkPanelId === panelId) {
+		return;
+	}
+	recordedPropsMarkPanelId = panelId;
+	recordPanelOpenPerformanceMark(panelId, "scene-content:props");
+});
+
+// Bootstrap the ordered rows once per session. Rust owns row order and identity;
+// this component owns only DOM scroll behavior.
+$effect(() => {
+	if (skipRowsBootstrap || sessionId === null || sessionId === bootstrappedSessionId) {
 		return;
 	}
 	bootstrappedSessionId = sessionId;

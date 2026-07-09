@@ -150,11 +150,6 @@ function createPanelStoreStub() {
 							scrollTop: options?.getPanelScrollTop?.(panel.id) ?? 0,
 							planSidebarExpanded: hotState.planSidebarExpanded,
 							messageDraft: hotState.messageDraft || undefined,
-							reviewMode: hotState.reviewMode ? true : undefined,
-							reviewFileIndex:
-								hotState.reviewMode && hotState.reviewFileIndex !== undefined
-									? hotState.reviewFileIndex
-									: undefined,
 							embeddedTerminalDrawerOpen: hotState.embeddedTerminalDrawerOpen
 								? true
 								: undefined,
@@ -238,13 +233,10 @@ function createPanelStoreStub() {
 		hotState: new SvelteMap(),
 		setPlanSidebarExpanded: mock(() => {}),
 		setMessageDraft: mock(() => {}),
-		setPendingReviewRestore: mock(() => {}),
 		setEmbeddedTerminalDrawerOpen: mock(() => {}),
 		getHotState: mock((_panelId: string) => ({
 			planSidebarExpanded: true,
 			messageDraft: "",
-			reviewMode: false,
-			reviewFileIndex: 0,
 			embeddedTerminalDrawerOpen: false,
 		})),
 	};

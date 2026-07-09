@@ -1,32 +1,24 @@
 <script lang="ts">
 import {
 	Button,
+	LayoutModeIcon,
+	PaletteIcon,
+	RoundedIcon,
 	SegmentedToggleGroup,
 	Selector,
+	StorageIcon,
 	UsageLimitWidget,
-	SegmentedProgressBar,
+	WrenchIcon,
 } from "@acepe/ui";
 import { COLOR_NAMES, Colors } from "@acepe/ui/colors";
 import * as DropdownMenu from "@acepe/ui/dropdown-menu";
 import { AppTopBar } from "@acepe/ui/app-layout";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { openUrl } from "@tauri-apps/plugin-opener";
-import { Bug } from "phosphor-svelte";
-import { Check } from "phosphor-svelte";
-import { Columns } from "phosphor-svelte";
-import { DownloadSimple } from "phosphor-svelte";
-import { HardDrives } from "phosphor-svelte";
-import { Kanban } from "phosphor-svelte";
-import { Palette } from "phosphor-svelte";
-import { SlidersHorizontal } from "phosphor-svelte";
-import { Square } from "phosphor-svelte";
-import { SquaresFour } from "phosphor-svelte";
-import { Wrench } from "phosphor-svelte";
 import { onMount, type Snippet } from "svelte";
 import { getPanelStore, getSessionStore } from "$lib/acp/store/index.js";
 import type { ViewMode } from "$lib/acp/store/types.js";
 import type { MainAppViewState } from "$lib/components/main-app-view/logic/main-app-view-state.svelte.js";
-import type { UpdaterBannerState } from "$lib/components/main-app-view/logic/updater-state.js";
 import { useTheme, type Theme } from "$lib/components/theme/index.js";
 import * as Tooltip from "@acepe/ui/tooltip";
 import {
@@ -39,14 +31,12 @@ import {
 	buildProviderUsageErrorAccounts,
 	loadProviderAccountUsageAccounts,
 } from "./provider-account-usage-source.js";
+import { createProviderUsageRefreshScheduler } from "./provider-usage-refresh-scheduler.js";
 interface Props {
 	viewState: MainAppViewState;
 	/** Optional snippet for add project/repository button (e.g. dropdown). Rendered in top bar left after decorations. */
 	addProjectButton?: Snippet;
-	updaterState?: UpdaterBannerState;
-	onUpdateClick?: () => void;
-	onRetryUpdateClick?: () => void;
-	onDevShowUpdatePage?: () => void;
+	onDevSimulateUpdate?: () => void;
 	onDevShowDesignSystem?: () => void;
 	onDevShowStreamingReproLab?: () => void;
 	onDevResetOnboarding?: () => void;
@@ -56,10 +46,7 @@ interface Props {
 let {
 	viewState,
 	addProjectButton,
-	updaterState,
-	onUpdateClick,
-	onRetryUpdateClick,
-	onDevShowUpdatePage,
+	onDevSimulateUpdate,
 	onDevShowDesignSystem,
 	onDevShowStreamingReproLab,
 	onDevResetOnboarding,
@@ -69,24 +56,13 @@ let {
 const panelStore = getPanelStore();
 const sessionStore = getSessionStore();
 const themeState = useTheme();
-const UPDATE_BUTTON_SEGMENT_COUNT = 16;
 const USAGE_REFRESH_INTERVAL_MS = 60_000;
 const USAGE_EVENT_REFRESH_DEBOUNCE_MS = 250;
+const USAGE_STARTUP_READY_POLL_MS = 50;
+const USAGE_INITIAL_REFRESH_DELAY_MS = 250;
 const PROVIDER_ACCOUNT_USAGE_UPDATED_EVENT = "provider-account-usage://updated";
 let providerUsageAccounts = $state.raw<ReadonlyArray<UsageProviderAccount>>(
 	buildProviderUsageCheckingAccounts()
-);
-
-const updateDownloadPercent = $derived(
-	updaterState?.kind === "installing"
-		? 100
-		: updaterState?.kind === "downloading" && updaterState.totalBytes && updaterState.totalBytes > 0
-			? Math.min(Math.round((updaterState.downloadedBytes / updaterState.totalBytes) * 100), 100)
-			: 0
-);
-
-const updateActionText = $derived(
-	updaterState?.kind === "installing" ? "Installing update..." : "Updating"
 );
 
 type LayoutFamily = "standard" | "kanban";
@@ -195,23 +171,22 @@ function refreshProviderUsageAccounts(): void {
 onMount(() => {
 	let disposed = false;
 	let quotaUpdateUnlisten: UnlistenFn | null = null;
-	let quotaUpdateRefreshTimeout: ReturnType<typeof window.setTimeout> | null = null;
+	const providerUsageScheduler = createProviderUsageRefreshScheduler({
+		isStartupReady: () => viewState.initializationComplete,
+		refresh: refreshProviderUsageAccounts,
+		setTimeout: (callback, delayMs) => window.setTimeout(callback, delayMs),
+		clearTimeout: (id) => window.clearTimeout(id),
+		setInterval: (callback, delayMs) => window.setInterval(callback, delayMs),
+		clearInterval: (id) => window.clearInterval(id),
+		startupPollMs: USAGE_STARTUP_READY_POLL_MS,
+		initialDelayMs: USAGE_INITIAL_REFRESH_DELAY_MS,
+		eventDebounceMs: USAGE_EVENT_REFRESH_DEBOUNCE_MS,
+		refreshIntervalMs: USAGE_REFRESH_INTERVAL_MS,
+	});
 
-	function scheduleProviderUsageRefresh(): void {
-		if (quotaUpdateRefreshTimeout !== null) {
-			window.clearTimeout(quotaUpdateRefreshTimeout);
-		}
-
-		quotaUpdateRefreshTimeout = window.setTimeout(() => {
-			quotaUpdateRefreshTimeout = null;
-			refreshProviderUsageAccounts();
-		}, USAGE_EVENT_REFRESH_DEBOUNCE_MS);
-	}
-
-	refreshProviderUsageAccounts();
-	const intervalId = window.setInterval(refreshProviderUsageAccounts, USAGE_REFRESH_INTERVAL_MS);
+	providerUsageScheduler.start();
 	void listen(PROVIDER_ACCOUNT_USAGE_UPDATED_EVENT, () => {
-		scheduleProviderUsageRefresh();
+		providerUsageScheduler.notifyUsageUpdated();
 	}).then((unlisten) => {
 		if (disposed) {
 			void unlisten();
@@ -222,10 +197,7 @@ onMount(() => {
 
 	return () => {
 		disposed = true;
-		window.clearInterval(intervalId);
-		if (quotaUpdateRefreshTimeout !== null) {
-			window.clearTimeout(quotaUpdateRefreshTimeout);
-		}
+		providerUsageScheduler.dispose();
 		if (quotaUpdateUnlisten !== null) {
 			quotaUpdateUnlisten();
 		}
@@ -237,6 +209,7 @@ onMount(() => {
 	windowDraggable
 	showTrafficLights={false}
 	{showSidebarToggle}
+	sidebarOpen={viewState.sidebarOpen}
 	showAddProject={!!addProjectButton}
 	{addProjectButton}
 	onToggleSidebar={() => viewState.setSidebarOpen(!viewState.sidebarOpen)}
@@ -309,16 +282,26 @@ onMount(() => {
 								class="cursor-pointer"
 							>
 								<div class="flex w-full items-start gap-2">
-									<Check
+									<RoundedIcon
+										name="check"
 										class={selected
 											? "mt-0.5 size-3 shrink-0 text-foreground"
 											: "mt-0.5 size-3 shrink-0 text-transparent"}
-										weight="bold"
 									/>
 									{#if family.value === "kanban"}
-										<Kanban class="mt-0.5 size-3 shrink-0" weight="fill" style="color: {family.color}" />
+										<LayoutModeIcon
+											mode="kanban"
+											color={family.color}
+											class="mt-0.5 size-3"
+											data-testid="top-bar-kanban-layout-icon"
+										/>
 									{:else}
-										<SquaresFour class="mt-0.5 size-3 shrink-0" weight="fill" style="color: {family.color}" />
+										<LayoutModeIcon
+											mode="grid"
+											color={family.color}
+											class="mt-0.5 size-3"
+											data-testid="top-bar-standard-layout-icon"
+										/>
 									{/if}
 									<div class="flex min-w-0 flex-1 flex-col">
 										<span class="text-[12px] font-medium">{family.label}</span>
@@ -340,18 +323,32 @@ onMount(() => {
 									class="cursor-pointer"
 								>
 									<div class="flex w-full items-start gap-2">
-										<Check
+										<RoundedIcon
+											name="check"
 											class={selected
 												? "mt-0.5 size-3 shrink-0 text-foreground"
 												: "mt-0.5 size-3 shrink-0 text-transparent"}
-											weight="bold"
 										/>
 										{#if mode.value === "single"}
-											<Square class="mt-0.5 size-3 shrink-0" weight="fill" style="color: {mode.color}" />
+											<span
+												class="mt-0.5 size-3 shrink-0 rounded-sm"
+												style:background-color={mode.color}
+												data-testid="layout-single-mode-swatch"
+											></span>
 										{:else if mode.value === "project"}
-											<Columns class="mt-0.5 size-3 shrink-0" weight="fill" style="color: {mode.color}" />
+											<LayoutModeIcon
+												mode="columns"
+												color={mode.color}
+												class="mt-0.5 size-3"
+												data-testid="top-bar-project-layout-icon"
+											/>
 										{:else}
-											<SquaresFour class="mt-0.5 size-3 shrink-0" weight="fill" style="color: {mode.color}" />
+											<LayoutModeIcon
+												mode="grid"
+												color={mode.color}
+												class="mt-0.5 size-3"
+												data-testid="top-bar-multi-layout-icon"
+											/>
 										{/if}
 										<div class="flex min-w-0 flex-1 flex-col">
 											<span class="text-[12px] font-medium">{mode.label}</span>
@@ -394,7 +391,7 @@ onMount(() => {
 			</Tooltip.Trigger>
 			<Tooltip.Content>Feedback</Tooltip.Content>
 		</Tooltip.Root>
-		{#if import.meta.env.DEV && (onDevShowUpdatePage || onDevShowDesignSystem || onDevShowStreamingReproLab || onDevResetOnboarding)}
+		{#if import.meta.env.DEV && (onDevSimulateUpdate || onDevShowDesignSystem || onDevShowStreamingReproLab || onDevResetOnboarding)}
 			<Selector
 				align="end"
 				variant="ghost"
@@ -411,13 +408,13 @@ onMount(() => {
 						<DropdownMenu.GroupHeading
 							class="px-2 py-1 text-[11px] font-semibold text-muted-foreground border-b border-border/20"
 						>Dev Overlays</DropdownMenu.GroupHeading>
-						{#if onDevShowUpdatePage}
+						{#if onDevSimulateUpdate}
 							<DropdownMenu.Item
 								class="cursor-pointer rounded-none px-2 py-1 text-[11px]"
-								onclick={onDevShowUpdatePage}
+								onclick={onDevSimulateUpdate}
 							>
-								<DownloadSimple class="size-4" weight="fill" />
-								<span>Update Page</span>
+								<RoundedIcon name="download" class="size-4" />
+								<span>Simulate Update</span>
 							</DropdownMenu.Item>
 						{/if}
 						{#if onDevShowDesignSystem}
@@ -425,7 +422,7 @@ onMount(() => {
 								class="cursor-pointer rounded-none px-2 py-1 text-[11px]"
 								onclick={onDevShowDesignSystem}
 							>
-								<Palette class="size-4" weight="fill" />
+								<PaletteIcon class="size-4" weight="fill" />
 								<span>Design System</span>
 							</DropdownMenu.Item>
 						{/if}
@@ -434,7 +431,7 @@ onMount(() => {
 								class="cursor-pointer rounded-none px-2 py-1 text-[11px]"
 								onclick={onDevShowStreamingReproLab}
 							>
-								<Wrench class="size-4" weight="fill" />
+								<WrenchIcon class="size-4" weight="fill" />
 								<span>Streaming Repro Lab</span>
 							</DropdownMenu.Item>
 						{/if}
@@ -443,7 +440,7 @@ onMount(() => {
 								class="cursor-pointer rounded-none px-2 py-1 text-[11px]"
 								onclick={onDevResetOnboarding}
 							>
-								<Wrench class="size-4" weight="fill" />
+								<WrenchIcon class="size-4" weight="fill" />
 								<span>Reset Onboarding</span>
 							</DropdownMenu.Item>
 						{/if}

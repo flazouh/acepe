@@ -76,7 +76,6 @@ describe("AgentPanelRootState", () => {
 			getPanelWidth: () => 720,
 			getHasAttachedFilePane: () => false,
 			getIsFullscreen: () => false,
-			getReviewMode: () => false,
 			getHasPlan: () => false,
 			getAgentName: () => null,
 			getViewStateInput: () => ({
@@ -89,13 +88,13 @@ describe("AgentPanelRootState", () => {
 				hasEffectiveProjectPath: false,
 				errorInfo: {
 					showError: false,
-					variant: "inline",
 					title: "",
 					summary: null,
 					details: null,
 					referenceId: null,
 					referenceSearchable: false,
 					failureReason: null,
+					recoveryAction: null,
 				},
 			}),
 			getGraphMaterializerInput: () => ({

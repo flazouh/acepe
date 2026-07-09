@@ -13,9 +13,11 @@ import {
 	AgentInputMetricsChip,
 	AgentInputMicButton,
 	DiffPill,
+	Button,
 	ProjectLetterBadge,
 	TextShimmer,
 	SegmentedProgress,
+	RoundedIcon,
 } from "@acepe/ui";
 import { AgentPanelStatusIcon } from "@acepe/ui/agent-panel";
 import {
@@ -642,12 +644,16 @@ const favoriteModels = $derived(modelGroups.flatMap((g) => g.items.filter((i) =>
 													</div>
 												</button>
 												<div class="flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100">
-													<button type="button" aria-label="Open terminal" class="flex items-center justify-center size-5 rounded text-muted-foreground">
-														<Terminal class="h-3 w-3" weight="fill" />
-													</button>
-													<button type="button" aria-label="Open browser" class="flex items-center justify-center size-5 rounded text-muted-foreground">
-														<Browser class="h-3 w-3" weight="fill" />
-													</button>
+													<Button variant="ghost" size="icon" aria-label="Open terminal">
+														{#snippet children()}
+															<RoundedIcon name="terminal" />
+														{/snippet}
+													</Button>
+													<Button variant="ghost" size="icon" aria-label="Open browser">
+														{#snippet children()}
+															<RoundedIcon name="browser" />
+														{/snippet}
+													</Button>
 												</div>
 												<button type="button" aria-label="Collapse project" class="flex items-center justify-center size-5 shrink-0 rounded text-muted-foreground">
 													<CaretDown size={12} weight="regular" class="size-3 shrink-0" />

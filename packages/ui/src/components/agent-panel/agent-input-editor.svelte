@@ -9,10 +9,8 @@
 <script lang="ts">
 	import type { Snippet } from "svelte";
 
-	import { IconArrowUp } from "@tabler/icons-svelte";
-	import { Stop } from "phosphor-svelte";
-
 	import { Button } from "../button/index.js";
+	import { RoundedIcon } from "../icons/index.js";
 
 	export type AgentInputSubmitIntent = "send" | "steer" | "stop";
 
@@ -125,7 +123,7 @@
 				disabled={submitDisabled}
 				class="h-7 w-7 cursor-pointer shrink-0 rounded-full bg-foreground text-background hover:bg-foreground/85"
 			>
-				<Stop weight="fill" class="h-3.5 w-3.5" />
+				<RoundedIcon name="stop" class="h-3.5 w-3.5" />
 				<span class="sr-only">{submitAriaLabel}</span>
 			</Button>
 		{:else}
@@ -136,7 +134,7 @@
 				disabled={submitDisabled}
 				class="h-7 w-7 cursor-pointer shrink-0 rounded-full bg-foreground text-background hover:bg-foreground/85"
 			>
-				<IconArrowUp class="h-3.5 w-3.5" />
+				<RoundedIcon name="arrow-up" class="h-3.5 w-3.5" />
 				<span class="sr-only">{submitAriaLabel}</span>
 			</Button>
 		{/if}

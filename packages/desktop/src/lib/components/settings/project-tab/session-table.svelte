@@ -126,7 +126,8 @@ function formatDate(date: Date): string {
 	<!-- Filters -->
 	<div class="flex shrink-0 items-center gap-2 border-b border-border/30 pb-2">
 		<div class="relative min-w-0 flex-1">
-			<IconSearch
+			<RoundedIcon
+				name="search"
 				class="absolute left-0 top-1/2 size-3 -translate-y-1/2 text-muted-foreground/50"
 			/>
 			<input
@@ -198,12 +199,19 @@ function formatDate(date: Date): string {
 					{col.label}
 					{#if state.sortColumn === col.id}
 						{#if state.sortDirection === "asc"}
-							<IconArrowUp class="size-2.5" />
+							<RoundedIcon name="arrow-up" class="size-2.5" />
 						{:else}
-							<IconArrowDown class="size-2.5" />
+							<RoundedIcon name="arrow-up" class="size-2.5 rotate-180" />
 						{/if}
 					{:else}
-						<IconSelector class="size-2.5 opacity-30" />
+						<span
+							class="inline-flex size-2.5 flex-col items-center justify-center opacity-30"
+							data-testid="session-table-unsorted-sort-icon"
+							aria-hidden="true"
+						>
+							<RoundedIcon name="chevron-up" class="size-2" />
+							<RoundedIcon name="chevron-down" class="-mt-1 size-2" />
+						</span>
 					{/if}
 				</button>
 			{/each}
@@ -274,6 +282,8 @@ function formatDate(date: Date): string {
 					type="button"
 					class="size-5 flex items-center justify-center rounded-md text-muted-foreground hover:text-foreground hover:bg-accent disabled:opacity-30 transition-all"
 					disabled={!canGoPrevious}
+					aria-label="First page"
+					title="First page"
 					onclick={() => state.goToFirstPage()}
 				>
 					<CaretDoubleLeft size={12} weight="regular" class="shrink-0" />
@@ -301,6 +311,8 @@ function formatDate(date: Date): string {
 					type="button"
 					class="size-5 flex items-center justify-center rounded-md text-muted-foreground hover:text-foreground hover:bg-accent disabled:opacity-30 transition-all"
 					disabled={!canGoNext}
+					aria-label="Last page"
+					title="Last page"
 					onclick={() => state.goToLastPage(totalPages)}
 				>
 					<CaretDoubleRight size={12} weight="regular" class="shrink-0" />

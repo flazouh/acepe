@@ -5,6 +5,8 @@ import type { PanelConnectionErrorDetails } from "../../../types/panel-connectio
 import { PanelConnectionState } from "../../../types/panel-connection-state";
 import { failureCopy } from "./failure-copy.js";
 
+export type PanelErrorRecoveryAction = "unarchive";
+
 export interface PanelErrorInfo {
 	readonly showError: boolean;
 	readonly title: string;
@@ -18,6 +20,7 @@ export interface PanelErrorInfo {
 	 * errors, turn errors, or sessions whose lifecycle has no `failureReason`).
 	 */
 	readonly failureReason: FailureReason | null;
+	readonly recoveryAction: PanelErrorRecoveryAction | null;
 }
 
 interface PanelErrorInputs {
@@ -82,10 +85,24 @@ export function derivePanelErrorInfo(inputs: PanelErrorInputs): PanelErrorInfo {
 			referenceId: inputs.panelConnectionError?.referenceId ?? null,
 			referenceSearchable: inputs.panelConnectionError?.referenceSearchable === true,
 			failureReason: panelFailureReason,
+			recoveryAction: null,
 		};
 	}
 
 	if (sessionHasError) {
+		if (inputs.sessionFailureReason === "sessionArchivedUpstream") {
+			return {
+				showError: true,
+				title: "Session archived",
+				summary: null,
+				details: null,
+				referenceId: null,
+				referenceSearchable: false,
+				failureReason: inputs.sessionFailureReason,
+				recoveryAction: "unarchive",
+			};
+		}
+
 		const curated =
 			inputs.sessionFailureReason !== null
 				? failureCopy(inputs.agentDisplayName, inputs.sessionFailureReason)
@@ -99,6 +116,7 @@ export function derivePanelErrorInfo(inputs: PanelErrorInputs): PanelErrorInfo {
 			referenceId: null,
 			referenceSearchable: false,
 			failureReason: inputs.sessionFailureReason,
+			recoveryAction: null,
 		};
 	}
 
@@ -112,6 +130,7 @@ export function derivePanelErrorInfo(inputs: PanelErrorInputs): PanelErrorInfo {
 			referenceId: inputs.activeTurnError.referenceId ?? null,
 			referenceSearchable: inputs.activeTurnError.referenceSearchable === true,
 			failureReason: null,
+			recoveryAction: null,
 		};
 	}
 
@@ -123,5 +142,6 @@ export function derivePanelErrorInfo(inputs: PanelErrorInputs): PanelErrorInfo {
 		referenceId: null,
 		referenceSearchable: false,
 		failureReason: null,
+		recoveryAction: null,
 	};
 }

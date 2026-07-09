@@ -133,6 +133,7 @@
 							>
 								<ProjectLetterBadge
 									name={project.name}
+									label={project.badgeLabel ?? null}
 									color={project.color}
 									iconSrc={project.iconPath}
 									size={16}

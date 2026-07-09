@@ -76,7 +76,6 @@ export interface AgentPanelRootStateDeps {
 	readonly getPanelWidth: () => number | undefined;
 	readonly getHasAttachedFilePane: () => boolean;
 	readonly getIsFullscreen: () => boolean;
-	readonly getReviewMode: () => boolean;
 	readonly getHasPlan: () => boolean;
 	readonly getAgentName: () => string | null;
 	readonly getViewStateInput: (state: AgentPanelRootState) => PanelViewStateInput;
@@ -160,7 +159,6 @@ export class AgentPanelRootState {
 			getPanelWidth: deps.getPanelWidth,
 			getHasAttachedFilePane: deps.getHasAttachedFilePane,
 			getIsFullscreen: deps.getIsFullscreen,
-			getReviewMode: deps.getReviewMode,
 			getHasPlan: deps.getHasPlan,
 			panelStore: this.panelStore,
 		});

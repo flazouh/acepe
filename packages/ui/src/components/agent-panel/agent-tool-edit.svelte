@@ -1,8 +1,8 @@
 <script lang="ts">
 import type { WorkerPoolManager } from "@pierre/diffs/worker";
-import { CaretRight } from "phosphor-svelte";
 
 import { FilePathBadge } from "../file-path-badge/index.js";
+import { RoundedIcon } from "../icons/index.js";
 import ToolHeaderLeading from "./tool-header-leading.svelte";
 import AgentToolDurationLabel from "./agent-tool-duration-label.svelte";
 import type { ToolDurationTiming } from "./tool-duration.js";

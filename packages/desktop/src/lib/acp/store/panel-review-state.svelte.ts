@@ -27,7 +27,6 @@ export interface PanelReviewStateDeps {
 export class PanelReviewState {
 	private reviewPanelByIdIndex = new SvelteMap<string, ReviewPanel>();
 	private reviewPanelByProjectPath = new SvelteMap<string, ReviewPanel>();
-	private pendingReviewRestores = new Map<string, number>();
 
 	readonly reviewPanelById = $derived.by(() => this.reviewPanelByIdIndex);
 	readonly reviewPanelCount = $derived(this.reviewPanelByIdIndex.size);
@@ -130,16 +129,5 @@ export class PanelReviewState {
 
 	getReviewPanelByProjectPath(projectPath: string): ReviewPanel | undefined {
 		return this.reviewPanelByProjectPath.get(projectPath);
-	}
-
-	setPendingReviewRestore(panelId: string, reviewFileIndex: number): void {
-		this.pendingReviewRestores.set(panelId, reviewFileIndex);
-	}
-
-	consumePendingReviewRestore(panelId: string): number | null {
-		const fileIndex = this.pendingReviewRestores.get(panelId);
-		if (fileIndex === undefined) return null;
-		this.pendingReviewRestores.delete(panelId);
-		return fileIndex;
 	}
 }

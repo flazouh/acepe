@@ -166,7 +166,7 @@ function handleResizePointerUp(): void {
 						handleCloseTab(tab.id);
 					}}
 				>
-					<X size={12} weight="bold" />
+					<RoundedIcon name="close" class="size-3" />
 				</button>
 			</div>
 		{/each}

@@ -17,7 +17,7 @@ import PermissionBar from "../../tool-calls/permission-bar.svelte";
 type ConversationEntryProps = ComponentProps<typeof AgentPanelConversationEntry>;
 
 let {
-	renderedRows,
+	rendered,
 	sessionId = null,
 	projectPath,
 	showWorkingSpark = false,
@@ -34,7 +34,7 @@ let {
 	isPlanActionAvailable,
 	getAttachedPermission,
 }: {
-	renderedRows: readonly RenderedTranscriptViewportRow[];
+	rendered: RenderedTranscriptViewportRow;
 	sessionId?: string | null;
 	projectPath: string | undefined;
 	showWorkingSpark?: boolean;
@@ -94,11 +94,11 @@ let {
 							/>
 						</div>
 					</div>
-				{/if}
+				</div>
 			{/if}
-		</MessageWrapper>
-	</div>
-{/each}
+		{/if}
+	</MessageWrapper>
+</div>
 
 <style>
 	.tool-call-permission-row {

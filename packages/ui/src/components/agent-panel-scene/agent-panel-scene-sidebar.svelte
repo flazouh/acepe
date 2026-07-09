@@ -51,8 +51,8 @@
 				<div class="mt-3 flex flex-wrap gap-1">
 					{#each sidebars.plan.actions as action (action.id)}
 						<Button
-							variant="headerAction"
-							size="headerAction"
+							variant="secondary"
+							size="xs"
 							disabled={actionDisabled(action)}
 							onclick={() => runAction(action)}
 						>
@@ -85,8 +85,8 @@
 							</button>
 							{#if tab.closeActionId}
 								<Button
-									variant="headerAction"
-									size="headerAction"
+									variant="secondary"
+									size="xs"
 									onclick={() => runActionById(tab.closeActionId)}
 								>
 									Close
@@ -109,8 +109,8 @@
 				<div class="mt-3 flex flex-wrap gap-1">
 					{#each sidebars.browser.actions as action (action.id)}
 						<Button
-							variant="headerAction"
-							size="headerAction"
+							variant="secondary"
+							size="xs"
 							disabled={actionDisabled(action)}
 							onclick={() => runAction(action)}
 						>

@@ -3,11 +3,13 @@
 	import type { Snippet } from "svelte";
 
 	import { TAG_COLORS } from "../../lib/colors.js";
+	import { RoundedIcon } from "../icons/index.js";
 	import { ProjectLetterBadge } from "../project-letter-badge/index.js";
 	import { SIDEBAR_TREE_ROW_PADDING_X_CLASS } from "./sidebar-tree-row-classes.js";
 
 	interface Props {
 		projectName?: string;
+		projectBadgeLabel?: string | null;
 		projectColor?: string;
 		projectIconSrc?: string | null;
 		expanded?: boolean;
@@ -18,6 +20,7 @@
 
 	let {
 		projectName,
+		projectBadgeLabel = null,
 		projectColor,
 		projectIconSrc = null,
 		expanded = false,
@@ -36,6 +39,7 @@
 	<div class="inline-flex items-center justify-center h-7 shrink-0">
 		<ProjectLetterBadge
 			name={displayName}
+			label={projectBadgeLabel}
 			color={resolvedColor}
 			iconSrc={resolvedIconSrc}
 			size={16}

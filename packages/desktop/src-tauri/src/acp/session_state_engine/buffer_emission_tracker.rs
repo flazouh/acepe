@@ -1,5 +1,7 @@
 use crate::acp::projections::ProjectionRegistry;
-use crate::acp::session_state_engine::protocol::{ViewportBufferDiagnostic, ViewportBufferPush};
+use crate::acp::session_state_engine::protocol::{
+    ViewportBufferDelta, ViewportBufferDiagnostic, ViewportBufferPush,
+};
 use crate::acp::session_state_engine::runtime_registry::{
     SessionGraphRuntimeSnapshot, VisibleTranscriptWindowMiss,
 };

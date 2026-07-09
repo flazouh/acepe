@@ -25,7 +25,7 @@ const modifiedFiles = [
 ] as const;
 
 describe("buildKeepAllReviewEntries", () => {
-	it("creates accepted review progress for every modified file revision", () => {
+	it("marks every modified file revision as reviewed", () => {
 		const entries = buildKeepAllReviewEntries(modifiedFiles);
 
 		expect(entries).toHaveLength(modifiedFiles.length);
@@ -35,15 +35,7 @@ describe("buildKeepAllReviewEntries", () => {
 
 			expect(entry.revisionKey).toBe(createReviewFileRevisionKey(file));
 			expect(entry.progress.filePath).toBe(file.filePath);
-			expect(entry.progress.status).toBe("accepted");
-			expect(entry.progress.pendingHunks).toBe(0);
-			expect(entry.progress.rejectedHunks).toBe(0);
-			expect(entry.progress.acceptedHunks).toBe(entry.progress.totalHunks);
-			expect(entry.progress.totalHunks).toBeGreaterThan(0);
-			expect(entry.progress.resolvedActions).toHaveLength(entry.progress.totalHunks);
-			expect(entry.progress.resolvedActions.every((action) => action.action === "accept")).toBe(
-				true
-			);
+			expect(entry.progress.reviewed).toBe(true);
 		}
 	});
 });

@@ -1,9 +1,8 @@
 <script lang="ts">
-import { ArrowRightIcon, PillButton, BrandLockup } from "@acepe/ui";
+import { ArrowRightIcon, PillButton, BrandLockup, RoundedIcon } from "@acepe/ui";
 import Header from "$lib/components/header.svelte";
 import Seo from "$lib/components/seo/seo.svelte";
 import ZeusShaderStage from "$lib/components/zeus-shader-stage.svelte";
-import { GithubLogo } from "phosphor-svelte";
 
 let { data } = $props();
 
@@ -81,7 +80,7 @@ const meta = [
 						<div class="flex flex-col items-start gap-3 sm:flex-row sm:items-center">
 							<PillButton
 								href="#early-access"
-								variant="invert"
+								variant="default"
 								size="default"
 								class="h-12 py-1.5 pr-1.5 pl-6"
 							>
@@ -205,7 +204,7 @@ const meta = [
 				<div class="mt-10 flex flex-col items-start gap-3 sm:flex-row sm:items-center">
 					<PillButton
 						href="/download"
-						variant="invert"
+						variant="default"
 						size="default"
 						class="h-12 py-1.5 pr-1.5 pl-6 shadow-[0_18px_50px_-18px_rgba(91,168,154,0.45)]"
 					>
@@ -220,7 +219,7 @@ const meta = [
 						rel="noopener noreferrer"
 						class="inline-flex h-12 items-center gap-2 px-1 text-sm text-muted-foreground transition-colors hover:text-foreground"
 					>
-						<GithubLogo size={16} weight="fill" />
+						<RoundedIcon name="github" class="size-4" />
 						<span class="border-b border-border/60 pb-0.5">Star on GitHub</span>
 					</a>
 				</div>
@@ -278,7 +277,7 @@ const meta = [
 								rel="noopener noreferrer"
 								class="inline-flex items-center gap-1.5 text-[13px] text-muted-foreground transition-colors hover:text-foreground"
 							>
-								<GithubLogo size={14} weight="fill" />
+								<RoundedIcon name="github" class="size-3.5" />
 								GitHub
 							</a>
 						</li>

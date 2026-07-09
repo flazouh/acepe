@@ -7,6 +7,7 @@
 	import { Lightning, ShieldCheck } from "phosphor-svelte";
 
 	import { Selector } from "../selector/index.js";
+	import { RoundedIcon } from "../icons/index.js";
 	import type { SelectorTriggerSize } from "../selector/selector-trigger-classes.js";
 	import { getSelectorTriggerButtonVariant } from "../selector/selector-trigger-classes.js";
 	import { Button } from "../button/index.js";
@@ -22,6 +23,9 @@
 		shouldEmitConfigOptionValueChange,
 	} from "./agent-input-config-option-selector-state.js";
 	import type { AgentInputConfigOption } from "./agent-input-config-option-types.js";
+	import * as Tooltip from "../tooltip/index.js";
+	import AgentInputReasoningEffortTrigger from "./agent-input-reasoning-effort-trigger.svelte";
+	import { SelectorItem } from "../selector/index.js";
 
 	export type { AgentInputConfigOption };
 

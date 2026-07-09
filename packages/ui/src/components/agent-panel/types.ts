@@ -218,6 +218,8 @@ export interface AgentThinkingEntry {
 	durationMs?: number | null;
 	startedAtMs?: number | null;
 	label?: string | null;
+	agentIconSrc?: string | null;
+	showWorkingSpark?: boolean;
 }
 
 export interface AgentSessionActivityMetadataItem {
@@ -602,11 +604,7 @@ export interface AgentPanelPrCardModel {
 	onOpen?: (event: MouseEvent) => void;
 }
 
-export type AgentPanelFileReviewStatus =
-	| "accepted"
-	| "partial"
-	| "denied"
-	| "unreviewed";
+export type AgentPanelFileReviewStatus = "reviewed" | "unreviewed";
 
 export interface AgentPanelModifiedFileItem {
 	id: string;
@@ -631,7 +629,7 @@ export function getReviewWorkspaceDefaultIndex(
 
 	for (let index = 0; index < files.length; index += 1) {
 		const reviewStatus = files[index].reviewStatus ?? "unreviewed";
-		if (reviewStatus === "partial" || reviewStatus === "unreviewed") {
+		if (reviewStatus === "unreviewed") {
 			return index;
 		}
 	}

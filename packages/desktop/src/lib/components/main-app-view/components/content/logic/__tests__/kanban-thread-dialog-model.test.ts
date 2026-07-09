@@ -1,7 +1,6 @@
 import { describe, expect, it } from "bun:test";
 import type { Project } from "$lib/acp/logic/project-manager.svelte.js";
-import type { Panel, PanelHotState } from "$lib/acp/store/types.js";
-import { DEFAULT_PANEL_HOT_STATE } from "$lib/acp/store/types.js";
+import type { Panel } from "$lib/acp/store/types.js";
 import {
 	buildKanbanThreadDialogPanelSnapshot,
 	resolveKanbanThreadDialogSelectedAgentId,
@@ -23,13 +22,6 @@ function createPanel(overrides?: Partial<Panel>): Panel {
 		sourcePath: null,
 		worktreePath: null,
 		sessionTitle: null,
-		...overrides,
-	};
-}
-
-function createHotState(overrides?: Partial<PanelHotState>): PanelHotState {
-	return {
-		...DEFAULT_PANEL_HOT_STATE,
 		...overrides,
 	};
 }
@@ -64,9 +56,6 @@ describe("kanban thread dialog model", () => {
 			width: 100,
 			pendingProjectSelection: false,
 			selectedAgentId: null,
-			reviewMode: false,
-			reviewFilesState: null,
-			reviewFileIndex: 0,
 			isWaitingForSession: false,
 			project: null,
 		});
@@ -118,21 +107,6 @@ describe("kanban thread dialog model", () => {
 		expect(snapshot.project).toBeNull();
 		expect(snapshot.selectedAgentId).toBeNull();
 		expect(snapshot.isWaitingForSession).toBe(true);
-	});
-
-	it("copies review state from hot state", () => {
-		const snapshot = buildKanbanThreadDialogPanelSnapshot({
-			panel: createPanel(),
-			sessionIdentity: undefined,
-			hotState: createHotState({
-				reviewMode: true,
-				reviewFileIndex: 3,
-			}),
-			getProject: projectLookup([createProject()]),
-		});
-
-		expect(snapshot.reviewMode).toBe(true);
-		expect(snapshot.reviewFileIndex).toBe(3);
 	});
 
 	it("filters selected agent by available agents", () => {

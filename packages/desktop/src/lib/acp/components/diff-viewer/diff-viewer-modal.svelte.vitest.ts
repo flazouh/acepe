@@ -4,20 +4,28 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import DiffViewerModal from "./diff-viewer-modal.svelte";
 
-vi.mock(
-	"svelte",
-	async () =>
-		// @ts-expect-error Test-only client runtime override for Vitest component mounting
-		import("../../../../../../node_modules/svelte/src/index-client.js")
-);
+vi.mock("svelte", async () => {
+	const { createRequire } = await import("node:module");
+	const { dirname, join } = await import("node:path");
+	const require = createRequire(import.meta.url);
+	const svelteClientPath = join(
+		dirname(require.resolve("svelte/package.json")),
+		"src/index-client.js"
+	);
+
+	return import(/* @vite-ignore */ svelteClientPath);
+});
 
 vi.mock("@acepe/ui", async () => {
 	const GitViewer = (await import("./test-git-viewer.svelte")).default;
 	const LoadingIcon = (await import("./test-loading-icon.svelte")).default;
+	const RoundedIcon = (await import("./test-rounded-icon.svelte")).default;
 
 	return {
 		GitViewer,
+		getDialogHeaderIconCloseClass: () => "dialog-close-stub",
 		LoadingIcon,
+		RoundedIcon,
 	};
 });
 

@@ -311,7 +311,7 @@
 					{:else if workspaceTokenType === "mcp"}
 						<IconPlug class="h-3 w-3" />
 					{:else}
-						<IconTerminal class="h-3 w-3" />
+						<RoundedIcon name="terminal" class="h-3 w-3" />
 					{/if}
 				</span>
 				{workspaceItem ? workspaceItem.label : "Details"}

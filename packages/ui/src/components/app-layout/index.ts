@@ -10,6 +10,16 @@ export { default as AppSessionItem } from "./app-session-item.svelte";
 export { default as AppSidebarProjectGroup } from "./app-sidebar-project-group.svelte";
 export { default as AppSidebarLayout } from "./app-sidebar-layout.svelte";
 export { default as AppSidebarFooter } from "./app-sidebar-footer.svelte";
+export { default as SidebarUpdateCard } from "./sidebar-update-card.svelte";
+export {
+	DEFAULT_SIDEBAR_UPDATE_CARD_VARIANT,
+	SIDEBAR_UPDATE_CARD_VARIANTS,
+	getSidebarUpdateCardCopy,
+	getSidebarUpdateCardVariantDefinition,
+	type SidebarUpdateCardSurfaceTokens,
+	type SidebarUpdateCardVariant,
+	type SidebarUpdateCardVariantDefinition,
+} from "./sidebar-update-card-variants.js";
 export { default as ProjectHeader } from "./project-header.svelte";
 export { default as ProjectHeaderOverflowMenu } from "./project-header-overflow-menu.svelte";
 export { default as ProjectColorSwatch } from "./project-color-swatch.svelte";
@@ -29,4 +39,5 @@ export type {
   AppTabMode,
   AppSessionItem as AppSessionItemType,
   AppProjectGroup,
+  SidebarUpdateKind,
 } from "./types.js";

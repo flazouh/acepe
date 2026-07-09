@@ -1,7 +1,7 @@
 {
 	"name": "acepe",
 	"private": true,
-	"license": "FSL-1.1-ALv2",
+	"license": "MIT",
 	"repository": {
 		"type": "git",
 		"url": "https://github.com/flazouh/acepe.git"
@@ -29,6 +29,7 @@
 		"esbuild": "0.28.1",
 		"kysely": "0.29.2",
 		"lodash-es": "4.18.1",
-		"picomatch": "4.0.4"
+		"picomatch": "4.0.4",
+		"runed": "0.35.1"
 	}
 }

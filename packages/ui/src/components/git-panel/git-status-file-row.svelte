@@ -61,18 +61,15 @@
 		return parts.length > 1 ? parts.slice(0, -1).join("/") + "/" : "";
 	});
 
-	function getStatusIcon(s: GitIndexStatus | GitWorktreeStatus) {
+	function getStatusIconKind(s: GitIndexStatus | GitWorktreeStatus): FileStatusIconKind | null {
 		switch (s) {
 			case "added":
-				return FilePlus;
 			case "deleted":
-				return FileX;
 			case "renamed":
-				return FileDashed;
 			case "untracked":
-				return FilePlus;
+				return s;
 			default:
-				return File;
+				return null;
 		}
 	}
 
@@ -107,7 +104,7 @@
 		}
 	}
 
-	const StatusIcon = $derived(getStatusIcon(status));
+	const statusIconKind = $derived(getStatusIconKind(status));
 	const statusColor = $derived(getStatusColor(status));
 	const statusChar = $derived(getStatusChar(status));
 </script>
@@ -135,7 +132,18 @@
 		/>
 	{:else}
 		<span class="shrink-0 {statusColor}">
-			<StatusIcon size={14} weight="bold" />
+			{#if statusIconKind}
+				<FileStatusIcon
+					status={statusIconKind}
+					data-testid={`git-status-file-${statusIconKind}-rounded-icon`}
+				/>
+			{:else}
+				<RoundedIcon
+					name="file-text"
+					class="size-3.5"
+					data-testid="git-status-file-rounded-icon"
+				/>
+			{/if}
 		</span>
 	{/if}
 
@@ -167,7 +175,7 @@
 					title="Discard changes"
 					onclick={() => onDiscard?.(path)}
 				>
-					<ArrowCounterClockwise size={12} weight="bold" />
+					<RoundedIcon name="undo" class="size-3" />
 				</button>
 			{/if}
 		{:else}
@@ -178,7 +186,7 @@
 					title="Unstage file"
 					onclick={() => onUnstage?.(path)}
 				>
-					<FileMinus size={12} weight="bold" />
+					<RoundedIcon name="minus" class="size-3" />
 				</button>
 			{/if}
 		{/if}

@@ -81,6 +81,15 @@
 	}
 </script>
 
+{#snippet neutralIcon(sizeClass: string)}
+	<span
+		class={`inline-flex ${sizeClass} items-center justify-center rounded-full border border-current`}
+		data-testid="pr-check-neutral-icon"
+	>
+		<span class="h-px w-1/2 rounded-full bg-current"></span>
+	</span>
+{/snippet}
+
 {#if isLoading || isWaitingForCi || checks.length > 0}
 	<div class="flex flex-col gap-0.5">
 		{#if isWaitingForCi}

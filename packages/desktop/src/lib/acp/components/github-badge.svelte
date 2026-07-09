@@ -1,7 +1,6 @@
 <script lang="ts">
-import { GitHubBadge } from "@acepe/ui";
+import { GitHubBadge, RoundedIcon } from "@acepe/ui";
 import { openUrl } from "@tauri-apps/plugin-opener";
-import { GithubLogo } from "phosphor-svelte";
 
 import type { GitHubReference } from "../constants/github-badge-html.js";
 import { getGitHubURL } from "../constants/github-badge-html.js";
@@ -185,7 +184,7 @@ function getTextToCopy(): string {
 				}}
 				onmouseenter={(e) => e.stopPropagation()}
 			>
-				<GithubLogo weight="fill" size={12} />
+				<RoundedIcon name="github" class="size-3" />
 			</span>
 		{/if}
 		<!-- svelte-ignore a11y_click_events_have_key_events -->

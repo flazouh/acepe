@@ -67,20 +67,20 @@ function handleDelete() {
 				{#if store.isSaving}
 					<Spinner class="mr-1" size={16} />
 				{:else}
-					<Save class="h-4 w-4 mr-1" />
+					<SaveIcon class="h-4 w-4 mr-1" />
 				{/if}
 				Save
 			</Button>
 
 			<Selector align="end" triggerSize="icon" showChevron={false} variant="ghost">
 				{#snippet renderButton()}
-					<MoreHorizontal class="h-4 w-4" />
+					<RoundedIcon name="more" />
 				{/snippet}
 
 				{#if otherAgents.length > 0}
 					<DropdownMenu.Sub>
 						<DropdownMenu.SubTrigger>
-							<Copy class="h-4 w-4 mr-2" />
+							<RoundedIcon name="copy" class="h-4 w-4 mr-2" />
 							Copy to
 						</DropdownMenu.SubTrigger>
 						<DropdownMenu.SubContent>
@@ -94,7 +94,7 @@ function handleDelete() {
 					<DropdownMenu.Separator />
 				{/if}
 				<DropdownMenu.Item onclick={handleDelete} class="text-destructive">
-					<Trash2 class="h-4 w-4 mr-2" />
+					<RoundedIcon name="trash" class="h-4 w-4 mr-2" />
 					Delete
 				</DropdownMenu.Item>
 			</Selector>

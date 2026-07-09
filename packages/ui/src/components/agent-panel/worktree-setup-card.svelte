@@ -1,9 +1,8 @@
 <script lang="ts">
 	import { CaretDown } from "phosphor-svelte";
 	import type { Snippet } from "svelte";
-	import { WarningCircle } from "phosphor-svelte";
 
-	import { LoadingIcon } from "../icons/index.js";
+	import { LoadingIcon, RoundedIcon } from "../icons/index.js";
 
 	interface Props {
 		visible: boolean;
@@ -63,7 +62,7 @@
 				{#if leading}
 					{@render leading()}
 				{:else if tone === "error"}
-					<WarningCircle size={13} weight="fill" class="shrink-0 text-destructive" />
+					<RoundedIcon name="warning" class="size-[13px] shrink-0 text-destructive" />
 				{:else}
 					<LoadingIcon class="shrink-0 text-muted-foreground" size={13} aria-label="Loading" />
 				{/if}

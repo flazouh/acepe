@@ -1,9 +1,8 @@
 <script lang="ts">
-	import { CaretRight, CheckCircle, Package } from "phosphor-svelte";
 	import AgentToolCard from "./agent-tool-card.svelte";
 	import ToolLabel from "./tool-label.svelte";
 	import TextShimmer from "../text-shimmer/text-shimmer.svelte";
-	import { LoadingIcon } from "../icons/index.js";
+	import { LoadingIcon, RoundedIcon } from "../icons/index.js";
 	import { Colors } from "../../lib/colors.js";
 	import {
 		getSkillDisplayArgs,
@@ -89,10 +88,9 @@
 					<LoadingIcon class="shrink-0" size={12} aria-label="Loading" />
 					<TextShimmer class="shrink-0 text-xs">{displayName}</TextShimmer>
 				{:else}
-					<Package
-						weight="fill"
-						size={12}
-						class="shrink-0"
+					<RoundedIcon
+						name="skills"
+						class="size-3 shrink-0"
 						data-testid="agent-tool-skill-icon"
 						style="color: {Colors.purple}"
 					/>
@@ -117,7 +115,7 @@
 					{#if viewState.isPending}
 						<ToolLabel {status}>{runningStatusLabel}</ToolLabel>
 					{:else if viewState.isSuccess}
-						<CheckCircle weight="fill" size={11} class="text-success" aria-label="Successful" />
+						<RoundedIcon name="check-circle" class="size-[11px] text-success" aria-label="Successful" />
 					{/if}
 				</div>
 

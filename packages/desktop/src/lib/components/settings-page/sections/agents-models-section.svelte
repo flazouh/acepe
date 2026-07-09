@@ -1,5 +1,5 @@
 <script lang="ts">
-import { Selector } from "@acepe/ui";
+import { RoundedIcon, Selector } from "@acepe/ui";
 import * as DropdownMenu from "@acepe/ui/dropdown-menu";
 import { Check } from "phosphor-svelte";
 import { toast } from "svelte-sonner";
@@ -129,9 +129,9 @@ function setAgentChecked(agentId: string, checked: boolean): void {
 
 			<DropdownMenu.Item onclick={() => void agentPreferencesStore.setDefaultAgentId(null)}>
 				<div class="flex items-center gap-2">
-					<Check
+					<RoundedIcon
+						name="check"
 						class={defaultAgentId === null ? "size-3 text-foreground" : "size-3 text-transparent"}
-						weight="bold"
 					/>
 					<span class="text-[12px]">First available</span>
 				</div>
@@ -140,9 +140,9 @@ function setAgentChecked(agentId: string, checked: boolean): void {
 			{#each selectableAgents as agent (agent.id)}
 				<DropdownMenu.Item onclick={() => void agentPreferencesStore.setDefaultAgentId(agent.id)}>
 					<div class="flex items-center gap-2">
-						<Check
+						<RoundedIcon
+							name="check"
 							class={agent.id === defaultAgentId ? "size-3 text-foreground" : "size-3 text-transparent"}
-							weight="bold"
 						/>
 						<AgentIcon agentId={agent.id} class="size-3.5 shrink-0" size={14} />
 						<span class="text-[12px]">{agent.name}</span>

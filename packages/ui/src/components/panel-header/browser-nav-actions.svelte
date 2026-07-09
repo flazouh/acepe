@@ -72,6 +72,6 @@
 			title={openExternalLabel}
 			aria-label={openExternalLabel}
 		>
-			{#snippet children()}<IconExternalLink class="h-4 w-4" />{/snippet}
+			{#snippet children()}<RoundedIcon name="external-link" />{/snippet}
 		</Button>
 	{/if}

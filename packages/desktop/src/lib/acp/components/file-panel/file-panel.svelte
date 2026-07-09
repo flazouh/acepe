@@ -37,6 +37,7 @@ interface Props {
 	projectPath: string;
 	projectName: string;
 	projectColor: string | undefined;
+	projectBadgeLabel?: string | null;
 	projectIconSrc?: string | null;
 	width: number;
 	initialGitStatus?: FilePanelGitStatus | null;
@@ -56,6 +57,7 @@ let {
 	projectPath,
 	projectName,
 	projectColor,
+	projectBadgeLabel = null,
 	projectIconSrc = null,
 	width,
 	initialGitStatus = null,
@@ -372,9 +374,10 @@ const shellClass = $derived(
 					{fileName}
 					{filePath}
 					{projectPath}
-					{projectName}
-					{projectColor}
-					{projectIconSrc}
+				{projectName}
+				{projectColor}
+				{projectBadgeLabel}
+				{projectIconSrc}
 					{content}
 					{gitStatus}
 					compact={compactHeader}

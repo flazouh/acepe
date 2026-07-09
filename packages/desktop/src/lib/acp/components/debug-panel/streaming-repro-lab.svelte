@@ -1,6 +1,6 @@
 <script lang="ts">
 import { countWordsInMarkdown } from "@acepe/ui/markdown";
-import { onDestroy } from "svelte";
+import { onDestroy, onMount, tick } from "svelte";
 import type { PanelViewState } from "$lib/acp/logic/panel-visibility.js";
 import type { SessionTurnState, TranscriptEntry, TranscriptViewportRow } from "$lib/services/acp-types.js";
 import { materializeAgentPanelSceneFromGraph } from "$lib/acp/session-state/agent-panel-graph-materializer.js";
@@ -23,6 +23,33 @@ interface Props {
 	controller?: StreamingReproController;
 }
 
+type StreamingReproPerfStep = {
+	readonly phaseId: string;
+	readonly label: string;
+	readonly phaseIndex: number;
+	readonly assistantTextLength: number;
+	readonly turnState: SessionTurnState;
+	readonly domFlushMs: number;
+	readonly rowCount: number;
+	readonly animatedTokenSpans: number;
+	readonly tokenRevealMode: string | null;
+};
+
+type StreamingReproPerfProbeResult = {
+	readonly presetId: string;
+	readonly phaseCount: number;
+	readonly totalMs: number;
+	readonly visibilityState: string;
+	readonly documentHasFocus: boolean | null;
+	readonly steps: readonly StreamingReproPerfStep[];
+};
+
+declare global {
+	interface Window {
+		__acepeStreamingReproPerfProbe?: () => Promise<StreamingReproPerfProbeResult>;
+	}
+}
+
 const DEFAULT_VIEW_STATE: PanelViewState = { kind: "conversation", errorDetails: null };
 const DEFAULT_SESSION_ID = "streaming-repro-session";
 const DEFAULT_PANEL_ID = "streaming-repro-panel";
@@ -39,9 +66,15 @@ let controllerRevision = $state(0);
 let phaseElapsedMs = $state(0);
 let phaseAnimationStartedAtMs = $state(0);
 let phaseAnimationRafId: number | null = null;
+let labElement: HTMLDivElement | null = $state(null);
 
 function readAnimationNowMs(): number {
 	return globalThis.performance?.now() ?? Date.now();
+}
+
+async function waitForDomFlush(): Promise<void> {
+	await tick();
+	await Promise.resolve();
 }
 
 function stopPhaseAnimationTick(): void {
@@ -192,6 +225,78 @@ function resetPhaseAnimation(): void {
 	schedulePhaseAnimationTick();
 }
 
+function countRenderedRows(): number {
+	return labElement?.querySelectorAll("[data-row-id]").length ?? 0;
+}
+
+function countAnimatedTokenSpans(): number {
+	return (
+		labElement?.querySelectorAll(
+			'[data-sd-animate="true"], [data-acepe-token-reveal-tail="true"]'
+		).length ?? 0
+	);
+}
+
+function readTokenRevealMode(): string | null {
+	return (
+		labElement
+			?.querySelector("[data-token-reveal-mode]")
+			?.getAttribute("data-token-reveal-mode") ?? null
+	);
+}
+
+function readDocumentHasFocus(): boolean | null {
+	if (typeof document === "undefined" || typeof document.hasFocus !== "function") {
+		return null;
+	}
+	return document.hasFocus();
+}
+
+async function measureStreamingPhaseFlush(
+	phaseIndex: number,
+	startedAtMs: number
+): Promise<StreamingReproPerfStep> {
+	await waitForDomFlush();
+	const phase = controller.activePhase;
+	return {
+		phaseId: phase.id,
+		label: phase.label,
+		phaseIndex,
+		assistantTextLength: phase.assistantText.length,
+		turnState: phase.turnState,
+		domFlushMs: readAnimationNowMs() - startedAtMs,
+		rowCount: countRenderedRows(),
+		animatedTokenSpans: countAnimatedTokenSpans(),
+		tokenRevealMode: readTokenRevealMode(),
+	};
+}
+
+async function runStreamingReproPerfProbe(): Promise<StreamingReproPerfProbeResult> {
+	stopPhaseAnimationTick();
+	const totalStartedAtMs = readAnimationNowMs();
+	const steps: StreamingReproPerfStep[] = [];
+
+	controller.reset();
+	for (let index = 0; index < controller.activePreset.phases.length; index += 1) {
+		const phaseStartedAtMs = readAnimationNowMs();
+		if (index > 0) {
+			controller.nextPhase();
+		}
+		controllerRevision += 1;
+		steps.push(await measureStreamingPhaseFlush(index, phaseStartedAtMs));
+	}
+
+	schedulePhaseAnimationTick();
+	return {
+		presetId: controller.activePreset.id,
+		phaseCount: controller.activePreset.phases.length,
+		totalMs: readAnimationNowMs() - totalStartedAtMs,
+		visibilityState: typeof document === "undefined" ? "unknown" : document.visibilityState,
+		documentHasFocus: readDocumentHasFocus(),
+		steps,
+	};
+}
+
 $effect(() => {
 	controllerRevision;
 	resetPhaseAnimation();
@@ -204,9 +309,19 @@ $effect(() => {
 onDestroy(() => {
 	stopPhaseAnimationTick();
 });
+
+onMount(() => {
+	window.__acepeStreamingReproPerfProbe = runStreamingReproPerfProbe;
+	return () => {
+		if (window.__acepeStreamingReproPerfProbe === runStreamingReproPerfProbe) {
+			delete window.__acepeStreamingReproPerfProbe;
+		}
+	};
+});
 </script>
 
 <div
+	bind:this={labElement}
 	class="flex h-full min-h-0 w-full flex-col gap-3"
 	data-testid="streaming-repro-lab"
 >

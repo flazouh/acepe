@@ -159,13 +159,6 @@ function handleDialogOpenAutoFocus(): void {
 						? onFocusPanel(panelSnapshot.panelId)
 						: mainAppState.handleFocusPanel(panelSnapshot.panelId)}
 				hideProjectBadge={false}
-				reviewMode={panelSnapshot.reviewMode}
-				reviewFilesState={panelSnapshot.reviewFilesState}
-				reviewFileIndex={panelSnapshot.reviewFileIndex}
-				onEnterReviewMode={(modifiedFilesState, initialFileIndex) =>
-					panelStore.enterReviewMode(panelSnapshot.panelId, modifiedFilesState, initialFileIndex)}
-				onExitReviewMode={() => panelStore.exitReviewMode(panelSnapshot.panelId)}
-				onReviewFileIndexChange={(index) => panelStore.setReviewFileIndex(panelSnapshot.panelId, index)}
 				onCreateIssueReport={(draft) => mainAppState.openUserReportsWithDraft(draft)}
 				hasAttachedFilePane={panelStore.hasAttachedFilePanels(panelSnapshot.panelId)}
 		/>

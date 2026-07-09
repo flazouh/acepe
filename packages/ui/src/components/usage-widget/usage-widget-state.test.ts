@@ -4,6 +4,9 @@ import {
 	getProgressAriaValue,
 	getProviderHealth,
 	getProviderStateLabel,
+	getVerticalMeterFillClass,
+	getVerticalMeterLabel,
+	getVerticalMeterMetricLabel,
 } from "./usage-widget-state.js";
 import type { UsageProvider } from "./types.js";
 
@@ -90,5 +93,22 @@ describe("usage widget state", () => {
 				tone: "danger",
 			})
 		).toBe(100);
+	});
+
+	it("keeps normal vertical meter fills green with tone overrides", () => {
+		expect(getVerticalMeterFillClass(0, "good")).toBe("bg-success");
+		expect(getVerticalMeterFillClass(1, "good")).toBe(getVerticalMeterFillClass(0, "good"));
+		expect(getVerticalMeterFillClass(0, "watch")).toContain("#ff9500");
+		expect(getVerticalMeterFillClass(0, "danger")).toContain("#ff3b30");
+	});
+
+	it("derives metric abbreviations for vertical meter labels", () => {
+		expect(getVerticalMeterMetricLabel("5h window")).toBe("5H");
+		expect(getVerticalMeterMetricLabel("Weekly window")).toBe("WK");
+		expect(getVerticalMeterMetricLabel("Session")).toBe("SSN");
+	});
+
+	it("keeps legacy initials fallback helper", () => {
+		expect(getVerticalMeterLabel("CX", "5h window")).toBe("CX");
 	});
 });

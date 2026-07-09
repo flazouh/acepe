@@ -8,7 +8,12 @@ mock.module("../../analytics.js", () => ({
 	captureCommandFailure: captureCommandFailureMock,
 }));
 
-import { invokeAsyncWithRuntimeForTesting, TauriCommandError } from "./invoke.js";
+import {
+	getTauriInvokeTimings,
+	invokeAsyncWithRuntimeForTesting,
+	resetTauriInvokeTimingsForTesting,
+	TauriCommandError,
+} from "./invoke.js";
 import { CMD } from "./commands.js";
 
 const invokeMock = mock(async (_cmd: string, _args?: InvokeArgs) => undefined);
@@ -23,6 +28,7 @@ describe("invokeAsync", () => {
 		invokeMock.mockReset();
 		invokeMock.mockImplementation(async () => undefined);
 		captureCommandFailureMock.mockReset();
+		resetTauriInvokeTimingsForTesting();
 	});
 
 	it("preserves structured ACP errors instead of stringifying them to [object Object]", async () => {
@@ -76,7 +82,7 @@ describe("invokeAsync", () => {
 			error,
 			expect.objectContaining({
 				commandName: "save_user_setting",
-				invokeId: "invoke-2",
+				invokeId: expect.stringMatching(/^invoke-\d+$/),
 				elapsedMs: expect.any(Number),
 				referenceId: "corr-123",
 				referenceSearchable: true,
@@ -103,5 +109,49 @@ describe("invokeAsync", () => {
 		expect(error).toBeInstanceOf(AgentError);
 		expect(error.message).toBe("Agent operation failed: plugin:notification|notify");
 		expect(captureCommandFailureMock).not.toHaveBeenCalled();
+	});
+
+	it("records completed invoke timings for performance probes", async () => {
+		const successResult = await invokeAsyncWithRuntimeForTesting(
+			<T>(_cmd: string, _args?: InvokeArgs) => Promise.resolve("ok" as T),
+			"fast_command"
+		);
+		const failureResult = await invokeAsyncWithRuntimeForTesting(
+			<T>(_cmd: string, _args?: InvokeArgs) => Promise.reject("boom") as Promise<T>,
+			"failing_command",
+			undefined,
+			{ reportFailure: false }
+		);
+
+		expect(successResult.isOk()).toBe(true);
+		expect(failureResult.isErr()).toBe(true);
+		expect(getTauriInvokeTimings()).toEqual([
+			expect.objectContaining({
+				command: "fast_command",
+				status: "ok",
+				durationMs: expect.any(Number),
+			}),
+			expect.objectContaining({
+				command: "failing_command",
+				status: "error",
+				durationMs: expect.any(Number),
+			}),
+		]);
+	});
+
+	it("summarizes get_user_settings keys for startup performance probes", async () => {
+		const result = await invokeAsyncWithRuntimeForTesting(
+			<T>(_cmd: string, _args?: InvokeArgs) => Promise.resolve([] as T),
+			"get_user_settings",
+			{ keys: ["user_theme", "zoom_level"] }
+		);
+
+		expect(result.isOk()).toBe(true);
+		expect(getTauriInvokeTimings()).toEqual([
+			expect.objectContaining({
+				command: "get_user_settings",
+				argsSummary: "user_theme,zoom_level",
+			}),
+		]);
 	});
 });

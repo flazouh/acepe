@@ -23,7 +23,7 @@ function createFiles(): ReviewWorkspaceFileItem[] {
 			id: "file-1",
 			filePath: "src/lib/alpha.ts",
 			fileName: "alpha.ts",
-			reviewStatus: "accepted",
+			reviewStatus: "reviewed",
 			additions: 12,
 			deletions: 2,
 		},
@@ -41,6 +41,12 @@ function createFiles(): ReviewWorkspaceFileItem[] {
 function createContentSnippet(label: string) {
 	return createRawSnippet(() => ({
 		render: () => `<div data-testid="review-workspace-snippet">${label}</div>`,
+	}));
+}
+
+function createHeaderActionsSnippet() {
+	return createRawSnippet(() => ({
+		render: () => `<button type="button" data-testid="review-workspace-diff-style">Split</button>`,
 	}));
 }
 
@@ -172,6 +178,24 @@ describe("ReviewWorkspace file navigation", () => {
 		expect(screen.queryByText("Review changes")).toBeNull();
 	});
 
+	it("renders optional header actions next to file navigation", async () => {
+		render(ReviewWorkspace, {
+			files: createFiles(),
+			selectedFileIndex: 0,
+			headerLabel: "Review changes",
+			emptyStateLabel: "Nothing to review",
+			content: createContentSnippet("Pierre diff"),
+			headerActions: createHeaderActionsSnippet(),
+			showCloseButton: false,
+			onFileSelect: vi.fn(),
+		});
+
+		const actions = screen.getByTestId("review-workspace-header-actions");
+
+		expect(actions.contains(screen.getByTestId("review-workspace-diff-style"))).toBe(true);
+		expect(screen.getByTestId("review-workspace-file-position").textContent).toBe("1/2");
+	});
+
 	it("keeps only the code diff as the visible right-side card", async () => {
 		render(ReviewWorkspace, {
 			files: createFiles(),
@@ -245,7 +269,7 @@ describe("ReviewWorkspace file navigation", () => {
 		}
 
 		expect(fileListScroll.className).toContain("min-h-0");
-		expect(fileListScroll.className).toContain("overflow-y-auto");
+		expect(fileListScroll.className).toContain("overflow-hidden");
 		expect(codeSurface.className).toContain("p-");
 		expect(codeSurface.className).not.toContain("bg-input/30");
 		expect(codeCard.className).toContain("bg-input/30");

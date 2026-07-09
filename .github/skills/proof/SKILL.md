@@ -1,6 +1,6 @@
 ---
 name: proof
-description: Create, edit, comment on, share, and run human-in-the-loop iteration loops over markdown documents via Proof's web API. Use when asked to "proof", "share a doc", "create a proof doc", "comment on a document", "suggest edits", "review in proof", "iterate on this doc in proof", "HITL this doc", "sync a Proof doc to local", when a caller needs an HITL review loop over a local markdown file (e.g., ce-brainstorm, ce-ideate, or ce-plan handoff), or when given a proofeditor.ai URL. Prefer this skill for any workflow whose output is a Proof URL or that uses a Proof doc as the review surface, even when not named explicitly.
+description: Create, edit, comment on, share, and run human-in-the-loop iteration loops over markdown documents via Proof's web API. Use when asked to "proof", "share a doc", "create a proof doc", "comment on a document", "suggest edits", "review in proof", "iterate on this doc in proof", "HITL this doc", "sync a Proof doc to local", when a caller needs an HITL review loop over a local markdown file (e.g., planning or ideation workflow handoff), or when given a proofeditor.ai URL. Prefer this skill for any workflow whose output is a Proof URL or that uses a Proof doc as the review surface, even when not named explicitly.
 allowed-tools:
   - Bash
   - Read
@@ -19,14 +19,14 @@ Proof is a collaborative document editor for humans and agents. It supports two 
 
 Every write to a Proof doc must be attributed. Two fields carry the agent's identity:
 
-- **Machine ID (`by` on every op, `X-Agent-Id` header):** `ai:compound-engineering` — stable, lowercase-hyphenated, machine-parseable. Appears in marks, events, and the API response.
-- **Display name (`name` on `POST /presence`):** `Compound Engineering` — human-readable, shown in Proof's presence chips and comment-author badges.
+- **Machine ID (`by` on every op, `X-Agent-Id` header):** `ai:agent-workflows` — stable, lowercase-hyphenated, machine-parseable. Appears in marks, events, and the API response.
+- **Display name (`name` on `POST /presence`):** `Agent Workflows` — human-readable, shown in Proof's presence chips and comment-author badges.
 
-Set the display name once per doc session by posting to presence with the `X-Agent-Id` header; Proof binds the name to that agent ID for the session. These values are the defaults for any caller of this skill; callers running HITL review (`references/hitl-review.md`) may pass a different `identity` pair if a distinct sub-agent should own the doc. Do not use `ai:compound` or other ad-hoc variants — identity stays uniform unless a caller explicitly overrides it.
+Set the display name once per doc session by posting to presence with the `X-Agent-Id` header; Proof binds the name to that agent ID for the session. These values are the defaults for any caller of this skill; callers running HITL review (`references/hitl-review.md`) may pass a different `identity` pair if a distinct sub-agent should own the doc. Do not invent ad-hoc variants -- identity stays uniform unless a caller explicitly overrides it.
 
 ## Human-in-the-Loop Review Mode
 
-When a caller (e.g., `ce-brainstorm`, `ce-plan`) needs to upload a local markdown doc, collect structured human feedback in Proof, and sync the final doc back to disk, load `references/hitl-review.md` for the full loop spec: invocation contract, mark classification (change / question / objection / ambiguous), idempotent ingest passes, exception-based terminal reporting, and end-sync atomic write.
+When a caller (e.g., planning, ideation, or refactor workflows) needs to upload a local markdown doc, collect structured human feedback in Proof, and sync the final doc back to disk, load `references/hitl-review.md` for the full loop spec: invocation contract, mark classification (change / question / objection / ambiguous), idempotent ingest passes, exception-based terminal reporting, and end-sync atomic write.
 
 ## Web API (Primary for Sharing)
 
@@ -72,7 +72,7 @@ All operations go to `POST https://www.proofeditor.ai/api/agent/{slug}/ops`
 **Authentication for protected docs:**
 - Header: `x-share-token: <token>` or `Authorization: Bearer <token>`
 - Token comes from the URL parameter: `?token=xxx` or the `accessToken` from create response
-- Header: `X-Agent-Id: ai:compound-engineering` (required for presence; include on ops for consistent attribution)
+- Header: `X-Agent-Id: ai:agent-workflows` (required for presence; include on ops for consistent attribution)
 
 **Wire-format reminder.** `/api/agent/{slug}/ops` uses a top-level `type` field; `/api/agent/{slug}/edit/v2` uses an `operations` array where each entry has `op`. Do not mix — sending `op` to `/ops` returns 422.
 
@@ -82,43 +82,43 @@ All operations go to `POST https://www.proofeditor.ai/api/agent/{slug}/ops`
 
 **Comment on text:**
 ```json
-{"type": "comment.add", "quote": "text to comment on", "by": "ai:compound-engineering", "text": "Your comment here", "baseToken": "<token>"}
+{"type": "comment.add", "quote": "text to comment on", "by": "ai:agent-workflows", "text": "Your comment here", "baseToken": "<token>"}
 ```
 
 **Reply to a comment:**
 ```json
-{"type": "comment.reply", "markId": "<id>", "by": "ai:compound-engineering", "text": "Reply text", "baseToken": "<token>"}
+{"type": "comment.reply", "markId": "<id>", "by": "ai:agent-workflows", "text": "Reply text", "baseToken": "<token>"}
 ```
 
 **Resolve / unresolve a comment:**
 ```json
-{"type": "comment.resolve", "markId": "<id>", "by": "ai:compound-engineering", "baseToken": "<token>"}
-{"type": "comment.unresolve", "markId": "<id>", "by": "ai:compound-engineering", "baseToken": "<token>"}
+{"type": "comment.resolve", "markId": "<id>", "by": "ai:agent-workflows", "baseToken": "<token>"}
+{"type": "comment.unresolve", "markId": "<id>", "by": "ai:agent-workflows", "baseToken": "<token>"}
 ```
 
 **Suggest a replacement (pending — user must accept/reject):**
 ```json
-{"type": "suggestion.add", "kind": "replace", "quote": "original text", "by": "ai:compound-engineering", "content": "replacement text", "baseToken": "<token>"}
+{"type": "suggestion.add", "kind": "replace", "quote": "original text", "by": "ai:agent-workflows", "content": "replacement text", "baseToken": "<token>"}
 ```
 
 **Suggest and immediately apply (tracked but committed — user can reject to revert):**
 ```json
-{"type": "suggestion.add", "kind": "replace", "quote": "original text", "by": "ai:compound-engineering", "content": "replacement text", "status": "accepted", "baseToken": "<token>"}
+{"type": "suggestion.add", "kind": "replace", "quote": "original text", "by": "ai:agent-workflows", "content": "replacement text", "status": "accepted", "baseToken": "<token>"}
 ```
 
 `status: "accepted"` creates the suggestion mark and commits the change in one call. The mark persists as an audit trail with per-edit attribution and a reject-to-revert affordance. Works with `kind: "insert" | "delete" | "replace"`.
 
 **Accept or reject an existing suggestion:**
 ```json
-{"type": "suggestion.accept", "markId": "<id>", "by": "ai:compound-engineering", "baseToken": "<token>"}
-{"type": "suggestion.reject", "markId": "<id>", "by": "ai:compound-engineering", "baseToken": "<token>"}
+{"type": "suggestion.accept", "markId": "<id>", "by": "ai:agent-workflows", "baseToken": "<token>"}
+{"type": "suggestion.reject", "markId": "<id>", "by": "ai:agent-workflows", "baseToken": "<token>"}
 ```
 
 `suggestion.resolve` is not supported — use accept or reject instead.
 
 **Bulk rewrite (whole-doc replacement):**
 ```json
-{"type": "rewrite.apply", "content": "full new markdown", "by": "ai:compound-engineering", "baseToken": "<token>"}
+{"type": "rewrite.apply", "content": "full new markdown", "by": "ai:agent-workflows", "baseToken": "<token>"}
 ```
 
 **Block-level edits via `/edit/v2`** (separate endpoint, separate shape):
@@ -126,10 +126,10 @@ All operations go to `POST https://www.proofeditor.ai/api/agent/{slug}/ops`
 curl -X POST "https://www.proofeditor.ai/api/agent/{slug}/edit/v2" \
   -H "Content-Type: application/json" \
   -H "x-share-token: <token>" \
-  -H "X-Agent-Id: ai:compound-engineering" \
+  -H "X-Agent-Id: ai:agent-workflows" \
   -H "Idempotency-Key: <uuid>" \
   -d '{
-    "by": "ai:compound-engineering",
+    "by": "ai:agent-workflows",
     "baseToken": "mt1:<token>",
     "operations": [
       {"op": "replace_block", "ref": "b3", "block": {"markdown": "Updated paragraph."}},
@@ -164,15 +164,15 @@ Requires Proof.app running. Bridge at `http://localhost:9847`.
 | GET | `/windows` | List open documents |
 | GET | `/state` | Read markdown, cursor, word count |
 | GET | `/marks` | List all suggestions and comments |
-| POST | `/marks/suggest-replace` | `{"quote":"old","by":"ai:compound-engineering","content":"new"}` |
-| POST | `/marks/suggest-insert` | `{"quote":"after this","by":"ai:compound-engineering","content":"insert"}` |
-| POST | `/marks/suggest-delete` | `{"quote":"delete this","by":"ai:compound-engineering"}` |
-| POST | `/marks/comment` | `{"quote":"text","by":"ai:compound-engineering","text":"comment"}` |
-| POST | `/marks/reply` | `{"markId":"<id>","by":"ai:compound-engineering","text":"reply"}` |
-| POST | `/marks/resolve` | `{"markId":"<id>","by":"ai:compound-engineering"}` |
+| POST | `/marks/suggest-replace` | `{"quote":"old","by":"ai:agent-workflows","content":"new"}` |
+| POST | `/marks/suggest-insert` | `{"quote":"after this","by":"ai:agent-workflows","content":"insert"}` |
+| POST | `/marks/suggest-delete` | `{"quote":"delete this","by":"ai:agent-workflows"}` |
+| POST | `/marks/comment` | `{"quote":"text","by":"ai:agent-workflows","text":"comment"}` |
+| POST | `/marks/reply` | `{"markId":"<id>","by":"ai:agent-workflows","text":"reply"}` |
+| POST | `/marks/resolve` | `{"markId":"<id>","by":"ai:agent-workflows"}` |
 | POST | `/marks/accept` | `{"markId":"<id>"}` |
 | POST | `/marks/reject` | `{"markId":"<id>"}` |
-| POST | `/rewrite` | `{"content":"full markdown","by":"ai:compound-engineering"}` |
+| POST | `/rewrite` | `{"content":"full markdown","by":"ai:agent-workflows"}` |
 | POST | `/presence` | `{"status":"reading","summary":"..."}` |
 | GET | `/events/pending` | Poll for user actions |
 
@@ -202,22 +202,22 @@ BASE=$(curl -s "https://www.proofeditor.ai/api/agent/abc123/state" \
 curl -X POST "https://www.proofeditor.ai/api/agent/abc123/ops" \
   -H "Content-Type: application/json" \
   -H "x-share-token: xxx" \
-  -H "X-Agent-Id: ai:compound-engineering" \
-  -d "$(jq -n --arg base "$BASE" '{type:"comment.add",quote:"text",by:"ai:compound-engineering",text:"comment",baseToken:$base}')"
+  -H "X-Agent-Id: ai:agent-workflows" \
+  -d "$(jq -n --arg base "$BASE" '{type:"comment.add",quote:"text",by:"ai:agent-workflows",text:"comment",baseToken:$base}')"
 
 # Suggest edit (tracked, pending)
 curl -X POST "https://www.proofeditor.ai/api/agent/abc123/ops" \
   -H "Content-Type: application/json" \
   -H "x-share-token: xxx" \
-  -H "X-Agent-Id: ai:compound-engineering" \
-  -d "$(jq -n --arg base "$BASE" '{type:"suggestion.add",kind:"replace",quote:"old",by:"ai:compound-engineering",content:"new",baseToken:$base}')"
+  -H "X-Agent-Id: ai:agent-workflows" \
+  -d "$(jq -n --arg base "$BASE" '{type:"suggestion.add",kind:"replace",quote:"old",by:"ai:agent-workflows",content:"new",baseToken:$base}')"
 
 # Suggest and immediately apply (tracked, committed)
 curl -X POST "https://www.proofeditor.ai/api/agent/abc123/ops" \
   -H "Content-Type: application/json" \
   -H "x-share-token: xxx" \
-  -H "X-Agent-Id: ai:compound-engineering" \
-  -d "$(jq -n --arg base "$BASE" '{type:"suggestion.add",kind:"replace",quote:"old",by:"ai:compound-engineering",content:"new",status:"accepted",baseToken:$base}')"
+  -H "X-Agent-Id: ai:agent-workflows" \
+  -d "$(jq -n --arg base "$BASE" '{type:"suggestion.add",kind:"replace",quote:"old",by:"ai:agent-workflows",content:"new",status:"accepted",baseToken:$base}')"
 ```
 
 ## Workflow: Create and Share a New Document
@@ -237,8 +237,8 @@ TOKEN=$(echo "$RESPONSE" | jq -r '.accessToken')
 curl -s -X POST "https://www.proofeditor.ai/api/agent/$SLUG/presence" \
   -H "Content-Type: application/json" \
   -H "x-share-token: $TOKEN" \
-  -H "X-Agent-Id: ai:compound-engineering" \
-  -d '{"name":"Compound Engineering","status":"reading","summary":"Uploaded doc"}'
+  -H "X-Agent-Id: ai:agent-workflows" \
+  -d '{"name":"Agent Workflows","status":"reading","summary":"Uploaded doc"}'
 
 # 4. Share the URL
 echo "$URL"
@@ -249,8 +249,8 @@ BASE=$(curl -s "https://www.proofeditor.ai/api/agent/$SLUG/state" \
 curl -X POST "https://www.proofeditor.ai/api/agent/$SLUG/ops" \
   -H "Content-Type: application/json" \
   -H "x-share-token: $TOKEN" \
-  -H "X-Agent-Id: ai:compound-engineering" \
-  -d "$(jq -n --arg base "$BASE" '{type:"comment.add",quote:"Content here",by:"ai:compound-engineering",text:"Added a note",baseToken:$base}')"
+  -H "X-Agent-Id: ai:agent-workflows" \
+  -d "$(jq -n --arg base "$BASE" '{type:"comment.add",quote:"Content here",by:"ai:agent-workflows",text:"Added a note",baseToken:$base}')"
 ```
 
 ## Workflow: Pull a Proof Doc to Local
@@ -287,5 +287,5 @@ rm "$STATE_TMP"
 - Use `/state` content as source of truth before editing
 - During active collab use `edit/v2` (direct block changes) or `suggestion.add` (tracked changes); reserve `rewrite.apply` for no-client scenarios since it's blocked by `LIVE_CLIENTS_PRESENT` when anyone is connected
 - Don't span table cells in a single replace
-- Always include `by: "ai:compound-engineering"` on every op and `X-Agent-Id: ai:compound-engineering` in headers for consistent attribution
+- Always include `by: "ai:agent-workflows"` on every op and `X-Agent-Id: ai:agent-workflows` in headers for consistent attribution
 - Read a fresh `baseToken` before every mutation; on `STALE_BASE`, re-read and retry once

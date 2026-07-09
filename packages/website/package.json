@@ -2,6 +2,7 @@
 	"name": "website",
 	"private": true,
 	"version": "0.0.1",
+	"license": "MIT",
 	"type": "module",
 	"scripts": {
 		"dev": "vite dev --open",
@@ -31,7 +32,6 @@
 		"drizzle-orm": "^0.45.2",
 		"nanoid": "^5.0.0",
 		"neverthrow": "^8.2.0",
-		"phosphor-svelte": "^3.1.0",
 		"pino": "^10.1.0",
 		"postgres": "^3.4.5",
 		"shiki": "^3.22.0",
@@ -41,7 +41,6 @@
 	},
 	"devDependencies": {
 		"@biomejs/biome": "^2.4.7",
-		"@lucide/svelte": "^0.562.0",
 		"@sveltejs/adapter-node": "^5.5.4",
 		"@sveltejs/kit": "^2.65.1",
 		"@sveltejs/vite-plugin-svelte": "^7.1.2",

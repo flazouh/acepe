@@ -1,45 +1,26 @@
 <script lang="ts">
-import { Colors } from "@acepe/ui/colors";
-import { CaretDown } from "phosphor-svelte";
-import { CaretLeft } from "phosphor-svelte";
-import { CaretRight } from "phosphor-svelte";
-import { CaretUp } from "phosphor-svelte";
-import { CheckCircle } from "phosphor-svelte";
-import { XCircle } from "phosphor-svelte";
+import { RoundedIcon } from "@acepe/ui";
+
 interface Props {
-	hunkCurrent: number;
-	hunkTotal: number;
 	fileCurrent: number;
 	fileTotal: number;
-	hasPrevHunk: boolean;
-	hasNextHunk: boolean;
-	hasPrevPendingFile: boolean;
-	hasNextPendingFile: boolean;
-	hasPendingHunks: boolean;
-	onPrevHunk: () => void;
-	onNextHunk: () => void;
+	isReviewed: boolean;
+	hasPrevFile: boolean;
+	hasNextFile: boolean;
+	onToggleReviewed: () => void;
 	onPrevFile: () => void;
 	onNextFile: () => void;
-	onAcceptFile: () => void;
-	onRejectFile: () => void;
 }
 
 let {
-	hunkCurrent,
-	hunkTotal,
 	fileCurrent,
 	fileTotal,
-	hasPrevHunk,
-	hasNextHunk,
-	hasPrevPendingFile,
-	hasNextPendingFile,
-	hasPendingHunks,
-	onPrevHunk,
-	onNextHunk,
+	isReviewed,
+	hasPrevFile,
+	hasNextFile,
+	onToggleReviewed,
 	onPrevFile,
 	onNextFile,
-	onAcceptFile,
-	onRejectFile,
 }: Props = $props();
 
 const navBtnClass =
@@ -51,28 +32,21 @@ const navBtnClass =
 	role="toolbar"
 	aria-label="Review controls"
 >
-	<!-- Accept / Reject action group -->
+	<!-- Reviewed toggle -->
 	<div class="flex items-stretch rounded-md overflow-hidden shadow-md border border-border/60 backdrop-blur-sm bg-popover/90">
 		<button
 			type="button"
-			class="h-6 px-2 inline-flex items-center gap-1 text-[11px] font-medium text-foreground transition-colors hover:bg-accent/40 disabled:opacity-40 disabled:pointer-events-none"
-			disabled={!hasPendingHunks}
-			title={"Reject file"}
-			onclick={onRejectFile}
+			class="h-6 px-2 inline-flex items-center gap-1 text-[11px] font-medium text-foreground transition-colors hover:bg-accent/40"
+			title={isReviewed ? "Mark file as not reviewed" : "Mark file reviewed"}
+			onclick={onToggleReviewed}
 		>
-			<XCircle class="h-3 w-3 shrink-0" style="color: {Colors.red};" weight="fill" />
-			{"Undo"}
-		</button>
-		<div class="w-px bg-border/50"></div>
-		<button
-			type="button"
-			class="h-6 px-2 inline-flex items-center gap-1 text-[11px] font-medium text-foreground transition-colors hover:bg-accent/40 disabled:opacity-40 disabled:pointer-events-none"
-			disabled={!hasPendingHunks}
-			title={"Accept file"}
-			onclick={onAcceptFile}
-		>
-			<CheckCircle class="h-3 w-3 shrink-0" style="color: {Colors.green};" weight="fill" />
-			{"Keep File"}
+			{#if isReviewed}
+				<RoundedIcon name="check-circle" class="h-3 w-3 shrink-0 text-success" />
+				{"Reviewed"}
+			{:else}
+				<span class="block h-3 w-3 shrink-0 rounded-full border border-current opacity-50"></span>
+				{"Mark reviewed"}
+			{/if}
 		</button>
 	</div>
 
@@ -114,7 +88,7 @@ const navBtnClass =
 			<button
 				type="button"
 				class={navBtnClass}
-				disabled={!hasPrevPendingFile}
+				disabled={!hasPrevFile}
 				title={"Previous file"}
 				aria-label={"Previous file"}
 				onclick={onPrevFile}
@@ -130,7 +104,7 @@ const navBtnClass =
 			<button
 				type="button"
 				class={navBtnClass}
-				disabled={!hasNextPendingFile}
+				disabled={!hasNextFile}
 				title={"Next file"}
 				aria-label={"Next file"}
 				onclick={onNextFile}

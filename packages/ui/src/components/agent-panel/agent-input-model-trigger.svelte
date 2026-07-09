@@ -5,7 +5,7 @@
   Presentational model trigger label. Composed by AgentInputStandardModelSelector via Selector.
 -->
 <script lang="ts">
-	import { CaretDown } from "phosphor-svelte";
+	import { RoundedIcon } from "../icons/index.js";
 
 	interface Props {
 		label: string;

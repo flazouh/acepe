@@ -127,6 +127,7 @@ mod tests {
             },
             part_id: None,
             message_id: Some("msg-1".to_string()),
+            parent_tool_use_id: None,
             session_id: Some("session-1".to_string()),
             produced_at_monotonic_ms: None,
         }
@@ -194,6 +195,7 @@ mod tests {
             },
             part_id: None,
             message_id: None,
+            parent_tool_use_id: None,
             session_id: Some("session-1".to_string()),
         };
         let running = guard_with_turn_state(SessionTurnState::Running);

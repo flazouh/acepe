@@ -147,6 +147,13 @@ impl std::fmt::Display for UserSettingKey {
 
 #[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
+pub struct UserSettingValue {
+    pub key: UserSettingKey,
+    pub value: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
 pub struct ProjectAcepeConfig {
     pub setup_script: String,
     pub run_script: String,

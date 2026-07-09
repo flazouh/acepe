@@ -1,7 +1,7 @@
 <script lang="ts">
-	import { CaretDown } from "phosphor-svelte";
 	import { untrack } from "svelte";
 	import { FilePathBadge } from "../file-path-badge/index.js";
+	import { RoundedIcon } from "../icons/index.js";
 	import AgentToolCard from "./agent-tool-card.svelte";
 	import {
 		readPersistedReadExpanded,

@@ -170,6 +170,21 @@ function materializeOperationEntry(
 	});
 }
 
+export function materializeOperationSceneEntry(input: {
+	readonly operation: OperationSnapshot;
+	readonly graph: AgentPanelCanonicalSource;
+	readonly index: OperationIndex;
+	readonly displayEntryId: string | null;
+}): AgentPanelSceneEntryModel {
+	return materializeOperationEntry(
+		input.operation,
+		input.graph,
+		input.index,
+		new Set<string>(),
+		input.displayEntryId
+	);
+}
+
 function materializeMissingToolEntry(
 	entry: TranscriptEntry,
 	graph: AgentPanelCanonicalSource

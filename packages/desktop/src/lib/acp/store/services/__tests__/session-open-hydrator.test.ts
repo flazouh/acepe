@@ -1,7 +1,49 @@
 import { beforeEach, describe, expect, it, mock } from "bun:test";
 
-import type { SessionOpenFound } from "../../../../services/acp-types.js";
+import type {
+	SessionOpenFound,
+	SessionOpenTranscriptRowPage,
+	SessionStateEnvelope,
+	ViewportBufferPush,
+} from "../../../../services/acp-types.js";
 import { SessionOpenHydrator } from "../session-open-hydrator.js";
+
+function createViewportEnvelope(sessionId = "canonical-session"): SessionStateEnvelope {
+	const push: ViewportBufferPush = {
+		sessionId,
+		graphRevision: {
+			graphRevision: 3,
+			transcriptRevision: 3,
+			lastEventSeq: 3,
+		},
+		emissionSeq: 0,
+		rows: [],
+		requestGeneration: null,
+		diagnostics: [],
+	};
+	return {
+		sessionId,
+		graphRevision: 3,
+		lastEventSeq: 3,
+		payload: {
+			kind: "viewportBufferPush",
+			push,
+		},
+	};
+}
+
+function createInitialRowPage(): SessionOpenTranscriptRowPage {
+	return {
+		projectionVersion: "transcript_viewport_row:v5",
+		startRowIndex: 42,
+		totalRowCount: 43,
+		rowPayloadBytes: 512,
+		transcriptRevision: 3,
+		graphRevision: 3,
+		lastEventSeq: 3,
+		rows: [],
+	};
+}
 
 function createFoundResult(overrides?: Partial<SessionOpenFound>): SessionOpenFound {
 	const requestedSessionId = overrides?.requestedSessionId ?? "requested-session";
@@ -28,6 +70,7 @@ function createFoundResult(overrides?: Partial<SessionOpenFound>): SessionOpenFo
 		requestedSessionId,
 		canonicalSessionId,
 		isAlias,
+		openPath: overrides?.openPath ?? "legacy_rebuild",
 		lastEventSeq,
 		graphRevision,
 		openToken,
@@ -64,6 +107,8 @@ function createFoundResult(overrides?: Partial<SessionOpenFound>): SessionOpenFo
 			},
 		},
 		capabilities: {},
+		initialTranscriptRowPage: overrides?.initialTranscriptRowPage ?? null,
+		initialViewportEnvelope: overrides?.initialViewportEnvelope ?? null,
 	};
 }
 
@@ -73,6 +118,7 @@ function createFoundResultWithoutLifecycle(): Omit<SessionOpenFound, "lifecycle"
 		requestedSessionId: found.requestedSessionId,
 		canonicalSessionId: found.canonicalSessionId,
 		isAlias: found.isAlias,
+		openPath: found.openPath,
 		lastEventSeq: found.lastEventSeq,
 		graphRevision: found.graphRevision,
 		openToken: found.openToken,
@@ -90,6 +136,8 @@ function createFoundResultWithoutLifecycle(): Omit<SessionOpenFound, "lifecycle"
 		activity: found.activity,
 		activeStreamingTail: found.activeStreamingTail,
 		capabilities: found.capabilities,
+		initialTranscriptRowPage: found.initialTranscriptRowPage ?? null,
+		initialViewportEnvelope: found.initialViewportEnvelope ?? null,
 		activeTurnFailure: found.activeTurnFailure ?? null,
 		lastTerminalTurnId: found.lastTerminalTurnId ?? null,
 	};
@@ -97,12 +145,18 @@ function createFoundResultWithoutLifecycle(): Omit<SessionOpenFound, "lifecycle"
 
 describe("SessionOpenHydrator", () => {
 	let replaceSessionOpenSnapshot: ReturnType<typeof mock>;
+	let ensureRowsBootstrap: ReturnType<typeof mock>;
+	let applyInitialRowPage: ReturnType<typeof mock>;
+	let applySessionStateEnvelope: ReturnType<typeof mock>;
 	let updatePanelSession: ReturnType<typeof mock>;
 	let replaceSessionStateGraph: ReturnType<typeof mock>;
 	let hydrator: SessionOpenHydrator;
 
 	beforeEach(() => {
 		replaceSessionOpenSnapshot = mock(() => {});
+		ensureRowsBootstrap = mock(() => {});
+		applyInitialRowPage = mock(() => {});
+		applySessionStateEnvelope = mock(() => {});
 		updatePanelSession = mock(() => {});
 		replaceSessionStateGraph = mock(() => {});
 		hydrator = new SessionOpenHydrator(
@@ -110,6 +164,11 @@ describe("SessionOpenHydrator", () => {
 				write: {
 					replaceSessionOpenSnapshot,
 				},
+				viewport: {
+					applyInitialRowPage,
+					ensureRowsBootstrap,
+				},
+				applySessionStateEnvelope,
 			},
 			{
 				updatePanelSession,
@@ -136,6 +195,78 @@ describe("SessionOpenHydrator", () => {
 		expect(replaceSessionStateGraph).toHaveBeenCalledTimes(1);
 	});
 
+	it("applies the first found snapshot before returning when no panel hydrate is queued", async () => {
+		const requestToken = hydrator.beginAttempt("panel-1");
+
+		const result = hydrator.hydrateFound("panel-1", requestToken, createFoundResult());
+
+		expect(replaceSessionOpenSnapshot).toHaveBeenCalledTimes(1);
+		expect(updatePanelSession).toHaveBeenCalledWith("panel-1", "canonical-session");
+		expect(replaceSessionStateGraph).toHaveBeenCalledTimes(1);
+		expect((await result)._unsafeUnwrap()).toEqual({
+			canonicalSessionId: "canonical-session",
+			openToken: "open-token",
+			applied: true,
+		});
+	});
+
+	it("starts viewport row bootstrap for applied found snapshots", async () => {
+		const requestToken = hydrator.beginAttempt("panel-1");
+
+		const result = await hydrator.hydrateFound(
+			"panel-1",
+			requestToken,
+			createFoundResult({ messageCount: 5349 })
+		);
+
+		expect(result.isOk()).toBe(true);
+		expect(ensureRowsBootstrap).toHaveBeenCalledWith("canonical-session");
+		expect(ensureRowsBootstrap).toHaveBeenCalledTimes(1);
+	});
+
+	it("applies an initial viewport envelope instead of firing a fallback row request", async () => {
+		const requestToken = hydrator.beginAttempt("panel-1");
+		const initialViewportEnvelope = createViewportEnvelope();
+
+		const result = await hydrator.hydrateFound(
+			"panel-1",
+			requestToken,
+			createFoundResult({ messageCount: 5349, initialViewportEnvelope })
+		);
+
+		expect(result.isOk()).toBe(true);
+		expect(applySessionStateEnvelope).toHaveBeenCalledWith(
+			"canonical-session",
+			initialViewportEnvelope
+		);
+		expect(applySessionStateEnvelope).toHaveBeenCalledTimes(1);
+		expect(ensureRowsBootstrap).not.toHaveBeenCalled();
+	});
+
+	it("prefers initial row page metadata over the duplicate hot viewport envelope", async () => {
+		const requestToken = hydrator.beginAttempt("panel-1");
+		const initialViewportEnvelope = createViewportEnvelope();
+		const initialTranscriptRowPage = createInitialRowPage();
+
+		const result = await hydrator.hydrateFound(
+			"panel-1",
+			requestToken,
+			createFoundResult({
+				messageCount: 5349,
+				initialViewportEnvelope,
+				initialTranscriptRowPage,
+			})
+		);
+
+		expect(result.isOk()).toBe(true);
+		expect(applySessionStateEnvelope).not.toHaveBeenCalled();
+		expect(applyInitialRowPage).toHaveBeenCalledWith(
+			"canonical-session",
+			initialTranscriptRowPage
+		);
+		expect(ensureRowsBootstrap).not.toHaveBeenCalled();
+	});
+
 	it("ignores stale request tokens", async () => {
 		hydrator.beginAttempt("panel-1");
 		const activeToken = hydrator.beginAttempt("panel-1");
@@ -150,6 +281,7 @@ describe("SessionOpenHydrator", () => {
 		});
 		expect(activeToken).toBe("session-open-2");
 		expect(replaceSessionOpenSnapshot).not.toHaveBeenCalled();
+		expect(ensureRowsBootstrap).not.toHaveBeenCalled();
 		expect(updatePanelSession).not.toHaveBeenCalled();
 		expect(replaceSessionStateGraph).not.toHaveBeenCalled();
 	});

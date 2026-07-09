@@ -1,14 +1,6 @@
 <script lang="ts">
-import { BrandShaderBackground, Selector } from "@acepe/ui";
-import * as DropdownMenu from "@acepe/ui/dropdown-menu";
+import { BrandSurface, RoundedIcon } from "@acepe/ui";
 import { ResultAsync } from "neverthrow";
-import { ArrowRight } from "phosphor-svelte";
-import { CheckCircle } from "phosphor-svelte";
-import { Circle } from "phosphor-svelte";
-import { Desktop } from "phosphor-svelte";
-import { Moon } from "phosphor-svelte";
-import { PaperPlaneRight } from "phosphor-svelte";
-import { Sun } from "phosphor-svelte";
 import { onDestroy, onMount } from "svelte";
 import { toast } from "svelte-sonner";
 import AgentErrorCard from "$lib/acp/components/agent-panel/components/agent-error-card.svelte";
@@ -33,7 +25,7 @@ import {
 	sortProjectsBySessionCount,
 } from "../add-repository/project-discovery.js";
 import ProjectTable from "../add-repository/project-table.svelte";
-import { useTheme } from "$lib/components/theme/index.js";
+import { BrandThemeToggle } from "$lib/components/theme/index.js";
 import { getOnboardingSelectableAgents } from "./onboarding-agent-discovery.js";
 import {
 	AGENT_VENDORS,
@@ -68,7 +60,6 @@ let onboardingPreviewInterval: ReturnType<typeof setInterval> | null = null;
 
 const agentStore = getAgentStore();
 const agentPreferencesStore = getAgentPreferencesStore();
-const themeState = useTheme();
 const ONBOARDING_PREVIEW_REST_FRAMES = 2;
 
 const onboardingPreviewAgents = [
@@ -117,7 +108,7 @@ const onboardingPreviewAgents = [
 				lines: [
 					"- staticToolRows={previewRows}",
 					"+ timeline={canonicalEvents}",
-					"+ title=\"Edit File\"",
+					'+ title="Edit File"',
 				],
 			},
 			{ type: "message", text: "Keeping the component surface small." },
@@ -139,13 +130,7 @@ const onboardingPreviewAgents = [
 		  }
 		| {
 				readonly type: "tool";
-				readonly kind:
-					| "browser"
-					| "edit"
-					| "execute"
-					| "read"
-					| "search"
-					| "task";
+				readonly kind: "browser" | "edit" | "execute" | "read" | "search" | "task";
 				readonly title: string;
 				readonly detail: string;
 		  }
@@ -434,52 +419,13 @@ async function finishOnboarding(): Promise<void> {
 		}
 	);
 }
-
 </script>
 
-<!-- Content layer. Full onboarding page with the brand gradient as the page background. -->
-<div class="onboarding-surface relative z-10 flex min-h-full w-full items-center justify-center overflow-hidden bg-background px-6 py-16">
-	<BrandShaderBackground variant="luminar" fallback="gradient" />
-	<div class="absolute inset-0 bg-background/12"></div>
-	<div class="absolute right-6 top-6 z-20">
-		<Selector
-			align="end"
-			variant="ghost"
-			triggerSize="icon"
-			showChevron={false}
-			tooltipLabel="Theme"
-			triggerAriaLabel="Theme"
-		>
-			{#snippet renderButton()}
-				{#if themeState.theme === "light"}
-					<Sun class="size-4" weight="fill" style="color: #F8F5EE" />
-				{:else if themeState.theme === "dark"}
-					<Moon class="size-4" weight="fill" style="color: #F8F5EE" />
-				{:else}
-					<Desktop class="size-4" weight="fill" style="color: #F8F5EE" />
-				{/if}
-			{/snippet}
-
-			<DropdownMenu.CheckboxItem
-				checked={themeState.theme === "light"}
-				onCheckedChange={(checked) => checked && themeState.setTheme("light")}
-			>
-				Light
-			</DropdownMenu.CheckboxItem>
-			<DropdownMenu.CheckboxItem
-				checked={themeState.theme === "dark"}
-				onCheckedChange={(checked) => checked && themeState.setTheme("dark")}
-			>
-				Dark
-			</DropdownMenu.CheckboxItem>
-			<DropdownMenu.CheckboxItem
-				checked={themeState.theme === "system"}
-				onCheckedChange={(checked) => checked && themeState.setTheme("system")}
-			>
-				System
-			</DropdownMenu.CheckboxItem>
-		</Selector>
-	</div>
+<!-- Content layer. Full onboarding page sharing the brand surface shell. -->
+<BrandSurface variant="luminar" class="onboarding-surface">
+	{#snippet topRight()}
+		<BrandThemeToggle />
+	{/snippet}
 
 	{#key onboardingStep}
 	{#if onboardingStep === "splash"}
@@ -573,7 +519,11 @@ async function finishOnboarding(): Promise<void> {
 													{agent.composer}
 												</span>
 												<span class="ml-auto inline-flex size-3.5 shrink-0 items-center justify-center rounded-[4px] bg-foreground/10 text-muted-foreground">
-													<PaperPlaneRight class="size-2.5" weight="fill" />
+													<RoundedIcon
+														name="paper-plane"
+														class="size-2.5"
+														data-testid="welcome-paper-plane-icon"
+													/>
 												</span>
 											</div>
 										</div>
@@ -593,7 +543,9 @@ async function finishOnboarding(): Promise<void> {
 					onclick={advanceFromSplash}
 				>
 					<span>{"Get started"}</span>
-					<ArrowRight weight="bold" class="onboarding-button-arrow size-4" />
+					<span class="onboarding-button-arrow inline-flex size-4">
+						<RoundedIcon name="arrow-right" class="size-full" data-testid="welcome-arrow-right-icon" />
+					</span>
 				</Button>
 			</div>
 		</div>
@@ -646,9 +598,21 @@ async function finishOnboarding(): Promise<void> {
 								</span>
 							</span>
 							{#if isSelected}
-								<CheckCircle class="agent-choice-indicator text-foreground" weight="fill" />
+								<span class="agent-choice-indicator text-foreground">
+									<RoundedIcon
+										name="check-circle-filled"
+										class="size-full"
+										data-testid="welcome-agent-check-icon"
+									/>
+								</span>
 							{:else}
-								<Circle class="agent-choice-indicator text-muted-foreground/45" weight="regular" />
+								<span class="agent-choice-indicator text-muted-foreground/45">
+									<RoundedIcon
+										name="unselected"
+										class="size-full"
+										data-testid="welcome-agent-unselected-icon"
+									/>
+								</span>
 							{/if}
 						</button>
 					{/each}
@@ -669,7 +633,9 @@ async function finishOnboarding(): Promise<void> {
 						onclick={() => (onboardingStep = "projects")}
 					>
 						<span>{"Continue"}</span>
-						<ArrowRight weight="bold" class="onboarding-button-arrow size-4" />
+						<span class="onboarding-button-arrow inline-flex size-4">
+							<RoundedIcon name="arrow-right" class="size-full" data-testid="welcome-arrow-right-icon" />
+						</span>
 					</Button>
 				</div>
 			</div>
@@ -748,7 +714,9 @@ async function finishOnboarding(): Promise<void> {
 							onclick={() => finishOnboarding()}
 						>
 							<span>{"Start building"}</span>
-							<ArrowRight weight="bold" class="onboarding-button-arrow size-4" />
+							<span class="onboarding-button-arrow inline-flex size-4">
+								<RoundedIcon name="arrow-right" class="size-full" data-testid="welcome-arrow-right-icon" />
+							</span>
 						</Button>
 					</div>
 				</div>
@@ -762,7 +730,7 @@ async function finishOnboarding(): Promise<void> {
 		</div>
 	{/if}
 	{/key}
-</div>
+</BrandSurface>
 
 <style>
 	.onboarding-card {

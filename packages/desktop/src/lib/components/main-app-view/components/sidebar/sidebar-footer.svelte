@@ -1,9 +1,10 @@
 <script lang="ts">
-import { Button } from "@acepe/ui";
+import { Button, DiscordIcon, RoundedIcon, XLogoIcon } from "@acepe/ui";
+import { SidebarUpdateCard, type SidebarUpdateKind } from "@acepe/ui/app-layout";
 import { openUrl } from "@tauri-apps/plugin-opener";
-import { DiscordLogo, GithubLogo } from "phosphor-svelte";
 import { onMount } from "svelte";
 import type { ProjectManager } from "$lib/acp/logic/project-manager.svelte.js";
+import type { UpdaterBannerState } from "../../logic/updater-state.js";
 
 import type { MainAppViewState } from "../../logic/main-app-view-state.svelte.js";
 
@@ -11,9 +12,19 @@ interface Props {
 	state: MainAppViewState;
 	projectManager: ProjectManager;
 	onOpenGitPanel?: (projectPath: string) => void;
+	updaterState?: UpdaterBannerState;
+	onUpdateClick?: () => void;
+	onRetryUpdateClick?: () => void;
 }
 
-let { state: appState, projectManager, onOpenGitPanel }: Props = $props();
+let {
+	state: appState,
+	projectManager,
+	onOpenGitPanel,
+	updaterState,
+	onUpdateClick,
+	onRetryUpdateClick,
+}: Props = $props();
 
 const chromeIconButton = { variant: "ghost" as const, size: "icon-chrome" as const };
 
@@ -35,7 +46,18 @@ const releaseUrl = $derived(
 );
 </script>
 
-<div class="shrink-0 px-2 py-1.5 flex items-center gap-0.5">
+<div class="shrink-0 flex flex-col">
+{#if updateCardKind !== null}
+	<div class="px-2 pt-1.5">
+		<SidebarUpdateCard
+			kind={updateCardKind}
+			version={updateCardVersion}
+			percent={updateCardPercent}
+			onclick={handleUpdateCardClick}
+		/>
+	</div>
+{/if}
+<div class="px-2 py-1.5 flex items-center gap-0.5">
 	<div class="flex items-center gap-0.5">
 		<Button
 			{...chromeIconButton}
@@ -84,4 +106,5 @@ const releaseUrl = $derived(
 			{/snippet}
 		</Button>
 	{/if}
+</div>
 </div>

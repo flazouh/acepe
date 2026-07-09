@@ -1,13 +1,14 @@
 <script lang="ts">
-	import { PencilRuler } from "phosphor-svelte";
+	import RoundedIcon from "./rounded-icon.svelte";
 
 	interface Props {
 		size?: "sm" | "md" | "lg";
 		class?: string;
 		style?: string;
+		"data-testid"?: string;
 	}
 
-	let { size = "md", class: className, style }: Props = $props();
+	let { size = "md", class: className, style, "data-testid": dataTestid }: Props = $props();
 
 	const sizeClasses = {
 		sm: "size-3",
@@ -19,8 +20,9 @@
 <span
 	class="plan-icon-root inline-flex shrink-0 items-center justify-center {sizeClasses[size]} {className ? className : ''}"
 	style={style}
+	data-testid={dataTestid}
 >
-	<PencilRuler class="block size-full max-h-full max-w-full text-current" weight="fill" />
+	<RoundedIcon name="plan" class="block size-full max-h-full max-w-full text-current" />
 </span>
 
 <style>

@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { Check, DotsThree } from "phosphor-svelte";
+	import { RoundedIcon } from "../icons/index.js";
 	import { shouldStopQuestionOtherKey } from "./agent-tool-question-state.js";
 
 	interface Props {
@@ -35,9 +35,9 @@
 <div class="flex items-center gap-2 px-2 py-1.5 rounded-sm bg-muted/50 overflow-hidden">
 	<div class="flex items-center gap-2 w-full">
 		{#if hasText}
-			<Check size={14} class="text-foreground shrink-0" />
+			<RoundedIcon name="check" class="size-3.5 text-foreground shrink-0" />
 		{:else}
-			<DotsThree size={14} weight="bold" class="text-muted-foreground shrink-0" />
+			<RoundedIcon name="more" class="size-3.5 text-muted-foreground shrink-0" />
 		{/if}
 		<input
 			type="text"

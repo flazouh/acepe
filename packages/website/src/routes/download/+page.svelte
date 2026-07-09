@@ -1,9 +1,8 @@
 <script lang="ts">
-import { BrandLockup } from "@acepe/ui";
+import { BrandLockup, RoundedIcon } from "@acepe/ui";
 import Header from "$lib/components/header.svelte";
 import Seo from "$lib/components/seo/seo.svelte";
-import { Download } from "@lucide/svelte";
-import { AppleLogo, GithubLogo } from "phosphor-svelte";
+import AppleIcon from "$lib/components/landing-v2/apple-icon.svelte";
 
 const { data } = $props();
 
@@ -63,13 +62,10 @@ const downloadJsonLd = {
 				class="theme-invert-btn mb-8 flex h-10 w-full max-w-sm items-center justify-center gap-2 rounded-lg text-sm font-medium transition-colors"
 			>
 				{#if downloading}
-					<svg class="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none">
-						<circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2.5" opacity="0.2" />
-						<path d="M12 2a10 10 0 0 1 10 10" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" />
-					</svg>
+					<RoundedIcon name="spinner" class="h-4 w-4 animate-spin" />
 					Downloading...
 				{:else}
-					<Download class="h-4 w-4" />
+					<RoundedIcon name="download" class="h-4 w-4" />
 					{"Download for macOS"}
 				{/if}
 			</a>
@@ -79,7 +75,7 @@ const downloadJsonLd = {
 				<!-- Panel header -->
 				<div class="flex h-9 items-center justify-between border-b border-border/50 px-3">
 					<div class="flex items-center gap-1.5">
-						<AppleLogo weight="fill" class="h-3.5 w-3.5 text-muted-foreground/60" />
+						<AppleIcon class="h-3.5 w-3.5 text-muted-foreground/60" />
 						<span class="font-mono text-xs font-semibold text-foreground">macOS</span>
 					</div>
 					<span class="font-mono text-[10px] text-muted-foreground/50">
@@ -155,7 +151,7 @@ const downloadJsonLd = {
 								rel="noopener noreferrer"
 								class="inline-flex items-center gap-1.5 text-[13px] text-muted-foreground transition-colors hover:text-foreground"
 							>
-								<GithubLogo size={14} weight="fill" />
+								<RoundedIcon name="github" class="size-3.5" />
 								GitHub
 							</a>
 						</li>

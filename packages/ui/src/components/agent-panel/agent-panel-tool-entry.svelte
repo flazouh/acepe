@@ -47,12 +47,12 @@
 		isPlanActionAvailable,
 	}: Props = $props();
 
-	const renderKind = $derived(resolveConversationRenderKind(entry));
-	const durationTiming = $derived<ToolDurationTiming>({
-		startedAtMs: entry.startedAtMs,
-		completedAtMs: entry.completedAtMs,
-		status: entry.status,
-	});
+const renderKind = $derived(resolveConversationRenderKind(entry));
+const durationTiming = $derived<ToolDurationTiming>({
+	startedAtMs: entry.startedAtMs,
+	completedAtMs: entry.completedAtMs,
+	status: entry.status,
+});
 </script>
 
 {#if renderKind === "tool-todo"}

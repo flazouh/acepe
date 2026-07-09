@@ -64,6 +64,11 @@
 			downloadingModelId,
 		})
 	);
+
+	/** Prevent bits-ui MenuItem from synthesizing row select on nested button clicks. */
+	function isolateNestedMenuActionPointer(event: Event): void {
+		event.stopPropagation();
+	}
 </script>
 
 <Selector
@@ -117,7 +122,7 @@
 							percent={downloadPercent}
 							segmentCount={12}
 							showPercent={true}
-							variant="downloadCompact"
+							variant="downloadFillWidth"
 						/>
 					{:else if row.model.isDownloaded}
 						<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->

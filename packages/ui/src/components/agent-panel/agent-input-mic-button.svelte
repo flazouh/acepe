@@ -10,8 +10,6 @@
   - recording: red filled circle with stop square, pulsing glow
 -->
 <script lang="ts">
-	import { Microphone } from "phosphor-svelte";
-
 	import { LoadingIcon } from "../icons/index.js";
 	import { SegmentedProgressBar } from "../segmented-progress-bar/index.js";
 	import { buttonVariants } from "../button/variants.js";
@@ -46,7 +44,6 @@
 		onkeydown,
 	}: Props = $props();
 
-	let isHovered = $state(false);
 	const isRecording = $derived(visualState === "stop");
 	const STOP_RED = "#FF5D5A";
 	const embeddedGroupShellClass = buttonVariants({ variant: "secondary", size: "icon-sm" });
@@ -76,8 +73,6 @@
 	aria-pressed={isRecording}
 	{disabled}
 	{title}
-	onmouseenter={() => (isHovered = true)}
-	onmouseleave={() => (isHovered = false)}
 	{onpointerdown}
 	{onpointerup}
 	{onpointercancel}
@@ -126,8 +121,7 @@
 	}
 	.mic-idle { cursor: pointer; }
 	.mic-idle:hover { color: var(--foreground); }
-	.mic-idle :global(svg) { transition: fill 150ms ease-out; }
-	.mic-idle:hover :global(svg) { fill: currentColor; }
+	.mic-idle :global(svg) { transition: color 150ms ease-out; }
 	.mic-recording { cursor: pointer; }
 	.mic-busy { cursor: default; }
 	.mic-stop-container { width: 22px; height: 22px; }
@@ -165,6 +159,12 @@
 		display: flex;
 		align-items: center;
 		justify-content: center;
+	}
+	.mic-glyph {
+		width: 14px;
+		height: 14px;
+		display: block;
+		color: currentColor;
 	}
 	@keyframes mic-glow-pulse {
 		0%, 100% { box-shadow: 0 0 0 0 rgba(255, 93, 90, 0.0); }

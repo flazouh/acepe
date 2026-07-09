@@ -1,10 +1,18 @@
 import { convertFileSrc } from "@tauri-apps/api/core";
-import type { ResultAsync } from "neverthrow";
+import { Result, type ResultAsync } from "neverthrow";
 import type { ProjectAcepeConfig, ProjectData } from "../../utils/tauri-client/types.js";
 import { tauriClient } from "../../utils/tauri-client.js";
 import { resolveProjectColor } from "@acepe/ui/colors";
 import type { Project } from "./project-manager.svelte.js";
 import { ProjectError } from "./project-manager.svelte.js";
+
+const PROJECTS_HOT_CACHE_KEY = "acepe.projects.hot_cache";
+const PROJECTS_HOT_CACHE_VERSION = 1;
+
+interface ProjectsHotCachePayload {
+	readonly version: number;
+	readonly projects: readonly ProjectData[];
+}
 
 /**
  * Converts a filesystem icon path to a Tauri asset:// URL.
@@ -30,6 +38,148 @@ export function convertIconPath(iconPath: string | null | undefined): string | n
 export function normalizeProjectIconUpdatePath(iconPath: string | null): string | null {
 	return iconPath === "" ? null : iconPath;
 }
+
+const readProjectsHotCacheItem = Result.fromThrowable(
+	(): string | null => {
+		if (typeof localStorage === "undefined") {
+			return null;
+		}
+		return localStorage.getItem(PROJECTS_HOT_CACHE_KEY);
+	},
+	() => null
+);
+
+const writeProjectsHotCacheItem = Result.fromThrowable(
+	(projects: readonly ProjectData[]): void => {
+		if (typeof localStorage === "undefined") {
+			return;
+		}
+		const payload: ProjectsHotCachePayload = {
+			version: PROJECTS_HOT_CACHE_VERSION,
+			projects,
+		};
+		localStorage.setItem(PROJECTS_HOT_CACHE_KEY, JSON.stringify(payload));
+	},
+	() => undefined
+);
+
+const removeProjectsHotCacheItem = Result.fromThrowable(
+	(): void => {
+		if (typeof localStorage === "undefined") {
+			return;
+		}
+		localStorage.removeItem(PROJECTS_HOT_CACHE_KEY);
+	},
+	() => undefined
+);
+
+function normalizeOptionalString(value: string | null | undefined): string | null | undefined {
+	if (value === null) {
+		return null;
+	}
+	return typeof value === "string" ? value : undefined;
+}
+
+function normalizeOptionalDateString(value: string | null | undefined): string | undefined {
+	return typeof value === "string" ? value : undefined;
+}
+
+function normalizeOptionalBoolean(value: boolean | undefined): boolean | undefined {
+	return typeof value === "boolean" ? value : undefined;
+}
+
+function normalizeCachedProject(project: ProjectData): ProjectData | null {
+	if (
+		typeof project.path !== "string" ||
+		typeof project.name !== "string" ||
+		typeof project.created_at !== "string" ||
+		typeof project.color !== "string" ||
+		typeof project.sort_order !== "number"
+	) {
+		return null;
+	}
+
+	return {
+		path: project.path,
+		name: project.name,
+		last_opened: normalizeOptionalDateString(project.last_opened),
+		created_at: project.created_at,
+		color: project.color,
+		sort_order: project.sort_order,
+		icon_path: normalizeOptionalString(project.icon_path),
+		show_external_cli_sessions: normalizeOptionalBoolean(project.show_external_cli_sessions),
+	};
+}
+
+function normalizeCachedProjects(projects: readonly ProjectData[]): ProjectData[] | null {
+	const normalizedProjects: ProjectData[] = [];
+	for (const project of projects) {
+		const normalizedProject = normalizeCachedProject(project);
+		if (normalizedProject === null) {
+			return null;
+		}
+		normalizedProjects.push(normalizedProject);
+	}
+	return normalizedProjects;
+}
+
+const parseProjectsHotCache = Result.fromThrowable(
+	(stored: string): ProjectData[] | null => {
+		const parsed = JSON.parse(stored) as ProjectsHotCachePayload;
+		if (
+			!parsed ||
+			parsed.version !== PROJECTS_HOT_CACHE_VERSION ||
+			!Array.isArray(parsed.projects)
+		) {
+			return null;
+		}
+		return normalizeCachedProjects(parsed.projects);
+	},
+	() => null
+);
+
+function readProjectsHotCache(): ProjectData[] | null {
+	const cachedItemResult = readProjectsHotCacheItem();
+	const cachedItem = cachedItemResult.isOk() ? cachedItemResult.value : null;
+	if (cachedItem === null) {
+		return null;
+	}
+
+	const parsedResult = parseProjectsHotCache(cachedItem);
+	if (parsedResult.isOk() && parsedResult.value !== null) {
+		return parsedResult.value;
+	}
+
+	removeProjectsHotCacheItem();
+	return null;
+}
+
+function writeProjectsHotCache(projects: readonly ProjectData[]): void {
+	writeProjectsHotCacheItem(projects);
+}
+
+function projectDateToStorageString(date: Date): string {
+	return date.toISOString();
+}
+
+function projectToCachedProjectData(project: Project): ProjectData {
+	return {
+		path: project.path,
+		name: project.name,
+		last_opened: project.lastOpened ? projectDateToStorageString(project.lastOpened) : undefined,
+		created_at: projectDateToStorageString(project.createdAt),
+		color: project.color,
+		sort_order: project.sortOrder ?? 0,
+		icon_path: project.iconPath ?? null,
+		show_external_cli_sessions: project.showExternalCliSessions,
+	};
+}
+
+const buildProjectsHotCacheData = Result.fromThrowable(
+	(projects: readonly Project[]): ProjectData[] =>
+		projects.map((project) => projectToCachedProjectData(project)),
+	() => null
+);
 
 /**
  * Client for communicating with Tauri backend for project operations.
@@ -67,6 +217,22 @@ export class ProjectClient {
 					)
 			)
 			.map((projects) => projects.map((project) => this.mapProject(project)));
+	}
+
+	getCachedProjects(): Project[] | null {
+		const cachedProjects = readProjectsHotCache();
+		if (cachedProjects === null) {
+			return null;
+		}
+		return cachedProjects.map((project) => this.mapProject(project));
+	}
+
+	writeCachedProjects(projects: readonly Project[]): void {
+		const cachedProjectsResult = buildProjectsHotCacheData(projects);
+		if (cachedProjectsResult.isErr()) {
+			return;
+		}
+		writeProjectsHotCache(cachedProjectsResult.value);
 	}
 
 	/**

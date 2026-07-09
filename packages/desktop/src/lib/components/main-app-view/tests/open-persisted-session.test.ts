@@ -48,6 +48,7 @@ function waitForTimerTurn(): Promise<void> {
 describe("openPersistedSession", () => {
 	let sessionStore: SessionOpenStore;
 	let sessionOpenHydrator: SessionOpenHydratorLike;
+	let refreshCanonicalSessionStateMock: ReturnType<typeof mock>;
 
 	function setSessionLookup(session: TestSessionLookup): void {
 		sessionStore.read.getSessionCold = mock(() => session);
@@ -76,6 +77,7 @@ describe("openPersistedSession", () => {
 		resetOpenPersistedSessionForTests();
 		getSessionOpenResultMock.mockReset();
 		getSessionOpenResultMock.mockImplementation(() => okAsync(createFoundResult("session-1")));
+		refreshCanonicalSessionStateMock = mock(() => okAsync(undefined));
 
 		sessionStore = {
 			read: {
@@ -118,6 +120,14 @@ describe("openPersistedSession", () => {
 			),
 			isCurrentAttempt: mock(() => true),
 		};
+	});
+
+	afterEach(() => {
+		if (restoreReconnectPaintDelay === null) {
+			return;
+		}
+		restoreReconnectPaintDelay();
+		restoreReconnectPaintDelay = null;
 	});
 
 	it("dedupes concurrent calls for the same panel", async () => {
@@ -209,6 +219,219 @@ describe("openPersistedSession", () => {
 		expect(sessionStore.loading.setSessionLoaded).toHaveBeenCalledWith("session-1");
 		expect(sessionOpenHydrator.clearAttempt).toHaveBeenCalledWith("panel-1");
 		expect(sessionStore.connection.connectSession).not.toHaveBeenCalled();
+	});
+
+	it("uses the immediate hydrator result when no panel hydrate is queued", async () => {
+		sessionOpenHydrator.hydrateFoundNow = mock(() =>
+			ok({
+				canonicalSessionId: "session-1",
+				openToken: "open-token-1",
+				applied: true,
+			})
+		);
+
+		openPersistedSession({
+			panelId: "panel-1",
+			sessionId: "session-1",
+			sessionStore,
+			sessionOpenHydrator,
+			getSessionOpenResult: getSessionOpenResultMock,
+			timeoutMs: 10_000,
+			source: "session-handler",
+		});
+
+		await new Promise((resolve) => setTimeout(resolve, 0));
+		expect(sessionOpenHydrator.hydrateFoundNow).toHaveBeenCalledWith(
+			"panel-1",
+			"request-1",
+			expect.objectContaining({
+				outcome: "found",
+				canonicalSessionId: "session-1",
+			})
+		);
+		expect(sessionOpenHydrator.hydrateFound).not.toHaveBeenCalled();
+		expect(sessionStore.loading.setSessionLoaded).toHaveBeenCalledWith("session-1");
+		expect(sessionOpenHydrator.clearAttempt).toHaveBeenCalledWith("panel-1");
+	});
+
+	it("hydrates a prepared open result synchronously without fetching again", () => {
+		const preparedOpenResult = createFoundResult("session-1");
+		sessionOpenHydrator.hydrateFoundNow = mock(() =>
+			ok({
+				canonicalSessionId: "session-1",
+				openToken: "open-token-1",
+				applied: true,
+			})
+		);
+
+		openPersistedSession({
+			panelId: "panel-1",
+			sessionId: "session-1",
+			sessionStore,
+			sessionOpenHydrator,
+			getSessionOpenResult: getSessionOpenResultMock,
+			preparedOpenResult,
+			timeoutMs: 10_000,
+			source: "session-handler",
+		});
+
+		expect(getSessionOpenResultMock).not.toHaveBeenCalled();
+		expect(sessionOpenHydrator.hydrateFoundNow).toHaveBeenCalledWith(
+			"panel-1",
+			"request-1",
+			preparedOpenResult
+		);
+		expect(sessionStore.loading.setSessionLoaded).toHaveBeenCalledWith("session-1");
+		expect(sessionOpenHydrator.clearAttempt).toHaveBeenCalledWith("panel-1");
+	});
+
+	it("ignores a found result when the target panel became stale", async () => {
+		let resolveOpenResult: (result: SessionOpenResult) => void = () => {};
+		let panelCurrent = true;
+		const events: OpenPersistedSessionDiagnosticEvent[] = [];
+		const restoreRecorder = setOpenPersistedSessionDiagnosticRecorder((event) => {
+			events.push(event);
+		});
+		getSessionOpenResultMock.mockImplementation(() =>
+			ResultAsync.fromSafePromise(
+				new Promise<SessionOpenResult>((resolve) => {
+					resolveOpenResult = resolve;
+				})
+			)
+		);
+
+		openPersistedSession({
+			panelId: "panel-1",
+			sessionId: "session-1",
+			sessionStore,
+			sessionOpenHydrator,
+			getSessionOpenResult: getSessionOpenResultMock,
+			isPanelCurrent: () => panelCurrent,
+			timeoutMs: 10_000,
+			source: "initialization-manager",
+		});
+		panelCurrent = false;
+		resolveOpenResult(createFoundResult("session-1"));
+
+		await waitForTimerTurn();
+		restoreRecorder();
+
+		expect(sessionOpenHydrator.hydrateFound).not.toHaveBeenCalled();
+		expect(sessionOpenHydrator.clearAttempt).toHaveBeenCalledWith("panel-1");
+		expect(sessionStore.loading.setSessionLoaded).toHaveBeenCalledWith("session-1");
+		expect(events.some((event) => event.stage === "stale-panel")).toBe(true);
+	});
+
+	it("records diagnostic stages for a successful persisted-session open", async () => {
+		const events: OpenPersistedSessionDiagnosticEvent[] = [];
+		const restoreRecorder = setOpenPersistedSessionDiagnosticRecorder((event) => {
+			events.push(event);
+		});
+		getSessionOpenResultMock.mockImplementation(() =>
+			okAsync(
+				createFoundResult("session-1", {
+					openResultTiming: {
+						source: "provider-owned-snapshot",
+						openPath: "legacy_rebuild",
+						ledgerProbeStatus: "missing",
+						contextMs: 2,
+						providerLoadMs: 120,
+						ledgerTailReadMs: 0,
+						ledgerJournalCutoffMs: 0,
+						ledgerPageReadMs: 0,
+						ledgerHeaderDecodeMs: 0,
+						ledgerRowsDecodeMs: 0,
+						ledgerResultBuildMs: 0,
+						runtimeLookupMs: 1,
+						assembleMs: 1400,
+						restoreAuthorityMs: 90,
+						compactMs: 35,
+						localJournalFallbackMs: 0,
+						totalMs: 1648,
+						transcriptEntryCount: 5349,
+						operationCount: 406,
+					},
+					initialTranscriptRowPage: {
+						projectionVersion: "transcript_viewport_row:v5",
+						startRowIndex: 5221,
+						totalRowCount: 5349,
+						rowPayloadBytes: 4096,
+						transcriptRevision: 1,
+						graphRevision: 1,
+						lastEventSeq: 1,
+						rows: [],
+					},
+					initialViewportEnvelope: {
+						sessionId: "session-1",
+						graphRevision: 1,
+						lastEventSeq: 1,
+						payload: {
+							kind: "viewportBufferPush",
+							push: {
+								sessionId: "session-1",
+								graphRevision: {
+									graphRevision: 1,
+									transcriptRevision: 1,
+									lastEventSeq: 1,
+								},
+								emissionSeq: 0,
+								rows: [],
+								requestGeneration: null,
+								diagnostics: [],
+							},
+						},
+					},
+				})
+			)
+		);
+
+		openPersistedSession({
+			panelId: "panel-1",
+			sessionId: "session-1",
+			sessionStore,
+			sessionOpenHydrator,
+			getSessionOpenResult: getSessionOpenResultMock,
+			timeoutMs: 10_000,
+			source: "session-handler",
+		});
+
+		await new Promise((resolve) => setTimeout(resolve, 0));
+		await new Promise((resolve) => setTimeout(resolve, 0));
+		restoreRecorder();
+
+		expect(events.map((event) => event.stage)).toContain("started");
+		expect(events.map((event) => event.stage)).toContain("request-started");
+		expect(events.map((event) => event.stage)).toContain("result-found");
+		expect(events.map((event) => event.stage)).toContain("hydrated");
+		expect(events.map((event) => event.stage)).toContain("finished");
+		const foundEvent = events.find((event) => event.stage === "result-found");
+		expect(foundEvent?.canonicalSessionId).toBe("session-1");
+		expect(foundEvent?.hasInitialViewportEnvelope).toBe(true);
+		expect(foundEvent?.initialRowPageRowCount).toBe(0);
+		expect(foundEvent?.initialRowPageTotalRowCount).toBe(5349);
+		expect(foundEvent?.initialRowPageStartRowIndex).toBe(5221);
+		expect(foundEvent?.initialRowPagePayloadBytes).toBe(4096);
+			expect(foundEvent?.openResultTiming).toEqual({
+				source: "provider-owned-snapshot",
+				openPath: "legacy_rebuild",
+				ledgerProbeStatus: "missing",
+				contextMs: 2,
+				providerLoadMs: 120,
+				ledgerTailReadMs: 0,
+				ledgerJournalCutoffMs: 0,
+			ledgerPageReadMs: 0,
+			ledgerHeaderDecodeMs: 0,
+			ledgerRowsDecodeMs: 0,
+			ledgerResultBuildMs: 0,
+			runtimeLookupMs: 1,
+			assembleMs: 1400,
+			restoreAuthorityMs: 90,
+			compactMs: 35,
+			localJournalFallbackMs: 0,
+			totalMs: 1648,
+			transcriptEntryCount: 5349,
+			operationCount: 406,
+		});
 	});
 
 	it("uses the immediate hydrator result when no panel hydrate is queued", async () => {

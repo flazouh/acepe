@@ -5,7 +5,7 @@ import type { CommandPaletteState } from "../../types/command-palette-state.js";
 
 import { CommandPaletteManager } from "../command-palette-manager.js";
 
-// Mock icon to avoid loading @tabler/icons-svelte (has ESM resolution issues in Bun test)
+// Mock icon shape; the manager only needs a component reference here.
 const mockIcon = {} as import("svelte").ComponentType;
 
 describe("CommandPaletteManager", () => {

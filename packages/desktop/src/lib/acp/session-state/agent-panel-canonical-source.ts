@@ -10,6 +10,7 @@ export type AgentPanelCanonicalSource = Pick<
 	| "operations"
 	| "interactions"
 	| "turnState"
+	| "messageCount"
 	| "activeStreamingTail"
 	| "lastTerminalTurnId"
 	| "lifecycle"
@@ -28,6 +29,7 @@ export function agentPanelCanonicalSourceFromGraph(
 		operations: graph.operations,
 		interactions: graph.interactions,
 		turnState: graph.turnState,
+		messageCount: graph.messageCount,
 		activeStreamingTail: graph.activeStreamingTail,
 		lastTerminalTurnId: graph.lastTerminalTurnId,
 		lifecycle: graph.lifecycle,

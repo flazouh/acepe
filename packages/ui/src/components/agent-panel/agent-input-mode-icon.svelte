@@ -1,14 +1,5 @@
 <script lang="ts">
-	import {
-		ChatCircle,
-		ListChecks,
-		PencilSimple,
-		Question,
-		Robot,
-		SealQuestion,
-		ShieldCheck,
-	} from "phosphor-svelte";
-
+	import { RobotIcon, RoundedIcon } from "../icons/index.js";
 	import { getModeIconColor, type ModeIconKind } from "./agent-input-mode-selector-state.js";
 
 	interface Props {
@@ -24,19 +15,19 @@
 </script>
 
 {#if iconKind === "agent"}
-	<Robot class={className} weight={iconWeight} style={iconStyle} />
+	<RobotIcon class={className} weight={iconWeight} style={iconStyle} />
 {:else if iconKind === "plan"}
-	<ListChecks class={className} weight={iconWeight} style={iconStyle} />
+	<RoundedIcon name="tasks" class={className} style={iconStyle} />
 {:else if iconKind === "autonomous"}
-	<ShieldCheck class={className} weight={iconWeight} style={iconStyle} />
+	<RoundedIcon name="shield-check" class={className} style={iconStyle} />
 {:else if iconKind === "bypass"}
-	<ShieldCheck class={className} weight={iconWeight} style={iconStyle} />
+	<RoundedIcon name="shield-check" class={className} style={iconStyle} />
 {:else if iconKind === "ask"}
-	<ChatCircle class={className} weight={iconWeight} style={iconStyle} />
+	<RoundedIcon name="chat" class={className} style={iconStyle} />
 {:else if iconKind === "edit"}
-	<PencilSimple class={className} weight={iconWeight} style={iconStyle} />
+	<RoundedIcon name="edit" class={className} style={iconStyle} />
 {:else if iconKind === "review"}
-	<SealQuestion class={className} weight={iconWeight} style={iconStyle} />
+	<RoundedIcon name="review" class={className} style={iconStyle} />
 {:else}
-	<Question class={className} weight={iconWeight} style={iconStyle} />
+	<RoundedIcon name="question" class={className} style={iconStyle} />
 {/if}

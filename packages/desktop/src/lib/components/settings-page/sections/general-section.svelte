@@ -118,10 +118,6 @@ async function handleResetDatabase() {
 	size="form"
 	onOpenChange={(open) => (showResetConfirm = open)}
 >
-	{#snippet topLeft()}
-		<span class="truncate text-[11px] font-semibold text-foreground select-none">Reset Database?</span>
-	{/snippet}
-
 	<div class="px-3 py-3">
 		<p class="text-[12px] text-muted-foreground">
 			This will permanently delete the local SQLite database containing all your projects, API keys,
@@ -131,8 +127,8 @@ async function handleResetDatabase() {
 	</div>
 
 	{#snippet footer()}
-		<Button variant="header" size="header" onclick={() => (showResetConfirm = false)}>Cancel</Button>
-		<Button variant="destructive" size="header" onclick={handleResetDatabase}>
+		<Button variant="outline" size="sm" onclick={() => (showResetConfirm = false)}>Cancel</Button>
+		<Button variant="destructive" size="sm" onclick={handleResetDatabase}>
 			Reset Database
 		</Button>
 	{/snippet}

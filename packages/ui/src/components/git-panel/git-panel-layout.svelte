@@ -19,6 +19,7 @@
 	import GitStashList from "./git-stash-list.svelte";
 	import GitLogList from "./git-log-list.svelte";
 	import { SegmentedToggleGroup } from "../panel-header/index.js";
+	import { RoundedIcon } from "../icons/index.js";
 
 	type ViewTab = "status" | "history" | "stash";
 
@@ -70,7 +71,7 @@
 		/** Currently selected file path (for highlighting) */
 		selectedFile?: string;
 
-		/** Base path for file-type SVG icons (e.g. "/svgs/icons"). Falls back to Phosphor icons if omitted. */
+		/** Base path for file-type SVG icons (e.g. "/svgs/icons"). Falls back to local file icons if omitted. */
 		iconBasePath?: string;
 		class?: string;
 	}
@@ -111,10 +112,14 @@
 		class: className,
 	}: Props = $props();
 
-	const views: { value: ViewTab; label: string; icon: typeof GitDiff }[] = [
-		{ value: "status", label: "Status", icon: GitDiff },
-		{ value: "history", label: "History", icon: ClockCounterClockwise },
-		{ value: "stash", label: "Stash", icon: Package },
+	const views: {
+		value: ViewTab;
+		label: string;
+		roundedIcon: "git-diff" | "history" | "archive";
+	}[] = [
+		{ value: "status", label: "Status", roundedIcon: "git-diff" },
+		{ value: "history", label: "History", roundedIcon: "history" },
+		{ value: "stash", label: "Stash", roundedIcon: "archive" },
 	];
 </script>
 
@@ -135,7 +140,7 @@
 			{#snippet itemContent(item)}
 				{@const view = views.find((candidate) => candidate.value === item.id)}
 				{#if view}
-					<view.icon size={12} weight="bold" />
+					<RoundedIcon name={view.roundedIcon} class="size-3" data-testid={`git-panel-${view.value}-rounded-icon`} />
 				{/if}
 				{item.label}
 				{#if item.id === "stash" && stashEntries.length > 0}

@@ -78,6 +78,7 @@
 						{#if !hideProjectBadge && tab.projectName && tab.projectColor}
 							<ProjectLetterBadge
 								name={tab.projectName}
+								label={tab.projectBadgeLabel ?? null}
 								color={tab.projectColor}
 								iconSrc={tab.projectIconSrc}
 								sequenceId={tab.sequenceId}
@@ -103,11 +104,11 @@
 						<!-- 3. Status indicator -->
 						{#if tab.status === 'error'}
 							<span class="shrink-0 w-4 h-4 flex items-center justify-center">
-								<IconAlertTriangle class="size-3 text-destructive" />
+								<RoundedIcon name="warning" class="size-3 text-destructive" />
 							</span>
 						{:else if tab.status === 'question'}
 							<span class="shrink-0 w-4 h-4 flex items-center justify-center">
-								<HandPalm class="size-3 text-primary" weight="fill" />
+								<RoundedIcon name="hand" class="size-3 text-primary" data-testid="app-tab-question-icon" />
 							</span>
 						{:else if tab.status === 'done'}
 							<span class="h-2 w-2 rounded-full shrink-0 bg-success"></span>

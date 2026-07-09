@@ -104,11 +104,13 @@ const setModel = vi.fn();
 const setConfigOption = vi.fn();
 const stopStreaming = vi.fn();
 const fetchCanonicalSessionStateEnvelope = vi.fn();
+const fetchSessionConnectionReadiness = vi.fn();
 
 vi.mock("../api.js", () => ({
 	api: {
 		closeSession,
 		fetchCanonicalSessionStateEnvelope,
+		fetchSessionConnectionReadiness,
 		newSession,
 		resumeSession,
 		setMode,
@@ -414,6 +416,7 @@ describe("SessionConnectionManager.connectSession", () => {
 		(connectionManager.isConnecting as ReturnType<typeof vi.fn>).mockReturnValue(false);
 		ensureLoaded.mockReturnValue(okAsync(undefined));
 		fetchCanonicalSessionStateEnvelope.mockReturnValue(errAsync(new Error("not polled")));
+		fetchSessionConnectionReadiness.mockReturnValue(errAsync(new Error("not polled")));
 		isSessionModelLoaded.mockReturnValue(true);
 		getCachedModelsDisplay.mockReturnValue(null);
 		getCachedProviderMetadata.mockReturnValue(undefined);
@@ -1148,14 +1151,35 @@ describe("SessionConnectionManager.connectSession", () => {
 			},
 		});
 		fetchCanonicalSessionStateEnvelope.mockReturnValue(okAsync(envelope));
+		if (envelope.payload.kind !== "snapshot") {
+			throw new Error("expected snapshot envelope");
+		}
+		fetchSessionConnectionReadiness.mockReturnValue(
+			okAsync({
+				graphRevision: 7,
+				lifecycle: envelope.payload.graph.lifecycle,
+				capabilities: envelope.payload.graph.capabilities,
+			})
+		);
 		const eventHandler = createMockEventHandler();
 
 		const result = await manager.connectSession(sessionId, eventHandler);
 		result._unsafeUnwrap();
 
+		expect(fetchSessionConnectionReadiness).toHaveBeenCalledWith(sessionId);
+		expect(fetchCanonicalSessionStateEnvelope).toHaveBeenCalledTimes(1);
 		expect(fetchCanonicalSessionStateEnvelope).toHaveBeenCalledWith(sessionId);
 		expect(eventHandler.applySessionStateEnvelope).toHaveBeenCalledWith(sessionId, envelope);
 		expect(connectionManager.setConnecting).toHaveBeenLastCalledWith(sessionId, false);
+	});
+
+	it("keeps the readiness fallback deadline aligned with the connection watchdog", async () => {
+		const modulePath = "./session-connection-manager.js?timeout-invariant" as string;
+		const module = (await import(modulePath)) as typeof import("./session-connection-manager.js");
+
+		expect(module.SESSION_CONNECTION_READINESS_RECONCILE_TIMEOUT_MS).toBe(
+			module.SESSION_CONNECTION_WATCHDOG_TIMEOUT_MS
+		);
 	});
 
 	it("passes the session open token through reconnect", async () => {

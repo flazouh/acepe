@@ -2,6 +2,7 @@
 import {
 	GitViewer,
 	LoadingIcon,
+	RoundedIcon,
 } from "@acepe/ui";
 import { ArrowsClockwise } from "phosphor-svelte";
 import { WarningCircle } from "phosphor-svelte";

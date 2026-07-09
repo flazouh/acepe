@@ -18,6 +18,11 @@
 	}
 
 	let { class: className, leading, primary, overflow }: Props = $props();
+
+	const leadingSegmentClass = cn(
+		buttonVariants({ variant: "secondary", size: "sm" }),
+		"pointer-events-none rounded-none rounded-l-md shadow-none"
+	);
 </script>
 
 <ButtonGroup class={className}>

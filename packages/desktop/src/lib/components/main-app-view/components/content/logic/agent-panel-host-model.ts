@@ -19,9 +19,6 @@ export interface AgentPanelHostModel {
 	readonly project: Project | null;
 	readonly selectedAgentId: string | null;
 	readonly isWaitingForSession: boolean;
-	readonly reviewMode: boolean;
-	readonly reviewFilesState: PanelHotState["reviewFilesState"];
-	readonly reviewFileIndex: number;
 }
 
 export function buildAgentPanelHostModel(input: AgentPanelHostModelInput): AgentPanelHostModel {
@@ -35,9 +32,6 @@ export function buildAgentPanelHostModel(input: AgentPanelHostModelInput): Agent
 			availableAgents: input.availableAgents,
 		}),
 		isWaitingForSession: input.panel.sessionId !== null && input.sessionIdentity === undefined,
-		reviewMode: input.hotState?.reviewMode ?? false,
-		reviewFilesState: input.hotState?.reviewFilesState ?? null,
-		reviewFileIndex: input.hotState?.reviewFileIndex ?? 0,
 	};
 }
 

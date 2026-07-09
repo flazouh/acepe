@@ -3,12 +3,10 @@
   Used by config-option composer controls. Model-variant picker uses FusedPrimaryOverflowGroup directly.
 -->
 <script lang="ts">
-	import { Brain } from "phosphor-svelte";
 	import type { Snippet } from "svelte";
 
 	import { Selector } from "../selector/index.js";
 	import {
-		REASONING_EFFORT_BRAIN_ICON_CLASS,
 		REASONING_EFFORT_SELECTOR_SIDE_OFFSET,
 		REASONING_EFFORT_SELECTOR_TRIGGER_SIZE,
 		REASONING_EFFORT_SELECTOR_VARIANT,

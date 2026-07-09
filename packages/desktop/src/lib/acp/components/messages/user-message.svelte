@@ -1,7 +1,6 @@
 <script lang="ts">
 import { RichTokenText } from "@acepe/ui/rich-token-text";
-import { useSessionContext } from "../../hooks/use-session-context.js";
-import { getPanelStore } from "../../store/index.js";
+import { getPanelStore, type OpenProjectFileSystemDialogOptions } from "../../store/index.js";
 import type { UserMessage } from "../../types/user-message.js";
 import MessageInputContainer from "../message-input-container.svelte";
 import CommandOutputCard from "./command-output-card.svelte";
@@ -17,8 +16,6 @@ let {
 	projectPath?: string;
 } = $props();
 
-const sessionContext = useSessionContext();
-const ownerPanelId = $derived(sessionContext?.panelId);
 const projectPath = $derived(propProjectPath);
 const panelStore = getPanelStore();
 const messageState = $derived(buildUserMessageDisplayState(message));
@@ -26,13 +23,14 @@ const messageState = $derived(buildUserMessageDisplayState(message));
 function handleTokenClick(tokenType: string, value: string) {
 	if ((tokenType === "file" || tokenType === "image") && projectPath) {
 		const fileReference = resolveProjectFileReference(value, projectPath);
-		panelStore.openFilePanel(fileReference.filePath, projectPath, {
-			ownerPanelId,
-			...(fileReference.targetLine !== undefined ? { targetLine: fileReference.targetLine } : {}),
-			...(fileReference.targetColumn !== undefined
-				? { targetColumn: fileReference.targetColumn }
-				: {}),
-		});
+		const dialogOptions: OpenProjectFileSystemDialogOptions = {};
+		if (fileReference.targetLine !== undefined) {
+			dialogOptions.targetLine = fileReference.targetLine;
+		}
+		if (fileReference.targetColumn !== undefined) {
+			dialogOptions.targetColumn = fileReference.targetColumn;
+		}
+		panelStore.openProjectFileSystemDialog(projectPath, fileReference.filePath, dialogOptions);
 	}
 }
 </script>

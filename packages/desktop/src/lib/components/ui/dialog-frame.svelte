@@ -11,7 +11,9 @@ const CHROME_ICON_CLOSE_CLASS =
 interface Props {
 	open?: boolean;
 	title: string;
-	children: Snippet;
+	children?: Snippet;
+	frameContent?: Snippet<[DialogFrameContentContext]>;
+	titleLeading?: Snippet;
 	topLeft?: Snippet;
 	topRight?: Snippet;
 	footer?: Snippet;
@@ -42,12 +44,16 @@ let {
 	open = $bindable(false),
 	title,
 	children,
+	frameContent,
+	titleLeading,
 	topLeft,
 	topRight,
 	footer,
 	contentClass = "",
 	contentOverflow = "auto",
 	closeLabel = "Close dialog",
+	headerIconSize = "icon",
+	showTitle = true,
 	size = "default",
 	portalDisabled = false,
 	hideHeader = false,
@@ -91,6 +97,8 @@ const isAutoHeight = $derived(
 
 const shellClass = $derived(isAutoHeight ? "flex flex-col" : "flex h-full min-h-0 flex-col");
 
+const rendersVisibleTitle = $derived(!hideHeader && showTitle);
+
 const bodyClass = $derived(
 	size === "palette" || size === "palette-lg"
 		? "overflow-hidden p-0"
@@ -107,6 +115,16 @@ function handleOpenChange(nextOpen: boolean): void {
 }
 </script>
 
+{#snippet closeControl()}
+	<Dialog.Close
+		aria-label={closeLabel}
+		class={getDialogHeaderIconCloseClass(headerIconSize)}
+		data-header-control
+	>
+		<RoundedIcon name="close" />
+	</Dialog.Close>
+{/snippet}
+
 <Dialog.Root {open} onOpenChange={handleOpenChange}>
 	<Dialog.Content
 		bind:ref={contentRef}
@@ -115,11 +133,27 @@ function handleOpenChange(nextOpen: boolean): void {
 		portalProps={portalDisabled ? { disabled: true } : undefined}
 		onOpenAutoFocus={onOpenAutoFocus}
 	>
-		<Dialog.Title class="sr-only">{title}</Dialog.Title>
+		{#if !rendersVisibleTitle}
+			<Dialog.Title class="sr-only">{title}</Dialog.Title>
+		{/if}
 		<div class={shellClass}>
 			{#if !hideHeader}
-				<div class="flex min-h-6 shrink-0 items-center gap-2 px-1 pt-1">
+				<div
+					class="flex min-h-8 shrink-0 items-center gap-2 px-2 py-1"
+					data-dialog-frame-header
+				>
 					<div class="flex min-w-0 flex-1 items-center gap-1.5">
+						{#if titleLeading}
+							{@render titleLeading()}
+						{/if}
+						{#if showTitle}
+							<Dialog.Title
+								class="min-w-0 truncate text-[11px] font-semibold leading-none text-foreground select-none"
+								data-dialog-frame-title
+							>
+								{title}
+							</Dialog.Title>
+						{/if}
 						{#if topLeft}
 							{@render topLeft()}
 						{/if}
@@ -138,9 +172,6 @@ function handleOpenChange(nextOpen: boolean): void {
 					</Dialog.Close>
 				</div>
 			{/if}
-			<div class={bodyClass}>
-				{@render children()}
-			</div>
 			{#if footer}
 				<div
 					class="flex shrink-0 items-center justify-end gap-1.5 border-t border-border/30 px-2 py-1.5"

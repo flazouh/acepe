@@ -4,7 +4,11 @@ import { toast } from "svelte-sonner";
 import { tauriClient } from "$lib/utils/tauri-client.js";
 
 import type { ModifiedFilesState } from "../../../types/modified-files-state.js";
-import type { ReviewDiffDensity } from "../../modified-files/components/review-diff-view-state.svelte.js";
+import type {
+	DiffViewStyle,
+	ReviewDiffDensity,
+	ReviewDiffOptions,
+} from "../../modified-files/components/review-diff-view-state.svelte.js";
 import AgentPanelReviewContent from "./agent-panel-review-content.svelte";
 import type { ReviewControlsSnapshot } from "./agent-panel-review-content-types.js";
 import { buildReviewWorkspaceFilesFromSessionState } from "./review-workspace-model.js";
@@ -24,6 +28,8 @@ interface Props {
 	compact?: boolean;
 	flat?: boolean;
 	diffDensity?: ReviewDiffDensity;
+	diffStyle?: DiffViewStyle;
+	diffOptions?: ReviewDiffOptions;
 	hideBottomWidget?: boolean;
 	onControlsChange?: (controls: ReviewControlsSnapshot | null) => void;
 }
@@ -41,6 +47,8 @@ let {
 	compact = false,
 	flat = false,
 	diffDensity = "default",
+	diffStyle = "unified",
+	diffOptions,
 	hideBottomWidget = false,
 	onControlsChange,
 }: Props = $props();
@@ -62,7 +70,9 @@ function handleFileRevert(displayIndex: number): void {
 }
 
 const reviewWorkspaceSelectedIndex = $derived.by(() => {
-	const displayIndex = reviewWorkspaceFiles.findIndex((file) => file.sourceIndex === selectedFileIndex);
+	const displayIndex = reviewWorkspaceFiles.findIndex(
+		(file) => file.sourceIndex === selectedFileIndex
+	);
 	if (displayIndex >= 0) {
 		return displayIndex;
 	}
@@ -108,6 +118,8 @@ function handleWorkspaceFileSelect(displayIndex: number): void {
 			{projectPath}
 			{isActive}
 			{diffDensity}
+			{diffStyle}
+			{diffOptions}
 			{onClose}
 			{onFileIndexChange}
 			{onControlsChange}

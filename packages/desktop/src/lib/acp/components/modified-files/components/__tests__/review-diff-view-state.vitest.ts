@@ -1,17 +1,8 @@
-import {
-	type DiffLineAnnotation,
-	type FileContents,
-	type FileDiffMetadata,
-	parseDiffFromFile,
-} from "@pierre/diffs";
+import { type FileContents, type FileDiffMetadata, parseDiffFromFile } from "@pierre/diffs";
 import { describe, expect, it, vi } from "vitest";
 
 vi.mock("$lib/acp/utils/worker-pool-singleton.js", () => ({
 	getWorkerPool: (): undefined => undefined,
-}));
-
-vi.mock("../diff-hunk-action-buttons.svelte", () => ({
-	default: class MockDiffHunkActionButtons {},
 }));
 
 type ReviewDiffData = {
@@ -22,7 +13,6 @@ type ReviewDiffData = {
 
 type RenderArgs = {
 	fileDiff: FileDiffMetadata;
-	lineAnnotations?: DiffLineAnnotation<{ hunkIndex: number }>[];
 };
 
 function createMultiHunkDiffData(): ReviewDiffData {
@@ -81,7 +71,7 @@ function createMultiHunkDiffData(): ReviewDiffData {
 	};
 }
 
-async function setupState(opts?: { withHunkAction?: boolean }) {
+async function setupState() {
 	const { ReviewDiffViewState } = await import("../review-diff-view-state.svelte.js");
 	const state = new ReviewDiffViewState();
 	const diffData = createMultiHunkDiffData();
@@ -97,24 +87,30 @@ async function setupState(opts?: { withHunkAction?: boolean }) {
 	Reflect.set(state, "containerElement", document.createElement("div"));
 	Reflect.set(state, "fileDiffInstance", fakeFileDiffInstance);
 
-	if (opts?.withHunkAction) {
-		// Wire a no-op onHunkAction so buildLineAnnotationsFromHunks runs
-		Reflect.set(state, "onHunkAction", () => {});
-	}
-
 	return { state, diffData, lastRenderArgs: () => lastRenderArgs };
 }
 
-describe("ReviewDiffViewState", () => {
-	it("keeps accepted-hunk metadata structured-cloneable for worker postMessage", async () => {
+describe("ReviewDiffViewState (read-only renderer)", () => {
+	it("re-renders the given metadata on updateDiff without mutating it", async () => {
 		const { state, diffData, lastRenderArgs } = await setupState();
 
 		expect(diffData.fileDiffMetadata.hunks.length).toBeGreaterThanOrEqual(2);
 
-		const nextDiff = state.applyHunkAction(1, "accept");
+		state.updateDiff(diffData);
 
-		expect(nextDiff).not.toBeNull();
-		expect(lastRenderArgs()).not.toBeNull();
+		const rendered = lastRenderArgs();
+		expect(rendered).not.toBeNull();
+		// The diff must still render its change lines (green/red), never collapse.
+		expect(rendered?.fileDiff.hunks.some((hunk) =>
+			hunk.hunkContent.some((content) => content.type === "change")
+		)).toBe(true);
+	}, 20_000);
+
+	it("keeps rendered metadata structured-cloneable for worker postMessage", async () => {
+		const { state, diffData, lastRenderArgs } = await setupState();
+
+		state.updateDiff(diffData);
+
 		expect(() => structuredClone(lastRenderArgs()?.fileDiff)).not.toThrow();
 	}, 20_000);
 
@@ -182,48 +178,6 @@ describe("ReviewDiffViewState", () => {
 		const { ReviewDiffViewState } = await import("../review-diff-view-state.svelte.js");
 		const state = new ReviewDiffViewState();
 
-		// No currentDiffData, fileDiffInstance, or containerElement set
-		const result = state.applyHunkAction(0, "accept");
-		expect(result).toBeNull();
-
-		const stats = state.getHunkStats();
-		expect(stats.accepted).toBe(0);
-		expect(stats.rejected).toBe(0);
-	}, 20_000);
-
-	it("accepts every pending hunk when accepting the whole file", async () => {
-		const { state } = await setupState();
-		const acceptedHunks: number[] = [];
-
-		Reflect.set(
-			state,
-			"onHunkAction",
-			(hunkIndex: number, action: "accept" | "reject", _oldContent: string) => {
-				if (action === "accept") {
-					acceptedHunks.push(hunkIndex);
-				}
-				state.applyHunkAction(hunkIndex, action);
-			}
-		);
-		Reflect.set(state, "totalHunksAtInit", 2);
-		Reflect.set(state, "lineAnnotations", [
-			{ metadata: { hunkIndex: 0 } },
-			{ metadata: { hunkIndex: 1 } },
-		]);
-
-		const result = state.acceptAllPendingHunks();
-
-		expect(result).toEqual([
-			{ hunkIndex: 0, oldContent: "line-02\n" },
-			{ hunkIndex: 1, oldContent: "line-15\n" },
-		]);
-		expect(acceptedHunks).toEqual([0, 1]);
-		expect(state.getPendingHunkIndices()).toEqual([]);
-		expect(state.getHunkStats()).toEqual({
-			total: 2,
-			pending: 0,
-			accepted: 2,
-			rejected: 0,
-		});
+		expect(() => state.updateDiff(createMultiHunkDiffData())).not.toThrow();
 	}, 20_000);
 });

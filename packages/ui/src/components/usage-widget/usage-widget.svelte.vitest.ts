@@ -1,4 +1,10 @@
-import { cleanup, fireEvent, render, screen } from "@testing-library/svelte";
+import {
+	cleanup,
+	fireEvent,
+	render,
+	screen,
+	waitFor,
+} from "@testing-library/svelte";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import UsageLimitWidget from "./usage-widget.svelte";
@@ -10,7 +16,7 @@ vi.mock("svelte", async () => {
 	const require = createRequire(import.meta.url);
 	const svelteClientPath = join(
 		dirname(require.resolve("svelte/package.json")),
-		"src/index-client.js"
+		"src/index-client.js",
 	);
 
 	return import(/* @vite-ignore */ svelteClientPath);
@@ -76,28 +82,86 @@ const model: UsageWidgetModel = {
 };
 
 describe("UsageLimitWidget", () => {
+	async function openUsagePanel(): Promise<void> {
+		const trigger = screen.getByRole("button", { name: "AI usage" });
+		await fireEvent.pointerDown(trigger);
+		await waitFor(() => {
+			expect(
+				document.querySelector("[data-usage-widget-panel]"),
+			).not.toBeNull();
+		});
+	}
+
+	function waitForDismissLayer(): Promise<void> {
+		return new Promise((resolve) => {
+			setTimeout(resolve, 20);
+		});
+	}
+
 	it("opens the provider usage panel from the trigger", async () => {
 		const { container } = render(UsageLimitWidget, { model });
 
-		expect(container.querySelector('[data-usage-widget-trigger] .an-root')?.textContent).toContain(
-			"27%"
+		const triggerMeter = container.querySelector(
+			'[data-usage-widget-trigger] [role="progressbar"]',
 		);
+		expect(triggerMeter?.getAttribute("aria-valuenow")).toBe("27");
+		expect(triggerMeter?.querySelector("div")?.className).toContain(
+			"bg-success",
+		);
+		expect(
+			container
+				.querySelector(
+					"[data-usage-widget-trigger] [data-usage-agent-icon] img",
+				)
+				?.getAttribute("src"),
+		).toBe("/svgs/agents/codex/codex-icon.svg");
+		expect(
+			container.querySelector(
+				"[data-usage-widget-trigger] [data-usage-meter-label]",
+			),
+		).toBeNull();
 
-		await fireEvent.click(screen.getByRole("button", { name: "AI usage" }));
+		await openUsagePanel();
 
 		expect(screen.queryByRole("heading", { name: "Usage" })).toBeNull();
 		expect(screen.getByText("Codex")).toBeTruthy();
-		expect(screen.getByRole("progressbar", { name: "Session" }).getAttribute("aria-valuenow")).toBe(
-			"27"
-		);
+		expect(screen.getByText("73% left")).toBeTruthy();
+		expect(
+			document
+				.querySelector("[data-usage-widget-panel] [data-usage-meter-label]")
+				?.textContent?.trim(),
+		).toBe("SSN");
+		expect(
+			document.querySelectorAll(
+				'[data-usage-widget-panel] [role="progressbar"]',
+			).length,
+		).toBe(1);
 	});
 
 	it("refreshes account usage when the panel opens", async () => {
 		const onRefresh = vi.fn();
 		render(UsageLimitWidget, { model, onRefresh });
 
-		await fireEvent.click(screen.getByRole("button", { name: "AI usage" }));
+		await openUsagePanel();
 
 		expect(onRefresh).toHaveBeenCalledTimes(1);
+	});
+
+	it("closes the provider usage panel when clicking outside", async () => {
+		render(UsageLimitWidget, { model });
+
+		await openUsagePanel();
+		await waitForDismissLayer();
+
+		await fireEvent.pointerDown(document.body, {
+			button: 0,
+			clientX: 999,
+			clientY: 999,
+			pointerType: "mouse",
+		});
+
+		await waitFor(() => {
+			expect(document.querySelector("[data-usage-widget-panel]")).toBeNull();
+		});
 	});
 });

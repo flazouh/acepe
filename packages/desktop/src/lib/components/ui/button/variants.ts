@@ -4,8 +4,8 @@ import { SoundEffect } from "$lib/acp/types/sounds.js";
 import type { WithElementRef } from "$lib/utils.js";
 
 export const buttonVariants = tv({
-	base: "inline-flex shrink-0 cursor-pointer items-center justify-center gap-2 rounded-md text-sm font-medium whitespace-nowrap transition-all outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:pointer-events-none disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
-	variants: {
+	base: "inline-flex shrink-0 cursor-pointer items-center justify-center gap-2 rounded-md text-sm font-medium whitespace-nowrap transition-all outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:pointer-events-none disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_img]:shrink-0",
+		variants: {
 		variant: {
 			default: "bg-primary text-primary-foreground hover:bg-primary/90",
 			destructive:
@@ -33,6 +33,14 @@ export const buttonVariants = tv({
 		variant: "default",
 		size: "default",
 	},
+	compoundVariants: [
+		{
+			variant: "ghost",
+			size: "icon",
+			class:
+				"text-muted-foreground hover:text-foreground focus-visible:text-foreground [&_svg]:text-muted-foreground [&_svg]:transition-colors [&_svg_*]:text-muted-foreground [&_svg_*]:transition-colors hover:[&_svg]:text-foreground hover:[&_svg_*]:text-foreground focus-visible:[&_svg]:text-foreground focus-visible:[&_svg_*]:text-foreground",
+		},
+	],
 });
 
 export type ButtonVariant = VariantProps<typeof buttonVariants>["variant"];

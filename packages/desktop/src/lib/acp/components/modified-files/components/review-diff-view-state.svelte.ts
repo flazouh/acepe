@@ -1,21 +1,18 @@
 import {
-	type DiffLineAnnotation,
-	diffAcceptRejectHunk,
 	type FileContents,
 	FileDiff,
 	type FileDiffMetadata,
+	type FileDiffOptions,
+	type LineDiffTypes,
 	parseDiffFromFile,
 } from "@pierre/diffs";
 import { ResultAsync } from "neverthrow";
-import { mount, unmount } from "svelte";
 
 import {
 	buildPierreDiffOptions,
 	ensurePierreThemeRegistered,
 } from "../../../utils/pierre-rendering.js";
 import { getWorkerPool } from "../../../utils/worker-pool-singleton.js";
-import { computeRevertedFileContent } from "../logic/compute-reverted-file-content.js";
-import DiffHunkActionButtons from "./diff-hunk-action-buttons.svelte";
 
 /**
  * Diff view style options.
@@ -23,21 +20,12 @@ import DiffHunkActionButtons from "./diff-hunk-action-buttons.svelte";
 export type DiffViewStyle = "split" | "unified";
 export type ReviewDiffDensity = "default" | "compact" | "comfortable";
 
-/**
- * Callback for accept/reject hunk actions.
- * @param hunkIndex - The index of the hunk being acted upon
- * @param action - The action to perform
- * @param hunkOldContent - The old content of the hunk (deletions) for revert operations
- */
-export type HunkActionCallback = (
-	hunkIndex: number,
-	action: "accept" | "reject",
-	hunkOldContent: string
-) => void;
-
-export type ResolvedReviewHunkAction = {
-	readonly hunkIndex: number;
-	readonly action: "accept" | "reject";
+export const DEFAULT_REVIEW_DIFF_OPTIONS: ReviewDiffOptions = {
+	indicatorStyle: "bars",
+	lineChangeStyle: "word",
+	showBackgrounds: true,
+	wrapLines: true,
+	showLineNumbers: true,
 };
 
 const compactReviewDiffUnsafeCSS = `
@@ -71,12 +59,24 @@ function resolveReviewDiffUnsafeCSS(density: ReviewDiffDensity): string {
 	return "";
 }
 
-/**
- * Metadata for line annotations used in accept/reject UI.
- */
-type AnnotationMetadata = {
-	hunkIndex: number;
-};
+function resolveReviewDiffOptionOverrides(
+	diffStyle: DiffViewStyle,
+	options: ReviewDiffOptions
+): Partial<FileDiffOptions<ReviewLineAnnotation>> {
+	return {
+		diffStyle,
+		diffIndicators: options.indicatorStyle,
+		lineDiffType: resolvePierreLineDiffType(options.lineChangeStyle),
+		disableBackground: !options.showBackgrounds,
+		overflow: options.wrapLines ? "wrap" : "scroll",
+		disableLineNumbers: !options.showLineNumbers,
+	};
+}
+
+function resolveReviewDiffUnsafeCSS(density: ReviewDiffDensity): string {
+	if (density === "compact") return compactReviewDiffUnsafeCSS;
+	return "";
+}
 
 type LegacyContextContent = {
 	type: "context";
@@ -109,31 +109,8 @@ type CompatibleHunk = FileDiffMetadata["hunks"][number] & {
 	additionLineIndex?: number;
 };
 
-function getLinesForRange(lines: string[], startIndex: number, count: number): string[] {
-	return lines.slice(startIndex, startIndex + count);
-}
-
 function getContentLineCount(lines: string[] | number): number {
 	return Array.isArray(lines) ? lines.length : lines;
-}
-
-function getLegacyDeletionLines(fileDiffMetadata: CompatibleFileDiffMetadata): string[] {
-	return fileDiffMetadata.deletionLines ?? [];
-}
-
-function getChangeDeletionLines(
-	fileDiffMetadata: CompatibleFileDiffMetadata,
-	content: CompatibleHunkContent
-): string[] {
-	if (content.type !== "change") {
-		return [];
-	}
-
-	return getLinesForRange(
-		getLegacyDeletionLines(fileDiffMetadata),
-		content.deletionLineIndex,
-		content.deletions
-	);
 }
 
 function isLineRangeRenderable(
@@ -236,17 +213,16 @@ export type ReviewDiffData = {
 };
 
 /**
- * State manager for the review drawer diff view.
+ * State manager for the review modal diff view.
  *
- * Extends the edit tool diff view with:
- * - Full file rendering with expandable hunks (hunkSeparators: 'line-info')
- * - Uses FileDiffMetadata for optimized rendering
+ * A pure read-only renderer: renders the change (green/red lines) with full file
+ * rendering and expandable hunks. No per-hunk accept/reject affordances.
  */
 export class ReviewDiffViewState {
 	/**
 	 * The FileDiff instance for rendering diffs.
 	 */
-	private fileDiffInstance: FileDiff<AnnotationMetadata> | null = $state(null);
+	private fileDiffInstance: FileDiff<ReviewLineAnnotation> | null = $state(null);
 
 	/**
 	 * The container element where the diff is rendered.
@@ -264,24 +240,14 @@ export class ReviewDiffViewState {
 	diffStyle: DiffViewStyle = $state("unified");
 
 	/**
-	 * Reference to the mounted header controls component for cleanup.
+	 * The current diff styling options.
 	 */
-	private headerControlsComponent: ReturnType<typeof mount> | null = $state(null);
-
-	/**
-	 * References to mounted annotation button components for cleanup.
-	 */
-	private annotationComponents: ReturnType<typeof mount>[] = $state([]);
+	diffOptions: ReviewDiffOptions = $state(DEFAULT_REVIEW_DIFF_OPTIONS);
 
 	/**
 	 * The current theme type (dark or light).
 	 */
 	themeType: "dark" | "light" = $state("dark");
-
-	/**
-	 * Flag indicating whether this instance has been disposed.
-	 */
-	private isDisposed = $state(false);
 
 	/**
 	 * Monotonically increasing counter — incremented at the start of each
@@ -335,21 +301,21 @@ export class ReviewDiffViewState {
 	 *
 	 * @param diffData - The diff data with pre-parsed FileDiffMetadata
 	 * @param container - The container element to render into
-	 * @param onStyleChange - Optional callback when diff style changes via header toggle
+	 * @param density - Diff density (default or compact)
+	 * @param diffStyle - Diff layout style (unified or split)
+	 * @param diffOptions - Diff styling controls
 	 */
 	async initializeDiff(
 		diffData: ReviewDiffData,
 		container: HTMLElement,
-		_onStyleChange?: (style: DiffViewStyle) => void,
-		onHunkAction?: HunkActionCallback,
 		density: ReviewDiffDensity = "default",
-		initialResolvedActions: ReadonlyArray<ResolvedReviewHunkAction> = []
+		diffStyle: DiffViewStyle = this.diffStyle,
+		diffOptions: ReviewDiffOptions = this.diffOptions
 	): Promise<void> {
 		// Claim this generation before the async pause so we can detect if a
 		// newer call starts while we are awaiting theme registration.
 		const generation = ++this.initGeneration;
 
-		this.onHunkAction = onHunkAction ?? null;
 		// Ensure theme is registered and AWAIT completion before rendering
 		const themeResult = await ResultAsync.fromPromise(
 			ensurePierreThemeRegistered(),
@@ -369,8 +335,7 @@ export class ReviewDiffViewState {
 			);
 		}
 
-		// Clean up existing instances
-		this.cleanupAnnotationComponents();
+		// Clean up existing instance
 		if (this.fileDiffInstance) {
 			this.fileDiffInstance.cleanUp();
 			this.fileDiffInstance = null;
@@ -427,38 +392,27 @@ export class ReviewDiffViewState {
 		this.acceptedHunkIndices = acceptedHunkIndicesAtInit;
 		this.containerElement = container;
 		this.currentDiffData = renderableDiffData;
-		this.totalHunksAtInit = totalHunksAtInit;
-		this.acceptedCount = acceptedCountAtInit;
-		this.rejectedCount = rejectedCountAtInit;
-		this.activeHunkIndex = null;
-
-		// Build line annotations for accept/reject UI on each change hunk
-		this.lineAnnotations = this.onHunkAction
-			? this.buildLineAnnotationsFromHunks(renderableDiffData.fileDiffMetadata)
-			: [];
+		this.diffStyle = diffStyle;
+		this.diffOptions = diffOptions;
 
 		// Create FileDiff instance with full file rendering options
-		this.fileDiffInstance = new FileDiff<AnnotationMetadata>(
+		this.fileDiffInstance = new FileDiff<ReviewLineAnnotation>(
 			Object.assign(
-				buildPierreDiffOptions<AnnotationMetadata>(
+				buildPierreDiffOptions(
 					this.themeType,
 					this.diffStyle,
-					"wrap",
-					false,
+					diffOptions.wrapLines ? "wrap" : "scroll",
+					!diffOptions.showLineNumbers,
 					resolveReviewDiffUnsafeCSS(density)
 				),
+				resolveReviewDiffOptionOverrides(this.diffStyle, diffOptions),
 				{
 					// Use native line-info separator (no custom buttons)
-					// Don't expand all unchanged by default - let user click to expand
-					// Lines revealed per click when expanding collapsed regions
-					expansionLineCount: 100,
+					// Review needs complete file context, including trailing unchanged lines.
+					expandUnchanged: true,
+					expansionLineCount: REVIEW_DIFF_EXPAND_ALL_LINE_COUNT,
 					enableLineSelection: false,
 					enableHoverUtility: false,
-					// Render accept/reject buttons via annotations
-					renderAnnotation: this.onHunkAction
-						? (annotation: DiffLineAnnotation<AnnotationMetadata>) =>
-								this.createAnnotationElement(annotation)
-						: undefined,
 				}
 			),
 			getWorkerPool()
@@ -469,9 +423,23 @@ export class ReviewDiffViewState {
 			this.fileDiffInstance.render({
 				fileDiff: renderableDiffData.fileDiffMetadata,
 				containerWrapper: container,
-				lineAnnotations: this.lineAnnotations,
 			});
 		}
+	}
+
+	private rerenderWithCurrentOptions(): void {
+		if (!this.fileDiffInstance || !this.containerElement || !this.currentDiffData) {
+			return;
+		}
+
+		this.fileDiffInstance.setOptions(
+			Object.assign(
+				{},
+				this.fileDiffInstance.options,
+				resolveReviewDiffOptionOverrides(this.diffStyle, this.diffOptions)
+			)
+		);
+		this.fileDiffInstance.rerender();
 	}
 
 	/**
@@ -496,18 +464,16 @@ export class ReviewDiffViewState {
 	 * Changes the diff view style and re-renders.
 	 */
 	setDiffStyle(style: DiffViewStyle): void {
-		if (!this.fileDiffInstance || !this.containerElement || !this.currentDiffData) {
-			return;
-		}
-
 		this.diffStyle = style;
+		this.rerenderWithCurrentOptions();
+	}
 
-		this.fileDiffInstance.setOptions(
-			Object.assign({}, this.fileDiffInstance.options, {
-				diffStyle: style,
-			})
-		);
-		this.fileDiffInstance.rerender();
+	/**
+	 * Changes diff styling options and re-renders.
+	 */
+	setDiffOptions(options: ReviewDiffOptions): void {
+		this.diffOptions = options;
+		this.rerenderWithCurrentOptions();
 	}
 
 	/**
@@ -917,38 +883,9 @@ export class ReviewDiffViewState {
 	}
 
 	/**
-	 * Returns hunk statistics for the current file.
-	 */
-	getHunkStats(): { total: number; pending: number; accepted: number; rejected: number } {
-		const pending = this.lineAnnotations.length;
-		return {
-			total: this.totalHunksAtInit,
-			pending,
-			accepted: this.acceptedCount,
-			rejected: this.rejectedCount,
-		};
-	}
-
-	/**
-	 * Unmounts all annotation components.
-	 */
-	private cleanupAnnotationComponents(): void {
-		for (const component of this.annotationComponents) {
-			unmount(component);
-		}
-		this.annotationComponents = [];
-	}
-
-	/**
-	 * Cleans up the FileDiff instance and unmounts all mounted components.
+	 * Cleans up the FileDiff instance.
 	 */
 	cleanup(): void {
-		this.isDisposed = true;
-		this.cleanupAnnotationComponents();
-		if (this.headerControlsComponent) {
-			unmount(this.headerControlsComponent);
-			this.headerControlsComponent = null;
-		}
 		if (this.fileDiffInstance) {
 			this.fileDiffInstance.cleanUp();
 			this.fileDiffInstance = null;

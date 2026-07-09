@@ -2,6 +2,7 @@
 	import type { Snippet } from "svelte";
 
 	import { cn } from "../../lib/utils.js";
+	import AgentPanelContentColumnFrame from "./agent-panel-content-column-frame.svelte";
 
 	interface Props {
 		centered?: boolean;
@@ -20,13 +21,14 @@
 	}: Props = $props();
 </script>
 
-<div
-	class={cn("shrink-0 px-2 pb-2", centered && "flex justify-center", className)}
+<AgentPanelContentColumnFrame
+	{centered}
+	{widthClass}
+	class={cn("pb-2", className)}
+	{innerClass}
 	data-input-area
 >
-	<div class={cn(centered && "w-full", centered && widthClass, innerClass)}>
-		{#if children}
-			{@render children()}
-		{/if}
-	</div>
-</div>
+	{#if children}
+		{@render children()}
+	{/if}
+</AgentPanelContentColumnFrame>

@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { CaretDown, CaretRight } from "phosphor-svelte";
+	import { RoundedIcon } from "../icons/index.js";
 	import AgentInputSlashCommandRow from "./agent-input-slash-command-row.svelte";
 	import type { AttachMenuCommandItem, AttachMenuMcpConnectionStatus } from "./agent-input-attach-menu-state.js";
 

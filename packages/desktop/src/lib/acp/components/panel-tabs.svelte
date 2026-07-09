@@ -101,7 +101,7 @@ function getProjectInfo(panel: PanelTabInfo): {
 								onClosePanel(panel.id);
 							}}
 						>
-							<IconX class="h-3 w-3" />
+							<RoundedIcon name="close" class="h-3 w-3" />
 							<span class="sr-only">{"Close"}</span>
 						</button>
 					</Button>

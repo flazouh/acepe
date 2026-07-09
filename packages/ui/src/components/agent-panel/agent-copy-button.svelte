@@ -1,15 +1,13 @@
 <script lang="ts">
-	import { IconCheck } from "@tabler/icons-svelte";
-	import { Copy } from "phosphor-svelte";
-
 	import { Button } from "../button/index.js";
+	import { RoundedIcon } from "../icons/index.js";
 
 	interface Props {
 		text: string;
 		/** Tooltip when idle / after copy. */
 		title?: string;
 		copiedTitle?: string;
-		/** `header` matches embedded panel header icon buttons (`size-5`). */
+		/** `header` matches embedded panel header icon buttons (`icon-sm`). */
 		size?: "message" | "header";
 		/** Extra classes appended to the button (tone, rounding, border, …). */
 		class?: string;
@@ -26,7 +24,8 @@
 	let copied = $state(false);
 
 	const tooltip = $derived(copied ? copiedTitle : title);
-	const iconSize = $derived(size === "header" ? 12 : 13);
+	const iconSize = $derived(size === "header" ? null : 13);
+	const iconStyle = $derived(iconSize === null ? undefined : `width: ${iconSize}px; height: ${iconSize}px;`);
 
 	function clearCopiedSoon(): void {
 		setTimeout(() => {
@@ -61,9 +60,9 @@
 	>
 		{#snippet children()}
 			{#if copied}
-				<IconCheck size={iconSize} stroke={2} />
+				<RoundedIcon name="check" />
 			{:else}
-				<Copy size={iconSize} weight="fill" />
+				<RoundedIcon name="copy" />
 			{/if}
 		{/snippet}
 	</Button>
@@ -75,9 +74,9 @@
 		onclick={handleCopy}
 	>
 		{#if copied}
-			<IconCheck size={iconSize} stroke={2} />
+			<RoundedIcon name="check" class="shrink-0" style={iconStyle} />
 		{:else}
-			<Copy size={iconSize} weight="fill" />
+			<RoundedIcon name="copy" class="shrink-0" style={iconStyle} />
 		{/if}
 	</button>
 {/if}

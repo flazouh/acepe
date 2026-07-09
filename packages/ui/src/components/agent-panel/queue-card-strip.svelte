@@ -99,8 +99,8 @@
 
 							<div class="flex items-center gap-1 shrink-0" role="none">
 								<Button
-									variant="headerAction"
-									size="headerAction"
+									variant="secondary"
+									size="xs"
 									aria-label={cancelLabel}
 									title={cancelLabel}
 									onclick={() => onCancel(message.id)}
@@ -108,8 +108,8 @@
 									{cancelLabel}
 								</Button>
 								<Button
-									variant="invert"
-									size="headerAction"
+									variant="default"
+									size="xs"
 									aria-label={sendLabel}
 									title={sendLabel}
 									onclick={() => onSendNow(message.id)}
@@ -133,11 +133,11 @@
 
 			<div class="flex items-center gap-1 shrink-0" role="none">
 				{#if isPaused && onResume}
-					<Button variant="headerAction" size="headerAction" onclick={onResume}>
+					<Button variant="secondary" size="xs" onclick={onResume}>
 						{resumeLabel}
 					</Button>
 				{/if}
-				<Button variant="headerAction" size="headerAction" onclick={onClear}>
+				<Button variant="secondary" size="xs" onclick={onClear}>
 					{clearLabel}
 				</Button>
 			</div>

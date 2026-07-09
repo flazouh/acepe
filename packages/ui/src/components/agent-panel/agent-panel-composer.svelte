@@ -121,9 +121,10 @@
 		<div class="flex items-center gap-1 px-2">
 			{#each visibleActions as action (action.id)}
 				<Button
-					variant={action.destructive ? "destructive" : "headerAction"}
-					size="headerAction"
+					variant={action.destructive ? "destructive" : "secondary"}
+					size="xs"
 					disabled={actionDisabled(action)}
+					aria-label={resolveActionLabel(action)}
 					title={action.description ?? undefined}
 					onclick={() => runAction(action)}
 				>

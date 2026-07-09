@@ -2,7 +2,7 @@
 	import { CaretDown } from "phosphor-svelte";
 	import type { Snippet } from "svelte";
 
-	import { LoadingIcon } from "../icons/index.js";
+	import { LoadingIcon, RoundedIcon } from "../icons/index.js";
 
 	const SEGMENT_COUNT = 20;
 	const segmentIndexes = Array.from({ length: SEGMENT_COUNT }, (_, index) => index);

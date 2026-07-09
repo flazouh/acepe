@@ -3,7 +3,7 @@
 //! This module provides a single entry point, [`translate_cc_sdk_message`], that converts
 //! a single cc-sdk protocol message into zero or more Acepe session update events.
 
-use std::collections::{HashMap, VecDeque};
+use std::collections::{HashMap, HashSet, VecDeque};
 
 use super::{get_parser, AgentType};
 use crate::acp::session_update::{
@@ -20,16 +20,34 @@ use crate::cc_sdk::{self as cc_sdk, Message};
 pub struct CcSdkTurnStreamState {
     pub saw_text_delta: bool,
     pub saw_thinking_delta: bool,
+    text_delta_lineages: HashSet<StreamLineageKey>,
+    thinking_delta_lineages: HashSet<StreamLineageKey>,
     /// Model ID extracted from `message_start` stream events or `Assistant` messages.
     pub model_id: Option<String>,
     /// content_block_start index -> (tool_use_id, tool_name) for streamed tool input deltas.
     pub stream_tool_blocks: HashMap<u64, (String, String)>,
+    stream_tool_blocks_by_lineage: HashMap<StreamToolBlockKey, (String, String)>,
     /// Pending non-question tool calls that should be settled when Claude resumes a turn.
     pub pending_tool_calls: VecDeque<PendingToolCallState>,
     /// True after Claude reports stop_reason=tool_use and before the next message_start arrives.
     pub awaiting_tool_turn_resume: bool,
     /// True after an Assistant message already emitted the terminal provider error for this turn.
     pub saw_terminal_assistant_error: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+struct StreamLineageKey(Option<String>);
+
+impl StreamLineageKey {
+    fn from_parent(parent_tool_use_id: &Option<String>) -> Self {
+        Self(parent_tool_use_id.clone())
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+struct StreamToolBlockKey {
+    lineage: StreamLineageKey,
+    index: u64,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -78,6 +96,109 @@ pub fn resolve_pending_tool_call(stream_state: &mut CcSdkTurnStreamState, tool_c
     stream_state
         .pending_tool_calls
         .retain(|pending_tool_call| pending_tool_call.tool_call_id != tool_call_id);
+}
+
+fn saw_text_delta_for(
+    stream_state: &CcSdkTurnStreamState,
+    parent_tool_use_id: &Option<String>,
+) -> bool {
+    if parent_tool_use_id.is_none() {
+        return stream_state.saw_text_delta;
+    }
+    stream_state
+        .text_delta_lineages
+        .contains(&StreamLineageKey::from_parent(parent_tool_use_id))
+}
+
+fn saw_thinking_delta_for(
+    stream_state: &CcSdkTurnStreamState,
+    parent_tool_use_id: &Option<String>,
+) -> bool {
+    if parent_tool_use_id.is_none() {
+        return stream_state.saw_thinking_delta;
+    }
+    stream_state
+        .thinking_delta_lineages
+        .contains(&StreamLineageKey::from_parent(parent_tool_use_id))
+}
+
+fn mark_text_delta(stream_state: &mut CcSdkTurnStreamState, parent_tool_use_id: &Option<String>) {
+    if parent_tool_use_id.is_none() {
+        stream_state.saw_text_delta = true;
+        return;
+    }
+    stream_state
+        .text_delta_lineages
+        .insert(StreamLineageKey::from_parent(parent_tool_use_id));
+}
+
+fn mark_thinking_delta(
+    stream_state: &mut CcSdkTurnStreamState,
+    parent_tool_use_id: &Option<String>,
+) {
+    if parent_tool_use_id.is_none() {
+        stream_state.saw_thinking_delta = true;
+        return;
+    }
+    stream_state
+        .thinking_delta_lineages
+        .insert(StreamLineageKey::from_parent(parent_tool_use_id));
+}
+
+fn insert_stream_tool_block(
+    stream_state: &mut CcSdkTurnStreamState,
+    parent_tool_use_id: &Option<String>,
+    index: u64,
+    tool_call_id: String,
+    tool_name: String,
+) {
+    if parent_tool_use_id.is_none() {
+        stream_state
+            .stream_tool_blocks
+            .insert(index, (tool_call_id, tool_name));
+        return;
+    }
+    stream_state.stream_tool_blocks_by_lineage.insert(
+        StreamToolBlockKey {
+            lineage: StreamLineageKey::from_parent(parent_tool_use_id),
+            index,
+        },
+        (tool_call_id, tool_name),
+    );
+}
+
+fn stream_tool_block(
+    stream_state: &CcSdkTurnStreamState,
+    parent_tool_use_id: &Option<String>,
+    index: u64,
+) -> Option<(String, String)> {
+    if parent_tool_use_id.is_none() {
+        return stream_state.stream_tool_blocks.get(&index).cloned();
+    }
+    stream_state
+        .stream_tool_blocks_by_lineage
+        .get(&StreamToolBlockKey {
+            lineage: StreamLineageKey::from_parent(parent_tool_use_id),
+            index,
+        })
+        .cloned()
+}
+
+fn remove_stream_tool_block(
+    stream_state: &mut CcSdkTurnStreamState,
+    parent_tool_use_id: &Option<String>,
+    index: u64,
+) {
+    if parent_tool_use_id.is_none() {
+        stream_state.stream_tool_blocks.remove(&index);
+        return;
+    }
+    stream_state
+        .stream_tool_blocks_by_lineage
+        .remove(&StreamToolBlockKey {
+            lineage: StreamLineageKey::from_parent(parent_tool_use_id),
+            index,
+        });
 }
 
 fn take_synthetic_tool_completions_for_resumed_tool_turn(
@@ -228,7 +349,7 @@ fn translate_assistant(
             // Prefer stream deltas when present, but fall back to final Assistant blocks
             // when the SDK emits only the completed assistant message for a turn.
             cc_sdk::ContentBlock::Text(text) => {
-                if stream_state.saw_text_delta {
+                if saw_text_delta_for(stream_state, &parent_tool_use_id) {
                     continue;
                 }
 
@@ -239,13 +360,14 @@ fn translate_assistant(
                     },
                     part_id: None,
                     message_id: None,
+                    parent_tool_use_id: parent_tool_use_id.clone(),
                     session_id: session_id.clone(),
                     produced_at_monotonic_ms: None,
                 });
             }
 
             cc_sdk::ContentBlock::Thinking(thinking) => {
-                if stream_state.saw_thinking_delta {
+                if saw_thinking_delta_for(stream_state, &parent_tool_use_id) {
                     continue;
                 }
 
@@ -258,6 +380,7 @@ fn translate_assistant(
                     },
                     part_id: None,
                     message_id: None,
+                    parent_tool_use_id: parent_tool_use_id.clone(),
                     session_id: session_id.clone(),
                 });
             }
@@ -499,9 +622,13 @@ fn translate_stream_event(
                 None
             };
             if let Some(index) = event.get("index").and_then(|v| v.as_u64()) {
-                stream_state
-                    .stream_tool_blocks
-                    .insert(index, (id.clone(), name.clone()));
+                insert_stream_tool_block(
+                    stream_state,
+                    &parent_tool_use_id,
+                    index,
+                    id.clone(),
+                    name.clone(),
+                );
             }
             let tool_call = ToolCallData {
                 id,
@@ -546,7 +673,7 @@ fn translate_stream_event(
 
             match delta_type {
                 "text_delta" => {
-                    stream_state.saw_text_delta = true;
+                    mark_text_delta(stream_state, &parent_tool_use_id);
                     let text = match delta.get("text").and_then(|v| v.as_str()) {
                         Some(t) => t.to_string(),
                         None => return vec![],
@@ -558,13 +685,14 @@ fn translate_stream_event(
                         },
                         part_id: None,
                         message_id: None,
+                        parent_tool_use_id,
                         session_id,
                         produced_at_monotonic_ms: None,
                     }]
                 }
 
                 "thinking_delta" => {
-                    stream_state.saw_thinking_delta = true;
+                    mark_thinking_delta(stream_state, &parent_tool_use_id);
                     let thinking = match delta.get("thinking").and_then(|v| v.as_str()) {
                         Some(t) => t.to_string(),
                         None => return vec![],
@@ -576,6 +704,7 @@ fn translate_stream_event(
                         },
                         part_id: None,
                         message_id: None,
+                        parent_tool_use_id,
                         session_id,
                     }]
                 }
@@ -590,10 +719,8 @@ fn translate_stream_event(
                         None => return vec![],
                     };
                     let (tool_call_id, tool_name) =
-                        match stream_state.stream_tool_blocks.get(&index) {
-                            Some((tool_call_id, tool_name)) => {
-                                (tool_call_id.clone(), tool_name.clone())
-                            }
+                        match stream_tool_block(stream_state, &parent_tool_use_id, index) {
+                            Some((tool_call_id, tool_name)) => (tool_call_id, tool_name),
                             None => return vec![],
                         };
                     let parser = get_parser(agent);
@@ -621,7 +748,7 @@ fn translate_stream_event(
 
         "content_block_stop" => {
             if let Some(index) = event.get("index").and_then(|v| v.as_u64()) {
-                stream_state.stream_tool_blocks.remove(&index);
+                remove_stream_tool_block(stream_state, &parent_tool_use_id, index);
             }
             vec![]
         }
@@ -1344,6 +1471,84 @@ mod tests {
         );
 
         assert!(updates.is_empty());
+    }
+
+    #[test]
+    fn stream_subagent_text_delta_preserves_parent_tool_use_id() {
+        let updates = translate_cc_sdk_message(
+            AgentType::ClaudeCode,
+            Message::StreamEvent {
+                uuid: "msg-003".to_string(),
+                session_id: "ses-test".to_string(),
+                event: serde_json::json!({
+                    "type": "content_block_delta",
+                    "index": 0,
+                    "delta": {
+                        "type": "text_delta",
+                        "text": "subagent streamed report"
+                    }
+                }),
+                parent_tool_use_id: Some("toolu_task_parent".to_string()),
+            },
+            Some("ses-test".to_string()),
+        );
+
+        assert_eq!(updates.len(), 1);
+        match &updates[0] {
+            SessionUpdate::AgentMessageChunk {
+                parent_tool_use_id, ..
+            } => assert_eq!(parent_tool_use_id.as_deref(), Some("toolu_task_parent")),
+            other => panic!("expected AgentMessageChunk, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn subagent_stream_delta_does_not_suppress_top_level_assistant_fallback_text() {
+        let mut stream_state = CcSdkTurnStreamState::default();
+        let subagent_updates = translate_cc_sdk_message_with_mut_turn_state(
+            AgentType::ClaudeCode,
+            Message::StreamEvent {
+                uuid: "msg-003".to_string(),
+                session_id: "ses-test".to_string(),
+                event: serde_json::json!({
+                    "type": "content_block_delta",
+                    "index": 0,
+                    "delta": {
+                        "type": "text_delta",
+                        "text": "subagent streamed report"
+                    }
+                }),
+                parent_tool_use_id: Some("toolu_task_parent".to_string()),
+            },
+            Some("ses-test".to_string()),
+            &mut stream_state,
+        );
+        assert_eq!(subagent_updates.len(), 1);
+
+        let parent_updates = translate_cc_sdk_message_with_mut_turn_state(
+            AgentType::ClaudeCode,
+            Message::Assistant {
+                message: AssistantMessage {
+                    content: vec![CcContentBlock::Text(TextContent {
+                        text: "top-level final text".to_string(),
+                    })],
+                    model: None,
+                    usage: None,
+                    error: None,
+                    parent_tool_use_id: None,
+                },
+            },
+            Some("ses-test".to_string()),
+            &mut stream_state,
+        );
+
+        assert_eq!(parent_updates.len(), 1);
+        match &parent_updates[0] {
+            SessionUpdate::AgentMessageChunk {
+                parent_tool_use_id, ..
+            } => assert_eq!(parent_tool_use_id, &None),
+            other => panic!("expected top-level AgentMessageChunk, got {other:?}"),
+        }
     }
 
     #[test]
@@ -2256,6 +2461,35 @@ mod tests {
             assert_eq!(telemetry.tokens.input, Some(3));
             assert_eq!(telemetry.tokens.output, Some(3));
             assert_eq!(telemetry.tokens.cache_write, Some(22537));
+        });
+    }
+
+    #[test]
+    fn assistant_subagent_text_chunk_preserves_parent_tool_use_id() {
+        with_agent(AgentType::ClaudeCode, || {
+            let updates = translate_cc_sdk_message(
+                AgentType::ClaudeCode,
+                Message::Assistant {
+                    message: cc_sdk::AssistantMessage {
+                        content: vec![cc_sdk::ContentBlock::Text(cc_sdk::TextContent {
+                            text: "subagent report".to_string(),
+                        })],
+                        model: Some("claude-haiku-4-5-20251001".to_string()),
+                        usage: None,
+                        error: None,
+                        parent_tool_use_id: Some("toolu_task_parent".to_string()),
+                    },
+                },
+                Some("ses-test".to_string()),
+            );
+
+            assert_eq!(updates.len(), 1);
+            match &updates[0] {
+                SessionUpdate::AgentMessageChunk {
+                    parent_tool_use_id, ..
+                } => assert_eq!(parent_tool_use_id.as_deref(), Some("toolu_task_parent")),
+                other => panic!("expected AgentMessageChunk, got {other:?}"),
+            }
         });
     }
 

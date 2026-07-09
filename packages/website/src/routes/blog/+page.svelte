@@ -1,23 +1,27 @@
 <script lang="ts">
-import { DiffPill } from "@acepe/ui";
+import { DiffPill, RoundedIcon, StorageIcon } from "@acepe/ui";
 import Header from "$lib/components/header.svelte";
 import Seo from "$lib/components/seo/seo.svelte";
 import type { BlogPostMetadata } from "$lib/blog/types.js";
 import { getAllBlogPosts } from "$lib/blog/posts.js";
-import type { Component } from "svelte";
-import { ArrowRight } from "@lucide/svelte";
-import { HardDrives, Eye, GitBranch, ClockCounterClockwise, BellRinging } from "phosphor-svelte";
+import type { RoundedIconName } from "@acepe/ui/icons";
 
 let { data } = $props();
 
-type Post = BlogPostMetadata & { icon: Component };
+type BlogIcon =
+	| { kind: "rounded"; name: RoundedIconName }
+	| { kind: "storage" };
 
-const postIcons = new Map<string, Component>([
-	["sql-studio", HardDrives],
-	["git-viewer", Eye],
-	["git-panel", GitBranch],
-	["checkpoints", ClockCounterClockwise],
-	["attention-queue", BellRinging],
+type Post = BlogPostMetadata & { icon: BlogIcon };
+
+const fallbackPostIcon: BlogIcon = { kind: "rounded", name: "bell" };
+
+const postIcons = new Map<string, BlogIcon>([
+	["sql-studio", { kind: "storage" }],
+	["git-viewer", { kind: "rounded", name: "eye" }],
+	["git-panel", { kind: "rounded", name: "branch" }],
+	["checkpoints", { kind: "rounded", name: "arrow-counter-clockwise" }],
+	["attention-queue", { kind: "rounded", name: "bell" }],
 ]);
 
 const posts: Post[] = getAllBlogPosts().map((post) => ({
@@ -29,7 +33,7 @@ const posts: Post[] = getAllBlogPosts().map((post) => ({
 	characterCount: post.characterCount,
 	readingTimeMinutes: post.readingTimeMinutes,
 	relatedLinks: post.relatedLinks,
-	icon: postIcons.get(post.slug) ?? BellRinging,
+	icon: postIcons.get(post.slug) ?? fallbackPostIcon,
 }));
 
 function formatDate(isoDate: string): string {
@@ -104,7 +108,11 @@ const blogJsonLd = {
 							class="flex h-9 items-center justify-between border-b border-border/50 px-3"
 						>
 							<div class="flex items-center gap-2">
-								<post.icon size={14} weight="fill" class="text-muted-foreground/60" />
+								{#if post.icon.kind === "storage"}
+									<StorageIcon class="size-3.5 text-muted-foreground/60" />
+								{:else}
+									<RoundedIcon name={post.icon.name} class="size-3.5 text-muted-foreground/60" />
+								{/if}
 								<span class="font-mono text-xs font-semibold text-foreground"
 									>{post.category}</span
 								>
@@ -143,7 +151,7 @@ const blogJsonLd = {
 								class="mt-4 flex h-9 items-center justify-center gap-2 rounded-lg border border-border bg-muted/30 text-sm font-medium text-foreground transition-colors hover:bg-muted/60"
 							>
 								{"Read more"}
-								<ArrowRight class="h-3.5 w-3.5" />
+								<RoundedIcon name="arrow-right" class="h-3.5 w-3.5" />
 							</a>
 						</div>
 					</article>

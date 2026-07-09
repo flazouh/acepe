@@ -69,11 +69,13 @@ pub enum SessionDomainEventPayload {
     AssistantMessageSegmentAppended {
         message_id: Option<String>,
         part_id: Option<String>,
+        parent_tool_use_id: Option<String>,
         text: String,
     },
     AssistantThoughtSegmentAppended {
         message_id: Option<String>,
         part_id: Option<String>,
+        parent_tool_use_id: Option<String>,
         text: String,
     },
     OperationUpserted {

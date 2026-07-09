@@ -1,9 +1,7 @@
 <script lang="ts">
-import { BrandLockup } from "@acepe/ui";
+import { BrandLockup, DiscordIcon, MenuIcon, RoundedIcon, XLogoIcon } from "@acepe/ui";
 import { page } from "$app/stores";
-import { Download, Menu } from "@lucide/svelte";
 import { Drawer, DrawerContent, DrawerOverlay, DrawerPortal, DrawerTrigger } from "@acepe/ui";
-import { DiscordLogo, GithubLogo, Star } from "phosphor-svelte";
 
 interface Props {
 	showLogin?: boolean;
@@ -67,9 +65,9 @@ const mobileNavLinkClass =
 				aria-label="GitHub"
 				title="GitHub"
 			>
-				<GithubLogo class="h-4 w-4 shrink-0" weight="fill" />
+				<RoundedIcon name="github" class="h-4 w-4 shrink-0" />
 				{#if githubStars}
-					<Star class="h-3 w-3 shrink-0 text-amber-400" weight="fill" />
+					<RoundedIcon name="star" class="h-3 w-3 shrink-0 text-amber-400" />
 					<span class="font-mono text-xs text-muted-foreground">{formatStars(githubStars)}</span>
 				{/if}
 			</a>
@@ -81,7 +79,7 @@ const mobileNavLinkClass =
 				aria-label="Discord"
 				title="Discord"
 			>
-				<DiscordLogo class="h-4 w-4" weight="fill" />
+				<DiscordIcon class="h-4 w-4" />
 			</a>
 			<a
 				href="https://x.com/acepedotdev"
@@ -91,11 +89,7 @@ const mobileNavLinkClass =
 				aria-label="X"
 				title="X"
 			>
-				<svg viewBox="0 0 24 24" aria-hidden="true" class="h-4 w-4 fill-current">
-					<path
-						d="M18.244 2H21.5l-7.1 8.117L22 22h-5.956l-4.663-6.104L6.04 22H2.78l7.594-8.68L2 2h6.108l4.215 5.56L18.244 2Zm-1.143 18h1.804L5.128 3.895H3.193L17.1 20Z"
-					/>
-				</svg>
+				<XLogoIcon class="h-4 w-4" />
 			</a>
 			{#if showDownload}
 				<a
@@ -106,7 +100,7 @@ const mobileNavLinkClass =
 					<span
 						class="theme-invert-btn-icon ml-2 flex h-6 w-6 items-center justify-center rounded-full transition-all duration-200"
 					>
-						<Download class="theme-invert-btn-icon-svg h-3.5 w-3.5 transition-all duration-200" />
+						<RoundedIcon name="download" class="theme-invert-btn-icon-svg h-3.5 w-3.5 transition-all duration-200" />
 					</span>
 				</a>
 			{/if}
@@ -127,7 +121,7 @@ const mobileNavLinkClass =
 					class="inline-flex h-11 min-h-11 w-11 min-w-11 items-center justify-center rounded-full bg-card/70 text-foreground transition-colors hover:bg-card"
 					aria-label={"Open menu"}
 				>
-					<Menu class="h-5 w-5" />
+					<MenuIcon class="h-5 w-5" />
 				</DrawerTrigger>
 				<DrawerPortal>
 					<DrawerOverlay />
@@ -155,9 +149,9 @@ const mobileNavLinkClass =
 								aria-label="GitHub"
 								title="GitHub"
 							>
-								<GithubLogo class="h-4 w-4 shrink-0" weight="fill" />
+								<RoundedIcon name="github" class="h-4 w-4 shrink-0" />
 								{#if githubStars}
-									<Star class="h-3 w-3 shrink-0 text-amber-400" weight="fill" />
+									<RoundedIcon name="star" class="h-3 w-3 shrink-0 text-amber-400" />
 									<span class="font-mono text-xs text-muted-foreground">{formatStars(githubStars)}</span>
 								{/if}
 							</a>
@@ -169,7 +163,7 @@ const mobileNavLinkClass =
 								aria-label="Discord"
 								title="Discord"
 							>
-								<DiscordLogo class="h-4 w-4" weight="fill" />
+								<DiscordIcon class="h-4 w-4" />
 							</a>
 							<a
 								href="https://x.com/acepedotdev"
@@ -179,11 +173,7 @@ const mobileNavLinkClass =
 								aria-label="X"
 								title="X"
 							>
-								<svg viewBox="0 0 24 24" aria-hidden="true" class="h-4 w-4 fill-current">
-									<path
-										d="M18.244 2H21.5l-7.1 8.117L22 22h-5.956l-4.663-6.104L6.04 22H2.78l7.594-8.68L2 2h6.108l4.215 5.56L18.244 2Zm-1.143 18h1.804L5.128 3.895H3.193L17.1 20Z"
-									/>
-								</svg>
+								<XLogoIcon class="h-4 w-4" />
 							</a>
 							</div>
 						</div>
@@ -209,7 +199,7 @@ const mobileNavLinkClass =
 									<span
 										class="theme-invert-btn-icon flex h-6 w-6 items-center justify-center rounded-full"
 									>
-										<Download class="theme-invert-btn-icon-svg h-3.5 w-3.5" />
+										<RoundedIcon name="download" class="theme-invert-btn-icon-svg h-3.5 w-3.5" />
 									</span>
 								</a>
 							{/if}

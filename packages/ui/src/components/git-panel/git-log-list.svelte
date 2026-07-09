@@ -5,11 +5,9 @@
 	 * Click a file to expand/collapse its inline diff (rendered via snippet).
 	 */
 	import type { Snippet } from "svelte";
-	import { CaretRight } from "phosphor-svelte";
-	import { GitCommit } from "phosphor-svelte";
 
 	import { DiffPill } from "../diff-pill/index.js";
-	import { LoadingIcon } from "../icons/index.js";
+	import { LoadingIcon, RoundedIcon } from "../icons/index.js";
 	import { getFileIconSrc, getFallbackIconSrc } from "../../lib/file-icon/index.js";
 	import { cn } from "../../lib/utils.js";
 	import type { GitLogEntry, GitLogEntryFile } from "./types.js";
@@ -127,7 +125,11 @@
 					)}
 				/>
 
-				<GitCommit size={14} weight="bold" class="text-success shrink-0" />
+				<RoundedIcon
+					name="git"
+					class="size-3.5 shrink-0 text-success"
+					data-testid="git-log-commit-rounded-icon"
+				/>
 
 				<span class="font-mono text-[0.6875rem] text-muted-foreground shrink-0">
 					{entry.shortSha}

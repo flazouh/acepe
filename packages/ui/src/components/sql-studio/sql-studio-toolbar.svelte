@@ -1,7 +1,6 @@
 <script lang="ts">
-	import { HardDrives } from "phosphor-svelte";
-	import { Play } from "phosphor-svelte";
 	import { cn } from "../../lib/utils.js";
+	import { RoundedIcon, StorageIcon } from "../icons/index.js";
 
 	interface Props {
 		selectedTableLabel: string | null;
@@ -72,7 +71,7 @@
 			)}
 			onclick={onToggleSqlEditor}
 		>
-			<HardDrives size={12} weight="bold" />
+			<StorageIcon size={12} weight="bold" />
 			SQL
 		</button>
 		{#if sqlEditorOpen}
@@ -82,7 +81,7 @@
 				onclick={onRunQuery}
 				disabled={!hasConnection || isExecutingQuery}
 			>
-				<Play size={10} weight="fill" />
+				<RoundedIcon name="play" class="size-2.5" />
 				{isExecutingQuery ? "Running..." : "Run"}
 			</button>
 		{/if}

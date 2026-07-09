@@ -34,6 +34,8 @@ import type { Attachment } from "../types/attachment.js";
 import type { DropdownPosition } from "../types/dropdown-position.js";
 import { TauriDragDropController } from "./tauri-drag-drop-controller.svelte.js";
 
+const DRAG_DROP_LISTENER_START_DELAY_MS = 100;
+
 /**
  * Type for slash command dropdown component instance.
  */
@@ -211,6 +213,7 @@ export class AgentInputState {
 	private readonly inlineImageById = new SvelteMap<string, InlineImageReference>();
 
 	private readonly dragDropController: TauriDragDropController;
+	private dragDropStartTimer: ReturnType<typeof setTimeout> | null = null;
 
 	/**
 	 * Creates a new AgentInputState instance.
@@ -287,7 +290,17 @@ export class AgentInputState {
 			this.focusInput();
 		}, 0);
 
-		this.dragDropController.start();
+		this.scheduleDragDropListenerStart();
+	}
+
+	private scheduleDragDropListenerStart(): void {
+		if (this.dragDropStartTimer !== null) {
+			return;
+		}
+		this.dragDropStartTimer = setTimeout(() => {
+			this.dragDropStartTimer = null;
+			this.dragDropController.start();
+		}, DRAG_DROP_LISTENER_START_DELAY_MS);
 	}
 
 	/**
@@ -312,6 +325,10 @@ export class AgentInputState {
 	 * Cleans up resources including Tauri event listeners.
 	 */
 	destroy(): void {
+		if (this.dragDropStartTimer !== null) {
+			clearTimeout(this.dragDropStartTimer);
+			this.dragDropStartTimer = null;
+		}
 		this.dragDropController.destroy();
 	}
 
@@ -537,11 +554,7 @@ export class AgentInputState {
 					})
 					.mapErr(
 						(error) =>
-							new SessionCreationError(
-								selectedAgentId,
-								effectiveProjectPath,
-								error.cause ?? error
-							)
+							new SessionCreationError(selectedAgentId, effectiveProjectPath, error.cause ?? error)
 					);
 			})
 			.map(() => {

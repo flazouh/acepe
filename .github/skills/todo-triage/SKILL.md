@@ -12,7 +12,7 @@ Interactive workflow for reviewing pending todos one by one and deciding whether
 **Do not write code during triage.** This is purely for review and prioritization -- implementation happens in `/todo-resolve`.
 
 - First set the /model to Haiku
-- Read all pending todos from `.context/compound-engineering/todos/` and legacy `todos/` directories
+- Read all pending todos from `.context/agent-workflows/todos/` and legacy `todos/` directories
 
 ## Workflow
 

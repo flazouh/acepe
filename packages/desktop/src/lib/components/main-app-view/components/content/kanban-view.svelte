@@ -172,7 +172,8 @@ const threadBoardSources = $derived.by((): readonly ThreadBoardSource[] => {
 				const project = projectManager.getProject(projectPath);
 				return project ? (project.iconPath ?? null) : null;
 			},
-			presentation.pendingComputerPermission
+			presentation.pendingComputerPermission,
+			(projectPath) => projectManager.getProjectBadgeLabel(projectPath) ?? null
 		);
 
 		sources.push({
@@ -182,6 +183,7 @@ const threadBoardSources = $derived.by((): readonly ThreadBoardSource[] => {
 			autonomousEnabled: sessionStore.read.getSessionAutonomousEnabled(sessionId),
 			projectPath: queueItem.projectPath,
 			projectName: queueItem.projectName,
+			projectBadgeLabel: queueItem.projectBadgeLabel,
 			projectColor: queueItem.projectColor,
 			projectIconSrc: queueItem.projectIconSrc,
 			title: queueItem.title,
@@ -287,6 +289,7 @@ function buildOptimisticKanbanCards(): readonly OptimisticKanbanCard[] {
 		panels: panelStore.panels,
 		sessionIdsWithThreadBoardSource,
 		getProject: (projectPath) => projectManager.getProject(projectPath),
+		getProjectBadgeLabel: (projectPath) => projectManager.getProjectBadgeLabel(projectPath),
 		getPanelHotState: (panelId) => panelStore.getHotState(panelId),
 		getAgentIcon: getCanonicalAgentIcon,
 	});

@@ -1,5 +1,5 @@
 <script lang="ts">
-import { Bug, HardDrives, SlidersHorizontal } from "phosphor-svelte";
+import { Button, RoundedIcon, StorageIcon } from "@acepe/ui";
 import type { Snippet } from "svelte";
 
 import { AppTopBar } from "@acepe/ui/app-layout";
@@ -36,30 +36,21 @@ let { children, interactive = false, bare = false }: Props = $props();
 					showSearch={false}
 				>
 					{#snippet extraRightActions()}
-						<button
-							class="flex items-center justify-center size-6 rounded text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
-							title="Layout"
-							aria-label="Layout Settings"
-							type="button"
-						>
-							<SlidersHorizontal class="size-4" weight="fill" />
-						</button>
-						<button
-							class="flex items-center justify-center size-6 rounded text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
-							title="Feedback"
-							aria-label="Feedback"
-							type="button"
-						>
-							<Bug class="size-4" weight="fill" style="color: #FF5D5A" />
-						</button>
-						<button
-							class="flex items-center justify-center size-6 rounded text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
-							title="Database Manager"
-							aria-label="Database Manager"
-							type="button"
-						>
-							<HardDrives class="size-4" weight="fill" />
-						</button>
+						<Button variant="ghost" size="icon" title="Layout" aria-label="Layout Settings">
+							{#snippet children()}
+								<RoundedIcon name="sliders" />
+							{/snippet}
+						</Button>
+						<Button variant="ghost" size="icon" title="Feedback" aria-label="Feedback">
+							{#snippet children()}
+								<RoundedIcon name="bug" style="color: #FF5D5A" />
+							{/snippet}
+						</Button>
+						<Button variant="ghost" size="icon" title="Database Manager" aria-label="Database Manager">
+							{#snippet children()}
+								<StorageIcon />
+							{/snippet}
+						</Button>
 					{/snippet}
 				</AppTopBar>
 			</div>

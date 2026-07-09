@@ -149,7 +149,7 @@
 			</HeaderTitleCell>
 			<HeaderActionCell>
 				{#snippet children()}
-					<CloseAction onClose={onClose} />
+					<CloseAction onClose={onClose} size="icon-sm" />
 				{/snippet}
 			</HeaderActionCell>
 		{:else}
@@ -275,8 +275,8 @@
 							<div class="flex items-center gap-1 px-1">
 								{#each visibleActionButtons as action (action.id)}
 									<Button
-										variant={action.destructive ? "destructive" : "headerAction"}
-										size="headerAction"
+										variant={action.destructive ? "destructive" : "secondary"}
+										size="xs"
 										disabled={isHeaderActionDisabled(action)}
 										title={action.description ?? undefined}
 										onclick={() => runAction(action)}
@@ -287,9 +287,13 @@
 							</div>
 						{/if}
 						{#if onToggleFullscreen}
-							<FullscreenAction isFullscreen={isFullscreen} onToggle={onToggleFullscreen} />
+							<FullscreenAction
+								isFullscreen={isFullscreen}
+								onToggle={onToggleFullscreen}
+								size="icon-sm"
+							/>
 						{/if}
-						<CloseAction onClose={onClose} />
+						<CloseAction onClose={onClose} size="icon-sm" />
 					{/if}
 				{/snippet}
 			</HeaderActionCell>

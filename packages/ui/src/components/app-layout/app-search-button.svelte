@@ -17,8 +17,8 @@
 
 <Button
 	type="button"
-	variant="headerAction"
-	size="headerAction"
+	variant="secondary"
+	size="xs"
 	class="group h-6 gap-1.5 bg-muted/30 px-2 text-[11px] text-muted-foreground hover:bg-muted/60 hover:text-foreground"
 	{onclick}
 >

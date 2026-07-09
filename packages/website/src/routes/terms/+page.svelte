@@ -10,20 +10,16 @@ const sections = [
 		title: "License",
 		items: [
 			{
-				label: "FSL-1.1-ALv2",
-				body: "Acepe's source code is available on GitHub under the Functional Source License 1.1 (FSL-1.1-ALv2). This is a source-available license — not an open-source license.",
+				label: "MIT",
+				body: "Acepe's source code is available on GitHub under the MIT License.",
 			},
 			{
 				label: "Permitted use",
-				body: "You may use, copy, modify, and redistribute the software for personal use, non-commercial education, non-commercial research, or professional services provided to licensed users.",
+				body: "You may use, copy, modify, distribute, sublicense, and sell copies of the software.",
 			},
 			{
-				label: "Competing use",
-				body: "You may not use Acepe to build or offer a product or service that substitutes for Acepe or competes with it commercially.",
-			},
-			{
-				label: "Future license",
-				body: "On the second anniversary of each release, that version converts to the Apache License 2.0, granting full open-source rights. The full license text is available in the repository.",
+				label: "Notice",
+				body: "Copies or substantial portions of the software must include the copyright notice and MIT license text.",
 			},
 		],
 	},
@@ -90,7 +86,7 @@ const sections = [
 
 <Seo
 	title="Terms of Use"
-	description="Acepe terms of use under the FSL-1.1-ALv2 source-available license. What you can and cannot do with the source and built app."
+	description="Acepe terms of use under the MIT open-source license."
 />
 
 <div class="min-h-screen">
@@ -107,7 +103,7 @@ const sections = [
 				<span class="font-mono text-[10px] uppercase tracking-wider text-muted-foreground/50">legal</span>
 			</div>
 			<h1 class="mb-2 text-2xl font-semibold tracking-[-0.03em] md:text-[36px]">Terms of Use</h1>
-			<p class="font-mono text-xs text-muted-foreground/50">last updated — march 2026</p>
+			<p class="font-mono text-xs text-muted-foreground/50">last updated — july 2026</p>
 		</div>
 
 		<!-- Sections -->

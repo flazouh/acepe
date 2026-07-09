@@ -43,4 +43,18 @@ describe("AgentToolThinking", () => {
 		expect(view.container.querySelector("[data-testid='thinking-header-line']")).toBeNull();
 		expect(view.getByText("Planning next moves...")).toBeTruthy();
 	});
+
+	it("shows the agent icon beside a connecting label", () => {
+		const view = render(AgentThinkingSceneEntry, {
+			props: {
+				durationMs: null,
+				startedAtMs: null,
+				label: "Connecting to Codex Agent",
+				agentIconSrc: "/svgs/agents/codex/codex-icon.svg",
+			},
+		});
+
+		expect(view.getByText("Connecting to Codex Agent")).toBeTruthy();
+		expect(view.container.querySelector('img[src="/svgs/agents/codex/codex-icon.svg"]')).toBeTruthy();
+	});
 });

@@ -1,4 +1,6 @@
 use super::*;
+use crate::acp::session_state_engine::transcript_rows_ledger::TranscriptRowsLedgerWriteHint;
+use crate::acp::transcript_projection::{TranscriptDelta, TranscriptDeltaOperation};
 
 #[derive(Debug, Default)]
 pub(super) struct DispatchPersistenceEffects {
@@ -135,6 +137,17 @@ pub(super) async fn persist_dispatch_event(
                 .await;
             let additional_session_state_envelopes =
                 runtime_graph_registry.build_additional_session_state_envelopes(request);
+            persist_transcript_row_ledger_if_needed(
+                db,
+                session_id,
+                update.as_ref(),
+                revision,
+                projection_registry,
+                runtime_graph_registry,
+                transcript_projection_registry,
+                transcript_delta.as_ref(),
+            )
+            .await;
             DispatchPersistenceEffects {
                 session_state_envelope,
                 additional_session_state_envelopes,
@@ -223,6 +236,17 @@ pub(super) async fn persist_dispatch_event(
                 .await;
             let additional_session_state_envelopes =
                 runtime_graph_registry.build_additional_session_state_envelopes(request);
+            persist_transcript_row_ledger_if_needed(
+                db,
+                session_id,
+                update.as_ref(),
+                revision,
+                projection_registry,
+                runtime_graph_registry,
+                transcript_projection_registry,
+                transcript_delta.as_ref(),
+            )
+            .await;
             DispatchPersistenceEffects {
                 session_state_envelope,
                 additional_session_state_envelopes,
@@ -238,4 +262,86 @@ pub(super) async fn persist_dispatch_event(
             DispatchPersistenceEffects::default()
         }
     }
+}
+
+async fn persist_transcript_row_ledger_if_needed(
+    db: &DbConn,
+    session_id: &str,
+    update: &SessionUpdate,
+    revision: SessionGraphRevision,
+    projection_registry: &ProjectionRegistry,
+    runtime_graph_registry: &SessionGraphRuntimeRegistry,
+    transcript_projection_registry: &TranscriptProjectionRegistry,
+    transcript_delta: Option<&crate::acp::transcript_projection::TranscriptDelta>,
+) {
+    if !should_persist_transcript_row_ledger(update, transcript_delta) {
+        return;
+    }
+
+    if let Err(error) = runtime_graph_registry
+        .persist_current_transcript_row_ledger(
+            db,
+            session_id,
+            revision,
+            projection_registry,
+            transcript_projection_registry,
+            transcript_row_ledger_write_hint(update, transcript_delta),
+        )
+        .await
+    {
+        tracing::error!(
+            error = %error,
+            session_id,
+            "Transcript row ledger persistence failed after canonical update"
+        );
+    }
+}
+
+fn transcript_row_ledger_write_hint(
+    update: &SessionUpdate,
+    transcript_delta: Option<&TranscriptDelta>,
+) -> TranscriptRowsLedgerWriteHint {
+    let mut hint = TranscriptRowsLedgerWriteHint::default();
+    if let Some(delta) = transcript_delta {
+        for operation in &delta.operations {
+            match operation {
+                TranscriptDeltaOperation::AppendEntry { entry } => {
+                    hint.changed_source_entry_ids.push(entry.entry_id.clone());
+                }
+                TranscriptDeltaOperation::AppendSegment { entry_id, .. } => {
+                    hint.changed_source_entry_ids.push(entry_id.clone());
+                }
+                TranscriptDeltaOperation::ReplaceSnapshot { .. } => {
+                    hint.force_full_replace = true;
+                }
+            }
+        }
+    }
+
+    if let Some(tool_call_id) =
+        crate::acp::session_state_engine::envelope_router::tool_call_id_for_operation_patch(update)
+    {
+        hint.changed_tool_call_ids.push(tool_call_id.to_string());
+    }
+    if let Some(interaction_id) =
+        crate::acp::session_state_engine::envelope_router::interaction_id_for_patch(update)
+    {
+        hint.changed_interaction_ids
+            .push(interaction_id.to_string());
+    }
+
+    hint
+}
+
+fn should_persist_transcript_row_ledger(
+    update: &SessionUpdate,
+    transcript_delta: Option<&crate::acp::transcript_projection::TranscriptDelta>,
+) -> bool {
+    transcript_delta.is_some()
+        || crate::acp::session_state_engine::envelope_router::tool_call_id_for_operation_patch(
+            update,
+        )
+        .is_some()
+        || crate::acp::session_state_engine::envelope_router::interaction_id_for_patch(update)
+            .is_some()
 }

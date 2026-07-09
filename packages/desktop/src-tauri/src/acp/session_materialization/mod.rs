@@ -254,8 +254,7 @@ mod tests {
     };
     use crate::acp::parsers::AgentType;
     use crate::acp::projections::{
-        OperationDegradationCode, OperationSnapshot, OperationSourceLink, OperationState,
-        SessionTurnState,
+        OperationSnapshot, OperationSourceLink, OperationState, SessionTurnState,
     };
     use crate::acp::session_thread_snapshot::{
         ProviderOwnedSessionSnapshot, SessionThreadSnapshot,

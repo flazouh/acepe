@@ -1,6 +1,6 @@
 <script lang="ts">
-	import { ListChecks } from "phosphor-svelte";
 	import AgentToolCard from "./agent-tool-card.svelte";
+	import { RoundedIcon } from "../icons/index.js";
 	import {
 		getTodoDisplayRows,
 		getTodoProgressSummary,
@@ -90,7 +90,7 @@
 	<!-- Fallback when no todos parsed -->
 	<AgentToolCard>
 		<div class="flex items-center gap-2 px-3 py-2.5 text-sm">
-			<ListChecks size={14} />
+			<RoundedIcon name="tasks" class="size-3.5" />
 			<span>{fallbackLabel}</span>
 		</div>
 	</AgentToolCard>

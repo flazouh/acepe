@@ -4,6 +4,7 @@ import type {
 	AgentPanelQuestionSelectEvent,
 	AgentPanelReviewActionEvent,
 	AgentPanelSceneEntryModel,
+	AgentUserFileSelectEvent,
 	AgentToolFileSelectEvent,
 } from "@acepe/ui/agent-panel";
 import type { AgentInfo } from "../../../logic/agent-manager.js";
@@ -32,6 +33,7 @@ export interface AgentPanelContentProps {
 	scrollViewport?: HTMLElement | null;
 	isAtBottom?: boolean;
 	isAtTop?: boolean;
+	hasUnreadBelow?: boolean;
 	isStreaming?: boolean;
 	readonly onProjectSelected?: (project: Project) => void;
 	readonly onRetryConnection?: () => void;
@@ -39,6 +41,11 @@ export interface AgentPanelContentProps {
 	readonly agentIconSrc?: string;
 	/** When true, the transcript's planning placeholder shows the Claude working spark. */
 	readonly showWorkingSpark?: boolean;
+	readonly planningPlaceholderPresentation?: {
+		readonly label: string;
+		readonly agentIconSrc: string | null;
+		readonly showWorkingSpark: boolean;
+	} | null;
 	readonly isFullscreen?: boolean;
 	readonly availableAgents?: AgentInfo[];
 	readonly effectiveTheme?: "light" | "dark";

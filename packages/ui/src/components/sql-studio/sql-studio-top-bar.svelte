@@ -1,6 +1,6 @@
 <script lang="ts">
-  import { Database } from "phosphor-svelte";
   import { cn } from "../../lib/utils.js";
+  import { DatabaseIcon } from "../icons/index.js";
   import {
     EmbeddedPanelHeader,
     HeaderTitleCell,
@@ -18,7 +18,7 @@
 
 <EmbeddedPanelHeader class={className}>
   <HeaderTitleCell>
-    <Database
+    <DatabaseIcon
       size={14}
       weight="fill"
       class="shrink-0 mr-1.5 text-muted-foreground"

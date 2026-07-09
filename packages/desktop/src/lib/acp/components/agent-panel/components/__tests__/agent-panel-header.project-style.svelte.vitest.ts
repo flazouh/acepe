@@ -62,9 +62,12 @@ describe("AgentPanelHeader project-header style", () => {
 		expect(close).not.toBeNull();
 		expect(header?.className).toContain("bg-card/50");
 		expect(close?.className).toContain("size-5");
+		expect(screen.getByLabelText("More actions").className).toContain("size-5");
 
 		await fireEvent.click(screen.getByLabelText("More actions"));
-		await fireEvent.click(screen.getByRole("menuitem", { name: "Fullscreen" }));
+		const displayMenu = screen.getByRole("menuitem", { name: "Display" });
+		await fireEvent.keyDown(displayMenu, { key: "ArrowRight", code: "ArrowRight" });
+		await fireEvent.click(await screen.findByRole("menuitem", { name: "Fullscreen" }));
 
 		if (close) {
 			await fireEvent.click(close);
@@ -331,19 +334,146 @@ describe("AgentPanelHeader project-header style", () => {
 
 		await fireEvent.click(screen.getByLabelText("More actions"));
 
-		expect(screen.getByRole("menuitem", { name: "Copy session ID" })).not.toBeNull();
-		expect(screen.getByRole("menuitem", { name: "Toggle browser" })).not.toBeNull();
-		expect(screen.getByRole("menuitem", { name: "Toggle terminal" })).not.toBeNull();
+		expect(screen.getByRole("menuitem", { name: "Copy" })).not.toBeNull();
+		expect(screen.getByRole("menuitem", { name: "Open" })).not.toBeNull();
+		expect(screen.getByRole("menuitem", { name: "Display" })).not.toBeNull();
 		expect(screen.queryByRole("menuitem", { name: "Open Thread in Finder" })).toBeNull();
 		expect(screen.queryByRole("menuitem", { name: "Delete session" })).toBeNull();
 
-		await fireEvent.click(screen.getByRole("menuitem", { name: "Toggle browser" }));
+		await fireEvent.keyDown(screen.getByRole("menuitem", { name: "Display" }), {
+			key: "ArrowRight",
+			code: "ArrowRight",
+		});
+		await fireEvent.click(await screen.findByRole("menuitem", { name: "Show browser" }));
 		expect(onToggleBrowser).toHaveBeenCalledTimes(1);
 
 		await fireEvent.click(screen.getByLabelText("More actions"));
-		await fireEvent.click(screen.getByRole("menuitem", { name: "Toggle terminal" }));
+		await fireEvent.keyDown(screen.getByRole("menuitem", { name: "Display" }), {
+			key: "ArrowRight",
+			code: "ArrowRight",
+		});
+		await fireEvent.click(await screen.findByRole("menuitem", { name: "Show terminal" }));
 
 		expect(onToggleBrowser).toHaveBeenCalledTimes(1);
 		expect(onToggleTerminal).toHaveBeenCalledTimes(1);
+	});
+
+	it("keeps pull request actions inside the open submenu", async () => {
+		render(AgentPanelHeader, {
+			pendingProjectSelection: false,
+			isConnecting: false,
+			sessionId: "session-1",
+			sessionTitle: "Thread",
+			sessionAgentId: null,
+			currentAgentId: null,
+			availableAgents: [],
+			agentIconSrc: "",
+			agentName: null,
+			isFullscreen: false,
+			sessionStatus: "empty",
+			projectPath: "/repo",
+			projectName: "repo",
+			projectColor: "#FF5D5A",
+			hideProjectBadge: true,
+			linkedPr: {
+				prNumber: 42,
+				state: "OPEN",
+				url: "https://github.com/flazouh/acepe/pull/42",
+				title: "Clean up header menu",
+				additions: null,
+				deletions: null,
+				isDraft: false,
+				isLoading: false,
+				hasResolvedDetails: true,
+				checksHeadSha: null,
+				checks: [],
+				isChecksLoading: false,
+				hasResolvedChecks: true,
+			},
+			onClose: vi.fn(),
+			onToggleFullscreen: vi.fn(),
+			onCopyContent: undefined,
+			onOpenInFinder: undefined,
+			onExportRawStreaming: undefined,
+			displayTitle: "Thread",
+			entriesCount: 0,
+			insertions: 0,
+			deletions: 0,
+			createdAt: null,
+			updatedAt: null,
+			onOpenRawFile: undefined,
+			onOpenInAcepe: undefined,
+			onExportMarkdown: undefined,
+			onExportJson: undefined,
+			onAgentChange: undefined,
+			onScrollToTop: undefined,
+		});
+
+		await fireEvent.click(screen.getByLabelText("More actions"));
+
+		expect(screen.getByRole("menuitem", { name: "Open" })).not.toBeNull();
+		expect(screen.queryByRole("menuitem", { name: "Open Pull Request #42" })).toBeNull();
+
+		await fireEvent.keyDown(screen.getByRole("menuitem", { name: "Open" }), {
+			key: "ArrowRight",
+			code: "ArrowRight",
+		});
+
+		expect(await screen.findByRole("menuitem", { name: "Open Pull Request #42" })).not.toBeNull();
+	});
+
+	it("groups dev-only log actions under diagnostics", async () => {
+		const onCopyStreamingLogPath = vi.fn();
+		const onExportRawStreaming = vi.fn();
+
+		render(AgentPanelHeader, {
+			pendingProjectSelection: false,
+			isConnecting: false,
+			sessionId: "session-1",
+			sessionTitle: "Thread",
+			sessionAgentId: null,
+			currentAgentId: null,
+			availableAgents: [],
+			agentIconSrc: "",
+			agentName: null,
+			isFullscreen: false,
+			sessionStatus: "empty",
+			projectPath: "/repo",
+			projectName: "repo",
+			projectColor: "#FF5D5A",
+			hideProjectBadge: true,
+			onClose: vi.fn(),
+			onToggleFullscreen: vi.fn(),
+			onCopyContent: undefined,
+			onOpenInFinder: undefined,
+			onCopyStreamingLogPath,
+			onExportRawStreaming,
+			displayTitle: "Thread",
+			entriesCount: 0,
+			insertions: 0,
+			deletions: 0,
+			createdAt: null,
+			updatedAt: null,
+			onOpenRawFile: undefined,
+			onOpenInAcepe: undefined,
+			onExportMarkdown: undefined,
+			onExportJson: undefined,
+			onAgentChange: undefined,
+			onScrollToTop: undefined,
+		});
+
+		await fireEvent.click(screen.getByLabelText("More actions"));
+
+		expect(screen.getByRole("menuitem", { name: "Diagnostics" })).not.toBeNull();
+		expect(screen.queryByRole("menuitem", { name: "Developer" })).toBeNull();
+
+		await fireEvent.keyDown(screen.getByRole("menuitem", { name: "Diagnostics" }), {
+			key: "ArrowRight",
+			code: "ArrowRight",
+		});
+		await fireEvent.click(await screen.findByRole("menuitem", { name: "Copy Streaming Log Path" }));
+
+		expect(onCopyStreamingLogPath).toHaveBeenCalledTimes(1);
+		expect(onExportRawStreaming).not.toHaveBeenCalled();
 	});
 });

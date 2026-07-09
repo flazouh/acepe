@@ -132,6 +132,7 @@ function makeItem(
 		agentId: "claude",
 		projectPath: "/test/project",
 		projectName: "project",
+		projectBadgeLabel: "P",
 		projectColor: "#fff",
 		projectIconSrc: null,
 		title: "Test",

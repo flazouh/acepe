@@ -186,6 +186,28 @@ impl AcpEventHubState {
         }
     }
 
+    #[must_use]
+    pub fn raise_reservation_frontier(
+        &self,
+        token: Uuid,
+        canonical_session_id: &str,
+        last_event_seq: i64,
+    ) -> bool {
+        if let Ok(mut map) = self.reservations.write() {
+            let Some(reservation) = map.get_mut(&token) else {
+                return false;
+            };
+            if reservation.canonical_session_id != canonical_session_id {
+                return false;
+            }
+            reservation.last_event_seq = reservation.last_event_seq.max(last_event_seq);
+            reservation.last_activity = Instant::now();
+            true
+        } else {
+            false
+        }
+    }
+
     /// Claim a reservation: remove it and return the buffered deltas.
     ///
     /// Returns `None` if the token is unknown (expired, already claimed, or
@@ -362,6 +384,35 @@ mod tests {
             !hub.has_reservation(token),
             "successful claim must retire the token"
         );
+    }
+
+    #[test]
+    fn raise_reservation_frontier_updates_claim_cutoff_without_losing_buffered_events() {
+        let hub = AcpEventHubState::new();
+        let token = Uuid::new_v4();
+        hub.arm_reservation(token, "session-1".to_string(), 0, 0);
+        hub.publish(
+            "session_update",
+            Some("session-1".to_string()),
+            serde_json::json!({
+                "eventSeq": 8,
+                "kind": "appendEntry"
+            }),
+            "normal",
+            false,
+        );
+
+        assert!(
+            hub.raise_reservation_frontier(token, "session-1", 7),
+            "frontier should update while reservation is active"
+        );
+        let claimed = hub
+            .claim_reservation_for_session(token, "session-1")
+            .expect("claim should succeed for matching session");
+
+        assert_eq!(claimed.last_event_seq, 7);
+        assert_eq!(claimed.buffered_events.len(), 1);
+        assert_eq!(claimed.buffered_events[0].event_name, "session_update");
     }
 
     #[test]

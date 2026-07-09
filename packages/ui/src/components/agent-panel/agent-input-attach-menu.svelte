@@ -225,11 +225,11 @@
 			>
 				<AgentInputModeIcon iconKind={mode.iconKind} class="size-3.5 shrink-0" monochrome />
 				<span class="min-w-0 flex-1 truncate text-xs">{mode.label}</span>
-				<CheckCircle
+				<RoundedIcon
+					name="check-circle"
 					class={mode.selected
 						? "size-3.5 shrink-0 text-foreground"
 						: "size-3.5 shrink-0 text-transparent"}
-					weight="fill"
 				/>
 			</DropdownMenu.Item>
 		{/each}

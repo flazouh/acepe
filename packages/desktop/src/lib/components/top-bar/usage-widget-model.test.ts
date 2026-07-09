@@ -1,5 +1,6 @@
 import { describe, expect, it } from "bun:test";
 
+import type { UsageMetricTone } from "@acepe/ui";
 import type { SessionCold, SessionUsageTelemetry } from "$lib/acp/store/types.js";
 import { buildLiveUsageWidgetModel, type UsageProviderAccount } from "./usage-widget-model.js";
 
@@ -75,6 +76,46 @@ function codexAccount(): UsageProviderAccount {
 				subtitle: "This week",
 			},
 		],
+	};
+}
+
+function codexAccountWithSessionUsage(used: number): UsageProviderAccount {
+	return {
+		providerId: "codex",
+		providerName: "Codex",
+		providerBrand: "codex",
+		connectionState: "connected",
+		statusLabel: "Team",
+		quotaMetrics: [
+			{
+				id: "codex-session",
+				label: "Session limit",
+				role: "primary-short",
+				used,
+				limit: 100,
+				resetAtMs: NOW_MS + 2 * 60 * 60 * 1000,
+				sourceLabel: "Codex account",
+			},
+		],
+		textMetrics: [],
+	};
+}
+
+function quotaTonesForUsage(used: number): {
+	readonly lineTone: UsageMetricTone | undefined;
+	readonly summaryTone: UsageMetricTone;
+	readonly triggerTone: UsageMetricTone | undefined;
+} {
+	const model = buildLiveUsageWidgetModel({
+		sessions: [],
+		nowMs: NOW_MS,
+		accounts: [codexAccountWithSessionUsage(used)],
+	});
+
+	return {
+		lineTone: model.providers[0]?.lines[0]?.tone,
+		summaryTone: model.summary.tone,
+		triggerTone: model.triggerLimits[0]?.tone,
 	};
 }
 
@@ -158,7 +199,7 @@ describe("buildLiveUsageWidgetModel", () => {
 			resetLabel: "resets in 4d",
 			percentUsed: 70,
 			projectedPercent: null,
-			tone: "good",
+			tone: "watch",
 		});
 		expect(model.providers[0]?.lines[2]).toEqual({
 			type: "text",
@@ -187,5 +228,28 @@ describe("buildLiveUsageWidgetModel", () => {
 		});
 		expect(model.providers[2]?.name).toBe("Cursor");
 		expect(model.providers[2]?.plan).toBe("Not connected");
+	});
+
+	it("uses blue before 60%, orange from 60%, and red from 85%", () => {
+		expect(quotaTonesForUsage(59)).toEqual({
+			lineTone: "good",
+			summaryTone: "good",
+			triggerTone: "good",
+		});
+		expect(quotaTonesForUsage(60)).toEqual({
+			lineTone: "watch",
+			summaryTone: "watch",
+			triggerTone: "watch",
+		});
+		expect(quotaTonesForUsage(84)).toEqual({
+			lineTone: "watch",
+			summaryTone: "watch",
+			triggerTone: "watch",
+		});
+		expect(quotaTonesForUsage(85)).toEqual({
+			lineTone: "danger",
+			summaryTone: "danger",
+			triggerTone: "danger",
+		});
 	});
 });

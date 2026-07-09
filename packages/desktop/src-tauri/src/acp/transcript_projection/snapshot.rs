@@ -55,7 +55,7 @@ impl TranscriptSnapshot {
                 continue;
             };
             let role = entry.role.clone();
-            append_or_merge_canonical_entry(&mut entries, entry);
+            append_or_merge_entry(&mut entries, entry);
             turn_context.note_entry(&role, entries.len());
         }
 
@@ -68,7 +68,7 @@ impl TranscriptSnapshot {
         let mut entries = Vec::new();
         let mut turn_context = HistoryTurnContext::default();
 
-        for stored_entry in stored_entries {
+        for (stored_entry_index, stored_entry) in stored_entries.iter().enumerate() {
             let turn_key = turn_context.current_turn_key();
             if let StoredEntry::ToolCall { message, .. } = stored_entry {
                 let normalized_tool_call_id = normalize_tool_call_id(&message.id);
@@ -76,9 +76,11 @@ impl TranscriptSnapshot {
                     continue;
                 }
             }
-            if let Some(entry) = TranscriptEntry::from_stored_entry(stored_entry, &turn_key) {
+            if let Some(entry) =
+                TranscriptEntry::from_stored_entry(stored_entry, &turn_key, stored_entry_index)
+            {
                 let role = entry.role.clone();
-                entries.push(entry);
+                append_or_merge_entry(&mut entries, entry);
                 turn_context.note_entry(&role, entries.len());
             }
         }
@@ -133,7 +135,10 @@ impl TranscriptEntry {
                     timestamp_ms: parse_timestamp_to_millis(&event.timestamp),
                 })
             }
-            CanonicalTranscriptEventKind::AssistantThought { text } => {
+            CanonicalTranscriptEventKind::AssistantThought {
+                text,
+                redacted_provider_data,
+            } => {
                 let entry_id = derive_entry_id_for_snapshot_role(
                     turn_key,
                     &TranscriptEntryRole::Assistant,
@@ -144,7 +149,7 @@ impl TranscriptEntry {
                     role: TranscriptEntryRole::Assistant,
                     segments: vec![TranscriptSegment::Thought {
                         segment_id: format!("{turn_key}:event:{}", event.transcript_seq),
-                        text: text.clone(),
+                        text: thought_text_for_display(text, redacted_provider_data.as_deref()),
                     }],
                     attempt_id: None,
                     timestamp_ms: parse_timestamp_to_millis(&event.timestamp),
@@ -172,7 +177,11 @@ impl TranscriptEntry {
         }
     }
 
-    fn from_stored_entry(entry: &StoredEntry, turn_key: &str) -> Option<Self> {
+    fn from_stored_entry(
+        entry: &StoredEntry,
+        turn_key: &str,
+        stored_entry_index: usize,
+    ) -> Option<Self> {
         match entry {
             StoredEntry::User {
                 id: _,
@@ -207,7 +216,11 @@ impl TranscriptEntry {
                 Some(Self {
                     entry_id: entry_id.clone(),
                     role: TranscriptEntryRole::Assistant,
-                    segments: segments_from_assistant_chunks(&entry_id, &message.chunks),
+                    segments: segments_from_assistant_chunks(
+                        &entry_id,
+                        &message.chunks,
+                        stored_entry_index,
+                    ),
                     attempt_id: None,
                     timestamp_ms: timestamp.as_deref().and_then(parse_timestamp_to_millis),
                 })
@@ -240,6 +253,13 @@ impl TranscriptEntry {
     }
 }
 
+fn thought_text_for_display(text: &str, redacted_provider_data: Option<&str>) -> String {
+    match redacted_provider_data {
+        Some(_) if text.trim().is_empty() => "[REDACTED]".to_string(),
+        _ => text.to_string(),
+    }
+}
+
 fn parse_timestamp_to_millis(timestamp: &str) -> Option<i64> {
     chrono::DateTime::parse_from_rfc3339(timestamp)
         .map(|datetime| datetime.timestamp_millis())
@@ -247,7 +267,7 @@ fn parse_timestamp_to_millis(timestamp: &str) -> Option<i64> {
         .or_else(|| timestamp.parse::<i64>().ok())
 }
 
-fn append_or_merge_canonical_entry(entries: &mut Vec<TranscriptEntry>, entry: TranscriptEntry) {
+fn append_or_merge_entry(entries: &mut Vec<TranscriptEntry>, entry: TranscriptEntry) {
     let Some(last_entry) = entries.last_mut() else {
         entries.push(entry);
         return;
@@ -380,6 +400,7 @@ fn segments_from_blocks(entry_id: &str, blocks: &[StoredContentBlock]) -> Vec<Tr
 fn segments_from_assistant_chunks(
     entry_id: &str,
     chunks: &[StoredAssistantChunk],
+    stored_entry_index: usize,
 ) -> Vec<TranscriptSegment> {
     chunks
         .iter()
@@ -391,11 +412,11 @@ fn segments_from_assistant_chunks(
                 .as_ref()
                 .map(|text| match chunk.chunk_type.as_str() {
                     "thought" => TranscriptSegment::Thought {
-                        segment_id: format!("{entry_id}:chunk:{index}"),
+                        segment_id: format!("{entry_id}:stored:{stored_entry_index}:chunk:{index}"),
                         text: text.clone(),
                     },
                     _ => TranscriptSegment::Text {
-                        segment_id: format!("{entry_id}:chunk:{index}"),
+                        segment_id: format!("{entry_id}:stored:{stored_entry_index}:chunk:{index}"),
                         text: text.clone(),
                     },
                 })
@@ -494,6 +515,82 @@ mod tests {
             "acepe::entry::assistant-boundary:1::assistant::."
         );
         assert_eq!(snapshot.entries[1].role, TranscriptEntryRole::Assistant);
+    }
+
+    #[test]
+    fn transcript_snapshot_merges_stored_assistant_fragments_in_one_boundary() {
+        let snapshot = TranscriptSnapshot::from_stored_entries(
+            8,
+            &[
+                StoredEntry::User {
+                    id: "user-1".to_string(),
+                    message: StoredUserMessage {
+                        id: Some("user-1".to_string()),
+                        content: StoredContentBlock {
+                            block_type: "text".to_string(),
+                            text: Some("prompt".to_string()),
+                        },
+                        chunks: vec![],
+                        sent_at: None,
+                    },
+                    timestamp: None,
+                },
+                StoredEntry::Assistant {
+                    id: "assistant-fragment-1".to_string(),
+                    message: StoredAssistantMessage {
+                        chunks: vec![StoredAssistantChunk {
+                            chunk_type: "message".to_string(),
+                            block: StoredContentBlock {
+                                block_type: "text".to_string(),
+                                text: Some("first".to_string()),
+                            },
+                        }],
+                        model: None,
+                        display_model: None,
+                        received_at: None,
+                    },
+                    timestamp: None,
+                },
+                StoredEntry::Assistant {
+                    id: "assistant-fragment-2".to_string(),
+                    message: StoredAssistantMessage {
+                        chunks: vec![StoredAssistantChunk {
+                            chunk_type: "message".to_string(),
+                            block: StoredContentBlock {
+                                block_type: "text".to_string(),
+                                text: Some("second".to_string()),
+                            },
+                        }],
+                        model: None,
+                        display_model: None,
+                        received_at: None,
+                    },
+                    timestamp: None,
+                },
+            ],
+        );
+
+        assert_eq!(snapshot.revision, 8);
+        assert_eq!(snapshot.entries.len(), 2);
+        assert_eq!(
+            snapshot.entries[1].entry_id,
+            "acepe::entry::assistant-boundary:1::assistant::."
+        );
+        assert_eq!(
+            snapshot.entries[1].segments,
+            vec![
+                TranscriptSegment::Text {
+                    segment_id: "acepe::entry::assistant-boundary:1::assistant::.:stored:1:chunk:0"
+                        .to_string(),
+                    text: "first".to_string(),
+                },
+                TranscriptSegment::Text {
+                    segment_id: "acepe::entry::assistant-boundary:1::assistant::.:stored:2:chunk:0"
+                        .to_string(),
+                    text: "second".to_string(),
+                },
+            ]
+        );
     }
 
     #[test]

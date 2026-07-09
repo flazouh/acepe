@@ -7,6 +7,9 @@ export {
 	getToneClass,
 	getToneRailClass,
 	getToneTextClass,
+	getVerticalMeterFillClass,
+	getVerticalMeterLabel,
+	getVerticalMeterMetricLabel,
 } from "./usage-widget-state.js";
 export type {
 	UsageBadgeLine,

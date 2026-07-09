@@ -259,7 +259,7 @@ When invoked, this skill should:
 2. Classify each touched field or id as `canonical-owned`, `provider-metadata`, `truly-local`, `to-be-widened`, or `must-be-deleted`.
 3. List violations: dual-read, dual-write, UI repair, provider branching, raw provider id as display identity, direct provider-history-to-display parsing, or UI-package coupling.
 4. Recommend upstream fixes: widen canonical, correct Rust adapter, add canonical transcript facts, use operation graph, add accessor, or delete duplicate state.
-5. If violations exist, block work and say: "Plan the canonical widening via `/ce:plan` first. Do not implement reader-level patches."
+5. If violations exist, block work and say: "Plan the canonical widening via `refactor-plan` first. Do not implement reader-level patches."
 6. If no violations exist, clear the work with a one-line attestation.
 
 ## Examples

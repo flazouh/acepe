@@ -58,6 +58,7 @@ describe("SessionIdentityResolver with SessionStore", () => {
 			requestedSessionId: "A",
 			canonicalSessionId: "C",
 			isAlias: true,
+			openPath: "legacy_rebuild",
 			lastEventSeq: 1,
 			graphRevision: 1,
 			openToken: "open-token",

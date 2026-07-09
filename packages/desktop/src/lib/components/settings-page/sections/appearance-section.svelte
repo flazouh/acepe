@@ -1,5 +1,5 @@
 <script lang="ts">
-import { Selector } from "@acepe/ui";
+import { RoundedIcon, Selector } from "@acepe/ui";
 import * as DropdownMenu from "@acepe/ui/dropdown-menu";
 import { LoadingIcon } from "@acepe/ui";
 import { Minus, Plus } from "phosphor-svelte";

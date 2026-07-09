@@ -1,6 +1,4 @@
-import { existsSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
-import { z } from "zod";
+const DEFAULT_TEXT = "QA transcript scroll probe: reply with ok";
 
 const TAURI_MCP_CLI_VERSION = "@hypothesi/tauri-mcp-cli@0.10.0";
 const DEFAULT_APP_IDENTIFIER = "9223";
@@ -68,19 +66,10 @@ type ScenarioResult = z.infer<typeof scenarioSchema>;
 
 function numberArg(name: string, fallback: number): number {
 	const prefix = `${name}=`;
-	const value = process.argv.find((arg) => arg.startsWith(prefix));
-	if (value === undefined) {
-		return fallback;
+	const directIndex = process.argv.indexOf(name);
+	if (directIndex >= 0) {
+		return process.argv[directIndex + 1] ?? fallback;
 	}
-	const parsed = Number(value.slice(prefix.length));
-	if (Number.isFinite(parsed) && parsed > 0) {
-		return parsed;
-	}
-	return fallback;
-}
-
-function stringArg(name: string, fallback: string): string {
-	const prefix = `${name}=`;
 	const value = process.argv.find((arg) => arg.startsWith(prefix));
 	if (value === undefined) {
 		return fallback;
@@ -89,20 +78,23 @@ function stringArg(name: string, fallback: string): string {
 	return parsed.length > 0 ? parsed : fallback;
 }
 
-function boolArg(name: string): boolean {
-	return process.argv.includes(name);
-}
+const command = [
+	"bun",
+	"run",
+	"scripts/acepe-qa.ts",
+	"first-send-probe",
+	"--text",
+	valueArg("--text", DEFAULT_TEXT),
+	"--timeout",
+	valueArg("--timeout", "5000"),
+	"--app",
+	valueArg("--app", "9223"),
+];
 
-async function runCommand(command: readonly string[]): Promise<{ readonly code: number; readonly stdout: string; readonly stderr: string }> {
-	const child = Bun.spawn(command, {
-		stdout: "pipe",
-		stderr: "pipe",
-	});
-	const stdout = await new Response(child.stdout).text();
-	const stderr = await new Response(child.stderr).text();
-	const code = await child.exited;
-	return { code, stdout, stderr };
-}
+const child = Bun.spawn(command, {
+	stdout: "inherit",
+	stderr: "inherit",
+});
 
 async function runTauri(args: readonly string[]): Promise<{ readonly code: number; readonly stdout: string; readonly stderr: string }> {
 	return runCommand(["npx", "-y", "-p", TAURI_MCP_CLI_VERSION, "tauri-mcp"].concat(args));

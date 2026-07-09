@@ -56,6 +56,18 @@ vi.mock(
 import { createStreamingReproController } from "../streaming-repro-controller";
 import StreamingReproLab from "../streaming-repro-lab.svelte";
 
+type StreamingReproPerfProbeForTest = () => Promise<{
+	readonly presetId: string;
+	readonly phaseCount: number;
+	readonly totalMs: number;
+	readonly visibilityState: string;
+	readonly documentHasFocus: boolean | null;
+	readonly steps: readonly {
+		readonly phaseId: string;
+		readonly assistantTextLength: number;
+	}[];
+}>;
+
 describe("StreamingReproLab", () => {
 	afterEach(() => {
 		cleanup();
@@ -114,6 +126,33 @@ describe("StreamingReproLab", () => {
 		expect(controller.activePhase.id).toBe("assistant-part-2");
 		expect(secondText.length).toBeGreaterThan(firstText.length);
 		expect(secondText.startsWith(firstText)).toBe(true);
+	});
+
+	it("exposes a perf probe that measures each streaming phase flush", async () => {
+		const controller = createStreamingReproController({
+			now: () => 14_000,
+			hostMetrics: { width: 1280, height: 820 },
+			theme: "dark",
+		});
+
+		render(StreamingReproLab, { controller });
+
+		const perfWindow = window as Window & {
+			readonly __acepeStreamingReproPerfProbe?: StreamingReproPerfProbeForTest;
+		};
+		const perfProbe = perfWindow.__acepeStreamingReproPerfProbe;
+		expect(typeof perfProbe).toBe("function");
+		if (typeof perfProbe !== "function") {
+			throw new Error("Expected streaming repro perf probe to be installed");
+		}
+
+		const result = await perfProbe();
+
+		expect(result.presetId).toBe("core-streaming");
+		expect(result.phaseCount).toBe(controller.activePreset.phases.length);
+		expect(result.steps).toHaveLength(controller.activePreset.phases.length);
+		expect(result.steps.at(-1)?.phaseId).toBe("assistant-complete");
+		expect(result.steps.at(-1)?.assistantTextLength).toBeGreaterThan(0);
 	});
 
 	it("cycles back to the first phase from the final step", async () => {

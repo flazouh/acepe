@@ -8,6 +8,23 @@
   import { TAG_COLORS } from "../../lib/colors.js";
   import { cn } from "../../lib/utils.js";
   import type { SqlConnection, SqlSchemaInfo } from "./types.js";
+  import { createSqlStudioTreeModel } from "./sql-studio-tree-model.js";
+
+  const TREE_SEARCH_CHROME_HEIGHT_PX = 36;
+  const COMPACT_TREE_ROW_HEIGHT_PX = 24;
+
+  const SQL_TREE_UNSAFE_CSS = `
+    button[data-type='item'] {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      font-size: 11px;
+      line-height: 16px;
+      min-height: 21px;
+    }
+
+    button[data-type='item'][data-item-selected] {
+      border-left: 2px solid hsl(var(--primary));
+    }
+  `;
 
   interface Props {
     connections: SqlConnection[];
@@ -35,17 +52,33 @@
     class: className,
   }: Props = $props();
 
-  let expandedTables = $state<Set<string>>(new Set());
+  const sqlTreeModel = $derived(
+    createSqlStudioTreeModel(schema, selectedSchemaName, selectedTableName)
+  );
+  const sqlTreeHeightPx = $derived(
+    Math.min(
+      360,
+      Math.max(
+        96,
+        TREE_SEARCH_CHROME_HEIGHT_PX + sqlTreeModel.paths.length * COMPACT_TREE_ROW_HEIGHT_PX
+      )
+    )
+  );
 
   function connectionColor(index: number): string {
     return TAG_COLORS[index % TAG_COLORS.length] ?? TAG_COLORS[0];
   }
 
-  function toggleTableExpand(tableKey: string, e: Event): void {
-    e.stopPropagation();
-    expandedTables = expandedTables.has(tableKey)
-      ? new Set([...expandedTables].filter((k) => k !== tableKey))
-      : new Set([...expandedTables, tableKey]);
+  function handleSchemaTreeSelection(selectedPaths: readonly string[]): void {
+    const selectedPath = selectedPaths[selectedPaths.length - 1];
+    if (!selectedPath) {
+      return;
+    }
+
+    const table = sqlTreeModel.tablesByPath.get(selectedPath);
+    if (table) {
+      onTableSelect(table.schemaName, table.tableName);
+    }
   }
 </script>
 
@@ -123,7 +156,7 @@
                 onConnectionDelete(connection.id);
               }}
             >
-              <Trash size={12} weight="bold" class="text-destructive" />
+              <RoundedIcon name="trash" class="size-3 text-destructive" />
             </button>
           </div>
         {/each}
@@ -223,3 +256,57 @@
 
   </div>
 </div>
+
+<style>
+  .sql-table-icon {
+    position: relative;
+    display: inline-block;
+    width: 12px;
+    height: 12px;
+    box-sizing: border-box;
+    border: 1.4px solid currentColor;
+    border-radius: 2px;
+    background:
+      linear-gradient(currentColor, currentColor) 0 4px / 100% 1.2px no-repeat,
+      linear-gradient(currentColor, currentColor) 0 7px / 100% 1.2px no-repeat,
+      linear-gradient(currentColor, currentColor) 4px 0 / 1.2px 100% no-repeat,
+      linear-gradient(currentColor, currentColor) 8px 0 / 1.2px 100% no-repeat;
+  }
+
+  .sql-key-icon {
+    position: relative;
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    margin-right: 2px;
+    margin-top: -2px;
+    vertical-align: middle;
+    box-sizing: border-box;
+    border: 1.3px solid currentColor;
+    border-radius: 999px;
+    overflow: visible;
+  }
+
+  .sql-key-icon::before {
+    content: "";
+    position: absolute;
+    left: 5px;
+    top: 3px;
+    width: 4px;
+    height: 1.3px;
+    border-radius: 999px;
+    background: currentColor;
+  }
+
+  .sql-key-icon::after {
+    content: "";
+    position: absolute;
+    left: 7.5px;
+    top: 3px;
+    width: 1.3px;
+    height: 3px;
+    border-radius: 999px;
+    background: currentColor;
+    box-shadow: 2px 0 0 currentColor;
+  }
+</style>

@@ -38,6 +38,8 @@ pub enum SessionUpdate {
         #[serde(skip_serializing_if = "Option::is_none")]
         message_id: Option<String>,
         #[serde(skip_serializing_if = "Option::is_none")]
+        parent_tool_use_id: Option<String>,
+        #[serde(skip_serializing_if = "Option::is_none")]
         session_id: Option<String>,
         #[serde(default, skip_serializing_if = "Option::is_none")]
         produced_at_monotonic_ms: Option<u64>,
@@ -49,6 +51,8 @@ pub enum SessionUpdate {
         part_id: Option<String>,
         #[serde(skip_serializing_if = "Option::is_none")]
         message_id: Option<String>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        parent_tool_use_id: Option<String>,
         #[serde(skip_serializing_if = "Option::is_none")]
         session_id: Option<String>,
     },

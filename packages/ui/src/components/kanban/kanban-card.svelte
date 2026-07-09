@@ -102,6 +102,7 @@ function handleKeydown(event: KeyboardEvent): void {
 			<HeaderCell withDivider={false} class="px-1">
 				<ProjectLetterBadge
 					name={card.projectName}
+					label={card.projectBadgeLabel ?? null}
 					color={card.projectColor}
 					iconSrc={card.projectIconSrc}
 					size={14}
@@ -122,11 +123,9 @@ function handleKeydown(event: KeyboardEvent): void {
 							aria-label={card.worktreeDeleted ? "Worktree deleted" : "Worktree session"}
 							title={card.worktreeDeleted ? "Worktree deleted" : "Worktree session"}
 						>
-							<Tree
-								size={12}
-								weight="fill"
-								class={card.worktreeDeleted ? "text-destructive" : "text-success"}
-								color="currentColor"
+							<RoundedIcon
+								name="worktree"
+								class={card.worktreeDeleted ? "size-3 text-destructive" : "size-3 text-success"}
 							/>
 						</div>
 					{/if}
@@ -136,7 +135,7 @@ function handleKeydown(event: KeyboardEvent): void {
 							aria-label="Auto mode"
 							title="Auto mode"
 						>
-							<Robot size={12} weight="fill" style="color: {Colors.purple}" class="shrink-0" />
+							<RobotIcon size={12} weight="fill" style="color: {Colors.purple}" class="shrink-0" />
 						</div>
 					{/if}
 				</div>

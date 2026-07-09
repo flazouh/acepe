@@ -36,17 +36,22 @@ let { class: className = "", size = 12, label = "Claude is working" }: Props = $
 
 <style>
 	.claude-working-spark {
-		display: inline-flex;
+		display: inline-block;
+		position: relative;
 		width: var(--spark-size);
 		height: var(--spark-size);
 		overflow: hidden;
+		vertical-align: middle;
 		flex-shrink: 0;
 		/* Claude brand color; override `color` on the host to re-tint. */
 		color: #d97757;
 	}
 
 	.claude-working-spark__sprite {
-		width: 100%;
+		position: absolute;
+		top: 0;
+		left: 0;
+		width: var(--spark-size);
 		height: calc(var(--spark-size) * var(--spark-frames));
 		background-color: currentColor;
 		-webkit-mask-image: var(--spark-src);

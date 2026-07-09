@@ -69,10 +69,12 @@ interface Props {
 	onArchiveSession?: (session: SessionDisplayItem) => void | Promise<void>;
 	/** Called when user renames a session from the sidebar */
 	onRenameSession?: (session: SessionListItem, title: string) => void | Promise<void>;
-	/** Called when user exports session as markdown */
-	onExportMarkdown?: (sessionId: string) => void | Promise<void>;
-	/** Called when user exports session as JSON */
-	onExportJson?: (sessionId: string) => void | Promise<void>;
+	/** Called when user copies session transcript as Markdown */
+	onCopyTranscriptMarkdown?: (sessionId: string) => void | Promise<void>;
+	/** Called when user copies session transcript as JSON */
+	onCopyTranscriptJson?: (sessionId: string) => void | Promise<void>;
+	/** Called when user opens the raw transcript in Acepe */
+	onOpenTranscriptInAcepe?: (session: SessionDisplayItem) => void | Promise<void>;
 	/** Called when project order changes from the sidebar move actions */
 	onReorderProjects?: (orderedPaths: string[]) => void;
 	/** Per-project visibility for discovered external CLI sessions */
@@ -108,8 +110,9 @@ let {
 	onOpenPr,
 	onArchiveSession,
 	onRenameSession,
-	onExportMarkdown,
-	onExportJson,
+	onCopyTranscriptMarkdown,
+	onCopyTranscriptJson,
+	onOpenTranscriptInAcepe,
 	onReorderProjects,
 	projectShowExternalCliSessions = new Map(),
 	onToggleShowExternalCliSessions,
@@ -474,6 +477,7 @@ async function handleProjectContextMove(projectPath: string, offset: -1 | 1): Pr
 		<ProjectHeader
 			projectColor={group.projectColor}
 			projectName={group.projectName}
+			projectBadgeLabel={group.projectBadgeLabel}
 			projectIconSrc={group.projectIconSrc}
 			expanded={isExpanded}
 			class="group min-w-0 flex-1 cursor-pointer transition-colors"
@@ -554,8 +558,9 @@ async function handleProjectContextMove(projectPath: string, offset: -1 | 1): Pr
 										{onOpenPr}
 										onArchive={onArchiveSession}
 										{onRenameSession}
-										{onExportMarkdown}
-										{onExportJson}
+										{onCopyTranscriptMarkdown}
+										{onCopyTranscriptJson}
+										{onOpenTranscriptInAcepe}
 									/>
 								{/if}
 							</div>

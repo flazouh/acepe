@@ -20,8 +20,9 @@ interface Props {
 	onOpenPr?: (item: SessionListItem) => void;
 	onRenameSession?: (session: SessionListItem, title: string) => void | Promise<void>;
 	onArchive?: (session: SessionDisplayItem) => void | Promise<void>;
-	onExportMarkdown?: (sessionId: string) => void | Promise<void>;
-	onExportJson?: (sessionId: string) => void | Promise<void>;
+	onCopyTranscriptMarkdown?: (sessionId: string) => void | Promise<void>;
+	onCopyTranscriptJson?: (sessionId: string) => void | Promise<void>;
+	onOpenTranscriptInAcepe?: (session: SessionDisplayItem) => void | Promise<void>;
 }
 
 let {
@@ -31,8 +32,9 @@ let {
 	onOpenPr,
 	onRenameSession,
 	onArchive,
-	onExportMarkdown,
-	onExportJson,
+	onCopyTranscriptMarkdown,
+	onCopyTranscriptJson,
+	onOpenTranscriptInAcepe,
 }: Props = $props();
 
 // Track which parent sessions are expanded
@@ -163,6 +165,7 @@ setSessionListHighlightContext(highlightContext);
 					id: row.item.id,
 					title: row.item.title,
 					projectPath: row.item.projectPath,
+					sourcePath: row.item.sourcePath,
 					projectName: row.item.projectName,
 					projectColor: row.item.projectColor,
 					projectIconSrc: row.item.projectIconSrc,
@@ -177,6 +180,7 @@ setSessionListHighlightContext(highlightContext);
 					worktreeDeleted: row.item.worktreeDeleted,
 					prNumber: row.item.prNumber,
 					prState: row.item.prState,
+					linkedPr: row.item.linkedPr,
 					sequenceId: row.item.sequenceId,
 				}}
 				selected={selectedSessionId === row.item.id}
@@ -189,8 +193,9 @@ setSessionListHighlightContext(highlightContext);
 				onOpenPr={onOpenPr ? () => onOpenPr(row.item) : undefined}
 				onRename={onRenameSession ? (title) => onRenameSession(row.item, title) : undefined}
 				{onArchive}
-				{onExportMarkdown}
-				{onExportJson}
+				{onCopyTranscriptMarkdown}
+				{onCopyTranscriptJson}
+				{onOpenTranscriptInAcepe}
 			/>
 			{#snippet failed(error, reset)}
 				<div class="px-3 py-1.5 text-[10px] text-muted-foreground">

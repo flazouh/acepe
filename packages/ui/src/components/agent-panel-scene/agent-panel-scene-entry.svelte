@@ -166,6 +166,8 @@
 		durationMs={entry.durationMs}
 		startedAtMs={entry.startedAtMs}
 		label={entry.label}
+		agentIconSrc={entry.agentIconSrc}
+		showWorkingSpark={entry.showWorkingSpark ?? false}
 	/>
 {:else if entry.type === "missing"}
 	<AgentMissingSceneEntry

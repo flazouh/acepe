@@ -7,6 +7,7 @@
 		readonly name: string;
 		readonly color: string;
 		readonly iconSrc?: string | null;
+		readonly badgeLabel?: string | null;
 		readonly sessionCount?: number;
 	}
 
@@ -19,6 +20,11 @@
 	}
 
 	let { projects, activeProjectPath, onSelectProject, onCreateSession }: Props = $props();
+	const labelByPath = $derived(
+		computeProjectBadgeLabels(
+			projects.map((project) => ({ key: project.path, name: project.name }))
+		)
+	);
 </script>
 
 {#if projects.length > 0}
@@ -47,6 +53,7 @@
 					>
 						<ProjectLetterBadge
 							name={project.name}
+							label={project.badgeLabel ?? labelByPath.get(project.path) ?? null}
 							color={project.color}
 							iconSrc={project.iconSrc ?? null}
 							size={14}

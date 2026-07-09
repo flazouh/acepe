@@ -1,10 +1,8 @@
 <script lang="ts">
 	import type { Snippet } from "svelte";
 
-	import { Browser } from "phosphor-svelte";
-	import { Gear } from "phosphor-svelte";
-	import { Terminal } from "phosphor-svelte";
 	import { Button } from "../button/index.js";
+	import { RoundedIcon } from "../icons/index.js";
 
 	interface Props {
 		children?: Snippet;
@@ -67,7 +65,7 @@
 				onclick={onSettings}
 			>
 				{#snippet children()}
-					<Gear class="h-3 w-3" weight="fill" />
+					<RoundedIcon name="settings" />
 				{/snippet}
 			</Button>
 		</div>
@@ -86,7 +84,7 @@
 					onclick={onToggleBrowser}
 				>
 					{#snippet children()}
-						<Browser class="h-3 w-3" weight={browserActive ? "fill" : "regular"} />
+						<RoundedIcon name="browser" />
 					{/snippet}
 				</Button>
 			{/if}
@@ -102,7 +100,7 @@
 					onclick={onToggleTerminal}
 				>
 					{#snippet children()}
-						<Terminal class="h-3 w-3" weight="fill" />
+						<RoundedIcon name="terminal" />
 					{/snippet}
 				</Button>
 			{/if}

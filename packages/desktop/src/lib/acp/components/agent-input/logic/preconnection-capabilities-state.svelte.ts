@@ -1,7 +1,6 @@
 import { okAsync, ResultAsync } from "neverthrow";
 import { SvelteMap } from "svelte/reactivity";
 import type { AppError } from "$lib/acp/errors/app-error.js";
-import type { AgentInfo } from "$lib/acp/store/api.js";
 import { createLogger } from "$lib/acp/utils/logger.js";
 import type { ProviderMetadataProjection, ResolvedCapabilities } from "$lib/services/acp-types.js";
 import { tauriClient } from "$lib/utils/tauri-client.js";
@@ -17,6 +16,12 @@ interface GetCapabilitiesInput {
 	agentId: string | null;
 	projectPath: string | null;
 	preconnectionCapabilityMode: ProviderMetadataProjection["preconnectionCapabilityMode"];
+}
+
+interface StartupGlobalCapabilitiesAgent {
+	readonly id: string;
+	readonly providerMetadata?: ProviderMetadataProjection;
+	readonly provider_metadata?: ProviderMetadataProjection;
 }
 
 type FetchCapabilities = (
@@ -200,9 +205,13 @@ export class PreconnectionCapabilitiesState {
 		return cacheKey ? loadingByKey.has(cacheKey) : false;
 	}
 
-	initializeStartupGlobal(agents: ReadonlyArray<AgentInfo>): ResultAsync<void, AppError> {
+	initializeStartupGlobal(
+		agents: ReadonlyArray<StartupGlobalCapabilitiesAgent>
+	): ResultAsync<void, AppError> {
 		const startupGlobalAgents = agents.filter(
-			(agent) => agent.provider_metadata?.preconnectionCapabilityMode === "startupGlobal"
+			(agent) =>
+				(agent.providerMetadata ?? agent.provider_metadata)?.preconnectionCapabilityMode ===
+				"startupGlobal"
 		);
 
 		if (startupGlobalAgents.length === 0) {
@@ -215,7 +224,8 @@ export class PreconnectionCapabilitiesState {
 				hasConnectedSession: false,
 				projectPath: null,
 				preconnectionCapabilityMode:
-					agent.provider_metadata?.preconnectionCapabilityMode ?? "unsupported",
+					(agent.providerMetadata ?? agent.provider_metadata)?.preconnectionCapabilityMode ??
+					"unsupported",
 			})
 		);
 

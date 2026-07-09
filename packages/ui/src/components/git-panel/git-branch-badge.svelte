@@ -5,6 +5,7 @@
 	import { CaretDown, GitBranch } from "phosphor-svelte";
 
 	import { cn } from "../../lib/utils.js";
+	import { RoundedIcon } from "../icons/index.js";
 
 	interface Props {
 		branch: string;

@@ -10,6 +10,7 @@ export const TAURI_COMMAND_CLIENT = {
     fork_session: createGeneratedCommand(COMMANDS.acp.fork_session),
     get_composer_mcp_catalog: createGeneratedCommand(COMMANDS.acp.get_composer_mcp_catalog),
     get_event_bridge_info: createGeneratedCommand(COMMANDS.acp.get_event_bridge_info),
+    get_session_connection_readiness: createGeneratedCommand(COMMANDS.acp.get_session_connection_readiness),
     get_session_state: createGeneratedCommand(COMMANDS.acp.get_session_state),
     initialize: createGeneratedCommand(COMMANDS.acp.initialize),
     install_agent: createGeneratedCommand(COMMANDS.acp.install_agent),
@@ -28,6 +29,7 @@ export const TAURI_COMMAND_CLIENT = {
     set_mode: createGeneratedCommand(COMMANDS.acp.set_mode),
     set_model: createGeneratedCommand(COMMANDS.acp.set_model),
     set_session_autonomous: createGeneratedCommand(COMMANDS.acp.set_session_autonomous),
+    unarchive_session: createGeneratedCommand(COMMANDS.acp.unarchive_session),
     uninstall_agent: createGeneratedCommand(COMMANDS.acp.uninstall_agent),
   },
   browser_webview: {
@@ -83,6 +85,7 @@ export const TAURI_COMMAND_CLIENT = {
   git: {
     browse_destination: createGeneratedCommand(COMMANDS.git.browse_destination),
     checkout_branch: createGeneratedCommand(COMMANDS.git.checkout_branch),
+    ci_job_details: createGeneratedCommand(COMMANDS.git.ci_job_details),
     clone: createGeneratedCommand(COMMANDS.git.clone),
     collect_ship_context: createGeneratedCommand(COMMANDS.git.collect_ship_context),
     commit: createGeneratedCommand(COMMANDS.git.commit),
@@ -160,6 +163,7 @@ export const TAURI_COMMAND_CLIENT = {
     set_session_pr_number: createGeneratedCommand(COMMANDS.history.set_session_pr_number),
     set_session_title: createGeneratedCommand(COMMANDS.history.set_session_title),
     set_session_worktree_path: createGeneratedCommand(COMMANDS.history.set_session_worktree_path),
+    warm_recent_transcript_row_ledgers: createGeneratedCommand(COMMANDS.history.warm_recent_transcript_row_ledgers),
   },
   opencode_history: {
     get_opencode_history: createGeneratedCommand(COMMANDS.opencode_history.get_opencode_history),
@@ -228,6 +232,7 @@ export const TAURI_COMMAND_CLIENT = {
     get_streaming_log_path: createGeneratedCommand(COMMANDS.storage.get_streaming_log_path),
     get_thread_list_settings: createGeneratedCommand(COMMANDS.storage.get_thread_list_settings),
     get_user_setting: createGeneratedCommand(COMMANDS.storage.get_user_setting),
+    get_user_settings: createGeneratedCommand(COMMANDS.storage.get_user_settings),
     import_project: createGeneratedCommand(COMMANDS.storage.import_project),
     list_project_images: createGeneratedCommand(COMMANDS.storage.list_project_images),
     open_in_finder: createGeneratedCommand(COMMANDS.storage.open_in_finder),

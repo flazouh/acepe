@@ -125,6 +125,7 @@ export function buildKanbanCard(input: BuildKanbanCardInput): KanbanCardData {
 		agentLabel: item.agentId,
 		isAutoMode: item.autonomousEnabled === true,
 		projectName: item.projectName,
+		projectBadgeLabel: item.projectBadgeLabel,
 		projectColor: item.projectColor,
 		projectIconSrc: item.projectIconSrc,
 		activityText,
@@ -153,6 +154,7 @@ export interface BuildOptimisticKanbanCardsInput {
 	readonly panels: readonly Panel[];
 	readonly sessionIdsWithThreadBoardSource?: ReadonlySet<string>;
 	readonly getProject: (projectPath: string) => Project | undefined;
+	readonly getProjectBadgeLabel?: (projectPath: string) => string | null | undefined;
 	readonly getPanelHotState: (panelId: string) => PanelHotState;
 	readonly getAgentIcon: (agentId: string | null | undefined) => string | null;
 }
@@ -205,6 +207,7 @@ export function buildOptimisticKanbanCards(
 				agentLabel: agentId,
 				isAutoMode: hotState.provisionalAutonomousEnabled,
 				projectName: project ? project.name : "Unknown",
+				projectBadgeLabel: input.getProjectBadgeLabel?.(panel.projectPath) ?? null,
 				projectColor: project ? project.color : Colors[COLOR_NAMES.PINK],
 				projectIconSrc: project ? (project.iconPath ?? null) : null,
 				activityText,

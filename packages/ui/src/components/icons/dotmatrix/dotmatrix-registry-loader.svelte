@@ -39,7 +39,8 @@
 
 	const resolvedSize = $derived(size ?? config?.defaultSize ?? 36);
 	const resolvedDotSize = $derived(dotSize ?? config?.defaultDotSize ?? 5);
-	const resolvedSpeed = $derived(speed > 0 ? (speed ?? config?.defaultSpeed ?? 1) : 1);
+	const configuredSpeed = $derived(speed ?? config?.defaultSpeed ?? 1);
+	const resolvedSpeed = $derived(configuredSpeed > 0 ? configuredSpeed : 1);
 	const resolvedPattern = $derived(config?.defaultPattern ?? "full");
 
 	let reducedMotion = $state(false);
@@ -180,8 +181,7 @@
 			{color}
 			speed={resolvedSpeed}
 			pattern={resolvedPattern}
-			{animated}
-			{ariaLabel}
+			aria-label={ariaLabel}
 			phase={matrixPhase}
 			{reducedMotion}
 			{animationResolver}

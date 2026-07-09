@@ -1,7 +1,5 @@
 <script lang="ts">
-	import { ArrowsInSimple, ArrowsOutSimple } from "phosphor-svelte";
-
-	import { PlanIcon } from "../icons/index.js";
+	import { PlanIcon, RoundedIcon } from "../icons/index.js";
 	import { Button } from "../button/index.js";
 	import {
 		EmbeddedPanelHeader,
@@ -40,11 +38,7 @@
 			onclick={onToggleSidebar}
 		>
 			{#snippet children()}
-				{#if isExpanded}
-					<ArrowsInSimple size={14} weight="bold" />
-				{:else}
-					<ArrowsOutSimple size={14} weight="bold" />
-				{/if}
+				<RoundedIcon name={isExpanded ? "collapse" : "expand"} />
 			{/snippet}
 		</Button>
 	</HeaderActionCell>

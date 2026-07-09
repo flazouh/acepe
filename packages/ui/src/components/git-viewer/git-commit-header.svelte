@@ -1,11 +1,6 @@
 <script lang="ts">
-	import { GitCommit } from "phosphor-svelte";
-	import { ArrowSquareOut } from "phosphor-svelte";
-	import { CaretDown } from "phosphor-svelte";
-	import { Copy } from "phosphor-svelte";
-	import { Check } from "phosphor-svelte";
-
 	import { DiffPill } from "../diff-pill/index.js";
+	import { RoundedIcon } from "../icons/index.js";
 	import { cn } from "../../lib/utils.js";
 	import type { GitCommitData } from "./types.js";
 
@@ -48,7 +43,11 @@
 	<!-- Primary row: icon + SHA + message + diff pill + actions -->
 	<div class="flex items-center gap-2 px-3 py-2">
 		<span class="shrink-0 text-success">
-			<GitCommit weight="bold" size={16} />
+			<RoundedIcon
+				name="git"
+				class="size-4"
+				data-testid="git-commit-header-rounded-icon"
+			/>
 		</span>
 
 		<button
@@ -59,9 +58,9 @@
 		>
 			{commit.shortSha}
 			{#if copied}
-				<Check size={10} weight="bold" />
+				<RoundedIcon name="check" class="size-2.5" />
 			{:else}
-				<Copy size={10} />
+				<RoundedIcon name="copy" class="size-2.5" />
 			{/if}
 		</button>
 
@@ -80,7 +79,7 @@
 				onclick={onViewOnGitHub}
 				title="View on GitHub"
 			>
-				<ArrowSquareOut size={12} />
+				<RoundedIcon name="external-link" class="size-3" />
 			</button>
 		{/if}
 

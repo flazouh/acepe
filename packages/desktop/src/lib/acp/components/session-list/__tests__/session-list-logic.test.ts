@@ -321,6 +321,20 @@ describe("createSessionGroups", () => {
 		expect(group.projectPath).toBe("/path/1");
 	});
 
+	it("adds disambiguating badge labels to project groups", () => {
+		const items: SessionListItem[] = [
+			createSessionListItem("session-acepe", "/repos/acepe", "Acepe"),
+			createSessionListItem("session-apple", "/repos/apple", "Apple"),
+		];
+
+		const groups = createSessionGroups(items);
+
+		expect(groups.map((group) => [group.projectPath, group.projectBadgeLabel])).toEqual([
+			["/repos/acepe", "Ac"],
+			["/repos/apple", "Ap"],
+		]);
+	});
+
 	it("sorts groups by persisted sortOrder ascending", () => {
 		const items: SessionListItem[] = [
 			createSessionListItem("session-a", "/project/a", "project-a"),
@@ -361,6 +375,20 @@ describe("createSessionGroups", () => {
 			"/project/b",
 			"/project/c",
 			"/project/a",
+		]);
+	});
+
+	it("adds disambiguating badge labels to loading project groups", () => {
+		const projects: Project[] = [
+			createProject("/repos/acepe", "Acepe", "2024-01-01T00:00:00.000Z"),
+			createProject("/repos/apple", "Apple", "2024-01-02T00:00:00.000Z"),
+		];
+
+		const groups = createLoadingSessionGroups(projects);
+
+		expect(groups.map((group) => [group.projectPath, group.projectBadgeLabel])).toEqual([
+			["/repos/apple", "Ap"],
+			["/repos/acepe", "Ac"],
 		]);
 	});
 

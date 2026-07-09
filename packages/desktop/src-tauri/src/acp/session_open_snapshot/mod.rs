@@ -7,13 +7,12 @@
 //! ## Ordering guarantee
 //!
 //! Session-open helpers arm the `event_hub` reservation for `open_token`
-//! **before** returning the assembled snapshot content. Any delta published to
-//! the hub for `canonical_session_id` after arming is captured in the
-//! reservation buffer and remains available for ordered flush at connect time
-//! (Unit 3). A concurrent event that hits the journal within the tiny window
-//! between `max_event_seq` read and reservation arming will appear in the
-//! buffer and may also be reflected in the projection — deduplication by
-//! `last_event_seq` at claim time (Unit 3) ensures it is not delivered twice.
+//! **before** reading or returning open content. Any delta published to the hub
+//! for `canonical_session_id` after arming is captured in the reservation
+//! buffer and remains available for ordered flush at connect time (Unit 3).
+//! Once the exact open cutoff is known, the helper raises the reservation
+//! frontier to that `last_event_seq`; replay then delivers only buffered deltas
+//! strictly after the open result and drops duplicates already included in it.
 
 mod operation_sanitize;
 mod snapshot;
@@ -24,12 +23,18 @@ mod types;
 mod tests;
 
 pub use snapshot::{
+    apply_runtime_authority_to_session_open_result, compact_oversized_session_open_result,
     session_open_result_for_new_session, session_open_result_from_completed_local_journal,
+    session_open_result_from_current_row_ledger,
+    session_open_result_from_current_row_ledger_with_initial_page_policy,
+    session_open_result_from_current_row_ledger_with_status,
     session_open_result_from_provider_owned_snapshot, session_open_result_from_thread_snapshot,
+    CurrentRowLedgerInitialPagePolicy, CurrentRowLedgerOpenLookup, CurrentRowLedgerOpenMiss,
 };
 pub use types::{
     NewSessionOpenResultInput, SessionOpenError, SessionOpenErrorReason, SessionOpenFound,
-    SessionOpenMissing, SessionOpenResult,
+    SessionOpenMissing, SessionOpenPath, SessionOpenResult, SessionOpenResultTiming,
+    SessionOpenTranscriptRowPage,
 };
 
 pub(crate) use operation_sanitize::{
@@ -38,4 +43,5 @@ pub(crate) use operation_sanitize::{
 #[allow(unused_imports)]
 pub(crate) use snapshot::{
     default_session_title, derive_title_from_transcript_snapshot, resolve_canonical_session_title,
+    session_projection_snapshot_from_open_found,
 };

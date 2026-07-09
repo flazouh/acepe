@@ -48,10 +48,12 @@ interface Props {
 	onArchiveSession?: (session: SessionDisplayItem) => void | Promise<void>;
 	/** Called when user renames a session from the sidebar */
 	onRenameSession?: (session: SessionListItem, title: string) => void | Promise<void>;
-	/** Called when user exports session as markdown */
-	onExportMarkdown?: (sessionId: string) => void | Promise<void>;
-	/** Called when user exports session as JSON */
-	onExportJson?: (sessionId: string) => void | Promise<void>;
+	/** Called when user copies session transcript as Markdown */
+	onCopyTranscriptMarkdown?: (sessionId: string) => void | Promise<void>;
+	/** Called when user copies session transcript as JSON */
+	onCopyTranscriptJson?: (sessionId: string) => void | Promise<void>;
+	/** Called when user opens the raw transcript in Acepe */
+	onOpenTranscriptInAcepe?: (session: SessionDisplayItem) => void | Promise<void>;
 	/** Called when project order changes from the sidebar move actions */
 	onReorderProjects?: (orderedPaths: string[]) => void;
 	/** Toggle whether discovered external CLI sessions appear in this project's list */
@@ -85,8 +87,9 @@ let {
 	onOpenPr,
 	onArchiveSession,
 	onRenameSession,
-	onExportMarkdown,
-	onExportJson,
+	onCopyTranscriptMarkdown,
+	onCopyTranscriptJson,
+	onOpenTranscriptInAcepe,
 	onReorderProjects,
 	onToggleShowExternalCliSessions,
 }: Props = $props();
@@ -121,9 +124,7 @@ const projectSortOrderMap = $derived(
 	}, new Map<string, number>())
 );
 const projectShowExternalCliSessions = $derived(
-	new Map(
-		recentProjects.map((project) => [project.path, project.showExternalCliSessions ?? true])
-	)
+	new Map(recentProjects.map((project) => [project.path, project.showExternalCliSessions ?? true]))
 );
 
 // Filter sessions to only include those belonging to known projects
@@ -199,8 +200,9 @@ function handleCreateSessionForProject(projectPath: string, agentId?: string) {
 	{onOpenPr}
 	{onArchiveSession}
 	onRenameSession={onRenameSession}
-	{onExportMarkdown}
-	{onExportJson}
+	{onCopyTranscriptMarkdown}
+	{onCopyTranscriptJson}
+	{onOpenTranscriptInAcepe}
 	{onReorderProjects}
 	{projectShowExternalCliSessions}
 	{onToggleShowExternalCliSessions}

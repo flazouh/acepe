@@ -422,8 +422,6 @@ describe("PanelStore workspacePanels", () => {
 				scrollTop: 42,
 				planSidebarExpanded: true,
 				messageDraft: "draft",
-				reviewMode: undefined,
-				reviewFileIndex: undefined,
 				embeddedTerminalDrawerOpen: true,
 				selectedEmbeddedTerminalTabId: undefined,
 				sequenceId: undefined,

@@ -1,5 +1,4 @@
 <script lang="ts">
-import { IconSquare } from "@tabler/icons-svelte";
 import type { Snippet } from "svelte";
 
 import AgentCompactToolDisplay from "../agent-panel/compact-tool-display.svelte";
@@ -199,7 +198,7 @@ const showTaskWidget = $derived(visibleTaskWidgetSummary !== null);
 			{/if}
 		</div>
 	{:else}
-		<div class="flex items-center gap-1.5">
+		<div class="flex min-h-5 items-center gap-1.5">
 			{#if projectBadge}
 				{@render projectBadge()}
 			{/if}

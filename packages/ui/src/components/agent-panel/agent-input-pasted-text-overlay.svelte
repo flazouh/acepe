@@ -6,7 +6,7 @@
 -->
 <script lang="ts">
 	import { onMount, untrack } from "svelte";
-	import { Check, X } from "phosphor-svelte";
+	import { RoundedIcon } from "../icons/index.js";
 
 	interface Props {
 		mode: "preview" | "edit";
@@ -118,7 +118,7 @@
 			onclick={onClose}
 			aria-label={closeLabel}
 		>
-			<X size={10} weight="bold" />
+			<RoundedIcon name="close" class="size-2.5" />
 		</button>
 	</div>
 
@@ -139,7 +139,7 @@
 				class="flex items-center gap-0.5 px-1.5 py-px rounded-lg border border-border/50 bg-background/40 text-[10px] font-medium text-foreground/80 hover:text-foreground hover:bg-accent/60 transition-colors"
 				onclick={onClose}
 			>
-				<X size={9} weight="bold" class="shrink-0" />
+				<RoundedIcon name="close" class="size-[9px] shrink-0" />
 				{cancelLabel}
 			</button>
 			<button
@@ -147,7 +147,7 @@
 				class="flex items-center gap-0.5 px-1.5 py-px rounded-lg border border-border/50 bg-background/40 text-[10px] font-medium text-foreground/80 hover:text-foreground hover:bg-accent/60 transition-colors"
 				onclick={handleSave}
 			>
-				<Check size={9} weight="bold" class="shrink-0" />
+				<RoundedIcon name="check" class="size-[9px] shrink-0" />
 				{saveLabel}
 			</button>
 		</div>
