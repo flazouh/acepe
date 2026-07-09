@@ -1665,7 +1665,7 @@ $effect(() => {
 	{:else}
 		<span class="sr-only" role="status" aria-live="polite">{autonomousStatusMessage}</span>
 		<div class="flex min-w-0 flex-col gap-0.5">
-		{#if showNewThreadOptions && props.newThreadContext}
+			{#if secondaryComposerChromeReady && showNewThreadOptions && props.newThreadContext}
 			{@const newThread = props.newThreadContext}
 			<div
 				class="flex w-full {newThread.setupBarAlign === 'start'
@@ -1780,40 +1780,13 @@ $effect(() => {
 									checkpointOverflow={
 										props.showCheckpointInAttachMenu ? props.checkpointButton : undefined
 									}
-									handleVoiceMicKeyDownFromModule(event, voiceState);
-								}
-							}}
-							voiceModels={voiceSettingsStore.models.map((model) => ({
-								id: model.id,
-								name: model.name,
-								sizeBytes: model.size_bytes,
-								isDownloaded: model.is_downloaded,
-							}))}
-							voiceSelectedModelId={voiceSettingsStore.selectedModelId}
-							voiceModelsLoading={voiceSettingsStore.modelsLoading}
-							voiceDownloadingModelId={voiceSettingsStore.downloadProgressModelId}
-							voiceDownloadPercent={voiceSettingsStore.downloadPercent}
-							voiceMenuLabel={"Voice model"}
-							voiceModelsLoadingLabel={"Loading voice models…"}
-							onVoiceSelectModel={(modelId) => {
-								void voiceSettingsStore.setSelectedModelId(modelId);
-							}}
-							onVoiceDownloadModel={(modelId) => {
-								void voiceSettingsStore.downloadModel(modelId);
-							}}
-							onVoiceUninstallModel={(modelId) => {
-								void voiceSettingsStore.deleteModel(modelId);
-							}}
-							voiceCloseLabel={"Close"}
-						>
-							{#snippet modelSelector()}
-								{@render newThreadModelControl()}
-							{/snippet}
-							{#snippet metricsChip()}
-								{#if props.sessionId}
-									<ModelSelectorMetricsChip
-										sessionId={props.sessionId}
-										agentId={composerView.capabilitiesAgentId}
+								/>
+								{#if composerView.showActiveModeChip}
+									<AgentInputActiveModeChip
+										label={composerView.selectedModeOption.label}
+										iconKind={composerView.selectedModeOption.iconKind}
+										disabled={composerView.selectorsDisabledByComposer}
+										onDismiss={handleActiveModeDismiss}
 									/>
 								{/if}
 							{/if}

@@ -14,13 +14,13 @@ export {
   buttonBaseClass,
   buttonShadcnVariantAppearanceClass,
   buttonShadcnSizeAppearanceClass,
-  buttonLegacyVariantAppearanceClass,
-  buttonLegacySizeAppearanceClass,
   getButtonVariantAppearanceClass,
   getButtonSizeAppearanceClass,
+  BUTTON_CHIP_CHILD_ICON_SELECTOR,
+  BUTTON_CHIP_ICON_SIZE_PX,
 } from "./variants.js";
 
-export { getButtonClass } from "./button-class.js";
+export { getButtonClass, getDialogHeaderIconCloseClass, type HeaderIconCloseSize } from "./button-class.js";
 
 export {
   controlTokensShowcaseMeta,

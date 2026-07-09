@@ -31,7 +31,7 @@
 	<HeaderActionCell withDivider={false}>
 		<Button
 			variant="ghost"
-			size="icon-chrome"
+			size="icon"
 			data-header-control
 			title={toggleLabel}
 			aria-label={toggleLabel}

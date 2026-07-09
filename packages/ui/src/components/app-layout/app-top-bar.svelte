@@ -1,10 +1,8 @@
 <script lang="ts">
-	import type { Snippet } from "svelte";
-	import { FolderPlus } from "phosphor-svelte";
-	import { GearSix } from "phosphor-svelte";
-	import AppSearchButton from "./app-search-button.svelte";
-	import { Button } from "../button/index.js";
-	import { RoundedIcon } from "../icons/index.js";
+import type { Snippet } from "svelte";
+import { Button } from "../button/index.js";
+import { RoundedIcon, type RoundedIconName } from "../icons/index.js";
+import AppSearchButton from "./app-search-button.svelte";
 
 interface Props {
 	showTrafficLights?: boolean;
@@ -39,8 +37,10 @@ interface Props {
 	showSearch?: boolean;
 }
 
-	const ICON = "size-4";
-	const chromeIconButton = { variant: "ghost" as const, size: "icon-chrome" as const };
+const chromeIconButton = {
+	variant: "ghost" as const,
+	size: "icon" as const,
+};
 
 let {
 	showTrafficLights = true,
@@ -94,7 +94,10 @@ const sidebarIconName = $derived<RoundedIconName>(
 					onclick={onToggleSidebar}
 				>
 					{#snippet children()}
-						<RoundedIcon name="sidebar" class={ICON} />
+						<RoundedIcon
+							name={sidebarIconName}
+							data-testid="app-top-bar-sidebar-icon"
+						/>
 					{/snippet}
 				</Button>
 			{/if}

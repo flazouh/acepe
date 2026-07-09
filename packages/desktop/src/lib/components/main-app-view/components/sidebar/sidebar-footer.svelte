@@ -26,7 +26,40 @@ let {
 	onRetryUpdateClick,
 }: Props = $props();
 
-const chromeIconButton = { variant: "ghost" as const, size: "icon-chrome" as const };
+const chromeIconButton = { variant: "ghost" as const, size: "icon" as const };
+
+const updateCardKind = $derived<SidebarUpdateKind | null>(
+	updaterState?.kind === "available" ||
+		updaterState?.kind === "downloading" ||
+		updaterState?.kind === "installing" ||
+		updaterState?.kind === "error"
+		? updaterState.kind
+		: null
+);
+
+const updateCardVersion = $derived(
+	updaterState?.kind === "available" ||
+		updaterState?.kind === "downloading" ||
+		updaterState?.kind === "installing"
+		? updaterState.version
+		: null
+);
+
+const updateCardPercent = $derived(
+	updaterState?.kind === "installing"
+		? 100
+		: updaterState?.kind === "downloading" && updaterState.totalBytes && updaterState.totalBytes > 0
+			? Math.min(Math.round((updaterState.downloadedBytes / updaterState.totalBytes) * 100), 100)
+			: 0
+);
+
+function handleUpdateCardClick() {
+	if (updaterState?.kind === "error") {
+		onRetryUpdateClick?.();
+		return;
+	}
+	onUpdateClick?.();
+}
 
 let appVersion = $state<string | null>(null);
 
@@ -66,7 +99,7 @@ const releaseUrl = $derived(
 			onclick={() => openUrl("https://github.com/flazouh/acepe")}
 		>
 			{#snippet children()}
-				<GithubLogo class="size-4" weight="fill" />
+				<RoundedIcon name="github" />
 			{/snippet}
 		</Button>
 		<Button
@@ -76,11 +109,7 @@ const releaseUrl = $derived(
 			onclick={() => openUrl("https://x.com/acepedotdev")}
 		>
 			{#snippet children()}
-				<svg viewBox="0 0 24 24" aria-hidden="true" class="size-4 fill-current">
-					<path
-						d="M18.244 2H21.5l-7.1 8.117L22 22h-5.956l-4.663-6.104L6.04 22H2.78l7.594-8.68L2 2h6.108l4.215 5.56L18.244 2Zm-1.143 18h1.804L5.128 3.895H3.193L17.1 20Z"
-					/>
-				</svg>
+				<XLogoIcon />
 			{/snippet}
 		</Button>
 		<Button
@@ -90,7 +119,7 @@ const releaseUrl = $derived(
 			onclick={() => openUrl("https://discord.gg/5YhW7T7qhS")}
 		>
 			{#snippet children()}
-				<DiscordLogo class="size-4" style="color: #6C75E8" weight="fill" />
+				<DiscordIcon weight="fill" />
 			{/snippet}
 		</Button>
 	</div>

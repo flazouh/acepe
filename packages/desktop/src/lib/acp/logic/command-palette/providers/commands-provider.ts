@@ -5,15 +5,6 @@
 
 import { DatabaseIcon } from "@acepe/ui/icons";
 import { okAsync, ResultAsync } from "neverthrow";
-import {
-	ArrowsClockwise,
-	Database,
-	GearSix,
-	Sidebar,
-	Terminal,
-	X,
-} from "phosphor-svelte";
-import { PlusIcon } from "@acepe/ui";
 import type { PaletteCommandDef } from "../../../types/palette-command.js";
 import type { PaletteItem, PaletteItemMetadata } from "../../../types/palette-item.js";
 import { fuzzySearch } from "../fuzzy-search.js";
@@ -87,7 +78,7 @@ export class CommandsProvider implements PaletteProvider {
 				id: "thread.create",
 				label: "Create new thread",
 				description: "Start a new conversation",
-				icon: PlusIcon,
+				roundedIcon: "new-chat",
 				handler: this.config.onCreateThread,
 				keybinding: "Cmd+T",
 				category: "threads",

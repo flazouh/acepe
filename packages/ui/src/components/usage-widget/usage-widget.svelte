@@ -45,100 +45,22 @@ function handleOpenChange(nextOpen: boolean): void {
 }
 </script>
 
-<div class="relative">
-	<Button
-		variant="ghost"
-		size="chromeIconMeter"
-		class="font-mono text-[11px]"
-		aria-label={model.copy.triggerLabel}
-		aria-expanded={open}
-		aria-haspopup="dialog"
-		onclick={toggleOpen}
-	>
-		{#snippet children()}
-			<span
-				class="flex h-3.5 max-w-[320px] items-center gap-1 overflow-hidden leading-none"
-				data-usage-widget-trigger
-			>
-				{#if model.triggerLimits.length > 0}
-					{#each model.triggerLimits as item (item.id)}
-						<span
-							class="flex shrink-0 items-center gap-1"
-							aria-label={triggerItemAriaLabel(item)}
-							title={triggerItemAriaLabel(item)}
-						>
-							{#if item.providerBrand !== null}
-								<ProviderMark
-									brand={item.providerBrand}
-									label={item.providerName}
-									class="size-3.5 shrink-0 opacity-80 grayscale-0"
-								/>
-							{:else}
-								<span
-									class="flex size-3.5 shrink-0 items-center justify-center font-mono text-[8px] leading-none text-muted-foreground"
-								>
-									{item.initials}
-								</span>
-							{/if}
-							<span
-								class="flex shrink-0 items-center gap-0.5"
-								role="progressbar"
-								aria-label={triggerItemAriaLabel(item)}
-								aria-valuemin="0"
-								aria-valuemax="100"
-								aria-valuenow={clampPercent(item.percentUsed)}
-							>
-								<span class="w-[36px]">
-									<SegmentedProgressBar
-										ariaLabel=""
-										decorative={true}
-										fillMode="wholeBarRamp"
-										label=""
-										percent={clampPercent(item.percentUsed)}
-										segmentCount={SEGMENTED_PROGRESS_USAGE_COMPACT_SEGMENT_COUNT}
-										showPercent={false}
-										variant="downloadCompact"
-									/>
-								</span>
-								<AnimateNumber
-									value={clampPercent(item.percentUsed)}
-									format={{ maximumFractionDigits: 0 }}
-									suffix="%"
-									duration={450}
-									blur={10}
-									class="font-mono text-[9px] font-medium leading-none tabular-nums {toneTextClass(
-										item.tone
-									)}"
-								/>
-							</span>
-						</span>
-					{/each}
-				{:else}
-					<span class="flex shrink-0 items-center -space-x-1" aria-hidden="true">
-						{#each model.providers.slice(0, 3) as provider (provider.id)}
-							{#if provider.providerBrand !== null}
-								<ProviderMark
-									brand={provider.providerBrand}
-									label={provider.name}
-									class="size-3.5 shrink-0 opacity-75 grayscale-0"
-								/>
-							{/if}
-						{/each}
-					</span>
-					<span class="tabular-nums {toneTextClass(model.summary.tone)}">
-						{model.summary.value}
-					</span>
-				{/if}
-			</span>
-		{/snippet}
-	</Button>
-
-	{#if open}
-		<div
-			class="fixed right-2 top-9 z-[var(--overlay-z)] w-[284px] max-w-[calc(100vw-20px)] overflow-hidden rounded-md border border-border bg-popover text-popover-foreground shadow-md"
-			data-usage-widget-panel
-			role="dialog"
-			aria-label={model.copy.triggerLabel}
+<Selector
+	bind:open
+	align="end"
+	sideOffset={4}
+	showChevron={false}
+	triggerSize="headerAction"
+	variant="ghost"
+	triggerAriaLabel={model.copy.triggerLabel}
+	triggerClass="h-6 max-h-6 min-h-6 w-auto shrink-0 gap-0 px-1 font-mono text-[11px]"
+	contentClass="w-[284px] max-w-[calc(100vw-20px)] !max-h-[440px]"
+	onOpenChange={handleOpenChange}
+>
+	{#snippet renderButton()}
+		<span
+			class="flex max-w-[320px] items-center gap-2 overflow-x-hidden leading-none"
+			data-usage-widget-trigger
 		>
 			{#if model.triggerLimits.length > 0}
 				{#each model.triggerLimits as item, index (item.id)}

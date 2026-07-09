@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { Button } from "../button/index.js";
+	import type { ButtonSize } from "../button/variants.js";
 	import { RoundedIcon } from "../icons/index.js";
 
 	interface Props {
@@ -19,7 +20,7 @@
 
 <Button
 	variant="ghost"
-	size="icon-chrome"
+	{size}
 	data-header-control
 	onclick={() => onClose?.()}
 	{title}
@@ -27,6 +28,6 @@
 	class={className}
 >
 	{#snippet children()}
-		<RoundedIcon name="close" class="size-3" />
+		<RoundedIcon name="close" />
 	{/snippet}
 </Button>

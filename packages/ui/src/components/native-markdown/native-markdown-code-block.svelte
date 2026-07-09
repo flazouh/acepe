@@ -136,7 +136,7 @@
 </script>
 
 <script lang="ts">
-	import { Check, Copy } from "phosphor-svelte";
+	import { RoundedIcon } from "../icons/index.js";
 	import { onDestroy } from "svelte";
 
 	import { getFallbackIconSrc, getFileIconSrc } from "../../lib/file-icon/index.js";
@@ -253,9 +253,9 @@
 				type="button"
 			>
 				{#if copied}
-					<Check size={14} />
+					<RoundedIcon name="check" class="size-3.5" />
 				{:else}
-					<Copy size={14} />
+					<RoundedIcon name="copy" class="size-3.5" />
 				{/if}
 			</button>
 		</div>

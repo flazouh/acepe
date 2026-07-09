@@ -2,7 +2,6 @@
 import { RoundedIcon, Selector } from "@acepe/ui";
 import * as DropdownMenu from "@acepe/ui/dropdown-menu";
 import { LoadingIcon } from "@acepe/ui";
-import { Minus, Plus } from "phosphor-svelte";
 import { ThemeToggle } from "$lib/components/theme/index.js";
 import { fontSizeSettingsStore } from "$lib/stores/font-size-settings-store.svelte.js";
 import { loadingIndicatorSettingsStore } from "$lib/stores/loading-indicator-settings-store.svelte.js";
@@ -49,7 +48,7 @@ const codeBounds = fontSizeSettingsStore.codeBounds;
 			onclick={() => onChange(value - step)}
 			class="inline-flex size-6 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:pointer-events-none disabled:opacity-40"
 		>
-			<Minus class="size-3" weight="bold" />
+			<RoundedIcon name="minus" class="size-3" />
 		</button>
 		<span class="w-9 text-center text-[13px] font-medium tabular-nums text-foreground">{value}</span>
 		<button
@@ -59,7 +58,7 @@ const codeBounds = fontSizeSettingsStore.codeBounds;
 			onclick={() => onChange(value + step)}
 			class="inline-flex size-6 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:pointer-events-none disabled:opacity-40"
 		>
-			<Plus class="size-3" weight="bold" />
+			<RoundedIcon name="plus" class="size-3" />
 		</button>
 	</div>
 {/snippet}

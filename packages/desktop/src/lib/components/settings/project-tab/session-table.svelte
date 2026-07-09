@@ -1,15 +1,5 @@
 <script lang="ts">
-import { IconArrowDown } from "@tabler/icons-svelte";
-import { IconArrowUp } from "@tabler/icons-svelte";
-import {
-	CaretDoubleLeft,
-	CaretDoubleRight,
-	CaretLeft,
-	CaretRight,
-} from "phosphor-svelte";
-import { IconSearch } from "@tabler/icons-svelte";
-import { IconSelector } from "@tabler/icons-svelte";
-import { Selector } from "@acepe/ui";
+import { RoundedIcon, Selector } from "@acepe/ui";
 import * as DropdownMenu from "@acepe/ui/dropdown-menu";
 import type { SessionSummary } from "$lib/acp/application/dto/session-summary.js";
 import type { Project } from "$lib/acp/logic/project-manager.svelte.js";
@@ -286,7 +276,7 @@ function formatDate(date: Date): string {
 					title="First page"
 					onclick={() => state.goToFirstPage()}
 				>
-					<CaretDoubleLeft size={12} weight="regular" class="shrink-0" />
+					<RoundedIcon name="dist-dmzwhx2o--10-previous" class="size-3 shrink-0" />
 				</button>
 				<button
 					type="button"
@@ -294,7 +284,7 @@ function formatDate(date: Date): string {
 					disabled={!canGoPrevious}
 					onclick={() => state.goToPreviousPage()}
 				>
-					<CaretLeft size={12} weight="regular" class="size-3 shrink-0" />
+					<RoundedIcon name="chevron-left" class="size-3 shrink-0" />
 				</button>
 				<span class="px-1 text-muted-foreground tabular-nums">
 					{state.currentPage + 1}/{totalPages}
@@ -305,7 +295,7 @@ function formatDate(date: Date): string {
 					disabled={!canGoNext}
 					onclick={() => state.goToNextPage(totalPages)}
 				>
-					<CaretRight size={12} weight="regular" class="size-3 shrink-0" />
+					<RoundedIcon name="chevron-right" class="size-3 shrink-0" />
 				</button>
 				<button
 					type="button"
@@ -315,7 +305,7 @@ function formatDate(date: Date): string {
 					title="Last page"
 					onclick={() => state.goToLastPage(totalPages)}
 				>
-					<CaretDoubleRight size={12} weight="regular" class="shrink-0" />
+					<RoundedIcon name="dist-dmzwhx2o--10-next" class="size-3 shrink-0" />
 				</button>
 			</div>
 		{/if}

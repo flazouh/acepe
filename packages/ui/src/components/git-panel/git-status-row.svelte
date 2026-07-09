@@ -7,9 +7,8 @@
 	Purely presentational: props + callbacks only. No stores, Tauri, or app policy.
 -->
 <script lang="ts">
-	import { ArrowCounterClockwise, Minus } from "phosphor-svelte";
-
 	import PlusIcon from "../icons/plus-icon.svelte";
+	import { RoundedIcon } from "../icons/index.js";
 
 	import { Button } from "../button/index.js";
 	import { cn } from "../../lib/utils.js";
@@ -108,22 +107,22 @@
 	<span class="flex shrink-0 items-center opacity-0 transition-opacity group-hover/row:opacity-100">
 		<Button
 			variant="ghost"
-			size="icon-xs"
+			size="icon"
 			title="Discard changes"
 			aria-label="Discard {file.path}"
 			onclick={() => onDiscard(file.path)}
 		>
-			{#snippet children()}<ArrowCounterClockwise size={13} />{/snippet}
+			{#snippet children()}<RoundedIcon name="undo" />{/snippet}
 		</Button>
 		<Button
 			variant="ghost"
-			size="icon-xs"
+			size="icon"
 			title={primaryLabel}
 			aria-label="{primaryLabel} {file.path}"
 			onclick={() => onPrimary(file.path)}
 		>
 			{#snippet children()}
-				{#if kind === "staged"}<Minus size={13} weight="bold" />{:else}<PlusIcon />{/if}
+				{#if kind === "staged"}<RoundedIcon name="minus" />{:else}<PlusIcon />{/if}
 			{/snippet}
 		</Button>
 	</span>

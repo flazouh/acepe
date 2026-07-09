@@ -1,7 +1,6 @@
 <script lang="ts">
 import { RoundedIcon, Selector } from "@acepe/ui";
 import * as DropdownMenu from "@acepe/ui/dropdown-menu";
-import { Check } from "phosphor-svelte";
 import { toast } from "svelte-sonner";
 import { PreconnectionCapabilitiesState } from "$lib/acp/components/agent-input/logic/preconnection-capabilities-state.svelte.js";
 import { createLogger } from "$lib/acp/utils/logger.js";

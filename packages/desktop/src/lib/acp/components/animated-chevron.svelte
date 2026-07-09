@@ -1,5 +1,5 @@
 <script lang="ts">
-import { CaretDown } from "phosphor-svelte";
+import { RoundedIcon } from "@acepe/ui";
 
 interface AnimatedChevronProps {
 	/**
@@ -29,5 +29,5 @@ let {
 }: AnimatedChevronProps = $props();
 </script>
 
-<CaretDown size={12} weight="regular" class="size-3 shrink-0 {className} transition-transform {durationClass} {isOpen ? 'rotate-180' : ''}"
+<RoundedIcon name="chevron-down" class="size-3 shrink-0 {className} transition-transform {durationClass} {isOpen ? 'rotate-180' : ''}"
 />

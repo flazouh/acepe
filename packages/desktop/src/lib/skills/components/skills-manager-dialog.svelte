@@ -22,7 +22,7 @@ let skillsPageRef: ReturnType<typeof SkillsPage> | undefined = $state();
 	contentOverflow="hidden"
 >
 	{#snippet topRight()}
-		<Button variant="header" size="header" onclick={() => skillsPageRef?.openCreateDialog()}>
+		<Button variant="outline" size="sm" onclick={() => skillsPageRef?.openCreateDialog()}>
 			<PlusIcon />
 			New Skill
 		</Button>

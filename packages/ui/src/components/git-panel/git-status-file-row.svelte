@@ -3,13 +3,8 @@
 	 * GitStatusFileRow — Single file row in the git status list.
 	 * Shows status icon, filename, DiffPill, and hover action buttons.
 	 */
-	import { FilePlus } from "phosphor-svelte";
-	import { FileX } from "phosphor-svelte";
-	import { FileDashed } from "phosphor-svelte";
-	import { FileMinus } from "phosphor-svelte";
-	import { File } from "phosphor-svelte";
 	import PlusIcon from "../icons/plus-icon.svelte";
-	import { ArrowCounterClockwise } from "phosphor-svelte";
+	import { FileStatusIcon, RoundedIcon, type FileStatusIconKind } from "../icons/index.js";
 
 	import { DiffPill } from "../diff-pill/index.js";
 	import { getFileIconSrc, getFallbackIconSrc } from "../../lib/file-icon/index.js";

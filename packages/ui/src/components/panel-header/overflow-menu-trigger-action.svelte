@@ -13,7 +13,7 @@
 
 <Button
 	variant="ghost"
-	size="icon-chrome"
+	size="icon-sm"
 	data-header-control
 	{title}
 	aria-label={title}

@@ -1,5 +1,4 @@
 <script lang="ts">
-import { SETUP_CHIP_ICON_CLASS } from "@acepe/ui/panel-header";
 import { AgentInputAgentSelector } from "@acepe/ui";
 import { Skeleton } from "$lib/components/ui/skeleton/index.js";
 import { getAgentPreferencesStore } from "../store/index.js";
@@ -84,7 +83,7 @@ export function toggle() {
 		/>
 	{/snippet}
 	{#snippet renderLoadingTrigger()}
-		<Skeleton class="{SETUP_CHIP_ICON_CLASS} rounded" />
+		<Skeleton class="size-3.5 shrink-0 rounded" />
 		<Skeleton class="h-3 w-20" />
 	{/snippet}
 </AgentInputAgentSelector>

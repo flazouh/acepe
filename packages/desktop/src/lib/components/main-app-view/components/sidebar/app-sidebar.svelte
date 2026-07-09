@@ -1,7 +1,6 @@
 <script lang="ts">
 import { AppSidebarLayout } from "@acepe/ui/app-layout";
-import { Button } from "@acepe/ui";
-import { FolderOpen, FolderPlus, GitBranch, MagnifyingGlass, NotePencil } from "phosphor-svelte";
+import { Button, RoundedIcon } from "@acepe/ui";
 import { toast } from "svelte-sonner";
 import { copyTextToClipboard } from "$lib/acp/components/agent-panel/logic/clipboard-manager.js";
 import { SessionList } from "$lib/acp/components/index.js";
@@ -43,9 +42,22 @@ interface Props {
 	state: MainAppViewState;
 	/** Opens the add-repository dialog (owned by the app shell). */
 	onImportProject?: () => void;
+	/** Current app-updater stage, surfaced as a card in the sidebar footer. */
+	updaterState?: UpdaterBannerState;
+	/** Starts the download/install flow when the update card is clicked. */
+	onUpdateClick?: () => void;
+	/** Retries the update check after a failure. */
+	onRetryUpdateClick?: () => void;
 }
 
-let { projectManager, state: appState, onImportProject }: Props = $props();
+let {
+	projectManager,
+	state: appState,
+	onImportProject,
+	updaterState,
+	onUpdateClick,
+	onRetryUpdateClick,
+}: Props = $props();
 
 const panelStore = getPanelStore();
 const sessionStore = getSessionStore();
@@ -519,67 +531,67 @@ const visibleSessions = $derived.by(() => {
 		<div class="flex h-7 shrink-0 items-center gap-0.5 border-b border-border/50 px-1">
 			<Button
 				variant="ghost"
-				size="icon-chrome"
+				size="icon-sm"
 				data-header-control
 				title="Add repository"
 				aria-label="Add repository"
 				onclick={() => onImportProject?.()}
 			>
 				{#snippet children()}
-					<FolderPlus weight="fill" />
+					<RoundedIcon name="add" />
 				{/snippet}
 			</Button>
 			<div class="ml-auto flex items-center gap-0.5">
-			<Button
-				variant="ghost"
-				size="icon-chrome"
-				data-header-control
-				title="New chat"
-				aria-label="New chat"
-				onclick={handleNewThread}
-			>
-				{#snippet children()}
-					<NotePencil weight="fill" />
-				{/snippet}
-			</Button>
-			<Button
-				variant="ghost"
-				size="icon-chrome"
-				data-header-control
-				title="Search"
-				aria-label="Search"
-				onclick={() => {
-					appState.commandPaletteOpen = true;
-				}}
-			>
-				{#snippet children()}
-					<MagnifyingGlass weight="regular" />
-				{/snippet}
-			</Button>
-			<Button
-				variant="ghost"
-				size="icon-chrome"
-				data-header-control
-				title="Source control"
-				aria-label="Source control"
-				onclick={handleOpenSourceControl}
-			>
-				{#snippet children()}
-					<GitBranch weight="regular" />
-				{/snippet}
-			</Button>
-			<Button
-				variant="ghost"
-				size="icon-chrome"
-				data-header-control
-				title="File system"
-				aria-label="File system"
-				onclick={handleOpenFileSystem}
-			>
-				{#snippet children()}
-					<FolderOpen weight="regular" />
-				{/snippet}
-			</Button>
+				<Button
+					variant="ghost"
+					size="icon-sm"
+					data-header-control
+					title="New chat"
+					aria-label="New chat"
+					onclick={handleNewThread}
+				>
+					{#snippet children()}
+						<RoundedIcon name="new-chat" />
+					{/snippet}
+				</Button>
+				<Button
+					variant="ghost"
+					size="icon-sm"
+					data-header-control
+					title="Search"
+					aria-label="Search"
+					onclick={() => {
+						appState.commandPaletteOpen = true;
+					}}
+				>
+					{#snippet children()}
+						<RoundedIcon name="search" />
+					{/snippet}
+				</Button>
+				<Button
+					variant="ghost"
+					size="icon-sm"
+					data-header-control
+					title="Source control"
+					aria-label="Source control"
+					onclick={handleOpenSourceControl}
+				>
+					{#snippet children()}
+						<RoundedIcon name="git" />
+					{/snippet}
+				</Button>
+				<Button
+					variant="ghost"
+					size="icon-sm"
+					data-header-control
+					title="File system"
+					aria-label="File system"
+					onclick={handleOpenFileSystem}
+				>
+					{#snippet children()}
+						<RoundedIcon name="files" />
+					{/snippet}
+				</Button>
 			</div>
 		</div>
 	{/snippet}

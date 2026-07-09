@@ -151,9 +151,9 @@ describe("MarkdownText", () => {
 			projectPath: "/repo",
 		});
 
-	await waitFor(() => {
-		expect(container.querySelector(".file-path-badge")?.textContent?.trim()).toBe("app.ts");
-	});
+		await waitFor(() => {
+			expect(container.querySelector(".file-path-badge")?.textContent?.trim()).toBe("app.ts");
+		});
 
 		const chip = container.querySelector(".file-path-badge");
 		chip?.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));

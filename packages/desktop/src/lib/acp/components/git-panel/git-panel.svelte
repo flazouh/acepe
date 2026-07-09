@@ -960,7 +960,7 @@ async function handleOpenPr(prNumber: number) {
 						title="Close preview"
 						onclick={closeSelectedChangesPreview}
 					>
-						<X size={14} weight="bold" />
+						<RoundedIcon name="close" class="size-3.5" />
 					</button>
 				</div>
 				<div class="min-h-0 flex-1 overflow-y-auto">

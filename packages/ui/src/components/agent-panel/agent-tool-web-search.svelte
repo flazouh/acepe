@@ -114,7 +114,7 @@
 					class="flex h-5 w-5 shrink-0 cursor-pointer items-center justify-center rounded-lg border-0 bg-transparent p-0 transition-colors hover:bg-muted"
 					aria-label={isCollapsed ? ariaExpandResults : ariaCollapseResults}
 				>
-					<CaretRight size={12} weight="regular" class="size-3 shrink-0 text-muted-foreground transition-transform duration-150 {isCollapsed ? '' : 'rotate-90'}"
+					<RoundedIcon name="chevron-right" class="size-3 shrink-0 text-muted-foreground transition-transform duration-150 {isCollapsed ? '' : 'rotate-90'}"
 					/>
 				</button>
 			{/if}
@@ -214,10 +214,10 @@
 									class="flex items-center gap-1.5 rounded px-2 py-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground border-none bg-transparent cursor-pointer"
 								>
 									{#if !showAll}
-										<CaretDown size={12} weight="regular"  class="size-3"/>
+										<RoundedIcon name="chevron-down" class="size-3" />
 										<span>{showMoreExpandedLabel(hiddenLinkCount)}</span>
 									{:else}
-										<CaretRight size={12} weight="regular" class="size-3 shrink-0 rotate-270" />
+										<RoundedIcon name="chevron-up" class="size-3 shrink-0" />
 										<span>{showLessExpandedLabel}</span>
 									{/if}
 								</button>

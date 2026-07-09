@@ -1,14 +1,11 @@
 <script lang="ts" module>
-	export type RoundedIconName =
-		| "sidebar"
-		| "search"
-		| "close"
-		| "chevron-right"
-		| "chevron-left"
-		| "chevron-up"
-		| "chevron-down"
-		| "refresh"
-		| "download";
+	import {
+		roundedIconData,
+		resolveRoundedIconName,
+		type RoundedIconName,
+	} from "./rounded-icon-data.generated.js";
+
+	export type { RoundedIconName };
 </script>
 
 <script lang="ts">
@@ -16,79 +13,34 @@
 		name: RoundedIconName;
 		class?: string;
 		style?: string;
+		role?: string;
+		"aria-label"?: string;
+		"data-testid"?: string;
 	}
 
-	let { name, class: className = "size-4", style }: Props = $props();
+	let {
+		name,
+		class: className = "shrink-0",
+		style,
+		role,
+		"aria-label": ariaLabel,
+		"data-testid": dataTestid,
+	}: Props = $props();
 
-	const arrowRightPath =
-		"M10.999 8.352L5.534 13.818C5.41551 13.9303 5.25786 13.9918 5.09466 13.9895C4.93146 13.9872 4.77561 13.9212 4.66033 13.8057C4.54505 13.6902 4.47945 13.5342 4.47752 13.3709C4.47559 13.2077 4.53748 13.0502 4.65 12.932L9.585 7.998L4.651 3.067C4.53862 2.94864 4.47691 2.79106 4.47903 2.62786C4.48114 2.46466 4.54692 2.30874 4.66233 2.19333C4.77774 2.07792 4.93366 2.01215 5.09686 2.01003C5.26006 2.00792 5.41763 2.06962 5.536 2.182L11 7.647L10.999 8.352Z";
+	const icon = $derived(roundedIconData[resolveRoundedIconName(name)]);
+	const resolvedRole = $derived(ariaLabel ? (role ?? "img") : role);
+	const ariaHidden = $derived(ariaLabel ? undefined : "true");
 </script>
 
-{#if name === "sidebar"}
-	<svg
-		class={className}
-		{style}
-		aria-hidden="true"
-		fill="none"
-		viewBox="0 0 24 24"
-		stroke="currentColor"
-		stroke-width="2"
-	>
-		<rect x="4" y="4" width="16" height="16" rx="3.25" />
-		<path d="M15.5 8V16" stroke-linecap="round" />
-	</svg>
-{:else if name === "search"}
-	<svg class={className} {style} aria-hidden="true" viewBox="0 0 16 16" fill="none">
-		<path
-			d="M10.089 10.973L13.934 14.817C13.9918 14.8754 14.0605 14.9218 14.1364 14.9534C14.2122 14.9851 14.2936 15.0013 14.3757 15.0012C14.4579 15.0011 14.5392 14.9847 14.6149 14.9529C14.6907 14.9211 14.7594 14.8746 14.817 14.816C14.875 14.7579 14.921 14.6889 14.9523 14.613C14.9836 14.5372 14.9997 14.4559 14.9996 14.3738C14.9995 14.2917 14.9833 14.2104 14.9518 14.1346C14.9203 14.0588 14.8741 13.99 14.816 13.932L10.983 10.1L10.989 9.67299C11.489 8.96674 11.8152 8.15249 11.9413 7.29642C12.0674 6.44034 11.9897 5.5666 11.7145 4.74621C11.4394 3.92582 10.9745 3.18192 10.3578 2.57498C9.74104 1.96804 8.98979 1.51519 8.16509 1.25322C7.34039 0.991255 6.46551 0.927572 5.61157 1.06735C4.75763 1.20712 3.94871 1.54641 3.25057 2.05764C2.55243 2.56887 1.98476 3.23761 1.59371 4.0095C1.20265 4.7814 0.999236 5.63468 1 6.49999C1 7.95868 1.57946 9.35763 2.61091 10.3891C3.64236 11.4205 5.04131 12 6.5 12C7.689 12 8.788 11.62 9.687 10.978L10.089 10.973ZM6.5 10.75C4.157 10.75 2.25 8.84299 2.25 6.49999C2.25 4.15699 4.157 2.24999 6.5 2.24999C8.843 2.24999 10.75 4.15699 10.75 6.49999C10.75 8.84299 8.843 10.75 6.5 10.75Z"
-			fill="currentColor"
-		/>
-	</svg>
-{:else if name === "close"}
-	<svg class={className} {style} aria-hidden="true" viewBox="0 0 16 16" fill="none">
-		<path
-			d="M14 3.06055L9.06055 8L14 12.9385L12.9395 14L8 9.06055L3.06152 14L2.00098 12.9395L6.93848 8L2 3.06152L3.06055 2.00098L7.99902 6.93945L12.9385 2L14 3.06055Z"
-			fill="currentColor"
-		/>
-	</svg>
-{:else if name === "chevron-right"}
-	<svg class={className} {style} aria-hidden="true" viewBox="0 0 16 16" fill="none">
-		<path d={arrowRightPath} fill="currentColor" />
-	</svg>
-{:else if name === "chevron-left"}
-	<svg class={className} {style} aria-hidden="true" viewBox="0 0 16 16" fill="none">
-		<g transform="rotate(180 8 8)">
-			<path d={arrowRightPath} fill="currentColor" />
-		</g>
-	</svg>
-{:else if name === "chevron-down"}
-	<svg class={className} {style} aria-hidden="true" viewBox="0 0 16 16" fill="none">
-		<path
-			d="M8.35176 10.9989L13.8178 5.53391C13.876 5.47594 13.9222 5.40702 13.9537 5.33113C13.9851 5.25524 14.0013 5.17387 14.0012 5.0917C14.0011 5.00954 13.9848 4.9282 13.9531 4.85238C13.9215 4.77656 13.8751 4.70775 13.8168 4.64991C13.6991 4.53309 13.5401 4.46753 13.3743 4.46753C13.2085 4.46753 13.0494 4.53309 12.9318 4.64991L7.99776 9.58491L3.06776 4.65091C2.9494 4.53853 2.79183 4.47682 2.62863 4.47894C2.46542 4.48106 2.3095 4.54683 2.19409 4.66224C2.07868 4.77765 2.01291 4.93357 2.01079 5.09677C2.00868 5.25997 2.07039 5.41754 2.18276 5.53591L7.64776 10.9999L8.35176 10.9989Z"
-			fill="currentColor"
-		/>
-	</svg>
-{:else if name === "chevron-up"}
-	<svg class={className} {style} aria-hidden="true" viewBox="0 0 16 16" fill="none">
-		<path
-			d="M8.35179 5.001L13.8178 10.466C13.876 10.524 13.9222 10.5929 13.9537 10.6688C13.9852 10.7447 14.0013 10.826 14.0012 10.9082C14.0011 10.9904 13.9848 11.0717 13.9531 11.1475C13.9215 11.2234 13.8751 11.2922 13.8168 11.35C13.6991 11.4668 13.5401 11.5324 13.3743 11.5324C13.2085 11.5324 13.0494 11.4668 12.9318 11.35L7.99879 6.416L3.06679 11.349C2.94842 11.4614 2.79085 11.5231 2.62765 11.521C2.46445 11.5189 2.30853 11.4531 2.19312 11.3377C2.07771 11.2223 2.01193 11.0663 2.00982 10.9031C2.0077 10.7399 2.06941 10.5824 2.18179 10.464L7.64779 5L8.35179 5.001Z"
-			fill="currentColor"
-		/>
-	</svg>
-{:else if name === "refresh"}
-	<svg class={className} {style} aria-hidden="true" viewBox="0 0 16 16" fill="none">
-		<path
-			d="M12.5895 4.83613L11.23 6.19601C10.933 6.49201 11.143 7.00001 11.563 7.00001H15.138C15.398 7.00001 15.609 6.78901 15.609 6.52901V2.95401C15.609 2.53401 15.101 2.32401 14.804 2.62101L13.672 3.75328C12.3204 1.78973 10.0599 0.5 7.5 0.5C3.364 0.5 0 3.864 0 8C0 12.136 3.364 15.5 7.5 15.5C11.296 15.5 14.434 12.663 14.925 9H13.41C12.932 11.833 10.468 14 7.5 14C4.191 14 1.5 11.309 1.5 8C1.5 4.691 4.191 2 7.5 2C9.64738 2 11.5311 3.13503 12.5895 4.83613Z"
-			fill="currentColor"
-		/>
-	</svg>
-{:else if name === "download"}
-	<svg class={className} {style} aria-hidden="true" viewBox="0 0 24 24" fill="none">
-		<path
-			fill-rule="evenodd"
-			clip-rule="evenodd"
-			d="M16.969 10.059C17.262 9.766 17.737 9.766 18.03 10.059C18.323 10.352 18.323 10.827 18.03 11.12L12.15 17H11.35L5.46896 11.12C5.17596 10.827 5.17596 10.352 5.46896 10.059C5.76196 9.766 6.23696 9.766 6.52996 10.059L11 14.529V2.75C11 2.336 11.336 2 11.75 2C12.164 2 12.5 2.336 12.499 2.75V14.529L16.969 10.059ZM4.98193 19.7L5.78193 20.5H17.7169L18.5169 19.7V17.75C18.5169 17.336 18.8529 17 19.2669 17C19.6809 17 20.0169 17.336 20.0169 17.75V19.5C20.0169 20.881 18.8979 22 17.5169 22H5.98193C4.60093 22 3.48193 20.881 3.48193 19.5V17.75C3.48193 17.336 3.81793 17 4.23193 17C4.64593 17 4.98193 17.336 4.98193 17.75V19.7Z"
-			fill="currentColor"
-		/>
-	</svg>
-{/if}
+<svg
+	class={className}
+	{style}
+	role={resolvedRole}
+	aria-label={ariaLabel}
+	data-testid={dataTestid}
+	aria-hidden={ariaHidden}
+	viewBox={icon.viewBox}
+	xmlns="http://www.w3.org/2000/svg"
+>
+	{@html icon.inner}
+</svg>

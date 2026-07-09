@@ -230,6 +230,7 @@ macro_rules! acp_command_entries {
             get_event_bridge_info: acp_get_event_bridge_info,
             get_session_connection_readiness: acp_get_session_connection_readiness,
             get_session_state: acp_get_session_state,
+            read_transcript_row_page: acp_read_transcript_row_page,
             request_transcript_viewport_buffer: acp_request_transcript_viewport_buffer,
             list_agents: acp_list_agents,
             list_preconnection_capabilities: acp_list_preconnection_capabilities,

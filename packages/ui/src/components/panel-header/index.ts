@@ -9,18 +9,3 @@ export { default as OverflowMenuTriggerAction } from "./overflow-menu-trigger-ac
 export { default as BrowserNavActions } from "./browser-nav-actions.svelte";
 export { default as SegmentedToggleGroup } from "./segmented-toggle-group.svelte";
 export { default as FusedPrimaryOverflowGroup } from "./fused-primary-overflow-group.svelte";
-export {
-	COMPOSER_CHIP_ICON_CLASS,
-	COMPOSER_CHIP_ICON_SIZE_PX,
-	COMPOSER_CHIP_LABEL_TEXT_CLASS,
-	OVERFLOW_DOTS_ICON_CLASS,
-	PROJECT_CARD_ACTION_BUTTON_CLASS,
-	SETUP_CHIP_ICON_CLASS,
-	SETUP_CHIP_ICON_SIZE_PX,
-	SETUP_CHIP_LABEL_TEXT_CLASS,
-	FUSED_CONTROL_COMPOSER_ICON_SIZE_CLASS,
-	FUSED_CONTROL_COMPOSER_ICON_SIZE_PX,
-	FUSED_CONTROL_SETUP_CHIP_ICON_SIZE_CLASS,
-	FUSED_CONTROL_SETUP_CHIP_ICON_SIZE_PX,
-	FUSED_CONTROL_SETUP_CHIP_LABEL_TEXT_CLASS,
-} from "./project-card-action-button-class.js";

@@ -1,6 +1,9 @@
 <script lang="ts">
 	import PlusIcon from "../icons/plus-icon.svelte";
-	import { ProjectLetterBadge } from "../project-letter-badge/index.js";
+	import {
+		computeProjectBadgeLabels,
+		ProjectLetterBadge,
+	} from "../project-letter-badge/index.js";
 
 	interface ProjectTab {
 		readonly path: string;

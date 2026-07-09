@@ -1,11 +1,5 @@
 <script lang="ts">
-import { IconEye } from "@tabler/icons-svelte";
-import { IconEyeOff } from "@tabler/icons-svelte";
-import { PlusIcon } from "@acepe/ui";
-import { IconTrash } from "@tabler/icons-svelte";
-import { FloppyDisk, SlidersHorizontal } from "phosphor-svelte";
-import { Button, Input } from "@acepe/ui";
-import { Button as DesktopButton } from "$lib/components/ui/button/index.js";
+import { Button, Input, PlusIcon, RoundedIcon, SaveIcon } from "@acepe/ui";
 import DialogFrame from "$lib/components/ui/dialog-frame.svelte";
 
 interface EnvRow {
@@ -206,7 +200,7 @@ function handleSave(): void {
 		</p>
 
 		<div class="flex justify-end">
-			<DesktopButton variant="header" size="header" onclick={addRow}>
+			<Button variant="outline" size="sm" onclick={addRow}>
 				<PlusIcon />
 				Add variable
 			</Button>

@@ -18,11 +18,12 @@ pub mod transcript_rows_ledger;
 pub mod viewport_buffer_producer;
 
 pub use bridge::{
-    DeltaEnvelopeParts, DeltaSessionProjectionFields, build_delta_envelope, build_snapshot_envelope,
+    build_budgeted_snapshot_envelope, build_delta_envelope, build_snapshot_envelope,
+    compact_oversized_snapshot_envelope, DeltaEnvelopeParts, DeltaSessionProjectionFields,
 };
 pub use envelope::{
-    SessionStateEnvelope, SessionStateEnvelopeByteBudgetStatus, SessionStatePayloadKind,
-    session_state_envelope_byte_budget_status,
+    session_state_envelope_byte_budget_status, SessionStateEnvelope,
+    SessionStateEnvelopeByteBudgetStatus, SessionStatePayloadKind,
 };
 pub use frontier::{FrontierFallbackReason, SessionFrontierDecision};
 pub use graph::{ActiveStreamingTail, ActiveStreamingTailContentKind, SessionStateGraph};
@@ -37,11 +38,11 @@ pub use runtime_registry::{
     LiveSessionStateEnvelopeRequest, SessionGraphRuntimeRegistry, SessionGraphRuntimeSnapshot,
 };
 pub use selectors::{
-    SessionGraphActionability, SessionGraphActivity, SessionGraphActivityKind,
-    SessionGraphCapabilities, SessionGraphLifecycle, SessionRecommendedAction,
-    SessionRecoveryPhase, merge_session_graph_activity_timing, seed_activity_timing_if_needed,
-    select_session_graph_activity,
+    merge_session_graph_activity_timing, seed_activity_timing_if_needed,
+    select_session_graph_activity, SessionGraphActionability, SessionGraphActivity,
+    SessionGraphActivityKind, SessionGraphCapabilities, SessionGraphLifecycle,
+    SessionRecommendedAction, SessionRecoveryPhase,
 };
-pub use session_state_field::{SessionStateField, turn_terminal_change_fields};
+pub use session_state_field::{turn_terminal_change_fields, SessionStateField};
 pub use snapshot_builder::build_graph_from_open_found;
 pub use timing::wall_clock_ms;

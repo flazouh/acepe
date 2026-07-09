@@ -1,7 +1,5 @@
 <script lang="ts">
 	import { Tooltip } from 'bits-ui';
-	import { IconAlertTriangle } from '@tabler/icons-svelte';
-	import { HandPalm } from 'phosphor-svelte';
 
 	import { RoundedIcon, LoadingIcon } from '../icons/index.js';
 	import { ProjectLetterBadge } from '../project-letter-badge/index.js';

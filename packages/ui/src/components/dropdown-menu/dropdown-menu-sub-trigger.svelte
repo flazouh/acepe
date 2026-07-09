@@ -1,5 +1,4 @@
 <script lang="ts">
-	import { CaretRight } from "phosphor-svelte";
 	import { DropdownMenu as DropdownMenuPrimitive } from "bits-ui";
 	import { cn } from "../../lib/utils";
 	import { RoundedIcon } from "../icons/index.js";
@@ -60,5 +59,5 @@
 	)}
 >
 	{@render children?.()}
-	<CaretRight size={12} weight="regular" class="size-3 shrink-0 ms-auto text-muted-foreground" />
+	<RoundedIcon name="chevron-right" class="size-3 shrink-0 ms-auto text-muted-foreground" />
 </DropdownMenuPrimitive.SubTrigger>

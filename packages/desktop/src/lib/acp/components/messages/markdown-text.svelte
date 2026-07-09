@@ -5,7 +5,7 @@
 	import type { TogglePrLinkPayload } from "@acepe/ui/native-markdown";
 
 	import { useSessionContext } from "../../hooks/use-session-context.js";
-	import { getPanelStore } from "../../store/index.js";
+	import { getPanelStore, type OpenProjectFileSystemDialogOptions } from "../../store/index.js";
 	import { getSessionStore } from "../../store/session-store.svelte.js";
 	import { createLogger } from "../../utils/logger.js";
 	import {

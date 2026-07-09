@@ -1,7 +1,6 @@
 <script lang="ts">
 import { RoundedIcon, Selector } from "@acepe/ui";
 import * as DropdownMenu from "@acepe/ui/dropdown-menu";
-import { ArrowsClockwise, CaretDown, CheckCircle, FolderOpen, Warning as PhosphorWarning } from "phosphor-svelte";
 import AgentIcon from "$lib/acp/components/agent-icon.svelte";
 import { Spinner } from "$lib/components/ui/spinner/index.js";
 import { Switch } from "$lib/components/ui/switch/index.js";
@@ -89,7 +88,7 @@ const syncStatus = $derived.by(() => {
 		class="border border-border/50 bg-accent/5"
 	>
 		{#snippet renderButton()}
-			<CaretDown size={12} weight="regular" class="size-3 shrink-0" />
+			<RoundedIcon name="chevron-down" class="shrink-0" />
 		{/snippet}
 
 		<DropdownMenu.Label>Sync to agents</DropdownMenu.Label>

@@ -1,19 +1,18 @@
 <!--
-  AgentPanelTranscriptScrollControls - Compact setup-chip scroll jumps for the transcript.
-  Sits at the top of the pre-composer card stack, aligned to the composer's top-right edge.
+  AgentPanelTranscriptScrollControls - Compact scroll jumps for the transcript.
+  Sits above the composer, aligned to the composer's top-right edge within the chat content column.
 -->
 <script lang="ts">
-	import ArrowDown from "@lucide/svelte/icons/arrow-down";
-	import ArrowUp from "@lucide/svelte/icons/arrow-up";
-
 	import { Button } from "../button/index.js";
 	import { ButtonGroup } from "../button-group/index.js";
-	import { SETUP_CHIP_ICON_CLASS } from "./agent-input-chip-classes.js";
+	import { RoundedIcon } from "../icons/index.js";
 	import { cn } from "../../lib/utils.js";
+	import AgentPanelContentColumnFrame from "./agent-panel-content-column-frame.svelte";
 
 	interface Props {
 		showScrollToTop?: boolean;
 		showScrollToBottom?: boolean;
+		hasUnreadBelow?: boolean;
 		onScrollToTop?: () => void;
 		onScrollToBottom?: () => void;
 		scrollToTopAriaLabel?: string;
@@ -26,6 +25,7 @@
 	let {
 		showScrollToTop = false,
 		showScrollToBottom = false,
+		hasUnreadBelow = false,
 		onScrollToTop,
 		onScrollToBottom,
 		scrollToTopAriaLabel = "Scroll to top",
@@ -36,9 +36,8 @@
 	}: Props = $props();
 
 	const showControls = $derived(showScrollToTop || showScrollToBottom);
-	const showBothControls = $derived(showScrollToTop && showScrollToBottom);
-	const scrollButtonSize = $derived<"icon-sm" | "icon-sm-narrow">(
-		showBothControls ? "icon-sm-narrow" : "icon-sm"
+	const effectiveScrollToBottomAriaLabel = $derived(
+		hasUnreadBelow ? "Scroll to new messages" : scrollToBottomAriaLabel
 	);
 
 	function handleScrollToTop(event: MouseEvent): void {
@@ -53,33 +52,43 @@
 </script>
 
 {#if showControls}
-	<div
-		data-testid="transcript-scroll-controls"
-		class={cn("flex shrink-0 px-2 pt-0.5 pb-0.5", centered && "justify-center", className)}
+	<AgentPanelContentColumnFrame
+		{centered}
+		{widthClass}
+		class={cn("bg-transparent pt-0.5 pb-0.5", className)}
+		innerClass="flex w-full justify-end"
 	>
-		<div class={cn("flex w-full justify-end", centered && widthClass)}>
+		<div data-testid="transcript-scroll-controls">
 			<ButtonGroup>
 				{#if showScrollToTop}
 					<Button
 						variant="secondary"
-						size={scrollButtonSize}
+						size="icon"
 						aria-label={scrollToTopAriaLabel}
 						onclick={handleScrollToTop}
 					>
-						<ArrowUp class={SETUP_CHIP_ICON_CLASS} aria-hidden="true" />
+						<RoundedIcon name="arrow-up" />
 					</Button>
 				{/if}
 				{#if showScrollToBottom}
 					<Button
 						variant="secondary"
-						size={scrollButtonSize}
-						aria-label={scrollToBottomAriaLabel}
+						size="icon"
+						aria-label={effectiveScrollToBottomAriaLabel}
+						data-unread-below={hasUnreadBelow ? "true" : undefined}
+						class="relative"
 						onclick={handleScrollToBottom}
 					>
-						<ArrowDown class={SETUP_CHIP_ICON_CLASS} aria-hidden="true" />
+						<RoundedIcon name="arrow-up" class="rotate-180" />
+						{#if hasUnreadBelow}
+							<span
+								class="absolute right-0 top-0 size-1.5 rounded-full bg-primary"
+								aria-hidden="true"
+							></span>
+						{/if}
 					</Button>
 				{/if}
 			</ButtonGroup>
 		</div>
-	</div>
+	</AgentPanelContentColumnFrame>
 {/if}

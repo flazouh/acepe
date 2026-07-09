@@ -89,7 +89,7 @@
 	>
 		<div class="flex items-center gap-1.5 min-w-0 flex-1">
 			{#if allowDiffExpand}
-				<CaretRight size={12} weight="regular" class="size-3 text-muted-foreground shrink-0 transition-transform duration-150 {isDiffExpanded ? 'rotate-90' : ''}"
+				<RoundedIcon name="chevron-right" class="size-3 text-muted-foreground shrink-0 transition-transform duration-150 {isDiffExpanded ? 'rotate-90' : ''}"
 				/>
 			{/if}
 

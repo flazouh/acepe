@@ -5,17 +5,11 @@
   When create is enabled, the trigger and + button share a fused button group.
 -->
 <script lang="ts">
-	import { GitBranch } from "phosphor-svelte";
-
 	import { ButtonGroup } from "../button-group/index.js";
 	import { Button } from "../button/index.js";
 	import { DiffPill } from "../diff-pill/index.js";
+	import { RoundedIcon } from "../icons/index.js";
 	import PlusIcon from "../icons/plus-icon.svelte";
-	import {
-		SETUP_CHIP_ICON_CLASS,
-		SETUP_CHIP_ICON_SIZE_PX,
-		SETUP_CHIP_LABEL_TEXT_CLASS,
-	} from "./agent-input-chip-classes.js";
 	import { Selector } from "../selector/index.js";
 	import type { SelectorTriggerSize } from "../selector/selector-trigger-classes.js";
 	import { getSelectorTriggerButtonVariant } from "../selector/selector-trigger-classes.js";
@@ -100,17 +94,13 @@
 </script>
 
 {#snippet branchSelectorTrigger()}
-	<GitBranch
-		class={cn(
-			isSetupChip ? SETUP_CHIP_ICON_CLASS : "size-3 shrink-0",
-			isSetupChip ? "text-foreground" : ""
-		)}
-		size={isSetupChip ? SETUP_CHIP_ICON_SIZE_PX : undefined}
-		weight="fill"
+	<RoundedIcon
+		name="branch"
+		class={cn(isSetupChip ? "text-foreground" : "size-3 shrink-0")}
 		style={isSetupChip ? undefined : `color: ${branchIconColor}`}
 	/>
 	<span
-		class={cn("max-w-[9rem] truncate", SETUP_CHIP_LABEL_TEXT_CLASS)}
+		class="max-w-[9rem] truncate"
 		title={currentBranch || "branch"}
 	>
 		{currentBranch || "branch"}
@@ -137,9 +127,9 @@
 					onSelect={() => onBranchSelect(branch)}
 				>
 					{#snippet leading()}
-						<GitBranch
+						<RoundedIcon
+							name="branch"
 							class="size-3.5 shrink-0"
-							weight="fill"
 							style="color: {branchIconColor}"
 						/>
 					{/snippet}

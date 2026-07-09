@@ -26,14 +26,15 @@ describe("panel header primitives", () => {
 	it("renders chrome icon button with the shared chrome sizing", () => {
 		const { container } = render(Button, {
 			variant: "ghost",
-			size: "icon-chrome",
+			size: "icon",
 			title: "Action",
 			"aria-label": "Action",
 		});
 		const button = container.querySelector("button");
 		expect(button).not.toBeNull();
+		const classTokens = button?.className.split(/\s+/) ?? [];
 		expect(button?.className).toContain("size-6");
-		expect(button?.className).toContain("hover:bg-accent");
-		expect(button?.className).not.toContain("hover:bg-accent/50");
+		expect(classTokens).toContain("hover:bg-accent");
+		expect(classTokens).not.toContain("hover:bg-accent/50");
 	});
 });

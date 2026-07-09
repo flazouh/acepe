@@ -9,17 +9,10 @@ import {
 	type AgentUserFileSelectEvent,
 	type AgentToolFileSelectEvent,
 } from "@acepe/ui/agent-panel";
-import { DiffPill, setThinkingPreferences, type PrChecksItem } from "@acepe/ui";
+import { DiffPill, RoundedIcon, setThinkingPreferences, type PrChecksItem } from "@acepe/ui";
 import { Button } from "@acepe/ui/button";
 import * as ButtonGroup from "@acepe/ui/button-group";
-import {
-	CaretLeft,
-	CaretRight,
-	CheckCircle,
-	Clock,
-	GitPullRequest,
-	XCircle,
-} from "phosphor-svelte";
+import * as DropdownMenu from "@acepe/ui/dropdown-menu";
 import { onDestroy, onMount, tick } from "svelte";
 import { toast } from "svelte-sonner";
 import type { TurnState } from "../../../store/types.js";
@@ -71,6 +64,8 @@ import {
 	copyTextToClipboard,
 	matchesWorktreeSetupContext,
 	resolveEffectiveProjectPath,
+	resolvePlanningPlaceholderPresentation,
+	shouldShowNewThreadSetupContext,
 	shouldShowClaudeWorkingSpark,
 } from "../logic";
 import { DEFAULT_BROWSER_HOME_URL } from "../../../constants/browser-defaults.js";
@@ -108,9 +103,7 @@ import AgentPanelTerminalDrawer from "./agent-panel-terminal-drawer.svelte";
 import AgentPanelPreComposerStack from "./agent-panel-pre-composer-stack.svelte";
 import { PlanSidebar } from "../../plan-sidebar/index.js";
 import { BrowserPanel as BrowserPanelComponent } from "../../browser-panel/index.js";
-import {
-	AgentPanelTrailingPaneLayout,
-} from "@acepe/ui/agent-panel";
+import { AgentPanelTrailingPaneLayout } from "@acepe/ui/agent-panel";
 import { buildAgentErrorIssueDraft } from "../logic/issue-report-draft.js";
 import { resolveInitialReviewWorkspaceIndex } from "./review-workspace-model.js";
 import {
@@ -545,11 +538,11 @@ const effectivePanelAgentId = $derived(selectedAgentId ?? sessionController.sess
 // Claude is the only agent with a bespoke working spark; the transcript's planning
 // placeholder swaps it in for the label while streaming (gated on canonical agentId).
 const showWorkingSpark = $derived(
-		shouldShowClaudeWorkingSpark({
-			sessionAgentId: sessionController.sessionAgentId,
-			selectedAgentId,
-		})
-	);
+	shouldShowClaudeWorkingSpark({
+		sessionAgentId: sessionController.sessionAgentId,
+		selectedAgentId,
+	})
+);
 const agentName = $derived.by(() => {
 	if (!effectivePanelAgentId) {
 		return null;
@@ -1628,76 +1621,88 @@ async function handleFixCiCheck(check: PrChecksItem): Promise<void> {
 	onkeydown={handlePanelKeyDown}
 >
 	{#snippet header()}
-		<AgentPanelHeader
-			{pendingProjectSelection}
-			{isConnecting}
-			isRetryingConnection={connection.isRetrying}
-			{sessionId}
-			sessionTitle={sessionController.sessionTitle}
-			sessionAgentId={sessionController.sessionAgentId}
-			currentAgentId={effectivePanelAgentId}
-			{availableAgents}
-			{agentIconSrc}
-			{agentName}
-			{isFullscreen}
-			isStreaming={sessionController.sessionIsStreaming}
-			{hideProjectBadge}
-			{sequenceId}
-			sessionStatus={sessionController.panelSessionStatus}
-			projectPath={sessionController.sessionProjectPath}
-			projectName={displayProjectName}
-			{projectColor}
-			{projectIconSrc}
-			linkedPr={sessionController.sessionMetadata?.linkedPr ?? null}
-			prLinkMode={sessionController.sessionMetadata?.prLinkMode ?? "automatic"}
-			onClose={onClose}
-			{onToggleFullscreen}
-			onRetryConnection={handleRetryConnection}
-			onScrollToTop={scrollToTop}
-			firstMessageAttachments={sessionController.firstMessageAttachments}
-			onCopyContent={handleCopyContent}
-			onOpenInFinder={handleOpenInFinder}
-			onCopyStreamingLogPath={handleCopyStreamingLogPath}
-			onExportRawStreaming={handleExportRawStreaming}
-			{displayTitle}
-			{entriesCount}
-			insertions={sessionDiffStats.insertions}
-			deletions={sessionDiffStats.deletions}
-			createdAt={sessionCreatedAt}
-			updatedAt={sessionUpdatedAt}
-			onOpenRawFile={sessionId && sessionController.sessionProjectPath ? handleOpenRawFile : undefined}
-			onOpenInAcepe={sessionId && sessionController.sessionProjectPath ? handleOpenInAcepe : undefined}
-			onExportMarkdown={sessionId ? handleExportMarkdown : undefined}
-			onExportJson={sessionId ? handleExportJson : undefined}
-			{onAgentChange}
-			browserActive={showBrowserSidebar}
-			browserTitle="Toggle browser"
-			browserAriaLabel="Toggle browser"
-			onToggleBrowser={
-				panelId
-					? () => {
-							panelStore.toggleBrowserSidebar(panelId);
-						}
-					: undefined
-			}
-			terminalActive={isTerminalDrawerOpen}
-			terminalDisabled={effectivePathForGit === null}
-			terminalTitle={
-				effectivePathForGit !== null ? "Toggle terminal" : "No project selected"
-			}
-			terminalAriaLabel="Toggle terminal"
-			onToggleTerminal={
-				panelId && effectivePathForGit
-					? () => {
-							panelStore.toggleEmbeddedTerminalDrawer(panelId, effectivePathForGit);
-						}
-					: undefined
-			}
-			activeWorktreePath={footerWorktreeStatus ? effectiveActiveWorktreePath : null}
-			activeWorktreeLabel={footerWorktreeStatus?.primaryLabel ?? null}
-			onOpenWorktree={footerWorktreeStatus ? handleOpenWorktree : undefined}
-		/>
-	{/snippet}
+		{@const _headerSnippetMark = recordPanelOpenPerformanceMark(panelId, "agent-panel:header-snippet")}
+		{#if renderDeferredOpenChrome}
+			<AgentPanelHeader
+				{pendingProjectSelection}
+				{isConnecting}
+				isRetryingConnection={connection.isRetrying}
+				{sessionId}
+				sessionTitle={sessionController.sessionTitle}
+				sessionAgentId={sessionController.sessionAgentId}
+				currentAgentId={effectivePanelAgentId}
+				{availableAgents}
+				{agentIconSrc}
+				{agentName}
+				{isFullscreen}
+				isStreaming={sessionController.sessionIsStreaming}
+				{hideProjectBadge}
+				{sequenceId}
+				sessionStatus={sessionController.panelSessionStatus}
+				projectPath={sessionController.sessionProjectPath}
+				projectName={displayProjectName}
+				{projectColor}
+				{projectIconSrc}
+				linkedPr={sessionController.sessionMetadata?.linkedPr ?? null}
+				prLinkMode={sessionController.sessionMetadata?.prLinkMode ?? "automatic"}
+				onClose={onClose}
+				{onToggleFullscreen}
+				onRetryConnection={handleRetryConnection}
+				onScrollToTop={scrollToTop}
+				firstMessageAttachments={sessionController.firstMessageAttachments}
+				onCopyContent={handleCopyContent}
+				onOpenInFinder={handleOpenInFinder}
+				onCopyStreamingLogPath={handleCopyStreamingLogPath}
+				onExportRawStreaming={handleExportRawStreaming}
+				{displayTitle}
+				{entriesCount}
+				insertions={sessionDiffStats.insertions}
+				deletions={sessionDiffStats.deletions}
+				createdAt={sessionCreatedAt}
+				updatedAt={sessionUpdatedAt}
+				onOpenRawFile={sessionId && sessionController.sessionProjectPath ? handleOpenRawFile : undefined}
+				onOpenInAcepe={sessionId && sessionController.sessionProjectPath ? handleOpenInAcepe : undefined}
+				onExportMarkdown={sessionId ? handleExportMarkdown : undefined}
+				onExportJson={sessionId ? handleExportJson : undefined}
+				{onAgentChange}
+				browserActive={showBrowserSidebar}
+				browserTitle="Toggle browser"
+				browserAriaLabel="Toggle browser"
+				onToggleBrowser={
+					panelId
+						? () => {
+								panelStore.toggleBrowserSidebar(panelId);
+							}
+						: undefined
+				}
+				terminalActive={isTerminalDrawerOpen}
+				terminalDisabled={effectivePathForGit === null}
+				terminalTitle={
+					effectivePathForGit !== null ? "Toggle terminal" : "No project selected"
+				}
+				terminalAriaLabel="Toggle terminal"
+				onToggleTerminal={
+					panelId && effectivePathForGit
+						? () => {
+								panelStore.toggleEmbeddedTerminalDrawer(panelId, effectivePathForGit);
+							}
+						: undefined
+				}
+					activeWorktreePath={footerWorktreeStatus ? effectiveActiveWorktreePath : null}
+					activeWorktreeLabel={footerWorktreeStatus?.primaryLabel ?? null}
+					onOpenWorktree={footerWorktreeStatus ? handleOpenWorktree : undefined}
+				/>
+		{:else}
+			<div
+				class="flex h-10 shrink-0 items-center gap-2 border-b border-border/50 px-3"
+				data-testid="agent-panel-header-deferred-placeholder"
+				aria-hidden="true"
+			>
+				<div class="h-4 w-40 rounded bg-muted/25"></div>
+				<div class="ml-auto h-6 w-24 rounded bg-muted/15"></div>
+			</div>
+		{/if}
+		{/snippet}
 
 	{#snippet leadingPane()}
 		{#if panelId && hasAttachedFilePane}
@@ -1779,87 +1784,83 @@ async function handleFixCiCheck(check: PrChecksItem): Promise<void> {
 						onPlanCancel={handlePlanCancel}
 						onPlanViewFull={handlePlanViewFull}
 						onToolFileSelect={handleToolFileSelect}
+						onUserFileSelect={handleUserFileSelect}
 						onReview={handleReviewAction}
 						{isPlanActionAvailable}
 					/>
 				</div>
 			{/if}
 		</div>
-		{#if reviewMode && reviewFilesState}
-			<AgentPanelReviewWorkspace
-				{sessionId}
-				reviewFilesState={reviewFilesState}
-				selectedFileIndex={clampedReviewFileIndex}
-				projectPath={effectiveProjectPath ?? sessionController.sessionProjectPath}
-				isActive={reviewMode}
-				onClose={() => onExitReviewMode?.()}
-				onFileIndexChange={(index) => onReviewFileIndexChange?.(index)}
-			/>
-		{/if}
 	{/snippet}
 
 	{#snippet preComposer()}
-		{#if viewState.kind === "conversation" && !reviewMode}
+		{@const _preComposerSnippetMark = recordPanelOpenPerformanceMark(panelId, "agent-panel:pre-composer-snippet")}
+		{#if viewState.kind === "conversation"}
 			<SharedAgentPanelTranscriptScrollControls
 				showScrollToTop={!contentScrollReveal.isAtTop}
 				showScrollToBottom={!contentScrollReveal.isAtBottom}
+				hasUnreadBelow={contentScrollReveal.hasUnreadBelow}
 				onScrollToTop={scrollToTop}
 				onScrollToBottom={scrollToBottom}
 				centered={centeredFullscreenContent}
+				widthClass="max-w-[60%]"
 			/>
-		{/if}
-		<AgentPanelPreComposerStack
-			{reviewMode}
-			showConversationChrome={viewState.kind === "conversation" ||
-				viewState.kind === "ready" ||
-				viewState.kind === "error"}
-			{worktreeDeleted}
-			{centeredFullscreenContent}
-			{showInlineErrorCard}
-			errorInfo={sessionController.errorInfo}
-			inlineErrorReferenceId={sessionController.inlineErrorReferenceId}
-			inlineErrorReferenceSearchable={sessionController.inlineErrorReferenceSearchable}
-			onRetryConnection={handleRetryConnection}
-			isRetryingConnection={connection.isRetrying}
-			onDismissError={handleDismissError}
-			onCopyInlineErrorReference={handleCopyInlineErrorReference}
-			inlineErrorIssueDraft=			{inlineErrorIssueDraft}
-			onIssueFromInlineError={handleIssueFromInlineError}
-			{preSessionWorktreeFailure}
-			worktreeToggleProjectPath={worktreeToggleProjectPath}
-			onPreSessionWorktreeDismiss={handlePreSessionWorktreeDismiss}
-			onPreSessionWorktreeYes={handlePreSessionWorktreeYes}
-			onPreSessionWorktreeNo={handlePreSessionWorktreeNo}
-			onRetryWorktree={handleRetryWorktree}
-			worktreePending={worktreePending}
-			worktreeSetupState={worktreeSetup.state}
-			{agentInstallState}
-			{sessionId}
-			effectiveProjectPath={effectiveProjectPath ?? null}
-			sessionProjectPath={sessionController.sessionProjectPath ?? null}
-			{effectivePathForGit}
-			{createdPr}
-			createPrRunning={prCard.createRunning}
-			prCardRenderKey={prCard.renderKey}
-			prDetails={prCard.details}
-			prFetchError={prCard.fetchError}
-			linkedPr={sessionController.sessionMetadata?.linkedPr ?? null}
-			streamingShipData={prCard.streamingShipData}
-			onFixCiCheck={(check) => void handleFixCiCheck(check)}
-			{showTodoHeader}
-			{todoState}
-			getTodoMarkdown={getTodoMarkdown}
-			queueStripMessages={queueStripDisplayMessages}
-			{queueIsPaused}
-			onQueueCancel={handleQueueStripCancel}
-			onQueueRemoveAttachment={handleQueueStripRemoveAttachment}
-			onQueueClear={handleQueueStripClear}
-			onQueueResume={queueIsPaused && sessionId ? () => messageQueueStore.resume(sessionId) : undefined}
-			onQueueSendNow={handleQueueStripSendNow}
-			signInRequirement={sessionController.signInRequirement}
-			onDismissSignIn={handleDismissSignIn}
-		/>
-	{/snippet}
+			{/if}
+			{#if hasPreComposerStackContent}
+				<AgentPanelPreComposerStack
+					showConversationChrome={viewState.kind === "conversation" ||
+						viewState.kind === "ready" ||
+						viewState.kind === "error"}
+					{worktreeDeleted}
+					{centeredFullscreenContent}
+					{showInlineErrorCard}
+					errorInfo={sessionController.errorInfo}
+					inlineErrorReferenceId={sessionController.inlineErrorReferenceId}
+					inlineErrorReferenceSearchable={sessionController.inlineErrorReferenceSearchable}
+					onRetryConnection={handleRetryConnection}
+					isRetryingConnection={connection.isRetrying}
+					onUnarchiveSession={handleUnarchiveSession}
+					{isUnarchivingSession}
+					onDismissError={handleDismissError}
+					onCopyInlineErrorReference={handleCopyInlineErrorReference}
+					inlineErrorIssueDraft={inlineErrorIssueDraft}
+					onIssueFromInlineError={handleIssueFromInlineError}
+					{preSessionWorktreeFailure}
+					worktreeToggleProjectPath={worktreeToggleProjectPath}
+					onPreSessionWorktreeDismiss={handlePreSessionWorktreeDismiss}
+					onPreSessionWorktreeYes={handlePreSessionWorktreeYes}
+					onPreSessionWorktreeNo={handlePreSessionWorktreeNo}
+					onRetryWorktree={handleRetryWorktree}
+					worktreePending={worktreePending}
+					worktreeSetupState={worktreeSetup.state}
+					{agentInstallState}
+					{sessionId}
+					effectiveProjectPath={effectiveProjectPath ?? null}
+					sessionProjectPath={sessionController.sessionProjectPath ?? null}
+					{effectivePathForGit}
+					{createdPr}
+					createPrRunning={prCard.createRunning}
+					prCardRenderKey={prCard.renderKey}
+					prDetails={prCard.details}
+					prFetchError={prCard.fetchError}
+					linkedPr={sessionController.sessionMetadata?.linkedPr ?? null}
+					streamingShipData={prCard.streamingShipData}
+					onFixCiCheck={(check) => void handleFixCiCheck(check)}
+					{showTodoHeader}
+					{todoState}
+					getTodoMarkdown={getTodoMarkdown}
+					queueStripMessages={queueStripDisplayMessages}
+					{queueIsPaused}
+					onQueueCancel={handleQueueStripCancel}
+					onQueueRemoveAttachment={handleQueueStripRemoveAttachment}
+					onQueueClear={handleQueueStripClear}
+					onQueueResume={queueIsPaused && sessionId ? () => messageQueueStore.resume(sessionId) : undefined}
+					onQueueSendNow={handleQueueStripSendNow}
+					signInRequirement={sessionController.signInRequirement}
+					onDismissSignIn={handleDismissSignIn}
+				/>
+			{/if}
+		{/snippet}
 
 	{#snippet composer()}
 		{@const _composerSnippetMark = recordPanelOpenPerformanceMark(panelId, "agent-panel:composer-snippet")}
@@ -1869,52 +1870,14 @@ async function handleFixCiCheck(check: PrChecksItem): Promise<void> {
 					centered={centeredFullscreenContent}
 					widthClass="max-w-[60%]"
 				>
-					{#key inputRenderKey}
-						{#snippet newThreadProjectControl()}
-							<ProjectSelector
-								selectedProject={preSessionSelectedProject}
-								recentProjects={allProjects}
-								onProjectChange={handleComposerProjectSelected}
-								showLabel
-							/>
-						{/snippet}
-						{#snippet newThreadAgentControl()}
-							<AgentSelector
-								{availableAgents}
-								currentAgentId={effectivePanelAgentId}
-								{onAgentChange}
-								showLabel
-							/>
-						{/snippet}
-						{#snippet newThreadBranchControl()}
-							{#if worktreeToggleProjectPath}
-								<BranchPicker
-									projectPath={worktreeToggleProjectPath}
-									currentBranch={preSessionCurrentBranch}
-									diffStats={preSessionDiffStats}
-									isGitRepo={preSessionIsGitRepo}
-									variant="setupBarChip"
-									onBranchSelected={(branch) => {
-										preSessionCurrentBranch = branch;
-										if (worktreeToggleProjectPath) {
-											preSessionBranchMetadataLoader.refresh(worktreeToggleProjectPath);
-										}
-									}}
-									onInitGitRepo={() => {
-										if (!worktreeToggleProjectPath) {
-											return;
-										}
-										void tauriClient.git.init(worktreeToggleProjectPath).match(
-											() => {
-												preSessionBranchMetadataLoader.refresh(worktreeToggleProjectPath);
-											},
-											(error) => {
-												const message =
-													error.cause?.message ?? error.message ?? "Failed to initialize git";
-												toast.error(message);
-											}
-										);
-									}}
+					{#if renderComposerInput}
+						{#key inputRenderKey}
+							{#snippet newThreadProjectControl()}
+								<ProjectSelector
+									selectedProject={preSessionSelectedProject}
+									recentProjects={allProjects}
+									onProjectChange={handleComposerProjectSelected}
+									showLabel
 								/>
 							{/snippet}
 							{#snippet newThreadAgentControl()}
@@ -2036,7 +1999,7 @@ async function handleFixCiCheck(check: PrChecksItem): Promise<void> {
 								{#if sessionController.sessionProjectPath && checkpointTimeline.checkpoints.length > 0}
 									<Button
 										variant="ghost"
-										size="icon-chrome"
+										size="icon"
 										data-header-control
 										active={checkpointTimeline.isOpen}
 										title="View checkpoints"
@@ -2133,22 +2096,51 @@ async function handleFixCiCheck(check: PrChecksItem): Promise<void> {
 	{/snippet}
 </AgentPanelShell>
 
-<DialogFrame
-	open={reviewDialog.isOpen}
-	title="Review changes"
-	closeLabel="Close review"
-	contentOverflow="hidden"
-	contentClass="!bg-background !rounded-lg review-changes-font"
-	onOpenChange={(open) => reviewDialog.setOpen(open)}
->
-	{#snippet topLeft()}
-		{#if !createdPr}
-			<Button
-				variant="headerAction"
-				size="headerAction"
-				class="shrink-0"
-				disabled={prCard.createRunning || !effectivePathForGit}
-				onclick={() => void handleCreatePr()}
+{#if reviewDialog.isOpen}
+	<DialogFrame
+		open={reviewDialog.isOpen}
+		title="Review changes"
+		closeLabel="Close review"
+		contentOverflow="hidden"
+		contentClass="!bg-background !rounded-lg"
+		onOpenChange={(open) => reviewDialog.setOpen(open)}
+	>
+		{#snippet topLeft()}
+			{#if !createdPr}
+				<Button
+					variant="secondary"
+					size="xs"
+					class="shrink-0"
+					disabled={prCard.createRunning || !effectivePathForGit}
+					onclick={() => void handleCreatePr()}
+				>
+					<RoundedIcon name="pull-request" class="size-[11px] shrink-0" />
+					{prCard.createLabel ?? "Open PR"}
+					<DiffPill
+						insertions={reviewDialog.diffStats.insertions}
+						deletions={reviewDialog.diffStats.deletions}
+						variant="plain"
+					/>
+				</Button>
+			{:else}
+				<Button variant="secondary" size="xs" class="shrink-0" disabled>
+					<RoundedIcon name="pull-request" class="size-[11px] shrink-0 text-success" />
+					#{createdPr}
+					<DiffPill
+						insertions={reviewDialog.diffStats.insertions}
+						deletions={reviewDialog.diffStats.deletions}
+						variant="plain"
+					/>
+				</Button>
+			{/if}
+		{/snippet}
+
+		{#snippet topRight()}
+			{@const controls = reviewDialog.controls}
+			{@const diffOptions = reviewDialog.diffOptions}
+			<div
+				class="flex max-w-[min(520px,calc(100vw-12rem))] flex-wrap items-center justify-end gap-1.5"
+				data-testid="review-dialog-header-actions"
 			>
 				<DropdownMenu.Root>
 					<DropdownMenu.Trigger>
@@ -2198,87 +2190,246 @@ async function handleFixCiCheck(check: PrChecksItem): Promise<void> {
 							</DropdownMenu.RadioGroup>
 						</DropdownMenu.Group>
 
-	{#snippet topRight()}
-		{@const controls = reviewDialog.controls}
-		{#if controls && controls.fileTotal > 1}
-			<ButtonGroup.Root class="shrink-0" aria-label="File navigation">
-				<Button
-					variant="headerAction"
-					size="headerAction"
-					disabled={!controls.hasPrevPendingFile}
-					onclick={controls.onPrevFile}
-					aria-label="Previous file"
-					title="Previous file"
-				>
-					<CaretLeft size={12} weight="regular"  class="size-3"/>
-				</Button>
-				<Button
-					variant="headerAction"
-					size="headerAction"
-					class="tabular-nums pointer-events-none"
-					disabled
-					aria-label="File {controls.fileCurrent} of {controls.fileTotal}"
-				>
-					{controls.fileCurrent}/{controls.fileTotal}
-				</Button>
-				<Button
-					variant="headerAction"
-					size="headerAction"
-					disabled={!controls.hasNextPendingFile}
-					onclick={controls.onNextFile}
-					aria-label="Next file"
-					title="Next file"
-				>
-					<CaretRight size={12} weight="regular"  class="size-3"/>
-				</Button>
-			</ButtonGroup.Root>
-		{/if}
+						<DropdownMenu.Separator />
 
-		{#if controls}
-			<ButtonGroup.Root class="shrink-0" aria-label="Review actions">
-				<Button
-					variant="headerAction"
-					size="headerAction"
-					disabled={!controls.hasPendingHunks}
-					onclick={controls.onRejectFile}
-					title="Reject file"
-				>
-					<XCircle size={11} weight="fill" style="color: {Colors.red};" />
-					Undo
-				</Button>
-				<Button
-					variant="headerAction"
-					size="headerAction"
-					disabled={!controls.hasPendingHunks}
-					onclick={controls.onAcceptFile}
-					title="Keep file"
-				>
-					<CheckCircle size={11} weight="fill" class="text-success" />
-					Keep
-				</Button>
-			</ButtonGroup.Root>
-		{/if}
-	{/snippet}
+						<DropdownMenu.Group>
+							<DropdownMenu.GroupHeading>Indicators</DropdownMenu.GroupHeading>
+							<DropdownMenu.RadioGroup
+								value={diffOptions.indicatorStyle}
+								onValueChange={handleReviewDiffIndicatorStyleChange}
+							>
+								<DropdownMenu.RadioItem
+									value="bars"
+									onSelect={keepReviewDiffSettingsMenuOpen}
+									data-testid="review-dialog-diff-indicators-bars"
+								>
+									<RoundedIcon name="diff-bars" class="size-3" />
+									Bars
+								</DropdownMenu.RadioItem>
+								<DropdownMenu.RadioItem
+									value="classic"
+									onSelect={keepReviewDiffSettingsMenuOpen}
+									data-testid="review-dialog-diff-indicators-classic"
+								>
+									<RoundedIcon name="diff-classic" class="size-3" />
+									Classic
+								</DropdownMenu.RadioItem>
+								<DropdownMenu.RadioItem
+									value="none"
+									onSelect={keepReviewDiffSettingsMenuOpen}
+									data-testid="review-dialog-diff-indicators-none"
+								>
+									<RoundedIcon name="minus" class="size-3" />
+									None
+								</DropdownMenu.RadioItem>
+							</DropdownMenu.RadioGroup>
+						</DropdownMenu.Group>
 
-	{#if reviewDialog.filesState}
-		<AgentPanelReviewWorkspace
-			{sessionId}
-			reviewFilesState={reviewDialog.filesState}
-			selectedFileIndex={reviewDialog.clampedFileIndex}
-			projectPath={effectiveProjectPath ?? sessionController.sessionProjectPath}
-			isActive={reviewDialog.isOpen}
-			showHeader={false}
-			showCloseButton={false}
-			compact={true}
-			flat={true}
-			diffDensity="comfortable"
-			hideBottomWidget={true}
-			onControlsChange={(controls) => reviewDialog.setControls(controls)}
-			onClose={() => reviewDialog.setOpen(false)}
-			onFileIndexChange={(index) => reviewDialog.setFileIndex(index)}
-		/>
-	{/if}
-</DialogFrame>
+						<DropdownMenu.Separator />
+
+						<DropdownMenu.Group>
+							<DropdownMenu.GroupHeading>Inline Changes</DropdownMenu.GroupHeading>
+							<DropdownMenu.RadioGroup
+								value={diffOptions.lineChangeStyle}
+								onValueChange={handleReviewDiffLineChangeStyleChange}
+							>
+								<DropdownMenu.RadioItem
+									value="none"
+									onSelect={keepReviewDiffSettingsMenuOpen}
+									data-testid="review-dialog-line-change-none"
+								>
+									<RoundedIcon name="minus" class="size-3" />
+									None
+								</DropdownMenu.RadioItem>
+								<DropdownMenu.RadioItem
+									value="word"
+									onSelect={keepReviewDiffSettingsMenuOpen}
+									data-testid="review-dialog-line-change-word"
+								>
+									<RoundedIcon name="format" class="size-3" />
+									Word
+								</DropdownMenu.RadioItem>
+								<DropdownMenu.RadioItem
+									value="character"
+									onSelect={keepReviewDiffSettingsMenuOpen}
+									data-testid="review-dialog-line-change-character"
+								>
+									<RoundedIcon name="code" class="size-3" />
+									Character
+								</DropdownMenu.RadioItem>
+							</DropdownMenu.RadioGroup>
+						</DropdownMenu.Group>
+
+						<DropdownMenu.Separator />
+
+						<DropdownMenu.Group>
+							<DropdownMenu.GroupHeading>Display</DropdownMenu.GroupHeading>
+							<DropdownMenu.CheckboxItem
+								checked={diffOptions.showBackgrounds}
+								onCheckedChange={(checked) =>
+									reviewDialog.setDiffShowBackgrounds(checked === true)}
+								onSelect={keepReviewDiffSettingsMenuOpen}
+								data-testid="review-dialog-toggle-backgrounds"
+							>
+								<RoundedIcon name="diff-backgrounds" class="size-3" />
+								Backgrounds
+							</DropdownMenu.CheckboxItem>
+							<DropdownMenu.CheckboxItem
+								checked={diffOptions.wrapLines}
+								onCheckedChange={(checked) => reviewDialog.setDiffWrapLines(checked === true)}
+								onSelect={keepReviewDiffSettingsMenuOpen}
+								data-testid="review-dialog-toggle-wrapping"
+							>
+								<RoundedIcon name="diff-wrapping" class="size-3" />
+								Wrapping
+							</DropdownMenu.CheckboxItem>
+							<DropdownMenu.CheckboxItem
+								checked={diffOptions.showLineNumbers}
+								onCheckedChange={(checked) =>
+									reviewDialog.setDiffShowLineNumbers(checked === true)}
+								onSelect={keepReviewDiffSettingsMenuOpen}
+								data-testid="review-dialog-toggle-line-numbers"
+							>
+								<RoundedIcon name="diff-line-numbers" class="size-3" />
+								Line Numbers
+							</DropdownMenu.CheckboxItem>
+						</DropdownMenu.Group>
+					</DropdownMenu.Content>
+				</DropdownMenu.Root>
+
+				{#if controls && controls.fileTotal > 1}
+					<ButtonGroup.Root class="shrink-0" aria-label="File navigation">
+						<Button
+							variant="secondary"
+							size="xs"
+							disabled={!controls.hasPrevFile}
+							onclick={controls.onPrevFile}
+							aria-label="Previous file"
+							title="Previous file"
+						>
+							<RoundedIcon name="chevron-left" class="size-3" />
+						</Button>
+						<Button
+							variant="secondary"
+							size="xs"
+							class="tabular-nums pointer-events-none"
+							disabled
+							aria-label="File {controls.fileCurrent} of {controls.fileTotal}"
+						>
+							{controls.fileCurrent}/{controls.fileTotal}
+						</Button>
+						<Button
+							variant="secondary"
+							size="xs"
+							disabled={!controls.hasNextFile}
+							onclick={controls.onNextFile}
+							aria-label="Next file"
+							title="Next file"
+						>
+							<RoundedIcon name="chevron-right" class="size-3" />
+						</Button>
+					</ButtonGroup.Root>
+				{/if}
+
+				{#if controls}
+					<Button
+						variant="secondary"
+						size="xs"
+						class="shrink-0"
+						onclick={controls.onToggleReviewed}
+						title={controls.isReviewed ? "Mark file as not reviewed" : "Mark file reviewed"}
+					>
+						{#if controls.isReviewed}
+							<RoundedIcon name="check-circle" class="shrink-0 text-success" style="width: 11px; height: 11px;" />
+							Reviewed
+						{:else}
+							<span class="block size-[11px] shrink-0 rounded-full border border-current opacity-50"></span>
+							Mark reviewed
+						{/if}
+					</Button>
+					<Button
+						variant="secondary"
+						size="xs"
+						class="shrink-0"
+						onclick={() => {
+							reviewRevertConfirmFileName =
+								reviewDialog.filesState?.files[reviewDialog.clampedFileIndex]?.fileName ?? "this file";
+						}}
+						title="Revert file"
+					>
+						<RoundedIcon name="undo" class="shrink-0" style="width: 11px; height: 11px; color: {Colors.red};" />
+						Revert
+					</Button>
+				{/if}
+			</div>
+		{/snippet}
+
+		{#if reviewDialog.filesState}
+			<AgentPanelReviewWorkspace
+				{sessionId}
+				reviewFilesState={reviewDialog.filesState}
+				selectedFileIndex={reviewDialog.clampedFileIndex}
+				projectPath={effectiveProjectPath ?? sessionController.sessionProjectPath}
+				isActive={reviewDialog.isOpen}
+				showHeader={false}
+				showCloseButton={false}
+				compact={true}
+				flat={true}
+				diffDensity="default"
+				diffStyle={reviewDialog.diffStyle}
+				diffOptions={reviewDialog.diffOptions}
+				hideBottomWidget={true}
+				onControlsChange={(controls) => reviewDialog.setControls(controls)}
+				onClose={() => reviewDialog.setOpen(false)}
+				onFileIndexChange={(index) => reviewDialog.setFileIndex(index)}
+			/>
+		{/if}
+	</DialogFrame>
+{/if}
+
+{#if reviewRevertConfirmFileName !== null}
+	<AlertDialog.Root
+		open={true}
+		onOpenChange={(open) => {
+			if (!open) {
+				reviewRevertConfirmFileName = null;
+			}
+		}}
+	>
+		<AlertDialog.Portal>
+			<AlertDialog.Overlay
+				class="fixed inset-0 z-[calc(var(--overlay-z,50)+20)] bg-black/55 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0"
+			/>
+			<AlertDialog.Content
+				class="fixed left-1/2 top-1/2 z-[calc(var(--overlay-z,50)+21)] w-[calc(100%-2rem)] max-w-sm -translate-x-1/2 -translate-y-1/2 rounded-lg border border-border bg-background p-4 shadow-lg data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0"
+			>
+				<AlertDialog.Title class="text-sm font-medium text-foreground">
+					Revert file?
+				</AlertDialog.Title>
+				<AlertDialog.Description class="mt-1.5 text-sm leading-snug text-muted-foreground">
+					This discards the agent's changes to {reviewRevertConfirmFileName} in your working tree.
+					This cannot be undone.
+				</AlertDialog.Description>
+				<div class="mt-4 flex items-center justify-end gap-2">
+					<AlertDialog.Cancel
+						class="inline-flex h-8 items-center justify-center rounded-md border border-border bg-transparent px-3 text-sm font-medium text-foreground transition-colors hover:bg-muted"
+					>
+						Cancel
+					</AlertDialog.Cancel>
+					<AlertDialog.Action
+						class="inline-flex h-8 items-center justify-center rounded-md bg-destructive px-3 text-sm font-medium text-destructive-foreground transition-colors hover:bg-destructive/90"
+						onclick={() => {
+							reviewDialog.controls?.onRevertFile();
+							reviewRevertConfirmFileName = null;
+						}}
+					>
+						Revert
+					</AlertDialog.Action>
+				</div>
+			</AlertDialog.Content>
+		</AlertDialog.Portal>
+	</AlertDialog.Root>
+{/if}
 
 {#if inlinePlanDialogPlan}
 	<PlanDialog
@@ -2288,28 +2439,3 @@ async function handleFixCiCheck(check: PrChecksItem): Promise<void> {
 		projectPath={sessionController.sessionProjectPath ?? undefined}
 	/>
 {/if}
-
-<style>
-	/*
-	 * Review modal — unified base font that RESPECTS the global Interface font
-	 * size setting. The dialog children use a mix of small fixed Tailwind sizes
-	 * on shared atoms (FilePathBadge, DiffPill, headerAction buttons) that we
-	 * must not change globally, so we unify them within the dialog via its marker
-	 * class — but to 0.875rem (the app's base body size, == text-sm), NOT a fixed
-	 * px, so the whole modal scales when the user changes the Interface font size
-	 * (which sets the root font-size). font-size does not inherit past a child
-	 * that sets it, hence !important on the specific utilities (targeting those
-	 * classes, not `*`, leaves explicitly-px-sized icons alone). :global is
-	 * required because Radix portals the dialog to a <body> sibling, outside this
-	 * component's scoped DOM. The diff renders in a shadow DOM and respects the
-	 * global Code font size via the "comfortable" density instead.
-	 */
-	:global(.review-changes-font),
-	:global(.review-changes-font .text-\[0\.6875rem\]),
-	:global(.review-changes-font .text-\[0\.625rem\]),
-	:global(.review-changes-font .text-xs),
-	:global(.review-changes-font .text-sm) {
-		font-size: 0.875rem !important;
-		line-height: 1.4 !important;
-	}
-</style>

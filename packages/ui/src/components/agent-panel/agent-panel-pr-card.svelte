@@ -105,7 +105,7 @@
 			{#if model.mode === "streaming" && model.isStreaming}
 				<LoadingIcon class="shrink-0 animate-spin" size={12} />
 			{/if}
-			<CaretDown size={12} weight="regular" class="size-3 shrink-0 text-muted-foreground/80 transition-transform {isExpanded ? '' : 'rotate-180'}"
+			<RoundedIcon name="chevron-down" class="size-3 shrink-0 text-muted-foreground/80 transition-transform {isExpanded ? '' : 'rotate-180'}"
 			/>
 		{/if}
 	{/snippet}

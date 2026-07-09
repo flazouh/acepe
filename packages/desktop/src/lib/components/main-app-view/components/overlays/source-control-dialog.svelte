@@ -6,9 +6,8 @@ import { getPanelStore, getSessionStore } from "$lib/acp/store/index.js";
 import { resolveCurrentWorktree } from "$lib/acp/store/git-modal-state.js";
 import type { WorktreeInfo } from "$lib/acp/types/worktree-info.js";
 import DialogFrame from "$lib/components/ui/dialog-frame.svelte";
-import { Selector } from "@acepe/ui";
+import { RoundedIcon, Selector } from "@acepe/ui";
 import * as DropdownMenu from "@acepe/ui/dropdown-menu";
-import { Check, Tree } from "phosphor-svelte";
 
 interface Props {
 	projectManager: ProjectManager;
@@ -80,7 +79,7 @@ function switchWorktree(directory: string): void {
 						contentClass="p-0.5"
 					>
 						{#snippet renderButton()}
-							<Tree size={13} weight="fill" class="shrink-0 text-success" />
+							<RoundedIcon name="worktree" class="size-[13px] shrink-0 text-success" />
 							<span class="max-w-[10rem] truncate text-foreground">
 								{currentWorktree ? currentWorktree.name : projectName}
 							</span>
@@ -98,10 +97,9 @@ function switchWorktree(directory: string): void {
 								class="cursor-pointer gap-1.5 rounded-sm !px-1.5 !py-1 text-xs"
 							>
 								<div class="flex w-full min-w-[10rem] items-center gap-1.5">
-									<Tree
-										size={12}
-										weight={isCurrent ? "fill" : "regular"}
-										class={isCurrent ? "shrink-0 text-success" : "shrink-0 text-muted-foreground"}
+									<RoundedIcon
+										name="worktree"
+										class={isCurrent ? "size-3 shrink-0 text-success" : "size-3 shrink-0 text-muted-foreground"}
 									/>
 									<span class="min-w-0 flex-1 truncate text-foreground">{worktree.name}</span>
 									{#if worktree.origin === "external"}
@@ -109,10 +107,11 @@ function switchWorktree(directory: string): void {
 											ext
 										</span>
 									{/if}
-									<Check
-										size={11}
-										weight="bold"
-										class={isCurrent ? "shrink-0 text-foreground" : "shrink-0 text-transparent"}
+									<RoundedIcon
+										name="check"
+										class={isCurrent
+											? "size-[11px] shrink-0 text-foreground"
+											: "size-[11px] shrink-0 text-transparent"}
 									/>
 								</div>
 							</DropdownMenu.Item>

@@ -1,6 +1,4 @@
 <script lang="ts">
-	import { IconExternalLink } from "@tabler/icons-svelte";
-
 	import { Button } from "../button/index.js";
 	import { RoundedIcon } from "../icons/index.js";
 
@@ -34,39 +32,39 @@
 	{#if showNavigation}
 		<Button
 			variant="ghost"
-			size="icon-chrome"
+			size="icon-sm"
 			data-header-control
 			onclick={() => onBack?.()}
 			title={backLabel}
 			aria-label={backLabel}
 		>
-			{#snippet children()}<RoundedIcon name="chevron-left" class="size-4" />{/snippet}
+			{#snippet children()}<RoundedIcon name="chevron-left" />{/snippet}
 		</Button>
 		<Button
 			variant="ghost"
-			size="icon-chrome"
+			size="icon-sm"
 			data-header-control
 			onclick={() => onForward?.()}
 			title={forwardLabel}
 			aria-label={forwardLabel}
 		>
-			{#snippet children()}<RoundedIcon name="chevron-right" class="size-4" />{/snippet}
+			{#snippet children()}<RoundedIcon name="chevron-right" />{/snippet}
 		</Button>
 		<Button
 			variant="ghost"
-			size="icon-chrome"
+			size="icon-sm"
 			data-header-control
 			onclick={() => onReload?.()}
 			title={reloadLabel}
 			aria-label={reloadLabel}
 		>
-			{#snippet children()}<RoundedIcon name="refresh" class="size-4" />{/snippet}
+			{#snippet children()}<RoundedIcon name="refresh" />{/snippet}
 		</Button>
 	{/if}
 	{#if showExternal}
 		<Button
 			variant="ghost"
-			size="icon-chrome"
+			size="icon-sm"
 			data-header-control
 			onclick={() => onOpenExternal?.()}
 			title={openExternalLabel}

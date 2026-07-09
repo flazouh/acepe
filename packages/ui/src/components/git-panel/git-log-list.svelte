@@ -118,7 +118,7 @@
 				)}
 				onclick={() => toggleExpand(entry.sha)}
 			>
-				<CaretRight size={12} weight="regular"
+				<RoundedIcon name="chevron-right"
 					class={cn(
 						"size-3 shrink-0 text-muted-foreground transition-transform duration-150",
 						isExpanded && "rotate-90",
@@ -184,7 +184,7 @@
 							>
 								<!-- Expand caret (only if diff snippet available) -->
 								{#if fileDiffContent && file.patch}
-									<CaretRight size={12} weight="regular"
+									<RoundedIcon name="chevron-right"
 										class={cn(
 											"size-3 shrink-0 text-muted-foreground/50 transition-transform duration-150",
 											isFileExpanded && "rotate-90",

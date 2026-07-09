@@ -27,20 +27,30 @@ describe("getSelectorTriggerButtonVariant", () => {
 
 	test("uses ghost for icon rail triggers", () => {
 		expect(getSelectorTriggerButtonVariant("icon")).toBe("ghost");
+		expect(getSelectorTriggerButtonVariant("iconSm")).toBe("ghost");
 		expect(getSelectorTriggerButtonVariant("chromeIcon")).toBe("ghost");
 		expect(getSelectorTriggerButtonVariant("chromeIconMd")).toBe("ghost");
+	});
+
+	test("uses secondary for header action triggers", () => {
+		expect(getSelectorTriggerButtonVariant("headerAction")).toBe("secondary");
 	});
 });
 
 describe("getSelectorTriggerButtonSize icon rails", () => {
-	test("maps chrome icon triggers to icon-chrome", () => {
-		expect(getSelectorTriggerButtonSize("chromeIcon")).toBe("icon-chrome");
-		expect(getSelectorTriggerButtonSize("chromeIconMd")).toBe("icon-chrome");
+	test("maps chrome icon triggers to icon", () => {
+		expect(getSelectorTriggerButtonSize("chromeIcon")).toBe("icon");
+		expect(getSelectorTriggerButtonSize("chromeIconMd")).toBe("icon");
 	});
 
 	test("keeps dense icon triggers compact", () => {
-		expect(getSelectorTriggerButtonSize("icon")).toBe("icon-2xs");
-		expect(getSelectorTriggerButtonSize("attach")).toBe("icon-2xs");
+		expect(getSelectorTriggerButtonSize("icon")).toBe("icon");
+		expect(getSelectorTriggerButtonSize("iconSm")).toBe("icon-sm");
+		expect(getSelectorTriggerButtonSize("attach")).toBe("icon");
+	});
+
+	test("maps header action triggers to xs", () => {
+		expect(getSelectorTriggerButtonSize("headerAction")).toBe("xs");
 	});
 });
 

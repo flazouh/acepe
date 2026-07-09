@@ -1,7 +1,6 @@
 <script lang="ts">
-import { Tree } from "phosphor-svelte";
 import type { PrDetails } from "$lib/utils/tauri-client/git.js";
-import type { PrChecksItem } from "@acepe/ui";
+import { RoundedIcon, type PrChecksItem } from "@acepe/ui";
 import type { IssueReportDraft } from "$lib/errors/issue-report.js";
 import { resolveIssueActionLabel } from "$lib/errors/issue-report.js";
 import type { SessionLinkedPr } from "../../../application/dto/session-linked-pr";

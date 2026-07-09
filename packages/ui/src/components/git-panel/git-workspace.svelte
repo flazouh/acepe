@@ -44,20 +44,10 @@
 -->
 <script lang="ts">
 	import type { Snippet } from "svelte";
-	import {
-		ArrowDown,
-		ArrowUp,
-		CaretDown,
-		GitBranch,
-		GitCommit,
-		GitPullRequest,
-		ListChecks,
-		Sparkle,
-		Tree,
-	} from "phosphor-svelte";
 
 	import { Button } from "../button/index.js";
 	import { ButtonGroup } from "../button-group/index.js";
+	import { RoundedIcon, type RoundedIconName } from "../icons/index.js";
 	import SegmentedToggleGroup from "../panel-header/segmented-toggle-group.svelte";
 	import { cn } from "../../lib/utils.js";
 	import GitStatusRow from "./git-status-row.svelte";
@@ -161,17 +151,22 @@
 	}: Props = $props();
 
 	const sections = $derived<
-		readonly { id: GitSection; label: string; icon: typeof GitCommit; count?: number }[]
+		readonly {
+			id: GitSection;
+			label: string;
+			roundedIcon: RoundedIconName;
+			count?: number;
+		}[]
 	>([
 		{
 			id: "changes",
 			label: "Changes",
-			icon: ListChecks,
+			roundedIcon: "tasks",
 			count: stagedFiles.length + unstagedFiles.length,
 		},
-		{ id: "commits", label: "Commits", icon: GitCommit, count: commitsCount },
-		{ id: "prs", label: "Pull Requests", icon: GitPullRequest, count: prCount },
-		{ id: "worktrees", label: "Worktrees", icon: Tree, count: worktreeCount },
+		{ id: "commits", label: "Commits", roundedIcon: "git", count: commitsCount },
+		{ id: "prs", label: "Pull Requests", roundedIcon: "pull-request", count: prCount },
+		{ id: "worktrees", label: "Worktrees", roundedIcon: "worktree", count: worktreeCount },
 	]);
 
 	const views: readonly { id: ChangesView; label: string }[] = [
@@ -201,7 +196,11 @@
 			{#snippet itemContent(item)}
 				{@const section = sections.find((candidate) => candidate.id === item.id)}
 				{#if section}
-					<section.icon size={14} weight="bold" class="shrink-0" />
+					<RoundedIcon
+						name={section.roundedIcon}
+						class="size-3.5 shrink-0"
+						data-testid={`git-workspace-${section.id}-icon`}
+					/>
 				{/if}
 				<span>{item.label}</span>
 				{#if section?.count != null && section.count > 0}
@@ -223,10 +222,14 @@
 					title="Switch branch"
 					class="flex min-w-0 items-center gap-1.5 !bg-transparent px-2 py-1 text-sm leading-none text-foreground transition-colors hover:bg-accent/60 disabled:pointer-events-none"
 				>
-					<GitBranch size={14} class="shrink-0 text-muted-foreground" />
+					<RoundedIcon
+						name="branch"
+						class="size-3.5 shrink-0 text-muted-foreground"
+						data-testid="git-workspace-branch-icon"
+					/>
 					<span class="truncate font-normal">{branch}</span>
 					{#if onBranchClick}
-						<CaretDown size={12} weight="regular" class="size-3 shrink-0 text-muted-foreground/70" />
+						<RoundedIcon name="chevron-down" class="size-3 shrink-0 text-muted-foreground/70" />
 					{/if}
 				</button>
 
@@ -237,12 +240,12 @@
 					>
 						{#if remoteStatus.ahead > 0}
 							<span class="flex items-center gap-0.5">
-								<ArrowUp size={12} weight="bold" />{remoteStatus.ahead}
+								<RoundedIcon name="arrow-up" class="size-3" />{remoteStatus.ahead}
 							</span>
 						{/if}
 						{#if remoteStatus.behind > 0}
 							<span class="flex items-center gap-0.5">
-								<ArrowDown size={12} weight="bold" />{remoteStatus.behind}
+								<RoundedIcon name="arrow-up" class="size-3 rotate-180" />{remoteStatus.behind}
 							</span>
 						{/if}
 					</div>
@@ -423,14 +426,14 @@
 								{#if onGenerate}
 									<Button
 										variant="ghost"
-										size="icon-xs"
+										size="icon"
 										onclick={onGenerate}
 										disabled={generating}
 										title="Generate commit message"
 										aria-label="Generate commit message"
 									>
 										{#snippet children()}
-											<Sparkle size={14} weight={generating ? "fill" : "regular"} />
+											<RoundedIcon name="sparkle" />
 										{/snippet}
 									</Button>
 								{/if}

@@ -1,14 +1,12 @@
 <script lang="ts">
 	import * as DropdownMenu from "../dropdown-menu/index.js";
 	import * as Tooltip from "../tooltip/index.js";
-	import { CaretDown } from "phosphor-svelte";
-	import { Gear, DotsThreeVertical } from "phosphor-svelte";
 	import { mergeProps } from "bits-ui";
 	import type { Snippet } from "svelte";
 
 	import { cn } from "../../lib/utils.js";
 	import { Button, type ButtonVariant, buttonVariants } from "../button/index.js";
-	import { OVERFLOW_DOTS_ICON_CLASS } from "../panel-header/project-card-action-button-class.js";
+	import { RoundedIcon } from "../icons/index.js";
 	import {
 		getSelectorTriggerButtonPropsForContext,
 		getSelectorTriggerClass,
@@ -188,13 +186,11 @@
 
 	const triggerButtonClass = $derived(
 		cn(
-			resolvedTriggerSize === "headerAction"
-				? buttonVariants({ variant: "headerAction", size: "headerAction" })
-				: buttonVariants({
-						variant: triggerButtonProps.variant,
-						size: triggerButtonProps.size,
-						active: triggerActive,
-					}),
+			buttonVariants({
+				variant: triggerButtonProps.variant,
+				size: triggerButtonProps.size,
+				active: triggerActive,
+			}),
 			triggerClass,
 			embeddedInGroup ? "!rounded-none" : "",
 			className
@@ -228,14 +224,14 @@
 			title={tooltipTitle ?? tooltipLabel ?? undefined}
 		>
 			{#if triggerIcon === "dots"}
-				<DotsThreeVertical class={OVERFLOW_DOTS_ICON_CLASS} weight="bold" />
+				<RoundedIcon name="more" />
 			{:else if triggerIcon === "gear"}
-				<Gear class={OVERFLOW_DOTS_ICON_CLASS} weight="fill" />
+				<RoundedIcon name="settings" />
 			{:else}
 				{@render renderButton()}
 			{/if}
 			{#if showChevron}
-				<CaretDown size={12} weight="regular" class="size-3 shrink-0 text-muted-foreground transition-transform duration-200 {open ? 'rotate-180' : ''}" />
+				<RoundedIcon name="chevron-down" class="size-3 shrink-0 text-muted-foreground transition-transform duration-200 {open ? 'rotate-180' : ''}" />
 			{/if}
 		</button>
 	{:else}
@@ -252,14 +248,14 @@
 				data-header-control={triggerSize === "attach" || triggerSize === "chromeIcon" ? true : undefined}
 			>
 				{#if triggerIcon === "dots"}
-					<DotsThreeVertical class={OVERFLOW_DOTS_ICON_CLASS} weight="bold" />
+					<RoundedIcon name="more" />
 				{:else if triggerIcon === "gear"}
-					<Gear class={OVERFLOW_DOTS_ICON_CLASS} weight="fill" />
+					<RoundedIcon name="settings" />
 				{:else}
 					{@render renderButton()}
 				{/if}
 				{#if showChevron}
-					<CaretDown size={12} weight="regular" class="size-3 shrink-0 text-muted-foreground transition-transform duration-200 {open ? 'rotate-180' : ''}" />
+					<RoundedIcon name="chevron-down" class="size-3 shrink-0 text-muted-foreground transition-transform duration-200 {open ? 'rotate-180' : ''}" />
 				{/if}
 			</Button>
 		</div>

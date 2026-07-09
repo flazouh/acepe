@@ -4,6 +4,7 @@ import {
 	AgentPanelModifiedFilesHeader as SharedAgentPanelModifiedFilesHeader,
 	AgentPanelModifiedFilesTrailingControls as SharedAgentPanelModifiedFilesTrailingControls,
 	DiffPill,
+	RoundedIcon,
 	Selector,
 	type AgentPanelModifiedFilesTrailingModel,
 } from "@acepe/ui";
@@ -381,7 +382,7 @@ function handlePromptResetClick(): void {
 								embeddedInGroup
 								showChevron={false}
 								triggerSize="headerAction"
-								variant="headerAction"
+								variant="secondary"
 								align="start"
 								sideOffset={6}
 								contentClass="min-w-[200px]"
@@ -390,7 +391,7 @@ function handlePromptResetClick(): void {
 								disabled={createPrLoading}
 							>
 								{#snippet renderButton()}
-									<DotsThreeVertical size={11} weight="bold" class="shrink-0" />
+									<RoundedIcon name="more" class="size-[11px] shrink-0" />
 								{/snippet}
 
 								<DropdownMenu.Sub>
@@ -513,14 +514,14 @@ function handlePromptResetClick(): void {
 								embeddedInGroup
 								showChevron={false}
 								triggerSize="headerAction"
-								variant="headerAction"
+								variant="secondary"
 								align="start"
 								contentClass="min-w-[160px]"
 								triggerAriaLabel="Merge options"
 								disabled={merging}
 							>
 								{#snippet renderButton()}
-									<CaretDown size={12} weight="regular" class="size-3 shrink-0" />
+									<RoundedIcon name="chevron-down" class="size-3 shrink-0" />
 								{/snippet}
 
 								<DropdownMenu.RadioGroup

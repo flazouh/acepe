@@ -3,11 +3,8 @@
 	 * GitStatusList — Staged and unstaged file sections with collapsible headers.
 	 * Uses GitFileTree for tree-organized file display within each section.
 	 */
-	import { ArrowCounterClockwise } from "phosphor-svelte";
-	import { CaretRight } from "phosphor-svelte";
-	import { FileMinus } from "phosphor-svelte";
-
 	import PlusIcon from "../icons/plus-icon.svelte";
+	import { RoundedIcon } from "../icons/index.js";
 
 	import { cn } from "../../lib/utils.js";
 	import type { GitStatusFile } from "./types.js";
@@ -120,7 +117,7 @@
 					class="flex h-3.5 w-3.5 shrink-0 items-center justify-center transition-transform duration-150"
 					class:rotate-90={stagedExpanded}
 				>
-					<CaretRight size={12} weight="regular"  class="size-3"/>
+					<RoundedIcon name="chevron-right" class="size-3" />
 				</span>
 				Staged Changes
 				<span class="font-normal text-muted-foreground">({stagedFiles.length})</span>
@@ -152,7 +149,7 @@
 						class="flex h-3.5 w-3.5 shrink-0 items-center justify-center transition-transform duration-150"
 						class:rotate-90={unstagedExpanded}
 					>
-						<CaretRight size={12} weight="regular"  class="size-3"/>
+						<RoundedIcon name="chevron-right" class="size-3" />
 					</span>
 					Changes
 					<span class="font-normal text-muted-foreground">({unstagedFiles.length})</span>
@@ -178,32 +175,7 @@
 					{iconBasePath}
 					rowActions={unstagedRowActions}
 					class="overflow-visible bg-transparent"
-				>
-					{#snippet rowActions({ file })}
-						<div class="flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100">
-							{#if onStage}
-								<button
-									type="button"
-									class="flex h-5 w-5 cursor-pointer items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-success/10 hover:text-success"
-									title="Stage file"
-									onclick={(e) => { e.stopPropagation(); onStage?.(file.path); }}
-								>
-									<PlusIcon />
-								</button>
-							{/if}
-							{#if onDiscard}
-								<button
-									type="button"
-									class="flex h-5 w-5 cursor-pointer items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
-									title="Discard changes"
-									onclick={(e) => { e.stopPropagation(); onDiscard?.(file.path); }}
-								>
-									<ArrowCounterClockwise size={12} weight="bold" />
-								</button>
-							{/if}
-						</div>
-					{/snippet}
-				</GitFileTree>
+				/>
 			{/if}
 		</div>
 	{/if}

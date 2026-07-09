@@ -50,38 +50,6 @@ const navBtnClass =
 		</button>
 	</div>
 
-	<!-- Hunk navigation group -->
-	{#if hunkTotal > 1}
-		<div class="flex items-stretch rounded-md overflow-hidden shadow-md border border-border/60 backdrop-blur-sm bg-popover/90">
-			<button
-				type="button"
-				class={navBtnClass}
-				disabled={!hasPrevHunk}
-				title={"Previous hunk"}
-				aria-label={"Previous hunk"}
-				onclick={onPrevHunk}
-			>
-				<CaretUp size={12} weight="regular" class="size-3 shrink-0" />
-			</button>
-			<span
-				class="h-6 inline-flex items-center justify-center px-1 text-[10px] tabular-nums text-muted-foreground min-w-[1.5rem]"
-				aria-label="Hunk {hunkCurrent} of {hunkTotal}"
-			>
-				{hunkCurrent}/{hunkTotal}
-			</span>
-			<button
-				type="button"
-				class={navBtnClass}
-				disabled={!hasNextHunk}
-				title={"Next hunk"}
-				aria-label={"Next hunk"}
-				onclick={onNextHunk}
-			>
-				<CaretDown size={12} weight="regular" class="size-3 shrink-0" />
-			</button>
-		</div>
-	{/if}
-
 	<!-- File navigation group -->
 	{#if fileTotal > 1}
 		<div class="flex items-stretch rounded-md overflow-hidden shadow-md border border-border/60 backdrop-blur-sm bg-popover/90">
@@ -93,7 +61,7 @@ const navBtnClass =
 				aria-label={"Previous file"}
 				onclick={onPrevFile}
 			>
-				<CaretLeft size={12} weight="regular" class="size-3 shrink-0" />
+				<RoundedIcon name="chevron-left" class="size-3 shrink-0" />
 			</button>
 			<span
 				class="h-6 inline-flex items-center justify-center px-1 text-[10px] tabular-nums text-muted-foreground min-w-[1.5rem]"
@@ -109,7 +77,7 @@ const navBtnClass =
 				aria-label={"Next file"}
 				onclick={onNextFile}
 			>
-				<CaretRight size={12} weight="regular" class="size-3 shrink-0" />
+				<RoundedIcon name="chevron-right" class="size-3 shrink-0" />
 			</button>
 		</div>
 	{/if}

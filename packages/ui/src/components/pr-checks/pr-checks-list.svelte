@@ -1,5 +1,4 @@
 <script lang="ts">
-	import { CaretDown, CheckCircle, GithubLogo, MinusCircle, Wrench, XCircle } from "phosphor-svelte";
 	import { untrack } from "svelte";
 
 	import type { PrChecksItem } from "./types.js";
@@ -9,7 +8,7 @@
 		formatPrChecksSummaryAriaLabel,
 	} from "./pr-checks-summary-format.js";
 	import { Button } from "../button/index.js";
-	import { LoadingIcon } from "../icons/index.js";
+	import { LoadingIcon, RoundedIcon, WrenchIcon } from "../icons/index.js";
 
 	interface Props {
 		checks?: readonly PrChecksItem[];
@@ -114,11 +113,11 @@
 								{#if bucket === "in_progress"}
 									<LoadingIcon class="animate-spin text-muted-foreground" size={10} />
 								{:else if bucket === "failure"}
-									<XCircle size={10} weight="fill" class="text-destructive" />
+									<RoundedIcon name="x-circle" class="size-2.5 text-destructive" />
 								{:else if bucket === "neutral"}
-									<MinusCircle size={10} weight="fill" class="text-amber-400" />
+									<span class="text-amber-400">{@render neutralIcon("size-2.5")}</span>
 								{:else}
-									<CheckCircle size={10} weight="fill" class="text-emerald-500" />
+									<RoundedIcon name="check-circle" class="size-2.5 text-emerald-500" />
 								{/if}
 							</span>
 							{#if onViewDetails}
@@ -150,7 +149,7 @@
 								{#if bucket === "failure" && onFixCheck}
 									<Button
 										variant="ghost"
-										size="icon-2xs"
+										size="icon"
 										class="rounded-sm"
 										aria-label="Ask agent to fix {check.name}"
 										title="Fix with agent"
@@ -159,13 +158,13 @@
 											onFixCheck(check);
 										}}
 									>
-										<Wrench size={10} weight="fill" />
+										<WrenchIcon size={10} weight="fill" />
 									</Button>
 								{/if}
 								{#if check.detailsUrl}
 									<Button
 										variant="ghost"
-										size="icon-2xs"
+										size="icon"
 										class="rounded-sm"
 										aria-label="Open {check.name} on GitHub"
 										title="View on GitHub"
@@ -174,7 +173,7 @@
 											onOpenCheck?.(check, event);
 										}}
 									>
-										<GithubLogo size={10} weight="fill" />
+										<RoundedIcon name="github" />
 									</Button>
 								{/if}
 							</span>
@@ -209,19 +208,19 @@
 										: 'text-emerald-500'}"
 						>
 							{#if segment.kind === "failure"}
-								<XCircle size={11} weight="fill" />
+								<RoundedIcon name="x-circle" class="size-[11px]" />
 							{:else if segment.kind === "in_progress"}
 								<LoadingIcon class="animate-spin" size={11} />
 							{:else if segment.kind === "neutral"}
-								<MinusCircle size={11} weight="fill" />
+								{@render neutralIcon("size-[11px]")}
 							{:else}
-								<CheckCircle size={11} weight="fill" />
+								<RoundedIcon name="check-circle" class="size-[11px]" />
 							{/if}
 							{segment.label}
 						</span>
 					{/each}
 				</div>
-				<CaretDown size={12} weight="regular" class="size-3 shrink-0 text-muted-foreground/50 transition-transform {showDetails ? 'rotate-180' : ''}"
+				<RoundedIcon name="chevron-down" class="size-3 shrink-0 text-muted-foreground/50 transition-transform {showDetails ? 'rotate-180' : ''}"
 				/>
 			</button>
 		{/if}

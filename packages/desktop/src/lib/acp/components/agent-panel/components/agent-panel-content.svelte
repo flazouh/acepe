@@ -24,6 +24,7 @@ let {
 	viewState,
 	sessionId,
 	sceneEntries,
+	canonicalSource = null,
 	rowsProjectionOverride = null,
 	pendingUserRevealRequestKey = null,
 	showLocalPlanningIndicator = false,
@@ -50,6 +51,7 @@ let {
 	onPlanCancel,
 	onPlanViewFull,
 	onToolFileSelect,
+	onUserFileSelect,
 	onReview,
 	isPlanActionAvailable,
 }: AgentPanelContentProps = $props();
@@ -447,6 +449,7 @@ export function scrollToTop() {
 				{onPlanCancel}
 				{onPlanViewFull}
 				{onToolFileSelect}
+				{onUserFileSelect}
 				{onReview}
 				{isPlanActionAvailable}
 				onNearBottomChange={(nearBottom) => (isAtBottom = nearBottom)}

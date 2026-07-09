@@ -39,7 +39,7 @@ const data = {
 	import type { ComponentProps } from "svelte";
 
 	import * as Collapsible from "$lib/components/ui/collapsible/index.js";
-	import { CaretRight } from "phosphor-svelte";
+	import { RoundedIcon } from "@acepe/ui";
 	import * as Sidebar from "$lib/components/ui/sidebar/index.js";
 
 	let { ref = $bindable(null), ...restProps }: ComponentProps<typeof Sidebar.Root> = $props();
@@ -96,8 +96,8 @@ const data = {
 				<Collapsible.Trigger>
 					{#snippet child({ props })}
 						<Sidebar.MenuButton {...props}>
-							<CaretRight size={12} weight="regular" class="size-3 shrink-0 transition-transform" />
-							<FolderIcon />
+							<RoundedIcon name="chevron-right" class="size-3 shrink-0 transition-transform" />
+							<RoundedIcon name="folder" class="size-4 shrink-0" />
 							{name}
 						</Sidebar.MenuButton>
 					{/snippet}

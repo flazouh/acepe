@@ -4,7 +4,7 @@ import { getCurrentWindow } from "@tauri-apps/api/window";
 import { relaunch } from "@tauri-apps/plugin-process";
 import { check, type DownloadEvent } from "@tauri-apps/plugin-updater";
 import { okAsync, ResultAsync } from "neverthrow";
-import { onDestroy, onMount } from "svelte";
+import { onDestroy, onMount, tick } from "svelte";
 import { toast } from "svelte-sonner";
 import OpenProjectDialog from "$lib/acp/components/add-repository/open-project-dialog.svelte";
 import DiffViewerModal from "$lib/acp/components/diff-viewer/diff-viewer-modal.svelte";
@@ -98,6 +98,11 @@ import {
 	buildFileExplorerProjectPaths,
 } from "./main-app-view/logic/file-explorer-context.js";
 import {
+	runSessionOpenContentProbe,
+	type SessionOpenContentProbeOptions,
+	type SessionOpenContentProbeResult,
+} from "./main-app-view/logic/session-open-content-probe.js";
+import {
 	resolveWorkspaceFrameClass,
 	resolveWorkspaceSidebarClass,
 } from "./main-app-view/logic/main-app-layout-classes.js";
@@ -128,7 +133,6 @@ import { ReviewFullscreenPage } from "./review-fullscreen/index.js";
 import { SettingsPage } from "./settings-page/index.js";
 import SqlStudioPage from "./sql-studio/sql-studio-page.svelte";
 import { TopBar } from "./top-bar/index.js";
-import { UpdateAvailablePage } from "./update-available/index.js";
 import {
 	createLiveInteractionGraphConsumer,
 	createSessionOpenInteractionGraphConsumer,
@@ -137,8 +141,143 @@ import {
 declare global {
 	interface Window {
 		__acepeOpenStreamingReproLab?: () => boolean;
+		__acepeHappyPathProbe?: (
+			options?: MainAppHappyPathProbeOptions
+		) => Promise<MainAppHappyPathProbeResult>;
+		__acepeSessionOpenContentProbe?: (
+			options: SessionOpenContentProbeOptions
+		) => Promise<SessionOpenContentProbeResult>;
+		__acepeCleanupHappyPathProbePanels?: (
+			options?: MainAppHappyPathProbeCleanupOptions
+		) => MainAppHappyPathProbeCleanupResult;
+		__acepeRuntimeErrors?: AcepeRuntimeErrorRecord[];
 	}
 }
+
+const HAPPY_PATH_PROBE_PANEL_ID_PREFIX = "qa-happy-path-probe-";
+
+type MainAppHappyPathProbeOptions = {
+	readonly timeoutMs?: number;
+};
+
+type MainAppHappyPathProbeCleanupOptions = {
+	readonly closeSessionlessCandidates?: boolean;
+};
+
+type MainAppHappyPathProbeCleanupResult = {
+	readonly closedPanelIds: readonly string[];
+	readonly remainingPanelCount: number;
+	readonly remainingDomPanelCount: number;
+};
+
+type AcepeRuntimeErrorRecord = {
+	readonly type?: string;
+	readonly message?: string;
+	readonly source?: string | null;
+	readonly line?: number | null;
+	readonly column?: number | null;
+	readonly stack?: string | null;
+};
+
+type MainAppHappyPathNavigationTiming = {
+	readonly type: string | null;
+	readonly startTimeMs: number | null;
+	readonly domInteractiveMs: number | null;
+	readonly domContentLoadedMs: number | null;
+	readonly loadEventEndMs: number | null;
+	readonly durationMs: number | null;
+};
+
+type MainAppHappyPathAppTiming = {
+	readonly mountStartedAtMs: number | null;
+	readonly shellReadyAtMs: number | null;
+	readonly shellReadyDurationMs: number | null;
+	readonly shellReady: boolean;
+	readonly shellReadyWaitMs: number | null;
+	readonly initializationCompleteAtMs: number | null;
+	readonly initializationDurationMs: number | null;
+	readonly initializationComplete: boolean;
+	readonly initializationWaitMs: number | null;
+	readonly projectReady: boolean;
+	readonly projectReadyWaitMs: number | null;
+	readonly projectCountAtPanelCreate: number;
+	readonly startupTrace: readonly StartupPerformanceTraceEntry[];
+	readonly projectLoadTrace: ProjectLoadPerformanceTrace | null;
+	readonly tauriInvokeTimings: readonly TauriInvokeTimingRecord[];
+	readonly panelCountBefore: number;
+	readonly panelCountAfter: number;
+	readonly domPanelCountBefore: number;
+	readonly domPanelCountAfter: number;
+};
+
+type MainAppHappyPathTimingEnvironment = {
+	readonly visibilityState: string;
+	readonly documentHasFocus: boolean | null;
+	readonly requestAnimationFrameAvailable: boolean;
+	readonly frameWaitCount: number;
+	readonly frameFallbackCount: number;
+	readonly likelyThrottled: boolean;
+	readonly label: string;
+};
+
+type MainAppHappyPathProbeFrameStats = {
+	frameWaitCount: number;
+	frameFallbackCount: number;
+};
+
+type MainAppHappyPathPanelOpenMarkSummary = {
+	readonly panelFirstMarkMs: number | null;
+	readonly panelLastMarkMs: number | null;
+	readonly panelMarkedWorkMs: number | null;
+	readonly panelPreMarkDelayMs: number | null;
+	readonly panelDomReadyAfterLastMarkMs: number | null;
+	readonly composerReadyAfterLastMarkMs: number | null;
+};
+
+type MainAppHappyPathOpenCloseTiming = {
+	readonly panelId: string;
+	readonly projectPath: string | null;
+	readonly panelOpenMarks: Readonly<Record<string, number>>;
+	readonly panelFirstMarkMs: number | null;
+	readonly panelLastMarkMs: number | null;
+	readonly panelMarkedWorkMs: number | null;
+	readonly panelPreMarkDelayMs: number | null;
+	readonly panelDomReadyAfterLastMarkMs: number | null;
+	readonly composerReadyAfterLastMarkMs: number | null;
+	readonly panelCreateMs: number;
+	readonly panelDomPresentAfterCreate: boolean;
+	readonly panelDomMutationMs: number | null;
+	readonly panelDomAfterDomFlushMs: number | null;
+	readonly panelDomAfterFirstFrameMs: number | null;
+	readonly panelDomReadyMs: number | null;
+	readonly composerMutationMs: number | null;
+	readonly composerReadyMs: number | null;
+	readonly composerReadyAfterCreateMs: number | null;
+	readonly panelDomNodeCount: number;
+	readonly panelRowNodeCount: number;
+	readonly panelDropdownContentNodeCount: number;
+	readonly resizeObserverConstructCount: number | null;
+	readonly resizeObserverObserveCount: number | null;
+	readonly resizeObserverCallbackCount: number | null;
+	readonly closeCallReturnMs: number;
+	readonly closeMicrotaskMs: number;
+	readonly closeDomGoneAfterMicrotask: boolean;
+	readonly closeFirstFrameMs: number | null;
+	readonly closeDomGoneAfterFirstFrame: boolean;
+	readonly closeDomGoneMs: number | null;
+	readonly closeTrace: PanelClosePerformanceTrace | null;
+	readonly totalMs: number;
+};
+
+type MainAppHappyPathProbeResult = {
+	readonly hookAvailable: boolean;
+	readonly route: string;
+	readonly runtimeErrors: readonly string[];
+	readonly timingEnvironment: MainAppHappyPathTimingEnvironment;
+	readonly navigation: MainAppHappyPathNavigationTiming;
+	readonly app: MainAppHappyPathAppTiming;
+	readonly openClose: MainAppHappyPathOpenCloseTiming;
+};
 
 function focusOnMount(node: HTMLElement) {
 	node.focus();
@@ -1356,6 +1495,65 @@ const commandPalette = useAdvancedCommandPalette({
 	},
 });
 
+function getProjectDialogPathLabel(projectPath: string): string {
+	const segments = projectPath.split("/").filter((segment) => segment.length > 0);
+	const lastSegment = segments[segments.length - 1];
+	return lastSegment ?? projectPath;
+}
+
+function getProjectDialogName(dialog: ProjectFileSystemDialogState): string {
+	const project = projectManager.getProject(dialog.projectPath);
+	return dialog.projectName ?? project?.name ?? getProjectDialogPathLabel(dialog.projectPath);
+}
+
+function getProjectDialogColor(dialog: ProjectFileSystemDialogState): string | undefined {
+	const project = projectManager.getProject(dialog.projectPath);
+	return dialog.projectColor ?? project?.color;
+}
+
+function getProjectDialogIconSrc(dialog: ProjectFileSystemDialogState): string | null {
+	const project = projectManager.getProject(dialog.projectPath);
+	return dialog.projectIconSrc ?? project?.iconPath ?? null;
+}
+
+function buildProjectDialogOpenFileOptions(
+	dialog: ProjectFileSystemDialogState | null,
+	projectPath: string,
+	filePath: string
+): OpenFilePanelOptions | undefined {
+	if (
+		dialog === null ||
+		dialog.projectPath !== projectPath ||
+		dialog.filePath !== filePath ||
+		(dialog.targetLine === null && dialog.targetColumn === null)
+	) {
+		return undefined;
+	}
+
+	const options: OpenFilePanelOptions = {};
+	if (dialog.targetLine !== null) {
+		options.targetLine = dialog.targetLine;
+	}
+	if (dialog.targetColumn !== null) {
+		options.targetColumn = dialog.targetColumn;
+	}
+	return options;
+}
+
+function handleProjectFileSystemDialogOpenFile(projectPath: string, filePath: string): void {
+	const options = buildProjectDialogOpenFileOptions(
+		panelStore.projectFileSystemDialog,
+		projectPath,
+		filePath
+	);
+	if (options === undefined) {
+		panelStore.openFilePanel(filePath, projectPath);
+	} else {
+		panelStore.openFilePanel(filePath, projectPath, options);
+	}
+	panelStore.closeProjectFileSystemDialog();
+}
+
 function openStreamingReproLabForQa(): boolean {
 	viewState.debugPanelOpen = true;
 	return true;
@@ -1725,6 +1923,19 @@ onDestroy(() => {
 							{projectManager}
 							state={viewState}
 							onImportProject={() => (addProjectDialogOpen = true)}
+							updaterState={updaterState}
+							onUpdateClick={() => {
+								if (
+									getUpdaterPrimaryAction(import.meta.env.DEV, availableUpdate !== null) === "simulate"
+								) {
+									startDevUpdateSimulation();
+									return;
+								}
+								void installAvailableUpdate();
+							}}
+							onRetryUpdateClick={() => {
+								void checkForAppUpdate("polling");
+							}}
 						/>
 							{#snippet failed(error, reset)}
 								<div class="flex flex-1 items-center justify-center p-4">
@@ -1871,6 +2082,25 @@ onDestroy(() => {
 					onFileIndexChange={(index) => viewState.setReviewFullscreenFileIndex(index)}
 				/>
 			</div>
+		{/key}
+	{/if}
+
+	{#if panelStore.projectFileSystemDialog !== null}
+		{@const dialogTarget = panelStore.projectFileSystemDialog}
+		{#key dialogTarget.id}
+			<ProjectFileSystemDialog
+				open={true}
+				projectPath={dialogTarget.projectPath}
+				projectName={getProjectDialogName(dialogTarget)}
+				projectColor={getProjectDialogColor(dialogTarget)}
+				projectIconSrc={getProjectDialogIconSrc(dialogTarget)}
+				title={dialogTarget.title}
+				initialFilePath={dialogTarget.filePath}
+				onClose={() => {
+					panelStore.closeProjectFileSystemDialog();
+				}}
+				onOpenFile={handleProjectFileSystemDialogOpenFile}
+			/>
 		{/key}
 	{/if}
 

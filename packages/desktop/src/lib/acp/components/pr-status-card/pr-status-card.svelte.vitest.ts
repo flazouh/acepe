@@ -112,9 +112,9 @@ describe("PrStatusCard", () => {
 		});
 		const markdownRoot = container.querySelector(".markdown-content");
 		expect(markdownRoot).not.toBeNull();
-		expect(container.contains(header)).toBe(true);
+		expect(container.contains(headerElement)).toBe(true);
 		expect(
-			header?.compareDocumentPosition(markdownRoot as Node) & Node.DOCUMENT_POSITION_FOLLOWING
+			headerElement.compareDocumentPosition(markdownRoot as Node) & Node.DOCUMENT_POSITION_FOLLOWING
 		).toBeTruthy();
 	});
 

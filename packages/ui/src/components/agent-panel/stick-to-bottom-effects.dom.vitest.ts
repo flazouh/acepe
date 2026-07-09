@@ -12,9 +12,19 @@ import {
 // resize is driven manually via notifyContentChanged() (the path the internal
 // ResizeObserver also takes). scrollTop is a writable property here.
 
-function stubMetrics(el: HTMLElement, scrollHeight: number, clientHeight: number): void {
-	Object.defineProperty(el, "scrollHeight", { value: scrollHeight, configurable: true });
-	Object.defineProperty(el, "clientHeight", { value: clientHeight, configurable: true });
+function stubMetrics(
+	el: HTMLElement,
+	scrollHeight: number,
+	clientHeight: number,
+): void {
+	Object.defineProperty(el, "scrollHeight", {
+		value: scrollHeight,
+		configurable: true,
+	});
+	Object.defineProperty(el, "clientHeight", {
+		value: clientHeight,
+		configurable: true,
+	});
 }
 
 function makeScrollEl(scrollHeight: number, clientHeight: number): HTMLElement {
@@ -28,7 +38,11 @@ describe("readScrollMetrics", () => {
 	it("reads the same-frame geometry", () => {
 		const el = makeScrollEl(2000, 1000);
 		el.scrollTop = 250;
-		expect(readScrollMetrics(el)).toEqual({ scrollTop: 250, scrollHeight: 2000, clientHeight: 1000 });
+		expect(readScrollMetrics(el)).toEqual({
+			scrollTop: 250,
+			scrollHeight: 2000,
+			clientHeight: 1000,
+		});
 	});
 });
 
@@ -42,16 +56,22 @@ describe("applyScrollAction", () => {
 	it("preserveAnchor shifts scrollTop by the delta", () => {
 		const el = makeScrollEl(2000, 1000);
 		el.scrollTop = 500;
-		expect(applyScrollAction(el, { kind: "preserveAnchor", deltaPx: 160 })).toBe(true);
+		expect(
+			applyScrollAction(el, { kind: "preserveAnchor", deltaPx: 160 }),
+		).toBe(true);
 		expect(el.scrollTop).toBe(660);
 	});
 
 	it("anchorRowNearTop places the row top minus the peek", () => {
 		const el = makeScrollEl(2000, 1000);
 		const resolveRowTop = (rowId: string) => (rowId === "row-7" ? 900 : null);
-		expect(applyScrollAction(el, { kind: "anchorRowNearTop", rowId: "row-7", peekPx: 64 }, resolveRowTop)).toBe(
-			true
-		);
+		expect(
+			applyScrollAction(
+				el,
+				{ kind: "anchorRowNearTop", rowId: "row-7", peekPx: 64 },
+				resolveRowTop,
+			),
+		).toBe(true);
 		expect(el.scrollTop).toBe(836);
 	});
 
@@ -66,13 +86,25 @@ describe("applyScrollAction", () => {
 describe("createStickToBottomController", () => {
 	let el: HTMLElement;
 	let states: StickState[];
+	const originalRequestAnimationFrame = globalThis.requestAnimationFrame;
+	const originalCancelAnimationFrame = globalThis.cancelAnimationFrame;
 
 	beforeEach(() => {
 		el = makeScrollEl(2000, 1000);
 		states = [];
+		Object.defineProperty(globalThis, "requestAnimationFrame", {
+			configurable: true,
+			value: originalRequestAnimationFrame,
+		});
+		Object.defineProperty(globalThis, "cancelAnimationFrame", {
+			configurable: true,
+			value: originalCancelAnimationFrame,
+		});
 	});
 
-	function controllerFor(extra: Parameters<typeof createStickToBottomController>[1] = {}) {
+	function controllerFor(
+		extra: Parameters<typeof createStickToBottomController>[1] = {},
+	) {
 		return createStickToBottomController(el, {
 			onStateChange: (s) => states.push(s),
 			...extra,
@@ -85,6 +117,68 @@ describe("createStickToBottomController", () => {
 		el.scrollTop = 200;
 		el.dispatchEvent(new Event("scroll"));
 		expect(c.getState()).toEqual({ released: true, hasUnreadBelow: false });
+		c.destroy();
+	});
+
+	it("releases on upward wheel intent before virtualized paging changes content", () => {
+		const anchor = { rowId: "a", topPx: 1200 };
+		const c = controllerFor({ resolveAnchor: () => anchor });
+		el.scrollTop = 1000; // at bottom for the initial 2000px content
+
+		el.dispatchEvent(new WheelEvent("wheel", { deltaY: -200 }));
+		stubMetrics(el, 2400, 1000);
+		c.notifyContentChanged();
+
+		expect(c.getState().released).toBe(true);
+		expect(el.scrollTop).toBe(1000);
+		c.destroy();
+	});
+
+	it("releases content changes at bottom while upward wheel intent is active", () => {
+		const c = controllerFor();
+		el.scrollTop = 1000; // at bottom for the initial 2000px content
+
+		el.dispatchEvent(new WheelEvent("wheel", { deltaY: -200 }));
+		el.dispatchEvent(new Event("scroll")); // at-bottom geometry may re-engage follow
+		expect(c.getState().released).toBe(true);
+
+		c.notifyContentChanged();
+
+		expect(c.getState().released).toBe(true);
+		c.destroy();
+	});
+
+	it("keeps upward scroll released when virtualized content changes after a slow frame", () => {
+		let timeMs = 0;
+		const c = controllerFor({ now: () => timeMs });
+		el.scrollTop = 1000; // at bottom for the initial 2000px content
+
+		el.dispatchEvent(new WheelEvent("wheel", { deltaY: -200 }));
+		el.dispatchEvent(new Event("scroll")); // at-bottom geometry may re-engage follow
+		timeMs = 300;
+		stubMetrics(el, 2400, 1000);
+		c.notifyContentChanged();
+
+		expect(c.getState().released).toBe(true);
+		expect(el.scrollTop).toBe(1000);
+		c.destroy();
+	});
+
+	it("releases before content change when coalesced scroll handling has not run yet", () => {
+		const anchor = { rowId: "a", topPx: 900 };
+		const c = controllerFor({
+			resolveAnchor: () => anchor,
+			coalesceScrollHandling: true,
+		});
+		el.scrollTop = 1000; // at bottom for the initial 2000px content
+
+		el.dispatchEvent(new WheelEvent("wheel", { deltaY: -200 }));
+		el.scrollTop = 700;
+		stubMetrics(el, 2400, 1000);
+		c.notifyContentChanged();
+
+		expect(c.getState().released).toBe(true);
+		expect(el.scrollTop).toBe(700);
 		c.destroy();
 	});
 
@@ -118,6 +212,7 @@ describe("createStickToBottomController", () => {
 		el.scrollTop = 200;
 		el.dispatchEvent(new Event("scroll"));
 		expect(c.getState().released).toBe(true);
+		el.dispatchEvent(new WheelEvent("wheel", { deltaY: 200 }));
 		el.scrollTop = 990;
 		el.dispatchEvent(new Event("scroll"));
 		expect(c.getState()).toEqual({ released: false, hasUnreadBelow: false });
@@ -127,12 +222,47 @@ describe("createStickToBottomController", () => {
 	it("does not mistake a programmatic scroll for a user scroll-away", () => {
 		const resolveRowTop = () => 1000;
 		const c = controllerFor({ resolveRowTop });
-		// onSend lands the row near the top (936) — a non-bottom position — but is
-		// our own scroll, so the resulting scroll event must NOT release follow.
+		// onSend currently has no spacer configured in this test, so it falls back
+		// to the bottom and the resulting scroll event must NOT release follow.
 		c.onSend("row-x", 64);
-		expect(el.scrollTop).toBe(936);
+		expect(el.scrollTop).toBe(1000);
 		el.dispatchEvent(new Event("scroll"));
 		expect(c.getState().released).toBe(false);
+		c.destroy();
+	});
+
+	it("onSend writes a bottom spacer so max-scroll equals the requested sent-row anchor", () => {
+		let baseScrollHeight = 2100;
+		let spacerPx = 0;
+		Object.defineProperty(el, "scrollHeight", {
+			get: () => baseScrollHeight + spacerPx,
+			configurable: true,
+		});
+		Object.defineProperty(el, "clientHeight", {
+			value: 1000,
+			configurable: true,
+		});
+		const c = controllerFor({
+			resolveRowTop: (rowId) => (rowId === "sent-row" ? 1600 : null),
+			getBottomSpacerPx: () => spacerPx,
+			setBottomSpacerPx: (nextPx) => {
+				spacerPx = nextPx;
+			},
+		});
+
+		c.onSend("sent-row", 72);
+
+		expect(spacerPx).toBe(428);
+		expect(el.scrollTop).toBe(1528);
+
+		baseScrollHeight = 2300;
+		c.notifyContentChanged();
+		expect(spacerPx).toBe(228);
+		expect(el.scrollTop).toBe(1528);
+
+		c.setSendAnchorActive(false);
+		expect(spacerPx).toBe(0);
+		expect(el.scrollTop).toBe(1300);
 		c.destroy();
 	});
 
@@ -201,7 +331,8 @@ describe("createStickToBottomController", () => {
 	});
 
 	it("openAt anchors a saved thread row near the top and leaves follow released", () => {
-		const resolveRowTop = (rowId: string) => (rowId === "user-latest" ? 860 : null);
+		const resolveRowTop = (rowId: string) =>
+			rowId === "user-latest" ? 860 : null;
 		const c = controllerFor({ resolveRowTop });
 		c.openAt("user-latest", 72);
 		expect(el.scrollTop).toBe(788);
@@ -214,6 +345,120 @@ describe("createStickToBottomController", () => {
 		c.openAt("missing-row", 72);
 		expect(el.scrollTop).toBe(1000);
 		expect(c.getState()).toEqual({ released: false, hasUnreadBelow: false });
+		c.destroy();
+	});
+
+	it("deduplicates edge state notifications during scrolling", () => {
+		const edges: Array<{ atTop: boolean; atBottom: boolean }> = [];
+		const c = controllerFor({
+			onEdgeStateChange: (state) => edges.push(state),
+		});
+
+		el.scrollTop = 100;
+		el.dispatchEvent(new Event("scroll"));
+		el.scrollTop = 200;
+		el.dispatchEvent(new Event("scroll"));
+		el.scrollTop = 1000;
+		el.dispatchEvent(new Event("scroll"));
+
+		expect(edges).toEqual([
+			{ atTop: true, atBottom: false },
+			{ atTop: false, atBottom: false },
+			{ atTop: false, atBottom: true },
+		]);
+		c.destroy();
+	});
+
+	it("coalesces scroll handling to one frame when requested", () => {
+		const edges: Array<{ atTop: boolean; atBottom: boolean }> = [];
+		const callbacks: FrameRequestCallback[] = [];
+		Object.defineProperty(globalThis, "requestAnimationFrame", {
+			configurable: true,
+			value: (callback: FrameRequestCallback) => {
+				callbacks.push(callback);
+				return callbacks.length;
+			},
+		});
+		Object.defineProperty(globalThis, "cancelAnimationFrame", {
+			configurable: true,
+			value: () => {},
+		});
+		const c = controllerFor({
+			coalesceScrollHandling: true,
+			onEdgeStateChange: (state) => edges.push(state),
+		});
+
+		el.scrollTop = 100;
+		el.dispatchEvent(new Event("scroll"));
+		el.scrollTop = 200;
+		el.dispatchEvent(new Event("scroll"));
+
+		expect(callbacks).toHaveLength(1);
+		expect(edges).toEqual([{ atTop: true, atBottom: false }]);
+
+		callbacks[0]?.(0);
+
+		expect(edges).toEqual([
+			{ atTop: true, atBottom: false },
+			{ atTop: false, atBottom: false },
+		]);
+		c.destroy();
+	});
+
+	it("uses injected scroll metrics for coalesced scroll handling", () => {
+		const edges: Array<{ atTop: boolean; atBottom: boolean }> = [];
+		const callbacks: FrameRequestCallback[] = [];
+		let scrollHeightReads = 0;
+		let clientHeightReads = 0;
+		const metrics = {
+			scrollTop: 0,
+			scrollHeight: 3_000,
+			clientHeight: 1_000,
+		};
+		Object.defineProperty(el, "scrollHeight", {
+			get: () => {
+				scrollHeightReads += 1;
+				return 2_000;
+			},
+			configurable: true,
+		});
+		Object.defineProperty(el, "clientHeight", {
+			get: () => {
+				clientHeightReads += 1;
+				return 1_000;
+			},
+			configurable: true,
+		});
+		Object.defineProperty(globalThis, "requestAnimationFrame", {
+			configurable: true,
+			value: (callback: FrameRequestCallback) => {
+				callbacks.push(callback);
+				return callbacks.length;
+			},
+		});
+		Object.defineProperty(globalThis, "cancelAnimationFrame", {
+			configurable: true,
+			value: () => {},
+		});
+		const c = controllerFor({
+			coalesceScrollHandling: true,
+			readScrollMetrics: () => metrics,
+			onEdgeStateChange: (state) => edges.push(state),
+		});
+
+		scrollHeightReads = 0;
+		clientHeightReads = 0;
+		el.scrollTop = 400;
+		metrics.scrollTop = 400;
+		el.dispatchEvent(new Event("scroll"));
+		callbacks[0]?.(0);
+
+		expect(scrollHeightReads).toBe(0);
+		expect(clientHeightReads).toBe(0);
+		expect(edges).toEqual([
+			{ atTop: true, atBottom: false },
+			{ atTop: false, atBottom: false },
+		]);
 		c.destroy();
 	});
 

@@ -1,7 +1,6 @@
 <script lang="ts">
-import { IconRotateClockwise } from "@tabler/icons-svelte";
-import { IconSearch } from "@tabler/icons-svelte";
 import {
+	RoundedIcon,
 	Table,
 	TableBody,
 	TableCell,
@@ -166,15 +165,7 @@ async function handleResetAllToDefaults() {
 												disabled={isLoading}
 												title={"Edit keybinding"}
 											>
-												<svg
-													class="size-2.5"
-													viewBox="0 0 12 12"
-													fill="none"
-													stroke="currentColor"
-													stroke-width="1.5"
-												>
-													<path d="M8.5 1.5l2 2M1 11l.7-2.8L9.2 .7l2 2L3.8 10.2z" />
-												</svg>
+												<RoundedIcon name="pencil" class="size-2.5" />
 											</button>
 											{#if isCustom}
 												<button
@@ -186,15 +177,7 @@ async function handleResetAllToDefaults() {
 													disabled={isLoading}
 													title={"Reset to default"}
 												>
-													<svg
-														class="size-2.5"
-														viewBox="0 0 12 12"
-														fill="none"
-														stroke="currentColor"
-														stroke-width="1.5"
-													>
-														<path d="M2 2l8 8M10 2l-8 8" />
-													</svg>
+													<RoundedIcon name="close" class="size-2.5" />
 												</button>
 											{/if}
 										</div>

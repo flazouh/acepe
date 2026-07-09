@@ -6,6 +6,7 @@ import type {
 import {
 	EMPTY_TRANSCRIPT_ROWS_STATE,
 	applyRowsDelta,
+	applyRowsPage,
 	applyRowsPush,
 	renderKey,
 } from "../transcript-rows-store.js";
@@ -37,15 +38,48 @@ function push(sessionId: string, emissionSeq: number, rows: TranscriptViewportRo
 	return { sessionId, emissionSeq, rows };
 }
 
+function revisionPush(sessionId: string, emissionSeq: number, rows: TranscriptViewportRow[]) {
+	return {
+		sessionId,
+		emissionSeq,
+		graphRevision: {
+			graphRevision: 11,
+			transcriptRevision: 7,
+			lastEventSeq: 13,
+		},
+		rows,
+	};
+}
+
+function page(
+	sessionId: string,
+	startRowIndex: number,
+	rows: TranscriptViewportRow[],
+	revision = { graphRevision: 11, transcriptRevision: 7, lastEventSeq: 13 }
+) {
+	return {
+		sessionId,
+		projectionVersion: "transcript_viewport_row:v5",
+		startRowIndex,
+		totalRowCount: 4,
+		transcriptRevision: revision.transcriptRevision,
+		graphRevision: revision.graphRevision,
+		lastEventSeq: revision.lastEventSeq,
+		rows,
+	};
+}
+
 function delta(
 	emissionSeq: number,
 	parts: {
 		prependedRows?: TranscriptViewportRow[];
 		appendedRows?: TranscriptViewportRow[];
 		removedRowIds?: string[];
-	}
+	},
+	graphRevision?: { graphRevision: number; transcriptRevision: number; lastEventSeq: number }
 ) {
 	return {
+		graphRevision,
 		emissionSeq,
 		prependedRows: parts.prependedRows ?? [],
 		appendedRows: parts.appendedRows ?? [],
@@ -97,6 +131,86 @@ describe("applyRowsPush", () => {
 		expect(state.rows).toEqual([]);
 		expect(state.order).toEqual([]);
 	});
+
+	test("an initial row page can recover an empty pushed state from a different revision", () => {
+		const emptyLiveState = applyRowsPush(EMPTY_TRANSCRIPT_ROWS_STATE, {
+			sessionId: "s",
+			emissionSeq: 2,
+			graphRevision: {
+				graphRevision: 99,
+				transcriptRevision: 88,
+				lastEventSeq: 77,
+			},
+			rows: [],
+		}).state;
+
+		const { state, status } = applyRowsPage(
+			emptyLiveState,
+			page("s", 2, [row("tail-row", "v1")], {
+				graphRevision: 11,
+				transcriptRevision: 7,
+				lastEventSeq: 13,
+			})
+		);
+
+		expect(status).toBe("applied");
+		expect(state.rows.map((value) => value.rowId)).toEqual(["tail-row"]);
+		expect(state.loadedStartRowIndex).toBe(2);
+		expect(state.loadedEndRowIndex).toBe(3);
+		expect(state.revision).toEqual({
+			graphRevision: 11,
+			transcriptRevision: 7,
+			lastEventSeq: 13,
+		});
+	});
+
+	test("a same-revision push with the same rows keeps loaded row-page metadata", () => {
+		const pushed = applyRowsPush(
+			EMPTY_TRANSCRIPT_ROWS_STATE,
+			revisionPush("s", 10, [row("r2", "v1"), row("r3", "v1")])
+		).state;
+		const paged = applyRowsPage(pushed, page("s", 2, [row("r2", "v1"), row("r3", "v1")])).state;
+
+		const { state, status } = applyRowsPush(
+			paged,
+			revisionPush("s", 11, [row("r2", "v1"), row("r3", "v1")])
+		);
+
+		expect(status).toBe("applied");
+		expect(state.loadedStartRowIndex).toBe(2);
+		expect(state.loadedEndRowIndex).toBe(4);
+		expect(state.totalRowCount).toBe(4);
+		expect(state.projectionVersion).toBe("transcript_viewport_row:v5");
+	});
+
+	test("a later push with the same row ids keeps the row-page revision for paging", () => {
+		const pushed = applyRowsPush(
+			EMPTY_TRANSCRIPT_ROWS_STATE,
+			revisionPush("s", 10, [row("r2", "v1"), row("r3", "v1")])
+		).state;
+		const paged = applyRowsPage(pushed, page("s", 2, [row("r2", "v1"), row("r3", "v1")])).state;
+
+		const { state, status } = applyRowsPush(paged, {
+			sessionId: "s",
+			emissionSeq: 11,
+			graphRevision: {
+				graphRevision: 12,
+				transcriptRevision: 8,
+				lastEventSeq: 14,
+			},
+			rows: [row("r2", "v2"), row("r3", "v2")],
+		});
+
+		expect(status).toBe("applied");
+		expect(state.loadedStartRowIndex).toBe(2);
+		expect(state.loadedEndRowIndex).toBe(4);
+		expect(state.totalRowCount).toBe(4);
+		expect(state.revision).toEqual({
+			graphRevision: 11,
+			transcriptRevision: 7,
+			lastEventSeq: 13,
+		});
+	});
 });
 
 describe("applyRowsDelta (canonical chain)", () => {
@@ -131,6 +245,68 @@ describe("applyRowsDelta (canonical chain)", () => {
 	test("a delta with no base buffer is a gap", () => {
 		const { status } = applyRowsDelta(EMPTY_TRANSCRIPT_ROWS_STATE, delta(1, { appendedRows: [row("r1", "v1")] }));
 		expect(status).toBe("gap");
+	});
+
+	test("a revision-advancing delta clears loaded row-page metadata", () => {
+		const pushed = applyRowsPush(
+			EMPTY_TRANSCRIPT_ROWS_STATE,
+			revisionPush("s", 10, [row("r2", "v1"), row("r3", "v1")])
+		).state;
+		const paged = applyRowsPage(pushed, page("s", 2, [row("r2", "v1"), row("r3", "v1")])).state;
+
+		const { state, status } = applyRowsDelta(
+			paged,
+			delta(
+				11,
+				{ appendedRows: [row("r4", "v1")] },
+				{ graphRevision: 12, transcriptRevision: 8, lastEventSeq: 14 }
+			)
+		);
+
+		expect(status).toBe("applied");
+		expect(state.revision).toEqual({ graphRevision: 12, transcriptRevision: 8, lastEventSeq: 14 });
+		expect(state.loadedStartRowIndex).toBeNull();
+		expect(state.totalRowCount).toBeNull();
+	});
+});
+
+describe("applyRowsPage", () => {
+	test("prepends an older canonical page and records the loaded row window", () => {
+		const base = applyRowsPush(
+			EMPTY_TRANSCRIPT_ROWS_STATE,
+			revisionPush("s", 10, [row("r2", "v1"), row("r3", "v1")])
+		).state;
+		const withTailWindow = applyRowsPage(base, page("s", 2, [row("r2", "v1"), row("r3", "v1")])).state;
+
+		const { state, status } = applyRowsPage(
+			withTailWindow,
+			page("s", 0, [row("r0", "v1"), row("r1", "v1")])
+		);
+
+		expect(status).toBe("applied");
+		expect(state.rows.map((r) => r.rowId)).toEqual(["r0", "r1", "r2", "r3"]);
+		expect(state.loadedStartRowIndex).toBe(0);
+		expect(state.loadedEndRowIndex).toBe(4);
+		expect(state.totalRowCount).toBe(4);
+	});
+
+	test("rejects a row page from a stale revision", () => {
+		const base = applyRowsPush(
+			EMPTY_TRANSCRIPT_ROWS_STATE,
+			revisionPush("s", 10, [row("r2", "v1")])
+		).state;
+
+		const { state, status } = applyRowsPage(
+			base,
+			page("s", 0, [row("r0", "v1")], {
+				graphRevision: 12,
+				transcriptRevision: 7,
+				lastEventSeq: 14,
+			})
+		);
+
+		expect(status).toBe("stale");
+		expect(state).toBe(base);
 	});
 });
 

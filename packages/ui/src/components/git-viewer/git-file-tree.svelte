@@ -84,92 +84,26 @@
 </script>
 
 <div class={cn("flex flex-col overflow-hidden bg-background", className)}>
-	<div class="flex-1 overflow-y-auto overflow-x-hidden py-1">
-		{#each flatNodes as node (node.path)}
-			{@const diff = diffByPath.get(node.path)}
-			{@const isActive = selectedFile === node.path}
-			{@const isExpanded = expandedFolders.has(node.path)}
-
-			{#if node.isDirectory}
-				<!-- Directory row -->
-				<button
-					type="button"
-					class={cn(
-						"w-full flex items-center gap-1 px-2 py-0.5 text-left transition-colors cursor-pointer",
-						"text-muted-foreground hover:bg-muted/40 hover:text-foreground"
-					)}
-					style="padding-left: {node.depth * 12 + 8}px"
-					onclick={() => toggleFolder(node.path)}
-				>
-					<span
-						class="flex h-3.5 w-3.5 shrink-0 items-center justify-center transition-transform duration-150"
-						class:rotate-90={isExpanded}
-					>
-						<CaretRight size={12} weight="regular"  class="size-3"/>
-					</span>
-					{#if useSvgIcons}
-						<img
-							src={getSpecialFolderIconSrc(node.name, isExpanded, iconBasePath!)}
-							alt=""
-							class="h-3.5 w-3.5 shrink-0 object-contain"
-							aria-hidden="true"
-							onerror={handleFolderIconError}
-						/>
-					{:else}
-						<FolderSimple size={14} weight={isExpanded ? "fill" : "regular"} class="shrink-0 text-muted-foreground" />
-					{/if}
-					<span class="truncate text-[0.6875rem] font-medium">{node.name}</span>
-				</button>
-			{:else}
-				<!-- File row -->
-				{@const StatusIcon = getStatusIcon(diff?.status)}
-				<button
-					type="button"
-					class={cn(
-						"group w-full flex items-center gap-1 px-2 py-0.5 text-left transition-colors cursor-pointer",
-						"border-l-2",
-						isActive
-							? "border-l-primary bg-muted/60 text-foreground"
-							: "border-l-transparent text-muted-foreground hover:bg-muted/40 hover:text-foreground"
-					)}
-					style="padding-left: {node.depth * 12 + 8}px"
-					title={`${node.path} (+${diff?.additions ?? 0} -${diff?.deletions ?? 0})`}
-					onclick={() => {
-						if (diff) {
-							onSelect(diff);
-						}
-					}}
-				>
-					<!-- Spacer matching chevron width -->
-					<span class="h-3.5 w-3.5 shrink-0"></span>
-					{#if useSvgIcons}
-						<img
-							src={getFileIconSrc(node.name, iconBasePath!)}
-							alt=""
-							class="h-3.5 w-3.5 shrink-0 object-contain"
-							aria-hidden="true"
-							onerror={handleIconError}
-						/>
-					{:else}
-						<span class="shrink-0 {getStatusColor(diff?.status)}">
-							<StatusIcon size={14} weight="bold" />
-						</span>
-					{/if}
-					<span class="min-w-0 flex-1 truncate font-mono text-[0.6875rem] leading-none">
-						{node.name}
-					</span>
-					{#if diff}
-						<DiffPill
-							insertions={diff.additions}
-							deletions={diff.deletions}
-							variant="plain"
-						/>
-					{/if}
-					{#if rowActions && diff}
-						{@render rowActions({ file: diff })}
-					{/if}
-				</button>
-			{/if}
-		{/each}
+	<div class="min-h-0" style:height={`${treeHeightPx}px`}>
+		<PierreFileTree
+			paths={treeModel.paths}
+			gitStatus={treeModel.gitStatus}
+			selectedPath={selectedFile}
+			revealPath={selectedFile}
+			onSelectionChange={handleSelectionChange}
+			rowActions={rowActions ? resolveRowActions : undefined}
+			rowDecoration={(item) => {
+				const file = treeModel.filesByPath.get(item.path);
+				return file ? createGitFileTreeDiffDecoration(file) : null;
+			}}
+			contextMenuTriggerMode={rowActions ? "both" : "right-click"}
+			contextMenuButtonVisibility={rowActions ? "always" : "when-needed"}
+			flattenEmptyDirectories={true}
+			icons={icons}
+			unsafeCSS={GIT_TREE_UNSAFE_CSS}
+			class="h-full bg-transparent"
+			testId="git-file-tree"
+			ariaLabel="Git file tree"
+		/>
 	</div>
 </div>

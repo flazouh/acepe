@@ -7,6 +7,8 @@ import { RoundedIcon, Selector } from "@acepe/ui";
 import * as DropdownMenu from "@acepe/ui/dropdown-menu";
 import type { RoundedIconName } from "@acepe/ui/icons";
 import { CloseAction } from "@acepe/ui/panel-header";
+import { openUrl } from "@tauri-apps/plugin-opener";
+import { ResultAsync } from "neverthrow";
 import { toast } from "svelte-sonner";
 import AttachmentChip from "../../shared/attachment-chip.svelte";
 
@@ -95,6 +97,53 @@ const preparingThreadLabel = $derived(getPreparingThreadLabel(agentName));
 const titleRichText = $derived.by(() => {
 	const rawTitle = sessionTitle ?? displayTitle;
 	return formatRichSessionTitle(rawTitle, projectName).richText;
+});
+
+type HeaderMenuContentWidth = "min-w-[180px]" | "min-w-[210px]" | "min-w-[220px]";
+
+type HeaderMenuAction = {
+	readonly id: string;
+	readonly label: string;
+	readonly icon: RoundedIconName;
+	readonly onSelect: () => void;
+	readonly disabled?: boolean;
+	readonly checked?: boolean;
+};
+
+type HeaderMenuActionGroup = {
+	readonly id: string;
+	readonly actions: readonly HeaderMenuAction[];
+};
+
+type HeaderMenuSection = {
+	readonly id: string;
+	readonly label: string;
+	readonly icon: RoundedIconName;
+	readonly contentWidthClass: HeaderMenuContentWidth;
+	readonly groups: readonly HeaderMenuActionGroup[];
+};
+
+const menuSections = $derived.by(() => {
+	const sections: HeaderMenuSection[] = [];
+	const copySection = createCopyMenuSection();
+	const openSection = createOpenMenuSection();
+	const displaySection = createDisplayMenuSection();
+	const diagnosticsSection = createDiagnosticsMenuSection();
+
+	if (copySection !== null) {
+		sections.push(copySection);
+	}
+	if (openSection !== null) {
+		sections.push(openSection);
+	}
+	if (displaySection !== null) {
+		sections.push(displaySection);
+	}
+	if (diagnosticsSection !== null) {
+		sections.push(diagnosticsSection);
+	}
+
+	return sections;
 });
 
 function handleCopySessionId(): void {
@@ -425,76 +474,35 @@ function createDiagnosticsMenuSection(): HeaderMenuSection | null {
 						<RoundedIcon name="more" />
 					{/snippet}
 
-				<DropdownMenu.Item onSelect={handleCopySessionId} class="cursor-pointer">
-					{"Copy session ID"}
-				</DropdownMenu.Item>
-				{#if hasWorktreeMenu}
-					<DropdownMenu.Item onSelect={() => onOpenWorktree?.()} class="cursor-pointer">
-						{openWorktreeMenuLabel}
-					</DropdownMenu.Item>
-				{/if}
-				{#if hasExportSubmenu}
-					<DropdownMenu.Separator />
-					<DropdownMenu.Sub>
-						<DropdownMenu.SubTrigger class="cursor-pointer">
-							{"Export"}
-						</DropdownMenu.SubTrigger>
-						<DropdownMenu.SubContent class="min-w-[160px]">
-							{#if onExportMarkdown}
-								<DropdownMenu.Item onSelect={() => onExportMarkdown?.()} class="cursor-pointer">
-									{"Export as Markdown"}
-								</DropdownMenu.Item>
-							{/if}
-							{#if onExportJson}
-								<DropdownMenu.Item onSelect={() => onExportJson?.()} class="cursor-pointer">
-									{"Export as JSON"}
-								</DropdownMenu.Item>
-							{/if}
-						</DropdownMenu.SubContent>
-					</DropdownMenu.Sub>
-				{/if}
-				{#if isDev}
-					<DropdownMenu.Separator />
-					<DropdownMenu.Item onSelect={() => onCopyStreamingLogPath?.()} class="cursor-pointer">
-						Copy Streaming Log Path
-					</DropdownMenu.Item>
-					<DropdownMenu.Item onSelect={() => onExportRawStreaming?.()} class="cursor-pointer">
-						{"Open Streaming Log"}
-					</DropdownMenu.Item>
-				{/if}
-				{#if hasPanelToolsMenu}
-					<DropdownMenu.Separator />
-					{#if onToggleFullscreen}
-						<DropdownMenu.Item onSelect={() => onToggleFullscreen?.()} class="cursor-pointer">
-							{fullscreenMenuLabel}
-						</DropdownMenu.Item>
-					{/if}
-					{#if onToggleBrowser}
-						<DropdownMenu.Item
-							onSelect={() => onToggleBrowser?.()}
-							class="cursor-pointer"
-							aria-checked={browserActive}
-						>
-							{browserAriaLabel ?? browserTitle}
-						</DropdownMenu.Item>
-					{/if}
-					{#if onToggleTerminal}
-						<DropdownMenu.Item
-							onSelect={() => {
-								if (!terminalDisabled) {
-									onToggleTerminal?.();
-								}
-							}}
-							class="cursor-pointer"
-							disabled={terminalDisabled}
-							aria-checked={terminalActive}
-						>
-							{terminalAriaLabel ?? terminalTitle}
-						</DropdownMenu.Item>
-					{/if}
-				{/if}
-			</Selector>
-			<CloseAction {onClose} title={"Close"} />
+					{#each menuSections as section, sectionIndex (section.id)}
+						{#if sectionIndex > 0}
+							<DropdownMenu.Separator />
+						{/if}
+						<DropdownMenu.Sub>
+							<DropdownMenu.SubTrigger>
+								{@render menuItemContent(section.icon, section.label)}
+							</DropdownMenu.SubTrigger>
+							<DropdownMenu.SubContent class={section.contentWidthClass}>
+								{#each section.groups as group, groupIndex (group.id)}
+									{#if groupIndex > 0}
+										<DropdownMenu.Separator />
+									{/if}
+
+									{#each group.actions as action (action.id)}
+										<DropdownMenu.Item
+											onSelect={action.onSelect}
+											disabled={action.disabled}
+											aria-checked={action.checked}
+										>
+											{@render menuItemContent(action.icon, action.label)}
+										</DropdownMenu.Item>
+									{/each}
+								{/each}
+							</DropdownMenu.SubContent>
+						</DropdownMenu.Sub>
+					{/each}
+				</Selector>
+				<CloseAction {onClose} title={"Close"} size="icon-sm" />
 			</div>
 		{/snippet}
 

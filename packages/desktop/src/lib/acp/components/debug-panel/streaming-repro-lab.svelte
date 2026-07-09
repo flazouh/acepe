@@ -154,6 +154,11 @@ const rowsProjectionOverride = $derived.by(() => {
 	return {
 		sessionId: DEFAULT_SESSION_ID,
 		emissionSeq: activeGraph.revision.transcriptRevision,
+		revision: null,
+		projectionVersion: null,
+		totalRowCount: null,
+		loadedStartRowIndex: null,
+		loadedEndRowIndex: null,
 		order,
 		byId,
 		rows,

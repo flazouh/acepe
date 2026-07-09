@@ -52,7 +52,7 @@ function handleDownloadMarkdown() {
 			<CopyButton text={plan.content} variant="embedded" stopPropagation={true} />
 			<Button
 				variant="ghost"
-				size="icon-chrome"
+				size="icon"
 				data-header-control
 				title="Download"
 				aria-label="Download"
@@ -64,7 +64,7 @@ function handleDownloadMarkdown() {
 			</Button>
 			<Button
 				variant="ghost"
-				size="icon-chrome"
+				size="icon"
 				data-header-control
 				title="Open in fullscreen"
 				aria-label="Open in fullscreen"

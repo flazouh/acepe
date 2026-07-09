@@ -51,7 +51,7 @@
 {#if size === "header"}
 	<Button
 		variant="ghost"
-		size="icon-chrome"
+		size="icon-sm"
 		data-header-control
 		title={tooltip}
 		aria-label={tooltip}

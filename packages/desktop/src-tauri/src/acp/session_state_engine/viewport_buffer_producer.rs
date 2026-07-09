@@ -7,6 +7,7 @@ use std::collections::HashSet;
 pub struct PriorBufferEmission {
     pub row_ids: Vec<String>,
     pub row_versions: Vec<String>,
+    pub budget_shrunk_tail: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -36,6 +37,9 @@ pub fn decide_buffer_emission(
     if rows_match_prior(prev, current_rows) {
         return BufferEmission::NoOp;
     }
+    if rows_end_with_budget_shrunk_tail_prior(prev, current_rows) {
+        return BufferEmission::NoOp;
+    }
     if compute_rows_delta_parts(prev, current_rows).is_some() {
         return BufferEmission::Delta;
     }
@@ -47,6 +51,16 @@ pub fn prior_from_rows(rows: &[TranscriptViewportRow]) -> PriorBufferEmission {
     PriorBufferEmission {
         row_ids: rows.iter().map(|row| row.row_id.clone()).collect(),
         row_versions: rows.iter().map(|row| row.version.clone()).collect(),
+        budget_shrunk_tail: false,
+    }
+}
+
+#[must_use]
+pub fn prior_from_budget_shrunk_tail_rows(rows: &[TranscriptViewportRow]) -> PriorBufferEmission {
+    PriorBufferEmission {
+        row_ids: rows.iter().map(|row| row.row_id.clone()).collect(),
+        row_versions: rows.iter().map(|row| row.version.clone()).collect(),
+        budget_shrunk_tail: true,
     }
 }
 
@@ -66,6 +80,26 @@ pub fn rows_match_prior(
             .iter()
             .zip(current_rows)
             .all(|(version, row)| version == &row.version)
+}
+
+#[must_use]
+pub fn rows_end_with_budget_shrunk_tail_prior(
+    prev: &PriorBufferEmission,
+    current_rows: &[TranscriptViewportRow],
+) -> bool {
+    if !prev.budget_shrunk_tail
+        || prev.row_ids.is_empty()
+        || prev.row_ids.len() > current_rows.len()
+    {
+        return false;
+    }
+
+    let start = current_rows.len() - prev.row_ids.len();
+    prev.row_ids
+        .iter()
+        .zip(&prev.row_versions)
+        .zip(&current_rows[start..])
+        .all(|((row_id, version), row)| row_id == &row.row_id && version == &row.version)
 }
 
 #[must_use]
@@ -106,6 +140,9 @@ pub fn compute_rows_delta_parts(
             appended_rows: Vec::new(),
             removed_row_ids: prev.row_ids.clone(),
         });
+    }
+    if prev.budget_shrunk_tail {
+        return compute_budget_shrunk_tail_delta_parts(prev, current_rows);
     }
 
     let previous_ids: HashSet<&str> = prev.row_ids.iter().map(String::as_str).collect();
@@ -156,10 +193,31 @@ pub fn compute_rows_delta_parts(
     })
 }
 
+fn compute_budget_shrunk_tail_delta_parts(
+    prev: &PriorBufferEmission,
+    current_rows: &[TranscriptViewportRow],
+) -> Option<RowsDeltaParts> {
+    if prev.row_ids.is_empty() || prev.row_ids.len() > current_rows.len() {
+        return None;
+    }
+
+    let prior_len = prev.row_ids.len();
+    let start = current_rows
+        .windows(prior_len)
+        .position(|candidate_rows| rows_match_prior(prev, candidate_rows))?;
+
+    Some(RowsDeltaParts {
+        prepended_rows: Vec::new(),
+        appended_rows: current_rows[start + prior_len..].to_vec(),
+        removed_row_ids: Vec::new(),
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::{
-        BufferEmission, compute_rows_delta_parts, decide_buffer_emission, prior_from_rows,
+        compute_rows_delta_parts, decide_buffer_emission, prior_from_budget_shrunk_tail_rows,
+        prior_from_rows, BufferEmission,
     };
     use crate::acp::transcript_projection::TranscriptEntryRole;
     use crate::acp::transcript_viewport::{
@@ -218,6 +276,51 @@ mod tests {
         assert_eq!(parts.prepended_rows, vec![row("row-1", "v1")]);
         assert!(parts.appended_rows.is_empty());
         assert!(parts.removed_row_ids.is_empty());
+    }
+
+    #[test]
+    fn budget_shrunk_tail_matching_current_suffix_emits_noop() {
+        let delivered_tail = vec![row("row-2", "v1"), row("row-3", "v1")];
+        let current = vec![row("row-1", "v1"), row("row-2", "v1"), row("row-3", "v1")];
+        let prior = prior_from_budget_shrunk_tail_rows(&delivered_tail);
+
+        assert_eq!(
+            decide_buffer_emission(Some(&prior), &current, false),
+            BufferEmission::NoOp
+        );
+    }
+
+    #[test]
+    fn budget_shrunk_tail_version_change_forces_fresh_push() {
+        let delivered_tail = vec![row("row-2", "v1"), row("row-3", "v1")];
+        let current = vec![row("row-1", "v1"), row("row-2", "v1"), row("row-3", "v2")];
+        let prior = prior_from_budget_shrunk_tail_rows(&delivered_tail);
+
+        assert_eq!(
+            decide_buffer_emission(Some(&prior), &current, false),
+            BufferEmission::FreshPush
+        );
+    }
+
+    #[test]
+    fn budget_shrunk_tail_delta_ignores_undelivered_head() {
+        let delivered_tail = vec![row("row-2", "v1"), row("row-3", "v1")];
+        let current = vec![
+            row("row-1", "v1"),
+            row("row-2", "v1"),
+            row("row-3", "v1"),
+            row("row-4", "v1"),
+        ];
+        let prior = prior_from_budget_shrunk_tail_rows(&delivered_tail);
+        let parts = compute_rows_delta_parts(&prior, &current).expect("delta");
+
+        assert!(parts.prepended_rows.is_empty());
+        assert_eq!(parts.appended_rows, vec![row("row-4", "v1")]);
+        assert!(parts.removed_row_ids.is_empty());
+        assert_eq!(
+            decide_buffer_emission(Some(&prior), &current, false),
+            BufferEmission::Delta
+        );
     }
 
     #[test]

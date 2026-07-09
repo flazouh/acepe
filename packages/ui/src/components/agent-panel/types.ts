@@ -137,6 +137,11 @@ export interface AgentToolFileSelectEvent {
 	filePath: string;
 }
 
+export interface AgentUserFileSelectEvent {
+	tokenType: "file" | "image";
+	value: string;
+}
+
 export interface AgentPanelReviewActionEvent {
 	entryId: string;
 	toolCallId?: string;

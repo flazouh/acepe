@@ -428,6 +428,396 @@ export const streamingReproLabResultSchema = z.object({
 	phaseLabel: z.string().nullable(),
 	tokenRevealAnimatedCount: z.number(),
 	tokenRevealMode: z.string().nullable(),
+	performance: z
+		.object({
+			presetId: z.string(),
+			phaseCount: z.number(),
+			totalMs: z.number(),
+			visibilityState: z.string(),
+			documentHasFocus: z.boolean().nullable(),
+			steps: z.array(
+				z.object({
+					phaseId: z.string(),
+					label: z.string(),
+					phaseIndex: z.number(),
+					assistantTextLength: z.number(),
+					turnState: z.string(),
+					domFlushMs: z.number(),
+					rowCount: z.number(),
+					animatedTokenSpans: z.number(),
+					tokenRevealMode: z.string().nullable(),
+				})
+			),
+		})
+		.nullable(),
+});
+
+export const agentPanelStressPresetSchema = z.enum([
+	"mixed",
+	"text-heavy",
+	"tool-heavy",
+	"streaming-tail",
+]);
+
+export const agentPanelStressRendererModeSchema = z.enum(["full", "text-only", "shell-only"]);
+
+export const agentPanelStressMemoryMeasurementSchema = z.object({
+	usedJSHeapSize: z.number(),
+	totalJSHeapSize: z.number(),
+	jsHeapSizeLimit: z.number(),
+});
+
+export const agentPanelStressFrameEnvironmentSchema = z.object({
+	visibilityState: z.string(),
+	documentHasFocus: z.boolean().nullable(),
+	requestAnimationFrameAvailable: z.boolean(),
+	longAnimationFrameObserverAvailable: z.boolean().optional().default(false),
+	rafWaitCount: z.number(),
+	timeoutWaitCount: z.number(),
+});
+
+export const agentPanelStressScrollUpdateMeasurementSchema = z.object({
+	scrollTopPx: z.number(),
+	updateMs: z.number(),
+	domRowCount: z.number(),
+	firstRowIndex: z.number().nullable().optional().default(null),
+	lastRowIndex: z.number().nullable().optional().default(null),
+	mountedRowCount: z.number().optional().default(0),
+	unmountedRowCount: z.number().optional().default(0),
+	profileSampleCount: z.number().optional().default(0),
+	profileDurationMs: z.number().optional().default(0),
+	profileMaxDurationMs: z.number().nullable().optional().default(null),
+	profileSlowestPhase: z.string().nullable().optional().default(null),
+});
+
+export const agentPanelStressFrameAttributionCauseSchema = z.enum([
+	"within-120hz-budget",
+	"js-profile-work",
+	"dom-window-churn",
+	"probe-overhead",
+	"browser-layout-paint-suspected",
+]);
+
+export const agentPanelStressFrameAttributionSchema = z.object({
+	frameIndex: z.number(),
+	targetScrollTopPx: z.number(),
+	frameDeltaMs: z.number(),
+	frameBudgetOverrunMs: z.number(),
+	scrollSetMs: z.number(),
+	afterFrameInspectionMs: z.number(),
+	browserRenderMs: z.number(),
+	previousBrowserRenderMs: z.number(),
+	preFrameGapMs: z.number(),
+	domRowCount: z.number(),
+	firstRowIndex: z.number().nullable(),
+	lastRowIndex: z.number().nullable(),
+	mountedRowCount: z.number(),
+	unmountedRowCount: z.number(),
+	coldRevealedRowCount: z.number().optional().default(0),
+	staticEstimateRowCount: z.number().optional().default(0),
+	measuredEstimateRowCount: z.number().optional().default(0),
+	maxStaticEstimateErrorPx: z.number().nullable().optional().default(null),
+	averageStaticEstimateErrorPx: z.number().nullable().optional().default(null),
+	profileSampleCount: z.number(),
+	profileDurationMs: z.number(),
+	profileMaxDurationMs: z.number().nullable(),
+	profileSlowestPhase: z.string().nullable(),
+	cause: agentPanelStressFrameAttributionCauseSchema,
+});
+
+export const agentPanelStressMetricsSchema = z.object({
+	generationMs: z.number().nullable(),
+	renderSettleMs: z.number().nullable(),
+	domRowCount: z.number(),
+	scrollToTopMs: z.number().nullable(),
+	scrollToBottomMs: z.number().nullable(),
+	scrollUpdateMeasurements: z.array(agentPanelStressScrollUpdateMeasurementSchema),
+	frameDeltasMs: z.array(z.number()),
+	frameAttributions: z.array(agentPanelStressFrameAttributionSchema).optional().default([]),
+	frameEnvironment: agentPanelStressFrameEnvironmentSchema.nullable(),
+	memory: agentPanelStressMemoryMeasurementSchema.nullable(),
+});
+
+export const agentPanelStressSummarySchema = z.object({
+	generationMsLabel: z.string(),
+	renderSettleMsLabel: z.string(),
+	domRowCount: z.number(),
+	scrollToTopMsLabel: z.string(),
+	scrollToBottomMsLabel: z.string(),
+	scrollUpdateSampleCount: z.number(),
+	averageScrollUpdateMs: z.number().nullable(),
+	maxScrollUpdateMs: z.number().nullable(),
+	maxScrollUpdateDomRowCount: z.number().nullable(),
+	maxScrollUpdateMountedRowCount: z.number().nullable().optional().default(null),
+	maxScrollUpdateUnmountedRowCount: z.number().nullable().optional().default(null),
+	maxScrollUpdateProfileDurationMs: z.number().nullable().optional().default(null),
+	maxScrollUpdateProfileSlowestPhase: z.string().nullable().optional().default(null),
+	frameSampleCount: z.number(),
+	jankFrameCount: z.number(),
+	averageFrameDeltaMs: z.number().nullable(),
+	maxFrameDeltaMs: z.number().nullable(),
+	estimatedFps: z.number().nullable(),
+	targetFrameBudgetMs: z.number().optional().default(8.33),
+	missed120HzFrameCount: z.number().optional().default(0),
+	maxFrameBudgetOverrunMs: z.number().nullable().optional().default(null),
+	slowestFrameIndex: z.number().nullable().optional().default(null),
+	slowestFrameDeltaMs: z.number().nullable().optional().default(null),
+	slowestFrameCause: agentPanelStressFrameAttributionCauseSchema
+		.nullable()
+		.optional()
+		.default(null),
+	slowestFrameProfileDurationMs: z.number().nullable().optional().default(null),
+	slowestFrameBrowserRenderMs: z.number().nullable().optional().default(null),
+	slowestFramePreviousBrowserRenderMs: z.number().nullable().optional().default(null),
+	slowestFramePreFrameGapMs: z.number().nullable().optional().default(null),
+	slowestFrameMountedRowCount: z.number().nullable().optional().default(null),
+	slowestFrameUnmountedRowCount: z.number().nullable().optional().default(null),
+	slowestFrameColdRevealedRowCount: z.number().nullable().optional().default(null),
+	slowestFrameStaticEstimateRowCount: z.number().nullable().optional().default(null),
+	slowestFrameMeasuredEstimateRowCount: z.number().nullable().optional().default(null),
+	slowestFrameMaxStaticEstimateErrorPx: z.number().nullable().optional().default(null),
+	slowestFrameAverageStaticEstimateErrorPx: z.number().nullable().optional().default(null),
+	slowestFrameDomRowCount: z.number().nullable().optional().default(null),
+	maxFrameColdRevealedRowCount: z.number().nullable().optional().default(null),
+	maxFrameStaticEstimateErrorPx: z.number().nullable().optional().default(null),
+	frameSamplingLikelyThrottled: z.boolean(),
+	frameEnvironmentLabel: z.string(),
+	memoryLabel: z.string(),
+});
+
+export const agentPanelStressProfilePhaseSummarySchema = z.object({
+	phase: z.string(),
+	count: z.number(),
+	totalDurationMs: z.number(),
+	maxDurationMs: z.number(),
+	averageDurationMs: z.number(),
+	maxItemCount: z.number().nullable(),
+	maxNodeCount: z.number().nullable(),
+});
+
+export const agentPanelStressProfileSummarySchema = z.object({
+	sampleCount: z.number(),
+	totalDurationMs: z.number(),
+	phases: z.array(agentPanelStressProfilePhaseSummarySchema),
+});
+
+export const agentPanelStressDumpSchema = z.object({
+	route: z.string(),
+	preset: agentPanelStressPresetSchema,
+	rendererMode: agentPanelStressRendererModeSchema.optional().default("full"),
+	rowCount: z.number(),
+	seed: z.number(),
+	timestampIso: z.string(),
+	metrics: agentPanelStressMetricsSchema,
+	summary: agentPanelStressSummarySchema,
+	profileSamples: z.array(agentPanelPerformanceSampleSchema),
+	profileSummary: agentPanelStressProfileSummarySchema,
+});
+
+export const agentPanelStressLabResultSchema = z.object({
+	hookAvailable: z.boolean(),
+	opened: z.boolean(),
+	labPresent: z.boolean(),
+	route: z.string().nullable(),
+	preset: agentPanelStressPresetSchema.nullable(),
+	rendererMode: agentPanelStressRendererModeSchema.nullable().optional().default(null),
+	rowCount: z.number().nullable(),
+	seed: z.number().nullable(),
+	renderSettleMs: z.number().nullable(),
+	domRowCount: z.number().nullable(),
+	scrollToTopMs: z.number().nullable(),
+	scrollToBottomMs: z.number().nullable(),
+	frameSampleCount: z.number(),
+	jankFrameCount: z.number(),
+	averageFrameDeltaMs: z.number().nullable(),
+	maxFrameDeltaMs: z.number().nullable(),
+	estimatedFps: z.number().nullable(),
+	frameSamplingLikelyThrottled: z.boolean().nullable(),
+	frameEnvironmentLabel: z.string().nullable(),
+	memoryLabel: z.string().nullable(),
+	dump: agentPanelStressDumpSchema.nullable(),
+});
+
+export const agentPanelStressLabRunStatusSchema = z.object({
+	runId: z.string().nullable(),
+	status: z.enum(["missing", "running", "done", "error"]),
+	message: z.string().nullable(),
+	result: agentPanelStressLabResultSchema.nullable(),
+});
+
+export const startupPerformanceTraceEntrySchema = z.object({
+	name: z.string(),
+	startedAtMs: z.number(),
+	completedAtMs: z.number().nullable(),
+	durationMs: z.number().nullable(),
+	status: z.enum(["pending", "ok", "error"]),
+	errorMessage: z.string().nullable(),
+});
+
+export const panelClosePerformanceTraceSchema = z.object({
+	panelId: z.string(),
+	kind: z.string(),
+	captureStateMs: z.number(),
+	suppressionMs: z.number(),
+	clearOpeningSessionMs: z.number(),
+	removePanelMs: z.number(),
+	hotStateCleanupMs: z.number(),
+	fileOwnershipCleanupMs: z.number(),
+	embeddedTerminalCleanupMs: z.number(),
+	worktreeCleanupMs: z.number(),
+	focusStateApplyMs: z.number(),
+	persistMs: z.number(),
+	totalMs: z.number(),
+});
+
+export const projectLoadPerformanceTraceSchema = z.object({
+	totalMs: z.number(),
+	getProjectCountMs: z.number(),
+	getProjectsMs: z.number(),
+	assignStateMs: z.number(),
+	projectCount: z.number(),
+});
+
+export const tauriInvokeTimingRecordSchema = z.object({
+	id: z.string(),
+	command: z.string(),
+	argsSummary: z
+		.string()
+		.nullable()
+		.optional()
+		.transform((value) => value ?? null),
+	startedAtMs: z.number(),
+	completedAtMs: z.number(),
+	durationMs: z.number(),
+	status: z.enum(["ok", "error"]),
+});
+
+export const tauriPendingInvokeRecordSchema = z.object({
+	id: z.string(),
+	command: z.string(),
+	argsSummary: z
+		.string()
+		.nullable()
+		.optional()
+		.transform((value) => value ?? null),
+	startedAtMs: z.number(),
+	elapsedMs: z.number(),
+});
+
+export const happyPathPerformanceResultSchema = z.object({
+	hookAvailable: z.boolean(),
+	route: z.string(),
+	runtimeErrors: z.array(z.string()),
+	timingEnvironment: z
+		.object({
+			visibilityState: z.string(),
+			documentHasFocus: z.boolean().nullable(),
+			requestAnimationFrameAvailable: z.boolean(),
+			frameWaitCount: z.number(),
+			frameFallbackCount: z.number(),
+			likelyThrottled: z.boolean(),
+			label: z.string(),
+		})
+		.optional()
+		.transform(
+			(value) =>
+				value ?? {
+					visibilityState: "unknown",
+					documentHasFocus: null,
+					requestAnimationFrameAvailable: false,
+					frameWaitCount: 0,
+					frameFallbackCount: 0,
+					likelyThrottled: true,
+					label: "unavailable",
+				}
+		),
+	navigation: z.object({
+		type: z.string().nullable(),
+		startTimeMs: z.number().nullable(),
+		domInteractiveMs: z.number().nullable(),
+		domContentLoadedMs: z.number().nullable(),
+		loadEventEndMs: z.number().nullable(),
+		durationMs: z.number().nullable(),
+	}),
+	app: z.object({
+		mountStartedAtMs: z.number().nullable(),
+		shellReadyAtMs: z.number().nullable(),
+		shellReadyDurationMs: z.number().nullable(),
+		shellReady: z.boolean(),
+		shellReadyWaitMs: z.number().nullable(),
+		initializationCompleteAtMs: z.number().nullable(),
+		initializationDurationMs: z.number().nullable(),
+		initializationComplete: z.boolean(),
+		initializationWaitMs: z.number().nullable(),
+		projectReady: z.boolean(),
+		projectReadyWaitMs: z.number().nullable(),
+		projectCountAtPanelCreate: z.number(),
+		startupTrace: z.array(startupPerformanceTraceEntrySchema),
+		projectLoadTrace: projectLoadPerformanceTraceSchema.nullable(),
+		tauriInvokeTimings: z.array(tauriInvokeTimingRecordSchema),
+		panelCountBefore: z.number(),
+		panelCountAfter: z.number(),
+		domPanelCountBefore: z.number(),
+		domPanelCountAfter: z.number(),
+	}),
+	openClose: z.object({
+		panelId: z.string(),
+		projectPath: z.string().nullable(),
+		panelOpenMarks: z.record(z.string(), z.number()),
+		panelFirstMarkMs: z
+			.number()
+			.nullable()
+			.optional()
+			.transform((value) => value ?? null),
+		panelLastMarkMs: z
+			.number()
+			.nullable()
+			.optional()
+			.transform((value) => value ?? null),
+		panelMarkedWorkMs: z
+			.number()
+			.nullable()
+			.optional()
+			.transform((value) => value ?? null),
+		panelPreMarkDelayMs: z
+			.number()
+			.nullable()
+			.optional()
+			.transform((value) => value ?? null),
+		panelDomReadyAfterLastMarkMs: z
+			.number()
+			.nullable()
+			.optional()
+			.transform((value) => value ?? null),
+		composerReadyAfterLastMarkMs: z
+			.number()
+			.nullable()
+			.optional()
+			.transform((value) => value ?? null),
+		panelCreateMs: z.number(),
+		panelDomPresentAfterCreate: z.boolean(),
+		panelDomMutationMs: z.number().nullable(),
+		panelDomAfterDomFlushMs: z.number().nullable(),
+		panelDomAfterFirstFrameMs: z.number().nullable(),
+		panelDomReadyMs: z.number().nullable(),
+		composerMutationMs: z.number().nullable(),
+		composerReadyMs: z.number().nullable(),
+		composerReadyAfterCreateMs: z.number().nullable(),
+		panelDomNodeCount: z.number(),
+		panelRowNodeCount: z.number(),
+		panelDropdownContentNodeCount: z.number(),
+		resizeObserverConstructCount: z.number().nullable(),
+		resizeObserverObserveCount: z.number().nullable(),
+		resizeObserverCallbackCount: z.number().nullable(),
+		closeCallReturnMs: z.number(),
+		closeMicrotaskMs: z.number(),
+		closeDomGoneAfterMicrotask: z.boolean(),
+		closeFirstFrameMs: z.number().nullable(),
+		closeDomGoneAfterFirstFrame: z.boolean(),
+		closeDomGoneMs: z.number().nullable(),
+		closeTrace: panelClosePerformanceTraceSchema.nullable(),
+		totalMs: z.number(),
+	}),
 });
 
 export const sendComposerResultSchema = z.object({
@@ -792,3 +1182,8 @@ export type HoverResult = z.infer<typeof hoverResultSchema>;
 export type ThinkingToggleProbeResult = z.infer<typeof thinkingToggleProbeResultSchema>;
 export type ResetOnboardingResult = z.infer<typeof resetOnboardingResultSchema>;
 export type StreamingReproLabResult = z.infer<typeof streamingReproLabResultSchema>;
+export type AgentPanelStressLabResult = z.infer<typeof agentPanelStressLabResultSchema>;
+export type AgentPanelStressLabRunStatus = z.infer<typeof agentPanelStressLabRunStatusSchema>;
+export type TauriInvokeTimingRecord = z.infer<typeof tauriInvokeTimingRecordSchema>;
+export type TauriPendingInvokeRecord = z.infer<typeof tauriPendingInvokeRecordSchema>;
+export type HappyPathPerformanceResult = z.infer<typeof happyPathPerformanceResultSchema>;

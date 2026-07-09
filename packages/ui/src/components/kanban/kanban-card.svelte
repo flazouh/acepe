@@ -1,13 +1,12 @@
 <script lang="ts">
 	import type { Snippet } from "svelte";
-	import { Robot, Tree } from "phosphor-svelte";
 	import AgentToolTask from "../agent-panel/agent-tool-task.svelte";
 	import AgentCompactToolDisplay from "../agent-panel/compact-tool-display.svelte";
 	import { DiffPill } from "../diff-pill/index.js";
 	import { Colors } from "../../lib/colors.js";
 	import { capitalizeLeadingCharacter } from "../../lib/utils.js";
 	import { Button } from "../button/index.js";
-	import { RoundedIcon } from "../icons/index.js";
+	import { RobotIcon, RoundedIcon } from "../icons/index.js";
 	import {
 	EmbeddedPanelHeader,
 	HeaderActionCell,
@@ -162,7 +161,7 @@ function handleKeydown(event: KeyboardEvent): void {
 					<div class="flex h-7 items-center justify-center" onclick={(e) => e.stopPropagation()} onkeydown={(e) => e.stopPropagation()}>
 						<Button
 							variant="ghost"
-							size="icon-chrome"
+							size="icon"
 							data-header-control
 							onclick={onClose}
 							title="Close"
@@ -170,7 +169,7 @@ function handleKeydown(event: KeyboardEvent): void {
 							class="!h-full border-l border-border/40"
 						>
 							{#snippet children()}
-								<RoundedIcon name="close" class="size-3" />
+								<RoundedIcon name="close" />
 							{/snippet}
 						</Button>
 					</div>

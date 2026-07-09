@@ -1,7 +1,6 @@
 <script lang="ts">
-	import { GitPullRequest, Link as LinkIcon, LinkBreak } from "phosphor-svelte";
-
 	import { buildChipShellClassName } from "../chip/index.js";
+	import { RoundedIcon } from "../icons/index.js";
 	import {
 		parseGitHubChipRef,
 		type GitHubChipRef,
@@ -70,10 +69,21 @@
 			: 'text-muted-foreground'}"
 		aria-hidden="true"
 	>
-		<GitPullRequest weight="bold" size={14} />
+		<RoundedIcon name="pull-request" class="size-3.5" />
 	</span>
 	<span class="min-w-0 truncate font-mono text-[0.6875rem] leading-none">
 		{label}
+	</span>
+{/snippet}
+
+{#snippet unlinkIcon()}
+	<span
+		class="relative inline-flex size-3 items-center justify-center"
+		data-testid="github-chip-unlink-rounded-icon"
+		aria-hidden="true"
+	>
+		<RoundedIcon name="link" class="size-3" />
+		<span class="absolute h-px w-3.5 rotate-45 rounded-full bg-current ring-[1px] ring-background"></span>
 	</span>
 {/snippet}
 
@@ -99,9 +109,9 @@
 			onclick={handleToggleClick}
 		>
 			{#if isLinked}
-				<LinkBreak size={12} />
+				{@render unlinkIcon()}
 			{:else}
-				<LinkIcon size={12} />
+				<RoundedIcon name="link" class="size-3" />
 			{/if}
 		</button>
 	</span>

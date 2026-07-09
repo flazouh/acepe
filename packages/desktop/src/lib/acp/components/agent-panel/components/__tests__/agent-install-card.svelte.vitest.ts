@@ -12,14 +12,6 @@ vi.mock("@acepe/ui", async () => ({
 	LoadingIcon: (await import("./fixtures/user-message-stub.svelte")).default,
 }));
 
-vi.mock("phosphor-svelte", async (importOriginal) => {
-	const actual = await importOriginal<typeof import("phosphor-svelte")>();
-	return {
-		...actual,
-		CaretDown: (await import("./fixtures/user-message-stub.svelte")).default,
-	};
-});
-
 vi.mock("$lib/components/theme/context.svelte.js", () => ({
 	useTheme: () => ({ effectiveTheme: "dark" }),
 }));

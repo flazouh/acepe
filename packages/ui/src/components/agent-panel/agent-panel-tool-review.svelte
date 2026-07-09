@@ -55,8 +55,8 @@
 		</div>
 
 		<Button
-			variant="headerAction"
-			size="headerAction"
+			variant="secondary"
+			size="xs"
 			disabled={reviewDisabled}
 			onclick={handleReview}
 		>

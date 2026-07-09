@@ -141,7 +141,7 @@
 					class="font-sans text-xs"
 				/>
 				{#if hasExpandableContent}
-					<CaretRight size={12} weight="regular" class="size-3 shrink-0 text-muted-foreground transition-transform duration-150 {isExpanded ? 'rotate-90' : ''}"
+					<RoundedIcon name="chevron-right" class="size-3 shrink-0 text-muted-foreground transition-transform duration-150 {isExpanded ? 'rotate-90' : ''}"
 					/>
 				{/if}
 			</div>
@@ -208,11 +208,11 @@
 						class="flex items-center gap-1.5 rounded px-2 py-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground border-none bg-transparent cursor-pointer"
 					>
 						{#if !showAll}
-							<CaretDown size={12} weight="regular"  class="size-3"/>
-							<span>{showMoreLabel(hiddenResultCount)}</span>
-						{:else}
-							<CaretRight size={12} weight="regular" class="size-3 shrink-0 rotate-270" />
-							<span>{showLessLabel}</span>
+								<RoundedIcon name="chevron-down" class="size-3" />
+								<span>{showMoreLabel(hiddenResultCount)}</span>
+							{:else}
+								<RoundedIcon name="chevron-up" class="size-3 shrink-0" />
+								<span>{showLessLabel}</span>
 						{/if}
 					</button>
 				</div>

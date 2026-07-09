@@ -114,67 +114,7 @@ describe("ReviewDiffViewState (read-only renderer)", () => {
 		expect(() => structuredClone(lastRenderArgs()?.fileDiff)).not.toThrow();
 	}, 20_000);
 
-	it("resolved hunk produces no annotation after accept", async () => {
-		const { state, diffData } = await setupState({ withHunkAction: true });
-		const hunkCount = diffData.fileDiffMetadata.hunks.length;
-		expect(hunkCount).toBe(2);
-
-		// Accept hunk 0 — it becomes context-only
-		state.applyHunkAction(0, "accept");
-
-		// Only hunk 1 should have an annotation now
-		const annotations = Reflect.get(state, "lineAnnotations") as DiffLineAnnotation<{
-			hunkIndex: number;
-		}>[];
-		expect(annotations).toHaveLength(1);
-		expect(annotations[0].metadata.hunkIndex).toBe(1);
-	}, 20_000);
-
-	it("keeps the diff visible after a hunk is kept (accept does not collapse to context)", async () => {
-		const { state, diffData, lastRenderArgs } = await setupState({ withHunkAction: true });
-		expect(diffData.fileDiffMetadata.hunks.length).toBe(2);
-
-		state.applyHunkAction(0, "accept");
-
-		const rendered = lastRenderArgs();
-		expect(rendered).not.toBeNull();
-		const keptHunk = rendered?.fileDiff.hunks[0];
-		// The kept hunk must still render its change (additions/deletions), not
-		// collapse to context-only — the user keeps seeing the diff after Keep.
-		expect(keptHunk?.hunkContent.some((c) => c.type === "change")).toBe(true);
-
-		// Accept is a review marker, not a revert: contents stay the agent's output.
-		const currentData = Reflect.get(state, "currentDiffData") as ReviewDiffData;
-		expect(currentData.newFile.contents).toBe(diffData.newFile.contents);
-	}, 20_000);
-
-	it("newFile.contents updates after reject to stay in sync with metadata", async () => {
-		const { state, diffData } = await setupState({ withHunkAction: true });
-		const originalNewContents = diffData.newFile.contents;
-
-		// Reject hunk 0 — newFile.contents should change
-		state.applyHunkAction(0, "reject");
-
-		const currentData = Reflect.get(state, "currentDiffData") as ReviewDiffData;
-		expect(currentData.newFile.contents).not.toBe(originalNewContents);
-
-		expect(currentData.fileDiffMetadata.additionLines).toBeDefined();
-		expect(currentData.newFile.contents).toBe(currentData.fileDiffMetadata.additionLines.join(""));
-	}, 20_000);
-
-	it("sequential rejects produce correct content (all changes reverted)", async () => {
-		const { state, diffData } = await setupState({ withHunkAction: true });
-		const originalOldContents = diffData.oldFile.contents;
-
-		// Reject both hunks — file should revert to the old content
-		state.applyHunkAction(0, "reject");
-		state.applyHunkAction(1, "reject");
-
-		const currentData = Reflect.get(state, "currentDiffData") as ReviewDiffData;
-		expect(currentData.newFile.contents).toBe(originalOldContents);
-	}, 20_000);
-
-	it("returns null and does not increment counters when not initialized", async () => {
+	it("no-ops updateDiff when not initialized", async () => {
 		const { ReviewDiffViewState } = await import("../review-diff-view-state.svelte.js");
 		const state = new ReviewDiffViewState();
 

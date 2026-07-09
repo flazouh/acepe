@@ -71,7 +71,7 @@ afterEach(() => {
 
 describe("DiffViewerModal", () => {
 	it("uses DialogFrame for a centered modal surface instead of edge-to-edge fullscreen", async () => {
-		const { container, getByTestId } = render(DiffViewerModal, {
+		const { getByTestId } = render(DiffViewerModal, {
 			open: true,
 			reference: {
 				type: "commit",
@@ -85,8 +85,17 @@ describe("DiffViewerModal", () => {
 			expect(getByTestId("git-viewer-stub")).not.toBeNull();
 		});
 
-		const dialogContent = container.querySelector("[data-slot='dialog-content']");
+		const dialogContent = document.querySelector("[data-slot='dialog-content']");
 		expect(dialogContent).not.toBeNull();
 		expect(dialogContent?.className).toContain("rounded-xl");
+
+		const frameHeader = document.querySelector("[data-dialog-frame-header]");
+		const frameTitle = document.querySelector("[data-dialog-frame-title]");
+		const closeButton = document.querySelector("button[aria-label='Close diff viewer']");
+
+		expect(frameHeader).not.toBeNull();
+		expect(frameTitle?.textContent?.trim()).toBe("GitHub diff viewer");
+		expect(closeButton).not.toBeNull();
+		expect(frameHeader?.contains(closeButton)).toBe(true);
 	});
 });

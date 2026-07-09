@@ -56,6 +56,7 @@ const diffData = $derived.by(() =>
 		preferFetchedDiff: projectPath !== null,
 		fetchedDiffSettled,
 		file,
+		reconstructedDiffData,
 	})
 );
 

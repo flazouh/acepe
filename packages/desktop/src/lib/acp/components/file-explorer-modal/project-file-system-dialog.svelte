@@ -8,7 +8,7 @@ import type {
 	PreviewKind,
 } from "$lib/services/converted-session-types.js";
 import { tauriClient } from "$lib/utils/tauri-client.js";
-import { DiffPill } from "@acepe/ui";
+import { PierreFileTree } from "@acepe/ui";
 import { Colors } from "@acepe/ui/colors";
 import { onMount } from "svelte";
 import FileExplorerPreviewPane from "./file-explorer-preview-pane.svelte";
@@ -32,6 +32,8 @@ interface Props {
 	projectName: string;
 	projectColor?: string;
 	projectIconSrc?: string | null;
+	title?: string | null;
+	initialFilePath?: string | null;
 	/** Projects available in the top-left picker (omit to hide the picker). */
 	recentProjects?: readonly Project[];
 	onProjectChange?: (project: Project) => void;
@@ -45,6 +47,8 @@ let {
 	projectName,
 	projectColor = Colors.red,
 	projectIconSrc = null,
+	title = null,
+	initialFilePath = null,
 	recentProjects = [],
 	onProjectChange,
 	onClose,
@@ -55,7 +59,7 @@ const selectedProject = $derived(
 	recentProjects.find((project) => project.path === projectPath) ?? null
 );
 
-let files = $state<FileTreeNode[]>([]);
+let treeModel = $state(createProjectFileSystemTreeModel([]));
 let loading = $state(false);
 let error = $state<string | null>(null);
 let selectedFilePathOverride = $state<string | null>(null);
@@ -158,84 +162,21 @@ onMount(() => {
 		}
 	}}
 >
-	{#snippet topLeft()}
-		{#if onProjectChange}
-			<ProjectSelector
-				selectedProject={selectedProject}
-				recentProjects={recentProjects}
-				onProjectChange={onProjectChange}
-				showLabel
-			/>
-		{/if}
-	{/snippet}
-	<div class="flex h-full min-h-0 w-full overflow-hidden">
-		<div class="flex w-72 shrink-0 flex-col border-r border-border/50 bg-card/40">
-			<div class="flex h-8 shrink-0 items-center justify-between gap-2 border-b border-border/50 px-2.5">
-				<span class="text-[11px] font-medium uppercase tracking-wide text-muted-foreground/70">
-					Files
-				</span>
-				{#if loading && files.length > 0}
-					<span class="text-[10px] text-muted-foreground">Refreshing…</span>
-				{/if}
-			</div>
-			<div class="min-h-0 flex-1 overflow-auto p-1">
-				{#if loading && files.length === 0}
-					<div class="px-2 py-2 text-xs text-muted-foreground">Loading files...</div>
-				{:else if error !== null}
-					<div class="px-2 py-2 text-xs text-destructive">{error}</div>
-				{:else if flattenedFiles.length === 0}
-					<div class="px-2 py-2 text-xs text-muted-foreground">No files found</div>
-				{:else}
-					<div class="flex flex-col gap-0.5">
-						{#each flattenedFiles as { node } (`${projectPath}:${node.path}`)}
-							{@const nodeGitStatus = getNodeGitStatus(node)}
-							<button
-								type="button"
-								class="group flex w-full items-center gap-1 rounded px-1.5 py-1 text-left text-xs transition-colors hover:bg-muted/40 {selectedFilePath === node.path
-									? 'bg-accent text-foreground'
-									: 'text-muted-foreground'}"
-								style="padding-left: {node.depth * 12 + 8}px"
-								aria-expanded={node.isDirectory
-									? expandedFolders.has(`${projectPath}:${node.path}`)
-									: undefined}
-								onclick={() => {
-									if (node.isDirectory) {
-										toggleFolder(node.path);
-									} else {
-										selectFile(node.path);
-									}
-								}}
-							>
-								{#if node.isDirectory}
-									<span class="flex size-4 shrink-0 items-center justify-center">
-										<FolderOpen
-											class="size-3.5"
-											weight={expandedFolders.has(`${projectPath}:${node.path}`)
-												? "fill"
-												: "regular"}
-										/>
-									</span>
-								{:else}
-									<FileIcon
-										extension={node.extension}
-										isDirectory={false}
-										isExpanded={false}
-										class="size-4 shrink-0"
-									/>
-								{/if}
-								<span class="min-w-0 flex-1 truncate" style:color={getNodeColor(node)}>
-									{node.name}
-								</span>
-								{#if nodeGitStatus && (nodeGitStatus.insertions > 0 || nodeGitStatus.deletions > 0)}
-									<DiffPill
-										insertions={nodeGitStatus.insertions}
-										deletions={nodeGitStatus.deletions}
-										variant="plain"
-										class="shrink-0"
-									/>
-								{/if}
-							</button>
-						{/each}
+	{#snippet frameContent({ closeControl })}
+		<div class="flex h-full min-h-0 w-full overflow-hidden">
+			<div class="flex w-72 shrink-0 flex-col border-r border-border/50 bg-card/40">
+				<div class="flex h-9 shrink-0 items-center gap-2 border-b border-border/50 px-2.5">
+					{#if onProjectChange}
+						<ProjectSelector
+							selectedProject={selectedProject}
+							recentProjects={recentProjects}
+							onProjectChange={onProjectChange}
+						/>
+					{/if}
+					<div class="min-w-0 flex-1">
+						<span class="text-[11px] font-medium uppercase tracking-wide text-muted-foreground/70">
+							Files
+						</span>
 					</div>
 					{#if loading && treeModel.paths.length > 0}
 						<span class="shrink-0 text-[10px] text-muted-foreground">Refreshing…</span>

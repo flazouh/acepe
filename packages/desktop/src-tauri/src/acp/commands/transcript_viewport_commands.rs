@@ -5,7 +5,7 @@ use crate::acp::session_state_engine::runtime_registry::{
     SessionGraphRuntimeRegistry, VisibleTranscriptWindowMiss,
 };
 use crate::acp::transcript_projection::TranscriptProjectionRegistry;
-use crate::commands::observability::{CommandResult, expected_acp_command_result};
+use crate::commands::observability::{expected_acp_command_result, CommandResult};
 use std::sync::Arc;
 use tauri::{AppHandle, Manager};
 

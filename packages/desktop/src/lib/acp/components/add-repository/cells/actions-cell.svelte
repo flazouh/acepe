@@ -1,7 +1,6 @@
 <script lang="ts">
 import { Button } from "@acepe/ui/button";
-import { PlusIcon } from "@acepe/ui";
-import { Trash } from "phosphor-svelte";
+import { RoundedIcon } from "@acepe/ui";
 
 interface Props {
 	isAdded: boolean;
@@ -40,6 +39,10 @@ let { isAdded, onImport, onUndo }: Props = $props();
 			onImport();
 		}}
 	>
-		<PlusIcon />
+		<RoundedIcon
+			name="add"
+			class="size-3.5"
+			data-testid="import-project-icon"
+		/>
 	</Button>
 {/if}

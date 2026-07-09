@@ -4,15 +4,12 @@ import {
 	ProjectHeader,
 	ProjectHeaderOverflowMenu,
 } from "@acepe/ui/app-layout";
-import { PLUS_ACTION_BUTTON_CLASS, PlusIcon } from "@acepe/ui";
+import { PlusIcon } from "@acepe/ui";
 import { tick } from "svelte";
 import { SvelteMap, SvelteSet } from "svelte/reactivity";
 import type { SessionDisplayItem } from "$lib/acp/types/thread-display-item.js";
 import { Button } from "$lib/components/ui/button/index.js";
-import {
-	ProjectCardSkeleton,
-	SessionListSkeleton,
-} from "$lib/components/ui/skeleton/index.js";
+import { ProjectCardSkeleton, SessionListSkeleton } from "$lib/components/ui/skeleton/index.js";
 import type { AgentInfo } from "../../logic/agent-manager.js";
 import {
 	getSidebarSessions,
@@ -350,8 +347,6 @@ function getProjectCreateButtonAriaLabel(projectName: string): string {
 	return `New session in ${projectName}`;
 }
 
-const projectHeaderHoverActionButtonClass = PLUS_ACTION_BUTTON_CLASS;
-
 function getShowExternalCliSessions(projectPath: string): boolean {
 	return projectShowExternalCliSessions.get(projectPath) ?? true;
 }
@@ -404,7 +399,6 @@ async function handleProjectContextMove(projectPath: string, offset: -1 | 1): Pr
 	applyProjectOrder(projectPath, orderedPaths);
 	await focusProjectContextTrigger(projectPath);
 }
-
 </script>
 
 {#snippet projectOverflowMenu(group, projectIndex)}
@@ -446,14 +440,16 @@ async function handleProjectContextMove(projectPath: string, offset: -1 | 1): Pr
 		onkeydown={(e) => e.stopPropagation()}
 	>
 		{#if shouldShowProjectCreateButton()}
-			<button
-				type="button"
-				class={projectHeaderHoverActionButtonClass}
+			<Button
+				variant="ghost"
+				size="icon-sm"
 				onclick={(event) => handleProjectCreateButtonClick(event, group.projectPath)}
 				aria-label={getProjectCreateButtonAriaLabel(group.projectName)}
 			>
-				<PlusIcon />
-			</button>
+				{#snippet children()}
+					<PlusIcon />
+				{/snippet}
+			</Button>
 		{/if}
 		{@render projectOverflowMenu(group, projectIndex)}
 	</div>

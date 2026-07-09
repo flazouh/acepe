@@ -52,7 +52,7 @@ function downloadAsMarkdown() {
 		<CopyButton text={plan.content} variant="embedded" stopPropagation={true} />
 		<Button
 			variant="ghost"
-			size="icon-chrome"
+			size="icon"
 			data-header-control
 			title="Download"
 			aria-label="Download"

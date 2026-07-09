@@ -3,8 +3,9 @@
    * SqlStudioSidebar — Connections list + schema tree sidebar.
    * Matches the git panel's dense, monospace design language.
    */
-  import { CaretRight, Table as TableIcon, Trash, Key } from "phosphor-svelte";
   import PlusIcon from "../icons/plus-icon.svelte";
+  import { RoundedIcon } from "../icons/index.js";
+  import { PierreFileTree } from "../pierre-tree/index.js";
   import { TAG_COLORS } from "../../lib/colors.js";
   import { cn } from "../../lib/utils.js";
   import type { SqlConnection, SqlSchemaInfo } from "./types.js";
@@ -171,86 +172,20 @@
         >
           Tables
         </span>
-        {#each schema as schemaNode (schemaNode.name)}
-          <div class="space-y-0.5">
-            <span
-              class="text-[0.5625rem] font-semibold text-muted-foreground px-2 font-mono"
-            >
-              {schemaNode.name}
-            </span>
-            {#each schemaNode.tables as tableNode (tableNode.name)}
-              {@const tableKey = `${schemaNode.name}.${tableNode.name}`}
-              {@const isExpanded = expandedTables.has(tableKey)}
-              {@const isTableSelected =
-                selectedSchemaName === schemaNode.name &&
-                selectedTableName === tableNode.name}
-              <div class="space-y-0.5">
-                <!-- svelte-ignore a11y_no_static_element_interactions -->
-                <div
-                  class={cn(
-                    "w-full flex items-center gap-1.5 px-2 py-0.5 rounded-md text-left transition-colors cursor-pointer",
-                    isTableSelected ? "bg-muted/60" : "hover:bg-muted/40",
-                  )}
-                  onclick={() => onTableSelect(schemaNode.name, tableNode.name)}
-                  onkeydown={(e) =>
-                    e.key === "Enter" &&
-                    onTableSelect(schemaNode.name, tableNode.name)}
-                >
-                  <button
-                    type="button"
-                    class="shrink-0 p-0.5 rounded hover:bg-muted/50 transition-colors"
-                    title={isExpanded ? "Collapse columns" : "Expand columns"}
-                    onclick={(e) => toggleTableExpand(tableKey, e)}
-                  >
-                    <CaretRight size={12} weight="regular"
-                      class={cn(
-                        "size-3 text-muted-foreground transition-transform duration-150",
-                        isExpanded && "rotate-90",
-                      )}
-                    />
-                  </button>
-                  <TableIcon
-                    size={12}
-                    weight="bold"
-                    class="shrink-0 text-primary"
-                  />
-                  <span class="font-mono text-[0.6875rem] truncate flex-1"
-                    >{tableNode.name}</span
-                  >
-                </div>
-
-                {#if isExpanded}
-                  <div class="ml-5 rounded-md bg-muted/10 p-1.5 space-y-0.5">
-                    {#each tableNode.columns as column (column.name)}
-                      <div class="flex items-center justify-between gap-2 px-1">
-                        <span
-                          class={cn(
-                            "font-mono text-[0.625rem] truncate",
-                            column.isPrimaryKey && "text-primary",
-                          )}
-                        >
-                          {#if column.isPrimaryKey}
-                            <Key
-                              size={8}
-                              weight="bold"
-                              class="inline mr-0.5 -mt-0.5"
-                            />
-                          {/if}
-                          {column.name}
-                        </span>
-                        <span
-                          class="font-mono text-[0.5625rem] uppercase text-muted-foreground shrink-0"
-                        >
-                          {column.dataType}
-                        </span>
-                      </div>
-                    {/each}
-                  </div>
-                {/if}
-              </div>
-            {/each}
-          </div>
-        {/each}
+        <div style:height={`${sqlTreeHeightPx}px`}>
+          <PierreFileTree
+            paths={sqlTreeModel.paths}
+            selectedPath={sqlTreeModel.selectedPath}
+            revealPath={sqlTreeModel.selectedPath}
+            onSelectionChange={handleSchemaTreeSelection}
+            rowDecoration={(item) => sqlTreeModel.decorationsByPath.get(item.path) ?? null}
+            flattenEmptyDirectories={false}
+            unsafeCSS={SQL_TREE_UNSAFE_CSS}
+            class="h-full bg-transparent"
+            testId="sql-studio-schema-tree"
+            ariaLabel="SQL schema tree"
+          />
+        </div>
       </div>
     {/if}
 

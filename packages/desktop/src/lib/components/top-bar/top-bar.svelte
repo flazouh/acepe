@@ -218,47 +218,6 @@ onMount(() => {
 	showSearch={false}
 	showRightSectionLeadingBorder={panelStore.viewMode !== "kanban"}
 >
-	{#snippet extraLeftActions()}
-		{#if updaterState?.kind === "available"}
-			<div class="flex items-center pl-2">
-			<Button variant="default" size="2xs" onclick={onUpdateClick}>
-				{#snippet children()}
-					Update
-				{/snippet}
-			</Button>
-			</div>
-		{:else if updaterState?.kind === "downloading" || updaterState?.kind === "installing"}
-			<div class="flex items-center pl-2">
-			<Button variant="default" size="2xs" disabled>
-				{#snippet children()}
-					<div class="flex items-center gap-2">
-						<span>{updateActionText}</span>
-						<div class="w-[52px]">
-							<SegmentedProgressBar
-								ariaLabel={updaterState?.kind === "installing"
-									? "Installing update..."
-									: "Downloading update"}
-								label=""
-								percent={updateDownloadPercent}
-								segmentCount={UPDATE_BUTTON_SEGMENT_COUNT}
-								showPercent={false}
-								variant="downloadCompact"
-							/>
-						</div>
-					</div>
-					{/snippet}
-				</Button>
-			</div>
-		{:else if updaterState?.kind === "error"}
-			<div class="flex items-center pl-2">
-				<Button variant="default" size="2xs" onclick={onRetryUpdateClick}>
-					{#snippet children()}
-						Retry
-					{/snippet}
-				</Button>
-			</div>
-		{/if}
-	{/snippet}
 	{#snippet extraRightActions()}
 		{#snippet layoutControl()}
 			<Selector
@@ -270,7 +229,7 @@ onMount(() => {
 				triggerAriaLabel="Layout Settings"
 			>
 				{#snippet renderButton()}
-					<SlidersHorizontal class="size-4" weight="fill" />
+					<RoundedIcon name="filter" />
 				{/snippet}
 
 				<DropdownMenu.Group>
@@ -379,12 +338,12 @@ onMount(() => {
 					<Button
 						{...props}
 						variant="ghost"
-						size="icon-chrome"
+						size="icon"
 						aria-label="Feedback"
 						onclick={() => openUrl("https://github.com/flazouh/acepe/issues")}
 					>
 						{#snippet children()}
-							<Bug weight="fill" class="size-4" style="color: #FF5D5A" />
+							<RoundedIcon name="bug" style="color: #FF5D5A" />
 						{/snippet}
 					</Button>
 				{/snippet}
@@ -401,7 +360,7 @@ onMount(() => {
 				triggerAriaLabel="Dev Tools"
 			>
 				{#snippet renderButton()}
-					<Wrench class="size-4" weight="fill" style="color: #FAD83C" />
+					<WrenchIcon weight="fill" style="color: #FAD83C" />
 				{/snippet}
 
 				<DropdownMenu.Group>
@@ -453,12 +412,12 @@ onMount(() => {
 					<Button
 						{...props}
 						variant="ghost"
-						size="icon-chrome"
+						size="icon"
 						aria-label="Database Manager"
 						onclick={() => viewState.toggleSqlStudio()}
 					>
 						{#snippet children()}
-							<HardDrives weight="fill" class="size-4" />
+							<StorageIcon weight="fill" />
 						{/snippet}
 					</Button>
 				{/snippet}

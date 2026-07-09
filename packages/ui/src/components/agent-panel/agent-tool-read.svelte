@@ -144,7 +144,7 @@
 				aria-label={isExpanded ? ariaCollapseSource : ariaExpandSource}
 				aria-expanded={isExpanded}
 			>
-				<CaretDown size={12} weight="regular" class="size-3 shrink-0 transition-transform duration-150 {isExpanded ? '' : '-rotate-90'}"
+				<RoundedIcon name="chevron-down" class="size-3 shrink-0 transition-transform duration-150 {isExpanded ? '' : '-rotate-90'}"
 				/>
 			</button>
 		{/if}

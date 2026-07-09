@@ -1,18 +1,6 @@
 import type { Component } from "svelte";
-import {
-	Archive,
-	ChartLine,
-	ChatCircle,
-	FolderSimple,
-	GearFine,
-	GitBranch,
-	Keyboard,
-	Palette,
-	Plugs,
-	PuzzlePiece,
-	Robot,
-	Tree,
-} from "phosphor-svelte";
+import { PaletteIcon, RobotIcon } from "@acepe/ui";
+import type { RoundedIconName } from "@acepe/ui/icons";
 
 import type { SettingsSectionId } from "./settings-types.js";
 
@@ -75,7 +63,7 @@ export const SETTINGS_SECTIONS: readonly SettingsSectionDefinition[] = [
 		id: "chat",
 		label: "Chat",
 		description: "Composer and transcript behavior.",
-		icon: ChatCircle,
+		roundedIcon: "chat",
 		groupId: "agents",
 	},
 	{

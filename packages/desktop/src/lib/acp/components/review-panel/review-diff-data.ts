@@ -167,6 +167,7 @@ interface SelectReviewDiffDataOptions {
 	preferFetchedDiff?: boolean;
 	fetchedDiffSettled?: boolean;
 	file?: ModifiedFileEntry;
+	reconstructedDiffData?: ReviewDiffData | null;
 }
 
 export function selectReviewDiffData(
@@ -188,6 +189,10 @@ export function selectReviewDiffData(
 
 	if (hasDiffHunks(usableFetchedDiff)) {
 		return usableFetchedDiff;
+	}
+
+	if (hasDiffHunks(options.reconstructedDiffData ?? null)) {
+		return options.reconstructedDiffData ?? null;
 	}
 
 	if (hasDiffHunks(usableEmbeddedDiff)) {

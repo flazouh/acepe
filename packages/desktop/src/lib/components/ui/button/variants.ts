@@ -16,17 +16,17 @@ export const buttonVariants = tv({
 			link: "text-primary underline-offset-4 hover:underline",
 		},
 		size: {
-			default: "h-8 gap-1.5 rounded-md px-3 has-[>svg]:px-2.5",
-			xs: "h-6 gap-1 rounded-md px-2 text-xs has-[>svg]:px-1.5 [&_svg:not([class*='size-'])]:size-3",
-			sm: "h-7 gap-1 rounded-md px-2.5 text-xs has-[>svg]:px-2",
-			lg: "h-9 rounded-md px-4 has-[>svg]:px-3",
-			icon: "size-8",
-			"icon-xs": "size-6 rounded-md [&_svg:not([class*='size-'])]:size-3",
-			"icon-2xs": "size-5 gap-0 p-0 has-[>svg]:p-0 [&_svg:not([class*='size-'])]:size-3.5",
-			"icon-chrome": "size-6 gap-0 p-0 has-[>svg]:p-0 [&_svg:not([class*='size-'])]:size-4",
-			"icon-sm": "size-7",
-			"icon-sm-narrow": "h-7 w-6 min-w-0 shrink-0 gap-0 p-0 has-[>svg]:p-0",
-			"icon-lg": "size-9",
+			default: "h-8 gap-1.5 rounded-md px-3 has-[>svg]:px-2.5 [&_svg]:size-4 [&_img]:size-4",
+			xs: "h-6 gap-1 rounded-md px-2 text-xs has-[>svg]:px-1.5 [&_svg]:size-3 [&_img]:size-3",
+			sm: "h-7 gap-1 rounded-md px-2.5 text-xs leading-none font-normal has-[>svg]:px-2 [&_svg]:size-3.5 [&_svg]:shrink-0 [&_img]:size-3.5 [&_img]:shrink-0",
+			lg: "h-9 rounded-md px-4 has-[>svg]:px-3 [&_svg]:size-4 [&_img]:size-4",
+			"icon-sm":
+				"size-5 gap-0 p-0 has-[>svg]:p-0 [&_svg]:size-3.5 [&_svg]:shrink-0 [&_img]:size-3.5 [&_img]:shrink-0",
+			icon: "size-6 gap-0 p-0 has-[>svg]:p-0 [&_svg]:!size-4 [&_img]:!size-4",
+			"icon-md": "size-7 gap-0 p-0 has-[>svg]:p-0 [&_svg]:size-4",
+			"icon-sm-narrow":
+				"h-7 w-6 min-w-0 shrink-0 gap-0 p-0 has-[>svg]:p-0 [&_svg]:size-3.5 [&_svg]:shrink-0 [&_img]:size-3.5 [&_img]:shrink-0",
+			"icon-lg": "size-8 gap-0 p-0 has-[>svg]:p-0 [&_svg]:size-4",
 		},
 	},
 	defaultVariants: {

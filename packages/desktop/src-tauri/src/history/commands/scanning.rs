@@ -1,4 +1,4 @@
-use crate::commands::observability::{CommandResult, unexpected_command_result};
+use crate::commands::observability::{unexpected_command_result, CommandResult};
 use crate::db::repository::SessionMetadataRow;
 use std::cmp::Reverse;
 use std::collections::HashSet;
@@ -1229,12 +1229,10 @@ mod tests {
             .duration_since(std::time::SystemTime::UNIX_EPOCH)
             .unwrap()
             .as_secs() as i64;
-        assert!(
-            placeholder_reconcile_negative_cache()
-                .lock()
-                .unwrap()
-                .contains(&(id.to_string(), mtime, size))
-        );
+        assert!(placeholder_reconcile_negative_cache()
+            .lock()
+            .unwrap()
+            .contains(&(id.to_string(), mtime, size)));
 
         // Second call with same (mtime,size) is a cache hit ⇒ still None, row unchanged.
         let second = reconcile_placeholder_row(&db, &row).await.expect("ok");

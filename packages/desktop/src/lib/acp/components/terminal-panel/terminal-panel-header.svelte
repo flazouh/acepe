@@ -11,7 +11,6 @@ import {
 	RoundedIcon,
 } from "@acepe/ui";
 import { PlusIcon } from "@acepe/ui";
-import { IconTerminal } from "@tabler/icons-svelte";
 import type { TerminalTab } from "$lib/acp/store/types.js";
 import {
 	canShowCloseTerminalTabAction,
@@ -235,7 +234,7 @@ function handleFullscreenToggle() {
 		{#if onNewTab}
 			<Button
 				variant="ghost"
-				size="icon-chrome"
+				size="icon"
 				data-header-control
 				title={NEW_TAB_LABEL}
 				aria-label={NEW_TAB_LABEL}

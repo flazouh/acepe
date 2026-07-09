@@ -7,7 +7,7 @@
 	import type { Snippet } from "svelte";
 
 	import { ButtonGroup } from "../button-group/index.js";
-	import { COMPOSER_FUSED_GROUP_LEADING_SEGMENT_CLASS } from "../agent-panel/agent-input-chip-classes.js";
+	import { buttonVariants } from "../button/variants.js";
 	import { cn } from "../../lib/utils.js";
 
 	interface Props {
@@ -27,7 +27,7 @@
 
 <ButtonGroup class={className}>
 	{#if leading}
-		<div data-slot="button" class={COMPOSER_FUSED_GROUP_LEADING_SEGMENT_CLASS}>
+		<div data-slot="button" class={cn(leadingSegmentClass)}>
 			{@render leading()}
 		</div>
 	{/if}

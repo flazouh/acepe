@@ -5,21 +5,16 @@
 -->
 <script lang="ts">
 	import type { Snippet } from "svelte";
-	import { Heart } from "phosphor-svelte";
 
 	import { Colors } from "../../lib/colors.js";
 	import { Selector, SelectorItem } from "../selector/index.js";
-	import {
-		SETUP_CHIP_ICON_CLASS,
-		SETUP_CHIP_ICON_SIZE_PX,
-		SETUP_CHIP_LABEL_TEXT_CLASS,
-	} from "./agent-input-chip-classes.js";
+	import { BUTTON_CHIP_ICON_SIZE_PX } from "../button/variants.js";
 	import type { ButtonVariant } from "../button/index.js";
-	import { cn } from "../../lib/utils.js";
 	import type {
 		AgentInputAgentSelectorIconParams,
 		AgentInputAgentSelectorItem,
 	} from "./agent-input-agent-selector-types.js";
+	import DefaultAgentHeartIcon from "./default-agent-heart-icon.svelte";
 
 	export type { AgentInputAgentSelectorItem } from "./agent-input-agent-selector-types.js";
 
@@ -87,8 +82,8 @@
 
 	const effectiveTriggerSize = $derived(showLabel ? "setupBarChip" : "default");
 	const effectiveShowChevron = $derived(showLabel ? false : showChevron);
-	const setupChipIconClass = $derived(showLabel ? SETUP_CHIP_ICON_CLASS : "h-4 w-4 shrink-0");
-	const setupChipIconSize = $derived(showLabel ? SETUP_CHIP_ICON_SIZE_PX : 16);
+	const setupChipIconClass = $derived(showLabel ? "shrink-0" : "h-4 w-4 shrink-0");
+	const setupChipIconSize = $derived(showLabel ? BUTTON_CHIP_ICON_SIZE_PX : 16);
 </script>
 
 <Selector
@@ -117,7 +112,7 @@
 				size: setupChipIconSize,
 			})}
 			{#if showLabel}
-				<span class={cn("whitespace-nowrap", SETUP_CHIP_LABEL_TEXT_CLASS)}>
+				<span class="whitespace-nowrap">
 					{capitalizeName(displayAgent.name)}
 				</span>
 			{/if}
@@ -161,9 +156,9 @@
 								: `Set ${agent.name} as default agent`}
 						>
 							{#if agent.id === defaultAgentId}
-								<Heart size={14} weight="fill" color={Colors.red} />
+								<DefaultAgentHeartIcon filled={true} />
 							{:else}
-								<Heart size={14} weight="regular" />
+								<DefaultAgentHeartIcon />
 							{/if}
 						</button>
 					{/if}

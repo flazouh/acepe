@@ -32,14 +32,6 @@
 	}: Props = $props();
 
 	const hasContextUsage = $derived(percent !== null);
-
-	// Ring geometry — intentionally denser than icon-chrome controls.
-	const RING_PX = 14;
-	const STROKE = 1.5;
-	// Inset radius so stroke + round caps fit inside RING_PX without bleeding past the SVG box.
-	const R = $derived(RING_PX / 2 - STROKE);
-	const CENTER = $derived(RING_PX / 2);
-	const CIRC = $derived(2 * Math.PI * R);
 	const pct = $derived(Math.min(100, Math.max(0, percent ?? 0)));
 
 	// Fuel-gauge geometry — a vertical bar that fills from the bottom, mirroring

@@ -8,8 +8,8 @@ import {
 	ReviewWorkspaceFileList,
 	RoundedIcon,
 } from "@acepe/ui";
-import { CaretLeft } from "phosphor-svelte";
-import { SvelteMap } from "svelte/reactivity";
+import { SvelteSet } from "svelte/reactivity";
+import { toast } from "svelte-sonner";
 import { Skeleton } from "$lib/components/ui/skeleton/index.js";
 import { tauriClient } from "$lib/utils/tauri-client.js";
 import { createReviewFileRevisionKey } from "../../review/review-file-revision.js";
@@ -148,14 +148,14 @@ function handlePointerUp() {
 		<HeaderActionCell withDivider={false}>
 			<Button
 				variant="ghost"
-				size="icon-chrome"
+				size="icon"
 				data-header-control
 				onclick={onClose}
 				title="Back"
 				aria-label="Back"
 			>
 				{#snippet children()}
-					<CaretLeft size={12} weight="regular" class="size-3 shrink-0" />
+					<RoundedIcon name="chevron-left" class="shrink-0" />
 				{/snippet}
 			</Button>
 		</HeaderActionCell>

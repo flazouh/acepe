@@ -54,7 +54,7 @@
 		}}
 	>
 		{model.reviewedCount}/{model.totalCount}
-		<CaretDown size={12} weight="regular" class="size-3 shrink-0 transition-transform {isExpanded ? 'rotate-180' : ''}"
+		<RoundedIcon name="chevron-down" class="size-3 shrink-0 transition-transform {isExpanded ? 'rotate-180' : ''}"
 		/>
 	</Button>
 {/if}

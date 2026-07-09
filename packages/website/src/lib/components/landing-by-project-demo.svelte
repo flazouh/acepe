@@ -28,7 +28,6 @@ import {
 } from "@acepe/ui/app-layout";
 import { CloseAction, FullscreenAction, OverflowMenuTriggerAction } from "@acepe/ui/panel-header";
 import { ProjectCard } from "@acepe/ui/project-card";
-import { Browser, CaretDown, DotsThreeVertical, Terminal } from "phosphor-svelte";
 import { PlusIcon } from "@acepe/ui";
 import type { AgentPanelSceneModel } from "@acepe/ui";
 
@@ -655,16 +654,22 @@ const favoriteModels = $derived(modelGroups.flatMap((g) => g.items.filter((i) =>
 														{/snippet}
 													</Button>
 												</div>
-												<button type="button" aria-label="Collapse project" class="flex items-center justify-center size-5 shrink-0 rounded text-muted-foreground">
-													<CaretDown size={12} weight="regular" class="size-3 shrink-0" />
-												</button>
+												<Button variant="ghost" size="icon" aria-label="Collapse project" class="shrink-0">
+													{#snippet children()}
+														<RoundedIcon name="chevron-down" class="shrink-0" />
+													{/snippet}
+												</Button>
 												<div class="flex items-center gap-0.5">
-													<button type="button" aria-label="Project menu" class="flex items-center justify-center size-5 min-w-0 shrink-0 rounded text-muted-foreground">
-														<DotsThreeVertical class="h-3.5 w-3.5" weight="bold" />
-													</button>
-													<button type="button" aria-label="New session" class="flex items-center justify-center size-5 rounded text-muted-foreground">
-														<PlusIcon />
-													</button>
+													<Button variant="ghost" size="icon" aria-label="Project menu" class="min-w-0 shrink-0">
+														{#snippet children()}
+															<RoundedIcon name="more" />
+														{/snippet}
+													</Button>
+													<Button variant="ghost" size="icon" aria-label="New session">
+														{#snippet children()}
+															<PlusIcon />
+														{/snippet}
+													</Button>
 												</div>
 											</div>
 										{/snippet}

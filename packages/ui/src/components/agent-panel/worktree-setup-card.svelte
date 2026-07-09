@@ -1,5 +1,4 @@
 <script lang="ts">
-	import { CaretDown } from "phosphor-svelte";
 	import type { Snippet } from "svelte";
 
 	import { LoadingIcon, RoundedIcon } from "../icons/index.js";
@@ -80,7 +79,7 @@
 						{progressLabel}
 					</span>
 				{/if}
-				<CaretDown size={12} weight="regular" class="size-3 shrink-0 text-muted-foreground transition-transform duration-200 {isExpanded ? 'rotate-180' : ''}"
+				<RoundedIcon name="chevron-down" class="size-3 shrink-0 text-muted-foreground transition-transform duration-200 {isExpanded ? 'rotate-180' : ''}"
 				/>
 			</div>
 		</div>

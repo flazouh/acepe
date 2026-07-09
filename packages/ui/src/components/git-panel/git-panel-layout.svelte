@@ -5,9 +5,6 @@
 	 * All data-driven via props, no Tauri coupling.
 	 */
 	import type { Snippet } from "svelte";
-	import { GitDiff } from "phosphor-svelte";
-	import { ClockCounterClockwise } from "phosphor-svelte";
-	import { Package } from "phosphor-svelte";
 
 	import { cn } from "../../lib/utils.js";
 	import type { GitStatusFile, GitStashEntry, GitLogEntry, GitLogEntryFile, GitRemoteStatus } from "./types.js";

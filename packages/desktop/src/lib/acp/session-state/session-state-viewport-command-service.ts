@@ -89,3 +89,17 @@ export function requestTranscriptViewportBuffer(input: {
 		requestGeneration: input.requestGeneration ?? null,
 	});
 }
+
+export function readTranscriptRowPage(input: {
+	readonly sessionId: string;
+	readonly startRowIndex: number;
+	readonly limit: number;
+	readonly expectedRevision: SessionGraphRevision | ViewportCommandRevisionInput;
+}): ReturnType<typeof invokeAsync<TranscriptRowPageResult>> {
+	return invokeAsync<TranscriptRowPageWireResult>("acp_read_transcript_row_page", {
+		sessionId: input.sessionId,
+		startRowIndex: input.startRowIndex,
+		limit: input.limit,
+		expectedRevision: commandRevisionFrom(input.expectedRevision),
+	}).map(transcriptRowPageResultFromWire);
+}

@@ -41,9 +41,9 @@ const nodeState = $derived.by(() => {
 			>
 				<span class="inline-flex w-4 shrink-0 items-center justify-center text-muted-foreground/80" aria-hidden="true">
 					{#if isExpanded}
-						<CaretDown size={12} weight="regular" class="size-3 shrink-0" />
+						<RoundedIcon name="chevron-down" class="size-3 shrink-0" />
 					{:else}
-						<CaretRight size={12} weight="regular" class="size-3 shrink-0" />
+						<RoundedIcon name="chevron-right" class="size-3 shrink-0" />
 					{/if}
 				</span>
 				<span class="structured-type-icon" aria-hidden="true">

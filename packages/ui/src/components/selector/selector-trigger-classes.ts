@@ -1,4 +1,5 @@
 import { cn } from "../../lib/utils.js";
+import { BUTTON_CHIP_CHILD_ICON_SELECTOR } from "../button/variants.js";
 import type { ButtonSize, ButtonVariant } from "../button/variants.js";
 
 export type SelectorTriggerSize =
@@ -46,11 +47,12 @@ export function getSelectorTriggerButtonVariant(triggerSize: SelectorTriggerSize
 	case "chromeIcon":
 	case "chromeIconMd":
 	case "icon":
+	case "iconSm":
 	case "attach":
 	case "square":
 		return "ghost";
 	case "headerAction":
-		return "headerAction";
+		return "secondary";
 	case "pill":
 	case "minimal":
 	case "footer":
@@ -68,20 +70,23 @@ export function getSelectorTriggerButtonSize(triggerSize: SelectorTriggerSize): 
 	if (resolved === "composerChipIcon") {
 		return "icon-sm";
 	}
+	if (resolved === "iconSm") {
+		return "icon-sm";
+	}
 	if (isFusedComposerChipTriggerSize(resolved)) {
 		return "sm";
 	}
 	if (resolved === "chromeIconMd") {
-		return "icon-chrome";
+		return "icon";
 	}
 	if (resolved === "chromeIcon") {
-		return "icon-chrome";
+		return "icon";
 	}
 	if (resolved === "icon" || resolved === "attach" || resolved === "square") {
-		return "icon-2xs";
+		return "icon";
 	}
 	if (resolved === "headerAction") {
-		return "headerAction";
+		return "xs";
 	}
 	return "sm";
 }
@@ -124,14 +129,14 @@ export function getSelectorTriggerButtonSizeForContext(input: {
 	return getSelectorTriggerButtonPropsForContext(input).size;
 }
 
-const CHIP_TRIGGER_CHILD_SVG_CLASS =
-	"[&_svg:not([class*='size-'])]:size-3.5 [&_svg]:shrink-0 [&_img]:size-3.5 [&_img]:shrink-0";
+const CHIP_TRIGGER_CHILD_SVG_CLASS = BUTTON_CHIP_CHILD_ICON_SELECTOR;
 
 export function getSelectorTriggerSizeClass(triggerSize: SelectorTriggerSize): string {
 	switch (resolveSelectorTriggerSize(triggerSize)) {
 	case "chromeIcon":
 	case "chromeIconMd":
 	case "icon":
+	case "iconSm":
 	case "attach":
 	case "square":
 		return "[&_svg]:block";
@@ -144,9 +149,8 @@ export function getSelectorTriggerSizeClass(triggerSize: SelectorTriggerSize): s
 	case "setupBarChip":
 	case "setupBarChipGrouped":
 	case "composerChipLabel":
-		return CHIP_TRIGGER_CHILD_SVG_CLASS;
 	case "composerChipIcon":
-		return "";
+		return CHIP_TRIGGER_CHILD_SVG_CLASS;
 	case "headerAction":
 		return "";
 	default:

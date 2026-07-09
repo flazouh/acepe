@@ -1,5 +1,5 @@
 <script lang="ts">
-import { CaretDown } from "phosphor-svelte";
+import { RoundedIcon } from "@acepe/ui";
 import { Button } from "$lib/components/ui/button/index.js";
 import * as Tooltip from "@acepe/ui/tooltip";
 
@@ -70,7 +70,7 @@ function handleKeydown(e: KeyboardEvent) {
 							{/if}
 						</span>
 						{#if optionView.isSelected}
-							<CaretDown size={12} weight="regular" class="size-3 shrink-0 ml-2" />
+							<RoundedIcon name="chevron-down" class="size-3 shrink-0 ml-2" />
 						{/if}
 					</Button>
 				</Tooltip.Trigger>

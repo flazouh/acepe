@@ -72,17 +72,6 @@ function setThemeValue(value: Theme) {
 let theme = $state<Theme>(defaultThemeProp);
 
 onMount(() => {
-	void loadingIndicatorSettingsStore.initialize();
-	void fontSizeSettingsStore.initialize();
-
-	// Load stored theme from database (async, but fire-and-forget for initial load)
-	loadStoredTheme().then((storedTheme) => {
-		if (storedTheme !== null) {
-			theme = storedTheme;
-		}
-		applyTheme(theme);
-	});
-
 	// Apply default theme immediately (will be overridden if DB has different value)
 	applyTheme(theme);
 

@@ -126,9 +126,7 @@ fn generate_name() -> String {
 #[cfg(test)]
 fn is_adjective_noun_name(name: &str) -> bool {
     let parts: Vec<&str> = name.split('-').collect();
-    parts.len() == 2
-        && ADJECTIVES.contains(&parts[0])
-        && NOUNS.contains(&parts[1])
+    parts.len() == 2 && ADJECTIVES.contains(&parts[0]) && NOUNS.contains(&parts[1])
 }
 
 fn worktree_branch_name(name: &str) -> String {

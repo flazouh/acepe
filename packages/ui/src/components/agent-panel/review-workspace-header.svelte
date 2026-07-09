@@ -67,7 +67,7 @@
 				onclick={() => onClose?.()}
 				data-testid="review-workspace-close"
 			>
-				<CaretLeft size={12} weight="regular" class="size-3 shrink-0" />
+				<RoundedIcon name="chevron-left" class="size-3 shrink-0" />
 				{closeButtonLabel}
 			</Button>
 		</div>
@@ -81,17 +81,13 @@
 				</div>
 			{/if}
 
-			<Button
-				variant="headerAction"
-				size="headerAction"
-				disabled={!hasPreviousFile}
-				onclick={() => onPreviousFile?.()}
-				aria-label="Previous file"
-				title="Previous file"
-				data-testid="review-workspace-previous-file"
-			>
-				<CaretLeft size={12} weight="regular"  class="size-3"/>
-			</Button>
+			{#if showFileNavigation}
+				<span
+					class="px-1 text-xs tabular-nums text-muted-foreground"
+					data-testid="review-workspace-file-position"
+				>
+					{filePositionLabel}
+				</span>
 
 				<Button
 					variant="secondary"

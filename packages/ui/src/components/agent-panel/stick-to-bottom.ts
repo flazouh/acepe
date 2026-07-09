@@ -125,13 +125,25 @@ export function onContentChange(
 /**
  * On send: anchor the just-sent user row near the top (with a peek of the
  * previous turn) but keep follow engaged, so the streaming reply grows into view
- * and is followed rather than stranded below the fold.
+ * and is followed rather than stranded below the fold. The effects layer makes
+ * that anchor position become the live edge by adding a temporary bottom spacer,
+ * so follow and the requested anchor agree on the same scrollTop.
  */
-export function onSend(_state: StickState, rowId: string, peekPx: number): StickTransition {
+export function onSend(_state: StickState, _rowId: string, _peekPx: number): StickTransition {
 	return {
 		state: initialStickState,
-		action: { kind: "anchorRowNearTop", rowId, peekPx },
+		action: { kind: "toBottom" },
 	};
+}
+
+export function computeSendAnchorSpacerPx(input: {
+	readonly viewportHeightPx: number;
+	readonly contentHeightWithoutSpacerPx: number;
+	readonly rowTopPx: number;
+	readonly peekPx: number;
+}): number {
+	const contentBelowSentRowTopPx = input.contentHeightWithoutSpacerPx - input.rowTopPx;
+	return Math.max(0, input.viewportHeightPx - input.peekPx - contentBelowSentRowTopPx);
 }
 
 /**

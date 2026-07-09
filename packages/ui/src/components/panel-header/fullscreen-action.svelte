@@ -26,7 +26,7 @@
 
 <Button
 	variant="ghost"
-	size="icon-chrome"
+	{size}
 	data-header-control
 	onclick={() => onToggle?.()}
 	{title}

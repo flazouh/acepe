@@ -4,18 +4,11 @@
   Accepts a normalized config option shape; desktop derives AgentInputConfigOption from session state.
 -->
 <script lang="ts">
-	import { Lightning, ShieldCheck } from "phosphor-svelte";
-
 	import { Selector } from "../selector/index.js";
 	import { RoundedIcon } from "../icons/index.js";
 	import type { SelectorTriggerSize } from "../selector/selector-trigger-classes.js";
 	import { getSelectorTriggerButtonVariant } from "../selector/selector-trigger-classes.js";
 	import { Button } from "../button/index.js";
-	import { COMPOSER_CHIP_ICON_CLASS } from "./agent-input-chip-classes.js";
-	import { cn } from "../../lib/utils.js";
-	import * as Tooltip from "../tooltip/index.js";
-	import AgentInputReasoningEffortTrigger from "./agent-input-reasoning-effort-trigger.svelte";
-	import { SelectorItem } from "../selector/index.js";
 	import {
 		getConfigOptionNextBooleanValue,
 		getConfigOptionResolvedTriggerSize,
@@ -78,13 +71,13 @@
 
 {#snippet configOptionIcon()}
 	{#if viewState.iconKind === "fast"}
-		<Lightning
-			class={cn(COMPOSER_CHIP_ICON_CLASS, viewState.iconClass)}
-			weight={viewState.iconWeight}
+		<RoundedIcon
+			name="lightning"
+			class={viewState.iconClass}
 			style={viewState.iconStyle}
 		/>
 	{:else}
-		<ShieldCheck class={COMPOSER_CHIP_ICON_CLASS} weight="fill" style="color: {viewState.iconColor}" />
+		<RoundedIcon name="shield-check" style="color: {viewState.iconColor}" />
 	{/if}
 {/snippet}
 
@@ -119,18 +112,18 @@
 			{#snippet child({ props })}
 				<Button
 					{...props}
-					variant="ghost"
-					size="icon-sm"
-					active={viewState.isBooleanEnabled}
+					variant="secondary"
+					size="icon-md"
 					title={viewState.buttonTitle}
 					aria-label={viewState.buttonTitle}
+					data-testid="agent-input-fast-mode-button"
 					{disabled}
 					aria-pressed={viewState.isBooleanEnabled}
 					onclick={handleBooleanToggle}
 				>
-					<Lightning
-						class={cn(COMPOSER_CHIP_ICON_CLASS, viewState.iconClass)}
-						weight={viewState.iconWeight}
+					<RoundedIcon
+						name="lightning"
+						class={viewState.iconClass}
 						style={viewState.iconStyle}
 					/>
 				</Button>

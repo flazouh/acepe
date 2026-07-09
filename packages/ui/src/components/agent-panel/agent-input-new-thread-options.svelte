@@ -13,7 +13,6 @@
 	import { ButtonGroup } from "../button-group/index.js";
 	import { buttonVariants } from "../button/variants.js";
 	import { Selector } from "../selector/index.js";
-	import { SETUP_CHIP_LABEL_TEXT_CLASS } from "./agent-input-chip-classes.js";
 	import { Switch } from "../switch/index.js";
 	import * as Tooltip from "../tooltip/index.js";
 	import { cn } from "../../lib/utils.js";
@@ -111,7 +110,7 @@
 									></span>
 								{/if}
 							</span>
-							<span class={SETUP_CHIP_LABEL_TEXT_CLASS}>{worktreeLabel}</span>
+							<span>{worktreeLabel}</span>
 						</button>
 					{/snippet}
 				</Tooltip.Trigger>

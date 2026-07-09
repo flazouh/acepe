@@ -20,6 +20,8 @@ export {
 	resolveOptimisticHeaderTitle,
 	shouldShowClaudeWorkingSpark,
 } from "./pre-session-optimistic-identity.js";
+export { shouldShowNewThreadSetupContext } from "./new-thread-setup-context.js";
+export { resolvePlanningPlaceholderPresentation } from "./planning-placeholder-presentation.js";
 export {
 	deriveCanonicalAgentPanelSessionState,
 	mapCanonicalSessionToPanelStatus,

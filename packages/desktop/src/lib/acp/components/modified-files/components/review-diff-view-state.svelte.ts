@@ -18,7 +18,16 @@ import { getWorkerPool } from "../../../utils/worker-pool-singleton.js";
  * Diff view style options.
  */
 export type DiffViewStyle = "split" | "unified";
-export type ReviewDiffDensity = "default" | "compact" | "comfortable";
+export type ReviewDiffDensity = "default" | "compact";
+export type ReviewDiffIndicatorStyle = "bars" | "classic" | "none";
+export type ReviewDiffLineChangeStyle = "none" | "word" | "character";
+export type ReviewDiffOptions = {
+	readonly indicatorStyle: ReviewDiffIndicatorStyle;
+	readonly lineChangeStyle: ReviewDiffLineChangeStyle;
+	readonly showBackgrounds: boolean;
+	readonly wrapLines: boolean;
+	readonly showLineNumbers: boolean;
+};
 
 export const DEFAULT_REVIEW_DIFF_OPTIONS: ReviewDiffOptions = {
 	indicatorStyle: "bars",
@@ -36,27 +45,13 @@ const compactReviewDiffUnsafeCSS = `
 }
 `;
 
-// Comfortable density: the review modal's diff respects the global Code font
-// size setting (--code-font-size, default 13px; set on :root and inherited
-// through the shadow boundary) instead of a hardcoded size. Also drops the
-// diff's own opaque panel background so the code viewer is flush with the modal
-// surface (the green/red per-line change tints are unaffected).
-const comfortableReviewDiffUnsafeCSS = `
-[data-code] {
-  font-size: var(--code-font-size, 0.8125rem);
-  line-height: 1.5;
-  background-color: transparent !important;
-}
+const REVIEW_DIFF_EXPAND_ALL_LINE_COUNT = Number.MAX_SAFE_INTEGER;
+type ReviewLineAnnotation = never;
 
-[data-diff], [data-file] {
-  background-color: transparent !important;
-}
-`;
-
-function resolveReviewDiffUnsafeCSS(density: ReviewDiffDensity): string {
-	if (density === "compact") return compactReviewDiffUnsafeCSS;
-	if (density === "comfortable") return comfortableReviewDiffUnsafeCSS;
-	return "";
+function resolvePierreLineDiffType(lineChangeStyle: ReviewDiffLineChangeStyle): LineDiffTypes {
+	if (lineChangeStyle === "none") return "none";
+	if (lineChangeStyle === "character") return "char";
+	return "word-alt";
 }
 
 function resolveReviewDiffOptionOverrides(
@@ -258,46 +253,7 @@ export class ReviewDiffViewState {
 	private initGeneration = 0;
 
 	/**
-	 * Callback for hunk accept/reject actions.
-	 */
-	private onHunkAction: HunkActionCallback | null = null;
-
-	/**
-	 * Line annotations for accept/reject UI on each change hunk.
-	 */
-	private lineAnnotations: DiffLineAnnotation<AnnotationMetadata>[] = $state([]);
-
-	/**
-	 * Initial total hunk count (captured at first diff load).
-	 */
-	private totalHunksAtInit = 0;
-
-	/**
-	 * Count of hunks accepted (tracked for getHunkStats).
-	 */
-	private acceptedCount = 0;
-
-	/**
-	 * Count of hunks rejected (tracked for getHunkStats).
-	 */
-	private rejectedCount = 0;
-
-	/**
-	 * Index of the currently focused/active hunk for navigation.
-	 */
-	private activeHunkIndex: number | null = null;
-
-	/**
-	 * Hunks the user has kept (accepted). Keeping is a review-progress marker — it
-	 * does NOT alter the file or the rendered diff, so we leave the diff metadata
-	 * intact (the user keeps seeing the change) and merely suppress the hunk's
-	 * accept/reject annotation. Rejected hunks collapse to context via the diff
-	 * library, so they fall out of the annotation set on their own.
-	 */
-	private acceptedHunkIndices = new Set<number>();
-
-	/**
-	 * Initializes and renders the diff using @pierre/diffs.
+	 * Initializes and renders the diff (read-only) using @pierre/diffs.
 	 *
 	 * @param diffData - The diff data with pre-parsed FileDiffMetadata
 	 * @param container - The container element to render into
@@ -341,55 +297,8 @@ export class ReviewDiffViewState {
 			this.fileDiffInstance = null;
 		}
 
-		// Clean up any existing mounted header controls component
-		if (this.headerControlsComponent) {
-			unmount(this.headerControlsComponent);
-			this.headerControlsComponent = null;
-		}
+		const renderableDiffData = ensureRenderableDiffData(diffData);
 
-		let renderableDiffData = ensureRenderableDiffData(diffData);
-		const totalHunksAtInit = renderableDiffData.fileDiffMetadata.hunks.length;
-		let acceptedCountAtInit = 0;
-		let rejectedCountAtInit = 0;
-		const acceptedHunkIndicesAtInit = new Set<number>();
-
-		for (const action of initialResolvedActions) {
-			const currentMetadata = renderableDiffData.fileDiffMetadata;
-			if (action.hunkIndex < 0 || action.hunkIndex >= currentMetadata.hunks.length) {
-				continue;
-			}
-
-			// Keeping a hunk leaves the diff untouched (the user keeps seeing it) —
-			// only rejecting collapses the hunk and reverts its content.
-			if (action.action === "accept") {
-				acceptedHunkIndicesAtInit.add(action.hunkIndex);
-				acceptedCountAtInit++;
-				continue;
-			}
-
-			const updatedMetadata = diffAcceptRejectHunk(
-				currentMetadata,
-				action.hunkIndex,
-				action.action
-			);
-			const updatedNewContents = computeRevertedFileContent(
-				renderableDiffData.newFile.contents,
-				currentMetadata,
-				action.hunkIndex
-			);
-
-			renderableDiffData = ensureRenderableDiffData({
-				oldFile: renderableDiffData.oldFile,
-				newFile: Object.assign({}, renderableDiffData.newFile, {
-					contents: updatedNewContents,
-				}),
-				fileDiffMetadata: updatedMetadata,
-			});
-
-			rejectedCountAtInit++;
-		}
-
-		this.acceptedHunkIndices = acceptedHunkIndicesAtInit;
 		this.containerElement = container;
 		this.currentDiffData = renderableDiffData;
 		this.diffStyle = diffStyle;
@@ -487,381 +396,6 @@ export class ReviewDiffViewState {
 		this.themeType = newThemeType;
 		this.fileDiffInstance.setThemeType(newThemeType);
 		this.fileDiffInstance.rerender();
-	}
-
-	/**
-	 * Builds line annotations for each change hunk to show accept/reject buttons.
-	 * Prefers placing the annotation on the last addition line; falls back to the
-	 * last deletion line for deletion-only hunks.
-	 */
-	private buildLineAnnotationsFromHunks(
-		fileDiff: FileDiffMetadata
-	): DiffLineAnnotation<AnnotationMetadata>[] {
-		const compatibleMetadata = fileDiff as CompatibleFileDiffMetadata;
-		const annotations: DiffLineAnnotation<AnnotationMetadata>[] = [];
-
-		for (let hunkIndex = 0; hunkIndex < compatibleMetadata.hunks.length; hunkIndex++) {
-			const hunk = compatibleMetadata.hunks[hunkIndex];
-
-			// Skip kept hunks: the diff still renders, but no accept/reject buttons.
-			if (this.acceptedHunkIndices.has(hunkIndex)) continue;
-
-			// Skip resolved hunks (context-only after diffAcceptRejectHunk)
-			const hasChanges = hunk.hunkContent.some((c) => c.type === "change");
-			if (!hasChanges) continue;
-
-			let additionLineOffset = 0;
-			let deletionLineOffset = 0;
-			let annotationPlaced = false;
-
-			for (const content of hunk.hunkContent as CompatibleHunkContent[]) {
-				if (content.type === "context") {
-					const lineCount = getContentLineCount(content.lines);
-					additionLineOffset += lineCount;
-					deletionLineOffset += lineCount;
-				} else if (content.type === "change") {
-					const additionsCount = getContentLineCount(content.additions);
-					if (additionsCount > 0) {
-						const lastAdditionLineNumber =
-							hunk.additionStart + additionLineOffset + additionsCount - 1;
-						annotations.push({
-							side: "additions",
-							lineNumber: lastAdditionLineNumber,
-							metadata: { hunkIndex },
-						});
-						annotationPlaced = true;
-						break;
-					}
-					deletionLineOffset += getContentLineCount(content.deletions);
-				}
-			}
-
-			// Deletion-only hunk: place annotation on the last deletion line
-			if (!annotationPlaced && deletionLineOffset > 0) {
-				const lastDeletionLineNumber = hunk.deletionStart + deletionLineOffset - 1;
-				annotations.push({
-					side: "deletions",
-					lineNumber: lastDeletionLineNumber,
-					metadata: { hunkIndex },
-				});
-			}
-		}
-
-		return annotations;
-	}
-
-	/**
-	 * Creates the annotation element with Undo/Keep buttons.
-	 * Uses the DiffHunkActionButtons Svelte component for consistent styling.
-	 */
-	private createAnnotationElement(
-		annotation: DiffLineAnnotation<AnnotationMetadata>
-	): HTMLElement | undefined {
-		if (this.isDisposed) return undefined;
-
-		const container = document.createElement("div");
-		container.setAttribute("data-hunk-index", String(annotation.metadata.hunkIndex));
-		container.style.cssText = "display: flex; justify-content: flex-end;";
-
-		const componentInstance = mount(DiffHunkActionButtons, {
-			target: container,
-			props: {
-				onUndo: () => {
-					if (!this.isDisposed && this.onHunkAction && this.currentDiffData) {
-						const revertedContent = computeRevertedFileContent(
-							this.currentDiffData.newFile.contents,
-							this.currentDiffData.fileDiffMetadata,
-							annotation.metadata.hunkIndex
-						);
-						this.onHunkAction(annotation.metadata.hunkIndex, "reject", revertedContent);
-					}
-				},
-				onKeep: () => {
-					if (!this.isDisposed && this.onHunkAction && this.currentDiffData) {
-						const hunkOldContent = this.extractHunkOldContent(annotation.metadata.hunkIndex);
-						this.onHunkAction(annotation.metadata.hunkIndex, "accept", hunkOldContent);
-					}
-				},
-			},
-		});
-
-		// Track the component for cleanup
-		this.annotationComponents.push(componentInstance);
-
-		return container;
-	}
-
-	/**
-	 * Extracts the old content (deletions) from a specific hunk.
-	 * This is used when rejecting a hunk to revert only that hunk's changes.
-	 */
-	private extractHunkOldContent(hunkIndex: number): string {
-		if (!this.currentDiffData) return "";
-
-		const hunk = this.currentDiffData.fileDiffMetadata.hunks[hunkIndex];
-		if (!hunk) return "";
-
-		const deletions: string[] = [];
-		const compatibleMetadata = this.currentDiffData.fileDiffMetadata as CompatibleFileDiffMetadata;
-		for (const content of hunk.hunkContent as CompatibleHunkContent[]) {
-			if (content.type === "change") {
-				deletions.push(...getChangeDeletionLines(compatibleMetadata, content));
-			}
-		}
-
-		return deletions.join("\n");
-	}
-
-	/**
-	 * Gets the index of the first pending hunk that has an annotation (accept/reject buttons).
-	 * Returns null if no pending hunks exist.
-	 */
-	getFirstPendingHunkIndex(): number | null {
-		if (this.lineAnnotations.length === 0) {
-			return null;
-		}
-		// Return the first annotation's hunk index
-		return this.lineAnnotations[0].metadata.hunkIndex;
-	}
-
-	/**
-	 * Checks if all hunks have been accepted or rejected.
-	 * Returns true when there are no remaining pending hunks.
-	 */
-	hasNoPendingHunks(): boolean {
-		return this.lineAnnotations.length === 0;
-	}
-
-	/**
-	 * Accepts the first pending hunk via keyboard shortcut.
-	 * Returns the old content of the hunk for potential undo operations.
-	 */
-	acceptFirstPendingHunk(): { hunkIndex: number; oldContent: string } | null {
-		const hunkIndex = this.getFirstPendingHunkIndex();
-		if (hunkIndex === null || !this.onHunkAction) {
-			return null;
-		}
-
-		const oldContent = this.extractHunkOldContent(hunkIndex);
-		this.onHunkAction(hunkIndex, "accept", oldContent);
-		return { hunkIndex, oldContent };
-	}
-
-	/**
-	 * Rejects the first pending hunk via keyboard shortcut.
-	 * Returns the reverted content of the file for the revert operation.
-	 */
-	rejectFirstPendingHunk(): { hunkIndex: number; oldContent: string } | null {
-		const hunkIndex = this.getFirstPendingHunkIndex();
-		if (hunkIndex === null || !this.onHunkAction || !this.currentDiffData) {
-			return null;
-		}
-
-		const revertedContent = computeRevertedFileContent(
-			this.currentDiffData.newFile.contents,
-			this.currentDiffData.fileDiffMetadata,
-			hunkIndex
-		);
-		this.onHunkAction(hunkIndex, "reject", revertedContent);
-		return { hunkIndex, oldContent: revertedContent };
-	}
-
-	/**
-	 * Accepts the currently active/focused hunk.
-	 * Falls back to the first pending hunk if no hunk is focused.
-	 */
-	acceptActiveHunk(): { hunkIndex: number; oldContent: string } | null {
-		const hunkIndex = this.getActiveHunkIndex();
-		if (hunkIndex === null || !this.onHunkAction) {
-			return null;
-		}
-
-		const oldContent = this.extractHunkOldContent(hunkIndex);
-		this.onHunkAction(hunkIndex, "accept", oldContent);
-		return { hunkIndex, oldContent };
-	}
-
-	/**
-	 * Accepts every pending hunk in the current file.
-	 */
-	acceptAllPendingHunks(): { hunkIndex: number; oldContent: string }[] {
-		if (!this.onHunkAction) {
-			return [];
-		}
-
-		const acceptedHunks: { hunkIndex: number; oldContent: string }[] = [];
-
-		while (true) {
-			const hunkIndex = this.getFirstPendingHunkIndex();
-			if (hunkIndex === null) {
-				return acceptedHunks;
-			}
-
-			const oldContent = this.extractHunkOldContent(hunkIndex);
-			this.onHunkAction(hunkIndex, "accept", oldContent);
-			acceptedHunks.push({ hunkIndex, oldContent });
-		}
-	}
-
-	/**
-	 * Rejects the currently active/focused hunk.
-	 * Falls back to the first pending hunk if no hunk is focused.
-	 */
-	rejectActiveHunk(): { hunkIndex: number; oldContent: string } | null {
-		const hunkIndex = this.getActiveHunkIndex();
-		if (hunkIndex === null || !this.onHunkAction || !this.currentDiffData) {
-			return null;
-		}
-
-		const revertedContent = computeRevertedFileContent(
-			this.currentDiffData.newFile.contents,
-			this.currentDiffData.fileDiffMetadata,
-			hunkIndex
-		);
-		this.onHunkAction(hunkIndex, "reject", revertedContent);
-		return { hunkIndex, oldContent: revertedContent };
-	}
-
-	/**
-	 * Applies an accept or reject action to a hunk and re-renders.
-	 *
-	 * @returns The updated FileDiffMetadata after the action
-	 */
-	applyHunkAction(hunkIndex: number, action: "accept" | "reject"): FileDiffMetadata | null {
-		if (!this.currentDiffData || !this.fileDiffInstance || !this.containerElement) {
-			return null;
-		}
-
-		const currentDiffData = this.currentDiffData;
-
-		// Keep: mark the hunk reviewed but leave the diff untouched so the user
-		// keeps seeing the change. Only drop its accept/reject buttons.
-		if (action === "accept") {
-			this.acceptedHunkIndices.add(hunkIndex);
-			this.acceptedCount++;
-
-			this.cleanupAnnotationComponents();
-			this.lineAnnotations = this.onHunkAction
-				? this.buildLineAnnotationsFromHunks(currentDiffData.fileDiffMetadata)
-				: [];
-
-			this.fileDiffInstance.render({
-				fileDiff: currentDiffData.fileDiffMetadata,
-				lineAnnotations: this.lineAnnotations,
-			});
-
-			return currentDiffData.fileDiffMetadata;
-		}
-
-		const updatedMetadata = diffAcceptRejectHunk(
-			currentDiffData.fileDiffMetadata,
-			hunkIndex,
-			action
-		);
-
-		// Increment counters after the library call succeeds
-		this.rejectedCount++;
-
-		const updatedNewContents = computeRevertedFileContent(
-			currentDiffData.newFile.contents,
-			currentDiffData.fileDiffMetadata,
-			hunkIndex
-		);
-
-		const updatedDiffData = ensureRenderableDiffData({
-			oldFile: currentDiffData.oldFile,
-			newFile: Object.assign({}, currentDiffData.newFile, {
-				contents: updatedNewContents,
-			}),
-			fileDiffMetadata: updatedMetadata,
-		});
-
-		this.currentDiffData = updatedDiffData;
-
-		// Clean up existing annotation components before re-rendering
-		this.cleanupAnnotationComponents();
-
-		// Rebuild line annotations for the updated hunks
-		this.lineAnnotations = this.onHunkAction
-			? this.buildLineAnnotationsFromHunks(updatedDiffData.fileDiffMetadata)
-			: [];
-
-		// Re-render with updated metadata and annotations
-		// Don't pass containerWrapper on updates - it causes DataCloneError
-		// when using WorkerPoolManager. The container is already set.
-		this.fileDiffInstance.render({
-			fileDiff: updatedDiffData.fileDiffMetadata,
-			lineAnnotations: this.lineAnnotations,
-		});
-
-		return updatedDiffData.fileDiffMetadata;
-	}
-
-	/**
-	 * Returns indices of hunks that still have pending accept/reject.
-	 */
-	getPendingHunkIndices(): number[] {
-		return this.lineAnnotations.map((a) => a.metadata.hunkIndex);
-	}
-
-	/**
-	 * Returns the currently focused hunk index, or first pending, or null.
-	 */
-	getActiveHunkIndex(): number | null {
-		if (this.activeHunkIndex !== null) {
-			const pending = this.getPendingHunkIndices();
-			if (pending.includes(this.activeHunkIndex)) return this.activeHunkIndex;
-		}
-		return this.getFirstPendingHunkIndex();
-	}
-
-	/**
-	 * Scrolls the container to bring the given hunk into view.
-	 */
-	focusHunk(hunkIndex: number): void {
-		if (!this.containerElement) return;
-
-		const pending = this.getPendingHunkIndices();
-		if (!pending.includes(hunkIndex)) return;
-
-		this.activeHunkIndex = hunkIndex;
-		const selector = `[data-hunk-index="${hunkIndex}"]`;
-		const el = this.containerElement.querySelector(selector);
-		if (el) {
-			el.scrollIntoView({ behavior: "smooth", block: "center" });
-		} else {
-			this.containerElement.scrollTo({ top: 0, behavior: "smooth" });
-		}
-	}
-
-	/**
-	 * Focuses the next pending hunk. Returns its index or null.
-	 */
-	focusNextPendingHunk(): number | null {
-		const pending = this.getPendingHunkIndices();
-		if (pending.length === 0) return null;
-
-		const current = this.getActiveHunkIndex();
-		const idx = current === null ? -1 : pending.indexOf(current);
-		const nextIdx = idx < pending.length - 1 ? idx + 1 : 0;
-		const next = pending[nextIdx];
-		this.focusHunk(next);
-		return next;
-	}
-
-	/**
-	 * Focuses the previous pending hunk. Returns its index or null.
-	 */
-	focusPrevPendingHunk(): number | null {
-		const pending = this.getPendingHunkIndices();
-		if (pending.length === 0) return null;
-
-		const current = this.getActiveHunkIndex();
-		const idx = current === null ? pending.length : pending.indexOf(current);
-		const prevIdx = idx > 0 ? idx - 1 : pending.length - 1;
-		const prev = pending[prevIdx];
-		this.focusHunk(prev);
-		return prev;
 	}
 
 	/**

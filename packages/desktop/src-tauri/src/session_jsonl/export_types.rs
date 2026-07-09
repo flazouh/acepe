@@ -60,8 +60,9 @@ use crate::acp::transcript_projection::{
     TranscriptSegment, TranscriptSnapshot,
 };
 use crate::acp::transcript_viewport::{
-    TranscriptViewportInteractionLink, TranscriptViewportOperationLink, TranscriptViewportRow,
-    TranscriptViewportRowContent, TranscriptViewportRowKind,
+    TranscriptViewportInteractionLink, TranscriptViewportOperationDisplayFacts,
+    TranscriptViewportOperationLink, TranscriptViewportRow, TranscriptViewportRowContent,
+    TranscriptViewportRowKind,
 };
 use crate::acp::types::{CanonicalAgentId, ContentBlock, EmbeddedResource};
 use crate::checkpoint::types::FileDiffContent;

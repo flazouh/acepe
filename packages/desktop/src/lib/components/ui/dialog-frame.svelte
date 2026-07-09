@@ -1,12 +1,17 @@
 <script lang="ts">
 import * as Dialog from "@acepe/ui/dialog";
-import { RoundedIcon } from "@acepe/ui";
+import {
+	getDialogHeaderIconCloseClass,
+	RoundedIcon,
+	type HeaderIconCloseSize,
+} from "@acepe/ui";
 import type { Snippet } from "svelte";
 
-/** Mirrors Button `variant="ghost" size="icon-chrome" class="rounded-sm"` so the
- * dialog close glyph matches the other top-right chrome-icon controls. */
-const CHROME_ICON_CLOSE_CLASS =
-	"inline-flex size-6 shrink-0 items-center justify-center gap-0 rounded-sm border-0 bg-transparent p-0 text-muted-foreground/60 shadow-none transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:ring-inset [&_svg:not([class*='size-'])]:size-4";
+type DialogFrameCloseControl = Snippet<[]>;
+
+interface DialogFrameContentContext {
+	closeControl: DialogFrameCloseControl;
+}
 
 interface Props {
 	open?: boolean;
@@ -20,6 +25,8 @@ interface Props {
 	contentClass?: string;
 	contentOverflow?: "auto" | "hidden";
 	closeLabel?: string;
+	headerIconSize?: HeaderIconCloseSize;
+	showTitle?: boolean;
 	/** default = large panel; compact = settings; fullscreen = edge-to-edge window; form/medium/wide = sized forms; panel/debug = tool surfaces; palette* = command palettes; bare = chromeless overlay. */
 	size?:
 		| "default"
@@ -163,13 +170,14 @@ function handleOpenChange(nextOpen: boolean): void {
 							{@render topRight()}
 						</div>
 					{/if}
-					<Dialog.Close
-						aria-label={closeLabel}
-						class={CHROME_ICON_CLOSE_CLASS}
-						data-header-control
-					>
-						<RoundedIcon name="close" class="size-3.5" />
-					</Dialog.Close>
+					{@render closeControl()}
+				</div>
+			{/if}
+			{#if frameContent}
+				{@render frameContent({ closeControl })}
+			{:else if children}
+				<div class={bodyClass}>
+					{@render children()}
 				</div>
 			{/if}
 			{#if footer}
