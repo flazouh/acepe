@@ -1002,13 +1002,13 @@ mod tests {
             ClaudeUsageApiResponse {
                 five_hour: Some(ClaudeUsageBucket {
                     utilization: 42.0,
-                    resets_at: Some("2026-06-30T12:00:00Z".to_string()),
+                    resets_at: Some("2100-01-01T00:00:00Z".to_string()),
                 }),
                 seven_day: None,
                 seven_day_sonnet: None,
                 seven_day_opus: Some(ClaudeUsageBucket {
                     utilization: 70.0,
-                    resets_at: Some("1782821000".to_string()),
+                    resets_at: Some("4102448400".to_string()),
                 }),
                 seven_day_cowork: None,
                 extra_usage: None,
@@ -1032,9 +1032,9 @@ mod tests {
             ProviderUsageWindowRole::PrimaryShort
         ));
         assert_eq!(usage.windows[0].used_fraction, 0.42);
-        assert_eq!(usage.windows[0].resets_at_ms, Some(1_782_820_800_000));
+        assert_eq!(usage.windows[0].resets_at_ms, Some(4_102_444_800_000));
         assert_eq!(usage.windows[1].id, "seven-day-opus");
-        assert_eq!(usage.windows[1].resets_at_ms, Some(1_782_821_000_000));
+        assert_eq!(usage.windows[1].resets_at_ms, Some(4_102_448_400_000));
     }
 
     #[test]

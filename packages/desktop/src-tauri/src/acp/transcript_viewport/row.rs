@@ -1,7 +1,7 @@
 use crate::acp::projections::{
     InteractionKind, InteractionState, OperationSnapshot, OperationState,
 };
-use crate::acp::reconciler::canonical_name_for_kind;
+use crate::acp::reconciler::display_name_for_tool;
 use crate::acp::session_state_engine::graph::ActiveStreamingTailContentKind;
 use crate::acp::session_update::{SessionCompactionEvent, ToolArguments, ToolKind};
 use crate::acp::transcript_projection::{TranscriptEntryRole, TranscriptSegment};
@@ -136,15 +136,19 @@ pub enum TranscriptViewportRowContent {
 }
 
 fn display_title(operation: &OperationSnapshot) -> Option<String> {
-    if let Some(title) = non_empty_summary(operation.title.as_deref()) {
-        return Some(title);
+    let title = non_empty_summary(operation.title.as_deref());
+    if title
+        .as_deref()
+        .is_some_and(|value| !value.eq_ignore_ascii_case(operation.name.trim()))
+    {
+        return title;
     }
 
     if let Some(kind) = operation.kind {
-        return Some(canonical_name_for_kind(kind).to_string());
+        return Some(display_name_for_tool(kind, &operation.name));
     }
 
-    non_empty_summary(Some(operation.name.as_str()))
+    title.or_else(|| non_empty_summary(Some(operation.name.as_str())))
 }
 
 fn command_summary(operation: &OperationSnapshot) -> Option<String> {

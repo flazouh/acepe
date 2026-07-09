@@ -155,7 +155,7 @@ where
 
     execute_sql(
         db,
-        "CREATE TEMP TABLE IF NOT EXISTS legacy_provider_alias_migration_candidates (
+        "CREATE TABLE IF NOT EXISTS legacy_provider_alias_migration_candidates (
             old_session_id TEXT PRIMARY KEY,
             new_session_id TEXT NOT NULL,
             sequence_id INTEGER NULL
