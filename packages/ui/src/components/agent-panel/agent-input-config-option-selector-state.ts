@@ -243,6 +243,21 @@ export function getReasoningEffortIconColor(input: {
 	return getCompletenessRampFillColor(input.filledSegmentCount, input.segmentCount);
 }
 
+export function getReasoningEffortOptionIconColor(input: {
+	configOption: AgentInputConfigOption;
+	optionValue: string;
+}): string {
+	const { segmentCount, filledSegmentCount } = getReasoningEffortBarSegments({
+		configOption: input.configOption,
+		currentValue: input.optionValue,
+	});
+	return getReasoningEffortIconColor({
+		segmentCount,
+		filledSegmentCount,
+		currentValue: input.optionValue,
+	});
+}
+
 export function getReasoningVariantIconColor(input: {
 	variants: readonly { id: string }[];
 	selectedVariantId: string | null;

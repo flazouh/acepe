@@ -142,7 +142,19 @@
 							label={variant.name}
 							selected={variant.id === selectedReasoningVariantId}
 							onSelect={() => onSelect(variant.id)}
-						/>
+						>
+							{#snippet leading()}
+								<RoundedIcon
+									name="brain"
+									class="size-3.5 shrink-0"
+									style={`color: ${getReasoningVariantIconColor({
+										variants: selectedReasoningGroup.variants,
+										selectedVariantId: variant.id,
+									})}`}
+									data-testid="reasoning-variant-option-icon"
+								/>
+							{/snippet}
+						</SelectorItem>
 					{/each}
 				</div>
 			{:else}

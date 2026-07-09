@@ -14,6 +14,7 @@ import {
 	getReasoningEffortBarPercent,
 	getReasoningEffortBarSegments,
 	getReasoningEffortIconColor,
+	getReasoningEffortOptionIconColor,
 	getReasoningEffortNextValue,
 	getReasoningVariantIconColor,
 	isBooleanConfigOption,
@@ -281,6 +282,38 @@ describe("agent input config option selector state", () => {
 				segmentCount: 6,
 				filledSegmentCount: 6,
 				currentValue: "max",
+			})
+		).toBe(Colors.purple);
+	});
+
+	test("maps each reasoning dropdown option to its own effort color", () => {
+		const reasoningOption = makeOption({
+			presentation: "compactReasoning",
+			currentValue: "medium",
+			options: [
+				{ value: "low", name: "Low" },
+				{ value: "medium", name: "Medium" },
+				{ value: "high", name: "High" },
+				{ value: "max", name: "Max" },
+			],
+		});
+
+		expect(
+			getReasoningEffortOptionIconColor({
+				configOption: reasoningOption,
+				optionValue: "low",
+			})
+		).toBe("var(--success)");
+		expect(
+			getReasoningEffortOptionIconColor({
+				configOption: reasoningOption,
+				optionValue: "high",
+			})
+		).toBe("var(--token-completeness-mid)");
+		expect(
+			getReasoningEffortOptionIconColor({
+				configOption: reasoningOption,
+				optionValue: "max",
 			})
 		).toBe(Colors.purple);
 	});

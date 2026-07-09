@@ -13,6 +13,7 @@
 		getConfigOptionNextBooleanValue,
 		getConfigOptionResolvedTriggerSize,
 		getConfigOptionViewState,
+		getReasoningEffortOptionIconColor,
 		shouldEmitConfigOptionValueChange,
 	} from "./agent-input-config-option-selector-state.js";
 	import type { AgentInputConfigOption } from "./agent-input-config-option-types.js";
@@ -89,7 +90,21 @@
 				label={option.name}
 				selected={optValue === viewState.currentValue}
 				onSelect={() => handleSelect(optValue)}
-			/>
+			>
+				{#snippet leading()}
+					{#if viewState.iconKind === "reasoning"}
+						<RoundedIcon
+							name="brain"
+							class="size-3.5 shrink-0"
+							style={`color: ${getReasoningEffortOptionIconColor({
+								configOption,
+								optionValue: optValue,
+							})}`}
+							data-testid="reasoning-effort-option-icon"
+						/>
+					{/if}
+				{/snippet}
+			</SelectorItem>
 		{/each}
 	</div>
 {/snippet}
