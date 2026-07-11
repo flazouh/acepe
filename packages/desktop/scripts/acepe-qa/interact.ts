@@ -3128,6 +3128,7 @@ export function sendComposer(
 		readonly text: string;
 		readonly submit: boolean;
 		readonly selector: string;
+		readonly selectorIndex: number;
 	}
 ): ResultAsync<SendComposerResult, TauriMcpFailure> {
 	const runner = options.runner ?? runCommand;
@@ -3137,6 +3138,7 @@ export function sendComposer(
   const promptText = ${escapedJson(options.text)};
   const submit = ${options.submit ? "true" : "false"};
   const selector = ${escapedJson(options.selector)};
+  const selectorIndex = ${Math.max(0, Math.floor(options.selectorIndex)).toString()};
   const composerSelector = selector.length > 0 ? selector : "[contenteditable=true]";
   const rankCandidate = (node) => {
     const rect = node.getBoundingClientRect();
@@ -3144,11 +3146,12 @@ export function sendComposer(
     return node === hit || node.contains(hit) ? 0 : 1;
   };
   const candidates = Array.from(document.querySelectorAll(composerSelector)).sort((left, right) => rankCandidate(left) - rankCandidate(right));
-  const ce = candidates.find((node) => {
+  const visibleCandidates = candidates.filter((node) => {
     const style = getComputedStyle(node);
     const rect = node.getBoundingClientRect();
     return style.display !== "none" && style.visibility !== "hidden" && Number(style.opacity) > 0 && rect.width > 0 && rect.height > 0;
-  }) || null;
+  });
+  const ce = visibleCandidates[selectorIndex] || null;
   if (!ce) return { composerFound: false, textApplied: "", sendReady: false, sent: false };
   ce.focus();
   if (ce instanceof HTMLTextAreaElement || ce instanceof HTMLInputElement) {

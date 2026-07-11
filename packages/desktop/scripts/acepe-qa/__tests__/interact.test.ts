@@ -1580,11 +1580,13 @@ describe("acepe-qa interaction helpers", () => {
 			text: "QA prompt",
 			submit: true,
 			selector: "",
+			selectorIndex: 2,
 			runner,
 		});
 
 		expect(result.isOk()).toBe(true);
 		expect(evaluatedScript).toContain("const promptText =");
+		expect(evaluatedScript).toContain("const selectorIndex = 2");
 		expect(evaluatedScript).not.toContain('const text = "QA prompt"');
 		expect(evaluatedScript).toContain("button.textContent");
 	});

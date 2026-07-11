@@ -57,6 +57,11 @@ Common wrapper commands:
 If an interaction needs more detail than these commands expose, improve the
 wrapper first. Repeated ad hoc raw MCP snippets are a workflow bug.
 
+In a multi-panel workspace, generic `send` and `watch` calls are insufficient
+unless their selectors are scoped beneath a previously proven panel root.
+Numeric selector indexes are diagnostic helpers only; they are not stable
+session or provider identity.
+
 ## Hard Rule
 
 **After every UI-affecting change, DOM verification through the QA CLI is mandatory
@@ -79,12 +84,67 @@ The QA action must prove the behavior that changed:
 - Timing, scroll, streaming, animation, and layout-transition bugs must run a
   probe that samples the transition after the code change. A static `inspect` or
   screenshot is not enough.
+- Horizontal containment bugs must be checked at the narrowest supported panel
+  width. Inspect stable container and control hooks and prove every visible
+  control stays within the container (`child.left >= container.left` and
+  `child.right <= container.right`); a screenshot alone is not sufficient.
 - If a plan names a QA probe, that probe is mandatory completion evidence.
 - If the needed app/session state is unavailable, report behavioral QA as
   blocked and say what static evidence was collected. Do not call static DOM
   inspection a pass for the behavior.
 
 Record evidence via the wrapper (`.codex/state/ui-qa-evidence.json`).
+
+## Evidence Integrity: Prove The Exact Target
+
+For session, provider, or multi-panel QA, first prove the identity of the exact
+panel under test. A successful action or matching text somewhere else in the
+WebView is not evidence.
+
+Before interacting, capture all available target facts:
+
+- canonical session id
+- provider/agent id
+- panel id or a stable panel-root selector
+- visible header/icon/title that distinguishes the target
+
+Then scope the action **and** every assertion to that same panel root.
+
+Hard evidence rules:
+
+- Never treat keyboard focus, visual position, "first composer", or a selector
+  index as provider/session identity. Panel order changes during open, close,
+  fullscreen, hydration, and HMR.
+- Never use a global `watch --text` result as proof in a multi-panel workspace.
+  The same text may exist in another panel, the sidebar, the submitted user
+  prompt, or stale history.
+- Do not put the exact expected response in the prompt. Use a construction such
+  as `Return the word formed by S U C C E S S without spaces`, then assert the
+  contiguous response only inside the target transcript.
+- Inspect the target transcript subtree after the action. Prove the submitted
+  user row and the distinct agent response row belong to the same session.
+- Inspect errors inside the same target panel. `visible errors: 0` globally is
+  supporting evidence only, not target-scoped proof.
+- For provider-specific QA, the final screenshot must show enough identity and
+  result together to connect them: provider icon/name or session header plus the
+  resulting transcript/error state.
+- If the wrapper cannot target a panel by stable session/provider identity,
+  improve the wrapper first. Do not substitute `--selector-index`, focus, or
+  manual visual guessing and call the result verified.
+- If target identity cannot be proven, report QA as blocked or invalid. Tests
+  may still pass, but do not describe live app behavior as verified.
+- If the user identifies the wrong target, immediately invalidate the earlier
+  evidence and rerun from target identification. Do not defend or reuse it.
+
+Minimum session/provider evidence chain:
+
+```text
+identify exact panel (session id + provider)
+  -> target its composer by stable panel identity
+  -> perform the action
+  -> inspect response/error inside the same panel subtree
+  -> capture screenshot showing target identity and result together
+```
 
 Do not open or inspect `/Applications/Acepe.app` for dev QA.
 
@@ -258,6 +318,8 @@ For every visual QA pass, capture enough evidence to prove what the user sees:
 - screenshot or DOM summary of the affected screen
 - console errors, if any
 - current route or active session id, if relevant
+- provider id and stable panel identity for session/provider QA
+- selector or panel root used to scope both the action and assertion
 - one or two concrete observations in plain language
 
 ## Session Display Bugs
@@ -277,6 +339,8 @@ Use this shape in the final answer:
 Dev app target: <path or QA wrapper target>
 QA wrapper: <used / unavailable, with reason>
 Visual QA: <what was seen>
+Target proof: <session id + provider id + stable panel selector/header>
+Scoped evidence: <action and assertion inside that target>
 Verified: <commands/tests>
 Blocked: <only if the dev app or QA wrapper was unavailable>
 ```

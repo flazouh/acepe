@@ -2309,6 +2309,7 @@ export async function runCli(
 			appIdentifier: options.appIdentifier,
 			text: options.text,
 			selector: options.selector,
+			selectorIndex: options.selectorIndex,
 			submit: !options.noSubmit,
 			skipDriver: options.skipDriver,
 		});
