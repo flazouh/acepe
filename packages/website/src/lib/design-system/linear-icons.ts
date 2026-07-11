@@ -1,11 +1,15 @@
 export {
 	linearIconCatalogHash,
+	linearIconCoverage,
 	linearIconData,
 	linearIconLibrary,
 	linearIconNames,
-	type LinearIconCatalogData,
-	type LinearIconLibraryEntry,
-	type LinearIconName,
 } from "./linear-icon-catalog.generated.js";
+
+export type {
+	LinearIconCatalogData,
+	LinearIconLibraryEntry,
+	LinearIconName,
+} from "@acepe/ui/icons";
 
 export { default as LinearInventoryIcon } from "./linear-inventory-icon.svelte";

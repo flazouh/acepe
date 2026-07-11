@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { DiffPill } from "../diff-pill/index.js";
-	import { RoundedIcon } from "../icons/index.js";
+	import { PullRequestStatusIcon } from "../icons/index.js";
 	import { PrChecksList, PrChecksSummary, type PrChecksItem } from "../pr-checks/index.js";
 
 	let {
@@ -47,7 +47,7 @@
 			onclick={onOpen}
 		>
 			<div class="mt-0.5 shrink-0 text-muted-foreground">
-				<RoundedIcon name="pull-request" class="size-[13px]" />
+				<PullRequestStatusIcon state={prState} class="size-[13px]" />
 			</div>
 			<div class="min-w-0 flex-1">
 				<div class="flex items-center gap-1 text-[10px] text-muted-foreground">

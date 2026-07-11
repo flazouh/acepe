@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 
 import { linearIconData } from "../linear-icon-catalog.js";
-import { mapRoundedIconToLinear } from "../rounded-to-linear-map.js";
 import { roundedIconData } from "../rounded-icon-data.generated.js";
+import { mapRoundedIconToLinear } from "../rounded-to-linear-map.js";
 import { resolveRoundedIconGlyph } from "../resolve-rounded-icon-glyph.js";
 
 describe("resolve-rounded-icon-glyph", () => {
@@ -13,25 +13,35 @@ describe("resolve-rounded-icon-glyph", () => {
 		expect(glyph.inner).toBe(linearIconData.close.inner);
 	});
 
-	it("keeps Acepe rounded SVG fallbacks for acepe-only icons", () => {
+	it("renders the Linear copy icon for copy actions", () => {
 		const glyph = resolveRoundedIconGlyph("copy");
 
-		expect(glyph.viewBox).toBe(roundedIconData.copy.viewBox);
-		expect(glyph.inner).toBe(roundedIconData.copy.inner);
+		expect(glyph.viewBox).toBe(linearIconData.copy.viewBox);
+		expect(glyph.inner).toBe(linearIconData.copy.inner);
 	});
 
 	it("renders alias-specific Linear glyphs", () => {
 		const glyph = resolveRoundedIconGlyph("bell");
 
-		expect(glyph.viewBox).toBe(linearIconData.alarm.viewBox);
-		expect(glyph.inner).toBe(linearIconData.alarm.inner);
+		expect(glyph.viewBox).toBe(roundedIconData.automations.viewBox);
+		expect(glyph.inner).toBe(roundedIconData.automations.inner);
+	});
+
+	it("keeps Acepe geometry for unobserved decorative-only candidates", () => {
+		const glyph = resolveRoundedIconGlyph("info");
+
+		expect(glyph.viewBox).toBe(roundedIconData.info.viewBox);
+		expect(glyph.inner).toBe(roundedIconData.info.inner);
 	});
 
 	it("maps pull request states to Linear status variants", () => {
 		const merged = resolveRoundedIconGlyph("pull-request-merged");
 		const expectedLinear = mapRoundedIconToLinear("pull-request-merged");
 
-		expect(merged.viewBox).toBe(linearIconData[expectedLinear].viewBox);
-		expect(merged.inner).toBe(linearIconData[expectedLinear].inner);
+		expect(expectedLinear).not.toBeNull();
+		if (expectedLinear) {
+			expect(merged.viewBox).toBe(linearIconData[expectedLinear].viewBox);
+			expect(merged.inner).toBe(linearIconData[expectedLinear].inner);
+		}
 	});
 });

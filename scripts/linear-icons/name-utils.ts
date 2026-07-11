@@ -1,7 +1,8 @@
 const ICON_SUFFIX_PATTERN = /Icon$/;
 
 export function assetBaseName(assetName: string): string {
-	const fileName = assetName.split("/").pop() ?? assetName;
+	const finalSegment = assetName.split("/").pop();
+	const fileName = finalSegment ? finalSegment : assetName;
 	const dotIndex = fileName.indexOf(".");
 	if (dotIndex === -1) {
 		return fileName;
@@ -22,5 +23,5 @@ export function cleanIconName(originalName: string): string {
 }
 
 export function isDedicatedIconChunk(assetName: string): boolean {
-	return /Icon\.[A-Za-z0-9_-]+\.js$/.test(assetName);
+	return /Icon(?:Large)?\.[A-Za-z0-9_-]+\.js$/.test(assetName);
 }

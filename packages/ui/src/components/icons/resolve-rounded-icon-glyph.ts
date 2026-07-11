@@ -1,8 +1,5 @@
 import { linearIconData } from "./linear-icon-catalog.js";
-import {
-	isAcepeOnlyRoundedIcon,
-	mapRoundedIconToLinear,
-} from "./rounded-to-linear-map.js";
+import { mapRoundedIconToLinear } from "./rounded-to-linear-map.js";
 import {
 	resolveRoundedIconName,
 	roundedIconData,
@@ -14,13 +11,14 @@ export type ResolvedIconGlyph = {
 	readonly inner: string;
 };
 
-export function resolveRoundedIconGlyph(name: RoundedIconName): ResolvedIconGlyph {
+export function resolveRoundedIconGlyph(
+	name: RoundedIconName,
+): ResolvedIconGlyph {
 	const sourceName = resolveRoundedIconName(name);
+	const linearName = mapRoundedIconToLinear(name);
 
-	if (isAcepeOnlyRoundedIcon(sourceName)) {
+	if (linearName === null) {
 		return roundedIconData[sourceName];
 	}
-
-	const linearName = mapRoundedIconToLinear(name);
 	return linearIconData[linearName];
 }

@@ -117,7 +117,7 @@ const downloadJsonLd = {
 				<!-- Brand -->
 				<div class="col-span-2 md:col-span-1">
 					<a href="/" class="mb-3 inline-flex items-center gap-2">
-						<BrandLockup class="gap-2" markClass="h-6 w-6" wordmarkClass="text-sm" />
+						<BrandLockup wordmarkClass="text-sm" />
 					</a>
 					<p class="max-w-[200px] text-[13px] leading-relaxed text-muted-foreground">
 						{"The Agentic Developer Environment"}

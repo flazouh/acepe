@@ -1,10 +1,8 @@
 <script lang="ts" module>
-	import {
-		linearIconData,
-		type LinearIconName,
-	} from "./linear-icon-catalog.generated.js";
+import { linearIconData } from "./linear-icon-catalog.generated.js";
+import type { LinearIconName } from "@acepe/ui/icons";
 
-	export type { LinearIconName };
+export type { LinearIconName };
 </script>
 
 <script lang="ts">
@@ -27,7 +25,7 @@
 	}: Props = $props();
 
 	const icon = $derived(linearIconData[name]);
-	const resolvedRole = $derived(ariaLabel ? (role ?? "img") : role);
+	const resolvedRole = $derived(ariaLabel ? (role ? role : "img") : role);
 	const ariaHidden = $derived(ariaLabel ? undefined : "true");
 </script>
 

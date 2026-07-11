@@ -22,11 +22,7 @@ import Seo from "$lib/components/seo/seo.svelte";
 		href="/"
 		class="absolute top-6 left-6 z-20 flex items-center gap-3 transition-opacity hover:opacity-80"
 	>
-		<BrandLockup
-			class="gap-3"
-			markClass="h-7 w-7"
-			wordmarkClass="text-lg text-foreground tracking-[0.16em]"
-		/>
+		<BrandLockup wordmarkClass="text-lg text-foreground" />
 	</a>
 
 	<!-- Content Card -->

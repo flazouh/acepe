@@ -12,7 +12,7 @@
 
 	import { ChipShell } from '../chip/index.js';
 	import { DiffPill } from '../diff-pill/index.js';
-	import { RoundedIcon } from '../icons/index.js';
+	import { PullRequestStatusIcon, RoundedIcon } from '../icons/index.js';
 	import { Colors } from '../../lib/colors.js';
 	import { getGitHubLabel, type GitHubReference } from '../../lib/markdown/github-badge.js';
 
@@ -71,11 +71,11 @@
 				data-testid="github-badge-commit-rounded-icon"
 			/>
 		{:else if prState === 'merged'}
-			<RoundedIcon name="pull-request-merged" class="size-3.5" />
+			<PullRequestStatusIcon state="merged" class="size-3.5" />
 		{:else if prState === 'closed'}
-			<RoundedIcon name="pull-request-closed" class="size-3.5" />
+			<PullRequestStatusIcon state="closed" class="size-3.5" />
 		{:else}
-			<RoundedIcon name="pull-request" class="size-3.5" />
+			<PullRequestStatusIcon state="open" class="size-3.5" />
 		{/if}
 	</span>
 	<span class="min-w-0 truncate font-mono text-[0.6875rem] leading-none">{label}</span>

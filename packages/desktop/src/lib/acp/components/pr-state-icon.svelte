@@ -1,7 +1,6 @@
 <script lang="ts">
-import { RoundedIcon, type RoundedIconName } from "@acepe/ui";
+import { PullRequestStatusIcon } from "@acepe/ui";
 import { Colors } from "@acepe/ui/colors";
-import type { PrState } from "$lib/utils/tauri-client/git.js";
 
 interface Props {
 	state: "OPEN" | "CLOSED" | "MERGED";
@@ -20,13 +19,9 @@ const iconColor = $derived.by(() => {
 			return "var(--destructive)";
 	}
 });
-
-const iconName = $derived<RoundedIconName>(
-	state === "MERGED" ? "pull-request-merged" : state === "CLOSED" ? "pull-request-closed" : "pull-request"
-);
 </script>
 
-<RoundedIcon
-	name={iconName}
+<PullRequestStatusIcon
+	{state}
 	style="width: {size}px; height: {size}px; color: {iconColor}"
 />

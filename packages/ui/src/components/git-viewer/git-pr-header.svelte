@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { DiffPill } from "../diff-pill/index.js";
-	import { RoundedIcon } from "../icons/index.js";
+	import { PullRequestStatusIcon } from "../icons/index.js";
 	import { cn } from "../../lib/utils.js";
 	import type { GitPrData } from "./types.js";
 
@@ -43,11 +43,7 @@
 	<!-- Primary row: icon + PR# + title + state + diff pill + actions -->
 	<div class="flex items-center gap-2 px-3 py-2">
 		<span class="shrink-0 {iconColor}">
-			{#if pr.state === "merged"}
-				<RoundedIcon name="pull-request-merged" class="size-4" />
-			{:else}
-				<RoundedIcon name="pull-request" class="size-4" />
-			{/if}
+			<PullRequestStatusIcon state={pr.state} class="size-4" />
 		</span>
 
 		<span class="shrink-0 font-mono text-[0.6875rem] text-muted-foreground">

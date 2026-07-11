@@ -28,36 +28,10 @@ vi.mock("$lib/acp/logic/todo-state-manager.svelte.js", () => ({
 vi.mock("@acepe/ui", async (importOriginal) => {
 	const actual = await importOriginal<typeof import("@acepe/ui")>();
 	const Stub = (await import("./pr-status-card/test-component-stub.svelte")).default;
-	const TextShimmerStub = (await import("./__tests__/text-shimmer-stub.svelte")).default;
 
 	return {
 		SegmentedProgress: actual.SegmentedProgress,
-		TextShimmer: TextShimmerStub,
 		TodoNumberIcon: Stub,
-	};
-});
-
-vi.mock("@acepe/ui/agent-panel", async () => {
-	const Stub = (await import("./pr-status-card/test-component-stub.svelte")).default;
-
-	return {
-		AgentPanelTodoHeader: Stub,
-	};
-});
-
-vi.mock("./animated-chevron.svelte", async () => {
-	const Stub = (await import("./pr-status-card/test-component-stub.svelte")).default;
-
-	return {
-		default: Stub,
-	};
-});
-
-vi.mock("./messages/copy-button.svelte", async () => {
-	const Stub = (await import("./pr-status-card/test-component-stub.svelte")).default;
-
-	return {
-		default: Stub,
 	};
 });
 
@@ -67,18 +41,16 @@ afterEach(() => {
 });
 
 describe("TodoHeader", () => {
-	it("renders one progress segment per todo and fills completed ones without numeric counter", () => {
+	it("renders todo items without the status footer", () => {
 		const todoState: TodoState = {
 			items: [
 				{ content: "first", status: "completed", duration: 1000 },
 				{ content: "second", status: "completed", duration: 1000 },
-				{ content: "third", status: "completed", duration: 1000 },
-				{ content: "fourth", status: "pending" },
-				{ content: "fifth", status: "pending" },
+				{ content: "third", status: "pending" },
 			],
 			currentTask: null,
-			completedCount: 3,
-			totalCount: 5,
+			completedCount: 2,
+			totalCount: 3,
 			isLive: false,
 			lastUpdatedAt: new Date("2026-03-25T00:00:00Z"),
 		};
@@ -89,7 +61,7 @@ describe("TodoHeader", () => {
 			value: todoState,
 		});
 
-		const { container } = render(TodoHeader, {
+		const view = render(TodoHeader, {
 			sessionId: "session-1",
 			toolCalls: [],
 			isConnected: false,
@@ -97,21 +69,15 @@ describe("TodoHeader", () => {
 			isStreaming: false,
 		});
 
-		const segments = Array.from(
-			container.querySelectorAll("[data-testid='todo-progress-segment']")
-		);
+		const surface = view.getByTestId("agent-todo-surface");
 
-		expect(segments).toHaveLength(5);
-		expect(container.textContent).not.toContain("3/5");
-		expect(
-			segments.filter((segment) => segment.getAttribute("data-filled") === "true")
-		).toHaveLength(3);
-		expect(
-			segments.filter((segment) => segment.getAttribute("data-filled") === "false")
-		).toHaveLength(2);
+		expect(surface.textContent).toContain("first");
+		expect(surface.textContent).toContain("third");
+		expect(surface.textContent).not.toContain("All tasks completed");
+		expect(surface.querySelectorAll("[data-testid='todo-progress-segment']")).toHaveLength(0);
 	});
 
-	it("shows plain current task text in the collapsed header instead of shimmer", () => {
+	it("shows progress segments only in compact mode", () => {
 		const todoState: TodoState = {
 			items: [
 				{ content: "first", status: "completed", duration: 1000 },
@@ -140,11 +106,14 @@ describe("TodoHeader", () => {
 			isConnected: true,
 			status: "streaming",
 			isStreaming: true,
+			compact: true,
 		});
 
-		const shimmerStubs = container.querySelectorAll("[data-testid='text-shimmer-stub']");
+		const segments = Array.from(
+			container.querySelectorAll("[data-testid='todo-progress-segment']")
+		);
 
-		expect(shimmerStubs).toHaveLength(1);
+		expect(segments).toHaveLength(2);
 		expect(container.textContent).toContain("Currently running");
 	});
 });

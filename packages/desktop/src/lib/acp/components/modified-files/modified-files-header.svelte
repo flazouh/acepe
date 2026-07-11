@@ -4,6 +4,7 @@ import {
 	AgentPanelModifiedFilesHeader as SharedAgentPanelModifiedFilesHeader,
 	AgentPanelModifiedFilesTrailingControls as SharedAgentPanelModifiedFilesTrailingControls,
 	DiffPill,
+	PullRequestStatusIcon,
 	RoundedIcon,
 	Selector,
 	type AgentPanelModifiedFilesTrailingModel,
@@ -506,7 +507,7 @@ function handlePromptResetClick(): void {
 									<Spinner size={11} />
 									{"Merge"}
 								{:else}
-									<RoundedIcon name="pull-request-merged" class="size-[11px]" />
+									<PullRequestStatusIcon state="merged" class="size-[11px]" />
 									{"Merge"}
 								{/if}
 							</Button>

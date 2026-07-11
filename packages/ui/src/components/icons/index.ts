@@ -7,9 +7,19 @@ export type { FileStatusIconKind } from "./file-status-icon-types.js";
 export { default as LayoutModeIcon } from "./layout-mode-icon.svelte";
 export { default as GoogleLogoIcon } from "./google-logo-icon.svelte";
 export { default as LinearInventoryIcon } from "./linear-inventory-icon.svelte";
+export { default as PullRequestStatusIcon } from "./pull-request-status-icon.svelte";
+export {
+	mapGitHubPrStateToLinearStatusIcon,
+	mapUppercasePrStateToLinearStatusIcon,
+	pullRequestLinearStatusIcons,
+	type PullRequestGitHubState,
+	type PullRequestLinearStatusIconName,
+	type PullRequestLinearStatusKind,
+} from "./pull-request-status-icon.js";
 export { default as RoundedIcon } from "./rounded-icon.svelte";
 export {
 	linearIconCatalogHash,
+	linearIconCoverage,
 	linearIconData,
 	linearIconLibrary,
 	linearIconNames,
@@ -18,11 +28,18 @@ export {
 	type LinearIconName,
 } from "./linear-icon-catalog.js";
 export {
-	isAcepeOnlyRoundedIcon,
+	confirmedLinearInterfaceMappings,
+	getConfirmedLinearRoundedIconEvidence,
+	isConfirmedLinearRoundedIcon,
 	mapRoundedIconToLinear,
-	roundedToLinearMap,
-	type AcepeOnlyRoundedIconName,
+	type ConfirmedLinearRoundedIconName,
 } from "./rounded-to-linear-map.js";
+export {
+	getRoundedIconMigrationDecision,
+	roundedIconMigrationManifest,
+	type RoundedIconMigrationDecision,
+} from "./rounded-icon-migration-manifest.js";
+export type { ConfirmedLinearInterfaceMapping } from "./confirmed-linear-interface-mapping.js";
 export { resolveRoundedIconGlyph } from "./resolve-rounded-icon-glyph.js";
 export {
 	isRoundedIconAliasName,
@@ -74,7 +91,10 @@ export {
 	type DotmHexLoaderVariant,
 	type DotmTriangleLoaderVariant,
 } from "./dotmatrix/dotmatrix-loader-routing.js";
-export { DOTMATRIX_REGISTRY_MANIFEST, type DotmatrixRegistryId } from "./dotmatrix/dotmatrix-registry.js";
+export {
+	DOTMATRIX_REGISTRY_MANIFEST,
+	type DotmatrixRegistryId,
+} from "./dotmatrix/dotmatrix-registry.js";
 export { default as DotmatrixRegistryLoader } from "./dotmatrix/dotmatrix-registry-loader.svelte";
 export {
 	DOTMATRIX_LOADER_CONFIGS,
@@ -82,7 +102,10 @@ export {
 	getDotmatrixLoaderConfig,
 	type DotmatrixLoaderId,
 } from "./dotmatrix/loaders/index.js";
-export type { DotmatrixLoaderConfig, DotmatrixLoaderRuntime } from "./dotmatrix/loader-types.js";
+export type {
+	DotmatrixLoaderConfig,
+	DotmatrixLoaderRuntime,
+} from "./dotmatrix/loader-types.js";
 export { default as PlanIcon } from "./plan-icon.svelte";
 export { default as PlusIcon } from "./plus-icon.svelte";
 export { default as RecycleIcon } from "./recycle-icon.svelte";

@@ -422,7 +422,7 @@ async function finishOnboarding(): Promise<void> {
 </script>
 
 <!-- Content layer. Full onboarding page sharing the brand surface shell. -->
-<BrandSurface variant="luminar" class="onboarding-surface">
+<BrandSurface class="onboarding-surface">
 	{#snippet topRight()}
 		<BrandThemeToggle />
 	{/snippet}

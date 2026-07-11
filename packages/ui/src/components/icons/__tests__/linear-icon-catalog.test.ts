@@ -14,6 +14,7 @@ describe("ui linear icon catalog", () => {
 		expect(linearIconCatalogHash).toHaveLength(64);
 		expect(linearIconData.close.viewBox).toBe("0 0 16 16");
 		expect(linearIconData.close.inner).toContain('fill="currentColor"');
+		expect(linearIconData["copy-id"].sourceType).toBe("feature-jsx");
 		expect(linearIconLibrary.some((icon) => icon.name === "filter")).toBe(true);
 	});
 });

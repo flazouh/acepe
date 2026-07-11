@@ -26,7 +26,7 @@ function copy(): void {
 <button
 	type="button"
 	onclick={copy}
-	class="group inline-flex h-9 items-center gap-3 rounded-[2px] border border-[#f8f5ee]/15 bg-[#f8f5ee]/[0.03] pr-2.5 pl-3.5 font-mono text-[13px] text-[#f8f5ee]/75 transition-colors hover:border-[#f8f5ee]/25 hover:text-[#f8f5ee] {className}"
+	class="group inline-flex h-9 items-center gap-3 rounded-[2px] bg-[#f8f5ee]/[0.05] pr-2.5 pl-3.5 font-mono text-[13px] text-[#f8f5ee]/75 transition-colors hover:bg-[#f8f5ee]/[0.1] hover:text-[#f8f5ee] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#f8f5ee]/40 focus-visible:ring-offset-2 focus-visible:ring-offset-[#121212] {className}"
 	aria-label="Copy command: {command}"
 	title="Copy"
 >

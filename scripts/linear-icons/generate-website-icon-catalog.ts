@@ -2,7 +2,10 @@ import { createHash } from "node:crypto";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 
-import type { LinearIconInventoryManifest } from "./types.js";
+import { linearIconInventoryManifestSchema } from "./linear-icon-manifest-schema.js";
+import { linearIconCoverageSummarySchema } from "./linear-icon-coverage-schema.js";
+import type { GenerateLinearIconCatalogOptions } from "./types/generate-linear-icon-catalog-options.js";
+import type { LinearIconCatalogEntry } from "./types/linear-icon-catalog-entry.js";
 
 const packageRoot = resolve(import.meta.dirname);
 const defaultInventoryDir = join(packageRoot, "inventory");
@@ -17,23 +20,9 @@ export const defaultUiCatalogOutputFile = resolve(
 	"../../packages/ui/src/components/icons/linear-icon-catalog.generated.ts",
 );
 
-type GenerateLinearIconCatalogOptions = {
-	readonly inventoryDir?: string;
-	readonly outputFile?: string;
-};
-
-type LinearIconCatalogEntry = {
-	readonly name: string;
-	readonly label: string;
-	readonly sourceChunk: string;
-	readonly sourceType: string;
-	readonly viewBox: string;
-	readonly inner: string;
-};
-
 function readAttribute(attributes: string, name: string): string {
 	const match = attributes.match(new RegExp(`\\b${name}="([^"]*)"`));
-	return match?.[1] ?? "";
+	return match && match[1] ? match[1] : "";
 }
 
 function svgInner(svg: string): string {
@@ -50,19 +39,24 @@ function formatIconLabel(name: string): string {
 			if (part.length === 0) {
 				return part;
 			}
-			return `${part[0]?.toUpperCase() ?? ""}${part.slice(1)}`;
+			const firstCharacter = part[0];
+			return `${firstCharacter ? firstCharacter.toUpperCase() : ""}${part.slice(1)}`;
 		})
 		.join(" ");
 }
 
-function readSvgEntry(svgPath: string, cleanName: string): { viewBox: string; inner: string } {
+function readSvgEntry(
+	svgPath: string,
+	cleanName: string,
+): { viewBox: string; inner: string } {
 	const svg = readFileSync(svgPath, "utf8").trim();
 	const match = svg.match(/^<svg\b([^>]*)>/s);
 	if (!match) {
 		throw new Error(`Missing <svg> wrapper in ${svgPath}`);
 	}
 
-	const viewBox = readAttribute(match[1] ?? "", "viewBox");
+	const svgAttributes = match[1] ? match[1] : "";
+	const viewBox = readAttribute(svgAttributes, "viewBox");
 	if (!viewBox) {
 		throw new Error(`Missing viewBox in ${svgPath}`);
 	}
@@ -79,12 +73,17 @@ function catalogHash(entries: readonly LinearIconCatalogEntry[]): string {
 		name: entry.name,
 		sourceChunk: entry.sourceChunk,
 		sourceType: entry.sourceType,
+		sourceSet: entry.sourceSet,
+		sourceOccurrences: entry.sourceOccurrences,
+		geometryHash: entry.geometryHash,
 		viewBox: entry.viewBox,
 	}));
 	return createHash("sha256").update(JSON.stringify(payload)).digest("hex");
 }
 
-function parseCliArgs(argv: readonly string[]): GenerateLinearIconCatalogOptions {
+function parseCliArgs(
+	argv: readonly string[],
+): GenerateLinearIconCatalogOptions {
 	const options: GenerateLinearIconCatalogOptions = {};
 
 	for (let index = 2; index < argv.length; index += 1) {
@@ -120,23 +119,75 @@ export function generateLinearIconCatalog(
 	readonly iconCount: number;
 	readonly outputFile: string;
 } {
-	const inventoryDir = options.inventoryDir ?? defaultInventoryDir;
-	const outputFile = options.outputFile ?? defaultWebsiteCatalogOutputFile;
+	const inventoryDir = options.inventoryDir
+		? options.inventoryDir
+		: defaultInventoryDir;
+	const outputFile = options.outputFile
+		? options.outputFile
+		: defaultWebsiteCatalogOutputFile;
 	const manifestPath = join(inventoryDir, "manifest.json");
-	const manifest = JSON.parse(
-		readFileSync(manifestPath, "utf8"),
-	) as LinearIconInventoryManifest;
-
-	const entries: LinearIconCatalogEntry[] = manifest.icons
+	const coveragePath = join(inventoryDir, "coverage.json");
+	const parsedManifest = linearIconInventoryManifestSchema.safeParse(
+		JSON.parse(readFileSync(manifestPath, "utf8")),
+	);
+	if (!parsedManifest.success) {
+		throw new Error("Linear icon catalog requires a valid manifest version 2");
+	}
+	const manifest = parsedManifest.data;
+	const parsedCoverage = linearIconCoverageSummarySchema.safeParse(
+		JSON.parse(readFileSync(coveragePath, "utf8")),
+	);
+	if (!parsedCoverage.success) {
+		throw new Error("Linear icon catalog requires a valid coverage report");
+	}
+	const coverage = parsedCoverage.data;
+	const ownerByGeometry = new Map(
+		manifest.icons
+			.filter((icon) => icon.duplicateOf === null)
+			.map((icon) => [icon.geometryHash, icon] as const),
+	);
+	const selectedAliasKeys = new Set<string>();
+	const semanticAliases = manifest.icons
+		.filter(
+			(icon) =>
+				icon.duplicateOf !== null &&
+				icon.sourceType === "feature-jsx" &&
+				!icon.originalName.startsWith("FeatureSvg"),
+		)
+		.sort((left, right) => {
+			const lengthOrder = left.cleanName.length - right.cleanName.length;
+			return lengthOrder === 0
+				? left.cleanName.localeCompare(right.cleanName)
+				: lengthOrder;
+		})
+		.filter((icon) => {
+			const aliasKey = `${icon.originalName}:${icon.geometryHash}`;
+			if (selectedAliasKeys.has(aliasKey)) {
+				return false;
+			}
+			selectedAliasKeys.add(aliasKey);
+			return true;
+		});
+	const catalogIcons = manifest.icons
 		.filter((icon) => icon.duplicateOf === null)
+		.concat(semanticAliases);
+
+	const entries: LinearIconCatalogEntry[] = catalogIcons
 		.map((icon) => {
-			const svgPath = join(inventoryDir, icon.svgFile);
+			const geometryOwner = ownerByGeometry.get(icon.geometryHash);
+			if (!geometryOwner) {
+				throw new Error(`Missing geometry owner for ${icon.cleanName}`);
+			}
+			const svgPath = join(inventoryDir, geometryOwner.svgFile);
 			const svgEntry = readSvgEntry(svgPath, icon.cleanName);
 			return {
 				name: icon.cleanName,
 				label: formatIconLabel(icon.cleanName),
 				sourceChunk: icon.sourceChunk,
 				sourceType: icon.sourceType,
+				sourceSet: icon.sourceSet,
+				sourceOccurrences: icon.sourceOccurrences,
+				geometryHash: icon.geometryHash,
 				viewBox: svgEntry.viewBox,
 				inner: svgEntry.inner,
 			};
@@ -144,50 +195,36 @@ export function generateLinearIconCatalog(
 		.sort((left, right) => left.name.localeCompare(right.name));
 
 	const hash = catalogHash(entries);
-	const iconNameLines = entries.map((entry) => `\t${JSON.stringify(entry.name)},`);
+	const iconNameLines = entries.map(
+		(entry) => `\t${JSON.stringify(entry.name)},`,
+	);
 	const iconDataLines = entries.map(
 		(entry) =>
-			`\t${JSON.stringify(entry.name)}: { viewBox: ${JSON.stringify(entry.viewBox)}, inner: ${JSON.stringify(entry.inner)}, label: ${JSON.stringify(entry.label)}, sourceChunk: ${JSON.stringify(entry.sourceChunk)}, sourceType: ${JSON.stringify(entry.sourceType)} },`,
+			`\t${JSON.stringify(entry.name)}: { viewBox: ${JSON.stringify(entry.viewBox)}, inner: ${JSON.stringify(entry.inner)}, label: ${JSON.stringify(entry.label)}, sourceChunk: ${JSON.stringify(entry.sourceChunk)}, sourceType: ${JSON.stringify(entry.sourceType)}, sourceSet: ${JSON.stringify(entry.sourceSet)}, sourceOccurrences: ${JSON.stringify(entry.sourceOccurrences)}, geometryHash: ${JSON.stringify(entry.geometryHash)} },`,
 	);
 	const libraryLines = entries.map(
 		(entry) =>
-			`\t{ name: ${JSON.stringify(entry.name)}, label: ${JSON.stringify(entry.label)}, sourceChunk: ${JSON.stringify(entry.sourceChunk)}, sourceType: ${JSON.stringify(entry.sourceType)}, fileName: ${JSON.stringify(`${entry.name}.svg`)} },`,
+			`\t{ name: ${JSON.stringify(entry.name)}, label: ${JSON.stringify(entry.label)}, sourceChunk: ${JSON.stringify(entry.sourceChunk)}, sourceType: ${JSON.stringify(entry.sourceType)}, sourceSet: ${JSON.stringify(entry.sourceSet)}, sourceOccurrences: ${JSON.stringify(entry.sourceOccurrences)}, fileName: ${JSON.stringify(`${entry.name}.svg`)} },`,
 	);
 
 	const output = `// Generated by scripts/linear-icons/generate-website-icon-catalog.ts.
 // Source: scripts/linear-icons/inventory (${entries.length} unique Linear-derived icons).
 
-export type LinearIconCatalogData = {
-\treadonly viewBox: string;
-\treadonly inner: string;
-\treadonly label: string;
-\treadonly sourceChunk: string;
-\treadonly sourceType: string;
-};
-
-export type LinearIconLibraryEntry = {
-\treadonly name: LinearIconName;
-\treadonly label: string;
-\treadonly sourceChunk: string;
-\treadonly sourceType: string;
-\treadonly fileName: string;
-};
-
 export const linearIconCatalogHash = ${JSON.stringify(hash)};
+
+export const linearIconCoverage = ${JSON.stringify(coverage)} as const;
 
 export const linearIconNames = [
 ${iconNameLines.join("\n")}
 ] as const;
 
-export type LinearIconName = (typeof linearIconNames)[number];
-
-export const linearIconData: Record<LinearIconName, LinearIconCatalogData> = {
+export const linearIconData = {
 ${iconDataLines.join("\n")}
-};
+} as const;
 
-export const linearIconLibrary: readonly LinearIconLibraryEntry[] = [
+export const linearIconLibrary = [
 ${libraryLines.join("\n")}
-];
+] as const;
 `;
 
 	mkdirSync(resolve(outputFile, ".."), { recursive: true });
@@ -205,6 +242,8 @@ export const generateWebsiteIconCatalog = generateLinearIconCatalog;
 
 if (import.meta.main) {
 	const result = generateLinearIconCatalog(parseCliArgs(process.argv));
-	console.log(`Generated ${result.iconCount} Linear icons at ${result.outputFile}`);
+	console.log(
+		`Generated ${result.iconCount} Linear icons at ${result.outputFile}`,
+	);
 	console.log(`Catalog hash: ${result.catalogHash}`);
 }

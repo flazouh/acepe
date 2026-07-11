@@ -30,7 +30,7 @@ describe("normalize-svg", () => {
 		}
 
 		const svg = normalizeLinearSvg(normalizeRawIcon(anchor));
-		expect(svg).toContain('a 0.5 0.5');
+		expect(svg).toContain("a 0.5 0.5");
 		expect(svg).not.toContain("0.50.5");
 		expect(svg).not.toContain("0.750.75");
 	});
@@ -40,6 +40,7 @@ describe("normalize-svg", () => {
 			originalName: "StrokeOnly",
 			sourceChunk: "Fixture",
 			sourceType: "symbol-sprite",
+			sourceSet: "base",
 			viewBox: "0 0 16 16",
 			shapes: [
 				{

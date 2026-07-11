@@ -193,7 +193,7 @@ const slideSummaryClass = `max-w-3xl ${slideDescriptionClass}`;
 <div class="bg-background text-foreground relative isolate min-h-screen overflow-hidden">
 	<div class="pointer-events-none fixed inset-0 -z-10" data-pitch-print-hidden>
 		{#if browser}
-			<HeroShaderStage heightClass="h-screen" accentRing={false} />
+			<HeroShaderStage heightClass="h-screen" />
 		{/if}
 	</div>
 
@@ -223,7 +223,7 @@ const slideSummaryClass = `max-w-3xl ${slideDescriptionClass}`;
 					aria-labelledby={`${section.id}-headline`}
 				>
 					<div class="relative flex items-center justify-between gap-4">
-						<BrandLockup class="gap-2.5" markClass="h-6 w-6" wordmarkClass="text-[11px] tracking-[0.22em]" />
+						<BrandLockup wordmarkClass="text-[11px]" />
 						<p class="text-muted-foreground text-[10px] font-semibold tracking-[0.22em] uppercase">
 							{section.id === 'title' ? 'Investor pitch' : section.title}
 						</p>

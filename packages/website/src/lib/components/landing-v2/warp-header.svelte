@@ -49,10 +49,7 @@ const navLinkClass =
 			<div class="flex items-center gap-10">
 				<a href="/" class="flex items-center gap-2.5" aria-label="Acepe home">
 					<BrandLockup
-						class="gap-2.5"
-						markClass="h-6 w-6"
-						wordmark="Acepe"
-						wordmarkClass="text-[15px] tracking-[0.02em] text-[#f8f5ee] normal-case"
+						wordmarkClass="text-[20px] text-[#f8f5ee]"
 					/>
 				</a>
 				<nav class="hidden items-center gap-7 md:flex">

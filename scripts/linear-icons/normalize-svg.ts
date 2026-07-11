@@ -20,7 +20,8 @@ function normalizeNumber(value: string): string {
 }
 
 export function normalizePathData(pathData: string): string {
-	const tokens = pathData.match(PATH_TOKEN_PATTERN) ?? [];
+	const matchedTokens = pathData.match(PATH_TOKEN_PATTERN);
+	const tokens = matchedTokens === null ? [] : matchedTokens;
 	const normalizedTokens: string[] = [];
 
 	for (const token of tokens) {
@@ -41,7 +42,10 @@ export function normalizePathData(pathData: string): string {
 	return normalizedTokens.join(" ");
 }
 
-function normalizeAttributeValue(attributeName: string, attributeValue: string): string {
+function normalizeAttributeValue(
+	attributeName: string,
+	attributeValue: string,
+): string {
 	if (attributeName === "d") {
 		return normalizePathData(attributeValue);
 	}
@@ -55,7 +59,9 @@ function normalizeAttributeValue(attributeName: string, attributeValue: string):
 	}
 
 	if (NON_PATH_NUMBER_PATTERN.test(attributeValue)) {
-		return attributeValue.replace(NON_PATH_NUMBER_PATTERN, (match) => normalizeNumber(match));
+		return attributeValue.replace(NON_PATH_NUMBER_PATTERN, (match) =>
+			normalizeNumber(match),
+		);
 	}
 
 	return attributeValue;
@@ -74,7 +80,9 @@ function shapeUsesStroke(shape: ExtractedSvgShape): boolean {
 
 function renderShape(shape: ExtractedSvgShape): string {
 	const attributes: string[] = [];
-	for (const [attributeName, attributeValue] of Object.entries(shape.attributes)) {
+	for (const [attributeName, attributeValue] of Object.entries(
+		shape.attributes,
+	)) {
 		if (attributeName === "fill" || attributeName === "stroke") {
 			continue;
 		}
@@ -103,7 +111,10 @@ export function normalizeLinearSvg(icon: RawExtractedIcon): string {
 }
 
 export function normalizeViewBox(viewBox: string): string {
-	const parts = viewBox.trim().split(/\s+/).map((part) => normalizeNumber(part));
+	const parts = viewBox
+		.trim()
+		.split(/\s+/)
+		.map((part) => normalizeNumber(part));
 	if (parts.length !== 4) {
 		return viewBox;
 	}
@@ -115,11 +126,17 @@ export function normalizeRawIcon(icon: RawExtractedIcon): RawExtractedIcon {
 		originalName: icon.originalName,
 		sourceChunk: icon.sourceChunk,
 		sourceType: icon.sourceType,
+		sourceSet: icon.sourceSet,
 		viewBox: normalizeViewBox(icon.viewBox),
 		shapes: icon.shapes.map((shape) => {
 			const attributes: Record<string, string> = {};
-			for (const [attributeName, attributeValue] of Object.entries(shape.attributes)) {
-				attributes[attributeName] = normalizeAttributeValue(attributeName, attributeValue);
+			for (const [attributeName, attributeValue] of Object.entries(
+				shape.attributes,
+			)) {
+				attributes[attributeName] = normalizeAttributeValue(
+					attributeName,
+					attributeValue,
+				);
 			}
 			return {
 				tag: shape.tag,

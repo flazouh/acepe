@@ -1,6 +1,7 @@
 <script lang="ts">
 import {
 	ArrowRightIcon,
+	BRAND_GRADIENT_IRIS_HORIZON,
 	BrandLockup,
 	LayoutModeIcon,
 	PillButton,
@@ -21,7 +22,6 @@ import Seo from "$lib/components/seo/seo.svelte";
 import FeatureShowcase from "$lib/components/feature-showcase.svelte";
 import HeroShaderStage from "$lib/components/hero-shader-stage.svelte";
 import LazyFeatureMount from "$lib/components/lazy-feature-mount.svelte";
-import DevShaderSwitcher from "$lib/components/dev-shader-switcher.svelte";
 let { data } = $props();
 
 // === Mock data for real component showcases ===
@@ -743,7 +743,7 @@ class:md:[direction:rtl]={i % 2 === 1}
 <div class="flex gap-1"><span class="h-2.5 w-2.5 rounded-full bg-destructive/60"></span><span class="h-2.5 w-2.5 rounded-full bg-warning/60"></span><span class="h-2.5 w-2.5 rounded-full bg-success/60"></span></div>
 <div class="flex-1 truncate rounded border border-border/40 bg-background px-2 py-0.5 text-center font-mono text-[10px] text-muted-foreground">localhost:5173/dashboard</div>
 </div>
-<div class="aspect-[4/3] bg-gradient-to-br from-primary/15 via-background to-accent/15 p-3">
+<div class="aspect-[4/3] p-3" style:background-image={BRAND_GRADIENT_IRIS_HORIZON} data-slot="iris-gradient-browser-mock">
 <div class="mb-2 h-3 w-1/2 rounded bg-foreground/15"></div>
 <div class="grid grid-cols-2 gap-2">
 <div class="h-12 rounded bg-card border border-border/50"></div>
@@ -912,7 +912,7 @@ class:md:[direction:rtl]={i % 2 === 1}
 				<!-- Brand -->
 				<div class="col-span-2 md:col-span-1">
 					<a href="/" class="mb-3 inline-flex items-center gap-2">
-						<BrandLockup class="gap-2" markClass="h-6 w-6" wordmarkClass="text-sm" />
+						<BrandLockup wordmarkClass="text-sm" />
 					</a>
 					<p class="max-w-[200px] text-[13px] leading-relaxed text-muted-foreground">
 						{"The Agentic Developer Environment"}
@@ -999,8 +999,6 @@ class:md:[direction:rtl]={i % 2 === 1}
 		</div>
 	</footer>
 </div>
-
-<DevShaderSwitcher />
 
 <style>
 	@media (min-width: 1024px) {
