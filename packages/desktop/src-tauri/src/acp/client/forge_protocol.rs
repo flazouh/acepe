@@ -211,6 +211,7 @@ fn translate_turn_failed(
             },
             code: None,
             source: Some(TurnErrorSource::Process),
+            details: None,
         }),
         session_id: Some(session_id.to_string()),
         turn_id: turn_id.map(ToOwned::to_owned),

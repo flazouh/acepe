@@ -1217,6 +1217,7 @@ fn build_transport_turn_error(
                 kind: crate::acp::session_update::TurnErrorKind::Fatal,
                 code: None,
                 source: Some(source),
+                details: None,
             },
         ),
         session_id: Some(session_id),
@@ -1678,6 +1679,7 @@ mod tests {
                         kind: crate::acp::session_update::TurnErrorKind::Fatal,
                         code: None,
                         source: Some(crate::acp::session_update::TurnErrorSource::Process),
+                        details: None,
                     }
                 ),
                 session_id: Some(session_id),

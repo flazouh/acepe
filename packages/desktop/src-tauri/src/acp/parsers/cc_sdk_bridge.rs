@@ -497,10 +497,11 @@ fn assistant_message_error_to_turn_error(
         | cc_sdk::AssistantMessageError::Unknown => TurnErrorKind::Recoverable,
     };
     TurnErrorData::Structured(TurnErrorInfo {
-        code: extract_status_code(&message),
+        code: extract_status_code(&message).map(|code| code.to_string()),
         message,
         kind,
         source: Some(TurnErrorSource::Transport),
+        details: None,
     })
 }
 
@@ -1389,7 +1390,7 @@ mod tests {
                 && payload.message.contains("Failed to authenticate")
                 && payload.message.contains("User not found")
                 && payload.kind == crate::acp::session_update::TurnErrorKind::Fatal
-                && payload.code == Some(401)
+                && payload.code.as_deref() == Some("401")
                 && payload.source == Some(crate::acp::session_update::TurnErrorSource::Transport)
         ));
     }

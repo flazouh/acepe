@@ -614,6 +614,7 @@ mod tests {
         rebuild_local_transcript_snapshot, rebuild_session_projection, ProjectionJournalUpdate,
         SessionJournalEventPayload,
     };
+    use crate::acp::projections::SessionTurnState;
     use crate::acp::parsers::AgentType;
     use crate::acp::session_descriptor::SessionReplayContext;
     use crate::acp::session_update::{
@@ -782,6 +783,42 @@ mod tests {
             },
             other => panic!("expected projection payload, got {:?}", other),
         }
+    }
+
+    #[test]
+    fn replay_preserves_historical_structured_failure_before_idle_duplicates() {
+        let rows = vec![
+            SerializedSessionJournalEventRow {
+                event_id: "event-1".to_string(),
+                session_id: "local-session".to_string(),
+                event_seq: 1,
+                event_kind: "projection_update".to_string(),
+                event_json: r#"{"kind":"projection_update","update":{"type":"turn_error","error":{"message":"No endpoints support tool use","kind":"recoverable","code":"APIError","source":"unknown"},"session_id":"local-session","turn_id":null}}"#.to_string(),
+                created_at_ms: 1,
+            },
+            serialized_projection_row(
+                2,
+                SessionUpdate::TurnComplete {
+                    session_id: Some("local-session".to_string()),
+                    turn_id: None,
+                },
+            ),
+        ];
+
+        let replay_context = replay_context();
+        let decoded = decode_serialized_events(&replay_context, rows).expect("decode rows");
+        let projection = rebuild_session_projection(&replay_context, &decoded);
+        let session = projection.session.expect("session projection");
+
+        assert_eq!(session.turn_state, SessionTurnState::Failed);
+        assert_eq!(
+            session
+                .active_turn_failure
+                .as_ref()
+                .map(|failure| failure.message.as_str()),
+            Some("No endpoints support tool use")
+        );
+        assert_eq!(session.last_event_seq, 2);
     }
 
     #[test]

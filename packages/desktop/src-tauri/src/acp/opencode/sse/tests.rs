@@ -1,5 +1,6 @@
 use super::conversion::convert_message_part_delta_to_session_update;
 use super::*;
+use crate::acp::projections::{ProjectionRegistry, SessionTurnState};
 use crate::acp::session_update::{
     SessionUpdate, ToolArguments, ToolCallStatus, ToolKind, TurnErrorData, TurnErrorKind,
     TurnErrorSource,
@@ -576,9 +577,13 @@ fn test_convert_session_error_with_nested_message_to_turn_error() {
         "sessionID": "ses_abc",
         "error": {
             "name": "UnknownError",
+            "code": "MODEL_NOT_FOUND",
             "data": {
-                "message": "Model not found: moonshotai/kimi-k2.5."
-            }
+                "message": "Model not found: moonshotai/kimi-k2.5.",
+                "authorization": "Bearer secret-token",
+                "request": { "prompt": "private prompt" }
+            },
+            "status": 404
         }
     });
 
@@ -593,8 +598,13 @@ fn test_convert_session_error_with_nested_message_to_turn_error() {
             match error {
                 TurnErrorData::Structured(info) => {
                     assert_eq!(info.message, "Model not found: moonshotai/kimi-k2.5.");
+                    assert_eq!(info.code.as_deref(), Some("MODEL_NOT_FOUND"));
+                    let details = info.details.as_deref().expect("safe diagnostics");
+                    assert!(details.contains("404"));
+                    assert!(!details.contains("secret-token"));
+                    assert!(!details.contains("private prompt"));
                     assert_eq!(info.kind, TurnErrorKind::Recoverable);
-                    assert_eq!(info.source, Some(TurnErrorSource::Process));
+                    assert_eq!(info.source, Some(TurnErrorSource::Unknown));
                 }
                 TurnErrorData::Legacy(_) => panic!("Expected structured turn error"),
             }
@@ -603,9 +613,9 @@ fn test_convert_session_error_with_nested_message_to_turn_error() {
     }
 }
 
-/// Test conversion of session.error without error message to fallback TurnError
+/// Test conversion of session.error without a message keeps the provider error name visible.
 #[test]
-fn test_convert_session_error_without_message_uses_fallback() {
+fn test_convert_session_error_without_message_uses_error_name() {
     let properties = json!({
         "sessionID": "ses_abc",
         "error": {
@@ -623,13 +633,66 @@ fn test_convert_session_error_without_message_uses_fallback() {
             assert_eq!(session_id, Some("ses_abc".to_string()));
             match error {
                 TurnErrorData::Structured(info) => {
-                    assert_eq!(info.message, "OpenCode session failed");
+                    assert_eq!(info.message, "UnknownError");
+                    assert_eq!(info.code, None);
+                    assert_eq!(info.source, Some(TurnErrorSource::Unknown));
                 }
                 TurnErrorData::Legacy(_) => panic!("Expected structured turn error"),
             }
         }
         _ => panic!("Expected TurnError"),
     }
+}
+
+#[test]
+fn test_convert_session_error_requires_session_identity() {
+    let properties = json!({
+        "error": { "name": "UnknownError" }
+    });
+
+    assert!(convert_session_error_to_session_update(&properties).is_none());
+}
+
+#[test]
+fn test_session_error_then_idle_events_preserve_active_failure() {
+    let registry = ProjectionRegistry::new();
+    let session_id = "ses_abc";
+
+    let updates = [
+        convert_session_error_to_session_update(&json!({
+            "sessionID": session_id,
+            "error": {
+                "name": "APIError",
+                "data": { "message": "No endpoints support tool use" },
+                "status": 404
+            }
+        }))
+        .expect("session.error update"),
+        convert_session_status_to_session_update(&json!({
+            "sessionID": session_id,
+            "status": { "type": "idle" }
+        }))
+        .expect("session.status idle update"),
+        convert_session_idle_to_session_update(&json!({
+            "sessionID": session_id
+        }))
+        .expect("session.idle update"),
+    ];
+
+    for update in updates {
+        registry.apply_session_update(session_id, &update);
+    }
+
+    let snapshot = registry
+        .snapshot_for_session(session_id)
+        .expect("canonical session snapshot");
+    assert_eq!(snapshot.turn_state, SessionTurnState::Failed);
+    assert_eq!(snapshot.last_event_seq, 3);
+    let failure = snapshot
+        .active_turn_failure
+        .expect("failure must survive trailing idle events");
+    assert_eq!(failure.message, "No endpoints support tool use");
+    assert_eq!(failure.code.as_deref(), Some("APIError"));
 }
 
 /// Test conversion of question.asked to QuestionRequest

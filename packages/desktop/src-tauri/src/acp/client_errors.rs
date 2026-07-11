@@ -47,18 +47,19 @@ pub(crate) fn is_low_fd_error_message(message: &str) -> bool {
 /// Extract structured turn error data from a JSON-RPC error response.
 pub(crate) fn extract_turn_error(error: &Value) -> TurnErrorData {
     let message = extract_error_message(error);
-    let code = error
+    let numeric_code = error
         .get("code")
         .and_then(|c| c.as_i64())
         .and_then(|c| i32::try_from(c).ok());
-    let kind = classify_turn_error_kind(&message, code);
+    let kind = classify_turn_error_kind(&message, numeric_code);
     let source = classify_turn_error_source(&message);
 
     TurnErrorData::Structured(TurnErrorInfo {
         message,
         kind,
-        code,
+        code: numeric_code.map(|code| code.to_string()),
         source: Some(source),
+        details: None,
     })
 }
 

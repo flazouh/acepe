@@ -36,6 +36,23 @@ pub struct Provider {
 pub struct ProviderModel {
     pub id: String,
     pub name: String,
+    #[serde(default)]
+    pub capabilities: Option<ProviderModelCapabilities>,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+pub struct ProviderModelCapabilities {
+    #[serde(default)]
+    pub toolcall: Option<bool>,
+}
+
+impl ProviderModel {
+    pub fn supports_tool_calls(&self) -> bool {
+        self.capabilities
+            .as_ref()
+            .and_then(|capabilities| capabilities.toolcall)
+            .unwrap_or(true)
+    }
 }
 
 /// OpenCode config response - contains user's configured model preference

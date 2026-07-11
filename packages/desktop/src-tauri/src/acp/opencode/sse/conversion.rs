@@ -997,39 +997,23 @@ pub(super) fn convert_session_idle_to_session_update(properties: &Value) -> Opti
     })
 }
 
-fn extract_session_error_message(properties: &Value) -> Option<String> {
-    let message = properties
-        .get("error")
-        .and_then(|error| {
-            error
-                .get("data")
-                .and_then(|data| data.get("message"))
-                .and_then(Value::as_str)
-                .or_else(|| error.get("message").and_then(Value::as_str))
-        })
-        .or_else(|| properties.get("message").and_then(Value::as_str))
-        .map(str::trim)
-        .filter(|value| !value.is_empty())?;
-
-    Some(message.to_string())
-}
-
 pub(super) fn convert_session_error_to_session_update(properties: &Value) -> Option<SessionUpdate> {
     let session_id = properties
         .get("sessionID")
         .or_else(|| properties.get("sessionId"))
         .and_then(Value::as_str)
-        .map(ToString::to_string);
+        .map(str::trim)
+        .filter(|value| !value.is_empty())?
+        .to_string();
 
     Some(SessionUpdate::TurnError {
-        error: TurnErrorData::Structured(TurnErrorInfo {
-            message: extract_session_error_message(properties)
-                .unwrap_or_else(|| "OpenCode session failed".to_string()),
-            kind: TurnErrorKind::Recoverable,
-            code: None,
-            source: Some(TurnErrorSource::Process),
-        }),
-        session_id,
+        error: TurnErrorData::Structured(TurnErrorInfo::from_provider_error(
+            properties,
+            TurnErrorKind::Recoverable,
+            TurnErrorSource::Unknown,
+            "OpenCode session failed",
+        )),
+        session_id: Some(session_id),
         turn_id: None,
     })
 }

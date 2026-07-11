@@ -228,6 +228,7 @@ fn translate_turn_completed(
                 kind: TurnErrorKind::Fatal,
                 code: None,
                 source: Some(TurnErrorSource::Process),
+                details: None,
             }),
             session_id: Some(session_id.to_string()),
             turn_id,
@@ -516,7 +517,7 @@ fn translate_error_notification(
         .and_then(Value::as_object)
         .and_then(|entry| entry.get("code"))
         .and_then(Value::as_i64)
-        .and_then(|value| i32::try_from(value).ok());
+        .map(|value| value.to_string());
 
     with_codex_plan_update(SessionUpdate::TurnError {
         error: TurnErrorData::Structured(TurnErrorInfo {
@@ -524,6 +525,7 @@ fn translate_error_notification(
             kind: TurnErrorKind::Fatal,
             code,
             source: Some(TurnErrorSource::Transport),
+            details: None,
         }),
         session_id: Some(session_id.to_string()),
         turn_id: extract_codex_turn_id(Some(params)),

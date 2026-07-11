@@ -185,12 +185,14 @@ fn stored_error_message_from_turn_error(error: &TurnErrorData) -> StoredErrorMes
         TurnErrorData::Legacy(message) => StoredErrorMessage {
             content: message.clone(),
             code: None,
+            details: None,
             kind: TurnErrorKind::Recoverable,
             source: None,
         },
         TurnErrorData::Structured(info) => StoredErrorMessage {
             content: info.message.clone(),
-            code: info.code.map(|code| code.to_string()),
+            code: info.code.clone(),
+            details: info.details.clone(),
             kind: info.kind,
             source: info.source,
         },
@@ -945,8 +947,9 @@ mod tests {
                         error: TurnErrorData::Structured(TurnErrorInfo {
                             message: error_message.to_string(),
                             kind: TurnErrorKind::Recoverable,
-                            code: Some(429),
+                            code: Some("429".to_string()),
                             source: None,
+                            details: None,
                         }),
                         session_id: Some(session_id.to_string()),
                         turn_id: None,

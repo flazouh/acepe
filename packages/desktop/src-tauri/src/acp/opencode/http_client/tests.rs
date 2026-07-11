@@ -158,6 +158,7 @@ fn test_provider_response_many_providers() {
             ProviderModel {
                 id: model_id.clone(),
                 name: format!("Model {}", i),
+                capabilities: None,
             },
         )]);
 
@@ -393,38 +394,43 @@ fn test_provider_response_filtering_logic() {
 /// Test provider default selection prefers connected-provider defaults over first fallback.
 #[test]
 fn test_provider_default_model_prefers_connected_defaults() {
-    let connected_set: std::collections::HashSet<&str> =
-        ["anthropic", "google"].into_iter().collect();
+    let connected_provider_ids = vec!["anthropic".to_string(), "google".to_string()];
     let provider_defaults = HashMap::from([
         ("google".to_string(), "gemini-3-pro".to_string()),
         ("anthropic".to_string(), "claude-sonnet-4-5".to_string()),
     ]);
     let fallback_model = Some(&"anthropic/claude-opus-4".to_string());
+    let compatible_model_ids = [
+        "anthropic/claude-sonnet-4-5".to_string(),
+        "google/gemini-3-pro".to_string(),
+    ]
+    .into_iter()
+    .collect();
 
     let selected = OpenCodeHttpClient::get_provider_default_model(
-        &connected_set,
+        &connected_provider_ids,
         &provider_defaults,
+        &compatible_model_ids,
         fallback_model,
     );
 
-    assert!(selected.is_some());
-    let selected_id = selected.expect("provider default model should resolve");
-    assert!(
-        selected_id == "anthropic/claude-sonnet-4-5" || selected_id == "google/gemini-3-pro",
-        "expected a connected-provider default, got {selected_id}"
-    );
+    assert_eq!(selected.as_deref(), Some("anthropic/claude-sonnet-4-5"));
 }
 
 /// Test provider default selection falls back to the first available model when needed.
 #[test]
 fn test_provider_default_model_falls_back_when_defaults_missing() {
-    let connected_set: std::collections::HashSet<&str> = ["anthropic"].into_iter().collect();
+    let connected_provider_ids = vec!["anthropic".to_string()];
     let provider_defaults = HashMap::new();
     let fallback_model = Some(&"anthropic/claude-opus-4".to_string());
+    let compatible_model_ids = ["anthropic/claude-opus-4".to_string()]
+        .into_iter()
+        .collect();
 
     let selected = OpenCodeHttpClient::get_provider_default_model(
-        &connected_set,
+        &connected_provider_ids,
         &provider_defaults,
+        &compatible_model_ids,
         fallback_model,
     );
 
@@ -434,13 +440,48 @@ fn test_provider_default_model_falls_back_when_defaults_missing() {
 /// Test provider default selection preserves absence when no connected default or fallback exists.
 #[test]
 fn test_provider_default_model_preserves_absence() {
-    let connected_set: std::collections::HashSet<&str> = ["anthropic"].into_iter().collect();
+    let connected_provider_ids = vec!["anthropic".to_string()];
     let provider_defaults = HashMap::new();
+    let compatible_model_ids = std::collections::HashSet::new();
 
-    let selected =
-        OpenCodeHttpClient::get_provider_default_model(&connected_set, &provider_defaults, None);
+    let selected = OpenCodeHttpClient::get_provider_default_model(
+        &connected_provider_ids,
+        &provider_defaults,
+        &compatible_model_ids,
+        None,
+    );
 
     assert_eq!(selected, None);
+}
+
+#[test]
+fn test_provider_default_model_skips_models_without_tool_support() {
+    let connected_provider_ids = vec!["openrouter".to_string(), "github-copilot".to_string()];
+    let provider_defaults = HashMap::from([
+        (
+            "openrouter".to_string(),
+            "google/gemini-3-pro-image-preview".to_string(),
+        ),
+        (
+            "github-copilot".to_string(),
+            "claude-sonnet-4.6".to_string(),
+        ),
+    ]);
+    let compatible_model_ids = ["github-copilot/claude-sonnet-4.6".to_string()]
+        .into_iter()
+        .collect();
+
+    let selected = OpenCodeHttpClient::get_provider_default_model(
+        &connected_provider_ids,
+        &provider_defaults,
+        &compatible_model_ids,
+        None,
+    );
+
+    assert_eq!(
+        selected.as_deref(),
+        Some("github-copilot/claude-sonnet-4.6")
+    );
 }
 
 /// Test convert_api_response_to_message with user message containing text

@@ -110,6 +110,7 @@ mod tests {
                 turn_id: Some(turn_id.to_string()),
                 message: "boom".to_string(),
                 code: None,
+                details: None,
                 kind: crate::acp::session_update::TurnErrorKind::Recoverable,
                 source: crate::acp::session_update::TurnErrorSource::Unknown,
             }),

@@ -111,6 +111,7 @@ pub(super) async fn run_streaming_bridge(
                                             kind: TurnErrorKind::Fatal,
                                             code: None,
                                             source: Some(TurnErrorSource::Transport),
+                                            details: None,
                                         }),
                                         session_id: Some(session_id.clone()),
                                         turn_id: None,
@@ -145,6 +146,7 @@ pub(super) async fn run_streaming_bridge(
                                         kind: TurnErrorKind::Fatal,
                                         code: None,
                                         source: Some(TurnErrorSource::Transport),
+                                        details: None,
                                     }),
                                     session_id: Some(session_id.clone()),
                                     turn_id: None,
@@ -352,6 +354,7 @@ pub(super) async fn run_streaming_bridge(
                     kind: TurnErrorKind::Fatal,
                     code: None,
                     source: Some(TurnErrorSource::Transport),
+                    details: None,
                 });
                 dispatcher.enqueue(AcpUiEvent::session_update(SessionUpdate::TurnError {
                     error,
@@ -439,6 +442,7 @@ async fn rewrite_generic_turn_failed_from_permission_deny(
         kind: TurnErrorKind::Recoverable,
         code: None,
         source: Some(TurnErrorSource::Unknown),
+        details: None,
     });
 }
 

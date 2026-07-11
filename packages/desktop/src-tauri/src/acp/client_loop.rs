@@ -235,8 +235,9 @@ async fn drain_prompt_sessions_as_turn_errors(
         let error = TurnErrorData::Structured(TurnErrorInfo {
             message: reason.to_string(),
             kind: TurnErrorKind::Fatal,
-            code: Some(-32001),
+            code: Some("-32001".to_string()),
             source: Some(TurnErrorSource::Process),
+            details: None,
         });
         let updates = streaming_emitter.process_turn_error(
             &prompt.session_id,

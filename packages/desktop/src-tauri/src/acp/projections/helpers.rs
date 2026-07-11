@@ -79,13 +79,15 @@ pub(crate) fn convert_turn_error_snapshot(
             turn_id,
             message: message.clone(),
             code: None,
+            details: None,
             kind: crate::acp::session_update::TurnErrorKind::Recoverable,
             source: crate::acp::session_update::TurnErrorSource::Unknown,
         },
         crate::acp::session_update::TurnErrorData::Structured(info) => TurnFailureSnapshot {
             turn_id,
             message: info.message.clone(),
-            code: info.code.map(|code| code.to_string()),
+            code: info.code.clone(),
+            details: info.details.clone(),
             kind: info.kind,
             source: info
                 .source

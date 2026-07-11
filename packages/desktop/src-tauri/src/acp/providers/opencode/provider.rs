@@ -2,7 +2,7 @@ use super::settings::apply_opencode_session_defaults;
 use crate::acp::capability_resolution::{
     failed_capabilities, resolve_static_capabilities, ResolvedCapabilityStatus,
 };
-use crate::acp::client_session::{SessionModelState, SessionModes};
+use crate::acp::client_session::{AvailableMode, SessionModelState, SessionModes};
 use crate::acp::client_trait::CommunicationMode;
 use crate::acp::error::AcpResult;
 use crate::acp::opencode::{OpenCodeHttpClient, OpenCodeManagerRegistry};
@@ -225,6 +225,24 @@ impl AgentProvider for OpenCodeProvider {
         !self.spawn_configs().is_empty()
     }
 
+    fn default_session_modes(&self) -> SessionModes {
+        SessionModes {
+            current_mode_id: "build".to_string(),
+            available_modes: vec![
+                AvailableMode::new(
+                    "build",
+                    "Build",
+                    Some("OpenCode's primary coding agent".to_string()),
+                ),
+                AvailableMode::new(
+                    "plan",
+                    "Plan",
+                    Some("OpenCode's read-only planning agent".to_string()),
+                ),
+            ],
+        }
+    }
+
     fn apply_session_defaults(
         &self,
         cwd: &Path,
@@ -417,6 +435,16 @@ mod tests {
     #[test]
     fn allowed_env_keys_forward_opencode_api_key() {
         assert!(ALLOWED_ENV_KEYS.contains(&"OPENCODE_API_KEY"));
+    }
+
+    #[test]
+    fn unconfigured_opencode_sessions_default_to_native_build_agent() {
+        let modes = OpenCodeProvider.default_session_modes();
+
+        assert_eq!(modes.current_mode_id, "build");
+        assert!(modes.available_modes.iter().any(|mode| mode.id == "build"));
+        assert!(modes.available_modes.iter().any(|mode| mode.id == "plan"));
+        assert!(!modes.available_modes.iter().any(|mode| mode.id == "agent"));
     }
 
     #[test]

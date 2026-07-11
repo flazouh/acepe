@@ -7,14 +7,19 @@ impl OpenCodeHttpClient {
     /// Uses the provider-reported defaults for connected providers,
     /// falling back to the first available model.
     pub(super) fn get_provider_default_model(
-        connected_set: &std::collections::HashSet<&str>,
+        connected_provider_ids: &[String],
         provider_defaults: &HashMap<String, String>,
+        compatible_model_ids: &std::collections::HashSet<String>,
         fallback_model: Option<&String>,
     ) -> Option<String> {
-        // Use the first connected provider that has a default model
-        for &provider_id in connected_set.iter() {
+        // OpenCode orders connected providers by preference. Preserve that order
+        // so model selection is deterministic across launches.
+        for provider_id in connected_provider_ids {
             if let Some(model_id) = provider_defaults.get(provider_id) {
-                return Some(format!("{}/{}", provider_id, model_id));
+                let candidate = format!("{}/{}", provider_id, model_id);
+                if compatible_model_ids.contains(&candidate) {
+                    return Some(candidate);
+                }
             }
         }
 
@@ -96,6 +101,9 @@ impl OpenCodeHttpClient {
             }
 
             for (model_key, model) in &provider.models {
+                if !model.supports_tool_calls() {
+                    continue;
+                }
                 let model_id = format!("{}/{}", provider.id, model_key);
 
                 available_models.push(AvailableModel {
@@ -109,6 +117,10 @@ impl OpenCodeHttpClient {
                 }
             }
         }
+        let compatible_model_ids = available_models
+            .iter()
+            .map(|model| model.model_id.clone())
+            .collect::<std::collections::HashSet<_>>();
 
         let config_model = self.fetch_config_model().await.unwrap_or(None);
 
@@ -137,15 +149,17 @@ impl OpenCodeHttpClient {
                     model_id
                 );
                 Self::get_provider_default_model(
-                    &connected_set,
+                    &provider_response.connected,
                     &provider_response.default,
+                    &compatible_model_ids,
                     default_model_id.as_ref(),
                 )
             }
         } else {
             Self::get_provider_default_model(
-                &connected_set,
+                &provider_response.connected,
                 &provider_response.default,
+                &compatible_model_ids,
                 default_model_id.as_ref(),
             )
         };
