@@ -105,13 +105,32 @@ Grab the latest release from [acepe.dev/download](https://acepe.dev/download) or
 
 ### Build from Source
 
+Install a local, unsigned build directly into `/Applications`:
+
 ```bash
 git clone https://github.com/flazouh/acepe.git
-cd acepe && bun install
-cd packages/desktop && bun run tauri
+cd acepe
+bun run install:source
 ```
 
-**Prerequisites**: [Bun](https://bun.sh/) 1.3+, [Rust](https://www.rust-lang.org/tools/install) stable, [Tauri prerequisites](https://tauri.app/start/prerequisites/)
+The command checks the prerequisites, installs the locked dependencies, builds `Acepe.app`, and installs it only after the build succeeds. It will not replace an existing installation unless you pass `--force`.
+
+```bash
+# Install without administrator access
+bun run install:source -- --destination "$HOME/Applications"
+
+# Replace an existing source installation
+bun run install:source -- --force
+```
+
+**Prerequisites**: macOS, [Bun](https://bun.sh/) 1.3+, [Rust](https://www.rust-lang.org/tools/install) stable, and the Xcode Command Line Tools (`xcode-select --install`). Run `bun run install:source -- --help` for every option.
+
+For development with hot reload, run:
+
+```bash
+bun install --frozen-lockfile
+bun run --cwd packages/desktop tauri
+```
 
 ## Architecture
 

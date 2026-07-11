@@ -1,4 +1,8 @@
-# Sentry
+# Generated inventories
+scripts/linear-icons/inventory/
+scripts/linear-icons/__tests__/fixtures/output-a/
+scripts/linear-icons/__tests__/fixtures/output-b/
+
 .env.sentry-build-plugin
 
 # Dependencies
