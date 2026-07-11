@@ -158,17 +158,6 @@ function handleSave(): void {
 }
 </script>
 
-{#snippet eyeOffIcon()}
-	<span
-		class="relative inline-flex h-3.5 w-3.5 shrink-0 items-center justify-center"
-		data-testid="env-eye-off-css-icon"
-		aria-hidden="true"
-	>
-		<RoundedIcon name="eye" class="size-full" />
-		<span class="absolute h-[1px] w-[15px] rotate-45 rounded-full bg-current"></span>
-	</span>
-{/snippet}
-
 <button
 	type="button"
 	class="flex h-7 items-center gap-1.5 px-2 text-[12px] text-muted-foreground transition-colors hover:bg-accent/50 hover:text-foreground"
@@ -230,7 +219,7 @@ function handleSave(): void {
 							onclick={() => toggleReveal(row.id)}
 						>
 							{#if row.revealed}
-								{@render eyeOffIcon()}
+								<RoundedIcon name="eye-off" class="h-3.5 w-3.5" data-testid="env-eye-off-icon" />
 							{:else}
 								<RoundedIcon name="eye" class="h-3.5 w-3.5" />
 							{/if}

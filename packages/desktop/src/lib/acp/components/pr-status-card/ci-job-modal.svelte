@@ -45,15 +45,6 @@ function openOnGitHub(): void {
 }
 </script>
 
-{#snippet neutralStepIcon()}
-	<span
-		class="inline-flex size-2.5 items-center justify-center rounded-full border border-current"
-		data-testid="ci-job-neutral-step-icon"
-	>
-		<span class="h-px w-1/2 rounded-full bg-current"></span>
-	</span>
-{/snippet}
-
 <DialogFrame
 	{open}
 	title={check.name}
@@ -118,7 +109,7 @@ function openOnGitHub(): void {
 							{:else if bucket === "failure"}
 								<RoundedIcon name="x-circle" class="size-2.5 text-destructive" />
 							{:else if bucket === "neutral"}
-								<span class="text-amber-400">{@render neutralStepIcon()}</span>
+								<RoundedIcon name="minus" class="size-2.5 text-amber-400" data-testid="ci-job-neutral-step-icon" />
 							{:else}
 								<RoundedIcon name="check-circle" class="size-2.5 text-emerald-500" />
 							{/if}

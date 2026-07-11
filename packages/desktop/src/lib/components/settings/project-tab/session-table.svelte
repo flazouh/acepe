@@ -276,7 +276,7 @@ function formatDate(date: Date): string {
 					title="First page"
 					onclick={() => state.goToFirstPage()}
 				>
-					<RoundedIcon name="dist-dmzwhx2o--10-previous" class="size-3 shrink-0" />
+					<RoundedIcon name="chevron-left" class="size-3 shrink-0" />
 				</button>
 				<button
 					type="button"
@@ -305,7 +305,7 @@ function formatDate(date: Date): string {
 					title="Last page"
 					onclick={() => state.goToLastPage(totalPages)}
 				>
-					<RoundedIcon name="dist-dmzwhx2o--10-next" class="size-3 shrink-0" />
+					<RoundedIcon name="chevron-right" class="size-3 shrink-0" />
 				</button>
 			</div>
 		{/if}

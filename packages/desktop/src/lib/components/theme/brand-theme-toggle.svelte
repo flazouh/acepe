@@ -12,19 +12,6 @@ const themeState = useTheme();
 	trigger icon reflects the selected theme and is tinted cream so it stays
 	legible on the brand shader regardless of the active theme.
 -->
-{#snippet systemThemeIcon()}
-	<span
-		class="relative inline-flex size-4 shrink-0 items-center justify-center"
-		style="color: #F8F5EE"
-		data-testid="brand-theme-system-css-icon"
-		aria-hidden="true"
-	>
-		<span class="absolute left-[3px] top-[3px] h-[9px] w-[10px] rounded-[2px] border border-current"></span>
-		<span class="absolute bottom-[2px] h-px w-[6px] rounded-full bg-current"></span>
-		<span class="absolute bottom-[3px] h-[3px] w-px rounded-full bg-current"></span>
-	</span>
-{/snippet}
-
 <Selector
 	align="end"
 	variant="ghost"
@@ -39,7 +26,7 @@ const themeState = useTheme();
 		{:else if themeState.theme === "dark"}
 			<RoundedIcon name="moon" style="color: #F8F5EE" />
 		{:else}
-			{@render systemThemeIcon()}
+			<RoundedIcon name="laptop" style="color: #F8F5EE" data-testid="brand-theme-system-icon" />
 		{/if}
 	{/snippet}
 
