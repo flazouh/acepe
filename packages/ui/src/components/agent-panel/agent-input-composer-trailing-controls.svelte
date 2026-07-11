@@ -86,7 +86,10 @@
 </script>
 
 {#if inputReady}
-	<div class="flex shrink-0 items-end gap-0.5">
+	<div
+		class="flex min-w-0 max-w-full items-end justify-end gap-0.5"
+		data-qa="agent-input-trailing-controls"
+	>
 		{#if agentProjectPicker}
 			<div
 				class="shrink-0 transition-opacity duration-200 ease-out {fadeWhenVoiceActiveClass}"
@@ -94,7 +97,13 @@
 				{@render agentProjectPicker()}
 			</div>
 		{/if}
-		<div class="shrink-0 transition-opacity duration-200 ease-out {fadeWhenVoiceActiveClass}">
+		<div
+			class="min-w-0 max-w-full shrink overflow-hidden transition-opacity duration-200 ease-out
+				[&_[role=group]]:!min-w-0 [&_[role=group]]:!max-w-full
+				[&_[data-slot=button]]:!min-w-0 [&_[data-slot=button]]:!max-w-full
+				{fadeWhenVoiceActiveClass}"
+			data-qa="agent-input-model-control"
+		>
 			{#if fuseModelWithReasoning && reasoningToolbarOption && onConfigOptionChange}
 				<AgentInputModelReasoningFusedControls
 					{modelSelector}

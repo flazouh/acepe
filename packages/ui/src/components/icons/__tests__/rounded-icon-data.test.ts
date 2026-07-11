@@ -17,6 +17,19 @@ import {
 } from "../rounded-icon-library.js";
 
 describe("rounded-icon-data", () => {
+	it("preserves currentColor strokes from extracted Codex tool icons", () => {
+		expect(roundedIconData["tool-read"].inner).toContain('stroke="currentColor"');
+		expect(roundedIconData["tool-read"].inner).toContain('fill="none"');
+	});
+
+	it("uses the rounded Codex terminal geometry for execute tools", () => {
+		const terminalIcon = roundedIconData.terminal;
+
+		expect(terminalIcon.viewBox).toBe("0 0 20 20");
+		expect(terminalIcon.inner).toContain('fill-rule="evenodd"');
+		expect(terminalIcon.inner).not.toContain("<rect");
+	});
+
 	it("resolves semantic shield aliases to RoundedIcon shield assets", () => {
 		expect(resolveRoundedIconName("shield-warning")).toBe("shield-warning");
 		expect(resolveRoundedIconName("shield-check")).toBe("shield-check");

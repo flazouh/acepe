@@ -73,39 +73,6 @@
 	);
 </script>
 
-{#snippet structuredDisplayIcon()}
-	<span
-		class="inline-flex h-4 w-4 flex-col justify-center gap-[2px]"
-		data-testid="file-panel-structured-display-icon"
-		aria-hidden="true"
-	>
-		<span class="flex items-center gap-[2px]">
-			<span class="size-1 rounded-full bg-current"></span>
-			<span class="h-px w-2.5 rounded-full bg-current"></span>
-		</span>
-		<span class="ml-1.5 flex items-center gap-[2px]">
-			<span class="size-1 rounded-full bg-current"></span>
-			<span class="h-px w-2 rounded-full bg-current"></span>
-		</span>
-		<span class="ml-1.5 flex items-center gap-[2px]">
-			<span class="size-1 rounded-full bg-current"></span>
-			<span class="h-px w-2 rounded-full bg-current"></span>
-		</span>
-	</span>
-{/snippet}
-
-{#snippet tableDisplayIcon()}
-	<span
-		class="grid h-4 w-4 grid-cols-3 grid-rows-3 gap-px"
-		data-testid="file-panel-table-display-icon"
-		aria-hidden="true"
-	>
-		{#each Array.from({ length: 9 }) as _, index (index)}
-			<span class="rounded-[1px] border border-current"></span>
-		{/each}
-	</span>
-{/snippet}
-
 <EmbeddedPanelHeader>
 	{#if !compact}
 		{#if !hideProjectBadge}
@@ -161,9 +128,9 @@
 						{#if item.id === "rendered"}
 							<RoundedIcon name="eye" class="h-4 w-4" />
 						{:else if item.id === "structured"}
-							{@render structuredDisplayIcon()}
+							<RoundedIcon name="tasks" class="h-4 w-4" data-testid="file-panel-structured-display-icon" />
 						{:else if item.id === "table"}
-							{@render tableDisplayIcon()}
+							<RoundedIcon name="apps" class="h-4 w-4" data-testid="file-panel-table-display-icon" />
 						{:else}
 							<RoundedIcon name="code" class="h-4 w-4" />
 						{/if}

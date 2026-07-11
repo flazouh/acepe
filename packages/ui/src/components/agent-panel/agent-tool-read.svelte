@@ -2,7 +2,6 @@
 	import { untrack } from "svelte";
 	import { FilePathBadge } from "../file-path-badge/index.js";
 	import { RoundedIcon } from "../icons/index.js";
-	import AgentToolCard from "./agent-tool-card.svelte";
 	import {
 		readPersistedReadExpanded,
 		writePersistedReadExpanded,
@@ -110,7 +109,7 @@
 	}
 </script>
 
-<AgentToolCard>
+<div class="agent-tool-read min-w-0 max-w-full overflow-hidden text-sm" data-testid="agent-tool-read">
 	<div role="group" class="flex h-6 items-center justify-between pl-2 pr-1.5 text-sm">
 		<div class="flex min-w-0 flex-1 items-center gap-1">
 			<div class="flex min-w-0 items-center gap-1">
@@ -165,7 +164,7 @@
 			{/if}
 		</div>
 	{/if}
-</AgentToolCard>
+</div>
 
 <style>
 	.read-source {

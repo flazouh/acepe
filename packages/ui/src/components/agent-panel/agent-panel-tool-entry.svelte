@@ -59,7 +59,6 @@ const durationTiming = $derived<ToolDurationTiming>({
 	<AgentToolTodo
 		todos={entry.todos ?? []}
 		isLive={entry.status === "running"}
-		{durationTiming}
 	/>
 {:else if renderKind === "tool-question"}
 	<AgentPanelToolQuestion

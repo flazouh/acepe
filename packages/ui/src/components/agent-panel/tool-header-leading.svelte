@@ -1,7 +1,7 @@
 <script lang="ts">
 	import type { Snippet } from "svelte";
-	import { LoadingIcon } from "../icons/index.js";
 	import ToolLabel from "./tool-label.svelte";
+	import ToolKindIcon from "./tool-kind-icon.svelte";
 	import type { AgentToolKind, AgentToolStatus } from "./types.js";
 
 	interface Props {
@@ -11,14 +11,12 @@
 		children: Snippet;
 	}
 
-	let { status = "done", class: className = "", children }: Props = $props();
-
-	const isPending = $derived(status === "pending" || status === "running");
+	let { kind, status = "done", class: className = "", children }: Props = $props();
 </script>
 
 <div class={`flex items-center gap-2 min-w-0 ${className}`.trim()}>
-	{#if isPending}
-		<LoadingIcon class="shrink-0" size={12} aria-label="Loading" />
+	{#if kind !== undefined}
+		<ToolKindIcon {kind} {status} size={13} />
 	{/if}
 	<ToolLabel {status}>
 		{@render children()}

@@ -1,4 +1,5 @@
 <script lang="ts">
+	import RoundedIcon from "./rounded-icon.svelte";
 	interface Props {
 		size?: "sm" | "md" | "lg";
 		class?: string;
@@ -21,11 +22,7 @@
 	data-testid={testId}
 	aria-hidden="true"
 >
-	<span class="build-icon-tool">
-		<span class="build-icon-tip"></span>
-		<span class="build-icon-shaft"></span>
-		<span class="build-icon-handle"></span>
-	</span>
+	<RoundedIcon name="code" class="size-full" />
 </span>
 
 <style>
@@ -38,42 +35,4 @@
 		color: currentColor;
 	}
 
-	.build-icon-tool {
-		position: relative;
-		display: block;
-		width: 100%;
-		height: 100%;
-		transform: rotate(-45deg);
-	}
-
-	.build-icon-tip,
-	.build-icon-shaft,
-	.build-icon-handle {
-		position: absolute;
-		left: 50%;
-		background: currentColor;
-		transform: translateX(-50%);
-	}
-
-	.build-icon-tip {
-		top: 3%;
-		width: 32%;
-		height: 16%;
-		border-radius: 1px 1px 2px 2px;
-		clip-path: polygon(24% 0, 76% 0, 100% 100%, 0 100%);
-	}
-
-	.build-icon-shaft {
-		top: 18%;
-		width: 18%;
-		height: 44%;
-		border-radius: 999px;
-	}
-
-	.build-icon-handle {
-		top: 56%;
-		width: 42%;
-		height: 36%;
-		border-radius: 2px 2px 4px 4px;
-	}
 </style>

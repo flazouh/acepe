@@ -2,8 +2,8 @@
 	import AgentToolCard from "./agent-tool-card.svelte";
 	import ToolLabel from "./tool-label.svelte";
 	import TextShimmer from "../text-shimmer/text-shimmer.svelte";
-	import { LoadingIcon, RoundedIcon } from "../icons/index.js";
-	import { Colors } from "../../lib/colors.js";
+	import { RoundedIcon } from "../icons/index.js";
+	import ToolKindIcon from "./tool-kind-icon.svelte";
 	import {
 		getSkillDisplayArgs,
 		getSkillDisplayName,
@@ -85,15 +85,10 @@
 			<!-- Left side: icon + skill name + args -->
 			<div class="flex min-w-0 flex-1 items-center gap-1.5 truncate">
 				{#if viewState.isPending}
-					<LoadingIcon class="shrink-0" size={12} aria-label="Loading" />
+					<ToolKindIcon kind="skill" {status} size={13} />
 					<TextShimmer class="shrink-0 text-xs">{displayName}</TextShimmer>
 				{:else}
-					<RoundedIcon
-						name="skills"
-						class="size-3 shrink-0"
-						data-testid="agent-tool-skill-icon"
-						style="color: {Colors.purple}"
-					/>
+					<ToolKindIcon kind="skill" {status} size={13} />
 					<span class="shrink-0 font-sans text-xs text-foreground">{displayName}</span>
 				{/if}
 

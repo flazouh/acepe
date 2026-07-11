@@ -7,6 +7,7 @@
 		hasOtherToolDetails,
 	} from "./agent-tool-other-state.js";
 	import ToolLabel from "./tool-label.svelte";
+	import ToolKindIcon from "./tool-kind-icon.svelte";
 	import AgentToolDurationLabel from "./agent-tool-duration-label.svelte";
 	import type { ToolDurationTiming } from "./tool-duration.js";
 	import type { AgentToolStatus } from "./types.js";
@@ -45,6 +46,7 @@
 		class:border-b={hasDetails}
 		class:border-border={hasDetails}
 	>
+		<ToolKindIcon kind="other" {status} size={13} />
 		<ToolLabel {status}>{title}</ToolLabel>
 
 		{#if subtitle}

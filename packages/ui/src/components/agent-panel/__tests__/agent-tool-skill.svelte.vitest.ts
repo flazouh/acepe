@@ -33,9 +33,7 @@ describe("AgentToolSkill", () => {
 		expect(view.queryByText("Successful")).toBeNull();
 		expect(view.getByLabelText("Successful")).toBeTruthy();
 		expect(view.container.querySelector(".h-6")).toBeTruthy();
-		expect(view.getByTestId("agent-tool-skill-icon").getAttribute("style")).toContain(
-			"#9858FF"
-		);
+		expect(view.getByTestId("tool-kind-icon-skill")).toBeTruthy();
 		expect(view.container.querySelector(".text-success")).toBeTruthy();
 	});
 });

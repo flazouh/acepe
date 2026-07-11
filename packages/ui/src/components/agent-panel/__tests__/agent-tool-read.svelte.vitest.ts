@@ -58,6 +58,9 @@ describe("AgentToolRead", () => {
 			status: "done",
 		});
 
+		expect(view.container.querySelector(".agent-tool-card")).toBeNull();
+		expect(view.getByTestId("agent-tool-read")).toBeTruthy();
+		expect(view.getByTestId("tool-kind-icon-read")).toBeTruthy();
 		expect(view.getByText("Read")).toBeTruthy();
 		expect(view.getByText("Lines 1-2")).toBeTruthy();
 		expect(view.container.querySelector("pre")?.textContent).toBe(

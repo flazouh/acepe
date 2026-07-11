@@ -16,6 +16,7 @@
 	import { Switch } from "../switch/index.js";
 	import * as Tooltip from "../tooltip/index.js";
 	import { cn } from "../../lib/utils.js";
+	import { RoundedIcon } from "../icons/index.js";
 
 	interface Props {
 		worktreeLabel?: string;
@@ -105,9 +106,7 @@
 						>
 							<span aria-hidden="true" class={worktreeCheckboxClass}>
 								{#if worktreeOn}
-									<span
-										class="block h-[7px] w-[3.5px] translate-y-[-0.5px] rotate-45 border-b-2 border-r-2 border-current"
-									></span>
+									<RoundedIcon name="check" class="size-2.5" />
 								{/if}
 							</span>
 							<span>{worktreeLabel}</span>

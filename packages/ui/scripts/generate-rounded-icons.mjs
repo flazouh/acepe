@@ -34,6 +34,26 @@ function svgInner(svg) {
 		.trim();
 }
 
+function svgPresentationInner(svg, attributes) {
+	const inner = svgInner(svg);
+	const presentationAttributeNames = [
+		"fill",
+		"stroke",
+		"stroke-width",
+		"stroke-linecap",
+		"stroke-linejoin",
+	];
+	const presentationAttributes = presentationAttributeNames
+		.map((name) => {
+			const value = readAttribute(attributes, name);
+			return value ? `${name}=${JSON.stringify(value)}` : null;
+		})
+		.filter((attribute) => attribute !== null)
+		.join(" ");
+
+	return presentationAttributes ? `<g ${presentationAttributes}>${inner}</g>` : inner;
+}
+
 function quoted(value) {
 	return JSON.stringify(value);
 }
@@ -58,7 +78,7 @@ function readSvgEntry(fileName) {
 	return {
 		name,
 		viewBox,
-		inner: svgInner(svg),
+		inner: svgPresentationInner(svg, match[1]),
 	};
 }
 

@@ -31,7 +31,7 @@
 		scrollToTopAriaLabel = "Scroll to top",
 		scrollToBottomAriaLabel = "Scroll to bottom",
 		centered = false,
-		widthClass = "max-w-[60%]",
+		widthClass = "max-w-3xl",
 		class: className = "",
 	}: Props = $props();
 
@@ -58,7 +58,7 @@
 		class={cn("bg-transparent pt-0.5 pb-0.5", className)}
 		innerClass="flex w-full justify-end"
 	>
-		<div data-testid="transcript-scroll-controls">
+		<div class="pointer-events-auto" data-testid="transcript-scroll-controls">
 			<ButtonGroup>
 				{#if showScrollToTop}
 					<Button

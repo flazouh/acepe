@@ -31,11 +31,13 @@ describe("AgentToolExecute", () => {
 		});
 
 		expect(view.getByTestId("agent-tool-execute-card")).toBeTruthy();
-		expect(view.container.querySelector(".rounded-lg.border.border-border")).toBeTruthy();
-		const commandBlocks = view.container.querySelectorAll(".execute-blocks pre");
-		expect(commandBlocks).toHaveLength(1);
-		expect(commandBlocks[0]?.textContent).toContain("go test ./...");
-		expect(commandBlocks[0]?.textContent).toContain("bun run check");
+		expect(view.getByTestId("agent-tool-execute-card").className).not.toContain("border");
+		expect(view.getByTestId("tool-kind-icon-execute")).toBeTruthy();
+		const commandBlocks = view.container.querySelectorAll(".execute-blocks > .execute-block");
+		expect(commandBlocks.length).toBeGreaterThan(0);
+		const commandText = Array.from(commandBlocks, (block) => block.textContent).join("\n");
+		expect(commandText).toContain("go test ./...");
+		expect(commandText).toContain("bun run check");
 		expect(view.container.querySelector(".execute-output-area")?.className).toContain(
 			"execute-output-collapsed"
 		);

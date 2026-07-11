@@ -1,6 +1,5 @@
 <script lang="ts">
 import { LoadingIcon, RoundedIcon, type RoundedIconName } from "../icons/index.js";
-import { Colors } from "../../lib/colors.js";
 import type { AgentToolKind, AgentToolStatus } from "./types.js";
 
 interface Props {
@@ -19,25 +18,25 @@ let {
 const isPending = $derived(status === "pending" || status === "running");
 
 const roundedIconByKind: Record<AgentToolKind, RoundedIconName> = {
-	read: "file-text",
-	read_lints: "tasks",
-	review: "code",
-	edit: "edit",
+	read: "tool-read",
+	read_lints: "tool-task",
+	review: "tool-edit",
+	edit: "tool-edit",
 	delete: "trash",
-	write: "edit",
+	write: "tool-edit",
 	execute: "terminal",
-	search: "search",
-	fetch: "globe",
-	web_search: "globe",
-	think: "brain",
-	skill: "skills",
-	task: "tasks",
-	task_output: "tasks",
-	enter_plan_mode: "tasks",
-	exit_plan_mode: "tasks",
-	create_plan: "edit",
-	browser: "app-window",
-	sql: "app-window",
+	search: "tool-search",
+	fetch: "tool-web",
+	web_search: "tool-web",
+	think: "tool-think",
+	skill: "tool-skill",
+	task: "tool-task",
+	task_output: "tool-task",
+	enter_plan_mode: "tool-plan",
+	exit_plan_mode: "tool-plan",
+	create_plan: "tool-plan",
+	browser: "tool-browser",
+	sql: "tool-sql",
 	unclassified: "question",
 	other: "question",
 };
@@ -50,8 +49,8 @@ const roundedIcon = $derived(roundedIconByKind[kind]);
 {:else if roundedIcon}
 	<RoundedIcon
 		name={roundedIcon}
-		class={className}
-		style="width: {size}px; height: {size}px; color: {Colors.purple}"
-		data-testid={kind === "review" ? "tool-kind-review-code-icon" : undefined}
+		class="text-muted-foreground {className}"
+		style="width: {size}px; height: {size}px"
+		data-testid={`tool-kind-icon-${kind}`}
 	/>
 {/if}

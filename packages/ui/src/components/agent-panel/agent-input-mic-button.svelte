@@ -10,7 +10,7 @@
   - recording: red filled circle with stop square, pulsing glow
 -->
 <script lang="ts">
-	import { LoadingIcon } from "../icons/index.js";
+	import { LoadingIcon, RoundedIcon } from "../icons/index.js";
 	import { SegmentedProgressBar } from "../segmented-progress-bar/index.js";
 	import { buttonVariants } from "../button/variants.js";
 	import { cn } from "../../lib/utils.js";
@@ -97,28 +97,7 @@
 		</div>
 	{:else}
 		<div class="mic-icon-wrap">
-			<svg
-				class="mic-glyph"
-				viewBox="0 0 16 16"
-				fill="none"
-				xmlns="http://www.w3.org/2000/svg"
-				aria-hidden="true"
-				focusable="false"
-				data-testid="agent-input-mic-icon"
-			>
-				<path
-					d="M8 1.75C6.89543 1.75 6 2.64543 6 3.75V7.25C6 8.35457 6.89543 9.25 8 9.25C9.10457 9.25 10 8.35457 10 7.25V3.75C10 2.64543 9.10457 1.75 8 1.75Z"
-					stroke="currentColor"
-					stroke-width="1.5"
-				/>
-				<path
-					d="M3.75 7.25C3.75 9.59721 5.65279 11.5 8 11.5M8 11.5C10.3472 11.5 12.25 9.59721 12.25 7.25M8 11.5V14.25M5.75 14.25H10.25"
-					stroke="currentColor"
-					stroke-width="1.5"
-					stroke-linecap="round"
-					stroke-linejoin="round"
-				/>
-			</svg>
+			<RoundedIcon name="microphone" class="mic-glyph" data-testid="agent-input-mic-icon" />
 		</div>
 	{/if}
 </button>

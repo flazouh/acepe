@@ -3,11 +3,10 @@
 	import type { InlineArtefactTokenType } from "../../lib/inline-artefact/index.js";
 	import { COLOR_NAMES, Colors } from "../../lib/colors.js";
 	import { getFileIconSrc, getFallbackIconSrc } from "../../lib/file-icon/index.js";
+	import { RoundedIcon } from "../icons/index.js";
 	import {
 		buildInlineArtefactIconClassName,
 		buildInlineArtefactLabelClassName,
-		INLINE_ARTEFACT_CLIPBOARD_PATH,
-		INLINE_ARTEFACT_PACKAGE_PATH,
 	} from "./inline-artefact-badge.styles.js";
 
 	interface Props {
@@ -53,24 +52,13 @@
 
 {#snippet icon()}
 	{#if isSlashItem}
-		<svg
-			viewBox="0 0 256 256"
-			fill="currentColor"
+		<RoundedIcon
+			name={tokenType === "command" ? "terminal" : "skills"}
 			class="h-3.5 w-3.5 shrink-0 {iconClassName}"
 			style={slashIconColor ? `color: ${slashIconColor};` : undefined}
-			aria-hidden="true"
-		>
-			<path d={INLINE_ARTEFACT_PACKAGE_PATH} />
-		</svg>
+		/>
 	{:else if tokenType === "text" || tokenType === "text_ref"}
-		<svg
-			viewBox="0 0 256 256"
-			fill="currentColor"
-			class="h-3.5 w-3.5 shrink-0 {iconClassName}"
-			aria-hidden="true"
-		>
-			<path d={INLINE_ARTEFACT_CLIPBOARD_PATH} />
-		</svg>
+		<RoundedIcon name="file-text" class="h-3.5 w-3.5 shrink-0 {iconClassName}" />
 	{:else}
 		<img
 			src={getFileIconSrc(iconSource)}

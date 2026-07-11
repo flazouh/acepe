@@ -80,15 +80,6 @@
 	}
 </script>
 
-{#snippet neutralIcon(sizeClass: string)}
-	<span
-		class={`inline-flex ${sizeClass} items-center justify-center rounded-full border border-current`}
-		data-testid="pr-check-neutral-icon"
-	>
-		<span class="h-px w-1/2 rounded-full bg-current"></span>
-	</span>
-{/snippet}
-
 {#if isLoading || isWaitingForCi || checks.length > 0}
 	<div class="flex flex-col gap-0.5">
 		{#if isWaitingForCi}
@@ -115,7 +106,7 @@
 								{:else if bucket === "failure"}
 									<RoundedIcon name="x-circle" class="size-2.5 text-destructive" />
 								{:else if bucket === "neutral"}
-									<span class="text-amber-400">{@render neutralIcon("size-2.5")}</span>
+									<RoundedIcon name="minus" class="size-2.5 text-amber-400" data-testid="pr-check-neutral-icon" />
 								{:else}
 									<RoundedIcon name="check-circle" class="size-2.5 text-emerald-500" />
 								{/if}
@@ -212,7 +203,7 @@
 							{:else if segment.kind === "in_progress"}
 								<LoadingIcon class="animate-spin" size={11} />
 							{:else if segment.kind === "neutral"}
-								{@render neutralIcon("size-[11px]")}
+								<RoundedIcon name="minus" class="size-[11px]" data-testid="pr-check-neutral-icon" />
 							{:else}
 								<RoundedIcon name="check-circle" class="size-[11px]" />
 							{/if}
