@@ -1,7 +1,6 @@
 <script lang="ts">
 import { page } from "$app/stores";
-import { RoundedIcon } from "@acepe/ui";
-import AcepeMark from "./acepe-mark.svelte";
+import { BrandLockup, RoundedIcon } from "@acepe/ui";
 
 interface Props {
 	announcement?: string;
@@ -49,8 +48,12 @@ const navLinkClass =
 		<div class="mx-auto flex h-16 max-w-[1280px] items-center justify-between px-6">
 			<div class="flex items-center gap-10">
 				<a href="/" class="flex items-center gap-2.5" aria-label="Acepe home">
-					<AcepeMark class="h-6 w-6" />
-					<span class="text-[15px] font-semibold tracking-[0.02em] text-[#f8f5ee]">Acepe</span>
+					<BrandLockup
+						class="gap-2.5"
+						markClass="h-6 w-6"
+						wordmark="Acepe"
+						wordmarkClass="text-[15px] tracking-[0.02em] text-[#f8f5ee] normal-case"
+					/>
 				</a>
 				<nav class="hidden items-center gap-7 md:flex">
 					<a href="/blog" class={navLinkClass}>{"Product"}</a>

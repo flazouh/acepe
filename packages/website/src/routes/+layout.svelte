@@ -1,7 +1,6 @@
 <script lang="ts">
 import { Tooltip } from "bits-ui";
 import "./layout.css";
-import logo from "$lib/assets/favicon.svg";
 import { browser } from "$app/environment";
 import JsonLd from "$lib/components/seo/json-ld.svelte";
 import { websiteThemeStore } from "$lib/theme/theme.js";
@@ -15,8 +14,6 @@ if (browser) {
 	}
 }
 </script>
-
-<svelte:head><link rel="icon" href={logo} /></svelte:head>
 
 <JsonLd />
 
