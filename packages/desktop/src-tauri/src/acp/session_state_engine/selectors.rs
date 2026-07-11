@@ -525,6 +525,7 @@ mod tests {
                 turn_id: Some("turn-1".to_string()),
                 message: "boom".to_string(),
                 code: Some("E_FAIL".to_string()),
+                details: None,
                 kind: TurnErrorKind::Recoverable,
                 source: TurnErrorSource::Process,
             }),

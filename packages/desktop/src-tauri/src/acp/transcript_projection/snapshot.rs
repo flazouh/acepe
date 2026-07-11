@@ -630,6 +630,7 @@ mod tests {
                     message: StoredErrorMessage {
                         content: "boom".to_string(),
                         code: None,
+                        details: None,
                         kind: TurnErrorKind::Fatal,
                         source: None,
                     },

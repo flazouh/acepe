@@ -8,6 +8,7 @@ import type { TurnErrorKind, TurnErrorSource } from "../../services/converted-se
 export interface ErrorMessage {
 	readonly content: string;
 	readonly code?: string;
+	readonly details?: string;
 	readonly kind?: TurnErrorKind;
 	readonly source?: TurnErrorSource;
 	readonly referenceId?: string;

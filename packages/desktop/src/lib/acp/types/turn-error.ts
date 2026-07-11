@@ -13,6 +13,7 @@ export interface ActiveTurnFailure {
 	readonly turnId: string | null;
 	readonly message: string;
 	readonly code: string | null;
+	readonly details?: string | null;
 	readonly kind: TurnFailureKind;
 	readonly source: TurnErrorSource;
 }
@@ -36,6 +37,7 @@ export function normalizeActiveTurnFailure(update: TurnErrorUpdate): ActiveTurnF
 		turnId: update.turn_id ?? null,
 		message: error.message,
 		code: error.code != null ? String(error.code) : null,
+		details: error.details != null ? error.details : null,
 		kind: error.kind,
 		source: error.source ?? "unknown",
 	};

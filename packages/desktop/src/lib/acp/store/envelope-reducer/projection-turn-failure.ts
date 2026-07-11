@@ -14,6 +14,7 @@ export function mapProjectionTurnFailure(
 		turnId: failure.turn_id ?? null,
 		message: failure.message,
 		code: failure.code ?? null,
+		details: failure.details != null ? failure.details : null,
 		kind: failure.kind,
 		source: failure.source ?? "unknown",
 	};

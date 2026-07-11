@@ -8,7 +8,10 @@ use crate::acp::types::CanonicalAgentId;
 use anyhow::{anyhow, Result};
 use serde::{Deserialize, Serialize};
 
-pub const TRANSCRIPT_ROW_LEDGER_PROJECTION_VERSION: &str = "transcript_viewport_row:v5";
+// v13 widens the cached open header to preserve canonical turn failures rebuilt
+// from the local journal. Older headers can incorrectly describe failed turns
+// as idle, so they must not be reused by the hot-ledger open path.
+pub const TRANSCRIPT_ROW_LEDGER_PROJECTION_VERSION: &str = "transcript_viewport_row:v13";
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SerializedTranscriptRowLedgerRow {

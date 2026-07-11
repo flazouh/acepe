@@ -12,6 +12,50 @@ fn deserialize_session_update(json: serde_json::Value) -> Result<SessionUpdate, 
     with_agent(AgentType::ClaudeCode, || serde_json::from_value(json))
 }
 
+mod turn_error_info_deserialization {
+    use super::*;
+
+    #[test]
+    fn accepts_historical_numeric_error_codes() {
+        let info: TurnErrorInfo = serde_json::from_value(json!({
+            "message": "Rate limited",
+            "kind": "recoverable",
+            "code": 429,
+            "source": "transport"
+        }))
+        .expect("historical numeric code should deserialize");
+
+        assert_eq!(info.code.as_deref(), Some("429"));
+        assert_eq!(info.details, None);
+    }
+
+    #[test]
+    fn provider_failure_constructor_bounds_and_redacts_diagnostics() {
+        let info = TurnErrorInfo::from_provider_error(
+            &json!({
+                "error": {
+                    "name": "ProviderError",
+                    "message": "failed\u{202e} safely",
+                    "status": 503,
+                    "authorization": "Bearer secret-token",
+                    "request": { "prompt": "private prompt" },
+                    "cause": { "message": "x".repeat(3_000) }
+                }
+            }),
+            TurnErrorKind::Recoverable,
+            TurnErrorSource::Unknown,
+            "Provider request failed",
+        );
+
+        assert_eq!(info.message, "failed safely");
+        let details = info.details.expect("supplemental diagnostics");
+        assert!(details.contains("503"));
+        assert!(details.contains('…'));
+        assert!(!details.contains("secret-token"));
+        assert!(!details.contains("private prompt"));
+    }
+}
+
 mod available_commands_format {
     use super::*;
 

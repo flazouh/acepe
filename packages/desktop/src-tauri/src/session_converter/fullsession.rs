@@ -487,6 +487,7 @@ fn project_assistant_error_event(
         id: event.display_id.clone(),
         message: crate::session_jsonl::types::StoredErrorMessage {
             code: super::extract_api_error_status_code(&content).map(str::to_string),
+            details: None,
             kind: super::assistant_error_kind(error),
             source: Some(crate::acp::session_update::TurnErrorSource::Transport),
             content,

@@ -420,6 +420,7 @@ mod tests {
             turn_id: Some("turn-2".to_string()),
             message: "rate limit".to_string(),
             code: Some("429".to_string()),
+            details: None,
             kind: TurnErrorKind::Recoverable,
             source: TurnErrorSource::Process,
         };

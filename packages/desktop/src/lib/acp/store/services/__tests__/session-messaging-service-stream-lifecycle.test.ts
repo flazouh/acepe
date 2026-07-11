@@ -362,6 +362,7 @@ describe("SessionMessagingService.handleCanonicalTurnFailure", () => {
 			turnId: "turn-1",
 			message: "You're out of extra usage",
 			code: null,
+			details: null,
 			kind: "recoverable",
 			source: "unknown",
 		});
@@ -377,7 +378,7 @@ describe("SessionMessagingService.handleCanonicalTurnFailure", () => {
 		);
 	});
 
-	it("stringifies numeric turn error codes before routing the canonical failed-turn event", () => {
+	it("routes textual turn error codes with the canonical failed-turn event", () => {
 		service.handleCanonicalTurnFailure(sessionId, {
 			type: "turnError",
 			session_id: sessionId,
@@ -386,7 +387,7 @@ describe("SessionMessagingService.handleCanonicalTurnFailure", () => {
 				message: "Rate limit reached",
 				kind: "recoverable",
 				source: "unknown",
-				code: 429,
+				code: "429",
 			},
 		});
 
@@ -394,6 +395,7 @@ describe("SessionMessagingService.handleCanonicalTurnFailure", () => {
 			turnId: "turn-1",
 			message: "Rate limit reached",
 			code: "429",
+			details: null,
 			kind: "recoverable",
 			source: "unknown",
 		});
@@ -407,6 +409,7 @@ describe("SessionMessagingService.handleCanonicalTurnFailure", () => {
 			turnId: "turn-1",
 			message: "You're out of extra usage",
 			code: null,
+			details: null,
 			kind: "recoverable",
 			source: "unknown",
 		});

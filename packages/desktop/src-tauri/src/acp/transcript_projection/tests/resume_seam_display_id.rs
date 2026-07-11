@@ -236,8 +236,9 @@ fn resume_seam_live_turn_error_does_not_append_transcript_entry() {
             error: TurnErrorData::Structured(TurnErrorInfo {
                 message: "resume failed".to_string(),
                 kind: TurnErrorKind::Recoverable,
-                code: Some(429),
+                code: Some("429".to_string()),
                 source: Some(TurnErrorSource::Process),
+                details: None,
             }),
             session_id: Some("session-1".to_string()),
             turn_id: Some("turn-resume".to_string()),

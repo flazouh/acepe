@@ -159,12 +159,53 @@ pub(crate) async fn rebuild_and_replace_current_transcript_row_ledger_from_provi
         SessionJournalEventRepository::max_event_seq(db, &replay_context.local_session_id)
             .await?
             .unwrap_or(0);
-    let rebuilt = rebuild_transcript_row_ledger_from_provider_snapshot(
+    let projection_event_seq =
+        SessionJournalEventRepository::max_row_affecting_event_seq(
+            db,
+            &replay_context.local_session_id,
+        )
+        .await?
+        .unwrap_or(0);
+    let mut rebuilt = rebuild_transcript_row_ledger_from_provider_snapshot(
         replay_context,
         lifecycle,
         snapshot,
         last_event_seq,
     )?;
+    let serialized_events =
+        SessionJournalEventRepository::list_serialized(db, &replay_context.local_session_id)
+            .await?;
+    let journal_events =
+        crate::acp::session_journal::decode_serialized_events(replay_context, serialized_events)?;
+    let repaired_events =
+        crate::acp::session_journal::repair_legacy_parent_tool_use_ids_from_streaming_log(
+            replay_context,
+            &journal_events,
+        );
+    let local_projection =
+        crate::acp::session_journal::rebuild_session_projection(replay_context, &repaired_events);
+    if let Some(local_session) = local_projection.session.filter(|session| {
+        session.last_event_seq >= projection_event_seq
+            && session.active_turn_failure.is_some()
+    }) {
+        rebuilt.session = local_session;
+        rebuilt.revision = SessionGraphRevision::new(
+            rebuilt.session.last_event_seq,
+            rebuilt.revision.transcript_revision,
+            last_event_seq,
+        );
+        let operations =
+            sanitize_operations_for_historical_open(local_projection.operations, false);
+        let interactions = sanitize_interactions_for_historical_open(local_projection.interactions);
+        rebuilt.activity = select_session_graph_activity(
+            lifecycle,
+            &rebuilt.session.turn_state,
+            &operations,
+            &interactions,
+            rebuilt.session.active_turn_failure.as_ref(),
+        );
+        rebuilt.active_streaming_tail = None;
+    }
     let session_metadata =
         SessionMetadataRepository::get_by_id(db, &replay_context.local_session_id)
             .await?

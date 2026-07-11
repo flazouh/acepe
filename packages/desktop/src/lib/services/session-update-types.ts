@@ -340,7 +340,7 @@ export type TurnErrorData = string | TurnErrorInfo
 /**
  * Structured turn error payload.
  */
-export type TurnErrorInfo = { message: string; kind: TurnErrorKind; code?: number | null; source?: TurnErrorSource | null }
+export type TurnErrorInfo = { message: string; kind: TurnErrorKind; code?: string | null; source?: TurnErrorSource | null; details?: string | null }
 
 /**
  * Turn error severity.
@@ -496,5 +496,5 @@ answers: Partial<{ [key in string]: JsonValue }> }
 /**
  * Error entry stored in replayed session history.
  */
-export type StoredErrorMessage = { content: string; code?: string | null; kind: TurnErrorKind; source?: TurnErrorSource | null }
+export type StoredErrorMessage = { content: string; code?: string | null; details?: string | null; kind: TurnErrorKind; source?: TurnErrorSource | null }
 

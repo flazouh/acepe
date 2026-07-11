@@ -297,11 +297,29 @@ function createToolOperationLink(
 	index: number,
 	activeTail: boolean
 ): TranscriptViewportOperationLink {
+	const operationId = operationIdFor(preset, seed, index);
+	const toolCallId = toolCallIdFor(preset, seed, index);
+	const state = activeTail ? "running" : "completed";
 	return {
-		operationId: operationIdFor(preset, seed, index),
-		toolCallId: toolCallIdFor(preset, seed, index),
+		operationId,
+		toolCallId,
 		name: "bash",
-		state: activeTail ? "running" : "completed",
+		state,
+		displayFacts: {
+			operationId,
+			toolCallId,
+			name: "bash",
+			title: activeTail ? "Running stress command" : "Completed stress command",
+			state,
+			kind: "execute",
+			commandSummary: "bun test --stress",
+			targetPathSummary: null,
+			resultSummary: textFor("tool", index, seed),
+			errorSummary: null,
+			interactionIds: [],
+			parentToolCallId: null,
+			childToolCallIds: [],
+		},
 	};
 }
 

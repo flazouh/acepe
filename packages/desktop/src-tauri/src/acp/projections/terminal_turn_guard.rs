@@ -208,6 +208,7 @@ mod tests {
                 turn_id: Some(turn_id.to_string()),
                 message: "boom".to_string(),
                 code: None,
+                details: None,
                 kind: TurnErrorKind::Recoverable,
                 source: TurnErrorSource::Unknown,
             }),

@@ -37,34 +37,35 @@
 	const hasSummary = $derived(summary.trim().length > 0);
 </script>
 
-<div class="w-full rounded-lg border border-border bg-input/30">
-	{#if hasDetailsHtml}
-		<div class="error-details-shiki max-h-[min(50vh,420px)] overflow-y-auto border-b border-border px-3 py-2">
-			{@html detailsHtml}
-		</div>
-	{:else if hasDetails}
-		<div class="max-h-[220px] overflow-y-auto border-b border-border px-3 py-2">
-			<pre
-				class="font-mono text-[0.6875rem] leading-relaxed whitespace-pre-wrap break-words text-foreground/80"
-			>{details}</pre>
-		</div>
-	{/if}
-
-	<div class="flex w-full min-w-0 items-center gap-3 pl-1 pr-3 py-1">
-		<div class="flex min-w-0 flex-1 items-center gap-1.5 text-[0.6875rem]">
-			<RoundedIcon name="warning" class="size-[13px] shrink-0 text-destructive" />
-			<span class="shrink-0 font-medium text-foreground">{title}</span>
-			{#if hasSummary}
-				<span class="truncate text-muted-foreground">{summary}</span>
+<div
+	class="w-full overflow-hidden rounded-lg border border-border bg-input/30"
+	role="alert"
+	aria-label={hasSummary ? summary : title}
+	data-qa="agent-error-card"
+>
+	<div class="flex min-w-0 items-start gap-2.5 px-3 py-2.5">
+		<RoundedIcon name="warning" class="mt-0.5 size-[15px] shrink-0 text-destructive" />
+		<div class="min-w-0 flex-1">
+			<p
+				class="break-words text-sm font-medium leading-snug text-foreground"
+				data-qa="agent-error-primary-message"
+			>
+				{hasSummary ? summary : title}
+			</p>
+			{#if hasSummary && title.trim() !== summary.trim()}
+				<p class="mt-0.5 text-[0.6875rem] text-muted-foreground">{title}</p>
 			{/if}
 		</div>
+	</div>
 
-		{#if onDismiss || onRetry || onIssueAction}
-			<div
-				class="ml-auto flex shrink-0 items-center gap-1"
-				role="none"
-				onclick={(event: MouseEvent) => event.stopPropagation()}
-			>
+	{#if onDismiss || onRetry || onIssueAction}
+		<div
+			class="flex items-center gap-1 border-t border-border/70 px-3 py-1.5"
+			role="none"
+			data-qa="agent-error-actions"
+			onclick={(event: MouseEvent) => event.stopPropagation()}
+		>
+			<div class="ml-auto flex items-center gap-1">
 				{#if onDismiss}
 					<Button variant="secondary" size="xs" onclick={onDismiss}>
 						{dismissLabel}
@@ -77,7 +78,7 @@
 				{/if}
 				{#if onRetry}
 					<Button
-						variant="secondary"
+						variant="default"
 						size="xs"
 						disabled={isRetrying}
 						aria-busy={isRetrying ? "true" : undefined}
@@ -92,8 +93,31 @@
 					</Button>
 				{/if}
 			</div>
-		{/if}
-	</div>
+		</div>
+	{/if}
+
+	{#if hasDetailsHtml || hasDetails}
+		<details class="group border-t border-border/70" data-qa="agent-error-technical-details">
+			<summary
+				class="cursor-pointer select-none px-3 py-1.5 text-[0.6875rem] font-medium text-muted-foreground hover:text-foreground"
+			>
+				Technical details
+			</summary>
+			{#if hasDetailsHtml}
+				<div
+					class="error-details-shiki max-h-[min(40vh,320px)] overflow-y-auto border-t border-border/70 px-3 py-2 [overflow-wrap:anywhere]"
+				>
+					{@html detailsHtml}
+				</div>
+			{:else if hasDetails}
+				<div class="max-h-[min(40vh,320px)] overflow-y-auto border-t border-border/70 px-3 py-2">
+					<pre
+						class="font-mono text-[0.6875rem] leading-relaxed whitespace-pre-wrap text-foreground/75 [overflow-wrap:anywhere]"
+					>{details}</pre>
+				</div>
+			{/if}
+		</details>
+	{/if}
 </div>
 
 <style>

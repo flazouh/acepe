@@ -110,7 +110,7 @@ describe("createAgentPanelStressFixture", () => {
 		const renderedRows = buildRenderedTranscriptViewportRows({
 			bufferRows: fixture.rowsProjection.rows,
 			bufferStartIndex: 0,
-			sceneEntries: fixture.sceneEntries,
+			optimisticUserEntry: null,
 			showLocalPlanningIndicator: false,
 			planningPlaceholderPresentation: null,
 			syntheticReviewEntry: null,

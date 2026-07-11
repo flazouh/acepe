@@ -110,13 +110,16 @@ let {
 			{/if}
 		{/if}
 	</div>
-	<div class="flex items-end justify-between gap-1 min-w-0">
+	<div class="flex items-end justify-between gap-1 min-w-0" data-qa="agent-input-toolbar-row">
 		<div class="flex items-end gap-0.5 shrink-0">
 			{#if leading}
 				{@render leading()}
 			{/if}
 		</div>
-		<div class="flex min-w-0 items-end justify-end gap-0.5 shrink-0">
+		<div
+			class="flex min-w-0 max-w-full items-end justify-end gap-0.5"
+			data-qa="agent-input-submit-cluster"
+		>
 			{#if trailing}
 				{@render trailing()}
 			{/if}

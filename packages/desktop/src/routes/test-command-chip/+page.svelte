@@ -747,7 +747,7 @@ const commandPaletteItems: CommandPaletteItem[] = [
 		<AgentPanelSignInCard
 			title="Sign in required"
 			message="Claude needs an authenticated session before it can continue."
-			command="claude login"
+			onSignIn={() => {}}
 			onDismiss={() => {}}
 		/>
 	</div>
@@ -936,14 +936,11 @@ const commandPaletteItems: CommandPaletteItem[] = [
 		<RoundedIcon name="file-text" class="size-4 text-muted-foreground" data-testid="file-text-rounded-icon" />
 	</div>
 	<div class="flex items-center gap-3 border border-border/40 p-2" data-testid="todo-rounded-state-icons-fixture">
-		<span class="inline-flex size-5 items-center justify-center" data-testid="todo-number-css-fixture">
-			<TodoNumberIcon index={2} status="pending" size={14} />
+		<span class="inline-flex size-5 items-center justify-center" data-testid="todo-pending-icon">
+			<TodoNumberIcon status="pending" size={14} />
 		</span>
 		<span class="inline-flex size-5 items-center justify-center" data-testid="todo-live-spinner-icon">
-			<TodoNumberIcon index={0} status="in_progress" isLive={true} size={14} />
-		</span>
-		<span class="inline-flex size-5 items-center justify-center" data-testid="todo-overflow-unselected-icon">
-			<TodoNumberIcon index={9} status="pending" size={14} />
+			<TodoNumberIcon status="in_progress" isLive={true} size={14} />
 		</span>
 	</div>
 	<div class="w-[340px] border border-border/40 p-2" data-testid="partial-review-row-fixture">

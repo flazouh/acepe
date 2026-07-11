@@ -64,6 +64,8 @@ describe("AgentInputComposerRow", () => {
 
 		expect(toolbarRow?.className).toContain("items-end");
 		expect(toolbarRow?.className).toContain("justify-between");
+		expect(toolbarRow?.getAttribute("data-qa")).toBe("agent-input-toolbar-row");
+		expect(cluster?.getAttribute("data-qa")).toBe("agent-input-submit-cluster");
 		expect(button.className).toContain("h-7");
 		expect(button.className).toContain("w-7");
 		expect(button.className).not.toContain("h-8");
@@ -76,6 +78,10 @@ describe("AgentInputComposerRow", () => {
 		expect(glyphClass).not.toContain("w-3.5");
 		expect(cluster?.className).toContain("justify-end");
 		expect(cluster?.className).toContain("items-end");
+		expect(cluster?.className).toContain("min-w-0");
+		expect(cluster?.className).toContain("max-w-full");
+		expect(cluster?.className).not.toContain("flex-1");
+		expect(cluster?.className).not.toContain("shrink-0");
 		expect(
 			contextWidget.compareDocumentPosition(button) & Node.DOCUMENT_POSITION_FOLLOWING,
 		).toBeTruthy();

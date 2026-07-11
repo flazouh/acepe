@@ -177,6 +177,7 @@ function createSessionStateGraph(overrides: GraphOverride = {}): SessionStateGra
 					turn_id: "turn-1",
 					message: "Usage limit reached",
 					code: "429",
+					details: '{"name":"RateLimitError"}',
 					kind: "recoverable",
 					source: "process",
 				}
@@ -186,6 +187,8 @@ function createSessionStateGraph(overrides: GraphOverride = {}): SessionStateGra
 						turn_id: activeTurnFailureOverride.turn_id ?? "turn-1",
 						message: activeTurnFailureOverride.message ?? "Usage limit reached",
 						code: activeTurnFailureOverride.code ?? "429",
+						details:
+							activeTurnFailureOverride.details ?? '{"name":"RateLimitError"}',
 						kind: activeTurnFailureOverride.kind ?? "recoverable",
 						source: activeTurnFailureOverride.source ?? "unknown",
 					};
@@ -1453,6 +1456,7 @@ describe("SessionStore.applySessionStateGraph", () => {
 			turnId: "turn-1",
 			message: "Usage limit reached",
 			code: "429",
+			details: '{"name":"RateLimitError"}',
 			kind: "recoverable",
 			source: "process",
 		});

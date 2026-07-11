@@ -187,7 +187,7 @@ describe("SessionEventService streaming delta handling", () => {
 			error: {
 				message: "rate limited",
 				kind: "recoverable",
-				code: 429,
+				code: "429",
 			},
 		};
 

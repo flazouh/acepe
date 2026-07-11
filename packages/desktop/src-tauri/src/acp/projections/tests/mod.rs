@@ -121,8 +121,9 @@ fn apply_session_update_keeps_failed_turn_terminal_for_late_same_turn_updates() 
                 crate::acp::session_update::TurnErrorInfo {
                     message: "Usage limit reached".to_string(),
                     kind: crate::acp::session_update::TurnErrorKind::Recoverable,
-                    code: Some(429),
+                    code: Some("429".to_string()),
                     source: Some(crate::acp::session_update::TurnErrorSource::Process),
+                    details: Some("provider rate limit".to_string()),
                 },
             ),
             session_id: Some("session-1".to_string()),
@@ -144,6 +145,13 @@ fn apply_session_update_keeps_failed_turn_terminal_for_late_same_turn_updates() 
             .as_ref()
             .map(|failure| failure.message.as_str()),
         Some("Usage limit reached")
+    );
+    assert_eq!(
+        failed_snapshot
+            .active_turn_failure
+            .as_ref()
+            .and_then(|failure| failure.details.as_deref()),
+        Some("provider rate limit")
     );
 
     registry.apply_session_update(
@@ -208,8 +216,9 @@ fn apply_session_update_clears_failed_turn_when_new_user_turn_starts() {
                 crate::acp::session_update::TurnErrorInfo {
                     message: "Usage limit reached".to_string(),
                     kind: crate::acp::session_update::TurnErrorKind::Recoverable,
-                    code: Some(429),
+                    code: Some("429".to_string()),
                     source: Some(crate::acp::session_update::TurnErrorSource::Process),
+                    details: None,
                 },
             ),
             session_id: Some("session-1".to_string()),
@@ -1268,6 +1277,7 @@ fn project_converted_session_does_not_restore_stored_error_as_live_failure() {
             message: crate::session_jsonl::types::StoredErrorMessage {
                 content: "Usage limit reached".to_string(),
                 code: Some("429".to_string()),
+                details: None,
                 kind: crate::acp::session_update::TurnErrorKind::Recoverable,
                 source: Some(crate::acp::session_update::TurnErrorSource::Process),
             },
@@ -1308,6 +1318,7 @@ fn project_converted_session_clears_historical_error_when_later_entries_continue
                 message: crate::session_jsonl::types::StoredErrorMessage {
                     content: "Usage limit reached".to_string(),
                     code: Some("429".to_string()),
+                    details: None,
                     kind: crate::acp::session_update::TurnErrorKind::Recoverable,
                     source: Some(crate::acp::session_update::TurnErrorSource::Process),
                 },
@@ -1526,6 +1537,7 @@ fn project_converted_session_ignores_stored_error_without_source_metadata() {
             message: crate::session_jsonl::types::StoredErrorMessage {
                 content: "Usage limit reached".to_string(),
                 code: Some("429".to_string()),
+                details: None,
                 kind: crate::acp::session_update::TurnErrorKind::Recoverable,
                 source: None,
             },

@@ -173,10 +173,191 @@ pub enum TurnErrorSource {
 pub struct TurnErrorInfo {
     pub message: String,
     pub kind: TurnErrorKind,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub code: Option<i32>,
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "deserialize_optional_error_code"
+    )]
+    pub code: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub source: Option<TurnErrorSource>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub details: Option<String>,
+}
+
+const PROVIDER_ERROR_MESSAGE_CHARS: usize = 240;
+const PROVIDER_ERROR_CODE_CHARS: usize = 120;
+const PROVIDER_DIAGNOSTIC_STRING_CHARS: usize = 2_048;
+const PROVIDER_DIAGNOSTIC_MAX_DEPTH: usize = 4;
+const PROVIDER_DIAGNOSTIC_MAX_ITEMS: usize = 16;
+const PROVIDER_DIAGNOSTIC_MAX_CHARS: usize = 8_192;
+const PROVIDER_DIAGNOSTIC_TRUNCATED_SUFFIX: &str = "\n[diagnostics truncated]";
+
+impl TurnErrorInfo {
+    /// Build a bounded, display-safe canonical failure from provider-controlled JSON.
+    #[must_use]
+    pub(crate) fn from_provider_error(
+        properties: &serde_json::Value,
+        kind: TurnErrorKind,
+        source: TurnErrorSource,
+        fallback_message: &str,
+    ) -> Self {
+        let error = properties.get("error");
+        let error_name = error
+            .and_then(|value| value.get("name"))
+            .and_then(serde_json::Value::as_str)
+            .and_then(|value| normalize_provider_text(value, PROVIDER_ERROR_CODE_CHARS));
+        let message = error
+            .and_then(|value| value.get("data"))
+            .and_then(|value| value.get("message"))
+            .and_then(serde_json::Value::as_str)
+            .or_else(|| {
+                error
+                    .and_then(|value| value.get("message"))
+                    .and_then(serde_json::Value::as_str)
+            })
+            .or_else(|| {
+                properties
+                    .get("message")
+                    .and_then(serde_json::Value::as_str)
+            })
+            .and_then(|value| normalize_provider_text(value, PROVIDER_ERROR_MESSAGE_CHARS))
+            .or_else(|| error_name.clone())
+            .unwrap_or_else(|| fallback_message.to_string());
+        let code =
+            extract_provider_error_code(properties, error_name).filter(|value| value != &message);
+
+        Self {
+            message,
+            kind,
+            code,
+            source: Some(source),
+            details: extract_provider_error_details(properties),
+        }
+    }
+}
+
+fn normalize_provider_text(value: &str, max_chars: usize) -> Option<String> {
+    let filtered = value
+        .chars()
+        .filter(|character| {
+            matches!(character, '\n' | '\r' | '\t')
+                || (!character.is_control()
+                    && !matches!(*character as u32, 0x202A..=0x202E | 0x2066..=0x2069))
+        })
+        .collect::<String>();
+    let trimmed = filtered.trim();
+    if trimmed.is_empty() {
+        return None;
+    }
+
+    let char_count = trimmed.chars().count();
+    if char_count <= max_chars {
+        return Some(trimmed.to_string());
+    }
+
+    let mut truncated = trimmed
+        .chars()
+        .take(max_chars.saturating_sub(1))
+        .collect::<String>();
+    truncated.push('…');
+    Some(truncated)
+}
+
+fn extract_provider_error_code(
+    properties: &serde_json::Value,
+    error_name: Option<String>,
+) -> Option<String> {
+    properties
+        .get("error")
+        .and_then(|error| error.get("code"))
+        .or_else(|| properties.get("code"))
+        .and_then(|value| match value {
+            serde_json::Value::String(value) => {
+                normalize_provider_text(value, PROVIDER_ERROR_CODE_CHARS)
+            }
+            serde_json::Value::Number(value) => Some(value.to_string()),
+            _ => None,
+        })
+        .or(error_name)
+}
+
+fn sanitize_provider_diagnostic(
+    value: &serde_json::Value,
+    depth: usize,
+) -> Option<serde_json::Value> {
+    if depth > PROVIDER_DIAGNOSTIC_MAX_DEPTH {
+        return Some(serde_json::Value::String(
+            "[diagnostics truncated]".to_string(),
+        ));
+    }
+
+    match value {
+        serde_json::Value::Null | serde_json::Value::Bool(_) | serde_json::Value::Number(_) => {
+            Some(value.clone())
+        }
+        serde_json::Value::String(value) => {
+            normalize_provider_text(value, PROVIDER_DIAGNOSTIC_STRING_CHARS)
+                .map(serde_json::Value::String)
+        }
+        serde_json::Value::Array(values) => Some(serde_json::Value::Array(
+            values
+                .iter()
+                .take(PROVIDER_DIAGNOSTIC_MAX_ITEMS)
+                .filter_map(|value| sanitize_provider_diagnostic(value, depth + 1))
+                .collect(),
+        )),
+        serde_json::Value::Object(object) => {
+            // Dedicated canonical fields already carry the root name, code, and message.
+            // Nested causes may retain those same safe facts because they describe another error.
+            const ROOT_FIELDS: [&str; 3] = ["type", "status", "cause"];
+            const NESTED_FIELDS: [&str; 6] = ["name", "code", "type", "status", "message", "cause"];
+            let allowed_fields: &[&str] = if depth == 0 {
+                &ROOT_FIELDS
+            } else {
+                &NESTED_FIELDS
+            };
+            let sanitized = allowed_fields
+                .iter()
+                .filter_map(|field| {
+                    object
+                        .get(*field)
+                        .and_then(|value| sanitize_provider_diagnostic(value, depth + 1))
+                        .map(|value| ((*field).to_string(), value))
+                })
+                .collect::<serde_json::Map<String, serde_json::Value>>();
+            (!sanitized.is_empty()).then_some(serde_json::Value::Object(sanitized))
+        }
+    }
+}
+
+fn extract_provider_error_details(properties: &serde_json::Value) -> Option<String> {
+    let sanitized = sanitize_provider_diagnostic(properties.get("error")?, 0)?;
+    let serialized = serde_json::to_string_pretty(&sanitized).ok()?;
+    if serialized.chars().count() <= PROVIDER_DIAGNOSTIC_MAX_CHARS {
+        return Some(serialized);
+    }
+
+    let retained_chars = PROVIDER_DIAGNOSTIC_MAX_CHARS
+        .saturating_sub(PROVIDER_DIAGNOSTIC_TRUNCATED_SUFFIX.chars().count());
+    let mut truncated = serialized.chars().take(retained_chars).collect::<String>();
+    truncated.push_str(PROVIDER_DIAGNOSTIC_TRUNCATED_SUFFIX);
+    Some(truncated)
+}
+
+fn deserialize_optional_error_code<'de, D>(deserializer: D) -> Result<Option<String>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let value = Option::<serde_json::Value>::deserialize(deserializer)?;
+    match value {
+        None | Some(serde_json::Value::Null) => Ok(None),
+        Some(serde_json::Value::String(value)) => Ok(Some(value)),
+        Some(serde_json::Value::Number(value)) => Ok(Some(value.to_string())),
+        Some(_) => Err(serde::de::Error::custom(
+            "turn error code must be a string or number",
+        )),
+    }
 }
 
 /// Turn error payload for compatibility during rollout.

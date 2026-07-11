@@ -1210,6 +1210,7 @@ fn make_error_entry(id: &str, text: &str) -> StoredEntry {
         message: StoredErrorMessage {
             content: text.to_string(),
             code: Some("401".to_string()),
+            details: None,
             kind: TurnErrorKind::Fatal,
             source: Some(TurnErrorSource::Transport),
         },
@@ -1403,6 +1404,64 @@ async fn new_session_open_result_rebuilds_completed_local_journal_transcript() {
 }
 
 #[tokio::test]
+async fn new_session_open_restores_canonical_turn_failure_from_local_journal() {
+    let db = setup_db().await;
+    let hub = make_hub();
+    let session_id = "local-journal-failure-open";
+    seed_session_metadata(&db, session_id, "opencode").await;
+
+    let updates = [
+        crate::acp::session_update::SessionUpdate::UserMessageChunk {
+            chunk: crate::acp::session_update::ContentChunk {
+                content: crate::acp::types::ContentBlock::Text {
+                    text: "trigger failure".to_string(),
+                },
+                aggregation_hint: None,
+            },
+            session_id: Some(session_id.to_string()),
+            attempt_id: Some("attempt-1".to_string()),
+        },
+        crate::acp::session_update::SessionUpdate::TurnError {
+            error: crate::acp::session_update::TurnErrorData::Structured(
+                crate::acp::session_update::TurnErrorInfo {
+                    message: "Model unavailable".to_string(),
+                    kind: TurnErrorKind::Recoverable,
+                    code: Some("MODEL_NOT_FOUND".to_string()),
+                    source: Some(TurnErrorSource::Unknown),
+                    details: Some("{\"status\":404}".to_string()),
+                },
+            ),
+            session_id: Some(session_id.to_string()),
+            turn_id: None,
+        },
+    ];
+    for update in updates {
+        SessionJournalEventRepository::append_session_update(&db, session_id, &update)
+            .await
+            .expect("append journal update");
+    }
+
+    let result = session_open_result_for_new_session(
+        &db,
+        &hub,
+        new_session_open_input(session_id, SessionGraphCapabilities::empty()),
+    )
+    .await;
+
+    let SessionOpenResult::Found(found) = result else {
+        panic!("expected Found, got {result:?}");
+    };
+    assert_eq!(found.turn_state, SessionTurnState::Failed);
+    let failure = found
+        .active_turn_failure
+        .expect("journaled failure should survive reopen");
+    assert_eq!(failure.message, "Model unavailable");
+    assert_eq!(failure.code.as_deref(), Some("MODEL_NOT_FOUND"));
+    assert_eq!(failure.details.as_deref(), Some("{\"status\":404}"));
+    assert_eq!(failure.source, TurnErrorSource::Unknown);
+}
+
+#[tokio::test]
 async fn provider_thread_snapshot_open_does_not_require_local_snapshot_tables() {
     let db = setup_db().await;
     let hub = make_hub();
@@ -1563,6 +1622,78 @@ async fn provider_thread_snapshot_open_prefers_completed_local_journal_transcrip
 }
 
 #[tokio::test]
+async fn provider_thread_snapshot_open_preserves_failure_before_frontier_barriers() {
+    let db = setup_db().await;
+    let hub = make_hub();
+    let session_id = "provider-failure-before-barriers-open";
+    seed_session_metadata(&db, session_id, "opencode").await;
+
+    let updates = [
+        crate::acp::session_update::SessionUpdate::UserMessageChunk {
+            chunk: crate::acp::session_update::ContentChunk {
+                content: crate::acp::types::ContentBlock::Text {
+                    text: "trigger failure".to_string(),
+                },
+                aggregation_hint: None,
+            },
+            session_id: Some(session_id.to_string()),
+            attempt_id: Some("attempt-1".to_string()),
+        },
+        crate::acp::session_update::SessionUpdate::TurnError {
+            error: crate::acp::session_update::TurnErrorData::Structured(
+                crate::acp::session_update::TurnErrorInfo {
+                    message: "No endpoints support tool use".to_string(),
+                    kind: TurnErrorKind::Recoverable,
+                    code: Some("APIError".to_string()),
+                    source: Some(TurnErrorSource::Unknown),
+                    details: None,
+                },
+            ),
+            session_id: Some(session_id.to_string()),
+            turn_id: None,
+        },
+        crate::acp::session_update::SessionUpdate::TurnComplete {
+            session_id: Some(session_id.to_string()),
+            turn_id: None,
+        },
+    ];
+    for update in updates {
+        SessionJournalEventRepository::append_session_update(&db, session_id, &update)
+            .await
+            .expect("append journal update");
+    }
+    append_frontier_barrier(&db, session_id).await;
+    append_frontier_barrier(&db, session_id).await;
+
+    let provider_snapshot = SessionThreadSnapshot {
+        entries: vec![make_user_entry("provider-user-1", "trigger failure")],
+        title: "Failed provider turn".to_string(),
+        created_at: "2026-07-11T00:00:00Z".to_string(),
+        current_mode_id: None,
+    };
+    let replay_context = replay_context_for_session(session_id, CanonicalAgentId::OpenCode);
+
+    let result = session_open_result_from_thread_snapshot(
+        &db,
+        &hub,
+        None,
+        &replay_context,
+        session_id,
+        &provider_snapshot,
+    )
+    .await;
+
+    let SessionOpenResult::Found(found) = result else {
+        panic!("expected Found, got {result:?}");
+    };
+    assert_eq!(found.turn_state, SessionTurnState::Failed);
+    let failure = found
+        .active_turn_failure
+        .expect("failure must survive non-semantic frontier barriers");
+    assert_eq!(failure.message, "No endpoints support tool use");
+}
+
+#[tokio::test]
 async fn provider_thread_snapshot_open_keeps_provider_tool_rows_with_local_journal_transcript() {
     let db = setup_db().await;
     let hub = make_hub();
@@ -1602,6 +1733,18 @@ async fn provider_thread_snapshot_open_keeps_provider_tool_rows_with_local_journ
         SessionJournalEventRepository::append_session_update(&db, session_id, &update)
             .await
             .expect("append journal update");
+    }
+    for turn_id in ["turn-2", "turn-3", "turn-4"] {
+        SessionJournalEventRepository::append_session_update(
+            &db,
+            session_id,
+            &crate::acp::session_update::SessionUpdate::TurnComplete {
+                session_id: Some(session_id.to_string()),
+                turn_id: Some(turn_id.to_string()),
+            },
+        )
+        .await
+        .expect("append newer local projection update");
     }
 
     let provider_snapshot = SessionThreadSnapshot {
