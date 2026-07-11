@@ -18,7 +18,8 @@ mod session_metadata_tests {
     use crate::db::entities::prelude::AcepeSessionState;
     use crate::db::repository::{
         AppSettingsRepository, CreationAttemptRepositoryError, CreationAttemptStatus,
-        ProjectRepository, SessionJournalEventRepository, SessionMetadataRepository,
+        ProjectRepository, SessionHistoryEnrichmentRecord, SessionHistoryEnrichmentRepository,
+        SessionJournalEventRepository, SessionMetadataRepository,
         SessionTranscriptRowLedgerRepository,
     };
     use sea_orm::{ConnectionTrait, Database, DbConn, EntityTrait, Statement};
@@ -56,6 +57,112 @@ mod session_metadata_tests {
         SessionMetadataRepository::ensure_exists(db, session_id, "/test/repo", "claude-code", None)
             .await
             .expect("ensure test session");
+    }
+
+    #[tokio::test]
+    async fn first_display_project_sessions_are_bounded_per_project_and_overall() {
+        let db = setup_test_db().await;
+        for project_ordinal in 0..6 {
+            let project_path = format!("/repo-{project_ordinal}");
+            for session_ordinal in 0..120 {
+                let session_id = format!("session-{project_ordinal}-{session_ordinal}");
+                SessionMetadataRepository::upsert(
+                    &db,
+                    session_id.clone(),
+                    session_id.clone(),
+                    session_ordinal,
+                    project_path.clone(),
+                    "codex".to_string(),
+                    format!("/{session_id}.jsonl"),
+                    1,
+                    1,
+                )
+                .await
+                .expect("insert bounded lookup fixture");
+            }
+        }
+        let project_paths = (0..6)
+            .map(|ordinal| format!("/repo-{ordinal}"))
+            .collect::<Vec<_>>();
+
+        let lookup = SessionMetadataRepository::get_recent_for_projects_bounded(
+            &db,
+            &project_paths,
+            &std::collections::HashSet::new(),
+        )
+        .await
+        .expect("load bounded first-display sessions");
+
+        assert_eq!(lookup.entries.len(), 500);
+        let mut per_project = std::collections::HashMap::new();
+        for entry in lookup.entries {
+            let count = per_project.entry(entry.project_path).or_insert(0usize);
+            *count += 1;
+        }
+        assert!(per_project.values().all(|count| *count <= 100));
+    }
+
+    #[tokio::test]
+    async fn history_enrichment_is_visible_only_for_the_current_source_fingerprint() {
+        let db = setup_test_db().await;
+        SessionMetadataRepository::upsert(
+            &db,
+            "enriched".to_string(),
+            "Enriched".to_string(),
+            1,
+            "/repo".to_string(),
+            "claude-code".to_string(),
+            "/repo/enriched.jsonl".to_string(),
+            10,
+            20,
+        )
+        .await
+        .expect("insert metadata");
+        SessionHistoryEnrichmentRepository::upsert(
+            &db,
+            SessionHistoryEnrichmentRecord {
+                session_id: "enriched".to_string(),
+                usage_stats: crate::session_jsonl::types::HistoryUsageStats {
+                    total_messages: 3,
+                    user_messages: 1,
+                    assistant_messages: 2,
+                    total_input_tokens: 100,
+                    total_output_tokens: 20,
+                },
+                source_mtime: 10,
+                source_size: 20,
+            },
+        )
+        .await
+        .expect("insert enrichment");
+        let ids = vec!["enriched".to_string()];
+        assert_eq!(
+            SessionHistoryEnrichmentRepository::get_usage_for_session_ids(&db, &ids)
+                .await
+                .expect("load current enrichment")
+                .len(),
+            1
+        );
+
+        SessionMetadataRepository::upsert(
+            &db,
+            "enriched".to_string(),
+            "Enriched".to_string(),
+            1,
+            "/repo".to_string(),
+            "claude-code".to_string(),
+            "/repo/enriched.jsonl".to_string(),
+            11,
+            21,
+        )
+        .await
+        .expect("change source fingerprint");
+        assert!(
+            SessionHistoryEnrichmentRepository::get_usage_for_session_ids(&db, &ids)
+                .await
+                .expect("load stale enrichment")
+                .is_empty()
+        );
     }
 
     fn serialized_ledger_row(

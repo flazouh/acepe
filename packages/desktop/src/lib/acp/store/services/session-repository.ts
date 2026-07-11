@@ -12,7 +12,10 @@
  */
 
 import { errAsync, okAsync, ResultAsync } from "neverthrow";
-import type { HistoryEntry } from "../../../services/claude-history-types.js";
+import type {
+	HistoryEntry,
+	StartupSessionsResponse,
+} from "../../../services/claude-history-types.js";
 import { tauriClient } from "../../../utils/tauri-client.js";
 import {
 	buildPartialSessionLinkedPr,
@@ -35,6 +38,7 @@ import type {
 } from "./interfaces/index.js";
 
 const logger = createLogger({ id: "session-repository", name: "SessionRepository" });
+const STARTUP_SESSION_METADATA_CHUNK_SIZE = 32;
 
 function isReplaceableSessionTitle(title: string | null | undefined): boolean {
 	if (title === null || title === undefined) {
@@ -373,17 +377,62 @@ export class SessionRepository {
 			return okAsync({ missing: [], aliasRemaps: {} });
 		}
 
-		return api.getStartupSessions(sessionIdsToFetch).map((response) => {
+		const requestChunks: string[][] = [];
+		for (
+			let index = 0;
+			index < sessionIdsToFetch.length;
+			index += STARTUP_SESSION_METADATA_CHUNK_SIZE
+		) {
+			requestChunks.push(
+				sessionIdsToFetch.slice(index, index + STARTUP_SESSION_METADATA_CHUNK_SIZE)
+			);
+		}
+
+		const failedRequestIds = new Set<string>();
+		let responsesResult = okAsync<StartupSessionsResponse[], AppError>([]);
+		for (let index = 0; index < requestChunks.length; index += 2) {
+			const batch = requestChunks.slice(index, index + 2);
+			responsesResult = responsesResult.andThen((responses) =>
+				ResultAsync.combine(
+					batch.map((chunk) =>
+						api.getStartupSessions(chunk).orElse((error) => {
+							for (const sessionId of chunk) failedRequestIds.add(sessionId);
+							logger.warn("Startup session metadata chunk failed", { chunk, error });
+							return okAsync<StartupSessionsResponse, AppError>({
+								entries: [],
+								aliasRemaps: {},
+							});
+						})
+					)
+				).map((batchResponses) => {
+					for (const response of batchResponses) responses.push(response);
+					return responses;
+				})
+			);
+		}
+
+		return responsesResult.map((responses) => {
+			const responseEntries: HistoryEntry[] = [];
+			const responseAliasRemaps: Record<string, string | null | undefined> = {};
+			for (const response of responses) {
+				for (const entry of response.entries) {
+					responseEntries.push(entry);
+				}
+				for (const [aliasId, canonicalId] of Object.entries(response.aliasRemaps)) {
+					responseAliasRemaps[aliasId] = canonicalId;
+				}
+			}
+
 			// Build alias remaps from the response, filtering out null values from Partial<>.
 			const aliasRemaps: Record<string, string> = {};
-			for (const [aliasId, canonicalId] of Object.entries(response.aliasRemaps)) {
+			for (const [aliasId, canonicalId] of Object.entries(responseAliasRemaps)) {
 				if (canonicalId !== undefined && canonicalId !== null) {
 					aliasRemaps[aliasId] = canonicalId;
 				}
 			}
 
 			const mergedSessions = this.reconcileAliasedStartupSessions(
-				this.mergeHistoryWithExisting(response.entries, existingSessions),
+				this.mergeHistoryWithExisting(responseEntries, existingSessions),
 				existingSessions,
 				aliasRemaps
 			);
@@ -393,7 +442,9 @@ export class SessionRepository {
 			// A session matched by alias will have its canonical ID in foundIds.
 			// The original alias ID should not be reported as missing.
 			const aliasedIds = new Set(Object.keys(aliasRemaps));
-			const missing = sessionIds.filter((id) => !foundIds.has(id) && !aliasedIds.has(id));
+			const missing = sessionIds.filter(
+				(id) => !failedRequestIds.has(id) && !foundIds.has(id) && !aliasedIds.has(id)
+			);
 
 			if (missing.length > 0) {
 				logger.debug("Startup sessions not found (likely deleted)", { missing });
@@ -428,7 +479,8 @@ export class SessionRepository {
 					id,
 					sessionIdentity.projectPath,
 					sessionIdentity.agentId,
-					sessionMetadata.sourcePath
+					sessionMetadata.sourcePath,
+					"backfill"
 				)
 				.andThen((openResult) => {
 					if (openResult.outcome !== "found") {

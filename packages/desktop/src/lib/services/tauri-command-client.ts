@@ -150,6 +150,7 @@ export const TAURI_COMMAND_CLIENT = {
   },
   history: {
     audit_session_load_timing: createGeneratedCommand(COMMANDS.history.audit_session_load_timing),
+    await_session_open_repair: createGeneratedCommand(COMMANDS.history.await_session_open_repair),
     count_sessions_for_project: createGeneratedCommand(COMMANDS.history.count_sessions_for_project),
     discover_all_projects_with_sessions: createGeneratedCommand(COMMANDS.history.discover_all_projects_with_sessions),
     get_cache_stats: createGeneratedCommand(COMMANDS.history.get_cache_stats),

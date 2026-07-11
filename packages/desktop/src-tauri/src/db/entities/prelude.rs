@@ -24,6 +24,7 @@ pub use super::project::Model as ProjectModel;
 pub use super::session_config_selection::Column as SessionConfigSelectionColumn;
 pub use super::session_config_selection::Entity as SessionConfigSelection;
 pub use super::session_config_selection::Model as SessionConfigSelectionModel;
+pub use super::session_history_enrichment::Entity as SessionHistoryEnrichment;
 pub use super::session_journal_event::Column as SessionJournalEventColumn;
 pub use super::session_journal_event::Entity as SessionJournalEvent;
 pub use super::session_journal_event::Model as SessionJournalEventModel;

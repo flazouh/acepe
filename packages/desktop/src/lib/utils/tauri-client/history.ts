@@ -42,14 +42,20 @@ export const history = {
 		sessionId: string,
 		projectPath: string,
 		agentId: string,
-		sourcePath?: string
+		sourcePath?: string,
+		repairPriority: "selected" | "visible" | "backfill" = "selected"
 	): ResultAsync<SessionOpenResult, AppError> => {
 		return historyCommands.get_session_open_result.invoke<SessionOpenResult>({
 			sessionId,
 			projectPath,
 			agentId,
 			sourcePath,
+			repairPriority,
 		});
+	},
+
+	awaitSessionOpenRepair: (repairTicket: string): ResultAsync<SessionOpenResult, AppError> => {
+		return historyCommands.await_session_open_repair.invoke<SessionOpenResult>({ repairTicket });
 	},
 
 	getStartupSessions: (sessionIds: string[]): ResultAsync<StartupSessionsResponse, AppError> => {
@@ -78,6 +84,10 @@ export const history = {
 
 	scanProjectSessions: (projectPaths: string[]): ResultAsync<HistoryEntry[], AppError> => {
 		return historyCommands.scan_project_sessions.invoke<HistoryEntry[]>({ projectPaths });
+	},
+
+	invalidateHistoryCache: (): ResultAsync<void, AppError> => {
+		return historyCommands.invalidate_history_cache.invoke<void>();
 	},
 
 	discoverAllProjectsWithSessions: (): ResultAsync<HistoryEntry[], AppError> => {

@@ -159,13 +159,12 @@ pub(crate) async fn rebuild_and_replace_current_transcript_row_ledger_from_provi
         SessionJournalEventRepository::max_event_seq(db, &replay_context.local_session_id)
             .await?
             .unwrap_or(0);
-    let projection_event_seq =
-        SessionJournalEventRepository::max_row_affecting_event_seq(
-            db,
-            &replay_context.local_session_id,
-        )
-        .await?
-        .unwrap_or(0);
+    let projection_event_seq = SessionJournalEventRepository::max_row_affecting_event_seq(
+        db,
+        &replay_context.local_session_id,
+    )
+    .await?
+    .unwrap_or(0);
     let mut rebuilt = rebuild_transcript_row_ledger_from_provider_snapshot(
         replay_context,
         lifecycle,
@@ -185,8 +184,7 @@ pub(crate) async fn rebuild_and_replace_current_transcript_row_ledger_from_provi
     let local_projection =
         crate::acp::session_journal::rebuild_session_projection(replay_context, &repaired_events);
     if let Some(local_session) = local_projection.session.filter(|session| {
-        session.last_event_seq >= projection_event_seq
-            && session.active_turn_failure.is_some()
+        session.last_event_seq >= projection_event_seq && session.active_turn_failure.is_some()
     }) {
         rebuilt.session = local_session;
         rebuilt.revision = SessionGraphRevision::new(

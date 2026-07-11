@@ -33,8 +33,8 @@ pub use snapshot::{
 };
 pub use types::{
     NewSessionOpenResultInput, SessionOpenError, SessionOpenErrorReason, SessionOpenFound,
-    SessionOpenMissing, SessionOpenPath, SessionOpenResult, SessionOpenResultTiming,
-    SessionOpenTranscriptRowPage,
+    SessionOpenMissing, SessionOpenPath, SessionOpenPreparing, SessionOpenResult,
+    SessionOpenResultTiming, SessionOpenTranscriptRowPage,
 };
 
 pub(crate) use operation_sanitize::{

@@ -271,6 +271,10 @@ impl ProjectRepository {
 
     /// Get recent projects (limit to N, ordered by last_opened).
     pub async fn get_recent(db: &DbConn, limit: u64) -> Result<Vec<ProjectRow>> {
+        Self::get_recent_page(db, limit, 0).await
+    }
+
+    pub async fn get_recent_page(db: &DbConn, limit: u64, offset: u64) -> Result<Vec<ProjectRow>> {
         tracing::debug!(
             limit = %limit,
             "Loading recent projects"
@@ -279,6 +283,7 @@ impl ProjectRepository {
         let models = Project::find()
             .order_by_desc(crate::db::entities::project::Column::LastOpened)
             .limit(limit)
+            .offset(offset)
             .all(db)
             .await?;
 
@@ -292,6 +297,48 @@ impl ProjectRepository {
             .into_iter()
             .map(Self::row_from_model_without_config)
             .collect())
+    }
+
+    pub async fn get_recent_with_preferred_paths(
+        db: &DbConn,
+        limit: u64,
+        offset: u64,
+        preferred_paths: &[String],
+    ) -> Result<Vec<ProjectRow>> {
+        if offset > 0 {
+            return Self::get_recent_page(db, limit, offset).await;
+        }
+        let mut rows = Vec::new();
+        if !preferred_paths.is_empty() {
+            let preferred_models = Project::find()
+                .filter(crate::db::entities::project::Column::Path.is_in(preferred_paths.to_vec()))
+                .all(db)
+                .await?;
+            let mut by_path = preferred_models
+                .into_iter()
+                .map(|model| (model.path.clone(), model))
+                .collect::<std::collections::HashMap<_, _>>();
+            for path in preferred_paths {
+                if let Some(model) = by_path.remove(path) {
+                    rows.push(Self::row_from_model_without_config(model));
+                }
+            }
+        }
+        let preferred = rows
+            .iter()
+            .map(|row| row.path.clone())
+            .collect::<std::collections::HashSet<_>>();
+        let recent = Self::get_recent(db, limit).await?;
+        for row in recent {
+            if rows.len() >= limit as usize {
+                break;
+            }
+            if !preferred.contains(&row.path) {
+                rows.push(row);
+            }
+        }
+        rows.truncate(limit as usize);
+        Ok(rows)
     }
 
     pub async fn get_external_hidden_paths(

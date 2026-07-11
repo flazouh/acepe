@@ -33,7 +33,7 @@
  *   ├── loadAvailableAgentsAfterStartup()
  *   ├── createSessionsForAgentOnlyPanels() [after agent metadata arrives]
  *   ├── persisted preference loads are scheduled after agent metadata arrives
- *   └── warmRecentTranscriptRowLedgersAfterStartup() [deferred behind restored panel preload]
+ *   └── warmRecentTranscriptRowLedgersAfterStartup() [low-priority background repair]
  * ```
  *
  * ## Session Loading Strategy
@@ -44,6 +44,7 @@
  */
 
 import { errAsync, okAsync, type ResultAsync } from "neverthrow";
+import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import type { AppError } from "$lib/acp/errors/app-error.js";
 import type { ProjectManager } from "$lib/acp/logic/project-manager.svelte.js";
 import type { AgentPreferencesStore } from "$lib/acp/store/agent-preferences-store.svelte.js";
@@ -71,8 +72,8 @@ const HAS_SEEN_SPLASH_HOT_CACHE_KEY = "acepe.has_seen_splash.hot_cache";
 const SESSION_OPEN_TIMEOUT_MS = 30_000;
 const POST_STARTUP_IDLE_WORK_DELAY_MS = 5_000;
 const POST_STARTUP_IDLE_WORK_TIMEOUT_MS = 5_000;
-const RESTORED_PANEL_PRELOAD_IDLE_WORK_DELAY_MS = 30_000;
-const RESTORED_PANEL_PRELOAD_IDLE_WORK_TIMEOUT_MS = 10_000;
+const TRANSCRIPT_BACKFILL_IDLE_WORK_DELAY_MS = 30_000;
+const TRANSCRIPT_BACKFILL_IDLE_WORK_TIMEOUT_MS = 10_000;
 const PERSISTED_AGENT_PREFERENCES_IDLE_WORK_DELAY_MS = 30_000;
 const PERSISTED_AGENT_PREFERENCES_IDLE_WORK_TIMEOUT_MS = 10_000;
 const TRANSCRIPT_ROW_LEDGER_BACKFILL_LIMIT = 8;
@@ -147,11 +148,11 @@ function schedulePostStartupIdleWork(callback: () => void): void {
 	);
 }
 
-function scheduleRestoredPanelPreloadIdleWork(callback: () => void): void {
+function scheduleTranscriptBackfillIdleWork(callback: () => void): void {
 	scheduleIdleWorkAfterDelay(
 		callback,
-		RESTORED_PANEL_PRELOAD_IDLE_WORK_DELAY_MS,
-		RESTORED_PANEL_PRELOAD_IDLE_WORK_TIMEOUT_MS
+		TRANSCRIPT_BACKFILL_IDLE_WORK_DELAY_MS,
+		TRANSCRIPT_BACKFILL_IDLE_WORK_TIMEOUT_MS
 	);
 }
 
@@ -206,6 +207,9 @@ export function writeSplashSeenHotCache(seen: boolean): void {
  */
 export class InitializationManager {
 	private splashResolutionPromise: Promise<void> | null = null;
+	private historyIndexUnlisten: UnlistenFn | null = null;
+	private historyIndexListenerGeneration = 0;
+	private historyIndexListenerPending = false;
 	private readonly startupTraceEntries: MutableStartupPerformanceTraceEntry[] = [];
 
 	/**
@@ -234,7 +238,7 @@ export class InitializationManager {
 			"beginAttempt" | "clearAttempt" | "hydrateFound" | "isCurrentAttempt"
 		>,
 		private readonly schedulePostStartupWork: PostStartupWorkScheduler = schedulePostStartupIdleWork,
-		private readonly scheduleRestoredPanelPreloadWork: PostStartupWorkScheduler = scheduleRestoredPanelPreloadIdleWork,
+		private readonly scheduleTranscriptBackfillWork: PostStartupWorkScheduler = scheduleTranscriptBackfillIdleWork,
 		private readonly schedulePersistedAgentPreferencesWork: PostStartupWorkScheduler = schedulePersistedAgentPreferencesIdleWork
 	) {}
 
@@ -366,7 +370,7 @@ export class InitializationManager {
 		this.schedulePostStartupWork(() => {
 			this.loadAvailableAgentsAfterStartup();
 		});
-		this.scheduleRestoredPanelPreloadWork(() => {
+		this.scheduleTranscriptBackfillWork(() => {
 			this.warmRecentTranscriptRowLedgersAfterStartup();
 		});
 	}
@@ -535,13 +539,21 @@ export class InitializationManager {
 	}
 
 	private loadBasicMetadataAfterStartup(restoredSessionIds: string[]): void {
+		this.installHistoryIndexListener();
+		const restoredProjectPaths = Array.from(
+			new Set(
+				this.panelStore.panels
+					.map((panel) => panel.projectPath)
+					.filter((path): path is string => typeof path === "string" && path.length > 0)
+			)
+		);
 		if (restoredSessionIds.length > 0) {
 			this.scheduleRestoredPanelHydration(restoredSessionIds);
 		}
 
 		void this.traceStartupResult(
 			"background:loadProjects",
-			this.loadProjectsAfterStartup()
+			this.loadProjectsAfterStartup(restoredProjectPaths)
 				.map(() => {
 					this.scheduleStartupSessionHistoryScan();
 					return undefined;
@@ -567,26 +579,60 @@ export class InitializationManager {
 		);
 	}
 
-	private scheduleStartupSessionHistoryScan(): void {
-		this.schedulePostStartupWork(() => {
-			void this.traceStartupResult(
-				"background:scanStartupSessionHistory",
-				this.scanStartupSessionHistory().orElse((error) => {
-					logger.warn("Failed to scan startup session history after init", { error });
-					return okAsync(undefined);
-				})
-			).match(
-				() => undefined,
-				() => undefined
-			);
-		});
+	private installHistoryIndexListener(): void {
+		if (!this.hasTauriInvoke() || this.historyIndexUnlisten !== null || this.historyIndexListenerPending) return;
+		this.historyIndexListenerPending = true;
+		const generation = ++this.historyIndexListenerGeneration;
+		void listen<{ projectPaths: string[]; revision: number }>("history-index-changed", () => {
+			void history
+				.invalidateHistoryCache()
+				.andThen(() => this.scanStartupSessionHistory())
+				.match(
+					() => undefined,
+					(error) => logger.warn("Failed to refresh canonical session summaries", { error })
+				);
+		})
+			.then((unlisten) => {
+				this.historyIndexListenerPending = false;
+				if (generation !== this.historyIndexListenerGeneration) {
+					unlisten();
+					return;
+				}
+				this.historyIndexUnlisten = unlisten;
+				void history
+					.invalidateHistoryCache()
+					.andThen(() => this.scanStartupSessionHistory())
+					.match(
+						() => undefined,
+						(error) => logger.warn("Failed to reconcile history after listener install", { error })
+					);
+			})
+			.catch((error: Error) => {
+				if (generation === this.historyIndexListenerGeneration) {
+					this.historyIndexListenerPending = false;
+				}
+				logger.warn("Failed to install history index listener", { error });
+			});
 	}
 
-	private loadProjectsAfterStartup(): ResultAsync<void, MainAppViewError> {
+	private scheduleStartupSessionHistoryScan(): void {
+		void this.traceStartupResult(
+			"background:scanStartupSessionHistory",
+			this.scanStartupSessionHistory().orElse((error) => {
+				logger.warn("Failed to scan startup session history after init", { error });
+				return okAsync(undefined);
+			})
+		).match(
+			() => undefined,
+			() => undefined
+		);
+	}
+
+	private loadProjectsAfterStartup(preferredPaths: string[]): ResultAsync<void, MainAppViewError> {
 		return this.traceStartupResult(
 			"loadProjects",
 			this.projectManager
-				.loadProjects()
+				.loadProjects(preferredPaths)
 				.map(() => {
 					this.schedulePostStartupWork(() => {
 						this.projectManager.triggerProjectIconBackfill?.();
@@ -823,8 +869,9 @@ export class InitializationManager {
 	private loadAndValidateRestoredPanelSessions(
 		restoredSessionIds: string[]
 	): ResultAsync<void, MainAppViewError> {
+		const prioritizedSessionIds = this.prioritizeRestoredSessionIds(restoredSessionIds);
 		return this.sessionStore.loading
-			.loadStartupSessions(restoredSessionIds)
+			.loadStartupSessions(prioritizedSessionIds)
 			.map((result) => result.aliasRemaps)
 			.mapErr(
 				(error) =>
@@ -840,24 +887,74 @@ export class InitializationManager {
 			.map(() => undefined);
 	}
 
+	private prioritizeRestoredSessionIds(restoredSessionIds: string[]): string[] {
+		const focusedSessionId =
+			this.panelStore.panels.find((panel) => panel.id === this.panelStore.focusedPanelId)?.sessionId ??
+			null;
+		if (focusedSessionId === null || !restoredSessionIds.includes(focusedSessionId)) {
+			return restoredSessionIds;
+		}
+
+		const prioritized = [focusedSessionId];
+		for (const sessionId of restoredSessionIds) {
+			if (sessionId !== focusedSessionId) {
+				prioritized.push(sessionId);
+			}
+		}
+		return prioritized;
+	}
+
 	private scheduleRestoredPanelHydration(restoredSessionIds: string[]): void {
-		this.schedulePostStartupWork(() => {
-			void this.traceStartupResult(
-				"background:hydrateStartupPanels",
-				this.loadAndValidateRestoredPanelSessions(restoredSessionIds)
-					.map(() => {
-						this.scheduleRestoredPanelPreload();
-						return undefined;
-					})
-					.orElse((error) => {
-						logger.warn("Failed to hydrate restored panel sessions after startup", { error });
-						return okAsync(undefined);
-					})
-			).match(
-				() => undefined,
-				() => undefined
+		const focusedPanelId = this.panelStore.focusedPanelId;
+		const focusedSessionId = this.panelStore.panels.find(
+			(panel) => panel.id === focusedPanelId
+		)?.sessionId;
+		if (focusedPanelId !== null && focusedSessionId !== null && focusedSessionId !== undefined) {
+			void this.sessionStore.loading.loadStartupSessions([focusedSessionId]).match(
+				(result) => {
+					this.healStartupPanelSessionIds(result.aliasRemaps);
+					this.earlyPreloadPanelSessions(new Set([focusedPanelId]));
+					this.hydrateRemainingRestoredPanels(restoredSessionIds, focusedSessionId, focusedPanelId);
+				},
+				(error) => {
+					logger.warn("Failed to hydrate selected restored panel", { error });
+					this.hydrateRemainingRestoredPanels(restoredSessionIds, focusedSessionId, focusedPanelId);
+				}
 			);
-		});
+			return;
+		}
+		this.hydrateRemainingRestoredPanels(restoredSessionIds, null, null);
+	}
+
+	private hydrateRemainingRestoredPanels(
+		restoredSessionIds: string[],
+		focusedSessionId: string | null,
+		focusedPanelId: string | null
+	): void {
+		const remainingSessionIds = restoredSessionIds.filter(
+			(sessionId) => sessionId !== focusedSessionId
+		);
+		if (remainingSessionIds.length === 0) return;
+		void this.traceStartupResult(
+			"background:hydrateStartupPanels",
+			this.loadAndValidateRestoredPanelSessions(remainingSessionIds)
+				.map(() => {
+					const remainingPanelIds = new Set(
+						this.panelStore.panels
+							.filter((panel) => panel.id !== focusedPanelId)
+							.map((panel) => panel.id)
+					);
+					this.earlyPreloadPanelSessions(remainingPanelIds);
+					return undefined;
+				})
+				.orElse((error) => {
+					logger.warn("Failed to hydrate restored panel sessions after startup", { error });
+					return okAsync(undefined);
+				})
+		).match(
+			() => undefined,
+			() => undefined
+		);
 	}
 
 	/**
@@ -1026,8 +1123,14 @@ export class InitializationManager {
 	 * openPersistedSession can proceed. The canonical snapshot is applied by
 	 * openPersistedSession itself via getSessionOpenResult.
 	 */
-	private earlyPreloadPanelSessions(): void {
-		for (const panel of this.panelStore.panels) {
+	private earlyPreloadPanelSessions(allowedPanelIds?: ReadonlySet<string>): void {
+		const panels = this.panelStore.panels.toSorted((left, right) => {
+			if (left.id === this.panelStore.focusedPanelId) return -1;
+			if (right.id === this.panelStore.focusedPanelId) return 1;
+			return 0;
+		});
+		for (const panel of panels) {
+			if (allowedPanelIds !== undefined && !allowedPanelIds.has(panel.id)) continue;
 			if (!panel.sessionId) continue;
 
 			const sessionIdentity = this.sessionStore.read.getSessionIdentity(panel.sessionId);
@@ -1054,22 +1157,19 @@ export class InitializationManager {
 					this.panelStore.getPanel(targetPanelId)?.sessionId === targetSessionId,
 				timeoutMs: SESSION_OPEN_TIMEOUT_MS,
 				source: "initialization-manager",
+				repairPriority: panel.id === this.panelStore.focusedPanelId ? "selected" : "visible",
 			});
 			}
 		}
-
-	private scheduleRestoredPanelPreload(): void {
-		this.scheduleRestoredPanelPreloadWork(() => {
-			const traceIndex = this.beginStartupTrace("background:preloadRestoredPanelSessions");
-			this.earlyPreloadPanelSessions();
-			this.finishStartupTraceIfPending(traceIndex, "ok", null);
-		});
-	}
 
 	/**
 	 * Cleans up initialization resources.
 	 */
 	cleanup(): void {
+		this.historyIndexListenerGeneration += 1;
+		this.historyIndexListenerPending = false;
+		this.historyIndexUnlisten?.();
+		this.historyIndexUnlisten = null;
 		this.keybindingsService.uninstall();
 		this.state.initializationInProgress = false;
 		this.state.initializationComplete = false;

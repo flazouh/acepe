@@ -14,8 +14,8 @@ use anyhow::Result;
 use chrono::Utc;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, Condition, ConnectionTrait, DatabaseTransaction, DbConn,
-    EntityTrait, PaginatorTrait, QueryFilter, QueryOrder, QuerySelect, Set, Statement,
-    TransactionTrait,
+    EntityTrait, JoinType, PaginatorTrait, QueryFilter, QueryOrder, QuerySelect, RelationTrait,
+    Set, Statement, TransactionTrait,
 };
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -1330,6 +1330,77 @@ impl SessionMetadataRepository {
                         AcepeSessionRelationship::from_str(&state.relationship).is_visible()
                     })
                     .unwrap_or(true)
+            })
+            .map(|model| compose_session_metadata_row(model.clone(), state_map.get(&model.id)))
+            .collect();
+
+        Ok(ProjectSessionsLookup {
+            db_row_count,
+            entries,
+        })
+    }
+
+    /// Bounded first-display lookup. Reads at most 50 projects, 100 rows per
+    /// project, and 500 rows overall so IPC work cannot scale with full history.
+    pub async fn get_recent_for_projects_bounded(
+        db: &DbConn,
+        project_paths: &[String],
+        external_hidden_paths: &std::collections::HashSet<String>,
+    ) -> Result<ProjectSessionsLookup> {
+        const MAX_PROJECTS: usize = 50;
+        const MAX_PER_PROJECT: u64 = 100;
+        const MAX_TOTAL: usize = 500;
+
+        let mut models = Vec::new();
+        let bounded_project_count = project_paths.len().min(MAX_PROJECTS).max(1);
+        let fair_project_limit = (MAX_TOTAL / bounded_project_count).max(1);
+        let fair_remainder = MAX_TOTAL % bounded_project_count;
+        for (project_index, project_path) in project_paths.iter().take(MAX_PROJECTS).enumerate() {
+            if models.len() >= MAX_TOTAL {
+                break;
+            }
+            let remaining = MAX_TOTAL.saturating_sub(models.len()) as u64;
+            let fair_limit = fair_project_limit + usize::from(project_index < fair_remainder);
+            let project_limit = MAX_PER_PROJECT.min(remaining).min(fair_limit as u64);
+            let mut query = SessionMetadata::find()
+                .join_rev(
+                    JoinType::LeftJoin,
+                    acepe_session_state::Relation::Session.def(),
+                )
+                .filter(session_metadata::Column::ProjectPath.eq(project_path.clone()))
+                .filter(
+                    Condition::any()
+                        .add(acepe_session_state::Column::SessionId.is_null())
+                        .add(acepe_session_state::Column::Relationship.ne("reserved")),
+                )
+                .order_by_desc(session_metadata::Column::Timestamp);
+            if external_hidden_paths.contains(project_path) {
+                query = query.filter(session_metadata::Column::IsAcepeManaged.eq(1));
+            }
+            let project_models = query.limit(project_limit).all(db).await?;
+            for model in project_models {
+                models.push(model);
+            }
+        }
+
+        let db_row_count = models.len();
+        let session_ids = models
+            .iter()
+            .map(|model| model.id.clone())
+            .collect::<Vec<_>>();
+        let state_map = Self::load_state_map(db, &session_ids).await?;
+        let entries = models
+            .into_iter()
+            .filter(|model| {
+                let hidden_external_session = external_hidden_paths.contains(&model.project_path)
+                    && model.is_acepe_managed == 0;
+                !hidden_external_session
+                    && state_map
+                        .get(&model.id)
+                        .map(|state| {
+                            AcepeSessionRelationship::from_str(&state.relationship).is_visible()
+                        })
+                        .unwrap_or(true)
             })
             .map(|model| compose_session_metadata_row(model.clone(), state_map.get(&model.id)))
             .collect();

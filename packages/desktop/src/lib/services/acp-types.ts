@@ -3,7 +3,13 @@
 // JsonValue represents any valid JSON value
 export type JsonValue = null | boolean | number | string | JsonValue[] | { [key: string]: JsonValue };
 
-export type AvailableModel = { modelId: string; name: string; description?: string | null }
+export type AvailableModel = { modelId: string;
+/**
+ * Atomic upstream identity for multiplexed catalogs such as OpenCode.
+ */
+provider?: AvailableModelProvider | null; name: string; description?: string | null }
+
+export type AvailableModelProvider = { providerId: string; modelId: string }
 
 export type ModeIconKind = "agent" | "plan" | "autonomous" | "bypass" | "ask" | "edit" | "review" | "unknown"
 
@@ -56,7 +62,9 @@ export type DisplayableModel = { modelId: string; displayName: string; descripti
 /**
  * Generic group of models. Label can be provider, base model name, or empty.
  */
-export type DisplayModelGroup = { label: string; models: DisplayableModel[] }
+export type DisplayModelGroup = { label: string; providerId?: string | null; providerLabel?: string | null; providerBrand?: UpstreamProviderBrand | null; models: DisplayableModel[] }
+
+export type UpstreamProviderBrand = "anthropic" | "githubCopilot" | "openRouter" | "openAi" | "xai" | "custom"
 
 export type ModelDisplayFamily = "claudeLike" | "codexReasoningEffort" | "providerGrouped"
 
@@ -547,7 +555,7 @@ export type SessionOpenResult =
  * the full projection snapshot, which is significantly larger than the
  * `Missing` and `Error` payloads.
  */
-({ outcome: "found" } & SessionOpenFound) | ({ outcome: "missing" } & SessionOpenMissing) | ({ outcome: "error" } & SessionOpenError)
+({ outcome: "found" } & SessionOpenFound) | ({ outcome: "preparing" } & SessionOpenPreparing) | ({ outcome: "missing" } & SessionOpenMissing) | ({ outcome: "error" } & SessionOpenError)
 
 export type SessionGraphRevision = { graphRevision: number; transcriptRevision: number; lastEventSeq: number }
 
@@ -643,6 +651,7 @@ export type ProviderMetadataProjection = {
 	displayName: string;
 	displayOrder: number;
 	supportsModelDefaults: boolean;
+	allowsImplicitModelSelection?: boolean;
 	variantGroup: ProviderVariantGroup;
 	defaultAlias?: string;
 	reasoningEffortSupport: boolean;

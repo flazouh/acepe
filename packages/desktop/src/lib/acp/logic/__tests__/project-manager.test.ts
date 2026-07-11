@@ -19,9 +19,13 @@ function createProjectClient(options: {
 	readonly storageProjects: Project[];
 }) {
 	const getProjects = vi.fn(() => okAsync(options.storageProjects));
+	const getRecentProjects = vi.fn((_limit: number, _preferredPaths: string[], _offset: number) =>
+		okAsync(options.storageProjects)
+	);
 	const writeCachedProjects = vi.fn((_projects: readonly Project[]) => {});
 	const client = {
 		getProjects,
+		getRecentProjects,
 		getCachedProjects: vi.fn(() => options.cachedProjects),
 		writeCachedProjects,
 		browseProject: vi.fn(() => okAsync(null as Project | null)),
@@ -50,14 +54,9 @@ function createProjectClient(options: {
 	return {
 		client,
 		getProjects,
+		getRecentProjects,
 		writeCachedProjects,
 	};
-}
-
-async function flushProjectRefreshPromises(): Promise<void> {
-	for (let index = 0; index < 10; index += 1) {
-		await Promise.resolve();
-	}
 }
 
 afterEach(() => {
@@ -81,8 +80,7 @@ describe("ProjectManager", () => {
 		expect(manager.getProject("/repo/missing")).toBeUndefined();
 	});
 
-	it("loads cached projects immediately and refreshes storage later", async () => {
-		vi.useFakeTimers();
+	it("revalidates cached projects with the bounded preferred page", async () => {
 		const cachedProject = createProject("/repo/cached", "Cached");
 		const storageProject = createProject("/repo/storage", "Storage");
 		const projectClient = createProjectClient({
@@ -94,23 +92,10 @@ describe("ProjectManager", () => {
 		const result = await manager.loadProjects();
 
 		expect(result.isOk()).toBe(true);
-		expect(manager.projects).toEqual([cachedProject]);
-		expect(manager.projectCount).toBe(1);
-		expect(projectClient.getProjects).not.toHaveBeenCalled();
-		expect(manager.getLastLoadPerformanceTrace()?.getProjectsMs).toBe(0);
-
-		vi.advanceTimersByTime(4_999);
-		await flushProjectRefreshPromises();
-		expect(projectClient.getProjects).not.toHaveBeenCalled();
-
-		vi.advanceTimersByTime(1);
-		vi.advanceTimersByTime(0);
-		await flushProjectRefreshPromises();
-
-		expect(projectClient.getProjects).toHaveBeenCalledTimes(1);
 		expect(manager.projects).toEqual([storageProject]);
 		expect(manager.projectCount).toBe(1);
-		expect(manager.getLastLoadPerformanceTrace()?.projectCount).toBe(1);
+		expect(projectClient.getProjects).not.toHaveBeenCalled();
+		expect(projectClient.getRecentProjects).toHaveBeenCalledWith(50, [], 0);
 	});
 
 	it("loads storage directly and derives project count when the cache is empty", async () => {
@@ -125,7 +110,8 @@ describe("ProjectManager", () => {
 		const result = await manager.loadProjects();
 
 		expect(result.isOk()).toBe(true);
-		expect(projectClient.getProjects).toHaveBeenCalledTimes(1);
+		expect(projectClient.getRecentProjects).toHaveBeenCalledWith(50, [], 0);
+		expect(projectClient.getProjects).not.toHaveBeenCalled();
 		expect(manager.projects).toEqual([firstProject, secondProject]);
 		expect(manager.projectCount).toBe(2);
 		expect(manager.getLastLoadPerformanceTrace()?.getProjectCountMs).toBe(0);

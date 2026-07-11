@@ -241,9 +241,9 @@ export class ProjectClient {
 	 * @param limit - Maximum number of projects to return (default: 100)
 	 * @returns ResultAsync containing array of projects
 	 */
-	getRecentProjects(limit = 100): ResultAsync<Project[], ProjectError> {
+	getRecentProjects(limit = 50, preferredPaths: string[] = [], offset = 0): ResultAsync<Project[], ProjectError> {
 		return tauriClient.projects
-			.getRecentProjects(limit)
+			.getRecentProjects(limit, preferredPaths, offset)
 			.mapErr(
 				(error) =>
 					new ProjectError(

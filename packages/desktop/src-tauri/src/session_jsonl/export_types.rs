@@ -3,8 +3,8 @@
 
 use crate::acp::capability_resolution::{ResolvedCapabilities, ResolvedCapabilityStatus};
 use crate::acp::client::{
-    AvailableMode, AvailableModel, NewSessionResponse, ResumeSessionResponse, SessionModelState,
-    SessionModes,
+    AvailableMode, AvailableModel, AvailableModelProvider, NewSessionResponse,
+    ResumeSessionResponse, SessionModelState, SessionModes,
 };
 use crate::acp::client_session::ModeIconKind;
 use crate::acp::commands::transcript_viewport_commands::TranscriptViewportCommandRevision;
@@ -20,7 +20,7 @@ use crate::acp::mcp_catalog::{
 };
 use crate::acp::model_display::{
     DisplayModelGroup, DisplayableModel, ModelDisplayFamily, ModelPresentationMetadata,
-    ModelsForDisplay, UsageMetricsPresentation,
+    ModelsForDisplay, UpstreamProviderBrand, UsageMetricsPresentation,
 };
 use crate::acp::projections::{
     ComputerOperationErrorPayload, ComputerOperationInputPayload, ComputerOperationOutputPayload,
@@ -109,6 +109,7 @@ export type ProviderMetadataProjection = {
 	displayName: string;
 	displayOrder: number;
 	supportsModelDefaults: boolean;
+	allowsImplicitModelSelection?: boolean;
 	variantGroup: ProviderVariantGroup;
 	defaultAlias?: string;
 	reasoningEffortSupport: boolean;
@@ -374,6 +375,7 @@ pub fn export_all_types() {
     }
 
     export_acp_type!(AvailableModel);
+    export_acp_type!(AvailableModelProvider);
     export_acp_type!(ModeIconKind);
     export_acp_type!(AvailableMode);
     export_acp_type!(CommandInput);
@@ -385,6 +387,7 @@ pub fn export_all_types() {
     export_acp_type!(ComposerMcpCatalog);
     export_acp_type!(DisplayableModel);
     export_acp_type!(DisplayModelGroup);
+    export_acp_type!(UpstreamProviderBrand);
     export_acp_type!(ModelDisplayFamily);
     export_acp_type!(UsageMetricsPresentation);
     export_acp_type!(ModelPresentationMetadata);

@@ -132,6 +132,23 @@ function delay(ms: number): Promise<void> {
 	});
 }
 
+function closeCreatedSessionAfterSelectionFailure<T>(
+	sessionId: string,
+	selectionError: AppError
+): ResultAsync<T, AppError> {
+	return api
+		.closeSession(sessionId)
+		.mapErr((cleanupError) => {
+			const selectionMessage = selectionError.cause?.message ?? selectionError.message;
+			const cleanupMessage = cleanupError.cause?.message ?? cleanupError.message;
+			return new AgentError(
+				`createSession; initial model or mode selection failed (${selectionMessage}); closing the created session also failed (${cleanupMessage})`,
+				cleanupError
+			);
+		})
+		.andThen(() => errAsync<T, AppError>(selectionError));
+}
+
 function readyConnectionDataFromReadiness(
 	readiness: SessionConnectionReadiness
 ): ConnectionCompleteData | null {
@@ -329,7 +346,8 @@ export class SessionConnectionManager {
 	private resolveCurrentModel(
 		availableModels: readonly Model[],
 		currentModelId: string | null | undefined,
-		modelsDisplay: ModelsForDisplay | null | undefined
+		modelsDisplay: ModelsForDisplay | null | undefined,
+		allowsImplicitModelSelection: boolean
 	): Model | null {
 		if (availableModels.length === 0) {
 			return null;
@@ -351,7 +369,7 @@ export class SessionConnectionManager {
 			}
 		}
 
-		return availableModels[0] ?? null;
+		return allowsImplicitModelSelection ? (availableModels[0] ?? null) : null;
 	}
 
 	// ============================================
@@ -414,6 +432,7 @@ export class SessionConnectionManager {
 							? []
 							: rawModels.map((m) => ({
 									id: m.modelId,
+									provider: m.provider ?? undefined,
 									name: m.name,
 									description: m.description ?? undefined,
 								}));
@@ -483,6 +502,7 @@ export class SessionConnectionManager {
 						? []
 						: rawModels.map((m) => ({
 								id: m.modelId,
+								provider: m.provider ?? undefined,
 								name: m.name,
 								description: m.description ?? undefined,
 							}));
@@ -490,7 +510,8 @@ export class SessionConnectionManager {
 				let currentModel = this.resolveCurrentModel(
 					availableModels,
 					currentModelId,
-					modelsDisplay
+					modelsDisplay,
+					providerMetadata?.allowsImplicitModelSelection ?? true
 				);
 				const explicitInitialMode = options.initialModeId
 					? (availableModes.find((mode) => mode.id === options.initialModeId) ?? null)
@@ -498,6 +519,18 @@ export class SessionConnectionManager {
 				const explicitInitialModel = options.initialModelId
 					? (availableModels.find((model) => model.id === options.initialModelId) ?? null)
 					: null;
+				const explicitSelectionError =
+					options.initialModeId && explicitInitialMode === null
+						? new AgentError(
+								"setMode",
+								new Error(`Requested mode '${options.initialModeId}' is not available`)
+							)
+						: options.initialModelId && explicitInitialModel === null
+							? new AgentError(
+									"setModel",
+									new Error(`Requested model '${options.initialModelId}' is not available`)
+								)
+							: null;
 				const hasExplicitInitialSelection =
 					explicitInitialMode !== null || explicitInitialModel !== null;
 				const targetMode = explicitInitialMode ? explicitInitialMode : currentMode;
@@ -505,7 +538,12 @@ export class SessionConnectionManager {
 					explicitInitialMode !== null && explicitInitialMode.id !== currentMode?.id;
 				const targetModel = explicitInitialModel ?? currentModel;
 
-				const applyInitialSelection = hasExplicitInitialSelection
+				const applyInitialSelection: ResultAsync<
+					{ currentMode: Mode | null; currentModel: Model | null },
+					AppError
+				> = explicitSelectionError
+					? errAsync(explicitSelectionError)
+					: hasExplicitInitialSelection
 					? (targetModeChanged && targetMode
 							? api.setMode(sessionId, targetMode.id)
 							: okAsync(undefined)
@@ -531,19 +569,12 @@ export class SessionConnectionManager {
 						});
 
 				return applyInitialSelection
-					.orElse((error) => {
-						logger.warn("Failed to apply initial mode/model after session creation", {
-							sessionId,
-							agentId: options.agentId,
-							initialModeId: options.initialModeId ?? null,
-							initialModelId: options.initialModelId ?? null,
-							error,
-						});
-						return okAsync({
-							currentMode,
-							currentModel,
-						});
-					})
+					.orElse((error) =>
+						closeCreatedSessionAfterSelectionFailure<{
+							currentMode: Mode | null;
+							currentModel: Model | null;
+						}>(sessionId, error)
+					)
 					.andThen((selection) => {
 						currentMode = selection.currentMode;
 						currentModel = selection.currentModel;
@@ -590,11 +621,11 @@ export class SessionConnectionManager {
 							});
 
 							// Initialize per-mode model memory with current mode choice
-							if (currentMode) {
+							if (currentMode && currentModel) {
 								preferencesStore.setSessionModelForMode(
 									sessionId,
 									currentMode.id,
-									currentModel?.id ? currentModel.id : ""
+									currentModel.id
 								);
 							}
 
@@ -860,13 +891,15 @@ export class SessionConnectionManager {
 				? []
 				: rawModels.map((m) => ({
 						id: m.modelId,
+						provider: m.provider ?? undefined,
 						name: m.name,
 						description: m.description ?? undefined,
 					}));
 		const initialModel = this.resolveCurrentModel(
 			availableModels,
 			currentModelId,
-			modelsDisplay
+			modelsDisplay,
+			providerMetadata?.allowsImplicitModelSelection ?? true
 		);
 
 		// Cache available models and modes for settings/optimistic display

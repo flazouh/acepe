@@ -614,8 +614,8 @@ mod tests {
         rebuild_local_transcript_snapshot, rebuild_session_projection, ProjectionJournalUpdate,
         SessionJournalEventPayload,
     };
-    use crate::acp::projections::SessionTurnState;
     use crate::acp::parsers::AgentType;
+    use crate::acp::projections::SessionTurnState;
     use crate::acp::session_descriptor::SessionReplayContext;
     use crate::acp::session_update::{
         ContentChunk, PermissionData, QuestionData, QuestionItem, QuestionOption, SessionUpdate,

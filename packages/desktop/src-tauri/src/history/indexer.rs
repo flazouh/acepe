@@ -40,7 +40,8 @@ use crate::codex_history::scanner as codex_scanner;
 use crate::copilot_history;
 use crate::cursor_history::parser as cursor_parser;
 use crate::db::repository::{
-    AppSettingsRepository, SessionMetadataRecord, SessionMetadataRepository,
+    AppSettingsRepository, SessionHistoryEnrichmentRecord, SessionHistoryEnrichmentRepository,
+    SessionMetadataRecord, SessionMetadataRepository,
 };
 use crate::history::constants::MAX_SESSIONS_PER_PROJECT;
 use crate::opencode_history::parser as opencode_parser;
@@ -67,6 +68,7 @@ type SyncStateMap = HashMap<String, SourceSyncState>;
 #[derive(Debug)]
 struct SourceDelta {
     records: Vec<SessionMetadataRecord>,
+    enrichments: Vec<SessionHistoryEnrichmentRecord>,
     live_session_ids: HashSet<String>,
     unchanged_count: usize,
     next_state: SourceSyncState,
@@ -103,6 +105,17 @@ struct CopilotSource;
 struct CursorSource;
 struct OpenCodeSource;
 struct CodexSource;
+
+async fn persist_history_enrichments(
+    db: &DbConn,
+    enrichments: Vec<SessionHistoryEnrichmentRecord>,
+) {
+    for enrichment in enrichments {
+        if let Err(error) = SessionHistoryEnrichmentRepository::upsert(db, enrichment).await {
+            tracing::warn!(error = %error, "Session history enrichment upsert failed");
+        }
+    }
+}
 
 fn history_entry_to_record_with_agent(
     entry: &HistoryEntry,
@@ -143,6 +156,7 @@ impl SessionMetadataSource for ClaudeSource {
         if !projects_dir.exists() {
             return Ok(SourceDelta {
                 records: Vec::new(),
+                enrichments: Vec::new(),
                 live_session_ids: HashSet::new(),
                 unchanged_count: 0,
                 next_state: SourceSyncState {
@@ -162,6 +176,7 @@ impl SessionMetadataSource for ClaudeSource {
             .collect();
 
         let mut records: Vec<SessionMetadataRecord> = Vec::new();
+        let mut enrichments: Vec<SessionHistoryEnrichmentRecord> = Vec::new();
         let mut live_session_ids: HashSet<String> = HashSet::new();
         let mut unchanged_count = 0usize;
 
@@ -224,6 +239,14 @@ impl SessionMetadataSource for ClaudeSource {
                 };
                 let session_id = entry.session_id.clone();
                 live_session_ids.insert(session_id.clone());
+                if let Some(usage_stats) = entry.usage_stats.clone() {
+                    enrichments.push(SessionHistoryEnrichmentRecord {
+                        session_id: session_id.clone(),
+                        usage_stats,
+                        source_mtime: current_mtime,
+                        source_size: current_size,
+                    });
+                }
                 records.push((
                     session_id,
                     entry.display,
@@ -249,6 +272,7 @@ impl SessionMetadataSource for ClaudeSource {
                 runs: previous_state.map_or(1, |state| state.runs.saturating_add(1)),
             },
             records,
+            enrichments,
             live_session_ids,
             unchanged_count,
         })
@@ -376,6 +400,7 @@ impl SessionMetadataSource for CopilotSource {
                 runs: previous_state.map_or(1, |state| state.runs.saturating_add(1)),
             },
             records,
+            enrichments: Vec::new(),
             live_session_ids,
             unchanged_count,
         })
@@ -420,6 +445,7 @@ impl SessionMetadataSource for CursorSource {
                 runs: previous_state.map_or(1, |state| state.runs.saturating_add(1)),
             },
             records,
+            enrichments: Vec::new(),
             live_session_ids,
             unchanged_count: 0,
         })
@@ -462,6 +488,7 @@ impl SessionMetadataSource for OpenCodeSource {
                 runs: previous_state.map_or(1, |state| state.runs.saturating_add(1)),
             },
             records,
+            enrichments: Vec::new(),
             live_session_ids,
             unchanged_count: 0,
         })
@@ -504,6 +531,7 @@ impl SessionMetadataSource for CodexSource {
                 runs: previous_state.map_or(1, |state| state.runs.saturating_add(1)),
             },
             records,
+            enrichments: Vec::new(),
             live_session_ids,
             unchanged_count: 0,
         })
@@ -1004,6 +1032,7 @@ impl IndexerActor {
                     }
                 }
             }
+            persist_history_enrichments(&self.db, std::mem::take(&mut delta.enrichments)).await;
 
             if let Err(error) = source
                 .apply_tombstones(&self.db, project_paths, &delta)
@@ -1090,6 +1119,7 @@ impl IndexerActor {
                     }
                 }
             }
+            persist_history_enrichments(&self.db, std::mem::take(&mut delta.enrichments)).await;
 
             match source
                 .apply_tombstones(&self.db, project_paths, &delta)

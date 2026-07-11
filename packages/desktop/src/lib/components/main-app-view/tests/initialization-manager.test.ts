@@ -12,7 +12,9 @@ import type { WorkspaceStore } from "$lib/acp/store/workspace-store.svelte.js";
 import type { KeybindingsService } from "$lib/keybindings/service.svelte.js";
 import { KeybindingError } from "$lib/keybindings/types.js";
 
-const openPersistedSessionMock = mock(() => {});
+const openPersistedSessionMock = mock(
+	(_options: { panelId: string; repairPriority?: "selected" | "visible" }) => {}
+);
 const zoomInitializeMock = mock((): ResultAsync<void, AgentError> => okAsync(undefined));
 const warmRecentTranscriptRowLedgersMock = mock(() =>
 	okAsync({
@@ -210,7 +212,7 @@ describe("InitializationManager", () => {
 	let restoredPanelPreloadTasks: Array<() => void>;
 	let deferredPreferenceTasks: Array<() => void>;
 	let schedulePostStartupWork: (callback: () => void) => void;
-	let scheduleRestoredPanelPreloadWork: (callback: () => void) => void;
+	let scheduleTranscriptBackfillWork: (callback: () => void) => void;
 	let scheduleDeferredPreferenceWork: (callback: () => void) => void;
 
 	async function runPostStartupTasks(): Promise<void> {
@@ -264,7 +266,7 @@ describe("InitializationManager", () => {
 		}
 	}
 
-	function createManagerWithSplitPreloadScheduler(): InitializationManagerInstance {
+	function createManagerWithSplitBackfillScheduler(): InitializationManagerInstance {
 		return new InitializationManager(
 			mockState,
 			mockSessionStore,
@@ -276,7 +278,7 @@ describe("InitializationManager", () => {
 			mockKeybindingsService,
 			mockSessionOpenHydrator,
 			schedulePostStartupWork,
-			scheduleRestoredPanelPreloadWork,
+			scheduleTranscriptBackfillWork,
 			scheduleDeferredPreferenceWork
 		);
 	}
@@ -444,7 +446,7 @@ describe("InitializationManager", () => {
 			projects: [],
 			projectCount: 0,
 			projectStorageFresh: true,
-			loadProjects: mock(() => okAsync(undefined)),
+			loadProjects: mock((_preferredPaths?: string[]) => okAsync(undefined)),
 		} as unknown as ProjectManager;
 
 		mockAgentPreferencesStore = {
@@ -479,7 +481,7 @@ describe("InitializationManager", () => {
 		schedulePostStartupWork = mock((callback: () => void) => {
 			postStartupTasks.push(callback);
 		});
-		scheduleRestoredPanelPreloadWork = mock((callback: () => void) => {
+		scheduleTranscriptBackfillWork = mock((callback: () => void) => {
 			restoredPanelPreloadTasks.push(callback);
 		});
 		scheduleDeferredPreferenceWork = mock((callback: () => void) => {
@@ -543,8 +545,8 @@ describe("InitializationManager", () => {
 			expect(mockSessionStore.initializeSessionUpdates).toHaveBeenCalled();
 		});
 
-		it("warms recent transcript row ledgers only after restored panel preload work", async () => {
-			manager = createManagerWithSplitPreloadScheduler();
+		it("warms recent transcript row ledgers only after transcript backfill work", async () => {
+			manager = createManagerWithSplitBackfillScheduler();
 
 			await manager.initialize();
 			expect(warmRecentTranscriptRowLedgersMock).not.toHaveBeenCalled();
@@ -558,7 +560,7 @@ describe("InitializationManager", () => {
 		});
 
 		it("skips transcript row ledger warmup while a session panel is open", async () => {
-			manager = createManagerWithSplitPreloadScheduler();
+			manager = createManagerWithSplitBackfillScheduler();
 			mockPanelStore.panels = [
 				{
 					id: "panel-1",
@@ -882,7 +884,7 @@ describe("InitializationManager", () => {
 			expect(mockWorkspaceStore.restore).toHaveBeenCalled();
 		});
 
-		it("defers startup session history scans for loaded project paths", async () => {
+		it("starts startup session history scans without the idle scheduler", async () => {
 			mockProjectManager.projects = [
 				{
 					path: "/project1",
@@ -899,10 +901,6 @@ describe("InitializationManager", () => {
 			await runImmediateTimers();
 
 			expect(mockSessionStore.loading.loadSessions).not.toHaveBeenCalled();
-			expect(mockSessionStore.loading.scanSessions).not.toHaveBeenCalled();
-
-			await runPostStartupTasks();
-
 			expect(mockSessionStore.loading.scanSessions).toHaveBeenCalledWith(["/project1"]);
 		});
 
@@ -972,12 +970,124 @@ describe("InitializationManager", () => {
 				isPanelCurrent: expect.any(Function),
 				timeoutMs: 30_000,
 				source: "initialization-manager",
+				repairPriority: "visible",
 			});
 			expect(mockSessionStore.loading.scanSessions).toHaveBeenCalledWith([
 				"/project1",
 				"/project2",
 			]);
 			expect(callOrder).toEqual(["startup", "scan:/project1,/project2"]);
+		});
+
+		it("starts restored session metadata and transcript loading without idle schedulers", async () => {
+			mockProjectManager.projects = [
+				{
+					path: "/project1",
+					name: "Project 1",
+					createdAt: new Date(),
+					color: "blue",
+				},
+			];
+			mockWorkspaceStore.restore = mock(() => ["session-1"]) as WorkspaceStore["restore"];
+			mockPanelStore.panels = [
+				{
+					id: "panel-1",
+					kind: "agent",
+					ownerPanelId: null,
+					sessionId: "session-1",
+					width: 600,
+					pendingProjectSelection: false,
+					selectedAgentId: "claude-code",
+					projectPath: "/project1",
+					agentId: "claude-code",
+					sessionTitle: "Session 1",
+				},
+			];
+
+			const restoredSession = buildSession(
+				"session-1",
+				"claude-code",
+				"/project1",
+				"Session 1"
+			);
+			mockSessionStore.loading.loadStartupSessions = mock(() =>
+				okAsync({ missing: [], aliasRemaps: {} })
+			);
+			mockSessionStore.read.getSessionCold = mock((sessionId: string) =>
+				sessionId === "session-1" ? restoredSession : undefined
+			);
+
+			await manager.initialize();
+			await runImmediateTimers();
+
+			expect(mockSessionStore.loading.loadStartupSessions).toHaveBeenCalledWith(["session-1"]);
+			expect(openPersistedSessionMock).toHaveBeenCalledWith({
+				panelId: "panel-1",
+				sessionId: "session-1",
+				sessionStore: mockSessionStore,
+				sessionOpenHydrator: mockSessionOpenHydrator,
+				isPanelCurrent: expect.any(Function),
+				timeoutMs: 30_000,
+				source: "initialization-manager",
+				repairPriority: "visible",
+			});
+		});
+
+		it("loads and opens the focused restored panel before other panels", async () => {
+			mockProjectManager.projects = [
+				{
+					path: "/project1",
+					name: "Project 1",
+					createdAt: new Date(),
+					color: "blue",
+				},
+			];
+			mockWorkspaceStore.restore = mock(() => ["session-1", "session-2"]) as WorkspaceStore["restore"];
+			mockPanelStore.focusedPanelId = "panel-2";
+			mockPanelStore.panels = [
+				{
+					id: "panel-1",
+					kind: "agent",
+					ownerPanelId: null,
+					sessionId: "session-1",
+					width: 600,
+					pendingProjectSelection: false,
+					selectedAgentId: "claude-code",
+					projectPath: "/project1",
+					agentId: "claude-code",
+					sessionTitle: "Session 1",
+				},
+				{
+					id: "panel-2",
+					kind: "agent",
+					ownerPanelId: null,
+					sessionId: "session-2",
+					width: 600,
+					pendingProjectSelection: false,
+					selectedAgentId: "claude-code",
+					projectPath: "/project1",
+					agentId: "claude-code",
+					sessionTitle: "Session 2",
+				},
+			];
+			mockSessionStore.read.getSessionCold = mock((sessionId: string) =>
+				buildSession(sessionId, "claude-code", "/project1", sessionId)
+			);
+
+			await manager.initialize();
+			await runImmediateTimers();
+
+			expect(mockSessionStore.loading.loadStartupSessions).toHaveBeenNthCalledWith(1, ["session-2"]);
+			expect(mockSessionStore.loading.loadStartupSessions).toHaveBeenNthCalledWith(2, ["session-1"]);
+			expect(mockProjectManager.loadProjects).toHaveBeenCalledWith(["/project1"]);
+			expect(openPersistedSessionMock.mock.calls.map((call) => call[0]?.panelId)).toEqual([
+				"panel-2",
+				"panel-1",
+			]);
+			expect(openPersistedSessionMock.mock.calls.map((call) => call[0]?.repairPriority)).toEqual([
+				"selected",
+				"visible",
+			]);
 		});
 
 		it("hydrates restored panels even when zoom metadata fails after startup", async () => {
@@ -1029,6 +1139,7 @@ describe("InitializationManager", () => {
 				isPanelCurrent: expect.any(Function),
 				timeoutMs: 30_000,
 				source: "initialization-manager",
+				repairPriority: "visible",
 			});
 		});
 
@@ -1241,6 +1352,7 @@ describe("InitializationManager", () => {
 				isPanelCurrent: expect.any(Function),
 				timeoutMs: 30_000,
 				source: "initialization-manager",
+				repairPriority: "visible",
 			});
 		});
 
@@ -1304,6 +1416,7 @@ describe("InitializationManager", () => {
 				isPanelCurrent: expect.any(Function),
 				timeoutMs: 30_000,
 				source: "initialization-manager",
+				repairPriority: "visible",
 			});
 		});
 
@@ -1364,6 +1477,7 @@ describe("InitializationManager", () => {
 				isPanelCurrent: expect.any(Function),
 				timeoutMs: 30_000,
 				source: "initialization-manager",
+				repairPriority: "visible",
 			});
 		});
 
@@ -1424,6 +1538,7 @@ describe("InitializationManager", () => {
 				isPanelCurrent: expect.any(Function),
 				timeoutMs: 30_000,
 				source: "initialization-manager",
+				repairPriority: "visible",
 			});
 		});
 
@@ -1533,6 +1648,7 @@ describe("InitializationManager", () => {
 				isPanelCurrent: expect.any(Function),
 				timeoutMs: 30_000,
 				source: "initialization-manager",
+				repairPriority: "visible",
 			});
 		});
 
@@ -1625,6 +1741,7 @@ describe("InitializationManager", () => {
 				isPanelCurrent: expect.any(Function),
 				timeoutMs: 30_000,
 				source: "initialization-manager",
+				repairPriority: "visible",
 			});
 		});
 

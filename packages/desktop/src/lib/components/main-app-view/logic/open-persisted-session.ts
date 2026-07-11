@@ -7,7 +7,7 @@ import { createLogger } from "$lib/acp/utils/logger.js";
 import type { SessionOpenResult, SessionOpenResultTiming } from "$lib/services/acp-types.js";
 
 const logger = createLogger({ id: "open-persisted-session", name: "OpenPersistedSession" });
-const inflightPanelIds = new Set<string>();
+const inflightPanelSessions = new Map<string, string>();
 
 export type OpenPersistedSessionDiagnosticStage =
 	| "started"
@@ -15,6 +15,7 @@ export type OpenPersistedSessionDiagnosticStage =
 	| "stale-panel"
 	| "missing-metadata"
 	| "request-started"
+	| "result-preparing"
 	| "result-missing"
 	| "result-error"
 	| "result-found"
@@ -49,7 +50,7 @@ let diagnosticRecorder: OpenPersistedSessionDiagnosticRecorder | null = null;
 
 type SessionOpenStore = Pick<
 	SessionStore,
-	"read" | "loading" | "connection" | "clearSessionEntries"
+	"read" | "loading" | "connection"
 >;
 
 type SessionOpenHydratorLike = Pick<
@@ -65,7 +66,9 @@ interface OpenPersistedSessionOptions {
 	readonly sessionStore: SessionOpenStore;
 	readonly sessionOpenHydrator: SessionOpenHydratorLike;
 	readonly getSessionOpenResult?: typeof api.getSessionOpenResult;
+	readonly awaitSessionOpenRepair?: typeof api.awaitSessionOpenRepair;
 	readonly preparedOpenResult?: SessionOpenResult;
+	readonly repairPriority?: "selected" | "visible";
 	readonly isPanelCurrent?: (panelId: string, sessionId: string) => boolean;
 	readonly timeoutMs: number;
 	readonly source: "initialization-manager" | "session-handler";
@@ -130,10 +133,11 @@ export function openPersistedSession(options: OpenPersistedSessionOptions): void
 		sessionId,
 		sessionStore,
 		sessionOpenHydrator,
-		timeoutMs,
 		source,
 		getSessionOpenResult = api.getSessionOpenResult,
+		awaitSessionOpenRepair = api.awaitSessionOpenRepair,
 		preparedOpenResult,
+		repairPriority = "selected",
 		isPanelCurrent,
 	} = options;
 	const startedAtMs = performance.now();
@@ -177,7 +181,7 @@ export function openPersistedSession(options: OpenPersistedSessionOptions): void
 			openResultTiming: input?.openResultTiming ?? null,
 		});
 	};
-	if (inflightPanelIds.has(panelId)) {
+	if (inflightPanelSessions.get(panelId) === sessionId) {
 		recordDiagnostic("skipped-duplicate");
 		logger.debug("Skipping duplicate session-open request", {
 			source,
@@ -221,24 +225,15 @@ export function openPersistedSession(options: OpenPersistedSessionOptions): void
 		shouldAttemptLocalReattach,
 	});
 
-	inflightPanelIds.add(panelId);
-	if (isProviderHistoryBackedSession(sessionMetadata)) {
-		sessionStore.clearSessionEntries(sessionId);
-	}
+	inflightPanelSessions.set(panelId, sessionId);
 	sessionStore.loading.setSessionLoading(sessionId);
 	const requestToken = sessionOpenHydrator.beginAttempt(panelId);
-
-	let timeoutId: ReturnType<typeof setTimeout> | null = null;
-	const timeoutPromise = new Promise<never>((_, reject) => {
-		timeoutId = setTimeout(() => reject(new Error("Session open timed out")), timeoutMs);
-	});
 
 	recordDiagnostic("request-started", {
 		shouldAttemptLocalReattach,
 	});
 	const handleOpenResult = (result: SessionOpenResult): ResultAsync<void, AppError> => {
 		if (!panelStillTargetsSession()) {
-			sessionOpenHydrator.clearAttempt(panelId);
 			sessionStore.loading.setSessionLoaded(sessionId);
 			recordDiagnostic("stale-panel", {
 				outcome: result.outcome,
@@ -254,6 +249,16 @@ export function openPersistedSession(options: OpenPersistedSessionOptions): void
 			});
 			return okAsync(undefined);
 		}
+		if (result.outcome === "preparing") {
+			recordDiagnostic("result-preparing", {
+				outcome: result.outcome,
+				shouldAttemptLocalReattach,
+			});
+			return awaitSessionOpenRepair(result.repairTicket).andThen((repairedResult) =>
+				handleOpenResult(repairedResult)
+			);
+		}
+
 		if (result.outcome === "missing") {
 			recordDiagnostic("result-missing", {
 				outcome: result.outcome,
@@ -328,18 +333,31 @@ export function openPersistedSession(options: OpenPersistedSessionOptions): void
 		const finishHydration = (hydration: {
 			readonly canonicalSessionId: string;
 			readonly openToken: string;
+			readonly applied: boolean;
 		}) => {
 			if (!sessionOpenHydrator.isCurrentAttempt(panelId, requestToken)) {
 				return okAsync(undefined);
 			}
 
-			sessionStore.loading.setSessionLoaded(hydration.canonicalSessionId);
-			sessionOpenHydrator.clearAttempt(panelId);
-			recordDiagnostic("hydrated", {
-				canonicalSessionId: hydration.canonicalSessionId,
-				shouldAttemptLocalReattach,
-			});
-			return okAsync(undefined);
+			if (!hydration.applied) {
+				sessionStore.loading.setSessionLoaded(hydration.canonicalSessionId);
+				sessionOpenHydrator.clearAttempt(panelId);
+				return okAsync(undefined);
+			}
+
+			return sessionStore.connection
+				.connectSession(hydration.canonicalSessionId, {
+					openToken: hydration.openToken,
+					forceReconnect: true,
+				})
+				.map(() => {
+					sessionStore.loading.setSessionLoaded(hydration.canonicalSessionId);
+					sessionOpenHydrator.clearAttempt(panelId);
+					recordDiagnostic("hydrated", {
+						canonicalSessionId: hydration.canonicalSessionId,
+						shouldAttemptLocalReattach,
+					});
+				});
 		};
 		const immediateHydration = sessionOpenHydrator.hydrateFoundNow?.(panelId, requestToken, result);
 		if (immediateHydration !== undefined) {
@@ -361,7 +379,8 @@ export function openPersistedSession(options: OpenPersistedSessionOptions): void
 				sessionId,
 				sessionIdentity.projectPath,
 				sessionIdentity.agentId,
-				sessionMetadata.sourcePath
+				sessionMetadata.sourcePath,
+				repairPriority
 			).andThen((result) => handleOpenResult(result));
 
 	const openPromise = openResult.match(
@@ -400,26 +419,11 @@ export function openPersistedSession(options: OpenPersistedSessionOptions): void
 		}
 	);
 
-	Promise.race([openPromise, timeoutPromise])
-		.catch(() => {
-			recordDiagnostic("timed-out", {
-				message: "Session open timed out",
-				shouldAttemptLocalReattach,
-			});
-			sessionOpenHydrator.clearAttempt(panelId);
-			sessionStore.loading.setSessionLoaded(sessionId);
-			logger.error("Session open timed out", {
-				source,
-				panelId,
-				sessionId,
-				timeoutMs,
-			});
-		})
+	openPromise
 		.finally(() => {
-			if (timeoutId !== null) {
-				clearTimeout(timeoutId);
+			if (inflightPanelSessions.get(panelId) === sessionId) {
+				inflightPanelSessions.delete(panelId);
 			}
-			inflightPanelIds.delete(panelId);
 			recordDiagnostic("finished", {
 				shouldAttemptLocalReattach,
 			});
@@ -427,6 +431,6 @@ export function openPersistedSession(options: OpenPersistedSessionOptions): void
 }
 
 export function __resetOpenPersistedSessionForTests(): void {
-	inflightPanelIds.clear();
+	inflightPanelSessions.clear();
 	diagnosticRecorder = null;
 }

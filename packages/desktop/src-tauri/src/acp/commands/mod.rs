@@ -35,6 +35,7 @@ mod preconnection_capabilities;
 mod preconnection_commands;
 mod registry_commands;
 mod session_commands;
+pub(crate) use session_commands::emit_lifecycle_event;
 mod transcript_row_page_commands;
 pub(crate) mod transcript_viewport_commands;
 
@@ -68,12 +69,12 @@ pub use preconnection_commands::acp_list_preconnection_commands;
 pub use registry_commands::{acp_list_agents, acp_register_custom_agent};
 #[cfg(test)]
 pub(crate) use session_commands::persist_session_metadata_for_cwd;
+pub(crate) use session_commands::session_metadata_context_from_cwd;
 pub use session_commands::{
     acp_close_session, acp_fork_session, acp_get_event_bridge_info,
     acp_get_session_connection_readiness, acp_get_session_state, acp_initialize, acp_new_session,
     acp_resume_session, acp_set_session_autonomous, acp_unarchive_session,
 };
-pub(crate) use session_commands::{emit_lifecycle_event, session_metadata_context_from_cwd};
 pub use transcript_row_page_commands::acp_read_transcript_row_page;
 pub use transcript_viewport_commands::acp_request_transcript_viewport_buffer;
 

@@ -1,64 +1,19 @@
 use crate::commands::observability::{unexpected_command_result, CommandResult};
 use crate::db::repository::SessionMetadataRow;
 use std::cmp::Reverse;
+#[cfg(test)]
 use std::collections::HashSet;
-use std::path::{Path, PathBuf};
+#[cfg(test)]
+use std::path::Path;
+#[cfg(test)]
 use std::sync::{Mutex, OnceLock};
+#[cfg(test)]
 use std::time::Instant;
 
 use super::*;
 
 fn indexed_source_path(file_path: String) -> Option<String> {
     SessionMetadataRepository::normalized_source_path(&file_path)
-}
-
-async fn enrich_history_entry_usage_stats(entry: &mut HistoryEntry) {
-    if entry.usage_stats.is_some() {
-        return;
-    }
-
-    if entry.agent_id != CanonicalAgentId::ClaudeCode {
-        return;
-    }
-
-    let source_path = match entry.source_path.as_ref() {
-        Some(path) if path.ends_with(".jsonl") => path.clone(),
-        _ => return,
-    };
-
-    let file_path = resolve_claude_source_path(&source_path);
-
-    match crate::session_jsonl::parser::extract_thread_metadata(&file_path).await {
-        Ok(Some(source_entry)) => {
-            entry.usage_stats = source_entry.usage_stats;
-        }
-        Ok(None) => {}
-        Err(error) => {
-            tracing::debug!(
-                session_id = %entry.session_id,
-                error = %error,
-                "Failed to enrich indexed history usage stats from source path"
-            );
-        }
-    }
-}
-
-fn resolve_claude_source_path(source_path: &str) -> PathBuf {
-    let path = PathBuf::from(source_path);
-    if path.is_absolute() {
-        return path;
-    }
-
-    match crate::session_jsonl::parser::get_session_jsonl_root() {
-        Ok(root) => root.join("projects").join(source_path),
-        Err(_) => path,
-    }
-}
-
-async fn enrich_history_entries_usage_stats(entries: &mut [HistoryEntry]) {
-    for entry in entries {
-        enrich_history_entry_usage_stats(entry).await;
-    }
 }
 
 fn derive_title_from_converted_session(
@@ -135,6 +90,7 @@ fn copilot_session_to_history_entry(
     }
 }
 
+#[cfg(test)]
 fn filter_hidden_external_file_scan_entries(
     mut entries: Vec<HistoryEntry>,
     external_hidden_paths: &std::collections::HashSet<String>,
@@ -164,12 +120,48 @@ pub async fn scan_project_sessions(
 
             SCAN_CACHE
                 .get_or_fetch(key, || async {
-                    scan_project_sessions_inner(project_paths, db).await
+                    scan_indexed_project_sessions_inner(project_paths, db).await
                 })
                 .await
         }
         .await,
     )
+}
+
+async fn scan_indexed_project_sessions_inner(
+    project_paths: Vec<String>,
+    db: Option<DbConn>,
+) -> Result<Vec<HistoryEntry>, String> {
+    let db = db.ok_or_else(|| "No DbConn available for canonical session summaries".to_string())?;
+    let external_hidden_paths = crate::history::visibility::load_external_hidden_paths_or_empty(
+        &db,
+        &project_paths,
+        "scan_project_sessions",
+    )
+    .await;
+    let lookup = SessionMetadataRepository::get_recent_for_projects_bounded(
+        &db,
+        &project_paths,
+        &external_hidden_paths,
+    )
+    .await
+    .map_err(|error| format!("Failed to load canonical session summaries: {error}"))?;
+    let mut entries = indexed_session_rows_to_history_entries(lookup.entries);
+    let ids = entries
+        .iter()
+        .map(|entry| entry.session_id.clone())
+        .collect::<Vec<_>>();
+    let mut usage =
+        crate::db::repository::SessionHistoryEnrichmentRepository::get_usage_for_session_ids(
+            &db, &ids,
+        )
+        .await
+        .map_err(|error| format!("Failed to load canonical session enrichment: {error}"))?;
+    for entry in &mut entries {
+        entry.usage_stats = usage.remove(&entry.session_id);
+    }
+    entries.sort_by_key(|entry| Reverse(entry.timestamp));
+    Ok(entries)
 }
 
 #[tauri::command]
@@ -187,60 +179,72 @@ pub async fn get_startup_sessions(
                 .map(|state| state.inner().clone())
                 .ok_or_else(|| "No DbConn available".to_string())?;
 
-            let mut indexed = SessionMetadataRepository::get_for_session_ids(&db, &session_ids)
-                .await
-                .map_err(|error| format!("Failed to load startup session metadata: {error}"))?;
-
-            // Build the ordering map keyed by requested session ID -> original position.
-            let startup_order: std::collections::HashMap<String, usize> = session_ids
-                .into_iter()
-                .enumerate()
-                .map(|(index, session_id)| (session_id, index))
-                .collect();
-
-            indexed.sort_by_key(|row| startup_order.get(&row.id).copied().unwrap_or(usize::MAX));
-
-            let alias_remaps = std::collections::HashMap::new();
-
-            let mut entries: Vec<HistoryEntry> = Vec::with_capacity(indexed.len());
-            for session in indexed {
-                let session_lifecycle_state = session.lifecycle_state();
-                let worktree_deleted = session
-                    .worktree_path
-                    .as_ref()
-                    .map(|path| !Path::new(path).exists());
-                let mut entry = HistoryEntry {
-                    id: session.id.clone(),
-                    display: session.display,
-                    timestamp: session.timestamp,
-                    project: session.project_path,
-                    session_id: session.id,
-                    pasted_contents: serde_json::json!({}),
-                    agent_id: CanonicalAgentId::parse(&session.agent_id),
-                    updated_at: session.timestamp,
-                    source_path: indexed_source_path(session.file_path),
-                    parent_id: None,
-                    worktree_path: session.worktree_path,
-                    worktree_deleted,
-                    pr_number: session.pr_number.map(|number| number as i64),
-                    pr_link_mode: session.pr_link_mode,
-                    session_lifecycle_state: Some(session_lifecycle_state),
-                    sequence_id: session.sequence_id,
-                    usage_stats: None,
-                };
-                enrich_history_entry_usage_stats(&mut entry).await;
-                entries.push(entry);
-            }
-
-            Ok(crate::session_jsonl::types::StartupSessionsResponse {
-                entries,
-                alias_remaps,
-            })
+            get_startup_sessions_inner(&db, session_ids).await
         }
         .await,
     )
 }
 
+async fn get_startup_sessions_inner(
+    db: &DbConn,
+    session_ids: Vec<String>,
+) -> Result<crate::session_jsonl::types::StartupSessionsResponse, String> {
+    let mut indexed = SessionMetadataRepository::get_for_session_ids(db, &session_ids)
+        .await
+        .map_err(|error| format!("Failed to load startup session metadata: {error}"))?;
+
+    let startup_order: std::collections::HashMap<String, usize> = session_ids
+        .into_iter()
+        .enumerate()
+        .map(|(index, session_id)| (session_id, index))
+        .collect();
+
+    indexed.sort_by_key(|row| startup_order.get(&row.id).copied().unwrap_or(usize::MAX));
+
+    let indexed_ids = indexed.iter().map(|row| row.id.clone()).collect::<Vec<_>>();
+    let mut usage_by_session =
+        crate::db::repository::SessionHistoryEnrichmentRepository::get_usage_for_session_ids(
+            db,
+            &indexed_ids,
+        )
+        .await
+        .map_err(|error| format!("Failed to load canonical session usage enrichment: {error}"))?;
+
+    let alias_remaps = std::collections::HashMap::new();
+
+    let mut entries: Vec<HistoryEntry> = Vec::with_capacity(indexed.len());
+    for session in indexed {
+        let session_lifecycle_state = session.lifecycle_state();
+        let usage_stats = usage_by_session.remove(&session.id);
+        let entry = HistoryEntry {
+            id: session.id.clone(),
+            display: session.display,
+            timestamp: session.timestamp,
+            project: session.project_path,
+            session_id: session.id,
+            pasted_contents: serde_json::json!({}),
+            agent_id: CanonicalAgentId::parse(&session.agent_id),
+            updated_at: session.timestamp,
+            source_path: indexed_source_path(session.file_path),
+            parent_id: None,
+            worktree_path: session.worktree_path,
+            worktree_deleted: None,
+            pr_number: session.pr_number.map(|number| number as i64),
+            pr_link_mode: session.pr_link_mode,
+            session_lifecycle_state: Some(session_lifecycle_state),
+            sequence_id: session.sequence_id,
+            usage_stats,
+        };
+        entries.push(entry);
+    }
+
+    Ok(crate::session_jsonl::types::StartupSessionsResponse {
+        entries,
+        alias_remaps,
+    })
+}
+
+#[cfg(test)]
 fn merge_history_entries_by_id(
     mut primary: Vec<HistoryEntry>,
     secondary: Vec<HistoryEntry>,
@@ -257,6 +261,7 @@ fn merge_history_entries_by_id(
     primary
 }
 
+#[cfg(test)]
 fn project_paths_missing_from_index(
     project_paths: &[String],
     indexed_entries: &[HistoryEntry],
@@ -277,6 +282,7 @@ fn project_paths_missing_from_index(
         .collect()
 }
 
+#[cfg(test)]
 async fn scan_copilot_history_entries(
     project_paths: &[String],
 ) -> Result<Vec<HistoryEntry>, String> {
@@ -295,10 +301,6 @@ fn indexed_session_rows_to_history_entries(indexed: Vec<SessionMetadataRow>) -> 
     for s in indexed {
         let session_lifecycle_state = s.lifecycle_state();
         let display = derive_indexed_session_title(&s.id, &s.display, s.title_overridden);
-        let worktree_deleted = s
-            .worktree_path
-            .as_ref()
-            .map(|path| !Path::new(path).exists());
         entries.push(HistoryEntry {
             id: s.id.clone(),
             display,
@@ -311,7 +313,7 @@ fn indexed_session_rows_to_history_entries(indexed: Vec<SessionMetadataRow>) -> 
             source_path: indexed_source_path(s.file_path),
             parent_id: None,
             worktree_path: s.worktree_path,
-            worktree_deleted,
+            worktree_deleted: None,
             pr_number: s.pr_number.map(|n| n as i64),
             pr_link_mode: s.pr_link_mode,
             session_lifecycle_state: Some(session_lifecycle_state),
@@ -322,6 +324,7 @@ fn indexed_session_rows_to_history_entries(indexed: Vec<SessionMetadataRow>) -> 
     entries
 }
 
+#[cfg(test)]
 async fn scan_project_sessions_from_files(
     project_paths: &[String],
     external_hidden_paths: &std::collections::HashSet<String>,
@@ -367,6 +370,7 @@ async fn scan_project_sessions_from_files(
     filter_hidden_external_file_scan_entries(entries, external_hidden_paths)
 }
 
+#[cfg(test)]
 async fn scan_project_sessions_inner(
     project_paths: Vec<String>,
     db: Option<DbConn>,
@@ -388,7 +392,7 @@ async fn scan_project_sessions_inner(
     let from_index = match &db {
         Some(db) => {
             let idx_start = Instant::now();
-            let result = SessionMetadataRepository::get_for_projects(
+            let result = SessionMetadataRepository::get_recent_for_projects_bounded(
                 db,
                 &project_paths,
                 &external_hidden_paths,
@@ -433,6 +437,22 @@ async fn scan_project_sessions_inner(
         };
 
         let mut entries = indexed_session_rows_to_history_entries(indexed);
+        let indexed_ids = entries
+            .iter()
+            .map(|entry| entry.session_id.clone())
+            .collect::<Vec<_>>();
+        if let Some(db) = &db {
+            if let Ok(mut usage_by_session) = crate::db::repository::SessionHistoryEnrichmentRepository::get_usage_for_session_ids(
+                    db,
+                    &indexed_ids,
+                )
+                .await
+            {
+                for entry in &mut entries {
+                    entry.usage_stats = usage_by_session.remove(&entry.session_id);
+                }
+            }
+        }
         if !reconciled_by_id.is_empty() {
             for entry in entries.iter_mut() {
                 if let Some(reconciled) = reconciled_by_id.get(&entry.id) {
@@ -440,7 +460,6 @@ async fn scan_project_sessions_inner(
                 }
             }
         }
-        enrich_history_entries_usage_stats(&mut entries).await;
         let missing_project_paths = project_paths_missing_from_index(&project_paths, &entries);
 
         if !missing_project_paths.is_empty() {
@@ -504,6 +523,7 @@ async fn scan_project_sessions_inner(
 /// Bounds re-parsing of present-but-unparseable files to once per file mutation:
 /// a cached triple is skipped without re-reading the file. The cache key includes
 /// `(mtime, size)` so any real file change re-admits the file for another attempt.
+#[cfg(test)]
 fn placeholder_reconcile_negative_cache() -> &'static Mutex<HashSet<(String, i64, i64)>> {
     static CACHE: OnceLock<Mutex<HashSet<(String, i64, i64)>>> = OnceLock::new();
     CACHE.get_or_init(|| Mutex::new(HashSet::new()))
@@ -516,6 +536,7 @@ fn placeholder_reconcile_negative_cache() -> &'static Mutex<HashSet<(String, i64
 /// - `__worktree__/<id>` markers (fail the prefix check),
 /// - nested markers such as `__session_registry__/copilot_missing/<id>` (inner slash),
 /// - already-reconciled rows with a real path / `file_size > 0` (not `is_transcript_pending`).
+#[cfg(test)]
 fn is_reconcilable_placeholder_row(row: &SessionMetadataRow) -> bool {
     const REGISTRY_PREFIX: &str = "__session_registry__/";
 
@@ -534,6 +555,7 @@ fn is_reconcilable_placeholder_row(row: &SessionMetadataRow) -> bool {
 /// reconciled from disk. Keyed/displayed under `row.id` (the canonical Acepe
 /// identity == the JSONL filename we statted), NOT the content `sessionId`
 /// returned by extraction (which can differ for forked/resumed transcripts).
+#[cfg(test)]
 fn reconciled_history_entry(
     row: &SessionMetadataRow,
     display: String,
@@ -576,6 +598,7 @@ fn reconciled_history_entry(
 /// A confident title is required (Decision 7): once a placeholder flips to
 /// non-placeholder nothing on the scan path re-corrects it, so a degraded read
 /// must not be made terminal.
+#[cfg(test)]
 async fn reconcile_placeholder_row(
     db: &DbConn,
     row: &SessionMetadataRow,
@@ -681,6 +704,7 @@ async fn reconcile_placeholder_row(
 /// rows are skipped without I/O. A reconcile that fails or declines for one row
 /// (helper `Err`/`None`) does **not** abort the scan — that row simply stays a
 /// placeholder and is absent from the returned map (its existing entry is kept).
+#[cfg(test)]
 async fn reconcile_indexed_placeholder_rows(
     db: &DbConn,
     rows: &[SessionMetadataRow],
@@ -710,6 +734,7 @@ async fn reconcile_indexed_placeholder_rows(
 /// Derive a confident, non-fallback title from an extracted first-user-message
 /// `display`. Returns `None` for empty/slash-command/fallback content (e.g.
 /// the `"Untitled conversation"` sentinel emitted for content-less transcripts).
+#[cfg(test)]
 fn confident_reconciled_title(extracted_display: &str) -> Option<String> {
     if extracted_display == "Untitled conversation" {
         return None;
@@ -724,7 +749,8 @@ mod tests {
         derive_title_from_converted_session, filter_hidden_external_file_scan_entries,
         indexed_source_path, is_reconcilable_placeholder_row, merge_history_entries_by_id,
         placeholder_reconcile_negative_cache, project_paths_missing_from_index,
-        reconcile_placeholder_row, resolve_indexed_session_title, scan_project_sessions_inner,
+        reconcile_placeholder_row, resolve_indexed_session_title,
+        scan_indexed_project_sessions_inner, scan_project_sessions_inner,
     };
     use crate::acp::session_thread_snapshot::SessionThreadSnapshot;
     use crate::acp::types::CanonicalAgentId;
@@ -732,6 +758,7 @@ mod tests {
     use crate::db::repository::{SessionLifecycleState, SessionMetadataRow};
     use crate::session_jsonl::types::HistoryEntry;
     use crate::session_jsonl::types::{StoredContentBlock, StoredEntry, StoredUserMessage};
+    use std::fs;
 
     fn make_session(title: &str, user_text: &str) -> SessionThreadSnapshot {
         let content = StoredContentBlock {
@@ -776,6 +803,79 @@ mod tests {
             sequence_id: None,
             usage_stats: None,
         }
+    }
+
+    #[tokio::test]
+    async fn startup_session_metadata_does_not_parse_provider_history_for_usage() {
+        let db = Database::connect("sqlite::memory:")
+            .await
+            .expect("connect test database");
+        crate::db::migrations::Migrator::up(&db, None)
+            .await
+            .expect("run migrations");
+
+        let temp = tempfile::tempdir().expect("create transcript directory");
+        let transcript_path = temp.path().join("session-1.jsonl");
+        fs::write(
+            &transcript_path,
+            r#"{"type":"user","cwd":"/repo","sessionId":"session-1","message":{"role":"user","content":"Measure this"},"timestamp":"2025-12-16T19:53:41.812Z"}
+{"type":"assistant","message":{"role":"assistant","content":"Done","usage":{"input_tokens":1200,"output_tokens":80}},"sessionId":"session-1","timestamp":"2025-12-16T19:53:42.812Z"}"#,
+        )
+        .expect("write transcript");
+
+        crate::db::repository::SessionMetadataRepository::upsert(
+            &db,
+            "session-1".to_string(),
+            "Measure this".to_string(),
+            1,
+            "/repo".to_string(),
+            "claude-code".to_string(),
+            transcript_path.to_string_lossy().into_owned(),
+            1,
+            1,
+        )
+        .await
+        .expect("insert session metadata");
+
+        let response = super::get_startup_sessions_inner(&db, vec!["session-1".into()])
+            .await
+            .expect("load startup metadata");
+
+        assert_eq!(response.entries.len(), 1);
+        assert!(
+            response.entries[0].usage_stats.is_none(),
+            "first-display metadata must not parse provider history"
+        );
+    }
+
+    #[tokio::test]
+    async fn indexed_session_summaries_do_not_require_provider_files() {
+        let db = Database::connect("sqlite::memory:")
+            .await
+            .expect("connect test database");
+        crate::db::migrations::Migrator::up(&db, None)
+            .await
+            .expect("run migrations");
+        crate::db::repository::SessionMetadataRepository::upsert(
+            &db,
+            "indexed-only".to_string(),
+            "Already indexed".to_string(),
+            10,
+            "/repo".to_string(),
+            "claude-code".to_string(),
+            "/provider/file/that/does/not/exist.jsonl".to_string(),
+            10,
+            100,
+        )
+        .await
+        .expect("insert session metadata");
+
+        let entries = scan_indexed_project_sessions_inner(vec!["/repo".to_string()], Some(db))
+            .await
+            .expect("read indexed summaries");
+
+        assert_eq!(entries.len(), 1);
+        assert_eq!(entries[0].display, "Already indexed");
     }
 
     #[test]

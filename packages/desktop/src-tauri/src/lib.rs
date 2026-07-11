@@ -98,10 +98,10 @@ use git::worktree::{
 };
 use git::worktree_config::{load_worktree_config, run_worktree_setup, save_worktree_config};
 use history::commands::{
-    audit_session_load_timing, count_sessions_for_project, discover_all_projects_with_sessions,
-    get_session_open_result, get_startup_sessions, get_unified_plan, list_all_project_paths,
-    scan_project_sessions, set_session_pr_number, set_session_title, set_session_worktree_path,
-    warm_recent_transcript_row_ledgers,
+    audit_session_load_timing, await_session_open_repair, count_sessions_for_project,
+    discover_all_projects_with_sessions, get_session_open_result, get_startup_sessions,
+    get_unified_plan, list_all_project_paths, scan_project_sessions, set_session_pr_number,
+    set_session_title, set_session_worktree_path, warm_recent_transcript_row_ledgers,
 };
 use history::indexer::IndexerActor;
 use opencode_history::commands::{get_opencode_history, get_opencode_sessions_for_project};
@@ -162,7 +162,7 @@ use storage::commands::{
     save_project_acepe_config, save_session_review_state, save_thread_list_settings,
     save_user_setting, update_project_color, update_project_icon, update_project_order,
 };
-use tauri::Manager;
+use tauri::{Emitter, Manager};
 use terminal::commands::{
     terminal_create, terminal_kill, terminal_output, terminal_release, terminal_wait_for_exit,
 };
@@ -930,6 +930,7 @@ pub fn run() {
 
             // Manage database connection
             app.manage(db_conn.clone());
+            app.manage(acp::session_restore::TranscriptRepairCoordinator::new());
             spawn_startup_project_maintenance(db_conn.clone());
             spawn_startup_transcript_row_ledger_backfill(app.handle().clone());
 
@@ -957,6 +958,7 @@ pub fn run() {
             // Start background indexing after app is ready
             let indexer_for_init = indexer_handle.clone();
             let db_for_init = db_arc.clone();
+            let app_for_index = app.handle().clone();
             tauri::async_runtime::spawn(async move {
                 // Small delay to let app fully initialize
                 tokio::time::sleep(std::time::Duration::from_millis(100)).await;
@@ -1005,21 +1007,32 @@ pub fn run() {
                 }
 
                 // Check if index is empty (first run)
-                match crate::db::repository::SessionMetadataRepository::is_empty(&db_for_init).await {
+                let indexed = match crate::db::repository::SessionMetadataRepository::is_empty(&db_for_init).await {
                     Ok(true) => {
                         tracing::info!("First run detected, performing full index scan");
-                        if let Err(e) = indexer_for_init.full_scan(project_paths.clone()).await {
-                            tracing::error!(error = %e, "Initial full scan failed");
-                        }
+                        indexer_for_init.full_scan(project_paths.clone()).await
                     }
                     Ok(false) => {
                         tracing::info!("Index exists, performing incremental scan");
-                        if let Err(e) = indexer_for_init.incremental_scan(project_paths.clone()).await {
-                            tracing::error!(error = %e, "Incremental scan failed");
-                        }
+                        indexer_for_init.incremental_scan(project_paths.clone()).await
                     }
                     Err(e) => {
                         tracing::error!(error = %e, "Failed to check index status");
+                        return;
+                    }
+                };
+                match indexed {
+                    Ok(_) => {
+                        let payload = serde_json::json!({
+                            "projectPaths": project_paths,
+                            "revision": chrono::Utc::now().timestamp_millis(),
+                        });
+                        if let Err(error) = app_for_index.emit("history-index-changed", payload) {
+                            tracing::warn!(error = %error, "Failed to emit history index change");
+                        }
+                    }
+                    Err(error) => {
+                        tracing::error!(error = %error, "Startup session index scan failed");
                     }
                 }
 

@@ -211,9 +211,22 @@ export function getSessionOpenResult(
 	sessionId: string,
 	projectPath: string,
 	agentId: string,
-	sourcePath?: string
+	sourcePath?: string,
+	repairPriority: "selected" | "visible" | "backfill" = "selected"
 ): ResultAsync<SessionOpenResult, AppError> {
-	return tauriClient.history.getSessionOpenResult(sessionId, projectPath, agentId, sourcePath);
+	return tauriClient.history.getSessionOpenResult(
+		sessionId,
+		projectPath,
+		agentId,
+		sourcePath,
+		repairPriority
+	);
+}
+
+export function awaitSessionOpenRepair(
+	repairTicket: string
+): ResultAsync<SessionOpenResult, AppError> {
+	return tauriClient.history.awaitSessionOpenRepair(repairTicket);
 }
 
 export function setSessionTitle(sessionId: string, title: string): ResultAsync<void, AppError> {
@@ -308,6 +321,7 @@ export const api = {
 	scanSessions,
 	getStartupSessions,
 	getSessionOpenResult,
+	awaitSessionOpenRepair,
 	setSessionTitle,
 
 	// Workspace

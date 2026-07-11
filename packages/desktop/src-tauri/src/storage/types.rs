@@ -21,6 +21,8 @@ pub enum UserSettingKey {
     AgentDefaultModels,
     /// Favorite models per agent (JSON map)
     AgentFavoriteModels,
+    /// Last model provider viewed per agent (JSON map)
+    AgentModelProvider,
     /// Cached available models per agent (JSON map)
     AgentAvailableModelsCache,
     /// Cached available models display groups per agent (JSON map)
@@ -100,6 +102,7 @@ impl UserSettingKey {
             UserSettingKey::ZoomLevel => "zoom_level",
             UserSettingKey::AgentDefaultModels => "agent_default_models",
             UserSettingKey::AgentFavoriteModels => "agent_favorite_models",
+            UserSettingKey::AgentModelProvider => "agent_model_provider",
             UserSettingKey::AgentAvailableModelsCache => "agent_available_models_cache",
             UserSettingKey::AgentAvailableModelsDisplayCache => {
                 "agent_available_models_display_cache"

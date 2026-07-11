@@ -52,34 +52,10 @@ function roundProjectLoadPerformanceMs(value: number): number {
 	return Math.round(value * 100) / 100;
 }
 
-const PROJECT_STORAGE_REFRESH_IDLE_DELAY_MS = 5_000;
-const PROJECT_STORAGE_REFRESH_IDLE_TIMEOUT_MS = 5_000;
-
-function scheduleProjectStorageRefresh(callback: () => void): void {
-	if (typeof window !== "undefined") {
-		window.setTimeout(() => {
-			const schedulingWindow = window as Window & {
-				requestIdleCallback?: (
-					callback: IdleRequestCallback,
-					options?: IdleRequestOptions
-				) => number;
-			};
-			if (typeof schedulingWindow.requestIdleCallback === "function") {
-				schedulingWindow.requestIdleCallback(callback, {
-					timeout: PROJECT_STORAGE_REFRESH_IDLE_TIMEOUT_MS,
-				});
-				return;
-			}
-			window.setTimeout(callback, 0);
-		}, PROJECT_STORAGE_REFRESH_IDLE_DELAY_MS);
-		return;
-	}
-	setTimeout(callback, PROJECT_STORAGE_REFRESH_IDLE_DELAY_MS);
-}
-
 type ProjectClientPort = Pick<
 	ProjectClient,
 	| "getProjects"
+	| "getRecentProjects"
 	| "getCachedProjects"
 	| "writeCachedProjects"
 	| "browseProject"
@@ -105,6 +81,8 @@ interface ProjectLoadTraceTiming {
 interface ProjectStorageLoadOptions {
 	readonly showLoading: boolean;
 	readonly recordTrace: boolean;
+	readonly firstPageOnly: boolean;
+	readonly preferredPaths: string[];
 }
 
 /**
@@ -121,6 +99,7 @@ export class ProjectManager {
 	private readonly client: ProjectClientPort;
 	private sessionStore: SessionStore | null = null;
 	private lastLoadPerformanceTrace: ProjectLoadPerformanceTrace | null = null;
+	private nextProjectPageOffset = 50;
 
 	/**
 	 * Total count of projects in the database.
@@ -206,13 +185,22 @@ export class ProjectManager {
 		const totalStartedAtMs = performance.now();
 		const projectsStartedAtMs = performance.now();
 
-		return this.client
-			.getProjects()
+		const projectsRequest = options.firstPageOnly
+			? this.client.getRecentProjects(50, options.preferredPaths, 0)
+			: this.client.getProjects();
+
+		return projectsRequest
 			.map((projects) => ({
 				projects,
 				durationMs: performance.now() - projectsStartedAtMs,
 			}))
 			.map((projectsResult) => {
+				if (options.firstPageOnly) {
+					const preferred = new Set(options.preferredPaths);
+					this.nextProjectPageOffset = projectsResult.projects.filter(
+						(project) => !preferred.has(project.path)
+					).length;
+				}
 				this.assignLoadedProjects(projectsResult.projects, {
 					totalStartedAtMs,
 					getProjectCountMs: 0,
@@ -233,22 +221,23 @@ export class ProjectManager {
 			});
 	}
 
-	private refreshProjectsFromStorageInBackground(): void {
-		scheduleProjectStorageRefresh(() => {
-			void this.loadProjectsFromStorage({
-				showLoading: false,
-				recordTrace: false,
-			}).match(
-				() => undefined,
-				(error) => {
-					console.warn("Project refresh failed:", error);
-				}
-			);
-		});
-	}
-
 	private writeCurrentProjectsToCache(): void {
 		this.client.writeCachedProjects(this.projects);
+	}
+
+	private loadRemainingProjectPages(offset: number): void {
+		void this.client.getRecentProjects(50, [], offset).match(
+			(projects) => {
+				if (projects.length === 0) return;
+				const knownPaths = new Set(this.projects.map((project) => project.path));
+				const additions = projects.filter((project) => !knownPaths.has(project.path));
+				this.projects = this.projects.concat(additions);
+				this.projectCount = this.projects.length;
+				this.writeCurrentProjectsToCache();
+				if (projects.length === 50) this.loadRemainingProjectPages(offset + 50);
+			},
+			(error) => console.warn("Later project page failed:", error)
+		);
 	}
 
 	getProject(path: string): Project | undefined {
@@ -271,7 +260,7 @@ export class ProjectManager {
 	 *
 	 * @returns ResultAsync containing void on success
 	 */
-	loadProjects(): ResultAsync<void, ProjectError> {
+	loadProjects(preferredPaths: string[] = []): ResultAsync<void, ProjectError> {
 		this.error = null;
 		const totalStartedAtMs = performance.now();
 
@@ -285,13 +274,28 @@ export class ProjectManager {
 				getProjectsMs: 0,
 				recordTrace: true,
 			});
-			this.refreshProjectsFromStorageInBackground();
-			return okAsync(undefined);
+			return this.loadProjectsFromStorage({
+				showLoading: false,
+				recordTrace: false,
+				firstPageOnly: true,
+				preferredPaths,
+			})
+				.map(() => {
+					this.loadRemainingProjectPages(this.nextProjectPageOffset);
+				})
+				.orElse((error) => {
+					console.warn("Preferred project page refresh failed:", error);
+					return okAsync(undefined);
+				});
 		}
 
 		return this.loadProjectsFromStorage({
 			showLoading: true,
 			recordTrace: true,
+			firstPageOnly: true,
+			preferredPaths,
+		}).map(() => {
+			this.loadRemainingProjectPages(this.nextProjectPageOffset);
 		});
 	}
 
@@ -365,6 +369,8 @@ export class ProjectManager {
 			return this.loadProjectsFromStorage({
 				showLoading: true,
 				recordTrace: true,
+				firstPageOnly: false,
+				preferredPaths: [],
 			});
 		});
 	}
@@ -522,6 +528,8 @@ export class ProjectManager {
 				return this.loadProjectsFromStorage({
 					showLoading: true,
 					recordTrace: true,
+					firstPageOnly: false,
+					preferredPaths: [],
 				});
 			})
 			.match(
@@ -553,6 +561,8 @@ export class ProjectManager {
 			return this.loadProjectsFromStorage({
 				showLoading: true,
 				recordTrace: true,
+				firstPageOnly: false,
+				preferredPaths: [],
 			});
 		});
 	}

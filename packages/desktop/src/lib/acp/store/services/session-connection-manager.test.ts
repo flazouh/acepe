@@ -1453,6 +1453,7 @@ describe("SessionConnectionManager.createSession", () => {
 		vi.clearAllMocks();
 		ensureLoaded.mockReturnValue(okAsync(undefined));
 		getCachedModelsDisplay.mockReturnValue(null);
+		closeSession.mockReturnValue(okAsync(undefined));
 		setMode.mockReturnValue(okAsync(undefined));
 		setModel.mockReturnValue(okAsync(undefined));
 		newSession.mockReturnValue(
@@ -1714,6 +1715,61 @@ describe("SessionConnectionManager.createSession", () => {
 		result._unsafeUnwrap();
 
 		expect(setSessionModelForMode).toHaveBeenCalledWith(sessionId, "build", "safe-default");
+	});
+
+	it("does not invent a model when provider metadata requires explicit selection", async () => {
+		newSession.mockReturnValue(
+			okAsync({
+				sessionId,
+				modes: {
+					currentModeId: "build",
+					availableModes: [{ id: "build", name: "Build", description: null }],
+				},
+				models: {
+					currentModelId: null,
+					availableModels: [
+						{
+							modelId: "github-copilot/claude-sonnet-4.6",
+							provider: {
+								providerId: "github-copilot",
+								modelId: "claude-sonnet-4.6",
+							},
+							name: "Claude Sonnet 4.6",
+							description: null,
+						},
+					],
+					modelsDisplay: { groups: [], presentation: undefined },
+					providerMetadata: {
+						providerBrand: "opencode",
+						displayName: "OpenCode",
+						displayOrder: 40,
+						supportsModelDefaults: true,
+						allowsImplicitModelSelection: false,
+						variantGroup: "plain",
+						defaultAlias: undefined,
+						reasoningEffortSupport: false,
+						preconnectionSlashMode: "projectScoped",
+						preconnectionCapabilityMode: "projectScoped",
+						implicitSessionCreationMode: "explicitUserAction",
+					},
+				},
+				availableCommands: [],
+			})
+		);
+
+		const manager = createManager({
+			stateReader,
+			stateWriter,
+			transientProjection,
+			capabilities,
+			entryManager,
+			connectionManager,
+		});
+
+		const result = await manager.createSession({ projectPath, agentId }, createMockEventHandler());
+		result._unsafeUnwrap();
+
+		expect(setSessionModelForMode).not.toHaveBeenCalled();
 	});
 
 	it("stores available commands from new session response", async () => {
@@ -2076,7 +2132,7 @@ describe("SessionConnectionManager.createSession", () => {
 		expect(setSessionModelForMode).toHaveBeenCalledWith(sessionId, "plan", "gpt-5.2-codex/medium");
 	});
 
-	it("keeps the created session when explicit initial mode setup fails after backend session creation", async () => {
+	it("surfaces explicit initial mode setup failure after backend session creation", async () => {
 		newSession.mockReturnValue(
 			okAsync({
 				sessionId,
@@ -2120,15 +2176,78 @@ describe("SessionConnectionManager.createSession", () => {
 			createMockEventHandler()
 		);
 
-		result._unsafeUnwrap();
-
+		expect(result.isErr()).toBe(true);
 		expect(setMode).toHaveBeenCalledWith(sessionId, "plan");
-		expect(stateWriter.addSession).toHaveBeenCalled();
-		expect(setSessionModelForMode).toHaveBeenCalledWith(
-			sessionId,
-			"build",
-			"gpt-5.2-codex/high"
+		expect(closeSession).toHaveBeenCalledWith(sessionId);
+		expect(stateWriter.addSession).not.toHaveBeenCalled();
+		expect(setSessionModelForMode).not.toHaveBeenCalled();
+	});
+
+	it("rejects and closes a created session when the requested provider model is absent", async () => {
+		const manager = createManager({
+			stateReader,
+			stateWriter,
+			transientProjection,
+			capabilities,
+			entryManager,
+			connectionManager,
+		});
+
+		const result = await manager.createSession(
+			{
+				projectPath,
+				agentId,
+				initialModelId: "openrouter/anthropic/claude-sonnet-4",
+			},
+			createMockEventHandler()
 		);
+
+		expect(result.isErr()).toBe(true);
+		expect(setModel).not.toHaveBeenCalled();
+		expect(closeSession).toHaveBeenCalledWith(sessionId);
+		expect(stateWriter.addSession).not.toHaveBeenCalled();
+	});
+
+	it("keeps both the selection and compensating cleanup failures visible", async () => {
+		setMode.mockReturnValue(errAsync(new AgentError("setMode", new Error("selection failed"))));
+		closeSession.mockReturnValue(
+			errAsync(new AgentError("closeSession", new Error("cleanup failed")))
+		);
+		newSession.mockReturnValue(
+			okAsync({
+				sessionId,
+				modes: {
+					currentModeId: "build",
+					availableModes: [
+						{ id: "build", name: "Build", description: null },
+						{ id: "plan", name: "Plan", description: null },
+					],
+				},
+				models: null,
+				availableCommands: [],
+			})
+		);
+		const manager = createManager({
+			stateReader,
+			stateWriter,
+			transientProjection,
+			capabilities,
+			entryManager,
+			connectionManager,
+		});
+
+		const result = await manager.createSession(
+			{ projectPath, agentId, initialModeId: "plan" },
+			createMockEventHandler()
+		);
+
+		expect(result.isErr()).toBe(true);
+		if (result.isErr()) {
+			expect(result.error.message).toContain("selection failed");
+			expect(result.error.message).toContain("cleanup failed");
+		}
+		expect(closeSession).toHaveBeenCalledWith(sessionId);
+		expect(stateWriter.addSession).not.toHaveBeenCalled();
 	});
 
 	it("returns the freshly created cold session even if the stateReader lookup has not caught up yet", async () => {

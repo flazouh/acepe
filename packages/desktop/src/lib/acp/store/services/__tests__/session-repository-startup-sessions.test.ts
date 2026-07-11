@@ -12,7 +12,7 @@ import type {
 	ISessionStateWriter,
 } from "../interfaces/index.js";
 
-const getStartupSessionsMock = mock(() =>
+const getStartupSessionsMock = mock((_sessionIds: string[]) =>
 	okAsync({ entries: [], aliasRemaps: {} } as StartupSessionsResponse)
 );
 
@@ -189,6 +189,36 @@ describe("SessionRepository.loadStartupSessions", () => {
 		expect(state.sessions[0]?.id).toBe("session-123");
 		expect(state.sessions[0]?.projectPath).toBe("/projects/acepe");
 		expect(state.sessions[0]?.sourcePath).toBe("/opencode/storage/session/session-123.json");
+	});
+
+	it("loads exact startup session metadata in bounded chunks", async () => {
+		const state: SessionStoreState = { sessions: [] };
+		const repository = new SessionRepository(
+			createStateReader(state),
+			createStateWriter(state),
+			entryManager,
+			connectionManager
+		);
+		const sessionIds = Array.from({ length: 65 }, (_, index) => `session-${index + 1}`);
+		getStartupSessionsMock.mockImplementation((ids: string[]) =>
+			okAsync({
+				entries: ids.map((id) =>
+					createHistoryEntry({
+						id,
+						sessionId: id,
+					})
+				),
+				aliasRemaps: {},
+			})
+		);
+
+		const result = await repository.loadStartupSessions(state.sessions, sessionIds);
+
+		expect(result.isOk()).toBe(true);
+		expect(getStartupSessionsMock).toHaveBeenCalledTimes(3);
+		expect(getStartupSessionsMock.mock.calls.map((call) => call[0]?.length)).toEqual([32, 32, 1]);
+		expect(getStartupSessionsMock.mock.calls[0]?.[0]?.[0]).toBe("session-1");
+		expect(state.sessions).toHaveLength(65);
 	});
 
 	it("skips fetching startup session metadata already loaded in memory", async () => {

@@ -105,6 +105,8 @@ pub async fn get_projects(app: AppHandle) -> CommandResult<Vec<Project>> {
 pub async fn get_recent_projects(
     app: AppHandle,
     limit: Option<u64>,
+    offset: Option<u64>,
+    preferred_paths: Option<Vec<String>>,
 ) -> CommandResult<Vec<Project>> {
     unexpected_command_result(
         "get_recent_projects",
@@ -115,12 +117,17 @@ pub async fn get_recent_projects(
 
             let db = get_db(&app);
 
-            let rows = ProjectRepository::get_recent(&db, limit)
-                .await
-                .map_err(|e| {
-                    tracing::error!(error = %e, "Failed to get recent projects");
-                    e.to_string()
-                })?;
+            let rows = ProjectRepository::get_recent_with_preferred_paths(
+                &db,
+                limit.min(50),
+                offset.unwrap_or(0),
+                &preferred_paths.unwrap_or_default(),
+            )
+            .await
+            .map_err(|e| {
+                tracing::error!(error = %e, "Failed to get recent projects");
+                e.to_string()
+            })?;
 
             let projects: Vec<Project> = rows.into_iter().map(project_from_row).collect();
 

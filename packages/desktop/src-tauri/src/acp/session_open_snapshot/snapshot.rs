@@ -369,10 +369,13 @@ fn compact_found_session_open_result(
     let compacted_byte_len = session_open_result_byte_len(&compacted);
     let compacted_operation_count = match &compacted {
         SessionOpenResult::Found(found) => found.operations.len(),
-        SessionOpenResult::Missing(_) | SessionOpenResult::Error(_) => 0,
+        SessionOpenResult::Preparing(_)
+        | SessionOpenResult::Missing(_)
+        | SessionOpenResult::Error(_) => 0,
     };
     let compacted_session_id = match &compacted {
         SessionOpenResult::Found(found) => found.canonical_session_id.as_str(),
+        SessionOpenResult::Preparing(preparing) => preparing.requested_session_id.as_str(),
         SessionOpenResult::Missing(missing) => missing.requested_session_id.as_str(),
         SessionOpenResult::Error(error) => error.requested_session_id.as_str(),
     };

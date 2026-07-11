@@ -29,8 +29,16 @@ pub enum SessionOpenResult {
     /// the full projection snapshot, which is significantly larger than the
     /// `Missing` and `Error` payloads.
     Found(Box<SessionOpenFound>),
+    Preparing(SessionOpenPreparing),
     Missing(SessionOpenMissing),
     Error(SessionOpenError),
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionOpenPreparing {
+    pub requested_session_id: String,
+    pub repair_ticket: String,
 }
 
 /// Payload for the `missing` outcome — no persisted content was found for the

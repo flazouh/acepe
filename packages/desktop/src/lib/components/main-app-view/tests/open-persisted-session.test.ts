@@ -6,7 +6,9 @@ import type { SessionStore } from "$lib/acp/store/session-store.svelte.js";
 import type { SessionOpenResult } from "$lib/services/acp-types.js";
 import type { OpenPersistedSessionDiagnosticEvent } from "../logic/open-persisted-session.js";
 
-const getSessionOpenResultMock = mock(() => okAsync(createFoundResult("session-1")));
+const getSessionOpenResultMock = mock((_sessionId?: string) =>
+	okAsync(createFoundResult("session-1"))
+);
 
 let openPersistedSession: typeof import("../logic/open-persisted-session.js").openPersistedSession;
 let resetOpenPersistedSessionForTests: typeof import("../logic/open-persisted-session.js").__resetOpenPersistedSessionForTests;
@@ -153,6 +155,51 @@ describe("openPersistedSession", () => {
 		expect(sessionStore.loading.setSessionLoaded).toHaveBeenCalledTimes(1);
 	});
 
+	it("starts the new session when a panel switches during an older cold open", async () => {
+		let currentSessionId = "session-1";
+		sessionStore.read.getSessionIdentity = mock((sessionId: string) => ({
+			id: sessionId,
+			projectPath: "/project",
+			agentId: "claude-code",
+			worktreePath: undefined,
+		}));
+		sessionStore.read.getSessionMetadata = mock(() => ({
+			title: "Session",
+			createdAt: new Date(),
+			updatedAt: new Date(),
+			sourcePath: "/tmp/session.jsonl",
+			sessionLifecycleState: "persisted" as const,
+			parentId: null,
+		}));
+		getSessionOpenResultMock.mockImplementation((sessionId?: string) =>
+			sessionId === "session-1"
+				? ResultAsync.fromSafePromise(
+						new Promise<SessionOpenResult>((resolve) => {
+							setTimeout(() => resolve(createFoundResult("session-1")), 10);
+						})
+					)
+				: okAsync(createFoundResult("session-2"))
+		);
+		const open = (sessionId: string) =>
+			openPersistedSession({
+				panelId: "panel-1",
+				sessionId,
+				sessionStore,
+				sessionOpenHydrator,
+				getSessionOpenResult: getSessionOpenResultMock,
+				isPanelCurrent: (_panelId, targetSessionId) => targetSessionId === currentSessionId,
+				timeoutMs: 10_000,
+				source: "session-handler",
+			});
+
+		open("session-1");
+		currentSessionId = "session-2";
+		open("session-2");
+
+		expect(getSessionOpenResultMock).toHaveBeenCalledTimes(2);
+		await new Promise((resolve) => setTimeout(resolve, 15));
+	});
+
 	it("dedupes concurrent calls for the same panel across initialization and session handlers", async () => {
 		getSessionOpenResultMock.mockImplementation(() =>
 			ResultAsync.fromSafePromise(
@@ -186,7 +233,20 @@ describe("openPersistedSession", () => {
 		expect(sessionStore.loading.setSessionLoaded).toHaveBeenCalledTimes(1);
 	});
 
-	it("hydrates the snapshot after a found result without frontend reconnect", async () => {
+	it("hydrates the snapshot before reconnecting with the open token", async () => {
+		const callOrder: string[] = [];
+		sessionOpenHydrator.hydrateFound = mock(() => {
+			callOrder.push("hydrate");
+			return okAsync({
+				canonicalSessionId: "session-1",
+				openToken: "open-token-1",
+				applied: true,
+			});
+		});
+		sessionStore.connection.connectSession = mock(() => {
+			callOrder.push("reconnect");
+			return okAsync({} as ExistingSession);
+		});
 		openPersistedSession({
 			panelId: "panel-1",
 			sessionId: "session-1",
@@ -208,7 +268,41 @@ describe("openPersistedSession", () => {
 		);
 		expect(sessionStore.loading.setSessionLoaded).toHaveBeenCalledWith("session-1");
 		expect(sessionOpenHydrator.clearAttempt).toHaveBeenCalledWith("panel-1");
-		expect(sessionStore.connection.connectSession).not.toHaveBeenCalled();
+		expect(sessionStore.connection.connectSession).toHaveBeenCalledWith("session-1", {
+			openToken: "open-token-1",
+			forceReconnect: true,
+		});
+		expect(callOrder).toEqual(["hydrate", "reconnect"]);
+	});
+
+	it("awaits canonical transcript repair before hydrating and reconnecting", async () => {
+		const awaitSessionOpenRepair = mock(() => okAsync(createFoundResult("session-1")));
+		getSessionOpenResultMock.mockImplementation(() =>
+			okAsync({
+				outcome: "preparing" as const,
+				requestedSessionId: "session-1",
+				repairTicket: "repair-1",
+			})
+		);
+
+		openPersistedSession({
+			panelId: "panel-1",
+			sessionId: "session-1",
+			sessionStore,
+			sessionOpenHydrator,
+			getSessionOpenResult: getSessionOpenResultMock,
+			awaitSessionOpenRepair,
+			timeoutMs: 10_000,
+			source: "session-handler",
+		});
+
+		await waitForTimerTurn();
+		expect(awaitSessionOpenRepair).toHaveBeenCalledWith("repair-1");
+		expect(sessionOpenHydrator.hydrateFound).toHaveBeenCalledTimes(1);
+		expect(sessionStore.connection.connectSession).toHaveBeenCalledWith("session-1", {
+			openToken: "open-token-1",
+			forceReconnect: true,
+		});
 	});
 
 	it("uses the immediate hydrator result when no panel hydrate is queued", async () => {
@@ -244,7 +338,7 @@ describe("openPersistedSession", () => {
 		expect(sessionOpenHydrator.clearAttempt).toHaveBeenCalledWith("panel-1");
 	});
 
-	it("hydrates a prepared open result synchronously without fetching again", () => {
+	it("hydrates a prepared open result without fetching again", async () => {
 		const preparedOpenResult = createFoundResult("session-1");
 		sessionOpenHydrator.hydrateFoundNow = mock(() =>
 			ok({
@@ -264,6 +358,7 @@ describe("openPersistedSession", () => {
 			timeoutMs: 10_000,
 			source: "session-handler",
 		});
+		await waitForTimerTurn();
 
 		expect(getSessionOpenResultMock).not.toHaveBeenCalled();
 		expect(sessionOpenHydrator.hydrateFoundNow).toHaveBeenCalledWith(
@@ -307,7 +402,7 @@ describe("openPersistedSession", () => {
 		restoreRecorder();
 
 		expect(sessionOpenHydrator.hydrateFound).not.toHaveBeenCalled();
-		expect(sessionOpenHydrator.clearAttempt).toHaveBeenCalledWith("panel-1");
+		expect(sessionOpenHydrator.clearAttempt).not.toHaveBeenCalled();
 		expect(sessionStore.loading.setSessionLoaded).toHaveBeenCalledWith("session-1");
 		expect(events.some((event) => event.stage === "stale-panel")).toBe(true);
 	});
@@ -424,7 +519,7 @@ describe("openPersistedSession", () => {
 		});
 	});
 
-	it("clears stale restored content before loading a provider-backed session", async () => {
+	it("keeps same-session canonical content visible while refreshing", async () => {
 		openPersistedSession({
 			panelId: "panel-1",
 			sessionId: "session-1",
@@ -435,7 +530,7 @@ describe("openPersistedSession", () => {
 			source: "session-handler",
 		});
 
-		expect(sessionStore.clearSessionEntries).toHaveBeenCalledWith("session-1");
+		expect(sessionStore.clearSessionEntries).not.toHaveBeenCalled();
 		expect(sessionStore.loading.setSessionLoading).toHaveBeenCalledWith("session-1");
 	});
 
@@ -476,6 +571,10 @@ describe("openPersistedSession", () => {
 				callOrder.push(`clear:${panelId}`);
 			});
 			sessionOpenHydrator.isCurrentAttempt = mock(() => true);
+			sessionStore.connection.connectSession = mock((connectedSessionId: string) => {
+				callOrder.push(`reconnect:${connectedSessionId}`);
+				return okAsync({} as ExistingSession);
+			});
 			getSessionOpenResultMock.mockImplementation(() => {
 				callOrder.push(`open:${sessionId}`);
 				return okAsync(createFoundResult(sessionId));
@@ -498,10 +597,14 @@ describe("openPersistedSession", () => {
 				`loading:${sessionId}`,
 				`open:${sessionId}`,
 				`hydrate:${sessionId}`,
+				`reconnect:${sessionId}`,
 				`loaded:${sessionId}`,
 				`clear:${panelId}`,
 			]);
-			expect(sessionStore.connection.connectSession).not.toHaveBeenCalled();
+			expect(sessionStore.connection.connectSession).toHaveBeenCalledWith(sessionId, {
+				openToken: `open-token-${sessionId}`,
+				forceReconnect: true,
+			});
 			resetOpenPersistedSessionForTests();
 		}
 	});
@@ -585,7 +688,10 @@ describe("openPersistedSession", () => {
 		await new Promise((resolve) => setTimeout(resolve, 0));
 
 		expect(sessionStore.loading.setSessionLoaded).toHaveBeenCalledWith(canonicalId);
-		expect(sessionStore.connection.connectSession).not.toHaveBeenCalled();
+		expect(sessionStore.connection.connectSession).toHaveBeenCalledWith(canonicalId, {
+			openToken: "token-alias",
+			forceReconnect: true,
+		});
 		expect(sessionStore.loading.setSessionLoaded).not.toHaveBeenCalledWith(requestedId);
 	});
 
@@ -738,7 +844,10 @@ describe("openPersistedSession", () => {
 		expect(getSessionOpenResultMock).toHaveBeenCalledTimes(1);
 		expect(sessionOpenHydrator.hydrateFound).toHaveBeenCalledTimes(1);
 		expect(sessionStore.loading.setSessionLoaded).toHaveBeenCalledWith("session-1");
-		expect(sessionStore.connection.connectSession).not.toHaveBeenCalled();
+		expect(sessionStore.connection.connectSession).toHaveBeenCalledWith("session-1", {
+			openToken: "open-token-1",
+			forceReconnect: true,
+		});
 		expect(sessionStore.loading.setLocalCreatedSessionLoaded).not.toHaveBeenCalled();
 	});
 
