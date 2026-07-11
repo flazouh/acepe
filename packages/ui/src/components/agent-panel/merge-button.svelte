@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { RoundedIcon } from "../icons/index.js";
+	import { PullRequestStatusIcon } from "../icons/index.js";
 
 	interface MergeOption {
 		id: string;
@@ -31,7 +31,7 @@
 	<div
 		class="flex items-center gap-1 rounded-lg border border-border/50 bg-muted px-2 py-0.5 text-[0.6875rem] font-medium text-muted-foreground opacity-60 shrink-0"
 	>
-		<RoundedIcon name="pull-request-merged" class="size-[11px] text-[#8250df]" />
+		<PullRequestStatusIcon state="merged" class="size-[11px] text-[#8250df]" />
 		{mergedLabel}
 	</div>
 {:else if onMerge}
@@ -47,7 +47,7 @@
 			class="px-2 py-0.5 text-[0.6875rem] font-medium text-foreground/80 hover:text-foreground hover:bg-muted/80 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
 		>
 			<span class="flex items-center gap-1">
-				<RoundedIcon name="pull-request-merged" class="size-[11px]" />
+				<PullRequestStatusIcon state="merged" class="size-[11px]" />
 				{label}
 			</span>
 		</button>

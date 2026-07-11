@@ -81,6 +81,7 @@ pub(crate) fn apply_claude_session_defaults(
         models.available_models.insert(
             0,
             AvailableModel {
+                provider: None,
                 model_id: configured_model_id.clone(),
                 name: format_model_display_name(&configured_model_id),
                 description: Some("Configured in Claude settings".to_string()),
@@ -485,6 +486,7 @@ mod tests {
             models.available_models.insert(
                 0,
                 AvailableModel {
+                    provider: None,
                     model_id: configured_model_id.clone(),
                     name: format_model_display_name(&configured_model_id),
                     description: Some("Configured in Claude settings".to_string()),

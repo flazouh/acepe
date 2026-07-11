@@ -1,9 +1,16 @@
 <script lang="ts">
 import type { AgentInputSubmitIntent } from "./agent-input-editor.svelte";
 import type { AgentInputEnterBehavior } from "./agent-input-enter-behavior.js";
+import {
+	agentInputSubmitGroupDisabledVariants,
+	agentInputSubmitMenuSegmentClass,
+	agentInputSubmitPrimarySegmentVariants,
+	agentInputSubmitStandaloneDisabledClass,
+} from "./agent-input-submit-button-variants.js";
 import { ButtonGroup } from "../button-group/index.js";
 import * as DropdownMenu from "../dropdown-menu/index.js";
 import { RoundedIcon } from "../icons/index.js";
+import { cn } from "../../lib/utils.js";
 
 interface Props {
 	intent?: AgentInputSubmitIntent;
@@ -16,7 +23,6 @@ interface Props {
 	enterQueueDescription?: string;
 	enterSteerLabel?: string;
 	enterSteerDescription?: string;
-	enterBehaviorMenuMuted?: boolean;
 	onEnterBehaviorChange?: (behavior: AgentInputEnterBehavior) => void;
 }
 
@@ -37,7 +43,6 @@ let {
 	enterQueueDescription = "Runs after the agent finishes its current turn.",
 	enterSteerLabel = "Steer",
 	enterSteerDescription = "Interrupts now and redirects the agent immediately.",
-	enterBehaviorMenuMuted = false,
 	onEnterBehaviorChange,
 }: Props = $props();
 
@@ -56,12 +61,16 @@ const behaviorOptions = $derived<EnterBehaviorOption[]>([
 	},
 ]);
 const submitButtonClass = $derived(
-	showEnterBehaviorMenu
-		? "inline-flex h-7 w-7 cursor-pointer shrink-0 items-center justify-center gap-0 whitespace-nowrap rounded-l-lg rounded-r-none bg-foreground p-0 text-sm font-medium text-background transition-all outline-none hover:bg-foreground/85 focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0"
-		: "inline-flex h-7 w-7 cursor-pointer shrink-0 items-center justify-center gap-0 whitespace-nowrap rounded-lg bg-foreground p-0 text-sm font-medium text-background transition-all outline-none hover:bg-foreground/85 focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0"
+	cn(
+		agentInputSubmitPrimarySegmentVariants({ split: showEnterBehaviorMenu }),
+		showEnterBehaviorMenu ? undefined : agentInputSubmitStandaloneDisabledClass
+	)
 );
-const enterBehaviorMenuTriggerClass = $derived(
-	`inline-flex h-7 w-5 shrink-0 items-center justify-center rounded-l-none rounded-r-lg border-l border-background/20 bg-foreground p-0 text-background transition-all outline-none hover:bg-foreground/85 focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 ${enterBehaviorMenuMuted ? "opacity-50" : ""}`
+const buttonGroupClass = $derived(
+	cn(
+		"h-7 !rounded-lg [&>[data-slot=button]:first-child]:!rounded-l-lg [&>:first-child_[data-slot=button]]:!rounded-l-lg",
+		agentInputSubmitGroupDisabledVariants({ disabled })
+	)
 );
 
 function handleEnterBehaviorChange(value: string): void {
@@ -96,14 +105,12 @@ function handleEnterBehaviorChange(value: string): void {
 {/snippet}
 
 {#if showEnterBehaviorMenu}
-	<ButtonGroup
-		class="h-7 !rounded-lg [&>[data-slot=button]:first-child]:!rounded-l-lg [&>:first-child_[data-slot=button]]:!rounded-l-lg"
-	>
+	<ButtonGroup class={buttonGroupClass}>
 		{@render submitButton()}
 		<DropdownMenu.Root>
 			<DropdownMenu.Trigger
 				aria-label={enterBehaviorMenuLabel}
-				class={enterBehaviorMenuTriggerClass}
+				class={agentInputSubmitMenuSegmentClass}
 			>
 				<RoundedIcon name="more" class="h-4 w-4 rotate-90" />
 			</DropdownMenu.Trigger>

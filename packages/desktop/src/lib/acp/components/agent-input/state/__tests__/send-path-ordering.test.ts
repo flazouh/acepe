@@ -100,7 +100,7 @@ function makeOrderedSessionStore(
 // ---------------------------------------------------------------------------
 
 describe("clearPendingUserEntry ordering invariant — normal send (pre-session)", () => {
-	it("sets pending before send and clears it after sendMessage resolves (success path)", async () => {
+	it("hands pending ownership to the session after send resolves", async () => {
 		const { store: panelStore, events } = makeOrderedPanelStore();
 		const sessionStore = makeOrderedSessionStore(events);
 
@@ -186,8 +186,8 @@ describe("clearPendingUserEntry ordering invariant — normal send (pre-session)
 // Retry path
 //
 // retrySend() → handleSend() → sendPreparedMessage — same code path.
-// In-session retry (sessionId present): pendingUserEntry is never set because
-// setPendingUserEntry is gated on `!props.sessionId` in the controller.
+// AgentInputState does not own the click-path pending row for in-session sends;
+// AgentInputController owns that immediate UI handoff.
 // ---------------------------------------------------------------------------
 
 describe("clearPendingUserEntry ordering invariant — retry / in-session send", () => {

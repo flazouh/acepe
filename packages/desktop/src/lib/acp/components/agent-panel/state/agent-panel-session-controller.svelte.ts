@@ -40,6 +40,7 @@ import {
 	resolveVisibleEntryCount,
 } from "../logic";
 import { contentBlocksToText } from "../scene/assistant-content.js";
+import { mapSessionEntryToConversationEntry } from "../scene/conversation-model.js";
 
 export interface AgentPanelSessionControllerDeps {
 	getSessionId: () => string | null;
@@ -224,6 +225,10 @@ export class AgentPanelSessionController {
 			id === null || id === undefined ? [] : this.canonicalTranscriptEntries;
 		return deriveCanonicalUserEntryPresence({
 			transcriptEntries,
+			viewportRows:
+				id === null || id === undefined
+					? []
+					: (this.#deps.sessionStore.viewport.getRowsProjection(id)?.rows ?? []),
 			pendingAttemptId: pending?.attemptId ?? null,
 		});
 	});
@@ -237,6 +242,13 @@ export class AgentPanelSessionController {
 				this.canonicalUserEntryPresence.hasCanonicalMatchingPendingUserEntry,
 		})
 	);
+
+	readonly optimisticUserEntryForViewport = $derived.by(() => {
+		const entry = this.optimisticUserEntryForGraph;
+		return entry === null
+			? null
+			: mapSessionEntryToConversationEntry(entry, undefined, { isOptimistic: true });
+	});
 
 	readonly hasImmediatePendingSendIntent = $derived.by(
 		() => this.sessionPendingSendIntent !== null || this.optimisticUserEntryForGraph !== null

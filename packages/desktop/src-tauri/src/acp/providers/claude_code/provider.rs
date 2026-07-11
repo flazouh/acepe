@@ -389,6 +389,7 @@ pub(crate) fn discover_claude_history_models(
     let mut models: Vec<AvailableModel> = model_ids
         .into_iter()
         .map(|model_id| AvailableModel {
+            provider: None,
             name: format_model_display_name(&model_id),
             model_id,
             description: None,

@@ -255,11 +255,12 @@ export function createAgentInputController(host: AgentInputControllerHost): Agen
 			});
 		}
 
-		if (effectivePanelId && !props.sessionId) {
-			host.panelStore.setPendingUserEntry(
-				effectivePanelId,
-				createPendingUserEntry(prepared.content)
-			);
+		const immediatePendingEntry =
+			effectivePanelId === undefined || effectivePanelId === null
+				? null
+				: createPendingUserEntry(prepared.content);
+		if (effectivePanelId && immediatePendingEntry !== null) {
+			host.panelStore.setPendingUserEntry(effectivePanelId, immediatePendingEntry);
 		}
 
 		queueMicrotask(() => {
@@ -397,8 +398,7 @@ export function createAgentInputController(host: AgentInputControllerHost): Agen
 			}
 			props.onSessionCreated?.(createdSessionId, effectivePanelId ?? null);
 		};
-		host.inputState
-			.sendPreparedMessage({
+		const sendResult = host.inputState.sendPreparedMessage({
 				content: prepared.content,
 				panelId: effectivePanelId,
 				sessionId: props.sessionId,
@@ -412,7 +412,13 @@ export function createAgentInputController(host: AgentInputControllerHost): Agen
 				worktreePath: worktreePathForSend,
 				launchToken: preparedWorktreeLaunch?.launchToken ?? null,
 				imageAttachments: prepared.imageAttachments,
-			})
+			});
+		if (effectivePanelId && props.sessionId) {
+			// sendPreparedMessage installs the correctly shaped session optimistic row
+			// synchronously, so the panel-local click row can hand off in this task.
+			host.panelStore.clearPendingUserEntry(effectivePanelId);
+		}
+		sendResult
 			.map(() => {
 				host.logger.info("handleSend: sendMessage resolved", {
 					elapsed_ms: Math.round(performance.now() - t0),
@@ -422,6 +428,13 @@ export function createAgentInputController(host: AgentInputControllerHost): Agen
 				}
 			})
 			.mapErr((error) => {
+				if (effectivePanelId && immediatePendingEntry !== null) {
+					const currentPendingEntry =
+						host.panelStore.getHotState(effectivePanelId).pendingUserEntry;
+					if (currentPendingEntry?.id === immediatePendingEntry.id) {
+						host.panelStore.clearPendingUserEntry(effectivePanelId);
+					}
+				}
 				if (effectivePanelId) {
 					host.panelStore.clearPendingWorktreeSetup(effectivePanelId);
 				}

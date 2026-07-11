@@ -5,6 +5,7 @@ import {
 	filterModelGroups,
 	findSelectedReasoningGroup,
 	getModelSearchText,
+	resolveActiveModelProviderId,
 	shouldShowModelGroups,
 	shouldShowModelSearch,
 } from "./agent-input-model-selector-state.js";
@@ -102,6 +103,8 @@ describe("agent input model selector state", () => {
 		expect(filterModelGroups({ modelGroups: groups, searchQuery: "anthropic" })).toEqual([
 			{
 				label: "",
+				providerId: undefined,
+				upstreamProviderBrand: null,
 				providerBrand: null,
 				providerLabel: undefined,
 				items: [{ id: "claude", name: "Claude", providerLabel: "Anthropic" }],
@@ -118,5 +121,15 @@ describe("agent input model selector state", () => {
 				{ label: "", items: [] },
 			])
 		).toBe(true);
+	});
+
+	it("uses a requested provider and recovers from stale provider preferences", () => {
+		const providerGroups: readonly AgentInputModelSelectorGroup[] = [
+			{ label: "OpenRouter", providerId: "openrouter", items: [{ id: "or/model", name: "OR" }] },
+			{ label: "GitHub Copilot", providerId: "github-copilot", items: [{ id: "gh/model", name: "GH" }] },
+		];
+		expect(resolveActiveModelProviderId({ modelGroups: providerGroups, requestedProviderId: "openrouter", rememberedProviderId: null, currentModelId: "gh/model" })).toBe("openrouter");
+		expect(resolveActiveModelProviderId({ modelGroups: providerGroups, requestedProviderId: null, rememberedProviderId: "openrouter", currentModelId: "gh/model" })).toBe("github-copilot");
+		expect(resolveActiveModelProviderId({ modelGroups: providerGroups, requestedProviderId: null, rememberedProviderId: "gone", currentModelId: null })).toBe("openrouter");
 	});
 });

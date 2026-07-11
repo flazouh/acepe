@@ -17,6 +17,14 @@ export function getSelectedModel(input: {
 	return input.availableModels.find((model) => model.id === input.currentModelId) ?? null;
 }
 
+export function resolveModelSelectorAgentId(input: {
+	capabilitiesAgentId: string | null;
+	sessionAgentId: string | null;
+	panelAgentId: string | null;
+}): string | null {
+	return input.capabilitiesAgentId ?? input.sessionAgentId ?? input.panelAgentId;
+}
+
 export function getModelSelectorDisplayName(input: {
 	currentModelId: ModelId | null;
 	modelsDisplay?: ModelsForDisplay | null;

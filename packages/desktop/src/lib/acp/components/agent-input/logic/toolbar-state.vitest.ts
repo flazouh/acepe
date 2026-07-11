@@ -60,6 +60,7 @@ describe("toolbar-state", () => {
 					liveCurrentModelId: "claude-opus",
 					provisionalModelId: "claude-sonnet",
 					availableModels,
+					allowsImplicitModelSelection: true,
 				})
 			).toBe("claude-opus");
 		});
@@ -70,6 +71,7 @@ describe("toolbar-state", () => {
 					liveCurrentModelId: null,
 					provisionalModelId: "claude-opus",
 					availableModels,
+					allowsImplicitModelSelection: true,
 				})
 			).toBe("claude-opus");
 		});
@@ -80,6 +82,7 @@ describe("toolbar-state", () => {
 					liveCurrentModelId: null,
 					provisionalModelId: null,
 					availableModels,
+					allowsImplicitModelSelection: true,
 				})
 			).toBe("claude-sonnet");
 		});
@@ -90,8 +93,20 @@ describe("toolbar-state", () => {
 					liveCurrentModelId: null,
 					provisionalModelId: "invalid-model",
 					availableModels,
+					allowsImplicitModelSelection: true,
 				})
 			).toBe("claude-sonnet");
+		});
+
+		it("preserves no selection when the provider requires an explicit choice", () => {
+			expect(
+				resolveToolbarModelId({
+					liveCurrentModelId: null,
+					provisionalModelId: null,
+					availableModels,
+					allowsImplicitModelSelection: false,
+				})
+			).toBeNull();
 		});
 	});
 

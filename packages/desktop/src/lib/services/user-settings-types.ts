@@ -38,6 +38,10 @@ export type UserSettingKey =
  */
 "agent_favorite_models" |
 /**
+ * Last model provider viewed per agent (JSON map)
+ */
+"agent_model_provider" |
+/**
  * Cached available models per agent (JSON map)
  */
 "agent_available_models_cache" |

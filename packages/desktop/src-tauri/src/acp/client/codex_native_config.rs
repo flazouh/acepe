@@ -337,6 +337,7 @@ pub(crate) fn build_codex_native_session_model_state_with_state(
     let mut available_models = BUILT_IN_CODEX_MODELS
         .into_iter()
         .map(|(model_id, name)| AvailableModel {
+            provider: None,
             model_id: model_id.to_string(),
             name: name.to_string(),
             description: None,
@@ -350,6 +351,7 @@ pub(crate) fn build_codex_native_session_model_state_with_state(
         available_models.insert(
             0,
             AvailableModel {
+                provider: None,
                 model_id: current_model_id.clone(),
                 name: current_model_id.clone(),
                 description: Some("Configured in Codex config.toml".to_string()),

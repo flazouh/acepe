@@ -88,7 +88,6 @@ import { resolveAgentPanelProviderBrand } from "../logic/agent-panel-provider-br
 import { derivePendingUserRevealRequestKey } from "../logic/pending-user-reveal-request-key.js";
 import { resolveWorktreeToggleProjectPath } from "../logic/worktree-toggle-project-path.js";
 import { getWorktreeDefaultStore } from "$lib/acp/components/worktree/worktree-default-store.svelte.js";
-import { buildTodoMarkdown } from "./agent-panel-pure-helpers.js";
 import type { AgentPanelProps } from "../types";
 import { revealInFinder } from "$lib/utils/tauri-client/opener.js";
 import type { OpenProjectFileSystemDialogOptions } from "../../../store/project-file-system-dialog-state.js";
@@ -1526,10 +1525,6 @@ const todoState = $derived.by(() => {
 });
 const showTodoHeader = $derived(todoState !== null && todoState.totalCount > 0);
 
-function getTodoMarkdown(): string {
-	return buildTodoMarkdown(todoState);
-}
-
 const queueVersion = $derived.by(() => {
 	if (!sessionId) return 0;
 	const version = messageQueueStore.versions.get(sessionId);
@@ -1690,6 +1685,8 @@ async function handleFixCiCheck(check: PrChecksItem): Promise<void> {
 <AgentPanelShell
 	widthStyle={widthStyle}
 	centerColumnStyle={agentContentColumnStyle}
+	{sessionId}
+	{panelId}
 	{isFullscreen}
 	isDraggingEdge={panelState.isDraggingEdge}
 	ondragstart={panelState.handleDragStart.bind(panelState)}
@@ -1840,7 +1837,7 @@ async function handleFixCiCheck(check: PrChecksItem): Promise<void> {
 						{viewState}
 						{sessionId}
 						sceneEntries={tokenRevealSceneEntries}
-						optimisticUserEntry={sessionController.optimisticUserEntryForGraph}
+						optimisticUserEntry={sessionController.optimisticUserEntryForViewport}
 						{pendingUserRevealRequestKey}
 						showLocalPlanningIndicator={sessionController.showPlanningIndicator}
 						sessionProjectPath={effectiveProjectPath ?? sessionController.sessionProjectPath}
@@ -1924,7 +1921,6 @@ async function handleFixCiCheck(check: PrChecksItem): Promise<void> {
 					onFixCiCheck={(check) => void handleFixCiCheck(check)}
 					{showTodoHeader}
 					{todoState}
-					getTodoMarkdown={getTodoMarkdown}
 					queueStripMessages={queueStripDisplayMessages}
 					{queueIsPaused}
 					onQueueCancel={handleQueueStripCancel}

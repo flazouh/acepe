@@ -57,11 +57,34 @@ export function filterModelGroups(input: {
 	return input.modelGroups
 		.map((group) => ({
 			label: group.label,
+			providerId: group.providerId,
+			upstreamProviderBrand: group.upstreamProviderBrand ?? null,
 			providerBrand: group.providerBrand ?? null,
 			providerLabel: group.providerLabel,
 			items: group.items.filter((item) => getModelSearchText(item).includes(query)),
 		}))
 		.filter((group) => group.items.length > 0);
+}
+
+export function resolveActiveModelProviderId(input: {
+	readonly modelGroups: readonly AgentInputModelSelectorGroup[];
+	readonly requestedProviderId: string | null;
+	readonly rememberedProviderId: string | null;
+	readonly currentModelId: string | null;
+}): string | null {
+	const providerGroups = input.modelGroups.filter((group) => group.providerId && group.items.length > 0);
+	if (providerGroups.length < 2) return null;
+	if (input.requestedProviderId && providerGroups.some((group) => group.providerId === input.requestedProviderId)) {
+		return input.requestedProviderId;
+	}
+	const selectedGroup = providerGroups.find((group) =>
+		group.items.some((item) => item.id === input.currentModelId)
+	);
+	if (selectedGroup?.providerId) return selectedGroup.providerId;
+	if (input.rememberedProviderId && providerGroups.some((group) => group.providerId === input.rememberedProviderId)) {
+		return input.rememberedProviderId;
+	}
+	return providerGroups[0]?.providerId ?? null;
 }
 
 export function shouldShowModelGroups(

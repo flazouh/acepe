@@ -107,6 +107,7 @@ pub(crate) fn apply_provider_model_fallback(
     if let Some(candidate) = provider.model_fallback_for_empty_list(current_model_id) {
         model_state.available_models.push(AvailableModel {
             model_id: candidate.model_id,
+            provider: None,
             name: candidate.name,
             description: candidate.description,
         });
@@ -188,6 +189,7 @@ fn parse_models_from_json_value(value: &Value) -> Vec<AvailableModel> {
             let model = if let Some(model_id) = item.as_str() {
                 normalize_model_token(model_id).map(|normalized| AvailableModel {
                     model_id: normalized.clone(),
+                    provider: None,
                     name: inferred_display_name_for_model_id(&normalized),
                     description: None,
                 })
@@ -201,6 +203,7 @@ fn parse_models_from_json_value(value: &Value) -> Vec<AvailableModel> {
 
                 model_id.map(|id| AvailableModel {
                     model_id: id.clone(),
+                    provider: None,
                     name: obj
                         .get("name")
                         .and_then(Value::as_str)
@@ -333,6 +336,7 @@ fn parse_models_from_plaintext(stdout: &str) -> Vec<AvailableModel> {
         if seen.insert(model_id.clone()) {
             models.push(AvailableModel {
                 model_id: model_id.clone(),
+                provider: None,
                 name: inferred_display_name_for_model_id(&model_id),
                 description: None,
             });
@@ -356,9 +360,19 @@ pub(crate) fn parse_model_discovery_output(stdout: &str) -> Vec<AvailableModel> 
 #[serde(rename_all = "camelCase")]
 pub struct AvailableModel {
     pub model_id: String,
+    /// Atomic upstream identity for multiplexed catalogs such as OpenCode.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub provider: Option<AvailableModelProvider>,
     pub name: String,
     #[serde(default)]
     pub description: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct AvailableModelProvider {
+    pub provider_id: String,
+    pub model_id: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]

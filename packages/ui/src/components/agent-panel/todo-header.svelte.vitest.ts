@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render } from "@testing-library/svelte";
+import { cleanup, render } from "@testing-library/svelte";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import TodoHeader from "./todo-header.svelte";
@@ -21,7 +21,7 @@ const items: AgentTodoItem[] = [
 	{ content: "Third task", status: "pending", duration: null },
 ];
 
-function renderTodoHeader(initiallyExpanded = true) {
+function renderTodoHeader() {
 	return render(TodoHeader, {
 		props: {
 			items,
@@ -31,7 +31,6 @@ function renderTodoHeader(initiallyExpanded = true) {
 			isLive: true,
 			allCompletedLabel: "All tasks completed",
 			pausedLabel: "Tasks paused",
-			initiallyExpanded,
 		},
 	});
 }
@@ -41,15 +40,12 @@ afterEach(() => {
 });
 
 describe("TodoHeader", () => {
-	it("renders the todo list on a single fully-rounded surface when expanded", () => {
+	it("renders the todo list on a single fully-rounded surface", () => {
 		const view = renderTodoHeader();
 
 		const surface = view.getByTestId("agent-todo-surface");
 		const classes = surface.className;
 
-		// The whole card is one surface: top corners must match the bottom radius,
-		// so the surface carries rounded-lg and never the mismatched/flattened
-		// top variants that previously clipped or shrank the top corners.
 		expect(classes).toContain("rounded-lg");
 		expect(classes).not.toContain("rounded-t-none");
 		expect(classes).not.toContain("rounded-t-md");
@@ -58,19 +54,8 @@ describe("TodoHeader", () => {
 		expect(classes).not.toContain("border");
 		expect(classes).not.toContain("shadow-lg");
 
-		// Items live inside that same surface while expanded.
 		expect(surface.textContent).toContain("First task");
 		expect(surface.textContent).toContain("Third task");
-	});
-
-	it("keeps the same rounded surface and hides items when collapsed", async () => {
-		const view = renderTodoHeader();
-
-		await fireEvent.click(view.getByRole("button"));
-
-		const surface = view.getByTestId("agent-todo-surface");
-		expect(surface.className).toContain("rounded-lg");
-		expect(surface.className).not.toContain("rounded-t-none");
-		expect(surface.textContent).not.toContain("Third task");
+		expect(surface.textContent).not.toContain("All tasks completed");
 	});
 });

@@ -109,6 +109,11 @@ impl OpenCodeManager {
         }
     }
 
+    #[cfg(test)]
+    pub(crate) async fn set_test_port(&mut self, port: u16) {
+        *self.port.write().await = Some(port);
+    }
+
     /// Set app handle for event emission. Call once at init.
     pub fn set_app_handle(&mut self, handle: AppHandle) {
         self.app_handle = Some(handle);

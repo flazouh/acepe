@@ -1,6 +1,44 @@
 use super::*;
 
 impl OpenCodeHttpClient {
+    pub(super) fn latest_session_model(
+        responses: &[OpenCodeApiMessageResponse],
+    ) -> Option<OpenCodeModel> {
+        responses.iter().rev().find_map(|response| {
+            response.info.model.as_ref().map(|model| OpenCodeModel {
+                provider_id: model.provider_id.clone(),
+                model_id: model.model_id.clone(),
+            })
+        })
+    }
+
+    async fn get_session_api_messages(
+        &self,
+        session_id: &str,
+    ) -> AcpResult<Vec<OpenCodeApiMessageResponse>> {
+        let base_url = self.base_url().await?;
+        let url = format!("{}/session/{}/message", base_url, session_id);
+
+        self.http_client
+            .get(&url)
+            .send()
+            .await
+            .map_err(AcpError::HttpError)?
+            .error_for_status()
+            .map_err(AcpError::HttpError)?
+            .json()
+            .await
+            .map_err(AcpError::HttpError)
+    }
+
+    pub(super) async fn get_session_model(
+        &self,
+        session_id: &str,
+    ) -> AcpResult<Option<OpenCodeModel>> {
+        let responses = self.get_session_api_messages(session_id).await?;
+        Ok(Self::latest_session_model(&responses))
+    }
+
     /// Convert OpenCode API response format to internal OpenCodeMessage format
     pub(super) fn convert_api_response_to_message(
         response: OpenCodeApiMessageResponse,
@@ -31,20 +69,7 @@ impl OpenCodeHttpClient {
         session_id: &str,
         _directory: &str,
     ) -> AcpResult<Vec<OpenCodeMessage>> {
-        let base_url = self.base_url().await?;
-        let url = format!("{}/session/{}/message", base_url, session_id);
-
-        let response = self
-            .http_client
-            .get(&url)
-            .send()
-            .await
-            .map_err(AcpError::HttpError)?
-            .error_for_status()
-            .map_err(AcpError::HttpError)?;
-
-        let api_responses: Vec<OpenCodeApiMessageResponse> =
-            response.json().await.map_err(AcpError::HttpError)?;
+        let api_responses = self.get_session_api_messages(session_id).await?;
 
         let messages: Vec<OpenCodeMessage> = api_responses
             .into_iter()

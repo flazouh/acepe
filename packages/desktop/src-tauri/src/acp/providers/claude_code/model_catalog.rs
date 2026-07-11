@@ -589,16 +589,19 @@ async fn persist_placeholder_snapshot(snapshot_path: &Path) -> Result<(), String
 fn placeholder_models() -> Vec<AvailableModel> {
     vec![
         AvailableModel {
+            provider: None,
             model_id: "opus".to_string(),
             name: "Opus".to_string(),
             description: Some("Resolves to current default Opus model".to_string()),
         },
         AvailableModel {
+            provider: None,
             model_id: "sonnet".to_string(),
             name: "Sonnet".to_string(),
             description: Some("Resolves to current default Sonnet model".to_string()),
         },
         AvailableModel {
+            provider: None,
             model_id: "haiku".to_string(),
             name: "Haiku".to_string(),
             description: Some("Resolves to current default Haiku model".to_string()),
@@ -699,6 +702,7 @@ pub(crate) fn extract_from_binary_bytes(bytes: &[u8]) -> Result<Vec<AvailableMod
 
         let name = derive_display_name(candidate);
         models.push(AvailableModel {
+            provider: None,
             model_id: candidate.to_string(),
             name,
             description: None,
@@ -968,6 +972,7 @@ mod tests {
         assert!(filter_to_picker_defaults(&[]).is_empty());
 
         let only_unknown = vec![AvailableModel {
+            provider: None,
             model_id: "claude-unknown-1-0".to_string(),
             name: "Unknown".to_string(),
             description: None,
@@ -979,21 +984,25 @@ mod tests {
     fn filter_to_picker_defaults_picks_highest_version_per_family() {
         let models = vec![
             AvailableModel {
+                provider: None,
                 model_id: "claude-opus-4".to_string(),
                 name: "Opus 4".to_string(),
                 description: None,
             },
             AvailableModel {
+                provider: None,
                 model_id: "claude-opus-4-1-20250805".to_string(),
                 name: "Opus 4.1".to_string(),
                 description: None,
             },
             AvailableModel {
+                provider: None,
                 model_id: "claude-opus-4-7".to_string(),
                 name: "Opus 4.7".to_string(),
                 description: None,
             },
             AvailableModel {
+                provider: None,
                 model_id: "claude-opus-4-6".to_string(),
                 name: "Opus 4.6".to_string(),
                 description: None,
@@ -1145,6 +1154,7 @@ mod tests {
             binary_mtime_ms: fingerprint.2,
             catalog_kind: ClaudeCatalogSnapshotKind::Authoritative,
             models: vec![AvailableModel {
+                provider: None,
                 model_id: "claude-opus-4-7".to_string(),
                 name: "Opus 4.7".to_string(),
                 description: None,
@@ -1188,6 +1198,7 @@ mod tests {
             binary_mtime_ms: 0,
             catalog_kind: ClaudeCatalogSnapshotKind::HistorySalvage,
             models: vec![AvailableModel {
+                provider: None,
                 model_id: "claude-sonnet-4-6".to_string(),
                 name: "Sonnet 4.6".to_string(),
                 description: None,
@@ -1244,6 +1255,7 @@ mod tests {
         let fp = dummy_fingerprint();
         AuthoritativeCatalogPayload {
             models: vec![AvailableModel {
+                provider: None,
                 model_id: "claude-opus-4-7".to_string(),
                 name: "Opus 4.7".to_string(),
                 description: None,
@@ -1275,6 +1287,7 @@ mod tests {
                 fetch_count.fetch_add(1, Ordering::SeqCst);
                 Ok(AuthoritativeCatalogPayload {
                     models: vec![AvailableModel {
+                        provider: None,
                         model_id: "claude-sonnet-4-6".to_string(),
                         name: "Sonnet 4.6".to_string(),
                         description: None,

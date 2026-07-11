@@ -1,5 +1,8 @@
 import type { SessionEntry } from "../../../application/dto/session-entry.js";
-import type { TranscriptEntry } from "../../../../services/acp-types.js";
+import type {
+	TranscriptEntry,
+	TranscriptViewportRow,
+} from "../../../../services/acp-types.js";
 
 export interface CanonicalUserEntryPresence {
 	readonly hasCanonicalUserEntry: boolean | null;
@@ -8,6 +11,7 @@ export interface CanonicalUserEntryPresence {
 
 export function deriveCanonicalUserEntryPresence(input: {
 	readonly transcriptEntries: readonly TranscriptEntry[] | null;
+	readonly viewportRows?: readonly TranscriptViewportRow[];
 	readonly pendingAttemptId: string | null;
 }): CanonicalUserEntryPresence {
 	if (input.transcriptEntries === null) {
@@ -17,14 +21,20 @@ export function deriveCanonicalUserEntryPresence(input: {
 		};
 	}
 
+	const matchingPendingEntry =
+		input.pendingAttemptId === null
+			? null
+			: (input.transcriptEntries.find(
+					(entry) => entry.role === "user" && entry.attemptId === input.pendingAttemptId
+				) ?? null);
+	const matchingPendingEntryIsRenderable =
+		matchingPendingEntry !== null &&
+		(input.viewportRows === undefined ||
+			input.viewportRows.some((row) => row.sourceEntryId === matchingPendingEntry.entryId));
+
 	return {
 		hasCanonicalUserEntry: input.transcriptEntries.some((entry) => entry.role === "user"),
-		hasCanonicalMatchingPendingUserEntry:
-			input.pendingAttemptId === null
-				? false
-				: input.transcriptEntries.some(
-						(entry) => entry.role === "user" && entry.attemptId === input.pendingAttemptId
-					),
+		hasCanonicalMatchingPendingUserEntry: matchingPendingEntryIsRenderable,
 	};
 }
 
@@ -41,12 +51,15 @@ export function resolveOptimisticUserEntryForGraph(input: {
 	if (input.sessionPendingOptimisticEntry !== null) {
 		return input.sessionPendingOptimisticEntry;
 	}
+	if (input.panelPendingUserEntry !== null) {
+		return input.panelPendingUserEntry;
+	}
 
 	if (input.hasCanonicalUserEntry === true || input.hasCanonicalUserEntry === null) {
 		return null;
 	}
 
-	return input.panelPendingUserEntry;
+	return null;
 }
 
 export function resolveVisibleEntryCount(input: {

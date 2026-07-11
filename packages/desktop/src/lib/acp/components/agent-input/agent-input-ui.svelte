@@ -1635,6 +1635,7 @@ $effect(() => {
 		onModelChange={handleModelChange}
 		isLoading={composerView.selectorsLoading}
 		panelId={props.panelId}
+		agentId={composerView.capabilitiesAgentId}
 		compactSetup
 		embeddedInGroup={composerView.toolbarConfigOptions.some(
 			(option) => option.presentation === "compactReasoning"

@@ -691,7 +691,7 @@ describe("reduceCommand", () => {
 		]);
 	});
 
-	it("clears pending send intent when transcript delta acknowledges it", () => {
+	it("keeps pending send intent until the viewport can replace its optimistic row", () => {
 		const pendingSendIntent = {
 			attemptId: "attempt-1",
 			startedAt: 1,
@@ -764,7 +764,7 @@ describe("reduceCommand", () => {
 					patch.kind === "updateTransientProjection" &&
 					patch.updates.pendingSendIntent === null
 			)
-		).toBe(true);
+		).toBe(false);
 	});
 
 	it("rejects equal capabilities revisions", () => {

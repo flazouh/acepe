@@ -8,6 +8,7 @@ import {
 	countSelectableModels,
 	filterModelGroups,
 	findSelectedReasoningGroup,
+	resolveActiveModelProviderId,
 	shouldShowModelGroups,
 	shouldShowModelSearch,
 } from "./agent-input-model-selector-state.js";
@@ -30,6 +31,7 @@ interface Props {
 	triggerLabel: string;
 	triggerProviderBrand?: ProviderBrand | null;
 	triggerProviderLabel?: string;
+	triggerUpstreamProviderBrand?: import("../../lib/upstream-provider-brand.js").UpstreamProviderBrand | null;
 	currentModelId: string | null;
 	modelGroups: readonly AgentInputModelSelectorGroup[];
 	favoriteModels?: readonly AgentInputModelSelectorItem[];
@@ -51,12 +53,15 @@ interface Props {
 	embeddedInGroup?: boolean;
 	primaryTriggerProviderBrand?: ProviderBrand | null;
 	primaryTriggerProviderLabel?: string;
+	preferredProviderId?: string | null;
+	onProviderChange?: (providerId: string) => void;
 }
 
 let {
 	triggerLabel,
 	triggerProviderBrand = null,
 	triggerProviderLabel,
+	triggerUpstreamProviderBrand = null,
 	currentModelId,
 	modelGroups,
 	favoriteModels = [],
@@ -78,12 +83,15 @@ let {
 	embeddedInGroup = false,
 	primaryTriggerProviderBrand = triggerProviderBrand,
 	primaryTriggerProviderLabel = triggerProviderLabel,
+	preferredProviderId = null,
+	onProviderChange,
 }: Props = $props();
 
 let isOpen = $state(false);
 let isPrimarySelectorOpen = $state(false);
 let isVariantSelectorOpen = $state(false);
 let searchQuery = $state("");
+let requestedProviderId = $state<string | null>(null);
 
 const usesVariantSelector = $derived(reasoningGroups.length > 0);
 const totalModelCount = $derived(
@@ -168,8 +176,30 @@ function selectModel(modelId: string): void {
 	void handleModelSelection(modelId);
 }
 
-const filteredGroups = $derived(filterModelGroups({ modelGroups, searchQuery }));
+const activeProviderId = $derived(resolveActiveModelProviderId({
+	modelGroups,
+	requestedProviderId,
+	rememberedProviderId: preferredProviderId,
+	currentModelId,
+}));
+const providerScopedGroups = $derived(
+	activeProviderId ? modelGroups.filter((group) => group.providerId === activeProviderId) : modelGroups
+);
+const providerScopedFavorites = $derived(
+	activeProviderId
+		? favoriteModels.filter((item) =>
+			providerScopedGroups.some((group) => group.items.some((candidate) => candidate.id === item.id))
+		)
+		: favoriteModels
+);
+const filteredGroups = $derived(filterModelGroups({ modelGroups: providerScopedGroups, searchQuery }));
 const showGroups = $derived(shouldShowModelGroups(filteredGroups));
+
+function selectProvider(providerId: string): void {
+	requestedProviderId = providerId;
+	searchQuery = "";
+	onProviderChange?.(providerId);
+}
 </script>
 
 {#if usesVariantSelector}
@@ -198,10 +228,13 @@ const showGroups = $derived(shouldShowModelGroups(filteredGroups));
 		{triggerLabel}
 		{triggerProviderBrand}
 		{triggerProviderLabel}
+		{triggerUpstreamProviderBrand}
 		{currentModelId}
 		{totalModelCount}
 		{filteredGroups}
-		{favoriteModels}
+		favoriteModels={providerScopedFavorites}
+		providerGroups={modelGroups.filter((group) => group.providerId && group.items.length > 0)}
+		{activeProviderId}
 		{searchQuery}
 		{showSearch}
 		{showGroups}
@@ -215,6 +248,7 @@ const showGroups = $derived(shouldShowModelGroups(filteredGroups));
 		{embeddedInGroup}
 		onOpenChange={setStandardOpen}
 		onSearchChange={setSearchQuery}
+		onProviderChange={selectProvider}
 		onSelect={selectModel}
 		{onToggleFavorite}
 	/>

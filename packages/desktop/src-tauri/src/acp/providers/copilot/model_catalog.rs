@@ -589,6 +589,7 @@ fn normalize_authoritative_models(model_list: RawModelList) -> Vec<AvailableMode
 
             let name = normalize_model_token(&raw_model.name).unwrap_or_else(|| model_id.clone());
             Some(AvailableModel {
+                provider: None,
                 model_id,
                 name,
                 description: None,
@@ -646,6 +647,7 @@ mod tests {
             runtime_version: runtime_version.to_string(),
             catalog_kind: CopilotCatalogSnapshotKind::Authoritative,
             models: vec![AvailableModel {
+                provider: None,
                 model_id: "gpt-5.4".to_string(),
                 name: "GPT-5.4".to_string(),
                 description: None,
@@ -724,6 +726,7 @@ mod tests {
             runtime_version: "1.0.14".to_string(),
             catalog_kind: CopilotCatalogSnapshotKind::HistorySalvage,
             models: vec![AvailableModel {
+                provider: None,
                 model_id: "gpt-5.4".to_string(),
                 name: "GPT-5.4".to_string(),
                 description: None,
@@ -765,6 +768,7 @@ mod tests {
                     fetch_count.fetch_add(1, Ordering::SeqCst);
                     Ok(AuthoritativeCatalogPayload {
                         models: vec![AvailableModel {
+                            provider: None,
                             model_id: "gpt-5.4".to_string(),
                             name: "GPT-5.4".to_string(),
                             description: None,
@@ -783,6 +787,7 @@ mod tests {
                     fetch_count.fetch_add(1, Ordering::SeqCst);
                     Ok(AuthoritativeCatalogPayload {
                         models: vec![AvailableModel {
+                            provider: None,
                             model_id: "gpt-4.1".to_string(),
                             name: "GPT-4.1".to_string(),
                             description: None,

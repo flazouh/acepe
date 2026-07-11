@@ -23,6 +23,21 @@ afterEach(() => {
 });
 
 describe("AgentPanelShell", () => {
+	it("exposes stable panel and session identity for scoped QA", () => {
+		const view = render(AgentPanelShell, {
+			props: {
+				sessionId: "session-opencode",
+				panelId: "panel-1",
+				header: marker("header"),
+				body: marker("body"),
+			},
+		});
+
+		const shell = view.getByTestId("body").closest("[data-panel-id]");
+		expect(shell?.getAttribute("data-session-id")).toBe("session-opencode");
+		expect(shell?.getAttribute("data-panel-id")).toBe("panel-1");
+	});
+
 	it("floats the pre-composer layer over the transcript instead of in flow", () => {
 		const view = render(AgentPanelShell, {
 			props: {

@@ -74,4 +74,66 @@ describe("AgentInputStandardModelSelector", () => {
 
 		expect(onSelect).toHaveBeenCalledWith("gpt-5");
 	});
+
+	it("shows provider tabs and only the active provider models", async () => {
+		const onProviderChange = vi.fn();
+		const view = render(AgentInputStandardModelSelector, {
+			open: true,
+			triggerLabel: "Model",
+			currentModelId: null,
+			totalModelCount: 2,
+			providerGroups: [
+				{ label: "OpenRouter", providerId: "openrouter", upstreamProviderBrand: "openRouter", items: [{ id: "or/model", name: "OpenRouter Model" }] },
+				{ label: "GitHub Copilot", providerId: "github-copilot", upstreamProviderBrand: "githubCopilot", items: [{ id: "gh/model", name: "Copilot Model" }] },
+			],
+			activeProviderId: "openrouter",
+			filteredGroups: [
+				{ label: "OpenRouter", providerId: "openrouter", upstreamProviderBrand: "openRouter", items: [{ id: "or/model", name: "OpenRouter Model" }] },
+			],
+			onProviderChange,
+			onSelect: vi.fn(),
+		});
+
+		expect(view.getByRole("tab", { name: "OpenRouter" }).getAttribute("aria-selected")).toBe("true");
+		expect(view.getByText("OpenRouter Model")).toBeTruthy();
+		expect(view.queryByText("Copilot Model")).toBeNull();
+		const openRouterTab = view.getByRole("tab", { name: "OpenRouter" });
+		await fireEvent.keyDown(openRouterTab, { key: "ArrowRight" });
+		expect(onProviderChange).toHaveBeenCalledWith("github-copilot");
+	});
+
+	it("uses the selected upstream provider mark in the trigger", () => {
+		const view = render(AgentInputStandardModelSelector, {
+			open: false,
+			triggerLabel: "Claude Sonnet",
+			triggerUpstreamProviderBrand: "openRouter",
+			triggerProviderLabel: "OpenRouter",
+			currentModelId: "openrouter/claude",
+			totalModelCount: 1,
+			filteredGroups: [{ label: "OpenRouter", items: [{ id: "openrouter/claude", name: "Claude Sonnet" }] }],
+			onSelect: vi.fn(),
+		});
+
+		expect(view.container.querySelector('[data-upstream-provider-brand="openRouter"]')).toBeTruthy();
+	});
+
+	it("lets the user add a model to favorites without selecting the model", async () => {
+		const onSelect = vi.fn();
+		const onToggleFavorite = vi.fn();
+		const view = render(AgentInputStandardModelSelector, {
+			open: true,
+			triggerLabel: "Model",
+			currentModelId: null,
+			totalModelCount: 1,
+			filteredGroups: [
+				{ label: "OpenRouter", items: [{ id: "openrouter/model", name: "Router Model" }] },
+			],
+			onSelect,
+			onToggleFavorite,
+		});
+
+		await fireEvent.click(view.getByRole("button", { name: "Add to favorites" }));
+		expect(onToggleFavorite).toHaveBeenCalledWith("openrouter/model");
+		expect(onSelect).not.toHaveBeenCalled();
+	});
 });

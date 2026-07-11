@@ -30,6 +30,14 @@ describe("AgentToolThinking", () => {
 		expect(view.getByTestId("thinking-copy").textContent).toBe("Checking the next move.");
 	});
 
+	it("renders the thinking header label with muted foreground", () => {
+		const view = render(AgentToolThinkingExpandedFixture);
+		const headerButton = view.getByRole("button", { name: "Collapse thinking" });
+
+		expect(headerButton.className).toContain("text-muted-foreground");
+		expect(headerButton.className).toContain("hover:text-foreground");
+	});
+
 	it("keeps live planning labels on shimmer text without a loading indicator", () => {
 		const view = render(AgentThinkingSceneEntry, {
 			props: {

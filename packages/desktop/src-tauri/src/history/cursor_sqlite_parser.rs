@@ -1149,6 +1149,40 @@ mod tests {
     use super::*;
     use serde_json::json;
 
+    // [DEBUG-cx7] throwaway harness: dump what the real parser produces for the
+    // captured live store.db that exhibits the transcript-junk bug. Remove before ship.
+    #[test]
+    fn debug_cx7_dump_real_store() {
+        let db_path = std::path::Path::new("/tmp/acepe-debug/store.db");
+        if !db_path.exists() {
+            eprintln!("[DEBUG-cx7] fixture missing, skipping");
+            return;
+        }
+        let conn = Connection::open_with_flags(
+            db_path,
+            OpenFlags::SQLITE_OPEN_READ_ONLY | OpenFlags::SQLITE_OPEN_NO_MUTEX,
+        )
+        .expect("open store.db");
+        let (messages, _title) =
+            extract_messages_and_title_candidate(&conn).expect("extract messages");
+        for (i, m) in messages.iter().enumerate() {
+            eprintln!("[DEBUG-cx7] === message {i} role={}", m.role);
+            for b in &m.content_blocks {
+                match b {
+                    ContentBlock::Text { text } => {
+                        eprintln!("[DEBUG-cx7]   Text({}): {:?}", text.len(), &text.chars().take(160).collect::<String>())
+                    }
+                    ContentBlock::Thinking { thinking, .. } => {
+                        eprintln!("[DEBUG-cx7]   Thinking({}): {:?}", thinking.len(), &thinking.chars().take(120).collect::<String>())
+                    }
+                    ContentBlock::ToolUse { name, .. } => eprintln!("[DEBUG-cx7]   ToolUse {name}"),
+                    ContentBlock::ToolResult { .. } => eprintln!("[DEBUG-cx7]   ToolResult"),
+                    other => eprintln!("[DEBUG-cx7]   other: {other:?}"),
+                }
+            }
+        }
+    }
+
     #[test]
     fn test_extract_thinking_content() {
         let text = "<think>\nThis is thinking content\n

@@ -1,12 +1,13 @@
 use async_trait::async_trait;
 use serde_json::{json, Value};
+use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
 use super::manager::OpenCodeManager;
 use crate::acp::client::{
-    AvailableModel, InitializeResponse, NewSessionResponse, ResumeSessionResponse,
-    SessionModelState, SessionModes,
+    AvailableModel, AvailableModelProvider, InitializeResponse, NewSessionResponse,
+    ResumeSessionResponse, SessionModelState, SessionModes,
 };
 use crate::acp::client_trait::AgentClient;
 use crate::acp::error::{AcpError, AcpResult};
@@ -44,8 +45,8 @@ pub struct OpenCodeHttpClient {
     /// for the OpenCode runtime regardless of which subdirectory the caller
     /// originated from.
     runtime_root: String,
-    /// Current model selection (provider + model)
-    current_model: Option<OpenCodeModel>,
+    /// Canonical model selection (provider + model) keyed by OpenCode session.
+    selected_models: HashMap<String, OpenCodeModel>,
     /// Current mode selection (build/plan)
     current_mode: Option<String>,
 }
@@ -68,7 +69,7 @@ impl OpenCodeHttpClient {
             manager_project_key: manager_project_key.clone(),
             http_client,
             runtime_root: manager_project_key,
-            current_model: None,
+            selected_models: HashMap::new(),
             current_mode: None,
         })
     }
@@ -107,30 +108,58 @@ impl OpenCodeHttpClient {
         }
     }
 
-    fn seed_current_model(&mut self, model_id: &str) -> AcpResult<()> {
-        if model_id.trim().is_empty() {
-            self.current_model = None;
-            return Ok(());
-        }
-
-        let parts: Vec<&str> = model_id.splitn(2, '/').collect();
-        if parts.len() != 2 {
+    fn parse_model_selection(model_id: &str) -> AcpResult<OpenCodeModel> {
+        let Some((provider_id, provider_model_id)) = model_id.split_once('/') else {
             return Err(AcpError::InvalidState(format!(
                 "Invalid model ID format '{}'. Expected 'provider/model' format.",
                 model_id
             )));
+        };
+        if provider_id.trim().is_empty() || provider_model_id.trim().is_empty() {
+            return Err(AcpError::InvalidState(format!(
+                "Invalid model ID format '{}'. Expected non-empty provider/model values.",
+                model_id
+            )));
         }
 
-        self.current_model = Some(OpenCodeModel {
-            provider_id: parts[0].to_string(),
-            model_id: parts[1].to_string(),
-        });
+        Ok(OpenCodeModel {
+            provider_id: provider_id.trim().to_string(),
+            model_id: provider_model_id.trim().to_string(),
+        })
+    }
+
+    fn select_session_model(&mut self, session_id: &str, model_id: &str) -> AcpResult<()> {
+        let selection = Self::parse_model_selection(model_id)?;
         tracing::info!(
-            provider_id = %parts[0],
-            model_id = %parts[1],
-            "OpenCode model set"
+            session_id,
+            provider_id = %selection.provider_id,
+            model_id = %selection.model_id,
+            "OpenCode session model set"
         );
+        self.selected_models
+            .insert(session_id.to_string(), selection);
         Ok(())
+    }
+
+    fn selected_model_for_session(&self, session_id: &str) -> Option<&OpenCodeModel> {
+        self.selected_models.get(session_id)
+    }
+
+    fn build_prompt_body(
+        &self,
+        selection: &OpenCodeModel,
+        agent: &str,
+        prompt: &[crate::acp::types::ContentBlock],
+    ) -> Value {
+        json!({
+            "directory": self.runtime_root,
+            "model": {
+                "providerID": selection.provider_id,
+                "modelID": selection.model_id,
+            },
+            "agent": agent,
+            "parts": prompt,
+        })
     }
 
     pub async fn list_preconnection_commands(

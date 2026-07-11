@@ -391,96 +391,68 @@ fn test_provider_response_filtering_logic() {
     assert_eq!(connected_model_count, 3);
 }
 
-/// Test provider default selection prefers connected-provider defaults over first fallback.
 #[test]
-fn test_provider_default_model_prefers_connected_defaults() {
-    let connected_provider_ids = vec!["anthropic".to_string(), "google".to_string()];
-    let provider_defaults = HashMap::from([
-        ("google".to_string(), "gemini-3-pro".to_string()),
-        ("anthropic".to_string(), "claude-sonnet-4-5".to_string()),
-    ]);
-    let fallback_model = Some(&"anthropic/claude-opus-4".to_string());
-    let compatible_model_ids = [
-        "anthropic/claude-sonnet-4-5".to_string(),
-        "google/gemini-3-pro".to_string(),
-    ]
-    .into_iter()
-    .collect();
-
-    let selected = OpenCodeHttpClient::get_provider_default_model(
-        &connected_provider_ids,
-        &provider_defaults,
-        &compatible_model_ids,
-        fallback_model,
-    );
-
-    assert_eq!(selected.as_deref(), Some("anthropic/claude-sonnet-4-5"));
-}
-
-/// Test provider default selection falls back to the first available model when needed.
-#[test]
-fn test_provider_default_model_falls_back_when_defaults_missing() {
-    let connected_provider_ids = vec!["anthropic".to_string()];
-    let provider_defaults = HashMap::new();
-    let fallback_model = Some(&"anthropic/claude-opus-4".to_string());
-    let compatible_model_ids = ["anthropic/claude-opus-4".to_string()]
-        .into_iter()
-        .collect();
-
-    let selected = OpenCodeHttpClient::get_provider_default_model(
-        &connected_provider_ids,
-        &provider_defaults,
-        &compatible_model_ids,
-        fallback_model,
-    );
-
-    assert_eq!(selected.as_deref(), Some("anthropic/claude-opus-4"));
-}
-
-/// Test provider default selection preserves absence when no connected default or fallback exists.
-#[test]
-fn test_provider_default_model_preserves_absence() {
-    let connected_provider_ids = vec!["anthropic".to_string()];
-    let provider_defaults = HashMap::new();
-    let compatible_model_ids = std::collections::HashSet::new();
-
-    let selected = OpenCodeHttpClient::get_provider_default_model(
-        &connected_provider_ids,
-        &provider_defaults,
-        &compatible_model_ids,
-        None,
-    );
-
-    assert_eq!(selected, None);
-}
-
-#[test]
-fn test_provider_default_model_skips_models_without_tool_support() {
-    let connected_provider_ids = vec!["openrouter".to_string(), "github-copilot".to_string()];
-    let provider_defaults = HashMap::from([
-        (
-            "openrouter".to_string(),
-            "google/gemini-3-pro-image-preview".to_string(),
-        ),
-        (
-            "github-copilot".to_string(),
-            "claude-sonnet-4.6".to_string(),
-        ),
-    ]);
-    let compatible_model_ids = ["github-copilot/claude-sonnet-4.6".to_string()]
-        .into_iter()
-        .collect();
-
-    let selected = OpenCodeHttpClient::get_provider_default_model(
-        &connected_provider_ids,
-        &provider_defaults,
-        &compatible_model_ids,
-        None,
-    );
+fn configured_model_resolution_prefers_exact_provider_model_pair() {
+    let available = vec![
+        AvailableModel {
+            provider: None,
+            model_id: "anthropic/claude-sonnet-4.6".to_string(),
+            name: "Claude Sonnet 4.6".to_string(),
+            description: None,
+        },
+        AvailableModel {
+            provider: None,
+            model_id: "github-copilot/claude-sonnet-4.6".to_string(),
+            name: "Claude Sonnet 4.6".to_string(),
+            description: None,
+        },
+    ];
 
     assert_eq!(
-        selected.as_deref(),
+        OpenCodeHttpClient::resolve_configured_model(
+            "github-copilot/claude-sonnet-4.6",
+            &available,
+        )
+        .as_deref(),
         Some("github-copilot/claude-sonnet-4.6")
+    );
+}
+
+#[test]
+fn configured_model_resolution_rejects_ambiguous_leaf_id() {
+    let available = vec![
+        AvailableModel {
+            provider: None,
+            model_id: "anthropic/claude-sonnet-4.6".to_string(),
+            name: "Claude Sonnet 4.6".to_string(),
+            description: None,
+        },
+        AvailableModel {
+            provider: None,
+            model_id: "github-copilot/claude-sonnet-4.6".to_string(),
+            name: "Claude Sonnet 4.6".to_string(),
+            description: None,
+        },
+    ];
+
+    assert_eq!(
+        OpenCodeHttpClient::resolve_configured_model("claude-sonnet-4.6", &available),
+        None
+    );
+}
+
+#[test]
+fn configured_model_resolution_migrates_unique_leaf_id() {
+    let available = vec![AvailableModel {
+        provider: None,
+        model_id: "openrouter/qwen-coder".to_string(),
+        name: "Qwen Coder".to_string(),
+        description: None,
+    }];
+
+    assert_eq!(
+        OpenCodeHttpClient::resolve_configured_model("qwen-coder", &available).as_deref(),
+        Some("openrouter/qwen-coder")
     );
 }
 
@@ -1167,7 +1139,7 @@ fn test_validate_request_id_rejects_path_injection() {
 }
 
 #[test]
-fn test_seed_current_model_from_session_state() {
+fn test_model_selection_is_isolated_by_session() {
     let manager = Arc::new(Mutex::new(OpenCodeManager::new(PathBuf::from(
         "/tmp/project",
     ))));
@@ -1176,14 +1148,179 @@ fn test_seed_current_model_from_session_state() {
         OpenCodeHttpClient::new(manager, "/tmp/project".to_string(), provider).expect("client");
 
     client
-        .seed_current_model("github-copilot/claude-opus-4.6")
-        .expect("model should seed");
+        .select_session_model("session-a", "github-copilot/claude-opus-4.6")
+        .expect("first model should seed");
+    client
+        .select_session_model("session-b", "anthropic/claude-sonnet-4.6")
+        .expect("second model should seed");
 
-    let current_model = client
-        .current_model
-        .expect("current model should be stored");
-    assert_eq!(current_model.provider_id, "github-copilot");
-    assert_eq!(current_model.model_id, "claude-opus-4.6");
+    let session_a = client
+        .selected_model_for_session("session-a")
+        .expect("session A model should be stored");
+    assert_eq!(session_a.provider_id, "github-copilot");
+    assert_eq!(session_a.model_id, "claude-opus-4.6");
+
+    let session_b = client
+        .selected_model_for_session("session-b")
+        .expect("session B model should be stored");
+    assert_eq!(session_b.provider_id, "anthropic");
+    assert_eq!(session_b.model_id, "claude-sonnet-4.6");
+}
+
+#[test]
+fn stop_releases_all_session_model_selections() {
+    let manager = Arc::new(Mutex::new(OpenCodeManager::new(PathBuf::from(
+        "/tmp/project",
+    ))));
+    let provider = Arc::new(OpenCodeProvider);
+    let mut client =
+        OpenCodeHttpClient::new(manager, "/tmp/project".to_string(), provider).expect("client");
+    client
+        .select_session_model("session-a", "openrouter/anthropic/claude-sonnet-4")
+        .expect("select session A model");
+    client
+        .select_session_model("session-b", "github-copilot/claude-sonnet-4.6")
+        .expect("select session B model");
+
+    AgentClient::stop(&mut client);
+
+    assert!(client.selected_model_for_session("session-a").is_none());
+    assert!(client.selected_model_for_session("session-b").is_none());
+}
+
+#[test]
+fn model_selection_normalizes_surrounding_whitespace() {
+    let selection =
+        OpenCodeHttpClient::parse_model_selection("  openrouter / anthropic/claude-sonnet-4.6  ")
+            .expect("selection");
+
+    assert_eq!(selection.provider_id, "openrouter");
+    assert_eq!(selection.model_id, "anthropic/claude-sonnet-4.6");
+}
+
+#[test]
+fn latest_session_model_restores_the_exact_provider_pair() {
+    let responses: Vec<OpenCodeApiMessageResponse> = serde_json::from_value(json!([
+        {
+            "info": {
+                "id": "msg-1",
+                "sessionID": "session-a",
+                "role": "assistant",
+                "time": { "created": 1 },
+                "model": {
+                    "providerID": "github-copilot",
+                    "modelID": "claude-sonnet-4.6"
+                }
+            },
+            "parts": []
+        },
+        {
+            "info": {
+                "id": "msg-2",
+                "sessionID": "session-a",
+                "role": "assistant",
+                "time": { "created": 2 },
+                "model": {
+                    "providerID": "openrouter",
+                    "modelID": "anthropic/claude-sonnet-4.6"
+                }
+            },
+            "parts": []
+        }
+    ]))
+    .expect("session messages");
+
+    assert_eq!(
+        OpenCodeHttpClient::latest_session_model(&responses),
+        Some(OpenCodeModel {
+            provider_id: "openrouter".to_string(),
+            model_id: "anthropic/claude-sonnet-4.6".to_string(),
+        })
+    );
+}
+
+#[test]
+fn prompt_body_uses_the_selected_session_provider_pair() {
+    let manager = Arc::new(Mutex::new(OpenCodeManager::new(PathBuf::from(
+        "/tmp/project",
+    ))));
+    let provider = Arc::new(OpenCodeProvider);
+    let client =
+        OpenCodeHttpClient::new(manager, "/tmp/project".to_string(), provider).expect("client");
+    let selection = OpenCodeModel {
+        provider_id: "openrouter".to_string(),
+        model_id: "anthropic/claude-sonnet-4.6".to_string(),
+    };
+    let prompt = vec![crate::acp::types::ContentBlock::Text {
+        text: "Hello".to_string(),
+    }];
+
+    let body = client.build_prompt_body(&selection, "build", &prompt);
+
+    assert_eq!(body["model"]["providerID"], "openrouter");
+    assert_eq!(body["model"]["modelID"], "anthropic/claude-sonnet-4.6");
+    assert_eq!(body["parts"][0]["text"], "Hello");
+}
+
+#[tokio::test]
+async fn send_prompt_posts_the_pair_selected_for_that_session() {
+    async fn capture_prompt(
+        axum::extract::State(sender): axum::extract::State<
+            tokio::sync::mpsc::UnboundedSender<Value>,
+        >,
+        axum::Json(body): axum::Json<Value>,
+    ) -> axum::http::StatusCode {
+        sender.send(body).expect("capture prompt body");
+        axum::http::StatusCode::OK
+    }
+
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
+        .await
+        .expect("test listener");
+    let port = listener.local_addr().expect("listener address").port();
+    let (sender, mut receiver) = tokio::sync::mpsc::unbounded_channel();
+    let router = axum::Router::new()
+        .route(
+            "/session/:session_id/prompt_async",
+            axum::routing::post(capture_prompt),
+        )
+        .with_state(sender);
+    let server = tokio::spawn(async move {
+        axum::serve(listener, router).await.expect("test server");
+    });
+
+    let mut manager = OpenCodeManager::new(PathBuf::from("/tmp/project"));
+    manager.set_test_port(port).await;
+    let provider = Arc::new(OpenCodeProvider);
+    let mut client = OpenCodeHttpClient::new(
+        Arc::new(Mutex::new(manager)),
+        "/tmp/project".to_string(),
+        provider,
+    )
+    .expect("client");
+    client
+        .select_session_model("session-a", "openrouter/anthropic/claude-sonnet-4.6")
+        .expect("session A selection");
+    client
+        .select_session_model("session-b", "github-copilot/claude-sonnet-4.6")
+        .expect("session B selection");
+
+    client
+        .send_prompt(PromptRequest {
+            session_id: "session-a".to_string(),
+            prompt: vec![crate::acp::types::ContentBlock::Text {
+                text: "Hello".to_string(),
+            }],
+            attempt_id: None,
+            stream: None,
+        })
+        .await
+        .expect("send prompt");
+
+    let body = receiver.recv().await.expect("captured body");
+    assert_eq!(body["model"]["providerID"], "openrouter");
+    assert_eq!(body["model"]["modelID"], "anthropic/claude-sonnet-4.6");
+    server.abort();
 }
 
 #[tokio::test]

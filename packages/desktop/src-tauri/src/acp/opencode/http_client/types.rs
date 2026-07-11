@@ -72,8 +72,14 @@ pub(super) struct OpenCodeCommand {
 
 /// Stored model selection for OpenCode.
 /// OpenCode uses provider/model ID pairs for model selection.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub(super) struct OpenCodeModel {
     pub(super) provider_id: String,
     pub(super) model_id: String,
+}
+
+impl OpenCodeModel {
+    pub(super) fn canonical_id(&self) -> String {
+        format!("{}/{}", self.provider_id, self.model_id)
+    }
 }

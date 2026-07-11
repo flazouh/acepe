@@ -35,6 +35,7 @@ static FUTURE_PROVIDER_CAPABILITIES: [ProviderCapabilities; 1] = [ProviderCapabi
         display_name: "Future Shared Chat",
         display_order: 999,
         supports_model_defaults: false,
+        allows_implicit_model_selection: true,
         variant_group: FrontendVariantGroup::Plain,
         default_alias: None,
         reasoning_effort_support: false,

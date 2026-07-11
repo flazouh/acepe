@@ -31,6 +31,7 @@ const logger = createLogger({
 
 // SQLite storage keys
 const AGENT_FAVORITE_MODELS_KEY = "agent_favorite_models";
+const AGENT_MODEL_PROVIDER_KEY = "agent_model_provider";
 const AGENT_AVAILABLE_MODELS_CACHE_KEY = "agent_available_models_cache";
 const AGENT_AVAILABLE_MODELS_DISPLAY_CACHE_KEY = "agent_available_models_display_cache";
 const AGENT_PROVIDER_METADATA_CACHE_KEY = "agent_provider_metadata_cache";
@@ -48,6 +49,7 @@ export interface PrGenerationPreferences {
 
 // State using Svelte 5 runes
 let favorites = $state<Record<string, string[]>>({});
+let modelProviderByAgent = $state<Record<string, string>>({});
 let availableModelsCache = $state<Record<string, Model[]>>({});
 let availableModelsDisplayCache = $state<Record<string, ModelsForDisplay>>({});
 let availableProviderMetadataCache = $state<Record<string, ProviderMetadataProjection>>({});
@@ -96,6 +98,15 @@ export function toggleFavorite(agentId: string, modelId: string): void {
 	}
 
 	persistFavorites();
+}
+
+export function getModelProvider(agentId: string): string | null {
+	return modelProviderByAgent[agentId] ?? null;
+}
+
+export function setModelProvider(agentId: string, providerId: string): void {
+	modelProviderByAgent[agentId] = providerId;
+	persistModelProviders();
 }
 
 /**
@@ -284,6 +295,14 @@ export function loadPersistedState(): ResultAsync<void, AppError> {
 		})
 		.orElse(() => okAsync(undefined));
 
+	const modelProvidersLoad = tauriClient.settings
+		.get<Record<string, string>>(AGENT_MODEL_PROVIDER_KEY)
+		.map((persisted) => {
+			if (persisted && typeof persisted === "object") modelProviderByAgent = persisted;
+			return undefined;
+		})
+		.orElse(() => okAsync(undefined));
+
 	const modesCacheLoad = tauriClient.settings
 		.get<Record<string, Mode[]>>(AGENT_AVAILABLE_MODES_CACHE_KEY)
 		.map((persisted) => {
@@ -381,6 +400,7 @@ export function loadPersistedState(): ResultAsync<void, AppError> {
 
 	loadPromise = ResultAsync.combine([
 		favoritesLoad,
+		modelProvidersLoad,
 		modelsCacheLoad,
 		providerMetadataCacheLoad,
 		modelsDisplayCacheLoad,
@@ -420,6 +440,14 @@ function persistFavorites(): void {
 		.set<Record<string, string[]>>(AGENT_FAVORITE_MODELS_KEY, favorites)
 		.mapErr((err) => {
 			logger_instance.error("Failed to persist favorite models", { error: err.message });
+		});
+}
+
+function persistModelProviders(): void {
+	tauriClient.settings
+		.set<Record<string, string>>(AGENT_MODEL_PROVIDER_KEY, modelProviderByAgent)
+		.mapErr((err) => {
+			logger_instance.error("Failed to persist model provider", { error: err.message });
 		});
 }
 

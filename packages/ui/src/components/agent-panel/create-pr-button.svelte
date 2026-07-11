@@ -4,7 +4,7 @@
 	import { Button } from "../button/index.js";
 	import * as ButtonGroup from "../button-group/index.js";
 	import { DiffPill } from "../diff-pill/index.js";
-	import { RoundedIcon } from "../icons/index.js";
+	import { PullRequestStatusIcon, RoundedIcon } from "../icons/index.js";
 
 	interface Props {
 		label?: string;
@@ -42,8 +42,8 @@
 		{onclick}
 	>
 		<span class="flex shrink-0 items-center gap-1">
-			<RoundedIcon
-				name="pull-request"
+			<PullRequestStatusIcon
+				state="open"
 				class="size-[11px] shrink-0 text-muted-foreground transition-colors group-hover/open-pr:text-success"
 			/>
 			{loading && loadingLabel ? loadingLabel : label}

@@ -1,67 +1,51 @@
-use std::collections::HashMap;
-
 use super::*;
 
 impl OpenCodeHttpClient {
-    /// Helper function to get the provider default model ID.
-    /// Uses the provider-reported defaults for connected providers,
-    /// falling back to the first available model.
-    pub(super) fn get_provider_default_model(
-        connected_provider_ids: &[String],
-        provider_defaults: &HashMap<String, String>,
-        compatible_model_ids: &std::collections::HashSet<String>,
-        fallback_model: Option<&String>,
+    pub(super) fn resolve_configured_model(
+        configured_model_id: &str,
+        available_models: &[AvailableModel],
     ) -> Option<String> {
-        // OpenCode orders connected providers by preference. Preserve that order
-        // so model selection is deterministic across launches.
-        for provider_id in connected_provider_ids {
-            if let Some(model_id) = provider_defaults.get(provider_id) {
-                let candidate = format!("{}/{}", provider_id, model_id);
-                if compatible_model_ids.contains(&candidate) {
-                    return Some(candidate);
-                }
-            }
+        if let Some(exact) = available_models
+            .iter()
+            .find(|model| model.model_id == configured_model_id)
+        {
+            return Some(exact.model_id.clone());
         }
 
-        // Fall back to the first available model from any connected provider
-        fallback_model.cloned()
+        // OpenCode's canonical config format is provider/model. Only migrate a
+        // legacy leaf-only value when exactly one connected provider exposes it.
+        if configured_model_id.contains('/') {
+            return None;
+        }
+        let mut matches = available_models.iter().filter(|model| {
+            model
+                .model_id
+                .split_once('/')
+                .map(|(_, provider_model_id)| provider_model_id == configured_model_id)
+                .unwrap_or(false)
+        });
+        let unique = matches.next()?;
+        if matches.next().is_some() {
+            return None;
+        }
+        Some(unique.model_id.clone())
     }
 
     /// Fetch user's configured model preference from OpenCode's /config endpoint.
     async fn fetch_config_model(&self) -> AcpResult<Option<String>> {
-        let base_url = match self.base_url().await {
-            Ok(url) => url,
-            Err(e) => {
-                tracing::debug!("Failed to get OpenCode base URL: {}", e);
-                return Ok(None);
-            }
-        };
-
+        let base_url = self.base_url().await?;
         let url = format!("{}/config", base_url);
-
-        let response = match self.http_client.get(&url).send().await {
-            Ok(r) => r,
-            Err(e) => {
-                tracing::debug!("Failed to fetch OpenCode config: {}", e);
-                return Ok(None);
-            }
-        };
-
-        if !response.status().is_success() {
-            tracing::debug!(
-                "OpenCode /config endpoint returned status: {}",
-                response.status()
-            );
-            return Ok(None);
-        }
-
-        let config: ConfigResponse = match response.json().await {
-            Ok(c) => c,
-            Err(e) => {
-                tracing::debug!("Failed to parse OpenCode config response: {}", e);
-                return Ok(None);
-            }
-        };
+        let config: ConfigResponse = self
+            .http_client
+            .get(&url)
+            .send()
+            .await
+            .map_err(AcpError::HttpError)?
+            .error_for_status()
+            .map_err(AcpError::HttpError)?
+            .json()
+            .await
+            .map_err(AcpError::HttpError)?;
 
         tracing::info!("Fetched user config model: {:?}", config.model);
         Ok(config.model)
@@ -93,8 +77,6 @@ impl OpenCodeHttpClient {
             .collect();
 
         let mut available_models: Vec<AvailableModel> = Vec::new();
-        let mut default_model_id: Option<String> = None;
-
         for provider in &provider_response.all {
             if !connected_set.contains(provider.id.as_str()) {
                 continue;
@@ -108,35 +90,22 @@ impl OpenCodeHttpClient {
 
                 available_models.push(AvailableModel {
                     model_id: model_id.clone(),
+                    provider: Some(AvailableModelProvider {
+                        provider_id: provider.id.clone(),
+                        model_id: model_key.clone(),
+                    }),
                     name: model.name.clone(),
                     description: None,
                 });
-
-                if default_model_id.is_none() {
-                    default_model_id = Some(model_id);
-                }
             }
         }
-        let compatible_model_ids = available_models
-            .iter()
-            .map(|model| model.model_id.clone())
-            .collect::<std::collections::HashSet<_>>();
 
-        let config_model = self.fetch_config_model().await.unwrap_or(None);
+        let config_model = self.fetch_config_model().await?;
 
         let current_model_id = if let Some(model_id) = config_model {
-            let matching_model = available_models.iter().find(|m| {
-                m.model_id == model_id
-                    || model_id.ends_with(&format!(
-                        "/{}",
-                        m.model_id.split('/').next_back().unwrap_or(&m.model_id)
-                    ))
-            });
-
-            if matching_model.is_some() {
-                let canonical_model_id = matching_model
-                    .map(|model| model.model_id.clone())
-                    .unwrap_or(model_id.clone());
+            if let Some(canonical_model_id) =
+                Self::resolve_configured_model(&model_id, &available_models)
+            {
                 tracing::info!(
                     configured_model_id = %model_id,
                     canonical_model_id = %canonical_model_id,
@@ -144,24 +113,14 @@ impl OpenCodeHttpClient {
                 );
                 Some(canonical_model_id)
             } else {
-                tracing::debug!(
-                    "Configured model '{}' not in available models, using provider default",
-                    model_id
+                tracing::warn!(
+                    configured_model_id = %model_id,
+                    "Configured OpenCode model is unavailable or ambiguous; explicit selection required"
                 );
-                Self::get_provider_default_model(
-                    &provider_response.connected,
-                    &provider_response.default,
-                    &compatible_model_ids,
-                    default_model_id.as_ref(),
-                )
+                None
             }
         } else {
-            Self::get_provider_default_model(
-                &provider_response.connected,
-                &provider_response.default,
-                &compatible_model_ids,
-                default_model_id.as_ref(),
-            )
+            None
         };
 
         tracing::info!(

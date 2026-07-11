@@ -83,7 +83,7 @@
 			<!-- Label — click to toggle collapse -->
 			<button
 				type="button"
-				class="flex min-w-0 flex-1 cursor-pointer items-center gap-1 overflow-hidden border-0 bg-transparent p-0 text-left transition-colors hover:text-foreground"
+				class="flex min-w-0 flex-1 cursor-pointer items-center gap-1 overflow-hidden border-0 bg-transparent p-0 text-left text-muted-foreground transition-colors hover:text-foreground"
 				onclick={toggleCollapsed}
 				aria-label={collapseLabel}
 				aria-expanded={!collapsed}

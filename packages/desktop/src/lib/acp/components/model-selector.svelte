@@ -32,6 +32,7 @@ import {
 	getModelSelectorProviderBrand,
 	getModelSelectorSearchText,
 	getPreferredReasoningVariantId,
+	resolveModelSelectorAgentId,
 	getSelectedModel,
 	getSelectedReasoningBaseGroup,
 } from "./model-selector-state.js";
@@ -50,6 +51,8 @@ interface ModelSelectorProps {
 	compactSetup?: boolean;
 	/** Primary segment styling inside a fused model + reasoning button group. */
 	embeddedInGroup?: boolean;
+	/** Canonical agent that produced the current capability catalog. */
+	agentId?: string | null;
 }
 
 let {
@@ -63,6 +66,7 @@ let {
 	ontoggle,
 	compactSetup = false,
 	embeddedInGroup = false,
+	agentId: capabilitiesAgentId = null,
 }: ModelSelectorProps = $props();
 
 const panelStore = getPanelStore();
@@ -89,13 +93,16 @@ onDestroy(() => {
 const agentId = $derived.by(() => {
 	if (panelId) {
 		const panel = panelStore.getTopLevelAgentPanel(panelId);
-		if (panel?.sessionId) {
-			const identity = sessionStore.read.getSessionIdentity(panel.sessionId);
-			return identity?.agentId ?? null;
-		}
-		return panel?.selectedAgentId;
+		const sessionAgentId = panel?.sessionId
+			? sessionStore.read.getSessionIdentity(panel.sessionId)?.agentId ?? null
+			: null;
+		return resolveModelSelectorAgentId({
+			capabilitiesAgentId,
+			sessionAgentId,
+			panelAgentId: panel?.selectedAgentId ?? null,
+		});
 	}
-	return null;
+	return capabilitiesAgentId;
 });
 
 const selectedModel = $derived(getSelectedModel({ currentModelId, availableModels }));
@@ -135,6 +142,9 @@ const primarySelectorLabel = $derived(selectedReasoningBaseGroup?.baseModelName 
 
 const validModels = $derived(availableModels.filter((model) => model.id));
 const displayGroups = $derived.by(() => modelsDisplay?.groups ?? []);
+const selectedDisplayGroup = $derived(
+	displayGroups.find((group) => group.models.some((model) => model.modelId === currentModelId)) ?? null
+);
 const hasDisplayGroups = $derived(hasUsableModelsDisplayGroups(modelsDisplay));
 const allDisplayableModels = $derived.by(() => {
 	if (!hasDisplayGroups) {
@@ -147,7 +157,10 @@ const totalModelCount = $derived.by(() =>
 );
 const showFavorites = $derived(totalModelCount >= 5);
 
-function toSelectorItem(model: Model | DisplayableModel): AgentInputModelSelectorItem {
+function toSelectorItem(
+	model: Model | DisplayableModel,
+	upstreamProviderLabel?: string
+): AgentInputModelSelectorItem {
 	const id = getModelSelectorItemId(model);
 	const name = getModelSelectorItemLabel({
 		model,
@@ -157,8 +170,8 @@ function toSelectorItem(model: Model | DisplayableModel): AgentInputModelSelecto
 	return {
 		id,
 		name,
-		providerBrand: modelProviderBrand,
-		providerLabel,
+		providerBrand: upstreamProviderLabel ? null : modelProviderBrand,
+		providerLabel: upstreamProviderLabel ?? providerLabel,
 		description: model.description ?? undefined,
 		searchText: getModelSelectorSearchText({
 			name,
@@ -179,7 +192,12 @@ const favoriteModels = $derived.by(() => {
 	if (hasDisplayGroups) {
 		return allDisplayableModels
 			.filter((model) => favoriteIds.includes(model.modelId))
-			.map(toSelectorItem);
+			.map((model) => {
+				const group = displayGroups.find((candidate) =>
+					candidate.models.some((item) => item.modelId === model.modelId)
+				);
+				return toSelectorItem(model, group?.providerLabel ?? group?.label);
+			});
 	}
 	return validModels.filter((model) => favoriteIds.includes(model.id)).map(toSelectorItem);
 });
@@ -188,15 +206,17 @@ const modelGroups = $derived.by<AgentInputModelSelectorGroup[]>(() => {
 	if (hasDisplayGroups) {
 		return displayGroups.map((group) => ({
 			label: group.label,
-			providerBrand: modelProviderBrand,
-			providerLabel,
+			providerId: group.providerId ?? undefined,
+			upstreamProviderBrand: group.providerBrand ?? null,
+			providerBrand: group.providerId ? null : modelProviderBrand,
+			providerLabel: group.providerLabel ?? providerLabel,
 			items: Array.from(group.models)
 				.sort((left, right) =>
 					left.displayName.localeCompare(right.displayName, undefined, {
 						sensitivity: "base",
 					})
 				)
-				.map(toSelectorItem),
+				.map((model) => toSelectorItem(model, group.providerLabel ?? group.label)),
 		}));
 	}
 
@@ -265,12 +285,17 @@ async function handleSharedModelChange(modelId: string): Promise<void> {
 	triggerLabel={displayName}
 	triggerProviderBrand={modelProviderBrand}
 	triggerProviderLabel={providerLabel}
+	triggerUpstreamProviderBrand={selectedDisplayGroup?.providerBrand ?? null}
 	currentModelId={currentModelId}
 	{isLoading}
 	{ontoggle}
 	triggerSize={compactSetup ? "composerChipLabel" : "pill"}
 	{embeddedInGroup}
 	{modelGroups}
+	preferredProviderId={agentId ? preferencesStore.getModelProvider(agentId) : null}
+	onProviderChange={agentId
+		? (providerId) => preferencesStore.setModelProvider(agentId, providerId)
+		: undefined}
 	{favoriteModels}
 	hideTriggerProviderMark={isDefaultChoiceModelId(currentModelId)}
 	reasoningGroups={usesVariantSelector ? reasoningGroups : []}

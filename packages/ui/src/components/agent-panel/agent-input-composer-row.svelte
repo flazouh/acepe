@@ -134,7 +134,6 @@ let {
 				{enterQueueDescription}
 				{enterSteerLabel}
 				{enterSteerDescription}
-				enterBehaviorMenuMuted={isEmpty}
 				{onEnterBehaviorChange}
 			/>
 		</div>

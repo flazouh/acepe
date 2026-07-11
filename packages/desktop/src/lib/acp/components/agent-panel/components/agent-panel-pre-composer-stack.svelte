@@ -12,7 +12,6 @@ import {
 	AgentPanelTodoHeader as SharedTodoHeader,
 	AgentPanelSignInCard as SharedSignInCard,
 } from "@acepe/ui/agent-panel";
-import CopyButton from "../../messages/copy-button.svelte";
 import PermissionBar from "../../tool-calls/permission-bar.svelte";
 import PreSessionWorktreeCard from "./pre-session-worktree-card.svelte";
 import WorktreeSetupCard from "./worktree-setup-card.svelte";
@@ -79,7 +78,6 @@ let {
 	onFixCiCheck,
 	showTodoHeader,
 	todoState,
-	getTodoMarkdown,
 	queueStripMessages,
 	queueIsPaused,
 	onQueueCancel,
@@ -137,7 +135,6 @@ let {
 	onFixCiCheck?: (check: PrChecksItem) => void;
 	showTodoHeader: boolean;
 	todoState: TodoState | null;
-	getTodoMarkdown: () => string;
 	queueStripMessages: QueueStripMessage[];
 	queueIsPaused: boolean;
 	onQueueCancel: (messageId: string) => void;
@@ -265,11 +262,7 @@ let {
 								isLive={todoState.isLive}
 								allCompletedLabel={"All tasks completed"}
 								pausedLabel={"Tasks paused"}
-							>
-								{#snippet copyButton()}
-									<CopyButton getText={getTodoMarkdown} size={12} variant="icon" class="p-0.5" stopPropagation />
-								{/snippet}
-							</SharedTodoHeader>
+							/>
 						{/if}
 						{#if sessionId && queueStripMessages.length > 0}
 							<SharedQueueCardStrip

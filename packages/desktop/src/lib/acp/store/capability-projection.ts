@@ -24,6 +24,7 @@ function mapGraphAvailableModels(capabilities: SessionGraphCapabilities): Array<
 	const availableModels = capabilities.models.availableModels ?? [];
 	return availableModels.map((model) => ({
 		id: model.modelId,
+		provider: model.provider ?? undefined,
 		name: model.name,
 		description: model.description ?? undefined,
 	}));

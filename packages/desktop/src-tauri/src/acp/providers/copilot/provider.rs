@@ -375,6 +375,7 @@ pub(crate) fn discover_copilot_history_models(
         .into_iter()
         .map(
             |(model_id, _count)| crate::acp::client_session::AvailableModel {
+                provider: None,
                 name: model_id.clone(),
                 model_id,
                 description: None,
@@ -825,11 +826,13 @@ mod tests {
         let mut models = SessionModelState {
             available_models: vec![
                 AvailableModel {
+                    provider: None,
                     model_id: "gpt-5.4".to_string(),
                     name: "GPT-5.4".to_string(),
                     description: None,
                 },
                 AvailableModel {
+                    provider: None,
                     model_id: "gpt-4.1".to_string(),
                     name: "GPT-4.1".to_string(),
                     description: None,
@@ -875,6 +878,7 @@ mod tests {
 
         let mut models = SessionModelState {
             available_models: vec![AvailableModel {
+                provider: None,
                 model_id: "gpt-5.4".to_string(),
                 name: "GPT-5.4".to_string(),
                 description: None,
@@ -956,6 +960,7 @@ mod tests {
 
         let mut models = SessionModelState {
             available_models: vec![AvailableModel {
+                provider: None,
                 model_id: "gpt-4.1".to_string(),
                 name: "GPT-4.1".to_string(),
                 description: None,

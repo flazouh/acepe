@@ -90,6 +90,10 @@ fn push_unique_spawn_config(configs: &mut Vec<SpawnConfig>, candidate: SpawnConf
 }
 
 impl AgentProvider for OpenCodeProvider {
+    fn allows_implicit_model_selection(&self) -> bool {
+        false
+    }
+
     fn id(&self) -> &str {
         "opencode"
     }
@@ -448,6 +452,36 @@ mod tests {
     }
 
     #[test]
+    fn opencode_requires_an_explicit_model_when_no_config_or_session_model_exists() {
+        let provider = OpenCodeProvider;
+        let models = SessionModelState {
+            available_models: vec![AvailableModel {
+                provider: Some(crate::acp::client::AvailableModelProvider {
+                    provider_id: "github-copilot".to_string(),
+                    model_id: "claude-sonnet-4.6".to_string(),
+                }),
+                model_id: "github-copilot/claude-sonnet-4.6".to_string(),
+                name: "Claude Sonnet 4.6".to_string(),
+                description: None,
+            }],
+            current_model_id: None,
+            models_display: Default::default(),
+            provider_metadata: None,
+        };
+
+        let resolved = crate::acp::capability_resolution::resolve_static_capabilities(
+            &provider,
+            Path::new("/tmp/project"),
+            crate::acp::capability_resolution::ResolvedCapabilityStatus::Resolved,
+            models,
+            provider.default_session_modes(),
+        )
+        .expect("OpenCode capabilities");
+
+        assert_eq!(resolved.current_model_id, None);
+    }
+
+    #[test]
     fn resolve_spawn_configs_omits_fake_fallback_when_cache_is_missing() {
         let configs = resolve_opencode_spawn_configs(None, Vec::new());
 
@@ -497,11 +531,13 @@ mod tests {
         let mut models = SessionModelState {
             available_models: vec![
                 AvailableModel {
+                    provider: None,
                     model_id: "anthropic/claude-sonnet-4-5".to_string(),
                     name: "Claude Sonnet 4.5".to_string(),
                     description: None,
                 },
                 AvailableModel {
+                    provider: None,
                     model_id: "openai/gpt-5.4".to_string(),
                     name: "GPT-5.4".to_string(),
                     description: None,

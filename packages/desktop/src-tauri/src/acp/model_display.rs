@@ -26,7 +26,24 @@ pub struct DisplayableModel {
 #[serde(rename_all = "camelCase")]
 pub struct DisplayModelGroup {
     pub label: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub provider_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub provider_label: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub provider_brand: Option<UpstreamProviderBrand>,
     pub models: Vec<DisplayableModel>,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, Type, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub enum UpstreamProviderBrand {
+    Anthropic,
+    GithubCopilot,
+    OpenRouter,
+    OpenAi,
+    XAi,
+    Custom,
 }
 
 #[derive(Debug, Clone, Copy, Default, Serialize, Deserialize, Type, PartialEq, Eq)]
@@ -80,8 +97,11 @@ impl ModelsDisplayTransformer for DefaultTransformer {
             };
         }
 
-        // Single group when model count < 5
-        if valid.len() < 5 {
+        // Bare model IDs (for example Cursor's catalog) stay compact at small
+        // counts. Explicit provider/model catalogs such as OpenCode are always
+        // grouped by their authoritative provider identity.
+        let has_explicit_provider = valid.iter().any(|model| model.provider.is_some());
+        if valid.len() < 5 && !has_explicit_provider {
             let models = disambiguate_display_names(
                 valid
                     .iter()
@@ -92,6 +112,9 @@ impl ModelsDisplayTransformer for DefaultTransformer {
             return ModelsForDisplay {
                 groups: vec![DisplayModelGroup {
                     label: String::new(),
+                    provider_id: None,
+                    provider_label: None,
+                    provider_brand: None,
                     models,
                 }],
                 ..Default::default()
@@ -99,20 +122,44 @@ impl ModelsDisplayTransformer for DefaultTransformer {
         }
 
         // Group by provider
-        let mut by_provider: std::collections::BTreeMap<String, Vec<DisplayableModel>> =
-            std::collections::BTreeMap::new();
+        let mut by_provider: std::collections::BTreeMap<
+            String,
+            (
+                String,
+                Option<String>,
+                Option<UpstreamProviderBrand>,
+                Vec<DisplayableModel>,
+            ),
+        > = std::collections::BTreeMap::new();
         for m in valid {
-            let provider = provider_from_model_id(&m.model_id);
+            let provider = provider_from_model(m);
             let dm = to_displayable_provider(m, Some(&provider));
-            by_provider.entry(provider).or_default().push(dm);
+            let provider_id = m
+                .provider
+                .as_ref()
+                .map(|identity| identity.provider_id.clone());
+            let provider_brand = provider_id.as_deref().map(upstream_provider_brand);
+            let grouping_key = provider_id
+                .clone()
+                .unwrap_or_else(|| format!("inferred:{provider}"));
+            by_provider
+                .entry(grouping_key)
+                .or_insert_with(|| (provider, provider_id, provider_brand, Vec::new()))
+                .3
+                .push(dm);
         }
 
         let groups: Vec<DisplayModelGroup> = by_provider
             .into_iter()
-            .map(|(label, models)| DisplayModelGroup {
-                models: disambiguate_display_names(models, Some(&label)),
-                label,
-            })
+            .map(
+                |(_, (label, provider_id, provider_brand, models))| DisplayModelGroup {
+                    models: disambiguate_display_names(models, Some(&label)),
+                    provider_label: provider_id.as_ref().map(|_| label.clone()),
+                    provider_id,
+                    provider_brand,
+                    label,
+                },
+            )
             .collect();
 
         ModelsForDisplay {
@@ -141,6 +188,9 @@ impl ModelsDisplayTransformer for ClaudeCodeTransformer {
         ModelsForDisplay {
             groups: vec![DisplayModelGroup {
                 label: String::new(),
+                provider_id: None,
+                provider_label: None,
+                provider_brand: None,
                 models,
             }],
             ..Default::default()
@@ -180,6 +230,9 @@ impl ModelsDisplayTransformer for CodexTransformer {
                 let label = capitalize_base(&base_id);
                 DisplayModelGroup {
                     label,
+                    provider_id: None,
+                    provider_label: None,
+                    provider_brand: None,
                     models: variants,
                 }
             })
@@ -475,7 +528,35 @@ fn capitalize_effort(effort: &str) -> &str {
     }
 }
 
-fn provider_from_model_id(model_id: &str) -> String {
+fn provider_from_model(model: &AvailableModel) -> String {
+    if let Some(provider_id) = model
+        .provider
+        .as_ref()
+        .map(|provider| provider.provider_id.as_str())
+    {
+        return match provider_id.to_ascii_lowercase().as_str() {
+            "github-copilot" => "GitHub Copilot".to_string(),
+            "openrouter" => "OpenRouter".to_string(),
+            "openai" => "OpenAI".to_string(),
+            "xai" => "xAI".to_string(),
+            other => capitalize_name(other),
+        };
+    }
+    provider_from_model_family(&model.model_id)
+}
+
+fn upstream_provider_brand(provider_id: &str) -> UpstreamProviderBrand {
+    match provider_id.to_ascii_lowercase().as_str() {
+        "anthropic" => UpstreamProviderBrand::Anthropic,
+        "github-copilot" => UpstreamProviderBrand::GithubCopilot,
+        "openrouter" => UpstreamProviderBrand::OpenRouter,
+        "openai" => UpstreamProviderBrand::OpenAi,
+        "xai" => UpstreamProviderBrand::XAi,
+        _ => UpstreamProviderBrand::Custom,
+    }
+}
+
+fn provider_from_model_family(model_id: &str) -> String {
     let lower = model_id.to_ascii_lowercase();
     if lower == "default" {
         return "Default".to_string();
@@ -516,15 +597,7 @@ fn provider_from_model_id(model_id: &str) -> String {
         }
     }
 
-    // Fall back to explicit provider/model separators. `.` is intentionally not
-    // treated as a separator: it's a version marker inside IDs like `gpt-5.4`
-    // or `claude-4.6-sonnet`, not a provider boundary.
-    let parts: Vec<&str> = model_id.split(&['/', ':'][..]).collect();
-    if parts.len() > 1 && !parts[0].is_empty() {
-        capitalize_name(parts[0])
-    } else {
-        "Other".to_string()
-    }
+    "Other".to_string()
 }
 
 fn parse_codex_variant(model_id: &str) -> Option<(String, String)> {
@@ -562,6 +635,9 @@ pub fn passthrough_transform(models: &[AvailableModel]) -> ModelsForDisplay {
     ModelsForDisplay {
         groups: vec![DisplayModelGroup {
             label: String::new(),
+            provider_id: None,
+            provider_label: None,
+            provider_brand: None,
             models,
         }],
         ..Default::default()
@@ -571,12 +647,30 @@ pub fn passthrough_transform(models: &[AvailableModel]) -> ModelsForDisplay {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::acp::client::AvailableModelProvider;
 
     fn am(id: &str, name: &str, desc: Option<&str>) -> AvailableModel {
+        let provider_pair = id.split_once('/').or_else(|| id.split_once(':'));
         AvailableModel {
             model_id: id.to_string(),
+            provider: provider_pair.map(|(provider_id, model_id)| AvailableModelProvider {
+                provider_id: provider_id.to_string(),
+                model_id: model_id.to_string(),
+            }),
             name: name.to_string(),
             description: desc.map(|s| s.to_string()),
+        }
+    }
+
+    fn provider_am(provider_id: &str, model_id: &str, name: &str) -> AvailableModel {
+        AvailableModel {
+            model_id: format!("{provider_id}/{model_id}"),
+            provider: Some(AvailableModelProvider {
+                provider_id: provider_id.to_string(),
+                model_id: model_id.to_string(),
+            }),
+            name: name.to_string(),
+            description: None,
         }
     }
 
@@ -616,7 +710,7 @@ mod tests {
         let models = vec![am("anthropic/claude-4", "Claude 4", None)];
         let out = t.transform(&models);
         assert_eq!(out.groups.len(), 1);
-        assert!(out.groups[0].label.is_empty());
+        assert_eq!(out.groups[0].label, "Anthropic");
         assert_eq!(out.groups[0].models.len(), 1);
         assert_eq!(out.groups[0].models[0].display_name, "Claude 4");
     }
@@ -625,10 +719,10 @@ mod tests {
     fn default_transformer_four_models_single_group() {
         let t = DefaultTransformer;
         let models = vec![
-            am("anthropic/claude-4", "Claude 4", None),
-            am("openai:gpt-4", "GPT-4", None),
-            am("google/gemini-2", "Gemini 2", None),
-            am("meta.llama/llama-3", "Llama 3", None),
+            am("claude-4", "Claude 4", None),
+            am("gpt-4", "GPT-4", None),
+            am("gemini-2", "Gemini 2", None),
+            am("llama-3", "Llama 3", None),
         ];
         let out = t.transform(&models);
         assert_eq!(out.groups.len(), 1);
@@ -669,6 +763,61 @@ mod tests {
         let models = vec![am("openai:gpt-4", "GPT-4", None)];
         let out = t.transform(&models);
         assert_eq!(out.groups.len(), 1);
+    }
+
+    #[test]
+    fn explicit_github_copilot_provider_wins_over_claude_model_family() {
+        assert_eq!(
+            provider_from_model(&provider_am(
+                "github-copilot",
+                "claude-sonnet-4.6",
+                "Claude Sonnet 4.6",
+            )),
+            "GitHub Copilot"
+        );
+    }
+
+    #[test]
+    fn small_explicit_catalog_remains_grouped_by_provider() {
+        let t = DefaultTransformer;
+        let models = vec![
+            provider_am("anthropic", "claude-sonnet-4.6", "Claude Sonnet 4.6"),
+            provider_am("github-copilot", "claude-sonnet-4.6", "Claude Sonnet 4.6"),
+        ];
+
+        let out = t.transform(&models);
+        let labels: Vec<&str> = out
+            .groups
+            .iter()
+            .map(|group| group.label.as_str())
+            .collect();
+        assert_eq!(labels, vec!["Anthropic", "GitHub Copilot"]);
+        assert_eq!(out.groups[0].provider_id.as_deref(), Some("anthropic"));
+        assert_eq!(
+            out.groups[0].provider_brand,
+            Some(UpstreamProviderBrand::Anthropic)
+        );
+        assert_eq!(out.groups[1].provider_id.as_deref(), Some("github-copilot"));
+        assert_eq!(
+            out.groups[1].provider_brand,
+            Some(UpstreamProviderBrand::GithubCopilot)
+        );
+    }
+
+    #[test]
+    fn explicit_openrouter_group_keeps_its_upstream_identity() {
+        let out = DefaultTransformer.transform(&[provider_am(
+            "openrouter",
+            "anthropic/claude-sonnet-4.6",
+            "Claude Sonnet 4.6",
+        )]);
+
+        assert_eq!(out.groups[0].provider_id.as_deref(), Some("openrouter"));
+        assert_eq!(out.groups[0].provider_label.as_deref(), Some("OpenRouter"));
+        assert_eq!(
+            out.groups[0].provider_brand,
+            Some(UpstreamProviderBrand::OpenRouter)
+        );
     }
 
     #[test]
@@ -758,14 +907,20 @@ mod tests {
             am("openai:gpt-4.1", "GPT 4.1", None),
         ];
         let out = t.transform(&models);
-        let display_names: Vec<&str> = out.groups[0]
+        let anthropic_group = out
+            .groups
+            .iter()
+            .find(|group| group.label == "Anthropic")
+            .expect("anthropic group");
+        let display_names: Vec<&str> = anthropic_group
             .models
             .iter()
             .map(|model| model.display_name.as_str())
             .collect();
         assert!(display_names.contains(&"Opus 4.1"));
         assert!(display_names.contains(&"Opus 4.5"));
-        assert_eq!(display_names.len(), 3);
+        assert_eq!(display_names.len(), 2);
+        assert!(out.groups.iter().any(|group| group.label == "OpenAI"));
     }
 
     #[test]

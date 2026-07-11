@@ -98,7 +98,7 @@
 			</div>
 		{/if}
 		<div
-			class="min-w-0 max-w-full shrink overflow-hidden transition-opacity duration-200 ease-out
+			class="w-fit min-w-0 max-w-[min(18rem,100%)] shrink overflow-hidden transition-opacity duration-200 ease-out
 				[&_[role=group]]:!min-w-0 [&_[role=group]]:!max-w-full
 				[&_[data-slot=button]]:!min-w-0 [&_[data-slot=button]]:!max-w-full
 				{fadeWhenVoiceActiveClass}"

@@ -7,6 +7,7 @@ import {
 	getModelSelectorDisplayName,
 	getModelSelectorItemId,
 	getModelSelectorItemLabel,
+	resolveModelSelectorAgentId,
 	getModelSelectorProviderBrand,
 	getModelSelectorSearchText,
 	getPreferredReasoningVariantId,
@@ -163,5 +164,22 @@ describe("model selector state", () => {
 		expect(getModelSelectorProviderBrand("claude-code")).toBe("anthropic");
 		expect(getModelSelectorProviderBrand("codex")).toBe("codex");
 		expect(getModelSelectorProviderBrand(null)).toBeNull();
+	});
+
+	it("uses the canonical capabilities agent before indirect panel state", () => {
+		expect(
+			resolveModelSelectorAgentId({
+				capabilitiesAgentId: "opencode",
+				sessionAgentId: null,
+				panelAgentId: null,
+			})
+		).toBe("opencode");
+		expect(
+			resolveModelSelectorAgentId({
+				capabilitiesAgentId: null,
+				sessionAgentId: "codex",
+				panelAgentId: "claude-code",
+			})
+		).toBe("codex");
 	});
 });

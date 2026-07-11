@@ -353,6 +353,7 @@ async fn session_lifecycle_uses_provider_owned_model_presentation_contract() {
     let cwd = std::env::current_dir().expect("current dir should be available");
     let models = crate::acp::client::SessionModelState {
         available_models: vec![crate::acp::client::AvailableModel {
+            provider: None,
             model_id: "gpt-5".to_string(),
             name: "gpt-5".to_string(),
             description: None,
@@ -902,6 +903,7 @@ fn apply_provider_model_fallback_keeps_existing_models() {
     let provider = TestProvider { id: "cursor" };
     let mut state = SessionModelState {
         available_models: vec![AvailableModel {
+            provider: None,
             model_id: "claude-sonnet-4".to_string(),
             name: "Claude Sonnet".to_string(),
             description: None,

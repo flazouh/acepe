@@ -39,7 +39,6 @@ import type { EnvelopePatch } from "./envelope-reducer/envelope-patch.js";
 import type { EnvelopeReducerSnapshot } from "./envelope-reducer/envelope-snapshot.js";
 import { isNewerGraphRevision, isOlderGraphRevision } from "./envelope-reducer/graph-revision-order.js";
 import { mapProjectionTurnFailure } from "./envelope-reducer/projection-turn-failure.js";
-import { transcriptSnapshotAcknowledgesPendingSend } from "./envelope-reducer/pending-send-acknowledgement.js";
 import { reduceCommand, reduceTranscriptDelta } from "./envelope-reducer/reduce-command.js";
 import { seedTranscriptEntryIndex } from "./transcript-entry-index.js";
 import type {
@@ -196,16 +195,6 @@ export class SessionEnvelopeApplier {
 		};
 		if (previousProjection?.lifecycle.status !== graph.lifecycle.status) {
 			updates.statusChangedAt = Date.now();
-		}
-		if (
-			previousTransientProjection.pendingSendIntent !== null &&
-			previousTransientProjection.pendingSendIntent !== undefined &&
-			transcriptSnapshotAcknowledgesPendingSend(
-				graph.transcriptSnapshot,
-				previousTransientProjection.pendingSendIntent
-			)
-		) {
-			updates.pendingSendIntent = null;
 		}
 		if (previousTransientProjection.autonomousTransition !== "idle") {
 			updates.autonomousTransition = "idle";

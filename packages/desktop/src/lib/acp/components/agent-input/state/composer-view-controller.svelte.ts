@@ -323,6 +323,8 @@ export class ComposerViewController {
 			liveCurrentModelId: this.sessionCurrentModelId,
 			provisionalModelId: this.effectiveComposerProvisionalModelId,
 			availableModels: this.effectiveAvailableModels,
+			allowsImplicitModelSelection:
+				this.effectiveCapabilityProviderMetadata?.allowsImplicitModelSelection ?? true,
 		})
 	);
 

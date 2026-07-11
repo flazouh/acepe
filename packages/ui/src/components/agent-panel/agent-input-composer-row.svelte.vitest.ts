@@ -124,6 +124,8 @@ describe("AgentInputComposerRow", () => {
 			props: {
 				placeholder: "Ask the agent",
 				submitAriaLabel: "Send message",
+				submitDisabled: true,
+				isEmpty: true,
 				enterBehavior: "queue",
 				enterBehaviorMenuLabel: "Enter behavior",
 				enterQueueLabel: "Queue",
@@ -140,9 +142,11 @@ describe("AgentInputComposerRow", () => {
 
 		expect(buttonGroup?.className).toContain("h-7");
 		expect(buttonGroup?.className).toContain("!rounded-lg");
+		expect(buttonGroup?.className).toContain("opacity-50");
 		expect(submitButton.className).toContain("rounded-l-lg");
+		expect(submitButton.className).not.toContain("opacity-50");
 		expect(menuButton.className).toContain("rounded-r-lg");
-		expect(menuButton.className).toContain("opacity-50");
+		expect(menuButton.className).not.toContain("opacity-50");
 		expect(menuButton.hasAttribute("disabled")).toBe(false);
 
 		await fireEvent.click(menuButton);
@@ -156,5 +160,48 @@ describe("AgentInputComposerRow", () => {
 		await fireEvent.click(steerItem);
 
 		expect(onEnterBehaviorChange).toHaveBeenCalledWith("steer");
+	});
+
+	it("fades the split submit group when disabled even with draft text", () => {
+		render(AgentInputComposerRow, {
+			props: {
+				placeholder: "Ask the agent",
+				submitAriaLabel: "Send message",
+				submitDisabled: true,
+				isEmpty: false,
+				enterBehaviorMenuLabel: "Enter behavior",
+				onEnterBehaviorChange: vi.fn(),
+			},
+		});
+
+		const menuButton = screen.getByRole("button", { name: "Enter behavior" });
+		const submitButton = screen.getByRole("button", { name: "Send message" });
+		const buttonGroup = submitButton.closest('[data-slot="button-group"]');
+
+		expect(buttonGroup?.className).toContain("opacity-50");
+		expect(menuButton.className).not.toContain("opacity-50");
+		expect(menuButton.hasAttribute("disabled")).toBe(false);
+	});
+
+	it("keeps the split submit group full opacity when submit is enabled without draft", () => {
+		render(AgentInputComposerRow, {
+			props: {
+				placeholder: "Ask the agent",
+				submitAriaLabel: "Stop agent",
+				submitIntent: "stop",
+				submitDisabled: false,
+				isEmpty: true,
+				enterBehaviorMenuLabel: "Enter behavior",
+				onEnterBehaviorChange: vi.fn(),
+			},
+		});
+
+		const menuButton = screen.getByRole("button", { name: "Enter behavior" });
+		const submitButton = screen.getByRole("button", { name: "Stop agent" });
+		const buttonGroup = submitButton.closest('[data-slot="button-group"]');
+
+		expect(buttonGroup?.className).not.toContain("opacity-50");
+		expect(menuButton.className).not.toContain("opacity-50");
+		expect(menuButton.hasAttribute("disabled")).toBe(false);
 	});
 });

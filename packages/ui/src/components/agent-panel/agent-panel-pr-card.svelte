@@ -4,7 +4,7 @@
 	import { Colors } from "../../lib/colors.js";
 	import { DiffPill } from "../diff-pill/index.js";
 	import { GitHubBadge } from "../github-badge/index.js";
-	import { LoadingIcon, RoundedIcon, type RoundedIconName } from "../icons/index.js";
+	import { LoadingIcon, PullRequestStatusIcon, RoundedIcon } from "../icons/index.js";
 	import { MarkdownDisplay } from "../markdown/index.js";
 	import { PrChecksList } from "../pr-checks/index.js";
 	import AgentPanelPrStatusCard from "./pr-status-card.svelte";
@@ -46,13 +46,6 @@
 				? "var(--destructive)"
 				: "var(--success)"
 	);
-	const headerIconName = $derived<RoundedIconName>(
-		prState === "merged"
-			? "pull-request-merged"
-			: prState === "closed"
-				? "pull-request-closed"
-				: "pull-request"
-	);
 </script>
 
 <AgentPanelPrStatusCard {visible} {fetchError} {initiallyExpanded} {hasExpandedContent} hasBelowHeader={hasChecks}>
@@ -66,8 +59,8 @@
 					model.onOpen?.(event);
 				}}
 			>
-				<RoundedIcon
-					name={headerIconName}
+				<PullRequestStatusIcon
+					state={prState}
 					class="size-[13px] shrink-0"
 					style="color: {headerIconColor}"
 				/>
@@ -77,7 +70,7 @@
 				<span class="text-foreground truncate leading-none ml-0.5">{model.title}</span>
 			{/if}
 		{:else if model.mode === "streaming"}
-			<RoundedIcon name="pull-request" class="size-[13px] shrink-0" style="color: var(--success)" />
+			<PullRequestStatusIcon state="open" class="size-[13px] shrink-0" style="color: var(--success)" />
 			{#if model.title}
 				<span class="text-foreground truncate leading-none">
 					{model.title}

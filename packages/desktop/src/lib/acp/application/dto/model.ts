@@ -6,6 +6,10 @@
  */
 export interface Model {
 	readonly id: string;
+	readonly provider?: {
+		readonly providerId: string;
+		readonly modelId: string;
+	};
 	readonly name: string;
 	readonly description?: string;
 }

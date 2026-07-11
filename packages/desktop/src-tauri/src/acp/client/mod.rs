@@ -44,8 +44,9 @@ mod tests;
 pub use state::AcpClient;
 
 pub use crate::acp::client_session::{
-    AvailableMode, AvailableModel, InitializeResponse, ListSessionsResponse, NewSessionResponse,
-    ResumeSessionResponse, SessionInfo, SessionModelState, SessionModes,
+    AvailableMode, AvailableModel, AvailableModelProvider, InitializeResponse,
+    ListSessionsResponse, NewSessionResponse, ResumeSessionResponse, SessionInfo,
+    SessionModelState, SessionModes,
 };
 
 use replay_guard::ReplayGuard;

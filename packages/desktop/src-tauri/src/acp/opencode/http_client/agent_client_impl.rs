@@ -71,7 +71,6 @@ impl AgentClient for OpenCodeHttpClient {
             "Created new OpenCode session"
         );
 
-        // Fetch available models from OpenCode's /provider endpoint
         let (available_models, current_model_id) = self.fetch_available_models().await?;
         let available_commands = self.fetch_available_commands().await;
         let mut response = NewSessionResponse {
@@ -111,7 +110,7 @@ impl AgentClient for OpenCodeHttpClient {
         };
         self.current_mode = Some(response.modes.current_mode_id.clone());
         if let Some(model_id) = response.models.current_model_id.as_deref() {
-            self.seed_current_model(model_id)?;
+            self.select_session_model(&response.session_id, model_id)?;
         }
 
         Ok(response)
@@ -130,8 +129,30 @@ impl AgentClient for OpenCodeHttpClient {
             "Resuming OpenCode session"
         );
 
-        // Fetch available models from OpenCode's /provider endpoint
-        let (available_models, current_model_id) = self.fetch_available_models().await?;
+        let resumed_model = self.get_session_model(&session_id).await?;
+
+        let (mut available_models, configured_model_id) = self.fetch_available_models().await?;
+        if let Some(selection) = resumed_model.as_ref() {
+            let canonical_id = selection.canonical_id();
+            if !available_models
+                .iter()
+                .any(|model| model.model_id == canonical_id)
+            {
+                available_models.push(AvailableModel {
+                    model_id: canonical_id,
+                    provider: Some(AvailableModelProvider {
+                        provider_id: selection.provider_id.clone(),
+                        model_id: selection.model_id.clone(),
+                    }),
+                    name: selection.model_id.clone(),
+                    description: Some("Last used by this OpenCode session".to_string()),
+                });
+            }
+        }
+        let current_model_id = resumed_model
+            .as_ref()
+            .map(OpenCodeModel::canonical_id)
+            .or(configured_model_id);
         let available_commands = self.fetch_available_commands().await;
         let mut response = ResumeSessionResponse {
             models: SessionModelState {
@@ -165,7 +186,7 @@ impl AgentClient for OpenCodeHttpClient {
         };
         self.current_mode = Some(response.modes.current_mode_id.clone());
         if let Some(model_id) = response.models.current_model_id.as_deref() {
-            self.seed_current_model(model_id)?;
+            self.select_session_model(&session_id, model_id)?;
         }
 
         Ok(response)
@@ -189,8 +210,8 @@ impl AgentClient for OpenCodeHttpClient {
         self.new_session(cwd).await
     }
 
-    async fn set_session_model(&mut self, _session_id: String, model_id: String) -> AcpResult<()> {
-        self.seed_current_model(&model_id)
+    async fn set_session_model(&mut self, session_id: String, model_id: String) -> AcpResult<()> {
+        self.select_session_model(&session_id, &model_id)
     }
 
     async fn set_session_mode(&mut self, _session_id: String, mode_id: String) -> AcpResult<()> {
@@ -204,8 +225,8 @@ impl AgentClient for OpenCodeHttpClient {
         let url = format!("{}/session/{}/prompt_async", base_url, request.session_id);
 
         // Get model from stored selection — a model must be set before sending a prompt
-        let (provider_id, model_id) = match &self.current_model {
-            Some(model) => (model.provider_id.clone(), model.model_id.clone()),
+        let selection = match self.selected_model_for_session(&request.session_id) {
+            Some(model) => model.clone(),
             None => {
                 return Err(AcpError::InvalidState(
                     "No model selected. A model must be set before sending a prompt.".to_string(),
@@ -223,22 +244,13 @@ impl AgentClient for OpenCodeHttpClient {
             session_id = %request.session_id,
             runtime_root = %self.runtime_root,
             manager_project_key = %self.manager_project_key,
-            provider_id = %provider_id,
-            model_id = %model_id,
+            provider_id = %selection.provider_id,
+            model_id = %selection.model_id,
             agent = %agent,
             "Sending prompt to OpenCode"
         );
 
-        // Convert ACP prompt request to OpenCode format
-        let body = json!({
-            "directory": self.runtime_root,
-            "model": {
-                "providerID": provider_id,
-                "modelID": model_id
-            },
-            "agent": agent,
-            "parts": request.prompt,
-        });
+        let body = self.build_prompt_body(&selection, &agent, &request.prompt);
 
         self.http_client
             .post(&url)
@@ -325,7 +337,10 @@ impl AgentClient for OpenCodeHttpClient {
     }
 
     fn stop(&mut self) {
-        // No cleanup needed - SSE is managed by OpenCodeManager
+        self.selected_models.clear();
+        self.current_mode = None;
+        // SSE lifecycle remains owned by OpenCodeManager; this client only
+        // releases the session-scoped selections it owns.
         tracing::info!("OpenCodeHttpClient stopped");
     }
 }

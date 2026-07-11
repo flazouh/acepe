@@ -1,7 +1,10 @@
 import { describe, expect, it } from "bun:test";
 
 import type { SessionEntry } from "../../../../application/dto/session-entry.js";
-import type { TranscriptEntry } from "../../../../../services/acp-types.js";
+import type {
+	TranscriptEntry,
+	TranscriptViewportRow,
+} from "../../../../../services/acp-types.js";
 import {
 	deriveCanonicalUserEntryPresence,
 	resolveOptimisticUserEntryForGraph,
@@ -29,6 +32,20 @@ function transcriptEntry(input: {
 		role: input.role,
 		segments: [],
 		attemptId: input.attemptId,
+	};
+}
+
+function viewportUserRow(sourceEntryId: string): TranscriptViewportRow {
+	return {
+		rowId: `transcript:${sourceEntryId}`,
+		sourceEntryId,
+		kind: "user",
+		version: "00000000000000000000000000000001",
+		anchorEligible: true,
+		activeStreamingTail: null,
+		operationLinks: [],
+		interactionLinks: [],
+		content: { kind: "transcript", role: "user", segments: [] },
 	};
 }
 
@@ -70,11 +87,31 @@ describe("deriveCanonicalUserEntryPresence", () => {
 						attemptId: "attempt-1",
 					}),
 				],
+				viewportRows: [viewportUserRow("user-1")],
 				pendingAttemptId: "attempt-1",
 			})
 		).toEqual({
 			hasCanonicalUserEntry: true,
 			hasCanonicalMatchingPendingUserEntry: true,
+		});
+	});
+
+	it("keeps the optimistic row until the matching canonical viewport row is renderable", () => {
+		expect(
+			deriveCanonicalUserEntryPresence({
+				transcriptEntries: [
+					transcriptEntry({
+						entryId: "user-1",
+						role: "user",
+						attemptId: "attempt-1",
+					}),
+				],
+				viewportRows: [],
+				pendingAttemptId: "attempt-1",
+			})
+		).toEqual({
+			hasCanonicalUserEntry: true,
+			hasCanonicalMatchingPendingUserEntry: false,
 		});
 	});
 });
@@ -107,7 +144,7 @@ describe("resolveOptimisticUserEntryForGraph", () => {
 		expect(entry).toBe(sessionPending);
 	});
 
-	it("does not keep a stale panel pending entry after the canonical user entry arrives", () => {
+	it("shows a new panel-local send immediately even when the session already has user rows", () => {
 		const panelPending = createUserEntry("panel-pending", "Hello Claude");
 
 		const entry = resolveOptimisticUserEntryForGraph({
@@ -117,7 +154,7 @@ describe("resolveOptimisticUserEntryForGraph", () => {
 			hasCanonicalMatchingPendingUserEntry: false,
 		});
 
-		expect(entry).toBeNull();
+		expect(entry).toBe(panelPending);
 	});
 
 	it("does not keep a session pending entry after its canonical user entry arrives", () => {
@@ -133,7 +170,7 @@ describe("resolveOptimisticUserEntryForGraph", () => {
 		expect(entry).toBeNull();
 	});
 
-	it("shows session pending entry while canonical transcript state is unknown", () => {
+	it("shows the immediate panel or session pending entry while canonical state is unknown", () => {
 		const panelPending = createUserEntry("panel-pending", "Hello Claude");
 		const sessionPending = createUserEntry("session-pending", "Hello Claude");
 
@@ -150,7 +187,7 @@ describe("resolveOptimisticUserEntryForGraph", () => {
 			hasCanonicalMatchingPendingUserEntry: null,
 		});
 
-		expect(panelEntry).toBeNull();
+		expect(panelEntry).toBe(panelPending);
 		expect(sessionEntry).toBe(sessionPending);
 	});
 });

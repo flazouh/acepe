@@ -228,6 +228,7 @@ pub struct FrontendProviderProjection {
     pub display_name: &'static str,
     pub display_order: u16,
     pub supports_model_defaults: bool,
+    pub allows_implicit_model_selection: bool,
     pub variant_group: FrontendVariantGroup,
     pub default_alias: Option<&'static str>,
     pub reasoning_effort_support: bool,
@@ -243,6 +244,7 @@ impl Default for FrontendProviderProjection {
             display_name: "Custom",
             display_order: u16::MAX,
             supports_model_defaults: false,
+            allows_implicit_model_selection: true,
             variant_group: FrontendVariantGroup::Plain,
             default_alias: None,
             reasoning_effort_support: false,
@@ -400,6 +402,12 @@ pub trait AgentProvider: Send + Sync {
             display_family: capabilities.model_display_family,
             usage_metrics: capabilities.usage_metrics_presentation,
         }
+    }
+
+    /// Whether shared capability resolution may choose the first advertised
+    /// model when the provider has not supplied an explicit current model.
+    fn allows_implicit_model_selection(&self) -> bool {
+        self.frontend_projection().allows_implicit_model_selection
     }
 
     /// Mode IDs visible to the UI for this provider.

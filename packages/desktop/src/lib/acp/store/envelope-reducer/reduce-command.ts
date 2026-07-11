@@ -29,7 +29,6 @@ import type { EnvelopePatch } from "./envelope-patch.js";
 import type { EnvelopeReducerSnapshot } from "./envelope-snapshot.js";
 import { isNewerGraphRevision, isOlderGraphRevision } from "./graph-revision-order.js";
 import { createLifecycleOnlyGraph } from "./lifecycle-only-graph.js";
-import { pendingSendIntentClearUpdate } from "./pending-send-acknowledgement.js";
 import { mapProjectionTurnFailure } from "./projection-turn-failure.js";
 import {
 	mergeSessionGraphActivityTiming,
@@ -412,23 +411,12 @@ function reduceApplyLifecycle(
 	const transientUpdates: {
 		acpSessionId?: SessionTransientProjection["acpSessionId"];
 		statusChangedAt?: number;
-		pendingSendIntent?: null;
 	} = {
 		acpSessionId:
 			command.lifecycle.status === "ready" ? snapshot.sessionId : transientProjection.acpSessionId,
 	};
 	if (previousProjection?.lifecycle.status !== command.lifecycle.status) {
 		transientUpdates.statusChangedAt = nowMs;
-	}
-	const pendingClear =
-		previousGraph !== null
-			? pendingSendIntentClearUpdate(
-					previousGraph.transcriptSnapshot,
-					transientProjection.pendingSendIntent
-				)
-			: null;
-	if (pendingClear !== null) {
-		transientUpdates.pendingSendIntent = pendingClear.pendingSendIntent;
 	}
 	patches.push({
 		kind: "updateTransientProjection",
@@ -563,18 +551,6 @@ function reduceApplyGraphPatches(
 			revision: command.revision,
 		},
 	});
-
-	const pendingClear = pendingSendIntentClearUpdate(
-		previousGraph.transcriptSnapshot,
-		snapshot.transientProjection.pendingSendIntent
-	);
-	if (pendingClear !== null) {
-		patches.push({
-			kind: "updateTransientProjection",
-			sessionId: snapshot.sessionId,
-			updates: { pendingSendIntent: pendingClear.pendingSendIntent },
-		});
-	}
 
 	patches.push(
 		{
@@ -725,19 +701,6 @@ export function reduceTranscriptDelta(
 				graph: graphWithTranscriptSnapshot(previousGraph, nextSnapshot, revision),
 			});
 		}
-	}
-
-	const pendingSendIntent = snapshot.transientProjection.pendingSendIntent ?? null;
-	const pendingClear =
-		nextSnapshot !== null && pendingSendIntent !== null
-			? pendingSendIntentClearUpdate(nextSnapshot, pendingSendIntent)
-			: null;
-	if (pendingClear !== null) {
-		patches.push({
-			kind: "updateTransientProjection",
-			sessionId: snapshot.sessionId,
-			updates: { pendingSendIntent: pendingClear.pendingSendIntent },
-		});
 	}
 
 	return patches;

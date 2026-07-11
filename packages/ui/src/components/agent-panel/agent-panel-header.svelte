@@ -12,8 +12,6 @@
 	} from "../panel-header/index.js";
 	import {
 		ProjectLetterBadge,
-		SESSION_PROJECT_BADGE_CLASS,
-		SESSION_PROJECT_BADGE_SIZE,
 		shouldShowSessionProjectBadge,
 	} from "../project-letter-badge/index.js";
 	import { RichTokenText } from "../rich-token-text/index.js";
@@ -159,10 +157,9 @@
 						name={projectName}
 						color={projectColor}
 						iconSrc={projectIconSrc}
-						size={SESSION_PROJECT_BADGE_SIZE}
+						size={14}
 						sequenceId={sequenceId}
-						showLetter={false}
-						class="{SESSION_PROJECT_BADGE_CLASS} shrink-0"
+						class="shrink-0"
 					/>
 				</HeaderCell>
 			{/if}

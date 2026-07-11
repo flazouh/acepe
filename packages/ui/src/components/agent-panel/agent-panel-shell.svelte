@@ -4,6 +4,8 @@
 	interface Props {
 		widthStyle?: string;
 		centerColumnStyle?: string;
+		sessionId?: string | null;
+		panelId?: string | null;
 		isFullscreen?: boolean;
 		isDraggingEdge?: boolean;
 		children?: Snippet;
@@ -25,6 +27,8 @@
 	let {
 		widthStyle = "",
 		centerColumnStyle = "",
+		sessionId = null,
+		panelId = null,
 		isFullscreen = false,
 		isDraggingEdge = false,
 		children: _children,
@@ -50,6 +54,8 @@
 		? 'select-none'
 		: ''}"
 	style={widthStyle}
+	data-session-id={sessionId ?? undefined}
+	data-panel-id={panelId ?? undefined}
 	{ondragstart}
 	{onclick}
 	{onkeydown}

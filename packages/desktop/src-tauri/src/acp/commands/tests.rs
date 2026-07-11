@@ -514,6 +514,7 @@ async fn connection_complete_builds_graph_native_capability_and_lifecycle_envelo
         attempt_id: 42,
         models: SessionModelState {
             available_models: vec![AvailableModel {
+                provider: None,
                 model_id: "gpt-5".to_string(),
                 name: "GPT-5".to_string(),
                 description: None,
@@ -744,6 +745,7 @@ async fn resume_or_create_reuses_cached_snapshot_when_existing_client_is_already
             ResumeSessionResponse {
                 models: SessionModelState {
                     available_models: vec![AvailableModel {
+                        provider: None,
                         model_id: "claude-sonnet-4.6".to_string(),
                         name: "Claude Sonnet 4.6".to_string(),
                         description: None,
@@ -827,6 +829,7 @@ async fn resume_or_create_does_not_reuse_cached_snapshot_when_copilot_reports_mi
             ResumeSessionResponse {
                 models: SessionModelState {
                     available_models: vec![AvailableModel {
+                        provider: None,
                         model_id: "claude-sonnet-4.6".to_string(),
                         name: "Claude Sonnet 4.6".to_string(),
                         description: None,
@@ -1840,6 +1843,7 @@ async fn resume_session_emits_connecting_session_state_before_completion_events(
             Ok(ResumeSessionResponse {
                 models: SessionModelState {
                     available_models: vec![AvailableModel {
+                        provider: None,
                         model_id: "gpt-5".to_string(),
                         name: "GPT-5".to_string(),
                         description: None,
@@ -2271,6 +2275,7 @@ impl AgentClient for MockAgentClient {
         Ok(ResumeSessionResponse {
             models: SessionModelState {
                 available_models: vec![AvailableModel {
+                    provider: None,
                     model_id: "gpt-5".to_string(),
                     name: "GPT-5".to_string(),
                     description: None,
@@ -2308,6 +2313,7 @@ impl AgentClient for MockAgentClient {
         Ok(ResumeSessionResponse {
             models: SessionModelState {
                 available_models: vec![AvailableModel {
+                    provider: None,
                     model_id: "gpt-5".to_string(),
                     name: "GPT-5".to_string(),
                     description: None,
@@ -2424,6 +2430,7 @@ async fn set_model_emits_pending_then_confirmed_capabilities_envelopes() {
         SessionGraphCapabilities {
             models: Some(SessionModelState {
                 available_models: vec![AvailableModel {
+                    provider: None,
                     model_id: "gpt-5".to_string(),
                     name: "GPT-5".to_string(),
                     description: None,

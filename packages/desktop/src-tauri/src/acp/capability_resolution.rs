@@ -93,10 +93,15 @@ pub async fn discover_models_from_provider_cli(
     Vec::new()
 }
 
-fn normalize_current_model_id(model_state: &mut SessionModelState) {
+fn normalize_current_model_id(
+    model_state: &mut SessionModelState,
+    allows_implicit_model_selection: bool,
+) {
     let Some(current_model_id) = model_state.current_model_id.as_deref() else {
-        if let Some(first_model) = model_state.available_models.first() {
-            model_state.current_model_id = Some(first_model.model_id.clone());
+        if allows_implicit_model_selection {
+            if let Some(first_model) = model_state.available_models.first() {
+                model_state.current_model_id = Some(first_model.model_id.clone());
+            }
         }
         return;
     };
@@ -110,9 +115,11 @@ fn normalize_current_model_id(model_state: &mut SessionModelState) {
         return;
     }
 
-    if let Some(first_model) = model_state.available_models.first() {
-        model_state.current_model_id = Some(first_model.model_id.clone());
-        return;
+    if allows_implicit_model_selection {
+        if let Some(first_model) = model_state.available_models.first() {
+            model_state.current_model_id = Some(first_model.model_id.clone());
+            return;
+        }
     }
 
     model_state.current_model_id = None;
@@ -140,7 +147,7 @@ fn finalize_capabilities(
 
     provider.apply_session_defaults(cwd, &mut models, &mut modes)?;
     apply_provider_model_fallback(provider, &mut models);
-    normalize_current_model_id(&mut models);
+    normalize_current_model_id(&mut models, provider.allows_implicit_model_selection());
     apply_provider_metadata(provider, &mut models);
     models.models_display = build_models_for_display(
         &models.available_models,

@@ -20,6 +20,8 @@
 
 <button
 	type="button"
+	aria-label={isFavorite ? "Remove from favorites" : "Add to favorites"}
+	aria-pressed={isFavorite}
 	onclick={(event) => {
 		event.stopPropagation();
 		onToggle();

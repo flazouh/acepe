@@ -76,6 +76,7 @@ pub fn apply_opencode_session_defaults_from_paths(
         models.available_models.insert(
             0,
             AvailableModel {
+                provider: None,
                 model_id: configured_model_id.clone(),
                 name: configured_model_id,
                 description: Some("Configured in opencode.json".to_string()),

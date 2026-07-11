@@ -1,4 +1,5 @@
 import type { ProviderBrand } from "../provider-mark/index.js";
+import type { UpstreamProviderBrand } from "../../lib/upstream-provider-brand.js";
 
 export interface AgentInputModelSelectorItem {
 	id: string;
@@ -13,6 +14,8 @@ export interface AgentInputModelSelectorItem {
 
 export interface AgentInputModelSelectorGroup {
 	label: string;
+	providerId?: string;
+	upstreamProviderBrand?: UpstreamProviderBrand | null;
 	providerBrand?: ProviderBrand | null;
 	providerLabel?: string;
 	items: readonly AgentInputModelSelectorItem[];
