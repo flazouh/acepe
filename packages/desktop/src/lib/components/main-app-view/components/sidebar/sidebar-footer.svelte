@@ -1,10 +1,12 @@
 <script lang="ts">
 import { Button, DiscordIcon, RoundedIcon, XLogoIcon } from "@acepe/ui";
-import { SidebarUpdateCard, type SidebarUpdateKind } from "@acepe/ui/app-layout";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { onMount } from "svelte";
 import type { ProjectManager } from "$lib/acp/logic/project-manager.svelte.js";
-import type { UpdaterBannerState } from "../../logic/updater-state.js";
+import {
+	getUpdateButtonModel,
+	type UpdaterBannerState,
+} from "../../logic/updater-state.js";
 
 import type { MainAppViewState } from "../../logic/main-app-view-state.svelte.js";
 
@@ -27,37 +29,16 @@ let {
 }: Props = $props();
 
 const chromeIconButton = { variant: "ghost" as const, size: "icon" as const };
-
-const updateCardKind = $derived<SidebarUpdateKind | null>(
-	updaterState?.kind === "available" ||
-		updaterState?.kind === "downloading" ||
-		updaterState?.kind === "installing" ||
-		updaterState?.kind === "error"
-		? updaterState.kind
-		: null
+const updateButtonModel = $derived(
+	updaterState ? getUpdateButtonModel(updaterState) : null
 );
 
-const updateCardVersion = $derived(
-	updaterState?.kind === "available" ||
-		updaterState?.kind === "downloading" ||
-		updaterState?.kind === "installing"
-		? updaterState.version
-		: null
-);
-
-const updateCardPercent = $derived(
-	updaterState?.kind === "installing"
-		? 100
-		: updaterState?.kind === "downloading" && updaterState.totalBytes && updaterState.totalBytes > 0
-			? Math.min(Math.round((updaterState.downloadedBytes / updaterState.totalBytes) * 100), 100)
-			: 0
-);
-
-function handleUpdateCardClick() {
-	if (updaterState?.kind === "error") {
+function handleUpdateButtonClick(): void {
+	if (updateButtonModel?.kind === "error") {
 		onRetryUpdateClick?.();
 		return;
 	}
+
 	onUpdateClick?.();
 }
 
@@ -80,16 +61,6 @@ const releaseUrl = $derived(
 </script>
 
 <div class="shrink-0 flex flex-col">
-{#if updateCardKind !== null}
-	<div class="px-2 pt-1.5">
-		<SidebarUpdateCard
-			kind={updateCardKind}
-			version={updateCardVersion}
-			percent={updateCardPercent}
-			onclick={handleUpdateCardClick}
-		/>
-	</div>
-{/if}
 <div class="px-2 py-1.5 flex items-center gap-0.5">
 	<div class="flex items-center gap-0.5">
 		<Button
@@ -122,6 +93,19 @@ const releaseUrl = $derived(
 				<DiscordIcon weight="fill" />
 			{/snippet}
 		</Button>
+		{#if updateButtonModel}
+			<Button
+				size="xs"
+				class="ml-0.5 h-6 rounded-md border-0 bg-white px-2 text-[10px] font-medium text-black shadow-sm hover:bg-white/90 hover:text-black disabled:opacity-70"
+				disabled={updateButtonModel.disabled}
+				aria-label={updateButtonModel.ariaLabel}
+				title={updateButtonModel.ariaLabel}
+				data-testid="sidebar-update-button"
+				onclick={handleUpdateButtonClick}
+			>
+				{updateButtonModel.label}
+			</Button>
+		{/if}
 	</div>
 	{#if releaseUrl}
 		<Button

@@ -16,6 +16,13 @@ export type UpdaterBannerState =
 
 export type UpdaterPrimaryAction = "install" | "simulate";
 
+export interface UpdateButtonModel {
+	readonly label: string;
+	readonly ariaLabel: string;
+	readonly disabled: boolean;
+	readonly kind: "available" | "downloading" | "installing" | "error";
+}
+
 export function createCheckingUpdaterState(): UpdaterBannerState {
 	return { kind: "checking" };
 }
@@ -107,6 +114,45 @@ export function getUpdaterActionLabel(state: UpdaterBannerState): string | null 
 	if (state.kind === "downloading" || state.kind === "installing") {
 		return `Updating ${state.version}`;
 	}
+	return null;
+}
+
+export function getUpdateButtonModel(
+	state: UpdaterBannerState
+): UpdateButtonModel | null {
+	if (state.kind === "available") {
+		return {
+			label: "Update",
+			ariaLabel: `Download and install ${state.version}`,
+			disabled: false,
+			kind: "available",
+		};
+	}
+	if (state.kind === "downloading") {
+		return {
+			label: "Update",
+			ariaLabel: "Downloading update",
+			disabled: true,
+			kind: "downloading",
+		};
+	}
+	if (state.kind === "installing") {
+		return {
+			label: "Update",
+			ariaLabel: "Installing update",
+			disabled: true,
+			kind: "installing",
+		};
+	}
+	if (state.kind === "error") {
+		return {
+			label: "Update",
+			ariaLabel: "Retry update check",
+			disabled: false,
+			kind: "error",
+		};
+	}
+
 	return null;
 }
 

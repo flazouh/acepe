@@ -459,6 +459,7 @@ async function handleProjectContextMove(projectPath: string, offset: -1 | 1): Pr
 	<!-- svelte-ignore a11y_no_noninteractive_tabindex -->
 	<div
 		use:projectHeaderFocusTarget={group.projectPath}
+		data-sidebar-project-toggle
 		class="shrink-0 flex items-center"
 		role="button"
 		tabindex={0}
@@ -486,7 +487,7 @@ async function handleProjectContextMove(projectPath: string, offset: -1 | 1): Pr
 {/snippet}
 
 <div
-	class="relative flex h-full min-h-0 flex-col gap-2 overflow-y-auto outline-none"
+	class="relative flex h-full min-h-0 flex-col gap-2 overflow-y-auto p-0.5 outline-none"
 	data-thread-list-scrollable
 >
 	{#if loading && !scanning && sessionGroups.every((g) => g.sessions.length === 0)}
@@ -494,13 +495,13 @@ async function handleProjectContextMove(projectPath: string, offset: -1 | 1): Pr
 		{#if sessionGroups.length > 0}
 			<div class="flex flex-col flex-1 min-h-0 gap-0.5">
 				{#each sessionGroups as group, projectIndex (group.projectPath)}
-					<AppSidebarProjectGroup class="min-w-0">
+					<AppSidebarProjectGroup projectName={group.projectName} class="min-w-0">
 						{#snippet header()}
 							{@render sidebarProjectHeader(group, projectIndex, true)}
 						{/snippet}
 						{#snippet children()}
 							<div
-								class="flex-1 min-h-0 max-h-[22rem] overflow-y-auto overflow-x-hidden pb-0.5 [scrollbar-gutter:stable]"
+								class="flex-1 min-h-0 max-h-[22rem] overflow-y-auto overflow-x-hidden pb-1 [scrollbar-gutter:stable]"
 							>
 								<SessionListSkeleton sessionCount={3} />
 							</div>
@@ -524,6 +525,7 @@ async function handleProjectContextMove(projectPath: string, offset: -1 | 1): Pr
 			{#each sessionGroups as group, projectIndex (group.projectPath)}
 				{@const isExpanded = expandedProjects.has(group.projectPath)}
 				<AppSidebarProjectGroup
+					projectName={group.projectName}
 					style={isExpanded
 						? `flex: 0 1 auto; max-height: ${maxHeightPercent}%; min-height: 0;`
 						: "flex: 0 0 auto;"}
@@ -536,7 +538,7 @@ async function handleProjectContextMove(projectPath: string, offset: -1 | 1): Pr
 							{@const filteredSessions = getFilteredSidebarSessionsForProject(group)}
 							{@const visibleSessions = getVisibleSessionsForProject(group)}
 							<div
-								class="min-h-0 max-h-[22rem] overflow-y-auto overflow-x-hidden pb-0.5 [scrollbar-gutter:stable]"
+								class="min-h-0 max-h-[22rem] overflow-y-auto overflow-x-hidden pb-1 [scrollbar-gutter:stable]"
 								use:sessionListContainer={{ projectPath: group.projectPath, totalSessions: filteredSessions.length }}
 								onscroll={() => handleSessionListScroll(group.projectPath, filteredSessions.length)}
 							>

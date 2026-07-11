@@ -13,9 +13,9 @@ interface Props {
 let { sessionCount = 3, isExpanded = true }: Props = $props();
 </script>
 
-<div class="flex min-w-0 flex-col overflow-hidden rounded-lg border border-border/50 bg-card/75 opacity-50" data-slot="project-card-skeleton">
-	<!-- Project header skeleton - matches ProjectHeader (name truncates in real UI) -->
-	<div class="flex min-w-0 shrink-0 items-center gap-2 rounded-md bg-background/30 px-1 py-1" aria-hidden="true">
+<div class="flex min-w-0 flex-col overflow-hidden rounded-md bg-input/30 opacity-50" data-slot="project-card-skeleton">
+	<!-- Project header skeleton - matches ProjectHeader top band (name truncates in real UI) -->
+	<div class="flex min-w-0 shrink-0 items-center gap-2 px-1 py-1" aria-hidden="true">
 		<!-- Letter badge (ProjectLetterBadge default size 20px) -->
 		<Skeleton class="h-4 w-4 shrink-0 rounded" />
 		<!-- Project name (flex-1 so it shrinks in narrow sidebar) -->
@@ -31,7 +31,7 @@ let { sessionCount = 3, isExpanded = true }: Props = $props();
 	</div>
 
 	{#if isExpanded}
-		<div class="px-0.5 pb-0.5">
+		<div class="px-1 pb-1">
 			<SessionListSkeleton {sessionCount} />
 		</div>
 	{/if}

@@ -42,11 +42,8 @@ interface Props {
 	state: MainAppViewState;
 	/** Opens the add-repository dialog (owned by the app shell). */
 	onImportProject?: () => void;
-	/** Current app-updater stage, surfaced as a card in the sidebar footer. */
 	updaterState?: UpdaterBannerState;
-	/** Starts the download/install flow when the update card is clicked. */
 	onUpdateClick?: () => void;
-	/** Retries the update check after a failure. */
 	onRetryUpdateClick?: () => void;
 }
 

@@ -5,7 +5,9 @@ import {
 	createAvailableUpdaterState,
 	createCheckingUpdaterState,
 	createDownloadingUpdaterState,
+	createErrorUpdaterState,
 	createInstallingUpdaterState,
+	getUpdateButtonModel,
 	getUpdaterActionLabel,
 	getUpdaterPrimaryAction,
 	getUpdaterStatusLabel,
@@ -19,6 +21,34 @@ describe("updater-state", () => {
 
 	it("shows update pill label with version", () => {
 		expect(getUpdaterActionLabel(createAvailableUpdaterState("1.2.3"))).toBe("Update 1.2.3");
+	});
+
+	it("builds compact update button states with one stable label", () => {
+		expect(getUpdateButtonModel(createAvailableUpdaterState("1.2.3"))).toEqual({
+			label: "Update",
+			ariaLabel: "Download and install 1.2.3",
+			disabled: false,
+			kind: "available",
+		});
+		expect(getUpdateButtonModel(createDownloadingUpdaterState("1.2.3"))).toEqual({
+			label: "Update",
+			ariaLabel: "Downloading update",
+			disabled: true,
+			kind: "downloading",
+		});
+		expect(getUpdateButtonModel(createInstallingUpdaterState("1.2.3"))).toEqual({
+			label: "Update",
+			ariaLabel: "Installing update",
+			disabled: true,
+			kind: "installing",
+		});
+		expect(getUpdateButtonModel(createErrorUpdaterState("offline"))).toEqual({
+			label: "Update",
+			ariaLabel: "Retry update check",
+			disabled: false,
+			kind: "error",
+		});
+		expect(getUpdateButtonModel(createCheckingUpdaterState())).toBeNull();
 	});
 
 	it("tracks download progress in downloading state", () => {
@@ -35,7 +65,7 @@ describe("updater-state", () => {
 		expect(getUpdaterStatusLabel(progressed)).toBe("Downloading 25%");
 	});
 
-	it("keeps install progress available for the sidebar card", () => {
+	it("keeps install progress available for the update button", () => {
 		const installing = createInstallingUpdaterState("1.2.3");
 
 		expect(installing.kind).toBe("installing");
@@ -43,7 +73,7 @@ describe("updater-state", () => {
 		expect(getUpdaterStatusLabel(installing)).toBe("Installing update...");
 	});
 
-	it("keeps check and download status as non-blocking card state", () => {
+	it("keeps check and download status as non-blocking button state", () => {
 		expect(getUpdaterStatusLabel(createCheckingUpdaterState())).toBe("Checking update...");
 		expect(getUpdaterActionLabel(createDownloadingUpdaterState("1.2.3"))).toBe("Updating 1.2.3");
 	});
