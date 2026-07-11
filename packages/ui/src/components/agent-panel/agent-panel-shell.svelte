@@ -71,13 +71,27 @@
 					{@render body()}
 				</div>
 
-				{#if preComposer}
-					{@render preComposer()}
-				{/if}
+				<!--
+					Composer anchor. The pre-composer stack (todo card, queue, error,
+					sign-in, scroll controls) floats in a layer anchored to the top edge
+					of the composer instead of taking document-flow height, so it overlays
+					the bottom of the transcript rather than pushing the chat up. The layer
+					is pointer-events-none so untouched transcript beneath the gaps stays
+					scrollable; individual cards re-enable pointer events on themselves.
+				-->
+				<div class="relative shrink-0">
+					{#if preComposer}
+						<div
+							class="pointer-events-none absolute inset-x-0 bottom-full z-20 flex flex-col justify-end"
+						>
+							{@render preComposer()}
+						</div>
+					{/if}
 
-				{#if composer}
-					{@render composer()}
-				{/if}
+					{#if composer}
+						{@render composer()}
+					{/if}
+				</div>
 
 				{#if footer}
 					{@render footer()}

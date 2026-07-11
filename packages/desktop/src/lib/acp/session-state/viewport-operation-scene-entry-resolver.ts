@@ -27,25 +27,21 @@ function resolveLinkedOperation(
 		return null;
 	}
 
-	const operation = index.byOperationId.get(operationLink.operationId);
-	if (operation !== undefined && operationMatchesViewportRow(operation, row)) {
-		return operation;
+	const embeddedOperation = operationLink.operation ?? null;
+	if (embeddedOperation !== null) {
+		if (
+			embeddedOperation.id !== operationLink.operationId ||
+			embeddedOperation.tool_call_id !== operationLink.toolCallId
+		) {
+			return null;
+		}
+		if (operationMatchesViewportRow(embeddedOperation, row)) {
+			return embeddedOperation;
+		}
 	}
 
-	const embeddedOperation = operationLink.operation ?? null;
-	if (embeddedOperation === null) {
-		return null;
-	}
-	if (
-		embeddedOperation.id !== operationLink.operationId ||
-		embeddedOperation.tool_call_id !== operationLink.toolCallId
-	) {
-		return null;
-	}
-	if (!operationMatchesViewportRow(embeddedOperation, row)) {
-		return null;
-	}
-	return embeddedOperation;
+	const operation = index.byOperationId.get(operationLink.operationId);
+	return operation !== undefined && operationMatchesViewportRow(operation, row) ? operation : null;
 }
 
 export function createViewportOperationSceneEntryResolver(

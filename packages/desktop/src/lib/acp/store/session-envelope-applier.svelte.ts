@@ -548,19 +548,18 @@ export class SessionEnvelopeApplier {
 		}
 
 		this.#deps.composerEndDispatch(input.sessionId);
-		const numericCode =
-			input.projectedFailure.code == null || input.projectedFailure.code.trim() === ""
-				? undefined
-				: Number.isNaN(Number(input.projectedFailure.code))
-					? undefined
-					: Number(input.projectedFailure.code);
 		this.#deps.handleCanonicalTurnFailure(input.sessionId, {
 			type: "turnError",
 			session_id: input.sessionId,
 			turn_id: input.projectedFailure.turn_id ?? undefined,
 			error: {
 				message: input.projectedFailure.message,
-				code: numericCode,
+				code:
+					input.projectedFailure.code != null ? input.projectedFailure.code : undefined,
+				details:
+					input.projectedFailure.details != null
+						? input.projectedFailure.details
+						: undefined,
 				kind: input.projectedFailure.kind,
 				source: input.projectedFailure.source ?? "unknown",
 			},

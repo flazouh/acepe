@@ -17,10 +17,6 @@ import { formatOtherToolName } from "../../../registry/index.js";
 import { buildUserRowSceneModel } from "../../../logic/user-row-scene-model.js";
 import { transcriptSegmentPrimaryText } from "../../../session-state/transcript-text.js";
 
-export type TranscriptViewportOperationSceneEntryResolver = (
-	row: TranscriptViewportRow
-) => AgentPanelSceneEntryModel | null;
-
 export function segmentText(segments: readonly TranscriptSegment[]): string {
 	let text = "";
 	for (const segment of segments) {
@@ -545,32 +541,8 @@ function resolveViewportOperationDisplayFactsEntry(
 }
 
 export function resolveTranscriptViewportSceneEntry(
-	row: TranscriptViewportRow,
-	sceneEntryById: ReadonlyMap<string, AgentPanelSceneEntryModel>,
-	sceneEntryByToolCallId: ReadonlyMap<string, AgentPanelSceneEntryModel> = new Map(),
-	resolveOperationSceneEntry: TranscriptViewportOperationSceneEntryResolver | null = null
+	row: TranscriptViewportRow
 ): AgentPanelSceneEntryModel {
-	const canonicalEntry = resolveTranscriptViewportSceneEntryCandidate(
-		row,
-		sceneEntryById.get(row.sourceEntryId)
-	);
-	if (canonicalEntry !== null) {
-		return canonicalEntry;
-	}
-
-	const linkedToolCallId = row.operationLinks[0]?.toolCallId;
-	if (linkedToolCallId !== undefined) {
-		const canonicalToolEntry = sceneEntryByToolCallId.get(linkedToolCallId);
-		if (canonicalToolEntry !== undefined) {
-			return canonicalToolEntry;
-		}
-	}
-
-	const operationEntry = resolveOperationSceneEntry?.(row) ?? null;
-	if (operationEntry !== null) {
-		return operationEntry;
-	}
-
 	const displayFactsEntry = resolveViewportOperationDisplayFactsEntry(row);
 	if (displayFactsEntry !== null) {
 		return displayFactsEntry;

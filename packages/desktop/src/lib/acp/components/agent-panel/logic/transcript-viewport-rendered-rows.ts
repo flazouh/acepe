@@ -9,7 +9,6 @@ import { renderKey } from "../../../store/transcript-rows-store.js";
 import {
 	resolveTranscriptViewportSceneEntry,
 	resolveTranscriptViewportSceneEntryCandidate,
-	type TranscriptViewportOperationSceneEntryResolver,
 } from "./transcript-viewport-row-mapper.js";
 
 export type RenderedTranscriptViewportRow = {
@@ -49,12 +48,11 @@ const LOCAL_OPTIMISTIC_ROW_PREFIX = "local:optimistic:";
 const PLANNING_ROW_ID = "awaiting:planning";
 const PLANNING_ROW_VERSION = "00000000000000000000000000000000";
 const LOCAL_REVIEW_ROW_ID = "local:review";
-const MAX_TRAILING_LOCAL_OPTIMISTIC_ROWS = 1;
 
 export function buildRenderableTranscriptViewportRows(input: {
 	readonly bufferRows: readonly TranscriptViewportRow[];
 	readonly bufferStartIndex: number;
-	readonly sceneEntries: readonly AgentPanelSceneEntryModel[];
+	readonly optimisticUserEntry?: AgentPanelSceneEntryModel | null;
 	readonly showLocalPlanningIndicator: boolean;
 	readonly syntheticReviewEntry?: AgentPanelSceneEntryModel | null;
 }): readonly RenderableTranscriptViewportRow[] {
@@ -81,13 +79,12 @@ export function buildRenderableTranscriptViewportRows(input: {
 		);
 	}
 
-	if (input.sceneEntries.length > input.bufferRows.length) {
-		appendLocalOptimisticRows({
-			sceneEntries: input.sceneEntries,
+	if (input.optimisticUserEntry !== null && input.optimisticUserEntry !== undefined) {
+		appendLocalOptimisticRow({
+			entry: input.optimisticUserEntry,
 			renderableRows,
 			bufferStartIndex: input.bufferStartIndex,
 			representedSceneEntryIds: getRepresentedSceneEntryIds(),
-			scanMode: input.bufferRows.length > 0 ? "trailing" : "full",
 		});
 	}
 
@@ -121,7 +118,7 @@ export function buildRenderableTranscriptViewportRows(input: {
 export function createRenderableTranscriptViewportRowSource(input: {
 	readonly bufferRows: readonly TranscriptViewportRow[];
 	readonly bufferStartIndex: number;
-	readonly sceneEntries: readonly AgentPanelSceneEntryModel[];
+	readonly optimisticUserEntry?: AgentPanelSceneEntryModel | null;
 	readonly showLocalPlanningIndicator: boolean;
 	readonly syntheticReviewEntry?: AgentPanelSceneEntryModel | null;
 }): RenderableTranscriptViewportRowSource {
@@ -268,7 +265,7 @@ export function createRenderableTranscriptViewportRowSource(input: {
 function buildLocalRenderableTranscriptViewportRows(input: {
 	readonly bufferRows: readonly TranscriptViewportRow[];
 	readonly bufferStartIndex: number;
-	readonly sceneEntries: readonly AgentPanelSceneEntryModel[];
+	readonly optimisticUserEntry?: AgentPanelSceneEntryModel | null;
 	readonly showLocalPlanningIndicator: boolean;
 	readonly syntheticReviewEntry?: AgentPanelSceneEntryModel | null;
 }): readonly RenderableTranscriptViewportRow[] {
@@ -281,13 +278,12 @@ function buildLocalRenderableTranscriptViewportRows(input: {
 		return representedSceneEntryIds;
 	};
 
-	if (input.sceneEntries.length > input.bufferRows.length) {
-		appendLocalOptimisticRows({
-			sceneEntries: input.sceneEntries,
+	if (input.optimisticUserEntry !== null && input.optimisticUserEntry !== undefined) {
+		appendLocalOptimisticRow({
+			entry: input.optimisticUserEntry,
 			renderableRows: localRows,
 			bufferStartIndex: input.bufferStartIndex + input.bufferRows.length,
 			representedSceneEntryIds: getRepresentedSceneEntryIds(),
-			scanMode: input.bufferRows.length > 0 ? "trailing" : "full",
 		});
 	}
 
@@ -319,34 +315,16 @@ function buildLocalRenderableTranscriptViewportRows(input: {
 }
 
 export function createRenderedTranscriptViewportRowResolver(input: {
-	readonly sceneEntries: readonly AgentPanelSceneEntryModel[];
+	readonly optimisticUserEntry?: AgentPanelSceneEntryModel | null;
 	readonly planningPlaceholderPresentation?: PlanningPlaceholderPresentation | null;
 	readonly syntheticReviewEntry?: AgentPanelSceneEntryModel | null;
-	readonly resolveOperationSceneEntry?: TranscriptViewportOperationSceneEntryResolver | null;
 }): (renderable: RenderableTranscriptViewportRow) => RenderedTranscriptViewportRow {
-	let sceneEntryById: ReadonlyMap<string, AgentPanelSceneEntryModel> | null = null;
-	let sceneEntryByToolCallId: ReadonlyMap<string, AgentPanelSceneEntryModel> | null = null;
-	const getSceneEntryById = (): ReadonlyMap<string, AgentPanelSceneEntryModel> => {
-		if (sceneEntryById === null) {
-			sceneEntryById = buildSceneEntryById(input.sceneEntries);
-		}
-		return sceneEntryById;
-	};
-	const getSceneEntryByToolCallId = (): ReadonlyMap<string, AgentPanelSceneEntryModel> => {
-		if (sceneEntryByToolCallId === null) {
-			sceneEntryByToolCallId = buildSceneEntryByToolCallId(input.sceneEntries);
-		}
-		return sceneEntryByToolCallId;
-	};
 	return (renderable: RenderableTranscriptViewportRow): RenderedTranscriptViewportRow => {
 		const entry = resolveRenderableTranscriptViewportEntry({
 			renderable,
-			sceneEntries: input.sceneEntries,
-			getSceneEntryById,
-			getSceneEntryByToolCallId,
+			optimisticUserEntry: input.optimisticUserEntry ?? null,
 			planningPlaceholderPresentation: input.planningPlaceholderPresentation ?? null,
 			syntheticReviewEntry: input.syntheticReviewEntry ?? null,
-			resolveOperationSceneEntry: input.resolveOperationSceneEntry ?? null,
 		});
 		return {
 			row: renderable.row,
@@ -360,24 +338,22 @@ export function createRenderedTranscriptViewportRowResolver(input: {
 export function buildRenderedTranscriptViewportRows(input: {
 	readonly bufferRows: readonly TranscriptViewportRow[];
 	readonly bufferStartIndex: number;
-	readonly sceneEntries: readonly AgentPanelSceneEntryModel[];
+	readonly optimisticUserEntry?: AgentPanelSceneEntryModel | null;
 	readonly showLocalPlanningIndicator: boolean;
 	readonly planningPlaceholderPresentation?: PlanningPlaceholderPresentation | null;
 	readonly syntheticReviewEntry?: AgentPanelSceneEntryModel | null;
-	readonly resolveOperationSceneEntry?: TranscriptViewportOperationSceneEntryResolver | null;
 }): readonly RenderedTranscriptViewportRow[] {
 	const renderableRows = buildRenderableTranscriptViewportRows({
 		bufferRows: input.bufferRows,
 		bufferStartIndex: input.bufferStartIndex,
-		sceneEntries: input.sceneEntries,
+		optimisticUserEntry: input.optimisticUserEntry,
 		showLocalPlanningIndicator: input.showLocalPlanningIndicator,
 		syntheticReviewEntry: input.syntheticReviewEntry,
 	});
 	const resolveRenderedRow = createRenderedTranscriptViewportRowResolver({
-		sceneEntries: input.sceneEntries,
+		optimisticUserEntry: input.optimisticUserEntry,
 		planningPlaceholderPresentation: input.planningPlaceholderPresentation,
 		syntheticReviewEntry: input.syntheticReviewEntry,
-		resolveOperationSceneEntry: input.resolveOperationSceneEntry,
 	});
 	const renderedRows: RenderedTranscriptViewportRow[] = [];
 	for (const renderable of renderableRows) {
@@ -405,12 +381,9 @@ function createRenderableTranscriptViewportRow(input: {
 
 function resolveRenderableTranscriptViewportEntry(input: {
 	readonly renderable: RenderableTranscriptViewportRow;
-	readonly sceneEntries: readonly AgentPanelSceneEntryModel[];
-	readonly getSceneEntryById: () => ReadonlyMap<string, AgentPanelSceneEntryModel>;
-	readonly getSceneEntryByToolCallId: () => ReadonlyMap<string, AgentPanelSceneEntryModel>;
+	readonly optimisticUserEntry: AgentPanelSceneEntryModel | null;
 	readonly planningPlaceholderPresentation: PlanningPlaceholderPresentation | null;
 	readonly syntheticReviewEntry: AgentPanelSceneEntryModel | null;
-	readonly resolveOperationSceneEntry: TranscriptViewportOperationSceneEntryResolver | null;
 }): AgentPanelSceneEntryModel {
 	const row = input.renderable.row;
 	if (input.renderable.localOnly && row.rowId === PLANNING_ROW_ID) {
@@ -419,19 +392,16 @@ function resolveRenderableTranscriptViewportEntry(input: {
 	if (input.syntheticReviewEntry !== null && row.sourceEntryId === input.syntheticReviewEntry.id) {
 		return input.syntheticReviewEntry;
 	}
-	const indexedEntry = resolveTranscriptViewportSceneEntryCandidate(
-		row,
-		input.sceneEntries[input.renderable.index]
-	);
-	if (indexedEntry !== null) {
-		return indexedEntry;
+	if (input.renderable.localOnly) {
+		const indexedEntry = resolveTranscriptViewportSceneEntryCandidate(
+			row,
+			input.optimisticUserEntry ?? undefined
+		);
+		if (indexedEntry !== null) {
+			return indexedEntry;
+		}
 	}
-	return resolveTranscriptViewportSceneEntry(
-		row,
-		input.getSceneEntryById(),
-		input.getSceneEntryByToolCallId(),
-		input.resolveOperationSceneEntry
-	);
+	return resolveTranscriptViewportSceneEntry(row);
 }
 
 function buildRepresentedSceneEntryIds(
@@ -468,60 +438,6 @@ function hasPlanningRowInRows(
 	return hasPlanningRow(localRows);
 }
 
-function appendLocalOptimisticRows(input: {
-	readonly sceneEntries: readonly AgentPanelSceneEntryModel[];
-	readonly renderableRows: RenderableTranscriptViewportRow[];
-	readonly bufferStartIndex: number;
-	readonly representedSceneEntryIds: Set<string>;
-	readonly scanMode: "full" | "trailing";
-}): void {
-	if (input.scanMode === "trailing") {
-		appendTrailingLocalOptimisticRows(input);
-		return;
-	}
-
-	for (const entry of input.sceneEntries) {
-		appendLocalOptimisticRow({
-			entry,
-			renderableRows: input.renderableRows,
-			bufferStartIndex: input.bufferStartIndex,
-			representedSceneEntryIds: input.representedSceneEntryIds,
-		});
-	}
-}
-
-function appendTrailingLocalOptimisticRows(input: {
-	readonly sceneEntries: readonly AgentPanelSceneEntryModel[];
-	readonly renderableRows: RenderableTranscriptViewportRow[];
-	readonly bufferStartIndex: number;
-	readonly representedSceneEntryIds: Set<string>;
-}): void {
-	const trailingEntries: Extract<AgentPanelSceneEntryModel, { type: "user" }>[] = [];
-	for (let index = input.sceneEntries.length - 1; index >= 0; index -= 1) {
-		if (trailingEntries.length >= MAX_TRAILING_LOCAL_OPTIMISTIC_ROWS) {
-			break;
-		}
-		const entry = input.sceneEntries[index];
-		if (!isLocalOptimisticUserEntry(entry)) {
-			break;
-		}
-		trailingEntries.push(entry);
-	}
-
-	for (let index = trailingEntries.length - 1; index >= 0; index -= 1) {
-		const entry = trailingEntries[index];
-		if (entry === undefined) {
-			continue;
-		}
-		appendLocalOptimisticRow({
-			entry,
-			renderableRows: input.renderableRows,
-			bufferStartIndex: input.bufferStartIndex,
-			representedSceneEntryIds: input.representedSceneEntryIds,
-		});
-	}
-}
-
 function appendLocalOptimisticRow(input: {
 	readonly entry: AgentPanelSceneEntryModel;
 	readonly renderableRows: RenderableTranscriptViewportRow[];
@@ -553,28 +469,6 @@ function createLocalPlanningEntry(
 		agentIconSrc: presentation?.agentIconSrc ?? null,
 		showWorkingSpark: presentation?.showWorkingSpark ?? false,
 	};
-}
-
-function buildSceneEntryById(
-	sceneEntries: readonly AgentPanelSceneEntryModel[]
-): ReadonlyMap<string, AgentPanelSceneEntryModel> {
-	const index = new Map<string, AgentPanelSceneEntryModel>();
-	for (const entry of sceneEntries) {
-		index.set(entry.id, entry);
-	}
-	return index;
-}
-
-function buildSceneEntryByToolCallId(
-	sceneEntries: readonly AgentPanelSceneEntryModel[]
-): ReadonlyMap<string, AgentPanelSceneEntryModel> {
-	const index = new Map<string, AgentPanelSceneEntryModel>();
-	for (const entry of sceneEntries) {
-		if (entry.type === "tool_call" && entry.toolCallId !== undefined) {
-			index.set(entry.toolCallId, entry);
-		}
-	}
-	return index;
 }
 
 function isLocalOptimisticUserEntry(

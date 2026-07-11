@@ -29,8 +29,6 @@ import {
 } from "../../../store/permission-store.svelte.js";
 import { getSessionStore } from "../../../store/session-store.svelte.js";
 import { DEFAULT_STREAMING_ANIMATION_MODE } from "../../../types/streaming-animation-mode.js";
-import type { AgentPanelCanonicalSource } from "../../../session-state/agent-panel-canonical-source.js";
-import { createViewportOperationSceneEntryResolver } from "../../../session-state/viewport-operation-scene-entry-resolver.js";
 import { getWorkerPool } from "../../../utils/worker-pool-singleton.js";
 import {
 	pierreDiffsUnsafeCSS,
@@ -59,7 +57,7 @@ const FALLBACK_UNLOADED_ROW_ESTIMATE_PX = rowEstimatePx("tool");
 type SceneContentViewportProps = {
 	panelId: string;
 	sceneEntries?: readonly AgentPanelSceneEntryModel[];
-	canonicalSource?: AgentPanelCanonicalSource | null;
+	optimisticUserEntry?: AgentPanelSceneEntryModel | null;
 	rowsProjection?: TranscriptRowsState | null;
 	turnState: TurnState;
 	projectPath: string | undefined;
@@ -98,11 +96,11 @@ const sessionStore = getSessionStore();
 let {
 	panelId,
 	sceneEntries,
+	optimisticUserEntry = null,
 	rowsProjection = null,
 	turnState,
 	projectPath,
 	sessionId,
-	canonicalSource = null,
 	skipRowsBootstrap = false,
 	pendingUserRevealRequestKey = null,
 	showLocalPlanningIndicator = false,
@@ -174,9 +172,6 @@ const bufferRows = $derived(rowsProjection?.rows ?? []);
 const syntheticReviewEntry = $derived(
 	createSyntheticReviewEntry({ turnState, modifiedFilesState })
 );
-const resolveOperationSceneEntry = $derived(
-	createViewportOperationSceneEntryResolver(canonicalSource)
-);
 const renderableRowSource = $derived.by(() => {
 	return measureAgentPanelPerformance(
 		profileRecorder,
@@ -185,7 +180,7 @@ const renderableRowSource = $derived.by(() => {
 			createRenderableTranscriptViewportRowSource({
 				bufferRows,
 				bufferStartIndex: rowsProjection?.loadedStartRowIndex ?? 0,
-				sceneEntries: sceneEntries ?? EMPTY_SCENE_ENTRIES,
+				optimisticUserEntry,
 				showLocalPlanningIndicator,
 				syntheticReviewEntry,
 			})
@@ -217,19 +212,17 @@ const virtualLeadingSpacePx = $derived.by(() => {
 	return loadedStartRowIndex * rowEstimate;
 });
 const resolveRenderedRow = $derived.by(() => {
-	const currentSceneEntries = sceneEntries ?? EMPTY_SCENE_ENTRIES;
 	return measureAgentPanelPerformance(
 		profileRecorder,
 		{
 			phase: "scene-content.build-rendered-row-resolver",
-			itemCount: currentSceneEntries.length,
+			itemCount: bufferRows.length,
 		},
 		() =>
 			createRenderedTranscriptViewportRowResolver({
-				sceneEntries: currentSceneEntries,
+				optimisticUserEntry,
 				planningPlaceholderPresentation,
 				syntheticReviewEntry,
-				resolveOperationSceneEntry,
 			})
 	);
 });

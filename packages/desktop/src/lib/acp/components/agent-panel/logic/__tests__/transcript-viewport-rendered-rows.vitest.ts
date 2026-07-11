@@ -41,16 +41,11 @@ function createViewportToolRow(entryId: string): TranscriptViewportRow {
 }
 
 describe("buildRenderableTranscriptViewportRows", () => {
-	it("only appends trailing optimistic rows when the canonical tail has tool rows", () => {
+	it("appends only the explicit optimistic row after canonical tool rows", () => {
 		const rows = buildRenderableTranscriptViewportRows({
 			bufferRows: [createViewportToolRow("tool-tail")],
 			bufferStartIndex: 100,
-			sceneEntries: [
-				createOptimisticUserEntry("old-optimistic-user", "Old optimistic-looking entry"),
-				createCanonicalUserEntry("settled-user", "Settled message"),
-				createOptimisticUserEntry("older-pending-user", "Older pending message"),
-				createOptimisticUserEntry("pending-user", "Pending message"),
-			],
+			optimisticUserEntry: createOptimisticUserEntry("pending-user", "Pending message"),
 			showLocalPlanningIndicator: false,
 		});
 

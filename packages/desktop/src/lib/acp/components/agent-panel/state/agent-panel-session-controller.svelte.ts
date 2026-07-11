@@ -348,6 +348,7 @@ export class AgentPanelSessionController {
 			return {
 				content: activeTurnFailure.message,
 				code: activeTurnFailure.code ?? undefined,
+				details: activeTurnFailure.details != null ? activeTurnFailure.details : undefined,
 				kind: activeTurnFailure.kind,
 				source: activeTurnFailure.source,
 			};

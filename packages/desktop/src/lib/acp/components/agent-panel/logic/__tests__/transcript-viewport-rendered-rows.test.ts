@@ -283,10 +283,7 @@ describe("buildRenderedTranscriptViewportRows", () => {
 		const rows = buildRenderableTranscriptViewportRows({
 			bufferRows: [createViewportUserRow("user-1", "Canonical message")],
 			bufferStartIndex: 3,
-			sceneEntries: [
-				createCanonicalUserEntry("user-1", "Canonical message"),
-				createOptimisticUserEntry("optimistic-user", "First message"),
-			],
+			optimisticUserEntry: createOptimisticUserEntry("optimistic-user", "First message"),
 			showLocalPlanningIndicator: true,
 		});
 
@@ -313,11 +310,11 @@ describe("buildRenderedTranscriptViewportRows", () => {
 		const rows = buildRenderableTranscriptViewportRows({
 			bufferRows: [],
 			bufferStartIndex: 0,
-			sceneEntries: [],
+			optimisticUserEntry: null,
 			showLocalPlanningIndicator: true,
 		});
 		const resolver = createRenderedTranscriptViewportRowResolver({
-			sceneEntries: [],
+			optimisticUserEntry: null,
 			planningPlaceholderPresentation: {
 				label: "Planning",
 				agentIconSrc: "/icons/test.svg",
@@ -340,13 +337,11 @@ describe("buildRenderedTranscriptViewportRows", () => {
 		});
 	});
 
-	it("resolves aligned scene entries without iterating the full scene list", () => {
+	it("does not inspect scene entries when resolving persisted viewport rows", () => {
 		const rows = buildRenderedTranscriptViewportRows({
 			bufferRows: [createViewportUserRow("user-1", "Canonical message")],
 			bufferStartIndex: 0,
-			sceneEntries: createNonIterableSceneEntries(
-				createCanonicalUserEntry("user-1", "Canonical message")
-			),
+			optimisticUserEntry: null,
 			showLocalPlanningIndicator: false,
 		});
 
@@ -362,7 +357,7 @@ describe("buildRenderedTranscriptViewportRows", () => {
 		const rows = buildRenderedTranscriptViewportRows({
 			bufferRows: [],
 			bufferStartIndex: 0,
-			sceneEntries: [createOptimisticUserEntry("optimistic-user", "First message")],
+			optimisticUserEntry: createOptimisticUserEntry("optimistic-user", "First message"),
 			showLocalPlanningIndicator: true,
 		});
 
@@ -384,7 +379,7 @@ describe("buildRenderedTranscriptViewportRows", () => {
 		const rows = buildRenderedTranscriptViewportRows({
 			bufferRows: [createViewportUserRow("user-1", "Canonical message")],
 			bufferStartIndex: 3,
-			sceneEntries: [createOptimisticUserEntry("user-1", "Canonical message")],
+			optimisticUserEntry: createOptimisticUserEntry("user-1", "Canonical message"),
 			showLocalPlanningIndicator: false,
 		});
 
@@ -397,7 +392,7 @@ describe("buildRenderedTranscriptViewportRows", () => {
 		const rows = buildRenderedTranscriptViewportRows({
 			bufferRows: [createViewportUserRow("user-1", "Canonical message")],
 			bufferStartIndex: 3,
-			sceneEntries: [],
+			optimisticUserEntry: null,
 			showLocalPlanningIndicator: false,
 			syntheticReviewEntry: createSyntheticReviewEntry(),
 		});
@@ -421,7 +416,7 @@ describe("buildRenderedTranscriptViewportRows", () => {
 		const rows = buildRenderedTranscriptViewportRows({
 			bufferRows: [createViewportUserRow("user-1", "Canonical message")],
 			bufferStartIndex: 3,
-			sceneEntries: [],
+			optimisticUserEntry: null,
 			showLocalPlanningIndicator: false,
 			syntheticReviewEntry: null,
 		});
@@ -434,7 +429,7 @@ describe("buildRenderedTranscriptViewportRows", () => {
 		const rows = buildRenderedTranscriptViewportRows({
 			bufferRows: [createViewportToolRow("local:review")],
 			bufferStartIndex: 3,
-			sceneEntries: [createSyntheticReviewEntry()],
+			optimisticUserEntry: null,
 			showLocalPlanningIndicator: false,
 			syntheticReviewEntry: createSyntheticReviewEntry(),
 		});
@@ -448,7 +443,7 @@ describe("buildRenderedTranscriptViewportRows", () => {
 		const localRows = buildRenderedTranscriptViewportRows({
 			bufferRows: [],
 			bufferStartIndex: 0,
-			sceneEntries: [],
+			optimisticUserEntry: null,
 			showLocalPlanningIndicator: true,
 		});
 		const canonical = createAwaitingPlanningRow();
@@ -460,7 +455,7 @@ describe("buildRenderedTranscriptViewportRows", () => {
 		const rows = buildRenderedTranscriptViewportRows({
 			bufferRows: [createViewportUserRow("user-1", "Canonical message"), createAwaitingPlanningRow()],
 			bufferStartIndex: 0,
-			sceneEntries: [],
+			optimisticUserEntry: null,
 			showLocalPlanningIndicator: true,
 		});
 
@@ -478,7 +473,7 @@ describe("buildRenderedTranscriptViewportRows", () => {
 		const source = createRenderableTranscriptViewportRowSource({
 			bufferRows: counted.rows,
 			bufferStartIndex: 0,
-			sceneEntries: fixture.sceneEntries,
+			optimisticUserEntry: null,
 			showLocalPlanningIndicator: false,
 			syntheticReviewEntry: null,
 		});
@@ -508,32 +503,21 @@ describe("buildRenderedTranscriptViewportRows", () => {
 		expect(counted.readIndexes().length).toBeLessThanOrEqual(22);
 	});
 
-	it("resolves visible tool rows from canonical operations when the full transcript is compacted", () => {
+	it("does not fall back to a second operation store when viewport facts are missing", () => {
 		const entryId = "acepe::entry::assistant-boundary:9821::tool::call_tool";
 		const operationId = "op:session-compact:call_tool";
 		const toolCallId = "call_tool";
-		const operation = createViewportOperation({ entryId, operationId, toolCallId });
-		const resolver = createViewportOperationSceneEntryResolver(createCompactGraph(operation));
-
 		const rows = buildRenderedTranscriptViewportRows({
 			bufferRows: [createLinkedViewportToolRow({ entryId, operationId, toolCallId })],
 			bufferStartIndex: 0,
-			sceneEntries: [],
+			optimisticUserEntry: null,
 			showLocalPlanningIndicator: false,
-			resolveOperationSceneEntry: resolver,
 		});
 
 		expect(rows[0]?.entry).toMatchObject({
 			id: entryId,
-			type: "tool_call",
-			toolCallId,
-			operationId,
-			kind: "execute",
-			title: "Run",
-			command: "bun test",
-			stdout: "ok",
-			status: "done",
-			presentationState: "resolved",
+			type: "missing",
+			title: "Unavailable transcript row",
 		});
 	});
 
@@ -542,18 +526,13 @@ describe("buildRenderedTranscriptViewportRows", () => {
 		const operationId = "op:session-compact:call_embedded";
 		const toolCallId = "call_embedded";
 		const operation = createViewportOperation({ entryId, operationId, toolCallId });
-		const resolver = createViewportOperationSceneEntryResolver(
-			createCompactGraphWithOperations([])
-		);
-
 		const rows = buildRenderedTranscriptViewportRows({
 			bufferRows: [
 				createLinkedViewportToolRow({ entryId, operationId, toolCallId, operation }),
 			],
 			bufferStartIndex: 0,
-			sceneEntries: [],
+			optimisticUserEntry: null,
 			showLocalPlanningIndicator: false,
-			resolveOperationSceneEntry: resolver,
 		});
 
 		expect(rows[0]?.entry).toMatchObject({
@@ -564,7 +543,7 @@ describe("buildRenderedTranscriptViewportRows", () => {
 			kind: "execute",
 			title: "Run",
 			command: "bun test",
-			stdout: "ok",
+			stdout: '{"stdout":"ok","stderr":null,"exitCode":0}',
 			status: "done",
 			presentationState: "resolved",
 		});

@@ -108,7 +108,7 @@ describe("transcript-viewport-row-mapper", () => {
 		).toBe("Hello world");
 	});
 
-	it("prefers canonical scene entries when present", () => {
+	it("projects persisted assistant rows from viewport content instead of same-id scene entries", () => {
 		const row = {
 			rowId: "assistant-1",
 			sourceEntryId: "assistant-1",
@@ -118,14 +118,15 @@ describe("transcript-viewport-row-mapper", () => {
 			operationLinks: [],
 			activeStreamingTail: null,
 		} as unknown as TranscriptViewportRow;
-		const canonical = {
+		const entry = resolveTranscriptViewportSceneEntry(row);
+		expect(entry).toEqual({
 			id: "assistant-1",
-			type: "assistant" as const,
-			markdown: "Canonical",
+			type: "assistant",
+			markdown: "",
 			message: { chunks: [] },
-		};
-		const entry = resolveTranscriptViewportSceneEntry(row, new Map([["assistant-1", canonical]]));
-		expect(entry).toBe(canonical);
+			isStreaming: false,
+			planningStartedAtMs: null,
+		});
 	});
 
 	it("overlays viewport planning timing onto canonical assistant entries", () => {
@@ -139,17 +140,7 @@ describe("transcript-viewport-row-mapper", () => {
 			activeStreamingTail: "message",
 			durationStartedAtMs: 1_700_000_000_000,
 		} as unknown as TranscriptViewportRow;
-		const canonical = {
-			id: "assistant-1",
-			type: "assistant" as const,
-			markdown: "",
-			message: { chunks: [] },
-			isStreaming: true,
-			planningStartedAtMs: null,
-		};
-		expect(
-			resolveTranscriptViewportSceneEntry(row, new Map([["assistant-1", canonical]]))
-		).toMatchObject({
+		expect(resolveTranscriptViewportSceneEntry(row)).toMatchObject({
 			id: "assistant-1",
 			type: "assistant",
 			planningStartedAtMs: 1_700_000_000_000,
@@ -167,7 +158,7 @@ describe("transcript-viewport-row-mapper", () => {
 			activeStreamingTail: null,
 			durationStartedAtMs: 1_700_000_000_000,
 		} as unknown as TranscriptViewportRow;
-		expect(resolveTranscriptViewportSceneEntry(row, new Map())).toEqual({
+		expect(resolveTranscriptViewportSceneEntry(row)).toEqual({
 			id: "awaiting-1",
 			type: "thinking",
 			durationMs: null,
@@ -190,7 +181,7 @@ describe("transcript-viewport-row-mapper", () => {
 			activeStreamingTail: "message",
 			durationStartedAtMs: 1_700_000_000_000,
 		} as unknown as TranscriptViewportRow;
-		expect(resolveTranscriptViewportSceneEntry(row, new Map())).toMatchObject({
+		expect(resolveTranscriptViewportSceneEntry(row)).toMatchObject({
 			id: "assistant-1",
 			type: "assistant",
 			isStreaming: true,
@@ -231,7 +222,7 @@ describe("transcript-viewport-row-mapper", () => {
 			durationStartedAtMs: null,
 		} as TranscriptViewportRow;
 
-		expect(resolveTranscriptViewportSceneEntry(row, new Map())).toEqual({
+		expect(resolveTranscriptViewportSceneEntry(row)).toEqual({
 			id: "compact-entry-1",
 			type: "session_activity",
 			activityKind: "compaction",
@@ -278,7 +269,7 @@ describe("transcript-viewport-row-mapper", () => {
 			],
 		});
 
-		const entry = resolveTranscriptViewportSceneEntry(row, new Map());
+		const entry = resolveTranscriptViewportSceneEntry(row);
 
 		if (entry.type !== "tool_call") {
 			throw new Error("expected a tool call entry");
@@ -298,6 +289,52 @@ describe("transcript-viewport-row-mapper", () => {
 		});
 		expect(entry.title).not.toBe("Tool");
 		expect(entry.command).not.toBe("exec_command");
+	});
+
+	it("uses canonical viewport Read facts when a stale same-id scene entry has no file path", () => {
+		const row = toolRowWithText({
+			text: "Read",
+			operationLinks: [
+				{
+					operationId: "operation-read-1",
+					toolCallId: "call-read-1",
+					name: "Read",
+					state: "completed",
+					displayFacts: {
+						operationId: "operation-read-1",
+						toolCallId: "call-read-1",
+						name: "Read",
+						title: "Read",
+						state: "completed",
+						kind: "read",
+						commandSummary: null,
+						targetPathSummary: "/repo/src/auth.ts",
+						resultSummary: null,
+						errorSummary: null,
+						interactionIds: [],
+						parentToolCallId: null,
+						childToolCallIds: [],
+					},
+				},
+			],
+		});
+		const staleEntry = {
+			id: "assistant-1",
+			type: "tool_call" as const,
+			toolCallId: "call-read-1",
+			operationId: "operation-read-1",
+			kind: "read" as const,
+			title: "Read",
+			status: "done" as const,
+		};
+
+		const entry = resolveTranscriptViewportSceneEntry(row);
+
+		expect(entry).toMatchObject({
+			type: "tool_call",
+			kind: "read",
+			filePath: "/repo/src/auth.ts",
+		});
 	});
 
 	it("uses embedded operation data when stale viewport rows have no display facts", () => {
@@ -321,7 +358,7 @@ describe("transcript-viewport-row-mapper", () => {
 			],
 		});
 
-		const entry = resolveTranscriptViewportSceneEntry(row, new Map());
+		const entry = resolveTranscriptViewportSceneEntry(row);
 
 		if (entry.type !== "tool_call") {
 			throw new Error("expected a tool call entry");
@@ -358,7 +395,7 @@ describe("transcript-viewport-row-mapper", () => {
 			],
 		});
 
-		const entry = resolveTranscriptViewportSceneEntry(row, new Map());
+		const entry = resolveTranscriptViewportSceneEntry(row);
 
 		expect(entry).toMatchObject({
 			id: "assistant-1",
@@ -384,7 +421,7 @@ describe("transcript-viewport-row-mapper", () => {
 			],
 		});
 
-		const entry = resolveTranscriptViewportSceneEntry(row, new Map());
+		const entry = resolveTranscriptViewportSceneEntry(row);
 
 		expect(entry).toMatchObject({
 			id: "assistant-1",

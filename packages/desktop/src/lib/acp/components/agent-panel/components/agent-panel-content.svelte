@@ -24,7 +24,7 @@ let {
 	viewState,
 	sessionId,
 	sceneEntries,
-	canonicalSource = null,
+	optimisticUserEntry = null,
 	rowsProjectionOverride = null,
 	pendingUserRevealRequestKey = null,
 	showLocalPlanningIndicator = false,
@@ -432,9 +432,9 @@ export function scrollToTop() {
 				bind:this={sceneViewportRef}
 				{panelId}
 				{sceneEntries}
+				{optimisticUserEntry}
 				{rowsProjection}
 				{sessionId}
-				{canonicalSource}
 				{skipRowsBootstrap}
 				{pendingUserRevealRequestKey}
 				{showLocalPlanningIndicator}

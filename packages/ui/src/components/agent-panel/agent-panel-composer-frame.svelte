@@ -14,7 +14,7 @@
 
 	let {
 		centered = false,
-		widthClass = "max-w-[60%]",
+		widthClass = "max-w-3xl",
 		class: className = "",
 		innerClass = "",
 		children,
