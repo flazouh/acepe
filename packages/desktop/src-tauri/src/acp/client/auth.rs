@@ -1,18 +1,49 @@
 use super::*;
 
+const AUTHENTICATION_STATUS_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(5);
+
 /// Upper bound on the interactive `authenticate` round-trip.
 ///
-/// Agents that advertise an interactive sign-in method (e.g. cursor-agent's
-/// `cursor_login`) block this request on an out-of-band browser OAuth that
-/// Acepe cannot surface or complete in-process. Without a dedicated bound the
-/// request only fails after the generic 30s operation timeout, producing a
-/// silent hang and a misleading "unable to connect" fault. Already-authenticated
-/// providers validate their existing token well within this window, so the bound
-/// cleanly separates "auth already satisfied" (fast return) from "user must sign
-/// in" (timeout → [`AcpError::AuthenticationRequired`]).
+/// Providers without a dedicated status/login action can block this request on
+/// out-of-band authentication. This bound turns that silent wait into a
+/// canonical sign-in requirement.
 const INTERACTIVE_AUTH_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(10);
 
 impl AcpClient {
+    async fn provider_authentication_is_satisfied(
+        &self,
+        action: &crate::acp::provider::ProviderAuthenticationAction,
+    ) -> bool {
+        let Some(provider) = self.provider.as_ref() else {
+            return false;
+        };
+        let saved_overrides = match self.app_handle.as_ref() {
+            Some(app_handle) => load_saved_agent_env_overrides(app_handle).await.ok(),
+            None => None,
+        };
+        let runtime = crate::acp::runtime_resolver::resolve_effective_runtime(
+            provider.id(),
+            &self.cwd,
+            &action.status,
+            saved_overrides.as_ref(),
+        );
+        let mut command = Command::new(&runtime.command);
+        command
+            .args(&runtime.args)
+            .current_dir(&runtime.cwd)
+            .env_clear()
+            .envs(&runtime.env)
+            .stdin(Stdio::null())
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .kill_on_drop(true);
+
+        matches!(
+            tokio::time::timeout(AUTHENTICATION_STATUS_TIMEOUT, command.status()).await,
+            Ok(Ok(status)) if status.success()
+        )
+    }
+
     pub(super) async fn authenticate_if_required(
         &mut self,
         response: &InitializeResponse,
@@ -21,6 +52,17 @@ impl AcpClient {
             return Ok(());
         };
         let provider_name = provider.name().to_string();
+
+        if let Some(action) = provider.authentication_action() {
+            if self.provider_authentication_is_satisfied(&action).await {
+                return Ok(());
+            }
+            return Err(AcpError::AuthenticationRequired {
+                agent: provider_name.clone(),
+                instructions: format!("Sign in to {provider_name}, then retry the connection."),
+            });
+        }
+
         let maybe_params = provider.authenticate_request_params(&response.auth_methods)?;
         // Release the immutable `provider` borrow before `send_request` (&mut self).
 

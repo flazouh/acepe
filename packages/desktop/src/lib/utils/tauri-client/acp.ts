@@ -59,6 +59,14 @@ export const acp = {
 		return acpCommands.initialize.invoke<unknown>();
 	},
 
+	authenticateAgent: (agentId: string): ResultAsync<void, AppError> => {
+		return acpCommands.authenticate_agent.invoke<void>({ agentId });
+	},
+
+	cancelAgentAuthentication: (agentId: string): ResultAsync<void, AppError> => {
+		return acpCommands.cancel_agent_authentication.invoke<void>({ agentId });
+	},
+
 	newSession: (
 		cwd: string,
 		agentId?: string,

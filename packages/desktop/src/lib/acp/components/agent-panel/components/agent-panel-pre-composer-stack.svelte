@@ -88,6 +88,10 @@ let {
 	onQueueResume,
 	onQueueSendNow,
 	signInRequirement,
+	isSigningIn,
+	signInError,
+	onSignIn,
+	onCancelSignIn,
 	onDismissSignIn,
 }: {
 	showConversationChrome: boolean;
@@ -142,24 +146,19 @@ let {
 	onQueueResume: (() => void) | undefined;
 	onQueueSendNow: (messageId: string) => void;
 	signInRequirement: { agent: string; instructions: string } | null;
+	isSigningIn: boolean;
+	signInError: string | null;
+	onSignIn: () => void;
+	onCancelSignIn: () => void;
 	onDismissSignIn: () => void;
 } = $props();
-
-function resolveSignInCommand(agentDisplayName: string): string | null {
-	switch (agentDisplayName.toLowerCase()) {
-		case "cursor":
-			return "agent login";
-		default:
-			return null;
-	}
-}
 </script>
 
 {#if showConversationChrome}
 		{#if worktreeDeleted}
 			<div class="{centeredFullscreenContent ? 'flex justify-center' : ''} px-5 mb-2">
 				<div class="flex justify-center {centeredFullscreenContent ? 'w-full max-w-4xl' : ''}">
-					<div class="inline-flex items-center gap-2 px-3 py-1 rounded-lg bg-accent">
+					<div class="pointer-events-auto inline-flex items-center gap-2 px-3 py-1 rounded-lg bg-accent">
 						<RoundedIcon name="worktree" class="size-3 shrink-0 text-destructive" />
 						<span class="text-[0.6875rem] text-muted-foreground">
 							{"The worktree associated with this session has been deleted."}
@@ -170,13 +169,19 @@ function resolveSignInCommand(agentDisplayName: string): string | null {
 		{/if}
 		<div class="flex shrink-0 flex-col gap-0.5 pb-1">
 			<div class={centeredFullscreenContent ? "flex justify-center" : ""}>
-				<div class={centeredFullscreenContent ? "w-full max-w-[60%]" : ""}>
-					<div class="flex flex-col gap-0.5 px-5">
+				<div
+					class={centeredFullscreenContent ? "w-full max-w-3xl" : ""}
+					data-pre-composer-stack
+				>
+					<div class="pointer-events-none flex flex-col gap-0.5 px-5 [&>*]:pointer-events-auto">
 						{#if signInRequirement}
 							<SharedSignInCard
 								title="Sign in to continue"
 								message={signInRequirement.instructions}
-								command={resolveSignInCommand(signInRequirement.agent)}
+								{isSigningIn}
+								{signInError}
+								onSignIn={onSignIn}
+								onCancelSignIn={onCancelSignIn}
 								onDismiss={onDismissSignIn}
 							/>
 						{/if}
@@ -197,7 +202,7 @@ function resolveSignInCommand(agentDisplayName: string): string | null {
 									summary={errorInfo.summary ?? "Failed to connect to agent"}
 									details={errorInfo.details ?? "Unknown error"}
 									isRetrying={isRetryingConnection}
-									onRetry={onRetryConnection}
+									onRetry={errorInfo.canRetry ? onRetryConnection : undefined}
 									onDismiss={onDismissError}
 									issueActionLabel={inlineErrorIssueDraft
 										? resolveIssueActionLabel(inlineErrorIssueDraft)

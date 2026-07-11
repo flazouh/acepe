@@ -1,7 +1,7 @@
 import { describe, expect, it } from "bun:test";
 
 import { PanelConnectionState } from "../../../../types/panel-connection-state";
-import { derivePanelErrorInfo } from "../connection-ui";
+import { derivePanelErrorInfo, shouldShowInlinePanelError } from "../connection-ui";
 
 describe("derivePanelErrorInfo", () => {
 	it("returns panel error details when panel connection fails", () => {
@@ -201,6 +201,7 @@ describe("derivePanelErrorInfo", () => {
 			activeTurnError: {
 				content: "Rate limit reached",
 				code: "429",
+				details: '{\n  "name": "RateLimitError"\n}',
 				kind: "recoverable",
 				referenceId: "turn-ref",
 				referenceSearchable: false,
@@ -213,8 +214,83 @@ describe("derivePanelErrorInfo", () => {
 		expect(result.showError).toBe(true);
 		expect(result.title).toBe("Request error");
 		expect(result.summary).toBe("Rate limit reached");
-		expect(result.details).toBe("Rate limit reached\n\nCode: 429\nSource: json_rpc");
+		expect(result.details).toBe(
+			'Code: 429\n\nSource: json_rpc\n\n{\n  "name": "RateLimitError"\n}'
+		);
+		expect(result.details).not.toContain("Rate limit reached");
 		expect(result.referenceId).toBe("turn-ref");
 		expect(result.referenceSearchable).toBe(false);
+	});
+
+	it("does not truncate the canonical turn failure message", () => {
+		const message = `Provider failure: ${"x".repeat(120)}`;
+		const result = derivePanelErrorInfo({
+			panelConnectionState: PanelConnectionState.CONNECTING,
+			panelConnectionError: null,
+			sessionConnectionError: null,
+			sessionTurnState: "error",
+			activeTurnError: { content: message, kind: "recoverable", source: "unknown" },
+			sessionFailureReason: null,
+			agentDisplayName: "OpenCode",
+		});
+
+		expect(result.summary).toBe(message);
+	});
+
+	it("does not offer retry for a fatal turn failure", () => {
+		const result = derivePanelErrorInfo({
+			panelConnectionState: PanelConnectionState.CONNECTING,
+			panelConnectionError: null,
+			sessionConnectionError: null,
+			sessionTurnState: "error",
+			activeTurnError: { content: "Invalid credentials", kind: "fatal", source: "unknown" },
+			sessionFailureReason: null,
+			agentDisplayName: "OpenCode",
+		});
+
+		expect(result.canRetry).toBe(false);
+	});
+
+	it("shows a canonical active failure even while turn-state delivery catches up", () => {
+		const result = derivePanelErrorInfo({
+			panelConnectionState: PanelConnectionState.CONNECTING,
+			panelConnectionError: null,
+			sessionConnectionError: null,
+			sessionTurnState: "idle",
+			activeTurnError: {
+				content: "Provider request failed",
+				kind: "recoverable",
+				source: "unknown",
+			},
+			sessionFailureReason: null,
+			agentDisplayName: "Cursor",
+		});
+
+		expect(result.showError).toBe(true);
+		expect(result.summary).toBe("Provider request failed");
+	});
+});
+
+describe("shouldShowInlinePanelError", () => {
+	it("keeps the failure visible when an errored session still has transcript rows", () => {
+		expect(
+			shouldShowInlinePanelError({
+				showError: true,
+				errorDismissed: false,
+				viewKind: "error",
+				hasTranscript: true,
+			})
+		).toBe(true);
+	});
+
+	it("uses the full-page error instead when the errored session has no transcript", () => {
+		expect(
+			shouldShowInlinePanelError({
+				showError: true,
+				errorDismissed: false,
+				viewKind: "error",
+				hasTranscript: false,
+			})
+		).toBe(false);
 	});
 });

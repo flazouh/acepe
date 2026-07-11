@@ -269,6 +269,17 @@ pub struct SpawnConfig {
     pub env_strategy: Option<SpawnEnvStrategy>,
 }
 
+/// Provider-owned commands for detecting and recovering interactive authentication.
+///
+/// Commands stay structured and Rust-owned so frontend code never constructs a
+/// provider CLI invocation or receives an executable path.
+#[derive(Debug, Clone)]
+pub struct ProviderAuthenticationAction {
+    pub status: SpawnConfig,
+    pub login: SpawnConfig,
+    pub verify: SpawnConfig,
+}
+
 /// Whether a provider should appear in user-visible built-in lists.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AgentUiVisibility {
@@ -354,6 +365,11 @@ pub trait AgentProvider: Send + Sync {
     /// Optional ACP authenticate request params (if provider requires auth handshake).
     fn authenticate_request_params(&self, _auth_methods: &[Value]) -> AcpResult<Option<Value>> {
         Ok(None)
+    }
+
+    /// Optional provider-owned authentication status/login contract.
+    fn authentication_action(&self) -> Option<ProviderAuthenticationAction> {
+        None
     }
 
     /// Normalize provider-native mode IDs to UI mode IDs.

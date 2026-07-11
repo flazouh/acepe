@@ -40,6 +40,10 @@ struct RetryingProvider;
 
 struct NoLauncherProvider;
 
+struct StatusCursorProvider {
+    status_command: &'static str,
+}
+
 fn failing_spawn_config() -> SpawnConfig {
     SpawnConfig {
         command: "/bin/sh".to_string(),
@@ -247,6 +251,39 @@ impl AgentProvider for NoLauncherProvider {
 
     fn spawn_configs(&self) -> Vec<SpawnConfig> {
         Vec::new()
+    }
+}
+
+impl AgentProvider for StatusCursorProvider {
+    fn id(&self) -> &str {
+        "cursor"
+    }
+
+    fn name(&self) -> &str {
+        "Cursor Agent"
+    }
+
+    fn spawn_config(&self) -> SpawnConfig {
+        SpawnConfig {
+            command: "/usr/bin/true".to_string(),
+            args: Vec::new(),
+            env: HashMap::new(),
+            env_strategy: None,
+        }
+    }
+
+    fn authentication_action(&self) -> Option<crate::acp::provider::ProviderAuthenticationAction> {
+        let status = SpawnConfig {
+            command: self.status_command.to_string(),
+            args: Vec::new(),
+            env: HashMap::new(),
+            env_strategy: None,
+        };
+        Some(crate::acp::provider::ProviderAuthenticationAction {
+            status: status.clone(),
+            login: status.clone(),
+            verify: status,
+        })
     }
 }
 
@@ -1072,6 +1109,51 @@ async fn cursor_auth_requires_cursor_login_method() {
         .await;
 
     assert!(matches!(result, Err(AcpError::ProtocolError(_))));
+}
+
+#[tokio::test]
+async fn authenticated_cursor_skips_available_login_method() {
+    let provider: StdArc<dyn AgentProvider> = StdArc::new(StatusCursorProvider {
+        status_command: "/usr/bin/true",
+    });
+    let cwd = std::env::current_dir().expect("current dir should be available");
+    let mut client =
+        AcpClient::new_with_provider(provider, None, cwd).expect("client should be created");
+
+    let result = client
+        .authenticate_if_required(&InitializeResponse {
+            protocol_version: 1,
+            agent_capabilities: json!({}),
+            agent_info: json!({}),
+            auth_methods: vec![json!({ "id": "cursor_login" })],
+        })
+        .await;
+
+    assert!(result.is_ok());
+}
+
+#[tokio::test]
+async fn signed_out_cursor_requires_authentication_without_acp_timeout() {
+    let provider: StdArc<dyn AgentProvider> = StdArc::new(StatusCursorProvider {
+        status_command: "/usr/bin/false",
+    });
+    let cwd = std::env::current_dir().expect("current dir should be available");
+    let mut client =
+        AcpClient::new_with_provider(provider, None, cwd).expect("client should be created");
+
+    let result = client
+        .authenticate_if_required(&InitializeResponse {
+            protocol_version: 1,
+            agent_capabilities: json!({}),
+            agent_info: json!({}),
+            auth_methods: vec![json!({ "id": "cursor_login" })],
+        })
+        .await;
+
+    assert!(matches!(
+        result,
+        Err(AcpError::AuthenticationRequired { .. })
+    ));
 }
 
 #[tokio::test]

@@ -20,6 +20,7 @@ use tauri::{AppHandle, Manager};
 use tokio::sync::Mutex as TokioMutex;
 use tokio::time::{timeout, Duration};
 
+mod authentication_commands;
 mod client_ops;
 mod computer_probe;
 mod file_commands;
@@ -40,6 +41,7 @@ pub(crate) mod transcript_viewport_commands;
 #[cfg(test)]
 mod tests;
 
+pub use authentication_commands::{acp_authenticate_agent, acp_cancel_agent_authentication};
 use client_ops::{
     create_and_initialize_client, lock_session_client, resume_or_create_session_client,
 };

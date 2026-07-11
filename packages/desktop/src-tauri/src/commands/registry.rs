@@ -239,6 +239,8 @@ macro_rules! acp_command_entries {
             probe_computer_use: acp_probe_computer_use,
             install_agent: acp_install_agent,
             uninstall_agent: acp_uninstall_agent,
+            authenticate_agent: acp_authenticate_agent,
+            cancel_agent_authentication: acp_cancel_agent_authentication,
             close_session: acp_close_session,
             register_custom_agent: acp_register_custom_agent
         );

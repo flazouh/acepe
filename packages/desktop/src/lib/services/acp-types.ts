@@ -442,7 +442,7 @@ export type TurnErrorKind = "recoverable" | "fatal"
  */
 export type TurnErrorSource = "json_rpc" | "transport" | "process" | "unknown"
 
-export type TurnFailureSnapshot = { turn_id: string | null; message: string; code?: string | null; kind: TurnErrorKind; source: TurnErrorSource }
+export type TurnFailureSnapshot = { turn_id: string | null; message: string; code?: string | null; details?: string | null; kind: TurnErrorKind; source: TurnErrorSource }
 
 export type LifecycleStatus = "reserved" | "activating" | "ready" | "reconnecting" | "detached" | "failed" | "archived"
 

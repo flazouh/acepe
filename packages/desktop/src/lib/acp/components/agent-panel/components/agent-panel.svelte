@@ -65,6 +65,7 @@ import {
 	matchesWorktreeSetupContext,
 	resolveEffectiveProjectPath,
 	resolvePlanningPlaceholderPresentation,
+	shouldShowInlinePanelError,
 	shouldShowNewThreadSetupContext,
 	shouldShowClaudeWorkingSpark,
 } from "../logic";
@@ -266,6 +267,9 @@ const reviewDialog = rootState.reviewDialog;
 // Filename pending revert confirmation in the review modal (null = closed).
 let reviewRevertConfirmFileName = $state<string | null>(null);
 let isUnarchivingSession = $state(false);
+let isSigningIn = $state(false);
+let signInError = $state<string | null>(null);
+let signInAttempt = 0;
 
 function keepReviewDiffSettingsMenuOpen(event: Event): void {
 	event.preventDefault();
@@ -568,7 +572,12 @@ const panelViewKind = $derived(viewStateController.panelViewKind);
 // the primary treatment when there are no entries; the inline card is
 // the single surface inside an active conversation.
 const showInlineErrorCard = $derived(
-	sessionController.errorInfo.showError && !errorDismissed && viewState.kind !== "error"
+	shouldShowInlinePanelError({
+		showError: sessionController.errorInfo.showError,
+		errorDismissed,
+		viewKind: viewState.kind,
+		hasTranscript: sessionController.hasMessages,
+	})
 );
 const worktreePending = $derived(worktreeController.worktreePending);
 const pendingWorktreeSetup = $derived(
@@ -1374,6 +1383,73 @@ function handleDismissSignIn() {
 	}
 }
 
+function handleSignIn() {
+	const agentId = effectivePanelAgentId;
+	if (agentId === null || agentId === undefined || isSigningIn) {
+		return;
+	}
+
+	const attempt = signInAttempt + 1;
+	const panelIdAtStart = panelId;
+	const sessionIdAtStart = sessionId;
+	signInAttempt = attempt;
+	isSigningIn = true;
+	signInError = null;
+
+	void tauriClient.acp.authenticateAgent(agentId).match(
+		() => {
+			if (
+				signInAttempt !== attempt ||
+				effectivePanelAgentId !== agentId ||
+				panelId !== panelIdAtStart ||
+				sessionController.signInRequirement === null
+			) {
+				if (signInAttempt === attempt) {
+					isSigningIn = false;
+				}
+				return;
+			}
+			isSigningIn = false;
+			signInError = null;
+			if (sessionIdAtStart !== null) {
+				void sessionStore.connection
+					.connectSession(sessionIdAtStart, { forceReconnect: true })
+					.match(
+						() => undefined,
+						(error) => {
+							signInError = error.message;
+						}
+					);
+				return;
+			}
+			if (panelIdAtStart) {
+				panelStore.clearSignInRequirement(panelIdAtStart);
+			}
+			agentInputRef?.retrySend();
+		},
+		(error) => {
+			if (signInAttempt !== attempt) {
+				return;
+			}
+			isSigningIn = false;
+			signInError = error.message;
+		}
+	);
+}
+
+function handleCancelSignIn() {
+	const agentId = effectivePanelAgentId;
+	if (agentId === null || agentId === undefined || !isSigningIn) {
+		return;
+	}
+	void tauriClient.acp.cancelAgentAuthentication(agentId).match(
+		() => undefined,
+		(error) => {
+			signInError = error.message;
+		}
+	);
+}
+
 function handleCopyInlineErrorReference() {
 	const referenceId = sessionController.inlineErrorReferenceId;
 	if (referenceId === null) {
@@ -1764,7 +1840,7 @@ async function handleFixCiCheck(check: PrChecksItem): Promise<void> {
 						{viewState}
 						{sessionId}
 						sceneEntries={tokenRevealSceneEntries}
-						canonicalSource={sessionController.agentPanelCanonicalSource}
+						optimisticUserEntry={sessionController.optimisticUserEntryForGraph}
 						{pendingUserRevealRequestKey}
 						showLocalPlanningIndicator={sessionController.showPlanningIndicator}
 						sessionProjectPath={effectiveProjectPath ?? sessionController.sessionProjectPath}
@@ -1803,7 +1879,7 @@ async function handleFixCiCheck(check: PrChecksItem): Promise<void> {
 				onScrollToTop={scrollToTop}
 				onScrollToBottom={scrollToBottom}
 				centered={centeredFullscreenContent}
-				widthClass="max-w-[60%]"
+				widthClass="max-w-3xl"
 			/>
 			{/if}
 			{#if hasPreComposerStackContent}
@@ -1857,6 +1933,10 @@ async function handleFixCiCheck(check: PrChecksItem): Promise<void> {
 					onQueueResume={queueIsPaused && sessionId ? () => messageQueueStore.resume(sessionId) : undefined}
 					onQueueSendNow={handleQueueStripSendNow}
 					signInRequirement={sessionController.signInRequirement}
+					{isSigningIn}
+					{signInError}
+					onSignIn={handleSignIn}
+					onCancelSignIn={handleCancelSignIn}
 					onDismissSignIn={handleDismissSignIn}
 				/>
 			{/if}
@@ -1868,7 +1948,7 @@ async function handleFixCiCheck(check: PrChecksItem): Promise<void> {
 			{#if viewState.kind === "conversation" || viewState.kind === "ready" || viewState.kind === "error"}
 				<SharedAgentPanelComposerFrame
 					centered={centeredFullscreenContent}
-					widthClass="max-w-[60%]"
+					widthClass="max-w-3xl"
 				>
 					{#if renderComposerInput}
 						{#key inputRenderKey}
@@ -1934,7 +2014,7 @@ async function handleFixCiCheck(check: PrChecksItem): Promise<void> {
 							sessionIsStreaming={sessionController.sessionIsStreaming}
 							sessionCanSubmit={sessionController.sessionCanSubmit}
 							sessionShowStop={sessionController.sessionShowStop}
-							disableSend={sessionController.disableSendForFailedFirstSend}
+							disableSend={sessionController.disableSendForFailedFirstSend || isSigningIn}
 							{panelId}
 							voiceSessionId={panelId}
 							projectPath={worktreeToggleProjectPath ?? undefined}

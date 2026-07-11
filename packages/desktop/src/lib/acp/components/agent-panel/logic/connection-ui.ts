@@ -21,6 +21,7 @@ export interface PanelErrorInfo {
 	 */
 	readonly failureReason: FailureReason | null;
 	readonly recoveryAction: PanelErrorRecoveryAction | null;
+	readonly canRetry?: boolean;
 }
 
 interface PanelErrorInputs {
@@ -49,21 +50,20 @@ function summarize(details: string | null): string | null {
 
 function formatTurnErrorDetails(error: ErrorMessage): string {
 	const suffixes = [
-		error.code ? `Code: ${error.code}` : null,
+		error.code && error.code !== error.content ? `Code: ${error.code}` : null,
 		error.source ? `Source: ${error.source}` : null,
+		error.details?.trim() ? error.details.trim() : null,
 	].filter((value): value is string => value !== null);
 
-	if (suffixes.length === 0) {
-		return error.content;
-	}
-
-	return `${error.content}\n\n${suffixes.join("\n")}`;
+	return suffixes.join("\n\n");
 }
 
 export function derivePanelErrorInfo(inputs: PanelErrorInputs): PanelErrorInfo {
 	const panelHasError = inputs.panelConnectionState === PanelConnectionState.ERROR;
 	const sessionHasError = typeof inputs.sessionConnectionError === "string";
-	const turnHasError = inputs.sessionTurnState === "error" && inputs.activeTurnError !== null;
+	// activeTurnError is itself a canonical failure fact. Do not hide it while a
+	// separate turn-state envelope is delayed or a restored session is reconciling.
+	const turnHasError = inputs.activeTurnError !== null;
 
 	if (panelHasError) {
 		// A panel-level error may carry a canonical classification (e.g. a
@@ -86,6 +86,7 @@ export function derivePanelErrorInfo(inputs: PanelErrorInputs): PanelErrorInfo {
 			referenceSearchable: inputs.panelConnectionError?.referenceSearchable === true,
 			failureReason: panelFailureReason,
 			recoveryAction: null,
+			canRetry: true,
 		};
 	}
 
@@ -100,6 +101,7 @@ export function derivePanelErrorInfo(inputs: PanelErrorInputs): PanelErrorInfo {
 				referenceSearchable: false,
 				failureReason: inputs.sessionFailureReason,
 				recoveryAction: "unarchive",
+				canRetry: false,
 			};
 		}
 
@@ -117,6 +119,7 @@ export function derivePanelErrorInfo(inputs: PanelErrorInputs): PanelErrorInfo {
 			referenceSearchable: false,
 			failureReason: inputs.sessionFailureReason,
 			recoveryAction: null,
+			canRetry: true,
 		};
 	}
 
@@ -125,12 +128,13 @@ export function derivePanelErrorInfo(inputs: PanelErrorInputs): PanelErrorInfo {
 		return {
 			showError: true,
 			title: inputs.activeTurnError.kind === "fatal" ? "Agent error" : "Request error",
-			summary: summarize(inputs.activeTurnError.content),
-			details,
+			summary: inputs.activeTurnError.content,
+			details: details.length > 0 ? details : null,
 			referenceId: inputs.activeTurnError.referenceId ?? null,
 			referenceSearchable: inputs.activeTurnError.referenceSearchable === true,
 			failureReason: null,
 			recoveryAction: null,
+			canRetry: inputs.activeTurnError.kind !== "fatal",
 		};
 	}
 
@@ -143,5 +147,19 @@ export function derivePanelErrorInfo(inputs: PanelErrorInputs): PanelErrorInfo {
 		referenceSearchable: false,
 		failureReason: null,
 		recoveryAction: null,
+		canRetry: false,
 	};
+}
+
+export function shouldShowInlinePanelError(input: {
+	readonly showError: boolean;
+	readonly errorDismissed: boolean;
+	readonly viewKind: string;
+	readonly hasTranscript: boolean;
+}): boolean {
+	if (!input.showError || input.errorDismissed) {
+		return false;
+	}
+
+	return input.viewKind !== "error" || input.hasTranscript;
 }

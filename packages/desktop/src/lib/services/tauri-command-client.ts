@@ -5,7 +5,9 @@ import { COMMANDS } from "./command-names.js";
 
 export const TAURI_COMMAND_CLIENT = {
   acp: {
+    authenticate_agent: createGeneratedCommand(COMMANDS.acp.authenticate_agent),
     cancel: createGeneratedCommand(COMMANDS.acp.cancel),
+    cancel_agent_authentication: createGeneratedCommand(COMMANDS.acp.cancel_agent_authentication),
     close_session: createGeneratedCommand(COMMANDS.acp.close_session),
     fork_session: createGeneratedCommand(COMMANDS.acp.fork_session),
     get_composer_mcp_catalog: createGeneratedCommand(COMMANDS.acp.get_composer_mcp_catalog),

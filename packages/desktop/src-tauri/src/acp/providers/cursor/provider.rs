@@ -12,7 +12,7 @@ use crate::acp::error::{AcpError, AcpResult};
 use crate::acp::parsers::arguments::parse_tool_kind_arguments;
 use crate::acp::provider::{
     AgentProvider, ModelFallbackCandidate, ProjectDiscoveryCompleteness, ProjectPathListing,
-    SpawnConfig, WebSearchNotificationDedupRecord,
+    ProviderAuthenticationAction, SpawnConfig, WebSearchNotificationDedupRecord,
 };
 use crate::acp::provider_extensions::{InboundResponseAdapter, ProviderExtensionEvent};
 use crate::acp::providers::cursor::{
@@ -123,6 +123,15 @@ impl AgentProvider for CursorProvider {
         }
 
         Ok(Some(json!({ "methodId": "cursor_login" })))
+    }
+
+    fn authentication_action(&self) -> Option<ProviderAuthenticationAction> {
+        resolve_cursor_authentication_action(
+            crate::acp::agent_installer::get_cached_binary(
+                &crate::acp::types::CanonicalAgentId::Cursor,
+            )
+            .map(|path| path.to_string_lossy().to_string()),
+        )
     }
 
     fn list_preconnection_commands<'a>(
@@ -640,6 +649,24 @@ fn resolve_cursor_model_discovery_commands(launchers: Vec<SpawnConfig>) -> Vec<S
     attempts
 }
 
+fn resolve_cursor_authentication_action(
+    cached_command: Option<String>,
+) -> Option<ProviderAuthenticationAction> {
+    let command = cached_command?;
+    let build_config = |args: Vec<String>| SpawnConfig {
+        command: command.clone(),
+        args,
+        env: HashMap::new(),
+        env_strategy: Some(filtered_env_strategy()),
+    };
+
+    Some(ProviderAuthenticationAction {
+        status: build_config(vec!["status".to_string()]),
+        login: build_config(vec!["login".to_string()]),
+        verify: build_config(vec!["status".to_string()]),
+    })
+}
+
 fn normalize_cursor_acp_args(cached_args: Vec<String>) -> Vec<String> {
     let args = cached_args
         .into_iter()
@@ -717,6 +744,18 @@ mod tests {
         );
         assert_eq!(attempts[1].args, vec!["--list-models"]);
         assert_eq!(attempts[2].args, vec!["models"]);
+    }
+
+    #[test]
+    fn authentication_commands_use_managed_cursor_binary() {
+        let action = resolve_cursor_authentication_action(Some("/tmp/cursor-agent".to_string()))
+            .expect("installed Cursor should expose authentication recovery");
+
+        assert_eq!(action.status.command, "/tmp/cursor-agent");
+        assert_eq!(action.status.args, vec!["status"]);
+        assert_eq!(action.login.command, "/tmp/cursor-agent");
+        assert_eq!(action.login.args, vec!["login"]);
+        assert_eq!(action.verify.args, vec!["status"]);
     }
 
     #[test]
