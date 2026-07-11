@@ -28,8 +28,13 @@
 		"node": "20.x"
 	},
 	"dependencies": {
+		"@babel/parser": "^8.0.4",
+		"@babel/traverse": "^8.0.4",
+		"@babel/types": "^8.0.4",
+		"@types/babel__traverse": "^7.28.0",
 		"neverthrow": "^8.2.0",
-		"vaul-svelte": "^1.0.0-next.7"
+		"vaul-svelte": "^1.0.0-next.7",
+		"zod": "^4.2.1"
 	},
 	"overrides": {
 		"esbuild": "0.28.1",

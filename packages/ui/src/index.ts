@@ -350,6 +350,7 @@ export {
 	GoogleLogoIcon,
 	LayoutModeIcon,
 	LinearInventoryIcon,
+	PullRequestStatusIcon,
 	RoundedIcon,
 	DotmSquare18Spinner,
 	DotmTriangle17Spinner,
@@ -369,6 +370,7 @@ export {
 } from "./components/icons/index.js";
 export {
 	linearIconCatalogHash,
+	linearIconCoverage,
 	linearIconData,
 	linearIconLibrary,
 	linearIconNames,
@@ -376,8 +378,24 @@ export {
 	type LinearIconLibraryEntry,
 	type LinearIconName,
 } from "./components/icons/linear-icon-catalog.js";
-export { ProviderMark } from "./components/provider-mark/index.js";
+export {
+	mapGitHubPrStateToLinearStatusIcon,
+	mapUppercasePrStateToLinearStatusIcon,
+	pullRequestLinearStatusIcons,
+	type PullRequestGitHubState,
+	type PullRequestLinearStatusIconName,
+	type PullRequestLinearStatusKind,
+} from "./components/icons/pull-request-status-icon.js";
+export {
+	ProviderMark,
+	UpstreamProviderMark,
+} from "./components/provider-mark/index.js";
 export type { ProviderBrand } from "./components/provider-mark/index.js";
+export {
+	getUpstreamProviderBrandDisplayName,
+	UPSTREAM_PROVIDER_BRANDS,
+	type UpstreamProviderBrand,
+} from "./components/provider-mark/index.js";
 export {
 	SegmentedProgressBar,
 	buildPercentFilledSegments,
@@ -468,7 +486,7 @@ export {
 } from "./components/panel-header/index.js";
 export { PlanSidebarLayout } from "./components/plan-sidebar/index.js";
 export { BrandLockup } from "./components/brand-lockup/index.js";
-export { BrandShaderBackground } from "./components/brand-shader-background/index.js";
+export { BrandGradientBackground } from "./components/brand-gradient-background/index.js";
 export { BrandSurface } from "./components/brand-surface/index.js";
 export { IrisCard } from "./components/iris-card/index.js";
 export { DismissableTooltip } from "./components/dismissable-tooltip/index.js";
@@ -527,10 +545,10 @@ export {
 } from "./components/tooltip/index.js";
 export { UserMessageContainer } from "./components/user-message-container/index.js";
 export {
-	BRAND_SHADER_DARK_PALETTE,
-	type BrandShaderColorTuple,
-	type BrandShaderPalette,
-} from "./lib/brand-shader-palette.js";
+	BRAND_GRADIENT_IRIS_FALLBACK,
+	BRAND_GRADIENT_IRIS_HORIZON,
+	BRAND_GRADIENT_IRIS_STYLE,
+} from "./lib/brand-gradient.js";
 export {
 	COLOR_NAMES,
 	Colors,
@@ -542,7 +560,11 @@ export {
 	TAG_BORDER_COLORS,
 	TAG_COLORS,
 } from "./lib/colors.js";
-export { getFallbackIconSrc, getFileIconName, getFileIconSrc } from "./lib/file-icon/index.js";
+export {
+	getFallbackIconSrc,
+	getFileIconName,
+	getFileIconSrc,
+} from "./lib/file-icon/index.js";
 // Icon context
 export { getIconBasePath, setIconConfig } from "./lib/icon-context.js";
 // Thinking preferences context

@@ -36,7 +36,7 @@ const mobileNavLinkClass =
 				href="/"
 				class="flex items-center gap-2 rounded-full px-2 py-1 transition-colors hover:bg-card/70"
 			>
-				<BrandLockup class="gap-2" markClass="h-6 w-6" wordmarkClass="text-sm text-foreground" />
+				<BrandLockup wordmarkClass="text-sm text-foreground" />
 			</a>
 		</div>
 
@@ -134,11 +134,7 @@ const mobileNavLinkClass =
 								class="flex items-center gap-2 rounded-full px-2 py-1 transition-colors hover:bg-card/70"
 								onclick={() => (drawerOpen = false)}
 							>
-								<BrandLockup
-									class="gap-2"
-									markClass="h-6 w-6"
-									wordmarkClass="text-sm text-foreground"
-								/>
+								<BrandLockup wordmarkClass="text-sm text-foreground" />
 							</a>
 							<div class="flex items-center gap-2">
 							<a

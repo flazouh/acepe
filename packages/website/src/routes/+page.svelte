@@ -4,52 +4,43 @@ import AppleIcon from "$lib/components/landing-v2/apple-icon.svelte";
 import CommandChip from "$lib/components/landing-v2/command-chip.svelte";
 import WarpHeader from "$lib/components/landing-v2/warp-header.svelte";
 import AgentIconsRow from "$lib/components/agent-icons-row.svelte";
+import { BrandGradientBackground } from "@acepe/ui";
 
 const BREW = "brew install --cask acepe";
 
-// Each card sits on a self-hosted abstract gradient art (warp-style), assigned
-// for brand fit and visual variety. Static lazy-loaded webp — no WebGL, so the
-// performance win over the old per-card grain shaders is preserved.
+// Sober tonal tiles: quiet lifted surfaces on the near-black page, no borders and
+// no decorative gradients. Every agent gets equal visual weight — hierarchy comes
+// from the icon chip, spacing, and type, not from cell size.
 const agents = [
 	{
 		id: "claude-code",
 		name: "Claude Code",
 		tagline: "Anthropic's agent, first-class.",
 		icon: "/svgs/agents/claude/claude-icon-dark.svg",
-		span: "lg:col-span-2 lg:row-span-2",
-		image: "/images/landing/bento/art2.webp",
 	},
 	{
 		id: "codex",
 		name: "Codex",
 		tagline: "OpenAI's coding agent.",
 		icon: "/svgs/agents/codex/codex-icon-dark.svg",
-		span: "",
-		image: "/images/landing/bento/warm.webp",
 	},
 	{
 		id: "cursor",
 		name: "Cursor Agent",
 		tagline: "Cursor's background agent.",
 		icon: "/svgs/agents/cursor/cursor-icon-dark.svg",
-		span: "",
-		image: "/images/landing/bento/art3.webp",
 	},
 	{
 		id: "opencode",
 		name: "OpenCode",
 		tagline: "The open-source ACP client.",
 		icon: "/svgs/agents/opencode/opencode-logo-dark.svg",
-		span: "",
-		image: "/images/landing/bento/art4.webp",
 	},
 	{
 		id: "custom",
 		name: "Any ACP agent",
 		tagline: "Bring your own — if it speaks ACP, it runs here.",
 		icon: "/svgs/agents/custom/custom-icon.svg",
-		span: "",
-		image: "/images/landing/bento/art2.webp",
 	},
 ];
 
@@ -82,9 +73,9 @@ const homepageKeywords = [
 ];
 
 const creamButton =
-	"inline-flex h-9 items-center gap-2 rounded-[2px] bg-[#f8f5ee] px-4 text-[14px] font-medium text-[#121212] transition-opacity hover:opacity-90";
+	"inline-flex h-9 items-center gap-2 rounded-[2px] bg-[#f8f5ee] px-4 text-[14px] font-medium text-[#121212] transition-opacity hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#f8f5ee]/60 focus-visible:ring-offset-2 focus-visible:ring-offset-[#121212]";
 const ghostButton =
-	"inline-flex h-9 items-center gap-2 rounded-[2px] border border-[#f8f5ee]/20 px-4 text-[14px] font-medium text-[#f8f5ee] transition-colors hover:border-[#f8f5ee]/40";
+	"inline-flex h-9 items-center gap-2 rounded-[2px] bg-[#f8f5ee]/[0.06] px-4 text-[14px] font-medium text-[#f8f5ee]/85 transition-colors hover:bg-[#f8f5ee]/[0.12] hover:text-[#f8f5ee] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#f8f5ee]/40 focus-visible:ring-offset-2 focus-visible:ring-offset-[#121212]";
 </script>
 
 <Seo
@@ -121,14 +112,8 @@ const ghostButton =
 
 		<!-- Product surface — greyscale app mock floating on Cosmic Orange -->
 		<section class="mx-auto max-w-[1280px] px-6 pb-24 md:pb-32">
-			<div class="relative aspect-[16/9] overflow-hidden rounded-[4px] bg-[#0F0F10]">
-				<img
-					src="/images/landing/hero-grain.jpg"
-					alt=""
-					aria-hidden="true"
-					fetchpriority="high"
-					class="absolute inset-0 h-full w-full object-cover"
-				/>
+			<div class="relative aspect-[16/9] overflow-hidden rounded-[4px] bg-[#0F0F10]" data-slot="iris-gradient-home-product">
+				<BrandGradientBackground />
 				<div class="absolute inset-0 flex items-center justify-center p-6 sm:p-10 md:p-14">
 					<img
 						src="/images/landing/acepe-working-view.webp"
@@ -140,7 +125,7 @@ const ghostButton =
 		</section>
 
 		<!-- Bento — our take on warp's partner grid -->
-		<section class="border-t border-[#f8f5ee]/10 py-24 md:py-32">
+		<section class="py-24 md:py-32">
 			<div class="mx-auto max-w-[1280px] px-6">
 				<h2 class="font-display text-[30px] leading-[1.08] font-normal tracking-[-0.025em] md:text-[45px]">
 					{"Runs the agents you already trust"}
@@ -149,34 +134,26 @@ const ghostButton =
 					{"One protocol, every leading coding agent. Acepe speaks ACP, so the agent is a choice — never a lock-in."}
 				</p>
 
-				<div class="mt-12 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+				<div class="mt-12 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
 					{#each agents as agent (agent.id)}
 						<div
-							class="group relative flex aspect-[4/3] flex-col justify-end overflow-hidden rounded-[4px] bg-[#141414] p-6 {agent.span}"
+							class="group flex flex-col gap-4 rounded-[6px] bg-[#161616] p-5 transition-colors duration-300 hover:bg-[#1b1b1b]"
 						>
-							<img
-								src={agent.image}
-								alt=""
-								aria-hidden="true"
-								loading="lazy"
-								decoding="async"
-								class="absolute inset-0 h-full w-full object-cover transition-transform duration-700 ease-out group-hover:scale-105"
-							/>
 							<div
-								class="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/85 via-black/35 to-black/10"
-							></div>
+								class="flex h-11 w-11 items-center justify-center rounded-[10px] bg-[#f8f5ee]/[0.05]"
+							>
+								<img
+									src={agent.icon}
+									alt={agent.name}
+									class="h-6 w-6 object-contain transition-transform duration-500 ease-out group-hover:scale-110"
+								/>
+							</div>
 
-							<img
-								src={agent.icon}
-								alt={agent.name}
-								class="absolute top-6 left-6 h-9 w-9 object-contain drop-shadow-[0_2px_10px_rgba(0,0,0,0.55)] transition-transform duration-500 ease-out group-hover:scale-110"
-							/>
-
-							<div class="relative z-10">
-								<h3 class="font-display text-[18px] font-normal tracking-[-0.01em] text-white">
+							<div>
+								<h3 class="font-display text-[16px] leading-tight font-normal tracking-[-0.01em] text-foreground">
 									{agent.name}
 								</h3>
-								<p class="mt-1 text-[13px] leading-snug text-white/70">{agent.tagline}</p>
+								<p class="mt-1.5 text-[13px] leading-snug text-muted-foreground">{agent.tagline}</p>
 							</div>
 						</div>
 					{/each}
@@ -185,7 +162,7 @@ const ghostButton =
 		</section>
 
 		<!-- Capabilities -->
-		<section class="border-t border-[#f8f5ee]/10 py-24 md:py-32">
+		<section class="py-24 md:py-32">
 			<div class="mx-auto max-w-[1280px] px-6">
 				<h2 class="max-w-[20ch] font-display text-[30px] leading-[1.08] font-normal tracking-[-0.025em] md:text-[45px]">
 					{"More agents shouldn't mean more chaos"}
@@ -207,7 +184,7 @@ const ghostButton =
 		</section>
 
 		<!-- Get Acepe today — download / brew -->
-		<section class="border-t border-[#f8f5ee]/10 py-24 md:py-32">
+		<section class="py-24 md:py-32">
 			<div class="mx-auto max-w-[1280px] px-6">
 				<div class="font-mono text-[11px] uppercase tracking-[0.16em] text-muted-foreground/60">
 					{"01 — Download"}
@@ -235,7 +212,7 @@ const ghostButton =
 						<div class="font-display text-[18px] text-foreground/70">{"Linux"}</div>
 						<p class="mt-2 text-[13px] text-muted-foreground">{"On the roadmap"}</p>
 						<div class="mt-6">
-							<span class="inline-flex h-9 items-center rounded-[2px] border border-[#f8f5ee]/12 px-4 text-[13px] text-muted-foreground/70">
+							<span class="inline-flex h-9 items-center rounded-[2px] bg-[#f8f5ee]/[0.04] px-4 text-[13px] text-muted-foreground/70">
 								{"Coming soon"}
 							</span>
 						</div>
@@ -244,7 +221,7 @@ const ghostButton =
 						<div class="font-display text-[18px] text-foreground/70">{"Windows"}</div>
 						<p class="mt-2 text-[13px] text-muted-foreground">{"On the roadmap"}</p>
 						<div class="mt-6">
-							<span class="inline-flex h-9 items-center rounded-[2px] border border-[#f8f5ee]/12 px-4 text-[13px] text-muted-foreground/70">
+							<span class="inline-flex h-9 items-center rounded-[2px] bg-[#f8f5ee]/[0.04] px-4 text-[13px] text-muted-foreground/70">
 								{"Coming soon"}
 							</span>
 						</div>
@@ -254,7 +231,7 @@ const ghostButton =
 		</section>
 
 		<!-- Footer -->
-		<footer class="border-t border-[#f8f5ee]/10 py-14">
+		<footer class="py-14">
 			<div class="mx-auto flex max-w-[1280px] flex-col gap-10 px-6 md:flex-row md:items-start md:justify-between">
 				<div class="flex max-w-xs flex-col gap-4">
 					<AgentIconsRow size={20} class="justify-start opacity-70" />

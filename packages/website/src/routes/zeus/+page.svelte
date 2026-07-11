@@ -233,7 +233,7 @@ const meta = [
 			<div class="grid grid-cols-2 gap-8 md:grid-cols-4">
 				<div class="col-span-2 md:col-span-1">
 					<a href="/" class="mb-3 inline-flex items-center gap-2">
-						<BrandLockup class="gap-2" markClass="h-6 w-6" wordmarkClass="text-sm" />
+						<BrandLockup wordmarkClass="text-sm" />
 					</a>
 					<p class="max-w-[220px] text-[13px] leading-relaxed text-muted-foreground">
 						The orchestration layer for your agents.

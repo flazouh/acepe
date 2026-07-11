@@ -1,26 +1,13 @@
 <script lang="ts">
 import type { Snippet } from "svelte";
 import { cn } from "../../lib/utils.js";
-import {
-	buildBrandShaderPanelPreset,
-	type BrandShaderPanelPreset,
-} from "../../lib/brand-shader-panel-preset.js";
-import { BRAND_SHADER_LUMINAR_PANEL_PALETTE } from "../../lib/brand-shader-palette.js";
-import { BrandShaderBackground } from "../brand-shader-background/index.js";
+import { BrandGradientBackground } from "../brand-gradient-background/index.js";
 
 type IrisCardSurfaceTokens = "light" | "dark";
-
-const DEFAULT_PANEL_PRESET = buildBrandShaderPanelPreset({
-	palette: BRAND_SHADER_LUMINAR_PANEL_PALETTE,
-	shape: "blob",
-	scale: 1,
-});
 
 interface Props {
 	/** Card content, rendered on the iris surface. */
 	children: Snippet;
-	/** Panel shader preset driving the grain gradient. */
-	panelPreset?: BrandShaderPanelPreset;
 	/** Token context for legible content on the gradient surface. */
 	surfaceTokens?: IrisCardSurfaceTokens;
 	/** Extra classes merged onto the surface container. */
@@ -29,7 +16,6 @@ interface Props {
 
 let {
 	children,
-	panelPreset = DEFAULT_PANEL_PRESET,
 	surfaceTokens = "light",
 	class: className,
 }: Props = $props();
@@ -42,7 +28,7 @@ let {
 		className,
 	)}
 >
-	<BrandShaderBackground fallback="gradient" surface="panel" {panelPreset} />
+	<BrandGradientBackground />
 	<div class="relative z-10">
 		{@render children()}
 	</div>

@@ -1,13 +1,9 @@
 <script lang="ts">
 import type { Snippet } from "svelte";
 import { cn } from "../../lib/utils.js";
-import { BrandShaderBackground } from "../brand-shader-background/index.js";
-
-type BrandSurfaceVariant = "acepe" | "luminar";
+import { BrandGradientBackground } from "../brand-gradient-background/index.js";
 
 interface Props {
-	/** Brand shader palette. Defaults to the onboarding "luminar" look. */
-	variant?: BrandSurfaceVariant;
 	/** Optional content pinned to the top-right corner (e.g. a theme toggle). */
 	topRight?: Snippet;
 	/** Centered surface content. */
@@ -16,16 +12,11 @@ interface Props {
 	class?: string;
 }
 
-let {
-	variant = "luminar",
-	topRight,
-	children,
-	class: className,
-}: Props = $props();
+let { topRight, children, class: className }: Props = $props();
 </script>
 
 <!--
-	Shared full-bleed brand surface: the brand shader background, a soft tint, and
+	Shared full-bleed brand surface: the canonical Iris background, a soft tint, and
 	a centered content area. Used by onboarding and the blocking update overlay so
 	both sit in the same shell.
 -->
@@ -35,7 +26,7 @@ let {
 		className
 	)}
 >
-	<BrandShaderBackground {variant} fallback="gradient" />
+	<BrandGradientBackground />
 	<div class="absolute inset-0 bg-background/12"></div>
 	{#if topRight}
 		<div class="absolute right-6 top-6 z-20">
