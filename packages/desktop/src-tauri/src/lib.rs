@@ -150,7 +150,7 @@ use sql_studio::commands::{
     sql_studio_pick_sqlite_file, sql_studio_save_connection, sql_studio_test_connection,
     sql_studio_test_connection_input, sql_studio_update_table_cell,
 };
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 use storage::commands::{
     add_project, backfill_project_icons, browse_project, browse_project_icon, delete_api_key,
     delete_session_review_state, get_custom_keybindings, get_missing_project_paths,
@@ -182,7 +182,7 @@ struct NoSpanEventFormatter;
 #[cfg(debug_assertions)]
 struct PrettyDevEventFormatter {
     started_at: std::time::Instant,
-    last_event_at: Mutex<Option<std::time::Instant>>,
+    last_event_at: std::sync::Mutex<Option<std::time::Instant>>,
 }
 
 #[cfg(debug_assertions)]
@@ -211,7 +211,7 @@ impl PrettyDevEventFormatter {
     fn new() -> Self {
         Self {
             started_at: std::time::Instant::now(),
-            last_event_at: Mutex::new(None),
+            last_event_at: std::sync::Mutex::new(None),
         }
     }
 }
