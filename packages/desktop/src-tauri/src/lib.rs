@@ -179,22 +179,34 @@ use voice::{
 
 struct NoSpanEventFormatter;
 
+#[cfg(debug_assertions)]
 struct PrettyDevEventFormatter {
     started_at: std::time::Instant,
     last_event_at: Mutex<Option<std::time::Instant>>,
 }
 
+#[cfg(debug_assertions)]
 const ANSI_RESET: &str = "\x1b[0m";
+#[cfg(debug_assertions)]
 const ANSI_BOLD: &str = "\x1b[1m";
+#[cfg(debug_assertions)]
 const ANSI_DIM: &str = "\x1b[2m";
+#[cfg(debug_assertions)]
 const ANSI_RED: &str = "\x1b[31m";
+#[cfg(debug_assertions)]
 const ANSI_GREEN: &str = "\x1b[32m";
+#[cfg(debug_assertions)]
 const ANSI_YELLOW: &str = "\x1b[33m";
+#[cfg(debug_assertions)]
 const ANSI_BLUE: &str = "\x1b[34m";
+#[cfg(debug_assertions)]
 const ANSI_MAGENTA: &str = "\x1b[35m";
+#[cfg(debug_assertions)]
 const ANSI_CYAN: &str = "\x1b[36m";
+#[cfg(debug_assertions)]
 const ANSI_BRIGHT_BLACK: &str = "\x1b[90m";
 
+#[cfg(debug_assertions)]
 impl PrettyDevEventFormatter {
     fn new() -> Self {
         Self {
@@ -204,6 +216,7 @@ impl PrettyDevEventFormatter {
     }
 }
 
+#[cfg(debug_assertions)]
 fn level_style(level: &tracing::Level) -> &'static str {
     match *level {
         tracing::Level::TRACE => ANSI_BRIGHT_BLACK,
@@ -214,6 +227,7 @@ fn level_style(level: &tracing::Level) -> &'static str {
     }
 }
 
+#[cfg(debug_assertions)]
 fn format_elapsed_label(duration: std::time::Duration) -> String {
     let total_millis = duration.as_millis();
 
@@ -243,6 +257,7 @@ fn format_elapsed_label(duration: std::time::Duration) -> String {
     format!("{hours}h{minutes:02}m")
 }
 
+#[cfg(debug_assertions)]
 fn format_delta_label(delta: Option<std::time::Duration>) -> String {
     match delta {
         Some(value) => format!("+{}", format_elapsed_label(value)),
@@ -250,10 +265,12 @@ fn format_delta_label(delta: Option<std::time::Duration>) -> String {
     }
 }
 
+#[cfg(debug_assertions)]
 fn format_total_label(elapsed: std::time::Duration) -> String {
     format!("T+{}", format_elapsed_label(elapsed))
 }
 
+#[cfg(debug_assertions)]
 fn format_location(metadata: &tracing::Metadata<'_>) -> Option<String> {
     match (metadata.file(), metadata.line()) {
         (Some(file), Some(line)) => Some(format!("{file}:{line}")),
@@ -261,6 +278,7 @@ fn format_location(metadata: &tracing::Metadata<'_>) -> Option<String> {
     }
 }
 
+#[cfg(debug_assertions)]
 fn write_ansi(writer: &mut Writer<'_>, style: &str, text: &str) -> std::fmt::Result {
     write!(writer, "{style}{text}{ANSI_RESET}")
 }
@@ -290,6 +308,7 @@ where
     }
 }
 
+#[cfg(debug_assertions)]
 impl<S, N> FormatEvent<S, N> for PrettyDevEventFormatter
 where
     S: Subscriber + for<'a> LookupSpan<'a>,

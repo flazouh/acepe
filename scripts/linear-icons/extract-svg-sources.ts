@@ -5,11 +5,75 @@ import { assetBaseName, cleanIconName, isDedicatedIconChunk } from "./name-utils
 
 const SYMBOL_PATTERN =
 	/<symbol\s+id="([^"]+)"\s+viewBox="([^"]+)"[^>]*>([\s\S]*?)<\/symbol>/g;
-const JSX_PATH_PATTERN =
-	/(?:jsx|jsxs)\)\(`(?:path|circle|rect|line|polyline|polygon)`,\{([^}]*)\}\)/g;
+const JSX_SHAPE_PATTERN =
+	/(?:jsx|jsxs)\)\(`(path|circle|rect|line|polyline|polygon)`,\{([^}]*)\}\)/g;
 const ATTRIBUTE_PATTERN = /([A-Za-z][A-Za-z0-9]*):`([^`]*)`/g;
 const SVG_VIEWBOX_PATTERN = /viewBox:`([^`]+)`/;
+const SVG_JSX_BLOCK_START = /(?:jsx|jsxs)\)\(`svg`,\{/g;
 const DEFAULT_VIEW_BOX = "0 0 16 16";
+
+function findMatchingBrace(source: string, openBraceIndex: number): number | null {
+	if (source[openBraceIndex] !== "{") {
+		return null;
+	}
+
+	let depth = 0;
+	let inString = false;
+	let stringDelimiter = "";
+
+	for (let index = openBraceIndex; index < source.length; index += 1) {
+		const character = source[index];
+		const previousCharacter = index > 0 ? source[index - 1] : "";
+
+		if (inString) {
+			if (character === stringDelimiter && previousCharacter !== "\\") {
+				inString = false;
+			}
+			continue;
+		}
+
+		if (character === "`" || character === "'" || character === '"') {
+			inString = true;
+			stringDelimiter = character;
+			continue;
+		}
+
+		if (character === "{") {
+			depth += 1;
+			continue;
+		}
+
+		if (character === "}") {
+			depth -= 1;
+			if (depth === 0) {
+				return index;
+			}
+		}
+	}
+
+	return null;
+}
+
+function extractSvgJsxBlockSources(sourceText: string): string[] {
+	const blocks: string[] = [];
+
+	for (const match of sourceText.matchAll(SVG_JSX_BLOCK_START)) {
+		const matchIndex = match.index;
+		if (matchIndex === undefined) {
+			continue;
+		}
+
+		const openBraceIndex = matchIndex + match[0].length - 1;
+		const closeBraceIndex = findMatchingBrace(sourceText, openBraceIndex);
+		if (closeBraceIndex === null) {
+			continue;
+		}
+
+		blocks.push(sourceText.slice(matchIndex, closeBraceIndex + 1));
+	}
+
+	return blocks;
+}
 
 function parseJsxAttributes(source: string): Record<string, string> {
 	const attributes: Record<string, string> = {};
@@ -114,30 +178,37 @@ function extractSymbolIcons(sourceChunk: string, sourceText: string): RawExtract
 	return icons;
 }
 
-function extractJsxIcons(
-	originalName: string,
-	sourceChunk: string,
-	sourceType: RawExtractedIcon["sourceType"],
-	sourceText: string,
-): RawExtractedIcon | null {
+function extractJsxShapes(sourceText: string): ExtractedSvgShape[] {
 	const shapes: ExtractedSvgShape[] = [];
-	for (const match of sourceText.matchAll(JSX_PATH_PATTERN)) {
-		const attributeSource = match[1];
+	for (const match of sourceText.matchAll(JSX_SHAPE_PATTERN)) {
+		const tag = match[1] as ExtractedSvgShape["tag"];
+		const attributeSource = match[2];
 		if (!attributeSource) {
 			continue;
 		}
 		const attributes = parseJsxAttributes(attributeSource);
-		const shape = shapeFromAttributes("path", attributes);
+		const shape = shapeFromAttributes(tag, attributes);
 		if (shape) {
 			shapes.push(shape);
 		}
 	}
 
+	return shapes;
+}
+
+function extractJsxIconFromBlock(
+	originalName: string,
+	sourceChunk: string,
+	sourceType: RawExtractedIcon["sourceType"],
+	blockSource: string,
+	fullSourceText: string,
+): RawExtractedIcon | null {
+	const shapes = extractJsxShapes(blockSource);
 	if (shapes.length === 0) {
 		return null;
 	}
 
-	const viewBoxMatch = sourceText.match(SVG_VIEWBOX_PATTERN);
+	const viewBoxMatch = blockSource.match(SVG_VIEWBOX_PATTERN) ?? fullSourceText.match(SVG_VIEWBOX_PATTERN);
 	const viewBox = viewBoxMatch?.[1] ?? DEFAULT_VIEW_BOX;
 
 	return {
@@ -147,6 +218,45 @@ function extractJsxIcons(
 		viewBox,
 		shapes,
 	};
+}
+
+function extractJsxIcons(
+	originalName: string,
+	sourceChunk: string,
+	sourceType: RawExtractedIcon["sourceType"],
+	sourceText: string,
+): RawExtractedIcon[] {
+	const svgBlocks = extractSvgJsxBlockSources(sourceText);
+	if (svgBlocks.length === 0) {
+		const fallbackIcon = extractJsxIconFromBlock(
+			originalName,
+			sourceChunk,
+			sourceType,
+			sourceText,
+			sourceText,
+		);
+		return fallbackIcon ? [fallbackIcon] : [];
+	}
+
+	const icons: RawExtractedIcon[] = [];
+	for (const [blockIndex, blockSource] of svgBlocks.entries()) {
+		const blockOriginalName =
+			blockIndex === 0
+				? originalName
+				: `${originalName.replace(/Icon$/, "")}Variant${blockIndex + 1}`;
+		const icon = extractJsxIconFromBlock(
+			blockOriginalName,
+			sourceChunk,
+			sourceType,
+			blockSource,
+			sourceText,
+		);
+		if (icon) {
+			icons.push(icon);
+		}
+	}
+
+	return icons;
 }
 
 export function extractIconsFromCacheEntry(
@@ -161,27 +271,14 @@ export function extractIconsFromCacheEntry(
 	}
 
 	if (isDedicatedIconChunk(assetName)) {
-		const dedicatedIcon = extractJsxIcons(
+		const dedicatedIcons = extractJsxIcons(
 			sourceChunk,
 			sourceChunk,
 			"dedicated-chunk",
 			sourceText,
 		);
-		if (dedicatedIcon) {
+		for (const dedicatedIcon of dedicatedIcons) {
 			icons.push(dedicatedIcon);
-		}
-		return icons;
-	}
-
-	if (sourceText.includes("jsx") && sourceText.includes("svg") && sourceText.includes("path")) {
-		const sharedIcon = extractJsxIcons(
-			sourceChunk,
-			sourceChunk,
-			"shared-jsx",
-			sourceText,
-		);
-		if (sharedIcon) {
-			icons.push(sharedIcon);
 		}
 	}
 

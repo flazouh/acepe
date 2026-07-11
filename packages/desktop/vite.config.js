@@ -88,6 +88,7 @@ const ignoredDevWatchPaths = [
 export default defineConfig({
 	build: {
 		sourcemap: "hidden",
+		chunkSizeWarningLimit: 1500,
 	},
 	worker: {
 		format: "es",

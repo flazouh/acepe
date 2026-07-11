@@ -349,6 +349,7 @@ export {
 	DiscordIcon,
 	GoogleLogoIcon,
 	LayoutModeIcon,
+	LinearInventoryIcon,
 	RoundedIcon,
 	DotmSquare18Spinner,
 	DotmTriangle17Spinner,
@@ -366,6 +367,15 @@ export {
 	WrenchIcon,
 	XLogoIcon,
 } from "./components/icons/index.js";
+export {
+	linearIconCatalogHash,
+	linearIconData,
+	linearIconLibrary,
+	linearIconNames,
+	type LinearIconCatalogData,
+	type LinearIconLibraryEntry,
+	type LinearIconName,
+} from "./components/icons/linear-icon-catalog.js";
 export { ProviderMark } from "./components/provider-mark/index.js";
 export type { ProviderBrand } from "./components/provider-mark/index.js";
 export {

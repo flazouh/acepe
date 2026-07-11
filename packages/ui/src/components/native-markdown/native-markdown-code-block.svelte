@@ -1,6 +1,6 @@
 <script lang="ts" module>
 	import { errAsync, ResultAsync } from "neverthrow";
-	import type { ThemeRegistrationAny } from "shiki";
+	import { codeToHtml, type ThemeRegistrationAny } from "shiki";
 
 	interface CursorCodeThemes {
 		readonly dark: ThemeRegistrationAny;
@@ -114,22 +114,17 @@
 		code: string,
 		normalizedLanguage: string,
 	): ResultAsync<string, Error> {
-		return ResultAsync.fromPromise(
-			import("shiki"),
-			(error) => new Error(`Failed to load code highlighter: ${String(error)}`),
-		).andThen((shiki) =>
-			loadCursorCodeThemes().andThen((themes) =>
-				ResultAsync.fromPromise(
-					shiki.codeToHtml(code, {
-						lang: normalizedLanguage || "text",
-						themes: {
-							light: themes.light,
-							dark: themes.dark,
-						},
-						defaultColor: false,
-					}),
-					(error) => new Error(`Failed to highlight code block: ${String(error)}`),
-				),
+		return loadCursorCodeThemes().andThen((themes) =>
+			ResultAsync.fromPromise(
+				codeToHtml(code, {
+					lang: normalizedLanguage || "text",
+					themes: {
+						light: themes.light,
+						dark: themes.dark,
+					},
+					defaultColor: false,
+				}),
+				(error) => new Error(`Failed to highlight code block: ${String(error)}`),
 			),
 		);
 	}

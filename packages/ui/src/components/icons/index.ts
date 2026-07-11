@@ -6,7 +6,24 @@ export { default as FileStatusIcon } from "./file-status-icon.svelte";
 export type { FileStatusIconKind } from "./file-status-icon-types.js";
 export { default as LayoutModeIcon } from "./layout-mode-icon.svelte";
 export { default as GoogleLogoIcon } from "./google-logo-icon.svelte";
+export { default as LinearInventoryIcon } from "./linear-inventory-icon.svelte";
 export { default as RoundedIcon } from "./rounded-icon.svelte";
+export {
+	linearIconCatalogHash,
+	linearIconData,
+	linearIconLibrary,
+	linearIconNames,
+	type LinearIconCatalogData,
+	type LinearIconLibraryEntry,
+	type LinearIconName,
+} from "./linear-icon-catalog.js";
+export {
+	isAcepeOnlyRoundedIcon,
+	mapRoundedIconToLinear,
+	roundedToLinearMap,
+	type AcepeOnlyRoundedIconName,
+} from "./rounded-to-linear-map.js";
+export { resolveRoundedIconGlyph } from "./resolve-rounded-icon-glyph.js";
 export {
 	isRoundedIconAliasName,
 	resolveRoundedIconName,

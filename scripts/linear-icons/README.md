@@ -51,6 +51,30 @@ Each manifest entry records:
 
 `inventoryHash` is stable across repeated runs against the same cache contents.
 
+For the website design-system icon sheet:
+
+```bash
+bun run linear-icons:sync-website
+```
+
+This writes `packages/website/src/lib/design-system/linear-icon-catalog.generated.ts`.
+
+For the shared UI package catalog:
+
+```bash
+bun run linear-icons:sync-ui
+```
+
+This writes `packages/ui/src/components/icons/linear-icon-catalog.generated.ts`.
+
+Optional overrides:
+
+```bash
+bun scripts/linear-icons/generate-website-icon-catalog.ts \
+  --inventory /path/to/inventory \
+  --output /path/to/linear-icon-catalog.generated.ts
+```
+
 ## Tests
 
 ```bash

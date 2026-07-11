@@ -1,13 +1,15 @@
 <script lang="ts" module>
-	import { resolveRoundedIconGlyph } from "./resolve-rounded-icon-glyph.js";
-	import type { RoundedIconName } from "./rounded-icon-data.generated.js";
+	import {
+		linearIconData,
+		type LinearIconName,
+	} from "./linear-icon-catalog.generated.js";
 
-	export type { RoundedIconName };
+	export type { LinearIconName };
 </script>
 
 <script lang="ts">
 	interface Props {
-		name: RoundedIconName;
+		name: LinearIconName;
 		class?: string;
 		style?: string;
 		role?: string;
@@ -24,7 +26,7 @@
 		"data-testid": dataTestid,
 	}: Props = $props();
 
-	const icon = $derived(resolveRoundedIconGlyph(name));
+	const icon = $derived(linearIconData[name]);
 	const resolvedRole = $derived(ariaLabel ? (role ?? "img") : role);
 	const ariaHidden = $derived(ariaLabel ? undefined : "true");
 </script>

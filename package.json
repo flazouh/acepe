@@ -17,6 +17,9 @@
 		"dead-code:apply": "bun scripts/dead-code/apply-dead-code.ts",
 		"dead-code:apply:force": "bun scripts/dead-code/apply-dead-code.ts --apply",
 		"linear-icons:extract": "bun scripts/linear-icons/extract-linear-icons.ts",
+		"linear-icons:sync-website": "bun scripts/linear-icons/generate-website-icon-catalog.ts",
+		"linear-icons:sync-ui": "bun scripts/linear-icons/generate-website-icon-catalog.ts --output packages/ui/src/components/icons/linear-icon-catalog.generated.ts",
+		"linear-icons:sync": "bun run linear-icons:extract && bun run linear-icons:sync-ui && bun run linear-icons:sync-website",
 		"install:source": "bash scripts/install-from-source.sh",
 		"test:install-source": "bash scripts/__tests__/install-from-source.test.sh",
 		"test": "bun run test:install-source && bun scripts/forbid-structural-tests.ts packages && bun run --cwd packages/ui test && bun run --cwd packages/desktop test && bun run --cwd packages/website test"

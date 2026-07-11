@@ -1,6 +1,15 @@
 import type { ExtractedSvgShape, RawExtractedIcon } from "./types.js";
 
-const NUMBER_PATTERN = /-?\d*\.?\d+(?:e[-+]?\d+)?/gi;
+const PATH_TOKEN_PATTERN = /[a-zA-Z]|[-+]?(?:\d*\.\d+|\d+)(?:[eE][-+]?\d+)?/g;
+const NON_PATH_NUMBER_PATTERN = /-?\d*\.?\d+(?:e[-+]?\d+)?/gi;
+const STROKE_ATTRIBUTE_NAMES = [
+	"stroke",
+	"stroke-width",
+	"stroke-linecap",
+	"stroke-linejoin",
+	"stroke-dasharray",
+	"stroke-dashoffset",
+] as const;
 
 function normalizeNumber(value: string): string {
 	const parsed = Number(value);
@@ -10,8 +19,26 @@ function normalizeNumber(value: string): string {
 	return parsed.toFixed(4).replace(/\.?0+$/, "");
 }
 
-function normalizePathData(pathData: string): string {
-	return pathData.replace(NUMBER_PATTERN, (match) => normalizeNumber(match));
+export function normalizePathData(pathData: string): string {
+	const tokens = pathData.match(PATH_TOKEN_PATTERN) ?? [];
+	const normalizedTokens: string[] = [];
+
+	for (const token of tokens) {
+		if (/^[a-zA-Z]$/.test(token)) {
+			normalizedTokens.push(token);
+			continue;
+		}
+
+		const parsed = Number(token);
+		if (!Number.isFinite(parsed)) {
+			normalizedTokens.push(token);
+			continue;
+		}
+
+		normalizedTokens.push(normalizeNumber(String(parsed)));
+	}
+
+	return normalizedTokens.join(" ");
 }
 
 function normalizeAttributeValue(attributeName: string, attributeValue: string): string {
@@ -27,14 +54,21 @@ function normalizeAttributeValue(attributeName: string, attributeValue: string):
 		return "currentColor";
 	}
 
-	if (NUMBER_PATTERN.test(attributeValue)) {
-		return attributeValue.replace(NUMBER_PATTERN, (match) => normalizeNumber(match));
+	if (NON_PATH_NUMBER_PATTERN.test(attributeValue)) {
+		return attributeValue.replace(NON_PATH_NUMBER_PATTERN, (match) => normalizeNumber(match));
 	}
 
 	return attributeValue;
 }
 
 function shapeUsesStroke(shape: ExtractedSvgShape): boolean {
+	for (const attributeName of STROKE_ATTRIBUTE_NAMES) {
+		const attributeValue = shape.attributes[attributeName];
+		if (attributeValue && attributeValue !== "none") {
+			return true;
+		}
+	}
+
 	return Boolean(shape.attributes.stroke && shape.attributes.stroke !== "none");
 }
 

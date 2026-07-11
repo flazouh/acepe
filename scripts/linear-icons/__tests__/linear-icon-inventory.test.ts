@@ -11,6 +11,10 @@ import { buildLinearIconInventory } from "../extract-linear-icons.js";
 const fixtureDir = join(import.meta.dirname, "fixtures");
 const closeIconFixture = readFileSync(join(fixtureDir, "close-icon-cache-entry.bin"));
 const rootSpriteFixture = readFileSync(join(fixtureDir, "root-sprite-cache-entry.bin"));
+const pullRequestStatusFixture = readFileSync(
+	join(fixtureDir, "pull-request-status-icon.js"),
+	"utf8",
+);
 
 describe("linear icon inventory", () => {
 	test("parses Chromium simple cache entries from Linear fixtures", () => {
@@ -69,5 +73,52 @@ describe("linear icon inventory", () => {
 		expect(first.stats.uniqueGeometry).toBeGreaterThan(250);
 		expect(first.stats.duplicates).toBeGreaterThanOrEqual(0);
 		expect(first.icons.some((icon) => icon.cleanName === "close")).toBe(true);
+	});
+
+	test("does not extract icons from non-icon UI component bundles", () => {
+		const fakeInputBundle = `
+			import{n as e}from"./vendor-react.js";
+			function Input(){return(0,o.jsx)(\`svg\`,{children:(0,o.jsx)(\`path\`,{d:\`M3.46975 5.70757L1.88358 4.1225\`})})}
+			function Checkbox(){return(0,o.jsx)(\`rect\`,{y:\`0.25\`,width:\`6\`,height:\`1.5\`,fill:\`currentColor\`})}
+		`;
+		const extracted = extractIconsFromCacheEntry("Input.Qu5w9aCc.js", fakeInputBundle);
+		expect(extracted).toHaveLength(0);
+	});
+
+	test("splits dedicated icon chunks with multiple svg variants", () => {
+		const extracted = extractIconsFromCacheEntry(
+			"PullRequestStatusIcon.B6yQ2qNh.js",
+			pullRequestStatusFixture,
+		);
+		const dedicatedIcons = extracted.filter((icon) => icon.sourceType === "dedicated-chunk");
+		expect(dedicatedIcons.length).toBeGreaterThan(1);
+		expect(dedicatedIcons.every((icon) => icon.shapes.length <= 5)).toBe(true);
+		expect(dedicatedIcons.some((icon) => icon.shapes.length === 1)).toBe(true);
+
+		const normalizedIcons = dedicatedIcons.map((icon) => normalizeLinearSvg(normalizeRawIcon(icon)));
+		for (const svg of normalizedIcons) {
+			expect((svg.match(/<path/g) ?? []).length).toBeLessThanOrEqual(5);
+		}
+	});
+
+	test("does not emit mashed decimal sequences in generated svg paths", () => {
+		const manifest = buildLinearIconInventory({
+			cachePath: fixtureDir,
+			outputDir: join(fixtureDir, "output-c"),
+		});
+
+		for (const icon of manifest.icons) {
+			if (icon.duplicateOf) {
+				continue;
+			}
+
+			const svg = readFileSync(join(fixtureDir, "output-c", icon.svgFile), "utf8");
+			const pathMatches = [...svg.matchAll(/d="([^"]*)"/g)];
+			for (const match of pathMatches) {
+				const pathData = match[1] ?? "";
+				expect(pathData).not.toMatch(/\d\.\d+\d\.\d/);
+				expect(pathData).not.toContain("0.50.5");
+			}
+		}
 	});
 });
