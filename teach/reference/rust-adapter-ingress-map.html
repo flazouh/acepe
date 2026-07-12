@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Reference — Rust Adapter Ingress Map</title>
+  <link rel="stylesheet" href="../assets/fonts.css">
+  <link rel="stylesheet" href="../assets/course.css">
+  <script src="../assets/theme-toggler.js"></script>
+</head>
+<body>
+<article>
+  <p class="lesson-meta">Reference · Acepe Canonical Architecture</p>
+  <h1>Rust Adapter Ingress Map</h1>
+
+  <p>Where raw provider data enters Acepe and which module owns each edge. Provider quirks stop here — nothing downstream repairs them.</p>
+
+  <h2>Two ingress modes</h2>
+  <table>
+    <thead>
+      <tr><th>Mode</th><th>When</th><th>Input</th><th>Output</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong>Live parse</strong></td>
+        <td>Session connected, streaming</td>
+        <td>ACP session updates (JSON)</td>
+        <td><code>SessionUpdate</code> → session state engine</td>
+      </tr>
+      <tr>
+        <td><strong>History restore</strong></td>
+        <td>Session open / import</td>
+        <td>Disk files (JSONL, SQLite, txt)</td>
+        <td><code>FullSession</code> → <code>CanonicalTranscriptEvent</code></td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h2>Module roles</h2>
+  <table>
+    <thead>
+      <tr><th>Module</th><th>Role</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><code>acp/providers/&lt;name&gt;/</code></td>
+        <td>One home per provider. Documents ingress edge map in <code>mod.rs</code>.</td>
+      </tr>
+      <tr>
+        <td><code>acp/parsers/*_parser.rs</code></td>
+        <td>Live ACP updates via <code>AgentParser</code> trait.</td>
+      </tr>
+      <tr>
+        <td><code>cursor_history/</code>, <code>session_jsonl/</code>, <code>history/cursor_sqlite_parser.rs</code></td>
+        <td>Read provider files from disk → <code>FullSession</code>.</td>
+      </tr>
+      <tr>
+        <td><code>session_converter/</code></td>
+        <td><code>FullSession</code> → <code>ProviderOwnedSessionSnapshot</code> + canonical events.</td>
+      </tr>
+      <tr>
+        <td><code>acp/reconciler/</code></td>
+        <td>Tool identity authority — shared by live and history paths.</td>
+      </tr>
+      <tr>
+        <td><code>acp/session_materialization/</code></td>
+        <td>Join transcript + operations; <code>relink_operations_to_transcript</code>.</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h2>Provider homes</h2>
+  <table>
+    <thead>
+      <tr><th>Provider</th><th>Live parser</th><th>History source</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>Claude Code</td>
+        <td><code>parsers/claude_code_parser.rs</code></td>
+        <td><code>session_jsonl/</code> → <code>session_converter/claude.rs</code></td>
+      </tr>
+      <tr>
+        <td>Cursor</td>
+        <td><code>parsers/cursor_parser.rs</code></td>
+        <td><code>cursor_history/</code>, <code>cursor_sqlite_parser.rs</code> → <code>session_converter/cursor.rs</code></td>
+      </tr>
+      <tr>
+        <td>Codex</td>
+        <td><code>parsers/codex_parser.rs</code></td>
+        <td><code>session_converter/</code> Codex paths</td>
+      </tr>
+      <tr>
+        <td>OpenCode</td>
+        <td><code>parsers/opencode_parser.rs</code></td>
+        <td><code>opencode_history/</code> (HTTP / server history)</td>
+      </tr>
+      <tr>
+        <td>Copilot</td>
+        <td><code>parsers/copilot_parser.rs</code></td>
+        <td><code>copilot_history/</code></td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h2>AgentParser trait methods</h2>
+  <pre><code>agent_type()
+detect_update_type(data)      // user chunk, tool call, permission, …
+parse_tool_call(data)
+parse_tool_call_update(data)
+detect_tool_kind(name)         // hint only — reconciler is authority
+parse_typed_tool_arguments(...)
+parse_questions / parse_todos</code></pre>
+
+  <h2>Key types</h2>
+  <table>
+    <thead>
+      <tr><th>Type</th><th>Layer</th></tr>
+    </thead>
+    <tbody>
+      <tr><td><code>FullSession</code></td><td>Provider-normalized message list from disk</td></tr>
+      <tr><td><code>CanonicalTranscriptEvent</code></td><td>Ordered canonical transcript fact</td></tr>
+      <tr><td><code>ProviderOwnedSessionSnapshot</code></td><td>Thread + canonical events + tool updates</td></tr>
+      <tr><td><code>SessionUpdate</code></td><td>Live streaming delta from ACP</td></tr>
+    </tbody>
+  </table>
+
+  <h2>Rules</h2>
+  <ul>
+    <li>Never add provider branches in TypeScript or <code>@acepe/ui</code>.</li>
+    <li>Live and history must agree on tool call ids (<code>normalize_tool_call_id</code>).</li>
+    <li>Classification tables live in <code>acp/reconciler/providers/</code> — referenced, not duplicated.</li>
+    <li>Fix transcript order in <code>transcript_events.rs</code> or parser — not in UI.</li>
+  </ul>
+
+  <p class="nav-footer">
+    See also:
+    <ul>
+      <li><a href="../lessons/0001-how-canonical-truth-flows.html">Lesson 1 — How canonical truth flows</a></li>
+      <li><a href="../lessons/0002-rust-adapter-history-parser.html">Lesson 2 — Rust adapter / history parser</a></li>
+      <li><a href="../../CONTEXT.md">CONTEXT.md</a> — Adapter / history parser glossary</li>
+    </ul>
+  </p>
+</article>
+</body>
+</html>

@@ -40,7 +40,7 @@ This plan was preceded by a GOD architecture pre-flight (cleared with conditions
 ### Deferred to Separate Tasks
 
 - The desktop wrapper `packages/desktop/src/lib/acp/components/config-option-selector.svelte` (exported as `ConfigOptionSelector`) has **no render site** in the app (it appears to be legacy/dead; the live path is the `@acepe/ui` View consumed by `AgentInputComposerTrailingControls` / `AgentInputNewThreadOptions`). Confirming and removing it is a separate cleanup task, not part of this feature.
-- Replacing the hardcoded name→rank table with provider `options[]`-order ranking (the "deepen, don't patch" alternative) — flag for `/document-review` to weigh; out of scope here unless review elevates it.
+- Replacing the hardcoded name→rank table with provider `options[]`-order ranking (the "deepen, don't patch" alternative) — flag for `` to weigh; out of scope here unless review elevates it.
 
 ## Context & Research
 

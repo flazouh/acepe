@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Lesson 1 — How Canonical Truth Flows</title>
+  <link rel="stylesheet" href="../assets/fonts.css">
+  <link rel="stylesheet" href="../assets/course.css">
+  <script src="../assets/theme-toggler.js"></script>
+</head>
+<body>
+<article>
+  <p class="lesson-meta">Lesson 0001 · ~8 min · Acepe Canonical Architecture</p>
+  <h1>How Canonical Truth Flows</h1>
+
+  <p>Acepe's canonical architecture is organised around one rule: <strong>product truth is Rust-owned</strong>. Provider output is input. TypeScript and <code>@acepe/ui</code> are read-only consumers. When something looks wrong in the agent panel, the fix belongs upstream — never in a component.</p>
+
+  <h2>The core pipeline</h2>
+
+  <div class="flow-diagram">Provider (Claude, Cursor, Codex, …)
+        │
+        ▼
+Rust adapter / history parser     ← provider quirks live HERE only
+        │
+        ▼
+Canonical model (Rust-owned truth)
+  • SessionStateGraph
+  • CanonicalTranscriptEvent
+  • OperationSnapshot
+  • InteractionSnapshot
+        │
+        ▼
+Envelopes → TypeScript projection  ← read only, no fallbacks
+        │
+        ▼
+Scene model (pure mapper)          ← agent-panel-graph-materializer
+        │
+        ▼
+View (@acepe/ui)                   ← presentational only</div>
+
+  <p>This is the "GOD" (Green) architecture gate. The glossary lives in <a href="../../CONTEXT.md">CONTEXT.md</a>; the enforcement checklist is in the <a href="../../.claude/skills/god-architecture-check/SKILL.md">GOD Architecture Check</a> skill.</p>
+
+  <h2>Six authority surfaces</h2>
+
+  <p>Think of the canonical model as six surfaces, each with a single owner. Consumers may <em>project</em> and <em>render</em> — never repair.</p>
+
+  <table>
+    <thead>
+      <tr><th>Surface</th><th>What it owns</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong>SessionStateGraph</strong></td>
+        <td>Lifecycle, activity, turn state, capabilities, revision. Composed in <code>session_state_engine/graph.rs</code>; runtime registry in <code>runtime_registry.rs</code>.</td>
+      </tr>
+      <tr>
+        <td><strong>Canonical transcript</strong></td>
+        <td>Strict event order, display ids, user/assistant/tool rows. Built from <code>CanonicalTranscriptEvent</code> in <code>transcript_projection/</code>.</td>
+      </tr>
+      <tr>
+        <td><strong>Operation graph</strong></td>
+        <td>Tool call lifecycle — args, results, parent/child. Linked to transcript via <code>OperationSourceLink::TranscriptLinked</code>.</td>
+      </tr>
+      <tr>
+        <td><strong>Interaction graph</strong></td>
+        <td>Permissions, questions, blocking user prompts awaiting reply.</td>
+      </tr>
+      <tr>
+        <td><strong>Tool identity authority</strong></td>
+        <td>Single funnel for tool kind and name: <code>acp/reconciler/</code>. No parallel classifiers in parsers or UI.</td>
+      </tr>
+      <tr>
+        <td><strong>Transient UI state</strong></td>
+        <td>Animation, click guards, pending send intent — TypeScript only, and only if it is <em>not</em> product truth.</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <p>Full cheat sheet: <a href="../reference/canonical-authority-surfaces.html">Canonical Authority Surfaces reference</a>.</p>
+
+  <h2>Where the Rust modules live</h2>
+
+  <p>Under <code>packages/desktop/src-tauri/src/acp/</code>, the canonical spine clusters like this:</p>
+
+  <pre>acp/
+├── providers/&lt;name&gt;/     # one home per provider (live + history ingress)
+├── parsers/              # provider row → semantic blocks
+├── reconciler/           # tool identity authority
+├── transcript_projection/# CanonicalTranscriptEvent, display_id, snapshots
+├── session_state_engine/ # SessionStateGraph, envelopes, ledgers
+├── session_materialization/ # transcript + operations assembly
+├── session_open_snapshot/   # SessionOpenResult at open time
+└── transcript_viewport/  # scroll/viewport projection (DOM-adjacent)</pre>
+
+  <p>Provider data enters at the edges (<code>providers/</code>, <code>parsers/</code>, history parsers in <code>cursor_history/</code>, <code>session_jsonl/</code>). It must be normalized before it crosses into <code>transcript_projection</code> or <code>session_state_engine</code>.</p>
+
+  <h2>What crosses the Rust → TypeScript boundary</h2>
+
+  <p>Rust emits <strong>session state envelopes</strong> (<code>SessionStateEnvelope</code>). TypeScript applies them through the envelope router (<code>session-state-command-router.ts</code>) into <code>CanonicalSessionProjection</code> — a read-only mirror of <code>SessionStateGraph</code>.</p>
+
+  <p>The agent panel then uses the <strong>MVC split</strong> defined in CONTEXT.md:</p>
+
+  <ul>
+    <li><strong>Controller</strong> — <code>agent-panel.svelte</code>: reads stores, routes actions</li>
+    <li><strong>Model</strong> — <code>agent-panel-graph-materializer.ts</code>: maps canonical facts → scene entries</li>
+    <li><strong>View</strong> — <code>@acepe/ui</code> agent-panel components: props in, render out</li>
+  </ul>
+
+  <div class="callout">
+    <strong>The Green Rule:</strong> If you write <code>canonical != null ? canonical.X : hotState.X</code>, stop. Fix the canonical producer instead.
+  </div>
+
+  <h2>Identity: order vs metadata</h2>
+
+  <p>A common canonical bug is treating Claude's <code>message.id</code> as a display id. Multiple JSONL rows can share the same <code>message.id</code> (text row + tool rows). Canonical order comes from <code>transcript_seq</code>; UI identity from Acepe-owned <code>display_id</code>; tool identity from <code>tool_call_id</code>.</p>
+
+  <pre>// CanonicalTranscriptEvent (simplified)
+transcript_seq    // order authority
+display_id        // Acepe-owned UI identity
+provider_msg_id   // metadata (e.g. msg_abc)
+tool_call_id      // tool identity (toolu_*)
+kind              // UserText | AssistantText | ToolUse | …</pre>
+
+  <h2>Retrieval practice</h2>
+
+  <fieldset class="quiz" id="quiz-1">
+    <legend>Q1. A tool row appears in the wrong order in the agent panel. Where do you fix it?</legend>
+    <div class="quiz-options">
+      <label><input type="radio" name="q1" value="a"> In the Svelte component sort order</label>
+      <label><input type="radio" name="q1" value="b"> In the Rust history parser / transcript projection</label>
+      <label><input type="radio" name="q1" value="c"> In the CSS flex direction</label>
+      <label><input type="radio" name="q1" value="d"> In the scene mapper reorder pass</label>
+    </div>
+    <div class="quiz-feedback" id="quiz-1-feedback"></div>
+  </fieldset>
+
+  <fieldset class="quiz" id="quiz-2">
+    <legend>Q2. Claude message.id should be treated as…</legend>
+    <div class="quiz-options">
+      <label><input type="radio" name="q2" value="a"> The display entry id for grouping</label>
+      <label><input type="radio" name="q2" value="b"> The canonical order authority</label>
+      <label><input type="radio" name="q2" value="c"> Provider metadata only</label>
+      <label><input type="radio" name="q2" value="d"> The tool call identity key</label>
+    </div>
+    <div class="quiz-feedback" id="quiz-2-feedback"></div>
+  </fieldset>
+
+  <fieldset class="quiz" id="quiz-3">
+    <legend>Q3. Which layer may contain provider-specific quirks?</legend>
+    <div class="quiz-options">
+      <label><input type="radio" name="q3" value="a"> TypeScript scene mapper</label>
+      <label><input type="radio" name="q3" value="b"> @acepe/ui components</label>
+      <label><input type="radio" name="q3" value="c"> Rust adapters and history parsers</label>
+      <label><input type="radio" name="q3" value="d"> CanonicalSessionProjection fallbacks</label>
+    </div>
+    <div class="quiz-feedback" id="quiz-3-feedback"></div>
+  </fieldset>
+
+  <h2>Primary source</h2>
+  <p>Read the truth-flow narrative and glossary in <a href="../../CONTEXT.md">CONTEXT.md</a> (sections "How truth flows" and "Canonical model"). This lesson compresses that document; the glossary is the naming authority for everything that follows.</p>
+
+  <h2>What's next</h2>
+  <p>Future lessons can go deeper on: <code>SessionOpenSnapshot</code> and reconnect boundaries, the reconciler funnel, provider adapter edge maps, and the conversation-builder seam in the materializer. See <a href="0002-rust-adapter-history-parser.html">Lesson 2 — Rust adapter / history parser</a>.</p>
+
+  <p class="nav-footer">
+    <strong>Ask follow-up questions</strong> — your agent teacher can trace any path through the codebase, run GOD checks on a proposed change, or design the next lesson from your zone of proximal development.
+    <ul>
+      <li><a href="../reference/canonical-authority-surfaces.html">Reference: Authority surfaces</a></li>
+      <li><a href="../MISSION.md">Mission</a></li>
+      <li><a href="../RESOURCES.md">Resources</a></li>
+    </ul>
+  </p>
+</article>
+
+<script>
+(function () {
+  const answers = {
+    q1: { correct: 'b', explain: 'Transcript order is canonical product truth. Fix the Rust parser or transcript_projection — never the UI.' },
+    q2: { correct: 'c', explain: 'provider_msg_id is metadata. Order = transcript_seq. Display = display_id. Tools = tool_call_id.' },
+    q3: { correct: 'c', explain: 'Provider quirks are normalized at the Rust adapter edge. Downstream code sees canonical facts only.' }
+  };
+
+  Object.keys(answers).forEach(function (id) {
+    const fieldset = document.getElementById('quiz-' + id.slice(1));
+    const feedback = document.getElementById('quiz-' + id.slice(1) + '-feedback');
+    fieldset.querySelectorAll('input').forEach(function (input) {
+      input.addEventListener('change', function () {
+        const picked = input.value;
+        const ok = picked === answers[id].correct;
+        feedback.textContent = answers[id].explain;
+        feedback.className = 'quiz-feedback ' + (ok ? 'correct' : 'wrong');
+      });
+    });
+  });
+})();
+</script>
+</body>
+</html>

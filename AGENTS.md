@@ -61,7 +61,7 @@ Need durable spec or tracked work?
   |
   v
 Risky or non-trivial?
-  | yes -> plan in docs/plans/ -> document-review -> resolve findings
+  | yes -> plan in docs/plans/ -> implement
   no or done
   |
   v
@@ -84,10 +84,10 @@ Record durable learning in docs/solutions/ when useful
 | Situation | Start at |
 |-----------|----------|
 | Scope, success criteria, or problem framing unclear | `grill-me` or `grill-with-docs` |
-| Requirements exist, no plan yet | Plan in `docs/plans/`, then `document-review` |
+| Requirements exist, no plan yet | Plan in `docs/plans/`, then `implement` |
 | Reviewed plan exists, matches request | `implement` |
 | Bug fix or behavior change | TDD failing test, then `implement` |
-| Non-trivial refactor | Plan in `docs/plans/`, then `document-review` |
+| Non-trivial refactor | Plan in `docs/plans/`, then `implement` |
 | Trivial, obvious, no durable plan needed | Direct execution |
 
 ### Phase Intent
@@ -97,7 +97,6 @@ Record durable learning in docs/solutions/ when useful
 | `grill-me` / `grill-with-docs` | Define what to build when the request is unclear. |
 | `to-prd` / `to-issues` / `triage` | Turn product thinking into durable specs or tracked work. |
 | Plan in `docs/plans/` | Define how to build it with files, tests, constraints, and verification. |
-| `document-review` | Quality gate before code. Catches contradictions, scope drift, and weak assumptions. |
 | TDD | First executable proof. Failing or characterization test that implementation turns green. |
 | `implement` | Execute the clear request or reviewed plan. Code and verify; do not invent behavior. |
 | `code-review` | Stress-test non-trivial code changes before shipping. |
@@ -105,17 +104,16 @@ Record durable learning in docs/solutions/ when useful
 
 ### Hard Rules
 
-1. **No skipping the review gate when a plan is needed.** Plan -> `document-review` -> `implement`. Never plan -> implement directly.
-2. **A plan is done after review, not after drafting.** It is done after `document-review` runs and findings are resolved.
+1. **No skipping the plan gate when a plan is needed.** Plan -> `implement`. Never implement a non-trivial change without a decision-complete plan in `docs/plans/`.
+2. **A plan is done when it is decision-complete.** Files, tests, constraints, rollout, and verification must be specified before implementation starts.
 3. **Implementation is done after verification and review.** Non-trivial work requires `code-review`, resolved findings, and real verification.
 4. **Tests before implementation.** For bugs, behavior changes, and non-trivial refactors: write the failing or characterization test first via TDD, then implement.
-5. **Unresolved scope decisions go back to requirements.** If `document-review` finds product ambiguity, loop to `grill-me` or `grill-with-docs`. Do not bury ambiguity in code.
-6. **Headless review for automation.** When reviewing non-interactively: `document-review mode:headless docs/plans/<plan>.md`.
-7. **Implementation plan requests must create or reuse a real plan first.** Session `plan.md` may mirror or summarize the plan, but it must not replace `docs/plans/` when a durable plan is needed.
-8. **Acepe plans use Deep plan posture.** For Acepe software work, make plans decision-complete by default: files, tests, constraints, rollout, and verification.
-9. **Do not normalize partial implementation as an acceptable endpoint.** Continue until the planned slice is actually wired end-to-end and verified. Do not frame "still in progress" as a valid completion state when the requested implementation has not yet been delivered.
-10. **Prefer skill entry points** over direct subagent invocation. Skills own orchestration, agent selection, and review posture.
-11. **If a skill is unavailable**, follow the same phase manually. Never skip a phase because the skill isn't loaded.
+5. **Unresolved scope decisions go back to requirements.** If the plan has product ambiguity, loop to `grill-me` or `grill-with-docs`. Do not bury ambiguity in code.
+6. **Implementation plan requests must create or reuse a real plan first.** Session `plan.md` may mirror or summarize the plan, but it must not replace `docs/plans/` when a durable plan is needed.
+7. **Acepe plans use Deep plan posture.** For Acepe software work, make plans decision-complete by default: files, tests, constraints, rollout, and verification.
+8. **Do not normalize partial implementation as an acceptable endpoint.** Continue until the planned slice is actually wired end-to-end and verified. Do not frame "still in progress" as a valid completion state when the requested implementation has not yet been delivered.
+9. **Prefer skill entry points** over direct subagent invocation. Skills own orchestration, agent selection, and review posture.
+10. **If a skill is unavailable**, follow the same phase manually. Never skip a phase because the skill isn't loaded.
 
 ### TDD Protocol
 

@@ -345,7 +345,7 @@ Manual headless review was run during planning because subagent dispatch was una
 - Assistant entries must be Acepe-owned even before a tool boundary; provider ids may group chunks but must not become display identity.
 - Test helpers must not create a second projection rule; delete them or route through production runtime projection.
 
-Before implementation, rerun `/document-review mode:headless docs/plans/2026-05-18-003-refactor-live-transcript-identity-boundary-plan.md` if additional scope is added. This plan changes canonical transcript identity and must not go directly from planning to code without review.
+Before implementation, rerun `mode:headless docs/plans/2026-05-18-003-refactor-live-transcript-identity-boundary-plan.md` if additional scope is added. This plan changes canonical transcript identity and must not go directly from planning to code without review.
 
 ## Risks
 

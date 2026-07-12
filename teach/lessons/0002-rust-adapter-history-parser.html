@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Lesson 2 — Rust Adapter / History Parser</title>
+  <link rel="stylesheet" href="../assets/fonts.css">
+  <link rel="stylesheet" href="../assets/course.css">
+  <script src="../assets/theme-toggler.js"></script>
+</head>
+<body>
+<article>
+  <p class="lesson-meta">Lesson 0002 · ~10 min · Builds on <a href="0001-how-canonical-truth-flows.html">Lesson 1</a></p>
+  <h1>Rust Adapter / History Parser</h1>
+
+  <p>In <a href="0001-how-canonical-truth-flows.html">Lesson 1</a> you learned that provider output is <em>input</em>, not product truth. The <strong>Rust adapter / history parser</strong> is the membrane where that input becomes canonical facts. Every provider quirk Acepe tolerates must live here — and nowhere else.</p>
+
+  <h2>Adapter vs parser — two names, one edge</h2>
+
+  <p><code>CONTEXT.md</code> uses both terms for the same boundary:</p>
+
+  <ul>
+    <li><strong>Adapter</strong> — the provider module home under <code>acp/providers/&lt;name&gt;/</code> (transport, settings, enrichment, edge map).</li>
+    <li><strong>Parser</strong> — the code that turns raw bytes into semantic structures (<code>acp/parsers/</code> for live; <code>cursor_history/</code>, <code>session_jsonl/</code> for disk).</li>
+  </ul>
+
+  <p>Think of the adapter as the <em>address book</em> (where each ingress edge lives) and the parser as the <em>translator</em> (what each edge does).</p>
+
+  <h2>Two ingress modes</h2>
+
+  <p>Every provider hits Acepe through one of two doors:</p>
+
+  <div class="flow-diagram">┌─────────────────────────────────────────────────────────┐
+│  LIVE PARSE (session connected)                         │
+│  ACP JSON updates → AgentParser → SessionUpdate         │
+│  → session_state_engine / streaming accumulator         │
+└─────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────┐
+│  HISTORY RESTORE (session open / import)                │
+│  Disk files → history parser → FullSession            │
+│  → session_converter → CanonicalTranscriptEvent         │
+│  → session_materialization → TranscriptSnapshot         │
+└─────────────────────────────────────────────────────────┘</div>
+
+  <p>Both paths must produce <strong>compatible</strong> canonical facts — same tool call ids, same order semantics, same display id inputs. Cursor documents this explicitly in its ingress edge map (<code>acp/providers/cursor/mod.rs</code>) with tests in <code>parsers/tests/cursor_ingress_edges.rs</code>.</p>
+
+  <h2>Live path: AgentParser</h2>
+
+  <p>When a session is connected, ACP delivers streaming JSON updates. Each provider implements the <code>AgentParser</code> trait (<code>acp/parsers/types.rs</code>):</p>
+
+  <pre><code>pub trait AgentParser: Send + Sync {
+    fn agent_type(&self) -> AgentType;
+    fn detect_update_type(&self, data: &Value) -> Result&lt;UpdateType, ParseError&gt;;
+    fn parse_tool_call(&self, data: &Value) -> Result&lt;ToolCallData, ParseError&gt;;
+    fn parse_tool_call_update(&self, ...) -> Result&lt;ToolCallUpdateData, ParseError&gt;;
+    fn detect_tool_kind(&self, name: &str) -> ToolKind;  // hint, not authority
+    // …questions, todos, usage telemetry, plans
+}</code></pre>
+
+  <p>Dispatch is via <code>get_parser(AgentType::Cursor)</code> (etc.). Parsers normalize update shapes — e.g. <code>toolCall</code> vs <code>tool_use</code> — into shared <code>SessionUpdate</code> variants the session state engine already understands.</p>
+
+  <div class="callout">
+    <strong>Important:</strong> <code>detect_tool_kind</code> on the parser is a <em>parse-time hint</em>. The single authority for tool identity is <code>acp/reconciler/</code> (<code>classify_raw_tool_call</code>, etc.). Parsers must not become parallel classifiers.
+  </div>
+
+  <h2>History path: disk → FullSession → canonical events</h2>
+
+  <p>When you open a past session, Acepe reads provider files from disk. Each provider has its own on-disk format:</p>
+
+  <table>
+    <thead>
+      <tr><th>Provider</th><th>Disk location (typical)</th><th>Parser module</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>Claude Code</td>
+        <td><code>~/.claude/projects/…/sessions/*.jsonl</code></td>
+        <td><code>session_jsonl/parser/full_session.rs</code></td>
+      </tr>
+      <tr>
+        <td>Cursor</td>
+        <td><code>~/.cursor/projects/…/agent-transcripts/</code>, <code>store.db</code></td>
+        <td><code>cursor_history/parser.rs</code>, <code>history/cursor_sqlite_parser.rs</code></td>
+      </tr>
+      <tr>
+        <td>Copilot</td>
+        <td>Copilot session state files</td>
+        <td><code>copilot_history/parser.rs</code></td>
+      </tr>
+      <tr>
+        <td>OpenCode</td>
+        <td>Server history API</td>
+        <td><code>opencode_history/parser.rs</code></td>
+      </tr>
+    </tbody>
+  </table>
+
+  <p>History parsers deserialize provider rows into a shared intermediate: <code>FullSession</code> (<code>session_jsonl/types.rs</code>) — an ordered list of <code>OrderedMessage</code> with <code>ContentBlock</code> variants (text, tool use, tool result, etc.).</p>
+
+  <h2>session_converter: the shared funnel</h2>
+
+  <p>Once you have a <code>FullSession</code>, provider-specific conversion diverges then reunites:</p>
+
+  <pre><code>session_converter/
+├── claude.rs      # Claude-specific FullSession → thread snapshot
+├── cursor.rs      # Cursor-specific paths + tool id normalization
+├── fullsession.rs # Shared: StoredEntry → CanonicalTranscriptEvent
+└── transcript_events.rs  # Order authority lives here</code></pre>
+
+  <p><code>materialize_canonical_transcript_events</code> in <code>transcript_events.rs</code> is where history transcript <strong>order</strong> is decided. It walks messages, groups compatible assistant fragments, assigns <code>transcript_seq</code>, and dedupes tool rows. This is the fix point for bugs like "tool calls appear after assistant text when they shouldn't."</p>
+
+  <h2>session_materialization: join transcript + operations</h2>
+
+  <p>After conversion, <code>session_materialization/</code> assembles the full canonical picture:</p>
+
+  <ol>
+    <li>Build <code>TranscriptSnapshot</code> from canonical events (or stored entries as fallback).</li>
+    <li>Project operations and interactions via <code>ProjectionRegistry</code>.</li>
+    <li><code>relink_operations_to_transcript</code> — link each operation to its transcript entry by <code>tool_call_id</code>.</li>
+    <li><code>ensure_transcript_tool_operations</code> — every tool row in the transcript has a matching operation.</li>
+  </ol>
+
+  <p>The transcript is the authority for entry identity. Operations link <em>to</em> it — never the reverse.</p>
+
+  <h2>Provider module homes (edge maps)</h2>
+
+  <p>Each provider's <code>mod.rs</code> documents its ingress edges. Example from Claude Code:</p>
+
+  <pre><code>// acp/providers/claude_code/mod.rs — ingress edge map
+// Live parse    → acp/parsers/claude_code_parser.rs
+// History restore → session_converter/ Claude paths
+// Classification  → acp/reconciler/providers/claude_code.rs</code></pre>
+
+  <p>Before editing provider behavior, read the edge map. If your change touches tool ids, check that live parse and history restore still agree (Cursor's <code>cursor_ingress_edges.rs</code> tests are the pattern).</p>
+
+  <h2>Where to edit what</h2>
+
+  <table>
+    <thead>
+      <tr><th>Symptom</th><th>Edit here — not downstream</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>Wrong tool kind / display name</td>
+        <td><code>acp/reconciler/</code></td>
+      </tr>
+      <tr>
+        <td>Live streaming update misread</td>
+        <td><code>acp/parsers/&lt;provider&gt;_parser.rs</code></td>
+      </tr>
+      <tr>
+        <td>History file not loading</td>
+        <td><code>cursor_history/</code>, <code>session_jsonl/</code>, <code>history/</code></td>
+      </tr>
+      <tr>
+        <td>Transcript row order wrong after restore</td>
+        <td><code>session_converter/transcript_events.rs</code></td>
+      </tr>
+      <tr>
+        <td>Tool row missing operation link</td>
+        <td><code>session_materialization/</code> relink paths</td>
+      </tr>
+      <tr>
+        <td>Display looks wrong but canonical is fine</td>
+        <td>Scene mapper — but verify canonical first</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <p>Cheat sheet: <a href="../reference/rust-adapter-ingress-map.html">Rust Adapter Ingress Map reference</a>.</p>
+
+  <h2>Retrieval practice</h2>
+
+  <fieldset class="quiz" id="quiz-1">
+    <legend>Q1. Provider quirks belong where in Acepe?</legend>
+    <div class="quiz-options">
+      <label><input type="radio" name="q1" value="a"> Provider quirks belong in Rust adapter edges</label>
+      <label><input type="radio" name="q1" value="b"> Provider quirks belong in TypeScript scene mapper</label>
+      <label><input type="radio" name="q1" value="c"> Provider quirks belong in agent-panel Svelte code</label>
+      <label><input type="radio" name="q1" value="d"> Provider quirks belong in canonical projection layer</label>
+    </div>
+    <div class="quiz-feedback" id="quiz-1-feedback"></div>
+  </fieldset>
+
+  <fieldset class="quiz" id="quiz-2">
+    <legend>Q2. What does AgentParser primarily handle?</legend>
+    <div class="quiz-options">
+      <label><input type="radio" name="q2" value="a"> Live ACP streaming session update events</label>
+      <label><input type="radio" name="q2" value="b"> Disk JSONL files from provider history</label>
+      <label><input type="radio" name="q2" value="c"> Final agent-panel scene model projection</label>
+      <label><input type="radio" name="q2" value="d"> TypeScript canonical session projection state</label>
+    </div>
+    <div class="quiz-feedback" id="quiz-2-feedback"></div>
+  </fieldset>
+
+  <fieldset class="quiz" id="quiz-3">
+    <legend>Q3. History restore produces which intermediate type first?</legend>
+    <div class="quiz-options">
+      <label><input type="radio" name="q3" value="a"> SessionUpdate deltas from live streaming</label>
+      <label><input type="radio" name="q3" value="b"> FullSession message list from disk</label>
+      <label><input type="radio" name="q3" value="c"> AgentPanelSceneModel for the UI layer</label>
+      <label><input type="radio" name="q3" value="d"> CanonicalSessionProjection in TypeScript</label>
+    </div>
+    <div class="quiz-feedback" id="quiz-3-feedback"></div>
+  </fieldset>
+
+  <h2>Primary source</h2>
+  <p>Read the glossary entries for <strong>Adapter / history parser</strong> and <strong>Tool identity authority</strong> in <a href="../../CONTEXT.md">CONTEXT.md</a>, then skim one provider edge map — start with <code>packages/desktop/src-tauri/src/acp/providers/cursor/mod.rs</code> (most documented ingress table).</p>
+
+  <h2>What's next</h2>
+  <p>Follow-on lessons can trace a single provider end-to-end (Claude JSONL row → display entry), or dive into <code>SessionOpenSnapshot</code> and the reconnect boundary after history restore.</p>
+
+  <p class="nav-footer">
+    <strong>Ask follow-up questions</strong> — trace a specific file through the pipeline, walk a failing test, or run a GOD check on a change you're planning.
+    <ul>
+      <li><a href="0001-how-canonical-truth-flows.html">Lesson 1 — How canonical truth flows</a></li>
+      <li><a href="../reference/rust-adapter-ingress-map.html">Reference — Rust adapter ingress map</a></li>
+      <li><a href="../reference/canonical-authority-surfaces.html">Reference — Authority surfaces</a></li>
+    </ul>
+  </p>
+</article>
+
+<script>
+(function () {
+  var answers = {
+    q1: { correct: 'a', explain: 'Provider quirks normalize at the Rust adapter edge only. Downstream consumes canonical facts.' },
+    q2: { correct: 'a', explain: 'AgentParser handles live ACP streaming updates. Disk history uses separate parser modules.' },
+    q3: { correct: 'b', explain: 'History parsers read disk → FullSession. session_converter then materializes canonical events.' }
+  };
+
+  Object.keys(answers).forEach(function (id) {
+    var fieldset = document.getElementById('quiz-' + id.slice(1));
+    var feedback = document.getElementById('quiz-' + id.slice(1) + '-feedback');
+    fieldset.querySelectorAll('input').forEach(function (input) {
+      input.addEventListener('change', function () {
+        var ok = input.value === answers[id].correct;
+        feedback.textContent = answers[id].explain;
+        feedback.className = 'quiz-feedback ' + (ok ? 'correct' : 'wrong');
+      });
+    });
+  });
+})();
+</script>
+</body>
+</html>

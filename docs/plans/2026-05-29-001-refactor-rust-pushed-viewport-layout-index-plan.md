@@ -283,7 +283,7 @@ Tactical Option A overlaps with perf edits already in the working tree (rAF scro
 - **Rust:** `transcript_viewport/{layout,viewport}.rs`, `session_state_engine/{protocol,runtime_registry}.rs`, `commands/transcript_viewport_commands.rs`.
 - **TypeScript:** `services/acp-types.ts`, `acp/store/transcript-viewport-store.svelte.ts`, `acp/session-state/session-state-viewport-command-service.ts`, `acp/components/agent-panel/components/scene-content-viewport.svelte`, possibly `desktop-agent-panel-scene.ts` (co-owned).
 - **Guard scripts:** `scripts/check-transcript-virtualizer-deps.ts`, `scripts/check-rust-owned-transcript-viewport.ts` may need updates when the old full-window type is removed (U6).
-- **Affected parties:** end users (scroll feel), the concurrent agent on the scene mapper (coordination), reviewers (canonical protocol change → GOD gate + `/document-review`).
+- **Affected parties:** end users (scroll feel), the concurrent agent on the scene mapper (coordination), reviewers (canonical protocol change → GOD gate + ``).
 
 ---
 

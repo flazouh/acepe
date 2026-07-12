@@ -163,5 +163,5 @@ The CLI should be the fastest path for repeatable checks. The MCP server should 
 
 ## Next Steps
 
--> `/document-review mode:headless docs/brainstorms/2026-05-31-agent-app-control-plane-requirements.md`
+-> `mode:headless docs/brainstorms/2026-05-31-agent-app-control-plane-requirements.md`
 -> `/ce:plan docs/brainstorms/2026-05-31-agent-app-control-plane-requirements.md`

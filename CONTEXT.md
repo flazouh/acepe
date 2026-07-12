@@ -54,10 +54,23 @@ Truth is **owned by canonical, Rust-side data**. Provider output is *input*, not
 - **Composition root / store facade** — the residual parent store after decomposition: holds sub-store instances and delegates its public interface to them in one-liners, preserving the external contract. Cross-slice reads flow through **accessor-closure dependencies**, never dual-ownership.
 
 ### Workspace concepts
+- **Collaboration space** — a long-lived human-and-agent communication area that may be native to Acepe or projected from an external channel. It contains discussions and may produce many workrooms. _Avoid:_ workspace, room, channel when referring to the provider-neutral concept.
+- **Workroom** — the bounded record of one intended outcome, from request through execution, review, and completion or cancellation. A workroom may link an external discussion, ticket, repository, execution environments, agent sessions, evidence, and a delivered changeset. _Avoid:_ project, channel, permanent workspace.
 - **Worktree** — an isolated git worktree used for parallel agent work / review.
+- **Execution environment** — the isolated machine or sandbox, working copy, processes, credentials, and network policy assigned to one implementation agent at a time. It may run on a user's machine, Acepe infrastructure, customer infrastructure, or a third-party provider. _Avoid:_ coding environment, compute workspace.
+- **Execution provider** — the integration boundary that creates or connects to execution environments and manages their lifecycle. _Avoid:_ VM provider, compute backend.
+- **Compute usage** — the measured CPU, memory, storage, and running time consumed by an execution environment. Monetary cost is shown only when the execution provider supplies a reliable price.
+- **Model usage** — the tokens, requests, or subscription capacity consumed through an agent's model provider. It is measured and governed separately from compute usage.
 - **Composer** — the message-input surface (editor, toolbar, selectors). Follows the same View/controller split as the panel.
 - **Review workspace** — the surface for reviewing an agent's changes: modified files, diffs, PR card.
 - **Permission** — a gate where the agent requests approval for an action before proceeding.
+
+### Memory concepts
+- **Agent memory** — durable knowledge scoped to one agent's role, assignments, preferences, and lessons. It is not automatically visible to other agents.
+- **Workroom memory** — the sourced decisions, evidence, and outcome retained for one workroom. It may be written automatically as part of the workroom's factual record.
+- **Project memory** — governed knowledge shared across workrooms for one software project, such as architecture, conventions, and recurring lessons.
+- **Organization memory** — governed knowledge shared across an organization, such as policy, glossary, identity, and security rules. _Avoid:_ global memory.
+- **Memory proposal** — an agent-authored candidate for project or organization memory that becomes authoritative only through human approval or an explicit organization policy.
 
 ## Conventions that shape the language
 

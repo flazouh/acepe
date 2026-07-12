@@ -261,7 +261,7 @@ Tests:
 ## First Implementation Order
 
 1. Add concept doc and this plan.
-2. Run `document-review mode:headless` on this plan.
+2. Review this plan before implementation.
 3. Implement Unit 1 with failing tests first.
 4. Inspect and decide the exact Acepe MCP registration/handler path.
 5. Implement Unit 2 with mock-provider tests.

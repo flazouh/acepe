@@ -93,7 +93,7 @@ Useful facts:
 
 ## Review Gate Resolution
 
-The document-review gate found three blocking issues and the plan has been revised to resolve them before implementation:
+The plan review found three blocking issues and the plan has been revised to resolve them before implementation:
 
 - The incident scope is narrowed to Units 1-4. Title persistence and failed-session cleanup moved to follow-up work.
 - Durable transcript replay now requires per-turn completeness markers, deterministic ordering, idempotency rules, and tests for partial crash recovery.

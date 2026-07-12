@@ -422,7 +422,7 @@ flowchart TB
 
 - If implementation changes the meaning of "new session" versus "activated session," update concept docs so the distinction is explicit and portable.
 - The rollout should favor invariants over partial coexistence: once the canonical activation path exists, old bypass paths should be removed rather than left in parallel.
-- This plan should be followed by `/document-review` before `/ce:work`, and execution should start with failing characterization tests around the create-first-prompt seam.
+- This plan should be followed by `` before `/ce:work`, and execution should start with failing characterization tests around the create-first-prompt seam.
 
 ## Sources & References
 

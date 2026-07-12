@@ -452,7 +452,7 @@ flowchart LR
 
 ## Documentation / Operational Notes
 
-- Run `document-review` on this plan before any implementation work.
+- Run on this plan before any implementation work.
 - During execution, treat Unit 1 as the prerequisite gate for parallel sub-agent work.
 - After landing the final units, compound the remaining ownership rule into `docs/solutions/` so future provider work inherits the completed agnostic boundary.
 

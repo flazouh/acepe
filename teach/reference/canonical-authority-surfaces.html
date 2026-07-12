@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Reference — Canonical Authority Surfaces</title>
+  <link rel="stylesheet" href="../assets/fonts.css">
+  <link rel="stylesheet" href="../assets/course.css">
+  <script src="../assets/theme-toggler.js"></script>
+</head>
+<body>
+<article>
+  <p class="lesson-meta">Reference · Acepe Canonical Architecture</p>
+  <h1>Canonical Authority Surfaces</h1>
+
+  <p>Quick lookup: who owns what in Acepe's session model. Product truth lives in Rust; TypeScript and <code>@acepe/ui</code> consume it.</p>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Surface</th>
+        <th>Owns</th>
+        <th>Rust home</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong>SessionStateGraph</strong></td>
+        <td>lifecycle, activity, turn state, capabilities, revision</td>
+        <td><code>acp/session_state_engine/graph.rs</code></td>
+      </tr>
+      <tr>
+        <td><strong>Canonical transcript</strong></td>
+        <td>message order, display ids, text/thought/tool sequence</td>
+        <td><code>acp/transcript_projection/</code></td>
+      </tr>
+      <tr>
+        <td><strong>Operation graph</strong></td>
+        <td>tool call state, args, results, parent/child links</td>
+        <td><code>acp/projections/</code> + <code>session_materialization</code></td>
+      </tr>
+      <tr>
+        <td><strong>Interaction graph</strong></td>
+        <td>questions, approvals, blocking user interactions</td>
+        <td><code>acp/projections/</code></td>
+      </tr>
+      <tr>
+        <td><strong>Tool identity</strong></td>
+        <td>kind, canonical name, argument interpretation</td>
+        <td><code>acp/reconciler/</code></td>
+      </tr>
+      <tr>
+        <td><strong>Provider adapters</strong></td>
+        <td>raw provider → canonical facts (only place for quirks)</td>
+        <td><code>acp/providers/&lt;name&gt;/</code>, <code>acp/parsers/</code></td>
+      </tr>
+      <tr>
+        <td><strong>Session open</strong></td>
+        <td>full canonical state at open + <code>last_event_seq</code> boundary</td>
+        <td><code>acp/session_open_snapshot/</code></td>
+      </tr>
+      <tr>
+        <td><strong>Scene model (TS)</strong></td>
+        <td>domain → view props mapping (no truth)</td>
+        <td><code>agent-panel-graph-materializer.ts</code></td>
+      </tr>
+      <tr>
+        <td><strong>View</strong></td>
+        <td>presentational render only</td>
+        <td><code>packages/ui/src/components/agent-panel/</code></td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h2>Identity cheat sheet</h2>
+  <table>
+    <thead>
+      <tr><th>Id</th><th>Role</th></tr>
+    </thead>
+    <tbody>
+      <tr><td><code>transcript_seq</code> / <code>event_seq</code></td><td>Canonical order authority</td></tr>
+      <tr><td><code>display_id</code></td><td>Acepe-owned stable UI identity</td></tr>
+      <tr><td><code>tool_call_id</code> (e.g. <code>toolu_*</code>)</td><td>Tool identity</td></tr>
+      <tr><td><code>provider_msg_id</code> (e.g. Claude <code>message.id</code>)</td><td>Metadata only — not display id or order</td></tr>
+      <tr><td><code>provider_row_id</code></td><td>Provider row uuid — metadata</td></tr>
+    </tbody>
+  </table>
+
+  <h2>Forbidden patterns</h2>
+  <ul>
+    <li><code>canonical ?? hotState</code> fallbacks in TypeScript</li>
+    <li>Sorting or reordering transcript rows in Svelte/components</li>
+    <li>Provider-specific branches in UI code</li>
+    <li>Using raw provider message ids as display entry ids</li>
+    <li>Tauri or store imports inside <code>@acepe/ui</code></li>
+  </ul>
+
+  <p class="nav-footer">
+    See also:
+    <ul>
+      <li><a href="../lessons/0001-how-canonical-truth-flows.html">Lesson 1 — How canonical truth flows</a></li>
+      <li><a href="../../CONTEXT.md">CONTEXT.md</a></li>
+    </ul>
+  </p>
+</article>
+</body>
+</html>

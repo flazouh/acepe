@@ -506,7 +506,7 @@ flowchart TB
 
 ## Documentation / Operational Notes
 
-- This plan should be followed by `document-review` before `/ce:work`.
+- This plan should be followed by before `/ce:work`.
 - Execution should preserve the current TDD / characterization-first posture for bug-bearing seams, especially resume selection and replay-context regressions.
 - If implementation reveals that `session_metadata` cannot safely host descriptor facts for this slice, update the plan or create a follow-on persistence-focused plan rather than silently widening scope mid-execution.
 - Compatibility or legacy sessions that are intentionally non-resumable after descriptor validation must remain visible/readable and surface an explicit recovery message rather than appearing lost.

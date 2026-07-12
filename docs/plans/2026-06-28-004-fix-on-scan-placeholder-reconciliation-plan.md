@@ -170,4 +170,4 @@ Targeted (only placeholder rows, which are rare/zero in steady state) so the com
 
 ## Next Step
 
-Mandatory `/document-review` gate, then TDD per unit (U1 → U2 → U3).
+Mandatory `` gate, then TDD per unit (U1 → U2 → U3).

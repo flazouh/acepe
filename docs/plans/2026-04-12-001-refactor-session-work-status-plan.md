@@ -386,7 +386,7 @@ machine snapshot
 ## Documentation / Operational Notes
 
 - After implementation, add a solution doc if the refactor exposes a durable pattern for “one runtime owner, many UI projections” beyond this specific status system.
-- The follow-up `/document-review` pass should focus on whether the plan fully removes local status dialects or accidentally preserves them behind new names.
+- The follow-up `` pass should focus on whether the plan fully removes local status dialects or accidentally preserves them behind new names.
 
 ## Sources & References
 
