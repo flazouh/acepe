@@ -71,7 +71,7 @@ export const SETTINGS_SECTIONS: readonly SettingsSectionDefinition[] = [
 		id: "skills",
 		label: "Skills",
 		description: "Create and manage reusable local skills.",
-		roundedIcon: "skills",
+		linearInterfaceIcon: "settings-skills",
 		groupId: "agents",
 		fullWidth: true,
 	},

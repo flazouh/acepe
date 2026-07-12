@@ -52,6 +52,21 @@ describe("linear-interface-icon", () => {
 		});
 	});
 
+	it("resolves the approved Linear settings Skills row icon", () => {
+		const glyph = resolveLinearInterfaceIconGlyph("settings-skills");
+
+		expect(glyph.viewBox).toBe(linearIconData.skills.viewBox);
+		expect(glyph.inner).toBe(linearIconData.skills.inner);
+		expect(getLinearInterfaceIconEvidence("settings-skills")).toMatchObject({
+			linearName: "skills",
+			surface: "Linear agent settings",
+			controlLabel: "Skills",
+			sourceChunk: "useIsMounted",
+			originalName: "SkillsIcon",
+			evidenceState: "approved",
+		});
+	});
+
 	it("does not turn the generic rounded copy icon into Copy ID", () => {
 		const roundedCopy = resolveRoundedIconGlyph("copy");
 
@@ -64,5 +79,12 @@ describe("linear-interface-icon", () => {
 
 		expect(roundedSettings.viewBox).toBe(roundedIconData.settings.viewBox);
 		expect(roundedSettings.inner).toBe(roundedIconData.settings.inner);
+	});
+
+	it("does not turn the generic rounded skills icon into the settings Skills row icon", () => {
+		const roundedSkills = resolveRoundedIconGlyph("skills");
+
+		expect(roundedSkills.viewBox).toBe(roundedIconData.skills.viewBox);
+		expect(roundedSkills.inner).toBe(roundedIconData.skills.inner);
 	});
 });

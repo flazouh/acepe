@@ -19,4 +19,16 @@ describe("settings section registry", () => {
 		});
 		expect(general.roundedIcon).toBeUndefined();
 	});
+
+	it("routes the Skills settings row to the targeted Linear interface icon", async () => {
+		const { getSettingsSectionDefinition } = await import("./settings-section-registry.js");
+		const skills = getSettingsSectionDefinition("skills");
+
+		expect(skills).toMatchObject({
+			id: "skills",
+			label: "Skills",
+			linearInterfaceIcon: "settings-skills",
+		});
+		expect(skills.roundedIcon).toBeUndefined();
+	});
 });

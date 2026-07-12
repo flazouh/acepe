@@ -80,6 +80,10 @@ describe("rounded icon migration manifest", () => {
         "RecurringIssueSettingsIcon",
       ],
     });
+    expect(getRoundedIconMigrationDecision("mcp")).toMatchObject({
+      state: "no-equivalent",
+      rejectedLinearCandidates: ["Server"],
+    });
   });
 
   it("leaves no runtime icon in an unresolved migration state", () => {

@@ -4,7 +4,8 @@ import { linearIconData, type LinearIconName } from "./linear-icon-catalog.js";
 export type LinearInterfaceIconName =
 	| "copy-id"
 	| "open-in-new-window"
-	| "settings-general";
+	| "settings-general"
+	| "settings-skills";
 
 export type LinearInterfaceIconGlyph = {
 	readonly viewBox: string;
@@ -51,6 +52,20 @@ export const linearInterfaceIconMappings = {
 		sourceType: "feature-jsx",
 		sourceSet: null,
 		originalName: "FeatureSvg6bdd3b6f165eIcon",
+		evidenceState: "approved",
+		categoryExceptionReason: null,
+	},
+	"settings-skills": {
+		linearName: "skills",
+		surface: "Linear agent settings",
+		controlLabel: "Skills",
+		observedBuild: "1.31.1",
+		observationMethod: "linear-bundle-control-binding",
+		geometryHash: "040efb1f00407cb059ed43046057958f154588bb4b6a21cedc936402887fe560",
+		sourceChunk: "useIsMounted",
+		sourceType: "shared-jsx",
+		sourceSet: null,
+		originalName: "SkillsIcon",
 		evidenceState: "approved",
 		categoryExceptionReason: null,
 	},

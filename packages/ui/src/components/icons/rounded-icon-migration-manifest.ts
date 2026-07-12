@@ -317,6 +317,13 @@ const noEquivalentDecisions = new Map<
     ),
   ],
   [
+    "mcp",
+    retainAcepeGeometry(
+      "The reviewed Linear catalog has no MCP control binding; the generic Server sprite is only decorative and must not stand in for Acepe's MCP server row.",
+      ["Server"],
+    ),
+  ],
+  [
     "microphone",
     retainAcepeGeometry(
       "No reusable microphone or voice-input icon was found in the reviewed Linear corpus.",
