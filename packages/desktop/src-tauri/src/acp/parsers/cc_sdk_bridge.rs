@@ -7,11 +7,11 @@ use std::collections::{HashMap, HashSet, VecDeque};
 
 use super::{get_parser, AgentType};
 use crate::acp::session_update::{
-    build_tool_call_from_raw, build_tool_call_update_from_raw, ContentChunk, QuestionData,
-    RawToolCallInput, RawToolCallUpdateInput, SessionCompactionEvent, SessionCompactionStatus,
-    SessionCompactionTrigger, SessionUpdate, ToolArguments, ToolCallData, ToolCallStatus,
-    ToolCallUpdateData, ToolKind, ToolReference, TurnErrorData, TurnErrorInfo, TurnErrorKind,
-    TurnErrorSource, UsageTelemetryData, UsageTelemetryTokens,
+    build_tool_call_from_raw, build_tool_call_update_from_raw, ContentChunk, ContextWindowSource,
+    QuestionData, RawToolCallInput, RawToolCallUpdateInput, SessionCompactionEvent,
+    SessionCompactionStatus, SessionCompactionTrigger, SessionUpdate, ToolArguments, ToolCallData,
+    ToolCallStatus, ToolCallUpdateData, ToolKind, ToolReference, TurnErrorData, TurnErrorInfo,
+    TurnErrorKind, TurnErrorSource, UsageTelemetryData, UsageTelemetryTokens,
 };
 use crate::acp::types::ContentBlock;
 use crate::cc_sdk::{self as cc_sdk, Message};
@@ -934,6 +934,7 @@ fn translate_system_message(
             .or_else(|| data.get("timestamp_ms"))
             .and_then(|v| v.as_i64()),
         context_window_size,
+        context_window_source: context_window_size.map(|_| ContextWindowSource::ProviderExplicit),
         parent_tool_use_id: None,
     };
 
@@ -1180,31 +1181,6 @@ fn fallback_compaction_event_id(sid: &str, subtype: &str, data: &serde_json::Val
 }
 
 // ---------------------------------------------------------------------------
-// Model → context window size mapping
-// ---------------------------------------------------------------------------
-
-#[cfg(test)]
-/// Returns the context window size (in tokens) for a given Claude model ID.
-///
-/// All current Claude models (Haiku, Sonnet, Opus) have 200k context windows.
-/// Returns `None` for unrecognized model IDs.
-fn context_window_for_model(model_id: &str) -> Option<u64> {
-    let normalized = model_id.to_lowercase();
-
-    // All Claude 3.5+ / 4+ models have 200k context windows
-    if normalized.contains("claude") {
-        return Some(200_000);
-    }
-
-    // Short aliases used by cc-sdk
-    if normalized == "haiku" || normalized == "sonnet" || normalized == "opus" {
-        return Some(200_000);
-    }
-
-    None
-}
-
-// ---------------------------------------------------------------------------
 // Usage telemetry helpers
 // ---------------------------------------------------------------------------
 
@@ -1230,11 +1206,10 @@ fn build_usage_telemetry_from_json(
         .get("cache_creation_input_tokens")
         .and_then(|v| v.as_u64());
 
-    // Compute total if any token counts are available
-    let total = match (input, output) {
-        (Some(i), Some(o)) => Some(i + o + cache_read.unwrap_or(0) + cache_write.unwrap_or(0)),
-        _ => None,
-    };
+    // Claude Code defines occupied context as the latest input snapshot plus its
+    // cached prefix. Output is reported separately and only joins the next input
+    // snapshot if Claude includes it on a later API round-trip.
+    let total = input.map(|input| input + cache_read.unwrap_or(0) + cache_write.unwrap_or(0));
 
     Some(UsageTelemetryData {
         session_id: sid,
@@ -1252,6 +1227,7 @@ fn build_usage_telemetry_from_json(
         source_model_id,
         timestamp_ms: None,
         context_window_size: None,
+        context_window_source: None,
         parent_tool_use_id,
     })
 }
@@ -1286,6 +1262,12 @@ fn build_result_telemetry(
     // authoritative occupancy snapshot from `usage_update` / assistant messages. Cost
     // and context-window size below are the parts the Result message authoritatively
     // carries.
+    let context_window_size = model_usage
+        .as_ref()
+        .and_then(|usage| model_id.and_then(|model| usage.get(model)))
+        .and_then(|usage| usage.get("contextWindow"))
+        .and_then(|value| value.as_u64());
+
     Some(UsageTelemetryData {
         session_id: sid,
         event_id: None,
@@ -1301,11 +1283,8 @@ fn build_result_telemetry(
         },
         source_model_id: model_id.map(|m| m.to_string()),
         timestamp_ms: None,
-        context_window_size: model_usage
-            .as_ref()
-            .and_then(|usage| model_id.and_then(|model| usage.get(model)))
-            .and_then(|usage| usage.get("contextWindow"))
-            .and_then(|value| value.as_u64()),
+        context_window_size,
+        context_window_source: context_window_size.map(|_| ContextWindowSource::ProviderExplicit),
         parent_tool_use_id: None,
     })
 }
@@ -1982,30 +1961,6 @@ mod tests {
     }
 
     #[test]
-    fn context_window_for_all_claude_models() {
-        use super::context_window_for_model;
-
-        // Full model IDs
-        assert_eq!(
-            context_window_for_model("claude-sonnet-4-5-20250929"),
-            Some(200_000)
-        );
-        assert_eq!(context_window_for_model("claude-opus-4-6"), Some(200_000));
-        assert_eq!(
-            context_window_for_model("claude-haiku-4-5-20251001"),
-            Some(200_000)
-        );
-
-        // Short aliases
-        assert_eq!(context_window_for_model("sonnet"), Some(200_000));
-        assert_eq!(context_window_for_model("opus"), Some(200_000));
-        assert_eq!(context_window_for_model("haiku"), Some(200_000));
-
-        // Unknown model
-        assert_eq!(context_window_for_model("gpt-4o"), None);
-    }
-
-    #[test]
     fn streamed_bash_input_delta_builds_execute_arguments() {
         with_agent(AgentType::ClaudeCode, || {
             let parser = crate::acp::parsers::get_parser(AgentType::ClaudeCode);
@@ -2463,6 +2418,41 @@ mod tests {
             assert_eq!(telemetry.tokens.output, Some(3));
             assert_eq!(telemetry.tokens.cache_write, Some(22537));
         });
+    }
+
+    #[test]
+    fn assistant_usage_matches_claude_context_occupancy_semantics() {
+        let updates = translate_cc_sdk_message(
+            AgentType::ClaudeCode,
+            Message::Assistant {
+                message: cc_sdk::AssistantMessage {
+                    content: vec![cc_sdk::ContentBlock::Text(cc_sdk::TextContent {
+                        text: "still working".to_string(),
+                    })],
+                    model: Some("claude-fable-5".to_string()),
+                    usage: Some(serde_json::json!({
+                        "input_tokens": 2,
+                        "output_tokens": 204,
+                        "cache_read_input_tokens": 188_993,
+                        "cache_creation_input_tokens": 223,
+                    })),
+                    error: None,
+                    parent_tool_use_id: None,
+                },
+            },
+            Some("session-fable".to_string()),
+        );
+
+        let telemetry = updates
+            .iter()
+            .find_map(|update| match update {
+                SessionUpdate::UsageTelemetryUpdate { data } => Some(data),
+                _ => None,
+            })
+            .expect("expected session usage telemetry");
+
+        assert_eq!(telemetry.tokens.total, Some(189_218));
+        assert_eq!(telemetry.tokens.output, Some(204));
     }
 
     #[test]

@@ -174,6 +174,9 @@ impl ParsedUsageTelemetry {
             source_model_id: self.source_model_id,
             timestamp_ms: self.timestamp_ms,
             context_window_size: self.context_window_size,
+            context_window_source: self
+                .context_window_size
+                .map(|_| crate::acp::session_update::ContextWindowSource::ProviderExplicit),
             parent_tool_use_id: None,
         }
     }

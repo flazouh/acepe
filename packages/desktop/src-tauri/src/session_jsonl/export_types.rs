@@ -47,13 +47,14 @@ use crate::acp::session_state_engine::{
 use crate::acp::session_update::{
     AvailableCommand, AvailableCommandsData, ChunkAggregationHint, CommandInput, ConfigOptionData,
     ConfigOptionPresentation, ConfigOptionUpdateData, ConfigOptionValue, ContentChunk,
-    CurrentModeData, EditEntry, InteractionReplyHandler, InteractionReplyHandlerKind,
-    PermissionData, PlanConfidence, PlanData, PlanSource, PlanStep, PlanStepStatus, QuestionData,
-    QuestionItem, QuestionOption, SessionCompactionEvent, SessionCompactionStatus,
-    SessionCompactionTrigger, SessionUpdate, SkillMeta, TodoItem, TodoStatus, TodoUpdate,
-    TodoUpdateOperation, ToolArguments, ToolCallData, ToolCallLocation, ToolCallStatus,
-    ToolCallUpdateData, ToolKind, ToolReference, ToolSourceContext, ToolSourceRange, TurnErrorData,
-    TurnErrorInfo, TurnErrorKind, TurnErrorSource, UsageTelemetryData, UsageTelemetryTokens,
+    ContextWindowSource, CurrentModeData, EditEntry, InteractionReplyHandler,
+    InteractionReplyHandlerKind, PermissionData, PlanConfidence, PlanData, PlanSource, PlanStep,
+    PlanStepStatus, QuestionData, QuestionItem, QuestionOption, SessionCompactionEvent,
+    SessionCompactionStatus, SessionCompactionTrigger, SessionUpdate, SkillMeta, TodoItem,
+    TodoStatus, TodoUpdate, TodoUpdateOperation, ToolArguments, ToolCallData, ToolCallLocation,
+    ToolCallStatus, ToolCallUpdateData, ToolKind, ToolReference, ToolSourceContext,
+    ToolSourceRange, TurnErrorData, TurnErrorInfo, TurnErrorKind, TurnErrorSource,
+    UsageTelemetryData, UsageTelemetryTokens,
 };
 use crate::acp::transcript_projection::{
     TranscriptDelta, TranscriptDeltaOperation, TranscriptEntry, TranscriptEntryRole,
@@ -244,6 +245,7 @@ pub fn export_all_types() {
 
     // Session update types (UsageTelemetry* before SessionUpdate which references them)
     export_session_update_type!(UsageTelemetryTokens);
+    export_session_update_type!(ContextWindowSource);
     export_session_update_type!(UsageTelemetryData);
     export_session_update_type!(SessionCompactionStatus);
     export_session_update_type!(SessionCompactionTrigger);
@@ -416,6 +418,7 @@ pub fn export_all_types() {
     export_acp_type!(InteractionReplyHandler);
     export_acp_type!(PermissionData);
     export_acp_type!(QuestionData);
+    export_acp_type!(ContextWindowSource);
     export_acp_type!(UsageTelemetryData);
     export_acp_type!(UsageTelemetryTokens);
     export_acp_type!(SessionCompactionStatus);

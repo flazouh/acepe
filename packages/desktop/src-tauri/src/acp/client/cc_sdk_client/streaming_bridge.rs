@@ -12,6 +12,7 @@ pub(super) struct StreamingBridgeContext {
     pub(super) app_handle: Option<AppHandle>,
     pub(super) pending_creation_attempt_id: Option<String>,
     pub(super) project_path: Option<PathBuf>,
+    pub(super) initial_context_capability: Option<SessionUpdate>,
 }
 
 fn terminal_tool_call_id(update: &SessionUpdate) -> Option<&str> {
@@ -46,6 +47,7 @@ pub(super) async fn run_streaming_bridge(
         app_handle,
         pending_creation_attempt_id,
         project_path,
+        initial_context_capability,
     } = context;
 
     tracing::info!(session_id = %session_id, "cc-sdk bridge: started, waiting for messages...");
@@ -55,6 +57,13 @@ pub(super) async fn run_streaming_bridge(
     let mut pending_creation_attempt_id = pending_creation_attempt_id;
     let mut pending_creation_promoted = pending_creation_attempt_id.is_none();
     let mut buffered_pending_creation_updates: Vec<SessionUpdate> = Vec::new();
+    if let Some(update) = initial_context_capability {
+        if pending_creation_promoted {
+            dispatch_cc_sdk_update(&dispatcher, &task_reconciler, provider.as_ref(), update);
+        } else {
+            buffered_pending_creation_updates.push(update);
+        }
+    }
 
     while let Some(result) = stream.next().await {
         match result {

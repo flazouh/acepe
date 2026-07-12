@@ -14,8 +14,9 @@
 	interface Props {
 		/** Pre-formatted primary label (e.g., "2m/200k" or "$0.42"). Unused visually but kept for compat. */
 		label?: string | null;
-		/** Context usage 0-100. null hides the chip entirely. */
-		percent?: number | null;
+		value:
+			| { kind: "measured"; percent: number }
+			| { kind: "unknown"; label: string };
 		compact?: boolean;
 		hideLabel?: boolean;
 		ariaLabel?: string;
@@ -24,15 +25,19 @@
 
 	let {
 		label: _label = null,
-		percent = null,
+		value,
 		compact: _compact = false,
 		hideLabel: _hideLabel = false,
 		ariaLabel = "Context usage",
 		title = "",
 	}: Props = $props();
 
-	const hasContextUsage = $derived(percent !== null);
-	const pct = $derived(Math.min(100, Math.max(0, percent ?? 0)));
+	const pct = $derived(
+		value.kind === "measured" ? Math.min(100, Math.max(0, value.percent)) : 0
+	);
+	const accessibleValue = $derived(
+		value.kind === "measured" ? `${pct.toFixed(1)}%` : "unavailable"
+	);
 
 	// Fuel-gauge geometry — a vertical bar that fills from the bottom, mirroring
 	// the usage widget's vertical meter. The track is centered within a
@@ -67,11 +72,10 @@
 	);
 </script>
 
-{#if hasContextUsage}
 	<div
 		class={shellClass}
 		role="status"
-		aria-label="{ariaLabel}: {pct.toFixed(1)}%"
+		aria-label="{ariaLabel}: {accessibleValue}"
 		{title}
 	>
 		<!-- Vertical fill meter (fuel gauge) -->
@@ -87,13 +91,18 @@
 		</div>
 
 		<!-- Animated percent number -->
-		<AnimateNumber
-			value={pct}
-			format={{ maximumFractionDigits: 0 }}
-			suffix="%"
-			duration={450}
-			blur={14}
-			class="min-w-[2.2ch] text-right font-mono font-medium leading-none {numberToneClass}"
-		/>
+		{#if value.kind === "measured"}
+			<AnimateNumber
+				value={pct}
+				format={{ maximumFractionDigits: 0 }}
+				suffix="%"
+				duration={450}
+				blur={14}
+				class="min-w-[2.2ch] text-right font-mono font-medium leading-none {numberToneClass}"
+			/>
+		{:else}
+			<span class="min-w-[2.2ch] text-right font-mono font-medium leading-none text-muted-foreground">
+				{value.label}
+			</span>
+		{/if}
 	</div>
-{/if}

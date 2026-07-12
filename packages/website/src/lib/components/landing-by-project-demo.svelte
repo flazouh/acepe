@@ -838,9 +838,9 @@ const favoriteModels = $derived(modelGroups.flatMap((g) => g.items.filter((i) =>
 													<AgentInputDivider />
 												{/snippet}
 												{#snippet trailing()}
-													<AgentInputMetricsChip
-														label="12/200k"
-														percent={6}
+												<AgentInputMetricsChip
+													label="12/200k"
+													value={{ kind: "measured", percent: 6 }}
 														hideLabel={true}
 													/>
 													<AgentInputMicButton visualState="mic" title="Record with Claude" />

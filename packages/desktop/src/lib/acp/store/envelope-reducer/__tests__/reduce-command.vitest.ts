@@ -15,6 +15,7 @@ import type { CanonicalSessionProjection } from "../../canonical-session-project
 import type { SessionTransientProjection } from "../../types.js";
 import { DEFAULT_TRANSIENT_PROJECTION } from "../../types.js";
 import type { EnvelopeReducerSnapshot } from "../envelope-snapshot.js";
+import { buildCanonicalUsageTelemetry } from "../canonical-usage-telemetry.js";
 import { reduceCommand } from "../reduce-command.js";
 
 const revision: SessionGraphRevision = {
@@ -544,6 +545,118 @@ describe("reduceCommand", () => {
 				},
 			},
 		]);
+	});
+
+	it("preserves provider model capability provenance", () => {
+		const patches = reduceCommand(
+			createSnapshot(),
+			{
+				kind: "applyTelemetry",
+				revision: newerRevision,
+				telemetry: {
+					sessionId: "session-1",
+					scope: "session",
+					sourceModelId: "fable",
+					contextWindowSize: 1_000_000,
+					contextWindowSource: "provider-model-capability",
+				},
+			},
+			1_700_000_000_000
+		);
+
+		expect(patches).toEqual([
+			{
+				kind: "setUsageTelemetry",
+				sessionId: "session-1",
+				telemetry: expect.objectContaining({
+					contextBudget: {
+						maxTokens: 1_000_000,
+						source: "provider-model-capability",
+						scope: "session",
+						updatedAt: 1_700_000_000_000,
+					},
+				}),
+			},
+		]);
+	});
+
+	it("excludes sub-agent telemetry from the session context widget", () => {
+		const patches = reduceCommand(
+			createSnapshot(),
+			{
+				kind: "applyTelemetry",
+				revision: newerRevision,
+				telemetry: {
+					sessionId: "session-1",
+					parentToolUseId: "toolu_parent",
+					tokens: { total: 75_000 },
+				},
+			},
+			1_700_000_000_000
+		);
+
+		expect(patches).toEqual([]);
+	});
+
+	it("keeps explicit budget authority across later occupancy", () => {
+		const capability = buildCanonicalUsageTelemetry(
+			{
+				sessionId: "session-1",
+				contextWindowSize: 1_000_000,
+				contextWindowSource: "provider-model-capability",
+			},
+			undefined,
+			"fable",
+			1
+		);
+		const explicit = buildCanonicalUsageTelemetry(
+			{
+				sessionId: "session-1",
+				contextWindowSize: 1_000_000,
+				contextWindowSource: "provider-explicit",
+			},
+			capability !== null ? capability : undefined,
+			"claude-fable-5",
+			2
+		);
+		const occupancy = buildCanonicalUsageTelemetry(
+			{
+				sessionId: "session-1",
+				tokens: { total: 189_218 },
+			},
+			explicit !== null ? explicit : undefined,
+			"claude-fable-5",
+			3
+		);
+
+		expect(occupancy?.contextBudget?.source).toBe("provider-explicit");
+		expect(occupancy?.contextBudget?.maxTokens).toBe(1_000_000);
+		expect(occupancy?.latestTokensTotal).toBe(189_218);
+	});
+
+	it("clears the previous budget for an unknown model capability", () => {
+		const previous = buildCanonicalUsageTelemetry(
+			{
+				sessionId: "session-1",
+				contextWindowSize: 1_000_000,
+				contextWindowSource: "provider-explicit",
+			},
+			undefined,
+			"claude-fable-5",
+			1
+		);
+		const changed = buildCanonicalUsageTelemetry(
+			{
+				sessionId: "session-1",
+				sourceModelId: "custom-model",
+				contextWindowSource: "unknown",
+			},
+			previous !== null ? previous : undefined,
+			"custom-model",
+			2
+		);
+
+		expect(changed?.contextBudget).toBeNull();
 	});
 
 	it("emits refresh snapshot intent for transcript frontier mismatch", () => {

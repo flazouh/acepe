@@ -218,6 +218,8 @@ export type PermissionData = { id: string; sessionId: string; jsonRpcRequestId?:
  */
 export type QuestionData = { id: string; sessionId: string; jsonRpcRequestId?: number | null; replyHandler?: InteractionReplyHandler | null; questions: QuestionItem[]; tool?: ToolReference | null }
 
+export type ContextWindowSource = "provider-explicit" | "provider-model-capability" | "unknown"
+
 /**
  * Payload for usage telemetry session update (generic, not provider-specific).
  */
@@ -229,7 +231,7 @@ scope?: string; costUsd?: number | null; tokens?: UsageTelemetryTokens; sourceMo
 /**
  * Context window size reported by the agent (e.g. from usage_update `size` field).
  */
-contextWindowSize?: number | null;
+contextWindowSize?: number | null; contextWindowSource?: ContextWindowSource | null;
 /**
  * When set, this telemetry belongs to a spawned sub-agent rather than the
  * top-level session turn. The id is the parent `Task` tool-call id, used to

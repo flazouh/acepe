@@ -155,6 +155,9 @@ function reduceApplyTelemetry(
 	command: Extract<SessionStateCommand, { kind: "applyTelemetry" }>,
 	nowMs: number
 ): readonly EnvelopePatch[] {
+	if (command.telemetry.parentToolUseId != null) {
+		return [];
+	}
 	if (!isNewerGraphRevision(snapshot.previousProjection?.revision ?? null, command.revision)) {
 		return [];
 	}

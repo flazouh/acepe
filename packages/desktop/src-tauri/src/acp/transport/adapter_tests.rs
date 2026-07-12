@@ -221,6 +221,7 @@ fn transport_events_do_not_encode_canonical_lifecycle_states() {
                 source_model_id: None,
                 timestamp_ms: None,
                 context_window_size: None,
+                context_window_source: None,
                 parent_tool_use_id: None,
             },
         }),

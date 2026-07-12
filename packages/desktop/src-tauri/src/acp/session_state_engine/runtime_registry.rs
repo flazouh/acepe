@@ -3074,6 +3074,9 @@ mod tests {
                 source_model_id: None,
                 timestamp_ms: Some(1_234),
                 context_window_size: Some(200_000),
+                context_window_source: Some(
+                    crate::acp::session_update::ContextWindowSource::ProviderExplicit,
+                ),
                 parent_tool_use_id: None,
             },
             revision,

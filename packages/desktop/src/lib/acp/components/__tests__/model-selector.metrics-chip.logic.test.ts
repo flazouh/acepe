@@ -33,6 +33,10 @@ describe("formatTokenUsageCompact", () => {
 });
 
 describe("getContextUsagePercent", () => {
+	it("matches Claude Code for the observed Fable usage snapshot", () => {
+		expect(getContextUsagePercent(189_218, 1_000_000)).toBeCloseTo(18.9218);
+	});
+
 	it("returns a clamped percentage for valid token usage", () => {
 		expect(getContextUsagePercent(50_000, 200_000)).toBe(25);
 	});

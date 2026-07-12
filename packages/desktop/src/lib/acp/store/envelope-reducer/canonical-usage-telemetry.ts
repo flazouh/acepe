@@ -7,11 +7,18 @@ function resolveContextBudget(
 	_currentModelId: string | null,
 	updatedAt: number
 ): SessionContextBudget | null {
+	if (usageTelemetryData.contextWindowSource === "unknown") {
+		return null;
+	}
 	const explicitMaxTokens = usageTelemetryData.contextWindowSize ?? null;
 	if (explicitMaxTokens != null && explicitMaxTokens > 0) {
+		const source =
+			usageTelemetryData.contextWindowSource != null
+				? usageTelemetryData.contextWindowSource
+				: "provider-explicit";
 		return {
 			maxTokens: explicitMaxTokens,
-			source: "provider-explicit",
+			source,
 			scope: usageTelemetryData.scope ?? "step",
 			updatedAt,
 		};

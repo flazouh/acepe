@@ -72,7 +72,7 @@ const spendText = $derived(
 const total = $derived(usageTelemetry?.latestTokensTotal ?? null);
 const measuredPercent = $derived(getContextUsagePercent(total, contextWindow));
 const hasMeasuredContextUsage = $derived(measuredPercent !== null);
-const chipPercent = $derived(measuredPercent ?? (usageMetricsPresentation !== null ? 0 : null));
+const chipPercent = $derived(measuredPercent);
 const hasContextMeter = $derived(chipPercent !== null);
 const percentValue = $derived(chipPercent !== null ? chipPercent : 0);
 const remaining = $derived(
@@ -131,7 +131,9 @@ const tooltipLines = $derived.by(() => {
 		{compact}
 		{hideLabel}
 		label={chipLabel}
-		percent={chipPercent}
+		value={chipPercent === null
+			? { kind: "unknown", label: "—" }
+			: { kind: "measured", percent: chipPercent }}
 		ariaLabel={statusLabel}
 	/>
 {/snippet}

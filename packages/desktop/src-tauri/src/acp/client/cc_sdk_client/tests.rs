@@ -3931,6 +3931,7 @@ async fn run_streaming_bridge_completes_unresolved_tool_use_when_next_message_st
         app_handle: None,
         pending_creation_attempt_id: None,
         project_path: None,
+        initial_context_capability: None,
     };
 
     let stream = futures::stream::iter(vec![
@@ -4058,6 +4059,7 @@ async fn run_streaming_bridge_promotes_pending_creation_attempt_before_buffered_
         app_handle: None,
         pending_creation_attempt_id: Some(attempt.id.clone()),
         project_path: None,
+        initial_context_capability: None,
     };
 
     let stream = futures::stream::iter(vec![
@@ -4257,6 +4259,7 @@ async fn run_streaming_bridge_promotes_pending_creation_before_buffered_auth_err
         app_handle: None,
         pending_creation_attempt_id: Some(attempt.id.clone()),
         project_path: None,
+        initial_context_capability: None,
     };
 
     let stream = futures::stream::iter(vec![
@@ -4347,6 +4350,7 @@ async fn run_streaming_bridge_fails_pending_creation_attempt_on_provider_id_mism
         app_handle: None,
         pending_creation_attempt_id: Some(attempt.id.clone()),
         project_path: None,
+        initial_context_capability: None,
     };
 
     let stream = futures::stream::iter(vec![Ok(cc_sdk::Message::StreamEvent {
@@ -4399,6 +4403,7 @@ async fn run_streaming_bridge_completes_unresolved_assistant_tool_use_without_ra
         app_handle: None,
         pending_creation_attempt_id: None,
         project_path: None,
+        initial_context_capability: None,
     };
 
     let stream = futures::stream::iter(vec![
@@ -4488,6 +4493,7 @@ async fn run_streaming_bridge_completes_empty_bash_when_callback_never_arrives()
         app_handle: None,
         pending_creation_attempt_id: None,
         project_path: None,
+        initial_context_capability: None,
     };
 
     let stream = futures::stream::iter(vec![
@@ -4636,6 +4642,7 @@ async fn run_streaming_bridge_rewrites_generic_turn_failed_after_permission_deny
         app_handle: None,
         pending_creation_attempt_id: None,
         project_path: None,
+        initial_context_capability: None,
     };
 
     let stream = futures::stream::iter(vec![Ok(cc_sdk::Message::Result {
@@ -4704,6 +4711,7 @@ async fn run_streaming_bridge_rewrites_generic_turn_failed_into_cancelled_after_
         app_handle: None,
         pending_creation_attempt_id: None,
         project_path: None,
+        initial_context_capability: None,
     };
 
     let stream = futures::stream::iter(vec![Ok(cc_sdk::Message::Result {
@@ -4744,5 +4752,37 @@ async fn run_streaming_bridge_rewrites_generic_turn_failed_into_cancelled_after_
     assert!(
         saw_turn_cancelled,
         "an interrupt-induced generic failure must be normalized into a cancellation"
+    );
+}
+#[test]
+fn configured_fable_selection_emits_live_context_capability() {
+    let update = super::context_window_capability_update("session-fable", Some("fable"))
+        .expect("Fable capability update");
+
+    let SessionUpdate::UsageTelemetryUpdate { data } = update else {
+        panic!("expected usage telemetry");
+    };
+    assert_eq!(data.session_id, "session-fable");
+    assert_eq!(data.source_model_id.as_deref(), Some("fable"));
+    assert_eq!(data.context_window_size, Some(1_000_000));
+    assert_eq!(
+        data.context_window_source,
+        Some(crate::acp::session_update::ContextWindowSource::ProviderModelCapability)
+    );
+    assert_eq!(data.tokens.total, None);
+}
+
+#[test]
+fn unknown_model_selection_emits_budget_clear_event() {
+    let update = super::context_window_capability_update("session-custom", Some("custom-model"))
+        .expect("unknown capability update");
+
+    let SessionUpdate::UsageTelemetryUpdate { data } = update else {
+        panic!("expected usage telemetry");
+    };
+    assert_eq!(data.context_window_size, None);
+    assert_eq!(
+        data.context_window_source,
+        Some(crate::acp::session_update::ContextWindowSource::Unknown)
     );
 }

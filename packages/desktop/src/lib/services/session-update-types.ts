@@ -10,6 +10,8 @@ export type JsonValue = null | boolean | number | string | JsonValue[] | { [key:
  */
 export type UsageTelemetryTokens = { total?: number | null; input?: number | null; output?: number | null; cacheRead?: number | null; cacheWrite?: number | null; reasoning?: number | null }
 
+export type ContextWindowSource = "provider-explicit" | "provider-model-capability" | "unknown"
+
 /**
  * Payload for usage telemetry session update (generic, not provider-specific).
  */
@@ -21,7 +23,7 @@ scope?: string; costUsd?: number | null; tokens?: UsageTelemetryTokens; sourceMo
 /**
  * Context window size reported by the agent (e.g. from usage_update `size` field).
  */
-contextWindowSize?: number | null;
+contextWindowSize?: number | null; contextWindowSource?: ContextWindowSource | null;
 /**
  * When set, this telemetry belongs to a spawned sub-agent rather than the
  * top-level session turn. The id is the parent `Task` tool-call id, used to

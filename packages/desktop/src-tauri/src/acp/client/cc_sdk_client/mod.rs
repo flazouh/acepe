@@ -40,9 +40,9 @@ use crate::acp::session_policy::SessionPolicyRegistry;
 use crate::acp::session_registry::{bind_provider_session_id_persisted, SessionRegistry};
 use crate::acp::session_state_engine::SessionGraphCapabilities;
 use crate::acp::session_update::{
-    parse_normalized_questions, AvailableCommand, QuestionData, QuestionItem, SessionUpdate,
-    ToolCallStatus, ToolCallUpdateData, ToolKind, ToolReference, TurnErrorData, TurnErrorInfo,
-    TurnErrorKind, TurnErrorSource,
+    parse_normalized_questions, AvailableCommand, ContextWindowSource, QuestionData, QuestionItem,
+    SessionUpdate, ToolCallStatus, ToolCallUpdateData, ToolKind, ToolReference, TurnErrorData,
+    TurnErrorInfo, TurnErrorKind, TurnErrorSource, UsageTelemetryData, UsageTelemetryTokens,
 };
 use crate::acp::streaming_log::{log_debug_event, log_emitted_event, log_streaming_event};
 use crate::acp::task_reconciler::TaskReconciler;
@@ -76,10 +76,11 @@ use questions::{
     should_suppress_update_while_awaiting_stream_only_question, take_stream_only_question_state,
     wait_for_question_request_binding,
 };
+use streaming_bridge::dispatch_cc_sdk_update;
 #[cfg(test)]
 use streaming_bridge::{
     claude_history_tool_result_update, claude_missing_tool_result_backfill_request,
-    collect_cc_sdk_updates_for_dispatch, dispatch_cc_sdk_update, persist_provider_session_id_alias,
+    collect_cc_sdk_updates_for_dispatch, persist_provider_session_id_alias,
     provider_session_id_from_message, reserve_promoted_claude_session,
 };
 use streaming_bridge::{run_streaming_bridge, StreamingBridgeContext};
@@ -386,6 +387,7 @@ impl ClaudeCcSdkClient {
         options: cc_sdk::ClaudeCodeOptions,
         session_id: String,
         initial_prompt: Option<String>,
+        selected_model_id: Option<String>,
     ) -> AcpResult<()> {
         // Stop any existing bridge first.
         self.stop_bridge();
@@ -438,6 +440,10 @@ impl ClaudeCcSdkClient {
             app_handle,
             pending_creation_attempt_id,
             project_path,
+            initial_context_capability: context_window_capability_update(
+                &session_id,
+                selected_model_id.as_deref(),
+            ),
         };
 
         let handle = tauri::async_runtime::spawn(async move {
@@ -593,13 +599,19 @@ impl ClaudeCcSdkClient {
             .map(|model| model.model_id.clone())
             .collect::<Vec<_>>();
         self.sanitize_pending_model_for_connect(&available_model_ids);
+        let selected_model_id = self.pending_model_id.clone().or_else(|| {
+            crate::acp::providers::claude_code::settings::configured_claude_model_id(
+                &cwd,
+                &available_model_ids,
+            )
+        });
         let options = self.build_options(&cwd_string, &session_id, None, false);
         tracing::info!(
             session_id = %session_id,
             prompt_len = initial_prompt.len(),
             "cc-sdk: first prompt — connecting with initial message..."
         );
-        self.connect_and_start_bridge(options, session_id, Some(initial_prompt))
+        self.connect_and_start_bridge(options, session_id, Some(initial_prompt), selected_model_id)
             .await
     }
 
@@ -687,6 +699,37 @@ fn map_to_claude_permission_mode(mode_id: &str) -> cc_sdk::PermissionMode {
         "bypassPermissions" => cc_sdk::PermissionMode::BypassPermissions,
         _ => cc_sdk::PermissionMode::Default,
     }
+}
+
+fn context_window_capability_update(
+    session_id: &str,
+    selected_model_id: Option<&str>,
+) -> Option<SessionUpdate> {
+    let selected_model_id = selected_model_id?.trim();
+    let context_window_size =
+        crate::acp::providers::claude_code::context_window::context_window_for_selection(
+            selected_model_id,
+        );
+    let context_window_source = if context_window_size.is_some() {
+        ContextWindowSource::ProviderModelCapability
+    } else {
+        ContextWindowSource::Unknown
+    };
+
+    Some(SessionUpdate::UsageTelemetryUpdate {
+        data: UsageTelemetryData {
+            session_id: session_id.to_string(),
+            event_id: None,
+            scope: "session".to_string(),
+            cost_usd: None,
+            tokens: UsageTelemetryTokens::default(),
+            source_model_id: Some(selected_model_id.to_string()),
+            timestamp_ms: None,
+            context_window_size,
+            context_window_source: Some(context_window_source),
+            parent_tool_use_id: None,
+        },
+    })
 }
 
 fn claude_permission_mode_name(mode: cc_sdk::PermissionMode) -> &'static str {
@@ -839,7 +882,8 @@ impl AgentClient for ClaudeCcSdkClient {
             "cc-sdk resume_session returning models"
         );
         let options = self.build_options(&cwd, &session_id, Some(history_session_id), false);
-        self.connect_and_start_bridge(options, session_id, None)
+        let selected_model_id = models.current_model_id.clone();
+        self.connect_and_start_bridge(options, session_id, None, selected_model_id)
             .await?;
         Ok(ResumeSessionResponse {
             models,
@@ -883,7 +927,8 @@ impl AgentClient for ClaudeCcSdkClient {
             "cc-sdk fork_session returning models"
         );
         let options = self.build_options(&cwd, &new_session_id, Some(session_id), true);
-        self.connect_and_start_bridge(options, new_session_id.clone(), None)
+        let selected_model_id = models.current_model_id.clone();
+        self.connect_and_start_bridge(options, new_session_id.clone(), None, selected_model_id)
             .await?;
         Ok(NewSessionResponse {
             session_id: new_session_id,
@@ -900,9 +945,17 @@ impl AgentClient for ClaudeCcSdkClient {
         })
     }
 
-    async fn set_session_model(&mut self, _session_id: String, _model_id: String) -> AcpResult<()> {
-        self.pending_model_id = Some(_model_id.clone());
-        self.apply_runtime_model(&_model_id).await?;
+    async fn set_session_model(&mut self, session_id: String, model_id: String) -> AcpResult<()> {
+        self.pending_model_id = Some(model_id.clone());
+        self.apply_runtime_model(&model_id).await?;
+        if let Some(update) = context_window_capability_update(&session_id, Some(&model_id)) {
+            dispatch_cc_sdk_update(
+                &self.dispatcher,
+                &self.task_reconciler,
+                self.provider.as_ref(),
+                update,
+            );
+        }
         Ok(())
     }
 

@@ -289,6 +289,8 @@ fn translate_token_usage_update(
                 source_model_id: None,
                 timestamp_ms: None,
                 context_window_size,
+                context_window_source: context_window_size
+                    .map(|_| crate::acp::session_update::ContextWindowSource::ProviderExplicit),
                 parent_tool_use_id: None,
             },
         }];
@@ -345,6 +347,8 @@ fn translate_token_usage_update(
             source_model_id: get_source_model_id(params, token_usage_object, source_object),
             timestamp_ms: None,
             context_window_size,
+            context_window_source: context_window_size
+                .map(|_| crate::acp::session_update::ContextWindowSource::ProviderExplicit),
             parent_tool_use_id: None,
         },
     }]

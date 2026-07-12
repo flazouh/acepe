@@ -316,9 +316,9 @@ const favoriteModels = $derived(
 														<AgentInputDivider />
 													{/snippet}
 													{#snippet trailing()}
-														<AgentInputMetricsChip
-															label="18/200k"
-															percent={9}
+													<AgentInputMetricsChip
+														label="18/200k"
+														value={{ kind: "measured", percent: 9 }}
 															hideLabel={true}
 														/>
 														<AgentInputMicButton visualState="mic" title="Record with Claude" />
