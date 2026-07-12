@@ -2,7 +2,7 @@ import { linearIconData } from "./linear-icon-catalog.js";
 import { mapRoundedIconToLinear } from "./rounded-to-linear-map.js";
 import {
 	resolveRoundedIconName,
-	roundedIconData,
+	getRoundedIconFallbackData,
 	type RoundedIconName,
 } from "./rounded-icon-data.generated.js";
 
@@ -18,7 +18,7 @@ export function resolveRoundedIconGlyph(
 	const linearName = mapRoundedIconToLinear(name);
 
 	if (linearName === null) {
-		return roundedIconData[sourceName];
+		return getRoundedIconFallbackData(sourceName);
 	}
 	return linearIconData[linearName];
 }

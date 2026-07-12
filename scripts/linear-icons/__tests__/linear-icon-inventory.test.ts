@@ -33,7 +33,54 @@ const agentToolbarCopyIdFixture = readFileSync(
 	"utf8",
 );
 
+type ExclusionAudit = {
+	readonly corpusHash: string;
+	readonly samples: readonly {
+		readonly reason: string;
+		readonly candidateId: string;
+		readonly sourceFingerprint: string;
+	}[];
+};
+
 describe("linear icon inventory", () => {
+	test("audits a real corpus row for every exclusion reason before coverage is complete", () => {
+		const coverage = JSON.parse(
+			readFileSync(join(import.meta.dirname, "../inventory/coverage.json"), "utf8"),
+		) as {
+			readonly complete: boolean;
+			readonly corpusHash: string;
+			readonly candidates: readonly {
+				readonly status: string;
+				readonly reason: string;
+				readonly candidateId: string;
+				readonly sourceFingerprint: string;
+			}[];
+		};
+		const audit = JSON.parse(
+			readFileSync(join(import.meta.dirname, "../exclusion-audit.json"), "utf8"),
+		) as ExclusionAudit;
+		const exclusionReasons = new Set(
+			coverage.candidates
+				.filter((candidate) => candidate.status === "excluded")
+				.map((candidate) => candidate.reason),
+		);
+
+		expect(coverage.complete).toBe(true);
+		expect(audit.corpusHash).toBe(coverage.corpusHash);
+		expect(new Set(audit.samples.map((sample) => sample.reason))).toEqual(
+			exclusionReasons,
+		);
+		for (const sample of audit.samples) {
+			expect(coverage.candidates).toContainEqual(
+				expect.objectContaining({
+					status: "excluded",
+					reason: sample.reason,
+					candidateId: sample.candidateId,
+					sourceFingerprint: sample.sourceFingerprint,
+				}),
+			);
+		}
+	});
 	test("recognizes Linear's explicit large icon chunks", () => {
 		expect(isDedicatedIconChunk("ExpandChevronIconLarge.Cc8RM74O.js")).toBe(
 			true,

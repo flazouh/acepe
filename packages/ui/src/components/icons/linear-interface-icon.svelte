@@ -1,0 +1,45 @@
+<script lang="ts" module>
+	import {
+		resolveLinearInterfaceIconGlyph,
+		type LinearInterfaceIconName,
+	} from "./linear-interface-icon.js";
+
+	export type { LinearInterfaceIconName };
+</script>
+
+<script lang="ts">
+	interface Props {
+		name: LinearInterfaceIconName;
+		class?: string;
+		style?: string;
+		role?: string;
+		"aria-label"?: string;
+		"data-testid"?: string;
+	}
+
+	let {
+		name,
+		class: className = "shrink-0",
+		style,
+		role,
+		"aria-label": ariaLabel,
+		"data-testid": dataTestid,
+	}: Props = $props();
+
+	const icon = $derived(resolveLinearInterfaceIconGlyph(name));
+	const resolvedRole = $derived(ariaLabel ? (role ?? "img") : role);
+	const ariaHidden = $derived(ariaLabel ? undefined : "true");
+</script>
+
+<svg
+	class={className}
+	{style}
+	role={resolvedRole}
+	aria-label={ariaLabel}
+	data-testid={dataTestid}
+	aria-hidden={ariaHidden}
+	viewBox={icon.viewBox}
+	xmlns="http://www.w3.org/2000/svg"
+>
+	{@html icon.inner}
+</svg>

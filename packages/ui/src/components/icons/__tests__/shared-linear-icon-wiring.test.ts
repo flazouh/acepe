@@ -3,13 +3,13 @@ import { describe, expect, it } from "vitest";
 import { roundedIconData } from "../rounded-icon-data.generated.js";
 import { resolveRoundedIconGlyph } from "../resolve-rounded-icon-glyph.js";
 
-describe("unconfirmed Linear icon preservation", () => {
-	it("keeps Acepe chevron-up geometry", () => {
+describe("shared Linear icon wiring", () => {
+	it("keeps Acepe chevron-up geometry until the shared Linear export is retraced", () => {
 		const glyph = resolveRoundedIconGlyph("chevron-up");
 		expect(glyph.inner).toBe(roundedIconData["chevron-up"].inner);
 	});
 
-	it("keeps Acepe archive geometry", () => {
+	it("keeps Acepe archive geometry until the shared Linear export is retraced", () => {
 		const glyph = resolveRoundedIconGlyph("archive");
 		expect(glyph.inner).toBe(roundedIconData.archive.inner);
 	});

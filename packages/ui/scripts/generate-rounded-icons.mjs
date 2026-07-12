@@ -89,9 +89,21 @@ const sourceFiles = readdirSync(svgDir)
 const entries = sourceFiles.map((fileName) => readSvgEntry(fileName));
 const iconNames = entries.map((entry) => entry.name);
 const iconNameSet = new Set(iconNames);
+const fallbackNames = iconNames;
+const fallbackNameSet = new Set(fallbackNames);
 
 if (iconNameSet.size !== iconNames.length) {
 	throw new Error("Duplicate rounded icon names found");
+}
+
+if (fallbackNameSet.size !== fallbackNames.length) {
+	throw new Error("Duplicate rounded fallback icon names found");
+}
+
+for (const fallbackName of fallbackNames) {
+	if (!iconNameSet.has(fallbackName)) {
+		throw new Error(`Fallback icon ${fallbackName} has no SVG source`);
+	}
 }
 
 for (const [aliasName, targetName] of Object.entries(aliasTargets)) {
@@ -107,7 +119,8 @@ for (const [aliasName, targetName] of Object.entries(aliasTargets)) {
 const aliasNames = Object.keys(aliasTargets).sort();
 const iconNameLines = iconNames.map((name) => `\t${quoted(name)},`);
 const aliasNameLines = aliasNames.map((name) => `\t${quoted(name)},`);
-const iconDataLines = entries.map(
+const fallbackNameLines = fallbackNames.map((name) => `\t${quoted(name)},`);
+const iconDataLines = entries.filter((entry) => fallbackNameSet.has(entry.name)).map(
 	(entry) =>
 		`\t${quoted(entry.name)}: { viewBox: ${quoted(entry.viewBox)}, inner: ${quoted(entry.inner)} },`,
 );
@@ -131,15 +144,39 @@ export const roundedIconSourceNames = roundedIconNames;
 
 export type RoundedIconSourceName = (typeof roundedIconNames)[number];
 
+export const roundedIconFallbackSourceNames = [
+${fallbackNameLines.join("\n")}
+] as const satisfies readonly RoundedIconSourceName[];
+
+export type RoundedIconFallbackSourceName =
+	(typeof roundedIconFallbackSourceNames)[number];
+
 /**
  * @deprecated Use RoundedIconSourceName. These ids are clean SVG source names,
  * not a separate canonical namespace.
  */
 export type RoundedIconCanonicalName = RoundedIconSourceName;
 
-export const roundedIconData: Record<RoundedIconSourceName, RoundedIconData> = {
+export const roundedIconData: Record<RoundedIconFallbackSourceName, RoundedIconData> = {
 ${iconDataLines.join("\n")}
 };
+
+export function isRoundedIconFallbackSourceName(
+	name: RoundedIconSourceName,
+): name is RoundedIconFallbackSourceName {
+	return roundedIconFallbackSourceNames.some(
+		(fallbackName) => fallbackName === name,
+	);
+}
+
+export function getRoundedIconFallbackData(
+	name: RoundedIconSourceName,
+): RoundedIconData {
+	if (!isRoundedIconFallbackSourceName(name)) {
+		throw new Error(\`Rounded icon \${name} has no approved Acepe fallback geometry\`);
+	}
+	return roundedIconData[name];
+}
 
 export const roundedIconAliasNames = [
 ${aliasNameLines.join("\n")}

@@ -1,24 +1,27 @@
 <script lang="ts">
 import {
-	confirmedLinearInterfaceMappings,
 	formatRoundedIconName,
 	getRoundedIconMigrationDecision,
-	isConfirmedLinearRoundedIcon,
+	getRoundedIconFallbackData,
 	LinearInventoryIcon,
 	linearIconCatalogHash,
 	linearIconCoverage,
 	linearIconLibrary,
-	roundedIconData,
-	roundedIconNames,
+	resolveRoundedIconName,
+	roundedIconMigrationManifest,
 	type LinearIconLibraryEntry,
 } from "@acepe/ui/icons";
 import DesignSystemHeader from "$lib/design-system/design-system-header.svelte";
 
 let searchQuery = $state("");
 let reviewScope = $state<"all" | "confirmed" | "fallbacks" | "inventory">("all");
-const confirmedMappings = Object.entries(confirmedLinearInterfaceMappings);
-const fallbackIcons = roundedIconNames.filter((name) => !isConfirmedLinearRoundedIcon(name));
-const migrationDecisions = roundedIconNames.map((name) => getRoundedIconMigrationDecision(name));
+const migrationIconNames = Array.from(roundedIconMigrationManifest.keys());
+const migrationEntries = Array.from(roundedIconMigrationManifest.entries());
+const fallbackIcons = migrationIconNames.filter(
+	(name) => getRoundedIconMigrationDecision(name).state === "no-equivalent"
+);
+const migrationDecisions = Array.from(roundedIconMigrationManifest.values());
+const approvedCount = migrationDecisions.filter((decision) => decision.state === "approved-linear").length;
 const noEquivalentCount = migrationDecisions.filter((decision) => decision.state === "no-equivalent").length;
 const unresolvedCount = migrationDecisions.filter((decision) => decision.state === "unresolved").length;
 
@@ -62,7 +65,7 @@ const filteredFallbacks = $derived(
 		<div class="space-y-1">
 			<h1 class="text-lg font-medium text-foreground">Icon provenance</h1>
 			<p class="text-sm text-muted-foreground">
-				{confirmedMappings.length} approved mappings · {noEquivalentCount} reviewed with no equivalent · {unresolvedCount} still under semantic review · {filteredIcons.length} of {linearIconLibrary.length} catalog entries · {linearIconCoverage.stats.extracted} extracted · {linearIconCoverage.stats.excluded} classified non-icons/runtime renderers · {linearIconCoverage.stats.needsReview} need parser review · catalog {linearIconCatalogHash.slice(0, 12)}
+				{approvedCount} approved mappings · {noEquivalentCount} reviewed with no equivalent · {unresolvedCount} still under semantic review · {filteredIcons.length} of {linearIconLibrary.length} catalog entries · {linearIconCoverage.stats.extracted} extracted · {linearIconCoverage.stats.excluded} classified non-icons/runtime renderers · {linearIconCoverage.stats.needsReview} need parser review · catalog {linearIconCatalogHash.slice(0, 12)}
 			</p>
 		</div>
 
@@ -97,10 +100,17 @@ const filteredFallbacks = $derived(
 	<section class="mx-auto mb-8 max-w-[92rem] space-y-3" aria-labelledby="confirmed-heading">
 		<div>
 			<h2 id="confirmed-heading" class="text-sm font-medium text-foreground">Confirmed mappings</h2>
-			<p class="text-xs text-muted-foreground">Approved only when the Linear control has the same user intent.</p>
+			<p class="text-xs text-muted-foreground">All previous runtime mappings are invalidated until each Linear control is retraced with same-intent evidence.</p>
 		</div>
 		<div class="divide-y divide-border/40 rounded-md border border-border/50 bg-card/35">
-			{#each confirmedMappings as [acepeName, evidence] (acepeName)}
+			{#if approvedCount === 0}
+				<p class="px-3 py-3 text-xs text-muted-foreground" data-testid="design-system-icons-no-confirmed-mappings">
+					No active Linear runtime mappings. Acepe's original icon geometry is rendering while the Linear set is re-audited control by control.
+				</p>
+			{/if}
+			{#each migrationEntries as [acepeName, decision] (acepeName)}
+				{#if decision.state === "approved-linear"}
+					{@const evidence = decision.evidence}
 				<div class="grid gap-3 px-3 py-3 sm:grid-cols-[8rem_5rem_1fr] sm:items-center" data-evidence-state={evidence.evidenceState} data-source-set={evidence.sourceSet === null ? evidence.sourceType : evidence.sourceSet}>
 					<span class="truncate font-mono text-[11px] text-foreground">{acepeName}</span>
 					<div class="flex items-center gap-2">
@@ -116,6 +126,7 @@ const filteredFallbacks = $derived(
 						{/if}
 					</div>
 				</div>
+				{/if}
 			{/each}
 		</div>
 	</section>
@@ -126,13 +137,13 @@ const filteredFallbacks = $derived(
 		<div class="flex items-baseline justify-between gap-4">
 			<div>
 				<h2 id="fallback-heading" class="text-sm font-medium text-foreground">Acepe fallbacks</h2>
-				<p class="text-xs text-muted-foreground">Original geometry remains active until the same control meaning is observed in Linear.</p>
+				<p class="text-xs text-muted-foreground">Original geometry remains active for every runtime icon until the same control meaning is observed in Linear.</p>
 			</div>
 			<span class="text-xs tabular-nums text-muted-foreground">{filteredFallbacks.length}</span>
 		</div>
 		<div class="grid grid-cols-[repeat(auto-fill,minmax(9rem,1fr))] gap-px overflow-hidden rounded-md border border-border/50 bg-border/40">
 			{#each filteredFallbacks as name (name)}
-				{@const icon = roundedIconData[name]}
+				{@const icon = getRoundedIconFallbackData(resolveRoundedIconName(name))}
 				{@const decision = getRoundedIconMigrationDecision(name)}
 				<article class="flex min-w-0 items-center gap-2 bg-background px-3 py-2.5" data-migration-state={decision.state} data-testid={`acepe-icon-fallback-${name}`} title={decision.rationale}>
 					<svg class="size-4 shrink-0 text-muted-foreground" viewBox={icon.viewBox} role="img" aria-label={formatRoundedIconName(name)} xmlns="http://www.w3.org/2000/svg">

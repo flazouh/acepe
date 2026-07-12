@@ -1,6 +1,6 @@
 import type { Component } from "svelte";
 import { PaletteIcon, RobotIcon } from "@acepe/ui";
-import type { RoundedIconName } from "@acepe/ui/icons";
+import type { LinearInterfaceIconName, RoundedIconName } from "@acepe/ui/icons";
 
 import type { SettingsSectionId } from "./settings-types.js";
 
@@ -16,6 +16,7 @@ export interface SettingsSectionDefinition {
 	readonly label: string;
 	readonly description: string;
 	readonly icon?: Component;
+	readonly linearInterfaceIcon?: LinearInterfaceIconName;
 	readonly roundedIcon?: RoundedIconName;
 	readonly groupId: SettingsNavGroupId;
 	readonly fullWidth?: boolean;
@@ -33,7 +34,7 @@ export const SETTINGS_SECTIONS: readonly SettingsSectionDefinition[] = [
 		id: "general",
 		label: "General",
 		description: "Notifications, telemetry, and app-wide behavior.",
-		roundedIcon: "settings",
+		linearInterfaceIcon: "settings-general",
 		groupId: "general",
 	},
 	{

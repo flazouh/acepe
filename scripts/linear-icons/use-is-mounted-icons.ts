@@ -8,6 +8,9 @@ export const USE_IS_MOUNTED_BUNDLE_PATTERN =
 export const REGISTER_ACTION_BUNDLE_PATTERN =
 	/^RegisterAction\.[A-Za-z0-9_-]+\.js$/;
 
+export const EDITOR_ACTIONS_BUNDLE_PATTERN =
+	/^EditorActions\.[A-Za-z0-9_-]+\.js$/;
+
 export const USE_IS_MOUNTED_ICON_NAMES: Readonly<Record<string, string>> = {
 	bm: "CopyIcon",
 	YT: "CopyOutlineIcon",
@@ -26,6 +29,10 @@ export const USE_IS_MOUNTED_ICON_NAMES: Readonly<Record<string, string>> = {
 
 const REGISTER_ACTION_ICON_NAMES: Readonly<Record<string, string>> = {
 	wt: "DisplayOptionsIcon",
+};
+
+const EDITOR_ACTIONS_ICON_NAMES: Readonly<Record<string, string>> = {
+	Xa: "EditIcon",
 };
 
 export const SHARED_BUNDLE_ICON_FN_PATTERN =
@@ -49,7 +56,13 @@ export function knownBundleIconOriginalName(
 	}
 
 	if (REGISTER_ACTION_BUNDLE_PATTERN.test(assetName)) {
-		return REGISTER_ACTION_ICON_NAMES[fnName] ?? null;
+		const iconName = REGISTER_ACTION_ICON_NAMES[fnName];
+		return iconName === undefined ? null : iconName;
+	}
+
+	if (EDITOR_ACTIONS_BUNDLE_PATTERN.test(assetName)) {
+		const iconName = EDITOR_ACTIONS_ICON_NAMES[fnName];
+		return iconName === undefined ? null : iconName;
 	}
 
 	return null;

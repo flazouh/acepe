@@ -15,19 +15,22 @@ import {
 	recommendedRoundedIconNames,
 	roundedIconLibrary,
 } from "../rounded-icon-library.js";
+import { mapRoundedIconToLinear } from "../rounded-to-linear-map.js";
+import { resolveRoundedIconGlyph } from "../resolve-rounded-icon-glyph.js";
 
 describe("rounded-icon-data", () => {
-	it("preserves currentColor strokes from extracted Codex tool icons", () => {
-		expect(roundedIconData["tool-read"].inner).toContain('stroke="currentColor"');
-		expect(roundedIconData["tool-read"].inner).toContain('fill="none"');
+	it("keeps tool geometry in the Acepe fallback bundle", () => {
+		expect(roundedIconData).toHaveProperty("tool-read");
+		expect(resolveRoundedIconGlyph("tool-read").inner).toBe(
+			roundedIconData["tool-read"].inner,
+		);
 	});
 
-	it("uses the rounded Codex terminal geometry for execute tools", () => {
-		const terminalIcon = roundedIconData.terminal;
-
-		expect(terminalIcon.viewBox).toBe("0 0 20 20");
-		expect(terminalIcon.inner).toContain('fill-rule="evenodd"');
-		expect(terminalIcon.inner).not.toContain("<rect");
+	it("uses Acepe terminal geometry for execute tools while Linear mappings are retraced", () => {
+		expect(roundedIconData).toHaveProperty("terminal");
+		expect(resolveRoundedIconGlyph("terminal").inner).toBe(
+			roundedIconData.terminal.inner,
+		);
 	});
 
 	it("resolves semantic shield aliases to RoundedIcon shield assets", () => {
@@ -112,12 +115,13 @@ describe("rounded-icon-data", () => {
 		expect(roundedIconData["diff-line-numbers"].viewBox).toBe("0 0 16 16");
 	});
 
-	it("keeps every public alias wired to generated icon data", () => {
+	it("keeps every public alias wired to fallback geometry", () => {
 		for (const aliasName of roundedIconAliasNames) {
 			const sourceName = roundedIconAliases[aliasName];
 
 			expect(roundedIconSourceNames).toContain(sourceName);
-			expect(roundedIconData[sourceName]).toBeDefined();
+			expect(mapRoundedIconToLinear(aliasName)).toBeNull();
+			expect(Object.hasOwn(roundedIconData, sourceName)).toBe(true);
 			expect(resolveRoundedIconName(aliasName)).toBe(sourceName);
 		}
 	});
@@ -127,6 +131,7 @@ describe("rounded-icon-data", () => {
 
 		for (const sourceName of roundedIconSourceNames) {
 			expect(resolveRoundedIconName(sourceName)).toBe(sourceName);
+			expect(Object.hasOwn(roundedIconData, sourceName)).toBe(true);
 		}
 	});
 

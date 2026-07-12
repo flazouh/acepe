@@ -6,6 +6,7 @@ export { default as FileStatusIcon } from "./file-status-icon.svelte";
 export type { FileStatusIconKind } from "./file-status-icon-types.js";
 export { default as LayoutModeIcon } from "./layout-mode-icon.svelte";
 export { default as GoogleLogoIcon } from "./google-logo-icon.svelte";
+export { default as LinearInterfaceIcon } from "./linear-interface-icon.svelte";
 export { default as LinearInventoryIcon } from "./linear-inventory-icon.svelte";
 export { default as PullRequestStatusIcon } from "./pull-request-status-icon.svelte";
 export {
@@ -35,6 +36,13 @@ export {
 	type ConfirmedLinearRoundedIconName,
 } from "./rounded-to-linear-map.js";
 export {
+	getLinearInterfaceIconEvidence,
+	linearInterfaceIconMappings,
+	resolveLinearInterfaceIconGlyph,
+	type LinearInterfaceIconGlyph,
+	type LinearInterfaceIconName,
+} from "./linear-interface-icon.js";
+export {
 	getRoundedIconMigrationDecision,
 	roundedIconMigrationManifest,
 	type RoundedIconMigrationDecision,
@@ -43,15 +51,19 @@ export type { ConfirmedLinearInterfaceMapping } from "./confirmed-linear-interfa
 export { resolveRoundedIconGlyph } from "./resolve-rounded-icon-glyph.js";
 export {
 	isRoundedIconAliasName,
+	getRoundedIconFallbackData,
+	isRoundedIconFallbackSourceName,
 	resolveRoundedIconName,
 	roundedIconAliasNames,
 	roundedIconAliases,
 	roundedIconData,
+	roundedIconFallbackSourceNames,
 	roundedIconNames,
 	roundedIconSourceNames,
 	type RoundedIconAliasName,
 	type RoundedIconCanonicalName,
 	type RoundedIconData,
+	type RoundedIconFallbackSourceName,
 	type RoundedIconName,
 	type RoundedIconSourceName,
 } from "./rounded-icon-data.generated.js";

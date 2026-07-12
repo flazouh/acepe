@@ -18,6 +18,7 @@ import {
 	isCompactIconViewBox,
 	knownBundleIconOriginalName,
 	MAX_SHARED_BUNDLE_ICON_SCAN_DISTANCE,
+	EDITOR_ACTIONS_BUNDLE_PATTERN,
 	REGISTER_ACTION_BUNDLE_PATTERN,
 	SHARED_BUNDLE_ICON_FN_PATTERN,
 	USE_IS_MOUNTED_BUNDLE_PATTERN,
@@ -508,7 +509,8 @@ function extractSharedBundleIconsFromCacheEntry(
 ): RawExtractedIcon[] {
 	if (
 		!USE_IS_MOUNTED_BUNDLE_PATTERN.test(assetName) &&
-		!REGISTER_ACTION_BUNDLE_PATTERN.test(assetName)
+		!REGISTER_ACTION_BUNDLE_PATTERN.test(assetName) &&
+		!EDITOR_ACTIONS_BUNDLE_PATTERN.test(assetName)
 	) {
 		return [];
 	}

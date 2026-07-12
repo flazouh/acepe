@@ -1,5 +1,5 @@
 <script lang="ts">
-import { RoundedIcon } from "@acepe/ui/icons";
+import { LinearInterfaceIcon, RoundedIcon } from "@acepe/ui/icons";
 import { cn } from "$lib/utils.js";
 
 import {
@@ -48,7 +48,16 @@ function sectionsForGroup(groupId: SettingsNavGroupId) {
 								: "text-muted-foreground hover:bg-accent/50 hover:text-foreground"
 						)}
 					>
-						{#if section.roundedIcon}
+						{#if section.linearInterfaceIcon}
+							<LinearInterfaceIcon
+								name={section.linearInterfaceIcon}
+								data-testid={`settings-section-${section.id}-icon`}
+								class={cn(
+									"size-3.5 shrink-0 transition-colors",
+									isActive ? "text-foreground" : "text-muted-foreground"
+								)}
+							/>
+						{:else if section.roundedIcon}
 							<RoundedIcon
 								name={section.roundedIcon}
 								data-testid={`settings-section-${section.id}-icon`}

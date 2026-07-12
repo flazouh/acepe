@@ -349,6 +349,7 @@ export {
 	DiscordIcon,
 	GoogleLogoIcon,
 	LayoutModeIcon,
+	LinearInterfaceIcon,
 	LinearInventoryIcon,
 	PullRequestStatusIcon,
 	RoundedIcon,
@@ -368,6 +369,13 @@ export {
 	WrenchIcon,
 	XLogoIcon,
 } from "./components/icons/index.js";
+export {
+	getLinearInterfaceIconEvidence,
+	linearInterfaceIconMappings,
+	resolveLinearInterfaceIconGlyph,
+	type LinearInterfaceIconGlyph,
+	type LinearInterfaceIconName,
+} from "./components/icons/linear-interface-icon.js";
 export {
 	linearIconCatalogHash,
 	linearIconCoverage,

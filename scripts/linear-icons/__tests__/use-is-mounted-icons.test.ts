@@ -50,4 +50,19 @@ describe("useIsMounted shared bundle extraction", () => {
 			),
 		).toBe(true);
 	});
+
+	it("names Linear's EditorActions edit component", () => {
+		const icons = extractIconsFromCacheEntry(
+			"EditorActions.Ciyb75qA.js",
+			"function Xa(e){return(0,x.jsx)(U,{...e,children:(0,x.jsx)(`svg`,{children:(0,x.jsx)(`path`,{d:`M10.1805 3.34195L4.14166 9.416`})})})}",
+		);
+
+		expect(
+			icons.some(
+				(icon) =>
+					icon.sourceType === "shared-jsx" &&
+					icon.originalName === "EditIcon",
+			),
+		).toBe(true);
+	});
 });

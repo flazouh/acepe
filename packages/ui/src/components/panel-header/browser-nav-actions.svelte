@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { Button } from "../button/index.js";
-	import { RoundedIcon } from "../icons/index.js";
+	import { LinearInterfaceIcon, RoundedIcon } from "../icons/index.js";
 
 	interface Props {
 		onBack?: (() => void) | undefined;
@@ -70,6 +70,6 @@
 			title={openExternalLabel}
 			aria-label={openExternalLabel}
 		>
-			{#snippet children()}<RoundedIcon name="external-link" />{/snippet}
+			{#snippet children()}<LinearInterfaceIcon name="open-in-new-window" />{/snippet}
 		</Button>
 	{/if}
