@@ -3,15 +3,14 @@
 use std::path::PathBuf;
 
 use crate::acp::parsers::AgentType;
-use crate::acp::session::ingress::canonical_events::{
-    canonical_transcript_events_to_provider_events, materialize_canonical_transcript_events,
-};
+use crate::acp::session::ingress::canonical_events::full_session_to_provider_events;
+#[cfg(test)]
+use crate::acp::session::ingress::canonical_events::materialize_canonical_transcript_events;
 use crate::acp::session::ingress::event::ProviderEvent;
 use crate::acp::session::ingress::source::{HistoryError, HistoryInput, HistorySource};
 use crate::acp::types::CanonicalAgentId;
 use crate::cursor_history::parser::get_sqlite_store_db_path_for_session;
 use crate::history::cursor_sqlite_parser::parse_cursor_store_db;
-use crate::session_jsonl::types::FullSession;
 
 /// Reads Cursor `store.db` history into provider-agnostic ingress events.
 pub struct CursorHistorySource;
@@ -26,7 +25,11 @@ impl HistorySource for CursorHistorySource {
         ))
         .map_err(|error| HistoryError::InvalidFormat(error.to_string()))?;
 
-        Ok(full_session_to_provider_events(&session))
+        Ok(full_session_to_provider_events(
+            &session,
+            CanonicalAgentId::Cursor,
+            AgentType::Cursor,
+        ))
     }
 }
 
@@ -83,17 +86,6 @@ fn resolve_store_db_path(input: &HistoryInput) -> Result<(PathBuf, Option<String
     Ok((db_path, workspace_path))
 }
 
-fn full_session_to_provider_events(session: &FullSession) -> Vec<ProviderEvent> {
-    let canonical_events =
-        materialize_canonical_transcript_events(session, AgentType::Cursor);
-
-    canonical_transcript_events_to_provider_events(
-        &canonical_events,
-        CanonicalAgentId::Cursor,
-        AgentType::Cursor,
-    )
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -104,8 +96,8 @@ mod tests {
     #[test]
     fn cursor_history_source_reads_junk_fixture() {
         const SESSION_ID: &str = "c2a34686-f99a-4632-90e2-e036b96124c2";
-        let fixture_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-            .join("tests/fixtures/cursor_sessions");
+        let fixture_dir =
+            PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/cursor_sessions");
         assert!(
             fixture_dir.join("c2a34686-junk-session.db").exists(),
             "fixture not found under {}",
@@ -132,19 +124,14 @@ mod tests {
     #[test]
     fn cursor_history_source_first_user_event_provider_seq_matches_transcript_seq() {
         const SESSION_ID: &str = "c2a34686-f99a-4632-90e2-e036b96124c2";
-        let fixture_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-            .join("tests/fixtures/cursor_sessions");
+        let fixture_dir =
+            PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/cursor_sessions");
         let db_path = fixture_dir.join("c2a34686-junk-session.db");
 
-        let session = block_on_async(parse_cursor_store_db(
-            &db_path,
-            SESSION_ID,
-            None,
-        ))
-        .expect("parse junk fixture");
+        let session = block_on_async(parse_cursor_store_db(&db_path, SESSION_ID, None))
+            .expect("parse junk fixture");
 
-        let canonical_events =
-            materialize_canonical_transcript_events(&session, AgentType::Cursor);
+        let canonical_events = materialize_canonical_transcript_events(&session, AgentType::Cursor);
         let first_user_canonical = canonical_events
             .iter()
             .find(|event| {
@@ -176,8 +163,7 @@ mod tests {
             .expect("expected provider user event");
 
         assert_eq!(
-            first_user_provider.provider_seq,
-            first_user_canonical.transcript_seq,
+            first_user_provider.provider_seq, first_user_canonical.transcript_seq,
             "provider_seq must match materialize_canonical_transcript_events transcript_seq"
         );
     }

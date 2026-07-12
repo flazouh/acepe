@@ -535,8 +535,10 @@ pub async fn load_provider_owned_snapshot_from_disk(
     );
 
     let mut snapshot =
-        crate::session_converter::convert_opencode_messages_to_provider_owned_snapshot(messages)
-            .map_err(|e| anyhow!("Failed to convert OpenCode disk session: {}", e))?;
+        crate::opencode_history::convert::convert_opencode_messages_to_provider_owned_snapshot(
+            messages,
+        )
+        .map_err(|e| anyhow!("Failed to convert OpenCode disk session: {}", e))?;
 
     let fallback_title = snapshot.thread_snapshot.title.clone();
     let resolved_title = session_title

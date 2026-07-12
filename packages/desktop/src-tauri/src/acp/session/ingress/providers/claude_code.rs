@@ -88,9 +88,7 @@ pub async fn load_replay_events(
             }
             Err(error) => {
                 last_error = Some(if error.to_string().contains("not found") {
-                    HistoryError::NotFound(format!(
-                        "Claude provider history missing: {error}"
-                    ))
+                    HistoryError::NotFound(format!("Claude provider history missing: {error}"))
                 } else {
                     HistoryError::InvalidFormat(format!(
                         "Claude provider history parse failed: {error}"
@@ -115,8 +113,7 @@ mod tests {
     use std::path::PathBuf;
 
     fn historical_tool_call_fixture_dir() -> PathBuf {
-        PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-            .join("src/acp/reconciler/tests/fixtures")
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("src/acp/reconciler/tests/fixtures")
     }
 
     fn historical_tool_call_fixture_path() -> PathBuf {

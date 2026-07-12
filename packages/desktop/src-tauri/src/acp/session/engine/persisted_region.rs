@@ -45,10 +45,7 @@ pub fn extract_persisted_region(graph: &SessionStateGraph) -> PersistedSessionGr
 }
 
 fn serialized_slices_equal<T: Serialize>(left: &[T], right: &[T]) -> bool {
-    match (
-        serde_json::to_string(left),
-        serde_json::to_string(right),
-    ) {
+    match (serde_json::to_string(left), serde_json::to_string(right)) {
         (Ok(left_json), Ok(right_json)) => left_json == right_json,
         _ => false,
     }
@@ -127,9 +124,7 @@ pub fn persisted_regions_equal(a: &PersistedSessionGraph, b: &PersistedSessionGr
 
 #[cfg(test)]
 mod tests {
-    use super::{
-        extract_persisted_region, persisted_regions_equal, PersistedSessionGraph,
-    };
+    use super::{extract_persisted_region, persisted_regions_equal, PersistedSessionGraph};
     use crate::acp::projections::{SessionTurnState, TurnFailureSnapshot};
     use crate::acp::session_state_engine::graph::{
         ActiveStreamingTail, ActiveStreamingTailContentKind, SessionStateGraph,
@@ -252,10 +247,7 @@ mod tests {
 
         assert_eq!(persisted.turn_state, SessionTurnState::Completed);
         assert_eq!(persisted.message_count, 7);
-        assert_eq!(
-            persisted.last_terminal_turn_id.as_deref(),
-            Some("turn-3")
-        );
+        assert_eq!(persisted.last_terminal_turn_id.as_deref(), Some("turn-3"));
         assert_eq!(persisted.active_turn_failure, graph.active_turn_failure);
     }
 
@@ -267,10 +259,7 @@ mod tests {
         let live_persisted = extract_persisted_region(&live);
         let history_persisted = extract_persisted_region(&history);
 
-        assert!(persisted_regions_equal(
-            &live_persisted,
-            &history_persisted
-        ));
+        assert!(persisted_regions_equal(&live_persisted, &history_persisted));
     }
 
     #[test]

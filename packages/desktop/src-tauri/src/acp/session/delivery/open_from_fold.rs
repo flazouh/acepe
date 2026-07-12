@@ -13,16 +13,16 @@ use crate::acp::session_state_engine::selectors::{
 
 /// Fold a full ordered history event stream into a session graph.
 #[must_use]
-pub fn graph_from_history_events(
-    events: &[ProviderEvent],
-    ctx: &FoldContext,
-) -> SessionStateGraph {
+pub fn graph_from_history_events(events: &[ProviderEvent], ctx: &FoldContext) -> SessionStateGraph {
     fold_full(events, ctx)
 }
 
 /// Map a folded session graph into the session-open `found` payload.
 #[must_use]
-pub fn session_open_found_from_fold(graph: SessionStateGraph, open_token: &str) -> SessionOpenFound {
+pub fn session_open_found_from_fold(
+    graph: SessionStateGraph,
+    open_token: &str,
+) -> SessionOpenFound {
     let first_user_title = derive_title_from_transcript_snapshot(&graph.transcript_snapshot);
     let session_title = resolve_canonical_session_title(
         None,
@@ -39,11 +39,8 @@ pub fn session_open_found_from_fold(graph: SessionStateGraph, open_token: &str) 
         &graph.interactions,
         graph.active_turn_failure.as_ref(),
     );
-    let active_streaming_tail = select_active_streaming_tail(
-        &graph.turn_state,
-        &activity,
-        &graph.transcript_snapshot,
-    );
+    let active_streaming_tail =
+        select_active_streaming_tail(&graph.turn_state, &activity, &graph.transcript_snapshot);
 
     SessionOpenFound {
         requested_session_id: graph.requested_session_id,

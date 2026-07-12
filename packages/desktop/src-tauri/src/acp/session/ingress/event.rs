@@ -1,8 +1,8 @@
 //! Canonical ingress fact vocabulary — provider-agnostic events fed to `engine::fold`.
 
 use crate::acp::session_update::{
-    AvailableCommandsData, CurrentModeData, PermissionData, PlanData, QuestionData,
-    ToolCallData, ToolCallUpdateData, UsageTelemetryData,
+    AvailableCommandsData, CurrentModeData, PermissionData, PlanData, QuestionData, ToolCallData,
+    ToolCallUpdateData, UsageTelemetryData,
 };
 use crate::acp::types::CanonicalAgentId;
 use crate::cc_sdk::AssistantMessageError;
@@ -21,10 +21,19 @@ pub struct ProviderEvent {
 #[derive(Debug, Clone)]
 #[allow(clippy::large_enum_variant)]
 pub enum ProviderEventKind {
-    UserText { text: String },
-    UserPastedContent { text: String },
-    AssistantText { text: String },
-    AssistantThought { text: String, redacted: Option<String> },
+    UserText {
+        text: String,
+    },
+    UserPastedContent {
+        text: String,
+    },
+    AssistantText {
+        text: String,
+    },
+    AssistantThought {
+        text: String,
+        redacted: Option<String>,
+    },
     AssistantError {
         text: String,
         error: AssistantMessageError,
@@ -37,8 +46,12 @@ pub enum ProviderEventKind {
     Usage(UsageTelemetryData),
     ModeUpdate(CurrentModeData),
     CapabilitiesUpdate(AvailableCommandsData),
-    TurnBegin { request_id: Option<String> },
-    TurnEnd { outcome: TurnOutcome },
+    TurnBegin {
+        request_id: Option<String>,
+    },
+    TurnEnd {
+        outcome: TurnOutcome,
+    },
 }
 
 /// Explicit turn boundary outcome for history and live ingress.

@@ -11,12 +11,12 @@ use crate::acp::session_state_engine::revision::SessionGraphRevision;
 use crate::acp::session_state_engine::selectors::{
     SessionGraphActivity, SessionGraphCapabilities, SessionGraphLifecycle,
 };
+use crate::acp::transcript_projection::snapshot::user_transcript_segment_from_text;
 use crate::acp::transcript_projection::{
     assistant_boundary_entry_count_from_transcript_entries, derive_entry_id_for_snapshot_role,
     turn_key_for_assistant_boundary, TranscriptEntry, TranscriptEntryRole, TranscriptSegment,
     TranscriptSnapshot,
 };
-use crate::acp::transcript_projection::snapshot::user_transcript_segment_from_text;
 use crate::acp::types::CanonicalAgentId;
 
 /// Context supplied to the fold (session identity, not live lifecycle).
@@ -90,9 +90,13 @@ pub fn fold_full(events: &[ProviderEvent], ctx: &FoldContext) -> SessionStateGra
 
 /// Fold one live event onto the previous graph.
 #[must_use]
-pub fn fold_step(prev: &SessionStateGraph, event: &ProviderEvent) -> (SessionStateGraph, GraphDelta) {
+pub fn fold_step(
+    prev: &SessionStateGraph,
+    event: &ProviderEvent,
+) -> (SessionStateGraph, GraphDelta) {
     let mut graph = prev.clone();
-    let mut turn_context = HistoryTurnContext::from_transcript_entries(&graph.transcript_snapshot.entries);
+    let mut turn_context =
+        HistoryTurnContext::from_transcript_entries(&graph.transcript_snapshot.entries);
     let mut delta = GraphDelta {
         transcript_revision: graph.transcript_snapshot.revision,
     };
@@ -122,10 +126,7 @@ fn apply_event(
                     TranscriptEntry {
                         entry_id,
                         role: TranscriptEntryRole::User,
-                        segments: vec![user_transcript_segment_from_text(
-                            segment_id,
-                            text.clone(),
-                        )],
+                        segments: vec![user_transcript_segment_from_text(segment_id, text.clone())],
                         attempt_id: None,
                         timestamp_ms: event.timestamp_ms,
                     },

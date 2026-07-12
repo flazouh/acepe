@@ -3376,8 +3376,8 @@ fn fold_open_cursor_junk_matches_golden() {
     const SESSION_ID: &str = "c2a34686-f99a-4632-90e2-e036b96124c2";
     const GOLDEN_CURSOR_JUNK_NAME: &str = "cursor_c2a34686_junk";
 
-    let fixture_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("tests/fixtures/cursor_sessions");
+    let fixture_dir =
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/cursor_sessions");
 
     let events = CursorHistorySource
         .read(HistoryInput {
@@ -3441,8 +3441,12 @@ fn fold_open_cursor_junk_matches_golden() {
     let golden_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .join("tests/fixtures/session_graph_goldens")
         .join(format!("{GOLDEN_CURSOR_JUNK_NAME}.json"));
-    let golden_contents = std::fs::read_to_string(&golden_path)
-        .unwrap_or_else(|error| panic!("golden fixture missing at {}: {error}", golden_path.display()));
+    let golden_contents = std::fs::read_to_string(&golden_path).unwrap_or_else(|error| {
+        panic!(
+            "golden fixture missing at {}: {error}",
+            golden_path.display()
+        )
+    });
     let golden: PersistedSessionGraph =
         serde_json::from_str(&golden_contents).expect("deserialize golden fixture");
 

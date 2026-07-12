@@ -82,7 +82,7 @@ pub fn convert_opencode_messages_to_session(
     Ok(snapshot)
 }
 
-pub(crate) fn convert_opencode_messages_to_provider_owned_snapshot(
+pub fn convert_opencode_messages_to_provider_owned_snapshot(
     messages: Vec<OpenCodeMessage>,
 ) -> Result<ProviderOwnedSessionSnapshot, String> {
     let canonical_transcript_events = materialize_opencode_canonical_transcript_events(&messages);

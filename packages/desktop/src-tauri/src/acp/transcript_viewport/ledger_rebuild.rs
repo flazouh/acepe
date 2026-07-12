@@ -362,11 +362,8 @@ pub(crate) fn rebuild_transcript_row_ledger_from_session_graph(
         select_active_streaming_tail(&session.turn_state, &activity, &transcript_snapshot);
     let first_user_title = derive_title_from_transcript_snapshot(&transcript_snapshot);
     let graph_revision = session.last_event_seq.max(last_event_seq);
-    let revision = SessionGraphRevision::new(
-        graph_revision,
-        transcript_snapshot.revision,
-        last_event_seq,
-    );
+    let revision =
+        SessionGraphRevision::new(graph_revision, transcript_snapshot.revision, last_event_seq);
     let viewport_rows = project_transcript_viewport_rows(
         &transcript_snapshot,
         &operations,

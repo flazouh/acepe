@@ -2,10 +2,10 @@ use indexmap::IndexMap;
 use serde_json::Value;
 use std::collections::HashMap;
 
+use crate::acp::session_update::tool_merge::merge_tool_call_update;
 use crate::acp::session_update::{
     SessionUpdate, ToolArguments, ToolCallData, ToolCallStatus, ToolCallUpdateData, ToolKind,
 };
-use crate::acp::session_update::tool_merge::merge_tool_call_update;
 
 #[derive(Debug, Clone)]
 struct ParentTaskState {

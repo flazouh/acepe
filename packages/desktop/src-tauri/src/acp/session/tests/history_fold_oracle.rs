@@ -1,8 +1,6 @@
 //! HistorySource → fold_full integration oracle (Phase 2 gate).
 
-use crate::acp::session::delivery::{
-    graph_from_history_events, session_open_found_from_fold,
-};
+use crate::acp::session::delivery::{graph_from_history_events, session_open_found_from_fold};
 use crate::acp::session::engine::fold::{fold_full, FoldContext};
 use crate::acp::session::engine::persisted_region::{
     extract_persisted_region, persisted_regions_equal,
@@ -10,9 +8,7 @@ use crate::acp::session::engine::persisted_region::{
 use crate::acp::session::ingress::providers::claude_code::ClaudeHistorySource;
 use crate::acp::session::ingress::providers::cursor::CursorHistorySource;
 use crate::acp::session::ingress::source::{HistoryInput, HistorySource};
-use crate::acp::session::tests::golden::{
-    load_persisted_golden, GOLDEN_CURSOR_JUNK_NAME,
-};
+use crate::acp::session::tests::golden::{load_persisted_golden, GOLDEN_CURSOR_JUNK_NAME};
 use crate::acp::session::tests::tool_call_golden::GOLDEN_HISTORICAL_TOOL_CALL_NAME;
 use crate::acp::types::CanonicalAgentId;
 use std::path::PathBuf;
@@ -21,8 +17,8 @@ use std::path::PathBuf;
 fn cursor_history_source_fold_matches_phase0_golden() {
     const SESSION_ID: &str = "c2a34686-f99a-4632-90e2-e036b96124c2";
 
-    let fixture_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("tests/fixtures/cursor_sessions");
+    let fixture_dir =
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/cursor_sessions");
 
     let events = CursorHistorySource
         .read(HistoryInput {
@@ -55,8 +51,8 @@ fn cursor_history_source_fold_matches_phase0_golden() {
 fn cursor_history_source_open_from_fold_matches_phase0_golden() {
     const SESSION_ID: &str = "c2a34686-f99a-4632-90e2-e036b96124c2";
 
-    let fixture_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("tests/fixtures/cursor_sessions");
+    let fixture_dir =
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/cursor_sessions");
 
     let events = CursorHistorySource
         .read(HistoryInput {
@@ -75,8 +71,7 @@ fn cursor_history_source_open_from_fold_matches_phase0_golden() {
     let golden = load_persisted_golden(GOLDEN_CURSOR_JUNK_NAME);
 
     assert_eq!(
-        found.transcript_snapshot.entries,
-        golden.transcript_snapshot.entries,
+        found.transcript_snapshot.entries, golden.transcript_snapshot.entries,
         "HistorySource + open_from_fold transcript entries must match Phase 0 golden"
     );
     assert_eq!(
@@ -90,8 +85,8 @@ fn cursor_history_source_open_from_fold_matches_phase0_golden() {
 fn claude_history_source_fold_matches_phase0_golden() {
     const SESSION_ID: &str = "sess-hist-001";
 
-    let fixture_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("src/acp/reconciler/tests/fixtures");
+    let fixture_dir =
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("src/acp/reconciler/tests/fixtures");
 
     let events = ClaudeHistorySource
         .read(HistoryInput {

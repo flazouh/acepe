@@ -81,7 +81,11 @@ pub(crate) fn stored_entries_to_provider_events(
 
     for entry in entries {
         match entry {
-            StoredEntry::User { id, message, timestamp } => {
+            StoredEntry::User {
+                id,
+                message,
+                timestamp,
+            } => {
                 if let Some(text) = message
                     .content
                     .text
@@ -120,9 +124,7 @@ pub(crate) fn stored_entries_to_provider_events(
                             redacted: None,
                         }
                     } else {
-                        ProviderEventKind::AssistantText {
-                            text: text.clone(),
-                        }
+                        ProviderEventKind::AssistantText { text: text.clone() }
                     };
 
                     events.push(ProviderEvent {
@@ -199,10 +201,7 @@ pub async fn load_replay_events(
     let source = CopilotHistorySource;
     source.read(HistoryInput {
         session_id: replay_context.history_session_id.clone(),
-        workspace_root: replay_context
-            .source_path
-            .as_ref()
-            .map(PathBuf::from),
+        workspace_root: replay_context.source_path.as_ref().map(PathBuf::from),
     })
 }
 
@@ -281,7 +280,8 @@ mod tests {
             ],
         );
 
-        let events = stored_entries_to_provider_events(&snapshot.entries, CanonicalAgentId::Copilot);
+        let events =
+            stored_entries_to_provider_events(&snapshot.entries, CanonicalAgentId::Copilot);
 
         assert_eq!(events.len(), 2);
         assert!(matches!(

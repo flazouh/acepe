@@ -9,9 +9,9 @@ use crate::acp::opencode::{OpenCodeHttpClient, OpenCodeManagerRegistry};
 use crate::acp::providers::OpenCodeProvider;
 use crate::acp::session_thread_snapshot::{ProviderOwnedSessionSnapshot, SessionThreadSnapshot};
 use crate::commands::observability::{unexpected_command_result, CommandResult};
+use crate::opencode_history::convert::convert_opencode_messages_to_provider_owned_snapshot;
 use crate::opencode_history::parser;
 use crate::path_safety::validate_project_directory_from_str;
-use crate::session_converter;
 use crate::session_jsonl::types::HistoryEntry;
 
 /// Get OpenCode history entries.
@@ -92,7 +92,7 @@ pub(crate) async fn fetch_provider_owned_opencode_session(
         .await
         .map_err(|e| format!("Failed to fetch session messages: {}", e))?;
 
-    session_converter::convert_opencode_messages_to_provider_owned_snapshot(messages)
+    convert_opencode_messages_to_provider_owned_snapshot(messages)
         .map_err(|e| format!("Failed to convert session: {}", e))
 }
 

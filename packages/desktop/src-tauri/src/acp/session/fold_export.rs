@@ -2,16 +2,53 @@
 
 use std::collections::HashMap;
 
+use crate::acp::parsers::AgentType;
 use crate::acp::projections::OperationSnapshot;
+use crate::acp::session::engine::fold::{fold_full, FoldContext};
+use crate::acp::session::ingress::canonical_events::full_session_to_provider_events;
+use crate::acp::session::ingress::event::ProviderEvent;
 use crate::acp::session_state_engine::graph::SessionStateGraph;
 use crate::acp::session_thread_snapshot::{ProviderOwnedSessionSnapshot, SessionThreadSnapshot};
 use crate::acp::session_update::ToolCallData;
 use crate::acp::transcript_projection::{
     tool_call_id_from_authority_entry_id, TranscriptEntry, TranscriptEntryRole, TranscriptSegment,
 };
+use crate::acp::types::CanonicalAgentId;
 use crate::session_jsonl::types::{
-    StoredAssistantChunk, StoredAssistantMessage, StoredContentBlock, StoredEntry, StoredUserMessage,
+    FullSession, StoredAssistantChunk, StoredAssistantMessage, StoredContentBlock, StoredEntry,
+    StoredUserMessage,
 };
+
+/// Fold ordered history events into a backward-compat thread snapshot.
+#[must_use]
+pub fn thread_snapshot_from_history_events(
+    session_id: &str,
+    agent_id: &CanonicalAgentId,
+    project_path: &str,
+    events: &[ProviderEvent],
+    title: String,
+) -> SessionThreadSnapshot {
+    let ctx = FoldContext::new(session_id, agent_id.clone(), project_path);
+    let graph = fold_full(events, &ctx);
+    provider_owned_snapshot_from_folded_graph(graph, title).thread_snapshot
+}
+
+/// Materialize a parsed full session through ingress events and fold.
+#[must_use]
+pub fn thread_snapshot_from_full_session(
+    session: &FullSession,
+    agent_id: CanonicalAgentId,
+    agent_type: AgentType,
+) -> SessionThreadSnapshot {
+    let events = full_session_to_provider_events(session, agent_id.clone(), agent_type);
+    thread_snapshot_from_history_events(
+        &session.session_id,
+        &agent_id,
+        &session.project_path,
+        &events,
+        session.title.clone(),
+    )
+}
 
 /// Map a folded session graph back to `ProviderOwnedSessionSnapshot` for repair/ledger compat.
 #[must_use]
@@ -97,10 +134,7 @@ fn stored_entries_from_transcript(
                 if !seen_tool_call_ids.insert(operation.tool_call_id.clone()) {
                     continue;
                 }
-                entries.push(stored_tool_call_entry_from_operation(
-                    &operation,
-                    timestamp,
-                ));
+                entries.push(stored_tool_call_entry_from_operation(&operation, timestamp));
             }
             TranscriptEntryRole::SessionActivity => {}
         }

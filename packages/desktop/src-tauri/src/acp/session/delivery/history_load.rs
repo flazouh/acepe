@@ -4,8 +4,8 @@ use std::path::PathBuf;
 
 use crate::acp::provider::ProviderHistoryLoadError;
 use crate::acp::session::delivery::open_from_fold::graph_from_history_events;
-use crate::acp::session::fold_export::provider_owned_snapshot_from_folded_graph;
 use crate::acp::session::engine::fold::FoldContext;
+use crate::acp::session::fold_export::provider_owned_snapshot_from_folded_graph;
 use crate::acp::session::ingress::event::ProviderEvent;
 use crate::acp::session::ingress::plugin::history_source_for;
 use crate::acp::session::ingress::providers::{claude_code, copilot, opencode};
@@ -37,9 +37,7 @@ fn history_input_from_context(
 ) -> HistoryInput {
     HistoryInput {
         session_id: session_id.to_string(),
-        workspace_root: source_path
-            .map(PathBuf::from)
-            .or(workspace_root),
+        workspace_root: source_path.map(PathBuf::from).or(workspace_root),
     }
 }
 
@@ -51,9 +49,7 @@ pub fn load_history_events(
     source_path: Option<&str>,
 ) -> Result<Vec<ProviderEvent>, HistoryError> {
     let source = history_source_for(agent_id).ok_or_else(|| {
-        HistoryError::NotFound(format!(
-            "No history source registered for agent {agent_id}"
-        ))
+        HistoryError::NotFound(format!("No history source registered for agent {agent_id}"))
     })?;
 
     let input = history_input_from_context(session_id, workspace_root, source_path);
@@ -121,8 +117,8 @@ mod tests {
 
     #[test]
     fn load_history_events_resolves_cursor_junk_fixture() {
-        let fixture_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-            .join("tests/fixtures/cursor_sessions");
+        let fixture_dir =
+            PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/cursor_sessions");
 
         let events = load_history_events(
             &CanonicalAgentId::Cursor,
@@ -132,10 +128,7 @@ mod tests {
         )
         .expect("cursor junk fixture should load");
 
-        assert!(
-            !events.is_empty(),
-            "cursor history load must emit events"
-        );
+        assert!(!events.is_empty(), "cursor history load must emit events");
     }
 
     #[test]
@@ -151,21 +144,13 @@ mod tests {
         )
         .expect("claude fixture should load via source_path override");
 
-        assert!(
-            !events.is_empty(),
-            "claude history load must emit events"
-        );
+        assert!(!events.is_empty(), "claude history load must emit events");
     }
 
     #[test]
     fn load_history_events_errors_for_unregistered_agent() {
-        let error = load_history_events(
-            &CanonicalAgentId::Codex,
-            "session-id",
-            None,
-            None,
-        )
-        .expect_err("codex is not registered yet");
+        let error = load_history_events(&CanonicalAgentId::Codex, "session-id", None, None)
+            .expect_err("codex is not registered yet");
 
         assert_eq!(
             error,

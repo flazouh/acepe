@@ -47,8 +47,8 @@ pub async fn session_open_result_from_history_events(
                 return SessionOpenResult::Error(SessionOpenError::internal(
                     requested_session_id,
                     format!(
-                        "Failed to determine journal cutoff for session {canonical_session_id}: {err}"
-                    ),
+                    "Failed to determine journal cutoff for session {canonical_session_id}: {err}"
+                ),
                 ));
             }
         };
@@ -200,8 +200,7 @@ pub async fn session_open_result_from_history_events(
         graph.last_terminal_turn_id.clone()
     };
     let first_user_title = derive_title_from_transcript_snapshot(&transcript_snapshot);
-    operations =
-        sanitize_operations_for_historical_open(operations, projection_is_behind_journal);
+    operations = sanitize_operations_for_historical_open(operations, projection_is_behind_journal);
     let interactions = sanitize_interactions_for_historical_open(interactions);
     warn_unresolved_tool_rows_in_open_graph(
         canonical_session_id,

@@ -1,9 +1,7 @@
 use crate::acp::parsers::acp_fields::normalize_tool_call_id;
 use crate::acp::parsers::{get_parser, AgentType};
 use crate::acp::session::ingress::event::{ProviderEvent, ProviderEventKind};
-use crate::acp::session_update::{
-    build_tool_call_from_raw, RawToolCallInput, ToolCallStatus,
-};
+use crate::acp::session_update::{build_tool_call_from_raw, RawToolCallInput, ToolCallStatus};
 use crate::acp::transcript_projection::{CanonicalTranscriptEvent, CanonicalTranscriptEventKind};
 use crate::acp::types::CanonicalAgentId;
 use crate::cc_sdk::AssistantMessageError;
@@ -428,6 +426,16 @@ fn count_assistant_text_segments(blocks: &[ContentBlock]) -> usize {
     count
 }
 
+/// Map a parsed `FullSession` to ingress events (shared by Cursor/Claude history paths).
+pub fn full_session_to_provider_events(
+    session: &FullSession,
+    source: CanonicalAgentId,
+    agent_type: AgentType,
+) -> Vec<ProviderEvent> {
+    let canonical = materialize_canonical_transcript_events(session, agent_type);
+    canonical_transcript_events_to_provider_events(&canonical, source, agent_type)
+}
+
 /// Map canonical transcript events to ingress `ProviderEvent` stream.
 pub(crate) fn canonical_transcript_events_to_provider_events(
     events: &[CanonicalTranscriptEvent],
@@ -436,7 +444,9 @@ pub(crate) fn canonical_transcript_events_to_provider_events(
 ) -> Vec<ProviderEvent> {
     events
         .iter()
-        .map(|event| canonical_transcript_event_to_provider_event(event, source.clone(), parser_agent))
+        .map(|event| {
+            canonical_transcript_event_to_provider_event(event, source.clone(), parser_agent)
+        })
         .collect()
 }
 

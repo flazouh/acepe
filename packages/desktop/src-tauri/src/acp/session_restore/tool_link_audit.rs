@@ -111,17 +111,12 @@ async fn load_thread_snapshot_for_audit_cli(
             let session_path = session_jsonl_parser::find_session_file(session_id, project_path)
                 .await
                 .map_err(|e| format!("Failed to find Claude session file: {}", e))?;
-            let full_session = session_jsonl_parser::parse_full_session_from_path(
-                session_id,
-                project_path,
-                &session_path,
-            )
-            .await
-            .map_err(|e| format!("Failed to parse Claude session: {}", e))?;
             Ok(Some(
-                crate::session_converter::convert_claude_full_session_to_thread_snapshot(
-                    &full_session,
-                ),
+                super::fold_audit::claude_thread_snapshot_from_jsonl_path(
+                    session_id,
+                    project_path,
+                    std::path::PathBuf::from(session_path),
+                )?,
             ))
         }
         CanonicalAgentId::Copilot => crate::copilot_history::load_thread_snapshot_from_disk(
@@ -161,17 +156,14 @@ async fn load_cursor_thread_snapshot_for_audit(
             cursor_parser::load_session_from_source(session_id, &source_path).await
         {
             return Ok(Some(
-                crate::session_converter::convert_cursor_full_session_to_thread_snapshot(
-                    &full_session,
-                ),
+                super::fold_audit::cursor_thread_snapshot_from_full_session(&full_session),
             ));
         }
     }
 
     let full_session = cursor_parser::find_session_by_id(session_id).await?;
-    Ok(full_session.map(|session| {
-        crate::session_converter::convert_cursor_full_session_to_thread_snapshot(&session)
-    }))
+    Ok(full_session
+        .map(|session| super::fold_audit::cursor_thread_snapshot_from_full_session(&session)))
 }
 
 #[cfg(test)]

@@ -10,10 +10,12 @@
 
 use super::*;
 use crate::acp::parsers::acp_fields::normalize_tool_call_id;
+use crate::acp::parsers::AgentType;
+use crate::acp::session::fold_export::thread_snapshot_from_full_session;
 use crate::acp::session_update::{ToolArguments, ToolCallStatus, ToolKind};
 use crate::acp::transcript_projection::display_id::tool_call_id_from_authority_entry_id;
 use crate::acp::transcript_projection::snapshot::TranscriptSnapshot;
-use crate::session_converter::convert_cursor_full_session_to_thread_snapshot;
+use crate::acp::types::CanonicalAgentId;
 use crate::session_jsonl::types::{
     ContentBlock, FullSession, OrderedMessage, SessionStats, StoredEntry,
 };
@@ -107,9 +109,11 @@ mod history_restore_edge {
 
     #[test]
     fn history_restore_normalizes_composite_tool_call_ids() {
-        let snapshot = convert_cursor_full_session_to_thread_snapshot(&full_session_with_tool_use(
-            RAW_COMPOSITE_ID,
-        ));
+        let snapshot = thread_snapshot_from_full_session(
+            &full_session_with_tool_use(RAW_COMPOSITE_ID),
+            CanonicalAgentId::Cursor,
+            AgentType::Cursor,
+        );
         let (stored_id, message) = snapshot
             .entries
             .iter()
@@ -141,8 +145,10 @@ mod cross_edge_parity {
             .unwrap()
             .id;
 
-        let history_snapshot = convert_cursor_full_session_to_thread_snapshot(
+        let history_snapshot = thread_snapshot_from_full_session(
             &full_session_with_tool_use(RAW_COMPOSITE_ID),
+            CanonicalAgentId::Cursor,
+            AgentType::Cursor,
         );
         let history_id = history_snapshot
             .entries

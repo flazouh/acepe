@@ -5,9 +5,9 @@ use crate::acp::event_hub::AcpEventHubState;
 use crate::acp::session_open_snapshot::{
     apply_runtime_authority_to_session_open_result,
     session_open_result_from_current_row_ledger_with_initial_page_policy,
-    session_open_result_from_history_events,
-    CurrentRowLedgerInitialPagePolicy, CurrentRowLedgerOpenLookup, SessionOpenError,
-    SessionOpenPath, SessionOpenResult, SessionOpenResultTiming,
+    session_open_result_from_history_events, CurrentRowLedgerInitialPagePolicy,
+    CurrentRowLedgerOpenLookup, SessionOpenError, SessionOpenPath, SessionOpenResult,
+    SessionOpenResultTiming,
 };
 use crate::acp::types::CanonicalAgentId;
 use sea_orm::DbConn;
@@ -128,11 +128,8 @@ pub async fn get_session_open_result_domain(
             | CanonicalAgentId::Copilot
     ) {
         let provider_load_started_at = Instant::now();
-        match super::fold_provider_load::load_provider_history_events(
-            app.clone(),
-            &replay_context,
-        )
-        .await
+        match super::fold_provider_load::load_provider_history_events(app.clone(), &replay_context)
+            .await
         {
             Ok(Some(events)) if !events.is_empty() => {
                 let provider_load_ms = elapsed_ms(provider_load_started_at);

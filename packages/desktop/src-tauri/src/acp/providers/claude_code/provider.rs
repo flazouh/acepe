@@ -238,9 +238,7 @@ impl AgentProvider for ClaudeCodeProvider {
 
             match try_load(&context.effective_project_path) {
                 Ok(snapshot) => Ok(snapshot),
-                Err(_error)
-                    if context.effective_project_path != context.project_path =>
-                {
+                Err(_error) if context.effective_project_path != context.project_path => {
                     match try_load(&context.project_path) {
                         Ok(snapshot) => Ok(snapshot),
                         Err(fallback_error) => {

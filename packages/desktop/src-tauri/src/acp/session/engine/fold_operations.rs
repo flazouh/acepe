@@ -1,8 +1,8 @@
 //! Tool-call operation fold — upsert operations linked to transcript tool entries.
 
 use crate::acp::projections::helpers::{
-    build_rejected_operation_id, derive_operation_state,
-    enrich_read_arguments_from_filesystem, extract_operation_command, finalize_operation_snapshot,
+    build_rejected_operation_id, derive_operation_state, enrich_read_arguments_from_filesystem,
+    extract_operation_command, finalize_operation_snapshot,
     is_claude_resumed_missing_tool_result_update, is_terminal_operation_state,
     is_terminal_tool_call_status, merge_operation_snapshot_evidence,
     merge_update_arguments_with_existing, normalize_tool_call_for_operation_ingress,
@@ -33,9 +33,8 @@ pub fn apply_tool_call(
     }
 
     let session_id = graph.canonical_session_id.clone();
-    let assistant_boundary = assistant_boundary_entry_count_from_transcript_entries(
-        &graph.transcript_snapshot.entries,
-    );
+    let assistant_boundary =
+        assistant_boundary_entry_count_from_transcript_entries(&graph.transcript_snapshot.entries);
     let entry_id = live_tool_entry_id_for_tool_call(assistant_boundary, &tool_call.id);
 
     append_tool_transcript_entry(graph, event, &entry_id, &tool_call);
@@ -218,11 +217,7 @@ fn build_operation_from_tool_call(
         progressive_arguments: None,
         result: tool_call.result.clone(),
         computer_payload: None,
-        command: extract_operation_command(
-            Some(&arguments),
-            None,
-            tool_call.title.as_deref(),
-        ),
+        command: extract_operation_command(Some(&arguments), None, tool_call.title.as_deref()),
         normalized_todos: tool_call.normalized_todos.clone(),
         parent_tool_call_id: tool_call.parent_tool_use_id.clone(),
         parent_operation_id: None,
@@ -269,21 +264,18 @@ fn upsert_operation(graph: &mut SessionStateGraph, operation: OperationSnapshot)
         .position(|existing| existing.id == operation.id)
     {
         let existing = graph.operations[index].clone();
-        graph.operations[index] = strip_fold_operation_timing(finalize_operation_snapshot(
-            Some(&existing),
-            operation,
-        ));
+        graph.operations[index] =
+            strip_fold_operation_timing(finalize_operation_snapshot(Some(&existing), operation));
     } else if let Some(index) = find_operation_index_by_tool_call(graph, &operation.tool_call_id) {
         let existing = graph.operations[index].clone();
-        graph.operations[index] = strip_fold_operation_timing(finalize_operation_snapshot(
-            Some(&existing),
-            operation,
-        ));
+        graph.operations[index] =
+            strip_fold_operation_timing(finalize_operation_snapshot(Some(&existing), operation));
     } else {
-        graph.operations.push(strip_fold_operation_timing(finalize_operation_snapshot(
-            None,
-            operation,
-        )));
+        graph
+            .operations
+            .push(strip_fold_operation_timing(finalize_operation_snapshot(
+                None, operation,
+            )));
     }
     graph.revision.graph_revision += 1;
 }
@@ -313,11 +305,11 @@ mod tests {
             .map(|(index, line)| {
                 let value: Value = serde_json::from_str(line)
                     .unwrap_or_else(|error| panic!("invalid fixture JSON: {error}\n{line}"));
-                let update =
-                    parse_session_update_with_agent::<serde_json::Error>(&value, AgentType::ClaudeCode)
-                        .unwrap_or_else(|error| {
-                            panic!("failed to parse fixture line: {error}\n{line}")
-                        });
+                let update = parse_session_update_with_agent::<serde_json::Error>(
+                    &value,
+                    AgentType::ClaudeCode,
+                )
+                .unwrap_or_else(|error| panic!("failed to parse fixture line: {error}\n{line}"));
                 session_update_to_provider_event((index + 1) as u64, update)
             })
             .collect()
@@ -361,14 +353,10 @@ mod tests {
             .iter()
             .filter(|entry| entry.role == TranscriptEntryRole::Tool)
             .collect();
-        assert!(
-            !tool_entries.is_empty(),
-            "expected tool transcript entries"
-        );
+        assert!(!tool_entries.is_empty(), "expected tool transcript entries");
 
         for operation in &graph.operations {
-            let OperationSourceLink::TranscriptLinked { entry_id } = &operation.source_link
-            else {
+            let OperationSourceLink::TranscriptLinked { entry_id } = &operation.source_link else {
                 continue;
             };
             assert!(

@@ -66,20 +66,13 @@ pub async fn audit_session_load_timing_cli(
             add_stage(&mut stages, "find_session_file", t0);
 
             let t1 = Instant::now();
-            let full_session = session_jsonl_parser::parse_full_session_from_path(
+            let snapshot = super::fold_audit::claude_thread_snapshot_from_jsonl_path(
                 &session_id,
                 &project_path,
-                &session_path,
+                std::path::PathBuf::from(session_path),
             )
-            .await
-            .map_err(|e| format!("Failed to parse Claude session: {}", e))?;
-            add_stage(&mut stages, "read_and_parse", t1);
-
-            let t2 = Instant::now();
-            let snapshot = crate::session_converter::convert_claude_full_session_to_thread_snapshot(
-                &full_session,
-            );
-            add_stage(&mut stages, "convert", t2);
+            .map_err(|error| format!("Failed to fold Claude session history: {error}"))?;
+            add_stage(&mut stages, "read_history_and_fold", t1);
 
             Some(snapshot)
         }
@@ -103,8 +96,8 @@ pub async fn audit_session_load_timing_cli(
                         add_stage(&mut stages, "load_from_source", t0);
                         let t1 = Instant::now();
                         let snapshot =
-                            crate::session_converter::convert_cursor_full_session_to_thread_snapshot(&fs);
-                        add_stage(&mut stages, "convert", t1);
+                            super::fold_audit::cursor_thread_snapshot_from_full_session(&fs);
+                        add_stage(&mut stages, "fold", t1);
                         Some(snapshot)
                     }
                     Ok(None) | Err(_) => {
@@ -117,8 +110,10 @@ pub async fn audit_session_load_timing_cli(
                         match full_session {
                             Some(fs) => {
                                 let t2 = Instant::now();
-                                let s = crate::session_converter::convert_cursor_full_session_to_thread_snapshot(&fs);
-                                add_stage(&mut stages, "convert", t2);
+                                let s = super::fold_audit::cursor_thread_snapshot_from_full_session(
+                                    &fs,
+                                );
+                                add_stage(&mut stages, "fold", t2);
                                 Some(s)
                             }
                             None => None,
@@ -134,9 +129,8 @@ pub async fn audit_session_load_timing_cli(
                 match full_session {
                     Some(fs) => {
                         let t1 = Instant::now();
-                        let s =
-                            crate::session_converter::convert_cursor_full_session_to_thread_snapshot(&fs);
-                        add_stage(&mut stages, "convert", t1);
+                        let s = super::fold_audit::cursor_thread_snapshot_from_full_session(&fs);
+                        add_stage(&mut stages, "fold", t1);
                         Some(s)
                     }
                     None => None,
@@ -208,20 +202,13 @@ pub async fn audit_session_load_timing_with_app(
             add_stage(&mut stages, "find_session_file", t0);
 
             let t1 = Instant::now();
-            let full_session = session_jsonl_parser::parse_full_session_from_path(
+            let snapshot = super::fold_audit::claude_thread_snapshot_from_jsonl_path(
                 &session_id,
                 &project_path,
-                &session_path,
+                std::path::PathBuf::from(session_path),
             )
-            .await
-            .map_err(|e| format!("Failed to parse Claude session: {}", e))?;
-            add_stage(&mut stages, "read_and_parse", t1);
-
-            let t2 = Instant::now();
-            let snapshot = crate::session_converter::convert_claude_full_session_to_thread_snapshot(
-                &full_session,
-            );
-            add_stage(&mut stages, "convert", t2);
+            .map_err(|error| format!("Failed to fold Claude session history: {error}"))?;
+            add_stage(&mut stages, "read_history_and_fold", t1);
 
             (Some(snapshot), "claude-code".to_string())
         }
@@ -245,8 +232,8 @@ pub async fn audit_session_load_timing_with_app(
                         add_stage(&mut stages, "load_from_source", t0);
                         let t1 = Instant::now();
                         let snapshot =
-                            crate::session_converter::convert_cursor_full_session_to_thread_snapshot(&fs);
-                        add_stage(&mut stages, "convert", t1);
+                            super::fold_audit::cursor_thread_snapshot_from_full_session(&fs);
+                        add_stage(&mut stages, "fold", t1);
                         (Some(snapshot), "cursor".to_string())
                     }
                     Ok(None) | Err(_) => {
@@ -259,8 +246,10 @@ pub async fn audit_session_load_timing_with_app(
                         let snapshot = match full_session {
                             Some(fs) => {
                                 let t2 = Instant::now();
-                                let s = crate::session_converter::convert_cursor_full_session_to_thread_snapshot(&fs);
-                                add_stage(&mut stages, "convert", t2);
+                                let s = super::fold_audit::cursor_thread_snapshot_from_full_session(
+                                    &fs,
+                                );
+                                add_stage(&mut stages, "fold", t2);
                                 Some(s)
                             }
                             None => None,
@@ -277,9 +266,8 @@ pub async fn audit_session_load_timing_with_app(
                 let snapshot = match full_session {
                     Some(fs) => {
                         let t1 = Instant::now();
-                        let s =
-                            crate::session_converter::convert_cursor_full_session_to_thread_snapshot(&fs);
-                        add_stage(&mut stages, "convert", t1);
+                        let s = super::fold_audit::cursor_thread_snapshot_from_full_session(&fs);
+                        add_stage(&mut stages, "fold", t1);
                         Some(s)
                     }
                     None => None,

@@ -73,10 +73,7 @@ pub async fn load_replay_events(
     let source = OpenCodeHistorySource;
     source.read(HistoryInput {
         session_id: replay_context.history_session_id.clone(),
-        workspace_root: replay_context
-            .source_path
-            .as_ref()
-            .map(PathBuf::from),
+        workspace_root: replay_context.source_path.as_ref().map(PathBuf::from),
     })
 }
 
@@ -84,8 +81,8 @@ pub async fn load_replay_events(
 mod tests {
     use super::*;
     use crate::acp::session::ingress::event::ProviderEventKind;
+    use crate::opencode_history::convert::convert_opencode_messages_to_provider_owned_snapshot;
     use crate::opencode_history::types::{OpenCodeMessage, OpenCodeMessagePart};
-    use crate::session_converter::convert_opencode_messages_to_provider_owned_snapshot;
 
     #[test]
     fn opencode_history_source_converts_messages_to_provider_events() {

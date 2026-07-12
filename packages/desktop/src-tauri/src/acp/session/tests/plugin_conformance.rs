@@ -7,10 +7,10 @@ use crate::acp::session::ingress::canonical_events::canonical_transcript_events_
 use crate::acp::session::ingress::event::ProviderEventKind;
 use crate::acp::session::ingress::plugin::registered_agents;
 use crate::acp::session::ingress::providers::copilot::stored_entries_to_provider_events;
-use crate::acp::session::ingress::source::{HistoryInput, HistorySource};
+use crate::acp::session::ingress::source::HistoryInput;
 use crate::acp::types::CanonicalAgentId;
+use crate::opencode_history::convert::convert_opencode_messages_to_provider_owned_snapshot;
 use crate::opencode_history::types::{OpenCodeMessage, OpenCodeMessagePart};
-use crate::session_converter::convert_opencode_messages_to_provider_owned_snapshot;
 
 fn disk_fixture_for(agent: &CanonicalAgentId) -> Option<(&'static str, PathBuf)> {
     match agent {
@@ -20,14 +20,15 @@ fn disk_fixture_for(agent: &CanonicalAgentId) -> Option<(&'static str, PathBuf)>
         )),
         CanonicalAgentId::ClaudeCode => Some((
             "sess-hist-001",
-            PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-                .join("src/acp/reconciler/tests/fixtures"),
+            PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("src/acp/reconciler/tests/fixtures"),
         )),
         _ => None,
     }
 }
 
-fn synthetic_events_for(agent: &CanonicalAgentId) -> Vec<crate::acp::session::ingress::event::ProviderEvent> {
+fn synthetic_events_for(
+    agent: &CanonicalAgentId,
+) -> Vec<crate::acp::session::ingress::event::ProviderEvent> {
     match agent {
         CanonicalAgentId::OpenCode => {
             let messages = vec![
@@ -68,47 +69,50 @@ fn synthetic_events_for(agent: &CanonicalAgentId) -> Vec<crate::acp::session::in
             let snapshot = convert_replay_updates_to_session(
                 "copilot-conformance",
                 "Copilot Conformance",
-                &[(
-                    1_710_000_000_000,
-                    crate::acp::session_update::SessionUpdate::UserMessageChunk {
-                        chunk: ContentChunk {
-                            content: ContentBlock::Text {
-                                text: "Summarize the repo".to_string(),
+                &[
+                    (
+                        1_710_000_000_000,
+                        crate::acp::session_update::SessionUpdate::UserMessageChunk {
+                            chunk: ContentChunk {
+                                content: ContentBlock::Text {
+                                    text: "Summarize the repo".to_string(),
+                                },
+                                aggregation_hint: None,
                             },
-                            aggregation_hint: None,
+                            session_id: Some("copilot-conformance".to_string()),
+                            attempt_id: None,
                         },
-                        session_id: Some("copilot-conformance".to_string()),
-                        attempt_id: None,
-                    },
-                ), (
-                    1_710_000_001_000,
-                    crate::acp::session_update::SessionUpdate::ToolCall {
-                        tool_call: ToolCallData {
-                            id: "tool-1".to_string(),
-                            name: "Read".to_string(),
-                            arguments: ToolArguments::Read {
-                                file_path: Some("/repo/README.md".to_string()),
-                                source_context: None,
+                    ),
+                    (
+                        1_710_000_001_000,
+                        crate::acp::session_update::SessionUpdate::ToolCall {
+                            tool_call: ToolCallData {
+                                id: "tool-1".to_string(),
+                                name: "Read".to_string(),
+                                arguments: ToolArguments::Read {
+                                    file_path: Some("/repo/README.md".to_string()),
+                                    source_context: None,
+                                },
+                                diagnostic_input: None,
+                                status: ToolCallStatus::Pending,
+                                result: None,
+                                kind: Some(ToolKind::Read),
+                                title: Some("Read README".to_string()),
+                                locations: None,
+                                skill_meta: None,
+                                normalized_questions: None,
+                                normalized_todos: None,
+                                normalized_todo_update: None,
+                                parent_tool_use_id: None,
+                                task_children: None,
+                                question_answer: None,
+                                awaiting_plan_approval: false,
+                                plan_approval_request_id: None,
                             },
-                            diagnostic_input: None,
-                            status: ToolCallStatus::Pending,
-                            result: None,
-                            kind: Some(ToolKind::Read),
-                            title: Some("Read README".to_string()),
-                            locations: None,
-                            skill_meta: None,
-                            normalized_questions: None,
-                            normalized_todos: None,
-                            normalized_todo_update: None,
-                            parent_tool_use_id: None,
-                            task_children: None,
-                            question_answer: None,
-                            awaiting_plan_approval: false,
-                            plan_approval_request_id: None,
+                            session_id: Some("copilot-conformance".to_string()),
                         },
-                        session_id: Some("copilot-conformance".to_string()),
-                    },
-                )],
+                    ),
+                ],
             );
             stored_entries_to_provider_events(&snapshot.entries, CanonicalAgentId::Copilot)
         }

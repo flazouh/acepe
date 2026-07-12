@@ -1,19 +1,17 @@
 //! Session converter module.
 //!
 //! Agent-specific entry points:
-//! - claude/cursor/codex use FullSession conversion
-//! - opencode uses OpenCode message conversion
+//! - claude/cursor use FullSession conversion
+//! - OpenCode conversion lives in `opencode_history::convert`
 
-use crate::acp::session_thread_snapshot::{ProviderOwnedSessionSnapshot, SessionThreadSnapshot};
+use crate::acp::session_thread_snapshot::SessionThreadSnapshot;
 use crate::acp::session_update::TurnErrorKind;
 use crate::cc_sdk::AssistantMessageError;
-use crate::opencode_history::types::OpenCodeMessage;
 use crate::session_jsonl::types::FullSession;
 
 mod claude;
 mod cursor;
 mod fullsession;
-mod opencode;
 
 pub use crate::acp::session::ingress::canonical_events::materialize_canonical_transcript_events;
 pub use crate::acp::session_update::tool_merge::{calculate_todo_timing, merge_tool_call_update};
@@ -31,19 +29,6 @@ pub fn convert_cursor_full_session_to_thread_snapshot(
     session: &FullSession,
 ) -> SessionThreadSnapshot {
     cursor::convert_cursor_full_session_to_thread_snapshot(session)
-}
-
-#[allow(dead_code)]
-pub fn convert_opencode_messages_to_session(
-    messages: Vec<OpenCodeMessage>,
-) -> Result<SessionThreadSnapshot, String> {
-    opencode::convert_opencode_messages_to_session(messages)
-}
-
-pub(crate) fn convert_opencode_messages_to_provider_owned_snapshot(
-    messages: Vec<OpenCodeMessage>,
-) -> Result<ProviderOwnedSessionSnapshot, String> {
-    opencode::convert_opencode_messages_to_provider_owned_snapshot(messages)
 }
 
 fn extract_api_error_status_code(text: &str) -> Option<&str> {
@@ -580,219 +565,6 @@ mod tests {
             ClaudeCodeParser.detect_tool_kind("mcp__server__UnknownTool"),
             ToolKind::Other
         );
-    }
-
-    #[test]
-    fn test_convert_opencode_basic_messages() {
-        use crate::opencode_history::types::{OpenCodeMessage, OpenCodeMessagePart};
-
-        let messages = vec![
-            OpenCodeMessage {
-                id: "user-1".to_string(),
-                role: "user".to_string(),
-                parts: vec![OpenCodeMessagePart::Text {
-                    text: "Hello, world!".to_string(),
-                }],
-                model: None,
-                timestamp: Some("2025-01-01T00:00:00Z".to_string()),
-            },
-            OpenCodeMessage {
-                id: "assistant-1".to_string(),
-                role: "assistant".to_string(),
-                parts: vec![OpenCodeMessagePart::Text {
-                    text: "Hi there!".to_string(),
-                }],
-                model: Some("claude-3-7-sonnet-20250219".to_string()),
-                timestamp: Some("2025-01-01T00:00:01Z".to_string()),
-            },
-        ];
-
-        let converted = convert_opencode_messages_to_session(messages).unwrap();
-
-        assert_eq!(converted.entries.len(), 2);
-
-        // Check user entry
-        match &converted.entries[0] {
-            StoredEntry::User { id, message, .. } => {
-                assert_eq!(id, "user-1");
-                assert_eq!(message.content.text, Some("Hello, world!".to_string()));
-            }
-            _ => panic!("First entry should be user"),
-        }
-
-        // Check assistant entry
-        match &converted.entries[1] {
-            StoredEntry::Assistant { id, message, .. } => {
-                assert_eq!(id, "assistant-1");
-                assert_eq!(message.chunks.len(), 1);
-                assert_eq!(
-                    message.model,
-                    Some("claude-3-7-sonnet-20250219".to_string())
-                );
-            }
-            _ => panic!("Second entry should be assistant"),
-        }
-    }
-
-    #[test]
-    fn test_convert_opencode_with_tool_use() {
-        use crate::opencode_history::types::{OpenCodeMessage, OpenCodeMessagePart};
-
-        let messages = vec![
-            OpenCodeMessage {
-                id: "user-1".to_string(),
-                role: "user".to_string(),
-                parts: vec![OpenCodeMessagePart::Text {
-                    text: "Read a file".to_string(),
-                }],
-                model: None,
-                timestamp: Some("2025-01-01T00:00:00Z".to_string()),
-            },
-            OpenCodeMessage {
-                id: "assistant-1".to_string(),
-                role: "assistant".to_string(),
-                parts: vec![OpenCodeMessagePart::ToolInvocation {
-                    id: "tool-1".to_string(),
-                    name: "read_file".to_string(),
-                    input: serde_json::json!({"path": "/test/file.txt"}),
-                    state: None,
-                }],
-                model: Some("claude-3-7-sonnet-20250219".to_string()),
-                timestamp: Some("2025-01-01T00:00:01Z".to_string()),
-            },
-            OpenCodeMessage {
-                id: "user-2".to_string(),
-                role: "user".to_string(),
-                parts: vec![OpenCodeMessagePart::ToolResult {
-                    tool_use_id: "tool-1".to_string(),
-                    content: "File contents".to_string(),
-                }],
-                model: None,
-                timestamp: Some("2025-01-01T00:00:02Z".to_string()),
-            },
-        ];
-
-        let converted = convert_opencode_messages_to_session(messages).unwrap();
-
-        // Should have user entry and tool_call entry
-        // Note: assistant message has no text, so no assistant entry is created
-        // Second user message has only tool result, so no user entry is created
-        assert_eq!(converted.entries.len(), 2);
-
-        // Find tool call entry
-        let tool_entry = converted
-            .entries
-            .iter()
-            .find(|e| matches!(e, StoredEntry::ToolCall { .. }))
-            .expect("Should have tool call entry");
-
-        match tool_entry {
-            StoredEntry::ToolCall { id, message, .. } => {
-                assert_eq!(id, "tool-1");
-                assert_eq!(message.name, "Read");
-                assert_eq!(message.status, ToolCallStatus::Completed);
-                assert_eq!(
-                    message.result,
-                    Some(serde_json::Value::String("File contents".to_string()))
-                );
-                assert_eq!(message.kind, Some(ToolKind::Read));
-            }
-            _ => panic!("Should be tool call"),
-        }
-    }
-
-    #[test]
-    fn test_convert_opencode_empty_user_message() {
-        use crate::opencode_history::types::{OpenCodeMessage, OpenCodeMessagePart};
-
-        let messages = vec![
-            OpenCodeMessage {
-                id: "user-1".to_string(),
-                role: "user".to_string(),
-                parts: vec![], // Empty message
-                model: None,
-                timestamp: Some("2025-01-01T00:00:00Z".to_string()),
-            },
-            OpenCodeMessage {
-                id: "assistant-1".to_string(),
-                role: "assistant".to_string(),
-                parts: vec![OpenCodeMessagePart::Text {
-                    text: "Response".to_string(),
-                }],
-                model: None,
-                timestamp: Some("2025-01-01T00:00:01Z".to_string()),
-            },
-        ];
-
-        let converted = convert_opencode_messages_to_session(messages).unwrap();
-
-        // Empty user message should be skipped
-        assert_eq!(converted.entries.len(), 1);
-        assert!(!converted
-            .entries
-            .iter()
-            .any(|e| matches!(e, StoredEntry::User { id, .. } if id == "user-1")));
-    }
-
-    #[test]
-    fn test_convert_opencode_webfetch_search_url_maps_to_web_search() {
-        use crate::opencode_history::types::{
-            OpenCodeApiToolState, OpenCodeMessage, OpenCodeMessagePart,
-        };
-
-        let messages = vec![
-            OpenCodeMessage {
-                id: "user-1".to_string(),
-                role: "user".to_string(),
-                parts: vec![OpenCodeMessagePart::Text {
-                    text: "Search GitHub for CLAUDE.md".to_string(),
-                }],
-                model: None,
-                timestamp: Some("2025-01-01T00:00:00Z".to_string()),
-            },
-            OpenCodeMessage {
-                id: "assistant-1".to_string(),
-                role: "assistant".to_string(),
-                parts: vec![OpenCodeMessagePart::ToolInvocation {
-                    id: "call-search-1".to_string(),
-                    name: "webfetch".to_string(),
-                    input: serde_json::json!({
-                        "url": "https://github.com/search?q=CLAUDE.md+boris&type=code",
-                        "format": "markdown"
-                    }),
-                    state: Some(OpenCodeApiToolState {
-                        status: "completed".to_string(),
-                        input: None,
-                        output: Some("search results".to_string()),
-                        error: None,
-                        metadata: None,
-                    }),
-                }],
-                model: None,
-                timestamp: Some("2025-01-01T00:00:01Z".to_string()),
-            },
-        ];
-
-        let converted = convert_opencode_messages_to_session(messages).unwrap();
-
-        let tool_entry = converted
-            .entries
-            .iter()
-            .find(|e| matches!(e, StoredEntry::ToolCall { .. }))
-            .expect("Should have tool call entry");
-
-        match tool_entry {
-            StoredEntry::ToolCall { message, .. } => {
-                assert_eq!(message.kind, Some(ToolKind::WebSearch));
-                match &message.arguments {
-                    ToolArguments::WebSearch { query } => {
-                        assert_eq!(query.as_deref(), Some("CLAUDE.md boris"));
-                    }
-                    _ => panic!("Expected web search arguments"),
-                }
-            }
-            _ => panic!("Should be tool call"),
-        }
     }
 
     #[test]

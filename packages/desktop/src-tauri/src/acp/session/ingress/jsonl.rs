@@ -29,10 +29,7 @@ pub fn parse_jsonl_lines(contents: &str) -> Result<Vec<SessionUpdate>, HistoryEr
         .enumerate()
         .map(|(index, line)| {
             let value: serde_json::Value = serde_json::from_str(line).map_err(|error| {
-                HistoryError::InvalidFormat(format!(
-                    "invalid JSON on line {}: {error}",
-                    index + 1
-                ))
+                HistoryError::InvalidFormat(format!("invalid JSON on line {}: {error}", index + 1))
             })?;
             parse_session_update_with_agent::<serde_json::Error>(&value, DEFAULT_FIXTURE_AGENT)
                 .map_err(|error| {
@@ -53,7 +50,9 @@ pub fn session_updates_to_provider_events(
     updates
         .iter()
         .enumerate()
-        .filter_map(|(index, update)| session_update_to_provider_event(source.clone(), index, update))
+        .filter_map(|(index, update)| {
+            session_update_to_provider_event(source.clone(), index, update)
+        })
         .collect()
 }
 
@@ -70,9 +69,7 @@ fn session_update_to_provider_event(
             let text = user_text_from_chunk(chunk)?;
             ProviderEventKind::UserText { text }
         }
-        SessionUpdate::ToolCall { tool_call, .. } => {
-            ProviderEventKind::ToolCall(tool_call.clone())
-        }
+        SessionUpdate::ToolCall { tool_call, .. } => ProviderEventKind::ToolCall(tool_call.clone()),
         SessionUpdate::ToolCallUpdate { update, .. } => {
             ProviderEventKind::ToolCallUpdate(update.clone())
         }

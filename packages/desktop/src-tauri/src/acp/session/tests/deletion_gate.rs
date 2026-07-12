@@ -14,9 +14,7 @@ use crate::acp::session::ingress::source::{HistoryInput, HistorySource};
 use crate::acp::session::tests::fixture_jsonl::{
     parse_jsonl_fixture, session_updates_to_provider_events,
 };
-use crate::acp::session::tests::golden::{
-    load_persisted_golden, GOLDEN_CURSOR_JUNK_NAME,
-};
+use crate::acp::session::tests::golden::{load_persisted_golden, GOLDEN_CURSOR_JUNK_NAME};
 use crate::acp::session::tests::tool_call_golden::GOLDEN_HISTORICAL_TOOL_CALL_NAME;
 use crate::acp::types::CanonicalAgentId;
 
@@ -55,8 +53,8 @@ fn oracle_is_ignored_elsewhere(oracle_name: &str) -> bool {
 fn run_cursor_history_source_fold_oracle() -> Result<(), String> {
     const SESSION_ID: &str = "c2a34686-f99a-4632-90e2-e036b96124c2";
 
-    let fixture_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("tests/fixtures/cursor_sessions");
+    let fixture_dir =
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/cursor_sessions");
 
     let events = CursorHistorySource
         .read(HistoryInput {
@@ -89,9 +87,8 @@ fn run_fold_full_historical_tool_call_oracle() -> Result<(), String> {
     const SESSION_ID: &str = "sess-hist-001";
     const PROJECT_PATH: &str = "/project";
 
-    let fixture_path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(
-        "src/acp/reconciler/tests/fixtures/historical-tool-call-session.jsonl",
-    );
+    let fixture_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("src/acp/reconciler/tests/fixtures/historical-tool-call-session.jsonl");
 
     if !fixture_path.exists() {
         return Err(format!("fixture not found: {}", fixture_path.display()));
@@ -117,7 +114,8 @@ fn collect_rs_files(dir: &Path, out: &mut Vec<PathBuf>) {
         .unwrap_or_else(|error| panic!("read directory {}: {error}", dir.display()));
 
     for entry in entries {
-        let entry = entry.unwrap_or_else(|error| panic!("read dir entry in {}: {error}", dir.display()));
+        let entry =
+            entry.unwrap_or_else(|error| panic!("read dir entry in {}: {error}", dir.display()));
         let path = entry.path();
         if path.is_dir() {
             collect_rs_files(&path, out);

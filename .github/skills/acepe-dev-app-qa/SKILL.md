@@ -157,7 +157,7 @@ For dev QA, inspect only one of these:
 3. Computer Use attached to the dev Tauri window, only after proving it is not `/Applications/Acepe.app`
 
 If the dev app is not running, start it from `packages/desktop` with `bun run tauri`
-(or a detached `bun run tauri dev` when you need a background session). If the
+(or detached `bun run tauri` when you need a background session). If the
 built binary is stale relative to the Rust change you are QA-ing, stop and
 restart the dev process so the rebuild picks up your code (see Step 1b). Always
 note when you started or restarted it.
@@ -227,11 +227,13 @@ the rebuild picks up your code. State clearly in your QA notes that you did this
    kill <bun-run-tauri-dev-PID> <vite-dev-PID> <acepe-binary-PID>
    ```
 
-3. Restart from `packages/desktop` as a detached background process (use the
-   exact command the user runs), redirecting output to a log:
+3. Restart from `packages/desktop` as a detached background process. In this
+   package the script already expands to `tauri dev`, so use `bun run tauri`
+   rather than `bun run tauri dev` (the latter becomes `tauri dev dev` and
+   exits immediately). Redirect output to a log:
 
    ```bash
-   cd packages/desktop && (bun run tauri dev >/tmp/acepe-dev.log 2>&1 &)
+   cd packages/desktop && (bun run tauri >/tmp/acepe-dev.log 2>&1 &)
    ```
 
 4. Wait for the Rust rebuild to finish and the bridge to come back up before

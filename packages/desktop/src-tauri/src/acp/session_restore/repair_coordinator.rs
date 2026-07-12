@@ -7,12 +7,12 @@ use tauri::{AppHandle, Manager};
 use tokio::sync::watch;
 use uuid::Uuid;
 
+use crate::acp::session::engine::fold::{fold_full, FoldContext};
 use crate::acp::session_descriptor::SessionReplayContext;
 use crate::acp::session_open_snapshot::SessionOpenError;
 use crate::acp::session_state_engine::selectors::{
     SessionGraphCapabilities, SessionGraphLifecycle,
 };
-use crate::acp::session::engine::fold::{fold_full, FoldContext};
 use crate::acp::transcript_viewport::ledger_rebuild::{
     rebuild_and_replace_current_transcript_row_ledger_from_journal,
     rebuild_and_replace_current_transcript_row_ledger_from_provider_snapshot,
