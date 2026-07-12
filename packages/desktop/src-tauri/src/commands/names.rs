@@ -50,7 +50,6 @@ crate::checkpoint_command_entries!(
     CHECKPOINT_COMMANDS
 );
 crate::skills_command_entries!(define_command_group, SkillsCommands, SKILLS_COMMANDS);
-crate::sql_studio_command_entries!(define_command_group, SqlStudioCommands, SQL_STUDIO_COMMANDS);
 crate::github_command_entries!(define_command_group, GitHubCommands, GITHUB_COMMANDS);
 crate::browser_webview_command_entries!(
     define_command_group,
@@ -76,7 +75,6 @@ pub struct Commands {
     pub git: GitCommands,
     pub checkpoint: CheckpointCommands,
     pub skills: SkillsCommands,
-    pub sql_studio: SqlStudioCommands,
     pub github: GitHubCommands,
     pub browser_webview: BrowserWebviewCommands,
     pub voice: VoiceCommands,
@@ -97,7 +95,6 @@ pub const COMMANDS: Commands = Commands {
     git: GIT_COMMANDS,
     checkpoint: CHECKPOINT_COMMANDS,
     skills: SKILLS_COMMANDS,
-    sql_studio: SQL_STUDIO_COMMANDS,
     github: GITHUB_COMMANDS,
     browser_webview: BROWSER_WEBVIEW_COMMANDS,
     voice: VOICE_COMMANDS,
@@ -180,8 +177,6 @@ mod tests {
             .expect("Failed to export CheckpointCommands");
         specta_typescript::export::<SkillsCommands>(&Default::default())
             .expect("Failed to export SkillsCommands");
-        specta_typescript::export::<SqlStudioCommands>(&Default::default())
-            .expect("Failed to export SqlStudioCommands");
         specta_typescript::export::<GitHubCommands>(&Default::default())
             .expect("Failed to export GitHubCommands");
         specta_typescript::export::<BrowserWebviewCommands>(&Default::default())
@@ -225,7 +220,6 @@ mod tests {
         output.push_str("export type GitCommands = Commands[\"git\"];\n");
         output.push_str("export type CheckpointCommands = Commands[\"checkpoint\"];\n");
         output.push_str("export type SkillsCommands = Commands[\"skills\"];\n");
-        output.push_str("export type SqlStudioCommands = Commands[\"sql_studio\"];\n");
         output.push_str("export type GitHubCommands = Commands[\"github\"];\n");
         output.push_str("export type BrowserWebviewCommands = Commands[\"browser_webview\"];\n");
         output.push_str("export type VoiceCommands = Commands[\"voice\"];\n");

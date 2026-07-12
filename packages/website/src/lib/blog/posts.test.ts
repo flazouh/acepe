@@ -6,13 +6,11 @@ import {
 	getAllBlogPosts,
 	gitPanelBlogPost,
 	gitViewerBlogPost,
-	sqlStudioBlogPost,
 } from "./posts.js";
 
 describe("blog post registry", () => {
 	it("exposes the published blog posts with internal funnel links", () => {
 		expect(getAllBlogPosts().map((post) => post.slug)).toEqual([
-			"sql-studio",
 			"git-viewer",
 			"git-panel",
 			"checkpoints",
@@ -29,12 +27,6 @@ describe("blog post registry", () => {
 			expect.arrayContaining([
 				expect.objectContaining({ href: "/compare/t3" }),
 				expect.objectContaining({ href: "/download" }),
-			])
-		);
-
-		expect(sqlStudioBlogPost.relatedLinks).toEqual(
-			expect.arrayContaining([
-				expect.objectContaining({ href: "/compare/superset" }),
 			])
 		);
 

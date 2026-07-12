@@ -43,11 +43,6 @@ import { AppTabBarTab, type AppTab } from "@acepe/ui/app-layout";
 import { NativeMarkdown } from "@acepe/ui/native-markdown";
 import { FilePanelHeader } from "@acepe/ui/file-panel";
 import {
-	SqlStudioSidebar,
-	type SqlConnection,
-	type SqlSchemaInfo,
-} from "@acepe/ui/sql-studio";
-import {
 	GitPanelLayout,
 	GitLogList,
 	GitStashList,
@@ -297,41 +292,6 @@ const stashFixtureEntries: GitStashEntry[] = [
 		index: 0,
 		message: "WIP rounded icons",
 		date: "2026-07-01",
-	},
-];
-
-const sqlStudioConnections: SqlConnection[] = [
-	{
-		id: "fixture-sqlite",
-		name: "Local app database",
-		engine: "sqlite",
-		subtitle: "acepe.sqlite",
-	},
-];
-
-const sqlStudioSchema: SqlSchemaInfo[] = [
-	{
-		name: "public",
-		tables: [
-			{
-				name: "users",
-				schema: "public",
-				columns: [
-					{
-						name: "id",
-						dataType: "uuid",
-						nullable: false,
-						isPrimaryKey: true,
-					},
-					{
-						name: "email",
-						dataType: "text",
-						nullable: false,
-						isPrimaryKey: false,
-					},
-				],
-			},
-		],
 	},
 ];
 
@@ -982,19 +942,6 @@ const commandPaletteItems: CommandPaletteItem[] = [
 	<div class="w-[300px] border border-border/40 p-2" data-testid="feed-section-pulse-fixture">
 		<FeedSectionHeader sectionId="working" label="Working" count={2} color="#15DB95" />
 		<FeedSectionHeader sectionId="planning" label="Planning" count={1} color="#F6A04D" />
-	</div>
-	<div class="h-[240px] w-[260px] border border-border/40" data-testid="sql-studio-sidebar-fixture">
-		<SqlStudioSidebar
-			connections={sqlStudioConnections}
-			selectedConnectionId="fixture-sqlite"
-			schema={sqlStudioSchema}
-			selectedSchemaName="public"
-			selectedTableName="users"
-			onConnectionSelect={() => {}}
-			onConnectionCreate={() => {}}
-			onConnectionDelete={() => {}}
-			onTableSelect={() => {}}
-		/>
 	</div>
 	<div class="h-[190px] w-[360px] border border-border/40 p-2" data-testid="kanban-plan-approval-code-fixture">
 		<KanbanSceneBoard groups={codeKanbanGroups} />

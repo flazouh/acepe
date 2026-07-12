@@ -1,5 +1,5 @@
 <script lang="ts">
-import { Button, RoundedIcon, StorageIcon } from "@acepe/ui";
+import { Button, RoundedIcon } from "@acepe/ui";
 import type { Snippet } from "svelte";
 
 import { AppTopBar } from "@acepe/ui/app-layout";
@@ -44,11 +44,6 @@ let { children, interactive = false, bare = false }: Props = $props();
 						<Button variant="ghost" size="icon" title="Feedback" aria-label="Feedback">
 							{#snippet children()}
 								<RoundedIcon name="bug" style="color: #FF5D5A" />
-							{/snippet}
-						</Button>
-						<Button variant="ghost" size="icon" title="Database Manager" aria-label="Database Manager">
-							{#snippet children()}
-								<StorageIcon />
 							{/snippet}
 						</Button>
 					{/snippet}

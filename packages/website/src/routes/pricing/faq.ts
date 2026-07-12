@@ -12,7 +12,7 @@ export interface PricingFaqItem {
 export const pricingFaqItems: readonly PricingFaqItem[] = [
 	{
 		q: "Is the free plan really free?",
-		a: "Yes. The desktop app, local agent sessions, checkpoints, Git integration, SQL Studio, and keyboard workflows are all free. No trial, no time limit.",
+		a: "Yes. The desktop app, local agent sessions, checkpoints, Git integration, and keyboard workflows are all free. No trial, no time limit.",
 		comparisonLink: null,
 	},
 	{
@@ -47,7 +47,7 @@ export const pricingFaqItems: readonly PricingFaqItem[] = [
 	},
 	{
 		q: "How is Acepe better than Superset?",
-		a: "Superset publicly emphasizes a terminal-first workflow with parallel agents and isolated worktrees. Acepe leans harder into the operator layer around those sessions with an attention queue, richer session context, checkpoints, and built-in tools like SQL Studio.",
+		a: "Superset publicly emphasizes a terminal-first workflow with parallel agents and isolated worktrees. Acepe leans harder into the operator layer around those sessions with an attention queue, richer session context, and checkpoints.",
 		comparisonLink: {
 			href: "/compare/superset",
 			label: "See Acepe vs Superset",
@@ -55,7 +55,7 @@ export const pricingFaqItems: readonly PricingFaqItem[] = [
 	},
 	{
 		q: "How is Acepe different from 1Code?",
-		a: "1Code publicly emphasizes Claude Code/Codex support, worktrees, background agents, kanban, browser previews, and MCP/plugins. Acepe differentiates with broader built-in agent support, an attention queue, and SQL Studio.",
+		a: "1Code publicly emphasizes Claude Code/Codex support, worktrees, background agents, kanban, browser previews, and MCP/plugins. Acepe differentiates with broader built-in agent support and an attention queue.",
 		comparisonLink: {
 			href: "/compare/1code",
 			label: "See Acepe vs 1Code",
@@ -63,7 +63,7 @@ export const pricingFaqItems: readonly PricingFaqItem[] = [
 	},
 	{
 		q: "How does Acepe compare to T3?",
-		a: "T3 Code publicly positions itself as a minimal GUI for Claude and Codex. Acepe differentiates with broader agent coverage, stronger session triage, and built-in SQL Studio.",
+		a: "T3 Code publicly positions itself as a minimal GUI for Claude and Codex. Acepe differentiates with broader agent coverage and stronger session triage.",
 		comparisonLink: {
 			href: "/compare/t3",
 			label: "See Acepe vs T3",
@@ -71,7 +71,7 @@ export const pricingFaqItems: readonly PricingFaqItem[] = [
 	},
 	{
 		q: "How does Acepe compare to Conductor?",
-		a: "Conductor publicly emphasizes Mac-native Claude Code and Codex workspaces with isolated worktrees, review flows, and strong multi-workspace UX. Acepe differentiates with broader built-in agent coverage, a dedicated attention queue, checkpoints, and built-in SQL Studio.",
+		a: "Conductor publicly emphasizes Mac-native Claude Code and Codex workspaces with isolated worktrees, review flows, and strong multi-workspace UX. Acepe differentiates with broader built-in agent coverage, a dedicated attention queue, and checkpoints.",
 		comparisonLink: {
 			href: "/compare/conductor",
 			label: "See Acepe vs Conductor",

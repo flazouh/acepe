@@ -499,8 +499,6 @@ export interface PersistedWorkspaceState {
 	readonly projectFileViewModes?: Record<string, "sessions" | "files">;
 	/** Index of the fullscreen panel, or null if no panel is fullscreen (added in version 2) */
 	readonly fullscreenPanelIndex?: number | null;
-	/** SQL Studio state (added in version 4) */
-	readonly sqlStudio?: PersistedSqlStudioState;
 	/** Full-screen review overlay state (added in version 5) */
 	readonly reviewFullscreen?: PersistedReviewFullscreenState;
 	/** Explicit top-level terminal groups persisted across app restarts (added in version 10). */
@@ -525,16 +523,6 @@ export interface PersistedWorkspaceRestoreState extends PersistedWorkspaceState 
 	readonly terminalPanels?: ReadonlyArray<PersistedTerminalPanelState>;
 	readonly focusedViewEnabled?: boolean;
 	readonly messageDrafts?: Record<number, string>;
-}
-
-/**
- * Persisted SQL Studio state.
- */
-export interface PersistedSqlStudioState {
-	readonly open: boolean;
-	readonly selectedConnectionId: string | null;
-	readonly selectedSchemaName: string | null;
-	readonly selectedTableName: string | null;
 }
 
 /**

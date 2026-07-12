@@ -182,7 +182,7 @@ export const pitchSections = createPitchSections([
 		narrativeRole: "proof",
 		headline: "The real loop: launch, monitor, unblock, review, ship",
 		summary:
-			"Parallel sessions, attention queueing, checkpoints, and SQL Studio in one native desktop workspace.",
+			"Parallel sessions, attention queueing, and checkpoints in one native desktop workspace.",
 		body: [
 			"Built for developers juggling multiple agents, reviews, and half-finished outputs at once.",
 			"A first-party agent adds upside later. The core value is the workflow around every agent.",

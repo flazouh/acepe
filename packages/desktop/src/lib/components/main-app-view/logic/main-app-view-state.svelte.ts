@@ -30,14 +30,12 @@ import type { SessionStore } from "$lib/acp/store/session-store.svelte.js";
 import type {
 	Panel,
 	PersistedReviewFullscreenState,
-	PersistedSqlStudioState,
 	ViewMode,
 } from "$lib/acp/store/types.js";
 import type { WorkspaceStore } from "$lib/acp/store/workspace-store.svelte.js";
 import { createLogger } from "$lib/acp/utils/logger.js";
 import { type IssueReportDraft, openIssueReportDraft } from "$lib/errors/issue-report.js";
 import type { KeybindingsService } from "$lib/keybindings/service.svelte.js";
-import { getSqlStudioStore } from "$lib/sql-studio/index.js";
 import type { MainAppViewError } from "../errors/main-app-view-error.js";
 import type { CreateSessionOptions } from "../types/create-session-options.js";
 import {
@@ -69,11 +67,6 @@ export class MainAppViewState {
 	 * Whether the settings modal is open.
 	 */
 	settingsModalOpen = $state(false);
-
-	/**
-	 * Whether the SQL Studio overlay is open.
-	 */
-	sqlStudioModalOpen = $state(false);
 
 	/**
 	 * Whether the full-screen review overlay is open.
@@ -332,38 +325,6 @@ export class MainAppViewState {
 			getProjectFileViewModes: () => this.projectFileViewModes,
 			setProjectFileViewModes: (modes) => {
 				this.projectFileViewModes = modes;
-			},
-			getSqlStudioState: () => {
-				const sqlStore = getSqlStudioStore();
-				return {
-					open: this.sqlStudioModalOpen,
-					selectedConnectionId: sqlStore.selectedConnectionId,
-					selectedSchemaName: sqlStore.selectedSchemaName,
-					selectedTableName: sqlStore.selectedTableName,
-				};
-			},
-			setSqlStudioState: (state: PersistedSqlStudioState) => {
-				if (state.open) {
-					this.sqlStudioModalOpen = true;
-				}
-				if (state.selectedConnectionId) {
-					const sqlStore = getSqlStudioStore();
-					sqlStore
-						.loadConnections()
-						.andThen(() => {
-							if (state.selectedConnectionId) {
-								return sqlStore.selectConnection(state.selectedConnectionId).map(() => {
-									if (state.selectedSchemaName && state.selectedTableName) {
-										sqlStore
-											.selectTable(state.selectedSchemaName, state.selectedTableName)
-											.mapErr(() => {});
-									}
-								});
-							}
-							return okAsync(undefined);
-						})
-						.mapErr(() => {});
-				}
 			},
 			getCollapsedProjectPaths: () => this.collapsedProjectPaths,
 			setCollapsedProjectPaths: (paths) => {
@@ -715,35 +676,6 @@ export class MainAppViewState {
 			this.closeSettings();
 		} else {
 			this.openSettings();
-		}
-	}
-
-	/**
-	 * Opens the SQL Studio overlay.
-	 * Guards against opening when splash screen is showing.
-	 */
-	openSqlStudio(): void {
-		if (this.showSplash === true) return;
-		this.sqlStudioModalOpen = true;
-		this.workspaceStore.persist();
-	}
-
-	/**
-	 * Closes the SQL Studio overlay.
-	 */
-	closeSqlStudio(): void {
-		this.sqlStudioModalOpen = false;
-		this.workspaceStore.persist();
-	}
-
-	/**
-	 * Toggles the SQL Studio overlay open/closed.
-	 */
-	toggleSqlStudio(): void {
-		if (this.sqlStudioModalOpen) {
-			this.closeSqlStudio();
-		} else {
-			this.openSqlStudio();
 		}
 	}
 

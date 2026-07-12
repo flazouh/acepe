@@ -118,10 +118,6 @@
       "svelte": "./src/components/git-panel/index.ts",
       "default": "./src/components/git-panel/index.ts"
     },
-    "./sql-studio": {
-      "svelte": "./src/components/sql-studio/index.ts",
-      "default": "./src/components/sql-studio/index.ts"
-    },
     "./table": {
       "svelte": "./src/components/table/index.ts",
       "default": "./src/components/table/index.ts"

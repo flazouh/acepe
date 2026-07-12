@@ -70,12 +70,6 @@ export const cursorComparison: ComparisonData = {
 		},
 		{
 			category: "Tools",
-			feature: "SQL editor",
-			acepe: "Built-in SQL Studio with schema browser",
-			competitor: "Not highlighted in public Cursor product pages",
-		},
-		{
-			category: "Tools",
 			feature: "Code editor",
 			acepe: false,
 			competitor: "Full VS Code fork with AI-native editing",
@@ -148,7 +142,7 @@ export const cursorComparison: ComparisonData = {
 		{
 			question: "Is Acepe free?",
 			answer:
-				"Yes. The desktop app, local agent sessions, checkpoints, Git integration, SQL Studio, and keyboard workflows are all free. No trial, no time limit.",
+				"Yes. The desktop app, local agent sessions, checkpoints, Git integration, and keyboard workflows are all free. No trial, no time limit.",
 		},
 		{
 			question: "What operating systems are supported?",

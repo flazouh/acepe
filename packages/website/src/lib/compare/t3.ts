@@ -59,12 +59,6 @@ export const t3Comparison: ComparisonData = {
 			competitor: "Public README highlights `npx t3`, GitHub Releases, Homebrew, winget, and AUR",
 		},
 		{
-			category: "Tools",
-			feature: "SQL editor",
-			acepe: "Built-in SQL Studio",
-			competitor: "Not highlighted in the public README or repository overview",
-		},
-		{
 			category: "Workflow",
 			feature: "Skills / MCP surface",
 			acepe: "Skills management and MCP integrations are visible product surfaces",
@@ -83,11 +77,6 @@ export const t3Comparison: ComparisonData = {
 			description:
 				"T3 Code explicitly leans into a minimal GUI. Acepe makes the opposite tradeoff: more queueing, more visible session context, and more operator-focused UI around long-running work.",
 		},
-		{
-			title: "Acepe includes SQL Studio in the core app",
-			description:
-				"Built-in database tooling remains one of Acepe’s clearest differentiators from thinner coding-agent shells.",
-		},
 	],
 	faqs: [
 		{
@@ -103,11 +92,7 @@ export const t3Comparison: ComparisonData = {
 		{
 			question: "Why would I choose Acepe over a minimal interface?",
 			answer:
-				"Choose Acepe if you want more visibility and control across several sessions: more built-in agents, attention queue, richer context, and built-in SQL tooling.",
-		},
-		{
-			question: "Does Acepe include SQL Studio?",
-			answer: "Yes. Acepe includes a built-in SQL editor and schema browser.",
+				"Choose Acepe if you want more visibility and control across several sessions: more built-in agents, attention queue, and richer context.",
 		},
 		{
 			question: "Does Acepe support Claude Code and Codex too?",
@@ -117,5 +102,5 @@ export const t3Comparison: ComparisonData = {
 	],
 	metaTitle: "Acepe vs T3 — Multi-Agent Control Surface vs Minimal Agent Interface",
 	metaDescription:
-		"Compare Acepe and T3 Code side by side. T3 Code is a minimal GUI for Codex and Claude, while Acepe differentiates with broader agent support, richer session triage, and SQL Studio.",
+		"Compare Acepe and T3 Code side by side. T3 Code is a minimal GUI for Codex and Claude, while Acepe differentiates with broader agent support and richer session triage.",
 };

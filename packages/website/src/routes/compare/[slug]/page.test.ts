@@ -43,6 +43,5 @@ describe("compare page verification signals", () => {
 		expect(body).toContain("See Acepe features behind this comparison");
 		expect(body).toContain("/blog/attention-queue");
 		expect(body).toContain("/blog/checkpoints");
-		expect(body).toContain("/blog/sql-studio");
 	});
 });

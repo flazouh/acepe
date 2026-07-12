@@ -22,7 +22,7 @@ export const conductorComparison: ComparisonData = {
 	],
 	heroTagline: "Acepe vs Conductor",
 	heroDescription:
-		"Conductor is a polished Mac app for running teams of Claude Code and Codex agents in isolated workspaces, then reviewing and merging their changes. Acepe competes with broader built-in agent coverage, an explicit attention queue, checkpoints, and built-in SQL Studio.",
+		"Conductor is a polished Mac app for running teams of Claude Code and Codex agents in isolated workspaces, then reviewing and merging their changes. Acepe competes with broader built-in agent coverage, an explicit attention queue, and checkpoints.",
 	features: [
 		{
 			category: "Agents",
@@ -65,12 +65,6 @@ export const conductorComparison: ComparisonData = {
 			competitor: "Public docs home lists MCP and Slash commands as core product features",
 		},
 		{
-			category: "Tools",
-			feature: "SQL editor",
-			acepe: "Built-in SQL Studio with schema browser",
-			competitor: "Not highlighted in Conductor public site, docs home, or changelog",
-		},
-		{
 			category: "Platform",
 			feature: "Desktop platform focus",
 			acepe: "macOS today; Linux and Windows are planned",
@@ -87,11 +81,6 @@ export const conductorComparison: ComparisonData = {
 			title: "Acepe keeps session triage more explicit",
 			description:
 				"Conductor clearly supports at-a-glance coordination, but Acepe puts more product weight on the attention queue itself when several agent threads need operator input at once.",
-		},
-		{
-			title: "Acepe includes SQL Studio in the core app",
-			description:
-				"Built-in database inspection and query workflows remain one of Acepe's clearest differentiators when you want the agent loop and the data layer in one place.",
 		},
 	],
 	faqs: [
@@ -112,14 +101,10 @@ export const conductorComparison: ComparisonData = {
 		{
 			question: "Why choose Acepe over Conductor?",
 			answer:
-				"Choose Acepe if you want broader built-in agent coverage, an explicit attention queue, checkpoints tied to the session, and built-in SQL Studio in the same operator surface.",
-		},
-		{
-			question: "Does Acepe include built-in SQL tooling?",
-			answer: "Yes. Acepe includes SQL Studio with a schema browser and query editor.",
+				"Choose Acepe if you want broader built-in agent coverage, an explicit attention queue, and checkpoints tied to the session in the same operator surface.",
 		},
 	],
 	metaTitle: "Acepe vs Conductor — Broader Agent Coverage vs Mac-Native Agent Workspace",
 	metaDescription:
-		"Compare Acepe and Conductor side by side. Conductor is a Mac app for Claude Code and Codex workspaces with worktrees and review flows, while Acepe differentiates with broader agent coverage, explicit session triage, checkpoints, and SQL Studio.",
+		"Compare Acepe and Conductor side by side. Conductor is a Mac app for Claude Code and Codex workspaces with worktrees and review flows, while Acepe differentiates with broader agent coverage, explicit session triage, and checkpoints.",
 };

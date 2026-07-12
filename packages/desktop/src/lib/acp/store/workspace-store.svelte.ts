@@ -32,7 +32,6 @@ import {
 	type PersistedPanelState,
 	type PersistedReviewFullscreenState,
 	type PersistedReviewWorkspacePanelState,
-	type PersistedSqlStudioState,
 	type PersistedTerminalPanelGroupState,
 	type PersistedTerminalPanelState,
 	type PersistedTerminalTabState,
@@ -520,10 +519,6 @@ export interface WorkspaceStateProviders {
 	getPanelScrollTop?: (panelId: string) => number;
 	/** Set scroll position for a panel on restore */
 	setPanelScrollTop?: (panelId: string, scrollTop: number) => void;
-	/** Get SQL Studio state */
-	getSqlStudioState?: () => PersistedSqlStudioState;
-	/** Set SQL Studio state on restore */
-	setSqlStudioState?: (state: PersistedSqlStudioState) => void;
 	/** Get full-screen review overlay state */
 	getReviewFullscreenState?: () => PersistedReviewFullscreenState;
 	/** Set full-screen review overlay state on restore */
@@ -580,8 +575,6 @@ export class WorkspaceStore {
 				projectFileViewModes: this.providers.getProjectFileViewModes?.() ?? {},
 				// Fullscreen state
 				fullscreenPanelIndex: panelSnapshot.fullscreenPanelIndex,
-				// SQL Studio state
-				sqlStudio: this.providers.getSqlStudioState?.(),
 				// Full-screen review state
 				reviewFullscreen: this.providers.getReviewFullscreenState?.(),
 				// Terminal + browser panels
@@ -634,9 +627,6 @@ export class WorkspaceStore {
 		}
 		if (state.projectFileViewModes && Object.keys(state.projectFileViewModes).length > 0) {
 			this.providers.setProjectFileViewModes?.(state.projectFileViewModes);
-		}
-		if (state.sqlStudio) {
-			this.providers.setSqlStudioState?.(state.sqlStudio);
 		}
 		if (state.reviewFullscreen) {
 			this.providers.setReviewFullscreenState?.(state.reviewFullscreen);

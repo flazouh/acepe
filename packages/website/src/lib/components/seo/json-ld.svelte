@@ -61,7 +61,7 @@ const softwareSchema = {
 		"Readable plan mode with full markdown rendering",
 		"Unified session history across projects",
 		"File-level checkpoints with time-travel debugging",
-		"Built-in Git panel, diff viewer, and SQL studio",
+		"Built-in Git panel and diff viewer",
 		"Keyboard-first design with focus mode",
 	],
 	author: {

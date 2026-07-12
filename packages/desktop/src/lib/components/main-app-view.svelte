@@ -131,7 +131,6 @@ import {
 } from "./main-app-view/logic/updater-workflow.js";
 import { ReviewFullscreenPage } from "./review-fullscreen/index.js";
 import { SettingsPage } from "./settings-page/index.js";
-import SqlStudioPage from "./sql-studio/sql-studio-page.svelte";
 import { TopBar } from "./top-bar/index.js";
 import {
 	createLiveInteractionGraphConsumer,
@@ -1470,9 +1469,6 @@ const commandPalette = useAdvancedCommandPalette({
 		onOpenSettings: () => {
 			viewState.openSettings();
 		},
-		onOpenSqlStudio: () => {
-			viewState.openSqlStudio();
-		},
 		onToggleSidebar: () => {
 			viewState.sidebarOpen = !viewState.sidebarOpen;
 		},
@@ -1730,17 +1726,11 @@ $effect(() => {
 	kb.setContext("settingsOpen", viewState.settingsModalOpen);
 });
 
-// Track sqlStudioOpen context for global keybinding conditions
-$effect(() => {
-	kb.setContext("sqlStudioOpen", viewState.sqlStudioModalOpen);
-});
-
 // Track modalOpen context so overlay UIs suppress app-level keybindings
 $effect(() => {
 	kb.setContext(
 		"modalOpen",
 		viewState.settingsModalOpen ||
-			viewState.sqlStudioModalOpen ||
 			viewState.reviewFullscreenOpen ||
 			viewState.fileExplorerVisible
 	);
@@ -2026,35 +2016,6 @@ onDestroy(() => {
 			projectPath={$gitHubDiffViewerStore.projectPath ?? undefined}
 			onClose={() => gitHubDiffViewerStore.close()}
 		/>
-	{/if}
-
-	<!-- Database Manager Modal -->
-	{#if viewState.sqlStudioModalOpen}
-		<div
-			class="fixed inset-0 z-[var(--app-modal-z)] flex items-center justify-center bg-black/55 p-2 sm:p-4 md:p-5"
-			role="dialog"
-			aria-modal="true"
-			aria-label="Database Manager"
-			tabindex="-1"
-			use:focusOnMount
-			onclick={(event) => {
-				if (event.target === event.currentTarget) {
-					viewState.closeSqlStudio();
-				}
-			}}
-			onkeydown={(e) => {
-				if (e.key === "Escape") {
-					e.stopPropagation();
-					viewState.closeSqlStudio();
-				}
-			}}
-		>
-			<div
-				class="mx-auto h-full max-h-[820px] w-full max-w-[1180px] overflow-hidden rounded-lg border border-border/60 bg-background shadow-[0_30px_80px_rgba(0,0,0,0.5)]"
-			>
-				<SqlStudioPage onClose={() => viewState.closeSqlStudio()} />
-			</div>
-		</div>
 	{/if}
 
 	<!-- Full-screen Review Overlay (kept alive when hidden to preserve hunk decisions) -->

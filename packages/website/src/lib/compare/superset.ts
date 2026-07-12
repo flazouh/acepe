@@ -18,7 +18,7 @@ export const supersetComparison: ComparisonData = {
 	],
 	heroTagline: "Acepe vs Superset",
 	heroDescription:
-		"Superset is a terminal-first environment for running many CLI agents in parallel with worktree isolation. Acepe is more opinionated about the operator layer around those sessions, with an attention queue, richer session context, and built-in tools like SQL Studio.",
+		"Superset is a terminal-first environment for running many CLI agents in parallel with worktree isolation. Acepe is more opinionated about the operator layer around those sessions, with an attention queue and richer session context.",
 	features: [
 		{
 			category: "Workflow",
@@ -58,12 +58,6 @@ export const supersetComparison: ComparisonData = {
 		},
 		{
 			category: "Tools",
-			feature: "SQL editor",
-			acepe: "Built-in SQL Studio with schema browser",
-			competitor: "Not highlighted in public Superset materials",
-		},
-		{
-			category: "Tools",
 			feature: "Multi-agent support",
 			acepe: "Claude Code, Codex, Cursor Agent, and OpenCode",
 			competitor:
@@ -84,7 +78,7 @@ export const supersetComparison: ComparisonData = {
 		{
 			title: "You get purpose-built tools around the agent loop",
 			description:
-				"Built-in SQL Studio, plan rendering, and session-level controls make Acepe feel like an agentic development environment rather than only a terminal-centered workspace.",
+				"Plan rendering and session-level controls make Acepe feel like an agentic development environment rather than only a terminal-centered workspace.",
 		},
 	],
 	faqs: [
@@ -99,14 +93,9 @@ export const supersetComparison: ComparisonData = {
 				"Yes. Acepe is designed for parallel sessions across multiple agents and projects, with clear visibility into which session needs you next.",
 		},
 		{
-			question: "Does Acepe include a SQL editor?",
-			answer:
-				"Yes. Acepe includes SQL Studio with a schema browser and query editor so database work stays inside the same environment as your agent sessions.",
-		},
-		{
 			question: "Is Acepe free for local workflows?",
 			answer:
-				"Yes. The desktop app, local sessions, checkpoints, Git integration, SQL Studio, and keyboard workflows are free.",
+				"Yes. The desktop app, local sessions, checkpoints, Git integration, and keyboard workflows are free.",
 		},
 		{
 			question: "Does Acepe replace my editor?",
@@ -116,5 +105,5 @@ export const supersetComparison: ComparisonData = {
 	],
 	metaTitle: "Acepe vs Superset — Agent Operations Layer vs Terminal-First Workflow",
 	metaDescription:
-		"Compare Acepe and Superset side by side. Superset emphasizes terminal-first parallel agent workflows and worktree isolation, while Acepe adds an attention queue, richer session context, and SQL Studio.",
+		"Compare Acepe and Superset side by side. Superset emphasizes terminal-first parallel agent workflows and worktree isolation, while Acepe adds an attention queue and richer session context.",
 };

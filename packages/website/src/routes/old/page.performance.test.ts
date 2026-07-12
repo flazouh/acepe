@@ -22,7 +22,6 @@ describe("homepage performance contract", () => {
 			},
 		});
 
-		expect(body).toContain('data-lazy-feature-demo="SQL Studio demo"');
 		expect(body).toContain('data-lazy-feature-demo="Kanban board demo"');
 		expect(body).not.toContain("SELECT * FROM users WHERE plan = 'pro' LIMIT 10;");
 		expect(body).not.toContain("Should I use JWT or session cookies for the new auth layer?");

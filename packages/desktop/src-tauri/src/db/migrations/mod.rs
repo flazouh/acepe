@@ -33,6 +33,7 @@ mod m20260622_000001_create_session_config_selection;
 mod m20260705_000001_create_session_transcript_row_ledger;
 mod m20260711_000001_create_session_history_enrichment;
 mod m20260711_000002_index_session_metadata_first_display;
+mod m20260712_000001_drop_sql_studio_tables;
 
 pub struct Migrator;
 
@@ -73,6 +74,7 @@ impl MigratorTrait for Migrator {
             Box::new(m20260705_000001_create_session_transcript_row_ledger::Migration),
             Box::new(m20260711_000001_create_session_history_enrichment::Migration),
             Box::new(m20260711_000002_index_session_metadata_first_display::Migration),
+            Box::new(m20260712_000001_drop_sql_studio_tables::Migration),
         ]
     }
 }

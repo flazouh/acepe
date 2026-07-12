@@ -25,7 +25,6 @@ mod session_converter;
 pub mod session_jsonl;
 pub mod shell_env;
 pub mod skills;
-pub mod sql_studio;
 mod storage;
 pub mod terminal;
 pub mod voice;
@@ -144,12 +143,6 @@ use skills::commands::{
     skills_update,
 };
 use skills::SkillsService;
-use sql_studio::commands::{
-    sql_studio_delete_connection, sql_studio_execute_query, sql_studio_explore_table,
-    sql_studio_get_connection, sql_studio_list_connections, sql_studio_list_schema,
-    sql_studio_pick_sqlite_file, sql_studio_save_connection, sql_studio_test_connection,
-    sql_studio_test_connection_input, sql_studio_update_table_cell,
-};
 use std::sync::Arc;
 use storage::commands::{
     add_project, backfill_project_icons, browse_project, browse_project_icon, delete_api_key,

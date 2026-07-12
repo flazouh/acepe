@@ -54,7 +54,7 @@ describe("getToolKindTitle", () => {
 	it("handles snake_case tool names by capitalizing", () => {
 		const toolCall: ToolCallData = {
 			id: "test-4",
-			name: "sql_studio",
+			name: "api_gateway",
 			arguments: { kind: "other", raw: {} },
 			status: "pending",
 			kind: "other",
@@ -62,7 +62,7 @@ describe("getToolKindTitle", () => {
 		};
 
 		const title = getToolKindTitle("other", toolCall, "streaming");
-		expect(title).toBe("Sql Studio");
+		expect(title).toBe("Api Gateway");
 	});
 
 	it("handles already-formatted names gracefully", () => {

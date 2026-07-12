@@ -1,23 +1,5 @@
 import type { BlogPostMetadata } from "./types.js";
 
-export const sqlStudioBlogPost: BlogPostMetadata = {
-	title: "SQL Studio: Browse Databases Without Leaving Acepe",
-	description:
-		"Connect to Postgres, MySQL, or SQLite databases. Browse schemas, explore tables, filter and sort rows, edit cells, and run raw SQL — all inside Acepe.",
-	date: "2026-02-24",
-	slug: "sql-studio",
-	readingTimeMinutes: 4,
-	category: "Features",
-	characterCount: 4500,
-	relatedLinks: [
-		{
-			href: "/compare/superset",
-			title: "See Acepe vs Superset",
-			description: "Compare built-in database workflows with a terminal-first agent setup.",
-		},
-	],
-};
-
 export const gitViewerBlogPost: BlogPostMetadata = {
 	title: "Git Viewer: Beautiful Inline Diffs for Commits and PRs",
 	description:
@@ -104,7 +86,6 @@ export const attentionQueueBlogPost: BlogPostMetadata = {
 };
 
 const blogPosts: readonly BlogPostMetadata[] = [
-	sqlStudioBlogPost,
 	gitViewerBlogPost,
 	gitPanelBlogPost,
 	checkpointsBlogPost,

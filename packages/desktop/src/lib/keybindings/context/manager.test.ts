@@ -44,9 +44,9 @@ describe("ContextManager computed providers (pull model)", () => {
 
 	it("has() reports true for provider-backed keys", () => {
 		const manager = createContextManager();
-		manager.registerProvider("sqlStudioOpen", () => false);
+		manager.registerProvider("apiGatewayOpen", () => false);
 
-		expect(manager.has("sqlStudioOpen")).toBe(true);
+		expect(manager.has("apiGatewayOpen")).toBe(true);
 		expect(manager.has("never-registered")).toBe(false);
 	});
 

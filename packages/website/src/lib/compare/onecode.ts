@@ -18,7 +18,7 @@ export const onecodeComparison: ComparisonData = {
 	],
 	heroTagline: "Acepe vs 1Code",
 	heroDescription:
-		"1Code is an open-source coding agent client centered on Claude Code and Codex, with worktrees, background agents, kanban, and live browser previews. Acepe competes with broader built-in agent coverage, an attention queue, and SQL Studio.",
+		"1Code is an open-source coding agent client centered on Claude Code and Codex, with worktrees, background agents, kanban, and live browser previews. Acepe competes with broader built-in agent coverage and an attention queue.",
 	features: [
 		{
 			category: "Agents",
@@ -69,12 +69,6 @@ export const onecodeComparison: ComparisonData = {
 		},
 		{
 			category: "Tools",
-			feature: "SQL editor",
-			acepe: "Built-in SQL Studio",
-			competitor: "Not highlighted in the public README or repository overview",
-		},
-		{
-			category: "Tools",
 			feature: "Browser previews",
 			acepe:
 				"Cloud agents are planned, but live browser previews are not a core public feature today",
@@ -98,27 +92,17 @@ export const onecodeComparison: ComparisonData = {
 			description:
 				"1Code is richer than our earlier draft implied, but Acepe still puts more product weight on the attention queue and session prioritization when many threads need operator input.",
 		},
-		{
-			title: "Acepe includes SQL Studio in the core app",
-			description:
-				"Database inspection and queries stay inside Acepe instead of depending on a separate database tool.",
-		},
 	],
 	faqs: [
 		{
 			question: "How does Acepe differ from 1Code at a high level?",
 			answer:
-				"1Code publicly emphasizes Claude Code/Codex workflows, worktrees, background agents, kanban, and browser previews. Acepe differentiates with broader built-in agent coverage, stronger session triage, and SQL Studio.",
+				"1Code publicly emphasizes Claude Code/Codex workflows, worktrees, background agents, kanban, and browser previews. Acepe differentiates with broader built-in agent coverage and stronger session triage.",
 		},
 		{
 			question: "Does 1Code support background agents?",
 			answer:
 				"Yes. The public 1Code README highlights cloud sandboxes and background agents that keep running while your laptop sleeps.",
-		},
-		{
-			question: "Does Acepe include built-in SQL tooling?",
-			answer:
-				"Yes. SQL Studio is built in so you can inspect schemas and run queries without bouncing to another app.",
 		},
 		{
 			question: "Which agents does 1Code highlight publicly?",
@@ -133,5 +117,5 @@ export const onecodeComparison: ComparisonData = {
 	],
 	metaTitle: "Acepe vs 1Code — Operator-Focused ADE vs Open-Source Agent Client",
 	metaDescription:
-		"Compare Acepe and 1Code side by side. 1Code highlights Claude Code/Codex, worktrees, background agents, and kanban. Acepe differentiates with broader agent coverage, session triage, and SQL Studio.",
+		"Compare Acepe and 1Code side by side. 1Code highlights Claude Code/Codex, worktrees, background agents, and kanban. Acepe differentiates with broader agent coverage and session triage.",
 };

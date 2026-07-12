@@ -15,7 +15,6 @@ import type { MainAppViewState } from "../main-app-view-state.svelte.js";
 type KeybindingState = Pick<
 	MainAppViewState,
 	| "toggleSettings"
-	| "toggleSqlStudio"
 	| "commandPaletteOpen"
 	| "handleClosePanel"
 	| "debugPanelOpen"
@@ -56,16 +55,6 @@ export class KeybindingManager {
 			category: "navigation",
 			handler: () => {
 				this.state.toggleSettings();
-			},
-		});
-
-		// SQL Studio toggle
-		this.keybindingsService.upsertAction({
-			id: KEYBINDING_ACTIONS.SQL_STUDIO_OPEN,
-			label: "Open SQL Studio",
-			category: "navigation",
-			handler: () => {
-				this.state.toggleSqlStudio();
 			},
 		});
 

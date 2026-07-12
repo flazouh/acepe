@@ -17,19 +17,6 @@ impl DatabaseResetRepository {
     pub async fn reset_all_data(db: &DbConn) -> Result<()> {
         tracing::debug!("Resetting all database data");
 
-        // SQL Studio tables
-        let sql_history_deleted = SqlQueryHistory::delete_many().exec(db).await?;
-        tracing::debug!(
-            count = %sql_history_deleted.rows_affected,
-            "Deleted sql_query_history records"
-        );
-
-        let sql_connections_deleted = SqlConnection::delete_many().exec(db).await?;
-        tracing::debug!(
-            count = %sql_connections_deleted.rows_affected,
-            "Deleted sql_connections records"
-        );
-
         // Delete from all tables in order that respects foreign key constraints
         // Skills tables first (depend on skills)
         let sync_history_deleted = SkillSyncHistory::delete_many().exec(db).await?;
@@ -74,9 +61,7 @@ impl DatabaseResetRepository {
         let projects_deleted = Project::delete_many().exec(db).await?;
         tracing::debug!(count = %projects_deleted.rows_affected, "Deleted projects records");
 
-        let total_deleted = sql_history_deleted.rows_affected
-            + sql_connections_deleted.rows_affected
-            + sync_history_deleted.rows_affected
+        let total_deleted = sync_history_deleted.rows_affected
             + sync_targets_deleted.rows_affected
             + skills_deleted.rows_affected
             + sessions_deleted.rows_affected
@@ -93,8 +78,6 @@ impl DatabaseResetRepository {
             settings = %settings_deleted.rows_affected,
             sessions = %sessions_deleted.rows_affected,
             skills = %skills_deleted.rows_affected,
-            sql_connections = %sql_connections_deleted.rows_affected,
-            sql_history = %sql_history_deleted.rows_affected,
             sync_targets = %sync_targets_deleted.rows_affected,
             sync_history = %sync_history_deleted.rows_affected,
             "Database reset complete - all data deleted"

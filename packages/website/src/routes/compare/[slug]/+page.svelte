@@ -2,12 +2,12 @@
 import { RoundedIcon } from "@acepe/ui";
 import Header from "$lib/components/header.svelte";
 import Seo from "$lib/components/seo/seo.svelte";
-import { attentionQueueBlogPost, checkpointsBlogPost, sqlStudioBlogPost } from "$lib/blog/posts.js";
+import { attentionQueueBlogPost, checkpointsBlogPost } from "$lib/blog/posts.js";
 import type { ComparisonFeatureRow } from "$lib/compare/types.js";
 
 let { data } = $props();
 const comparison = $derived(data.comparison);
-const proofPosts = [attentionQueueBlogPost, checkpointsBlogPost, sqlStudioBlogPost];
+const proofPosts = [attentionQueueBlogPost, checkpointsBlogPost];
 
 const featuresByCategory = $derived.by((): ReadonlyMap<string, readonly ComparisonFeatureRow[]> => {
 	const map = new Map<string, ComparisonFeatureRow[]>();
@@ -251,7 +251,7 @@ const compareJsonLd = $derived([
 						{"See Acepe features behind this comparison"}
 					</h2>
 					<p class="mt-3 text-sm leading-relaxed text-muted-foreground md:text-base">
-						{"These product articles explain the queue, checkpoint, and SQL workflows that show up as differentiators throughout the comparison."}
+						{"These product articles explain the queue and checkpoint workflows that show up as differentiators throughout the comparison."}
 					</p>
 				</div>
 				<div class="mt-6 grid gap-4 md:grid-cols-3">

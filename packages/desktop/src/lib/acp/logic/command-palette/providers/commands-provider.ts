@@ -3,7 +3,6 @@
  * Provides access to application commands/actions.
  */
 
-import { DatabaseIcon } from "@acepe/ui/icons";
 import { okAsync, ResultAsync } from "neverthrow";
 import type { PaletteCommandDef } from "../../../types/palette-command.js";
 import type { PaletteItem, PaletteItemMetadata } from "../../../types/palette-item.js";
@@ -38,8 +37,6 @@ export interface CommandsProviderConfig {
 	onCreateThread: () => void;
 	/** Handler for opening settings */
 	onOpenSettings: () => void;
-	/** Handler for opening SQL Studio */
-	onOpenSqlStudio: () => void;
 	/** Handler for toggling sidebar */
 	onToggleSidebar: () => void;
 	/** Handler for toggling debug panel */
@@ -90,14 +87,6 @@ export class CommandsProvider implements PaletteProvider {
 				roundedIcon: "settings",
 				handler: this.config.onOpenSettings,
 				keybinding: "Cmd+,",
-				category: "navigation",
-			},
-			{
-				id: "sql-studio.open",
-				label: "Open SQL Studio",
-				description: "Run SQL queries and inspect database tables",
-				icon: DatabaseIcon,
-				handler: this.config.onOpenSqlStudio,
 				category: "navigation",
 			},
 			{

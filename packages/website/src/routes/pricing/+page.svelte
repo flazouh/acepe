@@ -98,7 +98,7 @@ const pricingFaqJsonLd = {
 							>
 								includes
 							</div>
-							{#each ['Unlimited local agent sessions', 'Multi-agent support', 'Session history & search', 'Checkpoints & snapshots', 'Built-in SQL Studio', 'Git integration & diff viewer', 'Keyboard-first workflow'] as feature}
+							{#each ['Unlimited local agent sessions', 'Multi-agent support', 'Session history & search', 'Checkpoints & snapshots', 'Git integration & diff viewer', 'Keyboard-first workflow'] as feature}
 								<div
 									class="flex items-center gap-2.5 border-t border-border/30 py-2 font-mono text-xs text-muted-foreground"
 								>

@@ -17,7 +17,6 @@ import { sessionReviewState } from "./session-review-state.js";
 import { settings } from "./settings.js";
 import { shell } from "./shell.js";
 import { skills } from "./skills.js";
-import { sqlStudio } from "./sql-studio.js";
 import { terminal } from "./terminal.js";
 import { voice } from "./voice.js";
 import { workspace } from "./workspace.js";
@@ -35,7 +34,6 @@ export const tauriClient = {
 	settings,
 	shell,
 	skills,
-	sqlStudio,
 	terminal,
 	voice,
 	workspace,

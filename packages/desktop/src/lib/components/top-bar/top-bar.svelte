@@ -6,7 +6,6 @@ import {
 	RoundedIcon,
 	SegmentedToggleGroup,
 	Selector,
-	StorageIcon,
 	UsageLimitWidget,
 	WrenchIcon,
 } from "@acepe/ui";
@@ -406,23 +405,5 @@ onMount(() => {
 					</DropdownMenu.Group>
 			</Selector>
 		{/if}
-		<Tooltip.Root>
-			<Tooltip.Trigger>
-				{#snippet child({ props })}
-					<Button
-						{...props}
-						variant="ghost"
-						size="icon"
-						aria-label="Database Manager"
-						onclick={() => viewState.toggleSqlStudio()}
-					>
-						{#snippet children()}
-							<StorageIcon weight="fill" />
-						{/snippet}
-					</Button>
-				{/snippet}
-			</Tooltip.Trigger>
-			<Tooltip.Content>Database Manager</Tooltip.Content>
-		</Tooltip.Root>
 	{/snippet}
 </AppTopBar>

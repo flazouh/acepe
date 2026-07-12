@@ -31,7 +31,6 @@ describe("KeybindingManager", () => {
 	type KeybindingState = Pick<
 		MainAppViewState,
 		| "toggleSettings"
-		| "toggleSqlStudio"
 		| "commandPaletteOpen"
 		| "handleClosePanel"
 		| "debugPanelOpen"
@@ -52,7 +51,6 @@ describe("KeybindingManager", () => {
 	beforeEach(() => {
 		mockState = {
 			toggleSettings: mock(() => {}),
-			toggleSqlStudio: mock(() => {}),
 			commandPaletteOpen: false,
 			handleClosePanel: mock(() => {}),
 			debugPanelOpen: false,
@@ -99,16 +97,6 @@ describe("KeybindingManager", () => {
 			expect(mockKeybindingsService.upsertAction).toHaveBeenCalledWith(
 				expect.objectContaining({
 					id: KEYBINDING_ACTIONS.COMMAND_PALETTE_TOGGLE,
-				})
-			);
-		});
-
-		it("should register sql studio open action", () => {
-			manager.registerKeybindings();
-
-			expect(mockKeybindingsService.upsertAction).toHaveBeenCalledWith(
-				expect.objectContaining({
-					id: KEYBINDING_ACTIONS.SQL_STUDIO_OPEN,
 				})
 			);
 		});
@@ -185,16 +173,5 @@ describe("KeybindingManager", () => {
 			expect(mockSelectorRegistry.cycleFocused).toHaveBeenCalledWith("mode", "panel-1");
 		});
 
-		it("should call toggleSqlStudio on state when sql studio action triggered", () => {
-			manager.registerKeybindings();
-
-			const sqlStudioCall = upsertActionMock.mock.calls.find(
-				([action]) => action.id === KEYBINDING_ACTIONS.SQL_STUDIO_OPEN
-			);
-			expect(sqlStudioCall).toBeDefined();
-
-			sqlStudioCall?.[0].handler();
-			expect(mockState.toggleSqlStudio).toHaveBeenCalled();
-		});
 	});
 });

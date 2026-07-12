@@ -216,19 +216,6 @@ export const COMMANDS = {
     "library_get_skill_folder_path": "library_skill_get_folder_path",
     "library_delete_skill_from_agents": "library_skill_delete_from_agents"
   },
-  "sql_studio": {
-    "list_connections": "sql_studio_list_connections",
-    "get_connection": "sql_studio_get_connection",
-    "save_connection": "sql_studio_save_connection",
-    "delete_connection": "sql_studio_delete_connection",
-    "pick_sqlite_file": "sql_studio_pick_sqlite_file",
-    "test_connection": "sql_studio_test_connection",
-    "test_connection_input": "sql_studio_test_connection_input",
-    "list_schema": "sql_studio_list_schema",
-    "execute_query": "sql_studio_execute_query",
-    "explore_table": "sql_studio_explore_table",
-    "update_table_cell": "sql_studio_update_table_cell"
-  },
   "github": {
     "fetch_commit_diff": "fetch_commit_diff",
     "fetch_pr_diff": "fetch_pr_diff",
@@ -287,7 +274,6 @@ export type TerminalCommands = Commands["terminal"];
 export type GitCommands = Commands["git"];
 export type CheckpointCommands = Commands["checkpoint"];
 export type SkillsCommands = Commands["skills"];
-export type SqlStudioCommands = Commands["sql_studio"];
 export type GitHubCommands = Commands["github"];
 export type BrowserWebviewCommands = Commands["browser_webview"];
 export type VoiceCommands = Commands["voice"];

@@ -347,19 +347,6 @@ const features: Feature[] = [
 		],
 	},
 	{
-		id: "sql-studio",
-		icon: { kind: "storage" },
-		label: "SQL Studio",
-		tag: "data",
-		description:
-			"Query PostgreSQL, MySQL, and SQLite without leaving the app. Schema explorer, SQL editor, and results grid in one overlay.",
-		usecases: [
-			"Connect to local or remote databases with saved connections",
-			"Browse schemas and tables, run queries, inspect results",
-			"Execute data-changing SQL with explicit write mode control",
-		],
-	},
-	{
 		id: "voice",
 		icon: { kind: "rounded", name: "microphone" },
 		label: "Voice Input",
@@ -525,7 +512,7 @@ const homepageKeywords = [
 
 <div class="flex flex-col gap-16 md:gap-24">
 {#each features as feature, i}
-{@const isBig = feature.id === "kanban" || feature.id === "git" || feature.id === "sql-studio" || feature.id === "review"}
+{@const isBig = feature.id === "kanban" || feature.id === "git" || feature.id === "review"}
 <div
 class="grid grid-cols-1 items-center gap-10 md:grid-cols-2 md:gap-16"
 class:md:[direction:rtl]={i % 2 === 1}
@@ -630,21 +617,6 @@ class:md:[direction:rtl]={i % 2 === 1}
 <kbd class="rounded border border-border/60 bg-background px-1.5 py-0.5 text-[10px]">{cmd.k}</kbd>
 </div>
 {/each}
-</div>
-</div>
-{:else if feature.id === "sql-studio"}
-<div class="sql-zoom-frame relative h-full w-full overflow-hidden rounded-lg border border-border/60 bg-background shadow-2xl">
-<div class="sql-zoom-inner">
-<LazyFeatureMount label="SQL Studio demo" class="h-full w-full">
-{#snippet children()}
-{#await import("$lib/blog/demos/sql-studio-demo.svelte")}
-<div class="flex h-full w-full items-center justify-center font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Loading SQL Studio</div>
-{:then module}
-{@const Demo = module.default}
-<Demo />
-{/await}
-{/snippet}
-</LazyFeatureMount>
 </div>
 </div>
 {:else if feature.id === "queue"}
@@ -1041,23 +1013,6 @@ class:md:[direction:rtl]={i % 2 === 1}
 	.parallel-panel-muted {
 		border-color: var(--border);
 		opacity: 0.7;
-	}
-
-	/* Render the SQL Studio at its real desktop modal size, then scale to fit the card. */
-	.sql-zoom-frame {
-		container-type: size;
-	}
-	.sql-zoom-inner {
-		width: 1180px;
-		height: 820px;
-		transform-origin: top left;
-		/* Render at 2× the natural fit so only the top-left quarter is visible. */
-		transform: scale(calc(100cqw / 590px));
-	}
-	@container (min-aspect-ratio: 1180/820) {
-		.sql-zoom-inner {
-			transform: scale(calc(100cqh / 410px));
-		}
 	}
 
 	/* Queue card has its own scroll inside if content overflows. */

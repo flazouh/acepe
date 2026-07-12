@@ -10,7 +10,6 @@ describe("sitemap.xml", () => {
 		expect(xml).toContain("<loc>https://acepe.dev/blog</loc>");
 		expect(xml).toContain("<loc>https://acepe.dev/blog/attention-queue</loc>");
 		expect(xml).toContain("<loc>https://acepe.dev/blog/checkpoints</loc>");
-		expect(xml).toContain("<loc>https://acepe.dev/blog/sql-studio</loc>");
 		expect(xml).toContain("<loc>https://acepe.dev/blog/git-panel</loc>");
 		expect(xml).toContain("<loc>https://acepe.dev/blog/git-viewer</loc>");
 		expect(xml).toContain(

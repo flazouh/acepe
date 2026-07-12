@@ -17,7 +17,6 @@ type Post = BlogPostMetadata & { icon: BlogIcon };
 const fallbackPostIcon: BlogIcon = { kind: "rounded", name: "bell" };
 
 const postIcons = new Map<string, BlogIcon>([
-	["sql-studio", { kind: "storage" }],
 	["git-viewer", { kind: "rounded", name: "eye" }],
 	["git-panel", { kind: "rounded", name: "branch" }],
 	["checkpoints", { kind: "rounded", name: "arrow-counter-clockwise" }],

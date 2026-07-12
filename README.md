@@ -74,7 +74,6 @@ Instead of treating agents like chat tabs or editor plugins, Acepe gives you a w
 - **Multi-panel layout** — Resizable panels with per-panel agent sessions
 - **Built-in terminal** — Native PTY terminal embedded per agent panel
 - **Built-in browser** — Webview panel with navigation for previewing apps
-- **SQL Studio** — Connect to SQLite, PostgreSQL, MySQL, or browse S3 buckets
 - **@-mentions** — Reference files, code, and images in messages
 
 ### Built for Real Teams

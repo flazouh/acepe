@@ -31,7 +31,7 @@ const tiers = [
 	{
 		name: "Solo",
 		price: "Free",
-		features: "Desktop app, all agents, checkpoints, SQL Studio, Git integration",
+		features: "Desktop app, all agents, checkpoints, Git integration",
 	},
 	{
 		name: "Team",

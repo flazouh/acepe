@@ -19,8 +19,6 @@ pub mod session_transcript_row_ledger;
 pub mod skill;
 pub mod skill_sync_history;
 pub mod skill_sync_target;
-pub mod sql_connection;
-pub mod sql_query_history;
 pub mod user_keybinding;
 
 pub use acepe_session_state::Entity as AcepeSessionState;
@@ -40,6 +38,4 @@ pub use session_transcript_row_ledger::Entity as SessionTranscriptRowLedger;
 pub use skill::Entity as Skill;
 pub use skill_sync_history::Entity as SkillSyncHistory;
 pub use skill_sync_target::Entity as SkillSyncTarget;
-pub use sql_connection::Entity as SqlConnection;
-pub use sql_query_history::Entity as SqlQueryHistory;
 pub use user_keybinding::Entity as UserKeybinding;

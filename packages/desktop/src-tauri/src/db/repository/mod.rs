@@ -14,7 +14,6 @@ mod session_review;
 mod session_transcript_row_ledger;
 mod settings;
 mod skills;
-mod sql_studio;
 
 pub use database_reset::*;
 pub use project::*;
@@ -26,4 +25,3 @@ pub use session_review::*;
 pub use session_transcript_row_ledger::*;
 pub use settings::*;
 pub use skills::*;
-pub use sql_studio::*;

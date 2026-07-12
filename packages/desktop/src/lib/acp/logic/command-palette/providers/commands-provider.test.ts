@@ -9,7 +9,6 @@ describe("CommandsProvider", () => {
 		const provider = new CommandsProvider({
 			onCreateThread: noop,
 			onOpenSettings: noop,
-			onOpenSqlStudio: noop,
 			onToggleSidebar: noop,
 			onToggleDebug: noop,
 			onCloseThread: noop,
@@ -25,9 +24,5 @@ describe("CommandsProvider", () => {
 		expect(itemsById.get("thread.close")?.roundedIcon).toBe("close");
 		expect(itemsById.get("sync.refresh")?.roundedIcon).toBe("refresh");
 		expect(itemsById.get("debug.toggle")?.roundedIcon).toBe("terminal");
-
-		const sqlItem = itemsById.get("sql-studio.open");
-		expect(sqlItem?.roundedIcon).toBeUndefined();
-		expect(sqlItem?.icon).toBeDefined();
 	});
 });
