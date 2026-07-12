@@ -24,6 +24,14 @@ function segmentToUserChunk(segment: TranscriptSegment): AgentUserContentChunk |
 		return { kind: "text", text: segment.text };
 	}
 
+	if (segment.kind === "pastedContent") {
+		if (segment.text.length === 0) {
+			return null;
+		}
+		const encoded = btoa(unescape(encodeURIComponent(segment.text)));
+		return { kind: "text", text: `@[text:${encoded}]` };
+	}
+
 	if (segment.kind === "localCommand") {
 		if (
 			segment.command.length === 0 &&

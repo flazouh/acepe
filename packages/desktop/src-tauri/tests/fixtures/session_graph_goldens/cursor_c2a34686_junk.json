@@ -1,0 +1,45 @@
+{
+  "transcriptSnapshot": {
+    "revision": 0,
+    "entries": [
+      {
+        "entryId": "acepe::entry::session-start::user::.",
+        "role": "user",
+        "segments": [
+          {
+            "kind": "text",
+            "segmentId": "session-start:event:0",
+            "text": "hi"
+          }
+        ],
+        "timestampMs": 1735689600000
+      },
+      {
+        "entryId": "acepe::entry::assistant-boundary:1::assistant::.",
+        "role": "assistant",
+        "segments": [
+          {
+            "kind": "text",
+            "segmentId": "assistant-boundary:1:event:1",
+            "text": "The user sent a simple greeting.\nNo task to complete. I'll respond naturally and ask how I can help."
+          },
+          {
+            "kind": "text",
+            "segmentId": "assistant-boundary:1:event:2",
+            "text": "Checking what's in this folder so we can work from the right starting point."
+          },
+          {
+            "kind": "text",
+            "segmentId": "assistant-boundary:1:event:3",
+            "text": "Hi — what would you like to work on? I see a French rental contract (`contrat_bail_waterloo.tex`) in your workspace; I can help with that, or anything else you have in mind."
+          }
+        ],
+        "timestampMs": 1735689601000
+      }
+    ]
+  },
+  "operations": [],
+  "interactions": [],
+  "turnState": "Completed",
+  "messageCount": 4
+}

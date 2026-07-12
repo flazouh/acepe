@@ -67,6 +67,9 @@ mod tests {
                         let suffix = if text.len() > 150 { "..." } else { "" };
                         println!("  [{}] Text: {}{}", j, preview, suffix);
                     }
+                    crate::session_jsonl::types::ContentBlock::PastedContent { text } => {
+                        println!("  [{}] PastedContent: {}", j, text);
+                    }
                     crate::session_jsonl::types::ContentBlock::Thinking { thinking, .. } => {
                         let preview: String = thinking.chars().take(100).collect();
                         let suffix = if thinking.len() > 100 { "..." } else { "" };
@@ -391,6 +394,11 @@ mod tests {
                                         text.clone()
                                     };
                                     println!("    Text: {}", preview);
+                                }
+                                crate::session_jsonl::types::ContentBlock::PastedContent {
+                                    text,
+                                } => {
+                                    println!("    PastedContent: {}", text);
                                 }
                                 crate::session_jsonl::types::ContentBlock::Thinking {
                                     thinking,
@@ -804,6 +812,9 @@ mod tests {
                                 let preview: String = text.chars().take(200).collect();
                                 let suffix = if text.len() > 200 { "..." } else { "" };
                                 println!("  [{}] Text: {}{}", j, preview, suffix);
+                            }
+                            crate::session_jsonl::types::ContentBlock::PastedContent { text } => {
+                                println!("  [{}] PastedContent: {}", j, text);
                             }
                             crate::session_jsonl::types::ContentBlock::Thinking {
                                 thinking,

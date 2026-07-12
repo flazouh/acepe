@@ -11,7 +11,13 @@ use serde::{Deserialize, Serialize};
 // v13 widens the cached open header to preserve canonical turn failures rebuilt
 // from the local journal. Older headers can incorrectly describe failed turns
 // as idle, so they must not be reused by the hot-ledger open path.
-pub const TRANSCRIPT_ROW_LEDGER_PROJECTION_VERSION: &str = "transcript_viewport_row:v13";
+// v14 invalidates rows built by the pre-fix Cursor store.db parser, which
+// leaked provider prompt scaffolding (<mcp_instructions>, <timestamp>) and
+// protobuf wire bytes ("MChecking…", "summarized_conversation") into
+// canonical transcript text.
+// v15 invalidates rows where Cursor's routine encrypted redacted-reasoning
+// blocks were projected as "[REDACTED]" Thought segments.
+pub const TRANSCRIPT_ROW_LEDGER_PROJECTION_VERSION: &str = "transcript_viewport_row:v15";
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SerializedTranscriptRowLedgerRow {
@@ -343,6 +349,12 @@ mod tests {
                     title: "Run".to_string(),
                     state: OperationState::Running,
                     kind: Some(ToolKind::Execute),
+                    skill_name: None,
+                    skill_args: None,
+                    task_description: None,
+                    task_prompt: None,
+                    subagent_type: None,
+                    normalized_todos: None,
                     command_summary: Some("bun test".to_string()),
                     target_path_summary: None,
                     result_summary: None,

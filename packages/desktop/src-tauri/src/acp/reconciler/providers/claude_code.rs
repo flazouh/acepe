@@ -17,6 +17,9 @@ impl ClaudeCodeAdapter {
     /// - "Read", "Edit", "Bash", "Glob"
     /// - MCP prefixed: "mcp__acp__Read", "mcp__plugin_playwright__browser_click"
     pub fn normalize(name: &str) -> ToolKind {
+        if matches!(name, "TaskCreate" | "TaskUpdate") {
+            return ToolKind::Todo;
+        }
         normalize_shared_chat_tool_name(name)
     }
 }
@@ -100,6 +103,14 @@ mod tests {
             ToolKind::Question
         );
         assert_eq!(ClaudeCodeAdapter::normalize("Skill"), ToolKind::Skill);
+    }
+
+    #[test]
+    fn normalizes_claude_task_management_without_reclassifying_subagents() {
+        assert_eq!(ClaudeCodeAdapter::normalize("TaskCreate"), ToolKind::Todo);
+        assert_eq!(ClaudeCodeAdapter::normalize("TaskUpdate"), ToolKind::Todo);
+        assert_eq!(ClaudeCodeAdapter::normalize("Agent"), ToolKind::Task);
+        assert_eq!(ClaudeCodeAdapter::normalize("Task"), ToolKind::Task);
     }
 
     #[test]

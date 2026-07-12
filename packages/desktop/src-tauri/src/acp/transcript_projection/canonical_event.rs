@@ -20,6 +20,9 @@ pub(crate) enum CanonicalTranscriptEventKind {
     UserText {
         text: String,
     },
+    UserPastedContent {
+        text: String,
+    },
     AssistantText {
         text: String,
     },

@@ -1,11 +1,16 @@
 use crate::acp::parsers::acp_fields::normalize_tool_call_id;
-use crate::acp::parsers::AgentType;
+use crate::acp::parsers::{get_parser, AgentType};
+use crate::acp::session::ingress::event::{ProviderEvent, ProviderEventKind};
+use crate::acp::session_update::{
+    build_tool_call_from_raw, RawToolCallInput, ToolCallStatus,
+};
 use crate::acp::transcript_projection::{CanonicalTranscriptEvent, CanonicalTranscriptEventKind};
+use crate::acp::types::CanonicalAgentId;
 use crate::cc_sdk::AssistantMessageError;
 use crate::session_jsonl::types::{ContentBlock, FullSession, OrderedMessage};
 use std::collections::HashSet;
 
-pub(crate) fn materialize_canonical_transcript_events(
+pub fn materialize_canonical_transcript_events(
     session: &FullSession,
     source: AgentType,
 ) -> Vec<CanonicalTranscriptEvent> {
@@ -60,6 +65,7 @@ fn dedupe_canonical_tool_events(
                 seen_tool_call_ids.insert(normalize_tool_call_id(tool_call_id))
             }
             CanonicalTranscriptEventKind::UserText { .. }
+            | CanonicalTranscriptEventKind::UserPastedContent { .. }
             | CanonicalTranscriptEventKind::AssistantText { .. }
             | CanonicalTranscriptEventKind::AssistantThought { .. }
             | CanonicalTranscriptEventKind::AssistantError { .. } => true,
@@ -73,8 +79,16 @@ fn push_user_events(
     source: AgentType,
 ) {
     for (block_index, block) in message.content_blocks.iter().enumerate() {
-        let ContentBlock::Text { text } = block else {
-            continue;
+        let (text, kind) = match block {
+            ContentBlock::Text { text } => (
+                text,
+                CanonicalTranscriptEventKind::UserText { text: text.clone() },
+            ),
+            ContentBlock::PastedContent { text } => (
+                text,
+                CanonicalTranscriptEventKind::UserPastedContent { text: text.clone() },
+            ),
+            _ => continue,
         };
         if text.trim().is_empty() {
             continue;
@@ -90,7 +104,7 @@ fn push_user_events(
             display_id: message.uuid.clone(),
             timestamp: message.timestamp.clone(),
             model: None,
-            kind: CanonicalTranscriptEventKind::UserText { text: text.clone() },
+            kind,
         });
     }
 }
@@ -141,6 +155,7 @@ fn push_assistant_message_events(
                     kind: CanonicalTranscriptEventKind::AssistantText { text: text.clone() },
                 });
             }
+            ContentBlock::PastedContent { .. } => {}
             ContentBlock::Thinking {
                 thinking,
                 redacted_provider_data,
@@ -248,6 +263,7 @@ fn convert_last_assistant_text_to_error(
         CanonicalTranscriptEventKind::AssistantText { text }
         | CanonicalTranscriptEventKind::AssistantThought { text, .. } => text.clone(),
         CanonicalTranscriptEventKind::UserText { .. }
+        | CanonicalTranscriptEventKind::UserPastedContent { .. }
         | CanonicalTranscriptEventKind::AssistantError { .. }
         | CanonicalTranscriptEventKind::ToolUse { .. } => return,
     };
@@ -311,7 +327,9 @@ fn canonical_assistant_fragment_order(messages: &[OrderedMessage]) -> Vec<&Order
 
 fn block_is_visible_assistant_text(block: &ContentBlock) -> bool {
     match block {
-        ContentBlock::Text { text } => !text.trim().is_empty(),
+        ContentBlock::Text { text } | ContentBlock::PastedContent { text } => {
+            !text.trim().is_empty()
+        }
         ContentBlock::Thinking {
             thinking,
             redacted_provider_data,
@@ -375,7 +393,7 @@ fn count_assistant_text_segments(blocks: &[ContentBlock]) -> usize {
 
     for block in blocks {
         match block {
-            ContentBlock::Text { text } => {
+            ContentBlock::Text { text } | ContentBlock::PastedContent { text } => {
                 if !text.trim().is_empty() {
                     has_pending_chunks = true;
                 }
@@ -408,6 +426,86 @@ fn count_assistant_text_segments(blocks: &[ContentBlock]) -> usize {
     }
 
     count
+}
+
+/// Map canonical transcript events to ingress `ProviderEvent` stream.
+pub(crate) fn canonical_transcript_events_to_provider_events(
+    events: &[CanonicalTranscriptEvent],
+    source: CanonicalAgentId,
+    parser_agent: AgentType,
+) -> Vec<ProviderEvent> {
+    events
+        .iter()
+        .map(|event| canonical_transcript_event_to_provider_event(event, source.clone(), parser_agent))
+        .collect()
+}
+
+pub(crate) fn canonical_transcript_event_to_provider_event(
+    event: &CanonicalTranscriptEvent,
+    source: CanonicalAgentId,
+    parser_agent: AgentType,
+) -> ProviderEvent {
+    let kind = match &event.kind {
+        CanonicalTranscriptEventKind::UserText { text } => {
+            ProviderEventKind::UserText { text: text.clone() }
+        }
+        CanonicalTranscriptEventKind::UserPastedContent { text } => {
+            ProviderEventKind::UserPastedContent { text: text.clone() }
+        }
+        CanonicalTranscriptEventKind::AssistantText { text } => {
+            ProviderEventKind::AssistantText { text: text.clone() }
+        }
+        CanonicalTranscriptEventKind::AssistantThought {
+            text,
+            redacted_provider_data,
+        } => ProviderEventKind::AssistantThought {
+            text: text.clone(),
+            redacted: redacted_provider_data.clone(),
+        },
+        CanonicalTranscriptEventKind::AssistantError { text, error } => {
+            ProviderEventKind::AssistantError {
+                text: text.clone(),
+                error: error.clone(),
+            }
+        }
+        CanonicalTranscriptEventKind::ToolUse {
+            tool_call_id,
+            name,
+            input,
+        } => {
+            let parser = get_parser(parser_agent);
+            let normalized_id = normalize_tool_call_id(tool_call_id);
+            let tool_call = build_tool_call_from_raw(
+                parser,
+                RawToolCallInput {
+                    id: normalized_id,
+                    name: Some(name.clone()),
+                    arguments: input.clone(),
+                    status: ToolCallStatus::Pending,
+                    kind: None,
+                    title: Some(name.clone()),
+                    suppress_title_read_path_hint: false,
+                    parent_tool_use_id: None,
+                    task_children: None,
+                },
+            );
+            ProviderEventKind::ToolCall(tool_call)
+        }
+    };
+
+    ProviderEvent {
+        source,
+        provider_seq: event.transcript_seq,
+        provider_row_id: event.provider_row_id.clone(),
+        timestamp_ms: parse_timestamp_to_millis(&event.timestamp),
+        kind,
+    }
+}
+
+fn parse_timestamp_to_millis(timestamp: &str) -> Option<i64> {
+    chrono::DateTime::parse_from_rfc3339(timestamp)
+        .ok()
+        .map(|dt| dt.timestamp_millis())
 }
 
 #[cfg(test)]
@@ -483,6 +581,7 @@ mod tests {
                 CanonicalTranscriptEventKind::AssistantThought { .. } => "thought",
                 CanonicalTranscriptEventKind::AssistantError { .. } => "error",
                 CanonicalTranscriptEventKind::UserText { .. } => "user",
+                CanonicalTranscriptEventKind::UserPastedContent { .. } => "user-pasted",
             })
             .collect();
 

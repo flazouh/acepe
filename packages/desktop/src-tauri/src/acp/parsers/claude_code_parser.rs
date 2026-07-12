@@ -9,7 +9,8 @@ use crate::acp::parsers::shared_chat::{
 };
 use crate::acp::parsers::types::{
     extract_plan_from_raw_input_impl, parse_ask_user_question, parse_todo_write, AgentParser,
-    AgentType, ParseError, ParsedQuestion, ParsedTodo, ParsedUsageTelemetry, UpdateType,
+    AgentType, ParseError, ParsedQuestion, ParsedTodo, ParsedTodoStatus, ParsedUsageTelemetry,
+    UpdateType,
 };
 use crate::acp::parsers::ClaudeCodeAdapter;
 use crate::acp::reconciler::infer_kind_from_payload_for_agent;
@@ -62,6 +63,23 @@ impl AgentParser for ClaudeCodeParser {
     }
 
     fn parse_todos(&self, name: &str, arguments: &serde_json::Value) -> Option<Vec<ParsedTodo>> {
+        if name == "TaskCreate" {
+            let subject = arguments.get("subject")?.as_str()?.trim();
+            if subject.is_empty() {
+                return None;
+            }
+            let active_form = arguments
+                .get("activeForm")
+                .and_then(|value| value.as_str())
+                .map(str::trim)
+                .filter(|value| !value.is_empty())
+                .unwrap_or(subject);
+            return Some(vec![ParsedTodo {
+                content: subject.to_string(),
+                active_form: active_form.to_string(),
+                status: ParsedTodoStatus::Pending,
+            }]);
+        }
         parse_todo_write(name, arguments)
     }
 

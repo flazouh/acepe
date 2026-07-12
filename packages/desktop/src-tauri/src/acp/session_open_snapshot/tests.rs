@@ -3363,3 +3363,91 @@ async fn error_outcome_round_trips_over_serde() {
     assert!(matches!(e.reason, SessionOpenErrorReason::ParseFailure));
     assert!(!e.retryable);
 }
+
+#[test]
+fn fold_open_cursor_junk_matches_golden() {
+    use crate::acp::session::engine::persisted_region::{
+        extract_persisted_region, persisted_regions_equal, PersistedSessionGraph,
+    };
+    use crate::acp::session::ingress::providers::cursor::CursorHistorySource;
+    use crate::acp::session::ingress::source::{HistoryInput, HistorySource};
+    use std::path::PathBuf;
+
+    const SESSION_ID: &str = "c2a34686-f99a-4632-90e2-e036b96124c2";
+    const GOLDEN_CURSOR_JUNK_NAME: &str = "cursor_c2a34686_junk";
+
+    let fixture_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("tests/fixtures/cursor_sessions");
+
+    let events = CursorHistorySource
+        .read(HistoryInput {
+            session_id: SESSION_ID.to_string(),
+            workspace_root: Some(fixture_dir),
+        })
+        .expect("read cursor junk fixture");
+
+    assert!(
+        !events.is_empty(),
+        "HistorySource must emit events from junk fixture"
+    );
+
+    let rt = tokio::runtime::Runtime::new().expect("runtime");
+    let db = rt.block_on(setup_db());
+    let hub = make_hub();
+    rt.block_on(seed_session_metadata(&db, SESSION_ID, "cursor"));
+    let replay_context = replay_context_for_session(SESSION_ID, CanonicalAgentId::Cursor);
+
+    let result = rt.block_on(session_open_result_from_history_events(
+        &db,
+        &hub,
+        None,
+        &replay_context,
+        SESSION_ID,
+        &events,
+    ));
+
+    let SessionOpenResult::Found(found) = result else {
+        panic!("expected fold-based history open to succeed");
+    };
+
+    let folded = extract_persisted_region(
+        &crate::acp::session_state_engine::graph::SessionStateGraph {
+            requested_session_id: found.requested_session_id.clone(),
+            canonical_session_id: found.canonical_session_id.clone(),
+            is_alias: found.is_alias,
+            agent_id: found.agent_id.clone(),
+            project_path: found.project_path.clone(),
+            worktree_path: found.worktree_path.clone(),
+            source_path: found.source_path.clone(),
+            sequence_id: found.sequence_id,
+            revision: crate::acp::session_state_engine::revision::SessionGraphRevision::new(
+                found.graph_revision,
+                found.transcript_snapshot.revision,
+                found.last_event_seq,
+            ),
+            transcript_snapshot: found.transcript_snapshot.clone(),
+            operations: found.operations.clone(),
+            interactions: found.interactions.clone(),
+            turn_state: found.turn_state.clone(),
+            message_count: found.message_count,
+            active_streaming_tail: found.active_streaming_tail.clone(),
+            active_turn_failure: found.active_turn_failure.clone(),
+            last_terminal_turn_id: found.last_terminal_turn_id.clone(),
+            lifecycle: found.lifecycle.clone(),
+            activity: found.activity.clone(),
+            capabilities: found.capabilities.clone(),
+        },
+    );
+    let golden_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("tests/fixtures/session_graph_goldens")
+        .join(format!("{GOLDEN_CURSOR_JUNK_NAME}.json"));
+    let golden_contents = std::fs::read_to_string(&golden_path)
+        .unwrap_or_else(|error| panic!("golden fixture missing at {}: {error}", golden_path.display()));
+    let golden: PersistedSessionGraph =
+        serde_json::from_str(&golden_contents).expect("deserialize golden fixture");
+
+    assert!(
+        persisted_regions_equal(&folded, &golden),
+        "fold_open cursor junk must match Phase 0 golden"
+    );
+}

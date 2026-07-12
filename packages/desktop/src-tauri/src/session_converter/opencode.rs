@@ -11,7 +11,7 @@ use crate::session_jsonl::types::{
 };
 use std::collections::HashMap;
 
-use super::calculate_todo_timing;
+use crate::acp::session_update::tool_merge::calculate_todo_timing;
 
 fn map_summary_status(status: &str) -> String {
     match status {

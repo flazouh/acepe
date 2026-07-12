@@ -302,6 +302,12 @@ fn row_version(
             hasher.update(display_facts.title.as_bytes());
             hasher.update(format!("{:?}", display_facts.state).as_bytes());
             hasher.update(format!("{:?}", display_facts.kind).as_bytes());
+            hasher.update(format!("{:?}", display_facts.skill_name).as_bytes());
+            hasher.update(format!("{:?}", display_facts.skill_args).as_bytes());
+            hasher.update(format!("{:?}", display_facts.task_description).as_bytes());
+            hasher.update(format!("{:?}", display_facts.task_prompt).as_bytes());
+            hasher.update(format!("{:?}", display_facts.subagent_type).as_bytes());
+            hasher.update(format!("{:?}", display_facts.normalized_todos).as_bytes());
             if let Some(command_summary) = &display_facts.command_summary {
                 hasher.update(command_summary.as_bytes());
             }
@@ -393,6 +399,11 @@ fn hash_segment(hasher: &mut Sha256, segment: &TranscriptSegment) {
         }
         TranscriptSegment::Thought { segment_id, text } => {
             hasher.update(b"thought");
+            hasher.update(segment_id.as_bytes());
+            hasher.update(text.as_bytes());
+        }
+        TranscriptSegment::PastedContent { segment_id, text } => {
+            hasher.update(b"pastedContent");
             hasher.update(segment_id.as_bytes());
             hasher.update(text.as_bytes());
         }

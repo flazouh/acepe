@@ -493,7 +493,14 @@ pub(crate) fn parse_todo_write(
                 "cancelled" | "TODO_STATUS_CANCELLED" => ParsedTodoStatus::Cancelled,
                 _ => return None,
             };
-            let active_form = t.get("activeForm")?.as_str()?.to_string();
+            // Claude sends activeForm; Cursor's TodoWrite items carry only
+            // {id, content, status}. Fall back to content so provider items
+            // without activeForm still normalize into todo facts.
+            let active_form = t
+                .get("activeForm")
+                .and_then(|v| v.as_str())
+                .unwrap_or(content)
+                .to_string();
 
             Some(ParsedTodo {
                 content: content.to_string(),
@@ -527,6 +534,30 @@ pub fn get_parser(agent: AgentType) -> &'static dyn AgentParser {
 mod tests {
     use super::*;
     use serde_json::json;
+
+    mod todo_parsing {
+        use super::*;
+
+        #[test]
+        fn parse_todo_write_accepts_cursor_items_without_active_form() {
+            // Real Cursor SDK TodoWrite args from a live acp-sessions store.db:
+            // items carry {id, content, status} but no activeForm.
+            let arguments = json!({
+                "merge": false,
+                "todos": [
+                    {"id": "1", "content": "Explore sandbox folder contents", "status": "in_progress"}
+                ]
+            });
+
+            let parsed = parse_todo_write("TodoWrite", &arguments)
+                .expect("cursor-shaped todos should parse");
+            assert_eq!(parsed.len(), 1);
+            assert_eq!(parsed[0].content, "Explore sandbox folder contents");
+            // activeForm falls back to content when the provider does not send it.
+            assert_eq!(parsed[0].active_form, "Explore sandbox folder contents");
+            assert_eq!(parsed[0].status, ParsedTodoStatus::InProgress);
+        }
+    }
 
     mod codex_parser {
         use super::*;

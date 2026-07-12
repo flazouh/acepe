@@ -182,6 +182,8 @@ pub(super) fn sanitize_cursor_assistant_text(text: &str) -> String {
         "always_applied_workspace_rules",
         "always_applied_workspace_rule",
         "environment_context",
+        "mcp_instructions",
+        "timestamp",
         "instructions",
     ];
 

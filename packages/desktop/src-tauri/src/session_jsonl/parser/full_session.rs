@@ -39,6 +39,9 @@ struct RawMessage {
     /// UUID of the assistant message containing the tool use that this result is for
     #[serde(rename = "sourceToolAssistantUUID")]
     source_tool_assistant_uuid: Option<String>,
+    #[serde(rename = "promptSource")]
+    prompt_source: Option<String>,
+    entrypoint: Option<String>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -63,14 +66,15 @@ struct RawUsage {
 }
 
 /// Parse content blocks from raw JSON content
-fn parse_content_blocks(content: &serde_json::Value) -> Vec<ContentBlock> {
+fn parse_content_blocks(
+    content: &serde_json::Value,
+    recover_acepe_pasted_content: bool,
+) -> Vec<ContentBlock> {
     let mut blocks = Vec::new();
 
     if let Some(text) = content.as_str() {
         if !text.is_empty() {
-            blocks.push(ContentBlock::Text {
-                text: text.to_string(),
-            });
+            blocks.extend(parse_user_text_blocks(text, recover_acepe_pasted_content));
         }
     } else if let Some(arr) = content.as_array() {
         for item in arr {
@@ -79,9 +83,7 @@ fn parse_content_blocks(content: &serde_json::Value) -> Vec<ContentBlock> {
             match block_type {
                 "text" => {
                     if let Some(text) = item.get("text").and_then(|v| v.as_str()) {
-                        blocks.push(ContentBlock::Text {
-                            text: text.to_string(),
-                        });
+                        blocks.extend(parse_user_text_blocks(text, recover_acepe_pasted_content));
                     }
                 }
                 "thinking" => {
@@ -138,6 +140,68 @@ fn parse_content_blocks(content: &serde_json::Value) -> Vec<ContentBlock> {
         }
     }
 
+    blocks
+}
+
+fn parse_user_text_blocks(text: &str, recover: bool) -> Vec<ContentBlock> {
+    if !recover {
+        return vec![ContentBlock::Text {
+            text: text.to_string(),
+        }];
+    }
+    let Some(open_start) = text.find("<pasted-content lines=\"") else {
+        return vec![ContentBlock::Text {
+            text: text.to_string(),
+        }];
+    };
+    let after_lines = &text[open_start + "<pasted-content lines=\"".len()..];
+    let Some(quote_end) = after_lines.find("\">") else {
+        return vec![ContentBlock::Text {
+            text: text.to_string(),
+        }];
+    };
+    if !after_lines[..quote_end]
+        .chars()
+        .all(|value| value.is_ascii_digit())
+    {
+        return vec![ContentBlock::Text {
+            text: text.to_string(),
+        }];
+    }
+    let content_start = open_start + "<pasted-content lines=\"".len() + quote_end + 2;
+    let close_tag = "</pasted-content>";
+    let Some(close_offset) = text[content_start..].find(close_tag) else {
+        return vec![ContentBlock::Text {
+            text: text.to_string(),
+        }];
+    };
+    let content_end = content_start + close_offset;
+    if text[content_start..content_end].contains("<pasted-content")
+        || text[content_end + close_tag.len()..].contains("<pasted-content")
+    {
+        return vec![ContentBlock::Text {
+            text: text.to_string(),
+        }];
+    }
+
+    let mut blocks = Vec::new();
+    let prefix = text[..open_start].trim_end_matches('\n');
+    if !prefix.is_empty() {
+        blocks.push(ContentBlock::Text {
+            text: prefix.to_string(),
+        });
+    }
+    blocks.push(ContentBlock::PastedContent {
+        text: text[content_start..content_end]
+            .trim_matches('\n')
+            .to_string(),
+    });
+    let suffix = text[content_end + close_tag.len()..].trim_start_matches('\n');
+    if !suffix.is_empty() {
+        blocks.push(ContentBlock::Text {
+            text: suffix.to_string(),
+        });
+    }
     blocks
 }
 
@@ -396,7 +460,11 @@ async fn parse_full_session_from_path_with_path(
             .parent_tool_use_id
             .clone()
             .or_else(|| msg_content.parent_tool_use_id.clone());
-        let content_blocks = parse_content_blocks(&msg_content.content);
+        let recover_acepe_pasted_content = msg_content.role == "user"
+            && raw.prompt_source.as_deref() == Some("sdk")
+            && raw.entrypoint.as_deref() == Some("sdk-rust");
+        let content_blocks =
+            parse_content_blocks(&msg_content.content, recover_acepe_pasted_content);
         let merge_key = if msg_content.role == "assistant" {
             assistant_merge_key(
                 msg_content.id.as_deref(),

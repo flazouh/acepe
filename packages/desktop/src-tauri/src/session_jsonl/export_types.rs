@@ -32,7 +32,8 @@ use crate::acp::projections::{
 };
 use crate::acp::session_open_snapshot::{
     SessionOpenError, SessionOpenErrorReason, SessionOpenFound, SessionOpenMissing,
-    SessionOpenPath, SessionOpenResult, SessionOpenResultTiming, SessionOpenTranscriptRowPage,
+    SessionOpenPath, SessionOpenPreparing, SessionOpenResult, SessionOpenResultTiming,
+    SessionOpenTranscriptRowPage,
 };
 use crate::acp::session_state_engine::protocol::{
     AssistantTextDeltaPayload, ViewportBufferDelta, ViewportBufferDiagnostic, ViewportBufferPush,
@@ -479,6 +480,7 @@ pub fn export_all_types() {
     export_acp_type!(SessionOpenTranscriptRowPage);
     export_acp_type!(SessionOpenResultTiming);
     export_acp_type!(SessionOpenFound);
+    export_acp_type!(SessionOpenPreparing);
     export_acp_type!(SessionOpenMissing);
     export_acp_type!(SessionOpenResult);
     export_acp_type!(SessionGraphRevision);

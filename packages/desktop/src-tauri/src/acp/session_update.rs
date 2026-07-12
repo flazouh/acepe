@@ -6,8 +6,11 @@ mod normalize;
 #[cfg(test)]
 mod tests;
 mod tool_calls;
+pub mod tool_merge;
 mod types;
 mod usage;
+
+pub use tool_merge::{calculate_todo_timing, merge_tool_call_update};
 
 /// Raw* and build_* are crate-internal implementation details for parsers; public API is via SessionUpdate and types.
 pub(crate) use deserialize::parse_session_update_with_agent;

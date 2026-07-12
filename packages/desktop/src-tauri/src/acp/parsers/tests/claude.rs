@@ -779,7 +779,7 @@ mod claude_code_parse_todo {
     }
 
     #[test]
-    fn rejects_todo_without_required_active_form() {
+    fn todo_without_active_form_falls_back_to_content() {
         let name = "TodoWrite";
         let arguments = json!({
                 "todos": [{
@@ -788,13 +788,18 @@ mod claude_code_parse_todo {
                 }]
         });
 
-        // Missing activeForm should cause todo to be rejected, resulting in None
+        // activeForm is a display refinement, not item identity: providers
+        // like Cursor omit it entirely. Fall back to content instead of
+        // dropping the todo.
         let result = parser().parse_todos(name, &arguments);
-        assert!(result.is_none());
+        let todos = result.expect("todo without activeForm should still parse");
+        assert_eq!(todos.len(), 1);
+        assert_eq!(todos[0].content, "Fix bug");
+        assert_eq!(todos[0].active_form, "Fix bug");
     }
 
     #[test]
-    fn parses_only_valid_todos_with_active_form() {
+    fn parses_todos_with_and_without_active_form() {
         let name = "TodoWrite";
         let arguments = json!({
                 "todos": [
@@ -808,8 +813,8 @@ mod claude_code_parse_todo {
         assert!(result.is_some());
 
         let todos = result.unwrap();
-        // Only 2 todos are valid (have activeForm), Task 3 is filtered out
-        assert_eq!(todos.len(), 2);
+        // Task 3 lacks activeForm and falls back to its content.
+        assert_eq!(todos.len(), 3);
 
         assert_eq!(todos[0].content, "Task 1");
         assert_eq!(todos[0].status, ParsedTodoStatus::Completed);
@@ -818,6 +823,10 @@ mod claude_code_parse_todo {
         assert_eq!(todos[1].content, "Task 2");
         assert_eq!(todos[1].status, ParsedTodoStatus::InProgress);
         assert_eq!(todos[1].active_form, "Working on Task 2");
+
+        assert_eq!(todos[2].content, "Task 3");
+        assert_eq!(todos[2].status, ParsedTodoStatus::Pending);
+        assert_eq!(todos[2].active_form, "Task 3");
     }
 
     #[test]

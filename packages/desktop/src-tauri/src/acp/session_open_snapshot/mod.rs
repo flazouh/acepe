@@ -14,6 +14,7 @@
 //! frontier to that `last_event_seq`; replay then delivers only buffered deltas
 //! strictly after the open result and drops duplicates already included in it.
 
+mod fold_open;
 mod operation_sanitize;
 mod snapshot;
 mod transcript_merge;
@@ -22,6 +23,7 @@ mod types;
 #[cfg(test)]
 mod tests;
 
+pub use fold_open::session_open_result_from_history_events;
 pub use snapshot::{
     apply_runtime_authority_to_session_open_result, compact_oversized_session_open_result,
     session_open_result_for_new_session, session_open_result_from_completed_local_journal,

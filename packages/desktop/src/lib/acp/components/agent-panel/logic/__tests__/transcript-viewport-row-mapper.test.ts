@@ -98,7 +98,158 @@ function embeddedExecuteOperation(input: {
 	};
 }
 
+function embeddedThinkingOperation(input: {
+	readonly entryId: string;
+	readonly operationId: string;
+	readonly toolCallId: string;
+	readonly name: string;
+	readonly kind: "skill" | "task";
+	readonly description: string;
+	readonly prompt: string | null;
+	readonly subagentType: string | null;
+	readonly skill: string | null;
+}): OperationSnapshot {
+	return {
+		id: input.operationId,
+		session_id: "session-1",
+		tool_call_id: input.toolCallId,
+		name: input.name,
+		kind: input.kind,
+		provider_status: "completed",
+		title: input.name,
+		arguments: {
+			kind: "think",
+			description: input.description,
+			prompt: input.prompt,
+			subagent_type: input.subagentType,
+			skill: input.skill,
+			skill_args: null,
+			raw: null,
+		},
+		progressive_arguments: null,
+		result: null,
+		computer_payload: null,
+		command: null,
+		normalized_todos: null,
+		parent_tool_call_id: null,
+		parent_operation_id: null,
+		child_tool_call_ids: [],
+		child_operation_ids: [],
+		operation_provenance_key: input.toolCallId,
+		operation_state: "completed",
+		locations: null,
+		skill_meta: null,
+		normalized_questions: null,
+		question_answer: null,
+		awaiting_plan_approval: false,
+		plan_approval_request_id: null,
+		started_at_ms: null,
+		completed_at_ms: null,
+		source_link: { kind: "transcript_linked", entry_id: input.entryId },
+		degradation_reason: null,
+	};
+}
+
 describe("transcript-viewport-row-mapper", () => {
+	it("projects rich Skill and subagent facts from canonical viewport operations", () => {
+		const skillOperation = embeddedThinkingOperation({
+			entryId: "assistant-1",
+			operationId: "skill-operation",
+			toolCallId: "skill-call",
+			name: "Skill",
+			kind: "skill",
+			description: "Diagnose hard bugs",
+			prompt: null,
+			subagentType: null,
+			skill: "diagnosing-bugs",
+		});
+		const taskOperation = embeddedThinkingOperation({
+			entryId: "assistant-1",
+			operationId: "task-operation",
+			toolCallId: "task-call",
+			name: "Agent",
+			kind: "task",
+			description: "Find Claude history parsing seam",
+			prompt: "Inspect provider history",
+			subagentType: "Explore",
+			skill: null,
+		});
+
+		const skillEntry = resolveTranscriptViewportSceneEntry(
+			toolRowWithText({
+				text: "Skill",
+				operationLinks: [{
+					operationId: "skill-operation",
+					toolCallId: "skill-call",
+					name: "Skill",
+					state: "completed",
+					displayFacts: null,
+					operation: skillOperation,
+				}],
+			})
+		);
+		const taskEntry = resolveTranscriptViewportSceneEntry(
+			toolRowWithText({
+				text: "Agent",
+				operationLinks: [{
+					operationId: "task-operation",
+					toolCallId: "task-call",
+					name: "Agent",
+					state: "completed",
+					displayFacts: null,
+					operation: taskOperation,
+				}],
+			})
+		);
+
+		expect(skillEntry).toMatchObject({ kind: "skill", skillName: "diagnosing-bugs" });
+		expect(taskEntry).toMatchObject({
+			kind: "task",
+			taskDescription: "Explore · Find Claude history parsing seam",
+			taskPrompt: "Inspect provider history",
+		});
+	});
+
+	it("projects canonical Claude TaskCreate facts as Todo content", () => {
+		const row = toolRowWithText({
+			text: "TaskCreate",
+			operationLinks: [{
+				operationId: "todo-operation",
+				toolCallId: "todo-call",
+				name: "TaskCreate",
+				state: "completed",
+				displayFacts: {
+					operationId: "todo-operation",
+					toolCallId: "todo-call",
+					name: "TaskCreate",
+					title: "Todo",
+					state: "completed",
+					kind: "todo",
+					skillName: null,
+					skillArgs: null,
+					taskDescription: null,
+					taskPrompt: null,
+					subagentType: null,
+					normalizedTodos: [{
+						content: "Build red feedback loop",
+						activeForm: "Building red feedback loop",
+						status: "pending",
+					}],
+					interactionIds: [],
+					childToolCallIds: [],
+				},
+			}],
+		});
+
+		expect(resolveTranscriptViewportSceneEntry(row)).toMatchObject({
+			type: "tool_call",
+			todos: [{
+				content: "Build red feedback loop",
+				activeForm: "Building red feedback loop",
+				status: "pending",
+			}],
+		});
+	});
 	it("concatenates transcript segment text", () => {
 		expect(
 			segmentText([

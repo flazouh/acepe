@@ -392,6 +392,12 @@ function displayFactsFromEmbeddedOperation(
 		title,
 		state: operation.operation_state,
 		kind: operation.kind,
+		skillName: operation.arguments.kind === "think" ? operation.arguments.skill : null,
+		skillArgs: operation.arguments.kind === "think" ? operation.arguments.skill_args : null,
+		taskDescription: operation.arguments.kind === "think" ? operation.arguments.description : null,
+		taskPrompt: operation.arguments.kind === "think" ? operation.arguments.prompt : null,
+		subagentType: operation.arguments.kind === "think" ? operation.arguments.subagent_type : null,
+		normalizedTodos: operation.normalized_todos,
 		commandSummary: commandSummaryFromOperation(operation),
 		targetPathSummary: targetPathSummaryFromOperation(operation),
 		resultSummary,
@@ -534,6 +540,20 @@ function resolveViewportOperationDisplayFactsEntry(
 		query,
 		url: fetchUrl,
 		resultText: errorSummary ?? resultSummary,
+		skillName: kind === "skill" ? (facts.skillName ?? null) : null,
+		skillArgs: kind === "skill" ? (facts.skillArgs ?? null) : null,
+		taskDescription: kind === "task"
+			? ([facts.subagentType, facts.taskDescription].filter(Boolean).join(" · ") || null)
+			: null,
+		taskPrompt: kind === "task" ? (facts.taskPrompt ?? null) : null,
+		todos: facts.normalizedTodos?.map((todo) => {
+			return {
+				content: todo.content,
+				activeForm: todo.activeForm,
+				status: todo.status,
+				duration: todo.duration ?? null,
+			};
+		}),
 		presentationState,
 		degradedReason:
 			presentationState === "degraded_operation" ? "Canonical operation is degraded." : null,

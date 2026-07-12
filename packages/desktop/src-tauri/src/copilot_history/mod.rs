@@ -9,7 +9,7 @@ use crate::acp::session_update::{
     SessionUpdate, ToolArguments, ToolCallData, TurnErrorData, TurnErrorKind,
 };
 use crate::acp::types::ContentBlock;
-use crate::session_converter::{calculate_todo_timing, merge_tool_call_update};
+use crate::acp::session_update::tool_merge::{calculate_todo_timing, merge_tool_call_update};
 use crate::session_jsonl::types::{
     StoredAssistantChunk, StoredAssistantMessage, StoredContentBlock, StoredEntry,
     StoredErrorMessage, StoredUserMessage,

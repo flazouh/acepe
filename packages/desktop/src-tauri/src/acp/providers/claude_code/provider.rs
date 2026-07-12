@@ -17,7 +17,7 @@ use crate::acp::provider::{
 };
 use crate::acp::runtime_resolver::SpawnEnvStrategy;
 use crate::acp::session_descriptor::SessionReplayContext;
-use crate::acp::session_thread_snapshot::ProviderOwnedSessionSnapshot;
+use crate::acp::session_thread_snapshot::{ProviderOwnedSessionSnapshot, SessionThreadSnapshot};
 use crate::acp::session_update::AvailableCommand;
 use crate::acp::task_reconciler::TaskReconciliationPolicy;
 use crate::history::session_context::SessionContext;
@@ -32,10 +32,6 @@ use tauri::AppHandle;
 
 /// Claude Code Agent Provider — uses cc-sdk for direct Rust ↔ Claude CLI communication
 pub struct ClaudeCodeProvider;
-
-fn is_missing_claude_history_error(error: &anyhow::Error) -> bool {
-    error.to_string().contains("Session file not found")
-}
 
 impl AgentProvider for ClaudeCodeProvider {
     fn id(&self) -> &str {
@@ -222,50 +218,38 @@ impl AgentProvider for ClaudeCodeProvider {
         >,
     > {
         Box::pin(async move {
-            let session_id = &context.local_session_id;
+            use crate::acp::session::delivery::{
+                history_error_to_provider_error, load_provider_owned_snapshot_from_history,
+            };
+            use crate::acp::types::CanonicalAgentId;
 
-            match crate::session_jsonl::parser::parse_full_session(
-                &context.history_session_id,
-                &context.effective_project_path,
-            )
-            .await
-            {
-                Ok(full_session) => Ok(Some(
-                    crate::session_converter::convert_claude_full_session_to_provider_owned_snapshot(
-                        &full_session,
-                    ),
-                )),
-                Err(_) if context.effective_project_path != context.project_path => {
-                    match crate::session_jsonl::parser::parse_full_session(
-                        &context.history_session_id,
-                        &context.project_path,
-                    )
-                    .await
-                    {
-                        Ok(full_session) => Ok(Some(
-                            crate::session_converter::convert_claude_full_session_to_provider_owned_snapshot(
-                                &full_session,
-                            ),
-                        )),
-                        Err(error) => {
+            let session_id = &context.local_session_id;
+            let title = SessionThreadSnapshot::empty(&context.history_session_id).title;
+
+            let try_load = |project_path: &str| {
+                load_provider_owned_snapshot_from_history(
+                    &CanonicalAgentId::ClaudeCode,
+                    &context.history_session_id,
+                    project_path,
+                    context.source_path.as_deref(),
+                    title.clone(),
+                )
+            };
+
+            match try_load(&context.effective_project_path) {
+                Ok(snapshot) => Ok(snapshot),
+                Err(_error)
+                    if context.effective_project_path != context.project_path =>
+                {
+                    match try_load(&context.project_path) {
+                        Ok(snapshot) => Ok(snapshot),
+                        Err(fallback_error) => {
                             tracing::warn!(
                                 session_id = %session_id,
-                                error = %error,
+                                error = %fallback_error,
                                 "Claude session parse failed (both worktree and project paths)"
                             );
-                            if is_missing_claude_history_error(&error) {
-                                Err(
-                                    crate::acp::provider::ProviderHistoryLoadError::provider_history_missing(
-                                        format!("Claude provider history missing: {error}"),
-                                    ),
-                                )
-                            } else {
-                                Err(
-                                    crate::acp::provider::ProviderHistoryLoadError::provider_unparseable(
-                                        format!("Claude provider history parse failed: {error}"),
-                                    ),
-                                )
-                            }
+                            Err(history_error_to_provider_error(fallback_error))
                         }
                     }
                 }
@@ -275,19 +259,7 @@ impl AgentProvider for ClaudeCodeProvider {
                         error = %error,
                         "Claude session parse failed"
                     );
-                    if is_missing_claude_history_error(&error) {
-                        Err(
-                            crate::acp::provider::ProviderHistoryLoadError::provider_history_missing(
-                                format!("Claude provider history missing: {error}"),
-                            ),
-                        )
-                    } else {
-                        Err(
-                            crate::acp::provider::ProviderHistoryLoadError::provider_unparseable(
-                                format!("Claude provider history parse failed: {error}"),
-                            ),
-                        )
-                    }
+                    Err(history_error_to_provider_error(error))
                 }
             }
         })

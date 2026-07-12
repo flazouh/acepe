@@ -3,7 +3,7 @@ use crate::acp::projections::{
 };
 use crate::acp::reconciler::display_name_for_tool;
 use crate::acp::session_state_engine::graph::ActiveStreamingTailContentKind;
-use crate::acp::session_update::{SessionCompactionEvent, ToolArguments, ToolKind};
+use crate::acp::session_update::{SessionCompactionEvent, TodoItem, ToolArguments, ToolKind};
 use crate::acp::transcript_projection::{TranscriptEntryRole, TranscriptSegment};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -60,7 +60,7 @@ impl PartialEq for TranscriptViewportOperationLink {
 
 impl Eq for TranscriptViewportOperationLink {}
 
-#[derive(Debug, Clone, Serialize, Deserialize, specta::Type, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct TranscriptViewportOperationDisplayFacts {
     pub operation_id: String,
@@ -69,6 +69,18 @@ pub struct TranscriptViewportOperationDisplayFacts {
     pub title: String,
     pub state: OperationState,
     pub kind: Option<ToolKind>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub skill_name: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub skill_args: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub task_description: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub task_prompt: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub subagent_type: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub normalized_todos: Option<Vec<TodoItem>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub command_summary: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -95,6 +107,24 @@ impl TranscriptViewportOperationDisplayFacts {
         let target_path_summary = target_path_summary(operation);
         let result_summary = result_summary(operation.result.as_ref());
         let error_summary = error_summary(operation, result_summary.as_deref());
+        let (skill_name, skill_args, task_description, task_prompt, subagent_type) =
+            match &operation.arguments {
+                ToolArguments::Think {
+                    skill,
+                    skill_args,
+                    description,
+                    prompt,
+                    subagent_type,
+                    ..
+                } => (
+                    skill.clone(),
+                    skill_args.clone(),
+                    description.clone(),
+                    prompt.clone(),
+                    subagent_type.clone(),
+                ),
+                _ => (None, None, None, None, None),
+            };
 
         Some(Self {
             operation_id: operation.id.clone(),
@@ -103,6 +133,12 @@ impl TranscriptViewportOperationDisplayFacts {
             title,
             state: operation.operation_state.clone(),
             kind: operation.kind,
+            skill_name,
+            skill_args,
+            task_description,
+            task_prompt,
+            subagent_type,
+            normalized_todos: operation.normalized_todos.clone(),
             command_summary,
             target_path_summary,
             result_summary,

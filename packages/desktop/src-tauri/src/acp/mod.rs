@@ -48,6 +48,7 @@ pub(crate) mod session_materialization;
 pub mod session_open_snapshot;
 pub mod session_policy;
 pub mod session_registry;
+pub mod session;
 pub mod session_restore;
 pub mod session_state_engine;
 pub mod session_thread_snapshot;

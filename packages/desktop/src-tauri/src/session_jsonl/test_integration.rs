@@ -336,6 +336,9 @@ mod tests {
                                     };
                                     println!("    Text: {}", preview);
                                 }
+                                ContentBlock::PastedContent { text } => {
+                                    println!("    PastedContent: {}", text);
+                                }
                                 ContentBlock::Thinking { thinking, .. } => {
                                     let preview = if thinking.len() > 50 {
                                         format!("{}...", &thinking[..50])
@@ -487,6 +490,7 @@ mod tests {
                             ContentBlock::ToolResult { .. } => manual_tool_results += 1,
                             ContentBlock::Thinking { .. } => manual_thinking += 1,
                             ContentBlock::Text { .. } => {}
+                            ContentBlock::PastedContent { .. } => {}
                             ContentBlock::CodeAttachment { .. } => {}
                         }
                     }
@@ -609,6 +613,9 @@ mod tests {
                                     );
                                     found_text = true;
                                 }
+                            }
+                            ContentBlock::PastedContent { text } => {
+                                println!("Found PastedContent block: {} chars", text.len());
                             }
                             ContentBlock::Thinking { thinking, .. } => {
                                 if !found_thinking && !thinking.is_empty() {

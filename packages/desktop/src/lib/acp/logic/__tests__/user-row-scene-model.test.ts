@@ -48,6 +48,31 @@ describe("buildUserRowSceneModel", () => {
 
 		expect(row.chunks).toEqual([{ kind: "text", text: "hello" }]);
 	});
+
+	it("projects canonical pasted content back to a pasted-text chip token", () => {
+		const row = buildUserRowSceneModel(
+			userEntry([
+				{
+					kind: "text",
+					segmentId: "seg-1",
+					text: "Please inspect this",
+				},
+				{
+					kind: "pastedContent",
+					segmentId: "seg-2",
+					text: "first pasted line\nsecond pasted line",
+				},
+			])
+		);
+
+		expect(row.chunks).toEqual([
+			{ kind: "text", text: "Please inspect this" },
+			{
+				kind: "text",
+				text: "@[text:Zmlyc3QgcGFzdGVkIGxpbmUKc2Vjb25kIHBhc3RlZCBsaW5l]",
+			},
+		]);
+	});
 });
 
 describe("mergeAdjacentUserCommandChunks", () => {

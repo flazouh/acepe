@@ -21,7 +21,7 @@ use crate::acp::providers::cursor::{
 };
 use crate::acp::runtime_resolver::SpawnEnvStrategy;
 use crate::acp::session_descriptor::SessionReplayContext;
-use crate::acp::session_thread_snapshot::ProviderOwnedSessionSnapshot;
+use crate::acp::session_thread_snapshot::{ProviderOwnedSessionSnapshot, SessionThreadSnapshot};
 use crate::acp::session_update::AvailableCommand;
 use crate::acp::session_update::{SessionUpdate, ToolArguments, ToolKind};
 use crate::acp::task_reconciler::TaskReconciliationPolicy;
@@ -323,92 +323,51 @@ impl AgentProvider for CursorProvider {
         >,
     > {
         Box::pin(async move {
+            use crate::acp::session::delivery::{
+                history_error_to_provider_error, load_provider_owned_snapshot_from_history,
+            };
+            use crate::acp::session::ingress::source::HistoryError;
+            use crate::acp::types::CanonicalAgentId;
+
             let session_id = &context.local_session_id;
             let lookup_session_id = &context.history_session_id;
+            let title = SessionThreadSnapshot::empty(lookup_session_id).title;
+
+            let try_load = |project_path: &str, source_path: Option<&str>| {
+                load_provider_owned_snapshot_from_history(
+                    &CanonicalAgentId::Cursor,
+                    lookup_session_id,
+                    project_path,
+                    source_path,
+                    title.clone(),
+                )
+            };
 
             if let Some(source_path) = context.source_path.as_deref() {
-                match crate::cursor_history::parser::load_session_from_source(
-                    lookup_session_id,
-                    source_path,
-                )
-                .await
-                {
-                    Ok(Some(full_session)) => Ok(Some(
-                        crate::session_converter::convert_cursor_full_session_to_provider_owned_snapshot(
-                            &full_session,
-                        ),
-                    )),
-                    Ok(None) => {
-                        match crate::cursor_history::parser::find_session_by_id(lookup_session_id)
-                            .await
-                        {
-                            Ok(Some(full_session)) => Ok(Some(
-                                crate::session_converter::convert_cursor_full_session_to_provider_owned_snapshot(
-                                    &full_session,
-                                ),
-                            )),
-                            Ok(None) => Ok(None),
-                            Err(error) => {
-                                tracing::warn!(
-                                    session_id = %session_id,
-                                    error = %error,
-                                    "Cursor session lookup failed"
-                                );
-                                Err(crate::acp::provider::ProviderHistoryLoadError::provider_unparseable(
-                                    format!("Cursor provider history load failed: {error}"),
-                                ))
-                            }
-                        }
-                    }
+                match try_load(&context.project_path, Some(source_path)) {
+                    Ok(Some(snapshot)) => return Ok(Some(snapshot)),
+                    Ok(None) => {}
                     Err(error) => {
                         tracing::warn!(
                             session_id = %session_id,
                             source_path = %source_path,
                             error = %error,
-                            "Cursor source_path load failed, falling back to find_session_by_id"
+                            "Cursor HistorySource load failed for source_path, falling back to session lookup"
                         );
-                        match crate::cursor_history::parser::find_session_by_id(lookup_session_id)
-                            .await
-                        {
-                            Ok(Some(full_session)) => Ok(Some(
-                                crate::session_converter::convert_cursor_full_session_to_provider_owned_snapshot(
-                                    &full_session,
-                                ),
-                            )),
-                            Ok(None) => Ok(None),
-                            Err(error) => {
-                                tracing::warn!(
-                                    session_id = %session_id,
-                                    error = %error,
-                                    "Cursor session lookup failed"
-                                );
-                                Err(crate::acp::provider::ProviderHistoryLoadError::provider_unparseable(
-                                    format!("Cursor provider history load failed: {error}"),
-                                ))
-                            }
-                        }
                     }
                 }
-            } else {
-                match crate::cursor_history::parser::find_session_by_id(lookup_session_id).await {
-                    Ok(Some(full_session)) => Ok(Some(
-                        crate::session_converter::convert_cursor_full_session_to_provider_owned_snapshot(
-                            &full_session,
-                        ),
-                    )),
-                    Ok(None) => Ok(None),
-                    Err(error) => {
-                        tracing::warn!(
-                            session_id = %session_id,
-                            error = %error,
-                            "Cursor session lookup failed"
-                        );
-                        Err(
-                            crate::acp::provider::ProviderHistoryLoadError::provider_unparseable(
-                                format!("Cursor provider history load failed: {error}"),
-                            ),
-                        )
-                    }
+            }
+
+            match try_load(&context.project_path, None) {
+                Ok(snapshot) => Ok(snapshot),
+                Err(HistoryError::NotFound(_)) => Ok(None),
+                Err(error) => {
+                    tracing::warn!(
+                        session_id = %session_id,
+                        error = %error,
+                        "Cursor session lookup failed"
+                    );
+                    Err(history_error_to_provider_error(error))
                 }
             }
         })

@@ -150,6 +150,53 @@ async fn test_parse_full_session_preserves_assistant_message_error() {
 }
 
 #[tokio::test]
+async fn acepe_sdk_history_recovers_generated_pasted_content_but_literal_text_does_not() {
+    let (_temp_dir, claude_dir) = setup_test_claude_dir().unwrap();
+    let projects_dir = claude_dir.join("projects").join("test-project");
+    fs::create_dir_all(&projects_dir).unwrap();
+    let session_id = "550e8400-e29b-41d4-a716-446655440000";
+    let file_path = projects_dir.join(format!("{}.jsonl", session_id));
+    let generated = serde_json::json!({
+        "type": "user",
+        "sessionId": session_id,
+        "uuid": "acepe-user",
+        "timestamp": "2026-07-11T23:46:31.989Z",
+        "promptSource": "sdk",
+        "entrypoint": "sdk-rust",
+        "message": {
+            "role": "user",
+            "content": "Inspect this\n<pasted-content lines=\"2\">\nfirst\nsecond\n</pasted-content>"
+        }
+    });
+    let literal = serde_json::json!({
+        "type": "user",
+        "sessionId": session_id,
+        "uuid": "literal-user",
+        "timestamp": "2026-07-11T23:47:31.989Z",
+        "message": {
+            "role": "user",
+            "content": "Explain <pasted-content lines=\"1\">literal</pasted-content>"
+        }
+    });
+    fs::write(&file_path, format!("{generated}\n{literal}\n")).unwrap();
+
+    let session = parse_full_session_from_path(session_id, "/Users/test", &file_path)
+        .await
+        .unwrap();
+
+    assert!(matches!(
+        session.messages[0].content_blocks.as_slice(),
+        [ContentBlock::Text { text }, ContentBlock::PastedContent { text: pasted }]
+            if text == "Inspect this" && pasted == "first\nsecond"
+    ));
+    assert!(matches!(
+        session.messages[1].content_blocks.as_slice(),
+        [ContentBlock::Text { text }]
+            if text.contains("<pasted-content lines=\"1\">literal</pasted-content>")
+    ));
+}
+
+#[tokio::test]
 async fn test_extract_thread_metadata_warmup_message() {
     let (_temp_dir, claude_dir) = setup_test_claude_dir().unwrap();
     let projects_dir = claude_dir.join("projects").join("test-project");
@@ -1254,6 +1301,13 @@ async fn test_most_recent_session() {
                                         },
                                     }));
                                 }
+                                ContentBlock::PastedContent { text } => {
+                                    content_blocks.push(json!({
+                                        "type": "pasted_content",
+                                        "text": text,
+                                        "text_length": text.len(),
+                                    }));
+                                }
                                 ContentBlock::ToolUse { id, name, input } => {
                                     content_blocks.push(json!({
                                         "type": "tool_use",
@@ -1329,6 +1383,13 @@ async fn test_most_recent_session() {
                                         } else {
                                             text.clone()
                                         },
+                                    }));
+                                }
+                                ContentBlock::PastedContent { text } => {
+                                    content_blocks.push(json!({
+                                        "type": "pasted_content",
+                                        "text": text,
+                                        "text_length": text.len(),
                                     }));
                                 }
                                 ContentBlock::ToolUse { id, name, input } => {

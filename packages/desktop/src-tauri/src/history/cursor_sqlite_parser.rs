@@ -194,7 +194,16 @@ fn parse_blob_messages(data: &[u8], index: usize) -> Result<Vec<OrderedMessage>>
             if !matches!(msg.role.as_str(), "user" | "assistant" | "tool") {
                 return Ok(Vec::new());
             }
-            return convert_cursor_store_message(msg, index).map(|message| vec![message]);
+            return convert_cursor_store_message(msg, index).map(|message| {
+                // A message whose content reduces to nothing after
+                // sanitization (e.g. an injected-context-only preamble)
+                // must not become a transcript entry.
+                if message.content_blocks.is_empty() {
+                    Vec::new()
+                } else {
+                    vec![message]
+                }
+            });
         }
     }
 
@@ -218,13 +227,172 @@ fn extract_json_object_from_blob(data: &[u8]) -> Option<String> {
 }
 
 fn extract_plain_text_message_from_blob(data: &[u8]) -> Option<String> {
-    let raw = String::from_utf8_lossy(data);
-    let sanitized = extract_human_readable_text(raw.as_ref());
-    if !sanitized.is_empty() && looks_like_plain_text_message(&sanitized) {
-        return Some(sanitized);
+    // Gate on the legacy line-scan verdict first: it is what keeps metadata
+    // blobs (request ids, queued-draft echoes, todo titles, token strings)
+    // out of the transcript, because their raw form has no sentence
+    // characters. Only blobs it admits may become messages at all.
+    let legacy = extract_human_readable_text(String::from_utf8_lossy(data).as_ref());
+    if legacy.is_empty() || !looks_like_plain_text_message(&legacy) {
+        return None;
     }
 
+    // Cursor's acp-sessions store persists non-JSON blobs as protobuf. For
+    // admitted blobs, prefer decoding the wire format: the lossy line scan
+    // leaks varint length bytes ("MChecking…") and adjacent metadata fields
+    // ("summarized_conversation") into the text.
+    if let Some(mut strings) = extract_protobuf_strings(data) {
+        // Judge the blob on ALL decoded strings first: metadata blobs (e.g.
+        // the context breakdown) carry workspace URIs and identifier fields
+        // that mark the whole blob as non-narrative.
+        let all_fields = sanitize_cursor_sqlite_text(&strings.join("\n"));
+        if all_fields.is_empty() || !looks_like_plain_text_message(&all_fields) {
+            return None;
+        }
+        // Identifier-ish fields (uuids, tool ids) carry no spaces; only keep
+        // prose strings as message content.
+        strings.retain(|s| s.trim().contains(' '));
+        let sanitized = sanitize_cursor_sqlite_text(&strings.join("\n"));
+        if !sanitized.is_empty() && looks_like_plain_text_message(&sanitized) {
+            return Some(sanitized);
+        }
+        // Valid wire format but no clean narrative text — metadata, not a
+        // message.
+        return None;
+    }
+
+    // Genuine plain-text blob.
+    Some(legacy)
+}
+
+const MAX_PROTOBUF_NESTING_DEPTH: usize = 6;
+
+/// Decode a blob as protobuf wire format and collect human-readable string
+/// fields, recursing into nested length-delimited messages. Returns `None`
+/// when the blob does not parse as wire format (e.g. it is plain text).
+fn extract_protobuf_strings(data: &[u8]) -> Option<Vec<String>> {
+    let mut strings = Vec::new();
+    if collect_protobuf_strings(data, 0, &mut strings) {
+        Some(strings)
+    } else {
+        None
+    }
+}
+
+fn collect_protobuf_strings(data: &[u8], depth: usize, out: &mut Vec<String>) -> bool {
+    let mut offset = 0;
+
+    while offset < data.len() {
+        let Some((key, key_len)) = read_protobuf_varint(&data[offset..]) else {
+            return false;
+        };
+        offset += key_len;
+
+        let field_number = key >> 3;
+        if field_number == 0 {
+            return false;
+        }
+
+        match key & 0x7 {
+            // Varint
+            0 => {
+                let Some((_, value_len)) = read_protobuf_varint(&data[offset..]) else {
+                    return false;
+                };
+                offset += value_len;
+            }
+            // 64-bit
+            1 => {
+                if data.len() - offset < 8 {
+                    return false;
+                }
+                offset += 8;
+            }
+            // 32-bit
+            5 => {
+                if data.len() - offset < 4 {
+                    return false;
+                }
+                offset += 4;
+            }
+            // Length-delimited: string, bytes, or nested message
+            2 => {
+                let Some((payload_len, len_len)) = read_protobuf_varint(&data[offset..]) else {
+                    return false;
+                };
+                offset += len_len;
+                let Ok(payload_len) = usize::try_from(payload_len) else {
+                    return false;
+                };
+                if data.len() - offset < payload_len {
+                    return false;
+                }
+                let payload = &data[offset..offset + payload_len];
+                offset += payload_len;
+
+                // Prefer the nested-message interpretation: wrapper headers
+                // are often printable ASCII (a length byte like 0x4d reads as
+                // "M"), so a naive text-first check would keep wire bytes
+                // glued to the real string ("MChecking…").
+                let mut handled = false;
+                if depth < MAX_PROTOBUF_NESTING_DEPTH {
+                    let mut nested = Vec::new();
+                    if collect_protobuf_strings(payload, depth + 1, &mut nested)
+                        && !nested.is_empty()
+                    {
+                        out.append(&mut nested);
+                        handled = true;
+                    }
+                }
+                if !handled {
+                    if let Ok(text) = std::str::from_utf8(payload) {
+                        if is_protobuf_text_field(text) {
+                            out.push(text.to_string());
+                        }
+                    }
+                    // Anything else is opaque bytes (hashes, ids) — skip the
+                    // payload, don't reject the whole blob.
+                }
+            }
+            // Groups (3/4) are unused by Cursor; anything else is not wire format.
+            _ => return false,
+        }
+    }
+
+    true
+}
+
+fn read_protobuf_varint(data: &[u8]) -> Option<(u64, usize)> {
+    let mut value: u64 = 0;
+    for (index, byte) in data.iter().enumerate().take(10) {
+        if index == 9 && *byte > 1 {
+            return None;
+        }
+        value |= u64::from(byte & 0x7f) << (7 * index);
+        if byte & 0x80 == 0 {
+            return Some((value, index + 1));
+        }
+    }
     None
+}
+
+/// A length-delimited payload counts as a text field only when it reads as
+/// human-authored text rather than an identifier, label key, or binary that
+/// happens to be valid UTF-8.
+fn is_protobuf_text_field(text: &str) -> bool {
+    let trimmed = text.trim();
+    if trimmed.len() < 4 {
+        return false;
+    }
+
+    let has_forbidden_control = trimmed
+        .chars()
+        .any(|c| c.is_control() && c != '\n' && c != '\t' && c != '\r');
+    if has_forbidden_control {
+        return false;
+    }
+
+    let alpha_chars = trimmed.chars().filter(|c| c.is_alphabetic()).count();
+    alpha_chars >= 3
 }
 
 fn extract_human_readable_text(text: &str) -> String {
@@ -480,6 +648,7 @@ fn narrative_message_signature(message: &OrderedMessage) -> Option<String> {
 fn content_block_signature(block: &ContentBlock) -> String {
     match block {
         ContentBlock::Text { text } => format!("text:{text}"),
+        ContentBlock::PastedContent { text } => format!("pasted_content:{text}"),
         ContentBlock::Thinking {
             thinking,
             redacted_provider_data,
@@ -511,19 +680,6 @@ fn thinking_signature_fragment(thinking: &str, redacted_provider_data: Option<&s
         Some(data) => format!("{}\nredacted-data:{}", thinking.trim(), data),
         _ => thinking.trim().to_string(),
     }
-}
-
-fn extract_redacted_reasoning_data(item: &JsonValue) -> Option<String> {
-    let Some(data) = item.get("data") else {
-        return Some(String::new());
-    };
-    if let Some(text) = data.as_str() {
-        return Some(text.to_string());
-    }
-    if data.is_null() {
-        return Some(String::new());
-    }
-    serde_json::to_string(data).ok()
 }
 
 /// Convert Cursor message to OrderedMessage
@@ -711,11 +867,11 @@ fn parse_cursor_content(content: &JsonValue) -> Result<Vec<ContentBlock>> {
                         }
                     }
                     "redacted-reasoning" => {
-                        blocks.push(ContentBlock::Thinking {
-                            thinking: String::new(),
-                            signature: None,
-                            redacted_provider_data: extract_redacted_reasoning_data(item),
-                        });
+                        // Cursor attaches an encrypted redacted-reasoning block to
+                        // essentially every assistant reply. It is provider replay
+                        // metadata, not transcript truth — drop it so it never
+                        // renders as a "Thought -> [REDACTED]" entry.
+                        continue;
                     }
                     "thinking" => {
                         // Cursor uses <think> tags in text content
@@ -843,6 +999,8 @@ fn sanitize_cursor_sqlite_text(text: &str) -> String {
         "always_applied_workspace_rules",
         "always_applied_workspace_rule",
         "environment_context",
+        "mcp_instructions",
+        "timestamp",
         "instructions",
     ];
 
@@ -1149,40 +1307,6 @@ mod tests {
     use super::*;
     use serde_json::json;
 
-    // [DEBUG-cx7] throwaway harness: dump what the real parser produces for the
-    // captured live store.db that exhibits the transcript-junk bug. Remove before ship.
-    #[test]
-    fn debug_cx7_dump_real_store() {
-        let db_path = std::path::Path::new("/tmp/acepe-debug/store.db");
-        if !db_path.exists() {
-            eprintln!("[DEBUG-cx7] fixture missing, skipping");
-            return;
-        }
-        let conn = Connection::open_with_flags(
-            db_path,
-            OpenFlags::SQLITE_OPEN_READ_ONLY | OpenFlags::SQLITE_OPEN_NO_MUTEX,
-        )
-        .expect("open store.db");
-        let (messages, _title) =
-            extract_messages_and_title_candidate(&conn).expect("extract messages");
-        for (i, m) in messages.iter().enumerate() {
-            eprintln!("[DEBUG-cx7] === message {i} role={}", m.role);
-            for b in &m.content_blocks {
-                match b {
-                    ContentBlock::Text { text } => {
-                        eprintln!("[DEBUG-cx7]   Text({}): {:?}", text.len(), &text.chars().take(160).collect::<String>())
-                    }
-                    ContentBlock::Thinking { thinking, .. } => {
-                        eprintln!("[DEBUG-cx7]   Thinking({}): {:?}", thinking.len(), &thinking.chars().take(120).collect::<String>())
-                    }
-                    ContentBlock::ToolUse { name, .. } => eprintln!("[DEBUG-cx7]   ToolUse {name}"),
-                    ContentBlock::ToolResult { .. } => eprintln!("[DEBUG-cx7]   ToolResult"),
-                    other => eprintln!("[DEBUG-cx7]   other: {other:?}"),
-                }
-            }
-        }
-    }
-
     #[test]
     fn test_extract_thinking_content() {
         let text = "<think>\nThis is thinking content\n
@@ -1210,6 +1334,119 @@ mod tests {
         let thinking = extract_thinking_content(text);
         // Case-sensitive match, so should return None for capitalized tags
         assert_eq!(thinking, None);
+    }
+
+    #[test]
+    fn test_sanitize_cursor_sqlite_text_strips_timestamp_wrapper_and_mcp_instructions() {
+        // Real per-turn shape from Cursor acp-sessions store.db: the composed
+        // model-facing prompt wraps the user's text in <timestamp> + <user_query>.
+        let turn = "<timestamp>Saturday, Jul 11, 2026, 9:42 PM (UTC+2)</timestamp>\n<user_query>\nhi\n</user_query>";
+        assert_eq!(sanitize_cursor_sqlite_text(turn), "hi");
+
+        // Real session-start preamble shape: pure injected context, no user text.
+        // Must sanitize to empty so no ghost user bubble is created.
+        let preamble = "<user_info>\nOS Version: darwin 25.5.0\n</user_info>\n\n<mcp_instructions description=\"Instructions provided by MCP servers to help use them properly\">\nServer: railway\nRailway MCP server.\n</mcp_instructions>";
+        assert_eq!(sanitize_cursor_sqlite_text(preamble), "");
+    }
+
+    #[tokio::test]
+    async fn test_cursor_store_db_transcript_excludes_prompt_scaffolding_and_wire_bytes() {
+        // Minimised fixture built from a real live session (c2a34686) that rendered
+        // provider junk in the transcript: mcp_instructions preamble, <timestamp>
+        // wrappers, and protobuf wire bytes leaking into text.
+        let fixture_path = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("tests/fixtures/cursor_sessions/c2a34686-junk-session.db");
+        assert!(
+            fixture_path.exists(),
+            "Fixture not found: {}",
+            fixture_path.display()
+        );
+
+        let session = parse_cursor_store_db(
+            &fixture_path,
+            "c2a34686-f99a-4632-90e2-e036b96124c2",
+            Some("/Users/alex/Documents/sandbox"),
+        )
+        .await
+        .expect("Should parse store.db successfully");
+
+        // The only real user turn in the fixture is "hi" — the injected-context
+        // preamble must not surface as a user message, and the <timestamp>
+        // wrapper must be stripped from the turn.
+        let user_texts: Vec<String> = session
+            .messages
+            .iter()
+            .filter(|m| m.role == "user")
+            .flat_map(|m| m.content_blocks.iter())
+            .filter_map(|b| match b {
+                ContentBlock::Text { text } => Some(text.clone()),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(user_texts, vec!["hi".to_string()]);
+
+        let mut all_visible_text = String::new();
+        for message in &session.messages {
+            for block in &message.content_blocks {
+                let text = match block {
+                    ContentBlock::Text { text } => text,
+                    ContentBlock::Thinking { thinking, .. } => thinking,
+                    _ => continue,
+                };
+                all_visible_text.push_str(text);
+                all_visible_text.push('\n');
+                // No provider prompt scaffolding may reach canonical text.
+                assert!(
+                    !text.contains("<mcp_instructions") && !text.contains("<timestamp"),
+                    "prompt scaffolding leaked into transcript text: {text:?}"
+                );
+                // No protobuf wire bytes may reach canonical text.
+                assert!(
+                    text.chars()
+                        .all(|c| !c.is_control() || c == '\n' || c == '\t'),
+                    "control bytes leaked into transcript text: {text:?}"
+                );
+            }
+        }
+
+        // Context-breakdown metadata blob must not become a message.
+        assert!(
+            !all_visible_text.contains("summarized_conversation"),
+            "context-breakdown metadata leaked: {all_visible_text:?}"
+        );
+        // Protobuf strings must decode cleanly, without stray varint length
+        // bytes glued to the front ("eThe user sent…", "MChecking…").
+        assert!(
+            all_visible_text.contains("The user sent a simple greeting."),
+            "expected clean protobuf text extraction, got: {all_visible_text:?}"
+        );
+        assert!(
+            !all_visible_text.contains("eThe user sent"),
+            "stray varint length byte leaked: {all_visible_text:?}"
+        );
+        assert!(
+            !all_visible_text.contains("MChecking"),
+            "stray varint length byte leaked: {all_visible_text:?}"
+        );
+
+        // Cursor's routine encrypted redacted-reasoning blocks (present on
+        // essentially every assistant reply) must not surface as Thinking
+        // blocks — downstream they render as "Thought -> [REDACTED]".
+        for message in &session.messages {
+            for block in &message.content_blocks {
+                if let ContentBlock::Thinking {
+                    thinking,
+                    redacted_provider_data,
+                    ..
+                } = block
+                {
+                    assert!(
+                        redacted_provider_data.is_none() && !thinking.trim().is_empty(),
+                        "redacted-reasoning leaked as an empty Thinking block"
+                    );
+                }
+            }
+        }
     }
 
     #[test]
@@ -1251,7 +1488,11 @@ mod tests {
     }
 
     #[test]
-    fn test_parse_cursor_content_preserves_redacted_reasoning_payload() {
+    fn test_parse_cursor_content_drops_routine_redacted_reasoning_payload() {
+        // Cursor attaches an encrypted `redacted-reasoning` block to essentially
+        // every assistant reply. It is provider replay metadata, not transcript
+        // truth: surfacing it as a Thinking block renders a junk
+        // "Thought -> [REDACTED]" entry on every assistant message.
         let content = json!([
             {
                 "type": "redacted-reasoning",
@@ -1265,22 +1506,12 @@ mod tests {
 
         let blocks = parse_cursor_content(&content).expect("content should parse");
 
-        assert_eq!(blocks.len(), 2);
+        assert_eq!(
+            blocks.len(),
+            1,
+            "redacted-reasoning must not become a block"
+        );
         match &blocks[0] {
-            ContentBlock::Thinking {
-                thinking,
-                redacted_provider_data,
-                ..
-            } => {
-                assert_eq!(thinking, "");
-                assert_eq!(
-                    redacted_provider_data.as_deref(),
-                    Some("opaque-provider-payload")
-                );
-            }
-            other => panic!("expected redacted thinking marker, got {other:?}"),
-        }
-        match &blocks[1] {
             ContentBlock::Text { text } => assert_eq!(text, "Visible answer"),
             other => panic!("expected visible text block, got {other:?}"),
         }
@@ -1315,9 +1546,19 @@ mod tests {
 
     #[test]
     fn test_extract_messages_from_blob_data_recovers_cursor_blob_sequence() {
+        // Real store.db status blobs are protobuf wire format: an outer
+        // length-delimited field 1 wrapping an inner field 1 whose payload is
+        // the status string. The old lossy line scan leaked the inner length
+        // byte as a stray prefix letter (e.g. "MChecking…").
+        let status_text =
+            b"Exploring the codebase to understand the project and identify improvements.\n";
+        let mut inner = vec![0x0a, status_text.len() as u8];
+        inner.extend_from_slice(status_text);
+        let mut status_blob = vec![0x0a, inner.len() as u8];
+        status_blob.extend_from_slice(&inner);
+
         let blobs = vec![
-            b"\nO\nM\nExploring the codebase to understand the project and identify improvements.\n"
-                .to_vec(),
+            status_blob,
             br#"prefix{"role":"assistant","content":[{"type":"text","text":"I found the project structure."}]}"#
                 .to_vec(),
             serde_json::to_vec(&json!({
@@ -1530,6 +1771,7 @@ mod tests {
                 .iter()
                 .map(|b| match b {
                     ContentBlock::Text { .. } => "text",
+                    ContentBlock::PastedContent { .. } => "pasted_content",
                     ContentBlock::Thinking { .. } => "thinking",
                     ContentBlock::ToolUse { .. } => "tool_use",
                     ContentBlock::ToolResult { .. } => "tool_result",

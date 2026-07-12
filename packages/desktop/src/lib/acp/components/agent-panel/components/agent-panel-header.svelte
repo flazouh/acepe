@@ -3,9 +3,9 @@ import {
 	AgentPanelHeader as AgentPanelHeaderLayout,
 	AgentPanelStatusIcon,
 } from "@acepe/ui/agent-panel";
-import { RoundedIcon, Selector } from "@acepe/ui";
+import { LinearInterfaceIcon, RoundedIcon, Selector } from "@acepe/ui";
 import * as DropdownMenu from "@acepe/ui/dropdown-menu";
-import type { RoundedIconName } from "@acepe/ui/icons";
+import type { LinearInterfaceIconName, RoundedIconName } from "@acepe/ui/icons";
 import { CloseAction } from "@acepe/ui/panel-header";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { ResultAsync } from "neverthrow";
@@ -101,10 +101,14 @@ const titleRichText = $derived.by(() => {
 
 type HeaderMenuContentWidth = "min-w-[180px]" | "min-w-[210px]" | "min-w-[220px]";
 
+type HeaderMenuIcon =
+	| { readonly kind: "rounded"; readonly name: RoundedIconName }
+	| { readonly kind: "linear-interface"; readonly name: LinearInterfaceIconName };
+
 type HeaderMenuAction = {
 	readonly id: string;
 	readonly label: string;
-	readonly icon: RoundedIconName;
+	readonly icon: HeaderMenuIcon;
 	readonly onSelect: () => void;
 	readonly disabled?: boolean;
 	readonly checked?: boolean;
@@ -118,7 +122,7 @@ type HeaderMenuActionGroup = {
 type HeaderMenuSection = {
 	readonly id: string;
 	readonly label: string;
-	readonly icon: RoundedIconName;
+	readonly icon: HeaderMenuIcon;
 	readonly contentWidthClass: HeaderMenuContentWidth;
 	readonly groups: readonly HeaderMenuActionGroup[];
 };
@@ -200,7 +204,7 @@ function handleOpenPullRequest(): void {
 function createMenuAction(
 	id: string,
 	label: string,
-	icon: RoundedIconName,
+	icon: HeaderMenuIcon,
 	onSelect: () => void
 ): HeaderMenuAction {
 	return {
@@ -209,6 +213,14 @@ function createMenuAction(
 		icon,
 		onSelect,
 	};
+}
+
+function roundedMenuIcon(name: RoundedIconName): HeaderMenuIcon {
+	return { kind: "rounded", name };
+}
+
+function linearInterfaceMenuIcon(name: LinearInterfaceIconName): HeaderMenuIcon {
+	return { kind: "linear-interface", name };
 }
 
 function createMenuGroup(id: string, actions: readonly HeaderMenuAction[]): HeaderMenuActionGroup {
@@ -221,7 +233,7 @@ function createMenuGroup(id: string, actions: readonly HeaderMenuAction[]): Head
 function createMenuSection(
 	id: string,
 	label: string,
-	icon: RoundedIconName,
+	icon: HeaderMenuIcon,
 	contentWidthClass: HeaderMenuContentWidth,
 	groups: readonly HeaderMenuActionGroup[]
 ): HeaderMenuSection | null {
@@ -252,19 +264,24 @@ function createCopyMenuSection(): HeaderMenuSection | null {
 
 	if (hasCopyTitle) {
 		identityActions.push(
-			createMenuAction("copy-title", "Title", "file-text", handleCopySessionTitle)
+			createMenuAction("copy-title", "Title", roundedMenuIcon("file-text"), handleCopySessionTitle)
 		);
 	}
 
 	if (sessionId != null) {
 		identityActions.push(
-			createMenuAction("copy-session-id", "Session ID", "code", handleCopySessionId)
+			createMenuAction(
+				"copy-session-id",
+				"Session ID",
+				linearInterfaceMenuIcon("copy-id"),
+				handleCopySessionId
+			)
 		);
 	}
 
 	if (hasCopyThreadContentFallback) {
 		transcriptActions.push(
-			createMenuAction("copy-thread-content", "Thread content", "copy", () => {
+			createMenuAction("copy-thread-content", "Thread content", roundedMenuIcon("copy"), () => {
 				void onCopyContent?.();
 			})
 		);
@@ -272,7 +289,7 @@ function createCopyMenuSection(): HeaderMenuSection | null {
 
 	if (onExportMarkdown != null) {
 		transcriptActions.push(
-			createMenuAction("export-markdown", "Transcript as Markdown", "file-text", () => {
+			createMenuAction("export-markdown", "Transcript as Markdown", roundedMenuIcon("file-text"), () => {
 				void onExportMarkdown?.();
 			})
 		);
@@ -280,13 +297,13 @@ function createCopyMenuSection(): HeaderMenuSection | null {
 
 	if (onExportJson != null) {
 		transcriptActions.push(
-			createMenuAction("export-json", "Transcript as JSON", "code", () => {
+			createMenuAction("export-json", "Transcript as JSON", roundedMenuIcon("code"), () => {
 				void onExportJson?.();
 			})
 		);
 	}
 
-	return createMenuSection("copy", "Copy", "copy", "min-w-[220px]", [
+	return createMenuSection("copy", "Copy", roundedMenuIcon("copy"), "min-w-[220px]", [
 		createMenuGroup("identity", identityActions),
 		createMenuGroup("transcript", transcriptActions),
 	]);
@@ -297,7 +314,7 @@ function createOpenMenuSection(): HeaderMenuSection | null {
 
 	if (onOpenInAcepe != null) {
 		actions.push(
-			createMenuAction("open-in-acepe", "View Transcript File", "app-window", () => {
+			createMenuAction("open-in-acepe", "View Transcript File", roundedMenuIcon("app-window"), () => {
 				void onOpenInAcepe?.();
 			})
 		);
@@ -305,7 +322,7 @@ function createOpenMenuSection(): HeaderMenuSection | null {
 
 	if (onOpenRawFile != null) {
 		actions.push(
-			createMenuAction("open-raw-file", "Open Raw Transcript", "document", () => {
+			createMenuAction("open-raw-file", "Open Raw Transcript", roundedMenuIcon("document"), () => {
 				void onOpenRawFile?.();
 			})
 		);
@@ -313,7 +330,7 @@ function createOpenMenuSection(): HeaderMenuSection | null {
 
 	if (onOpenInFinder != null) {
 		actions.push(
-			createMenuAction("reveal-transcript", "Reveal Transcript in Finder", "folder", () => {
+			createMenuAction("reveal-transcript", "Reveal Transcript in Finder", roundedMenuIcon("folder"), () => {
 				void onOpenInFinder?.();
 			})
 		);
@@ -321,7 +338,7 @@ function createOpenMenuSection(): HeaderMenuSection | null {
 
 	if (hasWorktreeMenu) {
 		actions.push(
-			createMenuAction("open-worktree", openWorktreeMenuLabel, "worktree", () => {
+			createMenuAction("open-worktree", openWorktreeMenuLabel, roundedMenuIcon("worktree"), () => {
 				onOpenWorktree?.();
 			})
 		);
@@ -332,13 +349,13 @@ function createOpenMenuSection(): HeaderMenuSection | null {
 			createMenuAction(
 				"open-pull-request",
 				pullRequestMenuLabel,
-				"pull-request",
+				roundedMenuIcon("pull-request"),
 				handleOpenPullRequest
 			)
 		);
 	}
 
-	return createMenuSection("open", "Open", "folder", "min-w-[220px]", [
+	return createMenuSection("open", "Open", roundedMenuIcon("folder"), "min-w-[220px]", [
 		createMenuGroup("destinations", actions),
 	]);
 }
@@ -351,7 +368,7 @@ function createDisplayMenuSection(): HeaderMenuSection | null {
 			createMenuAction(
 				"toggle-fullscreen",
 				fullscreenMenuLabel,
-				isFullscreen ? "collapse" : "expand",
+				roundedMenuIcon(isFullscreen ? "collapse" : "expand"),
 				() => {
 					onToggleFullscreen?.();
 				}
@@ -363,7 +380,7 @@ function createDisplayMenuSection(): HeaderMenuSection | null {
 		actions.push({
 			id: "toggle-browser",
 			label: browserMenuLabel,
-			icon: "browser",
+			icon: roundedMenuIcon("browser"),
 			checked: browserActive,
 			onSelect: () => {
 				onToggleBrowser?.();
@@ -375,7 +392,7 @@ function createDisplayMenuSection(): HeaderMenuSection | null {
 		actions.push({
 			id: "toggle-terminal",
 			label: terminalMenuLabel,
-			icon: "terminal",
+			icon: roundedMenuIcon("terminal"),
 			checked: terminalActive,
 			disabled: terminalDisabled,
 			onSelect: () => {
@@ -386,7 +403,7 @@ function createDisplayMenuSection(): HeaderMenuSection | null {
 		});
 	}
 
-	return createMenuSection("display", "Display", "settings", "min-w-[180px]", [
+	return createMenuSection("display", "Display", roundedMenuIcon("settings"), "min-w-[180px]", [
 		createMenuGroup("panel-tools", actions),
 	]);
 }
@@ -400,7 +417,7 @@ function createDiagnosticsMenuSection(): HeaderMenuSection | null {
 
 	if (onCopyStreamingLogPath != null) {
 		actions.push(
-			createMenuAction("copy-streaming-log-path", "Copy Streaming Log Path", "copy", () => {
+			createMenuAction("copy-streaming-log-path", "Copy Streaming Log Path", roundedMenuIcon("copy"), () => {
 				void onCopyStreamingLogPath?.();
 			})
 		);
@@ -408,20 +425,24 @@ function createDiagnosticsMenuSection(): HeaderMenuSection | null {
 
 	if (onExportRawStreaming != null) {
 		actions.push(
-			createMenuAction("open-streaming-log", "Open Streaming Log", "terminal", () => {
+			createMenuAction("open-streaming-log", "Open Streaming Log", roundedMenuIcon("terminal"), () => {
 				void onExportRawStreaming?.();
 			})
 		);
 	}
 
-	return createMenuSection("diagnostics", "Diagnostics", "terminal", "min-w-[210px]", [
+	return createMenuSection("diagnostics", "Diagnostics", roundedMenuIcon("terminal"), "min-w-[210px]", [
 		createMenuGroup("logs", actions),
 	]);
 }
 </script>
 
-{#snippet menuItemContent(icon: RoundedIconName, label: string)}
-	<RoundedIcon name={icon} />
+{#snippet menuItemContent(icon: HeaderMenuIcon, label: string)}
+	{#if icon.kind === "linear-interface"}
+		<LinearInterfaceIcon name={icon.name} />
+	{:else}
+		<RoundedIcon name={icon.name} />
+	{/if}
 	<span class="min-w-0 flex-1 truncate">{label}</span>
 {/snippet}
 

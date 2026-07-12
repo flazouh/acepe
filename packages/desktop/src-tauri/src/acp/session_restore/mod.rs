@@ -1,4 +1,5 @@
 pub mod audit_gate;
+pub mod fold_provider_load;
 pub mod metadata;
 pub mod open_session;
 pub mod provider_load;
@@ -10,6 +11,7 @@ pub mod types;
 
 pub use metadata::canonicalize_persisted_worktree_path;
 pub use open_session::get_session_open_result_domain;
+pub use fold_provider_load::load_provider_history_events;
 pub use provider_load::load_provider_owned_session_snapshot;
 pub use repair_coordinator::{
     TranscriptRepairCoordinator, TranscriptRepairPriority, TranscriptRepairRequest,

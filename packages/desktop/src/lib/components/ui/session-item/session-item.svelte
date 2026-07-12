@@ -2,6 +2,7 @@
 import type { ActivityEntryQuestion } from "@acepe/ui";
 import {
 	ActivityEntry,
+	LinearInterfaceIcon,
 	LoadingIcon,
 	PrChecksSummary,
 	ProjectLetterBadge,
@@ -841,7 +842,7 @@ function handleNextQuestion() {
 											class="cursor-pointer"
 											data-testid="session-action-copy-id"
 										>
-											<RoundedIcon name="code" class="size-3.5 shrink-0" />
+											<LinearInterfaceIcon name="copy-id" class="size-3.5 shrink-0" />
 											<span class="min-w-0 flex-1 truncate">{"Session ID"}</span>
 										</DropdownMenu.Item>
 										{#if hasCopyTranscriptActions}

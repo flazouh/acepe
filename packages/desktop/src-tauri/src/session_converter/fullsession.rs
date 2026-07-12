@@ -2,7 +2,10 @@ use crate::acp::parsers::acp_fields::normalize_tool_call_id;
 use crate::acp::parsers::{get_parser, AgentType};
 use crate::acp::reconciler::session_tool::{classify_raw_tool_call, ToolClassificationHints};
 use crate::acp::session_thread_snapshot::{ProviderOwnedSessionSnapshot, SessionThreadSnapshot};
-use crate::acp::session_update::{tool_call_status_from_str, SkillMeta, ToolCallData};
+use crate::acp::session_update::{
+    tool_call_status_from_str, SkillMeta, TodoItem, TodoStatus, TodoUpdate, TodoUpdateOperation,
+    ToolCallData,
+};
 use crate::acp::transcript_projection::{CanonicalTranscriptEvent, CanonicalTranscriptEventKind};
 use crate::session_jsonl::display_names::format_model_display_name;
 use crate::session_jsonl::types::{
@@ -11,8 +14,8 @@ use crate::session_jsonl::types::{
 };
 use std::collections::{HashMap, HashSet};
 
-use super::calculate_todo_timing;
-use crate::session_converter::transcript_events::materialize_canonical_transcript_events;
+use crate::acp::session::ingress::canonical_events::materialize_canonical_transcript_events;
+use crate::acp::session_update::tool_merge::calculate_todo_timing;
 
 pub(crate) fn parse_skill_meta_from_content(content: &str) -> SkillMeta {
     let mut file_path: Option<String> = None;
@@ -307,11 +310,13 @@ fn project_canonical_events_to_entries(
 ) -> Vec<StoredEntry> {
     let mut entries = Vec::new();
     let mut event_index = 0;
+    let mut task_todo_state = ClaudeTaskTodoState::default();
 
     while event_index < events.len() {
         let event = &events[event_index];
         match &event.kind {
-            CanonicalTranscriptEventKind::UserText { .. } => {
+            CanonicalTranscriptEventKind::UserText { .. }
+            | CanonicalTranscriptEventKind::UserPastedContent { .. } => {
                 let (entry, next_index) = project_user_event_group(events, event_index);
                 if let Some(user_entry) = entry {
                     entries.push(user_entry);
@@ -342,6 +347,7 @@ fn project_canonical_events_to_entries(
                     skill_metas,
                     question_answers,
                     agent_type,
+                    &mut task_todo_state,
                 ));
                 event_index += 1;
             }
@@ -365,24 +371,33 @@ fn project_user_event_group(
         if event.display_id != first.display_id {
             break;
         }
-        let CanonicalTranscriptEventKind::UserText { text } = &event.kind else {
-            break;
-        };
-
-        if text_content.is_empty() {
-            text_content = text.clone();
-        } else {
-            text_content.push('\n');
-            text_content.push_str(text);
+        match &event.kind {
+            CanonicalTranscriptEventKind::UserText { text } => {
+                if text_content.is_empty() {
+                    text_content.push_str(text);
+                } else {
+                    text_content.push('\n');
+                    text_content.push_str(text);
+                }
+                chunks.push(StoredContentBlock {
+                    block_type: "text".to_string(),
+                    text: Some(text.clone()),
+                });
+            }
+            CanonicalTranscriptEventKind::UserPastedContent { text } => {
+                chunks.push(StoredContentBlock {
+                    block_type: "pasted_content".to_string(),
+                    text: Some(text.clone()),
+                });
+            }
+            _ => break,
         }
-        chunks.push(StoredContentBlock {
-            block_type: "text".to_string(),
-            text: Some(text.clone()),
-        });
         index += 1;
     }
 
-    if text_content.is_empty() || is_claude_local_command_message(&text_content) {
+    if chunks.is_empty()
+        || (!text_content.is_empty() && is_claude_local_command_message(&text_content))
+    {
         return (None, index);
     }
 
@@ -444,6 +459,7 @@ fn project_assistant_event_group(
                 });
             }
             CanonicalTranscriptEventKind::UserText { .. }
+            | CanonicalTranscriptEventKind::UserPastedContent { .. }
             | CanonicalTranscriptEventKind::AssistantError { .. }
             | CanonicalTranscriptEventKind::ToolUse { .. } => break,
         }
@@ -505,6 +521,7 @@ fn project_tool_event(
     skill_metas: &HashMap<String, SkillMeta>,
     question_answers: &HashMap<String, QuestionAnswer>,
     agent_type: AgentType,
+    task_todo_state: &mut ClaudeTaskTodoState,
 ) -> StoredEntry {
     let normalized_id = normalize_tool_call_id(tool_call_id);
     let result = tool_results.get(&normalized_id).cloned();
@@ -529,13 +546,21 @@ fn project_tool_event(
         &normalized_id,
         input,
         ToolClassificationHints {
-            name: None,
+            name: Some(name),
             title: Some(name),
             kind: Some(parser.detect_tool_kind(name)),
             kind_hint: None,
             locations: None,
         },
     );
+    let task_todo_projection =
+        task_todo_state.project_tool_event(name, input, classified.normalized_todos.clone());
+    let normalized_todos = task_todo_projection
+        .normalized_todos
+        .or(classified.normalized_todos);
+    let normalized_todo_update = task_todo_projection
+        .normalized_todo_update
+        .or(classified.normalized_todo_update);
 
     StoredEntry::ToolCall {
         id: normalized_id.clone(),
@@ -551,8 +576,8 @@ fn project_tool_event(
             skill_meta,
             locations: None,
             normalized_questions: classified.normalized_questions,
-            normalized_todos: classified.normalized_todos,
-            normalized_todo_update: classified.normalized_todo_update,
+            normalized_todos,
+            normalized_todo_update,
             parent_tool_use_id: None,
             task_children: None,
             question_answer,
@@ -560,5 +585,104 @@ fn project_tool_event(
             plan_approval_request_id: None,
         },
         timestamp: Some(event.timestamp.clone()),
+    }
+}
+
+#[derive(Default)]
+struct ClaudeTaskTodoState {
+    next_task_number: usize,
+    todos_by_task_id: HashMap<String, TodoItem>,
+}
+
+#[derive(Default)]
+struct TaskTodoProjection {
+    normalized_todos: Option<Vec<TodoItem>>,
+    normalized_todo_update: Option<TodoUpdate>,
+}
+
+impl ClaudeTaskTodoState {
+    fn project_tool_event(
+        &mut self,
+        name: &str,
+        input: &serde_json::Value,
+        normalized_todos: Option<Vec<TodoItem>>,
+    ) -> TaskTodoProjection {
+        match name {
+            "TaskCreate" => self.project_task_create(input, normalized_todos),
+            "TaskUpdate" => self.project_task_update(input),
+            _ => TaskTodoProjection::default(),
+        }
+    }
+
+    fn project_task_create(
+        &mut self,
+        input: &serde_json::Value,
+        normalized_todos: Option<Vec<TodoItem>>,
+    ) -> TaskTodoProjection {
+        let Some(first_todo) = normalized_todos.as_ref().and_then(|todos| todos.first()) else {
+            return TaskTodoProjection::default();
+        };
+
+        self.next_task_number += 1;
+        let task_id = string_field(input, "taskId")
+            .or_else(|| string_field(input, "id"))
+            .unwrap_or_else(|| self.next_task_number.to_string());
+        self.todos_by_task_id.insert(task_id, first_todo.clone());
+
+        TaskTodoProjection {
+            normalized_todos,
+            normalized_todo_update: None,
+        }
+    }
+
+    fn project_task_update(&mut self, input: &serde_json::Value) -> TaskTodoProjection {
+        let Some(task_id) = string_field(input, "taskId").or_else(|| string_field(input, "id"))
+        else {
+            return TaskTodoProjection::default();
+        };
+        let Some(status) = input
+            .get("status")
+            .and_then(|value| value.as_str())
+            .and_then(parse_claude_task_status)
+        else {
+            return TaskTodoProjection::default();
+        };
+        let Some(existing_todo) = self.todos_by_task_id.get_mut(&task_id) else {
+            return TaskTodoProjection::default();
+        };
+
+        existing_todo.status = status;
+        let item = existing_todo.clone();
+
+        TaskTodoProjection {
+            normalized_todos: Some(vec![item.clone()]),
+            normalized_todo_update: Some(TodoUpdate {
+                operation: TodoUpdateOperation::SetStatus,
+                items: Some(vec![item]),
+                from_statuses: None,
+                to_status: Some(status),
+            }),
+        }
+    }
+}
+
+fn string_field(input: &serde_json::Value, field: &str) -> Option<String> {
+    input
+        .get(field)
+        .and_then(|value| match value {
+            serde_json::Value::String(text) => Some(text.trim().to_string()),
+            serde_json::Value::Number(number) => Some(number.to_string()),
+            _ => None,
+        })
+        .filter(|value| !value.is_empty())
+}
+
+fn parse_claude_task_status(value: &str) -> Option<TodoStatus> {
+    match value.trim().to_ascii_lowercase().as_str() {
+        "pending" => Some(TodoStatus::Pending),
+        "in_progress" | "inprogress" => Some(TodoStatus::InProgress),
+        "completed" | "complete" | "done" => Some(TodoStatus::Completed),
+        "cancelled" | "canceled" => Some(TodoStatus::Cancelled),
+        _ => None,
     }
 }

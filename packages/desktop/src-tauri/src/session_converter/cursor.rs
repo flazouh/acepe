@@ -110,7 +110,7 @@ fn apply_tool_call_update(entries: &mut [StoredEntry], update: &ToolCallUpdateDa
         return;
     };
 
-    super::merge_tool_call_update(tool_call, &normalized_update);
+    crate::acp::session_update::tool_merge::merge_tool_call_update(tool_call, &normalized_update);
 
     if tool_call.locations.is_none() {
         tool_call.locations = synthesize_locations(&tool_call.arguments);

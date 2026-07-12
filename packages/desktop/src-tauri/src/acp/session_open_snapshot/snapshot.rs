@@ -47,7 +47,7 @@ use super::types::{
     SessionOpenResult, SessionOpenTranscriptRowPage,
 };
 
-fn reconcile_provider_history_into_local_projection(
+pub(super) fn reconcile_provider_history_into_local_projection(
     mut local: SessionProjectionSnapshot,
     provider: SessionProjectionSnapshot,
 ) -> SessionProjectionSnapshot {
@@ -96,7 +96,7 @@ fn session_open_result_byte_len(result: &SessionOpenResult) -> usize {
 
 pub(crate) const SESSION_OPEN_TRANSCRIPT_COMPACTION_ENTRY_THRESHOLD: usize = 1_000;
 
-fn elapsed_ms(start: Instant) -> u128 {
+pub(super) fn elapsed_ms(start: Instant) -> u128 {
     start.elapsed().as_millis()
 }
 
@@ -240,7 +240,7 @@ pub(crate) fn session_projection_snapshot_from_open_found(
     }
 }
 
-fn build_initial_viewport_envelope(
+pub(super) fn build_initial_viewport_envelope(
     runtime_registry: Option<&SessionGraphRuntimeRegistry>,
     found: &SessionOpenFound,
 ) -> Option<SessionStateEnvelope> {
@@ -486,7 +486,7 @@ pub(crate) fn derive_title_from_transcript_snapshot(
                         text.push_str(message);
                     }
                 }
-                TranscriptSegment::Compaction { .. } => {}
+                TranscriptSegment::PastedContent { .. } | TranscriptSegment::Compaction { .. } => {}
             }
         }
 
@@ -1286,12 +1286,12 @@ async fn load_completed_local_journal_transcript(
     )
 }
 
-struct LocalJournalReplay {
-    transcript_snapshot: TranscriptSnapshot,
-    projection: SessionProjectionSnapshot,
+pub(super) struct LocalJournalReplay {
+    pub(super) transcript_snapshot: TranscriptSnapshot,
+    pub(super) projection: SessionProjectionSnapshot,
 }
 
-async fn load_local_journal_transcript(
+pub(super) async fn load_local_journal_transcript(
     db: &DbConn,
     replay_context: &SessionReplayContext,
     canonical_session_id: &str,

@@ -14,8 +14,7 @@ pub(crate) fn context_window_for_selection(selection_id: &str) -> Option<u64> {
             || base
                 .split('-')
                 .any(|part| matches!(part, "opus" | "sonnet" | "haiku")));
-    let recognized = recognized_alias
-        || recognized_claude_id;
+    let recognized = recognized_alias || recognized_claude_id;
 
     if !recognized {
         return None;

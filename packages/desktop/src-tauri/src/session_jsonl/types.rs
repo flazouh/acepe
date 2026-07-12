@@ -275,6 +275,9 @@ pub enum ContentBlock {
     Text {
         text: String,
     },
+    PastedContent {
+        text: String,
+    },
     Thinking {
         thinking: String,
         #[serde(skip_serializing_if = "Option::is_none")]

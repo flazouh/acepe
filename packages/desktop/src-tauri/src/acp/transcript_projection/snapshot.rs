@@ -118,6 +118,20 @@ impl TranscriptEntry {
                     timestamp_ms: parse_timestamp_to_millis(&event.timestamp),
                 })
             }
+            CanonicalTranscriptEventKind::UserPastedContent { text } => {
+                let entry_id =
+                    derive_entry_id_for_snapshot_role(turn_key, &TranscriptEntryRole::User, None);
+                Some(Self {
+                    entry_id,
+                    role: TranscriptEntryRole::User,
+                    segments: vec![TranscriptSegment::PastedContent {
+                        segment_id: format!("{turn_key}:event:{}", event.transcript_seq),
+                        text: text.clone(),
+                    }],
+                    attempt_id: None,
+                    timestamp_ms: parse_timestamp_to_millis(&event.timestamp),
+                })
+            }
             CanonicalTranscriptEventKind::AssistantText { text } => {
                 let entry_id = derive_entry_id_for_snapshot_role(
                     turn_key,
@@ -305,6 +319,8 @@ pub enum TranscriptSegment {
     #[serde(rename_all = "camelCase")]
     Thought { segment_id: String, text: String },
     #[serde(rename_all = "camelCase")]
+    PastedContent { segment_id: String, text: String },
+    #[serde(rename_all = "camelCase")]
     LocalCommand {
         segment_id: String,
         command: String,
@@ -345,7 +361,9 @@ pub(crate) fn user_transcript_segment_from_text(
 impl TranscriptSegment {
     pub fn primary_text(&self) -> &str {
         match self {
-            TranscriptSegment::Text { text, .. } | TranscriptSegment::Thought { text, .. } => text,
+            TranscriptSegment::Text { text, .. }
+            | TranscriptSegment::Thought { text, .. }
+            | TranscriptSegment::PastedContent { text, .. } => text,
             TranscriptSegment::Compaction { event, .. } => {
                 event.summary.as_deref().unwrap_or("Compaction done")
             }
@@ -368,9 +386,9 @@ impl TranscriptSegment {
 
     pub fn is_nonempty(&self) -> bool {
         match self {
-            TranscriptSegment::Text { text, .. } | TranscriptSegment::Thought { text, .. } => {
-                !text.is_empty()
-            }
+            TranscriptSegment::Text { text, .. }
+            | TranscriptSegment::Thought { text, .. }
+            | TranscriptSegment::PastedContent { text, .. } => !text.is_empty(),
             TranscriptSegment::Compaction { .. } => true,
             TranscriptSegment::LocalCommand {
                 command,
@@ -391,7 +409,15 @@ fn segments_from_blocks(entry_id: &str, blocks: &[StoredContentBlock]) -> Vec<Tr
         .enumerate()
         .filter_map(|(index, block)| {
             block.text.as_ref().map(|text| {
-                user_transcript_segment_from_text(format!("{entry_id}:block:{index}"), text.clone())
+                let segment_id = format!("{entry_id}:block:{index}");
+                if block.block_type == "pasted_content" {
+                    TranscriptSegment::PastedContent {
+                        segment_id,
+                        text: text.clone(),
+                    }
+                } else {
+                    user_transcript_segment_from_text(segment_id, text.clone())
+                }
             })
         })
         .collect()

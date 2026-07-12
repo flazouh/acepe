@@ -338,7 +338,7 @@ export type TodoUpdate = { operation: TodoUpdateOperation; items?: TodoItem[] | 
 
 export type TranscriptEntryRole = "user" | "assistant" | "tool" | "sessionActivity"
 
-export type TranscriptSegment = { kind: "text"; segmentId: string; text: string } | { kind: "thought"; segmentId: string; text: string } | { kind: "localCommand"; segmentId: string; command: string; message: string; args: string; stdout: string; modelDisplayName?: string | null; modelDescription?: string | null } | { kind: "compaction"; segmentId: string; event: SessionCompactionEvent }
+export type TranscriptSegment = { kind: "text"; segmentId: string; text: string } | { kind: "thought"; segmentId: string; text: string } | { kind: "pastedContent"; segmentId: string; text: string } | { kind: "localCommand"; segmentId: string; command: string; message: string; args: string; stdout: string; modelDisplayName?: string | null; modelDescription?: string | null } | { kind: "compaction"; segmentId: string; event: SessionCompactionEvent }
 
 export type TranscriptEntry = { entryId: string; role: TranscriptEntryRole; segments: TranscriptSegment[]; attemptId?: string | null; timestampMs?: number | null }
 
@@ -536,6 +536,8 @@ graphRevision: number;
  */
 openToken: string; agentId: CanonicalAgentId; projectPath: string; worktreePath: string | null; sourcePath: string | null; sequenceId?: number | null; transcriptSnapshot: TranscriptSnapshot; sessionTitle: string; operations: OperationSnapshot[]; interactions: InteractionSnapshot[]; turnState: SessionTurnState; messageCount: number; activity: SessionGraphActivity; activeStreamingTail: ActiveStreamingTail | null; lifecycle: SessionGraphLifecycle; capabilities: SessionGraphCapabilities; openPath: SessionOpenPath; initialTranscriptRowPage?: SessionOpenTranscriptRowPage | null; initialViewportEnvelope?: SessionStateEnvelope | null; openResultTiming?: SessionOpenResultTiming | null; activeTurnFailure?: TurnFailureSnapshot | null; lastTerminalTurnId?: string | null }
 
+export type SessionOpenPreparing = { requestedSessionId: string; repairTicket: string }
+
 /**
  * Payload for the `missing` outcome — no persisted content was found for the
  * requested session identifier.
@@ -583,7 +585,7 @@ export type ActiveStreamingTail = { rowId: string; contentKind: ActiveStreamingT
 
 export type TranscriptViewportRowKind = "user" | "assistantText" | "assistantThought" | "tool" | "sessionActivity" | "awaitingPlaceholder"
 
-export type TranscriptViewportOperationDisplayFacts = { operationId: string; toolCallId: string; name: string; title: string; state: OperationState; kind: ToolKind | null; commandSummary?: string | null; targetPathSummary?: string | null; resultSummary?: string | null; errorSummary?: string | null; interactionIds: string[]; parentToolCallId?: string | null; childToolCallIds: string[] }
+export type TranscriptViewportOperationDisplayFacts = { operationId: string; toolCallId: string; name: string; title: string; state: OperationState; kind: ToolKind | null; skillName?: string | null; skillArgs?: string | null; taskDescription?: string | null; taskPrompt?: string | null; subagentType?: string | null; normalizedTodos?: TodoItem[] | null; commandSummary?: string | null; targetPathSummary?: string | null; resultSummary?: string | null; errorSummary?: string | null; interactionIds: string[]; parentToolCallId?: string | null; childToolCallIds: string[] }
 
 export type TranscriptViewportOperationLink = { operationId: string; toolCallId: string; name: string; state: OperationState; displayFacts?: TranscriptViewportOperationDisplayFacts | null; operation?: OperationSnapshot | null }
 

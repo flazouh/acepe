@@ -114,6 +114,14 @@ async fn test_cursor_sqlite_parser_directly() {
                             };
                             println!("      Block {}: Text({})", j, preview);
                         }
+                        acepe_lib::session_jsonl::types::ContentBlock::PastedContent { text } => {
+                            let preview = if text.len() > 60 {
+                                format!("{}...", &text[..60])
+                            } else {
+                                text.clone()
+                            };
+                            println!("      Block {}: PastedContent({})", j, preview);
+                        }
                         acepe_lib::session_jsonl::types::ContentBlock::Thinking {
                             thinking,
                             ..

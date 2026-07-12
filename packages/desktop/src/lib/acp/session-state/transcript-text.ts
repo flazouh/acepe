@@ -7,7 +7,11 @@ import type { TranscriptEntry } from "../../services/acp-types.js";
 import type { TranscriptSegment } from "../../services/acp-types.js";
 
 export function transcriptSegmentPrimaryText(segment: TranscriptSegment): string {
-	if (segment.kind === "text" || segment.kind === "thought") {
+	if (
+		segment.kind === "text" ||
+		segment.kind === "thought" ||
+		segment.kind === "pastedContent"
+	) {
 		return segment.text;
 	}
 	if (segment.kind === "compaction") {
