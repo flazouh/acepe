@@ -45,5 +45,6 @@ pub(crate) use operation_sanitize::{
 #[allow(unused_imports)]
 pub(crate) use snapshot::{
     default_session_title, derive_title_from_transcript_snapshot, resolve_canonical_session_title,
+    session_open_result_for_new_session_with_runtime_registry,
     session_projection_snapshot_from_open_found,
 };

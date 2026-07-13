@@ -9,7 +9,7 @@ use crate::acp::session::fold_export::{
     materialized_thread_snapshot_from_thread_snapshot_fold_first, MaterializedThreadSnapshot,
 };
 use crate::acp::session_descriptor::SessionReplayContext;
-use crate::acp::session_state_engine::graph::select_active_streaming_tail;
+use crate::acp::session_state_engine::graph::{select_active_streaming_tail, SessionStateGraph};
 use crate::acp::session_state_engine::protocol::ViewportBufferPush;
 use crate::acp::session_state_engine::runtime_registry::SessionGraphRuntimeRegistry;
 use crate::acp::session_state_engine::selectors::{
@@ -240,6 +240,45 @@ pub(crate) fn session_projection_snapshot_from_open_found(
         interactions: found.interactions.clone(),
         runtime: None,
     }
+}
+
+/// Install the complete canonical graph represented by a session-open result.
+///
+/// New sessions call this before releasing buffered provider events, so every
+/// live event has a Rust-owned graph authority to fold into.
+pub(crate) fn seed_session_graph_from_open_found(
+    runtime_registry: &SessionGraphRuntimeRegistry,
+    found: &SessionOpenFound,
+) {
+    runtime_registry.seed_graph(
+        found.canonical_session_id.clone(),
+        SessionStateGraph {
+            requested_session_id: found.requested_session_id.clone(),
+            canonical_session_id: found.canonical_session_id.clone(),
+            is_alias: found.is_alias,
+            agent_id: found.agent_id.clone(),
+            project_path: found.project_path.clone(),
+            worktree_path: found.worktree_path.clone(),
+            source_path: found.source_path.clone(),
+            sequence_id: found.sequence_id,
+            revision: SessionGraphRevision::new(
+                found.graph_revision,
+                found.transcript_snapshot.revision,
+                found.last_event_seq,
+            ),
+            transcript_snapshot: found.transcript_snapshot.clone(),
+            operations: found.operations.clone(),
+            interactions: found.interactions.clone(),
+            turn_state: found.turn_state.clone(),
+            message_count: found.message_count,
+            active_streaming_tail: found.active_streaming_tail.clone(),
+            active_turn_failure: found.active_turn_failure.clone(),
+            last_terminal_turn_id: found.last_terminal_turn_id.clone(),
+            lifecycle: found.lifecycle.clone(),
+            activity: found.activity.clone(),
+            capabilities: found.capabilities.clone(),
+        },
+    );
 }
 
 pub(super) fn build_initial_viewport_envelope(
@@ -1520,4 +1559,21 @@ pub async fn session_open_result_for_new_session(
         last_terminal_turn_id: session_projection
             .and_then(|session| session.last_terminal_turn_id.clone()),
     }))
+}
+
+/// Build a new-session open result and install its canonical graph authority.
+///
+/// The command path invokes this before releasing pre-reservation provider
+/// events, so the first live event always folds into an existing graph.
+pub(crate) async fn session_open_result_for_new_session_with_runtime_registry(
+    db: &DbConn,
+    hub: &Arc<AcpEventHubState>,
+    runtime_registry: &SessionGraphRuntimeRegistry,
+    input: NewSessionOpenResultInput,
+) -> SessionOpenResult {
+    let result = session_open_result_for_new_session(db, hub, input).await;
+    if let SessionOpenResult::Found(found) = &result {
+        seed_session_graph_from_open_found(runtime_registry, found);
+    }
+    result
 }

@@ -1225,6 +1225,7 @@ fn make_error_entry(id: &str, text: &str) -> StoredEntry {
 async fn new_session_returns_found_with_empty_state_and_seq_zero() {
     let db = setup_db().await;
     let hub = make_hub();
+    let runtime_registry = SessionGraphRuntimeRegistry::new();
     let session_id = "new-session-abc123";
     let capabilities = SessionGraphCapabilities {
         models: None,
@@ -1238,9 +1239,10 @@ async fn new_session_returns_found_with_empty_state_and_seq_zero() {
         autonomous_enabled: Some(true),
     };
 
-    let result = session_open_result_for_new_session(
+    let result = session_open_result_for_new_session_with_runtime_registry(
         &db,
         &hub,
+        &runtime_registry,
         new_session_open_input(session_id, capabilities.clone()),
     )
     .await;
@@ -1275,6 +1277,30 @@ async fn new_session_returns_found_with_empty_state_and_seq_zero() {
     assert_eq!(found.capabilities.autonomous_enabled, Some(true));
     // open_token must be a valid UUID
     assert!(Uuid::parse_str(&found.open_token).is_ok());
+
+    let graph = runtime_registry
+        .graph_for_session(session_id)
+        .expect("new session graph authority");
+    assert_eq!(graph.canonical_session_id, session_id);
+    assert_eq!(graph.requested_session_id, session_id);
+    assert_eq!(graph.revision.graph_revision, 0);
+    assert_eq!(graph.revision.transcript_revision, 0);
+    assert_eq!(graph.revision.last_event_seq, 0);
+    assert!(graph.transcript_snapshot.entries.is_empty());
+    assert!(graph.operations.is_empty());
+    assert!(graph.interactions.is_empty());
+    assert_eq!(graph.turn_state, SessionTurnState::Idle);
+    assert_eq!(graph.lifecycle.status, found.lifecycle.status);
+    assert_eq!(
+        graph
+            .capabilities
+            .available_commands
+            .as_ref()
+            .expect("graph available commands")
+            .len(),
+        1
+    );
+    assert_eq!(graph.capabilities.autonomous_enabled, Some(true));
 }
 
 // -----------------------------------------------------------------------
