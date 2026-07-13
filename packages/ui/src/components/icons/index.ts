@@ -6,7 +6,8 @@ export { default as FileStatusIcon } from "./file-status-icon.svelte";
 export type { FileStatusIconKind } from "./file-status-icon-types.js";
 export { default as LayoutModeIcon } from "./layout-mode-icon.svelte";
 export { default as GoogleLogoIcon } from "./google-logo-icon.svelte";
-export { default as LinearInterfaceIcon } from "./linear-interface-icon.svelte";
+export { default as InterfaceIcon } from "./interface-icon.svelte";
+export { default as LinearInterfaceIcon } from "./interface-icon.svelte";
 export { default as LinearInventoryIcon } from "./linear-inventory-icon.svelte";
 export { default as PullRequestStatusIcon } from "./pull-request-status-icon.svelte";
 export {
@@ -29,6 +30,13 @@ export {
 	type LinearIconName,
 } from "./linear-icon-catalog.js";
 export {
+	confirmedInterfaceIconMappings,
+	getConfirmedInterfaceRoundedIconEvidence,
+	isConfirmedInterfaceRoundedIcon,
+	mapRoundedIconToInterface,
+	type ConfirmedInterfaceRoundedIconName,
+} from "./rounded-to-interface-map.js";
+export {
 	confirmedLinearInterfaceMappings,
 	getConfirmedLinearRoundedIconEvidence,
 	isConfirmedLinearRoundedIcon,
@@ -36,17 +44,29 @@ export {
 	type ConfirmedLinearRoundedIconName,
 } from "./rounded-to-linear-map.js";
 export {
-	getLinearInterfaceIconEvidence,
-	linearInterfaceIconMappings,
-	resolveLinearInterfaceIconGlyph,
-	type LinearInterfaceIconGlyph,
-	type LinearInterfaceIconName,
-} from "./linear-interface-icon.js";
+	getInterfaceIconEvidence,
+	interfaceIconMappings,
+	resolveInterfaceIconGlyph,
+	type InterfaceIconGlyph,
+	type InterfaceIconName,
+	getInterfaceIconEvidence as getLinearInterfaceIconEvidence,
+	interfaceIconMappings as linearInterfaceIconMappings,
+	resolveInterfaceIconGlyph as resolveLinearInterfaceIconGlyph,
+	type InterfaceIconGlyph as LinearInterfaceIconGlyph,
+	type InterfaceIconName as LinearInterfaceIconName,
+} from "./interface-icon.js";
+export {
+	getInterfaceWrapperMigrationDecision,
+	interfaceWrapperMigrationManifest,
+	type InterfaceWrapperNoEquivalentDecision,
+	type InterfaceWrapperNoEquivalentName,
+} from "./interface-wrapper-migration-manifest.js";
 export {
 	getRoundedIconMigrationDecision,
 	roundedIconMigrationManifest,
 	type RoundedIconMigrationDecision,
 } from "./rounded-icon-migration-manifest.js";
+export type { ConfirmedInterfaceIconMapping } from "./confirmed-interface-icon-mapping.js";
 export type { ConfirmedLinearInterfaceMapping } from "./confirmed-linear-interface-mapping.js";
 export { resolveRoundedIconGlyph } from "./resolve-rounded-icon-glyph.js";
 export {

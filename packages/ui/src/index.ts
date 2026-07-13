@@ -150,6 +150,7 @@ export {
 	AgentToolTask,
 	AgentToolThinking,
 	AgentToolTodo,
+	AgentToolWebSearch,
 	AgentUserMessage,
 	ThinkingDotMatrix,
 	ToolTally,
@@ -349,6 +350,7 @@ export {
 	DiscordIcon,
 	GoogleLogoIcon,
 	LayoutModeIcon,
+	InterfaceIcon,
 	LinearInterfaceIcon,
 	LinearInventoryIcon,
 	PullRequestStatusIcon,
@@ -370,12 +372,17 @@ export {
 	XLogoIcon,
 } from "./components/icons/index.js";
 export {
-	getLinearInterfaceIconEvidence,
-	linearInterfaceIconMappings,
-	resolveLinearInterfaceIconGlyph,
-	type LinearInterfaceIconGlyph,
-	type LinearInterfaceIconName,
-} from "./components/icons/linear-interface-icon.js";
+	getInterfaceIconEvidence,
+	interfaceIconMappings,
+	resolveInterfaceIconGlyph,
+	type InterfaceIconGlyph,
+	type InterfaceIconName,
+	getInterfaceIconEvidence as getLinearInterfaceIconEvidence,
+	interfaceIconMappings as linearInterfaceIconMappings,
+	resolveInterfaceIconGlyph as resolveLinearInterfaceIconGlyph,
+	type InterfaceIconGlyph as LinearInterfaceIconGlyph,
+	type InterfaceIconName as LinearInterfaceIconName,
+} from "./components/icons/interface-icon.js";
 export {
 	linearIconCatalogHash,
 	linearIconCoverage,
