@@ -1,7 +1,7 @@
 //! Live `SessionUpdate` → ingress `ProviderEvent` mapping (shared by live and replay paths).
 
 use crate::acp::projections::RouteDecision;
-use crate::acp::session::ingress::event::{ProviderEvent, ProviderEventKind};
+use crate::acp::session::ingress::event::{ProviderEvent, ProviderEventKind, TurnOutcome};
 use crate::acp::session_update::{ContentChunk, SessionUpdate};
 use crate::acp::types::{CanonicalAgentId, ContentBlock};
 
@@ -81,7 +81,35 @@ pub fn session_update_to_provider_event(
         SessionUpdate::CompactionEvent { event, .. } => {
             ProviderEventKind::Compaction(event.clone())
         }
-        _ => return None,
+        SessionUpdate::Plan { plan, .. } => ProviderEventKind::Plan(plan.clone()),
+        SessionUpdate::AvailableCommandsUpdate { update, .. } => {
+            ProviderEventKind::CapabilitiesUpdate(update.clone())
+        }
+        SessionUpdate::CurrentModeUpdate { update, .. } => {
+            ProviderEventKind::ModeUpdate(update.clone())
+        }
+        SessionUpdate::PermissionRequest { permission, .. } => {
+            ProviderEventKind::Permission(permission.clone())
+        }
+        SessionUpdate::QuestionRequest { question, .. } => {
+            ProviderEventKind::Question(question.clone())
+        }
+        SessionUpdate::UsageTelemetryUpdate { data } => ProviderEventKind::Usage(data.clone()),
+        SessionUpdate::TurnComplete { .. } => ProviderEventKind::TurnEnd {
+            outcome: TurnOutcome::Completed,
+        },
+        SessionUpdate::TurnError { .. } => ProviderEventKind::TurnEnd {
+            outcome: TurnOutcome::Failed,
+        },
+        SessionUpdate::TurnCancelled { .. } => ProviderEventKind::TurnEnd {
+            outcome: TurnOutcome::Cancelled,
+        },
+        // These update the connection/capability control plane. The canonical
+        // provider fact vocabulary intentionally has no exact equivalent.
+        SessionUpdate::ConfigOptionUpdate { .. }
+        | SessionUpdate::ConnectionComplete { .. }
+        | SessionUpdate::ConnectionFailed { .. }
+        | SessionUpdate::SessionDetached { .. } => return None,
     };
 
     Some(ProviderEvent {
@@ -219,7 +247,222 @@ fn assistant_text_from_chunk(chunk: &ContentChunk) -> Option<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::acp::session_update::ToolCallStatus;
+    use crate::acp::client_session::{default_modes, default_session_model_state};
+    use crate::acp::lifecycle::{DetachedReason, FailureReason};
+    use crate::acp::session_update::{
+        AvailableCommandsData, ConfigOptionUpdateData, CurrentModeData, PermissionData, PlanData,
+        QuestionData, ToolCallStatus, TurnErrorData, UsageTelemetryData, UsageTelemetryTokens,
+    };
+
+    fn mapped_kind(update: &SessionUpdate) -> &'static str {
+        session_update_to_provider_event(
+            CanonicalAgentId::ClaudeCode,
+            1,
+            update,
+            RouteDecision::default(),
+        )
+        .expect("update should map to a provider event")
+        .kind_discriminant()
+    }
+
+    #[test]
+    fn maps_canonical_state_and_interaction_update_families() {
+        let plan = SessionUpdate::Plan {
+            plan: PlanData::from_steps(Vec::new()),
+            session_id: Some("sess-1".to_string()),
+        };
+        let commands = SessionUpdate::AvailableCommandsUpdate {
+            update: AvailableCommandsData {
+                available_commands: Vec::new(),
+            },
+            session_id: Some("sess-1".to_string()),
+        };
+        let mode = SessionUpdate::CurrentModeUpdate {
+            update: CurrentModeData {
+                current_mode_id: "agent".to_string(),
+            },
+            session_id: Some("sess-1".to_string()),
+        };
+        let permission = SessionUpdate::PermissionRequest {
+            permission: PermissionData {
+                id: "permission-1".to_string(),
+                session_id: "sess-1".to_string(),
+                json_rpc_request_id: None,
+                reply_handler: None,
+                permission: "write".to_string(),
+                patterns: Vec::new(),
+                metadata: serde_json::Value::Null,
+                always: Vec::new(),
+                auto_accepted: false,
+                tool: None,
+            },
+            session_id: Some("sess-1".to_string()),
+        };
+        let question = SessionUpdate::QuestionRequest {
+            question: QuestionData {
+                id: "question-1".to_string(),
+                session_id: "sess-1".to_string(),
+                json_rpc_request_id: None,
+                reply_handler: None,
+                questions: Vec::new(),
+                tool: None,
+            },
+            session_id: Some("sess-1".to_string()),
+        };
+        let usage = SessionUpdate::UsageTelemetryUpdate {
+            data: UsageTelemetryData {
+                session_id: "sess-1".to_string(),
+                event_id: None,
+                scope: "turn".to_string(),
+                cost_usd: None,
+                tokens: UsageTelemetryTokens::default(),
+                source_model_id: None,
+                timestamp_ms: None,
+                context_window_size: None,
+                context_window_source: None,
+                parent_tool_use_id: None,
+            },
+        };
+
+        assert_eq!(mapped_kind(&plan), "plan");
+        assert_eq!(mapped_kind(&commands), "capabilities_update");
+        assert_eq!(mapped_kind(&mode), "mode_update");
+        assert_eq!(mapped_kind(&permission), "permission");
+        assert_eq!(mapped_kind(&question), "question");
+        assert_eq!(mapped_kind(&usage), "usage");
+    }
+
+    #[test]
+    fn maps_all_terminal_update_families_to_turn_end() {
+        let complete = SessionUpdate::TurnComplete {
+            session_id: Some("sess-1".to_string()),
+            turn_id: Some("turn-1".to_string()),
+        };
+        let error = SessionUpdate::TurnError {
+            error: TurnErrorData::Legacy("boom".to_string()),
+            session_id: Some("sess-1".to_string()),
+            turn_id: Some("turn-1".to_string()),
+        };
+        let cancelled = SessionUpdate::TurnCancelled {
+            session_id: Some("sess-1".to_string()),
+            turn_id: Some("turn-1".to_string()),
+        };
+
+        assert!(matches!(
+            session_update_to_provider_event(
+                CanonicalAgentId::ClaudeCode,
+                1,
+                &complete,
+                RouteDecision::default(),
+            )
+            .expect("complete maps")
+            .kind,
+            ProviderEventKind::TurnEnd {
+                outcome: crate::acp::session::ingress::event::TurnOutcome::Completed
+            }
+        ));
+        assert!(matches!(
+            session_update_to_provider_event(
+                CanonicalAgentId::ClaudeCode,
+                2,
+                &error,
+                RouteDecision::default(),
+            )
+            .expect("error maps")
+            .kind,
+            ProviderEventKind::TurnEnd {
+                outcome: crate::acp::session::ingress::event::TurnOutcome::Failed
+            }
+        ));
+        assert!(matches!(
+            session_update_to_provider_event(
+                CanonicalAgentId::ClaudeCode,
+                3,
+                &cancelled,
+                RouteDecision::default(),
+            )
+            .expect("cancelled maps")
+            .kind,
+            ProviderEventKind::TurnEnd {
+                outcome: crate::acp::session::ingress::event::TurnOutcome::Cancelled
+            }
+        ));
+    }
+
+    #[test]
+    fn leaves_updates_without_an_exact_provider_fact_unmapped() {
+        let updates = [
+            SessionUpdate::ConfigOptionUpdate {
+                update: ConfigOptionUpdateData {
+                    config_options: Vec::new(),
+                },
+                session_id: Some("sess-1".to_string()),
+            },
+            SessionUpdate::ConnectionComplete {
+                session_id: "sess-1".to_string(),
+                attempt_id: 1,
+                models: default_session_model_state(),
+                modes: default_modes(),
+                available_commands: None,
+                config_options: None,
+                autonomous_enabled: None,
+            },
+            SessionUpdate::ConnectionFailed {
+                session_id: "sess-1".to_string(),
+                attempt_id: 1,
+                error: "offline".to_string(),
+                failure_reason: FailureReason::ResumeFailed,
+            },
+            SessionUpdate::SessionDetached {
+                session_id: "sess-1".to_string(),
+                attempt_id: 1,
+                detached_reason: DetachedReason::ReconnectExhausted,
+            },
+        ];
+
+        for update in updates {
+            assert!(session_update_to_provider_event(
+                CanonicalAgentId::ClaudeCode,
+                1,
+                &update,
+                RouteDecision::default(),
+            )
+            .is_none());
+        }
+    }
+
+    #[test]
+    fn keeps_late_terminal_duplicate_suppression() {
+        let decision = RouteDecision {
+            suppress: false,
+            ignore_late: true,
+            resets: false,
+        };
+        let complete = SessionUpdate::TurnComplete {
+            session_id: Some("sess-1".to_string()),
+            turn_id: Some("turn-1".to_string()),
+        };
+        let error = SessionUpdate::TurnError {
+            error: TurnErrorData::Legacy("boom".to_string()),
+            session_id: Some("sess-1".to_string()),
+            turn_id: Some("turn-1".to_string()),
+        };
+
+        assert!(session_update_to_provider_event(
+            CanonicalAgentId::ClaudeCode,
+            1,
+            &complete,
+            decision,
+        )
+        .is_none());
+        assert!(session_update_to_provider_event(
+            CanonicalAgentId::ClaudeCode,
+            2,
+            &error,
+            decision,
+        )
+        .is_none());
+    }
 
     #[test]
     fn suppresses_late_assistant_chunks_after_terminal_turn() {

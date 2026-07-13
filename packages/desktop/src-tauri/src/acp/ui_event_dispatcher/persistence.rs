@@ -1,17 +1,74 @@
 use super::*;
-use crate::acp::session::ingress::live_session_update::restamp_live_provider_event;
+use crate::acp::session::ingress::plugin::live_source_for;
 use crate::acp::session_state_engine::transcript_rows_ledger::TranscriptRowsLedgerWriteHint;
 use crate::acp::transcript_projection::{TranscriptDelta, TranscriptDeltaOperation};
 
-fn restamped_ingress_fold_event(
-    event: &AcpUiEvent,
+fn update_has_canonical_ingress(update: &SessionUpdate) -> bool {
+    matches!(
+        update,
+        SessionUpdate::UserMessageChunk { .. }
+            | SessionUpdate::AgentMessageChunk { .. }
+            | SessionUpdate::AgentThoughtChunk { .. }
+            | SessionUpdate::ToolCall { .. }
+            | SessionUpdate::ToolCallUpdate { .. }
+            | SessionUpdate::Plan { .. }
+            | SessionUpdate::AvailableCommandsUpdate { .. }
+            | SessionUpdate::CurrentModeUpdate { .. }
+            | SessionUpdate::PermissionRequest { .. }
+            | SessionUpdate::QuestionRequest { .. }
+            | SessionUpdate::TurnComplete { .. }
+            | SessionUpdate::TurnError { .. }
+            | SessionUpdate::TurnCancelled { .. }
+            | SessionUpdate::UsageTelemetryUpdate { .. }
+            | SessionUpdate::CompactionEvent { .. }
+    )
+}
+
+fn canonical_ingress_event(
+    session_id: &str,
     event_seq: i64,
     update: &SessionUpdate,
+    terminal_decision: crate::acp::projections::RouteDecision,
+    runtime_graph_registry: &SessionGraphRuntimeRegistry,
 ) -> Option<crate::acp::session::ingress::event::ProviderEvent> {
-    event
-        .ingress_fold_event
-        .clone()
-        .map(|provider_event| restamp_live_provider_event(provider_event, event_seq, update))
+    let graph = runtime_graph_registry.graph_for_session(session_id)?;
+    let source = live_source_for(&graph.agent_id)?;
+    source.normalize_update(event_seq, update, terminal_decision)
+}
+
+fn apply_transcript_delivery(
+    session_id: &str,
+    event_seq: i64,
+    update: &SessionUpdate,
+    terminal_decision: crate::acp::projections::RouteDecision,
+    runtime_graph_registry: &SessionGraphRuntimeRegistry,
+    transcript_projection_registry: &TranscriptProjectionRegistry,
+) -> Option<TranscriptDelta> {
+    let ingress_event = canonical_ingress_event(
+        session_id,
+        event_seq,
+        update,
+        terminal_decision,
+        runtime_graph_registry,
+    );
+    let Some(ingress_event) = ingress_event.as_ref() else {
+        return None;
+    };
+    let Some(transition) =
+        runtime_graph_registry.apply_provider_event_transition(session_id, ingress_event)
+    else {
+        tracing::error!(
+            session_id,
+            provider_row_id = %ingress_event.provider_row_id,
+            "Canonical provider event arrived before the held session graph was seeded"
+        );
+        return None;
+    };
+    transcript_projection_registry.mirror_provider_event_transition(
+        event_seq,
+        ingress_event,
+        &transition,
+    )
 }
 
 #[derive(Debug, Default)]
@@ -72,6 +129,18 @@ pub(super) async fn persist_dispatch_event(
         );
         return DispatchPersistenceEffects::default();
     }
+    if update_has_canonical_ingress(update.as_ref())
+        && runtime_graph_registry
+            .graph_for_session(session_id)
+            .is_none()
+    {
+        tracing::error!(
+            session_id,
+            event_name = event.event_name,
+            "Skipping canonical session update before the held graph is seeded"
+        );
+        return DispatchPersistenceEffects::default();
+    }
 
     let previous_runtime_snapshot = runtime_graph_registry.snapshot_for_session(session_id);
     let previous_transcript_revision = transcript_projection_registry
@@ -112,13 +181,14 @@ pub(super) async fn persist_dispatch_event(
             );
             let terminal_decision =
                 projection_registry.route_terminal_turn(session_id, update.as_ref());
-            let transcript_delta = transcript_projection_registry
-                .apply_session_update_with_ingress(
-                    record.event_seq,
-                    update.as_ref(),
-                    terminal_decision,
-                    restamped_ingress_fold_event(event, record.event_seq, update.as_ref()).as_ref(),
-                );
+            let transcript_delta = apply_transcript_delivery(
+                session_id,
+                record.event_seq,
+                update.as_ref(),
+                terminal_decision,
+                runtime_graph_registry,
+                transcript_projection_registry,
+            );
             let transcript_revision = transcript_projection_registry
                 .snapshot_for_session(session_id)
                 .map(|snapshot| snapshot.revision)
@@ -192,14 +262,14 @@ pub(super) async fn persist_dispatch_event(
             // invariant — see
             // `synthetic_event_seq_path_must_not_inflate_transcript_revision_past_real_progress`.
             let transcript_event_seq = previous_transcript_revision.saturating_add(1);
-            let transcript_delta = transcript_projection_registry
-                .apply_session_update_with_ingress(
-                    transcript_event_seq,
-                    update.as_ref(),
-                    terminal_decision,
-                    restamped_ingress_fold_event(event, transcript_event_seq, update.as_ref())
-                        .as_ref(),
-                );
+            let transcript_delta = apply_transcript_delivery(
+                session_id,
+                transcript_event_seq,
+                update.as_ref(),
+                terminal_decision,
+                runtime_graph_registry,
+                transcript_projection_registry,
+            );
             let transcript_revision = transcript_projection_registry
                 .snapshot_for_session(session_id)
                 .map(|snapshot| snapshot.revision)

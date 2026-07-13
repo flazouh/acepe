@@ -1,6 +1,7 @@
 use super::*;
 use crate::acp::domain_events::{SessionDomainEvent, SessionDomainEventKind};
 use crate::acp::projections::{OperationSourceLink, SessionTurnState};
+use crate::acp::session::engine::fold::{fold_full, FoldContext};
 use crate::acp::session_update::{
     AvailableCommand, AvailableCommandsData, ContentChunk, CurrentModeData,
     InteractionReplyHandler, PermissionData, QuestionData, QuestionItem, QuestionOption,
@@ -97,6 +98,16 @@ async fn setup_test_db() -> DbConn {
     db
 }
 
+fn seed_held_graph(runtime_graph_registry: &SessionGraphRuntimeRegistry, session_id: &str) {
+    runtime_graph_registry.seed_graph(
+        session_id.to_string(),
+        fold_full(
+            &[],
+            &FoldContext::new(session_id, CanonicalAgentId::ClaudeCode, "/test/project"),
+        ),
+    );
+}
+
 fn seed_lifecycle(runtime_graph_registry: &SessionGraphRuntimeRegistry, session_id: &str) {
     runtime_graph_registry.restore_session_state(
         session_id.to_string(),
@@ -104,6 +115,7 @@ fn seed_lifecycle(runtime_graph_registry: &SessionGraphRuntimeRegistry, session_
         crate::acp::session_state_engine::selectors::SessionGraphLifecycle::reserved(),
         crate::acp::session_state_engine::selectors::SessionGraphCapabilities::empty(),
     );
+    seed_held_graph(runtime_graph_registry, session_id);
 }
 
 fn available_commands_update(session_id: Option<&str>) -> SessionUpdate {
@@ -561,6 +573,98 @@ async fn persist_dispatch_event_emits_assistant_text_delta_envelope_for_streamin
 }
 
 #[tokio::test]
+async fn persist_dispatch_event_folds_ingress_once_and_mirrors_the_held_graph() {
+    let db = setup_test_db().await;
+    let session_id = "session-held-ingress";
+    SessionMetadataRepository::ensure_exists(&db, session_id, "/test/project", "claude-code", None)
+        .await
+        .expect("session metadata");
+    let update = chunk_update(session_id, "one canonical fold");
+    let event = AcpUiEvent::session_update(update);
+    let projection_registry = ProjectionRegistry::new();
+    let transcript_projection_registry = TranscriptProjectionRegistry::new();
+    let runtime_graph_registry = SessionGraphRuntimeRegistry::new();
+    seed_lifecycle(&runtime_graph_registry, session_id);
+    runtime_graph_registry.seed_graph(
+        session_id.to_string(),
+        fold_full(
+            &[],
+            &FoldContext::new(session_id, CanonicalAgentId::ClaudeCode, "/test/project"),
+        ),
+    );
+
+    let effects = persist_dispatch_event(
+        Some(&db),
+        &event,
+        &projection_registry,
+        &runtime_graph_registry,
+        &transcript_projection_registry,
+    )
+    .await;
+
+    assert!(effects.session_state_envelope.is_some());
+    let held = runtime_graph_registry
+        .graph_for_session(session_id)
+        .expect("held graph remains attached");
+    assert_eq!(held.transcript_snapshot.entries.len(), 1);
+    assert_eq!(held.transcript_snapshot.revision, 1);
+    assert_eq!(held.message_count, 1);
+    assert_eq!(held.transcript_snapshot.entries[0].segments.len(), 1);
+    assert!(matches!(
+        &held.transcript_snapshot.entries[0].segments[0],
+        crate::acp::transcript_projection::TranscriptSegment::Text { text, .. }
+            if text == "one canonical fold"
+    ));
+    let mirrored = transcript_projection_registry
+        .snapshot_for_session(session_id)
+        .expect("transcript mirror exists");
+    assert_eq!(mirrored.entries, held.transcript_snapshot.entries);
+}
+
+#[tokio::test]
+async fn persist_dispatch_event_normalizes_plain_live_update_against_held_graph() {
+    let db = setup_test_db().await;
+    let session_id = "session-plain-live-ingress";
+    SessionMetadataRepository::ensure_exists(&db, session_id, "/test/project", "opencode", None)
+        .await
+        .expect("session metadata");
+    let event = AcpUiEvent::session_update(chunk_update(session_id, "shared boundary"));
+    let projection_registry = ProjectionRegistry::new();
+    let transcript_projection_registry = TranscriptProjectionRegistry::new();
+    let runtime_graph_registry = SessionGraphRuntimeRegistry::new();
+    seed_lifecycle(&runtime_graph_registry, session_id);
+    runtime_graph_registry.seed_graph(
+        session_id.to_string(),
+        fold_full(
+            &[],
+            &FoldContext::new(session_id, CanonicalAgentId::OpenCode, "/test/project"),
+        ),
+    );
+
+    let effects = persist_dispatch_event(
+        Some(&db),
+        &event,
+        &projection_registry,
+        &runtime_graph_registry,
+        &transcript_projection_registry,
+    )
+    .await;
+
+    assert!(effects.session_state_envelope.is_some());
+    let held = runtime_graph_registry
+        .graph_for_session(session_id)
+        .expect("held graph remains attached");
+    assert_eq!(held.agent_id, CanonicalAgentId::OpenCode);
+    assert_eq!(held.transcript_snapshot.entries.len(), 1);
+    assert_eq!(held.transcript_snapshot.entries[0].segments.len(), 1);
+    assert!(matches!(
+        &held.transcript_snapshot.entries[0].segments[0],
+        crate::acp::transcript_projection::TranscriptSegment::Text { text, .. }
+            if text == "shared boundary"
+    ));
+}
+
+#[tokio::test]
 async fn persist_dispatch_event_writes_current_transcript_row_ledger() {
     let db = setup_test_db().await;
     SessionMetadataRepository::ensure_exists(
@@ -748,6 +852,7 @@ async fn persist_dispatch_event_builds_delta_envelope_for_interaction_updates() 
         crate::acp::session_state_engine::selectors::SessionGraphLifecycle::reserved(),
         crate::acp::session_state_engine::selectors::SessionGraphCapabilities::empty(),
     );
+    seed_held_graph(&runtime_graph_registry, "session-1");
     let effects = persist_dispatch_event(
         Some(&db),
         &event,
@@ -822,6 +927,7 @@ async fn question_request_updates_live_interactions_without_raw_journal_row() {
         crate::acp::session_state_engine::selectors::SessionGraphLifecycle::reserved(),
         crate::acp::session_state_engine::selectors::SessionGraphCapabilities::empty(),
     );
+    seed_held_graph(&runtime_graph_registry, "session-1");
     let effects = persist_dispatch_event(
         Some(&db),
         &event,

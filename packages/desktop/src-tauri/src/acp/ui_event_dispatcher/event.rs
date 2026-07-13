@@ -1,5 +1,4 @@
 use super::*;
-use crate::acp::session::ingress::event::ProviderEvent;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AcpUiEventPriority {
@@ -31,8 +30,6 @@ pub struct AcpUiEvent {
     pub priority: AcpUiEventPriority,
     pub droppable: bool,
     pub created_at: Instant,
-    /// Pre-normalized ingress event for fold replay (avoids SessionUpdate re-normalization).
-    pub ingress_fold_event: Option<ProviderEvent>,
 }
 
 impl AcpUiEvent {
@@ -61,18 +58,7 @@ impl AcpUiEvent {
             priority,
             droppable,
             created_at: Instant::now(),
-            ingress_fold_event: None,
         }
-    }
-
-    #[must_use]
-    pub fn session_update_with_ingress_fold(
-        update: SessionUpdate,
-        ingress_fold_event: Option<ProviderEvent>,
-    ) -> Self {
-        let mut event = Self::session_update(update);
-        event.ingress_fold_event = ingress_fold_event;
-        event
     }
 
     #[must_use]
@@ -90,7 +76,6 @@ impl AcpUiEvent {
             priority: AcpUiEventPriority::High,
             droppable: false,
             created_at: Instant::now(),
-            ingress_fold_event: None,
         }
     }
 
@@ -105,7 +90,6 @@ impl AcpUiEvent {
             priority: AcpUiEventPriority::Normal,
             droppable: false,
             created_at: Instant::now(),
-            ingress_fold_event: None,
         }
     }
 
@@ -124,7 +108,6 @@ impl AcpUiEvent {
             priority,
             droppable,
             created_at: Instant::now(),
-            ingress_fold_event: None,
         }
     }
 

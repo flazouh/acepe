@@ -104,21 +104,9 @@ impl TranscriptProjectionRegistry {
         update: &SessionUpdate,
         decision: RouteDecision,
     ) -> Option<TranscriptDelta> {
-        self.apply_session_update_with_ingress(event_seq, update, decision, None)
-    }
-
-    #[must_use]
-    pub fn apply_session_update_with_ingress(
-        &self,
-        event_seq: i64,
-        update: &SessionUpdate,
-        decision: RouteDecision,
-        ingress_fold_event: Option<&crate::acp::session::ingress::event::ProviderEvent>,
-    ) -> Option<TranscriptDelta> {
         let session_id = update.session_id()?.to_string();
         let mut session = self.sessions.entry(session_id.clone()).or_default();
-        let operations =
-            session.apply_session_update(event_seq, update, decision, ingress_fold_event)?;
+        let operations = session.apply_session_update(event_seq, update, decision)?;
         Some(TranscriptDelta {
             event_seq,
             session_id,
@@ -177,6 +165,9 @@ impl TranscriptProjectionRegistry {
         transition: &ProviderEventTransition,
     ) -> Option<TranscriptDelta> {
         if !transition.applied {
+            return None;
+        }
+        if transition.before.transcript_snapshot == transition.after.transcript_snapshot {
             return None;
         }
         let session_id = transition.after.canonical_session_id.clone();
@@ -328,10 +319,8 @@ impl SessionTranscriptProjection {
         event_seq: i64,
         update: &SessionUpdate,
         decision: RouteDecision,
-        ingress_fold_event: Option<&crate::acp::session::ingress::event::ProviderEvent>,
     ) -> Option<Vec<TranscriptDeltaOperation>> {
-        let delta =
-            self.apply_session_update_inner(event_seq, update, decision, ingress_fold_event)?;
+        let delta = self.apply_session_update_inner(event_seq, update, decision)?;
         // Transcript revision must only advance, and only when the transcript
         // actually changed. Non-transcript-bearing updates (telemetry, plan,
         // tool-call updates, etc.) must not bump the revision — otherwise
@@ -350,7 +339,6 @@ impl SessionTranscriptProjection {
         event_seq: i64,
         update: &SessionUpdate,
         decision: RouteDecision,
-        ingress_fold_event: Option<&crate::acp::session::ingress::event::ProviderEvent>,
     ) -> Option<Vec<TranscriptDeltaOperation>> {
         if decision.ignore_late {
             if matches!(
@@ -387,13 +375,7 @@ impl SessionTranscriptProjection {
                 | SessionUpdate::CompactionEvent { .. }
         ) {
             let session_id = update.session_id()?.to_string();
-            return self.apply_transcript_update_via_fold(
-                &session_id,
-                event_seq,
-                update,
-                decision,
-                ingress_fold_event,
-            );
+            return self.apply_transcript_update_via_fold(&session_id, event_seq, update, decision);
         }
 
         match update {
@@ -419,7 +401,6 @@ impl SessionTranscriptProjection {
         event_seq: i64,
         update: &SessionUpdate,
         decision: RouteDecision,
-        ingress_fold_event: Option<&crate::acp::session::ingress::event::ProviderEvent>,
     ) -> Option<Vec<TranscriptDeltaOperation>> {
         let mut graph =
             graph_from_transcript_snapshot(session_id, self.source.clone(), self.snapshot());
@@ -430,7 +411,7 @@ impl SessionTranscriptProjection {
             event_seq,
             update,
             decision,
-            ingress_fold_event,
+            None,
         )?;
         if operations.is_empty() {
             return None;
