@@ -3394,13 +3394,14 @@ async fn fold_open_cursor_junk_matches_golden() {
 
     let db = setup_db().await;
     let hub = make_hub();
+    let runtime_registry = SessionGraphRuntimeRegistry::new();
     seed_session_metadata(&db, SESSION_ID, "cursor").await;
     let replay_context = replay_context_for_session(SESSION_ID, CanonicalAgentId::Cursor);
 
     let result = session_open_result_from_history_events(
         &db,
         &hub,
-        None,
+        Some(&runtime_registry),
         &replay_context,
         SESSION_ID,
         &events,
@@ -3411,6 +3412,23 @@ async fn fold_open_cursor_junk_matches_golden() {
         panic!("expected fold-based history open to succeed");
     };
     assert_eq!(found.open_path, SessionOpenPath::FoldHistory);
+    let held = runtime_registry
+        .graph_for_session(SESSION_ID)
+        .expect("fold-based open must seed the held session graph");
+    assert_eq!(
+        held.transcript_snapshot.entries,
+        found.transcript_snapshot.entries
+    );
+    assert_eq!(
+        serde_json::to_value(&held.operations).expect("serialize held operations"),
+        serde_json::to_value(&found.operations).expect("serialize open operations")
+    );
+    assert_eq!(
+        serde_json::to_value(&held.interactions).expect("serialize held interactions"),
+        serde_json::to_value(&found.interactions).expect("serialize open interactions")
+    );
+    assert_eq!(held.turn_state, found.turn_state);
+    assert_eq!(held.lifecycle.status, found.lifecycle.status);
 
     let folded = extract_persisted_region(
         &crate::acp::session_state_engine::graph::SessionStateGraph {
