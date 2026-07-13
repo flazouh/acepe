@@ -4168,6 +4168,62 @@ async fn promote_verified_pending_creation_attempt_reuses_reserved_lifecycle_che
 }
 
 #[tokio::test]
+async fn deferred_claude_promotion_seeds_complete_graph_before_buffered_dispatch() {
+    let db = setup_test_db().await;
+    let session_id = "deferred-graph";
+    let attempt = SessionMetadataRepository::create_creation_attempt(
+        &db,
+        "/project",
+        "claude-code",
+        None,
+        None,
+        None,
+    )
+    .await
+    .expect("attempt");
+    SessionMetadataRepository::promote_creation_attempt(&db, &attempt.id, session_id)
+        .await
+        .expect("promote metadata");
+
+    let projection_registry = ProjectionRegistry::new();
+    let runtime_registry =
+        crate::acp::session_state_engine::runtime_registry::SessionGraphRuntimeRegistry::new();
+    let mut capabilities = SessionGraphCapabilities::empty();
+    capabilities.autonomous_enabled = Some(true);
+    reserve_promoted_claude_session(
+        runtime_registry.supervisor(),
+        &db,
+        &projection_registry,
+        session_id,
+        capabilities.clone(),
+    )
+    .await
+    .expect("reserve promoted session");
+
+    let hub = Arc::new(crate::acp::event_hub::AcpEventHubState::new());
+    seed_promoted_claude_session_graph(&db, &hub, &runtime_registry, session_id)
+        .await
+        .expect("seed deferred graph");
+
+    let graph = runtime_registry
+        .graph_for_session(session_id)
+        .expect("deferred promotion must install graph authority");
+    assert_eq!(graph.canonical_session_id, session_id);
+    assert_eq!(
+        graph.agent_id,
+        crate::acp::types::CanonicalAgentId::ClaudeCode
+    );
+    assert_eq!(graph.project_path, "/project");
+    assert_eq!(graph.message_count, 0);
+    assert!(graph.transcript_snapshot.entries.is_empty());
+    assert_eq!(graph.lifecycle.status, LifecycleStatus::Reserved);
+    assert_eq!(
+        graph.capabilities.autonomous_enabled,
+        capabilities.autonomous_enabled
+    );
+}
+
+#[tokio::test]
 async fn reserve_promoted_claude_session_preserves_capabilities() {
     let db = setup_test_db().await;
     let session_id = "provider-canonical";

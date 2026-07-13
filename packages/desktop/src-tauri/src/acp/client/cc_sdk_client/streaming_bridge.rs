@@ -794,6 +794,79 @@ pub(super) async fn reserve_promoted_claude_session(
         .map(|_| ())
 }
 
+pub(super) async fn seed_promoted_claude_session_graph(
+    db: &DbConn,
+    hub: &Arc<crate::acp::event_hub::AcpEventHubState>,
+    runtime_registry: &crate::acp::session_state_engine::runtime_registry::SessionGraphRuntimeRegistry,
+    session_id: &str,
+) -> AcpResult<()> {
+    let metadata = crate::db::repository::SessionMetadataRepository::get_by_id(db, session_id)
+        .await
+        .map_err(|error| {
+            AcpError::InvalidState(format!(
+                "failed to load promoted Claude metadata for session {session_id}: {error}"
+            ))
+        })?
+        .ok_or_else(|| {
+            AcpError::InvalidState(format!(
+                "promoted Claude metadata missing for session {session_id}"
+            ))
+        })?;
+    let descriptor = metadata.descriptor_facts();
+    let runtime_snapshot = runtime_registry
+        .supervisor()
+        .snapshot_for_session(session_id)
+        .map(|checkpoint| {
+            crate::acp::session_state_engine::runtime_registry::SessionGraphRuntimeSnapshot::from_checkpoint(
+                &checkpoint,
+            )
+        })
+        .ok_or_else(|| {
+            AcpError::InvalidState(format!(
+                "promoted Claude lifecycle checkpoint missing for session {session_id}"
+            ))
+        })?;
+
+    let result = crate::acp::session_open_snapshot::session_open_result_for_new_session_with_runtime_registry(
+        db,
+        hub,
+        runtime_registry,
+        crate::acp::session_open_snapshot::NewSessionOpenResultInput {
+            session_id: session_id.to_string(),
+            agent_id: descriptor
+                .agent_id
+                .unwrap_or(crate::acp::types::CanonicalAgentId::ClaudeCode),
+            project_path: descriptor.project_path.unwrap_or_default(),
+            worktree_path: descriptor.worktree_path,
+            source_path: descriptor.source_path,
+            lifecycle: runtime_snapshot.lifecycle,
+            capabilities: runtime_snapshot.capabilities,
+        },
+    )
+    .await;
+
+    match result {
+        crate::acp::session_open_snapshot::SessionOpenResult::Found(found) => {
+            if let Ok(open_token) = uuid::Uuid::parse_str(&found.open_token) {
+                hub.supersede_reservation(open_token);
+            }
+            Ok(())
+        }
+        crate::acp::session_open_snapshot::SessionOpenResult::Error(error) => {
+            Err(AcpError::InvalidState(format!(
+                "failed to seed promoted Claude graph for session {session_id}: {}",
+                error.message
+            )))
+        }
+        crate::acp::session_open_snapshot::SessionOpenResult::Preparing(_)
+        | crate::acp::session_open_snapshot::SessionOpenResult::Missing(_) => {
+            Err(AcpError::InvalidState(format!(
+                "promoted Claude graph was not found for session {session_id}"
+            )))
+        }
+    }
+}
+
 fn promoted_claude_session_capabilities(
     app_handle: Option<&AppHandle>,
     session_id: &str,
@@ -897,19 +970,42 @@ async fn promote_verified_pending_creation_attempt(
     }
 
     if let Some(app_handle) = app_handle {
-        if let Some(supervisor) =
-            app_handle.try_state::<Arc<crate::acp::lifecycle::SessionSupervisor>>()
-        {
-            let capabilities = promoted_claude_session_capabilities(Some(app_handle), session_id);
-            reserve_promoted_claude_session(
-                supervisor.inner(),
-                db,
-                projection_registry.as_ref(),
-                session_id,
-                capabilities,
-            )
-            .await?;
-        }
+        let supervisor = app_handle
+            .try_state::<Arc<crate::acp::lifecycle::SessionSupervisor>>()
+            .map(|state| state.inner().clone())
+            .ok_or_else(|| {
+                AcpError::InvalidState(
+                    "session supervisor unavailable while promoting Claude creation attempt"
+                        .to_string(),
+                )
+            })?;
+        let runtime_registry = app_handle
+            .try_state::<Arc<crate::acp::session_state_engine::runtime_registry::SessionGraphRuntimeRegistry>>()
+            .map(|state| state.inner().clone())
+            .ok_or_else(|| {
+                AcpError::InvalidState(
+                    "session graph registry unavailable while promoting Claude creation attempt"
+                        .to_string(),
+                )
+            })?;
+        let hub = app_handle
+            .try_state::<Arc<crate::acp::event_hub::AcpEventHubState>>()
+            .map(|state| state.inner().clone())
+            .ok_or_else(|| {
+                AcpError::InvalidState(
+                    "event hub unavailable while promoting Claude creation attempt".to_string(),
+                )
+            })?;
+        let capabilities = promoted_claude_session_capabilities(Some(app_handle), session_id);
+        reserve_promoted_claude_session(
+            supervisor.as_ref(),
+            db,
+            projection_registry.as_ref(),
+            session_id,
+            capabilities,
+        )
+        .await?;
+        seed_promoted_claude_session_graph(db, &hub, runtime_registry.as_ref(), session_id).await?;
     }
 
     Ok(())

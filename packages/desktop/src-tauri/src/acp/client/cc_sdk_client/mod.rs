@@ -84,6 +84,7 @@ use streaming_bridge::{
     claude_history_tool_result_update, claude_missing_tool_result_backfill_request,
     collect_cc_sdk_updates_for_dispatch, persist_provider_session_id_alias,
     provider_session_id_from_message, reserve_promoted_claude_session,
+    seed_promoted_claude_session_graph,
 };
 use streaming_bridge::{run_streaming_bridge, StreamingBridgeContext};
 use tracking::{
