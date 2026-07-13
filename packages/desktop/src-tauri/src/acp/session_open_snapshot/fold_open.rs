@@ -274,7 +274,7 @@ pub async fn session_open_result_from_history_events(
         active_streaming_tail,
         lifecycle,
         capabilities,
-        open_path: SessionOpenPath::CompatSnapshot,
+        open_path: SessionOpenPath::FoldHistory,
         initial_transcript_row_page: None,
         initial_viewport_envelope: None,
         open_result_timing: None,

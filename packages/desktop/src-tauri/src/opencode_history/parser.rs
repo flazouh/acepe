@@ -12,7 +12,6 @@ use super::types::{
     OpenCodeApiModel, OpenCodeApiPart, OpenCodeMessage, OpenCodeMessagePart, OpenCodeProject,
     OpenCodeSession,
 };
-use crate::acp::session_thread_snapshot::{ProviderOwnedSessionSnapshot, SessionThreadSnapshot};
 use crate::acp::types::CanonicalAgentId;
 use crate::history::constants::{MAX_PROJECTS_TO_SCAN, MAX_SESSIONS_PER_PROJECT};
 use crate::session_jsonl::types::HistoryEntry;
@@ -331,26 +330,14 @@ fn validate_path_segment(segment: &str, label: &str) -> Result<()> {
     Ok(())
 }
 
-/// Load a full OpenCode provider-owned session from local storage files (no HTTP server needed).
+/// Load OpenCode messages from local storage files (no HTTP server needed).
 ///
 /// Reads messages from `storage/message/{session_id}/` and parts from
-/// `storage/part/{message_id}/`, then converts to `SessionThreadSnapshot` using
-/// the same converter as the HTTP API path.
-///
-/// Uses a two-phase parallel approach:
-/// 1. Read all message files concurrently
-/// 2. Read all part files for all messages concurrently
-///
-/// # Arguments
-/// * `session_id` - The OpenCode session ID (e.g., "ses_xxxxx")
-/// * `source_path` - Optional path to the session metadata file (for title)
-///
-/// # Returns
-/// `Some(ProviderOwnedSessionSnapshot)` if messages were found on disk, `None` otherwise
-pub async fn load_provider_owned_snapshot_from_disk(
+/// `storage/part/{message_id}/`.
+pub async fn load_opencode_messages_from_disk(
     session_id: &str,
     source_path: Option<&str>,
-) -> Result<Option<ProviderOwnedSessionSnapshot>> {
+) -> Result<Option<Vec<OpenCodeMessage>>> {
     validate_path_segment(session_id, "session_id")?;
 
     let storage_dir = get_storage_dir()?;
@@ -363,11 +350,7 @@ pub async fn load_provider_owned_snapshot_from_disk(
         "Loading OpenCode session from disk"
     );
 
-    // Phase 0: Read session title and list message files concurrently
-    let (session_title, msg_dir_result) = tokio::join!(
-        read_session_title(source_path),
-        tokio::fs::read_dir(&messages_dir),
-    );
+    let msg_dir_result = tokio::fs::read_dir(&messages_dir).await;
 
     let mut read_dir = match msg_dir_result {
         Ok(rd) => rd,
@@ -531,41 +514,10 @@ pub async fn load_provider_owned_snapshot_from_disk(
     tracing::info!(
         session_id = %session_id,
         message_count = messages.len(),
-        "Loaded OpenCode session from local disk"
+        "Loaded OpenCode messages from local disk"
     );
 
-    let mut snapshot =
-        crate::opencode_history::convert::convert_opencode_messages_to_provider_owned_snapshot(
-            messages,
-        )
-        .map_err(|e| anyhow!("Failed to convert OpenCode disk session: {}", e))?;
-
-    let fallback_title = snapshot.thread_snapshot.title.clone();
-    let resolved_title = session_title
-        .filter(|t| !t.is_empty())
-        .unwrap_or(fallback_title);
-
-    snapshot.thread_snapshot.title = resolved_title;
-
-    Ok(Some(snapshot))
-}
-
-pub async fn load_session_from_disk(
-    session_id: &str,
-    source_path: Option<&str>,
-) -> Result<Option<SessionThreadSnapshot>> {
-    Ok(
-        load_provider_owned_snapshot_from_disk(session_id, source_path)
-            .await?
-            .map(|snapshot| snapshot.thread_snapshot),
-    )
-}
-
-pub async fn load_thread_snapshot_from_disk(
-    session_id: &str,
-    source_path: Option<&str>,
-) -> Result<Option<SessionThreadSnapshot>> {
-    load_session_from_disk(session_id, source_path).await
+    Ok(Some(messages))
 }
 
 /// Read the session title from the session metadata file on disk.
@@ -1070,7 +1022,7 @@ mod tests {
         assert!(msg.model.is_none());
     }
 
-    /// Integration test: load_session_from_disk with real local OpenCode data.
+    /// Integration test: load_opencode_messages_from_disk with real local OpenCode data.
     /// Requires OpenCode storage at ~/.local/share/opencode/storage/.
     #[tokio::test]
     #[ignore] // Only runs manually: cargo test -p acepe disk_loads_real -- --ignored
@@ -1090,25 +1042,20 @@ mod tests {
         let session_id = first_session.file_name().to_string_lossy().to_string();
 
         eprintln!(
-            "Testing load_session_from_disk with session_id={}",
+            "Testing load_opencode_messages_from_disk with session_id={}",
             session_id
         );
 
-        let result = super::load_session_from_disk(&session_id, None).await;
+        let result = super::load_opencode_messages_from_disk(&session_id, None).await;
         match &result {
-            Ok(Some(converted)) => {
-                eprintln!(
-                    "SUCCESS: title={:?}, entries={}",
-                    converted.title,
-                    converted.entries.len()
-                );
-                assert!(
-                    !converted.entries.is_empty(),
-                    "should have at least one entry"
-                );
+            Ok(Some(messages)) => {
+                eprintln!("SUCCESS: message_count={}", messages.len());
+                assert!(!messages.is_empty());
             }
-            Ok(None) => panic!("load_session_from_disk returned None — no messages found"),
-            Err(e) => panic!("load_session_from_disk returned error: {}", e),
+            Ok(None) => {
+                panic!("load_opencode_messages_from_disk returned None — no messages found")
+            }
+            Err(e) => panic!("load_opencode_messages_from_disk returned error: {}", e),
         }
     }
 

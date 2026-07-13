@@ -2,6 +2,9 @@
 //!
 //! Run with: cargo test benchmark_session_parsing --release -- --nocapture
 
+use crate::acp::parsers::AgentType;
+use crate::acp::session::fold_export::materialized_thread_snapshot_from_full_session;
+use crate::acp::types::CanonicalAgentId;
 use crate::session_jsonl::parser::{get_session_jsonl_root, parse_full_session};
 use std::path::PathBuf;
 use std::time::{Duration, Instant};
@@ -147,17 +150,19 @@ pub async fn benchmark_all_sessions() -> anyhow::Result<BenchmarkStats> {
                 let duration = start.elapsed();
 
                 // Convert to entries to get entry count
-                let converted =
-                    crate::session_converter::convert_claude_full_session_to_thread_snapshot(
-                        &full_session,
-                    );
+                let materialized = materialized_thread_snapshot_from_full_session(
+                    &full_session,
+                    CanonicalAgentId::ClaudeCode,
+                    AgentType::ClaudeCode,
+                    0,
+                );
 
                 results.push(SessionResult {
                     session_id: session.session_id.clone(),
                     project_path: session.project_path.clone(),
                     duration,
                     message_count: full_session.messages.len(),
-                    entry_count: converted.entries.len(),
+                    entry_count: materialized.transcript_snapshot.entries.len(),
                     file_size_bytes: file_size,
                 });
 

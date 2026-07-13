@@ -12,11 +12,11 @@ use crate::acp::parsers::types::{
     AgentType, ParseError, ParsedQuestion, ParsedTodo, ParsedUsageTelemetry, UpdateType,
 };
 use crate::acp::parsers::CopilotAdapter;
-use crate::acp::reconciler::infer_kind_from_payload_for_agent;
 use crate::acp::session_update::{
     build_tool_call_from_raw, build_tool_call_update_from_raw, tool_call_status_from_str, PlanData,
     RawToolCallInput, ToolArguments, ToolCallData, ToolCallUpdateData, ToolKind,
 };
+use crate::acp::tool_identity::infer_kind_from_payload_for_agent;
 
 pub struct CopilotParser;
 

@@ -1,5 +1,8 @@
 //! Cursor history ingress — store.db bytes → ordered `ProviderEvent` stream.
 
+mod discovery;
+mod sqlite;
+
 use std::path::PathBuf;
 
 use crate::acp::parsers::AgentType;
@@ -9,8 +12,9 @@ use crate::acp::session::ingress::canonical_events::materialize_canonical_transc
 use crate::acp::session::ingress::event::ProviderEvent;
 use crate::acp::session::ingress::source::{HistoryError, HistoryInput, HistorySource};
 use crate::acp::types::CanonicalAgentId;
-use crate::cursor_history::parser::get_sqlite_store_db_path_for_session;
-use crate::history::cursor_sqlite_parser::parse_cursor_store_db;
+
+use discovery::get_sqlite_store_db_path_for_session;
+use sqlite::parse_cursor_store_db;
 
 /// Reads Cursor `store.db` history into provider-agnostic ingress events.
 pub struct CursorHistorySource;
@@ -115,7 +119,7 @@ mod tests {
         let has_hi = events.iter().any(|event| {
             matches!(
                 &event.kind,
-                ProviderEventKind::UserText { text } if text == "hi"
+                ProviderEventKind::UserText { text, .. } if text == "hi"
             )
         });
         assert!(has_hi, "expected UserText hi event, got {events:?}");

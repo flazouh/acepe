@@ -163,11 +163,40 @@ pub(crate) fn events_jsonl_path_for_session(
     session_state_root.join(session_id).join(EVENTS_FILE_NAME)
 }
 
+pub(crate) async fn parse_copilot_provider_events_at_root(
+    session_state_root: &Path,
+    events_jsonl_path: &Path,
+    _title: &str,
+) -> Result<Vec<crate::acp::session::ingress::event::ProviderEvent>, String> {
+    let (_fallback_session_id, updates) =
+        parse_replay_updates_at_root(session_state_root, events_jsonl_path).await?;
+    if updates.is_empty() {
+        return Err("Copilot transcript did not contain replayable events".to_string());
+    }
+    Ok(super::convert_replay_updates_to_provider_events(&updates))
+}
+
 pub(crate) async fn parse_copilot_session_at_root(
     session_state_root: &Path,
     events_jsonl_path: &Path,
     title: &str,
 ) -> Result<SessionThreadSnapshot, String> {
+    let (fallback_session_id, updates) =
+        parse_replay_updates_at_root(session_state_root, events_jsonl_path).await?;
+    if updates.is_empty() {
+        return Err("Copilot transcript did not contain replayable events".to_string());
+    }
+    Ok(super::convert_replay_updates_to_session(
+        &fallback_session_id,
+        title,
+        &updates,
+    ))
+}
+
+async fn parse_replay_updates_at_root(
+    session_state_root: &Path,
+    events_jsonl_path: &Path,
+) -> Result<(String, Vec<(u64, SessionUpdate)>), String> {
     let canonical_root = session_state_root
         .canonicalize()
         .map_err(|error| format!("Failed to resolve Copilot session-state root: {error}"))?;
@@ -186,7 +215,6 @@ pub(crate) async fn parse_copilot_session_at_root(
 
     let fallback_session_id = session_id_from_events_path(&canonical_path)
         .ok_or_else(|| "Failed to determine Copilot session ID from transcript path".to_string())?;
-    let title_owned = title.to_string();
 
     tokio::task::spawn_blocking(move || {
         let file = std::fs::File::open(&canonical_path)
@@ -195,14 +223,7 @@ pub(crate) async fn parse_copilot_session_at_root(
         let events = parse_events_from_reader(reader)
             .map_err(|error| format!("Failed to parse Copilot transcript: {error}"))?;
         let updates = convert_events_to_updates(&fallback_session_id, events);
-        if updates.is_empty() {
-            return Err("Copilot transcript did not contain replayable events".to_string());
-        }
-        Ok(super::convert_replay_updates_to_session(
-            &fallback_session_id,
-            &title_owned,
-            &updates,
-        ))
+        Ok((fallback_session_id, updates))
     })
     .await
     .map_err(|error| format!("Failed to join Copilot transcript parser task: {error}"))?

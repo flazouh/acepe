@@ -79,14 +79,23 @@ impl ProjectionRegistry {
     }
 
     #[must_use]
+    pub fn project_stored_entries(
+        session_id: &str,
+        agent_id: Option<CanonicalAgentId>,
+        entries: &[StoredEntry],
+    ) -> SessionProjectionSnapshot {
+        let registry = Self::new();
+        registry.import_stored_entries(session_id, agent_id, entries);
+        registry.session_projection(session_id)
+    }
+
+    #[must_use]
     pub fn project_thread_snapshot(
         session_id: &str,
         agent_id: Option<CanonicalAgentId>,
         thread_snapshot: &SessionThreadSnapshot,
     ) -> SessionProjectionSnapshot {
-        let registry = Self::new();
-        registry.import_thread_snapshot(session_id, agent_id, thread_snapshot);
-        registry.session_projection(session_id)
+        Self::project_stored_entries(session_id, agent_id, &thread_snapshot.entries)
     }
 
     pub fn remove_session(&self, session_id: &str) {

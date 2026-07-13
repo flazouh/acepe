@@ -1763,7 +1763,11 @@ async fn test_parse_converted_session_single_file_read() {
         result.err()
     );
     let session = result.unwrap();
-    assert_eq!(session.entries.len(), 2, "Should have 2 messages");
+    assert_eq!(
+        session.transcript_snapshot.entries.len(),
+        2,
+        "Should have 2 messages"
+    );
 }
 
 /// Regression test: Claude transcripts can split one assistant response into
@@ -1803,9 +1807,12 @@ async fn test_parse_converted_session_merges_fragmented_assistant_response() {
     let converted = result.unwrap();
 
     let assistant_count = converted
+        .transcript_snapshot
         .entries
         .iter()
-        .filter(|entry| matches!(entry, StoredEntry::Assistant { .. }))
+        .filter(|entry| {
+            entry.role == crate::acp::transcript_projection::TranscriptEntryRole::Assistant
+        })
         .count();
 
     assert_eq!(
@@ -1848,13 +1855,14 @@ async fn test_parse_converted_session_keeps_reused_id_final_text_after_late_tool
         .expect("parse_converted_session should succeed");
 
     let entry_types: Vec<&str> = converted
+        .transcript_snapshot
         .entries
         .iter()
-        .map(|entry| match entry {
-            StoredEntry::User { .. } => "user",
-            StoredEntry::Assistant { .. } => "assistant",
-            StoredEntry::ToolCall { .. } => "tool_call",
-            StoredEntry::Error { .. } => "error",
+        .map(|entry| match entry.role {
+            crate::acp::transcript_projection::TranscriptEntryRole::User => "user",
+            crate::acp::transcript_projection::TranscriptEntryRole::Assistant => "assistant",
+            crate::acp::transcript_projection::TranscriptEntryRole::Tool => "tool_call",
+            crate::acp::transcript_projection::TranscriptEntryRole::SessionActivity => "error",
         })
         .collect();
 

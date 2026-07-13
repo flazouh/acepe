@@ -35,7 +35,6 @@ use crate::acp::pending_prompt_registry::{
 };
 use crate::acp::projections::{InteractionResponse, InteractionState, ProjectionRegistry};
 use crate::acp::provider::{normalize_session_updates_for_runtime, AgentProvider};
-use crate::acp::reconciler::session_tool::{classify_raw_tool_call, ToolClassificationHints};
 use crate::acp::session_policy::SessionPolicyRegistry;
 use crate::acp::session_registry::{bind_provider_session_id_persisted, SessionRegistry};
 use crate::acp::session_state_engine::SessionGraphCapabilities;
@@ -46,6 +45,7 @@ use crate::acp::session_update::{
 };
 use crate::acp::streaming_log::{log_debug_event, log_emitted_event, log_streaming_event};
 use crate::acp::task_reconciler::TaskReconciler;
+use crate::acp::tool_identity::{classify_raw_tool_call, ToolClassificationHints};
 use crate::acp::types::{ContentBlock, PromptRequest};
 use crate::acp::ui_event_dispatcher::{AcpUiEvent, AcpUiEventDispatcher, DispatchPolicy};
 use crate::cc_sdk;

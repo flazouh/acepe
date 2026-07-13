@@ -1,8 +1,8 @@
 //! Canonical ingress fact vocabulary — provider-agnostic events fed to `engine::fold`.
 
 use crate::acp::session_update::{
-    AvailableCommandsData, CurrentModeData, PermissionData, PlanData, QuestionData, ToolCallData,
-    ToolCallUpdateData, UsageTelemetryData,
+    AvailableCommandsData, CurrentModeData, PermissionData, PlanData, QuestionData,
+    SessionCompactionEvent, ToolCallData, ToolCallUpdateData, UsageTelemetryData,
 };
 use crate::acp::types::CanonicalAgentId;
 use crate::cc_sdk::AssistantMessageError;
@@ -23,6 +23,7 @@ pub struct ProviderEvent {
 pub enum ProviderEventKind {
     UserText {
         text: String,
+        attempt_id: Option<String>,
     },
     UserPastedContent {
         text: String,
@@ -52,6 +53,7 @@ pub enum ProviderEventKind {
     TurnEnd {
         outcome: TurnOutcome,
     },
+    Compaction(SessionCompactionEvent),
 }
 
 /// Explicit turn boundary outcome for history and live ingress.
@@ -60,6 +62,35 @@ pub enum TurnOutcome {
     Completed,
     Failed,
     Cancelled,
+}
+
+impl ProviderEventKind {
+    pub(crate) fn discriminant_label(&self) -> &'static str {
+        match self {
+            ProviderEventKind::UserText { .. } => "user_text",
+            ProviderEventKind::UserPastedContent { .. } => "user_pasted",
+            ProviderEventKind::AssistantText { .. } => "assistant_text",
+            ProviderEventKind::AssistantThought { .. } => "assistant_thought",
+            ProviderEventKind::AssistantError { .. } => "assistant_error",
+            ProviderEventKind::ToolCall(_) => "tool_call",
+            ProviderEventKind::ToolCallUpdate(_) => "tool_call_update",
+            ProviderEventKind::Permission(_) => "permission",
+            ProviderEventKind::Question(_) => "question",
+            ProviderEventKind::Plan(_) => "plan",
+            ProviderEventKind::Usage(_) => "usage",
+            ProviderEventKind::ModeUpdate(_) => "mode_update",
+            ProviderEventKind::CapabilitiesUpdate(_) => "capabilities_update",
+            ProviderEventKind::TurnBegin { .. } => "turn_begin",
+            ProviderEventKind::TurnEnd { .. } => "turn_end",
+            ProviderEventKind::Compaction(_) => "compaction",
+        }
+    }
+}
+
+impl ProviderEvent {
+    pub(crate) fn kind_discriminant(&self) -> &'static str {
+        self.kind.discriminant_label()
+    }
 }
 
 #[cfg(test)]
@@ -75,6 +106,7 @@ mod tests {
             timestamp_ms: Some(1_700_000_000_000),
             kind: ProviderEventKind::UserText {
                 text: "hello".to_string(),
+                attempt_id: None,
             },
         };
 
@@ -83,7 +115,7 @@ mod tests {
         assert_eq!(event.provider_row_id, "row-1");
         assert_eq!(event.timestamp_ms, Some(1_700_000_000_000));
         match event.kind {
-            ProviderEventKind::UserText { text } => assert_eq!(text, "hello"),
+            ProviderEventKind::UserText { text, .. } => assert_eq!(text, "hello"),
             _ => panic!("expected UserText"),
         }
     }

@@ -1,26 +1,49 @@
 use std::collections::HashSet;
 
 use crate::acp::projections::{OperationSnapshot, OperationSourceLink, ProjectionRegistry};
-use crate::acp::session_thread_snapshot::SessionThreadSnapshot;
+use crate::acp::session::fold_export::MaterializedThreadSnapshot;
 use crate::acp::transcript_projection::{
     TranscriptEntryRole, TranscriptSegment, TranscriptSnapshot,
 };
 use crate::acp::types::CanonicalAgentId;
-use crate::codex_history::parser as codex_parser;
-use crate::cursor_history::parser as cursor_parser;
-use crate::opencode_history::parser as opencode_parser;
-use crate::session_jsonl::parser as session_jsonl_parser;
+use crate::session_jsonl::types::StoredEntry;
 
+use super::fold_audit::materialized_from_history;
 use super::types::{RestoredToolLinkAudit, UnresolvedToolRowAudit};
 
-pub fn audit_restored_tool_links_from_snapshot(
+pub fn audit_restored_tool_links_from_materialized(
     session_id: &str,
     agent_id: &CanonicalAgentId,
-    snapshot: &SessionThreadSnapshot,
+    materialized: &MaterializedThreadSnapshot,
+) -> RestoredToolLinkAudit {
+    let transcript_snapshot = &materialized.transcript_snapshot;
+    let operations = &materialized.projection.operations;
+    let unresolved_rows = unresolved_tool_rows_for_operations(transcript_snapshot, operations);
+    let transcript_tool_count = transcript_snapshot
+        .entries
+        .iter()
+        .filter(|entry| entry.role == TranscriptEntryRole::Tool)
+        .count();
+
+    RestoredToolLinkAudit {
+        session_id: session_id.to_string(),
+        agent_id: agent_id.to_string_with_prefix(),
+        entry_count: transcript_snapshot.entries.len(),
+        transcript_tool_count,
+        operation_count: operations.len(),
+        unresolved_count: unresolved_rows.len(),
+        unresolved_rows,
+    }
+}
+
+pub fn audit_restored_tool_links_from_stored_entries(
+    session_id: &str,
+    agent_id: &CanonicalAgentId,
+    entries: &[StoredEntry],
 ) -> RestoredToolLinkAudit {
     let projection =
-        ProjectionRegistry::project_thread_snapshot(session_id, Some(agent_id.clone()), snapshot);
-    let transcript_snapshot = TranscriptSnapshot::from_stored_entries(0, &snapshot.entries);
+        ProjectionRegistry::project_stored_entries(session_id, Some(agent_id.clone()), entries);
+    let transcript_snapshot = TranscriptSnapshot::from_stored_entries(0, entries);
     let unresolved_rows =
         unresolved_tool_rows_for_operations(&transcript_snapshot, &projection.operations);
     let transcript_tool_count = transcript_snapshot
@@ -32,7 +55,7 @@ pub fn audit_restored_tool_links_from_snapshot(
     RestoredToolLinkAudit {
         session_id: session_id.to_string(),
         agent_id: agent_id.to_string_with_prefix(),
-        entry_count: snapshot.entries.len(),
+        entry_count: entries.len(),
         transcript_tool_count,
         operation_count: projection.operations.len(),
         unresolved_count: unresolved_rows.len(),
@@ -79,97 +102,46 @@ pub async fn audit_restored_tool_links_cli(
     source_path: Option<String>,
 ) -> Result<RestoredToolLinkAudit, String> {
     let canonical_agent = CanonicalAgentId::parse(&agent_id);
-    let snapshot = load_thread_snapshot_for_audit_cli(
-        &session_id,
-        &project_path,
-        &canonical_agent,
-        source_path,
-    )
-    .await?;
+    let materialized =
+        load_materialized_for_audit_cli(&session_id, &project_path, &canonical_agent, source_path)
+            .await?;
 
-    let Some(snapshot) = snapshot else {
+    let Some(materialized) = materialized else {
         return Err(format!(
             "No restored session snapshot found for {session_id}"
         ));
     };
 
-    Ok(audit_restored_tool_links_from_snapshot(
+    Ok(audit_restored_tool_links_from_materialized(
         &session_id,
         &canonical_agent,
-        &snapshot,
+        &materialized,
     ))
 }
 
-async fn load_thread_snapshot_for_audit_cli(
+async fn load_materialized_for_audit_cli(
     session_id: &str,
     project_path: &str,
     canonical_agent: &CanonicalAgentId,
     source_path: Option<String>,
-) -> Result<Option<SessionThreadSnapshot>, String> {
+) -> Result<Option<MaterializedThreadSnapshot>, String> {
     match canonical_agent {
-        CanonicalAgentId::ClaudeCode => {
-            let session_path = session_jsonl_parser::find_session_file(session_id, project_path)
-                .await
-                .map_err(|e| format!("Failed to find Claude session file: {}", e))?;
-            Ok(Some(
-                super::fold_audit::claude_thread_snapshot_from_jsonl_path(
-                    session_id,
-                    project_path,
-                    std::path::PathBuf::from(session_path),
-                )?,
-            ))
-        }
-        CanonicalAgentId::Copilot => crate::copilot_history::load_thread_snapshot_from_disk(
-            session_id,
-            source_path.as_deref(),
-            &format!("Session {}", &session_id[..8.min(session_id.len())]),
-        )
-        .await
-        .map(Some)
-        .map_err(|e| format!("Failed to parse Copilot session: {}", e)),
-        CanonicalAgentId::Cursor => load_cursor_thread_snapshot_for_audit(session_id, source_path)
-            .await
-            .map_err(|e| format!("Failed to parse Cursor session: {}", e)),
-        CanonicalAgentId::OpenCode => {
-            opencode_parser::load_thread_snapshot_from_disk(session_id, source_path.as_deref())
-                .await
-                .map_err(|e| format!("Failed to parse OpenCode session: {}", e))
-        }
-        CanonicalAgentId::Codex => {
-            codex_parser::load_thread_snapshot(session_id, project_path, source_path.as_deref())
-                .await
-                .map_err(|e| format!("Failed to parse Codex session: {}", e))
-        }
         CanonicalAgentId::Forge => Err("Forge audit is not implemented yet".to_string()),
         CanonicalAgentId::Custom(_) => {
             Err("Custom agents do not support restored tool link audit".to_string())
         }
+        _ => materialized_from_history(
+            canonical_agent,
+            session_id,
+            project_path,
+            source_path.as_deref(),
+        ),
     }
-}
-
-async fn load_cursor_thread_snapshot_for_audit(
-    session_id: &str,
-    source_path: Option<String>,
-) -> Result<Option<SessionThreadSnapshot>, anyhow::Error> {
-    if let Some(source_path) = source_path {
-        if let Ok(Some(full_session)) =
-            cursor_parser::load_session_from_source(session_id, &source_path).await
-        {
-            return Ok(Some(
-                super::fold_audit::cursor_thread_snapshot_from_full_session(&full_session),
-            ));
-        }
-    }
-
-    let full_session = cursor_parser::find_session_by_id(session_id).await?;
-    Ok(full_session
-        .map(|session| super::fold_audit::cursor_thread_snapshot_from_full_session(&session)))
 }
 
 #[cfg(test)]
 mod tests {
-    use super::audit_restored_tool_links_from_snapshot;
-    use crate::acp::session_thread_snapshot::SessionThreadSnapshot;
+    use super::audit_restored_tool_links_from_stored_entries;
     use crate::acp::session_update::{ToolArguments, ToolCallData, ToolCallStatus, ToolKind};
     use crate::acp::types::CanonicalAgentId;
     use crate::session_jsonl::types::StoredEntry;
@@ -208,21 +180,16 @@ mod tests {
 
     #[test]
     fn restored_tool_link_audit_reports_projected_tool_rows() {
-        let snapshot = SessionThreadSnapshot {
-            entries: vec![make_tool_call_entry(
-                "tool-1",
-                ToolKind::Read,
-                ToolCallStatus::Completed,
-            )],
-            title: "Audit me".to_string(),
-            created_at: "2026-04-06T00:00:00Z".to_string(),
-            current_mode_id: None,
-        };
+        let entries = vec![make_tool_call_entry(
+            "tool-1",
+            ToolKind::Read,
+            ToolCallStatus::Completed,
+        )];
 
-        let audit = audit_restored_tool_links_from_snapshot(
+        let audit = audit_restored_tool_links_from_stored_entries(
             "session-1",
             &CanonicalAgentId::ClaudeCode,
-            &snapshot,
+            &entries,
         );
 
         assert_eq!(audit.entry_count, 1);
@@ -233,7 +200,7 @@ mod tests {
 
     #[test]
     fn restored_tool_link_audit_handles_large_restored_sessions() {
-        let entries = (0..12_000)
+        let entries: Vec<StoredEntry> = (0..12_000)
             .map(|index| {
                 make_tool_call_entry(
                     &format!("tool-{index}"),
@@ -242,17 +209,11 @@ mod tests {
                 )
             })
             .collect();
-        let snapshot = SessionThreadSnapshot {
-            entries,
-            title: "Large audit".to_string(),
-            created_at: "2026-04-06T00:00:00Z".to_string(),
-            current_mode_id: None,
-        };
 
-        let audit = audit_restored_tool_links_from_snapshot(
+        let audit = audit_restored_tool_links_from_stored_entries(
             "session-1",
             &CanonicalAgentId::ClaudeCode,
-            &snapshot,
+            &entries,
         );
 
         assert_eq!(audit.transcript_tool_count, 12_000);

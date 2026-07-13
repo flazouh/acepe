@@ -37,6 +37,7 @@ pub(super) fn stamp_session_update_event(
         priority,
         droppable,
         created_at,
+        ingress_fold_event,
     } = event;
     let payload = match payload {
         AcpUiEventPayload::SessionUpdate(update) => AcpUiEventPayload::SessionUpdate(Box::new(
@@ -51,5 +52,6 @@ pub(super) fn stamp_session_update_event(
         priority,
         droppable,
         created_at,
+        ingress_fold_event,
     }
 }

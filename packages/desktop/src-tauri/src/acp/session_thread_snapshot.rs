@@ -1,3 +1,9 @@
+//! Phase 4 compat-only snapshot envelope (`StoredEntry` rows + metadata).
+//!
+//! Production truth is `SessionStateGraph` via fold; this type remains for provider-owned
+//! export boundaries, session list/index commands, and legacy open/reconnect hydration.
+//! Delete only after all callers consume fold materialization directly.
+
 use crate::acp::session_update::ToolCallUpdateData;
 use crate::acp::transcript_projection::CanonicalTranscriptEvent;
 use crate::session_jsonl::types::StoredEntry;
@@ -16,10 +22,9 @@ pub struct SessionThreadSnapshot {
 impl SessionThreadSnapshot {
     #[must_use]
     pub fn empty(session_id: &str) -> Self {
-        let short_id = session_id.chars().take(8).collect::<String>();
         Self {
             entries: vec![],
-            title: format!("Session {short_id}"),
+            title: crate::acp::session::fold_export::default_session_title(session_id),
             created_at: chrono::Utc::now().to_rfc3339(),
             current_mode_id: None,
         }

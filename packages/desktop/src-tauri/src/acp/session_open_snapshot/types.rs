@@ -104,6 +104,9 @@ pub struct SessionOpenResultTiming {
 pub enum SessionOpenPath {
     HotLedger,
     LegacyRebuild,
+    /// Fold-first history open (`HistorySource` → `fold_full`); no compat snapshot round-trip.
+    FoldHistory,
+    /// Local-journal or legacy snapshot hydration (not fold-first history open).
     CompatSnapshot,
 }
 

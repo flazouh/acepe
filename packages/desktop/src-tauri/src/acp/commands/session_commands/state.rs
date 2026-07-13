@@ -280,11 +280,11 @@ pub(super) async fn load_transcript_snapshot_for_state_lookup_with_app(
                 .await
                 .map_err(SerializableAcpError::from)?
             {
-                let materialized = materialize_provider_owned_thread_snapshot(
+                let materialized = materialized_thread_snapshot_from_provider_fold_first(
                     canonical_session_id,
-                    Some(replay_context.agent_id.clone()),
-                    last_event_seq,
+                    replay_context,
                     &provider_snapshot,
+                    last_event_seq,
                 );
                 return Ok(materialized.transcript_snapshot);
             }
@@ -377,17 +377,13 @@ pub(super) async fn load_session_projection_lookup(
         });
     };
 
-    let materialized_import = materialize_provider_owned_thread_snapshot(
+    let materialized_import = materialized_thread_snapshot_from_provider_fold_first(
         session_id,
-        Some(
-            replay_context
-                .as_ref()
-                .expect("replay context should exist with metadata")
-                .agent_id
-                .clone(),
-        ),
-        0,
+        replay_context
+            .as_ref()
+            .expect("replay context should exist with metadata"),
         &imported_thread_snapshot,
+        0,
     );
     let mut imported_projection = materialized_import.projection;
     imported_projection.runtime = None;

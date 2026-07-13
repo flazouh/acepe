@@ -17,7 +17,7 @@ use crate::acp::provider::{
 };
 use crate::acp::runtime_resolver::SpawnEnvStrategy;
 use crate::acp::session_descriptor::SessionReplayContext;
-use crate::acp::session_thread_snapshot::{ProviderOwnedSessionSnapshot, SessionThreadSnapshot};
+use crate::acp::session_thread_snapshot::ProviderOwnedSessionSnapshot;
 use crate::acp::session_update::AvailableCommand;
 use crate::acp::task_reconciler::TaskReconciliationPolicy;
 use crate::history::session_context::SessionContext;
@@ -219,21 +219,28 @@ impl AgentProvider for ClaudeCodeProvider {
     > {
         Box::pin(async move {
             use crate::acp::session::delivery::{
-                history_error_to_provider_error, load_provider_owned_snapshot_from_history,
+                history_error_to_provider_error, load_fold_graph_from_history,
+            };
+            use crate::acp::session::fold_export::{
+                default_session_title, provider_owned_snapshot_from_folded_graph,
             };
             use crate::acp::types::CanonicalAgentId;
 
             let session_id = &context.local_session_id;
-            let title = SessionThreadSnapshot::empty(&context.history_session_id).title;
+            let title = default_session_title(&context.history_session_id);
 
             let try_load = |project_path: &str| {
-                load_provider_owned_snapshot_from_history(
+                load_fold_graph_from_history(
                     &CanonicalAgentId::ClaudeCode,
                     &context.history_session_id,
                     project_path,
                     context.source_path.as_deref(),
-                    title.clone(),
                 )
+                .map(|graph| {
+                    graph.map(|graph| {
+                        provider_owned_snapshot_from_folded_graph(graph, title.clone())
+                    })
+                })
             };
 
             match try_load(&context.effective_project_path) {

@@ -1,14 +1,16 @@
 //! OpenCode history ingress — local storage messages → ordered `ProviderEvent` stream.
 
+mod disk;
+
 use std::path::PathBuf;
 
-use crate::acp::parsers::AgentType;
-use crate::acp::session::ingress::canonical_events::canonical_transcript_events_to_provider_events;
 use crate::acp::session::ingress::event::ProviderEvent;
 use crate::acp::session::ingress::source::{HistoryError, HistoryInput, HistorySource};
 use crate::acp::session_descriptor::SessionReplayContext;
 use crate::acp::types::CanonicalAgentId;
-use crate::opencode_history::parser::load_provider_owned_snapshot_from_disk;
+pub use crate::opencode_history::convert::opencode_messages_to_provider_events;
+
+use disk::load_opencode_messages_from_disk;
 
 /// Reads OpenCode local storage history into provider-agnostic ingress events.
 pub struct OpenCodeHistorySource;
@@ -16,7 +18,7 @@ pub struct OpenCodeHistorySource;
 impl HistorySource for OpenCodeHistorySource {
     fn read(&self, input: HistoryInput) -> Result<Vec<ProviderEvent>, HistoryError> {
         let source_path = resolve_source_path(&input)?;
-        let snapshot = block_on_async(load_provider_owned_snapshot_from_disk(
+        let messages = block_on_async(load_opencode_messages_from_disk(
             &input.session_id,
             source_path.as_deref(),
         ))
@@ -28,11 +30,7 @@ impl HistorySource for OpenCodeHistorySource {
             ))
         })?;
 
-        Ok(canonical_transcript_events_to_provider_events(
-            &snapshot.canonical_transcript_events,
-            CanonicalAgentId::OpenCode,
-            AgentType::OpenCode,
-        ))
+        Ok(opencode_messages_to_provider_events(&messages))
     }
 }
 
@@ -81,7 +79,6 @@ pub async fn load_replay_events(
 mod tests {
     use super::*;
     use crate::acp::session::ingress::event::ProviderEventKind;
-    use crate::opencode_history::convert::convert_opencode_messages_to_provider_owned_snapshot;
     use crate::opencode_history::types::{OpenCodeMessage, OpenCodeMessagePart};
 
     #[test]
@@ -107,19 +104,13 @@ mod tests {
             },
         ];
 
-        let snapshot = convert_opencode_messages_to_provider_owned_snapshot(messages)
-            .expect("convert opencode messages");
-        let events = canonical_transcript_events_to_provider_events(
-            &snapshot.canonical_transcript_events,
-            CanonicalAgentId::OpenCode,
-            AgentType::OpenCode,
-        );
+        let events = opencode_messages_to_provider_events(&messages);
 
         assert_eq!(events.len(), 2);
         assert_eq!(events[0].source, CanonicalAgentId::OpenCode);
         assert!(matches!(
             &events[0].kind,
-            ProviderEventKind::UserText { text } if text == "Hello OpenCode"
+            ProviderEventKind::UserText { text, .. } if text == "Hello OpenCode"
         ));
         assert!(matches!(
             &events[1].kind,

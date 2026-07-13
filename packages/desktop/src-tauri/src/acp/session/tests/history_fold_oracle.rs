@@ -10,6 +10,7 @@ use crate::acp::session::ingress::providers::cursor::CursorHistorySource;
 use crate::acp::session::ingress::source::{HistoryInput, HistorySource};
 use crate::acp::session::tests::golden::{load_persisted_golden, GOLDEN_CURSOR_JUNK_NAME};
 use crate::acp::session::tests::tool_call_golden::GOLDEN_HISTORICAL_TOOL_CALL_NAME;
+use crate::acp::session_open_snapshot::SessionOpenPath;
 use crate::acp::types::CanonicalAgentId;
 use std::path::PathBuf;
 
@@ -78,6 +79,11 @@ fn cursor_history_source_open_from_fold_matches_phase0_golden() {
         found.operations.len(),
         golden.operations.len(),
         "HistorySource + open_from_fold operation count must match Phase 0 golden"
+    );
+    assert_eq!(
+        found.open_path,
+        SessionOpenPath::FoldHistory,
+        "fold-first open_from_fold must report FoldHistory open path"
     );
 }
 

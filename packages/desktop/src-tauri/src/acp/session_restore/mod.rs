@@ -21,5 +21,7 @@ pub use timing_audit::{
     audit_session_load_timing_cli, audit_session_load_timing_with_app, SessionLoadTiming,
     TimingStage,
 };
-pub use tool_link_audit::{audit_restored_tool_links_cli, audit_restored_tool_links_from_snapshot};
+pub use tool_link_audit::{
+    audit_restored_tool_links_cli, audit_restored_tool_links_from_stored_entries,
+};
 pub use types::{RestoredToolLinkAudit, UnresolvedToolRowAudit};

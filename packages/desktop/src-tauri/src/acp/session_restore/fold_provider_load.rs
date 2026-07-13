@@ -18,7 +18,8 @@ pub async fn load_provider_history_events(
         CanonicalAgentId::Cursor
         | CanonicalAgentId::ClaudeCode
         | CanonicalAgentId::OpenCode
-        | CanonicalAgentId::Copilot => load_history_events_for_replay(app, replay_context)
+        | CanonicalAgentId::Copilot
+        | CanonicalAgentId::Codex => load_history_events_for_replay(app, replay_context)
             .await
             .map(Some),
         _ => Ok(None),

@@ -21,7 +21,7 @@ use crate::acp::providers::cursor::{
 };
 use crate::acp::runtime_resolver::SpawnEnvStrategy;
 use crate::acp::session_descriptor::SessionReplayContext;
-use crate::acp::session_thread_snapshot::{ProviderOwnedSessionSnapshot, SessionThreadSnapshot};
+use crate::acp::session_thread_snapshot::ProviderOwnedSessionSnapshot;
 use crate::acp::session_update::AvailableCommand;
 use crate::acp::session_update::{SessionUpdate, ToolArguments, ToolKind};
 use crate::acp::task_reconciler::TaskReconciliationPolicy;
@@ -324,23 +324,30 @@ impl AgentProvider for CursorProvider {
     > {
         Box::pin(async move {
             use crate::acp::session::delivery::{
-                history_error_to_provider_error, load_provider_owned_snapshot_from_history,
+                history_error_to_provider_error, load_fold_graph_from_history,
+            };
+            use crate::acp::session::fold_export::{
+                default_session_title, provider_owned_snapshot_from_folded_graph,
             };
             use crate::acp::session::ingress::source::HistoryError;
             use crate::acp::types::CanonicalAgentId;
 
             let session_id = &context.local_session_id;
             let lookup_session_id = &context.history_session_id;
-            let title = SessionThreadSnapshot::empty(lookup_session_id).title;
+            let title = default_session_title(lookup_session_id);
 
             let try_load = |project_path: &str, source_path: Option<&str>| {
-                load_provider_owned_snapshot_from_history(
+                load_fold_graph_from_history(
                     &CanonicalAgentId::Cursor,
                     lookup_session_id,
                     project_path,
                     source_path,
-                    title.clone(),
                 )
+                .map(|graph| {
+                    graph.map(|graph| {
+                        provider_owned_snapshot_from_folded_graph(graph, title.clone())
+                    })
+                })
             };
 
             if let Some(source_path) = context.source_path.as_deref() {

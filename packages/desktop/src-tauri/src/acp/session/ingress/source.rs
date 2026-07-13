@@ -6,6 +6,10 @@ use std::path::PathBuf;
 use serde_json::Value;
 
 use crate::acp::parsers::ParseError;
+use crate::acp::projections::RouteDecision;
+use crate::acp::session::ingress::live_session_update::session_update_to_provider_event;
+use crate::acp::session_update::SessionUpdate;
+use crate::acp::types::CanonicalAgentId;
 
 use super::event::ProviderEvent;
 
@@ -38,8 +42,20 @@ impl fmt::Display for HistoryError {
 impl std::error::Error for HistoryError {}
 
 /// Normalizes live ACP JSON into ordered provider events.
-pub trait LiveSource {
+pub trait LiveSource: Sync {
+    fn agent_id(&self) -> CanonicalAgentId;
+
     fn normalize(&self, raw: &Value) -> Result<Vec<ProviderEvent>, ParseError>;
+
+    /// Map one parsed live update through the shared ingress mapper (terminal-turn aware).
+    fn normalize_update(
+        &self,
+        event_seq: i64,
+        update: &SessionUpdate,
+        decision: RouteDecision,
+    ) -> Option<ProviderEvent> {
+        session_update_to_provider_event(self.agent_id(), event_seq, update, decision)
+    }
 }
 
 /// Reads provider history from disk into ordered provider events.

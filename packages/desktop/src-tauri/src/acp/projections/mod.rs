@@ -1,7 +1,7 @@
 //! Session and interaction projection snapshots for the hub (operations, permissions, questions).
 //!
 //! Tool-call **argument** semantics and payload shaping for the desktop wire contract live in
-//! [`crate::acp::reconciler::projector`]. This module tracks operational state derived from
+//! [`crate::acp::tool_identity`]. This module tracks operational state derived from
 //! already-projected [`ToolCallData`] / updates — it does not re-classify tools.
 
 use crate::acp::parsers::acp_fields::normalize_tool_call_id;

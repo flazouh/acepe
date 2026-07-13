@@ -1,6 +1,7 @@
 //! History open delivery: fold output → `SessionOpenFound` (Phase 2 test seam).
 
-use crate::acp::session::engine::fold::{fold_full, FoldContext};
+use crate::acp::session::engine::fold::FoldContext;
+use crate::acp::session::fold_export::fold_graph_from_history_events;
 use crate::acp::session::ingress::event::ProviderEvent;
 use crate::acp::session_open_snapshot::{
     derive_title_from_transcript_snapshot, resolve_canonical_session_title, SessionOpenFound,
@@ -14,7 +15,7 @@ use crate::acp::session_state_engine::selectors::{
 /// Fold a full ordered history event stream into a session graph.
 #[must_use]
 pub fn graph_from_history_events(events: &[ProviderEvent], ctx: &FoldContext) -> SessionStateGraph {
-    fold_full(events, ctx)
+    fold_graph_from_history_events(&ctx.session_id, &ctx.agent_id, &ctx.project_path, events)
 }
 
 /// Map a folded session graph into the session-open `found` payload.
@@ -64,7 +65,7 @@ pub fn session_open_found_from_fold(
         active_streaming_tail,
         lifecycle,
         capabilities,
-        open_path: SessionOpenPath::CompatSnapshot,
+        open_path: SessionOpenPath::FoldHistory,
         initial_transcript_row_page: None,
         initial_viewport_envelope: None,
         open_result_timing: None,

@@ -1,13 +1,18 @@
 //! Claude Code history ingress — NDJSON session updates → ordered `ProviderEvent` stream.
 
+mod discovery;
+mod jsonl;
+pub mod session_jsonl;
+
 use std::path::PathBuf;
 
 use crate::acp::session::ingress::event::ProviderEvent;
-use crate::acp::session::ingress::jsonl::{parse_jsonl_file, session_updates_to_provider_events};
 use crate::acp::session::ingress::source::{HistoryError, HistoryInput, HistorySource};
 use crate::acp::session_descriptor::SessionReplayContext;
 use crate::acp::types::CanonicalAgentId;
-use crate::session_jsonl::parser::find_session_file;
+
+use discovery::find_session_file;
+use jsonl::{parse_jsonl_file, session_updates_to_provider_events};
 
 /// Reads Claude Code NDJSON history into provider-agnostic ingress events.
 pub struct ClaudeHistorySource;

@@ -126,6 +126,7 @@ pub async fn get_session_open_result_domain(
             | CanonicalAgentId::ClaudeCode
             | CanonicalAgentId::OpenCode
             | CanonicalAgentId::Copilot
+            | CanonicalAgentId::Codex
     ) {
         let provider_load_started_at = Instant::now();
         match super::fold_provider_load::load_provider_history_events(app.clone(), &replay_context)
@@ -159,7 +160,7 @@ pub async fn get_session_open_result_domain(
                         result,
                         SessionOpenResultTiming {
                             source: "fold-history".to_string(),
-                            open_path: SessionOpenPath::CompatSnapshot,
+                            open_path: SessionOpenPath::FoldHistory,
                             ledger_probe_status: ledger_probe_status.clone(),
                             context_ms,
                             provider_load_ms,

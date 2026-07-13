@@ -1,10 +1,9 @@
 use std::time::Instant;
 
+use crate::acp::session::fold_export::MaterializedThreadSnapshot;
 use crate::acp::types::CanonicalAgentId;
-use crate::codex_history::parser as codex_parser;
 use crate::cursor_history::parser as cursor_parser;
-use crate::opencode_history::commands::fetch_opencode_session;
-use crate::opencode_history::parser as opencode_parser;
+use crate::opencode_history::commands::fetch_materialized_opencode_session;
 use crate::session_jsonl::parser as session_jsonl_parser;
 use serde::{Deserialize, Serialize};
 use tauri::AppHandle;
@@ -31,6 +30,19 @@ fn add_stage(stages: &mut Vec<TimingStage>, name: &str, start: Instant) {
         name: name.to_string(),
         ms: start.elapsed().as_millis(),
     });
+}
+
+fn fold_first_materialized(
+    agent_id: &CanonicalAgentId,
+    session_id: &str,
+    project_path: &str,
+    source_path: Option<&str>,
+) -> Result<Option<MaterializedThreadSnapshot>, String> {
+    super::fold_audit::materialized_from_history(agent_id, session_id, project_path, source_path)
+}
+
+fn materialized_entry_count(materialized: &MaterializedThreadSnapshot) -> usize {
+    materialized.transcript_snapshot.entries.len()
 }
 
 /// Audit session load timing for performance bottleneck identification.
@@ -66,7 +78,7 @@ pub async fn audit_session_load_timing_cli(
             add_stage(&mut stages, "find_session_file", t0);
 
             let t1 = Instant::now();
-            let snapshot = super::fold_audit::claude_thread_snapshot_from_jsonl_path(
+            let snapshot = super::fold_audit::claude_materialized_from_jsonl_path(
                 &session_id,
                 &project_path,
                 std::path::PathBuf::from(session_path),
@@ -78,15 +90,15 @@ pub async fn audit_session_load_timing_cli(
         }
         CanonicalAgentId::Copilot => {
             let t0 = Instant::now();
-            let snapshot = crate::copilot_history::load_thread_snapshot_from_disk(
+            let snapshot = fold_first_materialized(
+                &canonical_agent,
                 &session_id,
+                &project_path,
                 source_path.as_deref(),
-                &format!("Session {}", &session_id[..8.min(session_id.len())]),
             )
-            .await
-            .map_err(|e| format!("Failed to parse Copilot session: {}", e))?;
+            .map_err(|e| format!("Failed to fold Copilot session history: {}", e))?;
             add_stage(&mut stages, "load_session", t0);
-            Some(snapshot)
+            snapshot
         }
         CanonicalAgentId::Cursor => {
             if let Some(ref sp) = source_path {
@@ -96,7 +108,7 @@ pub async fn audit_session_load_timing_cli(
                         add_stage(&mut stages, "load_from_source", t0);
                         let t1 = Instant::now();
                         let snapshot =
-                            super::fold_audit::cursor_thread_snapshot_from_full_session(&fs);
+                            super::fold_audit::cursor_materialized_from_full_session(&fs);
                         add_stage(&mut stages, "fold", t1);
                         Some(snapshot)
                     }
@@ -110,9 +122,8 @@ pub async fn audit_session_load_timing_cli(
                         match full_session {
                             Some(fs) => {
                                 let t2 = Instant::now();
-                                let s = super::fold_audit::cursor_thread_snapshot_from_full_session(
-                                    &fs,
-                                );
+                                let s =
+                                    super::fold_audit::cursor_materialized_from_full_session(&fs);
                                 add_stage(&mut stages, "fold", t2);
                                 Some(s)
                             }
@@ -129,7 +140,7 @@ pub async fn audit_session_load_timing_cli(
                 match full_session {
                     Some(fs) => {
                         let t1 = Instant::now();
-                        let s = super::fold_audit::cursor_thread_snapshot_from_full_session(&fs);
+                        let s = super::fold_audit::cursor_materialized_from_full_session(&fs);
                         add_stage(&mut stages, "fold", t1);
                         Some(s)
                     }
@@ -139,15 +150,15 @@ pub async fn audit_session_load_timing_cli(
         }
         CanonicalAgentId::Codex => {
             let t0 = Instant::now();
-            let codex_result = codex_parser::load_thread_snapshot(
+            let snapshot = fold_first_materialized(
+                &canonical_agent,
                 &session_id,
                 &project_path,
                 source_path.as_deref(),
             )
-            .await
-            .map_err(|e| format!("Failed to parse Codex session: {}", e))?;
+            .map_err(|e| format!("Failed to fold Codex session history: {}", e))?;
             add_stage(&mut stages, "load_session", t0);
-            codex_result
+            snapshot
         }
         CanonicalAgentId::OpenCode | CanonicalAgentId::Forge | CanonicalAgentId::Custom(_) => {
             unreachable!("handled above")
@@ -165,7 +176,7 @@ pub async fn audit_session_load_timing_cli(
     };
 
     let total_ms = total_start.elapsed().as_millis();
-    let entry_count = result.as_ref().map(|s| s.entries.len()).unwrap_or(0);
+    let entry_count = result.as_ref().map(materialized_entry_count).unwrap_or(0);
 
     Ok(SessionLoadTiming {
         agent: agent_name.to_string(),
@@ -202,7 +213,7 @@ pub async fn audit_session_load_timing_with_app(
             add_stage(&mut stages, "find_session_file", t0);
 
             let t1 = Instant::now();
-            let snapshot = super::fold_audit::claude_thread_snapshot_from_jsonl_path(
+            let snapshot = super::fold_audit::claude_materialized_from_jsonl_path(
                 &session_id,
                 &project_path,
                 std::path::PathBuf::from(session_path),
@@ -214,15 +225,15 @@ pub async fn audit_session_load_timing_with_app(
         }
         CanonicalAgentId::Copilot => {
             let t0 = Instant::now();
-            let snapshot = crate::copilot_history::load_thread_snapshot_from_disk(
+            let snapshot = fold_first_materialized(
+                &canonical_agent,
                 &session_id,
+                &project_path,
                 source_path.as_deref(),
-                &format!("Session {}", &session_id[..8.min(session_id.len())]),
             )
-            .await
-            .map_err(|e| format!("Failed to parse Copilot session: {}", e))?;
+            .map_err(|e| format!("Failed to fold Copilot session history: {}", e))?;
             add_stage(&mut stages, "load_session", t0);
-            (Some(snapshot), "copilot".to_string())
+            (snapshot, "copilot".to_string())
         }
         CanonicalAgentId::Cursor => {
             if let Some(ref sp) = source_path {
@@ -232,7 +243,7 @@ pub async fn audit_session_load_timing_with_app(
                         add_stage(&mut stages, "load_from_source", t0);
                         let t1 = Instant::now();
                         let snapshot =
-                            super::fold_audit::cursor_thread_snapshot_from_full_session(&fs);
+                            super::fold_audit::cursor_materialized_from_full_session(&fs);
                         add_stage(&mut stages, "fold", t1);
                         (Some(snapshot), "cursor".to_string())
                     }
@@ -246,9 +257,8 @@ pub async fn audit_session_load_timing_with_app(
                         let snapshot = match full_session {
                             Some(fs) => {
                                 let t2 = Instant::now();
-                                let s = super::fold_audit::cursor_thread_snapshot_from_full_session(
-                                    &fs,
-                                );
+                                let s =
+                                    super::fold_audit::cursor_materialized_from_full_session(&fs);
                                 add_stage(&mut stages, "fold", t2);
                                 Some(s)
                             }
@@ -266,7 +276,7 @@ pub async fn audit_session_load_timing_with_app(
                 let snapshot = match full_session {
                     Some(fs) => {
                         let t1 = Instant::now();
-                        let s = super::fold_audit::cursor_thread_snapshot_from_full_session(&fs);
+                        let s = super::fold_audit::cursor_materialized_from_full_session(&fs);
                         add_stage(&mut stages, "fold", t1);
                         Some(s)
                     }
@@ -277,18 +287,23 @@ pub async fn audit_session_load_timing_with_app(
         }
         CanonicalAgentId::OpenCode => {
             let t0 = Instant::now();
-            let disk_result =
-                opencode_parser::load_session_from_disk(&session_id, source_path.as_deref()).await;
+            let snapshot = fold_first_materialized(
+                &canonical_agent,
+                &session_id,
+                &project_path,
+                source_path.as_deref(),
+            )
+            .map_err(|e| format!("Failed to fold OpenCode session history: {}", e))?;
             add_stage(&mut stages, "load_from_disk", t0);
 
-            if let Ok(Some(snapshot)) = disk_result {
+            if let Some(snapshot) = snapshot {
                 (Some(snapshot), "opencode".to_string())
             } else {
                 let t1 = Instant::now();
-                match fetch_opencode_session(&app, &session_id, &project_path).await {
-                    Ok(snapshot) => {
+                match fetch_materialized_opencode_session(&app, &session_id, &project_path).await {
+                    Ok(materialized) => {
                         add_stage(&mut stages, "http_fetch", t1);
-                        (Some(snapshot), "opencode".to_string())
+                        (Some(materialized), "opencode".to_string())
                     }
                     Err(e) => {
                         add_stage(&mut stages, "http_failed", t1);
@@ -299,15 +314,15 @@ pub async fn audit_session_load_timing_with_app(
         }
         CanonicalAgentId::Codex => {
             let t0 = Instant::now();
-            let codex_result = codex_parser::load_thread_snapshot(
+            let snapshot = fold_first_materialized(
+                &canonical_agent,
                 &session_id,
                 &project_path,
                 source_path.as_deref(),
             )
-            .await
-            .map_err(|e| format!("Failed to parse Codex session: {}", e))?;
+            .map_err(|e| format!("Failed to fold Codex session history: {}", e))?;
             add_stage(&mut stages, "load_session", t0);
-            (codex_result, "codex".to_string())
+            (snapshot, "codex".to_string())
         }
         CanonicalAgentId::Custom(_) => {
             return Err("Custom agents do not support session load audit".to_string());
@@ -316,7 +331,7 @@ pub async fn audit_session_load_timing_with_app(
     };
 
     let total_ms = total_start.elapsed().as_millis();
-    let entry_count = result.as_ref().map(|c| c.entries.len()).unwrap_or(0);
+    let entry_count = result.as_ref().map(materialized_entry_count).unwrap_or(0);
 
     Ok(SessionLoadTiming {
         agent: agent_name,

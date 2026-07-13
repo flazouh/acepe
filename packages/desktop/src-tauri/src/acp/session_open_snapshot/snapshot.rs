@@ -4,10 +4,11 @@ use crate::acp::projections::{
     is_terminal_operation_state, InteractionState, ProjectionRegistry, SessionProjectionSnapshot,
     SessionSnapshot, SessionTurnState,
 };
-use crate::acp::session_descriptor::SessionReplayContext;
-use crate::acp::session_materialization::{
-    materialize_provider_owned_thread_snapshot, relink_operations_to_transcript,
+use crate::acp::session::fold_export::{
+    materialized_thread_snapshot_from_provider_fold_first,
+    materialized_thread_snapshot_from_thread_snapshot_fold_first, MaterializedThreadSnapshot,
 };
+use crate::acp::session_descriptor::SessionReplayContext;
 use crate::acp::session_state_engine::graph::select_active_streaming_tail;
 use crate::acp::session_state_engine::protocol::ViewportBufferPush;
 use crate::acp::session_state_engine::runtime_registry::SessionGraphRuntimeRegistry;
@@ -18,6 +19,7 @@ use crate::acp::session_state_engine::{
     SessionGraphRevision, SessionStateEnvelope, SessionStatePayload,
 };
 use crate::acp::session_thread_snapshot::{ProviderOwnedSessionSnapshot, SessionThreadSnapshot};
+use crate::acp::transcript_projection::relink_operations_to_transcript;
 use crate::acp::transcript_projection::{
     assistant_boundary_entry_count_from_transcript_entries, TranscriptEntryRole,
     TranscriptProjectionRegistry, TranscriptSegment, TranscriptSnapshot,
@@ -848,29 +850,7 @@ pub async fn session_open_result_from_thread_snapshot(
     requested_session_id: &str,
     snapshot: &SessionThreadSnapshot,
 ) -> SessionOpenResult {
-    let provider_snapshot = ProviderOwnedSessionSnapshot::from_thread_snapshot(snapshot.clone());
-    session_open_result_from_provider_owned_snapshot(
-        db,
-        hub,
-        runtime_registry,
-        replay_context,
-        requested_session_id,
-        &provider_snapshot,
-    )
-    .await
-}
-
-pub async fn session_open_result_from_provider_owned_snapshot(
-    db: &DbConn,
-    hub: &Arc<AcpEventHubState>,
-    runtime_registry: Option<&SessionGraphRuntimeRegistry>,
-    replay_context: &SessionReplayContext,
-    requested_session_id: &str,
-    snapshot: &ProviderOwnedSessionSnapshot,
-) -> SessionOpenResult {
-    let total_started_at = Instant::now();
     let canonical_session_id = &replay_context.local_session_id;
-    let is_alias = requested_session_id != canonical_session_id;
     let journal_cutoff_started_at = Instant::now();
     let last_event_seq =
         match SessionJournalEventRepository::max_event_seq(db, canonical_session_id).await {
@@ -884,6 +864,92 @@ pub async fn session_open_result_from_provider_owned_snapshot(
                 ));
             }
         };
+    let journal_cutoff_ms = elapsed_ms(journal_cutoff_started_at);
+    let materialize_started_at = Instant::now();
+    let materialized = materialized_thread_snapshot_from_thread_snapshot_fold_first(
+        canonical_session_id,
+        replay_context,
+        snapshot,
+        last_event_seq,
+    );
+    let materialize_ms = elapsed_ms(materialize_started_at);
+
+    session_open_result_from_materialized_provider_history(
+        db,
+        hub,
+        runtime_registry,
+        replay_context,
+        requested_session_id,
+        materialized,
+        snapshot.entries.len(),
+        journal_cutoff_ms,
+        materialize_ms,
+    )
+    .await
+}
+
+pub async fn session_open_result_from_provider_owned_snapshot(
+    db: &DbConn,
+    hub: &Arc<AcpEventHubState>,
+    runtime_registry: Option<&SessionGraphRuntimeRegistry>,
+    replay_context: &SessionReplayContext,
+    requested_session_id: &str,
+    snapshot: &ProviderOwnedSessionSnapshot,
+) -> SessionOpenResult {
+    let canonical_session_id = &replay_context.local_session_id;
+    let journal_cutoff_started_at = Instant::now();
+    let last_event_seq =
+        match SessionJournalEventRepository::max_event_seq(db, canonical_session_id).await {
+            Ok(seq) => seq.unwrap_or(0),
+            Err(err) => {
+                return SessionOpenResult::Error(SessionOpenError::internal(
+                    requested_session_id,
+                    format!(
+                    "Failed to determine journal cutoff for session {canonical_session_id}: {err}"
+                ),
+                ));
+            }
+        };
+    let journal_cutoff_ms = elapsed_ms(journal_cutoff_started_at);
+    let materialize_started_at = Instant::now();
+    let materialized = materialized_thread_snapshot_from_provider_fold_first(
+        canonical_session_id,
+        replay_context,
+        snapshot,
+        last_event_seq,
+    );
+    let materialize_ms = elapsed_ms(materialize_started_at);
+    let provider_history_entry_count = materialized.transcript_snapshot.entries.len();
+
+    session_open_result_from_materialized_provider_history(
+        db,
+        hub,
+        runtime_registry,
+        replay_context,
+        requested_session_id,
+        materialized,
+        provider_history_entry_count,
+        journal_cutoff_ms,
+        materialize_ms,
+    )
+    .await
+}
+
+async fn session_open_result_from_materialized_provider_history(
+    db: &DbConn,
+    hub: &Arc<AcpEventHubState>,
+    runtime_registry: Option<&SessionGraphRuntimeRegistry>,
+    replay_context: &SessionReplayContext,
+    requested_session_id: &str,
+    materialized: MaterializedThreadSnapshot,
+    provider_history_entry_count: usize,
+    journal_cutoff_ms: u128,
+    materialize_ms: u128,
+) -> SessionOpenResult {
+    let provider_projection = materialized.projection;
+    let total_started_at = Instant::now();
+    let canonical_session_id = &replay_context.local_session_id;
+    let is_alias = requested_session_id != canonical_session_id;
     let projection_event_seq = match SessionJournalEventRepository::max_row_affecting_event_seq(
         db,
         canonical_session_id,
@@ -893,14 +959,25 @@ pub async fn session_open_result_from_provider_owned_snapshot(
         Ok(seq) => seq.unwrap_or(0),
         Err(err) => {
             return SessionOpenResult::Error(SessionOpenError::internal(
-                    requested_session_id,
-                    format!(
-                        "Failed to determine projection cutoff for session {canonical_session_id}: {err}"
-                    ),
-                ));
+                requested_session_id,
+                format!(
+                    "Failed to determine projection cutoff for session {canonical_session_id}: {err}"
+                ),
+            ));
         }
     };
-    let journal_cutoff_ms = elapsed_ms(journal_cutoff_started_at);
+    let last_event_seq =
+        match SessionJournalEventRepository::max_event_seq(db, canonical_session_id).await {
+            Ok(seq) => seq.unwrap_or(0),
+            Err(err) => {
+                return SessionOpenResult::Error(SessionOpenError::internal(
+                    requested_session_id,
+                    format!(
+                    "Failed to determine journal cutoff for session {canonical_session_id}: {err}"
+                ),
+                ));
+            }
+        };
 
     let open_token = Uuid::new_v4();
     let epoch_ms = chrono::Utc::now().timestamp_millis().max(0) as u64;
@@ -933,16 +1010,6 @@ pub async fn session_open_result_from_provider_owned_snapshot(
         ));
     };
     let metadata_ms = elapsed_ms(metadata_started_at);
-
-    let materialize_started_at = Instant::now();
-    let materialized = materialize_provider_owned_thread_snapshot(
-        canonical_session_id,
-        Some(replay_context.agent_id.clone()),
-        last_event_seq,
-        snapshot,
-    );
-    let materialize_ms = elapsed_ms(materialize_started_at);
-    let provider_projection = materialized.projection;
     let local_journal_started_at = Instant::now();
     let (transcript_snapshot, transcript_from_local_journal, local_projection) =
         match load_local_journal_transcript(db, replay_context, canonical_session_id).await {
@@ -981,7 +1048,11 @@ pub async fn session_open_result_from_provider_owned_snapshot(
         provider_projection
     };
     let session_snap = projection.session.as_ref();
-    let operations = relink_operations_to_transcript(&transcript_snapshot, projection.operations);
+    let operations = if transcript_from_local_journal {
+        relink_operations_to_transcript(&transcript_snapshot, projection.operations)
+    } else {
+        projection.operations
+    };
     let interactions = projection.interactions;
     let projected_graph_revision = session_snap
         .map(|session| session.last_event_seq)
@@ -1010,7 +1081,7 @@ pub async fn session_open_result_from_provider_owned_snapshot(
     } else if raw_turn_state == SessionTurnState::Failed {
         raw_turn_state
     } else if had_historical_active_state {
-        if snapshot.thread_snapshot.entries.is_empty() {
+        if provider_history_entry_count == 0 {
             SessionTurnState::Idle
         } else {
             SessionTurnState::Completed
@@ -1115,7 +1186,7 @@ pub async fn session_open_result_from_provider_owned_snapshot(
         active_streaming_tail,
         lifecycle,
         capabilities,
-        open_path: SessionOpenPath::CompatSnapshot,
+        open_path: SessionOpenPath::FoldHistory,
         initial_transcript_row_page: None,
         initial_viewport_envelope: None,
         open_result_timing: None,

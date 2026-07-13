@@ -155,27 +155,34 @@ impl AgentProvider for CodexProvider {
         >,
     > {
         Box::pin(async move {
-            let session_id = &context.local_session_id;
+            use crate::acp::session::delivery::{
+                history_error_to_provider_error, load_fold_graph_from_history,
+            };
+            use crate::acp::session::fold_export::{
+                default_session_title, provider_owned_snapshot_from_folded_graph,
+            };
+            use crate::acp::types::CanonicalAgentId;
 
-            match crate::codex_history::parser::load_thread_snapshot(
-                &context.history_session_id,
+            let session_id = &context.local_session_id;
+            let lookup_session_id = &context.history_session_id;
+            let title = default_session_title(lookup_session_id);
+
+            match load_fold_graph_from_history(
+                &CanonicalAgentId::Codex,
+                lookup_session_id,
                 &context.effective_project_path,
                 context.source_path.as_deref(),
             )
-            .await
+            .map(|graph| graph.map(|graph| provider_owned_snapshot_from_folded_graph(graph, title)))
             {
-                Ok(session) => Ok(session.map(ProviderOwnedSessionSnapshot::from_thread_snapshot)),
+                Ok(snapshot) => Ok(snapshot),
                 Err(error) => {
                     tracing::warn!(
                         session_id = %session_id,
                         error = %error,
                         "Codex session parse failed"
                     );
-                    Err(
-                        crate::acp::provider::ProviderHistoryLoadError::provider_unparseable(
-                            format!("Codex provider history load failed: {error}"),
-                        ),
-                    )
+                    Err(history_error_to_provider_error(error))
                 }
             }
         })

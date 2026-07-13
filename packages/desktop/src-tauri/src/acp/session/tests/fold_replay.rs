@@ -1,6 +1,6 @@
 //! Live≡history fold replay invariants.
 
-use crate::acp::session::engine::fold::{fold_full, fold_step, FoldContext};
+use crate::acp::session::engine::fold::{fold_full, fold_step, fold_step_with_dedup, FoldContext};
 use crate::acp::session::engine::fold_lifecycle::apply_historical_close;
 use crate::acp::session::engine::persisted_region::{
     extract_persisted_region, persisted_regions_equal,
@@ -17,6 +17,7 @@ fn sample_events() -> Vec<ProviderEvent> {
             timestamp_ms: None,
             kind: ProviderEventKind::UserText {
                 text: "first user".to_string(),
+                attempt_id: None,
             },
         },
         ProviderEvent {
@@ -35,6 +36,7 @@ fn sample_events() -> Vec<ProviderEvent> {
             timestamp_ms: None,
             kind: ProviderEventKind::UserText {
                 text: "second user".to_string(),
+                attempt_id: None,
             },
         },
     ]
@@ -66,7 +68,6 @@ fn fold_full_equals_sequential_fold_step_replay() {
 }
 
 #[test]
-#[ignore = "fold_step idempotency on duplicate provider_row_id+kind not yet implemented"]
 fn fold_step_idempotent_on_same_provider_row_id_and_kind() {
     let ctx = FoldContext::new("idempotent-test", CanonicalAgentId::Cursor, "/tmp");
     let event = ProviderEvent {
@@ -76,12 +77,14 @@ fn fold_step_idempotent_on_same_provider_row_id_and_kind() {
         timestamp_ms: None,
         kind: ProviderEventKind::UserText {
             text: "hello".to_string(),
+            attempt_id: None,
         },
     };
 
     let empty = fold_full(&[], &ctx);
-    let graph_once = fold_step(&empty, &event).0;
-    let graph_twice = fold_step(&graph_once, &event).0;
+    let mut dedup = Some(std::collections::HashSet::new());
+    let graph_once = fold_step_with_dedup(&empty, &event, &mut dedup).0;
+    let graph_twice = fold_step_with_dedup(&graph_once, &event, &mut dedup).0;
 
     assert!(
         persisted_regions_equal(

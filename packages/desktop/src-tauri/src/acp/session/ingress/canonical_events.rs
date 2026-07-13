@@ -456,9 +456,10 @@ pub(crate) fn canonical_transcript_event_to_provider_event(
     parser_agent: AgentType,
 ) -> ProviderEvent {
     let kind = match &event.kind {
-        CanonicalTranscriptEventKind::UserText { text } => {
-            ProviderEventKind::UserText { text: text.clone() }
-        }
+        CanonicalTranscriptEventKind::UserText { text } => ProviderEventKind::UserText {
+            text: text.clone(),
+            attempt_id: None,
+        },
         CanonicalTranscriptEventKind::UserPastedContent { text } => {
             ProviderEventKind::UserPastedContent { text: text.clone() }
         }

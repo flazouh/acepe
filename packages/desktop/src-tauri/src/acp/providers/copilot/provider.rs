@@ -225,9 +225,9 @@ impl AgentProvider for CopilotProvider {
 
     fn load_provider_owned_session<'a>(
         &'a self,
-        app: &'a AppHandle,
+        _app: &'a AppHandle,
         context: &'a SessionContext,
-        replay_context: &'a SessionReplayContext,
+        _replay_context: &'a SessionReplayContext,
     ) -> Pin<
         Box<
             dyn Future<
@@ -240,10 +240,18 @@ impl AgentProvider for CopilotProvider {
         >,
     > {
         Box::pin(async move {
+            use crate::acp::session::delivery::{
+                history_error_to_provider_error, load_fold_graph_from_history_workspace,
+            };
+            use crate::acp::session::fold_export::provider_owned_snapshot_from_folded_graph;
+
             let session_id = &context.local_session_id;
-            let db = app.try_state::<DbConn>().map(|state| state.inner().clone());
-            let session_title = match db.as_ref() {
-                Some(db) => SessionMetadataRepository::get_by_id(db, session_id)
+            let lookup_session_id = &context.history_session_id;
+            let session_title = match _app
+                .try_state::<DbConn>()
+                .map(|state| state.inner().clone())
+            {
+                Some(db) => SessionMetadataRepository::get_by_id(&db, session_id)
                     .await
                     .ok()
                     .flatten()
@@ -254,26 +262,25 @@ impl AgentProvider for CopilotProvider {
                 None => format!("Session {}", &session_id[..8.min(session_id.len())]),
             };
 
-            match crate::copilot_history::load_thread_snapshot(
-                app,
-                replay_context,
+            match load_fold_graph_from_history_workspace(
+                &CanonicalAgentId::Copilot,
+                lookup_session_id,
                 &context.effective_project_path,
-                &session_title,
-            )
-            .await
-            {
-                Ok(session) => Ok(session.map(ProviderOwnedSessionSnapshot::from_thread_snapshot)),
+                context.source_path.as_ref().map(PathBuf::from),
+                None,
+            ) {
+                Ok(None) => Ok(None),
+                Ok(Some(graph)) => Ok(Some(provider_owned_snapshot_from_folded_graph(
+                    graph,
+                    session_title,
+                ))),
                 Err(error) => {
                     tracing::warn!(
                         session_id = %session_id,
                         error = %error,
                         "Copilot session replay load failed"
                     );
-                    Err(
-                        crate::acp::provider::ProviderHistoryLoadError::provider_unparseable(
-                            format!("Copilot provider history load failed: {error}"),
-                        ),
-                    )
+                    Err(history_error_to_provider_error(error))
                 }
             }
         })

@@ -28,7 +28,7 @@ pub(crate) mod scanning;
 pub(crate) mod session_loading;
 
 pub use crate::acp::session_restore::{
-    audit_restored_tool_links_cli, audit_restored_tool_links_from_snapshot,
+    audit_restored_tool_links_cli, audit_restored_tool_links_from_stored_entries,
     audit_session_load_timing_cli, RestoredToolLinkAudit, SessionLoadTiming, TimingStage,
     UnresolvedToolRowAudit,
 };

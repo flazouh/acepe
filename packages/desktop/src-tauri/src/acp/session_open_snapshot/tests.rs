@@ -3409,6 +3409,7 @@ fn fold_open_cursor_junk_matches_golden() {
     let SessionOpenResult::Found(found) = result else {
         panic!("expected fold-based history open to succeed");
     };
+    assert_eq!(found.open_path, SessionOpenPath::FoldHistory);
 
     let folded = extract_persisted_region(
         &crate::acp::session_state_engine::graph::SessionStateGraph {

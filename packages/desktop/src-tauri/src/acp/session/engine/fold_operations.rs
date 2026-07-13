@@ -13,12 +13,15 @@ use crate::acp::projections::{
     build_validated_canonical_operation_id, OperationDegradationCode, OperationDegradationReason,
     OperationSnapshot, OperationSourceLink, MAX_SESSION_OPERATIONS,
 };
+use crate::acp::session::engine::fold_interactions::{
+    register_plan_approval_interaction, register_question_interaction,
+};
 use crate::acp::session::ingress::event::ProviderEvent;
 use crate::acp::session_state_engine::graph::SessionStateGraph;
 use crate::acp::session_update::{ToolCallData, ToolCallUpdateData};
 use crate::acp::transcript_projection::{
     assistant_boundary_entry_count_from_transcript_entries, live_tool_entry_id_for_tool_call,
-    TranscriptEntry, TranscriptEntryRole, TranscriptSegment,
+    tool_call_id_from_authority_entry_id, TranscriptEntry, TranscriptEntryRole, TranscriptSegment,
 };
 
 /// Apply a tool-call create fact: transcript tool row + linked operation snapshot.
@@ -33,13 +36,11 @@ pub fn apply_tool_call(
     }
 
     let session_id = graph.canonical_session_id.clone();
-    let assistant_boundary =
-        assistant_boundary_entry_count_from_transcript_entries(&graph.transcript_snapshot.entries);
-    let entry_id = live_tool_entry_id_for_tool_call(assistant_boundary, &tool_call.id);
+    let entry_id = resolve_tool_transcript_entry_id(graph, &tool_call.id);
 
     append_tool_transcript_entry(graph, event, &entry_id, &tool_call);
 
-    let source_link = OperationSourceLink::transcript_linked(entry_id);
+    let source_link = OperationSourceLink::transcript_linked(entry_id.clone());
     let operation = build_operation_from_tool_call(
         &session_id,
         graph.operations.len(),
@@ -47,6 +48,8 @@ pub fn apply_tool_call(
         source_link,
     );
     upsert_operation(graph, operation);
+    register_plan_approval_interaction(graph, &tool_call);
+    register_question_interaction(graph, &tool_call, graph.revision.graph_revision);
 }
 
 /// Apply a tool-call update fact onto an existing linked operation.
@@ -136,6 +139,25 @@ pub fn apply_tool_call_update(graph: &mut SessionStateGraph, update: &ToolCallUp
     graph.revision.graph_revision += 1;
 }
 
+fn resolve_tool_transcript_entry_id(graph: &SessionStateGraph, tool_call_id: &str) -> String {
+    for entry in &graph.transcript_snapshot.entries {
+        if entry.role != TranscriptEntryRole::Tool {
+            continue;
+        }
+        let Some(existing_tool_call_id) = tool_call_id_from_authority_entry_id(&entry.entry_id)
+        else {
+            continue;
+        };
+        if existing_tool_call_id == tool_call_id {
+            return entry.entry_id.clone();
+        }
+    }
+
+    let assistant_boundary =
+        assistant_boundary_entry_count_from_transcript_entries(&graph.transcript_snapshot.entries);
+    live_tool_entry_id_for_tool_call(assistant_boundary, tool_call_id)
+}
+
 fn append_tool_transcript_entry(
     graph: &mut SessionStateGraph,
     event: &ProviderEvent,
@@ -148,16 +170,34 @@ fn append_tool_transcript_entry(
         .unwrap_or_else(|| tool_call.name.clone());
 
     graph.transcript_snapshot.revision += 1;
-    graph.transcript_snapshot.entries.push(TranscriptEntry {
-        entry_id: entry_id.to_string(),
-        role: TranscriptEntryRole::Tool,
-        segments: vec![TranscriptSegment::Text {
-            segment_id: format!("{entry_id}:tool"),
-            text: display_text,
-        }],
-        attempt_id: None,
-        timestamp_ms: event.timestamp_ms,
-    });
+    if let Some(index) = graph
+        .transcript_snapshot
+        .entries
+        .iter()
+        .position(|entry| entry.entry_id == entry_id)
+    {
+        graph.transcript_snapshot.entries[index] = TranscriptEntry {
+            entry_id: entry_id.to_string(),
+            role: TranscriptEntryRole::Tool,
+            segments: vec![TranscriptSegment::Text {
+                segment_id: format!("{entry_id}:tool"),
+                text: display_text,
+            }],
+            attempt_id: None,
+            timestamp_ms: event.timestamp_ms,
+        };
+    } else {
+        graph.transcript_snapshot.entries.push(TranscriptEntry {
+            entry_id: entry_id.to_string(),
+            role: TranscriptEntryRole::Tool,
+            segments: vec![TranscriptSegment::Text {
+                segment_id: format!("{entry_id}:tool"),
+                text: display_text,
+            }],
+            attempt_id: None,
+            timestamp_ms: event.timestamp_ms,
+        });
+    }
     graph.revision.transcript_revision = graph.transcript_snapshot.revision;
 }
 

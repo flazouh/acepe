@@ -19,22 +19,11 @@ fn indexed_source_path(file_path: String) -> Option<String> {
 fn derive_title_from_converted_session(
     session: &crate::acp::session_thread_snapshot::SessionThreadSnapshot,
 ) -> Option<String> {
-    for entry in &session.entries {
-        if let crate::session_jsonl::types::StoredEntry::User { message, .. } = entry {
-            let text = message
-                .chunks
-                .iter()
-                .filter(|block| block.block_type == "text")
-                .filter_map(|block| block.text.as_deref())
-                .collect::<Vec<_>>()
-                .join("\n");
-            if !text.is_empty() {
-                return crate::history::title_utils::derive_session_title(&text, 100);
-            }
-        }
-    }
+    use crate::acp::session_open_snapshot::derive_title_from_transcript_snapshot;
+    use crate::acp::transcript_projection::TranscriptSnapshot;
 
-    None
+    let transcript = TranscriptSnapshot::from_stored_entries(0, &session.entries);
+    derive_title_from_transcript_snapshot(&transcript)
 }
 
 fn resolve_indexed_session_title(

@@ -385,11 +385,11 @@ pub(super) async fn load_transcript_snapshot_for_resume_with_app(
                 .await
                 .map_err(SerializableAcpError::from)?
             {
-                let materialized = materialize_provider_owned_thread_snapshot(
+                let materialized = materialized_thread_snapshot_from_provider_fold_first(
                     session_id,
-                    Some(replay_context.agent_id.clone()),
-                    journal_max.unwrap_or(0),
+                    replay_context,
                     &provider_snapshot,
+                    journal_max.unwrap_or(0),
                 );
                 return Ok(materialized.transcript_snapshot);
             }

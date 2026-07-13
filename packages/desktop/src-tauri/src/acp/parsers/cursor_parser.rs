@@ -11,11 +11,11 @@ use crate::acp::parsers::types::{
     ParsedQuestion, ParsedTodo, ParsedUsageTelemetry, UpdateType,
 };
 use crate::acp::parsers::CursorAdapter;
-use crate::acp::reconciler::{display_name_for_tool, infer_kind_from_payload_for_agent};
 use crate::acp::session_update::{
     build_tool_call_from_raw, build_tool_call_update_from_raw, tool_call_status_from_str, PlanData,
     RawToolCallInput, RawToolCallUpdateInput, ToolArguments, ToolCallStatus, ToolKind,
 };
+use crate::acp::tool_identity::{display_name_for_tool, infer_kind_from_payload_for_agent};
 
 pub struct CursorParser;
 

@@ -6,11 +6,11 @@ use crate::acp::error::{CreationFailure, CreationFailureKind};
 use crate::acp::event_hub::{AcpEventHubState, OpenTokenClaim};
 use crate::acp::lifecycle::{ReadyDispatchPermit, SessionSupervisor};
 use crate::acp::projections::{ProjectionRegistry, SessionProjectionSnapshot};
+use crate::acp::session::fold_export::materialized_thread_snapshot_from_provider_fold_first;
 use crate::acp::session_descriptor::{
     resolve_live_pending_session_resume, ResolvedForkSession, ResolvedResumeSession,
     SessionCompatibilityInput, SessionReplayContext,
 };
-use crate::acp::session_materialization::materialize_provider_owned_thread_snapshot;
 use crate::acp::session_open_snapshot::{
     derive_title_from_transcript_snapshot, resolve_canonical_session_title,
     session_open_result_for_new_session, NewSessionOpenResultInput, SessionOpenFound,

@@ -200,12 +200,21 @@ impl ProjectionRegistry {
         agent_id: Option<CanonicalAgentId>,
         thread_snapshot: &SessionThreadSnapshot,
     ) {
+        self.import_stored_entries(session_id, agent_id, &thread_snapshot.entries);
+    }
+
+    pub(crate) fn import_stored_entries(
+        &self,
+        session_id: &str,
+        agent_id: Option<CanonicalAgentId>,
+        entries: &[StoredEntry],
+    ) {
         let mut snapshot = SessionSnapshot::new(session_id.to_string(), agent_id);
         let mut assistant_boundary_entry_count = 0usize;
         let mut transcript_entry_count = 0usize;
         let mut seen_tool_call_ids = std::collections::HashSet::new();
 
-        for entry in &thread_snapshot.entries {
+        for entry in entries {
             snapshot.last_event_seq = snapshot.last_event_seq.saturating_add(1);
 
             match entry {

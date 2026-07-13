@@ -1,18 +1,19 @@
-use crate::acp::parsers::acp_fields::normalize_tool_call_id;
 use crate::acp::projections::{RouteDecision, TerminalTurnGuard};
+use crate::acp::session::delivery::live_transcript_fold::{
+    fold_backed_session_update, graph_from_transcript_snapshot,
+};
 use crate::acp::session_update::{SessionUpdate, ToolCallData, ToolKind};
 use crate::acp::transcript_projection::delta::{TranscriptDelta, TranscriptDeltaOperation};
 use crate::acp::transcript_projection::display_id::{
-    assistant_boundary_entry_count_from_transcript_entries, derive_entry_id_for_snapshot_role,
-    derive_session_activity_entry_id, derive_tool_entry_id, tool_call_id_from_authority_entry_id,
+    assistant_boundary_entry_count_from_transcript_entries, tool_call_id_from_authority_entry_id,
     turn_key_for_assistant_boundary,
 };
 use crate::acp::transcript_projection::snapshot::{
     TranscriptEntry, TranscriptEntryRole, TranscriptSegment, TranscriptSnapshot,
 };
-use crate::acp::types::ContentBlock;
+use crate::acp::types::CanonicalAgentId;
 use dashmap::DashMap;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
 #[derive(Debug, Clone, Default)]
@@ -100,9 +101,21 @@ impl TranscriptProjectionRegistry {
         update: &SessionUpdate,
         decision: RouteDecision,
     ) -> Option<TranscriptDelta> {
+        self.apply_session_update_with_ingress(event_seq, update, decision, None)
+    }
+
+    #[must_use]
+    pub fn apply_session_update_with_ingress(
+        &self,
+        event_seq: i64,
+        update: &SessionUpdate,
+        decision: RouteDecision,
+        ingress_fold_event: Option<&crate::acp::session::ingress::event::ProviderEvent>,
+    ) -> Option<TranscriptDelta> {
         let session_id = update.session_id()?.to_string();
         let mut session = self.sessions.entry(session_id.clone()).or_default();
-        let operations = session.apply_session_update(event_seq, update, decision)?;
+        let operations =
+            session.apply_session_update(event_seq, update, decision, ingress_fold_event)?;
         Some(TranscriptDelta {
             event_seq,
             session_id,
@@ -140,13 +153,15 @@ impl TranscriptProjectionRegistry {
     }
 }
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone)]
 struct SessionTranscriptProjection {
     revision: i64,
     entries: Vec<TranscriptEntry>,
     entry_indexes: HashMap<String, usize>,
     tool_entry_ids_by_tool_call_id: HashMap<String, String>,
     assistant_boundary_entry_count: usize,
+    applied_fold_keys: HashSet<String>,
+    source: CanonicalAgentId,
 }
 
 impl SessionTranscriptProjection {
@@ -164,6 +179,8 @@ impl SessionTranscriptProjection {
             assistant_boundary_entry_count: assistant_boundary_entry_count_from_transcript_entries(
                 &entries,
             ),
+            applied_fold_keys: HashSet::new(),
+            source: CanonicalAgentId::ClaudeCode,
         }
     }
 
@@ -264,8 +281,10 @@ impl SessionTranscriptProjection {
         event_seq: i64,
         update: &SessionUpdate,
         decision: RouteDecision,
+        ingress_fold_event: Option<&crate::acp::session::ingress::event::ProviderEvent>,
     ) -> Option<Vec<TranscriptDeltaOperation>> {
-        let delta = self.apply_session_update_inner(event_seq, update, decision)?;
+        let delta =
+            self.apply_session_update_inner(event_seq, update, decision, ingress_fold_event)?;
         // Transcript revision must only advance, and only when the transcript
         // actually changed. Non-transcript-bearing updates (telemetry, plan,
         // tool-call updates, etc.) must not bump the revision — otherwise
@@ -284,6 +303,7 @@ impl SessionTranscriptProjection {
         event_seq: i64,
         update: &SessionUpdate,
         decision: RouteDecision,
+        ingress_fold_event: Option<&crate::acp::session::ingress::event::ProviderEvent>,
     ) -> Option<Vec<TranscriptDeltaOperation>> {
         if decision.ignore_late {
             if matches!(
@@ -310,153 +330,26 @@ impl SessionTranscriptProjection {
             }
         }
 
+        if matches!(
+            update,
+            SessionUpdate::UserMessageChunk { .. }
+                | SessionUpdate::AgentMessageChunk { .. }
+                | SessionUpdate::AgentThoughtChunk { .. }
+                | SessionUpdate::ToolCall { .. }
+                | SessionUpdate::ToolCallUpdate { .. }
+                | SessionUpdate::CompactionEvent { .. }
+        ) {
+            let session_id = update.session_id()?.to_string();
+            return self.apply_transcript_update_via_fold(
+                &session_id,
+                event_seq,
+                update,
+                decision,
+                ingress_fold_event,
+            );
+        }
+
         match update {
-            SessionUpdate::UserMessageChunk {
-                chunk, attempt_id, ..
-            } => {
-                let text = text_from_block(&chunk.content)?;
-                let turn_key = self.current_turn_key();
-                let entry_id =
-                    derive_entry_id_for_snapshot_role(&turn_key, &TranscriptEntryRole::User, None);
-                let segment =
-                    crate::acp::transcript_projection::snapshot::user_transcript_segment_from_text(
-                        format!("{entry_id}:segment:{event_seq}"),
-                        text,
-                    );
-                let entry = TranscriptEntry {
-                    entry_id: entry_id.clone(),
-                    role: TranscriptEntryRole::User,
-                    segments: vec![segment],
-                    attempt_id: attempt_id.clone(),
-                    timestamp_ms: None,
-                };
-                self.upsert_entry(entry.clone());
-                self.close_assistant_entry_boundary();
-                Some(vec![TranscriptDeltaOperation::AppendEntry { entry }])
-            }
-            SessionUpdate::AgentMessageChunk {
-                chunk,
-                message_id,
-                part_id,
-                parent_tool_use_id,
-                ..
-            } => {
-                if parent_tool_use_id.is_some() {
-                    return None;
-                }
-                let text = text_from_block(&chunk.content)?;
-                let entry_id = self.assistant_entry_id_for_chunk(message_id, part_id, event_seq);
-                let segment = TranscriptSegment::Text {
-                    segment_id: format!("{entry_id}:segment:{event_seq}"),
-                    text,
-                };
-                if self.entry_indexes.contains_key(&entry_id) {
-                    self.append_segment(
-                        entry_id.clone(),
-                        TranscriptEntryRole::Assistant,
-                        segment.clone(),
-                    );
-                    Some(vec![TranscriptDeltaOperation::AppendSegment {
-                        entry_id,
-                        role: TranscriptEntryRole::Assistant,
-                        segment,
-                    }])
-                } else {
-                    let entry = TranscriptEntry {
-                        entry_id,
-                        role: TranscriptEntryRole::Assistant,
-                        segments: vec![segment],
-                        attempt_id: None,
-                        timestamp_ms: None,
-                    };
-                    self.upsert_entry(entry.clone());
-                    Some(vec![TranscriptDeltaOperation::AppendEntry { entry }])
-                }
-            }
-            SessionUpdate::AgentThoughtChunk {
-                chunk,
-                message_id,
-                part_id,
-                parent_tool_use_id,
-                ..
-            } => {
-                if parent_tool_use_id.is_some() {
-                    return None;
-                }
-                let text = text_from_block(&chunk.content)?;
-                let entry_id = self.assistant_entry_id_for_chunk(message_id, part_id, event_seq);
-                let segment = TranscriptSegment::Thought {
-                    segment_id: format!("{entry_id}:segment:{event_seq}"),
-                    text,
-                };
-                if self.entry_indexes.contains_key(&entry_id) {
-                    self.append_segment(
-                        entry_id.clone(),
-                        TranscriptEntryRole::Assistant,
-                        segment.clone(),
-                    );
-                    Some(vec![TranscriptDeltaOperation::AppendSegment {
-                        entry_id,
-                        role: TranscriptEntryRole::Assistant,
-                        segment,
-                    }])
-                } else {
-                    let entry = TranscriptEntry {
-                        entry_id,
-                        role: TranscriptEntryRole::Assistant,
-                        segments: vec![segment],
-                        attempt_id: None,
-                        timestamp_ms: None,
-                    };
-                    self.upsert_entry(entry.clone());
-                    Some(vec![TranscriptDeltaOperation::AppendEntry { entry }])
-                }
-            }
-            SessionUpdate::ToolCall { tool_call, .. } => {
-                let normalized_tool_call_id = normalize_tool_call_id(&tool_call.id);
-                let entry_id = self
-                    .tool_entry_ids_by_tool_call_id
-                    .get(&normalized_tool_call_id)
-                    .cloned()
-                    .unwrap_or_else(|| {
-                        derive_tool_entry_id(&self.current_turn_key(), &tool_call.id)
-                    });
-                let entry = TranscriptEntry {
-                    entry_id: entry_id.clone(),
-                    role: TranscriptEntryRole::Tool,
-                    segments: vec![TranscriptSegment::Text {
-                        segment_id: format!("{entry_id}:tool"),
-                        text: tool_call
-                            .title
-                            .clone()
-                            .unwrap_or_else(|| tool_call.name.clone()),
-                    }],
-                    attempt_id: None,
-                    timestamp_ms: None,
-                };
-                self.tool_entry_ids_by_tool_call_id
-                    .insert(normalized_tool_call_id, entry_id);
-                self.upsert_entry(entry.clone());
-                self.close_assistant_entry_boundary();
-                Some(vec![TranscriptDeltaOperation::AppendEntry { entry }])
-            }
-            SessionUpdate::CompactionEvent { event, .. } => {
-                let entry_id =
-                    derive_session_activity_entry_id(&self.current_turn_key(), &event.event_id);
-                let entry = TranscriptEntry {
-                    entry_id: entry_id.clone(),
-                    role: TranscriptEntryRole::SessionActivity,
-                    segments: vec![TranscriptSegment::Compaction {
-                        segment_id: format!("{entry_id}:compaction"),
-                        event: event.clone(),
-                    }],
-                    attempt_id: None,
-                    timestamp_ms: event.timestamp_ms,
-                };
-                self.upsert_entry(entry.clone());
-                self.close_assistant_entry_boundary();
-                Some(vec![TranscriptDeltaOperation::AppendEntry { entry }])
-            }
             SessionUpdate::TurnError { .. } => {
                 self.close_assistant_entry_boundary();
                 None
@@ -473,6 +366,46 @@ impl SessionTranscriptProjection {
         }
     }
 
+    fn apply_transcript_update_via_fold(
+        &mut self,
+        session_id: &str,
+        event_seq: i64,
+        update: &SessionUpdate,
+        decision: RouteDecision,
+        ingress_fold_event: Option<&crate::acp::session::ingress::event::ProviderEvent>,
+    ) -> Option<Vec<TranscriptDeltaOperation>> {
+        let mut graph =
+            graph_from_transcript_snapshot(session_id, self.source.clone(), self.snapshot());
+        let operations = fold_backed_session_update(
+            &mut graph,
+            &mut self.applied_fold_keys,
+            &self.source,
+            event_seq,
+            update,
+            decision,
+            ingress_fold_event,
+        )?;
+        if operations.is_empty() {
+            return None;
+        }
+        self.sync_entries_from_graph(&graph);
+        Some(operations)
+    }
+
+    fn sync_entries_from_graph(
+        &mut self,
+        graph: &crate::acp::session_state_engine::graph::SessionStateGraph,
+    ) {
+        self.entries = graph.transcript_snapshot.entries.clone();
+        self.entry_indexes.clear();
+        for (index, entry) in self.entries.iter().enumerate() {
+            self.entry_indexes.insert(entry.entry_id.clone(), index);
+        }
+        self.tool_entry_ids_by_tool_call_id = rebuild_tool_entry_ids_by_tool_call_id(&self.entries);
+        self.assistant_boundary_entry_count =
+            assistant_boundary_entry_count_from_transcript_entries(&self.entries);
+    }
+
     fn upsert_transcript_entry(&mut self, _event_seq: i64, entry: TranscriptEntry) {
         self.upsert_entry(entry);
     }
@@ -485,19 +418,6 @@ impl SessionTranscriptProjection {
         segment: TranscriptSegment,
     ) {
         self.append_segment(entry_id, role, segment);
-    }
-
-    fn assistant_entry_id_for_chunk(
-        &mut self,
-        _message_id: &Option<String>,
-        _part_id: &Option<String>,
-        _event_seq: i64,
-    ) -> String {
-        derive_entry_id_for_snapshot_role(
-            &self.current_turn_key(),
-            &TranscriptEntryRole::Assistant,
-            None,
-        )
     }
 
     fn current_turn_key(&self) -> String {
@@ -538,6 +458,20 @@ impl SessionTranscriptProjection {
     }
 }
 
+impl Default for SessionTranscriptProjection {
+    fn default() -> Self {
+        Self {
+            revision: 0,
+            entries: Vec::new(),
+            entry_indexes: HashMap::new(),
+            tool_entry_ids_by_tool_call_id: HashMap::new(),
+            assistant_boundary_entry_count: 0,
+            applied_fold_keys: HashSet::new(),
+            source: CanonicalAgentId::ClaudeCode,
+        }
+    }
+}
+
 fn should_skip_unanswered_question_tool_row(tool_call: &ToolCallData) -> bool {
     matches!(tool_call.kind, Some(ToolKind::Question)) && tool_call.question_answer.is_none()
 }
@@ -562,13 +496,6 @@ fn entry_closes_assistant_boundary(entry: &TranscriptEntry) -> bool {
 
 fn role_closes_assistant_boundary(role: &TranscriptEntryRole) -> bool {
     !matches!(role, TranscriptEntryRole::Assistant)
-}
-
-fn text_from_block(block: &ContentBlock) -> Option<String> {
-    match block {
-        ContentBlock::Text { text } => Some(text.clone()),
-        _ => None,
-    }
 }
 
 #[cfg(test)]

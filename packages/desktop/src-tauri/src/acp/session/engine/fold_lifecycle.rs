@@ -1,7 +1,7 @@
 //! Turn-state lifecycle helpers for `engine::fold`.
 
 use crate::acp::projections::helpers::is_terminal_operation_state;
-use crate::acp::projections::{InteractionState, SessionTurnState};
+use crate::acp::projections::{InteractionState, OperationState, SessionTurnState};
 use crate::acp::session::ingress::event::TurnOutcome;
 use crate::acp::session_state_engine::graph::SessionStateGraph;
 
@@ -14,7 +14,7 @@ pub fn apply_turn_end(graph: &mut SessionStateGraph, outcome: TurnOutcome) {
     };
 }
 
-/// Close historical session projection — mirrors `session_materialization` turn_state logic only.
+/// Close historical session projection — cancel stale active ops/interactions and set turn state.
 pub fn apply_historical_close(graph: &mut SessionStateGraph) {
     let has_history = !graph.transcript_snapshot.entries.is_empty();
     let had_active_state = graph
@@ -25,6 +25,18 @@ pub fn apply_historical_close(graph: &mut SessionStateGraph) {
             .interactions
             .iter()
             .any(|interaction| interaction.state == InteractionState::Pending);
+
+    for operation in &mut graph.operations {
+        if !is_terminal_operation_state(&operation.operation_state) {
+            operation.operation_state = OperationState::Cancelled;
+        }
+    }
+
+    for interaction in &mut graph.interactions {
+        if interaction.state == InteractionState::Pending {
+            interaction.state = InteractionState::Unresolved;
+        }
+    }
 
     if graph.active_turn_failure.is_some() {
         graph.turn_state = SessionTurnState::Failed;
@@ -56,6 +68,7 @@ mod tests {
             timestamp_ms: None,
             kind: ProviderEventKind::UserText {
                 text: "hi".to_string(),
+                attempt_id: None,
             },
         }];
 

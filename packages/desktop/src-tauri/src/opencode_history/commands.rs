@@ -7,9 +7,15 @@ use tauri::{AppHandle, Manager, State};
 use crate::acp::client_trait::AgentClient;
 use crate::acp::opencode::{OpenCodeHttpClient, OpenCodeManagerRegistry};
 use crate::acp::providers::OpenCodeProvider;
-use crate::acp::session_thread_snapshot::{ProviderOwnedSessionSnapshot, SessionThreadSnapshot};
+use crate::acp::session::delivery::history_load::load_materialized_from_history;
+use crate::acp::session::fold_export::{default_session_title, MaterializedThreadSnapshot};
+use crate::acp::session_thread_snapshot::ProviderOwnedSessionSnapshot;
+use crate::acp::types::CanonicalAgentId;
 use crate::commands::observability::{unexpected_command_result, CommandResult};
-use crate::opencode_history::convert::convert_opencode_messages_to_provider_owned_snapshot;
+use crate::opencode_history::convert::{
+    materialized_thread_snapshot_from_opencode_messages,
+    provider_owned_snapshot_from_opencode_messages,
+};
 use crate::opencode_history::parser;
 use crate::path_safety::validate_project_directory_from_str;
 use crate::session_jsonl::types::HistoryEntry;
@@ -68,18 +74,25 @@ fn resolve_project_root_for_history(project_path: &str) -> Result<std::path::Pat
         .map_err(|error| error.message_for(std::path::Path::new(project_path.trim())))
 }
 
-/// Get full provider-owned OpenCode session via HTTP API (auto-starts server if needed).
-///
-/// This command:
-/// 1. Gets or creates OpenCodeHttpClient
-/// 2. Ensures OpenCode server is running (auto-start)
-/// 3. Fetches session messages via HTTP API
-/// 4. Converts to unified format
-pub(crate) async fn fetch_provider_owned_opencode_session(
+fn try_load_opencode_materialized_from_disk(
+    session_id: &str,
+    directory: &str,
+) -> Result<Option<MaterializedThreadSnapshot>, String> {
+    load_materialized_from_history(&CanonicalAgentId::OpenCode, session_id, directory, None)
+        .map_err(|error| error.to_string())
+}
+
+/// Fold-first OpenCode session load: disk ingress, then HTTP fallback.
+pub(crate) async fn fetch_materialized_opencode_session(
     app: &AppHandle,
     session_id: &str,
     directory: &str,
-) -> Result<ProviderOwnedSessionSnapshot, String> {
+) -> Result<MaterializedThreadSnapshot, String> {
+    if let Ok(Some(materialized)) = try_load_opencode_materialized_from_disk(session_id, directory)
+    {
+        return Ok(materialized);
+    }
+
     let mut client = get_or_create_opencode_client(app, directory).await?;
 
     client
@@ -92,19 +105,48 @@ pub(crate) async fn fetch_provider_owned_opencode_session(
         .await
         .map_err(|e| format!("Failed to fetch session messages: {}", e))?;
 
-    convert_opencode_messages_to_provider_owned_snapshot(messages)
-        .map_err(|e| format!("Failed to convert session: {}", e))
+    Ok(materialized_thread_snapshot_from_opencode_messages(
+        session_id,
+        directory,
+        &messages,
+        Some(default_session_title(session_id)),
+    ))
 }
 
-/// Get full OpenCode session via HTTP API (auto-starts server if needed).
-pub(crate) async fn fetch_opencode_session(
+/// Get full provider-owned OpenCode session via HTTP API (auto-starts server if needed).
+///
+/// Tries fold-first local disk ingress via [`load_materialized_from_history`],
+/// then falls back to HTTP when disk history is missing.
+pub(crate) async fn fetch_provider_owned_opencode_session(
     app: &AppHandle,
     session_id: &str,
     directory: &str,
-) -> Result<SessionThreadSnapshot, String> {
-    fetch_provider_owned_opencode_session(app, session_id, directory)
+) -> Result<ProviderOwnedSessionSnapshot, String> {
+    if let Ok(Some(materialized)) = try_load_opencode_materialized_from_disk(session_id, directory)
+    {
+        return Ok(
+            crate::acp::session::fold_export::provider_owned_snapshot_from_materialized(
+                &materialized,
+                default_session_title(session_id),
+                Vec::new(),
+            ),
+        );
+    }
+
+    let mut client = get_or_create_opencode_client(app, directory).await?;
+
+    client
+        .start()
         .await
-        .map(|snapshot| snapshot.thread_snapshot)
+        .map_err(|e| format!("Failed to start OpenCode server: {}", e))?;
+
+    let messages = client
+        .get_session_messages(session_id, directory)
+        .await
+        .map_err(|e| format!("Failed to fetch session messages: {}", e))?;
+
+    provider_owned_snapshot_from_opencode_messages(session_id, directory, messages, None)
+        .map_err(|e| format!("Failed to convert session: {}", e))
 }
 
 /// Get OpenCode sessions for a specific project via HTTP API.

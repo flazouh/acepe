@@ -4,17 +4,18 @@
 //! | Edge | Entry | Normalizer | Tests in this module |
 //! |------|-------|------------|----------------------|
 //! | Live parse | `acp/parsers/cursor_parser.rs` via `acp_fields::extract_tool_call_id` | `normalize_tool_call_id` | `live_parse_and_history_restore_agree_on_canonical_tool_call_id` |
-//! | History restore | `session_converter/cursor.rs` + `fullsession.rs` | `normalize_tool_call_id` | `live_parse_and_history_restore_agree_on_canonical_tool_call_id` |
+//! | History restore | `acp/session/fold_export` + `ingress/providers/cursor.rs` | `normalize_tool_call_id` | `live_parse_and_history_restore_agree_on_canonical_tool_call_id` |
 //! | Enrichment index | `providers/cursor/enrichment.rs` `build_persisted_tool_use_index` | `normalize_tool_call_id` | enrichment inline tests (`enriches_sparse_*`, `persisted_tool_use_index_*`) |
 //! | Snapshot rehydration | `transcript_projection/snapshot.rs` + `display_id.rs` | `normalize_tool_call_id` (idempotent) | `snapshot_rehydration_*` |
 
 use super::*;
 use crate::acp::parsers::acp_fields::normalize_tool_call_id;
 use crate::acp::parsers::AgentType;
-use crate::acp::session::fold_export::thread_snapshot_from_full_session;
+use crate::acp::session::fold_export::materialized_thread_snapshot_from_full_session;
 use crate::acp::session_update::{ToolArguments, ToolCallStatus, ToolKind};
 use crate::acp::transcript_projection::display_id::tool_call_id_from_authority_entry_id;
 use crate::acp::transcript_projection::snapshot::TranscriptSnapshot;
+use crate::acp::transcript_projection::TranscriptEntryRole;
 use crate::acp::types::CanonicalAgentId;
 use crate::session_jsonl::types::{
     ContentBlock, FullSession, OrderedMessage, SessionStats, StoredEntry,
@@ -109,23 +110,21 @@ mod history_restore_edge {
 
     #[test]
     fn history_restore_normalizes_composite_tool_call_ids() {
-        let snapshot = thread_snapshot_from_full_session(
+        let materialized = materialized_thread_snapshot_from_full_session(
             &full_session_with_tool_use(RAW_COMPOSITE_ID),
             CanonicalAgentId::Cursor,
             AgentType::Cursor,
+            0,
         );
-        let (stored_id, message) = snapshot
-            .entries
-            .iter()
-            .find_map(|entry| match entry {
-                StoredEntry::ToolCall { id, message, .. } => Some((id, message)),
-                _ => None,
-            })
+        let tool_call_id = materialized
+            .projection
+            .operations
+            .first()
+            .map(|operation| operation.tool_call_id.as_str())
             .expect("restored tool call");
 
-        assert_eq!(stored_id, CANONICAL_COMPOSITE_ID);
-        assert_eq!(message.id, CANONICAL_COMPOSITE_ID);
-        assert!(!message.id.contains('\n'));
+        assert_eq!(tool_call_id, CANONICAL_COMPOSITE_ID);
+        assert!(!tool_call_id.contains('\n'));
     }
 }
 
@@ -145,18 +144,17 @@ mod cross_edge_parity {
             .unwrap()
             .id;
 
-        let history_snapshot = thread_snapshot_from_full_session(
+        let materialized = materialized_thread_snapshot_from_full_session(
             &full_session_with_tool_use(RAW_COMPOSITE_ID),
             CanonicalAgentId::Cursor,
             AgentType::Cursor,
+            0,
         );
-        let history_id = history_snapshot
-            .entries
-            .iter()
-            .find_map(|entry| match entry {
-                StoredEntry::ToolCall { id, .. } => Some(id.clone()),
-                _ => None,
-            })
+        let history_id = materialized
+            .projection
+            .operations
+            .first()
+            .map(|operation| operation.tool_call_id.clone())
             .expect("history tool call id");
 
         assert_eq!(

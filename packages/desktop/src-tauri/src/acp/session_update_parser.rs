@@ -13,10 +13,43 @@ use crate::acp::domain_events::{SessionDomainEventKind, SessionDomainEventPayloa
 use crate::acp::parsers::AgentType;
 use crate::acp::projections::{build_plan_approval_interaction_id, InteractionKind};
 use crate::acp::provider::AgentProvider;
+use crate::acp::session::ingress::event::ProviderEvent;
+use crate::acp::session::ingress::plugin::live_source_for;
 use crate::acp::session_update::{
     parse_session_update_with_agent, ContentChunk, SessionUpdate, ToolCallStatus, ToolKind,
     TurnErrorData,
 };
+
+use crate::acp::types::CanonicalAgentId;
+
+/// Map a raw `session/update` notification JSON to ingress provider events.
+///
+/// Normalizes nested ACP params, then delegates to the registered live source.
+#[must_use]
+pub fn session_update_notification_to_provider_events(
+    agent: AgentType,
+    json: &Value,
+) -> Option<Vec<ProviderEvent>> {
+    let method = json.get("method")?.as_str()?;
+    if !is_session_update_method(method) {
+        return None;
+    }
+    let params = json.get("params")?;
+    let normalized = normalize_session_update_params(params)?;
+    let canonical = canonical_agent_id_for_agent_type(agent);
+    let live = live_source_for(&canonical)?;
+    live.normalize(&normalized).ok()
+}
+
+fn canonical_agent_id_for_agent_type(agent: AgentType) -> CanonicalAgentId {
+    match agent {
+        AgentType::ClaudeCode => CanonicalAgentId::ClaudeCode,
+        AgentType::Copilot => CanonicalAgentId::Copilot,
+        AgentType::OpenCode => CanonicalAgentId::OpenCode,
+        AgentType::Cursor => CanonicalAgentId::Cursor,
+        AgentType::Codex => CanonicalAgentId::Codex,
+    }
+}
 
 pub fn parse_session_update_notification_with_agent(agent: AgentType, json: &Value) -> ParseResult {
     parse_session_update_notification_for_context(agent, None, json)

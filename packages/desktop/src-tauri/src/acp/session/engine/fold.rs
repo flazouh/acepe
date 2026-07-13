@@ -11,6 +11,7 @@ use crate::acp::session_state_engine::revision::SessionGraphRevision;
 use crate::acp::session_state_engine::selectors::{
     SessionGraphActivity, SessionGraphCapabilities, SessionGraphLifecycle,
 };
+use crate::acp::transcript_projection::display_id::derive_session_activity_entry_id;
 use crate::acp::transcript_projection::snapshot::user_transcript_segment_from_text;
 use crate::acp::transcript_projection::{
     assistant_boundary_entry_count_from_transcript_entries, derive_entry_id_for_snapshot_role,
@@ -94,6 +95,25 @@ pub fn fold_step(
     prev: &SessionStateGraph,
     event: &ProviderEvent,
 ) -> (SessionStateGraph, GraphDelta) {
+    fold_step_with_dedup(prev, event, &mut None)
+}
+
+/// Fold one live event with optional idempotency keys (live replay only).
+#[must_use]
+pub fn fold_step_with_dedup(
+    prev: &SessionStateGraph,
+    event: &ProviderEvent,
+    dedup_keys: &mut Option<std::collections::HashSet<String>>,
+) -> (SessionStateGraph, GraphDelta) {
+    if fold_event_is_duplicate(dedup_keys, event) {
+        return (
+            prev.clone(),
+            GraphDelta {
+                transcript_revision: prev.transcript_snapshot.revision,
+            },
+        );
+    }
+
     let mut graph = prev.clone();
     let mut turn_context =
         HistoryTurnContext::from_transcript_entries(&graph.transcript_snapshot.entries);
@@ -102,9 +122,32 @@ pub fn fold_step(
     };
 
     apply_event(&mut graph, &mut turn_context, event);
+    record_fold_applied_key(dedup_keys, event);
 
     delta.transcript_revision = graph.transcript_snapshot.revision;
     (graph, delta)
+}
+
+fn fold_event_is_duplicate(
+    dedup_keys: &Option<std::collections::HashSet<String>>,
+    event: &ProviderEvent,
+) -> bool {
+    dedup_keys
+        .as_ref()
+        .is_some_and(|keys| keys.contains(&fold_applied_key_for_event(event)))
+}
+
+fn record_fold_applied_key(
+    dedup_keys: &mut Option<std::collections::HashSet<String>>,
+    event: &ProviderEvent,
+) {
+    if let Some(keys) = dedup_keys {
+        keys.insert(fold_applied_key_for_event(event));
+    }
+}
+
+fn fold_applied_key_for_event(event: &ProviderEvent) -> String {
+    format!("{}:{}", event.provider_row_id, event.kind_discriminant())
 }
 
 fn apply_event(
@@ -113,12 +156,12 @@ fn apply_event(
     event: &ProviderEvent,
 ) {
     match &event.kind {
-        ProviderEventKind::UserText { text } => {
+        ProviderEventKind::UserText { text, attempt_id } => {
             if !text.is_empty() {
                 let turn_key = turn_context.current_turn_key();
                 let entry_id =
                     derive_entry_id_for_snapshot_role(&turn_key, &TranscriptEntryRole::User, None);
-                let segment_id = format!("{turn_key}:event:{}", event.provider_seq);
+                let segment_id = format!("{entry_id}:segment:{}", event.provider_seq);
                 append_transcript_entry(
                     graph,
                     turn_context,
@@ -127,7 +170,7 @@ fn apply_event(
                         entry_id,
                         role: TranscriptEntryRole::User,
                         segments: vec![user_transcript_segment_from_text(segment_id, text.clone())],
-                        attempt_id: None,
+                        attempt_id: attempt_id.clone(),
                         timestamp_ms: event.timestamp_ms,
                     },
                 );
@@ -156,29 +199,24 @@ fn apply_event(
             }
         }
         ProviderEventKind::AssistantText { text } => {
-            if !text.is_empty() {
-                let turn_key = turn_context.current_turn_key();
-                let entry_id = derive_entry_id_for_snapshot_role(
-                    &turn_key,
-                    &TranscriptEntryRole::Assistant,
-                    None,
-                );
-                append_transcript_entry(
-                    graph,
-                    turn_context,
-                    event,
-                    TranscriptEntry {
-                        entry_id,
-                        role: TranscriptEntryRole::Assistant,
-                        segments: vec![TranscriptSegment::Text {
-                            segment_id: format!("{turn_key}:event:{}", event.provider_seq),
-                            text: text.clone(),
-                        }],
-                        attempt_id: None,
-                        timestamp_ms: event.timestamp_ms,
-                    },
-                );
-            }
+            let turn_key = turn_context.current_turn_key();
+            let entry_id =
+                derive_entry_id_for_snapshot_role(&turn_key, &TranscriptEntryRole::Assistant, None);
+            append_transcript_entry(
+                graph,
+                turn_context,
+                event,
+                TranscriptEntry {
+                    entry_id: entry_id.clone(),
+                    role: TranscriptEntryRole::Assistant,
+                    segments: vec![TranscriptSegment::Text {
+                        segment_id: format!("{entry_id}:segment:{}", event.provider_seq),
+                        text: text.clone(),
+                    }],
+                    attempt_id: None,
+                    timestamp_ms: event.timestamp_ms,
+                },
+            );
         }
         ProviderEventKind::AssistantThought { text, redacted } => {
             if !text.is_empty() || redacted.is_some() {
@@ -193,10 +231,10 @@ fn apply_event(
                     turn_context,
                     event,
                     TranscriptEntry {
-                        entry_id,
+                        entry_id: entry_id.clone(),
                         role: TranscriptEntryRole::Assistant,
                         segments: vec![TranscriptSegment::Thought {
-                            segment_id: format!("{turn_key}:event:{}", event.provider_seq),
+                            segment_id: format!("{entry_id}:segment:{}", event.provider_seq),
                             text: thought_text_for_display(text, redacted.as_deref()),
                         }],
                         attempt_id: None,
@@ -214,6 +252,25 @@ fn apply_event(
         }
         ProviderEventKind::ToolCallUpdate(update) => {
             apply_tool_call_update(graph, update);
+        }
+        ProviderEventKind::Compaction(compaction_event) => {
+            let turn_key = turn_context.current_turn_key();
+            let entry_id = derive_session_activity_entry_id(&turn_key, &compaction_event.event_id);
+            append_transcript_entry(
+                graph,
+                turn_context,
+                event,
+                TranscriptEntry {
+                    entry_id: entry_id.clone(),
+                    role: TranscriptEntryRole::SessionActivity,
+                    segments: vec![TranscriptSegment::Compaction {
+                        segment_id: format!("{entry_id}:compaction"),
+                        event: compaction_event.clone(),
+                    }],
+                    attempt_id: None,
+                    timestamp_ms: compaction_event.timestamp_ms,
+                },
+            );
         }
         ProviderEventKind::TurnEnd { outcome } => {
             apply_turn_end(graph, *outcome);
@@ -302,6 +359,7 @@ mod tests {
             timestamp_ms: None,
             kind: ProviderEventKind::UserText {
                 text: "hi".to_string(),
+                attempt_id: None,
             },
         }];
 
@@ -320,6 +378,7 @@ mod tests {
             timestamp_ms: None,
             kind: ProviderEventKind::UserText {
                 text: "hi".to_string(),
+                attempt_id: None,
             },
         }];
 
@@ -342,6 +401,7 @@ mod tests {
                 timestamp_ms: None,
                 kind: ProviderEventKind::UserText {
                     text: "hello".to_string(),
+                    attempt_id: None,
                 },
             },
             ProviderEvent {
@@ -383,21 +443,24 @@ mod tests {
         assert_eq!(
             assistant.segments[0],
             TranscriptSegment::Text {
-                segment_id: "assistant-boundary:1:event:1".to_string(),
+                segment_id: "acepe::entry::assistant-boundary:1::assistant::.:segment:1"
+                    .to_string(),
                 text: "part one".to_string(),
             }
         );
         assert_eq!(
             assistant.segments[1],
             TranscriptSegment::Text {
-                segment_id: "assistant-boundary:1:event:2".to_string(),
+                segment_id: "acepe::entry::assistant-boundary:1::assistant::.:segment:2"
+                    .to_string(),
                 text: "part two".to_string(),
             }
         );
         assert_eq!(
             assistant.segments[2],
             TranscriptSegment::Text {
-                segment_id: "assistant-boundary:1:event:3".to_string(),
+                segment_id: "acepe::entry::assistant-boundary:1::assistant::.:segment:3"
+                    .to_string(),
                 text: "part three".to_string(),
             }
         );

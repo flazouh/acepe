@@ -273,20 +273,59 @@ impl AgentProvider for OpenCodeProvider {
         >,
     > {
         Box::pin(async move {
+            use crate::acp::session::delivery::{
+                history_error_to_provider_error, load_fold_graph_from_history,
+            };
+            use crate::acp::session::fold_export::{
+                default_session_title, provider_owned_snapshot_from_folded_graph,
+            };
+            use crate::acp::types::CanonicalAgentId;
+
             let session_id = &context.local_session_id;
             let lookup_session_id = &context.history_session_id;
+            let title = default_session_title(lookup_session_id);
 
-            let disk_result =
-                crate::opencode_history::parser::load_provider_owned_snapshot_from_disk(
+            let try_load = |project_path: &str, source_path: Option<&str>| {
+                load_fold_graph_from_history(
+                    &CanonicalAgentId::OpenCode,
                     lookup_session_id,
-                    context.source_path.as_deref(),
+                    project_path,
+                    source_path,
                 )
-                .await;
+                .map(|graph| {
+                    graph.map(|graph| {
+                        provider_owned_snapshot_from_folded_graph(graph, title.clone())
+                    })
+                })
+            };
+
+            if let Some(source_path) = context.source_path.as_deref() {
+                match try_load(&context.effective_project_path, Some(source_path)) {
+                    Ok(Some(snapshot)) => {
+                        tracing::info!(
+                            session_id = %session_id,
+                            "Loaded OpenCode session from local disk via HistorySource fold"
+                        );
+                        return Ok(Some(snapshot));
+                    }
+                    Ok(None) => {}
+                    Err(error) => {
+                        tracing::warn!(
+                            session_id = %session_id,
+                            source_path = %source_path,
+                            error = %error,
+                            "OpenCode HistorySource load failed for source_path, falling back to session lookup"
+                        );
+                    }
+                }
+            }
+
+            let disk_result = try_load(&context.effective_project_path, None);
 
             if let Ok(Some(snapshot)) = disk_result {
                 tracing::info!(
                     session_id = %session_id,
-                    "Loaded OpenCode session from local disk"
+                    "Loaded OpenCode session from local disk via HistorySource fold"
                 );
                 return Ok(Some(snapshot));
             }
@@ -318,11 +357,15 @@ impl AgentProvider for OpenCodeProvider {
                         error = ?error,
                         "HTTP fallback also failed for OpenCode session"
                     );
-                    Err(
-                        crate::acp::provider::ProviderHistoryLoadError::provider_unavailable(
-                            format!("OpenCode provider history load failed: {error}"),
-                        ),
-                    )
+                    if let Err(disk_error) = disk_result {
+                        Err(history_error_to_provider_error(disk_error))
+                    } else {
+                        Err(
+                            crate::acp::provider::ProviderHistoryLoadError::provider_unavailable(
+                                format!("OpenCode provider history load failed: {error}"),
+                            ),
+                        )
+                    }
                 }
             }
         })

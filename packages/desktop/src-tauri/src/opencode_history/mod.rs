@@ -11,7 +11,7 @@ pub mod types;
 mod test_integration;
 
 pub use convert::{
-    convert_opencode_messages_to_provider_owned_snapshot, convert_opencode_messages_to_session,
+    opencode_messages_to_provider_events, provider_owned_snapshot_from_opencode_messages,
 };
 // Re-export commonly used types
 pub use types::{

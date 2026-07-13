@@ -5,7 +5,7 @@ use crate::storage::types::ProjectAcepeConfig;
 use rand::Rng;
 use sea_orm::DatabaseConnection;
 use std::path::Path;
-use tauri::{AppHandle, State};
+use tauri::{AppHandle, Emitter, Manager, State};
 
 use super::icon_detection::detect_project_icon;
 use super::shared::{get_db, project_name_from_path, validate_project_path_for_storage, Project};
@@ -14,6 +14,20 @@ use crate::commands::observability::{
 };
 
 const PROJECT_ICON_BACKFILL_KEY: &str = "project_icon_backfill_v2";
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum ProjectImportIndexScanKind {
+    Full,
+    Incremental,
+}
+
+fn project_import_index_scan_kind(index_is_empty: bool) -> ProjectImportIndexScanKind {
+    if index_is_empty {
+        ProjectImportIndexScanKind::Full
+    } else {
+        ProjectImportIndexScanKind::Incremental
+    }
+}
 
 fn project_acepe_config_from_file(project_path: &Path) -> ProjectAcepeConfig {
     let config = acepe_config::read_or_default(project_path);
@@ -214,9 +228,9 @@ pub async fn import_project(
 
         tracing::info!(path = %canonical_path_str, "Project imported successfully");
 
-        // Pre-warm the session cache by scanning ALL project paths in the background.
-        // The SCAN_CACHE key is "scan:{sorted_paths.join('|')}" so we must scan with the
-        // same set of paths that loadSessions() will use — otherwise it's a cache miss.
+        // Populate the canonical session index for all project paths in the background.
+        // The sidebar reads indexed session_metadata; scan_project_sessions is now a
+        // read path only, so importing into a fresh DB must trigger the indexer directly.
         let project_path_for_spawn = project_row.path.clone();
         let db_clone = db.inner().clone();
         let app_clone = app.clone();
@@ -228,12 +242,49 @@ pub async fn import_project(
                     vec![project_path_for_spawn]
                 }
             };
-            match crate::history::commands::scan_project_sessions(app_clone, all_paths).await {
-                Ok(_) => {
-                    tracing::debug!("Pre-scanned sessions for all projects after import (cached)");
+
+            let Some(indexer) = app_clone.try_state::<crate::history::indexer::IndexerHandle>() else {
+                tracing::warn!("Session indexer unavailable after project import");
+                return;
+            };
+
+            let index_is_empty =
+                match crate::db::repository::SessionMetadataRepository::is_empty(&db_clone).await {
+                    Ok(value) => value,
+                    Err(error) => {
+                        tracing::error!(error = %error, "Failed to check session index before project import scan");
+                        return;
+                    }
+                };
+
+            let scan_kind = project_import_index_scan_kind(index_is_empty);
+            let indexed = match scan_kind {
+                ProjectImportIndexScanKind::Full => indexer.full_scan(all_paths.clone()).await,
+                ProjectImportIndexScanKind::Incremental => {
+                    indexer.incremental_scan(all_paths.clone()).await
                 }
-                Err(e) => {
-                    tracing::error!(error = ?e, "Failed to pre-scan sessions after import");
+            };
+
+            match indexed {
+                Ok(result) => {
+                    tracing::debug!(
+                        files_indexed = result.files_indexed,
+                        files_unchanged = result.files_unchanged,
+                        files_deleted = result.files_deleted,
+                        duration_ms = result.duration_ms,
+                        scan_kind = ?scan_kind,
+                        "Indexed sessions for all projects after import"
+                    );
+                    let payload = serde_json::json!({
+                        "projectPaths": all_paths,
+                        "revision": chrono::Utc::now().timestamp_millis(),
+                    });
+                    if let Err(error) = app_clone.emit("history-index-changed", payload) {
+                        tracing::warn!(error = %error, "Failed to emit history index change after project import");
+                    }
+                }
+                Err(error) => {
+                    tracing::error!(error = %error, scan_kind = ?scan_kind, "Failed to index sessions after project import");
                 }
             }
         });
@@ -754,7 +805,10 @@ pub async fn backfill_project_icons(app: AppHandle) -> CommandResult<u64> {
 
 #[cfg(test)]
 mod tests {
-    use super::{classify_missing_project_paths, project_name_from_path};
+    use super::{
+        classify_missing_project_paths, project_import_index_scan_kind, project_name_from_path,
+        ProjectImportIndexScanKind,
+    };
     use tempfile::tempdir;
 
     #[test]
@@ -789,5 +843,21 @@ mod tests {
         let name = project_name_from_path(&project_path, "/Users/test/MyAPIService");
 
         assert_eq!(name, "MyAPIService");
+    }
+
+    #[test]
+    fn project_import_uses_full_scan_for_empty_session_index() {
+        assert_eq!(
+            project_import_index_scan_kind(true),
+            ProjectImportIndexScanKind::Full
+        );
+    }
+
+    #[test]
+    fn project_import_uses_incremental_scan_for_existing_session_index() {
+        assert_eq!(
+            project_import_index_scan_kind(false),
+            ProjectImportIndexScanKind::Incremental
+        );
     }
 }

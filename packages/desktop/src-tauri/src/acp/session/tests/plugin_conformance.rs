@@ -6,10 +6,9 @@ use crate::acp::parsers::AgentType;
 use crate::acp::session::ingress::canonical_events::canonical_transcript_events_to_provider_events;
 use crate::acp::session::ingress::event::ProviderEventKind;
 use crate::acp::session::ingress::plugin::registered_agents;
-use crate::acp::session::ingress::providers::copilot::stored_entries_to_provider_events;
-use crate::acp::session::ingress::source::HistoryInput;
+use crate::acp::session::ingress::source::{HistoryInput, HistorySource, LiveSource};
 use crate::acp::types::CanonicalAgentId;
-use crate::opencode_history::convert::convert_opencode_messages_to_provider_owned_snapshot;
+use crate::opencode_history::convert::opencode_messages_to_provider_events;
 use crate::opencode_history::types::{OpenCodeMessage, OpenCodeMessagePart};
 
 fn disk_fixture_for(agent: &CanonicalAgentId) -> Option<(&'static str, PathBuf)> {
@@ -51,72 +50,185 @@ fn synthetic_events_for(
                     timestamp: Some("2026-07-12T00:00:01Z".to_string()),
                 },
             ];
-            let snapshot = convert_opencode_messages_to_provider_owned_snapshot(messages)
-                .expect("convert opencode messages");
-            canonical_transcript_events_to_provider_events(
-                &snapshot.canonical_transcript_events,
-                CanonicalAgentId::OpenCode,
-                AgentType::OpenCode,
-            )
+            opencode_messages_to_provider_events(&messages)
         }
         CanonicalAgentId::Copilot => {
             use crate::acp::session_update::{
                 ContentChunk, ToolArguments, ToolCallData, ToolCallStatus, ToolKind,
             };
             use crate::acp::types::ContentBlock;
-            use crate::copilot_history::convert_replay_updates_to_session;
+            use crate::copilot_history::convert_replay_updates_to_provider_events;
 
-            let snapshot = convert_replay_updates_to_session(
-                "copilot-conformance",
-                "Copilot Conformance",
-                &[
-                    (
-                        1_710_000_000_000,
-                        crate::acp::session_update::SessionUpdate::UserMessageChunk {
-                            chunk: ContentChunk {
-                                content: ContentBlock::Text {
-                                    text: "Summarize the repo".to_string(),
-                                },
-                                aggregation_hint: None,
+            convert_replay_updates_to_provider_events(&[
+                (
+                    1_710_000_000_000,
+                    crate::acp::session_update::SessionUpdate::UserMessageChunk {
+                        chunk: ContentChunk {
+                            content: ContentBlock::Text {
+                                text: "Summarize the repo".to_string(),
                             },
-                            session_id: Some("copilot-conformance".to_string()),
-                            attempt_id: None,
+                            aggregation_hint: None,
                         },
-                    ),
-                    (
-                        1_710_000_001_000,
-                        crate::acp::session_update::SessionUpdate::ToolCall {
-                            tool_call: ToolCallData {
-                                id: "tool-1".to_string(),
-                                name: "Read".to_string(),
-                                arguments: ToolArguments::Read {
-                                    file_path: Some("/repo/README.md".to_string()),
-                                    source_context: None,
-                                },
-                                diagnostic_input: None,
-                                status: ToolCallStatus::Pending,
-                                result: None,
-                                kind: Some(ToolKind::Read),
-                                title: Some("Read README".to_string()),
-                                locations: None,
-                                skill_meta: None,
-                                normalized_questions: None,
-                                normalized_todos: None,
-                                normalized_todo_update: None,
-                                parent_tool_use_id: None,
-                                task_children: None,
-                                question_answer: None,
-                                awaiting_plan_approval: false,
-                                plan_approval_request_id: None,
+                        session_id: Some("copilot-conformance".to_string()),
+                        attempt_id: None,
+                    },
+                ),
+                (
+                    1_710_000_001_000,
+                    crate::acp::session_update::SessionUpdate::ToolCall {
+                        tool_call: ToolCallData {
+                            id: "tool-1".to_string(),
+                            name: "Read".to_string(),
+                            arguments: ToolArguments::Read {
+                                file_path: Some("/repo/README.md".to_string()),
+                                source_context: None,
                             },
-                            session_id: Some("copilot-conformance".to_string()),
+                            diagnostic_input: None,
+                            status: ToolCallStatus::Pending,
+                            result: None,
+                            kind: Some(ToolKind::Read),
+                            title: Some("Read README".to_string()),
+                            locations: None,
+                            skill_meta: None,
+                            normalized_questions: None,
+                            normalized_todos: None,
+                            normalized_todo_update: None,
+                            parent_tool_use_id: None,
+                            task_children: None,
+                            question_answer: None,
+                            awaiting_plan_approval: false,
+                            plan_approval_request_id: None,
                         },
-                    ),
-                ],
-            );
-            stored_entries_to_provider_events(&snapshot.entries, CanonicalAgentId::Copilot)
+                        session_id: Some("copilot-conformance".to_string()),
+                    },
+                ),
+            ])
+        }
+        CanonicalAgentId::Codex => {
+            use crate::acp::session::ingress::event::ProviderEventKind;
+            use crate::acp::session_update::{
+                ToolArguments, ToolCallData, ToolCallStatus, ToolKind,
+            };
+
+            vec![
+                crate::acp::session::ingress::event::ProviderEvent {
+                    source: CanonicalAgentId::Codex,
+                    provider_seq: 1,
+                    provider_row_id: "user-1".to_string(),
+                    timestamp_ms: None,
+                    kind: ProviderEventKind::UserText {
+                        text: "Run the tests".to_string(),
+                        attempt_id: None,
+                    },
+                },
+                crate::acp::session::ingress::event::ProviderEvent {
+                    source: CanonicalAgentId::Codex,
+                    provider_seq: 2,
+                    provider_row_id: "tool-1".to_string(),
+                    timestamp_ms: None,
+                    kind: ProviderEventKind::ToolCall(ToolCallData {
+                        id: "tool-1".to_string(),
+                        name: "Read".to_string(),
+                        arguments: ToolArguments::Read {
+                            file_path: Some("/repo/README.md".to_string()),
+                            source_context: None,
+                        },
+                        diagnostic_input: None,
+                        status: ToolCallStatus::Completed,
+                        result: None,
+                        kind: Some(ToolKind::Read),
+                        title: Some("Read README".to_string()),
+                        locations: None,
+                        skill_meta: None,
+                        normalized_questions: None,
+                        normalized_todos: None,
+                        normalized_todo_update: None,
+                        parent_tool_use_id: None,
+                        task_children: None,
+                        question_answer: None,
+                        awaiting_plan_approval: false,
+                        plan_approval_request_id: None,
+                    }),
+                },
+            ]
         }
         other => panic!("missing synthetic conformance fixture for registered agent {other:?}"),
+    }
+}
+
+#[test]
+fn every_registered_plugin_bundles_history_live_and_tool_table() {
+    use crate::acp::session::ingress::plugin::{
+        history_source_for, live_source_for, plugin_for, tool_table_for,
+    };
+
+    for agent in registered_agents() {
+        let plugin =
+            plugin_for(&agent).unwrap_or_else(|| panic!("plugin {agent:?} must be registered"));
+        assert_eq!(plugin.agent_id, agent);
+        assert_eq!(plugin.tool_table.agent_id, agent);
+        assert!(
+            std::ptr::eq(
+                plugin.tool_table as *const _,
+                tool_table_for(&agent).expect("tool table") as *const _
+            ),
+            "plugin {agent:?} tool_table must match tool_table_for"
+        );
+        assert!(
+            std::ptr::eq(
+                plugin.history as *const dyn HistorySource,
+                history_source_for(&agent).expect("history source") as *const dyn HistorySource
+            ),
+            "plugin {agent:?} history must match history_source_for"
+        );
+        assert!(
+            std::ptr::eq(
+                plugin.live as *const dyn LiveSource,
+                live_source_for(&agent).expect("live source") as *const dyn LiveSource
+            ),
+            "plugin {agent:?} live must match live_source_for"
+        );
+    }
+}
+
+#[test]
+fn every_registered_plugin_bundles_history_and_live() {
+    use crate::acp::session::ingress::plugin::{history_source_for, live_source_for, plugin_for};
+
+    for agent in registered_agents() {
+        let plugin =
+            plugin_for(&agent).unwrap_or_else(|| panic!("plugin {agent:?} must be registered"));
+        assert_eq!(plugin.agent_id, agent);
+        assert!(
+            std::ptr::eq(
+                plugin.history as *const dyn HistorySource,
+                history_source_for(&agent).expect("history source") as *const dyn HistorySource
+            ),
+            "plugin {agent:?} history must match history_source_for"
+        );
+        assert!(
+            std::ptr::eq(
+                plugin.live as *const dyn LiveSource,
+                live_source_for(&agent).expect("live source") as *const dyn LiveSource
+            ),
+            "plugin {agent:?} live must match live_source_for"
+        );
+    }
+}
+
+#[test]
+fn every_registered_plugin_has_history_and_live_source() {
+    use crate::acp::session::ingress::plugin::{history_source_for, live_source_for};
+
+    for agent in registered_agents() {
+        assert!(
+            history_source_for(&agent).is_some(),
+            "plugin {agent:?} must register a history source"
+        );
+        assert!(
+            live_source_for(&agent).is_some(),
+            "plugin {agent:?} must register a live source"
+        );
     }
 }
 

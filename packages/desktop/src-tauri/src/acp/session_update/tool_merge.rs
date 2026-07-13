@@ -1,3 +1,4 @@
+use crate::acp::session::ingress::event::{ProviderEvent, ProviderEventKind};
 use crate::acp::session_update::{TodoStatus, ToolCallData, ToolCallStatus, ToolCallUpdateData};
 use crate::session_jsonl::types::StoredEntry;
 use std::collections::HashMap;
@@ -108,4 +109,60 @@ fn parse_timestamp_to_millis(timestamp: &str) -> Option<i64> {
     chrono::DateTime::parse_from_rfc3339(timestamp)
         .ok()
         .map(|dt| dt.timestamp_millis())
+}
+
+/// Apply todo timing metadata to tool-call provider events (replay/history ingress).
+pub fn calculate_todo_timing_on_provider_events(events: &mut [ProviderEvent]) {
+    let mut task_timings: HashMap<String, (Option<i64>, Option<i64>)> = HashMap::new();
+    let mut previous_states: HashMap<String, TodoStatus> = HashMap::new();
+
+    for event in events.iter() {
+        let ProviderEventKind::ToolCall(tool_call) = &event.kind else {
+            continue;
+        };
+        let Some(todos) = &tool_call.normalized_todos else {
+            continue;
+        };
+        let entry_timestamp = event.timestamp_ms;
+
+        for todo in todos {
+            let prev_status = previous_states.get(&todo.content);
+            let timing = task_timings
+                .entry(todo.content.clone())
+                .or_insert((None, None));
+
+            if todo.status == TodoStatus::InProgress && prev_status != Some(&TodoStatus::InProgress)
+            {
+                timing.0 = entry_timestamp;
+            }
+
+            if todo.status == TodoStatus::Completed && prev_status != Some(&TodoStatus::Completed) {
+                timing.1 = entry_timestamp;
+            }
+
+            previous_states.insert(todo.content.clone(), todo.status);
+        }
+    }
+
+    for event in events.iter_mut() {
+        let ProviderEventKind::ToolCall(tool_call) = &mut event.kind else {
+            continue;
+        };
+        let Some(todos) = &mut tool_call.normalized_todos else {
+            continue;
+        };
+        for todo in todos.iter_mut() {
+            if let Some((started_at, completed_at)) = task_timings.get(&todo.content) {
+                todo.started_at = *started_at;
+                todo.completed_at = *completed_at;
+
+                if let (Some(start), Some(end)) = (started_at, completed_at) {
+                    let duration = end - start;
+                    if duration >= 0 {
+                        todo.duration = Some(duration);
+                    }
+                }
+            }
+        }
+    }
 }

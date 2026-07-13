@@ -1,10 +1,10 @@
 use crate::acp::projections::SessionSnapshot;
+use crate::acp::session::fold_export::fold_graph_from_provider_snapshot;
 use crate::acp::session_descriptor::SessionReplayContext;
 use crate::acp::session_journal::{
     decode_serialized_events, rebuild_local_transcript_snapshot, rebuild_session_projection,
     repair_legacy_parent_tool_use_ids_from_streaming_log, SessionJournalEvent,
 };
-use crate::acp::session_materialization::materialize_provider_owned_thread_snapshot;
 use crate::acp::session_open_snapshot::{
     derive_title_from_transcript_snapshot, resolve_canonical_session_title,
     sanitize_interactions_for_historical_open, sanitize_operations_for_historical_open,
@@ -391,67 +391,20 @@ pub(crate) fn rebuild_transcript_row_ledger_from_session_graph(
     })
 }
 
+/// Rebuild ledger from a provider-owned compat snapshot (fold-first: snapshot → graph → rows).
 pub(crate) fn rebuild_transcript_row_ledger_from_provider_snapshot(
     replay_context: &SessionReplayContext,
     lifecycle: &SessionGraphLifecycle,
     snapshot: &ProviderOwnedSessionSnapshot,
     last_event_seq: i64,
 ) -> Result<RebuiltProviderTranscriptRowLedger> {
-    let materialized = materialize_provider_owned_thread_snapshot(
-        &replay_context.local_session_id,
-        Some(replay_context.agent_id.clone()),
-        last_event_seq,
-        snapshot,
-    );
-    let transcript_snapshot = materialized.transcript_snapshot;
-    let projection = materialized.projection;
-    let session = projection.session.clone().unwrap_or_else(|| {
-        SessionSnapshot::new(
-            replay_context.local_session_id.clone(),
-            Some(replay_context.agent_id.clone()),
-        )
-    });
-    let operations = sanitize_operations_for_historical_open(projection.operations, false);
-    let interactions = sanitize_interactions_for_historical_open(projection.interactions);
-    let active_turn_failure = session.active_turn_failure.clone();
-    let activity = select_session_graph_activity(
+    let graph = fold_graph_from_provider_snapshot(replay_context, snapshot);
+    rebuild_transcript_row_ledger_from_session_graph(
+        replay_context,
         lifecycle,
-        &session.turn_state,
-        &operations,
-        &interactions,
-        active_turn_failure.as_ref(),
-    );
-    let active_streaming_tail =
-        select_active_streaming_tail(&session.turn_state, &activity, &transcript_snapshot);
-    let first_user_title = derive_title_from_transcript_snapshot(&transcript_snapshot);
-    let graph_revision = session.last_event_seq.max(last_event_seq);
-    let revision =
-        SessionGraphRevision::new(graph_revision, transcript_snapshot.revision, last_event_seq);
-    let viewport_rows = project_transcript_viewport_rows(
-        &transcript_snapshot,
-        &operations,
-        &interactions,
-        None,
-        false,
-        None,
-    );
-    let rows = serialize_viewport_rows_for_ledger(
-        &replay_context.local_session_id,
-        revision.transcript_revision,
-        revision.graph_revision,
-        TRANSCRIPT_ROW_LEDGER_PROJECTION_VERSION,
-        &viewport_rows,
-    )?;
-
-    Ok(RebuiltProviderTranscriptRowLedger {
-        revision,
-        projection_version: TRANSCRIPT_ROW_LEDGER_PROJECTION_VERSION,
-        rows,
-        session,
-        first_user_title,
-        activity,
-        active_streaming_tail,
-    })
+        &graph,
+        last_event_seq,
+    )
 }
 
 fn open_header_for_rebuilt_ledger(

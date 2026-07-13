@@ -1,6 +1,18 @@
 use super::*;
+use crate::acp::session::ingress::live_session_update::restamp_live_provider_event;
 use crate::acp::session_state_engine::transcript_rows_ledger::TranscriptRowsLedgerWriteHint;
 use crate::acp::transcript_projection::{TranscriptDelta, TranscriptDeltaOperation};
+
+fn restamped_ingress_fold_event(
+    event: &AcpUiEvent,
+    event_seq: i64,
+    update: &SessionUpdate,
+) -> Option<crate::acp::session::ingress::event::ProviderEvent> {
+    event
+        .ingress_fold_event
+        .clone()
+        .map(|provider_event| restamp_live_provider_event(provider_event, event_seq, update))
+}
 
 #[derive(Debug, Default)]
 pub(super) struct DispatchPersistenceEffects {
@@ -100,11 +112,13 @@ pub(super) async fn persist_dispatch_event(
             );
             let terminal_decision =
                 projection_registry.route_terminal_turn(session_id, update.as_ref());
-            let transcript_delta = transcript_projection_registry.apply_session_update(
-                record.event_seq,
-                update.as_ref(),
-                terminal_decision,
-            );
+            let transcript_delta = transcript_projection_registry
+                .apply_session_update_with_ingress(
+                    record.event_seq,
+                    update.as_ref(),
+                    terminal_decision,
+                    restamped_ingress_fold_event(event, record.event_seq, update.as_ref()).as_ref(),
+                );
             let transcript_revision = transcript_projection_registry
                 .snapshot_for_session(session_id)
                 .map(|snapshot| snapshot.revision)
@@ -178,11 +192,14 @@ pub(super) async fn persist_dispatch_event(
             // invariant — see
             // `synthetic_event_seq_path_must_not_inflate_transcript_revision_past_real_progress`.
             let transcript_event_seq = previous_transcript_revision.saturating_add(1);
-            let transcript_delta = transcript_projection_registry.apply_session_update(
-                transcript_event_seq,
-                update.as_ref(),
-                terminal_decision,
-            );
+            let transcript_delta = transcript_projection_registry
+                .apply_session_update_with_ingress(
+                    transcript_event_seq,
+                    update.as_ref(),
+                    terminal_decision,
+                    restamped_ingress_fold_event(event, transcript_event_seq, update.as_ref())
+                        .as_ref(),
+                );
             let transcript_revision = transcript_projection_registry
                 .snapshot_for_session(session_id)
                 .map(|snapshot| snapshot.revision)

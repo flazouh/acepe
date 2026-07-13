@@ -9,7 +9,7 @@
 //! | Edge | Entry | Notes |
 //! |------|-------|-------|
 //! | Live parse | `acp/parsers/claude_code_parser.rs` | CcSdk / ACP session updates |
-//! | History restore | `session_converter/` Claude paths | Provider history JSONL |
+//! | History restore | `acp/session/ingress` HistorySource + fold | Provider history JSONL |
 //! | Settings overlay | `claude_code/settings.rs` | Session model/mode defaults from config |
 //! | Model catalog | `claude_code/model_catalog.rs` | Cached CLI `--help` model discovery |
 

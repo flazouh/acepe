@@ -1,6 +1,6 @@
 use crate::acp::session_thread_snapshot::{ProviderOwnedSessionSnapshot, SessionThreadSnapshot};
+use crate::acp::session_update::{ToolCallStatus, ToolKind};
 use crate::db::repository::SessionMetadataRow;
-use crate::session_jsonl::types::StoredEntry;
 
 pub fn canonicalize_persisted_worktree_path(
     worktree_path: &str,
@@ -41,11 +41,11 @@ pub fn apply_provider_session_title_metadata(
     session
 }
 
-pub fn derive_current_mode_id_from_entries(entries: &[StoredEntry]) -> Option<String> {
+pub fn derive_current_mode_id_from_snapshot(snapshot: &SessionThreadSnapshot) -> Option<String> {
     let mut current_mode_id: Option<String> = None;
 
-    for entry in entries {
-        let StoredEntry::ToolCall { message, .. } = entry else {
+    for entry in &snapshot.entries {
+        let crate::session_jsonl::types::StoredEntry::ToolCall { message, .. } = entry else {
             continue;
         };
 
@@ -54,14 +54,10 @@ pub fn derive_current_mode_id_from_entries(entries: &[StoredEntry]) -> Option<St
         };
 
         match kind {
-            crate::acp::session_update::ToolKind::EnterPlanMode
-                if message.status != crate::acp::session_update::ToolCallStatus::Failed =>
-            {
+            ToolKind::EnterPlanMode if message.status != ToolCallStatus::Failed => {
                 current_mode_id = Some("plan".to_string());
             }
-            crate::acp::session_update::ToolKind::ExitPlanMode
-                if message.status == crate::acp::session_update::ToolCallStatus::Completed =>
-            {
+            ToolKind::ExitPlanMode if message.status == ToolCallStatus::Completed => {
                 current_mode_id = Some("build".to_string());
             }
             _ => {}
@@ -75,7 +71,7 @@ pub fn apply_derived_current_mode_metadata(
     mut session: SessionThreadSnapshot,
 ) -> SessionThreadSnapshot {
     if session.current_mode_id.is_none() {
-        session.current_mode_id = derive_current_mode_id_from_entries(&session.entries);
+        session.current_mode_id = derive_current_mode_id_from_snapshot(&session);
     }
 
     session
@@ -90,7 +86,7 @@ pub fn apply_provider_derived_current_mode_metadata(
 
 #[cfg(test)]
 mod tests {
-    use super::{apply_session_title_metadata, derive_current_mode_id_from_entries};
+    use super::{apply_session_title_metadata, derive_current_mode_id_from_snapshot};
     use crate::acp::session_thread_snapshot::SessionThreadSnapshot;
     use crate::acp::session_update::{ToolCallStatus, ToolKind};
     use crate::db::repository::SessionMetadataRow;
@@ -205,7 +201,7 @@ mod tests {
         };
 
         assert_eq!(
-            derive_current_mode_id_from_entries(&session.entries),
+            derive_current_mode_id_from_snapshot(&session),
             Some("plan".to_string())
         );
     }
@@ -231,7 +227,7 @@ mod tests {
         };
 
         assert_eq!(
-            derive_current_mode_id_from_entries(&session.entries),
+            derive_current_mode_id_from_snapshot(&session),
             Some("plan".to_string())
         );
     }

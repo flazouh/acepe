@@ -4,50 +4,144 @@ use std::collections::HashMap;
 
 use crate::acp::parsers::AgentType;
 use crate::acp::projections::OperationSnapshot;
+use crate::acp::projections::{SessionProjectionSnapshot, SessionSnapshot};
+use crate::acp::session::delivery::export::stored_entry_export::{
+    stored_entries_from_transcript, timestamp_ms_to_rfc3339,
+};
 use crate::acp::session::engine::fold::{fold_full, FoldContext};
-use crate::acp::session::ingress::canonical_events::full_session_to_provider_events;
+use crate::acp::session::ingress::canonical_events::{
+    canonical_transcript_events_to_provider_events, full_session_to_provider_events,
+};
 use crate::acp::session::ingress::event::ProviderEvent;
+use crate::acp::session::ingress::stored_entry_events::stored_entries_to_provider_events;
+use crate::acp::session_descriptor::SessionReplayContext;
 use crate::acp::session_state_engine::graph::SessionStateGraph;
 use crate::acp::session_thread_snapshot::{ProviderOwnedSessionSnapshot, SessionThreadSnapshot};
-use crate::acp::session_update::ToolCallData;
-use crate::acp::transcript_projection::{
-    tool_call_id_from_authority_entry_id, TranscriptEntry, TranscriptEntryRole, TranscriptSegment,
-};
+use crate::acp::transcript_projection::TranscriptSnapshot;
 use crate::acp::types::CanonicalAgentId;
-use crate::session_jsonl::types::{
-    FullSession, StoredAssistantChunk, StoredAssistantMessage, StoredContentBlock, StoredEntry,
-    StoredUserMessage,
-};
+use crate::session_jsonl::types::{FullSession, StoredEntry};
 
-/// Fold ordered history events into a backward-compat thread snapshot.
+/// Default session title from a session id (first 8 chars), for history load fallbacks.
 #[must_use]
-pub fn thread_snapshot_from_history_events(
+pub fn default_session_title(session_id: &str) -> String {
+    let short_id = session_id.chars().take(8).collect::<String>();
+    format!("Session {short_id}")
+}
+
+/// Fold output packaged for session-open and session-command compat callers.
+pub(crate) struct MaterializedThreadSnapshot {
+    pub transcript_snapshot: TranscriptSnapshot,
+    pub projection: SessionProjectionSnapshot,
+}
+
+/// Fold ordered history events into a session graph (single fold spine).
+#[must_use]
+pub fn fold_graph_from_history_events(
     session_id: &str,
     agent_id: &CanonicalAgentId,
     project_path: &str,
     events: &[ProviderEvent],
-    title: String,
-) -> SessionThreadSnapshot {
+) -> SessionStateGraph {
     let ctx = FoldContext::new(session_id, agent_id.clone(), project_path);
-    let graph = fold_full(events, &ctx);
-    provider_owned_snapshot_from_folded_graph(graph, title).thread_snapshot
+    fold_full(events, &ctx)
+}
+
+/// Fold events once and return transcript + projection (no StoredEntry round-trip).
+#[must_use]
+pub fn materialized_thread_snapshot_from_history_events(
+    session_id: &str,
+    agent_id: &CanonicalAgentId,
+    project_path: &str,
+    events: &[ProviderEvent],
+    _title: String,
+    transcript_revision: i64,
+) -> MaterializedThreadSnapshot {
+    let graph = fold_graph_from_history_events(session_id, agent_id, project_path, events);
+    materialized_thread_snapshot_from_folded_graph(session_id, &graph, transcript_revision)
 }
 
 /// Materialize a parsed full session through ingress events and fold.
 #[must_use]
-pub fn thread_snapshot_from_full_session(
+pub fn materialized_thread_snapshot_from_full_session(
     session: &FullSession,
     agent_id: CanonicalAgentId,
     agent_type: AgentType,
-) -> SessionThreadSnapshot {
+    transcript_revision: i64,
+) -> MaterializedThreadSnapshot {
     let events = full_session_to_provider_events(session, agent_id.clone(), agent_type);
-    thread_snapshot_from_history_events(
+    materialized_thread_snapshot_from_history_events(
         &session.session_id,
         &agent_id,
         &session.project_path,
         &events,
         session.title.clone(),
+        transcript_revision,
     )
+}
+
+/// Build fold materialized output from compat stored entries (audit / HTTP fallback seam).
+#[must_use]
+pub fn materialized_from_stored_entries(
+    session_id: &str,
+    agent_id: Option<CanonicalAgentId>,
+    entries: &[StoredEntry],
+    transcript_revision: i64,
+) -> MaterializedThreadSnapshot {
+    let transcript_snapshot = TranscriptSnapshot::from_stored_entries(transcript_revision, entries);
+    let projection = crate::acp::projections::ProjectionRegistry::project_stored_entries(
+        session_id, agent_id, entries,
+    );
+    MaterializedThreadSnapshot {
+        transcript_snapshot,
+        projection,
+    }
+}
+
+/// Derive backward-compat `SessionThreadSnapshot` from fold output (export boundary only).
+#[must_use]
+pub fn session_thread_snapshot_from_materialized(
+    materialized: &MaterializedThreadSnapshot,
+    title: String,
+) -> SessionThreadSnapshot {
+    let operations_by_entry_id =
+        index_operations_by_transcript_entry_id(&materialized.projection.operations);
+    let operations_by_tool_call_id =
+        index_operations_by_tool_call_id(&materialized.projection.operations);
+    let entries = stored_entries_from_transcript(
+        &materialized.transcript_snapshot.entries,
+        &operations_by_entry_id,
+        &operations_by_tool_call_id,
+    );
+
+    SessionThreadSnapshot {
+        entries,
+        title,
+        created_at: materialized
+            .transcript_snapshot
+            .entries
+            .first()
+            .and_then(|entry| timestamp_ms_to_rfc3339(entry.timestamp_ms))
+            .unwrap_or_else(|| chrono::Utc::now().to_rfc3339()),
+        current_mode_id: None,
+    }
+}
+
+/// Map fold materialization to `ProviderOwnedSessionSnapshot` (export / provider boundary only).
+#[must_use]
+pub fn provider_owned_snapshot_from_materialized(
+    materialized: &MaterializedThreadSnapshot,
+    title: String,
+    canonical_transcript_events: Vec<crate::acp::transcript_projection::CanonicalTranscriptEvent>,
+) -> ProviderOwnedSessionSnapshot {
+    let thread_snapshot = session_thread_snapshot_from_materialized(materialized, title);
+    if canonical_transcript_events.is_empty() {
+        ProviderOwnedSessionSnapshot::from_thread_snapshot(thread_snapshot)
+    } else {
+        ProviderOwnedSessionSnapshot::with_canonical_transcript_events(
+            thread_snapshot,
+            canonical_transcript_events,
+        )
+    }
 }
 
 /// Map a folded session graph back to `ProviderOwnedSessionSnapshot` for repair/ledger compat.
@@ -56,25 +150,12 @@ pub fn provider_owned_snapshot_from_folded_graph(
     graph: SessionStateGraph,
     title: String,
 ) -> ProviderOwnedSessionSnapshot {
-    let operations_by_entry_id = index_operations_by_transcript_entry_id(&graph.operations);
-    let operations_by_tool_call_id = index_operations_by_tool_call_id(&graph.operations);
-    let entries = stored_entries_from_transcript(
-        &graph.transcript_snapshot.entries,
-        &operations_by_entry_id,
-        &operations_by_tool_call_id,
+    let materialized = materialized_thread_snapshot_from_folded_graph(
+        &graph.canonical_session_id,
+        &graph,
+        graph.revision.graph_revision,
     );
-
-    ProviderOwnedSessionSnapshot::from_thread_snapshot(SessionThreadSnapshot {
-        entries,
-        title,
-        created_at: graph
-            .transcript_snapshot
-            .entries
-            .first()
-            .and_then(|entry| timestamp_ms_to_rfc3339(entry.timestamp_ms))
-            .unwrap_or_else(|| chrono::Utc::now().to_rfc3339()),
-        current_mode_id: None,
-    })
+    provider_owned_snapshot_from_materialized(&materialized, title, Vec::new())
 }
 
 fn index_operations_by_transcript_entry_id(
@@ -100,184 +181,105 @@ fn index_operations_by_tool_call_id(
         .collect()
 }
 
-fn stored_entries_from_transcript(
-    transcript_entries: &[TranscriptEntry],
-    operations_by_entry_id: &HashMap<String, OperationSnapshot>,
-    operations_by_tool_call_id: &HashMap<String, OperationSnapshot>,
-) -> Vec<StoredEntry> {
-    let mut entries = Vec::new();
-    let mut seen_tool_call_ids = std::collections::HashSet::new();
-
-    for (index, entry) in transcript_entries.iter().enumerate() {
-        let timestamp = timestamp_ms_to_rfc3339(entry.timestamp_ms);
-        match entry.role {
-            TranscriptEntryRole::User => {
-                if let Some(stored) = stored_user_entry_from_transcript(entry, index, timestamp) {
-                    entries.push(stored);
-                }
-            }
-            TranscriptEntryRole::Assistant => {
-                if let Some(stored) =
-                    stored_assistant_entry_from_transcript(entry, index, timestamp)
-                {
-                    entries.push(stored);
-                }
-            }
-            TranscriptEntryRole::Tool => {
-                let Some(operation) = operation_for_transcript_entry(
-                    entry,
-                    operations_by_entry_id,
-                    operations_by_tool_call_id,
-                ) else {
-                    continue;
-                };
-                if !seen_tool_call_ids.insert(operation.tool_call_id.clone()) {
-                    continue;
-                }
-                entries.push(stored_tool_call_entry_from_operation(&operation, timestamp));
-            }
-            TranscriptEntryRole::SessionActivity => {}
-        }
-    }
-
-    entries
+/// Build transcript + projection from a thread snapshot via stored-entry ingress + fold.
+#[must_use]
+pub fn materialized_thread_snapshot_from_thread_snapshot_fold_first(
+    session_id: &str,
+    replay_context: &SessionReplayContext,
+    snapshot: &SessionThreadSnapshot,
+    transcript_revision: i64,
+) -> MaterializedThreadSnapshot {
+    let events =
+        stored_entries_to_provider_events(&snapshot.entries, replay_context.agent_id.clone());
+    let graph = fold_graph_from_history_events(
+        &replay_context.local_session_id,
+        &replay_context.agent_id,
+        &replay_context.project_path,
+        &events,
+    );
+    let mut folded =
+        materialized_thread_snapshot_from_folded_graph(session_id, &graph, transcript_revision);
+    folded.transcript_snapshot.revision = transcript_revision;
+    folded
 }
 
-fn operation_for_transcript_entry<'a>(
-    entry: &TranscriptEntry,
-    operations_by_entry_id: &'a HashMap<String, OperationSnapshot>,
-    operations_by_tool_call_id: &'a HashMap<String, OperationSnapshot>,
-) -> Option<&'a OperationSnapshot> {
-    if let Some(operation) = operations_by_entry_id.get(&entry.entry_id) {
-        return Some(operation);
-    }
-
-    tool_call_id_from_authority_entry_id(&entry.entry_id)
-        .and_then(|tool_call_id| operations_by_tool_call_id.get(&tool_call_id))
+/// Build transcript + projection from a provider snapshot via fold.
+#[must_use]
+pub fn materialized_thread_snapshot_from_provider_fold_first(
+    session_id: &str,
+    replay_context: &SessionReplayContext,
+    snapshot: &ProviderOwnedSessionSnapshot,
+    transcript_revision: i64,
+) -> MaterializedThreadSnapshot {
+    let graph = fold_graph_from_provider_snapshot(replay_context, snapshot);
+    let mut folded =
+        materialized_thread_snapshot_from_folded_graph(session_id, &graph, transcript_revision);
+    folded.transcript_snapshot.revision = transcript_revision;
+    folded
 }
 
-fn stored_user_entry_from_transcript(
-    entry: &TranscriptEntry,
-    index: usize,
-    timestamp: Option<String>,
-) -> Option<StoredEntry> {
-    let blocks = user_content_blocks_from_segments(&entry.segments);
-    if blocks.is_empty() {
-        return None;
+/// Fold a provider-owned snapshot into a session graph (canonical events or stored entries).
+#[must_use]
+pub fn fold_graph_from_provider_snapshot(
+    replay_context: &SessionReplayContext,
+    snapshot: &ProviderOwnedSessionSnapshot,
+) -> SessionStateGraph {
+    let events = provider_events_from_snapshot(snapshot, replay_context);
+    let ctx = FoldContext::new(
+        replay_context.local_session_id.clone(),
+        replay_context.agent_id.clone(),
+        replay_context.project_path.clone(),
+    );
+    fold_full(&events, &ctx)
+}
+
+fn provider_events_from_snapshot(
+    snapshot: &ProviderOwnedSessionSnapshot,
+    replay_context: &SessionReplayContext,
+) -> Vec<ProviderEvent> {
+    if !snapshot.canonical_transcript_events.is_empty() {
+        return canonical_transcript_events_to_provider_events(
+            &snapshot.canonical_transcript_events,
+            replay_context.agent_id.clone(),
+            AgentType::from_canonical(&replay_context.agent_id),
+        );
     }
 
-    let id = format!("user-{index}");
-    Some(StoredEntry::User {
-        id: id.clone(),
-        message: StoredUserMessage {
-            id: Some(id),
-            content: blocks[0].clone(),
-            chunks: blocks,
-            sent_at: timestamp.clone(),
+    stored_entries_to_provider_events(
+        &snapshot.thread_snapshot.entries,
+        replay_context.agent_id.clone(),
+    )
+}
+
+pub(crate) fn materialized_thread_snapshot_from_folded_graph(
+    session_id: &str,
+    graph: &SessionStateGraph,
+    transcript_revision: i64,
+) -> MaterializedThreadSnapshot {
+    let mut transcript_snapshot = graph.transcript_snapshot.clone();
+    transcript_snapshot.revision = transcript_snapshot.revision.max(transcript_revision);
+
+    let session = SessionSnapshot {
+        session_id: session_id.to_string(),
+        agent_id: Some(graph.agent_id.clone()),
+        last_event_seq: graph.revision.graph_revision,
+        turn_state: graph.turn_state.clone(),
+        message_count: graph.message_count,
+        active_tool_call_ids: Vec::new(),
+        completed_tool_call_ids: Vec::new(),
+        active_turn_failure: graph.active_turn_failure.clone(),
+        last_terminal_turn_id: graph.last_terminal_turn_id.clone(),
+        assistant_boundary_entry_count: 0,
+        transcript_entry_count: transcript_snapshot.entries.len(),
+    };
+
+    MaterializedThreadSnapshot {
+        transcript_snapshot,
+        projection: SessionProjectionSnapshot {
+            session: Some(session),
+            operations: graph.operations.clone(),
+            interactions: graph.interactions.clone(),
+            runtime: None,
         },
-        timestamp,
-    })
-}
-
-fn stored_assistant_entry_from_transcript(
-    entry: &TranscriptEntry,
-    index: usize,
-    timestamp: Option<String>,
-) -> Option<StoredEntry> {
-    let chunks = assistant_chunks_from_segments(&entry.segments);
-    if chunks.is_empty() {
-        return None;
     }
-
-    Some(StoredEntry::Assistant {
-        id: format!("assistant-{index}"),
-        message: StoredAssistantMessage {
-            chunks,
-            model: None,
-            display_model: None,
-            received_at: timestamp.clone(),
-        },
-        timestamp,
-    })
-}
-
-fn stored_tool_call_entry_from_operation(
-    operation: &OperationSnapshot,
-    timestamp: Option<String>,
-) -> StoredEntry {
-    StoredEntry::ToolCall {
-        id: operation.tool_call_id.clone(),
-        message: tool_call_data_from_operation(operation),
-        timestamp,
-    }
-}
-
-fn tool_call_data_from_operation(operation: &OperationSnapshot) -> ToolCallData {
-    ToolCallData {
-        id: operation.tool_call_id.clone(),
-        name: operation.name.clone(),
-        arguments: operation.arguments.clone(),
-        diagnostic_input: None,
-        status: operation.provider_status.clone(),
-        result: operation.result.clone(),
-        kind: operation.kind,
-        title: operation.title.clone(),
-        locations: operation.locations.clone(),
-        skill_meta: operation.skill_meta.clone(),
-        normalized_questions: operation.normalized_questions.clone(),
-        normalized_todos: operation.normalized_todos.clone(),
-        normalized_todo_update: None,
-        parent_tool_use_id: operation.parent_tool_call_id.clone(),
-        task_children: None,
-        question_answer: operation.question_answer.clone(),
-        awaiting_plan_approval: operation.awaiting_plan_approval,
-        plan_approval_request_id: operation.plan_approval_request_id,
-    }
-}
-
-fn user_content_blocks_from_segments(segments: &[TranscriptSegment]) -> Vec<StoredContentBlock> {
-    segments
-        .iter()
-        .filter_map(|segment| match segment {
-            TranscriptSegment::Text { text, .. } => Some(StoredContentBlock {
-                block_type: "text".to_string(),
-                text: Some(text.clone()),
-            }),
-            TranscriptSegment::PastedContent { text, .. } => Some(StoredContentBlock {
-                block_type: "pasted_content".to_string(),
-                text: Some(text.clone()),
-            }),
-            _ => None,
-        })
-        .collect()
-}
-
-fn assistant_chunks_from_segments(segments: &[TranscriptSegment]) -> Vec<StoredAssistantChunk> {
-    segments
-        .iter()
-        .filter_map(|segment| match segment {
-            TranscriptSegment::Text { text, .. } => Some(StoredAssistantChunk {
-                chunk_type: "message".to_string(),
-                block: StoredContentBlock {
-                    block_type: "text".to_string(),
-                    text: Some(text.clone()),
-                },
-            }),
-            TranscriptSegment::Thought { text, .. } => Some(StoredAssistantChunk {
-                chunk_type: "thought".to_string(),
-                block: StoredContentBlock {
-                    block_type: "text".to_string(),
-                    text: Some(text.clone()),
-                },
-            }),
-            _ => None,
-        })
-        .collect()
-}
-
-fn timestamp_ms_to_rfc3339(timestamp_ms: Option<i64>) -> Option<String> {
-    timestamp_ms.and_then(|timestamp_ms| {
-        chrono::DateTime::<chrono::Utc>::from_timestamp_millis(timestamp_ms)
-            .map(|datetime| datetime.to_rfc3339())
-    })
 }

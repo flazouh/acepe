@@ -3,13 +3,19 @@ pub(crate) use parser::{
     events_jsonl_path_for_session, missing_transcript_marker, resolve_copilot_session_state_root,
 };
 
+use crate::acp::session::ingress::event::{ProviderEvent, ProviderEventKind};
+#[cfg(test)]
 use crate::acp::session_descriptor::SessionReplayContext;
 use crate::acp::session_thread_snapshot::SessionThreadSnapshot;
-use crate::acp::session_update::tool_merge::{calculate_todo_timing, merge_tool_call_update};
+use crate::acp::session_update::tool_merge::{
+    calculate_todo_timing, calculate_todo_timing_on_provider_events, merge_tool_call_update,
+};
 use crate::acp::session_update::{
     SessionUpdate, ToolArguments, ToolCallData, TurnErrorData, TurnErrorKind,
 };
+use crate::acp::types::CanonicalAgentId;
 use crate::acp::types::ContentBlock;
+use crate::cc_sdk::AssistantMessageError;
 use crate::session_jsonl::types::{
     StoredAssistantChunk, StoredAssistantMessage, StoredContentBlock, StoredEntry,
     StoredErrorMessage, StoredUserMessage,
@@ -19,7 +25,6 @@ use std::collections::{HashMap, HashSet};
 #[cfg(test)]
 use std::path::Path;
 use std::path::PathBuf;
-use tauri::AppHandle;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CopilotListedSession {
     pub session_id: String,
@@ -63,48 +68,6 @@ pub async fn count_workspace_sessions_for_project(project_path: &str) -> Result<
         .map_err(|error| format!("Failed to convert Copilot session count: {error}"))
 }
 
-pub async fn load_thread_snapshot(
-    _app: &AppHandle,
-    replay_context: &SessionReplayContext,
-    _cwd: &str,
-    title: &str,
-) -> Result<Option<SessionThreadSnapshot>, String> {
-    match load_thread_snapshot_from_disk(
-        &replay_context.history_session_id,
-        replay_context.source_path.as_deref(),
-        title,
-    )
-    .await
-    {
-        Ok(snapshot) => Ok(Some(snapshot)),
-        Err(error) => {
-            tracing::info!(
-                session_id = %replay_context.local_session_id,
-                history_session_id = %replay_context.history_session_id,
-                error = %error,
-                "Copilot session disk parse failed"
-            );
-            Ok(None)
-        }
-    }
-}
-
-pub async fn load_thread_snapshot_from_disk(
-    session_id: &str,
-    source_path: Option<&str>,
-    title: &str,
-) -> Result<SessionThreadSnapshot, String> {
-    let session_state_root = parser::resolve_copilot_session_state_root()?;
-    let transcript_path = match source_path {
-        Some(path) if !path.is_empty() && !parser::is_missing_transcript_marker(path) => {
-            PathBuf::from(path)
-        }
-        _ => events_jsonl_path_for_session(&session_state_root, session_id),
-    };
-
-    parser::parse_copilot_session_at_root(&session_state_root, &transcript_path, title).await
-}
-
 #[cfg(test)]
 fn resolve_transcript_path(
     session_state_root: &Path,
@@ -120,11 +83,25 @@ fn resolve_transcript_path(
     }
 }
 
-pub(crate) fn convert_replay_updates_to_session(
-    session_id: &str,
-    title: &str,
+fn replay_updates_into_provider_events(
     updates: &[(u64, SessionUpdate)],
-) -> SessionThreadSnapshot {
+    source: CanonicalAgentId,
+) -> Vec<ProviderEvent> {
+    let mut accumulator = ProviderEventReplayAccumulator::new(source);
+
+    for (emitted_at_ms, update) in updates {
+        if matches!(update, SessionUpdate::AgentThoughtChunk { .. }) {
+            continue;
+        }
+        accumulator.push(*emitted_at_ms, update);
+    }
+
+    accumulator.finish_events()
+}
+
+fn replay_updates_into_entries(
+    updates: &[(u64, SessionUpdate)],
+) -> (Vec<StoredEntry>, Option<String>) {
     let mut accumulator = ReplayAccumulator::new();
 
     for (emitted_at_ms, update) in updates {
@@ -134,7 +111,54 @@ pub(crate) fn convert_replay_updates_to_session(
         accumulator.push(*emitted_at_ms, update);
     }
 
-    accumulator.finish(session_id, title)
+    accumulator.finish_entries()
+}
+
+/// Map replayed Copilot session updates directly to ingress provider events.
+///
+/// Preserves `ReplayAccumulator` merge/dedup/todo timing; skips `SessionThreadSnapshot`.
+pub fn convert_replay_updates_to_provider_events(
+    updates: &[(u64, SessionUpdate)],
+) -> Vec<ProviderEvent> {
+    replay_updates_into_provider_events(updates, CanonicalAgentId::Copilot)
+}
+
+pub(crate) fn convert_replay_updates_to_session(
+    session_id: &str,
+    title: &str,
+    updates: &[(u64, SessionUpdate)],
+) -> SessionThreadSnapshot {
+    let (entries, first_event_timestamp) = replay_updates_into_entries(updates);
+
+    let resolved_title = if title.trim().is_empty() {
+        fallback_title(session_id)
+    } else {
+        title.to_string()
+    };
+
+    SessionThreadSnapshot {
+        title: resolved_title,
+        created_at: first_event_timestamp.unwrap_or_else(|| Utc::now().to_rfc3339()),
+        entries,
+        current_mode_id: None,
+    }
+}
+
+pub async fn load_provider_events_from_disk(
+    session_id: &str,
+    source_path: Option<&str>,
+    title: &str,
+) -> Result<Vec<ProviderEvent>, String> {
+    let session_state_root = parser::resolve_copilot_session_state_root()?;
+    let transcript_path = match source_path {
+        Some(path) if !path.is_empty() && !parser::is_missing_transcript_marker(path) => {
+            PathBuf::from(path)
+        }
+        _ => events_jsonl_path_for_session(&session_state_root, session_id),
+    };
+
+    parser::parse_copilot_provider_events_at_root(&session_state_root, &transcript_path, title)
+        .await
 }
 fn fallback_title(session_id: &str) -> String {
     let short_id = &session_id[..8.min(session_id.len())];
@@ -302,6 +326,229 @@ fn merge_replay_tool_call(current: ToolCallData, incoming: ToolCallData) -> Tool
     }
 }
 
+fn assistant_message_error_from_turn_error(error: &TurnErrorData) -> AssistantMessageError {
+    match error {
+        TurnErrorData::Legacy(message) => {
+            if message.contains("limit") {
+                AssistantMessageError::RateLimit
+            } else {
+                AssistantMessageError::Unknown
+            }
+        }
+        TurnErrorData::Structured(info) => {
+            if info.code.as_deref() == Some("429") {
+                AssistantMessageError::RateLimit
+            } else {
+                match info.kind {
+                    TurnErrorKind::Fatal => AssistantMessageError::InvalidRequest,
+                    TurnErrorKind::Recoverable => AssistantMessageError::Unknown,
+                }
+            }
+        }
+    }
+}
+
+fn timestamp_ms_to_provider_timestamp(timestamp_ms: u64) -> Option<i64> {
+    i64::try_from(timestamp_ms).ok()
+}
+
+struct ProviderEventReplayAccumulator {
+    events: Vec<ProviderEvent>,
+    source: CanonicalAgentId,
+    provider_seq: u64,
+    tool_call_indices: HashMap<String, usize>,
+    next_user_index: usize,
+    next_assistant_index: usize,
+    next_error_index: usize,
+    last_assistant_key: Option<String>,
+}
+
+impl ProviderEventReplayAccumulator {
+    fn new(source: CanonicalAgentId) -> Self {
+        Self {
+            events: Vec::new(),
+            source,
+            provider_seq: 0,
+            tool_call_indices: HashMap::new(),
+            next_user_index: 1,
+            next_assistant_index: 1,
+            next_error_index: 1,
+            last_assistant_key: None,
+        }
+    }
+
+    fn push(&mut self, emitted_at_ms: u64, update: &SessionUpdate) {
+        let timestamp_ms = timestamp_ms_to_provider_timestamp(emitted_at_ms);
+
+        match update {
+            SessionUpdate::UserMessageChunk { chunk, .. } => {
+                self.last_assistant_key = None;
+                self.push_user_chunk(chunk, timestamp_ms);
+            }
+            SessionUpdate::AgentMessageChunk {
+                chunk, message_id, ..
+            } => {
+                self.push_assistant_chunk(chunk, message_id.as_deref(), false, timestamp_ms);
+            }
+            SessionUpdate::AgentThoughtChunk {
+                chunk, message_id, ..
+            } => {
+                self.push_assistant_chunk(chunk, message_id.as_deref(), true, timestamp_ms);
+            }
+            SessionUpdate::ToolCall { tool_call, .. } => {
+                self.last_assistant_key = None;
+                if let Some(index) = self.tool_call_indices.get(&tool_call.id).copied() {
+                    if let Some(event) = self.events.get_mut(index) {
+                        if let ProviderEventKind::ToolCall(message) = &mut event.kind {
+                            *message = merge_replay_tool_call(message.clone(), tool_call.clone());
+                        }
+                    }
+                } else {
+                    self.push_tool_call(tool_call, timestamp_ms);
+                }
+            }
+            SessionUpdate::ToolCallUpdate { update, .. } => {
+                if let Some(index) = self.tool_call_indices.get(&update.tool_call_id).copied() {
+                    if let Some(event) = self.events.get_mut(index) {
+                        if let ProviderEventKind::ToolCall(message) = &mut event.kind {
+                            merge_tool_call_update(message, update);
+                        }
+                    }
+                }
+            }
+            SessionUpdate::TurnError { error, .. } => {
+                self.last_assistant_key = None;
+                self.remove_trailing_assistant_error_echo(error);
+                self.push_turn_error(error, timestamp_ms);
+            }
+            _ => {}
+        }
+    }
+
+    fn finish_events(mut self) -> Vec<ProviderEvent> {
+        calculate_todo_timing_on_provider_events(&mut self.events);
+        self.events
+    }
+
+    fn next_provider_seq(&mut self) -> u64 {
+        self.provider_seq += 1;
+        self.provider_seq
+    }
+
+    fn push_user_chunk(
+        &mut self,
+        chunk: &crate::acp::session_update::ContentChunk,
+        timestamp_ms: Option<i64>,
+    ) {
+        let block = stored_block_from_content(&chunk.content);
+        let Some(text) = block.text.as_ref().filter(|text| !text.trim().is_empty()) else {
+            return;
+        };
+
+        let id = format!("user-{}", self.next_user_index);
+        self.next_user_index += 1;
+        let provider_seq = self.next_provider_seq();
+        self.events.push(ProviderEvent {
+            source: self.source.clone(),
+            provider_seq,
+            provider_row_id: id,
+            timestamp_ms,
+            kind: ProviderEventKind::UserText {
+                text: text.clone(),
+                attempt_id: None,
+            },
+        });
+    }
+
+    fn push_assistant_chunk(
+        &mut self,
+        chunk: &crate::acp::session_update::ContentChunk,
+        message_id: Option<&str>,
+        is_thought: bool,
+        timestamp_ms: Option<i64>,
+    ) {
+        let block = stored_block_from_content(&chunk.content);
+        let Some(text) = block.text.as_ref().filter(|text| !text.trim().is_empty()) else {
+            return;
+        };
+
+        let key = message_id
+            .map(ToString::to_string)
+            .or_else(|| self.last_assistant_key.clone())
+            .unwrap_or_else(|| {
+                let id = format!("assistant-{}", self.next_assistant_index);
+                self.next_assistant_index += 1;
+                id
+            });
+
+        self.last_assistant_key = Some(key.clone());
+        let provider_seq = self.next_provider_seq();
+        let kind = if is_thought {
+            ProviderEventKind::AssistantThought {
+                text: text.clone(),
+                redacted: None,
+            }
+        } else {
+            ProviderEventKind::AssistantText { text: text.clone() }
+        };
+
+        self.events.push(ProviderEvent {
+            source: self.source.clone(),
+            provider_seq,
+            provider_row_id: key,
+            timestamp_ms,
+            kind,
+        });
+    }
+
+    fn push_tool_call(&mut self, tool_call: &ToolCallData, timestamp_ms: Option<i64>) {
+        let entry_index = self.events.len();
+        self.tool_call_indices
+            .insert(tool_call.id.clone(), entry_index);
+        let provider_seq = self.next_provider_seq();
+        self.events.push(ProviderEvent {
+            source: self.source.clone(),
+            provider_seq,
+            provider_row_id: tool_call.id.clone(),
+            timestamp_ms,
+            kind: ProviderEventKind::ToolCall(tool_call.clone()),
+        });
+    }
+
+    fn remove_trailing_assistant_error_echo(&mut self, error: &TurnErrorData) {
+        let error_message = turn_error_message(error);
+        let should_remove = match self.events.last() {
+            Some(ProviderEvent {
+                kind: ProviderEventKind::AssistantText { text },
+                ..
+            }) => text.trim() == error_message.trim(),
+            _ => false,
+        };
+
+        if !should_remove {
+            return;
+        }
+
+        self.events.pop();
+    }
+
+    fn push_turn_error(&mut self, error: &TurnErrorData, timestamp_ms: Option<i64>) {
+        let id = format!("error-{}", self.next_error_index);
+        self.next_error_index += 1;
+        let provider_seq = self.next_provider_seq();
+        self.events.push(ProviderEvent {
+            source: self.source.clone(),
+            provider_seq,
+            provider_row_id: id,
+            timestamp_ms,
+            kind: ProviderEventKind::AssistantError {
+                text: turn_error_message(error).to_string(),
+                error: assistant_message_error_from_turn_error(error),
+            },
+        });
+    }
+}
+
 struct ReplayAccumulator {
     entries: Vec<StoredEntry>,
     assistant_indices: HashMap<String, usize>,
@@ -384,23 +631,9 @@ impl ReplayAccumulator {
         }
     }
 
-    fn finish(mut self, session_id: &str, title: &str) -> SessionThreadSnapshot {
+    fn finish_entries(mut self) -> (Vec<StoredEntry>, Option<String>) {
         calculate_todo_timing(&mut self.entries);
-
-        let resolved_title = if title.trim().is_empty() {
-            fallback_title(session_id)
-        } else {
-            title.to_string()
-        };
-
-        SessionThreadSnapshot {
-            title: resolved_title,
-            created_at: self
-                .first_event_timestamp
-                .unwrap_or_else(|| Utc::now().to_rfc3339()),
-            entries: self.entries,
-            current_mode_id: None,
-        }
+        (self.entries, self.first_event_timestamp)
     }
 
     fn push_user_chunk(
