@@ -103,7 +103,7 @@ mod tests {
     #[test]
     fn historical_tool_call_fixture_parses_and_maps_to_provider_events() {
         let fixture_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-            .join("src/acp/reconciler/tests/fixtures/historical-tool-call-session.jsonl");
+            .join("src/acp/session/ingress/tool_identity/tests/fixtures/historical-tool-call-session.jsonl");
         let updates = parse_jsonl_fixture(&fixture_path);
         assert_eq!(updates.len(), 4);
 

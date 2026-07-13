@@ -1,14 +1,14 @@
 use crate::acp::parsers::{get_parser, AgentType};
 use crate::acp::projections::ProjectionRegistry;
+use crate::acp::session::ingress::tool_identity::{
+    classify_kind_from_provider_name, resolve_raw_tool_identity, ToolClassificationHints,
+};
 use crate::acp::session_policy::SessionPolicyRegistry;
 use crate::acp::session_update::{
     build_tool_call_from_raw, InteractionReplyHandler, PermissionData, QuestionData, QuestionItem,
     QuestionOption, RawToolCallInput, SessionUpdate, ToolCallStatus, ToolKind, ToolReference,
 };
 use crate::acp::streaming_log::log_streaming_event;
-use crate::acp::tool_identity::{
-    classify_kind_from_provider_name, resolve_raw_tool_identity, ToolClassificationHints,
-};
 use serde_json::{json, Value};
 use tauri::{AppHandle, Manager};
 

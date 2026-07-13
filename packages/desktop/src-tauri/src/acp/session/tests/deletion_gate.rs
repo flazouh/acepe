@@ -85,8 +85,9 @@ fn run_fold_full_historical_tool_call_oracle() -> Result<(), String> {
     const SESSION_ID: &str = "sess-hist-001";
     const PROJECT_PATH: &str = "/project";
 
-    let fixture_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("src/acp/reconciler/tests/fixtures/historical-tool-call-session.jsonl");
+    let fixture_path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(
+        "src/acp/session/ingress/tool_identity/tests/fixtures/historical-tool-call-session.jsonl",
+    );
 
     if !fixture_path.exists() {
         return Err(format!("fixture not found: {}", fixture_path.display()));
@@ -506,7 +507,7 @@ fn ingress_tool_table_imports_tool_identity_alias() {
     let source = fs::read_to_string(&path).expect("read tool_table.rs");
 
     assert!(
-        source.contains("crate::acp::tool_identity"),
+        source.contains("crate::acp::session::ingress::tool_identity"),
         "tool_table must import through tool_identity alias"
     );
     assert!(
@@ -532,13 +533,13 @@ fn parsers_import_tool_identity_alias() {
             .unwrap_or_else(|error| panic!("read {}: {error}", path.display()));
         if path.ends_with("mod.rs") {
             assert!(
-                source.contains("crate::acp::tool_identity"),
+                source.contains("crate::acp::session::ingress::tool_identity"),
                 "{} must re-export adapters through tool_identity",
                 path.display()
             );
         } else {
             assert!(
-                source.contains("crate::acp::tool_identity"),
+                source.contains("crate::acp::session::ingress::tool_identity"),
                 "{} must import through tool_identity",
                 path.display()
             );
@@ -558,7 +559,7 @@ fn streaming_accumulator_imports_tool_identity_alias() {
     let source = fs::read_to_string(&path).expect("read tool_streaming.rs");
 
     assert!(
-        source.contains("crate::acp::tool_identity"),
+        source.contains("crate::acp::session::ingress::tool_identity"),
         "tool_streaming must import through tool_identity"
     );
     assert!(
@@ -579,7 +580,7 @@ fn inbound_request_router_imports_tool_identity_alias() {
         let source = fs::read_to_string(&path)
             .unwrap_or_else(|error| panic!("read {}: {error}", path.display()));
         assert!(
-            source.contains("crate::acp::tool_identity"),
+            source.contains("crate::acp::session::ingress::tool_identity"),
             "{} must import through tool_identity",
             path.display()
         );
@@ -810,7 +811,7 @@ fn projections_module_documents_tool_identity_authority() {
     let source = fs::read_to_string(&path).expect("read projections/mod.rs");
 
     assert!(
-        source.contains("crate::acp::tool_identity"),
+        source.contains("crate::acp::session::ingress::tool_identity"),
         "projections mod docs must reference tool_identity as classification authority"
     );
     assert!(

@@ -193,7 +193,7 @@ mod tests {
     #[test]
     fn load_fold_graph_from_history_resolves_claude_fixture() {
         let fixture_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-            .join("src/acp/reconciler/tests/fixtures/historical-tool-call-session.jsonl");
+            .join("src/acp/session/ingress/tool_identity/tests/fixtures/historical-tool-call-session.jsonl");
 
         let graph = load_fold_graph_from_history(
             &CanonicalAgentId::ClaudeCode,
@@ -233,7 +233,7 @@ mod tests {
     #[test]
     fn load_history_events_prefers_source_path_over_workspace_root() {
         let fixture_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-            .join("src/acp/reconciler/tests/fixtures/historical-tool-call-session.jsonl");
+            .join("src/acp/session/ingress/tool_identity/tests/fixtures/historical-tool-call-session.jsonl");
 
         let events = load_history_events(
             &CanonicalAgentId::ClaudeCode,

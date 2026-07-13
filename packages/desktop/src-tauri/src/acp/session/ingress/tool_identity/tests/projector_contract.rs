@@ -1,8 +1,8 @@
 //! Unit 2: projector + semantic record invariants (R2, R3, R13).
 
 use crate::acp::parsers::arguments::parse_tool_kind_arguments;
-use crate::acp::reconciler::projector;
-use crate::acp::reconciler::semantic::SemanticToolRecord;
+use crate::acp::session::ingress::tool_identity::projector;
+use crate::acp::session::ingress::tool_identity::semantic::SemanticToolRecord;
 use crate::acp::session_update::{ToolArguments, ToolKind};
 use serde_json::json;
 

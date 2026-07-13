@@ -2,12 +2,14 @@
 //!
 //! Related coverage:
 //! - Parser-level SQL regression: `crate::acp::parsers::tests::sql_regression`
-//! - Provider dispatch: `crate::acp::reconciler::providers::tests`
+//! - Provider dispatch: `crate::acp::session::ingress::tool_identity::providers::tests`
 //! - Base reconciler cases: `reconciler_tests`
 
 use crate::acp::parsers::AgentType;
-use crate::acp::reconciler::providers;
-use crate::acp::reconciler::{classify_with_provider_name_kind, RawClassificationInput};
+use crate::acp::session::ingress::tool_identity::providers;
+use crate::acp::session::ingress::tool_identity::{
+    classify_with_provider_name_kind, RawClassificationInput,
+};
 use crate::acp::session_update::{ToolArguments, ToolKind};
 
 /// Copilot-style read payload with `view_range` + line-prefixed excerpt: must become typed
@@ -15,7 +17,7 @@ use crate::acp::session_update::{ToolArguments, ToolKind};
 #[test]
 fn copilot_read_fixture_preserves_source_context_fields() {
     const FIXTURE: &str =
-        include_str!("../../parsers/tests/fixtures/copilot_read_source_context.json");
+        include_str!("../../../../parsers/tests/fixtures/copilot_read_source_context.json");
     let payload: serde_json::Value = serde_json::from_str(FIXTURE).expect("fixture JSON");
     let raw_input = payload.get("rawInput").expect("rawInput");
     let args = crate::acp::parsers::arguments::parse_tool_kind_arguments(ToolKind::Read, raw_input);
@@ -39,7 +41,8 @@ fn copilot_read_fixture_preserves_source_context_fields() {
 /// while `query` carries SQL; reconciler should emit canonical todo semantics, not SQL transport.
 #[test]
 fn copilot_sql_fixture_shape_matches_parser_regression() {
-    const FIXTURE: &str = include_str!("../../parsers/tests/fixtures/copilot_sql_regression.json");
+    const FIXTURE: &str =
+        include_str!("../../../../parsers/tests/fixtures/copilot_sql_regression.json");
     let payload: serde_json::Value = serde_json::from_str(FIXTURE).expect("fixture JSON");
 
     let raw = RawClassificationInput {

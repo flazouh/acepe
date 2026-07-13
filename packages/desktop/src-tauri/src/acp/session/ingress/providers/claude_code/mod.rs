@@ -118,7 +118,8 @@ mod tests {
     use std::path::PathBuf;
 
     fn historical_tool_call_fixture_dir() -> PathBuf {
-        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("src/acp/reconciler/tests/fixtures")
+        PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("src/acp/session/ingress/tool_identity/tests/fixtures")
     }
 
     fn historical_tool_call_fixture_path() -> PathBuf {

@@ -1,10 +1,10 @@
 //! Provider tool-name → `ToolKind` tables wired to tool_identity adapters.
 
 use crate::acp::parsers::{get_parser, AgentType};
-use crate::acp::session_update::ToolKind;
-use crate::acp::tool_identity::{
+use crate::acp::session::ingress::tool_identity::{
     classify_raw_tool_call, providers, ClassifiedToolData, ToolClassificationHints,
 };
+use crate::acp::session_update::ToolKind;
 use crate::acp::types::CanonicalAgentId;
 
 /// Provider tool identity table — registered on every `ProviderPlugin` for ingress normalization.

@@ -334,8 +334,9 @@ mod tests {
     use serde_json::Value;
 
     fn fixture_provider_events() -> Vec<ProviderEvent> {
-        const FIXTURE: &str =
-            include_str!("../../reconciler/tests/fixtures/historical-tool-call-session.jsonl");
+        const FIXTURE: &str = include_str!(
+            "../ingress/tool_identity/tests/fixtures/historical-tool-call-session.jsonl"
+        );
 
         FIXTURE
             .lines()

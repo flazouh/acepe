@@ -1,12 +1,12 @@
 use crate::acp::parsers::acp_fields::normalize_tool_call_id;
 use crate::acp::parsers::{get_parser, AgentType};
+use crate::acp::session::ingress::tool_identity::classify_kind_from_provider_name;
 use crate::acp::session_update::{
     SessionUpdate, ToolArguments, ToolCallData, ToolCallUpdateData, ToolKind,
 };
 use crate::acp::tool_call_presentation::{
     merge_tool_arguments, synthesize_locations, synthesize_title, title_is_placeholder,
 };
-use crate::acp::tool_identity::classify_kind_from_provider_name;
 use crate::session_jsonl::types::{ContentBlock, FullSession};
 use dashmap::DashMap;
 use std::collections::HashMap;

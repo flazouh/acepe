@@ -2,7 +2,7 @@
 //!
 //! ## Ingress edge map (R3)
 //!
-//! Classification table: `acp/reconciler/providers/copilot.rs` (plan 009 home; referenced, not moved).
+//! Classification table: `acp/session/ingress/tool_identity/providers/copilot.rs` (plan 009 home; referenced, not moved).
 //!
 //! Fewer live ingress edges than Cursor — no enrichment index; history model discovery via catalog.
 //!

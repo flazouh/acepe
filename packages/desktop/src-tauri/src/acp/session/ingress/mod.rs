@@ -7,6 +7,7 @@ pub mod plugin;
 pub mod providers;
 pub mod source;
 pub mod stored_entry_events;
+pub mod tool_identity;
 pub mod tool_table;
 
 pub use canonical_events::{

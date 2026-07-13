@@ -11,7 +11,9 @@
 
 use crate::acp::agent_context::with_agent;
 use crate::acp::parsers::{get_parser, AgentType};
-use crate::acp::reconciler::{providers, semantic_transition, RawClassificationInput};
+use crate::acp::session::ingress::tool_identity::{
+    providers, semantic_transition, RawClassificationInput,
+};
 use crate::acp::session_update::ToolKind;
 use crate::acp::session_update::{
     build_tool_call_update_from_raw, RawToolCallUpdateInput, ToolArguments, ToolCallStatus,

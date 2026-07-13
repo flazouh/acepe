@@ -2,7 +2,7 @@
 //!
 //! Pins current behavior before consolidating tool identity authority — including
 //! promotion duplication between `mod.rs` and `session_tool.rs`, and streaming parity.
-//! Tests import through the authority exports on `crate::acp::reconciler` (plan 009 U2).
+//! Tests import through the authority exports on `crate::acp::session::ingress::tool_identity` (plan 009 U2).
 //!
 //! Entry families (see `docs/plans/2026-06-11-009-refactor-tool-identity-authority-plan.md`):
 //! 1. `classify_raw_tool_call`
@@ -12,9 +12,9 @@
 //! 5. `display_name_for_tool` / `providers::detect_tool_kind` (streaming fallback)
 
 use crate::acp::parsers::{get_parser, AgentType, CopilotParser};
-use crate::acp::reconciler::providers;
-use crate::acp::reconciler::session_tool::classify_serialized_tool_call;
-use crate::acp::reconciler::{
+use crate::acp::session::ingress::tool_identity::providers;
+use crate::acp::session::ingress::tool_identity::session_tool::classify_serialized_tool_call;
+use crate::acp::session::ingress::tool_identity::{
     classify_raw_tool_call, classify_with_provider_name_kind, display_name_for_tool,
     infer_kind_from_payload, infer_kind_from_payload_for_agent, semantic_transition,
     RawClassificationInput, SignalName, ToolClassificationHints,

@@ -1,7 +1,7 @@
 //! Characterization for **streamed** tool input vs one-shot classification.
 //!
 //! `SessionStreamingState::accumulate_delta` routes name-only kind caching and JSON normalization
-//! through [`crate::acp::reconciler::semantic_transition`]. These tests document parity expectations:
+//! through [`crate::acp::session::ingress::tool_identity::semantic_transition`]. These tests document parity expectations:
 //!
 //! - **Todo / Question / Sql**: progressive deltas that parse to the same final JSON object as a
 //!   non-streamed tool call should yield the same [`crate::acp::session_update::ToolArguments`] as
@@ -10,8 +10,8 @@
 //!   name is `"unknown"`; classification still uses the reconciler output [`ToolKind`].
 
 use crate::acp::parsers::AgentType;
-use crate::acp::reconciler::providers;
-use crate::acp::reconciler::RawClassificationInput;
+use crate::acp::session::ingress::tool_identity::providers;
+use crate::acp::session::ingress::tool_identity::RawClassificationInput;
 use crate::acp::session_update::{ToolArguments, ToolKind};
 use crate::acp::streaming_accumulator::SessionStreamingState;
 
@@ -25,7 +25,7 @@ fn classify_json(
     tool_name: &str,
     kind_hint: &str,
     json: &serde_json::Value,
-) -> crate::acp::reconciler::ClassificationOutput {
+) -> crate::acp::session::ingress::tool_identity::ClassificationOutput {
     providers::classify(
         agent,
         &RawClassificationInput {

@@ -14,12 +14,12 @@ use serde_json::Value;
 use crate::acp::parsers::AgentType;
 use crate::acp::session::ingress::event::{ProviderEvent, ProviderEventKind};
 use crate::acp::session::ingress::plugin::tool_table_for;
+use crate::acp::session::ingress::tool_identity::ToolClassificationHints;
 use crate::acp::session_update::tool_merge::calculate_todo_timing_on_provider_events;
 use crate::acp::session_update::{
     parse_normalized_questions, parse_normalized_todo_update, parse_normalized_todos,
     tool_call_status_from_str, ToolCallData, ToolCallStatus,
 };
-use crate::acp::tool_identity::ToolClassificationHints;
 use crate::acp::types::CanonicalAgentId;
 
 /// Load rollout history as ingress provider events (no `SessionThreadSnapshot` wrapper).

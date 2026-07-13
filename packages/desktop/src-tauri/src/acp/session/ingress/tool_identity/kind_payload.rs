@@ -1,10 +1,10 @@
 //! ACP `kind` field inference, browser/search heuristics, and markdown-safe canonical names.
 //!
-//! Lives under `reconciler/` (Unit 3) so parsers remain transport/shape-only — they re-export or call
-//! into here instead of owning semantic policy in `parsers/kind`.
+//! Lives under `session::ingress::tool_identity` so parsers remain transport/shape-only — they
+//! re-export or call into here instead of owning semantic policy in `parsers/kind`.
 
 use crate::acp::session_update::ToolKind;
-use crate::acp::{parsers::AgentType, reconciler::providers};
+use crate::acp::{parsers::AgentType, session::ingress::tool_identity::providers};
 
 /// Infer `ToolKind` from an ACP payload's `kind` field value.
 ///

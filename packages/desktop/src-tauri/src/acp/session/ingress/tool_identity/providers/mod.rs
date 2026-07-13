@@ -5,7 +5,7 @@
 //! No shared `Reconciler` trait — provider logic is a plain match arm here.
 
 use crate::acp::parsers::AgentType;
-use crate::acp::reconciler::{
+use crate::acp::session::ingress::tool_identity::{
     classify_with_provider_name_kind, ClassificationOutput, RawClassificationInput,
 };
 use crate::acp::session_update::ToolKind;
@@ -81,7 +81,7 @@ pub(crate) fn is_web_search_tool_call_id(agent: AgentType, id: &str) -> bool {
 mod tests {
     use super::{classify, detect_tool_kind};
     use crate::acp::parsers::AgentType;
-    use crate::acp::reconciler::RawClassificationInput;
+    use crate::acp::session::ingress::tool_identity::RawClassificationInput;
     use crate::acp::session_update::{ToolArguments, ToolKind};
 
     #[test]

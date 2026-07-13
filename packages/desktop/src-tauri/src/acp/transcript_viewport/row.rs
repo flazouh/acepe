@@ -1,9 +1,9 @@
 use crate::acp::projections::{
     InteractionKind, InteractionState, OperationSnapshot, OperationState,
 };
+use crate::acp::session::ingress::tool_identity::display_name_for_tool;
 use crate::acp::session_state_engine::graph::ActiveStreamingTailContentKind;
 use crate::acp::session_update::{SessionCompactionEvent, TodoItem, ToolArguments, ToolKind};
-use crate::acp::tool_identity::display_name_for_tool;
 use crate::acp::transcript_projection::{TranscriptEntryRole, TranscriptSegment};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;

@@ -19,7 +19,8 @@ fn disk_fixture_for(agent: &CanonicalAgentId) -> Option<(&'static str, PathBuf)>
         )),
         CanonicalAgentId::ClaudeCode => Some((
             "sess-hist-001",
-            PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("src/acp/reconciler/tests/fixtures"),
+            PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+                .join("src/acp/session/ingress/tool_identity/tests/fixtures"),
         )),
         _ => None,
     }

@@ -3,7 +3,9 @@
 //! The projector is deterministic and provider-agnostic: it operates only on typed
 //! [`crate::acp::session_update::ToolArguments`] and related structs, not raw provider strings.
 
-use crate::acp::reconciler::semantic::{SemanticToolRecord, SemanticTransition};
+use crate::acp::session::ingress::tool_identity::semantic::{
+    SemanticToolRecord, SemanticTransition,
+};
 use crate::acp::session_update::derive_normalized_questions_and_todos;
 use crate::acp::session_update::ToolArguments;
 

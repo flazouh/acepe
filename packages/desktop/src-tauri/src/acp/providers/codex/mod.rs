@@ -2,7 +2,7 @@
 //!
 //! ## Ingress edge map (R3)
 //!
-//! Classification table: `acp/reconciler/providers/codex.rs` (plan 009 home; referenced, not moved).
+//! Classification table: `acp/session/ingress/tool_identity/providers/codex.rs` (plan 009 home; referenced, not moved).
 //!
 //! Fewer live ingress edges than Cursor — native app-server protocol, no enrichment index.
 //!

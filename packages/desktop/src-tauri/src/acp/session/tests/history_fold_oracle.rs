@@ -91,8 +91,8 @@ fn cursor_history_source_open_from_fold_matches_phase0_golden() {
 fn claude_history_source_fold_matches_phase0_golden() {
     const SESSION_ID: &str = "sess-hist-001";
 
-    let fixture_dir =
-        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("src/acp/reconciler/tests/fixtures");
+    let fixture_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("src/acp/session/ingress/tool_identity/tests/fixtures");
 
     let events = ClaudeHistorySource
         .read(HistoryInput {

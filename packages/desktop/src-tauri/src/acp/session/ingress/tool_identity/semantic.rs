@@ -1,7 +1,7 @@
 //! Presentation-free semantic tool records (Unit 2).
 //!
 //! [`SemanticTransition`] is the shared output of provider classification + projection. Live and
-//! streaming paths should prefer [`crate::acp::reconciler::semantic_transition`] over calling
+//! streaming paths should prefer [`crate::acp::session::ingress::tool_identity::semantic_transition`] over calling
 //! `providers::classify` and the projector separately so semantics stay single-sourced.
 
 use crate::acp::session_update::{QuestionItem, TodoItem, TodoUpdate, ToolArguments, ToolKind};

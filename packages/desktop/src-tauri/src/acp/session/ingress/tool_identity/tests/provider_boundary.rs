@@ -2,7 +2,7 @@
 //! without shared-layer provider-name branching; all provider quirks live in adapters/reconciler.
 
 use crate::acp::parsers::AgentType;
-use crate::acp::reconciler::{infer_kind_from_payload, providers};
+use crate::acp::session::ingress::tool_identity::{infer_kind_from_payload, providers};
 use crate::acp::session_update::ToolKind;
 
 // --- Happy path: provider adapters classify through the shared reducer surface ---
@@ -17,7 +17,7 @@ fn kind_payload_lives_under_reconciler_not_parsers() {
 
 #[test]
 fn provider_dispatch_still_classifies_through_reducer_surface() {
-    let raw = crate::acp::reconciler::RawClassificationInput {
+    let raw = crate::acp::session::ingress::tool_identity::RawClassificationInput {
         id: "t1",
         name: Some("read_file"),
         title: None,
@@ -39,7 +39,7 @@ fn all_providers_emit_same_canonical_kind_for_shared_tool() {
         AgentType::Cursor,
         AgentType::Codex,
     ];
-    let raw = crate::acp::reconciler::RawClassificationInput {
+    let raw = crate::acp::session::ingress::tool_identity::RawClassificationInput {
         id: "t-multi",
         name: Some("read_file"),
         title: None,
@@ -65,7 +65,7 @@ fn all_providers_emit_same_canonical_kind_for_shared_tool() {
 /// pipeline promotes before publishing — no canonical event should carry `Other` as its kind.
 #[test]
 fn unknown_tool_name_resolves_to_unclassified_not_other() {
-    let raw = crate::acp::reconciler::RawClassificationInput {
+    let raw = crate::acp::session::ingress::tool_identity::RawClassificationInput {
         id: "t-unknown",
         name: Some("zzz_totally_unknown_tool_xyz"),
         title: None,
@@ -84,7 +84,7 @@ fn unknown_tool_name_resolves_to_unclassified_not_other() {
 /// An empty tool name must not panic or produce `Other`; it resolves to `Unclassified`.
 #[test]
 fn empty_tool_name_resolves_to_unclassified() {
-    let raw = crate::acp::reconciler::RawClassificationInput {
+    let raw = crate::acp::session::ingress::tool_identity::RawClassificationInput {
         id: "t-empty",
         name: Some(""),
         title: None,
@@ -102,7 +102,7 @@ fn empty_tool_name_resolves_to_unclassified() {
 /// rather than forwarding an unrecognised string.
 #[test]
 fn unknown_kind_hint_does_not_corrupt_classifier() {
-    let raw = crate::acp::reconciler::RawClassificationInput {
+    let raw = crate::acp::session::ingress::tool_identity::RawClassificationInput {
         id: "t-hint",
         name: Some("mystery_tool"),
         title: None,
