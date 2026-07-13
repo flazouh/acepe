@@ -44,7 +44,7 @@
 
 	<SettingsSection
 		title="Variants"
-		description="Each control floats as its own chip above the composer; worktree and settings share a button group."
+		description="Each control floats as its own chip above the composer, including the standalone worktree toggle."
 	>
 		<div class="overflow-hidden rounded-lg border border-border/40 bg-card px-3">
 			<SettingRow stacked label="Without branch" description="Project and agent chips only.">

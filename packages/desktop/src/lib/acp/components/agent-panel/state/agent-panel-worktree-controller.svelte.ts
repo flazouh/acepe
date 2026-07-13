@@ -33,6 +33,7 @@ export interface AgentPanelWorktreeControllerDeps {
 	panelStore: PanelStore;
 	sessionStore: SessionStore;
 	worktreeSetup: WorktreeSetupController;
+	persistProjectWorktreeDefault?: (projectPath: string, enabled: boolean) => void;
 	logWorktreeCreated?: (details: Record<string, string | null>) => void;
 	logWorktreeCreatedEarlyReturn?: () => void;
 }
@@ -236,6 +237,10 @@ export class AgentPanelWorktreeController {
 		if (panelId) {
 			this.#deps.panelStore.setPendingWorktreeEnabled(panelId, true);
 		}
+		const projectPath = this.#deps.getWorktreeToggleProjectPath();
+		if (projectPath) {
+			this.#deps.persistProjectWorktreeDefault?.(projectPath, true);
+		}
 	}
 
 	handlePreSessionWorktreeNo(): void {
@@ -256,6 +261,10 @@ export class AgentPanelWorktreeController {
 			);
 		}
 		this.#deps.panelStore.setPendingWorktreeEnabled(panelId, false);
+		const projectPath = this.#deps.getWorktreeToggleProjectPath();
+		if (projectPath) {
+			this.#deps.persistProjectWorktreeDefault?.(projectPath, false);
+		}
 	}
 
 	handlePreSessionWorktreeDismiss(): void {

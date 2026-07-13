@@ -51,9 +51,12 @@ pub enum UserSettingKey {
     CustomAgentConfigs,
     /// Persisted per-agent environment overrides (JSON object)
     AgentEnvOverrides,
-    /// Use worktrees by default for new sessions (boolean)
+    /// Use worktrees by default for new sessions (boolean, legacy — read-only for migration)
     #[serde(rename = "worktree_global_default_enabled")]
     WorktreeGlobalDefault,
+    /// Per-project worktree default for new sessions (JSON map: path -> boolean)
+    #[serde(rename = "worktree_project_defaults")]
+    WorktreeProjectDefaults,
     /// Workspace trust decisions for setup commands (JSON map: path key -> { trusted, commands })
     WorktreeTrust,
     /// Whether thinking blocks in chat are collapsed by default (boolean)
@@ -120,6 +123,7 @@ impl UserSettingKey {
             UserSettingKey::CustomAgentConfigs => "custom_agent_configs",
             UserSettingKey::AgentEnvOverrides => "agent_env_overrides",
             UserSettingKey::WorktreeGlobalDefault => "worktree_global_default_enabled",
+            UserSettingKey::WorktreeProjectDefaults => "worktree_project_defaults",
             UserSettingKey::WorktreeTrust => "worktree_trust",
             UserSettingKey::ChatThinkingBlockCollapsedByDefault => {
                 "chat_thinking_block_collapsed_by_default"

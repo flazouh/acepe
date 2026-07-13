@@ -91,6 +91,7 @@ export interface AgentPanelRootStateDeps {
 	) => AgentPanelPendingWorktreeSetupSnapshot | null;
 	readonly getPendingProjectSelection: () => boolean;
 	readonly getAllProjects: () => readonly Project[];
+	readonly persistProjectWorktreeDefault?: (projectPath: string, enabled: boolean) => void;
 	readonly logWorktreeCreated?: (details: Record<string, string | null>) => void;
 	readonly logWorktreeCreatedEarlyReturn?: () => void;
 	readonly createConnectionController?: (
@@ -188,6 +189,7 @@ export class AgentPanelRootState {
 			panelStore: this.panelStore,
 			sessionStore: this.sessionStore,
 			worktreeSetup: this.worktreeSetup,
+			persistProjectWorktreeDefault: deps.persistProjectWorktreeDefault,
 			logWorktreeCreated: deps.logWorktreeCreated,
 			logWorktreeCreatedEarlyReturn: deps.logWorktreeCreatedEarlyReturn,
 		});

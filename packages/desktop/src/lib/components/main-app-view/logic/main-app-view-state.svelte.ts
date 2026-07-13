@@ -18,7 +18,7 @@ import { okAsync, type ResultAsync } from "neverthrow";
 import type { CanonicalModeId } from "$lib/acp/types/canonical-mode-id.js";
 import { resolveDefaultAgentIdForCreate } from "$lib/acp/components/session-list/session-list-logic.js";
 import type { SessionListItem } from "$lib/acp/components/session-list/session-list-types.js";
-import type { WorktreeDefaultStore } from "$lib/acp/components/worktree/worktree-default-store.svelte.js";
+import type { WorktreeProjectDefaultStore } from "$lib/acp/components/worktree/worktree-project-default-store.svelte.js";
 import type { Project, ProjectManager } from "$lib/acp/logic/project-manager.svelte.js";
 import type { SelectorRegistry } from "$lib/acp/logic/selector-registry.svelte.js";
 import type { AgentPreferencesStore } from "$lib/acp/store/agent-preferences-store.svelte.js";
@@ -254,7 +254,7 @@ export class MainAppViewState {
 	 * @param agentPreferencesStore - The agent preferences store
 	 * @param keybindingsService - The keybindings service
 	 * @param selectorRegistry - The selector registry
-	 * @param worktreeDefaultStore - Single source for "use worktrees by default" (reactive)
+	 * @param worktreeProjectDefaultStore - Per-project worktree default preferences (reactive)
 	 */
 	constructor(
 		private readonly sessionStore: SessionStore,
@@ -266,7 +266,7 @@ export class MainAppViewState {
 		private readonly agentPreferencesStore: AgentPreferencesStore,
 		private readonly keybindingsService: KeybindingsService,
 		private readonly selectorRegistry: SelectorRegistry,
-		private readonly worktreeDefaultStore: WorktreeDefaultStore,
+		private readonly worktreeProjectDefaultStore: WorktreeProjectDefaultStore,
 		private readonly sessionOpenHydrator: Pick<
 			SessionOpenHydrator,
 			"beginAttempt" | "clearAttempt" | "hydrateFound" | "isCurrentAttempt"
@@ -498,7 +498,9 @@ export class MainAppViewState {
 		// No focused project context - show project selection
 		this.panelStore.spawnPanel({
 			requireProjectSelection: true,
-			pendingWorktreeEnabled: this.worktreeDefaultStore.globalDefault,
+			pendingWorktreeEnabled: this.worktreeProjectDefaultStore.isEnabled(
+				this.panelStore.focusedViewProjectPath
+			),
 		});
 	}
 
@@ -534,7 +536,7 @@ export class MainAppViewState {
 		const panel = this.panelStore.spawnPanel({
 			requireProjectSelection: false,
 			projectPath: project.path,
-			pendingWorktreeEnabled: this.worktreeDefaultStore.globalDefault,
+			pendingWorktreeEnabled: this.worktreeProjectDefaultStore.isEnabled(project.path),
 		});
 		if (resolvedAgentId) {
 			this.panelStore.setPanelAgent(panel.id, resolvedAgentId);

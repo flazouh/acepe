@@ -9,7 +9,6 @@ export type SettingsSectionId =
 	| "git"
 	| "project"
 	| "environments"
-	| "worktrees"
 	| "archived"
 	| "usage";
 
@@ -29,11 +28,12 @@ export function migrateSettingsSectionId(id: string): SettingsSectionId {
 		case "git":
 		case "project":
 		case "environments":
-		case "worktrees":
 		case "archived":
 		case "usage":
 			return id;
 		// Legacy ids
+		case "worktrees":
+			return "git";
 		case "configuration":
 			return "agents";
 		case "voice":

@@ -5,7 +5,10 @@ import { AgentPanelWorktreeController } from "../agent-panel-worktree-controller
 import { WorktreeSetupController } from "../worktree-setup-controller.svelte.js";
 
 describe("AgentPanelWorktreeController", () => {
-	const stubPanelStore = {} as unknown as PanelStore;
+	const stubPanelStore = {
+		setPendingWorktreeEnabled: () => undefined,
+		clearPreparedWorktreeLaunch: () => undefined,
+	} as unknown as PanelStore;
 	const stubSessionStore = {
 		updateSession: () => undefined,
 		disconnectSession: () => undefined,
@@ -42,6 +45,38 @@ describe("AgentPanelWorktreeController", () => {
 		controller.handleWorktreeCreated("/repo/.worktrees/feature");
 		expect(controller.effectiveActiveWorktreePath).toBe("/repo/.worktrees/feature");
 		expect(controller.activeWorktreeName).toBe("feature");
+	});
+
+	it("persists project worktree default when pre-session worktree is enabled", () => {
+		const persisted: Array<{ projectPath: string; enabled: boolean }> = [];
+		const controller = new AgentPanelWorktreeController({
+			getSessionId: () => null,
+			getPanelId: () => "panel-1",
+			getSessionWorktreePath: () => null,
+			getSessionProjectPath: () => "/repo",
+			getSessionAgentId: () => "claude-code",
+			getWorktreeToggleProjectPath: () => "/repo",
+			getHasMessages: () => false,
+			getPendingProjectSelection: () => false,
+			getPanelPendingWorktreeEnabled: () => null,
+			getPanelPreparedWorktreeLaunch: () => null,
+			getPendingWorktreeSetup: () => null,
+			getAllProjects: () => [],
+			panelStore: stubPanelStore,
+			sessionStore: stubSessionStore,
+			worktreeSetup,
+			persistProjectWorktreeDefault: (projectPath, enabled) => {
+				persisted.push({ projectPath, enabled });
+			},
+		});
+
+		controller.handlePreSessionWorktreeYes();
+		controller.handlePreSessionWorktreeNo();
+
+		expect(persisted).toEqual([
+			{ projectPath: "/repo", enabled: true },
+			{ projectPath: "/repo", enabled: false },
+		]);
 	});
 
 	it("records pre-session worktree failures", () => {

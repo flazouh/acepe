@@ -2,59 +2,42 @@
   AgentInputNewThreadOptions - Floating setup chips shown above the composer when
   a new chat panel has no session yet. Worktree checkbox is solid green when on.
 
-  Presentational only. Project / Agent / Branch render as individual chips;
-  Worktree + settings share a fused button group. Model and reasoning live in the
-  composer trailing toolbar, not here.
+  Presentational only. Project, agent, branch, and worktree render as individual chips.
+  Model and reasoning live in the composer trailing toolbar, not here.
   (Auto-approve lives in the composer attach menu, not here.)
 -->
 <script lang="ts">
 	import type { Snippet } from "svelte";
 
-	import { ButtonGroup } from "../button-group/index.js";
 	import { buttonVariants } from "../button/variants.js";
-	import { Selector } from "../selector/index.js";
-	import { Switch } from "../switch/index.js";
 	import * as Tooltip from "../tooltip/index.js";
 	import { cn } from "../../lib/utils.js";
-	import { RoundedIcon } from "../icons/index.js";
+	import { InterfaceIcon } from "../icons/index.js";
 
 	interface Props {
 		worktreeLabel?: string;
-		/** Label for the "default for new sessions" menu item. */
-		worktreeDefaultLabel?: string;
-		settingsLabel?: string;
 		/** Control snippets for the selector chips. */
 		project: Snippet;
 		agent: Snippet;
 		/** Optional branch picker snippet (host wraps desktop BranchPicker). */
 		branch?: Snippet;
-		/** Optional extra settings menu content rendered above the worktree default row. */
-		settingsMenu?: Snippet;
 		/** Hide the worktree toggle when worktrees do not apply (e.g. not a git repo). */
 		showWorktree?: boolean;
 		worktreeOn: boolean;
 		worktreeDisabled?: boolean;
 		onWorktreeToggle: (on: boolean) => void;
-		/** Whether new sessions default to using a worktree (persisted preference). */
-		worktreeDefaultOn?: boolean;
-		onWorktreeDefaultToggle?: (on: boolean) => void;
 		align?: "start" | "center";
 	}
 
 	let {
 		worktreeLabel = "Worktree",
-		worktreeDefaultLabel = "Use worktrees by default",
-		settingsLabel = "Session setup",
 		project,
 		agent,
 		branch,
-		settingsMenu,
 		showWorktree = true,
 		worktreeOn,
 		worktreeDisabled = false,
 		onWorktreeToggle,
-		worktreeDefaultOn = false,
-		onWorktreeDefaultToggle,
 		align = "center",
 	}: Props = $props();
 
@@ -89,74 +72,38 @@
 	{/if}
 
 	{#if showWorktree}
-		<ButtonGroup>
-			<Tooltip.Root>
-				<Tooltip.Trigger>
-					{#snippet child({ props })}
-						<button
-							{...props}
-							data-slot="button"
-							type="button"
-							role="checkbox"
-							aria-label={worktreeLabel}
-							aria-checked={worktreeOn}
-							disabled={worktreeDisabled}
-							onclick={() => onWorktreeToggle(!worktreeOn)}
-							class={worktreeTriggerClass}
-						>
-							<span aria-hidden="true" class={worktreeCheckboxClass}>
-								{#if worktreeOn}
-									<RoundedIcon name="check" class="size-2.5" />
-								{/if}
-							</span>
-							<span>{worktreeLabel}</span>
-						</button>
-					{/snippet}
-				</Tooltip.Trigger>
-				<Tooltip.Content side="top" class="max-w-[17rem] leading-relaxed">
-					<span class="font-semibold">{worktreeLabel}</span>
-					<span class="mt-1 block font-normal">
-						Run this thread in an isolated Git worktree: a separate working copy on its own
-						branch. The agent's file edits, commits, and commands stay off your current checkout,
-						so your branch is untouched until you review and merge. When off, the agent works
-						directly in your current working tree.
-					</span>
-				</Tooltip.Content>
-			</Tooltip.Root>
-
-			<Selector
-				embeddedInGroup
-				variant="secondary"
-				triggerIcon="dots"
-				showChevron={false}
-				triggerSize="composerChipIcon"
-				triggerAriaLabel={settingsLabel}
-				side="top"
-				align="end"
-				sideOffset={8}
-				contentClass="min-w-[15rem] p-1"
-			>
-				{#snippet renderButton()}{/snippet}
-
-				{#if settingsMenu}
-					{@render settingsMenu()}
-				{/if}
-				<div
-					class="flex items-center justify-between gap-3 px-2 py-1.5"
-					role="presentation"
-					onclick={(event) => event.stopPropagation()}
-					onkeydown={(event) => event.stopPropagation()}
-				>
-					<span class="min-w-0 text-[11px] text-foreground">{worktreeDefaultLabel}</span>
-					<Switch
-						checked={worktreeDefaultOn}
-						onCheckedChange={(checked) => {
-							onWorktreeDefaultToggle?.(checked === true);
-						}}
-						aria-label={worktreeDefaultLabel}
-					/>
-				</div>
-			</Selector>
-		</ButtonGroup>
+		<Tooltip.Root>
+			<Tooltip.Trigger>
+				{#snippet child({ props })}
+					<button
+						{...props}
+						data-slot="button"
+						type="button"
+						role="checkbox"
+						aria-label={worktreeLabel}
+						aria-checked={worktreeOn}
+						disabled={worktreeDisabled}
+						onclick={() => onWorktreeToggle(!worktreeOn)}
+						class={worktreeTriggerClass}
+					>
+						<span aria-hidden="true" class={worktreeCheckboxClass}>
+							{#if worktreeOn}
+								<InterfaceIcon name="check" class="size-2.5" />
+							{/if}
+						</span>
+						<span>{worktreeLabel}</span>
+					</button>
+				{/snippet}
+			</Tooltip.Trigger>
+			<Tooltip.Content side="top" class="max-w-[17rem] leading-relaxed">
+				<span class="font-semibold">{worktreeLabel}</span>
+				<span class="mt-1 block font-normal">
+					Run this thread in an isolated Git worktree: a separate working copy on its own
+					branch. The agent's file edits, commits, and commands stay off your current checkout,
+					so your branch is untouched until you review and merge. When off, the agent works
+					directly in your current working tree.
+				</span>
+			</Tooltip.Content>
+		</Tooltip.Root>
 	{/if}
 </div>

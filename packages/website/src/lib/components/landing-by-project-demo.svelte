@@ -430,11 +430,11 @@ const projectPanels = $derived<DemoProjectPanel[]>([
 			searchSubtitle: "worktree cleanup",
 			searchQuery: "worktree remove cleanup temp path",
 			searchFiles: [
-				"packages/desktop/src/lib/acp/components/worktree/worktree-default-store.svelte.ts",
+				"packages/desktop/src/lib/acp/components/worktree/worktree-project-default-store.svelte.ts",
 				"packages/desktop/src/lib/components/main-app-view/logic/managers/session-handler.js",
 			],
 			editFilePath:
-				"packages/desktop/src/lib/acp/components/worktree/worktree-default-store.svelte.ts",
+				"packages/desktop/src/lib/acp/components/worktree/worktree-project-default-store.svelte.ts",
 			assistantMarkdown:
 				"The failing branch still points at a detached temp path after the session exits.\n\nI isolated the cleanup guard and left the error state visible instead of masking it.",
 			isStreaming: false,

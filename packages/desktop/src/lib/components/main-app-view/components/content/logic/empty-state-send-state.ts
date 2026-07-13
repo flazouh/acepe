@@ -29,30 +29,28 @@ export function canSendWithoutSession(options: {
 
 export function resolveEmptyStateWorktreePending(options: {
 	activeWorktreePath: string | null;
-	globalWorktreeDefault: boolean;
-	loadEnabled: (panelId: string, globalDefault: boolean) => boolean;
-	panelId?: string;
+	projectPath: string | null | undefined;
+	isProjectWorktreeEnabled: (projectPath: string) => boolean;
 }): boolean {
 	if (options.activeWorktreePath !== null) {
 		return false;
 	}
 
-	return options.loadEnabled(
-		options.panelId ?? EMPTY_STATE_PANEL_ID,
-		options.globalWorktreeDefault
-	);
+	if (!options.projectPath) {
+		return false;
+	}
+
+	return options.isProjectWorktreeEnabled(options.projectPath);
 }
 
 export function resolveEmptyStateWorktreePendingForProjectChange(options: {
-	globalWorktreeDefault: boolean;
-	loadEnabled: (panelId: string, globalDefault: boolean) => boolean;
-	panelId?: string;
+	projectPath: string;
+	isProjectWorktreeEnabled: (projectPath: string) => boolean;
 }): boolean {
 	return resolveEmptyStateWorktreePending({
 		activeWorktreePath: null,
-		globalWorktreeDefault: options.globalWorktreeDefault,
-		loadEnabled: options.loadEnabled,
-		panelId: options.panelId,
+		projectPath: options.projectPath,
+		isProjectWorktreeEnabled: options.isProjectWorktreeEnabled,
 	});
 }
 

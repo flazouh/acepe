@@ -6,11 +6,10 @@ import AgentSelector from "$lib/acp/components/agent-selector.svelte";
 import BranchPicker from "$lib/acp/components/branch-picker/branch-picker.svelte";
 import ProjectSelector from "$lib/acp/components/project-selector.svelte";
 import ProjectTable from "$lib/acp/components/add-repository/project-table.svelte";
-import { getWorktreeDefaultStore } from "$lib/acp/components/worktree/worktree-default-store.svelte.js";
+import { getWorktreeProjectDefaultStore } from "$lib/acp/components/worktree/worktree-project-default-store.svelte.js";
 import { Button } from "$lib/components/ui/button/index.js";
 import { RoundedIcon } from "@acepe/ui";
 import { getErrorCauseDetails } from "$lib/acp/errors/error-cause-details.js";
-import { loadWorktreeEnabled } from "$lib/acp/components/worktree/worktree-storage.js";
 import type { ProjectWithSessions } from "$lib/acp/components/add-repository/open-project-dialog-props.js";
 import {
 	shouldShowDiscoveredProject,
@@ -82,9 +81,8 @@ const agentPreferencesStore = getAgentPreferencesStore();
 const panelStore = getPanelStore();
 const logger = createLogger({ id: "empty-state-worktree", name: "EmptyStateWorktree" });
 
-// Global worktree default (loaded once at app root in main-app-view, read reactively here)
-const worktreeDefaultStore = getWorktreeDefaultStore();
-const globalWorktreeDefault = $derived(worktreeDefaultStore.globalDefault);
+// Per-project worktree default (loaded once at app root in main-app-view, read reactively here)
+const worktreeProjectDefaultStore = getWorktreeProjectDefaultStore();
 
 // Local state — only written by explicit user actions
 let selectedAgentId: string | null = $state(null);
@@ -196,8 +194,8 @@ $effect(() => {
 	}
 	worktreePending = resolveEmptyStateWorktreePending({
 		activeWorktreePath,
-		globalWorktreeDefault,
-		loadEnabled: loadWorktreeEnabled,
+		projectPath: currentProjectPath,
+		isProjectWorktreeEnabled: (path) => worktreeProjectDefaultStore.isEnabled(path),
 	});
 });
 
@@ -228,14 +226,14 @@ function handleProjectChange(project: Project) {
 		previousProjectPath: projectPath,
 		activeWorktreePath,
 		worktreePendingBefore: worktreePending,
-		globalWorktreeDefault,
+		projectWorktreeDefault: worktreeProjectDefaultStore.isEnabled(project.path),
 	});
 	selectedProject = project;
 	activeWorktreePath = null;
 	preparedWorktreeLaunch = null;
 	worktreePending = resolveEmptyStateWorktreePendingForProjectChange({
-		globalWorktreeDefault,
-		loadEnabled: loadWorktreeEnabled,
+		projectPath: project.path,
+		isProjectWorktreeEnabled: (path) => worktreeProjectDefaultStore.isEnabled(path),
 	});
 	logger.info("[worktree-debug] empty-state project change resolved", {
 		projectPath: project.path,
@@ -700,10 +698,9 @@ function handleEmptyStateSessionCreated(sessionId: string) {
 					onWorktreeToggle: (on) => {
 						preparedWorktreeLaunch = null;
 						worktreePending = on;
-					},
-					worktreeDefaultOn: globalWorktreeDefault,
-					onWorktreeDefaultToggle: (on) => {
-						void worktreeDefaultStore.set(on);
+						if (projectPath) {
+							void worktreeProjectDefaultStore.set(projectPath, on);
+						}
 					},
 				}}
 			/>

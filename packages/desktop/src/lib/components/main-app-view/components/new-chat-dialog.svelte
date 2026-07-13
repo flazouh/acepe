@@ -21,8 +21,7 @@
 	import type { PreparedWorktreeLaunch } from "$lib/acp/types/worktree-info.js";
 	import { CanonicalModeId } from "$lib/acp/types/canonical-mode-id.js";
 	import { getAgentPreferencesStore, getAgentStore, getPanelStore } from "$lib/acp/store/index.js";
-	import { getWorktreeDefaultStore } from "$lib/acp/components/worktree/worktree-default-store.svelte.js";
-	import { loadWorktreeEnabled } from "$lib/acp/components/worktree/worktree-storage.js";
+	import { getWorktreeProjectDefaultStore } from "$lib/acp/components/worktree/worktree-project-default-store.svelte.js";
 	import { tauriClient } from "$lib/utils/tauri-client.js";
 	import { toast } from "svelte-sonner";
 	import {
@@ -50,7 +49,7 @@
 	const panelStore = getPanelStore();
 	const agentStore = getAgentStore();
 	const agentPreferencesStore = getAgentPreferencesStore();
-	const worktreeDefaultStore = getWorktreeDefaultStore();
+	const worktreeProjectDefaultStore = getWorktreeProjectDefaultStore();
 
 	let newSessionOpen = $state(false);
 	let newSessionDialogRef = $state<HTMLElement | null>(null);
@@ -65,7 +64,7 @@
 	let preSessionCurrentBranch = $state<string | null>(null);
 	let preSessionIsGitRepo = $state<boolean | null>(null);
 
-	const globalWorktreeDefault = $derived(worktreeDefaultStore.globalDefault);
+	const isProjectWorktreeEnabled = (path: string) => worktreeProjectDefaultStore.isEnabled(path);
 	const projects = $derived(projectManager.projects);
 	const availableAgents = $derived.by((): AgentInfo[] => {
 		return getSpawnableSessionAgents(agentStore.agents, agentPreferencesStore.selectedAgentIds).map(
@@ -135,9 +134,7 @@
 			request: request ?? null,
 			currentComposerKey: newSessionComposerKey,
 			fallbackModeId: CanonicalModeId.BUILD,
-			globalWorktreeDefault,
-			loadWorktreeEnabled: loadWorktreeEnabled,
-			panelId: NEW_CHAT_DIALOG_PANEL_ID,
+			isProjectWorktreeEnabled,
 		});
 
 		selectedProjectPath = nextState.selectedProjectPath;
@@ -181,9 +178,7 @@
 	function handleNewSessionProjectChange(project: Project): void {
 		const nextState = buildKanbanNewSessionProjectChangeState({
 			projectPath: project.path,
-			globalWorktreeDefault,
-			loadWorktreeEnabled: loadWorktreeEnabled,
-			panelId: NEW_CHAT_DIALOG_PANEL_ID,
+			isProjectWorktreeEnabled,
 		});
 		selectedProjectPath = nextState.selectedProjectPath;
 		activeWorktreePath = nextState.activeWorktreePath;
@@ -353,10 +348,9 @@
 						onWorktreeToggle: (on) => {
 							preparedWorktreeLaunch = null;
 							worktreePending = on;
-						},
-						worktreeDefaultOn: globalWorktreeDefault,
-						onWorktreeDefaultToggle: (on) => {
-							void worktreeDefaultStore.set(on);
+							if (selectedProjectPath) {
+								void worktreeProjectDefaultStore.set(selectedProjectPath, on);
+							}
 						},
 						setupBarAlign: "start",
 					}}

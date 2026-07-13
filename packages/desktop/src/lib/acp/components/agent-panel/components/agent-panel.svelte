@@ -9,7 +9,7 @@ import {
 	type AgentUserFileSelectEvent,
 	type AgentToolFileSelectEvent,
 } from "@acepe/ui/agent-panel";
-import { DiffPill, RoundedIcon, setThinkingPreferences, type PrChecksItem } from "@acepe/ui";
+import { DiffPill, InterfaceIcon, RoundedIcon, setThinkingPreferences, type PrChecksItem } from "@acepe/ui";
 import { Button } from "@acepe/ui/button";
 import * as ButtonGroup from "@acepe/ui/button-group";
 import * as DropdownMenu from "@acepe/ui/dropdown-menu";
@@ -87,7 +87,7 @@ import { resolveAgentPanelHeaderSequenceId } from "../logic/agent-panel-header-s
 import { resolveAgentPanelProviderBrand } from "../logic/agent-panel-provider-brand.js";
 import { derivePendingUserRevealRequestKey } from "../logic/pending-user-reveal-request-key.js";
 import { resolveWorktreeToggleProjectPath } from "../logic/worktree-toggle-project-path.js";
-import { getWorktreeDefaultStore } from "$lib/acp/components/worktree/worktree-default-store.svelte.js";
+import { getWorktreeProjectDefaultStore } from "$lib/acp/components/worktree/worktree-project-default-store.svelte.js";
 import type { AgentPanelProps } from "../types";
 import { revealInFinder } from "$lib/utils/tauri-client/opener.js";
 import type { OpenProjectFileSystemDialogOptions } from "../../../store/project-file-system-dialog-state.js";
@@ -175,6 +175,7 @@ function isAgentPanelRenderTraceEnabled(): boolean {
 
 // svelte-ignore state_referenced_locally -- constructor timing should use this instance's initial panel id.
 recordPanelOpenPerformanceMark(panelId, "agent-panel:root-state-start");
+const worktreeProjectDefaultStore = getWorktreeProjectDefaultStore();
 const rootState = new AgentPanelRootState({
 	stores: {
 		sessionStore: getSessionStore(),
@@ -230,6 +231,9 @@ const rootState = new AgentPanelRootState({
 		state.sessionController.panelHotState?.pendingWorktreeSetup ?? null,
 	getPendingProjectSelection: () => pendingProjectSelection,
 	getAllProjects: () => allProjects,
+	persistProjectWorktreeDefault: (projectPath, enabled) => {
+		void worktreeProjectDefaultStore.set(projectPath, enabled);
+	},
 	logWorktreeCreated: (details) => {
 		logger.info("[worktree-flow] handleWorktreeCreated: entry", details);
 	},
@@ -257,7 +261,6 @@ const contentScrollReveal = rootState.contentScrollReveal;
 const checkpointTimeline = rootState.checkpointTimeline;
 const worktreeSetup = rootState.worktreeSetup;
 const worktreeController = rootState.worktreeController;
-const worktreeDefaultStore = getWorktreeDefaultStore();
 const viewStateController = rootState.viewStateController;
 const scenePipelineController = rootState.scenePipelineController;
 const prCard = rootState.prCard;
@@ -2052,10 +2055,6 @@ async function handleFixCiCheck(check: PrChecksItem): Promise<void> {
 												handlePreSessionWorktreeNo();
 											}
 										},
-										worktreeDefaultOn: worktreeDefaultStore.globalDefault,
-										onWorktreeDefaultToggle: (on) => {
-											void worktreeDefaultStore.set(on);
-										},
 									}
 									: null
 							}
@@ -2083,7 +2082,7 @@ async function handleFixCiCheck(check: PrChecksItem): Promise<void> {
 										onclick={() => checkpointTimeline.toggle()}
 									>
 										{#snippet children()}
-											<RoundedIcon name="clock" />
+											<InterfaceIcon name="clock" />
 										{/snippet}
 									</Button>
 								{/if}
@@ -2383,7 +2382,7 @@ async function handleFixCiCheck(check: PrChecksItem): Promise<void> {
 							aria-label="Previous file"
 							title="Previous file"
 						>
-							<RoundedIcon name="chevron-left" class="size-3" />
+							<InterfaceIcon name="chevron-left" class="size-3" />
 						</Button>
 						<Button
 							variant="secondary"
@@ -2402,7 +2401,7 @@ async function handleFixCiCheck(check: PrChecksItem): Promise<void> {
 							aria-label="Next file"
 							title="Next file"
 						>
-							<RoundedIcon name="chevron-right" class="size-3" />
+							<InterfaceIcon name="chevron-right" class="size-3" />
 						</Button>
 					</ButtonGroup.Root>
 				{/if}

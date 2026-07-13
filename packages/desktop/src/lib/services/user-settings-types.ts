@@ -98,9 +98,13 @@ export type UserSettingKey =
  */
 "agent_env_overrides" |
 /**
- * Use worktrees by default for new sessions (boolean)
+ * Use worktrees by default for new sessions (boolean, legacy — read-only for migration)
  */
 "worktree_global_default_enabled" |
+/**
+ * Per-project worktree default for new sessions (JSON map: path -> boolean)
+ */
+"worktree_project_defaults" |
 /**
  * Workspace trust decisions for setup commands (JSON map: path key -> { trusted, commands })
  */

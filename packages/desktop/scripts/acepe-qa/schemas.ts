@@ -664,7 +664,6 @@ export const panelClosePerformanceTraceSchema = z.object({
 	hotStateCleanupMs: z.number(),
 	fileOwnershipCleanupMs: z.number(),
 	embeddedTerminalCleanupMs: z.number(),
-	worktreeCleanupMs: z.number(),
 	focusStateApplyMs: z.number(),
 	persistMs: z.number(),
 	totalMs: z.number(),

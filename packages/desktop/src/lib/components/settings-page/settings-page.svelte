@@ -1,5 +1,5 @@
 <script lang="ts">
-import { RoundedIcon } from "@acepe/ui";
+import { InterfaceIcon, RoundedIcon } from "@acepe/ui";
 import type { ProjectManager } from "$lib/acp/logic/project-manager.svelte.js";
 import AgentsModelsSection from "./sections/agents-models-section.svelte";
 import AppearanceSection from "./sections/appearance-section.svelte";
@@ -13,7 +13,6 @@ import McpSection from "./sections/mcp-section.svelte";
 import ProjectSection from "./sections/project-section.svelte";
 import SkillsSection from "./sections/skills-section.svelte";
 import UsageSection from "./sections/usage-section.svelte";
-import WorktreesSection from "./sections/worktrees-section.svelte";
 import SettingsPageHeader from "./settings-page-header.svelte";
 import { getSettingsSectionDefinition } from "./settings-section-registry.js";
 import SettingsSidebar from "./settings-sidebar.svelte";
@@ -56,7 +55,7 @@ function handleSectionChange(section: SettingsSectionId) {
 				aria-label="Back"
 				class="inline-flex h-6 items-center gap-1 rounded-md px-1.5 text-[13px] font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
 			>
-				<RoundedIcon name="chevron-left" class="size-3.5" />
+				<InterfaceIcon name="chevron-left" class="size-3.5" />
 				<span>Back</span>
 			</button>
 		{/if}
@@ -108,8 +107,6 @@ function handleSectionChange(section: SettingsSectionId) {
 				{/if}
 			{:else if activeSection === "environments"}
 				<EnvironmentsSection />
-			{:else if activeSection === "worktrees"}
-				<WorktreesSection />
 			{:else if activeSection === "archived"}
 				{#if projectManager}
 					<ArchivedSessionsSection {projectManager} />

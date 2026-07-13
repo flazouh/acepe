@@ -1,6 +1,6 @@
 import type { Component } from "svelte";
 import { PaletteIcon, RobotIcon } from "@acepe/ui";
-import type { LinearInterfaceIconName, RoundedIconName } from "@acepe/ui/icons";
+import type { InterfaceIconName, RoundedIconName } from "@acepe/ui/icons";
 
 import type { SettingsSectionId } from "./settings-types.js";
 
@@ -16,7 +16,7 @@ export interface SettingsSectionDefinition {
 	readonly label: string;
 	readonly description: string;
 	readonly icon?: Component;
-	readonly linearInterfaceIcon?: LinearInterfaceIconName;
+	readonly interfaceIcon?: InterfaceIconName;
 	readonly roundedIcon?: RoundedIconName;
 	readonly groupId: SettingsNavGroupId;
 	readonly fullWidth?: boolean;
@@ -34,7 +34,7 @@ export const SETTINGS_SECTIONS: readonly SettingsSectionDefinition[] = [
 		id: "general",
 		label: "General",
 		description: "Notifications, telemetry, and app-wide behavior.",
-		linearInterfaceIcon: "settings-general",
+		interfaceIcon: "settings-general",
 		groupId: "general",
 	},
 	{
@@ -71,7 +71,7 @@ export const SETTINGS_SECTIONS: readonly SettingsSectionDefinition[] = [
 		id: "skills",
 		label: "Skills",
 		description: "Create and manage reusable local skills.",
-		linearInterfaceIcon: "settings-skills",
+		interfaceIcon: "settings-skills",
 		groupId: "agents",
 		fullWidth: true,
 	},
@@ -89,13 +89,6 @@ export const SETTINGS_SECTIONS: readonly SettingsSectionDefinition[] = [
 		roundedIcon: "folder",
 		groupId: "workspace",
 		fullWidth: true,
-	},
-	{
-		id: "worktrees",
-		label: "Worktrees",
-		description: "Default behavior for worktree-aware sessions.",
-		roundedIcon: "worktree",
-		groupId: "workspace",
 	},
 	{
 		id: "environments",

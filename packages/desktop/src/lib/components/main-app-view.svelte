@@ -10,7 +10,7 @@ import OpenProjectDialog from "$lib/acp/components/add-repository/open-project-d
 import DiffViewerModal from "$lib/acp/components/diff-viewer/diff-viewer-modal.svelte";
 import { TabBar } from "$lib/acp/components/tab-bar/index.js";
 import { WelcomeScreen } from "$lib/acp/components/welcome-screen/index.js";
-import { getWorktreeDefaultStore } from "$lib/acp/components/worktree/worktree-default-store.svelte.js";
+import { getWorktreeProjectDefaultStore } from "$lib/acp/components/worktree/worktree-project-default-store.svelte.js";
 import { LOGGER_IDS } from "$lib/acp/constants/logger-ids.js";
 import { useAdvancedCommandPalette } from "$lib/acp/hooks/use-advanced-command-palette.svelte.js";
 import { InboundRequestHandler } from "$lib/acp/logic/inbound-request-handler.js";
@@ -1269,8 +1269,8 @@ function startLegacyInboundRequestHandler(): void {
 // Initialize keybindings service
 const kb = getKeybindingsService();
 
-// Worktree default store (single source of truth; load once so handleNewThreadForProject reads current value)
-const worktreeDefaultStore = getWorktreeDefaultStore();
+// Per-project worktree default store (single source of truth; load once at startup)
+const worktreeProjectDefaultStore = getWorktreeProjectDefaultStore();
 
 // Create main app view state - manages all business logic
 const viewState = new MainAppViewState(
@@ -1283,7 +1283,7 @@ const viewState = new MainAppViewState(
 	agentPreferencesStore,
 	kb,
 	selectorRegistry,
-	worktreeDefaultStore,
+	worktreeProjectDefaultStore,
 	sessionOpenHydrator
 );
 
@@ -1316,7 +1316,7 @@ function handleAddProjectOpen(path: string, name: string) {
 			sessionStore.loading.scanSessions([path]).mapErr(() => {});
 			panelStore.spawnPanel({
 				projectPath: path,
-				pendingWorktreeEnabled: worktreeDefaultStore.globalDefault,
+				pendingWorktreeEnabled: worktreeProjectDefaultStore.isEnabled(path),
 			});
 		},
 		(error) => {
@@ -1697,8 +1697,12 @@ onMount(async () => {
 		void attentionQueueStore.initialize();
 		void voiceSettingsStore.initialize();
 		void dismissedTipsStore.initialize();
-		void worktreeDefaultStore.load().mapErr((error) => {
-			logger.error("Failed to load worktree default preference", { error });
+		void worktreeProjectDefaultStore
+			.load({
+				getProjectPaths: () => projectManager.projects.map((project) => project.path),
+			})
+			.mapErr((error) => {
+			logger.error("Failed to load worktree project default preferences", { error });
 		});
 	});
 	scheduleNonCriticalStartupWork(() => {

@@ -1,6 +1,8 @@
 import { fireEvent, render } from "@testing-library/svelte";
 import { describe, expect, it, vi } from "vitest";
 
+import { linearIconData } from "../../../../../ui/src/components/icons/linear-icon-catalog.generated.js";
+
 import { SETTINGS_SECTIONS } from "./settings-section-registry.js";
 import SettingsSidebar from "./settings-sidebar.svelte";
 
@@ -14,6 +16,15 @@ vi.mock("svelte", async () => {
 	);
 
 	return import(/* @vite-ignore */ svelteClientPath);
+});
+
+vi.mock("@acepe/ui", async () => {
+	const IconStub = (await import("./settings-sidebar-test-icon-stub.svelte")).default;
+
+	return {
+		PaletteIcon: IconStub,
+		RobotIcon: IconStub,
+	};
 });
 
 describe("SettingsSidebar", () => {
@@ -50,9 +61,26 @@ describe("SettingsSidebar", () => {
 			onSectionChange,
 		});
 
-		const worktreesButton = view.getByRole("button", { name: "Worktrees" });
-		await fireEvent.click(worktreesButton);
+		const gitButton = view.getByRole("button", { name: "Git" });
+		await fireEvent.click(gitButton);
 
-		expect(onSectionChange).toHaveBeenCalledWith("worktrees");
+		expect(onSectionChange).toHaveBeenCalledWith("git");
+	});
+
+	it("renders the approved interface settings row icons", () => {
+		const view = render(SettingsSidebar, {
+			activeSection: "general",
+			onSectionChange: vi.fn(),
+		});
+
+		const generalIcon = view.getByTestId("settings-section-general-icon");
+		const skillsIcon = view.getByTestId("settings-section-skills-icon");
+
+		expect(generalIcon.getAttribute("viewBox")).toBe(
+			linearIconData["feature-svg6bdd3b6f165e"].viewBox
+		);
+		expect(generalIcon.innerHTML).toBe(linearIconData["feature-svg6bdd3b6f165e"].inner);
+		expect(skillsIcon.getAttribute("viewBox")).toBe(linearIconData.skills.viewBox);
+		expect(skillsIcon.innerHTML).toBe(linearIconData.skills.inner);
 	});
 });

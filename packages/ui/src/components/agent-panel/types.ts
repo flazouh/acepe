@@ -369,7 +369,6 @@ export const AGENT_PANEL_ACTION_IDS = {
 		create: "worktree.create",
 		close: "worktree.close",
 		remove: "worktree.remove",
-		toggleDefault: "worktree.toggleDefault",
 	},
 	plan: {
 		openDialog: "plan.openDialog",

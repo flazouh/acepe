@@ -2,7 +2,6 @@ import { describe, expect, it } from "bun:test";
 
 import {
 	canSendWithoutSession,
-	EMPTY_STATE_PANEL_ID,
 	resolveEmptyStateAgentId,
 	resolveEmptyStateWorktreePending,
 	resolveEmptyStateWorktreePendingForProjectChange,
@@ -12,37 +11,32 @@ import {
 } from "../empty-state-send-state.js";
 
 describe("empty-state send state", () => {
-	it("treats global default worktree as pending before first send", () => {
+	it("treats per-project worktree default as pending before first send", () => {
 		expect(
 			resolveEmptyStateWorktreePending({
 				activeWorktreePath: null,
-				globalWorktreeDefault: true,
-				loadEnabled: (_panelId, globalDefault) => globalDefault,
+				projectPath: "/repo",
+				isProjectWorktreeEnabled: () => true,
 			})
 		).toBe(true);
 	});
 
-	it("uses the empty-state panel id when loading persisted worktree state", () => {
-		let receivedPanelId: string | null = null;
-
-		resolveEmptyStateWorktreePending({
-			activeWorktreePath: null,
-			globalWorktreeDefault: false,
-			loadEnabled: (panelId) => {
-				receivedPanelId = panelId;
-				return true;
-			},
-		});
-
-		expect(receivedPanelId === EMPTY_STATE_PANEL_ID).toBe(true);
-	});
-
-	it("respects a persisted opt-out even when global default is enabled", () => {
+	it("returns false when no project path is selected", () => {
 		expect(
 			resolveEmptyStateWorktreePending({
 				activeWorktreePath: null,
-				globalWorktreeDefault: true,
-				loadEnabled: () => false,
+				projectPath: null,
+				isProjectWorktreeEnabled: () => true,
+			})
+		).toBe(false);
+	});
+
+	it("respects per-project opt-out", () => {
+		expect(
+			resolveEmptyStateWorktreePending({
+				activeWorktreePath: null,
+				projectPath: "/repo",
+				isProjectWorktreeEnabled: () => false,
 			})
 		).toBe(false);
 	});
@@ -51,8 +45,8 @@ describe("empty-state send state", () => {
 		expect(
 			resolveEmptyStateWorktreePending({
 				activeWorktreePath: "/tmp/worktree",
-				globalWorktreeDefault: true,
-				loadEnabled: () => true,
+				projectPath: "/repo",
+				isProjectWorktreeEnabled: () => true,
 			})
 		).toBe(false);
 	});
@@ -60,8 +54,8 @@ describe("empty-state send state", () => {
 	it("re-resolves pending worktree state when the selected project changes", () => {
 		expect(
 			resolveEmptyStateWorktreePendingForProjectChange({
-				globalWorktreeDefault: false,
-				loadEnabled: (panelId) => panelId === EMPTY_STATE_PANEL_ID,
+				projectPath: "/repo-b",
+				isProjectWorktreeEnabled: (path) => path === "/repo-b",
 			})
 		).toBe(true);
 	});
@@ -78,7 +72,7 @@ describe("empty-state send state", () => {
 	it("clears persisted draft immediately for empty-state first send", () => {
 		expect(
 			shouldClearPersistedDraftBeforeAsyncSend({
-				panelId: EMPTY_STATE_PANEL_ID,
+				panelId: "empty-state-panel",
 				sessionId: null,
 			})
 		).toBe(true);
@@ -96,7 +90,7 @@ describe("empty-state send state", () => {
 	it("does not restore a persisted draft when the panel now has a session", () => {
 		expect(
 			shouldRestoreInitialDraft({
-				panelId: EMPTY_STATE_PANEL_ID,
+				panelId: "empty-state-panel",
 				sessionId: "session-1",
 				draft: "what is pwd here ?",
 			})
@@ -106,7 +100,7 @@ describe("empty-state send state", () => {
 	it("does not restore a persisted draft during first-send handoff", () => {
 		expect(
 			shouldRestoreInitialDraft({
-				panelId: EMPTY_STATE_PANEL_ID,
+				panelId: "empty-state-panel",
 				sessionId: null,
 				draft: "what is pwd here ?",
 				hasPendingUserEntry: true,
@@ -117,7 +111,7 @@ describe("empty-state send state", () => {
 	it("restores a persisted draft for empty panels without a session", () => {
 		expect(
 			shouldRestoreInitialDraft({
-				panelId: EMPTY_STATE_PANEL_ID,
+				panelId: "empty-state-panel",
 				sessionId: null,
 				draft: "hello",
 			})

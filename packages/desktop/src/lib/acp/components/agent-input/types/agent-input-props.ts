@@ -20,8 +20,6 @@ export interface NewThreadContextBinding {
 	readonly agent: Snippet;
 	/** Optional branch picker control rendered above the composer. */
 	readonly branch?: Snippet;
-	/** Optional extra rows in the setup settings menu (above the worktree default toggle). */
-	readonly settingsMenu?: Snippet;
 	/** Whether the worktree row applies (e.g. the project is a git repo). */
 	readonly showWorktree: boolean;
 	/** Whether a new worktree is requested for the thread. */
@@ -30,10 +28,6 @@ export interface NewThreadContextBinding {
 	readonly worktreeDisabled: boolean;
 	/** Toggles the pending worktree request. */
 	readonly onWorktreeToggle: (on: boolean) => void;
-	/** Whether new sessions default to creating a worktree (persisted global preference). */
-	readonly worktreeDefaultOn: boolean;
-	/** Persists the global "use worktrees by default" preference. */
-	readonly onWorktreeDefaultToggle: (on: boolean) => void;
 	/** Setup chip row alignment. Empty state uses `start`; agent panel keeps default `center`. */
 	readonly setupBarAlign?: "start" | "center";
 }

@@ -1,49 +1,83 @@
 /**
  * Worktree toggle persistence.
  *
- * Per-panel overrides use localStorage (transient, cleared on panel close).
- * Global default uses SQLite via tauriClient.settings (persistent user preference).
+ * Per-project defaults use SQLite via tauriClient.settings (persistent user preference).
+ * Legacy global default is read once for migration only.
  */
 
 import type { ResultAsync } from "neverthrow";
+
 import type { UserSettingKey } from "$lib/services/user-settings-types.js";
 import { tauriClient } from "$lib/utils/tauri-client.js";
 import type { AppError } from "../../errors/app-error.js";
 
-// ── Per-panel localStorage (transient overrides) ──
+export type WorktreeProjectDefaultsMap = Record<string, boolean>;
 
-const STORAGE_KEY_PREFIX = "acepe:worktree-enabled";
+const PROJECT_DEFAULTS_KEY: UserSettingKey = "worktree_project_defaults";
+const LEGACY_GLOBAL_DEFAULT_KEY: UserSettingKey = "worktree_global_default_enabled";
 
-function getStorageKey(panelId: string): string {
-	return `${STORAGE_KEY_PREFIX}:${panelId}`;
+export function isWorktreeProjectDefaultsEmpty(map: WorktreeProjectDefaultsMap): boolean {
+	for (const _key of Object.keys(map)) {
+		return false;
+	}
+	return true;
 }
 
-/**
- * Load worktree enabled state for a panel.
- * Falls back to globalDefault when the per-panel key has never been explicitly set.
- */
-export function loadWorktreeEnabled(panelId: string, globalDefault: boolean): boolean {
-	const stored = localStorage.getItem(getStorageKey(panelId));
-	if (stored === null) return globalDefault;
-	return stored === "true";
+export function getProjectWorktreeEnabled(
+	projectPath: string,
+	map: WorktreeProjectDefaultsMap
+): boolean {
+	const value = map[projectPath];
+	return value === true;
 }
 
-export function saveWorktreeEnabled(panelId: string, enabled: boolean): void {
-	localStorage.setItem(getStorageKey(panelId), String(enabled));
+export function setProjectWorktreeEnabled(
+	projectPath: string,
+	enabled: boolean,
+	map: WorktreeProjectDefaultsMap
+): WorktreeProjectDefaultsMap {
+	const next: WorktreeProjectDefaultsMap = {};
+	for (const key of Object.keys(map)) {
+		if (key !== projectPath) {
+			const existing = map[key];
+			if (existing !== undefined) {
+				next[key] = existing;
+			}
+		}
+	}
+	next[projectPath] = enabled;
+	return next;
 }
 
-export function clearWorktreeEnabled(panelId: string): void {
-	localStorage.removeItem(getStorageKey(panelId));
+export function migrateWorktreeProjectDefaultsFromGlobal(
+	map: WorktreeProjectDefaultsMap,
+	legacyGlobalEnabled: boolean,
+	projectPaths: readonly string[]
+): WorktreeProjectDefaultsMap {
+	if (!isWorktreeProjectDefaultsEmpty(map) || !legacyGlobalEnabled) {
+		return map;
+	}
+
+	const next: WorktreeProjectDefaultsMap = {};
+	for (const projectPath of projectPaths) {
+		next[projectPath] = true;
+	}
+	return next;
 }
 
-// ── Global default (SQLite-backed user preference) ──
+export function loadWorktreeProjectDefaults(): ResultAsync<WorktreeProjectDefaultsMap, AppError> {
+	return tauriClient.settings
+		.get<WorktreeProjectDefaultsMap>(PROJECT_DEFAULTS_KEY)
+		.map((value) => value ?? {});
+}
 
-const GLOBAL_DEFAULT_KEY: UserSettingKey = "worktree_global_default_enabled";
+export function saveWorktreeProjectDefaults(
+	map: WorktreeProjectDefaultsMap
+): ResultAsync<void, AppError> {
+	return tauriClient.settings.set(PROJECT_DEFAULTS_KEY, map);
+}
 
+/** Legacy global default — read-only for one-time migration. */
 export function loadWorktreeDefault(): ResultAsync<boolean, AppError> {
-	return tauriClient.settings.get<boolean>(GLOBAL_DEFAULT_KEY).map((v) => v ?? false);
-}
-
-export function saveWorktreeDefault(enabled: boolean): ResultAsync<void, AppError> {
-	return tauriClient.settings.set(GLOBAL_DEFAULT_KEY, enabled);
+	return tauriClient.settings.get<boolean>(LEGACY_GLOBAL_DEFAULT_KEY).map((value) => value ?? false);
 }

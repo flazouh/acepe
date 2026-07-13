@@ -118,9 +118,7 @@ describe("resolveKanbanNewSessionDefaults", () => {
 			},
 			currentComposerKey: 4,
 			fallbackModeId: CanonicalModeId.BUILD,
-			globalWorktreeDefault: true,
-			loadWorktreeEnabled: () => true,
-			panelId: "kanban-new-session-dialog",
+			isProjectWorktreeEnabled: () => true,
 		});
 
 		expect(result).toEqual({
@@ -142,11 +140,8 @@ describe("resolveKanbanNewSessionDefaults", () => {
 			selectedAgentIds: [],
 			currentComposerKey: 1,
 			fallbackModeId: CanonicalModeId.BUILD,
-			globalWorktreeDefault: true,
-			loadWorktreeEnabled: () => true,
-			panelId: "kanban-new-session-dialog",
+			isProjectWorktreeEnabled: () => true,
 		});
-
 		expect(result.selectedProjectPath).toBeNull();
 		expect(result.selectedAgentId).toBeNull();
 		expect(result.initialModeId).toBe(CanonicalModeId.BUILD);
@@ -157,9 +152,7 @@ describe("resolveKanbanNewSessionDefaults", () => {
 	it("builds project change state with re-resolved worktree pending", () => {
 		const result = buildKanbanNewSessionProjectChangeState({
 			projectPath: "/new",
-			globalWorktreeDefault: false,
-			loadWorktreeEnabled: (panelId) => panelId === "kanban-new-session-dialog",
-			panelId: "kanban-new-session-dialog",
+			isProjectWorktreeEnabled: (path) => path === "/new",
 		});
 
 		expect(result).toEqual({

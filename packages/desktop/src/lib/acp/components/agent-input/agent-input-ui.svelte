@@ -1677,13 +1677,10 @@ $effect(() => {
 					project={newThread.project}
 					agent={newThread.agent}
 					branch={newThread.branch}
-					settingsMenu={newThread.settingsMenu}
 					showWorktree={newThread.showWorktree}
 					worktreeOn={newThread.worktreeOn}
 					worktreeDisabled={newThread.worktreeDisabled}
 					onWorktreeToggle={newThread.onWorktreeToggle}
-					worktreeDefaultOn={newThread.worktreeDefaultOn}
-					onWorktreeDefaultToggle={newThread.onWorktreeDefaultToggle}
 					align={newThread.setupBarAlign ?? "center"}
 				/>
 			</div>

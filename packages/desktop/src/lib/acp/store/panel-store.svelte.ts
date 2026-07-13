@@ -11,7 +11,6 @@
 import { getContext, setContext } from "svelte";
 import { SvelteMap } from "svelte/reactivity";
 import type { ModifiedFilesState } from "../types/modified-files-state.js";
-import { clearWorktreeEnabled } from "../components/worktree/worktree-storage.js";
 import type { PreparedWorktreeLaunch } from "../types/worktree-info.js";
 import { createLogger } from "../utils/logger.js";
 import type { AgentStore } from "./agent-store.svelte.js";
@@ -87,7 +86,6 @@ export interface PanelClosePerformanceTrace {
 	readonly hotStateCleanupMs: number;
 	readonly fileOwnershipCleanupMs: number;
 	readonly embeddedTerminalCleanupMs: number;
-	readonly worktreeCleanupMs: number;
 	readonly focusStateApplyMs: number;
 	readonly persistMs: number;
 	readonly totalMs: number;
@@ -1154,13 +1152,6 @@ export class PanelStore {
 			performance.now() - embeddedTerminalCleanupStartedAtMs
 		);
 
-		// Clean up worktree localStorage for this panel
-		const worktreeCleanupStartedAtMs = performance.now();
-		clearWorktreeEnabled(panelId);
-		const worktreeCleanupMs = roundPanelClosePerformanceMs(
-			performance.now() - worktreeCleanupStartedAtMs
-		);
-
 		const focusStateApplyStartedAtMs = performance.now();
 		this.applyTopLevelPanelCloseState(closeState);
 		const focusStateApplyMs = roundPanelClosePerformanceMs(
@@ -1180,7 +1171,6 @@ export class PanelStore {
 			hotStateCleanupMs,
 			fileOwnershipCleanupMs,
 			embeddedTerminalCleanupMs,
-			worktreeCleanupMs,
 			focusStateApplyMs,
 			persistMs,
 			totalMs: roundPanelClosePerformanceMs(performance.now() - closeStartedAtMs),

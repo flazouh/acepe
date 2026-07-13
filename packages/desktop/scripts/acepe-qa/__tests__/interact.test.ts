@@ -1095,7 +1095,6 @@ describe("acepe-qa interaction helpers", () => {
 								hotStateCleanupMs: 1,
 								fileOwnershipCleanupMs: 0,
 								embeddedTerminalCleanupMs: 0,
-								worktreeCleanupMs: 0,
 								focusStateApplyMs: 0,
 								persistMs: 1,
 								totalMs: 4,

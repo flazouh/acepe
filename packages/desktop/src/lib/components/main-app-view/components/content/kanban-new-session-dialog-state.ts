@@ -40,16 +40,12 @@ export interface BuildKanbanNewSessionResetStateInput
 	readonly request?: KanbanNewSessionRequest | null;
 	readonly currentComposerKey: number;
 	readonly fallbackModeId: CanonicalModeId;
-	readonly globalWorktreeDefault: boolean;
-	readonly loadWorktreeEnabled: (panelId: string, globalDefault: boolean) => boolean;
-	readonly panelId: string;
+	readonly isProjectWorktreeEnabled: (projectPath: string) => boolean;
 }
 
 export interface BuildKanbanNewSessionProjectChangeStateInput {
 	readonly projectPath: string;
-	readonly globalWorktreeDefault: boolean;
-	readonly loadWorktreeEnabled: (panelId: string, globalDefault: boolean) => boolean;
-	readonly panelId: string;
+	readonly isProjectWorktreeEnabled: (projectPath: string) => boolean;
 }
 
 export interface KanbanNewSessionProjectChangeState {
@@ -151,9 +147,8 @@ export function buildKanbanNewSessionResetState(
 		worktreePending: defaults.projectPath
 			? resolveEmptyStateWorktreePending({
 					activeWorktreePath: null,
-					globalWorktreeDefault: input.globalWorktreeDefault,
-					loadEnabled: input.loadWorktreeEnabled,
-					panelId: input.panelId,
+					projectPath: defaults.projectPath,
+					isProjectWorktreeEnabled: input.isProjectWorktreeEnabled,
 				})
 			: false,
 	};
@@ -168,9 +163,8 @@ export function buildKanbanNewSessionProjectChangeState(
 		preparedWorktreeLaunch: null,
 		worktreePending: resolveEmptyStateWorktreePending({
 			activeWorktreePath: null,
-			globalWorktreeDefault: input.globalWorktreeDefault,
-			loadEnabled: input.loadWorktreeEnabled,
-			panelId: input.panelId,
+			projectPath: input.projectPath,
+			isProjectWorktreeEnabled: input.isProjectWorktreeEnabled,
 		}),
 	};
 }

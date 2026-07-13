@@ -1,7 +1,9 @@
 import { okAsync } from "neverthrow";
 import { describe, expect, it, vi } from "vitest";
 
-const openUrlMock = vi.fn();
+const { openUrlMock } = vi.hoisted(() => ({
+	openUrlMock: vi.fn(),
+}));
 
 vi.mock("$lib/services/zoom.svelte.js", () => ({
 	getZoomService: () => ({
@@ -17,7 +19,7 @@ vi.mock("@tauri-apps/plugin-opener", () => ({
 	openUrl: openUrlMock,
 }));
 
-import type { WorktreeDefaultStore } from "$lib/acp/components/worktree/worktree-default-store.svelte.js";
+import type { WorktreeProjectDefaultStore } from "$lib/acp/components/worktree/worktree-project-default-store.svelte.js";
 import type { Project, ProjectManager } from "$lib/acp/logic/project-manager.svelte.js";
 import type { SelectorRegistry } from "$lib/acp/logic/selector-registry.svelte.js";
 import type { AgentPreferencesStore } from "$lib/acp/store/agent-preferences-store.svelte.js";
@@ -155,6 +157,10 @@ function createState(options?: {
 		"beginAttempt" | "clearAttempt" | "hydrateFound" | "isCurrentAttempt"
 	>;
 
+	const worktreeProjectDefaultStore = {
+		isEnabled: () => false,
+	} as unknown as WorktreeProjectDefaultStore;
+
 	const state = new MainAppViewState(
 		{} as SessionStore,
 		panelStore as PanelStore,
@@ -165,7 +171,7 @@ function createState(options?: {
 		agentPreferencesStore as AgentPreferencesStore,
 		keybindingsService as KeybindingsService,
 		selectorRegistry as SelectorRegistry,
-		{} as WorktreeDefaultStore,
+		worktreeProjectDefaultStore,
 		sessionOpenHydrator
 	);
 
