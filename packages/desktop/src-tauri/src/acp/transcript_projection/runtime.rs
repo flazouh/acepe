@@ -1,7 +1,10 @@
 use crate::acp::projections::{RouteDecision, TerminalTurnGuard};
 use crate::acp::session::delivery::live_transcript_fold::{
     fold_backed_session_update, graph_from_transcript_snapshot,
+    transcript_delta_operations_for_event,
 };
+use crate::acp::session::ingress::event::ProviderEvent;
+use crate::acp::session_state_engine::runtime_registry::ProviderEventTransition;
 use crate::acp::session_update::{SessionUpdate, ToolCallData, ToolKind};
 use crate::acp::transcript_projection::delta::{TranscriptDelta, TranscriptDeltaOperation};
 use crate::acp::transcript_projection::display_id::{
@@ -150,6 +153,50 @@ impl TranscriptProjectionRegistry {
             update,
             TerminalTurnGuard::default().route(update),
         )
+    }
+
+    /// Mirrors an atomic held-graph provider-event transition into this
+    /// registry's projection without refolding provider data.
+    ///
+    /// Duplicate events (`transition.applied == false`) are a no-op: `None`
+    /// is returned and the projection is left unchanged. Otherwise the
+    /// projection's transcript snapshot is unconditionally replaced with
+    /// `transition.after` — even when the derived operations are empty —
+    /// so the mirrored projection never diverges from the canonical held
+    /// graph. A `TranscriptDelta` is only returned when the event-aware
+    /// operations derived from `transition.before`/`transition.after` are
+    /// non-empty.
+    ///
+    /// This path never calls `graph_from_transcript_snapshot` or folds
+    /// again: it is a pure mirror of the already-folded transition.
+    #[must_use]
+    pub(crate) fn mirror_provider_event_transition(
+        &self,
+        event_seq: i64,
+        event: &ProviderEvent,
+        transition: &ProviderEventTransition,
+    ) -> Option<TranscriptDelta> {
+        if !transition.applied {
+            return None;
+        }
+        let session_id = transition.after.canonical_session_id.clone();
+        let operations = transcript_delta_operations_for_event(
+            event,
+            &transition.before.transcript_snapshot,
+            &transition.after.transcript_snapshot,
+        );
+        let mut session = self.sessions.entry(session_id.clone()).or_default();
+        let snapshot_revision = session.mirror_from_transition(event_seq, &transition.after);
+        drop(session);
+        if operations.is_empty() {
+            return None;
+        }
+        Some(TranscriptDelta {
+            event_seq,
+            session_id,
+            snapshot_revision,
+            operations,
+        })
     }
 }
 
@@ -406,6 +453,22 @@ impl SessionTranscriptProjection {
             assistant_boundary_entry_count_from_transcript_entries(&self.entries);
     }
 
+    /// Replaces this projection's compatibility snapshot with the held
+    /// graph's transcript snapshot after a transition, without refolding.
+    fn mirror_from_transition(
+        &mut self,
+        event_seq: i64,
+        graph: &crate::acp::session_state_engine::graph::SessionStateGraph,
+    ) -> i64 {
+        self.revision = self
+            .revision
+            .max(graph.transcript_snapshot.revision)
+            .max(event_seq);
+        self.source = graph.agent_id.clone();
+        self.sync_entries_from_graph(graph);
+        self.revision
+    }
+
     fn upsert_transcript_entry(&mut self, _event_seq: i64, entry: TranscriptEntry) {
         self.upsert_entry(entry);
     }
@@ -502,6 +565,9 @@ fn role_closes_assistant_boundary(role: &TranscriptEntryRole) -> bool {
 mod tests {
     use super::TranscriptProjectionRegistry;
     use crate::acp::projections::TerminalTurnGuard;
+    use crate::acp::session::engine::fold::{fold_full, fold_step_with_dedup, FoldContext};
+    use crate::acp::session::ingress::event::{ProviderEvent, ProviderEventKind};
+    use crate::acp::session_state_engine::runtime_registry::ProviderEventTransition;
     use crate::acp::session_update::{
         ContentChunk, QuestionItem, QuestionOption, SessionCompactionEvent,
         SessionCompactionStatus, SessionCompactionTrigger, SessionUpdate, ToolArguments,
@@ -512,7 +578,7 @@ mod tests {
         TranscriptEntry, TranscriptEntryRole, TranscriptSegment, TranscriptSnapshot,
     };
     use crate::acp::transcript_projection::TranscriptDeltaOperation;
-    use crate::acp::types::ContentBlock;
+    use crate::acp::types::{CanonicalAgentId, ContentBlock};
 
     fn transcript_entry(entry_id: &str, role: TranscriptEntryRole, text: &str) -> TranscriptEntry {
         TranscriptEntry {
@@ -525,6 +591,119 @@ mod tests {
             attempt_id: None,
             timestamp_ms: None,
         }
+    }
+
+    #[test]
+    fn mirror_provider_event_transition_exactly_mirrors_held_graph_with_one_append_delta() {
+        let session_id = "session-mirror";
+        let ctx = FoldContext::new(session_id, CanonicalAgentId::Cursor, "/workspace");
+        let history_event = ProviderEvent {
+            source: CanonicalAgentId::Cursor,
+            provider_seq: 1,
+            provider_row_id: "history-user".to_string(),
+            timestamp_ms: None,
+            kind: ProviderEventKind::UserText {
+                text: "history".to_string(),
+                attempt_id: None,
+            },
+        };
+        let before_graph = fold_full(&[history_event], &ctx);
+
+        let live_event = ProviderEvent {
+            source: CanonicalAgentId::Cursor,
+            provider_seq: 2,
+            provider_row_id: "live-assistant".to_string(),
+            timestamp_ms: None,
+            kind: ProviderEventKind::AssistantText {
+                text: "live".to_string(),
+            },
+        };
+        let (after_graph, _delta) = fold_step_with_dedup(&before_graph, &live_event, &mut None);
+        let transition = ProviderEventTransition {
+            before: before_graph,
+            after: after_graph.clone(),
+            applied: true,
+        };
+
+        let registry = TranscriptProjectionRegistry::new();
+        let mut existing_snapshot = transition.before.transcript_snapshot.clone();
+        existing_snapshot.revision = 8;
+        registry.restore_session_snapshot(session_id.to_string(), existing_snapshot);
+        let delta = registry
+            .mirror_provider_event_transition(2, &live_event, &transition)
+            .expect("applied transition with new transcript content must yield a delta");
+
+        assert_eq!(
+            delta.operations.len(),
+            1,
+            "exactly one append delta expected for the new assistant event"
+        );
+        assert!(matches!(
+            &delta.operations[0],
+            TranscriptDeltaOperation::AppendEntry { .. }
+        ));
+        assert_eq!(delta.session_id, session_id);
+        assert_eq!(delta.event_seq, 2);
+        assert_eq!(
+            delta.snapshot_revision, 8,
+            "journal and transcript clocks must remain monotonic without being conflated"
+        );
+
+        let snapshot = registry
+            .snapshot_for_session(session_id)
+            .expect("mirrored snapshot should exist after applying the transition");
+        assert_eq!(
+            snapshot.entries, after_graph.transcript_snapshot.entries,
+            "mirrored entries must exactly equal the held graph's after snapshot"
+        );
+        assert_eq!(snapshot.revision, 8);
+    }
+
+    #[test]
+    fn mirror_provider_event_transition_duplicate_returns_none_and_leaves_snapshot_unchanged() {
+        let session_id = "session-mirror-dup";
+        let existing_snapshot = TranscriptSnapshot {
+            revision: 3,
+            entries: vec![transcript_entry(
+                "entry-0",
+                TranscriptEntryRole::User,
+                "already there",
+            )],
+        };
+        let registry = TranscriptProjectionRegistry::new();
+        registry.restore_session_snapshot(session_id.to_string(), existing_snapshot.clone());
+
+        let ctx = FoldContext::new(session_id, CanonicalAgentId::Cursor, "/workspace");
+        let unchanged_graph = fold_full(&[], &ctx);
+        let duplicate_event = ProviderEvent {
+            source: CanonicalAgentId::Cursor,
+            provider_seq: 1,
+            provider_row_id: "already-applied".to_string(),
+            timestamp_ms: None,
+            kind: ProviderEventKind::AssistantText {
+                text: "ignored".to_string(),
+            },
+        };
+        let duplicate_transition = ProviderEventTransition {
+            before: unchanged_graph.clone(),
+            after: unchanged_graph,
+            applied: false,
+        };
+
+        let delta =
+            registry.mirror_provider_event_transition(9, &duplicate_event, &duplicate_transition);
+
+        assert!(
+            delta.is_none(),
+            "a duplicate transition (applied == false) must not produce a transcript delta"
+        );
+        let snapshot = registry
+            .snapshot_for_session(session_id)
+            .expect("existing snapshot must remain readable");
+        assert_eq!(
+            snapshot, existing_snapshot,
+            "duplicate transitions must leave the mirrored projection unchanged"
+        );
     }
 
     #[test]

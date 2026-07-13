@@ -58,7 +58,13 @@ pub(crate) fn fold_backed_provider_event(
     Some(operations)
 }
 
-fn transcript_delta_operations_for_event(
+/// Derives transcript delta operations for one provider event from the
+/// before/after transcript snapshots straddling its fold. Event-aware so
+/// tool identity is resolved via the event's own tool-call id rather than
+/// diffed positionally, which is what preserves tool identity rules (a
+/// positional diff can misidentify a tool row when unrelated entries shift).
+#[must_use]
+pub(crate) fn transcript_delta_operations_for_event(
     event: &ProviderEvent,
     before: &TranscriptSnapshot,
     after: &TranscriptSnapshot,

@@ -69,6 +69,17 @@ struct HeldSessionGraph {
     applied_fold_keys: Option<HashSet<String>>,
 }
 
+/// Atomic before/after result of folding one provider event onto the held
+/// `SessionStateGraph`. `applied` is `false` when the event was a dedup-key
+/// duplicate, in which case `before` and `after` are identical clones of the
+/// unchanged held graph.
+#[derive(Debug, Clone)]
+pub(crate) struct ProviderEventTransition {
+    pub(crate) before: SessionStateGraph,
+    pub(crate) after: SessionStateGraph,
+    pub(crate) applied: bool,
+}
+
 /// Why the builder could not materialize a visible transcript window for a command.
 ///
 /// Distinguishes the recoverable "no canonical state in this backend runtime" case
@@ -225,20 +236,58 @@ impl SessionGraphRuntimeRegistry {
             .map(|held| held.graph.clone())
     }
 
-    pub fn apply_provider_event(
+    /// Applies one provider event to the held graph, holding the graph mutex
+    /// exactly once and folding exactly once, returning an atomic
+    /// before/after transition. `applied` is derived from the dedup-key set
+    /// size before/after the fold: a duplicate event leaves the set (and the
+    /// graph) unchanged, so `before == after` and `applied` is `false`.
+    ///
+    /// Callers that need to mirror this transition (e.g. the transcript
+    /// projection) must use `transition.before`/`transition.after` directly
+    /// rather than re-deriving the graph from a snapshot or folding again.
+    pub(crate) fn apply_provider_event_transition(
         &self,
         session_id: &str,
         event: &ProviderEvent,
-    ) -> Option<SessionStateGraph> {
+    ) -> Option<ProviderEventTransition> {
         let mut graphs = self.graphs.lock().expect("session graphs mutex poisoned");
         let held = graphs.get_mut(session_id)?;
+        let before = held.graph.clone();
+        let dedup_enabled = held.applied_fold_keys.is_some();
+        let dedup_len_before = held
+            .applied_fold_keys
+            .as_ref()
+            .map(HashSet::len)
+            .unwrap_or(0);
         let (next, _delta) = crate::acp::session::engine::fold::fold_step_with_dedup(
             &held.graph,
             event,
             &mut held.applied_fold_keys,
         );
+        let dedup_len_after = held
+            .applied_fold_keys
+            .as_ref()
+            .map(HashSet::len)
+            .unwrap_or(0);
+        let applied = !dedup_enabled || dedup_len_after > dedup_len_before;
         held.graph = next;
-        Some(held.graph.clone())
+        let after = held.graph.clone();
+        Some(ProviderEventTransition {
+            before,
+            after,
+            applied,
+        })
+    }
+
+    /// Compatibility wrapper over [`Self::apply_provider_event_transition`]
+    /// for callers that only need the resulting graph.
+    pub fn apply_provider_event(
+        &self,
+        session_id: &str,
+        event: &ProviderEvent,
+    ) -> Option<SessionStateGraph> {
+        self.apply_provider_event_transition(session_id, event)
+            .map(|transition| transition.after)
     }
 
     pub fn restore_session_checkpoint(&self, session_id: String, checkpoint: LifecycleCheckpoint) {
@@ -1400,6 +1449,83 @@ mod tests {
 
         registry.remove_session(session_id);
         assert!(registry.graph_for_session(session_id).is_none());
+    }
+
+    #[test]
+    fn apply_provider_event_transition_reports_applied_before_after_and_dedups_duplicates() {
+        let registry = SessionGraphRuntimeRegistry::new();
+        let session_id = "sess-held-transition";
+        let history_event = ProviderEvent {
+            source: CanonicalAgentId::Cursor,
+            provider_seq: 1,
+            provider_row_id: "history-user".to_string(),
+            timestamp_ms: None,
+            kind: ProviderEventKind::UserText {
+                text: "history".to_string(),
+                attempt_id: None,
+            },
+        };
+        let live_event = ProviderEvent {
+            source: CanonicalAgentId::Cursor,
+            provider_seq: 2,
+            provider_row_id: "live-assistant".to_string(),
+            timestamp_ms: None,
+            kind: ProviderEventKind::AssistantText {
+                text: "live".to_string(),
+            },
+        };
+        let history_graph = fold_full(
+            &[history_event],
+            &FoldContext::new(session_id, CanonicalAgentId::Cursor, "/workspace"),
+        );
+        registry.seed_graph(session_id.to_string(), history_graph);
+
+        let first_transition = registry
+            .apply_provider_event_transition(session_id, &live_event)
+            .expect("seeded graph should accept a live event");
+        assert!(
+            first_transition.applied,
+            "first application of a new event must be applied"
+        );
+        assert_eq!(
+            first_transition.before.transcript_snapshot.entries.len(),
+            1,
+            "before must be the pre-fold graph, carrying only the seeded history entry"
+        );
+        assert_eq!(
+            first_transition.after.transcript_snapshot.entries.len(),
+            2,
+            "after must be the post-fold graph, carrying the seeded entry plus the new one"
+        );
+
+        let second_transition = registry
+            .apply_provider_event_transition(session_id, &live_event)
+            .expect("duplicate live event should still resolve to the held graph");
+        assert!(
+            !second_transition.applied,
+            "re-applying the same provider_row_id must be recognized as a duplicate"
+        );
+        assert_eq!(
+            second_transition.before.transcript_snapshot.entries.len(),
+            2,
+            "duplicate transition's before must equal the already-folded graph"
+        );
+        assert_eq!(
+            second_transition.before.transcript_snapshot,
+            second_transition.after.transcript_snapshot,
+            "duplicate transition must leave the graph unchanged: before == after"
+        );
+
+        assert_eq!(
+            registry
+                .graph_for_session(session_id)
+                .expect("held graph should be readable")
+                .transcript_snapshot
+                .entries
+                .len(),
+            2,
+            "held graph must not double-apply the duplicate event"
+        );
     }
 
     use crate::acp::client_session::{default_modes, default_session_model_state};
