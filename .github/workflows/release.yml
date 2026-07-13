@@ -22,7 +22,7 @@ jobs:
   release:
     name: Build and release (macOS aarch64)
     runs-on: macos-latest
-    timeout-minutes: 120
+    timeout-minutes: 360
 
     steps:
       - uses: actions/checkout@v5
