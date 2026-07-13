@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2026.7.13] - 2026-07-13
+
+### Fixed
+- Release a current signed macOS build that includes the July database migrations, so installed Acepe can open databases created by recent development builds.
+
 ## [2026.6.26] - 2026-06-23
 
 ### Added
